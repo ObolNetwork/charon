@@ -14,7 +14,7 @@ require (
 	github.com/ipfs/go-log/v2 v2.5.1
 	github.com/jonboulle/clockwork v0.3.0
 	github.com/jsternberg/zap-logfmt v1.3.0
-	github.com/libp2p/go-libp2p v0.22.0
+	github.com/libp2p/go-libp2p v0.23.4
 	github.com/multiformats/go-multiaddr v0.8.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/protolambda/eth2-shuffle v1.1.0
@@ -54,10 +54,9 @@ require (
 	github.com/bufbuild/protocompile v0.2.0 // indirect
 	github.com/bwesterb/go-ristretto v1.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
-	github.com/cheekybits/genny v1.0.0 // indirect
 	github.com/consensys/gnark-crypto v0.5.3 // indirect
 	github.com/containerd/cgroups v1.0.4 // indirect
-	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
+	github.com/coreos/go-systemd/v22 v22.4.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
@@ -83,6 +82,7 @@ require (
 	github.com/gofrs/flock v0.8.1 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/go-containerregistry v0.13.0 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
@@ -91,7 +91,7 @@ require (
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/huin/goupnp v1.0.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/ipfs/go-cid v0.2.0 // indirect
+	github.com/ipfs/go-cid v0.3.2 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
 	github.com/jdxcode/netrc v0.0.0-20221124155335-4616370d1a84 // indirect
@@ -108,11 +108,9 @@ require (
 	github.com/libp2p/go-netroute v0.2.0 // indirect
 	github.com/libp2p/go-openssl v0.1.0 // indirect
 	github.com/libp2p/go-reuseport v0.2.0 // indirect
-	github.com/libp2p/go-yamux/v3 v3.1.2 // indirect
-	github.com/lucas-clemente/quic-go v0.28.1 // indirect
+	github.com/libp2p/go-yamux/v4 v4.0.0 // indirect
+	github.com/lucas-clemente/quic-go v0.29.1 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
-	github.com/marten-seemann/qtls-go1-16 v0.1.5 // indirect
-	github.com/marten-seemann/qtls-go1-17 v0.1.2 // indirect
 	github.com/marten-seemann/qtls-go1-18 v0.1.2 // indirect
 	github.com/marten-seemann/qtls-go1-19 v0.1.0 // indirect
 	github.com/marten-seemann/tcp v0.0.0-20210406111302-dfbc87cc63fd // indirect
@@ -129,12 +127,12 @@ require (
 	github.com/moby/term v0.0.0-20221205130635-1aeaba878587 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect
-	github.com/multiformats/go-base32 v0.0.4 // indirect
+	github.com/multiformats/go-base32 v0.1.0 // indirect
 	github.com/multiformats/go-base36 v0.1.0 // indirect
 	github.com/multiformats/go-multiaddr-dns v0.3.1 // indirect
 	github.com/multiformats/go-multiaddr-fmt v0.1.0 // indirect
 	github.com/multiformats/go-multibase v0.1.1 // indirect
-	github.com/multiformats/go-multicodec v0.5.0 // indirect
+	github.com/multiformats/go-multicodec v0.6.0 // indirect
 	github.com/multiformats/go-multihash v0.2.1 // indirect
 	github.com/multiformats/go-multistream v0.3.3 // indirect
 	github.com/multiformats/go-varint v0.0.6 // indirect
@@ -168,6 +166,7 @@ require (
 	go.opentelemetry.io/otel/metric v0.36.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
+	golang.org/x/exp v0.0.0-20230131160201-f062dba9d201 // indirect
 	golang.org/x/mod v0.8.0 // indirect
 	golang.org/x/net v0.7.0 // indirect
 	golang.org/x/sys v0.5.0 // indirect
