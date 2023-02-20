@@ -79,7 +79,7 @@ var (
 		Namespace: "app",
 		Subsystem: "beacon_node",
 		Name:      "peers",
-		Help:      "Gauge set to the peer count of the beacon node connected to this charon instance",
+		Help:      "Gauge set to the peer count of the upstream beacon node",
 	})
 
 	beaconNodeVersionGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
