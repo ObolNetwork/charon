@@ -18,9 +18,9 @@ package combine
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
-	"fmt"
-	"io/fs"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -35,45 +35,26 @@ import (
 // Combine combines validator keys contained in inputDir, and writes the original BLS12-381 private keys.
 // Combine is validator-aware: it'll recombine all the validator keys listed in the "Validator" field of the lock file.
 // To do so, the user must prepare inputDir as follows:
-//   - place the lock file in input dir, named as "cluster-lock.json"
-//   - create one directory for each operator, named after their ENR
-//   - place in each of those directories the content of the "validator_keys" directory, contained in their Charon runtime
-//     directory
+//   - place the ".charon" directory in inputDir, renamed to another name
+//
+// Combine will create a new directory named after the public key of each validator key reconstructed, containing each
+// keystore.
 func Combine(ctx context.Context, inputDir string, force bool) error {
-	lfPath := filepath.Join(inputDir, "cluster-lock.json")
-	b, err := os.Open(lfPath)
-	if err != nil {
-		return errors.Wrap(err, "read lock file")
-	}
-
-	var lock cluster.Lock
-	if err := json.NewDecoder(b).Decode(&lock); err != nil {
-		return errors.Wrap(err, "unmarshal lock file")
-	}
-
 	log.Info(ctx, "Recombining key shares",
-		z.Int("validators_amount", lock.NumValidators),
-		z.Str("lockfile", lfPath),
 		z.Str("input_dir", inputDir),
 	)
 
+	lock, possibleKeyPaths, err := loadLockfile(inputDir)
+	if err != nil {
+		return errors.Wrap(err, "cannot open lock file")
+	}
+
 	privkeys := make(map[int][]tblsv2.PrivateKey)
 
-	// check that for each ENR there's a directory and load the private keys
-	for _, op := range lock.Definition.Operators {
-		ep := filepath.Join(inputDir, op.ENR)
-		_, err := os.Stat(ep)
+	for _, pkp := range possibleKeyPaths {
+		secrets, err := keystore.LoadKeys(pkp)
 		if err != nil {
-			if !errors.Is(err, fs.ErrNotExist) {
-				return errors.Wrap(err, "enr directory error")
-			}
-
-			return errors.New("enr path not found", z.Str("path", ep))
-		}
-
-		secrets, err := keystore.LoadKeys(ep)
-		if err != nil {
-			return errors.Wrap(err, "cannot load keystore", z.Str("path", ep))
+			return errors.Wrap(err, "cannot load keystore", z.Str("path", pkp))
 		}
 
 		for idx, secret := range secrets {
@@ -114,15 +95,19 @@ func Combine(ctx context.Context, inputDir string, force bool) error {
 			return errors.New("generated and lockfile public key for validator DO NOT match", z.Int("validator_number", idx))
 		}
 
-		outFile := filepath.Join(inputDir, fmt.Sprintf("%v.privkey", val.PublicKeyHex()))
-
-		_, err = os.Stat(outFile)
-		if err == nil && !force {
-			return errors.New("refusing to overwrite existing private key", z.Int("validator_number", idx), z.Str("path", outFile))
+		outPath := filepath.Join(inputDir, val.PublicKeyHex())
+		if err := os.Mkdir(outPath, 0o755); err != nil {
+			return errors.Wrap(err, "output directory creation", z.Int("validator_number", idx))
 		}
 
-		if err := os.WriteFile(outFile, secret[:], 0o600); err != nil {
-			return errors.Wrap(err, "cannot write private key file", z.Int("validator_number", idx), z.Str("path", outFile))
+		ksPath := filepath.Join(outPath, "keystore-0.json")
+		_, err = os.Stat(ksPath)
+		if err == nil && !force {
+			return errors.New("refusing to overwrite existing private key", z.Int("validator_number", idx), z.Str("path", ksPath))
+		}
+
+		if err := keystore.StoreKeys([]tblsv2.PrivateKey{secret}, outPath); err != nil {
+			return errors.Wrap(err, "cannot store keystore", z.Int("validator_number", idx))
 		}
 	}
 
@@ -168,4 +153,66 @@ func secretsToShares(lock cluster.Lock, secrets []tblsv2.PrivateKey) (map[int]tb
 	}
 
 	return resp, nil
+}
+
+// loadLockfile loads a lockfile from one of the charon directories contained in dir.
+// It checks that all the directories containing a validator_keys subdirectory contain the same cluster_lock.json file.
+// It returns the cluster.Lock read from the lock file, and a list of directories that possibly contains keys.
+func loadLockfile(dir string) (cluster.Lock, []string, error) {
+	root, err := os.ReadDir(dir)
+	if err != nil {
+		return cluster.Lock{}, nil, errors.Wrap(err, "can't read directory")
+	}
+
+	lfFound := false
+	lastLockfileHash := [32]byte{}
+	lfContent := []byte{}
+	possibleValKeysDir := []string{}
+	for _, sd := range root {
+		if !sd.IsDir() {
+			continue
+		}
+
+		// try opening the lock file
+		lfPath := filepath.Join(dir, sd.Name(), "cluster-lock.json")
+		b, err := os.Open(lfPath)
+		if err != nil {
+			continue
+		}
+
+		// does this directory contains a "validator_keys" directory? if yes continue and add it as a candidate
+		vcdPath := filepath.Join(dir, sd.Name(), "validator_keys")
+		_, err = os.ReadDir(vcdPath)
+		if err != nil {
+			continue
+		}
+
+		possibleValKeysDir = append(possibleValKeysDir, vcdPath)
+
+		lfc, err := io.ReadAll(b)
+		if err != nil {
+			continue
+		}
+
+		lfHash := sha256.Sum256(lfc)
+
+		if lastLockfileHash != [32]byte{} && lfHash != lastLockfileHash {
+			return cluster.Lock{}, nil, errors.New("found different lockfile in node directory", z.Str("name", sd.Name()))
+		}
+
+		lastLockfileHash = lfHash
+		lfContent = lfc
+		lfFound = true
+	}
+
+	if !lfFound {
+		return cluster.Lock{}, nil, errors.New("lock file not found")
+	}
+
+	var lock cluster.Lock
+	if err := json.Unmarshal(lfContent, &lock); err != nil {
+		return cluster.Lock{}, nil, errors.Wrap(err, "unmarshal lock file")
+	}
+
+	return lock, possibleValKeysDir, nil
 }

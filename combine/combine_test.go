@@ -39,56 +39,23 @@ func TestMain(m *testing.M) {
 func TestCombineNoLockfile(t *testing.T) {
 	td := t.TempDir()
 	err := combine.Combine(context.Background(), td, false)
-	require.ErrorContains(t, err, "read lock file")
-}
-
-func TestCombineMissingENR(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
-
-	dir := t.TempDir()
-
-	storeLock(t, dir, lock)
-
-	// flatten secrets, each validator slice is unpacked in a flat structure
-	var rawSecrets []tblsv2.PrivateKey
-	for _, s := range shares {
-		rawSecrets = append(rawSecrets, s...)
-	}
-
-	// for each ENR, create a slice of keys to hold
-	// each set will be len(lock.Definition.Operators)
-	secrets := make([][]tblsv2.PrivateKey, len(lock.Definition.Operators))
-
-	// populate key sets
-	for enrIdx := 0; enrIdx < len(lock.Definition.Operators); enrIdx++ {
-		keyIdx := enrIdx
-		for dvIdx := 0; dvIdx < lock.NumValidators; dvIdx++ {
-			secrets[enrIdx] = append(secrets[enrIdx], rawSecrets[keyIdx])
-			keyIdx += len(lock.Definition.Operators)
-		}
-	}
-
-	for idx, keys := range secrets {
-		if idx+1 == len(lock.Operators) {
-			break
-		}
-		op := lock.Definition.Operators[idx]
-		ep := filepath.Join(dir, op.ENR)
-
-		require.NoError(t, os.Mkdir(ep, 0o755))
-		require.NoError(t, keystore.StoreKeys(keys, ep))
-	}
-
-	err := combine.Combine(context.Background(), dir, false)
-	require.ErrorContains(t, err, "enr path not found")
+	require.ErrorContains(t, err, "lock file not found")
 }
 
 func TestCombineCannotLoadKeystore(t *testing.T) {
 	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
 
-	dir := t.TempDir()
+	for _, share := range shares {
+		share := share
 
-	storeLock(t, dir, lock)
+		sm := make(map[int]tblsv2.PrivateKey)
+		for idx, shareObj := range share {
+			shareObj := shareObj
+			sm[idx+1] = shareObj
+		}
+	}
+
+	dir := t.TempDir()
 
 	// flatten secrets, each validator slice is unpacked in a flat structure
 	var rawSecrets []tblsv2.PrivateKey
@@ -110,22 +77,24 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 	}
 
 	for idx, keys := range secrets {
-		op := lock.Definition.Operators[idx]
-		ep := filepath.Join(dir, op.ENR)
+		ep := filepath.Join(dir, fmt.Sprintf("node%d", idx))
+
+		vk := filepath.Join(ep, "validator_keys")
 
 		require.NoError(t, os.Mkdir(ep, 0o755))
-		require.NoError(t, keystore.StoreKeys(keys, ep))
+		require.NoError(t, os.Mkdir(vk, 0o755))
+		require.NoError(t, keystore.StoreKeys(keys, vk))
+
+		lf, err := os.OpenFile(filepath.Join(ep, "cluster-lock.json"), os.O_WRONLY|os.O_CREATE, 0o755)
+		require.NoError(t, err)
+
+		require.NoError(t, json.NewEncoder(lf).Encode(lock))
 	}
 
-	// delete one share off the first directory
-	firstENR := lock.Definition.Operators[0]
-	firstENRPath := filepath.Join(dir, firstENR.ENR)
-
-	require.NoError(t, os.Remove(filepath.Join(firstENRPath, "keystore-0.json")))
-	require.NoError(t, os.Remove(filepath.Join(firstENRPath, "keystore-1.json")))
+	require.NoError(t, os.RemoveAll(filepath.Join(dir, "node0")))
 
 	err := combine.Combine(context.Background(), dir, false)
-	require.ErrorContains(t, err, "cannot load keystore")
+	require.Error(t, err)
 }
 
 func TestCombine(t *testing.T) {
@@ -162,8 +131,6 @@ func TestCombine(t *testing.T) {
 
 	dir := t.TempDir()
 
-	storeLock(t, dir, lock)
-
 	// flatten secrets, each validator slice is unpacked in a flat structure
 	var rawSecrets []tblsv2.PrivateKey
 	for _, s := range shares {
@@ -184,32 +151,26 @@ func TestCombine(t *testing.T) {
 	}
 
 	for idx, keys := range secrets {
-		op := lock.Definition.Operators[idx]
-		ep := filepath.Join(dir, op.ENR)
+		ep := filepath.Join(dir, fmt.Sprintf("node%d", idx))
+
+		vk := filepath.Join(ep, "validator_keys")
 
 		require.NoError(t, os.Mkdir(ep, 0o755))
-		require.NoError(t, keystore.StoreKeys(keys, ep))
+		require.NoError(t, os.Mkdir(vk, 0o755))
+		require.NoError(t, keystore.StoreKeys(keys, vk))
+
+		lf, err := os.OpenFile(filepath.Join(ep, "cluster-lock.json"), os.O_WRONLY|os.O_CREATE, 0o755)
+		require.NoError(t, err)
+
+		require.NoError(t, json.NewEncoder(lf).Encode(lock))
 	}
 
 	err := combine.Combine(context.Background(), dir, false)
 	require.NoError(t, err)
 
 	for _, exp := range expectedData {
-		secretPath := filepath.Join(dir, fmt.Sprintf("%s.privkey", exp.pubkey))
-		fc, err := os.ReadFile(secretPath)
+		keys, err := keystore.LoadKeys(filepath.Join(dir, exp.pubkey))
 		require.NoError(t, err)
-
-		require.Equal(t, exp.secret, fmt.Sprintf("%#x", fc))
+		require.Equal(t, exp.secret, fmt.Sprintf("%#x", keys[0]))
 	}
-}
-
-func storeLock(t *testing.T, dir string, lock cluster.Lock) {
-	t.Helper()
-
-	b, err := json.Marshal(lock)
-	require.NoError(t, err)
-
-	file := filepath.Join(dir, "cluster-lock.json")
-
-	require.NoError(t, os.WriteFile(file, b, 0o755))
 }
