@@ -38,7 +38,7 @@ import (
 )
 
 // New returns a new Retryer instance.
-func New[T any](timeoutFunc func(T) (time.Time, bool)) (*Retryer[T], error) {
+func New[T any](timeoutFunc func(T) (time.Time, bool)) *Retryer[T] {
 	// ctxTimeoutFunc returns a context that is cancelled when duties for a slot have elapsed.
 	ctxTimeoutFunc := func(ctx context.Context, t T) (context.Context, context.CancelFunc) {
 		timeout, ok := timeoutFunc(t)
@@ -65,14 +65,14 @@ func NewForT[T any](
 	_ *testing.T,
 	ctxTimeoutFunc func(context.Context, T) (context.Context, context.CancelFunc),
 	backoffProvider func() func() <-chan time.Time,
-) (*Retryer[T], error) {
+) *Retryer[T] {
 	return newInternal(ctxTimeoutFunc, backoffProvider)
 }
 
 func newInternal[T any](
 	ctxTimeoutFunc func(context.Context, T) (context.Context, context.CancelFunc),
 	backoffProvider func() func() <-chan time.Time,
-) (*Retryer[T], error) {
+) *Retryer[T] {
 	// Create a fresh context used as parent of all async contexts
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -83,7 +83,7 @@ func newInternal[T any](
 		ctxTimeoutFunc:  ctxTimeoutFunc,
 		backoffProvider: backoffProvider,
 		active:          make(map[string]int),
-	}, nil
+	}
 }
 
 // Retryer provides execution of functions asynchronously with retry adding robustness to network errors.

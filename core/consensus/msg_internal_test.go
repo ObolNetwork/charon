@@ -194,7 +194,7 @@ func TestLegacyMsgHashAndSig(t *testing.T) {
 	hash, err := hashProto(msg)
 	require.NoError(t, err)
 
-	privkey := testutil.GenerateInsecureK1Key(t, rand.New(rand.NewSource(0)))
+	privkey := testutil.GenerateInsecureK1Key(t, 1)
 
 	sig, err := k1util.Sign(privkey, hash[:])
 	require.NoError(t, err)
@@ -204,7 +204,7 @@ func TestLegacyMsgHashAndSig(t *testing.T) {
 		hex.EncodeToString(hash[:]),
 	)
 	require.Equal(t,
-		"b8fe6df5596d4163324365231e0d465324a802bd8867cb0d0c56b21a2aa518c51f657102d979fb04ac319089921972aae124b7b232b83849beae7eb60ca76e6900",
+		"3590cdb8495d733414bd42c9826396936ea582278617a829b51f46c91618088244baf8f3d9e2ca944c214106b1f5115d9d9ebbec53818fa30d2ddbbd06eb640e00",
 		hex.EncodeToString(sig),
 	)
 

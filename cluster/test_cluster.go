@@ -83,7 +83,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 
 	for i := 0; i < n; i++ {
 		// Generate ENR
-		p2pKey := testutil.GenerateInsecureK1Key(t, random)
+		p2pKey := testutil.GenerateInsecureK1Key(t, seed+i)
 
 		record, err := enr.New(p2pKey)
 		require.NoError(t, err)

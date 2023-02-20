@@ -18,7 +18,6 @@ package sync_test
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"testing"
 	"time"
 
@@ -131,7 +130,7 @@ func testCluster(t *testing.T, n int) {
 func newTCPNode(t *testing.T, seed int64) (host.Host, libp2pcrypto.PrivKey) {
 	t.Helper()
 
-	key := testutil.GenerateInsecureK1Key(t, rand.New(rand.NewSource(seed)))
+	key := testutil.GenerateInsecureK1Key(t, int(seed))
 
 	addr := testutil.AvailableAddr(t)
 	multiAddr, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", addr.IP, addr.Port))
