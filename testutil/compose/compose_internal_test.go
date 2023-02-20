@@ -18,7 +18,6 @@ package compose
 import (
 	"bytes"
 	"context"
-	"math/rand"
 	"os"
 	"path"
 	"testing"
@@ -78,9 +77,9 @@ func TestDockerCompose(t *testing.T) {
 		},
 	}
 
-	random := rand.New(rand.NewSource(0))
+	const seed = 0
 	keyGenFunc = func() (*k1.PrivateKey, error) {
-		return testutil.GenerateInsecureK1Key(t, random), nil
+		return testutil.GenerateInsecureK1Key(t, seed), nil
 	}
 	noPull = true
 

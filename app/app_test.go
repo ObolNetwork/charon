@@ -17,6 +17,7 @@ package app_test
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"net"
 	"net/http"
@@ -26,11 +27,11 @@ import (
 	"testing"
 	"time"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
-	"github.com/libp2p/go-libp2p/core/protocol"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -346,11 +347,11 @@ func TestInfoSync(t *testing.T) {
 	tcpNodeCallback := func(tcpNode host.Host) {
 		for _, other := range tcpNodes {
 			other.Peerstore().AddAddrs(tcpNode.ID(), tcpNode.Addrs(), peerstore.PermanentAddrTTL)
-			err := other.Peerstore().AddProtocols(tcpNode.ID(), toStrs(priority.Protocols())...)
+			err := other.Peerstore().AddProtocols(tcpNode.ID(), priority.Protocols()...)
 			require.NoError(t, err)
 
 			tcpNode.Peerstore().AddAddrs(other.ID(), other.Addrs(), peerstore.PermanentAddrTTL)
-			err = tcpNode.Peerstore().AddProtocols(other.ID(), toStrs(priority.Protocols())...)
+			err = tcpNode.Peerstore().AddProtocols(other.ID(), priority.Protocols()...)
 			require.NoError(t, err)
 		}
 		tcpNodes = append(tcpNodes, tcpNode)
@@ -398,6 +399,90 @@ func TestInfoSync(t *testing.T) {
 	require.NoError(t, err)
 }
 
+var (
+	relayExternal  = flag.String("relay-external", "", "External relay address for TestRemoteRelayConnections")
+	relayConnCount = flag.Int("relay-conn-count", 0, "Number of relay connections for TestRemoteRelayConnections")
+	relayLockHash  = flag.String("relay-lock-hash", "", "Lock hash to resolve relay for TestRemoteRelayConnections")
+)
+
+// TestRemoteRelayConnections allows testing connection count to a remote relay.
+//
+//	go test github.com/obolnetwork/charon/app -run=TestRemoteRelayConnections \
+//	  -relay-external=https://0.relay.obol.tech \
+//	  -relay-conn-count=1024 \
+//	  -relay-lock-hash=736c122
+func TestRemoteRelayConnections(t *testing.T) {
+	if *relayExternal == "" {
+		t.Skip("No external relay address provided")
+	}
+
+	testRelayConnections(context.Background(), t, *relayExternal, make(chan error, 1),
+		*relayLockHash, *relayConnCount, false)
+}
+
+func TestLocalRelayConnections(t *testing.T) {
+	ctx := context.Background()
+
+	relayAddr, relayErr := startRelay(ctx, t)
+
+	testRelayConnections(ctx, t, relayAddr, relayErr, "", 1024, true)
+}
+
+func testRelayConnections(ctx context.Context, t *testing.T, relayAddr string,
+	relayErr <-chan error, lockHashHex string, totalOK int, expectNOK bool,
+) {
+	t.Helper()
+
+	relays, err := p2p.NewRelays(ctx, []string{relayAddr}, lockHashHex)
+	require.NoError(t, err)
+
+	relay, ok := relays[0].Peer()
+	require.True(t, ok)
+
+	okErrs := make(chan error, totalOK)
+	for i := 0; i < totalOK; i++ {
+		privKey, err := k1.GeneratePrivateKey()
+		require.NoError(t, err)
+
+		tcpNode, err := p2p.NewTCPNode(ctx, p2p.Config{}, privKey, p2p.NewOpenGater())
+		require.NoError(t, err)
+
+		go func(tcpNode host.Host) {
+			okErrs <- tcpNode.Connect(ctx, peer.AddrInfo{
+				ID:    relay.ID,
+				Addrs: relay.Addrs,
+			})
+		}(tcpNode)
+	}
+
+	for i := 0; i < totalOK; i++ {
+		select {
+		case err := <-okErrs:
+			require.NoError(t, err, i)
+		case err := <-relayErr:
+			testutil.SkipIfBindErr(t, err)
+			require.NoError(t, err)
+		}
+	}
+
+	if !expectNOK {
+		return
+	}
+
+	// One more should fail
+	privKey, err := k1.GeneratePrivateKey()
+	require.NoError(t, err)
+
+	tcpNode, err := p2p.NewTCPNode(ctx, p2p.Config{}, privKey, p2p.NewOpenGater())
+	require.NoError(t, err)
+
+	err = tcpNode.Connect(ctx, peer.AddrInfo{
+		ID:    relay.ID,
+		Addrs: relay.Addrs,
+	})
+	require.Error(t, err)
+}
+
 // priorityAsserter asserts that all nodes resolved the same priorities.
 type priorityAsserter struct {
 	asserter
@@ -440,13 +525,4 @@ func (a *priorityAsserter) Callback(t *testing.T, i int) func(ctx context.Contex
 
 		return nil
 	}
-}
-
-func toStrs(protocols []protocol.ID) []string {
-	var strs []string
-	for _, p := range protocols {
-		strs = append(strs, string(p))
-	}
-
-	return strs
 }

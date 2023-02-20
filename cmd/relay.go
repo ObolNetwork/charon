@@ -18,6 +18,7 @@ package cmd
 import (
 	"context"
 
+	libp2plog "github.com/ipfs/go-log/v2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -37,6 +38,7 @@ func newRelayCmd(runFunc func(context.Context, relay.Config) error) *cobra.Comma
 			if err := log.InitLogger(config.LogConfig); err != nil {
 				return err
 			}
+			libp2plog.SetPrimaryCore(log.LoggerCore()) // Set libp2p logger to use charon logger
 
 			printFlags(cmd.Context(), cmd.Flags())
 

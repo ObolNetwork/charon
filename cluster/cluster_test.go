@@ -34,6 +34,8 @@ import (
 //go:generate go test . -v -update -clean
 
 const (
+	v1_6 = "v1.6.0"
+	v1_5 = "v1.5.0"
 	v1_4 = "v1.4.0"
 	v1_3 = "v1.3.0"
 	v1_2 = "v1.2.0"
@@ -60,7 +62,7 @@ func TestEncode(t *testing.T) {
 				},
 			}
 			// Add multiple validator address from v1.5 and later.
-			if version != v1_0 && version != v1_1 && version != v1_2 && version != v1_3 && version != v1_4 {
+			if !isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4) {
 				opts = append(opts, cluster.WithMultiVAddrs(cluster.RandomValidatorAddresses(numVals)))
 			}
 
@@ -92,10 +94,10 @@ func TestEncode(t *testing.T) {
 				rand.New(rand.NewSource(0)),
 				opts...,
 			)
-			require.NoError(t, err)
+			testutil.RequireNoError(t, err)
 
 			// Definition version prior to v1.3.0 don't support EIP712 signatures.
-			if version == v1_0 || version == v1_1 || version == v1_2 {
+			if isAnyVersion(version, v1_0, v1_1, v1_2) {
 				for i := range definition.Operators {
 					// Set to empty values instead of nil to align with unmarshalled json.
 					definition.Operators[i].ConfigSignature = []byte{}
@@ -104,7 +106,7 @@ func TestEncode(t *testing.T) {
 			}
 
 			// Definition version prior to v1.4.0 don't support creator.
-			if version == v1_0 || version == v1_1 || version == v1_2 || version == v1_3 {
+			if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3) {
 				definition.Creator = cluster.Creator{}
 			}
 
@@ -139,14 +141,23 @@ func TestEncode(t *testing.T) {
 							testutil.RandomBytes48(),
 							testutil.RandomBytes48(),
 						},
+						DepositData: cluster.RandomDepositData(),
 					}, {
 						PubKey: testutil.RandomBytes48(),
 						PubShares: [][]byte{
 							testutil.RandomBytes48(),
 							testutil.RandomBytes48(),
 						},
+						DepositData: cluster.RandomDepositData(),
 					},
 				},
+			}
+
+			// Lock version prior to v1.6.0 don't support DepositData.
+			if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5) {
+				for i := range lock.Validators {
+					lock.Validators[i].DepositData = cluster.DepositData{}
+				}
 			}
 
 			t.Run("lock_json_"+vStr, func(t *testing.T) {
@@ -225,10 +236,20 @@ func TestDefinitionPeers(t *testing.T) {
 	peers, err := lock.Peers()
 	require.NoError(t, err)
 
-	names := []string{"remarkable-toy", "talented-sound", "strange-law", "fragile-leg"}
+	names := []string{"curious-land", "adventurous-age", "witty-industry", "cute-group"}
 
 	for i, peer := range peers {
 		require.Equal(t, i, peer.Index)
 		require.Equal(t, names[i], peer.Name)
 	}
+}
+
+func isAnyVersion(version string, list ...string) bool {
+	for _, v := range list {
+		if version == v {
+			return true
+		}
+	}
+
+	return false
 }

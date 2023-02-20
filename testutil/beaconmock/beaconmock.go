@@ -163,6 +163,7 @@ type Mock struct {
 	SyncCommitteeContributionFunc          func(ctx context.Context, slot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	SubmitSyncCommitteeSubscriptionsFunc   func(ctx context.Context, subscriptions []*eth2v1.SyncCommitteeSubscription) error
 	SubmitProposalPreparationsFunc         func(ctx context.Context, preparations []*eth2v1.ProposalPreparation) error
+	getAllValidatorsFunc                   func(ctx context.Context) []*eth2v1.Validator
 }
 
 func (m Mock) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
@@ -314,4 +315,8 @@ func (m Mock) Close() error {
 	}
 
 	return nil
+}
+
+func (m Mock) getAllValidators(ctx context.Context) []*eth2v1.Validator {
+	return m.getAllValidatorsFunc(ctx)
 }

@@ -13,30 +13,31 @@
 // You should have received a copy of the GNU General Public License along with
 // this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package compose_test
+package cluster
 
 import (
-	"context"
-	"os"
-	"path"
+	"encoding/json"
 	"testing"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
-
-	"github.com/obolnetwork/charon/testutil"
-	"github.com/obolnetwork/charon/testutil/compose"
 )
 
-//go:generate go test . -update -clean
+func TestDepositJSON(t *testing.T) {
+	deposit := RandomDepositData()
+	depositJSON := depositDataToJSON(deposit)
 
-func TestNewDefaultConfig(t *testing.T) {
-	dir := t.TempDir()
+	eth2Deposit := &eth2p0.DepositData{
+		PublicKey:             *(*eth2p0.BLSPubKey)(deposit.PubKey),
+		WithdrawalCredentials: deposit.WithdrawalCredentials,
+		Amount:                eth2p0.Gwei(deposit.Amount),
+		Signature:             *(*eth2p0.BLSSignature)(deposit.Signature),
+	}
 
-	err := compose.New(context.Background(), dir, compose.NewDefaultConfig())
+	b1, err := json.MarshalIndent(depositJSON, "", " ")
+	require.NoError(t, err)
+	b2, err := json.MarshalIndent(eth2Deposit, "", " ")
 	require.NoError(t, err)
 
-	conf, err := os.ReadFile(path.Join(dir, "config.json"))
-	require.NoError(t, err)
-
-	testutil.RequireGoldenBytes(t, conf)
+	require.Equal(t, b1, b2)
 }

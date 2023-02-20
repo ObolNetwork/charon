@@ -21,7 +21,7 @@ import (
 	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
-	relaylog "github.com/ipfs/go-log/v2"
+	libp2plog "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/metrics"
@@ -45,14 +45,18 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 	}
 
 	if config.RelayLogLevel != "" {
-		if err := relaylog.SetLogLevel("relay", config.RelayLogLevel); err != nil {
+		if err := libp2plog.SetLogLevel("relay", config.RelayLogLevel); err != nil {
 			return nil, errors.Wrap(err, "set relay log level")
+		}
+		if err := libp2plog.SetLogLevel("rcmgr", config.RelayLogLevel); err != nil {
+			return nil, errors.Wrap(err, "set rcmgr log level")
 		}
 	}
 
 	// Increase resource limits
 	limiter := rcmgr.DefaultLimits
 	limiter.SystemBaseLimit.ConnsInbound = config.MaxConns
+	limiter.SystemBaseLimit.Conns = config.MaxConns
 	limiter.SystemBaseLimit.FD = config.MaxConns
 	limiter.TransientBaseLimit = limiter.SystemBaseLimit
 

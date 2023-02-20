@@ -99,9 +99,7 @@ func TestRetryer(t *testing.T) {
 				}
 			}
 
-			retryer, err := retry.NewForT(t, ctxTimeoutFunc, backoffProvider)
-			require.NoError(t, err)
-
+			retryer := retry.NewForT(t, ctxTimeoutFunc, backoffProvider)
 			var attempt int
 			retryer.DoAsync(ctx, core.NewAttesterDuty(999), "test", "test", func(ctx context.Context) error {
 				defer func() { attempt++ }()
@@ -123,8 +121,7 @@ func TestShutdown(t *testing.T) {
 	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, bmock)
 	require.NoError(t, err)
 
-	retryer, err := retry.New[core.Duty](deadlineFunc)
-	require.NoError(t, err)
+	retryer := retry.New[core.Duty](deadlineFunc)
 
 	const n = 3
 	waiting := make(chan struct{}, n)

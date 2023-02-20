@@ -17,9 +17,12 @@ package log
 
 import (
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/obolnetwork/charon/app/log/loki"
 )
+
+var _ zapLogger = multiLogger{}
 
 // multiLogger wraps multiple zap loggers and implements zapLogger.
 type multiLogger []zapLogger
@@ -60,4 +63,13 @@ func (l lokiWriter) Write(line []byte) (n int, err error) {
 
 func (lokiWriter) Sync() error {
 	return nil
+}
+
+func (m multiLogger) Core() zapcore.Core {
+	var cores []zapcore.Core
+	for _, l := range m {
+		cores = append(cores, l.Core())
+	}
+
+	return zapcore.NewTee(cores...)
 }

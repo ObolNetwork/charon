@@ -46,23 +46,30 @@ func TestMarshalDepositData(t *testing.T) {
 	}
 
 	var (
-		pubkeys []eth2p0.BLSPubKey
-		sigs    []eth2p0.BLSSignature
+		datas   []eth2p0.DepositData
+		network = eth2util.Goerli.Name
 	)
 	for i := 0; i < len(privKeys); i++ {
 		sk, pk := GetKeys(t, privKeys[i])
 
-		msgRoot, err := deposit.GetMessageSigningRoot(pk, withdrawalAddrs[i], eth2util.Goerli.Name)
+		msg, err := deposit.NewMessage(pk, withdrawalAddrs[i])
 		require.NoError(t, err)
 
-		sig, err := tblsv2.Sign(sk, msgRoot[:])
+		sigRoot, err := deposit.GetMessageSigningRoot(msg, network)
 		require.NoError(t, err)
 
-		sigs = append(sigs, tblsconv2.SigToETH2(sig))
-		pubkeys = append(pubkeys, pk)
+		sig, err := tblsv2.Sign(sk, sigRoot[:])
+		require.NoError(t, err)
+
+		datas = append(datas, eth2p0.DepositData{
+			PublicKey:             msg.PublicKey,
+			WithdrawalCredentials: msg.WithdrawalCredentials,
+			Amount:                msg.Amount,
+			Signature:             tblsconv2.SigToETH2(sig),
+		})
 	}
 
-	actual, err := deposit.MarshalDepositData(pubkeys, sigs, withdrawalAddrs, eth2util.Goerli.Name)
+	actual, err := deposit.MarshalDepositData(datas, network)
 	require.NoError(t, err)
 
 	testutil.RequireGoldenBytes(t, actual)

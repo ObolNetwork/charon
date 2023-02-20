@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"testing"
 	"time"
 
@@ -101,6 +102,15 @@ func TestAttest(t *testing.T) {
 			// Assert length and expected attestations
 			require.Len(t, atts, test.ExpectAttestations)
 			require.Len(t, aggs, test.ExpectAggregations)
+
+			// Sort the outputs to make it deterministic to compare with json.
+			sort.Slice(atts, func(i, j int) bool {
+				return atts[i].Data.Index < atts[j].Data.Index
+			})
+
+			sort.Slice(aggs, func(i, j int) bool {
+				return aggs[i].Message.Aggregate.Data.Index < aggs[j].Message.Aggregate.Data.Index
+			})
 
 			t.Run("attestations", func(t *testing.T) {
 				testutil.RequireGoldenJSON(t, atts)

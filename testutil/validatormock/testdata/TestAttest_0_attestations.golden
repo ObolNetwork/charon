@@ -3,7 +3,7 @@
   "aggregation_bits": "0x03",
   "data": {
    "slot": "16",
-   "index": "0",
+   "index": "1",
    "beacon_block_root": "0x1000000000000000000000000000000000000000000000000000000000000000",
    "source": {
     "epoch": "0",
@@ -20,7 +20,7 @@
   "aggregation_bits": "0x03",
   "data": {
    "slot": "16",
-   "index": "0",
+   "index": "2",
    "beacon_block_root": "0x1000000000000000000000000000000000000000000000000000000000000000",
    "source": {
     "epoch": "0",
@@ -37,7 +37,7 @@
   "aggregation_bits": "0x03",
   "data": {
    "slot": "16",
-   "index": "0",
+   "index": "3",
    "beacon_block_root": "0x1000000000000000000000000000000000000000000000000000000000000000",
    "source": {
     "epoch": "0",

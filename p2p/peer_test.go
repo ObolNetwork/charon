@@ -17,7 +17,6 @@ package p2p_test
 
 import (
 	"context"
-	"math/rand"
 	"os"
 	"testing"
 
@@ -37,7 +36,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestNewPeer(t *testing.T) {
-	p2pKey := testutil.GenerateInsecureK1Key(t, rand.New(rand.NewSource(0)))
+	p2pKey := testutil.GenerateInsecureK1Key(t, 1)
 
 	record, err := enr.New(p2pKey)
 	require.NoError(t, err)
@@ -45,7 +44,7 @@ func TestNewPeer(t *testing.T) {
 	p, err := p2p.NewPeerFromENR(record, 0)
 	require.NoError(t, err)
 
-	require.Equal(t, "16Uiu2HAm87ieJpGmqjdqVF6Y4LAodxdsUY2sVCX5b31QVHCLt116", p.ID.String())
+	require.Equal(t, "16Uiu2HAkzdQ5Y9SYT91K1ue5SxXwgmajXntfScGnLYeip5hHyWmT", p.ID.String())
 }
 
 func TestNewHost(t *testing.T) {

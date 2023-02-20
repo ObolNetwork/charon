@@ -883,8 +883,6 @@ func getBeaconNodeAddress(ctx context.Context, eth2Cl eth2wrap.Client) (*url.URL
 
 // writeResponse writes the 200 OK response and json response body.
 func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, response interface{}) {
-	w.WriteHeader(http.StatusOK)
-
 	if response == nil {
 		return
 	}
@@ -952,8 +950,8 @@ func writeError(ctx context.Context, w http.ResponseWriter, endpoint string, err
 		log.Error(ctx, "Failed marshalling error response", err2)
 	}
 
-	w.WriteHeader(aerr.StatusCode)
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(aerr.StatusCode)
 
 	if _, err2 = w.Write(b); err2 != nil {
 		log.Error(ctx, "Failed writing api error", err2)

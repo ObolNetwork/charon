@@ -88,7 +88,8 @@ func TestDKG(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 0, withAlgo(test.dkgAlgo))
+			version := cluster.WithVersion("v1.6.0") // TODO(corver): Remove this once v1.6 is released.
+			lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 1, withAlgo(test.dkgAlgo), version)
 			dir := t.TempDir()
 
 			testDKG(t, lock.Definition, dir, keys, test.keymanager, test.publish)
@@ -276,6 +277,11 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 		require.NoError(t, json.Unmarshal(lockFile, &lock))
 		require.NoError(t, lock.VerifySignatures())
 		locks = append(locks, lock)
+
+		for _, val := range lock.Validators {
+			require.EqualValues(t, val.PubKey, val.DepositData.PubKey)
+			require.EqualValues(t, 32_000_000_000, val.DepositData.Amount)
+		}
 	}
 
 	// Ensure locks hashes are identical.
@@ -342,7 +348,8 @@ func TestSyncFlow(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			lock, keys, _ := cluster.NewForT(t, test.vals, test.nodes, test.nodes, 0)
+			version := cluster.WithVersion("v1.6.0") // TODO(corver): remove this once v1.6 released.
+			lock, keys, _ := cluster.NewForT(t, test.vals, test.nodes, test.nodes, 0, version)
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()

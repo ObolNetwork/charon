@@ -17,7 +17,6 @@ package enr_test
 
 import (
 	"fmt"
-	"math/rand"
 	"net"
 	"testing"
 
@@ -108,10 +107,10 @@ func TestIPTCP(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
-	privkey := testutil.GenerateInsecureK1Key(t, rand.New(rand.NewSource(0)))
+	privkey := testutil.GenerateInsecureK1Key(t, 0)
 
 	r, err := enr.New(privkey)
 	require.NoError(t, err)
 
-	require.Equal(t, "enr:-HW4QMNo8q6cHeIVPW70BA6PZKjKwTKNIALmuE0tkvtAB8YgYzOYYaf8evsNo2Z1nnqPRiJAJp3-1i3shLchccqovCmAgmlkgnY0iXNlY3AyNTZrMaECvI5821Dg_9UqVPr5hNasj-XuaFbTil-KzZvTP8nH1Q0", r.String())
+	require.Equal(t, "enr:-HW4QEp-BLhP30tqTGFbR9n2PdUKWP9qc0zphIRmn8_jpm4BYkgekztXQaPA_znRW8RvNYHo0pUwyPEwUGGeZu26XlKAgmlkgnY0iXNlY3AyNTZrMaEDG4TFVnsSZECZXT7VqroFZdceGDRgSBn_nBf16dXdB48", r.String())
 }

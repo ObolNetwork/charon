@@ -32,7 +32,6 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
@@ -160,21 +159,9 @@ func writeLock(datadir string, lock cluster.Lock) error {
 }
 
 // writeDepositData writes deposit data file to disk.
-func writeDepositData(pubkeys []eth2p0.BLSPubKey, depositDataSigs []eth2p0.BLSSignature, withdrawalAddresses []string, network string, dataDir string) error {
-	if len(pubkeys) != len(withdrawalAddresses) {
-		return errors.New("insufficient withdrawal addresses")
-	}
-
-	for i := 0; i < len(withdrawalAddresses); i++ {
-		var err error
-		withdrawalAddresses[i], err = eth2util.ChecksumAddress(withdrawalAddresses[i])
-		if err != nil {
-			return err
-		}
-	}
-
+func writeDepositData(depositDatas []eth2p0.DepositData, network string, dataDir string) error {
 	// Serialize the deposit data into bytes
-	bytes, err := deposit.MarshalDepositData(pubkeys, depositDataSigs, withdrawalAddresses, network)
+	bytes, err := deposit.MarshalDepositData(depositDatas, network)
 	if err != nil {
 		return err
 	}

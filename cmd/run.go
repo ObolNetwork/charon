@@ -18,7 +18,9 @@ package cmd
 import (
 	"context"
 	"net/url"
+	"time"
 
+	libp2plog "github.com/ipfs/go-log/v2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -41,6 +43,7 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 			if err := log.InitLogger(conf.Log); err != nil {
 				return err
 			}
+			libp2plog.SetPrimaryCore(log.LoggerCore()) // Set libp2p logger to use charon logger
 
 			printFlags(cmd.Context(), cmd.Flags())
 
@@ -83,6 +86,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().StringVar(&config.SimnetValidatorKeysDir, "simnet-validator-keys-dir", ".charon/validator_keys", "The directory containing the simnet validator key shares.")
 	cmd.Flags().BoolVar(&config.BuilderAPI, "builder-api", false, "Enables the builder api. Will only produce builder blocks. Builder API must also be enabled on the validator client. Beacon node must be connected to a builder-relay to access the builder network.")
 	cmd.Flags().BoolVar(&config.SyntheticBlockProposals, "synthetic-block-proposals", false, "Enables additional synthetic block proposal duties. Used for testing of rare duties.")
+	cmd.Flags().DurationVar(&config.SimnetSlotDuration, "simnet-slot-duration", time.Second, "Configures slot duration in simnet beacon mock.")
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error {
 		if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {

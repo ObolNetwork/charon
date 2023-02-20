@@ -23,18 +23,20 @@ import (
 )
 
 const (
-	sszMaxENR          = 1024
-	sszMaxName         = 256
-	sszMaxUUID         = 64
-	sszMaxVersion      = 16
-	sszMaxTimestamp    = 32
-	sszMaxDKGAlgorithm = 32
-	sszMaxOperators    = 256
-	sszMaxValidators   = 65536
-	sszLenForkVersion  = 4
-	sszLenK1Sig        = 65
-	sszLenHash         = 32
-	sszLenPubKey       = 48
+	sszMaxENR           = 1024
+	sszMaxName          = 256
+	sszMaxUUID          = 64
+	sszMaxVersion       = 16
+	sszMaxTimestamp     = 32
+	sszMaxDKGAlgorithm  = 32
+	sszMaxOperators     = 256
+	sszMaxValidators    = 65536
+	sszLenForkVersion   = 4
+	sszLenK1Sig         = 65
+	sszLenBLSSig        = 96
+	sszLenHash          = 32
+	sszLenWithdrawCreds = 32
+	sszLenPubKey        = 48
 )
 
 // getDefinitionHashFunc returns the function to hash a definition based on the provided version.
@@ -43,7 +45,7 @@ func getDefinitionHashFunc(version string) (func(Definition, ssz.HashWalker, boo
 		return hashDefinitionLegacy, nil
 	} else if isAnyVersion(version, v1_3, v1_4) {
 		return hashDefinitionV1x3or4, nil
-	} else if isAnyVersion(version, v1_5) {
+	} else if isAnyVersion(version, v1_5, v1_6) {
 		return hashDefinitionV1x5, nil
 	} else {
 		return nil, errors.New("unknown version", z.Str("version", version))
@@ -128,7 +130,7 @@ func hashDefinitionLegacy(d Definition, hh ssz.HashWalker, configOnly bool) erro
 			// Field (1) 'ENR'
 			hh.PutBytes([]byte(o.ENR))
 
-			if isV1x0(d.Version) || isV1x1(d.Version) {
+			if isAnyVersion(d.Version, v1_0, v1_1) {
 				// Field (2) 'Nonce'
 				hh.PutUint64(zeroNonce) // Older versions had a zero nonce
 			}
@@ -410,11 +412,11 @@ func hashDefinitionV1x5(d Definition, hh ssz.HashWalker, configOnly bool) error 
 // hashLock returns a lock hash.
 func hashLock(l Lock) ([32]byte, error) {
 	var hashFunc func(Lock, ssz.HashWalker) error
-	if isV1x0(l.Version) || isV1x1(l.Version) || isV1x2(l.Version) {
+	if isAnyVersion(l.Version, v1_0, v1_1, v1_2) {
 		hashFunc = hashLockLegacy
 	} else if isAnyVersion(l.Version, v1_3, v1_4) {
 		hashFunc = hashLockV1x3or4
-	} else if isAnyVersion(l.Version, v1_5) { //nolint:revive // Early return not applicable to else if
+	} else if isAnyVersion(l.Version, v1_5, v1_6) {
 		hashFunc = hashLockV1x5
 	} else {
 		return [32]byte{}, errors.New("unknown version")
@@ -485,7 +487,7 @@ func hashLockV1x5(l Lock, hh ssz.HashWalker) error {
 		subIndx := hh.Index()
 		num := uint64(len(l.Validators))
 		for _, validator := range l.Validators {
-			if err := hashValidatorV1x5(validator, hh); err != nil {
+			if err := hashValidatorV1x5(validator, hh, l.Version); err != nil {
 				return err
 			}
 		}
@@ -523,7 +525,7 @@ func hashValidatorV1x3Or4(v DistValidator, hh ssz.HashWalker) error {
 }
 
 // hashValidatorV1x5 hashes the distributed validator v1.5.
-func hashValidatorV1x5(v DistValidator, hh ssz.HashWalker) error {
+func hashValidatorV1x5(v DistValidator, hh ssz.HashWalker, version string) error {
 	indx := hh.Index()
 
 	// Field (0) 'PubKey' Bytes48
@@ -542,6 +544,16 @@ func hashValidatorV1x5(v DistValidator, hh ssz.HashWalker) error {
 			}
 		}
 		hh.MerkleizeWithMixin(subIndx, num, sszMaxOperators)
+	}
+
+	depositHashFunc, err := getDepositDataHashFunc(version)
+	if err != nil {
+		return err
+	}
+
+	// Field (2) 'DepositData' Composite
+	if err := depositHashFunc(v.DepositData, hh); err != nil {
+		return err
 	}
 
 	hh.Merkleize(indx)
@@ -598,4 +610,35 @@ func hashValidatorLegacy(v DistValidator, hh ssz.HashWalker) error {
 	hh.Merkleize(indx)
 
 	return nil
+}
+
+// getDefinitionHashFunc returns the function to hash a definition based on the provided version.
+func getDepositDataHashFunc(version string) (func(DepositData, ssz.HashWalker) error, error) {
+	if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5) {
+		// Noop hash function for v1.0 to v1.5 that do not support deposit data.
+		return func(DepositData, ssz.HashWalker) error { return nil }, nil
+	} else if isAnyVersion(version, v1_6) {
+		return hashDepositData, nil
+	} else {
+		return nil, errors.New("unknown version", z.Str("version", version))
+	}
+}
+
+// hashDepositData hashes the latest deposit data.
+func hashDepositData(d DepositData, hh ssz.HashWalker) error {
+	// Field (0) 'PubKey' Bytes48
+	if err := putBytesN(hh, d.PubKey, sszLenPubKey); err != nil {
+		return err
+	}
+
+	// Field (1) 'WithdrawalCredentials' Bytes32
+	if err := putBytesN(hh, d.WithdrawalCredentials, sszLenWithdrawCreds); err != nil {
+		return err
+	}
+
+	// Field (2) 'Amount' uint64
+	hh.PutUint64(uint64(d.Amount))
+
+	// Field (3) 'Signature' Bytes96
+	return putBytesN(hh, d.Signature, sszLenBLSSig)
 }

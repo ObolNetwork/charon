@@ -47,6 +47,7 @@ type zapLogger interface {
 	Info(string, ...zap.Field)
 	Warn(string, ...zap.Field)
 	Error(string, ...zap.Field)
+	Core() zapcore.Core
 }
 
 var (
@@ -80,6 +81,14 @@ func SetLokiLabels(l map[string]string) {
 	}
 
 	lokiLabels = l
+}
+
+// LoggerCore returns the global logger's zap core.
+func LoggerCore() zapcore.Core {
+	initMu.Lock()
+	defer initMu.Unlock()
+
+	return logger.Core()
 }
 
 // Config defines the logging configuration.
@@ -327,18 +336,19 @@ func (e consoleEncoder) EncodeEntry(ent zapcore.Entry, fields []zap.Field) (*buf
 		}
 
 		if f.Key == keyTopic {
-			const green = uint8(32)
-
-			topic := (f.String + "          ")[:10] // Align topic spacing.
-			if e.color {
-				topic = fmt.Sprintf("\x1b[%dm%s\x1b[0m", green, topic)
-			}
-			ent.LoggerName = topic
+			ent.LoggerName = f.String
 
 			continue
 		}
 
 		filtered = append(filtered, f)
+	}
+
+	ent.LoggerName = (ent.LoggerName + "          ")[:10] // Align topic/LoggerName spacing.
+
+	if e.color {
+		const green = uint8(32)
+		ent.LoggerName = fmt.Sprintf("\x1b[%dm%s\x1b[0m", green, ent.LoggerName)
 	}
 
 	ent.Caller.Defined = false // Do not log caller in console

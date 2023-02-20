@@ -6,7 +6,7 @@
     "aggregation_bits": "0x01",
     "data": {
      "slot": "16",
-     "index": "0",
+     "index": "1",
      "beacon_block_root": "0x1000000000000000000000000000000000000000000000000000000000000000",
      "source": {
       "epoch": "0",
