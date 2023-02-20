@@ -20,6 +20,9 @@ import (
 	"testing"
 
 	"github.com/libp2p/go-libp2p"
+	"github.com/libp2p/go-libp2p/core/control"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
@@ -70,13 +73,11 @@ func TestNamedAddr(t *testing.T) {
 func TestDialErrMsgs(t *testing.T) {
 	ctx := context.Background()
 
-	closed, err := NewConnGater(nil, nil)
-	require.NoError(t, err)
 	badAddr, err := ma.NewMultiaddr("/ip4/127.0.0.1/tcp/1234/")
 	require.NoError(t, err)
 
 	hostA := testutil.CreateHost(t, testutil.AvailableAddr(t))
-	hostB := testutil.CreateHost(t, testutil.AvailableAddr(t), libp2p.ConnectionGater(closed))
+	hostB := testutil.CreateHost(t, testutil.AvailableAddr(t), libp2p.ConnectionGater(closedGater{}))
 	hostBAddr := hostB.Addrs()[0]
 
 	hostA.Peerstore().AddAddr(hostB.ID(), hostBAddr, peerstore.TempAddrTTL) // Gater will block these
@@ -90,7 +91,7 @@ func TestDialErrMsgs(t *testing.T) {
 	require.False(t, hasErrDialBackoff(err))
 	require.Len(t, msgs, 2)
 	require.Contains(t, msgs[badAddr.String()], "connection refused")
-	require.Contains(t, msgs[hostBAddr.String()], "failed to negotiate stream multiplexer")
+	require.Contains(t, msgs[hostBAddr.String()], "failed to negotiate security protocol")
 
 	_, err = hostA.Network().DialPeer(ctx, hostB.ID()) // Try dial again
 	require.Error(t, err)
@@ -101,4 +102,27 @@ func TestDialErrMsgs(t *testing.T) {
 	require.Len(t, msgs, 2)
 	require.Contains(t, msgs[badAddr.String()], "dial backoff")
 	require.Contains(t, msgs[hostBAddr.String()], "dial backoff")
+}
+
+// closedGater is a connection gater that blocks all connections.
+type closedGater struct{}
+
+func (closedGater) InterceptPeerDial(peer.ID) bool {
+	return false
+}
+
+func (closedGater) InterceptAddrDial(peer.ID, ma.Multiaddr) bool {
+	return false
+}
+
+func (closedGater) InterceptAccept(network.ConnMultiaddrs) bool {
+	return false
+}
+
+func (closedGater) InterceptSecured(network.Direction, peer.ID, network.ConnMultiaddrs) bool {
+	return false
+}
+
+func (closedGater) InterceptUpgraded(network.Conn) (bool, control.DisconnectReason) {
+	return false, 0
 }

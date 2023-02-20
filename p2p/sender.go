@@ -267,7 +267,7 @@ func ProtocolSupported(tcpNode host.Host, peerID peer.ID, protocolID protocol.ID
 	}
 
 	for _, p := range protocols {
-		if p == string(protocolID) {
+		if p == protocolID {
 			return true, true // Supported
 		}
 	}
