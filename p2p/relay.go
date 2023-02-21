@@ -42,7 +42,7 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFunc 
 		ctx = log.WithTopic(ctx, "relay")
 		backoff, resetBackoff := expbackoff.NewWithReset(ctx)
 
-		for ctx.Err() == nil {
+		for {
 			relayPeer, ok := relay.Peer()
 			if !ok {
 				time.Sleep(time.Second * 10) // Constant 10s backoff ok for mutexed lookups
@@ -80,20 +80,15 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFunc 
 
 			refresh := time.After(refreshDelay)
 
-			var done bool
-			for !done {
-				select {
-				case <-ctx.Done():
-					done = true
-				case <-refresh:
-					done = true
-				}
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-refresh:
 			}
 
 			log.Debug(ctx, "Refreshing relay circuit reservation")
+			relayConnGauge.WithLabelValues(name).Set(0)
 		}
-
-		return nil
 	}
 }
 
