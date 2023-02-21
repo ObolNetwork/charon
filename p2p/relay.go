@@ -50,13 +50,12 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFunc 
 			}
 
 			name := PeerName(relayPeer.ID)
-			ctx = log.WithCtx(ctx, z.Str("relay_peer", name))
 
 			relayConnGauge.WithLabelValues(name).Set(0)
 
 			resv, err := circuit.Reserve(ctx, tcpNode, relayPeer.AddrInfo())
 			if err != nil {
-				log.Warn(ctx, "Reserve relay circuit", err)
+				log.Warn(ctx, "Reserve relay circuit", err, z.Str("relay_peer", name))
 				backoff()
 
 				continue
@@ -75,6 +74,7 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFunc 
 				z.Any("connection_duration", resv.LimitDuration),    // Client side connection limit (short)
 				z.Any("connection_data_mb", resv.LimitData/(1<<20)), // Client side connection limit (short)
 				z.Any("refresh_delay", refreshDelay),
+				z.Str("relay_peer", name),
 			)
 			relayConnGauge.WithLabelValues(name).Set(1)
 
