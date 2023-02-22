@@ -53,7 +53,7 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 	peerIDs []peer.ID, registry *prometheus.Registry, qbftDebug http.Handler,
 	pubkeys []core.PubKey, seenPubkeys <-chan core.PubKey, vapiCalls <-chan struct{},
 ) {
-	peerCounter(ctx, eth2Cl, clockwork.NewRealClock())
+	beaconNodeMetrics(ctx, eth2Cl, clockwork.NewRealClock())
 
 	mux := http.NewServeMux()
 
@@ -186,17 +186,35 @@ func beaconNodeSyncing(ctx context.Context, eth2Cl eth2client.NodeSyncingProvide
 	return state.IsSyncing, nil
 }
 
-// peerCounter populates the peerCountGauge with the beacon node peer count.
-func peerCounter(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
-	ticker := clock.NewTicker(1 * time.Minute)
-
+// beaconNodeMetrics sets beacon node metrics like the peer count and node version.
+func beaconNodeMetrics(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
+	peerCountTicker := clock.NewTicker(1 * time.Minute)
 	setPeerCount := func() {
-		count, err := beaconNodePeerCount(ctx, eth2Cl)
+		peerCount, err := eth2Cl.NodePeerCount(ctx)
 		if err != nil {
 			log.Error(ctx, "Failed to get beacon node peer count", err)
 			return
 		}
-		peerCountGauge.Set(float64(count))
+		beaconNodePeerCountGauge.Set(float64(peerCount))
+	}
+
+	nodeVersionTicker := clock.NewTicker(10 * time.Minute)
+	var prevNodeVersion string
+	setNodeVersion := func() {
+		version, err := eth2Cl.NodeVersion(ctx)
+		if err != nil {
+			log.Error(ctx, "Failed to get beacon node version", err)
+			return
+		}
+		if version == prevNodeVersion {
+			return
+		}
+
+		if prevNodeVersion != "" {
+			beaconNodeVersionGauge.WithLabelValues(prevNodeVersion).Set(0)
+		}
+		beaconNodeVersionGauge.WithLabelValues(version).Set(1)
+		prevNodeVersion = version
 	}
 
 	go func() {
@@ -207,23 +225,16 @@ func peerCounter(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Cl
 			select {
 			case <-onStartup:
 				setPeerCount()
-			case <-ticker.Chan():
+				setNodeVersion()
+			case <-peerCountTicker.Chan():
 				setPeerCount()
+			case <-nodeVersionTicker.Chan():
+				setNodeVersion()
 			case <-ctx.Done():
 				return
 			}
 		}
 	}()
-}
-
-// beaconNodePeerCount returns the number of connected peers of the beacon node.
-func beaconNodePeerCount(ctx context.Context, eth2Cl eth2wrap.Client) (int, error) {
-	peerCount, err := eth2Cl.NodePeerCount(ctx)
-	if err != nil {
-		return 0, errors.Wrap(err, "get beacon node peer count")
-	}
-
-	return peerCount, nil
 }
 
 // quorumPeersConnected returns true if quorum peers are currently connected.
