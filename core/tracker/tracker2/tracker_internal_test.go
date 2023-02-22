@@ -71,8 +71,8 @@ func TestTrackerFailedDuty(t *testing.T) {
 
 		go func() {
 			for _, td := range testData {
-				tr.FetcherFetched(ctx, td.duty, td.defSet, nil)
-				tr.ConsensusProposed(ctx, td.duty, td.unsignedDataSet, consensusErr)
+				tr.FetcherFetched(td.duty, td.defSet, nil)
+				tr.ConsensusProposed(td.duty, td.unsignedDataSet, consensusErr)
 
 				// Explicitly mark the current duty as deadlined.
 				analyser.deadlineChan <- td.duty
@@ -111,14 +111,14 @@ func TestTrackerFailedDuty(t *testing.T) {
 
 		go func() {
 			for _, td := range testData {
-				tr.FetcherFetched(ctx, td.duty, td.defSet, nil)
-				tr.ConsensusProposed(ctx, td.duty, td.unsignedDataSet, nil)
-				tr.DutyDBStored(ctx, td.duty, td.unsignedDataSet, nil)
-				tr.ParSigDBStoredInternal(ctx, td.duty, td.parSignedDataSet, nil)
-				tr.ParSigDBStoredExternal(ctx, td.duty, td.parSignedDataSet, nil)
+				tr.FetcherFetched(td.duty, td.defSet, nil)
+				tr.ConsensusProposed(td.duty, td.unsignedDataSet, nil)
+				tr.DutyDBStored(td.duty, td.unsignedDataSet, nil)
+				tr.ParSigDBStoredInternal(td.duty, td.parSignedDataSet, nil)
+				tr.ParSigDBStoredExternal(td.duty, td.parSignedDataSet, nil)
 				for _, pubkey := range pubkeys {
-					tr.SigAggAggregated(ctx, td.duty, pubkey, nil, nil)
-					tr.BroadcasterBroadcast(ctx, td.duty, pubkey, nil, nil)
+					tr.SigAggAggregated(td.duty, pubkey, nil, nil)
+					tr.BroadcasterBroadcast(td.duty, pubkey, nil, nil)
 				}
 
 				// Explicitly mark the current duty as deadlined.
@@ -433,14 +433,14 @@ func TestTrackerParticipation(t *testing.T) {
 
 	go func() {
 		for _, td := range testData {
-			tr.FetcherFetched(ctx, td.duty, td.defSet, nil)
-			tr.ParSigDBStoredInternal(ctx, td.duty, td.parSignedDataSet, nil)
+			tr.FetcherFetched(td.duty, td.defSet, nil)
+			tr.ParSigDBStoredInternal(td.duty, td.parSignedDataSet, nil)
 			for _, data := range psigDataPerDutyPerPeer[td.duty] {
-				tr.ParSigDBStoredExternal(ctx, td.duty, data, nil)
+				tr.ParSigDBStoredExternal(td.duty, data, nil)
 			}
 			for _, pk := range pubkeys {
-				tr.SigAggAggregated(ctx, td.duty, pk, nil, nil)
-				tr.BroadcasterBroadcast(ctx, td.duty, pk, nil, nil)
+				tr.SigAggAggregated(td.duty, pk, nil, nil)
+				tr.BroadcasterBroadcast(td.duty, pk, nil, nil)
 			}
 
 			// Explicitly mark the current duty as deadlined.
@@ -488,7 +488,7 @@ func TestUnexpectedParticipation(t *testing.T) {
 			}
 
 			go func(duty core.Duty) {
-				tr.ParSigDBStoredExternal(ctx, duty, core.ParSignedDataSet{pubkey: data}, nil)
+				tr.ParSigDBStoredExternal(duty, core.ParSignedDataSet{pubkey: data}, nil)
 				analyser.deadlineChan <- duty
 				deleter.deadlineChan <- duty
 			}(d)
@@ -533,8 +533,8 @@ func TestDutyRandaoUnexpected(t *testing.T) {
 	}
 
 	go func() {
-		tr.FetcherFetched(ctx, dutyProposer, core.DutyDefinitionSet{pubkey: core.NewProposerDefinition(testutil.RandomProposerDuty(t))}, errors.New("failed to query randao"))
-		tr.ParSigDBStoredExternal(ctx, dutyRandao, core.ParSignedDataSet{pubkey: data}, nil)
+		tr.FetcherFetched(dutyProposer, core.DutyDefinitionSet{pubkey: core.NewProposerDefinition(testutil.RandomProposerDuty(t))}, errors.New("failed to query randao"))
+		tr.ParSigDBStoredExternal(dutyRandao, core.ParSignedDataSet{pubkey: data}, nil)
 
 		analyser.deadlineChan <- dutyProposer
 		// Trim Proposer events before Randao deadline
@@ -580,8 +580,8 @@ func TestDutyRandaoExpected(t *testing.T) {
 	}
 
 	go func() {
-		tr.FetcherFetched(ctx, dutyProposer, core.DutyDefinitionSet{pubkey: core.NewProposerDefinition(testutil.RandomProposerDuty(t))}, errors.New("failed to query randao"))
-		tr.ParSigDBStoredExternal(ctx, dutyRandao, core.ParSignedDataSet{pubkey: data}, nil)
+		tr.FetcherFetched(dutyProposer, core.DutyDefinitionSet{pubkey: core.NewProposerDefinition(testutil.RandomProposerDuty(t))}, errors.New("failed to query randao"))
+		tr.ParSigDBStoredExternal(dutyRandao, core.ParSignedDataSet{pubkey: data}, nil)
 
 		analyser.deadlineChan <- dutyProposer
 		analyser.deadlineChan <- dutyRandao
@@ -689,9 +689,9 @@ func TestFromSlot(t *testing.T) {
 		close(done)
 	}()
 
-	tr.SigAggAggregated(ctx, core.NewAggregatorDuty(thisSlot), "", nil, nil)
-	tr.ParSigDBStoredInternal(ctx, core.NewProposerDuty(thisSlot), nil, nil)
-	tr.FetcherFetched(ctx, core.NewAggregatorDuty(thisSlot), nil, nil)
+	tr.SigAggAggregated(core.NewAggregatorDuty(thisSlot), "", nil, nil)
+	tr.ParSigDBStoredInternal(core.NewProposerDuty(thisSlot), nil, nil)
+	tr.FetcherFetched(core.NewAggregatorDuty(thisSlot), nil, nil)
 
 	require.Empty(t, tr.events)
 	cancel()
