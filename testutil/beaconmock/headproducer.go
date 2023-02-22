@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -30,34 +31,27 @@ import (
 	"github.com/r3labs/sse/v2"
 
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 )
 
-const sseStreamID = "head_events"
-
 func newHeadProducer() *headProducer {
-	headEventServer := sse.New()
-	headEventServer.CreateStream(sseStreamID)
-
-	blockEventServer := sse.New()
-	blockEventServer.CreateStream(sseStreamID)
-
 	return &headProducer{
-		headServer:  headEventServer,
-		blockServer: blockEventServer,
-		quit:        make(chan struct{}),
+		server:         sse.New(),
+		streamsByTopic: make(map[string][]string),
+		quit:           make(chan struct{}),
 	}
 }
 
 // headProducer is a stateful struct for providing deterministic block roots based on slot events.
 type headProducer struct {
 	// Immutable state
-	headServer  *sse.Server
-	blockServer *sse.Server
-	quit        chan struct{}
+	server *sse.Server
+	quit   chan struct{}
 
 	// Mutable state
-	mu          sync.Mutex
-	currentHead *eth2v1.HeadEvent
+	streamsByTopic map[string][]string
+	mu             sync.Mutex
+	currentHead    *eth2v1.HeadEvent
 }
 
 // Start starts the internal slot ticker that updates head.
@@ -122,14 +116,21 @@ func (p *headProducer) updateHead(slot eth2p0.Slot) {
 		panic(err) // This should never happen and this is test code sorry ;)
 	}
 
-	p.blockServer.Publish(sseStreamID, &sse.Event{
-		Event: []byte("block"),
-		Data:  blockData,
-	})
-	p.headServer.Publish(sseStreamID, &sse.Event{
-		Event: []byte("head"),
-		Data:  headData,
-	})
+	// Publish head events.
+	for _, streamID := range p.streamsByTopic["head"] {
+		p.server.Publish(streamID, &sse.Event{
+			Event: []byte("head"),
+			Data:  headData,
+		})
+	}
+
+	// Publish block events.
+	for _, streamID := range p.streamsByTopic["block"] {
+		p.server.Publish(streamID, &sse.Event{
+			Event: []byte("block"),
+			Data:  blockData,
+		})
+	}
 }
 
 type getBlockRootResponseJSON struct {
@@ -194,18 +195,17 @@ func (p *headProducer) handleGetBlockRoot(w http.ResponseWriter, r *http.Request
 
 // handleEvents is a http handler to handle "/eth/v1/events".
 func (p *headProducer) handleEvents(w http.ResponseWriter, r *http.Request) {
+	//nolint:gosec
+	streamID := strconv.Itoa(rand.Int())
+	p.server.CreateStream(streamID)
+
 	query := r.URL.Query()
-	query.Set("stream", sseStreamID) // Add sseStreamID for sse server to serve events on.
+	query.Set("stream", streamID) // Add sseStreamID for sse server to serve events on.
 	r.URL.RawQuery = query.Encode()
 
 	for _, topic := range query["topics"] {
-		switch topic {
-		case "head":
-			p.headServer.ServeHTTP(w, r)
-		case "block":
-			p.blockServer.ServeHTTP(w, r)
-		default:
-			log.Warn(context.Background(), "Unknown topic requested", nil)
+		if topic != "head" && topic != "block" {
+			log.Warn(context.Background(), "Unknown topic requested", nil, z.Str("topic", topic))
 			w.WriteHeader(http.StatusInternalServerError)
 			resp, err := json.Marshal(errorMsgJSON{
 				Code:    500,
@@ -218,7 +218,11 @@ func (p *headProducer) handleEvents(w http.ResponseWriter, r *http.Request) {
 
 			return
 		}
+
+		p.streamsByTopic[topic] = append(p.streamsByTopic[topic], streamID)
 	}
+
+	p.server.ServeHTTP(w, r)
 }
 
 // startSlotTicker returns a blocking channel that will be populated with new slots in real time.
