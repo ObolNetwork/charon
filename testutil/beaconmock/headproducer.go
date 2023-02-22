@@ -34,6 +34,11 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
+const (
+	topicHead  = "head"
+	topicBlock = "block"
+)
+
 func newHeadProducer() *headProducer {
 	return &headProducer{
 		server:         sse.New(),
@@ -131,17 +136,17 @@ func (p *headProducer) updateHead(slot eth2p0.Slot) {
 	}
 
 	// Publish head events.
-	for _, streamID := range p.getStreamIDs("head") {
+	for _, streamID := range p.getStreamIDs(topicHead) {
 		p.server.Publish(streamID, &sse.Event{
-			Event: []byte("head"),
+			Event: []byte(topicHead),
 			Data:  headData,
 		})
 	}
 
 	// Publish block events.
-	for _, streamID := range p.getStreamIDs("block") {
+	for _, streamID := range p.getStreamIDs(topicBlock) {
 		p.server.Publish(streamID, &sse.Event{
-			Event: []byte("block"),
+			Event: []byte(topicBlock),
 			Data:  blockData,
 		})
 	}
@@ -218,8 +223,8 @@ func (p *headProducer) handleEvents(w http.ResponseWriter, r *http.Request) {
 	r.URL.RawQuery = query.Encode()
 
 	for _, topic := range query["topics"] {
-		if topic != "head" && topic != "block" {
-			log.Warn(context.Background(), "Unknown topic requested", nil, z.Str("topic", topic))
+		if topic != topicHead && topic != topicBlock {
+			log.Warn(context.Background(), "Unsupported topic requested", nil, z.Str("topic", topic))
 			w.WriteHeader(http.StatusInternalServerError)
 			resp, err := json.Marshal(errorMsgJSON{
 				Code:    500,
