@@ -38,7 +38,7 @@ import (
 //   - place the ".charon" directory in inputDir, renamed to another name
 //
 // Combine will create a new directory named after the public key of each validator key reconstructed, containing each
-// keystore.
+// keystore under the "validator_keys" subdirectory.
 func Combine(ctx context.Context, inputDir string, force bool) error {
 	log.Info(ctx, "Recombining key shares",
 		z.Str("input_dir", inputDir),
@@ -95,8 +95,8 @@ func Combine(ctx context.Context, inputDir string, force bool) error {
 			return errors.New("generated and lockfile public key for validator DO NOT match", z.Int("validator_number", idx))
 		}
 
-		outPath := filepath.Join(inputDir, val.PublicKeyHex())
-		if err := os.Mkdir(outPath, 0o755); err != nil {
+		outPath := filepath.Join(inputDir, val.PublicKeyHex(), "validator_keys")
+		if err := os.MkdirAll(outPath, 0o755); err != nil {
 			return errors.Wrap(err, "output directory creation", z.Int("validator_number", idx))
 		}
 

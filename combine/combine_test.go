@@ -169,7 +169,7 @@ func TestCombine(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, exp := range expectedData {
-		keys, err := keystore.LoadKeys(filepath.Join(dir, exp.pubkey))
+		keys, err := keystore.LoadKeys(filepath.Join(dir, exp.pubkey, "validator_keys"))
 		require.NoError(t, err)
 		require.Equal(t, exp.secret, fmt.Sprintf("%#x", keys[0]))
 	}
@@ -250,7 +250,7 @@ func TestCombineTwiceWithoutForceFails(t *testing.T) {
 	require.Error(t, err)
 
 	for _, exp := range expectedData {
-		keys, err := keystore.LoadKeys(filepath.Join(dir, exp.pubkey))
+		keys, err := keystore.LoadKeys(filepath.Join(dir, exp.pubkey, "validator_keys"))
 		require.NoError(t, err)
 		require.Equal(t, exp.secret, fmt.Sprintf("%#x", keys[0]))
 	}
