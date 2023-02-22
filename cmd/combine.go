@@ -54,6 +54,6 @@ func newCombineFunc(ctx context.Context, clusterDir string, force bool) error {
 }
 
 func bindCombineFlags(flags *pflag.FlagSet, clusterDir *string, force *bool) {
-	flags.StringVar(clusterDir, "cluster-dir", ".charon/cluster/", `Parent directory containing a number of .charon subdirectories from each node in the cluster.`)
+	flags.StringVar(clusterDir, "cluster-dir", ".charon/", `Parent directory containing a number of .charon subdirectories from each node in the cluster.`)
 	flags.BoolVar(force, "force", false, "Overwrites private keys with the same name if present.")
 }
