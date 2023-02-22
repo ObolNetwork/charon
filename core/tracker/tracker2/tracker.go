@@ -717,11 +717,9 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 }
 
 // FetcherFetched implements core.Tracker interface.
-func (t *Tracker) FetcherFetched(ctx context.Context, duty core.Duty, set core.DutyDefinitionSet, stepErr error) {
+func (t *Tracker) FetcherFetched(duty core.Duty, set core.DutyDefinitionSet, stepErr error) {
 	for pubkey := range set {
 		select {
-		case <-ctx.Done():
-			return
 		case <-t.quit:
 			return
 		case t.input <- event{
@@ -735,11 +733,9 @@ func (t *Tracker) FetcherFetched(ctx context.Context, duty core.Duty, set core.D
 }
 
 // ConsensusProposed implements core.Tracker interface.
-func (t *Tracker) ConsensusProposed(ctx context.Context, duty core.Duty, set core.UnsignedDataSet, stepErr error) {
+func (t *Tracker) ConsensusProposed(duty core.Duty, set core.UnsignedDataSet, stepErr error) {
 	for pubkey := range set {
 		select {
-		case <-ctx.Done():
-			return
 		case <-t.quit:
 			return
 		case t.input <- event{
@@ -753,11 +749,9 @@ func (t *Tracker) ConsensusProposed(ctx context.Context, duty core.Duty, set cor
 }
 
 // DutyDBStored implements core.Tracker interface.
-func (t *Tracker) DutyDBStored(ctx context.Context, duty core.Duty, set core.UnsignedDataSet, stepErr error) {
+func (t *Tracker) DutyDBStored(duty core.Duty, set core.UnsignedDataSet, stepErr error) {
 	for pubkey := range set {
 		select {
-		case <-ctx.Done():
-			return
 		case <-t.quit:
 			return
 		case t.input <- event{
@@ -771,12 +765,10 @@ func (t *Tracker) DutyDBStored(ctx context.Context, duty core.Duty, set core.Uns
 }
 
 // ParSigDBStoredInternal implements core.Tracker interface.
-func (t *Tracker) ParSigDBStoredInternal(ctx context.Context, duty core.Duty, set core.ParSignedDataSet, stepErr error) {
+func (t *Tracker) ParSigDBStoredInternal(duty core.Duty, set core.ParSignedDataSet, stepErr error) {
 	for pubkey, parSig := range set {
 		parSig := parSig
 		select {
-		case <-ctx.Done():
-			return
 		case <-t.quit:
 			return
 		case t.input <- event{
@@ -791,12 +783,10 @@ func (t *Tracker) ParSigDBStoredInternal(ctx context.Context, duty core.Duty, se
 }
 
 // ParSigExBroadcasted implements core.Tracker interface.
-func (t *Tracker) ParSigExBroadcasted(ctx context.Context, duty core.Duty, set core.ParSignedDataSet, stepErr error) {
+func (t *Tracker) ParSigExBroadcasted(duty core.Duty, set core.ParSignedDataSet, stepErr error) {
 	for pubkey, parSig := range set {
 		parSig := parSig
 		select {
-		case <-ctx.Done():
-			return
 		case <-t.quit:
 			return
 		case t.input <- event{
@@ -811,12 +801,10 @@ func (t *Tracker) ParSigExBroadcasted(ctx context.Context, duty core.Duty, set c
 }
 
 // ParSigDBStoredExternal implements core.Tracker interface.
-func (t *Tracker) ParSigDBStoredExternal(ctx context.Context, duty core.Duty, set core.ParSignedDataSet, stepErr error) {
+func (t *Tracker) ParSigDBStoredExternal(duty core.Duty, set core.ParSignedDataSet, stepErr error) {
 	for pubkey, parSig := range set {
 		parSig := parSig
 		select {
-		case <-ctx.Done():
-			return
 		case <-t.quit:
 			return
 		case t.input <- event{
@@ -831,10 +819,8 @@ func (t *Tracker) ParSigDBStoredExternal(ctx context.Context, duty core.Duty, se
 }
 
 // SigAggAggregated implements core.Tracker interface.
-func (t *Tracker) SigAggAggregated(ctx context.Context, duty core.Duty, pubkey core.PubKey, _ []core.ParSignedData, stepErr error) {
+func (t *Tracker) SigAggAggregated(duty core.Duty, pubkey core.PubKey, _ []core.ParSignedData, stepErr error) {
 	select {
-	case <-ctx.Done():
-		return
 	case <-t.quit:
 		return
 	case t.input <- event{
@@ -847,10 +833,8 @@ func (t *Tracker) SigAggAggregated(ctx context.Context, duty core.Duty, pubkey c
 }
 
 // AggSigSBStored implements core.Tracker interface.
-func (t *Tracker) AggSigDBStored(ctx context.Context, duty core.Duty, pubkey core.PubKey, _ core.SignedData, stepErr error) {
+func (t *Tracker) AggSigDBStored(duty core.Duty, pubkey core.PubKey, _ core.SignedData, stepErr error) {
 	select {
-	case <-ctx.Done():
-		return
 	case <-t.quit:
 		return
 	case t.input <- event{
@@ -863,10 +847,8 @@ func (t *Tracker) AggSigDBStored(ctx context.Context, duty core.Duty, pubkey cor
 }
 
 // BroadcasterBroadcast implements core.Tracker interface.
-func (t *Tracker) BroadcasterBroadcast(ctx context.Context, duty core.Duty, pubkey core.PubKey, _ core.SignedData, stepErr error) {
+func (t *Tracker) BroadcasterBroadcast(duty core.Duty, pubkey core.PubKey, _ core.SignedData, stepErr error) {
 	select {
-	case <-ctx.Done():
-		return
 	case <-t.quit:
 		return
 	case t.input <- event{

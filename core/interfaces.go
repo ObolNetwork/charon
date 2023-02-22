@@ -176,31 +176,31 @@ type Broadcaster interface {
 // Tracker sends core component events for further analysis and instrumentation.
 type Tracker interface {
 	// FetcherFetched sends Fetcher component's events to tracker.
-	FetcherFetched(context.Context, Duty, DutyDefinitionSet, error)
+	FetcherFetched(Duty, DutyDefinitionSet, error)
 
 	// ConsensusProposed sends Consensus component's events to tracker.
-	ConsensusProposed(context.Context, Duty, UnsignedDataSet, error)
+	ConsensusProposed(Duty, UnsignedDataSet, error)
 
 	// DutyDBStored sends DutyDB component's store events to tracker.
-	DutyDBStored(context.Context, Duty, UnsignedDataSet, error)
+	DutyDBStored(Duty, UnsignedDataSet, error)
 
 	// ParSigDBStoredInternal sends ParSigDB component's store internal events to tracker.
-	ParSigDBStoredInternal(context.Context, Duty, ParSignedDataSet, error)
+	ParSigDBStoredInternal(Duty, ParSignedDataSet, error)
 
 	// ParSigExBroadcasted sends ParSigEx component's broadcast events to tracker.
-	ParSigExBroadcasted(context.Context, Duty, ParSignedDataSet, error)
+	ParSigExBroadcasted(Duty, ParSignedDataSet, error)
 
 	// ParSigDBStoredExternal sends ParSigDB component's store external events to tracker.
-	ParSigDBStoredExternal(context.Context, Duty, ParSignedDataSet, error)
+	ParSigDBStoredExternal(Duty, ParSignedDataSet, error)
 
 	// SigAggAggregated sends SigAgg component's aggregate events to tracker.
-	SigAggAggregated(context.Context, Duty, PubKey, []ParSignedData, error)
+	SigAggAggregated(Duty, PubKey, []ParSignedData, error)
 
 	// AggSigDBStored sends AggSigDB component's store events to tracker.
-	AggSigDBStored(context.Context, Duty, PubKey, SignedData, error)
+	AggSigDBStored(Duty, PubKey, SignedData, error)
 
 	// BroadcasterBroadcast sends Broadcaster component's broadcast events to tracker.
-	BroadcasterBroadcast(context.Context, Duty, PubKey, SignedData, error)
+	BroadcasterBroadcast(Duty, PubKey, SignedData, error)
 }
 
 // wireFuncs defines the core workflow components as a list of input and output functions
