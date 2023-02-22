@@ -49,9 +49,9 @@ type headProducer struct {
 	quit   chan struct{}
 
 	// Mutable state
-	streamsByTopic map[string][]string
 	mu             sync.Mutex
 	currentHead    *eth2v1.HeadEvent
+	streamsByTopic map[string][]string
 }
 
 // Start starts the internal slot ticker that updates head.
@@ -96,6 +96,20 @@ func (p *headProducer) setCurrentHead(currentHead *eth2v1.HeadEvent) {
 	p.currentHead = currentHead
 }
 
+func (p *headProducer) getStreamIDs(topic string) []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return p.streamsByTopic[topic]
+}
+
+func (p *headProducer) setStreamIDs(topic string, streamID string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.streamsByTopic[topic] = append(p.streamsByTopic[topic], streamID)
+}
+
 // updateHead updates current head based on provided slot.
 func (p *headProducer) updateHead(slot eth2p0.Slot) {
 	currentHead := pseudoRandomHeadEvent(slot)
@@ -117,7 +131,7 @@ func (p *headProducer) updateHead(slot eth2p0.Slot) {
 	}
 
 	// Publish head events.
-	for _, streamID := range p.streamsByTopic["head"] {
+	for _, streamID := range p.getStreamIDs("head") {
 		p.server.Publish(streamID, &sse.Event{
 			Event: []byte("head"),
 			Data:  headData,
@@ -125,7 +139,7 @@ func (p *headProducer) updateHead(slot eth2p0.Slot) {
 	}
 
 	// Publish block events.
-	for _, streamID := range p.streamsByTopic["block"] {
+	for _, streamID := range p.getStreamIDs("block") {
 		p.server.Publish(streamID, &sse.Event{
 			Event: []byte("block"),
 			Data:  blockData,
@@ -219,7 +233,7 @@ func (p *headProducer) handleEvents(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		p.streamsByTopic[topic] = append(p.streamsByTopic[topic], streamID)
+		p.setStreamIDs(topic, streamID)
 	}
 
 	p.server.ServeHTTP(w, r)
