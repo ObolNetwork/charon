@@ -164,10 +164,13 @@ func loadLockfile(dir string) (cluster.Lock, []string, error) {
 		return cluster.Lock{}, nil, errors.Wrap(err, "can't read directory")
 	}
 
-	lfFound := false
-	lastLockfileHash := [32]byte{}
-	lfContent := []byte{}
-	possibleValKeysDir := []string{}
+	var (
+		lfFound            bool
+		lastLockfileHash   [32]byte
+		lfContent          []byte
+		possibleValKeysDir []string
+	)
+
 	for _, sd := range root {
 		if !sd.IsDir() {
 			continue
