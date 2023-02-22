@@ -480,7 +480,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 		opts = []core.WireOption{
 			core.WithTracing(),
-			core.WithTracking(track),
+			core.WithTracking(ctx, track),
 			core.WithAsyncRetry(retryer),
 		}
 	}

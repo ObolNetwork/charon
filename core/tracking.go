@@ -20,61 +20,61 @@ import (
 )
 
 // WithTracking wraps component input functions to support tracking of core components.
-func WithTracking(tracker Tracker) WireOption {
+func WithTracking(parentCtx context.Context, tracker Tracker) WireOption {
 	return func(w *wireFuncs) {
 		clone := *w
 
 		w.FetcherFetch = func(ctx context.Context, duty Duty, set DutyDefinitionSet) error {
 			err := clone.FetcherFetch(ctx, duty, set)
-			tracker.FetcherFetched(ctx, duty, set, err)
+			tracker.FetcherFetched(parentCtx, duty, set, err)
 
 			return err
 		}
 		w.ConsensusPropose = func(ctx context.Context, duty Duty, set UnsignedDataSet) error {
 			err := clone.ConsensusPropose(ctx, duty, set)
-			tracker.ConsensusProposed(ctx, duty, set, err)
+			tracker.ConsensusProposed(parentCtx, duty, set, err)
 
 			return err
 		}
 		w.DutyDBStore = func(ctx context.Context, duty Duty, set UnsignedDataSet) error {
 			err := clone.DutyDBStore(ctx, duty, set)
-			tracker.DutyDBStored(ctx, duty, set, err)
+			tracker.DutyDBStored(parentCtx, duty, set, err)
 
 			return err
 		}
 		w.ParSigDBStoreInternal = func(ctx context.Context, duty Duty, set ParSignedDataSet) error {
 			err := clone.ParSigDBStoreInternal(ctx, duty, set)
-			tracker.ParSigDBStoredInternal(ctx, duty, set, err)
+			tracker.ParSigDBStoredInternal(parentCtx, duty, set, err)
 
 			return err
 		}
 		w.ParSigExBroadcast = func(ctx context.Context, duty Duty, set ParSignedDataSet) error {
 			err := clone.ParSigExBroadcast(ctx, duty, set)
-			tracker.ParSigExBroadcasted(ctx, duty, set, err)
+			tracker.ParSigExBroadcasted(parentCtx, duty, set, err)
 
 			return err
 		}
 		w.ParSigDBStoreExternal = func(ctx context.Context, duty Duty, set ParSignedDataSet) error {
 			err := clone.ParSigDBStoreExternal(ctx, duty, set)
-			tracker.ParSigDBStoredExternal(ctx, duty, set, err)
+			tracker.ParSigDBStoredExternal(parentCtx, duty, set, err)
 
 			return err
 		}
 		w.SigAggAggregate = func(ctx context.Context, duty Duty, key PubKey, data []ParSignedData) error {
 			err := clone.SigAggAggregate(ctx, duty, key, data)
-			tracker.SigAggAggregated(ctx, duty, key, data, err)
+			tracker.SigAggAggregated(parentCtx, duty, key, data, err)
 
 			return err
 		}
 		w.AggSigDBStore = func(ctx context.Context, duty Duty, key PubKey, data SignedData) error {
 			err := clone.AggSigDBStore(ctx, duty, key, data)
-			tracker.AggSigDBStored(ctx, duty, key, data, err)
+			tracker.AggSigDBStored(parentCtx, duty, key, data, err)
 
 			return err
 		}
 		w.BroadcasterBroadcast = func(ctx context.Context, duty Duty, pubkey PubKey, data SignedData) error {
 			err := clone.BroadcasterBroadcast(ctx, duty, pubkey, data)
-			tracker.BroadcasterBroadcast(ctx, duty, pubkey, data, err)
+			tracker.BroadcasterBroadcast(parentCtx, duty, pubkey, data, err)
 
 			return err
 		}
