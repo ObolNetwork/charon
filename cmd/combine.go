@@ -24,10 +24,10 @@ import (
 	"github.com/obolnetwork/charon/combine"
 )
 
-func newCombineCmd(runFunc func(ctx context.Context, inputDir string, force bool) error) *cobra.Command {
+func newCombineCmd(runFunc func(ctx context.Context, keystoresDir string, force bool) error) *cobra.Command {
 	var (
-		inputDir string
-		force    bool
+		keystoresDir string
+		force        bool
 	)
 
 	cmd := &cobra.Command{
@@ -36,24 +36,24 @@ func newCombineCmd(runFunc func(ctx context.Context, inputDir string, force bool
 		Long:  "Combines private key shares into a single private key for a distributed validator.\nWarning: running the resulting private key in a validator alongside the original distributed validator will result in slashing.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runFunc(cmd.Context(), inputDir, force)
+			return runFunc(cmd.Context(), keystoresDir, force)
 		},
 	}
 
 	bindCombineFlags(
 		cmd.Flags(),
-		&inputDir,
+		&keystoresDir,
 		&force,
 	)
 
 	return cmd
 }
 
-func newCombineFunc(ctx context.Context, inputDir string, force bool) error {
-	return combine.Combine(ctx, inputDir, force)
+func newCombineFunc(ctx context.Context, keystoresDir string, force bool) error {
+	return combine.Combine(ctx, keystoresDir, force)
 }
 
-func bindCombineFlags(flags *pflag.FlagSet, inputDir *string, force *bool) {
-	flags.StringVar(inputDir, "keystores-dir", "./", `Directory containing all the keystore files organized by ENR, and the lock file.`)
+func bindCombineFlags(flags *pflag.FlagSet, keystoresDir *string, force *bool) {
+	flags.StringVar(keystoresDir, "keystores-dir", "./", `Directory containing all the keystore files organized by ENR, and the lock file.`)
 	flags.BoolVar(force, "force", false, "Overwrites private keys with the same name if present.")
 }
