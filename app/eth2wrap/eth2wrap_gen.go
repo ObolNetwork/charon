@@ -764,6 +764,29 @@ func (m multi) Domain(ctx context.Context, domainType phase0.DomainType, epoch p
 	return res0, err
 }
 
+// GenesisDomain returns the domain for the given domain type at genesis.
+// N.B. this is not always the same as the the domain at epoch 0.  It is possible
+// for a chain's fork schedule to have multiple forks at genesis.  In this situation,
+// GenesisDomain() will return the first, and Domain() will return the last.
+// Note this endpoint is cached in go-eth2-client.
+func (m multi) GenesisDomain(ctx context.Context, domainType phase0.DomainType) (phase0.Domain, error) {
+	const label = "genesis_domain"
+
+	res0, err := provide(ctx, m.clients,
+		func(ctx context.Context, cl Client) (phase0.Domain, error) {
+			return cl.GenesisDomain(ctx, domainType)
+		},
+		nil, m.bestIdx,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
 // GenesisTime provides the genesis time of the chain.
 // Note this endpoint is cached in go-eth2-client.
 func (m multi) GenesisTime(ctx context.Context) (time.Time, error) {
@@ -1132,6 +1155,19 @@ func (l *lazy) Domain(ctx context.Context, domainType phase0.DomainType, epoch p
 	}
 
 	return cl.Domain(ctx, domainType, epoch)
+}
+
+// GenesisDomain returns the domain for the given domain type at genesis.
+// N.B. this is not always the same as the the domain at epoch 0.  It is possible
+// for a chain's fork schedule to have multiple forks at genesis.  In this situation,
+// GenesisDomain() will return the first, and Domain() will return the last.
+func (l *lazy) GenesisDomain(ctx context.Context, domainType phase0.DomainType) (res0 phase0.Domain, err error) {
+	cl, err := l.getClient()
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.GenesisDomain(ctx, domainType)
 }
 
 // GenesisTime provides the genesis time of the chain.
