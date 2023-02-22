@@ -32,7 +32,7 @@ func newCombineCmd(runFunc func(ctx context.Context, keystoresDir string, force 
 
 	cmd := &cobra.Command{
 		Use:   "combine",
-		Short: "Combines private key shares into a single private key for a distributed validator.",
+		Short: "Combines the private key shares of a distributed validator cluster into a set of standard validator private keys.",
 		Long:  "Combines private key shares into a single private key for a distributed validator.\nWarning: running the resulting private key in a validator alongside the original distributed validator will result in slashing.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
