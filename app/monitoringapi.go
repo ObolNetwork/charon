@@ -199,7 +199,7 @@ func beaconNodeMetrics(ctx context.Context, eth2Cl eth2wrap.Client, clock clockw
 	}
 
 	nodeVersionTicker := clock.NewTicker(10 * time.Minute)
-	prevNodeVersion := ""
+	var prevNodeVersion string
 	setNodeVersion := func() {
 		version, err := eth2Cl.NodeVersion(ctx)
 		if err != nil {
