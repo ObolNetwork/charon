@@ -56,6 +56,7 @@ func New() *cobra.Command {
 			newCreateEnrCmd(runCreateEnrCmd),
 			newCreateClusterCmd(runCreateCluster),
 		),
+		newCombineCmd(newCombineFunc),
 	)
 }
 

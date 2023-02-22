@@ -1,0 +1,59 @@
+// Copyright © 2022 Obol Labs Inc.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of  MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+// more details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program.  If not, see <http://www.gnu.org/licenses/>.
+
+package cmd
+
+import (
+	"context"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+
+	"github.com/obolnetwork/charon/combine"
+)
+
+func newCombineCmd(runFunc func(ctx context.Context, clusterDir string, force bool) error) *cobra.Command {
+	var (
+		clusterDir string
+		force      bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "combine",
+		Short: "Combines the private key shares of a distributed validator cluster into a set of standard validator private keys.",
+		Long:  "Combines the private key shares from a threshold of operators in a distributed validator cluster into a set of validator private keys that can be imported into a standard Ethereum validator client.\n\nWarning: running the resulting private keys in a validator alongside the original distributed validator cluster *will* result in slashing.",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runFunc(cmd.Context(), clusterDir, force)
+		},
+	}
+
+	bindCombineFlags(
+		cmd.Flags(),
+		&clusterDir,
+		&force,
+	)
+
+	return cmd
+}
+
+func newCombineFunc(ctx context.Context, clusterDir string, force bool) error {
+	return combine.Combine(ctx, clusterDir, force)
+}
+
+func bindCombineFlags(flags *pflag.FlagSet, clusterDir *string, force *bool) {
+	flags.StringVar(clusterDir, "cluster-dir", ".charon/", `Parent directory containing a number of .charon subdirectories from each node in the cluster.`)
+	flags.BoolVar(force, "force", false, "Overwrites private keys with the same name if present.")
+}
