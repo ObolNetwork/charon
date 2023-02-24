@@ -26,11 +26,14 @@ import (
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2http "github.com/attestantio/go-eth2-client/http"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/gorilla/mux"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 //go:embed static.json
@@ -99,6 +102,25 @@ func newHTTPServer(addr string, optionalHandlers map[string]http.HandlerFunc, ov
 			case <-shutdown:
 			case <-r.Context().Done():
 			}
+		},
+		"/eth/v2/beacon/blocks/{block_id}": func(w http.ResponseWriter, r *http.Request) {
+			type signedBlockResponseJSON struct {
+				Version *eth2spec.DataVersion        `json:"version"`
+				Data    *bellatrix.SignedBeaconBlock `json:"data"`
+			}
+
+			version := eth2spec.DataVersionBellatrix
+			resp, err := json.Marshal(signedBlockResponseJSON{
+				Version: &version,
+				Data:    testutil.RandomBellatrixSignedBeaconBlock(),
+			})
+			if err != nil {
+				panic(err) // This should never happen and this is test code sorry ;)
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(resp)
 		},
 	}
 

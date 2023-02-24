@@ -50,6 +50,7 @@ const (
 	VCMock       VCType = "mock"
 	VCTeku       VCType = "teku"
 	VCLighthouse VCType = "lighthouse"
+	VCVouch      VCType = "vouch"
 )
 
 // KeyGen defines a key generation process.

@@ -78,6 +78,10 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 // getVC returns the validator client template data for the provided type and index.
 func getVC(typ VCType, nodeIdx int, numVals int, insecure bool) (TmplVC, error) {
 	vcByType := map[VCType]TmplVC{
+		VCVouch: {
+			Label: string(VCVouch),
+			Build: "vouch",
+		},
 		VCLighthouse: {
 			Label: string(VCLighthouse),
 			Build: "lighthouse",
