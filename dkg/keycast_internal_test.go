@@ -50,7 +50,13 @@ func TestKeyCastNoNetwork(t *testing.T) {
 		})
 	}
 
-	def, err := cluster.NewDefinition("test def", vals, nodes, "", "", "", cluster.Creator{}, ops, random)
+	var feeRecipientAddrs, withdrawalAddrs []string
+	for i := 0; i < vals; i++ {
+		feeRecipientAddrs = append(feeRecipientAddrs, testutil.RandomETHAddress())
+		withdrawalAddrs = append(withdrawalAddrs, testutil.RandomETHAddress())
+	}
+
+	def, err := cluster.NewDefinition("test def", vals, nodes, feeRecipientAddrs, withdrawalAddrs, "", cluster.Creator{}, ops, random)
 	require.NoError(t, err)
 
 	tp := new(memTransport)

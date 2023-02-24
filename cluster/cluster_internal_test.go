@@ -37,7 +37,6 @@ func TestDefinitionVerify(t *testing.T) {
 	t.Run("verify definition v1.5 solo", func(t *testing.T) {
 		definition := randomDefinition(t, creator, Operator{}, Operator{},
 			WithVersion(v1_5),
-			WithMultiVAddrs(RandomValidatorAddresses(2)),
 		)
 
 		definition, err = signCreator(secret3, definition)
@@ -50,7 +49,6 @@ func TestDefinitionVerify(t *testing.T) {
 	t.Run("verify definition v1.5", func(t *testing.T) {
 		definition := randomDefinition(t, creator, op0, op1,
 			WithVersion(v1_5),
-			WithMultiVAddrs(RandomValidatorAddresses(2)),
 		)
 
 		definition, err = signCreator(secret3, definition)
@@ -67,7 +65,10 @@ func TestDefinitionVerify(t *testing.T) {
 	})
 
 	t.Run("verify definition v1.4", func(t *testing.T) {
-		definition := randomDefinition(t, creator, op0, op1, WithVersion(v1_4))
+		definition := randomDefinition(t, creator, op0, op1,
+			WithVersion(v1_4),
+			WithLegacyVAddrs(testutil.RandomETHAddress(), testutil.RandomETHAddress()),
+		)
 
 		definition, err = signCreator(secret3, definition)
 		require.NoError(t, err)
@@ -83,7 +84,10 @@ func TestDefinitionVerify(t *testing.T) {
 	})
 
 	t.Run("verify definition v1.3", func(t *testing.T) {
-		definition := randomDefinition(t, Creator{}, op0, op1, WithVersion(v1_3))
+		definition := randomDefinition(t, Creator{}, op0, op1,
+			WithVersion(v1_3),
+			WithLegacyVAddrs(testutil.RandomETHAddress(), testutil.RandomETHAddress()),
+		)
 
 		definition.Operators[0], err = signOperator(secret0, definition, op0)
 		require.NoError(t, err)
@@ -96,10 +100,16 @@ func TestDefinitionVerify(t *testing.T) {
 	})
 
 	t.Run("verify definition v1.2 or lower", func(t *testing.T) {
-		def := randomDefinition(t, Creator{}, op0, op1, WithVersion(v1_2))
+		def := randomDefinition(t, Creator{}, op0, op1,
+			WithVersion(v1_2),
+			WithLegacyVAddrs(testutil.RandomETHAddress(), testutil.RandomETHAddress()),
+		)
 		require.NoError(t, def.VerifySignatures())
 
-		def = randomDefinition(t, Creator{}, op0, op1, WithVersion(v1_0))
+		def = randomDefinition(t, Creator{}, op0, op1,
+			WithVersion(v1_0),
+			WithLegacyVAddrs(testutil.RandomETHAddress(), testutil.RandomETHAddress()),
+		)
 		require.NoError(t, def.VerifySignatures())
 	})
 
@@ -112,7 +122,10 @@ func TestDefinitionVerify(t *testing.T) {
 	})
 
 	t.Run("unsigned operators v1.3", func(t *testing.T) {
-		def := randomDefinition(t, creator, op0, op1, WithVersion(v1_3))
+		def := randomDefinition(t, creator, op0, op1,
+			WithVersion(v1_3),
+			WithLegacyVAddrs(testutil.RandomETHAddress(), testutil.RandomETHAddress()),
+		)
 
 		def.Operators = []Operator{{}, {}}
 
@@ -237,8 +250,19 @@ func randomOperator(t *testing.T) (*k1.PrivateKey, Operator) {
 func randomDefinition(t *testing.T, cr Creator, op0, op1 Operator, opts ...func(*Definition)) Definition {
 	t.Helper()
 
-	definition, err := NewDefinition("test definition", 2, 2,
-		"", "", eth2util.Sepolia.ForkVersionHex, cr, []Operator{op0, op1},
+	const (
+		numVals   = 2
+		threshold = 2
+	)
+
+	var feeRecipientAddrs, withdrawalAddrs []string
+	for i := 0; i < numVals; i++ {
+		feeRecipientAddrs = append(feeRecipientAddrs, testutil.RandomETHAddress())
+		withdrawalAddrs = append(withdrawalAddrs, testutil.RandomETHAddress())
+	}
+
+	definition, err := NewDefinition("test definition", numVals, threshold,
+		feeRecipientAddrs, withdrawalAddrs, eth2util.Sepolia.ForkVersionHex, cr, []Operator{op0, op1},
 		rand.New(rand.NewSource(1)), opts...)
 	require.NoError(t, err)
 

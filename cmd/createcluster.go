@@ -59,12 +59,12 @@ type clusterConfig struct {
 	KeymanagerAddrs []string
 	Clean           bool
 
-	NumNodes       int
-	Threshold      int
-	FeeRecipient   string
-	WithdrawalAddr string
-	Network        string
-	NumDVs         int
+	NumNodes          int
+	Threshold         int
+	FeeRecipientAddrs []string
+	WithdrawalAddrs   []string
+	Network           string
+	NumDVs            int
 
 	SplitKeys    bool
 	SplitKeysDir string
@@ -101,8 +101,8 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringSliceVar(&config.KeymanagerAddrs, "keymanager-addresses", nil, "Comma separated list of keymanager URLs to import validator key shares to. Note that multiple addresses are required, one for each node in the cluster, with node0's keyshares being imported to the first address, node1's keyshares to the second, and so on.")
 	flags.IntVarP(&config.NumNodes, "nodes", "", minNodes, "The number of charon nodes in the cluster. Minimum is 4.")
 	flags.IntVarP(&config.Threshold, "threshold", "", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
-	flags.StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
-	flags.StringVar(&config.WithdrawalAddr, "withdrawal-address", defaultWithdrawalAddr, "Ethereum address to receive the returned stake and accrued rewards.")
+	flags.StringSliceVar(&config.FeeRecipientAddrs, "fee-recipient-addresses", nil, "Comma separated list of Ethereum addresses of the fee recipient for each validator. Either provide a single fee recipient address or fee recipient addresses for each validator.")
+	flags.StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
 	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, gnosis, goerli, kiln, ropsten, sepolia.")
 	flags.BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it.")
 	flags.IntVar(&config.NumDVs, "num-validators", 1, "The number of distributed validators needed in the cluster.")
@@ -117,13 +117,19 @@ func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
 }
 
 func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) error {
+	var err error
 	if conf.Clean {
 		// Remove previous directories
-		if err := os.RemoveAll(conf.ClusterDir); err != nil {
+		if err = os.RemoveAll(conf.ClusterDir); err != nil {
 			return errors.Wrap(err, "remove cluster dir")
 		}
-	} else if _, err := os.Stat(path.Join(nodeDir(conf.ClusterDir, 0), "cluster-lock.json")); err == nil {
+	} else if _, err = os.Stat(path.Join(nodeDir(conf.ClusterDir, 0), "cluster-lock.json")); err == nil {
 		return errors.New("existing cluster found. Try again with --clean")
+	}
+
+	conf.FeeRecipientAddrs, conf.WithdrawalAddrs, err = validateAddresses(conf.NumDVs, conf.FeeRecipientAddrs, conf.WithdrawalAddrs)
+	if err != nil {
+		return err
 	}
 
 	// Create cluster directory at the given location.
@@ -137,10 +143,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		conf.Network = eth2util.Goerli.Name
 	}
 
-	var (
-		def cluster.Definition
-		err error
-	)
+	var def cluster.Definition
 	if conf.DefFile != "" { // Load definition from DefFile
 		def, err = loadDefinition(ctx, conf.DefFile)
 		if err != nil {
@@ -546,8 +549,8 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 	}
 	threshold := safeThreshold(ctx, conf.NumNodes, conf.Threshold)
 
-	def, err := cluster.NewDefinition(conf.Name, conf.NumDVs, threshold, conf.FeeRecipient,
-		conf.WithdrawalAddr, forkVersion, cluster.Creator{}, ops, rand.Reader)
+	def, err := cluster.NewDefinition(conf.Name, conf.NumDVs, threshold, conf.FeeRecipientAddrs,
+		conf.WithdrawalAddrs, forkVersion, cluster.Creator{}, ops, rand.Reader)
 	if err != nil {
 		return cluster.Definition{}, err
 	}
@@ -621,13 +624,7 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 		return errors.New("unsupported network", z.Str("network", network))
 	}
 
-	for _, waddr := range def.WithdrawalAddresses() {
-		if err := validateWithdrawalAddr(waddr, network); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return validateWithdrawalAddrs(def.WithdrawalAddresses(), network)
 }
 
 // aggSign returns a bls aggregate signatures of the message signed by all the shares.
@@ -733,4 +730,29 @@ func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) 
 	log.Info(ctx, "Published lock file", z.Str("addr", publishAddr))
 
 	return nil
+}
+
+// validateAddresses checks if we have sufficient addresses. It also fills addresses slices if only one is provided.
+func validateAddresses(numVals int, feeRecipientAddrs []string, withdrawalAddrs []string) ([]string, []string, error) {
+	if len(feeRecipientAddrs) != numVals && len(feeRecipientAddrs) != 1 {
+		return nil, nil, errors.New("insufficient fee recipient addresses")
+	}
+
+	if len(withdrawalAddrs) != numVals && len(withdrawalAddrs) != 1 {
+		return nil, nil, errors.New("insufficient withdrawal addresses")
+	}
+
+	if len(feeRecipientAddrs) == 1 {
+		for i := 1; i < numVals; i++ {
+			feeRecipientAddrs = append(feeRecipientAddrs, feeRecipientAddrs[0])
+		}
+	}
+
+	if len(withdrawalAddrs) == 1 {
+		for i := 1; i < numVals; i++ {
+			withdrawalAddrs = append(withdrawalAddrs, withdrawalAddrs[0])
+		}
+	}
+
+	return feeRecipientAddrs, withdrawalAddrs, nil
 }

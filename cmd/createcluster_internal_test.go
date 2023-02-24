@@ -130,7 +130,10 @@ func TestCreateCluster(t *testing.T) {
 				test.Config = test.Prep(t, test.Config)
 			}
 
-			test.Config.WithdrawalAddr = defaultWithdrawalAddr
+			for i := 0; i < test.Config.NumDVs; i++ {
+				test.Config.WithdrawalAddrs = append(test.Config.WithdrawalAddrs, defaultWithdrawalAddr)
+				test.Config.FeeRecipientAddrs = append(test.Config.FeeRecipientAddrs, defaultWithdrawalAddr)
+			}
 
 			if test.Config.Network == "" {
 				test.Config.Network = defaultNetwork
@@ -208,12 +211,16 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition)
 func TestValidateDef(t *testing.T) {
 	ctx := context.Background()
 	conf := clusterConfig{
-		Name:           "test",
-		NumNodes:       4,
-		NumDVs:         4,
-		Threshold:      3,
-		WithdrawalAddr: "0x0000000000000000000000000000000000000000",
-		Network:        "goerli",
+		Name:      "test",
+		NumNodes:  4,
+		NumDVs:    4,
+		Threshold: 3,
+		Network:   "goerli",
+	}
+
+	for i := 0; i < conf.NumDVs; i++ {
+		conf.FeeRecipientAddrs = append(conf.FeeRecipientAddrs, testutil.RandomETHAddress())
+		conf.WithdrawalAddrs = append(conf.WithdrawalAddrs, defaultWithdrawalAddr)
 	}
 
 	definition, err := newDefFromConfig(ctx, conf)
@@ -306,15 +313,16 @@ func TestKeymanager(t *testing.T) {
 
 	// Create cluster config
 	conf := clusterConfig{
-		Name:            t.Name(),
-		SplitKeysDir:    keyDir,
-		SplitKeys:       true,
-		NumNodes:        minNodes,
-		NumDVs:          1,
-		KeymanagerAddrs: addrs,
-		Network:         defaultNetwork,
-		WithdrawalAddr:  defaultWithdrawalAddr,
-		Clean:           true,
+		Name:              t.Name(),
+		SplitKeysDir:      keyDir,
+		SplitKeys:         true,
+		NumNodes:          minNodes,
+		NumDVs:            1,
+		KeymanagerAddrs:   addrs,
+		Network:           defaultNetwork,
+		WithdrawalAddrs:   []string{defaultWithdrawalAddr},
+		FeeRecipientAddrs: []string{defaultWithdrawalAddr},
+		Clean:             true,
 	}
 	conf.ClusterDir = t.TempDir()
 
@@ -372,13 +380,14 @@ func TestPublish(t *testing.T) {
 
 	// Create cluster config
 	conf := clusterConfig{
-		Name:           t.Name(),
-		NumNodes:       minNodes,
-		NumDVs:         1,
-		Network:        defaultNetwork,
-		WithdrawalAddr: defaultWithdrawalAddr,
-		PublishAddr:    addr,
-		Publish:        true,
+		Name:              t.Name(),
+		NumNodes:          minNodes,
+		NumDVs:            1,
+		Network:           defaultNetwork,
+		WithdrawalAddrs:   []string{defaultWithdrawalAddr},
+		FeeRecipientAddrs: []string{defaultWithdrawalAddr},
+		PublishAddr:       addr,
+		Publish:           true,
 	}
 	conf.ClusterDir = t.TempDir()
 

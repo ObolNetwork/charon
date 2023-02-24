@@ -104,8 +104,14 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 	// Use operator 0 as the creator.
 	creator := Creator{Address: ops[0].Address}
 
+	var feeRecipientAddrs, withdrawalAddrs []string
+	for i := 0; i < dv; i++ {
+		feeRecipientAddrs = append(feeRecipientAddrs, testutil.RandomETHAddress())
+		withdrawalAddrs = append(withdrawalAddrs, testutil.RandomETHAddress())
+	}
+
 	def, err := NewDefinition("test cluster", dv, k,
-		testutil.RandomETHAddress(), testutil.RandomETHAddress(),
+		feeRecipientAddrs, withdrawalAddrs,
 		"0x00000000", creator, ops, random, opts...)
 	require.NoError(t, err)
 
