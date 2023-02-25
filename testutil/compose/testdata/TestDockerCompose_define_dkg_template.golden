@@ -26,7 +26,11 @@
      "Value": "3"
     },
     {
-     "Key": "withdrawal_address",
+     "Key": "withdrawal_addresses",
+     "Value": "\"0x000000000000000000000000000000000000dead\""
+    },
+    {
+     "Key": "fee-recipient_addresses",
      "Value": "\"0x000000000000000000000000000000000000dead\""
     },
     {
