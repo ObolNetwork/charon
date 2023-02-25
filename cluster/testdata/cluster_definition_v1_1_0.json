@@ -2,15 +2,15 @@
  "name": "test definition",
  "operators": [
   {
-   "address": "0xf5059875921e668a5bdf2c7fc4844592d2572bcd",
-   "enr": "enr://f84c7174cb7476364cc3dbd968b0f7172ed85794bb358b0c3b525da1786f9fff",
+   "address": "0x019192c24224e2cafccae3a61fb586b14323a6bc",
+   "enr": "enr://ea6f5b3af6de0374366c4719e43a1b067d89bc7f01f1f573981659a44ff17a4c",
    "nonce": 0,
    "config_signature": "",
    "enr_signature": ""
   },
   {
-   "address": "0xa3b539eb1e5849c6077dbb5722f5717a289a266f",
-   "enr": "enr://3970115e82ed6f4125c8fa7311e4d7defa922daae7786667f7e936cd4f24abf7",
+   "address": "0xa6430105220d0b29688b734b8ea0f3ca9936e846",
+   "enr": "enr://f6a63b7f3dfd2567c18979e4d60f26686d9bf2fb26c901ff354cde1607ee294b",
    "nonce": 0,
    "config_signature": "",
    "enr_signature": ""
@@ -25,6 +25,6 @@
  "withdrawal_address": "0x81855ad8681d0d86d1e91e00167939cb6694d2c4",
  "dkg_algorithm": "default",
  "fork_version": "0x90000069",
- "config_hash": "GtshpXb8pJUIqr0rqId5SPX8na/DkTXyKZcRVRHffhk=",
- "definition_hash": "Q7JM5KWFdYNU989iThEuuZHvPSRXTwqZGj6EUpVxIcc="
+ "config_hash": "yap39UmP0zpqYRF5iYTg0kLJbeeOkEyPR64YV+gaNSU=",
+ "definition_hash": "HaEpLad6JH4yAXNpq5bSZC3BBYJa+nvlwoHpKh2VV3M="
 }

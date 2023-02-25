@@ -40,6 +40,14 @@
     {
      "Key": "insecure-keys",
      "Value": "\"false\""
+    },
+    {
+     "Key": "withdrawal-addresses",
+     "Value": "\"0x000000000000000000000000000000000000dead\""
+    },
+    {
+     "Key": "fee-recipient-addresses",
+     "Value": "\"0x000000000000000000000000000000000000dead\""
     }
    ],
    "Ports": null

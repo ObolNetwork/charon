@@ -61,17 +61,23 @@ func TestEncode(t *testing.T) {
 					d.Timestamp = "2022-07-19T18:19:58+02:00" // Make deterministic
 				},
 			}
-			// Add multiple validator address from v1.5 and later.
-			if !isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4) {
-				opts = append(opts, cluster.WithMultiVAddrs(cluster.RandomValidatorAddresses(numVals)))
+			// Definition version prior to v1.5 don't support multiple validator addresses.
+			if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4) {
+				opts = append(opts, cluster.WithLegacyVAddrs(testutil.RandomETHAddress(), testutil.RandomETHAddress()))
+			}
+
+			var feeRecipientAddrs, withdrawalAddrs []string
+			for i := 0; i < numVals; i++ {
+				feeRecipientAddrs = append(feeRecipientAddrs, testutil.RandomETHAddress())
+				withdrawalAddrs = append(withdrawalAddrs, testutil.RandomETHAddress())
 			}
 
 			definition, err := cluster.NewDefinition(
 				"test definition",
 				numVals,
 				threshold,
-				testutil.RandomETHAddress(),
-				testutil.RandomETHAddress(),
+				feeRecipientAddrs,
+				withdrawalAddrs,
 				eth2util.Sepolia.ForkVersionHex,
 				cluster.Creator{
 					Address:         testutil.RandomETHAddress(),

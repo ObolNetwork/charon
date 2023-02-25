@@ -38,8 +38,8 @@ type createDKGConfig struct {
 	Name              string
 	NumValidators     int
 	Threshold         int
-	FeeRecipient      string
-	WithdrawalAddress string
+	FeeRecipientAddrs []string
+	WithdrawalAddrs   []string
 	Network           string
 	DKGAlgo           string
 	OperatorENRs      []string
@@ -70,8 +70,8 @@ func bindCreateDKGFlags(cmd *cobra.Command, config *createDKGConfig) {
 	cmd.Flags().StringVar(&config.OutputDir, "output-dir", ".charon", "The folder to write the output cluster-definition.json file to.")
 	cmd.Flags().IntVar(&config.NumValidators, "num-validators", 1, "The number of distributed validators the cluster will manage (32ETH staked for each).")
 	cmd.Flags().IntVarP(&config.Threshold, "threshold", "t", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
-	cmd.Flags().StringVar(&config.FeeRecipient, "fee-recipient-address", "", "Optional Ethereum address of the fee recipient")
-	cmd.Flags().StringVar(&config.WithdrawalAddress, "withdrawal-address", defaultWithdrawalAddr, "Withdrawal Ethereum address")
+	cmd.Flags().StringSliceVar(&config.FeeRecipientAddrs, "fee-recipient-addresses", nil, "Comma separated list of Ethereum addresses of the fee recipient for each validator. Either provide a single fee recipient address or fee recipient addresses for each validator.")
+	cmd.Flags().StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
 	cmd.Flags().StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, gnosis, goerli, kiln, ropsten, sepolia.")
 	cmd.Flags().StringVar(&config.DKGAlgo, "dkg-algorithm", "default", "DKG algorithm to use; default, keycast, frost")
 	cmd.Flags().StringSliceVar(&config.OperatorENRs, operatorENRs, nil, "[REQUIRED] Comma-separated list of each operator's Charon ENR address.")
@@ -91,6 +91,11 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 			log.Error(ctx, "Fatal run error", err)
 		}
 	}()
+
+	conf.FeeRecipientAddrs, conf.WithdrawalAddrs, err = validateAddresses(conf.NumValidators, conf.FeeRecipientAddrs, conf.WithdrawalAddrs)
+	if err != nil {
+		return err
+	}
 
 	version.LogInfo(ctx, "Charon create DKG starting")
 
@@ -131,7 +136,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		return errors.New("unsupported network", z.Str("network", conf.Network))
 	}
 
-	if err := validateWithdrawalAddr(conf.WithdrawalAddress, conf.Network); err != nil {
+	if err := validateWithdrawalAddrs(conf.WithdrawalAddrs, conf.Network); err != nil {
 		return err
 	}
 
@@ -142,7 +147,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 
 	def, err := cluster.NewDefinition(
 		conf.Name, conf.NumValidators, conf.Threshold,
-		conf.FeeRecipient, conf.WithdrawalAddress,
+		conf.FeeRecipientAddrs, conf.WithdrawalAddrs,
 		forkVersion, cluster.Creator{}, operators, crand.Reader,
 		func(d *cluster.Definition) {
 			d.DKGAlgorithm = conf.DKGAlgo
@@ -173,14 +178,16 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	return nil
 }
 
-func validateWithdrawalAddr(addr string, network string) error {
-	if _, err := eth2util.ChecksumAddress(addr); err != nil {
-		return errors.Wrap(err, "invalid withdrawal address", z.Str("addr", addr))
-	}
+func validateWithdrawalAddrs(addrs []string, network string) error {
+	for _, addr := range addrs {
+		if _, err := eth2util.ChecksumAddress(addr); err != nil {
+			return errors.Wrap(err, "invalid withdrawal address", z.Str("addr", addr))
+		}
 
-	// We cannot allow a zero withdrawal address on mainnet or gnosis.
-	if isMainNetwork(network) && addr == defaultWithdrawalAddr {
-		return errors.New("zero address forbidden on this network", z.Str("network", network))
+		// We cannot allow a zero withdrawal address on mainnet or gnosis.
+		if isMainNetwork(network) && addr == defaultWithdrawalAddr {
+			return errors.New("zero address forbidden on this network", z.Str("network", network))
+		}
 	}
 
 	return nil

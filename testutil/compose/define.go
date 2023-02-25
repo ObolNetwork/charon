@@ -141,7 +141,8 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 			{"num_validators", fmt.Sprint(conf.NumValidators)},
 			{"operator_enrs", strings.Join(enrs, ",")},
 			{"threshold", fmt.Sprint(conf.Threshold)},
-			{"withdrawal_address", zeroXDead},
+			{"withdrawal_addresses", zeroXDead},
+			{"fee-recipient_addresses", zeroXDead},
 			{"dkg_algorithm", "frost"},
 			{"output_dir", "/compose"},
 		}}

@@ -211,7 +211,7 @@ func hashDefinitionV1x3or4(d Definition, hh ssz.HashWalker, configOnly bool) err
 	// Field (6) 'FeeRecipientAddress' Bytes20
 	hh.PutBytes(feeRecipientAddress)
 
-	// Field (7) 'WithdrawalAddress' Bytes20
+	// Field (7) 'WithdrawalAddrs' Bytes20
 	hh.PutBytes(withdrawalAddress)
 
 	// Field (8) 'DKGAlgorithm' ByteList[32]
@@ -387,7 +387,7 @@ func hashDefinitionV1x5(d Definition, hh ssz.HashWalker, configOnly bool) error 
 				return err
 			}
 
-			// Field (1) 'WithdrawalAddress' Bytes20
+			// Field (1) 'WithdrawalAddrs' Bytes20
 			if err := putHexBytes20(hh, v.WithdrawalAddress); err != nil {
 				return err
 			}
@@ -482,7 +482,7 @@ func hashLockV1x5(l Lock, hh ssz.HashWalker) error {
 		return err
 	}
 
-	// Field (1) 'Validators' CompositeList[65536]
+	// Field (1) 'ValidatorAddresses' CompositeList[65536]
 	{
 		subIndx := hh.Index()
 		num := uint64(len(l.Validators))

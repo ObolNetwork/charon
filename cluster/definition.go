@@ -49,18 +49,34 @@ func WithVersion(version string) func(*Definition) {
 	}
 }
 
-// WithMultiVAddrs returns an option to set multiple validator addresses in a new definition.
-func WithMultiVAddrs(vaddrs []ValidatorAddresses) func(*Definition) {
+// WithLegacyVAddrs returns an option to set single feeRecipient address and withdrawal address to validator addresses.
+func WithLegacyVAddrs(feeRecipientAddress, withdrawalAddress string) func(*Definition) {
 	return func(d *Definition) {
-		d.ValidatorAddresses = vaddrs
+		var vAddrs []ValidatorAddresses
+		for i := 0; i < d.NumValidators; i++ {
+			vAddrs = append(vAddrs, ValidatorAddresses{
+				FeeRecipientAddress: feeRecipientAddress,
+				WithdrawalAddress:   withdrawalAddress,
+			})
+		}
+
+		d.ValidatorAddresses = vAddrs
 	}
 }
 
 // NewDefinition returns a new definition populated with the latest version, timestamp and UUID.
 // The hashes are also populated accordingly. Note that the hashes need to be recalculated when any field is modified.
-func NewDefinition(name string, numVals int, threshold int, feeRecipientAddress string, withdrawalAddress string,
+func NewDefinition(name string, numVals int, threshold int, feeRecipientAddresses []string, withdrawalAddresses []string,
 	forkVersionHex string, creator Creator, operators []Operator, random io.Reader, opts ...func(*Definition),
 ) (Definition, error) {
+	if len(feeRecipientAddresses) != numVals {
+		return Definition{}, errors.New("insufficient fee-recipient addresses")
+	}
+
+	if len(withdrawalAddresses) != numVals {
+		return Definition{}, errors.New("insufficient fee-recipient addresses")
+	}
+
 	def := Definition{
 		Version:       currentVersion,
 		Name:          name,
@@ -75,8 +91,8 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddress 
 
 	for i := 0; i < numVals; i++ {
 		def.ValidatorAddresses = append(def.ValidatorAddresses, ValidatorAddresses{
-			FeeRecipientAddress: feeRecipientAddress,
-			WithdrawalAddress:   withdrawalAddress,
+			FeeRecipientAddress: feeRecipientAddresses[i],
+			WithdrawalAddress:   withdrawalAddresses[i],
 		})
 	}
 

@@ -31,8 +31,8 @@ func TestCreateDkgValid(t *testing.T) {
 		OutputDir:         temp,
 		NumValidators:     1,
 		Threshold:         3,
-		FeeRecipient:      "",
-		WithdrawalAddress: defaultWithdrawalAddr,
+		FeeRecipientAddrs: []string{defaultWithdrawalAddr},
+		WithdrawalAddrs:   []string{defaultWithdrawalAddr},
 		Network:           defaultNetwork,
 		DKGAlgo:           "default",
 		OperatorENRs: []string{
@@ -113,7 +113,7 @@ func TestRequireOperatorENRFlag(t *testing.T) {
 		},
 		{
 			name: "operator ENRs less than threshold",
-			args: []string{"dkg", "--operator-enrs=enr:-JG4QG472ZVvl8ySSnUK9uNVDrP_hjkUrUqIxUC75aayzmDVQedXkjbqc7QKyOOS71VmlqnYzri_taV8ZesFYaoQSIOGAYHtv1WsgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u"},
+			args: []string{"dkg", "--operator-enrs=enr:-JG4QG472ZVvl8ySSnUK9uNVDrP_hjkUrUqIxUC75aayzmDVQedXkjbqc7QKyOOS71VmlqnYzri_taV8ZesFYaoQSIOGAYHtv1WsgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u", "--fee-recipient-addresses=0xa6430105220d0b29688b734b8ea0f3ca9936e846", "--withdrawal-addresses=0xa6430105220d0b29688b734b8ea0f3ca9936e846"},
 			err:  "insufficient operator ENRs (min = 4)",
 		},
 	}
@@ -137,6 +137,6 @@ func TestExistingClusterDefinition(t *testing.T) {
 	}()
 
 	cmd := newCreateCmd(newCreateDKGCmd(runCreateDKG))
-	cmd.SetArgs([]string{"dkg", "--operator-enrs=enr:-JG4QG472ZVvl8ySSnUK9uNVDrP_hjkUrUqIxUC75aayzmDVQedXkjbqc7QKyOOS71VmlqnYzri_taV8ZesFYaoQSIOGAYHtv1WsgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u"})
+	cmd.SetArgs([]string{"dkg", "--operator-enrs=enr:-JG4QG472ZVvl8ySSnUK9uNVDrP_hjkUrUqIxUC75aayzmDVQedXkjbqc7QKyOOS71VmlqnYzri_taV8ZesFYaoQSIOGAYHtv1WsgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u", "--fee-recipient-addresses=0xa6430105220d0b29688b734b8ea0f3ca9936e846", "--withdrawal-addresses=0xa6430105220d0b29688b734b8ea0f3ca9936e846"})
 	require.EqualError(t, cmd.Execute(), "existing cluster-definition.json found. Try again after deleting it")
 }
