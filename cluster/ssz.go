@@ -375,11 +375,11 @@ func hashDefinitionV1x5(d Definition, hh ssz.HashWalker, configOnly bool) error 
 		hh.Merkleize(creatorIdx)
 	}
 
-	// Field (10) 'Validators' CompositeList[65536]
+	// Field (10) 'ValidatorAddresses' CompositeList[65536]
 	{
 		validatorsIdx := hh.Index()
-		num := uint64(len(d.Validators))
-		for _, v := range d.Validators {
+		num := uint64(len(d.ValidatorAddresses))
+		for _, v := range d.ValidatorAddresses {
 			validatorIdx := hh.Index()
 
 			// Field (0) 'FeeRecipientAddress' Bytes20
@@ -451,7 +451,7 @@ func hashLockV1x3or4(l Lock, hh ssz.HashWalker) error {
 		return err
 	}
 
-	// Field (1) 'Validators' CompositeList[65536]
+	// Field (1) 'ValidatorAddresses' CompositeList[65536]
 	{
 		subIndx := hh.Index()
 		num := uint64(len(l.Validators))
@@ -482,7 +482,7 @@ func hashLockV1x5(l Lock, hh ssz.HashWalker) error {
 		return err
 	}
 
-	// Field (1) 'Validators' CompositeList[65536]
+	// Field (1) 'ValidatorAddresses' CompositeList[65536]
 	{
 		subIndx := hh.Index()
 		num := uint64(len(l.Validators))
@@ -570,7 +570,7 @@ func hashLockLegacy(l Lock, hh ssz.HashWalker) error {
 		return err
 	}
 
-	// Field (1) 'Validators'
+	// Field (1) 'ValidatorAddresses'
 	{
 		subIndx := hh.Index()
 		num := uint64(len(l.Validators))

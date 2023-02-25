@@ -60,7 +60,7 @@ func WithLegacyVAddrs(feeRecipientAddress, withdrawalAddress string) func(*Defin
 			})
 		}
 
-		d.Validators = vAddrs
+		d.ValidatorAddresses = vAddrs
 	}
 }
 
@@ -90,7 +90,7 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddresse
 	}
 
 	for i := 0; i < numVals; i++ {
-		def.Validators = append(def.Validators, ValidatorAddresses{
+		def.ValidatorAddresses = append(def.ValidatorAddresses, ValidatorAddresses{
 			FeeRecipientAddress: feeRecipientAddresses[i],
 			WithdrawalAddress:   withdrawalAddresses[i],
 		})
@@ -148,8 +148,8 @@ type Definition struct {
 	// Creator identifies the creator of a cluster definition. They may also be an operator.
 	Creator Creator `json:"creator" ssz:"Composite" config_hash:"9" definition_hash:"9"`
 
-	// Validators define addresses of each validator.
-	Validators []ValidatorAddresses `json:"validators" ssz:"CompositeList[65536]" config_hash:"10" definition_hash:"10"`
+	// ValidatorAddresses define addresses of each validator.
+	ValidatorAddresses []ValidatorAddresses `json:"validators" ssz:"CompositeList[65536]" config_hash:"10" definition_hash:"10"`
 
 	// ConfigHash uniquely identifies a cluster definition excluding operator ENRs and signatures.
 	ConfigHash []byte `json:"config_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"11"`
@@ -307,7 +307,7 @@ func (d Definition) PeerIDs() ([]peer.ID, error) {
 // or an error if multiple addresses are found.
 func (d Definition) LegacyValidatorAddresses() (ValidatorAddresses, error) {
 	var resp ValidatorAddresses
-	for i, vaddrs := range d.Validators {
+	for i, vaddrs := range d.ValidatorAddresses {
 		if i == 0 {
 			resp = vaddrs
 		} else if resp != vaddrs {
@@ -321,7 +321,7 @@ func (d Definition) LegacyValidatorAddresses() (ValidatorAddresses, error) {
 // WithdrawalAddresses is a convenience function to return all withdrawal address from the validator addresses slice.
 func (d Definition) WithdrawalAddresses() []string {
 	var resp []string
-	for _, vaddrs := range d.Validators {
+	for _, vaddrs := range d.ValidatorAddresses {
 		resp = append(resp, vaddrs.WithdrawalAddress)
 	}
 
@@ -331,7 +331,7 @@ func (d Definition) WithdrawalAddresses() []string {
 // FeeRecipientAddresses is a convenience function to return all fee-recipient address from the validator addresses slice.
 func (d Definition) FeeRecipientAddresses() []string {
 	var resp []string
-	for _, vaddrs := range d.Validators {
+	for _, vaddrs := range d.ValidatorAddresses {
 		resp = append(resp, vaddrs.FeeRecipientAddress)
 	}
 
@@ -549,7 +549,7 @@ func marshalDefinitionV1x5(def Definition) ([]byte, error) {
 		NumValidators:      def.NumValidators,
 		Threshold:          def.Threshold,
 		DKGAlgorithm:       def.DKGAlgorithm,
-		ValidatorAddresses: validatorAddressesToJSON(def.Validators),
+		ValidatorAddresses: validatorAddressesToJSON(def.ValidatorAddresses),
 		ForkVersion:        def.ForkVersion,
 		ConfigHash:         def.ConfigHash,
 		DefinitionHash:     def.DefinitionHash,
@@ -583,17 +583,17 @@ func unmarshalDefinitionV1x0or1(data []byte) (def Definition, err error) {
 	}
 
 	def = Definition{
-		Name:           defJSON.Name,
-		UUID:           defJSON.UUID,
-		Version:        defJSON.Version,
-		Timestamp:      defJSON.Timestamp,
-		NumValidators:  defJSON.NumValidators,
-		Threshold:      defJSON.Threshold,
-		DKGAlgorithm:   defJSON.DKGAlgorithm,
-		ConfigHash:     defJSON.ConfigHash,
-		DefinitionHash: defJSON.DefinitionHash,
-		Operators:      operators,
-		Validators:     repeatVAddrs(vaddrs, defJSON.NumValidators),
+		Name:               defJSON.Name,
+		UUID:               defJSON.UUID,
+		Version:            defJSON.Version,
+		Timestamp:          defJSON.Timestamp,
+		NumValidators:      defJSON.NumValidators,
+		Threshold:          defJSON.Threshold,
+		DKGAlgorithm:       defJSON.DKGAlgorithm,
+		ConfigHash:         defJSON.ConfigHash,
+		DefinitionHash:     defJSON.DefinitionHash,
+		Operators:          operators,
+		ValidatorAddresses: repeatVAddrs(vaddrs, defJSON.NumValidators),
 	}
 
 	def.ForkVersion, err = from0xHex(defJSON.ForkVersion, forkVersionLen)
@@ -616,18 +616,18 @@ func unmarshalDefinitionV1x2or3(data []byte) (def Definition, err error) {
 	}
 
 	def = Definition{
-		Name:           defJSON.Name,
-		UUID:           defJSON.UUID,
-		Version:        defJSON.Version,
-		Timestamp:      defJSON.Timestamp,
-		NumValidators:  defJSON.NumValidators,
-		Threshold:      defJSON.Threshold,
-		DKGAlgorithm:   defJSON.DKGAlgorithm,
-		ForkVersion:    defJSON.ForkVersion,
-		ConfigHash:     defJSON.ConfigHash,
-		DefinitionHash: defJSON.DefinitionHash,
-		Operators:      operatorsFromV1x2orLater(defJSON.Operators),
-		Validators:     repeatVAddrs(vaddrs, defJSON.NumValidators),
+		Name:               defJSON.Name,
+		UUID:               defJSON.UUID,
+		Version:            defJSON.Version,
+		Timestamp:          defJSON.Timestamp,
+		NumValidators:      defJSON.NumValidators,
+		Threshold:          defJSON.Threshold,
+		DKGAlgorithm:       defJSON.DKGAlgorithm,
+		ForkVersion:        defJSON.ForkVersion,
+		ConfigHash:         defJSON.ConfigHash,
+		DefinitionHash:     defJSON.DefinitionHash,
+		Operators:          operatorsFromV1x2orLater(defJSON.Operators),
+		ValidatorAddresses: repeatVAddrs(vaddrs, defJSON.NumValidators),
 	}
 
 	return def, nil
@@ -645,18 +645,18 @@ func unmarshalDefinitionV1x4(data []byte) (def Definition, err error) {
 	}
 
 	return Definition{
-		Name:           defJSON.Name,
-		UUID:           defJSON.UUID,
-		Version:        defJSON.Version,
-		Timestamp:      defJSON.Timestamp,
-		NumValidators:  defJSON.NumValidators,
-		Threshold:      defJSON.Threshold,
-		DKGAlgorithm:   defJSON.DKGAlgorithm,
-		ForkVersion:    defJSON.ForkVersion,
-		ConfigHash:     defJSON.ConfigHash,
-		DefinitionHash: defJSON.DefinitionHash,
-		Operators:      operatorsFromV1x2orLater(defJSON.Operators),
-		Validators:     repeatVAddrs(vaddrs, defJSON.NumValidators),
+		Name:               defJSON.Name,
+		UUID:               defJSON.UUID,
+		Version:            defJSON.Version,
+		Timestamp:          defJSON.Timestamp,
+		NumValidators:      defJSON.NumValidators,
+		Threshold:          defJSON.Threshold,
+		DKGAlgorithm:       defJSON.DKGAlgorithm,
+		ForkVersion:        defJSON.ForkVersion,
+		ConfigHash:         defJSON.ConfigHash,
+		DefinitionHash:     defJSON.DefinitionHash,
+		Operators:          operatorsFromV1x2orLater(defJSON.Operators),
+		ValidatorAddresses: repeatVAddrs(vaddrs, defJSON.NumValidators),
 		Creator: Creator{
 			Address:         defJSON.Creator.Address,
 			ConfigSignature: defJSON.Creator.ConfigSignature,
@@ -675,18 +675,18 @@ func unmarshalDefinitionV1x5(data []byte) (def Definition, err error) {
 	}
 
 	return Definition{
-		Name:           defJSON.Name,
-		UUID:           defJSON.UUID,
-		Version:        defJSON.Version,
-		Timestamp:      defJSON.Timestamp,
-		NumValidators:  defJSON.NumValidators,
-		Threshold:      defJSON.Threshold,
-		DKGAlgorithm:   defJSON.DKGAlgorithm,
-		ForkVersion:    defJSON.ForkVersion,
-		ConfigHash:     defJSON.ConfigHash,
-		DefinitionHash: defJSON.DefinitionHash,
-		Operators:      operatorsFromV1x2orLater(defJSON.Operators),
-		Validators:     validatorAddressesFromJSON(defJSON.ValidatorAddresses),
+		Name:               defJSON.Name,
+		UUID:               defJSON.UUID,
+		Version:            defJSON.Version,
+		Timestamp:          defJSON.Timestamp,
+		NumValidators:      defJSON.NumValidators,
+		Threshold:          defJSON.Threshold,
+		DKGAlgorithm:       defJSON.DKGAlgorithm,
+		ForkVersion:        defJSON.ForkVersion,
+		ConfigHash:         defJSON.ConfigHash,
+		DefinitionHash:     defJSON.DefinitionHash,
+		Operators:          operatorsFromV1x2orLater(defJSON.Operators),
+		ValidatorAddresses: validatorAddressesFromJSON(defJSON.ValidatorAddresses),
 		Creator: Creator{
 			Address:         defJSON.Creator.Address,
 			ConfigSignature: defJSON.Creator.ConfigSignature,
