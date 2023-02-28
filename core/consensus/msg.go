@@ -19,6 +19,7 @@ import (
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	ssz "github.com/ferranbt/fastssz"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/k1util"
@@ -28,33 +29,50 @@ import (
 )
 
 // newMsg returns a new msg.
-func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg) (msg, error) {
+func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]byte]*anypb.Any) (msg, error) {
 	// Do all possible error conversions first.
 	var (
 		valueHash         [32]byte
 		preparedValueHash [32]byte
 	)
 
-	if value, ok, err := msgValue(pbMsg); err != nil {
-		return msg{}, err
-	} else if ok {
+	if hash, ok := toHash32(pbMsg.ValueHash); ok {
+		valueHash = hash
+		if _, ok := values[valueHash]; !ok {
+			return msg{}, errors.New("value hash not found in values")
+		}
+	} else if pbMsg.Value != nil { // Use legacy value inside QBFTMsg.
+		value, err := pbMsg.Value.UnmarshalNew()
+		if err != nil {
+			return msg{}, errors.Wrap(err, "unmarshal any")
+		}
 		valueHash, err = hashProto(value)
 		if err != nil {
 			return msg{}, err
 		}
+		values[valueHash] = pbMsg.Value
 	}
-	if preparedValue, ok, err := msgPreparedValue(pbMsg); err != nil {
-		return msg{}, err
-	} else if ok {
-		preparedValueHash, err = hashProto(preparedValue)
+
+	if hash, ok := toHash32(pbMsg.PreparedValueHash); ok {
+		valueHash = hash
+		if _, ok := values[valueHash]; !ok {
+			return msg{}, errors.New("prepared value hash not found in values")
+		}
+	} else if pbMsg.PreparedValue != nil { // Use legacy prepared value inside QBFTMsg.
+		pv, err := pbMsg.PreparedValue.UnmarshalNew()
+		if err != nil {
+			return msg{}, errors.Wrap(err, "unmarshal any")
+		}
+		preparedValueHash, err = hashProto(pv)
 		if err != nil {
 			return msg{}, err
 		}
+		values[valueHash] = pbMsg.PreparedValue
 	}
 
 	var justImpls []qbft.Msg[core.Duty, [32]byte]
 	for _, j := range justification {
-		impl, err := newMsg(j, nil)
+		impl, err := newMsg(j, nil, values)
 		if err != nil {
 			return msg{}, err
 		}
@@ -65,6 +83,7 @@ func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg) (msg, error) {
 	return msg{
 		msg:                 pbMsg,
 		valueHash:           valueHash,
+		values:              values,
 		preparedValueHash:   preparedValueHash,
 		justificationProtos: justification,
 		justification:       justImpls,
@@ -76,6 +95,7 @@ type msg struct {
 	msg               *pbv1.QBFTMsg
 	valueHash         [32]byte
 	preparedValueHash [32]byte
+	values            map[[32]byte]*anypb.Any
 
 	justificationProtos []*pbv1.QBFTMsg
 	justification       []qbft.Msg[core.Duty, [32]byte]
@@ -114,15 +134,25 @@ func (m msg) Justification() []qbft.Msg[core.Duty, [32]byte] {
 }
 
 func (m msg) ToConsensusMsg() *pbv1.ConsensusMsg {
+	var values []*anypb.Any
+	for _, v := range m.values {
+		values = append(values, v)
+	}
+
 	return &pbv1.ConsensusMsg{
 		Msg:           m.msg,
 		Justification: m.justificationProtos,
+		Values:        values,
 	}
 }
 
 // hashProto returns a deterministic ssz hash root of the proto message.
 // It is the same logic as that used by the priority package.
 func hashProto(msg proto.Message) ([32]byte, error) {
+	if _, ok := msg.(*anypb.Any); ok {
+		return [32]byte{}, errors.New("cannot hash any proto, must hash inner value")
+	}
+
 	hh := ssz.DefaultHasherPool.Get()
 	defer ssz.DefaultHasherPool.Put(hh)
 
@@ -184,33 +214,18 @@ func signMsg(msg *pbv1.QBFTMsg, privkey *k1.PrivateKey) (*pbv1.QBFTMsg, error) {
 	return clone, nil
 }
 
-// msgValue returns either the unwrapped new value or the legacy UnsignedDataSet value and true if either is not nil.
-func msgValue(msg *pbv1.QBFTMsg) (proto.Message, bool, error) {
-	if msg.Value == nil {
-		return nil, false, nil
+// toHash32 returns the value as a 32-byte hash and true or false if not a valid hash.
+func toHash32(val []byte) ([32]byte, bool) {
+	if len(val) != 32 {
+		return [32]byte{}, false // Nil hash
 	}
 
-	value, err := msg.Value.UnmarshalNew()
-	if err != nil {
-		return nil, false, errors.Wrap(err, "unmarshal any")
+	resp := [32]byte(val)
+	if resp == [32]byte{} {
+		return [32]byte{}, false // Zero hash
 	}
 
-	return value, true, nil
-}
-
-// msgPreparedValue returns either the unwrapped new prepared value or the legacy UnsignedDataSet
-// prepared value and true if either is not nil.
-func msgPreparedValue(msg *pbv1.QBFTMsg) (proto.Message, bool, error) {
-	if msg.PreparedValue == nil {
-		return nil, false, nil
-	}
-
-	value, err := msg.PreparedValue.UnmarshalNew()
-	if err != nil {
-		return nil, false, errors.Wrap(err, "unmarshal any")
-	}
-
-	return value, true, nil
+	return resp, true
 }
 
 var _ qbft.Msg[core.Duty, [32]byte] = msg{} // Interface assertion

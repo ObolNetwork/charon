@@ -17,11 +17,11 @@ package consensus
 
 import (
 	"context"
+	"math/rand"
 	"sync"
 	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -41,7 +41,7 @@ type transport struct {
 
 	// Mutable state
 	valueMu sync.Mutex
-	values  map[[32]byte]proto.Message // maps proposed values to their hashes
+	values  map[[32]byte]*anypb.Any // maps any-wrapped proposed values to their hashes
 }
 
 // setValues caches the values and their hashes.
@@ -49,25 +49,15 @@ func (t *transport) setValues(msg msg) error {
 	t.valueMu.Lock()
 	defer t.valueMu.Unlock()
 
-	value, ok, err := msgValue(msg.msg)
-	if err != nil {
-		return err
-	} else if ok {
-		t.values[msg.Value()] = value
-	}
-
-	pv, ok, err := msgPreparedValue(msg.msg)
-	if err != nil {
-		return err
-	} else if ok {
-		t.values[msg.PreparedValue()] = pv
+	for k, v := range msg.values {
+		t.values[k] = v
 	}
 
 	return nil
 }
 
 // getValue returns the value by its hash.
-func (t *transport) getValue(hash [32]byte) (proto.Message, error) {
+func (t *transport) getValue(hash [32]byte) (*anypb.Any, error) {
 	t.valueMu.Lock()
 	defer t.valueMu.Unlock()
 
@@ -79,6 +69,12 @@ func (t *transport) getValue(hash [32]byte) (proto.Message, error) {
 	return pb, nil
 }
 
+// usePointerValues returns true if the transport should use pointer values in the message instead of the legacy
+// duplicated values in QBFTMsg.
+func (t *transport) usePointerValues() bool {
+	return rand.Float64() >= t.component.legacyProbability
+}
+
 // Broadcast creates a msg and sends it to all peers (including self).
 func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.Duty,
 	peerIdx int64, round int64, valueHash [32]byte, pr int64, pvHash [32]byte,
@@ -86,8 +82,8 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 ) error {
 	// Get the values by their hashes if not zero.
 	var (
-		value proto.Message
-		pv    proto.Message
+		value *anypb.Any
+		pv    *anypb.Any
 		err   error
 	)
 
@@ -106,7 +102,7 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 	}
 
 	// Make the message
-	msg, err := createMsg(typ, duty, peerIdx, round, value, pr, pv, justification, t.component.privkey)
+	msg, err := createMsg(typ, duty, peerIdx, round, valueHash, value, pr, pvHash, pv, justification, t.component.privkey, t.usePointerValues())
 	if err != nil {
 		return err
 	}
@@ -164,39 +160,42 @@ func (t *transport) ProcessReceives(ctx context.Context, outerBuffer chan msg) {
 // createMsg returns a new message by converting the inputs into a protobuf
 // and wrapping that in a msg type.
 func createMsg(typ qbft.MsgType, duty core.Duty,
-	peerIdx int64, round int64, value proto.Message,
-	pr int64, pv proto.Message,
+	peerIdx int64, round int64,
+	vHash [32]byte, value *anypb.Any,
+	pr int64,
+	pvHash [32]byte, pv *anypb.Any,
 	justification []qbft.Msg[core.Duty, [32]byte], privkey *k1.PrivateKey,
+	pointerValues bool,
 ) (msg, error) {
-	// Convert opaque protos to anys
-	var (
-		vAny, pvAny *anypb.Any
-		err         error
-	)
+
+	var values = make(map[[32]byte]*anypb.Any)
 	if value != nil {
-		vAny, err = anypb.New(value)
-		if err != nil {
-			return msg{}, errors.Wrap(err, "new any value")
-		}
+		values[vHash] = value
 	}
 	if pv != nil {
-		pvAny, err = anypb.New(pv)
-		if err != nil {
-			return msg{}, errors.Wrap(err, "new any value")
-		}
+		values[pvHash] = pv
+	}
+
+	// Disable new pointer values, revert to legacy duplicated values.
+	if !pointerValues {
+		values = make(map[[32]byte]*anypb.Any)
+		vHash = [32]byte{}
+		pvHash = [32]byte{}
 	}
 
 	pbMsg := &pbv1.QBFTMsg{
-		Type:          int64(typ),
-		Duty:          core.DutyToProto(duty),
-		PeerIdx:       peerIdx,
-		Round:         round,
-		Value:         vAny,
-		PreparedRound: pr,
-		PreparedValue: pvAny,
+		Type:              int64(typ),
+		Duty:              core.DutyToProto(duty),
+		PeerIdx:           peerIdx,
+		Round:             round,
+		Value:             value,
+		ValueHash:         vHash[:],
+		PreparedRound:     pr,
+		PreparedValue:     pv,
+		PreparedValueHash: pvHash[:],
 	}
 
-	pbMsg, err = signMsg(pbMsg, privkey)
+	pbMsg, err := signMsg(pbMsg, privkey)
 	if err != nil {
 		return msg{}, err
 	}
@@ -211,7 +210,7 @@ func createMsg(typ qbft.MsgType, duty core.Duty,
 		justMsgs = append(justMsgs, impl.msg) // Note nested justifications are ignored.
 	}
 
-	return newMsg(pbMsg, justMsgs)
+	return newMsg(pbMsg, justMsgs, values)
 }
 
 // validateMsg returns an error if the message is invalid.

@@ -13,31 +13,20 @@ message QBFTMsg {
   core.corepb.v1.Duty            duty                  = 2;
   int64                          peer_idx              = 3;
   int64                          round                 = 4;
-  core.corepb.v1.UnsignedDataSet value_legacy          = 5 [deprecated = true]; // Prefer value.
+  reserved                                               5 ;
   int64                          prepared_round        = 6;
-  core.corepb.v1.UnsignedDataSet prepared_value_legacy = 7 [deprecated = true]; // Prefer prepared_value.
+  reserved                                               7 ;
   bytes                          signature             = 8;
-  google.protobuf.Any            value                 = 9;
-  google.protobuf.Any            prepared_value        = 10;
-}
-
-// QBFTMsgLegacy is only used for backwards compatibility tests.
-message QBFTMsgLegacy {
-  option deprecated = true;
-
-  int64                          type           = 1;
-  core.corepb.v1.Duty            duty           = 2;
-  int64                          peer_idx       = 3;
-  int64                          round          = 4;
-  core.corepb.v1.UnsignedDataSet value          = 5;
-  int64                          prepared_round = 6;
-  core.corepb.v1.UnsignedDataSet prepared_value = 7;
-  bytes                          signature      = 8;
+  google.protobuf.Any            value                 = 9  [deprecated = true];  // Prefer value_hash and ConsensusMsg.values.
+  google.protobuf.Any            prepared_value        = 10 [deprecated = true]; // Prefer prepared_value_hash and ConsensusMsg.values.
+  bytes                          value_hash            = 11;
+  bytes                          prepared_value_hash   = 12;
 }
 
 message ConsensusMsg {
-  QBFTMsg          msg           = 1;
-  repeated QBFTMsg justification = 2;
+  QBFTMsg                      msg           = 1;
+  repeated QBFTMsg             justification = 2;
+  repeated google.protobuf.Any values        = 3;
 }
 
 message SniffedConsensusMsg {
