@@ -163,7 +163,7 @@ func run(gitRange string, output string, token string) error {
 		return err
 	}
 
-	if err := os.WriteFile(output, b, 0o644); err != nil {
+	if err := os.WriteFile(output, b, 0o644); err != nil { //nolint:gosec
 		return errors.Wrap(err, "write output")
 	}
 
