@@ -18,12 +18,6 @@ package validatormock
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"net/url"
-	"strings"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -37,7 +31,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
-	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
@@ -101,7 +94,7 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 		}
 
 		// Get Unsigned beacon block with given randao and slot
-		block, err = beaconBlockProposal(ctx, slot, randao, nil, eth2Cl.Address())
+		block, err = eth2Cl.BeaconBlockProposal(ctx, slot, randao, nil)
 		if err != nil {
 			return errors.Wrap(err, "vmock beacon block proposal")
 		}
@@ -216,7 +209,7 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 		}
 
 		// Get Unsigned beacon block with given randao and slot
-		block, err = blindedBeaconBlockProposal(ctx, slot, randao, nil, eth2Cl.Address())
+		block, err = eth2Cl.BlindedBeaconBlockProposal(ctx, slot, randao, nil)
 		if err != nil {
 			return errors.Wrap(err, "vmock blinded beacon block proposal")
 		}
@@ -333,183 +326,4 @@ func NewSigner(secrets ...tblsv2.PrivateKey) (SignFunc, error) {
 
 		return tblsconv2.SigToETH2(sig), nil
 	}, nil
-}
-
-// versionJSON extracts the version from a response.
-type versionJSON struct {
-	Version eth2spec.DataVersion `json:"version"`
-}
-
-type phase0BlockJSON struct {
-	Data *eth2p0.BeaconBlock `json:"data"`
-}
-
-type altairBlockJSON struct {
-	Data *altair.BeaconBlock `json:"data"`
-}
-
-type bellatrixBlockJSON struct {
-	Data *bellatrix.BeaconBlock `json:"data"`
-}
-
-type capellaBlockJSON struct {
-	Data *capella.BeaconBlock `json:"data"`
-}
-
-// beaconBlockProposal is used rather than go-eth2-client's BeaconBlockProposal to avoid the randao reveal check
-// refer: https://github.com/attestantio/go-eth2-client/blob/906db73739859de06f46dfa91384675ed9300af0/http/beaconblockproposal.go#L87
-func beaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature,
-	graffiti []byte, addr string,
-) (*eth2spec.VersionedBeaconBlock, error) {
-	endpoint := fmt.Sprintf("/eth/v2/validator/blocks/%d?randao_reveal=%#x&graffiti=%#x",
-		slot, randaoReveal, graffiti)
-	body, err := httpGet(ctx, addr, endpoint)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to request beacon block proposal")
-	}
-
-	var version versionJSON
-	if err := json.Unmarshal(body, &version); err != nil {
-		return nil, errors.Wrap(err, "failed to parse version")
-	}
-	res := &eth2spec.VersionedBeaconBlock{
-		Version: version.Version,
-	}
-
-	switch version.Version {
-	case eth2spec.DataVersionPhase0:
-		var resp phase0BlockJSON
-		if err := json.Unmarshal(body, &resp); err != nil {
-			return nil, errors.Wrap(err, "failed to parse phase 0 beacon block proposal")
-		}
-		// Ensure the data returned to us is as expected given our input.
-		if resp.Data.Slot != slot {
-			return nil, errors.New("beacon block proposal not for requested slot")
-		}
-		res.Phase0 = resp.Data
-	case eth2spec.DataVersionAltair:
-		var resp altairBlockJSON
-		if err := json.Unmarshal(body, &resp); err != nil {
-			return nil, errors.Wrap(err, "failed to parse altair beacon block proposal")
-		}
-		// Ensure the data returned to us is as expected given our input.
-		if resp.Data.Slot != slot {
-			return nil, errors.New("beacon block proposal not for requested slot")
-		}
-		res.Altair = resp.Data
-	case eth2spec.DataVersionBellatrix:
-		var resp bellatrixBlockJSON
-		if err := json.Unmarshal(body, &resp); err != nil {
-			return nil, errors.Wrap(err, "failed to parse bellatrix beacon block proposal")
-		}
-		// Ensure the data returned to us is as expected given our input.
-		if resp.Data.Slot != slot {
-			return nil, errors.New("beacon block proposal not for requested slot")
-		}
-		res.Bellatrix = resp.Data
-	case eth2spec.DataVersionCapella:
-		var resp capellaBlockJSON
-		if err := json.Unmarshal(body, &resp); err != nil {
-			return nil, errors.Wrap(err, "failed to parse capella beacon block proposal")
-		}
-		// Ensure the data returned to us is as expected given our input.
-		if resp.Data.Slot != slot {
-			return nil, errors.New("beacon block proposal not for requested slot")
-		}
-		res.Capella = resp.Data
-	default:
-		return nil, errors.New("unsupported block version", z.Any("version", version.Version))
-	}
-
-	return res, nil
-}
-
-type bellatrixBlindedBlockJSON struct {
-	Data *eth2bellatrix.BlindedBeaconBlock `json:"data"`
-}
-
-type capellaBlindedBlockJSON struct {
-	Data *eth2capella.BlindedBeaconBlock `json:"data"`
-}
-
-// blindedBeaconBlockProposal is used rather than go-eth2-client's BlindedBeaconBlockProposal to avoid the randao reveal check
-// refer: https://github.com/attestantio/go-eth2-client/blob/dceb0b761e5ea6a75534a7b11d544d91a5d610ee/http/blindedbeaconblockproposal.go#L75
-func blindedBeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature,
-	graffiti []byte, addr string,
-) (*eth2api.VersionedBlindedBeaconBlock, error) {
-	endpoint := fmt.Sprintf("/eth/v1/validator/blinded_blocks/%d?randao_reveal=%#x&graffiti=%#x",
-		slot, randaoReveal, graffiti)
-	body, err := httpGet(ctx, addr, endpoint)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to request beacon block proposal")
-	}
-
-	var version versionJSON
-	if err := json.Unmarshal(body, &version); err != nil {
-		return nil, errors.Wrap(err, "failed to parse version")
-	}
-	res := &eth2api.VersionedBlindedBeaconBlock{
-		Version: version.Version,
-	}
-
-	switch version.Version {
-	case eth2spec.DataVersionBellatrix:
-		var resp bellatrixBlindedBlockJSON
-		if err := json.Unmarshal(body, &resp); err != nil {
-			return nil, errors.Wrap(err, "failed to parse bellatrix beacon block proposal")
-		}
-		// Ensure the data returned to us is as expected given our input.
-		if resp.Data.Slot != slot {
-			return nil, errors.New("beacon block proposal not for requested slot")
-		}
-		res.Bellatrix = resp.Data
-	case eth2spec.DataVersionCapella:
-		var resp capellaBlindedBlockJSON
-		if err := json.Unmarshal(body, &resp); err != nil {
-			return nil, errors.Wrap(err, "failed to parse capella beacon block proposal")
-		}
-		// Ensure the data returned to us is as expected given our input.
-		if resp.Data.Slot != slot {
-			return nil, errors.New("beacon block proposal not for requested slot")
-		}
-		res.Capella = resp.Data
-	default:
-		return nil, errors.New("unsupported block version", z.Any("version", version.Version))
-	}
-
-	return res, nil
-}
-
-func httpGet(ctx context.Context, base string, endpoint string) ([]byte, error) {
-	u, err := url.Parse(fmt.Sprintf("%s%s", strings.TrimSuffix(base, "/"), endpoint))
-	if err != nil {
-		return nil, errors.Wrap(err, "invalid endpoint")
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-	if err != nil {
-		return nil, errors.Wrap(err, "new GET request with ctx")
-	}
-
-	res, err := new(http.Client).Do(req)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to call GET endpoint")
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode == http.StatusNotFound {
-		// Nothing found.  This is not an error, so we return nil on both counts.
-		return nil, nil
-	}
-
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to read GET response")
-	}
-
-	if res.StatusCode/100 != 2 {
-		return nil, errors.New("get failed", z.Int("status", res.StatusCode), z.Str("body", string(body)))
-	}
-
-	return body, nil
 }
