@@ -17,7 +17,7 @@ package consensus
 
 import (
 	"context"
-	"math/rand"
+	"crypto/rand"
 	"sync"
 	"time"
 
@@ -45,15 +45,13 @@ type transport struct {
 }
 
 // setValues caches the values and their hashes.
-func (t *transport) setValues(msg msg) error {
+func (t *transport) setValues(msg msg) {
 	t.valueMu.Lock()
 	defer t.valueMu.Unlock()
 
 	for k, v := range msg.values {
 		t.values[k] = v
 	}
-
-	return nil
 }
 
 // getValue returns the value by its hash.
@@ -72,7 +70,12 @@ func (t *transport) getValue(hash [32]byte) (*anypb.Any, error) {
 // usePointerValues returns true if the transport should use pointer values in the message instead of the legacy
 // duplicated values in QBFTMsg.
 func (t *transport) usePointerValues() bool {
-	return rand.Float64() >= t.component.legacyProbability
+	// Equivalent to math/rand.Float64() just with less precision.
+	b := make([]byte, 1)
+	_, _ = rand.Read(b)
+	f := float64(b[0]) / 255
+
+	return f >= t.component.legacyProbability
 }
 
 // Broadcast creates a msg and sends it to all peers (including self).
@@ -142,10 +145,8 @@ func (t *transport) ProcessReceives(ctx context.Context, outerBuffer chan msg) {
 				log.Warn(ctx, "Dropping invalid message", err)
 				continue
 			}
-			if err := t.setValues(msg); err != nil {
-				log.Warn(ctx, "Error caching message values", err)
-				continue
-			}
+
+			t.setValues(msg)
 
 			select {
 			case <-ctx.Done():

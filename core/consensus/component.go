@@ -574,7 +574,7 @@ func valuesByHash(values []*anypb.Any) (map[[32]byte]*anypb.Any, error) {
 	for _, v := range values {
 		inner, err := v.UnmarshalNew()
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "unmarshal any")
 		}
 
 		hash, err := hashProto(inner)
