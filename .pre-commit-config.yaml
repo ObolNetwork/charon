@@ -11,8 +11,8 @@ repos:
       - id: mixed-line-ending # ensures that a file doesn't contain a mix of LF and CRLF
       - id: no-commit-to-branch # Protect specific branches (default: main/master) from direct checkins
 
-  - repo: https://github.com/xenowits/go-pre-commit-hooks
-    rev: v0.0.3
+  - repo: https://github.com/ObolNetwork/go-pre-commit-hooks
+    rev: v0.0.2
     hooks:
       - id: check-go-version
         args: [ -v=go1.20.1 ]
