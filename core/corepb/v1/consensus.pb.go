@@ -34,9 +34,9 @@ type QBFTMsg struct {
 	PreparedRound int64  `protobuf:"varint,6,opt,name=prepared_round,json=preparedRound,proto3" json:"prepared_round,omitempty"`
 	Signature     []byte `protobuf:"bytes,8,opt,name=signature,proto3" json:"signature,omitempty"`
 	// Deprecated: Do not use.
-	Value *anypb.Any `protobuf:"bytes,9,opt,name=value,proto3" json:"value,omitempty"` // Prefer value_hash and ConsensusMsg.values.
+	Value *anypb.Any `protobuf:"bytes,9,opt,name=value,proto3" json:"value,omitempty"` // Prefer value_hash and ConsensusMsg.values. Remove in v0.15.
 	// Deprecated: Do not use.
-	PreparedValue     *anypb.Any `protobuf:"bytes,10,opt,name=prepared_value,json=preparedValue,proto3" json:"prepared_value,omitempty"` // Prefer prepared_value_hash and ConsensusMsg.values.
+	PreparedValue     *anypb.Any `protobuf:"bytes,10,opt,name=prepared_value,json=preparedValue,proto3" json:"prepared_value,omitempty"` // Prefer prepared_value_hash and ConsensusMsg.values. Remove in v0.15.
 	ValueHash         []byte     `protobuf:"bytes,11,opt,name=value_hash,json=valueHash,proto3" json:"value_hash,omitempty"`
 	PreparedValueHash []byte     `protobuf:"bytes,12,opt,name=prepared_value_hash,json=preparedValueHash,proto3" json:"prepared_value_hash,omitempty"`
 }
@@ -150,9 +150,9 @@ type ConsensusMsg struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Msg           *QBFTMsg     `protobuf:"bytes,1,opt,name=msg,proto3" json:"msg,omitempty"`
-	Justification []*QBFTMsg   `protobuf:"bytes,2,rep,name=justification,proto3" json:"justification,omitempty"`
-	Values        []*anypb.Any `protobuf:"bytes,3,rep,name=values,proto3" json:"values,omitempty"`
+	Msg           *QBFTMsg     `protobuf:"bytes,1,opt,name=msg,proto3" json:"msg,omitempty"`                     // msg is the message that we send
+	Justification []*QBFTMsg   `protobuf:"bytes,2,rep,name=justification,proto3" json:"justification,omitempty"` // justification is the justifications from others for the message
+	Values        []*anypb.Any `protobuf:"bytes,3,rep,name=values,proto3" json:"values,omitempty"`               // values of the hashes in the messages
 }
 
 func (x *ConsensusMsg) Reset() {
