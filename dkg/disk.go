@@ -123,7 +123,7 @@ func writeKeysToDisk(datadir string, shares []share) error {
 
 	keysDir := path.Join(datadir, "/validator_keys")
 
-	if err := os.Mkdir(keysDir, os.ModePerm); err != nil { //nolint:gosec // We need to be able to write to this dir.
+	if err := os.Mkdir(keysDir, os.ModePerm); err != nil {
 		return errors.Wrap(err, "mkdir /validator_keys")
 	}
 
@@ -132,13 +132,14 @@ func writeKeysToDisk(datadir string, shares []share) error {
 
 // writeLock writes the lock file to disk.
 //
-//nolint:gosec // False positive "Expect WriteFile permissions to be 0600 or less"
+
 func writeLock(datadir string, lock cluster.Lock) error {
 	b, err := json.MarshalIndent(lock, "", " ")
 	if err != nil {
 		return errors.Wrap(err, "marshal lock")
 	}
 
+	//nolint:gosec // File needs to be read-only for everybody
 	err = os.WriteFile(path.Join(datadir, "cluster-lock.json"), b, 0o444) // Read-only
 	if err != nil {
 		return errors.Wrap(err, "write lock")
@@ -157,7 +158,9 @@ func writeDepositData(depositDatas []eth2p0.DepositData, network string, dataDir
 
 	// Write it to disk
 	depositPath := path.Join(dataDir, "deposit-data.json")
-	err = os.WriteFile(depositPath, bytes, 0o444) // read-only
+
+	//nolint:gosec // File needs to be read-only for everybody
+	err = os.WriteFile(depositPath, bytes, 0o444)
 	if err != nil {
 		return errors.Wrap(err, "write deposit data")
 	}
@@ -175,6 +178,7 @@ func checkWrites(dataDir string) error {
 			}
 		}
 
+		//nolint:gosec // File needs to be read-only for everybody
 		if err := os.WriteFile(filepath.Join(dataDir, file), []byte(checkBody), 0o444); err != nil {
 			return errors.Wrap(err, "write file check writes", z.Str("file", file))
 		}

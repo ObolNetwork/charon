@@ -49,7 +49,6 @@ func StoreKeys(secrets []tblsv2.PrivateKey, dir string) error {
 	return storeKeysInternal(secrets, dir, "keystore-%d.json")
 }
 
-//nolint:gosec // False positive "Expect WriteFile permissions to be 0600 or less"
 func storeKeysInternal(secrets []tblsv2.PrivateKey, dir string, filenameFmt string, opts ...keystorev4.Option) error {
 	for i, secret := range secrets {
 		password, err := randomHex32()
@@ -68,6 +67,8 @@ func storeKeysInternal(secrets []tblsv2.PrivateKey, dir string, filenameFmt stri
 		}
 
 		filename := path.Join(dir, fmt.Sprintf(filenameFmt, i))
+
+		//nolint:gosec // File needs to be read-only for everybody
 		if err := os.WriteFile(filename, b, 0o444); err != nil {
 			return errors.Wrap(err, "write keystore")
 		}

@@ -23,7 +23,6 @@ import (
 	"github.com/obolnetwork/charon/core/qbft"
 )
 
-// /Users/corver/Downloads/qbft_messages.pb.gz
 var sniffedFile = flag.String("sniffed-file", "", "path to sniffed file")
 
 // TestSniffedInstances simulates all the instances in the sniffed file.

@@ -158,6 +158,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	// Best effort creation of output dir, but error when writing the file.
 	_ = os.MkdirAll(conf.OutputDir, 0o755)
 
+	//nolint:gosec // File needs to be read-only for everybody
 	if err := os.WriteFile(path.Join(conf.OutputDir, "cluster-definition.json"), b, 0o444); err != nil {
 		return errors.Wrap(err, "write definition")
 	}
