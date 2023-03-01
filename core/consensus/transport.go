@@ -123,7 +123,7 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 
 // ProcessReceives processes received messages from the outer buffer until the context is closed.
 //
-
+//nolint:revive // False positive "extra empty line at the start of a block"
 func (t *transport) ProcessReceives(ctx context.Context, outerBuffer chan msg) {
 	for {
 		select {
@@ -157,7 +157,8 @@ func createMsg(typ qbft.MsgType, duty core.Duty,
 	justification []qbft.Msg[core.Duty, [32]byte], privkey *k1.PrivateKey,
 	pointerValues bool,
 ) (msg, error) {
-	values := make(map[[32]byte]*anypb.Any)
+
+	var values = make(map[[32]byte]*anypb.Any)
 	if value != nil {
 		values[vHash] = value
 	}
