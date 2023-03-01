@@ -28,9 +28,9 @@ require (
 	github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4 v1.3.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.40.0
 	go.opentelemetry.io/otel v1.14.0
-	go.opentelemetry.io/otel/exporters/jaeger v1.13.0
+	go.opentelemetry.io/otel/exporters/jaeger v1.14.0
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.13.0
-	go.opentelemetry.io/otel/sdk v1.13.0
+	go.opentelemetry.io/otel/sdk v1.14.0
 	go.opentelemetry.io/otel/trace v1.14.0
 	go.uber.org/automaxprocs v1.5.1
 	go.uber.org/goleak v1.2.1
