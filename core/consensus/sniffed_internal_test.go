@@ -23,6 +23,7 @@ import (
 	"github.com/obolnetwork/charon/core/qbft"
 )
 
+// /Users/corver/Downloads/qbft_messages.pb.gz
 var sniffedFile = flag.String("sniffed-file", "", "path to sniffed file")
 
 // TestSniffedInstances simulates all the instances in the sniffed file.
@@ -63,12 +64,15 @@ func TestSniffedFile(t *testing.T) {
 func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.SniffedConsensusInstance) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*2)
 	defer cancel()
+
+	var expectDecided bool
 
 	def := newDefinition(int(instance.Nodes), func() []subscriber {
 		return []subscriber{func(ctx context.Context, duty core.Duty, value proto.Message) error {
 			log.Info(ctx, "Consensus decided", z.Any("value", value))
+			expectDecided = true
 			cancel()
 
 			return nil
@@ -79,9 +83,16 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 
 	var duty core.Duty
 	for _, msg := range instance.Msgs {
+		if qbft.MsgType(msg.Msg.Msg.Type) == qbft.MsgDecided {
+			expectDecided = true
+		}
+
 		duty = core.DutyFromProto(msg.Msg.Msg.Duty)
 
-		m, err := newMsg(msg.Msg.Msg, msg.Msg.Justification)
+		values, err := valuesByHash(msg.Msg.Values)
+		require.NoError(t, err)
+
+		m, err := newMsg(msg.Msg.Msg, msg.Msg.Justification, values)
 		require.NoError(t, err)
 		recvBuffer <- m
 	}
@@ -99,7 +110,11 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 
 	// Run the algo, blocking until the context is cancelled.
 	err := qbft.Run[core.Duty, [32]byte](ctx, def, qt, duty, instance.PeerIdx, [32]byte{1})
-	require.ErrorIs(t, err, context.Canceled)
+	if expectDecided {
+		require.ErrorIs(t, err, context.Canceled)
+	} else {
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+	}
 }
 
 // parseSniffedFile returns a SniffedConsensusSets from a file.

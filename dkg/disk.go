@@ -123,7 +123,7 @@ func writeKeysToDisk(datadir string, shares []share) error {
 
 	keysDir := path.Join(datadir, "/validator_keys")
 
-	if err := os.Mkdir(keysDir, os.ModePerm); err != nil {
+	if err := os.Mkdir(keysDir, os.ModePerm); err != nil { //nolint:gosec // We need to be able to write to this dir.
 		return errors.Wrap(err, "mkdir /validator_keys")
 	}
 
@@ -131,6 +131,8 @@ func writeKeysToDisk(datadir string, shares []share) error {
 }
 
 // writeLock writes the lock file to disk.
+//
+//nolint:gosec // False positive "Expect WriteFile permissions to be 0600 or less"
 func writeLock(datadir string, lock cluster.Lock) error {
 	b, err := json.MarshalIndent(lock, "", " ")
 	if err != nil {

@@ -15,6 +15,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -52,12 +53,21 @@ func newDefinition(nodes int, subs func() []subscriber) qbft.Definition[core.Dut
 		// Decide sends consensus output to subscribers.
 		Decide: func(ctx context.Context, duty core.Duty, _ [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte]) {
 			defer endCtxSpan(ctx) // End the parent tracing span when decided
-			value, ok, err := msgValue(qcommit[0].(msg).msg)
-			if err != nil {
-				log.Error(ctx, "Get decided value", err)
+			msg, ok := qcommit[0].(msg)
+			if !ok {
+				log.Error(ctx, "Invalid message type", nil)
 				return
-			} else if !ok {
-				log.Error(ctx, "Missing decided value", nil)
+			}
+
+			anyValue, ok := msg.values[msg.valueHash]
+			if !ok {
+				log.Error(ctx, "Invalid value hash", nil)
+				return
+			}
+
+			value, err := anyValue.UnmarshalNew()
+			if err != nil {
+				log.Error(ctx, "Invalid any value", err)
 				return
 			}
 
@@ -115,7 +125,7 @@ func newDefinition(nodes int, subs func() []subscriber) qbft.Definition[core.Dut
 
 // New returns a new consensus QBFT component.
 func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey,
-	deadliner core.Deadliner, snifferFunc func(*pbv1.SniffedConsensusInstance),
+	deadliner core.Deadliner, snifferFunc func(*pbv1.SniffedConsensusInstance), legacyProbability float64,
 ) (*Component, error) {
 	// Extract peer pubkeys.
 	keys := make(map[int64]*k1.PublicKey)
@@ -132,16 +142,17 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.Pri
 	}
 
 	c := &Component{
-		tcpNode:     tcpNode,
-		sender:      sender,
-		peers:       peers,
-		peerLabels:  labels,
-		privkey:     p2pKey,
-		pubkeys:     keys,
-		deadliner:   deadliner,
-		recvBuffers: make(map[core.Duty]chan msg),
-		snifferFunc: snifferFunc,
-		dropFilter:  log.Filter(),
+		tcpNode:           tcpNode,
+		sender:            sender,
+		peers:             peers,
+		peerLabels:        labels,
+		privkey:           p2pKey,
+		pubkeys:           keys,
+		deadliner:         deadliner,
+		recvBuffers:       make(map[core.Duty]chan msg),
+		snifferFunc:       snifferFunc,
+		dropFilter:        log.Filter(),
+		legacyProbability: legacyProbability,
 	}
 
 	c.def = newDefinition(len(peers), c.subscribers)
@@ -152,17 +163,18 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.Pri
 // Component implements core.Consensus.
 type Component struct {
 	// Immutable state
-	tcpNode     host.Host
-	sender      *p2p.Sender
-	peerLabels  []string
-	peers       []p2p.Peer
-	pubkeys     map[int64]*k1.PublicKey
-	privkey     *k1.PrivateKey
-	def         qbft.Definition[core.Duty, [32]byte]
-	subs        []subscriber
-	deadliner   core.Deadliner
-	snifferFunc func(*pbv1.SniffedConsensusInstance)
-	dropFilter  z.Field // Filter buffer overflow errors (possible DDoS)
+	tcpNode           host.Host
+	sender            *p2p.Sender
+	peerLabels        []string
+	peers             []p2p.Peer
+	pubkeys           map[int64]*k1.PublicKey
+	privkey           *k1.PrivateKey
+	def               qbft.Definition[core.Duty, [32]byte]
+	subs              []subscriber
+	deadliner         core.Deadliner
+	snifferFunc       func(*pbv1.SniffedConsensusInstance)
+	dropFilter        z.Field // Filter buffer overflow errors (possible DDoS)
+	legacyProbability float64 // Probability of using legacy duplicated values inside QBFTMsg vs new pointer values.
 
 	// Mutable state
 	recvMu      sync.Mutex
@@ -260,6 +272,11 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 		return err
 	}
 
+	anyValue, err := anypb.New(value)
+	if err != nil {
+		return errors.Wrap(err, "wrap any value")
+	}
+
 	peerIdx, err := c.getPeerIdx()
 	if err != nil {
 		return err
@@ -268,7 +285,7 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 	// Create a transport handles sending and receiving for this instance.
 	t := transport{
 		component:  c,
-		values:     map[[32]byte]proto.Message{hash: value},
+		values:     map[[32]byte]*anypb.Any{hash: anyValue},
 		recvBuffer: make(chan qbft.Msg[core.Duty, [32]byte]),
 		sniffer:    newSniffer(int64(c.def.Nodes), peerIdx),
 	}
@@ -348,7 +365,13 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 			return nil, false, errors.New("invalid consensus justification signature", z.Any("duty", duty))
 		}
 	}
-	msg, err := newMsg(pbMsg.Msg, pbMsg.Justification)
+
+	values, err := valuesByHash(pbMsg.Values)
+	if err != nil {
+		return nil, false, err
+	}
+
+	msg, err := newMsg(pbMsg.Msg, pbMsg.Justification, values)
 	if err != nil {
 		return nil, false, err
 	}
@@ -531,4 +554,23 @@ func leader(duty core.Duty, round int64, nodes int) int64 {
 func newRoundTimer(round int64) (<-chan time.Time, func()) {
 	timer := time.NewTimer(roundStart + (time.Duration(round) * roundIncrease))
 	return timer.C, func() { timer.Stop() }
+}
+
+func valuesByHash(values []*anypb.Any) (map[[32]byte]*anypb.Any, error) {
+	resp := make(map[[32]byte]*anypb.Any)
+	for _, v := range values {
+		inner, err := v.UnmarshalNew()
+		if err != nil {
+			return nil, errors.Wrap(err, "unmarshal any")
+		}
+
+		hash, err := hashProto(inner)
+		if err != nil {
+			return nil, err
+		}
+
+		resp[hash] = v
+	}
+
+	return resp, nil
 }

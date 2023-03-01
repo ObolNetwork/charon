@@ -49,6 +49,7 @@ func StoreKeys(secrets []tblsv2.PrivateKey, dir string) error {
 	return storeKeysInternal(secrets, dir, "keystore-%d.json")
 }
 
+//nolint:gosec // False positive "Expect WriteFile permissions to be 0600 or less"
 func storeKeysInternal(secrets []tblsv2.PrivateKey, dir string, filenameFmt string, opts ...keystorev4.Option) error {
 	for i, secret := range secrets {
 		password, err := randomHex32()

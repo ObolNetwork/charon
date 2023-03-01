@@ -86,7 +86,7 @@ func TestComponent(t *testing.T) {
 			sniffed <- len(msgs.Msgs)
 		}
 
-		c, err := consensus.New(hosts[i], new(p2p.Sender), peers, p2pkeys[i], testDeadliner{}, sniffer)
+		c, err := consensus.New(hosts[i], new(p2p.Sender), peers, p2pkeys[i], testDeadliner{}, sniffer, 0.5)
 		require.NoError(t, err)
 		c.Subscribe(func(_ context.Context, _ core.Duty, set core.UnsignedDataSet) error {
 			results <- set
@@ -117,7 +117,7 @@ func TestComponent(t *testing.T) {
 	for {
 		select {
 		case err := <-runErrs:
-			require.NoError(t, err)
+			testutil.RequireNoError(t, err)
 		case res := <-results:
 			t.Logf("Got result: %#v", res)
 			if count == 0 {

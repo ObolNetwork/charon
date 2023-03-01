@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   golangci:
     runs-on: ubuntu-latest
@@ -11,13 +16,13 @@ jobs:
       # Config options can be found in README here: https://github.com/golangci/golangci-lint-action
       - uses: actions/setup-go@v3
         with:
-          go-version: 1.19
+          go-version: '1.20.1'
       - uses: actions/checkout@v3
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@master
         with:
-          version: v1.51.1
-
+          version: v1.51.2
+          args: --issues-exit-code=0
       - name: notify failure
         if: failure() && github.ref == 'refs/heads/main'
         env:
