@@ -41,10 +41,6 @@ const (
 
 	// HerumiBLS enables usage of the Herumi BLS12-381 implementation, rather than Kryptology.
 	HerumiBLS Feature = "herumi_bls"
-
-	// TrackerV2 enables support of tracker2.
-	// TODO(dhruv): remove this featureflag once we are more confident about tracker2.
-	TrackerV2 Feature = "tracker_v2"
 )
 
 var (
@@ -55,7 +51,6 @@ var (
 		MockAlpha:      statusAlpha,
 		RelayDiscovery: statusStable,
 		HerumiBLS:      statusBeta,
-		TrackerV2:      statusAlpha,
 		// Add all features and there status here.
 	}
 
