@@ -33,9 +33,9 @@ type QBFTMsg struct {
 	Round         int64  `protobuf:"varint,4,opt,name=round,proto3" json:"round,omitempty"`
 	PreparedRound int64  `protobuf:"varint,6,opt,name=prepared_round,json=preparedRound,proto3" json:"prepared_round,omitempty"`
 	Signature     []byte `protobuf:"bytes,8,opt,name=signature,proto3" json:"signature,omitempty"`
-	// Deprecated: Do not use.
+	// Deprecated: Marked as deprecated in core/corepb/v1/consensus.proto.
 	Value *anypb.Any `protobuf:"bytes,9,opt,name=value,proto3" json:"value,omitempty"` // Prefer value_hash and ConsensusMsg.values. Remove in v0.15.
-	// Deprecated: Do not use.
+	// Deprecated: Marked as deprecated in core/corepb/v1/consensus.proto.
 	PreparedValue     *anypb.Any `protobuf:"bytes,10,opt,name=prepared_value,json=preparedValue,proto3" json:"prepared_value,omitempty"` // Prefer prepared_value_hash and ConsensusMsg.values. Remove in v0.15.
 	ValueHash         []byte     `protobuf:"bytes,11,opt,name=value_hash,json=valueHash,proto3" json:"value_hash,omitempty"`
 	PreparedValueHash []byte     `protobuf:"bytes,12,opt,name=prepared_value_hash,json=preparedValueHash,proto3" json:"prepared_value_hash,omitempty"`
@@ -115,7 +115,7 @@ func (x *QBFTMsg) GetSignature() []byte {
 	return nil
 }
 
-// Deprecated: Do not use.
+// Deprecated: Marked as deprecated in core/corepb/v1/consensus.proto.
 func (x *QBFTMsg) GetValue() *anypb.Any {
 	if x != nil {
 		return x.Value
@@ -123,7 +123,7 @@ func (x *QBFTMsg) GetValue() *anypb.Any {
 	return nil
 }
 
-// Deprecated: Do not use.
+// Deprecated: Marked as deprecated in core/corepb/v1/consensus.proto.
 func (x *QBFTMsg) GetPreparedValue() *anypb.Any {
 	if x != nil {
 		return x.PreparedValue
