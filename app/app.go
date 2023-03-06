@@ -134,6 +134,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	tblsv2.SetImplementation(tblsv2.Herumi{})
 
+	if !featureset.Enabled(featureset.HerumiBLS) {
+		log.Info(ctx, "Enabling Kryptology BLS signature backend")
+		tblsv2.SetImplementation(tblsv2.Kryptology{})
+	}
+
 	// Wire processes and their dependencies
 	life := new(lifecycle.Manager)
 
