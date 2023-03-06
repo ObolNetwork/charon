@@ -13,12 +13,13 @@ import (
 const (
 	// Version is the release version of the codebase.
 	// Usually overridden by tag names when building binaries.
-	Version = "v0.13.0"
+	Version = "v0.14.0"
 )
 
 // Supported returns the supported versions in order of precedence.
 func Supported() []string {
 	return []string{
+		"v0.14",
 		"v0.13",
 	}
 }
