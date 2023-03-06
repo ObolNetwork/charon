@@ -50,7 +50,7 @@ var (
 		Priority:       statusStable,
 		MockAlpha:      statusAlpha,
 		RelayDiscovery: statusStable,
-		HerumiBLS:      statusBeta,
+		HerumiBLS:      statusStable,
 		// Add all features and there status here.
 	}
 
