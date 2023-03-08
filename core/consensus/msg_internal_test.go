@@ -89,6 +89,28 @@ func TestNewMsg(t *testing.T) {
 	require.EqualValues(t, msg.values, values)
 }
 
+func TestPartialLegacyNewMsg(t *testing.T) {
+	val1 := timestamppb.New(time.Time{})
+	val2 := timestamppb.New(time.Now())
+	hash1, err := hashProto(val1)
+	require.NoError(t, err)
+
+	any1, err := anypb.New(val1)
+	require.NoError(t, err)
+	any2, err := anypb.New(val2)
+	require.NoError(t, err)
+
+	_, err = newMsg(&pbv1.QBFTMsg{
+		PreparedValue: any2,
+	}, []*pbv1.QBFTMsg{
+		{
+			Value:     any1,
+			ValueHash: hash1[:],
+		},
+	}, make(map[[32]byte]*anypb.Any))
+	require.NoError(t, err)
+}
+
 // randomMsg returns a random qbft message.
 func randomMsg(t *testing.T) *pbv1.QBFTMsg {
 	t.Helper()

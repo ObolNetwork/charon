@@ -23,12 +23,7 @@ func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]b
 		preparedValueHash [32]byte
 	)
 
-	if hash, ok := toHash32(pbMsg.ValueHash); ok {
-		valueHash = hash
-		if _, ok := values[valueHash]; !ok {
-			return msg{}, errors.New("value hash not found in values")
-		}
-	} else if pbMsg.Value != nil { // Use legacy value inside QBFTMsg.
+	if pbMsg.Value != nil { // Use legacy value inside QBFTMsg.
 		value, err := pbMsg.Value.UnmarshalNew()
 		if err != nil {
 			return msg{}, errors.Wrap(err, "unmarshal any")
@@ -38,14 +33,14 @@ func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]b
 			return msg{}, err
 		}
 		values[valueHash] = pbMsg.Value
+	} else if hash, ok := toHash32(pbMsg.ValueHash); ok {
+		valueHash = hash
+		if _, ok := values[valueHash]; !ok {
+			return msg{}, errors.New("value hash not found in values")
+		}
 	}
 
-	if hash, ok := toHash32(pbMsg.PreparedValueHash); ok {
-		preparedValueHash = hash
-		if _, ok := values[preparedValueHash]; !ok {
-			return msg{}, errors.New("prepared value hash not found in values")
-		}
-	} else if pbMsg.PreparedValue != nil { // Use legacy prepared value inside QBFTMsg.
+	if pbMsg.PreparedValue != nil { // Use legacy prepared value inside QBFTMsg.
 		pv, err := pbMsg.PreparedValue.UnmarshalNew()
 		if err != nil {
 			return msg{}, errors.Wrap(err, "unmarshal any")
@@ -55,6 +50,11 @@ func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]b
 			return msg{}, err
 		}
 		values[valueHash] = pbMsg.PreparedValue
+	} else if hash, ok := toHash32(pbMsg.PreparedValueHash); ok {
+		preparedValueHash = hash
+		if _, ok := values[preparedValueHash]; !ok {
+			return msg{}, errors.New("prepared value hash not found in values")
+		}
 	}
 
 	var justImpls []qbft.Msg[core.Duty, [32]byte]
