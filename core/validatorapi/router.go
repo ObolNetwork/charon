@@ -495,7 +495,7 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 			}
 
 			return proposeBlockResponsePhase0{
-				Version: "PHASE0",
+				Version: eth2spec.DataVersionPhase0.String(),
 				Data:    block.Phase0,
 			}, nil
 		case eth2spec.DataVersionAltair:
@@ -504,7 +504,7 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 			}
 
 			return proposeBlockResponseAltair{
-				Version: "ALTAIR",
+				Version: eth2spec.DataVersionAltair.String(),
 				Data:    block.Altair,
 			}, nil
 		case eth2spec.DataVersionBellatrix:
@@ -513,7 +513,7 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 			}
 
 			return proposeBlockResponseBellatrix{
-				Version: "BELLATRIX",
+				Version: eth2spec.DataVersionBellatrix.String(),
 				Data:    block.Bellatrix,
 			}, nil
 		case eth2spec.DataVersionCapella:
@@ -522,7 +522,7 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 			}
 
 			return proposeBlockResponseCapella{
-				Version: "CAPELLA",
+				Version: eth2spec.DataVersionCapella.String(),
 				Data:    block.Capella,
 			}, nil
 		default:
