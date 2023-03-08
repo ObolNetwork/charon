@@ -6,10 +6,12 @@ import (
 	"encoding/hex"
 	"math/rand"
 	"testing"
+	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
@@ -54,6 +56,37 @@ func TestSigning(t *testing.T) {
 	ok, err = verifyMsgSig(signed, privkey2.PubKey())
 	require.NoError(t, err)
 	require.False(t, ok)
+}
+
+func TestNewMsg(t *testing.T) {
+	val1 := timestamppb.New(time.Time{})
+	val2 := timestamppb.New(time.Now())
+	hash1, err := hashProto(val1)
+	require.NoError(t, err)
+	hash2, err := hashProto(val2)
+	require.NoError(t, err)
+
+	any1, err := anypb.New(val1)
+	require.NoError(t, err)
+	any2, err := anypb.New(val2)
+	require.NoError(t, err)
+
+	values := map[[32]byte]*anypb.Any{
+		hash1: any1,
+		hash2: any2,
+	}
+
+	msg, err := newMsg(&pbv1.QBFTMsg{
+		Value:             any1,
+		PreparedValue:     any2,
+		ValueHash:         hash1[:],
+		PreparedValueHash: hash2[:],
+	}, nil, values)
+	require.NoError(t, err)
+
+	require.Equal(t, msg.Value(), hash1)
+	require.Equal(t, msg.PreparedValue(), hash2)
+	require.EqualValues(t, msg.values, values)
 }
 
 // randomMsg returns a random qbft message.
