@@ -41,8 +41,8 @@ func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]b
 	}
 
 	if hash, ok := toHash32(pbMsg.PreparedValueHash); ok {
-		valueHash = hash
-		if _, ok := values[valueHash]; !ok {
+		preparedValueHash = hash
+		if _, ok := values[preparedValueHash]; !ok {
 			return msg{}, errors.New("prepared value hash not found in values")
 		}
 	} else if pbMsg.PreparedValue != nil { // Use legacy prepared value inside QBFTMsg.
