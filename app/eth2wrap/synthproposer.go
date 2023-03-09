@@ -148,20 +148,24 @@ func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot, vId
 		block.Phase0 = signedBlock.Phase0.Message
 		block.Phase0.Body.Graffiti = synthGraffiti
 		block.Phase0.Slot = slot
+		block.Phase0.ProposerIndex = vIdx
 	case spec.DataVersionAltair:
 		block.Altair = signedBlock.Altair.Message
 		block.Altair.Body.Graffiti = synthGraffiti
 		block.Altair.Slot = slot
+		block.Altair.ProposerIndex = vIdx
 	case spec.DataVersionBellatrix:
 		block.Bellatrix = signedBlock.Bellatrix.Message
 		block.Bellatrix.Body.Graffiti = synthGraffiti
 		block.Bellatrix.Slot = slot
+		block.Bellatrix.ProposerIndex = vIdx
 		block.Bellatrix.Body.ExecutionPayload.FeeRecipient = feeRecipient
 		block.Bellatrix.Body.ExecutionPayload.Transactions = fraction(block.Bellatrix.Body.ExecutionPayload.Transactions)
 	case spec.DataVersionCapella:
 		block.Capella = signedBlock.Capella.Message
 		block.Capella.Body.Graffiti = synthGraffiti
 		block.Capella.Slot = slot
+		block.Capella.ProposerIndex = vIdx
 		block.Capella.Body.ExecutionPayload.FeeRecipient = feeRecipient
 		block.Capella.Body.ExecutionPayload.Transactions = fraction(block.Capella.Body.ExecutionPayload.Transactions)
 	default:
