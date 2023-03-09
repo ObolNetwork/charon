@@ -607,6 +607,10 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 		return errors.New("name not provided")
 	}
 
+	if def.NumValidators == 0 {
+		return errors.New("cannot create cluster with zero validators, specify at least one")
+	}
+
 	if !eth2util.ValidNetwork(network) {
 		return errors.New("unsupported network", z.Str("network", network))
 	}
