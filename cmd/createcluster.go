@@ -584,6 +584,10 @@ func nodeDir(clusterDir string, i int) string {
 
 // validateDef returns an error if the provided cluster definition is invalid.
 func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []string, def cluster.Definition) error {
+	if def.NumValidators == 0 {
+		return errors.New("cannot create cluster with zero validators, specify at least one")
+	}
+
 	if len(def.Operators) < minNodes {
 		return errors.New("insufficient number of nodes (min = 4)", z.Int("num_nodes", len(def.Operators)))
 	}
@@ -605,10 +609,6 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 
 	if def.Name == "" {
 		return errors.New("name not provided")
-	}
-
-	if def.NumValidators == 0 {
-		return errors.New("cannot create cluster with zero validators, specify at least one")
 	}
 
 	if !eth2util.ValidNetwork(network) {
