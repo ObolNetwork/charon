@@ -263,6 +263,45 @@ func TestValidateDef(t *testing.T) {
 		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
 		require.ErrorContains(t, err, "name not provided")
 	})
+
+	t.Run("zero validators provided", func(t *testing.T) {
+		def := definition
+		def.NumValidators = 0
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		require.ErrorContains(t, err, "cannot create cluster with zero validators, specify at least one")
+	})
+}
+
+func TestMultipleAddresses(t *testing.T) {
+	t.Run("insufficient addresses in config", func(t *testing.T) {
+		err := runCreateCluster(context.Background(), io.Discard, clusterConfig{
+			NumDVs:            4,
+			FeeRecipientAddrs: []string{},
+			WithdrawalAddrs:   []string{},
+		})
+		require.ErrorContains(t, err, "insufficient fee recipient addresses")
+	})
+
+	t.Run("insufficient addresses from remote URL", func(t *testing.T) {
+		lock, _, _ := cluster.NewForT(t, 2, 3, 4, 1, func(d *cluster.Definition) {
+			d.ValidatorAddresses = []cluster.ValidatorAddresses{}
+		})
+
+		def := lock.Definition
+
+		// Serve definition over network
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			defBytes, err := def.MarshalJSON()
+			require.NoError(t, err)
+
+			_, err = w.Write(defBytes)
+			require.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		err := runCreateCluster(context.Background(), io.Discard, clusterConfig{DefFile: srv.URL, NumNodes: minNodes})
+		require.ErrorContains(t, err, "num_validators not matching validators length")
+	})
 }
 
 // TestKeymanager tests keymanager support by letting create cluster command split a single secret and then receiving those keyshares using test

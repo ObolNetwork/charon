@@ -114,16 +114,6 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return errors.New("existing cluster found. Try again with --clean")
 	}
 
-	conf.FeeRecipientAddrs, conf.WithdrawalAddrs, err = validateAddresses(conf.NumDVs, conf.FeeRecipientAddrs, conf.WithdrawalAddrs)
-	if err != nil {
-		return err
-	}
-
-	// Create cluster directory at the given location.
-	if err := os.MkdirAll(conf.ClusterDir, 0o755); err != nil {
-		return errors.Wrap(err, "mkdir")
-	}
-
 	// Map prater to goerli to ensure backwards compatibility with older cluster definitions and cluster locks.
 	// TODO(xenowits): Remove the mapping later.
 	if conf.Network == eth2util.Prater {
@@ -159,6 +149,11 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	pubkeys, shareSets, err := getTSSShares(secrets, def.Threshold, numNodes)
 	if err != nil {
 		return err
+	}
+
+	// Create cluster directory at the given location.
+	if err := os.MkdirAll(conf.ClusterDir, 0o755); err != nil {
+		return errors.Wrap(err, "mkdir")
 	}
 
 	// Create operators
@@ -525,6 +520,11 @@ func getOperators(n int, clusterDir string) ([]cluster.Operator, error) {
 
 // newDefFromConfig returns a new cluster definition using the provided config values.
 func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definition, error) {
+	feeRecipientAddrs, withdrawalAddrs, err := validateAddresses(conf.NumDVs, conf.FeeRecipientAddrs, conf.WithdrawalAddrs)
+	if err != nil {
+		return cluster.Definition{}, err
+	}
+
 	forkVersion, err := eth2util.NetworkToForkVersion(conf.Network)
 	if err != nil {
 		return cluster.Definition{}, err
@@ -536,8 +536,8 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 	}
 	threshold := safeThreshold(ctx, conf.NumNodes, conf.Threshold)
 
-	def, err := cluster.NewDefinition(conf.Name, conf.NumDVs, threshold, conf.FeeRecipientAddrs,
-		conf.WithdrawalAddrs, forkVersion, cluster.Creator{}, ops, rand.Reader)
+	def, err := cluster.NewDefinition(conf.Name, conf.NumDVs, threshold, feeRecipientAddrs,
+		withdrawalAddrs, forkVersion, cluster.Creator{}, ops, rand.Reader)
 	if err != nil {
 		return cluster.Definition{}, err
 	}
@@ -584,6 +584,10 @@ func nodeDir(clusterDir string, i int) string {
 
 // validateDef returns an error if the provided cluster definition is invalid.
 func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []string, def cluster.Definition) error {
+	if def.NumValidators == 0 {
+		return errors.New("cannot create cluster with zero validators, specify at least one")
+	}
+
 	if len(def.Operators) < minNodes {
 		return errors.New("insufficient number of nodes (min = 4)", z.Int("num_nodes", len(def.Operators)))
 	}
