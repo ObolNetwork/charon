@@ -1,4 +1,4 @@
-ts=00:00 level=info caller=log/log_test.go:115 msg=expect1 pretty="\u001b[34mINFO\u001b[0m expect1                                 \n"
-ts=00:00 level=info caller=log/log_test.go:116 msg=expect2 pretty="\u001b[34mINFO\u001b[0m expect2                                 \n"
-ts=00:00 level=info caller=log/log_test.go:117 msg=expect3 pretty="\u001b[34mINFO\u001b[0m expect3                                 \n"
-ts=00:00 level=info caller=log/log_test.go:118 msg=expect4 pretty="\u001b[34mINFO\u001b[0m expect4                                 \n"
+ts=00:00 level=info caller=log/log_test.go:115 msg=expect1 pretty="\u001b[34mINFO\u001b[0m \u001b[32m          \u001b[0m expect1                                 \n"
+ts=00:00 level=info caller=log/log_test.go:116 msg=expect2 pretty="\u001b[34mINFO\u001b[0m \u001b[32m          \u001b[0m expect2                                 \n"
+ts=00:00 level=info caller=log/log_test.go:117 msg=expect3 pretty="\u001b[34mINFO\u001b[0m \u001b[32m          \u001b[0m expect3                                 \n"
+ts=00:00 level=info caller=log/log_test.go:118 msg=expect4 pretty="\u001b[34mINFO\u001b[0m \u001b[32m          \u001b[0m expect4                                 \n"

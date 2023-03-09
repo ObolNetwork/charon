@@ -21,7 +21,7 @@ import (
 	"encoding/hex"
 	"time"
 
-	relaylog "github.com/ipfs/go-log/v2"
+	libp2plog "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/metrics"
@@ -41,10 +41,10 @@ import (
 // startP2P returns a started libp2p host or an error.
 func startP2P(ctx context.Context, config Config, key *ecdsa.PrivateKey, reporter metrics.Reporter) (host.Host, error) {
 	if config.RelayLogLevel != "" {
-		if err := relaylog.SetLogLevel("relay", config.RelayLogLevel); err != nil {
+		if err := libp2plog.SetLogLevel("relay", config.RelayLogLevel); err != nil {
 			return nil, errors.Wrap(err, "set relay log level")
 		}
-		if err := relaylog.SetLogLevel("rcmgr", config.RelayLogLevel); err != nil {
+		if err := libp2plog.SetLogLevel("rcmgr", config.RelayLogLevel); err != nil {
 			return nil, errors.Wrap(err, "set rcmgr log level")
 		}
 	}

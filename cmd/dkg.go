@@ -18,6 +18,7 @@ package cmd
 import (
 	"context"
 
+	libp2plog "github.com/ipfs/go-log/v2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -39,6 +40,7 @@ this command at the same time.`,
 			if err := log.InitLogger(config.Log); err != nil {
 				return err
 			}
+			libp2plog.SetPrimaryCore(log.LoggerCore()) // Set libp2p logger to use charon logger
 
 			printFlags(cmd.Context(), cmd.Flags())
 

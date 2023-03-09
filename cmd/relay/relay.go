@@ -43,7 +43,7 @@ type Config struct {
 	AutoP2PKey     bool
 	MaxResPerPeer  int
 	MaxConns       int
-	RelayLogLevel  string
+	RelayLogLevel  string // TODO(corver): Rename to LibP2PLogLevel.
 }
 
 // Run starts an Obol libp2p-tcp-relay and udp-discv5 bootnode.
