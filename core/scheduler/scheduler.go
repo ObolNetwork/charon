@@ -199,7 +199,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 			for _, sub := range s.dutySubs {
 				clone, err := defSet.Clone() // Clone for each subscriber.
 				if err != nil {
-					log.Error(ctx, "Cloning duty definition set", err)
+					log.Error(dutyCtx, "Cloning duty definition set", err)
 					return
 				}
 
