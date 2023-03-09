@@ -192,8 +192,8 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 			}
 
 			instrumentDuty(duty, defSet)
-			ctx := log.WithCtx(ctx, z.Any("duty", duty))
-			ctx, span := core.StartDutyTrace(ctx, duty, "core/scheduler.scheduleSlot")
+			ctx2 := log.WithCtx(ctx, z.Any("duty", duty))
+			ctx2, span := core.StartDutyTrace(ctx2, duty, "core/scheduler.scheduleSlot")
 			defer span.End()
 
 			for _, sub := range s.dutySubs {
@@ -203,8 +203,8 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 					return
 				}
 
-				if err := sub(ctx, duty, clone); err != nil {
-					log.Error(ctx, "Trigger duty subscriber error", err, z.I64("slot", slot.Slot))
+				if err := sub(ctx2, duty, clone); err != nil {
+					log.Error(ctx2, "Trigger duty subscriber error", err, z.I64("slot", slot.Slot))
 				}
 			}
 		}()
