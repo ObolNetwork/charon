@@ -869,7 +869,7 @@ func RandomDepositMsg(t *testing.T) eth2p0.DepositMessage {
 
 // constReader is a workaround. It counter-acts the Go library's attempt at
 // making ECDSA signatures non-deterministic.
-// Refer: https://cs.opensource.google/go/go/+/refs/tags/go1.20.1:src/crypto/ecdsa/ecdsa.go;l=155
+// Refer: https://cs.opensource.google/go/go/+/refs/tags/go1.20.2:src/crypto/ecdsa/ecdsa.go;l=155
 type constReader byte
 
 func (c constReader) Read(buf []byte) (int, error) {
