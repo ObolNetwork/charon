@@ -192,7 +192,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 			}
 
 			instrumentDuty(duty, defSet)
-			ctx = log.WithCtx(ctx, z.Any("duty", duty))
+			ctx := log.WithCtx(ctx, z.Any("duty", duty))
 			ctx, span := core.StartDutyTrace(ctx, duty, "core/scheduler.scheduleSlot")
 			defer span.End()
 
