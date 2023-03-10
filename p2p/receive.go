@@ -38,7 +38,10 @@ func RegisterHandler(logTopic string, tcpNode host.Host, protocol protocol.ID,
 	tcpNode.SetStreamHandler(protocol, func(s network.Stream) {
 		t0 := time.Now()
 		name := PeerName(s.Conn().RemotePeer())
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+
+		timeout := time.Second * 5
+		_ = s.SetReadDeadline(time.Now().Add(timeout))
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		ctx = log.WithTopic(ctx, logTopic)
 		ctx = log.WithCtx(ctx,
 			z.Str("peer", name),
@@ -51,7 +54,11 @@ func RegisterHandler(logTopic string, tcpNode host.Host, protocol protocol.ID,
 		if IsRelayError(err) {
 			return // Ignore relay errors.
 		} else if err != nil {
-			log.Error(ctx, "LibP2P read request", err, z.Any("duration", time.Since(t0)))
+			log.Error(ctx, "LibP2P read request", err,
+				z.Any("duration", time.Since(t0)),
+				z.I64("bytes", int64(len(b))),
+			)
+
 			return
 		}
 
