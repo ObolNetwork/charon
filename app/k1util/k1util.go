@@ -6,6 +6,7 @@ package k1util
 import (
 	"encoding/hex"
 	"os"
+	"strings"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4/ecdsa"
@@ -118,7 +119,7 @@ func Load(file string) (*k1.PrivateKey, error) {
 		return nil, errors.Wrap(err, "read private key from disk", z.Str("file", file))
 	}
 
-	b, err := hex.DecodeString(string(hexStr))
+	b, err := hex.DecodeString(strings.TrimSpace(string(hexStr)))
 	if err != nil {
 		return nil, errors.Wrap(err, "decode private key hex")
 	}
