@@ -26,11 +26,6 @@ import (
 //
 // Combine will create a new directory named after "outputDir", which will contain Keystore files.
 func Combine(ctx context.Context, inputDir, outputDir string, force bool) error {
-	log.Info(ctx, "Recombining key shares",
-		z.Str("input_dir", inputDir),
-		z.Str("output_dir", outputDir),
-	)
-
 	if !filepath.IsAbs(outputDir) {
 		fp, err := filepath.Abs(outputDir)
 		if err != nil {
@@ -48,6 +43,11 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool) error 
 
 		inputDir = fp
 	}
+
+	log.Info(ctx, "Recombining key shares",
+		z.Str("input_dir", inputDir),
+		z.Str("output_dir", outputDir),
+	)
 
 	lock, possibleKeyPaths, err := loadLockfile(inputDir)
 	if err != nil {
