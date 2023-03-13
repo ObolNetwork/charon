@@ -24,12 +24,30 @@ import (
 // To do so, the user must prepare inputDir as follows:
 //   - place the ".charon" directory in inputDir, renamed to another name
 //
-// Combine will create a new directory named after the public key of each validator key reconstructed, containing each
-// keystore under the "validator_keys" subdirectory.
-func Combine(ctx context.Context, inputDir string, force bool) error {
+// Combine will create a new directory named after "outputDir", which will contain Keystore files.
+func Combine(ctx context.Context, inputDir, outputDir string, force bool) error {
 	log.Info(ctx, "Recombining key shares",
 		z.Str("input_dir", inputDir),
+		z.Str("output_dir", outputDir),
 	)
+
+	if !filepath.IsAbs(outputDir) {
+		fp, err := filepath.Abs(outputDir)
+		if err != nil {
+			return errors.Wrap(err, "cannot make full path from relative output path")
+		}
+
+		outputDir = fp
+	}
+
+	if !filepath.IsAbs(inputDir) {
+		fp, err := filepath.Abs(inputDir)
+		if err != nil {
+			return errors.Wrap(err, "cannot make full path from relative input path")
+		}
+
+		inputDir = fp
+	}
 
 	lock, possibleKeyPaths, err := loadLockfile(inputDir)
 	if err != nil {
@@ -48,6 +66,8 @@ func Combine(ctx context.Context, inputDir string, force bool) error {
 			privkeys[idx] = append(privkeys[idx], secret)
 		}
 	}
+
+	var combinedKeys []tblsv2.PrivateKey
 
 	for idx, pkSet := range privkeys {
 		log.Info(ctx, "Recombining key share", z.Int("validator_number", idx))
@@ -82,20 +102,17 @@ func Combine(ctx context.Context, inputDir string, force bool) error {
 			return errors.New("generated and lockfile public key for validator DO NOT match", z.Int("validator_number", idx))
 		}
 
-		outPath := filepath.Join(inputDir, val.PublicKeyHex(), "validator_keys")
-		if err := os.MkdirAll(outPath, 0o755); err != nil {
-			return errors.Wrap(err, "output directory creation", z.Int("validator_number", idx))
-		}
+		combinedKeys = append(combinedKeys, secret)
+	}
 
-		ksPath := filepath.Join(outPath, "keystore-0.json")
-		_, err = os.Stat(ksPath)
-		if err == nil && !force {
-			return errors.New("refusing to overwrite existing private key", z.Int("validator_number", idx), z.Str("path", ksPath))
-		}
+	ksPath := filepath.Join(outputDir, "keystore-0.json")
+	_, err = os.Stat(ksPath)
+	if err == nil && !force {
+		return errors.New("refusing to overwrite existing private key", z.Str("path", ksPath))
+	}
 
-		if err := keystore.StoreKeys([]tblsv2.PrivateKey{secret}, outPath); err != nil {
-			return errors.Wrap(err, "cannot store keystore", z.Int("validator_number", idx))
-		}
+	if err := keystore.StoreKeys(combinedKeys, outputDir); err != nil {
+		return errors.Wrap(err, "cannot store keystore")
 	}
 
 	return nil
