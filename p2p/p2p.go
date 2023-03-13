@@ -159,7 +159,7 @@ func NewEventCollector(tcpNode host.Host) lifecycle.HookFuncCtx {
 			case e := <-sub.Out():
 				switch evt := e.(type) {
 				case event.EvtLocalReachabilityChanged:
-					log.Info(ctx, "Libp2p reachablity changed", z.Any("status", evt.Reachability))
+					log.Info(ctx, "Libp2p reachability changed", z.Any("status", evt.Reachability))
 					reachableGauge.Set(float64(evt.Reachability))
 				default:
 					log.Warn(ctx, "Unknown libp2p event", nil, z.Str("type", fmt.Sprintf("%T", e)))
