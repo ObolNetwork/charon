@@ -5,6 +5,7 @@ package p2p
 import (
 	"context"
 	"io"
+	"net"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/host"
@@ -13,6 +14,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
@@ -53,6 +55,15 @@ func RegisterHandler(logTopic string, tcpNode host.Host, protocol protocol.ID,
 		b, err := io.ReadAll(s)
 		if IsRelayError(err) {
 			return // Ignore relay errors.
+		} else if netErr := net.Error(nil); errors.As(err, &netErr) && netErr.Timeout() {
+			validPB := proto.Unmarshal(b, zeroReq()) == nil
+			log.Error(ctx, "LibP2P read timeout", err,
+				z.Any("duration", time.Since(t0)),
+				z.I64("bytes", int64(len(b))),
+				z.Bool("valid_proto", validPB),
+			)
+
+			return
 		} else if err != nil {
 			log.Error(ctx, "LibP2P read request", err,
 				z.Any("duration", time.Since(t0)),
