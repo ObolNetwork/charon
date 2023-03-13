@@ -123,6 +123,16 @@ func TestLoad(t *testing.T) {
 		require.Equal(t, key, pkey)
 	})
 
+	t.Run("hex string with a carriage return and newline", func(t *testing.T) {
+		hexStr := hex.EncodeToString(key.Serialize()) + "\r\n" // Hex string ending with '\r\n'
+		err = os.WriteFile(filePath, []byte(hexStr), 0o600)
+		require.NoError(t, err)
+
+		pkey, err := k1util.Load(filePath)
+		require.NoError(t, err)
+		require.Equal(t, key, pkey)
+	})
+
 	t.Run("valid hex string", func(t *testing.T) {
 		hexStr := hex.EncodeToString(key.Serialize())
 		err = os.WriteFile(filePath, []byte(hexStr), 0o600)
