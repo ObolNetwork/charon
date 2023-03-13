@@ -173,7 +173,7 @@ func validateWithdrawalAddrs(addrs []string, network string) error {
 		}
 
 		// We cannot allow a zero withdrawal address on mainnet or gnosis.
-		if isMainNetwork(network) && addr == defaultWithdrawalAddr {
+		if isMainNetwork(network) && addr == zeroAddress {
 			return errors.New("zero address forbidden on this network", z.Str("network", network))
 		}
 	}

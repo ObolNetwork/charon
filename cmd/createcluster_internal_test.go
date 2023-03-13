@@ -37,7 +37,7 @@ func TestMain(m *testing.M) {
 
 func TestCreateCluster(t *testing.T) {
 	defPath := "../cluster/examples/cluster-definition-002.json"
-	def, err := loadDefinition(context.Background(), defPath)
+	def, _, err := loadDefinition(context.Background(), defPath, clusterConfig{})
 	require.NoError(t, err)
 
 	// Serve definition over network
@@ -68,7 +68,6 @@ func TestCreateCluster(t *testing.T) {
 			Config: clusterConfig{
 				NumNodes:  4,
 				Threshold: 3,
-				NumDVs:    2,
 				SplitKeys: true,
 			},
 			Prep: func(t *testing.T, config clusterConfig) clusterConfig {
@@ -117,10 +116,8 @@ func TestCreateCluster(t *testing.T) {
 				test.Config = test.Prep(t, test.Config)
 			}
 
-			for i := 0; i < test.Config.NumDVs; i++ {
-				test.Config.WithdrawalAddrs = append(test.Config.WithdrawalAddrs, defaultWithdrawalAddr)
-				test.Config.FeeRecipientAddrs = append(test.Config.FeeRecipientAddrs, defaultWithdrawalAddr)
-			}
+			test.Config.WithdrawalAddrs = []string{zeroAddress}
+			test.Config.FeeRecipientAddrs = []string{zeroAddress}
 
 			if test.Config.Network == "" {
 				test.Config.Network = defaultNetwork
@@ -207,10 +204,10 @@ func TestValidateDef(t *testing.T) {
 
 	for i := 0; i < conf.NumDVs; i++ {
 		conf.FeeRecipientAddrs = append(conf.FeeRecipientAddrs, testutil.RandomETHAddress())
-		conf.WithdrawalAddrs = append(conf.WithdrawalAddrs, defaultWithdrawalAddr)
+		conf.WithdrawalAddrs = append(conf.WithdrawalAddrs, zeroAddress)
 	}
 
-	definition, err := newDefFromConfig(ctx, conf)
+	definition, _, err := newDefFromConfig(ctx, conf)
 	require.NoError(t, err)
 
 	t.Run("zero address", func(t *testing.T) {
@@ -346,8 +343,8 @@ func TestKeymanager(t *testing.T) {
 		NumDVs:            1,
 		KeymanagerAddrs:   addrs,
 		Network:           defaultNetwork,
-		WithdrawalAddrs:   []string{defaultWithdrawalAddr},
-		FeeRecipientAddrs: []string{defaultWithdrawalAddr},
+		WithdrawalAddrs:   []string{zeroAddress},
+		FeeRecipientAddrs: []string{zeroAddress},
 		Clean:             true,
 	}
 	conf.ClusterDir = t.TempDir()
@@ -410,8 +407,8 @@ func TestPublish(t *testing.T) {
 		NumNodes:          minNodes,
 		NumDVs:            1,
 		Network:           defaultNetwork,
-		WithdrawalAddrs:   []string{defaultWithdrawalAddr},
-		FeeRecipientAddrs: []string{defaultWithdrawalAddr},
+		WithdrawalAddrs:   []string{zeroAddress},
+		FeeRecipientAddrs: []string{zeroAddress},
 		PublishAddr:       addr,
 		Publish:           true,
 	}
