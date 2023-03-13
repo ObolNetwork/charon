@@ -113,34 +113,22 @@ func TestLoad(t *testing.T) {
 		require.ErrorContains(t, err, "decode private key hex")
 	})
 
-	t.Run("hex string with a newline", func(t *testing.T) {
-		hexStr := hex.EncodeToString(key.Serialize()) + "\n" // Hex string ending with '\n'
-		err = os.WriteFile(filePath, []byte(hexStr), 0o600)
-		require.NoError(t, err)
+	t.Run("valid hex strings", func(t *testing.T) {
+		hexStrs := []string{
+			hex.EncodeToString(key.Serialize()) + "\n",   // Hex string ending with '\n'
+			hex.EncodeToString(key.Serialize()) + "\r\n", // Hex string ending with '\r\n'
+			hex.EncodeToString(key.Serialize()) + " ",    // Hex string ending with a space
+			hex.EncodeToString(key.Serialize()),          // Hex string
+		}
 
-		pkey, err := k1util.Load(filePath)
-		require.NoError(t, err)
-		require.Equal(t, key, pkey)
-	})
+		for _, hexStr := range hexStrs {
+			err = os.WriteFile(filePath, []byte(hexStr), 0o600)
+			require.NoError(t, err)
 
-	t.Run("hex string with a carriage return and newline", func(t *testing.T) {
-		hexStr := hex.EncodeToString(key.Serialize()) + "\r\n" // Hex string ending with '\r\n'
-		err = os.WriteFile(filePath, []byte(hexStr), 0o600)
-		require.NoError(t, err)
-
-		pkey, err := k1util.Load(filePath)
-		require.NoError(t, err)
-		require.Equal(t, key, pkey)
-	})
-
-	t.Run("valid hex string", func(t *testing.T) {
-		hexStr := hex.EncodeToString(key.Serialize())
-		err = os.WriteFile(filePath, []byte(hexStr), 0o600)
-		require.NoError(t, err)
-
-		pkey, err := k1util.Load(filePath)
-		require.NoError(t, err)
-		require.Equal(t, key, pkey)
+			pkey, err := k1util.Load(filePath)
+			require.NoError(t, err)
+			require.Equal(t, key, pkey)
+		}
 	})
 }
 
