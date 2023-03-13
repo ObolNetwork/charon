@@ -5,6 +5,8 @@ package k1util_test
 import (
 	"encoding/hex"
 	"math/rand"
+	"os"
+	"path"
 	"testing"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -40,7 +42,7 @@ const (
 //		digest,
 //		sig[:len(sig)-1])
 //	require.True(t, ok)
-//}
+// }
 
 func TestK1Util(t *testing.T) {
 	key := k1.PrivKeyFromBytes(fromHex(t, privKey1))
@@ -90,6 +92,46 @@ func TestRandom(t *testing.T) {
 		sig)
 	require.NoError(t, err)
 	require.True(t, key.PubKey().IsEqual(recovered))
+}
+
+func TestLoad(t *testing.T) {
+	key, err := k1.GeneratePrivateKey()
+	require.NoError(t, err)
+	filePath := path.Join(t.TempDir(), "charon-enr-private-key")
+
+	t.Run("noexistent file", func(t *testing.T) {
+		_, err := k1util.Load("nonexistent-file")
+		require.ErrorContains(t, err, "read private key from disk")
+	})
+
+	t.Run("invalid hex encoded file", func(t *testing.T) {
+		hexStr := hex.EncodeToString(key.Serialize()) + "XYZ" // Invalid hex string
+		err = os.WriteFile(filePath, []byte(hexStr), 0o600)
+		require.NoError(t, err)
+
+		_, err := k1util.Load(filePath)
+		require.ErrorContains(t, err, "decode private key hex")
+	})
+
+	t.Run("hex string with a newline", func(t *testing.T) {
+		hexStr := hex.EncodeToString(key.Serialize()) + "\n" // Hex string ending with '\n'
+		err = os.WriteFile(filePath, []byte(hexStr), 0o600)
+		require.NoError(t, err)
+
+		pkey, err := k1util.Load(filePath)
+		require.NoError(t, err)
+		require.Equal(t, key, pkey)
+	})
+
+	t.Run("valid hex string", func(t *testing.T) {
+		hexStr := hex.EncodeToString(key.Serialize())
+		err = os.WriteFile(filePath, []byte(hexStr), 0o600)
+		require.NoError(t, err)
+
+		pkey, err := k1util.Load(filePath)
+		require.NoError(t, err)
+		require.Equal(t, key, pkey)
+	})
 }
 
 // BenchmarkRecoverVerify benchmarks recovery vs verification.
