@@ -99,14 +99,14 @@ func TestLoad(t *testing.T) {
 	require.NoError(t, err)
 	filePath := path.Join(t.TempDir(), "charon-enr-private-key")
 
-	t.Run("noexistent file", func(t *testing.T) {
+	t.Run("nonexistent file", func(t *testing.T) {
 		_, err := k1util.Load("nonexistent-file")
 		require.ErrorContains(t, err, "read private key from disk")
 	})
 
 	t.Run("invalid hex encoded file", func(t *testing.T) {
-		hexStr := hex.EncodeToString(key.Serialize()) + "XYZ" // Invalid hex string
-		err = os.WriteFile(filePath, []byte(hexStr), 0o600)
+		invalidHexStr := "abcXYZ123" // Invalid hex string
+		err = os.WriteFile(filePath, []byte(invalidHexStr), 0o600)
 		require.NoError(t, err)
 
 		_, err := k1util.Load(filePath)
