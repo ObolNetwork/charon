@@ -290,6 +290,96 @@ func TestValidateDef(t *testing.T) {
 	})
 }
 
+func TestSplitKeys(t *testing.T) {
+	tests := []struct {
+		name           string
+		numSplitKeys   int
+		conf           clusterConfig
+		expectedErrMsg string
+	}{
+		{
+			name:         "split keys from local definition with mismatch NumValidators",
+			numSplitKeys: 2,
+			conf: clusterConfig{
+				DefFile: "../cluster/examples/cluster-definition-002.json",
+			},
+			expectedErrMsg: "number of keystores provided in split-keys-dir does not matches with NumValidators in the given definition file",
+		},
+		{
+			name:         "split keys from local definition with same NumValidators",
+			numSplitKeys: 1,
+			conf: clusterConfig{
+				DefFile:    "../cluster/examples/cluster-definition-002.json",
+				ClusterDir: t.TempDir(),
+			},
+		},
+		{
+			name:         "split keys from config with one num-validators",
+			numSplitKeys: 3,
+			conf: clusterConfig{
+				Name:              "test split keys",
+				NumDVs:            1,
+				NumNodes:          minNodes,
+				Threshold:         3,
+				Network:           defaultNetwork,
+				FeeRecipientAddrs: []string{zeroAddress},
+				WithdrawalAddrs:   []string{zeroAddress},
+				ClusterDir:        t.TempDir(),
+			},
+		},
+		{
+			name:         "split keys from config with mismatch num-validators",
+			numSplitKeys: 3,
+			conf: clusterConfig{
+				NumDVs:            2,
+				Network:           defaultNetwork,
+				FeeRecipientAddrs: []string{zeroAddress},
+				WithdrawalAddrs:   []string{zeroAddress},
+			},
+			expectedErrMsg: "num-validators provided is not equal to keystores provided in split-keys-dir",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var keys []tblsv2.PrivateKey
+			for i := 0; i < test.numSplitKeys; i++ {
+				secret, err := tblsv2.GenerateSecretKey()
+				require.NoError(t, err)
+
+				keys = append(keys, secret)
+			}
+
+			keysDir := t.TempDir()
+
+			err := keystore.StoreKeys(keys, keysDir)
+			require.NoError(t, err)
+
+			test.conf.SplitKeysDir = keysDir
+			test.conf.SplitKeys = true
+
+			var buf bytes.Buffer
+			err = runCreateCluster(context.Background(), &buf, test.conf)
+			if test.expectedErrMsg != "" {
+				require.ErrorContains(t, err, test.expectedErrMsg)
+			} else {
+				require.NoError(t, err)
+
+				// Since `cluster-lock.json` is copied into each node directory, use any one of them.
+				b, err := os.ReadFile(path.Join(nodeDir(test.conf.ClusterDir, 0), "cluster-lock.json"))
+				require.NoError(t, err)
+
+				var lock cluster.Lock
+				require.NoError(t, json.Unmarshal(b, &lock))
+				require.NoError(t, lock.VerifyHashes())
+				require.NoError(t, lock.VerifySignatures())
+
+				require.Equal(t, test.numSplitKeys, lock.NumValidators)
+			}
+		})
+	}
+}
+
 func TestMultipleAddresses(t *testing.T) {
 	t.Run("insufficient addresses in config", func(t *testing.T) {
 		err := runCreateCluster(context.Background(), io.Discard, clusterConfig{
