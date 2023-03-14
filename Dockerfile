@@ -13,7 +13,7 @@ RUN \
 
 # Copy final binary into light stage.
 FROM debian:bullseye-slim
-RUN apt-get update && apt-get install -y ca-certificates
+RUN apt-get update && apt-get install -y ca-certificates wget
 ARG GITHUB_SHA=local
 ENV GITHUB_SHA=${GITHUB_SHA}
 COPY --from=builder /app/charon/charon /usr/local/bin/
