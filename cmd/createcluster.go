@@ -120,23 +120,60 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		conf.Network = eth2util.Goerli.Name
 	}
 
-	var (
-		def     cluster.Definition
-		secrets []tblsv2.PrivateKey
-	)
-	if conf.DefFile != "" { // Load definition from DefFile and get root BLS keys.
-		def, secrets, err = loadDefinition(ctx, conf.DefFile, conf)
+	var def cluster.Definition
+	if conf.DefFile != "" { // Load definition from DefFile
+		def, err = loadDefinition(ctx, conf.DefFile)
 		if err != nil {
 			return err
 		}
-	} else { // Create new definition from cluster config and get root BLS keys.
-		def, secrets, err = newDefFromConfig(ctx, conf)
+	} else { // Create new definition from cluster config
+		def, err = newDefFromConfig(ctx, conf)
 		if err != nil {
 			return err
 		}
 	}
 
 	numNodes := len(def.Operators)
+
+	if !conf.SplitKeys && def.NumValidators == 0 {
+		return errors.New("num-validators cannot be equal to 0")
+	}
+
+	// Get root bls secrets
+	secrets, err := getKeys(conf.SplitKeys, conf.SplitKeysDir, def.NumValidators)
+	if err != nil {
+		return err
+	}
+
+	// Check if provided num-validators mismatches with the number of secrets obtained from split-keys-dir.
+	if conf.SplitKeys && def.NumValidators != len(secrets) {
+		if def.NumValidators > 1 {
+			return errors.New("num-validators provided is not equal to keystores provided in split-keys-dir",
+				z.Int("num-validators", def.NumValidators), z.Int("split-keys", len(secrets)))
+		}
+
+		// Override definition according to the secrets obtained from split-keys-dir if num-validators are 0 or 1 (default).
+		def.NumValidators = len(secrets)
+		feeRecipientAddrs, withdrawalAddrs, err := validateAddresses(def.NumValidators, conf.FeeRecipientAddrs, conf.WithdrawalAddrs)
+		if err != nil {
+			return err
+		}
+
+		def.ValidatorAddresses = []cluster.ValidatorAddresses{}
+		for i := 0; i < def.NumValidators; i++ {
+			def.ValidatorAddresses = append(def.ValidatorAddresses, cluster.ValidatorAddresses{
+				FeeRecipientAddress: feeRecipientAddrs[i],
+				WithdrawalAddress:   withdrawalAddrs[i],
+			})
+		}
+
+		// Update config and definition hash.
+		def, err = def.SetDefinitionHashes()
+		if err != nil {
+			return err
+		}
+	}
+
 	// Validate definition
 	err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
 	if err != nil {
@@ -310,16 +347,15 @@ func writeWarning(w io.Writer) {
 }
 
 // getKeys fetches secret keys for each distributed validator.
-func getSplitKeys(splitKeysDir string) ([]tblsv2.PrivateKey, error) {
-	if splitKeysDir == "" {
-		return nil, errors.New("--split-keys-dir required when splitting keys")
+func getKeys(splitKeys bool, splitKeysDir string, numDVs int) ([]tblsv2.PrivateKey, error) {
+	if splitKeys {
+		if splitKeysDir == "" {
+			return nil, errors.New("--split-keys-dir required when splitting keys")
+		}
+
+		return keystore.LoadKeys(splitKeysDir)
 	}
 
-	return keystore.LoadKeys(splitKeysDir)
-}
-
-// generateKeys generates BLS secrets for given number of distributed validators.
-func generateKeys(numDVs int) ([]tblsv2.PrivateKey, error) {
 	var secrets []tblsv2.PrivateKey
 	for i := 0; i < numDVs; i++ {
 		secret, err := tblsv2.GenerateSecretKey()
@@ -517,35 +553,16 @@ func getOperators(n int, clusterDir string) ([]cluster.Operator, error) {
 	return ops, nil
 }
 
-// newDefFromConfig returns a new cluster definition using the provided config values and root BLS keys for each distributed validator.
-func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definition, []tblsv2.PrivateKey, error) {
-	// Get root BLS keys.
-	var (
-		secrets []tblsv2.PrivateKey
-		err     error
-	)
-	if conf.SplitKeys {
-		secrets, err = getSplitKeys(conf.SplitKeysDir)
-		if err != nil {
-			return cluster.Definition{}, nil, err
-		}
-
-		conf.NumDVs = len(secrets)
-	} else {
-		secrets, err = generateKeys(conf.NumDVs)
-		if err != nil {
-			return cluster.Definition{}, nil, err
-		}
-	}
-
+// newDefFromConfig returns a new cluster definition using the provided config values.
+func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definition, error) {
 	feeRecipientAddrs, withdrawalAddrs, err := validateAddresses(conf.NumDVs, conf.FeeRecipientAddrs, conf.WithdrawalAddrs)
 	if err != nil {
-		return cluster.Definition{}, nil, err
+		return cluster.Definition{}, err
 	}
 
 	forkVersion, err := eth2util.NetworkToForkVersion(conf.Network)
 	if err != nil {
-		return cluster.Definition{}, nil, err
+		return cluster.Definition{}, err
 	}
 
 	var ops []cluster.Operator
@@ -557,10 +574,10 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 	def, err := cluster.NewDefinition(conf.Name, conf.NumDVs, threshold, feeRecipientAddrs,
 		withdrawalAddrs, forkVersion, cluster.Creator{}, ops, rand.Reader)
 	if err != nil {
-		return cluster.Definition{}, nil, err
+		return cluster.Definition{}, err
 	}
 
-	return def, secrets, nil
+	return def, nil
 }
 
 // newPeer returns a new peer ENR, generating a p2pkey in node directory.
@@ -657,9 +674,9 @@ func aggSign(secrets [][]tblsv2.PrivateKey, message []byte) ([]byte, error) {
 	return aggSig[:], nil
 }
 
-// loadDefinition returns the cluster definition from disk or an HTTP URL and root BLS keys for each distributed validator.
-// It also verifies signatures and hashes before returning the definition.
-func loadDefinition(ctx context.Context, defFile string, conf clusterConfig) (cluster.Definition, []tblsv2.PrivateKey, error) {
+// loadDefinition returns the cluster definition from disk or an HTTP URL. It also verifies signatures
+// and hashes before returning the definition.
+func loadDefinition(ctx context.Context, defFile string) (cluster.Definition, error) {
 	var def cluster.Definition
 
 	// Fetch definition from network if URI is provided
@@ -667,7 +684,7 @@ func loadDefinition(ctx context.Context, defFile string, conf clusterConfig) (cl
 		var err error
 		def, err = cluster.FetchDefinition(ctx, defFile)
 		if err != nil {
-			return cluster.Definition{}, nil, errors.Wrap(err, "read definition")
+			return cluster.Definition{}, errors.Wrap(err, "read definition")
 		}
 
 		log.Info(ctx, "Cluster definition downloaded from URL", z.Str("URL", defFile),
@@ -675,11 +692,11 @@ func loadDefinition(ctx context.Context, defFile string, conf clusterConfig) (cl
 	} else { // Fetch definition from disk
 		buf, err := os.ReadFile(defFile)
 		if err != nil {
-			return cluster.Definition{}, nil, errors.Wrap(err, "read definition")
+			return cluster.Definition{}, errors.Wrap(err, "read definition")
 		}
 
 		if err = json.Unmarshal(buf, &def); err != nil {
-			return cluster.Definition{}, nil, errors.Wrap(err, "unmarshal definition")
+			return cluster.Definition{}, errors.Wrap(err, "unmarshal definition")
 		}
 
 		log.Info(ctx, "Cluster definition loaded from disk", z.Str("path", defFile),
@@ -687,32 +704,17 @@ func loadDefinition(ctx context.Context, defFile string, conf clusterConfig) (cl
 	}
 
 	if err := def.VerifySignatures(); err != nil {
-		return cluster.Definition{}, nil, err
+		return cluster.Definition{}, err
 	}
 	if err := def.VerifyHashes(); err != nil {
-		return cluster.Definition{}, nil, err
+		return cluster.Definition{}, err
 	}
 
-	if conf.SplitKeys {
-		secrets, err := getSplitKeys(conf.SplitKeysDir)
-		if err != nil {
-			return cluster.Definition{}, nil, err
-		}
-
-		if len(secrets) != def.NumValidators {
-			return cluster.Definition{}, nil, errors.New("keystores in split-keys-dir should be equal to NumValidators in provided definition file",
-				z.Int("split-keys-dir", len(secrets)), z.Int("NumValidators", def.NumValidators))
-		}
-
-		return def, secrets, nil
+	if def.NumValidators == 0 {
+		return cluster.Definition{}, errors.New("no validators specified in the given definition")
 	}
 
-	secrets, err := generateKeys(def.NumValidators)
-	if err != nil {
-		return cluster.Definition{}, nil, err
-	}
-
-	return def, secrets, nil
+	return def, nil
 }
 
 // validURI returns true if the input string is a valid HTTP/HTTPS URI.

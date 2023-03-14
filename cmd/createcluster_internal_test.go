@@ -37,7 +37,7 @@ func TestMain(m *testing.M) {
 
 func TestCreateCluster(t *testing.T) {
 	defPath := "../cluster/examples/cluster-definition-002.json"
-	def, _, err := loadDefinition(context.Background(), defPath, clusterConfig{})
+	def, err := loadDefinition(context.Background(), defPath)
 	require.NoError(t, err)
 
 	// Serve definition over network
@@ -68,6 +68,7 @@ func TestCreateCluster(t *testing.T) {
 			Config: clusterConfig{
 				NumNodes:  4,
 				Threshold: 3,
+				NumDVs:    1, // Default
 				SplitKeys: true,
 			},
 			Prep: func(t *testing.T, config clusterConfig) clusterConfig {
@@ -207,7 +208,7 @@ func TestValidateDef(t *testing.T) {
 		conf.WithdrawalAddrs = append(conf.WithdrawalAddrs, zeroAddress)
 	}
 
-	definition, _, err := newDefFromConfig(ctx, conf)
+	definition, err := newDefFromConfig(ctx, conf)
 	require.NoError(t, err)
 
 	t.Run("zero address", func(t *testing.T) {
