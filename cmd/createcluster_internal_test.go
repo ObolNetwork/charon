@@ -211,6 +211,10 @@ func TestValidateDef(t *testing.T) {
 	definition, err := newDefFromConfig(ctx, conf)
 	require.NoError(t, err)
 
+	defPath := "../cluster/examples/cluster-definition-002.json"
+	remoteDef, err := loadDefinition(context.Background(), defPath)
+	require.NoError(t, err)
+
 	t.Run("zero address", func(t *testing.T) {
 		def := definition
 		gnosis, err := hex.DecodeString(strings.TrimPrefix(eth2util.Gnosis.ForkVersionHex, "0x"))
@@ -267,6 +271,22 @@ func TestValidateDef(t *testing.T) {
 		def.NumValidators = 0
 		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
 		require.ErrorContains(t, err, "cannot create cluster with zero validators, specify at least one")
+	})
+
+	t.Run("invalid hash", func(t *testing.T) {
+		def := remoteDef
+		def.NumValidators = 3
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		require.ErrorContains(t, err, "invalid config hash")
+	})
+
+	t.Run("invalid config signatures", func(t *testing.T) {
+		def := remoteDef
+		def.NumValidators = 3
+		def, err = def.SetDefinitionHashes()
+		require.NoError(t, err)
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		require.ErrorContains(t, err, "invalid creator config signature")
 	})
 }
 

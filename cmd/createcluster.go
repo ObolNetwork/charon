@@ -145,7 +145,12 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
-	// Check if provided num-validators mismatches with the number of secrets obtained from split-keys-dir.
+	// Check if NumValidators provided in the given definition file mismatches with the number of split-keys provided.
+	if conf.DefFile != "" && conf.SplitKeys && def.NumValidators != len(secrets) {
+		return errors.New("number of keystores provided in split-keys-dir does not matches with NumValidators in the given definition file")
+	}
+
+	// Check if provided --num-validators mismatches with the number of secrets obtained from split-keys-dir.
 	if conf.SplitKeys && def.NumValidators != len(secrets) {
 		if def.NumValidators > 1 {
 			return errors.New("num-validators provided is not equal to keystores provided in split-keys-dir",
@@ -644,6 +649,14 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 
 	if def.Name == "" {
 		return errors.New("name not provided")
+	}
+
+	if err = def.VerifyHashes(); err != nil {
+		return err
+	}
+
+	if err = def.VerifySignatures(); err != nil {
+		return err
 	}
 
 	if !eth2util.ValidNetwork(network) {
