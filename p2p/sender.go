@@ -23,7 +23,7 @@ import (
 const (
 	senderHysteresis = 3
 	senderBuffer     = senderHysteresis + 1
-	maxMsgSize       = 32 << 20 // 32MB
+	maxMsgSize       = 128 << 20 // 128MB
 )
 
 // SendFunc is an abstract function responsible for sending libp2p messages.
