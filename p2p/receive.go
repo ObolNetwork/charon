@@ -4,7 +4,6 @@ package p2p
 
 import (
 	"context"
-	"io"
 	"net"
 	"time"
 
@@ -26,18 +25,30 @@ type HandlerFunc func(ctx context.Context, peerID peer.ID, req proto.Message) (p
 // RegisterHandlerFunc abstracts a function that registers a libp2p stream handler
 // that reads a single protobuf request and returns an optional response.
 type RegisterHandlerFunc func(logTopic string, tcpNode host.Host, protocol protocol.ID,
-	zeroReq func() proto.Message, handlerFunc HandlerFunc,
+	zeroReq func() proto.Message, handlerFunc HandlerFunc, opts ...SendRecvOption,
 )
+
+// Interface assertions.
+var _ RegisterHandlerFunc = RegisterHandler
 
 // RegisterHandler registers a canonical proto request and response handler for the provided protocol.
 // - The zeroReq function returns a zero request to unmarshal.
 // - The handlerFunc is called with the unmarshalled request and returns either a response or false or an error.
 // - The marshalled response is sent back if present.
 // - The stream is always closed before returning.
-func RegisterHandler(logTopic string, tcpNode host.Host, protocol protocol.ID,
-	zeroReq func() proto.Message, handlerFunc HandlerFunc,
+func RegisterHandler(logTopic string, tcpNode host.Host, pID protocol.ID,
+	zeroReq func() proto.Message, handlerFunc HandlerFunc, opts ...SendRecvOption,
 ) {
-	tcpNode.SetStreamHandler(protocol, func(s network.Stream) {
+	o := defaultSendRecvOpts(pID)
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	matchProtocol := func(pID protocol.ID) bool {
+		return o.readersByProtocol[pID] != nil
+	}
+
+	tcpNode.SetStreamHandlerMatch(protocolPrefix(o.protocols...), matchProtocol, func(s network.Stream) {
 		t0 := time.Now()
 		name := PeerName(s.Conn().RemotePeer())
 
@@ -47,39 +58,33 @@ func RegisterHandler(logTopic string, tcpNode host.Host, protocol protocol.ID,
 		ctx = log.WithTopic(ctx, logTopic)
 		ctx = log.WithCtx(ctx,
 			z.Str("peer", name),
-			z.Str("protocol", string(protocol)),
+			z.Any("protocol", s.Protocol()),
 		)
 		defer cancel()
 		defer s.Close()
 
-		b, err := io.ReadAll(s)
-		if IsRelayError(err) {
-			return // Ignore relay errors.
-		} else if netErr := net.Error(nil); errors.As(err, &netErr) && netErr.Timeout() {
-			validPB := proto.Unmarshal(b, zeroReq()) == nil
-			log.Error(ctx, "LibP2P read timeout", err,
-				z.Any("duration", time.Since(t0)),
-				z.I64("bytes", int64(len(b))),
-				z.Bool("valid_proto", validPB),
-			)
-
+		writeFunc, ok := o.writersByProtocol[s.Protocol()]
+		if !ok {
+			log.Error(ctx, "LibP2P no writer for protocol", nil)
 			return
-		} else if err != nil {
-			log.Error(ctx, "LibP2P read request", err,
-				z.Any("duration", time.Since(t0)),
-				z.I64("bytes", int64(len(b))),
-			)
-
+		}
+		readFunc, ok := o.readersByProtocol[s.Protocol()]
+		if !ok {
+			log.Error(ctx, "LibP2P no reader for protocol", nil)
 			return
 		}
 
 		req := zeroReq()
-		if err := proto.Unmarshal(b, req); err != nil {
-			log.Error(ctx, "LibP2P unmarshal request", err)
+		err := readFunc(s).ReadMsg(req)
+		if IsRelayError(err) {
+			return // Ignore relay errors.
+		} else if netErr := net.Error(nil); errors.As(err, &netErr) && netErr.Timeout() {
+			log.Error(ctx, "LibP2P read timeout", err, z.Any("duration", time.Since(t0)))
+			return
+		} else if err != nil {
+			log.Error(ctx, "LibP2P read request", err, z.Any("duration", time.Since(t0)))
 			return
 		}
-
-		networkRXCounter.WithLabelValues(name, string(s.Protocol())).Add(float64(len(b)))
 
 		resp, ok, err := handlerFunc(ctx, s.Conn().RemotePeer(), req)
 		if err != nil {
@@ -91,19 +96,11 @@ func RegisterHandler(logTopic string, tcpNode host.Host, protocol protocol.ID,
 			return
 		}
 
-		b, err = proto.Marshal(resp)
-		if err != nil {
-			log.Error(ctx, "LibP2P marshall response", err)
-			return
-		}
-
-		if _, err := s.Write(b); IsRelayError(err) {
+		if err := writeFunc(s).WriteMsg(resp); IsRelayError(err) {
 			return // Ignore relay errors.
 		} else if err != nil {
 			log.Error(ctx, "LibP2P write response", err)
 			return
 		}
-
-		networkTXCounter.WithLabelValues(name, string(s.Protocol())).Add(float64(len(b)))
 	})
 }

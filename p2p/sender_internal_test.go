@@ -97,3 +97,9 @@ func (h *testHost) NewStream(context.Context, peer.ID, ...protocol.ID) (network.
 
 	return nil, network.ErrReset
 }
+
+func TestProtocolPrefix(b *testing.T) {
+	require.EqualValues(b, "charon/peer_info/1.0.0", protocolPrefix("charon/peer_info/1.0.0"))
+	require.EqualValues(b, "charon/peer_info/1.*", protocolPrefix("charon/peer_info/1.0.0", "charon/peer_info/1.1.0"))
+	require.EqualValues(b, "charon/peer_info/*", protocolPrefix("charon/peer_info/1.0.0", "charon/peer_info/2.0.0", "charon/peer_info/3.0.0"))
+}

@@ -12,6 +12,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/libp2p/go-msgio/pbio"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -22,15 +23,16 @@ import (
 const (
 	senderHysteresis = 3
 	senderBuffer     = senderHysteresis + 1
+	maxMsgSize       = 128 << 20 // 128MB
 )
 
 // SendFunc is an abstract function responsible for sending libp2p messages.
-type SendFunc func(context.Context, host.Host, protocol.ID, peer.ID, proto.Message) error
+type SendFunc func(context.Context, host.Host, protocol.ID, peer.ID, proto.Message, ...SendRecvOption) error
 
 // SendReceiveFunc is an abstract function responsible for sending a libp2p request and returning
 // (populating) a libp2p response.
 type SendReceiveFunc func(ctx context.Context, tcpNode host.Host, peerID peer.ID,
-	req, resp proto.Message, protocol protocol.ID, opts ...func(*sendRecvOpts)) error
+	req, resp proto.Message, protocol protocol.ID, opts ...SendRecvOption) error
 
 var (
 	_ SendFunc = Send
@@ -96,14 +98,15 @@ func (s *Sender) addResult(ctx context.Context, peerID peer.ID, err error) {
 // SendAsync returns nil and sends a libp2p message asynchronously.
 // It logs results on state change (success to/from failure).
 // It implements SendFunc.
-func (s *Sender) SendAsync(parent context.Context, tcpNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message) error {
+func (s *Sender) SendAsync(parent context.Context, tcpNode host.Host, protoID protocol.ID, peerID peer.ID,
+	msg proto.Message, opts ...SendRecvOption,
+) error {
 	go func() {
 		// Clone the context since parent context may be closed soon.
 		ctx := log.CopyFields(context.Background(), parent)
-		ctx = log.WithCtx(ctx, z.Str("protocol", string(protoID)))
 
 		err := withRelayRetry(func() error {
-			return Send(ctx, tcpNode, protoID, peerID, msg)
+			return Send(ctx, tcpNode, protoID, peerID, msg, opts...)
 		})
 		s.addResult(ctx, peerID, err)
 	}()
@@ -116,7 +119,7 @@ func (s *Sender) SendAsync(parent context.Context, tcpNode host.Host, protoID pr
 // It logs results on state change (success to/from failure).
 // It implements SendReceiveFunc.
 func (s *Sender) SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID, req, resp proto.Message,
-	protocol protocol.ID, opts ...func(*sendRecvOpts),
+	protocol protocol.ID, opts ...SendRecvOption,
 ) error {
 	err := withRelayRetry(func() error {
 		return SendReceive(ctx, tcpNode, peerID, req, resp, protocol, opts...)
@@ -137,9 +140,13 @@ func withRelayRetry(fn func() error) error {
 	return err
 }
 
+type SendRecvOption func(*sendRecvOpts)
+
 type sendRecvOpts struct {
-	pids        []protocol.ID
-	rttCallback func(time.Duration)
+	protocols         []protocol.ID // Protocols ordered by higher priority first
+	writersByProtocol map[protocol.ID]func(network.Stream) pbio.Writer
+	readersByProtocol map[protocol.ID]func(network.Stream) pbio.Reader
+	rttCallback       func(time.Duration)
 }
 
 // WithSendReceiveRTT returns an option for SendReceive that sets a callback for the RTT.
@@ -149,11 +156,26 @@ func WithSendReceiveRTT(callback func(time.Duration)) func(*sendRecvOpts) {
 	}
 }
 
-// WithSendReceiveProtocols returns an option for SendReceive that sets the protocols to use.
-// Note this overrides the protocol provided in the SendReceive.
-func WithSendReceiveProtocols(pids ...protocol.ID) func(*sendRecvOpts) {
+// WithDelimitedProtocol returns an option that adds a length delimited read/writer for the provide protocol.
+func WithDelimitedProtocol(pID protocol.ID) func(*sendRecvOpts) {
 	return func(opts *sendRecvOpts) {
-		opts.pids = pids
+		opts.protocols = append([]protocol.ID{pID}, opts.protocols...) // Add to front
+		opts.writersByProtocol[pID] = func(s network.Stream) pbio.Writer { return pbio.NewDelimitedWriter(s) }
+		opts.readersByProtocol[pID] = func(s network.Stream) pbio.Reader { return pbio.NewDelimitedReader(s, maxMsgSize) }
+	}
+}
+
+// defaultSendRecvOpts returns the default sendRecvOpts, it uses the legacy writers and noop rtt callback.
+func defaultSendRecvOpts(pID protocol.ID) sendRecvOpts {
+	return sendRecvOpts{
+		protocols: []protocol.ID{pID},
+		writersByProtocol: map[protocol.ID]func(s network.Stream) pbio.Writer{
+			pID: func(s network.Stream) pbio.Writer { return legacyReadWriter{s} },
+		},
+		readersByProtocol: map[protocol.ID]func(s network.Stream) pbio.Reader{
+			pID: func(s network.Stream) pbio.Reader { return legacyReadWriter{s} },
+		},
+		rttCallback: func(time.Duration) {},
 	}
 }
 
@@ -162,85 +184,79 @@ func WithSendReceiveProtocols(pids ...protocol.ID) func(*sendRecvOpts) {
 // The provided response proto will be populated if err is nil.
 // It implements SendReceiveFunc.
 func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
-	req, resp proto.Message, pID protocol.ID, opts ...func(*sendRecvOpts),
+	req, resp proto.Message, pID protocol.ID, opts ...SendRecvOption,
 ) error {
-	o := sendRecvOpts{
-		pids:        []protocol.ID{pID},
-		rttCallback: func(time.Duration) {},
-	}
+	o := defaultSendRecvOpts(pID)
 	for _, opt := range opts {
 		opt(&o)
 	}
-	ctx = log.WithCtx(ctx, z.Any("protocol", o.pids))
-
-	b, err := proto.Marshal(req)
-	if err != nil {
-		return errors.Wrap(err, "marshal proto")
-	}
 
 	// Circuit relay connections are transient
-	s, err := tcpNode.NewStream(network.WithUseTransient(ctx, ""), peerID, o.pids...)
+	s, err := tcpNode.NewStream(network.WithUseTransient(ctx, ""), peerID, o.protocols...)
 	if err != nil {
-		return errors.Wrap(err, "new stream", z.Any("protocols", o.pids))
+		return errors.Wrap(err, "new stream", z.Any("protocols", o.protocols))
 	}
 
+	writeFunc, ok := o.writersByProtocol[s.Protocol()]
+	if !ok {
+		return errors.New("no writer for protocol", z.Any("protocol", s.Protocol()))
+	}
+	readFunc, ok := o.readersByProtocol[s.Protocol()]
+	if !ok {
+		return errors.New("no reader for protocol", z.Any("protocol", s.Protocol()))
+	}
+
+	writer := writeFunc(s)
+	reader := readFunc(s)
+
 	t0 := time.Now()
-	if _, err = s.Write(b); err != nil {
-		return errors.Wrap(err, "write request")
+	if err = writer.WriteMsg(req); err != nil {
+		return errors.Wrap(err, "write request", z.Any("protocol", s.Protocol()))
 	}
 
 	if err := s.CloseWrite(); err != nil {
-		return errors.Wrap(err, "close write")
+		return errors.Wrap(err, "close write", z.Any("protocol", s.Protocol()))
 	}
 
-	name := PeerName(peerID)
-	networkTXCounter.WithLabelValues(name, string(s.Protocol())).Add(float64(len(b)))
-
-	b, err = io.ReadAll(s)
-	if err != nil {
-		return errors.Wrap(err, "read response")
-	} else if len(b) == 0 {
-		return errors.New("peer errored, no response")
-	}
-
-	if err = proto.Unmarshal(b, resp); err != nil {
-		return errors.Wrap(err, "unmarshal response")
+	if err = reader.ReadMsg(resp); err != nil {
+		return errors.Wrap(err, "read response", z.Any("protocol", s.Protocol()))
 	}
 
 	if err = s.Close(); err != nil {
-		return errors.Wrap(err, "unmarshal response")
+		return errors.Wrap(err, "close stream", z.Any("protocol", s.Protocol()))
 	}
 
 	o.rttCallback(time.Since(t0))
-
-	networkRXCounter.WithLabelValues(name, string(s.Protocol())).Add(float64(len(b)))
 
 	return nil
 }
 
 // Send sends a libp2p message synchronously. It implements SendFunc.
-func Send(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message) error {
-	b, err := proto.Marshal(msg)
-	if err != nil {
-		return errors.Wrap(err, "marshal proto")
+func Send(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message,
+	opts ...SendRecvOption,
+) error {
+	o := defaultSendRecvOpts(protoID)
+	for _, opt := range opts {
+		opt(&o)
 	}
-
 	// Circuit relay connections are transient
 	s, err := tcpNode.NewStream(network.WithUseTransient(ctx, ""), peerID, protoID)
 	if err != nil {
 		return errors.Wrap(err, "tcpNode stream")
 	}
 
-	_, err = s.Write(b)
-	if err != nil {
-		return errors.Wrap(err, "tcpNode write")
+	writeFunc, ok := o.writersByProtocol[s.Protocol()]
+	if !ok {
+		return errors.New("no writer for protocol", z.Any("protocol", s.Protocol()))
+	}
+
+	if err = writeFunc(s).WriteMsg(msg); err != nil {
+		return errors.Wrap(err, "write message", z.Any("protocol", s.Protocol()))
 	}
 
 	if err := s.Close(); err != nil {
-		return errors.Wrap(err, "tcpNode close")
+		return errors.Wrap(err, "close stream", z.Any("protocol", s.Protocol()))
 	}
-
-	networkTXCounter.WithLabelValues(PeerName(peerID), string(s.Protocol())).Add(float64(len(b)))
 
 	return nil
 }
@@ -260,4 +276,64 @@ func ProtocolSupported(tcpNode host.Host, peerID peer.ID, protocolID protocol.ID
 	}
 
 	return false, true // Not supported
+}
+
+// legacyReadWriter implements pbio.Reader and pbio.Writer without length delimited encoding.
+type legacyReadWriter struct {
+	stream network.Stream
+}
+
+// WriteMsg writes a protobuf message to the stream.
+func (w legacyReadWriter) WriteMsg(m proto.Message) error {
+	b, err := proto.Marshal(m)
+	if err != nil {
+		return errors.Wrap(err, "marshal proto")
+	}
+
+	_, err = w.stream.Write(b)
+
+	return err
+}
+
+// ReadMsg reads a single protobuf message from the whole stream.
+// The stream must be closed after the message was sent.
+func (w legacyReadWriter) ReadMsg(m proto.Message) error {
+	b, err := io.ReadAll(w.stream)
+	if err != nil {
+		return errors.Wrap(err, "read response")
+	} else if len(b) == 0 {
+		return errors.New("peer errored, no response")
+	}
+
+	if err = proto.Unmarshal(b, m); err != nil {
+		return errors.Wrap(err, "unmarshal response")
+	}
+
+	return nil
+}
+
+// protocolPrefix returns the common prefix of the provided protocol IDs.
+func protocolPrefix(pIDs ...protocol.ID) protocol.ID {
+	if len(pIDs) == 0 {
+		return ""
+	}
+	if len(pIDs) == 1 {
+		return pIDs[0]
+	}
+
+	prefix := pIDs[0]
+	for _, pID := range pIDs {
+		for i := 0; i < len(prefix) && i < len(pID); i++ {
+			if prefix[i] != pID[i] {
+				prefix = prefix[:i]
+				break
+			}
+		}
+	}
+
+	if len(prefix) < len(pIDs[0]) {
+		prefix += "*"
+	}
+
+	return prefix
 }
