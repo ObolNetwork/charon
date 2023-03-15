@@ -59,17 +59,19 @@ var (
 		Help:      "Total number of libp2p connections per peer.",
 	}, []string{"peer"})
 
-	networkRXCounter = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "p2p",
-		Name:      "peer_network_receive_bytes_total",
-		Help:      "Total number of network bytes received from the peer by protocol.",
-	}, []string{"peer", "protocol"})
+	// TODO(corver): re-enable these metrics using libp2p internal features.
 
-	networkTXCounter = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "p2p",
-		Name:      "peer_network_sent_bytes_total",
-		Help:      "Total number of network bytes sent to the peer by protocol.",
-	}, []string{"peer", "protocol"})
+	// networkRXCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+	//	Namespace: "p2p",
+	//	Name:      "peer_network_receive_bytes_total",
+	//	Help:      "Total number of network bytes received from the peer by protocol.",
+	// }, []string{"peer", "protocol"}).
+
+	// networkTXCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+	//	Namespace: "p2p",
+	//	Name:      "peer_network_sent_bytes_total",
+	//	Help:      "Total number of network bytes sent to the peer by protocol.",
+	// }, []string{"peer", "protocol"}).
 )
 
 func observePing(p peer.ID, d time.Duration) {
