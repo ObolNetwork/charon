@@ -111,7 +111,7 @@ func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSi
 			continue
 		}
 
-		if err := m.sendFunc(ctx, m.tcpNode, protocolID1, p, &msg); err != nil {
+		if err := m.sendFunc(ctx, m.tcpNode, protocolID1, p, &msg, p2p.WithDelimitedProtocol(protocolID2)); err != nil {
 			return err
 		}
 	}
