@@ -68,7 +68,7 @@ func TestCreateCluster(t *testing.T) {
 			Config: clusterConfig{
 				NumNodes:  4,
 				Threshold: 3,
-				NumDVs:    2,
+				NumDVs:    1, // Default
 				SplitKeys: true,
 			},
 			Prep: func(t *testing.T, config clusterConfig) clusterConfig {
@@ -117,10 +117,8 @@ func TestCreateCluster(t *testing.T) {
 				test.Config = test.Prep(t, test.Config)
 			}
 
-			for i := 0; i < test.Config.NumDVs; i++ {
-				test.Config.WithdrawalAddrs = append(test.Config.WithdrawalAddrs, defaultWithdrawalAddr)
-				test.Config.FeeRecipientAddrs = append(test.Config.FeeRecipientAddrs, defaultWithdrawalAddr)
-			}
+			test.Config.WithdrawalAddrs = []string{zeroAddress}
+			test.Config.FeeRecipientAddrs = []string{zeroAddress}
 
 			if test.Config.Network == "" {
 				test.Config.Network = defaultNetwork
@@ -207,10 +205,14 @@ func TestValidateDef(t *testing.T) {
 
 	for i := 0; i < conf.NumDVs; i++ {
 		conf.FeeRecipientAddrs = append(conf.FeeRecipientAddrs, testutil.RandomETHAddress())
-		conf.WithdrawalAddrs = append(conf.WithdrawalAddrs, defaultWithdrawalAddr)
+		conf.WithdrawalAddrs = append(conf.WithdrawalAddrs, zeroAddress)
 	}
 
 	definition, err := newDefFromConfig(ctx, conf)
+	require.NoError(t, err)
+
+	defPath := "../cluster/examples/cluster-definition-002.json"
+	remoteDef, err := loadDefinition(context.Background(), defPath)
 	require.NoError(t, err)
 
 	t.Run("zero address", func(t *testing.T) {
@@ -270,6 +272,112 @@ func TestValidateDef(t *testing.T) {
 		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
 		require.ErrorContains(t, err, "cannot create cluster with zero validators, specify at least one")
 	})
+
+	t.Run("invalid hash", func(t *testing.T) {
+		def := remoteDef
+		def.NumValidators = 3
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		require.ErrorContains(t, err, "invalid config hash")
+	})
+
+	t.Run("invalid config signatures", func(t *testing.T) {
+		def := remoteDef
+		def.NumValidators = 3
+		def, err = def.SetDefinitionHashes()
+		require.NoError(t, err)
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		require.ErrorContains(t, err, "invalid creator config signature")
+	})
+}
+
+func TestSplitKeys(t *testing.T) {
+	tests := []struct {
+		name           string
+		numSplitKeys   int
+		conf           clusterConfig
+		expectedErrMsg string
+	}{
+		{
+			name:         "split keys from local definition with mismatch NumValidators",
+			numSplitKeys: 2,
+			conf: clusterConfig{
+				DefFile: "../cluster/examples/cluster-definition-002.json",
+			},
+			expectedErrMsg: "number of keystores provided in split-keys-dir does not matches with NumValidators in the given definition file",
+		},
+		{
+			name:         "split keys from local definition with same NumValidators",
+			numSplitKeys: 1,
+			conf: clusterConfig{
+				DefFile:    "../cluster/examples/cluster-definition-002.json",
+				ClusterDir: t.TempDir(),
+			},
+		},
+		{
+			name:         "split keys from config with one num-validators",
+			numSplitKeys: 3,
+			conf: clusterConfig{
+				Name:              "test split keys",
+				NumDVs:            1,
+				NumNodes:          minNodes,
+				Threshold:         3,
+				Network:           defaultNetwork,
+				FeeRecipientAddrs: []string{zeroAddress},
+				WithdrawalAddrs:   []string{zeroAddress},
+				ClusterDir:        t.TempDir(),
+			},
+		},
+		{
+			name:         "split keys from config with mismatch num-validators",
+			numSplitKeys: 3,
+			conf: clusterConfig{
+				NumDVs:            2,
+				Network:           defaultNetwork,
+				FeeRecipientAddrs: []string{zeroAddress},
+				WithdrawalAddrs:   []string{zeroAddress},
+			},
+			expectedErrMsg: "num-validators provided is not equal to keystores provided in split-keys-dir",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var keys []tblsv2.PrivateKey
+			for i := 0; i < test.numSplitKeys; i++ {
+				secret, err := tblsv2.GenerateSecretKey()
+				require.NoError(t, err)
+
+				keys = append(keys, secret)
+			}
+
+			keysDir := t.TempDir()
+
+			err := keystore.StoreKeys(keys, keysDir)
+			require.NoError(t, err)
+
+			test.conf.SplitKeysDir = keysDir
+			test.conf.SplitKeys = true
+
+			var buf bytes.Buffer
+			err = runCreateCluster(context.Background(), &buf, test.conf)
+			if test.expectedErrMsg != "" {
+				require.ErrorContains(t, err, test.expectedErrMsg)
+			} else {
+				require.NoError(t, err)
+
+				// Since `cluster-lock.json` is copied into each node directory, use any one of them.
+				b, err := os.ReadFile(path.Join(nodeDir(test.conf.ClusterDir, 0), "cluster-lock.json"))
+				require.NoError(t, err)
+
+				var lock cluster.Lock
+				require.NoError(t, json.Unmarshal(b, &lock))
+				require.NoError(t, lock.VerifyHashes())
+				require.NoError(t, lock.VerifySignatures())
+
+				require.Equal(t, test.numSplitKeys, lock.NumValidators)
+			}
+		})
+	}
 }
 
 func TestMultipleAddresses(t *testing.T) {
@@ -346,8 +454,8 @@ func TestKeymanager(t *testing.T) {
 		NumDVs:            1,
 		KeymanagerAddrs:   addrs,
 		Network:           defaultNetwork,
-		WithdrawalAddrs:   []string{defaultWithdrawalAddr},
-		FeeRecipientAddrs: []string{defaultWithdrawalAddr},
+		WithdrawalAddrs:   []string{zeroAddress},
+		FeeRecipientAddrs: []string{zeroAddress},
 		Clean:             true,
 	}
 	conf.ClusterDir = t.TempDir()
@@ -410,8 +518,8 @@ func TestPublish(t *testing.T) {
 		NumNodes:          minNodes,
 		NumDVs:            1,
 		Network:           defaultNetwork,
-		WithdrawalAddrs:   []string{defaultWithdrawalAddr},
-		FeeRecipientAddrs: []string{defaultWithdrawalAddr},
+		WithdrawalAddrs:   []string{zeroAddress},
+		FeeRecipientAddrs: []string{zeroAddress},
 		PublishAddr:       addr,
 		Publish:           true,
 	}

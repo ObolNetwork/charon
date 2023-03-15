@@ -34,9 +34,9 @@ import (
 )
 
 const (
-	defaultWithdrawalAddr = "0x0000000000000000000000000000000000000000"
-	defaultNetwork        = "goerli"
-	minNodes              = 4
+	zeroAddress    = "0x0000000000000000000000000000000000000000"
+	defaultNetwork = "goerli"
+	minNodes       = 4
 )
 
 type clusterConfig struct {
@@ -134,10 +134,9 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	numNodes := len(def.Operators)
-	// Validate definition
-	err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
-	if err != nil {
-		return err
+
+	if !conf.SplitKeys && def.NumValidators == 0 {
+		return errors.New("num-validators cannot be equal to 0")
 	}
 
 	// Get root bls secrets
@@ -145,6 +144,47 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	if err != nil {
 		return err
 	}
+
+	// Check if NumValidators provided in the given definition file mismatches with the number of split-keys provided.
+	if conf.DefFile != "" && conf.SplitKeys && def.NumValidators != len(secrets) {
+		return errors.New("number of keystores provided in split-keys-dir does not matches with NumValidators in the given definition file")
+	}
+
+	// Check if provided --num-validators mismatches with the number of secrets obtained from split-keys-dir.
+	if conf.SplitKeys && def.NumValidators != len(secrets) {
+		if def.NumValidators > 1 {
+			return errors.New("num-validators provided is not equal to keystores provided in split-keys-dir",
+				z.Int("num-validators", def.NumValidators), z.Int("split-keys", len(secrets)))
+		}
+
+		// Override definition according to the secrets obtained from split-keys-dir if num-validators are 0 or 1 (default).
+		def.NumValidators = len(secrets)
+		feeRecipientAddrs, withdrawalAddrs, err := validateAddresses(def.NumValidators, conf.FeeRecipientAddrs, conf.WithdrawalAddrs)
+		if err != nil {
+			return err
+		}
+
+		def.ValidatorAddresses = []cluster.ValidatorAddresses{}
+		for i := 0; i < def.NumValidators; i++ {
+			def.ValidatorAddresses = append(def.ValidatorAddresses, cluster.ValidatorAddresses{
+				FeeRecipientAddress: feeRecipientAddrs[i],
+				WithdrawalAddress:   withdrawalAddrs[i],
+			})
+		}
+
+		// Update config and definition hash.
+		def, err = def.SetDefinitionHashes()
+		if err != nil {
+			return err
+		}
+	}
+
+	// Validate definition
+	err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+	if err != nil {
+		return err
+	}
+
 	// Generate threshold bls key shares
 	pubkeys, shareSets, err := getTSSShares(secrets, def.Threshold, numNodes)
 	if err != nil {
@@ -611,6 +651,14 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 		return errors.New("name not provided")
 	}
 
+	if err = def.VerifyHashes(); err != nil {
+		return err
+	}
+
+	if err = def.VerifySignatures(); err != nil {
+		return err
+	}
+
 	if !eth2util.ValidNetwork(network) {
 		return errors.New("unsupported network", z.Str("network", network))
 	}
@@ -673,6 +721,10 @@ func loadDefinition(ctx context.Context, defFile string) (cluster.Definition, er
 	}
 	if err := def.VerifyHashes(); err != nil {
 		return cluster.Definition{}, err
+	}
+
+	if def.NumValidators == 0 {
+		return cluster.Definition{}, errors.New("no validators specified in the given definition")
 	}
 
 	return def, nil
