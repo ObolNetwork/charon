@@ -48,7 +48,7 @@ func RegisterHandler(logTopic string, tcpNode host.Host, pID protocol.ID,
 		return o.readersByProtocol[pID] != nil
 	}
 
-	tcpNode.SetStreamHandlerMatch(pID, matchProtocol, func(s network.Stream) {
+	tcpNode.SetStreamHandlerMatch(protocolPrefix(o.protocols...), matchProtocol, func(s network.Stream) {
 		t0 := time.Now()
 		name := PeerName(s.Conn().RemotePeer())
 
@@ -58,7 +58,6 @@ func RegisterHandler(logTopic string, tcpNode host.Host, pID protocol.ID,
 		ctx = log.WithTopic(ctx, logTopic)
 		ctx = log.WithCtx(ctx,
 			z.Str("peer", name),
-			z.Str("pID", string(pID)),
 			z.Any("protocol", s.Protocol()),
 		)
 		defer cancel()

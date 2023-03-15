@@ -143,18 +143,10 @@ func withRelayRetry(fn func() error) error {
 type SendRecvOption func(*sendRecvOpts)
 
 type sendRecvOpts struct {
+	protocols         []protocol.ID // Protocols ordered by higher priority first
 	writersByProtocol map[protocol.ID]func(network.Stream) pbio.Writer
 	readersByProtocol map[protocol.ID]func(network.Stream) pbio.Reader
 	rttCallback       func(time.Duration)
-}
-
-func (o sendRecvOpts) WriteProtocols() []protocol.ID {
-	var protocols []protocol.ID
-	for p := range o.writersByProtocol {
-		protocols = append(protocols, p)
-	}
-
-	return protocols
 }
 
 // WithSendReceiveRTT returns an option for SendReceive that sets a callback for the RTT.
@@ -167,6 +159,7 @@ func WithSendReceiveRTT(callback func(time.Duration)) func(*sendRecvOpts) {
 // WithDelimitedProtocol returns an option that adds a length delimited read/writer for the provide protocol.
 func WithDelimitedProtocol(pID protocol.ID) func(*sendRecvOpts) {
 	return func(opts *sendRecvOpts) {
+		opts.protocols = append([]protocol.ID{pID}, opts.protocols...) // Add to front
 		opts.writersByProtocol[pID] = func(s network.Stream) pbio.Writer { return pbio.NewDelimitedWriter(s) }
 		opts.readersByProtocol[pID] = func(s network.Stream) pbio.Reader { return pbio.NewDelimitedReader(s, maxMsgSize) }
 	}
@@ -175,6 +168,7 @@ func WithDelimitedProtocol(pID protocol.ID) func(*sendRecvOpts) {
 // defaultSendRecvOpts returns the default sendRecvOpts, it uses the legacy writers and noop rtt callback.
 func defaultSendRecvOpts(pID protocol.ID) sendRecvOpts {
 	return sendRecvOpts{
+		protocols: []protocol.ID{pID},
 		writersByProtocol: map[protocol.ID]func(s network.Stream) pbio.Writer{
 			pID: func(s network.Stream) pbio.Writer { return legacyReadWriter{s} },
 		},
@@ -198,9 +192,9 @@ func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
 	}
 
 	// Circuit relay connections are transient
-	s, err := tcpNode.NewStream(network.WithUseTransient(ctx, ""), peerID, o.WriteProtocols()...)
+	s, err := tcpNode.NewStream(network.WithUseTransient(ctx, ""), peerID, o.protocols...)
 	if err != nil {
-		return errors.Wrap(err, "new stream", z.Any("protocols", o.WriteProtocols()))
+		return errors.Wrap(err, "new stream", z.Any("protocols", o.protocols))
 	}
 
 	writeFunc, ok := o.writersByProtocol[s.Protocol()]
@@ -316,4 +310,30 @@ func (w legacyReadWriter) ReadMsg(m proto.Message) error {
 	}
 
 	return nil
+}
+
+// protocolPrefix returns the common prefix of the provided protocol IDs.
+func protocolPrefix(pIDs ...protocol.ID) protocol.ID {
+	if len(pIDs) == 0 {
+		return ""
+	}
+	if len(pIDs) == 1 {
+		return pIDs[0]
+	}
+
+	prefix := pIDs[0]
+	for _, pID := range pIDs {
+		for i := 0; i < len(prefix) && i < len(pID); i++ {
+			if prefix[i] != pID[i] {
+				prefix = prefix[:i]
+				break
+			}
+		}
+	}
+
+	if len(prefix) < len(pIDs[0]) {
+		prefix += "*"
+	}
+
+	return prefix
 }
