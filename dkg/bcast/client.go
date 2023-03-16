@@ -17,11 +17,11 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-// NewClient creates a new reliable-broadcast client.
-func NewClient(tcpNode host.Host, peers []peer.ID, sendRecvFunc p2p.SendReceiveFunc,
-	sendFunc p2p.SendFunc, hashFunc HashFunc, signFunc SignFunc, verifyFunc VerifyFunc,
-) *Client {
-	return &Client{
+// newClient creates a new reliable-broadcast client.
+func newClient(tcpNode host.Host, peers []peer.ID, sendRecvFunc p2p.SendReceiveFunc,
+	sendFunc p2p.SendFunc, hashFunc hashFunc, signFunc signFunc, verifyFunc verifyFunc,
+) *client {
+	return &client{
 		tcpNode:      tcpNode,
 		peers:        peers,
 		sendRecvFunc: sendRecvFunc,
@@ -32,19 +32,19 @@ func NewClient(tcpNode host.Host, peers []peer.ID, sendRecvFunc p2p.SendReceiveF
 	}
 }
 
-// Client is a reliable-broadcast client.
-type Client struct {
+// client is a reliable-broadcast client.
+type client struct {
 	tcpNode      host.Host
 	peers        []peer.ID
 	sendRecvFunc p2p.SendReceiveFunc
 	sendFunc     p2p.SendFunc
-	hashFunc     HashFunc
-	signFunc     SignFunc
-	verifyFunc   VerifyFunc
+	hashFunc     hashFunc
+	signFunc     signFunc
+	verifyFunc   verifyFunc
 }
 
 // Broadcast reliably-broadcasts the message to all peers (excluding self).
-func (c *Client) Broadcast(ctx context.Context, msg proto.Message) error {
+func (c *client) Broadcast(ctx context.Context, msgID string, msg proto.Message) error {
 	// Wrap proto in any and hash it.
 
 	anyMsg, err := anypb.New(msg)
@@ -60,6 +60,7 @@ func (c *Client) Broadcast(ctx context.Context, msg proto.Message) error {
 	// Send hash to all peers to sign.
 
 	sigReq := &pb.BCastSigRequest{
+		Id:   msgID,
 		Hash: hash,
 	}
 
@@ -78,7 +79,7 @@ func (c *Client) Broadcast(ctx context.Context, msg proto.Message) error {
 	for i, pID := range c.peers {
 		if c.tcpNode.ID() == pID {
 			// Sign self locally.
-			sig, err := c.signFunc(sigReq.Hash)
+			sig, err := c.signFunc(msgID, sigReq.Hash)
 			if err != nil {
 				return errors.Wrap(err, "sign hash")
 			}
@@ -95,7 +96,7 @@ func (c *Client) Broadcast(ctx context.Context, msg proto.Message) error {
 
 	for resp := range join() {
 		if resp.Err != nil {
-			return errors.Wrap(err, "send sig request", z.Str("peer", p2p.PeerName(resp.Input)))
+			return errors.Wrap(resp.Err, "send sig request", z.Str("peer", p2p.PeerName(resp.Input)))
 		}
 
 		var found bool
@@ -115,13 +116,14 @@ func (c *Client) Broadcast(ctx context.Context, msg proto.Message) error {
 
 	// Verify
 
-	if err := c.verifyFunc(anyMsg, sigs); err != nil {
-		return errors.New("verify signatures")
+	if err := c.verifyFunc(msgID, anyMsg, sigs); err != nil {
+		return errors.Wrap(err, "verify signatures")
 	}
 
 	// Broadcast message to all peers (excluding self).
 
 	bcastMsg := &pb.BCastMessage{
+		Id:         msgID,
 		Message:    anyMsg,
 		Signatures: sigs,
 	}

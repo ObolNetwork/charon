@@ -5,6 +5,7 @@ package bcast
 import (
 	"context"
 
+	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -15,14 +16,16 @@ const (
 	protocolIDMsg    = protocolIDPrefix + "/msg"
 )
 
-// HashFunc is a function that hashes a any-wrapped protobuf message.
-type HashFunc func(*anypb.Any) ([]byte, error)
+// hashFunc is a function that hashes a any-wrapped protobuf message.
+type hashFunc func(*anypb.Any) ([]byte, error)
 
 // Callback is a function that is called when a reliably-broadcast message was successfully received.
-type Callback func(context.Context, proto.Message) error
+type Callback func(ctx context.Context, peerID peer.ID, msgID string, msg proto.Message) error
 
-// SignFunc is a function that signs a hash.
-type SignFunc func(hash []byte) ([]byte, error)
+// signFunc is a function that signs a hash.
+type signFunc func(msgID string, hash []byte) ([]byte, error)
 
-// VerifyFunc is a function that verifies a message and its signatures.
-type VerifyFunc func(*anypb.Any, [][]byte) error
+// verifyFunc is a function that verifies a message and its signatures.
+type verifyFunc func(string, *anypb.Any, [][]byte) error
+
+type BroadcastFunc func(ctx context.Context, msgID string, msg proto.Message) error
