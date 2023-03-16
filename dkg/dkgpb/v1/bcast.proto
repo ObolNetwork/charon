@@ -7,14 +7,14 @@ import "google/protobuf/any.proto";
 option go_package = "github.com/obolnetwork/charon/dkg/dkgpb/v1";
 
 message BCastSigRequest {
-  bytes  hash = 2;
+  bytes  hash = 1;
 }
 
 message BCastSigResponse {
-  bytes  signature = 2;
+  bytes  signature = 1;
 }
 
 message BCastMessage {
-  google.protobuf.Any message    = 2;
-  repeated bytes      signatures = 3;
+  google.protobuf.Any message    = 1;
+  repeated bytes      signatures = 2;
 }
