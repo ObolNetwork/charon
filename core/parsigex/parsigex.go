@@ -4,11 +4,8 @@ package parsigex
 
 import (
 	"context"
-	"io"
-	"time"
 
 	"github.com/libp2p/go-libp2p/core/host"
-	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"google.golang.org/protobuf/proto"
@@ -23,11 +20,14 @@ import (
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 )
 
-const protocolID = "/charon/parsigex/1.0.0"
+const (
+	protocolID1 = "/charon/parsigex/1.0.0"
+	protocolID2 = "/charon/parsigex/2.0.0"
+)
 
 // Protocols returns the supported protocols of this package in order of precedence.
 func Protocols() []protocol.ID {
-	return []protocol.ID{protocolID}
+	return []protocol.ID{protocolID2, protocolID1}
 }
 
 func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []peer.ID, verifyFunc func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error) *ParSigEx {
@@ -38,7 +38,9 @@ func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []
 		peers:      peers,
 		verifyFunc: verifyFunc,
 	}
-	parSigEx.tcpNode.SetStreamHandler(protocolID, parSigEx.handle)
+
+	newReq := func() proto.Message { return new(pbv1.ParSigExMsg) }
+	p2p.RegisterHandler("parsigex", tcpNode, protocolID1, newReq, parSigEx.handle, p2p.WithDelimitedProtocol(protocolID2))
 
 	return parSigEx
 }
@@ -54,23 +56,10 @@ type ParSigEx struct {
 	subs       []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
-func (m *ParSigEx) handle(s network.Stream) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	ctx = log.WithTopic(ctx, "parsigex")
-	ctx = log.WithCtx(ctx, z.Str("peer", p2p.PeerName(s.Conn().RemotePeer())))
-	defer cancel()
-	defer s.Close()
-
-	b, err := io.ReadAll(s)
-	if err != nil {
-		log.Error(ctx, "Read proto bytes", err)
-		return
-	}
-
-	pb := new(pbv1.ParSigExMsg)
-	if err := proto.Unmarshal(b, pb); err != nil {
-		log.Error(ctx, "Unmarshal parsigex proto", err)
-		return
+func (m *ParSigEx) handle(ctx context.Context, _ peer.ID, req proto.Message) (proto.Message, bool, error) {
+	pb, ok := req.(*pbv1.ParSigExMsg)
+	if !ok {
+		return nil, false, errors.New("invalid request type")
 	}
 
 	duty := core.DutyFromProto(pb.Duty)
@@ -78,8 +67,7 @@ func (m *ParSigEx) handle(s network.Stream) {
 
 	set, err := core.ParSignedDataSetFromProto(duty.Type, pb.DataSet)
 	if err != nil {
-		log.Error(ctx, "Convert parsigex proto", err)
-		return
+		return nil, false, errors.Wrap(err, "convert parsigex proto")
 	}
 
 	ctx, span := core.StartDutyTrace(ctx, duty, "core/parsigex.Handle")
@@ -88,17 +76,19 @@ func (m *ParSigEx) handle(s network.Stream) {
 	// Verify partial signature
 	for pubkey, data := range set {
 		if err = m.verifyFunc(ctx, duty, pubkey, data); err != nil {
-			log.Error(ctx, "Peer exchanged invalid partial signature", err)
-			return
+			return nil, false, errors.Wrap(err, "invalid partial signature")
 		}
 	}
 
 	for _, sub := range m.subs {
+		// TODO(corver): Call this async
 		err := sub(ctx, duty, set)
 		if err != nil {
 			log.Error(ctx, "Subscribe error", err)
 		}
 	}
+
+	return nil, false, nil
 }
 
 // Broadcast broadcasts the partially signed duty data set to all peers.
@@ -121,7 +111,7 @@ func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSi
 			continue
 		}
 
-		if err := m.sendFunc(ctx, m.tcpNode, protocolID, p, &msg); err != nil {
+		if err := m.sendFunc(ctx, m.tcpNode, protocolID1, p, &msg, p2p.WithDelimitedProtocol(protocolID2)); err != nil {
 			return err
 		}
 	}
