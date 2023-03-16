@@ -27,7 +27,7 @@ func TestHashProto(t *testing.T) {
 
 	setPB, err := core.UnsignedDataSetToProto(set)
 	require.NoError(t, err)
-	hash, err := HashProto(setPB)
+	hash, err := hashProto(setPB)
 	require.NoError(t, err)
 
 	require.Equal(t,
@@ -61,9 +61,9 @@ func TestSigning(t *testing.T) {
 func TestNewMsg(t *testing.T) {
 	val1 := timestamppb.New(time.Time{})
 	val2 := timestamppb.New(time.Now())
-	hash1, err := HashProto(val1)
+	hash1, err := hashProto(val1)
 	require.NoError(t, err)
-	hash2, err := HashProto(val2)
+	hash2, err := hashProto(val2)
 	require.NoError(t, err)
 
 	any1, err := anypb.New(val1)
@@ -92,7 +92,7 @@ func TestNewMsg(t *testing.T) {
 func TestPartialLegacyNewMsg(t *testing.T) {
 	val1 := timestamppb.New(time.Time{})
 	val2 := timestamppb.New(time.Now())
-	hash1, err := HashProto(val1)
+	hash1, err := hashProto(val1)
 	require.NoError(t, err)
 
 	any1, err := anypb.New(val1)
