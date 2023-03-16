@@ -22,9 +22,9 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-const period = time.Minute
+const (
+	period = time.Minute
 
-var (
 	protocolID1 protocol.ID = "/charon/peerinfo/1.0.0"
 	protocolID2 protocol.ID = "/charon/peerinfo/2.0.0"
 )
