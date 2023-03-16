@@ -4,8 +4,6 @@ package bcast
 
 import (
 	"context"
-	"fmt"
-	"time"
 
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -62,7 +60,6 @@ func (c *Client) Broadcast(ctx context.Context, msg proto.Message) error {
 	// Send hash to all peers to sign.
 
 	sigReq := &pb.BCastSigRequest{
-		Id:   fmt.Sprint(time.Now().UnixNano()), // Unique ID for this message.
 		Hash: hash,
 	}
 
@@ -127,7 +124,6 @@ func (c *Client) Broadcast(ctx context.Context, msg proto.Message) error {
 	// Broadcast message to all peers (excluding self).
 
 	bcastMsg := &pb.BCastMessage{
-		Id:         sigReq.Id,
 		Message:    anyMsg,
 		Signatures: sigs,
 	}

@@ -55,7 +55,7 @@ func (s *Server) handleSigRequest(_ context.Context, _ peer.ID, m proto.Message)
 		return nil, false, errors.Wrap(err, "sign hash")
 	}
 
-	return &pb.BCastSigResponse{Id: req.Id, Signature: sig}, true, nil
+	return &pb.BCastSigResponse{Signature: sig}, true, nil
 }
 
 func (s *Server) handleMessage(ctx context.Context, _ peer.ID, m proto.Message) (proto.Message, bool, error) {
