@@ -75,6 +75,10 @@ func newPeerK1Verifier(peers []peer.ID, allow map[string]bool) func(string, *any
 				return errors.Wrap(err, "peer id to key")
 			}
 
+			if len(sig) != 65 {
+				return errors.New("invalid signature length, expect 65 bytes [R || S || V] format")
+			}
+
 			if ok, err := k1util.Verify(pubkey, hash, sig[:64]); err != nil {
 				return errors.Wrap(err, "verify failed")
 			} else if !ok {
