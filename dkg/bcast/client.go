@@ -115,10 +115,8 @@ func (c *Client) Broadcast(ctx context.Context, msg proto.Message) error {
 
 	// Verify
 
-	if ok, err := c.verifyFunc(anyMsg, sigs); err != nil {
-		return errors.New("verify error")
-	} else if !ok {
-		return errors.New("verify failed")
+	if err := c.verifyFunc(anyMsg, sigs); err != nil {
+		return errors.New("verify signatures")
 	}
 
 	// Broadcast message to all peers (excluding self).

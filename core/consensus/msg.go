@@ -28,7 +28,7 @@ func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]b
 		if err != nil {
 			return msg{}, errors.Wrap(err, "unmarshal any")
 		}
-		valueHash, err = hashProto(value)
+		valueHash, err = HashProto(value)
 		if err != nil {
 			return msg{}, err
 		}
@@ -45,7 +45,7 @@ func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]b
 		if err != nil {
 			return msg{}, errors.Wrap(err, "unmarshal any")
 		}
-		preparedValueHash, err = hashProto(pv)
+		preparedValueHash, err = HashProto(pv)
 		if err != nil {
 			return msg{}, err
 		}
@@ -133,9 +133,9 @@ func (m msg) ToConsensusMsg() *pbv1.ConsensusMsg {
 	}
 }
 
-// hashProto returns a deterministic ssz hash root of the proto message.
+// HashProto returns a deterministic ssz hash root of the proto message.
 // It is the same logic as that used by the priority package.
-func hashProto(msg proto.Message) ([32]byte, error) {
+func HashProto(msg proto.Message) ([32]byte, error) {
 	if _, ok := msg.(*anypb.Any); ok {
 		return [32]byte{}, errors.New("cannot hash any proto, must hash inner value")
 	}
@@ -170,7 +170,7 @@ func verifyMsgSig(msg *pbv1.QBFTMsg, pubkey *k1.PublicKey) (bool, error) {
 
 	clone := proto.Clone(msg).(*pbv1.QBFTMsg)
 	clone.Signature = nil
-	hash, err := hashProto(clone)
+	hash, err := HashProto(clone)
 	if err != nil {
 		return false, err
 	}
@@ -188,7 +188,7 @@ func signMsg(msg *pbv1.QBFTMsg, privkey *k1.PrivateKey) (*pbv1.QBFTMsg, error) {
 	clone := proto.Clone(msg).(*pbv1.QBFTMsg)
 	clone.Signature = nil
 
-	hash, err := hashProto(clone)
+	hash, err := HashProto(clone)
 	if err != nil {
 		return nil, err
 	}

@@ -25,4 +25,4 @@ type Callback func(context.Context, proto.Message) error
 type SignFunc func(hash []byte) ([]byte, error)
 
 // VerifyFunc is a function that verifies a message and its signatures.
-type VerifyFunc func(*anypb.Any, [][]byte) (bool, error)
+type VerifyFunc func(*anypb.Any, [][]byte) error

@@ -268,7 +268,7 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 
 	log.Debug(ctx, "QBFT consensus instance starting", z.Any("peers", c.peerLabels))
 
-	hash, err := hashProto(value)
+	hash, err := HashProto(value)
 	if err != nil {
 		return err
 	}
@@ -565,7 +565,7 @@ func valuesByHash(values []*anypb.Any) (map[[32]byte]*anypb.Any, error) {
 			return nil, errors.Wrap(err, "unmarshal any")
 		}
 
-		hash, err := hashProto(inner)
+		hash, err := HashProto(inner)
 		if err != nil {
 			return nil, err
 		}

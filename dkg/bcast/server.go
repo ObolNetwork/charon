@@ -64,11 +64,8 @@ func (s *Server) handleMessage(ctx context.Context, _ peer.ID, m proto.Message) 
 		return nil, false, errors.New("invalid message type")
 	}
 
-	ok, err := s.verifyFunc(msg.Message, msg.Signatures)
-	if err != nil {
-		return nil, false, errors.Wrap(err, "verify message")
-	} else if !ok {
-		return nil, false, errors.New("invalid message signature")
+	if err := s.verifyFunc(msg.Message, msg.Signatures); err != nil {
+		return nil, false, errors.Wrap(err, "verify signatures")
 	}
 
 	inner, err := msg.Message.UnmarshalNew()
