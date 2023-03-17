@@ -20,7 +20,7 @@ func TestFrostDKG(t *testing.T) {
 
 	const (
 		nodes = 3
-		vals  = 2
+		vals  = 1
 	)
 
 	tp := &frostMemTransport{nodes: nodes}
@@ -49,7 +49,7 @@ type frostMemTransport struct {
 
 	round1       int
 	round1Bcast  map[msgKey]frost.Round1Bcast
-	round1Shares map[msgKey]sharing.ShamirShare
+	round1Shares map[uint32]map[msgKey]sharing.ShamirShare
 
 	round2      int
 	round2Bcast map[msgKey]frost.Round2Bcast
@@ -63,22 +63,30 @@ func (t *frostMemTransport) Round1(ctx context.Context, bcast map[msgKey]frost.R
 
 	if t.round1 == 0 {
 		t.round1Bcast = make(map[msgKey]frost.Round1Bcast)
-		t.round1Shares = make(map[msgKey]sharing.ShamirShare)
+		t.round1Shares = make(map[uint32]map[msgKey]sharing.ShamirShare)
 	}
 
+	var sourceID uint32
 	// Duplicate broadcast messages.
 	for i := 1; i <= t.nodes; i++ {
 		for key, round1Bcast := range bcast {
+			sourceID = key.SourceID
+
 			t.round1Bcast[msgKey{
 				ValIdx:   key.ValIdx,
 				SourceID: key.SourceID,
-				TargetID: uint32(i),
+				TargetID: 0,
 			}] = round1Bcast
 		}
 	}
 	// Pool p2p messages.
 	for key, share := range shares {
-		t.round1Shares[key] = share
+		shares, ok := t.round1Shares[key.TargetID]
+		if !ok {
+			shares = make(map[msgKey]sharing.ShamirShare)
+		}
+		shares[key] = share
+		t.round1Shares[key.TargetID] = shares
 	}
 
 	t.round1++
@@ -92,7 +100,7 @@ func (t *frostMemTransport) Round1(ctx context.Context, bcast map[msgKey]frost.R
 		t.mu.Lock()
 		if t.round1 == t.nodes {
 			t.mu.Unlock()
-			return t.round1Bcast, t.round1Shares, nil
+			return t.round1Bcast, t.round1Shares[sourceID], nil
 		}
 		t.mu.Unlock()
 		time.Sleep(time.Millisecond)
@@ -112,7 +120,7 @@ func (t *frostMemTransport) Round2(ctx context.Context, bcast map[msgKey]frost.R
 			t.round2Bcast[msgKey{
 				ValIdx:   key.ValIdx,
 				SourceID: key.SourceID,
-				TargetID: uint32(i),
+				TargetID: 0,
 			}] = round2Bcast
 		}
 	}

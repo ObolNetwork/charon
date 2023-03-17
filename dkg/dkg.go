@@ -119,15 +119,15 @@ func Run(ctx context.Context, conf Config) (err error) {
 	ex := newExchanger(tcpNode, nodeIdx.PeerIdx, peerIds, def.NumValidators)
 
 	// Register Frost libp2p handlers
-	peerMap := make(map[uint32]peer.ID)
+	peerMap := make(map[peer.ID]cluster.NodeIdx)
 	for _, p := range peers {
 		nodeIdx, err := def.NodeIdx(p.ID)
 		if err != nil {
 			return err
 		}
-		peerMap[uint32(nodeIdx.ShareIdx)] = p.ID
+		peerMap[p.ID] = nodeIdx
 	}
-	tp := newFrostP2P(ctx, tcpNode, peerMap, clusterID)
+	tp := newFrostP2P(tcpNode, peerMap, key)
 
 	log.Info(ctx, "Waiting to connect to all peers...")
 
@@ -574,9 +574,9 @@ func aggDepositData(data map[core.PubKey][]core.ParSignedData, shares []share,
 
 			pubshares, ok := pubkeyToPubShares[pk]
 			if !ok {
-				// peerIdx is 0-indexed while shareIdx is 1-indexed
 				return nil, errors.New("invalid pubkey in deposit data partial signature from peer",
-					z.Int("peerIdx", s.ShareIdx-1), z.Str("pubkey", pk.String()))
+					z.Int("peerIdx", s.ShareIdx-1), // peerIdx is 0-indexed while shareIdx is 1-indexed
+					z.Str("pubkey", pk.String()))
 			}
 
 			pubshare, ok := pubshares[s.ShareIdx]
