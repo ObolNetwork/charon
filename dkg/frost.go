@@ -81,7 +81,7 @@ func runFrostParallel(ctx context.Context, tp fTransport, numValidators, numNode
 
 	log.Debug(ctx, "Received round 2 results")
 
-	return makeShares(validators, castR2Result, shareIdx)
+	return makeShares(validators, castR2Result)
 }
 
 // newFrostParticipant returns multiple frost dkg participants (one for each parallel validator).
@@ -152,7 +152,7 @@ func round2(
 ) (map[msgKey]frost.Round2Bcast, error) {
 	castResults := make(map[msgKey]frost.Round2Bcast)
 	for vIdx, v := range validators {
-		castR2, err := v.Round2(getRound2Inputs(castR1, p2pR1, vIdx, v.Id))
+		castR2, err := v.Round2(getRound2Inputs(castR1, p2pR1, vIdx))
 		if err != nil {
 			return nil, errors.Wrap(err, "exec round 2")
 		}
@@ -171,14 +171,11 @@ func round2(
 func getRound2Inputs(
 	castR1 map[msgKey]frost.Round1Bcast,
 	p2pR1 map[msgKey]sharing.ShamirShare,
-	vIdx, targetID uint32,
+	vIdx uint32,
 ) (map[uint32]*frost.Round1Bcast, map[uint32]*sharing.ShamirShare) {
 	castMap := make(map[uint32]*frost.Round1Bcast)
 	for key, cast := range castR1 {
 		if key.ValIdx != vIdx {
-			continue
-		}
-		if key.TargetID != targetID {
 			continue
 		}
 		cast := cast // Copy loop variable
@@ -188,9 +185,6 @@ func getRound2Inputs(
 	shareMap := make(map[uint32]*sharing.ShamirShare)
 	for key, share := range p2pR1 {
 		if key.ValIdx != vIdx {
-			continue
-		}
-		if key.TargetID != targetID {
 			continue
 		}
 		share := share // Copy loop variable
@@ -204,15 +198,10 @@ func getRound2Inputs(
 func makeShares(
 	validators map[uint32]*frost.DkgParticipant,
 	r2Result map[msgKey]frost.Round2Bcast,
-	targetID uint32,
 ) ([]share, error) {
 	// Get set of public shares for each validator.
 	pubShares := make(map[uint32]map[int]tblsv2.PublicKey) // map[ValIdx]map[SourceID]tblsv2.PublicKey
 	for key, result := range r2Result {
-		if key.TargetID != targetID {
-			// Not for us.
-			continue
-		}
 		pubShare, err := pointToPubKey(result.VkShare)
 		if err != nil {
 			return nil, err

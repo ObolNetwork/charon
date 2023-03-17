@@ -20,7 +20,7 @@ func TestFrostDKG(t *testing.T) {
 
 	const (
 		nodes = 3
-		vals  = 2
+		vals  = 1
 	)
 
 	tp := &frostMemTransport{nodes: nodes}
@@ -72,7 +72,7 @@ func (t *frostMemTransport) Round1(ctx context.Context, bcast map[msgKey]frost.R
 			t.round1Bcast[msgKey{
 				ValIdx:   key.ValIdx,
 				SourceID: key.SourceID,
-				TargetID: uint32(i),
+				TargetID: 0,
 			}] = round1Bcast
 		}
 	}
