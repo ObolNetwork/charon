@@ -20,7 +20,7 @@ func TestFrostDKG(t *testing.T) {
 
 	const (
 		nodes = 3
-		vals  = 1
+		vals  = 2
 	)
 
 	tp := &frostMemTransport{nodes: nodes}
