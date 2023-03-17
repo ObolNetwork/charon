@@ -33,7 +33,7 @@ func New(tcpNode host.Host, peers []peer.ID, secret *k1.PrivateKey,
 	return cl.Broadcast
 }
 
-// hashFunc is a function that hashes a any-wrapped protobuf message.
+// hashAny is a function that hashes a any-wrapped protobuf message.
 func hashAny(anyPB *anypb.Any) ([]byte, error) {
 	h := sha256.New()
 	_, _ = h.Write([]byte(anyPB.TypeUrl))

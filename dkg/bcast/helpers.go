@@ -28,4 +28,5 @@ type signFunc func(msgID string, hash []byte) ([]byte, error)
 // verifyFunc is a function that verifies a message and its signatures.
 type verifyFunc func(string, *anypb.Any, [][]byte) error
 
+// BroadcastFunc is a function that reliably-broadcasts a message to all peers (excluding self).
 type BroadcastFunc func(ctx context.Context, msgID string, msg proto.Message) error
