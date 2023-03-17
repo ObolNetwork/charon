@@ -112,7 +112,7 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 	)
 
 	// Register round 1 p2p protocol handlers.
-	p2p.RegisterHandler("forst", tcpNode, round1P2PID,
+	p2p.RegisterHandler("frost", tcpNode, round1P2PID,
 		func() proto.Message { return new(pb.FrostRound1P2P) },
 		func(ctx context.Context, pID peer.ID, req proto.Message) (proto.Message, bool, error) {
 			mu.Lock()
