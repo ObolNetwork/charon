@@ -25,18 +25,20 @@ import (
 )
 
 const (
-	protocolID    = "/charon/dkg/sync/1.0.0/"
-	errInvalidSig = "invalid signature"
+	protocolID        = "/charon/dkg/sync/1.0.0/"
+	errInvalidSig     = "invalid signature"
+	errInvalidVersion = "invalid version"
 )
 
 // NewServer returns a new Server instance.
-func NewServer(tcpNode host.Host, allCount int, defHash []byte) *Server {
+func NewServer(tcpNode host.Host, allCount int, defHash []byte, version string) *Server {
 	return &Server{
 		defHash:   defHash,
 		tcpNode:   tcpNode,
 		allCount:  allCount,
 		shutdown:  make(map[peer.ID]struct{}),
 		connected: make(map[peer.ID]struct{}),
+		version:   version,
 	}
 }
 
@@ -47,6 +49,7 @@ type Server struct {
 	shutdown    map[peer.ID]struct{}
 	connected   map[peer.ID]struct{}
 	defHash     []byte
+	version     string
 	allCount    int // Excluding self
 	tcpNode     host.Host
 	errResponse bool // To return error and exit anywhere in the server flow
@@ -71,6 +74,14 @@ func (s *Server) AwaitAllConnected(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+// isError checks if there was any error in between the server flow.
+func (s *Server) setError() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.errResponse = true
 }
 
 // isError checks if there was any error in between the server flow.
@@ -179,23 +190,25 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 			SyncTimestamp: msg.Timestamp,
 		}
 
-		// Verify definition hash
-		// Note: libp2p verify does another hash of defHash.
-		ok, err := pubkey.Verify(s.defHash, msg.HashSignature)
-		if err != nil {
+		if msg.Version != s.version {
+			resp.Error = errInvalidVersion
+			s.setError()
+			log.Error(ctx, "Received mismatching charon version from peer", nil,
+				z.Str("expect", s.version),
+				z.Str("got", msg.Version),
+			)
+		} else if ok, err := pubkey.Verify(s.defHash, msg.HashSignature); err != nil { // Note: libp2p verify does another hash of defHash.
 			return errors.Wrap(err, "verify sig hash")
 		} else if !ok {
 			resp.Error = errInvalidSig
-
-			s.mu.Lock()
-			s.errResponse = true
-			s.mu.Unlock()
-
+			s.setError()
 			log.Error(ctx, "Received mismatching cluster definition hash from peer", nil)
 		} else if ok && !s.isConnected(pID) {
 			count := s.setConnected(pID)
 			log.Info(ctx, fmt.Sprintf("Connected to peer %d of %d", count, s.allCount))
 		}
+
+		// Verify definition hash
 
 		// Write response message
 		if err := writeSizedProto(stream, resp); err != nil {

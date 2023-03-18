@@ -270,17 +270,24 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, p2pConf p2p.Config, peers
 
 // startSyncProtocol sets up a sync protocol server and clients for each peer and returns a shutdown function
 // when all peers are connected.
-func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKey, defHash []byte, peerIDs []peer.ID,
-	onFailure func(), testCallback func(connected int, id peer.ID),
+func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKey, defHash []byte,
+	peerIDs []peer.ID, onFailure func(), testCallback func(connected int, id peer.ID),
 ) (func(context.Context) error, error) {
 	// Sign definition hash with charon-enr-private-key
 	// Note: libp2p signing does another hash of the defHash.
+
 	hashSig, err := ((*libp2pcrypto.Secp256k1PrivateKey)(key)).Sign(defHash)
 	if err != nil {
 		return nil, errors.Wrap(err, "sign definition hash")
 	}
 
-	server := sync.NewServer(tcpNode, len(peerIDs)-1, defHash)
+	// DKG compatibility is minor version dependent.
+	minorVersion, err := version.Minor(version.Version)
+	if err != nil {
+		return nil, errors.Wrap(err, "get version")
+	}
+
+	server := sync.NewServer(tcpNode, len(peerIDs)-1, defHash, minorVersion)
 	server.Start(ctx)
 
 	var clients []*sync.Client
@@ -290,7 +297,7 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 		}
 
 		ctx := log.WithCtx(ctx, z.Str("peer", p2p.PeerName(pID)))
-		client := sync.NewClient(tcpNode, pID, hashSig)
+		client := sync.NewClient(tcpNode, pID, hashSig, minorVersion)
 		clients = append(clients, client)
 
 		go func() {
