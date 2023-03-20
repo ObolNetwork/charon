@@ -261,7 +261,7 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, p2pConf p2p.Config, peers
 		}(relay)
 	}
 
-	go p2p.NewRelayRouter(tcpNode, peers, relays)(ctx)
+	go p2p.NewRelayRouter(tcpNode, peerIDs, relays)(ctx)
 
 	return tcpNode, func() {
 		_ = tcpNode.Close()

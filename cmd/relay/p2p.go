@@ -14,7 +14,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/metrics"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
-	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
 	"github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
 	ma "github.com/multiformats/go-multiaddr"
 
@@ -40,22 +39,8 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 		}
 	}
 
-	// Increase resource limits
-	limiter := rcmgr.DefaultLimits
-	limiter.SystemBaseLimit.ConnsInbound = config.MaxConns
-	limiter.SystemBaseLimit.Conns = config.MaxConns
-	limiter.SystemBaseLimit.StreamsInbound = config.MaxConns
-	limiter.SystemBaseLimit.StreamsOutbound = config.MaxConns
-	limiter.SystemBaseLimit.FD = config.MaxConns
-	limiter.TransientBaseLimit = limiter.SystemBaseLimit
-
-	mgr, err := rcmgr.NewResourceManager(rcmgr.NewFixedLimiter(limiter.Scale(1<<30, config.MaxConns))) // 1GB Memory
-	if err != nil {
-		return nil, errors.Wrap(err, "new resource manager")
-	}
-
 	tcpNode, err := p2p.NewTCPNode(ctx, config.P2PConfig, key, p2p.NewOpenGater(),
-		libp2p.ResourceManager(mgr), libp2p.BandwidthReporter(reporter))
+		libp2p.ResourceManager(&network.NullResourceManager{}), libp2p.BandwidthReporter(reporter))
 	if err != nil {
 		return nil, errors.Wrap(err, "new tcp node")
 	}
