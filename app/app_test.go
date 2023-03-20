@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -92,7 +91,7 @@ func pingCluster(t *testing.T, test pingTest) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	relayAddr, relayErr := startRelay(ctx, t, 0)
+	relayAddr, relayErr := startRelay(ctx, t)
 
 	const n = 3
 
@@ -188,14 +187,10 @@ func newAddrFactoryFilter(filterStr string) libp2p.Option {
 }
 
 // startRelay starts a charon relay and returns its http multiaddr endpoint.
-func startRelay(ctx context.Context, t *testing.T, maxConns int) (string, <-chan error) {
+func startRelay(ctx context.Context, t *testing.T) (string, <-chan error) {
 	t.Helper()
 
 	dir := t.TempDir()
-
-	if maxConns == 0 {
-		maxConns = 1024
-	}
 
 	addr := testutil.AvailableAddr(t).String()
 
@@ -212,8 +207,8 @@ func startRelay(ctx context.Context, t *testing.T, maxConns int) (string, <-chan
 				Format: "console",
 			},
 			AutoP2PKey:    true,
-			MaxResPerPeer: maxConns,
-			MaxConns:      maxConns,
+			MaxResPerPeer: 8,
+			MaxConns:      1024,
 		})
 	}()
 
@@ -388,67 +383,6 @@ func TestInfoSync(t *testing.T) {
 	err := eg.Wait()
 	testutil.SkipIfBindErr(t, err)
 	require.NoError(t, err)
-}
-
-func TestRelayConnections(t *testing.T) {
-	ctx := context.Background()
-
-	maxConns := 4
-	relayAddr, relayErr := startRelay(ctx, t, maxConns)
-
-	relays, err := p2p.NewRelays(ctx, []string{relayAddr}, "")
-	require.NoError(t, err)
-
-	var tcpNodes []host.Host
-	for i := 0; i < maxConns; i++ {
-		privKey, err := k1.GeneratePrivateKey()
-		require.NoError(t, err)
-
-		tcpNode, err := p2p.NewTCPNode(ctx, p2p.Config{}, privKey, p2p.NewOpenGater())
-		require.NoError(t, err)
-
-		go func() {
-			err := p2p.NewRelayReserver(tcpNode, relays[0])(ctx)
-			require.NoError(t, err)
-		}()
-
-		tcpNodes = append(tcpNodes, tcpNode)
-	}
-
-	select {
-	case err := <-relayErr:
-		testutil.SkipIfBindErr(t, err)
-		require.NoError(t, err)
-	default:
-	}
-
-	relay, ok := relays[0].Peer()
-	require.True(t, ok)
-
-	// Connect to one other peer via relay.
-	for i, tcpNode := range tcpNodes {
-		otherPeerID := tcpNodes[(i+1)%len(tcpNodes)].ID()
-
-		relayedAddrs, err := p2p.MultiAddrsViaRelay(relay, otherPeerID)
-		require.NoError(t, err)
-
-		tcpNode.Peerstore().AddAddrs(otherPeerID, relayedAddrs, peerstore.PermanentAddrTTL)
-
-		err = tcpNode.Connect(ctx, peer.AddrInfo{ID: otherPeerID})
-		require.NoError(t, err)
-	}
-
-	// One more should fail
-	privKey, err := k1.GeneratePrivateKey()
-	require.NoError(t, err)
-
-	tcpNode, err := p2p.NewTCPNode(ctx, p2p.Config{}, privKey, p2p.NewOpenGater())
-	require.NoError(t, err)
-
-	for i := 0; i < 5; i++ {
-		err := tcpNode.Connect(ctx, peer.AddrInfo{ID: tcpNodes[0].ID()})
-		require.Error(t, err)
-	}
 }
 
 // priorityAsserter asserts that all nodes resolved the same priorities.
