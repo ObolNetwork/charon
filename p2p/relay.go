@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	circuit "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/client"
 
@@ -98,7 +99,7 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFunc 
 
 // NewRelayRouter returns a life cycle hook that routes peers via relays in libp2p by
 // continuously adding peer relay addresses to libp2p peer store.
-func NewRelayRouter(tcpNode host.Host, peers []Peer, relays []*MutablePeer) lifecycle.HookFuncCtx {
+func NewRelayRouter(tcpNode host.Host, peers []peer.ID, relays []*MutablePeer) lifecycle.HookFuncCtx {
 	return func(ctx context.Context) {
 		if len(relays) == 0 {
 			return
@@ -107,8 +108,8 @@ func NewRelayRouter(tcpNode host.Host, peers []Peer, relays []*MutablePeer) life
 		ctx = log.WithTopic(ctx, "p2p")
 
 		for ctx.Err() == nil {
-			for _, p := range peers {
-				if p.ID == tcpNode.ID() {
+			for _, pID := range peers {
+				if pID == tcpNode.ID() {
 					// Skip self
 					continue
 				}
@@ -119,13 +120,13 @@ func NewRelayRouter(tcpNode host.Host, peers []Peer, relays []*MutablePeer) life
 						continue
 					}
 
-					relayAddrs, err := multiAddrsViaRelay(relay, p.ID)
+					relayAddrs, err := MultiAddrsViaRelay(relay, pID)
 					if err != nil {
 						log.Error(ctx, "Failed discovering peer address", err)
 						continue
 					}
 
-					tcpNode.Peerstore().AddAddrs(p.ID, relayAddrs, routedAddrTTL)
+					tcpNode.Peerstore().AddAddrs(pID, relayAddrs, routedAddrTTL)
 				}
 			}
 

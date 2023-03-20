@@ -4,7 +4,6 @@ package app_test
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"net"
 	"net/http"
@@ -93,9 +92,10 @@ func pingCluster(t *testing.T, test pingTest) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	relayAddr, relayErr := startRelay(ctx, t)
+	relayAddr, relayErr := startRelay(ctx, t, 0)
 
 	const n = 3
+
 	lock, p2pKeys, _ := cluster.NewForT(t, 1, n, n, 0)
 	asserter := &pingAsserter{
 		asserter: asserter{
@@ -188,10 +188,14 @@ func newAddrFactoryFilter(filterStr string) libp2p.Option {
 }
 
 // startRelay starts a charon relay and returns its http multiaddr endpoint.
-func startRelay(ctx context.Context, t *testing.T) (string, <-chan error) {
+func startRelay(ctx context.Context, t *testing.T, maxConns int) (string, <-chan error) {
 	t.Helper()
 
 	dir := t.TempDir()
+
+	if maxConns == 0 {
+		maxConns = 1024
+	}
 
 	addr := testutil.AvailableAddr(t).String()
 
@@ -208,8 +212,8 @@ func startRelay(ctx context.Context, t *testing.T) (string, <-chan error) {
 				Format: "console",
 			},
 			AutoP2PKey:    true,
-			MaxResPerPeer: 8,
-			MaxConns:      1024,
+			MaxResPerPeer: maxConns,
+			MaxConns:      maxConns,
 		})
 	}()
 
@@ -386,74 +390,52 @@ func TestInfoSync(t *testing.T) {
 	require.NoError(t, err)
 }
 
-var (
-	relayExternal  = flag.String("relay-external", "", "External relay address for TestRemoteRelayConnections")
-	relayConnCount = flag.Int("relay-conn-count", 0, "Number of relay connections for TestRemoteRelayConnections")
-	relayLockHash  = flag.String("relay-lock-hash", "", "Lock hash to resolve relay for TestRemoteRelayConnections")
-)
-
-// TestRemoteRelayConnections allows testing connection count to a remote relay.
-//
-//	go test github.com/obolnetwork/charon/app -run=TestRemoteRelayConnections \
-//	  -relay-external=https://0.relay.obol.tech \
-//	  -relay-conn-count=1024 \
-//	  -relay-lock-hash=736c122
-func TestRemoteRelayConnections(t *testing.T) {
-	if *relayExternal == "" {
-		t.Skip("No external relay address provided")
-	}
-
-	testRelayConnections(context.Background(), t, *relayExternal, make(chan error, 1),
-		*relayLockHash, *relayConnCount, false)
-}
-
-func TestLocalRelayConnections(t *testing.T) {
+func TestRelayConnections(t *testing.T) {
 	ctx := context.Background()
 
-	relayAddr, relayErr := startRelay(ctx, t)
+	maxConns := 4
+	relayAddr, relayErr := startRelay(ctx, t, maxConns)
 
-	testRelayConnections(ctx, t, relayAddr, relayErr, "", 1024, true)
-}
-
-func testRelayConnections(ctx context.Context, t *testing.T, relayAddr string,
-	relayErr <-chan error, lockHashHex string, totalOK int, expectNOK bool,
-) {
-	t.Helper()
-
-	relays, err := p2p.NewRelays(ctx, []string{relayAddr}, lockHashHex)
+	relays, err := p2p.NewRelays(ctx, []string{relayAddr}, "")
 	require.NoError(t, err)
 
-	relay, ok := relays[0].Peer()
-	require.True(t, ok)
-
-	okErrs := make(chan error, totalOK)
-	for i := 0; i < totalOK; i++ {
+	var tcpNodes []host.Host
+	for i := 0; i < maxConns; i++ {
 		privKey, err := k1.GeneratePrivateKey()
 		require.NoError(t, err)
 
 		tcpNode, err := p2p.NewTCPNode(ctx, p2p.Config{}, privKey, p2p.NewOpenGater())
 		require.NoError(t, err)
 
-		go func(tcpNode host.Host) {
-			okErrs <- tcpNode.Connect(ctx, peer.AddrInfo{
-				ID:    relay.ID,
-				Addrs: relay.Addrs,
-			})
-		}(tcpNode)
-	}
-
-	for i := 0; i < totalOK; i++ {
-		select {
-		case err := <-okErrs:
-			require.NoError(t, err, i)
-		case err := <-relayErr:
-			testutil.SkipIfBindErr(t, err)
+		go func() {
+			err := p2p.NewRelayReserver(tcpNode, relays[0])(ctx)
 			require.NoError(t, err)
-		}
+		}()
+
+		tcpNodes = append(tcpNodes, tcpNode)
 	}
 
-	if !expectNOK {
-		return
+	select {
+	case err := <-relayErr:
+		testutil.SkipIfBindErr(t, err)
+		require.NoError(t, err)
+	default:
+	}
+
+	relay, ok := relays[0].Peer()
+	require.True(t, ok)
+
+	// Connect to one other peer via relay.
+	for i, tcpNode := range tcpNodes {
+		otherPeerID := tcpNodes[(i+1)%len(tcpNodes)].ID()
+
+		relayedAddrs, err := p2p.MultiAddrsViaRelay(relay, otherPeerID)
+		require.NoError(t, err)
+
+		tcpNode.Peerstore().AddAddrs(otherPeerID, relayedAddrs, peerstore.PermanentAddrTTL)
+
+		err = tcpNode.Connect(ctx, peer.AddrInfo{ID: otherPeerID})
+		require.NoError(t, err)
 	}
 
 	// One more should fail
@@ -463,11 +445,10 @@ func testRelayConnections(ctx context.Context, t *testing.T, relayAddr string,
 	tcpNode, err := p2p.NewTCPNode(ctx, p2p.Config{}, privKey, p2p.NewOpenGater())
 	require.NoError(t, err)
 
-	err = tcpNode.Connect(ctx, peer.AddrInfo{
-		ID:    relay.ID,
-		Addrs: relay.Addrs,
-	})
-	require.Error(t, err)
+	for i := 0; i < 5; i++ {
+		err := tcpNode.Connect(ctx, peer.AddrInfo{ID: tcpNodes[0].ID()})
+		require.Error(t, err)
+	}
 }
 
 // priorityAsserter asserts that all nodes resolved the same priorities.
