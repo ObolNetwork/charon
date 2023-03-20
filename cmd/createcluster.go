@@ -243,6 +243,11 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
+	lock.SignatureAggregate, err = aggSign(shareSets, lock.LockHash)
+	if err != nil {
+		return err
+	}
+
 	// Write cluster-lock file
 	if conf.Publish {
 		if err = writeLockToAPI(ctx, conf.PublishAddr, lock); err != nil {
@@ -250,7 +255,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		}
 	}
 
-	if err = writeLock(lock, conf.ClusterDir, numNodes, shareSets); err != nil {
+	if err = writeLock(lock, conf.ClusterDir, numNodes); err != nil {
 		return err
 	}
 
@@ -403,13 +408,7 @@ func writeDepositData(depositDatas []eth2p0.DepositData, network string, cluster
 }
 
 // writeLock creates a cluster lock and writes it to disk for all peers.
-func writeLock(lock cluster.Lock, clusterDir string, numNodes int, shareSets [][]tblsv2.PrivateKey) error {
-	var err error
-	lock.SignatureAggregate, err = aggSign(shareSets, lock.LockHash)
-	if err != nil {
-		return err
-	}
-
+func writeLock(lock cluster.Lock, clusterDir string, numNodes int) error {
 	b, err := json.MarshalIndent(lock, "", " ")
 	if err != nil {
 		return errors.Wrap(err, "marshal cluster lock")
