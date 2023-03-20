@@ -74,15 +74,16 @@ func (f Field) Size() (int, error) {
 	if f.IsByteList() || f.IsCompositeList() {
 		openIdx := strings.Index(f.SSZTag, "[")
 		closeIdx := strings.Index(f.SSZTag, "]")
-		openIdx := strings.Index(f.SSZTag, "[")
-		closeIdx := strings.Index(f.SSZTag, "]")
-
 		if openIdx == -1 || closeIdx == -1 {
-			return 0, errors.New("field has malformed size tag", z.Str("field_name", f.Name))
+			return 0, errors.New("field has malformed size tag", z.Str("field_name", f.Name), z.Str("tag", f.SSZTag))
 		}
 
 		intStr = f.SSZTag[openIdx+1 : closeIdx]
 	} else if f.IsBytesN() {
+		if len(f.SSZTag) < 6 {
+			return 0, errors.New("field has malformed size tag", z.Str("field_name", f.Name), z.Str("tag", f.SSZTag))
+		}
+
 		intStr = f.SSZTag[5:]
 	}
 
