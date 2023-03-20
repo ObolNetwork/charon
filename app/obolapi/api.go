@@ -60,6 +60,7 @@ func httpPost(ctx context.Context, url *url.URL, b []byte) error {
 	if err != nil {
 		return errors.Wrap(err, "new POST request with ctx")
 	}
+	req.Header.Add("Content-Type", `application/json`)
 
 	res, err := new(http.Client).Do(req)
 	if err != nil {
