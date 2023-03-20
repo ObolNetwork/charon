@@ -52,7 +52,8 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFunc 
 			// Note a single long-lived reservation (created by server-side) is mapped to
 			// many short-lived limited client-side connections.
 			// When the reservation expires, the server needs to re-reserve.
-			// When the connection expires (stream reset error), then client needs to reconnect.
+			// When the server isn't connected to the relay anymore, it needs to reconnect/re-reserve.
+			// When the client connection expires (stream reset error), then client needs to reconnect.
 
 			refreshDelay := time.Until(resv.Expiration.Add(-2 * time.Minute))
 
@@ -67,11 +68,27 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFunc 
 
 			refresh := time.After(refreshDelay)
 
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-refresh:
+			timer := time.NewTimer(time.Second)
+
+			for {
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-timer.C:
+					if len(tcpNode.Network().ConnsToPeer(relayPeer.ID)) > 0 {
+						continue // Still connected, continue for loop
+					}
+					log.Debug(ctx, "No relay connection, reconnecting",
+						z.Str("relay_peer", name))
+					// Break out of for loop below to reconnect/re-reserve
+				case <-refresh:
+					// Break out of for loop below to reconnect/re-reserve
+				}
+
+				break
 			}
+
+			timer.Stop()
 
 			log.Debug(ctx, "Refreshing relay circuit reservation")
 			relayConnGauge.WithLabelValues(name).Set(0)
