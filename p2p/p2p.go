@@ -121,9 +121,9 @@ func externalMultiAddrs(cfg Config) ([]ma.Multiaddr, error) {
 	return resp, nil
 }
 
-// MultiAddrsViaRelay returns multiaddrs to the peer via the relay.
+// multiAddrsViaRelay returns multiaddrs to the peer via the relay.
 // See https://github.com/libp2p/go-libp2p/blob/master/examples/relay/main.go.
-func MultiAddrsViaRelay(relayPeer Peer, peerID peer.ID) ([]ma.Multiaddr, error) {
+func multiAddrsViaRelay(relayPeer Peer, peerID peer.ID) ([]ma.Multiaddr, error) {
 	var resp []ma.Multiaddr
 	for _, addr := range relayPeer.Addrs {
 		transportAddr, _ := peer.SplitAddr(addr)

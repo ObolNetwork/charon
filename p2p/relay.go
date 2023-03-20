@@ -120,7 +120,7 @@ func NewRelayRouter(tcpNode host.Host, peers []peer.ID, relays []*MutablePeer) l
 						continue
 					}
 
-					relayAddrs, err := MultiAddrsViaRelay(relay, pID)
+					relayAddrs, err := multiAddrsViaRelay(relay, pID)
 					if err != nil {
 						log.Error(ctx, "Failed discovering peer address", err)
 						continue
