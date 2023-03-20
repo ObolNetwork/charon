@@ -76,7 +76,7 @@ func (s *Server) AwaitAllConnected(ctx context.Context) error {
 	}
 }
 
-// isError checks if there was any error in between the server flow.
+// setError sets the shared error state for the server.
 func (s *Server) setError() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -190,6 +190,8 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 			SyncTimestamp: msg.Timestamp,
 		}
 
+		// Verify version and definition hash
+
 		if msg.Version != s.version {
 			resp.Error = errInvalidVersion
 			s.setError()
@@ -207,8 +209,6 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 			count := s.setConnected(pID)
 			log.Info(ctx, fmt.Sprintf("Connected to peer %d of %d", count, s.allCount))
 		}
-
-		// Verify definition hash
 
 		// Write response message
 		if err := writeSizedProto(stream, resp); err != nil {

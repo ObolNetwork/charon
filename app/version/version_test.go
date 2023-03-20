@@ -22,4 +22,18 @@ func TestMinor(t *testing.T) {
 	minor, err = version.Minor("version 1000.2000.3000")
 	require.NoError(t, err)
 	require.Equal(t, "version 1000.2000", minor)
+
+	minor, err = version.Minor("v0.1")
+	require.NoError(t, err)
+	require.Equal(t, "v0.1", minor)
+
+	minor, err = version.Minor("v0.1.2.3")
+	require.NoError(t, err)
+	require.Equal(t, "v0.1", minor)
+
+	_, err = version.Minor("0")
+	require.ErrorContains(t, err, "invalid version string")
+
+	_, err = version.Minor("foo")
+	require.ErrorContains(t, err, "invalid version string")
 }
