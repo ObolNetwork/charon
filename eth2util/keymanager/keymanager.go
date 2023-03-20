@@ -97,7 +97,7 @@ func postKeys(ctx context.Context, addr string, reqBody keymanagerReq) error {
 	if err != nil {
 		return errors.Wrap(err, "new post request", z.Str("url", addr))
 	}
-	req.Header.Add("Content-Type", `application/json`)
+	req.Header.Add("Content-Type", "application/json")
 
 	resp, err := new(http.Client).Do(req)
 	if err != nil {
