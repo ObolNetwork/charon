@@ -41,7 +41,7 @@ this command at the same time.`,
 	bindNoVerifyFlag(cmd.Flags(), &config.NoVerify)
 	bindP2PFlags(cmd, &config.P2P)
 	bindLogFlags(cmd.Flags(), &config.Log)
-	bindPublishFlags(cmd.Flags(), config)
+	bindPublishFlags(cmd.Flags(), &config)
 
 	return cmd
 }
@@ -58,7 +58,7 @@ func bindDataDirFlag(flags *pflag.FlagSet, dataDir *string) {
 	flags.StringVar(dataDir, "data-dir", ".charon", "The directory where charon will store all its internal data")
 }
 
-func bindPublishFlags(flags *pflag.FlagSet, config dkg.Config) {
+func bindPublishFlags(flags *pflag.FlagSet, config *dkg.Config) {
 	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech", "The URL to publish the lock file to.")
 	flags.BoolVar(&config.Publish, "publish", false, "Publish lock file to obol-api.")
 }
