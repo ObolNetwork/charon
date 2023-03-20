@@ -46,13 +46,16 @@ func NewServer(tcpNode host.Host, allCount int, defHash []byte, version string) 
 // Server implements the server side of the sync protocol. It accepts connections from clients, verifies
 // definition hash signatures, and supports waiting for shutdown by all clients.
 type Server struct {
+	// Immutable state
+	tcpNode  host.Host
+	defHash  []byte
+	version  string
+	allCount int // Excluding self
+
+	// Mutable state
 	mu          sync.Mutex
 	shutdown    map[peer.ID]struct{}
 	connected   map[peer.ID]struct{}
-	defHash     []byte
-	version     string
-	allCount    int // Excluding self
-	tcpNode     host.Host
 	errResponse bool // To return error and exit anywhere in the server flow
 }
 
