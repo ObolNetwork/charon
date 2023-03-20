@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -190,22 +191,13 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 			SyncTimestamp: msg.Timestamp,
 		}
 
-		// Verify version and definition hash
-
-		if msg.Version != s.version {
-			resp.Error = errInvalidVersion
-			s.setError()
-			log.Error(ctx, "Received mismatching charon version from peer", nil,
-				z.Str("expect", s.version),
-				z.Str("got", msg.Version),
-			)
-		} else if ok, err := pubkey.Verify(s.defHash, msg.HashSignature); err != nil { // Note: libp2p verify does another hash of defHash.
-			return errors.Wrap(err, "verify sig hash")
+		var ok bool
+		resp.Error, ok, err = s.validReq(ctx, pubkey, msg)
+		if err != nil {
+			return err
 		} else if !ok {
-			resp.Error = errInvalidSig
 			s.setError()
-			log.Error(ctx, "Received mismatching cluster definition hash from peer", nil)
-		} else if ok && !s.isConnected(pID) {
+		} else if !s.isConnected(pID) {
 			count := s.setConnected(pID)
 			log.Info(ctx, fmt.Sprintf("Connected to peer %d of %d", count, s.allCount))
 		}
@@ -220,6 +212,29 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 			return nil
 		}
 	}
+}
+
+// validReq returns an error message and false if the request version or definition hash are invalid.
+// Else it returns true or an error.
+func (s *Server) validReq(ctx context.Context, pubkey crypto.PubKey, msg *pb.MsgSync) (string, bool, error) {
+	if msg.Version != s.version {
+		log.Error(ctx, "Received mismatching charon version from peer", nil,
+			z.Str("expect", s.version),
+			z.Str("got", msg.Version),
+		)
+
+		return errInvalidVersion, false, nil
+	}
+
+	ok, err := pubkey.Verify(s.defHash, msg.HashSignature)
+	if err != nil { // Note: libp2p verify does another hash of defHash.
+		return "", false, errors.Wrap(err, "verify sig hash")
+	} else if !ok {
+		log.Error(ctx, "Received mismatching cluster definition hash from peer", nil)
+		return errInvalidSig, false, nil
+	}
+
+	return "", true, nil
 }
 
 // Start registers sync protocol with the libp2p host.
