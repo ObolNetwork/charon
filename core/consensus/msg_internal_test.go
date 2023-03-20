@@ -108,7 +108,7 @@ func TestPartialLegacyNewMsg(t *testing.T) {
 			ValueHash: hash1[:],
 		},
 	}, make(map[[32]byte]*anypb.Any))
-	require.NoError(t, err)
+	require.ErrorContains(t, err, "value hash not found in values")
 }
 
 // randomMsg returns a random qbft message.

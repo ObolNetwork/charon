@@ -297,8 +297,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect simnetExpect) {
 				SimnetBMockOpts: append([]beaconmock.Option{
 					beaconmock.WithSlotsPerEpoch(1),
 				}, args.BMockOpts...),
-				BuilderRegistration:   registrationFunc(),
-				LegacyQBFTProbability: 0.5,
+				BuilderRegistration: registrationFunc(),
 			},
 			P2P:                     p2p.Config{},
 			BuilderAPI:              args.BuilderAPI,
