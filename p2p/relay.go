@@ -67,11 +67,27 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFunc 
 
 			refresh := time.After(refreshDelay)
 
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-refresh:
+			timer := time.NewTimer(time.Second)
+
+			for {
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-timer.C:
+					if len(tcpNode.Network().ConnsToPeer(relayPeer.ID)) > 0 {
+						continue // Still connected, continue for loop
+					}
+					log.Debug(ctx, "No relay connection, reconnecting",
+						z.Str("relay_peer", name))
+					// Break out of for loop below to reconnect/re-reserve
+				case <-refresh:
+					// Break out of for loop below to reconnect/re-reserve
+				}
+
+				break
 			}
+
+			timer.Stop()
 
 			log.Debug(ctx, "Refreshing relay circuit reservation")
 			relayConnGauge.WithLabelValues(name).Set(0)
