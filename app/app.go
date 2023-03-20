@@ -109,8 +109,6 @@ type TestConfig struct {
 	TCPNodeCallback func(host.Host)
 	// LibP2POpts provide test specific libp2p options.
 	LibP2POpts []libp2p.Option
-	// LegacyQBFTProbability defines the probability of a legacy QBFT wire messages (useful for backwards compatibility testing).
-	LegacyQBFTProbability float64
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -712,7 +710,7 @@ func newConsensus(conf Config, lock cluster.Lock, tcpNode host.Host, p2pKey *k1.
 	}
 
 	if featureset.Enabled(featureset.QBFTConsensus) {
-		comp, err := consensus.New(tcpNode, sender, peers, p2pKey, deadliner, qbftSniffer, conf.TestConfig.LegacyQBFTProbability)
+		comp, err := consensus.New(tcpNode, sender, peers, p2pKey, deadliner, qbftSniffer)
 		if err != nil {
 			return nil, nil, err
 		}
