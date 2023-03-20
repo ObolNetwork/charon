@@ -5,7 +5,9 @@ package version
 import (
 	"context"
 	"runtime/debug"
+	"strings"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
@@ -52,4 +54,14 @@ func LogInfo(ctx context.Context, msg string) {
 		z.Str("git_commit_hash", gitHash),
 		z.Str("git_commit_time", gitTimestamp),
 	)
+}
+
+// Minor returns the minor version of the provided version string.
+func Minor(version string) (string, error) {
+	split := strings.Split(version, ".")
+	if len(split) < 2 {
+		return "", errors.New("invalid version string")
+	}
+
+	return strings.Join(split[:2], "."), nil
 }

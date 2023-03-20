@@ -21,7 +21,7 @@ import (
 )
 
 // NewClient returns a new Client instance.
-func NewClient(tcpNode host.Host, peer peer.ID, hashSig []byte) *Client {
+func NewClient(tcpNode host.Host, peer peer.ID, hashSig []byte, version string) *Client {
 	return &Client{
 		tcpNode:   tcpNode,
 		peer:      peer,
@@ -29,6 +29,7 @@ func NewClient(tcpNode host.Host, peer peer.ID, hashSig []byte) *Client {
 		shutdown:  make(chan struct{}),
 		done:      make(chan struct{}),
 		reconnect: true,
+		version:   version,
 	}
 }
 
@@ -45,6 +46,7 @@ type Client struct {
 
 	// Immutable state
 	hashSig []byte
+	version string
 	tcpNode host.Host
 	peer    peer.ID
 }
@@ -167,6 +169,7 @@ func (c *Client) sendMsg(stream network.Stream, shutdown bool) (*pb.MsgSyncRespo
 		Timestamp:     timestamppb.Now(),
 		HashSignature: c.hashSig,
 		Shutdown:      shutdown,
+		Version:       c.version,
 	}
 
 	if err := writeSizedProto(stream, msg); err != nil {

@@ -16,25 +16,38 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/dkg/sync"
 	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestSyncProtocol(t *testing.T) {
+	versions := make(map[int]string)
+	for i := 0; i < 5; i++ {
+		versions[i] = version.Version
+	}
+
 	t.Run("2", func(t *testing.T) {
-		testCluster(t, 2)
+		testCluster(t, 2, versions, false)
 	})
 
 	t.Run("3", func(t *testing.T) {
-		testCluster(t, 3)
+		testCluster(t, 3, versions, false)
 	})
 
 	t.Run("5", func(t *testing.T) {
-		testCluster(t, 5)
+		testCluster(t, 5, versions, false)
 	})
 }
 
-func testCluster(t *testing.T, n int) {
+func TestInvalidVersion(t *testing.T) {
+	testCluster(t, 2, map[int]string{
+		0: "1.0",
+		1: "2.0",
+	}, true)
+}
+
+func testCluster(t *testing.T, n int, versions map[int]string, expectErr bool) {
 	t.Helper()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -53,7 +66,7 @@ func testCluster(t *testing.T, n int) {
 		tcpNodes = append(tcpNodes, tcpNode)
 		keys = append(keys, key)
 
-		server := sync.NewServer(tcpNode, n-1, hash)
+		server := sync.NewServer(tcpNode, n-1, hash, versions[i])
 		servers = append(servers, server)
 	}
 
@@ -71,12 +84,16 @@ func testCluster(t *testing.T, n int) {
 			hashSig, err := keys[i].Sign(hash)
 			require.NoError(t, err)
 
-			client := sync.NewClient(tcpNodes[i], tcpNodes[j].ID(), hashSig)
+			client := sync.NewClient(tcpNodes[i], tcpNodes[j].ID(), hashSig, versions[i])
 			clients = append(clients, client)
 
 			ctx := log.WithTopic(ctx, fmt.Sprintf("client%d_%d", i, j))
 			go func() {
 				err := client.Run(ctx)
+				if expectErr {
+					require.Error(t, err)
+					return
+				}
 				require.NoError(t, err)
 			}()
 		}
@@ -91,7 +108,15 @@ func testCluster(t *testing.T, n int) {
 	t.Log("server.AwaitAllConnected")
 	for _, server := range servers {
 		err := server.AwaitAllConnected(ctx)
-		require.NoError(t, err)
+		if expectErr {
+			require.Error(t, err)
+		} else {
+			require.NoError(t, err)
+		}
+	}
+
+	if expectErr {
+		return
 	}
 
 	t.Log("client.IsConnected")
