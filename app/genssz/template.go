@@ -8,6 +8,9 @@ var tmpl = `package {{.Package}}
 
 import (
 	ssz "github.com/ferranbt/fastssz"
+
+	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 {{range .Types}}
