@@ -131,8 +131,6 @@ func writeKeysToDisk(datadir string, shares []share) error {
 }
 
 // writeLock writes the lock file to disk.
-//
-
 func writeLock(datadir string, lock cluster.Lock) error {
 	b, err := json.MarshalIndent(lock, "", " ")
 	if err != nil {

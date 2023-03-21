@@ -249,6 +249,9 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 
 		pubkey, err := c.pubKeyByAttFunc(ctx, slot, int64(att.Data.Index), int64(indices[0]))
 		if err != nil {
+			log.Error(ctx, "Failed to find pubkey for the given attestation", err, z.I64("slot", slot),
+				z.Int("commIdx", int(att.Data.Index)), z.Int("valCommIdx", indices[0]))
+
 			return err
 		}
 
