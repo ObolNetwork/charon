@@ -39,7 +39,7 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 		}
 	}
 
-	tcpNode, err := p2p.NewTCPNode(ctx, config.P2PConfig, key, p2p.NewOpenGater(),
+	tcpNode, err := p2p.NewTCPNode(ctx, config.P2PConfig, key, p2p.NewOpenGater(), config.FilterPrivAddrs,
 		libp2p.ResourceManager(&network.NullResourceManager{}), libp2p.BandwidthReporter(reporter))
 	if err != nil {
 		return nil, errors.Wrap(err, "new tcp node")
