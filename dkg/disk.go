@@ -172,7 +172,7 @@ func writeDepositData(depositDatas []eth2p0.DepositData, network string, dataDir
 func checkWrites(dataDir string) error {
 	const checkBody = "delete me: dummy file used to check write permissions"
 	for _, file := range []string{"cluster-lock.json", "deposit-data.json", "validator_keys/keystore-0.json"} {
-		if filepath.Dir(file) != "" {
+		if filepath.Dir(file) != "." {
 			if err := os.MkdirAll(filepath.Join(dataDir, filepath.Dir(file)), 0o777); err != nil {
 				return errors.Wrap(err, "mkdir check writes", z.Str("dir", filepath.Dir(file)))
 			}
