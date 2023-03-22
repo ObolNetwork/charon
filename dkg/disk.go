@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net/url"
 	"os"
 	"path"
@@ -123,8 +124,15 @@ func writeKeysToDisk(datadir string, shares []share) error {
 
 	keysDir := path.Join(datadir, "/validator_keys")
 
+	info, err := os.Stat(keysDir)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return errors.Wrap(err, "error while retrieving validator_keys directory info")
+	} else if err == nil && !info.IsDir() {
+		return errors.New("file named validator_keys directory already exists, cannot continue", z.Str("path", keysDir))
+	}
+
 	if err := os.Mkdir(keysDir, os.ModePerm); err != nil {
-		return errors.Wrap(err, "mkdir /validator_keys")
+		return errors.Wrap(err, `cannot create "validator_keys" directory, check if the directory already exists`, z.Str("path", keysDir))
 	}
 
 	return keystore.StoreKeys(secrets, keysDir)
