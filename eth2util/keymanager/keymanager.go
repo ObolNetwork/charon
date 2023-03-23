@@ -83,6 +83,29 @@ type keymanagerReq struct {
 	Passwords []string            `json:"passwords"`
 }
 
+// keymanagerJSON is the json formatter for keymanagerReq.
+type keymanagerReqJSON struct {
+	Keystores []string `json:"keystores"`
+	Passwords []string `json:"passwords"`
+}
+
+func (k keymanagerReq) MarshalJSON() ([]byte, error) {
+	resp := keymanagerReqJSON{
+		Passwords: k.Passwords,
+	}
+
+	for _, ks := range k.Keystores {
+		data, err := json.Marshal(ks)
+		if err != nil {
+			return nil, errors.Wrap(err, "marshal keystore")
+		}
+
+		resp.Keystores = append(resp.Keystores, string(data))
+	}
+
+	return json.Marshal(resp)
+}
+
 // postKeys pushes the secrets to the provided keymanager address. The HTTP request times out after 10s.
 func postKeys(ctx context.Context, addr string, reqBody keymanagerReq) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -98,6 +121,7 @@ func postKeys(ctx context.Context, addr string, reqBody keymanagerReq) error {
 		return errors.Wrap(err, "new post request", z.Str("url", addr))
 	}
 	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Authorization", "Bearer api-token-0x0325706d794094cdedb2348a6e81e38923a7021474dba7b319b9b557b8947c313e")
 
 	resp, err := new(http.Client).Do(req)
 	if err != nil {
