@@ -61,9 +61,7 @@ func (c *Client) Run(ctx context.Context) error {
 			return ctx.Err()
 		}
 
-		retry := c.reconnect // Retry connecting if never connected.
-
-		stream, err := c.connect(ctx, retry)
+		stream, err := c.connect(ctx)
 		if err != nil {
 			return err
 		}
@@ -75,7 +73,7 @@ func (c *Client) Run(ctx context.Context) error {
 		if relayBroke {
 			log.Debug(ctx, "Relay connection dropped, reconnecting")
 			continue // Always reconnect on relay circuit recycling.
-		} else if connBroke && c.reconnect {
+		} else if connBroke && c.shouldReconnect() {
 			log.Info(ctx, "Disconnected from peer")
 			continue // Only reconnect for connection breaks in reconnect state.
 		} else if err != nil {
@@ -182,7 +180,7 @@ func (c *Client) sendMsg(stream network.Stream, shutdown bool) (*pb.MsgSyncRespo
 }
 
 // connect returns an opened libp2p stream/connection, it will retry if instructed.
-func (c *Client) connect(ctx context.Context, retry bool) (network.Stream, error) {
+func (c *Client) connect(ctx context.Context) (network.Stream, error) {
 	backoff := expbackoff.New(
 		ctx,
 		expbackoff.WithFastConfig(),
@@ -194,7 +192,7 @@ func (c *Client) connect(ctx context.Context, retry bool) (network.Stream, error
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		} else if err != nil {
-			if retry {
+			if c.shouldReconnect() {
 				backoff()
 				continue
 			}
@@ -218,4 +216,12 @@ func (c *Client) DisableReconnect() {
 	defer c.mu.Unlock()
 
 	c.reconnect = false
+}
+
+// shouldReconnect returns true if clients should re-attempt connecting to peers.
+func (c *Client) shouldReconnect() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.reconnect
 }
