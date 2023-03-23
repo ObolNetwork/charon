@@ -107,7 +107,7 @@ func bindP2PFlags(cmd *cobra.Command, config *p2p.Config) {
 		for _, relay := range config.Relays {
 			u, err := url.Parse(relay)
 			if err != nil {
-				return errors.Wrap(err, "parse relay address", z.Str("relay", relay))
+				return errors.Wrap(err, "parse relay address", z.Str("address", relay))
 			}
 
 			if u.Scheme == "http" {

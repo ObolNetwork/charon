@@ -31,15 +31,16 @@ import (
 
 // Config defines the config of the relay.
 type Config struct {
-	DataDir        string
-	HTTPAddr       string
-	MonitoringAddr string
-	P2PConfig      p2p.Config
-	LogConfig      log.Config
-	AutoP2PKey     bool
-	MaxResPerPeer  int
-	MaxConns       int
-	RelayLogLevel  string // TODO(corver): Rename to LibP2PLogLevel.
+	DataDir         string
+	HTTPAddr        string
+	MonitoringAddr  string
+	P2PConfig       p2p.Config
+	LogConfig       log.Config
+	AutoP2PKey      bool
+	MaxResPerPeer   int
+	MaxConns        int
+	FilterPrivAddrs bool
+	RelayLogLevel   string // TODO(corver): Rename to LibP2PLogLevel.
 }
 
 // Run starts an Obol libp2p-tcp-relay and udp-discv5 bootnode.
