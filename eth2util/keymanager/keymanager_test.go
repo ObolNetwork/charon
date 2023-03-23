@@ -21,6 +21,8 @@ import (
 	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 )
 
+const testAuthToken = "Bearer api-token-test"
+
 func TestImportKeystores(t *testing.T) {
 	var (
 		ctx        = context.Background()
@@ -75,7 +77,7 @@ func TestImportKeystores(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		cl := keymanager.New(srv.URL)
+		cl := keymanager.New(srv.URL, testAuthToken)
 		err := cl.ImportKeystores(ctx, keystores, passwords)
 		require.NoError(t, err)
 
@@ -95,13 +97,13 @@ func TestImportKeystores(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		cl := keymanager.New(srv.URL)
+		cl := keymanager.New(srv.URL, testAuthToken)
 		err := cl.ImportKeystores(ctx, keystores, passwords)
 		require.ErrorContains(t, err, "failed posting keys")
 	})
 
 	t.Run("mismatching lengths", func(t *testing.T) {
-		cl := keymanager.New("")
+		cl := keymanager.New("", testAuthToken)
 		err := cl.ImportKeystores(ctx, keystores, []string{})
 		require.ErrorContains(t, err, "lengths of keystores and passwords don't match")
 	})
@@ -114,18 +116,18 @@ func TestVerifyConnection(t *testing.T) {
 		srv := httptest.NewServer(nil)
 		defer srv.Close()
 
-		cl := keymanager.New(srv.URL)
+		cl := keymanager.New(srv.URL, testAuthToken)
 		require.NoError(t, cl.VerifyConnection(ctx))
 	})
 
 	t.Run("cannot ping address", func(t *testing.T) {
-		cl := keymanager.New("1.1.1.1")
+		cl := keymanager.New("1.1.1.1", testAuthToken)
 		require.Error(t, cl.VerifyConnection(ctx))
 		require.ErrorContains(t, cl.VerifyConnection(ctx), "cannot ping address")
 	})
 
 	t.Run("invalid address", func(t *testing.T) {
-		cl := keymanager.New("1.1.0:34")
+		cl := keymanager.New("1.1.0:34", testAuthToken)
 		require.Error(t, cl.VerifyConnection(ctx))
 		require.ErrorContains(t, cl.VerifyConnection(ctx), "parse address")
 	})
@@ -135,6 +137,11 @@ func TestVerifyConnection(t *testing.T) {
 type mockKeymanagerReq struct {
 	Keystores []noopKeystore `json:"keystores"`
 	Passwords []string       `json:"passwords"`
+}
+
+type mockKeymanagerReqJSON struct {
+	Keystores []string `json:"keystores"`
+	Passwords []string `json:"passwords"`
 }
 
 // noopKeystore is a mock keystore for use in tests.

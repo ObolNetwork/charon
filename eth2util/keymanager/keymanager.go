@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -19,15 +20,17 @@ import (
 )
 
 // New returns a new Client.
-func New(url string) Client {
+func New(url, authToken string) Client {
 	return Client{
-		baseURL: url,
+		baseURL:   url,
+		authToken: authToken,
 	}
 }
 
 // Client is the REST client for keymanager API requests.
 type Client struct {
-	baseURL string // Base keymanager URL
+	baseURL   string // Base keymanager URL
+	authToken string // Authentication token
 }
 
 // ImportKeystores pushes the keystores and passwords to keymanager.
@@ -48,7 +51,7 @@ func (c Client) ImportKeystores(ctx context.Context, keystores []keystore.Keysto
 		Passwords: passwords,
 	}
 
-	err = postKeys(ctx, addr, req)
+	err = postKeys(ctx, addr, c.authToken, req)
 	if err != nil {
 		return err
 	}
@@ -89,6 +92,7 @@ type keymanagerReqJSON struct {
 	Passwords []string `json:"passwords"`
 }
 
+//nolint:wrapcheck
 func (k keymanagerReq) MarshalJSON() ([]byte, error) {
 	resp := keymanagerReqJSON{
 		Passwords: k.Passwords,
@@ -107,7 +111,7 @@ func (k keymanagerReq) MarshalJSON() ([]byte, error) {
 }
 
 // postKeys pushes the secrets to the provided keymanager address. The HTTP request times out after 10s.
-func postKeys(ctx context.Context, addr string, reqBody keymanagerReq) error {
+func postKeys(ctx context.Context, addr, authToken string, reqBody keymanagerReq) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -121,7 +125,7 @@ func postKeys(ctx context.Context, addr string, reqBody keymanagerReq) error {
 		return errors.Wrap(err, "new post request", z.Str("url", addr))
 	}
 	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("Authorization", "Bearer api-token-0x0325706d794094cdedb2348a6e81e38923a7021474dba7b319b9b557b8947c313e")
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", authToken))
 
 	resp, err := new(http.Client).Do(req)
 	if err != nil {

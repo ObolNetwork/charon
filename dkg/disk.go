@@ -85,7 +85,7 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 }
 
 // writeKeysToKeymanager writes validator private keyshares for the node to the provided keymanager address.
-func writeKeysToKeymanager(ctx context.Context, keymanagerURL string, shares []share) error {
+func writeKeysToKeymanager(ctx context.Context, keymanagerURL, authToken string, shares []share) error {
 	var (
 		keystores []keystore.Keystore
 		passwords []string
@@ -106,7 +106,7 @@ func writeKeysToKeymanager(ctx context.Context, keymanagerURL string, shares []s
 		keystores = append(keystores, store)
 	}
 
-	cl := keymanager.New(keymanagerURL)
+	cl := keymanager.New(keymanagerURL, authToken)
 	err := cl.ImportKeystores(ctx, keystores, passwords)
 	if err != nil {
 		return err
