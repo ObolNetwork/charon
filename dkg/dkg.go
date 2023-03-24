@@ -31,14 +31,14 @@ import (
 )
 
 type Config struct {
-	DefFile             string
-	KeymanagerAddr      string
-	KeymanagerAuthToken string
-
+	DefFile  string
 	NoVerify bool
 	DataDir  string
 	P2P      p2p.Config
 	Log      log.Config
+
+	KeymanagerAddr      string
+	KeymanagerAuthToken string
 
 	PublishAddr string
 	Publish     bool

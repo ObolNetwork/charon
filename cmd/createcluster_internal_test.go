@@ -419,6 +419,8 @@ func TestKeymanager(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	const testAuthToken = "api-token-test"
+
 	// Create secret
 	secret1, err := tblsv2.GenerateSecretKey()
 	require.NoError(t, err)
@@ -432,12 +434,13 @@ func TestKeymanager(t *testing.T) {
 	results := make(chan result, minNodes) // Buffered channel
 	defer close(results)
 
-	var addrs []string
+	var addrs, authTokens []string
 	var servers []*httptest.Server
 	for i := 0; i < minNodes; i++ {
 		srv := httptest.NewServer(newKeymanagerHandler(ctx, t, i, results))
 		servers = append(servers, srv)
 		addrs = append(addrs, srv.URL)
+		authTokens = append(authTokens, testAuthToken)
 	}
 
 	defer func() {
@@ -448,16 +451,17 @@ func TestKeymanager(t *testing.T) {
 
 	// Create cluster config
 	conf := clusterConfig{
-		Name:              t.Name(),
-		SplitKeysDir:      keyDir,
-		SplitKeys:         true,
-		NumNodes:          minNodes,
-		NumDVs:            1,
-		KeymanagerAddrs:   addrs,
-		Network:           defaultNetwork,
-		WithdrawalAddrs:   []string{zeroAddress},
-		FeeRecipientAddrs: []string{zeroAddress},
-		Clean:             true,
+		Name:                 t.Name(),
+		SplitKeysDir:         keyDir,
+		SplitKeys:            true,
+		NumNodes:             minNodes,
+		NumDVs:               1,
+		KeymanagerAddrs:      addrs,
+		KeymanagerAuthTokens: authTokens,
+		Network:              defaultNetwork,
+		WithdrawalAddrs:      []string{zeroAddress},
+		FeeRecipientAddrs:    []string{zeroAddress},
+		Clean:                true,
 	}
 	conf.ClusterDir = t.TempDir()
 
