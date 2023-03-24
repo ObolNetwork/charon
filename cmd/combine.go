@@ -44,6 +44,6 @@ func newCombineFunc(ctx context.Context, clusterDir, outputDir string, force boo
 
 func bindCombineFlags(flags *pflag.FlagSet, clusterDir, outputDir *string, force *bool) {
 	flags.StringVar(clusterDir, "cluster-dir", ".charon/cluster", `Parent directory containing a number of .charon subdirectories from each node in the cluster.`)
-	flags.StringVar(outputDir, "output-dir", "./validator-keys", "Directory to output the combined private keys to.")
+	flags.StringVar(outputDir, "output-dir", "./validator_keys", "Directory to output the combined private keys to.")
 	flags.BoolVar(force, "force", false, "Overwrites private keys with the same name if present.")
 }
