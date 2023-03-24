@@ -10,18 +10,20 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
 )
 
-const testAuthToken = "Bearer api-token-test"
+const testAuthToken = "api-token-test"
 
 func TestImportKeystores(t *testing.T) {
 	var (
@@ -54,6 +56,10 @@ func TestImportKeystores(t *testing.T) {
 		var receivedSecrets []string
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			require.Equal(t, r.URL.Path, "/eth/v1/keystores")
+
+			bearerAuthToken := strings.Split(r.Header.Get("Authorization"), " ")
+			require.Equal(t, bearerAuthToken[0], "Bearer")
+			require.Equal(t, bearerAuthToken[1], testAuthToken)
 
 			data, err := io.ReadAll(r.Body)
 			require.NoError(t, err)
@@ -142,6 +148,29 @@ type mockKeymanagerReq struct {
 type mockKeymanagerReqJSON struct {
 	Keystores []string `json:"keystores"`
 	Passwords []string `json:"passwords"`
+}
+
+func (k *mockKeymanagerReq) UnmarshalJSON(data []byte) error {
+	var tmp mockKeymanagerReqJSON
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return errors.Wrap(err, "unmarshal keymanager req")
+	}
+
+	resp := mockKeymanagerReq{
+		Passwords: tmp.Passwords,
+	}
+	for _, ks := range tmp.Keystores {
+		var kss noopKeystore
+		if err := json.Unmarshal([]byte(ks), &kss); err != nil {
+			return errors.Wrap(err, "unmarshal noop keystore")
+		}
+
+		resp.Keystores = append(resp.Keystores, kss)
+	}
+
+	*k = resp
+
+	return nil
 }
 
 // noopKeystore is a mock keystore for use in tests.

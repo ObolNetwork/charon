@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/dkg"
 )
@@ -36,7 +37,7 @@ this command at the same time.`,
 	}
 
 	bindDataDirFlag(cmd.Flags(), &config.DataDir)
-	bindKeymanagerFlags(cmd.Flags(), &config.KeymanagerAddr, &config.KeymanagerAuthToken)
+	bindKeymanagerFlags(cmd, &config.KeymanagerAddr, &config.KeymanagerAuthToken)
 	bindDefDirFlag(cmd.Flags(), &config.DefFile)
 	bindNoVerifyFlag(cmd.Flags(), &config.NoVerify)
 	bindP2PFlags(cmd, &config.P2P)
@@ -46,9 +47,17 @@ this command at the same time.`,
 	return cmd
 }
 
-func bindKeymanagerFlags(flags *pflag.FlagSet, addr, authToken *string) {
-	flags.StringVar(addr, "keymanager-address", "", "The keymanager URL to import validator keyshares.")
-	flags.StringVar(authToken, "keymanager-auth-token", "", "Authentication bearer token to interact with keymanager API. Don't include the \"Bearer\" symbol, only include the api-token.")
+func bindKeymanagerFlags(cmd *cobra.Command, addr, authToken *string) {
+	cmd.Flags().StringVar(addr, "keymanager-address", "", "The keymanager URL to import validator keyshares.")
+	cmd.Flags().StringVar(authToken, "keymanager-auth-token", "", "Authentication bearer token to interact with keymanager API. Don't include the \"Bearer\" symbol, only include the api-token.")
+
+	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error {
+		if addr != nil && authToken == nil {
+			return errors.New("keymanager address provided but authentication token absent")
+		}
+
+		return nil
+	})
 }
 
 func bindDefDirFlag(flags *pflag.FlagSet, dataDir *string) {

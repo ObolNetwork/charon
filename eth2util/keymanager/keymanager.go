@@ -92,7 +92,6 @@ type keymanagerReqJSON struct {
 	Passwords []string `json:"passwords"`
 }
 
-//nolint:wrapcheck
 func (k keymanagerReq) MarshalJSON() ([]byte, error) {
 	resp := keymanagerReqJSON{
 		Passwords: k.Passwords,
@@ -107,7 +106,12 @@ func (k keymanagerReq) MarshalJSON() ([]byte, error) {
 		resp.Keystores = append(resp.Keystores, string(data))
 	}
 
-	return json.Marshal(resp)
+	data, err := json.Marshal(resp)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal keymanager response")
+	}
+
+	return data, nil
 }
 
 // postKeys pushes the secrets to the provided keymanager address. The HTTP request times out after 10s.

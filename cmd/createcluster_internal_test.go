@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util"
@@ -542,6 +543,34 @@ func TestPublish(t *testing.T) {
 type mockKeymanagerReq struct {
 	Keystores []keystore.Keystore `json:"keystores"`
 	Passwords []string            `json:"passwords"`
+}
+
+type mockKeymanagerReqJSON struct {
+	Keystores []string `json:"keystores"`
+	Passwords []string `json:"passwords"`
+}
+
+func (k *mockKeymanagerReq) UnmarshalJSON(data []byte) error {
+	var tmp mockKeymanagerReqJSON
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return errors.Wrap(err, "unmarshal keymanager req")
+	}
+
+	resp := mockKeymanagerReq{
+		Passwords: tmp.Passwords,
+	}
+	for _, ks := range tmp.Keystores {
+		var kss keystore.Keystore
+		if err := json.Unmarshal([]byte(ks), &kss); err != nil {
+			return errors.Wrap(err, "unmarshal noop keystore")
+		}
+
+		resp.Keystores = append(resp.Keystores, kss)
+	}
+
+	*k = resp
+
+	return nil
 }
 
 // decrypt returns the secret from the encrypted keystore.

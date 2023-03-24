@@ -76,29 +76,37 @@ func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig)
 		},
 	}
 
-	bindClusterFlags(cmd.Flags(), &conf)
+	bindClusterFlags(cmd, &conf)
 	bindInsecureFlags(cmd.Flags(), &conf.InsecureKeys)
 
 	return cmd
 }
 
-func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
-	flags.StringVar(&config.Name, "name", "", "The cluster name")
-	flags.StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The target folder to create the cluster in.")
-	flags.StringVar(&config.DefFile, "definition-file", "", "Optional path to a cluster definition file or an HTTP URL. This overrides all other configuration flags.")
-	flags.StringSliceVar(&config.KeymanagerAddrs, "keymanager-addresses", nil, "Comma separated list of keymanager URLs to import validator key shares to. Note that multiple addresses are required, one for each node in the cluster, with node0's keyshares being imported to the first address, node1's keyshares to the second, and so on.")
-	flags.StringVar(&config.KeymanagerAuthToken, "keymanager-auth-token", "", "Authentication bearer token to interact with keymanager API. Don't include the \"Bearer\" symbol, only include the api-token.")
-	flags.IntVarP(&config.NumNodes, "nodes", "", minNodes, "The number of charon nodes in the cluster. Minimum is 4.")
-	flags.IntVarP(&config.Threshold, "threshold", "", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
-	flags.StringSliceVar(&config.FeeRecipientAddrs, "fee-recipient-addresses", nil, "Comma separated list of Ethereum addresses of the fee recipient for each validator. Either provide a single fee recipient address or fee recipient addresses for each validator.")
-	flags.StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
-	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, gnosis, goerli, kiln, ropsten, sepolia.")
-	flags.BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it.")
-	flags.IntVar(&config.NumDVs, "num-validators", 1, "The number of distributed validators needed in the cluster.")
-	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Does not re-create deposit data for this key.")
-	flags.StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-existing-keys.")
-	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech", "The URL to publish the lock file to.")
-	flags.BoolVar(&config.Publish, "publish", false, "Publish lock file to obol-api.")
+func bindClusterFlags(cmd *cobra.Command, config *clusterConfig) {
+	cmd.Flags().StringVar(&config.Name, "name", "", "The cluster name")
+	cmd.Flags().StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The target folder to create the cluster in.")
+	cmd.Flags().StringVar(&config.DefFile, "definition-file", "", "Optional path to a cluster definition file or an HTTP URL. This overrides all other configuration flags.")
+	cmd.Flags().StringSliceVar(&config.KeymanagerAddrs, "keymanager-addresses", nil, "Comma separated list of keymanager URLs to import validator key shares to. Note that multiple addresses are required, one for each node in the cluster, with node0's keyshares being imported to the first address, node1's keyshares to the second, and so on.")
+	cmd.Flags().StringVar(&config.KeymanagerAuthToken, "keymanager-auth-token", "", "Authentication bearer token to interact with keymanager API. Don't include the \"Bearer\" symbol, only include the api-token.")
+	cmd.Flags().IntVarP(&config.NumNodes, "nodes", "", minNodes, "The number of charon nodes in the cluster. Minimum is 4.")
+	cmd.Flags().IntVarP(&config.Threshold, "threshold", "", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
+	cmd.Flags().StringSliceVar(&config.FeeRecipientAddrs, "fee-recipient-addresses", nil, "Comma separated list of Ethereum addresses of the fee recipient for each validator. Either provide a single fee recipient address or fee recipient addresses for each validator.")
+	cmd.Flags().StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
+	cmd.Flags().StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, gnosis, goerli, kiln, ropsten, sepolia.")
+	cmd.Flags().BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it.")
+	cmd.Flags().IntVar(&config.NumDVs, "num-validators", 1, "The number of distributed validators needed in the cluster.")
+	cmd.Flags().BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Does not re-create deposit data for this key.")
+	cmd.Flags().StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-existing-keys.")
+	cmd.Flags().StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech", "The URL to publish the lock file to.")
+	cmd.Flags().BoolVar(&config.Publish, "publish", false, "Publish lock file to obol-api.")
+
+	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error {
+		if len(config.KeymanagerAddrs) != 0 && config.KeymanagerAuthToken == "" {
+			return errors.New("keymanager addresses provided but authentication token absent")
+		}
+
+		return nil
+	})
 }
 
 func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
