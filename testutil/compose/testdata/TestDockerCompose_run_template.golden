@@ -74,6 +74,10 @@
      "Value": "/compose/node0/validator_keys"
     },
     {
+     "Key": "simnet-beaconmock-fuzz",
+     "Value": "\"false\""
+    },
+    {
      "Key": "loki-addresses",
      "Value": "http://loki:3100/loki/api/v1/push"
     },
@@ -173,6 +177,10 @@
     {
      "Key": "simnet-validator-keys-dir",
      "Value": "/compose/node1/validator_keys"
+    },
+    {
+     "Key": "simnet-beaconmock-fuzz",
+     "Value": "\"false\""
     },
     {
      "Key": "loki-addresses",
@@ -276,6 +284,10 @@
      "Value": "/compose/node2/validator_keys"
     },
     {
+     "Key": "simnet-beaconmock-fuzz",
+     "Value": "\"false\""
+    },
+    {
      "Key": "loki-addresses",
      "Value": "http://loki:3100/loki/api/v1/push"
     },
@@ -375,6 +387,10 @@
     {
      "Key": "simnet-validator-keys-dir",
      "Value": "/compose/node3/validator_keys"
+    },
+    {
+     "Key": "simnet-beaconmock-fuzz",
+     "Value": "\"false\""
     },
     {
      "Key": "loki-addresses",

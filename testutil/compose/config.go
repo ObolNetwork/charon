@@ -108,6 +108,9 @@ type Config struct {
 	// SlotDuration configures slot duration on simnet beacon mock for all the nodes in the cluster.
 	SlotDuration time.Duration `json:"slot_duration"`
 
+	// Fuzz configures simnet beaconmock to return fuzzed responses.
+	Fuzz bool `json:"fuzz"`
+
 	// SyntheticBlockProposals configures use of synthetic block proposals in simnet cluster.
 	SyntheticBlockProposals bool `json:"synthetic_block_proposals"`
 }

@@ -104,7 +104,6 @@ type Client interface {
 		"BlindedBeaconBlockSubmitter":           true,
 		"DepositContractProvider":               false,
 		"DomainProvider":                        false,
-		"EventsProvider":                        true,
 		"ForkProvider":                          true,
 		"ForkScheduleProvider":                  true,
 		"GenesisProvider":                       false,

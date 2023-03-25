@@ -79,6 +79,7 @@ type Config struct {
 	SimnetSlotDuration      time.Duration
 	SyntheticBlockProposals bool
 	BuilderAPI              bool
+	SimnetBeaconmockFuzz    bool
 
 	TestConfig TestConfig
 }
@@ -623,6 +624,23 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 	// Default to 1s slot duration if not set.
 	if conf.SimnetSlotDuration == 0 {
 		conf.SimnetSlotDuration = time.Second
+	}
+
+	if conf.SimnetBeaconmockFuzz {
+		log.Info(ctx, "Beaconmock fuzz configured!")
+		bmock, err := beaconmock.New(beaconmock.WithBeaconMockFuzzer())
+		if err != nil {
+			return nil, err
+		}
+
+		wrap, err := eth2wrap.Instrument(bmock)
+		if err != nil {
+			return nil, err
+		}
+
+		life.RegisterStop(lifecycle.StopBeaconMock, lifecycle.HookFuncErr(bmock.Close))
+
+		return wrap, nil
 	}
 
 	if conf.SimnetBMock { // Configure the beacon mock.

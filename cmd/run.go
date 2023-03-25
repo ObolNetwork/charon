@@ -74,6 +74,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().BoolVar(&config.BuilderAPI, "builder-api", false, "Enables the builder api. Will only produce builder blocks. Builder API must also be enabled on the validator client. Beacon node must be connected to a builder-relay to access the builder network.")
 	cmd.Flags().BoolVar(&config.SyntheticBlockProposals, "synthetic-block-proposals", false, "Enables additional synthetic block proposal duties. Used for testing of rare duties.")
 	cmd.Flags().DurationVar(&config.SimnetSlotDuration, "simnet-slot-duration", time.Second, "Configures slot duration in simnet beacon mock.")
+	cmd.Flags().BoolVar(&config.SimnetBeaconmockFuzz, "simnet-beaconmock-fuzz", false, "Configures simnet beaconmock to return fuzzed responses.")
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error {
 		if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {
