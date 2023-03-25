@@ -500,6 +500,15 @@ func TestKeymanager(t *testing.T) {
 		}
 		require.ErrorContains(t, err, "cannot ping address")
 	})
+
+	t.Run("lengths don't match", func(t *testing.T) {
+		// Construct an incorrect config where len(KeymanagerAuthTokens) = len(KeymanagerAddresses)-1
+		incorrectConf := conf
+		incorrectConf.KeymanagerAuthTokens = incorrectConf.KeymanagerAuthTokens[1:]
+
+		err = runCreateCluster(context.Background(), nil, incorrectConf)
+		require.ErrorContains(t, err, "no of keymanager addresses and authentication tokens don't match")
+	})
 }
 
 // TestPublish tests support for uploading the cluster lockfile to obol-api.
@@ -566,7 +575,7 @@ func (k *mockKeymanagerReq) UnmarshalJSON(data []byte) error {
 	for _, ks := range tmp.Keystores {
 		var kss keystore.Keystore
 		if err := json.Unmarshal([]byte(ks), &kss); err != nil {
-			return errors.Wrap(err, "unmarshal noop keystore")
+			return errors.Wrap(err, "unmarshal keystore")
 		}
 
 		resp.Keystores = append(resp.Keystores, kss)

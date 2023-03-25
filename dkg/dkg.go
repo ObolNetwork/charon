@@ -68,6 +68,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	// Check if keymanager address is reachable.
 	if conf.KeymanagerAddr != "" {
+		if conf.KeymanagerAuthToken == "" {
+			return errors.New("keymanager address provided but authentication token absent")
+		}
+
 		cl := keymanager.New(conf.KeymanagerAddr, conf.KeymanagerAuthToken)
 		if err = cl.VerifyConnection(ctx); err != nil {
 			return errors.Wrap(err, "verify keymanager address")

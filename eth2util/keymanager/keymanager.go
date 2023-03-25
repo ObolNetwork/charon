@@ -93,9 +93,8 @@ type keymanagerReqJSON struct {
 }
 
 func (k keymanagerReq) MarshalJSON() ([]byte, error) {
-	resp := keymanagerReqJSON{
-		Passwords: k.Passwords,
-	}
+	var resp keymanagerReqJSON
+	resp.Passwords = k.Passwords
 
 	for _, ks := range k.Keystores {
 		data, err := json.Marshal(ks)
