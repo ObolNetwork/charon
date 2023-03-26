@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/obolnetwork/charon/combine"
+	"github.com/obolnetwork/charon/cmd/combine"
 )
 
 func newCombineCmd(runFunc func(ctx context.Context, clusterDir, outputDir string, force bool) error) *cobra.Command {
