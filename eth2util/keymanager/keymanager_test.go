@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
-	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
@@ -73,7 +72,9 @@ func TestImportKeystores(t *testing.T) {
 			require.Equal(t, len(req.Keystores), numSecrets)
 
 			for i := 0; i < numSecrets; i++ {
-				secret, err := decrypt(t, req.Keystores[i], req.Passwords[i])
+				var ks noopKeystore
+				require.NoError(t, json.Unmarshal([]byte(req.Keystores[i]), &ks))
+				secret, err := decrypt(t, ks, req.Passwords[i])
 				require.NoError(t, err)
 
 				receivedSecrets = append(receivedSecrets, hex.EncodeToString(secret[:]))
@@ -141,36 +142,8 @@ func TestVerifyConnection(t *testing.T) {
 
 // mockKeymanagerReq is a mock keymanager request for use in tests.
 type mockKeymanagerReq struct {
-	Keystores []noopKeystore `json:"keystores"`
-	Passwords []string       `json:"passwords"`
-}
-
-type mockKeymanagerReqJSON struct {
 	Keystores []string `json:"keystores"`
 	Passwords []string `json:"passwords"`
-}
-
-func (k *mockKeymanagerReq) UnmarshalJSON(data []byte) error {
-	var tmp mockKeymanagerReqJSON
-	if err := json.Unmarshal(data, &tmp); err != nil {
-		return errors.Wrap(err, "unmarshal keymanager req")
-	}
-
-	resp := mockKeymanagerReq{
-		Passwords: tmp.Passwords,
-	}
-	for _, ks := range tmp.Keystores {
-		var kss noopKeystore
-		if err := json.Unmarshal([]byte(ks), &kss); err != nil {
-			return errors.Wrap(err, "unmarshal noop keystore")
-		}
-
-		resp.Keystores = append(resp.Keystores, kss)
-	}
-
-	*k = resp
-
-	return nil
 }
 
 // noopKeystore is a mock keystore for use in tests.

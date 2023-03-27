@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
-	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util"
@@ -507,7 +506,7 @@ func TestKeymanager(t *testing.T) {
 		incorrectConf.KeymanagerAuthTokens = incorrectConf.KeymanagerAuthTokens[1:]
 
 		err = runCreateCluster(context.Background(), nil, incorrectConf)
-		require.ErrorContains(t, err, "no of keymanager addresses and authentication tokens don't match")
+		require.ErrorContains(t, err, "number of --keymanager-addresses do not match --keymanager-auth-tokens. Please fix configuration flags")
 	})
 }
 
@@ -554,36 +553,8 @@ func TestPublish(t *testing.T) {
 
 // mockKeymanagerReq is a mock keymanager request for use in tests.
 type mockKeymanagerReq struct {
-	Keystores []keystore.Keystore `json:"keystores"`
-	Passwords []string            `json:"passwords"`
-}
-
-type mockKeymanagerReqJSON struct {
 	Keystores []string `json:"keystores"`
 	Passwords []string `json:"passwords"`
-}
-
-func (k *mockKeymanagerReq) UnmarshalJSON(data []byte) error {
-	var tmp mockKeymanagerReqJSON
-	if err := json.Unmarshal(data, &tmp); err != nil {
-		return errors.Wrap(err, "unmarshal keymanager req")
-	}
-
-	resp := mockKeymanagerReq{
-		Passwords: tmp.Passwords,
-	}
-	for _, ks := range tmp.Keystores {
-		var kss keystore.Keystore
-		if err := json.Unmarshal([]byte(ks), &kss); err != nil {
-			return errors.Wrap(err, "unmarshal keystore")
-		}
-
-		resp.Keystores = append(resp.Keystores, kss)
-	}
-
-	*k = resp
-
-	return nil
 }
 
 // decrypt returns the secret from the encrypted keystore.
@@ -621,7 +592,9 @@ func newKeymanagerHandler(ctx context.Context, t *testing.T, id int, results cha
 		require.Equal(t, len(req.Keystores), len(req.Passwords))
 		require.Equal(t, len(req.Keystores), 1) // Since we split only 1 key
 
-		secret, err := decrypt(t, req.Keystores[0], req.Passwords[0])
+		var ks keystore.Keystore
+		require.NoError(t, json.Unmarshal([]byte(req.Keystores[0]), &ks))
+		secret, err := decrypt(t, ks, req.Passwords[0])
 		require.NoError(t, err)
 
 		res := result{
