@@ -46,15 +46,9 @@ func (c Client) ImportKeystores(ctx context.Context, keystores []keystore.Keysto
 		return errors.Wrap(err, "invalid base url", z.Str("base_url", c.baseURL))
 	}
 
-	var req keymanagerReq
-	req.Passwords = passwords
-	for _, ks := range keystores {
-		data, err := json.Marshal(ks)
-		if err != nil {
-			return errors.Wrap(err, "marshal keystore")
-		}
-
-		req.Keystores = append(req.Keystores, string(data))
+	req, err := newReq(keystores, passwords)
+	if err != nil {
+		return err
 	}
 
 	err = postKeys(ctx, addr, c.authToken, req)
@@ -125,4 +119,19 @@ func postKeys(ctx context.Context, addr, authToken string, reqBody keymanagerReq
 	}
 
 	return nil
+}
+
+func newReq(keystores []keystore.Keystore, passwords []string) (keymanagerReq, error) {
+	var req keymanagerReq
+	req.Passwords = passwords
+	for _, ks := range keystores {
+		data, err := json.Marshal(ks)
+		if err != nil {
+			return keymanagerReq{}, errors.Wrap(err, "marshal keystore")
+		}
+
+		req.Keystores = append(req.Keystores, string(data))
+	}
+
+	return req, nil
 }

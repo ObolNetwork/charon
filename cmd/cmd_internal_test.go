@@ -226,6 +226,41 @@ func TestFlagsToLogFields(t *testing.T) {
 	}
 }
 
+func TestRedact(t *testing.T) {
+	tests := []struct {
+		name     string
+		flag     string
+		value    string
+		expected string
+	}{
+		{
+			name:     "redact auth tokens",
+			flag:     "keymanager-auth-token",
+			value:    "api-token-abcdef12345",
+			expected: "xxxxx",
+		},
+		{
+			name:     "redact passwords in URL addresses",
+			flag:     "api-address",
+			value:    "https://user:password@example.com/foo/bar",
+			expected: "https://user:xxxxx@example.com/foo/bar",
+		},
+		{
+			name:     "no redact",
+			flag:     "definition-file",
+			value:    "https://obol.obol.tech/dv/0x0f481bbd06a596cb3ba569b9de0cbfcf822b209c2d6877c98173df986dd3c0ec",
+			expected: "https://obol.obol.tech/dv/0x0f481bbd06a596cb3ba569b9de0cbfcf822b209c2d6877c98173df986dd3c0ec",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := redact(tt.flag, tt.value)
+			require.Equal(t, tt.expected, got)
+		})
+	}
+}
+
 // slice is a convenience function for creating string slice literals.
 func slice(strs ...string) []string {
 	return strs

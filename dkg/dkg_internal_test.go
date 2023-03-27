@@ -155,3 +155,38 @@ func TestValidSignatures(t *testing.T) {
 	_, _, err = aggLockHashSig(map[core.PubKey][]core.ParSignedData{corePubkey: getSigs(lockMsg)}, map[core.PubKey]share{corePubkey: shares}, lockMsg)
 	require.NoError(t, err)
 }
+
+func TestValidateKeymanagerFlags(t *testing.T) {
+	tests := []struct {
+		name      string
+		addr      string
+		authToken string
+		errMsg    string
+	}{
+		{
+			name:      "Both keymanager flags provided",
+			addr:      "https://keymanager@example.com",
+			authToken: "keymanager-auth-token",
+			errMsg:    "",
+		},
+		{
+			name:   "Address provided but auth token absent",
+			addr:   "https://keymanager@example.com",
+			errMsg: "--keymanager-address provided but --keymanager-auth-token absent. Please fix configuration flags",
+		},
+		{
+			name:      "Auth token provided by address absent",
+			authToken: "keymanager-auth-token",
+			errMsg:    "--keymanager-auth-token provided but --keymanager-address absent. Please fix configuration flags",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateKeymanagerFlags(tt.addr, tt.authToken)
+			if tt.errMsg != "" {
+				require.Equal(t, err.Error(), tt.errMsg)
+			}
+		})
+	}
+}
