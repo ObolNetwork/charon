@@ -42,12 +42,6 @@ func NewPingService(h host.Host, peers []peer.ID, conf TestPingConfig) lifecycle
 		maxBackoff = conf.MaxBackoff
 	}
 
-	callback := conf.Callback
-	if callback == nil {
-		// Use delaying callback for periodic 1s pings in production (no test config callback).
-		callback = newPingDelayCallback()
-	}
-
 	svc := ping.NewPingService(h)
 
 	return func(ctx context.Context) {
@@ -59,7 +53,15 @@ func NewPingService(h host.Host, peers []peer.ID, conf TestPingConfig) lifecycle
 				continue
 			}
 
-			go pingPeer(ctx, svc, p, callback, maxBackoff)
+			go func(p peer.ID) {
+				callback := conf.Callback
+				if callback == nil {
+					// Use delaying callback for periodic 1s pings in production (no test config callback).
+					callback = newPingDelayCallback()
+				}
+
+				pingPeer(ctx, svc, p, callback, maxBackoff)
+			}(p)
 		}
 	}
 }
