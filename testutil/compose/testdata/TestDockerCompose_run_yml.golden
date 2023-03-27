@@ -28,6 +28,7 @@ services:
       CHARON_SIMNET_VALIDATOR_MOCK: "false"
       CHARON_SIMNET_SLOT_DURATION: 1s
       CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node0/validator_keys
+      CHARON_SIMNET_BEACON_MOCK_FUZZ: "false"
       CHARON_LOKI_ADDRESSES: http://loki:3100/loki/api/v1/push
       CHARON_LOKI_SERVICE: node0
       CHARON_SYNTHETIC_BLOCK_PROPOSALS: "true"
@@ -61,6 +62,7 @@ services:
       CHARON_SIMNET_VALIDATOR_MOCK: "false"
       CHARON_SIMNET_SLOT_DURATION: 1s
       CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node1/validator_keys
+      CHARON_SIMNET_BEACON_MOCK_FUZZ: "false"
       CHARON_LOKI_ADDRESSES: http://loki:3100/loki/api/v1/push
       CHARON_LOKI_SERVICE: node1
       CHARON_SYNTHETIC_BLOCK_PROPOSALS: "true"
@@ -94,6 +96,7 @@ services:
       CHARON_SIMNET_VALIDATOR_MOCK: "true"
       CHARON_SIMNET_SLOT_DURATION: 1s
       CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node2/validator_keys
+      CHARON_SIMNET_BEACON_MOCK_FUZZ: "false"
       CHARON_LOKI_ADDRESSES: http://loki:3100/loki/api/v1/push
       CHARON_LOKI_SERVICE: node2
       CHARON_SYNTHETIC_BLOCK_PROPOSALS: "true"
@@ -127,6 +130,7 @@ services:
       CHARON_SIMNET_VALIDATOR_MOCK: "false"
       CHARON_SIMNET_SLOT_DURATION: 1s
       CHARON_SIMNET_VALIDATOR_KEYS_DIR: /compose/node3/validator_keys
+      CHARON_SIMNET_BEACON_MOCK_FUZZ: "false"
       CHARON_LOKI_ADDRESSES: http://loki:3100/loki/api/v1/push
       CHARON_LOKI_SERVICE: node3
       CHARON_SYNTHETIC_BLOCK_PROPOSALS: "true"

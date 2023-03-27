@@ -9,6 +9,7 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0
 	github.com/ferranbt/fastssz v0.1.3
 	github.com/golang/snappy v0.0.4
+	github.com/google/gofuzz v1.2.0
 	github.com/gorilla/mux v1.8.0
 	github.com/herumi/bls-eth-go-binary v1.29.1
 	github.com/ipfs/go-log/v2 v2.5.1

@@ -464,9 +464,6 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		ProposerDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 			return []*eth2v1.ProposerDuty{}, nil
 		},
-		BeaconCommitteesFunc: func(context.Context, string) ([]*eth2v1.BeaconCommittee, error) {
-			return []*eth2v1.BeaconCommittee{}, nil
-		},
 		AttesterDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 			return []*eth2v1.AttesterDuty{}, nil
 		},

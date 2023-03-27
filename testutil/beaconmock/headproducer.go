@@ -231,6 +231,12 @@ func (p *headProducer) handleEvents(w http.ResponseWriter, r *http.Request) {
 	p.server.ServeHTTP(w, r)
 }
 
+func (p *headProducer) BeaconBlockRoot(_ context.Context, _ string) (*eth2p0.Root, error) {
+	blockRoot := p.getCurrentHead().Block
+
+	return &blockRoot, nil
+}
+
 // startSlotTicker returns a blocking channel that will be populated with new slots in real time.
 // It is also populated with the current slot immediately.
 func startSlotTicker(quit chan struct{}, callback func(eth2p0.Slot), genesisTime time.Time, slotDuration time.Duration) {

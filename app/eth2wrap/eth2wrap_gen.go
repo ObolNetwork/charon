@@ -38,7 +38,6 @@ type Client interface {
 	eth2client.BlindedBeaconBlockSubmitter
 	eth2client.DepositContractProvider
 	eth2client.DomainProvider
-	eth2client.EventsProvider
 	eth2client.ForkProvider
 	eth2client.ForkScheduleProvider
 	eth2client.GenesisProvider
@@ -491,26 +490,6 @@ func (m multi) SubmitValidatorRegistrations(ctx context.Context, registrations [
 	err := submit(ctx, m.clients,
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitValidatorRegistrations(ctx, registrations)
-		},
-		m.bestIdx,
-	)
-
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return err
-}
-
-// Events feeds requested events with the given topics to the supplied handler.
-func (m multi) Events(ctx context.Context, topics []string, handler eth2client.EventHandlerFunc) error {
-	const label = "events"
-	defer latency(label)()
-
-	err := submit(ctx, m.clients,
-		func(ctx context.Context, cl Client) error {
-			return cl.Events(ctx, topics, handler)
 		},
 		m.bestIdx,
 	)
@@ -1014,16 +993,6 @@ func (l *lazy) SubmitValidatorRegistrations(ctx context.Context, registrations [
 	}
 
 	return cl.SubmitValidatorRegistrations(ctx, registrations)
-}
-
-// Events feeds requested events with the given topics to the supplied handler.
-func (l *lazy) Events(ctx context.Context, topics []string, handler eth2client.EventHandlerFunc) (err error) {
-	cl, err := l.getClient()
-	if err != nil {
-		return err
-	}
-
-	return cl.Events(ctx, topics, handler)
 }
 
 // Fork fetches fork information for the given state.
