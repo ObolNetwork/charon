@@ -66,12 +66,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
+	if err := validateKeymanagerFlags(conf.KeymanagerAddr, conf.KeymanagerAuthToken); err != nil {
+		return err
+	}
+
 	// Check if keymanager address is reachable.
 	if conf.KeymanagerAddr != "" {
-		if conf.KeymanagerAuthToken == "" {
-			return errors.New("keymanager address provided but authentication token absent")
-		}
-
 		cl := keymanager.New(conf.KeymanagerAddr, conf.KeymanagerAuthToken)
 		if err = cl.VerifyConnection(ctx); err != nil {
 			return errors.Wrap(err, "verify keymanager address")
@@ -683,6 +683,18 @@ func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) 
 	}
 
 	log.Debug(ctx, "Published lock file to api")
+
+	return nil
+}
+
+// validateKeymanagerFlags returns an error if one keymanager flag is present but the other is not.
+func validateKeymanagerFlags(addr, authToken string) error {
+	if addr != "" && authToken == "" {
+		return errors.New("keymanager address provided but authentication token absent")
+	}
+	if addr == "" && authToken != "" {
+		return errors.New("keymanager authentication token provided but keymanager address absent")
+	}
 
 	return nil
 }

@@ -165,6 +165,10 @@ func flagsToLogFields(flags *pflag.FlagSet) []z.Field {
 // redact returns a redacted version of the given flag value.
 // It currently only supports redacting passwords in valid URLs provided in ".*address.*" flags.
 func redact(flag, val string) string {
+	if strings.Contains(flag, "auth-token") {
+		return "api-token-xxxxx"
+	}
+
 	if !strings.Contains(flag, "address") {
 		return val
 	}
