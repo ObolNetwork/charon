@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -28,10 +29,18 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
+var activationThreshOnce = sync.Once{}
+
 // NewTCPNode returns a started tcp-based libp2p host.
 func NewTCPNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater ConnGater,
 	filterPrivateAddrs bool, opts ...libp2p.Option,
 ) (host.Host, error) {
+	activationThreshOnce.Do(func() {
+		// Use own observed addresses as soon as a single relay reports it.
+		// Since there are probably no other directly connected peers to do so.
+		identify.ActivationThresh = 1
+	})
+
 	addrs, err := cfg.Multiaddrs()
 	if err != nil {
 		return nil, err
@@ -40,10 +49,6 @@ func NewTCPNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater C
 	if len(addrs) == 0 {
 		log.Info(ctx, "LibP2P not accepting incoming connections since --p2p-tcp-addresses empty")
 	}
-
-	// Use own observed addresses as soon as a single relay reports it.
-	// Since there are probably no other directly connected peers to do so.
-	identify.ActivationThresh = 1
 
 	externalAddrs, err := externalMultiAddrs(cfg)
 	if err != nil {
