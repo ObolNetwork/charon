@@ -684,12 +684,10 @@ func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) 
 // logPeerSummary logs peer summary with peer names and their ethereum addresses.
 func logPeerSummary(ctx context.Context, currentPeer peer.ID, peers []p2p.Peer, operators []cluster.Operator) {
 	for i, p := range peers {
+		opts := []z.Field{z.Str("peer", p.Name), z.Str("address", operators[i].Address), z.Int("index", p.Index)}
 		if p.ID == currentPeer {
-			log.Info(ctx, "Peer summary", z.Str("peer", p.Name), z.Str("address", operators[i].Address),
-				z.Int("index", p.Index), z.Str("you", "⭐️"))
-		} else {
-			log.Info(ctx, "Peer summary", z.Str("peer", p.Name), z.Str("address", operators[i].Address),
-				z.Int("index", p.Index))
+			opts = append(opts, z.Str("you", "⭐️"))
 		}
+		log.Info(ctx, "Peer summary", opts...)
 	}
 }
