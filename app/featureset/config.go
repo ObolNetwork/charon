@@ -87,6 +87,9 @@ func Init(ctx context.Context, config Config) error {
 func EnableForT(t *testing.T, feature Feature) {
 	t.Helper()
 
+	initMu.Lock()
+	defer initMu.Unlock()
+
 	cache := state[feature]
 	t.Cleanup(func() {
 		state[feature] = cache
@@ -98,6 +101,9 @@ func EnableForT(t *testing.T, feature Feature) {
 // DisableForT disables a feature for testing.
 func DisableForT(t *testing.T, feature Feature) {
 	t.Helper()
+
+	initMu.Lock()
+	defer initMu.Unlock()
 
 	cache := state[feature]
 	t.Cleanup(func() {
