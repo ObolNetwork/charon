@@ -327,10 +327,14 @@ func TestInfoSync(t *testing.T) {
 		N:        n,
 	}
 
+	var tcpNodesLock sync.Mutex
 	var tcpNodes []host.Host
 
 	// Hard code peer addresses and protocols
 	tcpNodeCallback := func(tcpNode host.Host) {
+		tcpNodesLock.Lock()
+		defer tcpNodesLock.Unlock()
+
 		for _, other := range tcpNodes {
 			other.Peerstore().AddAddrs(tcpNode.ID(), tcpNode.Addrs(), peerstore.PermanentAddrTTL)
 			err := other.Peerstore().AddProtocols(tcpNode.ID(), priority.Protocols()...)
