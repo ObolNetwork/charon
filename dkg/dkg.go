@@ -104,6 +104,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	log.Info(ctx, "Starting local P2P networking peer", z.Str("local_peer", p2p.PeerName(pID)))
 
+	logPeerSummary(ctx, pID, peers, def.Operators)
+
 	tcpNode, shutdown, err := setupP2P(ctx, key, conf.P2P, peers, clusterID)
 	if err != nil {
 		return err
@@ -677,4 +679,15 @@ func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) 
 	log.Debug(ctx, "Published lock file to api")
 
 	return nil
+}
+
+// logPeerSummary logs peer summary with peer names and their ethereum addresses.
+func logPeerSummary(ctx context.Context, currentPeer peer.ID, peers []p2p.Peer, operators []cluster.Operator) {
+	for i, p := range peers {
+		opts := []z.Field{z.Str("peer", p.Name), z.Str("address", operators[i].Address), z.Int("index", p.Index)}
+		if p.ID == currentPeer {
+			opts = append(opts, z.Str("you", "⭐️"))
+		}
+		log.Info(ctx, "Peer summary", opts...)
+	}
 }
