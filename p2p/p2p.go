@@ -19,6 +19,7 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/protocol/identify"
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	ma "github.com/multiformats/go-multiaddr"
+	manet "github.com/multiformats/go-multiaddr/net"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/lifecycle"
@@ -28,7 +29,8 @@ import (
 )
 
 // NewTCPNode returns a started tcp-based libp2p host.
-func NewTCPNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater ConnGater, opts ...libp2p.Option,
+func NewTCPNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater ConnGater,
+	filterPrivateAddrs bool, opts ...libp2p.Option,
 ) (host.Host, error) {
 	addrs, err := cfg.Multiaddrs()
 	if err != nil {
@@ -65,8 +67,8 @@ func NewTCPNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater C
 		libp2p.ConnectionGater(connGater),
 		// Enable Autonat (required for hole punching)
 		libp2p.EnableNATService(),
-		libp2p.AddrsFactory(func(addrs []ma.Multiaddr) []ma.Multiaddr {
-			return append(addrs, externalAddrs...)
+		libp2p.AddrsFactory(func(internalAddrs []ma.Multiaddr) []ma.Multiaddr {
+			return filterAdvertisedAddrs(externalAddrs, internalAddrs, filterPrivateAddrs)
 		}),
 		libp2p.Transport(tcp.NewTCPTransport, tcpOpts...),
 	}
@@ -79,6 +81,33 @@ func NewTCPNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater C
 	}
 
 	return tcpNode, nil
+}
+
+// filterAdvertisedAddrs returns a unique set of external and internal addresses optionally excluding internal private addresses.
+func filterAdvertisedAddrs(externalAddrs, internalAddrs []ma.Multiaddr, excludeInternalPrivate bool) []ma.Multiaddr {
+	var (
+		resp  []ma.Multiaddr
+		dedup = make(map[string]bool)
+	)
+	add := func(addrs []ma.Multiaddr, excludePrivate bool) {
+		for _, addr := range addrs {
+			addrStr := addr.String()
+			if dedup[addrStr] {
+				continue
+			}
+			dedup[addrStr] = true
+
+			if excludePrivate && manet.IsPrivateAddr(addr) {
+				continue
+			}
+			resp = append(resp, addr)
+		}
+	}
+
+	add(externalAddrs, false)
+	add(internalAddrs, excludeInternalPrivate)
+
+	return resp
 }
 
 // externalMultiAddrs returns the external IP and Hostname fields as multiaddrs using the listen TCP address ports.

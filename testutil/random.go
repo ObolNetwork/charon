@@ -5,7 +5,6 @@ package testutil
 
 import (
 	"crypto/ecdsa"
-	crand "crypto/rand"
 	"fmt"
 	"math/rand"
 	"net"
@@ -792,13 +791,22 @@ func AvailableMultiAddr(t *testing.T) multiaddr.Multiaddr {
 
 func CreateHost(t *testing.T, addr *net.TCPAddr, opts ...libp2p.Option) host.Host {
 	t.Helper()
-	pkey, _, err := p2pcrypto.GenerateSecp256k1Key(crand.Reader)
+	pkey, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
+
+	return CreateHostWithIdentity(t, addr, pkey, opts...)
+}
+
+func CreateHostWithIdentity(t *testing.T, addr *net.TCPAddr, secret *k1.PrivateKey, opts ...libp2p.Option) host.Host {
+	t.Helper()
 
 	addrs, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", addr.IP, addr.Port))
 	require.NoError(t, err)
 
-	opts2 := []libp2p.Option{libp2p.Identity(pkey), libp2p.ListenAddrs(addrs)}
+	opts2 := []libp2p.Option{
+		libp2p.Identity((*p2pcrypto.Secp256k1PrivateKey)(secret)),
+		libp2p.ListenAddrs(addrs),
+	}
 	opts2 = append(opts2, opts...)
 
 	h, err := libp2p.New(opts2...)

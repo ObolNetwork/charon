@@ -123,15 +123,15 @@ func Run(ctx context.Context, conf Config) (err error) {
 	ex := newExchanger(tcpNode, nodeIdx.PeerIdx, peerIds, def.NumValidators)
 
 	// Register Frost libp2p handlers
-	peerMap := make(map[uint32]peer.ID)
+	peerMap := make(map[peer.ID]cluster.NodeIdx)
 	for _, p := range peers {
 		nodeIdx, err := def.NodeIdx(p.ID)
 		if err != nil {
 			return err
 		}
-		peerMap[uint32(nodeIdx.ShareIdx)] = p.ID
+		peerMap[p.ID] = nodeIdx
 	}
-	tp := newFrostP2P(ctx, tcpNode, peerMap, clusterID)
+	tp := newFrostP2P(tcpNode, peerMap, key)
 
 	log.Info(ctx, "Waiting to connect to all peers...")
 
@@ -249,7 +249,7 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, p2pConf p2p.Config, peers
 		return nil, nil, err
 	}
 
-	tcpNode, err := p2p.NewTCPNode(ctx, p2pConf, key, connGater)
+	tcpNode, err := p2p.NewTCPNode(ctx, p2pConf, key, connGater, false)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -265,7 +265,7 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, p2pConf p2p.Config, peers
 		}(relay)
 	}
 
-	go p2p.NewRelayRouter(tcpNode, peers, relays)(ctx)
+	go p2p.NewRelayRouter(tcpNode, peerIDs, relays)(ctx)
 
 	return tcpNode, func() {
 		_ = tcpNode.Close()
@@ -274,17 +274,24 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, p2pConf p2p.Config, peers
 
 // startSyncProtocol sets up a sync protocol server and clients for each peer and returns a shutdown function
 // when all peers are connected.
-func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKey, defHash []byte, peerIDs []peer.ID,
-	onFailure func(), testCallback func(connected int, id peer.ID),
+func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKey, defHash []byte,
+	peerIDs []peer.ID, onFailure func(), testCallback func(connected int, id peer.ID),
 ) (func(context.Context) error, error) {
 	// Sign definition hash with charon-enr-private-key
 	// Note: libp2p signing does another hash of the defHash.
+
 	hashSig, err := ((*libp2pcrypto.Secp256k1PrivateKey)(key)).Sign(defHash)
 	if err != nil {
 		return nil, errors.Wrap(err, "sign definition hash")
 	}
 
-	server := sync.NewServer(tcpNode, len(peerIDs)-1, defHash)
+	// DKG compatibility is minor version dependent.
+	minorVersion, err := version.Minor(version.Version)
+	if err != nil {
+		return nil, errors.Wrap(err, "get version")
+	}
+
+	server := sync.NewServer(tcpNode, len(peerIDs)-1, defHash, minorVersion)
 	server.Start(ctx)
 
 	var clients []*sync.Client
@@ -294,7 +301,7 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 		}
 
 		ctx := log.WithCtx(ctx, z.Str("peer", p2p.PeerName(pID)))
-		client := sync.NewClient(tcpNode, pID, hashSig)
+		client := sync.NewClient(tcpNode, pID, hashSig, minorVersion)
 		clients = append(clients, client)
 
 		go func() {
@@ -578,9 +585,9 @@ func aggDepositData(data map[core.PubKey][]core.ParSignedData, shares []share,
 
 			pubshares, ok := pubkeyToPubShares[pk]
 			if !ok {
-				// peerIdx is 0-indexed while shareIdx is 1-indexed
 				return nil, errors.New("invalid pubkey in deposit data partial signature from peer",
-					z.Int("peerIdx", s.ShareIdx-1), z.Str("pubkey", pk.String()))
+					z.Int("peerIdx", s.ShareIdx-1), // peerIdx is 0-indexed while shareIdx is 1-indexed
+					z.Str("pubkey", pk.String()))
 			}
 
 			pubshare, ok := pubshares[s.ShareIdx]

@@ -23,6 +23,7 @@ func TestLockPublish(t *testing.T) {
 	t.Run("2xx response", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			require.Equal(t, r.URL.Path, "/lock")
+			require.Equal(t, r.Header.Get("Content-Type"), "application/json")
 
 			data, err := io.ReadAll(r.Body)
 			require.NoError(t, err)

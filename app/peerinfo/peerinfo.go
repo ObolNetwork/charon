@@ -22,13 +22,16 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-const period = time.Minute
+const (
+	period = time.Minute
 
-var protocolID protocol.ID = "/charon/peerinfo/1.0.0"
+	protocolID1 protocol.ID = "/charon/peerinfo/1.0.0"
+	protocolID2 protocol.ID = "/charon/peerinfo/2.0.0"
+)
 
 // Protocols returns the supported protocols of this package in order of precedence.
 func Protocols() []protocol.ID {
-	return []protocol.ID{protocolID}
+	return []protocol.ID{protocolID2, protocolID1}
 }
 
 type (
@@ -77,7 +80,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version string, lockHash []
 	startTime := timestamppb.New(nowFunc())
 
 	// Register a simple handler that returns our info and ignores the request.
-	registerHandler("peerinfo", tcpNode, protocolID,
+	registerHandler("peerinfo", tcpNode, protocolID1,
 		func() proto.Message { return new(pbv1.PeerInfo) },
 		func(context.Context, peer.ID, proto.Message) (proto.Message, bool, error) {
 			return &pbv1.PeerInfo{
@@ -88,44 +91,41 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version string, lockHash []
 				StartedAt:     startTime,
 			}, true, nil
 		},
+		p2p.WithDelimitedProtocol(protocolID2),
 	)
 
 	// Create log filters
-	noSupportFilters := make(map[peer.ID]z.Field)
 	lockHashFilters := make(map[peer.ID]z.Field)
 	for _, peerID := range peers {
-		noSupportFilters[peerID] = log.Filter()
 		lockHashFilters[peerID] = log.Filter()
 	}
 
 	return &PeerInfo{
-		sendFunc:         sendFunc,
-		tcpNode:          tcpNode,
-		peers:            peers,
-		version:          version,
-		lockHash:         lockHash,
-		startTime:        startTime,
-		metricSubmitter:  metricSubmitter,
-		tickerProvider:   tickerProvider,
-		nowFunc:          nowFunc,
-		noSupportFilters: noSupportFilters,
-		lockHashFilters:  lockHashFilters,
+		sendFunc:        sendFunc,
+		tcpNode:         tcpNode,
+		peers:           peers,
+		version:         version,
+		lockHash:        lockHash,
+		startTime:       startTime,
+		metricSubmitter: metricSubmitter,
+		tickerProvider:  tickerProvider,
+		nowFunc:         nowFunc,
+		lockHashFilters: lockHashFilters,
 	}
 }
 
 type PeerInfo struct {
-	sendFunc         p2p.SendReceiveFunc
-	tcpNode          host.Host
-	peers            []peer.ID
-	version          string
-	lockHash         []byte
-	gitHash          string
-	startTime        *timestamppb.Timestamp
-	tickerProvider   tickerProvider
-	metricSubmitter  metricSubmitter
-	nowFunc          func() time.Time
-	noSupportFilters map[peer.ID]z.Field
-	lockHashFilters  map[peer.ID]z.Field
+	sendFunc        p2p.SendReceiveFunc
+	tcpNode         host.Host
+	peers           []peer.ID
+	version         string
+	lockHash        []byte
+	gitHash         string
+	startTime       *timestamppb.Timestamp
+	tickerProvider  tickerProvider
+	metricSubmitter metricSubmitter
+	nowFunc         func() time.Time
+	lockHashFilters map[peer.ID]z.Field
 }
 
 // Run runs the peer info protocol until the context is cancelled.
@@ -152,19 +152,6 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			continue // Do not send to self.
 		}
 
-		supported, known := p2p.ProtocolSupported(p.tcpNode, peerID, protocolID)
-		if !known {
-			// Ignore peer until some protocols detected
-			continue
-		} else if !supported {
-			log.Warn(ctx, "Non-critical peerinfo protocol not supported by peer", nil,
-				z.Str("peer", p2p.PeerName(peerID)),
-				p.noSupportFilters[peerID],
-			)
-
-			continue
-		}
-
 		req := &pbv1.PeerInfo{
 			CharonVersion: p.version,
 			LockHash:      p.lockHash,
@@ -180,7 +167,8 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			}
 
 			resp := new(pbv1.PeerInfo)
-			err := p.sendFunc(ctx, p.tcpNode, peerID, req, resp, protocolID, p2p.WithSendReceiveRTT(rttCallback))
+			err := p.sendFunc(ctx, p.tcpNode, peerID, req, resp, protocolID1,
+				p2p.WithSendReceiveRTT(rttCallback), p2p.WithDelimitedProtocol(protocolID2))
 			if err != nil {
 				return // Logging handled by send func.
 			}

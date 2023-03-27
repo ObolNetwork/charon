@@ -30,12 +30,13 @@ const (
 	recvBuffer    = 100 // Allow buffering some initial messages when this node is late to start an instance.
 	roundStart    = time.Millisecond * 750
 	roundIncrease = time.Millisecond * 250
-	protocolID    = "/charon/consensus/qbft/1.0.0"
+	protocolID1   = "/charon/consensus/qbft/1.0.0"
+	protocolID2   = "/charon/consensus/qbft/2.0.0"
 )
 
 // Protocols returns the supported protocols of this package in order of precedence.
 func Protocols() []protocol.ID {
-	return []protocol.ID{protocolID}
+	return []protocol.ID{protocolID2, protocolID1}
 }
 
 type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) error
@@ -125,7 +126,7 @@ func newDefinition(nodes int, subs func() []subscriber) qbft.Definition[core.Dut
 
 // New returns a new consensus QBFT component.
 func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey,
-	deadliner core.Deadliner, snifferFunc func(*pbv1.SniffedConsensusInstance), legacyProbability float64,
+	deadliner core.Deadliner, snifferFunc func(*pbv1.SniffedConsensusInstance),
 ) (*Component, error) {
 	// Extract peer pubkeys.
 	keys := make(map[int64]*k1.PublicKey)
@@ -142,17 +143,16 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.Pri
 	}
 
 	c := &Component{
-		tcpNode:           tcpNode,
-		sender:            sender,
-		peers:             peers,
-		peerLabels:        labels,
-		privkey:           p2pKey,
-		pubkeys:           keys,
-		deadliner:         deadliner,
-		recvBuffers:       make(map[core.Duty]chan msg),
-		snifferFunc:       snifferFunc,
-		dropFilter:        log.Filter(),
-		legacyProbability: legacyProbability,
+		tcpNode:     tcpNode,
+		sender:      sender,
+		peers:       peers,
+		peerLabels:  labels,
+		privkey:     p2pKey,
+		pubkeys:     keys,
+		deadliner:   deadliner,
+		recvBuffers: make(map[core.Duty]chan msg),
+		snifferFunc: snifferFunc,
+		dropFilter:  log.Filter(),
 	}
 
 	c.def = newDefinition(len(peers), c.subscribers)
@@ -163,18 +163,17 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.Pri
 // Component implements core.Consensus.
 type Component struct {
 	// Immutable state
-	tcpNode           host.Host
-	sender            *p2p.Sender
-	peerLabels        []string
-	peers             []p2p.Peer
-	pubkeys           map[int64]*k1.PublicKey
-	privkey           *k1.PrivateKey
-	def               qbft.Definition[core.Duty, [32]byte]
-	subs              []subscriber
-	deadliner         core.Deadliner
-	snifferFunc       func(*pbv1.SniffedConsensusInstance)
-	dropFilter        z.Field // Filter buffer overflow errors (possible DDoS)
-	legacyProbability float64 // Probability of using legacy duplicated values inside QBFTMsg vs new pointer values.
+	tcpNode     host.Host
+	sender      *p2p.Sender
+	peerLabels  []string
+	peers       []p2p.Peer
+	pubkeys     map[int64]*k1.PublicKey
+	privkey     *k1.PrivateKey
+	def         qbft.Definition[core.Duty, [32]byte]
+	subs        []subscriber
+	deadliner   core.Deadliner
+	snifferFunc func(*pbv1.SniffedConsensusInstance)
+	dropFilter  z.Field // Filter buffer overflow errors (possible DDoS)
 
 	// Mutable state
 	recvMu      sync.Mutex
@@ -219,9 +218,9 @@ func (c *Component) SubscribePriority(fn func(ctx context.Context, duty core.Dut
 
 // Start registers the libp2p receive handler and starts a goroutine that cleans state. This should only be called once.
 func (c *Component) Start(ctx context.Context) {
-	p2p.RegisterHandler("qbft", c.tcpNode, protocolID,
+	p2p.RegisterHandler("qbft", c.tcpNode, protocolID1,
 		func() proto.Message { return new(pbv1.ConsensusMsg) },
-		c.handle)
+		c.handle, p2p.WithDelimitedProtocol(protocolID2))
 
 	go func() {
 		for {

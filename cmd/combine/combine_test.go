@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/combine"
+	"github.com/obolnetwork/charon/cmd/combine"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 )
@@ -25,7 +25,8 @@ func TestMain(m *testing.M) {
 
 func TestCombineNoLockfile(t *testing.T) {
 	td := t.TempDir()
-	err := combine.Combine(context.Background(), td, false)
+	od := t.TempDir()
+	err := combine.Combine(context.Background(), td, od, false)
 	require.ErrorContains(t, err, "lock file not found")
 }
 
@@ -43,6 +44,7 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 	}
 
 	dir := t.TempDir()
+	od := t.TempDir()
 
 	// flatten secrets, each validator slice is unpacked in a flat structure
 	var rawSecrets []tblsv2.PrivateKey
@@ -80,7 +82,7 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 
 	require.NoError(t, os.RemoveAll(filepath.Join(dir, "node0")))
 
-	err := combine.Combine(context.Background(), dir, false)
+	err := combine.Combine(context.Background(), dir, od, false)
 	require.Error(t, err)
 }
 
@@ -117,6 +119,7 @@ func TestCombine(t *testing.T) {
 	}
 
 	dir := t.TempDir()
+	od := t.TempDir()
 
 	// flatten secrets, each validator slice is unpacked in a flat structure
 	var rawSecrets []tblsv2.PrivateKey
@@ -152,14 +155,26 @@ func TestCombine(t *testing.T) {
 		require.NoError(t, json.NewEncoder(lf).Encode(lock))
 	}
 
-	err := combine.Combine(context.Background(), dir, true)
+	err := combine.Combine(context.Background(), dir, od, true)
 	require.NoError(t, err)
 
-	for _, exp := range expectedData {
-		keys, err := keystore.LoadKeys(filepath.Join(dir, exp.pubkey, "validator_keys"))
+	keys, err := keystore.LoadKeys(od)
+	require.NoError(t, err)
+
+	keysMap := make(map[string]string)
+	for _, key := range keys {
+		pk, err := tblsv2.SecretToPublicKey(key)
 		require.NoError(t, err)
-		require.Equal(t, exp.secret, fmt.Sprintf("%#x", keys[0]))
+
+		keysMap[fmt.Sprintf("%#x", pk)] = fmt.Sprintf("%#x", key)
 	}
+
+	for _, exp := range expectedData {
+		require.Contains(t, keysMap, exp.pubkey)
+		require.Equal(t, exp.secret, keysMap[exp.pubkey])
+	}
+
+	require.Len(t, keysMap, len(expectedData))
 }
 
 func TestCombineTwiceWithoutForceFails(t *testing.T) {
@@ -195,6 +210,7 @@ func TestCombineTwiceWithoutForceFails(t *testing.T) {
 	}
 
 	dir := t.TempDir()
+	od := t.TempDir()
 
 	// flatten secrets, each validator slice is unpacked in a flat structure
 	var rawSecrets []tblsv2.PrivateKey
@@ -230,15 +246,27 @@ func TestCombineTwiceWithoutForceFails(t *testing.T) {
 		require.NoError(t, json.NewEncoder(lf).Encode(lock))
 	}
 
-	err := combine.Combine(context.Background(), dir, false)
+	err := combine.Combine(context.Background(), dir, od, false)
 	require.NoError(t, err)
 
-	err = combine.Combine(context.Background(), dir, false)
+	err = combine.Combine(context.Background(), dir, od, false)
 	require.Error(t, err)
 
-	for _, exp := range expectedData {
-		keys, err := keystore.LoadKeys(filepath.Join(dir, exp.pubkey, "validator_keys"))
+	keys, err := keystore.LoadKeys(od)
+	require.NoError(t, err)
+
+	keysMap := make(map[string]string)
+	for _, key := range keys {
+		pk, err := tblsv2.SecretToPublicKey(key)
 		require.NoError(t, err)
-		require.Equal(t, exp.secret, fmt.Sprintf("%#x", keys[0]))
+
+		keysMap[fmt.Sprintf("%#x", pk)] = fmt.Sprintf("%#x", key)
 	}
+
+	for _, exp := range expectedData {
+		require.Contains(t, keysMap, exp.pubkey)
+		require.Equal(t, exp.secret, keysMap[exp.pubkey])
+	}
+
+	require.Len(t, keysMap, len(expectedData))
 }

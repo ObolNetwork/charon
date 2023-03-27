@@ -8,12 +8,13 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/obolnetwork/charon/combine"
+	"github.com/obolnetwork/charon/cmd/combine"
 )
 
-func newCombineCmd(runFunc func(ctx context.Context, clusterDir string, force bool) error) *cobra.Command {
+func newCombineCmd(runFunc func(ctx context.Context, clusterDir, outputDir string, force bool) error) *cobra.Command {
 	var (
 		clusterDir string
+		outputDir  string
 		force      bool
 	)
 
@@ -23,24 +24,26 @@ func newCombineCmd(runFunc func(ctx context.Context, clusterDir string, force bo
 		Long:  "Combines the private key shares from a threshold of operators in a distributed validator cluster into a set of validator private keys that can be imported into a standard Ethereum validator client.\n\nWarning: running the resulting private keys in a validator alongside the original distributed validator cluster *will* result in slashing.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runFunc(cmd.Context(), clusterDir, force)
+			return runFunc(cmd.Context(), clusterDir, outputDir, force)
 		},
 	}
 
 	bindCombineFlags(
 		cmd.Flags(),
 		&clusterDir,
+		&outputDir,
 		&force,
 	)
 
 	return cmd
 }
 
-func newCombineFunc(ctx context.Context, clusterDir string, force bool) error {
-	return combine.Combine(ctx, clusterDir, force)
+func newCombineFunc(ctx context.Context, clusterDir, outputDir string, force bool) error {
+	return combine.Combine(ctx, clusterDir, outputDir, force)
 }
 
-func bindCombineFlags(flags *pflag.FlagSet, clusterDir *string, force *bool) {
-	flags.StringVar(clusterDir, "cluster-dir", ".charon/", `Parent directory containing a number of .charon subdirectories from each node in the cluster.`)
+func bindCombineFlags(flags *pflag.FlagSet, clusterDir, outputDir *string, force *bool) {
+	flags.StringVar(clusterDir, "cluster-dir", ".charon/cluster", `Parent directory containing a number of .charon subdirectories from the required threshold of nodes in the cluster.`)
+	flags.StringVar(outputDir, "output-dir", "./validator_keys", "Directory to output the combined private keys to.")
 	flags.BoolVar(force, "force", false, "Overwrites private keys with the same name if present.")
 }

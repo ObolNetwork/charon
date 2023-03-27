@@ -109,8 +109,6 @@ type TestConfig struct {
 	TCPNodeCallback func(host.Host)
 	// LibP2POpts provide test specific libp2p options.
 	LibP2POpts []libp2p.Option
-	// LegacyQBFTProbability defines the probability of a legacy QBFT wire messages (useful for backwards compatibility testing).
-	LegacyQBFTProbability float64
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -270,11 +268,6 @@ func wirePeerInfo(life *lifecycle.Manager, tcpNode host.Host, peers []peer.ID, l
 func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 	lock cluster.Lock, p2pKey *k1.PrivateKey, lockHashHex string,
 ) (host.Host, error) {
-	peers, err := lock.Peers()
-	if err != nil {
-		return nil, err
-	}
-
 	peerIDs, err := lock.PeerIDs()
 	if err != nil {
 		return nil, err
@@ -291,7 +284,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	// Start libp2p TCP node.
-	tcpNode, err := p2p.NewTCPNode(ctx, conf.P2P, p2pKey, connGater, conf.TestConfig.LibP2POpts...)
+	tcpNode, err := p2p.NewTCPNode(ctx, conf.P2P, p2pKey, connGater, false, conf.TestConfig.LibP2POpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -310,7 +303,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PPing, p2p.NewPingService(tcpNode, peerIDs, conf.TestConfig.TestPingConfig))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PEventCollector, p2p.NewEventCollector(tcpNode))
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PRouters, p2p.NewRelayRouter(tcpNode, peers, relays))
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PRouters, p2p.NewRelayRouter(tcpNode, peerIDs, relays))
 
 	return tcpNode, nil
 }
@@ -712,7 +705,7 @@ func newConsensus(conf Config, lock cluster.Lock, tcpNode host.Host, p2pKey *k1.
 	}
 
 	if featureset.Enabled(featureset.QBFTConsensus) {
-		comp, err := consensus.New(tcpNode, sender, peers, p2pKey, deadliner, qbftSniffer, conf.TestConfig.LegacyQBFTProbability)
+		comp, err := consensus.New(tcpNode, sender, peers, p2pKey, deadliner, qbftSniffer)
 		if err != nil {
 			return nil, nil, err
 		}

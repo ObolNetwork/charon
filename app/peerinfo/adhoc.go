@@ -17,18 +17,14 @@ import (
 // or false if the peer doesn't support the protocol,
 // or an error.
 func DoOnce(ctx context.Context, tcpNode host.Host, peerID peer.ID) (*pbv1.PeerInfo, time.Duration, bool, error) {
-	supported, known := p2p.ProtocolSupported(tcpNode, peerID, protocolID)
-	if !known || !supported {
-		return nil, 0, false, nil
-	}
-
 	var rtt time.Duration
 	rttCallback := func(d time.Duration) {
 		rtt = d
 	}
 
 	resp := new(pbv1.PeerInfo)
-	err := p2p.SendReceive(ctx, tcpNode, peerID, &pbv1.PeerInfo{}, resp, protocolID, p2p.WithSendReceiveRTT(rttCallback))
+	err := p2p.SendReceive(ctx, tcpNode, peerID, &pbv1.PeerInfo{}, resp, protocolID1,
+		p2p.WithSendReceiveRTT(rttCallback), p2p.WithDelimitedProtocol(protocolID2))
 	if err != nil {
 		return nil, 0, false, err
 	}

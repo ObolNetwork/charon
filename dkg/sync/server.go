@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -25,30 +26,36 @@ import (
 )
 
 const (
-	protocolID    = "/charon/dkg/sync/1.0.0/"
-	errInvalidSig = "invalid signature"
+	protocolID        = "/charon/dkg/sync/1.0.0/"
+	errInvalidSig     = "invalid signature"
+	errInvalidVersion = "invalid version"
 )
 
 // NewServer returns a new Server instance.
-func NewServer(tcpNode host.Host, allCount int, defHash []byte) *Server {
+func NewServer(tcpNode host.Host, allCount int, defHash []byte, version string) *Server {
 	return &Server{
 		defHash:   defHash,
 		tcpNode:   tcpNode,
 		allCount:  allCount,
 		shutdown:  make(map[peer.ID]struct{}),
 		connected: make(map[peer.ID]struct{}),
+		version:   version,
 	}
 }
 
 // Server implements the server side of the sync protocol. It accepts connections from clients, verifies
 // definition hash signatures, and supports waiting for shutdown by all clients.
 type Server struct {
+	// Immutable state
+	tcpNode  host.Host
+	defHash  []byte
+	version  string
+	allCount int // Excluding self
+
+	// Mutable state
 	mu          sync.Mutex
 	shutdown    map[peer.ID]struct{}
 	connected   map[peer.ID]struct{}
-	defHash     []byte
-	allCount    int // Excluding self
-	tcpNode     host.Host
 	errResponse bool // To return error and exit anywhere in the server flow
 }
 
@@ -71,6 +78,14 @@ func (s *Server) AwaitAllConnected(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+// setError sets the shared error state for the server.
+func (s *Server) setError() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.errResponse = true
 }
 
 // isError checks if there was any error in between the server flow.
@@ -179,20 +194,13 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 			SyncTimestamp: msg.Timestamp,
 		}
 
-		// Verify definition hash
-		// Note: libp2p verify does another hash of defHash.
-		ok, err := pubkey.Verify(s.defHash, msg.HashSignature)
+		var ok bool
+		resp.Error, ok, err = s.validReq(ctx, pubkey, msg)
 		if err != nil {
-			return errors.Wrap(err, "verify sig hash")
+			return err
 		} else if !ok {
-			resp.Error = errInvalidSig
-
-			s.mu.Lock()
-			s.errResponse = true
-			s.mu.Unlock()
-
-			log.Error(ctx, "Received mismatching cluster definition hash from peer", nil)
-		} else if ok && !s.isConnected(pID) {
+			s.setError()
+		} else if !s.isConnected(pID) {
 			count := s.setConnected(pID)
 			log.Info(ctx, fmt.Sprintf("Connected to peer %d of %d", count, s.allCount))
 		}
@@ -207,6 +215,29 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 			return nil
 		}
 	}
+}
+
+// validReq returns an error message and false if the request version or definition hash are invalid.
+// Else it returns true or an error.
+func (s *Server) validReq(ctx context.Context, pubkey crypto.PubKey, msg *pb.MsgSync) (string, bool, error) {
+	if msg.Version != s.version {
+		log.Error(ctx, "Received mismatching charon version from peer", nil,
+			z.Str("expect", s.version),
+			z.Str("got", msg.Version),
+		)
+
+		return errInvalidVersion, false, nil
+	}
+
+	ok, err := pubkey.Verify(s.defHash, msg.HashSignature)
+	if err != nil { // Note: libp2p verify does another hash of defHash.
+		return "", false, errors.Wrap(err, "verify sig hash")
+	} else if !ok {
+		log.Error(ctx, "Received mismatching cluster definition hash from peer", nil)
+		return errInvalidSig, false, nil
+	}
+
+	return "", true, nil
 }
 
 // Start registers sync protocol with the libp2p host.

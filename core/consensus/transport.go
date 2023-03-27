@@ -4,7 +4,6 @@ package consensus
 
 import (
 	"context"
-	"crypto/rand"
 	"sync"
 	"time"
 
@@ -17,6 +16,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/core/qbft"
+	"github.com/obolnetwork/charon/p2p"
 )
 
 // transport encapsulates receiving and broadcasting for a consensus instance/duty.
@@ -54,45 +54,42 @@ func (t *transport) getValue(hash [32]byte) (*anypb.Any, error) {
 	return pb, nil
 }
 
-// usePointerValues returns true if the transport should use pointer values in the message instead of the legacy
-// duplicated values in QBFTMsg.
-func (t *transport) usePointerValues() bool {
-	// Equivalent to math/rand.Float64() just with less precision.
-	b := make([]byte, 1)
-	_, _ = rand.Read(b)
-	f := float64(b[0]) / 255
-
-	return f >= t.component.legacyProbability
-}
-
 // Broadcast creates a msg and sends it to all peers (including self).
 func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.Duty,
 	peerIdx int64, round int64, valueHash [32]byte, pr int64, pvHash [32]byte,
 	justification []qbft.Msg[core.Duty, [32]byte],
 ) error {
-	// Get the values by their hashes if not zero.
-	var (
-		value *anypb.Any
-		pv    *anypb.Any
-		err   error
-	)
-
-	if valueHash != [32]byte{} {
-		value, err = t.getValue(valueHash)
-		if err != nil {
-			return err
+	// Get all hashes
+	var hashes [][32]byte
+	hashes = append(hashes, valueHash)
+	hashes = append(hashes, pvHash)
+	for _, just := range justification {
+		msg, ok := just.(msg)
+		if !ok {
+			return errors.New("invalid justification message")
 		}
+		hashes = append(hashes, msg.valueHash)
+		hashes = append(hashes, msg.preparedValueHash)
 	}
 
-	if pvHash != [32]byte{} {
-		pv, err = t.getValue(pvHash)
+	// Get values by their hashes if not zero.
+	values := make(map[[32]byte]*anypb.Any)
+	for _, hash := range hashes {
+		if hash == [32]byte{} || values[hash] != nil {
+			continue
+		}
+
+		value, err := t.getValue(hash)
 		if err != nil {
 			return err
 		}
+
+		values[hash] = value
 	}
 
 	// Make the message
-	msg, err := createMsg(typ, duty, peerIdx, round, valueHash, value, pr, pvHash, pv, justification, t.component.privkey, t.usePointerValues())
+	msg, err := createMsg(typ, duty, peerIdx, round, valueHash, pr,
+		pvHash, values, justification, t.component.privkey)
 	if err != nil {
 		return err
 	}
@@ -112,7 +109,8 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 			continue
 		}
 
-		err = t.component.sender.SendAsync(ctx, t.component.tcpNode, protocolID, p.ID, msg.ToConsensusMsg())
+		err = t.component.sender.SendAsync(ctx, t.component.tcpNode, protocolID1, p.ID, msg.ToConsensusMsg(),
+			p2p.WithDelimitedProtocol(protocolID2))
 		if err != nil {
 			return err
 		}
@@ -150,37 +148,17 @@ func (t *transport) ProcessReceives(ctx context.Context, outerBuffer chan msg) {
 // createMsg returns a new message by converting the inputs into a protobuf
 // and wrapping that in a msg type.
 func createMsg(typ qbft.MsgType, duty core.Duty,
-	peerIdx int64, round int64,
-	vHash [32]byte, value *anypb.Any,
-	pr int64,
-	pvHash [32]byte, pv *anypb.Any,
-	justification []qbft.Msg[core.Duty, [32]byte], privkey *k1.PrivateKey,
-	pointerValues bool,
+	peerIdx int64, round int64, vHash [32]byte, pr int64, pvHash [32]byte,
+	values map[[32]byte]*anypb.Any, justification []qbft.Msg[core.Duty, [32]byte],
+	privkey *k1.PrivateKey,
 ) (msg, error) {
-	values := make(map[[32]byte]*anypb.Any)
-	if value != nil {
-		values[vHash] = value
-	}
-	if pv != nil {
-		values[pvHash] = pv
-	}
-
-	// Disable new pointer values, revert to legacy duplicated values.
-	if !pointerValues {
-		values = make(map[[32]byte]*anypb.Any)
-		vHash = [32]byte{}
-		pvHash = [32]byte{}
-	}
-
 	pbMsg := &pbv1.QBFTMsg{
 		Type:              int64(typ),
 		Duty:              core.DutyToProto(duty),
 		PeerIdx:           peerIdx,
 		Round:             round,
-		Value:             value,
 		ValueHash:         vHash[:],
 		PreparedRound:     pr,
-		PreparedValue:     pv,
 		PreparedValueHash: pvHash[:],
 	}
 
