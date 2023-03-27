@@ -28,7 +28,7 @@ type keycastP2P struct {
 // ServeShares serves the dealer shares to other nodes on request. It returns when the context is closed.
 func (t keycastP2P) ServeShares(ctx context.Context, handler func(nodeIdx int) (msg []byte, err error)) {
 	t.tcpNode.SetStreamHandler(getProtocol(t.clusterID), func(s network.Stream) {
-		ctx = log.WithCtx(ctx, z.Str("peer", p2p.PeerName(s.Conn().RemotePeer())))
+		ctx := log.WithCtx(ctx, z.Str("peer", p2p.PeerName(s.Conn().RemotePeer())))
 		defer s.Close()
 
 		var (
