@@ -219,7 +219,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	sender := new(p2p.Sender)
 
-	wirePeerInfo(life, tcpNode, peerIDs, lock.LockHash, sender)
+	err = wirePeerInfo(life, tcpNode, peerIDs, lock.LockHash, sender)
+	if err != nil {
+		return err
+	}
 
 	qbftDebug := newQBFTDebugger()
 
@@ -259,10 +262,19 @@ func Run(ctx context.Context, conf Config) (err error) {
 }
 
 // wirePeerInfo wires the peerinfo protocol.
-func wirePeerInfo(life *lifecycle.Manager, tcpNode host.Host, peers []peer.ID, lockHash []byte, sender *p2p.Sender) {
+func wirePeerInfo(life *lifecycle.Manager, tcpNode host.Host, peers []peer.ID,
+	lockHash []byte, sender *p2p.Sender,
+) error {
 	gitHash, _ := version.GitCommit()
-	peerInfo := peerinfo.New(tcpNode, peers, version.Version, lockHash, gitHash, sender.SendReceive)
+	peerInfo, err := peerinfo.New(tcpNode, peers, version.Version,
+		lockHash, gitHash, sender.SendReceive)
+	if err != nil {
+		return err
+	}
+
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPeerInfo, lifecycle.HookFuncCtx(peerInfo.Run))
+
+	return nil
 }
 
 // wireP2P constructs the p2p tcp (libp2p) and udp (discv5) nodes and registers it with the life cycle manager.
@@ -418,7 +430,10 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 			return err
 		}
 
-		parSigEx = parsigex.NewParSigEx(tcpNode, sender.SendAsync, nodeIdx.PeerIdx, peerIDs, verifyFunc)
+		parSigEx, err = parsigex.NewParSigEx(tcpNode, sender.SendAsync, nodeIdx.PeerIdx, peerIDs, verifyFunc)
+		if err != nil {
+			return err
+		}
 	}
 
 	sigAgg := sigagg.New(lock.Threshold)
@@ -728,7 +743,7 @@ func newConsensus(conf Config, lock cluster.Lock, tcpNode host.Host, p2pKey *k1.
 			return nil, nil, err
 		}
 
-		return comp, lifecycle.HookFuncCtx(comp.Start), nil
+		return comp, lifecycle.HookFunc(comp.Start), nil
 	}
 
 	var lcastTransport leadercast.Transport

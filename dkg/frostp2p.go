@@ -32,7 +32,7 @@ var (
 )
 
 // newFrostP2P returns a p2p frost transport implementation.
-func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k1.PrivateKey) *frostP2P {
+func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k1.PrivateKey) (*frostP2P, error) {
 	var (
 		round1CastsRecv = make(chan *pb.FrostRound1Casts, len(peers))
 		round1P2PRecv   = make(chan *pb.FrostRound1P2P, len(peers))
@@ -52,7 +52,7 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 	}
 
 	// Register reliable broadcast protocol handlers.
-	bcastFunc := bcast.New(tcpNode, peerSlice, secret, []string{round1CastID, round2CastID},
+	bcastFunc, err := bcast.New(tcpNode, peerSlice, secret, []string{round1CastID, round2CastID},
 		func(ctx context.Context, pID peer.ID, msgID string, m proto.Message) error {
 			switch msgID {
 			case round1CastID:
@@ -110,9 +110,12 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 			return nil
 		},
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	// Register round 1 p2p protocol handlers.
-	p2p.RegisterHandler("frost", tcpNode, round1P2PID,
+	err = p2p.RegisterHandler("frost", tcpNode, round1P2PID,
 		func() proto.Message { return new(pb.FrostRound1P2P) },
 		func(ctx context.Context, pID peer.ID, req proto.Message) (proto.Message, bool, error) {
 			mu.Lock()
@@ -143,6 +146,9 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 		},
 		p2p.WithDelimitedProtocol(round1P2PID),
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	return &frostP2P{
 		tcpNode:         tcpNode,
@@ -151,7 +157,7 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 		round1CastsRecv: round1CastsRecv,
 		round1P2PRecv:   round1P2PRecv,
 		round2CastsRecv: round2CastsRecv,
-	}
+	}, nil
 }
 
 // frostP2P implements frost transport.

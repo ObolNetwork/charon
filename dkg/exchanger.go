@@ -42,16 +42,21 @@ type exchanger struct {
 	numVals int
 }
 
-func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int) *exchanger {
+func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int) (*exchanger, error) {
 	// Partial signature roots not known yet, so skip verification in parsigex, rather verify before we aggregate.
 	noopVerifier := func(ctx context.Context, duty core.Duty, key core.PubKey, data core.ParSignedData) error {
 		return nil
 	}
 
+	sigex, err := parsigex.NewParSigEx(tcpNode, p2p.Send, peerIdx, peers, noopVerifier)
+	if err != nil {
+		return nil, err
+	}
+
 	ex := &exchanger{
 		// threshold is len(peers) to wait until we get all the partial sigs from all the peers per DV
 		sigdb:   parsigdb.NewMemDB(len(peers), noopDeadliner{}),
-		sigex:   parsigex.NewParSigEx(tcpNode, p2p.Send, peerIdx, peers, noopVerifier),
+		sigex:   sigex,
 		sigChan: make(chan sigData, vals), // Allow buffering all signature sets
 		numVals: vals,
 	}
@@ -61,7 +66,7 @@ func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int) *ex
 	ex.sigdb.SubscribeThreshold(ex.pushPsigs)
 	ex.sigex.Subscribe(ex.sigdb.StoreExternal)
 
-	return ex
+	return ex, nil
 }
 
 // exchange exhanges partial signatures of lockhash/deposit-data among dkg participants and returns all the partial

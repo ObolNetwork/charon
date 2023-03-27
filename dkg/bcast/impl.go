@@ -18,7 +18,7 @@ import (
 // New registers a new reliable-broadcast server and returns a reliable-broadcast client function.
 func New(tcpNode host.Host, peers []peer.ID, secret *k1.PrivateKey,
 	allowedMsgIDs []string, callback Callback,
-) BroadcastFunc {
+) (BroadcastFunc, error) {
 	allow := make(map[string]bool)
 	for _, msgID := range allowedMsgIDs {
 		allow[msgID] = true
@@ -27,10 +27,13 @@ func New(tcpNode host.Host, peers []peer.ID, secret *k1.PrivateKey,
 	signFunc := newK1Signer(secret, allow)
 	verifyFunc := newPeerK1Verifier(peers, allow)
 
-	_ = newServer(tcpNode, signFunc, verifyFunc, callback)
+	_, err := newServer(tcpNode, signFunc, verifyFunc, callback)
+	if err != nil {
+		return nil, err
+	}
 	cl := newClient(tcpNode, peers, p2p.SendReceive, p2p.Send, hashAny, signFunc, verifyFunc)
 
-	return cl.Broadcast
+	return cl.Broadcast, nil
 }
 
 // hashAny is a function that hashes a any-wrapped protobuf message.

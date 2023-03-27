@@ -30,7 +30,10 @@ func Protocols() []protocol.ID {
 	return []protocol.ID{protocolID2, protocolID1}
 }
 
-func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []peer.ID, verifyFunc func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error) *ParSigEx {
+func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int,
+	peers []peer.ID, verifyFunc func(context.Context, core.Duty,
+		core.PubKey, core.ParSignedData) error,
+) (*ParSigEx, error) {
 	parSigEx := &ParSigEx{
 		tcpNode:    tcpNode,
 		sendFunc:   sendFunc,
@@ -40,9 +43,12 @@ func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []
 	}
 
 	newReq := func() proto.Message { return new(pbv1.ParSigExMsg) }
-	p2p.RegisterHandler("parsigex", tcpNode, protocolID1, newReq, parSigEx.handle, p2p.WithDelimitedProtocol(protocolID2))
+	err := p2p.RegisterHandler("parsigex", tcpNode, protocolID1, newReq, parSigEx.handle, p2p.WithDelimitedProtocol(protocolID2))
+	if err != nil {
+		return nil, err
+	}
 
-	return parSigEx
+	return parSigEx, nil
 }
 
 // ParSigEx exchanges partially signed duty data sets.

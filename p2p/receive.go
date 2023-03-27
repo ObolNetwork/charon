@@ -7,10 +7,12 @@ import (
 	"net"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/libp2p/go-libp2p/p2p/host/eventbus"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -26,7 +28,7 @@ type HandlerFunc func(ctx context.Context, peerID peer.ID, req proto.Message) (p
 // that reads a single protobuf request and returns an optional response.
 type RegisterHandlerFunc func(logTopic string, tcpNode host.Host, protocol protocol.ID,
 	zeroReq func() proto.Message, handlerFunc HandlerFunc, opts ...SendRecvOption,
-)
+) error
 
 // Interface assertions.
 var _ RegisterHandlerFunc = RegisterHandler
@@ -38,7 +40,7 @@ var _ RegisterHandlerFunc = RegisterHandler
 // - The stream is always closed before returning.
 func RegisterHandler(logTopic string, tcpNode host.Host, pID protocol.ID,
 	zeroReq func() proto.Message, handlerFunc HandlerFunc, opts ...SendRecvOption,
-) {
+) error {
 	o := defaultSendRecvOpts(pID)
 	for _, opt := range opts {
 		opt(&o)
@@ -46,6 +48,18 @@ func RegisterHandler(logTopic string, tcpNode host.Host, pID protocol.ID,
 
 	matchProtocol := func(pID protocol.ID) bool {
 		return o.readersByProtocol[pID] != nil
+	}
+
+	// Register supported protocols explicitly, since `SetStreamHandlerMatch`
+	// only registers the protocol prefix.
+	emitter, err := tcpNode.EventBus().Emitter(&event.EvtLocalProtocolsUpdated{}, eventbus.Stateful)
+	if err != nil {
+		return errors.Wrap(err, "get event emitter")
+	}
+
+	err = emitter.Emit(event.EvtLocalProtocolsUpdated{Added: o.protocols})
+	if err != nil {
+		return errors.Wrap(err, "emit event")
 	}
 
 	tcpNode.SetStreamHandlerMatch(protocolPrefix(o.protocols...), matchProtocol, func(s network.Stream) {
@@ -103,4 +117,6 @@ func RegisterHandler(logTopic string, tcpNode host.Host, pID protocol.ID,
 			return
 		}
 	})
+
+	return nil
 }

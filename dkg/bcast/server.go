@@ -17,7 +17,7 @@ import (
 )
 
 // newServer creates a new reliable-broadcast server.
-func newServer(tcpNode host.Host, signFunc signFunc, verifyFunc verifyFunc, callback Callback) *server {
+func newServer(tcpNode host.Host, signFunc signFunc, verifyFunc verifyFunc, callback Callback) (*server, error) {
 	s := &server{
 		callback:   callback,
 		signFunc:   signFunc,
@@ -25,19 +25,25 @@ func newServer(tcpNode host.Host, signFunc signFunc, verifyFunc verifyFunc, call
 		dedup:      make(map[dedupKey][]byte),
 	}
 
-	p2p.RegisterHandler("bcast", tcpNode, protocolIDSig,
+	err := p2p.RegisterHandler("bcast", tcpNode, protocolIDSig,
 		func() proto.Message { return new(pb.BCastSigRequest) },
 		s.handleSigRequest,
 		p2p.WithDelimitedProtocol(protocolIDSig),
 	)
+	if err != nil {
+		return nil, err
+	}
 
-	p2p.RegisterHandler("bcast", tcpNode, protocolIDMsg,
+	err = p2p.RegisterHandler("bcast", tcpNode, protocolIDMsg,
 		func() proto.Message { return new(pb.BCastMessage) },
 		s.handleMessage,
 		p2p.WithDelimitedProtocol(protocolIDMsg),
 	)
+	if err != nil {
+		return nil, err
+	}
 
-	return s
+	return s, nil
 }
 
 // dedupKey ensures only a single hash is signed per peer and message ID.

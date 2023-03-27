@@ -13,6 +13,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -43,7 +44,7 @@ type (
 // New returns a new peer info protocol instance.
 func New(tcpNode host.Host, peers []peer.ID, version string, lockHash []byte, gitHash string,
 	sendFunc p2p.SendReceiveFunc,
-) *PeerInfo {
+) (*PeerInfo, error) {
 	// Set own version and git hash and start time metrics.
 	name := p2p.PeerName(tcpNode.ID())
 	peerVersion.WithLabelValues(name, version).Set(1)
@@ -64,23 +65,27 @@ func New(tcpNode host.Host, peers []peer.ID, version string, lockHash []byte, gi
 }
 
 // NewForT returns a new peer info protocol instance for testing only.
-func NewForT(_ *testing.T, tcpNode host.Host, peers []peer.ID, version string, lockHash []byte, gitHash string,
+func NewForT(t *testing.T, tcpNode host.Host, peers []peer.ID, version string, lockHash []byte, gitHash string,
 	sendFunc p2p.SendReceiveFunc, registerHandler p2p.RegisterHandlerFunc,
 	tickerProvider tickerProvider, nowFunc nowFunc, metricSubmitter metricSubmitter,
 ) *PeerInfo {
-	return newInternal(tcpNode, peers, version, lockHash, gitHash, sendFunc, registerHandler,
+	t.Helper()
+	p, err := newInternal(tcpNode, peers, version, lockHash, gitHash, sendFunc, registerHandler,
 		tickerProvider, nowFunc, metricSubmitter)
+	require.NoError(t, err)
+
+	return p
 }
 
 // newInternal returns a new instance for New or NewForT.
 func newInternal(tcpNode host.Host, peers []peer.ID, version string, lockHash []byte, gitHash string,
 	sendFunc p2p.SendReceiveFunc, registerHandler p2p.RegisterHandlerFunc,
 	tickerProvider tickerProvider, nowFunc nowFunc, metricSubmitter metricSubmitter,
-) *PeerInfo {
+) (*PeerInfo, error) {
 	startTime := timestamppb.New(nowFunc())
 
 	// Register a simple handler that returns our info and ignores the request.
-	registerHandler("peerinfo", tcpNode, protocolID1,
+	err := registerHandler("peerinfo", tcpNode, protocolID1,
 		func() proto.Message { return new(pbv1.PeerInfo) },
 		func(context.Context, peer.ID, proto.Message) (proto.Message, bool, error) {
 			return &pbv1.PeerInfo{
@@ -93,6 +98,9 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version string, lockHash []
 		},
 		p2p.WithDelimitedProtocol(protocolID2),
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	// Create log filters
 	lockHashFilters := make(map[peer.ID]z.Field)
@@ -111,7 +119,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version string, lockHash []
 		tickerProvider:  tickerProvider,
 		nowFunc:         nowFunc,
 		lockHashFilters: lockHashFilters,
-	}
+	}, nil
 }
 
 type PeerInfo struct {

@@ -81,7 +81,7 @@ func testSendReceive(t *testing.T, delimitedClient, delimitedServer bool) {
 	//  - Errors is slot is negative
 	//  - Echos the duty request if slot is even
 	//  - Returns nothing is slot is odd
-	p2p.RegisterHandler("server", server, pID1,
+	err := p2p.RegisterHandler("server", server, pID1,
 		func() proto.Message { return new(pbv1.Duty) },
 		func(ctx context.Context, peerID peer.ID, req proto.Message) (proto.Message, bool, error) {
 			log.Info(ctx, "See protocol logging field")
@@ -100,6 +100,7 @@ func testSendReceive(t *testing.T, delimitedClient, delimitedServer bool) {
 		},
 		serverOpt...,
 	)
+	require.NoError(t, err)
 
 	sendReceive := func(slot int64) (*pbv1.Duty, error) {
 		resp := new(pbv1.Duty)

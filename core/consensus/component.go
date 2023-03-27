@@ -217,10 +217,13 @@ func (c *Component) SubscribePriority(fn func(ctx context.Context, duty core.Dut
 }
 
 // Start registers the libp2p receive handler and starts a goroutine that cleans state. This should only be called once.
-func (c *Component) Start(ctx context.Context) {
-	p2p.RegisterHandler("qbft", c.tcpNode, protocolID1,
+func (c *Component) Start(ctx context.Context) error {
+	err := p2p.RegisterHandler("qbft", c.tcpNode, protocolID1,
 		func() proto.Message { return new(pbv1.ConsensusMsg) },
 		c.handle, p2p.WithDelimitedProtocol(protocolID2))
+	if err != nil {
+		return err
+	}
 
 	go func() {
 		for {
@@ -232,6 +235,8 @@ func (c *Component) Start(ctx context.Context) {
 			}
 		}
 	}()
+
+	return nil
 }
 
 // Propose participants in a consensus instance proposing the provided unsigned data set.

@@ -26,6 +26,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -70,13 +71,17 @@ type request struct {
 }
 
 // NewForT exports newInternal for testing and returns a new prioritiser.
-func NewForT(_ *testing.T, tcpNode host.Host, peers []peer.ID, minRequired int,
+func NewForT(t *testing.T, tcpNode host.Host, peers []peer.ID, minRequired int,
 	sendFunc p2p.SendReceiveFunc, registerHandlerFunc p2p.RegisterHandlerFunc,
 	consensus Consensus, msgValidator msgValidator, exchangeTimeout time.Duration,
 	deadliner core.Deadliner,
 ) *Prioritiser {
-	return newInternal(tcpNode, peers, minRequired, sendFunc, registerHandlerFunc,
+	t.Helper()
+	p, err := newInternal(tcpNode, peers, minRequired, sendFunc, registerHandlerFunc,
 		consensus, msgValidator, exchangeTimeout, deadliner)
+	require.NoError(t, err)
+
+	return p
 }
 
 // newInternal returns a new prioritiser, it is the constructor.
@@ -84,7 +89,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, minRequired int,
 	sendFunc p2p.SendReceiveFunc, registerHandlerFunc p2p.RegisterHandlerFunc,
 	consensus Consensus, msgValidator msgValidator,
 	exchangeTimeout time.Duration, deadliner core.Deadliner,
-) *Prioritiser {
+) (*Prioritiser, error) {
 	// Create log filters
 	noSupportFilters := make(map[peer.ID]z.Field)
 	for _, peerID := range peers {
@@ -118,7 +123,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, minRequired int,
 	})
 
 	// Register prioritiser protocol handler.
-	registerHandlerFunc("priority", tcpNode, protocolID1,
+	err := registerHandlerFunc("priority", tcpNode, protocolID1,
 		func() proto.Message { return new(pbv1.PriorityMsg) },
 		func(ctx context.Context, pID peer.ID, msg proto.Message) (proto.Message, bool, error) {
 			prioMsg, ok := msg.(*pbv1.PriorityMsg)
@@ -135,8 +140,11 @@ func newInternal(tcpNode host.Host, peers []peer.ID, minRequired int,
 			return resp, true, nil
 		},
 		p2p.WithDelimitedProtocol(protocolID2))
+	if err != nil {
+		return nil, err
+	}
 
-	return p
+	return p, nil
 }
 
 // Prioritiser resolves cluster wide priorities.

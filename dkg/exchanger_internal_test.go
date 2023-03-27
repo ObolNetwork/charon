@@ -83,7 +83,8 @@ func TestExchanger(t *testing.T) {
 	}
 
 	for i := 0; i < nodes; i++ {
-		ex := newExchanger(hosts[i], i, peers, dvs)
+		ex, err := newExchanger(hosts[i], i, peers, dvs)
+		require.NoError(t, err)
 		exchangers = append(exchangers, ex)
 	}
 

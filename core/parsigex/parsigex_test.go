@@ -80,9 +80,11 @@ func TestParSigEx(t *testing.T) {
 	// create ParSigEx components for each host
 	for i := 0; i < n; i++ {
 		wg.Add(n - 1)
-		sigex := parsigex.NewParSigEx(hosts[i], p2p.Send, i, peers, func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error {
+		sigex, err := parsigex.NewParSigEx(hosts[i], p2p.Send, i, peers, func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error {
 			return nil
 		})
+		require.NoError(t, err)
+
 		sigex.Subscribe(func(_ context.Context, d core.Duty, set core.ParSignedDataSet) error {
 			defer wg.Done()
 

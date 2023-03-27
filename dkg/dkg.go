@@ -122,7 +122,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.Wrap(err, "get peer IDs")
 	}
 
-	ex := newExchanger(tcpNode, nodeIdx.PeerIdx, peerIds, def.NumValidators)
+	ex, err := newExchanger(tcpNode, nodeIdx.PeerIdx, peerIds, def.NumValidators)
+	if err != nil {
+		return err
+	}
 
 	// Register Frost libp2p handlers
 	peerMap := make(map[peer.ID]cluster.NodeIdx)
@@ -133,8 +136,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 		peerMap[p.ID] = nodeIdx
 	}
-	tp := newFrostP2P(tcpNode, peerMap, key)
-
+	tp, err := newFrostP2P(tcpNode, peerMap, key)
+	if err != nil {
+		return nil
+	}
 	log.Info(ctx, "Waiting to connect to all peers...")
 
 	// Improve UX of "context cancelled" errors when sync fails.

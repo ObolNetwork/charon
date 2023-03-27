@@ -66,11 +66,12 @@ func TestBCast(t *testing.T) {
 	// Create broadcasters
 	for i := 0; i < n; i++ {
 		i := i
-		bcastFunc := bcast.New(tcpNodes[i], peers, secrets[i], allowed,
+		bcastFunc, err := bcast.New(tcpNodes[i], peers, secrets[i], allowed,
 			func(ctx context.Context, peerID peer.ID, msgID string, msg proto.Message) error {
 				results <- result{Source: peerID, MsgID: msgID, Msg: msg, Target: peers[i]}
 				return nil
 			})
+		require.NoError(t, err)
 		bcasts = append(bcasts, bcastFunc)
 	}
 

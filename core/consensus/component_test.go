@@ -92,7 +92,8 @@ func TestComponent(t *testing.T) {
 			results <- set
 			return nil
 		})
-		c.Start(log.WithCtx(ctx, z.Int("node", i)))
+		err = c.Start(log.WithCtx(ctx, z.Int("node", i)))
+		require.NoError(t, err)
 
 		components = append(components, c)
 	}

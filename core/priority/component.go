@@ -67,8 +67,11 @@ func NewComponent(ctx context.Context, tcpNode host.Host, peers []peer.ID, minRe
 
 	deadliner := core.NewDeadliner(ctx, "priority", deadlineFunc)
 
-	prioritiser := newInternal(tcpNode, peers, minRequired, sendFunc, registerHandlerFunc,
+	prioritiser, err := newInternal(tcpNode, peers, minRequired, sendFunc, registerHandlerFunc,
 		consensus, verifier, exchangeTimeout, deadliner)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Component{
 		peerID:       tcpNode.ID(),
