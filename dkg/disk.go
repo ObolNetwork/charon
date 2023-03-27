@@ -171,17 +171,17 @@ func checkClearDataDir(dataDir string) error {
 	// if dataDir is a file, return error
 	info, err := os.Stat(dataDir)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return errors.Wrap(err, "error while retrieving data directory info", z.Str("path", dataDir))
+		return errors.Wrap(err, "error while retrieving data directory info", z.Str("data-dir", dataDir))
 	} else if err != nil && errors.Is(err, fs.ErrNotExist) {
-		return errors.New("data directory doesn't exist, cannot continue", z.Str("path", dataDir))
+		return errors.New("data directory doesn't exist, cannot continue", z.Str("data-dir", dataDir))
 	} else if err == nil && !info.IsDir() {
-		return errors.New("data directory already exists and is a file, cannot continue", z.Str("path", dataDir))
+		return errors.New("data directory already exists and is a file, cannot continue", z.Str("data-dir", dataDir))
 	}
 
 	// get a listing of dataDir
 	dirContent, err := os.ReadDir(dataDir)
 	if err != nil {
-		return errors.Wrap(err, "cannot list contents of data directory", z.Str("path", dataDir))
+		return errors.Wrap(err, "cannot list contents of data directory", z.Str("data-dir", dataDir))
 	}
 
 	disallowedEntities := map[string]struct{}{
@@ -196,7 +196,7 @@ func checkClearDataDir(dataDir string) error {
 
 	for _, entity := range dirContent {
 		if _, ok := disallowedEntities[entity.Name()]; ok {
-			return errors.New("data directory not clean, cannot continue", z.Str("disallowed_entity", entity.Name()))
+			return errors.New("data directory not clean, cannot continue", z.Str("disallowed_entity", entity.Name()), z.Str("data-dir", dataDir))
 		}
 
 		if _, ok := necessaryEntities[entity.Name()]; ok {
@@ -206,7 +206,7 @@ func checkClearDataDir(dataDir string) error {
 
 	for fn, neFound := range necessaryEntities {
 		if !neFound {
-			return errors.New("missing required files, cannot continue", z.Str("file_name", fn))
+			return errors.New("missing required files, cannot continue", z.Str("file_name", fn), z.Str("data-dir", dataDir))
 		}
 	}
 
