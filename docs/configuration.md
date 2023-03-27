@@ -144,7 +144,7 @@ Flags:
       --p2p-tcp-address strings            Comma-separated list of listening TCP addresses (ip and port) for libP2P traffic. Empty default doesn't bind to local port therefore only supports outgoing connections.
       --private-key-file string            The path to the charon enr private key file. (default ".charon/charon-enr-private-key")
       --simnet-beacon-mock                 Enables an internal mock beacon node for running a simnet.
-      --simnet-beaconmock-fuzz             Configures simnet beaconmock to return fuzzed responses.
+      --simnet-beacon-mock-fuzz            Configures simnet beaconmock to return fuzzed responses.
       --simnet-slot-duration duration      Configures slot duration in simnet beacon mock. (default 1s)
       --simnet-validator-keys-dir string   The directory containing the simnet validator key shares. (default ".charon/validator_keys")
       --simnet-validator-mock              Enables an internal mock validator client when running a simnet. Requires simnet-beacon-mock.

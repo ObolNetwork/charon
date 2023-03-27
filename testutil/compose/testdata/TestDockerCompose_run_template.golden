@@ -74,7 +74,7 @@
      "Value": "/compose/node0/validator_keys"
     },
     {
-     "Key": "simnet-beaconmock-fuzz",
+     "Key": "simnet-beacon-mock-fuzz",
      "Value": "\"false\""
     },
     {
@@ -179,7 +179,7 @@
      "Value": "/compose/node1/validator_keys"
     },
     {
-     "Key": "simnet-beaconmock-fuzz",
+     "Key": "simnet-beacon-mock-fuzz",
      "Value": "\"false\""
     },
     {
@@ -284,7 +284,7 @@
      "Value": "/compose/node2/validator_keys"
     },
     {
-     "Key": "simnet-beaconmock-fuzz",
+     "Key": "simnet-beacon-mock-fuzz",
      "Value": "\"false\""
     },
     {
@@ -389,7 +389,7 @@
      "Value": "/compose/node3/validator_keys"
     },
     {
-     "Key": "simnet-beaconmock-fuzz",
+     "Key": "simnet-beacon-mock-fuzz",
      "Value": "\"false\""
     },
     {
