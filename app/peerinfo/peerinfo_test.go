@@ -4,6 +4,7 @@ package peerinfo_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -97,6 +98,7 @@ func TestPeerInfo(t *testing.T) {
 				return ch, func() {}
 			}
 
+			var submittedMutex sync.Mutex
 			var submitted int
 			metricSubmitter = func(peerID peer.ID, clockOffset time.Duration, version, gitHash string, startTime time.Time) {
 				for i, tcpNode := range tcpNodes {
@@ -108,10 +110,12 @@ func TestPeerInfo(t *testing.T) {
 					require.Equal(t, gitCommit, gitHash)
 					require.Equal(t, nowFunc(i)().Unix(), startTime.Unix())
 
+					submittedMutex.Lock()
 					submitted++
 					if submitted == n-2 { // Expect metrics from everyone but ourselves or the ignored node.
 						cancel()
 					}
+					submittedMutex.Unlock()
 
 					return
 				}
