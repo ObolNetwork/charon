@@ -62,5 +62,8 @@ var (
 
 // Enabled returns true if the feature is enabled.
 func Enabled(feature Feature) bool {
+	initMu.Lock()
+	defer initMu.Unlock()
+
 	return state[feature] >= minStatus
 }
