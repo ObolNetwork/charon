@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -103,6 +104,144 @@ func TestLoadDefinition(t *testing.T) {
 			got, err = got.SetDefinitionHashes()
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestCheckClearDataDir(t *testing.T) {
+	tests := []struct {
+		name       string
+		prepare    func(rootDir string, dataDir string)
+		checkError func(err error)
+	}{
+		{
+			"dataDir doesn't exist",
+			func(rootDir string, dataDir string) {},
+			func(err error) {
+				require.ErrorContains(t, err, "data directory doesn't exist, cannot continue")
+			},
+		},
+		{
+			"dataDir exists and is a file",
+			func(rootDir string, dataDir string) {
+				require.NoError(t,
+					os.WriteFile(
+						filepath.Join(rootDir, dataDir),
+						[]byte{1, 2, 3},
+						0o755,
+					),
+				)
+			},
+			func(err error) {
+				require.ErrorContains(t, err, "data directory already exists and is a file, cannot continue")
+			},
+		},
+		{
+			"dataDir contains validator_keys file",
+			func(rootDir string, dataDir string) {
+				require.NoError(t,
+					os.Mkdir(filepath.Join(rootDir, dataDir), 0o755),
+				)
+
+				require.NoError(t,
+					os.WriteFile(
+						filepath.Join(rootDir, dataDir, "validator_keys"),
+						[]byte{1, 2, 3},
+						0o755,
+					),
+				)
+			},
+			func(err error) {
+				require.ErrorContains(t, err, "data directory not clean, cannot continue")
+			},
+		},
+		{
+			"dataDir contains validator_keys directory",
+			func(rootDir string, dataDir string) {
+				require.NoError(t,
+					os.MkdirAll(filepath.Join(rootDir, dataDir, "validator_keys"), 0o755),
+				)
+			},
+			func(err error) {
+				require.ErrorContains(t, err, "data directory not clean, cannot continue")
+			},
+		},
+		{
+			"dataDir contains cluster-lock.json file",
+			func(rootDir string, dataDir string) {
+				require.NoError(t,
+					os.Mkdir(filepath.Join(rootDir, dataDir), 0o755),
+				)
+
+				require.NoError(t,
+					os.WriteFile(
+						filepath.Join(rootDir, dataDir, "cluster-lock.json"),
+						[]byte{1, 2, 3},
+						0o755,
+					),
+				)
+			},
+			func(err error) {
+				require.ErrorContains(t, err, "data directory not clean, cannot continue")
+			},
+		},
+		{
+			"dataDir contains deposit-data.json file",
+			func(rootDir string, dataDir string) {
+				require.NoError(t,
+					os.Mkdir(filepath.Join(rootDir, dataDir), 0o755),
+				)
+
+				require.NoError(t,
+					os.WriteFile(
+						filepath.Join(rootDir, dataDir, "deposit-data.json"),
+						[]byte{1, 2, 3},
+						0o755,
+					),
+				)
+			},
+			func(err error) {
+				require.ErrorContains(t, err, "data directory not clean, cannot continue")
+			},
+		},
+		{
+			"dataDir is clean and does not contains charon-enr-private-key file",
+			func(rootDir string, dataDir string) {
+				require.NoError(t,
+					os.Mkdir(filepath.Join(rootDir, dataDir), 0o755),
+				)
+			},
+			func(err error) {
+				require.ErrorContains(t, err, "missing required files, cannot continue")
+			},
+		},
+		{
+			"dataDir is clean and contains charon-enr-private-key file",
+			func(rootDir string, dataDir string) {
+				require.NoError(t,
+					os.Mkdir(filepath.Join(rootDir, dataDir), 0o755),
+				)
+
+				require.NoError(t,
+					os.WriteFile(
+						filepath.Join(rootDir, dataDir, "charon-enr-private-key"),
+						[]byte{1, 2, 3},
+						0o755,
+					),
+				)
+			},
+			func(err error) {
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			td := t.TempDir()
+			tt.prepare(td, "data_dir")
+
+			tt.checkError(checkClearDataDir(filepath.Join(td, "data_dir")))
 		})
 	}
 }

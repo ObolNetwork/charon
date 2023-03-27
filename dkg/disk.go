@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net/url"
 	"os"
 	"path"
@@ -163,6 +164,52 @@ func writeDepositData(depositDatas []eth2p0.DepositData, network string, dataDir
 	err = os.WriteFile(depositPath, bytes, 0o444)
 	if err != nil {
 		return errors.Wrap(err, "write deposit data")
+	}
+
+	return nil
+}
+
+func checkClearDataDir(dataDir string) error {
+	// if dataDir is a file, return error
+	info, err := os.Stat(dataDir)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return errors.Wrap(err, "error while retrieving data directory info", z.Str("path", dataDir))
+	} else if err != nil && errors.Is(err, fs.ErrNotExist) {
+		return errors.New("data directory doesn't exist, cannot continue", z.Str("path", dataDir))
+	} else if err == nil && !info.IsDir() {
+		return errors.New("data directory already exists and is a file, cannot continue", z.Str("path", dataDir))
+	}
+
+	// get a listing of dataDir
+	dirContent, err := os.ReadDir(dataDir)
+	if err != nil {
+		return errors.Wrap(err, "cannot list contents of data directory", z.Str("path", dataDir))
+	}
+
+	disallowedEntities := map[string]struct{}{
+		"validator_keys":    {},
+		"cluster-lock.json": {},
+		"deposit-data.json": {},
+	}
+
+	necessaryEntities := map[string]bool{
+		"charon-enr-private-key": false,
+	}
+
+	for _, entity := range dirContent {
+		if _, ok := disallowedEntities[entity.Name()]; ok {
+			return errors.New("data directory not clean, cannot continue", z.Str("disallowed_entity", entity.Name()))
+		}
+
+		if _, ok := necessaryEntities[entity.Name()]; ok {
+			necessaryEntities[entity.Name()] = true
+		}
+	}
+
+	for fn, neFound := range necessaryEntities {
+		if !neFound {
+			return errors.New("missing required files, cannot continue", z.Str("file_name", fn))
+		}
 	}
 
 	return nil
