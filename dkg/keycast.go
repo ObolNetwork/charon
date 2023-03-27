@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"sort"
+	"sync"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -91,6 +92,9 @@ func leadKeyCast(ctx context.Context, tp kcTransport, def cluster.Definition) ([
 
 	// Marshal shares as payload for all nodes.
 	var (
+		serveMutex sync.Mutex
+
+		// Shared server state.
 		payloads = make(map[int][]byte)
 		served   = make(map[int]bool)
 		resp     []share
@@ -122,6 +126,9 @@ func leadKeyCast(ctx context.Context, tp kcTransport, def cluster.Definition) ([
 	log.Info(ctx, "Node selected as dealer, serving shares...")
 
 	tp.ServeShares(ctx, func(nodeIdx int) ([]byte, error) {
+		serveMutex.Lock()
+		defer serveMutex.Unlock()
+
 		payload, ok := payloads[nodeIdx]
 		if !ok {
 			return nil, errors.New("unknown node index", z.Int("nodeIdx", nodeIdx))
