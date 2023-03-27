@@ -87,7 +87,7 @@ func TestExchanger(t *testing.T) {
 		exchangers = append(exchangers, ex)
 	}
 
-	var actual []map[core.PubKey][]core.ParSignedData
+	respChan := make(chan map[core.PubKey][]core.ParSignedData)
 	var wg sync.WaitGroup
 	for i := 0; i < nodes; i++ {
 		wg.Add(1)
@@ -97,10 +97,19 @@ func TestExchanger(t *testing.T) {
 			data, err := exchangers[node].exchange(ctx, sigLock, dataToBeSent[node])
 			require.NoError(t, err)
 
-			actual = append(actual, data)
+			respChan <- data
 		}(i)
 	}
-	wg.Wait()
+
+	go func() {
+		wg.Wait()
+		close(respChan) // Closes response channel once all the goroutines are done with writing.
+	}()
+
+	var actual []map[core.PubKey][]core.ParSignedData
+	for res := range respChan {
+		actual = append(actual, res)
+	}
 
 	for i := 0; i < nodes; i++ {
 		reflect.DeepEqual(actual[i], expectedData)
