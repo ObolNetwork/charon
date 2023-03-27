@@ -5,6 +5,7 @@ package tracker
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
@@ -31,8 +32,12 @@ func NewInclDelayFunc(eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc) func(contex
 func newInclDelayFunc(eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc, callback func([]int64)) func(context.Context, core.Slot) error {
 	// dutyStartSlot is the first slot we can instrument (since dutiesFunc will not have duties from older slots).
 	var dutyStartSlot int64
+	var dssMutex sync.Mutex
 
 	return func(ctx context.Context, current core.Slot) error {
+		dssMutex.Lock()
+		defer dssMutex.Unlock()
+
 		// blockSlot the block we want to instrument.
 		blockSlot := current.Slot - inclDelayLag
 
