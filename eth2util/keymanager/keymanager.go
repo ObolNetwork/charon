@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -19,15 +20,17 @@ import (
 )
 
 // New returns a new Client.
-func New(url string) Client {
+func New(baseURL, authToken string) Client {
 	return Client{
-		baseURL: url,
+		baseURL:   baseURL,
+		authToken: authToken,
 	}
 }
 
 // Client is the REST client for keymanager API requests.
 type Client struct {
-	baseURL string // Base keymanager URL
+	baseURL   string // Base keymanager URL
+	authToken string // Authentication token
 }
 
 // ImportKeystores pushes the keystores and passwords to keymanager.
@@ -43,12 +46,12 @@ func (c Client) ImportKeystores(ctx context.Context, keystores []keystore.Keysto
 		return errors.Wrap(err, "invalid base url", z.Str("base_url", c.baseURL))
 	}
 
-	req := keymanagerReq{
-		Keystores: keystores,
-		Passwords: passwords,
+	req, err := newReq(keystores, passwords)
+	if err != nil {
+		return err
 	}
 
-	err = postKeys(ctx, addr, req)
+	err = postKeys(ctx, addr, c.authToken, req)
 	if err != nil {
 		return err
 	}
@@ -79,12 +82,12 @@ func (c Client) VerifyConnection(ctx context.Context) error {
 // keymanagerReq represents the keymanager API request body for POST request.
 // Refer: https://ethereum.github.io/keymanager-APIs/#/Local%20Key%20Manager/importKeystores
 type keymanagerReq struct {
-	Keystores []keystore.Keystore `json:"keystores"`
-	Passwords []string            `json:"passwords"`
+	Keystores []string `json:"keystores"`
+	Passwords []string `json:"passwords"`
 }
 
 // postKeys pushes the secrets to the provided keymanager address. The HTTP request times out after 10s.
-func postKeys(ctx context.Context, addr string, reqBody keymanagerReq) error {
+func postKeys(ctx context.Context, addr, authToken string, reqBody keymanagerReq) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -97,7 +100,8 @@ func postKeys(ctx context.Context, addr string, reqBody keymanagerReq) error {
 	if err != nil {
 		return errors.Wrap(err, "new post request", z.Str("url", addr))
 	}
-	req.Header.Add("Content-Type", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authToken))
 
 	resp, err := new(http.Client).Do(req)
 	if err != nil {
@@ -115,4 +119,19 @@ func postKeys(ctx context.Context, addr string, reqBody keymanagerReq) error {
 	}
 
 	return nil
+}
+
+func newReq(keystores []keystore.Keystore, passwords []string) (keymanagerReq, error) {
+	var req keymanagerReq
+	req.Passwords = passwords
+	for _, ks := range keystores {
+		data, err := json.Marshal(ks)
+		if err != nil {
+			return keymanagerReq{}, errors.Wrap(err, "marshal keystore")
+		}
+
+		req.Keystores = append(req.Keystores, string(data))
+	}
+
+	return req, nil
 }

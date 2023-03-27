@@ -418,6 +418,8 @@ func TestKeymanager(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	const testAuthToken = "api-token-test"
+
 	// Create secret
 	secret1, err := tblsv2.GenerateSecretKey()
 	require.NoError(t, err)
@@ -431,12 +433,13 @@ func TestKeymanager(t *testing.T) {
 	results := make(chan result, minNodes) // Buffered channel
 	defer close(results)
 
-	var addrs []string
+	var addrs, authTokens []string
 	var servers []*httptest.Server
 	for i := 0; i < minNodes; i++ {
 		srv := httptest.NewServer(newKeymanagerHandler(ctx, t, i, results))
 		servers = append(servers, srv)
 		addrs = append(addrs, srv.URL)
+		authTokens = append(authTokens, testAuthToken)
 	}
 
 	defer func() {
@@ -447,16 +450,17 @@ func TestKeymanager(t *testing.T) {
 
 	// Create cluster config
 	conf := clusterConfig{
-		Name:              t.Name(),
-		SplitKeysDir:      keyDir,
-		SplitKeys:         true,
-		NumNodes:          minNodes,
-		NumDVs:            1,
-		KeymanagerAddrs:   addrs,
-		Network:           defaultNetwork,
-		WithdrawalAddrs:   []string{zeroAddress},
-		FeeRecipientAddrs: []string{zeroAddress},
-		Clean:             true,
+		Name:                 t.Name(),
+		SplitKeysDir:         keyDir,
+		SplitKeys:            true,
+		NumNodes:             minNodes,
+		NumDVs:               1,
+		KeymanagerAddrs:      addrs,
+		KeymanagerAuthTokens: authTokens,
+		Network:              defaultNetwork,
+		WithdrawalAddrs:      []string{zeroAddress},
+		FeeRecipientAddrs:    []string{zeroAddress},
+		Clean:                true,
 	}
 	conf.ClusterDir = t.TempDir()
 
@@ -494,6 +498,15 @@ func TestKeymanager(t *testing.T) {
 			log.Error(context.Background(), "", err)
 		}
 		require.ErrorContains(t, err, "cannot ping address")
+	})
+
+	t.Run("lengths don't match", func(t *testing.T) {
+		// Construct an incorrect config where len(KeymanagerAuthTokens) = len(KeymanagerAddresses)-1
+		incorrectConf := conf
+		incorrectConf.KeymanagerAuthTokens = incorrectConf.KeymanagerAuthTokens[1:]
+
+		err = runCreateCluster(context.Background(), nil, incorrectConf)
+		require.ErrorContains(t, err, "number of --keymanager-addresses do not match --keymanager-auth-tokens. Please fix configuration flags")
 	})
 }
 
@@ -540,8 +553,8 @@ func TestPublish(t *testing.T) {
 
 // mockKeymanagerReq is a mock keymanager request for use in tests.
 type mockKeymanagerReq struct {
-	Keystores []keystore.Keystore `json:"keystores"`
-	Passwords []string            `json:"passwords"`
+	Keystores []string `json:"keystores"`
+	Passwords []string `json:"passwords"`
 }
 
 // decrypt returns the secret from the encrypted keystore.
@@ -579,7 +592,9 @@ func newKeymanagerHandler(ctx context.Context, t *testing.T, id int, results cha
 		require.Equal(t, len(req.Keystores), len(req.Passwords))
 		require.Equal(t, len(req.Keystores), 1) // Since we split only 1 key
 
-		secret, err := decrypt(t, req.Keystores[0], req.Passwords[0])
+		var ks keystore.Keystore
+		require.NoError(t, json.Unmarshal([]byte(req.Keystores[0]), &ks))
+		secret, err := decrypt(t, ks, req.Passwords[0])
 		require.NoError(t, err)
 
 		res := result{

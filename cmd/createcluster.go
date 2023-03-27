@@ -40,11 +40,13 @@ const (
 )
 
 type clusterConfig struct {
-	Name            string
-	ClusterDir      string
-	DefFile         string
-	KeymanagerAddrs []string
-	Clean           bool
+	Name       string
+	ClusterDir string
+	DefFile    string
+	Clean      bool
+
+	KeymanagerAddrs      []string
+	KeymanagerAuthTokens []string
 
 	NumNodes          int
 	Threshold         int
@@ -86,6 +88,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The target folder to create the cluster in.")
 	flags.StringVar(&config.DefFile, "definition-file", "", "Optional path to a cluster definition file or an HTTP URL. This overrides all other configuration flags.")
 	flags.StringSliceVar(&config.KeymanagerAddrs, "keymanager-addresses", nil, "Comma separated list of keymanager URLs to import validator key shares to. Note that multiple addresses are required, one for each node in the cluster, with node0's keyshares being imported to the first address, node1's keyshares to the second, and so on.")
+	flags.StringSliceVar(&config.KeymanagerAuthTokens, "keymanager-auth-tokens", nil, "Authentication bearer tokens to interact with the keymanager URLs. Don't include the \"Bearer\" symbol, only include the api-token.")
 	flags.IntVarP(&config.NumNodes, "nodes", "", minNodes, "The number of charon nodes in the cluster. Minimum is 4.")
 	flags.IntVarP(&config.Threshold, "threshold", "", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
 	flags.StringSliceVar(&config.FeeRecipientAddrs, "fee-recipient-addresses", nil, "Comma separated list of Ethereum addresses of the fee recipient for each validator. Either provide a single fee recipient address or fee recipient addresses for each validator.")
@@ -118,6 +121,11 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	// TODO(xenowits): Remove the mapping later.
 	if conf.Network == eth2util.Prater {
 		conf.Network = eth2util.Goerli.Name
+	}
+
+	// Ensure sufficient auth tokens are provided for the keymanager addresses
+	if len(conf.KeymanagerAddrs) != len(conf.KeymanagerAuthTokens) {
+		return errors.New("number of --keymanager-addresses do not match --keymanager-auth-tokens. Please fix configuration flags")
 	}
 
 	var def cluster.Definition
@@ -209,7 +217,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 			return err
 		}
 	} else { // Or else save keys to keymanager
-		if err = writeKeysToKeymanager(ctx, conf.KeymanagerAddrs, numNodes, shareSets); err != nil {
+		if err = writeKeysToKeymanager(ctx, conf.KeymanagerAddrs, conf.KeymanagerAuthTokens, numNodes, shareSets); err != nil {
 			return err
 		}
 	}
@@ -471,11 +479,11 @@ func getValidators(dvsPubkeys []tblsv2.PublicKey, dvPrivShares [][]tblsv2.Privat
 }
 
 // writeKeysToKeymanager writes validator keys to the provided keymanager addresses.
-func writeKeysToKeymanager(ctx context.Context, addrs []string, numNodes int, shareSets [][]tblsv2.PrivateKey) error {
+func writeKeysToKeymanager(ctx context.Context, addrs, authTokens []string, numNodes int, shareSets [][]tblsv2.PrivateKey) error {
 	// Ping all keymanager addresses to check if they are accessible to avoid partial writes
 	var clients []keymanager.Client
 	for i := 0; i < numNodes; i++ {
-		cl := keymanager.New(addrs[i])
+		cl := keymanager.New(addrs[i], authTokens[i])
 		if err := cl.VerifyConnection(ctx); err != nil {
 			return err
 		}

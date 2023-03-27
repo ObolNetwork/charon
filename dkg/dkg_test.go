@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
@@ -110,7 +111,12 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 
 	allReceivedKeystores := make(chan struct{}) // Receives struct{} for each `numNodes` keystore intercepted by the keymanager server
 	if keymanager {
+		const testAuthToken = "test-auth-token"
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			bearerAuthToken := strings.Split(r.Header.Get("Authorization"), " ")
+			require.Equal(t, bearerAuthToken[0], "Bearer")
+			require.Equal(t, bearerAuthToken[1], testAuthToken)
+
 			go func() {
 				allReceivedKeystores <- struct{}{}
 			}()
@@ -118,6 +124,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 		defer srv.Close()
 
 		conf.KeymanagerAddr = srv.URL
+		conf.KeymanagerAuthToken = testAuthToken
 	}
 
 	receivedLockfile := make(chan struct{}) // Receives string for lockfile intercepted by the obol-api server
