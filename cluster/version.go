@@ -5,11 +5,11 @@ package cluster
 import "testing"
 
 const (
-	currentVersion = v1_5
+	currentVersion = v1_6
 	dkgAlgo        = "default"
 
-	v1_6 = "v1.6.0" // Draft
-	v1_5 = "v1.5.0" // Default
+	v1_6 = "v1.6.0" // Default
+	v1_5 = "v1.5.0"
 	v1_4 = "v1.4.0"
 	v1_3 = "v1.3.0"
 	v1_2 = "v1.2.0"
