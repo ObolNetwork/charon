@@ -243,11 +243,7 @@ func (s *Server) validReq(ctx context.Context, pubkey crypto.PubKey, msg *pb.Msg
 // Start registers sync protocol with the libp2p host.
 func (s *Server) Start(ctx context.Context) {
 	s.tcpNode.SetStreamHandler(protocolID, func(stream network.Stream) {
-		if ctx.Err() != nil {
-			return
-		}
-
-		ctx = log.WithCtx(ctx, z.Str("peer", p2p.PeerName(stream.Conn().RemotePeer())))
+		ctx := log.WithCtx(ctx, z.Str("peer", p2p.PeerName(stream.Conn().RemotePeer())))
 		err := s.handleStream(ctx, stream)
 		if isRelayError(err) { // Relay errors are expected
 			log.Debug(ctx, "Relay error serving sync protocol", z.Str("err", err.Error()))
