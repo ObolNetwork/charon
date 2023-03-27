@@ -72,6 +72,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}
 
+	if err = checkClearDataDir(conf.DataDir); err != nil {
+		return err
+	}
+
 	if err = checkWrites(conf.DataDir); err != nil {
 		return err
 	}
