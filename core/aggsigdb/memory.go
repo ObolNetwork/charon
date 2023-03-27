@@ -5,18 +5,82 @@ package aggsigdb
 import (
 	"bytes"
 	"context"
+	"sync"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 )
+
+type dataMap struct {
+	sync.Map
+	count uint64
+}
+
+func (dm *dataMap) get(key memDBKey) (core.SignedData, bool) {
+	rawData, ok := dm.Load(key)
+	if !ok {
+		return nil, false
+	}
+
+	sd, canCast := rawData.(core.SignedData)
+	if !canCast {
+		return nil, false
+	}
+
+	return sd, true
+}
+
+func (dm *dataMap) set(key memDBKey, value core.SignedData) {
+	dm.count++
+	dm.Store(key, value)
+}
+
+func (dm *dataMap) delete(key memDBKey) {
+	if dm.count != 0 {
+		dm.count--
+	}
+	dm.Delete(key)
+}
+
+type keysByDutyMap struct {
+	sync.Map
+	count uint64
+}
+
+//nolint:unparam
+func (kdb *keysByDutyMap) get(key core.Duty) ([]memDBKey, bool) {
+	rawData, ok := kdb.Load(key)
+	if !ok {
+		return nil, false
+	}
+
+	sd, canCast := rawData.([]memDBKey)
+	if !canCast {
+		return nil, false
+	}
+
+	return sd, true
+}
+
+func (kdb *keysByDutyMap) set(key core.Duty, value []memDBKey) {
+	kdb.count++
+	kdb.Store(key, value)
+}
+
+func (kdb *keysByDutyMap) delete(key core.Duty) {
+	if kdb.count != 0 {
+		kdb.count--
+	}
+	kdb.Delete(key)
+}
 
 var ErrStopped = errors.New("database stopped")
 
 // NewMemDB creates a basic memory based AggSigDB.
 func NewMemDB(deadliner core.Deadliner) *MemDB {
 	return &MemDB{
-		data:           make(map[memDBKey]core.SignedData),
-		keysByDuty:     make(map[core.Duty][]memDBKey),
+		data:           dataMap{},
+		keysByDuty:     keysByDutyMap{},
 		commands:       make(chan writeCommand),
 		queries:        make(chan readQuery),
 		blockedQueries: []readQuery{},
@@ -28,8 +92,8 @@ func NewMemDB(deadliner core.Deadliner) *MemDB {
 
 // MemDB is a basic memory implementation of core.AggSigDB.
 type MemDB struct {
-	data       map[memDBKey]core.SignedData
-	keysByDuty map[core.Duty][]memDBKey // Key index by duty for fast deletion.
+	data       dataMap
+	keysByDuty keysByDutyMap // Key index by duty for fast deletion.
 
 	commands       chan writeCommand
 	queries        chan readQuery
@@ -118,10 +182,11 @@ func (db *MemDB) Run(ctx context.Context) {
 				db.callbackBlockedQueriesForT()
 			}
 		case duty := <-db.deadliner.C():
-			for _, key := range db.keysByDuty[duty] {
-				delete(db.data, key)
+			kbd, _ := db.keysByDuty.get(duty)
+			for _, key := range kbd {
+				db.data.delete(key)
 			}
-			delete(db.keysByDuty, duty)
+			db.keysByDuty.delete(duty)
 		case <-ctx.Done():
 			return
 		}
@@ -136,7 +201,7 @@ func (db *MemDB) execCommand(command writeCommand) {
 
 	key := memDBKey{command.duty, command.pubKey}
 
-	if existing, ok := db.data[key]; ok {
+	if existing, ok := db.data.get(key); ok {
 		equal, err := dataEqual(existing, command.data)
 		if err != nil {
 			command.response <- err
@@ -144,8 +209,11 @@ func (db *MemDB) execCommand(command writeCommand) {
 			command.response <- errors.New("mismatching data")
 		}
 	} else {
-		db.data[key] = command.data
-		db.keysByDuty[command.duty] = append(db.keysByDuty[command.duty], key)
+		db.data.set(key, command.data)
+
+		old, _ := db.keysByDuty.get(command.duty)
+		old = append(old, key)
+		db.keysByDuty.set(command.duty, old)
 	}
 }
 
@@ -165,7 +233,7 @@ func dataEqual(x core.SignedData, y core.SignedData) (bool, error) {
 // execQuery returns true if the query was successfully executed.
 // If the requested entry is found in the DB it will return it via query.response channel.
 func (db *MemDB) execQuery(query readQuery) bool {
-	data, ok := db.data[memDBKey{query.duty, query.pubKey}]
+	data, ok := db.data.get(memDBKey{query.duty, query.pubKey})
 	if !ok {
 		return false
 	}
