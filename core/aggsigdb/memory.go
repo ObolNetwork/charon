@@ -31,15 +31,15 @@ func (dm *dataMap) get(key memDBKey) (core.SignedData, bool) {
 }
 
 func (dm *dataMap) set(key memDBKey, value core.SignedData) {
-	dm.Store(key, value)
 	dm.count++
+	dm.Store(key, value)
 }
 
 func (dm *dataMap) delete(key memDBKey) {
-	dm.Delete(key)
 	if dm.count != 0 {
 		dm.count--
 	}
+	dm.Delete(key)
 }
 
 type keysByDutyMap struct {
@@ -63,15 +63,15 @@ func (kdb *keysByDutyMap) get(key core.Duty) ([]memDBKey, bool) {
 }
 
 func (kdb *keysByDutyMap) set(key core.Duty, value []memDBKey) {
-	kdb.Store(key, value)
 	kdb.count++
+	kdb.Store(key, value)
 }
 
 func (kdb *keysByDutyMap) delete(key core.Duty) {
-	kdb.Delete(key)
 	if kdb.count != 0 {
 		kdb.count--
 	}
+	kdb.Delete(key)
 }
 
 var ErrStopped = errors.New("database stopped")
