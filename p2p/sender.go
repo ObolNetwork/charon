@@ -157,11 +157,16 @@ func WithSendReceiveRTT(callback func(time.Duration)) func(*sendRecvOpts) {
 }
 
 // WithDelimitedProtocol returns an option that adds a length delimited read/writer for the provide protocol.
-func WithDelimitedProtocol(pID protocol.ID) func(*sendRecvOpts) {
-	return func(opts *sendRecvOpts) {
-		opts.protocols = append([]protocol.ID{pID}, opts.protocols...) // Add to front
-		opts.writersByProtocol[pID] = func(s network.Stream) pbio.Writer { return pbio.NewDelimitedWriter(s) }
-		opts.readersByProtocol[pID] = func(s network.Stream) pbio.Reader { return pbio.NewDelimitedReader(s, maxMsgSize) }
+// TODO(corver): Delimited protocols are disabled in v0.15.
+//
+//	This is because v0.14 still uses the naive p2p.ProtocolSupported which doesn't
+//	support dynamically negotiated protocols. It only supports the static advertised protocols.
+//	Our implementation of the length delimited protocol is dynamically negotiated so not supported
+//	by v0.14. We can enable this post-v0.15 release.
+func WithDelimitedProtocol(protocol.ID) func(*sendRecvOpts) {
+	return func(*sendRecvOpts) {
+		// opts.writersByProtocol[pID] = func(s network.Stream) pbio.Writer { return pbio.NewDelimitedWriter(s) }
+		// opts.readersByProtocol[pID] = func(s network.Stream) pbio.Reader { return pbio.NewDelimitedReader(s, maxMsgSize) }
 	}
 }
 
@@ -259,23 +264,6 @@ func Send(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID pe
 	}
 
 	return nil
-}
-
-// ProtocolSupported returns whether the peer supports the protocol or whether this is unknown.
-func ProtocolSupported(tcpNode host.Host, peerID peer.ID, protocolID protocol.ID) (supported bool, known bool) {
-	// Check if peer supports this protocol.
-	protocols, err := tcpNode.Peerstore().GetProtocols(peerID)
-	if err != nil || len(protocols) == 0 {
-		return false, false // Unknown
-	}
-
-	for _, p := range protocols {
-		if p == protocolID {
-			return true, true // Supported
-		}
-	}
-
-	return false, true // Not supported
 }
 
 // legacyReadWriter implements pbio.Reader and pbio.Writer without length delimited encoding.
