@@ -36,8 +36,8 @@ func TestDutyExpiration(t *testing.T) {
 
 	deadliner.Expire()
 
-	require.Zero(t, db.data.count)
-	require.Zero(t, db.keysByDuty.count)
+	require.Empty(t, db.data)
+	require.Empty(t, db.keysByDuty)
 }
 
 func TestCancelledQuery(t *testing.T) {
