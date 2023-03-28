@@ -440,6 +440,7 @@ func newTestClock(now time.Time) *testClock {
 // that is advanced by calls to Sleep or After.
 // Note this *does not* support concurrency.
 type testClock struct {
+	nowMutex  sync.Mutex
 	now       time.Time
 	callbacks map[time.Time]func()
 }
@@ -461,6 +462,9 @@ func (c *testClock) After(d time.Duration) <-chan time.Time {
 }
 
 func (c *testClock) Sleep(d time.Duration) {
+	c.nowMutex.Lock()
+	defer c.nowMutex.Unlock()
+
 	c.now = c.now.Add(d)
 
 	for after, callback := range c.callbacks {
@@ -473,11 +477,21 @@ func (c *testClock) Sleep(d time.Duration) {
 }
 
 func (c *testClock) Now() time.Time {
-	return c.now
+	c.nowMutex.Lock()
+	defer c.nowMutex.Unlock()
+
+	now := c.now
+
+	return now
 }
 
 func (c *testClock) Since(t time.Time) time.Duration {
-	return c.now.Sub(t)
+	c.nowMutex.Lock()
+	defer c.nowMutex.Unlock()
+
+	since := c.now.Sub(t)
+
+	return since
 }
 
 func (c *testClock) NewTicker(time.Duration) clockwork.Ticker {
