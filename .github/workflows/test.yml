@@ -20,7 +20,7 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-      - run: go test -coverprofile=coverage.out -covermode=atomic -timeout=5m ./...
+      - run: go test -coverprofile=coverage.out -covermode=atomic -timeout=5m -race ./...
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v2.1.0
         with:
@@ -44,7 +44,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
       - run: docker pull consensys/teku:latest
-      - run: go test -v -timeout=5m github.com/obolnetwork/charon/app -integration
+      - run: go test -v -timeout=5m -race github.com/obolnetwork/charon/app -integration
 
   compose_tests:
     runs-on: ubuntu-latest
@@ -65,7 +65,7 @@ jobs:
       - run: |
           echo "CHARON_REPO=$(pwd)" >> $GITHUB_ENV
           echo "DOCKER_BUILDKIT=1" >> $GITHUB_ENV
-      - run: go test github.com/obolnetwork/charon/testutil/compose/smoke -v -integration -sudo-perms -timeout=20m -log-dir=.
+      - run: go test -race github.com/obolnetwork/charon/testutil/compose/smoke -v -integration -sudo-perms -timeout=20m -log-dir=.
       - uses: actions/upload-artifact@v3
         if: always()
         with:
