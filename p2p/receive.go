@@ -45,7 +45,7 @@ func RegisterHandler(logTopic string, tcpNode host.Host, pID protocol.ID,
 	}
 
 	matchProtocol := func(pID protocol.ID) bool {
-		return o.readersByProtocol[pID] != nil
+		return o.reqReadersByProtocol[pID] != nil
 	}
 
 	tcpNode.SetStreamHandlerMatch(protocolPrefix(o.protocols...), matchProtocol, func(s network.Stream) {
@@ -68,7 +68,7 @@ func RegisterHandler(logTopic string, tcpNode host.Host, pID protocol.ID,
 			log.Error(ctx, "LibP2P no writer for protocol", nil)
 			return
 		}
-		readFunc, ok := o.readersByProtocol[s.Protocol()]
+		readFunc, ok := o.reqReadersByProtocol[s.Protocol()]
 		if !ok {
 			log.Error(ctx, "LibP2P no reader for protocol", nil)
 			return

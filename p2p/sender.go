@@ -143,10 +143,11 @@ func withRelayRetry(fn func() error) error {
 type SendRecvOption func(*sendRecvOpts)
 
 type sendRecvOpts struct {
-	protocols         []protocol.ID // Protocols ordered by higher priority first
-	writersByProtocol map[protocol.ID]func(network.Stream) pbio.Writer
-	readersByProtocol map[protocol.ID]func(network.Stream) pbio.Reader
-	rttCallback       func(time.Duration)
+	protocols             []protocol.ID // Protocols ordered by higher priority first
+	writersByProtocol     map[protocol.ID]func(network.Stream) pbio.Writer
+	reqReadersByProtocol  map[protocol.ID]func(network.Stream) pbio.Reader
+	respReadersByProtocol map[protocol.ID]func(network.Stream) pbio.Reader
+	rttCallback           func(time.Duration)
 }
 
 // WithSendReceiveRTT returns an option for SendReceive that sets a callback for the RTT.
@@ -166,7 +167,7 @@ func WithSendReceiveRTT(callback func(time.Duration)) func(*sendRecvOpts) {
 func WithDelimitedProtocol(protocol.ID) func(*sendRecvOpts) {
 	return func(*sendRecvOpts) {
 		// opts.writersByProtocol[pID] = func(s network.Stream) pbio.Writer { return pbio.NewDelimitedWriter(s) }
-		// opts.readersByProtocol[pID] = func(s network.Stream) pbio.Reader { return pbio.NewDelimitedReader(s, maxMsgSize) }
+		// opts.reqReadersByProtocol[pID] = func(s network.Stream) pbio.Reader { return pbio.NewDelimitedReader(s, maxMsgSize) }
 	}
 }
 
@@ -175,10 +176,15 @@ func defaultSendRecvOpts(pID protocol.ID) sendRecvOpts {
 	return sendRecvOpts{
 		protocols: []protocol.ID{pID},
 		writersByProtocol: map[protocol.ID]func(s network.Stream) pbio.Writer{
-			pID: func(s network.Stream) pbio.Writer { return legacyReadWriter{s} },
+			pID: func(s network.Stream) pbio.Writer { return legacyReadWriter{stream: s} },
 		},
-		readersByProtocol: map[protocol.ID]func(s network.Stream) pbio.Reader{
-			pID: func(s network.Stream) pbio.Reader { return legacyReadWriter{s} },
+		// Request readers are allowed to read zero bytes, this is because the legacy protocol
+		reqReadersByProtocol: map[protocol.ID]func(s network.Stream) pbio.Reader{
+			pID: func(s network.Stream) pbio.Reader { return legacyReadWriter{stream: s, allowZeroRead: true} },
+		},
+		// Response readers are not allowed to read zero bytes, this is because the legacy protocol
+		respReadersByProtocol: map[protocol.ID]func(s network.Stream) pbio.Reader{
+			pID: func(s network.Stream) pbio.Reader { return legacyReadWriter{stream: s, allowZeroRead: false} },
 		},
 		rttCallback: func(time.Duration) {},
 	}
@@ -206,7 +212,7 @@ func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
 	if !ok {
 		return errors.New("no writer for protocol", z.Any("protocol", s.Protocol()))
 	}
-	readFunc, ok := o.readersByProtocol[s.Protocol()]
+	readFunc, ok := o.respReadersByProtocol[s.Protocol()]
 	if !ok {
 		return errors.New("no reader for protocol", z.Any("protocol", s.Protocol()))
 	}
@@ -268,7 +274,8 @@ func Send(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID pe
 
 // legacyReadWriter implements pbio.Reader and pbio.Writer without length delimited encoding.
 type legacyReadWriter struct {
-	stream network.Stream
+	stream        network.Stream
+	allowZeroRead bool
 }
 
 // WriteMsg writes a protobuf message to the stream.
@@ -289,8 +296,8 @@ func (w legacyReadWriter) ReadMsg(m proto.Message) error {
 	b, err := io.ReadAll(w.stream)
 	if err != nil {
 		return errors.Wrap(err, "read response")
-	} else if len(b) == 0 {
-		return errors.New("peer errored, no response")
+	} else if !w.allowZeroRead && len(b) == 0 {
+		return errors.New("peer errored, no data")
 	}
 
 	if err = proto.Unmarshal(b, m); err != nil {
