@@ -110,11 +110,7 @@ func testSendReceive(t *testing.T, delimitedClient, delimitedServer bool) {
 
 	t.Run("server error", func(t *testing.T) {
 		_, err := sendReceive(-1)
-		if delimitedServer && delimitedClient {
-			require.ErrorContains(t, err, "read response: EOF")
-		} else {
-			require.ErrorContains(t, err, "no response")
-		}
+		require.ErrorContains(t, err, "no response")
 	})
 
 	t.Run("ok", func(t *testing.T) {
@@ -126,10 +122,6 @@ func testSendReceive(t *testing.T, delimitedClient, delimitedServer bool) {
 
 	t.Run("empty response", func(t *testing.T) {
 		_, err := sendReceive(101)
-		if delimitedServer && delimitedClient {
-			require.ErrorContains(t, err, "read response: EOF")
-		} else {
-			require.ErrorContains(t, err, "no response")
-		}
+		require.ErrorContains(t, err, "no response")
 	})
 }
