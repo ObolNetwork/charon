@@ -49,13 +49,13 @@ jobs:
         push: true
         build-args: GITHUB_SHA=${{ github.sha }}
         tags: ${{ steps.meta.outputs.tags }}
-        
+
     - name: Split branch name
       env:
         SHA_TAG: ${{ steps.meta.outputs.tags[1] }}
       id: split
       run: echo "::set-output name=sha::${SHA_TAG##*:}"
-  
+
     - name: Trigger promrated deploy job
       uses: peter-evans/repository-dispatch@v2
       with:
