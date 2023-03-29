@@ -3,7 +3,6 @@
 package testutil
 
 import (
-	"context"
 	"testing"
 	"time"
 )
@@ -19,14 +18,9 @@ func EnsureCleanup(t *testing.T, cleanupFunc func()) {
 		return
 	}
 
-	ctx := context.Background()
-
 	// Adapted from https://github.com/golang/go/issues/24050#issuecomment-1137682781
-	testDeadline = testDeadline.Add(-100 * time.Millisecond)
-	dctx, cancel := context.WithDeadline(ctx, testDeadline)
 	go func() {
-		<-dctx.Done()
-		cancel()
+		time.Sleep(time.Until(testDeadline.Add(-100 * time.Millisecond)))
 		cleanupFunc()
 	}()
 }
