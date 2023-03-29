@@ -4,6 +4,7 @@ package validatormock
 
 import (
 	"context"
+	"sync"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -48,10 +49,14 @@ type SlotAttester struct {
 	signFunc SignFunc
 
 	// Mutable fields
-	vals         validators
-	duties       attDuties
-	selections   attSelections
-	datas        attDatas
+	mutable struct {
+		sync.Mutex
+		vals       validators
+		duties     attDuties
+		selections attSelections
+		datas      attDatas
+	}
+
 	dutiesOK     chan struct{}
 	selectionsOK chan struct{}
 	datasOK      chan struct{}
@@ -69,24 +74,22 @@ func (a *SlotAttester) Slot() eth2p0.Slot {
 // It panics if called more than once.
 // TODO(xenowits): Figure out why is this called twice sometimes (https://github.com/ObolNetwork/charon/issues/1389)).
 func (a *SlotAttester) Prepare(ctx context.Context) error {
-	var err error
-
-	a.vals, err = activeValidators(ctx, a.eth2Cl, a.pubkeys)
+	vals, err := activeValidators(ctx, a.eth2Cl, a.pubkeys)
 	if err != nil {
 		return err
 	}
 
-	a.duties, err = prepareAttesters(ctx, a.eth2Cl, a.vals, a.slot)
+	duties, err := prepareAttesters(ctx, a.eth2Cl, vals, a.slot)
 	if err != nil {
 		return err
 	}
-	close(a.dutiesOK)
+	a.setPrepareDuties(vals, duties)
 
-	a.selections, err = prepareAggregators(ctx, a.eth2Cl, a.signFunc, a.vals, a.duties, a.slot)
+	selections, err := prepareAggregators(ctx, a.eth2Cl, a.signFunc, vals, duties, a.slot)
 	if err != nil {
 		return err
 	}
-	close(a.selectionsOK)
+	a.setPrepareSelections(selections)
 
 	return nil
 }
@@ -96,12 +99,11 @@ func (a *SlotAttester) Attest(ctx context.Context) error {
 	// Wait for Prepare complete
 	wait(ctx, a.dutiesOK)
 
-	var err error
-	a.datas, err = attest(ctx, a.eth2Cl, a.signFunc, a.slot, a.duties)
+	datas, err := attest(ctx, a.eth2Cl, a.signFunc, a.slot, a.getAttDuties())
 	if err != nil {
 		return err
 	}
-	close(a.datasOK)
+	a.setAttestDatas(datas)
 
 	return nil
 }
@@ -111,7 +113,61 @@ func (a *SlotAttester) Aggregate(ctx context.Context) (bool, error) {
 	// Wait for Prepare and Attest to complete
 	wait(ctx, a.dutiesOK, a.selectionsOK, a.datasOK)
 
-	return aggregate(ctx, a.eth2Cl, a.signFunc, a.slot, a.vals, a.duties, a.selections, a.datas)
+	return aggregate(ctx, a.eth2Cl, a.signFunc, a.slot, a.getVals(),
+		a.getAttDuties(), a.getSelections(), a.getDatas())
+}
+
+func (a *SlotAttester) setPrepareDuties(vals validators, duties attDuties) {
+	a.mutable.Lock()
+	defer a.mutable.Unlock()
+
+	a.mutable.vals = vals
+	a.mutable.duties = duties
+	close(a.dutiesOK)
+}
+
+func (a *SlotAttester) setPrepareSelections(selections attSelections) {
+	a.mutable.Lock()
+	defer a.mutable.Unlock()
+
+	a.mutable.selections = selections
+	close(a.selectionsOK)
+}
+
+func (a *SlotAttester) setAttestDatas(datas attDatas) {
+	a.mutable.Lock()
+	defer a.mutable.Unlock()
+
+	a.mutable.datas = datas
+	close(a.datasOK)
+}
+
+func (a *SlotAttester) getVals() validators {
+	a.mutable.Lock()
+	defer a.mutable.Unlock()
+
+	return a.mutable.vals
+}
+
+func (a *SlotAttester) getAttDuties() attDuties {
+	a.mutable.Lock()
+	defer a.mutable.Unlock()
+
+	return a.mutable.duties
+}
+
+func (a *SlotAttester) getSelections() attSelections {
+	a.mutable.Lock()
+	defer a.mutable.Unlock()
+
+	return a.mutable.selections
+}
+
+func (a *SlotAttester) getDatas() attDatas {
+	a.mutable.Lock()
+	defer a.mutable.Unlock()
+
+	return a.mutable.datas
 }
 
 // wait returns when either all the channels or the context is closed.
