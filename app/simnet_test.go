@@ -482,7 +482,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 	testutil.EnsureCleanup(t, func() {
 		cancel()
 		t.Log("stopping teku docker container", name)
-		_ = exec.Command("docker", "stop", name).Run()
+		_ = exec.Command("docker", "kill", name).Run()
 	})
 
 	return args
