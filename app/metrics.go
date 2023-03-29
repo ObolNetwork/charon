@@ -16,17 +16,17 @@ const (
 	readyzBeaconNodeDown = 2
 	// readyzBeaconNodeSyncing indicates that readyz is returning 500s since the Beacon Node is syncing.
 	readyzBeaconNodeSyncing = 3
-	// readyzBeaconNodeZeroPeers indicates that readyz is returning 500s since the Beacon Node has zero peers
-	// and hence cannot sync.
-	readyzBeaconNodeZeroPeers = 4
 	// readyzInsufficientPeers indicates that readyz is returning 500s since this node isn't connected
 	// to quorum peers via the P2P network.
-	readyzInsufficientPeers = 5
+	readyzInsufficientPeers = 4
 	// readyzVCNotConnected indicates that readyz is returning 500s since VC is connected to this node.
-	readyzVCNotConnected = 6
+	readyzVCNotConnected = 5
 	// readyVCMissingValidators indicates that readyz is returning 500s since VC is not configured correctly
 	// and missing some/all validators.
-	readyzVCMissingValidators = 7
+	readyzVCMissingValidators = 6
+	// readyzBeaconNodeZeroPeers indicates that readyz is returning 500s since the Beacon Node has zero peers
+	// and hence cannot sync.
+	readyzBeaconNodeZeroPeers = 7
 )
 
 var (

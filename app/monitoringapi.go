@@ -126,7 +126,7 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 
 				bnPeerCount, bnErr := eth2Cl.NodePeerCount(ctx)
 				if bnErr != nil {
-					log.Error(ctx, "Failed to get beacon node peer count", bnErr)
+					log.Warn(ctx, "Failed to get beacon node peer count", bnErr)
 				}
 
 				syncing, err := beaconNodeSyncing(ctx, eth2Cl)
