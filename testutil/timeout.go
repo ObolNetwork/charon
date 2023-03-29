@@ -14,7 +14,7 @@ import (
 func EnsureCleanup(t *testing.T, cleanupFunc func()) {
 	t.Helper()
 
-	cfOnce := sync.Once{}
+	var cfOnce sync.Once
 
 	t.Cleanup(func() {
 		cfOnce.Do(cleanupFunc)
