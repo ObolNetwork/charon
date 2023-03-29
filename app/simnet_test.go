@@ -479,9 +479,10 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 	}()
 
 	// Kill the container when done (context cancel is not enough for some reason).
-	t.Cleanup(func() {
+	testutil.EnsureCleanup(t, func() {
 		cancel()
-		_ = exec.Command("docker", "kill", name).Run()
+		t.Log("stopping teku docker container", name)
+		_ = exec.Command("docker", "stop", name).Run()
 	})
 
 	return args
