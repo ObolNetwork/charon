@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -123,7 +124,9 @@ func TestSimnetDuties(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			if test.teku && !*integration {
-				t.Skipf("Skipping Teku integration test: %v", t.Name())
+				t.Skipf("Skipping Teku integration test (--integration=false): %v", t.Name())
+			} else if !test.teku && *integration {
+				t.Skipf("Skipping non-integration test (--integration=true): %v", t.Name())
 			}
 			t.Logf("Running test: %v", t.Name())
 
@@ -212,38 +215,49 @@ func newSimnetArgs(t *testing.T) simnetArgs {
 
 // simnetExpect defines which duties (including how many of each) are expected in simnet tests.
 type simnetExpect struct {
+	mu     sync.Mutex
 	counts map[core.DutyType]int
 	Errs   chan error
 }
 
 // Assert tests whether the duty is expected and also updates internal counters.
-func (e simnetExpect) Assert(t *testing.T, typ core.DutyType) {
+func (e *simnetExpect) Assert(t *testing.T, typ core.DutyType) {
 	t.Helper()
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	if _, ok := e.counts[typ]; !ok {
+		t.Logf("unexpected duty, type=%v", typ)
 		e.Errs <- errors.New("unexpected duty type", z.Any("type", typ))
 	}
 	e.counts[typ]--
+	t.Logf("asserted duty, type=%v, remaining=%d", typ, e.counts[typ])
 }
 
 // Done returns true if all duties have been asserted sufficient number of times.
-func (e simnetExpect) Done() bool {
-	for _, v := range e.counts {
+func (e *simnetExpect) Done(t *testing.T) bool {
+	t.Helper()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	for k, v := range e.counts {
 		if v > 0 {
+			t.Logf("assertion not done yet, duty type=%v, remaining=%d", k, v)
 			return false
 		}
 	}
+	t.Logf("assertion done, no duties remaining")
 
 	return true
 }
 
 // newSimnetExpect returns a new simnetExpect with all duties of equal count.
-func newSimnetExpect(count int, duties ...core.DutyType) simnetExpect {
+func newSimnetExpect(count int, duties ...core.DutyType) *simnetExpect {
 	counts := make(map[core.DutyType]int)
 	for _, duty := range duties {
 		counts[duty] = count
 	}
 
-	return simnetExpect{
+	return &simnetExpect{
 		counts: counts,
 		Errs:   make(chan error, 1),
 	}
@@ -251,7 +265,7 @@ func newSimnetExpect(count int, duties ...core.DutyType) simnetExpect {
 
 // testSimnet spins up a simnet cluster of N charon nodes connected via in-memory transports.
 // It asserts successful end-2-end attestation broadcast from all nodes for 2 slots.
-func testSimnet(t *testing.T, args simnetArgs, expect simnetExpect) {
+func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -338,7 +352,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect simnetExpect) {
 			// Assert we get results for all types from all peers.
 			expect.Assert(t, res.Duty.Type)
 
-			if expect.Done() {
+			if expect.Done(t) {
 				cancel()
 				return
 			}
