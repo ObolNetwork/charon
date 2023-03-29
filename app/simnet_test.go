@@ -123,7 +123,9 @@ func TestSimnetDuties(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			if test.teku && !*integration {
-				t.Skipf("Skipping Teku integration test: %v", t.Name())
+				t.Skipf("Skipping Teku integration test (--integration=false): %v", t.Name())
+			} else if !test.teku && *integration {
+				t.Skipf("Skipping non-integration test (--integration=true): %v", t.Name())
 			}
 			t.Logf("Running test: %v", t.Name())
 
