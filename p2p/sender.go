@@ -191,6 +191,10 @@ func defaultSendRecvOpts(pID protocol.ID) sendRecvOpts {
 func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
 	req, resp proto.Message, pID protocol.ID, opts ...SendRecvOption,
 ) error {
+	if !isZeroProto(resp) {
+		return errors.New("bug: response proto must be zero value")
+	}
+
 	o := defaultSendRecvOpts(pID)
 	for _, opt := range opts {
 		opt(&o)
@@ -223,8 +227,17 @@ func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
 		return errors.Wrap(err, "close write", z.Any("protocol", s.Protocol()))
 	}
 
+	zeroResp := proto.Clone(resp)
+
 	if err = reader.ReadMsg(resp); err != nil {
 		return errors.Wrap(err, "read response", z.Any("protocol", s.Protocol()))
+	}
+
+	// TODO(corver): Remove this once we use length-delimited protocols.
+	//  This was added since legacy stream delimited readers couldn't distinguish between
+	//  no response and a zero response.
+	if proto.Equal(resp, zeroResp) {
+		return errors.New("no or zero response received", z.Any("protocol", s.Protocol()))
 	}
 
 	if err = s.Close(); err != nil {
@@ -288,13 +301,11 @@ func (w legacyReadWriter) WriteMsg(m proto.Message) error {
 func (w legacyReadWriter) ReadMsg(m proto.Message) error {
 	b, err := io.ReadAll(w.stream)
 	if err != nil {
-		return errors.Wrap(err, "read response")
-	} else if len(b) == 0 {
-		return errors.New("peer errored, no response")
+		return errors.Wrap(err, "read proto")
 	}
 
 	if err = proto.Unmarshal(b, m); err != nil {
-		return errors.Wrap(err, "unmarshal response")
+		return errors.Wrap(err, "unmarshal proto")
 	}
 
 	return nil
@@ -324,4 +335,19 @@ func protocolPrefix(pIDs ...protocol.ID) protocol.ID {
 	}
 
 	return prefix
+}
+
+// isZeroProto returns true if the provided proto message is zero.
+//
+// Note this function is inefficient for the negative case (i.e. when the message is not zero)
+// as it copies the input argument.
+func isZeroProto(m proto.Message) bool {
+	if m == nil {
+		return false
+	}
+
+	clone := proto.Clone(m)
+	proto.Reset(clone)
+
+	return proto.Equal(m, clone)
 }
