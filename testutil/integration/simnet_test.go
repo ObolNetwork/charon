@@ -28,7 +28,6 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/leadercast"
-	"github.com/obolnetwork/charon/core/parsigex"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
@@ -58,7 +57,7 @@ func TestSimnetDuties(t *testing.T) {
 		{
 			name:          "attester with teku",
 			scheduledType: core.DutyAttester,
-			duties:        []core.DutyType{core.DutyAttester}, // Teku doesn't support beacon committee selection.
+			duties:        []core.DutyType{core.DutyAttester}, // Teku does not support beacon committee selection
 			teku:          true,
 		},
 		{
@@ -263,7 +262,6 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 
-	parSigExFunc := parsigex.NewMemExFunc()
 	lcastTransportFunc := leadercast.NewMemTransportFunc(ctx)
 	featureConf := featureset.DefaultConfig()
 	featureConf.Disabled = []string{string(featureset.QBFTConsensus)} // TODO(corver): Add support for in-memory transport to QBFT.
@@ -292,7 +290,6 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 				P2PKey:             args.P2PKeys[i],
 				TestPingConfig:     p2p.TestPingConfig{Disable: true},
 				SimnetKeys:         []tblsv2.PrivateKey{args.SimnetKeys[i]},
-				ParSigExFunc:       parSigExFunc,
 				LcastTransportFunc: lcastTransportFunc,
 				BroadcastCallback: func(_ context.Context, duty core.Duty, key core.PubKey, data core.SignedData) error {
 					select {
