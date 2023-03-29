@@ -3,6 +3,7 @@
 package testutil
 
 import (
+	"sync"
 	"testing"
 	"time"
 )
@@ -12,15 +13,21 @@ import (
 //   - on test cleanup
 func EnsureCleanup(t *testing.T, cleanupFunc func()) {
 	t.Helper()
+
+	cfOnce := sync.Once{}
+
+	t.Cleanup(func() {
+		cfOnce.Do(cleanupFunc)
+	})
+
 	testDeadline, present := t.Deadline()
 	if !present {
-		t.Cleanup(cleanupFunc)
 		return
 	}
 
 	// Adapted from https://github.com/golang/go/issues/24050#issuecomment-1137682781
 	go func() {
 		time.Sleep(time.Until(testDeadline.Add(-100 * time.Millisecond)))
-		cleanupFunc()
+		cfOnce.Do(cleanupFunc)
 	}()
 }
