@@ -65,7 +65,7 @@ func (c *Client) Run(ctx context.Context) error {
 
 		stream, err := c.connect(ctx)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "client connect", z.Str("peer", p2p.PeerName(c.peer)))
 		}
 
 		c.setConnected()
@@ -79,7 +79,7 @@ func (c *Client) Run(ctx context.Context) error {
 			log.Info(ctx, "Disconnected from peer")
 			continue // Only reconnect for connection breaks in reconnect state.
 		} else if err != nil {
-			return err
+			return errors.Wrap(err, "sync client", z.Str("peer", p2p.PeerName(c.peer)))
 		}
 
 		return nil
@@ -144,14 +144,16 @@ func (c *Client) sendMsgs(ctx context.Context, stream network.Stream) (relayBrok
 		}
 
 		resp, err := c.sendMsg(stream, shutdown)
-		if isRelayError(err) {
+		if isRelayError(err) { //nolint:nestif // Multi-if-else is more readable.
 			return true, false, err // Reconnect on relay errors
 		} else if err != nil { // TODO(dhruv): differentiate between connection errors and other errors.
 			return false, true, err
 		} else if shutdown {
 			return false, false, nil
 		} else if resp.Error == errInvalidSig {
-			return false, false, errors.New("mismatching cluster definition hash with peer")
+			return false, false, errors.New("mismatching peer cluster definition hash")
+		} else if resp.Error == errInvalidVersion {
+			return false, false, errors.New("mismatching peer charon version")
 		} else if resp.Error != "" {
 			return false, false, errors.New("peer responded with error", z.Str("error_message", resp.Error))
 		}
