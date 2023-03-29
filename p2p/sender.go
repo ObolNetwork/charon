@@ -191,6 +191,10 @@ func defaultSendRecvOpts(pID protocol.ID) sendRecvOpts {
 func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
 	req, resp proto.Message, pID protocol.ID, opts ...SendRecvOption,
 ) error {
+	if !isZeroProto(resp) {
+		return errors.New("bug: response proto must be zero value")
+	}
+
 	o := defaultSendRecvOpts(pID)
 	for _, opt := range opts {
 		opt(&o)
@@ -331,4 +335,19 @@ func protocolPrefix(pIDs ...protocol.ID) protocol.ID {
 	}
 
 	return prefix
+}
+
+// isZeroProto returns true if the provided proto message is zero.
+//
+// Note this function is inefficient for the negative case (i.e. when the message is not zero)
+// as it copies the input argument.
+func isZeroProto(m proto.Message) bool {
+	if m == nil {
+		return false
+	}
+
+	clone := proto.Clone(m)
+	proto.Reset(clone)
+
+	return proto.Equal(m, clone)
 }

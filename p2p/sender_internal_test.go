@@ -8,13 +8,18 @@ import (
 	"testing"
 	"time"
 
+	fuzz "github.com/google/gofuzz"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/obolnetwork/charon/app/errors"
+	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 )
 
 func TestSenderAddResult(t *testing.T) {
@@ -65,7 +70,7 @@ func TestSenderRetry(t *testing.T) {
 	ctx := context.Background()
 
 	h := new(testHost)
-	err := sender.SendReceive(ctx, h, "", nil, nil, "")
+	err := sender.SendReceive(ctx, h, "", nil, new(pbv1.Duty), "")
 	require.ErrorIs(t, err, network.ErrReset)
 	require.Equal(t, 2, h.Count())
 
@@ -102,4 +107,27 @@ func TestProtocolPrefix(b *testing.T) {
 	require.EqualValues(b, "charon/peer_info/1.0.0", protocolPrefix("charon/peer_info/1.0.0"))
 	require.EqualValues(b, "charon/peer_info/1.*", protocolPrefix("charon/peer_info/1.0.0", "charon/peer_info/1.1.0"))
 	require.EqualValues(b, "charon/peer_info/*", protocolPrefix("charon/peer_info/1.0.0", "charon/peer_info/2.0.0", "charon/peer_info/3.0.0"))
+}
+
+func TestIsZeroProto(t *testing.T) {
+	for _, msg := range []proto.Message{
+		new(pbv1.Duty),
+		new(pbv1.ConsensusMsg),
+		new(timestamppb.Timestamp),
+	} {
+		require.False(t, isZeroProto(nil))
+		require.True(t, isZeroProto(msg))
+		fuzz.New().NilChance(0).Fuzz(msg)
+		require.False(t, isZeroProto(msg))
+
+		anyMsg, err := anypb.New(msg)
+		require.NoError(t, err)
+		require.False(t, isZeroProto(anyMsg))
+	}
+}
+
+func TestNonZeroResponse(t *testing.T) {
+	ctx := context.Background()
+	err := SendReceive(ctx, nil, "", nil, &pbv1.Duty{Slot: 1}, "")
+	require.ErrorContains(t, err, "bug: response proto must be zero value")
 }
