@@ -18,6 +18,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cmd/relay"
 	"github.com/obolnetwork/charon/p2p"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
@@ -39,7 +40,7 @@ func TestMain(m *testing.M) {
 }
 
 // startRelay starts a charon relay and returns its http multiaddr endpoint.
-func startRelay(ctx context.Context, t *testing.T) (string, <-chan error) {
+func startRelay(parentCtx context.Context, t *testing.T) string {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -48,7 +49,7 @@ func startRelay(ctx context.Context, t *testing.T) (string, <-chan error) {
 
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- relay.Run(ctx, relay.Config{
+		err := relay.Run(parentCtx, relay.Config{
 			DataDir:  dir,
 			HTTPAddr: addr,
 			P2PConfig: p2p.Config{
@@ -62,20 +63,44 @@ func startRelay(ctx context.Context, t *testing.T) (string, <-chan error) {
 			MaxResPerPeer: 8,
 			MaxConns:      1024,
 		})
+		t.Logf("Relay stopped: err=%v", err)
+		errChan <- err
 	}()
 
 	endpoint := "http://" + addr
 
-	// Wait for bootnode to become available.
-	for ctx.Err() == nil {
-		_, err := http.Get(endpoint)
-		if err == nil {
-			break
-		}
-		time.Sleep(time.Millisecond * 100)
-	}
+	// Wait up to 5s for bootnode to become available.
+	ctx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
+	defer cancel()
 
-	return endpoint, errChan
+	isUp := make(chan struct{})
+	go func() {
+		for ctx.Err() == nil {
+			_, err := http.Get(endpoint)
+			if err != nil {
+				time.Sleep(time.Millisecond * 100)
+				continue
+			}
+			close(isUp)
+
+			return
+		}
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			require.Fail(t, "Relay context canceled before startup")
+			return ""
+		case err := <-errChan:
+			testutil.SkipIfBindErr(t, err)
+			require.Fail(t, "Relay exitted before startup", "err=%v", err)
+
+			return ""
+		case <-isUp:
+			return endpoint
+		}
+	}
 }
 
 // asserter provides an abstract callback asserter.
@@ -155,4 +180,8 @@ func externalIP(t *testing.T) string {
 	t.Fatal("no network?")
 
 	return ""
+}
+
+func peerCtx(ctx context.Context, idx int) context.Context {
+	return log.WithCtx(ctx, z.Int("peer_index", idx))
 }

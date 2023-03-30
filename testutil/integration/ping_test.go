@@ -73,18 +73,16 @@ type pingTest struct {
 func pingCluster(t *testing.T, test pingTest) {
 	t.Helper()
 
-	timeout := time.Second * 10
-
 	ctx, cancel := context.WithCancel(context.Background())
 
-	relayAddr, relayErr := startRelay(ctx, t)
+	relayAddr := startRelay(ctx, t)
 
 	const n = 3
 
 	lock, p2pKeys, _ := cluster.NewForT(t, 1, n, n, 0)
 	asserter := &pingAsserter{
 		asserter: asserter{
-			Timeout: timeout,
+			Timeout: time.Second * 10,
 		},
 		N:    n,
 		Lock: lock,
@@ -93,6 +91,7 @@ func pingCluster(t *testing.T, test pingTest) {
 	var eg errgroup.Group
 
 	for i := 0; i < n; i++ {
+		i := i
 		conf := app.Config{
 			Log:              log.DefaultConfig(),
 			Feature:          featureset.DefaultConfig(),
@@ -131,19 +130,17 @@ func pingCluster(t *testing.T, test pingTest) {
 		}
 
 		eg.Go(func() error {
-			defer cancel()
-			return app.Run(ctx, conf)
+			err := app.Run(peerCtx(ctx, i), conf)
+			t.Logf("Peer %d exitted: err=%v", i, err)
+			cancel()
+
+			return err
 		})
 	}
 
 	eg.Go(func() error {
 		defer cancel()
 		return asserter.Await(ctx, t)
-	})
-
-	eg.Go(func() error {
-		defer cancel()
-		return <-relayErr
 	})
 
 	err := eg.Wait()
