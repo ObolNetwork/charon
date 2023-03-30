@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -810,13 +811,17 @@ func wireTracing(life *lifecycle.Manager, conf Config) error {
 // TODO(dhruv): move this somewhere else once more use-cases like this becomes clear.
 func setFeeRecipient(eth2Cl eth2wrap.Client, pubkeys []eth2p0.BLSPubKey, feeRecipientFunc func(core.PubKey) string) func(ctx context.Context, slot core.Slot) error {
 	onStartup := true
+	var osMutex sync.Mutex
 
 	return func(ctx context.Context, slot core.Slot) error {
+		osMutex.Lock()
 		// Either call if it is first slot in epoch or on charon startup.
 		if !onStartup && !slot.FirstInEpoch() {
+			osMutex.Unlock()
 			return nil
 		}
 		onStartup = false
+		osMutex.Unlock()
 
 		// TODO(corver): Use cache instead of using head to try to mitigate this expensive call.
 		vals, err := eth2Cl.ValidatorsByPubKey(ctx, "head", pubkeys)
