@@ -40,7 +40,7 @@ func TestMain(m *testing.M) {
 }
 
 // startRelay starts a charon relay and returns its http multiaddr endpoint.
-func startRelay(ctx context.Context, t *testing.T) string {
+func startRelay(parentCtx context.Context, t *testing.T) string {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -49,7 +49,7 @@ func startRelay(ctx context.Context, t *testing.T) string {
 
 	errChan := make(chan error, 1)
 	go func() {
-		err := relay.Run(ctx, relay.Config{
+		err := relay.Run(parentCtx, relay.Config{
 			DataDir:  dir,
 			HTTPAddr: addr,
 			P2PConfig: p2p.Config{
@@ -70,7 +70,7 @@ func startRelay(ctx context.Context, t *testing.T) string {
 	endpoint := "http://" + addr
 
 	// Wait up to 5s for bootnode to become available.
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
 	defer cancel()
 
 	isUp := make(chan struct{})
