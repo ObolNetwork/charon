@@ -69,10 +69,13 @@ func startRelay(ctx context.Context, t *testing.T) string {
 
 	endpoint := "http://" + addr
 
-	// Wait for bootnode to become available.
+	// Wait 1s for bootnode to become available.
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+
 	isUp := make(chan struct{})
 	go func() {
-		for ctx.Err() != nil {
+		for ctx.Err() == nil {
 			_, err := http.Get(endpoint)
 			if err != nil {
 				time.Sleep(time.Millisecond * 100)
