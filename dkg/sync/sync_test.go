@@ -124,13 +124,11 @@ func testCluster(t *testing.T, n int, versions map[int]string, expectErr bool) {
 		require.True(t, client.IsConnected())
 	}
 
-	go func() {
-		t.Log("client.Shutdown")
-		for _, client := range clients {
-			err := client.Shutdown(ctx)
-			require.NoError(t, err)
-		}
-	}()
+	t.Log("client.Shutdown")
+	for _, client := range clients {
+		err := client.Shutdown(ctx)
+		require.NoError(t, err)
+	}
 
 	t.Log("server.AwaitAllShutdown")
 	for _, server := range servers {
