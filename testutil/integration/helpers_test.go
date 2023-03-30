@@ -69,8 +69,8 @@ func startRelay(ctx context.Context, t *testing.T) string {
 
 	endpoint := "http://" + addr
 
-	// Wait 1s for bootnode to become available.
-	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	// Wait up to 5s for bootnode to become available.
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	isUp := make(chan struct{})
