@@ -70,8 +70,8 @@ func (t keycastP2P) GetShares(ctx context.Context, _ int) ([]byte, error) {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		} else if err != nil {
-			log.Error(ctx, "Failure requesting shares from dealer (will retry)", err)
-			time.Sleep(time.Second * 5) // TODO(corver): Improve backoff
+			log.Warn(ctx, "Failure requesting shares from dealer (will retry)", err)
+			time.Sleep(time.Second) // TODO(corver): Improve backoff
 
 			continue
 		}
