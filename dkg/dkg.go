@@ -5,6 +5,7 @@ package dkg
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
+	"github.com/obolnetwork/charon/app/peerinfo"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
@@ -96,7 +98,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	clusterID := fmt.Sprintf("%#x", def.DefinitionHash)
+	defHash := fmt.Sprintf("%#x", def.DefinitionHash)
 
 	key, err := p2p.LoadPrivKey(conf.DataDir)
 	if err != nil {
@@ -112,7 +114,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	logPeerSummary(ctx, pID, peers, def.Operators)
 
-	tcpNode, shutdown, err := setupP2P(ctx, key, conf.P2P, peers, clusterID)
+	tcpNode, shutdown, err := setupP2P(ctx, key, conf.P2P, peers, def.DefinitionHash)
 	if err != nil {
 		return err
 	}
@@ -159,7 +161,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		tp := keycastP2P{
 			tcpNode:   tcpNode,
 			peers:     peers,
-			clusterID: clusterID,
+			clusterID: defHash,
 		}
 
 		shares, err = runKeyCast(ctx, def, tp, nodeIdx.PeerIdx)
@@ -168,7 +170,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	case "default", "frost":
 		shares, err = runFrostParallel(ctx, tp, uint32(def.NumValidators), uint32(len(peerMap)),
-			uint32(def.Threshold), uint32(nodeIdx.ShareIdx), clusterID)
+			uint32(def.Threshold), uint32(nodeIdx.ShareIdx), defHash)
 		if err != nil {
 			return err
 		}
@@ -237,7 +239,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 }
 
 // setupP2P returns a started libp2p tcp node and a shutdown function.
-func setupP2P(ctx context.Context, key *k1.PrivateKey, p2pConf p2p.Config, peers []p2p.Peer, lockHashHex string) (host.Host, func(), error) {
+func setupP2P(ctx context.Context, key *k1.PrivateKey, p2pConf p2p.Config, peers []p2p.Peer, defHash []byte) (host.Host, func(), error) {
 	var peerIDs []peer.ID
 	for _, p := range peers {
 		peerIDs = append(peerIDs, p.ID)
@@ -247,7 +249,7 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, p2pConf p2p.Config, peers
 		return nil, nil, err
 	}
 
-	relays, err := p2p.NewRelays(ctx, p2pConf.Relays, lockHashHex)
+	relays, err := p2p.NewRelays(ctx, p2pConf.Relays, hex.EncodeToString(defHash))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -274,6 +276,10 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, p2pConf p2p.Config, peers
 	}
 
 	go p2p.NewRelayRouter(tcpNode, peerIDs, relays)(ctx)
+
+	// Register peerinfo server handler for identification to relays (but do not run peerinfo client).
+	gitHash, _ := version.GitCommit()
+	_ = peerinfo.New(tcpNode, peerIDs, version.Version, defHash, gitHash, nil)
 
 	return tcpNode, func() {
 		_ = tcpNode.Close()
