@@ -22,7 +22,7 @@ func TestMemEx(t *testing.T) {
 	ctx := context.Background()
 	pubkey := testutil.RandomCorePubKey(t)
 
-	memExFunc := parsigex.NewMemExFunc()
+	memExFunc := parsigex.NewMemExFunc(n)
 
 	var received []tuple
 
