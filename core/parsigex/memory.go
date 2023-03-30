@@ -5,6 +5,7 @@ package parsigex
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/obolnetwork/charon/core"
 )
@@ -13,7 +14,7 @@ type sub func(context.Context, core.Duty, core.ParSignedDataSet) error
 
 // NewMemExFunc returns a function that itself returns in-memory exchange components
 // that exchange partial signatures.
-func NewMemExFunc() func() core.ParSigEx {
+func NewMemExFunc(expectedPeers int) func() core.ParSigEx {
 	var (
 		mu    sync.Mutex
 		index int
@@ -35,6 +36,21 @@ func NewMemExFunc() func() core.ParSigEx {
 			},
 
 			getSubs: func() []sub {
+				// Wait for all expected peers to be registered.
+				t0 := time.Now()
+				for {
+					mu.Lock()
+					if len(subs) == expectedPeers {
+						mu.Unlock()
+						break
+					}
+					mu.Unlock()
+					if time.Since(t0) > 10*time.Second {
+						panic("timeout waiting for all peers to register")
+					}
+					time.Sleep(time.Millisecond)
+				}
+
 				mu.Lock()
 				defer mu.Unlock()
 
