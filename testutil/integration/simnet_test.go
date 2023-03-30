@@ -28,6 +28,7 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/leadercast"
+	"github.com/obolnetwork/charon/core/parsigex"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
@@ -262,6 +263,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 
+	parSigExFunc := parsigex.NewMemExFunc(args.N)
 	lcastTransportFunc := leadercast.NewMemTransportFunc(ctx)
 	featureConf := featureset.DefaultConfig()
 	featureConf.Disabled = []string{string(featureset.QBFTConsensus)} // TODO(corver): Add support for in-memory transport to QBFT.
@@ -291,6 +293,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 				TestPingConfig:     p2p.TestPingConfig{Disable: true},
 				SimnetKeys:         []tblsv2.PrivateKey{args.SimnetKeys[i]},
 				LcastTransportFunc: lcastTransportFunc,
+				ParSigExFunc:       parSigExFunc,
 				BroadcastCallback: func(_ context.Context, duty core.Duty, key core.PubKey, data core.SignedData) error {
 					select {
 					case <-ctx.Done():
