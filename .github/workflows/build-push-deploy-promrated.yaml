@@ -50,11 +50,14 @@ jobs:
         build-args: GITHUB_SHA=${{ github.sha }}
         tags: ${{ steps.meta.outputs.tags }}
 
-    - name: Split branch name
-      env:
-        SHA_TAG: ${{ steps.meta.outputs.tags[1] }}
-      id: split
-      run: echo "::set-output name=sha::${SHA_TAG##*:}"
+    - name: Set short git commit SHA
+      id: vars
+      run: |
+        calculatedSha=$(git rev-parse --short ${{ github.sha }})
+        echo "::set-output name=short_sha::$calculatedSha"
+
+    - name: Confirm git commit SHA output
+      run: echo ${{ steps.vars.outputs.short_sha }}
 
     - name: Trigger promrated deploy job
       uses: peter-evans/repository-dispatch@v2
@@ -62,4 +65,4 @@ jobs:
         token: ${{ secrets.CHARON_K8S_REPO_ACCESS_TOKEN }}
         repository: ObolNetwork/obol-infrastructure
         event-type: promrated-apply
-        client-payload: '{"tag": "${{ steps.split.outputs.sha }}"}'
+        client-payload: '{"tag": "${{ steps.vars.outputs.short_sha }}"}'
