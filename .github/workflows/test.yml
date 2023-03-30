@@ -22,7 +22,7 @@ jobs:
             ${{ runner.os }}-go-
       - run: go test -coverprofile=coverage.out -covermode=atomic -timeout=5m -race ./...
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v2.1.0
+        uses: codecov/codecov-action@v3.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.out
