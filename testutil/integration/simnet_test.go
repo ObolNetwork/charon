@@ -430,8 +430,15 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 		cmd = tekuExit
 	}
 
-	// Write private share keystore and password
 	tempDir := t.TempDir()
+	// Support specifying a custom base directory for docker mounts (required if running colima on macOS).
+	if dir, ok := os.LookupEnv("TEST_DOCKER_DIR"); ok {
+		var err error
+		tempDir, err = os.MkdirTemp(dir, "")
+		require.NoError(t, err)
+	}
+
+	// Write private share keystore and password
 	err := keystore.StoreKeys([]tblsv2.PrivateKey{args.SimnetKeys[node]}, tempDir)
 	require.NoError(t, err)
 	err = os.WriteFile(path.Join(tempDir, "keystore-simnet-0.txt"), []byte("simnet"), 0o644)
