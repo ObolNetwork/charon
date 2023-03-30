@@ -378,7 +378,7 @@ func TestSyncFlow(t *testing.T) {
 
 			// Start DKG for initial peers.
 			for _, idx := range test.connect {
-				t.Logf("Starting initial DKG for peer %d", idx)
+				log.Info(ctx, "Starting initial peer", z.Int("peer_index", idx))
 				configs[idx].TestSyncCallback = newCallback(len(test.connect) - 1)
 				stopDkgs[idx] = startNewDKG(t, peerCtx(ctx, idx), configs[idx], dkgErrChan)
 			}
@@ -402,7 +402,7 @@ func TestSyncFlow(t *testing.T) {
 
 			// Drop some peers.
 			for _, idx := range test.disconnect {
-				t.Logf("Stopping DKG for peer %d", idx)
+				log.Info(ctx, "Stopping peer", z.Int("peer_index", idx))
 				stopDkgs[idx]()
 
 				// Wait for this dkg process to return.
@@ -412,7 +412,7 @@ func TestSyncFlow(t *testing.T) {
 
 			// Start remaining peers.
 			for _, idx := range test.reconnect {
-				t.Logf("Starting remaining DKG for peer %d", idx)
+				log.Info(ctx, "Starting remaining peer", z.Int("peer_index", idx))
 				stopDkgs[idx] = startNewDKG(t, peerCtx(ctx, idx), configs[idx], dkgErrChan)
 			}
 
@@ -472,6 +472,7 @@ func startNewDKG(t *testing.T, parentCtx context.Context, config dkg.Config, dkg
 
 	go func() {
 		err := dkg.Run(ctx, config)
+		log.Info(ctx, "DKG process returned", z.Any("error", err))
 		select {
 		case <-parentCtx.Done():
 			return
