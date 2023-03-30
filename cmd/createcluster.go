@@ -35,7 +35,8 @@ import (
 
 const (
 	zeroAddress    = "0x0000000000000000000000000000000000000000"
-	defaultNetwork = "goerli"
+	deadAddress    = "0x000000000000000000000000000000000000dead"
+	defaultNetwork = "mainnet"
 	minNodes       = 4
 )
 

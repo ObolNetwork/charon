@@ -18,8 +18,8 @@ func TestCreateDkgValid(t *testing.T) {
 		OutputDir:         temp,
 		NumValidators:     1,
 		Threshold:         3,
-		FeeRecipientAddrs: []string{zeroAddress},
-		WithdrawalAddrs:   []string{zeroAddress},
+		FeeRecipientAddrs: []string{deadAddress},
+		WithdrawalAddrs:   []string{deadAddress},
 		Network:           defaultNetwork,
 		DKGAlgo:           "default",
 		OperatorENRs: []string{
