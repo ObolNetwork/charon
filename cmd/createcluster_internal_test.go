@@ -515,7 +515,7 @@ func TestPublish(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	result := make(chan struct{}) // Buffered channel
+	result := make(chan struct{}, 1) // Buffered channel
 	defer close(result)
 
 	srv := httptest.NewServer(newObolAPIHandler(ctx, t, result))
