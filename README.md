@@ -26,7 +26,7 @@ which contains a docker compose setup for running a full charon cluster on your 
 
 The [Obol Docs](https://docs.obol.tech/) website is the best place to get started.
 The important sections are [intro](https://docs.obol.tech/docs/intro),
-[key concepts](https://docs.obol.tech/docs/int/key-concepts) and [charon](https://docs.obol.tech/docs/dv/introducing-charon).
+[key concepts](https://docs.obol.tech/docs/int/key-concepts) and [charon](https://docs.obol.tech/docs/charon/intro).
 
 For detailed documentation on this repo, see the [docs](docs) folder:
 
@@ -39,35 +39,6 @@ For detailed documentation on this repo, see the [docs](docs) folder:
 
 There is always the [charon godocs](https://pkg.go.dev/github.com/obolnetwork/charon) for the source code documentation.
 
-## Supported Consensus Layer Clients
-
-Charon integrates into the Ethereum consensus stack as a middleware between the validator client
-and the beacon node via the official [Eth Beacon Node REST API](https://ethereum.github.io/beacon-APIs/#/).
-Charon supports any upstream beacon node that serves the Beacon API.
-Charon aims to support any downstream standalone validator client that consumes the Beacon API.
-
-| Client                                             | Beacon Node | Validator Client | Notes                                   |
-| -------------------------------------------------- | :---------: | :--------------: |-----------------------------------------|
-| [Teku](https://github.com/ConsenSys/teku)          |     ✅      |        ✅        | Fully supported                         |
-| [Lighthouse](https://github.com/sigp/lighthouse)   |     ✅      |        ✅        | Fully supported                         |
-| [Lodestar](https://github.com/ChainSafe/lodestar)  |     ✅      |       \*️⃣        | DVT compatibility issue                 |
-| [Vouch](https://github.com/attestantio/vouch)      |     \*️⃣     |        ✅        | Only validator client provided          |
-| [Prysm](https://github.com/prysmaticlabs/prysm)    |     ✅      |        🛑        | Validator client requires gRPC API      |
-| [Nimbus](https://github.com/status-im/nimbus-eth2) |     ✅      |        ✅        | Soon to be supported |
-
 ## Project Status
 
-It is still early days for the Obol Network and things are under active development.
-We are moving fast so check back in regularly to track the progress.
-
-Charon is a distributed validator, so its main responsibility is performing validation duties.
-The following table outlines which clients have produced which duties on a public testnet, and which are still under construction (🚧 )
-
-| Duty \ Client                        |                      Teku                      |                    Lighthouse                    | Lodestar | Nimbus | Vouch | Prysm |
-|--------------------------------------|:----------------------------------------------:|:------------------------------------------------:|:--------:|:------:|:-----:|:-----:|
-| _Attestation_                        |                       ✅                        |                        ✅                         |    🚧    |   ✅    |  ✅   |  🚧   |
-| _Attestation Aggregation_            |                       🚧                       |                        🚧                        |    🚧    |   🚧   |  🚧   |  🚧   |
-| _Block Proposal_                     |                       ✅                        |                        ✅                         |    🚧    |   🚧   |  🚧   |  🚧   |
-| _Blinded Block Proposal (mev-boost)_ | [✅](https://ropsten.beaconcha.in/block/555067) | [✅](https://ropsten.etherscan.io/block/12822070) |    🚧    |   🚧   |  🚧   |  🚧   |
-| _Sync Committee Message_             |                       ✅                        |                        ✅                         |    🚧    |   🚧   |  🚧   |  🚧   |
-| _Sync Committee Contribution_        |                       🚧                       |                        🚧                        |    🚧    |   🚧   |  🚧   |  🚧   |
+See [dvt.obol.tech](https://dvt.obol.tech/) for the latest status of the Obol Network including which upstream consensus clients and which downstream validators are supported.
