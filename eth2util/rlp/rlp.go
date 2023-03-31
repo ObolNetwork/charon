@@ -102,11 +102,18 @@ func decodeLength(item []byte) (offset int, length int, err error) {
 
 	if prefix < 0xc0 {
 		length = int(prefix - 0xb7)
-		if length > 64 {
+		if length > 63 || length < 0 {
 			return 0, 0, errors.New("invalid length prefix")
 		}
 
-		return 1 + length, fromBigEndian(item, 1, length), nil
+		resp, err := fromBigEndian(item, 1, length)
+		if err != nil {
+			return 0, 0, err
+		} else if resp < 0 {
+			return 0, 0, errors.New("negative length")
+		}
+
+		return 1 + length, resp, nil
 	}
 
 	if prefix < 0xf8 {
@@ -114,11 +121,18 @@ func decodeLength(item []byte) (offset int, length int, err error) {
 	}
 
 	length = int(prefix - 0xf7)
-	if length > 64 {
+	if length > 63 || length < 0 {
 		return 0, 0, errors.New("invalid length prefix")
 	}
 
-	return 1 + length, fromBigEndian(item, 1, length), nil
+	resp, err := fromBigEndian(item, 1, length)
+	if err != nil {
+		return 0, 0, err
+	} else if resp < 0 {
+		return 0, 0, errors.New("negative length")
+	}
+
+	return 1 + length, resp, nil
 }
 
 // encodeLength return the RLP encoding prefix for the given item length and offset.
@@ -146,11 +160,15 @@ func toBigEndian(i int) []byte {
 }
 
 // fromBigEndian returns the integer encoded as big endian at the provided byte slice offset and length.
-func fromBigEndian(b []byte, offset int, length int) int {
+func fromBigEndian(b []byte, offset int, length int) (int, error) {
+	if offset+length > len(b) {
+		return 0, errors.New("input too short")
+	}
+
 	var x uint64
 	for i := offset; i < offset+length; i++ {
 		x = x<<8 | uint64(b[i])
 	}
 
-	return int(x)
+	return int(x), nil
 }
