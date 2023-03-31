@@ -71,7 +71,11 @@ func FuzzEncodeBytesList(f *testing.F) {
 	data := make([]byte, minPayloadSize)
 	d := merge(prefix, data)
 
-	f.Add(0, d, d, d, d, d, d, d, d, d, d)
+	// Add a few different lengths of byte slices
+	for i := 0; i < 10; i++ {
+		f.Add(i, d, d, d, d, d, d, d, d, d, d)
+	}
+
 	f.Fuzz(func(t *testing.T, n int, d0, d1, d2, d3, d4, d5, d6, d7, d8, d9 []byte) {
 		a := [][]byte{d0, d1, d2, d3, d4, d5, d6, d7, d8, d9}
 		if n >= 0 && n < len(a) {
