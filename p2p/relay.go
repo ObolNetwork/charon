@@ -25,12 +25,12 @@ var routedAddrTTL = peerstore.TempAddrTTL + 1
 
 // NewRelayReserver returns a life cycle hook function that continuously
 // reserves a relay circuit until the context is closed.
-func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFunc {
-	return func(ctx context.Context) error {
+func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFuncCtx {
+	return func(ctx context.Context) {
 		ctx = log.WithTopic(ctx, "relay")
 		backoff, resetBackoff := expbackoff.NewWithReset(ctx)
 
-		for {
+		for ctx.Err() == nil {
 			relayPeer, ok := relay.Peer()
 			if !ok {
 				time.Sleep(time.Second * 10) // Constant 10s backoff ok for mutexed lookups
@@ -74,7 +74,7 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFunc 
 			for {
 				select {
 				case <-ctx.Done():
-					return nil
+					return
 				case <-timer.C:
 					if len(tcpNode.Network().ConnsToPeer(relayPeer.ID)) > 0 {
 						continue // Still connected, continue for loop

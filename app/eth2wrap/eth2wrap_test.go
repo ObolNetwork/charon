@@ -277,20 +277,26 @@ func TestBlockAttestations(t *testing.T) {
 }
 
 func TestOneDown(t *testing.T) {
+	// Start an erroring server.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
 	ctx := context.Background()
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 
 	addresses := []string{
-		"http://222.222.222.222:22222", // Invalid
-		bmock.Address(),                // Valid
+		srv.URL,         // Invalid
+		bmock.Address(), // Valid
 	}
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Millisecond*10, addresses...)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Second, addresses...)
 	require.NoError(t, err)
 
 	_, err = eth2Cl.SlotDuration(ctx)
-	require.NoError(t, err)
+	testutil.RequireNoError(t, err)
 
 	require.Equal(t, bmock.Address(), eth2Cl.Address())
 }

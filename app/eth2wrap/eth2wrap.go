@@ -80,7 +80,7 @@ func NewMultiHTTP(ctx context.Context, timeout time.Duration, addresses ...strin
 				eth2http.WithTimeout(timeout),
 			)
 			if err != nil {
-				return nil, wrapError(ctx, err, "new eth2 client")
+				return nil, wrapError(ctx, err, "new eth2 client", z.Str("address", address))
 			}
 			eth2Http, ok := eth2Svc.(*eth2http.Service)
 			if !ok {
@@ -281,7 +281,7 @@ func incError(endpoint string) {
 }
 
 // wrapError returns the error as a wrapped structured error.
-func wrapError(ctx context.Context, err error, label string) error {
+func wrapError(ctx context.Context, err error, label string, fields ...z.Field) error {
 	// Decompose go-eth2-client http errors
 	if e2err := new(eth2http.Error); errors.As(err, e2err) {
 		err = errors.New("nok http response",
@@ -317,7 +317,7 @@ func wrapError(ctx context.Context, err error, label string) error {
 		err = errors.Wrap(nerr.Err, msg, z.Any("address", nerr.Addr))
 	}
 
-	return errors.Wrap(err, "beacon api "+label, z.Str("label", label))
+	return errors.Wrap(err, "beacon api "+label, append(fields, z.Str("label", label))...)
 }
 
 // newBestSelector returns a new bestSelector.

@@ -1,12 +1,10 @@
 // Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package app_test
+package integration_test
 
 import (
 	"context"
-	"flag"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path"
@@ -38,10 +36,11 @@ import (
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
-//go:generate go test . -integration -v
-var integration = flag.Bool("integration", false, "Enable docker based integration test")
+//go:generate go test . -integration -v -run=TestSimnetDuties
 
 func TestSimnetDuties(t *testing.T) {
+	skipIfDisabled(t)
+
 	tests := []struct {
 		name                string
 		scheduledType       core.DutyType
@@ -59,7 +58,7 @@ func TestSimnetDuties(t *testing.T) {
 		{
 			name:          "attester with teku",
 			scheduledType: core.DutyAttester,
-			duties:        []core.DutyType{core.DutyAttester}, // Teku doesn't support beacon committee selection.
+			duties:        []core.DutyType{core.DutyAttester}, // Teku does not support beacon committee selection
 			teku:          true,
 		},
 		{
@@ -123,11 +122,6 @@ func TestSimnetDuties(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if test.teku && !*integration {
-				t.Skipf("Skipping Teku integration test (--integration=false): %v", t.Name())
-			} else if !test.teku && *integration {
-				t.Skipf("Skipping non-integration test (--integration=true): %v", t.Name())
-			}
 			t.Logf("Running test: %v", t.Name())
 
 			args := newSimnetArgs(t)
@@ -269,7 +263,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 
-	parSigExFunc := parsigex.NewMemExFunc()
+	parSigExFunc := parsigex.NewMemExFunc(args.N)
 	lcastTransportFunc := leadercast.NewMemTransportFunc(ctx)
 	featureConf := featureset.DefaultConfig()
 	featureConf.Disabled = []string{string(featureset.QBFTConsensus)} // TODO(corver): Add support for in-memory transport to QBFT.
@@ -298,8 +292,8 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 				P2PKey:             args.P2PKeys[i],
 				TestPingConfig:     p2p.TestPingConfig{Disable: true},
 				SimnetKeys:         []tblsv2.PrivateKey{args.SimnetKeys[i]},
-				ParSigExFunc:       parSigExFunc,
 				LcastTransportFunc: lcastTransportFunc,
+				ParSigExFunc:       parSigExFunc,
 				BroadcastCallback: func(_ context.Context, duty core.Duty, key core.PubKey, data core.SignedData) error {
 					select {
 					case <-ctx.Done():
@@ -436,8 +430,15 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 		cmd = tekuExit
 	}
 
-	// Write private share keystore and password
 	tempDir := t.TempDir()
+	// Support specifying a custom base directory for docker mounts (required if running colima on macOS).
+	if dir, ok := os.LookupEnv("TEST_DOCKER_DIR"); ok {
+		var err error
+		tempDir, err = os.MkdirTemp(dir, "")
+		require.NoError(t, err)
+	}
+
+	// Write private share keystore and password
 	err := keystore.StoreKeys([]tblsv2.PrivateKey{args.SimnetKeys[node]}, tempDir)
 	require.NoError(t, err)
 	err = os.WriteFile(path.Join(tempDir, "keystore-simnet-0.txt"), []byte("simnet"), 0o644)
@@ -493,52 +494,11 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 	}()
 
 	// Kill the container when done (context cancel is not enough for some reason).
-	t.Cleanup(func() {
+	testutil.EnsureCleanup(t, func() {
 		cancel()
+		t.Log("stopping teku docker container", name)
 		_ = exec.Command("docker", "kill", name).Run()
 	})
 
 	return args
-}
-
-// externalIP returns the hosts external IP.
-// Copied from https://stackoverflow.com/questions/23558425/how-do-i-get-the-local-ip-address-in-go.
-func externalIP(t *testing.T) string {
-	t.Helper()
-
-	ifaces, err := net.Interfaces()
-	require.NoError(t, err)
-
-	for _, iface := range ifaces {
-		if iface.Flags&net.FlagUp == 0 {
-			continue // interface down
-		}
-		if iface.Flags&net.FlagLoopback != 0 {
-			continue // loopback interface
-		}
-		addrs, err := iface.Addrs()
-		require.NoError(t, err)
-		for _, addr := range addrs {
-			var ip net.IP
-			switch v := addr.(type) {
-			case *net.IPNet:
-				ip = v.IP
-			case *net.IPAddr:
-				ip = v.IP
-			}
-			if ip == nil || ip.IsLoopback() {
-				continue
-			}
-			ip = ip.To4()
-			if ip == nil {
-				continue // not an ipv4 address
-			}
-
-			return ip.String()
-		}
-	}
-
-	t.Fatal("no network?")
-
-	return ""
 }

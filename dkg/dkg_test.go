@@ -21,6 +21,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cmd/relay"
 	"github.com/obolnetwork/charon/dkg"
@@ -377,8 +378,9 @@ func TestSyncFlow(t *testing.T) {
 
 			// Start DKG for initial peers.
 			for _, idx := range test.connect {
+				log.Info(ctx, "Starting initial peer", z.Int("peer_index", idx))
 				configs[idx].TestSyncCallback = newCallback(len(test.connect) - 1)
-				stopDkgs[idx] = startNewDKG(t, ctx, configs[idx], dkgErrChan)
+				stopDkgs[idx] = startNewDKG(t, peerCtx(ctx, idx), configs[idx], dkgErrChan)
 			}
 
 			// Wait for initial peers to connect with each other.
@@ -400,6 +402,7 @@ func TestSyncFlow(t *testing.T) {
 
 			// Drop some peers.
 			for _, idx := range test.disconnect {
+				log.Info(ctx, "Stopping peer", z.Int("peer_index", idx))
 				stopDkgs[idx]()
 
 				// Wait for this dkg process to return.
@@ -409,7 +412,8 @@ func TestSyncFlow(t *testing.T) {
 
 			// Start remaining peers.
 			for _, idx := range test.reconnect {
-				stopDkgs[idx] = startNewDKG(t, ctx, configs[idx], dkgErrChan)
+				log.Info(ctx, "Starting remaining peer", z.Int("peer_index", idx))
+				stopDkgs[idx] = startNewDKG(t, peerCtx(ctx, idx), configs[idx], dkgErrChan)
 			}
 
 			// Assert DKG results for all DKG processes.
@@ -430,6 +434,10 @@ func TestSyncFlow(t *testing.T) {
 			verifyDKGResults(t, lock.Definition, dir)
 		})
 	}
+}
+
+func peerCtx(ctx context.Context, idx int) context.Context {
+	return log.WithCtx(ctx, z.Int("peer_index", idx))
 }
 
 func getConfigs(t *testing.T, def cluster.Definition, keys []*k1.PrivateKey, dir, bootnode string) []dkg.Config {
@@ -464,6 +472,7 @@ func startNewDKG(t *testing.T, parentCtx context.Context, config dkg.Config, dkg
 
 	go func() {
 		err := dkg.Run(ctx, config)
+		log.Info(ctx, "DKG process returned", z.Any("error", err))
 		select {
 		case <-parentCtx.Done():
 			return
