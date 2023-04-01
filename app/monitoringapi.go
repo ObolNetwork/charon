@@ -25,12 +25,13 @@ import (
 )
 
 var (
-	errReadyUninitialised     = errors.New("ready check uninitialised")
-	errReadyInsufficientPeers = errors.New("quorum peers not connected")
-	errReadyBeaconNodeSyncing = errors.New("beacon node not synced")
-	errReadyBeaconNodeDown    = errors.New("beacon node down")
-	errReadyVCNotConnected    = errors.New("vc not connected")
-	errReadyVCMissingVals     = errors.New("vc missing validators")
+	errReadyUninitialised       = errors.New("ready check uninitialised")
+	errReadyInsufficientPeers   = errors.New("quorum peers not connected")
+	errReadyBeaconNodeSyncing   = errors.New("beacon node not synced")
+	errReadyBeaconNodeDown      = errors.New("beacon node down")
+	errReadyBeaconNodeZeroPeers = errors.New("beacon node has zero peers")
+	errReadyVCNotConnected      = errors.New("vc not connected")
+	errReadyVCMissingVals       = errors.New("vc missing validators")
 )
 
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
@@ -88,7 +89,7 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 }
 
 // startReadyChecker returns function which returns an error resulting from ready checks periodically.
-func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client.NodeSyncingProvider, peerIDs []peer.ID,
+func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.Client, peerIDs []peer.ID,
 	clock clockwork.Clock, pubkeys []core.PubKey, seenPubkeys <-chan core.PubKey, vapiCalls <-chan struct{},
 ) func() error {
 	const minNotConnected = 6 // Require 6 rounds (1min) of too few connected
@@ -123,6 +124,11 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 					notConnectedRounds++
 				}
 
+				bnPeerCount, bnErr := eth2Cl.NodePeerCount(ctx)
+				if bnErr != nil {
+					log.Warn(ctx, "Failed to get beacon node peer count", bnErr)
+				}
+
 				syncing, err := beaconNodeSyncing(ctx, eth2Cl)
 				//nolint:nestif
 				if err != nil {
@@ -131,6 +137,9 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2client
 				} else if syncing {
 					err = errReadyBeaconNodeSyncing
 					readyzGauge.Set(readyzBeaconNodeSyncing)
+				} else if bnPeerCount == 0 && bnErr == nil {
+					err = errReadyBeaconNodeZeroPeers
+					readyzGauge.Set(readyzBeaconNodeZeroPeers)
 				} else if notConnectedRounds >= minNotConnected {
 					err = errReadyInsufficientPeers
 					readyzGauge.Set(readyzInsufficientPeers)
