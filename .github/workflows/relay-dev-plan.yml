@@ -13,18 +13,21 @@ on:
 
 jobs:
   plan-relay:
-  - name: Trigger dev relay plan job
-  uses: peter-evans/repository-dispatch@v2
-  with:
-    token: ${{ secrets.CHARON_K8S_REPO_ACCESS_TOKEN }}
-    repository: ObolNetwork/obol-infrastructure
-    event-type: relay-reusable-plan
-    client-payload: |
-      '{
-        "issue_number": context.issue.number,
-        "repo": context.repo.repo,
-        "relay_name": "dev.relay",
-        "relay_version": "$(git rev-parse --short ${{ github.sha }})",
-        "cluster_size": "1"
-        "udp_enabled": "true"
-      }'
+    runs-on: ubuntu-latest
+    name: Build Docker Image
+    steps:
+    - name: Trigger dev relay plan job
+      uses: peter-evans/repository-dispatch@v2
+      with:
+        token: ${{ secrets.CHARON_K8S_REPO_ACCESS_TOKEN }}
+        repository: ObolNetwork/obol-infrastructure
+        event-type: relay-reusable-plan
+        client-payload: |
+          '{
+            "issue_number": context.issue.number,
+            "repo": context.repo.repo,
+            "relay_name": "dev.relay",
+            "relay_version": "$(git rev-parse --short ${{ github.sha }})",
+            "cluster_size": "1"
+            "udp_enabled": "true"
+          }'
