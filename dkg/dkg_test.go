@@ -527,6 +527,9 @@ func getConfigs(t *testing.T, def cluster.Definition, keys []*k1.PrivateKey, dir
 			},
 			Log:     log.DefaultConfig(),
 			TestDef: &def,
+			TestStoreKeysFunc: func(secrets []tblsv2.PrivateKey, dir string) error {
+				return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
+			},
 		}
 		require.NoError(t, os.MkdirAll(conf.DataDir, 0o755))
 

@@ -72,7 +72,7 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 
 		require.NoError(t, os.Mkdir(ep, 0o755))
 		require.NoError(t, os.Mkdir(vk, 0o755))
-		require.NoError(t, keystore.StoreKeys(keys, vk))
+		require.NoError(t, keystore.StoreKeysInsecure(keys, vk, keystore.ConfirmInsecureKeys))
 
 		lf, err := os.OpenFile(filepath.Join(ep, "cluster-lock.json"), os.O_WRONLY|os.O_CREATE, 0o755)
 		require.NoError(t, err)
@@ -147,7 +147,7 @@ func TestCombine(t *testing.T) {
 
 		require.NoError(t, os.Mkdir(ep, 0o755))
 		require.NoError(t, os.Mkdir(vk, 0o755))
-		require.NoError(t, keystore.StoreKeys(keys, vk))
+		require.NoError(t, keystore.StoreKeysInsecure(keys, vk, keystore.ConfirmInsecureKeys))
 
 		lf, err := os.OpenFile(filepath.Join(ep, "cluster-lock.json"), os.O_WRONLY|os.O_CREATE, 0o755)
 		require.NoError(t, err)
@@ -238,7 +238,7 @@ func TestCombineTwiceWithoutForceFails(t *testing.T) {
 
 		require.NoError(t, os.Mkdir(ep, 0o755))
 		require.NoError(t, os.Mkdir(vk, 0o755))
-		require.NoError(t, keystore.StoreKeys(keys, vk))
+		require.NoError(t, keystore.StoreKeysInsecure(keys, vk, keystore.ConfirmInsecureKeys))
 
 		lf, err := os.OpenFile(filepath.Join(ep, "cluster-lock.json"), os.O_WRONLY|os.O_CREATE, 0o755)
 		require.NoError(t, err)

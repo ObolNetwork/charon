@@ -45,11 +45,19 @@ type Config struct {
 	PublishAddr string
 	Publish     bool
 
-	TestDef          *cluster.Definition
-	TestSyncCallback func(connected int, id peer.ID)
+	TestDef           *cluster.Definition
+	TestSyncCallback  func(connected int, id peer.ID)
+	TestStoreKeysFunc func(secrets []tblsv2.PrivateKey, dir string) error
+}
+
+// HasTestConfig returns true if any of the test config fields are set.
+func (c Config) HasTestConfig() bool {
+	return c.TestStoreKeysFunc != nil || c.TestSyncCallback != nil || c.TestDef != nil
 }
 
 // Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output to disk.
+//
+//nolint:maintidx // Refactor into smaller steps.
 func Run(ctx context.Context, conf Config) (err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -91,6 +99,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 	network, err := eth2util.ForkVersionToNetwork(def.ForkVersion)
 	if err != nil {
 		return err
+	}
+
+	if network == eth2util.Mainnet.Name && conf.HasTestConfig() {
+		return errors.New("cannot use test flags on mainnet")
 	}
 
 	peers, err := def.Peers()
@@ -211,7 +223,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 		log.Debug(ctx, "Imported keyshares to keymanager", z.Str("keymanager_address", conf.KeymanagerAddr))
 	} else { // Else save to disk
-		if err = writeKeysToDisk(conf.DataDir, shares); err != nil {
+		if err = writeKeysToDisk(conf, shares); err != nil {
 			return err
 		}
 		log.Debug(ctx, "Saved keyshares to disk")
