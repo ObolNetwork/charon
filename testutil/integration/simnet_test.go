@@ -440,7 +440,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 	}
 
 	// Write private share keystore and password
-	err := keystore.StoreKeys([]tblsv2.PrivateKey{args.SimnetKeys[node]}, tempDir)
+	err := keystore.StoreKeysInsecure([]tblsv2.PrivateKey{args.SimnetKeys[node]}, tempDir, keystore.ConfirmInsecureKeys)
 	require.NoError(t, err)
 	err = os.WriteFile(path.Join(tempDir, "keystore-simnet-0.txt"), []byte("simnet"), 0o644)
 	require.NoError(t, err)
