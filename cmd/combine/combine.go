@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"testing"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -111,11 +112,26 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool) error 
 		return errors.New("refusing to overwrite existing private key", z.Str("path", ksPath))
 	}
 
-	if err := keystore.StoreKeys(combinedKeys, outputDir); err != nil {
+	if err := keystoreFunc(combinedKeys, outputDir); err != nil {
 		return errors.Wrap(err, "cannot store keystore")
 	}
 
 	return nil
+}
+
+// keystoreFunc is aliased to keystore.StoreKeys for testing purposes.
+var keystoreFunc = keystore.StoreKeys
+
+func SetInsecureKeysForT(t *testing.T) {
+	t.Helper()
+	t.Cleanup(func() {
+		// Restore the original keystoreFunc
+		keystoreFunc = keystore.StoreKeys
+	})
+
+	keystoreFunc = func(secrets []tblsv2.PrivateKey, outputDir string) error {
+		return keystore.StoreKeysInsecure(secrets, outputDir, keystore.ConfirmInsecureKeys)
+	}
 }
 
 func secretsToShares(lock cluster.Lock, secrets []tblsv2.PrivateKey) (map[int]tblsv2.PrivateKey, error) {

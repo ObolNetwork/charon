@@ -31,6 +31,7 @@ func TestCombineNoLockfile(t *testing.T) {
 }
 
 func TestCombineCannotLoadKeystore(t *testing.T) {
+	combine.SetInsecureKeysForT(t)
 	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
 
 	for _, share := range shares {
@@ -87,6 +88,7 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 }
 
 func TestCombine(t *testing.T) {
+	combine.SetInsecureKeysForT(t)
 	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
 
 	// calculate expected public keys and secrets
