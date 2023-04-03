@@ -16,6 +16,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -30,6 +31,11 @@ const (
 	errInvalidSig     = "invalid signature"
 	errInvalidVersion = "invalid version"
 )
+
+// Protocols returns the list of supported Protocols in order of precedence.
+func Protocols() []protocol.ID {
+	return []protocol.ID{protocolID}
+}
 
 // NewServer returns a new Server instance.
 func NewServer(tcpNode host.Host, allCount int, defHash []byte, version string) *Server {

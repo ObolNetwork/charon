@@ -5,12 +5,9 @@ package integration_test
 import (
 	"context"
 	"fmt"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/libp2p/go-libp2p/core/host"
-	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -43,25 +40,7 @@ func TestInfoSync(t *testing.T) {
 		N:        n,
 	}
 
-	var tcpNodesLock sync.Mutex
-	var tcpNodes []host.Host
-
-	// Hard code peer addresses and protocols
-	tcpNodeCallback := func(tcpNode host.Host) {
-		tcpNodesLock.Lock()
-		defer tcpNodesLock.Unlock()
-
-		for _, other := range tcpNodes {
-			other.Peerstore().AddAddrs(tcpNode.ID(), tcpNode.Addrs(), peerstore.PermanentAddrTTL)
-			err := other.Peerstore().AddProtocols(tcpNode.ID(), priority.Protocols()...)
-			require.NoError(t, err)
-
-			tcpNode.Peerstore().AddAddrs(other.ID(), other.Addrs(), peerstore.PermanentAddrTTL)
-			err = tcpNode.Peerstore().AddProtocols(other.ID(), priority.Protocols()...)
-			require.NoError(t, err)
-		}
-		tcpNodes = append(tcpNodes, tcpNode)
-	}
+	tcpNodeCallback := testutil.NewTCPNodeCallback(t, priority.Protocols()...)
 
 	var eg errgroup.Group
 	for i := 0; i < n; i++ {
