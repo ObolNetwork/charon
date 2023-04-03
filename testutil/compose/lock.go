@@ -12,6 +12,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util"
 )
 
 // Lock creates a docker-compose.yml from a charon-compose.yml for generating keys and a cluster lock file.
@@ -42,6 +43,7 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 			{"insecure-keys", fmt.Sprintf(`"%v"`, conf.InsecureKeys)},
 			{"withdrawal-addresses", zeroXDead},
 			{"fee-recipient-addresses", zeroXDead},
+			{"network", eth2util.Goerli.Name},
 		}}
 
 		data = TmplData{
