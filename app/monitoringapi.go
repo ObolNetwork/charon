@@ -140,15 +140,15 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 				if err != nil {
 					err = errReadyBeaconNodeDown
 					readyzGauge.Set(readyzBeaconNodeDown)
+				} else if syncing {
+					err = errReadyBeaconNodeSyncing
+					readyzGauge.Set(readyzBeaconNodeSyncing)
 				} else if bnPeerCount == 0 && bnErr == nil {
 					err = errReadyBeaconNodeZeroPeers
 					readyzGauge.Set(readyzBeaconNodeZeroPeers)
 				} else if syncDistance > bnFarBehindSlots {
 					err = errReadyBeaconNodeFarBehind
 					readyzGauge.Set(readyzBeaconNodeFarBehind)
-				} else if syncing {
-					err = errReadyBeaconNodeSyncing
-					readyzGauge.Set(readyzBeaconNodeSyncing)
 				} else if notConnectedRounds >= minNotConnected {
 					err = errReadyInsufficientPeers
 					readyzGauge.Set(readyzInsufficientPeers)
