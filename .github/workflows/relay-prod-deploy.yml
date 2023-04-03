@@ -1,0 +1,22 @@
+name: 'Deploy Relay To Prod'
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: The docker image tag to deploy
+        required: true
+        type: string
+
+jobs:
+  deploy-relay:
+  - name: Trigger dev relay deploy job
+  uses: peter-evans/repository-dispatch@v2
+  with:
+    token: ${{ secrets.CHARON_K8S_REPO_ACCESS_TOKEN }}
+    repository: ObolNetwork/obol-infrastructure
+    event-type: relay-reusable-deployment
+    client-payload: |
+      '{
+        "relay_version": "${{ github.image_tag }}"
+      }'
