@@ -1,6 +1,6 @@
 // Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package beaconmock_test
+package beaconmock
 
 import (
 	"context"
@@ -10,17 +10,18 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/r3labs/sse/v2"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/cenkalti/backoff.v1"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 func TestHeadProducer(t *testing.T) {
-	bmock, err := beaconmock.New()
+	bmock, err := New()
 	require.NoError(t, err)
 
 	defer bmock.Close()
@@ -83,16 +84,22 @@ func TestHeadProducer(t *testing.T) {
 						return backoff.Permanent(unsupportedTopicErr)
 					}
 
-					if len(requiredTopics) == 0 {
-						return backoff.Permanent(nil)
-					}
-
 					return nil
 				}
 			})
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
+
+			// Mock head updates.
+			go func() {
+				var i int
+				for ctx.Err() == nil {
+					bmock.headProducer.updateHead(eth2p0.Slot(i))
+					i++
+					time.Sleep(time.Millisecond)
+				}
+			}()
 
 			if test.expectErr {
 				require.ErrorIs(t, client.SubscribeWithContext(ctx, addr, func(msg *sse.Event) {}), unsupportedTopicErr)
