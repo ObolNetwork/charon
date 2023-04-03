@@ -144,18 +144,14 @@ func (c *Client) sendMsgs(ctx context.Context, stream network.Stream) (relayBrok
 		}
 
 		resp, err := c.sendMsg(stream, shutdown)
-		if isRelayError(err) { //nolint:nestif // Multi-if-else is more readable.
+		if isRelayError(err) {
 			return true, false, err // Reconnect on relay errors
 		} else if err != nil { // TODO(dhruv): differentiate between connection errors and other errors.
 			return false, true, err
 		} else if shutdown {
 			return false, false, nil
-		} else if resp.Error == errInvalidSig {
-			return false, false, errors.New("mismatching peer cluster definition hash")
-		} else if resp.Error == errInvalidVersion {
-			return false, false, errors.New("mismatching peer charon version")
 		} else if resp.Error != "" {
-			return false, false, errors.New("peer responded with error", z.Str("error_message", resp.Error))
+			return false, false, errors.New("peer responded with error: " + resp.Error)
 		}
 
 		rtt := time.Since(resp.SyncTimestamp.AsTime())

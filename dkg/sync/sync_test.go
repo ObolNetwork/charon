@@ -28,26 +28,25 @@ func TestSyncProtocol(t *testing.T) {
 	}
 
 	t.Run("2", func(t *testing.T) {
-		testCluster(t, 2, versions, false)
+		testCluster(t, 2, versions, "")
 	})
 
 	t.Run("3", func(t *testing.T) {
-		testCluster(t, 3, versions, false)
+		testCluster(t, 3, versions, "")
 	})
 
 	t.Run("5", func(t *testing.T) {
-		testCluster(t, 5, versions, false)
+		testCluster(t, 5, versions, "")
+	})
+
+	t.Run("invalid version", func(t *testing.T) {
+		testCluster(t, 2,
+			map[int]string{0: "v0", 1: "v1", 2: "v2", 3: "v3"},
+			"mismatching charon version; expect=")
 	})
 }
 
-func TestInvalidVersion(t *testing.T) {
-	testCluster(t, 2, map[int]string{
-		0: "1.0",
-		1: "2.0",
-	}, true)
-}
-
-func testCluster(t *testing.T, n int, versions map[int]string, expectErr bool) {
+func testCluster(t *testing.T, n int, versions map[int]string, expectErr string) {
 	t.Helper()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -90,8 +89,8 @@ func testCluster(t *testing.T, n int, versions map[int]string, expectErr bool) {
 			ctx := log.WithTopic(ctx, fmt.Sprintf("client%d_%d", i, j))
 			go func() {
 				err := client.Run(ctx)
-				if expectErr {
-					require.Error(t, err)
+				if expectErr != "" {
+					require.ErrorContains(t, err, expectErr)
 					return
 				}
 				require.NoError(t, err)
@@ -108,14 +107,14 @@ func testCluster(t *testing.T, n int, versions map[int]string, expectErr bool) {
 	t.Log("server.AwaitAllConnected")
 	for _, server := range servers {
 		err := server.AwaitAllConnected(ctx)
-		if expectErr {
-			require.Error(t, err)
+		if expectErr != "" {
+			require.ErrorContains(t, err, expectErr)
 		} else {
 			require.NoError(t, err)
 		}
 	}
 
-	if expectErr {
+	if expectErr != "" {
 		return
 	}
 
