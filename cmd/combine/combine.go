@@ -26,7 +26,15 @@ import (
 //   - place the ".charon" directory in inputDir, renamed to another name
 //
 // Combine will create a new directory named after "outputDir", which will contain Keystore files.
-func Combine(ctx context.Context, inputDir, outputDir string, force bool) error {
+func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts ...func(*options)) error {
+	o := options{
+		keyStoreFunc: keystore.StoreKeys,
+	}
+
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	if !filepath.IsAbs(outputDir) {
 		fp, err := filepath.Abs(outputDir)
 		if err != nil {
@@ -112,26 +120,11 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool) error 
 		return errors.New("refusing to overwrite existing private key", z.Str("path", ksPath))
 	}
 
-	if err := keystoreFunc(combinedKeys, outputDir); err != nil {
+	if err := o.keyStoreFunc(combinedKeys, outputDir); err != nil {
 		return errors.Wrap(err, "cannot store keystore")
 	}
 
 	return nil
-}
-
-// keystoreFunc is aliased to keystore.StoreKeys for testing purposes.
-var keystoreFunc = keystore.StoreKeys
-
-func SetInsecureKeysForT(t *testing.T) {
-	t.Helper()
-	t.Cleanup(func() {
-		// Restore the original keystoreFunc
-		keystoreFunc = keystore.StoreKeys
-	})
-
-	keystoreFunc = func(secrets []tblsv2.PrivateKey, outputDir string) error {
-		return keystore.StoreKeysInsecure(secrets, outputDir, keystore.ConfirmInsecureKeys)
-	}
 }
 
 func secretsToShares(lock cluster.Lock, secrets []tblsv2.PrivateKey) (map[int]tblsv2.PrivateKey, error) {
@@ -173,6 +166,19 @@ func secretsToShares(lock cluster.Lock, secrets []tblsv2.PrivateKey) (map[int]tb
 	}
 
 	return resp, nil
+}
+
+// WithInsecureKeysForT is a functional option for Combine that will use the insecure keystore.StoreKeysInsecure function.
+func WithInsecureKeysForT(*testing.T) func(*options) {
+	return func(o *options) {
+		o.keyStoreFunc = func(secrets []tblsv2.PrivateKey, dir string) error {
+			return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
+		}
+	}
+}
+
+type options struct {
+	keyStoreFunc func(secrets []tblsv2.PrivateKey, dir string) error
 }
 
 // loadLockfile loads a lockfile from one of the charon directories contained in dir.
