@@ -71,7 +71,7 @@ func (s *Server) AwaitAllConnected(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-timer.C:
-			if err := s.Error(); err != nil {
+			if err := s.Err(); err != nil {
 				return err
 			}
 
@@ -82,16 +82,16 @@ func (s *Server) AwaitAllConnected(ctx context.Context) error {
 	}
 }
 
-// setErrored sets the shared error state for the server.
-func (s *Server) setError(err error) {
+// setErr sets the shared error state for the server.
+func (s *Server) setErr(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.err = err
 }
 
-// Error returns the shared error state for the server.
-func (s *Server) Error() error {
+// Err returns the shared error state for the server.
+func (s *Server) Err() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -197,7 +197,7 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 		}
 
 		if err := s.validReq(pubkey, msg); err != nil {
-			s.setError(errors.Wrap(err, "invalid sync message", z.Str("peer", p2p.PeerName(pID))))
+			s.setErr(errors.Wrap(err, "invalid sync message", z.Str("peer", p2p.PeerName(pID))))
 			resp.Error = err.Error()
 		} else if !s.isConnected(pID) {
 			count := s.setConnected(pID)
