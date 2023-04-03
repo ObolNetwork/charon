@@ -26,11 +26,7 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-const (
-	protocolID        = "/charon/dkg/sync/1.0.0/"
-	errInvalidSig     = "invalid signature"
-	errInvalidVersion = "invalid version"
-)
+const protocolID = "/charon/dkg/sync/1.0.0/"
 
 // Protocols returns the list of supported Protocols in order of precedence.
 func Protocols() []protocol.ID {
@@ -59,10 +55,10 @@ type Server struct {
 	allCount int // Excluding self
 
 	// Mutable state
-	mu          sync.Mutex
-	shutdown    map[peer.ID]struct{}
-	connected   map[peer.ID]struct{}
-	errResponse bool // To return error and exit anywhere in the server flow
+	mu        sync.Mutex
+	shutdown  map[peer.ID]struct{}
+	connected map[peer.ID]struct{}
+	err       error // To return error and exit anywhere in the server flow
 }
 
 // AwaitAllConnected blocks until all peers have established a connection with this server or returns an error.
@@ -75,8 +71,8 @@ func (s *Server) AwaitAllConnected(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-timer.C:
-			if s.isError() {
-				return errors.New("unexpected error occurred")
+			if err := s.Err(); err != nil {
+				return err
 			}
 
 			if s.isAllConnected() {
@@ -86,20 +82,20 @@ func (s *Server) AwaitAllConnected(ctx context.Context) error {
 	}
 }
 
-// setError sets the shared error state for the server.
-func (s *Server) setError() {
+// setErr sets the shared error state for the server.
+func (s *Server) setErr(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.errResponse = true
+	s.err = err
 }
 
-// isError checks if there was any error in between the server flow.
-func (s *Server) isError() bool {
+// Err returns the shared error state for the server.
+func (s *Server) Err() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.errResponse
+	return s.err
 }
 
 // AwaitAllShutdown blocks until all peers have successfully shutdown or returns an error.
@@ -200,12 +196,9 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 			SyncTimestamp: msg.Timestamp,
 		}
 
-		var ok bool
-		resp.Error, ok, err = s.validReq(ctx, pubkey, msg)
-		if err != nil {
-			return err
-		} else if !ok {
-			s.setError()
+		if err := s.validReq(pubkey, msg); err != nil {
+			s.setErr(errors.Wrap(err, "invalid sync message", z.Str("peer", p2p.PeerName(pID))))
+			resp.Error = err.Error()
 		} else if !s.isConnected(pID) {
 			count := s.setConnected(pID)
 			log.Info(ctx, fmt.Sprintf("Connected to peer %d of %d", count, s.allCount))
@@ -225,25 +218,19 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 
 // validReq returns an error message and false if the request version or definition hash are invalid.
 // Else it returns true or an error.
-func (s *Server) validReq(ctx context.Context, pubkey crypto.PubKey, msg *pb.MsgSync) (string, bool, error) {
+func (s *Server) validReq(pubkey crypto.PubKey, msg *pb.MsgSync) error {
 	if msg.Version != s.version {
-		log.Error(ctx, "Received mismatching charon version from peer", nil,
-			z.Str("expect", s.version),
-			z.Str("got", msg.Version),
-		)
-
-		return errInvalidVersion, false, nil
+		return fmt.Errorf("mismatching charon version; expect=%s, got=%s", s.version, msg.Version) //nolint: wrapcheck,forbidigo // Use stdlib errors when sending over the wire.
 	}
 
 	ok, err := pubkey.Verify(s.defHash, msg.HashSignature)
 	if err != nil { // Note: libp2p verify does another hash of defHash.
-		return "", false, errors.Wrap(err, "verify sig hash")
+		return errors.Wrap(err, "error verifying definition hash signature")
 	} else if !ok {
-		log.Error(ctx, "Received mismatching cluster definition hash from peer", nil)
-		return errInvalidSig, false, nil
+		return errors.New("invalid definition hash signature")
 	}
 
-	return "", true, nil
+	return nil
 }
 
 // Start registers sync protocol with the libp2p host.

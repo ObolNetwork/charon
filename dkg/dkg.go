@@ -347,6 +347,10 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 			return nil, ctx.Err()
 		}
 
+		if err := server.Err(); err != nil {
+			return nil, errors.Wrap(err, "sync server error")
+		}
+
 		var connectedCount int
 		for _, client := range clients {
 			if client.IsConnected() {
