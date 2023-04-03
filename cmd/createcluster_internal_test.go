@@ -117,11 +117,12 @@ func TestCreateCluster(t *testing.T) {
 				test.Config = test.Prep(t, test.Config)
 			}
 
+			test.Config.InsecureKeys = true
 			test.Config.WithdrawalAddrs = []string{deadAddress}
 			test.Config.FeeRecipientAddrs = []string{deadAddress}
 
 			if test.Config.Network == "" {
-				test.Config.Network = defaultNetwork
+				test.Config.Network = eth2util.Goerli.Name
 			}
 
 			testCreateCluster(t, test.Config, def)
@@ -321,7 +322,6 @@ func TestSplitKeys(t *testing.T) {
 				NumDVs:            1,
 				NumNodes:          minNodes,
 				Threshold:         3,
-				Network:           defaultNetwork,
 				FeeRecipientAddrs: []string{deadAddress},
 				WithdrawalAddrs:   []string{deadAddress},
 				ClusterDir:        t.TempDir(),
@@ -332,7 +332,6 @@ func TestSplitKeys(t *testing.T) {
 			numSplitKeys: 3,
 			conf: clusterConfig{
 				NumDVs:            2,
-				Network:           defaultNetwork,
 				FeeRecipientAddrs: []string{zeroAddress},
 				WithdrawalAddrs:   []string{zeroAddress},
 			},
@@ -357,6 +356,8 @@ func TestSplitKeys(t *testing.T) {
 
 			test.conf.SplitKeysDir = keysDir
 			test.conf.SplitKeys = true
+			test.conf.InsecureKeys = true
+			test.conf.Network = eth2util.Goerli.Name
 
 			var buf bytes.Buffer
 			err = runCreateCluster(context.Background(), &buf, test.conf)
@@ -426,7 +427,7 @@ func TestKeymanager(t *testing.T) {
 
 	// Store secret
 	keyDir := t.TempDir()
-	err = keystore.StoreKeys([]tblsv2.PrivateKey{secret1}, keyDir)
+	err = keystore.StoreKeysInsecure([]tblsv2.PrivateKey{secret1}, keyDir, keystore.ConfirmInsecureKeys)
 	require.NoError(t, err)
 
 	// Create minNodes test servers

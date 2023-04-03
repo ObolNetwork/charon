@@ -19,6 +19,7 @@ import (
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/enr"
 )
 
@@ -132,6 +133,7 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 			{"fee-recipient_addresses", zeroXDead},
 			{"dkg_algorithm", "frost"},
 			{"output_dir", "/compose"},
+			{"network", eth2util.Goerli.Name},
 		}}
 
 		data = TmplData{

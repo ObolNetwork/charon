@@ -40,6 +40,10 @@
     {
      "Key": "output_dir",
      "Value": "/compose"
+    },
+    {
+     "Key": "network",
+     "Value": "goerli"
     }
    ],
    "Ports": null
