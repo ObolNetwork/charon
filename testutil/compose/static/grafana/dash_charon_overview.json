@@ -385,6 +385,11 @@
                   "color": "light-purple",
                   "index": 8,
                   "text": "BeaconNode has zero peers"
+                },
+                "8": {
+                  "color": "dark-red",
+                  "index": 9,
+                  "text": "BeaconNode far behind"
                 }
               },
               "type": "value"
@@ -2812,8 +2817,8 @@
       {
         "current": {
           "selected": false,
-          "text": "66103ee",
-          "value": "66103ee"
+          "text": "ad1c2dd",
+          "value": "ad1c2dd"
         },
         "datasource": {
           "type": "prometheus",
@@ -2840,8 +2845,8 @@
       {
         "current": {
           "selected": false,
-          "text": "stormy-ring",
-          "value": "stormy-ring"
+          "text": "helpless-state",
+          "value": "helpless-state"
         },
         "datasource": {
           "type": "prometheus",
@@ -2868,8 +2873,8 @@
       {
         "current": {
           "selected": false,
-          "text": "node0",
-          "value": "node0"
+          "text": "node3",
+          "value": "node3"
         },
         "datasource": {
           "type": "prometheus",

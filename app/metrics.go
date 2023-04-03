@@ -27,6 +27,9 @@ const (
 	// readyzBeaconNodeZeroPeers indicates that readyz is returning 500s since the Beacon Node has zero peers
 	// and hence cannot sync.
 	readyzBeaconNodeZeroPeers = 7
+	// readyzBeaconNodeFarBehind indicates that readyz is returning 500s since the Beacon Node is too far behind
+	// the head slot.
+	readyzBeaconNodeFarBehind = 8
 )
 
 var (
