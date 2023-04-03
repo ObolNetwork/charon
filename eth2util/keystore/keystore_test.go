@@ -23,7 +23,7 @@ func TestStoreLoad(t *testing.T) {
 		secrets = append(secrets, secret)
 	}
 
-	err := keystore.StoreKeys(secrets, dir)
+	err := keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
 	require.NoError(t, err)
 
 	actual, err := keystore.LoadKeys(dir)

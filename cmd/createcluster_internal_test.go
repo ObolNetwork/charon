@@ -81,7 +81,7 @@ func TestCreateCluster(t *testing.T) {
 				secret2, err := tblsv2.GenerateSecretKey()
 				require.NoError(t, err)
 
-				err = keystore.StoreKeys([]tblsv2.PrivateKey{secret1, secret2}, keyDir)
+				err = keystore.StoreKeysInsecure([]tblsv2.PrivateKey{secret1, secret2}, keyDir, keystore.ConfirmInsecureKeys)
 				require.NoError(t, err)
 
 				config.SplitKeysDir = keyDir
@@ -351,7 +351,7 @@ func TestSplitKeys(t *testing.T) {
 
 			keysDir := t.TempDir()
 
-			err := keystore.StoreKeys(keys, keysDir)
+			err := keystore.StoreKeysInsecure(keys, keysDir, keystore.ConfirmInsecureKeys)
 			require.NoError(t, err)
 
 			test.conf.SplitKeysDir = keysDir
@@ -458,10 +458,11 @@ func TestKeymanager(t *testing.T) {
 		NumDVs:               1,
 		KeymanagerAddrs:      addrs,
 		KeymanagerAuthTokens: authTokens,
-		Network:              defaultNetwork,
+		Network:              eth2util.Goerli.Name,
 		WithdrawalAddrs:      []string{deadAddress},
 		FeeRecipientAddrs:    []string{deadAddress},
 		Clean:                true,
+		InsecureKeys:         true,
 	}
 	conf.ClusterDir = t.TempDir()
 
@@ -531,11 +532,12 @@ func TestPublish(t *testing.T) {
 		Name:              t.Name(),
 		NumNodes:          minNodes,
 		NumDVs:            1,
-		Network:           defaultNetwork,
+		Network:           eth2util.Goerli.Name,
 		WithdrawalAddrs:   []string{deadAddress},
 		FeeRecipientAddrs: []string{deadAddress},
 		PublishAddr:       addr,
 		Publish:           true,
+		InsecureKeys:      true,
 	}
 	conf.ClusterDir = t.TempDir()
 
