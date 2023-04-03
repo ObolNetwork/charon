@@ -117,8 +117,8 @@ func TestCreateCluster(t *testing.T) {
 				test.Config = test.Prep(t, test.Config)
 			}
 
-			test.Config.WithdrawalAddrs = []string{zeroAddress}
-			test.Config.FeeRecipientAddrs = []string{zeroAddress}
+			test.Config.WithdrawalAddrs = []string{deadAddress}
+			test.Config.FeeRecipientAddrs = []string{deadAddress}
 
 			if test.Config.Network == "" {
 				test.Config.Network = defaultNetwork
@@ -322,8 +322,8 @@ func TestSplitKeys(t *testing.T) {
 				NumNodes:          minNodes,
 				Threshold:         3,
 				Network:           defaultNetwork,
-				FeeRecipientAddrs: []string{zeroAddress},
-				WithdrawalAddrs:   []string{zeroAddress},
+				FeeRecipientAddrs: []string{deadAddress},
+				WithdrawalAddrs:   []string{deadAddress},
 				ClusterDir:        t.TempDir(),
 			},
 		},
@@ -458,8 +458,8 @@ func TestKeymanager(t *testing.T) {
 		KeymanagerAddrs:      addrs,
 		KeymanagerAuthTokens: authTokens,
 		Network:              defaultNetwork,
-		WithdrawalAddrs:      []string{zeroAddress},
-		FeeRecipientAddrs:    []string{zeroAddress},
+		WithdrawalAddrs:      []string{deadAddress},
+		FeeRecipientAddrs:    []string{deadAddress},
 		Clean:                true,
 	}
 	conf.ClusterDir = t.TempDir()
@@ -531,8 +531,8 @@ func TestPublish(t *testing.T) {
 		NumNodes:          minNodes,
 		NumDVs:            1,
 		Network:           defaultNetwork,
-		WithdrawalAddrs:   []string{zeroAddress},
-		FeeRecipientAddrs: []string{zeroAddress},
+		WithdrawalAddrs:   []string{deadAddress},
+		FeeRecipientAddrs: []string{deadAddress},
 		PublishAddr:       addr,
 		Publish:           true,
 	}
