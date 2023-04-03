@@ -116,19 +116,24 @@ func writeKeysToKeymanager(ctx context.Context, keymanagerURL, authToken string,
 }
 
 // writeKeysToDisk writes validator private keyshares for the node to disk.
-func writeKeysToDisk(datadir string, shares []share) error {
+func writeKeysToDisk(conf Config, shares []share) error {
 	var secrets []tblsv2.PrivateKey
 	for _, s := range shares {
 		secrets = append(secrets, s.SecretShare)
 	}
 
-	keysDir := path.Join(datadir, "/validator_keys")
+	keysDir := path.Join(conf.DataDir, "/validator_keys")
 
 	if err := os.Mkdir(keysDir, os.ModePerm); err != nil {
 		return errors.Wrap(err, "mkdir /validator_keys")
 	}
 
-	return keystore.StoreKeys(secrets, keysDir)
+	storeKeysFunc := keystore.StoreKeys
+	if conf.TestStoreKeysFunc != nil {
+		storeKeysFunc = conf.TestStoreKeysFunc
+	}
+
+	return storeKeysFunc(secrets, keysDir)
 }
 
 // writeLock writes the lock file to disk.
