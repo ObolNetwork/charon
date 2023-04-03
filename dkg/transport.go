@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -14,6 +13,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/expbackoff"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/p2p"
@@ -65,13 +65,14 @@ func (t keycastP2P) ServeShares(ctx context.Context, handler func(nodeIdx int) (
 
 // GetShares returns the shares requested from the dealer or a context error. It retries all other errors.
 func (t keycastP2P) GetShares(ctx context.Context, _ int) ([]byte, error) {
+	backoff := expbackoff.New(ctx, expbackoff.WithFastConfig())
 	for {
 		resp, err := getSharesOnce(ctx, t.tcpNode, t.peers[0].ID, t.clusterID)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		} else if err != nil {
 			log.Warn(ctx, "Failure requesting shares from dealer (will retry)", err)
-			time.Sleep(time.Second) // TODO(corver): Improve backoff
+			backoff()
 
 			continue
 		}

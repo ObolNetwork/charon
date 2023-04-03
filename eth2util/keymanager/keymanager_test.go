@@ -44,7 +44,7 @@ func TestImportKeystores(t *testing.T) {
 	for _, secret := range secrets {
 		password := randomHex32(t)
 
-		store, err := keystore.Encrypt(secret, password, rand.Reader)
+		store, err := keystore.Encrypt(secret, password, rand.Reader, keystorev4.WithCost(t, 4))
 		require.NoError(t, err)
 
 		keystores = append(keystores, store)
