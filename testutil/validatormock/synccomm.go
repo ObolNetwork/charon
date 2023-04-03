@@ -139,24 +139,47 @@ func (s *SyncCommMember) getBlockRootOK(slot eth2p0.Slot) chan struct{} {
 	return ch
 }
 
+func (s *SyncCommMember) setDuties(vals validators, duties syncDuties) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.vals = vals
+	s.duties = duties
+	close(s.dutiesOK)
+}
+
+func (s *SyncCommMember) getDuties() syncDuties {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.duties
+}
+
+func (s *SyncCommMember) getVals() validators {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.vals
+}
+
 // PrepareEpoch stores sync committee duties and submits sync committee subscriptions at the start of an epoch.
 func (s *SyncCommMember) PrepareEpoch(ctx context.Context) error {
-	var err error
-	s.vals, err = activeValidators(ctx, s.eth2Cl, s.pubkeys)
+	vals, err := activeValidators(ctx, s.eth2Cl, s.pubkeys)
 	if err != nil {
 		return err
 	}
 
-	s.duties, err = prepareSyncCommDuties(ctx, s.eth2Cl, s.vals, s.epoch)
+	duties, err := prepareSyncCommDuties(ctx, s.eth2Cl, vals, s.epoch)
 	if err != nil {
 		return err
 	}
 
-	err = subscribeSyncCommSubnets(ctx, s.eth2Cl, s.epoch, s.duties)
+	s.setDuties(vals, duties)
+
+	err = subscribeSyncCommSubnets(ctx, s.eth2Cl, s.epoch, duties)
 	if err != nil {
 		return err
 	}
-	close(s.dutiesOK)
 
 	return nil
 }
@@ -165,7 +188,7 @@ func (s *SyncCommMember) PrepareEpoch(ctx context.Context) error {
 func (s *SyncCommMember) PrepareSlot(ctx context.Context, slot eth2p0.Slot) error {
 	wait(ctx, s.dutiesOK)
 
-	selections, err := prepareSyncSelections(ctx, s.eth2Cl, s.signFunc, s.duties, slot)
+	selections, err := prepareSyncSelections(ctx, s.eth2Cl, s.signFunc, s.getDuties(), slot)
 	if err != nil {
 		return err
 	}
@@ -179,7 +202,8 @@ func (s *SyncCommMember) PrepareSlot(ctx context.Context, slot eth2p0.Slot) erro
 func (s *SyncCommMember) Message(ctx context.Context, slot eth2p0.Slot) error {
 	wait(ctx, s.dutiesOK)
 
-	if len(s.duties) == 0 {
+	duties := s.getDuties()
+	if len(duties) == 0 {
 		s.setBlockRoot(slot, eth2p0.Root{})
 		return nil
 	}
@@ -189,7 +213,7 @@ func (s *SyncCommMember) Message(ctx context.Context, slot eth2p0.Slot) error {
 		return err
 	}
 
-	err = submitSyncMessages(ctx, s.eth2Cl, slot, *blockRoot, s.signFunc, s.duties)
+	err = submitSyncMessages(ctx, s.eth2Cl, slot, *blockRoot, s.signFunc, duties)
 	if err != nil {
 		return err
 	}
@@ -204,7 +228,7 @@ func (s *SyncCommMember) Message(ctx context.Context, slot eth2p0.Slot) error {
 func (s *SyncCommMember) Aggregate(ctx context.Context, slot eth2p0.Slot) (bool, error) {
 	wait(ctx, s.dutiesOK, s.getSelectionsOK(slot), s.getBlockRootOK(slot))
 
-	return aggContributions(ctx, s.eth2Cl, s.signFunc, slot, s.vals, s.getSelections(slot), s.getBlockRoot(slot))
+	return aggContributions(ctx, s.eth2Cl, s.signFunc, slot, s.getVals(), s.getSelections(slot), s.getBlockRoot(slot))
 }
 
 // prepareSyncCommDuties returns sync committee duties for the epoch.
