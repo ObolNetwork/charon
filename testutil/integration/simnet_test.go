@@ -5,6 +5,7 @@ package integration_test
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path"
@@ -482,6 +483,28 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 	// Start teku
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
+		// wait for beaconmock to be available
+		tout := time.After(10 * time.Second)
+
+		bnOnline := false
+		for !bnOnline {
+			select {
+			case <-tout:
+				args.ErrChan <- errors.New("beaconmock wasn't available after 10s")
+				return
+			default:
+				_, err := http.Get("http://" + args.VAPIAddrs[node])
+				if err != nil {
+					t.Logf("beaconmock not available yet...")
+					time.Sleep(500 * time.Millisecond)
+
+					continue
+				}
+				bnOnline = true
+				t.Logf("beaconmock online, starting up teku")
+			}
+		}
+
 		c := exec.CommandContext(ctx, "docker", dockerArgs...)
 		c.Stdout = os.Stdout
 		c.Stderr = os.Stderr
