@@ -207,7 +207,7 @@ func testQBFT(t *testing.T, test test) {
 		receives    = make(map[int64]chan Msg[int64, int64])
 		broadcast   = make(chan Msg[int64, int64])
 		resultChan  = make(chan []Msg[int64, int64], n)
-		errChan     = make(chan error, n)
+		runChan     = make(chan error, n)
 	)
 	defer cancel()
 
@@ -283,11 +283,7 @@ func testQBFT(t *testing.T, test test) {
 				}
 			}
 
-			err := Run(ctx, defs, trans, test.Instance, i, i)
-			if err != nil {
-				errChan <- err
-				return
-			}
+			runChan <- Run(ctx, defs, trans, test.Instance, i, i)
 		}(i)
 	}
 
@@ -295,8 +291,12 @@ func testQBFT(t *testing.T, test test) {
 		go fuzz(ctx, clock, broadcast, test.Instance, 1)
 	}
 
-	results := make(map[int64]Msg[int64, int64])
-	var count int
+	var (
+		results = make(map[int64]Msg[int64, int64])
+		count   int
+		decided bool
+		done    int
+	)
 
 	for {
 		select {
@@ -329,14 +329,24 @@ func testQBFT(t *testing.T, test test) {
 			}
 
 			count++
-			if count == n {
-				round := qCommit[0].Round()
-				t.Logf("Got all results in round %d after %s: %#v", round, clock.SinceT0(), results)
+			if count != n {
+				continue
+			}
 
+			round := qCommit[0].Round()
+			t.Logf("Got all results in round %d after %s: %#v", round, clock.SinceT0(), results)
+
+			// Trigger shutdown
+			decided = true
+			cancel()
+		case err := <-runChan:
+			if !decided {
+				require.Fail(t, "unexpected run error", err)
+			}
+			done++
+			if done == n {
 				return
 			}
-		case err := <-errChan:
-			require.Fail(t, err.Error())
 		default:
 			time.Sleep(time.Microsecond)
 			clock.Advance(time.Millisecond * 1)
