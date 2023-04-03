@@ -110,6 +110,9 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 		},
 		Log:     log.DefaultConfig(),
 		TestDef: &def,
+		TestStoreKeysFunc: func(secrets []tblsv2.PrivateKey, dir string) error {
+			return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
+		},
 	}
 
 	allReceivedKeystores := make(chan struct{}) // Receives struct{} for each `numNodes` keystore intercepted by the keymanager server
