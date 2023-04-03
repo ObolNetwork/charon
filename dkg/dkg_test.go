@@ -229,7 +229,12 @@ func startRelay(parentCtx context.Context, t *testing.T) string {
 			MaxResPerPeer: 8,
 			MaxConns:      1024,
 		})
-		t.Logf("Relay stopped: err=%v", err)
+		if err != nil {
+			log.Warn(parentCtx, "Relay stopped with error", err)
+		} else {
+			log.Info(parentCtx, "Relay stopped without error")
+		}
+
 		errChan <- err
 	}()
 
