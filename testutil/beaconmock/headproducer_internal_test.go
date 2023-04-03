@@ -104,10 +104,12 @@ func TestHeadProducer(t *testing.T) {
 			if test.expectErr {
 				require.ErrorIs(t, client.SubscribeWithContext(ctx, addr, func(msg *sse.Event) {}), unsupportedTopicErr)
 			} else {
+				actualTopics := make(map[string]bool)
 				require.NoError(t, client.SubscribeWithContext(ctx, addr, func(msg *sse.Event) {
 					require.True(t, requiredTopics[string(msg.Event)])
-					delete(requiredTopics, string(msg.Event))
-					if len(requiredTopics) == 0 {
+
+					actualTopics[string(msg.Event)] = true
+					if len(requiredTopics) == len(actualTopics) {
 						cancel()
 					}
 				}))
