@@ -82,7 +82,7 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 
 	require.NoError(t, os.RemoveAll(filepath.Join(dir, "node0")))
 
-	err := combine.Combine(context.Background(), dir, od, false)
+	err := combine.Combine(context.Background(), dir, od, false, combine.WithInsecureKeysForT(t))
 	require.Error(t, err)
 }
 
@@ -155,7 +155,7 @@ func TestCombine(t *testing.T) {
 		require.NoError(t, json.NewEncoder(lf).Encode(lock))
 	}
 
-	err := combine.Combine(context.Background(), dir, od, true)
+	err := combine.Combine(context.Background(), dir, od, true, combine.WithInsecureKeysForT(t))
 	require.NoError(t, err)
 
 	keys, err := keystore.LoadKeys(od)
@@ -246,10 +246,10 @@ func TestCombineTwiceWithoutForceFails(t *testing.T) {
 		require.NoError(t, json.NewEncoder(lf).Encode(lock))
 	}
 
-	err := combine.Combine(context.Background(), dir, od, false)
+	err := combine.Combine(context.Background(), dir, od, false, combine.WithInsecureKeysForT(t))
 	require.NoError(t, err)
 
-	err = combine.Combine(context.Background(), dir, od, false)
+	err = combine.Combine(context.Background(), dir, od, false, combine.WithInsecureKeysForT(t))
 	require.Error(t, err)
 
 	keys, err := keystore.LoadKeys(od)
