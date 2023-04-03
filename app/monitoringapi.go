@@ -10,6 +10,7 @@ import (
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -24,11 +25,16 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
+// bnFarBehindSlots is the no of slots that is considered to be too far behind the current beacon chain head.
+// Currently, it is set to 10 epochs (10 * 32 = 320 slots).
+const bnFarBehindSlots = 320
+
 var (
 	errReadyUninitialised       = errors.New("ready check uninitialised")
 	errReadyInsufficientPeers   = errors.New("quorum peers not connected")
-	errReadyBeaconNodeSyncing   = errors.New("beacon node not synced")
 	errReadyBeaconNodeDown      = errors.New("beacon node down")
+	errReadyBeaconNodeFarBehind = errors.New("beacon node far behind")
+	errReadyBeaconNodeSyncing   = errors.New("beacon node not synced")
 	errReadyBeaconNodeZeroPeers = errors.New("beacon node has zero peers")
 	errReadyVCNotConnected      = errors.New("vc not connected")
 	errReadyVCMissingVals       = errors.New("vc missing validators")
@@ -129,7 +135,7 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 					log.Warn(ctx, "Failed to get beacon node peer count", bnErr)
 				}
 
-				syncing, err := beaconNodeSyncing(ctx, eth2Cl)
+				syncing, syncDistance, err := beaconNodeSyncing(ctx, eth2Cl)
 				//nolint:nestif
 				if err != nil {
 					err = errReadyBeaconNodeDown
@@ -140,6 +146,9 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 				} else if bnPeerCount == 0 && bnErr == nil {
 					err = errReadyBeaconNodeZeroPeers
 					readyzGauge.Set(readyzBeaconNodeZeroPeers)
+				} else if syncDistance > bnFarBehindSlots {
+					err = errReadyBeaconNodeFarBehind
+					readyzGauge.Set(readyzBeaconNodeFarBehind)
 				} else if notConnectedRounds >= minNotConnected {
 					err = errReadyInsufficientPeers
 					readyzGauge.Set(readyzInsufficientPeers)
@@ -172,14 +181,15 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 	}
 }
 
-// beaconNodeSyncing returns true if the beacon node is still syncing.
-func beaconNodeSyncing(ctx context.Context, eth2Cl eth2client.NodeSyncingProvider) (bool, error) {
+// beaconNodeSyncing returns true if the beacon node is still syncing. It also returns the sync distance, ie, the distance
+// between the node's highest synced slot and the head slot.
+func beaconNodeSyncing(ctx context.Context, eth2Cl eth2client.NodeSyncingProvider) (bool, eth2p0.Slot, error) {
 	state, err := eth2Cl.NodeSyncing(ctx)
 	if err != nil {
-		return false, err
+		return false, 0, err
 	}
 
-	return state.IsSyncing, nil
+	return state.IsSyncing, state.SyncDistance, nil
 }
 
 // beaconNodeMetrics sets beacon node metrics like the peer count and node version.
