@@ -26,6 +26,7 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cmd/relay"
 	"github.com/obolnetwork/charon/dkg"
+	dkgsync "github.com/obolnetwork/charon/dkg/sync"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
@@ -516,6 +517,7 @@ func peerCtx(ctx context.Context, idx int) context.Context {
 
 func getConfigs(t *testing.T, def cluster.Definition, keys []*k1.PrivateKey, dir, bootnode string) []dkg.Config {
 	t.Helper()
+	tcpNodeCallback := testutil.NewTCPNodeCallback(t, dkgsync.Protocols()...)
 
 	var configs []dkg.Config
 	for i := 0; i < len(def.Operators); i++ {
@@ -530,6 +532,7 @@ func getConfigs(t *testing.T, def cluster.Definition, keys []*k1.PrivateKey, dir
 			TestStoreKeysFunc: func(secrets []tblsv2.PrivateKey, dir string) error {
 				return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
 			},
+			TestTCPNodeCallback: tcpNodeCallback,
 		}
 		require.NoError(t, os.MkdirAll(conf.DataDir, 0o755))
 

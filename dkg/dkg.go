@@ -45,14 +45,15 @@ type Config struct {
 	PublishAddr string
 	Publish     bool
 
-	TestDef           *cluster.Definition
-	TestSyncCallback  func(connected int, id peer.ID)
-	TestStoreKeysFunc func(secrets []tblsv2.PrivateKey, dir string) error
+	TestDef             *cluster.Definition
+	TestSyncCallback    func(connected int, id peer.ID)
+	TestStoreKeysFunc   func(secrets []tblsv2.PrivateKey, dir string) error
+	TestTCPNodeCallback func(host.Host)
 }
 
 // HasTestConfig returns true if any of the test config fields are set.
 func (c Config) HasTestConfig() bool {
-	return c.TestStoreKeysFunc != nil || c.TestSyncCallback != nil || c.TestDef != nil
+	return c.TestStoreKeysFunc != nil || c.TestSyncCallback != nil || c.TestDef != nil || c.TestTCPNodeCallback != nil
 }
 
 // Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output to disk.
@@ -126,7 +127,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	logPeerSummary(ctx, pID, peers, def.Operators)
 
-	tcpNode, shutdown, err := setupP2P(ctx, key, conf.P2P, peers, def.DefinitionHash)
+	tcpNode, shutdown, err := setupP2P(ctx, key, conf, peers, def.DefinitionHash)
 	if err != nil {
 		return err
 	}
@@ -251,7 +252,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 }
 
 // setupP2P returns a started libp2p tcp node and a shutdown function.
-func setupP2P(ctx context.Context, key *k1.PrivateKey, p2pConf p2p.Config, peers []p2p.Peer, defHash []byte) (host.Host, func(), error) {
+func setupP2P(ctx context.Context, key *k1.PrivateKey, conf Config, peers []p2p.Peer, defHash []byte) (host.Host, func(), error) {
 	var peerIDs []peer.ID
 	for _, p := range peers {
 		peerIDs = append(peerIDs, p.ID)
@@ -261,7 +262,7 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, p2pConf p2p.Config, peers
 		return nil, nil, err
 	}
 
-	relays, err := p2p.NewRelays(ctx, p2pConf.Relays, hex.EncodeToString(defHash))
+	relays, err := p2p.NewRelays(ctx, conf.P2P.Relays, hex.EncodeToString(defHash))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -271,9 +272,13 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, p2pConf p2p.Config, peers
 		return nil, nil, err
 	}
 
-	tcpNode, err := p2p.NewTCPNode(ctx, p2pConf, key, connGater, false)
+	tcpNode, err := p2p.NewTCPNode(ctx, conf.P2P, key, connGater, false)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if conf.TestTCPNodeCallback != nil {
+		conf.TestTCPNodeCallback(tcpNode)
 	}
 
 	p2p.RegisterConnectionLogger(ctx, tcpNode, peerIDs)
