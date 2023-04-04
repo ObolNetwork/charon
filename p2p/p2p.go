@@ -273,6 +273,13 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 						z.Any("direction", e.Direction),
 						z.Str("type", typ),
 					)
+				} else if e.Disconnect {
+					log.Debug(ctx, "Libp2p disconnected",
+						z.Str("peer", name),
+						z.Any("peer_address", addr),
+						z.Any("direction", e.Direction),
+						z.Str("type", typ),
+					)
 				}
 
 				if e.Connected && peers[e.Peer] { // Do not instrument relays.
@@ -331,6 +338,7 @@ func (l connLogger) Disconnected(_ network.Network, conn network.Conn) {
 	case l.events <- logEvent{
 		Peer:       conn.RemotePeer(),
 		Addr:       conn.RemoteMultiaddr(),
+		Direction:  conn.Stat().Direction,
 		Disconnect: true,
 		ConnID:     conn.ID(),
 	}:
