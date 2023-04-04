@@ -109,10 +109,9 @@ func TestForkJoin(t *testing.T) {
 func TestPanic(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	fork, join, cancel := forkjoin.New[int, int](context.Background(), nil)
-	defer cancel()
-
+	fork, join, cancel := forkjoin.New[int, int](context.Background(), nil, forkjoin.WithWaitOnCancel())
 	join()
+	cancel()
 
 	// Calling fork after join panics
 	require.Panics(t, func() {
