@@ -72,9 +72,17 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 
 				for _, cast := range msg.Casts {
 					if int(cast.Key.SourceId) != peers[pID].ShareIdx {
-						return errors.New("invalid round 2 cast source ID")
+						return errors.New("invalid round 1 cast source ID")
 					} else if cast.Key.TargetId != 0 {
-						return errors.New("invalid round 2 cast target ID")
+						return errors.New("invalid round 1 cast target ID")
+					}
+
+					if len(cast.Commitments) != len(peers) {
+						return errors.New("invalid amount of commitments in round 1",
+							z.Str("peer_id", pID.String()),
+							z.Int("received", len(cast.Commitments)),
+							z.Int("expected", len(peers)),
+						)
 					}
 				}
 
