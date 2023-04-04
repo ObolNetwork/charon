@@ -214,7 +214,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	log.Debug(ctx, "Aggregated lock hash signatures")
 
 	if err = stopSync(ctx); err != nil {
-		return errors.Wrap(err, "sync shutdown") // Consider increasing --shutdown-delay is this occurs often.
+		return errors.Wrap(err, "sync shutdown") // Consider increasing --shutdown-delay if this occurs often.
 	}
 
 	// Write keystores, deposit data and cluster lock files after exchange of partial signatures in order
