@@ -79,7 +79,6 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 
 					if len(cast.Commitments) != threshold {
 						return errors.New("invalid amount of commitments in round 1",
-							z.Str("peer_id", pID.String()),
 							z.Int("received", len(cast.Commitments)),
 							z.Int("expected", threshold),
 						)
