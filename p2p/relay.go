@@ -69,7 +69,7 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFuncC
 
 			refresh := time.After(refreshDelay)
 
-			timer := time.NewTimer(time.Second)
+			timer := time.NewTimer(time.Millisecond * 100)
 
 			for {
 				select {
