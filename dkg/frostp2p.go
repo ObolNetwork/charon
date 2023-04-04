@@ -32,7 +32,7 @@ var (
 )
 
 // newFrostP2P returns a p2p frost transport implementation.
-func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k1.PrivateKey) *frostP2P {
+func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k1.PrivateKey, threshold int) *frostP2P {
 	var (
 		round1CastsRecv = make(chan *pb.FrostRound1Casts, len(peers))
 		round1P2PRecv   = make(chan *pb.FrostRound1P2P, len(peers))
@@ -72,9 +72,16 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 
 				for _, cast := range msg.Casts {
 					if int(cast.Key.SourceId) != peers[pID].ShareIdx {
-						return errors.New("invalid round 2 cast source ID")
+						return errors.New("invalid round 1 cast source ID")
 					} else if cast.Key.TargetId != 0 {
-						return errors.New("invalid round 2 cast target ID")
+						return errors.New("invalid round 1 cast target ID")
+					}
+
+					if len(cast.Commitments) != threshold {
+						return errors.New("invalid amount of commitments in round 1",
+							z.Int("received", len(cast.Commitments)),
+							z.Int("expected", threshold),
+						)
 					}
 				}
 
