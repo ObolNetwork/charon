@@ -47,9 +47,10 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 
 	p2p.RegisterConnectionLogger(ctx, tcpNode, nil)
 
-	// Reservations are valid for 30min (github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay/constraints.go:14)
 	relayResources := relay.DefaultResources()
 	relayResources.Limit.Data = 32 * (1 << 20) // 32MB
+	relayResources.Limit.Duration = time.Hour
+	relayResources.BufferSize = 64 * (1 << 10) // 64KB
 	relayResources.MaxReservationsPerPeer = config.MaxResPerPeer
 	relayResources.MaxReservationsPerIP = config.MaxResPerPeer
 	relayResources.MaxReservations = config.MaxConns
