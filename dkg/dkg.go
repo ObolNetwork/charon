@@ -33,11 +33,12 @@ import (
 )
 
 type Config struct {
-	DefFile  string
-	NoVerify bool
-	DataDir  string
-	P2P      p2p.Config
-	Log      log.Config
+	DefFile          string
+	NoVerify         bool
+	DataDir          string
+	P2P              p2p.Config
+	Log              log.Config
+	ShutdownCallback func()
 
 	KeymanagerAddr      string
 	KeymanagerAuthToken string
@@ -212,7 +213,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	log.Debug(ctx, "Aggregated lock hash signatures")
 
 	if err = stopSync(ctx); err != nil {
-		return errors.Wrap(err, "sync shutdown")
+		return errors.Wrap(err, "sync shutdown") // Consider increasing --shutdown-delay is this occurs often.
 	}
 
 	// Write keystores, deposit data and cluster lock files after exchange of partial signatures in order
@@ -245,6 +246,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 	log.Debug(ctx, "Saved deposit data file to disk")
+
+	if conf.ShutdownCallback != nil {
+		conf.ShutdownCallback()
+	}
 
 	log.Info(ctx, "Successfully completed DKG ceremony 🎉")
 
