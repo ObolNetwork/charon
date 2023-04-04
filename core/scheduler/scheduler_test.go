@@ -429,6 +429,8 @@ func (d *delayer) delay(duty core.Duty, deadline time.Time) <-chan time.Time {
 	return resp
 }
 
+var _ clockwork.Clock = (*testClock)(nil)
+
 func newTestClock(now time.Time) *testClock {
 	return &testClock{
 		now:       now,
@@ -499,5 +501,9 @@ func (c *testClock) NewTicker(time.Duration) clockwork.Ticker {
 }
 
 func (c *testClock) NewTimer(time.Duration) clockwork.Timer {
+	panic("not supported")
+}
+
+func (c *testClock) AfterFunc(time.Duration, func()) clockwork.Timer {
 	panic("not supported")
 }
