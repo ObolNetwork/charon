@@ -33,11 +33,12 @@ import (
 )
 
 type Config struct {
-	DefFile  string
-	NoVerify bool
-	DataDir  string
-	P2P      p2p.Config
-	Log      log.Config
+	DefFile       string
+	NoVerify      bool
+	DataDir       string
+	P2P           p2p.Config
+	Log           log.Config
+	ShutdownDelay time.Duration
 
 	KeymanagerAddr      string
 	KeymanagerAuthToken string
@@ -45,10 +46,11 @@ type Config struct {
 	PublishAddr string
 	Publish     bool
 
-	TestDef             *cluster.Definition
-	TestSyncCallback    func(connected int, id peer.ID)
-	TestStoreKeysFunc   func(secrets []tblsv2.PrivateKey, dir string) error
-	TestTCPNodeCallback func(host.Host)
+	TestDef              *cluster.Definition
+	TestSyncCallback     func(connected int, id peer.ID)
+	TestStoreKeysFunc    func(secrets []tblsv2.PrivateKey, dir string) error
+	TestTCPNodeCallback  func(host.Host)
+	TestShutdownCallback func()
 }
 
 // HasTestConfig returns true if any of the test config fields are set.
@@ -212,7 +214,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	log.Debug(ctx, "Aggregated lock hash signatures")
 
 	if err = stopSync(ctx); err != nil {
-		return errors.Wrap(err, "sync shutdown")
+		return errors.Wrap(err, "sync shutdown") // Consider increasing --shutdown-delay if this occurs often.
 	}
 
 	// Write keystores, deposit data and cluster lock files after exchange of partial signatures in order
@@ -245,6 +247,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 	log.Debug(ctx, "Saved deposit data file to disk")
+
+	// TODO(corver): Improve graceful shutdown, see https://github.com/ObolNetwork/charon/issues/887
+	if conf.TestShutdownCallback != nil {
+		conf.TestShutdownCallback()
+	}
+	log.Debug(ctx, "Graceful shutdown delay", z.Int("seconds", int(conf.ShutdownDelay.Seconds())))
+	time.Sleep(conf.ShutdownDelay)
 
 	log.Info(ctx, "Successfully completed DKG ceremony 🎉")
 

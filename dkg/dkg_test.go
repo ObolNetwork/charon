@@ -67,12 +67,12 @@ func TestDKG(t *testing.T) {
 		},
 		{
 			name:       "dkg with keymanager",
-			dkgAlgo:    "keycast",
+			dkgAlgo:    "frost",
 			keymanager: true,
 		},
 		{
 			name:    "dkg with lockfile publish",
-			dkgAlgo: "keycast",
+			dkgAlgo: "frost",
 			publish: true,
 		},
 	}
@@ -102,6 +102,8 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	// Start relay.
 	relayAddr := startRelay(ctx, t)
 
+	shutdownSync := newShutdownSync(len(def.Operators))
+
 	// Setup config
 	conf := dkg.Config{
 		DataDir: dir,
@@ -113,6 +115,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 		TestStoreKeysFunc: func(secrets []tblsv2.PrivateKey, dir string) error {
 			return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
 		},
+		TestShutdownCallback: shutdownSync,
 	}
 
 	allReceivedKeystores := make(chan struct{}) // Receives struct{} for each `numNodes` keystore intercepted by the keymanager server
@@ -376,6 +379,8 @@ func TestSyncFlow(t *testing.T) {
 			pIDs, err := lock.PeerIDs()
 			require.NoError(t, err)
 
+			shutdownSync := newShutdownSync(test.nodes)
+
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
@@ -395,6 +400,9 @@ func TestSyncFlow(t *testing.T) {
 			for _, idx := range test.connect {
 				log.Info(ctx, "Starting initial peer", z.Int("peer_index", idx))
 				configs[idx].TestSyncCallback = cTracker.Set
+				if !contains(test.disconnect, idx) {
+					configs[idx].TestShutdownCallback = shutdownSync // Only synchronise shutdown for peers that are not disconnected.
+				}
 				stopDkgs[idx] = startNewDKG(t, peerCtx(ctx, idx), configs[idx], dkgErrChan)
 			}
 
@@ -430,6 +438,7 @@ func TestSyncFlow(t *testing.T) {
 			// Start other peers.
 			for _, idx := range test.reconnect {
 				log.Info(ctx, "Starting remaining peer", z.Int("peer_index", idx))
+				configs[idx].TestShutdownCallback = shutdownSync
 				stopDkgs[idx] = startNewDKG(t, peerCtx(ctx, idx), configs[idx], dkgErrChan)
 			}
 
@@ -568,4 +577,16 @@ func startNewDKG(t *testing.T, parentCtx context.Context, config dkg.Config, dkg
 	}()
 
 	return cancel
+}
+
+// newShutdownSync returns a function that blocks until it is called n times thereby syncing the shutdown of n DKGs.
+// TODO(corver): Remove this once shutdown races have been fixed, https://github.com/ObolNetwork/charon/issues/887.
+func newShutdownSync(n int) func() {
+	var wg sync.WaitGroup
+	wg.Add(n)
+
+	return func() {
+		wg.Done()
+		wg.Wait()
+	}
 }
