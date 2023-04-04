@@ -30,9 +30,9 @@ type TestPingConfig struct {
 	MaxBackoff time.Duration
 }
 
-// NewPingService returns a start function of a p2p ping service that pings all peers every second
+// NewPeerPinger returns a start function that pings all peers every second
 // and collects metrics.
-func NewPingService(h host.Host, peers []peer.ID, conf TestPingConfig) lifecycle.HookFuncCtx {
+func NewPeerPinger(pingSvc *ping.PingService, h host.Host, peers []peer.ID, conf TestPingConfig) lifecycle.HookFuncCtx {
 	if conf.Disable {
 		return func(ctx context.Context) {}
 	}
@@ -41,8 +41,6 @@ func NewPingService(h host.Host, peers []peer.ID, conf TestPingConfig) lifecycle
 	if conf.MaxBackoff != 0 {
 		maxBackoff = conf.MaxBackoff
 	}
-
-	svc := ping.NewPingService(h)
 
 	return func(ctx context.Context) {
 		ctx = log.WithTopic(ctx, "ping")
@@ -60,7 +58,7 @@ func NewPingService(h host.Host, peers []peer.ID, conf TestPingConfig) lifecycle
 					callback = newPingDelayCallback()
 				}
 
-				pingPeer(ctx, svc, p, callback, maxBackoff)
+				pingPeer(ctx, pingSvc, p, callback, maxBackoff)
 			}(p)
 		}
 	}

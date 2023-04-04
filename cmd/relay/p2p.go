@@ -15,6 +15,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
+	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -44,6 +45,8 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 	if err != nil {
 		return nil, errors.Wrap(err, "new tcp node")
 	}
+
+	ping.NewPingService(tcpNode)
 
 	p2p.RegisterConnectionLogger(ctx, tcpNode, nil)
 

@@ -29,8 +29,6 @@ import (
 // TestPingCluster starts a cluster of charon nodes and waits for each node to ping all the others.
 // It relies on discv5 for peer discovery.
 func TestPingCluster(t *testing.T) {
-	skipIfDisabled(t)
-
 	// Nodes bind to random locahost ports,
 	// use relay,
 	// then upgrade to direct connections.

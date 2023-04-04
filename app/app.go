@@ -22,6 +22,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	"go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -299,11 +300,13 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	life.RegisterStop(lifecycle.StopP2PTCPNode, lifecycle.HookFuncErr(tcpNode.Close))
 
+	pingSvc := ping.NewPingService(tcpNode)
+
 	for _, relay := range relays {
-		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartRelay, p2p.NewRelayReserver(tcpNode, relay))
+		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartRelay, p2p.NewRelayReserver(tcpNode, relay, pingSvc))
 	}
 
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PPing, p2p.NewPingService(tcpNode, peerIDs, conf.TestConfig.TestPingConfig))
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PPing, p2p.NewPeerPinger(pingSvc, tcpNode, peerIDs, conf.TestConfig.TestPingConfig))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PEventCollector, p2p.NewEventCollector(tcpNode))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PRouters, p2p.NewRelayRouter(tcpNode, peerIDs, relays))
 

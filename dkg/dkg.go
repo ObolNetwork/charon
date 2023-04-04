@@ -14,6 +14,7 @@ import (
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -292,9 +293,11 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, conf Config, peers []p2p.
 
 	p2p.RegisterConnectionLogger(ctx, tcpNode, peerIDs)
 
+	pingSvc := ping.NewPingService(tcpNode)
+
 	for _, relay := range relays {
 		relay := relay
-		go p2p.NewRelayReserver(tcpNode, relay)(ctx)
+		go p2p.NewRelayReserver(tcpNode, relay, pingSvc)(ctx)
 	}
 
 	go p2p.NewRelayRouter(tcpNode, peerIDs, relays)(ctx)

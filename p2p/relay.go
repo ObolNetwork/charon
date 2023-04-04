@@ -9,8 +9,12 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	circuit "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/client"
+	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
+	"github.com/multiformats/go-multistream"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/expbackoff"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
@@ -25,7 +29,7 @@ var routedAddrTTL = peerstore.TempAddrTTL + 1
 
 // NewRelayReserver returns a life cycle hook function that continuously
 // reserves a relay circuit until the context is closed.
-func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFuncCtx {
+func NewRelayReserver(tcpNode host.Host, relay *MutablePeer, pingSvc *ping.PingService) lifecycle.HookFuncCtx {
 	return func(ctx context.Context) {
 		ctx = log.WithTopic(ctx, "relay")
 		backoff, resetBackoff := expbackoff.NewWithReset(ctx)
@@ -48,6 +52,8 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFuncC
 
 				continue
 			}
+
+			relayConnGauge.WithLabelValues(name).Set(1)
 			resetBackoff()
 
 			// Note a single long-lived reservation (created by server-side) is mapped to
@@ -57,6 +63,7 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFuncC
 			// When the client connection expires (stream reset error), then client needs to reconnect.
 
 			refreshDelay := time.Until(resv.Expiration.Add(-2 * time.Minute))
+			refresh := time.After(refreshDelay)
 
 			log.Debug(ctx, "Relay circuit reserved",
 				z.Any("reservation_expire", resv.Expiration),        // Server side reservation expiry (long)
@@ -65,35 +72,67 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFuncC
 				z.Any("refresh_delay", refreshDelay),
 				z.Str("relay_peer", name),
 			)
-			relayConnGauge.WithLabelValues(name).Set(1)
 
-			refresh := time.After(refreshDelay)
-
-			timer := time.NewTimer(time.Millisecond * 100)
+			connCheckTicker := time.NewTicker(time.Millisecond * 100) // In memory check frequently
+			pingCheckTicker := time.NewTicker(time.Second)            // Network check less frequently
+			pingResults := pingSvc.Ping(ctx, relayPeer.ID)
 
 			for {
 				select {
-				case <-ctx.Done():
-					return
-				case <-timer.C:
+				case <-pingCheckTicker.C:
+					if checkPingResult(ctx, pingResults, pingCheckTicker, name) {
+						continue // Ping ok, still connected, continue for-loop
+					}
+					// Break out of for-loop below to reconnect/re-reserve
+				case <-connCheckTicker.C:
 					if len(tcpNode.Network().ConnsToPeer(relayPeer.ID)) > 0 {
-						continue // Still connected, continue for loop
+						continue // Still connected, continue for-loop
 					}
 					log.Debug(ctx, "No relay connection, reconnecting",
 						z.Str("relay_peer", name))
-					// Break out of for loop below to reconnect/re-reserve
+					// Break out of for-loop below to reconnect/re-reserve
 				case <-refresh:
-					// Break out of for loop below to reconnect/re-reserve
+					// Break out of for-loop below to reconnect/re-reserve
+				case <-ctx.Done():
+					// Break out of for-loop below to reconnect/re-reserve
 				}
 
 				break
 			}
 
-			timer.Stop()
+			connCheckTicker.Stop()
+			pingCheckTicker.Stop()
+
+			if ctx.Err() != nil {
+				return
+			}
 
 			log.Debug(ctx, "Refreshing relay circuit reservation")
 			relayConnGauge.WithLabelValues(name).Set(0)
 		}
+	}
+}
+
+// checkPingResult returns true if the ping was ok, false if it failed.
+func checkPingResult(ctx context.Context, pingResult <-chan ping.Result, pingCheckTimer *time.Ticker, name string) bool {
+	select {
+	case result := <-pingResult:
+		if errors.Is(result.Error, context.Canceled) {
+			return false
+		} else if isErrProtocolNotSupported(result.Error) {
+			log.Warn(ctx, "Relay doesn't support ping protocol", result.Error, z.Str("relay_peer", name))
+			pingCheckTimer.Stop() // Stop checking ping results.
+
+			return true
+		} else if result.Error != nil {
+			log.Warn(ctx, "Relay ping failed, reconnecting", result.Error, z.Str("relay_peer", name))
+			return false
+		} else {
+			log.Debug(ctx, "Relay ping successful", z.Str("relay_peer", name), z.Any("rtt", result.RTT))
+			return true
+		}
+	default:
+		return true // No ping result yet, assume it is slow.
 	}
 }
 
@@ -137,4 +176,9 @@ func NewRelayRouter(tcpNode host.Host, peers []peer.ID, relays []*MutablePeer) l
 			}
 		}
 	}
+}
+
+func isErrProtocolNotSupported(err error) bool {
+	return errors.Is(err, multistream.ErrNotSupported[protocol.ID]{}) ||
+		errors.Is(err, multistream.ErrNotSupported[string]{})
 }
