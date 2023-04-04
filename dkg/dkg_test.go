@@ -115,7 +115,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 		TestStoreKeysFunc: func(secrets []tblsv2.PrivateKey, dir string) error {
 			return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
 		},
-		ShutdownCallback: shutdownSync,
+		TestShutdownCallback: shutdownSync,
 	}
 
 	allReceivedKeystores := make(chan struct{}) // Receives struct{} for each `numNodes` keystore intercepted by the keymanager server
@@ -401,7 +401,7 @@ func TestSyncFlow(t *testing.T) {
 				log.Info(ctx, "Starting initial peer", z.Int("peer_index", idx))
 				configs[idx].TestSyncCallback = cTracker.Set
 				if !contains(test.disconnect, idx) {
-					configs[idx].ShutdownCallback = shutdownSync // Only synchronise shutdown for peers that are not disconnected.
+					configs[idx].TestShutdownCallback = shutdownSync // Only synchronise shutdown for peers that are not disconnected.
 				}
 				stopDkgs[idx] = startNewDKG(t, peerCtx(ctx, idx), configs[idx], dkgErrChan)
 			}
@@ -438,7 +438,7 @@ func TestSyncFlow(t *testing.T) {
 			// Start other peers.
 			for _, idx := range test.reconnect {
 				log.Info(ctx, "Starting remaining peer", z.Int("peer_index", idx))
-				configs[idx].ShutdownCallback = shutdownSync
+				configs[idx].TestShutdownCallback = shutdownSync
 				stopDkgs[idx] = startNewDKG(t, peerCtx(ctx, idx), configs[idx], dkgErrChan)
 			}
 

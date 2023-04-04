@@ -43,7 +43,7 @@ this command at the same time.`,
 	bindP2PFlags(cmd, &config.P2P)
 	bindLogFlags(cmd.Flags(), &config.Log)
 	bindPublishFlags(cmd.Flags(), &config)
-	bindShutdownDelayFlag(cmd.Flags(), &config.ShutdownCallback)
+	bindShutdownDelayFlag(cmd.Flags(), &config.ShutdownDelay)
 
 	return cmd
 }
@@ -66,12 +66,6 @@ func bindPublishFlags(flags *pflag.FlagSet, config *dkg.Config) {
 	flags.BoolVar(&config.Publish, "publish", false, "Publish lock file to obol-api.")
 }
 
-func bindShutdownDelayFlag(flags *pflag.FlagSet, shutdownCallback *func()) {
-	var shutdownDelay time.Duration
-	flags.DurationVar(&shutdownDelay, "shutdown-delay", time.Second, "Graceful shutdown delay.")
-
-	*shutdownCallback = func() {
-		// TODO(corver): Improve graceful shutdown, see https://github.com/ObolNetwork/charon/issues/887
-		time.Sleep(shutdownDelay)
-	}
+func bindShutdownDelayFlag(flags *pflag.FlagSet, shutdownDelay *time.Duration) {
+	flags.DurationVar(shutdownDelay, "shutdown-delay", time.Second, "Graceful shutdown delay.")
 }
