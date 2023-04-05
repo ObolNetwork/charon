@@ -3,6 +3,13 @@ name: 'Deploy Relay To Prod'
 on:
   workflow_dispatch:
     inputs:
+      relay_name:
+        description: The docker image tag to deploy
+        required: true
+        type: choice
+        options:
+        - relay-0
+        - relay-1
       image_tag:
         description: The docker image tag to deploy
         required: true
@@ -21,6 +28,6 @@ jobs:
         event-type: relay-prod-deployment
         client-payload: |
           '{
-            "relay_name": "relay-0",
+            "relay_name": "${{ github.relay_name }}",
             "relay_version": "${{ github.image_tag }}"
           }'
