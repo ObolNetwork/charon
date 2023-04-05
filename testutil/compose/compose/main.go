@@ -39,6 +39,7 @@ func newRootCmd() *cobra.Command {
 
 	root.AddCommand(newNewCmd())
 	root.AddCommand(newCleanCmd())
+	root.AddCommand(newBuildLocalCmd())
 	root.AddCommand(newAutoCmd())
 	root.AddCommand(newDockerCmd(
 		"define",
@@ -104,6 +105,17 @@ func newAutoCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&conf.PrintYML, "print-yml", false, "Print generated docker-compose.yml files.")
 
 	return cmd
+}
+
+func newBuildLocalCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "build-local",
+		Short: "Builds the obolnetwork/charon:local docker container from the local source code. Note this requires the CHARON_REPO env var.",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return compose.BuildLocal(cmd.Context())
+		},
+	}
 }
 
 func newNewCmd() *cobra.Command {
