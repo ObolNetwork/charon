@@ -36,7 +36,7 @@ func newInclDelayFunc(eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc, callback fu
 		dssMutex      sync.Mutex
 	)
 
-	// setStartSlot return a previously set duty start slot and true or it sets it and returns false.
+	// getOrSetStartSlot returns a previously set duty start slot and true or it sets it and returns false.
 	getOrSetStartSlot := func(slot int64) (int64, bool) {
 		dssMutex.Lock()
 		defer dssMutex.Unlock()
