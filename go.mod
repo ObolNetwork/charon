@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/attestantio/go-eth2-client v0.15.8
-	github.com/bufbuild/buf v1.16.0
+	github.com/bufbuild/buf v1.17.0
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0
 	github.com/ferranbt/fastssz v0.1.3
@@ -53,7 +53,7 @@ require (
 	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/btcsuite/btcd v0.22.1 // indirect
-	github.com/bufbuild/connect-go v1.5.2 // indirect
+	github.com/bufbuild/connect-go v1.6.0 // indirect
 	github.com/bufbuild/protocompile v0.5.1 // indirect
 	github.com/bwesterb/go-ristretto v1.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
@@ -77,7 +77,7 @@ require (
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-chi/chi/v5 v5.0.8 // indirect
-	github.com/go-logr/logr v1.2.3 // indirect
+	github.com/go-logr/logr v1.2.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0 // indirect
 	github.com/goccy/go-yaml v1.9.5 // indirect
@@ -168,7 +168,7 @@ require (
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/dig v1.15.0 // indirect
 	go.uber.org/fx v1.18.2 // indirect
-	go.uber.org/multierr v1.10.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20230321023759-10a507213a29 // indirect
 	golang.org/x/mod v0.9.0 // indirect
 	golang.org/x/net v0.8.0 // indirect
