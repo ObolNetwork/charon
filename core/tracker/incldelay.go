@@ -66,10 +66,13 @@ func newInclDelayFunc(eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc, callback fu
 			return err
 		}
 
-		var delays []int64
+		var (
+			delays    []int64
+			startSlot = getStartSlot()
+		)
 		for _, att := range atts {
 			attSlot := att.Data.Slot
-			if int64(attSlot) < getStartSlot() {
+			if int64(attSlot) < startSlot {
 				continue
 			}
 
