@@ -18,8 +18,9 @@ jobs:
       with:
         token: ${{ secrets.CHARON_K8S_REPO_ACCESS_TOKEN }}
         repository: ObolNetwork/obol-infrastructure
-        event-type: relay-reusable-deployment
+        event-type: relay-prod-deployment
         client-payload: |
           '{
+            "relay_name": "relay-0",
             "relay_version": "${{ github.image_tag }}"
           }'
