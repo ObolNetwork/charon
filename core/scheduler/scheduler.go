@@ -154,7 +154,7 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 	}
 	if s.isEpochTrimmed(epoch) {
 		return nil, errors.New("epoch already trimmed",
-			z.Any("duty", duty.String()), z.I64("epoch", epoch))
+			z.Str("duty", duty.String()), z.I64("epoch", epoch))
 	}
 
 	defSet, ok := s.getDutyDefinitionSet(duty)
