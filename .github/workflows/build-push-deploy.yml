@@ -14,12 +14,6 @@ jobs:
       with:
         fetch-depth: 0
     - uses: docker/setup-buildx-action@v1
-    # Only allow building docker images from trunk (main) or patch (main/v0.X) protected branches.
-    - name: Check branch
-      run: |
-        # Short name for current branch
-        GIT_BRANCH=${GITHUB_REF#refs/heads/}
-        [[ $GIT_BRANCH = main* ]] || (echo "Not building image for invalid branch: $GIT_BRANCH" && exit 1)
     - name: Define docker image meta data tags
       id: meta
       uses: docker/metadata-action@v3
