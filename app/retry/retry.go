@@ -206,7 +206,10 @@ func (r *Retryer[T]) isShutdown() bool {
 
 // Shutdown triggers graceful shutdown and waits for all active function to complete or timeout.
 func (r *Retryer[T]) Shutdown(ctx context.Context) {
+	r.mu.Lock() // Prevent new asyncs from starting while close the shutdown channel.
 	close(r.shutdown)
+	r.mu.Unlock()
+
 	r.asyncCancel()
 
 	checkDoneTicker := time.NewTicker(100 * time.Millisecond)
