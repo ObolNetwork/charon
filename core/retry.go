@@ -13,30 +13,38 @@ func WithAsyncRetry(retryer *retry.Retryer[Duty]) WireOption {
 	return func(w *wireFuncs) {
 		clone := *w
 		w.FetcherFetch = func(ctx context.Context, duty Duty, set DutyDefinitionSet) error {
-			go retryer.DoAsync(ctx, duty, "fetcher", "fetch", func(ctx context.Context) error {
-				return clone.FetcherFetch(ctx, duty, set)
-			})
+			go func() {
+				_ = retryer.DoAsync(ctx, duty, "fetcher", "fetch", func(ctx context.Context) error {
+					return clone.FetcherFetch(ctx, duty, set)
+				})
+			}()
 
 			return nil
 		}
 		w.ConsensusPropose = func(ctx context.Context, duty Duty, set UnsignedDataSet) error {
-			go retryer.DoAsync(ctx, duty, "consensus", "propose", func(ctx context.Context) error {
-				return clone.ConsensusPropose(ctx, duty, set)
-			})
+			go func() {
+				_ = retryer.DoAsync(ctx, duty, "consensus", "propose", func(ctx context.Context) error {
+					return clone.ConsensusPropose(ctx, duty, set)
+				})
+			}()
 
 			return nil
 		}
 		w.ParSigExBroadcast = func(ctx context.Context, duty Duty, set ParSignedDataSet) error {
-			go retryer.DoAsync(ctx, duty, "parsigex", "broadcast", func(ctx context.Context) error {
-				return clone.ParSigExBroadcast(ctx, duty, set)
-			})
+			go func() {
+				_ = retryer.DoAsync(ctx, duty, "parsigex", "broadcast", func(ctx context.Context) error {
+					return clone.ParSigExBroadcast(ctx, duty, set)
+				})
+			}()
 
 			return nil
 		}
 		w.BroadcasterBroadcast = func(ctx context.Context, duty Duty, key PubKey, data SignedData) error {
-			go retryer.DoAsync(ctx, duty, "bcast", "broadcast", func(ctx context.Context) error {
-				return clone.BroadcasterBroadcast(ctx, duty, key, data)
-			})
+			go func() {
+				_ = retryer.DoAsync(ctx, duty, "bcast", "broadcast", func(ctx context.Context) error {
+					return clone.BroadcasterBroadcast(ctx, duty, key, data)
+				})
+			}()
 
 			return nil
 		}

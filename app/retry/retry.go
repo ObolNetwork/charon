@@ -82,7 +82,8 @@ type Retryer[T any] struct {
 	ctxTimeoutFunc  func(context.Context, T) (context.Context, context.CancelFunc)
 	backoffProvider func() func() <-chan time.Time
 
-	wg sync.WaitGroup
+	wg      sync.WaitGroup
+	wgMutex sync.Mutex
 
 	mu     sync.Mutex
 	active map[string]int // Active keeps track of active DoAsyncs.
@@ -92,14 +93,17 @@ type Retryer[T any] struct {
 // It is intended to be used asynchronously:
 //
 //	go retryer.DoAsync(ctx, duty, "foo", fn)
-func (r *Retryer[T]) DoAsync(parent context.Context, t T, topic, name string, fn func(context.Context) error) {
+func (r *Retryer[T]) DoAsync(parent context.Context, t T, topic, name string, fn func(context.Context) error) error {
 	if r.isShutdown() {
-		return
+		return errors.New("shutdown in process")
 	}
 
 	label := path.Join(topic, name)
 
-	r.asyncStarted(label)
+	if !r.asyncStarted(label) { // could not lock the workgroup mutex, so there's a Wait() running: we're shutting down
+		return errors.New("shutdown in process")
+	}
+
 	defer r.asyncEnded(label)
 
 	backoffFunc := r.backoffProvider()
@@ -121,7 +125,7 @@ func (r *Retryer[T]) DoAsync(parent context.Context, t T, topic, name string, fn
 
 		err := fn(ctx)
 		if err == nil {
-			return
+			return nil
 		}
 
 		var nerr net.Error
@@ -132,7 +136,7 @@ func (r *Retryer[T]) DoAsync(parent context.Context, t T, topic, name string, fn
 
 		if !isCtxErr && !isNetErr && !isTempErr {
 			log.Error(ctx, "Permanent failure calling "+label, err)
-			return
+			return nil
 		}
 
 		if ctx.Err() == nil {
@@ -142,28 +146,35 @@ func (r *Retryer[T]) DoAsync(parent context.Context, t T, topic, name string, fn
 			case <-backoffFunc():
 			case <-ctx.Done():
 			case <-r.shutdown:
-				return
+				return nil
 			}
 			span.AddEvent("retry.backoff.done")
 		}
 
 		if r.asyncCtx.Err() != nil {
-			return // Shutdown, return without logging
+			return nil //nolint:nilerr // Shutdown, return without logging
 		} else if ctx.Err() != nil {
-			// No need to log this at error level since tracker will analyse and report on failed duties.
 			log.Debug(ctx, "Timeout calling "+label+", duty expired")
-			return
+			//nolint:nilerr // No need to log this at error level since tracker will analyse and report on failed duties.
+			return nil
 		}
 	}
 }
 
 // asyncStarted marks an async action of name as active.
-func (r *Retryer[T]) asyncStarted(name string) {
+func (r *Retryer[T]) asyncStarted(name string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	if !r.wgMutex.TryLock() {
+		return false
+	}
+
+	defer r.wgMutex.Unlock()
 	r.wg.Add(1)
 	r.active[name]++
+
+	return true
 }
 
 // asyncEnded marks an async action of name as complete.
@@ -203,8 +214,10 @@ func (r *Retryer[T]) Shutdown(ctx context.Context) {
 
 	done := make(chan struct{})
 	go func() {
+		r.wgMutex.Lock()
 		r.wg.Wait()
 		close(done)
+		r.wgMutex.Unlock()
 	}()
 
 	select {
