@@ -197,8 +197,8 @@ func newHTTPMock(optionalHandlers map[string]http.HandlerFunc, overrides ...stat
 	// Wait for server to be up
 	for {
 		resp, err := http.Get(addr + "/up") //nolint:noctx // Non-critical code
-		_ = resp.Body.Close()
 		if err == nil && resp.StatusCode == http.StatusOK {
+			_ = resp.Body.Close()
 			break
 		}
 		time.Sleep(time.Millisecond * 100)
