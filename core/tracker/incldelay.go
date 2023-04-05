@@ -36,28 +36,27 @@ func newInclDelayFunc(eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc, callback fu
 		dssMutex      sync.Mutex
 	)
 
-	setStartSlot := func(slot int64) {
+	// setStartSlot return a previously set duty start slot and true or it sets it and returns false.
+	getOrSetStartSlot := func(slot int64) (int64, bool) {
 		dssMutex.Lock()
 		defer dssMutex.Unlock()
 
-		dutyStartSlot = slot
-	}
+		if dutyStartSlot == 0 {
+			dutyStartSlot = slot
+			return 0, false
+		}
 
-	getStartSlot := func() int64 {
-		dssMutex.Lock()
-		defer dssMutex.Unlock()
-
-		return dutyStartSlot
+		return dutyStartSlot, true
 	}
 
 	return func(ctx context.Context, current core.Slot) error {
 		// blockSlot the block we want to instrument.
 		blockSlot := current.Slot - inclDelayLag
 
-		if getStartSlot() == 0 {
-			setStartSlot(current.Slot) // Set start slot.
+		startSlot, ok := getOrSetStartSlot(current.Slot)
+		if !ok { // Set start slot.
 			return nil
-		} else if blockSlot < getStartSlot() {
+		} else if blockSlot < startSlot {
 			return nil // Still need to wait
 		}
 
@@ -66,10 +65,7 @@ func newInclDelayFunc(eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc, callback fu
 			return err
 		}
 
-		var (
-			delays    []int64
-			startSlot = getStartSlot()
-		)
+		var delays []int64
 		for _, att := range atts {
 			attSlot := att.Data.Slot
 			if int64(attSlot) < startSlot {
