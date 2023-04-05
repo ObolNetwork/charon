@@ -150,7 +150,7 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 	epoch := duty.Slot / int64(slotsPerEpoch)
 	if !s.isEpochResolved(epoch) {
 		return nil, errors.New("epoch not resolved yet",
-			z.Any("duty", duty.String()), z.I64("epoch", epoch))
+			z.Str("duty", duty.String()), z.I64("epoch", epoch))
 	}
 	if s.isEpochTrimmed(epoch) {
 		return nil, errors.New("epoch already trimmed",
