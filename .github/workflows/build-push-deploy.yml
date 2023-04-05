@@ -14,12 +14,6 @@ jobs:
       with:
         fetch-depth: 0
     - uses: docker/setup-buildx-action@v1
-    # Only allow building docker images from trunk (main) or patch (main/v0.X) protected branches.
-    - name: Check branch
-      run: |
-        # Short name for current branch
-        GIT_BRANCH=${GITHUB_REF#refs/heads/}
-        [[ $GIT_BRANCH = main* ]] || (echo "Not building image for invalid branch: $GIT_BRANCH" && exit 1)
     - name: Define docker image meta data tags
       id: meta
       uses: docker/metadata-action@v3
@@ -28,13 +22,13 @@ jobs:
           obolnetwork/charon
           ghcr.io/obolnetwork/charon
         tags: |
-          # Tag "git short sha" on push to branch (main)
-          type=sha,event=branch,prefix=
+          # Tag "git short sha" on all git events
+          type=sha,prefix=
 
-          # Tag "latest" on all events
-          type=raw,value=latest
+          # Tag "latest" on git-push-to-branch (main) events
+          type=raw,value=latest,event=branch
 
-          # Tag "tag ref" on tag push events
+          # Tag "tag ref" on git-tag events
           type=ref,event=tag
 
     - name: Login to Github container registry
