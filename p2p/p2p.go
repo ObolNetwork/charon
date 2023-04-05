@@ -215,8 +215,6 @@ func (f peerRoutingFunc) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo
 // so the implementation can only contain fields that are hashable. So we use a channel and do the logic externally. :(.
 func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []peer.ID) {
 	ctx = log.WithTopic(ctx, "p2p")
-	quit := make(chan struct{})
-	defer close(quit)
 
 	type connKey struct {
 		PeerName string
@@ -224,6 +222,7 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 	}
 
 	var (
+		quit   = make(chan struct{})
 		peers  = make(map[peer.ID]bool)
 		events = make(chan logEvent)
 		ticker = time.NewTicker(time.Second * 30)
@@ -239,10 +238,11 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 	})
 
 	go func() {
+		defer close(quit)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
-				ticker.Stop()
 				return
 			case <-ticker.C:
 				// Instrument connection counts.
