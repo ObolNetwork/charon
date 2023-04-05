@@ -80,7 +80,7 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 	}
 
 	if conf.BuildLocal {
-		if err := buildLocal(ctx); err != nil {
+		if err := BuildLocal(ctx); err != nil {
 			return TmplData{}, err
 		}
 	}
@@ -226,8 +226,8 @@ func pullLatest(ctx context.Context) error {
 	return nil
 }
 
-// buildLocal builds an `obolnetwork/charon:local` docker container from source. Note this requires CHARON_REPO env var.
-func buildLocal(ctx context.Context) error {
+// BuildLocal builds an `obolnetwork/charon:local` docker container from source. Note this requires CHARON_REPO env var.
+func BuildLocal(ctx context.Context) error {
 	repo, ok := os.LookupEnv("CHARON_REPO")
 	if !ok || repo == "" {
 		return errors.New("cannot build local charon binary; CHARON_REPO env var, the path to the charon repo, is not set")
