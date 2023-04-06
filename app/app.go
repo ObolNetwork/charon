@@ -680,7 +680,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 		return nil, errors.New("beacon node endpoints empty")
 	}
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, eth2ClientTimeout, conf.BeaconNodeAddrs...)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(eth2ClientTimeout, conf.BeaconNodeAddrs...)
 	if err != nil {
 		return nil, errors.Wrap(err, "new eth2 http client")
 	}
