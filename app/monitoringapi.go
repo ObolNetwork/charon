@@ -108,10 +108,7 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 		ticker := clock.NewTicker(10 * time.Second)
 		peerCountTicker := clock.NewTicker(1 * time.Minute)
 		epochTicker := clock.NewTicker(32 * 12 * time.Second) // 32 slots * 12 second slot time
-		var (
-			bnPeerCount    int   // Beacon node peer count value which is queried on startup & every minute
-			bnPeerCountErr error // Error if the peer count query wasn't successful
-		)
+		var bnPeerCount *int                                  // Beacon node peer count value which is queried on startup & then every minute
 		currVAPICount := 0
 		prevVAPICount := 1 // Assume connected.
 		currPKs := make(map[core.PubKey]bool)
@@ -122,23 +119,22 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 
 		// beaconNodePeerCount queries beacon node peer count and sets the peer count gauge if err is nil.
 		beaconNodePeerCount := func() {
-			bnPeerCount, bnPeerCountErr = eth2Cl.NodePeerCount(ctx)
-			if bnPeerCountErr != nil {
-				log.Error(ctx, "Failed to get beacon node peer count", bnPeerCountErr)
+			peerCount, err := eth2Cl.NodePeerCount(ctx)
+			if err != nil {
+				log.Warn(ctx, "Failed to get beacon node peer count", err)
 				return
 			}
-			beaconNodePeerCountGauge.Set(float64(bnPeerCount))
+			if bnPeerCount == nil {
+				bnPeerCount = new(int)
+			}
+			*bnPeerCount = peerCount
+			beaconNodePeerCountGauge.Set(float64(peerCount))
 		}
-
-		onStartup := make(chan struct{}, 1)
-		onStartup <- struct{}{}
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-onStartup:
-				beaconNodePeerCount()
 			case <-epochTicker.Chan():
 				// Copy current to previous and clear current.
 				prevPKs, currPKs = currPKs, make(map[core.PubKey]bool)
@@ -160,7 +156,7 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 				} else if syncing {
 					err = errReadyBeaconNodeSyncing
 					readyzGauge.Set(readyzBeaconNodeSyncing)
-				} else if bnPeerCount == 0 && bnPeerCountErr == nil {
+				} else if bnPeerCount != nil && *bnPeerCount == 0 {
 					err = errReadyBeaconNodeZeroPeers
 					readyzGauge.Set(readyzBeaconNodeZeroPeers)
 				} else if syncDistance > bnFarBehindSlots {
