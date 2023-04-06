@@ -108,7 +108,7 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 		ticker := clock.NewTicker(10 * time.Second)
 		peerCountTicker := clock.NewTicker(1 * time.Minute)
 		epochTicker := clock.NewTicker(32 * 12 * time.Second) // 32 slots * 12 second slot time
-		var bnPeerCount *int                                  // Beacon node peer count value which is queried on startup & then every minute
+		var bnPeerCount *int                                  // Beacon node peer count value which is queried every minute
 		currVAPICount := 0
 		prevVAPICount := 1 // Assume connected.
 		currPKs := make(map[core.PubKey]bool)
