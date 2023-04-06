@@ -54,7 +54,7 @@
      "Value": "0.0.0.0:3600"
     },
     {
-     "Key": "beacon-node-endpoint",
+     "Key": "beacon-node-endpoints",
      "Value": ""
     },
     {
@@ -159,7 +159,7 @@
      "Value": "0.0.0.0:3600"
     },
     {
-     "Key": "beacon-node-endpoint",
+     "Key": "beacon-node-endpoints",
      "Value": ""
     },
     {
@@ -264,7 +264,7 @@
      "Value": "0.0.0.0:3600"
     },
     {
-     "Key": "beacon-node-endpoint",
+     "Key": "beacon-node-endpoints",
      "Value": ""
     },
     {
@@ -369,7 +369,7 @@
      "Value": "0.0.0.0:3600"
     },
     {
-     "Key": "beacon-node-endpoint",
+     "Key": "beacon-node-endpoints",
      "Value": ""
     },
     {

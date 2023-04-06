@@ -8,7 +8,7 @@
  "build_local": false,
  "key_gen": "create",
  "split_keys_dir": "",
- "beacon_node": "mock",
+ "beacon_nodes": "mock",
  "external_relay": "",
  "validator_clients": [
   "teku",

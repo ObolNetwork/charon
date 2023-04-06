@@ -86,8 +86,8 @@ type Config struct {
 	// SplitKeysDir directory containing keys to split for keygen==create.
 	SplitKeysDir string `json:"split_keys_dir"`
 
-	// BeaconNode url endpoint or "mock" for simnet.
-	BeaconNode string `json:"beacon_node"`
+	// BeaconNodes url endpoint or "mock" for simnet.
+	BeaconNodes string `json:"beacon_nodes"`
 
 	// ExternalRelay HTTP url endpoint or empty to disable.
 	ExternalRelay string `json:"external_relay"`
@@ -135,7 +135,7 @@ func NewDefaultConfig() Config {
 		ImageTag:                defaultImageTag,
 		VCs:                     []VCType{VCTeku, VCLighthouse, VCMock},
 		KeyGen:                  defaultKeyGen,
-		BeaconNode:              defaultBeaconNode,
+		BeaconNodes:             defaultBeaconNode,
 		Step:                    stepNew,
 		FeatureSet:              defaultFeatureSet,
 		SlotDuration:            time.Second,
