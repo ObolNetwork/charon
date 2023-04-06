@@ -12,11 +12,11 @@ import (
 	"time"
 
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
-	"github.com/moby/term"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/buffer"
 	"go.uber.org/zap/zapcore"
+	"golang.org/x/term"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log/loki"
@@ -113,7 +113,7 @@ func (c Config) InferColor() (bool, error) {
 	case colorForce:
 		return true, nil
 	case colorAuto, "":
-		return term.IsTerminal(os.Stderr.Fd()), nil
+		return term.IsTerminal(int(os.Stderr.Fd())), nil
 	}
 
 	return false, errors.New("invalid --log-color value", z.Str("value", c.Color))
