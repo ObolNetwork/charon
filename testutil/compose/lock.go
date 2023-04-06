@@ -93,7 +93,7 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 // newNodeEnvs returns the default node environment variable to run a charon docker container.
 func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 	beaconMock := false
-	beaconNode := conf.BeaconNode
+	beaconNode := conf.BeaconNodes
 	if beaconNode == "mock" {
 		beaconMock = true
 		beaconNode = ""
@@ -132,7 +132,7 @@ func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 		kv{"jaeger-address", "jaeger:6831"},
 		kv{"lock-file", lockFile},
 		kv{"validator-api-address", "0.0.0.0:3600"},
-		kv{"beacon-node-endpoint", beaconNode},
+		kv{"beacon-node-endpoints", beaconNode},
 		kv{"simnet-beacon_mock", fmt.Sprintf(`"%v"`, beaconMock)},
 		kv{"simnet-validator-mock", fmt.Sprintf(`"%v"`, vcType == VCMock)},
 		kv{"simnet-slot-duration", conf.SlotDuration.String()},

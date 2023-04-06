@@ -129,7 +129,7 @@ func newNewCmd() *cobra.Command {
 	dir := addDirFlag(cmd.Flags())
 	keygen := cmd.Flags().String("keygen", string(conf.KeyGen), "Key generation process: create, split, dkg")
 	buildLocal := cmd.Flags().Bool("build-local", conf.BuildLocal, "Enables building a local charon container from source. Note this requires the CHARON_REPO env var.")
-	beaconNode := cmd.Flags().String("beacon-node", conf.BeaconNode, "Beacon node URL endpoint or 'mock' for simnet.")
+	beaconNode := cmd.Flags().String("beacon-nodes", conf.BeaconNodes, "Beacon node URL endpoints or 'mock' for simnet.")
 	extRelay := cmd.Flags().String("external-relay", "", "Optional external relay HTTP url.")
 	splitKeys := cmd.Flags().String("split-keys-dir", conf.SplitKeysDir, "Directory containing keys to split for keygen==create, or empty not to split.")
 	featureSet := cmd.Flags().String("feature-set", conf.FeatureSet, "Minimum feature set to enable: alpha, beta, stable")
@@ -143,7 +143,7 @@ func newNewCmd() *cobra.Command {
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		conf.KeyGen = compose.KeyGen(*keygen)
 		conf.BuildLocal = *buildLocal
-		conf.BeaconNode = *beaconNode
+		conf.BeaconNodes = *beaconNode
 		conf.SplitKeysDir = *splitKeys
 		conf.FeatureSet = *featureSet
 		conf.ExternalRelay = *extRelay
