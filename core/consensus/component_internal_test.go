@@ -143,7 +143,6 @@ func TestComponent_handle(t *testing.T) {
 				c.pubkeys = make(map[int64]*k1.PublicKey)
 				c.pubkeys[0] = p2pKey.PubKey()
 
-				// construct a valid basis message signature
 				base.Msg.Duty.Type = 1
 				base.Msg.PeerIdx = 0
 
@@ -163,7 +162,7 @@ func TestComponent_handle(t *testing.T) {
 
 				base.Justification[0].PeerIdx = 42
 
-				// Sign the base message
+				// Sign the justification
 				justHash, err := hashProto(base.Justification[0])
 				require.NoError(t, err)
 
@@ -183,7 +182,6 @@ func TestComponent_handle(t *testing.T) {
 				c.pubkeys = make(map[int64]*k1.PublicKey)
 				c.pubkeys[0] = p2pKey.PubKey()
 
-				// construct a valid basis message signature
 				base.Msg.Duty.Type = 1
 				base.Msg.PeerIdx = 0
 
@@ -196,7 +194,7 @@ func TestComponent_handle(t *testing.T) {
 
 				base.Msg.Signature = sign
 
-				// construct a justification
+				// construct nil justifications
 				base.Justification = []*pbv1.QBFTMsg{
 					nil,
 					nil,
