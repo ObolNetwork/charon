@@ -775,7 +775,7 @@ func (m multi) GenesisTime(ctx context.Context) (time.Time, error) {
 
 // NodeVersion returns a free-text string with the node version.
 func (l *lazy) NodeVersion(ctx context.Context) (res0 string, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -785,7 +785,7 @@ func (l *lazy) NodeVersion(ctx context.Context) (res0 string, err error) {
 
 // SlotDuration provides the duration of a slot of the chain.
 func (l *lazy) SlotDuration(ctx context.Context) (res0 time.Duration, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -795,7 +795,7 @@ func (l *lazy) SlotDuration(ctx context.Context) (res0 time.Duration, err error)
 
 // SlotsPerEpoch provides the slots per epoch of the chain.
 func (l *lazy) SlotsPerEpoch(ctx context.Context) (res0 uint64, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -805,7 +805,7 @@ func (l *lazy) SlotsPerEpoch(ctx context.Context) (res0 uint64, err error) {
 
 // DepositContract provides details of the Ethereum 1 deposit contract for the chain.
 func (l *lazy) DepositContract(ctx context.Context) (res0 *apiv1.DepositContract, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -815,7 +815,7 @@ func (l *lazy) DepositContract(ctx context.Context) (res0 *apiv1.DepositContract
 
 // SignedBeaconBlock fetches a signed beacon block given a block ID.
 func (l *lazy) SignedBeaconBlock(ctx context.Context, blockID string) (res0 *spec.VersionedSignedBeaconBlock, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -825,7 +825,7 @@ func (l *lazy) SignedBeaconBlock(ctx context.Context, blockID string) (res0 *spe
 
 // AggregateAttestation fetches the aggregate attestation given an attestation.
 func (l *lazy) AggregateAttestation(ctx context.Context, slot phase0.Slot, attestationDataRoot phase0.Root) (res0 *phase0.Attestation, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -835,7 +835,7 @@ func (l *lazy) AggregateAttestation(ctx context.Context, slot phase0.Slot, attes
 
 // SubmitAggregateAttestations submits aggregate attestations.
 func (l *lazy) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs []*phase0.SignedAggregateAndProof) (err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -845,7 +845,7 @@ func (l *lazy) SubmitAggregateAttestations(ctx context.Context, aggregateAndProo
 
 // AttestationData fetches the attestation data for the given slot and committee index.
 func (l *lazy) AttestationData(ctx context.Context, slot phase0.Slot, committeeIndex phase0.CommitteeIndex) (res0 *phase0.AttestationData, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -855,7 +855,7 @@ func (l *lazy) AttestationData(ctx context.Context, slot phase0.Slot, committeeI
 
 // SubmitAttestations submits attestations.
 func (l *lazy) SubmitAttestations(ctx context.Context, attestations []*phase0.Attestation) (err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -866,7 +866,7 @@ func (l *lazy) SubmitAttestations(ctx context.Context, attestations []*phase0.At
 // AttesterDuties obtains attester duties.
 // If validatorIndicess is nil it will return all duties for the given epoch.
 func (l *lazy) AttesterDuties(ctx context.Context, epoch phase0.Epoch, validatorIndices []phase0.ValidatorIndex) (res0 []*apiv1.AttesterDuty, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -877,7 +877,7 @@ func (l *lazy) AttesterDuties(ctx context.Context, epoch phase0.Epoch, validator
 // SyncCommitteeDuties obtains sync committee duties.
 // If validatorIndicess is nil it will return all duties for the given epoch.
 func (l *lazy) SyncCommitteeDuties(ctx context.Context, epoch phase0.Epoch, validatorIndices []phase0.ValidatorIndex) (res0 []*apiv1.SyncCommitteeDuty, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -887,7 +887,7 @@ func (l *lazy) SyncCommitteeDuties(ctx context.Context, epoch phase0.Epoch, vali
 
 // SubmitSyncCommitteeMessages submits sync committee messages.
 func (l *lazy) SubmitSyncCommitteeMessages(ctx context.Context, messages []*altair.SyncCommitteeMessage) (err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -897,7 +897,7 @@ func (l *lazy) SubmitSyncCommitteeMessages(ctx context.Context, messages []*alta
 
 // SubmitSyncCommitteeSubscriptions subscribes to sync committees.
 func (l *lazy) SubmitSyncCommitteeSubscriptions(ctx context.Context, subscriptions []*apiv1.SyncCommitteeSubscription) (err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -907,7 +907,7 @@ func (l *lazy) SubmitSyncCommitteeSubscriptions(ctx context.Context, subscriptio
 
 // SyncCommitteeContribution provides a sync committee contribution.
 func (l *lazy) SyncCommitteeContribution(ctx context.Context, slot phase0.Slot, subcommitteeIndex uint64, beaconBlockRoot phase0.Root) (res0 *altair.SyncCommitteeContribution, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -917,7 +917,7 @@ func (l *lazy) SyncCommitteeContribution(ctx context.Context, slot phase0.Slot, 
 
 // SubmitSyncCommitteeContributions submits sync committee contributions.
 func (l *lazy) SubmitSyncCommitteeContributions(ctx context.Context, contributionAndProofs []*altair.SignedContributionAndProof) (err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -927,7 +927,7 @@ func (l *lazy) SubmitSyncCommitteeContributions(ctx context.Context, contributio
 
 // BeaconBlockProposal fetches a proposed beacon block for signing.
 func (l *lazy) BeaconBlockProposal(ctx context.Context, slot phase0.Slot, randaoReveal phase0.BLSSignature, graffiti []byte) (res0 *spec.VersionedBeaconBlock, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -937,7 +937,7 @@ func (l *lazy) BeaconBlockProposal(ctx context.Context, slot phase0.Slot, randao
 
 // BeaconBlockRoot fetches a block's root given a block ID.
 func (l *lazy) BeaconBlockRoot(ctx context.Context, blockID string) (res0 *phase0.Root, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -947,7 +947,7 @@ func (l *lazy) BeaconBlockRoot(ctx context.Context, blockID string) (res0 *phase
 
 // SubmitBeaconBlock submits a beacon block.
 func (l *lazy) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) (err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -957,7 +957,7 @@ func (l *lazy) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSigne
 
 // SubmitBeaconCommitteeSubscriptions subscribes to beacon committees.
 func (l *lazy) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscriptions []*apiv1.BeaconCommitteeSubscription) (err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -967,7 +967,7 @@ func (l *lazy) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscript
 
 // BlindedBeaconBlockProposal fetches a blinded proposed beacon block for signing.
 func (l *lazy) BlindedBeaconBlockProposal(ctx context.Context, slot phase0.Slot, randaoReveal phase0.BLSSignature, graffiti []byte) (res0 *api.VersionedBlindedBeaconBlock, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -977,7 +977,7 @@ func (l *lazy) BlindedBeaconBlockProposal(ctx context.Context, slot phase0.Slot,
 
 // SubmitBlindedBeaconBlock submits a beacon block.
 func (l *lazy) SubmitBlindedBeaconBlock(ctx context.Context, block *api.VersionedSignedBlindedBeaconBlock) (err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -987,7 +987,7 @@ func (l *lazy) SubmitBlindedBeaconBlock(ctx context.Context, block *api.Versione
 
 // SubmitValidatorRegistrations submits a validator registration.
 func (l *lazy) SubmitValidatorRegistrations(ctx context.Context, registrations []*api.VersionedSignedValidatorRegistration) (err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -997,7 +997,7 @@ func (l *lazy) SubmitValidatorRegistrations(ctx context.Context, registrations [
 
 // Fork fetches fork information for the given state.
 func (l *lazy) Fork(ctx context.Context, stateID string) (res0 *phase0.Fork, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -1007,7 +1007,7 @@ func (l *lazy) Fork(ctx context.Context, stateID string) (res0 *phase0.Fork, err
 
 // ForkSchedule provides details of past and future changes in the chain's fork version.
 func (l *lazy) ForkSchedule(ctx context.Context) (res0 []*phase0.Fork, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -1017,7 +1017,7 @@ func (l *lazy) ForkSchedule(ctx context.Context) (res0 []*phase0.Fork, err error
 
 // Genesis fetches genesis information for the chain.
 func (l *lazy) Genesis(ctx context.Context) (res0 *apiv1.Genesis, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -1027,7 +1027,7 @@ func (l *lazy) Genesis(ctx context.Context) (res0 *apiv1.Genesis, err error) {
 
 // NodeSyncing provides the state of the node's synchronization with the chain.
 func (l *lazy) NodeSyncing(ctx context.Context) (res0 *apiv1.SyncState, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -1038,7 +1038,7 @@ func (l *lazy) NodeSyncing(ctx context.Context) (res0 *apiv1.SyncState, err erro
 // SubmitProposalPreparations provides the beacon node with information required if a proposal for the given validators
 // shows up in the next epoch.
 func (l *lazy) SubmitProposalPreparations(ctx context.Context, preparations []*apiv1.ProposalPreparation) (err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -1049,7 +1049,7 @@ func (l *lazy) SubmitProposalPreparations(ctx context.Context, preparations []*a
 // ProposerDuties obtains proposer duties for the given epoch.
 // If validatorIndices is empty all duties are returned, otherwise only matching duties are returned.
 func (l *lazy) ProposerDuties(ctx context.Context, epoch phase0.Epoch, validatorIndices []phase0.ValidatorIndex) (res0 []*apiv1.ProposerDuty, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -1059,7 +1059,7 @@ func (l *lazy) ProposerDuties(ctx context.Context, epoch phase0.Epoch, validator
 
 // Spec provides the spec information of the chain.
 func (l *lazy) Spec(ctx context.Context) (res0 map[string]interface{}, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -1072,7 +1072,7 @@ func (l *lazy) Spec(ctx context.Context) (res0 map[string]interface{}, err error
 // validatorIndices is a list of validator indices to restrict the returned values.  If no validators IDs are supplied no filter
 // will be applied.
 func (l *lazy) Validators(ctx context.Context, stateID string, validatorIndices []phase0.ValidatorIndex) (res0 map[phase0.ValidatorIndex]*apiv1.Validator, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -1085,7 +1085,7 @@ func (l *lazy) Validators(ctx context.Context, stateID string, validatorIndices 
 // validatorPubKeys is a list of validator public keys to restrict the returned values.  If no validators public keys are
 // supplied no filter will be applied.
 func (l *lazy) ValidatorsByPubKey(ctx context.Context, stateID string, validatorPubKeys []phase0.BLSPubKey) (res0 map[phase0.ValidatorIndex]*apiv1.Validator, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -1095,7 +1095,7 @@ func (l *lazy) ValidatorsByPubKey(ctx context.Context, stateID string, validator
 
 // SubmitVoluntaryExit submits a voluntary exit.
 func (l *lazy) SubmitVoluntaryExit(ctx context.Context, voluntaryExit *phase0.SignedVoluntaryExit) (err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -1105,7 +1105,7 @@ func (l *lazy) SubmitVoluntaryExit(ctx context.Context, voluntaryExit *phase0.Si
 
 // Domain provides a domain for a given domain type at a given epoch.
 func (l *lazy) Domain(ctx context.Context, domainType phase0.DomainType, epoch phase0.Epoch) (res0 phase0.Domain, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -1118,7 +1118,7 @@ func (l *lazy) Domain(ctx context.Context, domainType phase0.DomainType, epoch p
 // for a chain's fork schedule to have multiple forks at genesis.  In this situation,
 // GenesisDomain() will return the first, and Domain() will return the last.
 func (l *lazy) GenesisDomain(ctx context.Context, domainType phase0.DomainType) (res0 phase0.Domain, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
@@ -1128,7 +1128,7 @@ func (l *lazy) GenesisDomain(ctx context.Context, domainType phase0.DomainType) 
 
 // GenesisTime provides the genesis time of the chain.
 func (l *lazy) GenesisTime(ctx context.Context) (res0 time.Time, err error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
