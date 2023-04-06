@@ -1,0 +1,36 @@
+name: Label PR
+on:
+  pull_request:
+jobs:
+  label_issues:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Calculate branch label
+        id: branch-label
+        run: |
+          LABEL=""
+          # Short name for current branch
+          GIT_BRANCH=${GITHUB_REF#refs/heads/}
+          if [[ $GIT_BRANCH = main ]]; then
+            # Do not label main branch PRs
+          elif [[ $GIT_BRANCH = main* ]]; then
+            # Label release branches
+            LABEL="branch-release"
+          else
+            # Label all other branches as invalid
+            LABEL="branch-invalid"
+          fi
+          echo "::set-output name=label::LABEL"
+
+      - uses: actions/github-script@v6
+        if: steps.branch-label.outputs.label != ''
+        with:
+          script: |
+            github.rest.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ["${steps.calc-label.outputs.label}"]
+            })
