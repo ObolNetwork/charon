@@ -76,16 +76,14 @@ func newInternal[T any](
 // Retryer provides execution of functions asynchronously with retry adding robustness to network errors.
 // The generic type T abstracts the deadline argument.
 type Retryer[T any] struct {
-	shutdown        chan struct{}
 	asyncCtx        context.Context
 	asyncCancel     context.CancelFunc
 	ctxTimeoutFunc  func(context.Context, T) (context.Context, context.CancelFunc)
 	backoffProvider func() func() <-chan time.Time
 
-	wg sync.WaitGroup
-
-	mu     sync.Mutex
-	active map[string]int // Active keeps track of active DoAsyncs.
+	mu       sync.Mutex
+	shutdown chan struct{}
+	active   map[string]int // Active keeps track of active DoAsyncs.
 }
 
 // DoAsync will execute the function including retries on network or context errors.
@@ -93,14 +91,12 @@ type Retryer[T any] struct {
 //
 //	go retryer.DoAsync(ctx, duty, "foo", fn)
 func (r *Retryer[T]) DoAsync(parent context.Context, t T, topic, name string, fn func(context.Context) error) {
-	if r.isShutdown() {
-		return
-	}
-
 	label := path.Join(topic, name)
 
-	r.asyncStarted(label)
-	defer r.asyncEnded(label)
+	if !r.startAsync(label) {
+		return
+	}
+	defer r.endAsync(label)
 
 	backoffFunc := r.backoffProvider()
 
@@ -157,17 +153,22 @@ func (r *Retryer[T]) DoAsync(parent context.Context, t T, topic, name string, fn
 	}
 }
 
-// asyncStarted marks an async action of name as active.
-func (r *Retryer[T]) asyncStarted(name string) {
+// startAsync marks an async action of name as active.
+func (r *Retryer[T]) startAsync(name string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.wg.Add(1)
+	if r.isShutdown() {
+		return false
+	}
+
 	r.active[name]++
+
+	return true
 }
 
-// asyncEnded marks an async action of name as complete.
-func (r *Retryer[T]) asyncEnded(name string) {
+// endAsync marks an async action of name as complete.
+func (r *Retryer[T]) endAsync(name string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -175,7 +176,14 @@ func (r *Retryer[T]) asyncEnded(name string) {
 	if r.active[name] == 0 {
 		delete(r.active, name)
 	}
-	r.wg.Done()
+}
+
+// someActive returns true if some async actions are active.
+func (r *Retryer[T]) someActive() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return len(r.active) > 0
 }
 
 // fmtActive returns a human-readable string of the active async.
@@ -198,19 +206,21 @@ func (r *Retryer[T]) isShutdown() bool {
 
 // Shutdown triggers graceful shutdown and waits for all active function to complete or timeout.
 func (r *Retryer[T]) Shutdown(ctx context.Context) {
+	r.mu.Lock() // Prevent new asyncs from starting while close the shutdown channel.
 	close(r.shutdown)
+	r.mu.Unlock()
+
 	r.asyncCancel()
 
-	done := make(chan struct{})
-	go func() {
-		r.wg.Wait()
-		close(done)
-	}()
+	checkDoneTicker := time.NewTicker(100 * time.Millisecond)
+	defer checkDoneTicker.Stop()
 
-	select {
-	case <-ctx.Done():
-		log.Error(ctx, "Retryer shutdown timeout waiting for active asyncs to complete", nil, z.Str("active", r.fmtActive()))
-	case <-done:
+	for r.someActive() {
+		select {
+		case <-ctx.Done():
+			log.Error(ctx, "Retryer shutdown timeout waiting for active asyncs to complete", nil, z.Str("active", r.fmtActive()))
+		case <-checkDoneTicker.C:
+		}
 	}
 }
 
