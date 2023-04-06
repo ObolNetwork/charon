@@ -12,7 +12,7 @@ jobs:
         id: branch-label
         run: |
 
-          # Short name for current branch. For PRs, use target branch (base ref)
+          # Short name for current branch. For PRs, use target branch (base ref)s
           # Reference: https://stackoverflow.com/questions/60300169/how-to-get-branch-name-on-github-action
           GIT_BRANCH=${GITHUB_BASE_REF:-${GITHUB_REF#refs/heads/}}
           echo "GIT_BRANCH=$GIT_BRANCH"
