@@ -1,11 +1,12 @@
 name: Label PR
 on:
   pull_request:
+
 jobs:
-  label_issues:
+  label_pr:
     runs-on: ubuntu-latest
     permissions:
-      issues: write
+      pull-requests: write
     steps:
       - name: Calculate branch label
         id: branch-label
@@ -27,8 +28,7 @@ jobs:
             # Label all other branches as invalid
             LABEL="branch-invalid"
           fi
-          echo "LABEL=$LABEL"
-          echo "::set-output name=label::LABEL"
+          echo "label=$LABEL" >> $GITHUB_OUTPUT
 
       - uses: actions/github-script@v6
         if: steps.branch-label.outputs.label != 'skip'
@@ -38,5 +38,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              labels: ["${steps.calc-label.outputs.label}"]
+              labels: ["${steps.branch-label.outputs.label}"]
             })
