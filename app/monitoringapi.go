@@ -127,7 +127,7 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 			if bnPeerCount == nil {
 				bnPeerCount = new(int)
 			}
-			*bnPeerCount = peerCount
+			bnPeerCount = &peerCount
 			beaconNodePeerCountGauge.Set(float64(peerCount))
 		}
 
