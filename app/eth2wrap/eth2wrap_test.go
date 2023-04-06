@@ -335,7 +335,7 @@ func TestOneTimeout(t *testing.T) {
 // TestOnlyTimeout tests the case where only one server is available and it is timing out.
 func TestOnlyTimeout(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	log.Info(ctx, "START TestOnlyTimeout")
+
 	// Start an timeout server.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		<-ctx.Done()
