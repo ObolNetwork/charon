@@ -60,6 +60,7 @@ func TestCmdFlags(t *testing.T) {
 				Log: log.Config{
 					Level:       "info",
 					Format:      "console",
+					Color:       "auto",
 					LokiService: "charon",
 				},
 				P2P: p2p.Config{

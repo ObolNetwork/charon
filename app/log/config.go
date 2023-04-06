@@ -5,12 +5,14 @@ package log
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
+	"github.com/moby/term"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/buffer"
@@ -26,6 +28,12 @@ const (
 	padLength         = 40
 	keyStack          = "stacktrace"
 	keyTopic          = "topic"
+)
+
+const (
+	colorDisable    = "disable"
+	colorForceColor = "force"
+	colorAuto       = "auto"
 )
 
 // zapLogger abstracts a zap logger.
@@ -81,7 +89,8 @@ func LoggerCore() zapcore.Core {
 // Config defines the logging configuration.
 type Config struct {
 	Level         string   // debug, info, warn or error
-	Format        string   // console or json
+	Format        string   // console or json or logfmt
+	Color         string   // disable, force or auto
 	LokiAddresses []string // URLs for loki logging spout
 	LokiService   string   // Value of the service label pushed with loki logs.
 }
@@ -94,6 +103,20 @@ func (c Config) ZapLevel() (zapcore.Level, error) {
 	}
 
 	return level, nil
+}
+
+// InferColor returns true if color logs should be used.
+func (c Config) InferColor() (bool, error) {
+	switch strings.ToLower(strings.TrimSpace(c.Color)) {
+	case colorDisable:
+		return false, nil
+	case colorForceColor:
+		return true, nil
+	case colorAuto, "":
+		return term.IsTerminal(os.Stderr.Fd()), nil
+	}
+
+	return false, errors.New("invalid --log-color value", z.Str("value", c.Color))
 }
 
 // DefaultConfig returns the default logging config.
@@ -116,6 +139,11 @@ func InitLogger(config Config) error {
 		return err
 	}
 
+	color, err := config.InferColor()
+	if err != nil {
+		return err
+	}
+
 	writer, _, err := zap.Open("stderr")
 	if err != nil {
 		return errors.Wrap(err, "open writer")
@@ -127,9 +155,9 @@ func InitLogger(config Config) error {
 	}
 
 	if config.Format == "console" {
-		logger = newConsoleLogger(level, writer)
+		logger = newConsoleLogger(level, color, writer)
 	} else {
-		logger, err = newStructuredLogger(config.Format, level, writer, callerSkip)
+		logger, err = newStructuredLogger(config.Format, level, color, writer, callerSkip)
 		if err != nil {
 			return err
 		}
@@ -147,7 +175,8 @@ func InitLogger(config Config) error {
 		loggers := multiLogger{logger}
 		for _, address := range config.LokiAddresses {
 			lokiCl := loki.New(address, config.LokiService, logFunc, getLokiLabels)
-			lokiLogger, err := newStructuredLogger("logfmt", zapcore.DebugLevel, lokiWriter{cl: lokiCl}, callerSkip)
+			lokiLogger, err := newStructuredLogger("logfmt",
+				zapcore.DebugLevel, color, lokiWriter{cl: lokiCl}, callerSkip)
 			if err != nil {
 				return err
 			}
@@ -167,7 +196,7 @@ func InitLogger(config Config) error {
 func InitConsoleForT(_ *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) {
 	initMu.Lock()
 	defer initMu.Unlock()
-	logger = newConsoleLogger(zapcore.DebugLevel, ws, opts...)
+	logger = newConsoleLogger(zapcore.DebugLevel, true, ws, opts...)
 }
 
 // InitJSONForT initialises a json logger for testing purposes.
@@ -177,7 +206,7 @@ func InitJSONForT(t *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.En
 	defer initMu.Unlock()
 
 	var err error
-	logger, err = newStructuredLogger("json", zapcore.DebugLevel, ws, defaultCallerSkip, opts...)
+	logger, err = newStructuredLogger("json", zapcore.DebugLevel, true, ws, defaultCallerSkip, opts...)
 	require.NoError(t, err)
 }
 
@@ -188,7 +217,7 @@ func InitLogfmtForT(t *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.
 	defer initMu.Unlock()
 
 	var err error
-	logger, err = newStructuredLogger("logfmt", zapcore.DebugLevel, ws, defaultCallerSkip, opts...)
+	logger, err = newStructuredLogger("logfmt", zapcore.DebugLevel, false, ws, defaultCallerSkip, opts...)
 	require.NoError(t, err)
 }
 
@@ -205,7 +234,7 @@ func Stop(ctx context.Context) {
 }
 
 // newStructuredLogger returns an opinionated logfmt or json logger.
-func newStructuredLogger(format string, level zapcore.Level, ws zapcore.WriteSyncer, callerSkip int, opts ...func(*zapcore.EncoderConfig)) (*zap.Logger, error) {
+func newStructuredLogger(format string, level zapcore.Level, color bool, ws zapcore.WriteSyncer, callerSkip int, opts ...func(*zapcore.EncoderConfig)) (*zap.Logger, error) {
 	encConfig := zap.NewProductionEncoderConfig()
 	encConfig.EncodeTime = zapcore.RFC3339NanoTimeEncoder
 
@@ -225,7 +254,7 @@ func newStructuredLogger(format string, level zapcore.Level, ws zapcore.WriteSyn
 
 	structured := structuredEncoder{
 		Encoder:        encoder,
-		consoleEncoder: newConsoleEncoder(false, true, false),
+		consoleEncoder: newConsoleEncoder(false, color, false),
 	}
 
 	return zap.New(
@@ -238,7 +267,7 @@ func newStructuredLogger(format string, level zapcore.Level, ws zapcore.WriteSyn
 // newDefaultLogger returns an opinionated console logger writing to stderr.
 func newDefaultLogger() *zap.Logger {
 	writer, _, _ := zap.Open("stderr")
-	return newConsoleLogger(zapcore.DebugLevel, writer)
+	return newConsoleLogger(zapcore.DebugLevel, true, writer)
 }
 
 // newConsoleEncoder returns a zap encoder that generates console logs.
@@ -263,10 +292,10 @@ func newConsoleEncoder(timestamp, color, stacktrace bool, opts ...func(*zapcore.
 }
 
 // newConsoleLogger returns an opinionated console logger.
-func newConsoleLogger(level zapcore.Level, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) *zap.Logger {
+func newConsoleLogger(level zapcore.Level, color bool, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) *zap.Logger {
 	return zap.New(
 		zapcore.NewCore(
-			newConsoleEncoder(true, true, true, opts...),
+			newConsoleEncoder(true, color, true, opts...),
 			ws,
 			zap.NewAtomicLevelAt(level),
 		),
