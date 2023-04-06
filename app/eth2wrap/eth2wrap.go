@@ -68,12 +68,12 @@ func WithSyntheticDuties(cl Client, pubkeys []eth2p0.BLSPubKey) Client {
 }
 
 // NewMultiHTTP returns a new instrumented multi eth2 http client.
-func NewMultiHTTP(ctx context.Context, timeout time.Duration, addresses ...string) (Client, error) {
+func NewMultiHTTP(timeout time.Duration, addresses ...string) (Client, error) {
 	var clients []Client
 	for _, address := range addresses {
 		address := address // Capture range variable.
 
-		cl := newLazy(func() (Client, error) {
+		cl := newLazy(func(ctx context.Context) (Client, error) {
 			eth2Svc, err := eth2http.New(ctx,
 				eth2http.WithLogLevel(zeroLogInfo),
 				eth2http.WithAddress(address),
