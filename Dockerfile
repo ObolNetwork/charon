@@ -1,5 +1,5 @@
 # Container for building Go binary.
-FROM golang:1.20.2-bullseye AS builder
+FROM golang:1.20.3-bullseye AS builder
 # Install dependencies
 RUN apt-get update && apt-get install -y build-essential git
 # Prep and copy source
