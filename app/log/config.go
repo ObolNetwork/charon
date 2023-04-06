@@ -31,9 +31,9 @@ const (
 )
 
 const (
-	colorDisable    = "disable"
-	colorForceColor = "force"
-	colorAuto       = "auto"
+	colorDisable = "disable"
+	colorForce   = "force"
+	colorAuto    = "auto"
 )
 
 // zapLogger abstracts a zap logger.
@@ -110,7 +110,7 @@ func (c Config) InferColor() (bool, error) {
 	switch strings.ToLower(strings.TrimSpace(c.Color)) {
 	case colorDisable:
 		return false, nil
-	case colorForceColor:
+	case colorForce:
 		return true, nil
 	case colorAuto, "":
 		return term.IsTerminal(os.Stderr.Fd()), nil
