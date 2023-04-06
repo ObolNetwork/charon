@@ -31,7 +31,7 @@ jobs:
           echo "::set-output name=label::LABEL"
 
       - uses: actions/github-script@v6
-        if: steps.branch-label.outputs.label != "skip"
+        if: steps.branch-label.outputs.label != 'skip'
         with:
           script: |
             github.rest.issues.addLabels({
