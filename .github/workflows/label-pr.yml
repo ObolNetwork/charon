@@ -10,9 +10,12 @@ jobs:
       - name: Calculate branch label
         id: branch-label
         run: |
-          LABEL=""
+
           # Short name for current branch
           GIT_BRANCH=${GITHUB_REF#refs/heads/}
+          echo "GIT_BRANCH=$GIT_BRANCH"
+
+          LABEL=""
           if [[ $GIT_BRANCH = main ]]; then
             # Do not label main branch PRs
           elif [[ $GIT_BRANCH = main* ]]; then
@@ -22,6 +25,7 @@ jobs:
             # Label all other branches as invalid
             LABEL="branch-invalid"
           fi
+          echo "LABEL=$LABEL"
           echo "::set-output name=label::LABEL"
 
       - uses: actions/github-script@v6
