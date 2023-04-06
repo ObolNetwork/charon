@@ -11,13 +11,15 @@ jobs:
         id: branch-label
         run: |
 
-          # Short name for current branch
-          GIT_BRANCH=${GITHUB_REF#refs/heads/}
+          # Short name for current branch. For PRs, use target branch (base ref)
+          # Reference: https://stackoverflow.com/questions/60300169/how-to-get-branch-name-on-github-action
+          GIT_BRANCH=${GITHUB_BASE_REF:-${GITHUB_REF#refs/heads/}}
           echo "GIT_BRANCH=$GIT_BRANCH"
 
           LABEL=""
           if [[ $GIT_BRANCH = main ]]; then
             # Do not label main branch PRs
+            LABEL="skip"
           elif [[ $GIT_BRANCH = main* ]]; then
             # Label release branches
             LABEL="branch-release"
@@ -29,7 +31,7 @@ jobs:
           echo "::set-output name=label::LABEL"
 
       - uses: actions/github-script@v6
-        if: steps.branch-label.outputs.label != ''
+        if: steps.branch-label.outputs.label != "skip"
         with:
           script: |
             github.rest.issues.addLabels({
