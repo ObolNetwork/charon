@@ -47,7 +47,7 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 	peerIDs []peer.ID, registry *prometheus.Registry, qbftDebug http.Handler,
 	pubkeys []core.PubKey, seenPubkeys <-chan core.PubKey, vapiCalls <-chan struct{},
 ) {
-	beaconNodeMetrics(ctx, eth2Cl, clockwork.NewRealClock())
+	beaconNodeVersionMetric(ctx, eth2Cl, clockwork.NewRealClock())
 
 	mux := http.NewServeMux()
 
@@ -106,13 +106,29 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 	)
 	go func() {
 		ticker := clock.NewTicker(10 * time.Second)
+		peerCountTicker := clock.NewTicker(1 * time.Minute)
 		epochTicker := clock.NewTicker(32 * 12 * time.Second) // 32 slots * 12 second slot time
+		var bnPeerCount *int                                  // Beacon node peer count value which is queried every minute
 		currVAPICount := 0
 		prevVAPICount := 1 // Assume connected.
 		currPKs := make(map[core.PubKey]bool)
 		prevPKs := make(map[core.PubKey]bool)
 		for _, pubkey := range pubkeys { // Assume all validators seen.
 			prevPKs[pubkey] = true
+		}
+
+		// beaconNodePeerCount queries beacon node peer count and sets the peer count gauge if err is nil.
+		beaconNodePeerCount := func() {
+			peerCount, err := eth2Cl.NodePeerCount(ctx)
+			if err != nil {
+				log.Warn(ctx, "Failed to get beacon node peer count", err)
+				return
+			}
+			if bnPeerCount == nil {
+				bnPeerCount = new(int)
+			}
+			bnPeerCount = &peerCount
+			beaconNodePeerCountGauge.Set(float64(peerCount))
 		}
 
 		for {
@@ -123,16 +139,13 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 				// Copy current to previous and clear current.
 				prevPKs, currPKs = currPKs, make(map[core.PubKey]bool)
 				prevVAPICount, currVAPICount = currVAPICount, 0
+			case <-peerCountTicker.Chan():
+				beaconNodePeerCount()
 			case <-ticker.Chan():
 				if quorumPeersConnected(peerIDs, tcpNode) {
 					notConnectedRounds = 0
 				} else {
 					notConnectedRounds++
-				}
-
-				bnPeerCount, bnErr := eth2Cl.NodePeerCount(ctx)
-				if bnErr != nil {
-					log.Warn(ctx, "Failed to get beacon node peer count", bnErr)
 				}
 
 				syncing, syncDistance, err := beaconNodeSyncing(ctx, eth2Cl)
@@ -143,7 +156,7 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 				} else if syncing {
 					err = errReadyBeaconNodeSyncing
 					readyzGauge.Set(readyzBeaconNodeSyncing)
-				} else if bnPeerCount == 0 && bnErr == nil {
+				} else if bnPeerCount != nil && *bnPeerCount == 0 {
 					err = errReadyBeaconNodeZeroPeers
 					readyzGauge.Set(readyzBeaconNodeZeroPeers)
 				} else if syncDistance > bnFarBehindSlots {
@@ -192,18 +205,8 @@ func beaconNodeSyncing(ctx context.Context, eth2Cl eth2client.NodeSyncingProvide
 	return state.IsSyncing, state.SyncDistance, nil
 }
 
-// beaconNodeMetrics sets beacon node metrics like the peer count and node version.
-func beaconNodeMetrics(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
-	peerCountTicker := clock.NewTicker(1 * time.Minute)
-	setPeerCount := func() {
-		peerCount, err := eth2Cl.NodePeerCount(ctx)
-		if err != nil {
-			log.Error(ctx, "Failed to get beacon node peer count", err)
-			return
-		}
-		beaconNodePeerCountGauge.Set(float64(peerCount))
-	}
-
+// beaconNodeVersionMetric sets the beacon node version gauge.
+func beaconNodeVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
 	nodeVersionTicker := clock.NewTicker(10 * time.Minute)
 	var prevNodeVersion string
 	setNodeVersion := func() {
@@ -230,10 +233,7 @@ func beaconNodeMetrics(ctx context.Context, eth2Cl eth2wrap.Client, clock clockw
 		for {
 			select {
 			case <-onStartup:
-				setPeerCount()
 				setNodeVersion()
-			case <-peerCountTicker.Chan():
-				setPeerCount()
 			case <-nodeVersionTicker.Chan():
 				setNodeVersion()
 			case <-ctx.Done():
