@@ -40,9 +40,7 @@ func TestIntegration(t *testing.T) {
 		t.Fatal("BEACON_URL env var not set")
 	}
 
-	ctx := context.Background()
-
-	eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Second*2, beaconURL)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second*2, beaconURL)
 	require.NoError(t, err)
 
 	// Use random actual mainnet validators
