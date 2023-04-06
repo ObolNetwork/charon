@@ -88,22 +88,36 @@ func incPingError(p peer.ID) {
 var _ metrics.Reporter = bandwithReporter{}
 
 // WithBandwidthReporter returns a libp2p option that enables bandwidth reporting via prometheus.
-func WithBandwidthReporter() libp2p.Option {
-	return libp2p.BandwidthReporter(bandwithReporter{})
+func WithBandwidthReporter(peers []peer.ID) libp2p.Option {
+	peerNames := make(map[peer.ID]string)
+	for _, p := range peers {
+		peerNames[p] = PeerName(p)
+	}
+
+	return libp2p.BandwidthReporter(bandwithReporter{peerNames: peerNames})
 }
 
 type bandwithReporter struct {
 	metrics.Reporter
+	peerNames map[peer.ID]string
 }
 
 func (bandwithReporter) LogSentMessage(int64) {}
 
 func (bandwithReporter) LogRecvMessage(int64) {}
 
-func (bandwithReporter) LogSentMessageStream(bytes int64, protoID protocol.ID, peerID peer.ID) {
-	networkTXCounter.WithLabelValues(PeerName(peerID), string(protoID)).Add(float64(bytes))
+func (r bandwithReporter) LogSentMessageStream(bytes int64, protoID protocol.ID, peerID peer.ID) {
+	name, ok := r.peerNames[peerID]
+	if !ok {
+		return // Do not instrument relays
+	}
+	networkTXCounter.WithLabelValues(name, string(protoID)).Add(float64(bytes))
 }
 
-func (bandwithReporter) LogRecvMessageStream(bytes int64, protoID protocol.ID, peerID peer.ID) {
-	networkRXCounter.WithLabelValues(PeerName(peerID), string(protoID)).Add(float64(bytes))
+func (r bandwithReporter) LogRecvMessageStream(bytes int64, protoID protocol.ID, peerID peer.ID) {
+	name, ok := r.peerNames[peerID]
+	if !ok {
+		return // Do not instrument relays
+	}
+	networkRXCounter.WithLabelValues(name, string(protoID)).Add(float64(bytes))
 }

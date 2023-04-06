@@ -286,7 +286,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	// Start libp2p TCP node.
-	opts := []libp2p.Option{p2p.WithBandwidthReporter()}
+	opts := []libp2p.Option{p2p.WithBandwidthReporter(peerIDs)}
 	opts = append(opts, conf.TestConfig.LibP2POpts...)
 
 	tcpNode, err := p2p.NewTCPNode(ctx, conf.P2P, p2pKey, connGater,
