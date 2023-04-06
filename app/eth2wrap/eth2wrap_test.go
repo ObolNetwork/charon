@@ -11,6 +11,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -387,16 +388,16 @@ func TestLazy(t *testing.T) {
 	require.NoError(t, err)
 
 	// Start two proxys that we can enable/disable.
-	var enabled1, enabled2 bool
+	var enabled1, enabled2 atomic.Bool
 	srv1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !enabled1 {
+		if !enabled1.Load() {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
 		httputil.NewSingleHostReverseProxy(target).ServeHTTP(w, r)
 	}))
 	srv2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !enabled2 {
+		if !enabled2.Load() {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
@@ -411,15 +412,15 @@ func TestLazy(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, "", eth2Cl.Address())
 
-	enabled1 = true
+	enabled1.Store(true)
 
 	// Proxy1 is enabled, so this should succeed.
 	_, err = eth2Cl.NodeSyncing(ctx)
 	require.NoError(t, err)
 	require.Equal(t, srv1.URL, eth2Cl.Address())
 
-	enabled1 = false
-	enabled2 = true
+	enabled1.Store(false)
+	enabled2.Store(true)
 
 	// Proxy2 is enabled, so this should succeed.
 	for i := 0; i < 5; i++ { // Do multiple request to make Proxy2 the "best".
