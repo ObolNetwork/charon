@@ -957,7 +957,7 @@ func writeError(ctx context.Context, w http.ResponseWriter, endpoint string, err
 	}
 }
 
-// unmarshal parses the JSON-encoded request body and stores the result
+// unmarshal parses body with the appropriate unmarshaler based on the contentType and stores the result
 // in the value pointed to by v.
 func unmarshal(typ contentType, body []byte, v interface{}) error {
 	if len(body) == 0 {
