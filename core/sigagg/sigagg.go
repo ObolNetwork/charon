@@ -12,6 +12,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/tracer"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
@@ -54,6 +55,10 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 		blsSigs[parSig.ShareIdx] = sig
 	}
 
+	if len(blsSigs) < a.threshold {
+		return errors.New("number of partial signatures less than threshold", z.Int("threshold", a.threshold), z.Int("got", len(blsSigs)))
+	}
+
 	// Aggregate signatures
 	_, span := tracer.Start(ctx, "tbls.Aggregate")
 	sig, err := tblsv2.ThresholdAggregate(blsSigs)
@@ -62,7 +67,7 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 		return err
 	}
 
-	// Inject signature into one of te parSigs resulting in aggregate signed data.
+	// Inject signature into one of the parSigs resulting in aggregate signed data.
 	aggSig, err := parSigs[0].SetSignature(tblsconv2.SigToCore(sig))
 	if err != nil {
 		return err

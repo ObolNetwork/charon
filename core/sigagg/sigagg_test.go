@@ -31,6 +31,28 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+func TestSigAgg(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		threshold = 3
+		peers     = 4
+	)
+
+	var (
+		parsigs []core.ParSignedData
+		att     = testutil.RandomAttestation()
+	)
+	for i := 0; i < peers; i++ {
+		parsig := core.NewPartialAttestation(att, 0) // All partial sig with the same shareIdx (0)
+		parsigs = append(parsigs, parsig)
+	}
+
+	agg := sigagg.New(threshold)
+	err := agg.Aggregate(ctx, core.Duty{}, "", parsigs)
+	require.ErrorContains(t, err, "number of partial signatures less than threshold")
+}
+
 func TestSigAgg_DutyAttester(t *testing.T) {
 	ctx := context.Background()
 
