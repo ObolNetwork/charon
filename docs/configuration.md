@@ -129,6 +129,7 @@ Flags:
       --jaeger-address string              Listening address for jaeger tracing.
       --jaeger-service string              Service name used for jaeger tracing. (default "charon")
       --lock-file string                   The path to the cluster lock file defining distributed validator cluster. (default ".charon/cluster-lock.json")
+      --log-color string                   Log color; auto, force, disable. (default "auto")
       --log-format string                  Log format; console, logfmt or json (default "console")
       --log-level string                   Log level; debug, info, warn or error (default "info")
       --loki-addresses strings             Enables sending of logfmt structured logs to these Loki log aggregation server addresses. This is in addition to normal stderr logs.
