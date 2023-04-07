@@ -4,6 +4,7 @@ package dutydb
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -402,7 +403,13 @@ func (db *MemDB) storeAggAttestationUnsafe(unsignedData core.UnsignedData) error
 		}
 
 		if existingRoot != providedRoot {
-			return errors.New("clashing aggregated attestation", z.U64("commIdx", uint64(aggAtt.Attestation.Data.Index)))
+			return errors.New("clashing aggregated attestation",
+				z.U64("commIdx", uint64(aggAtt.Attestation.Data.Index)),
+				z.Str("existing_aggregation_bits", fmt.Sprintf("%#x", []byte(existing.AggregationBits))),
+				z.Str("provided_aggregation_bits", fmt.Sprintf("%#x", []byte(aggAtt.AggregationBits))),
+				z.Str("existing_signature", fmt.Sprintf("%#x", existing.Signature)),
+				z.Str("provided_signature", fmt.Sprintf("%#x", aggAtt.Signature)),
+			)
 		}
 	} else {
 		db.aggDuties[key] = aggAtt
