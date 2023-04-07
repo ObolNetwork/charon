@@ -194,7 +194,7 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet co
 			log.Debug(ctx, "Attester not selected for aggregation duty", z.Any("pubkey", pubkey))
 			continue
 		}
-		log.Info(ctx, "Resolved attester aggregation duty", z.Any("pubkey", pubkey))
+		log.Info(ctx, "Resolved attester aggregation duty", z.Any("pubkey", pubkey), z.U64("commIdx", uint64(attDef.CommitteeIndex)))
 
 		// Query DutyDB for Attestation data to get attestation data root.
 		attData, err := f.awaitAttDataFunc(ctx, slot, int64(attDef.CommitteeIndex))

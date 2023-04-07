@@ -402,7 +402,7 @@ func (db *MemDB) storeAggAttestationUnsafe(unsignedData core.UnsignedData) error
 		}
 
 		if existingRoot != providedRoot {
-			return errors.New("clashing aggregated attestation")
+			return errors.New("clashing aggregated attestation", z.U64("commIdx", uint64(aggAtt.Attestation.Data.Index)))
 		}
 	} else {
 		db.aggDuties[key] = aggAtt
