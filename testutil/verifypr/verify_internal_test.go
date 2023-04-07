@@ -60,6 +60,10 @@ func TestTitle(t *testing.T) {
 			Title: "avoid: Sentence case",
 			Error: "shouldn't start with a capital",
 		},
+		{
+			Title: "foo/bar: this title is too long, the max length is 60 characters",
+			Error: "title too long",
+		},
 	}
 	for i, test := range tests {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
