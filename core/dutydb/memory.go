@@ -115,8 +115,8 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 		}
 		db.resolveAttQueriesUnsafe()
 	case core.DutyAggregator:
-		for _, unsignedData := range unsignedSet {
-			err := db.storeAggAttestationUnsafe(unsignedData)
+		for pubkey, unsignedData := range unsignedSet {
+			err := db.storeAggAttestationUnsafe(pubkey, unsignedData)
 			if err != nil {
 				return err
 			}
@@ -367,7 +367,7 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 }
 
 // storeAggAttestationUnsafe stores the unsigned aggregated attestation. It is unsafe since it assumes the lock is held.
-func (db *MemDB) storeAggAttestationUnsafe(unsignedData core.UnsignedData) error {
+func (db *MemDB) storeAggAttestationUnsafe(pubkey core.PubKey, unsignedData core.UnsignedData) error {
 	cloned, err := unsignedData.Clone() // Clone before storing.
 	if err != nil {
 		return err
@@ -403,6 +403,7 @@ func (db *MemDB) storeAggAttestationUnsafe(unsignedData core.UnsignedData) error
 
 		if existingRoot != providedRoot {
 			return errors.New("clashing aggregated attestation",
+				z.Str("pubkey", pubkey.String()),
 				z.U64("commIdx", uint64(aggAtt.Attestation.Data.Index)),
 				z.Hex("existing_aggregation_bits", existing.AggregationBits),
 				z.Hex("provided_aggregation_bits", aggAtt.AggregationBits),
