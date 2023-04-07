@@ -197,16 +197,15 @@ func TestFetchAggregator(t *testing.T) {
 	err = fetch.Fetch(ctx, duty, newDefSet(commLenNoAggregator))
 	require.NoError(t, err)
 
+	// Test for same committee index.
+	sameCommitteeIndex = true
+	err = fetch.Fetch(ctx, duty, newDefSet(commLenAggregator))
+	require.ErrorIs(t, err, done)
+
 	// Test nil, nil AggregateAttestation response.
 	nilAggregate = true
 	err = fetch.Fetch(ctx, duty, newDefSet(commLenAggregator))
 	require.ErrorContains(t, err, "aggregate attestation not found by root (retryable)")
-
-	// Test for same committee index.
-	sameCommitteeIndex = true
-	nilAggregate = false
-	err = fetch.Fetch(ctx, duty, newDefSet(commLenAggregator))
-	require.ErrorIs(t, err, done)
 }
 
 func TestFetchBlocks(t *testing.T) {
