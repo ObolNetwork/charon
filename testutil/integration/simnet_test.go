@@ -408,7 +408,6 @@ var (
 		"validator-client",
 		"--network=auto",
 		"--log-destination=console",
-		"--beacon-node-ssz-blocks-enabled=false",
 		"--validators-proposer-default-fee-recipient=0x000000000000000000000000000000000000dead",
 	}
 	tekuExit tekuCmd = []string{
