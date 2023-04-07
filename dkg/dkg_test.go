@@ -384,7 +384,7 @@ func TestSyncFlow(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			ctx = log.WithTopic(ctx, "test")
+			ctx = testutil.WithTestTopic(ctx)
 			relayAddr := startRelay(ctx, t)
 			dir := t.TempDir()
 			configs := getConfigs(t, lock.Definition, keys, dir, relayAddr)

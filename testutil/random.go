@@ -209,14 +209,15 @@ func RandomCapellaBeaconBlockBody() *capella.BeaconBlockBody {
 			DepositCount: 0,
 			BlockHash:    RandomBytes32(),
 		},
-		Graffiti:          RandomArray32(),
-		ProposerSlashings: []*eth2p0.ProposerSlashing{},
-		AttesterSlashings: []*eth2p0.AttesterSlashing{},
-		Attestations:      []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
-		Deposits:          []*eth2p0.Deposit{},
-		VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
-		SyncAggregate:     RandomSyncAggregate(),
-		ExecutionPayload:  RandomCapellaExecutionPayload(),
+		Graffiti:              RandomArray32(),
+		ProposerSlashings:     []*eth2p0.ProposerSlashing{},
+		AttesterSlashings:     []*eth2p0.AttesterSlashing{},
+		Attestations:          []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
+		Deposits:              []*eth2p0.Deposit{},
+		VoluntaryExits:        []*eth2p0.SignedVoluntaryExit{},
+		SyncAggregate:         RandomSyncAggregate(),
+		ExecutionPayload:      RandomCapellaExecutionPayload(),
+		BLSToExecutionChanges: []*capella.SignedBLSToExecutionChange{},
 	}
 }
 
