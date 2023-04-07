@@ -12,7 +12,8 @@ Licensor:             Obol Labs, Inc.
 Licensed Work:        Charon, the Distributed Validator Client
                       The Licensed Work is © 2022-2023 Obol Labs, Inc.
 
-Additional Use Grant: The use of the Licensed Work by the Licensee is limited to one distributed validator on a production network.
+Additional Use Grant: The use of the Licensed Work by the Licensee is limited
+                      to one distributed validator on a production network.
 
 Change Date:          The earlier of March 1, 2027 or a date specified at
                       charon-license-date.obol.eth
