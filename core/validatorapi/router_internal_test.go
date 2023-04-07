@@ -3,6 +3,7 @@
 package validatorapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"net/http/httputil"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -27,6 +29,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	ssz "github.com/ferranbt/fastssz"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -190,7 +193,7 @@ func TestRawRouter(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, errRes, errorResponse{
 				Code:    http.StatusBadRequest,
-				Message: "failed parsing request body",
+				Message: "failed parsing json request body",
 			})
 		}
 
@@ -280,6 +283,69 @@ func TestRawRouter(t *testing.T) {
 		}
 
 		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("submit bellatrix ssz beacon block", func(t *testing.T) {
+		var done atomic.Bool
+		coreBlock := testutil.RandomBellatrixCoreVersionedSignedBeaconBlock()
+		block := &coreBlock.VersionedSignedBeaconBlock
+
+		handler := testHandler{
+			SubmitBeaconBlockFunc: func(ctx context.Context, actual *eth2spec.VersionedSignedBeaconBlock) error {
+				require.Equal(t, block, actual)
+				done.Store(true)
+
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			b, err := ssz.MarshalSSZ(block.Bellatrix)
+			require.NoError(t, err)
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+				baseURL+"/eth/v1/beacon/blocks", bytes.NewReader(b))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/octet-stream")
+
+			resp, err := new(http.Client).Do(req)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+		}
+
+		testRawRouter(t, handler, callback)
+		require.True(t, done.Load())
+	})
+
+	t.Run("submit capella ssz beacon block", func(t *testing.T) {
+		var done atomic.Bool
+		block := testutil.RandomCapellaVersionedSignedBeaconBlock()
+
+		handler := testHandler{
+			SubmitBeaconBlockFunc: func(ctx context.Context, actual *eth2spec.VersionedSignedBeaconBlock) error {
+				require.Equal(t, block, actual)
+				done.Store(true)
+
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			b, err := ssz.MarshalSSZ(block.Capella)
+			require.NoError(t, err)
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+				baseURL+"/eth/v1/beacon/blocks", bytes.NewReader(b))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/octet-stream")
+
+			resp, err := new(http.Client).Do(req)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+		}
+
+		testRawRouter(t, handler, callback)
+		require.True(t, done.Load())
 	})
 }
 
