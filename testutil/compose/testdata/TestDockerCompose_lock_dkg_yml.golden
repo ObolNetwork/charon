@@ -20,6 +20,7 @@ services:
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_RELAYS: http://relay:3640/enr
       CHARON_LOG_LEVEL: debug
+      CHARON_LOG_COLOR: force
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node0
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
@@ -37,6 +38,7 @@ services:
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_RELAYS: http://relay:3640/enr
       CHARON_LOG_LEVEL: debug
+      CHARON_LOG_COLOR: force
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node1
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
@@ -54,6 +56,7 @@ services:
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_RELAYS: http://relay:3640/enr
       CHARON_LOG_LEVEL: debug
+      CHARON_LOG_COLOR: force
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node2
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json
@@ -71,6 +74,7 @@ services:
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_RELAYS: http://relay:3640/enr
       CHARON_LOG_LEVEL: debug
+      CHARON_LOG_COLOR: force
       CHARON_FEATURE_SET: alpha
       CHARON_DATA_DIR: /compose/node3
       CHARON_DEFINITION_FILE: /compose/cluster-definition.json

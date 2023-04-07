@@ -18,6 +18,7 @@ services:
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_RELAYS: http://relay:3640/enr
       CHARON_LOG_LEVEL: debug
+      CHARON_LOG_COLOR: force
       CHARON_FEATURE_SET: alpha
       CHARON_JAEGER_SERVICE: node0
       CHARON_JAEGER_ADDRESS: jaeger:6831
@@ -52,6 +53,7 @@ services:
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_RELAYS: http://relay:3640/enr
       CHARON_LOG_LEVEL: debug
+      CHARON_LOG_COLOR: force
       CHARON_FEATURE_SET: alpha
       CHARON_JAEGER_SERVICE: node1
       CHARON_JAEGER_ADDRESS: jaeger:6831
@@ -86,6 +88,7 @@ services:
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_RELAYS: http://relay:3640/enr
       CHARON_LOG_LEVEL: debug
+      CHARON_LOG_COLOR: force
       CHARON_FEATURE_SET: alpha
       CHARON_JAEGER_SERVICE: node2
       CHARON_JAEGER_ADDRESS: jaeger:6831
@@ -120,6 +123,7 @@ services:
       CHARON_P2P_TCP_ADDRESS: 0.0.0.0:3610
       CHARON_P2P_RELAYS: http://relay:3640/enr
       CHARON_LOG_LEVEL: debug
+      CHARON_LOG_COLOR: force
       CHARON_FEATURE_SET: alpha
       CHARON_JAEGER_SERVICE: node3
       CHARON_JAEGER_ADDRESS: jaeger:6831
