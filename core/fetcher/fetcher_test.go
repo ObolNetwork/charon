@@ -98,6 +98,7 @@ func TestFetchAggregator(t *testing.T) {
 	)
 
 	nilAggregate := false
+	sameCommitteeIndex := false
 
 	duty := core.NewAggregatorDuty(slot)
 
@@ -120,6 +121,11 @@ func TestFetchAggregator(t *testing.T) {
 		dutyB := testutil.RandomAttestationDuty(t)
 		dutyB.CommitteeLength = commLength
 		dutyB.CommitteeIndex = attB.Data.Index
+
+		if sameCommitteeIndex {
+			dutyB.CommitteeIndex = attA.Data.Index
+			attB.Data.Index = attA.Data.Index
+		}
 
 		return map[core.PubKey]core.DutyDefinition{
 			pubkeysByIdx[vIdxA]: core.NewAttesterDefinition(dutyA),
@@ -166,7 +172,12 @@ func TestFetchAggregator(t *testing.T) {
 	done := errors.New("done")
 	fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
 		require.Equal(t, duty, resDuty)
-		require.Len(t, resDataSet, 2)
+
+		if sameCommitteeIndex {
+			require.Len(t, resDataSet, 1)
+		} else {
+			require.Len(t, resDataSet, 2)
+		}
 
 		for _, aggAtt := range resDataSet {
 			aggregated, ok := aggAtt.(core.AggregatedAttestation)
@@ -190,6 +201,12 @@ func TestFetchAggregator(t *testing.T) {
 	nilAggregate = true
 	err = fetch.Fetch(ctx, duty, newDefSet(commLenAggregator))
 	require.ErrorContains(t, err, "aggregate attestation not found by root (retryable)")
+
+	// Test for same committee index.
+	sameCommitteeIndex = true
+	nilAggregate = false
+	err = fetch.Fetch(ctx, duty, newDefSet(commLenAggregator))
+	require.ErrorIs(t, err, done)
 }
 
 func TestFetchBlocks(t *testing.T) {

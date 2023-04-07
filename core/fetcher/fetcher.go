@@ -169,6 +169,9 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, defSet core
 
 // fetchAggregatorData fetches the attestation aggregation data.
 func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
+	// We may have multiple aggregators in the same committee, use the same aggregated attestation in that case.
+	aggAttByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2p0.Attestation)
+
 	resp := make(core.UnsignedDataSet)
 	for pubkey, dutyDef := range defSet {
 		attDef, ok := dutyDef.(core.AttesterDefinition)
@@ -196,6 +199,11 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet co
 		}
 		log.Info(ctx, "Resolved attester aggregation duty", z.Any("pubkey", pubkey))
 
+		_, ok = aggAttByCommIdx[attDef.CommitteeIndex]
+		if ok {
+			continue // Skips querying aggregate attestation for aggregators of same committee.
+		}
+
 		// Query DutyDB for Attestation data to get attestation data root.
 		attData, err := f.awaitAttDataFunc(ctx, slot, int64(attDef.CommitteeIndex))
 		if err != nil {
@@ -216,6 +224,8 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet co
 			// This could happen if the beacon node didn't subscribe to the correct subnet.
 			return core.UnsignedDataSet{}, errors.New("aggregate attestation not found by root (retryable)", z.Hex("root", dataRoot[:]))
 		}
+
+		aggAttByCommIdx[attDef.CommitteeIndex] = aggAtt
 
 		resp[pubkey] = core.AggregatedAttestation{
 			Attestation: *aggAtt,
