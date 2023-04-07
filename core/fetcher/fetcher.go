@@ -199,9 +199,14 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet co
 		}
 		log.Info(ctx, "Resolved attester aggregation duty", z.Any("pubkey", pubkey))
 
-		_, ok = aggAttByCommIdx[attDef.CommitteeIndex]
+		aggAtt, ok := aggAttByCommIdx[attDef.CommitteeIndex]
 		if ok {
-			continue // Skips querying aggregate attestation for aggregators of same committee.
+			resp[pubkey] = core.AggregatedAttestation{
+				Attestation: *aggAtt,
+			}
+
+			// Skips querying aggregate attestation for aggregators of same committee.
+			continue
 		}
 
 		// Query DutyDB for Attestation data to get attestation data root.
@@ -216,7 +221,7 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet co
 		}
 
 		// Query BN for aggregate attestation.
-		aggAtt, err := f.eth2Cl.AggregateAttestation(ctx, eth2p0.Slot(slot), dataRoot)
+		aggAtt, err = f.eth2Cl.AggregateAttestation(ctx, eth2p0.Slot(slot), dataRoot)
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		} else if aggAtt == nil {
