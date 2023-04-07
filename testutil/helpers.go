@@ -3,8 +3,6 @@
 package testutil
 
 import (
-	"context"
-	"fmt"
 	"sync"
 	"testing"
 
@@ -12,8 +10,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/stretchr/testify/require"
-
-	"github.com/obolnetwork/charon/app/log"
 )
 
 // BuilderFalse is a core.BuilderEnabled function that always returns false.
@@ -44,14 +40,4 @@ func NewTCPNodeCallback(t *testing.T, protocols ...protocol.ID) func(host host.H
 
 		tcpNodes = append(tcpNodes, tcpNode)
 	}
-}
-
-// WithTestTopic returns a context with a yellow-background "test" topic.
-// Useful to distinguish test logs from application logs.
-func WithTestTopic(ctx context.Context) context.Context {
-	const testTopic = "test"
-	const yellowBackground = 35
-	topic := fmt.Sprintf("\x1b[%dm%s\x1b[0m", yellowBackground, testTopic)
-
-	return log.WithTopic(ctx, topic)
 }
