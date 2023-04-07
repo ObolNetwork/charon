@@ -81,6 +81,13 @@ func verify() error {
 }
 
 func verifyTitle(title string) error {
+	const maxTitleLen = 60
+	if len(title) > maxTitleLen {
+		return errors.New("title too long",
+			z.Int("max", maxTitleLen),
+			z.Int("actual", len(title)))
+	}
+
 	split := strings.SplitN(title, ":", 2)
 	if len(split) < 2 {
 		return errors.New("title isn't prefixed with 'package[/subpackage]:'")
