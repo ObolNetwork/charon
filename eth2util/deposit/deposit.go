@@ -28,7 +28,7 @@ var (
 	// DOMAIN_DEPOSIT. See spec: https://benjaminion.xyz/eth2-annotated-spec/phase0/beacon-chain/#domain-types
 	depositDomainType = eth2p0.DomainType([4]byte{0x03, 0x00, 0x00, 0x00})
 
-	depositCliVersion = "2.3.0"
+	depositCliVersion = "2.5.0"
 )
 
 // NewMessage returns a deposit message created using the provided parameters.
