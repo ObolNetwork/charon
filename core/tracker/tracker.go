@@ -669,6 +669,14 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 	// prevAbsent is the set of peers who didn't participate in the last duty per type.
 	prevAbsent := make(map[core.DutyType][]string)
 
+	// Initialise participation metrics to 0 to avoid non-existent metrics issue on startup.
+	for _, duty := range core.AllDutyTypes() {
+		for _, peer := range peers {
+			participationCounter.WithLabelValues(duty.String(), peer.Name).Add(0)
+			participationGauge.WithLabelValues(duty.String(), peer.Name).Set(0)
+		}
+	}
+
 	return func(ctx context.Context, duty core.Duty, failed bool, participatedShares map[int]bool, unexpectedShares map[int]bool) {
 		if len(participatedShares) == 0 && !failed {
 			// Ignore participation metrics and log for noop duties (like DutyAggregator)
