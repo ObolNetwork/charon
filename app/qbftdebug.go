@@ -5,6 +5,7 @@ package app
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"net/http"
 	"sync"
 
@@ -20,7 +21,7 @@ const maxQBFTDebugger = 50 * (1 << 20) // 50 MB.
 
 // newQBFTDebugger returns a new qbftDebugger.
 func newQBFTDebugger() *qbftDebugger {
-	gitHash, _ := version.GitCommit()
+	gitHash, _ := version.GitCommit(context.Background())
 
 	return &qbftDebugger{
 		gitHash: gitHash,

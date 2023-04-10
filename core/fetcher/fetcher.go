@@ -254,7 +254,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, defSet core
 
 		// TODO(dhruv): replace hardcoded graffiti with the one from cluster-lock.json
 		var graffiti [32]byte
-		commitSHA, _ := version.GitCommit()
+		commitSHA, _ := version.GitCommit(ctx)
 		copy(graffiti[:], fmt.Sprintf("charon/%s-%s", version.Version, commitSHA))
 		block, err := f.eth2Cl.BeaconBlockProposal(ctx, eth2p0.Slot(uint64(slot)), randao, graffiti[:])
 		if err != nil {
@@ -292,7 +292,7 @@ func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot int64, defS
 
 		// TODO(dhruv): replace hardcoded graffiti with the one from cluster-lock.json
 		var graffiti [32]byte
-		commitSHA, _ := version.GitCommit()
+		commitSHA, _ := version.GitCommit(ctx)
 		copy(graffiti[:], fmt.Sprintf("charon/%s-%s", version.Version, commitSHA))
 		block, err := f.eth2Cl.BlindedBeaconBlockProposal(ctx, eth2p0.Slot(uint64(slot)), randao, graffiti[:])
 		if err != nil {

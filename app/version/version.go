@@ -26,7 +26,7 @@ func Supported() []string {
 }
 
 // GitCommit returns the git commit hash and timestamp from build info.
-func GitCommit() (hash string, timestamp string) {
+func GitCommit(ctx context.Context) (hash string, timestamp string) {
 	hash, timestamp = "unknown", "unknown"
 
 	info, ok := debug.ReadBuildInfo()
@@ -36,6 +36,10 @@ func GitCommit() (hash string, timestamp string) {
 
 	for _, s := range info.Settings {
 		if s.Key == "vcs.revision" {
+			if len(s.Value) < 7 {
+				log.Error(ctx, "Insufficient characters in githash", nil, z.Str("hash", s.Value))
+				continue
+			}
 			hash = s.Value[:7]
 		} else if s.Key == "vcs.time" {
 			timestamp = s.Value
@@ -47,7 +51,7 @@ func GitCommit() (hash string, timestamp string) {
 
 // LogInfo logs charon version information along-with the provided message.
 func LogInfo(ctx context.Context, msg string) {
-	gitHash, gitTimestamp := GitCommit()
+	gitHash, gitTimestamp := GitCommit(ctx)
 	log.Info(ctx, msg,
 		z.Str("version", Version),
 		z.Str("git_commit_hash", gitHash),

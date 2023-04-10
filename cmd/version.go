@@ -3,6 +3,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"runtime/debug"
@@ -40,7 +41,7 @@ func bindVersionFlags(flags *pflag.FlagSet, config *versionConfig) {
 }
 
 func runVersionCmd(out io.Writer, config versionConfig) {
-	hash, timestamp := version.GitCommit()
+	hash, timestamp := version.GitCommit(context.Background())
 	_, _ = fmt.Fprintf(out, "%s [git_commit_hash=%s,git_commit_time=%s]\n", version.Version, hash, timestamp)
 
 	if !config.Verbose {

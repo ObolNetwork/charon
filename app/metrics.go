@@ -3,6 +3,8 @@
 package app
 
 import (
+	"context"
+
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/obolnetwork/charon/app/promauto"
@@ -107,11 +109,11 @@ var (
 	}, []string{"network"})
 )
 
-func initStartupMetrics(peerName string, threshold, numOperators, numValidators int, network string) {
+func initStartupMetrics(ctx context.Context, peerName string, threshold, numOperators, numValidators int, network string) {
 	startGauge.SetToCurrentTime()
 	networkGauge.WithLabelValues(network).Set(1)
 
-	hash, _ := version.GitCommit()
+	hash, _ := version.GitCommit(ctx)
 	gitGauge.WithLabelValues(hash).Set(1)
 	versionGauge.WithLabelValues(version.Version).Set(1)
 	peerNameGauge.WithLabelValues(peerName).Set(1)

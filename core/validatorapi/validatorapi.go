@@ -1001,8 +1001,8 @@ func (c Component) ValidatorsByPubKey(ctx context.Context, stateID string, pubsh
 }
 
 // NodeVersion returns the current version of charon.
-func (Component) NodeVersion(context.Context) (string, error) {
-	commitSHA, _ := version.GitCommit()
+func (Component) NodeVersion(ctx context.Context) (string, error) {
+	commitSHA, _ := version.GitCommit(ctx)
 
 	return fmt.Sprintf("obolnetwork/charon/%s-%s/%s-%s", version.Version, commitSHA, runtime.GOARCH, runtime.GOOS), nil
 }
