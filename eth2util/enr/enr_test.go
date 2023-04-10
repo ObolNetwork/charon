@@ -113,19 +113,19 @@ func TestParseDuplicateKeys(t *testing.T) {
 	kvs := map[string][]byte{
 		keyID: []byte(valID),
 	}
-	r := mockRecord{kvs: kvs}
+	r := duplicateRecord{kvs: kvs}
 
 	_, err := enr.Parse(r.String())
 	require.ErrorContains(t, err, "duplicate enr key found")
 }
 
-// mockRecord is a mock for enr.Record.
-type mockRecord struct {
+// duplicateRecord is a duplicate for enr.Record.
+type duplicateRecord struct {
 	kvs map[string][]byte
 }
 
 // String returns the base64 encoded string representation of the record.
-func (r mockRecord) String() string {
+func (r duplicateRecord) String() string {
 	return "enr:" + base64.RawURLEncoding.EncodeToString(encodeElements(r.kvs))
 }
 
