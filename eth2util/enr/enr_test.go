@@ -119,6 +119,7 @@ func TestParseDuplicateKeys(t *testing.T) {
 	require.ErrorContains(t, err, "duplicate enr key found")
 }
 
+// mockRecord is a mock for enr.Record.
 type mockRecord struct {
 	kvs map[string][]byte
 }
@@ -131,6 +132,7 @@ func (r mockRecord) String() string {
 // encodeElements returns the RLP encoding of a minimal set of record elements adding two duplicate keys.
 func encodeElements(kvs map[string][]byte) []byte {
 	const duplicateKey = "duplicate_key"
+
 	var elements [][]byte
 	elements = append(elements, []byte(keyID), kvs[keyID])
 
