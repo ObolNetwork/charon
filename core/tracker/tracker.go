@@ -672,8 +672,8 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 	// Initialise participation metrics to 0 to avoid non-existent metrics issue on startup.
 	for _, duty := range core.AllDutyTypes() {
 		for _, peer := range peers {
-			participationCounter.WithLabelValues(duty.String(), peer.Name).Add(0)
-			participationGauge.WithLabelValues(duty.String(), peer.Name).Set(0)
+			participationSuccess.WithLabelValues(duty.String(), peer.Name).Add(0)
+			participationMissed.WithLabelValues(duty.String(), peer.Name).Add(0)
 		}
 	}
 
@@ -687,13 +687,14 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 		for _, peer := range peers {
 			if participatedShares[peer.ShareIdx()] {
 				participationGauge.WithLabelValues(duty.Type.String(), peer.Name).Set(1)
-				participationCounter.WithLabelValues(duty.Type.String(), peer.Name).Inc()
+				participationSuccess.WithLabelValues(duty.Type.String(), peer.Name).Inc()
 			} else if unexpectedShares[peer.ShareIdx()] {
 				log.Warn(ctx, "Unexpected event found", nil, z.Str("peer", peer.Name), z.Str("duty", duty.String()))
 				unexpectedEventsCounter.WithLabelValues(peer.Name).Inc()
 			} else {
 				absentPeers = append(absentPeers, peer.Name)
 				participationGauge.WithLabelValues(duty.Type.String(), peer.Name).Set(0)
+				participationMissed.WithLabelValues(duty.Type.String(), peer.Name).Inc()
 			}
 		}
 

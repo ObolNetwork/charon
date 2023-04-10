@@ -16,11 +16,18 @@ var (
 		Help:      "Set to 1 if peer participated successfully for the given duty or else 0",
 	}, []string{"duty", "peer"})
 
-	participationCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+	participationSuccess = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "core",
 		Subsystem: "tracker",
 		Name:      "participation_total",
 		Help:      "Total number of successful participations by peer and duty type",
+	}, []string{"duty", "peer"})
+
+	participationMissed = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "tracker",
+		Name:      "participation_missed_total",
+		Help:      "Total number of missed participations by peer and duty type",
 	}, []string{"duty", "peer"})
 
 	failedCounter = promauto.NewCounterVec(prometheus.CounterOpts{
