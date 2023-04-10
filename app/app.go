@@ -151,12 +151,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	lockHashLong := hex.EncodeToString(lock.LockHash)
-	if len(lockHashLong) < 7 {
-		return errors.New("insufficient characters in lockhash", z.Str("lockhash", lockHashLong))
-	}
-	lockHashHex := lockHashLong[:7]
-
 	network, err := eth2util.ForkVersionToNetwork(lock.ForkVersion)
 	if err != nil {
 		network = "unknown"
@@ -180,6 +174,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
+	lockHashHex := lockHash(lock.LockHash)
 	tcpNode, err := wireP2P(ctx, life, conf, lock, p2pKey, lockHashHex)
 	if err != nil {
 		return err
@@ -926,4 +921,15 @@ func ProposalTypes(builder bool, synthetic bool) []core.ProposalType {
 	resp = append(resp, core.ProposalTypeFull) // Always support full as fallback.
 
 	return resp
+}
+
+// lockHash returns the lock hash in string representation.
+func lockHash(lockHash []byte) string {
+	lockHashLen := 7
+	lockHashLong := hex.EncodeToString(lockHash)
+	if len(lockHashLong) < 7 {
+		lockHashLen = len(lockHashLong)
+	}
+
+	return lockHashLong[:lockHashLen]
 }
