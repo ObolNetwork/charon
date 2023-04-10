@@ -210,7 +210,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	initStartupMetrics(ctx, p2p.PeerName(tcpNode.ID()), lock.Threshold, len(lock.Operators), len(lock.Validators), network)
+	initStartupMetrics(p2p.PeerName(tcpNode.ID()), lock.Threshold, len(lock.Operators), len(lock.Validators), network)
 
 	eth2Cl, err := newETH2Client(ctx, conf, life, lock.Validators, lock.ForkVersion)
 	if err != nil {
@@ -224,7 +224,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	sender := new(p2p.Sender)
 
-	wirePeerInfo(ctx, life, tcpNode, peerIDs, lock.LockHash, sender)
+	wirePeerInfo(life, tcpNode, peerIDs, lock.LockHash, sender)
 
 	qbftDebug := newQBFTDebugger()
 
@@ -264,8 +264,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 }
 
 // wirePeerInfo wires the peerinfo protocol.
-func wirePeerInfo(ctx context.Context, life *lifecycle.Manager, tcpNode host.Host, peers []peer.ID, lockHash []byte, sender *p2p.Sender) {
-	gitHash, _ := version.GitCommit(ctx)
+func wirePeerInfo(life *lifecycle.Manager, tcpNode host.Host, peers []peer.ID, lockHash []byte, sender *p2p.Sender) {
+	gitHash, _ := version.GitCommit()
 	peerInfo := peerinfo.New(tcpNode, peers, version.Version, lockHash, gitHash, sender.SendReceive)
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPeerInfo, lifecycle.HookFuncCtx(peerInfo.Run))
 }
