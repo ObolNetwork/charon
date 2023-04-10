@@ -3,6 +3,7 @@
 package enr_test
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/eth2util/enr"
+	"github.com/obolnetwork/charon/eth2util/rlp"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -100,4 +102,41 @@ func TestNew(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "enr:-HW4QEp-BLhP30tqTGFbR9n2PdUKWP9qc0zphIRmn8_jpm4BYkgekztXQaPA_znRW8RvNYHo0pUwyPEwUGGeZu26XlKAgmlkgnY0iXNlY3AyNTZrMaEDG4TFVnsSZECZXT7VqroFZdceGDRgSBn_nBf16dXdB48", r.String())
+}
+
+const (
+	keyID = "id"
+	valID = "v4"
+)
+
+func TestParseDuplicateKeys(t *testing.T) {
+	kvs := map[string][]byte{
+		keyID: []byte(valID),
+	}
+	r := mockRecord{kvs: kvs}
+
+	_, err := enr.Parse(r.String())
+	require.ErrorContains(t, err, "duplicate enr key found")
+}
+
+type mockRecord struct {
+	kvs map[string][]byte
+}
+
+// String returns the base64 encoded string representation of the record.
+func (r mockRecord) String() string {
+	return "enr:" + base64.RawURLEncoding.EncodeToString(encodeElements(r.kvs))
+}
+
+// encodeElements returns the RLP encoding of a minimal set of record elements adding two duplicate keys.
+func encodeElements(kvs map[string][]byte) []byte {
+	const duplicateKey = "duplicate_key"
+	var elements [][]byte
+	elements = append(elements, []byte(keyID), kvs[keyID])
+
+	// Append duplicate key and value pairs to encoded bytes list
+	elements = append(elements, []byte(duplicateKey), testutil.RandomBytes32())
+	elements = append(elements, []byte(duplicateKey), testutil.RandomBytes32())
+
+	return rlp.EncodeBytesList(elements)
 }
