@@ -28,6 +28,7 @@ func Supported() []string {
 // GitCommit returns the git commit hash and timestamp from build info.
 func GitCommit() (hash string, timestamp string) {
 	hash, timestamp = "unknown", "unknown"
+	hashLen := 7
 
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
@@ -36,7 +37,10 @@ func GitCommit() (hash string, timestamp string) {
 
 	for _, s := range info.Settings {
 		if s.Key == "vcs.revision" {
-			hash = s.Value[:7]
+			if len(s.Value) < hashLen {
+				hashLen = len(s.Value)
+			}
+			hash = s.Value[:hashLen]
 		} else if s.Key == "vcs.time" {
 			timestamp = s.Value
 		}

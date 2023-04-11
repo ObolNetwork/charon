@@ -151,8 +151,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	lockHashHex := hex.EncodeToString(lock.LockHash)[:7]
-
 	network, err := eth2util.ForkVersionToNetwork(lock.ForkVersion)
 	if err != nil {
 		network = "unknown"
@@ -176,6 +174,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
+	lockHashHex := hex7(lock.LockHash)
 	tcpNode, err := wireP2P(ctx, life, conf, lock, p2pKey, lockHashHex)
 	if err != nil {
 		return err
@@ -922,4 +921,14 @@ func ProposalTypes(builder bool, synthetic bool) []core.ProposalType {
 	resp = append(resp, core.ProposalTypeFull) // Always support full as fallback.
 
 	return resp
+}
+
+// hex7 returns the first 7 (or less) hex chars of the provided bytes.
+func hex7(input []byte) string {
+	resp := hex.EncodeToString(input)
+	if len(resp) <= 7 {
+		return resp
+	}
+
+	return resp[:7]
 }
