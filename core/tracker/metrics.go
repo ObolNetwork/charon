@@ -30,11 +30,32 @@ var (
 		Help:      "Total number of missed participations by peer and duty type",
 	}, []string{"duty", "peer"})
 
-	failedCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+	participationExpect = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "tracker",
+		Name:      "participation_expected_total",
+		Help:      "Total number of expected participations (fail + success) by peer and duty type",
+	}, []string{"duty", "peer"})
+
+	dutyFailed = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "core",
 		Subsystem: "tracker",
 		Name:      "failed_duties_total",
 		Help:      "Total number of failed duties by type",
+	}, []string{"duty"})
+
+	dutySuccess = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "tracker",
+		Name:      "success_duties_total",
+		Help:      "Total number of successful duties by type",
+	}, []string{"duty"})
+
+	dutyExpect = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "tracker",
+		Name:      "expect_duties_total",
+		Help:      "Total number of expected duties (failed + success) by type",
 	}, []string{"duty"})
 
 	unexpectedEventsCounter = promauto.NewCounterVec(prometheus.CounterOpts{
