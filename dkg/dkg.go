@@ -156,7 +156,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 		peerMap[p.ID] = nodeIdx
 	}
-	tp := newFrostP2P(tcpNode, peerMap, key, def.Threshold)
+	tp, err := newFrostP2P(tcpNode, peerMap, key, def.Threshold)
+	if err != nil {
+		return err
+	}
 
 	log.Info(ctx, "Waiting to connect to all peers...")
 
