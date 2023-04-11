@@ -5,6 +5,7 @@ package tracker
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"reflect"
 	"testing"
@@ -1175,4 +1176,84 @@ func TestUnexpectedFailures(t *testing.T) {
 			require.ErrorAs(t, err, &test.stepErr)
 		}
 	}
+}
+
+func TestIgnoreUnsupported(t *testing.T) {
+	// Note these tests are stateful, so order is important.
+	tests := []struct {
+		name   string
+		duty   core.Duty
+		failed bool
+		step   step
+		reason string
+		result bool
+	}{
+		{
+			name:   "Attester not ignored",
+			duty:   core.NewAttesterDuty(123),
+			failed: testutil.RandomBool(),
+			step:   randomStep(),
+			reason: msgAggSigDB,
+			result: false,
+		},
+		{
+			name:   "Aggregator failed and ignored",
+			duty:   core.NewAggregatorDuty(123),
+			failed: true,
+			step:   fetcher,
+			reason: msgFetcherAggregatorZeroPrepares,
+			result: true,
+		},
+		{
+			name:   "Aggregator success",
+			duty:   core.NewAggregatorDuty(123),
+			failed: false,
+			step:   fetcher,
+			reason: msgFetcherAggregatorZeroPrepares,
+			result: false,
+		},
+		{
+			name:   "Aggregator failed but not ignored",
+			duty:   core.NewAggregatorDuty(123),
+			failed: true,
+			step:   fetcher,
+			reason: msgFetcherAggregatorZeroPrepares,
+			result: false,
+		},
+		{
+			name:   "SyncContrib failed and ignored",
+			duty:   core.NewSyncContributionDuty(123),
+			failed: true,
+			step:   fetcher,
+			reason: msgFetcherSyncContributionZeroPrepares,
+			result: true,
+		},
+		{
+			name:   "SyncContrib success",
+			duty:   core.NewSyncContributionDuty(123),
+			failed: false,
+			step:   fetcher,
+			reason: msgFetcherSyncContributionZeroPrepares,
+			result: false,
+		},
+		{
+			name:   "SyncContrib failed but not ignored",
+			duty:   core.NewSyncContributionDuty(123),
+			failed: true,
+			step:   fetcher,
+			reason: msgFetcherSyncContributionZeroPrepares,
+			result: false,
+		},
+	}
+
+	ignorer := newUnsupportedIgnorer()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.result, ignorer(context.Background(), test.duty, test.failed, test.step, test.reason))
+		})
+	}
+}
+
+func randomStep() step {
+	return step(rand.Intn(int(sentinel)))
 }
