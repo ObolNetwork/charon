@@ -18,7 +18,7 @@ on:
 jobs:
   deploy-relay:
     runs-on: ubuntu-latest
-    name: Build Docker Image
+    name: Deploy Relay - Prod
     steps:
     - name: Trigger relay deploy job
       uses: peter-evans/repository-dispatch@v2
@@ -26,8 +26,4 @@ jobs:
         token: ${{ secrets.CHARON_K8S_REPO_ACCESS_TOKEN }}
         repository: ObolNetwork/obol-infrastructure
         event-type: relay-prod-deployment
-        client-payload: |
-          '{
-            "relay_name": "${{ github.relay_name }}",
-            "relay_version": "${{ github.image_tag }}"
-          }'
+        client-payload: '{"relay_name": "${{ inputs.relay_name }}","relay_version": "${{ inputs.image_tag }}"}'
