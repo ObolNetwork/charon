@@ -580,19 +580,25 @@ func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bo
 	}
 
 	return func(ctx context.Context, duty core.Duty, failed bool, step step, reason string, err error) {
-		dutyExpect.WithLabelValues(duty.Type.String()).Inc()
-
 		if !failed {
+			if step == fetcher {
+				// TODO(corver): improve detection of duties that are not expected to be performed (aggregation).
+				return
+			}
+
+			dutyExpect.WithLabelValues(duty.Type.String()).Inc()
 			dutySuccess.WithLabelValues(duty.Type.String()).Inc()
+
 			return
 		}
-
-		dutyFailed.WithLabelValues(duty.Type.String()).Inc()
 
 		log.Warn(ctx, "Duty failed", err,
 			z.Any("step", step),
 			z.Str("reason", reason),
 		)
+
+		dutyExpect.WithLabelValues(duty.Type.String()).Inc()
+		dutyFailed.WithLabelValues(duty.Type.String()).Inc()
 	}
 }
 
