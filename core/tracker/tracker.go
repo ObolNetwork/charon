@@ -577,7 +577,7 @@ func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bo
 
 	return func(ctx context.Context, duty core.Duty, failed bool, step step, reason string, err error) {
 		if !failed {
-			if step != fetcher {
+			if step == fetcher {
 				// TODO(corver): improve detection of duties that are not expected to be performed (aggregation).
 				return
 			}
