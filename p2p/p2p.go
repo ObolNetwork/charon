@@ -215,8 +215,6 @@ func (f peerRoutingFunc) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo
 // so the implementation can only contain fields that are hashable. So we use a channel and do the logic externally. :(.
 func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []peer.ID) {
 	ctx = log.WithTopic(ctx, "p2p")
-	quit := make(chan struct{})
-	defer close(quit)
 
 	type connKey struct {
 		PeerName string
@@ -224,6 +222,7 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 	}
 
 	var (
+		quit   = make(chan struct{})
 		peers  = make(map[peer.ID]bool)
 		events = make(chan logEvent)
 		ticker = time.NewTicker(time.Second * 30)
@@ -239,10 +238,11 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 	})
 
 	go func() {
+		defer close(quit)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
-				ticker.Stop()
 				return
 			case <-ticker.C:
 				// Instrument connection counts.
@@ -268,6 +268,13 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 					continue
 				} else if e.Connected {
 					log.Debug(ctx, "Libp2p new connection",
+						z.Str("peer", name),
+						z.Any("peer_address", addr),
+						z.Any("direction", e.Direction),
+						z.Str("type", typ),
+					)
+				} else if e.Disconnect {
+					log.Debug(ctx, "Libp2p disconnected",
 						z.Str("peer", name),
 						z.Any("peer_address", addr),
 						z.Any("direction", e.Direction),
@@ -331,6 +338,7 @@ func (l connLogger) Disconnected(_ network.Network, conn network.Conn) {
 	case l.events <- logEvent{
 		Peer:       conn.RemotePeer(),
 		Addr:       conn.RemoteMultiaddr(),
+		Direction:  conn.Stat().Direction,
 		Disconnect: true,
 		ConnID:     conn.ID(),
 	}:

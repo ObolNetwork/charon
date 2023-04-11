@@ -79,7 +79,7 @@ type Client interface {
 {{range .Methods}}
 	{{.Doc -}}
 	func (l *lazy) {{.Name}}({{.Params}}) ({{.NamedResults}}) {
-		cl, err := l.getClient()
+		cl, err := l.getOrCreateClient(ctx)
 		if err != nil {
 			return {{.ResultNames}}
 		}

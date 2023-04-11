@@ -10,11 +10,14 @@ import (
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -163,7 +166,7 @@ func TestSyncState(t *testing.T) {
 func TestErrors(t *testing.T) {
 	ctx := context.Background()
 	t.Run("network dial error", func(t *testing.T) {
-		cl, err := eth2wrap.NewMultiHTTP(ctx, time.Hour, "localhost:22222")
+		cl, err := eth2wrap.NewMultiHTTP(time.Hour, "localhost:22222")
 		require.NoError(t, err)
 
 		_, err = cl.SlotsPerEpoch(ctx)
@@ -178,7 +181,7 @@ func TestErrors(t *testing.T) {
 	}))
 
 	t.Run("http timeout", func(t *testing.T) {
-		cl, err := eth2wrap.NewMultiHTTP(ctx, time.Millisecond, srv.URL)
+		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, srv.URL)
 		require.NoError(t, err)
 
 		_, err = cl.SlotsPerEpoch(ctx)
@@ -191,7 +194,7 @@ func TestErrors(t *testing.T) {
 		ctx, cancel := context.WithCancel(ctx)
 		cancel()
 
-		cl, err := eth2wrap.NewMultiHTTP(ctx, time.Millisecond, srv.URL)
+		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, srv.URL)
 		require.NoError(t, err)
 
 		_, err = cl.SlotsPerEpoch(ctx)
@@ -203,7 +206,7 @@ func TestErrors(t *testing.T) {
 	t.Run("go-eth2-client http error", func(t *testing.T) {
 		bmock, err := beaconmock.New()
 		require.NoError(t, err)
-		eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Second, bmock.Address())
+		eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, bmock.Address())
 		require.NoError(t, err)
 
 		_, err = eth2Cl.AggregateAttestation(ctx, 0, eth2p0.Root{})
@@ -234,7 +237,7 @@ func TestCtxCancel(t *testing.T) {
 
 		bmock, err := beaconmock.New()
 		require.NoError(t, err)
-		eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Second, bmock.Address())
+		eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, bmock.Address())
 		require.NoError(t, err)
 
 		cancel() // Cancel context before calling method.
@@ -276,7 +279,8 @@ func TestBlockAttestations(t *testing.T) {
 	require.Empty(t, resp)
 }
 
-func TestOneDown(t *testing.T) {
+// TestOneError tests the case where one of the servers returns errors.
+func TestOneError(t *testing.T) {
 	// Start an erroring server.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -292,13 +296,86 @@ func TestOneDown(t *testing.T) {
 		bmock.Address(), // Valid
 	}
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Second, addresses...)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, addresses...)
 	require.NoError(t, err)
 
 	_, err = eth2Cl.SlotDuration(ctx)
 	testutil.RequireNoError(t, err)
 
 	require.Equal(t, bmock.Address(), eth2Cl.Address())
+}
+
+// TestOneTimeout tests the case where one of the servers times out.
+func TestOneTimeout(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Start an timeout server.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-ctx.Done()
+	}))
+	defer srv.Close()
+	defer cancel() // Cancel the context before stopping the server.
+
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	addresses := []string{
+		srv.URL,         // Invalid
+		bmock.Address(), // Valid
+	}
+
+	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Minute, addresses...)
+	require.NoError(t, err)
+
+	_, err = eth2Cl.SlotDuration(ctx)
+	testutil.RequireNoError(t, err)
+
+	require.Equal(t, bmock.Address(), eth2Cl.Address())
+}
+
+// TestOnlyTimeout tests the case where only one server is available and it is timing out.
+func TestOnlyTimeout(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Start an timeout server.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-ctx.Done()
+	}))
+	defer srv.Close()
+	defer cancel() // Cancel the context before stopping the server.
+
+	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Minute, srv.URL)
+	require.NoError(t, err)
+
+	// Start goroutine that is blocking trying to create the client.
+	go func() {
+		_, _ = eth2Cl.SlotDuration(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+		require.Fail(t, "Expect this only to return after main ctx cancelled")
+	}()
+
+	// testCtxCancel tests that no concurrent calls block if the user cancels the context.
+	testCtxCancel := func(t *testing.T, timeout time.Duration) {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		_, err := eth2Cl.SlotDuration(ctx)
+		assert.Error(t, err)
+	}
+
+	// Start 10 concurrent goroutines that call the method.
+	const n = 10
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := 0; i < n; i++ {
+		go func() {
+			testCtxCancel(t, time.Millisecond*10)
+			wg.Done()
+		}()
+	}
+	wg.Wait()
 }
 
 func TestLazy(t *testing.T) {
@@ -311,23 +388,23 @@ func TestLazy(t *testing.T) {
 	require.NoError(t, err)
 
 	// Start two proxys that we can enable/disable.
-	var enabled1, enabled2 bool
+	var enabled1, enabled2 atomic.Bool
 	srv1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !enabled1 {
+		if !enabled1.Load() {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
 		httputil.NewSingleHostReverseProxy(target).ServeHTTP(w, r)
 	}))
 	srv2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !enabled2 {
+		if !enabled2.Load() {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
 		httputil.NewSingleHostReverseProxy(target).ServeHTTP(w, r)
 	}))
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, time.Second, srv1.URL, srv2.URL)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, srv1.URL, srv2.URL)
 	require.NoError(t, err)
 
 	// Both proxies are disabled, so this should fail.
@@ -335,15 +412,15 @@ func TestLazy(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, "", eth2Cl.Address())
 
-	enabled1 = true
+	enabled1.Store(true)
 
 	// Proxy1 is enabled, so this should succeed.
 	_, err = eth2Cl.NodeSyncing(ctx)
 	require.NoError(t, err)
 	require.Equal(t, srv1.URL, eth2Cl.Address())
 
-	enabled1 = false
-	enabled2 = true
+	enabled1.Store(false)
+	enabled2.Store(true)
 
 	// Proxy2 is enabled, so this should succeed.
 	for i := 0; i < 5; i++ { // Do multiple request to make Proxy2 the "best".

@@ -48,6 +48,10 @@
     {
      "Key": "fee-recipient-addresses",
      "Value": "\"0x000000000000000000000000000000000000dead\""
+    },
+    {
+     "Key": "network",
+     "Value": "goerli"
     }
    ],
    "Ports": null

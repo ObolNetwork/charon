@@ -12,6 +12,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util"
 )
 
 // Lock creates a docker-compose.yml from a charon-compose.yml for generating keys and a cluster lock file.
@@ -42,6 +43,7 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 			{"insecure-keys", fmt.Sprintf(`"%v"`, conf.InsecureKeys)},
 			{"withdrawal-addresses", zeroXDead},
 			{"fee-recipient-addresses", zeroXDead},
+			{"network", eth2util.Goerli.Name},
 		}}
 
 		data = TmplData{
@@ -91,7 +93,7 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 // newNodeEnvs returns the default node environment variable to run a charon docker container.
 func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 	beaconMock := false
-	beaconNode := conf.BeaconNode
+	beaconNode := conf.BeaconNodes
 	if beaconNode == "mock" {
 		beaconMock = true
 		beaconNode = ""
@@ -112,6 +114,7 @@ func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 		{"p2p-tcp-address", "0.0.0.0:3610"},
 		{"p2p-relays", p2pRelayAddr},
 		{"log-level", "debug"},
+		{"log-color", "force"},
 		{"feature-set", conf.FeatureSet},
 	}
 
@@ -130,7 +133,7 @@ func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 		kv{"jaeger-address", "jaeger:6831"},
 		kv{"lock-file", lockFile},
 		kv{"validator-api-address", "0.0.0.0:3600"},
-		kv{"beacon-node-endpoint", beaconNode},
+		kv{"beacon-node-endpoints", beaconNode},
 		kv{"simnet-beacon_mock", fmt.Sprintf(`"%v"`, beaconMock)},
 		kv{"simnet-validator-mock", fmt.Sprintf(`"%v"`, vcType == VCMock)},
 		kv{"simnet-slot-duration", conf.SlotDuration.String()},

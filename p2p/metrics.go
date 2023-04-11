@@ -5,7 +5,10 @@ package p2p
 import (
 	"time"
 
+	"github.com/libp2p/go-libp2p"
+	"github.com/libp2p/go-libp2p/core/metrics"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/obolnetwork/charon/app/promauto"
@@ -59,19 +62,17 @@ var (
 		Help:      "Total number of libp2p connections per peer.",
 	}, []string{"peer"})
 
-	// TODO(corver): re-enable these metrics using libp2p internal features.
+	networkRXCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "p2p",
+		Name:      "peer_network_receive_bytes_total",
+		Help:      "Total number of network bytes received from the peer by protocol.",
+	}, []string{"peer", "protocol"})
 
-	// networkRXCounter = promauto.NewCounterVec(prometheus.CounterOpts{
-	//	Namespace: "p2p",
-	//	Name:      "peer_network_receive_bytes_total",
-	//	Help:      "Total number of network bytes received from the peer by protocol.",
-	// }, []string{"peer", "protocol"}).
-
-	// networkTXCounter = promauto.NewCounterVec(prometheus.CounterOpts{
-	//	Namespace: "p2p",
-	//	Name:      "peer_network_sent_bytes_total",
-	//	Help:      "Total number of network bytes sent to the peer by protocol.",
-	// }, []string{"peer", "protocol"}).
+	networkTXCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "p2p",
+		Name:      "peer_network_sent_bytes_total",
+		Help:      "Total number of network bytes sent to the peer by protocol.",
+	}, []string{"peer", "protocol"})
 )
 
 func observePing(p peer.ID, d time.Duration) {
@@ -82,4 +83,41 @@ func observePing(p peer.ID, d time.Duration) {
 func incPingError(p peer.ID) {
 	pingErrors.WithLabelValues(PeerName(p)).Inc()
 	pingSuccess.WithLabelValues(PeerName(p)).Set(0)
+}
+
+var _ metrics.Reporter = bandwithReporter{}
+
+// WithBandwidthReporter returns a libp2p option that enables bandwidth reporting via prometheus.
+func WithBandwidthReporter(peers []peer.ID) libp2p.Option {
+	peerNames := make(map[peer.ID]string)
+	for _, p := range peers {
+		peerNames[p] = PeerName(p)
+	}
+
+	return libp2p.BandwidthReporter(bandwithReporter{peerNames: peerNames})
+}
+
+type bandwithReporter struct {
+	metrics.Reporter
+	peerNames map[peer.ID]string
+}
+
+func (bandwithReporter) LogSentMessage(int64) {}
+
+func (bandwithReporter) LogRecvMessage(int64) {}
+
+func (r bandwithReporter) LogSentMessageStream(bytes int64, protoID protocol.ID, peerID peer.ID) {
+	name, ok := r.peerNames[peerID]
+	if !ok {
+		return // Do not instrument relays
+	}
+	networkTXCounter.WithLabelValues(name, string(protoID)).Add(float64(bytes))
+}
+
+func (r bandwithReporter) LogRecvMessageStream(bytes int64, protoID protocol.ID, peerID peer.ID) {
+	name, ok := r.peerNames[peerID]
+	if !ok {
+		return // Do not instrument relays
+	}
+	networkRXCounter.WithLabelValues(name, string(protoID)).Add(float64(bytes))
 }

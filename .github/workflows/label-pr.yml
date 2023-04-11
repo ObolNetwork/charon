@@ -1,0 +1,43 @@
+name: Label PR
+on:
+  pull_request:
+    types: [ opened, reopened, edited, synchronize ]
+
+jobs:
+  label_pr:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Calculate branch label
+        id: branch-label
+        run: |
+
+          # Short name for current branch. For PRs, use target branch (base ref)
+          # Reference: https://stackoverflow.com/questions/60300169/how-to-get-branch-name-on-github-action
+          GIT_BRANCH=${GITHUB_BASE_REF:-${GITHUB_REF#refs/heads/}}
+          echo "GIT_BRANCH=$GIT_BRANCH"
+
+          LABEL=""
+          if [[ $GIT_BRANCH = main ]]; then
+            # Do not label main branch PRs
+            LABEL="skip"
+          elif [[ $GIT_BRANCH = main* ]]; then
+            # Label release branches
+            LABEL="branch-release"
+          else
+            # Label all other branches as invalid
+            LABEL="branch-invalid"
+          fi
+          echo "label=$LABEL" >> $GITHUB_OUTPUT
+
+      - uses: actions/github-script@v6
+        if: steps.branch-label.outputs.label != 'skip'
+        with:
+          script: |
+            github.rest.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ["${{steps.branch-label.outputs.label}}"]
+            })

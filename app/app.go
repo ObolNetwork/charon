@@ -286,7 +286,11 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	// Start libp2p TCP node.
-	tcpNode, err := p2p.NewTCPNode(ctx, conf.P2P, p2pKey, connGater, false, conf.TestConfig.LibP2POpts...)
+	opts := []libp2p.Option{p2p.WithBandwidthReporter(peerIDs)}
+	opts = append(opts, conf.TestConfig.LibP2POpts...)
+
+	tcpNode, err := p2p.NewTCPNode(ctx, conf.P2P, p2pKey, connGater,
+		false, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -680,7 +684,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 		return nil, errors.New("beacon node endpoints empty")
 	}
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(ctx, eth2ClientTimeout, conf.BeaconNodeAddrs...)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(eth2ClientTimeout, conf.BeaconNodeAddrs...)
 	if err != nil {
 		return nil, errors.Wrap(err, "new eth2 http client")
 	}

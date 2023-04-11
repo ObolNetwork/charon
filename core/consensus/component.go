@@ -351,14 +351,28 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 	}
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	if ok, err := verifyMsgSig(pbMsg.Msg, c.pubkeys[pbMsg.Msg.PeerIdx]); err != nil {
+	msgPubkey, exists := c.pubkeys[pbMsg.Msg.PeerIdx]
+	if !exists {
+		return nil, false, errors.New("message refers to nonexistent peer index, cannot fetch public key", z.I64("index", pbMsg.Msg.PeerIdx))
+	}
+
+	if ok, err := verifyMsgSig(pbMsg.Msg, msgPubkey); err != nil {
 		return nil, false, errors.Wrap(err, "verify consensus message signature", z.Any("duty", duty))
 	} else if !ok {
 		return nil, false, errors.New("invalid consensus message signature", z.Any("duty", duty))
 	}
 
 	for _, msg := range pbMsg.Justification {
-		if ok, err := verifyMsgSig(msg, c.pubkeys[msg.PeerIdx]); err != nil {
+		if msg == nil {
+			return nil, false, errors.New("nil justification", z.Any("duty", duty))
+		}
+
+		justPubkey, exists := c.pubkeys[msg.PeerIdx]
+		if !exists {
+			return nil, false, errors.New("justification refers to nonexistent peer index, cannot fetch public key", z.I64("index", msg.PeerIdx))
+		}
+
+		if ok, err := verifyMsgSig(msg, justPubkey); err != nil {
 			return nil, false, errors.Wrap(err, "verify consensus justification signature", z.Any("duty", duty))
 		} else if !ok {
 			return nil, false, errors.New("invalid consensus justification signature", z.Any("duty", duty))

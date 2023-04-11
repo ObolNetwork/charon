@@ -15,7 +15,7 @@ import (
 const (
 	// Version is the release version of the codebase.
 	// Usually overridden by tag names when building binaries.
-	Version = "v0.15.0-dev"
+	Version = "v0.16.0-dev"
 )
 
 // Supported returns the supported versions in order of precedence.

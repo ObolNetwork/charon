@@ -113,13 +113,18 @@ func TestFetchAggregator(t *testing.T) {
 		int64(attB.Data.Index): attB,
 	}
 
-	newDefSet := func(commLength uint64) core.DutyDefinitionSet {
+	newDefSet := func(commLength uint64, sameCommitteeIndex bool) core.DutyDefinitionSet {
 		dutyA := testutil.RandomAttestationDuty(t)
 		dutyA.CommitteeLength = commLength
 		dutyA.CommitteeIndex = attA.Data.Index
 		dutyB := testutil.RandomAttestationDuty(t)
 		dutyB.CommitteeLength = commLength
 		dutyB.CommitteeIndex = attB.Data.Index
+
+		if sameCommitteeIndex {
+			dutyB.CommitteeIndex = attA.Data.Index
+			attB.Data.Index = attA.Data.Index
+		}
 
 		return map[core.PubKey]core.DutyDefinition{
 			pubkeysByIdx[vIdxA]: core.NewAttesterDefinition(dutyA),
@@ -135,7 +140,9 @@ func TestFetchAggregator(t *testing.T) {
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 
+	var aggAttCallCount int
 	bmock.AggregateAttestationFunc = func(ctx context.Context, slot eth2p0.Slot, root eth2p0.Root) (*eth2p0.Attestation, error) {
+		aggAttCallCount--
 		if nilAggregate {
 			return nil, nil //nolint:nilnil // This reproduces what go-eth2-client does
 		}
@@ -180,16 +187,53 @@ func TestFetchAggregator(t *testing.T) {
 		return done
 	})
 
-	err = fetch.Fetch(ctx, duty, newDefSet(commLenAggregator))
-	require.ErrorIs(t, err, done)
+	tests := []struct {
+		name            string
+		aggAttCallCount int // Number of time aggregate attestation is queried from beacon node.
+		sameCommittee   bool
+		nilAggregate    bool
+		commLen         uint64
+		expectedErr     string
+	}{
+		{
+			name:            "aggregator with different committee index",
+			commLen:         commLenAggregator,
+			aggAttCallCount: 2,
+			expectedErr:     "done",
+		},
+		{
+			name:            "aggregator with same committee index",
+			sameCommittee:   true,
+			commLen:         commLenAggregator,
+			aggAttCallCount: 1,
+			expectedErr:     "done",
+		},
+		{
+			name:    "no aggregator",
+			commLen: commLenNoAggregator,
+		},
+		{
+			name:            "nil aggregate attestation response",
+			aggAttCallCount: 1,
+			nilAggregate:    true,
+			expectedErr:     "aggregate attestation not found by root (retryable)",
+		},
+	}
 
-	err = fetch.Fetch(ctx, duty, newDefSet(commLenNoAggregator))
-	require.NoError(t, err)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			nilAggregate = test.nilAggregate
+			aggAttCallCount = test.aggAttCallCount
+			err = fetch.Fetch(ctx, duty, newDefSet(test.commLen, test.sameCommittee))
 
-	// Test nil, nil AggregateAttestation response.
-	nilAggregate = true
-	err = fetch.Fetch(ctx, duty, newDefSet(commLenAggregator))
-	require.ErrorContains(t, err, "aggregate attestation not found by root (retryable)")
+			if test.expectedErr != "" {
+				require.ErrorContains(t, err, test.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, 0, aggAttCallCount)
+		})
+	}
 }
 
 func TestFetchBlocks(t *testing.T) {

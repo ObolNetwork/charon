@@ -50,10 +50,18 @@ func TestDeadliner(t *testing.T) {
 	// Wait till all the duties are added to the deadliner.
 	wg.Wait()
 
+	var maxSlot int64
+	for _, duty := range nonExpiredDuties {
+		if maxSlot < duty.Slot {
+			maxSlot = duty.Slot
+		}
+	}
+
+	// Advance clock to trigger deadline of all non-expired duties.
+	clock.Advance(time.Duration(maxSlot) * time.Second)
+
 	var actualDuties []core.Duty
 	for i := 0; i < len(nonExpiredDuties); i++ {
-		// Advance clock by 1 second to trigger deadline of duties.
-		clock.Advance(time.Second)
 		actualDuties = append(actualDuties, <-deadliner.C())
 	}
 

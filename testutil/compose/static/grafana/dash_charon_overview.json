@@ -370,6 +370,26 @@
                   "color": "orange",
                   "index": 5,
                   "text": "Insufficient Peers"
+                },
+                "5": {
+                  "color": "super-light-orange",
+                  "index": 6,
+                  "text": "VC not configured"
+                },
+                "6": {
+                  "color": "semi-dark-orange",
+                  "index": 7,
+                  "text": "VC missing some validators"
+                },
+                "7": {
+                  "color": "light-purple",
+                  "index": 8,
+                  "text": "BeaconNode has zero peers"
+                },
+                "8": {
+                  "color": "dark-red",
+                  "index": 9,
+                  "text": "BeaconNode far behind"
                 }
               },
               "type": "value"
@@ -1743,8 +1763,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1836,8 +1855,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1930,8 +1948,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2024,8 +2041,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2117,8 +2133,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2211,8 +2226,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2332,8 +2346,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2464,8 +2477,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2538,8 +2550,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "light-blue",
-                "value": null
+                "color": "light-blue"
               },
               {
                 "color": "red",
@@ -2787,11 +2798,6 @@
         },
         "definition": "label_values(app_peer_name, cluster_name)",
         "description": "",
-        "error": {
-          "data": {
-            "message": "Unexpected error"
-          }
-        },
         "hide": 0,
         "includeAll": false,
         "label": "Cluster Name",
@@ -2811,8 +2817,8 @@
       {
         "current": {
           "selected": false,
-          "text": "84a5dac",
-          "value": "84a5dac"
+          "text": "ad1c2dd",
+          "value": "ad1c2dd"
         },
         "datasource": {
           "type": "prometheus",
@@ -2820,11 +2826,6 @@
         },
         "definition": "label_values(app_peer_name{cluster_name=\"$cluster_name\"}, cluster_hash)",
         "description": "",
-        "error": {
-          "data": {
-            "message": "Unexpected error"
-          }
-        },
         "hide": 0,
         "includeAll": false,
         "label": "Cluster Hash",
@@ -2844,8 +2845,8 @@
       {
         "current": {
           "selected": false,
-          "text": "dazzling-life",
-          "value": "dazzling-life"
+          "text": "helpless-state",
+          "value": "helpless-state"
         },
         "datasource": {
           "type": "prometheus",
@@ -2853,11 +2854,6 @@
         },
         "definition": "label_values(app_peer_name{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\"}, cluster_peer)",
         "description": "",
-        "error": {
-          "data": {
-            "message": "Unexpected error"
-          }
-        },
         "hide": 0,
         "includeAll": false,
         "label": "Cluster Peer",
@@ -2877,8 +2873,8 @@
       {
         "current": {
           "selected": false,
-          "text": "node2",
-          "value": "node2"
+          "text": "node3",
+          "value": "node3"
         },
         "datasource": {
           "type": "prometheus",
@@ -2886,11 +2882,6 @@
         },
         "definition": "label_values(app_peer_name{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"},job)",
         "description": "Prometheus job (can be ignored)",
-        "error": {
-          "data": {
-            "message": "Unexpected error"
-          }
-        },
         "hide": 2,
         "includeAll": false,
         "label": "--",

@@ -13,10 +13,12 @@ import (
 	"os"
 	"path"
 	"strings"
+	"testing"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -35,7 +37,8 @@ import (
 
 const (
 	zeroAddress    = "0x0000000000000000000000000000000000000000"
-	defaultNetwork = "goerli"
+	deadAddress    = "0x000000000000000000000000000000000000dead"
+	defaultNetwork = "mainnet"
 	minNodes       = 4
 )
 
@@ -217,7 +220,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 			return err
 		}
 	} else { // Or else save keys to keymanager
-		if err = writeKeysToKeymanager(ctx, conf.KeymanagerAddrs, conf.KeymanagerAuthTokens, numNodes, shareSets); err != nil {
+		if err = writeKeysToKeymanager(ctx, conf, numNodes, shareSets); err != nil {
 			return err
 		}
 	}
@@ -479,11 +482,11 @@ func getValidators(dvsPubkeys []tblsv2.PublicKey, dvPrivShares [][]tblsv2.Privat
 }
 
 // writeKeysToKeymanager writes validator keys to the provided keymanager addresses.
-func writeKeysToKeymanager(ctx context.Context, addrs, authTokens []string, numNodes int, shareSets [][]tblsv2.PrivateKey) error {
+func writeKeysToKeymanager(ctx context.Context, conf clusterConfig, numNodes int, shareSets [][]tblsv2.PrivateKey) error {
 	// Ping all keymanager addresses to check if they are accessible to avoid partial writes
 	var clients []keymanager.Client
 	for i := 0; i < numNodes; i++ {
-		cl := keymanager.New(addrs[i], authTokens[i])
+		cl := keymanager.New(conf.KeymanagerAddrs[i], conf.KeymanagerAuthTokens[i])
 		if err := cl.VerifyConnection(ctx); err != nil {
 			return err
 		}
@@ -502,7 +505,11 @@ func writeKeysToKeymanager(ctx context.Context, addrs, authTokens []string, numN
 			}
 			passwords = append(passwords, password)
 
-			store, err := keystore.Encrypt(shares[i], password, rand.Reader)
+			var opts []keystorev4.Option
+			if conf.InsecureKeys {
+				opts = append(opts, keystorev4.WithCost(new(testing.T), 4))
+			}
+			store, err := keystore.Encrypt(shares[i], password, rand.Reader, opts...)
 			if err != nil {
 				return err
 			}
@@ -511,11 +518,12 @@ func writeKeysToKeymanager(ctx context.Context, addrs, authTokens []string, numN
 
 		err := clients[i].ImportKeystores(ctx, keystores, passwords)
 		if err != nil {
-			log.Error(ctx, "Failed to import keys", err, z.Str("addr", addrs[i]))
+			log.Error(ctx, "Failed to import keys", err, z.Str("addr", conf.KeymanagerAddrs[i]))
 			return err
 		}
 
-		log.Info(ctx, "Imported key shares to keymanager", z.Str("node", fmt.Sprintf("node%d", i)), z.Str("addr", addrs[i]))
+		log.Info(ctx, "Imported key shares to keymanager",
+			z.Str("node", fmt.Sprintf("node%d", i)), z.Str("addr", conf.KeymanagerAddrs[i]))
 	}
 
 	log.Info(ctx, "Imported all validator keys to respective keymanagers")

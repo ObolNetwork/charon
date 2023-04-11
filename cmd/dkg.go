@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"context"
+	"time"
 
 	libp2plog "github.com/ipfs/go-log/v2"
 	"github.com/spf13/cobra"
@@ -42,6 +43,7 @@ this command at the same time.`,
 	bindP2PFlags(cmd, &config.P2P)
 	bindLogFlags(cmd.Flags(), &config.Log)
 	bindPublishFlags(cmd.Flags(), &config)
+	bindShutdownDelayFlag(cmd.Flags(), &config.ShutdownDelay)
 
 	return cmd
 }
@@ -62,4 +64,8 @@ func bindDataDirFlag(flags *pflag.FlagSet, dataDir *string) {
 func bindPublishFlags(flags *pflag.FlagSet, config *dkg.Config) {
 	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech", "The URL to publish the lock file to.")
 	flags.BoolVar(&config.Publish, "publish", false, "Publish lock file to obol-api.")
+}
+
+func bindShutdownDelayFlag(flags *pflag.FlagSet, shutdownDelay *time.Duration) {
+	flags.DurationVar(shutdownDelay, "shutdown-delay", time.Second, "Graceful shutdown delay.")
 }

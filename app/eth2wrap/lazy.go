@@ -5,6 +5,7 @@ package eth2wrap
 import (
 	"context"
 	"sync"
+	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
@@ -12,7 +13,7 @@ import (
 )
 
 // newLazy creates a new lazy client.
-func newLazy(provider func() (Client, error)) *lazy {
+func newLazy(provider func(context.Context) (Client, error)) *lazy {
 	return &lazy{
 		provider: provider,
 	}
@@ -20,39 +21,63 @@ func newLazy(provider func() (Client, error)) *lazy {
 
 // lazy is a client that is created on demand.
 type lazy struct {
-	provider func() (Client, error)
+	providerMu sync.Mutex
+	provider   func(context.Context) (Client, error)
+
+	clientMu sync.RWMutex
 	client   Client
-	mu       sync.RWMutex
 }
 
-// getClient returns the client, creating it if necessary.
-func (l *lazy) getClient() (Client, error) {
-	// Check if the client is available.
-	l.mu.RLock()
-	if l.client != nil {
-		l.mu.RUnlock()
-		return l.client, nil
-	}
-	l.mu.RUnlock()
+// getClient returns the client and true if it is available.
+func (l *lazy) getClient() (Client, bool) {
+	l.clientMu.RLock()
+	defer l.clientMu.RUnlock()
 
-	// Else create a new client.
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	return l.client, l.client != nil
+}
+
+// setClient sets the client.
+func (l *lazy) setClient(client Client) {
+	l.clientMu.Lock()
+	defer l.clientMu.Unlock()
+
+	l.client = client
+}
+
+// getOrCreateClient returns the client, creating it if necessary.
+func (l *lazy) getOrCreateClient(ctx context.Context) (Client, error) {
+	// Check if the client is available.
+	if cl, ok := l.getClient(); ok {
+		return cl, nil
+	}
+
+	// Try until we get the provider lock or the context is cancelled.
+	for !l.providerMu.TryLock() {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		time.Sleep(time.Millisecond) // Don't spin.
+	}
+	defer l.providerMu.Unlock()
 
 	// Check again in case another goroutine created the client.
-	if l.client != nil {
-		return l.client, nil
+	if cl, ok := l.getClient(); ok {
+		return cl, nil
 	}
 
-	var err error
-	l.client, err = l.provider()
+	cl, err := l.provider(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	return l.client, err
+	l.setClient(cl)
+
+	return cl, err
 }
 
 func (l *lazy) Name() string {
-	cl, err := l.getClient()
-	if err != nil {
+	cl, ok := l.getClient()
+	if !ok {
 		return ""
 	}
 
@@ -60,8 +85,8 @@ func (l *lazy) Name() string {
 }
 
 func (l *lazy) Address() string {
-	cl, err := l.getClient()
-	if err != nil {
+	cl, ok := l.getClient()
+	if !ok {
 		return ""
 	}
 
@@ -69,7 +94,7 @@ func (l *lazy) Address() string {
 }
 
 func (l *lazy) AggregateBeaconCommitteeSelections(ctx context.Context, partialSelections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +103,7 @@ func (l *lazy) AggregateBeaconCommitteeSelections(ctx context.Context, partialSe
 }
 
 func (l *lazy) AggregateSyncCommitteeSelections(ctx context.Context, partialSelections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +112,7 @@ func (l *lazy) AggregateSyncCommitteeSelections(ctx context.Context, partialSele
 }
 
 func (l *lazy) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +121,7 @@ func (l *lazy) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0
 }
 
 func (l *lazy) NodePeerCount(ctx context.Context) (int, error) {
-	cl, err := l.getClient()
+	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return 0, err
 	}

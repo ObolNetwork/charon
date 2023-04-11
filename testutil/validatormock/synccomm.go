@@ -26,17 +26,20 @@ type (
 )
 
 func NewSyncCommMember(eth2Cl eth2wrap.Client, epoch eth2p0.Epoch, signFunc SignFunc, pubkeys []eth2p0.BLSPubKey) *SyncCommMember {
-	return &SyncCommMember{
-		eth2Cl:       eth2Cl,
-		epoch:        epoch,
-		pubkeys:      pubkeys,
-		signFunc:     signFunc,
-		dutiesOK:     make(chan struct{}),
-		selections:   make(map[eth2p0.Slot]syncSelections),
-		selectionsOK: make(map[eth2p0.Slot]chan struct{}),
-		blockRoot:    make(map[eth2p0.Slot]eth2p0.Root),
-		blockRootOK:  make(map[eth2p0.Slot]chan struct{}),
+	resp := &SyncCommMember{
+		eth2Cl:   eth2Cl,
+		epoch:    epoch,
+		pubkeys:  pubkeys,
+		signFunc: signFunc,
+		dutiesOK: make(chan struct{}),
 	}
+
+	resp.mutable.selections = make(map[eth2p0.Slot]syncSelections)
+	resp.mutable.selectionsOK = make(map[eth2p0.Slot]chan struct{})
+	resp.mutable.blockRoot = make(map[eth2p0.Slot]eth2p0.Root)
+	resp.mutable.blockRootOK = make(map[eth2p0.Slot]chan struct{})
+
+	return resp
 }
 
 // SyncCommMember is a stateful structure providing sync committee message and contribution APIs.
@@ -48,14 +51,16 @@ type SyncCommMember struct {
 	signFunc SignFunc
 
 	// Mutable state
-	mu           sync.Mutex
-	vals         validators // Current set of active validators
-	duties       syncDuties // Sync committee duties
-	dutiesOK     chan struct{}
-	selections   map[eth2p0.Slot]syncSelections // Sync committee selections per slot
-	selectionsOK map[eth2p0.Slot]chan struct{}
-	blockRoot    map[eth2p0.Slot]eth2p0.Root // Beacon block root per slot
-	blockRootOK  map[eth2p0.Slot]chan struct{}
+	mutable struct {
+		sync.Mutex
+		vals         validators                     // Current set of active validators
+		duties       syncDuties                     // Sync committee duties
+		selections   map[eth2p0.Slot]syncSelections // Sync committee selections per slot
+		selectionsOK map[eth2p0.Slot]chan struct{}
+		blockRoot    map[eth2p0.Slot]eth2p0.Root // Beacon block root per slot
+		blockRootOK  map[eth2p0.Slot]chan struct{}
+	}
+	dutiesOK chan struct{}
 }
 
 func (s *SyncCommMember) Epoch() eth2p0.Epoch {
@@ -63,16 +68,16 @@ func (s *SyncCommMember) Epoch() eth2p0.Epoch {
 }
 
 func (s *SyncCommMember) setSelections(slot eth2p0.Slot, selections syncSelections) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mutable.Lock()
+	defer s.mutable.Unlock()
 
-	s.selections[slot] = selections
+	s.mutable.selections[slot] = selections
 
 	// Mark selections as done
-	ch, ok := s.selectionsOK[slot]
+	ch, ok := s.mutable.selectionsOK[slot]
 	if !ok {
 		ch = make(chan struct{})
-		s.selectionsOK[slot] = ch
+		s.mutable.selectionsOK[slot] = ch
 	}
 
 	close(ch)
@@ -80,21 +85,21 @@ func (s *SyncCommMember) setSelections(slot eth2p0.Slot, selections syncSelectio
 
 // getSelections returns the sync committee selections for the provided slot.
 func (s *SyncCommMember) getSelections(slot eth2p0.Slot) syncSelections {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mutable.Lock()
+	defer s.mutable.Unlock()
 
-	return s.selections[slot]
+	return s.mutable.selections[slot]
 }
 
 // getSelectionsOK returns a channel for sync committee selections. When this channel is closed, it means that selections are ready for this slot.
 func (s *SyncCommMember) getSelectionsOK(slot eth2p0.Slot) chan struct{} {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mutable.Lock()
+	defer s.mutable.Unlock()
 
-	ch, ok := s.selectionsOK[slot]
+	ch, ok := s.mutable.selectionsOK[slot]
 	if !ok {
 		ch = make(chan struct{})
-		s.selectionsOK[slot] = ch
+		s.mutable.selectionsOK[slot] = ch
 	}
 
 	return ch
@@ -102,16 +107,16 @@ func (s *SyncCommMember) getSelectionsOK(slot eth2p0.Slot) chan struct{} {
 
 // setBlockRoot sets block root for the slot.
 func (s *SyncCommMember) setBlockRoot(slot eth2p0.Slot, blockRoot eth2p0.Root) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mutable.Lock()
+	defer s.mutable.Unlock()
 
-	s.blockRoot[slot] = blockRoot
+	s.mutable.blockRoot[slot] = blockRoot
 
 	// Mark block root assigned for the slot
-	ch, ok := s.blockRootOK[slot]
+	ch, ok := s.mutable.blockRootOK[slot]
 	if !ok {
 		ch = make(chan struct{})
-		s.blockRootOK[slot] = ch
+		s.mutable.blockRootOK[slot] = ch
 	}
 
 	close(ch)
@@ -119,44 +124,67 @@ func (s *SyncCommMember) setBlockRoot(slot eth2p0.Slot, blockRoot eth2p0.Root) {
 
 // getBlockRoot returns the beacon block root for the provided slot.
 func (s *SyncCommMember) getBlockRoot(slot eth2p0.Slot) eth2p0.Root {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mutable.Lock()
+	defer s.mutable.Unlock()
 
-	return s.blockRoot[slot]
+	return s.mutable.blockRoot[slot]
 }
 
 // getBlockRootOK returns a channel for beacon block root. When this channel is closed, it means that block root is ready for this slot.
 func (s *SyncCommMember) getBlockRootOK(slot eth2p0.Slot) chan struct{} {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mutable.Lock()
+	defer s.mutable.Unlock()
 
-	ch, ok := s.blockRootOK[slot]
+	ch, ok := s.mutable.blockRootOK[slot]
 	if !ok {
 		ch = make(chan struct{})
-		s.blockRootOK[slot] = ch
+		s.mutable.blockRootOK[slot] = ch
 	}
 
 	return ch
 }
 
+func (s *SyncCommMember) setDuties(vals validators, duties syncDuties) {
+	s.mutable.Lock()
+	defer s.mutable.Unlock()
+
+	s.mutable.vals = vals
+	s.mutable.duties = duties
+	close(s.dutiesOK)
+}
+
+func (s *SyncCommMember) getDuties() syncDuties {
+	s.mutable.Lock()
+	defer s.mutable.Unlock()
+
+	return s.mutable.duties
+}
+
+func (s *SyncCommMember) getVals() validators {
+	s.mutable.Lock()
+	defer s.mutable.Unlock()
+
+	return s.mutable.vals
+}
+
 // PrepareEpoch stores sync committee duties and submits sync committee subscriptions at the start of an epoch.
 func (s *SyncCommMember) PrepareEpoch(ctx context.Context) error {
-	var err error
-	s.vals, err = activeValidators(ctx, s.eth2Cl, s.pubkeys)
+	vals, err := activeValidators(ctx, s.eth2Cl, s.pubkeys)
 	if err != nil {
 		return err
 	}
 
-	s.duties, err = prepareSyncCommDuties(ctx, s.eth2Cl, s.vals, s.epoch)
+	duties, err := prepareSyncCommDuties(ctx, s.eth2Cl, vals, s.epoch)
 	if err != nil {
 		return err
 	}
 
-	err = subscribeSyncCommSubnets(ctx, s.eth2Cl, s.epoch, s.duties)
+	s.setDuties(vals, duties)
+
+	err = subscribeSyncCommSubnets(ctx, s.eth2Cl, s.epoch, duties)
 	if err != nil {
 		return err
 	}
-	close(s.dutiesOK)
 
 	return nil
 }
@@ -165,7 +193,7 @@ func (s *SyncCommMember) PrepareEpoch(ctx context.Context) error {
 func (s *SyncCommMember) PrepareSlot(ctx context.Context, slot eth2p0.Slot) error {
 	wait(ctx, s.dutiesOK)
 
-	selections, err := prepareSyncSelections(ctx, s.eth2Cl, s.signFunc, s.duties, slot)
+	selections, err := prepareSyncSelections(ctx, s.eth2Cl, s.signFunc, s.getDuties(), slot)
 	if err != nil {
 		return err
 	}
@@ -179,7 +207,8 @@ func (s *SyncCommMember) PrepareSlot(ctx context.Context, slot eth2p0.Slot) erro
 func (s *SyncCommMember) Message(ctx context.Context, slot eth2p0.Slot) error {
 	wait(ctx, s.dutiesOK)
 
-	if len(s.duties) == 0 {
+	duties := s.getDuties()
+	if len(duties) == 0 {
 		s.setBlockRoot(slot, eth2p0.Root{})
 		return nil
 	}
@@ -189,7 +218,7 @@ func (s *SyncCommMember) Message(ctx context.Context, slot eth2p0.Slot) error {
 		return err
 	}
 
-	err = submitSyncMessages(ctx, s.eth2Cl, slot, *blockRoot, s.signFunc, s.duties)
+	err = submitSyncMessages(ctx, s.eth2Cl, slot, *blockRoot, s.signFunc, duties)
 	if err != nil {
 		return err
 	}
@@ -204,7 +233,7 @@ func (s *SyncCommMember) Message(ctx context.Context, slot eth2p0.Slot) error {
 func (s *SyncCommMember) Aggregate(ctx context.Context, slot eth2p0.Slot) (bool, error) {
 	wait(ctx, s.dutiesOK, s.getSelectionsOK(slot), s.getBlockRootOK(slot))
 
-	return aggContributions(ctx, s.eth2Cl, s.signFunc, slot, s.vals, s.getSelections(slot), s.getBlockRoot(slot))
+	return aggContributions(ctx, s.eth2Cl, s.signFunc, slot, s.getVals(), s.getSelections(slot), s.getBlockRoot(slot))
 }
 
 // prepareSyncCommDuties returns sync committee duties for the epoch.

@@ -76,7 +76,6 @@ func TestSmoke(t *testing.T) {
 				conf.NumNodes = 10
 				conf.Threshold = 7
 				conf.NumValidators = 100
-				conf.InsecureKeys = true
 				conf.KeyGen = compose.KeyGenCreate
 				conf.VCs = []compose.VCType{compose.VCMock}
 				conf.SlotDuration = time.Second * 6
@@ -136,6 +135,7 @@ func TestSmoke(t *testing.T) {
 			conf.DisableMonitoringPorts = true
 			conf.BuildLocal = true
 			conf.ImageTag = "local"
+			conf.InsecureKeys = true
 			if test.ConfigFunc != nil {
 				test.ConfigFunc(&conf)
 			}

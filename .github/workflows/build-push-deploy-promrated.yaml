@@ -22,12 +22,10 @@ jobs:
           obolnetwork/promrated
           ghcr.io/obolnetwork/promrated
         tags: |
-          # Tag "git short sha" on push to branch (main)
-          type=sha,event=branch,prefix=
-          # Tag "latest" on all events
+          # Tag "git short sha" on all git events
+          type=sha,prefix=
+          # Tag "latest" on all git events
           type=raw,value=latest
-          # Tag "tag ref" on tag push events
-          type=ref,event=tag
     - name: Login to Github container registry
       uses: docker/login-action@v2
       with:

@@ -25,6 +25,8 @@ func TestStartChecker(t *testing.T) {
 		name        string
 		isSyncing   bool
 		numPeers    int
+		zeroBNPeers bool
+		bnFarBehind bool
 		absentPeers int
 		seenPubkeys []core.PubKey
 		noVAPICalls bool
@@ -44,6 +46,20 @@ func TestStartChecker(t *testing.T) {
 			absentPeers: 0,
 			seenPubkeys: pubkeys,
 			err:         errReadyBeaconNodeSyncing,
+		},
+		{
+			name:        "zero BN peers",
+			numPeers:    5,
+			zeroBNPeers: true,
+			seenPubkeys: pubkeys,
+			err:         errReadyBeaconNodeZeroPeers,
+		},
+		{
+			name:        "BN far behind",
+			numPeers:    5,
+			bnFarBehind: true,
+			seenPubkeys: pubkeys,
+			err:         errReadyBeaconNodeFarBehind,
 		},
 		{
 			name:        "too few peers",
@@ -89,6 +105,18 @@ func TestStartChecker(t *testing.T) {
 
 			bmock.NodeSyncingFunc = func(ctx context.Context) (*eth2v1.SyncState, error) {
 				return &eth2v1.SyncState{IsSyncing: tt.isSyncing}, nil
+			}
+
+			if tt.bnFarBehind {
+				bmock.NodeSyncingFunc = func(ctx context.Context) (*eth2v1.SyncState, error) {
+					return &eth2v1.SyncState{IsSyncing: tt.isSyncing, SyncDistance: bnFarBehindSlots + 10}, nil // 320+10=330 slots behind head
+				}
+			}
+
+			if !tt.zeroBNPeers {
+				bmock.NodePeerCountFunc = func(ctx context.Context) (int, error) {
+					return 10, nil
+				}
 			}
 
 			var (

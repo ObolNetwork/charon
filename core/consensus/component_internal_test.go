@@ -3,9 +3,17 @@
 package consensus
 
 import (
+	"bytes"
+	"context"
 	"testing"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/anypb"
+
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/core"
+	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/core/qbft"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -108,4 +116,142 @@ func (t testMsg) PreparedValue() [32]byte {
 
 func (t testMsg) Justification() []qbft.Msg[core.Duty, [32]byte] {
 	panic("implement me")
+}
+
+func TestComponent_handle(t *testing.T) {
+	tests := []struct {
+		name     string
+		mutate   func(base *pbv1.ConsensusMsg, c *Component)
+		checkErr func(err error)
+	}{
+		{
+			"qbft message with no pubkey errors",
+			func(base *pbv1.ConsensusMsg, c *Component) {
+				// construct a valid basis message signature
+				base.Msg.Duty.Type = 1
+				base.Msg.Signature = bytes.Repeat([]byte{42}, 65)
+				base.Msg.Signature[64] = 0
+			},
+			func(err error) {
+				require.ErrorContains(t, err, "refers to nonexistent peer index, cannot fetch public key")
+			},
+		},
+		{
+			"qbft message with justifications mentioning unknown peerIdx errors",
+			func(base *pbv1.ConsensusMsg, c *Component) {
+				p2pKey := testutil.GenerateInsecureK1Key(t, 0)
+				c.pubkeys = make(map[int64]*k1.PublicKey)
+				c.pubkeys[0] = p2pKey.PubKey()
+
+				base.Msg.Duty.Type = 1
+				base.Msg.PeerIdx = 0
+
+				// Sign the base message
+				msgHash, err := hashProto(base.Msg)
+				require.NoError(t, err)
+
+				sign, err := k1util.Sign(p2pKey, msgHash[:])
+				require.NoError(t, err)
+
+				base.Msg.Signature = sign
+
+				// construct a justification
+				base.Justification = []*pbv1.QBFTMsg{
+					randomMsg(t),
+				}
+
+				base.Justification[0].PeerIdx = 42
+
+				// Sign the justification
+				justHash, err := hashProto(base.Justification[0])
+				require.NoError(t, err)
+
+				justSign, err := k1util.Sign(p2pKey, justHash[:])
+				require.NoError(t, err)
+
+				base.Justification[0].Signature = justSign
+			},
+			func(err error) {
+				require.ErrorContains(t, err, "refers to nonexistent peer index, cannot fetch public key")
+			},
+		},
+		{
+			"qbft message with nil justification present in slice",
+			func(base *pbv1.ConsensusMsg, c *Component) {
+				p2pKey := testutil.GenerateInsecureK1Key(t, 0)
+				c.pubkeys = make(map[int64]*k1.PublicKey)
+				c.pubkeys[0] = p2pKey.PubKey()
+
+				base.Msg.Duty.Type = 1
+				base.Msg.PeerIdx = 0
+
+				// Sign the base message
+				msgHash, err := hashProto(base.Msg)
+				require.NoError(t, err)
+
+				sign, err := k1util.Sign(p2pKey, msgHash[:])
+				require.NoError(t, err)
+
+				base.Msg.Signature = sign
+
+				// construct nil justifications
+				base.Justification = []*pbv1.QBFTMsg{
+					nil,
+					nil,
+				}
+			},
+			func(err error) {
+				require.ErrorContains(t, err, "nil justification")
+			},
+		},
+		{
+			"qbft message values present but nil",
+			func(base *pbv1.ConsensusMsg, c *Component) {
+				p2pKey := testutil.GenerateInsecureK1Key(t, 0)
+				c.pubkeys = make(map[int64]*k1.PublicKey)
+				c.pubkeys[0] = p2pKey.PubKey()
+
+				// construct a valid basis message signature
+				base.Msg.Duty.Type = 1
+				base.Msg.PeerIdx = 0
+
+				base.Values = []*anypb.Any{
+					nil,
+					nil,
+				}
+
+				// Sign the base message
+				msgHash, err := hashProto(base.Msg)
+				require.NoError(t, err)
+
+				sign, err := k1util.Sign(p2pKey, msgHash[:])
+				require.NoError(t, err)
+
+				base.Msg.Signature = sign
+			},
+			func(err error) {
+				require.ErrorContains(t, err, "unmarshal any")
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var tc Component
+
+			msg := &pbv1.ConsensusMsg{
+				Msg: randomMsg(t),
+			}
+
+			test.mutate(msg, &tc)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			require.NotPanics(t, func() {
+				_, _, err := tc.handle(ctx, "peerID", msg)
+				test.checkErr(err)
+			})
+		})
+	}
 }

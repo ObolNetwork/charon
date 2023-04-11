@@ -33,11 +33,12 @@ import (
 )
 
 type Config struct {
-	DefFile  string
-	NoVerify bool
-	DataDir  string
-	P2P      p2p.Config
-	Log      log.Config
+	DefFile       string
+	NoVerify      bool
+	DataDir       string
+	P2P           p2p.Config
+	Log           log.Config
+	ShutdownDelay time.Duration
 
 	KeymanagerAddr      string
 	KeymanagerAuthToken string
@@ -45,11 +46,21 @@ type Config struct {
 	PublishAddr string
 	Publish     bool
 
-	TestDef          *cluster.Definition
-	TestSyncCallback func(connected int, id peer.ID)
+	TestDef              *cluster.Definition
+	TestSyncCallback     func(connected int, id peer.ID)
+	TestStoreKeysFunc    func(secrets []tblsv2.PrivateKey, dir string) error
+	TestTCPNodeCallback  func(host.Host)
+	TestShutdownCallback func()
+}
+
+// HasTestConfig returns true if any of the test config fields are set.
+func (c Config) HasTestConfig() bool {
+	return c.TestStoreKeysFunc != nil || c.TestSyncCallback != nil || c.TestDef != nil || c.TestTCPNodeCallback != nil
 }
 
 // Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output to disk.
+//
+//nolint:maintidx // Refactor into smaller steps.
 func Run(ctx context.Context, conf Config) (err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -93,6 +104,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
+	if network == eth2util.Mainnet.Name && conf.HasTestConfig() {
+		return errors.New("cannot use test flags on mainnet")
+	}
+
 	peers, err := def.Peers()
 	if err != nil {
 		return err
@@ -114,7 +129,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	logPeerSummary(ctx, pID, peers, def.Operators)
 
-	tcpNode, shutdown, err := setupP2P(ctx, key, conf.P2P, peers, def.DefinitionHash)
+	tcpNode, shutdown, err := setupP2P(ctx, key, conf, peers, def.DefinitionHash)
 	if err != nil {
 		return err
 	}
@@ -141,7 +156,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 		peerMap[p.ID] = nodeIdx
 	}
-	tp := newFrostP2P(tcpNode, peerMap, key)
+	tp := newFrostP2P(tcpNode, peerMap, key, def.Threshold)
 
 	log.Info(ctx, "Waiting to connect to all peers...")
 
@@ -199,7 +214,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	log.Debug(ctx, "Aggregated lock hash signatures")
 
 	if err = stopSync(ctx); err != nil {
-		return errors.Wrap(err, "sync shutdown")
+		return errors.Wrap(err, "sync shutdown") // Consider increasing --shutdown-delay if this occurs often.
 	}
 
 	// Write keystores, deposit data and cluster lock files after exchange of partial signatures in order
@@ -211,7 +226,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 		log.Debug(ctx, "Imported keyshares to keymanager", z.Str("keymanager_address", conf.KeymanagerAddr))
 	} else { // Else save to disk
-		if err = writeKeysToDisk(conf.DataDir, shares); err != nil {
+		if err = writeKeysToDisk(conf, shares); err != nil {
 			return err
 		}
 		log.Debug(ctx, "Saved keyshares to disk")
@@ -233,13 +248,20 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	log.Debug(ctx, "Saved deposit data file to disk")
 
+	// TODO(corver): Improve graceful shutdown, see https://github.com/ObolNetwork/charon/issues/887
+	if conf.TestShutdownCallback != nil {
+		conf.TestShutdownCallback()
+	}
+	log.Debug(ctx, "Graceful shutdown delay", z.Int("seconds", int(conf.ShutdownDelay.Seconds())))
+	time.Sleep(conf.ShutdownDelay)
+
 	log.Info(ctx, "Successfully completed DKG ceremony 🎉")
 
 	return nil
 }
 
 // setupP2P returns a started libp2p tcp node and a shutdown function.
-func setupP2P(ctx context.Context, key *k1.PrivateKey, p2pConf p2p.Config, peers []p2p.Peer, defHash []byte) (host.Host, func(), error) {
+func setupP2P(ctx context.Context, key *k1.PrivateKey, conf Config, peers []p2p.Peer, defHash []byte) (host.Host, func(), error) {
 	var peerIDs []peer.ID
 	for _, p := range peers {
 		peerIDs = append(peerIDs, p.ID)
@@ -249,7 +271,7 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, p2pConf p2p.Config, peers
 		return nil, nil, err
 	}
 
-	relays, err := p2p.NewRelays(ctx, p2pConf.Relays, hex.EncodeToString(defHash))
+	relays, err := p2p.NewRelays(ctx, conf.P2P.Relays, hex.EncodeToString(defHash))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -259,9 +281,13 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, p2pConf p2p.Config, peers
 		return nil, nil, err
 	}
 
-	tcpNode, err := p2p.NewTCPNode(ctx, p2pConf, key, connGater, false)
+	tcpNode, err := p2p.NewTCPNode(ctx, conf.P2P, key, connGater, false)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if conf.TestTCPNodeCallback != nil {
+		conf.TestTCPNodeCallback(tcpNode)
 	}
 
 	p2p.RegisterConnectionLogger(ctx, tcpNode, peerIDs)
@@ -328,6 +354,10 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 		// Return if there is a context error.
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
+		}
+
+		if err := server.Err(); err != nil {
+			return nil, errors.Wrap(err, "sync server error")
 		}
 
 		var connectedCount int
