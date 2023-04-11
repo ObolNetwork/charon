@@ -262,6 +262,8 @@ func (t *Tracker) Run(ctx context.Context) error {
 	ctx = log.WithTopic(ctx, "tracker")
 	defer close(t.quit)
 
+	ignoreUnsupported := newUnsupportedIgnorer()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -283,6 +285,10 @@ func (t *Tracker) Run(ctx context.Context) error {
 
 			// Analyse failed duties
 			failed, failedStep, failedMsg, failedErr := analyseDutyFailed(duty, t.events, parsigs.MsgRootsConsistent())
+			if ignoreUnsupported(ctx, duty, failed, failedStep, failedMsg) {
+				continue // Ignore unsupported duties
+			}
+
 			t.failedDutyReporter(ctx, duty, failed, failedStep, failedMsg, failedErr)
 
 			// Analyse peer participation
@@ -566,8 +572,6 @@ func extractParSigs(ctx context.Context, events []event) parsigsByMsg {
 
 // newFailedDutyReporter returns failed duty reporter which instruments failed duties.
 func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bool, step step, reason string, err error) {
-	var loggedNoSelections bool
-
 	// Initialise counters to 0 to avoid non-existent metrics issues when querying prometheus.
 	for _, dutyType := range core.AllDutyTypes() {
 		dutyFailed.WithLabelValues(dutyType.String()).Add(0)
@@ -576,43 +580,62 @@ func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bo
 	}
 
 	return func(ctx context.Context, duty core.Duty, failed bool, step step, reason string, err error) {
+		dutyExpect.WithLabelValues(duty.Type.String()).Inc()
+
 		if !failed {
-			if step == fetcher {
-				// TODO(corver): improve detection of duties that are not expected to be performed (aggregation).
-				return
-			}
-
 			dutySuccess.WithLabelValues(duty.Type.String()).Inc()
-			dutyExpect.WithLabelValues(duty.Type.String()).Inc()
-
 			return
 		}
 
-		if duty.Type == core.DutyAggregator && step == fetcher && reason == msgFetcherAggregatorZeroPrepares {
-			if !loggedNoSelections {
-				log.Warn(ctx, "Ignoring attestation aggregation failures since VCs do not seem to support beacon committee selection aggregation", nil)
-			}
-			loggedNoSelections = true
-
-			return
-		}
-
-		if duty.Type == core.DutySyncContribution && step == fetcher && reason == msgFetcherSyncContributionZeroPrepares {
-			if !loggedNoSelections {
-				log.Warn(ctx, "Ignoring sync contribution failures since VCs do not seem to support sync committee selection aggregation", nil)
-			}
-			loggedNoSelections = true
-
-			return
-		}
+		dutyFailed.WithLabelValues(duty.Type.String()).Inc()
 
 		log.Warn(ctx, "Duty failed", err,
 			z.Any("step", step),
 			z.Str("reason", reason),
 		)
+	}
+}
 
-		dutyFailed.WithLabelValues(duty.Type.String()).Inc()
-		dutyExpect.WithLabelValues(duty.Type.String()).Inc()
+// newUnsupportedIgnorer returns a filter that ignores duties that are not supported by the node.
+func newUnsupportedIgnorer() func(ctx context.Context, duty core.Duty, failed bool, step step, reason string) bool {
+	var (
+		loggedNoAggregator    bool
+		loggedNoContribution  bool
+		aggregationSupported  bool
+		contributionSupported bool
+	)
+
+	return func(ctx context.Context, duty core.Duty, failed bool, step step, reason string) bool {
+		if !failed {
+			if duty.Type == core.DutyAggregator {
+				aggregationSupported = true
+			}
+			if duty.Type == core.DutySyncContribution {
+				contributionSupported = true
+			}
+
+			return false
+		}
+
+		if !aggregationSupported && duty.Type == core.DutyAggregator && step == fetcher && reason == msgFetcherAggregatorZeroPrepares {
+			if !loggedNoAggregator {
+				log.Warn(ctx, "Ignoring attestation aggregation failures since VCs do not seem to support beacon committee selection aggregation", nil)
+			}
+			loggedNoAggregator = true
+
+			return true
+		}
+
+		if !contributionSupported && duty.Type == core.DutySyncContribution && step == fetcher && reason == msgFetcherSyncContributionZeroPrepares {
+			if !loggedNoContribution {
+				log.Warn(ctx, "Ignoring sync contribution failures since VCs do not seem to support sync committee selection aggregation", nil)
+			}
+			loggedNoContribution = true
+
+			return true
+		}
+
+		return false
 	}
 }
 
