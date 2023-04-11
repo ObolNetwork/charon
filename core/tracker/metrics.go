@@ -16,10 +16,18 @@ var (
 		Help:      "Set to 1 if peer participated successfully for the given duty or else 0",
 	}, []string{"duty", "peer"})
 
-	participationSuccess = promauto.NewCounterVec(prometheus.CounterOpts{
+	// TODO(corver): Remove in v0.17 once all dashboards have been updated.
+	participationSuccessLegacy = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "core",
 		Subsystem: "tracker",
 		Name:      "participation_total",
+		Help:      "Total number of successful participations by peer and duty type",
+	}, []string{"duty", "peer"})
+
+	participationSuccess = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "tracker",
+		Name:      "participation_success_total",
 		Help:      "Total number of successful participations by peer and duty type",
 	}, []string{"duty", "peer"})
 

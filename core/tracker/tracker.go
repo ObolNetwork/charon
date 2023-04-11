@@ -687,6 +687,7 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 		duty := dutyType.String()
 		for _, peer := range peers {
 			participationSuccess.WithLabelValues(duty, peer.Name).Add(0)
+			participationSuccessLegacy.WithLabelValues(duty, peer.Name).Add(0)
 			participationMissed.WithLabelValues(duty, peer.Name).Add(0)
 			participationExpect.WithLabelValues(duty, peer.Name).Add(0)
 		}
@@ -703,6 +704,7 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 			if participatedShares[peer.ShareIdx()] {
 				participationGauge.WithLabelValues(duty.Type.String(), peer.Name).Set(1)
 				participationSuccess.WithLabelValues(duty.Type.String(), peer.Name).Inc()
+				participationSuccessLegacy.WithLabelValues(duty.Type.String(), peer.Name).Inc()
 				participationExpect.WithLabelValues(duty.Type.String(), peer.Name).Inc()
 			} else if unexpectedShares[peer.ShareIdx()] {
 				log.Warn(ctx, "Unexpected event found", nil, z.Str("peer", peer.Name), z.Str("duty", duty.String()))
