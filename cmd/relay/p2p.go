@@ -180,7 +180,7 @@ func getPeerInfo(ctx context.Context, tcpNode host.Host, pID peer.ID, name strin
 	} else if err != nil {
 		return "", false, err
 	} else if !ok {
-		// Group peers that don't support the protocol with unknown cluster clusterHash.
+		// Group peers that don't support the protocol with unknown cluster hash.
 		return unknownCluster, true, nil
 	}
 
