@@ -339,7 +339,7 @@ func shamirShareToProto(key msgKey, shamir sharing.ShamirShare) *pb.FrostRound1S
 
 func shamirShareFromProto(shamir *pb.FrostRound1ShamirShare) (msgKey, sharing.ShamirShare, error) {
 	if shamir == nil {
-		return msgKey{}, sharing.ShamirShare{}, errors.New("round1 shamir share proto cannot be nil")
+		return msgKey{}, sharing.ShamirShare{}, errors.New("round 1 shamir share proto cannot be nil")
 	}
 
 	protoKey, err := keyFromProto(shamir.Key)
