@@ -32,11 +32,7 @@ var (
 )
 
 // newFrostP2P returns a p2p frost transport implementation.
-func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k1.PrivateKey, threshold int) (*frostP2P, error) {
-	if secret == nil {
-		return nil, errors.New("secret cannot be nil")
-	}
-
+func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k1.PrivateKey, threshold int) *frostP2P {
 	var (
 		round1CastsRecv = make(chan *pb.FrostRound1Casts, len(peers))
 		round1P2PRecv   = make(chan *pb.FrostRound1P2P, len(peers))
@@ -126,10 +122,6 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 	p2p.RegisterHandler("frost", tcpNode, round1P2PID,
 		func() proto.Message { return new(pb.FrostRound1P2P) },
 		func(ctx context.Context, pID peer.ID, req proto.Message) (proto.Message, bool, error) {
-			if req == nil {
-				return nil, false, errors.New("req proto message cannot be nil")
-			}
-
 			mu.Lock()
 			defer mu.Unlock()
 
@@ -166,7 +158,7 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 		round1CastsRecv: round1CastsRecv,
 		round1P2PRecv:   round1P2PRecv,
 		round2CastsRecv: round2CastsRecv,
-	}, nil
+	}
 }
 
 // frostP2P implements frost transport.
