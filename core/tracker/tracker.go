@@ -568,11 +568,23 @@ func extractParSigs(ctx context.Context, events []event) parsigsByMsg {
 func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bool, step step, reason string, err error) {
 	var loggedNoSelections bool
 
-	return func(ctx context.Context, duty core.Duty, failed bool, step step, reason string, err error) {
-		counter := failedCounter.WithLabelValues(duty.Type.String())
-		counter.Add(0) // Zero the metric so first failure shows in grafana.
+	// Initialise counters to 0 to avoid non-existent metrics issues when querying prometheus.
+	for _, dutyType := range core.AllDutyTypes() {
+		dutyFailed.WithLabelValues(dutyType.String()).Add(0)
+		dutySuccess.WithLabelValues(dutyType.String()).Add(0)
+		dutyExpect.WithLabelValues(dutyType.String()).Add(0)
+	}
 
+	return func(ctx context.Context, duty core.Duty, failed bool, step step, reason string, err error) {
 		if !failed {
+			if step == fetcher {
+				// TODO(corver): improve detection of duties that are not expected to be performed (aggregation).
+				return
+			}
+
+			dutySuccess.WithLabelValues(duty.Type.String()).Inc()
+			dutyExpect.WithLabelValues(duty.Type.String()).Inc()
+
 			return
 		}
 
@@ -599,7 +611,8 @@ func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bo
 			z.Str("reason", reason),
 		)
 
-		counter.Inc()
+		dutyFailed.WithLabelValues(duty.Type.String()).Inc()
+		dutyExpect.WithLabelValues(duty.Type.String()).Inc()
 	}
 }
 
@@ -669,11 +682,14 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 	// prevAbsent is the set of peers who didn't participate in the last duty per type.
 	prevAbsent := make(map[core.DutyType][]string)
 
-	// Initialise participation metrics to 0 to avoid non-existent metrics issue on startup.
-	for _, duty := range core.AllDutyTypes() {
+	// Initialise counters to 0 to avoid non-existent metrics issues when querying prometheus.
+	for _, dutyType := range core.AllDutyTypes() {
+		duty := dutyType.String()
 		for _, peer := range peers {
-			participationSuccess.WithLabelValues(duty.String(), peer.Name).Add(0)
-			participationMissed.WithLabelValues(duty.String(), peer.Name).Add(0)
+			participationSuccess.WithLabelValues(duty, peer.Name).Add(0)
+			participationSuccessLegacy.WithLabelValues(duty, peer.Name).Add(0)
+			participationMissed.WithLabelValues(duty, peer.Name).Add(0)
+			participationExpect.WithLabelValues(duty, peer.Name).Add(0)
 		}
 	}
 
@@ -688,6 +704,8 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 			if participatedShares[peer.ShareIdx()] {
 				participationGauge.WithLabelValues(duty.Type.String(), peer.Name).Set(1)
 				participationSuccess.WithLabelValues(duty.Type.String(), peer.Name).Inc()
+				participationSuccessLegacy.WithLabelValues(duty.Type.String(), peer.Name).Inc()
+				participationExpect.WithLabelValues(duty.Type.String(), peer.Name).Inc()
 			} else if unexpectedShares[peer.ShareIdx()] {
 				log.Warn(ctx, "Unexpected event found", nil, z.Str("peer", peer.Name), z.Str("duty", duty.String()))
 				unexpectedEventsCounter.WithLabelValues(peer.Name).Inc()
@@ -695,6 +713,7 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 				absentPeers = append(absentPeers, peer.Name)
 				participationGauge.WithLabelValues(duty.Type.String(), peer.Name).Set(0)
 				participationMissed.WithLabelValues(duty.Type.String(), peer.Name).Inc()
+				participationExpect.WithLabelValues(duty.Type.String(), peer.Name).Inc()
 			}
 		}
 
