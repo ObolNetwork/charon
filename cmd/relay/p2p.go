@@ -184,21 +184,20 @@ func getPeerInfo(ctx context.Context, tcpNode host.Host, pID peer.ID, name strin
 		return unknownCluster, true, nil
 	}
 
-	hash := clusterHash(info.LockHash)
+	hash := hex7(info.LockHash)
 	peerPingLatency.WithLabelValues(name, hash).Observe(rtt.Seconds() / 2)
 
 	return hash, true, nil
 }
 
-// clusterHash returns the cluster hash hex from the lock hash.
-func clusterHash(lockHash []byte) string {
-	lockHashLen := 7
-	lockHashLong := hex.EncodeToString(lockHash)
-	if len(lockHashLong) < 7 {
-		lockHashLen = len(lockHashLong)
+// hex7 returns the first 7 (or less) hex chars of the provided bytes.
+func hex7(input []byte) string {
+	resp := hex.EncodeToString(input)
+	if len(resp) <= 7 {
+		return resp
 	}
 
-	return lockHashLong[:lockHashLen]
+	return resp[:7]
 }
 
 // connEvent is a connection event.

@@ -174,7 +174,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	lockHashHex := lockHash(lock.LockHash)
+	lockHashHex := hex7(lock.LockHash)
 	tcpNode, err := wireP2P(ctx, life, conf, lock, p2pKey, lockHashHex)
 	if err != nil {
 		return err
@@ -923,13 +923,12 @@ func ProposalTypes(builder bool, synthetic bool) []core.ProposalType {
 	return resp
 }
 
-// lockHash returns the lock hash in string representation.
-func lockHash(lockHash []byte) string {
-	lockHashLen := 7
-	lockHashLong := hex.EncodeToString(lockHash)
-	if len(lockHashLong) < 7 {
-		lockHashLen = len(lockHashLong)
+// hex7 returns the first 7 (or less) hex chars of the provided bytes.
+func hex7(input []byte) string {
+	resp := hex.EncodeToString(input)
+	if len(resp) <= 7 {
+		return resp
 	}
 
-	return lockHashLong[:lockHashLen]
+	return resp[:7]
 }
