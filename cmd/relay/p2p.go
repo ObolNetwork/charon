@@ -180,14 +180,14 @@ func getPeerInfo(ctx context.Context, tcpNode host.Host, pID peer.ID, name strin
 	} else if err != nil {
 		return "", false, err
 	} else if !ok {
-		// Group peers that don't support the protocol with unknown cluster hash.
+		// Group peers that don't support the protocol with unknown cluster clusterHash.
 		return unknownCluster, true, nil
 	}
 
-	hash := hex7(info.LockHash)
-	peerPingLatency.WithLabelValues(name, hash).Observe(rtt.Seconds() / 2)
+	clusterHash := hex7(info.LockHash)
+	peerPingLatency.WithLabelValues(name, clusterHash).Observe(rtt.Seconds() / 2)
 
-	return hash, true, nil
+	return clusterHash, true, nil
 }
 
 // hex7 returns the first 7 (or less) hex chars of the provided bytes.
