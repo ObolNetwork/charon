@@ -347,7 +347,7 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 
 	duty := core.DutyFromProto(pbMsg.Msg.Duty)
 	if !duty.Type.Valid() {
-		return nil, false, errors.New("invalid consensus message duty type", z.Str("type", duty.Type.String()))
+		return nil, false, errors.New("invalid consensus message duty type", z.Int("type", int(duty.Type)))
 	}
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
@@ -371,7 +371,7 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 		if !justDuty.Type.Valid() {
 			return nil, false, errors.New(
 				"invalid consensus justification duty type",
-				z.Str("type", justDuty.Type.String()))
+				z.Int("type", int(justDuty.Type)))
 		}
 
 		if justDuty != duty {
