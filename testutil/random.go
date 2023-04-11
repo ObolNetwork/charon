@@ -900,3 +900,8 @@ func GenerateInsecureK1Key(t *testing.T, seed int) *k1.PrivateKey {
 
 	return k1.PrivKeyFromBytes(k.D.Bytes())
 }
+
+// RandomBool returns a random boolean.
+func RandomBool() bool {
+	return rand.Intn(2) == 0
+}
