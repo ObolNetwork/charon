@@ -347,7 +347,7 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 
 	duty := core.DutyFromProto(pbMsg.Msg.Duty)
 	if !duty.Type.Valid() {
-		return nil, false, errors.New("invalid consensus message duty type", z.Str("type", duty.Type.String()))
+		return nil, false, errors.New("invalid consensus message duty type", z.Int("type", int(duty.Type)))
 	}
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
@@ -362,17 +362,32 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 		return nil, false, errors.New("invalid consensus message signature", z.Any("duty", duty))
 	}
 
-	for _, msg := range pbMsg.Justification {
-		if msg == nil {
+	for _, justification := range pbMsg.Justification {
+		if justification == nil {
 			return nil, false, errors.New("nil justification", z.Any("duty", duty))
 		}
 
-		justPubkey, exists := c.pubkeys[msg.PeerIdx]
-		if !exists {
-			return nil, false, errors.New("justification refers to nonexistent peer index, cannot fetch public key", z.I64("index", msg.PeerIdx))
+		justDuty := core.DutyFromProto(justification.Duty)
+		if !justDuty.Type.Valid() {
+			return nil, false, errors.New(
+				"invalid consensus justification duty type",
+				z.Int("type", int(justDuty.Type)))
 		}
 
-		if ok, err := verifyMsgSig(msg, justPubkey); err != nil {
+		if justDuty != duty {
+			return nil, false, errors.New(
+				"justification duty differs from qbft message duty",
+				z.Str("expected", duty.String()),
+				z.Str("found", justDuty.String()),
+			)
+		}
+
+		justPubkey, exists := c.pubkeys[justification.PeerIdx]
+		if !exists {
+			return nil, false, errors.New("justification refers to nonexistent peer index, cannot fetch public key", z.I64("index", justification.PeerIdx))
+		}
+
+		if ok, err := verifyMsgSig(justification, justPubkey); err != nil {
 			return nil, false, errors.Wrap(err, "verify consensus justification signature", z.Any("duty", duty))
 		} else if !ok {
 			return nil, false, errors.New("invalid consensus justification signature", z.Any("duty", duty))
