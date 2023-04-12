@@ -25,8 +25,8 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // NewComponentInsecure returns a new instance of the validator API core workflow component

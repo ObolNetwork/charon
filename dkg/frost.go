@@ -12,8 +12,8 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 var curve = curves.BLS12381G1()

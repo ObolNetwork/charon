@@ -20,8 +20,8 @@ import (
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
 	"github.com/obolnetwork/charon/app/errors"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // insecureCost decreases the cipher key cost from the default 18 to 4 which speeds up

@@ -23,7 +23,7 @@ import (
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsv2 "github.com/obolnetwork/charon/tbls"
 )
 
 // loadDefinition returns the cluster definition from disk or an HTTP URL. It returns the test definition if configured.

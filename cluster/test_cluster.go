@@ -13,7 +13,7 @@ import (
 
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/enr"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsv2 "github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
 )
 

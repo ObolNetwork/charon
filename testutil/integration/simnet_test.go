@@ -32,7 +32,7 @@ import (
 	"github.com/obolnetwork/charon/core/parsigex"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsv2 "github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )

@@ -10,7 +10,7 @@ import (
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsv2 "github.com/obolnetwork/charon/tbls"
 )
 
 var (

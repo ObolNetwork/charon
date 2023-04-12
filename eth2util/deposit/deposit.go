@@ -15,7 +15,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsv2 "github.com/obolnetwork/charon/tbls"
 )
 
 var (

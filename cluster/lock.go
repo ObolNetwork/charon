@@ -8,8 +8,8 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // Lock extends the cluster config Definition with bls threshold public keys and checksums.

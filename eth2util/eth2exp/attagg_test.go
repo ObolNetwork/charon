@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 

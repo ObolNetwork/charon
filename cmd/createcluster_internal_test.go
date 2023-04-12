@@ -23,15 +23,15 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
+	"github.com/obolnetwork/charon/tbls"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
 
 //go:generate go test . -run=TestCreateCluster -update -clean
 
 func TestMain(m *testing.M) {
-	tblsv2.SetImplementation(tblsv2.Herumi{})
+	tbls.SetImplementation(tbls.Herumi{})
 	os.Exit(m.Run())
 }
 
@@ -76,12 +76,12 @@ func TestCreateCluster(t *testing.T) {
 
 				keyDir := t.TempDir()
 
-				secret1, err := tblsv2.GenerateSecretKey()
+				secret1, err := tbls.GenerateSecretKey()
 				require.NoError(t, err)
-				secret2, err := tblsv2.GenerateSecretKey()
+				secret2, err := tbls.GenerateSecretKey()
 				require.NoError(t, err)
 
-				err = keystore.StoreKeysInsecure([]tblsv2.PrivateKey{secret1, secret2}, keyDir, keystore.ConfirmInsecureKeys)
+				err = keystore.StoreKeysInsecure([]tbls.PrivateKey{secret1, secret2}, keyDir, keystore.ConfirmInsecureKeys)
 				require.NoError(t, err)
 
 				config.SplitKeysDir = keyDir
@@ -341,9 +341,9 @@ func TestSplitKeys(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var keys []tblsv2.PrivateKey
+			var keys []tbls.PrivateKey
 			for i := 0; i < test.numSplitKeys; i++ {
-				secret, err := tblsv2.GenerateSecretKey()
+				secret, err := tbls.GenerateSecretKey()
 				require.NoError(t, err)
 
 				keys = append(keys, secret)
@@ -422,12 +422,12 @@ func TestKeymanager(t *testing.T) {
 	const testAuthToken = "api-token-test"
 
 	// Create secret
-	secret1, err := tblsv2.GenerateSecretKey()
+	secret1, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
 	// Store secret
 	keyDir := t.TempDir()
-	err = keystore.StoreKeysInsecure([]tblsv2.PrivateKey{secret1}, keyDir, keystore.ConfirmInsecureKeys)
+	err = keystore.StoreKeysInsecure([]tbls.PrivateKey{secret1}, keyDir, keystore.ConfirmInsecureKeys)
 	require.NoError(t, err)
 
 	// Create minNodes test servers
@@ -476,14 +476,14 @@ func TestKeymanager(t *testing.T) {
 		require.NoError(t, err)
 
 		// Receive secret shares from all keymanager servers
-		shares := make(map[int]tblsv2.PrivateKey)
+		shares := make(map[int]tbls.PrivateKey)
 		for len(shares) < minNodes {
 			res := <-results
 			shares[res.id+1] = res.secret
 		}
 
 		// Combine the shares and test equality with original share
-		csb, err := tblsv2.RecoverSecret(shares, minNodes, 3)
+		csb, err := tbls.RecoverSecret(shares, minNodes, 3)
 		require.NoError(t, err)
 
 		require.EqualValues(t, secret1, csb)
@@ -561,7 +561,7 @@ type mockKeymanagerReq struct {
 }
 
 // decrypt returns the secret from the encrypted keystore.
-func decrypt(t *testing.T, store keystore.Keystore, password string) (tblsv2.PrivateKey, error) {
+func decrypt(t *testing.T, store keystore.Keystore, password string) (tbls.PrivateKey, error) {
 	t.Helper()
 
 	decryptor := keystorev4.New()
@@ -575,7 +575,7 @@ func decrypt(t *testing.T, store keystore.Keystore, password string) (tblsv2.Pri
 // This is needed as tbls.CombineShares needs shares in the correct (original) order.
 type result struct {
 	id     int
-	secret tblsv2.PrivateKey
+	secret tbls.PrivateKey
 }
 
 // newKeymanagerHandler returns http handler for a test keymanager API server.

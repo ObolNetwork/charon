@@ -40,7 +40,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 type contentType string

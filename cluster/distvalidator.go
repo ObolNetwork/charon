@@ -3,8 +3,8 @@
 package cluster
 
 import (
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
+	tblsv2 "github.com/obolnetwork/charon/tbls"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // DistValidator is a distributed validator (1x32ETH) managed by the cluster.

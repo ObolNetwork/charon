@@ -1,6 +1,6 @@
 // Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package v2_test
+package tbls_test
 
 import (
 	"crypto/rand"
@@ -10,60 +10,60 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	v2 "github.com/obolnetwork/charon/tbls/v2"
+	"github.com/obolnetwork/charon/tbls"
 )
 
 type TestSuite struct {
 	suite.Suite
 
-	impl v2.Implementation
+	impl tbls.Implementation
 }
 
-func NewTestSuite(implementations v2.Implementation) TestSuite {
+func NewTestSuite(implementations tbls.Implementation) TestSuite {
 	return TestSuite{
 		impl: implementations,
 	}
 }
 
 func (ts *TestSuite) SetupTest() {
-	v2.SetImplementation(ts.impl)
+	tbls.SetImplementation(ts.impl)
 }
 
 func (ts *TestSuite) Test_GenerateSecretKey() {
-	secret, err := v2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), secret)
 }
 
 func (ts *TestSuite) Test_SecretToPublicKey() {
-	secret, err := v2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), secret)
 
-	pubk, err := v2.SecretToPublicKey(secret)
+	pubk, err := tbls.SecretToPublicKey(secret)
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), pubk)
 }
 
 func (ts *TestSuite) Test_ThresholdSplit() {
-	secret, err := v2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), secret)
 
-	shares, err := v2.ThresholdSplit(secret, 5, 3)
+	shares, err := tbls.ThresholdSplit(secret, 5, 3)
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), shares)
 }
 
 func (ts *TestSuite) Test_RecoverSecret() {
-	secret, err := v2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), secret)
 
-	shares, err := v2.ThresholdSplit(secret, 5, 3)
+	shares, err := tbls.ThresholdSplit(secret, 5, 3)
 	require.NoError(ts.T(), err)
 
-	recovered, err := v2.RecoverSecret(shares, 5, 3)
+	recovered, err := tbls.RecoverSecret(shares, 5, 3)
 	require.NoError(ts.T(), err)
 
 	require.ElementsMatch(ts.T(), secret, recovered)
@@ -72,25 +72,25 @@ func (ts *TestSuite) Test_RecoverSecret() {
 func (ts *TestSuite) Test_ThresholdAggregate() {
 	data := []byte("hello obol!")
 
-	secret, err := v2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), secret)
 
-	totalOGSig, err := v2.Sign(secret, data)
+	totalOGSig, err := tbls.Sign(secret, data)
 	require.NoError(ts.T(), err)
 
-	shares, err := v2.ThresholdSplit(secret, 5, 3)
+	shares, err := tbls.ThresholdSplit(secret, 5, 3)
 	require.NoError(ts.T(), err)
 
-	signatures := map[int]v2.Signature{}
+	signatures := map[int]tbls.Signature{}
 
 	for idx, key := range shares {
-		signature, err := v2.Sign(key, data)
+		signature, err := tbls.Sign(key, data)
 		require.NoError(ts.T(), err)
 		signatures[idx] = signature
 	}
 
-	totalSig, err := v2.ThresholdAggregate(signatures)
+	totalSig, err := tbls.ThresholdAggregate(signatures)
 	require.NoError(ts.T(), err)
 
 	require.Equal(ts.T(), totalOGSig, totalSig)
@@ -99,29 +99,29 @@ func (ts *TestSuite) Test_ThresholdAggregate() {
 func (ts *TestSuite) Test_Verify() {
 	data := []byte("hello obol!")
 
-	secret, err := v2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), secret)
 
-	signature, err := v2.Sign(secret, data)
+	signature, err := tbls.Sign(secret, data)
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), signature)
 
-	pubkey, err := v2.SecretToPublicKey(secret)
+	pubkey, err := tbls.SecretToPublicKey(secret)
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), pubkey)
 
-	require.NoError(ts.T(), v2.Verify(pubkey, data, signature))
+	require.NoError(ts.T(), tbls.Verify(pubkey, data, signature))
 }
 
 func (ts *TestSuite) Test_Sign() {
 	data := []byte("hello obol!")
 
-	secret, err := v2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), secret)
 
-	signature, err := v2.Sign(secret, data)
+	signature, err := tbls.Sign(secret, data)
 	require.NoError(ts.T(), err)
 	require.NotEmpty(ts.T(), signature)
 }
@@ -130,18 +130,18 @@ func (ts *TestSuite) Test_VerifyAggregate() {
 	data := []byte("hello obol!")
 
 	type key struct {
-		pub  v2.PublicKey
-		priv v2.PrivateKey
+		pub  tbls.PublicKey
+		priv tbls.PrivateKey
 	}
 
 	var keys []key
 
 	for i := 0; i < 10; i++ {
-		secret, err := v2.GenerateSecretKey()
+		secret, err := tbls.GenerateSecretKey()
 		require.NoError(ts.T(), err)
 		require.NotEmpty(ts.T(), secret)
 
-		pubkey, err := v2.SecretToPublicKey(secret)
+		pubkey, err := tbls.SecretToPublicKey(secret)
 		require.NoError(ts.T(), err)
 
 		keys = append(keys, key{
@@ -150,23 +150,23 @@ func (ts *TestSuite) Test_VerifyAggregate() {
 		})
 	}
 
-	var signs []v2.Signature
-	var pshares []v2.PublicKey
+	var signs []tbls.Signature
+	var pshares []tbls.PublicKey
 
 	for _, key := range keys {
-		s, err := v2.Sign(key.priv, data)
+		s, err := tbls.Sign(key.priv, data)
 		require.NoError(ts.T(), err)
 		signs = append(signs, s)
 		pshares = append(pshares, key.pub)
 	}
 
-	sig, err := v2.Aggregate(signs)
+	sig, err := tbls.Aggregate(signs)
 	require.NoError(ts.T(), err)
 
-	require.NoError(ts.T(), v2.VerifyAggregate(pshares, sig, data))
+	require.NoError(ts.T(), tbls.VerifyAggregate(pshares, sig, data))
 }
 
-func runSuite(t *testing.T, i v2.Implementation) {
+func runSuite(t *testing.T, i tbls.Implementation) {
 	t.Helper()
 	ts := NewTestSuite(i)
 
@@ -174,14 +174,14 @@ func runSuite(t *testing.T, i v2.Implementation) {
 }
 
 func TestHerumiImplementation(t *testing.T) {
-	runSuite(t, v2.Herumi{})
+	runSuite(t, tbls.Herumi{})
 }
 
 func TestKryptologyImplementation(t *testing.T) {
-	runSuite(t, v2.Kryptology{})
+	runSuite(t, tbls.Kryptology{})
 }
 
-func runBenchmark(b *testing.B, impl v2.Implementation) {
+func runBenchmark(b *testing.B, impl tbls.Implementation) {
 	b.Helper()
 	s := NewTestSuite(impl)
 	t := &testing.T{}
@@ -207,18 +207,18 @@ func runBenchmark(b *testing.B, impl v2.Implementation) {
 }
 
 func BenchmarkHerumiImplementation(b *testing.B) {
-	runBenchmark(b, v2.Herumi{})
+	runBenchmark(b, tbls.Herumi{})
 }
 
 func BenchmarkKryptologyImplementation(b *testing.B) {
-	runBenchmark(b, v2.Kryptology{})
+	runBenchmark(b, tbls.Kryptology{})
 }
 
 func TestRandomized(t *testing.T) {
 	runSuite(t, randomizedImpl{
-		implementations: []v2.Implementation{
-			v2.Herumi{},
-			v2.Kryptology{},
+		implementations: []tbls.Implementation{
+			tbls.Herumi{},
+			tbls.Kryptology{},
 		},
 	})
 }
@@ -227,10 +227,10 @@ func TestRandomized(t *testing.T) {
 // the implementations slice.
 // Useful to test whether two implementations are compatible.
 type randomizedImpl struct {
-	implementations []v2.Implementation
+	implementations []tbls.Implementation
 }
 
-func (r randomizedImpl) selectImpl() (v2.Implementation, error) {
+func (r randomizedImpl) selectImpl() (tbls.Implementation, error) {
 	blen := big.NewInt(int64(len(r.implementations)))
 
 	// random number: [0, len(ts.impl))
@@ -245,25 +245,25 @@ func (r randomizedImpl) selectImpl() (v2.Implementation, error) {
 	return r.implementations[nativeN], nil
 }
 
-func (r randomizedImpl) GenerateSecretKey() (v2.PrivateKey, error) {
+func (r randomizedImpl) GenerateSecretKey() (tbls.PrivateKey, error) {
 	impl, err := r.selectImpl()
 	if err != nil {
-		return v2.PrivateKey{}, err
+		return tbls.PrivateKey{}, err
 	}
 
 	return impl.GenerateSecretKey()
 }
 
-func (r randomizedImpl) SecretToPublicKey(key v2.PrivateKey) (v2.PublicKey, error) {
+func (r randomizedImpl) SecretToPublicKey(key tbls.PrivateKey) (tbls.PublicKey, error) {
 	impl, err := r.selectImpl()
 	if err != nil {
-		return v2.PublicKey{}, err
+		return tbls.PublicKey{}, err
 	}
 
 	return impl.SecretToPublicKey(key)
 }
 
-func (r randomizedImpl) ThresholdSplit(secret v2.PrivateKey, total uint, threshold uint) (map[int]v2.PrivateKey, error) {
+func (r randomizedImpl) ThresholdSplit(secret tbls.PrivateKey, total uint, threshold uint) (map[int]tbls.PrivateKey, error) {
 	impl, err := r.selectImpl()
 	if err != nil {
 		return nil, err
@@ -272,25 +272,25 @@ func (r randomizedImpl) ThresholdSplit(secret v2.PrivateKey, total uint, thresho
 	return impl.ThresholdSplit(secret, total, threshold)
 }
 
-func (r randomizedImpl) RecoverSecret(shares map[int]v2.PrivateKey, total uint, threshold uint) (v2.PrivateKey, error) {
+func (r randomizedImpl) RecoverSecret(shares map[int]tbls.PrivateKey, total uint, threshold uint) (tbls.PrivateKey, error) {
 	impl, err := r.selectImpl()
 	if err != nil {
-		return v2.PrivateKey{}, err
+		return tbls.PrivateKey{}, err
 	}
 
 	return impl.RecoverSecret(shares, total, threshold)
 }
 
-func (r randomizedImpl) ThresholdAggregate(partialSignaturesByIndex map[int]v2.Signature) (v2.Signature, error) {
+func (r randomizedImpl) ThresholdAggregate(partialSignaturesByIndex map[int]tbls.Signature) (tbls.Signature, error) {
 	impl, err := r.selectImpl()
 	if err != nil {
-		return v2.Signature{}, err
+		return tbls.Signature{}, err
 	}
 
 	return impl.ThresholdAggregate(partialSignaturesByIndex)
 }
 
-func (r randomizedImpl) Verify(compressedPublicKey v2.PublicKey, data []byte, signature v2.Signature) error {
+func (r randomizedImpl) Verify(compressedPublicKey tbls.PublicKey, data []byte, signature tbls.Signature) error {
 	impl, err := r.selectImpl()
 	if err != nil {
 		return err
@@ -299,16 +299,16 @@ func (r randomizedImpl) Verify(compressedPublicKey v2.PublicKey, data []byte, si
 	return impl.Verify(compressedPublicKey, data, signature)
 }
 
-func (r randomizedImpl) Sign(privateKey v2.PrivateKey, data []byte) (v2.Signature, error) {
+func (r randomizedImpl) Sign(privateKey tbls.PrivateKey, data []byte) (tbls.Signature, error) {
 	impl, err := r.selectImpl()
 	if err != nil {
-		return v2.Signature{}, err
+		return tbls.Signature{}, err
 	}
 
 	return impl.Sign(privateKey, data)
 }
 
-func (r randomizedImpl) VerifyAggregate(shares []v2.PublicKey, signature v2.Signature, data []byte) error {
+func (r randomizedImpl) VerifyAggregate(shares []tbls.PublicKey, signature tbls.Signature, data []byte) error {
 	impl, err := r.selectImpl()
 	if err != nil {
 		return err
@@ -317,10 +317,10 @@ func (r randomizedImpl) VerifyAggregate(shares []v2.PublicKey, signature v2.Sign
 	return impl.VerifyAggregate(shares, signature, data)
 }
 
-func (r randomizedImpl) Aggregate(signs []v2.Signature) (v2.Signature, error) {
+func (r randomizedImpl) Aggregate(signs []tbls.Signature) (tbls.Signature, error) {
 	impl, err := r.selectImpl()
 	if err != nil {
-		return v2.Signature{}, err
+		return tbls.Signature{}, err
 	}
 
 	return impl.Aggregate(signs)

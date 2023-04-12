@@ -11,7 +11,7 @@ import (
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/eth2util"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	tblsv2 "github.com/obolnetwork/charon/tbls"
 )
 
 // DomainName as defined in eth2 spec.

@@ -20,13 +20,13 @@ import (
 
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/sigagg"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
+	"github.com/obolnetwork/charon/tbls"
+	tblsconv2 "github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestMain(m *testing.M) {
-	tblsv2.SetImplementation(tblsv2.Herumi{})
+	tbls.SetImplementation(tbls.Herumi{})
 	code := m.Run()
 	os.Exit(code)
 }
@@ -68,25 +68,25 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate private shares
-	secretKey, err := tblsv2.GenerateSecretKey()
+	secretKey, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubKey, err := tblsv2.SecretToPublicKey(secretKey)
+	pubKey, err := tbls.SecretToPublicKey(secretKey)
 	require.NoError(t, err)
 
-	secrets, err := tblsv2.ThresholdSplit(secretKey, peers, threshold)
+	secrets, err := tbls.ThresholdSplit(secretKey, peers, threshold)
 	require.NoError(t, err)
 
 	// Create partial signatures (in two formats)
 	var (
 		parsigs []core.ParSignedData
-		psigs   map[int]tblsv2.Signature
+		psigs   map[int]tbls.Signature
 	)
 
-	psigs = make(map[int]tblsv2.Signature)
+	psigs = make(map[int]tbls.Signature)
 
 	for idx, secret := range secrets {
-		sig, err := tblsv2.Sign(secret, msg)
+		sig, err := tbls.Sign(secret, msg)
 		require.NoError(t, err)
 
 		att.Signature = tblsconv2.SigToETH2(sig)
@@ -97,7 +97,7 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 	}
 
 	// Create expected aggregated signature
-	aggSig, err := tblsv2.ThresholdAggregate(psigs)
+	aggSig, err := tbls.ThresholdAggregate(psigs)
 	require.NoError(t, err)
 	expect := tblsconv2.SigToCore(aggSig)
 
@@ -109,7 +109,7 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 		sig, err := tblsconv2.SigFromCore(aggData.Signature())
 		require.NoError(t, err)
 
-		require.NoError(t, tblsv2.Verify(pubKey, msg, sig))
+		require.NoError(t, tbls.Verify(pubKey, msg, sig))
 		require.NoError(t, err)
 
 		return nil
@@ -132,25 +132,25 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 	msg := []byte("RANDAO reveal")
 
 	// Generate private shares
-	secretKey, err := tblsv2.GenerateSecretKey()
+	secretKey, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubKey, err := tblsv2.SecretToPublicKey(secretKey)
+	pubKey, err := tbls.SecretToPublicKey(secretKey)
 	require.NoError(t, err)
 
-	secrets, err := tblsv2.ThresholdSplit(secretKey, peers, threshold)
+	secrets, err := tbls.ThresholdSplit(secretKey, peers, threshold)
 	require.NoError(t, err)
 
 	// Create partial signatures (in two formats)
 	var (
 		parsigs []core.ParSignedData
-		psigs   map[int]tblsv2.Signature
+		psigs   map[int]tbls.Signature
 	)
 
-	psigs = make(map[int]tblsv2.Signature)
+	psigs = make(map[int]tbls.Signature)
 
 	for idx, secret := range secrets {
-		sig, err := tblsv2.Sign(secret, msg)
+		sig, err := tbls.Sign(secret, msg)
 		require.NoError(t, err)
 
 		eth2Sig := tblsconv2.SigToETH2(sig)
@@ -161,7 +161,7 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 	}
 
 	// Create expected aggregated signature
-	aggSig, err := tblsv2.ThresholdAggregate(psigs)
+	aggSig, err := tbls.ThresholdAggregate(psigs)
 	require.NoError(t, err)
 	expect := tblsconv2.SigToCore(aggSig)
 
@@ -173,7 +173,7 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 		sig, err := tblsconv2.SigFromCore(aggData.Signature())
 		require.NoError(t, err)
 
-		require.NoError(t, tblsv2.Verify(pubKey, msg, sig))
+		require.NoError(t, tbls.Verify(pubKey, msg, sig))
 		require.NoError(t, err)
 
 		return nil
@@ -193,13 +193,13 @@ func TestSigAgg_DutyExit(t *testing.T) {
 	)
 
 	// Generate private shares
-	secretKey, err := tblsv2.GenerateSecretKey()
+	secretKey, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubKey, err := tblsv2.SecretToPublicKey(secretKey)
+	pubKey, err := tbls.SecretToPublicKey(secretKey)
 	require.NoError(t, err)
 
-	secrets, err := tblsv2.ThresholdSplit(secretKey, peers, threshold)
+	secrets, err := tbls.ThresholdSplit(secretKey, peers, threshold)
 	require.NoError(t, err)
 
 	exit := testutil.RandomExit()
@@ -209,14 +209,14 @@ func TestSigAgg_DutyExit(t *testing.T) {
 	// Create partial signatures (in two formats)
 	var (
 		parsigs []core.ParSignedData
-		psigs   map[int]tblsv2.Signature
+		psigs   map[int]tbls.Signature
 	)
 
-	psigs = make(map[int]tblsv2.Signature)
+	psigs = make(map[int]tbls.Signature)
 
 	for idx, secret := range secrets {
 		// Ignoring domain for this test
-		sig, err := tblsv2.Sign(secret, msg)
+		sig, err := tbls.Sign(secret, msg)
 		require.NoError(t, err)
 
 		eth2Sig := tblsconv2.SigToETH2(sig)
@@ -229,7 +229,7 @@ func TestSigAgg_DutyExit(t *testing.T) {
 		parsigs = append(parsigs, parsig)
 	}
 
-	aggSig, err := tblsv2.ThresholdAggregate(psigs)
+	aggSig, err := tbls.ThresholdAggregate(psigs)
 	require.NoError(t, err)
 	expect := tblsconv2.SigToCore(aggSig)
 
@@ -241,7 +241,7 @@ func TestSigAgg_DutyExit(t *testing.T) {
 		sig, err := tblsconv2.SigFromCore(aggData.Signature())
 		require.NoError(t, err)
 
-		require.NoError(t, tblsv2.Verify(pubKey, msg, sig))
+		require.NoError(t, tbls.Verify(pubKey, msg, sig))
 		require.NoError(t, err)
 
 		return nil
@@ -261,13 +261,13 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 	)
 
 	// Generate private shares
-	secretKey, err := tblsv2.GenerateSecretKey()
+	secretKey, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubKey, err := tblsv2.SecretToPublicKey(secretKey)
+	pubKey, err := tbls.SecretToPublicKey(secretKey)
 	require.NoError(t, err)
 
-	secrets, err := tblsv2.ThresholdSplit(secretKey, peers, threshold)
+	secrets, err := tbls.ThresholdSplit(secretKey, peers, threshold)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -325,13 +325,13 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 			// Create partial signatures (in two formats)
 			var (
 				parsigs []core.ParSignedData
-				psigs   map[int]tblsv2.Signature
+				psigs   map[int]tbls.Signature
 			)
 
-			psigs = make(map[int]tblsv2.Signature)
+			psigs = make(map[int]tbls.Signature)
 
 			for idx, secret := range secrets {
-				sig, err := tblsv2.Sign(secret, msg[:])
+				sig, err := tbls.Sign(secret, msg[:])
 				require.NoError(t, err)
 
 				block, err := core.NewVersionedSignedBeaconBlock(test.block)
@@ -354,7 +354,7 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 			}
 
 			// Create expected aggregated signature
-			aggSig, err := tblsv2.ThresholdAggregate(psigs)
+			aggSig, err := tbls.ThresholdAggregate(psigs)
 			require.NoError(t, err)
 			expect := tblsconv2.SigToCore(aggSig)
 
@@ -366,7 +366,7 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 				sig, err := tblsconv2.SigFromCore(aggData.Signature())
 				require.NoError(t, err)
 
-				require.NoError(t, tblsv2.Verify(pubKey, msg[:], sig))
+				require.NoError(t, tbls.Verify(pubKey, msg[:], sig))
 				require.NoError(t, err)
 
 				return nil
@@ -388,13 +388,13 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 	)
 
 	// Generate private shares
-	secretKey, err := tblsv2.GenerateSecretKey()
+	secretKey, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubKey, err := tblsv2.SecretToPublicKey(secretKey)
+	pubKey, err := tbls.SecretToPublicKey(secretKey)
 	require.NoError(t, err)
 
-	secrets, err := tblsv2.ThresholdSplit(secretKey, peers, threshold)
+	secrets, err := tbls.ThresholdSplit(secretKey, peers, threshold)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -432,13 +432,13 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 			// Create partial signatures (in two formats)
 			var (
 				parsigs []core.ParSignedData
-				psigs   map[int]tblsv2.Signature
+				psigs   map[int]tbls.Signature
 			)
 
-			psigs = make(map[int]tblsv2.Signature)
+			psigs = make(map[int]tbls.Signature)
 
 			for idx, secret := range secrets {
-				sig, err := tblsv2.Sign(secret, msg[:])
+				sig, err := tbls.Sign(secret, msg[:])
 				require.NoError(t, err)
 
 				block, err := core.NewVersionedSignedBlindedBeaconBlock(test.block)
@@ -461,7 +461,7 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 			}
 
 			// Create expected aggregated signature
-			aggSig, err := tblsv2.ThresholdAggregate(psigs)
+			aggSig, err := tbls.ThresholdAggregate(psigs)
 			require.NoError(t, err)
 			expect := tblsconv2.SigToCore(aggSig)
 
@@ -473,7 +473,7 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 				sig, err := tblsconv2.SigFromCore(aggData.Signature())
 				require.NoError(t, err)
 
-				require.NoError(t, tblsv2.Verify(pubKey, msg[:], sig))
+				require.NoError(t, tbls.Verify(pubKey, msg[:], sig))
 				require.NoError(t, err)
 
 				return nil
@@ -495,13 +495,13 @@ func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
 	)
 
 	// Generate private shares
-	secretKey, err := tblsv2.GenerateSecretKey()
+	secretKey, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubKey, err := tblsv2.SecretToPublicKey(secretKey)
+	pubKey, err := tbls.SecretToPublicKey(secretKey)
 	require.NoError(t, err)
 
-	secrets, err := tblsv2.ThresholdSplit(secretKey, peers, threshold)
+	secrets, err := tbls.ThresholdSplit(secretKey, peers, threshold)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -529,13 +529,13 @@ func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
 			// Create partial signatures (in two formats)
 			var (
 				parsigs []core.ParSignedData
-				psigs   map[int]tblsv2.Signature
+				psigs   map[int]tbls.Signature
 			)
 
-			psigs = make(map[int]tblsv2.Signature)
+			psigs = make(map[int]tbls.Signature)
 
 			for idx, secret := range secrets {
-				sig, err := tblsv2.Sign(secret, msg[:])
+				sig, err := tbls.Sign(secret, msg[:])
 				require.NoError(t, err)
 
 				block, err := core.NewVersionedSignedValidatorRegistration(test.registration)
@@ -558,7 +558,7 @@ func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
 			}
 
 			// Create expected aggregated signature
-			aggSig, err := tblsv2.ThresholdAggregate(psigs)
+			aggSig, err := tbls.ThresholdAggregate(psigs)
 			require.NoError(t, err)
 			expect := tblsconv2.SigToCore(aggSig)
 
@@ -570,7 +570,7 @@ func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
 				sig, err := tblsconv2.SigFromCore(aggData.Signature())
 				require.NoError(t, err)
 
-				require.NoError(t, tblsv2.Verify(pubKey, msg[:], sig))
+				require.NoError(t, tbls.Verify(pubKey, msg[:], sig))
 				require.NoError(t, err)
 
 				return nil

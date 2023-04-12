@@ -7,7 +7,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
-	v2 "github.com/obolnetwork/charon/tbls/v2"
+	v2 "github.com/obolnetwork/charon/tbls"
 )
 
 // SigFromCore converts a core workflow Signature type into a tbls.Signature.

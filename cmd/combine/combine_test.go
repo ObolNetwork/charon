@@ -15,11 +15,11 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cmd/combine"
 	"github.com/obolnetwork/charon/eth2util/keystore"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	"github.com/obolnetwork/charon/tbls"
 )
 
 func TestMain(m *testing.M) {
-	tblsv2.SetImplementation(tblsv2.Herumi{})
+	tbls.SetImplementation(tbls.Herumi{})
 	os.Exit(m.Run())
 }
 
@@ -36,7 +36,7 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 	for _, share := range shares {
 		share := share
 
-		sm := make(map[int]tblsv2.PrivateKey)
+		sm := make(map[int]tbls.PrivateKey)
 		for idx, shareObj := range share {
 			shareObj := shareObj
 			sm[idx+1] = shareObj
@@ -47,14 +47,14 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 	od := t.TempDir()
 
 	// flatten secrets, each validator slice is unpacked in a flat structure
-	var rawSecrets []tblsv2.PrivateKey
+	var rawSecrets []tbls.PrivateKey
 	for _, s := range shares {
 		rawSecrets = append(rawSecrets, s...)
 	}
 
 	// for each ENR, create a slice of keys to hold
 	// each set will be len(lock.Definition.Operators)
-	secrets := make([][]tblsv2.PrivateKey, len(lock.Definition.Operators))
+	secrets := make([][]tbls.PrivateKey, len(lock.Definition.Operators))
 
 	// populate key sets
 	for enrIdx := 0; enrIdx < len(lock.Definition.Operators); enrIdx++ {
@@ -100,16 +100,16 @@ func TestCombine(t *testing.T) {
 	for _, share := range shares {
 		share := share
 
-		sm := make(map[int]tblsv2.PrivateKey)
+		sm := make(map[int]tbls.PrivateKey)
 		for idx, shareObj := range share {
 			shareObj := shareObj
 			sm[idx+1] = shareObj
 		}
 
-		complSecret, err := tblsv2.RecoverSecret(sm, 4, 3)
+		complSecret, err := tbls.RecoverSecret(sm, 4, 3)
 		require.NoError(t, err)
 
-		complPubkey, err := tblsv2.SecretToPublicKey(complSecret)
+		complPubkey, err := tbls.SecretToPublicKey(complSecret)
 		require.NoError(t, err)
 
 		expectedData = append(expectedData, expected{
@@ -122,14 +122,14 @@ func TestCombine(t *testing.T) {
 	od := t.TempDir()
 
 	// flatten secrets, each validator slice is unpacked in a flat structure
-	var rawSecrets []tblsv2.PrivateKey
+	var rawSecrets []tbls.PrivateKey
 	for _, s := range shares {
 		rawSecrets = append(rawSecrets, s...)
 	}
 
 	// for each ENR, create a slice of keys to hold
 	// each set will be len(lock.Definition.Operators)
-	secrets := make([][]tblsv2.PrivateKey, len(lock.Definition.Operators))
+	secrets := make([][]tbls.PrivateKey, len(lock.Definition.Operators))
 
 	// populate key sets
 	for enrIdx := 0; enrIdx < len(lock.Definition.Operators); enrIdx++ {
@@ -163,7 +163,7 @@ func TestCombine(t *testing.T) {
 
 	keysMap := make(map[string]string)
 	for _, key := range keys {
-		pk, err := tblsv2.SecretToPublicKey(key)
+		pk, err := tbls.SecretToPublicKey(key)
 		require.NoError(t, err)
 
 		keysMap[fmt.Sprintf("%#x", pk)] = fmt.Sprintf("%#x", key)
@@ -191,16 +191,16 @@ func TestCombineTwiceWithoutForceFails(t *testing.T) {
 	for _, share := range shares {
 		share := share
 
-		sm := make(map[int]tblsv2.PrivateKey)
+		sm := make(map[int]tbls.PrivateKey)
 		for idx, shareObj := range share {
 			shareObj := shareObj
 			sm[idx+1] = shareObj
 		}
 
-		complSecret, err := tblsv2.RecoverSecret(sm, 4, 3)
+		complSecret, err := tbls.RecoverSecret(sm, 4, 3)
 		require.NoError(t, err)
 
-		complPubkey, err := tblsv2.SecretToPublicKey(complSecret)
+		complPubkey, err := tbls.SecretToPublicKey(complSecret)
 		require.NoError(t, err)
 
 		expectedData = append(expectedData, expected{
@@ -213,14 +213,14 @@ func TestCombineTwiceWithoutForceFails(t *testing.T) {
 	od := t.TempDir()
 
 	// flatten secrets, each validator slice is unpacked in a flat structure
-	var rawSecrets []tblsv2.PrivateKey
+	var rawSecrets []tbls.PrivateKey
 	for _, s := range shares {
 		rawSecrets = append(rawSecrets, s...)
 	}
 
 	// for each ENR, create a slice of keys to hold
 	// each set will be len(lock.Definition.Operators)
-	secrets := make([][]tblsv2.PrivateKey, len(lock.Definition.Operators))
+	secrets := make([][]tbls.PrivateKey, len(lock.Definition.Operators))
 
 	// populate key sets
 	for enrIdx := 0; enrIdx < len(lock.Definition.Operators); enrIdx++ {
@@ -257,7 +257,7 @@ func TestCombineTwiceWithoutForceFails(t *testing.T) {
 
 	keysMap := make(map[string]string)
 	for _, key := range keys {
-		pk, err := tblsv2.SecretToPublicKey(key)
+		pk, err := tbls.SecretToPublicKey(key)
 		require.NoError(t, err)
 
 		keysMap[fmt.Sprintf("%#x", pk)] = fmt.Sprintf("%#x", key)
