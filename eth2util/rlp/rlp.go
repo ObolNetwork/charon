@@ -125,8 +125,8 @@ func decodeLength(item []byte) (offset int, length int, err error) {
 	}
 
 	length = int(prefix - 0xf7)
-	if length <= 0 { // This is impossible based on outer if else checks
-		panic("length not positive (>=1)")
+	if length > 8 || length <= 0 { // This is impossible based on outer if else checks
+		panic("length not in expected range [1,8]")
 	}
 
 	offset = 1 + length
