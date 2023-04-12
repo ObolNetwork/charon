@@ -471,7 +471,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			return []*eth2p0.Attestation{}, nil
 		},
 		NodePeerCountFunc: func(ctx context.Context) (int, error) {
-			return 0, nil
+			return 80, nil
 		},
 		AttestationDataFunc: func(ctx context.Context, slot eth2p0.Slot, index eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
 			return attStore.NewAttestationData(ctx, slot, index)
