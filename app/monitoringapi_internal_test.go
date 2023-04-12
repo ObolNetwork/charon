@@ -113,9 +113,9 @@ func TestStartChecker(t *testing.T) {
 				}
 			}
 
-			if !tt.zeroBNPeers {
+			if tt.zeroBNPeers {
 				bmock.NodePeerCountFunc = func(ctx context.Context) (int, error) {
-					return 10, nil
+					return 0, nil
 				}
 			}
 
