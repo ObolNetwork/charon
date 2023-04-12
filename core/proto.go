@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 )
 
@@ -30,6 +31,10 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (ParSignedDa
 	// TODO(corver): This can panic due to json unmarshalling unexpected data.
 	//  For now, it is a good way to catch compatibility issues. But we should
 	//  recover panics and return an error before launching mainnet.
+
+	if data == nil {
+		return ParSignedData{}, errors.New("partial signed data proto cannot be nil")
+	}
 
 	var signedData SignedData
 	switch typ {
@@ -147,6 +152,10 @@ func ParSignedDataSetToProto(set ParSignedDataSet) (*pbv1.ParSignedDataSet, erro
 
 // ParSignedDataSetFromProto returns the set from a protobuf.
 func ParSignedDataSetFromProto(typ DutyType, set *pbv1.ParSignedDataSet) (ParSignedDataSet, error) {
+	if set == nil || len(set.Set) == 0 {
+		return nil, errors.New("invalid partial signed data set proto fields", z.Any("set", set))
+	}
+
 	var (
 		resp = make(ParSignedDataSet)
 		err  error
@@ -179,6 +188,10 @@ func UnsignedDataSetToProto(set UnsignedDataSet) (*pbv1.UnsignedDataSet, error) 
 
 // UnsignedDataSetFromProto returns the set from a protobuf.
 func UnsignedDataSetFromProto(typ DutyType, set *pbv1.UnsignedDataSet) (UnsignedDataSet, error) {
+	if set == nil || len(set.Set) == 0 {
+		return nil, errors.New("invalid unsigned data set fields", z.Any("set", set))
+	}
+
 	resp := make(UnsignedDataSet)
 	for pubkey, data := range set.Set {
 		var err error

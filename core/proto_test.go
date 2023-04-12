@@ -236,3 +236,20 @@ func randomSignedData(t *testing.T) map[core.DutyType]core.SignedData {
 		core.DutySyncContribution:        core.NewSignedSyncContributionAndProof(testutil.RandomSignedSyncContributionAndProof()),
 	}
 }
+
+func TestNilPointerChecks(t *testing.T) {
+	_, err := core.ParSignedDataFromProto(core.DutyAttester, nil)
+	require.ErrorContains(t, err, "partial signed data proto cannot be nil")
+
+	_, err = core.ParSignedDataSetFromProto(core.DutyAttester, nil)
+	require.ErrorContains(t, err, "invalid partial signed data set proto fields")
+
+	_, err = core.ParSignedDataSetFromProto(core.DutyAttester, new(pbv1.ParSignedDataSet))
+	require.ErrorContains(t, err, "invalid partial signed data set proto fields")
+
+	_, err = core.UnsignedDataSetFromProto(core.DutyAttester, nil)
+	require.ErrorContains(t, err, "invalid unsigned data set fields")
+
+	_, err = core.UnsignedDataSetFromProto(core.DutyAttester, new(pbv1.UnsignedDataSet))
+	require.ErrorContains(t, err, "invalid unsigned data set fields")
+}

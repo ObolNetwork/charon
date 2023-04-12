@@ -205,6 +205,10 @@ func newMsgVerifier(peers []peer.ID) (func(msg *pbv1.PriorityMsg) error, error) 
 	}
 
 	return func(msg *pbv1.PriorityMsg) error {
+		if msg == nil || msg.Duty == nil {
+			return errors.New("invalid priority msg proto fields", z.Any("msg", msg))
+		}
+
 		key, ok := keys[msg.PeerId]
 		if !ok {
 			return errors.New("unknown peer id")
@@ -246,6 +250,10 @@ func topicProposalToProto(p TopicProposal) (*pbv1.PriorityTopicProposal, error) 
 
 // topicProposalToProto returns a topic proposal from the proto version.
 func topicResultFromProto(p *pbv1.PriorityTopicResult) (TopicResult, error) {
+	if p == nil {
+		return TopicResult{}, errors.New("priority topic result proto cannot be nil")
+	}
+
 	topicVal := new(structpb.Value)
 	if err := p.Topic.UnmarshalTo(topicVal); err != nil {
 		return TopicResult{}, errors.Wrap(err, "anypb topic")
