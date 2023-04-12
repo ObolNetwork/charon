@@ -62,6 +62,10 @@ func (m *ParSigEx) handle(ctx context.Context, _ peer.ID, req proto.Message) (pr
 		return nil, false, errors.New("invalid request type")
 	}
 
+	if pb == nil || pb.Duty == nil || pb.DataSet == nil {
+		return nil, false, errors.New("invalid parsigex msg fields", z.Any("msg", pb))
+	}
+
 	duty := core.DutyFromProto(pb.Duty)
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
