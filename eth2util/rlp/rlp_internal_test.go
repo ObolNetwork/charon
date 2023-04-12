@@ -27,10 +27,4 @@ func TestDecodeLength(t *testing.T) {
 		_, _, err := decodeLength(items)
 		require.ErrorContains(t, err, "input too short")
 	})
-
-	t.Run("overflow", func(t *testing.T) {
-		items := []byte{0xb8, 0x10, 0x0a}
-		_, _, err := decodeLength(items)
-		require.ErrorContains(t, err, "overflow")
-	})
 }

@@ -102,7 +102,7 @@ func decodeLength(item []byte) (offset int, length int, err error) {
 
 	if prefix < 0xc0 {
 		length = int(prefix - 0xb7) // length of the string in bytes in binary form
-		if length > 8 || length < 0 {
+		if length > 8 || length <= 0 {
 			return 0, 0, errors.New("invalid length prefix")
 		}
 
@@ -113,7 +113,7 @@ func decodeLength(item []byte) (offset int, length int, err error) {
 			return 0, 0, err
 		} else if resp < 0 {
 			return 0, 0, errors.New("negative length")
-		} else if offset+resp > len(item) {
+		} else if offset > offset+resp {
 			return 0, 0, errors.New("overflow")
 		}
 
@@ -125,7 +125,7 @@ func decodeLength(item []byte) (offset int, length int, err error) {
 	}
 
 	length = int(prefix - 0xf7)
-	if length > 8 || length < 0 {
+	if length > 8 || length <= 0 {
 		return 0, 0, errors.New("invalid length prefix")
 	}
 
@@ -136,7 +136,7 @@ func decodeLength(item []byte) (offset int, length int, err error) {
 		return 0, 0, err
 	} else if resp < 0 {
 		return 0, 0, errors.New("negative length")
-	} else if offset+resp > len(item) {
+	} else if offset > offset+resp {
 		return 0, 0, errors.New("overflow")
 	}
 
