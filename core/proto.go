@@ -152,7 +152,7 @@ func ParSignedDataSetToProto(set ParSignedDataSet) (*pbv1.ParSignedDataSet, erro
 
 // ParSignedDataSetFromProto returns the set from a protobuf.
 func ParSignedDataSetFromProto(typ DutyType, set *pbv1.ParSignedDataSet) (ParSignedDataSet, error) {
-	if set == nil || set.Set == nil {
+	if set == nil || len(set.Set) == 0 {
 		return nil, errors.New("invalid partial signed data set proto fields", z.Any("set", set))
 	}
 
@@ -188,7 +188,7 @@ func UnsignedDataSetToProto(set UnsignedDataSet) (*pbv1.UnsignedDataSet, error) 
 
 // UnsignedDataSetFromProto returns the set from a protobuf.
 func UnsignedDataSetFromProto(typ DutyType, set *pbv1.UnsignedDataSet) (UnsignedDataSet, error) {
-	if set == nil || set.Set == nil {
+	if set == nil || len(set.Set) == 0 {
 		return nil, errors.New("invalid unsigned data set fields", z.Any("set", set))
 	}
 
