@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 )
 
@@ -151,8 +152,8 @@ func ParSignedDataSetToProto(set ParSignedDataSet) (*pbv1.ParSignedDataSet, erro
 
 // ParSignedDataSetFromProto returns the set from a protobuf.
 func ParSignedDataSetFromProto(typ DutyType, set *pbv1.ParSignedDataSet) (ParSignedDataSet, error) {
-	if set == nil {
-		return nil, errors.New("partial signed data set proto cannot be nil")
+	if set == nil || set.Set == nil {
+		return nil, errors.New("invalid partial signed data set proto fields", z.Any("set", set))
 	}
 
 	var (
@@ -187,8 +188,8 @@ func UnsignedDataSetToProto(set UnsignedDataSet) (*pbv1.UnsignedDataSet, error) 
 
 // UnsignedDataSetFromProto returns the set from a protobuf.
 func UnsignedDataSetFromProto(typ DutyType, set *pbv1.UnsignedDataSet) (UnsignedDataSet, error) {
-	if set == nil {
-		return nil, errors.New("unsigned data set proto cannot be nil")
+	if set == nil || set.Set == nil {
+		return nil, errors.New("invalid unsigned data set fields", z.Any("set", set))
 	}
 
 	resp := make(UnsignedDataSet)
