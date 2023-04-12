@@ -14,8 +14,8 @@ import (
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
-	tblsv2 "github.com/obolnetwork/charon/tbls"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/tblsconv"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // New returns a new aggregator instance.
@@ -46,9 +46,9 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 	}
 
 	// Get all partial signatures.
-	blsSigs := make(map[int]tblsv2.Signature)
+	blsSigs := make(map[int]tbls.Signature)
 	for _, parSig := range parSigs {
-		sig, err := tblsconv2.SigFromCore(parSig.Signature())
+		sig, err := tblsconv.SigFromCore(parSig.Signature())
 		if err != nil {
 			return errors.Wrap(err, "signature from core")
 		}
@@ -61,14 +61,14 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 
 	// Aggregate signatures
 	_, span := tracer.Start(ctx, "tbls.Aggregate")
-	sig, err := tblsv2.ThresholdAggregate(blsSigs)
+	sig, err := tbls.ThresholdAggregate(blsSigs)
 	span.End()
 	if err != nil {
 		return err
 	}
 
 	// Inject signature into one of the parSigs resulting in aggregate signed data.
-	aggSig, err := parSigs[0].SetSignature(tblsconv2.SigToCore(sig))
+	aggSig, err := parSigs[0].SetSignature(tblsconv.SigToCore(sig))
 	if err != nil {
 		return err
 	}

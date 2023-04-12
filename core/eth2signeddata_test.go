@@ -13,7 +13,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/tblsconv"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -129,5 +129,5 @@ func sign(t *testing.T, data []byte) (core.Signature, tbls.PublicKey) {
 	sig, err := tbls.Sign(secret, data)
 	require.NoError(t, err)
 
-	return tblsconv2.SigToCore(sig), pk
+	return tblsconv.SigToCore(sig), pk
 }

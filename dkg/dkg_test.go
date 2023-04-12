@@ -30,7 +30,7 @@ import (
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/tblsconv"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -333,7 +333,7 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 				if len(lock.Validators[i].PubShares) == 0 {
 					continue
 				}
-				pk, err := tblsconv2.PubkeyFromBytes(lock.Validators[i].PubShares[j])
+				pk, err := tblsconv.PubkeyFromBytes(lock.Validators[i].PubShares[j])
 				require.NoError(t, err)
 				err = tbls.Verify(pk, msg, sig)
 				require.NoError(t, err)

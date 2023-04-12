@@ -21,7 +21,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/sigagg"
 	"github.com/obolnetwork/charon/tbls"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/tblsconv"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -89,7 +89,7 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 		sig, err := tbls.Sign(secret, msg)
 		require.NoError(t, err)
 
-		att.Signature = tblsconv2.SigToETH2(sig)
+		att.Signature = tblsconv.SigToETH2(sig)
 		parsig := core.NewPartialAttestation(att, idx)
 
 		psigs[idx] = sig
@@ -99,14 +99,14 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 	// Create expected aggregated signature
 	aggSig, err := tbls.ThresholdAggregate(psigs)
 	require.NoError(t, err)
-	expect := tblsconv2.SigToCore(aggSig)
+	expect := tblsconv.SigToCore(aggSig)
 
 	agg := sigagg.New(threshold)
 
 	// Assert output
 	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
 		require.Equal(t, expect, aggData.Signature())
-		sig, err := tblsconv2.SigFromCore(aggData.Signature())
+		sig, err := tblsconv.SigFromCore(aggData.Signature())
 		require.NoError(t, err)
 
 		require.NoError(t, tbls.Verify(pubKey, msg, sig))
@@ -153,7 +153,7 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 		sig, err := tbls.Sign(secret, msg)
 		require.NoError(t, err)
 
-		eth2Sig := tblsconv2.SigToETH2(sig)
+		eth2Sig := tblsconv.SigToETH2(sig)
 		parsig := core.NewPartialSignedRandao(epoch, eth2Sig, idx)
 
 		psigs[idx] = sig
@@ -163,14 +163,14 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 	// Create expected aggregated signature
 	aggSig, err := tbls.ThresholdAggregate(psigs)
 	require.NoError(t, err)
-	expect := tblsconv2.SigToCore(aggSig)
+	expect := tblsconv.SigToCore(aggSig)
 
 	agg := sigagg.New(threshold)
 
 	// Assert output
 	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
 		require.Equal(t, expect, aggData.Signature())
-		sig, err := tblsconv2.SigFromCore(aggData.Signature())
+		sig, err := tblsconv.SigFromCore(aggData.Signature())
 		require.NoError(t, err)
 
 		require.NoError(t, tbls.Verify(pubKey, msg, sig))
@@ -219,7 +219,7 @@ func TestSigAgg_DutyExit(t *testing.T) {
 		sig, err := tbls.Sign(secret, msg)
 		require.NoError(t, err)
 
-		eth2Sig := tblsconv2.SigToETH2(sig)
+		eth2Sig := tblsconv.SigToETH2(sig)
 		parsig := core.NewPartialSignedVoluntaryExit(&eth2p0.SignedVoluntaryExit{
 			Message:   exit.Message,
 			Signature: eth2Sig,
@@ -231,14 +231,14 @@ func TestSigAgg_DutyExit(t *testing.T) {
 
 	aggSig, err := tbls.ThresholdAggregate(psigs)
 	require.NoError(t, err)
-	expect := tblsconv2.SigToCore(aggSig)
+	expect := tblsconv.SigToCore(aggSig)
 
 	agg := sigagg.New(threshold)
 
 	// Assert output
 	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
 		require.Equal(t, expect, aggData.Signature())
-		sig, err := tblsconv2.SigFromCore(aggData.Signature())
+		sig, err := tblsconv.SigFromCore(aggData.Signature())
 		require.NoError(t, err)
 
 		require.NoError(t, tbls.Verify(pubKey, msg, sig))
@@ -337,11 +337,11 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 				block, err := core.NewVersionedSignedBeaconBlock(test.block)
 				require.NoError(t, err)
 
-				sigCore := tblsconv2.SigToCore(sig)
+				sigCore := tblsconv.SigToCore(sig)
 				signed, err := block.SetSignature(sigCore)
 				require.NoError(t, err)
 
-				coreSig, err := tblsconv2.SigFromCore(signed.Signature())
+				coreSig, err := tblsconv.SigFromCore(signed.Signature())
 				require.NoError(t, err)
 
 				require.Equal(t, sig, coreSig)
@@ -356,14 +356,14 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 			// Create expected aggregated signature
 			aggSig, err := tbls.ThresholdAggregate(psigs)
 			require.NoError(t, err)
-			expect := tblsconv2.SigToCore(aggSig)
+			expect := tblsconv.SigToCore(aggSig)
 
 			agg := sigagg.New(threshold)
 
 			// Assert output
 			agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
 				require.Equal(t, expect, aggData.Signature())
-				sig, err := tblsconv2.SigFromCore(aggData.Signature())
+				sig, err := tblsconv.SigFromCore(aggData.Signature())
 				require.NoError(t, err)
 
 				require.NoError(t, tbls.Verify(pubKey, msg[:], sig))
@@ -444,11 +444,11 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 				block, err := core.NewVersionedSignedBlindedBeaconBlock(test.block)
 				require.NoError(t, err)
 
-				sigCore := tblsconv2.SigToCore(sig)
+				sigCore := tblsconv.SigToCore(sig)
 				signed, err := block.SetSignature(sigCore)
 				require.NoError(t, err)
 
-				coreSig, err := tblsconv2.SigFromCore(signed.Signature())
+				coreSig, err := tblsconv.SigFromCore(signed.Signature())
 				require.NoError(t, err)
 
 				require.Equal(t, sig, coreSig)
@@ -463,14 +463,14 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 			// Create expected aggregated signature
 			aggSig, err := tbls.ThresholdAggregate(psigs)
 			require.NoError(t, err)
-			expect := tblsconv2.SigToCore(aggSig)
+			expect := tblsconv.SigToCore(aggSig)
 
 			agg := sigagg.New(threshold)
 
 			// Assert output
 			agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
 				require.Equal(t, expect, aggData.Signature())
-				sig, err := tblsconv2.SigFromCore(aggData.Signature())
+				sig, err := tblsconv.SigFromCore(aggData.Signature())
 				require.NoError(t, err)
 
 				require.NoError(t, tbls.Verify(pubKey, msg[:], sig))
@@ -541,11 +541,11 @@ func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
 				block, err := core.NewVersionedSignedValidatorRegistration(test.registration)
 				require.NoError(t, err)
 
-				sigCore := tblsconv2.SigToCore(sig)
+				sigCore := tblsconv.SigToCore(sig)
 				signed, err := block.SetSignature(sigCore)
 				require.NoError(t, err)
 
-				coreSig, err := tblsconv2.SigFromCore(signed.Signature())
+				coreSig, err := tblsconv.SigFromCore(signed.Signature())
 				require.NoError(t, err)
 
 				require.Equal(t, sig, coreSig)
@@ -560,14 +560,14 @@ func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
 			// Create expected aggregated signature
 			aggSig, err := tbls.ThresholdAggregate(psigs)
 			require.NoError(t, err)
-			expect := tblsconv2.SigToCore(aggSig)
+			expect := tblsconv.SigToCore(aggSig)
 
 			agg := sigagg.New(threshold)
 
 			// Assert output
 			agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
 				require.Equal(t, expect, aggData.Signature())
-				sig, err := tblsconv2.SigFromCore(aggData.Signature())
+				sig, err := tblsconv.SigFromCore(aggData.Signature())
 				require.NoError(t, err)
 
 				require.NoError(t, tbls.Verify(pubKey, msg[:], sig))

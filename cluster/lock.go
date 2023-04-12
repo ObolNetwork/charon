@@ -8,8 +8,8 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
-	tblsv2 "github.com/obolnetwork/charon/tbls"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/tblsconv"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // Lock extends the cluster config Definition with bls threshold public keys and checksums.
@@ -139,15 +139,15 @@ func (l Lock) VerifySignatures() error {
 		return errors.New("empty lock aggregate signature")
 	}
 
-	sig, err := tblsconv2.SignatureFromBytes(l.SignatureAggregate)
+	sig, err := tblsconv.SignatureFromBytes(l.SignatureAggregate)
 	if err != nil {
 		return err
 	}
 
-	var pubkeys []tblsv2.PublicKey
+	var pubkeys []tbls.PublicKey
 	for _, val := range l.Validators {
 		for _, share := range val.PubShares {
-			pubkey, err := tblsconv2.PubkeyFromBytes(share)
+			pubkey, err := tblsconv.PubkeyFromBytes(share)
 			if err != nil {
 				return err
 			}
@@ -160,7 +160,7 @@ func (l Lock) VerifySignatures() error {
 		return err
 	}
 
-	err = tblsv2.VerifyAggregate(pubkeys, sig, hash[:])
+	err = tbls.VerifyAggregate(pubkeys, sig, hash[:])
 	if err != nil {
 		return errors.Wrap(err, "verify lock signature aggregate")
 	}

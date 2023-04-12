@@ -17,7 +17,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/p2p"
-	tblsv2 "github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls"
 )
 
 const (
@@ -126,7 +126,7 @@ func (m *ParSigEx) Subscribe(fn func(context.Context, core.Duty, core.ParSignedD
 }
 
 // NewEth2Verifier returns a partial signature verification function for core workflow eth2 signatures.
-func NewEth2Verifier(eth2Cl eth2wrap.Client, pubSharesByKey map[core.PubKey]map[int]tblsv2.PublicKey) (func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error, error) {
+func NewEth2Verifier(eth2Cl eth2wrap.Client, pubSharesByKey map[core.PubKey]map[int]tbls.PublicKey) (func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error, error) {
 	return func(ctx context.Context, duty core.Duty, pubkey core.PubKey, data core.ParSignedData) error {
 		pubshares, ok := pubSharesByKey[pubkey]
 		if !ok {

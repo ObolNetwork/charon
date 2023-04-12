@@ -9,15 +9,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/eth2util/keystore"
-	tblsv2 "github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls"
 )
 
 func TestStoreLoad(t *testing.T) {
 	dir := t.TempDir()
 
-	var secrets []tblsv2.PrivateKey
+	var secrets []tbls.PrivateKey
 	for i := 0; i < 2; i++ {
-		secret, err := tblsv2.GenerateSecretKey()
+		secret, err := tbls.GenerateSecretKey()
 		require.NoError(t, err)
 
 		secrets = append(secrets, secret)

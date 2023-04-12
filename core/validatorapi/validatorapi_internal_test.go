@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
-	tblsv2 "github.com/obolnetwork/charon/tbls"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/tblsconv"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -18,10 +18,10 @@ func TestMismatchKeysFunc(t *testing.T) {
 	const shareIdx = 1
 
 	// Create keys (just use normal keys, not split tbls)
-	secret, err := tblsv2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubkey, err := tblsv2.SecretToPublicKey(secret)
+	pubkey, err := tbls.SecretToPublicKey(secret)
 	require.NoError(t, err)
 
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
@@ -29,7 +29,7 @@ func TestMismatchKeysFunc(t *testing.T) {
 	eth2Pubkey := eth2p0.BLSPubKey(pubkey)
 
 	t.Run("no mismatch", func(t *testing.T) {
-		allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
+		allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 		vapi, err := NewComponent(nil, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
 		require.NoError(t, err)
@@ -44,8 +44,8 @@ func TestMismatchKeysFunc(t *testing.T) {
 		pkb, err := pkraw.Bytes()
 		require.NoError(t, err)
 
-		pubshare := *(*tblsv2.PublicKey)(pkb)
-		allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{corePubKey: {shareIdx: pubkey, shareIdx + 1: pubshare}}
+		pubshare := *(*tbls.PublicKey)(pkb)
+		allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey, shareIdx + 1: pubshare}}
 
 		vapi, err := NewComponent(nil, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
 		require.NoError(t, err)
@@ -60,10 +60,10 @@ func TestMismatchKeysFunc(t *testing.T) {
 		// Create a mismatching key
 		pkb, err := testutil.RandomCorePubKey(t).Bytes()
 		require.NoError(t, err)
-		pk, err := tblsconv2.PubkeyFromBytes(pkb)
+		pk, err := tblsconv.PubkeyFromBytes(pkb)
 		require.NoError(t, err)
 		pubshare := eth2p0.BLSPubKey(pk)
-		allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{corePubKey: {shareIdx: pubkey}}
+		allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}}
 
 		vapi, err := NewComponent(nil, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
 		require.NoError(t, err)

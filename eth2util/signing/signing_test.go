@@ -16,7 +16,7 @@ import (
 
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/tblsconv"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
@@ -34,7 +34,7 @@ func TestVerifyRegistrationReference(t *testing.T) {
 	secretShareBytes, err := hex.DecodeString("345768c0245f1dc702df9e50e811002f61ebb2680b3d5931527ef59f96cbaf9b")
 	require.NoError(t, err)
 
-	secretShare, err := tblsconv2.PrivkeyFromBytes(secretShareBytes)
+	secretShare, err := tblsconv.PrivkeyFromBytes(secretShareBytes)
 	require.NoError(t, err)
 
 	registrationJSON := `

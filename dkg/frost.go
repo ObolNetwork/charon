@@ -12,8 +12,8 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
-	tblsv2 "github.com/obolnetwork/charon/tbls"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/tblsconv"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 var curve = curves.BLS12381G1()
@@ -200,7 +200,7 @@ func makeShares(
 	r2Result map[msgKey]frost.Round2Bcast,
 ) ([]share, error) {
 	// Get set of public shares for each validator.
-	pubShares := make(map[uint32]map[int]tblsv2.PublicKey) // map[ValIdx]map[SourceID]tblsv2.PublicKey
+	pubShares := make(map[uint32]map[int]tbls.PublicKey) // map[ValIdx]map[SourceID]tbls.PublicKey
 	for key, result := range r2Result {
 		pubShare, err := pointToPubKey(result.VkShare)
 		if err != nil {
@@ -209,7 +209,7 @@ func makeShares(
 
 		m, ok := pubShares[key.ValIdx]
 		if !ok {
-			m = make(map[int]tblsv2.PublicKey)
+			m = make(map[int]tbls.PublicKey)
 			pubShares[key.ValIdx] = m
 		}
 		m[int(key.SourceID)] = pubShare
@@ -248,12 +248,12 @@ func makeShares(
 }
 
 // pointToPubKey returns the point as a public key.
-func pointToPubKey(point curves.Point) (tblsv2.PublicKey, error) {
-	return tblsconv2.PubkeyFromBytes(point.ToAffineCompressed())
+func pointToPubKey(point curves.Point) (tbls.PublicKey, error) {
+	return tblsconv.PubkeyFromBytes(point.ToAffineCompressed())
 }
 
 // scalarToSecretShare returns the scalar as a secret key share using the share index.
 // Copied from github.com/coinbase/kryptology/test/frost_dkg/bls/main.go.
-func scalarToSecretShare(scalar curves.Scalar) (tblsv2.PrivateKey, error) {
-	return tblsconv2.PrivkeyFromBytes(scalar.Bytes())
+func scalarToSecretShare(scalar curves.Scalar) (tbls.PrivateKey, error) {
+	return tblsconv.PrivkeyFromBytes(scalar.Bytes())
 }

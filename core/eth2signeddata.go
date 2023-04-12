@@ -10,7 +10,7 @@ import (
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
-	tblsv2 "github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls"
 )
 
 var (
@@ -28,7 +28,7 @@ var (
 )
 
 // VerifyEth2SignedData verifies signature associated with given Eth2SignedData.
-func VerifyEth2SignedData(ctx context.Context, eth2Cl eth2wrap.Client, data Eth2SignedData, pubkey tblsv2.PublicKey) error {
+func VerifyEth2SignedData(ctx context.Context, eth2Cl eth2wrap.Client, data Eth2SignedData, pubkey tbls.PublicKey) error {
 	epoch, err := data.Epoch(ctx, eth2Cl)
 	if err != nil {
 		return err

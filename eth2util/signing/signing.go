@@ -11,7 +11,7 @@ import (
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/eth2util"
-	tblsv2 "github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls"
 )
 
 // DomainName as defined in eth2 spec.
@@ -70,7 +70,7 @@ func GetDataRoot(ctx context.Context, eth2Cl eth2wrap.Client, name DomainName, e
 
 // VerifyAggregateAndProofSelection verifies the eth2p0.AggregateAndProof with the provided pubkey.
 // Refer get_slot_signature from https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/validator.md#aggregation-selection.
-func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Client, pubkey tblsv2.PublicKey, agg *eth2p0.AggregateAndProof) error {
+func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Client, pubkey tbls.PublicKey, agg *eth2p0.AggregateAndProof) error {
 	epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, agg.Aggregate.Data.Slot)
 	if err != nil {
 		return err
@@ -86,7 +86,7 @@ func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Clien
 
 // Verify returns an error if the signature doesn't match the eth2 domain signed root.
 func Verify(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoch eth2p0.Epoch, sigRoot eth2p0.Root,
-	signature eth2p0.BLSSignature, pubkey tblsv2.PublicKey,
+	signature eth2p0.BLSSignature, pubkey tbls.PublicKey,
 ) error {
 	ctx, span := tracer.Start(ctx, "eth2util.Verify")
 	defer span.End()
@@ -103,5 +103,5 @@ func Verify(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoc
 
 	span.AddEvent("tbls.Verify")
 
-	return tblsv2.Verify(pubkey, sigData[:], tblsv2.Signature(signature))
+	return tbls.Verify(pubkey, sigData[:], tbls.Signature(signature))
 }

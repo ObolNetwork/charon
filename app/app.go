@@ -56,7 +56,7 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/tblsconv"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
@@ -341,7 +341,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 		allPubShares := make(map[int]tbls.PublicKey)
 		for i, b := range dv.PubShares {
-			pubshare, err := tblsconv2.PubkeyFromBytes(b)
+			pubshare, err := tblsconv.PubkeyFromBytes(b)
 			if err != nil {
 				return err
 			}

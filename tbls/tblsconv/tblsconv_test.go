@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	v2 "github.com/obolnetwork/charon/tbls"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/tblsconv"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -49,7 +49,7 @@ func TestPrivkeyFromBytes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tblsconv2.PrivkeyFromBytes(tt.data)
+			got, err := tblsconv.PrivkeyFromBytes(tt.data)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -98,7 +98,7 @@ func TestPubkeyFromBytes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tblsconv2.PubkeyFromBytes(tt.data)
+			got, err := tblsconv.PubkeyFromBytes(tt.data)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -114,10 +114,10 @@ func TestPubkeyFromBytes(t *testing.T) {
 }
 
 func TestPubkeyToETH2(t *testing.T) {
-	pubkey, err := tblsconv2.PubkeyFromBytes(bytes.Repeat([]byte{42}, len(v2.PublicKey{})))
+	pubkey, err := tblsconv.PubkeyFromBytes(bytes.Repeat([]byte{42}, len(v2.PublicKey{})))
 	require.NoError(t, err)
 
-	res, err := tblsconv2.PubkeyToETH2(pubkey)
+	res, err := tblsconv.PubkeyToETH2(pubkey)
 	require.NoError(t, err)
 
 	require.Equal(t, pubkey[:], res[:])
@@ -126,7 +126,7 @@ func TestPubkeyToETH2(t *testing.T) {
 func TestPubkeyFromCore(t *testing.T) {
 	pubkey := testutil.RandomCorePubKey(t)
 
-	res, err := tblsconv2.PubkeyFromCore(pubkey)
+	res, err := tblsconv.PubkeyFromCore(pubkey)
 	require.NoError(t, err)
 
 	expect, err := hex.DecodeString(strings.TrimPrefix(string(pubkey), "0x"))
@@ -168,7 +168,7 @@ func TestSignatureFromBytes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tblsconv2.SignatureFromBytes(tt.data)
+			got, err := tblsconv.SignatureFromBytes(tt.data)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -217,7 +217,7 @@ func TestSigFromCore(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tblsconv2.SigFromCore(tt.data)
+			got, err := tblsconv.SigFromCore(tt.data)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -233,19 +233,19 @@ func TestSigFromCore(t *testing.T) {
 }
 
 func TestSigToCore(t *testing.T) {
-	sig, err := tblsconv2.SignatureFromBytes(bytes.Repeat([]byte{42}, len(v2.Signature{})))
+	sig, err := tblsconv.SignatureFromBytes(bytes.Repeat([]byte{42}, len(v2.Signature{})))
 	require.NoError(t, err)
 
-	coresig := tblsconv2.SigToCore(sig)
+	coresig := tblsconv.SigToCore(sig)
 
 	require.Equal(t, sig[:], []byte(coresig))
 }
 
 func TestSigToETH2(t *testing.T) {
-	sig, err := tblsconv2.SignatureFromBytes(bytes.Repeat([]byte{42}, len(v2.Signature{})))
+	sig, err := tblsconv.SignatureFromBytes(bytes.Repeat([]byte{42}, len(v2.Signature{})))
 	require.NoError(t, err)
 
-	coresig := tblsconv2.SigToETH2(sig)
+	coresig := tblsconv.SigToETH2(sig)
 
 	require.Equal(t, sig[:], coresig[:])
 }

@@ -24,7 +24,7 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/tblsconv"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -568,7 +568,7 @@ func decrypt(t *testing.T, store keystore.Keystore, password string) (tbls.Priva
 	secretBytes, err := decryptor.Decrypt(store.Crypto, password)
 	require.NoError(t, err)
 
-	return tblsconv2.PrivkeyFromBytes(secretBytes)
+	return tblsconv.PrivkeyFromBytes(secretBytes)
 }
 
 // result is a struct for receiving secrets along with their id.

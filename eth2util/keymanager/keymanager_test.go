@@ -18,8 +18,8 @@ import (
 
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
-	tblsv2 "github.com/obolnetwork/charon/tbls"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/tblsconv"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 const testAuthToken = "api-token-test"
@@ -28,11 +28,11 @@ func TestImportKeystores(t *testing.T) {
 	var (
 		ctx        = context.Background()
 		numSecrets = 4
-		secrets    []tblsv2.PrivateKey
+		secrets    []tbls.PrivateKey
 	)
 
 	for i := 0; i < numSecrets; i++ {
-		secret, err := tblsv2.GenerateSecretKey()
+		secret, err := tbls.GenerateSecretKey()
 		require.NoError(t, err)
 		secrets = append(secrets, secret)
 	}
@@ -152,14 +152,14 @@ type noopKeystore struct {
 }
 
 // decrypt returns the secret from the encrypted keystore.
-func decrypt(t *testing.T, store noopKeystore, password string) (tblsv2.PrivateKey, error) {
+func decrypt(t *testing.T, store noopKeystore, password string) (tbls.PrivateKey, error) {
 	t.Helper()
 
 	decryptor := keystorev4.New()
 	secretBytes, err := decryptor.Decrypt(store.Crypto, password)
 	require.NoError(t, err)
 
-	return tblsconv2.PrivkeyFromBytes(secretBytes)
+	return tblsconv.PrivkeyFromBytes(secretBytes)
 }
 
 // randomHex32 returns a random 32 character hex string.

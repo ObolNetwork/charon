@@ -31,8 +31,8 @@ import (
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
-	tblsv2 "github.com/obolnetwork/charon/tbls"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/tblsconv"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 const (
@@ -280,7 +280,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 }
 
 // signDepositDatas returns Distributed Validator pubkeys and deposit data signatures corresponding to each pubkey.
-func signDepositDatas(secrets []tblsv2.PrivateKey, withdrawalAddresses []string, network string) ([]eth2p0.DepositData, error) {
+func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, network string) ([]eth2p0.DepositData, error) {
 	if len(secrets) != len(withdrawalAddresses) {
 		return nil, errors.New("insufficient withdrawal addresses")
 	}
@@ -292,7 +292,7 @@ func signDepositDatas(secrets []tblsv2.PrivateKey, withdrawalAddresses []string,
 			return nil, err
 		}
 
-		pk, err := tblsv2.SecretToPublicKey(secret)
+		pk, err := tbls.SecretToPublicKey(secret)
 		if err != nil {
 			return nil, errors.Wrap(err, "secret to pubkey")
 		}
@@ -307,7 +307,7 @@ func signDepositDatas(secrets []tblsv2.PrivateKey, withdrawalAddresses []string,
 			return nil, err
 		}
 
-		sig, err := tblsv2.Sign(secret, sigRoot[:])
+		sig, err := tbls.Sign(secret, sigRoot[:])
 		if err != nil {
 			return nil, err
 		}
@@ -316,7 +316,7 @@ func signDepositDatas(secrets []tblsv2.PrivateKey, withdrawalAddresses []string,
 			PublicKey:             msg.PublicKey,
 			WithdrawalCredentials: msg.WithdrawalCredentials,
 			Amount:                msg.Amount,
-			Signature:             tblsconv2.SigToETH2(sig),
+			Signature:             tblsconv.SigToETH2(sig),
 		})
 	}
 
@@ -324,26 +324,26 @@ func signDepositDatas(secrets []tblsv2.PrivateKey, withdrawalAddresses []string,
 }
 
 // getTSSShares splits the secrets and returns the threshold key shares.
-func getTSSShares(secrets []tblsv2.PrivateKey, threshold, numNodes int) ([]tblsv2.PublicKey, [][]tblsv2.PrivateKey, error) {
+func getTSSShares(secrets []tbls.PrivateKey, threshold, numNodes int) ([]tbls.PublicKey, [][]tbls.PrivateKey, error) {
 	var (
-		dvs    []tblsv2.PublicKey
-		splits [][]tblsv2.PrivateKey
+		dvs    []tbls.PublicKey
+		splits [][]tbls.PrivateKey
 	)
 	for _, secret := range secrets {
-		shares, err := tblsv2.ThresholdSplit(secret, uint(numNodes), uint(threshold))
+		shares, err := tbls.ThresholdSplit(secret, uint(numNodes), uint(threshold))
 		if err != nil {
 			return nil, nil, err
 		}
 
 		// preserve order when transforming from map of private shares to array of private keys
-		secretSet := make([]tblsv2.PrivateKey, len(shares))
+		secretSet := make([]tbls.PrivateKey, len(shares))
 		for i := 1; i <= len(shares); i++ {
 			secretSet[i-1] = shares[i]
 		}
 
 		splits = append(splits, secretSet)
 
-		pubkey, err := tblsv2.SecretToPublicKey(secret)
+		pubkey, err := tbls.SecretToPublicKey(secret)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -368,7 +368,7 @@ func writeWarning(w io.Writer) {
 }
 
 // getKeys fetches secret keys for each distributed validator.
-func getKeys(splitKeys bool, splitKeysDir string, numDVs int) ([]tblsv2.PrivateKey, error) {
+func getKeys(splitKeys bool, splitKeysDir string, numDVs int) ([]tbls.PrivateKey, error) {
 	if splitKeys {
 		if splitKeysDir == "" {
 			return nil, errors.New("--split-keys-dir required when splitting keys")
@@ -377,9 +377,9 @@ func getKeys(splitKeys bool, splitKeysDir string, numDVs int) ([]tblsv2.PrivateK
 		return keystore.LoadKeys(splitKeysDir)
 	}
 
-	var secrets []tblsv2.PrivateKey
+	var secrets []tbls.PrivateKey
 	for i := 0; i < numDVs; i++ {
-		secret, err := tblsv2.GenerateSecretKey()
+		secret, err := tbls.GenerateSecretKey()
 		if err != nil {
 			return nil, err
 		}
@@ -391,7 +391,7 @@ func getKeys(splitKeys bool, splitKeysDir string, numDVs int) ([]tblsv2.PrivateK
 }
 
 // createDepositDatas creates a slice of deposit datas using the provided parameters and returns it.
-func createDepositDatas(withdrawalAddresses []string, network string, secrets []tblsv2.PrivateKey) ([]eth2p0.DepositData, error) {
+func createDepositDatas(withdrawalAddresses []string, network string, secrets []tbls.PrivateKey) ([]eth2p0.DepositData, error) {
 	if len(secrets) != len(withdrawalAddresses) {
 		return nil, errors.New("insufficient withdrawal addresses")
 	}
@@ -438,14 +438,14 @@ func writeLock(lock cluster.Lock, clusterDir string, numNodes int) error {
 
 // getValidators returns distributed validators from the provided dv public keys and keyshares.
 // It creates new peers from the provided config and saves validator keys to disk for each peer.
-func getValidators(dvsPubkeys []tblsv2.PublicKey, dvPrivShares [][]tblsv2.PrivateKey, depositDatas []eth2p0.DepositData) ([]cluster.DistValidator, error) {
+func getValidators(dvsPubkeys []tbls.PublicKey, dvPrivShares [][]tbls.PrivateKey, depositDatas []eth2p0.DepositData) ([]cluster.DistValidator, error) {
 	var vals []cluster.DistValidator
 	for idx, dv := range dvsPubkeys {
 		dv := dv
 		privShares := dvPrivShares[idx]
 		var pubshares [][]byte
 		for _, ps := range privShares {
-			pubk, err := tblsv2.SecretToPublicKey(ps)
+			pubk, err := tbls.SecretToPublicKey(ps)
 			if err != nil {
 				return nil, errors.Wrap(err, "public key generation")
 			}
@@ -482,7 +482,7 @@ func getValidators(dvsPubkeys []tblsv2.PublicKey, dvPrivShares [][]tblsv2.Privat
 }
 
 // writeKeysToKeymanager writes validator keys to the provided keymanager addresses.
-func writeKeysToKeymanager(ctx context.Context, conf clusterConfig, numNodes int, shareSets [][]tblsv2.PrivateKey) error {
+func writeKeysToKeymanager(ctx context.Context, conf clusterConfig, numNodes int, shareSets [][]tbls.PrivateKey) error {
 	// Ping all keymanager addresses to check if they are accessible to avoid partial writes
 	var clients []keymanager.Client
 	for i := 0; i < numNodes; i++ {
@@ -532,9 +532,9 @@ func writeKeysToKeymanager(ctx context.Context, conf clusterConfig, numNodes int
 }
 
 // writeKeysToDisk writes validator keyshares to disk. It assumes that the directory for each node already exists.
-func writeKeysToDisk(numNodes int, clusterDir string, insecureKeys bool, shareSets [][]tblsv2.PrivateKey) error {
+func writeKeysToDisk(numNodes int, clusterDir string, insecureKeys bool, shareSets [][]tbls.PrivateKey) error {
 	for i := 0; i < numNodes; i++ {
-		var secrets []tblsv2.PrivateKey
+		var secrets []tbls.PrivateKey
 		for _, shares := range shareSets {
 			secrets = append(secrets, shares[i])
 		}
@@ -682,11 +682,11 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 }
 
 // aggSign returns a bls aggregate signatures of the message signed by all the shares.
-func aggSign(secrets [][]tblsv2.PrivateKey, message []byte) ([]byte, error) {
-	var sigs []tblsv2.Signature
+func aggSign(secrets [][]tbls.PrivateKey, message []byte) ([]byte, error) {
+	var sigs []tbls.Signature
 	for _, shares := range secrets {
 		for _, share := range shares {
-			sig, err := tblsv2.Sign(share, message)
+			sig, err := tbls.Sign(share, message)
 			if err != nil {
 				return nil, err
 			}
@@ -694,7 +694,7 @@ func aggSign(secrets [][]tblsv2.PrivateKey, message []byte) ([]byte, error) {
 		}
 	}
 
-	aggSig, err := tblsv2.Aggregate(sigs)
+	aggSig, err := tbls.Aggregate(sigs)
 	if err != nil {
 		return nil, errors.Wrap(err, "aggregate signatures")
 	}
