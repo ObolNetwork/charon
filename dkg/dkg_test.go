@@ -29,13 +29,13 @@ import (
 	dkgsync "github.com/obolnetwork/charon/dkg/sync"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestMain(m *testing.M) {
-	tblsv2.SetImplementation(tblsv2.Herumi{})
+	tbls.SetImplementation(tbls.Herumi{})
 	os.Exit(m.Run())
 }
 
@@ -112,7 +112,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 		},
 		Log:     log.DefaultConfig(),
 		TestDef: &def,
-		TestStoreKeysFunc: func(secrets []tblsv2.PrivateKey, dir string) error {
+		TestStoreKeysFunc: func(secrets []tbls.PrivateKey, dir string) error {
 			return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
 		},
 		TestShutdownCallback: shutdownSync,
@@ -282,7 +282,7 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 
 	// Read generated lock and keystores from disk
 	var (
-		secretShares = make([][]tblsv2.PrivateKey, def.NumValidators)
+		secretShares = make([][]tbls.PrivateKey, def.NumValidators)
 		locks        []cluster.Lock
 	)
 	for i := 0; i < len(def.Operators); i++ {
@@ -321,10 +321,10 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 
 	// 	Ensure keystores can generate valid tbls aggregate signature.
 	for i := 0; i < def.NumValidators; i++ {
-		var sigs []tblsv2.Signature
+		var sigs []tbls.Signature
 		for j := 0; j < len(def.Operators); j++ {
 			msg := []byte("data")
-			sig, err := tblsv2.Sign(secretShares[i][j], msg)
+			sig, err := tbls.Sign(secretShares[i][j], msg)
 			require.NoError(t, err)
 			sigs = append(sigs, sig)
 
@@ -333,13 +333,13 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 				if len(lock.Validators[i].PubShares) == 0 {
 					continue
 				}
-				pk, err := tblsconv2.PubkeyFromBytes(lock.Validators[i].PubShares[j])
+				pk, err := tblsconv.PubkeyFromBytes(lock.Validators[i].PubShares[j])
 				require.NoError(t, err)
-				err = tblsv2.Verify(pk, msg, sig)
+				err = tbls.Verify(pk, msg, sig)
 				require.NoError(t, err)
 			}
 		}
-		_, err := tblsv2.Aggregate(sigs)
+		_, err := tbls.Aggregate(sigs)
 		require.NoError(t, err)
 	}
 }
@@ -546,7 +546,7 @@ func getConfigs(t *testing.T, def cluster.Definition, keys []*k1.PrivateKey, dir
 			},
 			Log:     log.DefaultConfig(),
 			TestDef: &def,
-			TestStoreKeysFunc: func(secrets []tblsv2.PrivateKey, dir string) error {
+			TestStoreKeysFunc: func(secrets []tbls.PrivateKey, dir string) error {
 				return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
 			},
 			TestTCPNodeCallback: tcpNodeCallback,

@@ -17,7 +17,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util/keystore"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	"github.com/obolnetwork/charon/tbls"
 )
 
 // Combine combines validator keys contained in inputDir, and writes the original BLS12-381 private keys.
@@ -63,7 +63,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 		return errors.Wrap(err, "cannot open lock file")
 	}
 
-	privkeys := make(map[int][]tblsv2.PrivateKey)
+	privkeys := make(map[int][]tbls.PrivateKey)
 
 	for _, pkp := range possibleKeyPaths {
 		secrets, err := keystore.LoadKeys(pkp)
@@ -76,7 +76,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 		}
 	}
 
-	var combinedKeys []tblsv2.PrivateKey
+	var combinedKeys []tbls.PrivateKey
 
 	for idx, pkSet := range privkeys {
 		log.Info(ctx, "Recombining key share", z.Int("validator_number", idx))
@@ -89,7 +89,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 			return errors.New("insufficient number of keys", z.Int("validator_number", idx))
 		}
 
-		secret, err := tblsv2.RecoverSecret(shares, uint(len(lock.Operators)), uint(lock.Threshold))
+		secret, err := tbls.RecoverSecret(shares, uint(len(lock.Operators)), uint(lock.Threshold))
 		if err != nil {
 			return errors.Wrap(err, "cannot recover shares", z.Int("validator_number", idx))
 		}
@@ -102,7 +102,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 			return errors.Wrap(err, "public key for validator from lockfile", z.Int("validator_number", idx))
 		}
 
-		genPubkey, err := tblsv2.SecretToPublicKey(secret)
+		genPubkey, err := tbls.SecretToPublicKey(secret)
 		if err != nil {
 			return errors.Wrap(err, "public key for validator from generated secret", z.Int("validator_number", idx))
 		}
@@ -127,12 +127,12 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 	return nil
 }
 
-func secretsToShares(lock cluster.Lock, secrets []tblsv2.PrivateKey) (map[int]tblsv2.PrivateKey, error) {
+func secretsToShares(lock cluster.Lock, secrets []tbls.PrivateKey) (map[int]tbls.PrivateKey, error) {
 	n := len(lock.Operators)
 
-	resp := make(map[int]tblsv2.PrivateKey)
+	resp := make(map[int]tbls.PrivateKey)
 	for idx, secret := range secrets {
-		pubkey, err := tblsv2.SecretToPublicKey(secret)
+		pubkey, err := tbls.SecretToPublicKey(secret)
 		if err != nil {
 			return nil, errors.Wrap(err, "pubkey from share")
 		}
@@ -171,14 +171,14 @@ func secretsToShares(lock cluster.Lock, secrets []tblsv2.PrivateKey) (map[int]tb
 // WithInsecureKeysForT is a functional option for Combine that will use the insecure keystore.StoreKeysInsecure function.
 func WithInsecureKeysForT(*testing.T) func(*options) {
 	return func(o *options) {
-		o.keyStoreFunc = func(secrets []tblsv2.PrivateKey, dir string) error {
+		o.keyStoreFunc = func(secrets []tbls.PrivateKey, dir string) error {
 			return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
 		}
 	}
 }
 
 type options struct {
-	keyStoreFunc func(secrets []tblsv2.PrivateKey, dir string) error
+	keyStoreFunc func(secrets []tbls.PrivateKey, dir string) error
 }
 
 // loadLockfile loads a lockfile from one of the charon directories contained in dir.

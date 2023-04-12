@@ -20,8 +20,8 @@ import (
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
 	"github.com/obolnetwork/charon/app/errors"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // insecureCost decreases the cipher key cost from the default 18 to 4 which speeds up
@@ -38,18 +38,18 @@ var ConfirmInsecureKeys confirmInsecure
 //
 // 🚨 The keystores are insecure and should only be used for testing large validator sets
 // as it speeds up encryption and decryption at the cost of security.
-func StoreKeysInsecure(secrets []tblsv2.PrivateKey, dir string, _ confirmInsecure) error {
+func StoreKeysInsecure(secrets []tbls.PrivateKey, dir string, _ confirmInsecure) error {
 	return storeKeysInternal(secrets, dir, "keystore-insecure-%d.json",
 		keystorev4.WithCost(new(testing.T), insecureCost))
 }
 
 // StoreKeys stores the secrets in dir/keystore-%d.json EIP 2335 Keystore files
 // with new random passwords stored in dir/Keystore-%d.txt.
-func StoreKeys(secrets []tblsv2.PrivateKey, dir string) error {
+func StoreKeys(secrets []tbls.PrivateKey, dir string) error {
 	return storeKeysInternal(secrets, dir, "keystore-%d.json")
 }
 
-func storeKeysInternal(secrets []tblsv2.PrivateKey, dir string, filenameFmt string, opts ...keystorev4.Option) error {
+func storeKeysInternal(secrets []tbls.PrivateKey, dir string, filenameFmt string, opts ...keystorev4.Option) error {
 	for i, secret := range secrets {
 		password, err := randomHex32()
 		if err != nil {
@@ -83,7 +83,7 @@ func storeKeysInternal(secrets []tblsv2.PrivateKey, dir string, filenameFmt stri
 
 // LoadKeys returns all secrets stored in dir/keystore-*.json 2335 Keystore files
 // using password stored in dir/keystore-*.txt.
-func LoadKeys(dir string) ([]tblsv2.PrivateKey, error) {
+func LoadKeys(dir string) ([]tbls.PrivateKey, error) {
 	files, err := filepath.Glob(path.Join(dir, "keystore-*.json"))
 	if err != nil {
 		return nil, errors.Wrap(err, "read files")
@@ -93,7 +93,7 @@ func LoadKeys(dir string) ([]tblsv2.PrivateKey, error) {
 		return nil, errors.New("no keys found")
 	}
 
-	var resp []tblsv2.PrivateKey
+	var resp []tbls.PrivateKey
 	for _, f := range files {
 		b, err := os.ReadFile(f)
 		if err != nil {
@@ -132,10 +132,10 @@ type Keystore struct {
 }
 
 // Encrypt returns the secret as an encrypted Keystore using pbkdf2 cipher.
-func Encrypt(secret tblsv2.PrivateKey, password string, random io.Reader,
+func Encrypt(secret tbls.PrivateKey, password string, random io.Reader,
 	opts ...keystorev4.Option,
 ) (Keystore, error) {
-	pubKey, err := tblsv2.SecretToPublicKey(secret)
+	pubKey, err := tbls.SecretToPublicKey(secret)
 	if err != nil {
 		return Keystore{}, errors.Wrap(err, "marshal pubkey")
 	}
@@ -157,14 +157,14 @@ func Encrypt(secret tblsv2.PrivateKey, password string, random io.Reader,
 }
 
 // decrypt returns the secret from the encrypted (empty password) Keystore.
-func decrypt(store Keystore, password string) (tblsv2.PrivateKey, error) {
+func decrypt(store Keystore, password string) (tbls.PrivateKey, error) {
 	decryptor := keystorev4.New()
 	secretBytes, err := decryptor.Decrypt(store.Crypto, password)
 	if err != nil {
-		return tblsv2.PrivateKey{}, errors.Wrap(err, "decrypt keystore")
+		return tbls.PrivateKey{}, errors.Wrap(err, "decrypt keystore")
 	}
 
-	return tblsconv2.PrivkeyFromBytes(secretBytes)
+	return tblsconv.PrivkeyFromBytes(secretBytes)
 }
 
 // uuid returns a random uuid.

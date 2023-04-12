@@ -12,8 +12,8 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // kcTransport provides secure transport abstraction to keycast.
@@ -27,10 +27,10 @@ type kcTransport interface {
 // share is the co-validator public key, tbls public shares, and private key share.
 // Each node in the cluster will receive one for each distributed validator.
 type share struct {
-	PubKey      tblsv2.PublicKey
-	SecretShare tblsv2.PrivateKey
+	PubKey      tbls.PublicKey
+	SecretShare tbls.PrivateKey
 
-	PublicShares map[int]tblsv2.PublicKey // map[shareIdx]tblsv2.PublicKey
+	PublicShares map[int]tbls.PublicKey // map[shareIdx]tbls.PublicKey
 }
 
 // shareMsg is the share message wire format sent by the dealer.
@@ -153,17 +153,17 @@ func leadKeyCast(ctx context.Context, tp kcTransport, def cluster.Definition) ([
 func createShares(numValidators, numNodes, threshold int) ([][]share, error) {
 	resp := make([][]share, numNodes)
 	for i := 0; i < numValidators; i++ {
-		rootSecret, err := tblsv2.GenerateSecretKey()
+		rootSecret, err := tbls.GenerateSecretKey()
 		if err != nil {
 			return nil, err
 		}
 
-		rootPubkey, err := tblsv2.SecretToPublicKey(rootSecret)
+		rootPubkey, err := tbls.SecretToPublicKey(rootSecret)
 		if err != nil {
 			return nil, err
 		}
 
-		shares, err := tblsv2.ThresholdSplit(rootSecret, uint(numNodes), uint(threshold))
+		shares, err := tbls.ThresholdSplit(rootSecret, uint(numNodes), uint(threshold))
 		if err != nil {
 			return nil, err
 		}
@@ -172,11 +172,11 @@ func createShares(numValidators, numNodes, threshold int) ([][]share, error) {
 			return nil, errors.New("bug: sanity check length of shares")
 		}
 
-		pubShares := make(map[int]tblsv2.PublicKey)
+		pubShares := make(map[int]tbls.PublicKey)
 		for idx, privShare := range shares {
 			privShare := privShare
 			idx := idx
-			pubShare, err := tblsv2.SecretToPublicKey(privShare)
+			pubShare, err := tbls.SecretToPublicKey(privShare)
 			if err != nil {
 				return nil, errors.Wrap(err, "can't obtain pubkey from secret", z.Int("index", idx))
 			}
@@ -224,21 +224,21 @@ func msgFromShare(s share) shareMsg {
 
 // shareFromMsg returns the share by unmarshalling the wire message types.
 func shareFromMsg(msg shareMsg) (share, error) {
-	pubKey, err := tblsconv2.PubkeyFromBytes(msg.PubKey)
+	pubKey, err := tblsconv.PubkeyFromBytes(msg.PubKey)
 	if err != nil {
 		return share{}, errors.Wrap(err, "public key from bytes")
 	}
-	pubShares := make(map[int]tblsv2.PublicKey)
+	pubShares := make(map[int]tbls.PublicKey)
 
 	for id, bytes := range msg.PubShares {
-		pubKey, err := tblsconv2.PubkeyFromBytes(bytes)
+		pubKey, err := tblsconv.PubkeyFromBytes(bytes)
 		if err != nil {
 			return share{}, errors.Wrap(err, "public key from bytes")
 		}
 		pubShares[id+1] = pubKey // Public shares IDs are 1-indexed.
 	}
 
-	secretShare, err := tblsconv2.PrivkeyFromBytes(msg.SecretShare)
+	secretShare, err := tblsconv.PrivkeyFromBytes(msg.SecretShare)
 	if err != nil {
 		return share{}, errors.Wrap(err, "private key from bytes")
 	}

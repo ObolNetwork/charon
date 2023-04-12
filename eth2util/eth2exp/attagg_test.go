@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
@@ -24,7 +24,7 @@ func TestIsAttAggregator(t *testing.T) {
 	// https://github.com/prysmaticlabs/prysm/blob/8627fe72e80009ae162430140bcfff6f209d7a32/beacon-chain/core/helpers/attestation_test.go#L28
 	sig, err := hex.DecodeString("8776a37d6802c4797d113169c5fcfda50e68a32058eb6356a6f00d06d7da64c841a00c7c38b9b94a204751eca53707bd03523ce4797827d9bacff116a6e776a20bbccff4b683bf5201b610797ed0502557a58a65c8395f8a1649b976c3112d15")
 	require.NoError(t, err)
-	blsSig, err := tblsconv2.SignatureFromBytes(sig)
+	blsSig, err := tblsconv.SignatureFromBytes(sig)
 	require.NoError(t, err)
 
 	t.Run("aggregator", func(t *testing.T) {

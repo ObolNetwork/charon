@@ -11,8 +11,8 @@ import (
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -22,19 +22,19 @@ func TestInvalidSignatures(t *testing.T) {
 		th = 3
 	)
 
-	secret, err := tblsv2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubkey, err := tblsv2.SecretToPublicKey(secret)
+	pubkey, err := tbls.SecretToPublicKey(secret)
 	require.NoError(t, err)
 
-	secretShares, err := tblsv2.ThresholdSplit(secret, n, th)
+	secretShares, err := tbls.ThresholdSplit(secret, n, th)
 	require.NoError(t, err)
 
-	pubshares := make(map[int]tblsv2.PublicKey)
+	pubshares := make(map[int]tbls.PublicKey)
 
 	for idx, share := range secretShares {
-		pubkey, err := tblsv2.SecretToPublicKey(share)
+		pubkey, err := tbls.SecretToPublicKey(share)
 		require.NoError(t, err)
 
 		pubshares[idx] = pubkey
@@ -49,16 +49,16 @@ func TestInvalidSignatures(t *testing.T) {
 	getSigs := func(msg []byte) []core.ParSignedData {
 		var sigs []core.ParSignedData
 		for i := 0; i < n-1; i++ {
-			sig, err := tblsv2.Sign(secretShares[i+1], msg)
+			sig, err := tbls.Sign(secretShares[i+1], msg)
 			require.NoError(t, err)
 
-			sigs = append(sigs, core.NewPartialSignature(tblsconv2.SigToCore(sig), i+1))
+			sigs = append(sigs, core.NewPartialSignature(tblsconv.SigToCore(sig), i+1))
 		}
 
-		invalidSig, err := tblsv2.Sign(secretShares[n-1], []byte("invalid msg"))
+		invalidSig, err := tbls.Sign(secretShares[n-1], []byte("invalid msg"))
 		require.NoError(t, err)
 
-		sigs = append(sigs, core.NewPartialSignature(tblsconv2.SigToCore(invalidSig), n))
+		sigs = append(sigs, core.NewPartialSignature(tblsconv.SigToCore(invalidSig), n))
 
 		return sigs
 	}
@@ -90,19 +90,19 @@ func TestValidSignatures(t *testing.T) {
 		th = 3
 	)
 
-	secret, err := tblsv2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubkey, err := tblsv2.SecretToPublicKey(secret)
+	pubkey, err := tbls.SecretToPublicKey(secret)
 	require.NoError(t, err)
 
-	secretShares, err := tblsv2.ThresholdSplit(secret, n, th)
+	secretShares, err := tbls.ThresholdSplit(secret, n, th)
 	require.NoError(t, err)
 
-	pubshares := make(map[int]tblsv2.PublicKey)
+	pubshares := make(map[int]tbls.PublicKey)
 
 	for idx, share := range secretShares {
-		pubkey, err := tblsv2.SecretToPublicKey(share)
+		pubkey, err := tbls.SecretToPublicKey(share)
 		require.NoError(t, err)
 
 		pubshares[idx] = pubkey
@@ -118,10 +118,10 @@ func TestValidSignatures(t *testing.T) {
 		var sigs []core.ParSignedData
 		for i := 0; i < n-1; i++ {
 			pk := secretShares[i+1]
-			sig, err := tblsv2.Sign(pk, msg)
+			sig, err := tbls.Sign(pk, msg)
 			require.NoError(t, err)
 
-			coreSig := tblsconv2.SigToCore(sig)
+			coreSig := tblsconv.SigToCore(sig)
 			sigs = append(sigs, core.NewPartialSignature(coreSig, i+1))
 		}
 

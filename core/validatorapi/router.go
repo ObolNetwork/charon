@@ -40,7 +40,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 type contentType string
@@ -1154,7 +1154,7 @@ func getValidatorsByID(ctx context.Context, p eth2client.ValidatorsProvider, sta
 			if err != nil {
 				return nil, errors.Wrap(err, "fetch public key bytes")
 			}
-			pubkey, err := tblsconv2.PubkeyFromBytes(coreBytes)
+			pubkey, err := tblsconv.PubkeyFromBytes(coreBytes)
 			if err != nil {
 				return nil, errors.Wrap(err, "decode public key hex")
 			}

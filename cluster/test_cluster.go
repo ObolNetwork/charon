@@ -13,7 +13,7 @@ import (
 
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/enr"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -21,14 +21,14 @@ import (
 // It also returns the peer p2p keys and BLS secret shares. If the seed is zero a random cluster on available loopback
 // ports is generated, else a deterministic cluster is generated.
 // Note this is not defined in testutil since it is tightly coupled with the cluster package.
-func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock, []*k1.PrivateKey, [][]tblsv2.PrivateKey) {
+func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock, []*k1.PrivateKey, [][]tbls.PrivateKey) {
 	t.Helper()
 
 	var (
 		vals     []DistValidator
 		p2pKeys  []*k1.PrivateKey
 		ops      []Operator
-		dvShares [][]tblsv2.PrivateKey
+		dvShares [][]tbls.PrivateKey
 	)
 
 	random := io.Reader(rand.New(rand.NewSource(int64(seed)))) //nolint:gosec // Explicit use of weak random generator for determinism.
@@ -39,21 +39,21 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 	}
 
 	for i := 0; i < dv; i++ {
-		rootSecret, err := tblsv2.GenerateSecretKey()
+		rootSecret, err := tbls.GenerateSecretKey()
 		require.NoError(t, err)
 
-		rootPublic, err := tblsv2.SecretToPublicKey(rootSecret)
+		rootPublic, err := tbls.SecretToPublicKey(rootSecret)
 		require.NoError(t, err)
 
-		shares, err := tblsv2.ThresholdSplit(rootSecret, uint(n), uint(k))
+		shares, err := tbls.ThresholdSplit(rootSecret, uint(n), uint(k))
 		require.NoError(t, err)
 
 		var pubshares [][]byte
-		var privshares []tblsv2.PrivateKey
+		var privshares []tbls.PrivateKey
 		for i := 0; i < n; i++ {
 			sharePrivkey := shares[i+1] // Share indexes are 1-indexed.
 
-			sharePub, err := tblsv2.SecretToPublicKey(sharePrivkey)
+			sharePub, err := tbls.SecretToPublicKey(sharePrivkey)
 			require.NoError(t, err)
 
 			pubshares = append(pubshares, sharePub[:])

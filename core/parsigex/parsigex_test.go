@@ -20,13 +20,13 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/p2p"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 func TestMain(m *testing.M) {
-	tblsv2.SetImplementation(tblsv2.Herumi{})
+	tbls.SetImplementation(tbls.Herumi{})
 	os.Exit(m.Run())
 }
 
@@ -122,14 +122,14 @@ func TestParSigExVerifier(t *testing.T) {
 
 	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
 
-	secret, err := tblsv2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pk, err := tblsv2.SecretToPublicKey(secret)
+	pk, err := tbls.SecretToPublicKey(secret)
 	require.NoError(t, err)
 
 	sign := func(msg []byte) eth2p0.BLSSignature {
-		sig, err := tblsv2.Sign(secret, msg)
+		sig, err := tbls.Sign(secret, msg)
 		require.NoError(t, err)
 
 		return eth2p0.BLSSignature(sig)
@@ -138,7 +138,7 @@ func TestParSigExVerifier(t *testing.T) {
 	pubkey, err := core.PubKeyFromBytes(pk[:])
 	require.NoError(t, err)
 
-	mp := map[core.PubKey]map[int]tblsv2.PublicKey{
+	mp := map[core.PubKey]map[int]tbls.PublicKey{
 		pubkey: {
 			shareIdx: pk,
 		},

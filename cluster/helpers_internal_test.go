@@ -16,12 +16,12 @@ import (
 
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/eth2util"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestMain(m *testing.M) {
-	tblsv2.SetImplementation(tblsv2.Herumi{})
+	tbls.SetImplementation(tbls.Herumi{})
 	os.Exit(m.Run())
 }
 

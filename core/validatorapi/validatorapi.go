@@ -25,8 +25,8 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // NewComponentInsecure returns a new instance of the validator API core workflow component
@@ -41,13 +41,13 @@ func NewComponentInsecure(_ *testing.T, eth2Cl eth2wrap.Client, shareIdx int) (*
 }
 
 // NewComponent returns a new instance of the validator API core workflow component.
-func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[int]tblsv2.PublicKey,
+func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[int]tbls.PublicKey,
 	shareIdx int, feeRecipientFunc func(core.PubKey) string, builderEnabled core.BuilderEnabled, seenPubkeys func(core.PubKey),
 ) (*Component, error) {
 	var (
 		sharesByKey     = make(map[eth2p0.BLSPubKey]eth2p0.BLSPubKey)
 		keysByShare     = make(map[eth2p0.BLSPubKey]eth2p0.BLSPubKey)
-		sharesByCoreKey = make(map[core.PubKey]tblsv2.PublicKey)
+		sharesByCoreKey = make(map[core.PubKey]tbls.PublicKey)
 		coreSharesByKey = make(map[core.PubKey]core.PubKey)
 	)
 	for corePubkey, shares := range allPubSharesByKey {
@@ -61,7 +61,7 @@ func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[
 		if err != nil {
 			return nil, err
 		}
-		pubkey, err := tblsconv2.PubkeyFromBytes(cpBytes)
+		pubkey, err := tblsconv.PubkeyFromBytes(cpBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -74,10 +74,10 @@ func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[
 		keysByShare[eth2Share] = eth2Pubkey
 	}
 
-	getVerifyShareFunc := func(pubkey core.PubKey) (tblsv2.PublicKey, error) {
+	getVerifyShareFunc := func(pubkey core.PubKey) (tbls.PublicKey, error) {
 		pubshare, ok := sharesByCoreKey[pubkey]
 		if !ok {
-			return tblsv2.PublicKey{}, errors.New("unknown public key")
+			return tbls.PublicKey{}, errors.New("unknown public key")
 		}
 
 		return pubshare, nil
@@ -136,7 +136,7 @@ type Component struct {
 
 	// getVerifyShareFunc maps public shares (what the VC thinks as its public key)
 	// to public keys (the DV root public key)
-	getVerifyShareFunc func(core.PubKey) (tblsv2.PublicKey, error)
+	getVerifyShareFunc func(core.PubKey) (tbls.PublicKey, error)
 	// getPubShareFunc returns the public share for a root public key.
 	getPubShareFunc func(eth2p0.BLSPubKey) (eth2p0.BLSPubKey, bool)
 	// getPubKeyFunc returns the root public key for a public share.
@@ -703,7 +703,7 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 
 		// Verify inner selection proof (outcome of DutyPrepareAggregator).
 		if !c.insecureTest {
-			err = signing.VerifyAggregateAndProofSelection(ctx, c.eth2Cl, tblsv2.PublicKey(eth2Pubkey), agg.Message)
+			err = signing.VerifyAggregateAndProofSelection(ctx, c.eth2Cl, tbls.PublicKey(eth2Pubkey), agg.Message)
 			if err != nil {
 				return err
 			}
@@ -828,7 +828,7 @@ func (c Component) SubmitSyncCommitteeContributions(ctx context.Context, contrib
 		// Verify inner selection proof.
 		if !c.insecureTest {
 			msg := core.NewSyncContributionAndProof(contrib.Message)
-			err = core.VerifyEth2SignedData(ctx, c.eth2Cl, msg, tblsv2.PublicKey(eth2Pubkey))
+			err = core.VerifyEth2SignedData(ctx, c.eth2Cl, msg, tbls.PublicKey(eth2Pubkey))
 			if err != nil {
 				return err
 			}

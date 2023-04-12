@@ -33,14 +33,14 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	"github.com/obolnetwork/charon/tbls"
 )
 
-func deterministicPubkey(t *testing.T) tblsv2.PublicKey {
+func deterministicPubkey(t *testing.T) tbls.PublicKey {
 	t.Helper()
 	random := rand.New(rand.NewSource(rand.Int63()))
 
-	var key tblsv2.PublicKey
+	var key tbls.PublicKey
 	_, err := random.Read(key[:])
 	require.NoError(t, err)
 
