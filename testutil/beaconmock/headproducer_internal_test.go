@@ -123,6 +123,9 @@ func TestHeadProducer(t *testing.T) {
 }
 
 // Refer https://github.com/cenkalti/backoff/blob/v4/backoff.go#L46 for the following snippet.
+// We don't need the full dependency since we don't want these tests to support exponential backoff.
+// We want simple, fast tests where a single event is sent by the server and is intercepted by the client, or
+// it produces an error.
 
 // Stop indicates that no more retries should be made for use in NextBackOff().
 const Stop time.Duration = -1
