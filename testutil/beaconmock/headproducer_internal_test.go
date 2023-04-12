@@ -15,7 +15,6 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/r3labs/sse/v2"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/cenkalti/backoff.v1"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
@@ -72,21 +71,26 @@ func TestHeadProducer(t *testing.T) {
 				requiredTopics[topic] = true
 			}
 
-			client := sse.NewClient(addr, func(c *sse.Client) {
-				c.ResponseValidator = func(c *sse.Client, resp *http.Response) error {
-					require.Equal(t, test.statusCode, resp.StatusCode)
+			client := sse.NewClient(addr,
+				func(c *sse.Client) {
+					c.ResponseValidator = func(c *sse.Client, resp *http.Response) error {
+						require.Equal(t, test.statusCode, resp.StatusCode)
 
-					if resp.StatusCode == http.StatusInternalServerError {
-						data, err := io.ReadAll(resp.Body)
-						require.NoError(t, err)
-						require.Contains(t, string(data), "unknown topic")
+						if resp.StatusCode == http.StatusInternalServerError {
+							data, err := io.ReadAll(resp.Body)
+							require.NoError(t, err)
+							require.Contains(t, string(data), "unknown topic")
 
-						return backoff.Permanent(unsupportedTopicErr)
+							return unsupportedTopicErr
+						}
+
+						return nil
 					}
-
-					return nil
-				}
-			})
+				},
+				func(c *sse.Client) {
+					c.ReconnectStrategy = StopBackOff{}
+				},
+			)
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -117,3 +121,16 @@ func TestHeadProducer(t *testing.T) {
 		})
 	}
 }
+
+// Refer https://github.com/cenkalti/backoff/blob/v4/backoff.go#L46 for the following snippet.
+
+// Stop indicates that no more retries should be made for use in NextBackOff().
+const Stop time.Duration = -1
+
+// StopBackOff is a fixed backoff policy that always returns backoff.Stop for
+// NextBackOff(), meaning that the operation should never be retried.
+type StopBackOff struct{}
+
+func (b StopBackOff) Reset() {}
+
+func (b StopBackOff) NextBackOff() time.Duration { return Stop }
