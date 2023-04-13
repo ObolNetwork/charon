@@ -38,15 +38,19 @@ const (
 	//   - When connected via relay, libp2p's identify protocol detects the remote peer's addresses.
 	//   - Those are added to the peer store so libp2p will try to use them.
 	RelayDiscovery Feature = "relay_discovery"
+
+	// QBFTNoResetTimer disables reset active round timers on receipt of pre-prepares.
+	QBFTNoResetTimer Feature = "qbft_no_reset_timer"
 )
 
 var (
 	// state defines the current rollout status of each feature.
 	state = map[Feature]status{
-		QBFTConsensus:  statusStable,
-		Priority:       statusStable,
-		MockAlpha:      statusAlpha,
-		RelayDiscovery: statusStable,
+		QBFTConsensus:    statusStable,
+		Priority:         statusStable,
+		MockAlpha:        statusAlpha,
+		RelayDiscovery:   statusStable,
+		QBFTNoResetTimer: statusAlpha,
 		// Add all features and there status here.
 	}
 

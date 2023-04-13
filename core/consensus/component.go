@@ -27,11 +27,9 @@ import (
 )
 
 const (
-	recvBuffer    = 100 // Allow buffering some initial messages when this node is late to start an instance.
-	roundStart    = time.Millisecond * 750
-	roundIncrease = time.Millisecond * 250
-	protocolID1   = "/charon/consensus/qbft/1.0.0"
-	protocolID2   = "/charon/consensus/qbft/2.0.0"
+	recvBuffer  = 100 // Allow buffering some initial messages when this node is late to start an instance.
+	protocolID1 = "/charon/consensus/qbft/1.0.0"
+	protocolID2 = "/charon/consensus/qbft/2.0.0"
 )
 
 // Protocols returns the supported protocols of this package in order of precedence.
@@ -42,7 +40,7 @@ func Protocols() []protocol.ID {
 type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) error
 
 // newDefinition returns a qbft definition (this is constant across all consensus instances).
-func newDefinition(nodes int, subs func() []subscriber) qbft.Definition[core.Duty, [32]byte] {
+func newDefinition(nodes int, subs func() []subscriber, roundTimer roundTimer) qbft.Definition[core.Duty, [32]byte] {
 	quorum := qbft.Definition[int, int]{Nodes: nodes}.Quorum()
 
 	return qbft.Definition[core.Duty, [32]byte]{
@@ -79,13 +77,16 @@ func newDefinition(nodes int, subs func() []subscriber) qbft.Definition[core.Dut
 			}
 		},
 
-		NewTimer: newRoundTimer, // newRoundTimer returns a 750ms+(round*250ms) period timer.
+		NewTimer: roundTimer.Timer,
 
 		// LogUponRule logs upon rules at debug level.
 		LogUponRule: func(ctx context.Context, _ core.Duty, _, round int64,
 			_ qbft.Msg[core.Duty, [32]byte], uponRule qbft.UponRule,
 		) {
 			log.Debug(ctx, "QBFT upon rule triggered", z.Any("rule", uponRule), z.I64("round", round))
+			if uponRule == qbft.UponJustifiedPrePrepare {
+				roundTimer.Proposed(round)
+			}
 		},
 
 		// LogRoundChange logs round changes at debug level.
@@ -126,7 +127,7 @@ func newDefinition(nodes int, subs func() []subscriber) qbft.Definition[core.Dut
 
 // New returns a new consensus QBFT component.
 func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey,
-	deadliner core.Deadliner, snifferFunc func(*pbv1.SniffedConsensusInstance),
+	deadliner core.Deadliner, snifferFunc func(*pbv1.SniffedConsensusInstance), doubleOnTimeout bool,
 ) (*Component, error) {
 	// Extract peer pubkeys.
 	keys := make(map[int64]*k1.PublicKey)
@@ -155,7 +156,12 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.Pri
 		dropFilter:  log.Filter(),
 	}
 
-	c.def = newDefinition(len(peers), c.subscribers)
+	var roundTimer roundTimer = newIncreasingRoundTimer()
+	if doubleOnTimeout {
+		roundTimer = newDoubleTimeoutRoundTimer()
+	}
+
+	c.def = newDefinition(len(peers), c.subscribers, roundTimer)
 
 	return c, nil
 }
@@ -572,16 +578,6 @@ func fmtStepPeers(step roundStep) string {
 // leader return the deterministic leader index.
 func leader(duty core.Duty, round int64, nodes int) int64 {
 	return ((duty.Slot) + int64(duty.Type) + round) % int64(nodes)
-}
-
-// newRoundTimer returns a 750ms+(round*250ms) period timer.
-//
-// TODO(corver): Round timeout is a tradeoff between fast rounds to skip unavailable nodes
-// and slow rounds to allow consensus in high latency clusters. Dynamic timeout based on
-// recent network conditions could be an option.
-func newRoundTimer(round int64) (<-chan time.Time, func()) {
-	timer := time.NewTimer(roundStart + (time.Duration(round) * roundIncrease))
-	return timer.C, func() { timer.Stop() }
 }
 
 func valuesByHash(values []*anypb.Any) (map[[32]byte]*anypb.Any, error) {
