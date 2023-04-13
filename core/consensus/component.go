@@ -40,7 +40,9 @@ func Protocols() []protocol.ID {
 type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) error
 
 // newDefinition returns a qbft definition (this is constant across all consensus instances).
-func newDefinition(nodes int, subs func() []subscriber, roundTimer roundTimer) qbft.Definition[core.Duty, [32]byte] {
+func newDefinition(nodes int, subs func() []subscriber, roundTimer roundTimer,
+	decideCallback func(qcommit []qbft.Msg[core.Duty, [32]byte]),
+) qbft.Definition[core.Duty, [32]byte] {
 	quorum := qbft.Definition[int, int]{Nodes: nodes}.Quorum()
 
 	return qbft.Definition[core.Duty, [32]byte]{
@@ -69,6 +71,8 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer roundTimer) q
 				log.Error(ctx, "Invalid any value", err)
 				return
 			}
+
+			decideCallback(qcommit)
 
 			for _, sub := range subs() {
 				if err := sub(ctx, duty, value); err != nil {
@@ -140,43 +144,35 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.Pri
 		keys[int64(i)] = pk
 	}
 
-	c := &Component{
-		tcpNode:     tcpNode,
-		sender:      sender,
-		peers:       peers,
-		peerLabels:  labels,
-		privkey:     p2pKey,
-		pubkeys:     keys,
-		deadliner:   deadliner,
-		recvBuffers: make(map[core.Duty]chan msg),
-		snifferFunc: snifferFunc,
-		dropFilter:  log.Filter(),
-	}
-
-	var roundTimer roundTimer = newIncreasingRoundTimer()
-	if noResetTimer {
-		roundTimer = newNoResetRoundTimer()
-	}
-
-	c.def = newDefinition(len(peers), c.subscribers, roundTimer)
-
-	return c, nil
+	return &Component{
+		tcpNode:      tcpNode,
+		sender:       sender,
+		peers:        peers,
+		peerLabels:   labels,
+		privkey:      p2pKey,
+		pubkeys:      keys,
+		deadliner:    deadliner,
+		recvBuffers:  make(map[core.Duty]chan msg),
+		snifferFunc:  snifferFunc,
+		dropFilter:   log.Filter(),
+		noResetTimer: noResetTimer,
+	}, nil
 }
 
 // Component implements core.Consensus.
 type Component struct {
 	// Immutable state
-	tcpNode     host.Host
-	sender      *p2p.Sender
-	peerLabels  []string
-	peers       []p2p.Peer
-	pubkeys     map[int64]*k1.PublicKey
-	privkey     *k1.PrivateKey
-	def         qbft.Definition[core.Duty, [32]byte]
-	subs        []subscriber
-	deadliner   core.Deadliner
-	snifferFunc func(*pbv1.SniffedConsensusInstance)
-	dropFilter  z.Field // Filter buffer overflow errors (possible DDoS)
+	tcpNode      host.Host
+	sender       *p2p.Sender
+	peerLabels   []string
+	peers        []p2p.Peer
+	pubkeys      map[int64]*k1.PublicKey
+	privkey      *k1.PrivateKey
+	subs         []subscriber
+	deadliner    core.Deadliner
+	snifferFunc  func(*pbv1.SniffedConsensusInstance)
+	dropFilter   z.Field // Filter buffer overflow errors (possible DDoS)
+	noResetTimer bool
 
 	// Mutable state
 	recvMu      sync.Mutex
@@ -284,12 +280,30 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 		return err
 	}
 
+	// Instrument consensus instance.
+	var (
+		t0      = time.Now()
+		decided bool
+	)
+	decideCallback := func(qcommit []qbft.Msg[core.Duty, [32]byte]) {
+		decided = true
+		instrumentConsensus(duty, qcommit[0].Round(), t0)
+	}
+
+	var roundTimer roundTimer = newIncreasingRoundTimer()
+	if c.noResetTimer {
+		roundTimer = newNoResetRoundTimer()
+	}
+
+	// Create a new qbft definition.
+	def := newDefinition(len(c.peers), c.subscribers, roundTimer, decideCallback)
+
 	// Create a transport handles sending and receiving for this instance.
 	t := transport{
 		component:  c,
 		values:     map[[32]byte]*anypb.Any{hash: anyValue},
 		recvBuffer: make(chan qbft.Msg[core.Duty, [32]byte]),
-		sniffer:    newSniffer(int64(c.def.Nodes), peerIdx),
+		sniffer:    newSniffer(int64(def.Nodes), peerIdx),
 	}
 
 	// Provide sniffed buffer to snifferFunc at the end.
@@ -304,19 +318,6 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 	qt := qbft.Transport[core.Duty, [32]byte]{
 		Broadcast: t.Broadcast,
 		Receive:   t.recvBuffer,
-	}
-
-	// Instrument consensus instance.
-	var (
-		t0      = time.Now()
-		def     = c.def
-		decided bool
-	)
-	// Wrap Decide function of c.def to instrument consensus instance with provided start time (t0) and decided round.
-	def.Decide = func(ctx context.Context, duty core.Duty, val [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte]) {
-		decided = true
-		instrumentConsensus(duty, qcommit[0].Round(), t0)
-		c.def.Decide(ctx, duty, val, qcommit)
 	}
 
 	// Run the algo, blocking until the context is cancelled.

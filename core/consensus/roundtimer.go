@@ -10,9 +10,8 @@ import (
 )
 
 const (
-	timeoutRoundStart = time.Second
-	incRoundStart     = time.Millisecond * 750
-	incRoundIncrease  = time.Millisecond * 250
+	incRoundStart    = time.Millisecond * 750
+	incRoundIncrease = time.Millisecond * 250
 )
 
 // roundTimer provides the duration for each QBFT round.
@@ -48,7 +47,7 @@ func newNoResetRoundTimer() *noResetRoundTimer {
 }
 
 // noResetRoundTimer implements a round timer that does not reset active round timers.
-// This results in non-leader not reset round timers on receive of pre-prepare messages.
+// This results in not reset round timers on receive of justified pre-prepare messages for the current round.
 // It extends increasingRoundTimer otherwise.
 type noResetRoundTimer struct {
 	*increasingRoundTimer
