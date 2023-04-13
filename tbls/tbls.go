@@ -5,7 +5,7 @@ package tbls
 import "sync"
 
 var (
-	impl     Implementation = Kryptology{}
+	impl     Implementation = Herumi{}
 	implLock sync.Mutex
 )
 

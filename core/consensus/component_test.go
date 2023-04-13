@@ -5,7 +5,6 @@ package consensus_test
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/libp2p/go-libp2p"
@@ -24,14 +23,8 @@ import (
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
-	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
 )
-
-func TestMain(m *testing.M) {
-	tbls.SetImplementation(tbls.Herumi{})
-	os.Exit(m.Run())
-}
 
 func TestComponent(t *testing.T) {
 	const (

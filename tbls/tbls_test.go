@@ -177,10 +177,6 @@ func TestHerumiImplementation(t *testing.T) {
 	runSuite(t, tbls.Herumi{})
 }
 
-func TestKryptologyImplementation(t *testing.T) {
-	runSuite(t, tbls.Kryptology{})
-}
-
 func runBenchmark(b *testing.B, impl tbls.Implementation) {
 	b.Helper()
 	s := NewTestSuite(impl)
@@ -210,15 +206,10 @@ func BenchmarkHerumiImplementation(b *testing.B) {
 	runBenchmark(b, tbls.Herumi{})
 }
 
-func BenchmarkKryptologyImplementation(b *testing.B) {
-	runBenchmark(b, tbls.Kryptology{})
-}
-
 func TestRandomized(t *testing.T) {
 	runSuite(t, randomizedImpl{
 		implementations: []tbls.Implementation{
 			tbls.Herumi{},
-			tbls.Kryptology{},
 		},
 	})
 }

@@ -30,11 +30,6 @@ import (
 
 //go:generate go test . -run=TestCreateCluster -update -clean
 
-func TestMain(m *testing.M) {
-	tbls.SetImplementation(tbls.Herumi{})
-	os.Exit(m.Run())
-}
-
 func TestCreateCluster(t *testing.T) {
 	defPath := "../cluster/examples/cluster-definition-002.json"
 	def, err := loadDefinition(context.Background(), defPath)

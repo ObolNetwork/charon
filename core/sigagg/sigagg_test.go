@@ -4,7 +4,6 @@ package sigagg_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -24,12 +23,6 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
-
-func TestMain(m *testing.M) {
-	tbls.SetImplementation(tbls.Herumi{})
-	code := m.Run()
-	os.Exit(code)
-}
 
 func TestSigAgg(t *testing.T) {
 	ctx := context.Background()
