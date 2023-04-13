@@ -295,10 +295,10 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 		roundTimer = newNoResetRoundTimer()
 	}
 
-	// Create a new qbft definition.
+	// Create a new qbft definition for this instance.
 	def := newDefinition(len(c.peers), c.subscribers, roundTimer, decideCallback)
 
-	// Create a transport handles sending and receiving for this instance.
+	// Create a new transport that handles sending and receiving for this instance.
 	t := transport{
 		component:  c,
 		values:     map[[32]byte]*anypb.Any{hash: anyValue},
