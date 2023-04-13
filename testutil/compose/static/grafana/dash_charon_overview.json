@@ -404,19 +404,24 @@
                   "text": "Insufficient Peers"
                 },
                 "5": {
-                  "color": "super-light-orange",
+                  "color": "orange",
                   "index": 6,
-                  "text": "VC not configured"
+                  "text": "VC not connected"
                 },
                 "6": {
-                  "color": "semi-dark-orange",
+                  "color": "orange",
                   "index": 7,
                   "text": "VC missing some validators"
                 },
                 "7": {
-                  "color": "light-purple",
+                  "color": "orange",
                   "index": 8,
                   "text": "BeaconNode has zero peers"
+                },
+                "8": {
+                  "color": "orange",
+                  "index": 9,
+                  "text": "BeaconNode far behind"
                 }
               },
               "type": "value"
@@ -456,7 +461,7 @@
         "x": 9,
         "y": 0
       },
-      "id": 48,
+      "id": 76,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
