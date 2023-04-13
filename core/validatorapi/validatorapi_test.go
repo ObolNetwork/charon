@@ -5,7 +5,6 @@ package validatorapi_test
 import (
 	"context"
 	"fmt"
-	"os"
 	"sort"
 	"sync"
 	"testing"
@@ -33,11 +32,6 @@ import (
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 	"github.com/obolnetwork/charon/testutil/validatormock"
 )
-
-func TestMain(m *testing.M) {
-	tbls.SetImplementation(tbls.Herumi{})
-	os.Exit(m.Run())
-}
 
 func TestComponent_ValidSubmitAttestations(t *testing.T) {
 	ctx := context.Background()

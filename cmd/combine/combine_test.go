@@ -18,11 +18,6 @@ import (
 	"github.com/obolnetwork/charon/tbls"
 )
 
-func TestMain(m *testing.M) {
-	tbls.SetImplementation(tbls.Herumi{})
-	os.Exit(m.Run())
-}
-
 func TestCombineNoLockfile(t *testing.T) {
 	td := t.TempDir()
 	od := t.TempDir()

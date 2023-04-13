@@ -132,13 +132,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	version.LogInfo(ctx, "Charon starting")
 
-	tbls.SetImplementation(tbls.Herumi{})
-
-	if !featureset.Enabled(featureset.HerumiBLS) {
-		log.Info(ctx, "Enabling Kryptology BLS signature backend")
-		tbls.SetImplementation(tbls.Kryptology{})
-	}
-
 	// Wire processes and their dependencies
 	life := new(lifecycle.Manager)
 

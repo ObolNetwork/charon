@@ -4,7 +4,6 @@ package parsigex_test
 
 import (
 	"context"
-	"os"
 	"sync"
 	"testing"
 
@@ -24,11 +23,6 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
-
-func TestMain(m *testing.M) {
-	tbls.SetImplementation(tbls.Herumi{})
-	os.Exit(m.Run())
-}
 
 func TestParSigEx(t *testing.T) {
 	const (

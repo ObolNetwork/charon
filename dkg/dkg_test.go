@@ -34,11 +34,6 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestMain(m *testing.M) {
-	tbls.SetImplementation(tbls.Herumi{})
-	os.Exit(m.Run())
-}
-
 func TestDKG(t *testing.T) {
 	const (
 		nodes = 3

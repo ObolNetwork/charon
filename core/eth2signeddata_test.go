@@ -4,7 +4,6 @@ package core_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -17,11 +16,6 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
-
-func TestMain(m *testing.M) {
-	tbls.SetImplementation(tbls.Herumi{})
-	os.Exit(m.Run())
-}
 
 func TestVerifyEth2SignedData(t *testing.T) {
 	tests := []struct {
