@@ -84,9 +84,6 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer roundTimer) q
 			_ qbft.Msg[core.Duty, [32]byte], uponRule qbft.UponRule,
 		) {
 			log.Debug(ctx, "QBFT upon rule triggered", z.Any("rule", uponRule), z.I64("round", round))
-			if uponRule == qbft.UponJustifiedPrePrepare {
-				roundTimer.Proposed(round)
-			}
 		},
 
 		// LogRoundChange logs round changes at debug level.
@@ -127,7 +124,7 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer roundTimer) q
 
 // New returns a new consensus QBFT component.
 func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey,
-	deadliner core.Deadliner, snifferFunc func(*pbv1.SniffedConsensusInstance), doubleOnTimeout bool,
+	deadliner core.Deadliner, snifferFunc func(*pbv1.SniffedConsensusInstance), noResetTimer bool,
 ) (*Component, error) {
 	// Extract peer pubkeys.
 	keys := make(map[int64]*k1.PublicKey)
@@ -157,8 +154,8 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.Pri
 	}
 
 	var roundTimer roundTimer = newIncreasingRoundTimer()
-	if doubleOnTimeout {
-		roundTimer = newDoubleTimeoutRoundTimer()
+	if noResetTimer {
+		roundTimer = newNoResetRoundTimer()
 	}
 
 	c.def = newDefinition(len(peers), c.subscribers, roundTimer)

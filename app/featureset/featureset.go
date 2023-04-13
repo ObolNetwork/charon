@@ -39,7 +39,7 @@ const (
 	//   - Those are added to the peer store so libp2p will try to use them.
 	RelayDiscovery Feature = "relay_discovery"
 
-	// QBFTNoResetTimer disables reset active round timers on receipt of pre-prepares.
+	// QBFTNoResetTimer enables not reset round duration on receive of pre-prepare.
 	QBFTNoResetTimer Feature = "qbft_no_reset_timer"
 )
 
