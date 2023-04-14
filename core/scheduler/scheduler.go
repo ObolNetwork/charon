@@ -284,6 +284,13 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 		return err
 	}
 
+	// Check if any of the attester duties returned are nil..
+	for _, duty := range attDuties {
+		if duty == nil {
+			return errors.New("attester duty cannot be nil")
+		}
+	}
+
 	remaining := make(map[eth2p0.ValidatorIndex]bool)
 	for _, index := range vals.Indexes() {
 		remaining[index] = true
@@ -347,6 +354,13 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 		return err
 	}
 
+	// Check if any of the proposer duties returned are nil.
+	for _, duty := range proDuties {
+		if duty == nil {
+			return errors.New("proposer duty cannot be nil")
+		}
+	}
+
 	for _, proDuty := range proDuties {
 		if proDuty.Slot < eth2p0.Slot(slot.Slot) {
 			// Skip duties for earlier slots in initial epoch.
@@ -387,6 +401,13 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 	duties, err := s.eth2Cl.SyncCommitteeDuties(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
 	if err != nil {
 		return err
+	}
+
+	// Check if any of the sync committee duties returned are nil.
+	for _, duty := range duties {
+		if duty == nil {
+			return errors.New("sync committee duty cannot be nil")
+		}
 	}
 
 	for _, syncCommDuty := range duties {
@@ -585,6 +606,10 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2wrap.Client,
 
 	var resp []validator
 	for index, val := range vals {
+		if val == nil || val.Validator == nil {
+			return nil, errors.New("validator data cannot be nil")
+		}
+
 		pubkey, err := core.PubKeyFromBytes(val.Validator.PublicKey[:])
 		if err != nil {
 			return nil, err

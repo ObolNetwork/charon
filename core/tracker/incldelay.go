@@ -67,6 +67,10 @@ func newInclDelayFunc(eth2Cl eth2wrap.Client, dutiesFunc dutiesFunc, callback fu
 
 		var delays []int64
 		for _, att := range atts {
+			if att == nil || att.Data == nil {
+				return errors.New("attestation fields cannot be nil")
+			}
+
 			attSlot := att.Data.Slot
 			if int64(attSlot) < startSlot {
 				continue
