@@ -32,7 +32,7 @@ var (
 )
 
 // newFrostP2P returns a p2p frost transport implementation.
-func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k1.PrivateKey, threshold int) *frostP2P {
+func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k1.PrivateKey, threshold, numVals int) *frostP2P {
 	var (
 		round1CastsRecv = make(chan *pb.FrostRound1Casts, len(peers))
 		round1P2PRecv   = make(chan *pb.FrostRound1P2P, len(peers))
@@ -75,7 +75,7 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 						return errors.New("invalid round 1 cast source ID")
 					} else if cast.Key.TargetId != 0 {
 						return errors.New("invalid round 1 cast target ID")
-					} else if int(cast.Key.ValIdx) < 0 || int(cast.Key.ValIdx) >= len(peers) {
+					} else if int(cast.Key.ValIdx) < 0 || int(cast.Key.ValIdx) >= numVals {
 						return errors.New("invalid round 1 cast validator index")
 					}
 
@@ -108,7 +108,7 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 						return errors.New("invalid round 2 cast source ID")
 					} else if cast.Key.TargetId != 0 {
 						return errors.New("invalid round 2 cast target ID")
-					} else if int(cast.Key.ValIdx) < 0 || int(cast.Key.ValIdx) >= len(peers) {
+					} else if int(cast.Key.ValIdx) < 0 || int(cast.Key.ValIdx) >= numVals {
 						return errors.New("invalid round 1 cast validator index")
 					}
 				}
@@ -139,7 +139,7 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 					return nil, false, errors.New("invalid round 1 p2p source ID")
 				} else if int(share.Key.TargetId) != peers[tcpNode.ID()].ShareIdx {
 					return nil, false, errors.New("invalid round 1 p2p target ID")
-				} else if int(share.Key.ValIdx) < 0 || int(share.Key.ValIdx) >= len(peers) {
+				} else if int(share.Key.ValIdx) < 0 || int(share.Key.ValIdx) >= numVals {
 					return nil, false, errors.New("invalid round 1 p2p validator index")
 				}
 			}
