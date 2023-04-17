@@ -66,7 +66,7 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 				dedupRound1Casts[pID] = true
 
 				msg, ok := m.(*pb.FrostRound1Casts)
-				if !ok || msg == nil {
+				if !ok {
 					return errors.New("invalid round 1 casts message")
 				}
 
@@ -99,7 +99,7 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 				dedupRound2Casts[pID] = true
 
 				msg, ok := m.(*pb.FrostRound2Casts)
-				if !ok || msg == nil {
+				if !ok {
 					return errors.New("invalid round 2 casts message")
 				}
 
@@ -130,7 +130,7 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 			defer mu.Unlock()
 
 			msg, ok := req.(*pb.FrostRound1P2P)
-			if !ok || msg == nil {
+			if !ok {
 				return nil, false, errors.New("invalid round 1 p2p message")
 			}
 
