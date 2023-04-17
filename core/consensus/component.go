@@ -292,7 +292,7 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 
 	var roundTimer roundTimer = newIncreasingRoundTimer()
 	if c.noResetTimer {
-		roundTimer = newNoResetRoundTimer()
+		roundTimer = newDoubleLeadRoundTimer()
 	}
 
 	// Create a new qbft definition for this instance.
