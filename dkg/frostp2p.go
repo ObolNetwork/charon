@@ -66,7 +66,7 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 				dedupRound1Casts[pID] = true
 
 				msg, ok := m.(*pb.FrostRound1Casts)
-				if !ok {
+				if !ok || msg == nil {
 					return errors.New("invalid round 1 casts message")
 				}
 
@@ -75,6 +75,8 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 						return errors.New("invalid round 1 cast source ID")
 					} else if cast.Key.TargetId != 0 {
 						return errors.New("invalid round 1 cast target ID")
+					} else if int(cast.Key.ValIdx) < 0 || int(cast.Key.ValIdx) >= len(peers) {
+						return errors.New("invalid round 1 cast validator index")
 					}
 
 					if len(cast.Commitments) != threshold {
@@ -97,7 +99,7 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 				dedupRound2Casts[pID] = true
 
 				msg, ok := m.(*pb.FrostRound2Casts)
-				if !ok {
+				if !ok || msg == nil {
 					return errors.New("invalid round 2 casts message")
 				}
 
@@ -106,6 +108,8 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 						return errors.New("invalid round 2 cast source ID")
 					} else if cast.Key.TargetId != 0 {
 						return errors.New("invalid round 2 cast target ID")
+					} else if int(cast.Key.ValIdx) < 0 || int(cast.Key.ValIdx) >= len(peers) {
+						return errors.New("invalid round 1 cast validator index")
 					}
 				}
 
@@ -126,7 +130,7 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 			defer mu.Unlock()
 
 			msg, ok := req.(*pb.FrostRound1P2P)
-			if !ok {
+			if !ok || msg == nil {
 				return nil, false, errors.New("invalid round 1 p2p message")
 			}
 
@@ -135,6 +139,8 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 					return nil, false, errors.New("invalid round 1 p2p source ID")
 				} else if int(share.Key.TargetId) != peers[tcpNode.ID()].ShareIdx {
 					return nil, false, errors.New("invalid round 1 p2p target ID")
+				} else if int(share.Key.ValIdx) < 0 || int(share.Key.ValIdx) >= len(peers) {
+					return nil, false, errors.New("invalid round 1 p2p validator index")
 				}
 			}
 
