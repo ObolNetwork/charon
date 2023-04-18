@@ -80,13 +80,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	defer func() {
 		if err := pidfileDeleteFunc(); err != nil {
-			log.Error(ctx, "cannot delete pidfile", err)
+			log.Error(ctx, "Cannot delete pidfile", err)
 		}
 	}()
 
 	version.LogInfo(ctx, "Charon DKG starting")
-
-	time.Sleep(1 * time.Minute)
 
 	def, err := loadDefinition(ctx, conf)
 	if err != nil {
