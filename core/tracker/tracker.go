@@ -236,7 +236,7 @@ type Tracker struct {
 	failedDutyReporter func(ctx context.Context, duty core.Duty, failed bool, step step, reason string, err error)
 
 	// participationReporter instruments duty peer participation.
-	participationReporter func(ctx context.Context, duty core.Duty, failed bool, participatedShares map[int]bool, unexpectedPeers map[int]bool)
+	participationReporter func(ctx context.Context, duty core.Duty, failed bool, participatedShares map[int]int, unexpectedPeers map[int]int, totalParticipationExpected int)
 }
 
 // New returns a new Tracker. The deleter deadliner must return well after analyser deadliner since duties of the same slot are often analysed together.
@@ -292,8 +292,8 @@ func (t *Tracker) Run(ctx context.Context) error {
 			t.failedDutyReporter(ctx, duty, failed, failedStep, failedMsg, failedErr)
 
 			// Analyse peer participation
-			participatedShares, unexpectedShares := analyseParticipation(duty, t.events)
-			t.participationReporter(ctx, duty, failed, participatedShares, unexpectedShares)
+			participatedShares, unexpectedShares, totalParticipationExpected := analyseParticipation(duty, t.events)
+			t.participationReporter(ctx, duty, failed, participatedShares, unexpectedShares, totalParticipationExpected)
 		case duty := <-t.deleter.C():
 			delete(t.events, duty)
 		}
@@ -645,26 +645,42 @@ func newUnsupportedIgnorer() func(ctx context.Context, duty core.Duty, failed bo
 	}
 }
 
-// analyseParticipation returns a set of share indexes of participated peers.
-func analyseParticipation(duty core.Duty, allEvents map[core.Duty][]event) (map[int]bool, map[int]bool) {
+// analyseParticipation returns a count of partial signatures submitted (correct and unexpected) by share index
+// and total expected partial signatures for the given duty.
+func analyseParticipation(duty core.Duty, allEvents map[core.Duty][]event) (map[int]int, map[int]int, int) {
 	// Set of shareIdx of participated peers.
-	resp := make(map[int]bool)
-	unexpectedShares := make(map[int]bool)
+	resp := make(map[int]int)
+	unexpectedShares := make(map[int]int)
 
+	// Dedup participation for each validator per peer for the given duty. Each peer can submit any number of partial signatures.
+	type dedupKey struct {
+		shareIdx int
+		pubkey   core.PubKey
+	}
+	dedup := make(map[dedupKey]bool)
+
+	// Set of validator keys which had the given duty scheduled.
+	pubkeyMap := make(map[core.PubKey]bool)
 	for _, e := range allEvents[duty] {
+		pubkeyMap[e.pubkey] = true
+
 		// If we get a parSigDBInternal event, then the current node participated successfully.
 		// If we get a parSigDBExternal event, then the corresponding peer with e.shareIdx participated successfully.
 		if e.step == parSigDBExternal || e.step == parSigDBInternal {
 			if !isParSigEventExpected(duty, e.pubkey, allEvents) {
-				unexpectedShares[e.parSig.ShareIdx] = true
+				unexpectedShares[e.parSig.ShareIdx]++
 				continue
 			}
 
-			resp[e.parSig.ShareIdx] = true
+			key := dedupKey{pubkey: e.pubkey, shareIdx: e.parSig.ShareIdx}
+			if !dedup[key] {
+				dedup[key] = true
+				resp[e.parSig.ShareIdx]++
+			}
 		}
 	}
 
-	return resp, unexpectedShares
+	return resp, unexpectedShares, len(pubkeyMap)
 }
 
 // isParSigEventExpected returns true if a partial signature event is expected for the given duty and pubkey.
@@ -707,7 +723,7 @@ func isParSigEventExpected(duty core.Duty, pubkey core.PubKey, allEvents map[cor
 
 // newParticipationReporter returns a new participation reporter function which logs and instruments peer participation
 // and unexpectedPeers.
-func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty, bool, map[int]bool, map[int]bool) {
+func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty, bool, map[int]int, map[int]int, int) {
 	// prevAbsent is the set of peers who didn't participate in the last duty per type.
 	prevAbsent := make(map[core.DutyType][]string)
 
@@ -722,7 +738,7 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 		}
 	}
 
-	return func(ctx context.Context, duty core.Duty, failed bool, participatedShares map[int]bool, unexpectedShares map[int]bool) {
+	return func(ctx context.Context, duty core.Duty, failed bool, participatedShares map[int]int, unexpectedShares map[int]int, totalParticipationExpected int) {
 		if len(participatedShares) == 0 && !failed {
 			// Ignore participation metrics and log for noop duties (like DutyAggregator)
 			return
@@ -730,19 +746,19 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 
 		var absentPeers []string
 		for _, peer := range peers {
-			if participatedShares[peer.ShareIdx()] {
+			if participatedShares[peer.ShareIdx()] > 0 {
 				participationGauge.WithLabelValues(duty.Type.String(), peer.Name).Set(1)
-				participationSuccess.WithLabelValues(duty.Type.String(), peer.Name).Inc()
+				participationSuccess.WithLabelValues(duty.Type.String(), peer.Name).Add(float64(participatedShares[peer.ShareIdx()]))
 				participationSuccessLegacy.WithLabelValues(duty.Type.String(), peer.Name).Inc()
-				participationExpect.WithLabelValues(duty.Type.String(), peer.Name).Inc()
-			} else if unexpectedShares[peer.ShareIdx()] {
+				participationExpect.WithLabelValues(duty.Type.String(), peer.Name).Add(float64(totalParticipationExpected - participatedShares[peer.ShareIdx()]))
+			} else if unexpectedShares[peer.ShareIdx()] > 0 {
 				log.Warn(ctx, "Unexpected event found", nil, z.Str("peer", peer.Name), z.Str("duty", duty.String()))
-				unexpectedEventsCounter.WithLabelValues(peer.Name).Inc()
+				unexpectedEventsCounter.WithLabelValues(peer.Name).Add(float64(unexpectedShares[peer.ShareIdx()]))
 			} else {
 				absentPeers = append(absentPeers, peer.Name)
 				participationGauge.WithLabelValues(duty.Type.String(), peer.Name).Set(0)
-				participationMissed.WithLabelValues(duty.Type.String(), peer.Name).Inc()
-				participationExpect.WithLabelValues(duty.Type.String(), peer.Name).Inc()
+				participationMissed.WithLabelValues(duty.Type.String(), peer.Name).Add(float64(totalParticipationExpected))
+				participationExpect.WithLabelValues(duty.Type.String(), peer.Name).Add(float64(totalParticipationExpected))
 			}
 		}
 
