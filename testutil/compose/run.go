@@ -73,6 +73,10 @@ func getVC(typ VCType, nodeIdx int, numVals int, insecure bool) (TmplVC, error) 
 			Label: string(VCLighthouse),
 			Build: "lighthouse",
 		},
+		VCLodestar: {
+			Label: string(VCLodestar),
+			Build: "lodestar",
+		},
 		VCTeku: {
 			Label: string(VCTeku),
 			Image: "consensys/teku:latest",
