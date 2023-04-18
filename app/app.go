@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/hex"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -31,6 +32,7 @@ import (
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/peerinfo"
+	"github.com/obolnetwork/charon/app/pidfile"
 	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/retry"
 	"github.com/obolnetwork/charon/app/tracer"
@@ -121,6 +123,17 @@ func Run(ctx context.Context, conf Config) (err error) {
 	defer func() {
 		if err != nil {
 			log.Error(ctx, "Fatal run error", err)
+		}
+	}()
+
+	pidfileDeleteFunc, err := pidfile.New(filepath.Dir(conf.LockFile), "run")
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err := pidfileDeleteFunc(); err != nil {
+			log.Error(ctx, "Cannot delete pidfile", err)
 		}
 	}()
 
