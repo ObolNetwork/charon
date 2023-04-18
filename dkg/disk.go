@@ -23,7 +23,7 @@ import (
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	"github.com/obolnetwork/charon/tbls"
 )
 
 // loadDefinition returns the cluster definition from disk or an HTTP URL. It returns the test definition if configured.
@@ -117,7 +117,7 @@ func writeKeysToKeymanager(ctx context.Context, keymanagerURL, authToken string,
 
 // writeKeysToDisk writes validator private keyshares for the node to disk.
 func writeKeysToDisk(conf Config, shares []share) error {
-	var secrets []tblsv2.PrivateKey
+	var secrets []tbls.PrivateKey
 	for _, s := range shares {
 		secrets = append(secrets, s.SecretShare)
 	}

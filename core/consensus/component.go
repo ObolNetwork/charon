@@ -27,11 +27,9 @@ import (
 )
 
 const (
-	recvBuffer    = 100 // Allow buffering some initial messages when this node is late to start an instance.
-	roundStart    = time.Millisecond * 750
-	roundIncrease = time.Millisecond * 250
-	protocolID1   = "/charon/consensus/qbft/1.0.0"
-	protocolID2   = "/charon/consensus/qbft/2.0.0"
+	recvBuffer  = 100 // Allow buffering some initial messages when this node is late to start an instance.
+	protocolID1 = "/charon/consensus/qbft/1.0.0"
+	protocolID2 = "/charon/consensus/qbft/2.0.0"
 )
 
 // Protocols returns the supported protocols of this package in order of precedence.
@@ -42,7 +40,9 @@ func Protocols() []protocol.ID {
 type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) error
 
 // newDefinition returns a qbft definition (this is constant across all consensus instances).
-func newDefinition(nodes int, subs func() []subscriber) qbft.Definition[core.Duty, [32]byte] {
+func newDefinition(nodes int, subs func() []subscriber, roundTimer roundTimer,
+	decideCallback func(qcommit []qbft.Msg[core.Duty, [32]byte]),
+) qbft.Definition[core.Duty, [32]byte] {
 	quorum := qbft.Definition[int, int]{Nodes: nodes}.Quorum()
 
 	return qbft.Definition[core.Duty, [32]byte]{
@@ -72,6 +72,8 @@ func newDefinition(nodes int, subs func() []subscriber) qbft.Definition[core.Dut
 				return
 			}
 
+			decideCallback(qcommit)
+
 			for _, sub := range subs() {
 				if err := sub(ctx, duty, value); err != nil {
 					log.Warn(ctx, "Subscriber error", err)
@@ -79,7 +81,7 @@ func newDefinition(nodes int, subs func() []subscriber) qbft.Definition[core.Dut
 			}
 		},
 
-		NewTimer: newRoundTimer, // newRoundTimer returns a 750ms+(round*250ms) period timer.
+		NewTimer: roundTimer.Timer,
 
 		// LogUponRule logs upon rules at debug level.
 		LogUponRule: func(ctx context.Context, _ core.Duty, _, round int64,
@@ -126,7 +128,7 @@ func newDefinition(nodes int, subs func() []subscriber) qbft.Definition[core.Dut
 
 // New returns a new consensus QBFT component.
 func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey,
-	deadliner core.Deadliner, snifferFunc func(*pbv1.SniffedConsensusInstance),
+	deadliner core.Deadliner, snifferFunc func(*pbv1.SniffedConsensusInstance), noResetTimer bool,
 ) (*Component, error) {
 	// Extract peer pubkeys.
 	keys := make(map[int64]*k1.PublicKey)
@@ -142,38 +144,35 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.Pri
 		keys[int64(i)] = pk
 	}
 
-	c := &Component{
-		tcpNode:     tcpNode,
-		sender:      sender,
-		peers:       peers,
-		peerLabels:  labels,
-		privkey:     p2pKey,
-		pubkeys:     keys,
-		deadliner:   deadliner,
-		recvBuffers: make(map[core.Duty]chan msg),
-		snifferFunc: snifferFunc,
-		dropFilter:  log.Filter(),
-	}
-
-	c.def = newDefinition(len(peers), c.subscribers)
-
-	return c, nil
+	return &Component{
+		tcpNode:      tcpNode,
+		sender:       sender,
+		peers:        peers,
+		peerLabels:   labels,
+		privkey:      p2pKey,
+		pubkeys:      keys,
+		deadliner:    deadliner,
+		recvBuffers:  make(map[core.Duty]chan msg),
+		snifferFunc:  snifferFunc,
+		dropFilter:   log.Filter(),
+		noResetTimer: noResetTimer,
+	}, nil
 }
 
 // Component implements core.Consensus.
 type Component struct {
 	// Immutable state
-	tcpNode     host.Host
-	sender      *p2p.Sender
-	peerLabels  []string
-	peers       []p2p.Peer
-	pubkeys     map[int64]*k1.PublicKey
-	privkey     *k1.PrivateKey
-	def         qbft.Definition[core.Duty, [32]byte]
-	subs        []subscriber
-	deadliner   core.Deadliner
-	snifferFunc func(*pbv1.SniffedConsensusInstance)
-	dropFilter  z.Field // Filter buffer overflow errors (possible DDoS)
+	tcpNode      host.Host
+	sender       *p2p.Sender
+	peerLabels   []string
+	peers        []p2p.Peer
+	pubkeys      map[int64]*k1.PublicKey
+	privkey      *k1.PrivateKey
+	subs         []subscriber
+	deadliner    core.Deadliner
+	snifferFunc  func(*pbv1.SniffedConsensusInstance)
+	dropFilter   z.Field // Filter buffer overflow errors (possible DDoS)
+	noResetTimer bool
 
 	// Mutable state
 	recvMu      sync.Mutex
@@ -281,12 +280,30 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 		return err
 	}
 
-	// Create a transport handles sending and receiving for this instance.
+	// Instrument consensus instance.
+	var (
+		t0      = time.Now()
+		decided bool
+	)
+	decideCallback := func(qcommit []qbft.Msg[core.Duty, [32]byte]) {
+		decided = true
+		instrumentConsensus(duty, qcommit[0].Round(), t0)
+	}
+
+	var roundTimer roundTimer = newIncreasingRoundTimer()
+	if c.noResetTimer {
+		roundTimer = newDoubleLeadRoundTimer()
+	}
+
+	// Create a new qbft definition for this instance.
+	def := newDefinition(len(c.peers), c.subscribers, roundTimer, decideCallback)
+
+	// Create a new transport that handles sending and receiving for this instance.
 	t := transport{
 		component:  c,
 		values:     map[[32]byte]*anypb.Any{hash: anyValue},
 		recvBuffer: make(chan qbft.Msg[core.Duty, [32]byte]),
-		sniffer:    newSniffer(int64(c.def.Nodes), peerIdx),
+		sniffer:    newSniffer(int64(def.Nodes), peerIdx),
 	}
 
 	// Provide sniffed buffer to snifferFunc at the end.
@@ -301,19 +318,6 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 	qt := qbft.Transport[core.Duty, [32]byte]{
 		Broadcast: t.Broadcast,
 		Receive:   t.recvBuffer,
-	}
-
-	// Instrument consensus instance.
-	var (
-		t0      = time.Now()
-		def     = c.def
-		decided bool
-	)
-	// Wrap Decide function of c.def to instrument consensus instance with provided start time (t0) and decided round.
-	def.Decide = func(ctx context.Context, duty core.Duty, val [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte]) {
-		decided = true
-		instrumentConsensus(duty, qcommit[0].Round(), t0)
-		c.def.Decide(ctx, duty, val, qcommit)
 	}
 
 	// Run the algo, blocking until the context is cancelled.
@@ -347,7 +351,7 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 
 	duty := core.DutyFromProto(pbMsg.Msg.Duty)
 	if !duty.Type.Valid() {
-		return nil, false, errors.New("invalid consensus message duty type", z.Str("type", duty.Type.String()))
+		return nil, false, errors.New("invalid consensus message duty type", z.Int("type", int(duty.Type)))
 	}
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
@@ -362,17 +366,32 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 		return nil, false, errors.New("invalid consensus message signature", z.Any("duty", duty))
 	}
 
-	for _, msg := range pbMsg.Justification {
-		if msg == nil {
+	for _, justification := range pbMsg.Justification {
+		if justification == nil {
 			return nil, false, errors.New("nil justification", z.Any("duty", duty))
 		}
 
-		justPubkey, exists := c.pubkeys[msg.PeerIdx]
-		if !exists {
-			return nil, false, errors.New("justification refers to nonexistent peer index, cannot fetch public key", z.I64("index", msg.PeerIdx))
+		justDuty := core.DutyFromProto(justification.Duty)
+		if !justDuty.Type.Valid() {
+			return nil, false, errors.New(
+				"invalid consensus justification duty type",
+				z.Int("type", int(justDuty.Type)))
 		}
 
-		if ok, err := verifyMsgSig(msg, justPubkey); err != nil {
+		if justDuty != duty {
+			return nil, false, errors.New(
+				"justification duty differs from qbft message duty",
+				z.Str("expected", duty.String()),
+				z.Str("found", justDuty.String()),
+			)
+		}
+
+		justPubkey, exists := c.pubkeys[justification.PeerIdx]
+		if !exists {
+			return nil, false, errors.New("justification refers to nonexistent peer index, cannot fetch public key", z.I64("index", justification.PeerIdx))
+		}
+
+		if ok, err := verifyMsgSig(justification, justPubkey); err != nil {
 			return nil, false, errors.Wrap(err, "verify consensus justification signature", z.Any("duty", duty))
 		} else if !ok {
 			return nil, false, errors.New("invalid consensus justification signature", z.Any("duty", duty))
@@ -557,16 +576,6 @@ func fmtStepPeers(step roundStep) string {
 // leader return the deterministic leader index.
 func leader(duty core.Duty, round int64, nodes int) int64 {
 	return ((duty.Slot) + int64(duty.Type) + round) % int64(nodes)
-}
-
-// newRoundTimer returns a 750ms+(round*250ms) period timer.
-//
-// TODO(corver): Round timeout is a tradeoff between fast rounds to skip unavailable nodes
-// and slow rounds to allow consensus in high latency clusters. Dynamic timeout based on
-// recent network conditions could be an option.
-func newRoundTimer(round int64) (<-chan time.Time, func()) {
-	timer := time.NewTimer(roundStart + (time.Duration(round) * roundIncrease))
-	return timer.C, func() { timer.Stop() }
 }
 
 func valuesByHash(values []*anypb.Any) (map[[32]byte]*anypb.Any, error) {

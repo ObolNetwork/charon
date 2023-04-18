@@ -20,8 +20,8 @@ import (
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // SignFunc abstract signing done by the validator client.
@@ -284,15 +284,15 @@ func Register(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
 }
 
 // NewSigner returns a signing function supporting the provided private keys.
-func NewSigner(secrets ...tblsv2.PrivateKey) (SignFunc, error) {
-	secretByPubkey := make(map[eth2p0.BLSPubKey]tblsv2.PrivateKey)
+func NewSigner(secrets ...tbls.PrivateKey) (SignFunc, error) {
+	secretByPubkey := make(map[eth2p0.BLSPubKey]tbls.PrivateKey)
 	for _, secret := range secrets {
-		pk, err := tblsv2.SecretToPublicKey(secret)
+		pk, err := tbls.SecretToPublicKey(secret)
 		if err != nil {
 			return nil, errors.Wrap(err, "get pubkey")
 		}
 
-		eth2Pubkey, err := tblsconv2.PubkeyToETH2(pk)
+		eth2Pubkey, err := tblsconv.PubkeyToETH2(pk)
 		if err != nil {
 			return nil, err
 		}
@@ -306,11 +306,11 @@ func NewSigner(secrets ...tblsv2.PrivateKey) (SignFunc, error) {
 			return eth2p0.BLSSignature{}, errors.New("secret not found")
 		}
 
-		sig, err := tblsv2.Sign(secret, msg)
+		sig, err := tbls.Sign(secret, msg)
 		if err != nil {
 			return eth2p0.BLSSignature{}, err
 		}
 
-		return tblsconv2.SigToETH2(sig), nil
+		return tblsconv.SigToETH2(sig), nil
 	}, nil
 }

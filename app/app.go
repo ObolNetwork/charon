@@ -55,8 +55,8 @@ import (
 	"github.com/obolnetwork/charon/core/validatorapi"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/p2p"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
@@ -98,7 +98,7 @@ type TestConfig struct {
 	// LcastTransportFunc provides an in-memory leader cast transport.
 	LcastTransportFunc func() leadercast.Transport
 	// SimnetKeys provides private key shares for the simnet validatormock signer.
-	SimnetKeys []tblsv2.PrivateKey
+	SimnetKeys []tbls.PrivateKey
 	// SimnetBMockOpts defines additional simnet beacon mock options.
 	SimnetBMockOpts []beaconmock.Option
 	// BroadcastCallback is called when a duty is completed and sent to the broadcast component.
@@ -132,13 +132,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	version.LogInfo(ctx, "Charon starting")
 
-	tblsv2.SetImplementation(tblsv2.Herumi{})
-
-	if !featureset.Enabled(featureset.HerumiBLS) {
-		log.Info(ctx, "Enabling Kryptology BLS signature backend")
-		tblsv2.SetImplementation(tblsv2.Kryptology{})
-	}
-
 	// Wire processes and their dependencies
 	life := new(lifecycle.Manager)
 
@@ -150,8 +143,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 	if err != nil {
 		return err
 	}
-
-	lockHashHex := hex.EncodeToString(lock.LockHash)[:7]
 
 	network, err := eth2util.ForkVersionToNetwork(lock.ForkVersion)
 	if err != nil {
@@ -176,6 +167,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
+	lockHashHex := hex7(lock.LockHash)
 	tcpNode, err := wireP2P(ctx, life, conf, lock, p2pKey, lockHashHex)
 	if err != nil {
 		return err
@@ -326,7 +318,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		corePubkeys                  []core.PubKey
 		eth2Pubkeys                  []eth2p0.BLSPubKey
 		pubshares                    []eth2p0.BLSPubKey
-		allPubSharesByKey            = make(map[core.PubKey]map[int]tblsv2.PublicKey) // map[pubkey]map[shareIdx]pubshare
+		allPubSharesByKey            = make(map[core.PubKey]map[int]tbls.PublicKey) // map[pubkey]map[shareIdx]pubshare
 		feeRecipientAddrByCorePubkey = make(map[core.PubKey]string)
 	)
 	for i, dv := range lock.Validators {
@@ -340,9 +332,9 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 			return err
 		}
 
-		allPubShares := make(map[int]tblsv2.PublicKey)
+		allPubShares := make(map[int]tbls.PublicKey)
 		for i, b := range dv.PubShares {
-			pubshare, err := tblsconv2.PubkeyFromBytes(b)
+			pubshare, err := tblsconv.PubkeyFromBytes(b)
 			if err != nil {
 				return err
 			}
@@ -728,7 +720,7 @@ func newConsensus(conf Config, lock cluster.Lock, tcpNode host.Host, p2pKey *k1.
 	}
 
 	if featureset.Enabled(featureset.QBFTConsensus) {
-		comp, err := consensus.New(tcpNode, sender, peers, p2pKey, deadliner, qbftSniffer)
+		comp, err := consensus.New(tcpNode, sender, peers, p2pKey, deadliner, qbftSniffer, featureset.Enabled(featureset.QBFTDoubleLeadTimer))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -922,4 +914,14 @@ func ProposalTypes(builder bool, synthetic bool) []core.ProposalType {
 	resp = append(resp, core.ProposalTypeFull) // Always support full as fallback.
 
 	return resp
+}
+
+// hex7 returns the first 7 (or less) hex chars of the provided bytes.
+func hex7(input []byte) string {
+	resp := hex.EncodeToString(input)
+	if len(resp) <= 7 {
+		return resp
+	}
+
+	return resp[:7]
 }

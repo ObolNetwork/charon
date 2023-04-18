@@ -4,7 +4,6 @@ package p2p_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -13,14 +12,8 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 	"github.com/obolnetwork/charon/testutil"
 )
-
-func TestMain(m *testing.M) {
-	tblsv2.SetImplementation(tblsv2.Herumi{})
-	os.Exit(m.Run())
-}
 
 func TestNewPeer(t *testing.T) {
 	p2pKey := testutil.GenerateInsecureK1Key(t, 1)

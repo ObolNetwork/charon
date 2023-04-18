@@ -24,18 +24,33 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
+  "id": 65,
   "links": [
     {
       "asDropdown": false,
       "icon": "external link",
       "includeVars": false,
-      "keepTime": true,
+      "keepTime": false,
       "tags": [],
       "targetBlank": false,
       "title": "Explore Charon Logs",
-      "tooltip": "Navigate to Charon Logs Exporer",
+      "tooltip": "Navigate to Charon Logs Explorer",
       "type": "link",
-      "url": "/explore?orgId=1&left=%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22editorMode%22:%22builder%22,%22expr%22:%22%7Bservice%3D%5C%22$job%5C%22%7D%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
+      "url": "/explore?orgId=1&left=%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22expr%22:%22%7Bcluster_name%3D%5C%22$cluster_name%5C%22,%20cluster_hash%3D%5C%22$cluster_hash%5C%22,%20cluster_peer%3D%5C%22$cluster_peer%5C%22%7D%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22,%22datasource%22:%7B%22type%22:%22loki%22,%22uid%22:%22loki%22%7D,%22editorMode%22:%22builder%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [
+        "cluster-labels"
+      ],
+      "targetBlank": false,
+      "title": "New link",
+      "tooltip": "",
+      "type": "dashboards",
+      "url": ""
     }
   ],
   "liveNow": false,
@@ -52,7 +67,9 @@
           },
           "custom": {
             "align": "auto",
-            "displayMode": "json-view",
+            "cellOptions": {
+              "type": "json-view"
+            },
             "inspect": false
           },
           "mappings": [],
@@ -77,6 +94,7 @@
       "id": 19,
       "options": {
         "footer": {
+          "countRows": false,
           "fields": "",
           "reducer": [
             "sum"
@@ -86,7 +104,7 @@
         "frameIndex": 0,
         "showHeader": false
       },
-      "pluginVersion": "9.3.6",
+      "pluginVersion": "9.4.3",
       "targets": [
         {
           "datasource": {
@@ -95,7 +113,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "(\n  sum(app_git_commit{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (git_hash)\n)\n   + on(job) group_left(version)\n(\n   0 * sum(app_version{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (version)\n)\n   + on(job) group_left(peer_name)\n(\n   0 * sum(app_peer_name{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (peer_name)\n)\n   + on(job) group_left(network)\n(\n   0 * sum(cluster_network{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (network)\n)\n   + on(job) group_left(cluster_hash)\n(\n   0 * sum(cluster_operators{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (cluster_hash)\n \n   + on(job) group_left(cluster_name)\n(\n   0 * sum(cluster_operators{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (cluster_name)\n))",
+          "expr": "(\n  sum(app_git_commit{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (git_hash)\n)\n   + on(job) group_left(version)\n(\n   0 * sum(app_version{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (version)\n)\n   + on(job) group_left(peer_name)\n(\n   0 * sum(app_peer_name{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (peer_name)\n)\n   + on(job) group_left(network)\n(\n   0 * sum(cluster_network{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (network)\n)\n   + on(job) group_left(cluster_hash)\n(\n   0 * sum(cluster_operators{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (cluster_hash)\n) \n   + on(job) group_left(cluster_name)\n(\n   0 * sum(cluster_operators{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (cluster_name)\n) ",
           "hide": false,
           "instant": true,
           "interval": "",
@@ -226,7 +244,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.3.6",
+      "pluginVersion": "9.4.3",
       "targets": [
         {
           "datasource": {
@@ -296,7 +314,7 @@
           "expr": "sum(p2p_ping_success{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"})",
           "hide": false,
           "instant": true,
-          "legendFormat": "Peers Connected",
+          "legendFormat": "Charon Peers Connected",
           "range": false,
           "refId": "D"
         },
@@ -313,6 +331,20 @@
           "legendFormat": "Relays Connected",
           "range": false,
           "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "app_beacon_node_peers{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "Beacon Node Peers",
+          "range": false,
+          "refId": "H"
         },
         {
           "datasource": {
@@ -372,22 +404,22 @@
                   "text": "Insufficient Peers"
                 },
                 "5": {
-                  "color": "super-light-orange",
+                  "color": "orange",
                   "index": 6,
-                  "text": "VC not configured"
+                  "text": "VC not connected"
                 },
                 "6": {
-                  "color": "semi-dark-orange",
+                  "color": "orange",
                   "index": 7,
                   "text": "VC missing some validators"
                 },
                 "7": {
-                  "color": "light-purple",
+                  "color": "orange",
                   "index": 8,
                   "text": "BeaconNode has zero peers"
                 },
                 "8": {
-                  "color": "dark-red",
+                  "color": "orange",
                   "index": 9,
                   "text": "BeaconNode far behind"
                 }
@@ -429,7 +461,7 @@
         "x": 9,
         "y": 0
       },
-      "id": 48,
+      "id": 76,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
@@ -444,7 +476,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.3.6",
+      "pluginVersion": "9.4.3",
       "targets": [
         {
           "datasource": {
@@ -504,7 +536,7 @@
               "mode": "none"
             },
             "thresholdsStyle": {
-              "mode": "line+area"
+              "mode": "dashed+area"
             }
           },
           "mappings": [],
@@ -548,8 +580,8 @@
           "showLegend": true
         },
         "tooltip": {
-          "mode": "single",
-          "sort": "none"
+          "mode": "multi",
+          "sort": "desc"
         }
       },
       "targets": [
@@ -622,7 +654,7 @@
         },
         "textMode": "auto"
       },
-      "pluginVersion": "9.3.6",
+      "pluginVersion": "9.4.3",
       "targets": [
         {
           "datasource": {
@@ -630,9 +662,11 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
+          "exemplar": false,
           "expr": "cluster_operators{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
+          "instant": true,
           "legendFormat": "Operators",
-          "range": true,
+          "range": false,
           "refId": "A"
         },
         {
@@ -641,10 +675,12 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
+          "exemplar": false,
           "expr": "cluster_threshold{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
           "hide": false,
+          "instant": true,
           "legendFormat": "Threshold",
-          "range": true,
+          "range": false,
           "refId": "B"
         },
         {
@@ -653,105 +689,18 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
+          "exemplar": false,
           "expr": "cluster_validators{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
           "hide": false,
+          "instant": true,
           "legendFormat": "Validators",
-          "range": true,
+          "range": false,
           "refId": "C"
         }
       ],
       "title": "Cluster Info",
       "transformations": [],
       "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "description": "Beacon node metrics",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "custom": {
-            "align": "auto",
-            "displayMode": "auto",
-            "inspect": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "label"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 116
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 5,
-        "x": 0,
-        "y": 7
-      },
-      "id": 71,
-      "options": {
-        "footer": {
-          "fields": "",
-          "reducer": [
-            "sum"
-          ],
-          "show": false
-        },
-        "showHeader": true,
-        "sortBy": []
-      },
-      "pluginVersion": "9.3.6",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "sum(app_beacon_node_version{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (version)",
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Beacon node",
-      "transformations": [
-        {
-          "id": "labelsToFields",
-          "options": {
-            "mode": "rows"
-          }
-        }
-      ],
-      "type": "table"
     },
     {
       "datasource": {
@@ -766,7 +715,9 @@
           },
           "custom": {
             "align": "center",
-            "displayMode": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
             "inspect": false,
             "minWidth": 0,
             "width": 90
@@ -845,12 +796,19 @@
                 ]
               },
               {
-                "id": "custom.displayMode",
-                "value": "lcd-gauge"
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "lcd",
+                  "type": "gauge"
+                }
               },
               {
                 "id": "custom.width",
                 "value": 200
+              },
+              {
+                "id": "max",
+                "value": 700
               }
             ]
           },
@@ -865,8 +823,10 @@
                 "value": "⭐"
               },
               {
-                "id": "custom.displayMode",
-                "value": "auto"
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
               },
               {
                 "id": "mappings",
@@ -905,7 +865,7 @@
                     "options": {
                       "0": {
                         "index": 0,
-                        "text": " ❌"
+                        "text": " ❌"
                       },
                       "1": {
                         "index": 1,
@@ -1031,14 +991,15 @@
         ]
       },
       "gridPos": {
-        "h": 5,
-        "w": 19,
-        "x": 5,
+        "h": 6,
+        "w": 24,
+        "x": 0,
         "y": 7
       },
       "id": 54,
       "options": {
         "footer": {
+          "countRows": false,
           "fields": "",
           "reducer": [
             "sum"
@@ -1054,7 +1015,7 @@
           }
         ]
       },
-      "pluginVersion": "9.3.6",
+      "pluginVersion": "9.4.3",
       "targets": [
         {
           "datasource": {
@@ -1090,7 +1051,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "\nsum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"attester\"}[$__range])) by (peer)",
+          "expr": "\nsum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"attester\"}[$__range])) by (peer) > 0",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1104,7 +1065,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"proposer\"}[$__range])) by (peer)",
+          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"proposer\"}[$__range])) by (peer) > 0",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1118,7 +1079,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"randao\"}[$__range])) by (peer)",
+          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"randao\"}[$__range])) by (peer) > 0",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1147,7 +1108,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"prepare_aggregator\"}[$__range])) by (peer)",
+          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"prepare_aggregator\"}[$__range])) by (peer) > 0",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1161,7 +1122,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"aggregator\"}[$__range])) by (peer)",
+          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"aggregator\"}[$__range])) by (peer) > 0",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1175,7 +1136,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"exit\"}[$__range])) by (peer)",
+          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"exit\"}[$__range])) by (peer) > 0",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1248,7 +1209,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"sync_message\"}[$__range])) by (peer)",
+          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"sync_message\"}[$__range])) by (peer) > 0",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1262,7 +1223,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"sync_contribution\"}[$__range])) by (peer)",
+          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"sync_contribution\"}[$__range])) by (peer) > 0",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1276,7 +1237,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"prepare_sync_contribution\"}[$__range])) by (peer)",
+          "expr": "sum(increase(core_tracker_participation_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\", duty=\"prepare_sync_contribution\"}[$__range])) by (peer) > 0",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1290,7 +1251,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "time() - max(app_peerinfo_start_time_secs{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (peer)",
+          "expr": "time() - max(app_peerinfo_start_time_secs{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"} > 0) by (peer)",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -1446,7 +1407,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 12
+        "y": 13
       },
       "id": 7,
       "options": {
@@ -1473,7 +1434,7 @@
           "exemplar": false,
           "expr": "increase(core_bcast_broadcast_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval]) > 0",
           "instant": false,
-          "interval": "1m",
+          "interval": "",
           "legendFormat": "{{duty}}",
           "range": true,
           "refId": "A"
@@ -1485,7 +1446,7 @@
           },
           "editorMode": "code",
           "exemplar": true,
-          "expr": "clamp_max(increase(core_scheduler_current_epoch{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval]), 0.2) > 0",
+          "expr": "max(clamp_max(increase(core_scheduler_current_epoch{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval]), 0.2)) > 0",
           "hide": false,
           "interval": "1m",
           "legendFormat": "epoch boundry",
@@ -1515,7 +1476,7 @@
             {
               "targetBlank": true,
               "title": "Show in log explorer",
-              "url": "/explore?orgId=1&left=%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22editorMode%22:%22builder%22,%22expr%22:%22%7Bservice%3D%5C%22$job%5C%22%7D%20%7C%3D%20%60Duty%20failed%60%20%7C%3D%20%60${__field.labels.duty}%60%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
+              "url": "/explore?orgId=1&left=%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22editorMode%22:%22builder%22,%22expr%22:%22%7Bcompose_service%3D%5C%22$job%5C%22%7D%20%7C%3D%20%60Duty%20failed%60%20%7C%3D%20%60${__field.labels.duty}%60%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
             }
           ],
           "mappings": [],
@@ -1539,7 +1500,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 12
+        "y": 13
       },
       "id": 67,
       "options": {
@@ -1577,10 +1538,10 @@
     },
     {
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
-      "description": "Most frequent errors and warnings grouped by message. Use data link to show logs.",
+      "description": "Most frequent warnings and errors grouped by topic. ",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1620,7 +1581,7 @@
             {
               "targetBlank": true,
               "title": "Show in log explorer",
-              "url": "/explore?orgId=1&left=%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22editorMode%22:%22builder%22,%22expr%22:%22%7Bservice%3D%5C%22$job%5C%22%7D%20%7C%3D%20%60${__field.labels.msg}%60%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
+              "url": "/explore?orgId=1&left=%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22editorMode%22:%22builder%22,%22expr%22:%22%7Bcompose_service%3D%5C%22$job%5C%22%7D%20%7C%3D%20%60${__field.labels.msg}%60%20%7C%20logfmt%20%7C%20line_format%20%60%7B%7B.pretty%7D%7D%60%22,%22queryType%22:%22range%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D"
             }
           ],
           "mappings": [],
@@ -1646,9 +1607,9 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 19
+        "y": 20
       },
-      "id": 62,
+      "id": 68,
       "options": {
         "legend": {
           "calcs": [],
@@ -1668,55 +1629,278 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({service=\"$job\"} | logfmt | level=~`(warn|error)` [5m])) by (msg)",
-          "legendFormat": "{{msg}}",
+          "expr": "max(increase(app_log_warn_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval])) by (topic) > 0",
+          "legendFormat": "{{topic}}",
           "queryType": "range",
+          "range": true,
           "refId": "A",
           "resolution": 10
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "max(increase(app_log_error_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval])) by (topic) > 0",
+          "hide": false,
+          "legendFormat": "{{topic}}",
+          "range": true,
+          "refId": "B"
         }
       ],
-      "title": "Top Warnings and Errors",
+      "title": "Top Warns and Errors",
       "type": "timeseries"
     },
     {
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
-      "description": "Reasons why duties failed prefixed by slot and duty type. This is extracted from logs not metrics.",
+      "description": "Average beacon node score for the whole time window.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.5
+              },
+              {
+                "color": "green",
+                "value": 0.8
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
       "gridPos": {
         "h": 6,
-        "w": 12,
+        "w": 3,
         "x": 12,
-        "y": 19
+        "y": 20
       },
-      "id": 66,
+      "id": 70,
       "options": {
-        "dedupStrategy": "none",
-        "enableLogDetails": true,
-        "prettifyLogMessage": false,
-        "showCommonLabels": false,
-        "showLabels": false,
-        "showTime": false,
-        "sortOrder": "Descending",
-        "wrapLogMessage": false
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
       },
+      "pluginVersion": "9.4.3",
       "targets": [
         {
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "prometheus",
+            "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "{service=\"$job\"} | logfmt | msg=`Duty failed` | line_format `{{.duty}}\t{{.reason}}`",
-          "legendFormat": "{{level}} [{{topic}}] {{msg}}",
-          "queryType": "range",
-          "refId": "A",
-          "resolution": 10
+          "expr": "(clamp(app_monitoring_readyz{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"} == 1 OR app_monitoring_readyz{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"} == 4 OR app_monitoring_readyz{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"} == 5 OR app_monitoring_readyz{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"} == 6, 1, 1) OR on() vector(0))\n*\n(\n    (\n0.5 * (1.0 - 10*(sum(increase(app_eth2_errors_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__range])) / (sum(increase(app_eth2_latency_seconds_count{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__range]))))) OR on() vector(0.5)\n    )\n    +\n    (\n        0.5 * (1.0 - clamp_max(histogram_quantile(0.99, sum(rate(app_eth2_latency_seconds_bucket{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__range])) by (le)),1))\n    )\n)",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
         }
       ],
-      "title": "Failed duty reasons",
-      "type": "logs"
+      "title": "Avg Beacon Node Score",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "dashed+area"
+            }
+          },
+          "mappings": [],
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              },
+              {
+                "color": "#EAB839",
+                "value": 0.51
+              },
+              {
+                "color": "yellow",
+                "value": 0.8
+              },
+              {
+                "color": "green",
+                "value": 0.81
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#8b8b8b",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#ebebeb",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 9,
+        "x": 15,
+        "y": 20
+      },
+      "id": 72,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "9.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "clamp(app_monitoring_readyz{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"} == 1 OR app_monitoring_readyz{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"} == 4 OR app_monitoring_readyz{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"} == 5 OR app_monitoring_readyz{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"} == 6, 1, 1) OR on() vector(0)",
+          "hide": true,
+          "interval": "",
+          "legendFormat": "status_score",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "0.5 * (1.0 - 10*(sum(increase(app_eth2_errors_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval])) / (sum(increase(app_eth2_latency_seconds_count{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval]))))) OR on() vector(0.5)",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "error_score",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "0.5 * (1.0 - clamp_max(histogram_quantile(0.99, sum(rate(app_eth2_latency_seconds_bucket{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval])) by (le)),1))",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "latency_score",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "Beacon Node Score Weights",
+      "transformations": [],
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -1734,7 +1918,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "drawStyle": "line",
+            "drawStyle": "bars",
             "fillOpacity": 0,
             "gradientMode": "none",
             "hideFrom": {
@@ -1752,7 +1936,7 @@
             "spanNulls": false,
             "stacking": {
               "group": "A",
-              "mode": "none"
+              "mode": "normal"
             },
             "thresholdsStyle": {
               "mode": "off"
@@ -1763,7 +1947,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1771,7 +1956,7 @@
               }
             ]
           },
-          "unit": "reqps"
+          "unit": "none"
         },
         "overrides": []
       },
@@ -1779,7 +1964,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 25
+        "y": 26
       },
       "id": 17,
       "options": {
@@ -1800,14 +1985,16 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
+          "editorMode": "code",
           "exemplar": true,
-          "expr": "rate(app_eth2_latency_seconds_count{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval]) ",
+          "expr": "increase(app_eth2_errors_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval]) > 0",
           "interval": "",
           "legendFormat": "{{endpoint}}",
+          "range": true,
           "refId": "A"
         }
       ],
-      "title": "Beacon API requests rate",
+      "title": "Beacon API Errors",
       "type": "timeseries"
     },
     {
@@ -1855,7 +2042,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1871,7 +2059,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 25
+        "y": 26
       },
       "id": 18,
       "options": {
@@ -1882,7 +2070,7 @@
           "showLegend": true
         },
         "tooltip": {
-          "mode": "single",
+          "mode": "multi",
           "sort": "none"
         }
       },
@@ -1892,10 +2080,12 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
+          "editorMode": "code",
           "exemplar": true,
-          "expr": "histogram_quantile(0.90, sum(rate(app_eth2_latency_seconds_bucket[$__rate_interval])) by (le,endpoint)) ",
+          "expr": "histogram_quantile(0.90, sum(rate(app_eth2_latency_seconds_bucket{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval])) by (le,endpoint)) ",
           "interval": "",
           "legendFormat": "{{endpoint}}",
+          "range": true,
           "refId": "A"
         }
       ],
@@ -1907,7 +2097,197 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Peer count of the connected beacon node",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 33
+      },
+      "id": 15,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "exemplar": true,
+          "expr": "max(rate(core_validatorapi_request_latency_seconds_count{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval])) by (endpoint) > 0",
+          "interval": "",
+          "legendFormat": "{{endpoint}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Validator API requests rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 33
+      },
+      "id": 24,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "exemplar": true,
+          "expr": "histogram_quantile(0.90, sum(rate(core_validatorapi_request_latency_seconds_bucket{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval])) by (le,endpoint)) ",
+          "interval": "",
+          "legendFormat": "{{endpoint}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Validator API request latency (90%)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Peer count of the beacon node connected to this charon instance",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1948,7 +2328,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1963,9 +2344,9 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 32
+        "y": 40
       },
-      "id": 69,
+      "id": 74,
       "options": {
         "legend": {
           "calcs": [],
@@ -1985,9 +2366,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "exemplar": false,
           "expr": "app_beacon_node_peers{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
-          "instant": false,
           "legendFormat": "Peer count",
           "range": true,
           "refId": "A"
@@ -2037,196 +2416,13 @@
             }
           },
           "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 12,
-        "y": 32
-      },
-      "id": 24,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "exemplar": true,
-          "expr": "histogram_quantile(0.90, sum(rate(core_validatorapi_request_latency_seconds_bucket[$__rate_interval])) by (le,endpoint)) ",
-          "interval": "",
-          "legendFormat": "{{endpoint}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Validator API request latency (90%)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "reqps"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 0,
-        "y": 39
-      },
-      "id": 15,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "exemplar": true,
-          "expr": "rate(core_validatorapi_request_latency_seconds_count{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval])",
-          "interval": "",
-          "legendFormat": "{{endpoint}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Validator API requests rate",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
           "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2255,7 +2451,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 39
+        "y": 40
       },
       "id": 49,
       "options": {
@@ -2278,7 +2474,7 @@
           },
           "editorMode": "code",
           "exemplar": true,
-          "expr": "go_goroutines{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
+          "expr": "max(go_goroutines{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"})",
           "interval": "",
           "legendFormat": "Go Routines",
           "range": true,
@@ -2290,7 +2486,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "process_open_fds{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
+          "expr": "max(process_open_fds{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"})",
           "hide": false,
           "legendFormat": "File Descriptors",
           "range": true,
@@ -2346,7 +2542,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2356,38 +2553,13 @@
           },
           "unit": "decbytes"
         },
-        "overrides": [
-          {
-            "__systemRef": "hideSeriesFrom",
-            "matcher": {
-              "id": "byNames",
-              "options": {
-                "mode": "exclude",
-                "names": [
-                  "Allocated Memory"
-                ],
-                "prefix": "All except:",
-                "readOnly": true
-              }
-            },
-            "properties": [
-              {
-                "id": "custom.hideFrom",
-                "value": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": true
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 46
+        "y": 47
       },
       "id": 50,
       "options": {
@@ -2410,7 +2582,7 @@
           },
           "editorMode": "code",
           "exemplar": true,
-          "expr": "go_memstats_alloc_bytes{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
+          "expr": "max(go_memstats_alloc_bytes{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"})",
           "interval": "",
           "legendFormat": "Allocated Memory",
           "range": true,
@@ -2422,7 +2594,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "go_memstats_heap_inuse_bytes{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
+          "expr": "max(go_memstats_heap_inuse_bytes{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"})",
           "hide": true,
           "legendFormat": "Inuse Heap",
           "range": true,
@@ -2477,7 +2649,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2485,7 +2658,7 @@
               }
             ]
           },
-          "unit": "none"
+          "unit": "percentunit"
         },
         "overrides": []
       },
@@ -2493,7 +2666,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 46
+        "y": 47
       },
       "id": 52,
       "links": [],
@@ -2517,7 +2690,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "irate(process_cpu_seconds_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval])",
+          "expr": "max(irate(process_cpu_seconds_total{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}[$__rate_interval]))",
           "intervalFactor": 2,
           "legendFormat": "CPU",
           "metric": "go_gc_duration_seconds",
@@ -2542,7 +2715,9 @@
           },
           "custom": {
             "align": "auto",
-            "displayMode": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
             "inspect": false
           },
           "mappings": [],
@@ -2550,7 +2725,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "light-blue"
+                "color": "light-blue",
+                "value": null
               },
               {
                 "color": "red",
@@ -2567,8 +2743,10 @@
             },
             "properties": [
               {
-                "id": "custom.displayMode",
-                "value": "color-text"
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
               },
               {
                 "id": "mappings",
@@ -2617,7 +2795,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "pubkey_full"
+              "options": "Public Key"
             },
             "properties": [
               {
@@ -2626,13 +2804,15 @@
                   {
                     "targetBlank": true,
                     "title": "beaconcha.in",
-                    "url": "http://beaconcha.in/validator/${__data.fields[\"Pubkey\"]}"
+                    "url": "http://${__data.fields[\"cluster_network\"]}.beaconcha.in/validator/${__data.fields[\"Public Key\"]}"
                   }
                 ]
               },
               {
-                "id": "custom.displayMode",
-                "value": "color-text"
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
               }
             ]
           }
@@ -2642,26 +2822,21 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 53
+        "y": 54
       },
       "id": 56,
       "options": {
         "footer": {
+          "countRows": false,
           "fields": "",
           "reducer": [
             "sum"
           ],
           "show": false
         },
-        "showHeader": true,
-        "sortBy": [
-          {
-            "desc": true,
-            "displayName": "Balance"
-          }
-        ]
+        "showHeader": true
       },
-      "pluginVersion": "9.3.6",
+      "pluginVersion": "9.4.3",
       "targets": [
         {
           "datasource": {
@@ -2674,22 +2849,7 @@
           "format": "table",
           "hide": false,
           "instant": true,
-          "legendFormat": "__auto",
-          "range": false,
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "exemplar": false,
-          "expr": "core_scheduler_validator_status{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}",
-          "format": "table",
-          "hide": false,
-          "instant": true,
-          "legendFormat": "__auto",
+          "legendFormat": "{{pubkey}}",
           "range": false,
           "refId": "B"
         }
@@ -2697,100 +2857,70 @@
       "title": "Validators",
       "transformations": [
         {
-          "id": "joinByField",
-          "options": {
-            "byField": "pubkey_full",
-            "mode": "outer"
-          }
-        },
-        {
-          "id": "groupBy",
-          "options": {
-            "fields": {
-              "Value #A": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "pubkey 1": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "pubkey_full": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "status": {
-                "aggregations": [],
-                "operation": "groupby"
-              }
-            }
-          }
-        },
-        {
           "id": "organize",
           "options": {
-            "excludeByName": {},
-            "indexByName": {},
+            "excludeByName": {
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true,
+              "__name__": true,
+              "__name__ 1": true,
+              "__name__ 2": true,
+              "cluster_hash": true,
+              "cluster_name": true,
+              "cluster_network": false,
+              "cluster_peer": true,
+              "instance": true,
+              "instance 1": true,
+              "instance 2": true,
+              "job": true,
+              "job 1": true,
+              "job 2": true,
+              "pubkey": true,
+              "pubkey_full": false
+            },
+            "indexByName": {
+              "Time": 0,
+              "Value": 9,
+              "cluster_hash": 1,
+              "cluster_name": 2,
+              "cluster_network": 8,
+              "cluster_peer": 3,
+              "instance": 4,
+              "job": 5,
+              "pubkey": 6,
+              "pubkey_full": 7
+            },
             "renameByName": {
-              "Value #A": "Balance",
-              "pubkey_full": "Pubkey",
-              "status": "Status"
+              "Value": "Balance",
+              "Value #A": "Effectiveness",
+              "Value #B": "Balance",
+              "cluster_network": "Network",
+              "pubkey": "Public Key",
+              "pubkey_full": "Public Key"
             }
           }
         }
       ],
       "type": "table"
-    },
-    {
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "gridPos": {
-        "h": 14,
-        "w": 24,
-        "x": 0,
-        "y": 60
-      },
-      "id": 65,
-      "options": {
-        "dedupStrategy": "none",
-        "enableLogDetails": true,
-        "prettifyLogMessage": false,
-        "showCommonLabels": false,
-        "showLabels": false,
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": false
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "editorMode": "code",
-          "expr": "{service=\"$job\"} | logfmt | line_format \"{{.pretty}}\"",
-          "queryType": "range",
-          "refId": "A",
-          "resolution": 1
-        }
-      ],
-      "title": "Logs",
-      "type": "logs"
     }
   ],
   "refresh": "30s",
-  "schemaVersion": 37,
+  "revision": 1,
+  "schemaVersion": 38,
   "style": "dark",
-  "tags": [],
+  "tags": [
+    "charon",
+    "cluster-labels"
+  ],
   "templating": {
     "list": [
       {
         "current": {
+          "isNone": true,
           "selected": false,
-          "text": "compose-4-1",
-          "value": "compose-4-1"
+          "text": "None",
+          "value": ""
         },
         "datasource": {
           "type": "prometheus",

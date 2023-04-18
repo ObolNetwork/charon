@@ -27,7 +27,7 @@ Install the `compose` binary:
 # From inside the charon repo
 go install github.com/obolnetwork/charon/testutil/compose/compose
 
-# Ensure that `.../go/bin` is in your path via `which compose`
+# If `which compose` fails, then fix your environment: `export PATH=$PATH:$(go env GOPATH)/bin`. Or see https://go.dev/doc/gopath_code
 
 # Alternatives:
 # go install ./...

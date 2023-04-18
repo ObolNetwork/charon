@@ -293,7 +293,11 @@ func makeRound1Response(casts []*pb.FrostRound1Casts, p2ps []*pb.FrostRound1P2P)
 
 	for _, msg := range p2ps {
 		for _, sharePB := range msg.Shares {
-			key, share := shamirShareFromProto(sharePB)
+			key, share, err := shamirShareFromProto(sharePB)
+			if err != nil {
+				return nil, nil, err
+			}
+
 			p2pMap[key] = share
 		}
 	}
@@ -325,11 +329,20 @@ func shamirShareToProto(key msgKey, shamir sharing.ShamirShare) *pb.FrostRound1S
 	}
 }
 
-func shamirShareFromProto(shamir *pb.FrostRound1ShamirShare) (msgKey, sharing.ShamirShare) {
-	return keyFromProto(shamir.Key), sharing.ShamirShare{
+func shamirShareFromProto(shamir *pb.FrostRound1ShamirShare) (msgKey, sharing.ShamirShare, error) {
+	if shamir == nil {
+		return msgKey{}, sharing.ShamirShare{}, errors.New("round 1 shamir share proto cannot be nil")
+	}
+
+	protoKey, err := keyFromProto(shamir.Key)
+	if err != nil {
+		return msgKey{}, sharing.ShamirShare{}, err
+	}
+
+	return protoKey, sharing.ShamirShare{
 		Id:    shamir.Id,
 		Value: shamir.Value,
-	}
+	}, nil
 }
 
 func round1CastToProto(key msgKey, cast frost.Round1Bcast) *pb.FrostRound1Cast {
@@ -347,6 +360,10 @@ func round1CastToProto(key msgKey, cast frost.Round1Bcast) *pb.FrostRound1Cast {
 }
 
 func round1CastFromProto(cast *pb.FrostRound1Cast) (msgKey, frost.Round1Bcast, error) {
+	if cast == nil {
+		return msgKey{}, frost.Round1Bcast{}, errors.New("round 1 cast cannot be nil")
+	}
+
 	wi, err := curve.Scalar.SetBytes(cast.Wi)
 	if err != nil {
 		return msgKey{}, frost.Round1Bcast{}, errors.Wrap(err, "decode wi scalar")
@@ -366,7 +383,12 @@ func round1CastFromProto(cast *pb.FrostRound1Cast) (msgKey, frost.Round1Bcast, e
 		comms = append(comms, c)
 	}
 
-	return keyFromProto(cast.Key), frost.Round1Bcast{
+	key, err := keyFromProto(cast.Key)
+	if err != nil {
+		return msgKey{}, frost.Round1Bcast{}, err
+	}
+
+	return key, frost.Round1Bcast{
 		Wi:        wi,
 		Ci:        ci,
 		Verifiers: &sharing.FeldmanVerifier{Commitments: comms},
@@ -382,6 +404,10 @@ func round2CastToProto(key msgKey, cast frost.Round2Bcast) *pb.FrostRound2Cast {
 }
 
 func round2CastFromProto(cast *pb.FrostRound2Cast) (msgKey, frost.Round2Bcast, error) {
+	if cast == nil {
+		return msgKey{}, frost.Round2Bcast{}, errors.New("round 2 cast cannot be nil")
+	}
+
 	verificationKey, err := curve.Point.FromAffineCompressed(cast.VerificationKey)
 	if err != nil {
 		return msgKey{}, frost.Round2Bcast{}, errors.Wrap(err, "decode verification key scalar")
@@ -391,7 +417,12 @@ func round2CastFromProto(cast *pb.FrostRound2Cast) (msgKey, frost.Round2Bcast, e
 		return msgKey{}, frost.Round2Bcast{}, errors.Wrap(err, "decode c1 scalar")
 	}
 
-	return keyFromProto(cast.Key), frost.Round2Bcast{
+	key, err := keyFromProto(cast.Key)
+	if err != nil {
+		return msgKey{}, frost.Round2Bcast{}, err
+	}
+
+	return key, frost.Round2Bcast{
 		VerificationKey: verificationKey,
 		VkShare:         vkShare,
 	}, nil
@@ -405,12 +436,16 @@ func keyToProto(key msgKey) *pb.FrostMsgKey {
 	}
 }
 
-func keyFromProto(key *pb.FrostMsgKey) msgKey {
+func keyFromProto(key *pb.FrostMsgKey) (msgKey, error) {
+	if key == nil {
+		return msgKey{}, errors.New("frost msg key cannot be nil")
+	}
+
 	return msgKey{
 		ValIdx:   key.ValIdx,
 		SourceID: key.SourceId,
 		TargetID: key.TargetId,
-	}
+	}, nil
 }
 
 // frostProtocol returns the frost protocol ID including the provided suffixes.

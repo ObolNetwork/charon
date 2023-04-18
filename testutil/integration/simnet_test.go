@@ -32,7 +32,7 @@ import (
 	"github.com/obolnetwork/charon/core/parsigex"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -166,7 +166,7 @@ type simnetArgs struct {
 	VMocks              []bool
 	VAPIAddrs           []string
 	P2PKeys             []*k1.PrivateKey
-	SimnetKeys          []tblsv2.PrivateKey
+	SimnetKeys          []tbls.PrivateKey
 	BMockOpts           []beaconmock.Option
 	Lock                cluster.Lock
 	ErrChan             chan error
@@ -292,7 +292,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 				Lock:               &args.Lock,
 				P2PKey:             args.P2PKeys[i],
 				TestPingConfig:     p2p.TestPingConfig{Disable: true},
-				SimnetKeys:         []tblsv2.PrivateKey{args.SimnetKeys[i]},
+				SimnetKeys:         []tbls.PrivateKey{args.SimnetKeys[i]},
 				LcastTransportFunc: lcastTransportFunc,
 				ParSigExFunc:       parSigExFunc,
 				BroadcastCallback: func(_ context.Context, duty core.Duty, key core.PubKey, data core.SignedData) error {
@@ -408,7 +408,6 @@ var (
 		"validator-client",
 		"--network=auto",
 		"--log-destination=console",
-		"--beacon-node-ssz-blocks-enabled=false",
 		"--validators-proposer-default-fee-recipient=0x000000000000000000000000000000000000dead",
 	}
 	tekuExit tekuCmd = []string{
@@ -440,7 +439,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 	}
 
 	// Write private share keystore and password
-	err := keystore.StoreKeysInsecure([]tblsv2.PrivateKey{args.SimnetKeys[node]}, tempDir, keystore.ConfirmInsecureKeys)
+	err := keystore.StoreKeysInsecure([]tbls.PrivateKey{args.SimnetKeys[node]}, tempDir, keystore.ConfirmInsecureKeys)
 	require.NoError(t, err)
 	err = os.WriteFile(path.Join(tempDir, "keystore-simnet-0.txt"), []byte("simnet"), 0o644)
 	require.NoError(t, err)

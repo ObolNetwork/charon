@@ -13,14 +13,18 @@ import (
 )
 
 const (
-	// Version is the release version of the codebase.
-	// Usually overridden by tag names when building binaries.
-	Version = "v0.16.0-dev"
+	// Version is the branch version of the codebase.
+	//  - Main branch: v0.X-dev
+	//  - Release branch: v0.X-rc
+	// It is overridden by git tags when building official releases.
+	Version = "v0.16-dev"
 )
 
-// Supported returns the supported versions in order of precedence.
+// Supported returns the supported minor versions in order of precedence.
 func Supported() []string {
 	return []string{
+		// TODO(corver): Add v0.16 as part of https://github.com/ObolNetwork/charon/issues/2099
+		"v0.15",
 		"v0.14",
 	}
 }
@@ -28,6 +32,7 @@ func Supported() []string {
 // GitCommit returns the git commit hash and timestamp from build info.
 func GitCommit() (hash string, timestamp string) {
 	hash, timestamp = "unknown", "unknown"
+	hashLen := 7
 
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
@@ -36,7 +41,10 @@ func GitCommit() (hash string, timestamp string) {
 
 	for _, s := range info.Settings {
 		if s.Key == "vcs.revision" {
-			hash = s.Value[:7]
+			if len(s.Value) < hashLen {
+				hashLen = len(s.Value)
+			}
+			hash = s.Value[:hashLen]
 		} else if s.Key == "vcs.time" {
 			timestamp = s.Value
 		}

@@ -262,6 +262,8 @@ func (t *Tracker) Run(ctx context.Context) error {
 	ctx = log.WithTopic(ctx, "tracker")
 	defer close(t.quit)
 
+	ignoreUnsupported := newUnsupportedIgnorer()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -283,6 +285,10 @@ func (t *Tracker) Run(ctx context.Context) error {
 
 			// Analyse failed duties
 			failed, failedStep, failedMsg, failedErr := analyseDutyFailed(duty, t.events, parsigs.MsgRootsConsistent())
+			if ignoreUnsupported(ctx, duty, failed, failedStep, failedMsg) {
+				continue // Ignore unsupported duties
+			}
+
 			t.failedDutyReporter(ctx, duty, failed, failedStep, failedMsg, failedErr)
 
 			// Analyse peer participation
@@ -566,30 +572,22 @@ func extractParSigs(ctx context.Context, events []event) parsigsByMsg {
 
 // newFailedDutyReporter returns failed duty reporter which instruments failed duties.
 func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bool, step step, reason string, err error) {
-	var loggedNoSelections bool
+	// Initialise counters to 0 to avoid non-existent metrics issues when querying prometheus.
+	for _, dutyType := range core.AllDutyTypes() {
+		dutyFailed.WithLabelValues(dutyType.String()).Add(0)
+		dutySuccess.WithLabelValues(dutyType.String()).Add(0)
+		dutyExpect.WithLabelValues(dutyType.String()).Add(0)
+	}
 
 	return func(ctx context.Context, duty core.Duty, failed bool, step step, reason string, err error) {
-		counter := failedCounter.WithLabelValues(duty.Type.String())
-		counter.Add(0) // Zero the metric so first failure shows in grafana.
-
 		if !failed {
-			return
-		}
-
-		if duty.Type == core.DutyAggregator && step == fetcher && reason == msgFetcherAggregatorZeroPrepares {
-			if !loggedNoSelections {
-				log.Warn(ctx, "Ignoring attestation aggregation failures since VCs do not seem to support beacon committee selection aggregation", nil)
+			if step == fetcher {
+				// TODO(corver): improve detection of duties that are not expected to be performed (aggregation).
+				return
 			}
-			loggedNoSelections = true
 
-			return
-		}
-
-		if duty.Type == core.DutySyncContribution && step == fetcher && reason == msgFetcherSyncContributionZeroPrepares {
-			if !loggedNoSelections {
-				log.Warn(ctx, "Ignoring sync contribution failures since VCs do not seem to support sync committee selection aggregation", nil)
-			}
-			loggedNoSelections = true
+			dutyExpect.WithLabelValues(duty.Type.String()).Inc()
+			dutySuccess.WithLabelValues(duty.Type.String()).Inc()
 
 			return
 		}
@@ -599,7 +597,51 @@ func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bo
 			z.Str("reason", reason),
 		)
 
-		counter.Inc()
+		dutyExpect.WithLabelValues(duty.Type.String()).Inc()
+		dutyFailed.WithLabelValues(duty.Type.String()).Inc()
+	}
+}
+
+// newUnsupportedIgnorer returns a filter that ignores duties that are not supported by the node.
+func newUnsupportedIgnorer() func(ctx context.Context, duty core.Duty, failed bool, step step, reason string) bool {
+	var (
+		loggedNoAggregator    bool
+		loggedNoContribution  bool
+		aggregationSupported  bool
+		contributionSupported bool
+	)
+
+	return func(ctx context.Context, duty core.Duty, failed bool, step step, reason string) bool {
+		if !failed {
+			if duty.Type == core.DutyAggregator {
+				aggregationSupported = true
+			}
+			if duty.Type == core.DutySyncContribution {
+				contributionSupported = true
+			}
+
+			return false
+		}
+
+		if !aggregationSupported && duty.Type == core.DutyAggregator && step == fetcher && reason == msgFetcherAggregatorZeroPrepares {
+			if !loggedNoAggregator {
+				log.Warn(ctx, "Ignoring attestation aggregation failures since VCs do not seem to support beacon committee selection aggregation", nil)
+			}
+			loggedNoAggregator = true
+
+			return true
+		}
+
+		if !contributionSupported && duty.Type == core.DutySyncContribution && step == fetcher && reason == msgFetcherSyncContributionZeroPrepares {
+			if !loggedNoContribution {
+				log.Warn(ctx, "Ignoring sync contribution failures since VCs do not seem to support sync committee selection aggregation", nil)
+			}
+			loggedNoContribution = true
+
+			return true
+		}
+
+		return false
 	}
 }
 
@@ -669,6 +711,17 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 	// prevAbsent is the set of peers who didn't participate in the last duty per type.
 	prevAbsent := make(map[core.DutyType][]string)
 
+	// Initialise counters to 0 to avoid non-existent metrics issues when querying prometheus.
+	for _, dutyType := range core.AllDutyTypes() {
+		duty := dutyType.String()
+		for _, peer := range peers {
+			participationSuccess.WithLabelValues(duty, peer.Name).Add(0)
+			participationSuccessLegacy.WithLabelValues(duty, peer.Name).Add(0)
+			participationMissed.WithLabelValues(duty, peer.Name).Add(0)
+			participationExpect.WithLabelValues(duty, peer.Name).Add(0)
+		}
+	}
+
 	return func(ctx context.Context, duty core.Duty, failed bool, participatedShares map[int]bool, unexpectedShares map[int]bool) {
 		if len(participatedShares) == 0 && !failed {
 			// Ignore participation metrics and log for noop duties (like DutyAggregator)
@@ -679,13 +732,17 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 		for _, peer := range peers {
 			if participatedShares[peer.ShareIdx()] {
 				participationGauge.WithLabelValues(duty.Type.String(), peer.Name).Set(1)
-				participationCounter.WithLabelValues(duty.Type.String(), peer.Name).Inc()
+				participationSuccess.WithLabelValues(duty.Type.String(), peer.Name).Inc()
+				participationSuccessLegacy.WithLabelValues(duty.Type.String(), peer.Name).Inc()
+				participationExpect.WithLabelValues(duty.Type.String(), peer.Name).Inc()
 			} else if unexpectedShares[peer.ShareIdx()] {
 				log.Warn(ctx, "Unexpected event found", nil, z.Str("peer", peer.Name), z.Str("duty", duty.String()))
 				unexpectedEventsCounter.WithLabelValues(peer.Name).Inc()
 			} else {
 				absentPeers = append(absentPeers, peer.Name)
 				participationGauge.WithLabelValues(duty.Type.String(), peer.Name).Set(0)
+				participationMissed.WithLabelValues(duty.Type.String(), peer.Name).Inc()
+				participationExpect.WithLabelValues(duty.Type.String(), peer.Name).Inc()
 			}
 		}
 

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -21,7 +20,6 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cmd/relay"
 	"github.com/obolnetwork/charon/p2p"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -32,11 +30,6 @@ func skipIfDisabled(t *testing.T) {
 	if !*integration {
 		t.Skip("Integration tests are disabled")
 	}
-}
-
-func TestMain(m *testing.M) {
-	tblsv2.SetImplementation(tblsv2.Herumi{})
-	os.Exit(m.Run())
 }
 
 // startRelay starts a charon relay and returns its http multiaddr endpoint.

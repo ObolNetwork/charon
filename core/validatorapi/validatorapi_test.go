@@ -5,7 +5,6 @@ package validatorapi_test
 import (
 	"context"
 	"fmt"
-	"os"
 	"sort"
 	"sync"
 	"testing"
@@ -28,16 +27,11 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 	"github.com/obolnetwork/charon/testutil/validatormock"
 )
-
-func TestMain(m *testing.M) {
-	tblsv2.SetImplementation(tblsv2.Herumi{})
-	os.Exit(m.Run())
-}
 
 func TestComponent_ValidSubmitAttestations(t *testing.T) {
 	ctx := context.Background()
@@ -158,10 +152,10 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	ctx := context.Background()
 
 	// Create keys (just use normal keys, not split tbls)
-	secret, err := tblsv2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubkey, err := tblsv2.SecretToPublicKey(secret)
+	pubkey, err := tbls.SecretToPublicKey(secret)
 	require.NoError(t, err)
 
 	// Configure validator
@@ -177,7 +171,7 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	// Convert pubkey
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
-	allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
 	bmock, err := beaconmock.New(
@@ -234,7 +228,7 @@ func TestSignAndVerify(t *testing.T) {
 	ctx := context.Background()
 
 	// Create key pair
-	secretKey := *(*tblsv2.PrivateKey)(padTo([]byte{1}, 32))
+	secretKey := *(*tbls.PrivateKey)(padTo([]byte{1}, 32))
 
 	// Setup beaconmock
 	forkSchedule := `{"data": [{
@@ -276,7 +270,7 @@ func TestSignAndVerify(t *testing.T) {
 	require.Equal(t, "0x02bbdb88056d6cbafd6e94575540e74b8cf2c0f2c1b79b8e17e7b21ed1694305", fmt.Sprintf("%#x", sigDataBytes))
 
 	// Get pubkey
-	pubkey, err := tblsv2.SecretToPublicKey(secretKey)
+	pubkey, err := tbls.SecretToPublicKey(secretKey)
 	require.NoError(t, err)
 	eth2Pubkey := eth2p0.BLSPubKey(pubkey)
 
@@ -295,7 +289,7 @@ func TestSignAndVerify(t *testing.T) {
 	shareIdx := 1
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
-	allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Setup validatorapi component.
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
@@ -356,14 +350,14 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 	component, err := validatorapi.NewComponentInsecure(t, eth2Cl, vIdx)
 	require.NoError(t, err)
 
-	secret, err := tblsv2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pk, err := tblsv2.SecretToPublicKey(secret)
+	pk, err := tbls.SecretToPublicKey(secret)
 	require.NoError(t, err)
 
 	msg := []byte("randao reveal")
-	sig, err := tblsv2.Sign(secret, msg)
+	sig, err := tbls.Sign(secret, msg)
 	require.NoError(t, err)
 
 	randao := eth2p0.BLSSignature(sig)
@@ -404,10 +398,10 @@ func TestComponent_SubmitBeaconBlock(t *testing.T) {
 	ctx := context.Background()
 
 	// Create keys (just use normal keys, not split tbls)
-	secret, err := tblsv2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubkey, err := tblsv2.SecretToPublicKey(secret)
+	pubkey, err := tbls.SecretToPublicKey(secret)
 	require.NoError(t, err)
 
 	const (
@@ -420,7 +414,7 @@ func TestComponent_SubmitBeaconBlock(t *testing.T) {
 	// Convert pubkey
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
-	allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
 	bmock, err := beaconmock.New()
@@ -432,7 +426,7 @@ func TestComponent_SubmitBeaconBlock(t *testing.T) {
 
 	// Prepare unsigned beacon block
 	msg := []byte("randao reveal")
-	sig, err := tblsv2.Sign(secret, msg)
+	sig, err := tbls.Sign(secret, msg)
 	require.NoError(t, err)
 
 	randao := eth2p0.BLSSignature(sig)
@@ -458,7 +452,7 @@ func TestComponent_SubmitBeaconBlock(t *testing.T) {
 	sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()
 	require.NoError(t, err)
 
-	s, err := tblsv2.Sign(secret, sigData[:])
+	s, err := tbls.Sign(secret, sigData[:])
 	require.NoError(t, err)
 
 	signedBlock := &eth2spec.VersionedSignedBeaconBlock{
@@ -486,10 +480,10 @@ func TestComponent_SubmitBeaconBlockInvalidSignature(t *testing.T) {
 	ctx := context.Background()
 
 	// Create keys (just use normal keys, not split tbls)
-	secret, err := tblsv2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubkey, err := tblsv2.SecretToPublicKey(secret)
+	pubkey, err := tbls.SecretToPublicKey(secret)
 	require.NoError(t, err)
 
 	const (
@@ -501,7 +495,7 @@ func TestComponent_SubmitBeaconBlockInvalidSignature(t *testing.T) {
 	// Convert pubkey
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
-	allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
 	bmock, err := beaconmock.New()
@@ -513,7 +507,7 @@ func TestComponent_SubmitBeaconBlockInvalidSignature(t *testing.T) {
 
 	// Prepare unsigned beacon block
 	msg := []byte("randao reveal")
-	sig, err := tblsv2.Sign(secret, msg)
+	sig, err := tbls.Sign(secret, msg)
 	require.NoError(t, err)
 
 	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
@@ -521,7 +515,7 @@ func TestComponent_SubmitBeaconBlockInvalidSignature(t *testing.T) {
 	})
 
 	// Add invalid Signature to beacon block
-	s, err := tblsv2.Sign(secret, []byte("invalid msg"))
+	s, err := tbls.Sign(secret, []byte("invalid msg"))
 	require.NoError(t, err)
 
 	unsignedBlock := testutil.RandomPhase0BeaconBlock()
@@ -559,9 +553,9 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 	pkb, err := pubkey.Bytes()
 	require.NoError(t, err)
 
-	tblsPubkey := *(*tblsv2.PublicKey)(pkb)
+	tblsPubkey := *(*tbls.PublicKey)(pkb)
 	require.NoError(t, err)
-	allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{pubkey: {shareIdx: tblsPubkey}} // Maps self to self since not tbls
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{pubkey: {shareIdx: tblsPubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
 	bmock, err := beaconmock.New()
@@ -667,14 +661,14 @@ func TestComponent_BlindedBeaconBlockProposal(t *testing.T) {
 	component, err := validatorapi.NewComponentInsecure(t, eth2Cl, vIdx)
 	require.NoError(t, err)
 
-	secret, err := tblsv2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pk, err := tblsv2.SecretToPublicKey(secret)
+	pk, err := tbls.SecretToPublicKey(secret)
 	require.NoError(t, err)
 
 	msg := []byte("randao reveal")
-	sig, err := tblsv2.Sign(secret, msg)
+	sig, err := tbls.Sign(secret, msg)
 	require.NoError(t, err)
 
 	randao := eth2p0.BLSSignature(sig)
@@ -715,10 +709,10 @@ func TestComponent_SubmitBlindedBeaconBlock(t *testing.T) {
 	ctx := context.Background()
 
 	// Create keys (just use normal keys, not split tbls)
-	secret, err := tblsv2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubkey, err := tblsv2.SecretToPublicKey(secret)
+	pubkey, err := tbls.SecretToPublicKey(secret)
 	require.NoError(t, err)
 
 	const (
@@ -731,7 +725,7 @@ func TestComponent_SubmitBlindedBeaconBlock(t *testing.T) {
 	// Convert pubkey
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
-	allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
 	bmock, err := beaconmock.New()
@@ -743,7 +737,7 @@ func TestComponent_SubmitBlindedBeaconBlock(t *testing.T) {
 
 	// Prepare unsigned beacon block
 	msg := []byte("randao reveal")
-	sig, err := tblsv2.Sign(secret, msg)
+	sig, err := tbls.Sign(secret, msg)
 	require.NoError(t, err)
 
 	unsignedBlindedBlock := testutil.RandomCapellaBlindedBeaconBlock()
@@ -765,7 +759,7 @@ func TestComponent_SubmitBlindedBeaconBlock(t *testing.T) {
 	sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()
 	require.NoError(t, err)
 
-	s, err := tblsv2.Sign(secret, sigData[:])
+	s, err := tbls.Sign(secret, sigData[:])
 	require.NoError(t, err)
 
 	signedBlindedBlock := &eth2api.VersionedSignedBlindedBeaconBlock{
@@ -793,10 +787,10 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidSignature(t *testing.T) {
 	ctx := context.Background()
 
 	// Create keys (just use normal keys, not split tbls)
-	secret, err := tblsv2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubkey, err := tblsv2.SecretToPublicKey(secret)
+	pubkey, err := tbls.SecretToPublicKey(secret)
 	require.NoError(t, err)
 
 	const (
@@ -808,7 +802,7 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidSignature(t *testing.T) {
 	// Convert pubkey
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
-	allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
 	bmock, err := beaconmock.New()
@@ -820,7 +814,7 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidSignature(t *testing.T) {
 
 	// Prepare unsigned beacon block
 	msg := []byte("randao reveal")
-	sig, err := tblsv2.Sign(secret, msg)
+	sig, err := tbls.Sign(secret, msg)
 	require.NoError(t, err)
 
 	unsignedBlindedBlock := testutil.RandomCapellaBlindedBeaconBlock()
@@ -834,7 +828,7 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidSignature(t *testing.T) {
 
 	// Add invalid Signature to blinded beacon block
 
-	s, err := tblsv2.Sign(secret, []byte("invalid msg"))
+	s, err := tbls.Sign(secret, []byte("invalid msg"))
 	require.NoError(t, err)
 
 	signedBlindedBlock := &eth2api.VersionedSignedBlindedBeaconBlock{
@@ -868,7 +862,7 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidBlock(t *testing.T) {
 	pkb, err := pubkey.Bytes()
 	require.NoError(t, err)
 
-	allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{pubkey: {shareIdx: *(*tblsv2.PublicKey)(pkb)}} // Maps self to self since not tbls
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{pubkey: {shareIdx: *(*tbls.PublicKey)(pkb)}} // Maps self to self since not tbls
 
 	// Configure beacon mock
 	bmock, err := beaconmock.New()
@@ -935,10 +929,10 @@ func TestComponent_SubmitVoluntaryExit(t *testing.T) {
 	defer cancel()
 
 	// Create keys (just use normal keys, not split tbls)
-	secret, err := tblsv2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubkey, err := tblsv2.SecretToPublicKey(secret)
+	pubkey, err := tbls.SecretToPublicKey(secret)
 	require.NoError(t, err)
 
 	const (
@@ -950,7 +944,7 @@ func TestComponent_SubmitVoluntaryExit(t *testing.T) {
 	// Convert pubkey
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
-	allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Prep beacon mock validators
 	validator := beaconmock.ValidatorSetA[vIdx]
@@ -981,7 +975,7 @@ func TestComponent_SubmitVoluntaryExit(t *testing.T) {
 	sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()
 	require.NoError(t, err)
 
-	sig, err := tblsv2.Sign(secret, sigData[:])
+	sig, err := tbls.Sign(secret, sigData[:])
 	require.NoError(t, err)
 
 	signedExit := &eth2p0.SignedVoluntaryExit{
@@ -1013,15 +1007,15 @@ func TestComponent_SubmitVoluntaryExitInvalidSignature(t *testing.T) {
 	)
 
 	// Create keys (just use normal keys, not split tbls)
-	secret, err := tblsv2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubkey, err := tblsv2.SecretToPublicKey(secret)
+	pubkey, err := tbls.SecretToPublicKey(secret)
 	require.NoError(t, err)
 
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
-	allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	validator := beaconmock.ValidatorSetA[vIdx]
 	validator.Validator.PublicKey = eth2p0.BLSPubKey(pubkey)
@@ -1041,7 +1035,7 @@ func TestComponent_SubmitVoluntaryExitInvalidSignature(t *testing.T) {
 		return ctx.Err()
 	})
 
-	sig, err := tblsv2.Sign(secret, []byte("invalid message"))
+	sig, err := tbls.Sign(secret, []byte("invalid message"))
 	require.NoError(t, err)
 
 	exit := testutil.RandomExit()
@@ -1066,12 +1060,12 @@ func TestComponent_Duties(t *testing.T) {
 	eth2Pubkey := testutil.RandomEth2PubKey(t)
 	eth2Share := testutil.RandomEth2PubKey(t)
 
-	pubshare := tblsv2.PublicKey(eth2Share)
-	pubkey := tblsv2.PublicKey(eth2Pubkey)
+	pubshare := tbls.PublicKey(eth2Share)
+	pubkey := tbls.PublicKey(eth2Pubkey)
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
 
-	allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{corePubKey: {shareIdx: pubshare}}
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubshare}}
 	// Configure beacon mock
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
@@ -1141,17 +1135,17 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 	ctx := context.Background()
 	shareIdx := 1
 	// Create keys (just use normal keys, not split tbls)
-	secret, err := tblsv2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubkey, err := tblsv2.SecretToPublicKey(secret)
+	pubkey, err := tbls.SecretToPublicKey(secret)
 	require.NoError(t, err)
 
 	// Convert pubkey
 	eth2Pubkey := eth2p0.BLSPubKey(pubkey)
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
-	allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
 	bmock, err := beaconmock.New()
@@ -1173,7 +1167,7 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 	sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainApplicationBuilder, 0, sigRoot)
 	require.NoError(t, err)
 
-	s, err := tblsv2.Sign(secret, sigData[:])
+	s, err := tbls.Sign(secret, sigData[:])
 	require.NoError(t, err)
 
 	signed := &eth2api.VersionedSignedValidatorRegistration{
@@ -1215,17 +1209,17 @@ func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
 	ctx := context.Background()
 	shareIdx := 1
 	// Create keys (just use normal keys, not split tbls)
-	secret, err := tblsv2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubkey, err := tblsv2.SecretToPublicKey(secret)
+	pubkey, err := tbls.SecretToPublicKey(secret)
 	require.NoError(t, err)
 
 	// Convert pubkey
 	eth2Pubkey := eth2p0.BLSPubKey(pubkey)
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
-	allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
 	bmock, err := beaconmock.New()
@@ -1246,7 +1240,7 @@ func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
 
 	// Add invalid Signature to validator (builder) registration
 
-	s, err := tblsv2.Sign(secret, []byte("invalid msg"))
+	s, err := tbls.Sign(secret, []byte("invalid msg"))
 	require.NoError(t, err)
 
 	signed := &eth2api.VersionedSignedValidatorRegistration{
@@ -1269,16 +1263,16 @@ func TestComponent_TekuProposerConfig(t *testing.T) {
 		shareIdx     = 1
 	)
 	// Create keys (just use normal keys, not split tbls)
-	secret, err := tblsv2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubkey, err := tblsv2.SecretToPublicKey(secret)
+	pubkey, err := tbls.SecretToPublicKey(secret)
 	require.NoError(t, err)
 
 	// Convert pubkey
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
-	allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
 	bmock, err := beaconmock.New()
@@ -1422,16 +1416,16 @@ func TestComponent_SubmitAggregateAttestationVerify(t *testing.T) {
 	)
 
 	// Create keys (just use normal keys, not split tbls)
-	secret, err := tblsv2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubkey, err := tblsv2.SecretToPublicKey(secret)
+	pubkey, err := tbls.SecretToPublicKey(secret)
 	require.NoError(t, err)
 
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
 
-	allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	val.Validator.PublicKey = eth2p0.BLSPubKey(pubkey)
 
@@ -1553,15 +1547,15 @@ func TestComponent_SubmitSyncCommitteeContributionsVerify(t *testing.T) {
 	)
 
 	// Create keys (just use normal keys, not split tbls).
-	secret, err := tblsv2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubkey, err := tblsv2.SecretToPublicKey(secret)
+	pubkey, err := tbls.SecretToPublicKey(secret)
 	require.NoError(t, err)
 
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
-	allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	val.Validator.PublicKey = eth2p0.BLSPubKey(pubkey)
 
@@ -1620,10 +1614,10 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 	require.NoError(t, err)
 
 	// Sync committee selection 1.
-	secret1, err := tblsv2.GenerateSecretKey()
+	secret1, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubkey1, err := tblsv2.SecretToPublicKey(secret1)
+	pubkey1, err := tbls.SecretToPublicKey(secret1)
 	require.NoError(t, err)
 
 	pk1, err := core.PubKeyFromBytes(pubkey1[:])
@@ -1637,10 +1631,10 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 	selection1.SelectionProof = syncCommSelectionProof(t, bmock, secret1, slot, selection1.SubcommitteeIndex)
 
 	// Sync committee selection 2.
-	secret2, err := tblsv2.GenerateSecretKey()
+	secret2, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pubkey2, err := tblsv2.SecretToPublicKey(secret2)
+	pubkey2, err := tbls.SecretToPublicKey(secret2)
 	require.NoError(t, err)
 
 	pk2, err := core.PubKeyFromBytes(pubkey2[:])
@@ -1661,7 +1655,7 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 	corePubKey2, err := core.PubKeyFromBytes(pubkey2[:])
 	require.NoError(t, err)
 
-	allPubSharesByKey := map[core.PubKey]map[int]tblsv2.PublicKey{
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{
 		corePubKey1: {shareIdx: pubkey1},
 		corePubKey2: {shareIdx: pubkey2},
 	}
@@ -1715,7 +1709,7 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 	require.Equal(t, selections, got)
 }
 
-func signAggregationAndProof(t *testing.T, eth2Cl eth2wrap.Client, secret tblsv2.PrivateKey, aggProof *eth2p0.AggregateAndProof) eth2p0.BLSSignature {
+func signAggregationAndProof(t *testing.T, eth2Cl eth2wrap.Client, secret tbls.PrivateKey, aggProof *eth2p0.AggregateAndProof) eth2p0.BLSSignature {
 	t.Helper()
 
 	epoch, err := eth2util.EpochFromSlot(context.Background(), eth2Cl, aggProof.Aggregate.Data.Slot)
@@ -1729,7 +1723,7 @@ func signAggregationAndProof(t *testing.T, eth2Cl eth2wrap.Client, secret tblsv2
 
 // syncCommSelectionProof returns the selection_proof corresponding to the provided altair.ContributionAndProof.
 // Refer get_sync_committee_selection_proof from https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#aggregation-selection.
-func syncCommSelectionProof(t *testing.T, eth2Cl eth2wrap.Client, secret tblsv2.PrivateKey, slot eth2p0.Slot, subcommIdx eth2p0.CommitteeIndex) eth2p0.BLSSignature {
+func syncCommSelectionProof(t *testing.T, eth2Cl eth2wrap.Client, secret tbls.PrivateKey, slot eth2p0.Slot, subcommIdx eth2p0.CommitteeIndex) eth2p0.BLSSignature {
 	t.Helper()
 
 	epoch, err := eth2util.EpochFromSlot(context.Background(), eth2Cl, slot)
@@ -1748,7 +1742,7 @@ func syncCommSelectionProof(t *testing.T, eth2Cl eth2wrap.Client, secret tblsv2.
 
 // signContributionAndProof signs the provided altair.SignedContributionAndProof and returns the signature.
 // Refer get_contribution_and_proof_signature from https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#broadcast-sync-committee-contribution
-func signContributionAndProof(t *testing.T, eth2Cl eth2wrap.Client, secret tblsv2.PrivateKey, contrib *altair.ContributionAndProof) eth2p0.BLSSignature {
+func signContributionAndProof(t *testing.T, eth2Cl eth2wrap.Client, secret tbls.PrivateKey, contrib *altair.ContributionAndProof) eth2p0.BLSSignature {
 	t.Helper()
 
 	epoch, err := eth2util.EpochFromSlot(context.Background(), eth2Cl, contrib.Contribution.Slot)
@@ -1760,7 +1754,7 @@ func signContributionAndProof(t *testing.T, eth2Cl eth2wrap.Client, secret tblsv
 	return sign(t, eth2Cl, secret, signing.DomainContributionAndProof, epoch, sigRoot)
 }
 
-func signBeaconSelection(t *testing.T, eth2Cl eth2wrap.Client, secret tblsv2.PrivateKey, slot eth2p0.Slot) eth2p0.BLSSignature {
+func signBeaconSelection(t *testing.T, eth2Cl eth2wrap.Client, secret tbls.PrivateKey, slot eth2p0.Slot) eth2p0.BLSSignature {
 	t.Helper()
 
 	epoch, err := eth2util.EpochFromSlot(context.Background(), eth2Cl, slot)
@@ -1772,14 +1766,14 @@ func signBeaconSelection(t *testing.T, eth2Cl eth2wrap.Client, secret tblsv2.Pri
 	return sign(t, eth2Cl, secret, signing.DomainSelectionProof, epoch, dataRoot)
 }
 
-func sign(t *testing.T, eth2Cl eth2wrap.Client, secret tblsv2.PrivateKey, domain signing.DomainName, epoch eth2p0.Epoch, dataRoot eth2p0.Root) eth2p0.BLSSignature {
+func sign(t *testing.T, eth2Cl eth2wrap.Client, secret tbls.PrivateKey, domain signing.DomainName, epoch eth2p0.Epoch, dataRoot eth2p0.Root) eth2p0.BLSSignature {
 	t.Helper()
 	ctx := context.Background()
 
 	signingRoot, err := signing.GetDataRoot(ctx, eth2Cl, domain, epoch, dataRoot)
 	require.NoError(t, err)
 
-	sig, err := tblsv2.Sign(secret, signingRoot[:])
+	sig, err := tbls.Sign(secret, signingRoot[:])
 	require.NoError(t, err)
 
 	return eth2p0.BLSSignature(sig)

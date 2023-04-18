@@ -1,11 +1,11 @@
 // Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package v2
+package tbls
 
 import "sync"
 
 var (
-	impl     Implementation = Kryptology{}
+	impl     Implementation = Herumi{}
 	implLock sync.Mutex
 )
 

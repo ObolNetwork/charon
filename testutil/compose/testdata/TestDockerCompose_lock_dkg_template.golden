@@ -34,6 +34,10 @@
      "Value": "debug"
     },
     {
+     "Key": "log-color",
+     "Value": "force"
+    },
+    {
      "Key": "feature-set",
      "Value": "alpha"
     },
@@ -80,6 +84,10 @@
     {
      "Key": "log-level",
      "Value": "debug"
+    },
+    {
+     "Key": "log-color",
+     "Value": "force"
     },
     {
      "Key": "feature-set",
@@ -130,6 +138,10 @@
      "Value": "debug"
     },
     {
+     "Key": "log-color",
+     "Value": "force"
+    },
+    {
      "Key": "feature-set",
      "Value": "alpha"
     },
@@ -176,6 +188,10 @@
     {
      "Key": "log-level",
      "Value": "debug"
+    },
+    {
+     "Key": "log-color",
+     "Value": "force"
     },
     {
      "Key": "feature-set",

@@ -4,7 +4,6 @@ package core_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -12,16 +11,11 @@ import (
 
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/signing"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
-
-func TestMain(m *testing.M) {
-	tblsv2.SetImplementation(tblsv2.Herumi{})
-	os.Exit(m.Run())
-}
 
 func TestVerifyEth2SignedData(t *testing.T) {
 	tests := []struct {
@@ -117,17 +111,17 @@ func TestVerifyEth2SignedData(t *testing.T) {
 	}
 }
 
-func sign(t *testing.T, data []byte) (core.Signature, tblsv2.PublicKey) {
+func sign(t *testing.T, data []byte) (core.Signature, tbls.PublicKey) {
 	t.Helper()
 
-	secret, err := tblsv2.GenerateSecretKey()
+	secret, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
-	pk, err := tblsv2.SecretToPublicKey(secret)
+	pk, err := tbls.SecretToPublicKey(secret)
 	require.NoError(t, err)
 
-	sig, err := tblsv2.Sign(secret, data)
+	sig, err := tbls.Sign(secret, data)
 	require.NoError(t, err)
 
-	return tblsconv2.SigToCore(sig), pk
+	return tblsconv.SigToCore(sig), pk
 }

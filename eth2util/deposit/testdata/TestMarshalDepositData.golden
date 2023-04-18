@@ -8,7 +8,7 @@
   "deposit_data_root": "d402b32486f7ef165f79219b09d9dce32979144ddee4fc2b21b84c743d00082d",
   "fork_version": "00001020",
   "network_name": "goerli",
-  "deposit_cli_version": "2.3.0"
+  "deposit_cli_version": "2.5.0"
  },
  {
   "pubkey": "813f5d2697f76841a752ef8c1ac11d1bb76e07003799c5745f8a569214653810def3b60920b54fb0ab3cb6deb08c3972",
@@ -19,7 +19,7 @@
   "deposit_data_root": "b93eabab3e2823c154408bf053461fe017cd9bf294779f47b3507b2ca95a7de1",
   "fork_version": "00001020",
   "network_name": "goerli",
-  "deposit_cli_version": "2.3.0"
+  "deposit_cli_version": "2.5.0"
  },
  {
   "pubkey": "940a838cd88c10daa9c26fcdf8472dfe09657c4aa4030380c6cca5ddb573a8036dfb03e61137c4baacdc9d69061f1eb2",
@@ -30,7 +30,7 @@
   "deposit_data_root": "41bb542c89023ae3c1680982f4cc63765ed607c8269e02ddd009368a7687bfb2",
   "fork_version": "00001020",
   "network_name": "goerli",
-  "deposit_cli_version": "2.3.0"
+  "deposit_cli_version": "2.5.0"
  },
  {
   "pubkey": "b3d95c8790d63114ab1e813e8943f1bd59683927942df076ad724de8cc00974306c95d6614ef93505b5acd9719a6de78",
@@ -41,6 +41,6 @@
   "deposit_data_root": "03de1f131aed3d3a9c48643920eb3dd9ec3d35cc91214f85d4c6da01161939fe",
   "fork_version": "00001020",
   "network_name": "goerli",
-  "deposit_cli_version": "2.3.0"
+  "deposit_cli_version": "2.5.0"
  }
 ]

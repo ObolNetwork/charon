@@ -20,7 +20,7 @@ import (
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	"github.com/obolnetwork/charon/tbls"
 )
 
 // FetchDefinition fetches cluster definition file from a remote URI.
@@ -107,11 +107,11 @@ func signOperator(secret *k1.PrivateKey, def Definition, operator Operator) (Ope
 }
 
 // aggSign returns a bls aggregate signatures of the message signed by all the shares.
-func aggSign(secrets [][]tblsv2.PrivateKey, message []byte) ([]byte, error) {
-	var sigs []tblsv2.Signature
+func aggSign(secrets [][]tbls.PrivateKey, message []byte) ([]byte, error) {
+	var sigs []tbls.Signature
 	for _, shares := range secrets {
 		for _, share := range shares {
-			sig, err := tblsv2.Sign(share, message)
+			sig, err := tbls.Sign(share, message)
 			if err != nil {
 				return nil, err
 			}
@@ -120,7 +120,7 @@ func aggSign(secrets [][]tblsv2.PrivateKey, message []byte) ([]byte, error) {
 		}
 	}
 
-	aggSig, err := tblsv2.Aggregate(sigs)
+	aggSig, err := tbls.Aggregate(sigs)
 	if err != nil {
 		return nil, errors.Wrap(err, "aggregate signatures")
 	}

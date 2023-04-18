@@ -17,7 +17,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/p2p"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	"github.com/obolnetwork/charon/tbls"
 )
 
 const (
@@ -60,6 +60,10 @@ func (m *ParSigEx) handle(ctx context.Context, _ peer.ID, req proto.Message) (pr
 	pb, ok := req.(*pbv1.ParSigExMsg)
 	if !ok {
 		return nil, false, errors.New("invalid request type")
+	}
+
+	if pb == nil || pb.Duty == nil || pb.DataSet == nil {
+		return nil, false, errors.New("invalid parsigex msg fields", z.Any("msg", pb))
 	}
 
 	duty := core.DutyFromProto(pb.Duty)
@@ -126,7 +130,7 @@ func (m *ParSigEx) Subscribe(fn func(context.Context, core.Duty, core.ParSignedD
 }
 
 // NewEth2Verifier returns a partial signature verification function for core workflow eth2 signatures.
-func NewEth2Verifier(eth2Cl eth2wrap.Client, pubSharesByKey map[core.PubKey]map[int]tblsv2.PublicKey) (func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error, error) {
+func NewEth2Verifier(eth2Cl eth2wrap.Client, pubSharesByKey map[core.PubKey]map[int]tbls.PublicKey) (func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error, error) {
 	return func(ctx context.Context, duty core.Duty, pubkey core.PubKey, data core.ParSignedData) error {
 		pubshares, ok := pubSharesByKey[pubkey]
 		if !ok {

@@ -16,18 +16,54 @@ var (
 		Help:      "Set to 1 if peer participated successfully for the given duty or else 0",
 	}, []string{"duty", "peer"})
 
-	participationCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+	// TODO(corver): Remove in v0.17 once all dashboards have been updated.
+	participationSuccessLegacy = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "core",
 		Subsystem: "tracker",
 		Name:      "participation_total",
 		Help:      "Total number of successful participations by peer and duty type",
 	}, []string{"duty", "peer"})
 
-	failedCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+	participationSuccess = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "tracker",
+		Name:      "participation_success_total",
+		Help:      "Total number of successful participations by peer and duty type",
+	}, []string{"duty", "peer"})
+
+	participationMissed = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "tracker",
+		Name:      "participation_missed_total",
+		Help:      "Total number of missed participations by peer and duty type",
+	}, []string{"duty", "peer"})
+
+	participationExpect = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "tracker",
+		Name:      "participation_expected_total",
+		Help:      "Total number of expected participations (fail + success) by peer and duty type",
+	}, []string{"duty", "peer"})
+
+	dutyFailed = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "core",
 		Subsystem: "tracker",
 		Name:      "failed_duties_total",
 		Help:      "Total number of failed duties by type",
+	}, []string{"duty"})
+
+	dutySuccess = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "tracker",
+		Name:      "success_duties_total",
+		Help:      "Total number of successful duties by type",
+	}, []string{"duty"})
+
+	dutyExpect = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "tracker",
+		Name:      "expect_duties_total",
+		Help:      "Total number of expected duties (failed + success) by type",
 	}, []string{"duty"})
 
 	unexpectedEventsCounter = promauto.NewCounterVec(prometheus.CounterOpts{

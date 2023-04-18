@@ -11,8 +11,8 @@ import (
 
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
-	tblsconv2 "github.com/obolnetwork/charon/tbls/v2/tblsconv"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -45,14 +45,14 @@ func TestMarshalDepositData(t *testing.T) {
 		sigRoot, err := deposit.GetMessageSigningRoot(msg, network)
 		require.NoError(t, err)
 
-		sig, err := tblsv2.Sign(sk, sigRoot[:])
+		sig, err := tbls.Sign(sk, sigRoot[:])
 		require.NoError(t, err)
 
 		datas = append(datas, eth2p0.DepositData{
 			PublicKey:             msg.PublicKey,
 			WithdrawalCredentials: msg.WithdrawalCredentials,
 			Amount:                msg.Amount,
-			Signature:             tblsconv2.SigToETH2(sig),
+			Signature:             tblsconv.SigToETH2(sig),
 		})
 	}
 
@@ -63,19 +63,19 @@ func TestMarshalDepositData(t *testing.T) {
 }
 
 // Get the private and public keys in appropriate format for the test.
-func GetKeys(t *testing.T, privKey string) (tblsv2.PrivateKey, eth2p0.BLSPubKey) {
+func GetKeys(t *testing.T, privKey string) (tbls.PrivateKey, eth2p0.BLSPubKey) {
 	t.Helper()
 
 	privKeyBytes, err := hex.DecodeString(privKey)
 	require.NoError(t, err)
 
-	sk, err := tblsconv2.PrivkeyFromBytes(privKeyBytes)
+	sk, err := tblsconv.PrivkeyFromBytes(privKeyBytes)
 	require.NoError(t, err)
 
-	pk, err := tblsv2.SecretToPublicKey(sk)
+	pk, err := tbls.SecretToPublicKey(sk)
 	require.NoError(t, err)
 
-	pubkey, err := tblsconv2.PubkeyToETH2(pk)
+	pubkey, err := tblsconv.PubkeyToETH2(pk)
 	require.NoError(t, err)
 
 	return sk, pubkey

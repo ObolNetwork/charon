@@ -15,7 +15,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
+	"github.com/obolnetwork/charon/tbls"
 )
 
 var (
@@ -28,7 +28,7 @@ var (
 	// DOMAIN_DEPOSIT. See spec: https://benjaminion.xyz/eth2-annotated-spec/phase0/beacon-chain/#domain-types
 	depositDomainType = eth2p0.DomainType([4]byte{0x03, 0x00, 0x00, 0x00})
 
-	depositCliVersion = "2.3.0"
+	depositCliVersion = "2.5.0"
 )
 
 // NewMessage returns a deposit message created using the provided parameters.
@@ -70,10 +70,10 @@ func MarshalDepositData(depositDatas []eth2p0.DepositData, network string) ([]by
 			return nil, err
 		}
 
-		blsSig := tblsv2.Signature(depositData.Signature)
-		blsPubkey := tblsv2.PublicKey(depositData.PublicKey)
+		blsSig := tbls.Signature(depositData.Signature)
+		blsPubkey := tbls.PublicKey(depositData.PublicKey)
 
-		err = tblsv2.Verify(blsPubkey, sigData[:], blsSig)
+		err = tbls.Verify(blsPubkey, sigData[:], blsSig)
 		if err != nil {
 			return nil, errors.Wrap(err, "invalid deposit data signature")
 		}

@@ -114,6 +114,7 @@ func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 		{"p2p-tcp-address", "0.0.0.0:3610"},
 		{"p2p-relays", p2pRelayAddr},
 		{"log-level", "debug"},
+		{"log-color", "force"},
 		{"feature-set", conf.FeatureSet},
 	}
 

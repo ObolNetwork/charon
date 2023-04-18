@@ -14,6 +14,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/k1util"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util/rlp"
 )
 
@@ -67,16 +68,21 @@ func Parse(enrStr string) (Record, error) {
 	}
 
 	for i := 2; i < len(elements); i += 2 {
-		r.kvs[string(elements[i])] = elements[i+1]
+		key, val := string(elements[i]), elements[i+1]
+		if _, ok := r.kvs[key]; ok {
+			return Record{}, errors.New("duplicate enr key found", z.Str("key", key))
+		}
 
-		switch string(elements[i]) {
+		r.kvs[key] = val
+
+		switch key {
 		case keySecp256k1:
-			r.PubKey, err = k1.ParsePubKey(elements[i+1])
+			r.PubKey, err = k1.ParsePubKey(val)
 			if err != nil {
 				return Record{}, errors.Wrap(err, "invalid secp256k1 public key")
 			}
 		case keyID:
-			if string(elements[i+1]) != valID {
+			if string(val) != valID {
 				return Record{}, errors.New("non-v4 identity scheme not supported")
 			}
 		}
@@ -173,7 +179,7 @@ func (r Record) String() string {
 	return "enr:" + base64.RawURLEncoding.EncodeToString(encodeElements(r.Signature, r.kvs))
 }
 
-// encodeElements return the RLP encoding of a minimal set of record elements including optional signature.
+// encodeElements returns the RLP encoding of a minimal set of record elements including optional signature.
 func encodeElements(signature []byte, kvs map[string][]byte) []byte {
 	var keys []string
 	for k := range kvs {

@@ -5,7 +5,6 @@ package consensus_test
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/libp2p/go-libp2p"
@@ -24,14 +23,8 @@ import (
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
-	tblsv2 "github.com/obolnetwork/charon/tbls/v2"
 	"github.com/obolnetwork/charon/testutil"
 )
-
-func TestMain(m *testing.M) {
-	tblsv2.SetImplementation(tblsv2.Herumi{})
-	os.Exit(m.Run())
-}
 
 func TestComponent(t *testing.T) {
 	const (
@@ -86,7 +79,7 @@ func TestComponent(t *testing.T) {
 			sniffed <- len(msgs.Msgs)
 		}
 
-		c, err := consensus.New(hosts[i], new(p2p.Sender), peers, p2pkeys[i], testDeadliner{}, sniffer)
+		c, err := consensus.New(hosts[i], new(p2p.Sender), peers, p2pkeys[i], testDeadliner{}, sniffer, true)
 		require.NoError(t, err)
 		c.Subscribe(func(_ context.Context, _ core.Duty, set core.UnsignedDataSet) error {
 			results <- set

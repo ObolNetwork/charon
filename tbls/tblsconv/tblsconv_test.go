@@ -3,131 +3,249 @@
 package tblsconv_test
 
 import (
-	"math/rand"
+	"bytes"
+	"encoding/hex"
+	"strings"
 	"testing"
-	"time"
 
-	"github.com/coinbase/kryptology/pkg/signatures/bls/bls_sig"
 	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/tbls"
+	v2 "github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
+	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestCoreKey(t *testing.T) {
-	tblsKey1, _, err := tbls.Keygen()
-	require.NoError(t, err)
+func TestPrivkeyFromBytes(t *testing.T) {
+	tests := []struct {
+		name    string
+		data    []byte
+		want    v2.PrivateKey
+		wantErr bool
+	}{
+		{
+			"empty input",
+			[]byte{},
+			v2.PrivateKey{},
+			true,
+		},
+		{
+			"more data than expected",
+			bytes.Repeat([]byte{42}, len(v2.PrivateKey{})+1),
+			v2.PrivateKey{},
+			true,
+		},
+		{
+			"less data than expected",
+			bytes.Repeat([]byte{42}, len(v2.PrivateKey{})-1),
+			v2.PrivateKey{},
+			true,
+		},
+		{
+			"enough data",
+			bytes.Repeat([]byte{42}, len(v2.PrivateKey{})),
+			*(*v2.PrivateKey)(bytes.Repeat([]byte{42}, len(v2.PrivateKey{}))),
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tblsconv.PrivkeyFromBytes(tt.data)
 
-	coreKey, err := tblsconv.KeyToCore(tblsKey1)
-	require.NoError(t, err)
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Empty(t, got)
 
-	tblsKey2, err := tblsconv.KeyFromCore(coreKey)
-	require.NoError(t, err)
+				return
+			}
 
-	b1, err := tblsKey1.MarshalBinary()
-	require.NoError(t, err)
-	b2, err := tblsKey2.MarshalBinary()
-	require.NoError(t, err)
-
-	require.Equal(t, b1, b2)
-}
-
-func TestETHKey(t *testing.T) {
-	tblsKey1, _, err := tbls.Keygen()
-	require.NoError(t, err)
-
-	eth2Key, err := tblsconv.KeyToETH2(tblsKey1)
-	require.NoError(t, err)
-
-	tblsKey2, err := tblsconv.KeyFromETH2(eth2Key)
-	require.NoError(t, err)
-
-	b1, err := tblsKey1.MarshalBinary()
-	require.NoError(t, err)
-	b2, err := tblsKey2.MarshalBinary()
-	require.NoError(t, err)
-
-	require.Equal(t, b1, b2)
-}
-
-func TestSig(t *testing.T) {
-	_, secret, err := tbls.Keygen()
-	require.NoError(t, err)
-
-	sig1, err := tbls.Sign(secret, []byte("msg"))
-	require.NoError(t, err)
-
-	eth2Sig := tblsconv.SigToETH2(sig1)
-	require.NoError(t, err)
-
-	sig2, err := tblsconv.SigFromETH2(eth2Sig)
-	require.NoError(t, err)
-
-	coreSig := tblsconv.SigToCore(sig2)
-	sig3, err := tblsconv.SigFromCore(coreSig)
-	require.NoError(t, err)
-	require.Equal(t, sig2, sig3)
-}
-
-func TestShareToSecret(t *testing.T) {
-	_, shares, err := tbls.GenerateTSS(3, 4, rand.New(rand.NewSource(time.Now().UnixNano())))
-	require.NoError(t, err)
-
-	msg := []byte("test data")
-
-	for _, share := range shares {
-		secret, err := tblsconv.ShareToSecret(share)
-		require.NoError(t, err)
-
-		psig, err := tbls.PartialSign(share, msg)
-		require.NoError(t, err)
-
-		sig, err := tbls.Sign(secret, msg)
-		require.NoError(t, err)
-
-		pdata := tblsconv.SigToCore(&bls_sig.Signature{Value: psig.Signature})
-		data := tblsconv.SigToCore(sig)
-
-		require.Equal(t, pdata, data)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
 	}
 }
 
-func TestSecretToBytes(t *testing.T) {
-	_, shares, err := tbls.GenerateTSS(3, 4, rand.New(rand.NewSource(time.Now().UnixNano())))
-	require.NoError(t, err)
+func TestPubkeyFromBytes(t *testing.T) {
+	tests := []struct {
+		name    string
+		data    []byte
+		want    v2.PublicKey
+		wantErr bool
+	}{
+		{
+			"empty input",
+			[]byte{},
+			v2.PublicKey{},
+			true,
+		},
+		{
+			"more data than expected",
+			bytes.Repeat([]byte{42}, len(v2.PublicKey{})+1),
+			v2.PublicKey{},
+			true,
+		},
+		{
+			"less data than expected",
+			bytes.Repeat([]byte{42}, len(v2.PublicKey{})-1),
+			v2.PublicKey{},
+			true,
+		},
+		{
+			"enough data",
+			bytes.Repeat([]byte{42}, len(v2.PublicKey{})),
+			*(*v2.PublicKey)(bytes.Repeat([]byte{42}, len(v2.PublicKey{}))),
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tblsconv.PubkeyFromBytes(tt.data)
 
-	for _, share := range shares {
-		secret, err := tblsconv.ShareToSecret(share)
-		require.NoError(t, err)
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Empty(t, got)
 
-		b, err := tblsconv.SecretToBytes(secret)
-		require.NoError(t, err)
+				return
+			}
 
-		result, err := tblsconv.SecretFromBytes(b)
-		require.NoError(t, err)
-		require.Equal(t, secret, result)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
 	}
 }
 
-func TestShareToSecret_ZeroPadding(t *testing.T) {
-	_, shares, err := tbls.GenerateTSS(3, 4, rand.New(rand.NewSource(96)))
+func TestPubkeyToETH2(t *testing.T) {
+	pubkey, err := tblsconv.PubkeyFromBytes(bytes.Repeat([]byte{42}, len(v2.PublicKey{})))
 	require.NoError(t, err)
 
-	msg := []byte("test data")
+	res, err := tblsconv.PubkeyToETH2(pubkey)
+	require.NoError(t, err)
 
-	for _, share := range shares {
-		secret, err := tblsconv.ShareToSecret(share)
-		require.NoError(t, err)
+	require.Equal(t, pubkey[:], res[:])
+}
 
-		psig, err := tbls.PartialSign(share, msg)
-		require.NoError(t, err)
+func TestPubkeyFromCore(t *testing.T) {
+	pubkey := testutil.RandomCorePubKey(t)
 
-		sig, err := tbls.Sign(secret, msg)
-		require.NoError(t, err)
+	res, err := tblsconv.PubkeyFromCore(pubkey)
+	require.NoError(t, err)
 
-		pdata := tblsconv.SigToCore(&bls_sig.Signature{Value: psig.Signature})
-		data := tblsconv.SigToCore(sig)
+	expect, err := hex.DecodeString(strings.TrimPrefix(string(pubkey), "0x"))
+	require.NoError(t, err)
+	require.Equal(t, expect, res[:])
+}
 
-		require.Equal(t, pdata, data)
+func TestSignatureFromBytes(t *testing.T) {
+	tests := []struct {
+		name    string
+		data    []byte
+		want    v2.Signature
+		wantErr bool
+	}{
+		{
+			"empty input",
+			[]byte{},
+			v2.Signature{},
+			true,
+		},
+		{
+			"more data than expected",
+			bytes.Repeat([]byte{42}, len(v2.Signature{})+1),
+			v2.Signature{},
+			true,
+		},
+		{
+			"less data than expected",
+			bytes.Repeat([]byte{42}, len(v2.Signature{})-1),
+			v2.Signature{},
+			true,
+		},
+		{
+			"enough data",
+			bytes.Repeat([]byte{42}, len(v2.Signature{})),
+			*(*v2.Signature)(bytes.Repeat([]byte{42}, len(v2.Signature{}))),
+			false,
+		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tblsconv.SignatureFromBytes(tt.data)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Empty(t, got)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestSigFromCore(t *testing.T) {
+	tests := []struct {
+		name    string
+		data    []byte
+		want    v2.Signature
+		wantErr bool
+	}{
+		{
+			"empty input",
+			[]byte{},
+			v2.Signature{},
+			true,
+		},
+		{
+			"more data than expected",
+			bytes.Repeat([]byte{42}, len(v2.Signature{})+1),
+			v2.Signature{},
+			true,
+		},
+		{
+			"less data than expected",
+			bytes.Repeat([]byte{42}, len(v2.Signature{})-1),
+			v2.Signature{},
+			true,
+		},
+		{
+			"enough data",
+			bytes.Repeat([]byte{42}, len(v2.Signature{})),
+			*(*v2.Signature)(bytes.Repeat([]byte{42}, len(v2.Signature{}))),
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tblsconv.SigFromCore(tt.data)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Empty(t, got)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestSigToCore(t *testing.T) {
+	sig, err := tblsconv.SignatureFromBytes(bytes.Repeat([]byte{42}, len(v2.Signature{})))
+	require.NoError(t, err)
+
+	coresig := tblsconv.SigToCore(sig)
+
+	require.Equal(t, sig[:], []byte(coresig))
+}
+
+func TestSigToETH2(t *testing.T) {
+	sig, err := tblsconv.SignatureFromBytes(bytes.Repeat([]byte{42}, len(v2.Signature{})))
+	require.NoError(t, err)
+
+	coresig := tblsconv.SigToETH2(sig)
+
+	require.Equal(t, sig[:], coresig[:])
 }
