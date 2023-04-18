@@ -19,6 +19,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/peerinfo"
+	"github.com/obolnetwork/charon/app/pidfile"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
@@ -72,7 +73,20 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}()
 
+	pidfileDeleteFunc, err := pidfile.New(conf.DataDir, "dkg")
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err := pidfileDeleteFunc(); err != nil {
+			log.Error(ctx, "cannot delete pidfile", err)
+		}
+	}()
+
 	version.LogInfo(ctx, "Charon DKG starting")
+
+	time.Sleep(1 * time.Minute)
 
 	def, err := loadDefinition(ctx, conf)
 	if err != nil {
