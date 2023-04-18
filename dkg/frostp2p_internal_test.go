@@ -4,6 +4,7 @@ package dkg
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -43,8 +44,10 @@ func TestBcastCallback(t *testing.T) {
 	}
 
 	var (
-		round1CastsRecv  = make(chan *pb.FrostRound1Casts, len(peerMap))
-		round2CastsRecv  = make(chan *pb.FrostRound2Casts, len(peerMap))
+		round1CastsRecv = make(chan *pb.FrostRound1Casts, len(peerMap))
+		round2CastsRecv = make(chan *pb.FrostRound2Casts, len(peerMap))
+
+		mu               sync.Mutex
 		dedupRound1Casts = make(map[peer.ID]bool)
 		dedupRound2Casts = make(map[peer.ID]bool)
 	)
@@ -149,7 +152,7 @@ func TestBcastCallback(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			callbackFunc := bcastCallback(peerMap, round1CastsRecv, round2CastsRecv, dedupRound1Casts, dedupRound2Casts, threshold, numVals)
+			callbackFunc := bcastCallback(peerMap, &mu, round1CastsRecv, round2CastsRecv, dedupRound1Casts, dedupRound2Casts, threshold, numVals)
 
 			var err error
 			if tt.round1Cast != nil {
@@ -208,7 +211,9 @@ func TestP2PCallback(t *testing.T) {
 	}
 
 	var (
-		round1P2PRecv  = make(chan *pb.FrostRound1P2P, len(peers))
+		round1P2PRecv = make(chan *pb.FrostRound1P2P, len(peers))
+
+		mu             sync.Mutex
 		dedupRound1P2P = make(map[peer.ID]bool)
 	)
 
@@ -251,7 +256,7 @@ func TestP2PCallback(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			callbackFunc := p2pCallback(tcpNodes[0], peerMap, dedupRound1P2P, round1P2PRecv, numVals)
+			callbackFunc := p2pCallback(tcpNodes[0], peerMap, &mu, dedupRound1P2P, round1P2PRecv, numVals)
 
 			if tt.invalidRound1P2PMsg {
 				_, _, err := callbackFunc(ctx, peers[0], nil)
