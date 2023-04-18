@@ -83,7 +83,7 @@ func TestBcastCallback(t *testing.T) {
 				Key: &pb.FrostMsgKey{
 					SourceId: 1,
 					TargetId: 0,
-					ValIdx:   3,
+					ValIdx:   3, // Invalid ValIdx since it should be less than numVals
 				},
 			},
 			errorMsg: "invalid round 1 cast validator index",
@@ -125,7 +125,7 @@ func TestBcastCallback(t *testing.T) {
 				Key: &pb.FrostMsgKey{
 					SourceId: 1,
 					TargetId: 0,
-					ValIdx:   3,
+					ValIdx:   numVals, // Invalid ValIdx since it should be less than numVals
 				},
 			},
 			errorMsg: "invalid round 2 cast validator index",
@@ -166,10 +166,10 @@ func TestBcastCallback(t *testing.T) {
 				err = callbackFunc(ctx, peers[0], "invalid/round/id", nil)
 			}
 			if tt.invalidRound1CastMsg {
-				err = callbackFunc(ctx, peers[0], round1CastID, nil)
+				err = callbackFunc(ctx, peers[0], round1CastID, nil) // nil round 1 message
 			}
 			if tt.invalidRound2CastMsg {
-				err = callbackFunc(ctx, peers[0], round2CastID, nil)
+				err = callbackFunc(ctx, peers[0], round2CastID, nil) // nil round 2 message
 			}
 
 			require.Equal(t, err.Error(), tt.errorMsg)
