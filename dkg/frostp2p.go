@@ -38,7 +38,6 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 		round1P2PRecv   = make(chan *pb.FrostRound1P2P, len(peers))
 		round2CastsRecv = make(chan *pb.FrostRound2Casts, len(peers))
 
-		mu               sync.Mutex
 		dedupRound1Casts = make(map[peer.ID]bool)
 		dedupRound1P2P   = make(map[peer.ID]bool)
 		dedupRound2Casts = make(map[peer.ID]bool)
@@ -53,107 +52,12 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 
 	// Register reliable broadcast protocol handlers.
 	bcastFunc := bcast.New(tcpNode, peerSlice, secret, []string{round1CastID, round2CastID},
-		func(ctx context.Context, pID peer.ID, msgID string, m proto.Message) error {
-			switch msgID {
-			case round1CastID:
-				mu.Lock()
-				defer mu.Unlock()
-
-				if _, ok := dedupRound1Casts[pID]; ok {
-					log.Debug(ctx, "Ignoring duplicate round 1 message", z.Any("peer", p2p.PeerName(pID)))
-					return nil
-				}
-				dedupRound1Casts[pID] = true
-
-				msg, ok := m.(*pb.FrostRound1Casts)
-				if !ok {
-					return errors.New("invalid round 1 casts message")
-				}
-
-				for _, cast := range msg.Casts {
-					if int(cast.Key.SourceId) != peers[pID].ShareIdx {
-						return errors.New("invalid round 1 cast source ID")
-					} else if cast.Key.TargetId != 0 {
-						return errors.New("invalid round 1 cast target ID")
-					} else if int(cast.Key.ValIdx) < 0 || int(cast.Key.ValIdx) >= numVals {
-						return errors.New("invalid round 1 cast validator index")
-					}
-
-					if len(cast.Commitments) != threshold {
-						return errors.New("invalid amount of commitments in round 1",
-							z.Int("received", len(cast.Commitments)),
-							z.Int("expected", threshold),
-						)
-					}
-				}
-
-				round1CastsRecv <- msg
-			case round2CastID:
-				mu.Lock()
-				defer mu.Unlock()
-
-				if _, ok := dedupRound2Casts[pID]; ok {
-					log.Debug(ctx, "Ignoring duplicate round 2 message", z.Any("peer", p2p.PeerName(pID)))
-					return nil
-				}
-				dedupRound2Casts[pID] = true
-
-				msg, ok := m.(*pb.FrostRound2Casts)
-				if !ok {
-					return errors.New("invalid round 2 casts message")
-				}
-
-				for _, cast := range msg.Casts {
-					if int(cast.Key.SourceId) != peers[pID].ShareIdx {
-						return errors.New("invalid round 2 cast source ID")
-					} else if cast.Key.TargetId != 0 {
-						return errors.New("invalid round 2 cast target ID")
-					} else if int(cast.Key.ValIdx) < 0 || int(cast.Key.ValIdx) >= numVals {
-						return errors.New("invalid round 1 cast validator index")
-					}
-				}
-
-				round2CastsRecv <- msg
-			default:
-				return errors.New("bug: unexpected invalid message ID")
-			}
-
-			return nil
-		},
-	)
+		bcastCallback(peers, round1CastsRecv, round2CastsRecv, dedupRound1Casts, dedupRound2Casts, threshold, numVals))
 
 	// Register round 1 p2p protocol handlers.
 	p2p.RegisterHandler("frost", tcpNode, round1P2PID,
 		func() proto.Message { return new(pb.FrostRound1P2P) },
-		func(ctx context.Context, pID peer.ID, req proto.Message) (proto.Message, bool, error) {
-			mu.Lock()
-			defer mu.Unlock()
-
-			msg, ok := req.(*pb.FrostRound1P2P)
-			if !ok {
-				return nil, false, errors.New("invalid round 1 p2p message")
-			}
-
-			for _, share := range msg.Shares {
-				if int(share.Key.SourceId) != peers[pID].ShareIdx {
-					return nil, false, errors.New("invalid round 1 p2p source ID")
-				} else if int(share.Key.TargetId) != peers[tcpNode.ID()].ShareIdx {
-					return nil, false, errors.New("invalid round 1 p2p target ID")
-				} else if int(share.Key.ValIdx) < 0 || int(share.Key.ValIdx) >= numVals {
-					return nil, false, errors.New("invalid round 1 p2p validator index")
-				}
-			}
-
-			if dedupRound1P2P[pID] {
-				log.Debug(ctx, "Ignoring duplicate round 2 message", z.Any("peer", p2p.PeerName(pID)))
-				return nil, false, nil
-			}
-			dedupRound1P2P[pID] = true
-
-			round1P2PRecv <- msg
-
-			return nil, false, nil
-		},
+		p2pCallback(tcpNode, peers, dedupRound1P2P, round1P2PRecv, numVals),
 		p2p.WithDelimitedProtocol(round1P2PID),
 	)
 
@@ -164,6 +68,118 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 		round1CastsRecv: round1CastsRecv,
 		round1P2PRecv:   round1P2PRecv,
 		round2CastsRecv: round2CastsRecv,
+	}
+}
+
+// bcastCallback returns a callback for broadcast in round 1 and round 2 of frost protocol.
+func bcastCallback(peers map[peer.ID]cluster.NodeIdx, round1CastsRecv chan *pb.FrostRound1Casts, round2CastsRecv chan *pb.FrostRound2Casts,
+	dedupRound1Casts map[peer.ID]bool, dedupRound2Casts map[peer.ID]bool, threshold, numVals int,
+) bcast.Callback {
+	var mu sync.Mutex
+
+	return func(ctx context.Context, pID peer.ID, msgID string, m proto.Message) error {
+		switch msgID {
+		case round1CastID:
+			mu.Lock()
+			defer mu.Unlock()
+
+			if _, ok := dedupRound1Casts[pID]; ok {
+				log.Debug(ctx, "Ignoring duplicate round 1 message", z.Any("peer", p2p.PeerName(pID)))
+				return nil
+			}
+			dedupRound1Casts[pID] = true
+
+			msg, ok := m.(*pb.FrostRound1Casts)
+			if !ok {
+				return errors.New("invalid round 1 casts message")
+			}
+
+			for _, cast := range msg.Casts {
+				if int(cast.Key.SourceId) != peers[pID].ShareIdx {
+					return errors.New("invalid round 1 cast source ID")
+				} else if cast.Key.TargetId != 0 {
+					return errors.New("invalid round 1 cast target ID")
+				} else if int(cast.Key.ValIdx) < 0 || int(cast.Key.ValIdx) >= numVals {
+					return errors.New("invalid round 1 cast validator index")
+				}
+
+				if len(cast.Commitments) != threshold {
+					return errors.New("invalid amount of commitments in round 1",
+						z.Int("received", len(cast.Commitments)),
+						z.Int("expected", threshold),
+					)
+				}
+			}
+
+			round1CastsRecv <- msg
+		case round2CastID:
+			mu.Lock()
+			defer mu.Unlock()
+
+			if _, ok := dedupRound2Casts[pID]; ok {
+				log.Debug(ctx, "Ignoring duplicate round 2 message", z.Any("peer", p2p.PeerName(pID)))
+				return nil
+			}
+			dedupRound2Casts[pID] = true
+
+			msg, ok := m.(*pb.FrostRound2Casts)
+			if !ok {
+				return errors.New("invalid round 2 casts message")
+			}
+
+			for _, cast := range msg.Casts {
+				if int(cast.Key.SourceId) != peers[pID].ShareIdx {
+					return errors.New("invalid round 2 cast source ID")
+				} else if cast.Key.TargetId != 0 {
+					return errors.New("invalid round 2 cast target ID")
+				} else if int(cast.Key.ValIdx) < 0 || int(cast.Key.ValIdx) >= numVals {
+					return errors.New("invalid round 2 cast validator index")
+				}
+			}
+
+			round2CastsRecv <- msg
+		default:
+			return errors.New("bug: unexpected invalid message ID")
+		}
+
+		return nil
+	}
+}
+
+// p2pCallback returns a callback for P2P messages in round 1 of frost protocol.
+func p2pCallback(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx,
+	dedupRound1P2P map[peer.ID]bool, round1P2PRecv chan *pb.FrostRound1P2P, numVals int,
+) p2p.HandlerFunc {
+	var mu sync.Mutex
+
+	return func(ctx context.Context, pID peer.ID, req proto.Message) (proto.Message, bool, error) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		msg, ok := req.(*pb.FrostRound1P2P)
+		if !ok {
+			return nil, false, errors.New("invalid round 1 p2p message")
+		}
+
+		for _, share := range msg.Shares {
+			if int(share.Key.SourceId) != peers[pID].ShareIdx {
+				return nil, false, errors.New("invalid round 1 p2p source ID")
+			} else if int(share.Key.TargetId) != peers[tcpNode.ID()].ShareIdx {
+				return nil, false, errors.New("invalid round 1 p2p target ID")
+			} else if int(share.Key.ValIdx) < 0 || int(share.Key.ValIdx) >= numVals {
+				return nil, false, errors.New("invalid round 1 p2p validator index")
+			}
+		}
+
+		if dedupRound1P2P[pID] {
+			log.Debug(ctx, "Ignoring duplicate round 2 message", z.Any("peer", p2p.PeerName(pID)))
+			return nil, false, nil
+		}
+		dedupRound1P2P[pID] = true
+
+		round1P2PRecv <- msg
+
+		return nil, false, nil
 	}
 }
 
