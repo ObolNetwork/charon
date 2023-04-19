@@ -4,6 +4,7 @@ package beaconmock
 
 import (
 	"context"
+	"sync"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -15,15 +16,78 @@ import (
 
 // WithBeaconMockFuzzer configures the beaconmock to return random responses for the all the functions consumed by charon.
 func WithBeaconMockFuzzer() Option {
+	var (
+		valsMu     sync.Mutex
+		validators map[eth2p0.ValidatorIndex]*eth2v1.Validator
+	)
+
+	setValidators := func(pubkeys []eth2p0.BLSPubKey) {
+		valsMu.Lock()
+		defer valsMu.Unlock()
+
+		if len(validators) != 0 {
+			return
+		}
+
+		validators = make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+		for i, pubkey := range pubkeys {
+			vIdx := eth2p0.ValidatorIndex(i)
+
+			validators[vIdx] = &eth2v1.Validator{
+				Balance: eth2p0.Gwei(31300000000),
+				Index:   vIdx,
+				Status:  eth2v1.ValidatorStateActiveOngoing,
+				Validator: &eth2p0.Validator{
+					WithdrawalCredentials: []byte("12345678901234567890123456789012"),
+					EffectiveBalance:      eth2p0.Gwei(31300000000),
+					PublicKey:             pubkey,
+					ExitEpoch:             18446744073709551615,
+					WithdrawableEpoch:     18446744073709551615,
+				},
+			}
+		}
+	}
+
+	getValidators := func() map[eth2p0.ValidatorIndex]*eth2v1.Validator {
+		valsMu.Lock()
+		defer valsMu.Unlock()
+
+		return validators
+	}
+
 	return func(mock *Mock) {
-		mock.AttesterDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
+		mock.AttesterDutiesFunc = func(_ context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 			var duties []*eth2v1.AttesterDuty
-			fuzz.New().Fuzz(&duties)
+			f := fuzz.New().Funcs(
+				func(duties *[]*eth2v1.AttesterDuty, c fuzz.Continue) {
+					if c.RandBool() {
+						fuzz.New().Fuzz(duties)
+
+						return
+					}
+
+					// Return expected attester duties
+					vals := getValidators()
+					var resp []*eth2v1.AttesterDuty
+					for _, vIdx := range indices {
+						var duty eth2v1.AttesterDuty
+						c.Fuzz(&duty)
+
+						duty.PubKey = vals[vIdx].Validator.PublicKey
+						duty.ValidatorIndex = vIdx
+						duty.Slot = eth2p0.Slot(int(epoch*16) + c.Intn(16))
+						resp = append(resp, &duty)
+					}
+
+					*duties = resp
+				},
+			)
+			f.Fuzz(&duties)
 
 			return duties, nil
 		}
 
-		mock.ProposerDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+		mock.ProposerDutiesFunc = func(_ context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 			var duties []*eth2v1.ProposerDuty
 			fuzz.New().Fuzz(&duties)
 
@@ -73,17 +137,28 @@ func WithBeaconMockFuzzer() Option {
 		}
 
 		mock.ValidatorsByPubKeyFunc = func(_ context.Context, _ string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+			f := fuzz.New().Funcs(
+				func(vals *map[eth2p0.ValidatorIndex]*eth2v1.Validator, c fuzz.Continue) {
+					if c.RandBool() {
+						fuzz.New().Funcs(
+							func(state *eth2v1.ValidatorState, c fuzz.Continue) {
+								*state = eth2v1.ValidatorState(c.Intn(10))
+							},
+						).Fuzz(vals)
+
+						return
+					}
+
+					// Return validators with expected keys 50% of the time.
+					setValidators(pubkeys)
+					*vals = getValidators()
+				},
+			)
+
 			var vals map[eth2p0.ValidatorIndex]*eth2v1.Validator
-			fuzz.New().Fuzz(&vals)
+			f.Fuzz(&vals)
 
 			return vals, nil
-		}
-
-		mock.SlotsPerEpochFunc = func(context.Context) (uint64, error) {
-			var slots uint64
-			fuzz.New().Fuzz(&slots)
-
-			return slots, nil
 		}
 
 		mock.SyncCommitteeDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {

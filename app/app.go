@@ -827,6 +827,9 @@ func setFeeRecipient(eth2Cl eth2wrap.Client, pubkeys []eth2p0.BLSPubKey, feeReci
 
 		var activeVals []*eth2v1.Validator
 		for _, validator := range vals {
+			if validator == nil {
+				return errors.New("validator data cannot be nil")
+			}
 			if validator.Status != eth2v1.ValidatorStateActiveOngoing {
 				continue
 			}
@@ -839,6 +842,10 @@ func setFeeRecipient(eth2Cl eth2wrap.Client, pubkeys []eth2p0.BLSPubKey, feeReci
 
 		var preps []*eth2v1.ProposalPreparation
 		for _, val := range activeVals {
+			if val == nil || val.Validator == nil {
+				return errors.New("validator data cannot be nil")
+			}
+
 			feeRecipient := feeRecipientFunc(core.PubKeyFrom48Bytes(val.Validator.PublicKey))
 
 			var addr bellatrix.ExecutionAddress

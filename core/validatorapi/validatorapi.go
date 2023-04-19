@@ -923,6 +923,10 @@ func (c Component) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, valid
 
 	// Replace root public keys with public shares
 	for i := 0; i < len(duties); i++ {
+		if duties[i] == nil {
+			return nil, errors.New("proposer duty cannot be nil")
+		}
+
 		pubshare, ok := c.getPubShareFunc(duties[i].PubKey)
 		if !ok {
 			// Ignore unknown validators since ProposerDuties returns ALL proposers for the epoch if validatorIndices is empty.
@@ -942,6 +946,10 @@ func (c Component) AttesterDuties(ctx context.Context, epoch eth2p0.Epoch, valid
 
 	// Replace root public keys with public shares.
 	for i := 0; i < len(duties); i++ {
+		if duties[i] == nil {
+			return nil, errors.New("attester duty cannot be nil")
+		}
+
 		pubshare, ok := c.getPubShareFunc(duties[i].PubKey)
 		if !ok {
 			return nil, errors.New("pubshare not found")
@@ -960,6 +968,10 @@ func (c Component) SyncCommitteeDuties(ctx context.Context, epoch eth2p0.Epoch, 
 
 	// Replace root public keys with public shares.
 	for i := 0; i < len(duties); i++ {
+		if duties[i] == nil {
+			return nil, errors.New("sync committee duty cannot be nil")
+		}
+
 		pubshare, ok := c.getPubShareFunc(duties[i].PubKey)
 		if !ok {
 			return nil, errors.New("pubshare not found")
@@ -1011,6 +1023,10 @@ func (Component) NodeVersion(context.Context) (string, error) {
 func (c Component) convertValidators(vals map[eth2p0.ValidatorIndex]*eth2v1.Validator) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 	resp := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
 	for vIdx, val := range vals {
+		if val == nil || val.Validator == nil {
+			return nil, errors.New("validator data cannot be nil")
+		}
+
 		var ok bool
 		val.Validator.PublicKey, ok = c.getPubShareFunc(val.Validator.PublicKey)
 		if !ok {
