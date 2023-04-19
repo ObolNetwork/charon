@@ -37,11 +37,6 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 		round1CastsRecv = make(chan *pb.FrostRound1Casts, len(peers))
 		round1P2PRecv   = make(chan *pb.FrostRound1P2P, len(peers))
 		round2CastsRecv = make(chan *pb.FrostRound2Casts, len(peers))
-
-		mu               sync.Mutex
-		dedupRound1Casts = make(map[peer.ID]bool)
-		dedupRound1P2P   = make(map[peer.ID]bool)
-		dedupRound2Casts = make(map[peer.ID]bool)
 	)
 
 	peerSlice := make([]peer.ID, len(peers))
@@ -53,12 +48,12 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 
 	// Register reliable broadcast protocol handlers.
 	bcastFunc := bcast.New(tcpNode, peerSlice, secret, []string{round1CastID, round2CastID},
-		bcastCallback(peers, &mu, round1CastsRecv, round2CastsRecv, dedupRound1Casts, dedupRound2Casts, threshold, numVals))
+		bcastCallback(peers, round1CastsRecv, round2CastsRecv, threshold, numVals))
 
 	// Register round 1 p2p protocol handlers.
 	p2p.RegisterHandler("frost", tcpNode, round1P2PID,
 		func() proto.Message { return new(pb.FrostRound1P2P) },
-		p2pCallback(tcpNode, peers, &mu, dedupRound1P2P, round1P2PRecv, numVals),
+		p2pCallback(tcpNode, peers, round1P2PRecv, numVals),
 		p2p.WithDelimitedProtocol(round1P2PID),
 	)
 
@@ -73,9 +68,13 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 }
 
 // bcastCallback returns a callback for broadcast in round 1 and round 2 of frost protocol.
-func bcastCallback(peers map[peer.ID]cluster.NodeIdx, mu *sync.Mutex, round1CastsRecv chan *pb.FrostRound1Casts, round2CastsRecv chan *pb.FrostRound2Casts,
-	dedupRound1Casts map[peer.ID]bool, dedupRound2Casts map[peer.ID]bool, threshold, numVals int,
-) bcast.Callback {
+func bcastCallback(peers map[peer.ID]cluster.NodeIdx, round1CastsRecv chan *pb.FrostRound1Casts, round2CastsRecv chan *pb.FrostRound2Casts, threshold, numVals int) bcast.Callback {
+	var (
+		mu               sync.Mutex
+		dedupRound1Casts = make(map[peer.ID]bool)
+		dedupRound2Casts = make(map[peer.ID]bool)
+	)
+
 	return func(ctx context.Context, pID peer.ID, msgID string, m proto.Message) error {
 		switch msgID {
 		case round1CastID:
@@ -146,9 +145,12 @@ func bcastCallback(peers map[peer.ID]cluster.NodeIdx, mu *sync.Mutex, round1Cast
 }
 
 // p2pCallback returns a callback for P2P messages in round 1 of frost protocol.
-func p2pCallback(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, mu *sync.Mutex,
-	dedupRound1P2P map[peer.ID]bool, round1P2PRecv chan *pb.FrostRound1P2P, numVals int,
-) p2p.HandlerFunc {
+func p2pCallback(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, round1P2PRecv chan *pb.FrostRound1P2P, numVals int) p2p.HandlerFunc {
+	var (
+		mu             sync.Mutex
+		dedupRound1P2P = make(map[peer.ID]bool)
+	)
+
 	return func(ctx context.Context, pID peer.ID, req proto.Message) (proto.Message, bool, error) {
 		mu.Lock()
 		defer mu.Unlock()
