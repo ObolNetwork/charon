@@ -45,6 +45,7 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 	bindLogFlags(cmd.Flags(), &conf.Log)
 	bindLokiFlags(cmd.Flags(), &conf.Log)
 	bindFeatureFlags(cmd.Flags(), &conf.Feature)
+	bindPrivkeyLockFlag(cmd.Flags(), &conf.PrivkeyLockingEnabled)
 
 	return cmd
 }
@@ -125,6 +126,10 @@ func bindFeatureFlags(flags *pflag.FlagSet, config *featureset.Config) {
 	flags.StringSliceVar(&config.Enabled, "feature-set-enable", nil, "Comma-separated list of features to enable, overriding the default minimum feature set.")
 	flags.StringSliceVar(&config.Disabled, "feature-set-disable", nil, "Comma-separated list of features to disable, overriding the default minimum feature set.")
 	flags.StringVar(&config.MinStatus, "feature-set", "stable", "Minimum feature set to enable by default: alpha, beta, or stable. Warning: modify at own risk.")
+}
+
+func bindPrivkeyLockFlag(flags *pflag.FlagSet, privkeyLockEnabled *bool) {
+	flags.BoolVar(privkeyLockEnabled, "private-key-file-lock", true, "Whether or not to enable private key locking. When enabled, Charon will not run if the private key is used by another instance.")
 }
 
 // wrapPreRunE wraps the provided preRunE function.

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -73,7 +74,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}()
 
-	cleanPID, err := pidfile.New(conf.DataDir, "dkg")
+	cleanPID, err := pidfile.New(filepath.Join(conf.DataDir, "dkg-lock"), "dkg")
 	if err != nil {
 		return err
 	}

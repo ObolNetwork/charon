@@ -83,6 +83,7 @@ func TestCmdFlags(t *testing.T) {
 				BeaconNodeAddrs:        []string{"http://beacon.node"},
 				JaegerAddr:             "",
 				JaegerService:          "charon",
+				PrivkeyLockingEnabled:  true,
 			},
 		},
 		{

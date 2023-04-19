@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/hex"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -83,6 +82,7 @@ type Config struct {
 	SyntheticBlockProposals bool
 	BuilderAPI              bool
 	SimnetBMockFuzz         bool
+	PrivkeyLockingEnabled   bool
 
 	TestConfig TestConfig
 }
@@ -128,8 +128,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}()
 
-	if !conf.TestConfig.SkipPidfile {
-		cleanPID, err := pidfile.New(filepath.Dir(conf.LockFile), "run")
+	if !conf.TestConfig.SkipPidfile || conf.PrivkeyLockingEnabled {
+		cleanPID, err := pidfile.New(conf.PrivKeyFile+".lock", "run")
 		if err != nil {
 			return err
 		}

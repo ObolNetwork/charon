@@ -14,21 +14,21 @@ import (
 
 func TestNewInitsAndDelete(t *testing.T) {
 	temp := t.TempDir()
-	cleanFunc, err := pidfile.New(temp, "test")
+	cleanFunc, err := pidfile.New(filepath.Join(temp, "pidfiletest"), "test")
 	require.NoError(t, err)
 	require.NotNil(t, cleanFunc)
 	require.NoError(t, cleanFunc())
-	_, openErr := os.Open(filepath.Join(temp, "charon-pidfile"))
+	_, openErr := os.Open(filepath.Join(temp, "pidfiletest"))
 	require.ErrorContains(t, openErr, "no such file or directory")
 }
 
 func TestNewTwoInitsAndDelete(t *testing.T) {
 	temp := t.TempDir()
-	cleanFunc, err := pidfile.New(temp, "test")
+	cleanFunc, err := pidfile.New(filepath.Join(temp, "pidfiletest"), "test")
 	require.NoError(t, err)
 	require.NotNil(t, cleanFunc)
 
-	cleanFunc2, err2 := pidfile.New(temp, "test")
+	cleanFunc2, err2 := pidfile.New(filepath.Join(temp, "pidfiletest"), "test")
 	require.ErrorContains(t, err2, "another instance of charon is running on the selected data directory")
 	require.Nil(t, cleanFunc2)
 
