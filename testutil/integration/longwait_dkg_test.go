@@ -23,92 +23,124 @@ import (
 )
 
 func TestLongWaitDKG(t *testing.T) {
-	// skipIfDisabled(t)
+	skipIfDisabled(t)
 
 	const (
-		threshold     = 3
-		numNodes      = 4
-		numVals       = 10
-		sleepDuration = 10 * time.Second
-		relayURL      = "https://0.relay.obol.tech"
+		threshold = 3
+		numNodes  = 4
+		numVals   = 10
+		relayURL  = "https://0.relay.obol.tech"
+		// The time period after which a new node is started.
+		window = 10
+		// The time period when a node is offline. A window is divided into multiple slots each of nodeDownPeriod duration.
+		// A node goes down in one of these slots in a particular window.
+		nodeDownPeriod = 2
 	)
 
-	dir := t.TempDir()
-	startedChan := make(chan struct{})
+	var (
+		eg              errgroup.Group
+		ctx             = log.WithTopic(context.Background(), "longwait")
+		dir             = t.TempDir()
+		def             = testDef(t, dir, threshold, numNodes, numVals)
+		allNodesStarted = make(chan struct{}, numNodes)
+	)
 
-	startDKG := func(ctx context.Context, def cluster.Definition, nodeIdx int) error {
-		nodeDir := path.Join(dir, fmt.Sprintf("node%d", nodeIdx))
-		dkgConf := dkg.Config{
-			DataDir: nodeDir,
-			P2P: p2p.Config{
-				Relays: []string{relayURL},
-			},
-			Log: log.Config{
-				Level: "info",
-			},
-			ShutdownDelay: 1 * time.Second,
-			TestDef:       &def,
-		}
-
-		log.Info(ctx, "Starting DKG node", z.Int("index", nodeIdx))
-		startedChan <- struct{}{}
-		err := dkg.Run(ctx, dkgConf)
-
-		return err
-	}
-
-	def := testDef(t, dir, threshold, numNodes, numVals)
-
-	var eg errgroup.Group
-	var cancelFuncs []context.CancelFunc
 	for i := 0; i < numNodes; i++ {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancelFuncs = append(cancelFuncs, cancel)
 		indx := i
-		delay := time.Duration(indx) * sleepDuration
-		t.Logf("Starting node %d in %f seconds", indx, delay.Seconds())
+		delay := indx * window
+		log.Debug(ctx, "Starting node", z.Int("node", indx), z.Int("delay", delay))
+
 		eg.Go(func() error {
-			time.Sleep(delay)
+			time.Sleep(time.Duration(delay))
 
-			return startDKG(ctx, def, indx)
+			if indx == numNodes-1 {
+				// Notify all nodes that everyone has started. Let the DKG begin!
+				for j := 0; j < numNodes; j++ {
+					allNodesStarted <- struct{}{}
+				}
+			}
+
+			return mimicDKGNode(ctx, t, def, dir, relayURL, window, nodeDownPeriod, indx, allNodesStarted)
 		})
 	}
 
-	go func() {
-		err := eg.Wait()
-		require.ErrorContains(t, err, "context canceled")
-	}()
-
-	randomOrder := genRandomPerm(numNodes) // Ex: [2, 0, 1, 3]
-
-	waitAll(t, startedChan, numNodes)
-
-	t.Log("Start killing DKG nodes randomly", randomOrder)
-
-	var eg2 errgroup.Group // To wait for the restarted goroutines
-	for _, indx := range randomOrder {
-		cancelFuncs[indx]()
-		t.Log("Just killed node", indx)
-
-		// Start the node again after 5 seconds
-		time.Sleep(5 * time.Second)
-
-		i := indx
-		eg2.Go(func() error {
-			return startDKG(context.Background(), def, i)
-		})
-	}
-
-	waitAll(t, startedChan, numNodes)
-
-	require.NoError(t, eg2.Wait())
+	err := eg.Wait()
+	require.NoError(t, err)
 }
 
-// testDef returns a test cluster.Definition.
+// mimicDKGNode mimics the behaviour of a DKG node that randomly stops for sometime before restarting again but finally participates in the DKG.
+func mimicDKGNode(ctx context.Context, t *testing.T, def cluster.Definition, dir, relayURL string, window, nodeDownPeriod, nodeIdx int, allNodesStarted chan struct{}) error {
+	t.Helper()
+
+	nodeDir := path.Join(dir, fmt.Sprintf("node%d", nodeIdx))
+	dkgConf := dkg.Config{
+		DataDir: nodeDir,
+		P2P: p2p.Config{
+			Relays: []string{relayURL},
+		},
+		Log: log.Config{
+			Level: "info",
+		},
+		ShutdownDelay: 1 * time.Second,
+		TestDef:       &def,
+	}
+
+	for {
+		ctx2, cancel := context.WithCancel(ctx)
+		go func(ctx context.Context) {
+			log.Debug(ctx, "Starting DKG node", z.Int("node", nodeIdx))
+
+			_ = dkg.Run(ctx, dkgConf)
+		}(ctx2)
+
+		var allStarted bool
+		select {
+		case <-allNodesStarted:
+			allStarted = true
+		default:
+			break
+		}
+
+		var modVal int
+		if allStarted {
+			// If the last node has started, we need to have all nodes active at the last slot of window
+			modVal = window - (2*nodeDownPeriod - 1)
+		} else {
+			modVal = window - (nodeDownPeriod - 1)
+		}
+
+		// Let's say we kill the dkg in x time, then we wait for (window-x) time to elapse before starting another dkg instance.
+		delayToKill := rand.Int() % modVal
+		if delayToKill == 0 {
+			delayToKill = 1 // Don't kill the node instantly, rather wait 1s
+		}
+
+		// Wait some random duration before killing the node
+		log.Debug(ctx, "Killing node after delay", z.Int("node", nodeIdx), z.Int("delay", delayToKill))
+		<-time.After(time.Duration(delayToKill) * time.Second)
+		cancel()
+
+		// Wait till remaining time before restarting the node
+		remainingDelay := window - delayToKill
+		log.Debug(ctx, "Waiting before restarting node", z.Int("node", nodeIdx), z.Int("delay", remainingDelay))
+		<-time.After(time.Duration(remainingDelay) * time.Second)
+
+		if allStarted {
+			break
+		}
+	}
+
+	// Run final DKG
+	log.Debug(ctx, "Running final DKG", z.Int("node", nodeIdx))
+
+	return dkg.Run(ctx, dkgConf)
+}
+
+// testDef returns a cluster.Definition for use in tests. It also creates node directories and saves respective charon enr private keys in the corresponding folders.
 func testDef(t *testing.T, dir string, threshold, numNodes, numVals int) cluster.Definition {
 	t.Helper()
 
-	const frost = "frost"
+	const frostAlgo = "frost"
 
 	withAlgo := func(algo string) func(*cluster.Definition) {
 		return func(d *cluster.Definition) {
@@ -116,7 +148,7 @@ func testDef(t *testing.T, dir string, threshold, numNodes, numVals int) cluster
 		}
 	}
 
-	lock, p2pKeys, _ := cluster.NewForT(t, numVals, threshold, numNodes, 1, withAlgo(frost))
+	lock, p2pKeys, _ := cluster.NewForT(t, numVals, threshold, numNodes, 1, withAlgo(frostAlgo))
 
 	for i := 0; i < numNodes; i++ {
 		nodeDir := path.Join(dir, fmt.Sprintf("node%d", i))
@@ -127,31 +159,4 @@ func testDef(t *testing.T, dir string, threshold, numNodes, numVals int) cluster
 	}
 
 	return lock.Definition
-}
-
-func genRandomPerm(numNodes int) []int {
-	var a []int
-	for i := 0; i < numNodes; i++ {
-		a = append(a, i)
-	}
-
-	random := rand.New(rand.NewSource(time.Now().UnixNano()))
-	random.Shuffle(len(a), func(i, j int) { a[i], a[j] = a[j], a[i] })
-
-	return a
-}
-
-// waitAll blocks until numNodes values are received in the provided channel.
-func waitAll(t *testing.T, startedChan chan struct{}, numNodes int) {
-	t.Helper()
-
-	startedNodeCount := 0
-	for {
-		<-startedChan
-		startedNodeCount++
-		if startedNodeCount == numNodes {
-			t.Log("All DKG nodes have restarted")
-			break
-		}
-	}
 }
