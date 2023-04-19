@@ -31,7 +31,7 @@ import (
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/peerinfo"
-	"github.com/obolnetwork/charon/app/pidfile"
+	"github.com/obolnetwork/charon/app/privkeylock"
 	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/retry"
 	"github.com/obolnetwork/charon/app/tracer"
@@ -113,8 +113,6 @@ type TestConfig struct {
 	TCPNodeCallback func(host.Host)
 	// LibP2POpts provide test specific libp2p options.
 	LibP2POpts []libp2p.Option
-	// SkipPidfile skips pidfile creation and checks
-	SkipPidfile bool
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -128,14 +126,14 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}()
 
-	if !conf.TestConfig.SkipPidfile || conf.PrivkeyLockingEnabled {
-		cleanPID, err := pidfile.New(conf.PrivKeyFile+".lock", "run")
+	if conf.PrivkeyLockingEnabled {
+		cleanPrivkeyLock, err := privkeylock.New(conf.PrivKeyFile+".lock", "charon run")
 		if err != nil {
 			return err
 		}
 
 		defer func() {
-			if err := cleanPID(); err != nil {
+			if err := cleanPrivkeyLock(); err != nil {
 				log.Error(ctx, "Cannot delete pidfile", err)
 			}
 		}()

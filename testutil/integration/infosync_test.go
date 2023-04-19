@@ -62,7 +62,6 @@ func TestInfoSync(t *testing.T) {
 					beaconmock.WithNoSyncCommitteeDuties(),
 					beaconmock.WithSlotsPerEpoch(1),
 				},
-				SkipPidfile: true,
 			},
 			P2P: p2p.Config{
 				TCPAddrs: []string{testutil.AvailableAddr(t).String()},

@@ -38,14 +38,13 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 		},
 	}
 
-	bindPrivKeyFlag(cmd, &conf.PrivKeyFile)
+	bindPrivKeyFlag(cmd, &conf.PrivKeyFile, &conf.PrivkeyLockingEnabled)
 	bindRunFlags(cmd, &conf)
 	bindNoVerifyFlag(cmd.Flags(), &conf.NoVerify)
 	bindP2PFlags(cmd, &conf.P2P)
 	bindLogFlags(cmd.Flags(), &conf.Log)
 	bindLokiFlags(cmd.Flags(), &conf.Log)
 	bindFeatureFlags(cmd.Flags(), &conf.Feature)
-	bindPrivkeyLockFlag(cmd.Flags(), &conf.PrivkeyLockingEnabled)
 
 	return cmd
 }
@@ -86,8 +85,9 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	})
 }
 
-func bindPrivKeyFlag(cmd *cobra.Command, privKeyFile *string) {
+func bindPrivKeyFlag(cmd *cobra.Command, privKeyFile *string, privkeyLockEnabled *bool) {
 	cmd.Flags().StringVar(privKeyFile, "private-key-file", ".charon/charon-enr-private-key", "The path to the charon enr private key file.")
+	cmd.Flags().BoolVar(privkeyLockEnabled, "private-key-file-lock", true, "Whether or not to enable private key locking. When enabled, Charon will not run if the private key is used by another instance.")
 }
 
 func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
@@ -126,10 +126,6 @@ func bindFeatureFlags(flags *pflag.FlagSet, config *featureset.Config) {
 	flags.StringSliceVar(&config.Enabled, "feature-set-enable", nil, "Comma-separated list of features to enable, overriding the default minimum feature set.")
 	flags.StringSliceVar(&config.Disabled, "feature-set-disable", nil, "Comma-separated list of features to disable, overriding the default minimum feature set.")
 	flags.StringVar(&config.MinStatus, "feature-set", "stable", "Minimum feature set to enable by default: alpha, beta, or stable. Warning: modify at own risk.")
-}
-
-func bindPrivkeyLockFlag(flags *pflag.FlagSet, privkeyLockEnabled *bool) {
-	flags.BoolVar(privkeyLockEnabled, "private-key-file-lock", true, "Whether or not to enable private key locking. When enabled, Charon will not run if the private key is used by another instance.")
 }
 
 // wrapPreRunE wraps the provided preRunE function.

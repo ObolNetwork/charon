@@ -1,6 +1,6 @@
 // Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package pidfile
+package privkeylock
 
 import (
 	"os"
@@ -9,8 +9,8 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-// New creates a pidfile called "charon-pidfile" in dataDir, writing contextStr in it.
-// If a pidfile exists already in dataDir New returns an error, a clean-up function otherwise.
+// New creates a private key lock file in path, writing contextStr in it.
+// If a private key lock file exists at path New returns an error, a clean-up function otherwise.
 func New(path, contextStr string) (func() error, error) {
 	//nolint:nestif
 	if _, err := os.Stat(path); err == nil {
@@ -20,7 +20,7 @@ func New(path, contextStr string) (func() error, error) {
 		}
 
 		return nil, errors.New(
-			"another instance of charon is running on the selected data directory",
+			"another instance of charon is running for the selected private key, check if there is another charon instance running on your machine",
 			z.Str("path", path),
 			z.Str("context", string(readCtxStr)),
 		)
