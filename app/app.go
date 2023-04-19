@@ -126,13 +126,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}()
 
-	pidfileDeleteFunc, err := pidfile.New(filepath.Dir(conf.LockFile), "run")
+	cleanPID, err := pidfile.New(filepath.Dir(conf.LockFile), "run")
 	if err != nil {
 		return err
 	}
 
 	defer func() {
-		if err := pidfileDeleteFunc(); err != nil {
+		if err := cleanPID(); err != nil {
 			log.Error(ctx, "Cannot delete pidfile", err)
 		}
 	}()

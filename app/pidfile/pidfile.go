@@ -3,14 +3,10 @@
 package pidfile
 
 import (
-	"context"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"sync/atomic"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
 
@@ -20,7 +16,6 @@ const (
 
 // New creates a pidfile called "charon-pidfile" in dataDir, writing contextStr in it.
 // If a pidfile exists already in dataDir New returns an error, a clean-up function otherwise.
-// New also registers a SIGINT signal handler so that it cleans its state if CTRL-C is called.
 func New(dataDir, contextStr string) (func() error, error) {
 	pfPath := filepath.Join(dataDir, filename)
 
@@ -62,40 +57,7 @@ func createPidfile(path, contextStr string) (func() error, error) {
 		)
 	}
 
-	alreadyDeleted := atomic.Bool{}
-	alreadyDeleted.Store(false)
-
-	ctx := context.Background()
-
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	go func() {
-		<-c
-
-		defer os.Exit(0)
-
-		if alreadyDeleted.Load() {
-			log.Debug(ctx, "Pidfile already deleted, not deleting from ctrl-c handler")
-			return
-		}
-
-		alreadyDeleted.Store(true)
-
-		log.Debug(ctx, "Deleting pidfile from SIGINT")
-		if err := os.Remove(path); err != nil {
-			log.Error(ctx, "Cannot delete pidfile", err)
-			return
-		}
-	}()
-
 	return func() error {
-		if alreadyDeleted.Load() {
-			log.Debug(ctx, "Pidfile already deleted, not deleting from closure")
-			return nil
-		}
-
-		alreadyDeleted.Store(true)
-
 		if err := os.Remove(path); err != nil {
 			return errors.Wrap(err, "cannot remove pidfile")
 		}
