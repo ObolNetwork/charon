@@ -108,11 +108,21 @@ func (p *headProducer) updateHead(slot eth2p0.Slot) {
 	p.setCurrentHead(currentHead)
 
 	currentBlock := &eth2v1.BlockEvent{
-		Slot:  slot,
-		Block: currentHead.Block,
+		Slot:                slot,
+		Block:               currentHead.Block,
+		ExecutionOptimistic: false,
 	}
 
-	headData, err := json.Marshal(currentHead)
+	headJSON := headEventJSON{
+		Slot:                      fmt.Sprintf("%d", currentHead.Slot),
+		Block:                     fmt.Sprintf("%#x", currentHead.Block),
+		State:                     fmt.Sprintf("%#x", currentHead.State),
+		EpochTransition:           currentHead.EpochTransition,
+		CurrentDutyDependentRoot:  fmt.Sprintf("%#x", currentHead.CurrentDutyDependentRoot),
+		PreviousDutyDependentRoot: fmt.Sprintf("%#x", currentHead.CurrentDutyDependentRoot),
+		ExecutionOptmistic:        false,
+	}
+	headData, err := json.Marshal(headJSON)
 	if err != nil {
 		panic(err) // This should never happen and this is test code sorry ;)
 	}
@@ -151,6 +161,16 @@ type beaconBlockRootDataJSON struct {
 type errorMsgJSON struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
+}
+
+type headEventJSON struct {
+	Slot                      string `json:"slot"`
+	Block                     string `json:"block"`
+	State                     string `json:"state"`
+	EpochTransition           bool   `json:"epoch_transition"`
+	CurrentDutyDependentRoot  string `json:"current_duty_dependent_root,omitempty"`
+	PreviousDutyDependentRoot string `json:"previous_duty_dependent_root,omitempty"`
+	ExecutionOptmistic        bool   `json:"execution_optimistic"`
 }
 
 // handleGetBlockRoot is an http handler to handle "/eth/v1/beacon/blocks/{block_id}/root" endpoint.
