@@ -247,3 +247,15 @@ func New[I, O any](rootCtx context.Context, work Work[I, O], opts ...Option) (Fo
 
 	return fork, join, cancel
 }
+
+// NewWithInputs is a convenience function that calls New and then forks all the inputs
+// returning the join result and a cancel function.
+func NewWithInputs[I, O any](ctx context.Context, work Work[I, O], inputs []I, opts ...Option,
+) (Results[I, O], context.CancelFunc) {
+	fork, join, cancel := New[I, O](ctx, work, opts...)
+	for _, input := range inputs {
+		fork(input)
+	}
+
+	return join(), cancel
+}
