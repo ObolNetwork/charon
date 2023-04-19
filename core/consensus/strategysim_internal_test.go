@@ -17,6 +17,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/forkjoin"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/core/qbft"
@@ -33,12 +34,28 @@ const (
 	min1   = time.Minute * 1
 )
 
-var incTimer = func(clock clockwork.Clock) roundTimer {
-	timer := newIncreasingRoundTimer()
-	timer.clock = clock
+var (
+	incTimer = func(clock clockwork.Clock) roundTimer {
+		timer := newIncreasingRoundTimer()
+		timer.clock = clock
 
-	return timer
-}
+		return timer
+	}
+	doubleTimer = func(clock clockwork.Clock) roundTimer {
+		timer := newDoubleLeadRoundTimer()
+		timer.clock = clock
+
+		return timer
+	}
+
+	inc2Timer = func(clock clockwork.Clock) roundTimer {
+		return incRoundTimer2{clock: clock}
+	}
+
+	expTimer = func(clock clockwork.Clock) roundTimer {
+		return expRoundTimer{clock: clock}
+	}
+)
 
 func TestSimulatorOnce(t *testing.T) {
 	results := testStrategySimulator(t, ssConfig{
@@ -59,8 +76,92 @@ func TestSimulatorOnce(t *testing.T) {
 	}
 }
 
-// TODO(corver): add a benchmark-type test that calculates a "score" for a round timer
-//  across a range of parameters and compares that with other round timers.
+func TestMatrix(t *testing.T) {
+	t.Skip("Skip matrix test")
+
+	tests := []struct {
+		name  string
+		timer func(clock clockwork.Clock) roundTimer
+	}{
+		{"inc", incTimer},
+		{"double", doubleTimer},
+		{"inc2", inc2Timer},
+		{"exp", expTimer},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := testSimulatorMatrix(t, tt.timer)
+			t.Logf("total: %v", result.Total)
+			t.Logf("undecided: %v", result.Undecided)
+			t.Logf("avg round: %f", result.AvgRound())
+			t.Logf("avg duration: %s", result.AvgDuration())
+		})
+	}
+}
+
+type matrixResult struct {
+	Undecided   int
+	Total       int
+	RoundSum    int
+	DurationSum time.Duration
+}
+
+func (r matrixResult) AvgRound() float64 {
+	return float64(r.RoundSum) / float64(r.Total)
+}
+
+func (r matrixResult) AvgDuration() time.Duration {
+	return r.DurationSum / time.Duration(r.Total)
+}
+
+func testSimulatorMatrix(t *testing.T, timer func(clock clockwork.Clock) roundTimer) matrixResult {
+	t.Helper()
+
+	peerCounts := []int{4, 6, 8, 10}
+	latencies := []time.Duration{ms050, ms050, ms100, ms100, ms100, ms100, ms250, ms250, ms500, ms1000, ms2500, ms5000}
+	stdDevs := []time.Duration{ms050, ms050, ms100, ms100, ms250, ms500, ms1000}
+	starts := []time.Duration{ms050, ms050, ms100, ms100, ms100, ms250, ms250, ms500, ms1000}
+
+	var (
+		seed   int
+		random = rand.New(rand.NewSource(int64(seed)))
+		result matrixResult
+	)
+
+	for _, peerCount := range peerCounts {
+		for i := 0; i < 100; i++ {
+			shuffle(random, latencies)
+			shuffle(random, starts)
+			shuffle(random, stdDevs)
+
+			starts := durationMap(starts, peerCount)
+			starts = disableSomePeers(starts, i)
+
+			results := testStrategySimulator(t, ssConfig{
+				seed:           seed,
+				latencyStdDev:  pick(stdDevs, i),
+				latencyPerPeer: durationMap(latencies, peerCount),
+				startByPeer:    starts,
+				roundTimerFunc: timer,
+				timeout:        min1,
+			})
+
+			result.Total++
+			if isUndecided(results) {
+				result.Undecided++
+				continue
+			}
+
+			result.DurationSum += quorumDecidedDuration(results)
+			result.RoundSum += decidedRound(results)
+
+			seed++
+		}
+	}
+
+	return result
+}
 
 // peerID is a peer identifier of which the zero value is invalid.
 type peerID struct {
@@ -81,7 +182,7 @@ func testStrategySimulator(t *testing.T, conf ssConfig) []result {
 	t.Helper()
 	random := rand.New(rand.NewSource(int64(conf.seed)))
 	clock := clockwork.NewFakeClock()
-	since := sinceMSFunc(clock)
+	t0 := clock.Now()
 	txSimulator := newTransportSimulator(clock, random, conf.latencyStdDev, conf.latencyPerPeer)
 
 	var (
@@ -100,10 +201,10 @@ func testStrategySimulator(t *testing.T, conf ssConfig) []result {
 			conf.roundTimerFunc(clock),
 			func(qcommit []qbft.Msg[core.Duty, [32]byte]) {
 				res = result{
-					PeerIdx:    p.Idx,
-					Decided:    true,
-					Round:      qcommit[0].Round(),
-					DurationMS: since(),
+					PeerIdx:  p.Idx,
+					Decided:  true,
+					Round:    qcommit[0].Round(),
+					Duration: clock.Since(t0),
 				}
 			},
 		)
@@ -115,16 +216,16 @@ func testStrategySimulator(t *testing.T, conf ssConfig) []result {
 		// Delay start of peer
 		select {
 		case <-ctx.Done():
-			return res, ctx.Err()
+			return res, nil
 		case <-clock.After(conf.startByPeer[p.Idx]):
 		}
 
 		err := qbft.Run(ctx, def, transports[p.Idx], core.Duty{}, p.Idx, val)
-		if errors.Is(err, context.Canceled) {
-			return res, nil
+		if err != nil && !errors.Is(err, context.Canceled) {
+			return res, err
 		}
 
-		return res, err
+		return res, nil
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -152,7 +253,7 @@ func testStrategySimulator(t *testing.T, conf ssConfig) []result {
 	}()
 
 	results, err := fjResults.Flatten()
-	if err != nil {
+	if err != nil && !errors.Is(err, context.Canceled) {
 		require.Fail(t, "unexpected error", err)
 	}
 
@@ -185,10 +286,10 @@ func newSimDefinition(nodes int, roundTimer roundTimer, decideCallback func(qcom
 }
 
 type result struct {
-	PeerIdx    int64
-	Decided    bool
-	Round      int64
-	DurationMS int64
+	PeerIdx  int64
+	Decided  bool
+	Round    int64
+	Duration time.Duration
 }
 
 type tuple struct {
@@ -318,6 +419,8 @@ func (i *transportInstance) Broadcast(_ context.Context, typ qbft.MsgType,
 			return errors.New("invalid justification")
 		}
 		justMsgs = append(justMsgs, impl.msg) // Note nested justifications are ignored.
+		values[impl.Value()] = dummy
+		values[impl.PreparedValue()] = dummy
 	}
 
 	msg, err := newMsg(pbMsg, justMsgs, values)
@@ -345,14 +448,112 @@ func randomNormDuration(mean time.Duration, stdDev time.Duration, random *rand.R
 	return time.Duration(norm)
 }
 
-func sinceMSFunc(clock clockwork.Clock) func() int64 {
-	var mu sync.RWMutex
-	t0 := clock.Now()
+func shuffle[T any](random *rand.Rand, slice []T) {
+	random.Shuffle(len(slice), func(i, j int) {
+		slice[i], slice[j] = slice[j], slice[i]
+	})
+}
 
-	return func() int64 {
-		mu.RLock()
-		defer mu.RUnlock()
+func pick[T any](slice []T, i int) T {
+	return slice[i%len(slice)]
+}
 
-		return clock.Since(t0).Milliseconds()
+func durationMap(durations []time.Duration, n int) map[int64]time.Duration {
+	m := make(map[int64]time.Duration, n)
+	for i := 0; i < n; i++ {
+		m[int64(i)] = pick(durations, i)
 	}
+
+	return m
+}
+
+func disableSomePeers(starts map[int64]time.Duration, i int) map[int64]time.Duration {
+	total := len(starts)
+	threshold := cluster.Threshold(total)
+	disable := i % (total - threshold)
+	for j := 0; j < disable; j++ {
+		starts[int64(j)] = time.Hour
+	}
+
+	return starts
+}
+
+func decidedRound(results []result) int {
+	for _, res := range results {
+		if res.Decided {
+			return int(res.Round)
+		}
+	}
+
+	panic("no decided round")
+}
+
+func isUndecided(results []result) bool {
+	q := cluster.Threshold(len(results))
+	var decided int
+	for _, res := range results {
+		if res.Decided {
+			decided++
+		}
+	}
+
+	return decided < q
+}
+
+func quorumDecidedDuration(results []result) time.Duration {
+	q := cluster.Threshold(len(results))
+	var durations []time.Duration
+	for _, res := range results {
+		if !res.Decided {
+			continue
+		}
+		durations = append(durations, res.Duration)
+	}
+
+	if len(durations) < q {
+		panic("not enough durations")
+	}
+
+	sort.Slice(durations, func(i, j int) bool {
+		return durations[i] < durations[j]
+	})
+
+	return durations[q-1]
+}
+
+func TestExp(t *testing.T) {
+	timer := incRoundTimer2{clock: clockwork.NewRealClock()}
+	for i := 1; i < 5; i++ {
+		timer.Timer(int64(i))
+	}
+}
+
+type incRoundTimer2 struct {
+	clock clockwork.Clock
+}
+
+func (t incRoundTimer2) Timer(round int64) (<-chan time.Time, func()) {
+	duration := incRoundStart
+	for i := 1; i < int(round); i++ {
+		duration += incRoundStart
+	}
+
+	timer := t.clock.NewTimer(duration)
+
+	return timer.Chan(), func() {}
+}
+
+type expRoundTimer struct {
+	clock clockwork.Clock
+}
+
+func (t expRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
+	duration := incRoundStart
+	for i := 1; i < int(round); i++ {
+		duration *= 2
+	}
+
+	timer := t.clock.NewTimer(duration)
+
+	return timer.Chan(), func() {}
 }
