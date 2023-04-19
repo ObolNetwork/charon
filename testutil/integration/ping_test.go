@@ -110,7 +110,8 @@ func pingCluster(t *testing.T, test pingTest) {
 					beaconmock.WithNoProposerDuties(),
 					beaconmock.WithNoSyncCommitteeDuties(),
 				},
-				LibP2POpts: []libp2p.Option{newAddrFactoryFilter(test.AddrFilter)},
+				LibP2POpts:  []libp2p.Option{newAddrFactoryFilter(test.AddrFilter)},
+				SkipPidfile: true,
 			},
 			P2P: p2p.Config{
 				Relays:       []string{relayAddr},
