@@ -113,6 +113,8 @@ type TestConfig struct {
 	TCPNodeCallback func(host.Host)
 	// LibP2POpts provide test specific libp2p options.
 	LibP2POpts []libp2p.Option
+	// SkipPidfile skips pidfile creation and checks
+	SkipPidfile bool
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -126,16 +128,18 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}()
 
-	cleanPID, err := pidfile.New(filepath.Dir(conf.LockFile), "run")
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		if err := cleanPID(); err != nil {
-			log.Error(ctx, "Cannot delete pidfile", err)
+	if !conf.TestConfig.SkipPidfile {
+		cleanPID, err := pidfile.New(filepath.Dir(conf.LockFile), "run")
+		if err != nil {
+			return err
 		}
-	}()
+
+		defer func() {
+			if err := cleanPID(); err != nil {
+				log.Error(ctx, "Cannot delete pidfile", err)
+			}
+		}()
+	}
 
 	_, _ = maxprocs.Set()
 

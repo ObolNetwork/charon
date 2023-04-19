@@ -307,6 +307,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 					beaconmock.WithSlotsPerEpoch(1),
 				}, args.BMockOpts...),
 				BuilderRegistration: registrationFunc(),
+				SkipPidfile:         true,
 			},
 			P2P:                     p2p.Config{},
 			BuilderAPI:              args.BuilderAPI,
