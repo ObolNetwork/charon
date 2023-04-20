@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -19,6 +20,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/peerinfo"
+	"github.com/obolnetwork/charon/app/privkeylock"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
@@ -65,10 +67,21 @@ func Run(ctx context.Context, conf Config) (err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	ctx = log.WithTopic(ctx, "dkg")
+	ctx = log.WithTopic(ctx, "charon dkg")
 	defer func() {
 		if err != nil {
 			log.Error(ctx, "Fatal error", err)
+		}
+	}()
+
+	cleanPrivkeyLock, err := privkeylock.New(filepath.Join(conf.DataDir, "dkg-lock"), "charon dkg")
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err := cleanPrivkeyLock(); err != nil {
+			log.Error(ctx, "Cannot delete private key lock file", err)
 		}
 	}()
 

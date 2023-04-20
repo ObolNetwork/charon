@@ -31,6 +31,7 @@ import (
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/peerinfo"
+	"github.com/obolnetwork/charon/app/privkeylock"
 	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/retry"
 	"github.com/obolnetwork/charon/app/tracer"
@@ -81,6 +82,7 @@ type Config struct {
 	SyntheticBlockProposals bool
 	BuilderAPI              bool
 	SimnetBMockFuzz         bool
+	PrivkeyLockingEnabled   bool
 
 	TestConfig TestConfig
 }
@@ -123,6 +125,19 @@ func Run(ctx context.Context, conf Config) (err error) {
 			log.Error(ctx, "Fatal run error", err)
 		}
 	}()
+
+	if conf.PrivkeyLockingEnabled {
+		cleanPrivkeyLock, err := privkeylock.New(conf.PrivKeyFile+".lock", "charon run")
+		if err != nil {
+			return err
+		}
+
+		defer func() {
+			if err := cleanPrivkeyLock(); err != nil {
+				log.Error(ctx, "Cannot delete private key lock file", err)
+			}
+		}()
+	}
 
 	_, _ = maxprocs.Set()
 

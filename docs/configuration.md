@@ -144,6 +144,7 @@ Flags:
       --p2p-relays strings                 Comma-separated list of libp2p relay URLs or multiaddrs. (default [https://0.relay.obol.tech])
       --p2p-tcp-address strings            Comma-separated list of listening TCP addresses (ip and port) for libP2P traffic. Empty default doesn't bind to local port therefore only supports outgoing connections.
       --private-key-file string            The path to the charon enr private key file. (default ".charon/charon-enr-private-key")
+      --private-key-file-lock              Whether or not to enable private key locking. When enabled, Charon will not run if the private key is used by another instance. (default true)
       --simnet-beacon-mock                 Enables an internal mock beacon node for running a simnet.
       --simnet-beacon-mock-fuzz            Configures simnet beaconmock to return fuzzed responses.
       --simnet-slot-duration duration      Configures slot duration in simnet beacon mock. (default 1s)

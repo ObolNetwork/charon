@@ -38,7 +38,7 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 		},
 	}
 
-	bindPrivKeyFlag(cmd, &conf.PrivKeyFile)
+	bindPrivKeyFlag(cmd, &conf.PrivKeyFile, &conf.PrivkeyLockingEnabled)
 	bindRunFlags(cmd, &conf)
 	bindNoVerifyFlag(cmd.Flags(), &conf.NoVerify)
 	bindP2PFlags(cmd, &conf.P2P)
@@ -85,8 +85,9 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	})
 }
 
-func bindPrivKeyFlag(cmd *cobra.Command, privKeyFile *string) {
+func bindPrivKeyFlag(cmd *cobra.Command, privKeyFile *string, privkeyLockEnabled *bool) {
 	cmd.Flags().StringVar(privKeyFile, "private-key-file", ".charon/charon-enr-private-key", "The path to the charon enr private key file.")
+	cmd.Flags().BoolVar(privkeyLockEnabled, "private-key-file-lock", true, "Whether or not to enable private key locking. When enabled, Charon will not run if the private key is used by another instance.")
 }
 
 func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
