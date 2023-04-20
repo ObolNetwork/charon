@@ -15,6 +15,7 @@ import (
 
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
+	"github.com/obolnetwork/charon/core/qbft"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -77,8 +78,7 @@ func TestNewMsg(t *testing.T) {
 	}
 
 	msg, err := newMsg(&pbv1.QBFTMsg{
-		Value:             any1,
-		PreparedValue:     any2,
+		Type:              int64(qbft.MsgPrePrepare),
 		ValueHash:         hash1[:],
 		PreparedValueHash: hash2[:],
 	}, nil, values)
@@ -91,8 +91,31 @@ func TestNewMsg(t *testing.T) {
 
 func TestPartialLegacyNewMsg(t *testing.T) {
 	val1 := timestamppb.New(time.Time{})
+	hash1, err := hashProto(val1)
+	require.NoError(t, err)
+
+	_, err = newMsg(&pbv1.QBFTMsg{
+		Type: int64(qbft.MsgPrePrepare),
+	}, []*pbv1.QBFTMsg{
+		{
+			Type:      int64(qbft.MsgPrePrepare),
+			ValueHash: hash1[:],
+		},
+	}, make(map[[32]byte]*anypb.Any))
+	require.ErrorContains(t, err, "value hash not found in values")
+}
+
+func TestInvalidMsg(t *testing.T) {
+	_, err := newMsg(&pbv1.QBFTMsg{
+		Type: int64(qbft.MsgUnknown),
+	}, nil, nil)
+	require.ErrorContains(t, err, "invalid message type")
+
+	val1 := timestamppb.New(time.Time{})
 	val2 := timestamppb.New(time.Now())
 	hash1, err := hashProto(val1)
+	require.NoError(t, err)
+	hash2, err := hashProto(val2)
 	require.NoError(t, err)
 
 	any1, err := anypb.New(val1)
@@ -100,15 +123,21 @@ func TestPartialLegacyNewMsg(t *testing.T) {
 	any2, err := anypb.New(val2)
 	require.NoError(t, err)
 
+	values := map[[32]byte]*anypb.Any{
+		hash1: any1,
+		hash2: any2,
+	}
+
 	_, err = newMsg(&pbv1.QBFTMsg{
-		PreparedValue: any2,
+		Type:              int64(qbft.MsgPrepare),
+		ValueHash:         hash1[:],
+		PreparedValueHash: hash2[:],
 	}, []*pbv1.QBFTMsg{
 		{
-			Value:     any1,
-			ValueHash: hash1[:],
+			Type: int64(qbft.MsgUnknown),
 		},
-	}, make(map[[32]byte]*anypb.Any))
-	require.ErrorContains(t, err, "value hash not found in values")
+	}, values)
+	require.ErrorContains(t, err, "invalid message type")
 }
 
 // randomMsg returns a random qbft message.
@@ -125,8 +154,13 @@ func randomMsg(t *testing.T) *pbv1.QBFTMsg {
 	anyPV, err := anypb.New(pv)
 	require.NoError(t, err)
 
+	msgType := rand.Int63() % int64(qbft.MsgSentinel)
+	if msgType == 0 {
+		msgType = 1
+	}
+
 	return &pbv1.QBFTMsg{
-		Type:          rand.Int63(),
+		Type:          msgType,
 		Duty:          core.DutyToProto(core.Duty{Type: core.DutyType(rand.Int()), Slot: rand.Int63()}),
 		PeerIdx:       rand.Int63(),
 		Round:         rand.Int63(),
