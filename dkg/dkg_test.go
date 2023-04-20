@@ -104,12 +104,14 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 		P2P: p2p.Config{
 			Relays: []string{relayAddr},
 		},
-		Log:     log.DefaultConfig(),
-		TestDef: &def,
-		TestStoreKeysFunc: func(secrets []tbls.PrivateKey, dir string) error {
-			return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
+		Log: log.DefaultConfig(),
+		TestConfig: dkg.TestConfig{
+			Def: &def,
+			StoreKeysFunc: func(secrets []tbls.PrivateKey, dir string) error {
+				return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
+			},
+			ShutdownCallback: shutdownSync,
 		},
-		TestShutdownCallback: shutdownSync,
 	}
 
 	allReceivedKeystores := make(chan struct{}) // Receives struct{} for each `numNodes` keystore intercepted by the keymanager server
@@ -393,9 +395,9 @@ func TestSyncFlow(t *testing.T) {
 			// Start DKG for initial peers.
 			for _, idx := range test.connect {
 				log.Info(ctx, "Starting initial peer", z.Int("peer_index", idx))
-				configs[idx].TestSyncCallback = cTracker.Set
+				configs[idx].TestConfig.SyncCallback = cTracker.Set
 				if !contains(test.disconnect, idx) {
-					configs[idx].TestShutdownCallback = shutdownSync // Only synchronise shutdown for peers that are not disconnected.
+					configs[idx].TestConfig.ShutdownCallback = shutdownSync // Only synchronise shutdown for peers that are not disconnected.
 				}
 				stopDkgs[idx] = startNewDKG(t, peerCtx(ctx, idx), configs[idx], dkgErrChan)
 			}
@@ -432,7 +434,7 @@ func TestSyncFlow(t *testing.T) {
 			// Start other peers.
 			for _, idx := range test.reconnect {
 				log.Info(ctx, "Starting remaining peer", z.Int("peer_index", idx))
-				configs[idx].TestShutdownCallback = shutdownSync
+				configs[idx].TestConfig.ShutdownCallback = shutdownSync
 				stopDkgs[idx] = startNewDKG(t, peerCtx(ctx, idx), configs[idx], dkgErrChan)
 			}
 
@@ -538,12 +540,14 @@ func getConfigs(t *testing.T, def cluster.Definition, keys []*k1.PrivateKey, dir
 				Relays:   []string{bootnode},
 				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
 			},
-			Log:     log.DefaultConfig(),
-			TestDef: &def,
-			TestStoreKeysFunc: func(secrets []tbls.PrivateKey, dir string) error {
-				return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
+			Log: log.DefaultConfig(),
+			TestConfig: dkg.TestConfig{
+				Def: &def,
+				StoreKeysFunc: func(secrets []tbls.PrivateKey, dir string) error {
+					return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
+				},
+				TCPNodeCallback: tcpNodeCallback,
 			},
-			TestTCPNodeCallback: tcpNodeCallback,
 		}
 		require.NoError(t, os.MkdirAll(conf.DataDir, 0o755))
 

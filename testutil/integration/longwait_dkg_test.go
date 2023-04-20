@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
@@ -31,67 +31,70 @@ func TestLongWaitDKG(t *testing.T) {
 		numVals   = 10
 		relayURL  = "https://0.relay.obol.tech"
 		// The time period after which a new node is started.
-		window = 10
+		window = 10 * time.Second
 		// The time period when a node is offline. A window is divided into multiple slots each of nodeDownPeriod duration.
 		// A node goes down in one of these slots in a particular window.
-		nodeDownPeriod = 2
+		nodeDownPeriod = 2 * time.Second
 	)
 
 	var (
 		eg              errgroup.Group
 		ctx             = log.WithTopic(context.Background(), "longwait")
-		dir             = t.TempDir()
-		def             = testDef(t, dir, threshold, numNodes, numVals)
 		allNodesStarted = make(chan struct{}, numNodes)
 	)
 
-	for i := 0; i < numNodes; i++ {
+	def, p2pKeys := testDef(t, threshold, numNodes, numVals)
+	dir := t.TempDir()
+
+	for i, p2pKey := range p2pKeys {
 		indx := i
-		delay := indx * window
-		log.Debug(ctx, "Starting node", z.Int("node", indx), z.Int("delay", delay))
+		p2pKey := p2pKey
+		if indx > 0 {
+			time.Sleep(window)
+		}
 
 		eg.Go(func() error {
-			time.Sleep(time.Duration(delay))
+			nodeDir := path.Join(dir, fmt.Sprintf("node%d", indx))
+			require.NoError(t, os.Mkdir(nodeDir, 0o750))
 
-			if indx == numNodes-1 {
-				// Notify all nodes that everyone has started. Let the DKG begin!
-				for j := 0; j < numNodes; j++ {
-					allNodesStarted <- struct{}{}
-				}
+			dkgConf := dkg.Config{
+				DataDir: nodeDir,
+				P2P: p2p.Config{
+					Relays: []string{relayURL},
+				},
+				Log:           log.DefaultConfig(),
+				ShutdownDelay: 1 * time.Second,
+				TestConfig: dkg.TestConfig{
+					Def:    &def,
+					P2PKey: p2pKey,
+				},
 			}
 
-			return mimicDKGNode(ctx, t, def, dir, relayURL, window, nodeDownPeriod, indx, allNodesStarted)
+			log.Debug(ctx, "Starting node (1st time)", z.Int("node", indx))
+
+			return mimicDKGNode(ctx, t, dkgConf, window, nodeDownPeriod, indx, allNodesStarted)
 		})
 	}
 
-	err := eg.Wait()
-	require.NoError(t, err)
+	// Notify all nodes that everyone has started. Let the DKG begin!
+	for i := 0; i < numNodes; i++ {
+		allNodesStarted <- struct{}{}
+	}
+
+	require.NoError(t, eg.Wait())
 }
 
 // mimicDKGNode mimics the behaviour of a DKG node that randomly stops for sometime before restarting again but finally participates in the DKG.
-func mimicDKGNode(ctx context.Context, t *testing.T, def cluster.Definition, dir, relayURL string, window, nodeDownPeriod, nodeIdx int, allNodesStarted chan struct{}) error {
+func mimicDKGNode(ctx context.Context, t *testing.T, dkgConf dkg.Config, window, nodeDownPeriod time.Duration, nodeIdx int, allNodesStarted chan struct{}) error {
 	t.Helper()
 
-	nodeDir := path.Join(dir, fmt.Sprintf("node%d", nodeIdx))
-	dkgConf := dkg.Config{
-		DataDir: nodeDir,
-		P2P: p2p.Config{
-			Relays: []string{relayURL},
-		},
-		Log: log.Config{
-			Level: "info",
-		},
-		ShutdownDelay: 1 * time.Second,
-		TestDef:       &def,
-	}
-
 	for {
-		ctx2, cancel := context.WithCancel(ctx)
+		ctx, cancel := context.WithCancel(ctx)
 		go func(ctx context.Context) {
-			log.Debug(ctx, "Starting DKG node", z.Int("node", nodeIdx))
-
 			_ = dkg.Run(ctx, dkgConf)
-		}(ctx2)
+		}(ctx)
+
+		log.Debug(ctx, "Started DKG node", z.Int("node", nodeIdx))
 
 		var allStarted bool
 		select {
@@ -101,19 +104,7 @@ func mimicDKGNode(ctx context.Context, t *testing.T, def cluster.Definition, dir
 			break
 		}
 
-		var modVal int
-		if allStarted {
-			// If the last node has started, we need to have all nodes active at the last slot of window
-			modVal = window - (2*nodeDownPeriod - 1)
-		} else {
-			modVal = window - (nodeDownPeriod - 1)
-		}
-
-		// Let's say we kill the dkg in x time, then we wait for (window-x) time to elapse before starting another dkg instance.
-		delayToKill := rand.Int() % modVal
-		if delayToKill == 0 {
-			delayToKill = 1 // Don't kill the node instantly, rather wait 1s
-		}
+		delayToKill, remainingDelay := calcKillDelay(window, nodeDownPeriod, allStarted)
 
 		// Wait some random duration before killing the node
 		log.Debug(ctx, "Killing node after delay", z.Int("node", nodeIdx), z.Int("delay", delayToKill))
@@ -121,7 +112,6 @@ func mimicDKGNode(ctx context.Context, t *testing.T, def cluster.Definition, dir
 		cancel()
 
 		// Wait till remaining time before restarting the node
-		remainingDelay := window - delayToKill
 		log.Debug(ctx, "Waiting before restarting node", z.Int("node", nodeIdx), z.Int("delay", remainingDelay))
 		<-time.After(time.Duration(remainingDelay) * time.Second)
 
@@ -136,27 +126,36 @@ func mimicDKGNode(ctx context.Context, t *testing.T, def cluster.Definition, dir
 	return dkg.Run(ctx, dkgConf)
 }
 
-// testDef returns a cluster.Definition for use in tests. It also creates node directories and saves respective charon enr private keys in the corresponding folders.
-func testDef(t *testing.T, dir string, threshold, numNodes, numVals int) cluster.Definition {
+// testDef returns a cluster.Definition and k1 p2p keys for use in tests.
+func testDef(t *testing.T, threshold, numNodes, numVals int) (cluster.Definition, []*k1.PrivateKey) {
 	t.Helper()
 
-	const frostAlgo = "frost"
+	lock, p2pKeys, _ := cluster.NewForT(t, numVals, threshold, numNodes, 1)
 
-	withAlgo := func(algo string) func(*cluster.Definition) {
-		return func(d *cluster.Definition) {
-			d.DKGAlgorithm = algo
-		}
+	return lock.Definition, p2pKeys
+}
+
+// calcKillDelay returns a random delay that the calling process must wait before killing a DKG node. It also returns a remaining delay
+// which the calling process must wait after killing a node and before restarting it again.
+func calcKillDelay(window, nodeDownPeriod time.Duration, allStarted bool) (int, int) {
+	var modVal int
+
+	windowVal := int(window / time.Second)
+	nodeDownPeriodVal := int(nodeDownPeriod / time.Second)
+	if allStarted {
+		// If the last node has started, we need to have all nodes active at the last slot of window
+		modVal = windowVal - (2*nodeDownPeriodVal - 1)
+	} else {
+		modVal = windowVal - (nodeDownPeriodVal - 1)
 	}
 
-	lock, p2pKeys, _ := cluster.NewForT(t, numVals, threshold, numNodes, 1, withAlgo(frostAlgo))
-
-	for i := 0; i < numNodes; i++ {
-		nodeDir := path.Join(dir, fmt.Sprintf("node%d", i))
-		require.NoError(t, os.Mkdir(nodeDir, 0o750))
-
-		err := k1util.Save(p2pKeys[i], p2p.KeyPath(nodeDir))
-		require.NoError(t, err)
+	// Let's say we kill the dkg in x time, then we wait for (window-x) time to elapse before starting another dkg instance.
+	delayToKill := rand.Int() % modVal
+	if delayToKill == 0 {
+		delayToKill = 1 // Don't kill the node instantly, rather wait 1s
 	}
 
-	return lock.Definition
+	remainingDelay := windowVal - delayToKill
+
+	return delayToKill, remainingDelay
 }
