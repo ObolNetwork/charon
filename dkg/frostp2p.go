@@ -48,12 +48,12 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 
 	// Register reliable broadcast protocol handlers.
 	bcastFunc := bcast.New(tcpNode, peerSlice, secret, []string{round1CastID, round2CastID},
-		bcastCallback(peers, round1CastsRecv, round2CastsRecv, threshold, numVals))
+		newBcastCallback(peers, round1CastsRecv, round2CastsRecv, threshold, numVals))
 
 	// Register round 1 p2p protocol handlers.
 	p2p.RegisterHandler("frost", tcpNode, round1P2PID,
 		func() proto.Message { return new(pb.FrostRound1P2P) },
-		p2pCallback(tcpNode, peers, round1P2PRecv, numVals),
+		newP2PCallback(tcpNode, peers, round1P2PRecv, numVals),
 		p2p.WithDelimitedProtocol(round1P2PID),
 	)
 
@@ -67,8 +67,8 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 	}
 }
 
-// bcastCallback returns a callback for broadcast in round 1 and round 2 of frost protocol.
-func bcastCallback(peers map[peer.ID]cluster.NodeIdx, round1CastsRecv chan *pb.FrostRound1Casts, round2CastsRecv chan *pb.FrostRound2Casts, threshold, numVals int) bcast.Callback {
+// newBcastCallback returns a callback for broadcast in round 1 and round 2 of frost protocol.
+func newBcastCallback(peers map[peer.ID]cluster.NodeIdx, round1CastsRecv chan *pb.FrostRound1Casts, round2CastsRecv chan *pb.FrostRound2Casts, threshold, numVals int) bcast.Callback {
 	var (
 		mu               sync.Mutex
 		dedupRound1Casts = make(map[peer.ID]bool)
@@ -144,8 +144,8 @@ func bcastCallback(peers map[peer.ID]cluster.NodeIdx, round1CastsRecv chan *pb.F
 	}
 }
 
-// p2pCallback returns a callback for P2P messages in round 1 of frost protocol.
-func p2pCallback(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, round1P2PRecv chan *pb.FrostRound1P2P, numVals int) p2p.HandlerFunc {
+// newP2PCallback returns a callback for P2P messages in round 1 of frost protocol.
+func newP2PCallback(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, round1P2PRecv chan *pb.FrostRound1P2P, numVals int) p2p.HandlerFunc {
 	var (
 		mu             sync.Mutex
 		dedupRound1P2P = make(map[peer.ID]bool)

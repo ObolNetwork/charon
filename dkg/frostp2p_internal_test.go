@@ -147,7 +147,7 @@ func TestBcastCallback(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			callbackFunc := bcastCallback(peerMap, round1CastsRecv, round2CastsRecv, threshold, numVals)
+			callbackFunc := newBcastCallback(peerMap, round1CastsRecv, round2CastsRecv, threshold, numVals)
 
 			var err error
 			if tt.round1Cast != nil {
@@ -243,7 +243,7 @@ func TestP2PCallback(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			round1P2PRecv := make(chan *pb.FrostRound1P2P, len(peers))
 
-			callbackFunc := p2pCallback(tcpNodes[0], peerMap, round1P2PRecv, numVals)
+			callbackFunc := newP2PCallback(tcpNodes[0], peerMap, round1P2PRecv, numVals)
 
 			if tt.invalidRound1P2PMsg {
 				_, _, err := callbackFunc(ctx, peers[0], nil)
