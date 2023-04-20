@@ -126,9 +126,9 @@ func testSimulatorMatrix(t *testing.T, timer func(clock clockwork.Clock) roundTi
 	var (
 		seed   int
 		random = rand.New(rand.NewSource(int64(seed)))
-		result matrixResult
 	)
 
+	var configs []ssConfig
 	for _, peerCount := range peerCounts {
 		for i := 0; i < 100; i++ {
 			shuffle(random, latencies)
@@ -138,7 +138,7 @@ func testSimulatorMatrix(t *testing.T, timer func(clock clockwork.Clock) roundTi
 			starts := durationMap(starts, peerCount)
 			starts = disableSomePeers(starts, i)
 
-			results := testStrategySimulator(t, ssConfig{
+			configs = append(configs, ssConfig{
 				seed:           seed,
 				latencyStdDev:  pick(stdDevs, i),
 				latencyPerPeer: durationMap(latencies, peerCount),
@@ -146,21 +146,36 @@ func testSimulatorMatrix(t *testing.T, timer func(clock clockwork.Clock) roundTi
 				roundTimerFunc: timer,
 				timeout:        min1,
 			})
-
-			result.Total++
-			if isUndecided(results) {
-				result.Undecided++
-				continue
-			}
-
-			result.DurationSum += quorumDecidedDuration(results)
-			result.RoundSum += decidedRound(results)
-
 			seed++
 		}
 	}
 
-	return result
+	fjResults, cancel := forkjoin.NewWithInputs(
+		context.Background(),
+		func(_ context.Context, config ssConfig) ([]result, error) {
+			return testStrategySimulator(t, config), nil
+		},
+		configs,
+		forkjoin.WithWorkers(len(configs)),
+	)
+	defer cancel()
+
+	results, err := fjResults.Flatten()
+	require.NoError(t, err)
+
+	var res matrixResult
+	for _, result := range results {
+		res.Total++
+		if isUndecided(result) {
+			res.Undecided++
+			continue
+		}
+
+		res.DurationSum += quorumDecidedDuration(result)
+		res.RoundSum += decidedRound(result)
+	}
+
+	return res
 }
 
 // peerID is a peer identifier of which the zero value is invalid.
