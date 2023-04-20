@@ -81,7 +81,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	defer func() {
 		if err := cleanPrivkeyLock(); err != nil {
-			log.Error(ctx, "Cannot delete pidfile", err)
+			log.Error(ctx, "Cannot delete private key lock file", err)
 		}
 	}()
 
