@@ -25,7 +25,7 @@ func New(path, contextStr string) (func() error, error) {
 			z.Str("context", string(readCtxStr)),
 		)
 	} else if errors.Is(err, os.ErrNotExist) {
-		if err := createPidfile(path, contextStr); err != nil {
+		if err := createPrivkeyLock(path, contextStr); err != nil {
 			return nil, err
 		}
 
@@ -41,7 +41,10 @@ func New(path, contextStr string) (func() error, error) {
 	}
 }
 
-func createPidfile(path, contextStr string) error {
+// createPrivkeyLock creates a file in path with contextStr written inside.
+// It's an overzealous function: if it can't write exactly len(contextStr) bytes in path,
+// it returns error.
+func createPrivkeyLock(path, contextStr string) error {
 	f, err := os.Create(path)
 	if err != nil {
 		return errors.Wrap(err, "cannot create pidfile", z.Str("path", path))
