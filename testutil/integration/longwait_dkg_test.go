@@ -4,6 +4,7 @@ package integration_test
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"math/rand"
 	"os"
@@ -22,8 +23,12 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
+var longwaitDKG = flag.Bool("longwait", false, "Enable this long-wait test")
+
 func TestLongWaitDKG(t *testing.T) {
-	skipIfDisabled(t)
+	if !*longwaitDKG {
+		t.Skip("Long wait test is disabled")
+	}
 
 	const (
 		threshold = 3
@@ -110,6 +115,7 @@ func mimicDKGNode(ctx context.Context, t *testing.T, dkgConf dkg.Config, window,
 		log.Debug(ctx, "Killing node after delay", z.Int("node", nodeIdx), z.Int("delay", delayToKill))
 		<-time.After(time.Duration(delayToKill) * time.Second)
 		cancel()
+		log.Debug(ctx, "Node killed", z.Int("node", nodeIdx))
 
 		// Wait till remaining time before restarting the node
 		log.Debug(ctx, "Waiting before restarting node", z.Int("node", nodeIdx), z.Int("delay", remainingDelay))
