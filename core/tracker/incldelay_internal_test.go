@@ -80,8 +80,10 @@ func TestInclDelay(t *testing.T) {
 		inclDelay.Broadcasted(int64(att.Att.Data.Slot), core.NewAttestation(att.Att))
 	}
 
-	inclDelay.logMappingFunc = func(ctx context.Context, slot int64, bcastDelay time.Duration, inclDelay int64) {
+	inclDelay.logMappingFunc = func(ctx context.Context, slot int64, bcastDelay time.Duration, inclDelay int64, isAggregated bool) {
 		require.Equal(t, time.Duration(blockSlot-slot)*slotDuration, bcastDelay)
+		require.Equal(t, blockSlot-slot, inclDelay)
+		require.Equal(t, false, isAggregated)
 	}
 
 	err = inclDelay.Instrument(ctx, core.Slot{

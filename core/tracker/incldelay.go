@@ -18,10 +18,12 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-// inclDelayLag is the number of slots to lag before calculating inclusion delay.
-// Half an epoch is good compromise between finality and small gaps on startup.
 const (
-	inclDelayLag    = 16
+	// inclDelayLag is the number of slots to lag before calculating inclusion delay.
+	// Half an epoch is good compromise between finality and small gaps on startup.
+	inclDelayLag = 16
+	// trimEpochOffset is the number of epochs after which we delete cached broadcast delays.
+	// This matches scheduler trimEpochOffset.
 	trimEpochOffset = 3
 )
 
@@ -63,7 +65,7 @@ type InclusionDelay struct {
 	eth2Cl         eth2wrap.Client
 	dutiesFunc     dutiesFunc
 	instrumentFunc func(inclDelaySlots []int64)
-	logMappingFunc func(ctx context.Context, slot int64, bcastDelay time.Duration, inclDelay int64)
+	logMappingFunc func(ctx context.Context, slot int64, bcastDelay time.Duration, inclDelay int64, isAggregated bool)
 	genesisTime    time.Time
 	slotDuration   time.Duration
 	slotsPerEpoch  int
@@ -196,15 +198,16 @@ func (d *InclusionDelay) logDelayMapping(ctx context.Context, slot int64, att *e
 	if !ok {
 		log.Debug(ctx, "Missing broadcast delay found for included attestation", z.Int("slot", int(slot)))
 	} else {
-		d.logMappingFunc(ctx, slot, bcastDelay, inclDelay)
+		d.logMappingFunc(ctx, slot, bcastDelay, inclDelay, len(att.AggregationBits.BitIndices()) > 1)
 	}
 }
 
-func logMapping(ctx context.Context, slot int64, bcastDelay time.Duration, inclDelay int64) {
+func logMapping(ctx context.Context, slot int64, bcastDelay time.Duration, inclDelay int64, isAggregated bool) {
 	log.Debug(ctx, "Attestation broadcast delay (secs) vs inclusion distance (slots)",
 		z.Int("slot", int(slot)),
 		z.F64("bcast_delay", bcastDelay.Seconds()),
 		z.I64("incl_delay", inclDelay),
+		z.Bool("aggregated", isAggregated),
 	)
 }
 
