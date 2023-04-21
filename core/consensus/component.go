@@ -342,11 +342,16 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 
 	pbMsg, ok := req.(*pbv1.ConsensusMsg)
 	if !ok {
-		return nil, false, errors.New("invalid consensus message type")
+		return nil, false, errors.New("invalid consensus message")
 	}
 
-	if pbMsg.Msg == nil || pbMsg.Msg.Duty == nil || !qbft.MsgType(pbMsg.Msg.GetType()).Valid() {
+	if pbMsg.Msg == nil || pbMsg.Msg.Duty == nil {
 		return nil, false, errors.New("invalid consensus message fields")
+	}
+
+	typ := qbft.MsgType(pbMsg.Msg.GetType())
+	if !typ.Valid() {
+		return nil, false, errors.New("invalid consensus message type", z.Str("type", typ.String()))
 	}
 
 	duty := core.DutyFromProto(pbMsg.Msg.Duty)
@@ -367,8 +372,13 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 	}
 
 	for _, justification := range pbMsg.Justification {
-		if justification == nil || !qbft.MsgType(justification.GetType()).Valid() {
+		if justification == nil {
 			return nil, false, errors.New("nil justification", z.Any("duty", duty))
+		}
+
+		typ := qbft.MsgType(pbMsg.Msg.GetType())
+		if !typ.Valid() {
+			return nil, false, errors.New("invalid justification message type", z.Str("type", typ.String()))
 		}
 
 		justDuty := core.DutyFromProto(justification.Duty)

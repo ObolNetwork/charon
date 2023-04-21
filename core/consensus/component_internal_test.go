@@ -389,6 +389,85 @@ func TestComponent_handle(t *testing.T) {
 	}
 }
 
+func TestComponentHandle(t *testing.T) {
+	tests := []struct {
+		name       string
+		msg        *pbv1.ConsensusMsg
+		errorMsg   string
+		invalidMsg bool
+		peerID     string
+	}{
+		{
+			name:       "invalid message",
+			invalidMsg: true,
+			errorMsg:   "invalid consensus message",
+		},
+		{
+			name: "nil msg",
+			msg: &pbv1.ConsensusMsg{
+				Msg: nil,
+			},
+			errorMsg: "invalid consensus message fields",
+		},
+		{
+			name: "nil msg duty",
+			msg: &pbv1.ConsensusMsg{
+				Msg: &pbv1.QBFTMsg{
+					Duty: nil,
+				},
+			},
+			errorMsg: "invalid consensus message fields",
+		},
+		{
+			name: "invalid msg type",
+			msg: &pbv1.ConsensusMsg{
+				Msg: &pbv1.QBFTMsg{
+					Duty: &pbv1.Duty{},
+					Type: int64(qbft.MsgSentinel + 1),
+				},
+			},
+			errorMsg: "invalid consensus message type",
+		},
+		{
+			name: "invalid msg duty type",
+			msg: &pbv1.ConsensusMsg{
+				Msg: &pbv1.QBFTMsg{
+					Duty: &pbv1.Duty{},
+					Type: int64(qbft.MsgPrepare),
+				},
+			},
+			errorMsg: "invalid consensus message duty type",
+		},
+		{
+			name: "nonexistent peer index",
+			msg: &pbv1.ConsensusMsg{
+				Msg: &pbv1.QBFTMsg{
+					Duty: &pbv1.Duty{Type: int32(core.DutyProposer)},
+					Type: int64(qbft.MsgPrepare),
+				},
+			},
+			errorMsg: "message refers to nonexistent peer index, cannot fetch public key",
+		},
+	}
+
+	ctx := context.Background()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var tc Component
+			tc.pubkeys = make(map[int64]*k1.PublicKey)
+			var err error
+			if tt.invalidMsg {
+				_, _, err = tc.handle(ctx, "", nil)
+			} else {
+				_, _, err = tc.handle(ctx, "", tt.msg)
+			}
+
+			require.Equal(t, err.Error(), tt.errorMsg)
+		})
+	}
+}
+
 // testDeadliner is a mock deadliner implementation.
 type testDeadliner struct {
 	deadlineChan chan core.Duty
