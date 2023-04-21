@@ -7,7 +7,7 @@ import (
 )
 
 // WithTracking wraps component input functions to support tracking of core components.
-func WithTracking(tracker Tracker) WireOption {
+func WithTracking(tracker Tracker, bcastDelayFunc func(int64, Attestation)) WireOption {
 	return func(w *wireFuncs) {
 		clone := *w
 
@@ -62,6 +62,12 @@ func WithTracking(tracker Tracker) WireOption {
 		w.BroadcasterBroadcast = func(ctx context.Context, duty Duty, pubkey PubKey, data SignedData) error {
 			err := clone.BroadcasterBroadcast(ctx, duty, pubkey, data)
 			tracker.BroadcasterBroadcast(duty, pubkey, data, err)
+
+			if err == nil && duty.Type == DutyAttester {
+				if att, ok := data.(Attestation); ok {
+					bcastDelayFunc(duty.Slot, att)
+				}
+			}
 
 			return err
 		}

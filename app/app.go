@@ -398,9 +398,13 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	feeRecipientFunc := func(pubkey core.PubKey) string {
 		return feeRecipientAddrByCorePubkey[pubkey]
 	}
-
 	sched.SubscribeSlots(setFeeRecipient(eth2Cl, eth2Pubkeys, feeRecipientFunc))
-	sched.SubscribeSlots(tracker.NewInclDelayFunc(eth2Cl, sched.GetDutyDefinition))
+
+	inclDelay, err := tracker.NewInclusionDelay(ctx, eth2Cl, sched.GetDutyDefinition)
+	if err != nil {
+		return err
+	}
+	sched.SubscribeSlots(inclDelay.Instrument)
 
 	fetch, err := fetcher.New(eth2Cl, feeRecipientFunc)
 	if err != nil {
@@ -464,7 +468,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 	opts := []core.WireOption{
 		core.WithTracing(),
-		core.WithTracking(track),
+		core.WithTracking(track, inclDelay.Broadcasted),
 		core.WithAsyncRetry(retryer),
 	}
 	core.Wire(sched, fetch, cons, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
