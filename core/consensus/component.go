@@ -345,7 +345,7 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 		return nil, false, errors.New("invalid consensus message type")
 	}
 
-	if pbMsg.Msg == nil || pbMsg.Msg.Duty == nil {
+	if pbMsg.Msg == nil || pbMsg.Msg.Duty == nil || !qbft.MsgType(pbMsg.Msg.GetType()).Valid() {
 		return nil, false, errors.New("invalid consensus message fields")
 	}
 
@@ -367,7 +367,7 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 	}
 
 	for _, justification := range pbMsg.Justification {
-		if justification == nil {
+		if justification == nil || !qbft.MsgType(justification.GetType()).Valid() {
 			return nil, false, errors.New("nil justification", z.Any("duty", duty))
 		}
 

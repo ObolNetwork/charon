@@ -17,10 +17,6 @@ import (
 
 // newMsg returns a new msg.
 func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]byte]*anypb.Any) (msg, error) {
-	if !qbft.MsgType(pbMsg.GetType()).Valid() {
-		return msg{}, errors.New("invalid message type")
-	}
-
 	// Do all possible error conversions first.
 	var (
 		valueHash         [32]byte
@@ -43,10 +39,6 @@ func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]b
 
 	var justImpls []qbft.Msg[core.Duty, [32]byte]
 	for _, j := range justification {
-		if !qbft.MsgType(j.GetType()).Valid() {
-			return msg{}, errors.New("invalid message type")
-		}
-
 		impl, err := newMsg(j, nil, values)
 		if err != nil {
 			return msg{}, err

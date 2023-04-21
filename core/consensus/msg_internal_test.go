@@ -105,54 +105,9 @@ func TestPartialLegacyNewMsg(t *testing.T) {
 	require.ErrorContains(t, err, "value hash not found in values")
 }
 
-func TestInvalidMsg(t *testing.T) {
-	_, err := newMsg(&pbv1.QBFTMsg{
-		Type: int64(qbft.MsgUnknown),
-	}, nil, nil)
-	require.ErrorContains(t, err, "invalid message type")
-
-	val1 := timestamppb.New(time.Time{})
-	val2 := timestamppb.New(time.Now())
-	hash1, err := hashProto(val1)
-	require.NoError(t, err)
-	hash2, err := hashProto(val2)
-	require.NoError(t, err)
-
-	any1, err := anypb.New(val1)
-	require.NoError(t, err)
-	any2, err := anypb.New(val2)
-	require.NoError(t, err)
-
-	values := map[[32]byte]*anypb.Any{
-		hash1: any1,
-		hash2: any2,
-	}
-
-	_, err = newMsg(&pbv1.QBFTMsg{
-		Type:              int64(qbft.MsgPrepare),
-		ValueHash:         hash1[:],
-		PreparedValueHash: hash2[:],
-	}, []*pbv1.QBFTMsg{
-		{
-			Type: int64(qbft.MsgUnknown),
-		},
-	}, values)
-	require.ErrorContains(t, err, "invalid message type")
-}
-
 // randomMsg returns a random qbft message.
 func randomMsg(t *testing.T) *pbv1.QBFTMsg {
 	t.Helper()
-
-	v, err := core.UnsignedDataSetToProto(testutil.RandomUnsignedDataSet(t))
-	require.NoError(t, err)
-	pv, err := core.UnsignedDataSetToProto(testutil.RandomUnsignedDataSet(t))
-	require.NoError(t, err)
-
-	anyV, err := anypb.New(v)
-	require.NoError(t, err)
-	anyPV, err := anypb.New(pv)
-	require.NoError(t, err)
 
 	msgType := rand.Int63() % int64(qbft.MsgSentinel)
 	if msgType == 0 {
@@ -164,9 +119,7 @@ func randomMsg(t *testing.T) *pbv1.QBFTMsg {
 		Duty:          core.DutyToProto(core.Duty{Type: core.DutyType(rand.Int()), Slot: rand.Int63()}),
 		PeerIdx:       rand.Int63(),
 		Round:         rand.Int63(),
-		Value:         anyV,
 		PreparedRound: rand.Int63(),
-		PreparedValue: anyPV,
 		Signature:     nil,
 	}
 }
