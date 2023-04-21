@@ -19,8 +19,12 @@ import (
 )
 
 // New returns a new aggregator instance.
-func New(threshold int) *Aggregator {
-	return &Aggregator{threshold: threshold}
+func New(threshold int) (*Aggregator, error) {
+	if threshold <= 0 {
+		return nil, errors.New("invalid threshold", z.Int("threshold", threshold))
+	}
+
+	return &Aggregator{threshold: threshold}, nil
 }
 
 // Aggregator aggregates *threshold* partial signed duty data objects
@@ -41,8 +45,6 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 
 	if len(parSigs) < a.threshold {
 		return errors.New("require threshold signatures")
-	} else if a.threshold == 0 {
-		return errors.New("invalid threshold config")
 	}
 
 	// Get all partial signatures.
@@ -73,6 +75,10 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 		return err
 	}
 
+	if err := verifyAggSig(aggSig, pubkey); err != nil {
+		return err
+	}
+
 	log.Debug(ctx, "Threshold aggregated partial signatures")
 
 	// Call subscriptions.
@@ -85,6 +91,28 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 		if err := sub(ctx, duty, pubkey, clone); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// verifyAggSig verifies if the aggregated signature is valid using the provided pubkey.
+func verifyAggSig(sigData core.SignedData, pubkey core.PubKey) error {
+	tblsPubkey, err := tblsconv.PubkeyFromCore(pubkey)
+	if err != nil {
+		return errors.Wrap(err, "pubkey from core")
+	}
+
+	msgRoot, err := sigData.MessageRoot()
+	if err != nil {
+		return errors.Wrap(err, "message root")
+	}
+
+	aggSig := tbls.Signature(sigData.Signature())
+
+	err = tbls.Verify(tblsPubkey, msgRoot[:], aggSig)
+	if err != nil {
+		return errors.Wrap(err, "aggregate signature verification failed")
 	}
 
 	return nil

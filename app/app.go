@@ -444,7 +444,10 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		parSigEx = parsigex.NewParSigEx(tcpNode, sender.SendAsync, nodeIdx.PeerIdx, peerIDs, verifyFunc)
 	}
 
-	sigAgg := sigagg.New(lock.Threshold)
+	sigAgg, err := sigagg.New(lock.Threshold)
+	if err != nil {
+		return err
+	}
 
 	aggSigDB := aggsigdb.NewMemDB(deadlinerFunc("aggsigdb"))
 
