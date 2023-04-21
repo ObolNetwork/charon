@@ -236,7 +236,7 @@ type Tracker struct {
 	failedDutyReporter func(ctx context.Context, duty core.Duty, failed bool, step step, reason string, err error)
 
 	// participationReporter instruments duty peer participation.
-	participationReporter func(ctx context.Context, duty core.Duty, failed bool, participatedShares map[int]int, unexpectedPeers map[int]int, totalParticipationExpected int)
+	participationReporter func(ctx context.Context, duty core.Duty, failed bool, participatedShares map[int]int, unexpectedPeers map[int]int, expectedPerPeer int)
 }
 
 // New returns a new Tracker. The deleter deadliner must return well after analyser deadliner since duties of the same slot are often analysed together.
@@ -292,8 +292,8 @@ func (t *Tracker) Run(ctx context.Context) error {
 			t.failedDutyReporter(ctx, duty, failed, failedStep, failedMsg, failedErr)
 
 			// Analyse peer participation
-			participatedShares, unexpectedShares, totalParticipationExpected := analyseParticipation(duty, t.events)
-			t.participationReporter(ctx, duty, failed, participatedShares, unexpectedShares, totalParticipationExpected)
+			participatedShares, unexpectedShares, expectedPerPeer := analyseParticipation(duty, t.events)
+			t.participationReporter(ctx, duty, failed, participatedShares, unexpectedShares, expectedPerPeer)
 		case duty := <-t.deleter.C():
 			delete(t.events, duty)
 		}
@@ -738,7 +738,7 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 		}
 	}
 
-	return func(ctx context.Context, duty core.Duty, failed bool, participatedShares map[int]int, unexpectedShares map[int]int, totalParticipationExpected int) {
+	return func(ctx context.Context, duty core.Duty, failed bool, participatedShares map[int]int, unexpectedShares map[int]int, expectedPerPeer int) {
 		if len(participatedShares) == 0 && !failed {
 			// Ignore participation metrics and log for noop duties (like DutyAggregator)
 			return
@@ -748,8 +748,8 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 		for _, peer := range peers {
 			participationSuccess.WithLabelValues(duty.Type.String(), peer.Name).Add(float64(participatedShares[peer.ShareIdx()]))
 			participationSuccessLegacy.WithLabelValues(duty.Type.String(), peer.Name).Add(float64(participatedShares[peer.ShareIdx()]))
-			participationExpect.WithLabelValues(duty.Type.String(), peer.Name).Add(float64(totalParticipationExpected))
-			participationMissed.WithLabelValues(duty.Type.String(), peer.Name).Add(float64(totalParticipationExpected - participatedShares[peer.ShareIdx()]))
+			participationExpect.WithLabelValues(duty.Type.String(), peer.Name).Add(float64(expectedPerPeer))
+			participationMissed.WithLabelValues(duty.Type.String(), peer.Name).Add(float64(expectedPerPeer - participatedShares[peer.ShareIdx()]))
 
 			if participatedShares[peer.ShareIdx()] > 0 {
 				participationGauge.WithLabelValues(duty.Type.String(), peer.Name).Set(1)
