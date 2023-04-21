@@ -134,18 +134,18 @@ func testRoundTimers(t *testing.T, timers []Named[roundTimerFunc]) {
 
 	distributions := []NamedTuple[[]time.Duration, []time.Duration]{
 		{
-			Name: "colocated",
-
+			Name:   "colocated",
+			Value1: []time.Duration{ms005, ms010},               // latencies
 			Value2: []time.Duration{ms005, ms010, ms025, ms050}, // latencies
 		},
 		{
-			Name: "regional",
-
+			Name:   "regional",
+			Value1: []time.Duration{ms010, ms025},        // latencies
 			Value2: []time.Duration{ms050, ms100, ms250}, // latencies
 		},
 		{
-			Name: "global",
-
+			Name:   "global",
+			Value1: []time.Duration{ms050, ms100},                      // latencies
 			Value2: []time.Duration{ms250, ms250, ms500, ms500, ms750}, // latencies
 		},
 	}
