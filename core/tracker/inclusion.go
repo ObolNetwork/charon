@@ -168,6 +168,7 @@ func reportMissed(ctx context.Context, sub submission) {
 		log.Warn(ctx, msg, nil,
 			z.Any("pubkey", sub.Pubkey),
 			z.I64("attestation_slot", sub.Duty.Slot),
+			z.Any("broadcast_delay", sub.Delay),
 		)
 	case core.DutyProposer, core.DutyBuilderProposer:
 		msg := "Broadcasted block never included in the chain"
@@ -178,6 +179,7 @@ func reportMissed(ctx context.Context, sub submission) {
 		log.Warn(ctx, msg, nil,
 			z.Any("pubkey", sub.Pubkey),
 			z.I64("block_slot", sub.Duty.Slot),
+			z.Any("broadcast_delay", sub.Delay),
 		)
 	default:
 		panic("bug: unexpected type") // Sanity check, this should never happen
