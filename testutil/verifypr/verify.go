@@ -2,7 +2,7 @@
 
 // Command verifypr provides a tool to verify charon PRs against the template defined in docs/contibuting.md.
 //
-//nolint:revive,cyclop,nestif
+//nolint:revive,cyclop
 package main
 
 import (

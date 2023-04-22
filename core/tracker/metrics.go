@@ -86,4 +86,11 @@ var (
 		Name:      "inclusion_delay",
 		Help:      "Cluster's average attestation inclusion delay in slots",
 	})
+
+	inclusionMisses = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "tracker",
+		Name:      "inclusion_missed_total",
+		Help:      "Total number of broadcast duties never included in any block by type",
+	}, []string{"duty"})
 )

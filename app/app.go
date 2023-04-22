@@ -400,12 +400,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 	sched.SubscribeSlots(setFeeRecipient(eth2Cl, eth2Pubkeys, feeRecipientFunc))
 
-	inclDelay, err := tracker.NewInclusionDelay(ctx, eth2Cl, sched.GetDutyDefinition)
-	if err != nil {
-		return err
-	}
-	sched.SubscribeSlots(inclDelay.Instrument)
-
 	fetch, err := fetcher.New(eth2Cl, feeRecipientFunc)
 	if err != nil {
 		return err
@@ -466,9 +460,15 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	if err != nil {
 		return err
 	}
+
+	inclusion, err := tracker.NewInclusion(ctx, eth2Cl)
+	if err != nil {
+		return err
+	}
+
 	opts := []core.WireOption{
 		core.WithTracing(),
-		core.WithTracking(track, inclDelay.Broadcasted),
+		core.WithTracking(track, inclusion.Submitted),
 		core.WithAsyncRetry(retryer),
 	}
 	core.Wire(sched, fetch, cons, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
@@ -486,6 +486,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PConsensus, startCons)
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartAggSigDB, lifecycle.HookFuncCtx(aggSigDB.Run))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartParSigDB, lifecycle.HookFuncCtx(parSigDB.Trim))
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartTracker, lifecycle.HookFuncCtx(inclusion.Run))
 	life.RegisterStop(lifecycle.StopScheduler, lifecycle.HookFuncMin(sched.Stop))
 	life.RegisterStop(lifecycle.StopDutyDB, lifecycle.HookFuncMin(dutyDB.Shutdown))
 	life.RegisterStop(lifecycle.StopRetryer, lifecycle.HookFuncCtx(retryer.Shutdown))
