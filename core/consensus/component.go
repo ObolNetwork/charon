@@ -351,7 +351,7 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 
 	typ := qbft.MsgType(pbMsg.Msg.GetType())
 	if !typ.Valid() {
-		return nil, false, errors.New("invalid consensus message type", z.Str("type", typ.String()))
+		return nil, false, errors.New("invalid consensus message type", z.Int("type", int(typ)))
 	}
 
 	duty := core.DutyFromProto(pbMsg.Msg.Duty)
@@ -378,7 +378,7 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 
 		typ := qbft.MsgType(pbMsg.Msg.GetType())
 		if !typ.Valid() {
-			return nil, false, errors.New("invalid justification message type", z.Str("type", typ.String()))
+			return nil, false, errors.New("invalid justification message type", z.Int("type", int(typ)))
 		}
 
 		justDuty := core.DutyFromProto(justification.Duty)

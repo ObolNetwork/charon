@@ -109,7 +109,7 @@ func TestPartialLegacyNewMsg(t *testing.T) {
 func randomMsg(t *testing.T) *pbv1.QBFTMsg {
 	t.Helper()
 
-	msgType := rand.Int63() % int64(qbft.MsgSentinel)
+	msgType := 1 + rand.Int63n(int64(qbft.MsgDecided))
 	if msgType == 0 {
 		msgType = 1
 	}

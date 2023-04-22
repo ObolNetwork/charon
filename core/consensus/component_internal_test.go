@@ -419,11 +419,10 @@ func TestComponentHandle(t *testing.T) {
 			errorMsg: "invalid consensus message fields",
 		},
 		{
-			name: "invalid msg type",
+			name: "invalid consensus msg type",
 			msg: &pbv1.ConsensusMsg{
 				Msg: &pbv1.QBFTMsg{
 					Duty: &pbv1.Duty{},
-					Type: int64(qbft.MsgSentinel + 1),
 				},
 			},
 			errorMsg: "invalid consensus message type",

@@ -75,11 +75,11 @@ const (
 	MsgCommit      MsgType = 3
 	MsgRoundChange MsgType = 4
 	MsgDecided     MsgType = 5
-	MsgSentinel    MsgType = 6
+	msgSentinel    MsgType = 6
 )
 
 func (t MsgType) Valid() bool {
-	return t > MsgUnknown && t < MsgSentinel
+	return t > MsgUnknown && t < msgSentinel
 }
 
 func (t MsgType) String() string {
