@@ -453,9 +453,11 @@ func TestComponentHandle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var tc Component
-			tc.pubkeys = make(map[int64]*k1.PublicKey)
-			var err error
+			var (
+				tc  Component
+				err error
+			)
+
 			if tt.invalidMsg {
 				_, _, err = tc.handle(ctx, "", nil)
 			} else {
