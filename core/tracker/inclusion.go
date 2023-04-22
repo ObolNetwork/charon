@@ -17,6 +17,15 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
+const (
+	// inclCheckLag is the number of slots to lag before checking inclusion.
+	// Half an epoch is good compromise between finality and responsiveness.
+	inclCheckLag = 16
+	// trimEpochOffset is the number of epochs after which we delete cached submissions.
+	// This matches scheduler trimEpochOffset.
+	trimEpochOffset = 3
+)
+
 // submission represents a duty submitted to the beacon node/chain.
 type submission struct {
 	Duty     core.Duty
@@ -207,22 +216,30 @@ func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client) (*InclusionChecke
 		return nil, err
 	}
 
+	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	return &InclusionChecker{
 		incl: &inclusion{
 			attIncludedFunc: reportAttInclusion,
 			missedFunc:      reportMissed,
 		},
-		genesis:      genesis,
-		slotDuration: slotDuration,
+		eth2Cl:        eth2Cl,
+		genesis:       genesis,
+		slotDuration:  slotDuration,
+		slotsPerEpoch: int64(slotsPerEpoch),
 	}, nil
 }
 
 // InclusionChecker checks whether duties have been included in blocks.
 type InclusionChecker struct {
-	genesis      time.Time
-	slotDuration time.Duration
-	eth2Cl       eth2wrap.Client
-	incl         *inclusion
+	genesis       time.Time
+	slotDuration  time.Duration
+	slotsPerEpoch int64
+	eth2Cl        eth2wrap.Client
+	incl          *inclusion
 }
 
 // Submitted is called when a duty has been submitted.
@@ -242,7 +259,7 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			slot := int64(time.Since(a.genesis) / a.slotDuration)
+			slot := int64(time.Since(a.genesis)/a.slotDuration) - inclCheckLag
 			if checkedSlot == slot {
 				continue
 			} else if checkedSlot != 0 && checkedSlot+1 != slot {
@@ -251,9 +268,11 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 
 			if err := a.checkBlock(ctx, slot); err != nil {
 				log.Warn(ctx, "Failed to check inclusion", err, z.I64("slot", slot))
-			} else {
-				checkedSlot = slot
+				continue
 			}
+
+			checkedSlot = slot
+			a.incl.Trim(ctx, slot-(trimEpochOffset*a.slotsPerEpoch))
 		}
 	}
 }
