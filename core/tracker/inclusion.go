@@ -111,16 +111,17 @@ func (i *inclusion) Trim(ctx context.Context, slot int64) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
-	var newElements []submission
+	var remaining []submission
 	for _, sub := range i.submissions {
 		if sub.Duty.Slot > slot {
-			newElements = append(newElements, sub)
+			remaining = append(remaining, sub)
+			continue
 		}
 		if !sub.Included {
 			i.missedFunc(ctx, sub)
 		}
 	}
-	i.submissions = newElements
+	i.submissions = remaining
 }
 
 // CheckBlock checks whether the block includes any of the submitted duties.
