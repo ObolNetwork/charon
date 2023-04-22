@@ -21,9 +21,9 @@ const (
 	// inclCheckLag is the number of slots to lag before checking inclusion.
 	// Half an epoch is good compromise between finality and responsiveness.
 	inclCheckLag = 16
-	// trimEpochOffset is the number of epochs after which we delete cached submissions.
+	// inclTrimLag is the number of slots after which we delete cached submissions.
 	// This matches scheduler trimEpochOffset.
-	trimEpochOffset = 3
+	inclTrimLag = 32 * 3
 )
 
 // submission represents a duty submitted to the beacon node/chain.
@@ -219,30 +219,23 @@ func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client) (*InclusionChecke
 		return nil, err
 	}
 
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	return &InclusionChecker{
 		incl: &inclusion{
 			attIncludedFunc: reportAttInclusion,
 			missedFunc:      reportMissed,
 		},
-		eth2Cl:        eth2Cl,
-		genesis:       genesis,
-		slotDuration:  slotDuration,
-		slotsPerEpoch: int64(slotsPerEpoch),
+		eth2Cl:       eth2Cl,
+		genesis:      genesis,
+		slotDuration: slotDuration,
 	}, nil
 }
 
 // InclusionChecker checks whether duties have been included in blocks.
 type InclusionChecker struct {
-	genesis       time.Time
-	slotDuration  time.Duration
-	slotsPerEpoch int64
-	eth2Cl        eth2wrap.Client
-	incl          *inclusion
+	genesis      time.Time
+	slotDuration time.Duration
+	eth2Cl       eth2wrap.Client
+	incl         *inclusion
 }
 
 // Submitted is called when a duty has been submitted.
@@ -263,10 +256,8 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 			return
 		case <-ticker.C:
 			slot := int64(time.Since(a.genesis)/a.slotDuration) - inclCheckLag
-			if checkedSlot == slot {
+			if checkedSlot == slot || slot < 0 {
 				continue
-			} else if checkedSlot != 0 && checkedSlot+1 != slot {
-				slot = checkedSlot + 1 // We missed a slot, check the next one first
 			}
 
 			if err := a.checkBlock(ctx, slot); err != nil {
@@ -275,7 +266,7 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 			}
 
 			checkedSlot = slot
-			a.incl.Trim(ctx, slot-(trimEpochOffset*a.slotsPerEpoch))
+			a.incl.Trim(ctx, slot-inclTrimLag)
 		}
 	}
 }
@@ -285,8 +276,13 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot int64) error {
 	if err != nil {
 		return err
 	} else if len(atts) == 0 {
+		// TODO(corver): Remove this log, its probably too verbose
+		log.Debug(ctx, "Skipping missed block inclusion check", z.I64("slot", slot))
 		return nil // No block for this slot
 	}
+
+	// TODO(corver): Remove this log, its probably too verbose
+	log.Debug(ctx, "Checking block inclusion", z.I64("slot", slot))
 
 	attsMap := make(map[eth2p0.Root]*eth2p0.Attestation)
 	for _, att := range atts {
