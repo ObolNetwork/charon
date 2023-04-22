@@ -15,6 +15,7 @@ import (
 
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
+	"github.com/obolnetwork/charon/core/qbft"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -77,8 +78,7 @@ func TestNewMsg(t *testing.T) {
 	}
 
 	msg, err := newMsg(&pbv1.QBFTMsg{
-		Value:             any1,
-		PreparedValue:     any2,
+		Type:              int64(qbft.MsgPrePrepare),
 		ValueHash:         hash1[:],
 		PreparedValueHash: hash2[:],
 	}, nil, values)
@@ -91,20 +91,14 @@ func TestNewMsg(t *testing.T) {
 
 func TestPartialLegacyNewMsg(t *testing.T) {
 	val1 := timestamppb.New(time.Time{})
-	val2 := timestamppb.New(time.Now())
 	hash1, err := hashProto(val1)
 	require.NoError(t, err)
 
-	any1, err := anypb.New(val1)
-	require.NoError(t, err)
-	any2, err := anypb.New(val2)
-	require.NoError(t, err)
-
 	_, err = newMsg(&pbv1.QBFTMsg{
-		PreparedValue: any2,
+		Type: int64(qbft.MsgPrePrepare),
 	}, []*pbv1.QBFTMsg{
 		{
-			Value:     any1,
+			Type:      int64(qbft.MsgPrePrepare),
 			ValueHash: hash1[:],
 		},
 	}, make(map[[32]byte]*anypb.Any))
@@ -115,24 +109,17 @@ func TestPartialLegacyNewMsg(t *testing.T) {
 func randomMsg(t *testing.T) *pbv1.QBFTMsg {
 	t.Helper()
 
-	v, err := core.UnsignedDataSetToProto(testutil.RandomUnsignedDataSet(t))
-	require.NoError(t, err)
-	pv, err := core.UnsignedDataSetToProto(testutil.RandomUnsignedDataSet(t))
-	require.NoError(t, err)
-
-	anyV, err := anypb.New(v)
-	require.NoError(t, err)
-	anyPV, err := anypb.New(pv)
-	require.NoError(t, err)
+	msgType := 1 + rand.Int63n(int64(qbft.MsgDecided))
+	if msgType == 0 {
+		msgType = 1
+	}
 
 	return &pbv1.QBFTMsg{
-		Type:          rand.Int63(),
+		Type:          msgType,
 		Duty:          core.DutyToProto(core.Duty{Type: core.DutyType(rand.Int()), Slot: rand.Int63()}),
 		PeerIdx:       rand.Int63(),
 		Round:         rand.Int63(),
-		Value:         anyV,
 		PreparedRound: rand.Int63(),
-		PreparedValue: anyPV,
 		Signature:     nil,
 	}
 }
