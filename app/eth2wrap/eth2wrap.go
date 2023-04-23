@@ -225,10 +225,13 @@ func (m multi) NodePeerCount(ctx context.Context) (int, error) {
 // first successful result or first error.
 // The bestIdxFunc is called with the index of the client returning a successful response.
 func provide[O any](ctx context.Context, clients []Client,
-	work forkjoin.Work[Client, O], isSuccess func(O) bool, bestIdxFunc func(int),
+	work forkjoin.Work[Client, O], isSuccessFunc func(O) bool, bestIdxFunc func(int),
 ) (O, error) {
-	if isSuccess == nil {
-		isSuccess = func(O) bool { return true }
+	if isSuccessFunc == nil {
+		isSuccessFunc = func(O) bool { return true }
+	}
+	if bestIdxFunc == nil {
+		bestIdxFunc = func(int) {}
 	}
 
 	fork, join, cancel := forkjoin.New(ctx, work,
@@ -248,7 +251,7 @@ func provide[O any](ctx context.Context, clients []Client,
 	for res := range join() {
 		if ctx.Err() != nil {
 			return zero, ctx.Err()
-		} else if res.Err == nil && isSuccess(res.Output) {
+		} else if res.Err == nil && isSuccessFunc(res.Output) {
 			// TODO(corver): Find a better way to get the index of successful client.
 			for i, client := range clients {
 				if client.Address() == res.Input.Address() {
