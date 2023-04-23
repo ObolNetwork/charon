@@ -25,6 +25,25 @@ import (
 
 var longwaitDKG = flag.Bool("longwait", false, "Enable long-wait DKG integration test")
 
+// ^ : indicates node is online.
+// - : indicates node is offline.
+// Node 0 starts at t=0min and never goes offline.
+// Subsequent nodes start after an interval of 10min.
+// So, Node 1 starts at t=10min, Node 2 starts at t=20min and so on.
+// Each node except Node 0 stops for 2min in every 10min window before restarting again.
+// After the last node is started, no node goes offline and the DKG completes.
+// +========+============+============+============+============+
+// |  Node  |   0-10m    |   10-20m   |   20-30m   |   30-40m   |
+// +========+============+============+============+============+
+// | Node 0 | ^^^^^^^^^^ | ^^^^^^^^^^ | ^^^^^^^^^^ | ^^^^^^^^^^ |
+// +--------+------------+------------+------------+------------+
+// | Node 1 | ---------- | ^^^--^^^^^ | ^^^^^^--^^ | ^^^^^^^^^^ |
+// +--------+------------+------------+------------+------------+
+// | Node 2 | ---------- | ---------- | ^--^^^^^^^ | ^^^^^^^^^^ |
+// +--------+------------+------------+------------+------------+
+// | Node 3 | ---------- | ---------- | ---------- | ^^^^^^^^^^ |
+// +--------+------------+------------+------------+------------+
+
 func TestLongWaitDKG(t *testing.T) {
 	if !*longwaitDKG {
 		t.Skip("Long wait test is disabled")
@@ -91,7 +110,6 @@ func TestLongWaitDKG(t *testing.T) {
 }
 
 // mimicDKGNode mimics the behaviour of a DKG node that randomly stops for sometime before restarting again but finally participates in the DKG.
-// Note that node 0 never restarts and is active until DKG completes.
 func mimicDKGNode(ctx context.Context, t *testing.T, noRestart bool, dkgConf dkg.Config, window, nodeDownPeriod time.Duration, nodeIdx int, allNodesStarted chan struct{}) error {
 	t.Helper()
 
