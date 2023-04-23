@@ -23,7 +23,7 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-var longwaitDKG = flag.Bool("longwait", false, "Enable this long-wait test")
+var longwaitDKG = flag.Bool("longwait", false, "Enable long-wait DKG integration test")
 
 func TestLongWaitDKG(t *testing.T) {
 	if !*longwaitDKG {
@@ -54,6 +54,7 @@ func TestLongWaitDKG(t *testing.T) {
 	for i, p2pKey := range p2pKeys {
 		indx := i
 		p2pKey := p2pKey
+		noRestart := indx == 0
 		if indx > 0 {
 			time.Sleep(window)
 		}
@@ -77,7 +78,7 @@ func TestLongWaitDKG(t *testing.T) {
 
 			log.Debug(ctx, "Starting node (1st time)", z.Int("node", indx))
 
-			return mimicDKGNode(ctx, t, dkgConf, window, nodeDownPeriod, indx, allNodesStarted)
+			return mimicDKGNode(ctx, t, noRestart, dkgConf, window, nodeDownPeriod, indx, allNodesStarted)
 		})
 	}
 
@@ -90,17 +91,15 @@ func TestLongWaitDKG(t *testing.T) {
 }
 
 // mimicDKGNode mimics the behaviour of a DKG node that randomly stops for sometime before restarting again but finally participates in the DKG.
-func mimicDKGNode(ctx context.Context, t *testing.T, dkgConf dkg.Config, window, nodeDownPeriod time.Duration, nodeIdx int, allNodesStarted chan struct{}) error {
+// Note that node 0 never restarts and is active until DKG completes.
+func mimicDKGNode(ctx context.Context, t *testing.T, noRestart bool, dkgConf dkg.Config, window, nodeDownPeriod time.Duration, nodeIdx int, allNodesStarted chan struct{}) error {
 	t.Helper()
 
+	if noRestart {
+		return dkg.Run(ctx, dkgConf)
+	}
+
 	for {
-		ctx, cancel := context.WithCancel(ctx)
-		go func(ctx context.Context) {
-			_ = dkg.Run(ctx, dkgConf)
-		}(ctx)
-
-		log.Debug(ctx, "Started DKG node", z.Int("node", nodeIdx))
-
 		var allStarted bool
 		select {
 		case <-allNodesStarted:
@@ -109,21 +108,28 @@ func mimicDKGNode(ctx context.Context, t *testing.T, dkgConf dkg.Config, window,
 			break
 		}
 
-		delayToKill, remainingDelay := calcKillDelay(window, nodeDownPeriod, allStarted)
+		if allStarted { // Do the final DKG since all nodes are up now
+			break
+		}
 
-		// Wait some random duration before killing the node
-		log.Debug(ctx, "Killing node after delay", z.Int("node", nodeIdx), z.Int("delay", delayToKill))
+		ctx, cancel := context.WithCancel(ctx)
+		go func(ctx context.Context) {
+			_ = dkg.Run(ctx, dkgConf)
+		}(ctx)
+
+		log.Debug(ctx, "Started DKG node", z.Int("node", nodeIdx))
+
+		delayToKill, remainingDelay := calcStopDelay(window, nodeDownPeriod)
+
+		// Wait some random duration before stopping the node
+		log.Debug(ctx, "Stopping node after delay", z.Int("node", nodeIdx), z.Int("delay", delayToKill))
 		<-time.After(time.Duration(delayToKill) * time.Second)
 		cancel()
-		log.Debug(ctx, "Node killed", z.Int("node", nodeIdx))
+		log.Debug(ctx, "Node stopped", z.Int("node", nodeIdx))
 
 		// Wait till remaining time before restarting the node
 		log.Debug(ctx, "Waiting before restarting node", z.Int("node", nodeIdx), z.Int("delay", remainingDelay))
 		<-time.After(time.Duration(remainingDelay) * time.Second)
-
-		if allStarted {
-			break
-		}
 	}
 
 	// Run final DKG
@@ -141,27 +147,20 @@ func testDef(t *testing.T, threshold, numNodes, numVals int) (cluster.Definition
 	return lock.Definition, p2pKeys
 }
 
-// calcKillDelay returns a random delay that the calling process must wait before killing a DKG node. It also returns a remaining delay
-// which the calling process must wait after killing a node and before restarting it again.
-func calcKillDelay(window, nodeDownPeriod time.Duration, allStarted bool) (int, int) {
-	var modVal int
-
+// calcStopDelay returns a random delay that the calling process must wait before stopping a DKG node. It also returns a remaining delay
+// which the calling process must wait after stopping a node and before starting it again.
+func calcStopDelay(window, nodeDownPeriod time.Duration) (int, int) {
 	windowVal := int(window / time.Second)
 	nodeDownPeriodVal := int(nodeDownPeriod / time.Second)
-	if allStarted {
-		// If the last node has started, we need to have all nodes active at the last slot of window
-		modVal = windowVal - (2*nodeDownPeriodVal - 1)
-	} else {
-		modVal = windowVal - (nodeDownPeriodVal - 1)
+	modVal := windowVal - (nodeDownPeriodVal - 1)
+
+	stopDelay := rand.Int() % modVal
+	if stopDelay == 0 {
+		stopDelay = 1 // Don't kill the node instantly, rather wait 1min
 	}
 
-	// Let's say we kill the dkg in x time, then we wait for (window-x) time to elapse before starting another dkg instance.
-	delayToKill := rand.Int() % modVal
-	if delayToKill == 0 {
-		delayToKill = 1 // Don't kill the node instantly, rather wait 1s
-	}
+	// If we stop the dkg in x min, then we wait for (window-x) min to elapse before restarting
+	remainingDelay := windowVal - stopDelay
 
-	remainingDelay := windowVal - delayToKill
-
-	return delayToKill, remainingDelay
+	return stopDelay, remainingDelay
 }
