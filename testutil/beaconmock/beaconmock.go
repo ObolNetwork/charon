@@ -150,7 +150,7 @@ type Mock struct {
 }
 
 func (Mock) SetValidatorCache(func(context.Context) (eth2wrap.ActiveValidators, error)) {
-	panic("unsupported")
+	// Ignore this, only rely on WithValidator functional option.
 }
 
 func (m Mock) ActiveValidators(ctx context.Context) (eth2wrap.ActiveValidators, error) {
