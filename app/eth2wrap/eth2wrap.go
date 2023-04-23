@@ -59,10 +59,10 @@ func Instrument(clients ...Client) (Client, error) {
 }
 
 // WithSyntheticDuties wraps the provided client adding synthetic duties.
-func WithSyntheticDuties(cl Client, pubkeys []eth2p0.BLSPubKey) Client {
+func WithSyntheticDuties(cl Client) Client {
 	return &synthWrapper{
 		Client:             cl,
-		synthProposerCache: newSynthProposerCache(pubkeys),
+		synthProposerCache: newSynthProposerCache(),
 		feeRecipients:      make(map[eth2p0.ValidatorIndex]bellatrix.ExecutionAddress),
 	}
 }

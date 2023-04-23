@@ -697,7 +697,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 
 		if conf.SyntheticBlockProposals {
 			log.Info(ctx, "Synthetic block proposals enabled")
-			wrap = eth2wrap.WithSyntheticDuties(wrap, pubkeys)
+			wrap = eth2wrap.WithSyntheticDuties(wrap)
 		}
 
 		life.RegisterStop(lifecycle.StopBeaconMock, lifecycle.HookFuncErr(bmock.Close))
@@ -716,7 +716,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 
 	if conf.SyntheticBlockProposals {
 		log.Info(ctx, "Synthetic block proposals enabled")
-		eth2Cl = eth2wrap.WithSyntheticDuties(eth2Cl, pubkeys)
+		eth2Cl = eth2wrap.WithSyntheticDuties(eth2Cl)
 	}
 
 	// Check BN chain/network.

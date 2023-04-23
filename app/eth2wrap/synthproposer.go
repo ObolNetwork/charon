@@ -241,9 +241,8 @@ func IsSyntheticBlock(block *spec.VersionedSignedBeaconBlock) bool {
 }
 
 // synthProposerCache returns a new cache for synthetic proposer duties.
-func newSynthProposerCache(pubkeys []eth2p0.BLSPubKey) *synthProposerCache {
+func newSynthProposerCache() *synthProposerCache {
 	return &synthProposerCache{
-		pubkeys:     pubkeys,
 		duties:      make(map[eth2p0.Epoch][]*eth2v1.ProposerDuty),
 		synths:      make(map[eth2p0.Epoch]map[eth2p0.Slot]eth2p0.ValidatorIndex),
 		shuffleFunc: eth2Shuffle,
@@ -255,7 +254,6 @@ func newSynthProposerCache(pubkeys []eth2p0.BLSPubKey) *synthProposerCache {
 // Since only a single validator can be a proposer per slot, we require all
 // validators to calculate the synthetic duties for the whole set.
 type synthProposerCache struct {
-	pubkeys []eth2p0.BLSPubKey
 	// shuffleFunc deterministically shuffles the validator indices for the epoch.
 	shuffleFunc func(eth2p0.Epoch, []eth2p0.ValidatorIndex) []eth2p0.ValidatorIndex
 

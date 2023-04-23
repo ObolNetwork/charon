@@ -108,14 +108,13 @@ func (l *lazy) ActiveValidators(ctx context.Context) (ActiveValidators, error) {
 }
 
 func (l *lazy) SetValidatorCache(valCache func(context.Context) (ActiveValidators, error)) {
+	l.clientMu.Lock()
+	l.valCache = valCache
+	l.clientMu.Unlock()
+
 	if cl, ok := l.getClient(); ok {
 		cl.SetValidatorCache(valCache)
 	}
-
-	l.clientMu.Lock()
-	defer l.clientMu.Unlock()
-
-	l.valCache = valCache
 }
 
 func (l *lazy) AggregateBeaconCommitteeSelections(ctx context.Context, partialSelections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {

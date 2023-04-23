@@ -66,7 +66,7 @@ func TestSynthProposer(t *testing.T) {
 		return signedBeaconBlock(ctx, blockID)
 	}
 
-	eth2Cl := eth2wrap.WithSyntheticDuties(bmock, set.PublicKeys())
+	eth2Cl := eth2wrap.WithSyntheticDuties(bmock)
 
 	var preps []*eth2v1.ProposalPreparation
 	for vIdx := range set {
