@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -190,6 +191,15 @@ func InitLogger(config Config) error {
 	}
 
 	return nil
+}
+
+// WithClock returns a function that uses the provided clock to encode log timestamps.
+func WithClock(clock clockwork.Clock) func(config *zapcore.EncoderConfig) {
+	return func(config *zapcore.EncoderConfig) {
+		config.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
+			enc.AppendString(clock.Now().Format("15:04:05.000"))
+		}
+	}
 }
 
 // InitConsoleForT initialises a console logger for testing purposes.
