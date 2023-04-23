@@ -92,7 +92,7 @@ func TestSimulatorOnce(t *testing.T) {
 }
 
 func TestMatrix(t *testing.T) {
-	t.Skip("Skip matrix test") // Uncomment this to run the test.
+	t.Skip("Skip matrix test") // Comment this to run the test.
 
 	timers := []Named[roundTimerFunc]{
 		{"inc", incTimer},
