@@ -14,9 +14,9 @@ import (
 )
 
 func TestInclusion(t *testing.T) {
-	//  Setup inclusion with a mock missedFunc and attIncludedFunc
+	//  Setup inclusionCore with a mock missedFunc and attIncludedFunc
 	var missed, included []core.Duty
-	incl := &inclusion{
+	incl := &inclusionCore{
 		missedFunc: func(ctx context.Context, sub submission) {
 			missed = append(missed, sub.Duty)
 		},

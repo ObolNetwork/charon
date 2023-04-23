@@ -51,9 +51,9 @@ var supported = map[core.DutyType]bool{
 	// TODO(corver) Add support for sync committee and exit duties
 }
 
-// inclusion tracks the inclusion of submitted duties.
+// inclusionCore tracks the inclusionCore of submitted duties.
 // It has a simplified API to allow for easy testing.
-type inclusion struct {
+type inclusionCore struct {
 	mu          sync.Mutex
 	submissions []submission
 
@@ -63,7 +63,7 @@ type inclusion struct {
 
 // Submitted is called when a duty is submitted to the beacon node.
 // It adds the duty to the list of submitted duties.
-func (i *inclusion) Submitted(duty core.Duty, pubkey core.PubKey, data core.SignedData, delay time.Duration) error {
+func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.SignedData, delay time.Duration) error {
 	if !supported[duty.Type] {
 		return nil
 	}
@@ -107,7 +107,7 @@ func (i *inclusion) Submitted(duty core.Duty, pubkey core.PubKey, data core.Sign
 
 // Trim removes all duties that are older than the specified slot.
 // It also calls the missedFunc for any duties that have not been included.
-func (i *inclusion) Trim(ctx context.Context, slot int64) {
+func (i *inclusionCore) Trim(ctx context.Context, slot int64) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
@@ -125,7 +125,7 @@ func (i *inclusion) Trim(ctx context.Context, slot int64) {
 }
 
 // CheckBlock checks whether the block includes any of the submitted duties.
-func (i *inclusion) CheckBlock(ctx context.Context, block block) {
+func (i *inclusionCore) CheckBlock(ctx context.Context, block block) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
@@ -186,9 +186,11 @@ func reportMissed(ctx context.Context, sub submission) {
 	}
 }
 
+// reportAttInclusion reports the inclusionCore of an attestation.
 func reportAttInclusion(ctx context.Context, sub submission, block block) {
-	blockSlot := block.Slot
+	aggregated := len(block.Attestations[sub.AttRoot].AggregationBits.BitIndices()) > 1
 	attSlot := int64(block.Attestations[sub.AttRoot].Data.Slot)
+	blockSlot := block.Slot
 	inclDelay := block.Slot - attSlot
 
 	msg := "Block included attestation"
@@ -202,6 +204,7 @@ func reportAttInclusion(ctx context.Context, sub submission, block block) {
 		z.Any("pubkey", sub.Pubkey),
 		z.I64("inclusion_delay", inclDelay),
 		z.Any("broadcast_delay", sub.Delay),
+		z.Bool("aggregated", aggregated),
 	)
 
 	inclusionDelay.Set(float64(blockSlot - attSlot))
@@ -220,7 +223,7 @@ func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client) (*InclusionChecke
 	}
 
 	return &InclusionChecker{
-		incl: &inclusion{
+		core: &inclusionCore{
 			attIncludedFunc: reportAttInclusion,
 			missedFunc:      reportMissed,
 		},
@@ -235,13 +238,13 @@ type InclusionChecker struct {
 	genesis      time.Time
 	slotDuration time.Duration
 	eth2Cl       eth2wrap.Client
-	incl         *inclusion
+	core         *inclusionCore
 }
 
 // Submitted is called when a duty has been submitted.
 func (a *InclusionChecker) Submitted(duty core.Duty, pubkey core.PubKey, data core.SignedData) error {
 	slotStart := a.genesis.Add(a.slotDuration * time.Duration(duty.Slot))
-	return a.incl.Submitted(duty, pubkey, data, time.Since(slotStart))
+	return a.core.Submitted(duty, pubkey, data, time.Since(slotStart))
 }
 
 func (a *InclusionChecker) Run(ctx context.Context) {
@@ -261,12 +264,12 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 			}
 
 			if err := a.checkBlock(ctx, slot); err != nil {
-				log.Warn(ctx, "Failed to check inclusion", err, z.I64("slot", slot))
+				log.Warn(ctx, "Failed to check inclusionCore", err, z.I64("slot", slot))
 				continue
 			}
 
 			checkedSlot = slot
-			a.incl.Trim(ctx, slot-inclTrimLag)
+			a.core.Trim(ctx, slot-inclTrimLag)
 		}
 	}
 }
@@ -277,12 +280,12 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot int64) error {
 		return err
 	} else if len(atts) == 0 {
 		// TODO(corver): Remove this log, its probably too verbose
-		log.Debug(ctx, "Skipping missed block inclusion check", z.I64("slot", slot))
+		log.Debug(ctx, "Skipping missed block inclusionCore check", z.I64("slot", slot))
 		return nil // No block for this slot
 	}
 
 	// TODO(corver): Remove this log, its probably too verbose
-	log.Debug(ctx, "Checking block inclusion", z.I64("slot", slot))
+	log.Debug(ctx, "Checking block inclusionCore", z.I64("slot", slot))
 
 	attsMap := make(map[eth2p0.Root]*eth2p0.Attestation)
 	for _, att := range atts {
@@ -294,7 +297,7 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot int64) error {
 		attsMap[root] = att
 	}
 
-	a.incl.CheckBlock(ctx, block{Slot: slot, Attestations: attsMap})
+	a.core.CheckBlock(ctx, block{Slot: slot, Attestations: attsMap})
 
 	return nil
 }
