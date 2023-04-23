@@ -565,19 +565,14 @@ func (c Component) SubmitValidatorRegistrations(ctx context.Context, registratio
 
 // SubmitVoluntaryExit receives the partially signed voluntary exit.
 func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error {
-	vals, err := c.eth2Cl.Validators(ctx, "head", []eth2p0.ValidatorIndex{exit.Message.ValidatorIndex})
+	vals, err := c.eth2Cl.ActiveValidators(ctx)
 	if err != nil {
 		return err
 	}
 
-	validator, ok := vals[exit.Message.ValidatorIndex]
+	eth2Pubkey, ok := vals[exit.Message.ValidatorIndex]
 	if !ok {
 		return errors.New("validator not found")
-	}
-
-	eth2Pubkey, err := validator.PubKey(ctx)
-	if err != nil {
-		return err
 	}
 
 	pubkey, err := core.PubKeyFromBytes(eth2Pubkey[:])
@@ -617,21 +612,16 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 
 // AggregateBeaconCommitteeSelections returns aggregate beacon committee selection proofs.
 func (c Component) AggregateBeaconCommitteeSelections(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
-	var valIdxs []eth2p0.ValidatorIndex
-	for _, selection := range selections {
-		valIdxs = append(valIdxs, selection.ValidatorIndex)
-	}
-
-	vals, err := c.eth2Cl.Validators(ctx, "head", valIdxs)
+	vals, err := c.eth2Cl.ActiveValidators(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
 	for _, selection := range selections {
-		eth2Pubkey, err := vals[selection.ValidatorIndex].PubKey(ctx)
-		if err != nil {
-			return nil, err
+		eth2Pubkey, ok := vals[selection.ValidatorIndex]
+		if !ok {
+			return nil, errors.Wrap(err, "validator not found")
 		}
 
 		pubkey, err := core.PubKeyFromBytes(eth2Pubkey[:])
@@ -647,7 +637,7 @@ func (c Component) AggregateBeaconCommitteeSelections(ctx context.Context, selec
 			return nil, err
 		}
 
-		_, ok := psigsBySlot[selection.Slot]
+		_, ok = psigsBySlot[selection.Slot]
 		if !ok {
 			psigsBySlot[selection.Slot] = make(core.ParSignedDataSet)
 		}
@@ -678,12 +668,7 @@ func (c Component) AggregateAttestation(ctx context.Context, slot eth2p0.Slot, a
 // - It verifies partial signature on AggregateAndProof.
 // - It then calls all the subscribers for further steps on partially signed aggregate and proof.
 func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
-	var valIdxs []eth2p0.ValidatorIndex
-	for _, agg := range aggregateAndProofs {
-		valIdxs = append(valIdxs, agg.Message.AggregatorIndex)
-	}
-
-	vals, err := c.eth2Cl.Validators(ctx, "head", valIdxs)
+	vals, err := c.eth2Cl.ActiveValidators(ctx)
 	if err != nil {
 		return err
 	}
@@ -691,9 +676,9 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
 	for _, agg := range aggregateAndProofs {
 		slot := agg.Message.Aggregate.Data.Slot
-		eth2Pubkey, err := vals[agg.Message.AggregatorIndex].PubKey(ctx)
-		if err != nil {
-			return err
+		eth2Pubkey, ok := vals[agg.Message.AggregatorIndex]
+		if !ok {
+			return errors.New("validator not found")
 		}
 
 		pk, err := core.PubKeyFromBytes(eth2Pubkey[:])
@@ -717,7 +702,7 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 			return err
 		}
 
-		_, ok := psigsBySlot[slot]
+		_, ok = psigsBySlot[slot]
 		if !ok {
 			psigsBySlot[slot] = make(core.ParSignedDataSet)
 		}
@@ -745,12 +730,7 @@ func (c Component) SyncCommitteeContribution(ctx context.Context, slot eth2p0.Sl
 
 // SubmitSyncCommitteeMessages receives the partially signed altair.SyncCommitteeMessage.
 func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*altair.SyncCommitteeMessage) error {
-	var valIdxs []eth2p0.ValidatorIndex
-	for _, msg := range messages {
-		valIdxs = append(valIdxs, msg.ValidatorIndex)
-	}
-
-	vals, err := c.eth2Cl.Validators(ctx, "head", valIdxs)
+	vals, err := c.eth2Cl.ActiveValidators(ctx)
 	if err != nil {
 		return err
 	}
@@ -758,9 +738,9 @@ func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*
 	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
 	for _, msg := range messages {
 		slot := msg.Slot
-		eth2Pubkey, err := vals[msg.ValidatorIndex].PubKey(ctx)
-		if err != nil {
-			return err
+		eth2Pubkey, ok := vals[msg.ValidatorIndex]
+		if !ok {
+			return errors.New("validator not found")
 		}
 
 		pk, err := core.PubKeyFromBytes(eth2Pubkey[:])
@@ -774,7 +754,7 @@ func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*
 			return err
 		}
 
-		_, ok := psigsBySlot[slot]
+		_, ok = psigsBySlot[slot]
 		if !ok {
 			psigsBySlot[slot] = make(core.ParSignedDataSet)
 		}
@@ -799,12 +779,7 @@ func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*
 // - It verifies partial signature on ContributionAndProof.
 // - It then calls all the subscribers for further steps on partially signed contribution and proof.
 func (c Component) SubmitSyncCommitteeContributions(ctx context.Context, contributionAndProofs []*altair.SignedContributionAndProof) error {
-	var valIdxs []eth2p0.ValidatorIndex
-	for _, c := range contributionAndProofs {
-		valIdxs = append(valIdxs, c.Message.AggregatorIndex)
-	}
-
-	vals, err := c.eth2Cl.Validators(ctx, "head", valIdxs)
+	vals, err := c.eth2Cl.ActiveValidators(ctx)
 	if err != nil {
 		return err
 	}
@@ -815,9 +790,9 @@ func (c Component) SubmitSyncCommitteeContributions(ctx context.Context, contrib
 			slot = contrib.Message.Contribution.Slot
 			vIdx = contrib.Message.AggregatorIndex
 		)
-		eth2Pubkey, err := vals[vIdx].PubKey(ctx)
-		if err != nil {
-			return err
+		eth2Pubkey, ok := vals[vIdx]
+		if !ok {
+			return errors.New("validator not found")
 		}
 
 		pk, err := core.PubKeyFromBytes(eth2Pubkey[:])
@@ -841,7 +816,7 @@ func (c Component) SubmitSyncCommitteeContributions(ctx context.Context, contrib
 			return err
 		}
 
-		_, ok := psigsBySlot[slot]
+		_, ok = psigsBySlot[slot]
 		if !ok {
 			psigsBySlot[slot] = make(core.ParSignedDataSet)
 		}
@@ -864,21 +839,16 @@ func (c Component) SubmitSyncCommitteeContributions(ctx context.Context, contrib
 
 // AggregateSyncCommitteeSelections returns aggregate sync committee selection proofs.
 func (c Component) AggregateSyncCommitteeSelections(ctx context.Context, partialSelections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
-	var valIdxs []eth2p0.ValidatorIndex
-	for _, selection := range partialSelections {
-		valIdxs = append(valIdxs, selection.ValidatorIndex)
-	}
-
-	vals, err := c.eth2Cl.Validators(ctx, "head", valIdxs)
+	vals, err := c.eth2Cl.ActiveValidators(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
 	for _, selection := range partialSelections {
-		eth2Pubkey, err := vals[selection.ValidatorIndex].PubKey(ctx)
-		if err != nil {
-			return nil, err
+		eth2Pubkey, ok := vals[selection.ValidatorIndex]
+		if !ok {
+			return nil, errors.New("validator not found")
 		}
 
 		pubkey, err := core.PubKeyFromBytes(eth2Pubkey[:])
@@ -894,7 +864,7 @@ func (c Component) AggregateSyncCommitteeSelections(ctx context.Context, partial
 			return nil, err
 		}
 
-		_, ok := psigsBySlot[selection.Slot]
+		_, ok = psigsBySlot[selection.Slot]
 		if !ok {
 			psigsBySlot[selection.Slot] = make(core.ParSignedDataSet)
 		}

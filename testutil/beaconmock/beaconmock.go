@@ -117,6 +117,7 @@ type Mock struct {
 	clock        clockwork.Clock
 	headProducer *headProducer
 
+	ActiveValidatorsFunc                   func(ctx context.Context) (eth2wrap.ActiveValidators, error)
 	AttestationDataFunc                    func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
 	AttesterDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
 	BlockAttestationsFunc                  func(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error)
@@ -146,7 +147,14 @@ type Mock struct {
 	SyncCommitteeContributionFunc          func(ctx context.Context, slot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	SubmitSyncCommitteeSubscriptionsFunc   func(ctx context.Context, subscriptions []*eth2v1.SyncCommitteeSubscription) error
 	SubmitProposalPreparationsFunc         func(ctx context.Context, preparations []*eth2v1.ProposalPreparation) error
-	getAllValidatorsFunc                   func(ctx context.Context) []*eth2v1.Validator
+}
+
+func (Mock) SetValidatorCache(func(context.Context) (eth2wrap.ActiveValidators, error)) {
+	panic("unsupported")
+}
+
+func (m Mock) ActiveValidators(ctx context.Context) (eth2wrap.ActiveValidators, error) {
+	return m.ActiveValidatorsFunc(ctx)
 }
 
 func (m Mock) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
@@ -286,8 +294,4 @@ func (m Mock) Close() error {
 	}
 
 	return nil
-}
-
-func (m Mock) getAllValidators(ctx context.Context) []*eth2v1.Validator {
-	return m.getAllValidatorsFunc(ctx)
 }

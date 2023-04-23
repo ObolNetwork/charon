@@ -22,13 +22,15 @@ import (
 )
 
 // wireValidatorMock wires the validator mock if enabled. It connects via http validatorapi.Router.
-func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Scheduler) error {
+func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Scheduler,
+	valCache *eth2wrap.ValidatorCache,
+) error {
 	if !conf.SimnetVMock {
 		return nil
 	}
 
 	// Create stateful wrapper
-	vMockWrap, err := newVMockWrapper(conf, pubshares)
+	vMockWrap, err := newVMockWrapper(conf, pubshares, valCache)
 	if err != nil {
 		return err
 	}
@@ -75,7 +77,7 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 	// Handle duties when triggered.
 	sched.SubscribeDuties(func(ctx context.Context, duty core.Duty, _ core.DutyDefinitionSet) error {
 		vMockWrap(ctx, duty.Slot, func(ctx context.Context, state vMockState) error {
-			return handleVMockDuty(ctx, duty, state.Eth2Cl, state.SignFunc, pubshares, state.Attester, state.SyncCommMember)
+			return handleVMockDuty(ctx, duty, state.Eth2Cl, state.SignFunc, state.Attester, state.SyncCommMember)
 		})
 
 		return nil
@@ -105,14 +107,15 @@ type vMockState struct {
 type vMockCallback func(context.Context, vMockState) error
 
 // newVMockWrapper returns a stateful validator mock wrapper function.
-func newVMockWrapper(conf Config, pubshares []eth2p0.BLSPubKey) (func(ctx context.Context, slot int64, callback vMockCallback), error) {
+func newVMockWrapper(conf Config, pubshares []eth2p0.BLSPubKey, valCache *eth2wrap.ValidatorCache,
+) (func(ctx context.Context, slot int64, callback vMockCallback), error) {
 	// Immutable state and providers.
 	signFunc, err := newVMockSigner(conf, pubshares)
 	if err != nil {
 		return nil, err
 	}
 
-	eth2ClProvider := newVMockEth2Provider(conf)
+	eth2ClProvider := newVMockEth2Provider(conf, valCache)
 
 	// Mutable state
 	var (
@@ -169,7 +172,7 @@ func newVMockWrapper(conf Config, pubshares []eth2p0.BLSPubKey) (func(ctx contex
 }
 
 // newVMockEth2Provider returns a function that returns a cached validator mock eth2 client.
-func newVMockEth2Provider(conf Config) func() (eth2wrap.Client, error) {
+func newVMockEth2Provider(conf Config, valCache *eth2wrap.ValidatorCache) func() (eth2wrap.Client, error) {
 	var (
 		cached eth2wrap.Client
 		mu     sync.Mutex
@@ -204,6 +207,7 @@ func newVMockEth2Provider(conf Config) func() (eth2wrap.Client, error) {
 			}
 
 			cached = eth2wrap.AdaptEth2HTTP(eth2Http, timeout)
+			cached.SetValidatorCache(valCache.Get)
 		}
 
 		return cached, err
@@ -244,7 +248,7 @@ func newVMockSigner(conf Config, pubshares []eth2p0.BLSPubKey) (validatormock.Si
 
 // handleVMockDuty calls appropriate validator mock function for attestations, block proposals and sync committee contributions.
 func handleVMockDuty(ctx context.Context, duty core.Duty, eth2Cl eth2wrap.Client,
-	signer validatormock.SignFunc, pubshares []eth2p0.BLSPubKey, attester *validatormock.SlotAttester,
+	signer validatormock.SignFunc, attester *validatormock.SlotAttester,
 	syncCommMember *validatormock.SyncCommMember,
 ) error {
 	switch duty.Type {
@@ -262,13 +266,13 @@ func handleVMockDuty(ctx context.Context, duty core.Duty, eth2Cl eth2wrap.Client
 			log.Info(ctx, "Mock aggregation submitted to validatorapi", z.I64("slot", duty.Slot))
 		}
 	case core.DutyProposer:
-		err := validatormock.ProposeBlock(ctx, eth2Cl, signer, eth2p0.Slot(duty.Slot), pubshares...)
+		err := validatormock.ProposeBlock(ctx, eth2Cl, signer, eth2p0.Slot(duty.Slot))
 		if err != nil {
 			return errors.Wrap(err, "mock proposal failed")
 		}
 		log.Info(ctx, "Mock block proposal submitted to validatorapi", z.I64("slot", duty.Slot))
 	case core.DutyBuilderProposer:
-		err := validatormock.ProposeBlindedBlock(ctx, eth2Cl, signer, eth2p0.Slot(duty.Slot), pubshares...)
+		err := validatormock.ProposeBlindedBlock(ctx, eth2Cl, signer, eth2p0.Slot(duty.Slot))
 		if err != nil {
 			return errors.Wrap(err, "mock builder proposal failed")
 		}

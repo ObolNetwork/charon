@@ -26,6 +26,7 @@ type lazy struct {
 
 	clientMu sync.RWMutex
 	client   Client
+	valCache func(context.Context) (ActiveValidators, error)
 }
 
 // getClient returns the client and true if it is available.
@@ -40,6 +41,10 @@ func (l *lazy) getClient() (Client, bool) {
 func (l *lazy) setClient(client Client) {
 	l.clientMu.Lock()
 	defer l.clientMu.Unlock()
+
+	if l.valCache != nil {
+		client.SetValidatorCache(l.valCache)
+	}
 
 	l.client = client
 }
@@ -91,6 +96,26 @@ func (l *lazy) Address() string {
 	}
 
 	return cl.Address()
+}
+
+func (l *lazy) ActiveValidators(ctx context.Context) (ActiveValidators, error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return cl.ActiveValidators(ctx)
+}
+
+func (l *lazy) SetValidatorCache(valCache func(context.Context) (ActiveValidators, error)) {
+	if cl, ok := l.getClient(); ok {
+		cl.SetValidatorCache(valCache)
+	}
+
+	l.clientMu.Lock()
+	defer l.clientMu.Unlock()
+
+	l.valCache = valCache
 }
 
 func (l *lazy) AggregateBeaconCommitteeSelections(ctx context.Context, partialSelections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {

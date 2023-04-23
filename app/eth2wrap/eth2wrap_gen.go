@@ -25,6 +25,9 @@ type Client interface {
 	BlockAttestationsProvider
 	NodePeerCountProvider
 
+	ActiveValidatorsProvider
+	SetValidatorCache(func(context.Context) (ActiveValidators, error))
+
 	eth2client.AggregateAttestationProvider
 	eth2client.AggregateAttestationsSubmitter
 	eth2client.AttestationDataProvider

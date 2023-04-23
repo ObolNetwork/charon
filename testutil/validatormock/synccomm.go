@@ -53,7 +53,7 @@ type SyncCommMember struct {
 	// Mutable state
 	mutable struct {
 		sync.Mutex
-		vals         validators                     // Current set of active validators
+		vals         eth2wrap.ActiveValidators      // Current set of active validators
 		duties       syncDuties                     // Sync committee duties
 		selections   map[eth2p0.Slot]syncSelections // Sync committee selections per slot
 		selectionsOK map[eth2p0.Slot]chan struct{}
@@ -144,7 +144,7 @@ func (s *SyncCommMember) getBlockRootOK(slot eth2p0.Slot) chan struct{} {
 	return ch
 }
 
-func (s *SyncCommMember) setDuties(vals validators, duties syncDuties) {
+func (s *SyncCommMember) setDuties(vals eth2wrap.ActiveValidators, duties syncDuties) {
 	s.mutable.Lock()
 	defer s.mutable.Unlock()
 
@@ -160,7 +160,7 @@ func (s *SyncCommMember) getDuties() syncDuties {
 	return s.mutable.duties
 }
 
-func (s *SyncCommMember) getVals() validators {
+func (s *SyncCommMember) getVals() eth2wrap.ActiveValidators {
 	s.mutable.Lock()
 	defer s.mutable.Unlock()
 
@@ -169,7 +169,7 @@ func (s *SyncCommMember) getVals() validators {
 
 // PrepareEpoch stores sync committee duties and submits sync committee subscriptions at the start of an epoch.
 func (s *SyncCommMember) PrepareEpoch(ctx context.Context) error {
-	vals, err := activeValidators(ctx, s.eth2Cl, s.pubkeys)
+	vals, err := s.eth2Cl.ActiveValidators(ctx)
 	if err != nil {
 		return err
 	}
@@ -237,17 +237,12 @@ func (s *SyncCommMember) Aggregate(ctx context.Context, slot eth2p0.Slot) (bool,
 }
 
 // prepareSyncCommDuties returns sync committee duties for the epoch.
-func prepareSyncCommDuties(ctx context.Context, eth2Cl eth2wrap.Client, vals validators, epoch eth2p0.Epoch) (syncDuties, error) {
+func prepareSyncCommDuties(ctx context.Context, eth2Cl eth2wrap.Client, vals eth2wrap.ActiveValidators, epoch eth2p0.Epoch) (syncDuties, error) {
 	if len(vals) == 0 {
 		return nil, nil
 	}
 
-	var vIdxs []eth2p0.ValidatorIndex
-	for idx := range vals {
-		vIdxs = append(vIdxs, idx)
-	}
-
-	return eth2Cl.SyncCommitteeDuties(ctx, epoch, vIdxs)
+	return eth2Cl.SyncCommitteeDuties(ctx, epoch, vals.Indices())
 }
 
 // subscribeSyncCommSubnets submits sync committee subscriptions at the start of an epoch until next epoch.
@@ -276,7 +271,9 @@ func subscribeSyncCommSubnets(ctx context.Context, eth2Cl eth2wrap.Client, epoch
 }
 
 // prepareSyncSelections returns the aggregate sync committee selections for the slot corresponding to the provided validators.
-func prepareSyncSelections(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, duties syncDuties, slot eth2p0.Slot) (syncSelections, error) {
+func prepareSyncSelections(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
+	duties syncDuties, slot eth2p0.Slot,
+) (syncSelections, error) {
 	if len(duties) == 0 {
 		return nil, nil
 	}
@@ -414,8 +411,8 @@ func submitSyncMessages(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0
 }
 
 // aggContributions submits aggregate altair.SignedContributionAndProof. It returns false if contribution aggregation is not required.
-func aggContributions(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot eth2p0.Slot, vals validators,
-	selections syncSelections, blockRoot eth2p0.Root,
+func aggContributions(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot eth2p0.Slot,
+	vals eth2wrap.ActiveValidators, selections syncSelections, blockRoot eth2p0.Root,
 ) (bool, error) {
 	if len(selections) == 0 {
 		return false, nil
@@ -441,7 +438,7 @@ func aggContributions(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Sign
 			SelectionProof:  selection.SelectionProof,
 		}
 
-		val, ok := vals[vIdx]
+		pubkey, ok := vals[vIdx]
 		if !ok {
 			return false, errors.New("missing validator index", z.U64("vidx", uint64(vIdx)))
 		}
@@ -456,7 +453,7 @@ func aggContributions(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Sign
 			return false, err
 		}
 
-		sig, err := signFunc(val.Validator.PublicKey, sigData[:])
+		sig, err := signFunc(pubkey, sigData[:])
 		if err != nil {
 			return false, err
 		}

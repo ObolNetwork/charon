@@ -36,6 +36,34 @@ type NodePeerCountProvider interface {
 	NodePeerCount(ctx context.Context) (int, error)
 }
 
+type ActiveValidators map[eth2p0.ValidatorIndex]eth2p0.BLSPubKey
+
+// Pubkeys returns a list of active validator pubkeys.
+func (m ActiveValidators) Pubkeys() []eth2p0.BLSPubKey {
+	var pubkeys []eth2p0.BLSPubKey
+	for _, pubkey := range m {
+		pubkeys = append(pubkeys, pubkey)
+	}
+
+	return pubkeys
+}
+
+// Indices returns a list of active validator indices.
+func (m ActiveValidators) Indices() []eth2p0.ValidatorIndex {
+	var indices []eth2p0.ValidatorIndex
+	for index := range m {
+		indices = append(indices, index)
+	}
+
+	return indices
+}
+
+// ActiveValidatorsProvider is the interface for providing current epoch's cached active validator
+// identity information.
+type ActiveValidatorsProvider interface {
+	ActiveValidators(context.Context) (ActiveValidators, error)
+}
+
 // NewHTTPAdapterForT returns a http adapter for testing non-eth2service methods as it is nil.
 func NewHTTPAdapterForT(_ *testing.T, address string, timeout time.Duration) Client {
 	return newHTTPAdapter(nil, address, timeout)
@@ -61,8 +89,21 @@ func newHTTPAdapter(ethSvc *eth2http.Service, address string, timeout time.Durat
 //   - experimental interfaces
 type httpAdapter struct {
 	*eth2http.Service
-	address string
-	timeout time.Duration
+	address  string
+	timeout  time.Duration
+	valCache func(context.Context) (ActiveValidators, error)
+}
+
+func (h *httpAdapter) SetValidatorCache(valCache func(context.Context) (ActiveValidators, error)) {
+	h.valCache = valCache
+}
+
+func (h *httpAdapter) ActiveValidators(ctx context.Context) (ActiveValidators, error) {
+	if h.valCache == nil {
+		return nil, errors.New("no active validator cache")
+	}
+
+	return h.valCache(ctx)
 }
 
 // AggregateBeaconCommitteeSelections implements eth2exp.BeaconCommitteeSelectionAggregator.

@@ -21,7 +21,6 @@ import (
 
 // Type aliases for concise function signatures.
 type (
-	validators    map[eth2p0.ValidatorIndex]*eth2v1.Validator
 	attDuties     []*eth2v1.AttesterDuty
 	attSelections []*eth2exp.BeaconCommitteeSelection
 	attDatas      []*eth2p0.AttestationData
@@ -51,7 +50,7 @@ type SlotAttester struct {
 	// Mutable fields
 	mutable struct {
 		sync.Mutex
-		vals       validators
+		vals       eth2wrap.ActiveValidators
 		duties     attDuties
 		selections attSelections
 		datas      attDatas
@@ -74,7 +73,7 @@ func (a *SlotAttester) Slot() eth2p0.Slot {
 // It panics if called more than once.
 // TODO(xenowits): Figure out why is this called twice sometimes (https://github.com/ObolNetwork/charon/issues/1389)).
 func (a *SlotAttester) Prepare(ctx context.Context) error {
-	vals, err := activeValidators(ctx, a.eth2Cl, a.pubkeys)
+	vals, err := a.eth2Cl.ActiveValidators(ctx)
 	if err != nil {
 		return err
 	}
@@ -117,7 +116,7 @@ func (a *SlotAttester) Aggregate(ctx context.Context) (bool, error) {
 		a.getAttDuties(), a.getSelections(), a.getDatas())
 }
 
-func (a *SlotAttester) setPrepareDuties(vals validators, duties attDuties) {
+func (a *SlotAttester) setPrepareDuties(vals eth2wrap.ActiveValidators, duties attDuties) {
 	a.mutable.Lock()
 	defer a.mutable.Unlock()
 
@@ -142,7 +141,7 @@ func (a *SlotAttester) setAttestDatas(datas attDatas) {
 	close(a.datasOK)
 }
 
-func (a *SlotAttester) getVals() validators {
+func (a *SlotAttester) getVals() eth2wrap.ActiveValidators {
 	a.mutable.Lock()
 	defer a.mutable.Unlock()
 
@@ -180,29 +179,8 @@ func wait(ctx context.Context, chs ...chan struct{}) {
 	}
 }
 
-// activeValidators returns the head active validators from the provided public keys.
-func activeValidators(ctx context.Context, eth2Cl eth2wrap.Client,
-	pubkeys []eth2p0.BLSPubKey,
-) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
-	// TODO(corver): Use cache instead of using head to try to mitigate this expensive call.
-	vals, err := eth2Cl.ValidatorsByPubKey(ctx, "head", pubkeys)
-	if err != nil {
-		return nil, err
-	}
-
-	resp := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
-	for idx, val := range vals {
-		if !val.Status.IsActive() {
-			continue
-		}
-		resp[idx] = val
-	}
-
-	return resp, nil
-}
-
 // prepareAttesters returns the attesters (including duty and data) for the provided validators and slot.
-func prepareAttesters(ctx context.Context, eth2Cl eth2wrap.Client, vals validators,
+func prepareAttesters(ctx context.Context, eth2Cl eth2wrap.Client, vals eth2wrap.ActiveValidators,
 	slot eth2p0.Slot,
 ) (attDuties, error) {
 	if len(vals) == 0 {
@@ -214,12 +192,7 @@ func prepareAttesters(ctx context.Context, eth2Cl eth2wrap.Client, vals validato
 		return nil, err
 	}
 
-	var indexes []eth2p0.ValidatorIndex
-	for idx := range vals {
-		indexes = append(indexes, idx)
-	}
-
-	epochDuties, err := eth2Cl.AttesterDuties(ctx, epoch, indexes)
+	epochDuties, err := eth2Cl.AttesterDuties(ctx, epoch, vals.Indices())
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +212,7 @@ func prepareAttesters(ctx context.Context, eth2Cl eth2wrap.Client, vals validato
 // prepareAggregators does beacon committee subscription selection for the provided attesters
 // and returns the selected aggregators.
 func prepareAggregators(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
-	vals validators, duties attDuties, slot eth2p0.Slot,
+	vals eth2wrap.ActiveValidators, duties attDuties, slot eth2p0.Slot,
 ) (attSelections, error) {
 	if len(duties) == 0 {
 		return nil, nil
@@ -265,17 +238,17 @@ func prepareAggregators(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Si
 		commLengths = make(map[eth2p0.ValidatorIndex]uint64)
 	)
 	for _, duty := range duties {
-		val, ok := vals[duty.ValidatorIndex]
+		pubkey, ok := vals[duty.ValidatorIndex]
 		if !ok {
 			return nil, errors.New("missing validator index")
 		}
 
-		slotSig, err := signFunc(val.Validator.PublicKey, sigData[:])
+		slotSig, err := signFunc(pubkey, sigData[:])
 		if err != nil {
 			return nil, err
 		}
 
-		commLengths[val.Index] = duty.CommitteeLength
+		commLengths[duty.ValidatorIndex] = duty.CommitteeLength
 
 		partials = append(partials, &eth2exp.BeaconCommitteeSelection{
 			ValidatorIndex: duty.ValidatorIndex,
@@ -367,7 +340,7 @@ func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot
 // aggregate does attestation aggregation for the provided validators, attSelections and attestation attDatas and returns true.
 // It returns false if aggregation is not required.
 func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot eth2p0.Slot,
-	vals validators, duties attDuties, selections attSelections, datas attDatas,
+	vals eth2wrap.ActiveValidators, duties attDuties, selections attSelections, datas attDatas,
 ) (bool, error) {
 	if len(selections) == 0 {
 		return false, nil
@@ -419,12 +392,12 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 			return false, err
 		}
 
-		val, ok := vals[selection.ValidatorIndex]
+		pubkey, ok := vals[selection.ValidatorIndex]
 		if !ok {
 			return false, errors.New("missing validator index", z.U64("vidx", uint64(selection.ValidatorIndex)))
 		}
 
-		proofSig, err := signFunc(val.Validator.PublicKey, sigData[:])
+		proofSig, err := signFunc(pubkey, sigData[:])
 		if err != nil {
 			return false, err
 		}

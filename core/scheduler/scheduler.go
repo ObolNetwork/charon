@@ -83,6 +83,7 @@ func (s *Scheduler) SubscribeDuties(fn func(context.Context, core.Duty, core.Dut
 
 // SubscribeSlots subscribes a callback function for triggered slots.
 // Note this should be called *before* Start.
+// TODO(corver): Add subscriber names for improved logging.
 func (s *Scheduler) SubscribeSlots(fn func(context.Context, core.Slot) error) {
 	s.slotSubs = append(s.slotSubs, fn)
 }
@@ -598,7 +599,6 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2wrap.Client,
 		e2pks = append(e2pks, e2pk)
 	}
 
-	// TODO(corver): Use cache instead of using head to try to mitigate this expensive call.
 	vals, err := eth2Cl.ValidatorsByPubKey(ctx, "head", e2pks)
 	if err != nil {
 		return nil, err

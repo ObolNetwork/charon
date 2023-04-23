@@ -125,6 +125,30 @@ func (m multi) Address() string {
 	return m.clients[m.selector.Best()].Address()
 }
 
+func (m multi) SetValidatorCache(valCache func(context.Context) (ActiveValidators, error)) {
+	for _, cl := range m.clients {
+		cl.SetValidatorCache(valCache)
+	}
+}
+
+func (m multi) ActiveValidators(ctx context.Context) (ActiveValidators, error) {
+	const label = "active_validators"
+	// No latency since this is a cached endpoint.
+
+	res0, err := provide(ctx, m.clients,
+		func(ctx context.Context, cl Client) (ActiveValidators, error) {
+			return cl.ActiveValidators(ctx)
+		},
+		nil, nil,
+	)
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
 func (m multi) AggregateBeaconCommitteeSelections(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
 	const label = "aggregate_beacon_committee_selections"
 	defer latency(label)()

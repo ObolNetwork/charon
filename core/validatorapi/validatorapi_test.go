@@ -1609,10 +1609,6 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 		valSet = beaconmock.ValidatorSetA
 	)
 
-	// Construct beaconmock.
-	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(valSet))
-	require.NoError(t, err)
-
 	// Sync committee selection 1.
 	secret1, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
@@ -1628,7 +1624,6 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 	selection1 := testutil.RandomSyncCommitteeSelection()
 	selection1.ValidatorIndex = valSet[1].Index
 	selection1.Slot = slot
-	selection1.SelectionProof = syncCommSelectionProof(t, bmock, secret1, slot, selection1.SubcommitteeIndex)
 
 	// Sync committee selection 2.
 	secret2, err := tbls.GenerateSecretKey()
@@ -1645,6 +1640,12 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 	selection2 := testutil.RandomSyncCommitteeSelection()
 	selection2.ValidatorIndex = valSet[2].Index
 	selection2.Slot = slot
+
+	// Construct beaconmock.
+	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(valSet))
+	require.NoError(t, err)
+
+	selection1.SelectionProof = syncCommSelectionProof(t, bmock, secret1, slot, selection1.SubcommitteeIndex)
 	selection2.SelectionProof = syncCommSelectionProof(t, bmock, secret2, slot, selection2.SubcommitteeIndex)
 
 	selections := []*eth2exp.SyncCommitteeSelection{selection1, selection2}
