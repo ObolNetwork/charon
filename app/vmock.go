@@ -22,15 +22,13 @@ import (
 )
 
 // wireValidatorMock wires the validator mock if enabled. It connects via http validatorapi.Router.
-func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Scheduler,
-	valCache *eth2wrap.ValidatorCache,
-) error {
+func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Scheduler) error {
 	if !conf.SimnetVMock {
 		return nil
 	}
 
 	// Create stateful wrapper
-	vMockWrap, err := newVMockWrapper(conf, pubshares, valCache)
+	vMockWrap, err := newVMockWrapper(conf, pubshares)
 	if err != nil {
 		return err
 	}
@@ -107,7 +105,7 @@ type vMockState struct {
 type vMockCallback func(context.Context, vMockState) error
 
 // newVMockWrapper returns a stateful validator mock wrapper function.
-func newVMockWrapper(conf Config, pubshares []eth2p0.BLSPubKey, valCache *eth2wrap.ValidatorCache,
+func newVMockWrapper(conf Config, pubshares []eth2p0.BLSPubKey,
 ) (func(ctx context.Context, slot int64, callback vMockCallback), error) {
 	// Immutable state and providers.
 	signFunc, err := newVMockSigner(conf, pubshares)
@@ -115,13 +113,14 @@ func newVMockWrapper(conf Config, pubshares []eth2p0.BLSPubKey, valCache *eth2wr
 		return nil, err
 	}
 
-	eth2ClProvider := newVMockEth2Provider(conf, valCache)
+	eth2ClProvider := newVMockEth2Provider(conf)
 
 	// Mutable state
 	var (
-		mu          sync.Mutex
-		attester    = new(validatormock.SlotAttester)
-		syncCommMem = new(validatormock.SyncCommMember)
+		mu                  sync.Mutex
+		attester            = new(validatormock.SlotAttester)
+		syncCommMem         = new(validatormock.SyncCommMember)
+		prevSlot, prevEpoch int64
 	)
 
 	return func(ctx context.Context, slot int64, fn vMockCallback) {
@@ -143,11 +142,19 @@ func newVMockWrapper(conf Config, pubshares []eth2p0.BLSPubKey, valCache *eth2wr
 		}
 
 		// Create new slot attester on new slots
-		if slot != 0 && attester.Slot() != eth2p0.Slot(slot) {
+		if slot != 0 && prevSlot != slot {
 			attester = validatormock.NewSlotAttester(eth2Cl, eth2p0.Slot(slot), signFunc, pubshares)
+
+			prevSlot = slot
 		}
-		if epoch != 0 && syncCommMem.Epoch() != epoch {
+
+		// Create new sync committee member on new epochs, also refresh validator cache.
+		if epoch != 0 && prevEpoch != int64(epoch) {
 			syncCommMem = validatormock.NewSyncCommMember(eth2Cl, epoch, signFunc, pubshares)
+
+			eth2Cl.SetValidatorCache(eth2wrap.NewValidatorCache(eth2Cl, pubshares).Get)
+
+			prevEpoch = int64(epoch)
 		}
 
 		state := vMockState{
@@ -172,7 +179,7 @@ func newVMockWrapper(conf Config, pubshares []eth2p0.BLSPubKey, valCache *eth2wr
 }
 
 // newVMockEth2Provider returns a function that returns a cached validator mock eth2 client.
-func newVMockEth2Provider(conf Config, valCache *eth2wrap.ValidatorCache) func() (eth2wrap.Client, error) {
+func newVMockEth2Provider(conf Config) func() (eth2wrap.Client, error) {
 	var (
 		cached eth2wrap.Client
 		mu     sync.Mutex
@@ -207,7 +214,6 @@ func newVMockEth2Provider(conf Config, valCache *eth2wrap.ValidatorCache) func()
 			}
 
 			cached = eth2wrap.AdaptEth2HTTP(eth2Http, timeout)
-			cached.SetValidatorCache(valCache.Get)
 		}
 
 		return cached, err
