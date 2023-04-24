@@ -443,7 +443,7 @@ func TestFetchSyncContribution(t *testing.T) {
 				Slot:              slot,
 				BeaconBlockRoot:   beaconBlockRoot,
 				SubcommitteeIndex: subcommitteeIndex,
-				AggregationBits:   bitfield.Bitvector128(testutil.RandomBitList()),
+				AggregationBits:   bitfield.Bitvector128(testutil.RandomBitList(1)),
 				Signature:         testutil.RandomEth2Signature(),
 			}, nil
 		}
