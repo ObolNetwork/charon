@@ -9,6 +9,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -34,6 +35,9 @@ func TestInclusion(t *testing.T) {
 	att3Duty := core.NewAttesterDuty(int64(att3.Data.Slot))
 	block4 := testutil.RandomCapellaVersionedSignedBeaconBlock()
 	block4Duty := core.NewProposerDuty(int64(block4.Capella.Message.Slot))
+	block5 := testutil.RandomCapellaVersionedSignedBlindedBeaconBlock()
+	block5.Capella.Message.Body.Graffiti = eth2wrap.GetSyntheticGraffiti() // Ignored, not included or missed.
+	block5Duty := core.NewBuilderProposerDuty(int64(block5.Capella.Message.Slot))
 
 	// Submit the duties
 	err := incl.Submitted(att1Duty, "", core.NewAttestation(att1), 0)
@@ -43,9 +47,11 @@ func TestInclusion(t *testing.T) {
 	err = incl.Submitted(att3Duty, "", core.NewAttestation(att3), 0)
 	require.NoError(t, err)
 
-	coreBlock3, err := core.NewVersionedSignedBeaconBlock(block4)
+	coreBlock4, err := core.NewVersionedSignedBeaconBlock(block4)
 	require.NoError(t, err)
-	err = incl.Submitted(block4Duty, "", coreBlock3, 0)
+	err = incl.Submitted(block4Duty, "", coreBlock4, 0)
+	require.NoError(t, err)
+	err = incl.Submitted(block5Duty, "", block5, 0)
 	require.NoError(t, err)
 
 	// Create a mock block with the first two attestations.

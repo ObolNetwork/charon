@@ -28,12 +28,11 @@ const (
 
 // submission represents a duty submitted to the beacon node/chain.
 type submission struct {
-	Duty     core.Duty
-	Pubkey   core.PubKey
-	Data     core.SignedData
-	AttRoot  eth2p0.Root
-	Delay    time.Duration
-	Included bool
+	Duty    core.Duty
+	Pubkey  core.PubKey
+	Data    core.SignedData
+	AttRoot eth2p0.Root
+	Delay   time.Duration
 }
 
 // block is a simplified block with its attestations.
@@ -90,6 +89,22 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 		if err != nil {
 			return errors.Wrap(err, "hash aggregate")
 		}
+	} else if duty.Type == core.DutyProposer {
+		block, ok := data.(core.VersionedSignedBeaconBlock)
+		if !ok {
+			return errors.New("invalid block")
+		}
+		if eth2wrap.IsSyntheticBlock(&block.VersionedSignedBeaconBlock) {
+			return nil
+		}
+	} else if duty.Type == core.DutyBuilderProposer {
+		block, ok := data.(core.VersionedSignedBlindedBeaconBlock)
+		if !ok {
+			return errors.New("invalid blinded block")
+		}
+		if eth2wrap.IsSyntheticBlindedBlock(&block.VersionedSignedBlindedBeaconBlock) {
+			return nil
+		}
 	}
 
 	i.mu.Lock()
@@ -117,9 +132,9 @@ func (i *inclusionCore) Trim(ctx context.Context, slot int64) {
 			remaining = append(remaining, sub)
 			continue
 		}
-		if !sub.Included {
-			i.missedFunc(ctx, sub)
-		}
+
+		// Report missed and trim
+		i.missedFunc(ctx, sub)
 	}
 	i.submissions = remaining
 }
@@ -129,29 +144,34 @@ func (i *inclusionCore) CheckBlock(ctx context.Context, block block) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
-	for j, sub := range i.submissions {
-		if sub.Included {
-			continue
-		}
-
+	var remaining []submission
+	for _, sub := range i.submissions {
 		switch sub.Duty.Type {
 		case core.DutyAttester, core.DutyAggregator:
 			_, ok := block.Attestations[sub.AttRoot]
 			if !ok {
+				remaining = append(remaining, sub)
 				continue
 			}
-			i.submissions[j].Included = true
+
+			// TODO(corver): We should probably check if validator included in AggregationBits
+			//  for attester duty by caching scheduler duty data to get validator committee index.
+
+			// Report included and trim
 			i.attIncludedFunc(ctx, sub, block)
 		case core.DutyProposer, core.DutyBuilderProposer:
 			if sub.Duty.Slot != block.Slot {
+				remaining = append(remaining, sub)
 				continue
 			}
-			i.submissions[j].Included = true
-			// Nothing to report for block inclusions
+
+			// Nothing to report for block inclusions, just trim
 		default:
 			panic("bug: unexpected type") // Sanity check, this should never happen
 		}
 	}
+
+	i.submissions = remaining
 }
 
 // reportMissed reports duties that were broadcast but never included on chain.
@@ -160,9 +180,9 @@ func reportMissed(ctx context.Context, sub submission) {
 
 	switch sub.Duty.Type {
 	case core.DutyAttester, core.DutyAggregator:
-		msg := "Broadcasted attestation never included in any block"
+		msg := "Broadcasted attestation never included on-chain"
 		if sub.Duty.Type == core.DutyAggregator {
-			msg = "Broadcasted attestation aggregate never included in any block"
+			msg = "Broadcasted attestation aggregate never included on-chain"
 		}
 
 		log.Warn(ctx, msg, nil,
@@ -171,9 +191,9 @@ func reportMissed(ctx context.Context, sub submission) {
 			z.Any("broadcast_delay", sub.Delay),
 		)
 	case core.DutyProposer, core.DutyBuilderProposer:
-		msg := "Broadcasted block never included in the chain"
+		msg := "Broadcasted block never included on-chain"
 		if sub.Duty.Type == core.DutyBuilderProposer {
-			msg = "Broadcasted blinded block never included in the chain"
+			msg = "Broadcasted blinded block never included on-chain"
 		}
 
 		log.Warn(ctx, msg, nil,
@@ -186,16 +206,17 @@ func reportMissed(ctx context.Context, sub submission) {
 	}
 }
 
-// reportAttInclusion reports the inclusionCore of an attestation.
+// reportAttInclusion reports attestations that were included in a block.
 func reportAttInclusion(ctx context.Context, sub submission, block block) {
-	aggregated := len(block.Attestations[sub.AttRoot].AggregationBits.BitIndices()) > 1
-	attSlot := int64(block.Attestations[sub.AttRoot].Data.Slot)
+	att := block.Attestations[sub.AttRoot]
+	aggIndices := att.AggregationBits.BitIndices()
+	attSlot := int64(att.Data.Slot)
 	blockSlot := block.Slot
 	inclDelay := block.Slot - attSlot
 
-	msg := "Block included attestation"
+	msg := "Broadcasted attestation included on-chain"
 	if sub.Duty.Type == core.DutyAggregator {
-		msg += " aggregate"
+		msg = "Broadcasted attestation aggregate included on-chain"
 	}
 
 	log.Info(ctx, msg,
@@ -204,7 +225,8 @@ func reportAttInclusion(ctx context.Context, sub submission, block block) {
 		z.Any("pubkey", sub.Pubkey),
 		z.I64("inclusion_delay", inclDelay),
 		z.Any("broadcast_delay", sub.Delay),
-		z.Bool("aggregated", aggregated),
+		z.Int("aggregate_len", len(aggIndices)),
+		z.Bool("aggregated", len(aggIndices) > 1),
 	)
 
 	inclusionDelay.Set(float64(blockSlot - attSlot))
