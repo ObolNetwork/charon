@@ -9,11 +9,8 @@ import (
 	"context"
 	"encoding/hex"
 	"net/http"
-	"os"
-	"os/signal"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -37,6 +34,7 @@ import (
 	"github.com/obolnetwork/charon/app/privkeylock"
 	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/retry"
+	"github.com/obolnetwork/charon/app/shutdowncoord"
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
@@ -135,23 +133,18 @@ func Run(ctx context.Context, conf Config) (err error) {
 			return err
 		}
 
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-		go func() {
-			<-c
+		cleanupFunc := func() {
 			if err := cleanPrivkeyLock(); err != nil {
 				log.Error(ctx, "Cannot delete private key lock file", err)
 			}
+		}
 
-			//nolint: revive // This is a SIGTERM handler, needs to terminate the program
-			os.Exit(1)
-		}()
+		shutdowncoord.RegisterWithUrgency(func() error {
+			cleanupFunc()
+			return nil
+		}, 100)
 
-		defer func() {
-			if err := cleanPrivkeyLock(); err != nil {
-				log.Error(ctx, "Cannot delete private key lock file", err)
-			}
-		}()
+		defer cleanupFunc()
 	}
 
 	_, _ = maxprocs.Set()
