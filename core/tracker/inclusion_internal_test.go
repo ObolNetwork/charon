@@ -4,9 +4,11 @@ package tracker
 
 import (
 	"context"
+	"math/rand"
 	"testing"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/eth2wrap"
@@ -39,7 +41,7 @@ func TestInclusion(t *testing.T) {
 	block5.Capella.Message.Body.Graffiti = eth2wrap.GetSyntheticGraffiti() // Ignored, not included or missed.
 	block5Duty := core.NewBuilderProposerDuty(int64(block5.Capella.Message.Slot))
 
-	// Submit the duties
+	// Submit all duties
 	err := incl.Submitted(att1Duty, "", core.NewAttestation(att1), 0)
 	require.NoError(t, err)
 	err = incl.Submitted(agg2Duty, "", core.NewSignedAggregateAndProof(agg2), 0)
@@ -54,25 +56,37 @@ func TestInclusion(t *testing.T) {
 	err = incl.Submitted(block5Duty, "", block5, 0)
 	require.NoError(t, err)
 
-	// Create a mock block with the first two attestations.
-	att1Root, err := att1.HashTreeRoot()
+	// Create a mock block with the 1st and 2nd attestations.
+	att1Root, err := att1.Data.HashTreeRoot()
 	require.NoError(t, err)
-	att2Root, err := agg2.Message.Aggregate.HashTreeRoot()
+	att2Root, err := agg2.Message.Aggregate.Data.HashTreeRoot()
 	require.NoError(t, err)
+	// Add some random aggregation bits to the attestation
+	addRandomBits(att1.AggregationBits)
+	addRandomBits(agg2.Message.Aggregate.AggregationBits)
 
-	// Check the block
-	incl.CheckBlock(context.Background(), block{
+	block := block{
 		Slot: block4Duty.Slot,
 		Attestations: map[eth2p0.Root]*eth2p0.Attestation{
 			att1Root: att1,
 			att2Root: agg2.Message.Aggregate,
 		},
-	})
-	// Assert that the first two duties were included
+	}
+
+	// Check the block
+	incl.CheckBlock(context.Background(), block)
+
+	// Assert that the 1st and 2nd duty was included
 	require.Equal(t, []core.Duty{att1Duty, agg2Duty}, included)
 
 	// Trim the duties
 	incl.Trim(context.Background(), att3Duty.Slot)
-	// Assert that the third duty was missed
+	// Assert that the 3rd duty was missed
 	require.Equal(t, []core.Duty{att3Duty}, missed)
+}
+
+func addRandomBits(list bitfield.Bitlist) {
+	for i := 0; i < rand.Intn(4); i++ {
+		list.SetBitAt(uint64(rand.Intn(int(list.Len()))), true)
+	}
 }

@@ -9,7 +9,7 @@ import (
 )
 
 // WithTracking wraps component input functions to support tracking of core components.
-func WithTracking(tracker Tracker, submittedFunc func(Duty, PubKey, SignedData) error) WireOption {
+func WithTracking(tracker Tracker, inclusion InclusionChecker) WireOption {
 	return func(w *wireFuncs) {
 		clone := *w
 
@@ -68,8 +68,8 @@ func WithTracking(tracker Tracker, submittedFunc func(Duty, PubKey, SignedData) 
 				return err
 			}
 
-			if err := submittedFunc(duty, pubkey, data); err != nil {
-				log.Error(ctx, "Failed to submit duty", err)
+			if err := inclusion.Submitted(duty, pubkey, data); err != nil {
+				log.Error(ctx, "Bug: failed to submit duty to inclusion checker", err)
 			}
 
 			return nil

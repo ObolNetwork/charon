@@ -160,6 +160,13 @@ type Broadcaster interface {
 	Broadcast(context.Context, Duty, PubKey, SignedData) error
 }
 
+// InclusionChecker checks whether duties have been included on-chain.
+// TODO(corver): Merge this with tracker below as a compose multi tracker.
+type InclusionChecker interface {
+	// Submitted is called when a duty has been submitted.
+	Submitted(duty Duty, pubkey PubKey, data SignedData) error
+}
+
 // Tracker sends core component events for further analysis and instrumentation.
 type Tracker interface {
 	// FetcherFetched sends Fetcher component's events to tracker.

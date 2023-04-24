@@ -38,7 +38,7 @@ type submission struct {
 // block is a simplified block with its attestations.
 type block struct {
 	Slot         int64
-	Attestations map[eth2p0.Root]*eth2p0.Attestation
+	Attestations map[eth2p0.Root]*eth2p0.Attestation // map[Attestation.Data.Root]Attestation
 }
 
 // supported duty types.
@@ -76,7 +76,7 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 		if !ok {
 			return errors.New("invalid attestation")
 		}
-		attRoot, err = att.HashTreeRoot()
+		attRoot, err = att.Data.HashTreeRoot()
 		if err != nil {
 			return errors.Wrap(err, "hash attestation")
 		}
@@ -85,7 +85,7 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 		if !ok {
 			return errors.New("invalid aggregate and proof")
 		}
-		attRoot, err = agg.Message.Aggregate.HashTreeRoot()
+		attRoot, err = agg.Message.Aggregate.Data.HashTreeRoot()
 		if err != nil {
 			return errors.Wrap(err, "hash aggregate")
 		}
@@ -126,9 +126,11 @@ func (i *inclusionCore) Trim(ctx context.Context, slot int64) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
+	// Trim submissions
 	var remaining []submission
 	for _, sub := range i.submissions {
 		if sub.Duty.Slot > slot {
+			// Keep
 			remaining = append(remaining, sub)
 			continue
 		}
@@ -147,18 +149,28 @@ func (i *inclusionCore) CheckBlock(ctx context.Context, block block) {
 	var remaining []submission
 	for _, sub := range i.submissions {
 		switch sub.Duty.Type {
-		case core.DutyAttester, core.DutyAggregator:
-			_, ok := block.Attestations[sub.AttRoot]
+		case core.DutyAttester:
+			ok, err := checkAttestationInclusion(sub, block)
+			if err != nil {
+				log.Warn(ctx, "Failed to check attestation inclusion", err)
+			}
 			if !ok {
 				remaining = append(remaining, sub)
-				continue
+			} else {
+				// Report inclusion and trim
+				i.attIncludedFunc(ctx, sub, block)
 			}
-
-			// TODO(corver): We should probably check if validator included in AggregationBits
-			//  for attester duty by caching scheduler duty data to get validator committee index.
-
-			// Report included and trim
-			i.attIncludedFunc(ctx, sub, block)
+		case core.DutyAggregator:
+			ok, err := checkAggregationInclusion(sub, block)
+			if err != nil {
+				log.Warn(ctx, "Failed to check aggregate inclusion", err)
+			}
+			if !ok {
+				remaining = append(remaining, sub)
+			} else {
+				// Report inclusion and trim
+				i.attIncludedFunc(ctx, sub, block)
+			}
 		case core.DutyProposer, core.DutyBuilderProposer:
 			if sub.Duty.Slot != block.Slot {
 				remaining = append(remaining, sub)
@@ -172,6 +184,44 @@ func (i *inclusionCore) CheckBlock(ctx context.Context, block block) {
 	}
 
 	i.submissions = remaining
+}
+
+// checkAggregationInclusion checks whether the aggregation is included in the block.
+func checkAggregationInclusion(sub submission, block block) (bool, error) {
+	att, ok := block.Attestations[sub.AttRoot]
+	if !ok {
+		return false, nil
+	}
+
+	subBits := sub.Data.(core.SignedAggregateAndProof).Message.Aggregate.AggregationBits
+	ok, err := att.AggregationBits.Contains(subBits)
+	if err != nil {
+		return false, errors.Wrap(err, "check aggregation bits",
+			z.U64("block_bits", att.AggregationBits.Len()),
+			z.U64("sub_bits", subBits.Len()),
+		)
+	}
+
+	return ok, nil
+}
+
+// checkAttestationInclusion checks whether the attestation is included in the block.
+func checkAttestationInclusion(sub submission, block block) (bool, error) {
+	att, ok := block.Attestations[sub.AttRoot]
+	if !ok {
+		return false, nil
+	}
+
+	subBits := sub.Data.(core.Attestation).AggregationBits
+	ok, err := att.AggregationBits.Contains(subBits)
+	if err != nil {
+		return false, errors.Wrap(err, "check aggregation bits",
+			z.U64("block_bits", att.AggregationBits.Len()),
+			z.U64("sub_bits", subBits.Len()),
+		)
+	}
+
+	return ok, nil
 }
 
 // reportMissed reports duties that were broadcast but never included on chain.
@@ -255,7 +305,7 @@ func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client) (*InclusionChecke
 	}, nil
 }
 
-// InclusionChecker checks whether duties have been included in blocks.
+// InclusionChecker checks whether duties have been included on-chain.
 type InclusionChecker struct {
 	genesis      time.Time
 	slotDuration time.Duration
@@ -270,6 +320,8 @@ func (a *InclusionChecker) Submitted(duty core.Duty, pubkey core.PubKey, data co
 }
 
 func (a *InclusionChecker) Run(ctx context.Context) {
+	ctx = log.WithTopic(ctx, "tracker")
+
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
@@ -311,7 +363,11 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot int64) error {
 
 	attsMap := make(map[eth2p0.Root]*eth2p0.Attestation)
 	for _, att := range atts {
-		root, err := att.HashTreeRoot()
+		if att == nil || att.Data == nil {
+			return errors.New("nil attestation")
+		}
+
+		root, err := att.Data.HashTreeRoot()
 		if err != nil {
 			return errors.Wrap(err, "hash attestation")
 		}

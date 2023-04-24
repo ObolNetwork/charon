@@ -87,7 +87,15 @@ func RandomValidator(t *testing.T) *eth2v1.Validator {
 
 func RandomAttestation() *eth2p0.Attestation {
 	return &eth2p0.Attestation{
-		AggregationBits: RandomBitList(),
+		AggregationBits: RandomBitList(1),
+		Data:            RandomAttestationData(),
+		Signature:       RandomEth2Signature(),
+	}
+}
+
+func RandomAggregateAttestation() *eth2p0.Attestation {
+	return &eth2p0.Attestation{
+		AggregationBits: RandomBitList(64),
 		Data:            RandomAttestationData(),
 		Signature:       RandomEth2Signature(),
 	}
@@ -459,7 +467,7 @@ func RandomSignedAggregateAndProof() *eth2p0.SignedAggregateAndProof {
 func RandomAggregateAndProof() *eth2p0.AggregateAndProof {
 	return &eth2p0.AggregateAndProof{
 		AggregatorIndex: RandomVIdx(),
-		Aggregate:       RandomAttestation(),
+		Aggregate:       RandomAggregateAttestation(),
 		SelectionProof:  RandomEth2Signature(),
 	}
 }
@@ -703,11 +711,12 @@ func RandomArray32() [32]byte {
 	return resp
 }
 
-func RandomBitList() bitfield.Bitlist {
+func RandomBitList(maxBits int) bitfield.Bitlist {
 	size := 256
-	index := rand.Intn(size)
 	resp := bitfield.NewBitlist(uint64(size))
-	resp.SetBitAt(uint64(index), true)
+	for i := 0; i < rand.Intn(maxBits); i++ {
+		resp.SetBitAt(uint64(rand.Intn(size)), true)
+	}
 
 	return resp
 }

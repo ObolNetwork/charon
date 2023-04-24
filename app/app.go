@@ -468,7 +468,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	opts := []core.WireOption{
 		core.WithTracing(),
-		core.WithTracking(track, inclusion.Submitted),
+		core.WithTracking(track, inclusion),
 		core.WithAsyncRetry(retryer),
 	}
 	core.Wire(sched, fetch, cons, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
