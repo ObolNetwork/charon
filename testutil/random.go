@@ -711,10 +711,10 @@ func RandomArray32() [32]byte {
 	return resp
 }
 
-func RandomBitList(maxBits int) bitfield.Bitlist {
+func RandomBitList(length int) bitfield.Bitlist {
 	size := 256
 	resp := bitfield.NewBitlist(uint64(size))
-	for i := 0; i < rand.Intn(maxBits); i++ {
+	for i := 0; i < length; i++ {
 		resp.SetBitAt(uint64(rand.Intn(size)), true)
 	}
 
