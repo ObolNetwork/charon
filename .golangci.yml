@@ -146,6 +146,7 @@ linters:
     - maintidx
     - maligned
     - musttag
+    - nestif
     - nonamedreturns
     - paralleltest
     - prealloc

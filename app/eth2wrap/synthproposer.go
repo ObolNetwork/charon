@@ -136,9 +136,6 @@ func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot, vId
 
 	// Convert signed block into unsigned block with synthetic graffiti and correct slot.
 
-	var synthGraffiti [32]byte
-	copy(synthGraffiti[:], syntheticBlockGraffiti)
-
 	feeRecipient := h.getFeeRecipient(vIdx)
 
 	block := &spec.VersionedBeaconBlock{Version: signedBlock.Version}
@@ -146,24 +143,24 @@ func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot, vId
 	switch signedBlock.Version {
 	case spec.DataVersionPhase0:
 		block.Phase0 = signedBlock.Phase0.Message
-		block.Phase0.Body.Graffiti = synthGraffiti
+		block.Phase0.Body.Graffiti = GetSyntheticGraffiti()
 		block.Phase0.Slot = slot
 		block.Phase0.ProposerIndex = vIdx
 	case spec.DataVersionAltair:
 		block.Altair = signedBlock.Altair.Message
-		block.Altair.Body.Graffiti = synthGraffiti
+		block.Altair.Body.Graffiti = GetSyntheticGraffiti()
 		block.Altair.Slot = slot
 		block.Altair.ProposerIndex = vIdx
 	case spec.DataVersionBellatrix:
 		block.Bellatrix = signedBlock.Bellatrix.Message
-		block.Bellatrix.Body.Graffiti = synthGraffiti
+		block.Bellatrix.Body.Graffiti = GetSyntheticGraffiti()
 		block.Bellatrix.Slot = slot
 		block.Bellatrix.ProposerIndex = vIdx
 		block.Bellatrix.Body.ExecutionPayload.FeeRecipient = feeRecipient
 		block.Bellatrix.Body.ExecutionPayload.Transactions = fraction(block.Bellatrix.Body.ExecutionPayload.Transactions)
 	case spec.DataVersionCapella:
 		block.Capella = signedBlock.Capella.Message
-		block.Capella.Body.Graffiti = synthGraffiti
+		block.Capella.Body.Graffiti = GetSyntheticGraffiti()
 		block.Capella.Slot = slot
 		block.Capella.ProposerIndex = vIdx
 		block.Capella.Body.ExecutionPayload.FeeRecipient = feeRecipient
@@ -183,19 +180,7 @@ func fraction(transactions []bellatrix.Transaction) []bellatrix.Transaction {
 
 // SubmitBlindedBeaconBlock submits a blinded beacon block or swallows it if marked as synthetic.
 func (h *synthWrapper) SubmitBlindedBeaconBlock(ctx context.Context, block *api.VersionedSignedBlindedBeaconBlock) error {
-	var graffiti [32]byte
-	switch block.Version {
-	case spec.DataVersionBellatrix:
-		graffiti = block.Bellatrix.Message.Body.Graffiti
-	case spec.DataVersionCapella:
-		graffiti = block.Capella.Message.Body.Graffiti
-	default:
-		return errors.New("unknown block version")
-	}
-
-	var synthGraffiti [32]byte
-	copy(synthGraffiti[:], syntheticBlockGraffiti)
-	if graffiti == synthGraffiti {
+	if IsSyntheticBlindedBlock(block) {
 		log.Debug(ctx, "Synthetic blinded beacon block swallowed")
 		return nil
 	}
@@ -205,6 +190,39 @@ func (h *synthWrapper) SubmitBlindedBeaconBlock(ctx context.Context, block *api.
 
 // SubmitBeaconBlock submits a beacon block or swallows it if marked as synthetic.
 func (h *synthWrapper) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
+	if IsSyntheticBlock(block) {
+		log.Debug(ctx, "Synthetic beacon block swallowed")
+		return nil
+	}
+
+	return h.Client.SubmitBeaconBlock(ctx, block)
+}
+
+// GetSyntheticGraffiti returns the graffiti used to mark synthetic blocks.
+func GetSyntheticGraffiti() [32]byte {
+	var synthGraffiti [32]byte
+	copy(synthGraffiti[:], syntheticBlockGraffiti)
+
+	return synthGraffiti
+}
+
+// IsSyntheticBlindedBlock returns true if the blinded block is a synthetic block.
+func IsSyntheticBlindedBlock(block *api.VersionedSignedBlindedBeaconBlock) bool {
+	var graffiti [32]byte
+	switch block.Version {
+	case spec.DataVersionBellatrix:
+		graffiti = block.Bellatrix.Message.Body.Graffiti
+	case spec.DataVersionCapella:
+		graffiti = block.Capella.Message.Body.Graffiti
+	default:
+		return false
+	}
+
+	return graffiti == GetSyntheticGraffiti()
+}
+
+// IsSyntheticBlock returns true if the block is a synthetic block.
+func IsSyntheticBlock(block *spec.VersionedSignedBeaconBlock) bool {
 	var graffiti [32]byte
 	switch block.Version {
 	case spec.DataVersionPhase0:
@@ -216,17 +234,10 @@ func (h *synthWrapper) SubmitBeaconBlock(ctx context.Context, block *spec.Versio
 	case spec.DataVersionCapella:
 		graffiti = block.Capella.Message.Body.Graffiti
 	default:
-		return errors.New("unknown block version")
+		return false
 	}
 
-	var synthGraffiti [32]byte
-	copy(synthGraffiti[:], syntheticBlockGraffiti)
-	if graffiti == synthGraffiti {
-		log.Debug(ctx, "Synthetic beacon block swallowed")
-		return nil
-	}
-
-	return h.Client.SubmitBeaconBlock(ctx, block)
+	return graffiti == GetSyntheticGraffiti()
 }
 
 // synthProposerCache returns a new cache for synthetic proposer duties.

@@ -149,7 +149,6 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 				}
 
 				syncing, syncDistance, err := beaconNodeSyncing(ctx, eth2Cl)
-				//nolint:nestif
 				if err != nil {
 					err = errReadyBeaconNodeDown
 					readyzGauge.Set(readyzBeaconNodeDown)

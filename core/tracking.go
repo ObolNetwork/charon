@@ -4,10 +4,12 @@ package core
 
 import (
 	"context"
+
+	"github.com/obolnetwork/charon/app/log"
 )
 
 // WithTracking wraps component input functions to support tracking of core components.
-func WithTracking(tracker Tracker) WireOption {
+func WithTracking(tracker Tracker, submittedFunc func(Duty, PubKey, SignedData) error) WireOption {
 	return func(w *wireFuncs) {
 		clone := *w
 
@@ -62,8 +64,15 @@ func WithTracking(tracker Tracker) WireOption {
 		w.BroadcasterBroadcast = func(ctx context.Context, duty Duty, pubkey PubKey, data SignedData) error {
 			err := clone.BroadcasterBroadcast(ctx, duty, pubkey, data)
 			tracker.BroadcasterBroadcast(duty, pubkey, data, err)
+			if err != nil {
+				return err
+			}
 
-			return err
+			if err := submittedFunc(duty, pubkey, data); err != nil {
+				log.Error(ctx, "Failed to submit duty", err)
+			}
+
+			return nil
 		}
 	}
 }

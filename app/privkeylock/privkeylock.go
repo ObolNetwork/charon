@@ -12,7 +12,6 @@ import (
 // New creates a private key lock file in path, writing contextStr in it.
 // If a private key lock file exists at path New returns an error, a clean-up function otherwise.
 func New(path, contextStr string) (func() error, error) {
-	//nolint:nestif
 	if _, err := os.Stat(path); err == nil {
 		readCtxStr, err := os.ReadFile(path)
 		if err != nil {
