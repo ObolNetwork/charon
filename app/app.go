@@ -732,7 +732,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 		}
 	}
 	if !ok {
-		return nil, errors.Wrap(err, "lock file fork version not in beacon node fork schedule (probably wrong chain/network)")
+		return nil, errors.New("lock file fork version not in beacon node fork schedule (probably wrong chain/network)")
 	}
 
 	return eth2Cl, nil
