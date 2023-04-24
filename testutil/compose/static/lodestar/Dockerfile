@@ -1,3 +1,4 @@
+# TODO(dhruv): use official release version tag.
 FROM chainsafe/lodestar:next
 
 RUN apk update && apk add curl jq wget
