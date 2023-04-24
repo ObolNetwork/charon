@@ -160,7 +160,7 @@ type Broadcaster interface {
 	Broadcast(context.Context, Duty, PubKey, SignedData) error
 }
 
-// InclusionChecker checks whether duties have been included on-chain.
+// InclusionChecker checks whether submitted duties have been included on-chain.
 // TODO(corver): Merge this with tracker below as a compose multi tracker.
 type InclusionChecker interface {
 	// Submitted is called when a duty has been submitted.

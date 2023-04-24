@@ -364,7 +364,7 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot int64) error {
 	attsMap := make(map[eth2p0.Root]*eth2p0.Attestation)
 	for _, att := range atts {
 		if att == nil || att.Data == nil {
-			return errors.New("nil attestation")
+			return errors.New("invalid attestation")
 		}
 
 		root, err := att.Data.HashTreeRoot()
