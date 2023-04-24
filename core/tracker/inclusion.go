@@ -28,17 +28,17 @@ const (
 
 // submission represents a duty submitted to the beacon node/chain.
 type submission struct {
-	Duty    core.Duty
-	Pubkey  core.PubKey
-	Data    core.SignedData
-	AttRoot eth2p0.Root
-	Delay   time.Duration
+	Duty        core.Duty
+	Pubkey      core.PubKey
+	Data        core.SignedData
+	AttDataRoot eth2p0.Root
+	Delay       time.Duration
 }
 
 // block is a simplified block with its attestations.
 type block struct {
-	Slot         int64
-	Attestations map[eth2p0.Root]*eth2p0.Attestation // map[Attestation.Data.Root]Attestation
+	Slot                   int64
+	AttestationsByDataRoot map[eth2p0.Root]*eth2p0.Attestation
 }
 
 // supported duty types.
@@ -110,11 +110,11 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.submissions = append(i.submissions, submission{
-		Duty:    duty,
-		Pubkey:  pubkey,
-		Data:    data,
-		AttRoot: attRoot,
-		Delay:   delay,
+		Duty:        duty,
+		Pubkey:      pubkey,
+		Data:        data,
+		AttDataRoot: attRoot,
+		Delay:       delay,
 	})
 
 	return nil
@@ -188,7 +188,7 @@ func (i *inclusionCore) CheckBlock(ctx context.Context, block block) {
 
 // checkAggregationInclusion checks whether the aggregation is included in the block.
 func checkAggregationInclusion(sub submission, block block) (bool, error) {
-	att, ok := block.Attestations[sub.AttRoot]
+	att, ok := block.AttestationsByDataRoot[sub.AttDataRoot]
 	if !ok {
 		return false, nil
 	}
@@ -207,7 +207,7 @@ func checkAggregationInclusion(sub submission, block block) (bool, error) {
 
 // checkAttestationInclusion checks whether the attestation is included in the block.
 func checkAttestationInclusion(sub submission, block block) (bool, error) {
-	att, ok := block.Attestations[sub.AttRoot]
+	att, ok := block.AttestationsByDataRoot[sub.AttDataRoot]
 	if !ok {
 		return false, nil
 	}
@@ -258,7 +258,7 @@ func reportMissed(ctx context.Context, sub submission) {
 
 // reportAttInclusion reports attestations that were included in a block.
 func reportAttInclusion(ctx context.Context, sub submission, block block) {
-	att := block.Attestations[sub.AttRoot]
+	att := block.AttestationsByDataRoot[sub.AttDataRoot]
 	aggIndices := att.AggregationBits.BitIndices()
 	attSlot := int64(att.Data.Slot)
 	blockSlot := block.Slot
@@ -375,7 +375,7 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot int64) error {
 		attsMap[root] = att
 	}
 
-	a.core.CheckBlock(ctx, block{Slot: slot, Attestations: attsMap})
+	a.core.CheckBlock(ctx, block{Slot: slot, AttestationsByDataRoot: attsMap})
 
 	return nil
 }

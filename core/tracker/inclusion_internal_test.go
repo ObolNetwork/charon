@@ -67,7 +67,7 @@ func TestInclusion(t *testing.T) {
 
 	block := block{
 		Slot: block4Duty.Slot,
-		Attestations: map[eth2p0.Root]*eth2p0.Attestation{
+		AttestationsByDataRoot: map[eth2p0.Root]*eth2p0.Attestation{
 			att1Root: att1,
 			att2Root: agg2.Message.Aggregate,
 		},
