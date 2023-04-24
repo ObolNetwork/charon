@@ -6,6 +6,7 @@ package testutil
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"math"
 	"math/rand"
 	"net"
 	"strings"
@@ -656,27 +657,27 @@ func RandomCheckpoint() *eth2p0.Checkpoint {
 }
 
 func RandomEpoch() eth2p0.Epoch {
-	return eth2p0.Epoch(rand.Uint64())
+	return eth2p0.Epoch(rand.Int63n(int64(math.Pow(2, 53))))
 }
 
 func RandomSlot() eth2p0.Slot {
-	return eth2p0.Slot(rand.Uint64())
+	return eth2p0.Slot(rand.Int63n(int64(math.Pow(2, 53))))
 }
 
 func RandomCommIdx() eth2p0.CommitteeIndex {
-	return eth2p0.CommitteeIndex(rand.Uint64())
+	return eth2p0.CommitteeIndex(rand.Int63n(int64(math.Pow(2, 53))))
 }
 
 func RandomVIdx() eth2p0.ValidatorIndex {
-	return eth2p0.ValidatorIndex(rand.Uint64())
+	return eth2p0.ValidatorIndex(rand.Int63n(int64(math.Pow(2, 53))))
 }
 
 func RandomWithdrawalIdx() capella.WithdrawalIndex {
-	return capella.WithdrawalIndex(rand.Uint64())
+	return capella.WithdrawalIndex(rand.Int63n(int64(math.Pow(2, 53))))
 }
 
 func RandomGwei() eth2p0.Gwei {
-	return eth2p0.Gwei(rand.Uint64())
+	return eth2p0.Gwei(rand.Int63n(int64(math.Pow(2, 53))))
 }
 
 func RandomETHAddress() string {

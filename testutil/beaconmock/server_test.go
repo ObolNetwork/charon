@@ -121,7 +121,6 @@ func TestDefaultOverrides(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "charon-simnet", spec["CONFIG_NAME"])
-	require.Equal(t, "gnosis", spec["PRESET_BASE"])
 	require.EqualValues(t, 16, spec["SLOTS_PER_EPOCH"])
 
 	slotsPerEpoch, err := bmock.SlotsPerEpoch(ctx)

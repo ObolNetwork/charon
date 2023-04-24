@@ -15,6 +15,8 @@ for f in /compose/"${NODE}"/validator_keys/keystore-*.json; do
 
     # Import keystore with password.
     node /usr/app/packages/cli/bin/lodestar validator import \
+        --network="dev" \
+        --presetFile="/tmp/testnet/config.yaml" \
         --paramsFile="/tmp/testnet/config.yaml" \
         --importKeystores="$f" \
         --importKeystoresPassword="${f//json/txt}"
@@ -23,6 +25,8 @@ done
 echo "Imported all keys"
 
 node /usr/app/packages/cli/bin/lodestar validator \
+    --network="dev" \
+    --presetFile="/tmp/testnet/config.yaml" \
     --paramsFile="/tmp/testnet/config.yaml" \
     --metrics=true \
     --metrics.address="0.0.0.0" \
