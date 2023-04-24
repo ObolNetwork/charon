@@ -50,7 +50,7 @@ var supported = map[core.DutyType]bool{
 	// TODO(corver) Add support for sync committee and exit duties
 }
 
-// inclusionCore tracks the inclusionCore of submitted duties.
+// inclusionCore tracks the inclusion of submitted duties.
 // It has a simplified API to allow for easy testing.
 type inclusionCore struct {
 	mu          sync.Mutex
@@ -286,7 +286,7 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 			}
 
 			if err := a.checkBlock(ctx, slot); err != nil {
-				log.Warn(ctx, "Failed to check inclusionCore", err, z.I64("slot", slot))
+				log.Warn(ctx, "Failed to check inclusion", err, z.I64("slot", slot))
 				continue
 			}
 
@@ -302,12 +302,12 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot int64) error {
 		return err
 	} else if len(atts) == 0 {
 		// TODO(corver): Remove this log, its probably too verbose
-		log.Debug(ctx, "Skipping missed block inclusionCore check", z.I64("slot", slot))
+		log.Debug(ctx, "Skipping missed block inclusion check", z.I64("slot", slot))
 		return nil // No block for this slot
 	}
 
 	// TODO(corver): Remove this log, its probably too verbose
-	log.Debug(ctx, "Checking block inclusionCore", z.I64("slot", slot))
+	log.Debug(ctx, "Checking block inclusion", z.I64("slot", slot))
 
 	attsMap := make(map[eth2p0.Root]*eth2p0.Attestation)
 	for _, att := range atts {
