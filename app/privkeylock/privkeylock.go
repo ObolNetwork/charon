@@ -19,7 +19,7 @@ func New(path, contextStr string) (func() error, error) {
 		}
 
 		return nil, errors.New(
-			"another instance of charon is running for the selected private key, check if there is another charon instance running on your machine",
+			"existing private key lock file found, another charon instance may be running on your machine, if not then you can delete that file",
 			z.Str("path", path),
 			z.Str("context", string(readCtxStr)),
 		)

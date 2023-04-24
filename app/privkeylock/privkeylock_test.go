@@ -29,7 +29,7 @@ func TestNewTwoInitsAndDelete(t *testing.T) {
 	require.NotNil(t, cleanFunc)
 
 	cleanFunc2, err2 := privkeylock.New(filepath.Join(temp, "privkeylocktest"), "test")
-	require.ErrorContains(t, err2, "another instance of charon is running for the selected private key, check if there is another charon instance running on your machine")
+	require.ErrorContains(t, err2, "existing private key lock file found, another charon instance may be running on your machine, if not then you can delete that file")
 	require.Nil(t, cleanFunc2)
 
 	require.NoError(t, cleanFunc())

@@ -9,8 +9,11 @@ import (
 	"context"
 	"encoding/hex"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -131,6 +134,18 @@ func Run(ctx context.Context, conf Config) (err error) {
 		if err != nil {
 			return err
 		}
+
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+		go func() {
+			<-c
+			if err := cleanPrivkeyLock(); err != nil {
+				log.Error(ctx, "Cannot delete private key lock file", err)
+			}
+
+			//nolint: revive // This is a SIGTERM handler, needs to terminate the program
+			os.Exit(1)
+		}()
 
 		defer func() {
 			if err := cleanPrivkeyLock(); err != nil {
