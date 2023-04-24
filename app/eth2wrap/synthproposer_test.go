@@ -30,7 +30,7 @@ func TestSynthProposer(t *testing.T) {
 		epoch         eth2p0.Epoch = 100
 		realBlockSlot              = eth2p0.Slot(slotsPerEpoch) * eth2p0.Slot(epoch)
 		done                       = make(chan struct{})
-		valsByPubkey               = 0
+		activeVals                 = 0
 	)
 	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(set), beaconmock.WithSlotsPerEpoch(slotsPerEpoch))
 	require.NoError(t, err)
@@ -52,10 +52,10 @@ func TestSynthProposer(t *testing.T) {
 			},
 		}, nil
 	}
-	cached := bmock.ValidatorsByPubKey
-	bmock.ValidatorsByPubKeyFunc = func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
-		valsByPubkey++
-		return cached(ctx, stateID, pubkeys)
+	cached := bmock.ActiveValidatorsFunc
+	bmock.ActiveValidatorsFunc = func(ctx context.Context) (eth2wrap.ActiveValidators, error) {
+		activeVals++
+		return cached(ctx)
 	}
 	signedBeaconBlock := bmock.SignedBeaconBlock
 	bmock.SignedBeaconBlockFunc = func(ctx context.Context, blockID string) (*spec.VersionedSignedBeaconBlock, error) {
@@ -66,7 +66,7 @@ func TestSynthProposer(t *testing.T) {
 		return signedBeaconBlock(ctx, blockID)
 	}
 
-	eth2Cl := eth2wrap.WithSyntheticDuties(bmock, set.PublicKeys())
+	eth2Cl := eth2wrap.WithSyntheticDuties(bmock)
 
 	var preps []*eth2v1.ProposalPreparation
 	for vIdx := range set {
@@ -81,13 +81,13 @@ func TestSynthProposer(t *testing.T) {
 	duties, err := eth2Cl.ProposerDuties(ctx, epoch, nil)
 	require.NoError(t, err)
 	require.Len(t, duties, len(set))
-	require.Equal(t, 1, valsByPubkey)
+	require.Equal(t, 1, activeVals)
 
 	// Get synthetic duties again
 	duties2, err := eth2Cl.ProposerDuties(ctx, epoch, nil)
 	require.NoError(t, err)
 	require.Equal(t, duties, duties2) // Identical
-	require.Equal(t, 1, valsByPubkey) // Cached
+	require.Equal(t, 1, activeVals)   // Cached
 
 	// Submit blocks
 	for _, duty := range duties {

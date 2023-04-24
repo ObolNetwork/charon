@@ -36,7 +36,7 @@ const (
 )
 
 type synthProposerEth2Provider interface {
-	eth2client.ValidatorsProvider
+	ActiveValidatorsProvider
 	eth2client.SlotsPerEpochProvider
 	eth2client.ProposerDutiesProvider
 }
@@ -241,9 +241,8 @@ func IsSyntheticBlock(block *spec.VersionedSignedBeaconBlock) bool {
 }
 
 // synthProposerCache returns a new cache for synthetic proposer duties.
-func newSynthProposerCache(pubkeys []eth2p0.BLSPubKey) *synthProposerCache {
+func newSynthProposerCache() *synthProposerCache {
 	return &synthProposerCache{
-		pubkeys:     pubkeys,
 		duties:      make(map[eth2p0.Epoch][]*eth2v1.ProposerDuty),
 		synths:      make(map[eth2p0.Epoch]map[eth2p0.Slot]eth2p0.ValidatorIndex),
 		shuffleFunc: eth2Shuffle,
@@ -255,7 +254,6 @@ func newSynthProposerCache(pubkeys []eth2p0.BLSPubKey) *synthProposerCache {
 // Since only a single validator can be a proposer per slot, we require all
 // validators to calculate the synthetic duties for the whole set.
 type synthProposerCache struct {
-	pubkeys []eth2p0.BLSPubKey
 	// shuffleFunc deterministically shuffles the validator indices for the epoch.
 	shuffleFunc func(eth2p0.Epoch, []eth2p0.ValidatorIndex) []eth2p0.ValidatorIndex
 
@@ -275,23 +273,13 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 		return duties, nil
 	}
 
-	// Get active validators for the epoch
-	// TODO(corver): Use cache instead of using head to try to mitigate this expensive call.
-	vals, err := eth2Cl.ValidatorsByPubKey(ctx, "head", c.pubkeys)
+	vals, err := eth2Cl.ActiveValidators(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	var activeIdxs []eth2p0.ValidatorIndex
-	for _, val := range vals {
-		if !val.Status.IsActive() {
-			continue
-		}
-		activeIdxs = append(activeIdxs, val.Index)
-	}
-
 	// Get actual duties for all validators for the epoch.
-	duties, err = eth2Cl.ProposerDuties(ctx, epoch, activeIdxs)
+	duties, err = eth2Cl.ProposerDuties(ctx, epoch, vals.Indices())
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +299,7 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 
 	// Deterministic synthetic duties for the rest.
 	synthSlots := make(map[eth2p0.Slot]eth2p0.ValidatorIndex)
-	for _, valIdx := range c.shuffleFunc(epoch, activeIdxs) {
+	for _, valIdx := range c.shuffleFunc(epoch, vals.Indices()) {
 		if noSynth[valIdx] {
 			continue
 		}
@@ -325,7 +313,7 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 
 		synthSlots[synthSlot] = valIdx
 		duties = append(duties, &eth2v1.ProposerDuty{
-			PubKey:         vals[valIdx].Validator.PublicKey,
+			PubKey:         vals[valIdx],
 			Slot:           synthSlot,
 			ValidatorIndex: valIdx,
 		})

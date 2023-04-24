@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
 	"testing"
 	"time"
 
@@ -61,8 +62,27 @@ func newHTTPAdapter(ethSvc *eth2http.Service, address string, timeout time.Durat
 //   - experimental interfaces
 type httpAdapter struct {
 	*eth2http.Service
-	address string
-	timeout time.Duration
+	address    string
+	timeout    time.Duration
+	valCacheMu sync.RWMutex
+	valCache   func(context.Context) (ActiveValidators, error)
+}
+
+func (h *httpAdapter) SetValidatorCache(valCache func(context.Context) (ActiveValidators, error)) {
+	h.valCacheMu.Lock()
+	h.valCache = valCache
+	h.valCacheMu.Unlock()
+}
+
+func (h *httpAdapter) ActiveValidators(ctx context.Context) (ActiveValidators, error) {
+	h.valCacheMu.RLock()
+	defer h.valCacheMu.RUnlock()
+
+	if h.valCache == nil {
+		return nil, errors.New("no active validator cache")
+	}
+
+	return h.valCache(ctx)
 }
 
 // AggregateBeaconCommitteeSelections implements eth2exp.BeaconCommitteeSelectionAggregator.

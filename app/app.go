@@ -398,7 +398,20 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	feeRecipientFunc := func(pubkey core.PubKey) string {
 		return feeRecipientAddrByCorePubkey[pubkey]
 	}
-	sched.SubscribeSlots(setFeeRecipient(eth2Cl, eth2Pubkeys, feeRecipientFunc))
+	sched.SubscribeSlots(setFeeRecipient(eth2Cl, feeRecipientFunc))
+
+	// Setup validator cache, refreshing it every epoch.
+	valCache := eth2wrap.NewValidatorCache(eth2Cl, eth2Pubkeys)
+	eth2Cl.SetValidatorCache(valCache.Get)
+	sched.SubscribeSlots(func(ctx context.Context, slot core.Slot) error {
+		if !slot.FirstInEpoch() {
+			return nil
+		}
+		valCache.Trim()
+		_, err := valCache.Get(ctx)
+
+		return err
+	})
 
 	fetch, err := fetcher.New(eth2Cl, feeRecipientFunc)
 	if err != nil {
@@ -684,7 +697,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 
 		if conf.SyntheticBlockProposals {
 			log.Info(ctx, "Synthetic block proposals enabled")
-			wrap = eth2wrap.WithSyntheticDuties(wrap, pubkeys)
+			wrap = eth2wrap.WithSyntheticDuties(wrap)
 		}
 
 		life.RegisterStop(lifecycle.StopBeaconMock, lifecycle.HookFuncErr(bmock.Close))
@@ -703,7 +716,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 
 	if conf.SyntheticBlockProposals {
 		log.Info(ctx, "Synthetic block proposals enabled")
-		eth2Cl = eth2wrap.WithSyntheticDuties(eth2Cl, pubkeys)
+		eth2Cl = eth2wrap.WithSyntheticDuties(eth2Cl)
 	}
 
 	// Check BN chain/network.
@@ -825,7 +838,7 @@ func wireTracing(life *lifecycle.Manager, conf Config) error {
 
 // setFeeRecipient returns a slot subscriber for scheduler which calls prepare_beacon_proposer endpoint at start of each epoch.
 // TODO(dhruv): move this somewhere else once more use-cases like this becomes clear.
-func setFeeRecipient(eth2Cl eth2wrap.Client, pubkeys []eth2p0.BLSPubKey, feeRecipientFunc func(core.PubKey) string) func(ctx context.Context, slot core.Slot) error {
+func setFeeRecipient(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string) func(ctx context.Context, slot core.Slot) error {
 	onStartup := true
 	var osMutex sync.Mutex
 
@@ -839,34 +852,18 @@ func setFeeRecipient(eth2Cl eth2wrap.Client, pubkeys []eth2p0.BLSPubKey, feeReci
 		onStartup = false
 		osMutex.Unlock()
 
-		// TODO(corver): Use cache instead of using head to try to mitigate this expensive call.
-		vals, err := eth2Cl.ValidatorsByPubKey(ctx, "head", pubkeys)
+		vals, err := eth2Cl.ActiveValidators(ctx)
 		if err != nil {
 			return err
 		}
 
-		var activeVals []*eth2v1.Validator
-		for _, validator := range vals {
-			if validator == nil {
-				return errors.New("validator data cannot be nil")
-			}
-			if validator.Status != eth2v1.ValidatorStateActiveOngoing {
-				continue
-			}
-			activeVals = append(activeVals, validator)
-		}
-
-		if len(activeVals) == 0 {
+		if len(vals) == 0 {
 			return nil // No active validators.
 		}
 
 		var preps []*eth2v1.ProposalPreparation
-		for _, val := range activeVals {
-			if val == nil || val.Validator == nil {
-				return errors.New("validator data cannot be nil")
-			}
-
-			feeRecipient := feeRecipientFunc(core.PubKeyFrom48Bytes(val.Validator.PublicKey))
+		for vIdx, pubkey := range vals {
+			feeRecipient := feeRecipientFunc(core.PubKeyFrom48Bytes(pubkey))
 
 			var addr bellatrix.ExecutionAddress
 			b, err := hex.DecodeString(strings.TrimPrefix(feeRecipient, "0x"))
@@ -876,7 +873,7 @@ func setFeeRecipient(eth2Cl eth2wrap.Client, pubkeys []eth2p0.BLSPubKey, feeReci
 			copy(addr[:], b)
 
 			preps = append(preps, &eth2v1.ProposalPreparation{
-				ValidatorIndex: val.Index,
+				ValidatorIndex: vIdx,
 				FeeRecipient:   addr,
 			})
 		}

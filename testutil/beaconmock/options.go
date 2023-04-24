@@ -21,6 +21,7 @@ import (
 	"github.com/prysmaticlabs/go-bitfield"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
@@ -165,8 +166,15 @@ func WithValidatorSet(set ValidatorSet) Option {
 			return resp, nil
 		}
 
-		mock.getAllValidatorsFunc = func(ctx context.Context) []*eth2v1.Validator {
-			return set.Validators()
+		activeVals := make(eth2wrap.ActiveValidators)
+		for _, val := range set {
+			if val.Status.IsActive() {
+				activeVals[val.Index] = val.Validator.PublicKey
+			}
+		}
+
+		mock.ActiveValidatorsFunc = func(ctx context.Context) (eth2wrap.ActiveValidators, error) {
+			return activeVals, nil
 		}
 	}
 }
@@ -293,10 +301,15 @@ func WithDeterministicAttesterDuties(factor int) Option {
 func WithDeterministicProposerDuties(factor int) Option {
 	return func(mock *Mock) {
 		mock.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, _ []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
-			vals := mock.getAllValidators(ctx)
+			vals, err := mock.ActiveValidators(ctx)
+			if err != nil {
+				return nil, err
+			}
 
-			sort.Slice(vals, func(i, j int) bool {
-				return vals[i].Index < vals[j].Index
+			valIdxs := vals.Indices()
+
+			sort.Slice(valIdxs, func(i, j int) bool {
+				return valIdxs[i] < valIdxs[j]
 			})
 
 			slotsPerEpoch, err := mock.SlotsPerEpoch(ctx)
@@ -307,7 +320,7 @@ func WithDeterministicProposerDuties(factor int) Option {
 			slotsAssigned := make(map[int]bool)
 
 			var resp []*eth2v1.ProposerDuty
-			for i, val := range vals {
+			for i, valIdx := range valIdxs {
 				offset := (i * factor) % int(slotsPerEpoch)
 				if slotsAssigned[offset] {
 					break
@@ -316,9 +329,9 @@ func WithDeterministicProposerDuties(factor int) Option {
 				slotsAssigned[offset] = true
 
 				resp = append(resp, &eth2v1.ProposerDuty{
-					PubKey:         val.Validator.PublicKey,
+					PubKey:         vals[valIdx],
 					Slot:           eth2p0.Slot(slotsPerEpoch*uint64(epoch) + uint64(offset)),
-					ValidatorIndex: val.Index,
+					ValidatorIndex: valIdx,
 				})
 
 				// there can be only one proposer per slot, in this case it would be the first validator who will propose
@@ -486,6 +499,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 				AggregationBits: bitfield.NewBitlist(0),
 				Data:            attData,
 			}, nil
+		},
+		ActiveValidatorsFunc: func(ctx context.Context) (eth2wrap.ActiveValidators, error) {
+			return nil, nil
 		},
 		ValidatorsFunc: func(context.Context, string, []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 			return nil, nil

@@ -153,7 +153,7 @@ func TestProposeBlock(t *testing.T) {
 	}
 
 	// Call propose block function
-	err = validatormock.ProposeBlock(ctx, provider, signFunc, eth2p0.Slot(slotsPerEpoch), valSet.PublicKeys()...)
+	err = validatormock.ProposeBlock(ctx, provider, signFunc, eth2p0.Slot(slotsPerEpoch))
 	require.NoError(t, err)
 }
 
@@ -201,7 +201,7 @@ func TestProposeBlindedBlock(t *testing.T) {
 	}
 
 	// Call propose block function
-	err = validatormock.ProposeBlindedBlock(ctx, provider, signFunc, eth2p0.Slot(slotsPerEpoch), valSet.PublicKeys()...)
+	err = validatormock.ProposeBlindedBlock(ctx, provider, signFunc, eth2p0.Slot(slotsPerEpoch))
 	require.NoError(t, err)
 }
 

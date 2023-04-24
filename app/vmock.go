@@ -75,7 +75,7 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 	// Handle duties when triggered.
 	sched.SubscribeDuties(func(ctx context.Context, duty core.Duty, _ core.DutyDefinitionSet) error {
 		vMockWrap(ctx, duty.Slot, func(ctx context.Context, state vMockState) error {
-			return handleVMockDuty(ctx, duty, state.Eth2Cl, state.SignFunc, pubshares, state.Attester, state.SyncCommMember)
+			return handleVMockDuty(ctx, duty, state.Eth2Cl, state.SignFunc, state.Attester, state.SyncCommMember)
 		})
 
 		return nil
@@ -105,7 +105,8 @@ type vMockState struct {
 type vMockCallback func(context.Context, vMockState) error
 
 // newVMockWrapper returns a stateful validator mock wrapper function.
-func newVMockWrapper(conf Config, pubshares []eth2p0.BLSPubKey) (func(ctx context.Context, slot int64, callback vMockCallback), error) {
+func newVMockWrapper(conf Config, pubshares []eth2p0.BLSPubKey,
+) (func(ctx context.Context, slot int64, callback vMockCallback), error) {
 	// Immutable state and providers.
 	signFunc, err := newVMockSigner(conf, pubshares)
 	if err != nil {
@@ -116,9 +117,10 @@ func newVMockWrapper(conf Config, pubshares []eth2p0.BLSPubKey) (func(ctx contex
 
 	// Mutable state
 	var (
-		mu          sync.Mutex
-		attester    = new(validatormock.SlotAttester)
-		syncCommMem = new(validatormock.SyncCommMember)
+		mu                  sync.Mutex
+		attester            = new(validatormock.SlotAttester)
+		syncCommMem         = new(validatormock.SyncCommMember)
+		prevSlot, prevEpoch int64
 	)
 
 	return func(ctx context.Context, slot int64, fn vMockCallback) {
@@ -140,11 +142,19 @@ func newVMockWrapper(conf Config, pubshares []eth2p0.BLSPubKey) (func(ctx contex
 		}
 
 		// Create new slot attester on new slots
-		if slot != 0 && attester.Slot() != eth2p0.Slot(slot) {
+		if slot != 0 && prevSlot != slot {
 			attester = validatormock.NewSlotAttester(eth2Cl, eth2p0.Slot(slot), signFunc, pubshares)
+
+			prevSlot = slot
 		}
-		if epoch != 0 && syncCommMem.Epoch() != epoch {
+
+		// Create new sync committee member on new epochs, also refresh validator cache.
+		if epoch != 0 && prevEpoch != int64(epoch) {
 			syncCommMem = validatormock.NewSyncCommMember(eth2Cl, epoch, signFunc, pubshares)
+
+			eth2Cl.SetValidatorCache(eth2wrap.NewValidatorCache(eth2Cl, pubshares).Get)
+
+			prevEpoch = int64(epoch)
 		}
 
 		state := vMockState{
@@ -244,7 +254,7 @@ func newVMockSigner(conf Config, pubshares []eth2p0.BLSPubKey) (validatormock.Si
 
 // handleVMockDuty calls appropriate validator mock function for attestations, block proposals and sync committee contributions.
 func handleVMockDuty(ctx context.Context, duty core.Duty, eth2Cl eth2wrap.Client,
-	signer validatormock.SignFunc, pubshares []eth2p0.BLSPubKey, attester *validatormock.SlotAttester,
+	signer validatormock.SignFunc, attester *validatormock.SlotAttester,
 	syncCommMember *validatormock.SyncCommMember,
 ) error {
 	switch duty.Type {
@@ -262,13 +272,13 @@ func handleVMockDuty(ctx context.Context, duty core.Duty, eth2Cl eth2wrap.Client
 			log.Info(ctx, "Mock aggregation submitted to validatorapi", z.I64("slot", duty.Slot))
 		}
 	case core.DutyProposer:
-		err := validatormock.ProposeBlock(ctx, eth2Cl, signer, eth2p0.Slot(duty.Slot), pubshares...)
+		err := validatormock.ProposeBlock(ctx, eth2Cl, signer, eth2p0.Slot(duty.Slot))
 		if err != nil {
 			return errors.Wrap(err, "mock proposal failed")
 		}
 		log.Info(ctx, "Mock block proposal submitted to validatorapi", z.I64("slot", duty.Slot))
 	case core.DutyBuilderProposer:
-		err := validatormock.ProposeBlindedBlock(ctx, eth2Cl, signer, eth2p0.Slot(duty.Slot), pubshares...)
+		err := validatormock.ProposeBlindedBlock(ctx, eth2Cl, signer, eth2p0.Slot(duty.Slot))
 		if err != nil {
 			return errors.Wrap(err, "mock builder proposal failed")
 		}
