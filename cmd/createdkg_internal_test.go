@@ -4,12 +4,18 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/eth2util"
 )
+
+const validEthAddr = "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359" // Taken from https://eips.ethereum.org/EIPS/eip-55
 
 func TestCreateDkgValid(t *testing.T) {
 	temp := t.TempDir()
@@ -18,8 +24,8 @@ func TestCreateDkgValid(t *testing.T) {
 		OutputDir:         temp,
 		NumValidators:     1,
 		Threshold:         3,
-		FeeRecipientAddrs: []string{deadAddress},
-		WithdrawalAddrs:   []string{deadAddress},
+		FeeRecipientAddrs: []string{validEthAddr},
+		WithdrawalAddrs:   []string{validEthAddr},
 		Network:           defaultNetwork,
 		DKGAlgo:           "default",
 		OperatorENRs: []string{
@@ -46,27 +52,39 @@ func TestCreateDkgInvalid(t *testing.T) {
 		errMsg string
 	}{
 		{
-			conf: createDKGConfig{OperatorENRs: append([]string{
-				"-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
-			}, validENRs...)},
+			conf: createDKGConfig{
+				OperatorENRs: append([]string{
+					"-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
+				}, validENRs...),
+				Network: defaultNetwork,
+			},
 			errMsg: "invalid ENR: missing 'enr:' prefix",
 		},
 		{
-			conf: createDKGConfig{OperatorENRs: append([]string{
-				"enr:JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
-			}, validENRs...)},
+			conf: createDKGConfig{
+				OperatorENRs: append([]string{
+					"enr:JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
+				}, validENRs...),
+				Network: defaultNetwork,
+			},
 			errMsg: "invalid ENR: invalid enr record, too few elements",
 		},
 		{
-			conf: createDKGConfig{OperatorENRs: append([]string{
-				"enrJG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
-			}, validENRs...)},
+			conf: createDKGConfig{
+				OperatorENRs: append([]string{
+					"enrJG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
+				}, validENRs...),
+				Network: defaultNetwork,
+			},
 			errMsg: "invalid ENR: missing 'enr:' prefix",
 		},
 		{
-			conf: createDKGConfig{OperatorENRs: append([]string{
-				"JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
-			}, validENRs...)},
+			conf: createDKGConfig{
+				OperatorENRs: append([]string{
+					"JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
+				}, validENRs...),
+				Network: defaultNetwork,
+			},
 			errMsg: "invalid ENR: missing 'enr:' prefix",
 		},
 		{
@@ -123,7 +141,64 @@ func TestExistingClusterDefinition(t *testing.T) {
 		require.NoError(t, os.RemoveAll(outDir))
 	}()
 
+	var enrs []string
+	for i := 0; i < minNodes; i++ {
+		enrs = append(enrs, "enr:-JG4QG472ZVvl8ySSnUK9uNVDrP_hjkUrUqIxUC75aayzmDVQedXkjbqc7QKyOOS71VmlqnYzri_taV8ZesFYaoQSIOGAYHtv1WsgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u")
+	}
+	enrArg := fmt.Sprintf("--operator-enrs=%s", strings.Join(enrs, ","))
+	feeRecipientArg := fmt.Sprintf("--fee-recipient-addresses=%s", validEthAddr)
+	withdrawalArg := fmt.Sprintf("--withdrawal-addresses=%s", validEthAddr)
+
 	cmd := newCreateCmd(newCreateDKGCmd(runCreateDKG))
-	cmd.SetArgs([]string{"dkg", "--operator-enrs=enr:-JG4QG472ZVvl8ySSnUK9uNVDrP_hjkUrUqIxUC75aayzmDVQedXkjbqc7QKyOOS71VmlqnYzri_taV8ZesFYaoQSIOGAYHtv1WsgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u", "--fee-recipient-addresses=0xa6430105220d0b29688b734b8ea0f3ca9936e846", "--withdrawal-addresses=0xa6430105220d0b29688b734b8ea0f3ca9936e846"})
+	cmd.SetArgs([]string{"dkg", enrArg, feeRecipientArg, withdrawalArg})
+
 	require.EqualError(t, cmd.Execute(), "existing cluster-definition.json found. Try again after deleting it")
+}
+
+func TestValidateWithdrawalAddr(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		addrs := []string{validEthAddr}
+		err := validateWithdrawalAddrs(addrs, eth2util.Goerli.Name)
+		require.NoError(t, err)
+	})
+
+	t.Run("invalid network", func(t *testing.T) {
+		err := validateWithdrawalAddrs([]string{zeroAddress}, eth2util.Mainnet.Name)
+		require.ErrorContains(t, err, "zero address forbidden on this network")
+	})
+
+	t.Run("invalid withdrawal address", func(t *testing.T) {
+		addrs := []string{"0xBAD000BAD000BAD"}
+		err := validateWithdrawalAddrs(addrs, eth2util.Gnosis.Name)
+		require.ErrorContains(t, err, "invalid withdrawal address")
+	})
+
+	t.Run("invalid checksum", func(t *testing.T) {
+		addrs := []string{"0x000BAD0000000BAD0000000BAD0000000BAD0000"}
+		err := validateWithdrawalAddrs(addrs, eth2util.Gnosis.Name)
+		require.ErrorContains(t, err, "invalid checksummed address")
+	})
+}
+
+func TestValidateConfig(t *testing.T) {
+	t.Run("invalid threshold", func(t *testing.T) {
+		threshold := 5
+		numOperators := 4
+		err := validateConfig(threshold, numOperators, "")
+		require.ErrorContains(t, err, "threshold cannot be greater than length of operators")
+	})
+
+	t.Run("insufficient ENRs", func(t *testing.T) {
+		threshold := 1
+		numOperators := 3
+		err := validateConfig(threshold, numOperators, "")
+		require.ErrorContains(t, err, "insufficient operator ENRs (min = 4)")
+	})
+
+	t.Run("invalid network", func(t *testing.T) {
+		threshold := 3
+		numOperators := 4
+		err := validateConfig(threshold, numOperators, "cosmos")
+		require.ErrorContains(t, err, "unsupported network")
+	})
 }

@@ -79,8 +79,22 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		}
 	}()
 
+	// Map prater to goerli to ensure backwards compatibility with older cluster definitions.
+	// TODO(xenowits): Remove the mapping later.
+	if conf.Network == eth2util.Prater {
+		conf.Network = eth2util.Goerli.Name
+	}
+
+	if err = validateConfig(conf.Threshold, len(conf.OperatorENRs), conf.Network); err != nil {
+		return err
+	}
+
 	conf.FeeRecipientAddrs, conf.WithdrawalAddrs, err = validateAddresses(conf.NumValidators, conf.FeeRecipientAddrs, conf.WithdrawalAddrs)
 	if err != nil {
+		return err
+	}
+
+	if err = validateWithdrawalAddrs(conf.WithdrawalAddrs, conf.Network); err != nil {
 		return err
 	}
 
@@ -88,11 +102,6 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 
 	if _, err := os.Stat(path.Join(conf.OutputDir, "cluster-definition.json")); err == nil {
 		return errors.New("existing cluster-definition.json found. Try again after deleting it")
-	}
-
-	// Don't allow cluster size to be less than 4.
-	if len(conf.OperatorENRs) < minNodes {
-		return errors.New("insufficient operator ENRs (min = 4)")
 	}
 
 	var operators []cluster.Operator
@@ -111,20 +120,6 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		conf.Threshold = safeThreshold
 	} else if conf.Threshold != safeThreshold {
 		log.Warn(ctx, "Non standard `--threshold` flag provided, this will affect cluster safety", nil, z.Int("threshold", conf.Threshold), z.Int("safe_threshold", safeThreshold))
-	}
-
-	// Map prater to goerli to ensure backwards compatibility with older cluster definitions.
-	// TODO(xenowits): Remove the mapping later.
-	if conf.Network == eth2util.Prater {
-		conf.Network = eth2util.Goerli.Name
-	}
-
-	if !eth2util.ValidNetwork(conf.Network) {
-		return errors.New("unsupported network", z.Str("network", conf.Network))
-	}
-
-	if err := validateWithdrawalAddrs(conf.WithdrawalAddrs, conf.Network); err != nil {
-		return err
 	}
 
 	forkVersion, err := eth2util.NetworkToForkVersion(conf.Network)
@@ -166,14 +161,18 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	return nil
 }
 
+// validateWithdrawalAddrs returns an error if any of the provided withdrawal addresses is invalid.
 func validateWithdrawalAddrs(addrs []string, network string) error {
 	for _, addr := range addrs {
-		if _, err := eth2util.ChecksumAddress(addr); err != nil {
+		checksumAddr, err := eth2util.ChecksumAddress(addr)
+		if err != nil {
 			return errors.Wrap(err, "invalid withdrawal address", z.Str("addr", addr))
+		} else if checksumAddr != addr {
+			return errors.New("invalid checksummed address", z.Str("addr", addr))
 		}
 
 		// We cannot allow a zero withdrawal address on mainnet or gnosis.
-		if isMainNetwork(network) && addr == zeroAddress {
+		if isMainOrGnosis(network) && addr == zeroAddress {
 			return errors.New("zero address forbidden on this network", z.Str("network", network))
 		}
 	}
@@ -181,7 +180,26 @@ func validateWithdrawalAddrs(addrs []string, network string) error {
 	return nil
 }
 
-// isMainNetwork returns true if the network is either mainnet or gnosis.
-func isMainNetwork(network string) bool {
+// validateConfig returns an error if any of the provided config parameter is invalid.
+func validateConfig(threshold, numOperators int, network string) error {
+	if threshold > numOperators {
+		return errors.New("threshold cannot be greater than length of operators",
+			z.Int("threshold", threshold), z.Int("operators", numOperators))
+	}
+
+	// Don't allow cluster size to be less than 4.
+	if numOperators < minNodes {
+		return errors.New("insufficient operator ENRs (min = 4)")
+	}
+
+	if !eth2util.ValidNetwork(network) {
+		return errors.New("unsupported network", z.Str("network", network))
+	}
+
+	return nil
+}
+
+// isMainOrGnosis returns true if the network is either mainnet or gnosis.
+func isMainOrGnosis(network string) bool {
 	return network == eth2util.Mainnet.Name || network == eth2util.Gnosis.Name
 }
