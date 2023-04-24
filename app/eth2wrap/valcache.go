@@ -11,6 +11,35 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
+// ActiveValidators is a map of active validator indices to pubkeys.
+type ActiveValidators map[eth2p0.ValidatorIndex]eth2p0.BLSPubKey
+
+// Pubkeys returns a list of active validator pubkeys.
+func (m ActiveValidators) Pubkeys() []eth2p0.BLSPubKey {
+	var pubkeys []eth2p0.BLSPubKey
+	for _, pubkey := range m {
+		pubkeys = append(pubkeys, pubkey)
+	}
+
+	return pubkeys
+}
+
+// Indices returns a list of active validator indices.
+func (m ActiveValidators) Indices() []eth2p0.ValidatorIndex {
+	var indices []eth2p0.ValidatorIndex
+	for index := range m {
+		indices = append(indices, index)
+	}
+
+	return indices
+}
+
+// ActiveValidatorsProvider is the interface for providing current epoch's cached active validator
+// identity information.
+type ActiveValidatorsProvider interface {
+	ActiveValidators(context.Context) (ActiveValidators, error)
+}
+
 // NewValidatorCache creates a new validator cache.
 func NewValidatorCache(eth2Cl Client, pubkeys []eth2p0.BLSPubKey) *ValidatorCache {
 	return &ValidatorCache{
