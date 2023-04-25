@@ -69,7 +69,7 @@ var (
 	}
 
 	expTimer = func(clock clockwork.Clock) roundTimer {
-		return expRoundTimer{clock: clock}
+		return exponentialRoundTimer{clock: clock}
 	}
 )
 
@@ -633,25 +633,14 @@ type incRoundTimer2 struct {
 	clock clockwork.Clock
 }
 
+func (t incRoundTimer2) Type() timerType {
+	return "inc2"
+}
+
 func (t incRoundTimer2) Timer(round int64) (<-chan time.Time, func()) {
 	duration := incRoundStart
 	for i := 1; i < int(round); i++ {
 		duration += incRoundStart
-	}
-
-	timer := t.clock.NewTimer(duration)
-
-	return timer.Chan(), func() {}
-}
-
-type expRoundTimer struct {
-	clock clockwork.Clock
-}
-
-func (t expRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
-	duration := incRoundStart
-	for i := 1; i < int(round); i++ {
-		duration *= 2
 	}
 
 	timer := t.clock.NewTimer(duration)

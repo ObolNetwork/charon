@@ -39,18 +39,19 @@ const (
 	//   - Those are added to the peer store so libp2p will try to use them.
 	RelayDiscovery Feature = "relay_discovery"
 
-	// QBFTDoubleLeadTimer enables double round duration is leader is online (if pre-prepare received).
-	QBFTDoubleLeadTimer Feature = "qbft_double_lead_timer"
+	// QBFTTimersABTest enables a round-robin mixed timer selection for A/B testing
+	// the affects of different round timers.
+	QBFTTimersABTest Feature = "qbft_timers_ab_test"
 )
 
 var (
 	// state defines the current rollout status of each feature.
 	state = map[Feature]status{
-		QBFTConsensus:       statusStable,
-		Priority:            statusStable,
-		MockAlpha:           statusAlpha,
-		RelayDiscovery:      statusStable,
-		QBFTDoubleLeadTimer: statusAlpha,
+		QBFTConsensus:    statusStable,
+		Priority:         statusStable,
+		MockAlpha:        statusAlpha,
+		RelayDiscovery:   statusStable,
+		QBFTTimersABTest: statusAlpha,
 		// Add all features and there status here.
 	}
 
