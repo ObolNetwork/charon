@@ -3,11 +3,18 @@
 package main
 
 import (
+	"context"
+	"os/signal"
+	"syscall"
+
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/cmd"
 )
 
 func main() {
-	cobra.CheckErr(cmd.New().Execute())
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	cobra.CheckErr(cmd.New().ExecuteContext(ctx))
 }
