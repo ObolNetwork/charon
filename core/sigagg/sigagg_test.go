@@ -110,10 +110,9 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 		sig, err := tbls.Sign(secret, msg[:])
 		require.NoError(t, err)
 
-		x, err := att.SetSignature(sig[:])
-		require.NoError(t, err)
-		newAtt := x.(core.Attestation)
-		parsig := core.NewPartialAttestation(&newAtt.Attestation, shareIdx)
+		partialAtt := att.Attestation
+		partialAtt.Signature = eth2p0.BLSSignature(sig)
+		parsig := core.NewPartialAttestation(&partialAtt, shareIdx)
 
 		psigs[shareIdx] = sig
 		parsigs = append(parsigs, parsig)
