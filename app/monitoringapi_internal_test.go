@@ -162,7 +162,7 @@ func TestStartChecker(t *testing.T) {
 			advanceClock(clock, 32*12*time.Second)
 
 			waitFor := 1 * time.Second
-			tickInterval := 10 * time.Millisecond
+			tickInterval := 1 * time.Millisecond
 			if tt.err != nil {
 				require.Eventually(t, func() bool {
 					advanceClock(clock, 10*time.Second)
