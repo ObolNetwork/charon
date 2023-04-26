@@ -30,14 +30,21 @@ func TestNewInitsAndDelete(t *testing.T) {
 }
 
 func TestNewTwoInitsAndDelete(t *testing.T) {
-	temp := t.TempDir()
-	handle, err := New(filepath.Join(temp, "privkeylocktest"), "test")
-	require.NoError(t, err)
-
 	ctx, cancel := context.WithCancel(context.Background())
+
+	temp := ""
+	wait := make(chan struct{})
 	go func() {
+		temp = t.TempDir()
+		handle, err := New(filepath.Join(temp, "privkeylocktest"), "test")
+		require.NoError(t, err)
+
+		wait <- struct{}{}
+
 		require.NoError(t, handle.Run(ctx))
 	}()
+
+	<-wait
 
 	defer cancel()
 
@@ -51,10 +58,16 @@ func TestNewAfterGraceWorks(t *testing.T) {
 		lockfileGracePeriod = func() time.Duration {
 			return oldgrace
 		}
+
+		timestampFunc = time.Now
 	}()
 
 	lockfileGracePeriod = func() time.Duration {
 		return 500 * time.Millisecond
+	}
+
+	timestampFunc = func() time.Time {
+		return time.Now().Add(-2 * time.Second)
 	}
 
 	temp := t.TempDir()
@@ -67,7 +80,6 @@ func TestNewAfterGraceWorks(t *testing.T) {
 	}()
 
 	cancel()
-	time.Sleep(500 * time.Millisecond)
 
 	_, err2 := New(filepath.Join(temp, "privkeylocktest"), "test")
 	require.NoError(t, err2)
