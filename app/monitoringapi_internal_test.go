@@ -161,6 +161,8 @@ func TestStartChecker(t *testing.T) {
 			// Advance clock for first epoch tick.
 			advanceClock(clock, 32*12*time.Second)
 
+			waitFor := 1 * time.Second
+			tickInterval := 1 * time.Millisecond
 			if tt.err != nil {
 				require.Eventually(t, func() bool {
 					advanceClock(clock, 10*time.Second)
@@ -171,12 +173,12 @@ func TestStartChecker(t *testing.T) {
 					}
 
 					return true
-				}, time.Second, 100*time.Millisecond)
+				}, waitFor, tickInterval)
 			} else {
 				require.Eventually(t, func() bool {
 					advanceClock(clock, 12*time.Second)
 					return readyErrFunc() == nil
-				}, time.Second, 100*time.Millisecond)
+				}, waitFor, tickInterval)
 			}
 		})
 	}
