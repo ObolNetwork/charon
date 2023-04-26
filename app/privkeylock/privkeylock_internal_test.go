@@ -14,18 +14,33 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func TestNewInitsAndDelete(t *testing.T) {
+func TestService(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "privkeylocktest")
 
+	// Create a stale file that is ignored.
+	err := writeFile(path, "test", time.Now().Add(-staleDuration))
+	require.NoError(t, err)
+
+	// Create a new service.
 	svc, err := New(path, "test")
 	require.NoError(t, err)
+	// Increase the update period to make the test faster.
+	svc.updatePeriod = time.Millisecond
+
+	assertFileExists(t, path)
+
+	// Assert a new service can't be created.
+	_, err = New(path, "test")
+	require.ErrorContains(t, err, "existing private key lock file found")
+
+	// Delete the file so Run will create it again.
+	require.NoError(t, os.Remove(path))
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	var eg errgroup.Group
-
 	eg.Go(func() error {
-		return svc.Run(ctx)
+		return svc.Run(ctx) // Run will create the file.
 	})
 
 	eg.Go(func() error {
@@ -37,54 +52,7 @@ func TestNewInitsAndDelete(t *testing.T) {
 
 	require.NoError(t, eg.Wait())
 
-	_, openErr := os.Open(path)
-	require.ErrorIs(t, openErr, os.ErrNotExist)
-}
-
-func TestNewTwoInitsAndDelete(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "privkeylocktest")
-	ctx, cancel := context.WithCancel(context.Background())
-
-	svc, err := New(path, "test")
-	require.NoError(t, err)
-
-	var eg errgroup.Group
-
-	eg.Go(func() error {
-		return svc.Run(ctx)
-	})
-
-	eg.Go(func() error {
-		assertFileExists(t, path)
-
-		_, err := New(path, "test")
-		require.ErrorContains(t, err, "existing private key lock file found")
-
-		cancel()
-
-		return nil
-	})
-
-	require.NoError(t, eg.Wait())
-
-	_, openErr := os.Open(path)
-	require.ErrorIs(t, openErr, os.ErrNotExist)
-}
-
-func TestNewAfterGraceWorks(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "privkeylocktest")
-
-	err := writeFile(path, "test", time.Now().Add(-time.Hour))
-	require.NoError(t, err)
-
-	svc, err := New(path, "test")
-	require.NoError(t, err)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	require.NoError(t, svc.Run(ctx))
-
+	// Assert the file is deleted.
 	_, openErr := os.Open(path)
 	require.ErrorIs(t, openErr, os.ErrNotExist)
 }

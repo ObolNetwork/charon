@@ -12,8 +12,13 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-// staleDuration is the duration after which a private key lock file is considered stale.
-var staleDuration = 5 * time.Second
+var (
+	// staleDuration is the duration after which a private key lock file is considered stale.
+	staleDuration = 5 * time.Second
+
+	// updatePeriod is the duration after which the private key lock file is updated.
+	updatePeriod = 1 * time.Second
+)
 
 // New returns new private key locking service. It errors if a recently-updated private key lock file exits.
 func New(path, command string) (Service, error) {
@@ -37,27 +42,28 @@ func New(path, command string) (Service, error) {
 		}
 	}
 
+	if err := writeFile(path, command, time.Now()); err != nil {
+		return Service{}, err
+	}
+
 	return Service{
-		command: command,
-		path:    path,
+		command:      command,
+		path:         path,
+		updatePeriod: updatePeriod,
 	}, nil
 }
 
 // Service is a private key locking service.
 type Service struct {
-	command string
-	path    string
+	command      string
+	path         string
+	updatePeriod time.Duration
 }
 
 // Run runs the service, updating the lock file every second and deleting it on context cancellation.
 func (h Service) Run(ctx context.Context) error {
-	tick := time.NewTicker(1 * time.Second)
+	tick := time.NewTicker(h.updatePeriod)
 	defer tick.Stop()
-
-	// Immediately write lockfile
-	if err := writeFile(h.path, h.command, time.Now()); err != nil {
-		return err
-	}
 
 	for {
 		select {
