@@ -11,23 +11,24 @@ func _() {
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
 	_ = x[StartTracker-0]
-	_ = x[StartAggSigDB-1]
-	_ = x[StartRelay-2]
-	_ = x[StartMonitoringAPI-3]
-	_ = x[StartValidatorAPI-4]
-	_ = x[StartP2PPing-5]
-	_ = x[StartP2PRouters-6]
-	_ = x[StartP2PConsensus-7]
-	_ = x[StartSimulator-8]
-	_ = x[StartScheduler-9]
-	_ = x[StartP2PEventCollector-10]
-	_ = x[StartPeerInfo-11]
-	_ = x[StartParSigDB-12]
+	_ = x[StartPrivkeyLock-1]
+	_ = x[StartAggSigDB-2]
+	_ = x[StartRelay-3]
+	_ = x[StartMonitoringAPI-4]
+	_ = x[StartValidatorAPI-5]
+	_ = x[StartP2PPing-6]
+	_ = x[StartP2PRouters-7]
+	_ = x[StartP2PConsensus-8]
+	_ = x[StartSimulator-9]
+	_ = x[StartScheduler-10]
+	_ = x[StartP2PEventCollector-11]
+	_ = x[StartPeerInfo-12]
+	_ = x[StartParSigDB-13]
 }
 
-const _OrderStart_name = "TrackerAggSigDBRelayMonitoringAPIValidatorAPIP2PPingP2PRoutersP2PConsensusSimulatorSchedulerP2PEventCollectorPeerInfoParSigDB"
+const _OrderStart_name = "TrackerPrivkeyLockAggSigDBRelayMonitoringAPIValidatorAPIP2PPingP2PRoutersP2PConsensusSimulatorSchedulerP2PEventCollectorPeerInfoParSigDB"
 
-var _OrderStart_index = [...]uint8{0, 7, 15, 20, 33, 45, 52, 62, 74, 83, 92, 109, 117, 125}
+var _OrderStart_index = [...]uint8{0, 7, 18, 26, 31, 44, 56, 63, 73, 85, 94, 103, 120, 128, 136}
 
 func (i OrderStart) String() string {
 	if i < 0 || i >= OrderStart(len(_OrderStart_index)-1) {

@@ -14,6 +14,7 @@ type OrderStop int
 // Global ordering of start hooks.
 const (
 	StartTracker OrderStart = iota
+	StartPrivkeyLock
 	StartAggSigDB
 	StartRelay
 	StartMonitoringAPI
@@ -31,6 +32,7 @@ const (
 // Global ordering of stop hooks; follows dependency tree from root to leaves.
 const (
 	StopScheduler OrderStop = iota // High level components...
+	StopPrivkeyLock
 	StopRetryer
 	StopDutyDB
 	StopBeaconMock // Close this before validator API, since it can hold long-lived connections.

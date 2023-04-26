@@ -74,16 +74,16 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}()
 
-	cleanPrivkeyLock, err := privkeylock.New(filepath.Join(conf.DataDir, "dkg-lock"), "charon dkg")
+	pklHandle, err := privkeylock.New(filepath.Join(conf.DataDir, "dkg-lock"), "charon dkg")
 	if err != nil {
 		return err
 	}
 
-	defer func() {
-		if err := cleanPrivkeyLock(); err != nil {
-			log.Error(ctx, "Cannot delete private key lock file", err)
+	go func(ctx context.Context) {
+		if err := pklHandle.Run(ctx); err != nil {
+			log.Error(ctx, "Error handling private key lock file", err)
 		}
-	}()
+	}(ctx)
 
 	version.LogInfo(ctx, "Charon DKG starting")
 

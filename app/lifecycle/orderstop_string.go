@@ -11,20 +11,21 @@ func _() {
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
 	_ = x[StopScheduler-0]
-	_ = x[StopRetryer-1]
-	_ = x[StopDutyDB-2]
-	_ = x[StopBeaconMock-3]
-	_ = x[StopValidatorAPI-4]
-	_ = x[StopTracing-5]
-	_ = x[StopP2PPeerDB-6]
-	_ = x[StopP2PTCPNode-7]
-	_ = x[StopP2PUDPNode-8]
-	_ = x[StopMonitoringAPI-9]
+	_ = x[StopPrivkeyLock-1]
+	_ = x[StopRetryer-2]
+	_ = x[StopDutyDB-3]
+	_ = x[StopBeaconMock-4]
+	_ = x[StopValidatorAPI-5]
+	_ = x[StopTracing-6]
+	_ = x[StopP2PPeerDB-7]
+	_ = x[StopP2PTCPNode-8]
+	_ = x[StopP2PUDPNode-9]
+	_ = x[StopMonitoringAPI-10]
 }
 
-const _OrderStop_name = "SchedulerRetryerDutyDBBeaconMockValidatorAPITracingP2PPeerDBP2PTCPNodeP2PUDPNodeMonitoringAPI"
+const _OrderStop_name = "SchedulerPrivkeyLockRetryerDutyDBBeaconMockValidatorAPITracingP2PPeerDBP2PTCPNodeP2PUDPNodeMonitoringAPI"
 
-var _OrderStop_index = [...]uint8{0, 9, 16, 22, 32, 44, 51, 60, 70, 80, 93}
+var _OrderStop_index = [...]uint8{0, 9, 20, 27, 33, 43, 55, 62, 71, 81, 91, 104}
 
 func (i OrderStop) String() string {
 	if i < 0 || i >= OrderStop(len(_OrderStop_index)-1) {

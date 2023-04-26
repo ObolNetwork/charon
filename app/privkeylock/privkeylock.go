@@ -3,6 +3,7 @@
 package privkeylock
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"time"
@@ -27,22 +28,68 @@ func newLockCtx(contextStr string) privkeyLockCtx {
 	}
 }
 
+// Handle contains the necessary fields to lock the private key file periodically.
+// It also contains the Clean function, which must be called by callers to remove the private key
+// lock once a graceful shutdown phase is reached.
+type Handle struct {
+	contextStr string
+	path       string
+
+	clean func() error
+}
+
+// Run updates the lock file pointed by the path once every second.
+// It must be run asynchronously.
+func (h Handle) Run(ctx context.Context) error {
+	tick := time.NewTicker(1 * time.Second)
+
+	for {
+		select {
+		case <-ctx.Done():
+			tick.Stop()
+
+			if err := h.clean(); err != nil {
+				return errors.Wrap(err, "cannot delete private key lock file")
+			}
+
+			return nil
+		case <-tick.C:
+			if err := os.Remove(h.path); err != nil {
+				return errors.Wrap(err,
+					"could not remove old lock file whose timestamp is past grace period",
+					z.Str("path", h.path),
+					z.Str("context", h.contextStr),
+				)
+			}
+
+			// safety time has passed, overwrite lockfile with our own data
+			if err := createPrivkeyLock(h.path, h.contextStr); err != nil {
+				return errors.Wrap(err,
+					"cannot create private key lock file, manually delete file at path to continue with execution",
+					z.Str("path", h.path),
+					z.Str("context", h.contextStr),
+				)
+			}
+		}
+	}
+}
+
 // New creates a private key lock file in path, writing ContextStr in it.
-// If a private key lock file exists at path New returns an error, a clean-up function otherwise.
-func New(path, contextStr string) (func() error, error) {
+// If a private key lock file exists at path New returns an error, a Handle otherwise.
+func New(path, contextStr string) (Handle, error) {
 	if _, err := os.Stat(path); err == nil {
 		roCtxFile, err := os.Open(path)
 		if err != nil {
-			return nil, errors.Wrap(err, "could not read private key lock file content even if present")
+			return Handle{}, errors.Wrap(err, "could not read private key lock file content even if present")
 		}
 
 		lctx := privkeyLockCtx{}
 		if err := json.NewDecoder(roCtxFile).Decode(&lctx); err != nil {
-			return nil, errors.Wrap(err, "cannot decode private key lock file content")
+			return Handle{}, errors.Wrap(err, "cannot decode private key lock file content")
 		}
 
 		if time.Since(lctx.Timestamp) <= lockfileGracePeriod() {
-			return nil, errors.New(
+			return Handle{}, errors.New(
 				"existing private key lock file found, another charon instance may be running on your machine, if not then you can delete that file",
 				z.Str("path", path),
 				z.Str("context", lctx.ContextStr),
@@ -50,39 +97,30 @@ func New(path, contextStr string) (func() error, error) {
 		}
 
 		if err := roCtxFile.Close(); err != nil {
-			return nil, errors.Wrap(err,
+			return Handle{}, errors.Wrap(err,
 				"cannot close private key lock file, manually delete file at path to continue with execution",
 				z.Str("path", path),
 				z.Str("context", lctx.ContextStr),
 			)
 		}
 
-		if err := os.Remove(path); err != nil {
-			return nil, errors.Wrap(err,
-				"could not remove old lock file whose timestamp is past grace period",
-				z.Str("path", path),
-				z.Str("context", lctx.ContextStr),
-			)
-		}
-
-		// safety time has passed, overwrite lockfile with our own data
-		if err := createPrivkeyLock(path, contextStr); err != nil {
-			return nil, errors.Wrap(err,
-				"cannot create private key lock file, manually delete file at path to continue with execution",
-				z.Str("path", path),
-				z.Str("context", lctx.ContextStr),
-			)
-		}
-
-		return defaultCleanupFunc(path), nil
+		return Handle{
+			contextStr: contextStr,
+			path:       path,
+			clean:      defaultCleanupFunc(path),
+		}, nil
 	} else if errors.Is(err, os.ErrNotExist) {
 		if err := createPrivkeyLock(path, contextStr); err != nil {
-			return nil, err
+			return Handle{}, err
 		}
 
-		return defaultCleanupFunc(path), nil
+		return Handle{
+			contextStr: contextStr,
+			path:       path,
+			clean:      defaultCleanupFunc(path),
+		}, nil
 	} else {
-		return nil, errors.Wrap(err, "fatal error while handling private key lock file", z.Str("path", path))
+		return Handle{}, errors.Wrap(err, "fatal error while handling private key lock file", z.Str("path", path))
 	}
 }
 
@@ -122,6 +160,13 @@ func createPrivkeyLock(path, contextStr string) error {
 			z.Str("path", path),
 			z.Int("expected", len(content)),
 			z.Int("got", amt),
+		)
+	}
+
+	if err := f.Close(); err != nil {
+		return errors.New(
+			"could not close private key lock file",
+			z.Str("path", path),
 		)
 	}
 
