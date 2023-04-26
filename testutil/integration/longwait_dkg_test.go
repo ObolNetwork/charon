@@ -188,7 +188,7 @@ func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, w
 			}
 
 			// Wait for some random duration before stopping the node
-			stopDelay := calcStopDelay(window, nodeDownPeriod)
+			stopDelay := calcStopDelay(t, window, nodeDownPeriod)
 			log.Debug(ctx, "Stopping node after delay", z.Int("node", nodeIdx), z.Str("delay", stopDelay.String()))
 			select {
 			case <-time.After(stopDelay):
@@ -240,7 +240,9 @@ func testDef(t *testing.T, threshold, numNodes, numVals int) (cluster.Definition
 }
 
 // calcStopDelay returns a random delay that the calling process must wait before stopping a DKG node.
-func calcStopDelay(window, nodeDownPeriod time.Duration) time.Duration {
+func calcStopDelay(t *testing.T, window, nodeDownPeriod time.Duration) time.Duration {
+	t.Helper()
+
 	windowVal := int(window / time.Second)
 	nodeDownPeriodVal := int(nodeDownPeriod / time.Second)
 	modVal := windowVal - (nodeDownPeriodVal - 1)
