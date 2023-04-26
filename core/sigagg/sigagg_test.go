@@ -38,12 +38,12 @@ func TestSigAgg(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("invalid threshold", func(t *testing.T) {
-		_, err := sigagg.New(0, sigagg.NewSigAggVerifier(bmock))
+		_, err := sigagg.New(0, sigagg.NewVerifier(bmock))
 		require.ErrorContains(t, err, "invalid threshold")
 	})
 
 	t.Run("threshold sigs", func(t *testing.T) {
-		agg, err := sigagg.New(threshold, sigagg.NewSigAggVerifier(bmock))
+		agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 		require.NoError(t, err)
 		err = agg.Aggregate(ctx, core.Duty{}, "", nil)
 		require.ErrorContains(t, err, "require threshold signatures")
@@ -59,7 +59,7 @@ func TestSigAgg(t *testing.T) {
 			parsigs = append(parsigs, parsig)
 		}
 
-		agg, err := sigagg.New(threshold, sigagg.NewSigAggVerifier(bmock))
+		agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 		require.NoError(t, err)
 		err = agg.Aggregate(ctx, core.Duty{}, "", parsigs)
 		require.ErrorContains(t, err, "number of partial signatures less than threshold")
@@ -123,7 +123,7 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 	require.NoError(t, err)
 	expect := tblsconv.SigToCore(aggSig)
 
-	agg, err := sigagg.New(threshold, sigagg.NewSigAggVerifier(bmock))
+	agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 	require.NoError(t, err)
 
 	// Assert output
@@ -196,7 +196,7 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 	require.NoError(t, err)
 	expect := tblsconv.SigToCore(aggSig)
 
-	agg, err := sigagg.New(threshold, sigagg.NewSigAggVerifier(bmock))
+	agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 	require.NoError(t, err)
 
 	// Assert output
@@ -275,7 +275,7 @@ func TestSigAgg_DutyExit(t *testing.T) {
 	require.NoError(t, err)
 	expect := tblsconv.SigToCore(aggSig)
 
-	agg, err := sigagg.New(threshold, sigagg.NewSigAggVerifier(bmock))
+	agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 	require.NoError(t, err)
 
 	// Assert output
@@ -412,7 +412,7 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 			require.NoError(t, err)
 			expect := tblsconv.SigToCore(aggSig)
 
-			agg, err := sigagg.New(threshold, sigagg.NewSigAggVerifier(bmock))
+			agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 			require.NoError(t, err)
 
 			// Assert output
@@ -531,7 +531,7 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 			require.NoError(t, err)
 			expect := tblsconv.SigToCore(aggSig)
 
-			agg, err := sigagg.New(threshold, sigagg.NewSigAggVerifier(bmock))
+			agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 			require.NoError(t, err)
 
 			// Assert output
@@ -638,7 +638,7 @@ func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
 			require.NoError(t, err)
 			expect := tblsconv.SigToCore(aggSig)
 
-			agg, err := sigagg.New(threshold, sigagg.NewSigAggVerifier(bmock))
+			agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 			require.NoError(t, err)
 
 			// Assert output

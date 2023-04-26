@@ -101,8 +101,8 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 	return nil
 }
 
-// NewSigAggVerifier returns a signature verification function for aggregated signatures.
-func NewSigAggVerifier(eth2Cl eth2wrap.Client) func(context.Context, core.PubKey, core.SignedData) error {
+// NewVerifier returns a signature verification function for aggregated signatures.
+func NewVerifier(eth2Cl eth2wrap.Client) func(context.Context, core.PubKey, core.SignedData) error {
 	return func(ctx context.Context, pubkey core.PubKey, data core.SignedData) error {
 		tblsPubkey, err := tblsconv.PubkeyFromCore(pubkey)
 		if err != nil {
