@@ -68,12 +68,20 @@ func WithBeaconMockFuzzer() Option {
 
 					// Return expected attester duties
 					vals := getValidators()
+					if vals == nil {
+						return
+					}
 					var resp []*eth2v1.AttesterDuty
 					for _, vIdx := range indices {
 						var duty eth2v1.AttesterDuty
 						c.Fuzz(&duty)
 
-						duty.PubKey = vals[vIdx].Validator.PublicKey
+						val, ok := vals[vIdx]
+						if !ok {
+							continue
+						}
+
+						duty.PubKey = val.Validator.PublicKey
 						duty.ValidatorIndex = vIdx
 						duty.Slot = eth2p0.Slot(int(epoch*16) + c.Intn(16))
 						resp = append(resp, &duty)

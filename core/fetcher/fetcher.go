@@ -132,6 +132,8 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, defSet core
 			eth2AttData, err = f.eth2Cl.AttestationData(ctx, eth2p0.Slot(uint64(slot)), commIdx)
 			if err != nil {
 				return nil, err
+			} else if eth2AttData == nil {
+				return nil, errors.New("attestation data cannot be nil")
 			}
 
 			dataByCommIdx[commIdx] = eth2AttData
