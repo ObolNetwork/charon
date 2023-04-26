@@ -266,7 +266,7 @@ func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot int64, attestatio
 		}
 		aggAtt, ok := clone.(core.AggregatedAttestation)
 		if !ok {
-			return nil, errors.Wrap(err, "invalid aggregated attestation")
+			return nil, errors.New("invalid aggregated attestation")
 		}
 
 		return &aggAtt.Attestation, nil
