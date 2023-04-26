@@ -254,8 +254,11 @@ func (c *Component) ProposePriority(ctx context.Context, duty core.Duty, msg *pb
 // propose participants in a consensus instance proposing the provided value.
 // It returns on error or nil when the context is cancelled.
 func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Message) error {
+	roundTimer := c.timerFunc(duty)
+
 	ctx = log.WithTopic(ctx, "qbft")
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
+	ctx = log.WithCtx(ctx, z.Any("timer", string(roundTimer.Type())))
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	if !c.deadliner.Add(duty) {
@@ -282,9 +285,8 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 
 	// Instrument consensus instance.
 	var (
-		t0         = time.Now()
-		decided    bool
-		roundTimer = c.timerFunc(duty)
+		t0      = time.Now()
+		decided bool
 	)
 	decideCallback := func(qcommit []qbft.Msg[core.Duty, [32]byte]) {
 		decided = true
