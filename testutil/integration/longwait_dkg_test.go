@@ -23,6 +23,8 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
+const ctxCanceledErr = "context canceled"
+
 var (
 	longwaitDKG = flag.Bool("long-wait", false, "Enable long-wait DKG integration test")
 	quickRun    = flag.Bool("quick-run", false, "Enable quick long-wait DKG that finishes in a minute")
@@ -142,8 +144,6 @@ func TestLongWaitDKG(t *testing.T) {
 func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, window, nodeDownPeriod time.Duration, nodeIdx int, allNodesStarted, newWindowStarted chan struct{}) error {
 	t.Helper()
 
-	const ctxCanceledErr = "context canceled"
-
 	var (
 		ctx        context.Context
 		cancelFunc context.CancelFunc
@@ -154,7 +154,13 @@ func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, w
 
 	firstNode = nodeIdx == 0
 
+	// runDKG runs a new instance of DKG. If a DKG is already running, it stops it before starting a new one.
 	runDKG := func() {
+		// If there's an instance already running, stop it
+		if ctx != nil {
+			cancelFunc()
+		}
+
 		ctx, cancelFunc = context.WithCancel(parentCtx)
 		log.Debug(ctx, "Starting DKG node", z.Int("node", nodeIdx), z.Bool("first_time", firstTime))
 
@@ -214,8 +220,8 @@ func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, w
 		}
 	}
 
+	// Stop any existing running DKG and run the final DKG since all nodes are up now
 	if ctx != nil {
-		// Stop any existing running DKG and run the final DKG since all nodes are up now
 		cancelFunc()
 	}
 
