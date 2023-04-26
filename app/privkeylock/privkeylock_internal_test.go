@@ -32,21 +32,20 @@ func TestNewInitsAndDelete(t *testing.T) {
 func TestNewTwoInitsAndDelete(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	temp := ""
-	wait := make(chan struct{})
+	temp := t.TempDir()
+	handle, err := New(filepath.Join(temp, "privkeylocktest"), "test")
+	require.NoError(t, err)
+
+	done := make(chan struct{})
 	go func() {
-		temp = t.TempDir()
-		handle, err := New(filepath.Join(temp, "privkeylocktest"), "test")
-		require.NoError(t, err)
-
-		wait <- struct{}{}
-
 		require.NoError(t, handle.Run(ctx))
+		done <- struct{}{}
 	}()
 
-	<-wait
-
-	defer cancel()
+	defer func() {
+		cancel()
+		<-done
+	}()
 
 	_, err2 := New(filepath.Join(temp, "privkeylocktest"), "test")
 	require.ErrorContains(t, err2, "existing private key lock file found, another charon instance may be running on your machine, if not then you can delete that file")
@@ -74,31 +73,44 @@ func TestNewAfterGraceWorks(t *testing.T) {
 	handle, err := New(filepath.Join(temp, "privkeylocktest"), "test")
 	require.NoError(t, err)
 
+	done := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		require.NoError(t, handle.Run(ctx))
+		done <- struct{}{}
 	}()
 
 	cancel()
 
 	_, err2 := New(filepath.Join(temp, "privkeylocktest"), "test")
 	require.NoError(t, err2)
+
+	<-done
 }
 
 func TestNewBeforeGraceDoesntWorks(t *testing.T) {
+	defer func() {
+		timestampFunc = time.Now
+	}()
+
+	timestampFunc = func() time.Time {
+		return time.Now().Add(-2 * time.Second)
+	}
+
 	temp := t.TempDir()
 	handle, err := New(filepath.Join(temp, "privkeylocktest"), "test")
 	require.NoError(t, err)
 
+	done := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		require.NoError(t, handle.Run(ctx))
+		done <- struct{}{}
 	}()
-
-	defer cancel()
-
-	time.Sleep(500 * time.Millisecond)
 
 	_, err2 := New(filepath.Join(temp, "privkeylocktest"), "test")
 	require.Error(t, err2)
+
+	cancel()
+	<-done
 }
