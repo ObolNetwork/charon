@@ -128,7 +128,7 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer roundTimer,
 
 // New returns a new consensus QBFT component.
 func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey,
-	deadliner core.Deadliner, snifferFunc func(*pbv1.SniffedConsensusInstance), noResetTimer bool,
+	deadliner core.Deadliner, snifferFunc func(*pbv1.SniffedConsensusInstance),
 ) (*Component, error) {
 	// Extract peer pubkeys.
 	keys := make(map[int64]*k1.PublicKey)
@@ -145,34 +145,34 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.Pri
 	}
 
 	return &Component{
-		tcpNode:      tcpNode,
-		sender:       sender,
-		peers:        peers,
-		peerLabels:   labels,
-		privkey:      p2pKey,
-		pubkeys:      keys,
-		deadliner:    deadliner,
-		recvBuffers:  make(map[core.Duty]chan msg),
-		snifferFunc:  snifferFunc,
-		dropFilter:   log.Filter(),
-		noResetTimer: noResetTimer,
+		tcpNode:     tcpNode,
+		sender:      sender,
+		peers:       peers,
+		peerLabels:  labels,
+		privkey:     p2pKey,
+		pubkeys:     keys,
+		deadliner:   deadliner,
+		recvBuffers: make(map[core.Duty]chan msg),
+		snifferFunc: snifferFunc,
+		dropFilter:  log.Filter(),
+		timerFunc:   getTimerFunc(),
 	}, nil
 }
 
 // Component implements core.Consensus.
 type Component struct {
 	// Immutable state
-	tcpNode      host.Host
-	sender       *p2p.Sender
-	peerLabels   []string
-	peers        []p2p.Peer
-	pubkeys      map[int64]*k1.PublicKey
-	privkey      *k1.PrivateKey
-	subs         []subscriber
-	deadliner    core.Deadliner
-	snifferFunc  func(*pbv1.SniffedConsensusInstance)
-	dropFilter   z.Field // Filter buffer overflow errors (possible DDoS)
-	noResetTimer bool
+	tcpNode     host.Host
+	sender      *p2p.Sender
+	peerLabels  []string
+	peers       []p2p.Peer
+	pubkeys     map[int64]*k1.PublicKey
+	privkey     *k1.PrivateKey
+	subs        []subscriber
+	deadliner   core.Deadliner
+	snifferFunc func(*pbv1.SniffedConsensusInstance)
+	dropFilter  z.Field // Filter buffer overflow errors (possible DDoS)
+	timerFunc   timerFunc
 
 	// Mutable state
 	recvMu      sync.Mutex
@@ -282,17 +282,13 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 
 	// Instrument consensus instance.
 	var (
-		t0      = time.Now()
-		decided bool
+		t0         = time.Now()
+		decided    bool
+		roundTimer = c.timerFunc(duty)
 	)
 	decideCallback := func(qcommit []qbft.Msg[core.Duty, [32]byte]) {
 		decided = true
-		instrumentConsensus(duty, qcommit[0].Round(), t0)
-	}
-
-	var roundTimer roundTimer = newIncreasingRoundTimer()
-	if c.noResetTimer {
-		roundTimer = newDoubleLeadRoundTimer()
+		instrumentConsensus(duty, qcommit[0].Round(), t0, roundTimer.Type())
 	}
 
 	// Create a new qbft definition for this instance.
@@ -328,7 +324,7 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 	}
 
 	if !decided {
-		consensusTimeout.WithLabelValues(duty.Type.String()).Inc()
+		consensusTimeout.WithLabelValues(duty.Type.String(), string(roundTimer.Type())).Inc()
 
 		return errors.New("consensus timeout", z.Str("duty", duty.String()))
 	}

@@ -753,7 +753,7 @@ func newConsensus(conf Config, lock cluster.Lock, tcpNode host.Host, p2pKey *k1.
 	}
 
 	if featureset.Enabled(featureset.QBFTConsensus) {
-		comp, err := consensus.New(tcpNode, sender, peers, p2pKey, deadliner, qbftSniffer, featureset.Enabled(featureset.QBFTDoubleLeadTimer))
+		comp, err := consensus.New(tcpNode, sender, peers, p2pKey, deadliner, qbftSniffer)
 		if err != nil {
 			return nil, nil, err
 		}

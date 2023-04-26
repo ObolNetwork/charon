@@ -7,11 +7,49 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
+
+	"github.com/obolnetwork/charon/app/featureset"
+	"github.com/obolnetwork/charon/core"
 )
 
 const (
 	incRoundStart    = time.Millisecond * 750
 	incRoundIncrease = time.Millisecond * 250
+)
+
+// timerFunc is a function that returns a round timer.
+type timerFunc func(core.Duty) roundTimer
+
+// getTimerFunc returns a timer function based on the enabled features.
+func getTimerFunc() timerFunc {
+	if featureset.Enabled(featureset.QBFTTimersABTest) {
+		return func(duty core.Duty) roundTimer {
+			switch (duty.Slot + int64(duty.Type)) % 3 {
+			case 0:
+				return newIncreasingRoundTimer()
+			case 1:
+				return newDoubleLeadRoundTimer()
+			case 2:
+				return newExponentialRoundTimer()
+			default:
+				panic("unreachable")
+			}
+		}
+	}
+
+	// Default to increasing round timer.
+	return func(core.Duty) roundTimer {
+		return newIncreasingRoundTimer()
+	}
+}
+
+// timerType is the type of round timer.
+type timerType string
+
+const (
+	timerIncreasing  timerType = "inc"
+	timerDoubleLead  timerType = "double"
+	timerExponential timerType = "exp"
 )
 
 // increasingRoundTimeout returns the duration for a round that starts at incRoundStart in round 1
@@ -24,27 +62,32 @@ func increasingRoundTimeout(round int64) time.Duration {
 type roundTimer interface {
 	// Timer returns a channel that will be closed when the round expires and a stop function.
 	Timer(round int64) (<-chan time.Time, func())
+	// Type returns the type of the round timerType.
+	Type() timerType
 }
 
-// newTimeoutRoundTimer returns a new increasing round timer.
+// newTimeoutRoundTimer returns a new increasing round timerType.
 func newIncreasingRoundTimer() *increasingRoundTimer {
 	return &increasingRoundTimer{
 		clock: clockwork.NewRealClock(),
 	}
 }
 
-// increasingRoundTimer implements a linear increasing round timer.
-// It ignores the Cancel call.
+// increasingRoundTimer implements a linear increasing round timerType.
 type increasingRoundTimer struct {
 	clock clockwork.Clock
 }
 
-func (t increasingRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
-	timer := t.clock.NewTimer(increasingRoundTimeout(round))
-	return timer.Chan(), func() {}
+func (increasingRoundTimer) Type() timerType {
+	return timerIncreasing
 }
 
-// newDoubleLeadRoundTimer returns a new double lead round timer.
+func (t increasingRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
+	timer := t.clock.NewTimer(increasingRoundTimeout(round))
+	return timer.Chan(), func() { timer.Stop() }
+}
+
+// newDoubleLeadRoundTimer returns a new double lead round timerType.
 func newDoubleLeadRoundTimer() *doubleLeadRoundTimer {
 	return &doubleLeadRoundTimer{
 		clock:          clockwork.NewRealClock(),
@@ -52,8 +95,8 @@ func newDoubleLeadRoundTimer() *doubleLeadRoundTimer {
 	}
 }
 
-// doubleLeadRoundTimer implements a round timer that double the round duration when a leader is active.
-// Instead of resetting the round timer on justified pre-prepare, rather double the timeout.
+// doubleLeadRoundTimer implements a round timerType that double the round duration when a leader is active.
+// Instead of resetting the round timerType on justified pre-prepare, rather double the timeout.
 // This ensures all peers round end-times remain aligned with round start times.
 //
 // The original solution is to reset the round time on justified pre-prepare, but this causes
@@ -67,6 +110,10 @@ type doubleLeadRoundTimer struct {
 
 	mu             sync.Mutex
 	firstDeadlines map[int64]time.Time
+}
+
+func (*doubleLeadRoundTimer) Type() timerType {
+	return timerDoubleLead
 }
 
 func (t *doubleLeadRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
@@ -84,6 +131,33 @@ func (t *doubleLeadRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
 	}
 
 	timer := t.clock.NewTimer(deadline.Sub(t.clock.Now()))
+
+	return timer.Chan(), func() { timer.Stop() }
+}
+
+// newExponentialRoundTimer returns a new exponential round timerType.
+func newExponentialRoundTimer() *exponentialRoundTimer {
+	return &exponentialRoundTimer{
+		clock: clockwork.NewRealClock(),
+	}
+}
+
+// exponentialRoundTimer implements a exponential increasing round timer
+// starting at incRoundStart and doubling each subsequent round.
+type exponentialRoundTimer struct {
+	clock clockwork.Clock
+}
+
+func (exponentialRoundTimer) Type() timerType {
+	return timerExponential
+}
+
+func (t exponentialRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
+	duration := incRoundStart // Duration starts at incRoundStart.
+	for i := 1; i < int(round); i++ {
+		duration *= 2 // Duration doubles each subsequent round.
+	}
+	timer := t.clock.NewTimer(duration)
 
 	return timer.Chan(), func() { timer.Stop() }
 }
