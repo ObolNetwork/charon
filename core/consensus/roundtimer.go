@@ -142,7 +142,8 @@ func newExponentialRoundTimer() *exponentialRoundTimer {
 	}
 }
 
-// exponentialRoundTimer implements a exponential increasing round timerType.
+// exponentialRoundTimer implements a exponential increasing round timer
+// starting at incRoundStart and doubling each subsequent round.
 type exponentialRoundTimer struct {
 	clock clockwork.Clock
 }
@@ -152,9 +153,9 @@ func (exponentialRoundTimer) Type() timerType {
 }
 
 func (t exponentialRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
-	duration := incRoundStart
+	duration := incRoundStart // Duration starts at incRoundStart.
 	for i := 1; i < int(round); i++ {
-		duration *= 2
+		duration *= 2 // Duration doubles each subsequent round.
 	}
 	timer := t.clock.NewTimer(duration)
 
