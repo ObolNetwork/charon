@@ -70,6 +70,7 @@ type Config struct {
 	LockFile                string
 	NoVerify                bool
 	PrivKeyFile             string
+	PrivKeyLocking          bool
 	MonitoringAddr          string
 	ValidatorAPIAddr        string
 	BeaconNodeAddrs         []string
@@ -82,7 +83,6 @@ type Config struct {
 	SyntheticBlockProposals bool
 	BuilderAPI              bool
 	SimnetBMockFuzz         bool
-	PrivkeyLockingEnabled   bool
 
 	TestConfig TestConfig
 }
@@ -126,7 +126,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}()
 
-	if conf.PrivkeyLockingEnabled {
+	if conf.PrivKeyLocking {
 		cleanPrivkeyLock, err := privkeylock.New(conf.PrivKeyFile+".lock", "charon run")
 		if err != nil {
 			return err

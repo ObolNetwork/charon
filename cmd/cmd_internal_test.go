@@ -76,6 +76,7 @@ func TestCmdFlags(t *testing.T) {
 				},
 				LockFile:               ".charon/cluster-lock.json",
 				PrivKeyFile:            ".charon/charon-enr-private-key",
+				PrivKeyLocking:         false,
 				SimnetValidatorKeysDir: ".charon/validator_keys",
 				SimnetSlotDuration:     time.Second,
 				MonitoringAddr:         "127.0.0.1:3620",
@@ -83,7 +84,6 @@ func TestCmdFlags(t *testing.T) {
 				BeaconNodeAddrs:        []string{"http://beacon.node"},
 				JaegerAddr:             "",
 				JaegerService:          "charon",
-				PrivkeyLockingEnabled:  true,
 			},
 		},
 		{
