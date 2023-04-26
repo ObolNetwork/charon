@@ -48,16 +48,24 @@ type Config struct {
 	PublishAddr string
 	Publish     bool
 
-	TestDef              *cluster.Definition
-	TestSyncCallback     func(connected int, id peer.ID)
-	TestStoreKeysFunc    func(secrets []tbls.PrivateKey, dir string) error
-	TestTCPNodeCallback  func(host.Host)
-	TestShutdownCallback func()
+	TestConfig TestConfig
+}
+
+// TestConfig defines additional test-only config for DKG.
+type TestConfig struct {
+	// Def provides the cluster definition explicitly, skips loading from disk.
+	Def *cluster.Definition
+	// P2PKey provides the p2p privkey explicitly, skips loading from disk.
+	P2PKey           *k1.PrivateKey
+	SyncCallback     func(connected int, id peer.ID)
+	StoreKeysFunc    func(secrets []tbls.PrivateKey, dir string) error
+	TCPNodeCallback  func(host.Host)
+	ShutdownCallback func()
 }
 
 // HasTestConfig returns true if any of the test config fields are set.
 func (c Config) HasTestConfig() bool {
-	return c.TestStoreKeysFunc != nil || c.TestSyncCallback != nil || c.TestDef != nil || c.TestTCPNodeCallback != nil
+	return c.TestConfig.StoreKeysFunc != nil || c.TestConfig.SyncCallback != nil || c.TestConfig.Def != nil || c.TestConfig.TCPNodeCallback != nil
 }
 
 // Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output to disk.
@@ -104,8 +112,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}
 
-	if err = checkClearDataDir(conf.DataDir); err != nil {
-		return err
+	if !conf.HasTestConfig() {
+		if err = checkClearDataDir(conf.DataDir); err != nil {
+			return err
+		}
 	}
 
 	if err = checkWrites(conf.DataDir); err != nil {
@@ -128,9 +138,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	defHash := fmt.Sprintf("%#x", def.DefinitionHash)
 
-	key, err := p2p.LoadPrivKey(conf.DataDir)
-	if err != nil {
-		return err
+	key := conf.TestConfig.P2PKey
+	if key == nil {
+		var err error
+		key, err = p2p.LoadPrivKey(conf.DataDir)
+		if err != nil {
+			return err
+		}
 	}
 
 	pID, err := p2p.PeerIDFromKey(key.PubKey())
@@ -176,7 +190,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	// Improve UX of "context cancelled" errors when sync fails.
 	ctx = errors.WithCtxErr(ctx, "p2p connection failed, please retry DKG")
 
-	stopSync, err := startSyncProtocol(ctx, tcpNode, key, def.DefinitionHash, peerIds, cancel, conf.TestSyncCallback)
+	stopSync, err := startSyncProtocol(ctx, tcpNode, key, def.DefinitionHash, peerIds, cancel, conf.TestConfig.SyncCallback)
 	if err != nil {
 		return err
 	}
@@ -262,8 +276,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 	log.Debug(ctx, "Saved deposit data file to disk")
 
 	// TODO(corver): Improve graceful shutdown, see https://github.com/ObolNetwork/charon/issues/887
-	if conf.TestShutdownCallback != nil {
-		conf.TestShutdownCallback()
+	if conf.TestConfig.ShutdownCallback != nil {
+		conf.TestConfig.ShutdownCallback()
 	}
 	log.Debug(ctx, "Graceful shutdown delay", z.Int("seconds", int(conf.ShutdownDelay.Seconds())))
 	time.Sleep(conf.ShutdownDelay)
@@ -299,8 +313,8 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, conf Config, peers []p2p.
 		return nil, nil, err
 	}
 
-	if conf.TestTCPNodeCallback != nil {
-		conf.TestTCPNodeCallback(tcpNode)
+	if conf.TestConfig.TCPNodeCallback != nil {
+		conf.TestConfig.TCPNodeCallback(tcpNode)
 	}
 
 	p2p.RegisterConnectionLogger(ctx, tcpNode, peerIDs)

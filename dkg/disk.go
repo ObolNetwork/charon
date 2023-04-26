@@ -28,8 +28,8 @@ import (
 
 // loadDefinition returns the cluster definition from disk or an HTTP URL. It returns the test definition if configured.
 func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error) {
-	if conf.TestDef != nil {
-		return *conf.TestDef, nil
+	if conf.TestConfig.Def != nil {
+		return *conf.TestConfig.Def, nil
 	}
 
 	// Fetch definition from URI or disk
@@ -129,8 +129,8 @@ func writeKeysToDisk(conf Config, shares []share) error {
 	}
 
 	storeKeysFunc := keystore.StoreKeys
-	if conf.TestStoreKeysFunc != nil {
-		storeKeysFunc = conf.TestStoreKeysFunc
+	if conf.TestConfig.StoreKeysFunc != nil {
+		storeKeysFunc = conf.TestConfig.StoreKeysFunc
 	}
 
 	return storeKeysFunc(secrets, keysDir)
