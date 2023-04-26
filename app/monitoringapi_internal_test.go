@@ -161,7 +161,7 @@ func TestStartChecker(t *testing.T) {
 			// Advance clock for first epoch tick.
 			advanceClock(clock, 32*12*time.Second)
 
-			waitFor := time.Second
+			waitFor := 1 * time.Second
 			tickInterval := 10 * time.Millisecond
 			if tt.err != nil {
 				require.Eventually(t, func() bool {
