@@ -78,11 +78,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	go func() {
+	go func(ctx context.Context) {
 		if err := lockSvc.Run(ctx); err != nil {
 			log.Error(ctx, "Error locking private key file", err)
 		}
-	}()
+	}(ctx)
 
 	version.LogInfo(ctx, "Charon DKG starting")
 
