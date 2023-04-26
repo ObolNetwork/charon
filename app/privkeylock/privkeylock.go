@@ -12,131 +12,85 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-var lockfileGracePeriod = func() time.Duration {
-	return 5 * time.Second
-}
+// New returns new private key locking service. It errors if a recently-updated private key lock file exits.
+func New(path, contextStr string) (Service, error) {
+	if content, err := os.ReadFile(path); errors.Is(err, os.ErrNotExist) {
+		// No file, we will create it in run
+	} else if err != nil {
+		return Service{}, errors.Wrap(err, "cannot read private key lock file", z.Str("path", path))
+	} else {
+		var meta metadata
+		if err := json.Unmarshal(content, &meta); err != nil {
+			return Service{}, errors.Wrap(err, "cannot decode private key lock file content", z.Str("path", path))
+		}
 
-var timestampFunc = time.Now
-
-type metadata struct {
-	ContextStr string
-	Timestamp  time.Time
-}
-
-func newLockCtx(contextStr string) metadata {
-	return metadata{
-		ContextStr: contextStr,
-		Timestamp:  timestampFunc(),
+		if time.Since(meta.Timestamp) <= staleDuration() {
+			return Service{}, errors.New(
+				"existing private key lock file found, another charon instance may be running on your machine",
+				z.Str("path", path),
+				z.Str("command", meta.Command),
+			)
+		}
 	}
+
+	return Service{
+		command: contextStr,
+		path:    path,
+	}, nil
 }
 
-// Service contains the necessary fields to lock the private key file periodically.
-// It also contains the Clean function, which must be called by callers to remove the private key
-// lock once a graceful shutdown phase is reached.
+// Service is a private key locking service.
 type Service struct {
 	command string
 	path    string
-
-	clean func() error
 }
 
-// Run updates the lock file pointed by the path once every second.
-// It must be run asynchronously.
+// Run runs the service, updating the lock file every second and deleting it on context cancellation.
 func (h Service) Run(ctx context.Context) error {
 	tick := time.NewTicker(1 * time.Second)
-
 	defer tick.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
-
-			if err := h.clean(); err != nil {
-				return errors.Wrap(err, "cannot delete private key lock file")
+			if err := os.Remove(h.path); err != nil {
+				return errors.Wrap(err, "deleting private key lock file failed")
 			}
 
 			return nil
 		case <-tick.C:
-			if err := os.Remove(h.path); err != nil {
-				return errors.Wrap(err,
-					"could not remove old lock file whose timestamp is past grace period",
-					z.Str("path", h.path),
-					z.Str("context", h.command),
-				)
-			}
-
-			// safety time has passed, overwrite lockfile with our own data
-			if err := createPrivkeyLock(h.path, h.command); err != nil {
-				return errors.Wrap(err,
-					"cannot create private key lock file, manually delete file at path to continue with execution",
-					z.Str("path", h.path),
-					z.Str("context", h.command),
-				)
+			// Overwrite lockfile with new metadata
+			if err := writeFile(h.path, h.command); err != nil {
+				return err
 			}
 		}
 	}
 }
 
-// New creates a private key lock file in path, writing ContextStr in it.
-// If a private key lock file exists at path New returns an error, a Service otherwise.
-func New(path, contextStr string) (Service, error) {
-	if fileContent, err := os.ReadFile(path); err == nil {
-		lctx := metadata{}
-		if err := json.Unmarshal(fileContent, &lctx); err != nil {
-			return Service{}, errors.Wrap(err, "cannot decode private key lock file content")
-		}
-
-		if time.Since(lctx.Timestamp) <= lockfileGracePeriod() {
-			return Service{}, errors.New(
-				"existing private key lock file found, another charon instance may be running on your machine, if not then you can delete that file",
-				z.Str("path", path),
-				z.Str("context", lctx.ContextStr),
-			)
-		}
-
-		return Service{
-			command: contextStr,
-			path:    path,
-			clean:   defaultCleanupFunc(path),
-		}, nil
-	} else if errors.Is(err, os.ErrNotExist) {
-		if err := createPrivkeyLock(path, contextStr); err != nil {
-			return Service{}, err
-		}
-
-		return Service{
-			command: contextStr,
-			path:    path,
-			clean:   defaultCleanupFunc(path),
-		}, nil
-	} else {
-		return Service{}, errors.Wrap(err, "fatal error while handling private key lock file", z.Str("path", path))
-	}
+// staleDuration is the time after which a lockfile is considered stale.
+var staleDuration = func() time.Duration {
+	return 5 * time.Second
 }
 
-func defaultCleanupFunc(path string) func() error {
-	return func() error {
-		if err := os.Remove(path); err != nil {
-			return errors.Wrap(err, "cannot remove private key lock file")
-		}
+// nowFunc returns the current time. It is aliased for testing.
+var nowFunc = time.Now
 
-		return nil
-	}
+// metadata is the metadata stored in the lock file.
+type metadata struct {
+	Command   string
+	Timestamp time.Time
 }
 
-// createPrivkeyLock creates a file in path with ContextStr and a timestamp written inside.
-// It's an overzealous function: if it can't write exactly len(ContextStr, timestamp) bytes in path,
-// it returns error.
-func createPrivkeyLock(path, contextStr string) error {
-	lctx := newLockCtx(contextStr)
-	content, err := json.Marshal(lctx)
+// writeFile creates or updates the file with the latest metadata.
+func writeFile(path, command string) error {
+	b, err := json.Marshal(metadata{Command: command, Timestamp: nowFunc()})
 	if err != nil {
-		return errors.Wrap(err, "cannot marshal private key lock context")
+		return errors.Wrap(err, "cannot marshal private key lock file")
 	}
 
-	//nolint:gosec // non-sensible file
-	if err := os.WriteFile(path, content, 0o655); err != nil {
-		return errors.Wrap(err, "cannot write context string in private key lock file", z.Str("path", path))
+	//nolint:gosec // Readable and writable for all users is fine for this file.
+	if err := os.WriteFile(path, b, 0o666); err != nil {
+		return errors.Wrap(err, "cannot write private key lock file", z.Str("path", path))
 	}
 
 	return nil

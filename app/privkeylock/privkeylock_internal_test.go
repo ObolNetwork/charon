@@ -52,20 +52,20 @@ func TestNewTwoInitsAndDelete(t *testing.T) {
 }
 
 func TestNewAfterGraceWorks(t *testing.T) {
-	oldgrace := lockfileGracePeriod()
+	oldgrace := staleDuration()
 	defer func() {
-		lockfileGracePeriod = func() time.Duration {
+		staleDuration = func() time.Duration {
 			return oldgrace
 		}
 
-		timestampFunc = time.Now
+		nowFunc = time.Now
 	}()
 
-	lockfileGracePeriod = func() time.Duration {
+	staleDuration = func() time.Duration {
 		return 500 * time.Millisecond
 	}
 
-	timestampFunc = func() time.Time {
+	nowFunc = func() time.Time {
 		return time.Now().Add(-2 * time.Second)
 	}
 
@@ -90,10 +90,10 @@ func TestNewAfterGraceWorks(t *testing.T) {
 
 func TestNewBeforeGraceDoesntWorks(t *testing.T) {
 	defer func() {
-		timestampFunc = time.Now
+		nowFunc = time.Now
 	}()
 
-	timestampFunc = func() time.Time {
+	nowFunc = func() time.Time {
 		return time.Now().Add(-2 * time.Second)
 	}
 
