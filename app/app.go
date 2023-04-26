@@ -138,12 +138,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 	life := new(lifecycle.Manager)
 
 	if conf.PrivKeyLocking {
-		pklHandle, err := privkeylock.New(conf.PrivKeyFile+".lock", "charon run")
+		lockSvc, err := privkeylock.New(conf.PrivKeyFile+".lock", "charon run")
 		if err != nil {
 			return err
 		}
 
-		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPrivkeyLock, lifecycle.HookFunc(pklHandle.Run))
+		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPrivkeyLock, lifecycle.HookFunc(lockSvc.Run))
 	}
 
 	if err := wireTracing(life, conf); err != nil {

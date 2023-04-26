@@ -12,9 +12,13 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
+// staleDuration is the duration after which a private key lock file is considered stale.
+var staleDuration = 5 * time.Second
+
 // New returns new private key locking service. It errors if a recently-updated private key lock file exits.
-func New(path, contextStr string) (Service, error) {
-	if content, err := os.ReadFile(path); errors.Is(err, os.ErrNotExist) {
+func New(path, command string) (Service, error) {
+	content, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) { //nolint:revive // Empty block is fine.
 		// No file, we will create it in run
 	} else if err != nil {
 		return Service{}, errors.Wrap(err, "cannot read private key lock file", z.Str("path", path))
@@ -24,7 +28,7 @@ func New(path, contextStr string) (Service, error) {
 			return Service{}, errors.Wrap(err, "cannot decode private key lock file content", z.Str("path", path))
 		}
 
-		if time.Since(meta.Timestamp) <= staleDuration() {
+		if time.Since(meta.Timestamp) <= staleDuration {
 			return Service{}, errors.New(
 				"existing private key lock file found, another charon instance may be running on your machine",
 				z.Str("path", path),
@@ -34,7 +38,7 @@ func New(path, contextStr string) (Service, error) {
 	}
 
 	return Service{
-		command: contextStr,
+		command: command,
 		path:    path,
 	}, nil
 }
@@ -50,6 +54,11 @@ func (h Service) Run(ctx context.Context) error {
 	tick := time.NewTicker(1 * time.Second)
 	defer tick.Stop()
 
+	// Immediately write lockfile
+	if err := writeFile(h.path, h.command, time.Now()); err != nil {
+		return err
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -60,30 +69,22 @@ func (h Service) Run(ctx context.Context) error {
 			return nil
 		case <-tick.C:
 			// Overwrite lockfile with new metadata
-			if err := writeFile(h.path, h.command); err != nil {
+			if err := writeFile(h.path, h.command, time.Now()); err != nil {
 				return err
 			}
 		}
 	}
 }
 
-// staleDuration is the time after which a lockfile is considered stale.
-var staleDuration = func() time.Duration {
-	return 5 * time.Second
-}
-
-// nowFunc returns the current time. It is aliased for testing.
-var nowFunc = time.Now
-
 // metadata is the metadata stored in the lock file.
 type metadata struct {
-	Command   string
-	Timestamp time.Time
+	Command   string    `json:"command"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // writeFile creates or updates the file with the latest metadata.
-func writeFile(path, command string) error {
-	b, err := json.Marshal(metadata{Command: command, Timestamp: nowFunc()})
+func writeFile(path, command string, now time.Time) error {
+	b, err := json.Marshal(metadata{Command: command, Timestamp: now})
 	if err != nil {
 		return errors.Wrap(err, "cannot marshal private key lock file")
 	}

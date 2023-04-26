@@ -9,108 +9,91 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 func TestNewInitsAndDelete(t *testing.T) {
-	temp := t.TempDir()
-	handle, err := New(filepath.Join(temp, "privkeylocktest"), "test")
+	path := filepath.Join(t.TempDir(), "privkeylocktest")
+
+	svc, err := New(path, "test")
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		require.NoError(t, handle.Run(ctx))
-	}()
 
-	cancel()
-	time.Sleep(100 * time.Millisecond)
+	var eg errgroup.Group
 
-	_, openErr := os.Open(filepath.Join(temp, "privkeylocktest"))
-	require.ErrorContains(t, openErr, "no such file or directory")
+	eg.Go(func() error {
+		return svc.Run(ctx)
+	})
+
+	eg.Go(func() error {
+		assertFileExists(t, path)
+		cancel()
+
+		return nil
+	})
+
+	require.NoError(t, eg.Wait())
+
+	_, openErr := os.Open(path)
+	require.ErrorIs(t, openErr, os.ErrNotExist)
 }
 
 func TestNewTwoInitsAndDelete(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "privkeylocktest")
 	ctx, cancel := context.WithCancel(context.Background())
 
-	temp := t.TempDir()
-	handle, err := New(filepath.Join(temp, "privkeylocktest"), "test")
+	svc, err := New(path, "test")
 	require.NoError(t, err)
 
-	done := make(chan struct{})
-	go func() {
-		require.NoError(t, handle.Run(ctx))
-		done <- struct{}{}
-	}()
+	var eg errgroup.Group
 
-	defer func() {
+	eg.Go(func() error {
+		return svc.Run(ctx)
+	})
+
+	eg.Go(func() error {
+		assertFileExists(t, path)
+
+		_, err := New(path, "test")
+		require.ErrorContains(t, err, "existing private key lock file found")
+
 		cancel()
-		<-done
-	}()
 
-	_, err2 := New(filepath.Join(temp, "privkeylocktest"), "test")
-	require.ErrorContains(t, err2, "existing private key lock file found, another charon instance may be running on your machine, if not then you can delete that file")
+		return nil
+	})
+
+	require.NoError(t, eg.Wait())
+
+	_, openErr := os.Open(path)
+	require.ErrorIs(t, openErr, os.ErrNotExist)
 }
 
 func TestNewAfterGraceWorks(t *testing.T) {
-	oldgrace := staleDuration()
-	defer func() {
-		staleDuration = func() time.Duration {
-			return oldgrace
-		}
+	path := filepath.Join(t.TempDir(), "privkeylocktest")
 
-		nowFunc = time.Now
-	}()
-
-	staleDuration = func() time.Duration {
-		return 500 * time.Millisecond
-	}
-
-	nowFunc = func() time.Time {
-		return time.Now().Add(-2 * time.Second)
-	}
-
-	temp := t.TempDir()
-	handle, err := New(filepath.Join(temp, "privkeylocktest"), "test")
+	err := writeFile(path, "test", time.Now().Add(-time.Hour))
 	require.NoError(t, err)
 
-	done := make(chan struct{})
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		require.NoError(t, handle.Run(ctx))
-		done <- struct{}{}
-	}()
+	svc, err := New(path, "test")
+	require.NoError(t, err)
 
+	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err2 := New(filepath.Join(temp, "privkeylocktest"), "test")
-	require.NoError(t, err2)
+	require.NoError(t, svc.Run(ctx))
 
-	<-done
+	_, openErr := os.Open(path)
+	require.ErrorIs(t, openErr, os.ErrNotExist)
 }
 
-func TestNewBeforeGraceDoesntWorks(t *testing.T) {
-	defer func() {
-		nowFunc = time.Now
-	}()
+func assertFileExists(t *testing.T, path string) {
+	t.Helper()
 
-	nowFunc = func() time.Time {
-		return time.Now().Add(-2 * time.Second)
-	}
-
-	temp := t.TempDir()
-	handle, err := New(filepath.Join(temp, "privkeylocktest"), "test")
-	require.NoError(t, err)
-
-	done := make(chan struct{})
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		require.NoError(t, handle.Run(ctx))
-		done <- struct{}{}
-	}()
-
-	_, err2 := New(filepath.Join(temp, "privkeylocktest"), "test")
-	require.Error(t, err2)
-
-	cancel()
-	<-done
+	assert.Eventually(t, func() bool {
+		_, openErr := os.Open(path)
+		return openErr == nil
+	}, time.Second, time.Millisecond)
 }
