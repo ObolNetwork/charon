@@ -23,8 +23,9 @@ import (
 	"github.com/obolnetwork/charon/eth2util/enr"
 )
 
-// zeroXDead is the 0x00..00dead Ethereum address.
-const zeroXDead = `"0x000000000000000000000000000000000000dead"`
+// zeroAddress is not owned by any user, is often associated with token burn & mint/genesis events and used as a generic null address.
+// See https://etherscan.io/address/0x0000000000000000000000000000000000000000.
+const zeroAddress = `"0x0000000000000000000000000000000000000000"`
 
 // Clean deletes all compose directory files and artifacts.
 func Clean(ctx context.Context, dir string) error {
@@ -129,8 +130,8 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 			{"num_validators", fmt.Sprint(conf.NumValidators)},
 			{"operator_enrs", strings.Join(enrs, ",")},
 			{"threshold", fmt.Sprint(conf.Threshold)},
-			{"withdrawal_addresses", zeroXDead},
-			{"fee-recipient_addresses", zeroXDead},
+			{"withdrawal_addresses", zeroAddress},
+			{"fee-recipient_addresses", zeroAddress},
 			{"dkg_algorithm", "frost"},
 			{"output_dir", "/compose"},
 			{"network", eth2util.Goerli.Name},

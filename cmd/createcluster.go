@@ -122,7 +122,6 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	// Map prater to goerli to ensure backwards compatibility with older cluster definitions and cluster locks.
-	// TODO(xenowits): Remove the mapping later.
 	if conf.Network == eth2util.Prater {
 		conf.Network = eth2util.Goerli.Name
 	}

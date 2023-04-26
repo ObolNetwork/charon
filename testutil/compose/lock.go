@@ -41,8 +41,8 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 			{"split-keys-dir", splitKeysDir},
 			{"num-validators", fmt.Sprint(conf.NumValidators)},
 			{"insecure-keys", fmt.Sprintf(`"%v"`, conf.InsecureKeys)},
-			{"withdrawal-addresses", zeroXDead},
-			{"fee-recipient-addresses", zeroXDead},
+			{"withdrawal-addresses", zeroAddress},
+			{"fee-recipient-addresses", zeroAddress},
 			{"network", eth2util.Goerli.Name},
 		}}
 
