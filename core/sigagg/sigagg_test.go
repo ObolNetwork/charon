@@ -19,10 +19,11 @@ import (
 
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/sigagg"
-	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
+	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 func TestSigAgg(t *testing.T) {
@@ -33,13 +34,16 @@ func TestSigAgg(t *testing.T) {
 		peers     = 4
 	)
 
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
 	t.Run("invalid threshold", func(t *testing.T) {
-		_, err := sigagg.New(0)
+		_, err := sigagg.New(0, sigagg.NewSigAggVerifier(bmock))
 		require.ErrorContains(t, err, "invalid threshold")
 	})
 
 	t.Run("threshold sigs", func(t *testing.T) {
-		agg, err := sigagg.New(threshold)
+		agg, err := sigagg.New(threshold, sigagg.NewSigAggVerifier(bmock))
 		require.NoError(t, err)
 		err = agg.Aggregate(ctx, core.Duty{}, "", nil)
 		require.ErrorContains(t, err, "require threshold signatures")
@@ -55,7 +59,7 @@ func TestSigAgg(t *testing.T) {
 			parsigs = append(parsigs, parsig)
 		}
 
-		agg, err := sigagg.New(threshold)
+		agg, err := sigagg.New(threshold, sigagg.NewSigAggVerifier(bmock))
 		require.NoError(t, err)
 		err = agg.Aggregate(ctx, core.Duty{}, "", parsigs)
 		require.ErrorContains(t, err, "number of partial signatures less than threshold")
@@ -70,10 +74,18 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 		peers     = 4
 	)
 
-	att := testutil.RandomAttestation()
-	att.Signature = eth2p0.BLSSignature{}
+	att := core.NewAttestation(testutil.RandomAttestation())
 
-	msg, err := att.Data.HashTreeRoot()
+	msgRoot, err := att.MessageRoot()
+	require.NoError(t, err)
+
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	epoch, err := att.Epoch(ctx, bmock)
+	require.NoError(t, err)
+
+	msg, err := signing.GetDataRoot(ctx, bmock, att.DomainName(), epoch, msgRoot)
 	require.NoError(t, err)
 
 	// Generate private shares
@@ -98,8 +110,10 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 		sig, err := tbls.Sign(secret, msg[:])
 		require.NoError(t, err)
 
-		att.Signature = tblsconv.SigToETH2(sig)
-		parsig := core.NewPartialAttestation(att, shareIdx)
+		x, err := att.SetSignature(sig[:])
+		require.NoError(t, err)
+		newAtt := x.(core.Attestation)
+		parsig := core.NewPartialAttestation(&newAtt.Attestation, shareIdx)
 
 		psigs[shareIdx] = sig
 		parsigs = append(parsigs, parsig)
@@ -110,7 +124,7 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 	require.NoError(t, err)
 	expect := tblsconv.SigToCore(aggSig)
 
-	agg, err := sigagg.New(threshold)
+	agg, err := sigagg.New(threshold, sigagg.NewSigAggVerifier(bmock))
 	require.NoError(t, err)
 
 	// Assert output
@@ -134,18 +148,19 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 	ctx := context.Background()
 
 	const (
-		epoch     = 123
 		threshold = 3
 		peers     = 4
+		epoch     = 123
 	)
 
-	msgRandao := core.SignedRandao{
-		SignedEpoch: eth2util.SignedEpoch{
-			Epoch: epoch,
-		},
-	}
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
 
-	msg, err := msgRandao.HashTreeRoot()
+	randao := core.NewSignedRandao(epoch, eth2p0.BLSSignature{})
+	randaoRoot, err := randao.MessageRoot()
+	require.NoError(t, err)
+
+	msg, err := signing.GetDataRoot(ctx, bmock, randao.DomainName(), epoch, randaoRoot)
 	require.NoError(t, err)
 
 	// Generate private shares
@@ -182,7 +197,7 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 	require.NoError(t, err)
 	expect := tblsconv.SigToCore(aggSig)
 
-	agg, err := sigagg.New(threshold)
+	agg, err := sigagg.New(threshold, sigagg.NewSigAggVerifier(bmock))
 	require.NoError(t, err)
 
 	// Assert output
@@ -208,7 +223,11 @@ func TestSigAgg_DutyExit(t *testing.T) {
 	const (
 		threshold = 3
 		peers     = 4
+		epoch     = 123
 	)
+
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
 
 	// Generate private shares
 	secretKey, err := tbls.GenerateSecretKey()
@@ -220,8 +239,14 @@ func TestSigAgg_DutyExit(t *testing.T) {
 	secrets, err := tbls.ThresholdSplit(secretKey, peers, threshold)
 	require.NoError(t, err)
 
-	exit := testutil.RandomExit()
-	msg, err := exit.Message.HashTreeRoot()
+	exitMsg := testutil.RandomExit()
+	exitMsg.Message.Epoch = epoch
+
+	volexit := core.NewSignedVoluntaryExit(exitMsg)
+	exitRoot, err := volexit.MessageRoot()
+	require.NoError(t, err)
+
+	msg, err := signing.GetDataRoot(ctx, bmock, volexit.DomainName(), epoch, exitRoot)
 	require.NoError(t, err)
 
 	// Create partial signatures (in two formats)
@@ -239,7 +264,7 @@ func TestSigAgg_DutyExit(t *testing.T) {
 
 		eth2Sig := tblsconv.SigToETH2(sig)
 		parsig := core.NewPartialSignedVoluntaryExit(&eth2p0.SignedVoluntaryExit{
-			Message:   exit.Message,
+			Message:   volexit.Message,
 			Signature: eth2Sig,
 		}, idx)
 
@@ -251,7 +276,7 @@ func TestSigAgg_DutyExit(t *testing.T) {
 	require.NoError(t, err)
 	expect := tblsconv.SigToCore(aggSig)
 
-	agg, err := sigagg.New(threshold)
+	agg, err := sigagg.New(threshold, sigagg.NewSigAggVerifier(bmock))
 	require.NoError(t, err)
 
 	// Assert output
@@ -278,6 +303,9 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 		threshold = 3
 		peers     = 4
 	)
+
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
 
 	// Generate private shares
 	secretKey, err := tbls.GenerateSecretKey()
@@ -337,8 +365,16 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			// Ignoring Domain for this test
-			msg, err := test.block.Root()
+			block, err := core.NewVersionedSignedBeaconBlock(test.block)
+			require.NoError(t, err)
+
+			msgRoot, err := block.MessageRoot()
+			require.NoError(t, err)
+
+			epoch, err := block.Epoch(ctx, bmock)
+			require.NoError(t, err)
+
+			msg, err := signing.GetDataRoot(ctx, bmock, block.DomainName(), epoch, msgRoot)
 			require.NoError(t, err)
 
 			// Create partial signatures (in two formats)
@@ -377,7 +413,7 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 			require.NoError(t, err)
 			expect := tblsconv.SigToCore(aggSig)
 
-			agg, err := sigagg.New(threshold)
+			agg, err := sigagg.New(threshold, sigagg.NewSigAggVerifier(bmock))
 			require.NoError(t, err)
 
 			// Assert output
@@ -406,6 +442,9 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 		threshold = 3
 		peers     = 4
 	)
+
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
 
 	// Generate private shares
 	secretKey, err := tbls.GenerateSecretKey()
@@ -445,8 +484,16 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			// Ignoring Domain for this test
-			msg, err := test.block.Root()
+			block, err := core.NewVersionedSignedBlindedBeaconBlock(test.block)
+			require.NoError(t, err)
+
+			msgRoot, err := block.MessageRoot()
+			require.NoError(t, err)
+
+			epoch, err := block.Epoch(ctx, bmock)
+			require.NoError(t, err)
+
+			msg, err := signing.GetDataRoot(ctx, bmock, block.DomainName(), epoch, msgRoot)
 			require.NoError(t, err)
 
 			// Create partial signatures (in two formats)
@@ -485,7 +532,7 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 			require.NoError(t, err)
 			expect := tblsconv.SigToCore(aggSig)
 
-			agg, err := sigagg.New(threshold)
+			agg, err := sigagg.New(threshold, sigagg.NewSigAggVerifier(bmock))
 			require.NoError(t, err)
 
 			// Assert output
@@ -513,7 +560,11 @@ func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
 	const (
 		threshold = 3
 		peers     = 4
+		epoch     = 123
 	)
+
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
 
 	// Generate private shares
 	secretKey, err := tbls.GenerateSecretKey()
@@ -543,8 +594,13 @@ func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			// Ignoring Domain for this test
-			msg, err := test.registration.Root()
+			reg, err := core.NewVersionedSignedValidatorRegistration(test.registration)
+			require.NoError(t, err)
+
+			msgRoot, err := reg.MessageRoot()
+			require.NoError(t, err)
+
+			msg, err := signing.GetDataRoot(ctx, bmock, reg.DomainName(), epoch, msgRoot)
 			require.NoError(t, err)
 
 			// Create partial signatures (in two formats)
@@ -583,7 +639,7 @@ func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
 			require.NoError(t, err)
 			expect := tblsconv.SigToCore(aggSig)
 
-			agg, err := sigagg.New(threshold)
+			agg, err := sigagg.New(threshold, sigagg.NewSigAggVerifier(bmock))
 			require.NoError(t, err)
 
 			// Assert output

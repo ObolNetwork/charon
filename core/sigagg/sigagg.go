@@ -10,6 +10,7 @@ import (
 	"context"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/z"
@@ -19,19 +20,23 @@ import (
 )
 
 // New returns a new aggregator instance.
-func New(threshold int) (*Aggregator, error) {
+func New(threshold int, verifyFunc func(context.Context, core.PubKey, core.SignedData) error) (*Aggregator, error) {
 	if threshold <= 0 {
 		return nil, errors.New("invalid threshold", z.Int("threshold", threshold))
 	}
 
-	return &Aggregator{threshold: threshold}, nil
+	return &Aggregator{
+		threshold:  threshold,
+		verifyFunc: verifyFunc,
+	}, nil
 }
 
 // Aggregator aggregates *threshold* partial signed duty data objects
 // into an aggregated signed duty data object ready to be broadcasted.
 type Aggregator struct {
-	threshold int
-	subs      []func(context.Context, core.Duty, core.PubKey, core.SignedData) error
+	threshold  int
+	verifyFunc func(context.Context, core.PubKey, core.SignedData) error
+	subs       []func(context.Context, core.Duty, core.PubKey, core.SignedData) error
 }
 
 // Subscribe registers a callback for aggregated signed duty data.
@@ -75,7 +80,7 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 		return err
 	}
 
-	if err := verifyAggSig(aggSig, pubkey); err != nil {
+	if err := a.verifyFunc(ctx, pubkey, aggSig); err != nil {
 		return err
 	}
 
@@ -96,24 +101,24 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 	return nil
 }
 
-// verifyAggSig verifies if the aggregated signature is valid using the provided pubkey.
-func verifyAggSig(sigData core.SignedData, pubkey core.PubKey) error {
-	tblsPubkey, err := tblsconv.PubkeyFromCore(pubkey)
-	if err != nil {
-		return errors.Wrap(err, "pubkey from core")
+// NewSigAggVerifier returns a signature verification function for aggregated signatures.
+func NewSigAggVerifier(eth2Cl eth2wrap.Client) func(context.Context, core.PubKey, core.SignedData) error {
+	return func(ctx context.Context, pubkey core.PubKey, data core.SignedData) error {
+		tblsPubkey, err := tblsconv.PubkeyFromCore(pubkey)
+		if err != nil {
+			return errors.Wrap(err, "pubkey from core")
+		}
+
+		eth2Signed, ok := data.(core.Eth2SignedData)
+		if !ok {
+			return errors.New("invalid eth2 signed data")
+		}
+
+		err = core.VerifyEth2SignedData(ctx, eth2Cl, eth2Signed, tblsPubkey)
+		if err != nil {
+			return errors.Wrap(err, "aggregate signature verification failed")
+		}
+
+		return nil
 	}
-
-	msgRoot, err := sigData.MessageRoot()
-	if err != nil {
-		return errors.Wrap(err, "message root")
-	}
-
-	aggSig := tbls.Signature(sigData.Signature())
-
-	err = tbls.Verify(tblsPubkey, msgRoot[:], aggSig)
-	if err != nil {
-		return errors.Wrap(err, "aggregate signature verification failed")
-	}
-
-	return nil
 }

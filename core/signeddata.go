@@ -718,6 +718,16 @@ func (r *VersionedSignedValidatorRegistration) UnmarshalJSON(input []byte) error
 	return nil
 }
 
+// NewSignedRandao is a convenience function that returns a new signed Randao Reveal.
+func NewSignedRandao(epoch eth2p0.Epoch, randao eth2p0.BLSSignature) SignedRandao {
+	return SignedRandao{
+		SignedEpoch: eth2util.SignedEpoch{
+			Epoch:     epoch,
+			Signature: randao,
+		},
+	}
+}
+
 // NewPartialSignedRandao is a convenience function that returns a new partially signed Randao Reveal.
 func NewPartialSignedRandao(epoch eth2p0.Epoch, randao eth2p0.BLSSignature, shareIdx int) ParSignedData {
 	return ParSignedData{
