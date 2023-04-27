@@ -144,7 +144,7 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.Pri
 		keys[int64(i)] = pk
 	}
 
-	return &Component{
+	c := &Component{
 		tcpNode:     tcpNode,
 		sender:      sender,
 		peers:       peers,
@@ -152,11 +152,15 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.Pri
 		privkey:     p2pKey,
 		pubkeys:     keys,
 		deadliner:   deadliner,
-		recvBuffers: make(map[core.Duty]chan msg),
 		snifferFunc: snifferFunc,
 		dropFilter:  log.Filter(),
 		timerFunc:   getTimerFunc(),
-	}, nil
+	}
+	c.mutable.recvBuffers = make(map[core.Duty]chan msg)
+	c.mutable.inputValues = make(map[core.Duty]chan proto.Message)
+	c.mutable.inputHashes = make(map[core.Duty]chan [32]byte)
+
+	return c, nil
 }
 
 // Component implements core.Consensus.
@@ -175,8 +179,12 @@ type Component struct {
 	timerFunc   timerFunc
 
 	// Mutable state
-	recvMu      sync.Mutex
-	recvBuffers map[core.Duty]chan msg // Instance outer receive buffers.
+	mutable struct {
+		sync.Mutex
+		recvBuffers map[core.Duty]chan msg           // Instance outer receive buffers.
+		inputHashes map[core.Duty]chan [32]byte      // Instance input hash channels.
+		inputValues map[core.Duty]chan proto.Message // Instance input value channels.
+	}
 }
 
 // Subscribe registers a callback for unsigned duty data proposals from leaders.
@@ -227,14 +235,14 @@ func (c *Component) Start(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case duty := <-c.deadliner.C():
-				c.deleteRecvChan(duty)
+				c.deleteMutable(duty)
 			}
 		}
 	}()
 }
 
-// Propose participants in a consensus instance proposing the provided unsigned data set.
-// It returns on error or nil when the context is cancelled.
+// Propose enqueues the proposed value to a consensus instance input channels.
+// It also runs the consensus instance if it is not already running.
 func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
 	// Hash the proposed data, since qbft only supports simple comparable values.
 	value, err := core.UnsignedDataSetToProto(data)
@@ -245,17 +253,58 @@ func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.Unsig
 	return c.propose(ctx, duty, value)
 }
 
-// ProposePriority participants in a consensus instance proposing the provided priority message.
-// It returns on error or nil when the context is cancelled.
+// ProposePriority enqueues the proposed value to a consensus instance input channels.
+// It also runs the consensus instance if it is not already running.
 func (c *Component) ProposePriority(ctx context.Context, duty core.Duty, msg *pbv1.PriorityResult) error {
 	return c.propose(ctx, duty, msg)
 }
 
-// propose participants in a consensus instance proposing the provided value.
-// It returns on error or nil when the context is cancelled.
+// propose enqueues the proposed value to a consensus instance input channels.
+// It also runs the consensus instance if it is not already running.
 func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Message) error {
-	roundTimer := c.timerFunc(duty)
+	hash, err := hashProto(value)
+	if err != nil {
+		return err
+	}
 
+	valCh, hashCh, running := c.getInputChannels(duty)
+
+	select {
+	case valCh <- value:
+	default:
+		return errors.New("input channel full")
+	}
+
+	select {
+	case hashCh <- hash:
+	default:
+		return errors.New("input channel full")
+	}
+
+	if running { // Participate was already called, instance is running.
+		return nil
+	}
+
+	return c.runInstance(ctx, duty)
+}
+
+// Participate runs a new a consensus instance if an eager timer is defined and Propose not already called.
+// Note Propose must still be called to provide the proposed data.
+// It returns an error or nil when the context is cancelled.
+func (c *Component) Participate(ctx context.Context, duty core.Duty) error {
+	if !c.timerFunc(duty).Type().EagerStart() {
+		return nil // Not an eager start timer, wait for Propose to start.
+	}
+
+	if _, _, running := c.getInputChannels(duty); running {
+		return nil // Instance already running.
+	}
+
+	return c.runInstance(ctx, duty)
+}
+
+func (c *Component) runInstance(ctx context.Context, duty core.Duty) error {
+	roundTimer := c.timerFunc(duty)
 	ctx = log.WithTopic(ctx, "qbft")
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 	ctx = log.WithCtx(ctx, z.Any("timer", string(roundTimer.Type())))
@@ -267,16 +316,6 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 	}
 
 	log.Debug(ctx, "QBFT consensus instance starting", z.Any("peers", c.peerLabels))
-
-	hash, err := hashProto(value)
-	if err != nil {
-		return err
-	}
-
-	anyValue, err := anypb.New(value)
-	if err != nil {
-		return errors.Wrap(err, "wrap any value")
-	}
 
 	peerIdx, err := c.getPeerIdx()
 	if err != nil {
@@ -293,13 +332,16 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 		instrumentConsensus(duty, qcommit[0].Round(), t0, roundTimer.Type())
 	}
 
+	valueCh, hashCh, _ := c.getInputChannels(duty)
+
 	// Create a new qbft definition for this instance.
 	def := newDefinition(len(c.peers), c.subscribers, roundTimer, decideCallback)
 
 	// Create a new transport that handles sending and receiving for this instance.
 	t := transport{
 		component:  c,
-		values:     map[[32]byte]*anypb.Any{hash: anyValue},
+		values:     make(map[[32]byte]*anypb.Any),
+		valueCh:    valueCh,
 		recvBuffer: make(chan qbft.Msg[core.Duty, [32]byte]),
 		sniffer:    newSniffer(int64(def.Nodes), peerIdx),
 	}
@@ -319,7 +361,7 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 	}
 
 	// Run the algo, blocking until the context is cancelled.
-	err = qbft.Run[core.Duty, [32]byte](ctx, def, qt, duty, peerIdx, qbft.InputValue(hash))
+	err = qbft.Run[core.Duty, [32]byte](ctx, def, qt, duty, peerIdx, hashCh)
 	if err != nil && !isContextErr(err) {
 		consensusError.Inc()
 		return err // Only return non-context errors.
@@ -397,24 +439,51 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 
 // getRecvBuffer returns a receive buffer for the duty.
 func (c *Component) getRecvBuffer(duty core.Duty) chan msg {
-	c.recvMu.Lock()
-	defer c.recvMu.Unlock()
+	c.mutable.Lock()
+	defer c.mutable.Unlock()
 
-	ch, ok := c.recvBuffers[duty]
+	ch, ok := c.mutable.recvBuffers[duty]
 	if !ok {
 		ch = make(chan msg, recvBuffer)
-		c.recvBuffers[duty] = ch
+		c.mutable.recvBuffers[duty] = ch
 	}
 
 	return ch
 }
 
-// deleteRecvChan deletes the receive channel and recvDropped map entry for the duty.
-func (c *Component) deleteRecvChan(duty core.Duty) {
-	c.recvMu.Lock()
-	defer c.recvMu.Unlock()
+// getInputChannels returns the duty's input value and hash channels and true if they were previously created.
+func (c *Component) getInputChannels(duty core.Duty) (chan proto.Message, chan [32]byte, bool) {
+	c.mutable.Lock()
+	defer c.mutable.Unlock()
 
-	delete(c.recvBuffers, duty)
+	valCh, ok := c.mutable.inputValues[duty]
+	if !ok { // Create new channels.
+		valCh = make(chan proto.Message, 1)
+		c.mutable.inputValues[duty] = valCh
+
+		hashCh := make(chan [32]byte, 1)
+		c.mutable.inputHashes[duty] = hashCh
+
+		return valCh, hashCh, false
+	}
+
+	// Return existing channels.
+	hashCh, ok := c.mutable.inputHashes[duty]
+	if !ok {
+		panic("bug: this should never happen")
+	}
+
+	return valCh, hashCh, true
+}
+
+// deleteMutable deletes the receive channel and recvDropped map entry for the duty.
+func (c *Component) deleteMutable(duty core.Duty) {
+	c.mutable.Lock()
+	defer c.mutable.Unlock()
+
+	delete(c.mutable.recvBuffers, duty)
+	delete(c.mutable.inputHashes, duty)
+	delete(c.mutable.inputValues, duty)
 }
 
 // getPeerIdx returns the local peer index.

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -28,6 +29,7 @@ type transport struct {
 
 	// Mutable state
 	valueMu sync.Mutex
+	valueCh <-chan proto.Message    // Channel providing lazy proposed values.
 	values  map[[32]byte]*anypb.Any // maps any-wrapped proposed values to their hashes
 }
 
@@ -45,6 +47,24 @@ func (t *transport) setValues(msg msg) {
 func (t *transport) getValue(hash [32]byte) (*anypb.Any, error) {
 	t.valueMu.Lock()
 	defer t.valueMu.Unlock()
+
+	// First check if we have a new value.
+	select {
+	case value := <-t.valueCh:
+		valueHash, err := hashProto(value)
+		if err != nil {
+			return nil, err
+		}
+
+		anyValue, err := anypb.New(value)
+		if err != nil {
+			return nil, errors.Wrap(err, "wrap any value")
+		}
+
+		t.values[valueHash] = anyValue
+	default:
+		// No new values
+	}
 
 	pb, ok := t.values[hash]
 	if !ok {

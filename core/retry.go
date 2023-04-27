@@ -19,13 +19,6 @@ func WithAsyncRetry(retryer *retry.Retryer[Duty]) WireOption {
 
 			return nil
 		}
-		w.ConsensusPropose = func(ctx context.Context, duty Duty, set UnsignedDataSet) error {
-			go retryer.DoAsync(ctx, duty, "consensus", "propose", func(ctx context.Context) error {
-				return clone.ConsensusPropose(ctx, duty, set)
-			})
-
-			return nil
-		}
 		w.ParSigExBroadcast = func(ctx context.Context, duty Duty, set ParSignedDataSet) error {
 			go retryer.DoAsync(ctx, duty, "parsigex", "broadcast", func(ctx context.Context) error {
 				return clone.ParSigExBroadcast(ctx, duty, set)
