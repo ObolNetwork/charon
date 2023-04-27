@@ -126,19 +126,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}()
 
-	if conf.PrivKeyLocking {
-		cleanPrivkeyLock, err := privkeylock.New(conf.PrivKeyFile+".lock", "charon run")
-		if err != nil {
-			return err
-		}
-
-		defer func() {
-			if err := cleanPrivkeyLock(); err != nil {
-				log.Error(ctx, "Cannot delete private key lock file", err)
-			}
-		}()
-	}
-
 	_, _ = maxprocs.Set()
 
 	if err := featureset.Init(ctx, conf.Feature); err != nil {
@@ -149,6 +136,15 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	// Wire processes and their dependencies
 	life := new(lifecycle.Manager)
+
+	if conf.PrivKeyLocking {
+		lockSvc, err := privkeylock.New(conf.PrivKeyFile+".lock", "charon run")
+		if err != nil {
+			return err
+		}
+
+		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPrivkeyLock, lifecycle.HookFunc(lockSvc.Run))
+	}
 
 	if err := wireTracing(life, conf); err != nil {
 		return err

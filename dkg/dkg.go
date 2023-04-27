@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"path/filepath"
 	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -82,16 +81,16 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}()
 
-	cleanPrivkeyLock, err := privkeylock.New(filepath.Join(conf.DataDir, "dkg-lock"), "charon dkg")
+	lockSvc, err := privkeylock.New(p2p.KeyPath(conf.DataDir)+".lock", "charon dkg")
 	if err != nil {
 		return err
 	}
 
-	defer func() {
-		if err := cleanPrivkeyLock(); err != nil {
-			log.Error(ctx, "Cannot delete private key lock file", err)
+	go func(ctx context.Context) {
+		if err := lockSvc.Run(ctx); err != nil {
+			log.Error(ctx, "Error locking private key file", err)
 		}
-	}()
+	}(ctx)
 
 	version.LogInfo(ctx, "Charon DKG starting")
 
