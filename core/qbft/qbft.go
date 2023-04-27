@@ -10,6 +10,8 @@ import (
 	"math"
 	"strings"
 	"time"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 // Transport abstracts the transport layer between processes in the consensus system.
@@ -273,6 +275,9 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 		var err error
 		select {
 		case inputValue = <-inputValueCh:
+			if isZeroVal(inputValue) {
+				return errors.New("zero input value not supported")
+			}
 			if ppjCache != nil {
 				// Broadcast the pre-prepare now that we have a input value using the cached justification.
 				err = broadcastMsg(MsgPrePrepare, inputValue, ppjCache)
