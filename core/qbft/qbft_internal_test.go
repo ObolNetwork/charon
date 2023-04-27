@@ -211,8 +211,9 @@ func testQBFT(t *testing.T, test test) {
 	)
 	defer cancel()
 
+	isLeader := makeIsLeader(n)
 	defs := Definition[int64, int64]{
-		IsLeader: makeIsLeader(n),
+		IsLeader: isLeader,
 		NewTimer: func(round int64) (<-chan time.Time, func()) {
 			d := time.Second
 			if !test.ConstPeriod { // If not constant periods, then exponential.
@@ -283,7 +284,17 @@ func testQBFT(t *testing.T, test test) {
 				}
 			}
 
-			runChan <- Run(ctx, defs, trans, test.Instance, i, i)
+			// Only enqueue input values for instances that:
+			// - expect multiple rounds
+			// - otherwise only the leader of round 1.
+			vChan := make(chan int64, 1)
+			if test.DecideRound != 1 {
+				go func() { vChan <- i }()
+			} else if isLeader(test.Instance, 1, i) {
+				go func() { vChan <- i }()
+			}
+
+			runChan <- Run(ctx, defs, trans, test.Instance, i, vChan)
 		}(i)
 	}
 
@@ -570,14 +581,14 @@ func TestDuplicatePrePreparesRules(t *testing.T) {
 		require.Fail(t, "unexpected round", "round=%d", round)
 	}
 
-	ch := make(chan Msg[int64, int64], 2)
-	ch <- newPreprepare(1)
-	ch <- newPreprepare(2)
+	rChan := make(chan Msg[int64, int64], 2)
+	rChan <- newPreprepare(1)
+	rChan <- newPreprepare(2)
 
 	transport := noopTransport
-	transport.Receive = ch
+	transport.Receive = rChan
 
-	_ = Run(ctx, def, transport, 0, noLeader, 1)
+	_ = Run(ctx, def, transport, 0, noLeader, InputValue(int64(1)))
 }
 
 // noopTransport is a transport that does nothing.
