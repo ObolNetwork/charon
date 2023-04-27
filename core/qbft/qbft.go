@@ -10,8 +10,6 @@ import (
 	"math"
 	"strings"
 	"time"
-
-	"github.com/obolnetwork/charon/app/errors"
 )
 
 // Transport abstracts the transport layer between processes in the consensus system.
@@ -152,13 +150,18 @@ type dedupKey struct {
 	Round    int64
 }
 
+// InputValue is a convenience function to create a populated input value channel.
+func InputValue[V comparable](inputValue V) <-chan V {
+	ch := make(chan V, 1)
+	ch <- inputValue
+
+	return ch
+}
+
 // Run executes the consensus algorithm until the context closed.
 // The generic type I is the instance of consensus and can be anything.
 // The generic type V is the arbitrary data value being proposed; it only requires an Equal method.
-func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transport[I, V], instance I, process int64, inputValue V) (err error) {
-	if isZeroVal(inputValue) {
-		return errors.New("zero input value not supported")
-	}
+func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transport[I, V], instance I, process int64, inputValueCh <-chan V) (err error) {
 	defer func() {
 		// Panics are used for assertions and sanity checks to reduce lines of code
 		// and to improve readability. Catch them here.
@@ -174,6 +177,8 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 	var (
 		round                 int64 = 1
+		inputValue            V
+		ppjCache              []Msg[I, V] // Cached pre-prepare justification for the current round (nil value is unset).
 		preparedRound         int64
 		preparedValue         V
 		preparedJustification []Msg[I, V]
@@ -196,6 +201,24 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 	broadcastRoundChange := func() error {
 		return t.Broadcast(ctx, MsgRoundChange, instance, process, round,
 			zeroVal[V](), preparedRound, preparedValue, preparedJustification)
+	}
+
+	// broadcastPrePrepare broadcasts a PRE-PREPARE message with current state
+	// if the input value is present, otherwise it caches the justification.
+	broadcastPrePrepare := func(justification []Msg[I, V]) error {
+		if justification == nil {
+			panic("bug: justification must not be nil")
+		} else if ppjCache != nil {
+			panic("bug: justification cache must be nil")
+		}
+
+		if isZeroVal(inputValue) {
+			// Can't broadcast a pre-prepare yet, need to wait for an input value.
+			ppjCache = justification
+			return nil
+		}
+
+		return broadcastMsg(MsgPrePrepare, inputValue, justification)
 	}
 
 	// bufferMsg adds the message to each process' FIFO queue.
@@ -229,13 +252,14 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 		d.LogRoundChange(ctx, instance, process, round, newRound, rule, extractRoundMsgs(buffer, round))
 		round = newRound
 		dedupRules = make(map[dedupKey]bool)
+		ppjCache = nil
 	}
 
 	// === Algorithm ===
 
 	{ // Algorithm 1:11
 		if d.IsLeader(instance, round, process) { // Note round==1 at this point.
-			err := broadcastMsg(MsgPrePrepare, inputValue, nil) // Justification is round==1
+			err := broadcastPrePrepare([]Msg[I, V]{}) // Justification is round==1
 			if err != nil {
 				return err
 			}
@@ -248,6 +272,13 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 	for {
 		var err error
 		select {
+		case inputValue = <-inputValueCh:
+			if ppjCache != nil {
+				// Broadcast the pre-prepare now that we have a input value using the cached justification.
+				err = broadcastMsg(MsgPrePrepare, inputValue, ppjCache)
+			}
+			inputValueCh = nil // Don't read from this channel again.
+
 		case msg := <-t.Receive:
 			// Just send Qcommit if consensus already decided
 			if len(qCommit) > 0 {

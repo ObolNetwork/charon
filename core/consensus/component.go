@@ -319,7 +319,7 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 	}
 
 	// Run the algo, blocking until the context is cancelled.
-	err = qbft.Run[core.Duty, [32]byte](ctx, def, qt, duty, peerIdx, hash)
+	err = qbft.Run[core.Duty, [32]byte](ctx, def, qt, duty, peerIdx, qbft.InputValue(hash))
 	if err != nil && !isContextErr(err) {
 		consensusError.Inc()
 		return err // Only return non-context errors.

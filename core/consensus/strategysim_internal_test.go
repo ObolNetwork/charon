@@ -317,7 +317,7 @@ func testStrategySimulator(t *testing.T, conf ssConfig, verbose bool, syncer zap
 		if verbose {
 			log.Debug(ctx, "Starting peer", z.Any("delayed", conf.startByPeer[p.Idx]))
 		}
-		err := qbft.Run(ctx, def, transports[p.Idx], core.Duty{Slot: int64(conf.seed)}, p.Idx, val)
+		err := qbft.Run(ctx, def, transports[p.Idx], core.Duty{Slot: int64(conf.seed)}, p.Idx, qbft.InputValue(val))
 		if err != nil && !errors.Is(err, context.Canceled) {
 			return res, err
 		}
