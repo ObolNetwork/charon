@@ -367,6 +367,10 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot int64) error {
 			return errors.New("invalid attestation")
 		}
 
+		if att.Data.Target == nil || att.Data.Source == nil {
+			return errors.New("invalid attestation data checkpoint")
+		}
+
 		root, err := att.Data.HashTreeRoot()
 		if err != nil {
 			return errors.Wrap(err, "hash attestation")
