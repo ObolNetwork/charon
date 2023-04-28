@@ -47,8 +47,8 @@ func getTimerFunc() timerFunc {
 // timerType is the type of round timer.
 type timerType string
 
-// EagerStart returns true if the timerType requires an eager start (before proposal values are present).
-func (t timerType) EagerStart() bool {
+// Eager returns true if the timer type requires an eager start (before proposal values are present).
+func (t timerType) Eager() bool {
 	return strings.Contains(string(t), "eager")
 }
 

@@ -289,10 +289,13 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 }
 
 // Participate runs a new a consensus instance if an eager timer is defined and Propose not already called.
-// Note Propose must still be called to provide the proposed data.
-// It returns an error or nil when the context is cancelled.
+// Note Propose must still be called for this peer to propose a value when leading a round.
 func (c *Component) Participate(ctx context.Context, duty core.Duty) error {
-	if !c.timerFunc(duty).Type().EagerStart() {
+	if duty.Type == core.DutyAggregator || duty.Type == core.DutySyncContribution {
+		return nil // No eager consensus for potential no-op aggregation duties.
+	}
+
+	if !c.timerFunc(duty).Type().Eager() {
 		return nil // Not an eager start timer, wait for Propose to start.
 	}
 
@@ -303,19 +306,24 @@ func (c *Component) Participate(ctx context.Context, duty core.Duty) error {
 	return c.runInstance(ctx, duty)
 }
 
+// runInstance blocks and runs a consensus instance for the given duty.
+// It returns an error or nil when the context is cancelled.
 func (c *Component) runInstance(ctx context.Context, duty core.Duty) error {
 	roundTimer := c.timerFunc(duty)
 	ctx = log.WithTopic(ctx, "qbft")
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
-	ctx = log.WithCtx(ctx, z.Any("timer", string(roundTimer.Type())))
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
 	if !c.deadliner.Add(duty) {
 		log.Warn(ctx, "Skipping consensus for expired duty", nil)
 		return nil
 	}
 
-	log.Debug(ctx, "QBFT consensus instance starting", z.Any("peers", c.peerLabels))
+	log.Debug(ctx, "QBFT consensus instance starting",
+		z.Any("peers", c.peerLabels),
+		z.Any("timer", string(roundTimer.Type())),
+	)
 
 	peerIdx, err := c.getPeerIdx()
 	if err != nil {
