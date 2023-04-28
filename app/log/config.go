@@ -176,8 +176,12 @@ func InitLogger(config Config) error {
 		loggers := multiLogger{logger}
 		for _, address := range config.LokiAddresses {
 			lokiCl := loki.New(address, config.LokiService, logFunc, getLokiLabels)
+			// Direct-to-loki logger is opinionated: debug level, logfmt format, colored pretty field.
 			lokiLogger, err := newStructuredLogger("logfmt",
-				zapcore.DebugLevel, color, lokiWriter{cl: lokiCl}, callerSkip)
+				zapcore.DebugLevel,
+				true,
+				lokiWriter{cl: lokiCl},
+				callerSkip)
 			if err != nil {
 				return err
 			}
