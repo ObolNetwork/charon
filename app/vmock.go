@@ -18,7 +18,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
-	"github.com/obolnetwork/charon/testutil/validatormock"
+	"github.com/obolnetwork/charon/testutil/validatormock" // Allow testutil
 )
 
 // wireValidatorMock wires the validator mock if enabled. It connects via http validatorapi.Router.

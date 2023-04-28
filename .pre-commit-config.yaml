@@ -64,3 +64,8 @@ repos:
         entry: .pre-commit/run_regexp.sh
         types: [ file, go ]
         exclude: "_test.go"
+      - id: run-testutil
+        name: run-testutil
+        language: script
+        entry: .pre-commit/run_testutil.sh
+        types: [ file, go ]
