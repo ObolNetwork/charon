@@ -12,16 +12,17 @@ function exclude_names() {
      FILES=$(echo $FILES | tr ' ' '\n' | grep -vE "$1" | tr '\n' ' ')
 }
 
-# exclude_names excludes files with content matching the given regex from the list of files
+# exclude_content excludes files with content matching the given regex from the list of files
 function exclude_content() {
       FILES=$(echo $FILES | tr ' ' '\n' | xargs grep -LZE "$1" | tr '\n' ' ')
 }
 
 # Exclude all file names with 'test' in the path.
 exclude_names 'test'
-# Exclude all files with 'Allow testutil' string.
+# Exclude all files with 'Allow testutil' content.
 exclude_content 'Allow testutil'
 
+# Chck any remaining files for testutil imports.
 check 'Testutil package may only be imported by tests' 'github.com/obolnetwork/charon/testutil' && exit 1
 
 true
