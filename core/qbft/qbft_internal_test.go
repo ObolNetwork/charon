@@ -33,6 +33,28 @@ func TestQBFT(t *testing.T) {
 		})
 	})
 
+	t.Run("prepare round 1, decide round 2", func(t *testing.T) {
+		testQBFT(t, test{
+			Instance:     0,
+			CommitsAfter: 1,
+			DecideRound:  2,
+			PreparedVal:  1,
+		})
+	})
+
+	t.Run("prepare round 2, decide round 23", func(t *testing.T) {
+		testQBFT(t, test{
+			Instance:     0,
+			CommitsAfter: 2,
+			ValueDelay: map[int64]time.Duration{
+				1: time.Second,
+			},
+			DecideRound: 3,
+			PreparedVal: 2,
+			ConstPeriod: true,
+		})
+	})
+
 	t.Run("leader late exp", func(t *testing.T) {
 		testQBFT(t, test{
 			Instance:    0,
@@ -252,7 +274,9 @@ type test struct {
 	ValueDelay    map[int64]time.Duration // Delays input value availability of certain processes
 	DropProb      map[int64]float64       // DropProb [0..1] probability of dropped messages per processes
 	BCastJitterMS int                     // Add random delays to broadcast of messages.
+	CommitsAfter  int                     // Only broadcast commits after this round.
 	DecideRound   int                     // Deterministic consensus at specific round
+	PreparedVal   int                     // If prepared value decided, as opposed to leader's value.
 	RandomRound   bool                    // Non-deterministic consensus at random round.
 	Fuzz          bool                    // Enables fuzzing by Node 1.
 }
@@ -320,6 +344,11 @@ func testQBFT(t *testing.T, test test) {
 				if round > maxRound {
 					return errors.New("max round reach")
 				}
+				if typ == MsgCommit && int(round) <= test.CommitsAfter {
+					t.Logf("%s %v dropping early commit for round %d", clock.NowStr(), source, round)
+					return nil
+				}
+
 				t.Logf("%s %v => %v@%d", clock.NowStr(), source, typ, round)
 				msg := newMsg(typ, instance, source, round, value, pr, pv, justify)
 				receive <- msg // Always send to self first (no jitter, no drops).
@@ -408,6 +437,11 @@ func testQBFT(t *testing.T, test test) {
 				}
 				if !test.RandomRound {
 					require.EqualValues(t, test.DecideRound, commit.Round())
+					if test.PreparedVal != 0 { // Check prepared value if set
+						require.EqualValues(t, test.PreparedVal, commit.Value())
+					} else { // Otherwise check that leader value was used.
+						require.True(t, isLeader(test.Instance, commit.Round(), commit.Value()))
+					}
 				}
 				results[commit.Source()] = commit
 			}
