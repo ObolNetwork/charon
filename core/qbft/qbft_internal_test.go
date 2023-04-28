@@ -33,6 +33,28 @@ func TestQBFT(t *testing.T) {
 		})
 	})
 
+	t.Run("prepare round 1, decide round 2", func(t *testing.T) {
+		testQBFT(t, test{
+			Instance:     0,
+			CommitsAfter: 1,
+			DecideRound:  2,
+			PreparedVal:  1,
+		})
+	})
+
+	t.Run("prepare round 2, decide round 23", func(t *testing.T) {
+		testQBFT(t, test{
+			Instance:     0,
+			CommitsAfter: 2,
+			ValueDelay: map[int64]time.Duration{
+				1: time.Second,
+			},
+			DecideRound: 3,
+			PreparedVal: 2,
+			ConstPeriod: true,
+		})
+	})
+
 	t.Run("leader late exp", func(t *testing.T) {
 		testQBFT(t, test{
 			Instance:    0,
@@ -97,6 +119,70 @@ func TestQBFT(t *testing.T) {
 			},
 			ConstPeriod: true,
 			RandomRound: true, // Takes 1 or 2 rounds.
+		})
+	})
+
+	t.Run("very delayed value exp", func(t *testing.T) {
+		testQBFT(t, test{
+			Instance: 3,
+			ValueDelay: map[int64]time.Duration{
+				1: time.Second * 5,
+				2: time.Second * 10,
+			},
+			DecideRound: 4,
+		})
+	})
+
+	t.Run("very delayed value const", func(t *testing.T) {
+		testQBFT(t, test{
+			Instance: 1,
+			ValueDelay: map[int64]time.Duration{
+				1: time.Second * 5,
+				2: time.Second * 10,
+			},
+			ConstPeriod: true,
+			RandomRound: true,
+		})
+	})
+
+	t.Run("stagger delayed value exp", func(t *testing.T) {
+		testQBFT(t, test{
+			Instance: 0,
+			ValueDelay: map[int64]time.Duration{
+				1: time.Second * 0,
+				2: time.Second * 1,
+				3: time.Second * 2,
+				4: time.Second * 3,
+			},
+			RandomRound: true, // Takes 1 or 2 rounds.
+		})
+	})
+
+	t.Run("stagger delayed value const", func(t *testing.T) {
+		testQBFT(t, test{
+			Instance: 0,
+			ValueDelay: map[int64]time.Duration{
+				1: time.Second * 0,
+				2: time.Second * 1,
+				3: time.Second * 2,
+				4: time.Second * 3,
+			},
+			ConstPeriod: true,
+			RandomRound: true, // Takes 1 or 2 rounds.
+		})
+	})
+
+	t.Run("round 1 leader no value, round 2 leader offline", func(t *testing.T) {
+		testQBFT(t, test{
+			Instance: 0,
+			ValueDelay: map[int64]time.Duration{
+				1: time.Second * 1,
+			},
+			StartDelay: map[int64]time.Duration{
+				2: time.Second * 2,
+			},
+			ConstPeriod: true,
+			DecideRound: 3,
 		})
 	})
 
@@ -185,9 +271,12 @@ type test struct {
 	Instance      int64                   // Consensus instance, only affects leader election.
 	ConstPeriod   bool                    // ConstPeriod results in 1s round timeout, otherwise exponential (1s,2s,4s...)
 	StartDelay    map[int64]time.Duration // Delays start of certain processes
+	ValueDelay    map[int64]time.Duration // Delays input value availability of certain processes
 	DropProb      map[int64]float64       // DropProb [0..1] probability of dropped messages per processes
 	BCastJitterMS int                     // Add random delays to broadcast of messages.
+	CommitsAfter  int                     // Only broadcast commits after this round.
 	DecideRound   int                     // Deterministic consensus at specific round
+	PreparedVal   int                     // If prepared value decided, as opposed to leader's value.
 	RandomRound   bool                    // Non-deterministic consensus at random round.
 	Fuzz          bool                    // Enables fuzzing by Node 1.
 }
@@ -255,6 +344,11 @@ func testQBFT(t *testing.T, test test) {
 				if round > maxRound {
 					return errors.New("max round reach")
 				}
+				if typ == MsgCommit && int(round) <= test.CommitsAfter {
+					t.Logf("%s %v dropping early commit for round %d", clock.NowStr(), source, round)
+					return nil
+				}
+
 				t.Logf("%s %v => %v@%d", clock.NowStr(), source, typ, round)
 				msg := newMsg(typ, instance, source, round, value, pr, pv, justify)
 				receive <- msg // Always send to self first (no jitter, no drops).
@@ -285,10 +379,18 @@ func testQBFT(t *testing.T, test test) {
 			}
 
 			// Only enqueue input values for instances that:
-			// - expect multiple rounds
-			// - otherwise only the leader of round 1.
+			// - have a value delay
+			// - or expect multiple rounds
+			// - or otherwise only the leader of round 1.
 			vChan := make(chan int64, 1)
-			if test.DecideRound != 1 {
+			if delay, ok := test.ValueDelay[i]; ok {
+				go func() {
+					ch, stop := clock.NewTimer(delay)
+					defer stop()
+					<-ch
+					vChan <- i
+				}()
+			} else if test.DecideRound != 1 {
 				go func() { vChan <- i }()
 			} else if isLeader(test.Instance, 1, i) {
 				go func() { vChan <- i }()
@@ -335,6 +437,11 @@ func testQBFT(t *testing.T, test test) {
 				}
 				if !test.RandomRound {
 					require.EqualValues(t, test.DecideRound, commit.Round())
+					if test.PreparedVal != 0 { // Check prepared value if set
+						require.EqualValues(t, test.PreparedVal, commit.Value())
+					} else { // Otherwise check that leader value was used.
+						require.True(t, isLeader(test.Instance, commit.Round(), commit.Value()))
+					}
 				}
 				results[commit.Source()] = commit
 			}

@@ -205,9 +205,10 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			zeroVal[V](), preparedRound, preparedValue, preparedJustification)
 	}
 
-	// broadcastPrePrepare broadcasts a PRE-PREPARE message with current state
-	// if the input value is present, otherwise it caches the justification.
-	broadcastPrePrepare := func(justification []Msg[I, V]) error {
+	// broadcastOwnPrePrepare broadcasts a PRE-PREPARE message with current state
+	// and our own input value if present, otherwise it caches the justification
+	// to be used when the input value becomes available.
+	broadcastOwnPrePrepare := func(justification []Msg[I, V]) error {
 		if justification == nil {
 			panic("bug: justification must not be nil")
 		} else if ppjCache != nil {
@@ -261,7 +262,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 	{ // Algorithm 1:11
 		if d.IsLeader(instance, round, process) { // Note round==1 at this point.
-			err := broadcastPrePrepare([]Msg[I, V]{}) // Justification is round==1
+			err := broadcastOwnPrePrepare([]Msg[I, V]{}) // Empty justification since round==1
 			if err != nil {
 				return err
 			}
@@ -347,14 +348,14 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 				err = broadcastRoundChange()
 
 			case UponQuorumRoundChanges: // Algorithm 3:11
-				// Only applicable to current round
-				value := inputValue
+				// Only applicable to current round (round > 1)
 				if _, pv, ok := getSingleJustifiedPrPv(d, justification); ok {
-					value = pv
+					// Send pre-prepare using prepared value (not our own input value)
+					err = broadcastMsg(MsgPrePrepare, pv, justification)
+				} else {
+					// Send pre-prepare using our own input value
+					err = broadcastOwnPrePrepare(justification)
 				}
-
-				err = broadcastMsg(MsgPrePrepare, value, justification)
-
 			case UponUnjustQuorumRoundChanges:
 				// Ignore bug or byzantine
 
