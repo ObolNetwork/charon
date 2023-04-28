@@ -8,6 +8,8 @@ package main
 // This file contains build time developer tools used in the charon repo.
 // To install all the tools run: go generate tools.go
 
+// Allow testutil
+
 import (
 	_ "github.com/bufbuild/buf/cmd/buf"
 	_ "golang.org/x/tools/cmd/stringer"
