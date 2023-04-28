@@ -137,7 +137,7 @@ func TestComponent_handle(t *testing.T) {
 				}
 			},
 			func(err error) {
-				require.ErrorContains(t, err, "refers to nonexistent peer index, cannot fetch public key")
+				require.ErrorContains(t, err, "invalid peer index")
 			},
 		},
 		{
@@ -184,7 +184,7 @@ func TestComponent_handle(t *testing.T) {
 				base.Justification[0].Signature = justSign
 			},
 			func(err error) {
-				require.ErrorContains(t, err, "refers to nonexistent peer index, cannot fetch public key")
+				require.ErrorContains(t, err, "invalid justification: invalid peer index")
 			},
 		},
 		{
@@ -217,7 +217,7 @@ func TestComponent_handle(t *testing.T) {
 				}
 			},
 			func(err error) {
-				require.ErrorContains(t, err, "nil justification")
+				require.ErrorContains(t, err, "invalid justification: invalid consensus message")
 			},
 		},
 		{
@@ -313,7 +313,7 @@ func TestComponent_handle(t *testing.T) {
 				base.Justification[0].Signature = justSign
 			},
 			func(err error) {
-				require.ErrorContains(t, err, "justification duty differs from qbft message duty")
+				require.ErrorContains(t, err, "qbft justification duty differs from message duty")
 			},
 		},
 		{
@@ -365,12 +365,14 @@ func TestComponent_handle(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var tc Component
-
-			tc.deadliner = testDeadliner{}
-			tc.recvBuffers = make(map[core.Duty]chan msg)
+			tc := Component{
+				deadliner:   testDeadliner{},
+				recvBuffers: make(map[core.Duty]chan msg),
+			}
 
 			msg := &pbv1.ConsensusMsg{
 				Msg: randomMsg(t),
@@ -378,36 +380,29 @@ func TestComponent_handle(t *testing.T) {
 
 			test.mutate(msg, &tc)
 
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-
-			require.NotPanics(t, func() {
-				_, _, err := tc.handle(ctx, "peerID", msg)
-				test.checkErr(err)
-			})
+			_, _, err := tc.handle(ctx, "peerID", msg)
+			test.checkErr(err)
 		})
 	}
 }
 
 func TestComponentHandle(t *testing.T) {
 	tests := []struct {
-		name       string
-		msg        *pbv1.ConsensusMsg
-		errorMsg   string
-		invalidMsg bool
-		peerID     string
+		name     string
+		msg      *pbv1.ConsensusMsg
+		errorMsg string
+		peerID   string
 	}{
 		{
-			name:       "invalid message",
-			invalidMsg: true,
-			errorMsg:   "invalid consensus message",
+			name:     "invalid message",
+			errorMsg: "invalid consensus message",
 		},
 		{
 			name: "nil msg",
 			msg: &pbv1.ConsensusMsg{
 				Msg: nil,
 			},
-			errorMsg: "invalid consensus message fields",
+			errorMsg: "invalid consensus message",
 		},
 		{
 			name: "nil msg duty",
@@ -416,7 +411,7 @@ func TestComponentHandle(t *testing.T) {
 					Duty: nil,
 				},
 			},
-			errorMsg: "invalid consensus message fields",
+			errorMsg: "invalid consensus message",
 		},
 		{
 			name: "invalid consensus msg type",
@@ -438,14 +433,15 @@ func TestComponentHandle(t *testing.T) {
 			errorMsg: "invalid consensus message duty type",
 		},
 		{
-			name: "nonexistent peer index",
+			name: "invalid peer index",
 			msg: &pbv1.ConsensusMsg{
 				Msg: &pbv1.QBFTMsg{
-					Duty: &pbv1.Duty{Type: int32(core.DutyProposer)},
-					Type: int64(qbft.MsgPrepare),
+					Round: 1,
+					Duty:  &pbv1.Duty{Type: int32(core.DutyProposer)},
+					Type:  int64(qbft.MsgPrepare),
 				},
 			},
-			errorMsg: "message refers to nonexistent peer index, cannot fetch public key",
+			errorMsg: "invalid peer index",
 		},
 	}
 
@@ -453,18 +449,8 @@ func TestComponentHandle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var (
-				tc  Component
-				err error
-			)
-
-			if tt.invalidMsg {
-				_, _, err = tc.handle(ctx, "", nil)
-			} else {
-				_, _, err = tc.handle(ctx, "", tt.msg)
-			}
-
-			require.Equal(t, err.Error(), tt.errorMsg)
+			_, _, err := new(Component).handle(ctx, "", tt.msg)
+			require.ErrorContains(t, err, tt.errorMsg)
 		})
 	}
 }
