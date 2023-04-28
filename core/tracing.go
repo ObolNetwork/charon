@@ -59,6 +59,12 @@ func WithTracing() WireOption {
 
 			return clone.FetcherFetch(ctx, duty, set)
 		}
+		w.ConsensusParticipate = func(parent context.Context, duty Duty) error {
+			ctx, span := tracer.Start(parent, "core/consensus.Participate")
+			defer span.End()
+
+			return clone.ConsensusParticipate(ctx, duty)
+		}
 		w.ConsensusPropose = func(parent context.Context, duty Duty, set UnsignedDataSet) error {
 			ctx, span := tracer.Start(parent, "core/consensus.Propose")
 			defer span.End()

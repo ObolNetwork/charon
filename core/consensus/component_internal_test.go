@@ -369,10 +369,9 @@ func TestComponent_handle(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			tc := Component{
-				deadliner:   testDeadliner{},
-				recvBuffers: make(map[core.Duty]chan msg),
-			}
+			var tc Component
+			tc.deadliner = testDeadliner{}
+			tc.mutable.recvBuffers = make(map[core.Duty]chan msg)
 
 			msg := &pbv1.ConsensusMsg{
 				Msg: randomMsg(t),

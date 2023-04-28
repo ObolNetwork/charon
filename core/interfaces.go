@@ -72,7 +72,10 @@ type DutyDB interface {
 
 // Consensus comes to consensus on proposed duty data.
 type Consensus interface {
-	// Propose triggers consensus game of the proposed duty unsigned data set.
+	// Participate run the duty's consensus instance without a proposed value (if Propose not called yet).
+	Participate(context.Context, Duty) error
+
+	// Propose provides the consensus instance proposed value (and run it if Participate not called yet).
 	Propose(context.Context, Duty, UnsignedDataSet) error
 
 	// Subscribe registers a callback for resolved (reached consensus) duty unsigned data set.
@@ -207,6 +210,7 @@ type wireFuncs struct {
 	FetcherSubscribe                    func(func(context.Context, Duty, UnsignedDataSet) error)
 	FetcherRegisterAggSigDB             func(func(context.Context, Duty, PubKey) (SignedData, error))
 	FetcherRegisterAwaitAttData         func(func(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error))
+	ConsensusParticipate                func(context.Context, Duty) error
 	ConsensusPropose                    func(context.Context, Duty, UnsignedDataSet) error
 	ConsensusSubscribe                  func(func(context.Context, Duty, UnsignedDataSet) error)
 	DutyDBStore                         func(context.Context, Duty, UnsignedDataSet) error
@@ -262,6 +266,7 @@ func Wire(sched Scheduler,
 		FetcherSubscribe:                    fetch.Subscribe,
 		FetcherRegisterAggSigDB:             fetch.RegisterAggSigDB,
 		FetcherRegisterAwaitAttData:         fetch.RegisterAwaitAttData,
+		ConsensusParticipate:                cons.Participate,
 		ConsensusPropose:                    cons.Propose,
 		ConsensusSubscribe:                  cons.Subscribe,
 		DutyDBStore:                         dutyDB.Store,
@@ -298,6 +303,9 @@ func Wire(sched Scheduler,
 	}
 
 	w.SchedulerSubscribeDuties(w.FetcherFetch)
+	w.SchedulerSubscribeDuties(func(ctx context.Context, duty Duty, _ DutyDefinitionSet) error {
+		return w.ConsensusParticipate(ctx, duty)
+	})
 	w.FetcherSubscribe(w.ConsensusPropose)
 	w.FetcherRegisterAggSigDB(w.AggSigDBAwait)
 	w.FetcherRegisterAwaitAttData(w.DutyDBAwaitAttestation)

@@ -78,6 +78,9 @@ func (l *LeaderCast) Subscribe(fn func(ctx context.Context, duty core.Duty, set 
 	l.subs = append(l.subs, fn)
 }
 
+// Participate is a no-op for leader cast. Only Propose is used.
+func (*LeaderCast) Participate(context.Context, core.Duty) error { return nil }
+
 // Propose proposes an unsigned duty data object for consensus. If this peer is the leader, then it is
 // broadcasted to all peers (including self), else the proposal is ignored.
 func (l *LeaderCast) Propose(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {

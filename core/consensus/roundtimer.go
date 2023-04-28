@@ -3,6 +3,7 @@
 package consensus
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -45,6 +46,11 @@ func getTimerFunc() timerFunc {
 
 // timerType is the type of round timer.
 type timerType string
+
+// Eager returns true if the timer type requires an eager start (before proposal values are present).
+func (t timerType) Eager() bool {
+	return strings.Contains(string(t), "eager")
+}
 
 const (
 	timerIncreasing  timerType = "inc"

@@ -19,6 +19,7 @@ func WithTracking(tracker Tracker, inclusion InclusionChecker) WireOption {
 
 			return err
 		}
+		// TODO(corver): Should we track the new ConsensusParticipate function?
 		w.ConsensusPropose = func(ctx context.Context, duty Duty, set UnsignedDataSet) error {
 			err := clone.ConsensusPropose(ctx, duty, set)
 			tracker.ConsensusProposed(duty, set, err)
