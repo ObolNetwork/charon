@@ -339,70 +339,29 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 	t0 := time.Now()
 
 	pbMsg, ok := req.(*pbv1.ConsensusMsg)
-	if !ok {
+	if !ok || pbMsg == nil {
 		return nil, false, errors.New("invalid consensus message")
 	}
 
-	if pbMsg.Msg == nil || pbMsg.Msg.Duty == nil {
-		return nil, false, errors.New("invalid consensus message fields")
-	}
-
-	typ := qbft.MsgType(pbMsg.Msg.GetType())
-	if !typ.Valid() {
-		return nil, false, errors.New("invalid consensus message type", z.Int("type", int(typ)))
+	if err := verifyMsg(pbMsg.Msg, c.pubkeys); err != nil {
+		return nil, false, err
 	}
 
 	duty := core.DutyFromProto(pbMsg.Msg.Duty)
-	if !duty.Type.Valid() {
-		return nil, false, errors.New("invalid consensus message duty type", z.Int("type", int(duty.Type)))
-	}
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	msgPubkey, exists := c.pubkeys[pbMsg.Msg.PeerIdx]
-	if !exists {
-		return nil, false, errors.New("message refers to nonexistent peer index, cannot fetch public key", z.I64("index", pbMsg.Msg.PeerIdx))
-	}
-
-	if ok, err := verifyMsgSig(pbMsg.Msg, msgPubkey); err != nil {
-		return nil, false, errors.Wrap(err, "verify consensus message signature", z.Any("duty", duty))
-	} else if !ok {
-		return nil, false, errors.New("invalid consensus message signature", z.Any("duty", duty))
-	}
-
 	for _, justification := range pbMsg.Justification {
-		if justification == nil {
-			return nil, false, errors.New("nil justification", z.Any("duty", duty))
-		}
-
-		typ := qbft.MsgType(pbMsg.Msg.GetType())
-		if !typ.Valid() {
-			return nil, false, errors.New("invalid justification message type", z.Int("type", int(typ)))
+		if err := verifyMsg(justification, c.pubkeys); err != nil {
+			return nil, false, errors.Wrap(err, "invalid justification")
 		}
 
 		justDuty := core.DutyFromProto(justification.Duty)
-		if !justDuty.Type.Valid() {
-			return nil, false, errors.New(
-				"invalid consensus justification duty type",
-				z.Int("type", int(justDuty.Type)))
-		}
-
 		if justDuty != duty {
 			return nil, false, errors.New(
-				"justification duty differs from qbft message duty",
+				"qbft justification duty differs from message duty",
 				z.Str("expected", duty.String()),
 				z.Str("found", justDuty.String()),
 			)
-		}
-
-		justPubkey, exists := c.pubkeys[justification.PeerIdx]
-		if !exists {
-			return nil, false, errors.New("justification refers to nonexistent peer index, cannot fetch public key", z.I64("index", justification.PeerIdx))
-		}
-
-		if ok, err := verifyMsgSig(justification, justPubkey); err != nil {
-			return nil, false, errors.Wrap(err, "verify consensus justification signature", z.Any("duty", duty))
-		} else if !ok {
-			return nil, false, errors.New("invalid consensus justification signature", z.Any("duty", duty))
 		}
 	}
 
@@ -416,13 +375,15 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 		return nil, false, err
 	}
 
-	if !c.deadliner.Add(duty) {
-		return nil, false, errors.New("duty expired", z.Any("duty", duty), c.dropFilter)
+	if ctx.Err() != nil {
+		return nil, false, errors.Wrap(ctx.Err(), "receive cancelled during verification",
+			z.Any("duty", duty),
+			z.Any("after", time.Since(t0)),
+		)
 	}
 
-	if ctx.Err() != nil {
-		return nil, false, errors.Wrap(ctx.Err(), "receive cancelled during verification", z.Any("duty", duty),
-			z.Any("after", time.Since(t0)))
+	if !c.deadliner.Add(duty) {
+		return nil, false, errors.New("duty expired", z.Any("duty", duty), c.dropFilter)
 	}
 
 	select {
@@ -469,6 +430,40 @@ func (c *Component) getPeerIdx() (int64, error) {
 	}
 
 	return peerIdx, nil
+}
+
+func verifyMsg(msg *pbv1.QBFTMsg, pubkeys map[int64]*k1.PublicKey) error {
+	if msg == nil || msg.Duty == nil {
+		return errors.New("invalid consensus message")
+	}
+
+	if typ := qbft.MsgType(msg.Type); !typ.Valid() {
+		return errors.New("invalid consensus message type", z.Int("type", int(typ)))
+	}
+
+	if typ := core.DutyType(msg.Duty.Type); !typ.Valid() {
+		return errors.New("invalid consensus message duty type", z.Int("type", int(typ)))
+	}
+
+	if msg.Round <= 0 {
+		return errors.New("invalid consensus message round", z.I64("round", msg.Round))
+	}
+	if msg.PreparedRound < 0 {
+		return errors.New("invalid consensus message prepared round")
+	}
+
+	msgPubkey, exists := pubkeys[msg.PeerIdx]
+	if !exists {
+		return errors.New("invalid peer index", z.I64("index", msg.PeerIdx))
+	}
+
+	if ok, err := verifyMsgSig(msg, msgPubkey); err != nil {
+		return errors.Wrap(err, "verify consensus message signature")
+	} else if !ok {
+		return errors.New("invalid consensus message signature")
+	}
+
+	return nil
 }
 
 func isContextErr(err error) bool {
