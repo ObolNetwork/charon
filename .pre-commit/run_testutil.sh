@@ -19,9 +19,9 @@ function exclude_content() {
 
 # Exclude all file names with 'test' in the path.
 exclude_names 'test'
-exclude_content '// Allow testutil'
+# Exclude all files with 'Allow testutil' string.
+exclude_content 'Allow testutil'
 
-# These checks apply to all non-test files
 check 'Testutil package may only be imported by tests' 'github.com/obolnetwork/charon/testutil' && exit 1
 
 true
