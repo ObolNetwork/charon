@@ -3,7 +3,7 @@ module github.com/obolnetwork/charon
 go 1.20
 
 require (
-	github.com/attestantio/go-eth2-client v0.15.8
+	github.com/attestantio/go-eth2-client v0.16.0
 	github.com/bufbuild/buf v1.17.0
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0
@@ -92,6 +92,7 @@ require (
 	github.com/google/pprof v0.0.0-20230323073829-e72429f035bd // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
+	github.com/holiman/uint256 v1.2.2 // indirect
 	github.com/huin/goupnp v1.0.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/ipfs/go-cid v0.3.2 // indirect
