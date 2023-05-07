@@ -597,7 +597,7 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 		},
 		{
 			name:   "none",
-			block:  &eth2spec.VersionedSignedBeaconBlock{Version: eth2spec.DataVersion(4)},
+			block:  &eth2spec.VersionedSignedBeaconBlock{Version: eth2spec.DataVersion(5)},
 			errMsg: "unknown version",
 		},
 		{
@@ -888,8 +888,12 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidBlock(t *testing.T) {
 			errMsg: "no bellatrix block",
 		},
 		{
+			name:  "no deneb block",
+			block: &eth2api.VersionedSignedBlindedBeaconBlock{Version: eth2spec.DataVersionDeneb},
+		},
+		{
 			name:   "none",
-			block:  &eth2api.VersionedSignedBlindedBeaconBlock{Version: eth2spec.DataVersion(4)},
+			block:  &eth2api.VersionedSignedBlindedBeaconBlock{Version: eth2spec.DataVersion(5)},
 			errMsg: "unsupported version",
 		},
 		{

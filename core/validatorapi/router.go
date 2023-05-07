@@ -537,6 +537,15 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 				Version: eth2spec.DataVersionCapella.String(),
 				Data:    block.Capella,
 			}, nil
+		case eth2spec.DataVersionDeneb:
+			if block.Deneb == nil {
+				return 0, errors.New("no deneb block")
+			}
+
+			return proposeBlockResponseDeneb{
+				Version: eth2spec.DataVersionDeneb.String(),
+				Data:    block.Deneb,
+			}, nil
 		default:
 			return 0, errors.New("invalid block")
 		}
@@ -579,6 +588,15 @@ func proposeBlindedBlock(p eth2client.BlindedBeaconBlockProposalProvider) handle
 			return proposeBlindedBlockResponseCapella{
 				Version: "CAPELLA",
 				Data:    block.Capella,
+			}, nil
+		case eth2spec.DataVersionDeneb:
+			if block.Deneb == nil {
+				return 0, errors.New("no deneb block")
+			}
+
+			return proposeBlindedBlockResponseDeneb{
+				Version: "DENEB",
+				Data:    block.Deneb,
 			}, nil
 		default:
 			return 0, errors.New("invalid block")

@@ -127,6 +127,10 @@ func NewVersionedBeaconBlock(block *eth2spec.VersionedBeaconBlock) (VersionedBea
 		if block.Capella == nil {
 			return VersionedBeaconBlock{}, errors.New("no capella block")
 		}
+	case eth2spec.DataVersionDeneb:
+		if block.Deneb == nil {
+			return VersionedBeaconBlock{}, errors.New("no deneb block")
+		}
 	default:
 		return VersionedBeaconBlock{}, errors.New("unknown version")
 	}
