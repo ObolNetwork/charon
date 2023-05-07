@@ -131,6 +131,10 @@ func NewVersionedSignedBeaconBlock(block *eth2spec.VersionedSignedBeaconBlock) (
 		if block.Capella == nil {
 			return VersionedSignedBeaconBlock{}, errors.New("no capella block")
 		}
+	case eth2spec.DataVersionDeneb:
+		if block.Deneb == nil {
+			return VersionedSignedBeaconBlock{}, errors.New("no deneb block")
+		}
 	default:
 		return VersionedSignedBeaconBlock{}, errors.New("unknown version")
 	}
@@ -309,6 +313,10 @@ func NewVersionedSignedBlindedBeaconBlock(block *eth2api.VersionedSignedBlindedB
 	case eth2spec.DataVersionCapella:
 		if block.Capella == nil {
 			return VersionedSignedBlindedBeaconBlock{}, errors.New("no capella block")
+		}
+	case eth2spec.DataVersionDeneb:
+		if block.Deneb == nil {
+			return VersionedSignedBlindedBeaconBlock{}, errors.New("no deneb block")
 		}
 	default:
 		return VersionedSignedBlindedBeaconBlock{}, errors.New("unknown version")
