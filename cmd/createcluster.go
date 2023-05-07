@@ -36,8 +36,9 @@ import (
 )
 
 const (
+	// zeroAddress is not owned by any user, is often associated with token burn & mint/genesis events and used as a generic null address.
+	// See https://etherscan.io/address/0x0000000000000000000000000000000000000000.
 	zeroAddress    = "0x0000000000000000000000000000000000000000"
-	deadAddress    = "0x000000000000000000000000000000000000dead"
 	defaultNetwork = "mainnet"
 	minNodes       = 4
 )
@@ -121,7 +122,6 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	// Map prater to goerli to ensure backwards compatibility with older cluster definitions and cluster locks.
-	// TODO(xenowits): Remove the mapping later.
 	if conf.Network == eth2util.Prater {
 		conf.Network = eth2util.Goerli.Name
 	}
@@ -656,7 +656,7 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 		return err
 	}
 
-	if insecureKeys && isMainNetwork(network) {
+	if insecureKeys && isMainOrGnosis(network) {
 		return errors.New("insecure keys not supported on mainnet")
 	} else if insecureKeys {
 		log.Warn(ctx, "Insecure keystores configured. ONLY DO THIS DURING TESTING", nil)

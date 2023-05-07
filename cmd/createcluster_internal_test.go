@@ -113,8 +113,8 @@ func TestCreateCluster(t *testing.T) {
 			}
 
 			test.Config.InsecureKeys = true
-			test.Config.WithdrawalAddrs = []string{deadAddress}
-			test.Config.FeeRecipientAddrs = []string{deadAddress}
+			test.Config.WithdrawalAddrs = []string{zeroAddress}
+			test.Config.FeeRecipientAddrs = []string{zeroAddress}
 
 			if test.Config.Network == "" {
 				test.Config.Network = eth2util.Goerli.Name
@@ -317,8 +317,8 @@ func TestSplitKeys(t *testing.T) {
 				NumDVs:            1,
 				NumNodes:          minNodes,
 				Threshold:         3,
-				FeeRecipientAddrs: []string{deadAddress},
-				WithdrawalAddrs:   []string{deadAddress},
+				FeeRecipientAddrs: []string{zeroAddress},
+				WithdrawalAddrs:   []string{zeroAddress},
 				ClusterDir:        t.TempDir(),
 			},
 		},
@@ -454,8 +454,8 @@ func TestKeymanager(t *testing.T) {
 		KeymanagerAddrs:      addrs,
 		KeymanagerAuthTokens: authTokens,
 		Network:              eth2util.Goerli.Name,
-		WithdrawalAddrs:      []string{deadAddress},
-		FeeRecipientAddrs:    []string{deadAddress},
+		WithdrawalAddrs:      []string{zeroAddress},
+		FeeRecipientAddrs:    []string{zeroAddress},
 		Clean:                true,
 		InsecureKeys:         true,
 	}
@@ -528,8 +528,8 @@ func TestPublish(t *testing.T) {
 		NumNodes:          minNodes,
 		NumDVs:            1,
 		Network:           eth2util.Goerli.Name,
-		WithdrawalAddrs:   []string{deadAddress},
-		FeeRecipientAddrs: []string{deadAddress},
+		WithdrawalAddrs:   []string{zeroAddress},
+		FeeRecipientAddrs: []string{zeroAddress},
 		PublishAddr:       addr,
 		Publish:           true,
 		InsecureKeys:      true,
