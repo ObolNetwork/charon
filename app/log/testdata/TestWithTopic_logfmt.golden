@@ -1,2 +1,2 @@
-ts=00:00 level=debug caller=log/log_test.go:27 msg=msg1 ctx1=1 topic=topic pretty="DEBG topic      msg1                                     {\"ctx1\": 1}\n"
-ts=00:00 level=info caller=log/log_test.go:28 msg=msg2 ctx2=2 topic=topic pretty="INFO topic      msg2                                     {\"ctx2\": 2}\n"
+ts=00:00 level=debug caller=log/log_test.go:28 msg=msg1 ctx1=1 topic=topic pretty="DEBG topic      msg1                                     {\"ctx1\": 1}\n"
+ts=00:00 level=info caller=log/log_test.go:29 msg=msg2 ctx2=2 topic=topic pretty="INFO topic      msg2                                     {\"ctx2\": 2}\n"

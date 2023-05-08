@@ -1,6 +1,6 @@
 00:00 [31mERRO[0m [32m          [0m err1: EOF                               
-	app/log/log_test.go:65 .func1
-	app/log/log_test.go:136 .func1
+	app/log/log_test.go:66 .func1
+	app/log/log_test.go:137 .func1
 00:00 [31mERRO[0m [32m          [0m err2: wrap: EOF                         
-	app/log/log_test.go:62 .func1
-	app/log/log_test.go:136 .func1
+	app/log/log_test.go:63 .func1
+	app/log/log_test.go:137 .func1

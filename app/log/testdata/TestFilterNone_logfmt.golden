@@ -1,4 +1,4 @@
-ts=00:00 level=info caller=log/log_test.go:102 msg=expect1 pretty="INFO            expect1                                 \n"
-ts=00:00 level=info caller=log/log_test.go:103 msg=expect2 pretty="INFO            expect2                                 \n"
-ts=00:00 level=info caller=log/log_test.go:104 msg=expect3 pretty="INFO            expect3                                 \n"
-ts=00:00 level=info caller=log/log_test.go:105 msg=expect4 pretty="INFO            expect4                                 \n"
+ts=00:00 level=info caller=log/log_test.go:103 msg=expect1 pretty="INFO            expect1                                 \n"
+ts=00:00 level=info caller=log/log_test.go:104 msg=expect2 pretty="INFO            expect2                                 \n"
+ts=00:00 level=info caller=log/log_test.go:105 msg=expect3 pretty="INFO            expect3                                 \n"
+ts=00:00 level=info caller=log/log_test.go:106 msg=expect4 pretty="INFO            expect4                                 \n"

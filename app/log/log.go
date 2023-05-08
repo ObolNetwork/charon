@@ -18,8 +18,9 @@ import (
 )
 
 type (
-	ctxKey   struct{}
-	topicKey struct{}
+	ctxKey    struct{}
+	topicKey  struct{}
+	loggerKey struct{}
 )
 
 // WithCtx returns a copy of the context with which the logging fields are associated.
@@ -44,6 +45,11 @@ func WithTopic(ctx context.Context, component string) context.Context {
 	return WithCtx(ctx, z.Str("topic", component))
 }
 
+// WithLogger returns a copy of the context with which the logger is associated replacing the default global logger.
+func WithLogger(ctx context.Context, logger zapLogger) context.Context {
+	return context.WithValue(ctx, loggerKey{}, logger)
+}
+
 func fieldsFromCtx(ctx context.Context) []z.Field {
 	resp, _ := ctx.Value(ctxKey{}).([]z.Field)
 	return resp
@@ -58,6 +64,15 @@ func metricsTopicFromCtx(ctx context.Context) string {
 	return resp
 }
 
+func getLogger(ctx context.Context) zapLogger {
+	ctxLogger, ok := ctx.Value(loggerKey{}).(zapLogger)
+	if ok {
+		return ctxLogger
+	}
+
+	return logger
+}
+
 // Debug logs the message and fields (incl fields in the context) at Debug level.
 // Debug should be used for most logging.
 func Debug(ctx context.Context, msg string, fields ...z.Field) {
@@ -66,7 +81,7 @@ func Debug(ctx context.Context, msg string, fields ...z.Field) {
 		return
 	}
 	trace.SpanFromContext(ctx).AddEvent("log.Debug: "+msg, toAttributes(zfl))
-	logger.Debug(msg, zfl...)
+	getLogger(ctx).Debug(msg, zfl...)
 }
 
 // Info logs the message and fields (incl fields in the context) at Info level.
@@ -77,7 +92,7 @@ func Info(ctx context.Context, msg string, fields ...z.Field) {
 		return
 	}
 	trace.SpanFromContext(ctx).AddEvent("log.Info: "+msg, toAttributes(zfl))
-	logger.Info(msg, zfl...)
+	getLogger(ctx).Info(msg, zfl...)
 }
 
 // Warn wraps err with msg and fields and logs it (incl fields in the context) at Warn level.
@@ -92,7 +107,7 @@ func Warn(ctx context.Context, msg string, err error, fields ...z.Field) {
 			return
 		}
 		trace.SpanFromContext(ctx).AddEvent("log.Warn: "+msg, toAttributes(zfl))
-		logger.Warn(msg, zfl...)
+		getLogger(ctx).Warn(msg, zfl...)
 
 		return
 	}
@@ -103,7 +118,7 @@ func Warn(ctx context.Context, msg string, err error, fields ...z.Field) {
 		return
 	}
 	trace.SpanFromContext(ctx).RecordError(err, trace.WithStackTrace(true), toAttributes(zfl))
-	logger.Warn(err.Error(), zfl...)
+	getLogger(ctx).Warn(err.Error(), zfl...)
 }
 
 // Error wraps err with msg and fields and logs it (incl fields in the context) at Error level.
@@ -118,7 +133,7 @@ func Error(ctx context.Context, msg string, err error, fields ...z.Field) {
 			return
 		}
 		trace.SpanFromContext(ctx).AddEvent("log.Error: "+msg, toAttributes(zfl))
-		logger.Error(msg, zfl...)
+		getLogger(ctx).Error(msg, zfl...)
 
 		return
 	}
@@ -129,7 +144,7 @@ func Error(ctx context.Context, msg string, err error, fields ...z.Field) {
 		return
 	}
 	trace.SpanFromContext(ctx).RecordError(err, trace.WithStackTrace(true), toAttributes(zfl))
-	logger.Error(err.Error(), zfl...)
+	getLogger(ctx).Error(err.Error(), zfl...)
 }
 
 // unwrapDedup returns true and the wrapped zap fields from the slice and from the context. Duplicate fields are dropped.

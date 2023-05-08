@@ -206,11 +206,17 @@ func WithClock(clock clockwork.Clock) func(config *zapcore.EncoderConfig) {
 	}
 }
 
-// InitConsoleForT initialises a console logger for testing purposes.
-func InitConsoleForT(_ *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) {
+// NewConsoleForT returns a console logger for testing purposes.
+func NewConsoleForT(_ *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) *zap.Logger {
+	return newConsoleLogger(zapcore.DebugLevel, true, ws, opts...)
+}
+
+// InitConsoleForT initialises a global console logger for testing purposes.
+func InitConsoleForT(t *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) {
+	t.Helper()
 	initMu.Lock()
 	defer initMu.Unlock()
-	logger = newConsoleLogger(zapcore.DebugLevel, true, ws, opts...)
+	logger = NewConsoleForT(t, ws, opts...)
 }
 
 // InitJSONForT initialises a json logger for testing purposes.

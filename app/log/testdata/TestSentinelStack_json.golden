@@ -1,1 +1,1 @@
-{"level":"error","ts":"00:00","caller":"log/log_test.go:115","msg":"test: wrap sentinel: test","stacktrace":"\tapp/log/log_test.go:115 .func1\n\tapp/log/log_test.go:136 .func1","pretty":"\u001b[31mERRO\u001b[0m \u001b[32m          \u001b[0m test: wrap sentinel: test               \n"}
+{"level":"error","ts":"00:00","caller":"log/log_test.go:116","msg":"test: wrap sentinel: test","stacktrace":"\tapp/log/log_test.go:116 .func1\n\tapp/log/log_test.go:137 .func1","pretty":"\u001b[31mERRO\u001b[0m \u001b[32m          \u001b[0m test: wrap sentinel: test               \n"}
