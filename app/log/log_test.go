@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
@@ -137,4 +138,18 @@ func testLoggers(t *testing.T, testFunc func(t *testing.T)) {
 			testutil.RequireGoldenBytes(t, buf.Bytes())
 		})
 	}
+}
+
+func TestInstance(t *testing.T) {
+	buf := zaptest.Buffer{}
+	clock := clockwork.NewFakeClockAt(time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC))
+	logger := log.NewConsoleForT(t, &buf, log.WithClock(clock))
+	ctx := log.WithLogger(context.Background(), logger)
+
+	clock.Advance(time.Minute)
+	log.Info(ctx, "info1", z.Int("1", 1))
+	clock.Advance(time.Minute)
+	log.Warn(ctx, "warn2", io.EOF, z.Int("2", 2))
+
+	testutil.RequireGoldenBytes(t, buf.Bytes())
 }

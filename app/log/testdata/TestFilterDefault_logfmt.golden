@@ -1,1 +1,1 @@
-ts=00:00 level=info caller=log/log_test.go:91 msg=expect pretty="INFO            expect                                  \n"
+ts=00:00 level=info caller=log/log_test.go:92 msg=expect pretty="INFO            expect                                  \n"

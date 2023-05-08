@@ -1,4 +1,4 @@
-ts=00:00 level=debug caller=log/log_test.go:39 msg=msg1 ctx1=1 pretty="DEBG            msg1                                     {\"ctx1\": 1}\n"
-ts=00:00 level=info caller=log/log_test.go:40 msg=msg2 ctx2=2 wrap2=2 pretty="INFO            msg2                                     {\"ctx2\": 2, \"wrap2\": 2}\n"
-ts=00:00 level=warn caller=log/log_test.go:41 msg=msg3a wrap3=a wrap2=2 pretty="WARN            msg3a                                    {\"wrap3\": \"a\", \"wrap2\": 2}\n"
-ts=00:00 level=warn caller=log/log_test.go:42 msg=msg3b wrap3=b wrap2=2 pretty="WARN            msg3b                                    {\"wrap3\": \"b\", \"wrap2\": 2}\n"
+ts=00:00 level=debug caller=log/log_test.go:40 msg=msg1 ctx1=1 pretty="DEBG            msg1                                     {\"ctx1\": 1}\n"
+ts=00:00 level=info caller=log/log_test.go:41 msg=msg2 ctx2=2 wrap2=2 pretty="INFO            msg2                                     {\"ctx2\": 2, \"wrap2\": 2}\n"
+ts=00:00 level=warn caller=log/log_test.go:42 msg=msg3a wrap3=a wrap2=2 pretty="WARN            msg3a                                    {\"wrap3\": \"a\", \"wrap2\": 2}\n"
+ts=00:00 level=warn caller=log/log_test.go:43 msg=msg3b wrap3=b wrap2=2 pretty="WARN            msg3b                                    {\"wrap3\": \"b\", \"wrap2\": 2}\n"

@@ -1,2 +1,2 @@
-{"level":"info","ts":"00:00","caller":"log/log_test.go:81","msg":"see source","source":"source","pretty":"\u001b[34mINFO\u001b[0m \u001b[32m          \u001b[0m see source                               {\"source\": \"source\"}\n"}
-{"level":"info","ts":"00:00","caller":"log/log_test.go:82","msg":"also source","source":"source","pretty":"\u001b[34mINFO\u001b[0m \u001b[32m          \u001b[0m also source                              {\"source\": \"source\"}\n"}
+{"level":"info","ts":"00:00","caller":"log/log_test.go:82","msg":"see source","source":"source","pretty":"\u001b[34mINFO\u001b[0m \u001b[32m          \u001b[0m see source                               {\"source\": \"source\"}\n"}
+{"level":"info","ts":"00:00","caller":"log/log_test.go:83","msg":"also source","source":"source","pretty":"\u001b[34mINFO\u001b[0m \u001b[32m          \u001b[0m also source                              {\"source\": \"source\"}\n"}

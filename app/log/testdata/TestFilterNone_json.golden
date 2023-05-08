@@ -1,4 +1,4 @@
-{"level":"info","ts":"00:00","caller":"log/log_test.go:102","msg":"expect1","pretty":"\u001b[34mINFO\u001b[0m \u001b[32m          \u001b[0m expect1                                 \n"}
-{"level":"info","ts":"00:00","caller":"log/log_test.go:103","msg":"expect2","pretty":"\u001b[34mINFO\u001b[0m \u001b[32m          \u001b[0m expect2                                 \n"}
-{"level":"info","ts":"00:00","caller":"log/log_test.go:104","msg":"expect3","pretty":"\u001b[34mINFO\u001b[0m \u001b[32m          \u001b[0m expect3                                 \n"}
-{"level":"info","ts":"00:00","caller":"log/log_test.go:105","msg":"expect4","pretty":"\u001b[34mINFO\u001b[0m \u001b[32m          \u001b[0m expect4                                 \n"}
+{"level":"info","ts":"00:00","caller":"log/log_test.go:103","msg":"expect1","pretty":"\u001b[34mINFO\u001b[0m \u001b[32m          \u001b[0m expect1                                 \n"}
+{"level":"info","ts":"00:00","caller":"log/log_test.go:104","msg":"expect2","pretty":"\u001b[34mINFO\u001b[0m \u001b[32m          \u001b[0m expect2                                 \n"}
+{"level":"info","ts":"00:00","caller":"log/log_test.go:105","msg":"expect3","pretty":"\u001b[34mINFO\u001b[0m \u001b[32m          \u001b[0m expect3                                 \n"}
+{"level":"info","ts":"00:00","caller":"log/log_test.go:106","msg":"expect4","pretty":"\u001b[34mINFO\u001b[0m \u001b[32m          \u001b[0m expect4                                 \n"}

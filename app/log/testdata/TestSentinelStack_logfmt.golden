@@ -1,1 +1,1 @@
-ts=00:00 level=error caller=log/log_test.go:115 msg="test: wrap sentinel: test" stacktrace="\tapp/log/log_test.go:115 .func1\n\tapp/log/log_test.go:136 .func1" pretty="ERRO            test: wrap sentinel: test               \n"
+ts=00:00 level=error caller=log/log_test.go:116 msg="test: wrap sentinel: test" stacktrace="\tapp/log/log_test.go:116 .func1\n\tapp/log/log_test.go:137 .func1" pretty="ERRO            test: wrap sentinel: test               \n"

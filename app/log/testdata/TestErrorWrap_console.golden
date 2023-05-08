@@ -1,9 +1,9 @@
 00:00 [33mWARN[0m [32m          [0m err1: first                              {"1": 1}
-	app/log/log_test.go:48 .func1
-	app/log/log_test.go:136 .func1
+	app/log/log_test.go:49 .func1
+	app/log/log_test.go:137 .func1
 00:00 [31mERRO[0m [32m          [0m err2: second: first                      {"2": 2, "1": 1}
-	app/log/log_test.go:48 .func1
-	app/log/log_test.go:136 .func1
+	app/log/log_test.go:49 .func1
+	app/log/log_test.go:137 .func1
 00:00 [31mERRO[0m [32m          [0m err3: third: second: first               {"3": 3, "2": 2, "1": 1}
-	app/log/log_test.go:48 .func1
-	app/log/log_test.go:136 .func1
+	app/log/log_test.go:49 .func1
+	app/log/log_test.go:137 .func1
