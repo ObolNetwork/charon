@@ -23,6 +23,7 @@ import (
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -84,10 +85,11 @@ func storeKeysInternal(secrets []tbls.PrivateKey, dir string, filenameFmt string
 	return nil
 }
 
-// LoadKeys returns all secrets stored in dir/keystore-*.json 2335 Keystore files
-// using password stored in dir/keystore-*.txt.
-func LoadKeys(dir string) ([]tbls.PrivateKey, error) {
-	files, err := filepath.Glob(path.Join(dir, "keystore-*.json"))
+// loadFiles loads keystore files from dir, with the given glob.
+// If sortKeyfiles is not nil, it will run it passing the file list as input, and
+// its output will be used as the source of file names to read keystores from.
+func loadFiles(dir string, glob string, sortKeyfiles func([]string) ([]string, error)) ([]tbls.PrivateKey, error) {
+	files, err := filepath.Glob(path.Join(dir, glob))
 	if err != nil {
 		return nil, errors.Wrap(err, "read files")
 	}
@@ -96,9 +98,11 @@ func LoadKeys(dir string) ([]tbls.PrivateKey, error) {
 		return nil, errors.New("no keys found")
 	}
 
-	files, err = orderByKeystoreNum(files)
-	if err != nil {
-		return nil, errors.Wrap(err, "keystore filename malformed")
+	if sortKeyfiles != nil {
+		files, err = sortKeyfiles(files)
+		if err != nil {
+			return nil, errors.Wrap(err, "keyfile sorting")
+		}
 	}
 
 	var resp []tbls.PrivateKey
@@ -129,13 +133,59 @@ func LoadKeys(dir string) ([]tbls.PrivateKey, error) {
 	return resp, nil
 }
 
+// LoadKeysSequential returns all secrets stored in dir/keystore-([0-9]*).json 2335 Keystore files
+// using password stored in dir/keystore-([0-9]*).txt.
+// The keystore files are read based on their index, and the returned slice is sorted accordingly.
+func LoadKeysSequential(dir string) ([]tbls.PrivateKey, error) {
+	return loadFiles(dir, "keystore-*.json", func(files []string) ([]string, error) {
+		newFiles, indices, err := orderByKeystoreNum(files)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(indices) == 0 {
+			return nil, errors.New("empty keystore indices")
+		}
+
+		if indices[0] != 0 {
+			return nil, errors.New("keystore indices must start from zero",
+				z.Int("first_index", indices[0]))
+		}
+
+		for sliceIdx, idx := range indices {
+			if sliceIdx == 0 {
+				continue
+			}
+
+			lastIdx := indices[sliceIdx-1] + 1
+
+			if lastIdx != idx {
+				return nil, errors.New("indices are non sequential",
+					z.Int("expected", lastIdx),
+					z.Int("got", idx))
+			}
+		}
+
+		return newFiles, nil
+	})
+}
+
+// LoadKeys returns all secrets stored in dir/keystore-*.json 2335 Keystore files
+// using password stored in dir/keystore-*.txt.
+func LoadKeys(dir string) ([]tbls.PrivateKey, error) {
+	return loadFiles(dir, "keystore-*.json", nil)
+}
+
 // orderByKeystoreNum orders keystore file names by their index in ascending order.
-func orderByKeystoreNum(files []string) ([]string, error) {
+func orderByKeystoreNum(files []string) ([]string, []int, error) {
 	prefix := filepath.Dir(files[0])
 
 	extractor := regexp.MustCompile(`keystore-(?:insecure-)?([0-9]+).json`)
 
 	var sortErr error
+
+	idxSet := make(map[int]struct{})
+
 	sort.Slice(files, func(i, j int) bool {
 		first := strings.TrimPrefix(files[i], prefix)
 		second := strings.TrimPrefix(files[j], prefix)
@@ -160,14 +210,25 @@ func orderByKeystoreNum(files []string) ([]string, error) {
 			return false
 		}
 
+		idxSet[firstNum] = struct{}{}
+		idxSet[secondNum] = struct{}{}
+
 		return firstNum < secondNum
 	})
 
 	if sortErr != nil {
-		return nil, sortErr
+		return nil, nil, sortErr
 	}
 
-	return files, nil
+	var retIdx []int
+
+	for idx := range idxSet {
+		retIdx = append(retIdx, idx)
+	}
+
+	sort.Ints(retIdx)
+
+	return files, retIdx, nil
 }
 
 // Keystore json file representation as a Go struct.

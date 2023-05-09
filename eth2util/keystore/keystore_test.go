@@ -4,6 +4,8 @@ package keystore_test
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -30,6 +32,50 @@ func TestStoreLoad(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, secrets, actual)
+}
+
+func TestStoreLoadKeysAll(t *testing.T) {
+	dir := t.TempDir()
+
+	var secrets []tbls.PrivateKey
+	for i := 0; i < 2; i++ {
+		secret, err := tbls.GenerateSecretKey()
+		require.NoError(t, err)
+
+		secrets = append(secrets, secret)
+	}
+
+	err := keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
+	require.NoError(t, err)
+
+	actual, err := keystore.LoadKeysSequential(dir)
+	require.NoError(t, err)
+
+	require.Equal(t, secrets, actual)
+}
+
+func TestStoreLoadKeysAllNonSequentialIdx(t *testing.T) {
+	dir := t.TempDir()
+
+	var secrets []tbls.PrivateKey
+	for i := 0; i < 2; i++ {
+		secret, err := tbls.GenerateSecretKey()
+		require.NoError(t, err)
+
+		secrets = append(secrets, secret)
+	}
+
+	err := keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
+	require.NoError(t, err)
+
+	oldPath := filepath.Join(dir, "keystore-insecure-1.json")
+	newPath := filepath.Join(dir, "keystore-insecure-42.json")
+	require.NoError(t, os.Rename(oldPath, newPath))
+
+	actual, err := keystore.LoadKeysSequential(dir)
+	require.ErrorContains(t, err, "keyfile sorting: indices are non sequential")
+
+	require.Empty(t, actual)
 }
 
 func TestLoadEmpty(t *testing.T) {
