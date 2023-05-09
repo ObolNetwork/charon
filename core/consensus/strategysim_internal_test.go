@@ -1,12 +1,15 @@
 // Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
+//nolint:forbidigo // This is a test that prints to stdout.
 package consensus
 
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/rand"
 	"os"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -33,45 +36,24 @@ import (
 )
 
 const (
-	ms005  = time.Millisecond * 5
-	ms010  = time.Millisecond * 10
-	ms025  = time.Millisecond * 25
-	ms050  = time.Millisecond * 50
-	ms100  = time.Millisecond * 100
-	ms250  = time.Millisecond * 250
-	ms500  = time.Millisecond * 500
-	ms750  = time.Millisecond * 750
-	ms1000 = time.Millisecond * 1000
-	ms1500 = time.Millisecond * 1500
-	ms2500 = time.Millisecond * 2500
-	ms5000 = time.Millisecond * 5000
-	min1   = time.Minute * 1
+	ms005      = time.Millisecond * 5
+	ms010      = time.Millisecond * 10
+	ms025      = time.Millisecond * 25
+	ms050      = time.Millisecond * 50
+	ms100      = time.Millisecond * 100
+	ms250      = time.Millisecond * 250
+	ms500      = time.Millisecond * 500
+	ms750      = time.Millisecond * 750
+	ms1000     = time.Millisecond * 1000
+	ms1500     = time.Millisecond * 1500
+	ms2500     = time.Millisecond * 2500
+	ms5000     = time.Millisecond * 5000
+	simTimeout = time.Second * 12
+
+	disabled = time.Hour * 999
 )
 
 type roundTimerFunc func(clock clockwork.Clock) roundTimer
-
-var (
-	incTimer = func(clock clockwork.Clock) roundTimer {
-		timer := newIncreasingRoundTimer()
-		timer.clock = clock
-
-		return timer
-	}
-	doubleTimer = func(clock clockwork.Clock) roundTimer {
-		timer := newDoubleLeadRoundTimer()
-		timer.clock = clock
-
-		return timer
-	}
-
-	inc2Timer = func(clock clockwork.Clock) roundTimer {
-		return incRoundTimer2{clock: clock}
-	}
-
-	expTimer = func(clock clockwork.Clock) roundTimer {
-		return exponentialRoundTimer{clock: clock}
-	}
-)
 
 func TestSimulatorOnce(t *testing.T) {
 	syncer, _, _ := zap.Open("stderr")
@@ -83,9 +65,9 @@ func TestSimulatorOnce(t *testing.T) {
 			2: ms100,
 			3: ms100,
 		},
-		roundTimerFunc: incTimer,
-		timeout:        min1,
-	}, true, syncer)
+		roundTimerFunc: newInc,
+		timeout:        simTimeout,
+	}, syncer)
 
 	require.Equal(t, 4, len(results))
 	require.False(t, isUndecided(results))
@@ -94,34 +76,69 @@ func TestSimulatorOnce(t *testing.T) {
 func TestMatrix(t *testing.T) {
 	t.Skip("Skip matrix test") // Comment this to run the test.
 
-	timers := []Named[roundTimerFunc]{
-		{"inc", incTimer},
-		{"double", doubleTimer},
-		{"inc2", inc2Timer},
-		{"exp", expTimer},
-	}
+	const itersPerConfig = 500 // Tune this for test duration vs accuracy
 
-	testRoundTimers(t, timers)
+	testRoundTimers(t,
+		[]roundTimerFunc{
+			newInc,
+
+			newExp(time.Millisecond * 1000),
+
+			newExpDouble(time.Millisecond * 1000),
+
+			newLinear(time.Millisecond * 1000),
+			newLinearDouble(time.Millisecond * 1000),
+		},
+		itersPerConfig)
 }
 
 type matrixResult struct {
-	Undecided   int
-	Total       int
-	RoundSum    int
-	DurationSum time.Duration
+	Undecided int
+	Total     int
+	Rounds    []int
+	Durations []time.Duration
+}
+
+func (r matrixResult) UndecidedPercent() float64 {
+	return 100 * float64(r.Undecided) / float64(r.Total)
 }
 
 func (r matrixResult) AvgRound() float64 {
-	return float64(r.RoundSum) / float64(r.Total)
+	if len(r.Rounds) == 0 {
+		return 0
+	}
+	var total float64
+	for _, r := range r.Rounds {
+		total += float64(r)
+	}
+
+	return total / float64(len(r.Rounds))
 }
 
 func (r matrixResult) AvgDuration() time.Duration {
-	return r.DurationSum / time.Duration(r.Total)
+	if len(r.Durations) == 0 {
+		return 0
+	}
+	var total time.Duration
+	for _, d := range r.Durations {
+		total += d
+	}
+
+	return total / time.Duration(len(r.Durations))
 }
 
-func testRoundTimers(t *testing.T, timers []Named[roundTimerFunc]) {
+func (r matrixResult) StdDevDuration() time.Duration {
+	if len(r.Durations) == 0 {
+		return 0
+	}
+
+	return time.Duration(stddev(r.Durations, func(d time.Duration) float64 {
+		return float64(d)
+	}))
+}
+
+func testRoundTimers(t *testing.T, timers []roundTimerFunc, itersPerConfig int) {
 	t.Helper()
-	const itersPerConfig = 100 // Tune this for test duration vs accuracy
 
 	sizes := []NamedTuple[int, int]{
 		{"small-all", 4, 4},  // Up: 4 of 4
@@ -156,59 +173,82 @@ func testRoundTimers(t *testing.T, timers []Named[roundTimerFunc]) {
 		for _, dist := range distributions {
 			names[1] = dist.Name
 			for _, timer := range timers {
-				names[2] = timer.Name
-				configs := randomConfigs(names, size.Value2, itersPerConfig, timer.Value1, dist.Value1, dist.Value2)
-				configs = disableRandomNodes(configs, size.Value1)
+				names[2] = timerName(timer)
+				configs := randomConfigs(names, size.Value2, itersPerConfig, timer, dist.Value1, dist.Value2)
+				configs = disableRandomNodes(configs, size.Value2-size.Value1)
 				allConfigs = append(allConfigs, configs...)
 			}
 		}
+	}
+
+	for i := 0; i < len(allConfigs); i++ {
+		allConfigs[i].index = i
 	}
 
 	fjResults, cancel := forkjoin.NewWithInputs(
 		context.Background(),
 		func(_ context.Context, config ssConfig) (Named[[]result], error) {
 			name := strings.Join(config.names, " ")
-			buf := zaptest.Buffer{}
-			results := testStrategySimulator(t, config, true, &buf)
+			var buf zaptest.Buffer
+			results := testStrategySimulator(t, config, &buf)
 			// Uncomment this to see undecided config and logs
 			// if isUndecided(results) {
-			// 	fmt.Printf("undedicded config=%#v\n", config)
-			// 	fmt.Println(buf.String())
-			// }
+			//	fmt.Printf("undedicded config=%#v\n", config)
+			//	fmt.Printf("results=%#v\n", results)
+			//	fmt.Println(buf.String())
+			//}
 			return Named[[]result]{name, results}, nil
 		},
 		allConfigs,
-		forkjoin.WithWorkers(itersPerConfig),
+		forkjoin.WithInputBuffer(len(allConfigs)),
+		forkjoin.WithWorkers(256),
 	)
 	defer cancel()
 
-	results, err := fjResults.Flatten()
-	require.NoError(t, err)
+	var results []Named[[]result]
+	for res := range fjResults {
+		require.NoError(t, res.Err)
+		results = append(results, res.Output)
+		if len(results)%100 == 0 {
+			fmt.Printf("Completed %d/%d\n", len(results), len(allConfigs))
+		}
+	}
 
 	printFunc, flush := newPrintFunc()
-
 	for _, size := range sizes {
 		names := []string{size.Name, "", ""}
 		for _, dist := range distributions {
 			names[1] = dist.Name
 			printFunc(nil, matrixResult{}) // Empty line
 			for _, timer := range timers {
-				names[2] = timer.Name
+				names[2] = timerName(timer)
 				printResults(printFunc, results, names)
 			}
 		}
 	}
+	flush()
 
+	fmt.Printf("\n\nTimer aggregate results\n\n")
+
+	printFunc, flush = newPrintFunc()
+	for _, timer := range timers {
+		names := []string{"", "", timerName(timer)}
+		printAggResults(printFunc, results, names)
+	}
 	flush()
 }
 
+func timerName(timerFunc roundTimerFunc) string {
+	return string(timerFunc(nil).Type())
+}
+
 func newPrintFunc() (func(names []string, result matrixResult), func()) {
-	writer := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.Debug)
-	_, _ = fmt.Fprintln(writer, "Size\tDistribution\tTimer\tTotal\tUndecided\tAvgRound\tAvgDuration")
+	writer := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.TabIndent)
+	_, _ = fmt.Fprintln(writer, "Size\tDistribution\tTimer\tTotal\tUndecided\tAvgRound\tMeanDuration\tStdDevDuration")
 
 	return func(names []string, result matrixResult) {
 			if len(names) == 0 {
-				_, _ = fmt.Fprintln(writer, "", "\t", "", "\t", "", "\t", "", "\t", "", "\t", "", "\t", "")
+				// _, _ = fmt.Fprintln(writer, "", "\t", "", "\t", "", "\t", "", "\t", "", "\t", "", "\t", "")
 				return
 			}
 
@@ -217,9 +257,10 @@ func newPrintFunc() (func(names []string, result matrixResult), func()) {
 				names[1], "\t",
 				names[2], "\t",
 				result.Total, "\t",
-				result.Undecided, "\t",
-				result.AvgRound(), "\t",
-				result.AvgDuration())
+				fmt.Sprintf("%.2f%%", result.UndecidedPercent()), "\t",
+				fmt.Sprintf("%.2f", result.AvgRound()), "\t",
+				fmt.Sprintf("%.2fs", result.AvgDuration().Seconds()), "\t",
+				fmt.Sprintf("%.2fs", result.StdDevDuration().Seconds()))
 		}, func() {
 			_ = writer.Flush()
 		}
@@ -240,8 +281,30 @@ func printResults(printFunc func([]string, matrixResult), results []Named[[]resu
 			continue
 		}
 
-		res.DurationSum += quorumDecidedDuration(result.Value1)
-		res.RoundSum += decidedRound(result.Value1)
+		res.Durations = append(res.Durations, quorumDecidedDuration(result.Value1))
+		res.Rounds = append(res.Rounds, decidedRound(result.Value1))
+	}
+
+	printFunc(names, res)
+}
+
+func printAggResults(printFunc func([]string, matrixResult), results []Named[[]result], names []string) {
+	name := strings.TrimSpace(strings.Join(names, " "))
+
+	var res matrixResult
+	for _, result := range results {
+		if !strings.Contains(result.Name, name) {
+			continue
+		}
+
+		res.Total++
+		if isUndecided(result.Value1) {
+			res.Undecided++
+			continue
+		}
+
+		res.Durations = append(res.Durations, quorumDecidedDuration(result.Value1))
+		res.Rounds = append(res.Rounds, decidedRound(result.Value1))
 	}
 
 	printFunc(names, res)
@@ -255,6 +318,7 @@ type peerID struct {
 
 type ssConfig struct {
 	names          []string
+	index          int
 	seed           int
 	latencyStdDev  time.Duration
 	latencyPerPeer map[int64]time.Duration
@@ -263,14 +327,13 @@ type ssConfig struct {
 	timeout        time.Duration
 }
 
-func testStrategySimulator(t *testing.T, conf ssConfig, verbose bool, syncer zapcore.WriteSyncer) []result {
+func testStrategySimulator(t *testing.T, conf ssConfig, syncer zapcore.WriteSyncer) []result {
 	t.Helper()
 	random := rand.New(rand.NewSource(int64(conf.seed)))
 	clock := clockwork.NewFakeClockAt(time.Now().Truncate(time.Hour))
 
-	if verbose {
-		log.InitConsoleForT(t, syncer, log.WithClock(clock))
-	}
+	logger := log.NewConsoleForT(t, syncer, log.WithClock(clock))
+	ctx := log.WithLogger(context.Background(), logger)
 
 	t0 := clock.Now()
 	txSimulator := newTransportSimulator(clock, random, conf.latencyStdDev, conf.latencyPerPeer)
@@ -284,11 +347,14 @@ func testStrategySimulator(t *testing.T, conf ssConfig, verbose bool, syncer zap
 		transports = append(transports, txSimulator.instance(peerIdx))
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	done := cancelAfter(cancel, len(peerIDs))
+
 	work := func(ctx context.Context, p peerID) (result, error) {
 		res := result{PeerIdx: p.Idx, Decided: false}
 		def := newSimDefinition(
 			len(conf.latencyPerPeer),
-			verbose,
 			conf.roundTimerFunc(clock),
 			func(qcommit []qbft.Msg[core.Duty, [32]byte]) {
 				res = result{
@@ -297,27 +363,40 @@ func testStrategySimulator(t *testing.T, conf ssConfig, verbose bool, syncer zap
 					Round:    qcommit[0].Round(),
 					Duration: clock.Since(t0),
 				}
+				done()
 			},
 		)
 
-		// Unique non-zero value per peer
-		var val [32]byte
-		val[0], val[1] = byte(0xFF), byte(p.Idx)
-
-		// Delay start of peer
-		select {
-		case <-ctx.Done():
-			return res, nil
-		case <-clock.After(conf.startByPeer[p.Idx]):
+		// Setup unique non-zero value per peer
+		valCh := make(chan [32]byte, 1)
+		enqueueValue := func() {
+			var val [32]byte
+			val[0], val[1] = byte(0xFF), byte(p.Idx)
+			valCh <- val
 		}
 
 		topic := fmt.Sprintf("peer%d", p.Idx)
-		topic = fmt.Sprintf("\x1b[%dm%s\x1b[0m", uint8(30+p.Idx), topic)
+		topic = fmt.Sprintf("\x1b[%dm%s\x1b[0m", uint8(31+p.Idx), topic)
 		ctx = log.WithTopic(ctx, topic)
-		if verbose {
-			log.Debug(ctx, "Starting peer", z.Any("delayed", conf.startByPeer[p.Idx]))
+
+		delay := conf.startByPeer[p.Idx]
+		if delay == disabled { // If peer disabled, return immediately
+			log.Debug(ctx, "Peer disabled")
+			return res, nil
+		} else if conf.roundTimerFunc(nil).Type().Eager() { // If timer is eager, delay value asynchronously
+			go after(ctx, clock, delay, enqueueValue)
+			log.Debug(ctx, "Delaying peer value", z.Any("value_delayed", delay))
+		} else {
+			log.Debug(ctx, "Delaying peer start", z.Any("start_delayed", delay))
+			// If timer isn't eager, delay run synchronously
+			if !after(ctx, clock, delay, enqueueValue) {
+				return res, nil
+			}
 		}
-		err := qbft.Run(ctx, def, transports[p.Idx], core.Duty{Slot: int64(conf.seed)}, p.Idx, qbft.InputValue(val))
+
+		log.Debug(ctx, "Starting peer")
+
+		err := qbft.Run(ctx, def, transports[p.Idx], core.Duty{Slot: int64(conf.seed)}, p.Idx, valCh)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			return res, err
 		}
@@ -325,27 +404,23 @@ func testStrategySimulator(t *testing.T, conf ssConfig, verbose bool, syncer zap
 		return res, nil
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	fjResults, fjCancel := forkjoin.NewWithInputs(ctx, work, peerIDs)
 	defer fjCancel()
 
 	// Run the simulator until timeout.
 	go func() {
 		t0 := clock.Now()
-		for {
-			time.Sleep(time.Microsecond)
+
+		for ctx.Err() == nil {
+			gosched()
 			clock.Advance(time.Millisecond * 10)
+			gosched()
 			txSimulator.processBuffer()
 			if clock.Since(t0) < conf.timeout {
-				time.Sleep(time.Microsecond)
 				continue
 			}
 
 			cancel() // Cancel the context to stop consensus.
-
-			return
 		}
 	}()
 
@@ -361,7 +436,28 @@ func testStrategySimulator(t *testing.T, conf ssConfig, verbose bool, syncer zap
 	return results
 }
 
-func newSimDefinition(nodes int, verbose bool, roundTimer roundTimer,
+// cancelAfter cancels the provide context after n call to the returned context.
+// It is thread safe.
+func cancelAfter(cancel context.CancelFunc, n int) context.CancelFunc {
+	var mu sync.Mutex
+	return func() {
+		mu.Lock()
+		defer mu.Unlock()
+		n--
+		if n == 0 {
+			cancel()
+		}
+	}
+}
+
+func gosched() {
+	for i := 0; i < 3; i++ {
+		time.Sleep(time.Microsecond)
+		runtime.Gosched()
+	}
+}
+
+func newSimDefinition(nodes int, roundTimer roundTimer,
 	decideCallback func(qcommit []qbft.Msg[core.Duty, [32]byte]),
 ) qbft.Definition[core.Duty, [32]byte] {
 	quorum := qbft.Definition[int, int]{Nodes: nodes}.Quorum()
@@ -377,9 +473,6 @@ func newSimDefinition(nodes int, verbose bool, roundTimer roundTimer,
 		LogRoundChange: func(ctx context.Context, duty core.Duty, process,
 			round, newRound int64, uponRule qbft.UponRule, msgs []qbft.Msg[core.Duty, [32]byte],
 		) {
-			if !verbose {
-				return
-			}
 			fields := []z.Field{
 				z.Any("rule", uponRule),
 				z.I64("round", round),
@@ -399,9 +492,6 @@ func newSimDefinition(nodes int, verbose bool, roundTimer roundTimer,
 		LogUponRule: func(ctx context.Context, _ core.Duty, _, round int64,
 			_ qbft.Msg[core.Duty, [32]byte], uponRule qbft.UponRule,
 		) {
-			if !verbose {
-				return
-			}
 			log.Debug(ctx, "QBFT upon rule triggered", z.Any("rule", uponRule), z.I64("round", round))
 		},
 		// Nodes is the number of nodes.
@@ -579,6 +669,17 @@ func pick[T any](slice []T, i int) T {
 	return slice[i%len(slice)]
 }
 
+// after calls callback after duration, unless ctx is cancelled first.
+func after(ctx context.Context, clock clockwork.Clock, duration time.Duration, callback func()) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case <-clock.After(duration):
+		callback()
+		return true
+	}
+}
+
 func decidedRound(results []result) int {
 	for _, res := range results {
 		if res.Decided {
@@ -664,7 +765,7 @@ func randomConfigs(names []string, peers int, n int, timer func(clockwork.Clock)
 			latencyPerPeer: peerLatencies[i],
 			startByPeer:    normalStartLatencies(peers, random),
 			roundTimerFunc: timer,
-			timeout:        min1,
+			timeout:        simTimeout,
 		})
 	}
 
@@ -731,7 +832,10 @@ func estimateMeanStdDev(percentiles map[float64]float64) (float64, float64) {
 func disableRandomNodes(configs []ssConfig, n int) []ssConfig {
 	random := rand.New(rand.NewSource(0))
 	for _, config := range configs {
-		config.startByPeer[int64(random.Intn(n))] = time.Hour
+		size := len(config.latencyPerPeer)
+		for i := 0; i < n; i++ {
+			config.startByPeer[int64(random.Intn(size))] = disabled
+		}
 	}
 
 	return configs
@@ -745,4 +849,143 @@ type NamedTuple[T1, T2 any] struct {
 	Name   string
 	Value1 T1
 	Value2 T2
+}
+
+type testTimer struct {
+	clock        clockwork.Clock
+	durationFunc func(round int64) time.Duration
+	reset        bool
+	double       bool
+	eager        bool
+	name         string
+
+	mu        sync.Mutex
+	timers    map[int64]<-chan time.Time
+	deadlines map[int64]time.Time
+}
+
+func (t *testTimer) Timer(round int64) (<-chan time.Time, func()) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	duration := t.durationFunc(round)
+
+	if t.double {
+		// Fetch previously created deadline.
+		if deadline, ok := t.deadlines[round]; ok {
+			newDeadline := deadline.Add(duration)
+			diff := newDeadline.Sub(t.clock.Now())
+			timer := t.clock.NewTimer(diff)
+
+			return timer.Chan(), func() {}
+		}
+	}
+	if !t.reset {
+		// Fetch previously created timer.
+		if timer, ok := t.timers[round]; ok {
+			return timer, func() {}
+		}
+	} // Else create a new timer.
+
+	deadline := t.clock.Now().Add(duration)
+	if t.deadlines == nil {
+		t.deadlines = make(map[int64]time.Time)
+	}
+	t.deadlines[round] = deadline
+
+	timer := t.clock.NewTimer(duration)
+	if t.timers == nil {
+		t.timers = make(map[int64]<-chan time.Time)
+	}
+	t.timers[round] = timer.Chan()
+
+	return timer.Chan(), func() {}
+}
+
+func (t *testTimer) Type() timerType {
+	name := t.name
+	if t.eager {
+		name += "_eager"
+	}
+
+	return timerType(name)
+}
+
+func newLinear(d time.Duration) roundTimerFunc {
+	return func(clock clockwork.Clock) roundTimer {
+		return &testTimer{
+			clock: clock,
+			durationFunc: func(round int64) time.Duration {
+				return d * time.Duration(round)
+			},
+			reset: false,
+			eager: true,
+			name:  fmt.Sprintf("linear_%d", d.Milliseconds()),
+		}
+	}
+}
+
+func newExpDouble(d time.Duration) roundTimerFunc {
+	return func(clock clockwork.Clock) roundTimer {
+		return &testTimer{
+			clock: clock,
+			durationFunc: func(round int64) time.Duration {
+				return d * time.Duration(math.Pow(2, float64(round-1)))
+			},
+			reset:  false,
+			double: true,
+			eager:  true,
+			name:   fmt.Sprintf("edouble_%d", d.Milliseconds()),
+		}
+	}
+}
+
+func newLinearDouble(d time.Duration) roundTimerFunc {
+	return func(clock clockwork.Clock) roundTimer {
+		return &testTimer{
+			clock: clock,
+			durationFunc: func(round int64) time.Duration {
+				return d * time.Duration(round)
+			},
+			reset:  false,
+			double: true,
+			eager:  true,
+			name:   fmt.Sprintf("ldouble_%d", d.Milliseconds()),
+		}
+	}
+}
+
+func newInc(clock clockwork.Clock) roundTimer {
+	return &increasingRoundTimer{clock: clock}
+}
+
+func newExp(d time.Duration) roundTimerFunc {
+	return func(clock clockwork.Clock) roundTimer {
+		return &testTimer{
+			clock: clock,
+			durationFunc: func(round int64) time.Duration {
+				return d * time.Duration(math.Pow(2, float64(round-1)))
+			},
+			reset: false,
+			eager: true,
+			name:  fmt.Sprintf("exp_%d", d.Milliseconds()),
+		}
+	}
+}
+
+func stddev[T comparable](values []T, toFloat func(T) float64) float64 {
+	var sum float64
+	for _, v := range values {
+		sum += toFloat(v)
+	}
+
+	mean := sum / float64(len(values))
+
+	var squaredSum float64
+	for _, value := range values {
+		difference := toFloat(value) - mean
+		squaredSum += difference * difference
+	}
+
+	return math.Sqrt(squaredSum / float64(len(values)-1))
 }
