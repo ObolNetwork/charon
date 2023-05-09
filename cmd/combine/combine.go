@@ -66,7 +66,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 	privkeys := make(map[int][]tbls.PrivateKey)
 
 	for _, pkp := range possibleKeyPaths {
-		secrets, err := keystore.LoadKeys(pkp)
+		secrets, err := keystore.LoadKeysSequential(pkp)
 		if err != nil {
 			return errors.Wrap(err, "cannot load keystore", z.Str("path", pkp))
 		}
