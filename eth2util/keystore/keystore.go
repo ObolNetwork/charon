@@ -135,29 +135,36 @@ func orderByKeystoreNum(files []string) ([]string, error) {
 
 	extractor := regexp.MustCompile(`keystore-(?:insecure-)?([0-9]+).json`)
 
-	var err error
+	var sortErr error
 	sort.Slice(files, func(i, j int) bool {
 		first := strings.TrimPrefix(files[i], prefix)
 		second := strings.TrimPrefix(files[j], prefix)
 
 		if !extractor.MatchString(first) || !extractor.MatchString(second) {
-			err = errors.New("keystore filenames do not match expected pattern")
+			sortErr = errors.New("keystore filenames do not match expected pattern")
 			return false
 		}
 
 		firstNumRaw := extractor.FindStringSubmatch(first)[1]
 		secondNumRaw := extractor.FindStringSubmatch(second)[1]
 
-		// PSA: we're avoiding error checking here because the regexp is explicitly expecting
-		// numbers in the first glob, hence Atoi will never fail.
-		firstNum, _ := strconv.Atoi(firstNumRaw)
-		secondNum, _ := strconv.Atoi(secondNumRaw)
+		firstNum, err := strconv.Atoi(firstNumRaw)
+		if err != nil {
+			sortErr = errors.New("malformed keystore index")
+			return false
+		}
+
+		secondNum, err := strconv.Atoi(secondNumRaw)
+		if err != nil {
+			sortErr = errors.New("malformed keystore index")
+			return false
+		}
 
 		return firstNum < secondNum
 	})
 
-	if err != nil {
-		return nil, err
+	if sortErr != nil {
+		return nil, sortErr
 	}
 
 	return files, nil
