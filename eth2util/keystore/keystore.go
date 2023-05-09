@@ -14,6 +14,9 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -93,6 +96,11 @@ func LoadKeys(dir string) ([]tbls.PrivateKey, error) {
 		return nil, errors.New("no keys found")
 	}
 
+	files, err = orderByKeystoreNum(files)
+	if err != nil {
+		return nil, errors.Wrap(err, "keystore filename malformed")
+	}
+
 	var resp []tbls.PrivateKey
 	for _, f := range files {
 		b, err := os.ReadFile(f)
@@ -119,6 +127,40 @@ func LoadKeys(dir string) ([]tbls.PrivateKey, error) {
 	}
 
 	return resp, nil
+}
+
+// orderByKeystoreNum orders keystore file names by their index in ascending order.
+func orderByKeystoreNum(files []string) ([]string, error) {
+	prefix := filepath.Dir(files[0])
+
+	extractor := regexp.MustCompile(`keystore-(?:insecure-)?([0-9]+).json`)
+
+	var err error
+	sort.Slice(files, func(i, j int) bool {
+		first := strings.TrimPrefix(files[i], prefix)
+		second := strings.TrimPrefix(files[j], prefix)
+
+		if !extractor.MatchString(first) || !extractor.MatchString(second) {
+			err = errors.New("keystore filenames do not match expected pattern")
+			return false
+		}
+
+		firstNumRaw := extractor.FindStringSubmatch(first)[1]
+		secondNumRaw := extractor.FindStringSubmatch(second)[1]
+
+		// PSA: we're avoiding error checking here because the regexp is explicitly expecting
+		// numbers in the first glob, hence Atoi will never fail.
+		firstNum, _ := strconv.Atoi(firstNumRaw)
+		secondNum, _ := strconv.Atoi(secondNumRaw)
+
+		return firstNum < secondNum
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return files, nil
 }
 
 // Keystore json file representation as a Go struct.
