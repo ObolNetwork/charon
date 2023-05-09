@@ -79,14 +79,19 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 	var combinedKeys []tbls.PrivateKey
 
 	for idx, pkSet := range privkeys {
+		if len(pkSet) != len(lock.Operators) {
+			return errors.New(
+				"amount of private keys read doesn't match the current validator index",
+				z.Int("validator_number", idx),
+				z.Int("required_amount", len(lock.Operators)),
+				z.Int("got", len(pkSet)),
+			)
+		}
+
 		log.Info(ctx, "Recombining key share", z.Int("validator_number", idx))
 		shares, err := secretsToShares(lock, pkSet)
 		if err != nil {
 			return err
-		}
-
-		if len(shares) < lock.Threshold {
-			return errors.New("insufficient number of keys", z.Int("validator_number", idx))
 		}
 
 		secret, err := tbls.RecoverSecret(shares, uint(len(lock.Operators)), uint(lock.Threshold))
