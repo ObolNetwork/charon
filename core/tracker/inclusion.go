@@ -4,6 +4,7 @@ package tracker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -227,6 +228,14 @@ func checkAttestationInclusion(sub submission, block block) (bool, error) {
 // reportMissed reports duties that were broadcast but never included on chain.
 func reportMissed(ctx context.Context, sub submission) {
 	inclusionMisses.WithLabelValues(sub.Duty.Type.String()).Inc()
+
+	// TODO(corver): Remove debug logs for https://github.com/ObolNetwork/charon/issues/2130
+	b, _ := json.Marshal(sub) //nolint:errchkjson
+	log.Debug(ctx, "Debug missed submission details",
+		z.Any("pubkey", sub.Pubkey),
+		z.Any("duty", sub.Duty),
+		z.Hex("submission", b),
+	)
 
 	switch sub.Duty.Type {
 	case core.DutyAttester, core.DutyAggregator:
