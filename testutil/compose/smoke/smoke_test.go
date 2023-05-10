@@ -130,6 +130,12 @@ func TestSmoke(t *testing.T) {
 				conf.VCs = []compose.VCType{compose.VCVouch}
 			},
 		},
+		{
+			Name: "cluster_with_lodestar",
+			ConfigFunc: func(conf *compose.Config) {
+				conf.VCs = []compose.VCType{compose.VCLodestar}
+			},
+		},
 	}
 
 	for _, test := range tests {
