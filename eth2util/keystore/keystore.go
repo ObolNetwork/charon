@@ -175,6 +175,7 @@ func LoadKeysSequential(dir string) ([]tbls.PrivateKey, error) {
 
 // LoadKeys returns all secrets stored in dir/keystore-*.json 2335 Keystore files
 // using password stored in dir/keystore-*.txt.
+// Keystore files are read in lexicographic order from disk, based on their file name.
 func LoadKeys(dir string) ([]tbls.PrivateKey, error) {
 	return loadFiles(dir, "keystore-*.json", nil)
 }
