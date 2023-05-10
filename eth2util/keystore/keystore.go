@@ -85,7 +85,7 @@ func storeKeysInternal(secrets []tbls.PrivateKey, dir string, filenameFmt string
 	return nil
 }
 
-// loadFiles loads keystore files from dir, with the given glob.
+// loadFiles loads EIP-2335 keystore files from dir, with the given glob.
 // If sortKeyfiles is not nil, it will run it passing the file list as input, and
 // its output will be used as the source of file names to read keystores from.
 func loadFiles(dir string, glob string, sortKeyfiles func([]string) ([]string, error)) ([]tbls.PrivateKey, error) {
@@ -133,7 +133,7 @@ func loadFiles(dir string, glob string, sortKeyfiles func([]string) ([]string, e
 	return resp, nil
 }
 
-// LoadKeysSequential returns all secrets stored in dir/keystore-([0-9]*).json 2335 Keystore files
+// LoadKeysSequential returns all secrets stored in dir/keystore-([0-9]*).json EIP-2335 Keystore files
 // using password stored in dir/keystore-([0-9]*).txt.
 // The keystore files are read sequentially based on their index starting from 0,
 // and the returned slice is sorted accordingly.
@@ -173,7 +173,7 @@ func LoadKeysSequential(dir string) ([]tbls.PrivateKey, error) {
 	})
 }
 
-// LoadKeys returns all secrets stored in dir/keystore-*.json 2335 Keystore files
+// LoadKeys returns all secrets stored in dir/keystore-*.json EIP-2335 Keystore files
 // using password stored in dir/keystore-*.txt.
 // Keystore files are read in lexicographic order from disk, based on their file name.
 func LoadKeys(dir string) ([]tbls.PrivateKey, error) {
