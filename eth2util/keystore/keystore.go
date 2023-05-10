@@ -194,8 +194,21 @@ func orderByKeystoreNum(files []string) ([]string, []int, error) {
 		first := strings.TrimPrefix(files[i], prefix)
 		second := strings.TrimPrefix(files[j], prefix)
 
-		if !extractor.MatchString(first) || !extractor.MatchString(second) {
-			sortErr = errors.New("keystore filenames do not match expected pattern")
+		if !extractor.MatchString(first) {
+			sortErr = errors.New(
+				"keystore filenames do not match expected pattern 'keystore-%d.json' or 'keystore-insecure-%d.json'",
+				z.Str("filename", first),
+			)
+
+			return false
+		}
+
+		if !extractor.MatchString(second) {
+			sortErr = errors.New(
+				"keystore filenames do not match expected pattern 'keystore-%d.json' or 'keystore-insecure-%d.json'",
+				z.Str("filename", second),
+			)
+
 			return false
 		}
 
