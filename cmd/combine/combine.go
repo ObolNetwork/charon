@@ -53,7 +53,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 		inputDir = fp
 	}
 
-	log.Info(ctx, "Recombining key shares",
+	log.Info(ctx, "Recombining private key shares",
 		z.Str("input_dir", inputDir),
 		z.Str("output_dir", outputDir),
 	)
@@ -66,9 +66,9 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 	privkeys := make(map[int][]tbls.PrivateKey)
 
 	for _, pkp := range possibleKeyPaths {
-		secrets, err := keystore.LoadKeys(pkp)
+		secrets, err := keystore.LoadKeysSequential(pkp)
 		if err != nil {
-			return errors.Wrap(err, "cannot load keystore", z.Str("path", pkp))
+			return errors.Wrap(err, "cannot load private key share", z.Str("path", pkp))
 		}
 
 		for idx, secret := range secrets {
@@ -79,19 +79,24 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 	var combinedKeys []tbls.PrivateKey
 
 	for idx, pkSet := range privkeys {
-		log.Info(ctx, "Recombining key share", z.Int("validator_number", idx))
+		if len(pkSet) != len(lock.Operators) {
+			return errors.New(
+				"not all private keys found for validator",
+				z.Int("validator_index", idx),
+				z.Int("expected", len(lock.Operators)),
+				z.Int("actual", len(pkSet)),
+			)
+		}
+
+		log.Info(ctx, "Recombining private key shares", z.Int("validator_index", idx))
 		shares, err := secretsToShares(lock, pkSet)
 		if err != nil {
 			return err
 		}
 
-		if len(shares) < lock.Threshold {
-			return errors.New("insufficient number of keys", z.Int("validator_number", idx))
-		}
-
 		secret, err := tbls.RecoverSecret(shares, uint(len(lock.Operators)), uint(lock.Threshold))
 		if err != nil {
-			return errors.Wrap(err, "cannot recover shares", z.Int("validator_number", idx))
+			return errors.Wrap(err, "cannot recover private key share", z.Int("validator_index", idx))
 		}
 
 		// require that the generated secret pubkey matches what's in the lockfile for the idx validator
@@ -99,16 +104,16 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 
 		valPk, err := val.PublicKey()
 		if err != nil {
-			return errors.Wrap(err, "public key for validator from lockfile", z.Int("validator_number", idx))
+			return errors.Wrap(err, "public key for validator from lockfile", z.Int("validator_index", idx))
 		}
 
 		genPubkey, err := tbls.SecretToPublicKey(secret)
 		if err != nil {
-			return errors.Wrap(err, "public key for validator from generated secret", z.Int("validator_number", idx))
+			return errors.Wrap(err, "public key for validator from generated secret", z.Int("validator_index", idx))
 		}
 
 		if valPk != genPubkey {
-			return errors.New("generated and lockfile public key for validator DO NOT match", z.Int("validator_number", idx))
+			return errors.New("generated and lockfile public key for validator DO NOT match", z.Int("validator_index", idx))
 		}
 
 		combinedKeys = append(combinedKeys, secret)

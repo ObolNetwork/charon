@@ -81,8 +81,19 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 	require.Error(t, err)
 }
 
+// This test exists because of https://github.com/ObolNetwork/charon/issues/2151.
+func TestCombineLotsOfVals(t *testing.T) {
+	lock, _, shares := cluster.NewForT(t, 100, 3, 4, 0)
+	combineTest(t, lock, shares)
+}
+
 func TestCombine(t *testing.T) {
 	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
+	combineTest(t, lock, shares)
+}
+
+func combineTest(t *testing.T, lock cluster.Lock, shares [][]tbls.PrivateKey) {
+	t.Helper()
 
 	// calculate expected public keys and secrets
 	type expected struct {
