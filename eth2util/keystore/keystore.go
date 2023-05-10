@@ -135,7 +135,10 @@ func loadFiles(dir string, glob string, sortKeyfiles func([]string) ([]string, e
 
 // LoadKeysSequential returns all secrets stored in dir/keystore-([0-9]*).json 2335 Keystore files
 // using password stored in dir/keystore-([0-9]*).txt.
-// The keystore files are read based on their index, and the returned slice is sorted accordingly.
+// The keystore files are read sequentially based on their index starting from 0,
+// and the returned slice is sorted accordingly.
+// Note that the index sequence must be incremental, and the difference between consecutive indices must be exactly
+// 1.
 func LoadKeysSequential(dir string) ([]tbls.PrivateKey, error) {
 	return loadFiles(dir, "keystore-*.json", func(files []string) ([]string, error) {
 		newFiles, indices, err := orderByKeystoreNum(files)
