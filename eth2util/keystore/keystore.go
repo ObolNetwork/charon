@@ -88,8 +88,8 @@ func storeKeysInternal(secrets []tbls.PrivateKey, dir string, filenameFmt string
 // loadFiles loads EIP-2335 keystore files from dir, with the given glob.
 // If sortKeyfiles is not nil, it will run it passing the file list as input, and
 // its output will be used as the source of file names to read keystores from.
-func loadFiles(dir string, glob string, sortKeyfiles func([]string) ([]string, error)) ([]tbls.PrivateKey, error) {
-	files, err := filepath.Glob(path.Join(dir, glob))
+func loadFiles(dir string, sortKeyfiles func([]string) ([]string, error)) ([]tbls.PrivateKey, error) {
+	files, err := filepath.Glob(path.Join(dir, "keystore-*.json"))
 	if err != nil {
 		return nil, errors.Wrap(err, "read files")
 	}
@@ -140,7 +140,7 @@ func loadFiles(dir string, glob string, sortKeyfiles func([]string) ([]string, e
 // Note that the index sequence must be incremental, and the difference between consecutive indices must be exactly
 // 1.
 func LoadKeysSequential(dir string) ([]tbls.PrivateKey, error) {
-	return loadFiles(dir, "keystore-*.json", func(files []string) ([]string, error) {
+	return loadFiles(dir, func(files []string) ([]string, error) {
 		newFiles, indices, err := orderByKeystoreNum(files)
 		if err != nil {
 			return nil, err
@@ -177,7 +177,7 @@ func LoadKeysSequential(dir string) ([]tbls.PrivateKey, error) {
 // using password stored in dir/keystore-*.txt.
 // Keystore files are read in lexicographic order from disk, based on their file name.
 func LoadKeys(dir string) ([]tbls.PrivateKey, error) {
-	return loadFiles(dir, "keystore-*.json", nil)
+	return loadFiles(dir, nil)
 }
 
 // orderByKeystoreNum orders keystore file names by their index in ascending order.
