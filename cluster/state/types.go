@@ -14,6 +14,7 @@ import (
 // RawDAG is a list of mutations that constitute the raw cluster state DAG.
 type RawDAG []Mutation
 
+// rootHasher indicates that a type can be hashed with a ssz.HashWalker.
 type rootHasher interface {
 	HashTreeRootWith(hw ssz.HashWalker) error
 }

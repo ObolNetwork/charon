@@ -4,6 +4,7 @@ package state
 
 import "github.com/obolnetwork/charon/cluster"
 
+// MutationType represents the type of a mutation.
 type MutationType string
 
 func (t MutationType) String() string {

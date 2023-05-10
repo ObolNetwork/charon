@@ -55,6 +55,7 @@ func (l lockWrapper) HashTreeRootWith(hw ssz.HashWalker) error {
 	return nil
 }
 
+// verifyLegacyLock verifies that the signed mutation is a valid legacy lock.
 func verifyLegacyLock(signed SignedMutation) error {
 	if signed.Mutation.Type != TypeLegacyLock {
 		return errors.New("invalid mutation type")
@@ -78,6 +79,7 @@ func verifyLegacyLock(signed SignedMutation) error {
 	return wrapper.Lock.VerifySignatures()
 }
 
+// transformLegacyLock transforms the cluster state with the provided legacy lock mutation.
 func transformLegacyLock(_ Cluster, signed SignedMutation) (Cluster, error) {
 	if err := verifyLegacyLock(signed); err != nil {
 		return Cluster{}, errors.Wrap(err, "verify legacy lock")
