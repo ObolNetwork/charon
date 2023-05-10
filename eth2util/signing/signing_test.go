@@ -67,3 +67,44 @@ func TestVerifyRegistrationReference(t *testing.T) {
 	err = signing.Verify(context.Background(), bmock, signing.DomainApplicationBuilder, 0, sigRoot, eth2p0.BLSSignature(sig), pubkey)
 	require.NoError(t, err)
 }
+
+func TestConstantApplicationBuilder(t *testing.T) {
+	v0 := eth2p0.Version{0x00, 0x00, 0x10, 0x20}
+	v1 := eth2p0.Version{0x01, 0x00, 0x10, 0x20}
+	v2 := eth2p0.Version{0x02, 0x00, 0x10, 0x20}
+	v3 := eth2p0.Version{0x03, 0x00, 0x10, 0x20}
+
+	forkSchedule := []*eth2p0.Fork{
+		{PreviousVersion: v0, CurrentVersion: v0, Epoch: 0},
+		{PreviousVersion: v0, CurrentVersion: v1, Epoch: 1},
+		{PreviousVersion: v1, CurrentVersion: v2, Epoch: 2},
+		{PreviousVersion: v2, CurrentVersion: v3, Epoch: 3},
+	}
+
+	getDomain := func(t *testing.T, i int) eth2p0.Domain {
+		t.Helper()
+		eth2Cl, err := beaconmock.New()
+		require.NoError(t, err)
+		eth2Cl.ForkScheduleFunc = func(ctx context.Context) ([]*eth2p0.Fork, error) {
+			return forkSchedule[0:i], nil
+		}
+
+		domain, err := signing.GetDomain(context.Background(), eth2Cl, signing.DomainApplicationBuilder, 0) // Always use epoch 0 for DomainApplicationBuilder.
+		require.NoError(t, err)
+
+		return domain
+	}
+
+	// Assert genesis domain is used for any fork schedule.
+	expect := eth2p0.Domain{
+		0x00, 0x00, 0x00, 0x01, 0xe4, 0xbe, 0x93, 0x93,
+		0xb0, 0x74, 0xca, 0x1f, 0x3e, 0x4a, 0xab, 0xd5,
+		0x85, 0xca, 0x4b, 0xea, 0x10, 0x11, 0x70, 0xcc,
+		0xfa, 0xf7, 0x1b, 0x89, 0xce, 0x5c, 0x5c, 0x38,
+	}
+
+	for i := 0; i < len(forkSchedule); i++ {
+		domain := getDomain(t, i)
+		require.Equal(t, expect, domain, "domain for fork schedule %d", i)
+	}
+}

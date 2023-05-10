@@ -569,6 +569,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SubmitSyncCommitteeContributionsFunc: func(context.Context, []*altair.SignedContributionAndProof) error {
 			return nil
 		},
+		ForkScheduleFunc: func(ctx context.Context) ([]*eth2p0.Fork, error) {
+			return httpMock.ForkSchedule(ctx)
+		},
 	}
 }
 
