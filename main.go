@@ -4,17 +4,24 @@ package main
 
 import (
 	"context"
+	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/spf13/cobra"
-
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cmd"
 )
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
+	ctx = log.WithTopic(ctx, "cmd")
 
-	cobra.CheckErr(cmd.New().ExecuteContext(ctx))
+	err := cmd.New().ExecuteContext(ctx)
+
+	cancel()
+
+	if err != nil {
+		log.Error(ctx, "Fatal error", err)
+		os.Exit(1)
+	}
 }

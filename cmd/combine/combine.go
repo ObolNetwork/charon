@@ -113,7 +113,8 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 		}
 
 		if valPk != genPubkey {
-			return errors.New("generated and lockfile public key for validator DO NOT match", z.Int("validator_index", idx))
+			return errors.New("actual generated and expected lockfile public key for validator DO NOT match",
+				z.Int("validator_index", idx), z.Hex("actual", genPubkey[:]), z.Hex("expected", valPk[:]))
 		}
 
 		combinedKeys = append(combinedKeys, secret)

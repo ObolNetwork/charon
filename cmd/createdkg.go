@@ -73,12 +73,6 @@ func mustMarkFlagRequired(cmd *cobra.Command, flag string) {
 }
 
 func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
-	defer func() {
-		if err != nil {
-			log.Error(ctx, "Fatal run error", err)
-		}
-	}()
-
 	// Map prater to goerli to ensure backwards compatibility with older cluster definitions.
 	// TODO(xenowits): Remove the mapping later.
 	if conf.Network == eth2util.Prater {

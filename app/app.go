@@ -120,11 +120,6 @@ type TestConfig struct {
 // to the life cycle manager which handles starting and graceful shutdown.
 func Run(ctx context.Context, conf Config) (err error) {
 	ctx = log.WithTopic(ctx, "app-start")
-	defer func() {
-		if err != nil {
-			log.Error(ctx, "Fatal run error", err)
-		}
-	}()
 
 	_, _ = maxprocs.Set()
 

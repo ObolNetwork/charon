@@ -13,7 +13,5 @@ func newCreateCmd(cmds ...*cobra.Command) *cobra.Command {
 
 	root.AddCommand(cmds...)
 
-	titledHelp(root)
-
 	return root
 }
