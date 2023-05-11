@@ -38,6 +38,7 @@ const (
 	VCTeku       VCType = "teku"
 	VCLighthouse VCType = "lighthouse"
 	VCVouch      VCType = "vouch"
+	VCLodestar   VCType = "lodestar"
 )
 
 // KeyGen defines a key generation process.

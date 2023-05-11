@@ -88,6 +88,7 @@ func TestSmoke(t *testing.T) {
 			PrintYML: true,
 			ConfigFunc: func(conf *compose.Config) {
 				conf.KeyGen = compose.KeyGenDKG
+				conf.VCs = []compose.VCType{compose.VCMock} // TODO(dhruv): add external VCs when supported versions include minimal preset.
 			},
 			DefineTmplFunc: func(data *compose.TmplData) {
 				// Use oldest supported version for cluster lock
@@ -127,6 +128,12 @@ func TestSmoke(t *testing.T) {
 			Name: "cluster_with_vouch",
 			ConfigFunc: func(conf *compose.Config) {
 				conf.VCs = []compose.VCType{compose.VCVouch}
+			},
+		},
+		{
+			Name: "cluster_with_lodestar",
+			ConfigFunc: func(conf *compose.Config) {
+				conf.VCs = []compose.VCType{compose.VCLodestar}
 			},
 		},
 	}

@@ -32,7 +32,7 @@ func TestHashProto(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t,
-		"09d28bb0414151be4330871ca94a473a69938c8c3ee934b18c85b9e9c7118858",
+		"281aa1a75b2bd09f00f2d69bdf1256b83350dac475108cde608fc3f11428e54d",
 		hex.EncodeToString(hash[:]),
 	)
 }

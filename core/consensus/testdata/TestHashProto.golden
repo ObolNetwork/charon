@@ -1,23 +1,23 @@
 {
  "0xe5301bb68d031b01ef7f35613a77f05f6134983fedd8b0107ec2e45c9bb480eb52accb3174a9a936f255f96410d2eb03": {
   "attestation_data": {
-   "slot": "1774932891286980153",
-   "index": "15267744271532198264",
+   "slot": "514638103004729",
+   "index": "541534746216824",
    "beacon_block_root": "0x511455780875d64ee2d3d0d0de6bf8f9b44ce85ff044c6b1f83b8e883bbf857a",
    "source": {
-    "epoch": "16482847956365694147",
+    "epoch": "8680519444419779",
     "root": "0x67cfe242cf3ccc4ea3ae5e88526a9f4a578bcb9ef2d4a65314768d6d299761ea"
    },
    "target": {
-    "epoch": "6303220950515014660",
+    "epoch": "7188671451061252",
     "root": "0xddcdd01d756bce6c512c3801aacaeedfad5b506664e8c0e4a771ece0b8b7c196"
    }
   },
   "attestation_duty": {
    "pubkey": "0xa5512e043e9b9aa687907adf5dba61350991daef80dd5c470c90650aaf7b5fd90022215ae7966bb600191b1825f88d42",
-   "slot": "6050128673802995827",
-   "validator_index": "9724605487393973602",
-   "committee_index": "12613765599614152010",
+   "slot": "6297973871790195",
+   "validator_index": "5837491528443234",
+   "committee_index": "3686642976763210",
    "committee_length": "256",
    "committees_at_slot": "256",
    "validator_committee_index": "224"

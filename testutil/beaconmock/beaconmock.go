@@ -90,11 +90,6 @@ func defaultHTTPMock() Mock {
 			},
 			{
 				Endpoint: "/eth/v1/config/spec",
-				Key:      "PRESET_BASE",
-				Value:    "gnosis", // Using gnosis since has shorter slots per epoch (16)
-			},
-			{
-				Endpoint: "/eth/v1/config/spec",
 				Key:      "SLOTS_PER_EPOCH",
 				Value:    "16",
 			},
