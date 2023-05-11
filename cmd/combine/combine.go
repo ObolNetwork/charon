@@ -3,7 +3,6 @@
 package combine
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -65,7 +64,9 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 
 	privkeys := make(map[int][]tbls.PrivateKey)
 
-	for _, pkp := range possibleKeyPaths {
+	for idx, pkp := range possibleKeyPaths {
+		log.Info(ctx, "Loading keystore", z.Int("index", idx), z.Str("path", pkp))
+
 		secrets, err := keystore.LoadKeysSequential(pkp)
 		if err != nil {
 			return errors.Wrap(err, "cannot load private key share", z.Str("path", pkp))
@@ -78,7 +79,9 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 
 	var combinedKeys []tbls.PrivateKey
 
-	for idx, pkSet := range privkeys {
+	for idx := 0; idx < len(privkeys); idx++ {
+		pkSet := privkeys[idx]
+
 		if len(pkSet) != len(lock.Operators) {
 			return errors.New(
 				"not all private key shares found for validator",
@@ -89,7 +92,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 		}
 
 		log.Info(ctx, "Recombining private key shares", z.Int("validator_index", idx))
-		shares, err := secretsToShares(lock, pkSet)
+		shares, err := secretsToShares(lock, pkSet, idx)
 		if err != nil {
 			return err
 		}
@@ -133,42 +136,36 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 	return nil
 }
 
-func secretsToShares(lock cluster.Lock, secrets []tbls.PrivateKey) (map[int]tbls.PrivateKey, error) {
-	n := len(lock.Operators)
-
+func secretsToShares(lock cluster.Lock, secrets []tbls.PrivateKey, valIndex int) (map[int]tbls.PrivateKey, error) {
+	pubkMap := make(map[tbls.PublicKey]int)
 	resp := make(map[int]tbls.PrivateKey)
-	for idx, secret := range secrets {
+
+	for idx := 0; idx < len(lock.Validators[valIndex].PubShares); idx++ {
+		idx := idx
+		pubShare, err := lock.Validators[valIndex].PublicShare(idx)
+		if err != nil {
+			return nil, errors.Wrap(err, "pubshare from lock")
+		}
+
+		pubkMap[pubShare] = idx
+	}
+
+	for _, secret := range secrets {
+		secret := secret
+
 		pubkey, err := tbls.SecretToPublicKey(secret)
 		if err != nil {
 			return nil, errors.Wrap(err, "pubkey from share")
 		}
 
-		var found bool
-		for _, val := range lock.Validators {
-			for i := 0; i < n; i++ {
-				pubShare, err := val.PublicShare(i)
-				if err != nil {
-					return nil, errors.Wrap(err, "pubshare from lock")
-				}
-
-				if !bytes.Equal(pubkey[:], pubShare[:]) {
-					continue
-				}
-
-				resp[idx+1] = secret
-				found = true
-
-				break
-			}
-
-			if found {
-				break
-			}
+		secretIndex, pubkFound := pubkMap[pubkey]
+		if !pubkFound {
+			return nil, errors.New("can't find secret key share",
+				z.Int("validator_index", valIndex),
+			)
 		}
 
-		if !found {
-			return nil, errors.New("share not found in lock")
-		}
+		resp[secretIndex+1] = secret
 	}
 
 	return resp, nil
