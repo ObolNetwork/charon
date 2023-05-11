@@ -142,6 +142,7 @@ type Mock struct {
 	SyncCommitteeContributionFunc          func(ctx context.Context, slot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	SubmitSyncCommitteeSubscriptionsFunc   func(ctx context.Context, subscriptions []*eth2v1.SyncCommitteeSubscription) error
 	SubmitProposalPreparationsFunc         func(ctx context.Context, preparations []*eth2v1.ProposalPreparation) error
+	ForkScheduleFunc                       func(context.Context) ([]*eth2p0.Fork, error)
 }
 
 func (Mock) SetValidatorCache(func(context.Context) (eth2wrap.ActiveValidators, error)) {
@@ -266,6 +267,10 @@ func (m Mock) SignedBeaconBlock(ctx context.Context, blockID string) (*eth2spec.
 
 func (m Mock) SlotsPerEpoch(ctx context.Context) (uint64, error) {
 	return m.SlotsPerEpochFunc(ctx)
+}
+
+func (m Mock) ForkSchedule(ctx context.Context) ([]*eth2p0.Fork, error) {
+	return m.ForkScheduleFunc(ctx)
 }
 
 func (Mock) TekuProposerConfig(context.Context) (validatorapi.TekuProposerConfigResponse, error) {
