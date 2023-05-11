@@ -149,7 +149,7 @@ func loadFiles(dir string, sortKeyfiles func([]string) ([]string, error)) ([]tbl
 			}
 
 			// PSA: this is a concurrent array write, and it works because we're not
-			// appending, rather we're accessing individual elements of it in a concurrent matter.
+			// appending, rather we're accessing individual elements of it in a concurrent way.
 			// Concurrent access to a variable must be synchronized if at least one of them involves a write.
 			// Spec says:
 			//     Structured variables of array, slice, and struct types have elements and fields
