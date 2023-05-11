@@ -58,10 +58,27 @@ func newRootCmd(cmds ...*cobra.Command) *cobra.Command {
 	}
 
 	root.AddCommand(cmds...)
+	root.SilenceErrors = true // Disable default error printing.
 
 	titledHelp(root)
+	silenceUsage(root)
 
 	return root
+}
+
+// silenceUsage silences the usage printing when commands error during "running",
+// so only show usage if error occurs before that, e.g., when parsing flags.
+func silenceUsage(cmd *cobra.Command) {
+	if runFunc := cmd.RunE; runFunc != nil {
+		cmd.RunE = func(cmd *cobra.Command, args []string) error {
+			cmd.SilenceUsage = true
+			return runFunc(cmd, args)
+		}
+	}
+
+	for _, cmd := range cmd.Commands() {
+		silenceUsage(cmd)
+	}
 }
 
 // initializeConfig sets up the general viper config and binds the cobra flags to the viper flags.
@@ -137,8 +154,6 @@ func titledHelp(cmd *cobra.Command) {
 
 // printFlags INFO logs all the given flags in alphabetical order.
 func printFlags(ctx context.Context, flags *pflag.FlagSet) {
-	ctx = log.WithTopic(ctx, "cmd")
-
 	log.Info(ctx, "Parsed config", flagsToLogFields(flags)...)
 }
 

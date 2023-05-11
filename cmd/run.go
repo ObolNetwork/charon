@@ -106,7 +106,6 @@ func bindP2PFlags(cmd *cobra.Command, config *p2p.Config) {
 	cmd.Flags().BoolVar(&config.DisableReuseport, "p2p-disable-reuseport", false, "Disables TCP port reuse for outgoing libp2p connections.")
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error {
-		ctx := log.WithTopic(cmd.Context(), "cmd")
 		for _, relay := range config.Relays {
 			u, err := url.Parse(relay)
 			if err != nil {
@@ -114,7 +113,7 @@ func bindP2PFlags(cmd *cobra.Command, config *p2p.Config) {
 			}
 
 			if u.Scheme == "http" {
-				log.Warn(ctx, "Insecure relay address provided, not HTTPS", nil, z.Str("address", relay))
+				log.Warn(cmd.Context(), "Insecure relay address provided, not HTTPS", nil, z.Str("address", relay))
 			}
 		}
 

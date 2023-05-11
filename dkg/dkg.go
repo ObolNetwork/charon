@@ -74,12 +74,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	ctx = log.WithTopic(ctx, "charon dkg")
-	defer func() {
-		if err != nil {
-			log.Error(ctx, "Fatal error", err)
-		}
-	}()
+	ctx = log.WithTopic(ctx, "dkg")
 
 	lockSvc, err := privkeylock.New(p2p.KeyPath(conf.DataDir)+".lock", "charon dkg")
 	if err != nil {
