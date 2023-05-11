@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
@@ -54,32 +55,45 @@ func StoreKeys(secrets []tbls.PrivateKey, dir string) error {
 }
 
 func storeKeysInternal(secrets []tbls.PrivateKey, dir string, filenameFmt string, opts ...keystorev4.Option) error {
+	var eg errgroup.Group
+
 	for i, secret := range secrets {
-		password, err := randomHex32()
-		if err != nil {
-			return err
-		}
+		i := i
+		secret := secret
 
-		store, err := Encrypt(secret, password, rand.Reader, opts...)
-		if err != nil {
-			return err
-		}
+		eg.Go(func() error {
+			filename := path.Join(dir, fmt.Sprintf(filenameFmt, i))
 
-		b, err := json.MarshalIndent(store, "", " ")
-		if err != nil {
-			return errors.Wrap(err, "marshal keystore")
-		}
+			password, err := randomHex32()
+			if err != nil {
+				return err
+			}
 
-		filename := path.Join(dir, fmt.Sprintf(filenameFmt, i))
+			store, err := Encrypt(secret, password, rand.Reader, opts...)
+			if err != nil {
+				return errors.Wrap(err, "encryption error", z.Str("filename", filename))
+			}
 
-		//nolint:gosec // File needs to be read-only for everybody
-		if err := os.WriteFile(filename, b, 0o444); err != nil {
-			return errors.Wrap(err, "write keystore")
-		}
+			b, err := json.MarshalIndent(store, "", " ")
+			if err != nil {
+				return errors.Wrap(err, "marshal keystore", z.Str("filename", filename))
+			}
 
-		if err := storePassword(filename, password); err != nil {
-			return err
-		}
+			//nolint:gosec // File needs to be read-only for everybody
+			if err := os.WriteFile(filename, b, 0o444); err != nil {
+				return errors.Wrap(err, "write keystore", z.Str("filename", filename))
+			}
+
+			if err := storePassword(filename, password); err != nil {
+				return errors.Wrap(err, "store password", z.Str("filename", filename))
+			}
+
+			return nil
+		})
+	}
+
+	if err := eg.Wait(); err != nil {
+		return errors.Wrap(err, "store keys")
 	}
 
 	return nil
@@ -105,29 +119,51 @@ func loadFiles(dir string, sortKeyfiles func([]string) ([]string, error)) ([]tbl
 		}
 	}
 
-	var resp []tbls.PrivateKey
-	for _, f := range files {
-		b, err := os.ReadFile(f)
-		if err != nil {
-			return nil, errors.Wrap(err, "read file")
-		}
+	var eg errgroup.Group
 
-		var store Keystore
-		if err := json.Unmarshal(b, &store); err != nil {
-			return nil, errors.Wrap(err, "unmarshal keystore")
-		}
+	resp := make([]tbls.PrivateKey, len(files))
 
-		password, err := loadPassword(f)
-		if err != nil {
-			return nil, err
-		}
+	for idx, f := range files {
+		f := f
+		idx := idx
 
-		secret, err := decrypt(store, password)
-		if err != nil {
-			return nil, err
-		}
+		eg.Go(func() error {
+			b, err := os.ReadFile(f)
+			if err != nil {
+				return errors.Wrap(err, "read file", z.Str("filename", f))
+			}
 
-		resp = append(resp, secret)
+			var store Keystore
+			if err := json.Unmarshal(b, &store); err != nil {
+				return errors.Wrap(err, "unmarshal keystore", z.Str("filename", f))
+			}
+
+			password, err := loadPassword(f)
+			if err != nil {
+				return errors.Wrap(err, "load password", z.Str("filename", f))
+			}
+
+			secret, err := decrypt(store, password)
+			if err != nil {
+				return errors.Wrap(err, "keystore decryption", z.Str("filename", f))
+			}
+
+			// PSA: this is a concurrent array write, and it works because we're not
+			// appending, rather we're accessing individual elements of it in a concurrent way.
+			// Concurrent access to a variable must be synchronized if at least one of them involves a write.
+			// Spec says:
+			//     Structured variables of array, slice, and struct types have elements and fields
+			//     that may be addressed individually. Each such element acts like a variable.
+			// So each element effectively is a different variable, which is being written only by a single goroutine:
+			// no synchronization required.
+			resp[idx] = secret
+
+			return nil
+		})
+	}
+
+	if err := eg.Wait(); err != nil {
+		return nil, errors.Wrap(err, "write keys")
 	}
 
 	return resp, nil
