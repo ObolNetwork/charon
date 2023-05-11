@@ -78,7 +78,12 @@ func (db *MemDB) StoreInternal(ctx context.Context, duty core.Duty, signedSet co
 
 // StoreExternal stores an externally received partially signed duty data set.
 func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet core.ParSignedDataSet) error {
-	_ = db.deadliner.Add(duty) // TODO(corver): Distinguish between no deadline supported vs already expired.
+	ok := db.deadliner.Add(duty) // TODO(corver): Distinguish between no deadline supported vs already expired.
+	if duty.Type == core.DutyExit {
+		log.Debug(ctx, "Duty doesn't support deadline")
+	} else if !ok {
+		log.Debug(ctx, "Duty already expired")
+	}
 
 	for pubkey, sig := range signedSet {
 		sigs, ok, err := db.store(key{Duty: duty, PubKey: pubkey}, sig)
