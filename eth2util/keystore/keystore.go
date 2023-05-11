@@ -148,6 +148,14 @@ func loadFiles(dir string, sortKeyfiles func([]string) ([]string, error)) ([]tbl
 				return errors.Wrap(err, "keystore decryption", z.Str("filename", f))
 			}
 
+			// PSA: this is a concurrent array write, and it works because we're not
+			// appending, rather we're accessing individual elements of it in a concurrent matter.
+			// Concurrent access to a variable must be synchronized if at least one of them involves a write.
+			// Spec says:
+			//     Structured variables of array, slice, and struct types have elements and fields
+			//     that may be addressed individually. Each such element acts like a variable.
+			// So each element effectively is a different variable, which is being written only by a single goroutine:
+			// no synchronization required.
 			resp[idx] = secret
 
 			return nil
