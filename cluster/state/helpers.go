@@ -16,7 +16,7 @@ func hashRoot(hasher rootHasher) ([32]byte, error) {
 	defer ssz.DefaultHasherPool.Put(hw)
 
 	if err := hasher.HashTreeRootWith(hw); err != nil {
-		return [32]byte{}, err
+		return [32]byte{}, errors.Wrap(err, "hash tree root")
 	}
 
 	resp, err := hw.HashRoot()

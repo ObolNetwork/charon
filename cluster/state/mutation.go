@@ -2,17 +2,11 @@
 
 package state
 
-import "github.com/obolnetwork/charon/cluster"
-
 // MutationType represents the type of a mutation.
 type MutationType string
 
 func (t MutationType) String() string {
 	return string(t)
-}
-
-func (t MutationType) DataType() any {
-	return mutationDefs[t].DataType
 }
 
 func (t MutationType) Transform(cluster Cluster, signed SignedMutation) (Cluster, error) {
@@ -29,11 +23,9 @@ const (
 )
 
 var mutationDefs = map[MutationType]struct {
-	DataType      any
 	TransformFunc func(Cluster, SignedMutation) (Cluster, error)
 }{
 	TypeLegacyLock: {
-		DataType:      cluster.Lock{},
 		TransformFunc: transformLegacyLock,
 	},
 }
