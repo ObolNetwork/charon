@@ -113,7 +113,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 		}
 
 		if valPk != genPubkey {
-			return errors.New("mismatching resulting combined validator public key vs expected",
+			return errors.New("unexpected resulting combined validator public key",
 				z.Int("validator_index", idx), z.Hex("actual", genPubkey[:]), z.Hex("expected", valPk[:]))
 		}
 
