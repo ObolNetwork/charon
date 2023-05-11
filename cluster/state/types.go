@@ -7,6 +7,8 @@ import (
 	"time"
 
 	ssz "github.com/ferranbt/fastssz"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 //go:generate genssz
@@ -37,6 +39,66 @@ type Mutation struct {
 	Data MutationData `ssz:"Composite"`
 }
 
+func (m Mutation) MarshalJSON() ([]byte, error) {
+	b, err := json.Marshal(marshalMutationJSON{
+		Parent:    m.Parent[:],
+		Type:      m.Type,
+		Timestamp: m.Timestamp.UTC().Format(time.RFC3339),
+		Data:      m.Data,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal mutation")
+	}
+
+	return b, nil
+}
+
+func (m *Mutation) UnmarshalJSON(input []byte) error {
+	var raw unmarshalMutationJSON
+	if err := json.Unmarshal(input, &raw); err != nil {
+		return errors.Wrap(err, "unmarshal mutation")
+	}
+
+	if !raw.Type.Valid() {
+		return errors.New("invalid mutation type")
+	}
+
+	data, err := raw.Type.Unmarshal(raw.Data)
+	if err != nil {
+		return errors.Wrap(err, "unmarshal mutation data")
+	}
+
+	timestamp, err := time.Parse(time.RFC3339, raw.Timestamp)
+	if err != nil {
+		return errors.Wrap(err, "parse mutation timestamp")
+	}
+
+	if len(raw.Parent) != 32 {
+		return errors.New("invalid parent hash")
+	}
+
+	m.Parent = [32]byte(raw.Parent)
+	m.Type = raw.Type
+	m.Timestamp = timestamp
+	m.Data = data
+
+	return nil
+}
+
+type marshalMutationJSON struct {
+	Parent    ethHex         `json:"parent"`
+	Type      MutationType   `json:"type"`
+	Timestamp string         `json:"timestamp"`
+	Data      json.Marshaler `json:"data"`
+}
+
+type unmarshalMutationJSON struct {
+	Parent    ethHex          `json:"parent"`
+	Type      MutationType    `json:"type"`
+	Timestamp string          `json:"timestamp"`
+	Data      json.RawMessage `json:"data"`
+}
+
 // SignedMutation is a signed mutation.
 type SignedMutation struct {
 	// Mutation is the mutation.
@@ -47,4 +109,43 @@ type SignedMutation struct {
 	Signer []byte `ssz:"ByteList[256]"`
 	// Signature is the signature of the mutation.
 	Signature []byte `ssz:"ByteList[256]"`
+}
+
+func (m SignedMutation) MarshalJSON() ([]byte, error) {
+	b, err := json.Marshal(signedMutationJSON{
+		Mutation:  m.Mutation,
+		Hash:      m.Hash[:],
+		Signer:    m.Signer,
+		Signature: m.Signature,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal signed mutation")
+	}
+
+	return b, nil
+}
+
+func (m *SignedMutation) UnmarshalJSON(input []byte) error {
+	var raw signedMutationJSON
+	if err := json.Unmarshal(input, &raw); err != nil {
+		return errors.Wrap(err, "unmarshal signed mutation")
+	}
+
+	if len(raw.Hash) != 32 {
+		return errors.New("invalid hash")
+	}
+
+	m.Mutation = raw.Mutation
+	m.Hash = [32]byte(raw.Hash)
+	m.Signer = raw.Signer
+	m.Signature = raw.Signature
+
+	return nil
+}
+
+type signedMutationJSON struct {
+	Mutation  Mutation `json:"mutation"`
+	Hash      ethHex   `json:"hash"`
+	Signer    ethHex   `json:"signer"`
+	Signature ethHex   `json:"signature"`
 }

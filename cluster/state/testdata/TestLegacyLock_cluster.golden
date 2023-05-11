@@ -1,0 +1,37 @@
+{
+ "Name": "test cluster",
+ "Threshold": 3,
+ "DKGAlgorithm": "default",
+ "ForkVersion": "AAAQIA==",
+ "Operators": [
+  {
+   "Address": "0x5050A4F4b3f9338C3472dcC01A87C76A144b3c9c",
+   "ENR": "enr:-HW4QIHPUOMb34YoizKGhz7nsDNQ7hCaiuwyscmeaOQ04awdH05gDnGrZhxDfzcfHssCDeB-esi99A2RoZia6UaYBCuAgmlkgnY0iXNlY3AyNTZrMaECTUts0TYQMsqb0q652QCqTUXZ6tgKyUIzdMRRpyVNB2Y"
+  },
+  {
+   "Address": "0x3325a78425F17a7E487Eb5666b2bFd93aBb06c70",
+   "ENR": "enr:-HW4QDztNDqgEPAgJoHkcF4LfXyjXUo1r_xYoNv48H0PFItwYx-OnviqgfHxEz51RDOGvUMiTpXyo0HBjK5ZZ8YxS9WAgmlkgnY0iXNlY3AyNTZrMaECUx_mBoE0UD0nIxMyJ8hnrI-myDxTfppEw8W9vcsf4zc"
+  },
+  {
+   "Address": "0xc48B812bB43401392c037381AcA934F4069C0517",
+   "ENR": "enr:-HW4QGSS-HN3zRfCJGISFmDT59Cpo-daC4U2vSjqPZWegHVSJklFsDs0f1fF_E7X4q8NUbR3bWDlX7IifsjQ_Xrm7QuAgmlkgnY0iXNlY3AyNTZrMaEDRid5rUqtOVFGFHUacQhfLxDhx6WT5OAw77W4chzlWws"
+  },
+  {
+   "Address": "0xd09Ad14080d4b257a819a4f579b8485Be88f086c",
+   "ENR": "enr:-HW4QGFxPElPQZLydQ9Ach--g-jHJ0N4LO6uuIvyfw-Tg2K_R-R6iMCfzGryG80gmdPQwz9asajtn3CF88-rpu38YoKAgmlkgnY0iXNlY3AyNTZrMaEDYsCgRtrM6G3dA0PG08fHnCIIug2cnPJKbQRtIdIfkPc"
+  }
+ ],
+ "Validators": [
+  {
+   "PubKey": "o4nJ3v/2qlWFp2YNVor4JRQ7ytkRk36qbuIWfSJuEMIMjixY+q9f1ddJh5hErNcG",
+   "PubShares": [
+    "ifSPWSihJJpTvdqoofhUO9JZM9myk1/5qiiy+Tc8J4AbRPRGNwfBfFfn/Lt8Yk5Z",
+    "mer0HxEq9eL5/zSAMf0p/TvU9ww/lFzC1leR2RdFa9PrVFPtBZUPFcHP6AYjByOe",
+    "s3D3UnDkGWDvETZrOEf1DHhgB31vZGPf7PlTW7jpL+sRSdmQbg4XAa1MGTxBrioK",
+    "kAP3hEt7fLeRpLUi7TJngPArg+7wyf8HMDAV0o/CKcHXiw/REnwh71QfIk6+ZTqU"
+   ],
+   "FeeRecipientAddress": "0x52fdfc072182654f163f5f0f9a621d729566c74d",
+   "WithdrawalAddress": "0x81855ad8681d0d86d1e91e00167939cb6694d2c4"
+  }
+ ]
+}
