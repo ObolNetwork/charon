@@ -55,7 +55,7 @@ func StoreKeys(secrets []tbls.PrivateKey, dir string) error {
 }
 
 func storeKeysInternal(secrets []tbls.PrivateKey, dir string, filenameFmt string, opts ...keystorev4.Option) error {
-	eg := errgroup.Group{}
+	var eg errgroup.Group
 
 	for i, secret := range secrets {
 		i := i
@@ -93,7 +93,7 @@ func storeKeysInternal(secrets []tbls.PrivateKey, dir string, filenameFmt string
 	}
 
 	if err := eg.Wait(); err != nil {
-		return errors.Wrap(eg.Wait(), "store keys")
+		return errors.Wrap(err, "store keys")
 	}
 
 	return nil
@@ -119,7 +119,7 @@ func loadFiles(dir string, sortKeyfiles func([]string) ([]string, error)) ([]tbl
 		}
 	}
 
-	eg := errgroup.Group{}
+	var eg errgroup.Group
 
 	resp := make([]tbls.PrivateKey, len(files))
 
