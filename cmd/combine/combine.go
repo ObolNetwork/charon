@@ -20,10 +20,10 @@ import (
 	"github.com/obolnetwork/charon/tbls"
 )
 
-// Combine combines validator keys contained in inputDir, and writes the original BLS12-381 private keys.
-// Combine is validator-aware: it'll recombine all the validator keys listed in the "Validator" field of the lock file.
-// To do so, the user must prepare inputDir as follows:
-//   - place the ".charon" directory in inputDir, renamed to another name
+// Combine combines validator private key shares contained in inputDir, and writes the original BLS12-381 private keys.
+// Combine is cluster-aware: it'll recombine all the validator keys listed in the "Validator" field of the lock file.
+// To do so place all the cluster nodes' ".charon" directories in inputDir renaming each.
+// Note all nodes directories must be preset and all validator private key shares must be present.
 //
 // Combine will create a new directory named after "outputDir", which will contain Keystore files.
 func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts ...func(*options)) error {
@@ -81,7 +81,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 	for idx, pkSet := range privkeys {
 		if len(pkSet) != len(lock.Operators) {
 			return errors.New(
-				"not all private keys found for validator",
+				"not all private key shares found for validator",
 				z.Int("validator_index", idx),
 				z.Int("expected", len(lock.Operators)),
 				z.Int("actual", len(pkSet)),
@@ -113,7 +113,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 		}
 
 		if valPk != genPubkey {
-			return errors.New("actual generated and expected lockfile public key for validator DO NOT match",
+			return errors.New("mismatching resulting combined validator public key vs expected",
 				z.Int("validator_index", idx), z.Hex("actual", genPubkey[:]), z.Hex("expected", valPk[:]))
 		}
 
@@ -123,7 +123,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 	ksPath := filepath.Join(outputDir, "keystore-0.json")
 	_, err = os.Stat(ksPath)
 	if err == nil && !force {
-		return errors.New("refusing to overwrite existing private key", z.Str("path", ksPath))
+		return errors.New("refusing to overwrite existing private key share", z.Str("path", ksPath))
 	}
 
 	if err := o.keyStoreFunc(combinedKeys, outputDir); err != nil {
