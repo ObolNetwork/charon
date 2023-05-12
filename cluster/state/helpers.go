@@ -88,7 +88,7 @@ func verifyK1SignedMutation(signed SignedMutation) error {
 	return nil
 }
 
-// ethHex represents a byte slices that is json formatted as 0x prefixed hex.
+// ethHex represents a byte slice that is json formatted as 0x prefixed hex.
 type ethHex []byte
 
 func (h *ethHex) UnmarshalJSON(data []byte) error {
