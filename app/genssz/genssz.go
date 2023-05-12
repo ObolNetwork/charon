@@ -1,5 +1,19 @@
 // Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
+// Command genssz generates ssz hashing code for structs in given go package.
+// Structs need to be tagged with `ssz:"<ssz-type>"` to be included.
+//
+//	SSZ-types supported are:
+//	- `uint64`
+//	- `ByteList[<size>]`
+//	- `Bytes<length>`
+//	- `Composite`
+//	- `CompositeList[<size>]`
+//
+// The `ByteList` and `CompositeList` types are expected to be slices.
+//
+// An optional transform function can be specified as a tag-option.
+// E.g. `Timestamp time.Time ssz:"uint64,Unix"` will result in `uint64(foo.Timestamp.Unix())`.
 package main
 
 import (
@@ -105,20 +119,24 @@ func parseFile(astFile *ast.File) []Type {
 				}
 
 				tag := strings.Trim(field.Tag.Value, "`")
-				if tag == "" {
+				if tag == "" || !strings.Contains(tag, "ssz:") {
 					continue
 				}
 
 				sszTagIndex := strings.Index(tag, "ssz:\"") + 5 // Add 5 to skip the 'ssz:"' prefix
-				if sszTagIndex == -1 {
-					continue
-				}
 				sszTagLen := strings.Index(tag[sszTagIndex:], `"`)
 
+				split := strings.Split(tag[sszTagIndex:sszTagIndex+sszTagLen], ",")
+				var transform string
+				if len(split) > 1 {
+					transform = "." + split[1] + "()"
+				}
+
 				fields = append(fields, Field{
-					Index:  i,
-					Name:   field.Names[0].Name,
-					SSZTag: tag[sszTagIndex : sszTagIndex+sszTagLen],
+					Index:     i,
+					Name:      field.Names[0].Name,
+					SSZTag:    split[0],
+					Transform: transform,
 				})
 			}
 

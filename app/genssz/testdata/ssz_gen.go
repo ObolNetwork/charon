@@ -6,6 +6,7 @@ package testdata
 
 import (
 	ssz "github.com/ferranbt/fastssz"
+
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
 )
@@ -53,6 +54,9 @@ func (f Foo) HashTreeRootWith(hw ssz.HashWalker) (err error) {
 
 		hw.MerkleizeWithMixin(listIdx, uint64(len(f.Quxes)), uint64(256))
 	}
+
+	// Field 6: 'UnixTime' ssz:"uint64"
+	hw.PutUint64(uint64(f.UnixTime.Unix()))
 
 	hw.Merkleize(indx)
 
