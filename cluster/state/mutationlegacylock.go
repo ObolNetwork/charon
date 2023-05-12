@@ -89,7 +89,7 @@ func transformLegacyLock(_ Cluster, signed SignedMutation) (Cluster, error) {
 		return Cluster{}, errors.Wrap(err, "verify legacy lock")
 	}
 
-	lock := signed.Mutation.Data.(lockWrapper)
+	lock := signed.Mutation.Data.(lockWrapper) // Can just cast, already verified data is a lock
 
 	var ops []Operator
 	for _, operator := range lock.Operators {
