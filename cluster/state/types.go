@@ -40,11 +40,16 @@ type Mutation struct {
 }
 
 func (m Mutation) MarshalJSON() ([]byte, error) {
-	b, err := json.Marshal(marshalMutationJSON{
+	data, err := json.Marshal(m.Data)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal mutation data")
+	}
+
+	b, err := json.Marshal(mutationJSON{
 		Parent:    m.Parent[:],
 		Type:      m.Type,
 		Timestamp: m.Timestamp.UTC().Format(time.RFC3339),
-		Data:      m.Data,
+		Data:      data,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal mutation")
@@ -54,7 +59,7 @@ func (m Mutation) MarshalJSON() ([]byte, error) {
 }
 
 func (m *Mutation) UnmarshalJSON(input []byte) error {
-	var raw unmarshalMutationJSON
+	var raw mutationJSON
 	if err := json.Unmarshal(input, &raw); err != nil {
 		return errors.Wrap(err, "unmarshal mutation")
 	}
@@ -85,14 +90,7 @@ func (m *Mutation) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
-type marshalMutationJSON struct {
-	Parent    ethHex         `json:"parent"`
-	Type      MutationType   `json:"type"`
-	Timestamp string         `json:"timestamp"`
-	Data      json.Marshaler `json:"data"`
-}
-
-type unmarshalMutationJSON struct {
+type mutationJSON struct {
 	Parent    ethHex          `json:"parent"`
 	Type      MutationType    `json:"type"`
 	Timestamp string          `json:"timestamp"`
