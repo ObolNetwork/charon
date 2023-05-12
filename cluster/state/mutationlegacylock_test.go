@@ -5,6 +5,7 @@ package state_test
 import (
 	"encoding/json"
 	"os"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,6 +16,11 @@ import (
 )
 
 //go:generate go test . -update
+
+func TestZeroCluster(t *testing.T) {
+	_, err := state.TypeLegacyLock.Transform(state.Cluster{Name: "foo"}, state.SignedMutation{})
+	require.ErrorContains(t, err, "legacy lock not first mutation")
+}
 
 func TestLegacyLock(t *testing.T) {
 	lockJON, err := os.ReadFile("testdata/lock.json")
@@ -31,7 +37,7 @@ func TestLegacyLock(t *testing.T) {
 	})
 
 	t.Run("cluster", func(t *testing.T) {
-		cluster, err := signed.Mutation.Type.Transform(state.Cluster{}, signed)
+		cluster, err := signed.Transform(state.Cluster{})
 		require.NoError(t, err)
 		testutil.RequireGoldenJSON(t, cluster)
 	})
@@ -44,5 +50,22 @@ func TestLegacyLock(t *testing.T) {
 
 	t.Run("json again", func(t *testing.T) {
 		testutil.RequireGoldenJSON(t, signed2, testutil.WithFilename("TestLegacyLock_json.golden"))
+	})
+
+	t.Run("cluster loaded from lock", func(t *testing.T) {
+		cluster, err := state.Load("testdata/lock.json")
+		require.NoError(t, err)
+		testutil.RequireGoldenJSON(t, cluster, testutil.WithFilename("TestLegacyLock_cluster.golden"))
+	})
+
+	t.Run("cluster loaded from state", func(t *testing.T) {
+		b, err := json.Marshal([]state.SignedMutation{signed})
+		require.NoError(t, err)
+		file := path.Join(t.TempDir(), "state.json")
+		require.NoError(t, os.WriteFile(file, b, 0o644))
+
+		cluster, err := state.Load(file)
+		require.NoError(t, err)
+		testutil.RequireGoldenJSON(t, cluster, testutil.WithFilename("TestLegacyLock_cluster.golden"))
 	})
 }

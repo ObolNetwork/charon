@@ -3,6 +3,7 @@
 package state
 
 import (
+	"reflect"
 	"time"
 
 	ssz "github.com/ferranbt/fastssz"
@@ -84,7 +85,12 @@ func verifyLegacyLock(signed SignedMutation) error {
 }
 
 // transformLegacyLock transforms the cluster state with the provided legacy lock mutation.
-func transformLegacyLock(_ Cluster, signed SignedMutation) (Cluster, error) {
+func transformLegacyLock(input Cluster, signed SignedMutation) (Cluster, error) {
+	if !reflect.ValueOf(input).IsZero() {
+		// TODO(corver): Find a better way to verify input cluster is zero.
+		return Cluster{}, errors.New("legacy lock not first mutation")
+	}
+
 	if err := verifyLegacyLock(signed); err != nil {
 		return Cluster{}, errors.Wrap(err, "verify legacy lock")
 	}
