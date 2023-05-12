@@ -53,6 +53,7 @@ func TestComponent(t *testing.T) {
 
 		priv := (*libp2pcrypto.Secp256k1PrivateKey)(p2pkeys[i])
 		h, err := libp2p.New(libp2p.Identity(priv), libp2p.ListenAddrs(mAddr))
+		testutil.SkipIfBindErr(t, err)
 		require.NoError(t, err)
 
 		record, err := enr.Parse(lock.Operators[i].ENR)
