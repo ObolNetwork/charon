@@ -12,6 +12,15 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 )
 
+func NewClusterFromLock(lock cluster.Lock) (Cluster, error) {
+	signed, err := NewLegacyLock(lock)
+	if err != nil {
+		return Cluster{}, err
+	}
+
+	return Materialise(RawDAG{signed})
+}
+
 // NewLegacyLock return a new legacy lock mutation from the provided lock.
 func NewLegacyLock(lock cluster.Lock) (SignedMutation, error) {
 	timestamp, err := time.Parse(time.RFC3339, lock.Timestamp)
@@ -19,21 +28,13 @@ func NewLegacyLock(lock cluster.Lock) (SignedMutation, error) {
 		return SignedMutation{}, errors.Wrap(err, "parse lock timestamp")
 	}
 
-	m := Mutation{
-		Parent:    [32]byte{}, // Empty parent
-		Type:      TypeLegacyLock,
-		Timestamp: timestamp,
-		Data:      lockWrapper{lock},
-	}
-
-	hash, err := hashRoot(m)
-	if err != nil {
-		return SignedMutation{}, errors.Wrap(err, "hash mutation")
-	}
-
 	return SignedMutation{
-		Mutation: m,
-		Hash:     hash,
+		Mutation: Mutation{
+			Parent:    [32]byte{}, // Empty parent
+			Type:      TypeLegacyLock,
+			Timestamp: timestamp,
+			Data:      lockWrapper{lock},
+		},
 		// No signer or signature
 	}, nil
 }
@@ -70,18 +71,15 @@ func verifyLegacyLock(signed SignedMutation) error {
 		return errors.Wrap(err, "verify empty signature")
 	}
 
-	if hash, err := hashRoot(signed.Mutation); err != nil {
-		return errors.Wrap(err, "hash mutation")
-	} else if signed.Hash != hash {
-		return errors.New("signed mutation hash mismatch")
-	}
+	// TODO(corevr): Figure out how no-verify works here
+	// wrapper, ok := signed.Mutation.Data.(lockWrapper)
+	// if !ok {
+	// 	return errors.New("data not a lock")
+	// }
+	//
+	// return wrapper.Lock.VerifySignatures()
 
-	wrapper, ok := signed.Mutation.Data.(lockWrapper)
-	if !ok {
-		return errors.New("data not a lock")
-	}
-
-	return wrapper.Lock.VerifySignatures()
+	return nil
 }
 
 // transformLegacyLock transforms the cluster state with the provided legacy lock mutation.

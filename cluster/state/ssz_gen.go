@@ -41,23 +41,6 @@ func (m Mutation) HashTreeRootWith(hw ssz.HashWalker) (err error) {
 	return nil
 }
 
-// HashTreeRootWith ssz hashes the mutationJSON object with a hasher
-func (n mutationJSON) HashTreeRootWith(hw ssz.HashWalker) (err error) {
-	indx := hw.Index()
-
-	// Field 0: 'Parent' ssz:":"
-
-	// Field 1: 'Type' ssz:":"
-
-	// Field 2: 'Timestamp' ssz:":"
-
-	// Field 3: 'Data' ssz:":"
-
-	hw.Merkleize(indx)
-
-	return nil
-}
-
 // HashTreeRootWith ssz hashes the SignedMutation object with a hasher
 func (m SignedMutation) HashTreeRootWith(hw ssz.HashWalker) (err error) {
 	indx := hw.Index()
@@ -68,40 +51,17 @@ func (m SignedMutation) HashTreeRootWith(hw ssz.HashWalker) (err error) {
 		return err
 	}
 
-	// Field 1: 'Hash' ssz:"Bytes32"
-	err = putBytesN(hw, []byte(m.Hash[:]), 32)
-	if err != nil {
-		return err
-	}
-
-	// Field 2: 'Signer' ssz:"ByteList[256]"
+	// Field 1: 'Signer' ssz:"ByteList[256]"
 	err = putByteList(hw, []byte(m.Signer[:]), 256, "Signer")
 	if err != nil {
 		return err
 	}
 
-	// Field 3: 'Signature' ssz:"ByteList[256]"
+	// Field 2: 'Signature' ssz:"ByteList[256]"
 	err = putByteList(hw, []byte(m.Signature[:]), 256, "Signature")
 	if err != nil {
 		return err
 	}
-
-	hw.Merkleize(indx)
-
-	return nil
-}
-
-// HashTreeRootWith ssz hashes the signedMutationJSON object with a hasher
-func (n signedMutationJSON) HashTreeRootWith(hw ssz.HashWalker) (err error) {
-	indx := hw.Index()
-
-	// Field 0: 'Mutation' ssz:":"
-
-	// Field 1: 'Hash' ssz:":"
-
-	// Field 2: 'Signer' ssz:":"
-
-	// Field 3: 'Signature' ssz:":"
 
 	hw.Merkleize(indx)
 
