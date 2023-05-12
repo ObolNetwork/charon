@@ -23,14 +23,14 @@ func ({{$abbr}} {{.Name}}) HashTreeRootWith(hw ssz.HashWalker) (err error) {
 {{range .Fields}}
 	// Field {{.Index}}: '{{.Name}}' ssz:"{{.SSZTag}}"
 	{{- if .IsUint64}}
-	hw.PutUint64(uint64({{$abbr}}.{{.Name}}))
+	hw.PutUint64(uint64({{$abbr}}.{{.Name}}{{.Transform}}))
 	{{else if .IsByteList}}
-	err = putByteList(hw, []byte({{$abbr}}.{{.Name}}[:]), {{.Size}}, "{{.Name}}")
+	err = putByteList(hw, []byte({{$abbr}}.{{.Name}}{{.Transform}}[:]), {{.Size}}, "{{.Name}}")
 	if err != nil {
 		return err
 	}
 	{{else if .IsBytesN}}
-	err = putBytesN(hw, []byte({{$abbr}}.{{.Name}}[:]), {{.Size}})
+	err = putBytesN(hw, []byte({{$abbr}}.{{.Name}}{{.Transform}}[:]), {{.Size}})
 	if err != nil {
 		return err
 	}

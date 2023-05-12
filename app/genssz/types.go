@@ -35,9 +35,10 @@ func (t Type) Abbr() string {
 }
 
 type Field struct {
-	Index  int
-	Name   string
-	SSZTag string
+	Index     int
+	Name      string
+	Transform string
+	SSZTag    string
 }
 
 func (f Field) IsComposite() bool {
