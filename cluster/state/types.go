@@ -13,8 +13,8 @@ import (
 
 //go:generate genssz
 
-// RawDAG is a list of mutations that constitute the raw cluster state DAG.
-type RawDAG []Mutation
+// RawDAG is a list of signed mutations that constitute the raw cluster state DAG.
+type RawDAG []SignedMutation
 
 // rootHasher indicates that a type can be hashed with a ssz.HashWalker.
 type rootHasher interface {
@@ -107,6 +107,15 @@ type SignedMutation struct {
 	Signer []byte `ssz:"ByteList[256]"`
 	// Signature is the signature of the mutation.
 	Signature []byte `ssz:"ByteList[256]"`
+}
+
+// Transform returns a transformed cluster state by applying this mutation.
+func (m SignedMutation) Transform(cluster Cluster) (Cluster, error) {
+	if !m.Mutation.Type.Valid() {
+		return cluster, errors.New("invalid mutation type")
+	}
+
+	return m.Mutation.Type.Transform(cluster, m)
 }
 
 func (m SignedMutation) MarshalJSON() ([]byte, error) {

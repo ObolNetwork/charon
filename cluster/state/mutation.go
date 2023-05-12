@@ -30,8 +30,6 @@ func (t MutationType) Unmarshal(input []byte) (MutationData, error) {
 
 // Transform returns a transformed cluster state with the given mutation.
 func (t MutationType) Transform(cluster Cluster, signed SignedMutation) (Cluster, error) {
-	// TODO(corver): Verify signature
-
 	return mutationDefs[t].TransformFunc(cluster, signed)
 }
 
