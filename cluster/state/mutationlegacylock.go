@@ -61,6 +61,10 @@ func verifyLegacyLock(signed SignedMutation) error {
 		return errors.New("invalid mutation type")
 	}
 
+	if _, ok := signed.Mutation.Data.(lockWrapper); !ok {
+		return errors.New("invalid mutation data")
+	}
+
 	if err := verifyEmptySig(signed); err != nil {
 		return errors.Wrap(err, "verify empty signature")
 	}
@@ -85,7 +89,36 @@ func transformLegacyLock(_ Cluster, signed SignedMutation) (Cluster, error) {
 		return Cluster{}, errors.Wrap(err, "verify legacy lock")
 	}
 
-	// TODO(corver): Implement legacy lock transform.
+	lock := signed.Mutation.Data.(lockWrapper) // Can just cast, already verified data is a lock
 
-	return Cluster{}, nil
+	var ops []Operator
+	for _, operator := range lock.Operators {
+		ops = append(ops, Operator{
+			Address: operator.Address,
+			ENR:     operator.ENR,
+		})
+	}
+
+	if len(lock.ValidatorAddresses) != len(lock.Validators) {
+		return Cluster{}, errors.New("validator addresses and validators length mismatch")
+	}
+
+	var vals []Validator
+	for i, validator := range lock.Validators {
+		vals = append(vals, Validator{
+			PubKey:              validator.PubKey,
+			PubShares:           validator.PubShares,
+			FeeRecipientAddress: lock.ValidatorAddresses[i].FeeRecipientAddress,
+			WithdrawalAddress:   lock.ValidatorAddresses[i].WithdrawalAddress,
+		})
+	}
+
+	return Cluster{
+		Name:         lock.Name,
+		Threshold:    lock.Threshold,
+		DKGAlgorithm: lock.DKGAlgorithm,
+		ForkVersion:  lock.ForkVersion,
+		Validators:   vals,
+		Operators:    ops,
+	}, nil
 }
