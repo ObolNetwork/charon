@@ -188,10 +188,17 @@ func testServeAddrs(t *testing.T, p2pConfig p2p.Config, path string, asserter fu
 
 	var eg errgroup.Group
 	eg.Go(func() error {
-		return Run(ctx, config)
+		err := Run(ctx, config)
+		cancel()
+		testutil.SkipIfBindErr(t, err)
+
+		return err
 	})
 	eg.Go(func() error {
 		ok := assert.Eventually(t, func() bool {
+			if ctx.Err() != nil {
+				return true
+			}
 			resp, err := http.Get(fmt.Sprintf("http://%s/%s", config.HTTPAddr, path))
 			if err != nil {
 				t.Logf("failed to get: %v", err)
@@ -215,7 +222,5 @@ func testServeAddrs(t *testing.T, p2pConfig p2p.Config, path string, asserter fu
 		return nil
 	})
 
-	err := eg.Wait()
-	testutil.SkipIfBindErr(t, err)
-	require.NoError(t, err)
+	require.NoError(t, eg.Wait())
 }
