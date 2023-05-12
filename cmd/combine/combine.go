@@ -64,8 +64,8 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 
 	privkeys := make(map[int][]tbls.PrivateKey)
 
-	for idx, pkp := range possibleKeyPaths {
-		log.Info(ctx, "Loading keystore", z.Int("index", idx), z.Str("path", pkp))
+	for _, pkp := range possibleKeyPaths {
+		log.Info(ctx, "Loading keystore", z.Str("path", pkp))
 
 		secrets, err := keystore.LoadKeysSequential(pkp)
 		if err != nil {
@@ -79,45 +79,45 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 
 	var combinedKeys []tbls.PrivateKey
 
-	for idx := 0; idx < len(privkeys); idx++ {
-		pkSet := privkeys[idx]
+	for valIdx := 0; valIdx < len(privkeys); valIdx++ {
+		pkSet := privkeys[valIdx]
 
 		if len(pkSet) != len(lock.Operators) {
 			return errors.New(
 				"not all private key shares found for validator",
-				z.Int("validator_index", idx),
+				z.Int("validator_index", valIdx),
 				z.Int("expected", len(lock.Operators)),
 				z.Int("actual", len(pkSet)),
 			)
 		}
 
-		log.Info(ctx, "Recombining private key shares", z.Int("validator_index", idx))
-		shares, err := secretsToShares(lock, pkSet, idx)
+		log.Info(ctx, "Recombining private key shares", z.Int("validator_index", valIdx))
+		shares, err := shareIdxByPubkeys(lock, pkSet, valIdx)
 		if err != nil {
 			return err
 		}
 
 		secret, err := tbls.RecoverSecret(shares, uint(len(lock.Operators)), uint(lock.Threshold))
 		if err != nil {
-			return errors.Wrap(err, "cannot recover private key share", z.Int("validator_index", idx))
+			return errors.Wrap(err, "cannot recover private key share", z.Int("validator_index", valIdx))
 		}
 
-		// require that the generated secret pubkey matches what's in the lockfile for the idx validator
-		val := lock.Validators[idx]
+		// require that the generated secret pubkey matches what's in the lockfile for the valIdx validator
+		val := lock.Validators[valIdx]
 
 		valPk, err := val.PublicKey()
 		if err != nil {
-			return errors.Wrap(err, "public key for validator from lockfile", z.Int("validator_index", idx))
+			return errors.Wrap(err, "public key for validator from lockfile", z.Int("validator_index", valIdx))
 		}
 
 		genPubkey, err := tbls.SecretToPublicKey(secret)
 		if err != nil {
-			return errors.Wrap(err, "public key for validator from generated secret", z.Int("validator_index", idx))
+			return errors.Wrap(err, "public key for validator from generated secret", z.Int("validator_index", valIdx))
 		}
 
 		if valPk != genPubkey {
 			return errors.New("unexpected resulting combined validator public key",
-				z.Int("validator_index", idx), z.Hex("actual", genPubkey[:]), z.Hex("expected", valPk[:]))
+				z.Int("validator_index", valIdx), z.Hex("actual", genPubkey[:]), z.Hex("expected", valPk[:]))
 		}
 
 		combinedKeys = append(combinedKeys, secret)
@@ -136,18 +136,21 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 	return nil
 }
 
-func secretsToShares(lock cluster.Lock, secrets []tbls.PrivateKey, valIndex int) (map[int]tbls.PrivateKey, error) {
+// shareIdxByPubkeys maps private keys to the valIndex validator public shares in the lock file.
+// It preserves the order as found in the validator public share slice.
+func shareIdxByPubkeys(lock cluster.Lock, secrets []tbls.PrivateKey, valIndex int) (map[int]tbls.PrivateKey, error) {
 	pubkMap := make(map[tbls.PublicKey]int)
 	resp := make(map[int]tbls.PrivateKey)
 
-	for idx := 0; idx < len(lock.Validators[valIndex].PubShares); idx++ {
-		idx := idx
-		pubShare, err := lock.Validators[valIndex].PublicShare(idx)
+	for peerIdx := 0; peerIdx < len(lock.Validators[valIndex].PubShares); peerIdx++ {
+		peerIdx := peerIdx
+		pubShare, err := lock.Validators[valIndex].PublicShare(peerIdx)
 		if err != nil {
 			return nil, errors.Wrap(err, "pubshare from lock")
 		}
 
-		pubkMap[pubShare] = idx
+		// share indexes are 1-indexed
+		pubkMap[pubShare] = peerIdx + 1
 	}
 
 	for _, secret := range secrets {
@@ -165,7 +168,7 @@ func secretsToShares(lock cluster.Lock, secrets []tbls.PrivateKey, valIndex int)
 			)
 		}
 
-		resp[secretIndex+1] = secret
+		resp[secretIndex] = secret
 	}
 
 	return resp, nil
