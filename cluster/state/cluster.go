@@ -62,8 +62,8 @@ func (c Cluster) PeerIDs() ([]peer.ID, error) {
 // WithdrawalAddresses is a convenience function to return all withdrawal address from the validators slice.
 func (c Cluster) WithdrawalAddresses() []string {
 	var resp []string
-	for _, vaddrs := range c.Validators {
-		resp = append(resp, vaddrs.WithdrawalAddress)
+	for _, val := range c.Validators {
+		resp = append(resp, val.WithdrawalAddress)
 	}
 
 	return resp
