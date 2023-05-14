@@ -69,11 +69,11 @@ func (c Cluster) WithdrawalAddresses() []string {
 	return resp
 }
 
-// FeeRecipientAddresses is a convenience function to return all fee-recipient address from the validators slice.
+// FeeRecipientAddresses is a convenience function that returns fee-recipient addresses for all the validators in the cluster state.
 func (c Cluster) FeeRecipientAddresses() []string {
 	var resp []string
-	for _, vaddrs := range c.Validators {
-		resp = append(resp, vaddrs.FeeRecipientAddress)
+	for _, val := range c.Validators {
+		resp = append(resp, val.FeeRecipientAddress)
 	}
 
 	return resp

@@ -182,7 +182,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	nodeIdx, err := cState.NodeIdx(tcpNode.ID())
 	if err != nil {
-		return errors.Wrap(err, "private key not matching cState file")
+		return errors.Wrap(err, "private key not matching cluster state file")
 	}
 
 	log.Info(ctx, "Lock file loaded",
