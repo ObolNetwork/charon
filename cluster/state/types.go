@@ -34,7 +34,7 @@ type Mutation struct {
 	// Type is the type of mutation.
 	Type MutationType `ssz:"ByteList[64]"` // TODO(corver): Make this a numbered enum maybe (instead of a string)?.
 	// Timestamp of the mutation.
-	Timestamp time.Time `ssz:"uint64"`
+	Timestamp time.Time `ssz:"uint64,Unix"`
 	// Data is the data of the mutation.
 	Data MutationData `ssz:"Composite"`
 }
@@ -101,12 +101,30 @@ type mutationJSON struct {
 type SignedMutation struct {
 	// Mutation is the mutation.
 	Mutation Mutation `ssz:"Composite"`
-	// Hash is the SSZ root calculated from the mutation.
-	Hash [32]byte `ssz:"Bytes32"`
 	// Signer is the identity (public key) of the signer.
 	Signer []byte `ssz:"ByteList[256]"`
 	// Signature is the signature of the mutation.
 	Signature []byte `ssz:"ByteList[256]"`
+}
+
+func (m SignedMutation) Hash() ([32]byte, error) {
+	// Return legacy lock hash if this is a legacy lock mutation.
+	if m.Mutation.Type == TypeLegacyLock {
+		lock, ok := m.Mutation.Data.(lockWrapper)
+		if !ok {
+			return [32]byte{}, errors.New("invalid lock")
+		}
+
+		if len(lock.LockHash) != 32 {
+			return [32]byte{}, errors.New("invalid lock hash")
+		}
+
+		return [32]byte(lock.LockHash), nil
+	}
+
+	// Otherwise return the hash of the signed mutation.
+
+	return hashRoot(m)
 }
 
 // Transform returns a transformed cluster state by applying this mutation.
@@ -121,7 +139,6 @@ func (m SignedMutation) Transform(cluster Cluster) (Cluster, error) {
 func (m SignedMutation) MarshalJSON() ([]byte, error) {
 	b, err := json.Marshal(signedMutationJSON{
 		Mutation:  m.Mutation,
-		Hash:      m.Hash[:],
 		Signer:    m.Signer,
 		Signature: m.Signature,
 	})
@@ -138,12 +155,7 @@ func (m *SignedMutation) UnmarshalJSON(input []byte) error {
 		return errors.Wrap(err, "unmarshal signed mutation")
 	}
 
-	if len(raw.Hash) != 32 {
-		return errors.New("invalid hash")
-	}
-
 	m.Mutation = raw.Mutation
-	m.Hash = [32]byte(raw.Hash)
 	m.Signer = raw.Signer
 	m.Signature = raw.Signature
 
@@ -152,7 +164,6 @@ func (m *SignedMutation) UnmarshalJSON(input []byte) error {
 
 type signedMutationJSON struct {
 	Mutation  Mutation `json:"mutation"`
-	Hash      ethHex   `json:"hash"`
 	Signer    ethHex   `json:"signer"`
 	Signature ethHex   `json:"signature"`
 }

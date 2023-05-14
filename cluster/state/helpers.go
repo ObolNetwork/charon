@@ -75,10 +75,6 @@ func verifyK1SignedMutation(signed SignedMutation) error {
 		return errors.Wrap(err, "hash mutation")
 	}
 
-	if signed.Hash != hash {
-		return errors.New("signed mutation hash mismatch")
-	}
-
 	if ok, err := k1util.Verify(pubkey, hash[:], signed.Signature); err != nil {
 		return errors.Wrap(err, "verify signature")
 	} else if !ok {

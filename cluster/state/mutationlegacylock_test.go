@@ -37,8 +37,9 @@ func TestLegacyLock(t *testing.T) {
 	})
 
 	t.Run("cluster", func(t *testing.T) {
-		cluster, err := signed.Transform(state.Cluster{})
+		cluster, err := state.Materialise(state.RawDAG{signed})
 		require.NoError(t, err)
+		require.Equal(t, lock.LockHash, cluster.Hash[:])
 		testutil.RequireGoldenJSON(t, cluster)
 	})
 
@@ -53,7 +54,7 @@ func TestLegacyLock(t *testing.T) {
 	})
 
 	t.Run("cluster loaded from lock", func(t *testing.T) {
-		cluster, err := state.Load("testdata/lock.json")
+		cluster, err := state.Load("testdata/lock.json", nil)
 		require.NoError(t, err)
 		testutil.RequireGoldenJSON(t, cluster, testutil.WithFilename("TestLegacyLock_cluster.golden"))
 	})
@@ -64,7 +65,7 @@ func TestLegacyLock(t *testing.T) {
 		file := path.Join(t.TempDir(), "state.json")
 		require.NoError(t, os.WriteFile(file, b, 0o644))
 
-		cluster, err := state.Load(file)
+		cluster, err := state.Load(file, nil)
 		require.NoError(t, err)
 		testutil.RequireGoldenJSON(t, cluster, testutil.WithFilename("TestLegacyLock_cluster.golden"))
 	})

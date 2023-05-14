@@ -4,9 +4,6 @@ package app
 
 import (
 	"context"
-	"encoding/json"
-	"os"
-	"path"
 	"testing"
 	"time"
 
@@ -14,32 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
-
-func TestLoadLock(t *testing.T) {
-	lock, _, _ := cluster.NewForT(t, 1, 2, 3, 0)
-
-	b, err := json.MarshalIndent(lock, "", " ")
-	require.NoError(t, err)
-
-	dir := t.TempDir()
-
-	filename := path.Join(dir, "cluster-lock.json")
-
-	err = os.WriteFile(filename, b, 0o644)
-	require.NoError(t, err)
-
-	conf := Config{LockFile: filename}
-	actual, err := loadLock(context.Background(), conf)
-	require.NoError(t, err)
-
-	b2, err := json.Marshal(actual)
-	require.NoError(t, err)
-	require.JSONEq(t, string(b), string(b2))
-}
 
 func TestCalculateTrackerDelay(t *testing.T) {
 	tests := []struct {
