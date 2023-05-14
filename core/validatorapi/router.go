@@ -1152,10 +1152,6 @@ func getValidatorIDs(query url.Values) []string {
 
 // getValidatorsByID returns the validators with ids being either pubkeys or validator indexes.
 func getValidatorsByID(ctx context.Context, p eth2client.ValidatorsProvider, stateID string, ids ...string) ([]v1Validator, error) {
-	if len(ids) == 0 {
-		return nil, errors.New("no validator ids provided")
-	}
-
 	flatten := func(kvs map[eth2p0.ValidatorIndex]*eth2v1.Validator) []v1Validator {
 		var vals []v1Validator
 		for _, v := range kvs {
@@ -1165,7 +1161,7 @@ func getValidatorsByID(ctx context.Context, p eth2client.ValidatorsProvider, sta
 		return vals
 	}
 
-	if strings.HasPrefix(ids[0], "0x") {
+	if len(ids) > 0 && strings.HasPrefix(ids[0], "0x") {
 		var pubkeys []eth2p0.BLSPubKey
 		for _, id := range ids {
 			coreBytes, err := core.PubKey(id).Bytes()

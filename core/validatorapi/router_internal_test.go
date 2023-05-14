@@ -546,6 +546,34 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
+	t.Run("get validators with no validator ids provided", func(t *testing.T) {
+		const numVals = 4
+		handler := testHandler{
+			ValidatorsFunc: func(_ context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+				require.Nil(t, indices)
+
+				res := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+				for i := 0; i < numVals; i++ {
+					res[eth2p0.ValidatorIndex(i)] = testutil.RandomValidator(t)
+				}
+
+				return res, nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			res, err := cl.ValidatorsByPubKey(ctx, "head", nil)
+			require.NoError(t, err)
+			require.Len(t, res, numVals)
+
+			res, err = cl.Validators(ctx, "head", nil)
+			require.NoError(t, err)
+			require.Len(t, res, numVals)
+		}
+
+		testRouter(t, handler, callback)
+	})
+
 	t.Run("empty attester duties", func(t *testing.T) {
 		handler := testHandler{
 			AttesterDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
