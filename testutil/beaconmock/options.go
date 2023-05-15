@@ -149,6 +149,12 @@ func WithValidatorSet(set ValidatorSet) Option {
 				}
 			}
 
+			if len(resp) == 0 {
+				for idx, val := range set {
+					resp[idx] = cloneValidator(val)
+				}
+			}
+
 			return resp, nil
 		}
 
@@ -160,6 +166,12 @@ func WithValidatorSet(set ValidatorSet) Option {
 					resp[index] = cloneValidator(val)
 				} else {
 					log.Debug(ctx, "Index not found")
+				}
+			}
+
+			if len(resp) == 0 {
+				for idx, val := range set {
+					resp[idx] = cloneValidator(val)
 				}
 			}
 
