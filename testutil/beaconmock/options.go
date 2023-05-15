@@ -242,6 +242,58 @@ func WithSlotsPerEpoch(slotsPerEpoch int) Option {
 	}
 }
 
+// WithDutiesPubkeys configures the mock to return attestation, sync committee and proposer
+// duties with the prpovided public key.
+func WithDutiesPubkeys(key eth2p0.BLSPubKey) Option {
+	return func(mock *Mock) {
+		oldAttesterFunc := mock.AttesterDutiesFunc
+		oldSyncFunc := mock.SyncCommitteeDutiesFunc
+		oldProposerFunc := mock.ProposerDutiesFunc
+
+		mock.AttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
+			res, err := oldAttesterFunc(ctx, epoch, indices)
+			if err != nil {
+				return nil, err
+			}
+
+			for idx := 0; idx < len(res); idx++ {
+				elem := res[idx]
+				elem.PubKey = key
+			}
+
+			return res, nil
+		}
+
+		mock.SyncCommitteeDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+			res, err := oldSyncFunc(ctx, epoch, validatorIndices)
+			if err != nil {
+				return nil, err
+			}
+
+			for idx := 0; idx < len(res); idx++ {
+				elem := res[idx]
+				elem.PubKey = key
+			}
+
+			return res, nil
+		}
+
+		mock.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+			res, err := oldProposerFunc(ctx, epoch, indices)
+			if err != nil {
+				return nil, err
+			}
+
+			for idx := 0; idx < len(res); idx++ {
+				elem := res[idx]
+				elem.PubKey = key
+			}
+
+			return res, nil
+		}
+	}
+}
+
 // WithDeterministicAttesterDuties configures the mock to provide deterministic
 // duties based on provided arguments and config.
 // Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
