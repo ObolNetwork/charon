@@ -61,9 +61,28 @@ func verifyEmptySig(signed SignedMutation) error {
 	return nil
 }
 
+// SignK1 signs the mutation with the provided k1 secret.
+func SignK1(m Mutation, secret *k1.PrivateKey) (SignedMutation, error) {
+	hash, err := hashRoot(m)
+	if err != nil {
+		return SignedMutation{}, errors.Wrap(err, "hash mutation")
+	}
+
+	sig, err := k1util.Sign(secret, hash[:])
+	if err != nil {
+		return SignedMutation{}, errors.Wrap(err, "sign mutation")
+	}
+
+	return SignedMutation{
+		Mutation:  m,
+		Signer:    secret.PubKey().SerializeCompressed(),
+		Signature: sig[:64], // Strip recovery id
+	}, nil
+}
+
 // verifyK1SignedMutation verifies that the signed mutation is signed by a k1 key.
 //
-//nolint:unused // Will be used in next PR.
+// TODO(corver): Figure out no-verify case.
 func verifyK1SignedMutation(signed SignedMutation) error {
 	pubkey, err := k1.ParsePubKey(signed.Signer)
 	if err != nil {
@@ -119,4 +138,22 @@ func to0xHex(b []byte) string {
 	}
 
 	return fmt.Sprintf("%#x", b)
+}
+
+var _ MutationData = emptyData{}
+
+// emptyData is a empty MutationData implementation.
+type emptyData struct{}
+
+func (emptyData) HashTreeRootWith(ssz.HashWalker) error {
+	return nil
+}
+
+func (emptyData) MarshalJSON() ([]byte, error) {
+	b, err := json.Marshal(struct{}{})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal empty data")
+	}
+
+	return b, nil
 }
