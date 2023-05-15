@@ -165,7 +165,11 @@ func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, w
 		log.Debug(ctx, "Starting DKG node", z.Int("node", nodeIdx), z.Bool("first_time", firstTime))
 
 		go func(ctx context.Context) {
-			err := dkg.Run(ctx, dkgConf)
+			// Ensure DKGs don't save their artifacts in the same node directory since the current DKG would error
+			// as it would find an existing private key lock file previously created by earlier DKGs.
+			conf := dkgConf
+			conf.DataDir = t.TempDir()
+			err := dkg.Run(ctx, conf)
 			require.ErrorContains(t, err, ctxCanceledErr)
 		}(ctx)
 	}

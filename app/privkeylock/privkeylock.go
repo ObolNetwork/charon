@@ -20,7 +20,7 @@ var (
 	updatePeriod = 1 * time.Second
 )
 
-// New returns new private key locking service. It errors if a recently-updated private key lock file exits.
+// New returns new private key locking service. It errors if a recently-updated private key lock file exists.
 func New(path, command string) (Service, error) {
 	content, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) { //nolint:revive // Empty block is fine.
