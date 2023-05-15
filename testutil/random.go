@@ -86,6 +86,18 @@ func RandomValidator(t *testing.T) *eth2v1.Validator {
 	}
 }
 
+func RandomValidatorSet(t *testing.T, vals int) map[eth2p0.ValidatorIndex]*eth2v1.Validator {
+	t.Helper()
+
+	resp := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+	for i := 0; i < vals; i++ {
+		val := RandomValidator(t)
+		resp[val.Index] = val
+	}
+
+	return resp
+}
+
 func RandomAttestation() *eth2p0.Attestation {
 	return &eth2p0.Attestation{
 		AggregationBits: RandomBitList(1),

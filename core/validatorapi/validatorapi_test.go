@@ -28,6 +28,7 @@ import (
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 	"github.com/obolnetwork/charon/testutil/validatormock"
@@ -1598,6 +1599,83 @@ func TestComponent_SubmitSyncCommitteeContributionsVerify(t *testing.T) {
 	err = vapi.SubmitSyncCommitteeContributions(ctx, []*altair.SignedContributionAndProof{signedContribAndProof})
 	require.NoError(t, err)
 	<-done
+}
+
+func TestComponent_GetAllValidators(t *testing.T) {
+	const (
+		totalVals      = 10
+		numClusterVals = 4
+		shareIdx       = 1
+	)
+
+	validatorSet := testutil.RandomValidatorSet(t, totalVals)
+
+	// Pick numClusterVals from validator set.
+	var (
+		clusterVals       []*eth2v1.Validator
+		allPubSharesByKey = make(map[core.PubKey]map[int]tbls.PublicKey)
+		keyByPubshare     = make(map[tbls.PublicKey]core.PubKey)
+	)
+	i := numClusterVals
+	for _, val := range validatorSet {
+		i--
+
+		clusterVals = append(clusterVals, val)
+		pubshare, err := tblsconv.PubkeyFromCore(testutil.RandomCorePubKey(t))
+		require.NoError(t, err)
+
+		corePubkey := core.PubKeyFrom48Bytes(val.Validator.PublicKey)
+		allPubSharesByKey[corePubkey] = make(map[int]tbls.PublicKey)
+		allPubSharesByKey[core.PubKeyFrom48Bytes(val.Validator.PublicKey)][shareIdx] = pubshare
+		keyByPubshare[pubshare] = corePubkey
+
+		if i == 0 {
+			break
+		}
+	}
+
+	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(validatorSet))
+	require.NoError(t, err)
+
+	// Construct validatorapi component.
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
+	require.NoError(t, err)
+
+	vals, err := vapi.Validators(context.Background(), "head", nil)
+	require.NoError(t, err)
+	require.Len(t, vals, totalVals)
+
+	for _, val := range clusterVals {
+		pubshare, err := tblsconv.PubkeyFromBytes(vals[val.Index].Validator.PublicKey[:])
+		require.NoError(t, err)
+
+		eth2Pubkey, err := keyByPubshare[pubshare].ToETH2()
+		require.NoError(t, err)
+		require.Equal(t, validatorSet[val.Index].Validator.PublicKey, eth2Pubkey)
+	}
+}
+
+func TestComponent_GetClusterValidatorsWithError(t *testing.T) {
+	const (
+		numClusterVals = 4
+		shareIdx       = 1
+	)
+
+	validatorSet := testutil.RandomValidatorSet(t, numClusterVals)
+	var indices []eth2p0.ValidatorIndex
+	for vidx := range validatorSet {
+		indices = append(indices, vidx)
+	}
+
+	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(validatorSet))
+	require.NoError(t, err)
+
+	// Construct validatorapi component.
+	vapi, err := validatorapi.NewComponent(bmock, make(map[core.PubKey]map[int]tbls.PublicKey), shareIdx, nil, testutil.BuilderFalse, nil)
+	require.NoError(t, err)
+
+	_, err = vapi.Validators(context.Background(), "head", indices)
+	require.ErrorContains(t, err, "pubshare not found")
 }
 
 func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {

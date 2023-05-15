@@ -958,7 +958,7 @@ func (c Component) Validators(ctx context.Context, stateID string, validatorIndi
 		return nil, err
 	}
 
-	return c.convertValidators(vals)
+	return c.convertValidators(vals, len(validatorIndices) == 0)
 }
 
 func (c Component) ValidatorsByPubKey(ctx context.Context, stateID string, pubshares []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
@@ -979,7 +979,7 @@ func (c Component) ValidatorsByPubKey(ctx context.Context, stateID string, pubsh
 	}
 
 	// Then convert back.
-	return c.convertValidators(valMap)
+	return c.convertValidators(valMap, len(pubkeys) == 0)
 }
 
 // NodeVersion returns the current version of charon.
@@ -989,19 +989,21 @@ func (Component) NodeVersion(context.Context) (string, error) {
 	return fmt.Sprintf("obolnetwork/charon/%s-%s/%s-%s", version.Version, commitSHA, runtime.GOARCH, runtime.GOOS), nil
 }
 
-// convertValidators returns the validator map with all root public keys replaced by public shares.
-func (c Component) convertValidators(vals map[eth2p0.ValidatorIndex]*eth2v1.Validator) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+// convertValidators returns the validator map with root public keys replaced by public shares for all validators that are part of the cluster.
+func (c Component) convertValidators(vals map[eth2p0.ValidatorIndex]*eth2v1.Validator, ignoreNotFound bool) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 	resp := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
 	for vIdx, val := range vals {
 		if val == nil || val.Validator == nil {
 			return nil, errors.New("validator data cannot be nil")
 		}
 
-		var ok bool
-		val.Validator.PublicKey, ok = c.getPubShareFunc(val.Validator.PublicKey)
-		if !ok {
+		pubshare, ok := c.getPubShareFunc(val.Validator.PublicKey)
+		if !ok && !ignoreNotFound {
 			return nil, errors.New("pubshare not found")
+		} else if ok {
+			val.Validator.PublicKey = pubshare
 		}
+
 		resp[vIdx] = val
 	}
 
