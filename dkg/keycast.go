@@ -40,12 +40,12 @@ type shareMsg struct {
 	SecretShare []byte
 }
 
-func runKeyCast(ctx context.Context, def cluster.Definition, tx kcTransport, nodeIdx int) ([]share, error) {
+func runKeyCast(ctx context.Context, def cluster.Definition, tp kcTransport, nodeIdx int) ([]share, error) {
 	if nodeIdx == 0 {
-		return leadKeyCast(ctx, tx, def)
+		return leadKeyCast(ctx, tp, def)
 	}
 
-	return joinKeyCast(ctx, tx, nodeIdx)
+	return joinKeyCast(ctx, tp, nodeIdx)
 }
 
 func joinKeyCast(ctx context.Context, tp kcTransport, nodeIdx int) ([]share, error) {
