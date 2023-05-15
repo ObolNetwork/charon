@@ -11,6 +11,83 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
+// HashTreeRootWith ssz hashes the validatorSSZ object with a hasher
+func (z validatorSSZ) HashTreeRootWith(hw ssz.HashWalker) (err error) {
+	indx := hw.Index()
+
+	// Field 0: 'PubKey' ssz:"ByteList[256]"
+	err = putByteList(hw, []byte(z.PubKey[:]), 256, "PubKey")
+	if err != nil {
+		return err
+	}
+
+	// Field 1: 'PubShares' ssz:"CompositeList[65536]"
+	{
+		listIdx := hw.Index()
+		for _, item := range z.PubShares {
+			err = item.HashTreeRootWith(hw)
+			if err != nil {
+				return err
+			}
+		}
+
+		hw.MerkleizeWithMixin(listIdx, uint64(len(z.PubShares)), uint64(65536))
+	}
+
+	// Field 2: 'FeeRecipientAddress' ssz:"Bytes20"
+	err = putBytesN(hw, []byte(z.FeeRecipientAddress[:]), 20)
+	if err != nil {
+		return err
+	}
+
+	// Field 3: 'WithdrawalAddress' ssz:"Bytes20"
+	err = putBytesN(hw, []byte(z.WithdrawalAddress[:]), 20)
+	if err != nil {
+		return err
+	}
+
+	hw.Merkleize(indx)
+
+	return nil
+}
+
+// HashTreeRootWith ssz hashes the sszPubkey object with a hasher
+func (p sszPubkey) HashTreeRootWith(hw ssz.HashWalker) (err error) {
+	indx := hw.Index()
+
+	// Field 0: 'Pubkey' ssz:"ByteList[256]"
+	err = putByteList(hw, []byte(p.Pubkey[:]), 256, "Pubkey")
+	if err != nil {
+		return err
+	}
+
+	hw.Merkleize(indx)
+
+	return nil
+}
+
+// HashTreeRootWith ssz hashes the addValidators object with a hasher
+func (v addValidators) HashTreeRootWith(hw ssz.HashWalker) (err error) {
+	indx := hw.Index()
+
+	// Field 0: 'Validators' ssz:"CompositeList[65536]"
+	{
+		listIdx := hw.Index()
+		for _, item := range v.Validators {
+			err = item.toSSZ().HashTreeRootWith(hw)
+			if err != nil {
+				return err
+			}
+		}
+
+		hw.MerkleizeWithMixin(listIdx, uint64(len(v.Validators)), uint64(65536))
+	}
+
+	hw.Merkleize(indx)
+
+	return nil
+}
+
 // HashTreeRootWith ssz hashes the nodeApprovals object with a hasher
 func (a nodeApprovals) HashTreeRootWith(hw ssz.HashWalker) (err error) {
 	indx := hw.Index()

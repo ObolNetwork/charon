@@ -38,6 +38,7 @@ const (
 	TypeLegacyLock    MutationType = "dv/legacy_lock/v0.0.1"
 	TypeNodeApproval  MutationType = "dv/node_approval/v0.0.1"
 	TypeNodeApprovals MutationType = "dv/node_approvals/v0.0.1"
+	TypeAddValidators MutationType = "dv/add_validators/v0.0.1"
 )
 
 type mutationDef struct {
@@ -88,5 +89,17 @@ func init() {
 			return nodeApprovals{Approvals: mutations}, nil
 		},
 		TransformFunc: transformNodeApprovals,
+	}
+
+	mutationDefs[TypeAddValidators] = mutationDef{
+		UnmarshalFunc: func(input []byte) (MutationData, error) {
+			var validators []validatorJSON
+			if err := json.Unmarshal(input, &validators); err != nil {
+				return nil, errors.Wrap(err, "unmarshal validators")
+			}
+
+			return addValidators{Validators: validatorsFromJSON(validators)}, nil
+		},
+		TransformFunc: transformAddValidators,
 	}
 }
