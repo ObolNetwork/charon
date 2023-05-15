@@ -102,16 +102,16 @@ func (c Cluster) NodeIdx(pID peer.ID) (cluster.NodeIdx, error) {
 
 // Operator represents the operator of a node in the cluster.
 type Operator struct {
-	Address string
-	ENR     string
+	Address string `json:"address"`
+	ENR     string `json:"enr"`
 }
 
 // Validator represents a validator in the cluster.
 type Validator struct {
-	PubKey              []byte
-	PubShares           [][]byte
-	FeeRecipientAddress string
-	WithdrawalAddress   string
+	PubKey              []byte   `json:"public_key"`
+	PubShares           [][]byte `json:"public_shares"`
+	FeeRecipientAddress string   `json:"fee_recipient_address"`
+	WithdrawalAddress   string   `json:"withdrawal_address"`
 }
 
 // PublicKey returns the validator BLS group public key.
@@ -127,4 +127,75 @@ func (v Validator) PublicKeyHex() string {
 // PublicShare returns a peer's threshold BLS public share.
 func (v Validator) PublicShare(peerIdx int) (tbls.PublicKey, error) {
 	return tblsconv.PubkeyFromBytes(v.PubShares[peerIdx])
+}
+
+// toSSZ returns a SSZ friendly version of the validator.
+func (v Validator) toSSZ() validatorSSZ {
+	var pubshares []sszPubkey
+	for _, share := range v.PubShares {
+		pubshares = append(pubshares, sszPubkey{Pubkey: share})
+	}
+
+	return validatorSSZ{
+		PubKey:              v.PubKey,
+		PubShares:           pubshares,
+		FeeRecipientAddress: v.FeeRecipientAddress,
+		WithdrawalAddress:   v.WithdrawalAddress,
+	}
+}
+
+type validatorJSON struct {
+	PubKey              ethHex   `json:"public_key"`
+	PubShares           []ethHex `json:"public_shares"`
+	FeeRecipientAddress string   `json:"fee_recipient_address"`
+	WithdrawalAddress   string   `json:"withdrawal_address"`
+}
+
+func validatorsToJSON(vals []Validator) []validatorJSON {
+	var resp []validatorJSON
+	for _, val := range vals {
+		var pubshares []ethHex
+		for _, share := range val.PubShares {
+			pubshares = append(pubshares, share)
+		}
+
+		resp = append(resp, validatorJSON{
+			PubKey:              val.PubKey,
+			PubShares:           pubshares,
+			FeeRecipientAddress: val.FeeRecipientAddress,
+			WithdrawalAddress:   val.WithdrawalAddress,
+		})
+	}
+
+	return resp
+}
+
+func validatorsFromJSON(vals []validatorJSON) []Validator {
+	var resp []Validator
+	for _, val := range vals {
+		var pubshares [][]byte
+		for _, share := range val.PubShares {
+			pubshares = append(pubshares, share)
+		}
+
+		resp = append(resp, Validator{
+			PubKey:              val.PubKey,
+			PubShares:           pubshares,
+			FeeRecipientAddress: val.FeeRecipientAddress,
+			WithdrawalAddress:   val.WithdrawalAddress,
+		})
+	}
+
+	return resp
+}
+
+type validatorSSZ struct {
+	PubKey              []byte      `ssz:"ByteList[256]"`
+	PubShares           []sszPubkey `ssz:"CompositeList[65536]"`
+	FeeRecipientAddress string      `ssz:"Bytes20"`
+	WithdrawalAddress   string      `ssz:"Bytes20"`
+}
+
+type sszPubkey struct {
+	Pubkey []byte `ssz:"ByteList[256]"`
 }
