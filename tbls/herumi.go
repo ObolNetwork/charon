@@ -4,10 +4,13 @@ package tbls
 
 import (
 	"fmt"
+	"io"
 	"strconv"
 	"sync"
+	"testing"
 
 	"github.com/herumi/bls-eth-go-binary/bls"
+	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
@@ -35,6 +38,27 @@ func init() {
 
 // Herumi is an Implementation with Herumi-specific inner logic.
 type Herumi struct{}
+
+// GenerateInsecureKey generates a key that is not cryptographically secure using the
+// provided random number generator. This is useful for testing.
+func (Herumi) GenerateInsecureKey(t *testing.T, random io.Reader) (PrivateKey, error) {
+	t.Helper()
+	for i := 0; i < 100; i++ {
+		b := make([]byte, 32)
+		_, err := random.Read(b)
+		require.NoError(t, err)
+
+		p := new(bls.SecretKey)
+		err = p.Deserialize(b)
+		if err != nil {
+			continue // Try again
+		}
+
+		return *(*PrivateKey)(p.Serialize()), nil
+	}
+
+	return PrivateKey{}, errors.New("cannot generate insecure key")
+}
 
 func (Herumi) GenerateSecretKey() (PrivateKey, error) {
 	var p bls.SecretKey

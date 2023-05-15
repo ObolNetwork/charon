@@ -4,6 +4,7 @@ package tbls_test
 
 import (
 	"crypto/rand"
+	"io"
 	"math/big"
 	"testing"
 
@@ -243,6 +244,17 @@ func (r randomizedImpl) GenerateSecretKey() (tbls.PrivateKey, error) {
 	}
 
 	return impl.GenerateSecretKey()
+}
+
+func (r randomizedImpl) GenerateInsecureKey(t *testing.T, random io.Reader) (tbls.PrivateKey, error) {
+	t.Helper()
+
+	impl, err := r.selectImpl()
+	if err != nil {
+		return tbls.PrivateKey{}, err
+	}
+
+	return impl.GenerateInsecureKey(t, random)
 }
 
 func (r randomizedImpl) SecretToPublicKey(key tbls.PrivateKey) (tbls.PublicKey, error) {
