@@ -8,10 +8,11 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
+// NewGenValidators creates a new generate validators mutation.
 func NewGenValidators(parent [32]byte, validators []Validator) (SignedMutation, error) {
 	genVals := genValidators{Validators: validators}
 
-	if err := genVals.verify(); err != nil {
+	if err := genVals.Verify(); err != nil {
 		return SignedMutation{}, errors.Wrap(err, "verify validators")
 	}
 
@@ -40,7 +41,9 @@ func (v genValidators) MarshalJSON() ([]byte, error) {
 	return b, nil
 }
 
-func (v genValidators) verify() error {
+// Verify validates the gen validators mutation, ensuring validators are populated with valid addresses.
+// This allows ToSSZ to be called without error.
+func (v genValidators) Verify() error {
 	if len(v.Validators) == 0 {
 		return errors.New("no validators")
 	}
@@ -76,6 +79,7 @@ func transformGenValidators(c Cluster, signed SignedMutation) (Cluster, error) {
 	return c, nil
 }
 
+// NewAddValidators creates a new composite add validators mutation from the provided gen validators and node approvals.
 func NewAddValidators(genValidators, nodeApprovals SignedMutation) (SignedMutation, error) {
 	if genValidators.Mutation.Type != TypeGenValidators {
 		return SignedMutation{}, errors.New("invalid gen validators mutation type")
