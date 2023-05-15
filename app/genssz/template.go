@@ -43,7 +43,7 @@ func ({{$abbr}} {{.Name}}) HashTreeRootWith(hw ssz.HashWalker) (err error) {
 	{
 		listIdx := hw.Index()
 		for _, item := range {{$abbr}}.{{.Name}} {
-			err = item.HashTreeRootWith(hw)
+			err = item{{.Transform}}.HashTreeRootWith(hw)
 			if err != nil {
 				return err
 			}
