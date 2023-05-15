@@ -55,7 +55,20 @@ func (f Foo) HashTreeRootWith(hw ssz.HashWalker) (err error) {
 		hw.MerkleizeWithMixin(listIdx, uint64(len(f.Quxes)), uint64(256))
 	}
 
-	// Field 6: 'UnixTime' ssz:"uint64"
+	// Field 6: 'QuxStrs' ssz:"CompositeList[256]"
+	{
+		listIdx := hw.Index()
+		for _, item := range f.QuxStrs {
+			err = item.toQuxStr().HashTreeRootWith(hw)
+			if err != nil {
+				return err
+			}
+		}
+
+		hw.MerkleizeWithMixin(listIdx, uint64(len(f.QuxStrs)), uint64(256))
+	}
+
+	// Field 7: 'UnixTime' ssz:"uint64"
 	hw.PutUint64(uint64(f.UnixTime.Unix()))
 
 	hw.Merkleize(indx)
@@ -84,6 +97,21 @@ func (q Qux) HashTreeRootWith(hw ssz.HashWalker) (err error) {
 
 	// Field 0: 'Number' ssz:"uint64"
 	hw.PutUint64(uint64(q.Number))
+
+	hw.Merkleize(indx)
+
+	return nil
+}
+
+// HashTreeRootWith ssz hashes the QuxStr object with a hasher
+func (s QuxStr) HashTreeRootWith(hw ssz.HashWalker) (err error) {
+	indx := hw.Index()
+
+	// Field 0: 'Str' ssz:"ByteList[32]"
+	err = putByteList(hw, []byte(s.Str[:]), 32, "Str")
+	if err != nil {
+		return err
+	}
 
 	hw.Merkleize(indx)
 

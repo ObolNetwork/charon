@@ -2,7 +2,10 @@
 
 package testdata
 
-import "time"
+import (
+	"strconv"
+	"time"
+)
 
 //go:generate go install github.com/obolnetwork/charon/app/genssz
 //go:generate genssz
@@ -14,6 +17,7 @@ type Foo struct {
 	Bytes2   []byte    `ssz:"Bytes2"`
 	Bar      Bar       `ssz:"Composite"`
 	Quxes    []Qux     `ssz:"CompositeList[256]"`
+	QuxStrs  []Qux     `ssz:"CompositeList[256],toQuxStr"`
 	UnixTime time.Time `ssz:"uint64,Unix"`
 }
 
@@ -23,6 +27,14 @@ type Bar struct {
 
 type Qux struct {
 	Number int `ssz:"uint64"`
+}
+
+func (q Qux) toQuxStr() QuxStr {
+	return QuxStr{Str: strconv.Itoa(q.Number)}
+}
+
+type QuxStr struct {
+	Str string `ssz:"ByteList[32]"`
 }
 
 type ignored struct {
