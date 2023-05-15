@@ -10,6 +10,7 @@ on:
         options:
         - relay-0
         - relay-1
+        - relay-2
       image_tag:
         description: The docker image tag to deploy
         required: true
