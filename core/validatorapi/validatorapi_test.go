@@ -1655,6 +1655,29 @@ func TestComponent_GetAllValidators(t *testing.T) {
 	}
 }
 
+func TestComponent_GetClusterValidatorsWithError(t *testing.T) {
+	const (
+		numClusterVals = 4
+		shareIdx       = 1
+	)
+
+	validatorSet := testutil.RandomValidatorSet(t, numClusterVals)
+	var indices []eth2p0.ValidatorIndex
+	for vidx := range validatorSet {
+		indices = append(indices, vidx)
+	}
+
+	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(validatorSet))
+	require.NoError(t, err)
+
+	// Construct validatorapi component.
+	vapi, err := validatorapi.NewComponent(bmock, make(map[core.PubKey]map[int]tbls.PublicKey), shareIdx, nil, testutil.BuilderFalse, nil)
+	require.NoError(t, err)
+
+	_, err = vapi.Validators(context.Background(), "head", indices)
+	require.ErrorContains(t, err, "pubshare not found")
+}
+
 func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 	const (
 		slot     = 0
