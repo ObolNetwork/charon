@@ -39,7 +39,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 	}
 
 	for i := 0; i < dv; i++ {
-		rootSecret, err := tbls.GenerateSecretKey()
+		rootSecret, err := tbls.GenerateInsecureKey(t, random)
 		require.NoError(t, err)
 
 		rootPublic, err := tbls.SecretToPublicKey(rootSecret)
