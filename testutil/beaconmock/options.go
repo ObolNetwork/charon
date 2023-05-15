@@ -140,6 +140,14 @@ func WithValidatorSet(set ValidatorSet) Option {
 	return func(mock *Mock) {
 		mock.ValidatorsByPubKeyFunc = func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 			resp := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+			if len(pubkeys) == 0 {
+				for idx, val := range set {
+					resp[idx] = cloneValidator(val)
+				}
+
+				return resp, nil
+			}
+
 			for _, pubkey := range pubkeys {
 				val, ok := set.ByPublicKey(pubkey)
 				if ok {
@@ -149,29 +157,25 @@ func WithValidatorSet(set ValidatorSet) Option {
 				}
 			}
 
-			if len(resp) == 0 {
-				for idx, val := range set {
-					resp[idx] = cloneValidator(val)
-				}
-			}
-
 			return resp, nil
 		}
 
 		mock.ValidatorsFunc = func(ctx context.Context, stateID string, indexes []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 			resp := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+			if len(indexes) == 0 {
+				for idx, val := range set {
+					resp[idx] = cloneValidator(val)
+				}
+
+				return resp, nil
+			}
+
 			for _, index := range indexes {
 				val, ok := set[index]
 				if ok {
 					resp[index] = cloneValidator(val)
 				} else {
 					log.Debug(ctx, "Index not found")
-				}
-			}
-
-			if len(resp) == 0 {
-				for idx, val := range set {
-					resp[idx] = cloneValidator(val)
 				}
 			}
 
