@@ -1000,11 +1000,10 @@ func (c Component) convertValidators(vals map[eth2p0.ValidatorIndex]*eth2v1.Vali
 		pubshare, ok := c.getPubShareFunc(val.Validator.PublicKey)
 		if !ok && !ignoreNotFound {
 			return nil, errors.New("pubshare not found")
-		}
-
-		if ok {
+		} else if ok {
 			val.Validator.PublicKey = pubshare
 		}
+
 		resp[vIdx] = val
 	}
 
