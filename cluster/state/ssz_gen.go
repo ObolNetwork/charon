@@ -11,6 +11,28 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
+// HashTreeRootWith ssz hashes the nodeApprovals object with a hasher
+func (a nodeApprovals) HashTreeRootWith(hw ssz.HashWalker) (err error) {
+	indx := hw.Index()
+
+	// Field 0: 'Approvals' ssz:"CompositeList[256]"
+	{
+		listIdx := hw.Index()
+		for _, item := range a.Approvals {
+			err = item.HashTreeRootWith(hw)
+			if err != nil {
+				return err
+			}
+		}
+
+		hw.MerkleizeWithMixin(listIdx, uint64(len(a.Approvals)), uint64(256))
+	}
+
+	hw.Merkleize(indx)
+
+	return nil
+}
+
 // HashTreeRootWith ssz hashes the Mutation object with a hasher
 func (m Mutation) HashTreeRootWith(hw ssz.HashWalker) (err error) {
 	indx := hw.Index()

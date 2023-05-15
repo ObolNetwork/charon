@@ -40,11 +40,19 @@ const (
 	TypeNodeApprovals MutationType = "dv/node_approvals/v0.0.1"
 )
 
-var mutationDefs = map[MutationType]struct {
+type mutationDef struct {
 	UnmarshalFunc func(input []byte) (MutationData, error)
 	TransformFunc func(Cluster, SignedMutation) (Cluster, error)
-}{
-	TypeLegacyLock: {
+}
+
+var mutationDefs = make(map[MutationType]mutationDef)
+
+// init is required to populate the mutation definition map since
+// static compile-time results in initialization cycle.
+//
+//nolint:gochecknoinits // required to avoid cycles
+func init() {
+	mutationDefs[TypeLegacyLock] = mutationDef{
 		UnmarshalFunc: func(input []byte) (MutationData, error) {
 			var lock cluster.Lock
 			if err := json.Unmarshal(input, &lock); err != nil {
@@ -54,5 +62,30 @@ var mutationDefs = map[MutationType]struct {
 			return lockWrapper{lock}, nil
 		},
 		TransformFunc: transformLegacyLock,
-	},
+	}
+
+	mutationDefs[TypeNodeApproval] = mutationDef{
+		UnmarshalFunc: func(input []byte) (MutationData, error) {
+			var empty emptyData
+			if err := json.Unmarshal(input, &empty); err != nil {
+				return nil, errors.Wrap(err, "unmarshal node approval data")
+			}
+
+			return empty, nil
+		},
+		TransformFunc: func(c Cluster, signed SignedMutation) (Cluster, error) {
+			return c, verifyNodeApproval(signed)
+		},
+	}
+	mutationDefs[TypeNodeApprovals] = mutationDef{
+		UnmarshalFunc: func(input []byte) (MutationData, error) {
+			var mutations []SignedMutation
+			if err := json.Unmarshal(input, &mutations); err != nil {
+				return nil, errors.Wrap(err, "unmarshal node approvals")
+			}
+
+			return nodeApprovals{Approvals: mutations}, nil
+		},
+		TransformFunc: transformNodeApprovals,
+	}
 }

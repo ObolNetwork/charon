@@ -164,6 +164,6 @@ func (m *SignedMutation) UnmarshalJSON(input []byte) error {
 
 type signedMutationJSON struct {
 	Mutation  Mutation `json:"mutation"`
-	Signer    ethHex   `json:"signer"`
-	Signature ethHex   `json:"signature"`
+	Signer    ethHex   `json:"signer,omitempty"`
+	Signature ethHex   `json:"signature,omitempty"`
 }
