@@ -13,6 +13,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util/signing"
 )
 
@@ -354,6 +355,50 @@ func (s DutyDefinitionSet) Clone() (DutyDefinitionSet, error) {
 	}
 
 	return resp, nil
+}
+
+// VerifyDutyDefinition verifies that rawPubkey and slot number matches what is present in definition.
+// SyncCommitteeDefinitions will only check rawPubkey equality.
+func VerifyDutyDefinition(definition DutyDefinition, slot eth2p0.Slot, rawPubkey PubKey) error {
+	pk, err := rawPubkey.ToETH2()
+	if err != nil {
+		return errors.Wrap(err, "eth2 pubkey conversion")
+	}
+
+	errWrongPubkey := errors.New("duty definition does not match expected public key")
+
+	var defPubkey eth2p0.BLSPubKey
+	var defSlot eth2p0.Slot
+
+	switch t := definition.(type) {
+	case AttesterDefinition:
+		defPubkey = t.PubKey
+		defSlot = t.Slot
+	case ProposerDefinition:
+		defPubkey = t.PubKey
+		defSlot = t.Slot
+	case SyncCommitteeDefinition:
+		// just check the pubkey
+		if t.PubKey != pk {
+			return errWrongPubkey
+		}
+
+		return nil
+	default:
+		return errors.New("unknown duty definition interface type")
+	}
+
+	if defPubkey != pk {
+		return errWrongPubkey
+	}
+
+	if slot != defSlot {
+		return errors.New("mismatched slot",
+			z.U64("definition_slot", uint64(defSlot)),
+			z.U64("expected_slot", uint64(slot)))
+	}
+
+	return nil
 }
 
 // UnsignedData represents an unsigned duty data object.

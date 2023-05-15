@@ -4,13 +4,17 @@ package core_test
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"testing"
 
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestBackwardsCompatability(t *testing.T) {
@@ -65,4 +69,120 @@ func TestWithDutySpanCtx(t *testing.T) {
 
 	require.True(t, span2.SpanContext().IsValid())
 	require.True(t, span2.SpanContext().IsSampled())
+}
+
+func TestVerifyDutyDefinition(t *testing.T) {
+	pubkey := testutil.RandomCorePubKey(t)
+	eth2Pk, err := pubkey.ToETH2()
+	require.NoError(t, err)
+
+	otherPubkey := testutil.RandomCorePubKey(t)
+
+	tests := []struct {
+		name           string
+		dutyDefinition core.DutyDefinition
+		slot           eth2p0.Slot
+		rawPubkey      core.PubKey
+		errCheck       func(t *testing.T, err error)
+	}{
+		{
+			"sync committee has wrong public key",
+			core.SyncCommitteeDefinition{
+				SyncCommitteeDuty: eth2v1.SyncCommitteeDuty{
+					PubKey: eth2Pk,
+				},
+			},
+			eth2p0.Slot(42),
+			otherPubkey,
+			func(t *testing.T, err error) {
+				t.Helper()
+				require.ErrorContains(t, err, "duty definition does not match expected public key")
+			},
+		},
+		{
+			"sync committee has correct public key",
+			core.SyncCommitteeDefinition{
+				SyncCommitteeDuty: eth2v1.SyncCommitteeDuty{
+					PubKey: eth2Pk,
+				},
+			},
+			eth2p0.Slot(42),
+			pubkey,
+			func(t *testing.T, err error) {
+				t.Helper()
+				require.NoError(t, err)
+			},
+		},
+		{
+			"attester definition has wrong pubkey",
+			core.AttesterDefinition{
+				AttesterDuty: eth2v1.AttesterDuty{
+					PubKey: eth2Pk,
+				},
+			},
+			eth2p0.Slot(0),
+			otherPubkey,
+			func(t *testing.T, err error) {
+				t.Helper()
+				require.ErrorContains(t, err, "duty definition does not match expected public key")
+			},
+		},
+		{
+			"attester definition has wrong slot",
+			core.AttesterDefinition{
+				AttesterDuty: eth2v1.AttesterDuty{
+					PubKey: eth2Pk,
+					Slot:   eth2p0.Slot(42),
+				},
+			},
+			eth2p0.Slot(0),
+			pubkey,
+			func(t *testing.T, err error) {
+				t.Helper()
+				require.ErrorContains(t, err, "mismatched slot")
+			},
+		},
+		{
+			"attester definition is correct",
+			core.AttesterDefinition{
+				AttesterDuty: eth2v1.AttesterDuty{
+					PubKey: eth2Pk,
+					Slot:   eth2p0.Slot(42),
+				},
+			},
+			eth2p0.Slot(42),
+			pubkey,
+			func(t *testing.T, err error) {
+				t.Helper()
+				require.NoError(t, err)
+			},
+		},
+		{
+			"bogus definition",
+			bogusDefinition{},
+			eth2p0.Slot(42),
+			pubkey,
+			func(t *testing.T, err error) {
+				t.Helper()
+				require.ErrorContains(t, err, "unknown duty definition interface type")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.errCheck(t, core.VerifyDutyDefinition(tt.dutyDefinition, tt.slot, tt.rawPubkey))
+		})
+	}
+}
+
+type bogusDefinition struct{}
+
+func (bogusDefinition) Clone() (core.DutyDefinition, error) {
+	return bogusDefinition{}, nil
+}
+
+func (bogusDefinition) MarshalJSON() ([]byte, error) {
+	//nolint:wrapcheck // interface method, never actually used
+	return json.Marshal(bogusDefinition{})
 }
