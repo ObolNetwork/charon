@@ -68,7 +68,7 @@ func NewNodeApprovalsComposite(approvals []SignedMutation) (SignedMutation, erro
 	}, nil
 }
 
-// verifyNodeApproval returns an error if the .
+// verifyNodeApproval returns an error if the input signed mutation is not valid.
 func verifyNodeApproval(signed SignedMutation) error {
 	if signed.Mutation.Type != TypeNodeApproval {
 		return errors.New("invalid mutation type")

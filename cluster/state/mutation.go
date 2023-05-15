@@ -77,6 +77,7 @@ func init() {
 			return c, verifyNodeApproval(signed)
 		},
 	}
+
 	mutationDefs[TypeNodeApprovals] = mutationDef{
 		UnmarshalFunc: func(input []byte) (MutationData, error) {
 			var mutations []SignedMutation
