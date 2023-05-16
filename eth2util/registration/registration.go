@@ -19,13 +19,13 @@ import (
 var registrationDomainType = eth2p0.DomainType([4]byte{0x00, 0x00, 0x00, 0x01})
 
 // NewMessage returns a v1.ValidatorRegistration message with the provided pubkey, feeRecipient, gasLimit and timestamp.
-func NewMessage(pubkey eth2p0.BLSPubKey, feeRecipient string, gasLimit uint64, timestamp time.Time) (eth2v1.ValidatorRegistration, error) {
+func NewMessage(pubkey eth2p0.BLSPubKey, feeRecipient string, gasLimit uint64, timestamp time.Time) (*eth2v1.ValidatorRegistration, error) {
 	execAddr, err := executionAddressFromStr(feeRecipient)
 	if err != nil {
-		return eth2v1.ValidatorRegistration{}, err
+		return nil, err
 	}
 
-	return eth2v1.ValidatorRegistration{
+	return &eth2v1.ValidatorRegistration{
 		FeeRecipient: execAddr,
 		GasLimit:     gasLimit,
 		Timestamp:    timestamp,
@@ -45,7 +45,7 @@ func executionAddressFromStr(addr string) ([20]byte, error) {
 		return [20]byte{}, errors.Wrap(err, "decode address")
 	}
 
-	if len(addrBytes) > 20 {
+	if len(addrBytes) != 20 {
 		return [20]byte{}, errors.New("address has wrong length", z.Int("length", len(addrBytes)))
 	}
 
@@ -72,7 +72,7 @@ func getRegistrationDomain() (eth2p0.Domain, error) {
 }
 
 // GetMessageSigningRoot returns the validator registration message signing root created by the provided parameters.
-func GetMessageSigningRoot(msg eth2v1.ValidatorRegistration) ([32]byte, error) {
+func GetMessageSigningRoot(msg *eth2v1.ValidatorRegistration) ([32]byte, error) {
 	msgRoot, err := msg.HashTreeRoot()
 	if err != nil {
 		return [32]byte{}, errors.Wrap(err, "validator registration message root")

@@ -45,7 +45,7 @@ const (
 
 	// PregenValidatorRegistrations enables pre-generation of validator registrations data, signed at
 	// DKG time from the validator's cluster private keys.
-	PregenValidatorRegistrations Feature = "pregen_validator_registrations"
+	PregenValidatorRegistrations Feature = "pregen_registrations"
 )
 
 var (

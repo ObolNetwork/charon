@@ -43,6 +43,18 @@ const (
 	valRegGasLimit = 30000000
 )
 
+// registrationTime is the registration time used to pre-generate validator registrations.
+var registrationTime = time.Date(
+	2000,
+	1,
+	1,
+	0,
+	0,
+	0,
+	0,
+	time.UTC,
+)
+
 type Config struct {
 	DefFile       string
 	NoVerify      bool
@@ -671,13 +683,6 @@ func signDepositMsgs(shares []share, shareIdx int, withdrawalAddresses []string,
 
 // signValidatorRegistrations returns a partially signed dataset containing signatures of the validator registrations signing root.
 func signValidatorRegistrations(shares []share, shareIdx int, feeRecipients []string, gasLimit uint64) (core.ParSignedDataSet, map[core.PubKey]core.VersionedSignedValidatorRegistration, error) {
-	const registrationTime string = "Jan 1, 2000"
-
-	regTime, err := time.Parse("Jan 2, 2006", registrationTime)
-	if err != nil {
-		panic(errors.Wrap(err, "cannot parse time from constant"))
-	}
-
 	msgs := make(map[core.PubKey]core.VersionedSignedValidatorRegistration)
 	set := make(core.ParSignedDataSet)
 	for idx, share := range shares {
@@ -686,7 +691,7 @@ func signValidatorRegistrations(shares []share, shareIdx int, feeRecipients []st
 			return nil, nil, err
 		}
 
-		regMsg, err := registration.NewMessage(pubkey, feeRecipients[idx], gasLimit, regTime)
+		regMsg, err := registration.NewMessage(pubkey, feeRecipients[idx], gasLimit, registrationTime)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -704,7 +709,7 @@ func signValidatorRegistrations(shares []share, shareIdx int, feeRecipients []st
 		signedReg, err := core.NewVersionedSignedValidatorRegistration(&eth2api.VersionedSignedValidatorRegistration{
 			Version: eth2spec.BuilderVersionV1,
 			V1: &eth2v1.SignedValidatorRegistration{
-				Message:   &regMsg,
+				Message:   regMsg,
 				Signature: tblsconv.SigToETH2(sig),
 			},
 		})
@@ -831,7 +836,7 @@ func aggValidatorRegistrations(
 		if !ok {
 			return nil, errors.New("validator registration not found")
 		}
-		sigRoot, err := registration.GetMessageSigningRoot(*msg.V1.Message)
+		sigRoot, err := registration.GetMessageSigningRoot(msg.V1.Message)
 		if err != nil {
 			return nil, err
 		}
@@ -880,10 +885,17 @@ func aggValidatorRegistrations(
 			return nil, errors.Wrap(err, "invalid validator registration aggregated signature")
 		}
 
-		finishedMsg := msg
-		finishedMsg.VersionedSignedValidatorRegistration.V1.Signature = tblsconv.SigToETH2(asig)
+		rawSignedData, err := msg.SetSignature(asig[:])
+		if err != nil {
+			return nil, errors.Wrap(err, "set signature")
+		}
 
-		resp = append(resp, finishedMsg)
+		signedData, ok := rawSignedData.(core.VersionedSignedValidatorRegistration)
+		if !ok {
+			panic(errors.New("cannot cast SignedData to core.VersionedSignedValidatorRegistration"))
+		}
+
+		resp = append(resp, signedData)
 	}
 
 	return resp, nil

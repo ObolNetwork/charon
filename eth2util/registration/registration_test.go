@@ -22,7 +22,7 @@ func TestNewMessage(t *testing.T) {
 
 	pubk := testutil.RandomEth2PubKey(t)
 
-	expected := eth2v1.ValidatorRegistration{
+	expected := &eth2v1.ValidatorRegistration{
 		GasLimit:  gasLimit,
 		Timestamp: timestamp,
 		Pubkey:    pubk,
@@ -62,7 +62,7 @@ func TestGetMessageSigningRoot(t *testing.T) {
 
 	pubk := testutil.RandomEth2PubKey(t)
 
-	msg := eth2v1.ValidatorRegistration{
+	msg := &eth2v1.ValidatorRegistration{
 		GasLimit:  gasLimit,
 		Timestamp: timestamp,
 		Pubkey:    pubk,
