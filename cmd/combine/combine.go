@@ -140,7 +140,6 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 // It preserves the order as found in the validator public share slice.
 func shareIdxByPubkeys(lock cluster.Lock, secrets []tbls.PrivateKey, valIndex int) (map[int]tbls.PrivateKey, error) {
 	pubkMap := make(map[tbls.PublicKey]int)
-	resp := make(map[int]tbls.PrivateKey)
 
 	for peerIdx := 0; peerIdx < len(lock.Validators[valIndex].PubShares); peerIdx++ {
 		peerIdx := peerIdx
@@ -153,6 +152,8 @@ func shareIdxByPubkeys(lock cluster.Lock, secrets []tbls.PrivateKey, valIndex in
 		pubkMap[pubShare] = peerIdx + 1
 	}
 
+	resp := make(map[int]tbls.PrivateKey)
+
 	for _, secret := range secrets {
 		secret := secret
 
@@ -161,14 +162,14 @@ func shareIdxByPubkeys(lock cluster.Lock, secrets []tbls.PrivateKey, valIndex in
 			return nil, errors.Wrap(err, "pubkey from share")
 		}
 
-		secretIndex, pubkFound := pubkMap[pubkey]
+		shareIdx, pubkFound := pubkMap[pubkey]
 		if !pubkFound {
 			return nil, errors.New("can't find secret key share",
 				z.Int("validator_index", valIndex),
 			)
 		}
 
-		resp[secretIndex] = secret
+		resp[shareIdx] = secret
 	}
 
 	return resp, nil
