@@ -9,6 +9,9 @@ import (
 	"fmt"
 	"time"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
@@ -16,6 +19,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/peerinfo"
@@ -28,9 +32,15 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
+	"github.com/obolnetwork/charon/eth2util/registration"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
+)
+
+const (
+	// valRegGasLimit is the default gas limit used in validator registration pre-generation.
+	valRegGasLimit = 30000000
 )
 
 type Config struct {
@@ -40,6 +50,7 @@ type Config struct {
 	P2P           p2p.Config
 	Log           log.Config
 	ShutdownDelay time.Duration
+	Feature       featureset.Config
 
 	KeymanagerAddr      string
 	KeymanagerAuthToken string
@@ -75,6 +86,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 	defer cancel()
 
 	ctx = log.WithTopic(ctx, "dkg")
+
+	if err := featureset.Init(ctx, conf.Feature); err != nil {
+		return err
+	}
 
 	lockSvc, err := privkeylock.New(p2p.KeyPath(conf.DataDir)+".lock", "charon dkg")
 	if err != nil {
@@ -233,6 +248,30 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}
 	log.Debug(ctx, "Aggregated lock hash signatures")
+
+	if featureset.Enabled(featureset.PregenValidatorRegistrations) {
+		valRegs, err := signAndAggValidatorRegistrations(
+			ctx,
+			ex,
+			shares,
+			def.FeeRecipientAddresses(),
+			valRegGasLimit,
+			nodeIdx,
+		)
+		if err != nil {
+			return errors.Wrap(err, "validator registrations pre-generation")
+		}
+
+		// Note: this code path will be completed once we have validator registrations support
+		// in lock file.
+		log.Debug(ctx, "Validator registrations generated")
+		for idx, valReg := range valRegs {
+			log.Debug(ctx, "Validator registration",
+				z.Int("idx", idx),
+				z.Any("registration", valReg),
+			)
+		}
+	}
 
 	if err = stopSync(ctx); err != nil {
 		return errors.Wrap(err, "sync shutdown") // Consider increasing --shutdown-delay if this occurs often.
@@ -494,6 +533,28 @@ func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share, w
 	return aggDepositData(peerSigs, shares, despositMsgs, network)
 }
 
+// signAndAggValidatorRegistrations returns the pre-generated validator registrations objects after signing, exchange and aggregation of partial signatures.
+func signAndAggValidatorRegistrations(
+	ctx context.Context,
+	ex *exchanger,
+	shares []share,
+	feeRecipients []string,
+	gasLimit uint64,
+	nodeIdx cluster.NodeIdx,
+) ([]core.VersionedSignedValidatorRegistration, error) {
+	parSig, valRegs, err := signValidatorRegistrations(shares, nodeIdx.ShareIdx, feeRecipients, gasLimit)
+	if err != nil {
+		return nil, err
+	}
+
+	peerSigs, err := ex.exchange(ctx, sigValidatorRegistration, parSig)
+	if err != nil {
+		return nil, err
+	}
+
+	return aggValidatorRegistrations(peerSigs, shares, valRegs)
+}
+
 // aggLockHashSig returns the aggregated multi signature of the lock hash
 // signed by all the private key shares of all the distributed validators.
 func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares map[core.PubKey]share, hash []byte) (tbls.Signature, []tbls.PublicKey, error) {
@@ -608,6 +669,58 @@ func signDepositMsgs(shares []share, shareIdx int, withdrawalAddresses []string,
 	return set, msgs, nil
 }
 
+// signValidatorRegistrations returns a partially signed dataset containing signatures of the validator registrations signing root.
+func signValidatorRegistrations(shares []share, shareIdx int, feeRecipients []string, gasLimit uint64) (core.ParSignedDataSet, map[core.PubKey]core.VersionedSignedValidatorRegistration, error) {
+	const registrationTime string = "Jan 1, 2000"
+
+	regTime, err := time.Parse("Jan 2, 2006", registrationTime)
+	if err != nil {
+		panic(errors.Wrap(err, "cannot parse time from constant"))
+	}
+
+	msgs := make(map[core.PubKey]core.VersionedSignedValidatorRegistration)
+	set := make(core.ParSignedDataSet)
+	for idx, share := range shares {
+		pubkey, err := tblsconv.PubkeyToETH2(share.PubKey)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		regMsg, err := registration.NewMessage(pubkey, feeRecipients[idx], gasLimit, regTime)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		sigRoot, err := registration.GetMessageSigningRoot(regMsg)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		sig, err := tbls.Sign(share.SecretShare, sigRoot[:])
+		if err != nil {
+			return nil, nil, err
+		}
+
+		signedReg, err := core.NewVersionedSignedValidatorRegistration(&eth2api.VersionedSignedValidatorRegistration{
+			Version: eth2spec.BuilderVersionV1,
+			V1: &eth2v1.SignedValidatorRegistration{
+				Message:   &regMsg,
+				Signature: tblsconv.SigToETH2(sig),
+			},
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+
+		corePubkey := core.PubKeyFrom48Bytes(pubkey)
+
+		set[corePubkey] = core.NewPartialSignature(tblsconv.SigToCore(sig), shareIdx)
+		msgs[corePubkey] = signedReg
+	}
+
+	return set, msgs, nil
+}
+
 // aggDepositData returns the threshold aggregated deposit datas per DV.
 func aggDepositData(data map[core.PubKey][]core.ParSignedData, shares []share,
 	msgs map[core.PubKey]eth2p0.DepositMessage, network string,
@@ -687,6 +800,90 @@ func aggDepositData(data map[core.PubKey][]core.ParSignedData, shares []share,
 			Amount:                msg.Amount,
 			Signature:             tblsconv.SigToETH2(asig),
 		})
+	}
+
+	return resp, nil
+}
+
+// aggValidatorRegistrations returns the threshold aggregated validator registrations per DV.
+func aggValidatorRegistrations(
+	data map[core.PubKey][]core.ParSignedData,
+	shares []share,
+	msgs map[core.PubKey]core.VersionedSignedValidatorRegistration,
+) ([]core.VersionedSignedValidatorRegistration, error) {
+	pubkeyToPubShares := make(map[core.PubKey]map[int]tbls.PublicKey)
+	for _, sh := range shares {
+		pk, err := core.PubKeyFromBytes(sh.PubKey[:])
+		if err != nil {
+			return nil, err
+		}
+
+		pubkeyToPubShares[pk] = sh.PublicShares
+	}
+
+	var resp []core.VersionedSignedValidatorRegistration
+
+	for pk, psigsData := range data {
+		pk := pk
+		psigsData := psigsData
+
+		msg, ok := msgs[pk]
+		if !ok {
+			return nil, errors.New("validator registration not found")
+		}
+		sigRoot, err := registration.GetMessageSigningRoot(*msg.V1.Message)
+		if err != nil {
+			return nil, err
+		}
+
+		psigs := make(map[int]tbls.Signature)
+		for _, s := range psigsData {
+			sig, err := tblsconv.SignatureFromBytes(s.Signature())
+			if err != nil {
+				return nil, errors.Wrap(err, "signature from core")
+			}
+
+			pubshares, ok := pubkeyToPubShares[pk]
+			if !ok {
+				return nil, errors.New("invalid pubkey in validator registrations partial signature from peer",
+					z.Int("peerIdx", s.ShareIdx-1), // peerIdx is 0-indexed while shareIdx is 1-indexed
+					z.Str("pubkey", pk.String()))
+			}
+
+			pubshare, ok := pubshares[s.ShareIdx]
+			if !ok {
+				return nil, errors.New("invalid pubshare")
+			}
+
+			err = tbls.Verify(pubshare, sigRoot[:], sig)
+			if err != nil {
+				return nil, errors.New("invalid validator registration partial signature from peer",
+					z.Int("peerIdx", s.ShareIdx-1), z.Str("pubkey", pk.String()))
+			}
+
+			psigs[s.ShareIdx] = sig
+		}
+
+		// Aggregate signatures per DV
+		asig, err := tbls.ThresholdAggregate(psigs)
+		if err != nil {
+			return nil, err
+		}
+
+		pubkey, err := tblsconv.PubkeyFromCore(pk)
+		if err != nil {
+			return nil, err
+		}
+
+		err = tbls.Verify(pubkey, sigRoot[:], asig)
+		if err != nil {
+			return nil, errors.Wrap(err, "invalid validator registration aggregated signature")
+		}
+
+		finishedMsg := msg
+		finishedMsg.VersionedSignedValidatorRegistration.V1.Signature = tblsconv.SigToETH2(asig)
+
+		resp = append(resp, finishedMsg)
 	}
 
 	return resp, nil
