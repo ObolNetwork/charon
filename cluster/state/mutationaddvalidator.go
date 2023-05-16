@@ -101,23 +101,22 @@ func NewAddValidators(genValidators, nodeApprovals SignedMutation) (SignedMutati
 }
 
 type addValidators struct {
-	GenValidators SignedMutation `ssz:"Composite" json:"gen_validators"`
-	NodeApprovals SignedMutation `ssz:"Composite" json:"node_approvals"`
+	GenValidators SignedMutation `ssz:"Composite"`
+	NodeApprovals SignedMutation `ssz:"Composite"`
 }
 
 func (a addValidators) MarshalJSON() ([]byte, error) {
-	b, err := json.Marshal(struct {
-		GenValidators SignedMutation `json:"gen_validators"`
-		NodeApprovals SignedMutation `json:"node_approvals"`
-	}{
-		GenValidators: a.GenValidators,
-		NodeApprovals: a.NodeApprovals,
-	})
+	b, err := json.Marshal(addValidatorsJSON(a))
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal add validators")
 	}
 
 	return b, nil
+}
+
+type addValidatorsJSON struct {
+	GenValidators SignedMutation `json:"gen_validators"`
+	NodeApprovals SignedMutation `json:"node_approvals"`
 }
 
 func transformAddValidators(c Cluster, signed SignedMutation) (Cluster, error) {

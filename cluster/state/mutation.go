@@ -106,12 +106,12 @@ func init() {
 
 	mutationDefs[TypeAddValidators] = mutationDef{
 		UnmarshalFunc: func(input []byte) (MutationData, error) {
-			var addValidators addValidators
-			if err := json.Unmarshal(input, &addValidators); err != nil {
+			var addVals addValidatorsJSON
+			if err := json.Unmarshal(input, &addVals); err != nil {
 				return nil, errors.Wrap(err, "unmarshal add validators")
 			}
 
-			return addValidators, nil
+			return addValidators(addVals), nil
 		},
 		TransformFunc: transformAddValidators,
 	}
