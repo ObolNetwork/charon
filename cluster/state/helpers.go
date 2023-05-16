@@ -15,6 +15,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/k1util"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 // nowFunc is the time.Now function aliased for testing.
@@ -138,6 +139,22 @@ func to0xHex(b []byte) string {
 	}
 
 	return fmt.Sprintf("%#x", b)
+}
+
+// to0xHex returns bytes represented by the hex string.
+func from0xHex(s string, length int) ([]byte, error) {
+	if s == "" {
+		return nil, nil
+	}
+
+	b, err := hex.DecodeString(strings.TrimPrefix(s, "0x"))
+	if err != nil {
+		return nil, errors.Wrap(err, "decode hex")
+	} else if len(b) != length {
+		return nil, errors.Wrap(err, "invalid hex length", z.Int("expect", length), z.Int("actual", len(b)))
+	}
+
+	return b, nil
 }
 
 var _ MutationData = emptyData{}

@@ -66,8 +66,8 @@ func (p sszPubkey) HashTreeRootWith(hw ssz.HashWalker) (err error) {
 	return nil
 }
 
-// HashTreeRootWith ssz hashes the addValidators object with a hasher
-func (v addValidators) HashTreeRootWith(hw ssz.HashWalker) (err error) {
+// HashTreeRootWith ssz hashes the genValidators object with a hasher
+func (v genValidators) HashTreeRootWith(hw ssz.HashWalker) (err error) {
 	indx := hw.Index()
 
 	// Field 0: 'Validators' ssz:"CompositeList[65536]"
@@ -81,6 +81,27 @@ func (v addValidators) HashTreeRootWith(hw ssz.HashWalker) (err error) {
 		}
 
 		hw.MerkleizeWithMixin(listIdx, uint64(len(v.Validators)), uint64(65536))
+	}
+
+	hw.Merkleize(indx)
+
+	return nil
+}
+
+// HashTreeRootWith ssz hashes the addValidators object with a hasher
+func (v addValidators) HashTreeRootWith(hw ssz.HashWalker) (err error) {
+	indx := hw.Index()
+
+	// Field 0: 'GenValidators' ssz:"Composite"
+	err = v.GenValidators.HashTreeRootWith(hw)
+	if err != nil {
+		return err
+	}
+
+	// Field 1: 'NodeApprovals' ssz:"Composite"
+	err = v.NodeApprovals.HashTreeRootWith(hw)
+	if err != nil {
+		return err
 	}
 
 	hw.Merkleize(indx)

@@ -136,11 +136,16 @@ func (v Validator) toSSZ() validatorSSZ {
 		pubshares = append(pubshares, sszPubkey{Pubkey: share})
 	}
 
+	// Convert to bytes ignoring errors, assume that verify has been called.
+	// TODO(corver): Extend genssz to handle errors in transform functions.
+	feeRecipient, _ := from0xHex(v.FeeRecipientAddress, 20)
+	withdrawal, _ := from0xHex(v.WithdrawalAddress, 20)
+
 	return validatorSSZ{
 		PubKey:              v.PubKey,
 		PubShares:           pubshares,
-		FeeRecipientAddress: v.FeeRecipientAddress,
-		WithdrawalAddress:   v.WithdrawalAddress,
+		FeeRecipientAddress: feeRecipient,
+		WithdrawalAddress:   withdrawal,
 	}
 }
 
@@ -192,8 +197,8 @@ func validatorsFromJSON(vals []validatorJSON) []Validator {
 type validatorSSZ struct {
 	PubKey              []byte      `ssz:"ByteList[256]"`
 	PubShares           []sszPubkey `ssz:"CompositeList[65536]"`
-	FeeRecipientAddress string      `ssz:"Bytes20"`
-	WithdrawalAddress   string      `ssz:"Bytes20"`
+	FeeRecipientAddress []byte      `ssz:"Bytes20"`
+	WithdrawalAddress   []byte      `ssz:"Bytes20"`
 }
 
 type sszPubkey struct {
