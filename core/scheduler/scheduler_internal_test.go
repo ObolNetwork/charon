@@ -34,12 +34,10 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 		beaconmock.WithDeterministicSyncCommDuties(2, 2),
 		beaconmock.WithSlotsPerEpoch(1),
 	)
-	require.NoError(t, err)
-	_, err = eth2Cl.SlotDuration(ctx)
+
 	require.NoError(t, err)
 
-	key := testutil.RandomEth2PubKey(t)
-
+	// Randomize duty pubkeys
 	oldAttesterFunc := eth2Cl.AttesterDutiesFunc
 	oldSyncFunc := eth2Cl.SyncCommitteeDutiesFunc
 	oldProposerFunc := eth2Cl.ProposerDutiesFunc
@@ -51,8 +49,7 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 		}
 
 		for idx := 0; idx < len(res); idx++ {
-			elem := res[idx]
-			elem.PubKey = key
+			res[idx].PubKey = testutil.RandomEth2PubKey(t)
 		}
 
 		return res, nil
@@ -65,8 +62,7 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 		}
 
 		for idx := 0; idx < len(res); idx++ {
-			elem := res[idx]
-			elem.PubKey = key
+			res[idx].PubKey = testutil.RandomEth2PubKey(t)
 		}
 
 		return res, nil
@@ -79,8 +75,7 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 		}
 
 		for idx := 0; idx < len(res); idx++ {
-			elem := res[idx]
-			elem.PubKey = key
+			res[idx].PubKey = testutil.RandomEth2PubKey(t)
 		}
 
 		return res, nil
@@ -112,8 +107,6 @@ func TestResolveAttDuties(t *testing.T) {
 	sched, schedVals := setupScheduler(t)
 
 	require.ErrorContains(t, sched.resolveAttDuties(context.Background(), core.Slot{
-		Slot:          1,
-		Time:          time.Now(),
 		SlotDuration:  1 * time.Second,
 		SlotsPerEpoch: 1,
 	}, schedVals), "invalid attester duty pubkey")
@@ -123,8 +116,6 @@ func TestResolveProdDuties(t *testing.T) {
 	sched, schedVals := setupScheduler(t)
 
 	require.ErrorContains(t, sched.resolveProDuties(context.Background(), core.Slot{
-		Slot:          1,
-		Time:          time.Now(),
 		SlotDuration:  1 * time.Second,
 		SlotsPerEpoch: 1,
 	}, schedVals), "invalid proposer duty pubkey")
@@ -134,8 +125,6 @@ func TestResolveSyncCommDuties(t *testing.T) {
 	sched, schedVals := setupScheduler(t)
 
 	require.ErrorContains(t, sched.resolveSyncCommDuties(context.Background(), core.Slot{
-		Slot:          1,
-		Time:          time.Now(),
 		SlotDuration:  1 * time.Second,
 		SlotsPerEpoch: 1,
 	}, schedVals), "invalid sync committee duty pubkey")
