@@ -285,7 +285,7 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 		return err
 	}
 
-	// Check if any of the attester duties returned are nil..
+	// Check if any of the attester duties returned are nil.
 	for _, duty := range attDuties {
 		if duty == nil {
 			return errors.New("attester duty cannot be nil")
@@ -316,6 +316,10 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 		if !ok {
 			log.Warn(ctx, "Ignoring unexpected attester duty", nil, z.U64("vidx", uint64(attDuty.ValidatorIndex)), z.I64("slot", slot.Slot))
 			continue
+		}
+
+		if core.PubKeyFrom48Bytes(attDuty.PubKey) != pubkey {
+			return errors.New("invalid attester duty pubkey")
 		}
 
 		if !s.setDutyDefinition(duty, slot.Epoch(), pubkey, core.NewAttesterDefinition(attDuty)) {
@@ -382,6 +386,10 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 			continue
 		}
 
+		if core.PubKeyFrom48Bytes(proDuty.PubKey) != pubkey {
+			return errors.New("invalid proposer duty pubkey")
+		}
+
 		if !s.setDutyDefinition(duty, slot.Epoch(), pubkey, core.NewProposerDefinition(proDuty)) {
 			continue
 		}
@@ -417,6 +425,10 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 		if !ok {
 			log.Warn(ctx, "Ignoring unexpected sync committee duty", nil, z.U64("vidx", uint64(vIdx)), z.I64("slot", slot.Slot))
 			continue
+		}
+
+		if core.PubKeyFrom48Bytes(syncCommDuty.PubKey) != pubkey {
+			return errors.New("invalid sync committee duty pubkey")
 		}
 
 		// TODO(xenowits): sync committee duties start in the slot before the sync committee period.
