@@ -298,7 +298,7 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 	)
 	for i := 0; i < len(def.Operators); i++ {
 		dataDir := path.Join(dir, fmt.Sprintf("node%d", i))
-		keyShares, err := keystore.LoadKeys(path.Join(dataDir, "/validator_keys"))
+		keyShares, err := keystore.LoadKeysSequential(path.Join(dataDir, "/validator_keys"))
 		require.NoError(t, err)
 		require.Len(t, keyShares, def.NumValidators)
 
