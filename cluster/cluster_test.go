@@ -149,6 +149,12 @@ func TestEncode(t *testing.T) {
 				},
 			}
 
+			// Make sure all the pubkeys are same.
+			for i := range lock.Validators {
+				lock.Validators[i].DepositData.PubKey = lock.Validators[i].PubKey
+				lock.Validators[i].BuilderRegistration.Message.PubKey = lock.Validators[i].PubKey
+			}
+
 			// Lock version prior to v1.6.0 don't support DepositData.
 			if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5) {
 				for i := range lock.Validators {
