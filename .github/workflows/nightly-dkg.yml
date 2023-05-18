@@ -1,5 +1,5 @@
-# This runs long wait DKG test once a day at 12:00 noon.
-name: long wait dkg
+# This runs DKG tests that assert edge cases and long execution times once a day at 12:00 noon.
+name: nightly dkg
 on:
   schedule:
     - cron: '00 12 * * *'
@@ -20,4 +20,4 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-      - run: go test -v -timeout=60m -race github.com/obolnetwork/charon/testutil/integration -long-wait
+      - run: go test -v -timeout=60m -race github.com/obolnetwork/charon/testutil/integration -nightly

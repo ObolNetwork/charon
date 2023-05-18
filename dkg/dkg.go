@@ -19,7 +19,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/peerinfo"
@@ -62,7 +61,6 @@ type Config struct {
 	P2P           p2p.Config
 	Log           log.Config
 	ShutdownDelay time.Duration
-	Feature       featureset.Config
 
 	KeymanagerAddr      string
 	KeymanagerAuthToken string

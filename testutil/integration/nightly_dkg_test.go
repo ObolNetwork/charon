@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
@@ -26,8 +28,8 @@ import (
 const ctxCanceledErr = "context canceled"
 
 var (
-	longwaitDKG = flag.Bool("long-wait", false, "Enable long-wait DKG integration test")
-	quickRun    = flag.Bool("quick-run", false, "Enable quick long-wait DKG that finishes in a minute")
+	nightlyDKG = flag.Bool("nightly", false, "Enable nightly DKG integration test")
+	quickRun   = flag.Bool("quick-run", false, "Enable quick long-wait DKG that finishes in a minute")
 )
 
 // ^ : indicates node is online.
@@ -50,8 +52,8 @@ var (
 // +--------+------------+------------+------------+------------+
 
 func TestLongWaitDKG(t *testing.T) {
-	if !*longwaitDKG {
-		t.Skip("Long wait test is disabled")
+	if !*nightlyDKG {
+		t.Skip("Nightly tests are disabled")
 	}
 
 	const (
@@ -257,4 +259,57 @@ func calcStopDelay(t *testing.T, window, nodeDownPeriod time.Duration) time.Dura
 	}
 
 	return time.Duration(stopDelay) * time.Second
+}
+
+func TestDKGWith5KValidators(t *testing.T) {
+	if !*nightlyDKG {
+		t.Skip("Nightly tests are disabled")
+	}
+
+	const (
+		threshold = 3
+		numNodes  = 4
+		numVals   = 5000
+		relayURL  = "https://0.relay.obol.tech"
+	)
+
+	var (
+		eg  errgroup.Group
+		ctx = log.WithTopic(context.Background(), "5kvalidators")
+	)
+
+	def, p2pKeys := testDef(t, threshold, numNodes, numVals)
+
+	dkgConf := dkg.Config{
+		P2P: p2p.Config{
+			Relays: []string{relayURL},
+		},
+		Log:           log.DefaultConfig(),
+		ShutdownDelay: 1 * time.Second,
+		TestConfig: dkg.TestConfig{
+			Def: &def,
+		},
+	}
+
+	dir := t.TempDir()
+
+	for idx := 0; idx < numNodes; idx++ {
+		idx := idx
+		eg.Go(func() error {
+			conf := dkgConf
+			conf.DataDir = path.Join(dir, fmt.Sprintf("node%d", idx))
+
+			require.NoError(t, os.MkdirAll(conf.DataDir, 0o755))
+			err := k1util.Save(p2pKeys[idx], p2p.KeyPath(conf.DataDir))
+			require.NoError(t, err)
+
+			if err := dkg.Run(ctx, conf); err != nil {
+				return errors.Wrap(err, "dkg failed", z.Int("node_idx", idx))
+			}
+
+			return nil
+		})
+	}
+
+	require.NoError(t, eg.Wait())
 }
