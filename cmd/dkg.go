@@ -44,7 +44,6 @@ this command at the same time.`,
 	bindLogFlags(cmd.Flags(), &config.Log)
 	bindPublishFlags(cmd.Flags(), &config)
 	bindShutdownDelayFlag(cmd.Flags(), &config.ShutdownDelay)
-	bindFeatureFlags(cmd.Flags(), &config.Feature)
 
 	return cmd
 }

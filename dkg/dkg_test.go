@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
@@ -590,7 +589,6 @@ func getConfigs(t *testing.T, def cluster.Definition, keys []*k1.PrivateKey, dir
 				},
 				TCPNodeCallback: tcpNodeCallback,
 			},
-			Feature: featureset.DefaultConfig(),
 		}
 		require.NoError(t, os.MkdirAll(conf.DataDir, 0o755))
 
