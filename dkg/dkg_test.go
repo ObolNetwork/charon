@@ -279,17 +279,6 @@ func startRelay(parentCtx context.Context, t *testing.T) string {
 func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 	t.Helper()
 
-	expectedRegistrationTime := time.Date(
-		2000,
-		1,
-		1,
-		0,
-		0,
-		0,
-		0,
-		time.UTC,
-	)
-
 	// Read generated lock and keystores from disk
 	var (
 		secretShares = make([][]tbls.PrivateKey, def.NumValidators)
@@ -320,8 +309,8 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 
 			// Assert Builder Registration
 			require.EqualValues(t, val.PubKey, val.BuilderRegistration.Message.PubKey)
-			require.EqualValues(t, 30000000, val.BuilderRegistration.Message.GasLimit)
-			require.EqualValues(t, expectedRegistrationTime, val.BuilderRegistration.Message.Timestamp)
+			require.EqualValues(t, registration.DefaultGasLimit, val.BuilderRegistration.Message.GasLimit)
+			require.EqualValues(t, registration.DefaultRegistrationTime, val.BuilderRegistration.Message.Timestamp)
 
 			// Verify registration signatures
 			eth2Reg, err := registration.NewMessage(eth2p0.BLSPubKey(val.BuilderRegistration.Message.PubKey),
