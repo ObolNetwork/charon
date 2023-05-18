@@ -99,10 +99,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	ctx = log.WithTopic(ctx, "dkg")
 
-	if err := featureset.Init(ctx, conf.Feature); err != nil {
-		return err
-	}
-
 	lockSvc, err := privkeylock.New(p2p.KeyPath(conf.DataDir)+".lock", "charon dkg")
 	if err != nil {
 		return err
@@ -249,8 +245,23 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	log.Debug(ctx, "Aggregated deposit data signatures")
 
+	// Sign, exchange and aggregate builder validator registration signatures.
+	valRegs, err := signAndAggValidatorRegistrations(
+		ctx,
+		ex,
+		shares,
+		def.FeeRecipientAddresses(),
+		valRegGasLimit,
+		nodeIdx,
+	)
+	if err != nil {
+		return errors.Wrap(err, "builder validator registrations pre-generation")
+	}
+
+	log.Debug(ctx, "Aggregated builder validator registration signatures")
+
 	// Sign, exchange and aggregate Lock Hash signatures
-	lock, err := signAndAggLockHash(ctx, shares, def, nodeIdx, ex, depositDatas)
+	lock, err := signAndAggLockHash(ctx, shares, def, nodeIdx, ex, depositDatas, valRegs)
 	if err != nil {
 		return err
 	}
@@ -260,30 +271,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}
 	log.Debug(ctx, "Aggregated lock hash signatures")
-
-	if featureset.Enabled(featureset.PregenValidatorRegistrations) {
-		valRegs, err := signAndAggValidatorRegistrations(
-			ctx,
-			ex,
-			shares,
-			def.FeeRecipientAddresses(),
-			valRegGasLimit,
-			nodeIdx,
-		)
-		if err != nil {
-			return errors.Wrap(err, "validator registrations pre-generation")
-		}
-
-		// Note: this code path will be completed once we have validator registrations support
-		// in lock file.
-		log.Debug(ctx, "Validator registrations generated")
-		for idx, valReg := range valRegs {
-			log.Debug(ctx, "Validator registration",
-				z.Int("idx", idx),
-				z.Any("registration", valReg),
-			)
-		}
-	}
 
 	if err = stopSync(ctx); err != nil {
 		return errors.Wrap(err, "sync shutdown") // Consider increasing --shutdown-delay if this occurs often.
@@ -477,9 +464,9 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 
 // signAndAggLockHash returns cluster lock file with aggregated signature after signing, exchange and aggregation of partial signatures.
 func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definition,
-	nodeIdx cluster.NodeIdx, ex *exchanger, depositDatas []eth2p0.DepositData,
+	nodeIdx cluster.NodeIdx, ex *exchanger, depositDatas []eth2p0.DepositData, valRegs []core.VersionedSignedValidatorRegistration,
 ) (cluster.Lock, error) {
-	vals, err := createDistValidators(shares, depositDatas)
+	vals, err := createDistValidators(shares, depositDatas, valRegs)
 	if err != nil {
 		return cluster.Lock{}, err
 	}
@@ -885,17 +872,12 @@ func aggValidatorRegistrations(
 			return nil, errors.Wrap(err, "invalid validator registration aggregated signature")
 		}
 
-		rawSignedData, err := msg.SetSignature(asig[:])
+		signedReg, err := setRegistrationSignature(msg, asig[:])
 		if err != nil {
 			return nil, errors.Wrap(err, "set signature")
 		}
 
-		signedData, ok := rawSignedData.(core.VersionedSignedValidatorRegistration)
-		if !ok {
-			panic(errors.New("cannot cast SignedData to core.VersionedSignedValidatorRegistration"))
-		}
-
-		resp = append(resp, signedData)
+		resp = append(resp, signedReg)
 	}
 
 	return resp, nil
@@ -903,7 +885,7 @@ func aggValidatorRegistrations(
 
 // createDistValidators returns a slice of distributed validators from the provided
 // shares and deposit datas.
-func createDistValidators(shares []share, depositDatas []eth2p0.DepositData) ([]cluster.DistValidator, error) {
+func createDistValidators(shares []share, depositDatas []eth2p0.DepositData, valRegs []core.VersionedSignedValidatorRegistration) ([]cluster.DistValidator, error) {
 	var dvs []cluster.DistValidator
 	for _, s := range shares {
 		msg := msgFromShare(s)
@@ -921,6 +903,30 @@ func createDistValidators(shares []share, depositDatas []eth2p0.DepositData) ([]
 			return nil, errors.New("deposit data not found")
 		}
 
+		regIdx := -1
+		for i, reg := range valRegs {
+			pubkey, err := reg.PubKey()
+			if err != nil {
+				return nil, err
+			}
+
+			if !bytes.Equal(msg.PubKey, pubkey[:]) {
+				continue
+			}
+
+			regIdx = i
+
+			break
+		}
+		if regIdx == -1 {
+			return nil, errors.New("validator registration not found")
+		}
+
+		reg, err := builderRegistrationFromETH2(valRegs[regIdx])
+		if err != nil {
+			return nil, err
+		}
+
 		dvs = append(dvs, cluster.DistValidator{
 			PubKey:    msg.PubKey,
 			PubShares: msg.PubShares,
@@ -930,6 +936,7 @@ func createDistValidators(shares []share, depositDatas []eth2p0.DepositData) ([]
 				Amount:                int(depositDatas[ddIdx].Amount),
 				Signature:             depositDatas[ddIdx].Signature[:],
 			},
+			BuilderRegistration: reg,
 		})
 	}
 
@@ -973,4 +980,47 @@ func logPeerSummary(ctx context.Context, currentPeer peer.ID, peers []p2p.Peer, 
 		}
 		log.Info(ctx, "Peer summary", opts...)
 	}
+}
+
+func builderRegistrationFromETH2(reg core.VersionedSignedValidatorRegistration) (cluster.BuilderRegistration, error) {
+	feeRecipient, err := reg.FeeRecipient()
+	if err != nil {
+		return cluster.BuilderRegistration{}, errors.Wrap(err, "get fee recipient")
+	}
+
+	gasLimit, err := reg.GasLimit()
+	if err != nil {
+		return cluster.BuilderRegistration{}, errors.Wrap(err, "get gasLimit")
+	}
+
+	timestamp, err := reg.Timestamp()
+	if err != nil {
+		return cluster.BuilderRegistration{}, errors.Wrap(err, "get timestamp")
+	}
+
+	pubKey, err := reg.PubKey()
+	if err != nil {
+		return cluster.BuilderRegistration{}, errors.Wrap(err, "get pubKey")
+	}
+
+	return cluster.BuilderRegistration{
+		Message: cluster.Registration{
+			FeeRecipient: feeRecipient[:],
+			GasLimit:     int(gasLimit),
+			Timestamp:    timestamp,
+			PubKey:       pubKey[:],
+		},
+		Signature: reg.Signature(),
+	}, nil
+}
+
+func setRegistrationSignature(reg core.VersionedSignedValidatorRegistration, sig core.Signature) (core.VersionedSignedValidatorRegistration, error) {
+	switch reg.Version {
+	case eth2spec.BuilderVersionV1:
+		reg.V1.Signature = sig.ToETH2()
+	default:
+		return core.VersionedSignedValidatorRegistration{}, errors.New("unknown type")
+	}
+
+	return reg, nil
 }

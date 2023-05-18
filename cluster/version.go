@@ -8,6 +8,7 @@ const (
 	currentVersion = v1_6
 	dkgAlgo        = "default"
 
+	v1_7 = "v1.7.0" // Draft
 	v1_6 = "v1.6.0" // Default
 	v1_5 = "v1.5.0"
 	v1_4 = "v1.4.0"
@@ -20,6 +21,7 @@ const (
 )
 
 var supportedVersions = map[string]bool{
+	v1_7: true,
 	v1_6: true,
 	v1_5: true,
 	v1_4: true,

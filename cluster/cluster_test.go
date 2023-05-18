@@ -21,6 +21,7 @@ import (
 //go:generate go test . -v -update -clean
 
 const (
+	v1_7 = "v1.7.0"
 	v1_6 = "v1.6.0"
 	v1_5 = "v1.5.0"
 	v1_4 = "v1.4.0"
@@ -134,22 +135,37 @@ func TestEncode(t *testing.T) {
 							testutil.RandomBytes48(),
 							testutil.RandomBytes48(),
 						},
-						DepositData: cluster.RandomDepositData(),
+						DepositData:         cluster.RandomDepositData(),
+						BuilderRegistration: cluster.RandomRegistration(),
 					}, {
 						PubKey: testutil.RandomBytes48(),
 						PubShares: [][]byte{
 							testutil.RandomBytes48(),
 							testutil.RandomBytes48(),
 						},
-						DepositData: cluster.RandomDepositData(),
+						DepositData:         cluster.RandomDepositData(),
+						BuilderRegistration: cluster.RandomRegistration(),
 					},
 				},
+			}
+
+			// Make sure all the pubkeys are same.
+			for i := range lock.Validators {
+				lock.Validators[i].DepositData.PubKey = lock.Validators[i].PubKey
+				lock.Validators[i].BuilderRegistration.Message.PubKey = lock.Validators[i].PubKey
 			}
 
 			// Lock version prior to v1.6.0 don't support DepositData.
 			if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5) {
 				for i := range lock.Validators {
 					lock.Validators[i].DepositData = cluster.DepositData{}
+				}
+			}
+
+			// Lock version prior to v1.7.0 don't support BuilderRegistration.
+			if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6) {
+				for i := range lock.Validators {
+					lock.Validators[i].BuilderRegistration = cluster.BuilderRegistration{}
 				}
 			}
 
