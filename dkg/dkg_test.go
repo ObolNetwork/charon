@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -29,6 +30,7 @@ import (
 	"github.com/obolnetwork/charon/dkg"
 	dkgsync "github.com/obolnetwork/charon/dkg/sync"
 	"github.com/obolnetwork/charon/eth2util/keystore"
+	"github.com/obolnetwork/charon/eth2util/registration"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -48,11 +50,10 @@ func TestDKG(t *testing.T) {
 	}
 
 	tests := []struct {
-		name         string
-		dkgAlgo      string
-		keymanager   bool
-		publish      bool
-		pregenValReg bool
+		name       string
+		dkgAlgo    string
+		keymanager bool
+		publish    bool
 	}{
 		{
 			name:    "keycast",
@@ -72,20 +73,14 @@ func TestDKG(t *testing.T) {
 			dkgAlgo: "frost",
 			publish: true,
 		},
-		{
-			// TODO(gsora): once we have lock file pregen registrations in place, this test will look for them
-			name:         "dkg with pre-generation of validator registrations",
-			dkgAlgo:      "frost",
-			pregenValReg: true,
-		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 1, withAlgo(test.dkgAlgo))
+			lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 1, withAlgo(test.dkgAlgo), cluster.WithVersion("v1.7.0"))
 			dir := t.TempDir()
 
-			testDKG(t, lock.Definition, dir, keys, test.keymanager, test.publish, test.pregenValReg)
+			testDKG(t, lock.Definition, dir, keys, test.keymanager, test.publish)
 			if !test.keymanager {
 				verifyDKGResults(t, lock.Definition, dir)
 			}
@@ -93,7 +88,7 @@ func TestDKG(t *testing.T) {
 	}
 }
 
-func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.PrivateKey, keymanager bool, publish bool, pregenValReg bool) {
+func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.PrivateKey, keymanager bool, publish bool) {
 	t.Helper()
 
 	require.NoError(t, def.VerifySignatures())
@@ -105,12 +100,6 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	relayAddr := startRelay(ctx, t)
 
 	shutdownSync := newShutdownSync(len(def.Operators))
-
-	feats := featureset.DefaultConfig()
-
-	if pregenValReg {
-		feats.Enabled = append(feats.Enabled, string(featureset.PregenValidatorRegistrations))
-	}
 
 	// Setup config
 	conf := dkg.Config{
@@ -126,7 +115,6 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 			},
 			ShutdownCallback: shutdownSync,
 		},
-		Feature: feats,
 	}
 
 	allReceivedKeystores := make(chan struct{}) // Receives struct{} for each `numNodes` keystore intercepted by the keymanager server
@@ -291,6 +279,17 @@ func startRelay(parentCtx context.Context, t *testing.T) string {
 func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 	t.Helper()
 
+	expectedRegistrationTime := time.Date(
+		2000,
+		1,
+		1,
+		0,
+		0,
+		0,
+		0,
+		time.UTC,
+	)
+
 	// Read generated lock and keystores from disk
 	var (
 		secretShares = make([][]tbls.PrivateKey, def.NumValidators)
@@ -315,8 +314,36 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 		locks = append(locks, lock)
 
 		for _, val := range lock.Validators {
+			// Assert Deposit Data
 			require.EqualValues(t, val.PubKey, val.DepositData.PubKey)
 			require.EqualValues(t, 32_000_000_000, val.DepositData.Amount)
+
+			// Assert Builder Registration
+			require.EqualValues(t, val.PubKey, val.BuilderRegistration.Message.PubKey)
+			require.EqualValues(t, 30000000, val.BuilderRegistration.Message.GasLimit)
+			require.EqualValues(t, expectedRegistrationTime, val.BuilderRegistration.Message.Timestamp)
+
+			// Verify registration signatures
+			eth2Reg, err := registration.NewMessage(eth2p0.BLSPubKey(val.BuilderRegistration.Message.PubKey),
+				fmt.Sprintf("%#x", val.BuilderRegistration.Message.FeeRecipient),
+				uint64(val.BuilderRegistration.Message.GasLimit), val.BuilderRegistration.Message.Timestamp)
+			require.NoError(t, err)
+
+			sigRoot, err := registration.GetMessageSigningRoot(eth2Reg)
+			require.NoError(t, err)
+
+			sig, err := tblsconv.SignatureFromBytes(val.BuilderRegistration.Signature)
+			require.NoError(t, err)
+
+			pubkey, err := tblsconv.PubkeyFromBytes(val.PubKey)
+			require.NoError(t, err)
+
+			err = tbls.Verify(pubkey, sigRoot[:], sig)
+			require.NoError(t, err)
+		}
+
+		for i, addrs := range lock.ValidatorAddresses {
+			require.EqualValues(t, addrs.FeeRecipientAddress, fmt.Sprintf("%#x", lock.Validators[i].BuilderRegistration.Message.FeeRecipient))
 		}
 	}
 
@@ -384,7 +411,7 @@ func TestSyncFlow(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			version := cluster.WithVersion("v1.6.0") // TODO(corver): remove this once v1.6 released.
+			version := cluster.WithVersion("v1.7.0") // TODO(corver): remove this once v1.7 released.
 			lock, keys, _ := cluster.NewForT(t, test.vals, test.nodes, test.nodes, 0, version)
 
 			pIDs, err := lock.PeerIDs()

@@ -42,21 +42,16 @@ const (
 	// QBFTTimersABTest enables a round-robin mixed timer selection for A/B testing
 	// the affects of different round timers.
 	QBFTTimersABTest Feature = "qbft_timers_ab_test"
-
-	// PregenValidatorRegistrations enables pre-generation of validator registrations data, signed at
-	// DKG time from the validator's cluster private keys.
-	PregenValidatorRegistrations Feature = "pregen_registrations"
 )
 
 var (
 	// state defines the current rollout status of each feature.
 	state = map[Feature]status{
-		QBFTConsensus:                statusStable,
-		Priority:                     statusStable,
-		MockAlpha:                    statusAlpha,
-		RelayDiscovery:               statusStable,
-		QBFTTimersABTest:             statusAlpha,
-		PregenValidatorRegistrations: statusAlpha,
+		QBFTConsensus:    statusStable,
+		Priority:         statusStable,
+		MockAlpha:        statusAlpha,
+		RelayDiscovery:   statusStable,
+		QBFTTimersABTest: statusAlpha,
 		// Add all features and there status here.
 	}
 

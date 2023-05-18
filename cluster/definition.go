@@ -358,7 +358,7 @@ func (d Definition) MarshalJSON() ([]byte, error) {
 		return marshalDefinitionV1x2or3(d2)
 	case isAnyVersion(d2.Version, v1_4):
 		return marshalDefinitionV1x4(d2)
-	case isAnyVersion(d2.Version, v1_5, v1_6):
+	case isAnyVersion(d2.Version, v1_5, v1_6, v1_7):
 		return marshalDefinitionV1x5(d2)
 	default:
 		return nil, errors.New("unsupported version")
@@ -399,7 +399,7 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return err
 		}
-	case isAnyVersion(version.Version, v1_5, v1_6):
+	case isAnyVersion(version.Version, v1_5, v1_6, v1_7):
 		def, err = unmarshalDefinitionV1x5(data)
 		if err != nil {
 			return err

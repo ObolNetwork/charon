@@ -32,7 +32,7 @@ func getDefinitionHashFunc(version string) (func(Definition, ssz.HashWalker, boo
 		return hashDefinitionLegacy, nil
 	} else if isAnyVersion(version, v1_3, v1_4) {
 		return hashDefinitionV1x3or4, nil
-	} else if isAnyVersion(version, v1_5, v1_6) {
+	} else if isAnyVersion(version, v1_5, v1_6, v1_7) {
 		return hashDefinitionV1x5, nil
 	} else {
 		return nil, errors.New("unknown version", z.Str("version", version))
@@ -405,6 +405,8 @@ func hashLock(l Lock) ([32]byte, error) {
 		hashFunc = hashLockV1x3or4
 	} else if isAnyVersion(l.Version, v1_5, v1_6) {
 		hashFunc = hashLockV1x5
+	} else if isAnyVersion(l.Version, v1_7) {
+		hashFunc = hashLockV1x7
 	} else {
 		return [32]byte{}, errors.New("unknown version")
 	}
@@ -486,6 +488,37 @@ func hashLockV1x5(l Lock, hh ssz.HashWalker) error {
 	return nil
 }
 
+// hashLockV1x7 hashes the version v1.7 of the lock.
+func hashLockV1x7(l Lock, hh ssz.HashWalker) error {
+	indx := hh.Index()
+
+	defHashFunc, err := getDefinitionHashFunc(l.Version)
+	if err != nil {
+		return err
+	}
+
+	// Field (0) 'Definition' Composite
+	if err := defHashFunc(l.Definition, hh, false); err != nil {
+		return err
+	}
+
+	// Field (1) 'ValidatorAddresses' CompositeList[65536]
+	{
+		subIndx := hh.Index()
+		num := uint64(len(l.Validators))
+		for _, validator := range l.Validators {
+			if err := hashValidatorV1x7(validator, hh, l.Version); err != nil {
+				return err
+			}
+		}
+		hh.MerkleizeWithMixin(subIndx, num, sszMaxValidators)
+	}
+
+	hh.Merkleize(indx)
+
+	return nil
+}
+
 // hashValidatorV1x3Or4 hashes the distributed validator v1.3 or v1.4.
 func hashValidatorV1x3Or4(v DistValidator, hh ssz.HashWalker) error {
 	indx := hh.Index()
@@ -548,6 +581,53 @@ func hashValidatorV1x5(v DistValidator, hh ssz.HashWalker, version string) error
 	return nil
 }
 
+// hashValidatorV1x7 hashes the distributed validator v1.7.
+func hashValidatorV1x7(v DistValidator, hh ssz.HashWalker, version string) error {
+	indx := hh.Index()
+
+	// Field (0) 'PubKey' Bytes48
+	if err := putBytesN(hh, v.PubKey, sszLenPubKey); err != nil {
+		return err
+	}
+
+	// Field (1) 'Pubshares' CompositeList[256]
+	{
+		subIndx := hh.Index()
+		num := uint64(len(v.PubShares))
+		for _, pubshare := range v.PubShares {
+			// Bytes48
+			if err := putBytesN(hh, pubshare, sszLenPubKey); err != nil {
+				return err
+			}
+		}
+		hh.MerkleizeWithMixin(subIndx, num, sszMaxOperators)
+	}
+
+	depositHashFunc, err := getDepositDataHashFunc(version)
+	if err != nil {
+		return err
+	}
+
+	// Field (2) 'DepositData' Composite
+	if err := depositHashFunc(v.DepositData, hh); err != nil {
+		return err
+	}
+
+	regHashFunc, err := getRegistrationHashFunc(version)
+	if err != nil {
+		return err
+	}
+
+	// Field (3) 'BuilderRegistration' Composite
+	if err := regHashFunc(v.BuilderRegistration, hh); err != nil {
+		return err
+	}
+
+	hh.Merkleize(indx)
+
+	return nil
+}
+
 // hashLockLegacy hashes the legacy lock.
 func hashLockLegacy(l Lock, hh ssz.HashWalker) error {
 	indx := hh.Index()
@@ -599,13 +679,25 @@ func hashValidatorLegacy(v DistValidator, hh ssz.HashWalker) error {
 	return nil
 }
 
-// getDefinitionHashFunc returns the function to hash a definition based on the provided version.
+// getDepositDataHashFunc returns the function to hash a deposit data based on the provided version.
 func getDepositDataHashFunc(version string) (func(DepositData, ssz.HashWalker) error, error) {
 	if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5) {
 		// Noop hash function for v1.0 to v1.5 that do not support deposit data.
 		return func(DepositData, ssz.HashWalker) error { return nil }, nil
-	} else if isAnyVersion(version, v1_6) {
+	} else if isAnyVersion(version, v1_6, v1_7) {
 		return hashDepositData, nil
+	} else {
+		return nil, errors.New("unknown version", z.Str("version", version))
+	}
+}
+
+// getRegistrationHashFunc returns the function to hash a BuilderRegistration based on the provided version.
+func getRegistrationHashFunc(version string) (func(BuilderRegistration, ssz.HashWalker) error, error) {
+	if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6) {
+		// Noop hash function for v1.0 to v1.6 that do not support builder registration.
+		return func(BuilderRegistration, ssz.HashWalker) error { return nil }, nil
+	} else if isAnyVersion(version, v1_7) {
+		return hashBuilderRegistration, nil
 	} else {
 		return nil, errors.New("unknown version", z.Str("version", version))
 	}
@@ -628,4 +720,30 @@ func hashDepositData(d DepositData, hh ssz.HashWalker) error {
 
 	// Field (3) 'Signature' Bytes96
 	return putBytesN(hh, d.Signature, sszLenBLSSig)
+}
+
+// hashBuilderRegistration hashes the latest builder registration.
+func hashBuilderRegistration(b BuilderRegistration, hh ssz.HashWalker) error {
+	// Field (0) 'Message' Composite
+	if err := hashRegistration(b.Message, hh); err != nil {
+		return err
+	}
+
+	// Field (1) 'Signature' Bytes96
+	return putBytesN(hh, b.Signature, sszLenBLSSig)
+}
+
+// hashRegistration hashes the latest deposit data.
+func hashRegistration(r Registration, hh ssz.HashWalker) error {
+	// Field (0) 'FeeRecipient'
+	hh.PutBytes(r.FeeRecipient)
+
+	// Field (1) 'GasLimit' Bytes48
+	hh.PutUint64(uint64(r.GasLimit))
+
+	// Field (2) 'Timestamp' Bytes48
+	hh.PutBytes([]byte(r.Timestamp.String()))
+
+	// Field (3) 'PubKey' Bytes48
+	return putBytesN(hh, r.PubKey, sszLenPubKey)
 }

@@ -3,6 +3,7 @@
 package cluster
 
 import (
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -18,6 +19,9 @@ type DistValidator struct {
 
 	// DepositData is the validator deposit data.
 	DepositData DepositData `json:"deposit_data,omitempty" ssz:"Composite" lock_hash:"2"`
+
+	// BuilderRegistration is the pre-generated signed validator builder registration.
+	BuilderRegistration BuilderRegistration `json:"builder_registration,omitempty" ssz:"Composite" lock_hash:"3"`
 }
 
 // PublicKey returns the validator BLS group public key.
@@ -49,11 +53,19 @@ type distValidatorJSONv1x2to5 struct {
 	FeeRecipientAddress ethHex   `json:"fee_recipient_address,omitempty"`
 }
 
-// distValidatorJSONv1x6 is the json formatter of DistValidator for versions v1.6.0 or later.
+// distValidatorJSONv1x6 is the json formatter of DistValidator for versions v1.6.0.
 type distValidatorJSONv1x6 struct {
 	PubKey      ethHex          `json:"distributed_public_key"`
 	PubShares   []ethHex        `json:"public_shares,omitempty"`
 	DepositData depositDataJSON `json:"deposit_data,omitempty"`
+}
+
+// distValidatorJSONv1x7 is the json formatter of DistValidator for versions v1.7.0 or later.
+type distValidatorJSONv1x7 struct {
+	PubKey              ethHex                  `json:"distributed_public_key"`
+	PubShares           []ethHex                `json:"public_shares,omitempty"`
+	DepositData         depositDataJSON         `json:"deposit_data,omitempty"`
+	BuilderRegistration builderRegistrationJSON `json:"builder_registration,omitempty"`
 }
 
 func distValidatorsFromV1x1(distValidators []distValidatorJSONv1x1) []DistValidator {
@@ -113,7 +125,7 @@ func distValidatorsToV1x2to5(distValidators []DistValidator) []distValidatorJSON
 	return resp
 }
 
-func distValidatorsFromV1x6orLater(distValidators []distValidatorJSONv1x6) []DistValidator {
+func distValidatorsFromV1x6(distValidators []distValidatorJSONv1x6) []DistValidator {
 	var resp []DistValidator
 	for _, dv := range distValidators {
 		var shares [][]byte
@@ -130,7 +142,7 @@ func distValidatorsFromV1x6orLater(distValidators []distValidatorJSONv1x6) []Dis
 	return resp
 }
 
-func distValidatorsToV1x6OrLater(distValidators []DistValidator) []distValidatorJSONv1x6 {
+func distValidatorsToV1x6(distValidators []DistValidator) []distValidatorJSONv1x6 {
 	var resp []distValidatorJSONv1x6
 	for _, dv := range distValidators {
 		var shares []ethHex
@@ -146,4 +158,47 @@ func distValidatorsToV1x6OrLater(distValidators []DistValidator) []distValidator
 	}
 
 	return resp
+}
+
+func distValidatorsToV1x7OrLater(distValidators []DistValidator) []distValidatorJSONv1x7 {
+	var resp []distValidatorJSONv1x7
+	for _, dv := range distValidators {
+		var shares []ethHex
+		for _, share := range dv.PubShares {
+			shares = append(shares, share)
+		}
+
+		resp = append(resp, distValidatorJSONv1x7{
+			PubKey:              dv.PubKey,
+			PubShares:           shares,
+			DepositData:         depositDataToJSON(dv.DepositData),
+			BuilderRegistration: registrationToJSON(dv.BuilderRegistration),
+		})
+	}
+
+	return resp
+}
+
+func distValidatorsFromV1x7OrLater(distValidators []distValidatorJSONv1x7) ([]DistValidator, error) {
+	var resp []DistValidator
+	for _, dv := range distValidators {
+		var shares [][]byte
+		for _, share := range dv.PubShares {
+			shares = append(shares, share)
+		}
+
+		reg, err := registrationFromJSON(dv.BuilderRegistration)
+		if err != nil {
+			return nil, errors.Wrap(err, "registration from json")
+		}
+
+		resp = append(resp, DistValidator{
+			PubKey:              dv.PubKey,
+			PubShares:           shares,
+			DepositData:         depositDataFromJSON(dv.DepositData),
+			BuilderRegistration: reg,
+		})
+	}
+
+	return resp, nil
 }
