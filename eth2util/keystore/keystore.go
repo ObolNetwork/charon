@@ -6,6 +6,7 @@
 package keystore
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -21,17 +22,22 @@ import (
 	"testing"
 
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/forkjoin"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
-// insecureCost decreases the cipher key cost from the default 18 to 4 which speeds up
-// encryption and decryption at the cost of security.
-const insecureCost = 4
+const (
+	// insecureCost decreases the cipher key cost from the default 18 to 4 which speeds up
+	// encryption and decryption at the cost of security.
+	insecureCost = 4
+
+	// loadStoreWorkers is the amount of workers to use when loading/storing keys concurrently.
+	loadStoreWorkers = 64
+)
 
 type confirmInsecure struct{}
 
@@ -55,48 +61,62 @@ func StoreKeys(secrets []tbls.PrivateKey, dir string) error {
 }
 
 func storeKeysInternal(secrets []tbls.PrivateKey, dir string, filenameFmt string, opts ...keystorev4.Option) error {
-	var eg errgroup.Group
+	type data struct {
+		index  int
+		secret tbls.PrivateKey
+	}
 
-	for i, secret := range secrets {
-		i := i
-		secret := secret
-
-		eg.Go(func() error {
-			filename := path.Join(dir, fmt.Sprintf(filenameFmt, i))
+	fork, join, cancel := forkjoin.New(
+		context.Background(),
+		func(ctx context.Context, d data) (any, error) {
+			filename := path.Join(dir, fmt.Sprintf(filenameFmt, d.index))
 
 			password, err := randomHex32()
 			if err != nil {
-				return err
+				return nil, err
 			}
 
-			store, err := Encrypt(secret, password, rand.Reader, opts...)
+			store, err := Encrypt(d.secret, password, rand.Reader, opts...)
 			if err != nil {
-				return errors.Wrap(err, "encryption error", z.Str("filename", filename))
+				return nil, errors.Wrap(err, "encryption error", z.Str("filename", filename))
 			}
 
 			b, err := json.MarshalIndent(store, "", " ")
 			if err != nil {
-				return errors.Wrap(err, "marshal keystore", z.Str("filename", filename))
+				return nil, errors.Wrap(err, "marshal keystore", z.Str("filename", filename))
 			}
 
 			//nolint:gosec // File needs to be read-only for everybody
 			if err := os.WriteFile(filename, b, 0o444); err != nil {
-				return errors.Wrap(err, "write keystore", z.Str("filename", filename))
+				return nil, errors.Wrap(err, "write keystore", z.Str("filename", filename))
 			}
 
 			if err := storePassword(filename, password); err != nil {
-				return errors.Wrap(err, "store password", z.Str("filename", filename))
+				return nil, errors.Wrap(err, "store password", z.Str("filename", filename))
 			}
 
-			return nil
-		})
+			return nil, nil
+		},
+		forkjoin.WithWorkers(loadStoreWorkers),
+	)
+
+	defer cancel()
+
+	for i, secret := range secrets {
+		i := i
+		secret := secret
+		d := data{
+			index:  i,
+			secret: secret,
+		}
+
+		fork(d)
 	}
 
-	if err := eg.Wait(); err != nil {
-		return errors.Wrap(err, "store keys")
-	}
+	results := join()
+	_, err := results.Flatten()
 
-	return nil
+	return err
 }
 
 // loadFiles loads EIP-2335 keystore files from dir, with the given glob.
@@ -119,7 +139,40 @@ func loadFiles(dir string, sortKeyfiles func([]string) ([]string, error)) ([]tbl
 		}
 	}
 
-	var eg errgroup.Group
+	type openFileInput struct {
+		index int
+		path  string
+	}
+
+	fork, join, cancel := forkjoin.New(
+		context.Background(),
+		func(ctx context.Context, input openFileInput) (tbls.PrivateKey, error) {
+			b, err := os.ReadFile(input.path)
+			if err != nil {
+				return tbls.PrivateKey{}, errors.Wrap(err, "read file", z.Str("filename", input.path))
+			}
+
+			var store Keystore
+			if err := json.Unmarshal(b, &store); err != nil {
+				return tbls.PrivateKey{}, errors.Wrap(err, "unmarshal keystore", z.Str("filename", input.path))
+			}
+
+			password, err := loadPassword(input.path)
+			if err != nil {
+				return tbls.PrivateKey{}, errors.Wrap(err, "load password", z.Str("filename", input.path))
+			}
+
+			secret, err := decrypt(store, password)
+			if err != nil {
+				return tbls.PrivateKey{}, errors.Wrap(err, "keystore decryption", z.Str("filename", input.path))
+			}
+
+			return secret, nil
+		},
+		forkjoin.WithWorkers(loadStoreWorkers),
+	)
+
+	defer cancel()
 
 	resp := make([]tbls.PrivateKey, len(files))
 
@@ -127,43 +180,26 @@ func loadFiles(dir string, sortKeyfiles func([]string) ([]string, error)) ([]tbl
 		f := f
 		idx := idx
 
-		eg.Go(func() error {
-			b, err := os.ReadFile(f)
-			if err != nil {
-				return errors.Wrap(err, "read file", z.Str("filename", f))
-			}
-
-			var store Keystore
-			if err := json.Unmarshal(b, &store); err != nil {
-				return errors.Wrap(err, "unmarshal keystore", z.Str("filename", f))
-			}
-
-			password, err := loadPassword(f)
-			if err != nil {
-				return errors.Wrap(err, "load password", z.Str("filename", f))
-			}
-
-			secret, err := decrypt(store, password)
-			if err != nil {
-				return errors.Wrap(err, "keystore decryption", z.Str("filename", f))
-			}
-
-			// PSA: this is a concurrent array write, and it works because we're not
-			// appending, rather we're accessing individual elements of it in a concurrent way.
-			// Concurrent access to a variable must be synchronized if at least one of them involves a write.
-			// Spec says:
-			//     Structured variables of array, slice, and struct types have elements and fields
-			//     that may be addressed individually. Each such element acts like a variable.
-			// So each element effectively is a different variable, which is being written only by a single goroutine:
-			// no synchronization required.
-			resp[idx] = secret
-
-			return nil
+		fork(openFileInput{
+			index: idx,
+			path:  f,
 		})
 	}
 
-	if err := eg.Wait(); err != nil {
-		return nil, errors.Wrap(err, "write keys")
+	for result := range join() {
+		if result.Err != nil {
+			return nil, errors.Wrap(err, "write keys")
+		}
+
+		// PSA: this is a concurrent array write, and it works because we're not
+		// appending, rather we're accessing individual elements of it in a concurrent way.
+		// Concurrent access to a variable must be synchronized if at least one of them involves a write.
+		// Spec says:
+		//     Structured variables of array, slice, and struct types have elements and fields
+		//     that may be addressed individually. Each such element acts like a variable.
+		// So each element effectively is a different variable, which is being written only by a single goroutine:
+		// no synchronization required.
+		resp[result.Input.index] = result.Output
 	}
 
 	return resp, nil
