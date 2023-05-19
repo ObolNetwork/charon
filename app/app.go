@@ -198,6 +198,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		"cluster_name":    cState.Name,
 		"cluster_peer":    p2p.PeerName(tcpNode.ID()),
 		"cluster_network": network,
+		"node_version":    version.Version,
 	}
 	log.SetLokiLabels(labels)
 	promRegistry, err := promauto.NewRegistry(labels)
