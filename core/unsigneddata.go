@@ -9,11 +9,14 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
+	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
+	"github.com/attestantio/go-eth2-client/spec/deneb"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
@@ -24,6 +27,16 @@ var (
 	_ UnsignedData = VersionedBeaconBlock{}
 	_ UnsignedData = VersionedBlindedBeaconBlock{}
 	_ UnsignedData = SyncContribution{}
+
+	// Some types also support SSZ marshalling and unmarshalling.
+	_ ssz.Marshaler   = AggregatedAttestation{}
+	_ ssz.Marshaler   = VersionedBeaconBlock{}
+	_ ssz.Marshaler   = VersionedBlindedBeaconBlock{}
+	_ ssz.Marshaler   = SyncContribution{}
+	_ ssz.Unmarshaler = new(AggregatedAttestation)
+	_ ssz.Unmarshaler = new(VersionedBeaconBlock)
+	_ ssz.Unmarshaler = new(VersionedBlindedBeaconBlock)
+	_ ssz.Unmarshaler = new(SyncContribution)
 )
 
 // AttestationData wraps the eth2 attestation data and adds the original duty.
@@ -108,6 +121,22 @@ func (a *AggregatedAttestation) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
+func (a AggregatedAttestation) MarshalSSZ() ([]byte, error) {
+	return a.Attestation.MarshalSSZ()
+}
+
+func (a AggregatedAttestation) MarshalSSZTo(dst []byte) ([]byte, error) {
+	return a.Attestation.MarshalSSZTo(dst)
+}
+
+func (a AggregatedAttestation) SizeSSZ() int {
+	return a.Attestation.SizeSSZ()
+}
+
+func (a *AggregatedAttestation) UnmarshalSSZ(b []byte) error {
+	return a.Attestation.UnmarshalSSZ(b)
+}
+
 // NewVersionedBeaconBlock validates and returns a new wrapped VersionedBeaconBlock.
 func NewVersionedBeaconBlock(block *eth2spec.VersionedBeaconBlock) (VersionedBeaconBlock, error) {
 	switch block.Version {
@@ -164,6 +193,8 @@ func (b VersionedBeaconBlock) MarshalJSON() ([]byte, error) {
 		marshaller = b.Bellatrix
 	case eth2spec.DataVersionCapella:
 		marshaller = b.Capella
+	case eth2spec.DataVersionDeneb:
+		marshaller = b.Deneb
 	default:
 		return nil, errors.New("unknown version")
 	}
@@ -216,6 +247,12 @@ func (b *VersionedBeaconBlock) UnmarshalJSON(input []byte) error {
 			return errors.Wrap(err, "unmarshal capella")
 		}
 		resp.Capella = block
+	case eth2spec.DataVersionDeneb:
+		block := new(deneb.BeaconBlock)
+		if err := json.Unmarshal(raw.Block, &block); err != nil {
+			return errors.Wrap(err, "unmarshal deneb")
+		}
+		resp.Deneb = block
 	default:
 		return errors.New("unknown version")
 	}
@@ -239,6 +276,10 @@ func NewVersionedBlindedBeaconBlock(block *eth2api.VersionedBlindedBeaconBlock) 
 	case eth2spec.DataVersionCapella:
 		if block.Capella == nil {
 			return VersionedBlindedBeaconBlock{}, errors.New("no capella blinded block")
+		}
+	case eth2spec.DataVersionDeneb:
+		if block.Deneb == nil {
+			return VersionedBlindedBeaconBlock{}, errors.New("no deneb blinded block")
 		}
 	default:
 		return VersionedBlindedBeaconBlock{}, errors.New("unknown version")
@@ -265,6 +306,8 @@ func (b VersionedBlindedBeaconBlock) MarshalJSON() ([]byte, error) {
 		marshaller = b.Bellatrix
 	case eth2spec.DataVersionCapella:
 		marshaller = b.Capella
+	case eth2spec.DataVersionDeneb:
+		marshaller = b.Deneb
 	default:
 		return nil, errors.New("unknown version")
 	}
@@ -305,6 +348,12 @@ func (b *VersionedBlindedBeaconBlock) UnmarshalJSON(input []byte) error {
 			return errors.Wrap(err, "unmarshal capella")
 		}
 		resp.Capella = block
+	case eth2spec.DataVersionDeneb:
+		block := new(eth2deneb.BlindedBeaconBlock)
+		if err := json.Unmarshal(raw.Block, &block); err != nil {
+			return errors.Wrap(err, "unmarshal deneb")
+		}
+		resp.Deneb = block
 	default:
 		return errors.New("unknown version")
 	}
@@ -341,41 +390,57 @@ func (s *SyncContribution) UnmarshalJSON(input []byte) error {
 	return s.SyncCommitteeContribution.UnmarshalJSON(input)
 }
 
+func (s SyncContribution) MarshalSSZ() ([]byte, error) {
+	return s.SyncCommitteeContribution.MarshalSSZ()
+}
+
+func (s SyncContribution) MarshalSSZTo(dst []byte) ([]byte, error) {
+	return s.SyncCommitteeContribution.MarshalSSZTo(dst)
+}
+
+func (s SyncContribution) SizeSSZ() int {
+	return s.SyncCommitteeContribution.SizeSSZ()
+}
+
+func (s *SyncContribution) UnmarshalSSZ(b []byte) error {
+	return s.SyncCommitteeContribution.UnmarshalSSZ(b)
+}
+
 // UnmarshalUnsignedData returns an instantiated unsigned data based on the duty type.
 // TODO(corver): Unexport once leadercast is removed or uses protobufs.
 func UnmarshalUnsignedData(typ DutyType, data []byte) (UnsignedData, error) {
 	switch typ {
 	case DutyAttester:
 		var resp AttestationData
-		if err := json.Unmarshal(data, &resp); err != nil {
+		if err := unmarshal(data, &resp); err != nil {
 			return nil, errors.Wrap(err, "unmarshal attestation data")
 		}
 
 		return resp, nil
 	case DutyProposer:
 		var resp VersionedBeaconBlock
-		if err := json.Unmarshal(data, &resp); err != nil {
+		if err := unmarshal(data, &resp); err != nil {
 			return nil, errors.Wrap(err, "unmarshal block")
 		}
 
 		return resp, nil
 	case DutyBuilderProposer:
 		var resp VersionedBlindedBeaconBlock
-		if err := json.Unmarshal(data, &resp); err != nil {
+		if err := unmarshal(data, &resp); err != nil {
 			return nil, errors.Wrap(err, "unmarshal block")
 		}
 
 		return resp, nil
 	case DutyAggregator:
 		var resp AggregatedAttestation
-		if err := json.Unmarshal(data, &resp); err != nil {
+		if err := unmarshal(data, &resp); err != nil {
 			return nil, errors.Wrap(err, "unmarshal aggregated attestation")
 		}
 
 		return resp, nil
 	case DutySyncContribution:
 		var resp SyncContribution
-		if err := json.Unmarshal(data, &resp); err != nil {
+		if err := unmarshal(data, &resp); err != nil {
 			return nil, errors.Wrap(err, "unmarshal sync contribution")
 		}
 

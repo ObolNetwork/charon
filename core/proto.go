@@ -4,6 +4,9 @@ package core
 
 import (
 	"encoding/json"
+	"testing"
+
+	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
@@ -40,73 +43,73 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (ParSignedDa
 	switch typ {
 	case DutyAttester:
 		var a Attestation
-		if err := json.Unmarshal(data.Data, &a); err != nil {
+		if err := unmarshal(data.Data, &a); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal attestation")
 		}
 		signedData = a
 	case DutyProposer:
 		var b VersionedSignedBeaconBlock
-		if err := json.Unmarshal(data.Data, &b); err != nil {
+		if err := unmarshal(data.Data, &b); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal block")
 		}
 		signedData = b
 	case DutyBuilderProposer:
 		var b VersionedSignedBlindedBeaconBlock
-		if err := json.Unmarshal(data.Data, &b); err != nil {
+		if err := unmarshal(data.Data, &b); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal blinded block")
 		}
 		signedData = b
 	case DutyBuilderRegistration:
 		var r VersionedSignedValidatorRegistration
-		if err := json.Unmarshal(data.Data, &r); err != nil {
+		if err := unmarshal(data.Data, &r); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal validator (builder) registration")
 		}
 		signedData = r
 	case DutyExit:
 		var e SignedVoluntaryExit
-		if err := json.Unmarshal(data.Data, &e); err != nil {
+		if err := unmarshal(data.Data, &e); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal exit")
 		}
 		signedData = e
 	case DutyRandao:
 		var s SignedRandao
-		if err := json.Unmarshal(data.Data, &s); err != nil {
+		if err := unmarshal(data.Data, &s); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal signed randao")
 		}
 		signedData = s
 	case DutySignature:
 		var s Signature
-		if err := json.Unmarshal(data.Data, &s); err != nil {
+		if err := unmarshal(data.Data, &s); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal signature")
 		}
 		signedData = s
 	case DutyPrepareAggregator:
 		var s BeaconCommitteeSelection
-		if err := json.Unmarshal(data.Data, &s); err != nil {
+		if err := unmarshal(data.Data, &s); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal beacon committee subscription")
 		}
 		signedData = s
 	case DutyAggregator:
 		var s SignedAggregateAndProof
-		if err := json.Unmarshal(data.Data, &s); err != nil {
+		if err := unmarshal(data.Data, &s); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal signed aggregate and proof")
 		}
 		signedData = s
 	case DutySyncMessage:
 		var s SignedSyncMessage
-		if err := json.Unmarshal(data.Data, &s); err != nil {
+		if err := unmarshal(data.Data, &s); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal signed sync message")
 		}
 		signedData = s
 	case DutyPrepareSyncContribution:
 		var s SyncCommitteeSelection
-		if err := json.Unmarshal(data.Data, &s); err != nil {
+		if err := unmarshal(data.Data, &s); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal sync committee selection")
 		}
 		signedData = s
 	case DutySyncContribution:
 		var s SignedSyncContributionAndProof
-		if err := json.Unmarshal(data.Data, &s); err != nil {
+		if err := unmarshal(data.Data, &s); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal sync contribution and proof")
 		}
 		signedData = s
@@ -175,7 +178,7 @@ func UnsignedDataSetToProto(set UnsignedDataSet) (*pbv1.UnsignedDataSet, error) 
 	inner := make(map[string][]byte)
 	for pubkey, data := range set {
 		var err error
-		inner[string(pubkey)], err = data.MarshalJSON()
+		inner[string(pubkey)], err = marshal(data)
 		if err != nil {
 			return nil, err
 		}
@@ -202,4 +205,52 @@ func UnsignedDataSetFromProto(typ DutyType, set *pbv1.UnsignedDataSet) (Unsigned
 	}
 
 	return resp, nil
+}
+
+func EnabledSSZMarshallingForT(t *testing.T) {
+	t.Helper()
+	sszMarshallingEnabled = true
+	t.Cleanup(func() {
+		sszMarshallingEnabled = false
+	})
+}
+
+// sszMarshallingEnabled will be enabled in v0.17.
+var sszMarshallingEnabled = false
+
+func marshal(v any) ([]byte, error) {
+	// First try SSZ
+	if marshaller, ok := v.(ssz.Marshaler); ok && sszMarshallingEnabled {
+		b, err := marshaller.MarshalSSZ()
+		if err != nil {
+			return nil, errors.Wrap(err, "marshal ssz")
+		}
+
+		return b, nil
+	}
+
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal json")
+	}
+
+	return b, nil
+}
+
+// unmarshal unmarshals the data into the given sszValFromVersion pointer
+// It tries to unmarshal as ssz first, then as json.
+func unmarshal(data []byte, v any) error {
+	// First try ssz
+	if unmarshaller, ok := v.(ssz.Unmarshaler); ok {
+		if err := unmarshaller.UnmarshalSSZ(data); err == nil {
+			return nil
+		}
+	}
+
+	// Else try json
+	if err := json.Unmarshal(data, v); err != nil {
+		return errors.Wrap(err, "unmarshal json")
+	}
+
+	return nil
 }
