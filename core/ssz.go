@@ -368,7 +368,7 @@ func sizeSSZVersioned(value sszType) int {
 	return versionedOffset + value.SizeSSZ()
 }
 
-// VersionedSSZValueForT exposes the sszValFromVersion method of a type for testing purposes.
+// VersionedSSZValueForT exposes the value method of a type for testing purposes.
 func VersionedSSZValueForT(t *testing.T, value any, version eth2spec.DataVersion) sszType {
 	t.Helper()
 

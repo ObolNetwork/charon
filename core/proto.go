@@ -240,7 +240,7 @@ func marshal(v any) ([]byte, error) {
 	return b, nil
 }
 
-// unmarshal unmarshals the data into the given sszValFromVersion pointer
+// unmarshal unmarshals the data into the given value pointer
 // It tries to unmarshal as ssz first, then as json.
 func unmarshal(data []byte, v any) error {
 	// First try ssz
