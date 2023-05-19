@@ -31,7 +31,7 @@ import (
 //go:generate go test . -run=TestCreateCluster -update -clean
 
 func TestCreateCluster(t *testing.T) {
-	defPath := "../cluster/examples/cluster-definition-002.json"
+	defPath := "../cluster/examples/cluster-definition-004.json"
 	def, err := loadDefinition(context.Background(), defPath)
 	require.NoError(t, err)
 
@@ -185,6 +185,10 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition)
 				// ENRs should be populated
 				require.NotEqual(t, lock.Operators[i].ENR, "")
 			}
+		}
+
+		for _, val := range lock.Validators {
+			require.NotEmpty(t, val.BuilderRegistration)
 		}
 	})
 }

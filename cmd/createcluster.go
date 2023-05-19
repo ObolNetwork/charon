@@ -3,6 +3,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -15,6 +16,9 @@ import (
 	"strings"
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -25,11 +29,13 @@ import (
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
+	"github.com/obolnetwork/charon/eth2util/registration"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -240,7 +246,12 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
-	vals, err := getValidators(pubkeys, shareSets, depositDatas)
+	valRegs, err := createValidatorRegistrations(def.WithdrawalAddresses(), secrets)
+	if err != nil {
+		return err
+	}
+
+	vals, err := getValidators(pubkeys, shareSets, depositDatas, valRegs)
 	if err != nil {
 		return err
 	}
@@ -318,6 +329,61 @@ func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, n
 			Amount:                msg.Amount,
 			Signature:             tblsconv.SigToETH2(sig),
 		})
+	}
+
+	return datas, nil
+}
+
+// signValidatorRegistrations returns a slice of validator registrations for each private key in secrets.
+func signValidatorRegistrations(secrets []tbls.PrivateKey, feeAddresses []string) ([]core.VersionedSignedValidatorRegistration, error) {
+	if len(secrets) != len(feeAddresses) {
+		return nil, errors.New("insufficient fee addresses")
+	}
+
+	var datas []core.VersionedSignedValidatorRegistration
+	for i, secret := range secrets {
+		feeAddress, err := eth2util.ChecksumAddress(feeAddresses[i])
+		if err != nil {
+			return nil, err
+		}
+
+		pk, err := tbls.SecretToPublicKey(secret)
+		if err != nil {
+			return nil, errors.Wrap(err, "secret to pubkey")
+		}
+
+		unsignedReg, err := registration.NewMessage(
+			eth2p0.BLSPubKey(pk),
+			feeAddress,
+			registration.DefaultGasLimit,
+			registration.DefaultRegistrationTime,
+		)
+		if err != nil {
+			return nil, errors.Wrap(err, "registration creation")
+		}
+
+		sigRoot, err := registration.GetMessageSigningRoot(unsignedReg)
+		if err != nil {
+			return nil, err
+		}
+
+		sig, err := tbls.Sign(secret, sigRoot[:])
+		if err != nil {
+			return nil, err
+		}
+
+		reg, err := core.NewVersionedSignedValidatorRegistration(&eth2api.VersionedSignedValidatorRegistration{
+			Version: eth2spec.BuilderVersionV1,
+			V1: &eth2v1.SignedValidatorRegistration{
+				Message:   unsignedReg,
+				Signature: tblsconv.SigToETH2(sig),
+			},
+		})
+		if err != nil {
+			return nil, errors.Wrap(err, "versioned signed validator registration creation")
+		}
+
+		datas = append(datas, reg)
 	}
 
 	return datas, nil
@@ -418,6 +484,15 @@ func writeDepositData(depositDatas []eth2p0.DepositData, network string, cluster
 	return nil
 }
 
+// createValidatorRegistrations creates a slice of builder validator registrations using the provided parameters and returns it.
+func createValidatorRegistrations(feeAddresses []string, secrets []tbls.PrivateKey) ([]core.VersionedSignedValidatorRegistration, error) {
+	if len(feeAddresses) != len(secrets) {
+		return nil, errors.New("insufficient fee addresses")
+	}
+
+	return signValidatorRegistrations(secrets, feeAddresses)
+}
+
 // writeLock creates a cluster lock and writes it to disk for all peers.
 func writeLock(lock cluster.Lock, clusterDir string, numNodes int) error {
 	b, err := json.MarshalIndent(lock, "", " ")
@@ -438,7 +513,12 @@ func writeLock(lock cluster.Lock, clusterDir string, numNodes int) error {
 
 // getValidators returns distributed validators from the provided dv public keys and keyshares.
 // It creates new peers from the provided config and saves validator keys to disk for each peer.
-func getValidators(dvsPubkeys []tbls.PublicKey, dvPrivShares [][]tbls.PrivateKey, depositDatas []eth2p0.DepositData) ([]cluster.DistValidator, error) {
+func getValidators(
+	dvsPubkeys []tbls.PublicKey,
+	dvPrivShares [][]tbls.PrivateKey,
+	depositDatas []eth2p0.DepositData,
+	valRegs []core.VersionedSignedValidatorRegistration,
+) ([]cluster.DistValidator, error) {
 	var vals []cluster.DistValidator
 	for idx, dv := range dvsPubkeys {
 		dv := dv
@@ -466,6 +546,31 @@ func getValidators(dvsPubkeys []tbls.PublicKey, dvPrivShares [][]tbls.PrivateKey
 			return nil, errors.New("deposit data not found")
 		}
 
+		regIdx := -1
+		for i, reg := range valRegs {
+			pubkey, err := reg.PubKey()
+			if err != nil {
+				return nil, err
+			}
+
+			if !bytes.Equal(dv[:], pubkey[:]) {
+				continue
+			}
+
+			regIdx = i
+
+			break
+		}
+
+		if regIdx == -1 {
+			return nil, errors.New("validator registration not found")
+		}
+
+		clusterReg, err := builderRegistrationFromETH2(valRegs[regIdx])
+		if err != nil {
+			return nil, errors.Wrap(err, "builder registration to cluster object")
+		}
+
 		vals = append(vals, cluster.DistValidator{
 			PubKey:    dv[:],
 			PubShares: pubshares,
@@ -475,6 +580,7 @@ func getValidators(dvsPubkeys []tbls.PublicKey, dvPrivShares [][]tbls.PrivateKey
 				Amount:                int(depositDatas[depositIdx].Amount),
 				Signature:             depositDatas[depositIdx].Signature[:],
 			},
+			BuilderRegistration: clusterReg,
 		})
 	}
 
@@ -813,4 +919,36 @@ func validateAddresses(numVals int, feeRecipientAddrs []string, withdrawalAddrs 
 	}
 
 	return feeRecipientAddrs, withdrawalAddrs, nil
+}
+
+func builderRegistrationFromETH2(reg core.VersionedSignedValidatorRegistration) (cluster.BuilderRegistration, error) {
+	feeRecipient, err := reg.FeeRecipient()
+	if err != nil {
+		return cluster.BuilderRegistration{}, errors.Wrap(err, "get fee recipient")
+	}
+
+	gasLimit, err := reg.GasLimit()
+	if err != nil {
+		return cluster.BuilderRegistration{}, errors.Wrap(err, "get gasLimit")
+	}
+
+	timestamp, err := reg.Timestamp()
+	if err != nil {
+		return cluster.BuilderRegistration{}, errors.Wrap(err, "get timestamp")
+	}
+
+	pubKey, err := reg.PubKey()
+	if err != nil {
+		return cluster.BuilderRegistration{}, errors.Wrap(err, "get pubKey")
+	}
+
+	return cluster.BuilderRegistration{
+		Message: cluster.Registration{
+			FeeRecipient: feeRecipient[:],
+			GasLimit:     int(gasLimit),
+			Timestamp:    timestamp,
+			PubKey:       pubKey[:],
+		},
+		Signature: reg.Signature(),
+	}, nil
 }

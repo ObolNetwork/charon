@@ -37,23 +37,6 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
-const (
-	// valRegGasLimit is the default gas limit used in validator registration pre-generation.
-	valRegGasLimit = 30000000
-)
-
-// registrationTime is the registration time used to pre-generate validator registrations.
-var registrationTime = time.Date(
-	2000,
-	1,
-	1,
-	0,
-	0,
-	0,
-	0,
-	time.UTC,
-)
-
 type Config struct {
 	DefFile       string
 	NoVerify      bool
@@ -249,7 +232,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		ex,
 		shares,
 		def.FeeRecipientAddresses(),
-		valRegGasLimit,
+		registration.DefaultGasLimit,
 		nodeIdx,
 	)
 	if err != nil {
@@ -676,7 +659,7 @@ func signValidatorRegistrations(shares []share, shareIdx int, feeRecipients []st
 			return nil, nil, err
 		}
 
-		regMsg, err := registration.NewMessage(pubkey, feeRecipients[idx], gasLimit, registrationTime)
+		regMsg, err := registration.NewMessage(pubkey, feeRecipients[idx], gasLimit, registration.DefaultRegistrationTime)
 		if err != nil {
 			return nil, nil, err
 		}
