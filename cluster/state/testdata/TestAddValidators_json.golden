@@ -1,96 +1,123 @@
 {
  "mutation": {
-  "parent": "0x6bf84c71cbf8713f8d962d7c8d019192c24224e2cafccae3a61fb586b14323a6",
+  "parent": "0x6b7d39069f01a239c4365854c3af7f6b41d631f92b9a8d12f41257325fff332f",
   "type": "dv/add_validators/v0.0.1",
   "timestamp": "2021-01-01T00:06:00Z",
   "data": {
    "gen_validators": {
     "mutation": {
-     "parent": "0x6bf84c71cbf8713f8d962d7c8d019192c24224e2cafccae3a61fb586b14323a6",
+     "parent": "0x6b7d39069f01a239c4365854c3af7f6b41d631f92b9a8d12f41257325fff332f",
      "type": "dv/gen_validators/v0.0.1",
      "timestamp": "2021-01-01T00:00:00Z",
      "data": [
       {
        "public_key": "0x96682f6263be696b022636dfff466a093d7c48f61f1a791a5c6e146ef63a8329b1f7fd93d70a09c0bb1a339fe5770271",
        "public_shares": [
-        "0xee3646b4a2297c30f43a96f16fea33ad9826acdf674b728bf5c1ef00d570d5e29684f68eadb6f78a696be6b9ad757d31",
-        "0x5c22a855289c2cd3f87c44ed0d97f9041f6df7f0824ab2ef57bb8616f84a7dc916aa6c812bcc52c4d2eac212be68daac",
-        "0x2cd3e6b13ffc3974de29e883b17f034cd622c51114654684a5b8c381276978d471ecb595cf7fedb6aba073a875c061c3",
-        "0xf41c4e70991e313178cbf07afa9f6484f9e8a193524ee1207c3d9963d08a47d14734d799a55424bc4227138a3257b801"
+        "0x31d9edb7446d865e63368f15c1066e530516d34d9b29e1c65473b679966f964887b8500d2cf31a4f35980591f5d69a2c",
+        "0x6a4105e76a6095fb3aba05c59f6813dee66e2ed011ec63d5df974a6ccc488e49ddac7af34b23fefc99ffd06db2fee040",
+        "0x084987250a97c8540933b09c0ec88e1f0968b94d3c3191d13e9ea96c611b2c49b7a3d228e45d2707d7d8b252531cdfc3",
+        "0x60b4b7238182f7c3b263d412ad017fcb6efc444aabee637763f677626b20f329397fd4e6e9b348ad6ada7f8427a6d354"
        ],
-       "fee_recipient_address": "0x52fdfc072182654f163f5f0f9a621d729566c74d",
-       "withdrawal_address": "0x81855ad8681d0d86d1e91e00167939cb6694d2c4"
+       "fee_recipient_address": "0x0f26686d9bf2fb26c901ff354cde1607ee294b39",
+       "withdrawal_address": "0xc6e6b91c1fd3be8990434179d3af4491a369012d",
+       "builder_registration": {
+        "message": {
+         "fee_recipient": "0x52fdfc072182654f163f5f0f9a621d729566c74d",
+         "gas_limit": 30000000,
+         "timestamp": "2000-01-01T00:00:00Z",
+         "pubkey": "0x81855ad8681d0d86d1e91e00167939cb6694d2c422acd208a0072939487f6999eb9d18a44784045d87f3c67cf22746e9"
+        },
+        "signature": "0x95af5a25367951baa2ff6cd471c483f15fb90badb37c5821b6d95526a41a9504680b4e7c8b763a1b1d49d4955c8486216325253fec738dd7a9e28bf921119c160f0702448615bbda08313f6a8eb668d20bf5059875921e668a5bdf2c7fc48445"
+       }
       },
       {
        "public_key": "0x8cdac57b248908a67eb39ea46b2ba3f7df2d71d5f24f1ddc1c738cb04669570a550afd1f3c03b00e52211a115e0029e3",
        "public_shares": [
-        "0x8e39c3e4cedd2d4643d35bb1f5bb32ab0ee8a18b6969a236fab35ca409fa3f4096ace57881658b6b1c89db80d25cc5d7",
-        "0x8161df317f9347834b9ffb67444baed527cc4c91d22b733bcd3904815c863fe2ca7e1db1c801d1625ca4449d5731bf10",
-        "0xf9b2cea6cffc25f377571e5a5e7ed144a9d3623eb8909e397c771ab018c6f97c65afd4515ff217fd41e9e6648091263d",
-        "0xd37f93a656aec69f8b8b4966930a58a89cedd2729cab84673f73590c1a8e25dd7edd2d9800e670dba61d1a9a88ebd14c"
+        "0x3c083ca4a95018ae5a77451e0df730e5336da3f9651920bcd07e2c05e42d25d7b834f7f520c4c9d1e6b1ea72dd7b3922",
+        "0xff96842e39c4842e9bfc20c402b16f4cf41aa7f4c70b5134f0383919d1e6516f42558cf2a691cf12bd484bd372d773f3",
+        "0xe2de2541b45cc537543b06417cd1136c5e0c51211fe0b88607465bbed5c7a429867dc64cb14f54106b4bcf8d97618d62",
+        "0x5129d505bd0d8bc90894979097d0b7c868be0461b29d29001feb413b680141d120de15891550fb62f1b9e991ea8f2c29"
        ],
-       "fee_recipient_address": "0xeb9d18a44784045d87f3c67cf22746e995af5a25",
-       "withdrawal_address": "0x5fb90badb37c5821b6d95526a41a9504680b4e7c"
+       "fee_recipient_address": "0x8953bb6865fcf92b0c3a17c9028be9914eb7649c",
+       "withdrawal_address": "0x4c3deab2a4b4475d63afbe8fb56987c77f581852",
+       "builder_registration": {
+        "message": {
+         "fee_recipient": "0x92d2572bcd0668d2d6c52f5054e2d0836bf84c71",
+         "gas_limit": 30000000,
+         "timestamp": "2000-01-01T00:00:00Z",
+         "pubkey": "0x172ed85794bb358b0c3b525da1786f9fff094279db1944ebd7a19d0f7bbacbe0255aa5b7d44bec40f84c892b9bffd436"
+        },
+        "signature": "0x29b0223beea5f4f74391f445d15afd4294040374f6924b98cbf8713f8d962d7c8d019192c24224e2cafccae3a61fb586b14323a6bc8f9e7df1d929333ff993933bea6f5b3af6de0374366c4719e43a1b067d89bc7f01f1f573981659a44ff17a"
+       }
       },
       {
        "public_key": "0xb91691e057b97e6c3c1ba97dccb4435004ad0f6d8e476bb3299724980d13b4bc19594e4560f0cc15a02adc464c299cda",
        "public_shares": [
-        "0x729a7846bcc4fdd02c18e5b2e97a304993e6916afac382922ab52bdeaa36f935a80573fb959233f80504633222f55dd9",
-        "0xcb5918ea4c3bb77c10e50324d3433322cf89559da367b93aa9ef9fb7855960e67698eba1c01065d4c2b8c0961fa84ac5",
-        "0x01a9105c57e476b1915aca1e9e181992b8de4bd721710bc8139b0fc00e0cd5b5eaa96f815dcb906b86824bf30bcbe319",
-        "0xff1febc0d303bf800047078b252e142701e4be908b0f51a45f39d8f206e79a77ea3db2535fc5cf94e2620c6f6bf2145e"
+        "0x1c15a41912f58a68abc3860ca1be0ef2b1f5e620fba3a6ee88237ea8825188952e0ce3ee4ade4243f96eec1c70a35733",
+        "0x493191e479fb01bcaa96d49cf0e3b5cc2cddf4cb2711c23873d6e3299fc5adef3429cdb73ec8b773d6ac9c795d0f9475",
+        "0xf0910fa226d839d62f6d5b39279debe27e1d4ffbc6882b9a7782611a0396961fc8a5a54f1cb5f3e4c782847967d9120f",
+        "0x5aa9d2141657221ce4c00855a7ce2d91f82e2eabed8181a6c65566a75c9721561005c5efe7ee9017f9426011b3e72a7b"
        ],
-       "fee_recipient_address": "0x6325253fec738dd7a9e28bf921119c160f070244",
-       "withdrawal_address": "0x0bf5059875921e668a5bdf2c7fc4844592d2572b"
+       "fee_recipient_address": "0x1d84484517e924aef78ae151c00755925836b707",
+       "withdrawal_address": "0x50a28da102975deda77e758579ea3dfe4136abf7",
+       "builder_registration": {
+        "message": {
+         "fee_recipient": "0x4c7215a3b539eb1e5849c6077dbb5722f5717a28",
+         "gas_limit": 30000000,
+         "timestamp": "2000-01-01T00:00:00Z",
+         "pubkey": "0x0b4b373970115e82ed6f4125c8fa7311e4d7defa922daae7786667f7e936cd4f24abf7df866baa56038367ad6145de1e"
+        },
+        "signature": "0xe8f4a8b0993ebdf8883a0ad8be9c3978b04883e56a156a8de563afa467d49dec6a40e9a1d007f033c2823061bdd0eaa59f8e4da6430105220d0b29688b734b8ea0f3ca9936e8461f10d77c96ea80a7a665f606f6a63b7f3dfd2567c18979e4d6"
+       }
       }
      ]
     }
    },
    "node_approvals": {
     "mutation": {
-     "parent": "0x3a4ca07191a305ef6549486dfbe290b4b5ca1b3814e0bd9b8efb4e7ff3e9ae5a",
+     "parent": "0x62f9c3355827e938532a7b011d53e36ff084a3091e066331d87142d0d36260c5",
      "type": "dv/node_approvals/v0.0.1",
      "timestamp": "2021-01-01T00:05:00Z",
      "data": [
       {
        "mutation": {
-        "parent": "0x3a4ca07191a305ef6549486dfbe290b4b5ca1b3814e0bd9b8efb4e7ff3e9ae5a",
+        "parent": "0x62f9c3355827e938532a7b011d53e36ff084a3091e066331d87142d0d36260c5",
         "type": "dv/node_approval/v0.0.1",
         "timestamp": "2021-01-01T00:01:00Z",
         "data": {}
        },
        "signer": "0x024d4b6cd1361032ca9bd2aeb9d900aa4d45d9ead80ac9423374c451a7254d0766",
-       "signature": "0x84786cf331e40ab513036f7e7b58fa0f19e2f9aca47ccb348277cf67d81fb37f3ed12ff6cae677a07aaadcc3cfd743aba3bcd5023f52e33e7941889d6bf33143"
+       "signature": "0x1874db42364121cfd878c27b9cfc2af1a36f2430f6383a57dbad0bebb8dcaa2b25a8891341e7d4e3dd404d131910919bd56b5393bd08ba3f2aefb98d5ba48a49"
       },
       {
        "mutation": {
-        "parent": "0x3a4ca07191a305ef6549486dfbe290b4b5ca1b3814e0bd9b8efb4e7ff3e9ae5a",
+        "parent": "0x62f9c3355827e938532a7b011d53e36ff084a3091e066331d87142d0d36260c5",
         "type": "dv/node_approval/v0.0.1",
         "timestamp": "2021-01-01T00:02:00Z",
         "data": {}
        },
        "signer": "0x02531fe6068134503d2723133227c867ac8fa6c83c537e9a44c3c5bdbdcb1fe337",
-       "signature": "0x12d02323cefe9b25dc8fb45d2f5264cabc35721c012b43f4e9f9f184b4f877ac3da68694df53ba69edf20103e17ad73ab4ac2373ac54c7c1a70e73156c4243c0"
+       "signature": "0x5f3365304e484757d696038c12b7565b0bf74fdf16092a22f4ba515c75b9cdc461f79362e8f5c16258a385212cd2d5ff51f3d5a153d707f0bdf70618f4c7a196"
       },
       {
        "mutation": {
-        "parent": "0x3a4ca07191a305ef6549486dfbe290b4b5ca1b3814e0bd9b8efb4e7ff3e9ae5a",
+        "parent": "0x62f9c3355827e938532a7b011d53e36ff084a3091e066331d87142d0d36260c5",
         "type": "dv/node_approval/v0.0.1",
         "timestamp": "2021-01-01T00:03:00Z",
         "data": {}
        },
        "signer": "0x03462779ad4aad39514614751a71085f2f10e1c7a593e4e030efb5b8721ce55b0b",
-       "signature": "0xdb60b7831a3c2b51a4bf3b3ed1b41ca924023058b8459630c95837c859b20a0331fbf512aacf1931497271ba66f4ea9a4f75cc4dae81285f3b44090e105eecea"
+       "signature": "0x6f3b3b65ea3c23ba8a024ae15c129035b9671098fc12097f42f0e05af35bf72d13c05dfdb2cbab89e3ab17d5b9c2abb6ddda8dd66c53221e8096668f7e7df61e"
       },
       {
        "mutation": {
-        "parent": "0x3a4ca07191a305ef6549486dfbe290b4b5ca1b3814e0bd9b8efb4e7ff3e9ae5a",
+        "parent": "0x62f9c3355827e938532a7b011d53e36ff084a3091e066331d87142d0d36260c5",
         "type": "dv/node_approval/v0.0.1",
         "timestamp": "2021-01-01T00:04:00Z",
         "data": {}
        },
        "signer": "0x0362c0a046dacce86ddd0343c6d3c7c79c2208ba0d9c9cf24a6d046d21d21f90f7",
-       "signature": "0x229766269f10de0d885376b9ea016782d8e3ff23c3db86db5ad0af3f6d3d898d19b6df6eebfb8dd7acc45eda403f7560c409a94fbdff1f5cab375e5fe45dc765"
+       "signature": "0x4750525aa140e62ef2c08bdaebcccfab86ee3434e6bbbe3fc7d0a9be3472819d6305b20c20c6ca80c4773626d6c9cfad17870380d4b8b2117fba8f30b165d545"
       }
      ]
     }

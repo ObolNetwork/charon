@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
-	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
@@ -272,28 +271,5 @@ func RandomDepositData() DepositData {
 		WithdrawalCredentials: testutil.RandomBytes32(),
 		Amount:                rand.Int(),
 		Signature:             testutil.RandomBytes96(),
-	}
-}
-
-func RandomRegistration() BuilderRegistration {
-	regDate := time.Date(
-		2000,
-		1,
-		1,
-		0,
-		0,
-		0,
-		0,
-		time.UTC,
-	)
-
-	return BuilderRegistration{
-		Message: Registration{
-			FeeRecipient: testutil.RandomBytes32()[:20],
-			GasLimit:     30000000,
-			Timestamp:    regDate,
-			PubKey:       testutil.RandomBytes48(),
-		},
-		Signature: testutil.RandomBytes96(),
 	}
 }

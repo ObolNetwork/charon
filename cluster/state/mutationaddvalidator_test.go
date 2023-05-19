@@ -20,7 +20,7 @@ import (
 func TestGenValidators(t *testing.T) {
 	setIncrementingTime(t)
 
-	b, err := os.ReadFile("testdata/lock2.json")
+	b, err := os.ReadFile("testdata/lock.json")
 	require.NoError(t, err)
 	var lock cluster.Lock
 	require.NoError(t, json.Unmarshal(b, &lock))
@@ -33,6 +33,7 @@ func TestGenValidators(t *testing.T) {
 			PubShares:           validator.PubShares,
 			FeeRecipientAddress: lock.ValidatorAddresses[i].FeeRecipientAddress,
 			WithdrawalAddress:   lock.ValidatorAddresses[i].WithdrawalAddress,
+			BuilderRegistration: registrationsFromLock(t, validator.BuilderRegistration),
 		})
 	}
 
@@ -76,6 +77,7 @@ func TestAddValidators(t *testing.T) {
 			PubShares:           randomShares(t, nodes),
 			FeeRecipientAddress: lock.ValidatorAddresses[i].FeeRecipientAddress,
 			WithdrawalAddress:   lock.ValidatorAddresses[i].WithdrawalAddress,
+			BuilderRegistration: registrationsFromLock(t, validator.BuilderRegistration),
 		})
 	}
 
@@ -135,4 +137,18 @@ func randomShares(t *testing.T, n int) [][]byte {
 	}
 
 	return resp
+}
+
+func registrationsFromLock(t *testing.T, r cluster.BuilderRegistration) state.BuilderRegistration {
+	t.Helper()
+
+	return state.BuilderRegistration{
+		Message: state.Registration{
+			FeeRecipient: r.Message.FeeRecipient,
+			GasLimit:     r.Message.GasLimit,
+			Timestamp:    r.Message.Timestamp,
+			PubKey:       r.Message.PubKey,
+		},
+		Signature: r.Signature,
+	}
 }

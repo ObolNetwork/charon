@@ -114,6 +114,7 @@ func transformLegacyLock(input Cluster, signed SignedMutation) (Cluster, error) 
 			PubShares:           validator.PubShares,
 			FeeRecipientAddress: lock.ValidatorAddresses[i].FeeRecipientAddress,
 			WithdrawalAddress:   lock.ValidatorAddresses[i].WithdrawalAddress,
+			BuilderRegistration: registrationsFromLock(validator.BuilderRegistration),
 		})
 	}
 
@@ -125,4 +126,16 @@ func transformLegacyLock(input Cluster, signed SignedMutation) (Cluster, error) 
 		Validators:   vals,
 		Operators:    ops,
 	}, nil
+}
+
+func registrationsFromLock(r cluster.BuilderRegistration) BuilderRegistration {
+	return BuilderRegistration{
+		Message: Registration{
+			FeeRecipient: r.Message.FeeRecipient,
+			GasLimit:     r.Message.GasLimit,
+			Timestamp:    r.Message.Timestamp,
+			PubKey:       r.Message.PubKey,
+		},
+		Signature: r.Signature,
+	}
 }

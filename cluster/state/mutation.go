@@ -99,7 +99,12 @@ func init() {
 				return nil, errors.Wrap(err, "unmarshal validators")
 			}
 
-			return genValidators{Validators: validatorsFromJSON(validators)}, nil
+			valsFromJSON, err := validatorsFromJSON(validators)
+			if err != nil {
+				return nil, errors.Wrap(err, "validators from json")
+			}
+
+			return genValidators{Validators: valsFromJSON}, nil
 		},
 		TransformFunc: transformGenValidators,
 	}
