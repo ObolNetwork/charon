@@ -5,7 +5,10 @@
 package promauto
 
 import (
+	"fmt"
+	"strings"
 	"sync"
+	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -17,7 +20,31 @@ import (
 var (
 	mu      sync.Mutex
 	metrics []prometheus.Collector
+	metas   []Meta
 )
+
+type Meta struct {
+	Namespace string
+	Subsystem string
+	Name      string
+	Help      string
+	Type      string
+	Labels    []string
+}
+
+// FQName returns the fully qualified name of the metric.
+func (m Meta) FQName() string {
+	return prometheus.BuildFQName(m.Namespace, m.Subsystem, m.Name)
+}
+
+// GetMetasForT returns all metric metadata that have been
+// registered with promauto for testing purposes.
+func GetMetasForT(*testing.T) []Meta {
+	mu.Lock()
+	defer mu.Unlock()
+
+	return metas
+}
 
 // NewRegistry returns a new registry containing all promauto created metrics and
 // built-in Go process metrics wrapping everything with the provided labels.
@@ -50,51 +77,73 @@ func NewRegistry(labels prometheus.Labels) (*prometheus.Registry, error) {
 }
 
 // cacheMetric adds the metric to the local global cache.
-func cacheMetric(metric prometheus.Collector) {
+func cacheMetric(metric prometheus.Collector, meta Meta) {
 	mu.Lock()
 	defer mu.Unlock()
 
 	metrics = append(metrics, metric)
+	metas = append(metas, meta)
 }
 
 func NewGaugeVec(opts prometheus.GaugeOpts, labelNames []string) *prometheus.GaugeVec {
 	c := prometheus.NewGaugeVec(opts, labelNames)
-	cacheMetric(c)
+	m := makeMeta(opts, opts.Namespace, opts.Subsystem, opts.Name, opts.Help, labelNames...)
+	cacheMetric(c, m)
 
 	return c
 }
 
 func NewGauge(opts prometheus.GaugeOpts) prometheus.Gauge {
 	c := prometheus.NewGauge(opts)
-	cacheMetric(c)
+	m := makeMeta(opts, opts.Namespace, opts.Subsystem, opts.Name, opts.Help)
+	cacheMetric(c, m)
 
 	return c
 }
 
 func NewHistogramVec(opts prometheus.HistogramOpts, labelNames []string) *prometheus.HistogramVec {
 	c := prometheus.NewHistogramVec(opts, labelNames)
-	cacheMetric(c)
+	m := makeMeta(opts, opts.Namespace, opts.Subsystem, opts.Name, opts.Help, labelNames...)
+	cacheMetric(c, m)
 
 	return c
 }
 
 func NewHistogram(opts prometheus.HistogramOpts) prometheus.Histogram {
 	c := prometheus.NewHistogram(opts)
-	cacheMetric(c)
+	m := makeMeta(opts, opts.Namespace, opts.Subsystem, opts.Name, opts.Help)
+	cacheMetric(c, m)
 
 	return c
 }
 
 func NewCounterVec(opts prometheus.CounterOpts, labelNames []string) *prometheus.CounterVec {
 	c := prometheus.NewCounterVec(opts, labelNames)
-	cacheMetric(c)
+	m := makeMeta(opts, opts.Namespace, opts.Subsystem, opts.Name, opts.Help, labelNames...)
+	cacheMetric(c, m)
 
 	return c
 }
 
 func NewCounter(opts prometheus.CounterOpts) prometheus.Counter {
 	c := prometheus.NewCounter(opts)
-	cacheMetric(c)
+	m := makeMeta(opts, opts.Namespace, opts.Subsystem, opts.Name, opts.Help)
+	cacheMetric(c, m)
 
 	return c
+}
+
+func makeMeta(typ any, namespace, subsystem, name, help string, labels ...string) Meta {
+	typStr := fmt.Sprintf("%T", typ)
+	typStr = strings.TrimPrefix(typStr, "prometheus.")
+	typStr = strings.TrimSuffix(typStr, "Opts")
+
+	return Meta{
+		Namespace: namespace,
+		Subsystem: subsystem,
+		Name:      name,
+		Help:      help,
+		Type:      typStr,
+		Labels:    labels,
+	}
 }
