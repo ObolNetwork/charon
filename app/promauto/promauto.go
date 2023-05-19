@@ -23,6 +23,8 @@ var (
 	metas   []Meta
 )
 
+// Meta contains the metadata for a metric.
+// This is required because prometheus doens't expose the metadata of a metric.
 type Meta struct {
 	Namespace string
 	Subsystem string
@@ -133,6 +135,7 @@ func NewCounter(opts prometheus.CounterOpts) prometheus.Counter {
 	return c
 }
 
+// makeMeta creates a Meta struct from the provided prometheus metric options.
 func makeMeta(typ any, namespace, subsystem, name, help string, labels ...string) Meta {
 	typStr := fmt.Sprintf("%T", typ)
 	typStr = strings.TrimPrefix(typStr, "prometheus.")
