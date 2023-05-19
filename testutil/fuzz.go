@@ -3,7 +3,9 @@
 package testutil
 
 import (
+	"math/rand"
 	"testing"
+	"time"
 
 	v1deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
@@ -16,10 +18,11 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-// NewEth2Fuzzer returns a fuzzer for valid eth2 types.
+// NewEth2Fuzzer returns a fuzzer for valid eth2 types using the provided seed,
+// unless seed is zero in which case it uses current time.
 //
 // Note go-eth2-client Versioned*Blocks are not support, instead use core.Versioned*Blocks.
-func NewEth2Fuzzer(t *testing.T) *fuzz.Fuzzer {
+func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 	t.Helper()
 
 	blindedVersions := []eth2spec.DataVersion{
@@ -36,7 +39,12 @@ func NewEth2Fuzzer(t *testing.T) *fuzz.Fuzzer {
 		eth2spec.DataVersionDeneb,
 	}
 
+	if seed == 0 {
+		seed = time.Now().Unix()
+	}
+
 	return fuzz.New().
+		RandSource(rand.New(rand.NewSource(seed))). //nolint:gosec // Required for deterministic fuzzing.
 		NilChance(0).
 		Funcs(
 			// bitfield.Bitlist trailing byte must not be zero

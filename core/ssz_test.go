@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"reflect"
 	"testing"
+	"time"
 
 	ssz "github.com/ferranbt/fastssz"
 	"github.com/stretchr/testify/require"
@@ -34,7 +35,7 @@ func TestSSZ(t *testing.T) {
 		{zero: func() any { return new(core.SyncContribution) }},
 	}
 
-	f := testutil.NewEth2Fuzzer(t)
+	f := testutil.NewEth2Fuzzer(t, 0)
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%T", test.zero()), func(t *testing.T) {
@@ -86,9 +87,15 @@ func TestMarshalUnsignedProto(t *testing.T) {
 		},
 	}
 
-	f := testutil.NewEth2Fuzzer(t)
+	jsonSizes := make(map[string]int)
+	sszSizes := make(map[string]int)
+
+	seed := time.Now().Unix()
+
 	for _, enabledSSZ := range []bool{true, false} {
-		for _, test := range tests {
+		for i, test := range tests {
+			f := testutil.NewEth2Fuzzer(t, seed+int64(i)) // Use the same seed for ssz vs json for each type.
+
 			t.Run(fmt.Sprintf("%T_%v", test.unsignedPtr(), enabledSSZ), func(t *testing.T) {
 				if enabledSSZ {
 					core.EnabledSSZMarshallingForT(t)
@@ -107,16 +114,27 @@ func TestMarshalUnsignedProto(t *testing.T) {
 				pb, err := core.UnsignedDataSetToProto(set)
 				require.NoError(t, err)
 
-				b, err := proto.Marshal(pb)
-				require.NoError(t, err)
-				t.Log(len(b))
-
 				set2, err := core.UnsignedDataSetFromProto(test.dutyType, pb)
 				require.NoError(t, err)
 
 				require.Equal(t, set, set2)
+
+				b, err := proto.Marshal(pb)
+				require.NoError(t, err)
+				if enabledSSZ {
+					sszSizes[fmt.Sprintf("%T", unsignedPtr)] = len(b)
+				} else {
+					jsonSizes[fmt.Sprintf("%T", unsignedPtr)] = len(b)
+				}
 			})
 		}
+	}
+
+	for _, test := range tests {
+		typ := fmt.Sprintf("%T", test.unsignedPtr())
+		jsonSize := jsonSizes[typ]
+		sszSize := sszSizes[typ]
+		t.Logf("%s: ssz (%d) vs json (%d) == %.0f%%", typ, sszSize, jsonSize, 100*float64(sszSize)/float64(jsonSize))
 	}
 }
 
@@ -147,9 +165,15 @@ func TestMarshalParSignedProto(t *testing.T) {
 		},
 	}
 
-	f := testutil.NewEth2Fuzzer(t)
+	jsonSizes := make(map[string]int)
+	sszSizes := make(map[string]int)
+
+	seed := time.Now().Unix()
+
 	for _, enabledSSZ := range []bool{true, false} {
-		for _, test := range tests {
+		for i, test := range tests {
+			f := testutil.NewEth2Fuzzer(t, seed+int64(i)) // Use the same seed for ssz vs json for each type.
+
 			t.Run(fmt.Sprintf("%T_%v", test.signedPtr(), enabledSSZ), func(t *testing.T) {
 				if enabledSSZ {
 					core.EnabledSSZMarshallingForT(t)
@@ -171,15 +195,26 @@ func TestMarshalParSignedProto(t *testing.T) {
 				pb, err := core.ParSignedDataSetToProto(set)
 				require.NoError(t, err)
 
-				b, err := proto.Marshal(pb)
-				require.NoError(t, err)
-				t.Log(len(b))
-
 				set2, err := core.ParSignedDataSetFromProto(test.dutyType, pb)
 				require.NoError(t, err)
 
 				require.Equal(t, set, set2)
+
+				b, err := proto.Marshal(pb)
+				require.NoError(t, err)
+				if enabledSSZ {
+					sszSizes[fmt.Sprintf("%T", signedPtr)] = len(b)
+				} else {
+					jsonSizes[fmt.Sprintf("%T", signedPtr)] = len(b)
+				}
 			})
 		}
+	}
+
+	for _, test := range tests {
+		typ := fmt.Sprintf("%T", test.signedPtr())
+		jsonSize := jsonSizes[typ]
+		sszSize := sszSizes[typ]
+		t.Logf("%s: ssz (%d) vs json (%d) == %.2f%%", typ, sszSize, jsonSize, 100*float64(sszSize)/float64(jsonSize))
 	}
 }

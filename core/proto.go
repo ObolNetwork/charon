@@ -125,7 +125,7 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (ParSignedDa
 
 // ParSignedDataToProto returns the data as a protobuf.
 func ParSignedDataToProto(data ParSignedData) (*pbv1.ParSignedData, error) {
-	d, err := data.MarshalJSON()
+	d, err := marshal(data.SignedData)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal share signed data")
 	}
@@ -218,6 +218,7 @@ func EnabledSSZMarshallingForT(t *testing.T) {
 // sszMarshallingEnabled will be enabled in v0.17.
 var sszMarshallingEnabled = false
 
+// marshal marshals the given value into bytes, either as SSZ if supported by the type (and if enabled) or as json.
 func marshal(v any) ([]byte, error) {
 	// First try SSZ
 	if marshaller, ok := v.(ssz.Marshaler); ok && sszMarshallingEnabled {
@@ -229,6 +230,7 @@ func marshal(v any) ([]byte, error) {
 		return b, nil
 	}
 
+	// Else try json
 	b, err := json.Marshal(v)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal json")

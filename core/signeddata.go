@@ -14,6 +14,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
+	"github.com/attestantio/go-eth2-client/spec/deneb"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
 
@@ -219,6 +220,8 @@ func (b VersionedSignedBeaconBlock) Signature() Signature {
 		return SigFromETH2(b.Bellatrix.Signature)
 	case eth2spec.DataVersionCapella:
 		return SigFromETH2(b.Capella.Signature)
+	case eth2spec.DataVersionDeneb:
+		return SigFromETH2(b.Deneb.Signature)
 	default:
 		panic("unknown version") // Note this is avoided by using `NewVersionedSignedBeaconBlock`.
 	}
@@ -239,6 +242,8 @@ func (b VersionedSignedBeaconBlock) SetSignature(sig Signature) (SignedData, err
 		resp.Bellatrix.Signature = sig.ToETH2()
 	case eth2spec.DataVersionCapella:
 		resp.Capella.Signature = sig.ToETH2()
+	case eth2spec.DataVersionDeneb:
+		resp.Deneb.Signature = sig.ToETH2()
 	default:
 		return nil, errors.New("unknown type")
 	}
@@ -258,6 +263,8 @@ func (b VersionedSignedBeaconBlock) MarshalJSON() ([]byte, error) {
 		marshaller = b.VersionedSignedBeaconBlock.Bellatrix
 	case eth2spec.DataVersionCapella:
 		marshaller = b.VersionedSignedBeaconBlock.Capella
+	case eth2spec.DataVersionDeneb:
+		marshaller = b.VersionedSignedBeaconBlock.Deneb
 	default:
 		return nil, errors.New("unknown version")
 	}
@@ -310,6 +317,12 @@ func (b *VersionedSignedBeaconBlock) UnmarshalJSON(input []byte) error {
 			return errors.Wrap(err, "unmarshal capella")
 		}
 		resp.Capella = block
+	case eth2spec.DataVersionDeneb:
+		block := new(deneb.SignedBeaconBlock)
+		if err := json.Unmarshal(raw.Block, &block); err != nil {
+			return errors.Wrap(err, "unmarshal deneb")
+		}
+		resp.Deneb = block
 	default:
 		return errors.New("unknown version")
 	}

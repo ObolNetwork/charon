@@ -20,10 +20,13 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
+// sszType indicates a type that can be marshalled and unmarshalled by ssz.
 type sszType interface {
 	ssz.Marshaler
 	ssz.Unmarshaler
 }
+
+// ======================= VersionedSignedBeaconBlock =======================
 
 // MarshalSSZ ssz marshals the VersionedSignedBeaconBlock object.
 func (b VersionedSignedBeaconBlock) MarshalSSZ() ([]byte, error) {
@@ -308,8 +311,10 @@ func (b *VersionedBlindedBeaconBlock) sszValFromVersion(version eth2spec.DataVer
 	}
 }
 
+// versionedOffset is the offset of a versioned ssz encoded object.
 const versionedOffset = 8 + 4 // version (uint64) + offset (uint32)
 
+// marshalSSZVersionedTo marshals a versioned object to a target array.
 func marshalSSZVersionedTo(dst []byte, version eth2spec.DataVersion, valFunc func(eth2spec.DataVersion) (sszType, error)) ([]byte, error) {
 	// Field (0) 'Version'
 	dst = ssz.MarshalUint64(dst, uint64(version))
@@ -330,6 +335,7 @@ func marshalSSZVersionedTo(dst []byte, version eth2spec.DataVersion, valFunc fun
 	return dst, nil
 }
 
+// unmarshalSSZVersioned unmarshals a versioned object.
 func unmarshalSSZVersioned(buf []byte, valFunc func(eth2spec.DataVersion) (sszType, error)) (eth2spec.DataVersion, error) {
 	if len(buf) < versionedOffset {
 		return 0, errors.Wrap(ssz.ErrSize, "versioned object too short")
@@ -356,6 +362,7 @@ func unmarshalSSZVersioned(buf []byte, valFunc func(eth2spec.DataVersion) (sszTy
 	return version, nil
 }
 
+// sizeSSZVersioned returns the ssz encoded size in bytes for a given versioned object.
 func sizeSSZVersioned(value sszType) int {
 	return versionedOffset + value.SizeSSZ()
 }
