@@ -18,9 +18,9 @@ import (
 	"github.com/obolnetwork/charon/app/promauto"
 )
 
-var update = flag.Bool("update_conf", false, "Updates the config reference doc")
+var update = flag.Bool("update-markdown", false, "Updates the reference markdown docs")
 
-//go:generate go test . -run=TestConfigReference -update_conf
+//go:generate go test . -run=TestConfigReference -update-markdown
 
 // TestConfigReference ensures that docs/configuration.md contains the latest output of `charon run --help`.
 // Running this test with the --update_conf flag will generate the contents, fixing the test if broken.
@@ -71,8 +71,8 @@ func TestConfigReference(t *testing.T) {
 	}
 
 	require.Containsf(t, string(content), buf.String(),
-		"docs/configuration.md doesn't contain latest `charon run --help` output. "+
-			"Run with -update_conf to fix")
+		"docs/configuration.md doesn't contain latest `charon run --help` output.\n"+
+			"To fix, run: go test github.com/obolnetwork/charon/cmd -update-markdown")
 }
 
 const metricsMD = `# Prometheus Metrics
@@ -90,7 +90,7 @@ All metrics contain the following labels, so they are omitted from the table bel
 {{ range . }}| '{{ .FQName }}' | {{ .Type }} | {{ .Help }} | '{{ Join .Labels ", " }}' |
 {{ end }}`
 
-//go:generate go test . -run=TestMetricReference -update_conf
+//go:generate go test . -run=TestMetricReference -update-markdown
 
 func TestMetricReference(t *testing.T) {
 	var metas []promauto.Meta
@@ -131,6 +131,6 @@ func TestMetricReference(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, string(content), result,
-		"docs/metrics.md doesn't contain latest metrics. "+
-			"Run with -update_conf to fix")
+		"docs/metrics.md doesn't contain latest metrics.\n"+
+			"To fix, run: go test github.com/obolnetwork/charon/cmd -update-markdown")
 }
