@@ -157,16 +157,11 @@ func WithSendReceiveRTT(callback func(time.Duration)) func(*sendRecvOpts) {
 }
 
 // WithDelimitedProtocol returns an option that adds a length delimited read/writer for the provide protocol.
-// TODO(corver): Delimited protocols are disabled in v0.15.
-//
-//	This is because v0.14 still uses the naive p2p.ProtocolSupported which doesn't
-//	support dynamically negotiated protocols. It only supports the static advertised protocols.
-//	Our implementation of the length delimited protocol is dynamically negotiated so not supported
-//	by v0.14. We can enable this post-v0.15 release.
-func WithDelimitedProtocol(protocol.ID) func(*sendRecvOpts) {
-	return func(*sendRecvOpts) {
-		// opts.writersByProtocol[pID] = func(s network.Stream) pbio.Writer { return pbio.NewDelimitedWriter(s) }
-		// opts.readersByProtocol[pID] = func(s network.Stream) pbio.Reader { return pbio.NewDelimitedReader(s, maxMsgSize) }
+func WithDelimitedProtocol(pID protocol.ID) func(*sendRecvOpts) {
+	return func(opts *sendRecvOpts) {
+		opts.protocols = append([]protocol.ID{pID}, opts.protocols...) // Add to front
+		opts.writersByProtocol[pID] = func(s network.Stream) pbio.Writer { return pbio.NewDelimitedWriter(s) }
+		opts.readersByProtocol[pID] = func(s network.Stream) pbio.Reader { return pbio.NewDelimitedReader(s, maxMsgSize) }
 	}
 }
 
@@ -233,7 +228,7 @@ func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
 		return errors.Wrap(err, "read response", z.Any("protocol", s.Protocol()))
 	}
 
-	// TODO(corver): Remove this once we use length-delimited protocols.
+	// TODO(corver): Remove this once we only use length-delimited protocols.
 	//  This was added since legacy stream delimited readers couldn't distinguish between
 	//  no response and a zero response.
 	if proto.Equal(resp, zeroResp) {
