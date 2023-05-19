@@ -1,12 +1,16 @@
 # Prometheus Metrics
 
-This document contains all the prometheus metrics exposed by charon.
+This document contains all the prometheus metrics exposed by a charon node.
 
 All metrics contain the following labels, so they are omitted from the table below:
 - `cluster_hash`: The cluster lock hash uniquely identifying the cluster.
 - `clustter_name`: The cluster lock name.
 - `cluster_network`: The cluster network name; goerli, mainnet, etc.
 - `cluster_peer`: The name of this node in the cluster. It is determined from the operator ENR.
+
+The above `cluster_*` labels are used to uniquely identify the metrics of a specific node
+which is especially useful if the metrics from multiple nodes or clusters are
+stored in a single prometheus instance.
 
 | Name | Type | Help | Labels |
 |---|---|---|---|
