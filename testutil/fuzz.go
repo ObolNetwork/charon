@@ -53,11 +53,18 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				l := len(*e)
 				(*e)[l-1] = 1
 			},
-			// eth2p0.AttesterSlashings may not be more than 2
+			// eth2p0.AttesterSlashings has max
 			func(e *[]*eth2p0.AttesterSlashing, c fuzz.Continue) {
 				c.FuzzNoCustom(e)
 				if len(*e) > 2 {
 					*e = (*e)[:2]
+				}
+			},
+			// eth2p0.AttesterSlashings has max
+			func(e *[]*eth2p0.ProposerSlashing, c fuzz.Continue) {
+				c.FuzzNoCustom(e)
+				if len(*e) > 16 {
+					*e = (*e)[:16]
 				}
 			},
 			// Eth1Data.BlockHash must be 32 bytes
@@ -86,11 +93,11 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				}
 				e.AggregationBits = bits
 			},
-			// VersionBlingedBeaconBlock.Deneb SSZ not supported by goeth2client yet, so nil it.
+			// VersionBlindedBeaconBlock.Deneb SSZ not supported by goeth2client yet, so nil it.
 			func(e **v1deneb.BlindedBeaconBlock, c fuzz.Continue) {
 				*e = nil
 			},
-			// []deneb.KzgCommitment has max size 4.
+			// []deneb.KzgCommitment has max.
 			func(e *[]deneb.KzgCommitment, c fuzz.Continue) {
 				c.FuzzNoCustom(e)
 				if len(*e) > 4 {

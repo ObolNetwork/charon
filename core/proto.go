@@ -13,6 +13,18 @@ import (
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 )
 
+// sszMarshallingEnabled will be enabled in v0.17.
+var sszMarshallingEnabled = false
+
+// EnabledSSZMarshallingForT enables SSZ marshalling for the duration of the test.
+func EnabledSSZMarshallingForT(t *testing.T) {
+	t.Helper()
+	sszMarshallingEnabled = true
+	t.Cleanup(func() {
+		sszMarshallingEnabled = false
+	})
+}
+
 // DutyToProto returns the duty as a protobuf.
 func DutyToProto(duty Duty) *pbv1.Duty {
 	return &pbv1.Duty{
@@ -206,17 +218,6 @@ func UnsignedDataSetFromProto(typ DutyType, set *pbv1.UnsignedDataSet) (Unsigned
 
 	return resp, nil
 }
-
-func EnabledSSZMarshallingForT(t *testing.T) {
-	t.Helper()
-	sszMarshallingEnabled = true
-	t.Cleanup(func() {
-		sszMarshallingEnabled = false
-	})
-}
-
-// sszMarshallingEnabled will be enabled in v0.17.
-var sszMarshallingEnabled = false
 
 // marshal marshals the given value into bytes, either as SSZ if supported by the type (and if enabled) or as json.
 func marshal(v any) ([]byte, error) {
