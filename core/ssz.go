@@ -5,6 +5,7 @@ package core
 import (
 	"testing"
 
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
@@ -377,4 +378,150 @@ func VersionedSSZValueForT(t *testing.T, value any, version eth2spec.DataVersion
 	require.NoError(t, err)
 
 	return resp
+}
+
+func (a AttestationData) MarshalSSZ() ([]byte, error) {
+	resp, err := ssz.MarshalSSZ(a)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal VersionedSignedBlindedBeaconBlock")
+	}
+
+	return resp, nil
+}
+
+func (a AttestationData) MarshalSSZTo(dst []byte) ([]byte, error) {
+	offset := 4 + 4 // 2*offset (uint32)
+
+	// Offset (0) 'AttestationData'
+	dst = ssz.WriteOffset(dst, offset)
+	offset += a.Data.SizeSSZ()
+
+	// Offset (1) 'AttesterDuty'
+	dst = ssz.WriteOffset(dst, offset)
+
+	// Field (0) 'AttestationData'
+	dst, err := a.Data.MarshalSSZTo(dst)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal attestation data")
+	}
+
+	// Field (1) 'AttesterDuty'
+	dst, err = attesterDutySSZ(a.Duty).MarshalSSZTo(dst)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal attester duty")
+	}
+
+	return dst, nil
+}
+
+func (a AttestationData) SizeSSZ() int {
+	return 4 + 4 + a.Data.SizeSSZ() + attesterDutySSZ(a.Duty).SizeSSZ()
+}
+
+func (a *AttestationData) UnmarshalSSZ(buf []byte) error {
+	minSize := uint64(4 + 4)
+	size := uint64(len(buf))
+	if size < minSize {
+		return errors.Wrap(ssz.ErrSize, "attestation data too short")
+	}
+
+	// Offset (0) 'AttestationData'
+	o0 := ssz.ReadOffset(buf[0:4])
+	if size < o0 || minSize > o0 {
+		return errors.Wrap(ssz.ErrOffset, "attestation data offset")
+	}
+
+	// Offset (1) 'AttesterDuty'
+	o1 := ssz.ReadOffset(buf[4:8])
+	if size < o1 || o0 > o1 {
+		return errors.Wrap(ssz.ErrOffset, "attester duty offset")
+	}
+
+	// Field (0) 'AttestationData'
+	if err := a.Data.UnmarshalSSZ(buf[o0:o1]); err != nil {
+		return errors.Wrap(err, "unmarshal attestation data")
+	}
+
+	// Field (1) 'AttesterDuty'
+	if err := (*attesterDutySSZ)(&a.Duty).UnmarshalSSZ(buf[o1:]); err != nil {
+		return errors.Wrap(err, "unmarshal attester duty")
+	}
+
+	return nil
+}
+
+// attesterDutySSZ is a wrapper around eth2v1.AttesterDuty to implement the sszType interface.
+type attesterDutySSZ eth2v1.AttesterDuty
+
+func (a attesterDutySSZ) MarshalSSZTo(dst []byte) ([]byte, error) {
+	// Field (0) 'PubKey'
+	dst = append(dst, a.PubKey[:]...)
+
+	// Field (1) 'Slot'
+	dst = ssz.MarshalUint64(dst, uint64(a.Slot))
+
+	// Field (2) 'ValidatorIndex'
+	dst = ssz.MarshalUint64(dst, uint64(a.ValidatorIndex))
+
+	// Field (3) 'CommitteeIndex'
+	dst = ssz.MarshalUint64(dst, uint64(a.CommitteeIndex))
+
+	// Field (4) 'CommitteeLength'
+	dst = ssz.MarshalUint64(dst, a.CommitteeLength)
+
+	// Field (5) 'CommitteesAtSlot'
+	dst = ssz.MarshalUint64(dst, a.CommitteesAtSlot)
+
+	// Field (6) 'ValidatorCommitteeIndex'
+	dst = ssz.MarshalUint64(dst, a.ValidatorCommitteeIndex)
+
+	return dst, nil
+}
+
+func (attesterDutySSZ) SizeSSZ() int {
+	return 48 + 6*8 // Pubkey (48) + 6*uint64s
+}
+
+func (a *attesterDutySSZ) UnmarshalSSZ(buf []byte) error {
+	if len(buf) < a.SizeSSZ() {
+		return errors.Wrap(ssz.ErrSize, "attesterDuty unmarshal")
+	}
+
+	offset := 0
+	next := 48
+
+	// Field (0) 'PubKey'
+	copy(a.PubKey[:], buf[offset:next])
+
+	offset, next = next, next+8
+
+	// Field (1) 'Slot'
+	a.Slot = eth2p0.Slot(ssz.UnmarshallUint64(buf[offset:next]))
+
+	offset, next = next, next+8
+
+	// Field (2) 'ValidatorIndex'
+	a.ValidatorIndex = eth2p0.ValidatorIndex(ssz.UnmarshallUint64(buf[offset:next]))
+
+	offset, next = next, next+8
+
+	// Field (3) 'CommitteeIndex'
+	a.CommitteeIndex = eth2p0.CommitteeIndex(ssz.UnmarshallUint64(buf[offset:next]))
+
+	offset, next = next, next+8
+
+	// Field (4) 'CommitteeLength'
+	a.CommitteeLength = ssz.UnmarshallUint64(buf[offset:next])
+
+	offset, next = next, next+8
+
+	// Field (5) 'CommitteesAtSlot'
+	a.CommitteesAtSlot = ssz.UnmarshallUint64(buf[offset:next])
+
+	offset, next = next, next+8
+
+	// Field (6) 'ValidatorCommitteeIndex'
+	a.ValidatorCommitteeIndex = ssz.UnmarshallUint64(buf[offset:next])
+
+	return nil
 }

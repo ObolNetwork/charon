@@ -29,10 +29,12 @@ var (
 	_ UnsignedData = SyncContribution{}
 
 	// Some types also support SSZ marshalling and unmarshalling.
+	_ ssz.Marshaler   = AttestationData{}
 	_ ssz.Marshaler   = AggregatedAttestation{}
 	_ ssz.Marshaler   = VersionedBeaconBlock{}
 	_ ssz.Marshaler   = VersionedBlindedBeaconBlock{}
 	_ ssz.Marshaler   = SyncContribution{}
+	_ ssz.Unmarshaler = new(AttestationData)
 	_ ssz.Unmarshaler = new(AggregatedAttestation)
 	_ ssz.Unmarshaler = new(VersionedBeaconBlock)
 	_ ssz.Unmarshaler = new(VersionedBlindedBeaconBlock)
