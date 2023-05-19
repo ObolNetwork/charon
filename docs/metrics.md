@@ -8,9 +8,8 @@ All metrics contain the following labels, so they are omitted from the table bel
 - `cluster_network`: The cluster network name; goerli, mainnet, etc.
 - `cluster_peer`: The name of this node in the cluster. It is determined from the operator ENR.
 
-The above `cluster_*` labels are used to uniquely identify the metrics of a specific node
-which is especially useful if the metrics from multiple nodes or clusters are
-stored in a single prometheus instance.
+The `cluster_*` labels uniquely identify a specific node`s metrics which is required
+when storing metrics from multiple nodes or clusters in one Prometheus instance.
 
 | Name | Type | Help | Labels |
 |---|---|---|---|
