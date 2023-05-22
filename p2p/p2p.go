@@ -210,6 +210,49 @@ func (f peerRoutingFunc) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo
 	return f(ctx, p)
 }
 
+// ForceDirectConnections attempts to establish a direct connection if there is an existing relay connection to the peer.
+// The idea is to enable switching to a direct connection as soon as the host has a connection to the peer.
+func ForceDirectConnections(ctx context.Context, tcpNode host.Host, peerIDs []peer.ID) {
+	ticker := time.NewTicker(1 * time.Minute)
+	forceDirectConn := func() {
+		for _, p := range peerIDs {
+			conns := tcpNode.Network().ConnsToPeer(p)
+			directConn := false
+			if len(conns) == 0 {
+				continue
+			}
+
+			for _, conn := range conns {
+				if !IsRelayAddr(conn.RemoteMultiaddr()) {
+					directConn = true
+					break
+				}
+			}
+
+			if !directConn {
+				// All existing connections are through relays, so we can try force dialing a direct connection.
+				err := tcpNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p})
+				if err != nil {
+					log.Warn(ctx, "Direct connection to peer unsuccessful", err, z.Str("peer", p.String()))
+				} else {
+					log.Debug(ctx, "Direct connection to peer successful", z.Str("peer", p.String()))
+				}
+			}
+		}
+	}
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				forceDirectConn()
+			}
+		}
+	}()
+}
+
 // RegisterConnectionLogger registers a connection logger with the host.
 // This is pretty weird and hacky, but that is because libp2p uses the network.Notifiee interface as a map key,
 // so the implementation can only contain fields that are hashable. So we use a channel and do the logic externally. :(.
@@ -285,6 +328,10 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 				if e.Connected && peers[e.Peer] { // Do not instrument relays.
 					peerConnCounter.WithLabelValues(name).Inc()
 				}
+
+				// Attempt direct connections if host is connected to relay.
+				// if e.Connected && typ == addrTypeRelay {
+				// }
 			}
 		}
 	}()
@@ -300,7 +347,7 @@ type logEvent struct {
 	Listen     bool
 }
 
-// connLogger implements network.Notifee and only sends logEvents on a channel since
+// connLogger implements network.Notifiee and only sends logEvents on a channel since
 // it is used as a map key internally in libp2p, it cannot contain complex types.
 type connLogger struct {
 	quit   chan struct{}

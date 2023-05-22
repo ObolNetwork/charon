@@ -299,6 +299,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	p2p.RegisterConnectionLogger(ctx, tcpNode, peerIDs)
+	p2p.ForceDirectConnections(ctx, tcpNode, peerIDs)
 
 	life.RegisterStop(lifecycle.StopP2PTCPNode, lifecycle.HookFuncErr(tcpNode.Close))
 
