@@ -30,7 +30,7 @@ var registrationGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 	Namespace: "core",
 	Subsystem: "bcast",
 	Name:      "broadcast_registration",
-	Help:      "Whether the broadcasted validator registration was a pre-generated one or not.",
+	Help:      "Whether the validator registration broadcasted successfully by validator pubkey and slot",
 }, []string{"pubkey", "slot"})
 
 // instrumentDuty increments the duty counter.

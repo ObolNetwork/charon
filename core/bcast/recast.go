@@ -4,7 +4,6 @@ package bcast
 
 import (
 	"context"
-	"strconv"
 	"sync"
 
 	"github.com/obolnetwork/charon/app/log"
@@ -97,9 +96,6 @@ func (r *Recaster) SlotTicked(ctx context.Context, slot core.Slot) error {
 			err := sub(ctx, tuple.duty, pubkey, tuple.aggData)
 			if err != nil {
 				log.Error(ctx, "Rebroadcast duty error (will retry next epoch)", err)
-				registrationGauge.WithLabelValues(pubkey.String(), strconv.FormatInt(tuple.duty.Slot, 10)).Set(0)
-			} else {
-				registrationGauge.WithLabelValues(pubkey.String(), strconv.FormatInt(tuple.duty.Slot, 10)).Set(1)
 			}
 		}
 	}
