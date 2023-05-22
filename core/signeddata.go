@@ -14,7 +14,9 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
+	"github.com/attestantio/go-eth2-client/spec/deneb"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
@@ -37,6 +39,22 @@ var (
 	_ SignedData = SyncContributionAndProof{}
 	_ SignedData = SignedSyncContributionAndProof{}
 	_ SignedData = SyncCommitteeSelection{}
+
+	// Some types support SSZ marshalling and unmarshalling.
+	_ ssz.Marshaler   = VersionedSignedBeaconBlock{}
+	_ ssz.Marshaler   = Attestation{}
+	_ ssz.Marshaler   = VersionedSignedBlindedBeaconBlock{}
+	_ ssz.Marshaler   = SignedAggregateAndProof{}
+	_ ssz.Marshaler   = SignedSyncMessage{}
+	_ ssz.Marshaler   = SyncContributionAndProof{}
+	_ ssz.Marshaler   = SignedSyncContributionAndProof{}
+	_ ssz.Unmarshaler = new(VersionedSignedBeaconBlock)
+	_ ssz.Unmarshaler = new(Attestation)
+	_ ssz.Unmarshaler = new(VersionedSignedBlindedBeaconBlock)
+	_ ssz.Unmarshaler = new(SignedAggregateAndProof)
+	_ ssz.Unmarshaler = new(SignedSyncMessage)
+	_ ssz.Unmarshaler = new(SyncContributionAndProof)
+	_ ssz.Unmarshaler = new(SignedSyncContributionAndProof)
 )
 
 // SigFromETH2 returns a new signature from eth2 phase0 BLSSignature.
@@ -68,7 +86,6 @@ func (s Signature) Clone() (SignedData, error) {
 
 // clone returns a copy of the Signature.
 // It is similar to Clone that returns the SignedData interface.
-
 func (s Signature) clone() Signature {
 	resp := make([]byte, len(s))
 	copy(resp, s)
@@ -203,6 +220,8 @@ func (b VersionedSignedBeaconBlock) Signature() Signature {
 		return SigFromETH2(b.Bellatrix.Signature)
 	case eth2spec.DataVersionCapella:
 		return SigFromETH2(b.Capella.Signature)
+	case eth2spec.DataVersionDeneb:
+		return SigFromETH2(b.Deneb.Signature)
 	default:
 		panic("unknown version") // Note this is avoided by using `NewVersionedSignedBeaconBlock`.
 	}
@@ -223,6 +242,8 @@ func (b VersionedSignedBeaconBlock) SetSignature(sig Signature) (SignedData, err
 		resp.Bellatrix.Signature = sig.ToETH2()
 	case eth2spec.DataVersionCapella:
 		resp.Capella.Signature = sig.ToETH2()
+	case eth2spec.DataVersionDeneb:
+		resp.Deneb.Signature = sig.ToETH2()
 	default:
 		return nil, errors.New("unknown type")
 	}
@@ -242,6 +263,8 @@ func (b VersionedSignedBeaconBlock) MarshalJSON() ([]byte, error) {
 		marshaller = b.VersionedSignedBeaconBlock.Bellatrix
 	case eth2spec.DataVersionCapella:
 		marshaller = b.VersionedSignedBeaconBlock.Capella
+	case eth2spec.DataVersionDeneb:
+		marshaller = b.VersionedSignedBeaconBlock.Deneb
 	default:
 		return nil, errors.New("unknown version")
 	}
@@ -294,6 +317,12 @@ func (b *VersionedSignedBeaconBlock) UnmarshalJSON(input []byte) error {
 			return errors.Wrap(err, "unmarshal capella")
 		}
 		resp.Capella = block
+	case eth2spec.DataVersionDeneb:
+		block := new(deneb.SignedBeaconBlock)
+		if err := json.Unmarshal(raw.Block, &block); err != nil {
+			return errors.Wrap(err, "unmarshal deneb")
+		}
+		resp.Deneb = block
 	default:
 		return errors.New("unknown version")
 	}
@@ -528,6 +557,22 @@ func (a *Attestation) UnmarshalJSON(b []byte) error {
 	return a.Attestation.UnmarshalJSON(b)
 }
 
+func (a Attestation) MarshalSSZ() ([]byte, error) {
+	return a.Attestation.MarshalSSZ()
+}
+
+func (a Attestation) MarshalSSZTo(dst []byte) ([]byte, error) {
+	return a.Attestation.MarshalSSZTo(dst)
+}
+
+func (a Attestation) SizeSSZ() int {
+	return a.Attestation.SizeSSZ()
+}
+
+func (a *Attestation) UnmarshalSSZ(b []byte) error {
+	return a.Attestation.UnmarshalSSZ(b)
+}
+
 // NewSignedVoluntaryExit is a convenience function that returns a new signed voluntary exit.
 func NewSignedVoluntaryExit(exit *eth2p0.SignedVoluntaryExit) SignedVoluntaryExit {
 	return SignedVoluntaryExit{SignedVoluntaryExit: *exit}
@@ -555,7 +600,6 @@ func (e SignedVoluntaryExit) Clone() (SignedData, error) {
 
 // clone returns a copy of the SignedVoluntaryExit.
 // It is similar to Clone that returns the SignedData interface.
-
 func (e SignedVoluntaryExit) clone() (SignedVoluntaryExit, error) {
 	var resp SignedVoluntaryExit
 	err := cloneJSONMarshaler(e, &resp)
@@ -981,6 +1025,22 @@ func (s *SignedAggregateAndProof) UnmarshalJSON(input []byte) error {
 	return s.SignedAggregateAndProof.UnmarshalJSON(input)
 }
 
+func (s SignedAggregateAndProof) MarshalSSZ() ([]byte, error) {
+	return s.SignedAggregateAndProof.MarshalSSZ()
+}
+
+func (s SignedAggregateAndProof) MarshalSSZTo(dst []byte) ([]byte, error) {
+	return s.SignedAggregateAndProof.MarshalSSZTo(dst)
+}
+
+func (s SignedAggregateAndProof) SizeSSZ() int {
+	return s.SignedAggregateAndProof.SizeSSZ()
+}
+
+func (s *SignedAggregateAndProof) UnmarshalSSZ(b []byte) error {
+	return s.SignedAggregateAndProof.UnmarshalSSZ(b)
+}
+
 // SyncCommitteeMessage: https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#synccommitteemessage.
 
 // NewSignedSyncMessage is a convenience function which returns new signed SignedSyncMessage.
@@ -1040,6 +1100,22 @@ func (s SignedSyncMessage) MarshalJSON() ([]byte, error) {
 
 func (s *SignedSyncMessage) UnmarshalJSON(input []byte) error {
 	return s.SyncCommitteeMessage.UnmarshalJSON(input)
+}
+
+func (s SignedSyncMessage) MarshalSSZ() ([]byte, error) {
+	return s.SyncCommitteeMessage.MarshalSSZ()
+}
+
+func (s SignedSyncMessage) MarshalSSZTo(dst []byte) ([]byte, error) {
+	return s.SyncCommitteeMessage.MarshalSSZTo(dst)
+}
+
+func (s SignedSyncMessage) SizeSSZ() int {
+	return s.SyncCommitteeMessage.SizeSSZ()
+}
+
+func (s *SignedSyncMessage) UnmarshalSSZ(b []byte) error {
+	return s.SyncCommitteeMessage.UnmarshalSSZ(b)
 }
 
 // ContributionAndProof: https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#contributionandproof.
@@ -1118,6 +1194,22 @@ func (s SyncContributionAndProof) Epoch(ctx context.Context, eth2Cl eth2wrap.Cli
 	return eth2util.EpochFromSlot(ctx, eth2Cl, s.Contribution.Slot)
 }
 
+func (s SyncContributionAndProof) MarshalSSZ() ([]byte, error) {
+	return s.ContributionAndProof.MarshalSSZ()
+}
+
+func (s SyncContributionAndProof) MarshalSSZTo(dst []byte) ([]byte, error) {
+	return s.ContributionAndProof.MarshalSSZTo(dst)
+}
+
+func (s SyncContributionAndProof) SizeSSZ() int {
+	return s.ContributionAndProof.SizeSSZ()
+}
+
+func (s *SyncContributionAndProof) UnmarshalSSZ(b []byte) error {
+	return s.ContributionAndProof.UnmarshalSSZ(b)
+}
+
 // SignedContributionAndProof: https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#signedcontributionandproof.
 
 // NewSignedSyncContributionAndProof is a convenience function that returns a new signed altair.SignedContributionAndProof.
@@ -1179,6 +1271,22 @@ func (s SignedSyncContributionAndProof) MarshalJSON() ([]byte, error) {
 
 func (s *SignedSyncContributionAndProof) UnmarshalJSON(input []byte) error {
 	return s.SignedContributionAndProof.UnmarshalJSON(input)
+}
+
+func (s SignedSyncContributionAndProof) MarshalSSZ() ([]byte, error) {
+	return s.SignedContributionAndProof.MarshalSSZ()
+}
+
+func (s SignedSyncContributionAndProof) MarshalSSZTo(dst []byte) ([]byte, error) {
+	return s.SignedContributionAndProof.MarshalSSZTo(dst)
+}
+
+func (s SignedSyncContributionAndProof) SizeSSZ() int {
+	return s.SignedContributionAndProof.SizeSSZ()
+}
+
+func (s *SignedSyncContributionAndProof) UnmarshalSSZ(b []byte) error {
+	return s.SignedContributionAndProof.UnmarshalSSZ(b)
 }
 
 // cloneJSONMarshaler clones the marshaler by serialising to-from json
