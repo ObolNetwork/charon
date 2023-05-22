@@ -24,7 +24,7 @@ var (
 )
 
 // Meta contains the metadata for a metric.
-// This is required because prometheus doens't expose the metadata of a metric.
+// This is required because prometheus doesn't expose the metadata of a metric.
 type Meta struct {
 	Namespace string
 	Subsystem string

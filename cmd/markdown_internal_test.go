@@ -23,7 +23,7 @@ var update = flag.Bool("update-markdown", false, "Updates the reference markdown
 //go:generate go test . -run=TestConfigReference -update-markdown
 
 // TestConfigReference ensures that docs/configuration.md contains the latest output of `charon run --help`.
-// Running this test with the --update_conf flag will generate the contents, fixing the test if broken.
+// Running this test with the --update-markdown flag will generate the contents, fixing the test if broken.
 func TestConfigReference(t *testing.T) {
 	cmd := newRootCmd(newRunCmd(func(context.Context, app.Config) error {
 		return nil
