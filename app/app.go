@@ -463,7 +463,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	if err = wireRecaster(ctx, sched, sigAgg, broadcaster, cState.Validators); err != nil {
+	if err = wireRecaster(ctx, eth2Cl, sched, sigAgg, broadcaster, cState.Validators); err != nil {
 		return errors.Wrap(err, "wire recaster")
 	}
 
@@ -559,7 +559,7 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 
 // wireRecaster wires the rebroadcaster component to scheduler, sigAgg and broadcaster.
 // This is not done in core.Wire since recaster isn't really part of the official core workflow (yet).
-func wireRecaster(ctx context.Context, sched core.Scheduler, sigAgg core.SigAgg, broadcaster core.Broadcaster, validators []state.Validator) error {
+func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Scheduler, sigAgg core.SigAgg, broadcaster core.Broadcaster, validators []state.Validator) error {
 	recaster := bcast.NewRecaster()
 
 	for _, val := range validators {
@@ -580,7 +580,12 @@ func wireRecaster(ctx context.Context, sched core.Scheduler, sigAgg core.SigAgg,
 			return errors.Wrap(err, "new versioned signed validator registration")
 		}
 
-		if err = recaster.Store(ctx, core.NewBuilderRegistrationDuty(0), pubkey, signedData); err != nil {
+		slot, err := slotFromTimestamp(ctx, eth2Cl, val.BuilderRegistration.Message.Timestamp)
+		if err != nil {
+			return errors.Wrap(err, "calculate slot from timestamp")
+		}
+
+		if err = recaster.Store(ctx, core.NewBuilderRegistrationDuty(slot), pubkey, signedData); err != nil {
 			return errors.Wrap(err, "recaster store registration")
 		}
 	}
@@ -988,4 +993,23 @@ func builderRegistrationToETH2(reg state.BuilderRegistration) *eth2api.Versioned
 			Signature: eth2p0.BLSSignature(reg.Signature),
 		},
 	}
+}
+
+// slotFromTimestamp returns slot from the provided timestamp.
+func slotFromTimestamp(ctx context.Context, eth2Cl eth2wrap.Client, timestamp time.Time) (int64, error) {
+	genesis, err := eth2Cl.GenesisTime(ctx)
+	if err != nil {
+		return 0, err
+	} else if timestamp.Before(genesis) {
+		return 0, errors.New("registration timestamp before genesis")
+	}
+
+	slotDuration, err := eth2Cl.SlotDuration(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	delta := timestamp.Sub(genesis)
+
+	return int64(delta / slotDuration), nil
 }
