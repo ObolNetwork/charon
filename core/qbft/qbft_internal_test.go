@@ -639,10 +639,15 @@ func TestFormulas(t *testing.T) {
 	assert(t, 11, 8, 3)
 	assert(t, 12, 8, 3)
 	assert(t, 13, 9, 4)
+	assert(t, 14, 10, 4)
 	assert(t, 15, 10, 4)
+	assert(t, 16, 11, 5)
 	assert(t, 17, 12, 5)
+	assert(t, 18, 12, 5)
 	assert(t, 19, 13, 6)
+	assert(t, 20, 14, 6)
 	assert(t, 21, 14, 6)
+	assert(t, 22, 15, 7)
 }
 
 // makeIsLeader returns a leader election function.

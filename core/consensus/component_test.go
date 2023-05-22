@@ -27,26 +27,60 @@ import (
 )
 
 func TestComponent(t *testing.T) {
-	const (
-		nodes = 4
-	)
+	tests := []struct {
+		name      string
+		threshold int
+		nodes     int
+	}{
+		{
+			name:      "2-of-3",
+			threshold: 2,
+			nodes:     3,
+		},
+		{
+			name:      "3-of-4",
+			threshold: 3,
+			nodes:     4,
+		},
+		{
+			name:      "4-of-4",
+			threshold: 4,
+			nodes:     4,
+		},
+		{
+			name:      "4-of-6",
+			threshold: 4,
+			nodes:     6,
+		},
+	}
 
-	lock, p2pkeys, _ := cluster.NewForT(t, 1, nodes, nodes, 0)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testComponent(t, tt.threshold, tt.nodes)
+		})
+	}
+}
+
+// testComponent tests a consensus instance with size of threshold-of-nodes.
+// Note it only instantiates the minimum amount of peers, ie threshold.
+func testComponent(t *testing.T, threshold, nodes int) {
+	t.Helper()
+	lock, p2pkeys, _ := cluster.NewForT(t, 1, threshold, nodes, 0)
 
 	var (
 		peers       []p2p.Peer
 		hosts       []host.Host
 		hostsInfo   []peer.AddrInfo
 		components  []*consensus.Component
-		results     = make(chan core.UnsignedDataSet, nodes)
-		runErrs     = make(chan error, nodes)
-		sniffed     = make(chan int, nodes)
+		results     = make(chan core.UnsignedDataSet, threshold)
+		runErrs     = make(chan error, threshold)
+		sniffed     = make(chan int, threshold)
 		ctx, cancel = context.WithCancel(context.Background())
 	)
 	defer cancel()
 
-	// Create hosts and enrs.
-	for i := 0; i < nodes; i++ {
+	// Create hosts and enrs (ony for threshold).
+	for i := 0; i < threshold; i++ {
 		addr := testutil.AvailableAddr(t)
 		mAddr, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", addr.IP, addr.Port))
 		require.NoError(t, err)
@@ -68,8 +102,8 @@ func TestComponent(t *testing.T) {
 	}
 
 	// Connect each host with its peers
-	for i := 0; i < nodes; i++ {
-		for j := 0; j < nodes; j++ {
+	for i := 0; i < threshold; i++ {
+		for j := 0; j < threshold; j++ {
 			if i == j {
 				continue
 			}
@@ -122,14 +156,14 @@ func TestComponent(t *testing.T) {
 			count++
 		}
 
-		if count == nodes {
+		if count == threshold {
 			break
 		}
 	}
 
 	cancel()
 
-	for i := 0; i < nodes; i++ {
+	for i := 0; i < threshold; i++ {
 		require.NotZero(t, <-sniffed)
 	}
 }
