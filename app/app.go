@@ -563,6 +563,13 @@ func wireRecaster(ctx context.Context, sched core.Scheduler, sigAgg core.SigAgg,
 	recaster := bcast.NewRecaster()
 
 	for _, val := range validators {
+		// Check if the current cluster state supports pre-generate validator registrations.
+		if len(val.BuilderRegistration.Signature) == 0 ||
+			len(val.BuilderRegistration.Message.FeeRecipient) == 0 ||
+			len(val.BuilderRegistration.Message.PubKey) == 0 {
+			break
+		}
+
 		pubkey, err := core.PubKeyFromBytes(val.PubKey)
 		if err != nil {
 			return errors.Wrap(err, "core pubkey from bytes")
