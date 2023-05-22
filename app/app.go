@@ -567,7 +567,7 @@ func wireRecaster(ctx context.Context, sched core.Scheduler, sigAgg core.SigAgg,
 		if len(val.BuilderRegistration.Signature) == 0 ||
 			len(val.BuilderRegistration.Message.FeeRecipient) == 0 ||
 			len(val.BuilderRegistration.Message.PubKey) == 0 {
-			break
+			continue
 		}
 
 		pubkey, err := core.PubKeyFromBytes(val.PubKey)
@@ -580,7 +580,7 @@ func wireRecaster(ctx context.Context, sched core.Scheduler, sigAgg core.SigAgg,
 			return errors.Wrap(err, "new versioned signed validator registration")
 		}
 
-		if err = recaster.StorePregen(ctx, core.NewBuilderRegistrationDuty(-1), pubkey, signedData); err != nil {
+		if err = recaster.Store(ctx, core.NewBuilderRegistrationDuty(0), pubkey, signedData); err != nil {
 			return errors.Wrap(err, "recaster store registration")
 		}
 	}

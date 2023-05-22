@@ -26,12 +26,12 @@ var broadcastDelay = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	Buckets:   []float64{.05, .1, .25, .5, 1, 2.5, 5, 10, 20, 30, 60},
 }, []string{"duty"})
 
-var pregenerateRegistrationGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+var registrationGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 	Namespace: "core",
 	Subsystem: "bcast",
-	Name:      "broadcast_pregenerated_registration",
+	Name:      "broadcast_registration",
 	Help:      "Whether the broadcasted validator registration was a pre-generated one or not.",
-}, []string{"pubkey"})
+}, []string{"pubkey", "slot"})
 
 // instrumentDuty increments the duty counter.
 func instrumentDuty(duty core.Duty, delay time.Duration) {
