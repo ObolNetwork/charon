@@ -3,6 +3,8 @@
 package state
 
 import (
+	"time"
+
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -108,10 +110,11 @@ type Operator struct {
 
 // Validator represents a validator in the cluster.
 type Validator struct {
-	PubKey              []byte   `json:"public_key"`
-	PubShares           [][]byte `json:"public_shares"`
-	FeeRecipientAddress string   `json:"fee_recipient_address"`
-	WithdrawalAddress   string   `json:"withdrawal_address"`
+	PubKey              []byte              `json:"public_key"`
+	PubShares           [][]byte            `json:"public_shares"`
+	FeeRecipientAddress string              `json:"fee_recipient_address"`
+	WithdrawalAddress   string              `json:"withdrawal_address"`
+	BuilderRegistration BuilderRegistration `json:"builder_registration"`
 }
 
 // PublicKey returns the validator BLS group public key.
@@ -150,10 +153,11 @@ func (v Validator) toSSZ() validatorSSZ {
 }
 
 type validatorJSON struct {
-	PubKey              ethHex   `json:"public_key"`
-	PubShares           []ethHex `json:"public_shares"`
-	FeeRecipientAddress string   `json:"fee_recipient_address"`
-	WithdrawalAddress   string   `json:"withdrawal_address"`
+	PubKey              ethHex                  `json:"public_key"`
+	PubShares           []ethHex                `json:"public_shares"`
+	FeeRecipientAddress string                  `json:"fee_recipient_address"`
+	WithdrawalAddress   string                  `json:"withdrawal_address"`
+	BuilderRegistration builderRegistrationJSON `json:"builder_registration"`
 }
 
 func validatorsToJSON(vals []Validator) []validatorJSON {
@@ -169,13 +173,14 @@ func validatorsToJSON(vals []Validator) []validatorJSON {
 			PubShares:           pubshares,
 			FeeRecipientAddress: val.FeeRecipientAddress,
 			WithdrawalAddress:   val.WithdrawalAddress,
+			BuilderRegistration: registrationToJSON(val.BuilderRegistration),
 		})
 	}
 
 	return resp
 }
 
-func validatorsFromJSON(vals []validatorJSON) []Validator {
+func validatorsFromJSON(vals []validatorJSON) ([]Validator, error) {
 	var resp []Validator
 	for _, val := range vals {
 		var pubshares [][]byte
@@ -183,15 +188,21 @@ func validatorsFromJSON(vals []validatorJSON) []Validator {
 			pubshares = append(pubshares, share)
 		}
 
+		reg, err := registrationFromJSON(val.BuilderRegistration)
+		if err != nil {
+			return nil, errors.Wrap(err, "validator registration from json")
+		}
+
 		resp = append(resp, Validator{
 			PubKey:              val.PubKey,
 			PubShares:           pubshares,
 			FeeRecipientAddress: val.FeeRecipientAddress,
 			WithdrawalAddress:   val.WithdrawalAddress,
+			BuilderRegistration: reg,
 		})
 	}
 
-	return resp
+	return resp, nil
 }
 
 type validatorSSZ struct {
@@ -203,4 +214,63 @@ type validatorSSZ struct {
 
 type sszPubkey struct {
 	Pubkey []byte `ssz:"ByteList[256]"`
+}
+
+// BuilderRegistration defines pre-generated signed validator builder registration to be sent to builder network.
+type BuilderRegistration struct {
+	Message   Registration `json:"message" ssz:"Composite" lock_hash:"0"`
+	Signature []byte       `json:"signature" ssz:"Bytes96" lock_hash:"1"`
+}
+
+// Registration defines unsigned validator registration message.
+type Registration struct {
+	FeeRecipient []byte    `json:"fee_recipient"  ssz:"Bytes20"`
+	GasLimit     int       `json:"gas_limit"  ssz:"uint64"`
+	Timestamp    time.Time `json:"timestamp"  ssz:"uint64,Unix"`
+	PubKey       []byte    `json:"pubkey"  ssz:"Bytes48"`
+}
+
+// builderRegistrationJSON is the json formatter of BuilderRegistration.
+type builderRegistrationJSON struct {
+	Message   registrationJSON `json:"message"`
+	Signature ethHex           `json:"signature"`
+}
+
+// registrationJSON is the json formatter of Registration.
+type registrationJSON struct {
+	FeeRecipient ethHex `json:"fee_recipient"`
+	GasLimit     int    `json:"gas_limit"`
+	Timestamp    string `json:"timestamp"`
+	PubKey       ethHex `json:"pubkey"`
+}
+
+// registrationToJSON converts BuilderRegistration to builderRegistrationJSON.
+func registrationToJSON(b BuilderRegistration) builderRegistrationJSON {
+	return builderRegistrationJSON{
+		Message: registrationJSON{
+			FeeRecipient: b.Message.FeeRecipient,
+			GasLimit:     b.Message.GasLimit,
+			Timestamp:    b.Message.Timestamp.Format(time.RFC3339),
+			PubKey:       b.Message.PubKey,
+		},
+		Signature: b.Signature,
+	}
+}
+
+// registrationFromJSON converts registrationFromJSON to BuilderRegistration.
+func registrationFromJSON(b builderRegistrationJSON) (BuilderRegistration, error) {
+	timestamp, err := time.Parse(time.RFC3339, b.Message.Timestamp)
+	if err != nil {
+		return BuilderRegistration{}, errors.Wrap(err, "parse timestamp")
+	}
+
+	return BuilderRegistration{
+		Message: Registration{
+			FeeRecipient: b.Message.FeeRecipient,
+			GasLimit:     b.Message.GasLimit,
+			Timestamp:    timestamp,
+			PubKey:       b.Message.PubKey,
+		},
+		Signature: b.Signature,
+	}, nil
 }

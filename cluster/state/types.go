@@ -11,7 +11,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-//go:generate genssz
+//go:generate go run github.com/obolnetwork/charon/app/genssz
 
 // RawDAG is a list of signed mutations that constitute the raw cluster state DAG.
 type RawDAG []SignedMutation

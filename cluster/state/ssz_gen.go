@@ -66,6 +66,54 @@ func (p sszPubkey) HashTreeRootWith(hw ssz.HashWalker) (err error) {
 	return nil
 }
 
+// HashTreeRootWith ssz hashes the BuilderRegistration object with a hasher
+func (r BuilderRegistration) HashTreeRootWith(hw ssz.HashWalker) (err error) {
+	indx := hw.Index()
+
+	// Field 0: 'Message' ssz:"Composite"
+	err = r.Message.HashTreeRootWith(hw)
+	if err != nil {
+		return err
+	}
+
+	// Field 1: 'Signature' ssz:"Bytes96"
+	err = putBytesN(hw, []byte(r.Signature[:]), 96)
+	if err != nil {
+		return err
+	}
+
+	hw.Merkleize(indx)
+
+	return nil
+}
+
+// HashTreeRootWith ssz hashes the Registration object with a hasher
+func (r Registration) HashTreeRootWith(hw ssz.HashWalker) (err error) {
+	indx := hw.Index()
+
+	// Field 0: 'FeeRecipient' ssz:"Bytes20"
+	err = putBytesN(hw, []byte(r.FeeRecipient[:]), 20)
+	if err != nil {
+		return err
+	}
+
+	// Field 1: 'GasLimit' ssz:"uint64"
+	hw.PutUint64(uint64(r.GasLimit))
+
+	// Field 2: 'Timestamp' ssz:"uint64"
+	hw.PutUint64(uint64(r.Timestamp.Unix()))
+
+	// Field 3: 'PubKey' ssz:"Bytes48"
+	err = putBytesN(hw, []byte(r.PubKey[:]), 48)
+	if err != nil {
+		return err
+	}
+
+	hw.Merkleize(indx)
+
+	return nil
+}
+
 // HashTreeRootWith ssz hashes the genValidators object with a hasher
 func (v genValidators) HashTreeRootWith(hw ssz.HashWalker) (err error) {
 	indx := hw.Index()
