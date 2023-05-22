@@ -84,7 +84,6 @@ func (r *Recaster) SlotTicked(ctx context.Context, slot core.Slot) error {
 
 	r.mu.Lock()
 	clonedSubs = append(clonedSubs, r.subs...)
-
 	for k, v := range r.tuples {
 		clonedTuples[k] = v
 	}
