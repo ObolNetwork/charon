@@ -328,10 +328,6 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 				if e.Connected && peers[e.Peer] { // Do not instrument relays.
 					peerConnCounter.WithLabelValues(name).Inc()
 				}
-
-				// Attempt direct connections if host is connected to relay.
-				// if e.Connected && typ == addrTypeRelay {
-				// }
 			}
 		}
 	}()
