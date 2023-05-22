@@ -41,7 +41,9 @@ func (m Meta) FQName() string {
 
 // GetMetasForT returns all metric metadata that have been
 // registered with promauto for testing purposes.
-func GetMetasForT(*testing.T) []Meta {
+func GetMetasForT(t *testing.T) []Meta {
+	t.Helper()
+
 	mu.Lock()
 	defer mu.Unlock()
 
