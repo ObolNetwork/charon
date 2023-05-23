@@ -303,23 +303,27 @@ func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client) (*InclusionChecke
 		return nil, err
 	}
 
+	inclCore := &inclusionCore{
+		attIncludedFunc: reportAttInclusion,
+		missedFunc:      reportMissed,
+	}
+
 	return &InclusionChecker{
-		core: &inclusionCore{
-			attIncludedFunc: reportAttInclusion,
-			missedFunc:      reportMissed,
-		},
-		eth2Cl:       eth2Cl,
-		genesis:      genesis,
-		slotDuration: slotDuration,
+		core:           inclCore,
+		eth2Cl:         eth2Cl,
+		genesis:        genesis,
+		slotDuration:   slotDuration,
+		checkBlockFunc: inclCore.CheckBlock,
 	}, nil
 }
 
 // InclusionChecker checks whether duties have been included on-chain.
 type InclusionChecker struct {
-	genesis      time.Time
-	slotDuration time.Duration
-	eth2Cl       eth2wrap.Client
-	core         *inclusionCore
+	genesis        time.Time
+	slotDuration   time.Duration
+	eth2Cl         eth2wrap.Client
+	core           *inclusionCore
+	checkBlockFunc func(context.Context, block) // Alises for testing
 }
 
 // Submitted is called when a duty has been submitted.
@@ -370,6 +374,7 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot int64) error {
 	// TODO(corver): Remove this log, its probably too verbose
 	log.Debug(ctx, "Checking block inclusion", z.I64("slot", slot))
 
+	// Map attestations by data root, merging duplicates (with identical attestation data).
 	attsMap := make(map[eth2p0.Root]*eth2p0.Attestation)
 	for _, att := range atts {
 		if att == nil || att.Data == nil {
@@ -385,10 +390,21 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot int64) error {
 			return errors.Wrap(err, "hash attestation")
 		}
 
+		// Zero signature since it isn't used and wouldn't be valid after merging anyway.
+		att.Signature = eth2p0.BLSSignature{}
+
+		if exist, ok := attsMap[root]; ok {
+			// Merge duplicate attestations (only aggregation bits)
+			att.AggregationBits, err = att.AggregationBits.Or(exist.AggregationBits)
+			if err != nil {
+				return errors.Wrap(err, "merge attestation aggregation bits")
+			}
+		}
+
 		attsMap[root] = att
 	}
 
-	a.core.CheckBlock(ctx, block{Slot: slot, AttestationsByDataRoot: attsMap})
+	a.checkBlockFunc(ctx, block{Slot: slot, AttestationsByDataRoot: attsMap})
 
 	return nil
 }
