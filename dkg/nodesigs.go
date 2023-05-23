@@ -18,31 +18,38 @@ import (
 	dkgpb "github.com/obolnetwork/charon/dkg/dkgpb/v1"
 )
 
-const bcastK1SigMsgID = "/charon/dkg/lock_hash_k1_sig"
+const nodeSigMsgID = "/charon/dkg/lock_hash_k1_sig"
 
-func lockHashK1MsgIDs() []string {
-	return []string{bcastK1SigMsgID}
+func nodeSigMsgIDs() []string {
+	return []string{nodeSigMsgID}
 }
 
-// lockHashK1Bcast handles broadcasting of K1 signatures over the lock hash via the bcast protocol.
-type lockHashK1Bcast struct {
+// nodeSigBcast handles broadcasting of K1 signatures over the lock hash via the bcast protocol.
+type nodeSigBcast struct {
 	otherSigs   chan *dkgpb.MsgLockHashK1Sig
 	bcastFunc   bcast.BroadcastFunc
 	operatorAmt int
 }
 
-// newLockHashK1Bcast returns a new instance of lockHashK1Bcast with the given operatorAmt and bcastFunc.
-func newLockHashK1Bcast(operatorAmt int, bcastFunc bcast.BroadcastFunc) lockHashK1Bcast {
+// newNodeSigBcast returns a new instance of nodeSigBcast with the given operatorAmt.
+// It registers bcast handlers on bcastComp.
+func newNodeSigBcast(operatorAmt int, bcastComp *bcast.Component) nodeSigBcast {
 	// bcast returns len(peers)-1 messages to each peer, so that senders don't get their own message
-	return lockHashK1Bcast{
+	ret := nodeSigBcast{
 		otherSigs:   make(chan *dkgpb.MsgLockHashK1Sig, operatorAmt),
-		bcastFunc:   bcastFunc,
+		bcastFunc:   bcastComp.Broadcast,
 		operatorAmt: operatorAmt,
 	}
+
+	for _, k1Sig := range nodeSigMsgIDs() {
+		bcastComp.RegisterCallback(k1Sig, ret.broadcastCallback)
+	}
+
+	return ret
 }
 
-// broadcastCallback is the default bcast.Callback for lockHashK1Bcast.
-func (lh *lockHashK1Bcast) broadcastCallback(_ context.Context, _ peer.ID, _ string, msg proto.Message) error {
+// broadcastCallback is the default bcast.Callback for nodeSigBcast.
+func (lh *nodeSigBcast) broadcastCallback(_ context.Context, _ peer.ID, _ string, msg proto.Message) error {
 	response, ok := msg.(*dkgpb.MsgLockHashK1Sig)
 	if !ok {
 		return errors.New("received lock hash k1 sig response of wrong type")
@@ -54,7 +61,7 @@ func (lh *lockHashK1Bcast) broadcastCallback(_ context.Context, _ peer.ID, _ str
 }
 
 // exchange exchanges K1 signatures over lock file hashes with the peers pointed by lh.bcastFunc.
-func (lh *lockHashK1Bcast) exchange(
+func (lh *nodeSigBcast) exchange(
 	ctx context.Context,
 	lockHash []byte,
 	key *k1.PrivateKey,
@@ -72,7 +79,7 @@ func (lh *lockHashK1Bcast) exchange(
 
 	log.Debug(ctx, "Broadcasting k1 lock hash signature", z.Int("source", nodeIdx.PeerIdx))
 
-	if err := lh.bcastFunc(ctx, bcastK1SigMsgID, bcastData); err != nil {
+	if err := lh.bcastFunc(ctx, nodeSigMsgID, bcastData); err != nil {
 		return nil, errors.Wrap(err, "k1 lock hash signature broadcast")
 	}
 

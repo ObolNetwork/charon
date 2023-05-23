@@ -50,7 +50,9 @@ type dedupKey struct {
 
 // server is a reliable-broadcast server.
 type server struct {
-	callbacks  map[string]Callback
+	callbacksMutex sync.Mutex
+	callbacks      map[string]Callback
+
 	signFunc   signFunc
 	verifyFunc verifyFunc
 
@@ -58,7 +60,19 @@ type server struct {
 	dedup map[dedupKey][]byte // map[dedupKey]hash
 }
 
+func (s *server) getCallback(msgID string) (Callback, bool) {
+	s.callbacksMutex.Lock()
+	defer s.callbacksMutex.Unlock()
+
+	fn, found := s.callbacks[msgID]
+
+	return fn, found
+}
+
 func (s *server) registerCallback(msgID string, cb Callback) {
+	s.callbacksMutex.Lock()
+	defer s.callbacksMutex.Unlock()
+
 	s.callbacks[msgID] = cb
 }
 
@@ -112,12 +126,12 @@ func (s *server) handleMessage(ctx context.Context, pID peer.ID, m proto.Message
 		return nil, false, errors.Wrap(err, "unmarshal any")
 	}
 
-	cb, found := s.callbacks[msg.Id]
+	fn, found := s.getCallback(msg.Id)
 	if !found {
-		return nil, false, errors.New("no callback registered for message id", z.Str("message_id", msg.Id))
+		return nil, false, errors.New("unknown message id", z.Str("message_id", msg.Id))
 	}
 
-	if err := cb(ctx, pID, msg.Id, inner); err != nil {
+	if err := fn(ctx, pID, msg.Id, inner); err != nil {
 		return nil, false, errors.Wrap(err, "callback")
 	}
 

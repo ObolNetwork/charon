@@ -3,11 +3,14 @@
 package bcast
 
 import (
+	"context"
 	"crypto/sha256"
+	"sync"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -18,18 +21,37 @@ import (
 // Component is the reliable-broadcast handler, in charge of signature and message
 // dispatch.
 type Component struct {
-	BroadcastFunc BroadcastFunc
+	allowedMsgIDsMutex sync.Mutex
+	allowedMsgIDs      map[string]struct{}
 
-	allowedMsgIDs map[string]struct{}
 	srv           *server
 	secret        *k1.PrivateKey
 	peers         []peer.ID
+	broadcastFunc BroadcastFunc
 }
 
-// Handle adds a callback for msgID.
-func (c *Component) Handle(msgID string, callback Callback) {
+// RegisterCallback adds a callback for msgID.
+func (c *Component) RegisterCallback(msgID string, callback Callback) {
+	c.allowedMsgIDsMutex.Lock()
+	defer c.allowedMsgIDsMutex.Unlock()
+
 	c.allowedMsgIDs[msgID] = struct{}{}
 	c.srv.registerCallback(msgID, callback)
+}
+
+// msgIDAllowed returns true if msgID is an allowed message id.
+func (c *Component) msgIDAllowed(msgID string) bool {
+	c.allowedMsgIDsMutex.Lock()
+	defer c.allowedMsgIDsMutex.Unlock()
+
+	_, allowed := c.allowedMsgIDs[msgID]
+
+	return allowed
+}
+
+// Broadcast broadcasts the given message and msgID to the configured peers.
+func (c *Component) Broadcast(ctx context.Context, msgID string, msg proto.Message) error {
+	return c.broadcastFunc(ctx, msgID, msg)
 }
 
 // New registers a new reliable-broadcast server and returns a reliable-broadcast client function.
@@ -45,7 +67,7 @@ func New(tcpNode host.Host, peers []peer.ID, secret *k1.PrivateKey) *Component {
 
 	cl := newClient(tcpNode, peers, p2p.SendReceive, p2p.Send, hashAny, signFunc, verifyFunc)
 
-	c.BroadcastFunc = cl.Broadcast
+	c.broadcastFunc = cl.Broadcast
 	c.srv = newServer(tcpNode, signFunc, verifyFunc)
 
 	return &c
@@ -63,7 +85,7 @@ func hashAny(anyPB *anypb.Any) ([]byte, error) {
 // newK1Signer returns a function that signs a hash using the given private key.
 func (c *Component) newK1Signer() func(string, []byte) ([]byte, error) {
 	return func(msgID string, hash []byte) ([]byte, error) {
-		if _, ok := c.allowedMsgIDs[msgID]; !ok {
+		if !c.msgIDAllowed(msgID) {
 			return nil, errors.New("invalid message id")
 		}
 
@@ -78,7 +100,7 @@ func (c *Component) newPeerK1Verifier() func(string, *anypb.Any, [][]byte) error
 			return errors.New("invalid number of signatures")
 		}
 
-		if _, ok := c.allowedMsgIDs[msgID]; !ok {
+		if !c.msgIDAllowed(msgID) {
 			return errors.New("invalid message id")
 		}
 

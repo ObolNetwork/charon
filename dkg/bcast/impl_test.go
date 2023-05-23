@@ -72,10 +72,10 @@ func TestBCast(t *testing.T) {
 
 		bcastFunc := bcast.New(tcpNodes[i], peers, secrets[i])
 
-		bcastFunc.Handle(msgID1, callback)
-		bcastFunc.Handle(msgID2, callback)
+		bcastFunc.RegisterCallback(msgID1, callback)
+		bcastFunc.RegisterCallback(msgID2, callback)
 
-		bcasts = append(bcasts, bcastFunc.BroadcastFunc)
+		bcasts = append(bcasts, bcastFunc.Broadcast)
 	}
 
 	assertResults := func(t *testing.T, expected result, source peer.ID) {

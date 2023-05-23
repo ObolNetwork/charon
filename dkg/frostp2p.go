@@ -36,7 +36,8 @@ func frostMessageIDs() []string {
 }
 
 // newFrostP2P returns a p2p frost transport implementation.
-func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, bcastFunc bcast.BroadcastFunc, threshold, numVals int) (*frostP2P, bcast.Callback) {
+// It registers bcast handlers on bcastComp.
+func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, bcastComp *bcast.Component, threshold, numVals int) *frostP2P {
 	var (
 		round1CastsRecv = make(chan *pb.FrostRound1Casts, len(peers))
 		round1P2PRecv   = make(chan *pb.FrostRound1P2P, len(peers))
@@ -57,14 +58,20 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, bcastFunc
 		p2p.WithDelimitedProtocol(round1P2PID),
 	)
 
+	bcastCallback := newBcastCallback(peers, round1CastsRecv, round2CastsRecv, threshold, numVals)
+
+	for _, frostMsgID := range frostMessageIDs() {
+		bcastComp.RegisterCallback(frostMsgID, bcastCallback)
+	}
+
 	return &frostP2P{
 		tcpNode:         tcpNode,
 		peers:           peersByShareIdx,
-		bcastFunc:       bcastFunc,
+		bcastFunc:       bcastComp.Broadcast,
 		round1CastsRecv: round1CastsRecv,
 		round1P2PRecv:   round1P2PRecv,
 		round2CastsRecv: round2CastsRecv,
-	}, newBcastCallback(peers, round1CastsRecv, round2CastsRecv, threshold, numVals)
+	}
 }
 
 // newBcastCallback returns a callback for broadcast in round 1 and round 2 of frost protocol.

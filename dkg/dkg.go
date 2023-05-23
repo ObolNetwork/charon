@@ -183,21 +183,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 		peerMap[p.ID] = nodeIdx
 	}
 
-	bf := bcast.New(tcpNode, peerIds, key)
+	caster := bcast.New(tcpNode, peerIds, key)
 
 	// register bcast callbacks for frostp2p
-	tp, frostCallback := newFrostP2P(tcpNode, peerMap, bf.BroadcastFunc, def.Threshold, def.NumValidators)
+	tp := newFrostP2P(tcpNode, peerMap, caster, def.Threshold, def.NumValidators)
 
 	// register bcast callbacks for lock hash k1 signature handler
-	lhk1Bcast := newLockHashK1Bcast(len(def.Operators), bf.BroadcastFunc)
-
-	for _, frostMsgID := range frostMessageIDs() {
-		bf.Handle(frostMsgID, frostCallback)
-	}
-
-	for _, k1Sig := range lockHashK1MsgIDs() {
-		bf.Handle(k1Sig, lhk1Bcast.broadcastCallback)
-	}
+	lhk1Bcast := newNodeSigBcast(len(def.Operators), caster)
 
 	log.Info(ctx, "Waiting to connect to all peers...")
 
