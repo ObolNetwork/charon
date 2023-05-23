@@ -17,7 +17,7 @@ import (
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
-func TestDuplicateAttDate(t *testing.T) {
+func TestDuplicateAttData(t *testing.T) {
 	ctx := context.Background()
 
 	bmock, err := beaconmock.New()
