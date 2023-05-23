@@ -243,7 +243,7 @@ func ForceDirectConnections(tcpNode host.Host, peerIDs []peer.ID) lifecycle.Hook
 			// All existing connections are through relays, so we can try force dialing a direct connection.
 			err := tcpNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p})
 			if err == nil {
-				log.Debug(ctx, "Direct connection to peer successful", z.Str("peer", PeerName(p)))
+				log.Debug(ctx, "Forced direct connection to peer successful", z.Str("peer", PeerName(p)))
 			}
 		}
 	}
