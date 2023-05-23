@@ -10,7 +10,6 @@ import (
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/dkg/frost"
 	"github.com/coinbase/kryptology/pkg/sharing"
-	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
@@ -31,8 +30,13 @@ var (
 	round2CastID = string(frostProtocol("round2/cast"))
 )
 
+// frostMessageIDs returns the bcast message IDs frostp2p uses.
+func frostMessageIDs() []string {
+	return []string{round1CastID, round2CastID}
+}
+
 // newFrostP2P returns a p2p frost transport implementation.
-func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k1.PrivateKey, threshold, numVals int) *frostP2P {
+func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, bcastFunc bcast.BroadcastFunc, threshold, numVals int) (*frostP2P, bcast.Callback) {
 	var (
 		round1CastsRecv = make(chan *pb.FrostRound1Casts, len(peers))
 		round1P2PRecv   = make(chan *pb.FrostRound1P2P, len(peers))
@@ -45,10 +49,6 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 		peerSlice[nodeIdx.PeerIdx] = pID
 		peersByShareIdx[uint32(nodeIdx.ShareIdx)] = pID
 	}
-
-	// Register reliable broadcast protocol handlers.
-	bcastFunc := bcast.New(tcpNode, peerSlice, secret, []string{round1CastID, round2CastID},
-		newBcastCallback(peers, round1CastsRecv, round2CastsRecv, threshold, numVals))
 
 	// Register round 1 p2p protocol handlers.
 	p2p.RegisterHandler("frost", tcpNode, round1P2PID,
@@ -64,7 +64,7 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, secret *k
 		round1CastsRecv: round1CastsRecv,
 		round1P2PRecv:   round1P2PRecv,
 		round2CastsRecv: round2CastsRecv,
-	}
+	}, newBcastCallback(peers, round1CastsRecv, round2CastsRecv, threshold, numVals)
 }
 
 // newBcastCallback returns a callback for broadcast in round 1 and round 2 of frost protocol.

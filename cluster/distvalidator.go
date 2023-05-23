@@ -179,6 +179,15 @@ func distValidatorsToV1x7OrLater(distValidators []DistValidator) []distValidator
 	return resp
 }
 
+func byteSliceArrayToEthHex(data [][]byte) []ethHex {
+	ret := make([]ethHex, 0, len(data))
+	for _, d := range data {
+		ret = append(ret, d)
+	}
+
+	return ret
+}
+
 func distValidatorsFromV1x7OrLater(distValidators []distValidatorJSONv1x7) ([]DistValidator, error) {
 	var resp []DistValidator
 	for _, dv := range distValidators {

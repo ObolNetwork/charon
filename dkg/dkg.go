@@ -17,6 +17,7 @@ import (
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -27,6 +28,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/dkg/bcast"
 	"github.com/obolnetwork/charon/dkg/sync"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
@@ -172,6 +174,19 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	ex := newExchanger(tcpNode, nodeIdx.PeerIdx, peerIds, def.NumValidators)
 
+	bcastCallbacks := map[string]bcast.Callback{}
+
+	bcastFunc := bcast.New(tcpNode, peerIds, key, append(frostMessageIDs(), lockHashK1MsgIDs()...),
+		func(ctx context.Context, peerID peer.ID, msgID string, msg proto.Message) error {
+			cb, found := bcastCallbacks[msgID]
+			if !found {
+				return errors.New("can't handle bcast message ID", z.Str("msgID", msgID))
+			}
+
+			return cb(ctx, peerID, msgID, msg)
+		},
+	)
+
 	// Register Frost libp2p handlers
 	peerMap := make(map[peer.ID]cluster.NodeIdx)
 	for _, p := range peers {
@@ -181,7 +196,20 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 		peerMap[p.ID] = nodeIdx
 	}
-	tp := newFrostP2P(tcpNode, peerMap, key, def.Threshold, def.NumValidators)
+
+	// register bcast callbacks for frostp2p
+	tp, frostCallback := newFrostP2P(tcpNode, peerMap, bcastFunc, def.Threshold, def.NumValidators)
+
+	for _, msgID := range frostMessageIDs() {
+		bcastCallbacks[msgID] = frostCallback
+	}
+
+	// register bcast callbacks for lock hash k1 signature handler
+	lhk1Bcast := newLockHashK1Bcast(len(def.Operators), bcastFunc)
+
+	for _, msgID := range lockHashK1MsgIDs() {
+		bcastCallbacks[msgID] = lhk1Bcast.broadcastCallback
+	}
 
 	log.Info(ctx, "Waiting to connect to all peers...")
 
@@ -246,6 +274,15 @@ func Run(ctx context.Context, conf Config) (err error) {
 	if err != nil {
 		return err
 	}
+
+	// Sign, exchange K1 signatures over Lock Hash
+	k1LockHashSigs, err := lhk1Bcast.exchange(ctx, lock.LockHash, key, nodeIdx)
+	if err != nil {
+		return errors.Wrap(err, "k1 lock hash signature exchange")
+	}
+
+	lock.NodeSignatures = k1LockHashSigs
+
 	if !conf.NoVerify {
 		if err := lock.VerifySignatures(); err != nil {
 			return errors.Wrap(err, "invalid lock file")
