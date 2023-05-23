@@ -250,6 +250,7 @@ func ForceDirectConnections(tcpNode host.Host, peerIDs []peer.ID) lifecycle.Hook
 
 	return func(ctx context.Context) {
 		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
