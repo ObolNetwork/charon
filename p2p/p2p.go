@@ -212,45 +212,53 @@ func (f peerRoutingFunc) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo
 
 // ForceDirectConnections attempts to establish a direct connection if there is an existing relay connection to the peer.
 // The idea is to enable switching to a direct connection as soon as the host has a connection to the peer.
-func ForceDirectConnections(ctx context.Context, tcpNode host.Host, peerIDs []peer.ID) {
-	ticker := time.NewTicker(1 * time.Minute)
-	forceDirectConn := func() {
+func ForceDirectConnections(tcpNode host.Host, peerIDs []peer.ID) lifecycle.HookFuncCtx {
+	forceDirectConn := func(ctx context.Context) {
 		for _, p := range peerIDs {
+			if tcpNode.ID() == p {
+				continue // Skip self
+			}
+
 			conns := tcpNode.Network().ConnsToPeer(p)
 			directConn := false
 			if len(conns) == 0 {
+				// Skip if there isn't any existing connection to peer. Note that we only force direct connection
+				// if there is already an existing relay connection between the host and peer.
 				continue
 			}
 
 			for _, conn := range conns {
-				if !IsRelayAddr(conn.RemoteMultiaddr()) {
-					directConn = true
-					break
+				if IsRelayAddr(conn.RemoteMultiaddr()) {
+					continue
 				}
+				directConn = true
+
+				break
 			}
 
-			if !directConn {
-				// All existing connections are through relays, so we can try force dialing a direct connection.
-				err := tcpNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p})
-				if err != nil {
-					log.Warn(ctx, "Direct connection to peer unsuccessful", err, z.Str("peer", p.String()))
-				} else {
-					log.Debug(ctx, "Direct connection to peer successful", z.Str("peer", p.String()))
-				}
+			if directConn {
+				continue
+			}
+
+			// All existing connections are through relays, so we can try force dialing a direct connection.
+			err := tcpNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p})
+			if err == nil {
+				log.Debug(ctx, "Direct connection to peer successful", z.Str("peer", PeerName(p)))
 			}
 		}
 	}
 
-	go func() {
+	return func(ctx context.Context) {
+		ticker := time.NewTicker(1 * time.Minute)
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				forceDirectConn()
+				forceDirectConn(ctx)
 			}
 		}
-	}()
+	}
 }
 
 // RegisterConnectionLogger registers a connection logger with the host.
