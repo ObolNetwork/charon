@@ -31,18 +31,9 @@ func TestDuplicateAttDate(t *testing.T) {
 
 	bmock.BlockAttestationsFunc = func(_ context.Context, _ string) ([]*eth2p0.Attestation, error) {
 		return []*eth2p0.Attestation{
-			{
-				AggregationBits: bits1,
-				Data:            attData,
-			},
-			{
-				AggregationBits: bits2,
-				Data:            attData,
-			},
-			{
-				AggregationBits: bits3,
-				Data:            attData,
-			},
+			{AggregationBits: bits1, Data: attData},
+			{AggregationBits: bits2, Data: attData},
+			{AggregationBits: bits3, Data: attData},
 		}, nil
 	}
 
