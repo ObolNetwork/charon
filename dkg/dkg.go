@@ -17,7 +17,6 @@ import (
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -174,19 +173,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	ex := newExchanger(tcpNode, nodeIdx.PeerIdx, peerIds, def.NumValidators)
 
-	bcastCallbacks := map[string]bcast.Callback{}
-
-	bcastFunc := bcast.New(tcpNode, peerIds, key, append(frostMessageIDs(), lockHashK1MsgIDs()...),
-		func(ctx context.Context, peerID peer.ID, msgID string, msg proto.Message) error {
-			cb, found := bcastCallbacks[msgID]
-			if !found {
-				return errors.New("can't handle bcast message ID", z.Str("msgID", msgID))
-			}
-
-			return cb(ctx, peerID, msgID, msg)
-		},
-	)
-
 	// Register Frost libp2p handlers
 	peerMap := make(map[peer.ID]cluster.NodeIdx)
 	for _, p := range peers {
@@ -197,18 +183,20 @@ func Run(ctx context.Context, conf Config) (err error) {
 		peerMap[p.ID] = nodeIdx
 	}
 
-	// register bcast callbacks for frostp2p
-	tp, frostCallback := newFrostP2P(tcpNode, peerMap, bcastFunc, def.Threshold, def.NumValidators)
+	bf := bcast.New(tcpNode, peerIds, key)
 
-	for _, msgID := range frostMessageIDs() {
-		bcastCallbacks[msgID] = frostCallback
-	}
+	// register bcast callbacks for frostp2p
+	tp, frostCallback := newFrostP2P(tcpNode, peerMap, bf.BroadcastFunc, def.Threshold, def.NumValidators)
 
 	// register bcast callbacks for lock hash k1 signature handler
-	lhk1Bcast := newLockHashK1Bcast(len(def.Operators), bcastFunc)
+	lhk1Bcast := newLockHashK1Bcast(len(def.Operators), bf.BroadcastFunc)
 
-	for _, msgID := range lockHashK1MsgIDs() {
-		bcastCallbacks[msgID] = lhk1Bcast.broadcastCallback
+	for _, frostMsgID := range frostMessageIDs() {
+		bf.Handle(frostMsgID, frostCallback)
+	}
+
+	for _, k1Sig := range lockHashK1MsgIDs() {
+		bf.Handle(k1Sig, lhk1Bcast.broadcastCallback)
 	}
 
 	log.Info(ctx, "Waiting to connect to all peers...")

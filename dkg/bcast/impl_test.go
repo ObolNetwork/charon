@@ -26,7 +26,6 @@ func TestBCast(t *testing.T) {
 		msgID1       = "msgID1"
 		msgID2       = "msgID2"
 		msgIDInvalid = "msgIDInvalid"
-		allowed      = []string{msgID1, msgID2}
 
 		secrets  []*k1.PrivateKey
 		tcpNodes []host.Host
@@ -66,12 +65,17 @@ func TestBCast(t *testing.T) {
 	// Create broadcasters
 	for i := 0; i < n; i++ {
 		i := i
-		bcastFunc := bcast.New(tcpNodes[i], peers, secrets[i], allowed,
-			func(ctx context.Context, peerID peer.ID, msgID string, msg proto.Message) error {
-				results <- result{Source: peerID, MsgID: msgID, Msg: msg, Target: peers[i]}
-				return nil
-			})
-		bcasts = append(bcasts, bcastFunc)
+		callback := func(ctx context.Context, peerID peer.ID, msgID string, msg proto.Message) error {
+			results <- result{Source: peerID, MsgID: msgID, Msg: msg, Target: peers[i]}
+			return nil
+		}
+
+		bcastFunc := bcast.New(tcpNodes[i], peers, secrets[i])
+
+		bcastFunc.Handle(msgID1, callback)
+		bcastFunc.Handle(msgID2, callback)
+
+		bcasts = append(bcasts, bcastFunc.BroadcastFunc)
 	}
 
 	assertResults := func(t *testing.T, expected result, source peer.ID) {

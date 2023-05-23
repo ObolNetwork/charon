@@ -15,22 +15,40 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
+// Component is the reliable-broadcast handler, in charge of signature and message
+// dispatch.
+type Component struct {
+	BroadcastFunc BroadcastFunc
+
+	allowedMsgIDs map[string]struct{}
+	srv           *server
+	secret        *k1.PrivateKey
+	peers         []peer.ID
+}
+
+// Handle adds a callback for msgID.
+func (c *Component) Handle(msgID string, callback Callback) {
+	c.allowedMsgIDs[msgID] = struct{}{}
+	c.srv.registerCallback(msgID, callback)
+}
+
 // New registers a new reliable-broadcast server and returns a reliable-broadcast client function.
-func New(tcpNode host.Host, peers []peer.ID, secret *k1.PrivateKey,
-	allowedMsgIDs []string, callback Callback,
-) BroadcastFunc {
-	allow := make(map[string]bool)
-	for _, msgID := range allowedMsgIDs {
-		allow[msgID] = true
+func New(tcpNode host.Host, peers []peer.ID, secret *k1.PrivateKey) *Component {
+	c := Component{
+		allowedMsgIDs: map[string]struct{}{},
+		secret:        secret,
+		peers:         peers,
 	}
 
-	signFunc := newK1Signer(secret, allow)
-	verifyFunc := newPeerK1Verifier(peers, allow)
+	signFunc := c.newK1Signer()
+	verifyFunc := c.newPeerK1Verifier()
 
-	_ = newServer(tcpNode, signFunc, verifyFunc, callback)
 	cl := newClient(tcpNode, peers, p2p.SendReceive, p2p.Send, hashAny, signFunc, verifyFunc)
 
-	return cl.Broadcast
+	c.BroadcastFunc = cl.Broadcast
+	c.srv = newServer(tcpNode, signFunc, verifyFunc)
+
+	return &c
 }
 
 // hashAny is a function that hashes a any-wrapped protobuf message.
@@ -43,24 +61,24 @@ func hashAny(anyPB *anypb.Any) ([]byte, error) {
 }
 
 // newK1Signer returns a function that signs a hash using the given private key.
-func newK1Signer(secret *k1.PrivateKey, allow map[string]bool) func(string, []byte) ([]byte, error) {
+func (c *Component) newK1Signer() func(string, []byte) ([]byte, error) {
 	return func(msgID string, hash []byte) ([]byte, error) {
-		if !allow[msgID] {
+		if _, ok := c.allowedMsgIDs[msgID]; !ok {
 			return nil, errors.New("invalid message id")
 		}
 
-		return k1util.Sign(secret, hash)
+		return k1util.Sign(c.secret, hash)
 	}
 }
 
 // newPeerK1Verifier returns a function that verifies a hash using the given peer IDs (public keys).
-func newPeerK1Verifier(peers []peer.ID, allow map[string]bool) func(string, *anypb.Any, [][]byte) error {
+func (c *Component) newPeerK1Verifier() func(string, *anypb.Any, [][]byte) error {
 	return func(msgID string, anyPB *anypb.Any, sigs [][]byte) error {
-		if len(sigs) != len(peers) {
+		if len(sigs) != len(c.peers) {
 			return errors.New("invalid number of signatures")
 		}
 
-		if !allow[msgID] {
+		if _, ok := c.allowedMsgIDs[msgID]; !ok {
 			return errors.New("invalid message id")
 		}
 
@@ -70,7 +88,7 @@ func newPeerK1Verifier(peers []peer.ID, allow map[string]bool) func(string, *any
 		}
 
 		for i, sig := range sigs {
-			pubkey, err := p2p.PeerIDToKey(peers[i])
+			pubkey, err := p2p.PeerIDToKey(c.peers[i])
 			if err != nil {
 				return errors.Wrap(err, "peer id to key")
 			}

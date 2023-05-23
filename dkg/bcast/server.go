@@ -12,14 +12,15 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	pb "github.com/obolnetwork/charon/dkg/dkgpb/v1"
 	"github.com/obolnetwork/charon/p2p"
 )
 
 // newServer creates a new reliable-broadcast server.
-func newServer(tcpNode host.Host, signFunc signFunc, verifyFunc verifyFunc, callback Callback) *server {
+func newServer(tcpNode host.Host, signFunc signFunc, verifyFunc verifyFunc) *server {
 	s := &server{
-		callback:   callback,
+		callbacks:  map[string]Callback{},
 		signFunc:   signFunc,
 		verifyFunc: verifyFunc,
 		dedup:      make(map[dedupKey][]byte),
@@ -49,12 +50,16 @@ type dedupKey struct {
 
 // server is a reliable-broadcast server.
 type server struct {
-	callback   Callback
+	callbacks  map[string]Callback
 	signFunc   signFunc
 	verifyFunc verifyFunc
 
 	mu    sync.Mutex
 	dedup map[dedupKey][]byte // map[dedupKey]hash
+}
+
+func (s *server) registerCallback(msgID string, cb Callback) {
+	s.callbacks[msgID] = cb
 }
 
 func (s *server) dedupHash(pID peer.ID, msgID string, hash []byte) error {
@@ -107,7 +112,12 @@ func (s *server) handleMessage(ctx context.Context, pID peer.ID, m proto.Message
 		return nil, false, errors.Wrap(err, "unmarshal any")
 	}
 
-	if err := s.callback(ctx, pID, msg.Id, inner); err != nil {
+	cb, found := s.callbacks[msg.Id]
+	if !found {
+		return nil, false, errors.New("no callback registered for message id", z.Str("message_id", msg.Id))
+	}
+
+	if err := cb(ctx, pID, msg.Id, inner); err != nil {
 		return nil, false, errors.Wrap(err, "callback")
 	}
 
