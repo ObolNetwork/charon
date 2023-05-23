@@ -21,6 +21,7 @@ const (
 	StartValidatorAPI
 	StartP2PPing
 	StartP2PRouters
+	StartForceDirectConns
 	StartP2PConsensus
 	StartSimulator
 	StartScheduler
