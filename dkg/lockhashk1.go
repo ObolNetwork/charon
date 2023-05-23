@@ -24,12 +24,14 @@ func lockHashK1MsgIDs() []string {
 	return []string{bcastK1SigMsgID}
 }
 
+// lockHashK1Bcast handles broadcasting of K1 signatures over the lock hash via the bcast protocol.
 type lockHashK1Bcast struct {
 	otherSigs   chan *dkgpb.MsgLockHashK1Sig
 	bcastFunc   bcast.BroadcastFunc
 	operatorAmt int
 }
 
+// newLockHashK1Bcast returns a new instance of lockHashK1Bcast with the given operatorAmt and bcastFunc.
 func newLockHashK1Bcast(operatorAmt int, bcastFunc bcast.BroadcastFunc) lockHashK1Bcast {
 	// bcast returns len(peers)-1 messages to each peer, so that senders don't get their own message
 	return lockHashK1Bcast{
@@ -39,6 +41,7 @@ func newLockHashK1Bcast(operatorAmt int, bcastFunc bcast.BroadcastFunc) lockHash
 	}
 }
 
+// broadcastCallback is the default bcast.Callback for lockHashK1Bcast.
 func (lh *lockHashK1Bcast) broadcastCallback(_ context.Context, _ peer.ID, _ string, msg proto.Message) error {
 	response, ok := msg.(*dkgpb.MsgLockHashK1Sig)
 	if !ok {
@@ -50,6 +53,7 @@ func (lh *lockHashK1Bcast) broadcastCallback(_ context.Context, _ peer.ID, _ str
 	return nil
 }
 
+// exchange exchanges K1 signatures over lock file hashes with the peers pointed by lh.bcastFunc.
 func (lh *lockHashK1Bcast) exchange(
 	ctx context.Context,
 	lockHash []byte,
@@ -62,11 +66,11 @@ func (lh *lockHashK1Bcast) exchange(
 	}
 
 	bcastData := &dkgpb.MsgLockHashK1Sig{
-		HashSignature: lhK1sig,
-		PeerIndex:     uint32(nodeIdx.PeerIdx),
+		Signature: lhK1sig,
+		PeerIndex: uint32(nodeIdx.PeerIdx),
 	}
 
-	log.Debug(ctx, "Broadcasting k1 lock hash signature", z.Uint("data", uint(bcastData.GetPeerIndex())))
+	log.Debug(ctx, "Broadcasting k1 lock hash signature", z.Int("source", nodeIdx.PeerIdx))
 
 	if err := lh.bcastFunc(ctx, bcastK1SigMsgID, bcastData); err != nil {
 		return nil, errors.Wrap(err, "k1 lock hash signature broadcast")
@@ -79,9 +83,10 @@ func (lh *lockHashK1Bcast) exchange(
 	for idx := 0; idx < lh.operatorAmt-1; idx++ {
 		otherSig := <-lh.otherSigs
 
+		// TODO: remove if appears too verbose down the line
 		log.Debug(ctx, "Got new k1 lock hash signature", z.Int("receiver", nodeIdx.PeerIdx), z.Uint("sender", uint(otherSig.GetPeerIndex())))
 
-		ret[otherSig.GetPeerIndex()] = otherSig.GetHashSignature()
+		ret[otherSig.GetPeerIndex()] = otherSig.GetSignature()
 	}
 
 	return ret, nil
