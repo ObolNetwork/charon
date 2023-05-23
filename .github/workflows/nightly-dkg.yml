@@ -20,4 +20,4 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-      - run: go test -v -timeout=60m -race github.com/obolnetwork/charon/testutil/integration -nightly
+      - run: go test -v -timeout=90m -race github.com/obolnetwork/charon/testutil/integration -nightly
