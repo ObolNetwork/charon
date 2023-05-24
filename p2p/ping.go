@@ -90,7 +90,7 @@ func pingPeerOnce(ctx context.Context, svc *ping.PingService, p peer.ID,
 		select {
 		case <-ctx.Done():
 			return
-		case result := <-svc.Ping(ctx, p):
+		case result := <-svc.Ping(ctx, p): // Only ping once to always use "best" connection.
 			if IsRelayError(result.Error) || errors.Is(result.Error, context.Canceled) {
 				// Just exit if relay error or context cancelled.
 				return
