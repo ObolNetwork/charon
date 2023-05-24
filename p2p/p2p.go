@@ -220,23 +220,13 @@ func ForceDirectConnections(tcpNode host.Host, peerIDs []peer.ID) lifecycle.Hook
 			}
 
 			conns := tcpNode.Network().ConnsToPeer(p)
-			directConn := false
 			if len(conns) == 0 {
 				// Skip if there isn't any existing connection to peer. Note that we only force direct connection
 				// if there is already an existing relay connection between the host and peer.
 				continue
 			}
 
-			for _, conn := range conns {
-				if IsRelayAddr(conn.RemoteMultiaddr()) {
-					continue
-				}
-				directConn = true
-
-				break
-			}
-
-			if directConn {
+			if isDirectConnAvailable(conns) {
 				continue
 			}
 
