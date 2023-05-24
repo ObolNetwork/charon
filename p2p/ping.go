@@ -86,29 +86,27 @@ func pingPeerOnce(ctx context.Context, svc *ping.PingService, p peer.ID,
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	isDirectConn := isDirectConnAvailable(svc.Host.Network().ConnsToPeer(p))
-
-	for result := range svc.Ping(ctx, p) {
-		if IsRelayError(result.Error) || errors.Is(result.Error, context.Canceled) {
-			// Just exit if relay error or context cancelled.
+	for {
+		select {
+		case <-ctx.Done():
 			return
-		}
+		case result := <-svc.Ping(ctx, p):
+			if IsRelayError(result.Error) || errors.Is(result.Error, context.Canceled) {
+				// Just exit if relay error or context cancelled.
+				return
+			}
 
-		logFunc(ctx, result)
+			logFunc(ctx, result)
 
-		if result.Error != nil {
-			incPingError(p)
-			// Manually exit on first error since some error (like resource scoped closed)
-			// result in ping just hanging.
-			return
-		}
+			if result.Error != nil {
+				incPingError(p)
+				// Manually exit on first error since some error (like resource scoped closed)
+				// result in ping just hanging.
+				return
+			}
 
-		observePing(p, result.RTT)
-		callback(p, svc.Host)
-
-		// Try to reconnect again via direct connection if it was connected via relay but direct connection is now available.
-		if !isDirectConn && isDirectConnAvailable(svc.Host.Network().ConnsToPeer(p)) {
-			return
+			observePing(p, result.RTT)
+			callback(p, svc.Host)
 		}
 	}
 }
