@@ -28,8 +28,8 @@ import (
 const ctxCanceledErr = "context canceled"
 
 var (
-	nightlyDKG = flag.Bool("nightly", false, "Enable nightly DKG integration test")
-	quickRun   = flag.Bool("quick-run", false, "Enable quick long-wait DKG that finishes in a minute")
+	nightly  = flag.Bool("nightly", false, "Enable nightly integration tests")
+	quickRun = flag.Bool("quick-run", false, "Enable quick long-wait DKG that finishes in a minute")
 )
 
 // ^ : indicates node is online.
@@ -52,7 +52,7 @@ var (
 // +--------+------------+------------+------------+------------+
 
 func TestLongWaitDKG(t *testing.T) {
-	if !*nightlyDKG {
+	if !*nightly {
 		t.Skip("Nightly tests are disabled")
 	}
 
@@ -262,7 +262,7 @@ func calcStopDelay(t *testing.T, window, nodeDownPeriod time.Duration) time.Dura
 }
 
 func TestDKGWith5KValidators(t *testing.T) {
-	if !*nightlyDKG {
+	if !*nightly {
 		t.Skip("Nightly tests are disabled")
 	}
 
