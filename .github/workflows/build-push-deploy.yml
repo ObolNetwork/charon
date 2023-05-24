@@ -1,7 +1,7 @@
 on:
   push:
     branches:
-      - main
+      - main*
     tags:
       - 'v*'
 name: Build and Publish Docker Image
@@ -14,6 +14,11 @@ jobs:
       with:
         fetch-depth: 0
     - uses: docker/setup-buildx-action@v1
+
+    - name: Get app/version.Version from the code
+      if: github.ref_type == 'branch'
+      run: echo "APP_VERSION=$(grep 'var Version' app/version/version.go | cut -d'"' -f2)" >> $GITHUB_ENV
+
     - name: Define docker image meta data tags
       id: meta
       uses: docker/metadata-action@v4
@@ -25,8 +30,11 @@ jobs:
           # Tag "git short sha" on all git events
           type=sha,prefix=
 
-          # Tag "latest" on git-push-to-branch (main) events
-          type=raw,value=latest,event=branch
+          # Tag "latest" on git-push-to-main-branch events
+          type=raw,value=latest,event=branch,enable={{is_default_branch}}
+
+          # Tag "$APP_VERSION" on git-push-to-branch events
+          type=raw,value=${{ env.APP_VERSION }},event=branch
 
           # Tag "tag ref" on git-tag events
           type=ref,event=tag
