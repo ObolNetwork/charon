@@ -206,7 +206,7 @@ type connEvent struct {
 	Peer      peer.ID
 }
 
-// connLogger implements network.Notifee and only sends logEvents on a channel since
+// connLogger implements network.Notifiee and only sends logEvents on a channel since
 // it is used as a map key internally in libp2p, it cannot contain complex types.
 type connLogger struct {
 	events chan connEvent

@@ -14,7 +14,62 @@ import (
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil"
+	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
+
+func TestDuplicateAttData(t *testing.T) {
+	ctx := context.Background()
+
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	// Mock 3 attestations, with same data but different aggregation bits.
+	bits1 := testutil.RandomBitList(8)
+	bits2 := testutil.RandomBitList(8)
+	bits3 := testutil.RandomBitList(8)
+	attData := testutil.RandomAttestationData()
+
+	bmock.BlockAttestationsFunc = func(_ context.Context, _ string) ([]*eth2p0.Attestation, error) {
+		return []*eth2p0.Attestation{
+			{AggregationBits: bits1, Data: attData},
+			{AggregationBits: bits2, Data: attData},
+			{AggregationBits: bits3, Data: attData},
+		}, nil
+	}
+
+	incl, err := NewInclusion(ctx, bmock)
+	require.NoError(t, err)
+
+	done := make(chan struct{})
+	attDataRoot, err := attData.HashTreeRoot()
+	require.NoError(t, err)
+
+	// Assert that the block to check contains all bitlists above.
+	incl.checkBlockFunc = func(ctx context.Context, block block) {
+		require.Len(t, block.AttestationsByDataRoot, 1)
+		att, ok := block.AttestationsByDataRoot[attDataRoot]
+		require.True(t, ok)
+
+		ok, err := att.AggregationBits.Contains(bits1)
+		require.NoError(t, err)
+		require.True(t, ok)
+
+		ok, err = att.AggregationBits.Contains(bits2)
+		require.NoError(t, err)
+		require.True(t, ok)
+
+		ok, err = att.AggregationBits.Contains(bits3)
+		require.NoError(t, err)
+		require.True(t, ok)
+
+		close(done)
+	}
+
+	err = incl.checkBlock(ctx, int64(attData.Slot))
+	require.NoError(t, err)
+
+	<-done
+}
 
 func TestInclusion(t *testing.T) {
 	//  Setup inclusion with a mock missedFunc and attIncludedFunc

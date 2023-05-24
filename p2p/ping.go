@@ -86,24 +86,42 @@ func pingPeerOnce(ctx context.Context, svc *ping.PingService, p peer.ID,
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	for result := range svc.Ping(ctx, p) {
-		if IsRelayError(result.Error) || errors.Is(result.Error, context.Canceled) {
-			// Just exit if relay error or context cancelled.
+	for {
+		select {
+		case <-ctx.Done():
 			return
+		case result := <-svc.Ping(ctx, p): // Only ping once to always use "best" connection.
+			if IsRelayError(result.Error) || errors.Is(result.Error, context.Canceled) {
+				// Just exit if relay error or context cancelled.
+				return
+			}
+
+			logFunc(ctx, result)
+
+			if result.Error != nil {
+				incPingError(p)
+				// Manually exit on first error since some error (like resource scoped closed)
+				// result in ping just hanging.
+				return
+			}
+
+			observePing(p, result.RTT)
+			callback(p, svc.Host)
 		}
-
-		logFunc(ctx, result)
-
-		if result.Error != nil {
-			incPingError(p)
-			// Manually exit on first error since some error (like resource scoped closed)
-			// result in ping just hanging.
-			return
-		}
-
-		observePing(p, result.RTT)
-		callback(p, svc.Host)
 	}
+}
+
+// isDirectConnAvailable returns true if direct connection is available in the given set of connections.
+func isDirectConnAvailable(conns []network.Conn) bool {
+	for _, conn := range conns {
+		if IsRelayAddr(conn.RemoteMultiaddr()) {
+			continue
+		}
+
+		return true
+	}
+
+	return false
 }
 
 // IsRelayError returns true if the error is due to temporary relay circuit recycling.

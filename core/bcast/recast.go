@@ -55,7 +55,7 @@ func (r *Recaster) Store(_ context.Context, duty core.Duty,
 		return nil
 	}
 
-	// Clone before storing
+	// Clone before storing.
 	data, err := aggData.Clone()
 	if err != nil {
 		return err
@@ -65,6 +65,9 @@ func (r *Recaster) Store(_ context.Context, duty core.Duty,
 		duty:    duty,
 		aggData: data,
 	}
+
+	// Add unique registrations count.
+	recastRegistrationCounter.WithLabelValues(pubkey.String()).Inc()
 
 	return nil
 }
@@ -76,7 +79,7 @@ func (r *Recaster) SlotTicked(ctx context.Context, slot core.Slot) error {
 	}
 	ctx = log.WithTopic(ctx, "bcast")
 
-	// Copy locked things before doing IO
+	// Copy locked things before doing IO.
 	var (
 		clonedTuples = make(map[core.PubKey]recastTuple)
 		clonedSubs   []func(context.Context, core.Duty, core.PubKey, core.SignedData) error

@@ -26,6 +26,13 @@ var broadcastDelay = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	Buckets:   []float64{.05, .1, .25, .5, 1, 2.5, 5, 10, 20, 30, 60},
 }, []string{"duty"})
 
+var recastRegistrationCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "core",
+	Subsystem: "bcast",
+	Name:      "recast_registration_total",
+	Help:      "The total number of unique validator registration stored in recaster per pubkey",
+}, []string{"pubkey"})
+
 // instrumentDuty increments the duty counter.
 func instrumentDuty(duty core.Duty, delay time.Duration) {
 	broadcastCounter.WithLabelValues(duty.Type.String()).Inc()

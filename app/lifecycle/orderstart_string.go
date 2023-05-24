@@ -18,17 +18,18 @@ func _() {
 	_ = x[StartValidatorAPI-5]
 	_ = x[StartP2PPing-6]
 	_ = x[StartP2PRouters-7]
-	_ = x[StartP2PConsensus-8]
-	_ = x[StartSimulator-9]
-	_ = x[StartScheduler-10]
-	_ = x[StartP2PEventCollector-11]
-	_ = x[StartPeerInfo-12]
-	_ = x[StartParSigDB-13]
+	_ = x[StartForceDirectConns-8]
+	_ = x[StartP2PConsensus-9]
+	_ = x[StartSimulator-10]
+	_ = x[StartScheduler-11]
+	_ = x[StartP2PEventCollector-12]
+	_ = x[StartPeerInfo-13]
+	_ = x[StartParSigDB-14]
 }
 
-const _OrderStart_name = "TrackerPrivkeyLockAggSigDBRelayMonitoringAPIValidatorAPIP2PPingP2PRoutersP2PConsensusSimulatorSchedulerP2PEventCollectorPeerInfoParSigDB"
+const _OrderStart_name = "TrackerPrivkeyLockAggSigDBRelayMonitoringAPIValidatorAPIP2PPingP2PRoutersForceDirectConnsP2PConsensusSimulatorSchedulerP2PEventCollectorPeerInfoParSigDB"
 
-var _OrderStart_index = [...]uint8{0, 7, 18, 26, 31, 44, 56, 63, 73, 85, 94, 103, 120, 128, 136}
+var _OrderStart_index = [...]uint8{0, 7, 18, 26, 31, 44, 56, 63, 73, 89, 101, 110, 119, 136, 144, 152}
 
 func (i OrderStart) String() string {
 	if i < 0 || i >= OrderStart(len(_OrderStart_index)-1) {
