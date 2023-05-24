@@ -6,6 +6,8 @@ import (
 	"context"
 	"sync"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -19,15 +21,17 @@ type recastTuple struct {
 // NewRecaster returns a new recaster.
 func NewRecaster() *Recaster {
 	return &Recaster{
-		tuples: make(map[core.PubKey]recastTuple),
+		tuples:       make(map[core.PubKey]recastTuple),
+		uniqueTuples: make(map[core.PubKey]map[eth2p0.Root]core.SignedData),
 	}
 }
 
 // Recaster rebroadcasts core.DutyBuilderRegistration aggregate signatures every epoch.
 type Recaster struct {
-	mu     sync.Mutex
-	tuples map[core.PubKey]recastTuple
-	subs   []func(context.Context, core.Duty, core.PubKey, core.SignedData) error
+	mu           sync.Mutex
+	tuples       map[core.PubKey]recastTuple
+	uniqueTuples map[core.PubKey]map[eth2p0.Root]core.SignedData
+	subs         []func(context.Context, core.Duty, core.PubKey, core.SignedData) error
 }
 
 // Subscribe subscribes to rebroadcasted duties.
@@ -55,7 +59,7 @@ func (r *Recaster) Store(_ context.Context, duty core.Duty,
 		return nil
 	}
 
-	// Clone before storing
+	// Clone before storing.
 	data, err := aggData.Clone()
 	if err != nil {
 		return err
@@ -65,6 +69,27 @@ func (r *Recaster) Store(_ context.Context, duty core.Duty,
 		duty:    duty,
 		aggData: data,
 	}
+
+	if _, ok = r.uniqueTuples[pubkey]; !ok {
+		r.uniqueTuples[pubkey] = make(map[eth2p0.Root]core.SignedData)
+	}
+
+	// Clone before storing unique tuples.
+	uniqueData, err := aggData.Clone()
+	if err != nil {
+		return err
+	}
+
+	root, err := uniqueData.MessageRoot()
+	if err != nil {
+		return err
+	}
+
+	before := len(r.uniqueTuples[pubkey])
+	r.uniqueTuples[pubkey][root] = uniqueData
+
+	// Add unique registrations count.
+	recastRegistrationCounter.WithLabelValues(pubkey.String()).Add(float64(len(r.uniqueTuples[pubkey]) - before))
 
 	return nil
 }

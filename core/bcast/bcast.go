@@ -109,7 +109,6 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 			log.Info(ctx, "Successfully submitted validator registration to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)),
 			)
-			registrationSlotGauge.WithLabelValues(pubkey.String()).Set(float64(duty.Slot))
 		}
 
 		return err

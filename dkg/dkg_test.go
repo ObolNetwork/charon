@@ -28,6 +28,7 @@ import (
 	"github.com/obolnetwork/charon/cmd/relay"
 	"github.com/obolnetwork/charon/dkg"
 	dkgsync "github.com/obolnetwork/charon/dkg/sync"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/eth2util/registration"
 	"github.com/obolnetwork/charon/p2p"
@@ -309,7 +310,9 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 			// Assert Builder Registration
 			require.EqualValues(t, val.PubKey, val.BuilderRegistration.Message.PubKey)
 			require.EqualValues(t, registration.DefaultGasLimit, val.BuilderRegistration.Message.GasLimit)
-			require.EqualValues(t, registration.DefaultRegistrationTime, val.BuilderRegistration.Message.Timestamp)
+			timestamp, err := eth2util.ForkVersionToGenesisTime(lock.ForkVersion)
+			require.NoError(t, err)
+			require.EqualValues(t, timestamp, val.BuilderRegistration.Message.Timestamp)
 
 			// Verify registration signatures
 			eth2Reg, err := registration.NewMessage(eth2p0.BLSPubKey(val.BuilderRegistration.Message.PubKey),

@@ -463,7 +463,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	if err = wireRecaster(ctx, eth2Cl, sched, sigAgg, broadcaster, cState.Validators); err != nil {
+	if err = wireRecaster(ctx, eth2Cl, sched, sigAgg, broadcaster, cState.Validators, conf.BuilderAPI); err != nil {
 		return errors.Wrap(err, "wire recaster")
 	}
 
@@ -559,8 +559,16 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 
 // wireRecaster wires the rebroadcaster component to scheduler, sigAgg and broadcaster.
 // This is not done in core.Wire since recaster isn't really part of the official core workflow (yet).
-func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Scheduler, sigAgg core.SigAgg, broadcaster core.Broadcaster, validators []state.Validator) error {
+func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Scheduler, sigAgg core.SigAgg, broadcaster core.Broadcaster, validators []state.Validator, builderAPI bool) error {
 	recaster := bcast.NewRecaster()
+
+	sched.SubscribeSlots(recaster.SlotTicked)
+	sigAgg.Subscribe(recaster.Store)
+	recaster.Subscribe(broadcaster.Broadcast)
+
+	if !builderAPI {
+		return nil
+	}
 
 	for _, val := range validators {
 		// Check if the current cluster state supports pre-generate validator registrations.
@@ -589,10 +597,6 @@ func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Schedu
 			return errors.Wrap(err, "recaster store registration")
 		}
 	}
-
-	sched.SubscribeSlots(recaster.SlotTicked)
-	sigAgg.Subscribe(recaster.Store)
-	recaster.Subscribe(broadcaster.Broadcast)
 
 	return nil
 }
@@ -703,9 +707,15 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 	}
 
 	if conf.SimnetBMock { // Configure the beacon mock.
+		genesisTime, err := eth2util.ForkVersionToGenesisTime(forkVersion)
+		if err != nil {
+			return nil, err
+		}
+
 		const dutyFactor = 100 // Duty factor spreads duties deterministically in an epoch.
 		opts := []beaconmock.Option{
 			beaconmock.WithSlotDuration(conf.SimnetSlotDuration),
+			beaconmock.WithGenesisTime(genesisTime),
 			beaconmock.WithDeterministicAttesterDuties(dutyFactor),
 			beaconmock.WithDeterministicSyncCommDuties(2, 8), // First 2 epochs of every 8
 			beaconmock.WithValidatorSet(createMockValidators(pubkeys)),

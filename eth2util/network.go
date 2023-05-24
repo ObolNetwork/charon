@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
@@ -20,29 +21,36 @@ type Network struct {
 	Name string
 	// ForkVersionHex represents fork version of the network in hex.
 	ForkVersionHex string
+	// GenesisTimestamp represents genesis timestamp of the network in unix format
+	GenesisTimestamp int64
 }
 
 var (
 	Mainnet = Network{
-		ChainID:        1,
-		Name:           "mainnet",
-		ForkVersionHex: "0x00000000",
+		ChainID:          1,
+		Name:             "mainnet",
+		ForkVersionHex:   "0x00000000",
+		GenesisTimestamp: 1606824023,
 	}
 	Goerli = Network{
-		ChainID:        5,
-		Name:           "goerli",
-		ForkVersionHex: "0x00001020",
+		ChainID:          5,
+		Name:             "goerli",
+		ForkVersionHex:   "0x00001020",
+		GenesisTimestamp: 1616508000,
 	}
 	Gnosis = Network{
-		ChainID:        100,
-		Name:           "gnosis",
-		ForkVersionHex: "0x00000064",
+		ChainID:          100,
+		Name:             "gnosis",
+		ForkVersionHex:   "0x00000064",
+		GenesisTimestamp: 1638993340,
 	}
 	Sepolia = Network{
-		ChainID:        11155111,
-		Name:           "sepolia",
-		ForkVersionHex: "0x90000069",
+		ChainID:          11155111,
+		Name:             "sepolia",
+		ForkVersionHex:   "0x90000069",
+		GenesisTimestamp: 1655733600,
 	}
+	// TODO(dhruv): drop support of ropsten as it is deprecated by ethereum foundation.
 	Ropsten = Network{
 		ChainID:        3,
 		Name:           "ropsten",
@@ -111,4 +119,24 @@ func ValidNetwork(name string) bool {
 	}
 
 	return false
+}
+
+func NetworkToGenesisTime(name string) (time.Time, error) {
+	for _, network := range supportedNetworks {
+		if name == network.Name {
+			return time.Unix(network.GenesisTimestamp, 0).UTC(), nil
+		}
+	}
+
+	return time.Time{}, errors.New("invalid network name")
+}
+
+func ForkVersionToGenesisTime(forkVersion []byte) (time.Time, error) {
+	for _, network := range supportedNetworks {
+		if fmt.Sprintf("%#x", forkVersion) == network.ForkVersionHex {
+			return time.Unix(network.GenesisTimestamp, 0).UTC(), nil
+		}
+	}
+
+	return time.Time{}, errors.New("invalid network name")
 }
