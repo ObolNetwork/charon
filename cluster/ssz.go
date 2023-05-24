@@ -597,8 +597,10 @@ func getDepositDataHashFunc(version string) (func(DepositData, ssz.HashWalker) e
 	if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5) {
 		// Noop hash function for v1.0 to v1.5 that do not support deposit data.
 		return func(DepositData, ssz.HashWalker) error { return nil }, nil
-	} else if isAnyVersion(version, v1_6, v1_7) {
-		return hashDepositData, nil
+	} else if isAnyVersion(version, v1_6) {
+		return hashDepositDataV1x6, nil
+	} else if isAnyVersion(version, v1_7) {
+		return hashDepositDataV1x7OrLater, nil
 	} else {
 		return nil, errors.New("unknown version", z.Str("version", version))
 	}
@@ -616,8 +618,8 @@ func getRegistrationHashFunc(version string) (func(BuilderRegistration, ssz.Hash
 	}
 }
 
-// hashDepositData hashes the latest deposit data.
-func hashDepositData(d DepositData, hh ssz.HashWalker) error {
+// hashDepositDataV1x6 hashes the deposit data for version v1.6.0.
+func hashDepositDataV1x6(d DepositData, hh ssz.HashWalker) error {
 	// Field (0) 'PubKey' Bytes48
 	if err := putBytesN(hh, d.PubKey, sszLenPubKey); err != nil {
 		return err
@@ -635,19 +637,56 @@ func hashDepositData(d DepositData, hh ssz.HashWalker) error {
 	return putBytesN(hh, d.Signature, sszLenBLSSig)
 }
 
+// hashDepositDataV1x7OrLater hashes the latest deposit data.
+func hashDepositDataV1x7OrLater(d DepositData, hh ssz.HashWalker) error {
+	indx := hh.Index()
+
+	// Field (0) 'PubKey' Bytes48
+	if err := putBytesN(hh, d.PubKey, sszLenPubKey); err != nil {
+		return err
+	}
+
+	// Field (1) 'WithdrawalCredentials' Bytes32
+	if err := putBytesN(hh, d.WithdrawalCredentials, sszLenWithdrawCreds); err != nil {
+		return err
+	}
+
+	// Field (2) 'Amount' uint64
+	hh.PutUint64(uint64(d.Amount))
+
+	// Field (3) 'Signature' Bytes96
+	if err := putBytesN(hh, d.Signature, sszLenBLSSig); err != nil {
+		return err
+	}
+
+	hh.Merkleize(indx)
+
+	return nil
+}
+
 // hashBuilderRegistration hashes the latest builder registration.
 func hashBuilderRegistration(b BuilderRegistration, hh ssz.HashWalker) error {
+	indx := hh.Index()
+
 	// Field (0) 'Message' Composite
 	if err := hashRegistration(b.Message, hh); err != nil {
 		return err
 	}
 
 	// Field (1) 'Signature' Bytes96
-	return putBytesN(hh, b.Signature, sszLenBLSSig)
+	if err := putBytesN(hh, b.Signature, sszLenBLSSig); err != nil {
+		return err
+	}
+
+	hh.Merkleize(indx)
+
+	return nil
 }
 
 // hashRegistration hashes the latest deposit data.
 func hashRegistration(r Registration, hh ssz.HashWalker) error {
+	indx := hh.Index()
+
 	// Field (0) 'FeeRecipient'
 	hh.PutBytes(r.FeeRecipient)
 
@@ -658,5 +697,11 @@ func hashRegistration(r Registration, hh ssz.HashWalker) error {
 	hh.PutBytes([]byte(r.Timestamp.String()))
 
 	// Field (3) 'PubKey' Bytes48
-	return putBytesN(hh, r.PubKey, sszLenPubKey)
+	if err := putBytesN(hh, r.PubKey, sszLenPubKey); err != nil {
+		return err
+	}
+
+	hh.Merkleize(indx)
+
+	return nil
 }
