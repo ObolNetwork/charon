@@ -136,7 +136,7 @@ func TestEncode(t *testing.T) {
 							testutil.RandomBytes48(),
 						},
 						DepositData:         cluster.RandomDepositData(),
-						BuilderRegistration: cluster.RandomRegistration(),
+						BuilderRegistration: cluster.RandomRegistration(t, eth2util.Sepolia.Name),
 					}, {
 						PubKey: testutil.RandomBytes48(),
 						PubShares: [][]byte{
@@ -144,7 +144,7 @@ func TestEncode(t *testing.T) {
 							testutil.RandomBytes48(),
 						},
 						DepositData:         cluster.RandomDepositData(),
-						BuilderRegistration: cluster.RandomRegistration(),
+						BuilderRegistration: cluster.RandomRegistration(t, eth2util.Sepolia.Name),
 					},
 				},
 			}

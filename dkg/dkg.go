@@ -234,6 +234,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		def.FeeRecipientAddresses(),
 		registration.DefaultGasLimit,
 		nodeIdx,
+		network,
 	)
 	if err != nil {
 		return errors.Wrap(err, "builder validator registrations pre-generation")
@@ -521,8 +522,9 @@ func signAndAggValidatorRegistrations(
 	feeRecipients []string,
 	gasLimit uint64,
 	nodeIdx cluster.NodeIdx,
+	network string,
 ) ([]core.VersionedSignedValidatorRegistration, error) {
-	parSig, valRegs, err := signValidatorRegistrations(shares, nodeIdx.ShareIdx, feeRecipients, gasLimit)
+	parSig, valRegs, err := signValidatorRegistrations(shares, nodeIdx.ShareIdx, feeRecipients, gasLimit, network)
 	if err != nil {
 		return nil, err
 	}
@@ -650,7 +652,7 @@ func signDepositMsgs(shares []share, shareIdx int, withdrawalAddresses []string,
 }
 
 // signValidatorRegistrations returns a partially signed dataset containing signatures of the validator registrations signing root.
-func signValidatorRegistrations(shares []share, shareIdx int, feeRecipients []string, gasLimit uint64) (core.ParSignedDataSet, map[core.PubKey]core.VersionedSignedValidatorRegistration, error) {
+func signValidatorRegistrations(shares []share, shareIdx int, feeRecipients []string, gasLimit uint64, network string) (core.ParSignedDataSet, map[core.PubKey]core.VersionedSignedValidatorRegistration, error) {
 	msgs := make(map[core.PubKey]core.VersionedSignedValidatorRegistration)
 	set := make(core.ParSignedDataSet)
 	for idx, share := range shares {
@@ -659,7 +661,12 @@ func signValidatorRegistrations(shares []share, shareIdx int, feeRecipients []st
 			return nil, nil, err
 		}
 
-		regMsg, err := registration.NewMessage(pubkey, feeRecipients[idx], gasLimit, registration.DefaultRegistrationTime)
+		timestamp, err := eth2util.NetworkToGenesisTime(network)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		regMsg, err := registration.NewMessage(pubkey, feeRecipients[idx], gasLimit, timestamp)
 		if err != nil {
 			return nil, nil, err
 		}

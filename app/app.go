@@ -15,6 +15,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -464,7 +465,9 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	wireRecaster(sched, sigAgg, broadcaster)
+	if err = wireRecaster(ctx, eth2Cl, sched, sigAgg, broadcaster, cState.Validators, conf.BuilderAPI); err != nil {
+		return errors.Wrap(err, "wire recaster")
+	}
 
 	track, err := newTracker(ctx, life, deadlineFunc, peers, eth2Cl)
 	if err != nil {
@@ -558,11 +561,46 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 
 // wireRecaster wires the rebroadcaster component to scheduler, sigAgg and broadcaster.
 // This is not done in core.Wire since recaster isn't really part of the official core workflow (yet).
-func wireRecaster(sched core.Scheduler, sigAgg core.SigAgg, broadcaster core.Broadcaster) {
+func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Scheduler, sigAgg core.SigAgg, broadcaster core.Broadcaster, validators []state.Validator, builderAPI bool) error {
 	recaster := bcast.NewRecaster()
+
 	sched.SubscribeSlots(recaster.SlotTicked)
 	sigAgg.Subscribe(recaster.Store)
 	recaster.Subscribe(broadcaster.Broadcast)
+
+	if !builderAPI {
+		return nil
+	}
+
+	for _, val := range validators {
+		// Check if the current cluster state supports pre-generate validator registrations.
+		if len(val.BuilderRegistration.Signature) == 0 ||
+			len(val.BuilderRegistration.Message.FeeRecipient) == 0 ||
+			len(val.BuilderRegistration.Message.PubKey) == 0 {
+			continue
+		}
+
+		pubkey, err := core.PubKeyFromBytes(val.PubKey)
+		if err != nil {
+			return errors.Wrap(err, "core pubkey from bytes")
+		}
+
+		signedData, err := core.NewVersionedSignedValidatorRegistration(builderRegistrationToETH2(val.BuilderRegistration))
+		if err != nil {
+			return errors.Wrap(err, "new versioned signed validator registration")
+		}
+
+		slot, err := slotFromTimestamp(ctx, eth2Cl, val.BuilderRegistration.Message.Timestamp)
+		if err != nil {
+			return errors.Wrap(err, "calculate slot from timestamp")
+		}
+
+		if err = recaster.Store(ctx, core.NewBuilderRegistrationDuty(slot), pubkey, signedData); err != nil {
+			return errors.Wrap(err, "recaster store registration")
+		}
+	}
+
+	return nil
 }
 
 // newTracker creates and starts a new tracker instance.
@@ -671,9 +709,15 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 	}
 
 	if conf.SimnetBMock { // Configure the beacon mock.
+		genesisTime, err := eth2util.ForkVersionToGenesisTime(forkVersion)
+		if err != nil {
+			return nil, err
+		}
+
 		const dutyFactor = 100 // Duty factor spreads duties deterministically in an epoch.
 		opts := []beaconmock.Option{
 			beaconmock.WithSlotDuration(conf.SimnetSlotDuration),
+			beaconmock.WithGenesisTime(genesisTime),
 			beaconmock.WithDeterministicAttesterDuties(dutyFactor),
 			beaconmock.WithDeterministicSyncCommDuties(2, 8), // First 2 epochs of every 8
 			beaconmock.WithValidatorSet(createMockValidators(pubkeys)),
@@ -945,4 +989,39 @@ func hex7(input []byte) string {
 	}
 
 	return resp[:7]
+}
+
+// builderRegistrationToETH2 converts cluster builder registration to eth2 versioned signed validator registration.
+func builderRegistrationToETH2(reg state.BuilderRegistration) *eth2api.VersionedSignedValidatorRegistration {
+	return &eth2api.VersionedSignedValidatorRegistration{
+		Version: eth2spec.BuilderVersionV1,
+		V1: &eth2v1.SignedValidatorRegistration{
+			Message: &eth2v1.ValidatorRegistration{
+				FeeRecipient: bellatrix.ExecutionAddress(reg.Message.FeeRecipient),
+				GasLimit:     uint64(reg.Message.GasLimit),
+				Timestamp:    reg.Message.Timestamp,
+				Pubkey:       eth2p0.BLSPubKey(reg.Message.PubKey),
+			},
+			Signature: eth2p0.BLSSignature(reg.Signature),
+		},
+	}
+}
+
+// slotFromTimestamp returns slot from the provided timestamp.
+func slotFromTimestamp(ctx context.Context, eth2Cl eth2wrap.Client, timestamp time.Time) (int64, error) {
+	genesis, err := eth2Cl.GenesisTime(ctx)
+	if err != nil {
+		return 0, err
+	} else if timestamp.Before(genesis) {
+		return 0, errors.New("registration timestamp before genesis")
+	}
+
+	slotDuration, err := eth2Cl.SlotDuration(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	delta := timestamp.Sub(genesis)
+
+	return int64(delta / slotDuration), nil
 }

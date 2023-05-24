@@ -20,18 +20,6 @@ const (
 	DefaultGasLimit = 30000000
 )
 
-// DefaultRegistrationTime is the registration time used to pre-generate validator registrations.
-var DefaultRegistrationTime = time.Date(
-	2000,
-	1,
-	1,
-	0,
-	0,
-	0,
-	0,
-	time.UTC,
-)
-
 // DOMAIN_APPLICATION_BUILDER. See https://github.com/ethereum/builder-specs/blob/7b269305e1e54f22ddb84b3da2f222e20adf6e4f/specs/bellatrix/builder.md#domain-types.
 var registrationDomainType = eth2p0.DomainType([4]byte{0x00, 0x00, 0x00, 0x01})
 

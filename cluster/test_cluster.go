@@ -7,7 +7,6 @@ import (
 	"io"
 	"math/rand"
 	"testing"
-	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
@@ -65,7 +64,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 		vals = append(vals, DistValidator{
 			PubKey:              rootPublic[:],
 			PubShares:           pubshares,
-			BuilderRegistration: RandomRegistration(),
+			BuilderRegistration: RandomRegistration(t, eth2util.Goerli.Name),
 		})
 		dvShares = append(dvShares, privshares)
 	}
@@ -135,23 +134,17 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 }
 
 // RandomRegistration returns a random builder registration.
-func RandomRegistration() BuilderRegistration {
-	regDate := time.Date(
-		2000,
-		1,
-		1,
-		0,
-		0,
-		0,
-		0,
-		time.UTC,
-	)
+func RandomRegistration(t *testing.T, network string) BuilderRegistration {
+	t.Helper()
+
+	timestamp, err := eth2util.NetworkToGenesisTime(network)
+	require.NoError(t, err)
 
 	return BuilderRegistration{
 		Message: Registration{
 			FeeRecipient: testutil.RandomBytes32()[:20],
 			GasLimit:     30000000,
-			Timestamp:    regDate,
+			Timestamp:    timestamp,
 			PubKey:       testutil.RandomBytes48(),
 		},
 		Signature: testutil.RandomBytes96(),

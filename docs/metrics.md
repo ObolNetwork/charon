@@ -35,6 +35,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `cluster_validators` | Gauge | Number of validators in the cluster lock |  |
 | `core_bcast_broadcast_delay_seconds` | Histogram | Duty broadcast delay from start of slot in seconds by type | `duty` |
 | `core_bcast_broadcast_total` | Counter | The total count of successfully broadcast duties by type | `duty` |
+| `core_bcast_recast_registration_total` | Counter | The total number of unique validator registration stored in recaster per pubkey | `pubkey` |
 | `core_consensus_decided_rounds` | Gauge | Number of rounds it took to decide consensus instances by duty and timer type. | `duty, timer` |
 | `core_consensus_duration_seconds` | Histogram | Duration of a consensus instance in seconds by duty and timer type. | `duty, timer` |
 | `core_consensus_error_total` | Counter | Total count of consensus errors |  |
