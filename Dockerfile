@@ -11,7 +11,7 @@ ARG GO_BUILD_FLAGS
 RUN \
    --mount=type=cache,target=/go/pkg \
    --mount=type=cache,target=/root/.cache/go-build \
-   go build "${GO_BUILD_FLAGS}" -o charon .
+   go build -o charon "${GO_BUILD_FLAGS}" .
 
 # Copy final binary into light stage.
 FROM debian:bullseye-slim
