@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -28,6 +30,9 @@ type Lock struct {
 	// It acts as an attestation by all the distributed validators
 	// of the charon cluster they are part of.
 	SignatureAggregate []byte `json:"signature_aggregate" ssz:"Bytes96" lock_hash:"-"`
+
+	// NodeSignatures contains a signature of the lock hash for each operator defined in the Definition.
+	NodeSignatures [][]byte `json:"node_signatures" ssz:"Composite" lock_hash:"-"`
 }
 
 func (l Lock) MarshalJSON() ([]byte, error) {
@@ -172,6 +177,29 @@ func (l Lock) VerifySignatures() error {
 		return errors.Wrap(err, "verify lock signature aggregate")
 	}
 
+	if len(l.NodeSignatures) != 0 {
+		// Ensure the K1 lock hash signature verify
+		for idx := 0; idx < len(l.Operators); idx++ {
+			record, err := enr.Parse(l.Operators[idx].ENR)
+			if err != nil {
+				return errors.Wrap(err, "operator ENR")
+			}
+
+			sig := l.NodeSignatures[idx]
+			verified, err := k1util.Verify(record.PubKey, l.LockHash, sig[:len(sig)-1])
+			if err != nil {
+				return errors.Wrap(err, "operator node signature check")
+			}
+
+			if !verified {
+				return errors.New(
+					"operator k1 lock hash signature verification failed",
+					z.Int("operator_index", idx),
+				)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -223,6 +251,7 @@ func marshalLockV1x7OrLater(lock Lock, lockHash [32]byte) ([]byte, error) {
 		Validators:         distValidatorsToV1x7OrLater(lock.Validators),
 		SignatureAggregate: lock.SignatureAggregate,
 		LockHash:           lockHash[:],
+		NodeSignatures:     byteSliceArrayToEthHex(lock.NodeSignatures),
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal definition v1_7")
@@ -302,11 +331,18 @@ func unmarshalLockV1x7OrLater(data []byte) (lock Lock, err error) {
 		return Lock{}, err
 	}
 
+	var nodeSignatures [][]byte
+
+	for _, ns := range lockJSON.NodeSignatures {
+		nodeSignatures = append(nodeSignatures, ns)
+	}
+
 	lock = Lock{
 		Definition:         lockJSON.Definition,
 		Validators:         vals,
 		SignatureAggregate: lockJSON.SignatureAggregate,
 		LockHash:           lockJSON.LockHash,
+		NodeSignatures:     nodeSignatures,
 	}
 
 	return lock, nil
@@ -342,4 +378,5 @@ type lockJSONv1x7 struct {
 	Validators         []distValidatorJSONv1x7 `json:"distributed_validators"`
 	SignatureAggregate ethHex                  `json:"signature_aggregate"`
 	LockHash           ethHex                  `json:"lock_hash"`
+	NodeSignatures     []ethHex                `json:"node_signatures"`
 }

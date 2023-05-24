@@ -3,11 +3,14 @@
 package bcast
 
 import (
+	"context"
 	"crypto/sha256"
+	"sync"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -15,22 +18,59 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
+// Component is the reliable-broadcast handler, in charge of signature and message
+// dispatch.
+type Component struct {
+	allowedMsgIDsMutex sync.Mutex
+	allowedMsgIDs      map[string]struct{}
+
+	srv           *server
+	secret        *k1.PrivateKey
+	peers         []peer.ID
+	broadcastFunc BroadcastFunc
+}
+
+// RegisterCallback adds a callback for msgID.
+func (c *Component) RegisterCallback(msgID string, callback Callback) {
+	c.allowedMsgIDsMutex.Lock()
+	defer c.allowedMsgIDsMutex.Unlock()
+
+	c.allowedMsgIDs[msgID] = struct{}{}
+	c.srv.registerCallback(msgID, callback)
+}
+
+// msgIDAllowed returns true if msgID is an allowed message id.
+func (c *Component) msgIDAllowed(msgID string) bool {
+	c.allowedMsgIDsMutex.Lock()
+	defer c.allowedMsgIDsMutex.Unlock()
+
+	_, allowed := c.allowedMsgIDs[msgID]
+
+	return allowed
+}
+
+// Broadcast broadcasts the given message and msgID to the configured peers.
+func (c *Component) Broadcast(ctx context.Context, msgID string, msg proto.Message) error {
+	return c.broadcastFunc(ctx, msgID, msg)
+}
+
 // New registers a new reliable-broadcast server and returns a reliable-broadcast client function.
-func New(tcpNode host.Host, peers []peer.ID, secret *k1.PrivateKey,
-	allowedMsgIDs []string, callback Callback,
-) BroadcastFunc {
-	allow := make(map[string]bool)
-	for _, msgID := range allowedMsgIDs {
-		allow[msgID] = true
+func New(tcpNode host.Host, peers []peer.ID, secret *k1.PrivateKey) *Component {
+	c := Component{
+		allowedMsgIDs: map[string]struct{}{},
+		secret:        secret,
+		peers:         peers,
 	}
 
-	signFunc := newK1Signer(secret, allow)
-	verifyFunc := newPeerK1Verifier(peers, allow)
+	signFunc := c.newK1Signer()
+	verifyFunc := c.newPeerK1Verifier()
 
-	_ = newServer(tcpNode, signFunc, verifyFunc, callback)
 	cl := newClient(tcpNode, peers, p2p.SendReceive, p2p.Send, hashAny, signFunc, verifyFunc)
 
-	return cl.Broadcast
+	c.broadcastFunc = cl.Broadcast
+	c.srv = newServer(tcpNode, signFunc, verifyFunc)
+
+	return &c
 }
 
 // hashAny is a function that hashes a any-wrapped protobuf message.
@@ -43,24 +83,24 @@ func hashAny(anyPB *anypb.Any) ([]byte, error) {
 }
 
 // newK1Signer returns a function that signs a hash using the given private key.
-func newK1Signer(secret *k1.PrivateKey, allow map[string]bool) func(string, []byte) ([]byte, error) {
+func (c *Component) newK1Signer() func(string, []byte) ([]byte, error) {
 	return func(msgID string, hash []byte) ([]byte, error) {
-		if !allow[msgID] {
+		if !c.msgIDAllowed(msgID) {
 			return nil, errors.New("invalid message id")
 		}
 
-		return k1util.Sign(secret, hash)
+		return k1util.Sign(c.secret, hash)
 	}
 }
 
 // newPeerK1Verifier returns a function that verifies a hash using the given peer IDs (public keys).
-func newPeerK1Verifier(peers []peer.ID, allow map[string]bool) func(string, *anypb.Any, [][]byte) error {
+func (c *Component) newPeerK1Verifier() func(string, *anypb.Any, [][]byte) error {
 	return func(msgID string, anyPB *anypb.Any, sigs [][]byte) error {
-		if len(sigs) != len(peers) {
+		if len(sigs) != len(c.peers) {
 			return errors.New("invalid number of signatures")
 		}
 
-		if !allow[msgID] {
+		if !c.msgIDAllowed(msgID) {
 			return errors.New("invalid message id")
 		}
 
@@ -70,7 +110,7 @@ func newPeerK1Verifier(peers []peer.ID, allow map[string]bool) func(string, *any
 		}
 
 		for i, sig := range sigs {
-			pubkey, err := p2p.PeerIDToKey(peers[i])
+			pubkey, err := p2p.PeerIDToKey(c.peers[i])
 			if err != nil {
 				return errors.Wrap(err, "peer id to key")
 			}

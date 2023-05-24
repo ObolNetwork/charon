@@ -27,6 +27,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/dkg/bcast"
 	"github.com/obolnetwork/charon/dkg/sync"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
@@ -181,7 +182,14 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 		peerMap[p.ID] = nodeIdx
 	}
-	tp := newFrostP2P(tcpNode, peerMap, key, def.Threshold, def.NumValidators)
+
+	caster := bcast.New(tcpNode, peerIds, key)
+
+	// register bcast callbacks for frostp2p
+	tp := newFrostP2P(tcpNode, peerMap, caster, def.Threshold, def.NumValidators)
+
+	// register bcast callbacks for lock hash k1 signature handler
+	nodeSigCaster := newNodeSigBcast(len(def.Operators), caster)
 
 	log.Info(ctx, "Waiting to connect to all peers...")
 
@@ -247,6 +255,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 	if err != nil {
 		return err
 	}
+
+	// Sign, exchange K1 signatures over Lock Hash
+	lock.NodeSignatures, err = nodeSigCaster.exchange(ctx, lock.LockHash, key, nodeIdx)
+	if err != nil {
+		return errors.Wrap(err, "k1 lock hash signature exchange")
+	}
+
 	if !conf.NoVerify {
 		if err := lock.VerifySignatures(); err != nil {
 			return errors.Wrap(err, "invalid lock file")

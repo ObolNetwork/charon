@@ -21,7 +21,6 @@ import (
 //go:generate go test . -v -update -clean
 
 const (
-	v1_7 = "v1.7.0"
 	v1_6 = "v1.6.0"
 	v1_5 = "v1.5.0"
 	v1_4 = "v1.4.0"
@@ -147,6 +146,10 @@ func TestEncode(t *testing.T) {
 						BuilderRegistration: cluster.RandomRegistration(t, eth2util.Sepolia.Name),
 					},
 				},
+				NodeSignatures: [][]byte{
+					testutil.RandomBytes32(),
+					testutil.RandomBytes32(),
+				},
 			}
 
 			// Make sure all the pubkeys are same.
@@ -167,6 +170,8 @@ func TestEncode(t *testing.T) {
 				for i := range lock.Validators {
 					lock.Validators[i].BuilderRegistration = cluster.BuilderRegistration{}
 				}
+
+				lock.NodeSignatures = nil
 			}
 
 			t.Run("lock_json_"+vStr, func(t *testing.T) {
