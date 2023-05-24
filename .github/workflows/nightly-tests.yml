@@ -1,0 +1,42 @@
+# This runs nightly tests once a day at 12:00 noon.
+name: nightly tests
+on:
+  schedule:
+    - cron: '00 12 * * *'
+
+jobs:
+  nightly_test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+        with:
+          go-version: '1.20.3'
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - run: go test -v -timeout=90m -race github.com/obolnetwork/charon/testutil/integration -nightly
+
+  notify_failure:
+    runs-on: ubuntu-latest
+    needs: [ nightly_test ]
+    # Syntax ref: https://github.com/actions/runner/issues/1251
+    if: always() && github.ref == 'refs/heads/main' && contains(join(needs.*.result, ','), 'failure')
+    steps:
+      - name: notify failure
+        uses: Ilshidur/action-discord@0.3.2
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          DISCORD_USERNAME: GitHub
+          DISCORD_AVATAR: https://avatars.githubusercontent.com/u/583231
+          DISCORD_EMBEDS: |
+            [{
+              "title": "🚨  Nightly tests failed: ${{ github.workflow }}",
+              "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              "color": 10038562
+            }]
