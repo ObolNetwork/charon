@@ -12,13 +12,12 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-const (
-	// Version is the branch version of the codebase.
-	//  - Main branch: v0.X-dev
-	//  - Release branch: v0.X-rc
-	// It is overridden by git tags when building official releases.
-	Version = "v0.16-dev"
-)
+// Version is the branch version of the codebase.
+//   - Main branch: v0.X-dev
+//   - Release branch: v0.X-rc
+//
+// It is overwritten at build-time with the git tag for official releases.
+var Version = "v0.16-dev"
 
 // Supported returns the supported minor versions in order of precedence.
 func Supported() []string {
