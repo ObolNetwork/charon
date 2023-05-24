@@ -86,5 +86,9 @@
   }
  ],
  "signature_aggregate": "0x9347800979d1830356f2a54c3deab2a4b4475d63afbe8fb56987c77f5818526f",
- "lock_hash": "0xa62d33bc1f1a3cb098793f4de77ff034c03c0e0d213fc9c8d4e8c0127bd112fd"
+ "lock_hash": "0xa62d33bc1f1a3cb098793f4de77ff034c03c0e0d213fc9c8d4e8c0127bd112fd",
+ "node_signatures": [
+  "0xb38b19f53784c19e9beac03c875a27db029de37ae37a42318813487685929359",
+  "0xca8c5eb94e152dc1af42ea3d1676c1bdd19ab8e2925c6daee4de5ef9f9dcf08d"
+ ]
 }
