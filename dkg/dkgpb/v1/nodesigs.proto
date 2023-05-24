@@ -4,7 +4,7 @@ package dkg.dkgpb.v1;
 
 option go_package = "github.com/obolnetwork/charon/dkg/dkgpb/v1";
 
-message MsgLockHashK1Sig {
+message MsgNodeSig {
   bytes signature = 1;
   uint32 peer_index = 2;
 }
