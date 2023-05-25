@@ -22,7 +22,7 @@ var Version = "v0.16-dev"
 // Supported returns the supported minor versions in order of precedence.
 func Supported() []string {
 	return []string{
-		// TODO(corver): Add v0.16 as part of https://github.com/ObolNetwork/charon/issues/2099
+		"v0.16", // Current minor version always goes first.
 		"v0.15",
 		"v0.14",
 	}
@@ -69,5 +69,12 @@ func Minor(version string) (string, error) {
 		return "", errors.New("invalid version string")
 	}
 
-	return strings.Join(split[:2], "."), nil
+	major := split[0]
+
+	minor := split[1]
+	if split := strings.Split(minor, "-"); len(split) > 1 {
+		minor = split[0]
+	}
+
+	return major + "." + minor, nil
 }

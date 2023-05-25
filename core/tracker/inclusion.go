@@ -4,7 +4,6 @@ package tracker
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -229,14 +228,6 @@ func checkAttestationInclusion(sub submission, block block) (bool, error) {
 func reportMissed(ctx context.Context, sub submission) {
 	inclusionMisses.WithLabelValues(sub.Duty.Type.String()).Inc()
 
-	// TODO(corver): Remove debug logs for https://github.com/ObolNetwork/charon/issues/2130
-	b, _ := json.Marshal(sub) //nolint:errchkjson
-	log.Debug(ctx, "Debug missed submission details",
-		z.Any("pubkey", sub.Pubkey),
-		z.Any("duty", sub.Duty),
-		z.Hex("submission", b),
-	)
-
 	switch sub.Duty.Type {
 	case core.DutyAttester, core.DutyAggregator:
 		msg := "Broadcasted attestation never included on-chain"
@@ -366,13 +357,8 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot int64) error {
 	if err != nil {
 		return err
 	} else if len(atts) == 0 {
-		// TODO(corver): Remove this log, its probably too verbose
-		log.Debug(ctx, "Skipping missed block inclusion check", z.I64("slot", slot))
 		return nil // No block for this slot
 	}
-
-	// TODO(corver): Remove this log, its probably too verbose
-	log.Debug(ctx, "Checking block inclusion", z.I64("slot", slot))
 
 	// Map attestations by data root, merging duplicates (with identical attestation data).
 	attsMap := make(map[eth2p0.Root]*eth2p0.Attestation)
