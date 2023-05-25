@@ -619,6 +619,7 @@ func getRegistrationHashFunc(version string) (func(BuilderRegistration, ssz.Hash
 }
 
 // hashDepositDataV1x6 hashes the deposit data for version v1.6.0.
+// Note: There is a bug in this function where we missed merkleize step of DepositData.
 func hashDepositDataV1x6(d DepositData, hh ssz.HashWalker) error {
 	// Field (0) 'PubKey' Bytes48
 	if err := putBytesN(hh, d.PubKey, sszLenPubKey); err != nil {
