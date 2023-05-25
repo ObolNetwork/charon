@@ -45,10 +45,16 @@ func (c Component) TekuProposerConfig(ctx context.Context) (TekuProposerConfigRe
 		},
 	}
 
-	genesis, err := c.eth2Cl.GenesisTime(ctx)
+	slotDuration, err := c.eth2Cl.SlotDuration(ctx)
 	if err != nil {
 		return TekuProposerConfigResponse{}, err
 	}
+
+	timestamp, err := c.eth2Cl.GenesisTime(ctx)
+	if err != nil {
+		return TekuProposerConfigResponse{}, err
+	}
+	timestamp = timestamp.Add(slotDuration) // Use slot 1 for timestamp to override pre-generated registrations.
 
 	slot, err := c.slotFromTimestamp(ctx, time.Now())
 	if err != nil {
@@ -62,7 +68,7 @@ func (c Component) TekuProposerConfig(ctx context.Context) (TekuProposerConfigRe
 				Enabled:  c.builderEnabled(int64(slot)),
 				GasLimit: gasLimit,
 				Overrides: map[string]string{
-					"timestamp":  fmt.Sprint(genesis.Unix()),
+					"timestamp":  fmt.Sprint(timestamp.Unix()),
 					"public_key": string(pubkey),
 				},
 			},

@@ -317,10 +317,11 @@ func handleVMockDuty(ctx context.Context, duty core.Duty, eth2Cl eth2wrap.Client
 
 // newRegistrations returns a list of validator registrations for the given cluster.
 func newRegistrations(cState state.Cluster) ([]*eth2api.VersionedValidatorRegistration, error) {
-	genesis, err := eth2util.ForkVersionToGenesisTime(cState.ForkVersion)
+	timestamp, err := eth2util.ForkVersionToGenesisTime(cState.ForkVersion)
 	if err != nil {
 		return nil, err
 	}
+	timestamp = timestamp.Add(time.Minute) // Use slot>0 to override pre-generated registrations.
 
 	var resp []*eth2api.VersionedValidatorRegistration
 	for _, val := range cState.Validators {
@@ -338,7 +339,7 @@ func newRegistrations(cState state.Cluster) ([]*eth2api.VersionedValidatorRegist
 			V1: &eth2v1.ValidatorRegistration{
 				FeeRecipient: bellatrix.ExecutionAddress(addr),
 				GasLimit:     registration.DefaultGasLimit,
-				Timestamp:    genesis,
+				Timestamp:    timestamp,
 				Pubkey:       eth2p0.BLSPubKey(val.PubKey),
 			},
 		})

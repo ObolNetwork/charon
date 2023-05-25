@@ -1297,6 +1297,8 @@ func TestComponent_TekuProposerConfig(t *testing.T) {
 
 	genesis, err := bmock.GenesisTime(ctx)
 	require.NoError(t, err)
+	slotDuration, err := bmock.SlotDuration(ctx)
+	require.NoError(t, err)
 
 	require.Equal(t, validatorapi.TekuProposerConfigResponse{
 		Proposers: map[string]validatorapi.TekuProposerConfig{
@@ -1306,7 +1308,7 @@ func TestComponent_TekuProposerConfig(t *testing.T) {
 					Enabled:  true,
 					GasLimit: 30000000,
 					Overrides: map[string]string{
-						"timestamp":  fmt.Sprint(genesis.Unix()),
+						"timestamp":  fmt.Sprint(genesis.Add(slotDuration).Unix()),
 						"public_key": string(pk),
 					},
 				},
