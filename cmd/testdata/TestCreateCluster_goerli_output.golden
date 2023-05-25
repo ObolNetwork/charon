@@ -2,7 +2,7 @@ Created charon cluster:
  --split-existing-keys=false
 
 charon/
-├─ node[0-3]/			Directory for each node
+├─ node[0-2]/			Directory for each node
 │  ├─ charon-enr-private-key	Charon networking private key for node authentication
 │  ├─ cluster-lock.json		Cluster lock defines the cluster lock file which is signed by all nodes
 │  ├─ deposit-data.json		Deposit data file is used to activate a Distributed Validator on DV Launchpad

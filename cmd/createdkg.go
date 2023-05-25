@@ -183,7 +183,7 @@ func validateConfig(threshold, numOperators int, network string) error {
 
 	// Don't allow cluster size to be less than 4.
 	if numOperators < minNodes {
-		return errors.New("insufficient operator ENRs (min = 4)")
+		return errors.New("insufficient operator ENRs", z.Int("count", numOperators), z.Int("min", minNodes))
 	}
 
 	if !eth2util.ValidNetwork(network) {

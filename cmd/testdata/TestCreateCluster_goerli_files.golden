@@ -2,7 +2,6 @@
  "node0",
  "node1",
  "node2",
- "node3",
  "node0/charon-enr-private-key",
  "node0/cluster-lock.json",
  "node0/deposit-data.json",
@@ -14,9 +13,5 @@
  "node2/charon-enr-private-key",
  "node2/cluster-lock.json",
  "node2/deposit-data.json",
- "node2/validator_keys",
- "node3/charon-enr-private-key",
- "node3/cluster-lock.json",
- "node3/deposit-data.json",
- "node3/validator_keys"
+ "node2/validator_keys"
 ]

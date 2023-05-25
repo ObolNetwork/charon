@@ -46,7 +46,7 @@ const (
 	// See https://etherscan.io/address/0x0000000000000000000000000000000000000000.
 	zeroAddress    = "0x0000000000000000000000000000000000000000"
 	defaultNetwork = "mainnet"
-	minNodes       = 4
+	minNodes       = 3
 )
 
 type clusterConfig struct {
@@ -755,7 +755,7 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 	}
 
 	if len(def.Operators) < minNodes {
-		return errors.New("insufficient number of nodes (min = 4)", z.Int("num_nodes", len(def.Operators)))
+		return errors.New("insufficient number of nodes", z.Int("num_nodes", len(def.Operators)), z.Int("min", minNodes))
 	}
 
 	if len(keymanagerAddrs) > 0 && (len(keymanagerAddrs) != len(def.Operators)) {
