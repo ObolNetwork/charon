@@ -36,4 +36,24 @@ func TestMinor(t *testing.T) {
 
 	_, err = version.Minor("foo")
 	require.ErrorContains(t, err, "invalid version string")
+
+	minor, err = version.Minor("v0.1-rc1")
+	require.NoError(t, err)
+	require.Equal(t, "v0.1", minor)
+}
+
+func TestCurrentInSupported(t *testing.T) {
+	require.Contains(t, version.Version, version.Supported()[0])
+}
+
+func TestSupportedAreMinors(t *testing.T) {
+	for _, v := range version.Supported() {
+		minor, err := version.Minor(v)
+		require.NoError(t, err)
+		require.Equal(t, v, minor)
+	}
+}
+
+func TestMultiSupported(t *testing.T) {
+	require.True(t, len(version.Supported()) > 1)
 }
