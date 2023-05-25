@@ -53,6 +53,8 @@ func TestSmoke(t *testing.T) {
 		{
 			Name: "default_beta",
 			ConfigFunc: func(conf *compose.Config) {
+				conf.NumNodes = 3
+				conf.Threshold = 2
 				conf.KeyGen = compose.KeyGenCreate
 				conf.FeatureSet = "beta"
 			},
@@ -92,13 +94,13 @@ func TestSmoke(t *testing.T) {
 			},
 			DefineTmplFunc: func(data *compose.TmplData) {
 				// Use oldest supported version for cluster lock
-				pegImageTag(data.Nodes, 0, last(version.Supported())+".0")
+				pegImageTag(data.Nodes, 0, last(version.Supported()[1:])+".0")
 			},
 			RunTmplFunc: func(data *compose.TmplData) {
 				// Node 0 is local build
-				pegImageTag(data.Nodes, 1, nth(version.Supported(), 0)+".0")
-				pegImageTag(data.Nodes, 2, nth(version.Supported(), 1)+".0")
-				pegImageTag(data.Nodes, 3, nth(version.Supported(), 2)+".0")
+				pegImageTag(data.Nodes, 1, version.Version) // Node 1 is previous commit on this branch (v0.X-dev/rc) Note this will fail for first commit on new branch version.
+				pegImageTag(data.Nodes, 2, nth(version.Supported()[1:], 1)+".0")
+				pegImageTag(data.Nodes, 3, nth(version.Supported()[1:], 2)+".0")
 			},
 		},
 		{
@@ -115,6 +117,21 @@ func TestSmoke(t *testing.T) {
 		},
 		{
 			Name: "1_of_4_down",
+			RunTmplFunc: func(data *compose.TmplData) {
+				node0 := data.Nodes[0]
+				for i := 0; i < len(node0.EnvVars); i++ {
+					if strings.HasPrefix(node0.EnvVars[i].Key, "p2p") {
+						data.Nodes[0].EnvVars[i].Key = "unset" // Zero p2p flags to it cannot communicate
+					}
+				}
+			},
+		},
+		{
+			Name: "1_of_3_down",
+			ConfigFunc: func(conf *compose.Config) {
+				conf.NumNodes = 3
+				conf.Threshold = 2
+			},
 			RunTmplFunc: func(data *compose.TmplData) {
 				node0 := data.Nodes[0]
 				for i := 0; i < len(node0.EnvVars); i++ {
