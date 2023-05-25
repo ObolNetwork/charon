@@ -57,7 +57,7 @@ func wireValidatorMock(conf Config, cState state.Cluster, pubshares []eth2p0.BLS
 		}
 
 		// Submit validator registrations when epoch tick.
-		if conf.BuilderAPI && onStartup || slot.FirstInEpoch() {
+		if conf.BuilderAPI && (onStartup || slot.FirstInEpoch()) {
 			vMockWrap(ctx, slot.Slot, func(ctx context.Context, state vMockState) error {
 				regs, err := newRegistrations(cState)
 				if err != nil {
