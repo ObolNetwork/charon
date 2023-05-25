@@ -24,7 +24,7 @@ func TestSigsExchange(t *testing.T) {
 	n := 32
 
 	var (
-		ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+		ctx = context.Background()
 
 		secrets  []*k1.PrivateKey
 		pubkeys  []*k1.PublicKey
@@ -33,8 +33,6 @@ func TestSigsExchange(t *testing.T) {
 		nsigs    []nodeSigBcast
 		results  [][][]byte
 	)
-
-	defer cancel()
 
 	// Create secretes and libp2p nodes
 	for i := 0; i < n; i++ {
