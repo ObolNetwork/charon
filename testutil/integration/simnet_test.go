@@ -14,9 +14,6 @@ import (
 	"testing"
 	"time"
 
-	eth2api "github.com/attestantio/go-eth2-client/api"
-	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -268,7 +265,6 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 	lcastTransportFunc := leadercast.NewMemTransportFunc(ctx)
 	featureConf := featureset.DefaultConfig()
 	featureConf.Disabled = []string{string(featureset.QBFTConsensus)} // TODO(corver): Add support for in-memory transport to QBFT.
-	registrationFunc := newRegistrationProvider(t, args)
 
 	type simResult struct {
 		Duty   core.Duty
@@ -306,7 +302,6 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 				SimnetBMockOpts: append([]beaconmock.Option{
 					beaconmock.WithSlotsPerEpoch(1),
 				}, args.BMockOpts...),
-				BuilderRegistration: registrationFunc(),
 			},
 			P2P:                     p2p.Config{},
 			BuilderAPI:              args.BuilderAPI,
@@ -371,34 +366,6 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 	err := eg.Wait()
 	testutil.SkipIfBindErr(t, err)
 	testutil.RequireNoError(t, err)
-}
-
-// newRegistrationProvider returns a function that provides identical registration structs for
-// the first validator in the lock file.
-func newRegistrationProvider(t *testing.T, args simnetArgs) func() <-chan *eth2api.VersionedValidatorRegistration {
-	t.Helper()
-
-	pubkey, err := core.PubKey(args.Lock.Validators[0].PublicKeyHex()).ToETH2()
-	require.NoError(t, err)
-	reg := &eth2api.VersionedValidatorRegistration{
-		Version: eth2spec.BuilderVersionV1,
-		V1: &eth2v1.ValidatorRegistration{
-			FeeRecipient: testutil.RandomExecutionAddress(),
-			GasLimit:     99,
-			Timestamp:    time.Now(),
-			Pubkey:       pubkey,
-		},
-	}
-
-	return func() <-chan *eth2api.VersionedValidatorRegistration {
-		if !args.BuilderRegistration {
-			return nil
-		}
-		regChan := make(chan *eth2api.VersionedValidatorRegistration, 1)
-		regChan <- reg
-
-		return regChan
-	}
 }
 
 type tekuCmd []string

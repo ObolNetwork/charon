@@ -4,25 +4,33 @@ package app
 
 import (
 	"context"
+	"encoding/hex"
+	"strings"
 	"sync"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2http "github.com/attestantio/go-eth2-client/http"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster/state"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
+	"github.com/obolnetwork/charon/eth2util/registration"
 	"github.com/obolnetwork/charon/testutil/validatormock" // Allow testutil
 )
 
 // wireValidatorMock wires the validator mock if enabled. It connects via http validatorapi.Router.
-func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Scheduler) error {
+func wireValidatorMock(conf Config, cState state.Cluster, pubshares []eth2p0.BLSPubKey, sched core.Scheduler) error {
 	if !conf.SimnetVMock {
 		return nil
 	}
@@ -45,6 +53,25 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 			vMockWrap(ctx, slot.Slot, func(ctx context.Context, state vMockState) error {
 				// Either call if it is first slot in epoch or on charon startup.
 				return state.SyncCommMember.PrepareEpoch(ctx)
+			})
+		}
+
+		// Submit validator registrations when epoch tick.
+		if conf.BuilderAPI && onStartup || slot.FirstInEpoch() {
+			vMockWrap(ctx, slot.Slot, func(ctx context.Context, state vMockState) error {
+				regs, err := newRegistrations(cState)
+				if err != nil {
+					return err
+				}
+
+				for i, reg := range regs {
+					err := validatormock.Register(ctx, state.Eth2Cl, state.SignFunc, reg, pubshares[i])
+					if err != nil {
+						return err
+					}
+				}
+
+				return nil
 			})
 		}
 
@@ -80,15 +107,6 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 
 		return nil
 	})
-
-	go func() {
-		// TODO(corver): Improve registrations to use lock file and trigger on epoch transitions.
-		for registration := range conf.TestConfig.BuilderRegistration {
-			vMockWrap(context.Background(), 0, func(ctx context.Context, state vMockState) error {
-				return validatormock.Register(ctx, state.Eth2Cl, state.SignFunc, registration, pubshares[0])
-			})
-		}
-	}()
 
 	return nil
 }
@@ -295,4 +313,36 @@ func handleVMockDuty(ctx context.Context, duty core.Duty, eth2Cl eth2wrap.Client
 	}
 
 	return nil
+}
+
+// newRegistrations returns a list of validator registrations for the given cluster.
+func newRegistrations(cState state.Cluster) ([]*eth2api.VersionedValidatorRegistration, error) {
+	genesis, err := eth2util.ForkVersionToGenesisTime(cState.ForkVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp []*eth2api.VersionedValidatorRegistration
+	for _, val := range cState.Validators {
+		addr, err := hex.DecodeString(strings.TrimPrefix(val.FeeRecipientAddress, "0x"))
+		if err != nil || len(addr) != 20 {
+			return nil, errors.Wrap(err, "invalid fee recipient address")
+		}
+
+		if len(val.PubKey) != 48 {
+			return nil, errors.New("invalid pubkey length")
+		}
+
+		resp = append(resp, &eth2api.VersionedValidatorRegistration{
+			Version: eth2spec.BuilderVersionV1,
+			V1: &eth2v1.ValidatorRegistration{
+				FeeRecipient: bellatrix.ExecutionAddress(addr),
+				GasLimit:     registration.DefaultGasLimit,
+				Timestamp:    genesis,
+				Pubkey:       eth2p0.BLSPubKey(val.PubKey),
+			},
+		})
+	}
+
+	return resp, nil
 }
