@@ -1,37 +1,37 @@
 {
  "Hash": [
-  150,
-  237,
-  115,
-  3,
-  226,
-  149,
-  10,
-  62,
-  252,
-  153,
-  49,
-  111,
-  20,
-  18,
-  77,
-  105,
-  192,
-  239,
-  199,
-  72,
-  32,
-  96,
-  159,
-  74,
-  159,
-  166,
-  72,
-  152,
+  9,
+  126,
+  101,
+  174,
   86,
-  125,
-  163,
-  143
+  146,
+  244,
+  191,
+  92,
+  109,
+  106,
+  214,
+  96,
+  154,
+  150,
+  104,
+  29,
+  119,
+  11,
+  29,
+  192,
+  90,
+  197,
+  115,
+  93,
+  23,
+  84,
+  169,
+  19,
+  11,
+  151,
+  149
  ],
  "Name": "test cluster",
  "Threshold": 3,
@@ -49,45 +49,51 @@
   {
    "address": "0xc48B812bB43401392c037381AcA934F4069C0517",
    "enr": "enr:-HW4QGSS-HN3zRfCJGISFmDT59Cpo-daC4U2vSjqPZWegHVSJklFsDs0f1fF_E7X4q8NUbR3bWDlX7IifsjQ_Xrm7QuAgmlkgnY0iXNlY3AyNTZrMaEDRid5rUqtOVFGFHUacQhfLxDhx6WT5OAw77W4chzlWws"
+  },
+  {
+   "address": "0xd09Ad14080d4b257a819a4f579b8485Be88f086c",
+   "enr": "enr:-HW4QGFxPElPQZLydQ9Ach--g-jHJ0N4LO6uuIvyfw-Tg2K_R-R6iMCfzGryG80gmdPQwz9asajtn3CF88-rpu38YoKAgmlkgnY0iXNlY3AyNTZrMaEDYsCgRtrM6G3dA0PG08fHnCIIug2cnPJKbQRtIdIfkPc"
   }
  ],
  "Validators": [
   {
-   "public_key": "h8uIPhQDbD567182RfseDmNxsX21jLYjGayUiqyV5l01BTop8KeVTCzmDv4kUJ7K",
+   "public_key": "rP927AyFPjdtSaMLb7mq7FPSZfXRJI1dvQ8HSlpTewrCUkyIddUi4y24RHT1JJe+",
    "public_shares": [
-    "uA+hMGjoO4eKcZhJwCRkz4uHAvtlXvBddwtyeYK4cMNGrZPYMhketBtO9Gw8hS2G",
-    "stZ8e8n324Q50I+Cpinyk1w9RvFLc4QRTq7NT8h3PHbeRZSPutaulOS7+MTT1Ptx",
-    "oPhLN4RG6PQCCNz52S9yZukU/n+lOAiHHEuXhS4ONk+fkso9RU+6cFIiy0popuwM"
+    "o/7qMPoVwxBX+IVCQmNZcCgq5TchWj4lDa0I1DAkUlEcOV2WSL7IdxS08xV1ybZa",
+    "jGQos/giCLZkat4ezJogvijy8mgbko+7/WXv7PtCgT98zB47z62eNhwp4z8S9ZyK",
+    "oIzEm9TLSYwxafUsP9k5wW0Q0hITkgwoMmraGoV8Y+zt8PWWvtl1qL0JkNb/sHO0",
+    "o/bOXu3OeLhgfLbY4/K6ILZ0Oq1z8CgQ2dB6yBYMwSyxpfafaFR6hcpvCLRC+g7I"
    ],
-   "fee_recipient_address": "0x52fdfc072182654f163f5f0f9a621d729566c74d",
-   "withdrawal_address": "0x81855ad8681d0d86d1e91e00167939cb6694d2c4",
+   "fee_recipient_address": "0x4c7215a3b539eb1e5849c6077dbb5722f5717a28",
+   "withdrawal_address": "0x0b4b373970115e82ed6f4125c8fa7311e4d7defa",
    "builder_registration": {
     "message": {
-     "fee_recipient": "Uv38ByGCZU8WP18PmmIdcpVmx00=",
+     "fee_recipient": "THIVo7U56x5YScYHfbtXIvVxeig=",
      "gas_limit": 30000000,
-     "timestamp": "2000-01-01T00:00:00Z",
-     "pubkey": "h8uIPhQDbD567182RfseDmNxsX21jLYjGayUiqyV5l01BTop8KeVTCzmDv4kUJ7K"
+     "timestamp": "2021-03-23T14:00:00Z",
+     "pubkey": "rP927AyFPjdtSaMLb7mq7FPSZfXRJI1dvQ8HSlpTewrCUkyIddUi4y24RHT1JJe+"
     },
-    "signature": "oBpWvneq1XeXolSKM6wVFSPVKYxGab3x/n/PZobhes8q+1jaqdUPjEccJvOXkwAtC8VDoRScO9vp35GTL2AaYNdwqrMliTtsu55E1noaDdW0DfmT+9XvZqbAKyDclxiI"
+    "signature": "jd6Qil4ODOqpBD0EYJVMIBFP7vdMj37Cr1gpk8NDrrWABkOayVkb24CxJPTrorO3D/20Rg6+2MwpRhtn4I6DvUB1z3cL2n70xhBgLRzUW4WCI4bcE9SvXSStfQ7TFqO0"
    }
   },
   {
-   "public_key": "kCRvQhyfK9Nz3g21SN2YrXAoKP4N3jskdeF6C1wY+zN9DRydPcU2ju0YWUH80/TN",
+   "public_key": "h57NdITh1bPnCAaIFRgkjiLDAzxK35n0wyUpMhkbl7M0KEsA/KGRPk/TCpuwlLKb",
    "public_shares": [
-    "mL6GFMjTs0+NUg2ygSfJPt6AYkDYWM+USW1PEeoCYxYgsSprUQV0HX1cILoiAXYc",
-    "rf1RWO0jczODB4MtoY4V1fflXwZ2edq+zlGrgEugtTU9cLtF4VwSHfSsHYAmwVOw",
-    "pxOjPz9ZIV/lua8RS0MLc+b77SVAKoMUctyLSDAl0GtzLPHkOHU2JP9ECb0d4SUc"
+    "qBanfbsZkCEA/7bpruxJkHoLu+FMHX2nX/u6irnJUFQVq6pJQaq00+JWT8spE9XY",
+    "mOrr5uHyS7dXIzVd9cM3zRVCExMRAuWcF4LKnnXyt6MV2OxnhP0omOCw8Uz7w1X2",
+    "tyo02DOfJtvPpoDKzQWbKEtxmkZWHKrYSgqpFHITnqmYYOA2pYjj+dfYHTTRGxgI",
+    "gPGKN66VG8ZliyO3Qg5olypQcd9eCONh5MO/L8u/pa10zao8TGZdGcP7cDUfNDrb"
    ],
-   "fee_recipient_address": "0xeb9d18a44784045d87f3c67cf22746e995af5a25",
-   "withdrawal_address": "0x5fb90badb37c5821b6d95526a41a9504680b4e7c",
+   "fee_recipient_address": "0x24abf7df866baa56038367ad6145de1ee8f4a8b0",
+   "withdrawal_address": "0xb04883e56a156a8de563afa467d49dec6a40e9a1",
    "builder_registration": {
     "message": {
-     "fee_recipient": "650YpEeEBF2H88Z88idG6ZWvWiU=",
+     "fee_recipient": "JKv334ZrqlYDg2etYUXeHuj0qLA=",
      "gas_limit": 30000000,
-     "timestamp": "2000-01-01T00:00:00Z",
-     "pubkey": "kCRvQhyfK9Nz3g21SN2YrXAoKP4N3jskdeF6C1wY+zN9DRydPcU2ju0YWUH80/TN"
+     "timestamp": "2021-03-23T14:00:00Z",
+     "pubkey": "h57NdITh1bPnCAaIFRgkjiLDAzxK35n0wyUpMhkbl7M0KEsA/KGRPk/TCpuwlLKb"
     },
-    "signature": "ksCRGO95TCFTmVcpjUsOkGW3e/BXZftX8jKVVZGp+XQm1uRwy5m5hnI9oCJeRoEmAoR3F6q3PLH9Jh5LZlJH8pTyczUtYTrZkqeJ9EFiFXa5d/yZl4P1ntZnsWbm1ekW"
+    "signature": "ilvJxbce3gRXptmwGZkuUcM6p4U3j/cJsyfGJbUZ7s0xOsp3KRJh34tVLYdR7LJ2Bann1upEE+Hn/aTolJw+0YM6un3iakoGzRX1HVdmnyQ5Whzmgy12jXlt4miSG8bS"
    }
   }
  ]
