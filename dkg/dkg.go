@@ -31,6 +31,7 @@ import (
 	"github.com/obolnetwork/charon/dkg/sync"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
+	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/registration"
 	"github.com/obolnetwork/charon/p2p"
@@ -256,8 +257,18 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
+	var operatorPubkeys []*k1.PublicKey
+	for _, operator := range lock.Operators {
+		parsedEnr, err := enr.Parse(operator.ENR)
+		if err != nil {
+			return errors.Wrap(err, "operator enr parse")
+		}
+
+		operatorPubkeys = append(operatorPubkeys, parsedEnr.PubKey)
+	}
+
 	// Sign, exchange K1 signatures over Lock Hash
-	lock.NodeSignatures, err = nodeSigCaster.exchange(ctx, lock.LockHash, key, nodeIdx)
+	lock.NodeSignatures, err = nodeSigCaster.exchange(ctx, lock.LockHash, key, operatorPubkeys, nodeIdx)
 	if err != nil {
 		return errors.Wrap(err, "k1 lock hash signature exchange")
 	}
