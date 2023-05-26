@@ -107,6 +107,8 @@ type TestConfig struct {
 	SimnetBMockOpts []beaconmock.Option
 	// BroadcastCallback is called when a duty is completed and sent to the broadcast component.
 	BroadcastCallback func(context.Context, core.Duty, core.PubKey, core.SignedData) error
+	// RecastCallback is called when a duty is completed and sent to the recaster component.
+	RecastCallback func(context.Context, core.Duty, core.PubKey, core.SignedData) error
 	// BuilderRegistration provides a channel for tests to trigger builder registration by the validator mock.
 	BuilderRegistration <-chan *eth2api.VersionedValidatorRegistration
 	// PrioritiseCallback is called with priority protocol results.
@@ -465,7 +467,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	if err = wireRecaster(ctx, eth2Cl, sched, sigAgg, broadcaster, cState.Validators, conf.BuilderAPI); err != nil {
+	if err = wireRecaster(ctx, eth2Cl, sched, sigAgg, broadcaster, cState.Validators, conf.BuilderAPI, conf.TestConfig.RecastCallback); err != nil {
 		return errors.Wrap(err, "wire recaster")
 	}
 
@@ -561,12 +563,19 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 
 // wireRecaster wires the rebroadcaster component to scheduler, sigAgg and broadcaster.
 // This is not done in core.Wire since recaster isn't really part of the official core workflow (yet).
-func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Scheduler, sigAgg core.SigAgg, broadcaster core.Broadcaster, validators []state.Validator, builderAPI bool) error {
+func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Scheduler, sigAgg core.SigAgg,
+	broadcaster core.Broadcaster, validators []state.Validator, builderAPI bool,
+	callback func(context.Context, core.Duty, core.PubKey, core.SignedData) error,
+) error {
 	recaster := bcast.NewRecaster()
 
 	sched.SubscribeSlots(recaster.SlotTicked)
 	sigAgg.Subscribe(recaster.Store)
 	recaster.Subscribe(broadcaster.Broadcast)
+
+	if callback != nil {
+		recaster.Subscribe(callback)
+	}
 
 	if !builderAPI {
 		return nil
