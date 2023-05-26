@@ -88,14 +88,14 @@ func TestSimnetDuties(t *testing.T) {
 		{
 			name:          "builder proposer with mock VCs",
 			scheduledType: core.DutyProposer,
-			duties:        []core.DutyType{core.DutyBuilderProposer, core.DutyRandao},
+			duties:        []core.DutyType{core.DutyBuilderRegistration, core.DutyBuilderProposer, core.DutyRandao},
 			builderAPI:    true,
 			vcTypes:       []vcType{vcMock},
 		},
 		{
 			name:          "builder proposer with teku",
 			scheduledType: core.DutyProposer,
-			duties:        []core.DutyType{core.DutyBuilderProposer, core.DutyRandao},
+			duties:        []core.DutyType{core.DutyBuilderRegistration, core.DutyBuilderProposer, core.DutyRandao},
 			builderAPI:    true,
 			vcTypes:       []vcType{vcTeku},
 		},
@@ -327,18 +327,6 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 				LcastTransportFunc: lcastTransportFunc,
 				ParSigExFunc:       parSigExFunc,
 				BroadcastCallback: func(_ context.Context, duty core.Duty, key core.PubKey, data core.SignedData) error {
-					select {
-					case <-ctx.Done():
-						return ctx.Err()
-					case results <- simResult{Duty: duty, Pubkey: key, Data: data}:
-						return nil
-					}
-				},
-				RecastCallback: func(_ context.Context, duty core.Duty, key core.PubKey, data core.SignedData) error {
-					if !args.PregenerateRegistrations {
-						return nil
-					}
-
 					select {
 					case <-ctx.Done():
 						return ctx.Err()

@@ -107,8 +107,6 @@ type TestConfig struct {
 	SimnetBMockOpts []beaconmock.Option
 	// BroadcastCallback is called when a duty is completed and sent to the broadcast component.
 	BroadcastCallback func(context.Context, core.Duty, core.PubKey, core.SignedData) error
-	// RecastCallback is called when a duty is sent to the broadcast component from recaster.
-	RecastCallback func(context.Context, core.Duty, core.PubKey, core.SignedData) error
 	// BuilderRegistration provides a channel for tests to trigger builder registration by the validator mock.
 	BuilderRegistration <-chan *eth2api.VersionedValidatorRegistration
 	// PrioritiseCallback is called with priority protocol results.
@@ -467,7 +465,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	if err = wireRecaster(ctx, eth2Cl, sched, sigAgg, broadcaster, cState.Validators, conf.BuilderAPI, conf.TestConfig.RecastCallback); err != nil {
+	if err = wireRecaster(ctx, eth2Cl, sched, sigAgg, broadcaster, cState.Validators, conf.BuilderAPI, conf.TestConfig.BroadcastCallback); err != nil {
 		return errors.Wrap(err, "wire recaster")
 	}
 
