@@ -4,9 +4,12 @@ package tracker
 
 // reason is a reason for a duty failing.
 type reason struct {
-	Code  string
+	// Code is a short code for the reason.
+	Code string
+	// Short is a short description of the reason.
 	Short string
-	Long  string
+	// Long is a long description of the reason.
+	Long string
 }
 
 var (
