@@ -57,7 +57,7 @@ var (
 	dutyFailedReasons = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "core",
 		Subsystem: "tracker",
-		Name:      "failed_duty reasons_total",
+		Name:      "failed_duty_reasons_total",
 		Help:      "Total number of failed duties by type and reason code",
 	}, []string{"duty", "reason"})
 
