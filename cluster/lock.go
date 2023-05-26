@@ -180,7 +180,6 @@ func (l Lock) VerifySignatures() error {
 		return errors.Wrap(err, "verify lock signature aggregate")
 	}
 
-	// Verify builder registrations.
 	err = l.verifyBuilderRegistrations()
 	if err != nil {
 		return errors.Wrap(err, "verify pre-generate builder registrations")
@@ -212,6 +211,7 @@ func (l Lock) VerifySignatures() error {
 	return nil
 }
 
+// verifyBuilderRegistrations returns an error if populated builder registrations from json are invalid.
 func (l Lock) verifyBuilderRegistrations() error {
 	for i, val := range l.Validators {
 		// Check if the current cluster state supports pre-generate validator registrations.
