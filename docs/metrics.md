@@ -50,6 +50,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_scheduler_validators_active` | Gauge | Number of active validators |  |
 | `core_tracker_expect_duties_total` | Counter | Total number of expected duties (failed + success) by type | `duty` |
 | `core_tracker_failed_duties_total` | Counter | Total number of failed duties by type | `duty` |
+| `core_tracker_failed_duty_reasons_total` | Counter | Total number of failed duties by type and reason code | `duty, reason` |
 | `core_tracker_inclusion_delay` | Gauge | Cluster`s average attestation inclusion delay in slots |  |
 | `core_tracker_inclusion_missed_total` | Counter | Total number of broadcast duties never included in any block by type | `duty` |
 | `core_tracker_inconsistent_parsigs_total` | Counter | Total number of duties that contained inconsistent partial signed data by duty type | `duty` |

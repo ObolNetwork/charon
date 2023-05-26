@@ -52,6 +52,15 @@ var (
 		Help:      "Total number of failed duties by type",
 	}, []string{"duty"})
 
+	// dutyFailedReasons is separate from dutyFailed since we do not want to initialise this
+	// with all failed reasons since cardinality too high.
+	dutyFailedReasons = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "tracker",
+		Name:      "failed_duty_reasons_total",
+		Help:      "Total number of failed duties by type and reason code",
+	}, []string{"duty", "reason"})
+
 	dutySuccess = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "core",
 		Subsystem: "tracker",
