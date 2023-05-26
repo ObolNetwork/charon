@@ -13,7 +13,9 @@ import (
 
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/enr"
+	"github.com/obolnetwork/charon/eth2util/registration"
 	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -38,6 +40,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 		rand.Seed(int64(seed))
 	}
 
+	var feeRecipientAddrs, withdrawalAddrs []string
 	for i := 0; i < dv; i++ {
 		rootSecret, err := tbls.GenerateInsecureKey(t, random)
 		require.NoError(t, err)
@@ -61,12 +64,17 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 			privshares = append(privshares, sharePrivkey)
 		}
 
+		feeRecipientAddr := testutil.RandomETHAddress()
+		reg := getSignedRegistration(t, rootSecret, feeRecipientAddr, eth2util.Goerli.Name)
+
 		vals = append(vals, DistValidator{
 			PubKey:              rootPublic[:],
 			PubShares:           pubshares,
-			BuilderRegistration: RandomRegistration(t, eth2util.Goerli.Name),
+			BuilderRegistration: reg,
 		})
 		dvShares = append(dvShares, privshares)
+		feeRecipientAddrs = append(feeRecipientAddrs, feeRecipientAddr)
+		withdrawalAddrs = append(withdrawalAddrs, testutil.RandomETHAddress())
 	}
 
 	for i := 0; i < n; i++ {
@@ -91,12 +99,6 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 
 	// Use operator 0 as the creator.
 	creator := Creator{Address: ops[0].Address}
-
-	var feeRecipientAddrs, withdrawalAddrs []string
-	for i := 0; i < dv; i++ {
-		feeRecipientAddrs = append(feeRecipientAddrs, testutil.RandomETHAddress())
-		withdrawalAddrs = append(withdrawalAddrs, testutil.RandomETHAddress())
-	}
 
 	def, err := NewDefinition("test cluster", dv, k,
 		feeRecipientAddrs, withdrawalAddrs,
@@ -131,6 +133,38 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 	require.NoError(t, err)
 
 	return lock, p2pKeys, dvShares
+}
+
+func getSignedRegistration(t *testing.T, secret tbls.PrivateKey, feeRecipientAddr string, network string) BuilderRegistration {
+	t.Helper()
+
+	timestamp, err := eth2util.NetworkToGenesisTime(network)
+	require.NoError(t, err)
+
+	pubkey, err := tbls.SecretToPublicKey(secret)
+	require.NoError(t, err)
+
+	eth2pubkey, err := tblsconv.PubkeyToETH2(pubkey)
+	require.NoError(t, err)
+
+	msg, err := registration.NewMessage(eth2pubkey, feeRecipientAddr, registration.DefaultGasLimit, timestamp)
+	require.NoError(t, err)
+
+	sigRoot, err := registration.GetMessageSigningRoot(msg)
+	require.NoError(t, err)
+
+	sig, err := tbls.Sign(secret, sigRoot[:])
+	require.NoError(t, err)
+
+	return BuilderRegistration{
+		Message: Registration{
+			FeeRecipient: msg.FeeRecipient[:],
+			GasLimit:     int(msg.GasLimit),
+			Timestamp:    msg.Timestamp,
+			PubKey:       msg.Pubkey[:],
+		},
+		Signature: sig[:],
+	}
 }
 
 // RandomRegistration returns a random builder registration.

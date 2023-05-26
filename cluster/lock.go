@@ -6,10 +6,13 @@ import (
 	"bytes"
 	"encoding/json"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util/enr"
+	"github.com/obolnetwork/charon/eth2util/registration"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -177,6 +180,11 @@ func (l Lock) VerifySignatures() error {
 		return errors.Wrap(err, "verify lock signature aggregate")
 	}
 
+	err = l.verifyBuilderRegistrations()
+	if err != nil {
+		return errors.Wrap(err, "verify pre-generate builder registrations")
+	}
+
 	if len(l.NodeSignatures) != 0 {
 		// Ensure the K1 lock hash signature verify
 		for idx := 0; idx < len(l.Operators); idx++ {
@@ -197,6 +205,46 @@ func (l Lock) VerifySignatures() error {
 					z.Int("operator_index", idx),
 				)
 			}
+		}
+	}
+
+	return nil
+}
+
+// verifyBuilderRegistrations returns an error if populated builder registrations from json are invalid.
+func (l Lock) verifyBuilderRegistrations() error {
+	feeRecipientAddrs := l.FeeRecipientAddresses()
+	for i, val := range l.Validators {
+		// Check if the current cluster state supports pre-generate validator registrations.
+		if len(val.BuilderRegistration.Signature) == 0 ||
+			len(val.BuilderRegistration.Message.FeeRecipient) == 0 ||
+			len(val.BuilderRegistration.Message.PubKey) == 0 {
+			continue
+		}
+
+		regMsg, err := registration.NewMessage(eth2p0.BLSPubKey(val.PubKey), feeRecipientAddrs[i], uint64(val.BuilderRegistration.Message.GasLimit), val.BuilderRegistration.Message.Timestamp)
+		if err != nil {
+			return err
+		}
+
+		sigRoot, err := registration.GetMessageSigningRoot(regMsg)
+		if err != nil {
+			return err
+		}
+
+		pubkey, err := tblsconv.PubkeyFromBytes(val.PubKey)
+		if err != nil {
+			return errors.Wrap(err, "core pubkey from bytes")
+		}
+
+		sig, err := tblsconv.SignatureFromBytes(val.BuilderRegistration.Signature)
+		if err != nil {
+			return errors.Wrap(err, "tbls signature from bytes")
+		}
+
+		err = tbls.Verify(pubkey, sigRoot[:], sig)
+		if err != nil {
+			return errors.Wrap(err, "verify builder registration signature")
 		}
 	}
 
