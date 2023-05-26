@@ -107,7 +107,7 @@ type TestConfig struct {
 	SimnetBMockOpts []beaconmock.Option
 	// BroadcastCallback is called when a duty is completed and sent to the broadcast component.
 	BroadcastCallback func(context.Context, core.Duty, core.PubKey, core.SignedData) error
-	// RecastCallback is called when a duty is completed and sent to the recaster component.
+	// RecastCallback is called when a duty is sent to the broadcast component from recaster.
 	RecastCallback func(context.Context, core.Duty, core.PubKey, core.SignedData) error
 	// BuilderRegistration provides a channel for tests to trigger builder registration by the validator mock.
 	BuilderRegistration <-chan *eth2api.VersionedValidatorRegistration
