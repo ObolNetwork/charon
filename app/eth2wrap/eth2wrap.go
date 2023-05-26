@@ -47,6 +47,7 @@ var (
 	// Interface assertions.
 	_ Client = (*httpAdapter)(nil)
 	_ Client = multi{}
+	_ Client = (*lazy)(nil)
 )
 
 // Instrument returns a new multi instrumented client using the provided clients as backends.
@@ -140,6 +141,24 @@ func (m multi) ActiveValidators(ctx context.Context) (ActiveValidators, error) {
 			return cl.ActiveValidators(ctx)
 		},
 		nil, nil,
+	)
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
+func (m multi) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
+	const label = "proposer_config"
+	defer latency(label)()
+
+	res0, err := provide(ctx, m.clients,
+		func(ctx context.Context, cl Client) (*eth2exp.ProposerConfigResponse, error) {
+			return cl.ProposerConfig(ctx)
+		},
+		nil, m.bestIdx,
 	)
 	if err != nil {
 		incError(label)

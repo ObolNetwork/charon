@@ -73,7 +73,7 @@ type Handler interface {
 	eth2client.ValidatorsProvider
 	eth2client.ValidatorRegistrationsSubmitter
 	eth2client.VoluntaryExitSubmitter
-	TekuProposerConfigProvider
+	eth2exp.ProposerConfigProvider
 	// Above sorted alphabetically.
 }
 
@@ -155,7 +155,12 @@ func NewRouter(h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
 		{
 			Name:    "teku_proposer_config",
 			Path:    "/teku_proposer_config",
-			Handler: tekuProposerConfig(h),
+			Handler: proposerConfig(h),
+		},
+		{
+			Name:    "proposer_config",
+			Path:    "/proposer_config",
+			Handler: proposerConfig(h),
 		},
 		{
 			Name:    "aggregate_beacon_committee_selections",
@@ -749,9 +754,9 @@ func submitExit(p eth2client.VoluntaryExitSubmitter) handlerFunc {
 	}
 }
 
-func tekuProposerConfig(p TekuProposerConfigProvider) handlerFunc {
+func proposerConfig(p eth2exp.ProposerConfigProvider) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, _ contentType, _ []byte) (interface{}, error) {
-		return p.TekuProposerConfig(ctx)
+		return p.ProposerConfig(ctx)
 	}
 }
 
