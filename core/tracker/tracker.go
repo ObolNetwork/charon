@@ -459,8 +459,8 @@ func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bo
 
 		log.Warn(ctx, "Duty failed", err,
 			z.Any("step", step),
-			z.Int("reason_enum", reason.Enum),
 			z.Str("reason", reason.Short),
+			z.Str("reason_code", reason.Code),
 		)
 
 		dutyExpect.WithLabelValues(duty.Type.String()).Inc()
