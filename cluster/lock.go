@@ -213,6 +213,7 @@ func (l Lock) VerifySignatures() error {
 
 // verifyBuilderRegistrations returns an error if populated builder registrations from json are invalid.
 func (l Lock) verifyBuilderRegistrations() error {
+	feeRecipientAddrs := l.FeeRecipientAddresses()
 	for i, val := range l.Validators {
 		// Check if the current cluster state supports pre-generate validator registrations.
 		if len(val.BuilderRegistration.Signature) == 0 ||
@@ -221,7 +222,7 @@ func (l Lock) verifyBuilderRegistrations() error {
 			continue
 		}
 
-		regMsg, err := registration.NewMessage(eth2p0.BLSPubKey(val.PubKey), l.FeeRecipientAddresses()[i], uint64(val.BuilderRegistration.Message.GasLimit), val.BuilderRegistration.Message.Timestamp)
+		regMsg, err := registration.NewMessage(eth2p0.BLSPubKey(val.PubKey), feeRecipientAddrs[i], uint64(val.BuilderRegistration.Message.GasLimit), val.BuilderRegistration.Message.Timestamp)
 		if err != nil {
 			return err
 		}
