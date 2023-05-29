@@ -50,16 +50,10 @@ var (
 		ForkVersionHex:   "0x90000069",
 		GenesisTimestamp: 1655733600,
 	}
-	// TODO(dhruv): drop support of ropsten as it is deprecated by ethereum foundation.
-	Ropsten = Network{
-		ChainID:        3,
-		Name:           "ropsten",
-		ForkVersionHex: "0x80000069",
-	}
 )
 
 var supportedNetworks = []Network{
-	Mainnet, Goerli, Gnosis, Sepolia, Ropsten,
+	Mainnet, Goerli, Gnosis, Sepolia,
 }
 
 // ForkVersionToChainID returns the chainID corresponding to the provided fork version.
