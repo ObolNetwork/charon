@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"context"
 	"flag"
+	"fmt"
+	"go/ast"
 	"os"
 	"sort"
 	"strings"
@@ -13,6 +15,7 @@ import (
 	"text/template"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/tools/go/packages"
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/promauto"
@@ -114,14 +117,83 @@ func TestMetricReference(t *testing.T) {
 	tpl, err := template.New("").Funcs(funcs).Parse(metricsMD)
 	require.NoError(t, err)
 
+	writeMarkdown(t, "../docs/metrics.md", tpl, metas)
+}
+
+const reasonsMD = `# Duty Failure Reasons
+
+This document enumerates and explains various duty failure reasons instrumented by the tracker component in charon.
+
+These reasons are logged and reported via the 'core_tracker_failed_duty_reasons_total'
+prometheus counter when the tracker component detects duty failures.
+
+By understanding these failure reasons, operators can better monitor, troubleshoot, and
+maintain system performance.
+
+{{ range . }}
+### Failure Reason: '{{ .Code }}'
+  - *Summary*: {{ .Short }}
+  - *Details*: {{ .Long }}
+{{ end }}`
+
+//go:generate go test . -run=TestTrackerReasonReference -update-markdown
+
+func TestTrackerReasonReference(t *testing.T) {
+	pkgs, err := packages.Load(
+		&packages.Config{Mode: packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes},
+		"github.com/obolnetwork/charon/core/tracker")
+	require.NoError(t, err)
+
+	fset := pkgs[0].Fset
+
+	var file *ast.File
+	for _, f := range pkgs[0].Syntax {
+		filename := fset.Position(f.FileStart).Filename
+		if strings.HasSuffix(filename, "reason.go") {
+			file = f
+		}
+	}
+
+	require.NotNilf(t, file, "couldn't find reason.go")
+
+	var reasons []reason
+	for _, decl := range file.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok {
+			continue
+		}
+
+		for _, spec := range genDecl.Specs {
+			valSpec, ok := spec.(*ast.ValueSpec)
+			if !ok || len(valSpec.Names) != 1 {
+				continue
+			} else if !strings.HasPrefix(valSpec.Names[0].Name, "reason") {
+				continue
+			}
+
+			reasons = append(reasons, parseReason(valSpec.Values[0]))
+		}
+	}
+
+	sort.Slice(reasons, func(i, j int) bool {
+		return reasons[i].Code < reasons[j].Code
+	})
+
+	tpl, err := template.New("").Parse(reasonsMD)
+	require.NoError(t, err)
+
+	writeMarkdown(t, "../docs/reasons.md", tpl, reasons)
+}
+
+func writeMarkdown(t *testing.T, file string, tpl *template.Template, data interface{}) {
+	t.Helper()
+
 	var buf bytes.Buffer
-	err = tpl.Execute(&buf, metas)
+	err := tpl.Execute(&buf, data)
 	require.NoError(t, err)
 
 	result := strings.ReplaceAll(buf.String(), "'", "`")
 	result = strings.ReplaceAll(result, "``", "")
-
-	file := "../docs/metrics.md"
 
 	if *update {
 		err := os.WriteFile(file, []byte(result), 0o644)
@@ -134,6 +206,35 @@ func TestMetricReference(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, string(content), result,
-		"docs/metrics.md doesn't contain latest metrics.\n"+
-			"To fix, run: go test github.com/obolnetwork/charon/cmd -update-markdown")
+		fmt.Sprintf("%s doesn't contain latest metrics.\n"+
+			"To fix, run: go test github.com/obolnetwork/charon/cmd -update-markdown", file))
+}
+
+type reason struct {
+	Code  string
+	Short string
+	Long  string
+}
+
+func parseReason(expr ast.Expr) reason {
+	compLit := expr.(*ast.CompositeLit)
+
+	var resp reason
+	for _, elt := range compLit.Elts {
+		kv := elt.(*ast.KeyValueExpr)
+
+		val := strings.Trim(kv.Value.(*ast.BasicLit).Value, `"`)
+
+		name := kv.Key.(*ast.Ident).Name
+		switch name {
+		case "Code":
+			resp.Code = val
+		case "Short":
+			resp.Short = val
+		case "Long":
+			resp.Long = val
+		}
+	}
+
+	return resp
 }
