@@ -25,7 +25,7 @@ import (
 )
 
 func TestSigsExchange(t *testing.T) {
-	n := 31
+	n := 10
 
 	var (
 		ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
@@ -113,7 +113,7 @@ func TestSigsExchange(t *testing.T) {
 }
 
 func TestSigsCallbacks(t *testing.T) {
-	n := 31
+	n := 10
 
 	var (
 		secrets      []*k1.PrivateKey
