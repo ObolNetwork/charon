@@ -37,6 +37,15 @@ import (
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
+// vcType enumerates the different types of VCs.
+type vcType int
+
+const (
+	vcUnknown vcType = 0
+	vcVmock   vcType = 1
+	vcTeku    vcType = 2
+)
+
 //go:generate go test . -integration -v -run=TestSimnetDuties
 
 func TestSimnetDuties(t *testing.T) {
@@ -49,86 +58,82 @@ func TestSimnetDuties(t *testing.T) {
 		builderAPI          bool
 		builderRegistration bool
 		exit                bool
-		vcType              string
+		vcType              vcType
 	}{
 		{
 			name:          "attester with mock VCs",
 			scheduledType: core.DutyAttester,
 			duties:        []core.DutyType{core.DutyPrepareAggregator, core.DutyAttester, core.DutyAggregator},
-			vcType:        "vmock",
+			vcType:        vcVmock,
 		},
 		{
 			name:          "attester with teku",
 			scheduledType: core.DutyAttester,
 			duties:        []core.DutyType{core.DutyAttester}, // Teku does not support beacon committee selection
-			vcType:        "teku",
+			vcType:        vcTeku,
 		},
 		{
 			name:          "proposer with mock VCs",
 			scheduledType: core.DutyProposer,
 			duties:        []core.DutyType{core.DutyProposer, core.DutyRandao},
-			vcType:        "vmock",
+			vcType:        vcVmock,
 		},
 		{
 			name:          "proposer with teku",
 			scheduledType: core.DutyProposer,
 			duties:        []core.DutyType{core.DutyProposer, core.DutyRandao},
-			vcType:        "teku",
+			vcType:        vcTeku,
 		},
 		{
 			name:          "builder proposer with mock VCs",
 			scheduledType: core.DutyProposer,
 			duties:        []core.DutyType{core.DutyBuilderRegistration, core.DutyBuilderProposer, core.DutyRandao},
 			builderAPI:    true,
-			vcType:        "vmock",
+			vcType:        vcVmock,
 		},
 		{
 			name:          "builder proposer with teku",
 			scheduledType: core.DutyProposer,
 			duties:        []core.DutyType{core.DutyBuilderRegistration, core.DutyBuilderProposer, core.DutyRandao},
 			builderAPI:    true,
-			vcType:        "teku",
+			vcType:        vcTeku,
 		},
 		{
 			name:                "builder registration with mock VCs",
-			scheduledType:       0,
 			duties:              []core.DutyType{core.DutyBuilderRegistration},
 			builderRegistration: true,
 			builderAPI:          true,
-			vcType:              "vmock",
+			vcType:              vcVmock,
 		},
 		{
 			name:                "builder registration with teku",
-			scheduledType:       0,
 			duties:              []core.DutyType{core.DutyBuilderRegistration},
 			builderRegistration: true,
 			builderAPI:          true,
-			vcType:              "teku",
+			vcType:              vcTeku,
 		},
 		{
 			name:          "sync committee with mock VCs",
 			scheduledType: core.DutySyncMessage,
 			duties:        []core.DutyType{core.DutyPrepareSyncContribution, core.DutySyncMessage, core.DutySyncContribution},
-			vcType:        "vmock",
+			vcType:        vcVmock,
 		},
 		{
 			name:          "sync committee with teku",
 			scheduledType: core.DutySyncMessage,
 			duties:        []core.DutyType{core.DutySyncMessage}, // Teku doesn't support sync committee selection.
-			vcType:        "teku",
+			vcType:        vcTeku,
 		},
 		{
-			name:          "voluntary exit with teku",
-			scheduledType: 0,
-			duties:        []core.DutyType{core.DutyExit},
-			exit:          true,
-			vcType:        "teku",
+			name:   "voluntary exit with teku",
+			duties: []core.DutyType{core.DutyExit},
+			exit:   true,
+			vcType: vcTeku,
 		},
 		{
-			name:          "pre-generate registrations",
-			scheduledType: 0,
-			duties:        []core.DutyType{core.DutyBuilderRegistration},
-			builderAPI:    true,
+			name:       "pre-generate registrations",
+			duties:     []core.DutyType{core.DutyBuilderRegistration},
+			builderAPI: true,
 		},
 	}
 
@@ -141,14 +146,12 @@ func TestSimnetDuties(t *testing.T) {
 			args.BuilderAPI = test.builderAPI
 			args.VoluntaryExit = test.exit
 
-			if test.vcType == "teku" {
+			if test.vcType == vcTeku {
 				for i := 0; i < args.N; i++ {
 					args = startTeku(t, args, i)
 				}
-			} else if test.vcType == "vmock" {
-				for i := 0; i < args.N; i++ {
-					args.VMocks[i] = true
-				}
+			} else if test.vcType == vcVmock {
+				args.VMocks = true
 			}
 
 			if test.scheduledType != core.DutyAttester {
@@ -177,19 +180,18 @@ func TestSimnetDuties(t *testing.T) {
 }
 
 type simnetArgs struct {
-	N                        int
-	VMocks                   []bool
-	VAPIAddrs                []string
-	P2PKeys                  []*k1.PrivateKey
-	SimnetKeys               []tbls.PrivateKey
-	BMockOpts                []beaconmock.Option
-	Lock                     cluster.Lock
-	ErrChan                  chan error
-	BuilderAPI               bool
-	BuilderRegistration      bool
-	SyntheticProposals       bool
-	VoluntaryExit            bool
-	PregenerateRegistrations bool
+	N                   int
+	VMocks              bool
+	VAPIAddrs           []string
+	P2PKeys             []*k1.PrivateKey
+	SimnetKeys          []tbls.PrivateKey
+	BMockOpts           []beaconmock.Option
+	Lock                cluster.Lock
+	ErrChan             chan error
+	BuilderAPI          bool
+	BuilderRegistration bool
+	SyntheticProposals  bool
+	VoluntaryExit       bool
 }
 
 // newSimnetArgs defines the default simnet test args.
@@ -211,7 +213,6 @@ func newSimnetArgs(t *testing.T) simnetArgs {
 
 	return simnetArgs{
 		N:          n,
-		VMocks:     make([]bool, n),
 		VAPIAddrs:  vapiAddrs,
 		P2PKeys:    p2pKeys,
 		SimnetKeys: secrets,
@@ -297,7 +298,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 			Log:              log.DefaultConfig(),
 			Feature:          featureConf,
 			SimnetBMock:      true,
-			SimnetVMock:      args.VMocks[i],
+			SimnetVMock:      args.VMocks,
 			MonitoringAddr:   testutil.AvailableAddr(t).String(), // Random monitoring address
 			ValidatorAPIAddr: args.VAPIAddrs[i],
 			TestConfig: app.TestConfig{
