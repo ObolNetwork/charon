@@ -588,6 +588,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		ForkScheduleFunc: func(ctx context.Context) ([]*eth2p0.Fork, error) {
 			return httpMock.ForkSchedule(ctx)
 		},
+		ProposerConfigFunc: func(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
+			return nil, nil
+		},
 	}
 }
 

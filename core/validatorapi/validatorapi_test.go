@@ -1289,7 +1289,7 @@ func TestComponent_TekuProposerConfig(t *testing.T) {
 	}, testutil.BuilderTrue, nil)
 	require.NoError(t, err)
 
-	resp, err := vapi.TekuProposerConfig(ctx)
+	resp, err := vapi.ProposerConfig(ctx)
 	require.NoError(t, err)
 
 	pk, err := core.PubKeyFromBytes(pubkey[:])
@@ -1297,24 +1297,29 @@ func TestComponent_TekuProposerConfig(t *testing.T) {
 
 	genesis, err := bmock.GenesisTime(ctx)
 	require.NoError(t, err)
+	slotDuration, err := bmock.SlotDuration(ctx)
+	require.NoError(t, err)
 
-	require.Equal(t, validatorapi.TekuProposerConfigResponse{
-		Proposers: map[string]validatorapi.TekuProposerConfig{
-			string(pk): {
+	eth2pk, err := pk.ToETH2()
+	require.NoError(t, err)
+
+	require.Equal(t, &eth2exp.ProposerConfigResponse{
+		Proposers: map[eth2p0.BLSPubKey]eth2exp.ProposerConfig{
+			eth2pk: {
 				FeeRecipient: feeRecipient,
-				Builder: validatorapi.TekuBuilder{
+				Builder: eth2exp.Builder{
 					Enabled:  true,
 					GasLimit: 30000000,
 					Overrides: map[string]string{
-						"timestamp":  fmt.Sprint(genesis.Unix()),
+						"timestamp":  fmt.Sprint(genesis.Add(slotDuration).Unix()),
 						"public_key": string(pk),
 					},
 				},
 			},
 		},
-		Default: validatorapi.TekuProposerConfig{
+		Default: eth2exp.ProposerConfig{
 			FeeRecipient: zeroAddr,
-			Builder: validatorapi.TekuBuilder{
+			Builder: eth2exp.Builder{
 				Enabled:  false,
 				GasLimit: 30000000,
 			},

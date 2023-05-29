@@ -107,8 +107,6 @@ type TestConfig struct {
 	SimnetBMockOpts []beaconmock.Option
 	// BroadcastCallback is called when a duty is completed and sent to the broadcast component.
 	BroadcastCallback func(context.Context, core.Duty, core.PubKey, core.SignedData) error
-	// BuilderRegistration provides a channel for tests to trigger builder registration by the validator mock.
-	BuilderRegistration <-chan *eth2api.VersionedValidatorRegistration
 	// PrioritiseCallback is called with priority protocol results.
 	PrioritiseCallback func(context.Context, core.Duty, []priority.TopicResult) error
 	// TCPNodeCallback provides test logic access to the libp2p host.

@@ -38,7 +38,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
-	"github.com/obolnetwork/charon/core/validatorapi"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
@@ -143,6 +142,7 @@ type Mock struct {
 	SubmitSyncCommitteeSubscriptionsFunc   func(ctx context.Context, subscriptions []*eth2v1.SyncCommitteeSubscription) error
 	SubmitProposalPreparationsFunc         func(ctx context.Context, preparations []*eth2v1.ProposalPreparation) error
 	ForkScheduleFunc                       func(context.Context) ([]*eth2p0.Fork, error)
+	ProposerConfigFunc                     func(context.Context) (*eth2exp.ProposerConfigResponse, error)
 }
 
 func (Mock) SetValidatorCache(func(context.Context) (eth2wrap.ActiveValidators, error)) {
@@ -273,8 +273,8 @@ func (m Mock) ForkSchedule(ctx context.Context) ([]*eth2p0.Fork, error) {
 	return m.ForkScheduleFunc(ctx)
 }
 
-func (Mock) TekuProposerConfig(context.Context) (validatorapi.TekuProposerConfigResponse, error) {
-	panic("implement me")
+func (m Mock) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
+	return m.ProposerConfigFunc(ctx)
 }
 
 func (Mock) Name() string {

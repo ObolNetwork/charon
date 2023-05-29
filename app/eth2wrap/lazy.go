@@ -117,6 +117,15 @@ func (l *lazy) SetValidatorCache(valCache func(context.Context) (ActiveValidator
 	}
 }
 
+func (l *lazy) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return cl.ProposerConfig(ctx)
+}
+
 func (l *lazy) AggregateBeaconCommitteeSelections(ctx context.Context, partialSelections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {

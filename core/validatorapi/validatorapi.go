@@ -29,6 +29,11 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
+const (
+	gasLimit    = 30000000
+	zeroAddress = "0x0000000000000000000000000000000000000000"
+)
+
 // NewComponentInsecure returns a new instance of the validator API core workflow component
 // that does not perform signature verification.
 func NewComponentInsecure(_ *testing.T, eth2Cl eth2wrap.Client, shareIdx int) (*Component, error) {
@@ -1108,4 +1113,55 @@ func (c Component) getAggregateSyncCommSelection(ctx context.Context, psigsBySlo
 	}
 
 	return resp, nil
+}
+
+// ProposerConfig returns the proposer configuration for all validators.
+func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
+	resp := eth2exp.ProposerConfigResponse{
+		Proposers: make(map[eth2p0.BLSPubKey]eth2exp.ProposerConfig),
+		Default: eth2exp.ProposerConfig{ // Default doesn't make sense, disable for now.
+			FeeRecipient: zeroAddress,
+			Builder: eth2exp.Builder{
+				Enabled:  false,
+				GasLimit: gasLimit,
+			},
+		},
+	}
+
+	slotDuration, err := c.eth2Cl.SlotDuration(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	timestamp, err := c.eth2Cl.GenesisTime(ctx)
+	if err != nil {
+		return nil, err
+	}
+	timestamp = timestamp.Add(slotDuration) // Use slot 1 for timestamp to override pre-generated registrations.
+
+	slot, err := c.slotFromTimestamp(ctx, time.Now())
+	if err != nil {
+		return nil, err
+	}
+
+	for pubkey, pubshare := range c.sharesByKey {
+		eth2Share, err := pubshare.ToETH2()
+		if err != nil {
+			return nil, err
+		}
+
+		resp.Proposers[eth2Share] = eth2exp.ProposerConfig{
+			FeeRecipient: c.feeRecipientFunc(pubkey),
+			Builder: eth2exp.Builder{
+				Enabled:  c.builderEnabled(int64(slot)),
+				GasLimit: gasLimit,
+				Overrides: map[string]string{
+					"timestamp":  fmt.Sprint(timestamp.Unix()),
+					"public_key": string(pubkey),
+				},
+			},
+		}
+	}
+
+	return &resp, nil
 }

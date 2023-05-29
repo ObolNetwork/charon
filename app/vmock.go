@@ -48,6 +48,25 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 			})
 		}
 
+		// Submit validator registrations when epoch tick.
+		if onStartup || slot.FirstInEpoch() {
+			vMockWrap(ctx, slot.Slot, func(ctx context.Context, state vMockState) error {
+				regs, err := validatormock.RegistrationsFromProposerConfig(ctx, state.Eth2Cl)
+				if err != nil {
+					return err
+				}
+
+				for pubshare, reg := range regs {
+					err := validatormock.Register(ctx, state.Eth2Cl, state.SignFunc, reg, pubshare)
+					if err != nil {
+						return err
+					}
+				}
+
+				return nil
+			})
+		}
+
 		onStartup = false
 
 		// Prepare sync committee selections when slots tick.
@@ -80,15 +99,6 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 
 		return nil
 	})
-
-	go func() {
-		// TODO(corver): Improve registrations to use lock file and trigger on epoch transitions.
-		for registration := range conf.TestConfig.BuilderRegistration {
-			vMockWrap(context.Background(), 0, func(ctx context.Context, state vMockState) error {
-				return validatormock.Register(ctx, state.Eth2Cl, state.SignFunc, registration, pubshares[0])
-			})
-		}
-	}()
 
 	return nil
 }

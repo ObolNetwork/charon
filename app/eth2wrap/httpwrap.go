@@ -146,6 +146,23 @@ func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]
 	return resp.Data, nil
 }
 
+// ProposerConfig implements eth2exp.ProposerConfigProvider.
+func (h *httpAdapter) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
+	respBody, statusCode, err := httpGet(ctx, h.address, "/proposer_config", h.timeout)
+	if err != nil {
+		return nil, errors.Wrap(err, "submit sync committee selections")
+	} else if statusCode != http.StatusOK {
+		return nil, errors.New("request proposer config failed", z.Int("status", statusCode), z.Str("body", string(respBody)))
+	}
+
+	var resp eth2exp.ProposerConfigResponse
+	if err := json.Unmarshal(respBody, &resp); err != nil {
+		return nil, errors.Wrap(err, "failed to parse sync committee selections response")
+	}
+
+	return &resp, nil
+}
+
 // NodePeerCount provides the peer count of the beacon node.
 // See https://ethereum.github.io/beacon-APIs/#/Node/getPeerCount.
 func (h *httpAdapter) NodePeerCount(ctx context.Context) (int, error) {
