@@ -20,11 +20,13 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
@@ -214,7 +216,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	// Create operators
-	ops, err := getOperators(numNodes, conf.ClusterDir)
+	ops, opsKeys, err := getOperators(numNodes, conf.ClusterDir)
 	if err != nil {
 		return err
 	}
@@ -269,6 +271,18 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	if err != nil {
 		return err
 	}
+
+	var opsLockSigs [][]byte
+	for _, opKey := range opsKeys {
+		sig, err := k1util.Sign(opKey, lock.LockHash)
+		if err != nil {
+			return err
+		}
+
+		opsLockSigs = append(opsLockSigs, sig)
+	}
+
+	lock.NodeSignatures = opsLockSigs
 
 	// Write cluster-lock file
 	if conf.Publish {
@@ -669,19 +683,23 @@ func writeKeysToDisk(numNodes int, clusterDir string, insecureKeys bool, shareSe
 	return nil
 }
 
-// getOperators returns a list of `n` operators. It also creates a new directory corresponding to each node.
-func getOperators(n int, clusterDir string) ([]cluster.Operator, error) {
+// getOperators returns a list of `n` operators and their respective identity private keys.
+// It also creates a new directory corresponding to each node.
+func getOperators(n int, clusterDir string) ([]cluster.Operator, []*k1.PrivateKey, error) {
 	var ops []cluster.Operator
+	var keys []*k1.PrivateKey
+
 	for i := 0; i < n; i++ {
-		record, err := newPeer(clusterDir, i)
+		record, identityKey, err := newPeer(clusterDir, i)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		ops = append(ops, cluster.Operator{ENR: record.String()})
+		keys = append(keys, identityKey)
 	}
 
-	return ops, nil
+	return ops, keys, nil
 }
 
 // newDefFromConfig returns a new cluster definition using the provided config values.
@@ -712,15 +730,20 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 }
 
 // newPeer returns a new peer ENR, generating a p2pkey in node directory.
-func newPeer(clusterDir string, peerIdx int) (enr.Record, error) {
+func newPeer(clusterDir string, peerIdx int) (enr.Record, *k1.PrivateKey, error) {
 	dir := nodeDir(clusterDir, peerIdx)
 
 	p2pKey, err := p2p.NewSavedPrivKey(dir)
 	if err != nil {
-		return enr.Record{}, errors.Wrap(err, "create charon-enr-private-key")
+		return enr.Record{}, nil, errors.Wrap(err, "create charon-enr-private-key")
 	}
 
-	return enr.New(p2pKey)
+	record, err := enr.New(p2pKey)
+	if err != nil {
+		return enr.Record{}, nil, errors.Wrap(err, "create charon-enr-private-key")
+	}
+
+	return record, p2pKey, nil
 }
 
 // writeOutput writes the cluster generation output.
