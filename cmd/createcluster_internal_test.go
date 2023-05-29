@@ -187,8 +187,19 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition)
 			}
 		}
 
+		previousVersions := []string{"v1.0.0", "v1.1.0", "v1.2.0", "v1.3.0", "v1.4.0", "v1.5.0"}
 		for _, val := range lock.Validators {
-			require.NotEmpty(t, val.BuilderRegistration)
+			if isAnyVersion(lock.Version, previousVersions...) {
+				break
+			}
+
+			if isAnyVersion(lock.Version, "v1.6.0", "v1.7.0") {
+				require.NotEmpty(t, val.DepositData)
+			}
+
+			if isAnyVersion(lock.Version, "v1.7.0") {
+				require.NotEmpty(t, val.BuilderRegistration)
+			}
 		}
 	})
 }
@@ -634,4 +645,14 @@ func newObolAPIHandler(ctx context.Context, t *testing.T, result chan<- struct{}
 		case result <- struct{}{}:
 		}
 	})
+}
+
+func isAnyVersion(version string, versions ...string) bool {
+	for _, v := range versions {
+		if version == v {
+			return true
+		}
+	}
+
+	return false
 }
