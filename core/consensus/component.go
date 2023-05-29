@@ -159,6 +159,7 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.Pri
 	c.mutable.recvBuffers = make(map[core.Duty]chan msg)
 	c.mutable.inputValues = make(map[core.Duty]chan proto.Message)
 	c.mutable.inputHashes = make(map[core.Duty]chan [32]byte)
+	c.mutable.returnErrs = make(map[core.Duty]chan error)
 
 	return c, nil
 }
@@ -184,6 +185,7 @@ type Component struct {
 		recvBuffers map[core.Duty]chan msg           // Instance outer receive buffers.
 		inputHashes map[core.Duty]chan [32]byte      // Instance input hash channels.
 		inputValues map[core.Duty]chan proto.Message // Instance input value channels.
+		returnErrs  map[core.Duty]chan error         // Instance return error channels.
 	}
 }
 
@@ -242,7 +244,8 @@ func (c *Component) Start(ctx context.Context) {
 }
 
 // Propose enqueues the proposed value to a consensus instance input channels.
-// It also runs the consensus instance if it is not already running.
+// It either runs the consensus instance if it is not already running or
+// waits until it completes, in both cases it returns the resulting error.
 func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
 	// Hash the proposed data, since qbft only supports simple comparable values.
 	value, err := core.UnsignedDataSetToProto(data)
@@ -254,20 +257,22 @@ func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.Unsig
 }
 
 // ProposePriority enqueues the proposed value to a consensus instance input channels.
-// It also runs the consensus instance if it is not already running.
+// It either runs the consensus instance if it is not already running or
+// waits until it completes, in both cases it returns the resulting error.
 func (c *Component) ProposePriority(ctx context.Context, duty core.Duty, msg *pbv1.PriorityResult) error {
 	return c.propose(ctx, duty, msg)
 }
 
 // propose enqueues the proposed value to a consensus instance input channels.
-// It also runs the consensus instance if it is not already running.
+// It either runs the consensus instance if it is not already running or
+// waits until it completes, in both cases it returns the resulting error.
 func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Message) error {
 	hash, err := hashProto(value)
 	if err != nil {
 		return err
 	}
 
-	valCh, hashCh, running := c.getInputChannels(duty)
+	valCh, hashCh, errCh, running := c.getInstanceChans(duty)
 
 	select {
 	case valCh <- value:
@@ -282,7 +287,7 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 	}
 
 	if running { // Participate was already called, instance is running.
-		return nil
+		return <-errCh
 	}
 
 	return c.runInstance(ctx, duty)
@@ -299,7 +304,7 @@ func (c *Component) Participate(ctx context.Context, duty core.Duty) error {
 		return nil // Not an eager start timer, wait for Propose to start.
 	}
 
-	if _, _, running := c.getInputChannels(duty); running {
+	if _, _, _, running := c.getInstanceChans(duty); running {
 		return nil // Instance already running.
 	}
 
@@ -308,7 +313,7 @@ func (c *Component) Participate(ctx context.Context, duty core.Duty) error {
 
 // runInstance blocks and runs a consensus instance for the given duty.
 // It returns an error or nil when the context is cancelled.
-func (c *Component) runInstance(ctx context.Context, duty core.Duty) error {
+func (c *Component) runInstance(ctx context.Context, duty core.Duty) (err error) {
 	roundTimer := c.timerFunc(duty)
 	ctx = log.WithTopic(ctx, "qbft")
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
@@ -340,7 +345,10 @@ func (c *Component) runInstance(ctx context.Context, duty core.Duty) error {
 		instrumentConsensus(duty, qcommit[0].Round(), t0, roundTimer.Type())
 	}
 
-	valueCh, hashCh, _ := c.getInputChannels(duty)
+	valueCh, hashCh, errCh, _ := c.getInstanceChans(duty)
+	defer func() {
+		errCh <- err // Send resulting error to errCh.
+	}()
 
 	// Create a new qbft definition for this instance.
 	def := newDefinition(len(c.peers), c.subscribers, roundTimer, decideCallback)
@@ -459,8 +467,8 @@ func (c *Component) getRecvBuffer(duty core.Duty) chan msg {
 	return ch
 }
 
-// getInputChannels returns the duty's input value and hash channels and true if they were previously created.
-func (c *Component) getInputChannels(duty core.Duty) (chan proto.Message, chan [32]byte, bool) {
+// getInstanceChans returns the duty's input value and hash and error channels and true if they were previously created.
+func (c *Component) getInstanceChans(duty core.Duty) (chan proto.Message, chan [32]byte, chan error, bool) {
 	c.mutable.Lock()
 	defer c.mutable.Unlock()
 
@@ -472,7 +480,10 @@ func (c *Component) getInputChannels(duty core.Duty) (chan proto.Message, chan [
 		hashCh := make(chan [32]byte, 1)
 		c.mutable.inputHashes[duty] = hashCh
 
-		return valCh, hashCh, false
+		errCh := make(chan error, 1)
+		c.mutable.returnErrs[duty] = errCh
+
+		return valCh, hashCh, errCh, false
 	}
 
 	// Return existing channels.
@@ -481,7 +492,12 @@ func (c *Component) getInputChannels(duty core.Duty) (chan proto.Message, chan [
 		panic("bug: this should never happen")
 	}
 
-	return valCh, hashCh, true
+	errCh, ok := c.mutable.returnErrs[duty]
+	if !ok {
+		panic("bug: this should never happen")
+	}
+
+	return valCh, hashCh, errCh, true
 }
 
 // deleteMutable deletes the receive channel and recvDropped map entry for the duty.
