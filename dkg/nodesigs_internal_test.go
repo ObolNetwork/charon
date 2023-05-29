@@ -15,36 +15,48 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/dkg/bcast"
+	dkgpb "github.com/obolnetwork/charon/dkg/dkgpb/v1"
+	"github.com/obolnetwork/charon/eth2util/enr"
+	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestSigsExchange(t *testing.T) {
-	n := 32
+	n := 31
 
 	var (
-		ctx = context.Background()
+		ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
 
-		secrets  []*k1.PrivateKey
-		pubkeys  []*k1.PublicKey
-		tcpNodes []host.Host
-		peers    []peer.ID
-		nsigs    []nodeSigBcast
-		results  [][][]byte
+		secrets      []*k1.PrivateKey
+		tcpNodes     []host.Host
+		peers        []peer.ID
+		clusterPeers []p2p.Peer
+		nsigs        []*nodeSigBcast
+		results      [][][]byte
 	)
+
+	defer cancel()
 
 	// Create secretes and libp2p nodes
 	for i := 0; i < n; i++ {
 		secret, err := k1.GeneratePrivateKey()
 		require.NoError(t, err)
 		secrets = append(secrets, secret)
-		pubkeys = append(pubkeys, secret.PubKey())
 
 		tcpNode := testutil.CreateHostWithIdentity(t, testutil.AvailableAddr(t), secret)
 		tcpNodes = append(tcpNodes, tcpNode)
 
 		peers = append(peers, tcpNode.ID())
+
+		e, err := enr.New(secret)
+		require.NoError(t, err)
+
+		epeer, err := p2p.NewPeerFromENR(e, i)
+		require.NoError(t, err)
+		clusterPeers = append(clusterPeers, epeer)
 	}
 
 	// Connect peers
@@ -54,10 +66,20 @@ func TestSigsExchange(t *testing.T) {
 		}
 	}
 
+	lhFunc := func() []byte {
+		return bytes.Repeat([]byte{42}, 32)
+	}
+
 	for i := 0; i < n; i++ {
 		i := i
 		component := bcast.New(tcpNodes[i], peers, secrets[i])
-		nsigs = append(nsigs, newNodeSigBcast(n, component))
+		nsigs = append(nsigs, newNodeSigBcast(
+			n,
+			clusterPeers,
+			cluster.NodeIdx{PeerIdx: i},
+			component,
+			lhFunc,
+		))
 	}
 
 	results = make([][][]byte, n)
@@ -68,10 +90,7 @@ func TestSigsExchange(t *testing.T) {
 		eg.Go(func() error {
 			res, err := nsigs[i].exchange(
 				ctx,
-				bytes.Repeat([]byte{42}, 32),
 				secrets[i],
-				pubkeys,
-				cluster.NodeIdx{PeerIdx: i},
 			)
 			if err != nil {
 				return err
@@ -87,39 +106,39 @@ func TestSigsExchange(t *testing.T) {
 
 	for _, result := range results {
 		require.Len(t, result, n)
-		for _, sig := range result {
-			require.NotEmpty(t, sig)
+		for idx, sig := range result {
+			require.NotEmpty(t, sig, "index: %v", idx)
 		}
 	}
 }
 
-func TestSigsWrongSig(t *testing.T) {
-	n := 32
+func TestSigsCallbacks(t *testing.T) {
+	n := 31
 
 	var (
-		ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-
-		secrets  []*k1.PrivateKey
-		pubkeys  []*k1.PublicKey
-		tcpNodes []host.Host
-		peers    []peer.ID
-		nsigs    []nodeSigBcast
-		results  [][][]byte
+		secrets      []*k1.PrivateKey
+		tcpNodes     []host.Host
+		peers        []peer.ID
+		clusterPeers []p2p.Peer
 	)
-
-	defer cancel()
 
 	// Create secretes and libp2p nodes
 	for i := 0; i < n; i++ {
 		secret, err := k1.GeneratePrivateKey()
 		require.NoError(t, err)
 		secrets = append(secrets, secret)
-		pubkeys = append(pubkeys, secret.PubKey())
 
 		tcpNode := testutil.CreateHostWithIdentity(t, testutil.AvailableAddr(t), secret)
 		tcpNodes = append(tcpNodes, tcpNode)
 
 		peers = append(peers, tcpNode.ID())
+
+		e, err := enr.New(secret)
+		require.NoError(t, err)
+
+		epeer, err := p2p.NewPeerFromENR(e, i)
+		require.NoError(t, err)
+		clusterPeers = append(clusterPeers, epeer)
 	}
 
 	// Connect peers
@@ -129,41 +148,111 @@ func TestSigsWrongSig(t *testing.T) {
 		}
 	}
 
-	for i := 0; i < n; i++ {
-		i := i
-		component := bcast.New(tcpNodes[i], peers, secrets[i])
-		nsigs = append(nsigs, newNodeSigBcast(n, component))
+	component := bcast.New(tcpNodes[0], peers, secrets[0])
+
+	lhFunc := func() []byte {
+		return bytes.Repeat([]byte{42}, 32)
 	}
 
-	results = make([][][]byte, n)
+	ns := newNodeSigBcast(
+		n,
+		clusterPeers,
+		cluster.NodeIdx{PeerIdx: 0},
+		component,
+		lhFunc,
+	)
 
-	var eg errgroup.Group
-	for i := 0; i < n; i++ {
-		i := i
-
-		secret := secrets[i]
-
-		if i+1 == len(secrets) {
-			secret = secrets[i-1]
+	t.Run("wrong peer index, equal to ours", func(t *testing.T) {
+		msg := &dkgpb.MsgNodeSig{
+			Signature: bytes.Repeat([]byte{42}, 32),
+			PeerIndex: 0,
 		}
 
-		eg.Go(func() error {
-			res, err := nsigs[i].exchange(
-				ctx,
-				bytes.Repeat([]byte{42}, 32),
-				secret,
-				pubkeys,
-				cluster.NodeIdx{PeerIdx: i},
-			)
-			if err != nil {
-				return err
-			}
+		err := ns.broadcastCallback(context.Background(),
+			peers[0],
+			"",
+			msg,
+		)
 
-			results[i] = res
+		require.ErrorContains(t, err, "wrong peer index")
+	})
 
-			return nil
-		})
-	}
+	t.Run("wrong peer index, more than node operators amount", func(t *testing.T) {
+		msg := &dkgpb.MsgNodeSig{
+			Signature: bytes.Repeat([]byte{42}, 32),
+			PeerIndex: uint32(n + 1),
+		}
 
-	require.ErrorContains(t, eg.Wait(), "signature verification failed on peer lock hash")
+		err := ns.broadcastCallback(context.Background(),
+			peers[0],
+			"",
+			msg,
+		)
+
+		require.ErrorContains(t, err, "wrong peer index")
+	})
+
+	t.Run("invalid message type", func(t *testing.T) {
+		msg := &dkgpb.FrostMsgKey{
+			SourceId: 2, // Invalid SourceID since peers[0].ShareIdx is 1
+		}
+
+		err := ns.broadcastCallback(context.Background(),
+			peers[0],
+			"",
+			msg,
+		)
+
+		require.ErrorContains(t, err, "invalid node sig type")
+	})
+
+	t.Run("signature verification failed", func(t *testing.T) {
+		msg := &dkgpb.MsgNodeSig{
+			Signature: bytes.Repeat([]byte{42}, 65), // adding 1 byte for signature header
+			PeerIndex: uint32(2),
+		}
+
+		err := ns.broadcastCallback(context.Background(),
+			peers[0],
+			"",
+			msg,
+		)
+
+		require.ErrorContains(t, err, "signature verification failed on peer lock hash")
+	})
+
+	t.Run("malformed signature", func(t *testing.T) {
+		msg := &dkgpb.MsgNodeSig{
+			Signature: bytes.Repeat([]byte{42}, 2),
+			PeerIndex: uint32(2),
+		}
+
+		err := ns.broadcastCallback(context.Background(),
+			peers[0],
+			"",
+			msg,
+		)
+
+		require.ErrorContains(t, err, "dedup signature failure")
+	})
+
+	t.Run("ok", func(t *testing.T) {
+		lockHash := bytes.Repeat([]byte{42}, 32)
+
+		res, err := k1util.Sign(secrets[2], lockHash)
+		require.NoError(t, err)
+
+		msg := &dkgpb.MsgNodeSig{
+			Signature: res,
+			PeerIndex: uint32(2),
+		}
+
+		err = ns.broadcastCallback(context.Background(),
+			peers[2],
+			"",
+			msg,
+		)
+
+		require.NoError(t, err)
+	})
 }

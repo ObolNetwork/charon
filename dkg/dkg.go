@@ -31,7 +31,6 @@ import (
 	"github.com/obolnetwork/charon/dkg/sync"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
-	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/registration"
 	"github.com/obolnetwork/charon/p2p"
@@ -184,13 +183,17 @@ func Run(ctx context.Context, conf Config) (err error) {
 		peerMap[p.ID] = nodeIdx
 	}
 
+	var lock cluster.Lock
+
 	caster := bcast.New(tcpNode, peerIds, key)
 
 	// register bcast callbacks for frostp2p
 	tp := newFrostP2P(tcpNode, peerMap, caster, def.Threshold, def.NumValidators)
 
 	// register bcast callbacks for lock hash k1 signature handler
-	nodeSigCaster := newNodeSigBcast(len(def.Operators), caster)
+	nodeSigCaster := newNodeSigBcast(len(def.Operators), peers, nodeIdx, caster, func() []byte {
+		return lock.LockHash
+	})
 
 	log.Info(ctx, "Waiting to connect to all peers...")
 
@@ -252,23 +255,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 	log.Debug(ctx, "Aggregated builder validator registration signatures")
 
 	// Sign, exchange and aggregate Lock Hash signatures
-	lock, err := signAndAggLockHash(ctx, shares, def, nodeIdx, ex, depositDatas, valRegs)
+	lock, err = signAndAggLockHash(ctx, shares, def, nodeIdx, ex, depositDatas, valRegs)
 	if err != nil {
 		return err
 	}
 
-	var operatorPubkeys []*k1.PublicKey
-	for _, operator := range lock.Operators {
-		parsedEnr, err := enr.Parse(operator.ENR)
-		if err != nil {
-			return errors.Wrap(err, "operator enr parse")
-		}
-
-		operatorPubkeys = append(operatorPubkeys, parsedEnr.PubKey)
-	}
-
 	// Sign, exchange K1 signatures over Lock Hash
-	lock.NodeSignatures, err = nodeSigCaster.exchange(ctx, lock.LockHash, key, operatorPubkeys, nodeIdx)
+	lock.NodeSignatures, err = nodeSigCaster.exchange(ctx, key)
 	if err != nil {
 		return errors.Wrap(err, "k1 lock hash signature exchange")
 	}
