@@ -124,9 +124,9 @@ Please try to inform your decisions by the following style for improved consiste
     - If the function has an argument `peers`, then one can add a `peer` field to the error since the caller cannot know which peer failed.
 
 ### Logging:
-  - The name of the game when it comes to logging is **Signal to Noise**.
+  - The name of the game when it comes to logging is maximize **Signal to Noise** ratio.
     - Many projects have the problem of too much logging.
-    - If logs are too much and one can only search for specific logs, then identify unexpected behaviour becomes very hard.
+    - If logs are too much and one can only search for specific logs, then identifying unexpected behaviour becomes very hard.
     - Our aim is that humans should be able follow ALL logs (up to debug level) of a node with 1 validator.
   - Keep logging as simple and concise as possible (ask ChatGPT to help you with this).
   - Focus on glanceability and readability, users should be able to scan logs and quickly identify unexpected behaviour.
