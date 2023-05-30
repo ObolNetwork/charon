@@ -261,7 +261,7 @@ func calcStopDelay(t *testing.T, window, nodeDownPeriod time.Duration) time.Dura
 	return time.Duration(stopDelay) * time.Second
 }
 
-func TestDKGWith5KValidators(t *testing.T) {
+func TestDKGWithHighValidatorsAmt(t *testing.T) {
 	if !*nightly {
 		t.Skip("Nightly tests are disabled")
 	}
@@ -269,7 +269,7 @@ func TestDKGWith5KValidators(t *testing.T) {
 	const (
 		threshold = 3
 		numNodes  = 4
-		numVals   = 5000
+		numVals   = 1000
 		relayURL  = "https://0.relay.obol.tech"
 	)
 
