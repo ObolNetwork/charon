@@ -118,6 +118,7 @@ Please try to inform your decisions by the following style for improved consiste
   - Keep error messages consistent and concise.
     - When wrapping just state the action that failed: `errors.Wrap(err, "do something")` over `errors.Wrap(err, "failed to do something")`
     - Prefer simple consist language: `errors.New("invalid foo")` over `errors.New("foo is invalid")`
+    - See the go stdlib packages for examples: `net`, `os`
   - Only add error fields that the caller is unaware of:
     - If a function has an argument `peer`, don’t add a `peer` field to the error, since the caller can decide to add that field when wrapping or logging.
     - If the function has an argument `peers`, then one can add a `peer` field to the error since the caller cannot know which peer failed.
