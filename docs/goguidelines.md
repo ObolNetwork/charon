@@ -98,28 +98,50 @@ Please try to inform your decisions by the following style for improved consiste
 
 > Note that style isn’t an exact science #CodeAsCraft
 
-- **New lines**:
+### New lines:
   - Please use new lines to structure and group code for improved readability. Think about how prose and poetry uses paragraphs and layout to convey information. #CleanCodeReadsAsProse
   - Prefer new lines between blocks of related code. Functions often have multiple steps, so maybe put a new line and a comment before each step.
   - Think about new lines after indented blocks.
-- `**Comments/godocs**:
+
+### Comments/godocs:
   - The “Practical Go” articles above has great info on how to comment.
   - Avoid inline comments that are pretty much identical to the actual code. Uncle Bob imagines comments as old-school flashing web1 html instead of soothing background grey. Keep them to a minimum aiming for very high signal to noise.
   - Write long comments as proper sentences: Start with a capital, end with a full stop, grammatically correct.
-- **Error handling**:
+
+### Error handling:
   - First priority is to just return errors.
   - Avoid logging and returning errors.
   - Avoid swallowing errors.
   - Name error variables `err`.
   - Wrap all errors returned from external libraries for proper stack traces.
   - Prefer returning an error over a panic.
-- **Pointers**:
+  - Keep error messages consistent and concise.
+    - When wrapping just state the action that failed: `errors.Wrap(err, "do something")` over `errors.Wrap(err, "failed to do something")`
+    - Prefer simple consist language: `errors.New("invalid foo")` over `errors.New("foo is invalid")`
+  - Only add error fields that the caller is unaware of:
+    - If a function has an argument `peer`, don’t add a `peer` field to the error, since the caller can decide to add that field when wrapping or logging.
+    - If the function has an argument `peers`, then one can add a `peer` field to the error since the caller cannot know which peer failed.
+
+### Logging:
+  - The name of the game when it comes to logging is **Signal to Noise**.
+    - Many projects have the problem of too much logging.
+    - If logs are too much and one can only search for specific logs, then identify unexpected behaviour becomes very hard.
+    - Our aim is that humans should be able follow ALL logs (up to debug level) of a node with 1 validator.
+  - Keep logging as simple and concise as possible (ask ChatGPT to help you with this).
+  - Focus on glanceability and readability, users should be able to scan logs and quickly identify unexpected behaviour.
+  - Stick to similar patterns for similar scenarios and packages.
+  - Avoid adding too many fields to logs, since that makes it harder to scan logs.
+  - Only add logging fields that are actually useful and actionable. E.g., a `hash` or `signature` is rarely actionable.
+
+### Pointers:
   - Prefer non-pointers over pointers since pointers convey the intent of mutability.
   - Note that passing pointers around is in general not faster than non-pointers (except in some edge cases).
-- **Naming**:
+
+### Naming:
   - Data labels should be snake_case. This include json fields, structured logging fields, prometheus labels etc.
   - Go package names should be concise; aim for a single noun (`validator`) or two concatenated nouns (`validatorapi`). Avoid underscores or three word nouns.
-- **Declarations**:
+
+### Declarations:
   - Follow [Dave Cheney's Practical](https://dave.cheney.net/practical-go/presentations/gophercon-israel.html#_use_a_consistent_declaration_style) Go for declarations.
   - TL;DR:
     - Use `var foo <type>` when declaring zero types.

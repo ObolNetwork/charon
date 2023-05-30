@@ -4,6 +4,7 @@ This page acts as an index for the charon (pronounced 'kharon') markdown documen
 
 - [Configuration](configuration.md): Configuring a charon node
 - [Metrics](metrics.md): Prometheus metrics exposed by a charon node
+- [Duty Failure Reasons](reasons.md): Descriptions of duty failures reasons.
 - [Architecture](architecture.md): Overview of charon cluster and node architecture
 - [Project Structure](structure.md): Project folder structure
 - [Branching and Release Model](branching.md): Git branching and release model
