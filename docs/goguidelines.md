@@ -133,6 +133,13 @@ Please try to inform your decisions by the following style for improved consiste
   - Stick to similar patterns for similar scenarios and packages.
   - Avoid adding too many fields to logs, since that makes it harder to scan logs.
   - Only add logging fields that are actually useful and actionable. E.g., a `hash` or `signature` is rarely actionable.
+  - The following log levels are used:
+    - `error`: Critical failures that require human intervention. [almost never used]
+    - `warn`: Important failures that do not require human intervention. [rarely used]
+    - `info`: Info logs describe the outcomes of high level process or critical information very valuable to the user. [seldom used]
+    - `debug`: Debug logs describe important steps within a process. Each process may only log a few of these. [sometimes used]
+  - Note we do not support `trace` logs. Only use `debug` logs to trace the execution of functions by marking it with TODOs to remove before the next release.
+  - Review logs every few releases and remove or decrease the level of logs that are no longer useful. Also remove fields that are not actually used.
 
 ### Pointers:
   - Prefer non-pointers over pointers since pointers convey the intent of mutability.
