@@ -201,6 +201,13 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition)
 				require.NotEmpty(t, val.BuilderRegistration)
 			}
 		}
+
+		if isAnyVersion(lock.Version, "v1.7.0") {
+			require.NotEmpty(t, lock.NodeSignatures)
+			for _, ns := range lock.NodeSignatures {
+				require.NotEmpty(t, ns)
+			}
+		}
 	})
 }
 
