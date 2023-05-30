@@ -4,6 +4,8 @@ package dkg
 
 import (
 	"context"
+	"sync"
+	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -12,10 +14,10 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/dkg/bcast"
 	dkgpb "github.com/obolnetwork/charon/dkg/dkgpb/v1"
+	"github.com/obolnetwork/charon/p2p"
 )
 
 const nodeSigMsgID = "/charon/dkg/node_sig"
@@ -26,20 +28,31 @@ func nodeSigMsgIDs() []string {
 
 // nodeSigBcast handles broadcasting of K1 signatures over the lock hash via the bcast protocol.
 type nodeSigBcast struct {
-	otherSigs   chan *dkgpb.MsgNodeSig
-	bcastFunc   bcast.BroadcastFunc
-	operatorAmt int
+	sigs     [][]byte
+	sigsLock sync.Mutex
+
+	bcastFunc bcast.BroadcastFunc
+	peers     []p2p.Peer
+	nodeIdx   cluster.NodeIdx
+
+	lockHashCh   chan []byte
+	lockHashData []byte
+	lhLock       sync.Mutex
 }
 
-// newNodeSigBcast returns a new instance of nodeSigBcast with the given operatorAmt.
+// newNodeSigBcast returns a new instance of nodeSigBcast.
 // It registers bcast handlers on bcastComp.
-func newNodeSigBcast(operatorAmt int, bcastComp *bcast.Component) nodeSigBcast {
-	ret := nodeSigBcast{
-		// bcast returns len(peers)-1 messages to each peer, so that senders don't get their own message
-		// hence wait for operatorAmt-1 messages
-		otherSigs:   make(chan *dkgpb.MsgNodeSig, operatorAmt-1),
-		bcastFunc:   bcastComp.Broadcast,
-		operatorAmt: operatorAmt,
+func newNodeSigBcast(
+	peers []p2p.Peer,
+	nodeIdx cluster.NodeIdx,
+	bcastComp *bcast.Component,
+) *nodeSigBcast {
+	ret := &nodeSigBcast{
+		sigs:       make([][]byte, len(peers)),
+		bcastFunc:  bcastComp.Broadcast,
+		peers:      peers,
+		nodeIdx:    nodeIdx,
+		lockHashCh: make(chan []byte),
 	}
 
 	for _, k1Sig := range nodeSigMsgIDs() {
@@ -49,14 +62,84 @@ func newNodeSigBcast(operatorAmt int, bcastComp *bcast.Component) nodeSigBcast {
 	return ret
 }
 
+// lockHash returns the lock hash byte array from lockHashCh.
+// Once the data has been received, it stays cached in lockHashData.
+func (n *nodeSigBcast) lockHash(ctx context.Context) ([]byte, error) {
+	n.lhLock.Lock()
+	defer n.lhLock.Unlock()
+
+	if len(n.lockHashData) != 0 {
+		return n.lockHashData, nil
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case n.lockHashData = <-n.lockHashCh:
+		return n.lockHashData, nil
+	}
+}
+
+// allSigs returns true if all the node signatures have been received.
+// It is safe to use concurrently.
+func (n *nodeSigBcast) allSigs() ([][]byte, bool) {
+	n.sigsLock.Lock()
+	defer n.sigsLock.Unlock()
+
+	for _, sig := range n.sigs {
+		if len(sig) == 0 {
+			return nil, false
+		}
+	}
+
+	// make a hard copy of the signatures
+	ret := make([][]byte, len(n.sigs))
+	copy(ret, n.sigs)
+
+	return ret, true
+}
+
+// setSig sets sig into n.sigs at the given array slot.
+// It is safe to use concurrently.
+func (n *nodeSigBcast) setSig(sig []byte, slot int) {
+	n.sigsLock.Lock()
+	defer n.sigsLock.Unlock()
+
+	n.sigs[slot] = sig
+}
+
 // broadcastCallback is the default bcast.Callback for nodeSigBcast.
-func (n *nodeSigBcast) broadcastCallback(_ context.Context, _ peer.ID, _ string, msg proto.Message) error {
-	response, ok := msg.(*dkgpb.MsgNodeSig)
+func (n *nodeSigBcast) broadcastCallback(ctx context.Context, _ peer.ID, _ string, msg proto.Message) error {
+	nodeSig, ok := msg.(*dkgpb.MsgNodeSig)
 	if !ok {
 		return errors.New("invalid node sig type")
 	}
 
-	n.otherSigs <- response
+	sig := nodeSig.GetSignature()
+	msgPeerIdx := int(nodeSig.GetPeerIndex())
+
+	if (msgPeerIdx == n.nodeIdx.PeerIdx) || (msgPeerIdx < 0 || msgPeerIdx >= len(n.peers)) {
+		return errors.New("invalid peer index")
+	}
+
+	peerPubk, err := n.peers[msgPeerIdx].PublicKey()
+	if err != nil {
+		return errors.Wrap(err, "get peer public key")
+	}
+
+	lockHash, err := n.lockHash(ctx)
+	if err != nil {
+		return errors.Wrap(err, "lock hash wait")
+	}
+
+	verified, err := k1util.Verify(peerPubk, lockHash, sig[:len(sig)-1])
+	if err != nil {
+		return errors.Wrap(err, "verify signature")
+	} else if !verified {
+		return errors.New("invalid node signature")
+	}
+
+	n.setSig(sig, msgPeerIdx)
 
 	return nil
 }
@@ -64,18 +147,21 @@ func (n *nodeSigBcast) broadcastCallback(_ context.Context, _ peer.ID, _ string,
 // exchange exchanges K1 signatures over lock file hashes with the peers pointed by lh.bcastFunc.
 func (n *nodeSigBcast) exchange(
 	ctx context.Context,
-	lockHash []byte,
 	key *k1.PrivateKey,
-	nodeIdx cluster.NodeIdx,
+	lockHash []byte,
 ) ([][]byte, error) {
-	sig, err := k1util.Sign(key, lockHash)
+	localSig, err := k1util.Sign(key, lockHash)
 	if err != nil {
 		return nil, errors.Wrap(err, "k1 lock hash signature")
 	}
 
+	go func() {
+		n.lockHashCh <- lockHash
+	}()
+
 	bcastData := &dkgpb.MsgNodeSig{
-		Signature: sig,
-		PeerIndex: uint32(nodeIdx.PeerIdx),
+		Signature: localSig,
+		PeerIndex: uint32(n.nodeIdx.PeerIdx),
 	}
 
 	log.Debug(ctx, "Exchanging node signatures")
@@ -84,22 +170,20 @@ func (n *nodeSigBcast) exchange(
 		return nil, errors.Wrap(err, "k1 lock hash signature broadcast")
 	}
 
-	ret := make([][]byte, n.operatorAmt)
-	ret[nodeIdx.PeerIdx] = sig
+	n.setSig(localSig, n.nodeIdx.PeerIdx)
 
-	// see newLockHashK1Bcast comment
-	for idx := 0; idx < n.operatorAmt-1; idx++ {
+	tick := time.NewTicker(100 * time.Millisecond)
+	defer tick.Stop()
+
+	for {
 		select {
 		case <-ctx.Done():
-			return nil, errors.New("context canceled")
-		case otherSig := <-n.otherSigs:
-
-			// TODO: remove if appears too verbose down the line
-			log.Debug(ctx, "Received node signature", z.Uint("sender", uint(otherSig.GetPeerIndex())))
-
-			ret[otherSig.GetPeerIndex()] = otherSig.GetSignature()
+			return nil, ctx.Err()
+		case <-tick.C:
+			sigs, ok := n.allSigs()
+			if ok {
+				return sigs, nil
+			}
 		}
 	}
-
-	return ret, nil
 }

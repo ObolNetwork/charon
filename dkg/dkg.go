@@ -189,7 +189,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	tp := newFrostP2P(tcpNode, peerMap, caster, def.Threshold, def.NumValidators)
 
 	// register bcast callbacks for lock hash k1 signature handler
-	nodeSigCaster := newNodeSigBcast(len(def.Operators), caster)
+	nodeSigCaster := newNodeSigBcast(peers, nodeIdx, caster)
 
 	log.Info(ctx, "Waiting to connect to all peers...")
 
@@ -257,7 +257,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	// Sign, exchange K1 signatures over Lock Hash
-	lock.NodeSignatures, err = nodeSigCaster.exchange(ctx, lock.LockHash, key, nodeIdx)
+	lock.NodeSignatures, err = nodeSigCaster.exchange(ctx, key, lock.LockHash)
 	if err != nil {
 		return errors.Wrap(err, "k1 lock hash signature exchange")
 	}
