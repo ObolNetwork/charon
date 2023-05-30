@@ -28,8 +28,8 @@ func nodeSigMsgIDs() []string {
 
 // nodeSigBcast handles broadcasting of K1 signatures over the lock hash via the bcast protocol.
 type nodeSigBcast struct {
-	sigs   [][]byte
-	osLock sync.Mutex
+	sigs     [][]byte
+	sigsLock sync.Mutex
 
 	bcastFunc bcast.BroadcastFunc
 	peers     []p2p.Peer
@@ -81,17 +81,31 @@ func (n *nodeSigBcast) lockHash(ctx context.Context) ([]byte, error) {
 }
 
 // allSigs returns true if all the node signatures have been received.
-func (n *nodeSigBcast) allSigs() bool {
-	n.osLock.Lock()
-	defer n.osLock.Unlock()
+// It is safe to use concurrently.
+func (n *nodeSigBcast) allSigs() ([][]byte, bool) {
+	n.sigsLock.Lock()
+	defer n.sigsLock.Unlock()
 
 	for _, sig := range n.sigs {
 		if len(sig) == 0 {
-			return false
+			return nil, false
 		}
 	}
 
-	return true
+	// make a hard copy of the signatures
+	ret := make([][]byte, len(n.sigs))
+	copy(ret, n.sigs)
+
+	return ret, true
+}
+
+// setSig sets sig into n.sigs at the given array slot.
+// It is safe to use concurrently.
+func (n *nodeSigBcast) setSig(sig []byte, slot int) {
+	n.sigsLock.Lock()
+	defer n.sigsLock.Unlock()
+
+	n.sigs[slot] = sig
 }
 
 // broadcastCallback is the default bcast.Callback for nodeSigBcast.
@@ -125,9 +139,7 @@ func (n *nodeSigBcast) broadcastCallback(ctx context.Context, _ peer.ID, _ strin
 		return errors.New("invalid node signature")
 	}
 
-	n.osLock.Lock()
-	n.sigs[msgPeerIdx] = sig
-	n.osLock.Unlock()
+	n.setSig(sig, msgPeerIdx)
 
 	return nil
 }
@@ -158,9 +170,11 @@ func (n *nodeSigBcast) exchange(
 		return nil, errors.Wrap(err, "k1 lock hash signature broadcast")
 	}
 
-	n.sigs[n.nodeIdx.PeerIdx] = localSig
+	n.setSig(localSig, n.nodeIdx.PeerIdx)
 
 	tick := time.NewTicker(100 * time.Millisecond)
+
+	var sigs [][]byte
 
 	for {
 		var done bool
@@ -169,7 +183,7 @@ func (n *nodeSigBcast) exchange(
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-tick.C:
-			done = n.allSigs()
+			sigs, done = n.allSigs()
 		}
 
 		if done {
@@ -178,5 +192,5 @@ func (n *nodeSigBcast) exchange(
 		}
 	}
 
-	return n.sigs, nil
+	return sigs, nil
 }
