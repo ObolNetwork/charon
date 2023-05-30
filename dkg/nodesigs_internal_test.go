@@ -66,19 +66,13 @@ func TestSigsExchange(t *testing.T) {
 		}
 	}
 
-	lhFunc := func() []byte {
-		return bytes.Repeat([]byte{42}, 32)
-	}
-
 	for i := 0; i < n; i++ {
 		i := i
 		component := bcast.New(tcpNodes[i], peers, secrets[i])
 		nsigs = append(nsigs, newNodeSigBcast(
-			n,
 			clusterPeers,
 			cluster.NodeIdx{PeerIdx: i},
 			component,
-			lhFunc,
 		))
 	}
 
@@ -91,6 +85,7 @@ func TestSigsExchange(t *testing.T) {
 			res, err := nsigs[i].exchange(
 				ctx,
 				secrets[i],
+				bytes.Repeat([]byte{42}, 32),
 			)
 			if err != nil {
 				return err
@@ -150,16 +145,10 @@ func TestSigsCallbacks(t *testing.T) {
 
 	component := bcast.New(tcpNodes[0], peers, secrets[0])
 
-	lhFunc := func() []byte {
-		return bytes.Repeat([]byte{42}, 32)
-	}
-
 	ns := newNodeSigBcast(
-		n,
 		clusterPeers,
 		cluster.NodeIdx{PeerIdx: 0},
 		component,
-		lhFunc,
 	)
 
 	t.Run("wrong peer index, equal to ours", func(t *testing.T) {
@@ -174,7 +163,7 @@ func TestSigsCallbacks(t *testing.T) {
 			msg,
 		)
 
-		require.ErrorContains(t, err, "wrong peer index")
+		require.ErrorContains(t, err, "invalid peer index")
 	})
 
 	t.Run("wrong peer index, more than node operators amount", func(t *testing.T) {
@@ -189,7 +178,22 @@ func TestSigsCallbacks(t *testing.T) {
 			msg,
 		)
 
-		require.ErrorContains(t, err, "wrong peer index")
+		require.ErrorContains(t, err, "invalid peer index")
+	})
+
+	t.Run("wrong peer index, peer index is exactly len(peers)", func(t *testing.T) {
+		msg := &dkgpb.MsgNodeSig{
+			Signature: bytes.Repeat([]byte{42}, 32),
+			PeerIndex: uint32(n),
+		}
+
+		err := ns.broadcastCallback(context.Background(),
+			peers[0],
+			"",
+			msg,
+		)
+
+		require.ErrorContains(t, err, "invalid peer index")
 	})
 
 	t.Run("invalid message type", func(t *testing.T) {
@@ -207,6 +211,8 @@ func TestSigsCallbacks(t *testing.T) {
 	})
 
 	t.Run("signature verification failed", func(t *testing.T) {
+		ns.lockHashData = bytes.Repeat([]byte{42}, 32)
+
 		msg := &dkgpb.MsgNodeSig{
 			Signature: bytes.Repeat([]byte{42}, 65), // adding 1 byte for signature header
 			PeerIndex: uint32(2),
@@ -218,7 +224,7 @@ func TestSigsCallbacks(t *testing.T) {
 			msg,
 		)
 
-		require.ErrorContains(t, err, "signature verification failed on peer lock hash")
+		require.ErrorContains(t, err, "invalid node signature")
 	})
 
 	t.Run("malformed signature", func(t *testing.T) {
@@ -233,11 +239,12 @@ func TestSigsCallbacks(t *testing.T) {
 			msg,
 		)
 
-		require.ErrorContains(t, err, "dedup signature failure")
+		require.ErrorContains(t, err, "verify signature")
 	})
 
 	t.Run("ok", func(t *testing.T) {
 		lockHash := bytes.Repeat([]byte{42}, 32)
+		ns.lockHashData = lockHash
 
 		res, err := k1util.Sign(secrets[2], lockHash)
 		require.NoError(t, err)

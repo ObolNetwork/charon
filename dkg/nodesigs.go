@@ -5,6 +5,7 @@ package dkg
 import (
 	"context"
 	"sync"
+	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -13,7 +14,6 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/dkg/bcast"
 	dkgpb "github.com/obolnetwork/charon/dkg/dkgpb/v1"
@@ -28,30 +28,31 @@ func nodeSigMsgIDs() []string {
 
 // nodeSigBcast handles broadcasting of K1 signatures over the lock hash via the bcast protocol.
 type nodeSigBcast struct {
-	otherSigs   sync.Map
-	bcastFunc   bcast.BroadcastFunc
-	operatorAmt int
-	peers       []p2p.Peer
-	nodeIdx     cluster.NodeIdx
-	lockHashFn  func() []byte
+	otherSigs [][]byte
+	osLock    sync.Mutex
+
+	bcastFunc bcast.BroadcastFunc
+	peers     []p2p.Peer
+	nodeIdx   cluster.NodeIdx
+
+	lockHashCh   chan []byte
+	lockHashData []byte
+	lhLock       sync.Mutex
 }
 
-// newNodeSigBcast returns a new instance of nodeSigBcast with the given operatorAmt.
+// newNodeSigBcast returns a new instance of nodeSigBcast.
 // It registers bcast handlers on bcastComp.
 func newNodeSigBcast(
-	operatorAmt int,
 	peers []p2p.Peer,
 	nodeIdx cluster.NodeIdx,
 	bcastComp *bcast.Component,
-	lockHashFn func() []byte,
 ) *nodeSigBcast {
 	ret := &nodeSigBcast{
-		otherSigs:   sync.Map{},
-		bcastFunc:   bcastComp.Broadcast,
-		operatorAmt: operatorAmt,
-		peers:       peers,
-		nodeIdx:     nodeIdx,
-		lockHashFn:  lockHashFn,
+		otherSigs:  make([][]byte, len(peers)),
+		bcastFunc:  bcastComp.Broadcast,
+		peers:      peers,
+		nodeIdx:    nodeIdx,
+		lockHashCh: make(chan []byte),
 	}
 
 	for _, k1Sig := range nodeSigMsgIDs() {
@@ -61,48 +62,72 @@ func newNodeSigBcast(
 	return ret
 }
 
+// lockHash returns the lock hash byte array from lockHashCh.
+// Once the data has been received, it stays cached in lockHashData.
+func (n *nodeSigBcast) lockHash(ctx context.Context) ([]byte, error) {
+	n.lhLock.Lock()
+	defer n.lhLock.Unlock()
+
+	if len(n.lockHashData) != 0 {
+		return n.lockHashData, nil
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case n.lockHashData = <-n.lockHashCh:
+		return n.lockHashData, nil
+	}
+}
+
+// allSigs returns true if all the node signatures have been received.
+func (n *nodeSigBcast) allSigs() bool {
+	n.osLock.Lock()
+	defer n.osLock.Unlock()
+
+	for _, sig := range n.otherSigs {
+		if sig == nil {
+			return false
+		}
+	}
+
+	return true
+}
+
 // broadcastCallback is the default bcast.Callback for nodeSigBcast.
-func (n *nodeSigBcast) broadcastCallback(ctx context.Context, peer peer.ID, _ string, msg proto.Message) error {
-	response, ok := msg.(*dkgpb.MsgNodeSig)
+func (n *nodeSigBcast) broadcastCallback(ctx context.Context, _ peer.ID, _ string, msg proto.Message) error {
+	nodeSig, ok := msg.(*dkgpb.MsgNodeSig)
 	if !ok {
 		return errors.New("invalid node sig type")
 	}
 
-	sig := response.GetSignature()
-	msgPeerIdx := int(response.GetPeerIndex())
+	sig := nodeSig.GetSignature()
+	msgPeerIdx := int(nodeSig.GetPeerIndex())
 
-	if (msgPeerIdx == n.nodeIdx.PeerIdx) || (msgPeerIdx < 0 || msgPeerIdx > n.operatorAmt) {
-		return errors.New("wrong peer index", z.Str("peer", peer.String()))
+	if (msgPeerIdx == n.nodeIdx.PeerIdx) || (msgPeerIdx < 0 || msgPeerIdx >= len(n.peers)) {
+		return errors.New("invalid peer index")
 	}
 
 	peerPubk, err := n.peers[msgPeerIdx].PublicKey()
 	if err != nil {
-		return errors.Wrap(err, "can't get peer public key", z.Str("peer", peer.String()))
+		return errors.Wrap(err, "get peer public key")
 	}
 
-	// wait until lock hash becomes available
-	for {
-		var done bool
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			done = len(n.lockHashFn()) != 0
-		}
-
-		if done {
-			break
-		}
-	}
-
-	verified, err := k1util.Verify(peerPubk, n.lockHashFn(), sig[:len(sig)-1])
+	lockHash, err := n.lockHash(ctx)
 	if err != nil {
-		return errors.Wrap(err, "dedup signature failure")
-	} else if !verified {
-		return errors.New("signature verification failed on peer lock hash")
+		return errors.Wrap(err, "lock hash wait")
 	}
 
-	n.otherSigs.Store(peer, response)
+	verified, err := k1util.Verify(peerPubk, lockHash, sig[:len(sig)-1])
+	if err != nil {
+		return errors.Wrap(err, "verify signature")
+	} else if !verified {
+		return errors.New("invalid node signature")
+	}
+
+	n.osLock.Lock()
+	n.otherSigs[msgPeerIdx] = sig
+	n.osLock.Unlock()
 
 	return nil
 }
@@ -111,14 +136,19 @@ func (n *nodeSigBcast) broadcastCallback(ctx context.Context, peer peer.ID, _ st
 func (n *nodeSigBcast) exchange(
 	ctx context.Context,
 	key *k1.PrivateKey,
+	lockHash []byte,
 ) ([][]byte, error) {
-	sig, err := k1util.Sign(key, n.lockHashFn())
+	localSig, err := k1util.Sign(key, lockHash)
 	if err != nil {
 		return nil, errors.Wrap(err, "k1 lock hash signature")
 	}
 
+	go func() {
+		n.lockHashCh <- lockHash
+	}()
+
 	bcastData := &dkgpb.MsgNodeSig{
-		Signature: sig,
+		Signature: localSig,
 		PeerIndex: uint32(n.nodeIdx.PeerIdx),
 	}
 
@@ -128,8 +158,9 @@ func (n *nodeSigBcast) exchange(
 		return nil, errors.Wrap(err, "k1 lock hash signature broadcast")
 	}
 
-	ret := make([][]byte, n.operatorAmt)
-	ret[n.nodeIdx.PeerIdx] = sig
+	n.otherSigs[n.nodeIdx.PeerIdx] = localSig
+
+	tick := time.NewTicker(100 * time.Millisecond)
 
 	for {
 		var done bool
@@ -137,45 +168,15 @@ func (n *nodeSigBcast) exchange(
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		default:
-			// bcast returns len(peers)-1 messages to each peer, so that senders don't get their own message
-			// hence wait for operatorAmt-1 messages
-			done = mapLen(&n.otherSigs) == n.operatorAmt-1
+		case <-tick.C:
+			done = n.allSigs()
 		}
 
 		if done {
+			tick.Stop()
 			break
 		}
 	}
 
-	var rangeErr error
-	n.otherSigs.Range(func(_, value any) bool {
-		realValue, ok := value.(*dkgpb.MsgNodeSig)
-		if !ok {
-			rangeErr = errors.New("wrong object type in nodeSig")
-			return false
-		}
-
-		sig := realValue.GetSignature()
-
-		ret[realValue.GetPeerIndex()] = sig
-
-		return true
-	})
-
-	if rangeErr != nil {
-		return nil, rangeErr
-	}
-
-	return ret, nil
-}
-
-func mapLen(m *sync.Map) int {
-	var total int
-	m.Range(func(key, value any) bool {
-		total++
-		return true
-	})
-
-	return total
+	return n.otherSigs, nil
 }
