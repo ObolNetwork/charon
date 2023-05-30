@@ -28,8 +28,8 @@ func nodeSigMsgIDs() []string {
 
 // nodeSigBcast handles broadcasting of K1 signatures over the lock hash via the bcast protocol.
 type nodeSigBcast struct {
-	otherSigs [][]byte
-	osLock    sync.Mutex
+	sigs   [][]byte
+	osLock sync.Mutex
 
 	bcastFunc bcast.BroadcastFunc
 	peers     []p2p.Peer
@@ -48,7 +48,7 @@ func newNodeSigBcast(
 	bcastComp *bcast.Component,
 ) *nodeSigBcast {
 	ret := &nodeSigBcast{
-		otherSigs:  make([][]byte, len(peers)),
+		sigs:       make([][]byte, len(peers)),
 		bcastFunc:  bcastComp.Broadcast,
 		peers:      peers,
 		nodeIdx:    nodeIdx,
@@ -85,8 +85,8 @@ func (n *nodeSigBcast) allSigs() bool {
 	n.osLock.Lock()
 	defer n.osLock.Unlock()
 
-	for _, sig := range n.otherSigs {
-		if sig == nil {
+	for _, sig := range n.sigs {
+		if len(sig) == 0 {
 			return false
 		}
 	}
@@ -126,7 +126,7 @@ func (n *nodeSigBcast) broadcastCallback(ctx context.Context, _ peer.ID, _ strin
 	}
 
 	n.osLock.Lock()
-	n.otherSigs[msgPeerIdx] = sig
+	n.sigs[msgPeerIdx] = sig
 	n.osLock.Unlock()
 
 	return nil
@@ -158,7 +158,7 @@ func (n *nodeSigBcast) exchange(
 		return nil, errors.Wrap(err, "k1 lock hash signature broadcast")
 	}
 
-	n.otherSigs[n.nodeIdx.PeerIdx] = localSig
+	n.sigs[n.nodeIdx.PeerIdx] = localSig
 
 	tick := time.NewTicker(100 * time.Millisecond)
 
@@ -178,5 +178,5 @@ func (n *nodeSigBcast) exchange(
 		}
 	}
 
-	return n.otherSigs, nil
+	return n.sigs, nil
 }
