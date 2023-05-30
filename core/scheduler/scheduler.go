@@ -125,6 +125,7 @@ func (s *Scheduler) Run() error {
 // emitCoreSlot calls all slot subscriptions asynchronously with the provided slot.
 func (s *Scheduler) emitCoreSlot(ctx context.Context, slot core.Slot) {
 	for _, sub := range s.slotSubs {
+		sub := sub
 		go func(sub func(context.Context, core.Slot) error) {
 			err := sub(ctx, slot)
 			if err != nil {
