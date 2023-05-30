@@ -173,24 +173,17 @@ func (n *nodeSigBcast) exchange(
 	n.setSig(localSig, n.nodeIdx.PeerIdx)
 
 	tick := time.NewTicker(100 * time.Millisecond)
-
-	var sigs [][]byte
+	defer tick.Stop()
 
 	for {
-		var done bool
-
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-tick.C:
-			sigs, done = n.allSigs()
-		}
-
-		if done {
-			tick.Stop()
-			break
+			sigs, ok := n.allSigs()
+			if ok {
+				return sigs, nil
+			}
 		}
 	}
-
-	return sigs, nil
 }
