@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -21,20 +22,20 @@ var (
 )
 
 // New returns new private key locking service. It errors if a recently-updated private key lock file exists.
-func New(path, command string) (Service, error) {
+func New(path, command string) (*Service, error) {
 	content, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) { //nolint:revive // Empty block is fine.
 		// No file, we will create it in run
 	} else if err != nil {
-		return Service{}, errors.Wrap(err, "cannot read private key lock file", z.Str("path", path))
+		return nil, errors.Wrap(err, "cannot read private key lock file", z.Str("path", path))
 	} else {
 		var meta metadata
 		if err := json.Unmarshal(content, &meta); err != nil {
-			return Service{}, errors.Wrap(err, "cannot decode private key lock file content", z.Str("path", path))
+			return nil, errors.Wrap(err, "cannot decode private key lock file content", z.Str("path", path))
 		}
 
 		if time.Since(meta.Timestamp) <= staleDuration {
-			return Service{}, errors.New(
+			return nil, errors.New(
 				"existing private key lock file found, another charon instance may be running on your machine",
 				z.Str("path", path),
 				z.Str("command", meta.Command),
@@ -43,14 +44,18 @@ func New(path, command string) (Service, error) {
 	}
 
 	if err := writeFile(path, command, time.Now()); err != nil {
-		return Service{}, err
+		return nil, err
 	}
 
-	return Service{
+	s := &Service{
 		command:      command,
 		path:         path,
 		updatePeriod: updatePeriod,
-	}, nil
+	}
+
+	s.wg.Add(1)
+
+	return s, nil
 }
 
 // Service is a private key locking service.
@@ -58,12 +63,15 @@ type Service struct {
 	command      string
 	path         string
 	updatePeriod time.Duration
+	wg           sync.WaitGroup
 }
 
 // Run runs the service, updating the lock file every second and deleting it on context cancellation.
-func (h Service) Run(ctx context.Context) error {
+func (h *Service) Run(ctx context.Context) error {
 	tick := time.NewTicker(h.updatePeriod)
 	defer tick.Stop()
+
+	defer h.wg.Done()
 
 	for {
 		select {
@@ -80,6 +88,11 @@ func (h Service) Run(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+// Done waits until Service has finished deleting the private key lock file.
+func (h *Service) Done() {
+	h.wg.Wait()
 }
 
 // metadata is the metadata stored in the lock file.
