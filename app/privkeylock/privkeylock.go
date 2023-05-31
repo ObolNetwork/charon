@@ -67,23 +67,23 @@ type Service struct {
 }
 
 // Run runs the service, updating the lock file every second and deleting it on context cancellation.
-func (h *Service) Run(ctx context.Context) error {
-	tick := time.NewTicker(h.updatePeriod)
+func (s *Service) Run(ctx context.Context) error {
+	tick := time.NewTicker(s.updatePeriod)
 	defer tick.Stop()
 
-	defer h.wg.Done()
+	defer s.wg.Done()
 
 	for {
 		select {
 		case <-ctx.Done():
-			if err := os.Remove(h.path); err != nil {
+			if err := os.Remove(s.path); err != nil {
 				return errors.Wrap(err, "deleting private key lock file failed")
 			}
 
 			return nil
 		case <-tick.C:
 			// Overwrite lockfile with new metadata
-			if err := writeFile(h.path, h.command, time.Now()); err != nil {
+			if err := writeFile(s.path, s.command, time.Now()); err != nil {
 				return err
 			}
 		}
@@ -91,8 +91,8 @@ func (h *Service) Run(ctx context.Context) error {
 }
 
 // Done waits until Service has finished deleting the private key lock file.
-func (h *Service) Done() {
-	h.wg.Wait()
+func (s *Service) Done() {
+	s.wg.Wait()
 }
 
 // metadata is the metadata stored in the lock file.
