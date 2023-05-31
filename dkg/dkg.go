@@ -89,7 +89,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	// Make sure to always wait for lockSvc to be done.
 	defer func() {
-		// explicitly cancel the context and wait until the privkey lock is deleted
+		// Explicitly cancel the context and wait until the privkey lock is deleted.
 		cancel()
 		lockSvc.Done()
 	}()
