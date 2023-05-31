@@ -77,14 +77,22 @@ func (c Config) HasTestConfig() bool {
 //nolint:maintidx // Refactor into smaller steps.
 func Run(ctx context.Context, conf Config) (err error) {
 	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 
 	ctx = log.WithTopic(ctx, "dkg")
 
 	lockSvc, err := privkeylock.New(p2p.KeyPath(conf.DataDir)+".lock", "charon dkg")
 	if err != nil {
+		// cancel manually here because we'll defer cancel() and lockSvc.Done() later
+		cancel()
 		return err
 	}
+
+	// make sure to always wait for lockSvc to be done.
+	defer func() {
+		// explicitly cancel the context and wait until the privkey lock is deleted
+		cancel()
+		lockSvc.Done()
+	}()
 
 	go func(ctx context.Context) {
 		if err := lockSvc.Run(ctx); err != nil {
@@ -312,10 +320,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 	time.Sleep(conf.ShutdownDelay)
 
 	log.Info(ctx, "Successfully completed DKG ceremony 🎉")
-
-	// explicitly cancel the context and wait until the privkey lock is deleted
-	cancel()
-	lockSvc.Done()
 
 	return nil
 }
