@@ -80,17 +80,27 @@ func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID, callback fu
 }
 
 // pingPeerOnce starts a long lived ping connection with the peer and returns on first error.
-func pingPeerOnce(ctx context.Context, svc *ping.PingService, p peer.ID,
+func pingPeerOnce(parentCtx context.Context, svc *ping.PingService, p peer.ID,
 	logFunc func(context.Context, ping.Result), callback func(peer.ID, host.Host),
 ) {
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(parentCtx)
 	defer cancel()
 
+	tick := time.NewTicker(time.Minute * 10)
+	defer tick.Stop()
+
+	pingChan := svc.Ping(ctx, p)
 	for {
 		select {
-		case <-ctx.Done():
+		case <-parentCtx.Done():
 			return
-		case result := <-svc.Ping(ctx, p): // Only ping once to always use "best" connection.
+		case <-tick.C:
+			// Signal ping service to close the existing stream to avoid having orphaned streams.
+			cancel()
+
+			// Create new stream to use the "best" connection.
+			pingChan = svc.Ping(ctx, p)
+		case result := <-pingChan:
 			if IsRelayError(result.Error) || errors.Is(result.Error, context.Canceled) {
 				// Just exit if relay error or context cancelled.
 				return
