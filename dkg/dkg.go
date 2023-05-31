@@ -82,7 +82,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	lockSvc, err := privkeylock.New(p2p.KeyPath(conf.DataDir)+".lock", "charon dkg")
 	if err != nil {
-		// cancel manually here because we'll defer cancel() and lockSvc.Done() later
+		// Cancel manually here because we'll defer cancel() and lockSvc.Done() later.
 		cancel()
 		return err
 	}
