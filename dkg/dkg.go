@@ -313,6 +313,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	log.Info(ctx, "Successfully completed DKG ceremony 🎉")
 
+	// explicitly cancel the context and wait until the privkey lock is deleted
+	cancel()
+	lockSvc.Done()
+
 	return nil
 }
 
