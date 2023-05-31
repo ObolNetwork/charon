@@ -88,13 +88,19 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	// Make sure to always wait for lockSvc to be done.
+	lockSvcDone := make(chan struct{})
+
 	defer func() {
 		// Explicitly cancel the context and wait until the privkey lock is deleted.
 		cancel()
-		lockSvc.Done()
+		<-lockSvcDone
 	}()
 
 	go func(ctx context.Context) {
+		defer func() {
+			lockSvcDone <- struct{}{}
+		}()
+
 		if err := lockSvc.Run(ctx); err != nil {
 			log.Error(ctx, "Error locking private key file", err)
 		}
