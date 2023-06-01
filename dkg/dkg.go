@@ -77,34 +77,27 @@ func (c Config) HasTestConfig() bool {
 //nolint:maintidx // Refactor into smaller steps.
 func Run(ctx context.Context, conf Config) (err error) {
 	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	ctx = log.WithTopic(ctx, "dkg")
 
-	lockSvc, err := privkeylock.New(p2p.KeyPath(conf.DataDir)+".lock", "charon dkg")
-	if err != nil {
-		// Cancel manually here because we'll defer cancel() and lockSvc.Done() later.
-		cancel()
-		return err
-	}
+	{
+		// Setup private key locking.
+		lockSvc, err := privkeylock.New(p2p.KeyPath(conf.DataDir)+".lock", "charon dkg")
+		if err != nil {
+			return err
+		}
 
-	// Make sure to always wait for lockSvc to be done.
-	lockSvcDone := make(chan struct{})
-
-	defer func() {
-		// Explicitly cancel the context and wait until the privkey lock is deleted.
-		cancel()
-		<-lockSvcDone
-	}()
-
-	go func(ctx context.Context) {
-		defer func() {
-			lockSvcDone <- struct{}{}
+		// Start it async
+		go func() {
+			if err := lockSvc.Run(); err != nil {
+				log.Error(ctx, "Error locking private key file", err)
+			}
 		}()
 
-		if err := lockSvc.Run(ctx); err != nil {
-			log.Error(ctx, "Error locking private key file", err)
-		}
-	}(ctx)
+		// Stop it on exit.
+		defer lockSvc.Close()
+	}
 
 	version.LogInfo(ctx, "Charon DKG starting")
 

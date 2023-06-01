@@ -138,7 +138,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 			return err
 		}
 
-		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPrivkeyLock, lifecycle.HookFunc(lockSvc.Run))
+		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPrivkeyLock, lifecycle.HookFuncErr(lockSvc.Run))
+		life.RegisterStop(lifecycle.StopPrivkeyLock, lifecycle.HookFuncMin(lockSvc.Close))
 	}
 
 	if err := wireTracing(life, conf); err != nil {
