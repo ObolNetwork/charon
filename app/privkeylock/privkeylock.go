@@ -3,7 +3,6 @@
 package privkeylock
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"time"
@@ -50,6 +49,8 @@ func New(path, command string) (Service, error) {
 		command:      command,
 		path:         path,
 		updatePeriod: updatePeriod,
+		quit:         make(chan struct{}),
+		done:         make(chan struct{}),
 	}, nil
 }
 
@@ -58,28 +59,39 @@ type Service struct {
 	command      string
 	path         string
 	updatePeriod time.Duration
+	quit         chan struct{} // Quit exits the Run goroutine if closed.
+	done         chan struct{} // Done is closed when Run exits, which exits the Close goroutine.
 }
 
 // Run runs the service, updating the lock file every second and deleting it on context cancellation.
-func (h Service) Run(ctx context.Context) error {
-	tick := time.NewTicker(h.updatePeriod)
+func (s Service) Run() error {
+	defer close(s.done)
+
+	tick := time.NewTicker(s.updatePeriod)
 	defer tick.Stop()
 
 	for {
 		select {
-		case <-ctx.Done():
-			if err := os.Remove(h.path); err != nil {
+		case <-s.quit:
+			if err := os.Remove(s.path); err != nil {
 				return errors.Wrap(err, "deleting private key lock file failed")
 			}
 
 			return nil
 		case <-tick.C:
 			// Overwrite lockfile with new metadata
-			if err := writeFile(h.path, h.command, time.Now()); err != nil {
+			if err := writeFile(s.path, s.command, time.Now()); err != nil {
 				return err
 			}
 		}
 	}
+}
+
+// Close closes the service, waiting for the Run goroutine to exit.
+// Note this will block forever if Run is not called.
+func (s Service) Close() {
+	close(s.quit)
+	<-s.done
 }
 
 // metadata is the metadata stored in the lock file.

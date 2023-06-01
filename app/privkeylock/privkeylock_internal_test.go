@@ -3,7 +3,6 @@
 package privkeylock
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -36,16 +35,12 @@ func TestService(t *testing.T) {
 	// Delete the file so Run will create it again.
 	require.NoError(t, os.Remove(path))
 
-	ctx, cancel := context.WithCancel(context.Background())
-
 	var eg errgroup.Group
-	eg.Go(func() error {
-		return svc.Run(ctx) // Run will create the file.
-	})
+	eg.Go(svc.Run) // Run will create the file.
 
 	eg.Go(func() error {
 		assertFileExists(t, path)
-		cancel()
+		svc.Close()
 
 		return nil
 	})

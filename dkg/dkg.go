@@ -81,16 +81,23 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	ctx = log.WithTopic(ctx, "dkg")
 
-	lockSvc, err := privkeylock.New(p2p.KeyPath(conf.DataDir)+".lock", "charon dkg")
-	if err != nil {
-		return err
-	}
-
-	go func(ctx context.Context) {
-		if err := lockSvc.Run(ctx); err != nil {
-			log.Error(ctx, "Error locking private key file", err)
+	{
+		// Setup private key locking.
+		lockSvc, err := privkeylock.New(p2p.KeyPath(conf.DataDir)+".lock", "charon dkg")
+		if err != nil {
+			return err
 		}
-	}(ctx)
+
+		// Start it async
+		go func() {
+			if err := lockSvc.Run(); err != nil {
+				log.Error(ctx, "Error locking private key file", err)
+			}
+		}()
+
+		// Stop it on exit.
+		defer lockSvc.Close()
+	}
 
 	version.LogInfo(ctx, "Charon DKG starting")
 

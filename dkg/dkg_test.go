@@ -186,6 +186,14 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	testutil.SkipIfBindErr(t, err)
 	require.NoError(t, err)
 
+	// check that the privkey lock file has been deleted in all nodes at the end of dkg
+	for i := 0; i < len(def.Operators); i++ {
+		lockPath := path.Join(dir, fmt.Sprintf("node%d", i), "charon-enr-private-key.lock")
+
+		_, openErr := os.Open(lockPath)
+		require.ErrorIs(t, openErr, os.ErrNotExist)
+	}
+
 	if keymanager {
 		// Wait until all keystores are received by the keymanager server
 		expectedReceives := len(def.Operators)
