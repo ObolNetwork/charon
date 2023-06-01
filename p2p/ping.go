@@ -80,26 +80,24 @@ func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID, callback fu
 }
 
 // pingPeerOnce starts a long lived ping connection with the peer and returns on first error.
-func pingPeerOnce(parentCtx context.Context, svc *ping.PingService, p peer.ID,
+func pingPeerOnce(ctx context.Context, svc *ping.PingService, p peer.ID,
 	logFunc func(context.Context, ping.Result), callback func(peer.ID, host.Host),
 ) {
-	ctx, cancel := context.WithCancel(parentCtx)
-	defer cancel()
+	ticker := time.NewTicker(time.Second * 30)
+	defer ticker.Stop()
 
-	tick := time.NewTicker(time.Minute * 10)
-	defer tick.Stop()
-
-	pingChan := svc.Ping(ctx, p)
+	pingChan, closeStream := getPingChan(ctx, svc, p)
+	defer closeStream()
 	for {
 		select {
-		case <-parentCtx.Done():
+		case <-ctx.Done():
 			return
-		case <-tick.C:
+		case <-ticker.C:
 			// Signal ping service to close the existing stream to avoid having orphaned streams.
-			cancel()
+			closeStream()
 
 			// Create new stream to use the "best" connection.
-			pingChan = svc.Ping(ctx, p)
+			pingChan, closeStream = getPingChan(ctx, svc, p)
 		case result := <-pingChan:
 			if IsRelayError(result.Error) || errors.Is(result.Error, context.Canceled) {
 				// Just exit if relay error or context cancelled.
@@ -121,17 +119,12 @@ func pingPeerOnce(parentCtx context.Context, svc *ping.PingService, p peer.ID,
 	}
 }
 
-// isDirectConnAvailable returns true if direct connection is available in the given set of connections.
-func isDirectConnAvailable(conns []network.Conn) bool {
-	for _, conn := range conns {
-		if IsRelayAddr(conn.RemoteMultiaddr()) {
-			continue
-		}
+// getPingChan returns a new ping channel to listen for results and a close function to close the stream.
+// Note: The only way to close a stream opened by ping service is to cancel the context.
+func getPingChan(ctx context.Context, svc *ping.PingService, p peer.ID) (<-chan ping.Result, func()) {
+	ctx, cancel := context.WithCancel(ctx)
 
-		return true
-	}
-
-	return false
+	return svc.Ping(ctx, p), cancel
 }
 
 // IsRelayError returns true if the error is due to temporary relay circuit recycling.
