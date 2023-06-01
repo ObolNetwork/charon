@@ -17,7 +17,7 @@ import (
 //   - Release branch: v0.X-rc
 //
 // It is overwritten at build-time with the git tag for official releases.
-var Version = "v0.16-dev"
+var Version = "v0.16-rc"
 
 // Supported returns the supported minor versions in order of precedence.
 func Supported() []string {
