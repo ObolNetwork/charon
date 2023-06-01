@@ -83,22 +83,26 @@ func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID, callback fu
 func pingPeerOnce(ctx context.Context, svc *ping.PingService, p peer.ID,
 	logFunc func(context.Context, ping.Result), callback func(peer.ID, host.Host),
 ) {
-	ticker := time.NewTicker(time.Second * 30)
-	defer ticker.Stop()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-	pingChan, closeStream := getPingChan(ctx, svc, p)
-	defer closeStream()
+	// newPingChan creates a new stream and returns the ping result channel to listen for results
+	// and a close function to close the stream.
+	// Note: The only way to close a stream opened by ping service is to cancel the context.
+	newPingChan := func() (<-chan ping.Result, func()) {
+		pingCtx, pingCancel := context.WithCancel(ctx)
+
+		return svc.Ping(pingCtx, p), pingCancel
+	}
+
 	for {
+		// Create new stream to use the "best" connection for next ping.
+		pingChan, pingCloseFunc := newPingChan()
+
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
-			// Signal ping service to close the existing stream to avoid having orphaned streams.
-			closeStream()
-
-			// Create new stream to use the "best" connection.
-			pingChan, closeStream = getPingChan(ctx, svc, p)
-		case result := <-pingChan:
+		case result := <-pingChan: // Only ping once to always use "best" connection.
 			if IsRelayError(result.Error) || errors.Is(result.Error, context.Canceled) {
 				// Just exit if relay error or context cancelled.
 				return
@@ -116,15 +120,10 @@ func pingPeerOnce(ctx context.Context, svc *ping.PingService, p peer.ID,
 			observePing(p, result.RTT)
 			callback(p, svc.Host)
 		}
+
+		// Signal ping service to close the existing stream to avoid having orphaned streams.
+		pingCloseFunc()
 	}
-}
-
-// getPingChan returns a new ping channel to listen for results and a close function to close the stream.
-// Note: The only way to close a stream opened by ping service is to cancel the context.
-func getPingChan(ctx context.Context, svc *ping.PingService, p peer.ID) (<-chan ping.Result, func()) {
-	ctx, cancel := context.WithCancel(ctx)
-
-	return svc.Ping(ctx, p), cancel
 }
 
 // IsRelayError returns true if the error is due to temporary relay circuit recycling.
