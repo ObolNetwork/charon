@@ -188,7 +188,7 @@ func loadFiles(dir string, sortKeyfiles func([]string) ([]string, error)) ([]tbl
 
 	for result := range join() {
 		if result.Err != nil {
-			return nil, errors.Wrap(err, "write keys")
+			return nil, errors.Wrap(result.Err, "write keys")
 		}
 
 		// PSA: this is a concurrent array write, and it works because we're not
