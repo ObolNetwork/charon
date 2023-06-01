@@ -77,8 +77,7 @@ func TestDKG(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 1, withAlgo(test.dkgAlgo),
-				cluster.WithVersion("v1.7.0")) // TODO(dhruv): remove WithVersion option once v1.7.0 is released.
+			lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 1, withAlgo(test.dkgAlgo))
 			dir := t.TempDir()
 
 			testDKG(t, lock.Definition, dir, keys, test.keymanager, test.publish)
