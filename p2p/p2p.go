@@ -252,6 +252,19 @@ func ForceDirectConnections(tcpNode host.Host, peerIDs []peer.ID) lifecycle.Hook
 	}
 }
 
+// isDirectConnAvailable returns true if direct connection is available in the given set of connections.
+func isDirectConnAvailable(conns []network.Conn) bool {
+	for _, conn := range conns {
+		if IsRelayAddr(conn.RemoteMultiaddr()) {
+			continue
+		}
+
+		return true
+	}
+
+	return false
+}
+
 // RegisterConnectionLogger registers a connection logger with the host.
 // This is pretty weird and hacky, but that is because libp2p uses the network.Notifiee interface as a map key,
 // so the implementation can only contain fields that are hashable. So we use a channel and do the logic externally. :(.
