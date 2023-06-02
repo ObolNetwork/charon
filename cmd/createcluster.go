@@ -381,7 +381,7 @@ func signValidatorRegistrations(secrets []tbls.PrivateKey, feeAddresses []string
 			return nil, errors.Wrap(err, "registration creation")
 		}
 
-		sigRoot, err := registration.GetMessageSigningRoot(unsignedReg, forkVersion)
+		sigRoot, err := registration.GetMessageSigningRoot(unsignedReg, eth2p0.Version(forkVersion))
 		if err != nil {
 			return nil, err
 		}

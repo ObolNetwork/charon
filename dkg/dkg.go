@@ -693,7 +693,7 @@ func signValidatorRegistrations(shares []share, shareIdx int, feeRecipients []st
 			return nil, nil, err
 		}
 
-		sigRoot, err := registration.GetMessageSigningRoot(regMsg, forkVersion)
+		sigRoot, err := registration.GetMessageSigningRoot(regMsg, eth2p0.Version(forkVersion))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -834,7 +834,7 @@ func aggValidatorRegistrations(
 		if !ok {
 			return nil, errors.New("validator registration not found")
 		}
-		sigRoot, err := registration.GetMessageSigningRoot(msg.V1.Message, forkVersion)
+		sigRoot, err := registration.GetMessageSigningRoot(msg.V1.Message, eth2p0.Version(forkVersion))
 		if err != nil {
 			return nil, err
 		}

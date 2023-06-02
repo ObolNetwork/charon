@@ -62,9 +62,9 @@ func executionAddressFromStr(addr string) ([20]byte, error) {
 // Refer:
 // - https://github.com/ethereum/builder-specs/blob/100d4faf32e5dc672c963741769390ff09ab194a/specs/bellatrix/builder.md#signing
 // - https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#compute_domain
-func getRegistrationDomain(genesisForkVersion []byte) (eth2p0.Domain, error) {
+func getRegistrationDomain(genesisForkVersion eth2p0.Version) (eth2p0.Domain, error) {
 	forkData := &eth2p0.ForkData{
-		CurrentVersion:        eth2p0.Version(genesisForkVersion),
+		CurrentVersion:        genesisForkVersion,
 		GenesisValidatorsRoot: eth2p0.Root{}, // GenesisValidatorsRoot is zero for validator registration.
 	}
 
@@ -81,7 +81,7 @@ func getRegistrationDomain(genesisForkVersion []byte) (eth2p0.Domain, error) {
 }
 
 // GetMessageSigningRoot returns the validator registration message signing root created by the provided parameters.
-func GetMessageSigningRoot(msg *eth2v1.ValidatorRegistration, forkVersion []byte) ([32]byte, error) {
+func GetMessageSigningRoot(msg *eth2v1.ValidatorRegistration, forkVersion eth2p0.Version) ([32]byte, error) {
 	msgRoot, err := msg.HashTreeRoot()
 	if err != nil {
 		return [32]byte{}, errors.Wrap(err, "validator registration message root")

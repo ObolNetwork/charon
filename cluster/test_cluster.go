@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"testing"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 
@@ -153,7 +154,9 @@ func getSignedRegistration(t *testing.T, secret tbls.PrivateKey, feeRecipientAdd
 	forkVersion, err := eth2util.NetworkToForkVersionBytes(network)
 	require.NoError(t, err)
 
-	sigRoot, err := registration.GetMessageSigningRoot(msg, forkVersion)
+	require.Len(t, forkVersion, 4)
+
+	sigRoot, err := registration.GetMessageSigningRoot(msg, eth2p0.Version(forkVersion))
 	require.NoError(t, err)
 
 	sig, err := tbls.Sign(secret, sigRoot[:])
