@@ -124,7 +124,7 @@ func TestVerifySignedRegistration(t *testing.T) {
 	sigRoot, err := registration.GetMessageSigningRoot(reg.Message, forkVersion)
 	require.NoError(t, err)
 
-	// Verify given signature corresponding to message signing root.
+	// Verify if given signature corresponds to the message signing root.
 	require.NoError(t, tbls.Verify(pubkey, sigRoot[:], tbls.Signature(reg.Signature)))
 
 	// Convert and verify validator registration with core workflow method.
