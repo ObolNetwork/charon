@@ -81,13 +81,13 @@ func getRegistrationDomain(genesisForkVersion eth2p0.Version) (eth2p0.Domain, er
 }
 
 // GetMessageSigningRoot returns the validator registration message signing root created by the provided parameters.
-func GetMessageSigningRoot(msg *eth2v1.ValidatorRegistration, forkVersion eth2p0.Version) ([32]byte, error) {
+func GetMessageSigningRoot(msg *eth2v1.ValidatorRegistration, genesisForkVersion eth2p0.Version) ([32]byte, error) {
 	msgRoot, err := msg.HashTreeRoot()
 	if err != nil {
 		return [32]byte{}, errors.Wrap(err, "validator registration message root")
 	}
 
-	domain, err := getRegistrationDomain(forkVersion)
+	domain, err := getRegistrationDomain(genesisForkVersion)
 	if err != nil {
 		return [32]byte{}, err
 	}

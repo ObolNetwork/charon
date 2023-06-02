@@ -120,8 +120,10 @@ func TestVerifySignedRegistration(t *testing.T) {
 	err = json.Unmarshal([]byte(registrationJSON), reg)
 	require.NoError(t, err)
 
-	forkVersion := eth2p0.Version{0x00, 0x00, 0x10, 0x20}
-	sigRoot, err := registration.GetMessageSigningRoot(reg.Message, forkVersion)
+	forkVersion, err := eth2util.NetworkToForkVersionBytes("goerli")
+	require.NoError(t, err)
+
+	sigRoot, err := registration.GetMessageSigningRoot(reg.Message, eth2p0.Version(forkVersion))
 	require.NoError(t, err)
 
 	// Verify if given signature corresponds to the message signing root.
