@@ -103,7 +103,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 
 	def, err := NewDefinition("test cluster", dv, k,
 		feeRecipientAddrs, withdrawalAddrs,
-		eth2util.Goerli.ForkVersionHex, creator, ops, random, opts...)
+		eth2util.Goerli.GenesisForkVersionHex, creator, ops, random, opts...)
 	require.NoError(t, err)
 
 	// Definition version prior to v1.3.0 don't support EIP712 signatures.

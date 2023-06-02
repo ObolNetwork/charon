@@ -19,36 +19,36 @@ type Network struct {
 	ChainID int64
 	// Name represents name of the network.
 	Name string
-	// ForkVersionHex represents fork version of the network in hex.
-	ForkVersionHex string
+	// GenesisForkVersionHex represents fork version of the network in hex.
+	GenesisForkVersionHex string
 	// GenesisTimestamp represents genesis timestamp of the network in unix format
 	GenesisTimestamp int64
 }
 
 var (
 	Mainnet = Network{
-		ChainID:          1,
-		Name:             "mainnet",
-		ForkVersionHex:   "0x00000000",
-		GenesisTimestamp: 1606824023,
+		ChainID:               1,
+		Name:                  "mainnet",
+		GenesisForkVersionHex: "0x00000000",
+		GenesisTimestamp:      1606824023,
 	}
 	Goerli = Network{
-		ChainID:          5,
-		Name:             "goerli",
-		ForkVersionHex:   "0x00001020",
-		GenesisTimestamp: 1616508000,
+		ChainID:               5,
+		Name:                  "goerli",
+		GenesisForkVersionHex: "0x00001020",
+		GenesisTimestamp:      1616508000,
 	}
 	Gnosis = Network{
-		ChainID:          100,
-		Name:             "gnosis",
-		ForkVersionHex:   "0x00000064",
-		GenesisTimestamp: 1638993340,
+		ChainID:               100,
+		Name:                  "gnosis",
+		GenesisForkVersionHex: "0x00000064",
+		GenesisTimestamp:      1638993340,
 	}
 	Sepolia = Network{
-		ChainID:          11155111,
-		Name:             "sepolia",
-		ForkVersionHex:   "0x90000069",
-		GenesisTimestamp: 1655733600,
+		ChainID:               11155111,
+		Name:                  "sepolia",
+		GenesisForkVersionHex: "0x90000069",
+		GenesisTimestamp:      1655733600,
 	}
 )
 
@@ -59,7 +59,7 @@ var supportedNetworks = []Network{
 // ForkVersionToChainID returns the chainID corresponding to the provided fork version.
 func ForkVersionToChainID(forkVersion []byte) (int64, error) {
 	for _, network := range supportedNetworks {
-		if fmt.Sprintf("%#x", forkVersion) == network.ForkVersionHex {
+		if fmt.Sprintf("%#x", forkVersion) == network.GenesisForkVersionHex {
 			return network.ChainID, nil
 		}
 	}
@@ -70,7 +70,7 @@ func ForkVersionToChainID(forkVersion []byte) (int64, error) {
 // ForkVersionToNetwork returns the network name corresponding to the provided fork version.
 func ForkVersionToNetwork(forkVersion []byte) (string, error) {
 	for _, network := range supportedNetworks {
-		if fmt.Sprintf("%#x", forkVersion) == network.ForkVersionHex {
+		if fmt.Sprintf("%#x", forkVersion) == network.GenesisForkVersionHex {
 			return network.Name, nil
 		}
 	}
@@ -82,7 +82,7 @@ func ForkVersionToNetwork(forkVersion []byte) (string, error) {
 func NetworkToForkVersion(name string) (string, error) {
 	for _, network := range supportedNetworks {
 		if name == network.Name {
-			return network.ForkVersionHex, nil
+			return network.GenesisForkVersionHex, nil
 		}
 	}
 
@@ -127,7 +127,7 @@ func NetworkToGenesisTime(name string) (time.Time, error) {
 
 func ForkVersionToGenesisTime(forkVersion []byte) (time.Time, error) {
 	for _, network := range supportedNetworks {
-		if fmt.Sprintf("%#x", forkVersion) == network.ForkVersionHex {
+		if fmt.Sprintf("%#x", forkVersion) == network.GenesisForkVersionHex {
 			return time.Unix(network.GenesisTimestamp, 0).UTC(), nil
 		}
 	}
