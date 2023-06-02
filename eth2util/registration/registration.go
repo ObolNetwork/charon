@@ -64,8 +64,8 @@ func executionAddressFromStr(addr string) ([20]byte, error) {
 // - https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#compute_domain
 func getRegistrationDomain(genesisForkVersion []byte) (eth2p0.Domain, error) {
 	forkData := &eth2p0.ForkData{
-		CurrentVersion:        eth2p0.Version(genesisForkVersion), // CurrentVersion is zero for validator registration,
-		GenesisValidatorsRoot: eth2p0.Root{},                      // GenesisValidatorsRoot is zero for validator registration.
+		CurrentVersion:        eth2p0.Version(genesisForkVersion),
+		GenesisValidatorsRoot: eth2p0.Root{}, // GenesisValidatorsRoot is zero for validator registration.
 	}
 
 	root, err := forkData.HashTreeRoot()
