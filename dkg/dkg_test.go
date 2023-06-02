@@ -328,7 +328,7 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 				uint64(val.BuilderRegistration.Message.GasLimit), val.BuilderRegistration.Message.Timestamp)
 			require.NoError(t, err)
 
-			sigRoot, err := registration.GetMessageSigningRoot(eth2Reg)
+			sigRoot, err := registration.GetMessageSigningRoot(eth2Reg, eth2p0.Version(lock.ForkVersion))
 			require.NoError(t, err)
 
 			sig, err := tblsconv.SignatureFromBytes(val.BuilderRegistration.Signature)

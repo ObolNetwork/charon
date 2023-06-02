@@ -65,7 +65,7 @@ func TestEncode(t *testing.T) {
 				threshold,
 				feeRecipientAddrs,
 				withdrawalAddrs,
-				eth2util.Sepolia.ForkVersionHex,
+				eth2util.Sepolia.GenesisForkVersionHex,
 				cluster.Creator{
 					Address:         testutil.RandomETHAddress(),
 					ConfigSignature: testutil.RandomSecp256k1Signature(),

@@ -227,7 +227,7 @@ func (l Lock) verifyBuilderRegistrations() error {
 			return err
 		}
 
-		sigRoot, err := registration.GetMessageSigningRoot(regMsg)
+		sigRoot, err := registration.GetMessageSigningRoot(regMsg, eth2p0.Version(l.ForkVersion))
 		if err != nil {
 			return err
 		}

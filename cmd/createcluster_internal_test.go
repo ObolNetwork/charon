@@ -235,7 +235,7 @@ func TestValidateDef(t *testing.T) {
 
 	t.Run("zero address", func(t *testing.T) {
 		def := definition
-		gnosis, err := hex.DecodeString(strings.TrimPrefix(eth2util.Gnosis.ForkVersionHex, "0x"))
+		gnosis, err := hex.DecodeString(strings.TrimPrefix(eth2util.Gnosis.GenesisForkVersionHex, "0x"))
 		require.NoError(t, err)
 		def.ForkVersion = gnosis
 
@@ -248,7 +248,7 @@ func TestValidateDef(t *testing.T) {
 		err = validateDef(ctx, false, conf.KeymanagerAddrs, def)
 		require.NoError(t, err)
 
-		mainnet, err := hex.DecodeString(strings.TrimPrefix(eth2util.Mainnet.ForkVersionHex, "0x"))
+		mainnet, err := hex.DecodeString(strings.TrimPrefix(eth2util.Mainnet.GenesisForkVersionHex, "0x"))
 		require.NoError(t, err)
 		def.ForkVersion = mainnet
 

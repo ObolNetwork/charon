@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"testing"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 
@@ -102,7 +103,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 
 	def, err := NewDefinition("test cluster", dv, k,
 		feeRecipientAddrs, withdrawalAddrs,
-		eth2util.Goerli.ForkVersionHex, creator, ops, random, opts...)
+		eth2util.Goerli.GenesisForkVersionHex, creator, ops, random, opts...)
 	require.NoError(t, err)
 
 	// Definition version prior to v1.3.0 don't support EIP712 signatures.
@@ -150,7 +151,12 @@ func getSignedRegistration(t *testing.T, secret tbls.PrivateKey, feeRecipientAdd
 	msg, err := registration.NewMessage(eth2pubkey, feeRecipientAddr, registration.DefaultGasLimit, timestamp)
 	require.NoError(t, err)
 
-	sigRoot, err := registration.GetMessageSigningRoot(msg)
+	forkVersion, err := eth2util.NetworkToForkVersionBytes(network)
+	require.NoError(t, err)
+
+	require.Len(t, forkVersion, 4)
+
+	sigRoot, err := registration.GetMessageSigningRoot(msg, eth2p0.Version(forkVersion))
 	require.NoError(t, err)
 
 	sig, err := tbls.Sign(secret, sigRoot[:])

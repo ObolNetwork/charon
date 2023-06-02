@@ -18,7 +18,7 @@ var (
 )
 
 func TestForkVersionToChainID(t *testing.T) {
-	gnosisForkVersion, err := hex.DecodeString(strings.TrimPrefix(eth2util.Gnosis.ForkVersionHex, "0x"))
+	gnosisForkVersion, err := hex.DecodeString(strings.TrimPrefix(eth2util.Gnosis.GenesisForkVersionHex, "0x"))
 	require.NoError(t, err)
 
 	chainID, err := eth2util.ForkVersionToChainID(gnosisForkVersion)
@@ -32,7 +32,7 @@ func TestForkVersionToChainID(t *testing.T) {
 }
 
 func TestForkVersionToNetwork(t *testing.T) {
-	sepoliaForkVersion, err := hex.DecodeString(strings.TrimPrefix(eth2util.Sepolia.ForkVersionHex, "0x"))
+	sepoliaForkVersion, err := hex.DecodeString(strings.TrimPrefix(eth2util.Sepolia.GenesisForkVersionHex, "0x"))
 	require.NoError(t, err)
 
 	network, err := eth2util.ForkVersionToNetwork(sepoliaForkVersion)
@@ -48,7 +48,7 @@ func TestForkVersionToNetwork(t *testing.T) {
 func TestNetworkToForkVersion(t *testing.T) {
 	fv, err := eth2util.NetworkToForkVersion(eth2util.Sepolia.Name)
 	require.NoError(t, err)
-	require.Equal(t, fv, eth2util.Sepolia.ForkVersionHex)
+	require.Equal(t, fv, eth2util.Sepolia.GenesisForkVersionHex)
 
 	fv, err = eth2util.NetworkToForkVersion(invalidNetwork)
 	require.Error(t, err)
@@ -57,7 +57,7 @@ func TestNetworkToForkVersion(t *testing.T) {
 }
 
 func TestNetworkToForkVersionBytes(t *testing.T) {
-	sepoliaForkVersion, err := hex.DecodeString(strings.TrimPrefix(eth2util.Sepolia.ForkVersionHex, "0x"))
+	sepoliaForkVersion, err := hex.DecodeString(strings.TrimPrefix(eth2util.Sepolia.GenesisForkVersionHex, "0x"))
 	require.NoError(t, err)
 
 	fv, err := eth2util.NetworkToForkVersionBytes(eth2util.Sepolia.Name)
