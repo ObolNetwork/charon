@@ -150,7 +150,10 @@ func getSignedRegistration(t *testing.T, secret tbls.PrivateKey, feeRecipientAdd
 	msg, err := registration.NewMessage(eth2pubkey, feeRecipientAddr, registration.DefaultGasLimit, timestamp)
 	require.NoError(t, err)
 
-	sigRoot, err := registration.GetMessageSigningRoot(msg)
+	forkVersion, err := eth2util.NetworkToForkVersionBytes(network)
+	require.NoError(t, err)
+
+	sigRoot, err := registration.GetMessageSigningRoot(msg, forkVersion)
 	require.NoError(t, err)
 
 	sig, err := tbls.Sign(secret, sigRoot[:])

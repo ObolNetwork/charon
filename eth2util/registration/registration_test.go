@@ -10,6 +10,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/registration"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -71,7 +72,10 @@ func TestGetMessageSigningRoot(t *testing.T) {
 		},
 	}
 
-	res, err := registration.GetMessageSigningRoot(msg)
+	forkVersion, err := eth2util.NetworkToForkVersionBytes(eth2util.Goerli.Name)
+	require.NoError(t, err)
+
+	res, err := registration.GetMessageSigningRoot(msg, forkVersion)
 	require.NoError(t, err)
 	require.NotEmpty(t, res)
 	require.Len(t, res, 32)

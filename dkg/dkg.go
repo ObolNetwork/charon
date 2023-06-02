@@ -249,7 +249,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		def.FeeRecipientAddresses(),
 		registration.DefaultGasLimit,
 		nodeIdx,
-		network,
+		def.ForkVersion,
 	)
 	if err != nil {
 		return errors.Wrap(err, "builder validator registrations pre-generation")
@@ -544,9 +544,9 @@ func signAndAggValidatorRegistrations(
 	feeRecipients []string,
 	gasLimit uint64,
 	nodeIdx cluster.NodeIdx,
-	network string,
+	forkVersion []byte,
 ) ([]core.VersionedSignedValidatorRegistration, error) {
-	parSig, valRegs, err := signValidatorRegistrations(shares, nodeIdx.ShareIdx, feeRecipients, gasLimit, network)
+	parSig, valRegs, err := signValidatorRegistrations(shares, nodeIdx.ShareIdx, feeRecipients, gasLimit, forkVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -556,7 +556,7 @@ func signAndAggValidatorRegistrations(
 		return nil, err
 	}
 
-	return aggValidatorRegistrations(peerSigs, shares, valRegs)
+	return aggValidatorRegistrations(peerSigs, shares, valRegs, forkVersion)
 }
 
 // aggLockHashSig returns the aggregated multi signature of the lock hash
@@ -674,7 +674,7 @@ func signDepositMsgs(shares []share, shareIdx int, withdrawalAddresses []string,
 }
 
 // signValidatorRegistrations returns a partially signed dataset containing signatures of the validator registrations signing root.
-func signValidatorRegistrations(shares []share, shareIdx int, feeRecipients []string, gasLimit uint64, network string) (core.ParSignedDataSet, map[core.PubKey]core.VersionedSignedValidatorRegistration, error) {
+func signValidatorRegistrations(shares []share, shareIdx int, feeRecipients []string, gasLimit uint64, forkVersion []byte) (core.ParSignedDataSet, map[core.PubKey]core.VersionedSignedValidatorRegistration, error) {
 	msgs := make(map[core.PubKey]core.VersionedSignedValidatorRegistration)
 	set := make(core.ParSignedDataSet)
 	for idx, share := range shares {
@@ -683,7 +683,7 @@ func signValidatorRegistrations(shares []share, shareIdx int, feeRecipients []st
 			return nil, nil, err
 		}
 
-		timestamp, err := eth2util.NetworkToGenesisTime(network)
+		timestamp, err := eth2util.ForkVersionToGenesisTime(forkVersion)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -693,7 +693,7 @@ func signValidatorRegistrations(shares []share, shareIdx int, feeRecipients []st
 			return nil, nil, err
 		}
 
-		sigRoot, err := registration.GetMessageSigningRoot(regMsg)
+		sigRoot, err := registration.GetMessageSigningRoot(regMsg, forkVersion)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -812,6 +812,7 @@ func aggValidatorRegistrations(
 	data map[core.PubKey][]core.ParSignedData,
 	shares []share,
 	msgs map[core.PubKey]core.VersionedSignedValidatorRegistration,
+	forkVersion []byte,
 ) ([]core.VersionedSignedValidatorRegistration, error) {
 	pubkeyToPubShares := make(map[core.PubKey]map[int]tbls.PublicKey)
 	for _, sh := range shares {
@@ -833,7 +834,7 @@ func aggValidatorRegistrations(
 		if !ok {
 			return nil, errors.New("validator registration not found")
 		}
-		sigRoot, err := registration.GetMessageSigningRoot(msg.V1.Message)
+		sigRoot, err := registration.GetMessageSigningRoot(msg.V1.Message, forkVersion)
 		if err != nil {
 			return nil, err
 		}
