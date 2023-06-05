@@ -5,17 +5,15 @@ RUN apt-get update && apt-get install -y build-essential git
 # Prep and copy source
 WORKDIR /app/charon
 COPY . .
-# Populate GO_BUILD_FLAGS_1 or _2 with build args to override build flags.
-ARG GO_BUILD_FLAGS_1
-ARG GO_BUILD_FLAGS_2
-ENV GO_BUILD_FLAGS_1=${GO_BUILD_FLAGS_1}
-ENV GO_BUILD_FLAGS_2=${GO_BUILD_FLAGS_2}
-RUN echo "Building with GO_BUILD_FLAGS_1=${GO_BUILD_FLAGS_1} GO_BUILD_FLAGS_2=${GO_BUILD_FLAGS_2}"
+# Populate GO_BUILD_FLAG with a build arg to provide a optional go build flag.
+ARG GO_BUILD_FLAG
+ENV GO_BUILD_FLAG=${GO_BUILD_FLAG}
+RUN echo "Building with GO_BUILD_FLAG='${GO_BUILD_FLAG}'"
 # Build with Go module and Go build caches.
 RUN \
    --mount=type=cache,target=/go/pkg \
    --mount=type=cache,target=/root/.cache/go-build \
-   go build -o charon "${GO_BUILD_FLAGS_1}" "${GO_BUILD_FLAGS_2}" .
+   go build -o charon "${GO_BUILD_FLAG}" .
 RUN echo "Built charon version=$(./charon version)"
 
 # Copy final binary into light stage.
