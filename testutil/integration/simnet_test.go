@@ -49,13 +49,14 @@ func TestSimnetDuties(t *testing.T) {
 	skipIfDisabled(t)
 
 	tests := []struct {
-		name                string
-		scheduledType       core.DutyType
-		duties              []core.DutyType
-		builderAPI          bool
-		builderRegistration bool
-		exit                bool
-		vcType              vcType
+		name               string
+		scheduledType      core.DutyType
+		duties             []core.DutyType
+		builderAPI         bool
+		tekuRegistration   bool
+		pregenRegistration bool
+		exit               bool
+		vcType             vcType
 	}{
 		{
 			name:          "attester with mock VCs",
@@ -96,18 +97,17 @@ func TestSimnetDuties(t *testing.T) {
 			vcType:        vcTeku,
 		},
 		{
-			name:                "builder registration with mock VCs",
-			duties:              []core.DutyType{core.DutyBuilderRegistration},
-			builderRegistration: true,
-			builderAPI:          true,
-			vcType:              vcVmock,
+			name:       "builder registration with mock VCs",
+			duties:     []core.DutyType{core.DutyBuilderRegistration},
+			builderAPI: true,
+			vcType:     vcVmock,
 		},
 		{
-			name:                "builder registration with teku",
-			duties:              []core.DutyType{core.DutyBuilderRegistration},
-			builderRegistration: true,
-			builderAPI:          true,
-			vcType:              vcTeku,
+			name:             "builder registration with teku",
+			duties:           []core.DutyType{core.DutyBuilderRegistration},
+			tekuRegistration: true,
+			builderAPI:       true,
+			vcType:           vcTeku,
 		},
 		{
 			name:          "sync committee with mock VCs",
@@ -128,9 +128,10 @@ func TestSimnetDuties(t *testing.T) {
 			vcType: vcTeku,
 		},
 		{
-			name:       "pre-generate registrations",
-			duties:     []core.DutyType{core.DutyBuilderRegistration},
-			builderAPI: true,
+			name:               "pre-generate registrations",
+			duties:             []core.DutyType{core.DutyBuilderRegistration},
+			builderAPI:         true,
+			pregenRegistration: true,
 		},
 	}
 
@@ -139,7 +140,7 @@ func TestSimnetDuties(t *testing.T) {
 			t.Logf("Running test: %v", t.Name())
 
 			args := newSimnetArgs(t)
-			args.BuilderRegistration = test.builderRegistration
+			args.TekuRegistration = test.tekuRegistration
 			args.BuilderAPI = test.builderAPI
 			args.VoluntaryExit = test.exit
 
@@ -170,6 +171,10 @@ func TestSimnetDuties(t *testing.T) {
 				args.BMockOpts = append(args.BMockOpts, beaconmock.WithDeterministicSyncCommDuties(2, 2))
 			}
 
+			if !test.pregenRegistration {
+				featureset.DisableForT(t, featureset.PreGenRegistrations)
+			}
+
 			expect := newSimnetExpect(args.N, test.duties...)
 			testSimnet(t, args, expect)
 		})
@@ -177,18 +182,18 @@ func TestSimnetDuties(t *testing.T) {
 }
 
 type simnetArgs struct {
-	N                   int
-	VMocks              bool
-	VAPIAddrs           []string
-	P2PKeys             []*k1.PrivateKey
-	SimnetKeys          []tbls.PrivateKey
-	BMockOpts           []beaconmock.Option
-	Lock                cluster.Lock
-	ErrChan             chan error
-	BuilderAPI          bool
-	BuilderRegistration bool
-	SyntheticProposals  bool
-	VoluntaryExit       bool
+	N                  int
+	VMocks             bool
+	VAPIAddrs          []string
+	P2PKeys            []*k1.PrivateKey
+	SimnetKeys         []tbls.PrivateKey
+	BMockOpts          []beaconmock.Option
+	Lock               cluster.Lock
+	ErrChan            chan error
+	BuilderAPI         bool
+	TekuRegistration   bool
+	SyntheticProposals bool
+	VoluntaryExit      bool
 }
 
 // newSimnetArgs defines the default simnet test args.
@@ -431,7 +436,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 		fmt.Sprintf("--beacon-node-api-endpoint=http://%s", args.VAPIAddrs[node]),
 	)
 
-	if args.BuilderRegistration {
+	if args.TekuRegistration {
 		tekuArgs = append(tekuArgs,
 			"--validators-proposer-config-refresh-enabled=true",
 			fmt.Sprintf("--validators-proposer-config=http://%s/teku_proposer_config", args.VAPIAddrs[node]),
