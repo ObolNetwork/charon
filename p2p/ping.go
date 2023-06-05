@@ -79,50 +79,53 @@ func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID, callback fu
 	}
 }
 
-// pingPeerOnce starts a long lived ping connection with the peer and returns on first error.
+// pingPeerOnce starts a long-lived ping connection with the peer and returns on first error.
 func pingPeerOnce(ctx context.Context, svc *ping.PingService, p peer.ID,
 	logFunc func(context.Context, ping.Result), callback func(peer.ID, host.Host),
 ) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	// newPingChan creates a new stream and returns the ping result channel to listen for results
 	// and a close function to close the stream.
 	// Note: The only way to close a stream opened by ping service is to cancel the context.
-	newPingChan := func() (<-chan ping.Result, func()) {
-		pingCtx, pingCancel := context.WithCancel(ctx)
+	newPingChan := func(parentCtx context.Context) (<-chan ping.Result, func()) {
+		pingCtx, pingCancel := context.WithCancel(parentCtx)
 
 		return svc.Ping(pingCtx, p), pingCancel
 	}
 
-	for {
+	pingLifecycle := func(parentCtx context.Context) bool {
 		// Create new stream to use the "best" connection for next ping.
-		pingChan, pingCloseFunc := newPingChan()
+		pingChan, pingCloseFunc := newPingChan(parentCtx)
+		defer pingCloseFunc()
 
 		select {
-		case <-ctx.Done():
-			return
+		case <-parentCtx.Done():
+			return true
 		case result := <-pingChan: // Only ping once to always use "best" connection.
 			if IsRelayError(result.Error) || errors.Is(result.Error, context.Canceled) {
 				// Just exit if relay error or context cancelled.
-				return
+				return true
 			}
 
-			logFunc(ctx, result)
+			logFunc(parentCtx, result)
 
 			if result.Error != nil {
 				incPingError(p)
 				// Manually exit on first error since some error (like resource scoped closed)
 				// result in ping just hanging.
-				return
+				return true
 			}
 
 			observePing(p, result.RTT)
 			callback(p, svc.Host)
 		}
 
-		// Signal ping service to close the existing stream to avoid having orphaned streams.
-		pingCloseFunc()
+		return false
+	}
+
+	for {
+		if pingLifecycle(ctx) {
+			return
+		}
 	}
 }
 
