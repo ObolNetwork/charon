@@ -331,6 +331,7 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 						peerConnGauge.WithLabelValues(key.PeerName, key.Type).Set(float64(counts[key]))
 					}
 				}
+				// TODO(gsora): remove this once we fix the stream leak issue
 				for key, amount := range streams {
 					peerStreamGauge.WithLabelValues(key.PeerName, key.Type, key.Protocol).Set(float64(amount))
 				}
