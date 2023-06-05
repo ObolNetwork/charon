@@ -6,15 +6,29 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/state"
+	"github.com/obolnetwork/charon/testutil"
+)
+
+const (
+	feeRecipientAddr = "0x0000000000000000000000000000000000000000"
+	enrPrivKeyFile   = ".charon/charon-enr-private-key"
 )
 
 func TestValidateConfigAddValidators(t *testing.T) {
-	const feeRecipientAddr = "0x0000000000000000000000000000000000000000"
+	_, record := testutil.RandomENR(t, 1)
+	op := state.Operator{
+		Address: testutil.RandomETHAddress(),
+		ENR:     record.String(),
+	}
 
 	tests := []struct {
-		name   string
-		conf   addValidatorsConfig
-		errMsg string
+		name      string
+		conf      addValidatorsConfig
+		operators []state.Operator
+		errMsg    string
 	}{
 		{
 			name: "insufficient validators",
@@ -50,6 +64,17 @@ func TestValidateConfigAddValidators(t *testing.T) {
 			errMsg: "fee recipient and withdrawal addresses lengths mismatch",
 		},
 		{
+			name: "insufficient enr private key files",
+			conf: addValidatorsConfig{
+				NumVals:           1,
+				WithdrawalAddrs:   []string{feeRecipientAddr},
+				FeeRecipientAddrs: []string{feeRecipientAddr},
+				EnrPrivKeyfiles:   []string{enrPrivKeyFile},
+			},
+			operators: []state.Operator{op, op},
+			errMsg:    "insufficient enr private key files",
+		},
+		{
 			name: "single addr for all validators",
 			conf: addValidatorsConfig{
 				NumVals:           2,
@@ -78,7 +103,7 @@ func TestValidateConfigAddValidators(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateConf(tt.conf)
+			err := validateConf(tt.conf, tt.operators)
 			if tt.errMsg != "" {
 				require.Equal(t, tt.errMsg, err.Error())
 			} else {
@@ -86,4 +111,23 @@ func TestValidateConfigAddValidators(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TODO(xenowits): Add more extensive tests, this is just a very simple unit test.
+func TestRunAddValidators(t *testing.T) {
+	const n = 3
+	lock, p2pKeys, _ := cluster.NewForT(t, 1, n, n, 0)
+
+	conf := addValidatorsConfig{
+		NumVals:           1,
+		WithdrawalAddrs:   []string{feeRecipientAddr},
+		FeeRecipientAddrs: []string{feeRecipientAddr},
+		TestConfig: TestConfig{
+			Lock:    &lock,
+			P2PKeys: p2pKeys,
+		},
+	}
+
+	err := runAddValidatorsSolo(conf)
+	require.NoError(t, err)
 }
