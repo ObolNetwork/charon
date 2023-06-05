@@ -54,14 +54,16 @@ jobs:
 
     - name: Maybe overwrite app/version.Version with git tag
       if: github.ref_type == 'tag'
-      run: echo 'GO_BUILD_FLAGS=-ldflags=-X github.com/obolnetwork/charon/app/version.Version=${{ github.ref_name }}' >> $GITHUB_ENV
+      run: |
+        echo 'GO_BUILD_FLAGS_1=-a' >> $GITHUB_ENV
+        echo 'GO_BUILD_FLAGS_2=-ldflags=-X github.com/obolnetwork/charon/app/version.Version=${{ github.ref_name }}' >> $GITHUB_ENV
 
     - uses: docker/build-push-action@v4
       with:
         context: .
         platforms: linux/amd64,linux/arm64
         push: true
-        build-args: GITHUB_SHA=${{ github.sha }} GO_BUILD_FLAGS=${{ env.GO_BUILD_FLAGS }}
+        build-args: GITHUB_SHA=${{ github.sha }} GO_BUILD_FLAGS_1=${{ env.GO_BUILD_FLAGS_1 }} GO_BUILD_FLAGS_2=${{ env.GO_BUILD_FLAGS_2 }}
         tags: ${{ steps.meta.outputs.tags }}
 
     - name: Set short git commit SHA
