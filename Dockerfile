@@ -8,6 +8,8 @@ COPY . .
 # Populate GO_BUILD_FLAGS_1 or _2 with build args to override build flags.
 ARG GO_BUILD_FLAGS_1
 ARG GO_BUILD_FLAGS_2
+ENV GO_BUILD_FLAGS_1=${GO_BUILD_FLAGS_1}
+ENV GO_BUILD_FLAGS_2=${GO_BUILD_FLAGS_2}
 RUN echo "Building with GO_BUILD_FLAGS_1=${GO_BUILD_FLAGS_1} GO_BUILD_FLAGS_2=${GO_BUILD_FLAGS_2}"
 # Build with Go module and Go build caches.
 RUN \
