@@ -302,14 +302,32 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 			case <-ticker.C:
 				// Instrument connection counts.
 				counts := make(map[connKey]int)
+				streams := make(map[connKey]int)
+
 				for _, conn := range tcpNode.Network().Conns() {
-					key := connKey{PeerName: PeerName(conn.RemotePeer()), Type: addrType(conn.RemoteMultiaddr())}
+					p := PeerName(conn.RemotePeer())
+					key := connKey{PeerName: p, Type: addrType(conn.RemoteMultiaddr())}
 					counts[key]++
+
+					for _, stream := range conn.GetStreams() {
+						dir := stream.Stat().Direction.String()
+						sKey := connKey{PeerName: p, Type: dir}
+						streams[sKey]++
+					}
 				}
 				for _, pID := range peerIDs {
 					for _, typ := range []string{addrTypeRelay, addrTypeDirect} {
 						key := connKey{PeerName: PeerName(pID), Type: typ}
 						peerConnGauge.WithLabelValues(key.PeerName, key.Type).Set(float64(counts[key]))
+					}
+
+					for _, dir := range []network.Direction{network.DirInbound, network.DirOutbound, network.DirUnknown} {
+						key := connKey{PeerName: PeerName(pID), Type: dir.String()}
+						count, ok := streams[key]
+						if !ok {
+							continue
+						}
+						peerStreamGauge.WithLabelValues(key.PeerName, key.Type).Set(float64(count))
 					}
 				}
 			case e := <-events:
