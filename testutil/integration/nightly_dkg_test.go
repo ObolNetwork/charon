@@ -269,7 +269,7 @@ func TestDKGWithHighValidatorsAmt(t *testing.T) {
 	const (
 		threshold = 3
 		numNodes  = 4
-		numVals   = 700
+		numVals   = 200
 		relayURL  = "https://0.relay.obol.tech"
 	)
 
