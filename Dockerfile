@@ -12,7 +12,7 @@ RUN \
    --mount=type=cache,target=/go/pkg \
    --mount=type=cache,target=/root/.cache/go-build \
    go build -o charon "${GO_BUILD_FLAGS}" .
-RUN echo "Built charon version=$(./charon version )"
+RUN echo "Built charon version=$(./charon version)"
 
 # Copy final binary into light stage.
 FROM debian:bullseye-slim
