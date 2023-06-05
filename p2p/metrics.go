@@ -60,7 +60,7 @@ var (
 		Namespace: "p2p",
 		Name:      "peer_streams",
 		Help:      "Current number of libp2p streams by peer and direction ('inbound' or 'outbound' or 'unknown').",
-	}, []string{"peer", "direction"})
+	}, []string{"peer", "direction", "protocol"})
 
 	peerConnCounter = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "p2p",
