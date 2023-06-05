@@ -276,9 +276,9 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 		Type     string
 	}
 
-	type streamValue struct {
+	type streamKey struct {
+		connKey
 		Protocol string
-		Amount   int
 	}
 
 	var (
@@ -307,7 +307,7 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 			case <-ticker.C:
 				// Instrument connection counts.
 				counts := make(map[connKey]int)
-				streams := make(map[connKey]streamValue)
+				streams := make(map[streamKey]int)
 
 				for _, conn := range tcpNode.Network().Conns() {
 					p := PeerName(conn.RemotePeer())
@@ -317,11 +317,12 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 					for _, stream := range conn.GetStreams() {
 						dir := stream.Stat().Direction.String()
 						protocol := stream.Protocol()
-						sKey := connKey{PeerName: p, Type: dir}
-						sv := streams[sKey]
-						sv.Amount++
-						sv.Protocol = string(protocol)
-						streams[sKey] = sv
+						sKey := streamKey{
+							connKey:  connKey{PeerName: p, Type: dir},
+							Protocol: string(protocol),
+						}
+
+						streams[sKey]++
 					}
 				}
 				for _, pID := range peerIDs {
@@ -329,14 +330,8 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 						key := connKey{PeerName: PeerName(pID), Type: typ}
 						peerConnGauge.WithLabelValues(key.PeerName, key.Type).Set(float64(counts[key]))
 					}
-
-					for _, dir := range []network.Direction{network.DirInbound, network.DirOutbound, network.DirUnknown} {
-						key := connKey{PeerName: PeerName(pID), Type: dir.String()}
-						value, ok := streams[key]
-						if !ok {
-							continue
-						}
-						peerStreamGauge.WithLabelValues(key.PeerName, key.Type, value.Protocol).Set(float64(value.Amount))
+					for key, amount := range streams {
+						peerStreamGauge.WithLabelValues(key.PeerName, key.Type, key.Protocol).Set(float64(amount))
 					}
 				}
 			case e := <-events:
