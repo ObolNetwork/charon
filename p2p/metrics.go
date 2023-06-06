@@ -56,6 +56,13 @@ var (
 		Help:      "Current number of libp2p connections by peer and type ('direct' or 'relay'). Note that peers may have multiple connections.",
 	}, []string{"peer", "type"})
 
+	// TODO(gsora): remove this once we fix the stream leak issue.
+	peerStreamGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "p2p",
+		Name:      "peer_streams",
+		Help:      "Current number of libp2p streams by peer and direction ('inbound' or 'outbound' or 'unknown').",
+	}, []string{"peer", "direction", "protocol"})
+
 	peerConnCounter = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "p2p",
 		Name:      "peer_connection_total",
