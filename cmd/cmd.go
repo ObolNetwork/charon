@@ -44,6 +44,9 @@ func New() *cobra.Command {
 			newCreateClusterCmd(runCreateCluster),
 		),
 		newCombineCmd(newCombineFunc),
+		newAlphaCmd(
+			newAddValidatorsCmd(runAddValidatorsSolo),
+		),
 	)
 }
 
