@@ -225,22 +225,22 @@ func newSimnetArgs(t *testing.T) simnetArgs {
 
 // simnetExpect defines which duties (including how many of each) are expected in simnet tests.
 type simnetExpect struct {
-	mu     sync.Mutex
-	counts map[core.DutyType]int
-	Errs   chan error
+	mu      sync.Mutex
+	actuals map[core.DutyType][]bool
+	Errs    chan error
 }
 
-// Assert tests whether the duty is expected and also updates internal counters.
-func (e *simnetExpect) Assert(t *testing.T, typ core.DutyType) {
+// Assert tests whether the duty is expected for this peer and also updates internal counters.
+func (e *simnetExpect) Assert(t *testing.T, typ core.DutyType, peerIdx int) {
 	t.Helper()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if _, ok := e.counts[typ]; !ok {
+	if _, ok := e.actuals[typ]; !ok {
 		t.Logf("unexpected duty, type=%v", typ)
 		e.Errs <- errors.New("unexpected duty type", z.Any("type", typ))
 	}
-	e.counts[typ]--
-	t.Logf("asserted duty, type=%v, remaining=%d", typ, e.counts[typ])
+	e.actuals[typ][peerIdx] = true
+	t.Logf("asserted duty, type=%v, remaining=%d", typ, remaining(e.actuals[typ]))
 }
 
 // Done returns true if all duties have been asserted sufficient number of times.
@@ -249,9 +249,9 @@ func (e *simnetExpect) Done(t *testing.T) bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	for k, v := range e.counts {
-		if v > 0 {
-			t.Logf("assertion not done yet, duty type=%v, remaining=%d", k, v)
+	for k, v := range e.actuals {
+		if remaining(v) > 0 {
+			t.Logf("assertion not done yet, duty type=%v, remaining=%d", k, remaining(v))
 			return false
 		}
 	}
@@ -260,16 +260,28 @@ func (e *simnetExpect) Done(t *testing.T) bool {
 	return true
 }
 
+// remaining returns the number of falses in slice.
+func remaining(actuals []bool) int {
+	var remaining int
+	for _, actual := range actuals {
+		if !actual {
+			remaining++
+		}
+	}
+
+	return remaining
+}
+
 // newSimnetExpect returns a new simnetExpect with all duties of equal count.
-func newSimnetExpect(count int, duties ...core.DutyType) *simnetExpect {
-	counts := make(map[core.DutyType]int)
+func newSimnetExpect(peers int, duties ...core.DutyType) *simnetExpect {
+	actuals := make(map[core.DutyType][]bool)
 	for _, duty := range duties {
-		counts[duty] = count
+		actuals[duty] = make([]bool, peers)
 	}
 
 	return &simnetExpect{
-		counts: counts,
-		Errs:   make(chan error, 1),
+		actuals: actuals,
+		Errs:    make(chan error, 1),
 	}
 }
 
@@ -285,9 +297,10 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 	featureConf.Disabled = []string{string(featureset.QBFTConsensus)} // TODO(corver): Add support for in-memory transport to QBFT.
 
 	type simResult struct {
-		Duty   core.Duty
-		Pubkey core.PubKey
-		Data   core.SignedData
+		PeerIdx int
+		Duty    core.Duty
+		Pubkey  core.PubKey
+		Data    core.SignedData
 	}
 
 	var (
@@ -295,6 +308,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 		results = make(chan simResult)
 	)
 	for i := 0; i < args.N; i++ {
+		peerIdx := i
 		conf := app.Config{
 			Log:              log.DefaultConfig(),
 			Feature:          featureConf,
@@ -313,7 +327,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 					select {
 					case <-ctx.Done():
 						return ctx.Err()
-					case results <- simResult{Duty: duty, Pubkey: key, Data: data}:
+					case results <- simResult{Duty: duty, Pubkey: key, Data: data, PeerIdx: peerIdx}:
 						return nil
 					}
 				},
@@ -358,7 +372,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 			}
 
 			// Assert we get results for all types from all peers.
-			expect.Assert(t, res.Duty.Type)
+			expect.Assert(t, res.Duty.Type, res.PeerIdx)
 
 			if expect.Done(t) {
 				cancel()
