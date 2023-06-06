@@ -9,8 +9,8 @@ import (
 func newAlphaCmd(cmds ...*cobra.Command) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "alpha",
-		Short: "Alpha charon subcommands are work-in-progress features that are not released to the users.",
-		Long:  "Alpha charon subcommands are work-in-progress features that are not released to the users. They are future functionalities for a charon distributed cluster.",
+		Short: "Alpha subcommands provide early access to in-development features",
+		Long:  `Alpha subcommands represent features that are currently under development. They're not yet released for general use, but offer a glimpse into future functionalities planned for the distributed cluster system.`,
 	}
 
 	root.AddCommand(cmds...)

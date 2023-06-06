@@ -44,6 +44,7 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 }
 
 func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err error) {
+	// TODO(xenowits): Implement this in next PR, see issue https://github.com/ObolNetwork/charon/issues/1887.
 	return validateConf(conf)
 }
 
