@@ -92,13 +92,13 @@ func TestMarshalUnsignedProto(t *testing.T) {
 
 	seed := time.Now().Unix()
 
-	for _, enabledSSZ := range []bool{true, false} {
+	for _, disableSSZ := range []bool{true, false} {
 		for i, test := range tests {
 			f := testutil.NewEth2Fuzzer(t, seed+int64(i)) // Use the same seed for ssz vs json for each type.
 
-			t.Run(fmt.Sprintf("%T_%v", test.unsignedPtr(), enabledSSZ), func(t *testing.T) {
-				if enabledSSZ {
-					core.EnabledSSZMarshallingForT(t)
+			t.Run(fmt.Sprintf("%T_%v", test.unsignedPtr(), disableSSZ), func(t *testing.T) {
+				if disableSSZ {
+					core.DisableSSZMarshallingForT(t)
 				}
 
 				unsignedPtr := test.unsignedPtr()
@@ -121,7 +121,7 @@ func TestMarshalUnsignedProto(t *testing.T) {
 
 				b, err := proto.Marshal(pb)
 				require.NoError(t, err)
-				if enabledSSZ {
+				if disableSSZ {
 					sszSizes[fmt.Sprintf("%T", unsignedPtr)] = len(b)
 				} else {
 					jsonSizes[fmt.Sprintf("%T", unsignedPtr)] = len(b)
@@ -170,13 +170,13 @@ func TestMarshalParSignedProto(t *testing.T) {
 
 	seed := time.Now().Unix()
 
-	for _, enabledSSZ := range []bool{true, false} {
+	for _, disabledSSZ := range []bool{true, false} {
 		for i, test := range tests {
 			f := testutil.NewEth2Fuzzer(t, seed+int64(i)) // Use the same seed for ssz vs json for each type.
 
-			t.Run(fmt.Sprintf("%T_%v", test.signedPtr(), enabledSSZ), func(t *testing.T) {
-				if enabledSSZ {
-					core.EnabledSSZMarshallingForT(t)
+			t.Run(fmt.Sprintf("%T_%v", test.signedPtr(), disabledSSZ), func(t *testing.T) {
+				if disabledSSZ {
+					core.DisableSSZMarshallingForT(t)
 				}
 
 				signedPtr := test.signedPtr()
@@ -202,7 +202,7 @@ func TestMarshalParSignedProto(t *testing.T) {
 
 				b, err := proto.Marshal(pb)
 				require.NoError(t, err)
-				if enabledSSZ {
+				if disabledSSZ {
 					sszSizes[fmt.Sprintf("%T", signedPtr)] = len(b)
 				} else {
 					jsonSizes[fmt.Sprintf("%T", signedPtr)] = len(b)

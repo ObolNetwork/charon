@@ -13,15 +13,15 @@ import (
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 )
 
-// sszMarshallingEnabled will be enabled in v0.17.
-var sszMarshallingEnabled = false
+// sszMarshallingEnabled is enabled from v0.17.
+var sszMarshallingEnabled = true
 
-// EnabledSSZMarshallingForT enables SSZ marshalling for the duration of the test.
-func EnabledSSZMarshallingForT(t *testing.T) {
+// DisableSSZMarshallingForT disables SSZ marshalling for the duration of the test.
+func DisableSSZMarshallingForT(t *testing.T) {
 	t.Helper()
-	sszMarshallingEnabled = true
+	sszMarshallingEnabled = false
 	t.Cleanup(func() {
-		sszMarshallingEnabled = false
+		sszMarshallingEnabled = true
 	})
 }
 
