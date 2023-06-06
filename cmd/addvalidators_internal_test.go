@@ -50,20 +50,40 @@ func TestValidateConfigAddValidators(t *testing.T) {
 			errMsg: "fee recipient and withdrawal addresses lengths mismatch",
 		},
 		{
-			name: "count and addrs mismatch",
+			name: "single addr for all validators",
 			conf: addValidatorsConfig{
 				NumVals:           2,
 				WithdrawalAddrs:   []string{feeRecipientAddr},
 				FeeRecipientAddrs: []string{feeRecipientAddr},
 			},
+		},
+		{
+			name: "count and addrs mismatch",
+			conf: addValidatorsConfig{
+				NumVals:           2,
+				WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
+				FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
+			},
 			errMsg: "count of validators and addresses mismatch",
+		},
+		{
+			name: "multiple addrs for multiple validators",
+			conf: addValidatorsConfig{
+				NumVals:           2,
+				WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr},
+				FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr},
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateConf(tt.conf)
-			require.Equal(t, tt.errMsg, err.Error())
+			if tt.errMsg != "" {
+				require.Equal(t, tt.errMsg, err.Error())
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }

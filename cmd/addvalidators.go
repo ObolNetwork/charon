@@ -68,11 +68,23 @@ func validateConf(conf addValidatorsConfig) error {
 		)
 	}
 
-	if len(conf.FeeRecipientAddrs) != conf.NumVals {
-		return errors.New("count of validators and addresses mismatch",
-			z.Int("num_addresses", len(conf.FeeRecipientAddrs)),
-			z.Int("num_validators", conf.NumVals),
-		)
+	if conf.NumVals > 1 {
+		// There can be a single address for n validators.
+		if len(conf.FeeRecipientAddrs) == 1 {
+			return nil
+		}
+
+		// Or, there can be n addresses for n validators.
+		if conf.NumVals != len(conf.FeeRecipientAddrs) {
+			return errors.New("count of validators and addresses mismatch", z.Int("num_addresses", len(conf.FeeRecipientAddrs)), z.Int("num_validators", conf.NumVals))
+		}
+
+		return nil
+	}
+
+	// There can only be a single address for a single validator.
+	if len(conf.FeeRecipientAddrs) != 1 {
+		return errors.New("count of validators and addresses mismatch", z.Int("num_addresses", len(conf.FeeRecipientAddrs)), z.Int("num_validators", conf.NumVals))
 	}
 
 	return nil
