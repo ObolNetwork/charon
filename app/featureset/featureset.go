@@ -42,16 +42,21 @@ const (
 	// QBFTTimersABTest enables a round-robin mixed timer selection for A/B testing
 	// the affects of different round timers.
 	QBFTTimersABTest Feature = "qbft_timers_ab_test"
+
+	// PreGenRegistrations enables broadcasting of pre-generated registrations if present in the lock file
+	// and --builder-api=true.
+	PreGenRegistrations Feature = "pre_gen_registrations"
 )
 
 var (
 	// state defines the current rollout status of each feature.
 	state = map[Feature]status{
-		QBFTConsensus:    statusStable,
-		Priority:         statusStable,
-		MockAlpha:        statusAlpha,
-		RelayDiscovery:   statusStable,
-		QBFTTimersABTest: statusAlpha,
+		QBFTConsensus:       statusStable,
+		Priority:            statusStable,
+		MockAlpha:           statusAlpha,
+		RelayDiscovery:      statusStable,
+		QBFTTimersABTest:    statusAlpha,
+		PreGenRegistrations: statusStable,
 		// Add all features and there status here.
 	}
 

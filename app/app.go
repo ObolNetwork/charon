@@ -464,7 +464,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	if err = wireRecaster(ctx, eth2Cl, sched, sigAgg, broadcaster, cState.Validators, conf.BuilderAPI, conf.TestConfig.BroadcastCallback); err != nil {
+	if err = wireRecaster(ctx, eth2Cl, sched, sigAgg, broadcaster, cState.Validators,
+		conf.BuilderAPI, conf.TestConfig.BroadcastCallback); err != nil {
 		return errors.Wrap(err, "wire recaster")
 	}
 
@@ -574,7 +575,7 @@ func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Schedu
 		recaster.Subscribe(callback)
 	}
 
-	if !builderAPI {
+	if !builderAPI || !featureset.Enabled(featureset.PreGenRegistrations) {
 		return nil
 	}
 
