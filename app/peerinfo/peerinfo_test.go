@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/peerinfo"
+	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -23,26 +24,26 @@ func TestPeerInfo(t *testing.T) {
 	const gitCommit = "1234567"
 
 	nodes := []struct {
-		Version  string
+		Version  version.SemVer
 		LockHash []byte
 		Offset   time.Duration
 		Ignore   bool
 	}{
 		{
-			Version:  "local",
+			Version:  version.Supported()[0],
 			LockHash: []byte("abcdef"),
 		},
 		{
-			Version:  "ok",
+			Version:  version.Supported()[0],
 			LockHash: []byte("abcdef"),
 		},
 		{
-			Version:  "nok",
+			Version:  version.Supported()[1],
 			LockHash: []byte("000000"),
 			Offset:   time.Minute,
 		},
 		{
-			Version: "ignored",
+			Version: semver(t, "v0.0"),
 			Ignore:  true,
 		},
 	}
@@ -106,7 +107,7 @@ func TestPeerInfo(t *testing.T) {
 						continue
 					}
 					node := nodes[i]
-					require.Equal(t, node.Version, version)
+					require.Equal(t, node.Version.String(), version)
 					require.Equal(t, gitCommit, gitHash)
 					require.Equal(t, nowFunc(i)().Unix(), startTime.Unix())
 
@@ -138,4 +139,13 @@ func TestPeerInfo(t *testing.T) {
 
 	<-ctx.Done()
 	cancel()
+}
+
+func semver(t *testing.T, v string) version.SemVer {
+	t.Helper()
+
+	sv, err := version.Parse(v)
+	require.NoError(t, err)
+
+	return sv
 }

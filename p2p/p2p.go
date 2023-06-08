@@ -67,7 +67,7 @@ func NewTCPNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater C
 		// Set TCP listen addresses.
 		libp2p.ListenAddrs(addrs...),
 		// Set up user-agent.
-		libp2p.UserAgent("obolnetwork-charon/" + version.Version),
+		libp2p.UserAgent("obolnetwork-charon/" + version.Version.String()),
 		// Limit connections to DV peers.
 		libp2p.ConnectionGater(connGater),
 		// Enable Autonat (required for hole punching)

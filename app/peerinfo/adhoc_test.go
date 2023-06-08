@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/peerinfo"
+	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -21,16 +22,16 @@ func TestDoOnce(t *testing.T) {
 
 	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
 
-	version := "v0"
+	vers := version.Version
 	lockHash := []byte("123")
 	gitHash := "abc"
 	// Register the server handler that either
-	_ = peerinfo.New(server, []peer.ID{server.ID(), client.ID()}, version, lockHash, gitHash, p2p.SendReceive)
+	_ = peerinfo.New(server, []peer.ID{server.ID(), client.ID()}, vers, lockHash, gitHash, p2p.SendReceive)
 
 	info, _, ok, err := peerinfo.DoOnce(context.Background(), client, server.ID())
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.Equal(t, version, info.CharonVersion)
+	require.Equal(t, vers.String(), info.CharonVersion)
 	require.Equal(t, gitHash, info.GitHash)
 	require.Equal(t, lockHash, info.LockHash)
 }

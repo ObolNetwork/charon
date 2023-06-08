@@ -3,6 +3,7 @@
 package version_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -10,47 +11,66 @@ import (
 	"github.com/obolnetwork/charon/app/version"
 )
 
-func TestMinor(t *testing.T) {
-	minor, err := version.Minor("v0.1.2")
-	require.NoError(t, err)
-	require.Equal(t, "v0.1", minor)
-
-	minor, err = version.Minor("1.2.3")
-	require.NoError(t, err)
-	require.Equal(t, "1.2", minor)
-
-	minor, err = version.Minor("version 1000.2000.3000")
-	require.NoError(t, err)
-	require.Equal(t, "version 1000.2000", minor)
-
-	minor, err = version.Minor("v0.1")
-	require.NoError(t, err)
-	require.Equal(t, "v0.1", minor)
-
-	minor, err = version.Minor("v0.1.2.3")
-	require.NoError(t, err)
-	require.Equal(t, "v0.1", minor)
-
-	_, err = version.Minor("0")
-	require.ErrorContains(t, err, "invalid version string")
-
-	_, err = version.Minor("foo")
-	require.ErrorContains(t, err, "invalid version string")
-
-	minor, err = version.Minor("v0.1-rc1")
-	require.NoError(t, err)
-	require.Equal(t, "v0.1", minor)
+func TestSemVerCompare(t *testing.T) {
+	tests := []struct {
+		A   string
+		B   string
+		Val int
+	}{
+		{
+			A:   "v0.1.0",
+			B:   "v0.1.0",
+			Val: 0,
+		},
+		{
+			A:   "v0.1.0",
+			B:   "v0.1.1",
+			Val: -1,
+		},
+		{
+			A:   "v0.1.1",
+			B:   "v0.1.0",
+			Val: 1,
+		},
+		{
+			A:   "v0.1.1",
+			B:   "v0.1",
+			Val: 0,
+		},
+		{
+			A:   "v0.2.1",
+			B:   "v0.1",
+			Val: 1,
+		},
+		{
+			A:   "v0.1",
+			B:   "v0.1-dev",
+			Val: 0,
+		},
+		{
+			A:   "v0.1-dev",
+			B:   "v0.2",
+			Val: -1,
+		},
+	}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("%s-%s", test.A, test.B), func(t *testing.T) {
+			a, err := version.Parse(test.A)
+			require.NoError(t, err)
+			b, err := version.Parse(test.B)
+			require.NoError(t, err)
+			require.Equal(t, test.Val, version.Compare(a, b))
+		})
+	}
 }
 
 func TestCurrentInSupported(t *testing.T) {
-	require.Contains(t, version.Version, version.Supported()[0])
+	require.Equal(t, 0, version.Compare(version.Version, version.Supported()[0]))
 }
 
-func TestSupportedAreMinors(t *testing.T) {
+func TestSupportedAreminors(t *testing.T) {
 	for _, v := range version.Supported() {
-		minor, err := version.Minor(v)
-		require.NoError(t, err)
-		require.Equal(t, v, minor)
+		require.Equal(t, 0, version.Compare(v, v.Minor()))
 	}
 }
 

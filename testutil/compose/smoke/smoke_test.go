@@ -98,7 +98,7 @@ func TestSmoke(t *testing.T) {
 			},
 			RunTmplFunc: func(data *compose.TmplData) {
 				// Node 0 is local build
-				pegImageTag(data.Nodes, 1, version.Version) // Node 1 is previous commit on this branch (v0.X-dev/rc) Note this will fail for first commit on new branch version.
+				pegImageTag(data.Nodes, 1, version.Version.String()) // Node 1 is previous commit on this branch (v0.X-dev/rc) Note this will fail for first commit on new branch version.
 				pegImageTag(data.Nodes, 2, nth(version.Supported()[1:], 1)+".0")
 				pegImageTag(data.Nodes, 3, nth(version.Supported()[1:], 2)+".0")
 			},
@@ -204,11 +204,11 @@ func pegImageTag(nodes []compose.TmplNode, index int, imageTag string) {
 }
 
 // last returns the last element of a slice.
-func last(s []string) string {
-	return s[len(s)-1]
+func last(s []version.SemVer) string {
+	return s[len(s)-1].String()
 }
 
 // nth returns the nth element of a slice, wrapping if n > len(s).
-func nth(s []string, n int) string {
-	return s[n%len(s)]
+func nth(s []version.SemVer, n int) string {
+	return s[n%len(s)].String()
 }

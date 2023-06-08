@@ -46,4 +46,11 @@ var (
 		Name:      "index",
 		Help:      "Constant gauge set to the peer index in the cluster definition",
 	}, []string{"peer"})
+
+	peerCompatibleGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "app",
+		Subsystem: "peerinfo",
+		Name:      "version_support",
+		Help:      "Set to 1 if the peer's version is supported by (compatible with) the current version, else 0 if unsupported.",
+	}, []string{"peer"})
 )

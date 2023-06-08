@@ -385,10 +385,7 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 	}
 
 	// DKG compatibility is minor version dependent.
-	minorVersion, err := version.Minor(version.Version)
-	if err != nil {
-		return nil, errors.Wrap(err, "get version")
-	}
+	minorVersion := version.Version.Minor()
 
 	server := sync.NewServer(tcpNode, len(peerIDs)-1, defHash, minorVersion)
 	server.Start(ctx)
