@@ -21,8 +21,8 @@ import (
 
 var defaultRelays = []string{
 	"https://0.relay.obol.tech",
-	"https://1.relay.obol.tech/",
-	"https://2.relay.obol.tech/",
+	"https://1.relay.obol.tech",
+	"https://2.relay.obol.tech",
 }
 
 func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {

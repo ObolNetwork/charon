@@ -63,8 +63,8 @@ func TestCmdFlags(t *testing.T) {
 				P2P: p2p.Config{
 					Relays: []string{
 						"https://0.relay.obol.tech",
-						"https://1.relay.obol.tech/",
-						"https://2.relay.obol.tech/",
+						"https://1.relay.obol.tech",
+						"https://2.relay.obol.tech",
 					},
 					TCPAddrs:  nil,
 					Allowlist: "",
@@ -94,8 +94,8 @@ func TestCmdFlags(t *testing.T) {
 			P2PConfig: &p2p.Config{
 				Relays: []string{
 					"https://0.relay.obol.tech",
-					"https://1.relay.obol.tech/",
-					"https://2.relay.obol.tech/",
+					"https://1.relay.obol.tech",
+					"https://2.relay.obol.tech",
 				},
 				TCPAddrs:  nil,
 				Allowlist: "",
