@@ -77,6 +77,7 @@ func instrumentDuty(duty core.Duty, defSet core.DutyDefinitionSet) {
 
 // newMetricSubmitter returns a function that sets validator balance and status metric.
 func newMetricSubmitter() func(pubkey core.PubKey, totalBal eth2p0.Gwei, status string) {
+	// TODO(corver): Refactor to use ResetGauge.
 	prevStatus := make(map[core.PubKey]string)
 
 	return func(pubkey core.PubKey, totalBal eth2p0.Gwei, status string) {
