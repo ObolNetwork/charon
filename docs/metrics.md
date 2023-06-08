@@ -67,7 +67,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `p2p_peer_connection_types` | Gauge | Current number of libp2p connections by peer and type (`direct` or `relay`). Note that peers may have multiple connections. | `peer, type` |
 | `p2p_peer_network_receive_bytes_total` | Counter | Total number of network bytes received from the peer by protocol. | `peer, protocol` |
 | `p2p_peer_network_sent_bytes_total` | Counter | Total number of network bytes sent to the peer by protocol. | `peer, protocol` |
-| `p2p_peer_streams` | Gauge | Current number of libp2p streams by peer and direction (`inbound` or `outbound` or `unknown`). | `peer, direction, protocol` |
+| `p2p_peer_streams` | Gauge | Current number of libp2p streams by peer, direction (`inbound` or `outbound` or `unknown`) and protocol. | `peer, direction, protocol` |
 | `p2p_ping_error_total` | Counter | Total number of ping errors per peer | `peer` |
 | `p2p_ping_latency_secs` | Histogram | Ping latencies in seconds per peer | `peer` |
 | `p2p_ping_success` | Gauge | Whether the last ping was successful (1) or not (0). Can be used as proxy for connected peers | `peer` |
