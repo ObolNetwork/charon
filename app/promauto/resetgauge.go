@@ -11,6 +11,7 @@ import (
 
 const separator = "|"
 
+// NewResetGaugeVec creates a new ResetGaugeVec.
 func NewResetGaugeVec(opts prometheus.GaugeOpts, labelNames []string) *ResetGaugeVec {
 	return &ResetGaugeVec{
 		inner:  NewGaugeVec(opts, labelNames),
@@ -18,6 +19,8 @@ func NewResetGaugeVec(opts prometheus.GaugeOpts, labelNames []string) *ResetGaug
 	}
 }
 
+// ResetGaugeVec is a GaugeVec that can be reset which deletes all previously set labels.
+// This is useful to clear out labels that are no longer present.
 type ResetGaugeVec struct {
 	inner *prometheus.GaugeVec
 
@@ -40,6 +43,7 @@ func (g *ResetGaugeVec) WithLabelValues(lvs ...string) prometheus.Gauge {
 	return g.inner.WithLabelValues(lvs...)
 }
 
+// Reset deletes all previously set labels.
 func (g *ResetGaugeVec) Reset() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
