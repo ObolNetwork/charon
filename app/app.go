@@ -21,6 +21,7 @@ import (
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"go.uber.org/automaxprocs/maxprocs"
@@ -286,7 +287,10 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	// Start libp2p TCP node.
-	opts := []libp2p.Option{p2p.WithBandwidthReporter(peerIDs)}
+	opts := []libp2p.Option{
+		p2p.WithBandwidthReporter(peerIDs),
+		libp2p.ResourceManager(&network.NullResourceManager{}),
+	}
 	opts = append(opts, conf.TestConfig.LibP2POpts...)
 
 	tcpNode, err := p2p.NewTCPNode(ctx, conf.P2P, p2pKey, connGater,
