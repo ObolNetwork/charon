@@ -784,20 +784,20 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 		}
 	}
 	if !ok {
-		lockForkVersion, err := eth2util.ForkVersionToNetwork(forkVersion)
+		lockNetwork, err := eth2util.ForkVersionToNetwork(forkVersion)
 		if err != nil {
 			return nil, errors.New("cannot parse lock file fork version")
 		}
 
-		networkForkVersion, err := eth2util.ForkVersionToNetwork(schedule[0].CurrentVersion[:])
+		bnNetwork, err := eth2util.ForkVersionToNetwork(schedule[0].CurrentVersion[:])
 		if err != nil {
 			return nil, errors.New("cannot parse network current fork version")
 		}
 
 		return nil, errors.New(
 			"mismatch between lock file fork version and beacon node fork schedule. Ensure the beacon node is on the correct network",
-			z.Str("expected", networkForkVersion),
-			z.Str("actual", lockForkVersion),
+			z.Str("beacon_node", bnNetwork),
+			z.Str("lock_file", lockNetwork),
 		)
 	}
 
