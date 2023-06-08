@@ -61,7 +61,11 @@ func TestCmdFlags(t *testing.T) {
 					LokiService: "charon",
 				},
 				P2P: p2p.Config{
-					Relays:    []string{"https://0.relay.obol.tech"},
+					Relays: []string{
+						"https://0.relay.obol.tech",
+						"https://1.relay.obol.tech/",
+						"https://2.relay.obol.tech/",
+					},
 					TCPAddrs:  nil,
 					Allowlist: "",
 					Denylist:  "",
@@ -88,7 +92,11 @@ func TestCmdFlags(t *testing.T) {
 			Args:    slice("create", "enr"),
 			Datadir: ".charon",
 			P2PConfig: &p2p.Config{
-				Relays:    []string{"https://0.relay.obol.tech"},
+				Relays: []string{
+					"https://0.relay.obol.tech",
+					"https://1.relay.obol.tech/",
+					"https://2.relay.obol.tech/",
+				},
 				TCPAddrs:  nil,
 				Allowlist: "",
 				Denylist:  "",

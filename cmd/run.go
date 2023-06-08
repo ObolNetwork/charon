@@ -19,6 +19,12 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
+var defaultRelays = []string{
+	"https://0.relay.obol.tech",
+	"https://1.relay.obol.tech/",
+	"https://2.relay.obol.tech/",
+}
+
 func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 	var conf app.Config
 
@@ -97,7 +103,7 @@ func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
 }
 
 func bindP2PFlags(cmd *cobra.Command, config *p2p.Config) {
-	cmd.Flags().StringSliceVar(&config.Relays, "p2p-relays", []string{"https://0.relay.obol.tech"}, "Comma-separated list of libp2p relay URLs or multiaddrs.")
+	cmd.Flags().StringSliceVar(&config.Relays, "p2p-relays", defaultRelays, "Comma-separated list of libp2p relay URLs or multiaddrs.")
 	cmd.Flags().StringVar(&config.ExternalIP, "p2p-external-ip", "", "The IP address advertised by libp2p. This may be used to advertise an external IP.")
 	cmd.Flags().StringVar(&config.ExternalHost, "p2p-external-hostname", "", "The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.")
 	cmd.Flags().StringSliceVar(&config.TCPAddrs, "p2p-tcp-address", nil, "Comma-separated list of listening TCP addresses (ip and port) for libP2P traffic. Empty default doesn't bind to local port therefore only supports outgoing connections.")
