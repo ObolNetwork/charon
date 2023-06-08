@@ -276,6 +276,12 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 		Type     string
 	}
 
+	type streamKey struct {
+		PeerName  string
+		Direction string
+		Protocol  string
+	}
+
 	var (
 		quit   = make(chan struct{})
 		peers  = make(map[peer.ID]bool)
@@ -300,17 +306,36 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				// Instrument connection counts.
+				// Instrument connection and stream counts.
+				peerStreamGauge.Reset() // Reset stream gauge to clear previously set protocols.
 				counts := make(map[connKey]int)
+				streams := make(map[streamKey]int)
+
 				for _, conn := range tcpNode.Network().Conns() {
-					key := connKey{PeerName: PeerName(conn.RemotePeer()), Type: addrType(conn.RemoteMultiaddr())}
-					counts[key]++
+					p := PeerName(conn.RemotePeer())
+					cKey := connKey{
+						PeerName: p,
+						Type:     addrType(conn.RemoteMultiaddr()),
+					}
+					counts[cKey]++
+
+					for _, stream := range conn.GetStreams() {
+						sKey := streamKey{
+							PeerName:  p,
+							Direction: stream.Stat().Direction.String(),
+							Protocol:  string(stream.Protocol()),
+						}
+						streams[sKey]++
+					}
 				}
 				for _, pID := range peerIDs {
 					for _, typ := range []string{addrTypeRelay, addrTypeDirect} {
-						key := connKey{PeerName: PeerName(pID), Type: typ}
-						peerConnGauge.WithLabelValues(key.PeerName, key.Type).Set(float64(counts[key]))
+						cKey := connKey{PeerName: PeerName(pID), Type: typ}
+						peerConnGauge.WithLabelValues(cKey.PeerName, cKey.Type).Set(float64(counts[cKey]))
 					}
+				}
+				for sKey, amount := range streams {
+					peerStreamGauge.WithLabelValues(sKey.PeerName, sKey.Direction, sKey.Protocol).Set(float64(amount))
 				}
 			case e := <-events:
 				// Log and instrument events.
