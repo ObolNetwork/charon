@@ -257,7 +257,13 @@ func (d Definition) VerifySignatures() error {
 // Peers returns the operators as a slice of p2p peers.
 func (d Definition) Peers() ([]p2p.Peer, error) {
 	var resp []p2p.Peer
+	dedup := make(map[string]bool)
 	for i, operator := range d.Operators {
+		if dedup[operator.ENR] {
+			return nil, errors.New("definition contains duplicate peer enrs", z.Str("enr", operator.ENR))
+		}
+		dedup[operator.ENR] = true
+
 		record, err := enr.Parse(operator.ENR)
 		if err != nil {
 			return nil, errors.Wrap(err, "decode enr", z.Str("enr", operator.ENR))
