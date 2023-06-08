@@ -195,7 +195,8 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 // newMetricsSubmitter returns a prometheus metric submitter.
 func newMetricsSubmitter() metricSubmitter {
 	var (
-		mu            sync.Mutex
+		mu sync.Mutex
+		// TODO(corver): Refactor to use ResetGauge.
 		prevVersions  = make(map[string]string)
 		prevGitHashes = make(map[string]string)
 	)

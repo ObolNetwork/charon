@@ -277,8 +277,9 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 	}
 
 	type streamKey struct {
-		connKey
-		Protocol string
+		PeerName  string
+		Direction string
+		Protocol  string
 	}
 
 	var (
@@ -305,35 +306,36 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				// Instrument connection counts.
+				// Instrument connection and stream counts.
+				peerStreamGauge.Reset() // Reset stream gauge to clear previously set protocols.
 				counts := make(map[connKey]int)
 				streams := make(map[streamKey]int)
 
 				for _, conn := range tcpNode.Network().Conns() {
 					p := PeerName(conn.RemotePeer())
-					key := connKey{PeerName: p, Type: addrType(conn.RemoteMultiaddr())}
-					counts[key]++
+					cKey := connKey{
+						PeerName: p,
+						Type:     addrType(conn.RemoteMultiaddr()),
+					}
+					counts[cKey]++
 
 					for _, stream := range conn.GetStreams() {
-						dir := stream.Stat().Direction.String()
-						protocol := stream.Protocol()
 						sKey := streamKey{
-							connKey:  connKey{PeerName: p, Type: dir},
-							Protocol: string(protocol),
+							PeerName:  p,
+							Direction: stream.Stat().Direction.String(),
+							Protocol:  string(stream.Protocol()),
 						}
-
 						streams[sKey]++
 					}
 				}
 				for _, pID := range peerIDs {
 					for _, typ := range []string{addrTypeRelay, addrTypeDirect} {
-						key := connKey{PeerName: PeerName(pID), Type: typ}
-						peerConnGauge.WithLabelValues(key.PeerName, key.Type).Set(float64(counts[key]))
+						cKey := connKey{PeerName: PeerName(pID), Type: typ}
+						peerConnGauge.WithLabelValues(cKey.PeerName, cKey.Type).Set(float64(counts[cKey]))
 					}
 				}
-				// TODO(gsora): remove this once we fix the stream leak issue
-				for key, amount := range streams {
-					peerStreamGauge.WithLabelValues(key.PeerName, key.Type, key.Protocol).Set(float64(amount))
+				for sKey, amount := range streams {
+					peerStreamGauge.WithLabelValues(sKey.PeerName, sKey.Direction, sKey.Protocol).Set(float64(amount))
 				}
 			case e := <-events:
 				// Log and instrument events.
