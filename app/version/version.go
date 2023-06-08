@@ -25,7 +25,7 @@ var Version, _ = Parse(version) // Error is caught in tests.
 // Supported returns the supported minor versions in order of precedence.
 func Supported() []SemVer {
 	return []SemVer{
-		// Current typeMinor version always goes first.
+		// Current minor version always goes first.
 		{major: 0, minor: 17},
 		{major: 0, minor: 16},
 	}
@@ -73,7 +73,7 @@ const (
 	typePreRelease
 )
 
-// SemVer represents a semantic version. A valid SemVer contains a major and typeMinor version
+// SemVer represents a semantic version. A valid SemVer contains a major and minor version
 // and optionally either a typePatch version or a pre-release label, i.e., v1.2 or v1.2.3 or v1.2-rc.
 type SemVer struct {
 	semVerType semVerType
@@ -94,7 +94,7 @@ func (v SemVer) String() string {
 	return fmt.Sprintf("v%d.%d-%s", v.major, v.minor, v.preRelease)
 }
 
-// Minor returns the typeMinor version of the semantic version.
+// Minor returns the minor version of the semantic version.
 // It strips the typePatch version and pre-release label if present.
 func (v SemVer) Minor() SemVer {
 	return SemVer{
@@ -142,6 +142,7 @@ func Compare(a, b SemVer) int {
 
 var semverRegex = regexp.MustCompile(`^v(\d+)\.(\d+)(?:\.(\d+))?(?:-(.+))?$`)
 
+// Parse parses a semantic version string into a SemVer.
 func Parse(version string) (SemVer, error) {
 	matches := semverRegex.FindStringSubmatch(version)
 	if len(matches) == 0 || len(matches) != 5 {
