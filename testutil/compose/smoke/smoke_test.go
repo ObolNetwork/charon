@@ -94,13 +94,13 @@ func TestSmoke(t *testing.T) {
 			},
 			DefineTmplFunc: func(data *compose.TmplData) {
 				// Use oldest supported version for cluster lock
-				pegImageTag(data.Nodes, 0, last(version.Supported()[1:])+".0")
+				pegImageTag(data.Nodes, 0, last(version.Supported()[1:])+"-rc")
 			},
 			RunTmplFunc: func(data *compose.TmplData) {
 				// Node 0 is local build
 				pegImageTag(data.Nodes, 1, version.Version.String()) // Node 1 is previous commit on this branch (v0.X-dev/rc) Note this will fail for first commit on new branch version.
-				pegImageTag(data.Nodes, 2, nth(version.Supported()[1:], 1)+".0")
-				pegImageTag(data.Nodes, 3, nth(version.Supported()[1:], 2)+".0")
+				pegImageTag(data.Nodes, 2, nth(version.Supported()[1:], 1)+"-rc")
+				pegImageTag(data.Nodes, 3, nth(version.Supported()[1:], 2)+"-rc")
 			},
 		},
 		{
