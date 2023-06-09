@@ -22,7 +22,7 @@ import (
 )
 
 func TestSyncProtocol(t *testing.T) {
-	versions := make(map[int]string)
+	versions := make(map[int]version.SemVer)
 	for i := 0; i < 5; i++ {
 		versions[i] = version.Version
 	}
@@ -41,12 +41,26 @@ func TestSyncProtocol(t *testing.T) {
 
 	t.Run("invalid version", func(t *testing.T) {
 		testCluster(t, 2,
-			map[int]string{0: "v0", 1: "v1", 2: "v2", 3: "v3"},
+			map[int]version.SemVer{
+				0: semver(t, "v0.1"),
+				1: semver(t, "v0.2"),
+				2: semver(t, "v0.3"),
+				3: semver(t, "v0.4"),
+			},
 			"mismatching charon version; expect=")
 	})
 }
 
-func testCluster(t *testing.T, n int, versions map[int]string, expectErr string) {
+func semver(t *testing.T, v string) version.SemVer {
+	t.Helper()
+
+	sv, err := version.Parse(v)
+	require.NoError(t, err)
+
+	return sv
+}
+
+func testCluster(t *testing.T, n int, versions map[int]version.SemVer, expectErr string) {
 	t.Helper()
 
 	ctx, cancel := context.WithCancel(context.Background())

@@ -16,8 +16,10 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	pbv1 "github.com/obolnetwork/charon/app/peerinfo/peerinfopb/v1"
+	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/p2p"
 )
@@ -41,12 +43,12 @@ type (
 )
 
 // New returns a new peer info protocol instance.
-func New(tcpNode host.Host, peers []peer.ID, version string, lockHash []byte, gitHash string,
+func New(tcpNode host.Host, peers []peer.ID, version version.SemVer, lockHash []byte, gitHash string,
 	sendFunc p2p.SendReceiveFunc,
 ) *PeerInfo {
 	// Set own version and git hash and start time metrics.
 	name := p2p.PeerName(tcpNode.ID())
-	peerVersion.WithLabelValues(name, version).Set(1)
+	peerVersion.WithLabelValues(name, version.String()).Set(1)
 	peerGitHash.WithLabelValues(name, gitHash).Set(1)
 	peerStartGauge.WithLabelValues(name).Set(float64(time.Now().Unix()))
 
@@ -64,7 +66,7 @@ func New(tcpNode host.Host, peers []peer.ID, version string, lockHash []byte, gi
 }
 
 // NewForT returns a new peer info protocol instance for testing only.
-func NewForT(_ *testing.T, tcpNode host.Host, peers []peer.ID, version string, lockHash []byte, gitHash string,
+func NewForT(_ *testing.T, tcpNode host.Host, peers []peer.ID, version version.SemVer, lockHash []byte, gitHash string,
 	sendFunc p2p.SendReceiveFunc, registerHandler p2p.RegisterHandlerFunc,
 	tickerProvider tickerProvider, nowFunc nowFunc, metricSubmitter metricSubmitter,
 ) *PeerInfo {
@@ -73,7 +75,7 @@ func NewForT(_ *testing.T, tcpNode host.Host, peers []peer.ID, version string, l
 }
 
 // newInternal returns a new instance for New or NewForT.
-func newInternal(tcpNode host.Host, peers []peer.ID, version string, lockHash []byte, gitHash string,
+func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, lockHash []byte, gitHash string,
 	sendFunc p2p.SendReceiveFunc, registerHandler p2p.RegisterHandlerFunc,
 	tickerProvider tickerProvider, nowFunc nowFunc, metricSubmitter metricSubmitter,
 ) *PeerInfo {
@@ -84,7 +86,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version string, lockHash []
 		func() proto.Message { return new(pbv1.PeerInfo) },
 		func(context.Context, peer.ID, proto.Message) (proto.Message, bool, error) {
 			return &pbv1.PeerInfo{
-				CharonVersion: version,
+				CharonVersion: version.String(),
 				LockHash:      lockHash,
 				GitHash:       gitHash,
 				SentAt:        timestamppb.New(nowFunc()),
@@ -96,8 +98,10 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version string, lockHash []
 
 	// Create log filters
 	lockHashFilters := make(map[peer.ID]z.Field)
+	versionFilters := make(map[peer.ID]z.Field)
 	for _, peerID := range peers {
 		lockHashFilters[peerID] = log.Filter()
+		versionFilters[peerID] = log.Filter()
 	}
 
 	return &PeerInfo{
@@ -111,6 +115,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version string, lockHash []
 		tickerProvider:  tickerProvider,
 		nowFunc:         nowFunc,
 		lockHashFilters: lockHashFilters,
+		versionFilters:  versionFilters,
 	}
 }
 
@@ -118,7 +123,7 @@ type PeerInfo struct {
 	sendFunc        p2p.SendReceiveFunc
 	tcpNode         host.Host
 	peers           []peer.ID
-	version         string
+	version         version.SemVer
 	lockHash        []byte
 	gitHash         string
 	startTime       *timestamppb.Timestamp
@@ -126,6 +131,7 @@ type PeerInfo struct {
 	metricSubmitter metricSubmitter
 	nowFunc         func() time.Time
 	lockHashFilters map[peer.ID]z.Field
+	versionFilters  map[peer.ID]z.Field
 }
 
 // Run runs the peer info protocol until the context is cancelled.
@@ -153,7 +159,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 		}
 
 		req := &pbv1.PeerInfo{
-			CharonVersion: p.version,
+			CharonVersion: p.version.String(),
 			LockHash:      p.lockHash,
 			GitHash:       p.gitHash,
 			SentAt:        timestamppb.New(now),
@@ -178,18 +184,56 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			clockOffset := actualSentAt.Sub(expectedSentAt)
 			p.metricSubmitter(peerID, clockOffset, resp.CharonVersion, resp.GitHash, resp.StartedAt.AsTime())
 
+			name := p2p.PeerName(peerID)
+
+			if err := supportedPeerVersion(resp.CharonVersion, version.Supported()); err != nil {
+				peerCompatibleGauge.WithLabelValues(name).Set(0) // Set to false
+
+				// Log as error since user action required
+				log.Error(ctx, "Invalid peer version", err,
+					z.Str("peer", name),
+					z.Str("peer_version", resp.CharonVersion),
+					z.Any("supported_versions", version.Supported()),
+					p.versionFilters[peerID],
+				)
+			} else {
+				peerCompatibleGauge.WithLabelValues(name).Set(1) // Set to false
+			}
+
 			// Log unexpected lock hash
 			if !bytes.Equal(resp.LockHash, p.lockHash) {
 				// TODO(corver): Think about escalating this error when we are clear
 				//  on how to handle lock file migrations.
 				log.Warn(ctx, "Mismatching peer lock hash", nil,
-					z.Str("peer", p2p.PeerName(peerID)),
+					z.Str("peer", name),
 					z.Str("lock_hash", fmt.Sprintf("%#x", resp.LockHash)),
 					p.lockHashFilters[peerID],
 				)
 			}
 		}(peerID)
 	}
+}
+
+// instrumentPeerVersion instruments the peer version.
+func supportedPeerVersion(peerVersion string, supported []version.SemVer) error {
+	peerSemVer, err := version.Parse(peerVersion)
+	if err != nil {
+		return errors.Wrap(err, "parse peer version")
+	}
+
+	// Assume we are compatible with peers that are newer than us.
+	if version.Compare(peerSemVer, supported[0]) > 0 {
+		return nil
+	}
+
+	// Check if peer minor version matches any of our supported minor versions.
+	for _, supported := range supported {
+		if version.Compare(peerSemVer.Minor(), supported) == 0 {
+			return nil
+		}
+	}
+
+	return errors.New("unsupported peer version; coordinate with operator to align versions")
 }
 
 // newMetricsSubmitter returns a prometheus metric submitter.

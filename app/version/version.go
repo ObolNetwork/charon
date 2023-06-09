@@ -4,28 +4,30 @@ package version
 
 import (
 	"context"
+	"fmt"
+	"regexp"
 	"runtime/debug"
-	"strings"
+	"strconv"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
 
+// version a string since it is overwritten at build-time with the git tag for official releases.
+var version = "v0.17-dev"
+
 // Version is the branch version of the codebase.
 //   - Main branch: v0.X-dev
 //   - Release branch: v0.X-rc
-//
-// It is overwritten at build-time with the git tag for official releases.
-var Version = "v0.17-dev"
+var Version, _ = Parse(version) // Error is caught in tests.
 
 // Supported returns the supported minor versions in order of precedence.
-func Supported() []string {
-	return []string{
-		"v0.17",
-		"v0.16", // Current minor version always goes first.
-		"v0.15",
-		"v0.14",
+func Supported() []SemVer {
+	return []SemVer{
+		// Current minor version always goes first.
+		{major: 0, minor: 17},
+		{major: 0, minor: 16},
 	}
 }
 
@@ -57,25 +59,122 @@ func GitCommit() (hash string, timestamp string) {
 func LogInfo(ctx context.Context, msg string) {
 	gitHash, gitTimestamp := GitCommit()
 	log.Info(ctx, msg,
-		z.Str("version", Version),
+		z.Str("version", Version.String()),
 		z.Str("git_commit_hash", gitHash),
 		z.Str("git_commit_time", gitTimestamp),
 	)
 }
 
-// Minor returns the minor version of the provided version string.
-func Minor(version string) (string, error) {
-	split := strings.Split(version, ".")
-	if len(split) < 2 {
-		return "", errors.New("invalid version string")
+type semVerType int
+
+const (
+	typeMinor semVerType = iota
+	typePatch
+	typePreRelease
+)
+
+// SemVer represents a semantic version. A valid SemVer contains a major and minor version
+// and optionally either a typePatch version or a pre-release label, i.e., v1.2 or v1.2.3 or v1.2-rc.
+type SemVer struct {
+	semVerType semVerType
+	major      int
+	minor      int
+	patch      int
+	preRelease string
+}
+
+// String returns the string representation of the semantic version.
+func (v SemVer) String() string {
+	if v.semVerType == typeMinor {
+		return fmt.Sprintf("v%d.%d", v.major, v.minor)
+	} else if v.semVerType == typePatch {
+		return fmt.Sprintf("v%d.%d.%d", v.major, v.minor, v.patch)
 	}
 
-	major := split[0]
+	return fmt.Sprintf("v%d.%d-%s", v.major, v.minor, v.preRelease)
+}
 
-	minor := split[1]
-	if split := strings.Split(minor, "-"); len(split) > 1 {
-		minor = split[0]
+// Minor returns the minor version of the semantic version.
+// It strips the typePatch version and pre-release label if present.
+func (v SemVer) Minor() SemVer {
+	return SemVer{
+		semVerType: typeMinor,
+		major:      v.major,
+		minor:      v.minor,
+	}
+}
+
+// Compare returns an integer comparing two semantic versions.
+// Only major and minor versions are used for comparison, unless both a and b
+// have patch versions, in which case the patch version is also used.
+// Pre-release labels are ignored.
+//
+// The result will be 0 if a == b, -1 if a < b, and +1 if a > b.
+func Compare(a, b SemVer) int {
+	if a.major != b.major {
+		if a.major < b.major {
+			return -1
+		}
+
+		return 1
 	}
 
-	return major + "." + minor, nil
+	if a.minor != b.minor {
+		if a.minor < b.minor {
+			return -1
+		}
+
+		return 1
+	}
+
+	if a.semVerType != typePatch || b.semVerType != typePatch {
+		return 0
+	}
+
+	if a.patch == b.patch {
+		return 0
+	} else if a.patch < b.patch {
+		return -1
+	} else {
+		return 1
+	}
+}
+
+var semverRegex = regexp.MustCompile(`^v(\d+)\.(\d+)(?:\.(\d+))?(?:-(.+))?$`)
+
+// Parse parses a semantic version string into a SemVer.
+func Parse(version string) (SemVer, error) {
+	matches := semverRegex.FindStringSubmatch(version)
+	if len(matches) == 0 || len(matches) != 5 {
+		return SemVer{}, errors.New("invalid version string", z.Str("version", version))
+	}
+
+	major, _ := strconv.Atoi(matches[1])
+	minor, _ := strconv.Atoi(matches[2])
+
+	var (
+		patch      int
+		preRelease string
+		typ        = typeMinor
+	)
+
+	// If there is a patch version
+	if matches[3] != "" {
+		patch, _ = strconv.Atoi(matches[3])
+		typ = typePatch
+	}
+
+	// If there is a pre-release label
+	if matches[4] != "" {
+		preRelease = matches[4]
+		typ = typePreRelease
+	}
+
+	return SemVer{
+		major:      major,
+		minor:      minor,
+		patch:      patch,
+		preRelease: preRelease,
+		semVerType: typ,
+	}, nil
 }

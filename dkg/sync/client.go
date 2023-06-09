@@ -15,13 +15,14 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/expbackoff"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	pb "github.com/obolnetwork/charon/dkg/dkgpb/v1"
 	"github.com/obolnetwork/charon/p2p"
 )
 
 // NewClient returns a new Client instance.
-func NewClient(tcpNode host.Host, peer peer.ID, hashSig []byte, version string) *Client {
+func NewClient(tcpNode host.Host, peer peer.ID, hashSig []byte, version version.SemVer) *Client {
 	return &Client{
 		tcpNode:   tcpNode,
 		peer:      peer,
@@ -46,7 +47,7 @@ type Client struct {
 
 	// Immutable state
 	hashSig []byte
-	version string
+	version version.SemVer
 	tcpNode host.Host
 	peer    peer.ID
 }
@@ -165,7 +166,7 @@ func (c *Client) sendMsg(stream network.Stream, shutdown bool) (*pb.MsgSyncRespo
 		Timestamp:     timestamppb.Now(),
 		HashSignature: c.hashSig,
 		Shutdown:      shutdown,
-		Version:       c.version,
+		Version:       c.version.String(),
 	}
 
 	if err := writeSizedProto(stream, msg); err != nil {

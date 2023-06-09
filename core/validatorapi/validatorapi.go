@@ -991,7 +991,7 @@ func (c Component) ValidatorsByPubKey(ctx context.Context, stateID string, pubsh
 func (Component) NodeVersion(context.Context) (string, error) {
 	commitSHA, _ := version.GitCommit()
 
-	return fmt.Sprintf("obolnetwork/charon/%s-%s/%s-%s", version.Version, commitSHA, runtime.GOARCH, runtime.GOOS), nil
+	return fmt.Sprintf("obolnetwork/charon/%v-%s/%s-%s", version.Version, commitSHA, runtime.GOARCH, runtime.GOOS), nil
 }
 
 // convertValidators returns the validator map with root public keys replaced by public shares for all validators that are part of the cluster.

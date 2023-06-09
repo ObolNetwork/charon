@@ -21,6 +21,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	pb "github.com/obolnetwork/charon/dkg/dkgpb/v1"
 	"github.com/obolnetwork/charon/p2p"
@@ -34,7 +35,7 @@ func Protocols() []protocol.ID {
 }
 
 // NewServer returns a new Server instance.
-func NewServer(tcpNode host.Host, allCount int, defHash []byte, version string) *Server {
+func NewServer(tcpNode host.Host, allCount int, defHash []byte, version version.SemVer) *Server {
 	return &Server{
 		defHash:   defHash,
 		tcpNode:   tcpNode,
@@ -51,7 +52,7 @@ type Server struct {
 	// Immutable state
 	tcpNode  host.Host
 	defHash  []byte
-	version  string
+	version  version.SemVer
 	allCount int // Excluding self
 
 	// Mutable state
@@ -219,7 +220,12 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 // validReq returns an error message and false if the request version or definition hash are invalid.
 // Else it returns true or an error.
 func (s *Server) validReq(pubkey crypto.PubKey, msg *pb.MsgSync) error {
-	if msg.Version != s.version {
+	msgVersion, err := version.Parse(msg.Version)
+	if err != nil {
+		return errors.Wrap(err, "parse peer version")
+	}
+
+	if version.Compare(msgVersion, s.version) != 0 {
 		return fmt.Errorf("mismatching charon version; expect=%s, got=%s", s.version, msg.Version) //nolint: wrapcheck,forbidigo // Use stdlib errors when sending over the wire.
 	}
 

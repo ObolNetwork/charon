@@ -113,7 +113,7 @@ func initStartupMetrics(peerName string, threshold, numOperators, numValidators 
 
 	hash, _ := version.GitCommit()
 	gitGauge.WithLabelValues(hash).Set(1)
-	versionGauge.WithLabelValues(version.Version).Set(1)
+	versionGauge.WithLabelValues(version.Version.String()).Set(1)
 	peerNameGauge.WithLabelValues(peerName).Set(1)
 
 	thresholdGauge.Set(float64(threshold))

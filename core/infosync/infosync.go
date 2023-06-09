@@ -12,6 +12,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/priority"
@@ -27,7 +28,7 @@ const (
 )
 
 // New returns a new infosync component.
-func New(prioritiser *priority.Component, versions []string, protocols []protocol.ID,
+func New(prioritiser *priority.Component, versions []version.SemVer, protocols []protocol.ID,
 	proposals []core.ProposalType,
 ) *Component {
 	// Add a mock alpha protocol if alpha features enabled in order to test infosync in prod.
@@ -75,7 +76,7 @@ func New(prioritiser *priority.Component, versions []string, protocols []protoco
 
 type Component struct {
 	prioritiser *priority.Component
-	versions    []string
+	versions    []version.SemVer
 	protocols   []protocol.ID
 	proposals   []core.ProposalType
 
@@ -143,7 +144,7 @@ func (c *Component) Trigger(ctx context.Context, slot int64) error {
 	return c.prioritiser.Prioritise(ctx, core.NewInfoSyncDuty(slot),
 		priority.TopicProposal{
 			Topic:      topicVersion,
-			Priorities: c.versions,
+			Priorities: versionsToStrings(c.versions),
 		},
 		priority.TopicProposal{
 			Topic:      topicProtocol,
@@ -153,6 +154,16 @@ func (c *Component) Trigger(ctx context.Context, slot int64) error {
 			Topic:      topicProposal,
 			Priorities: proposalsToStrings(c.proposals),
 		})
+}
+
+// versionsToStrings returns the versions as strings.
+func versionsToStrings(versions []version.SemVer) []string {
+	var resp []string
+	for _, version := range versions {
+		resp = append(resp, version.String())
+	}
+
+	return resp
 }
 
 // protocolsToStrings returns the protocols as strings.
