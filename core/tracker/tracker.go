@@ -29,7 +29,7 @@ const (
 	sigAgg                // Partial signed data aggregated; emitted from sigagg
 	aggSigDB              // Aggregated signed data stored in aggsigdb
 	bcast                 // Aggregated data submitted to beacon node
-	chainInclusion        // Aggregated data submitted to beacon node
+	chainInclusion        // Aggregated data included in canonical chain
 	sentinel
 )
 
