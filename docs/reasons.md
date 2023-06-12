@@ -17,6 +17,10 @@ maintain system performance.
   - *Summary*: failed to broadcast duty to beacon node
   - *Details*: Reason `bcast` indicates that beacon node returned an error while submitting aggregated duty signature to beacon node.
 
+### Failure Reason: `chain_inclusion`
+  - *Summary*: duty not included on-chain
+  - *Details*: Reason `chain_inclusion` indicates that even though charon broadcasted the duty successfully, it wasn`t included in the beacon chain. This is expected for up to 20% of attestations. It may however indicate problematic charon broadcast delays or beacon node network problems.
+
 ### Failure Reason: `consensus`
   - *Summary*: consensus algorithm didn`t complete
   - *Details*: Reason `consensus` indicates a duty failed in consensus step. This could indicate that insufficient honest peers participated in consensus or p2p network connection problems.

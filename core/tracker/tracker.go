@@ -29,6 +29,7 @@ const (
 	sigAgg                // Partial signed data aggregated; emitted from sigagg
 	aggSigDB              // Aggregated signed data stored in aggsigdb
 	bcast                 // Aggregated data submitted to beacon node
+	chainInclusion        // Aggregated data included in canonical chain
 	sentinel
 )
 
@@ -44,6 +45,7 @@ var stepLabels = map[step]string{
 	sigAgg:           "sig_aggregation",
 	aggSigDB:         "aggsig_db",
 	bcast:            "bcast",
+	chainInclusion:   "chain_inclusion",
 	sentinel:         "sentinel",
 }
 
@@ -194,11 +196,20 @@ func dutyFailedStep(es []event) (bool, step, error) {
 	}
 
 	// Final step was successful.
-	if lastEvent.step == bcast && lastEvent.stepErr == nil {
+	if lastEvent.step == lastStep(es[0].duty.Type) && lastEvent.stepErr == nil {
 		return false, zero, nil
 	}
 
 	return true, lastEvent.step, lastEvent.stepErr
+}
+
+// lastStep returns the last step of the duty which is either bcast or chainInclusion.
+func lastStep(dutyType core.DutyType) step {
+	if inclSupported[dutyType] {
+		return chainInclusion
+	}
+
+	return bcast
 }
 
 // analyseDutyFailed detects if the given duty failed.
@@ -257,7 +268,17 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootC
 	case aggSigDB:
 		reason = reasonAggSigDB
 	case bcast:
-		reason = reasonBcast
+		if failedErr == nil {
+			failedErr = errors.New("bug: missing chain inclusion event")
+		} else {
+			reason = reasonBcast
+		}
+	case chainInclusion:
+		if failedErr == nil {
+			failedErr = errors.New("bug: missing chain inclusion error")
+		} else {
+			reason = reasonChainIncl
+		}
 	case zero:
 		failedErr = errors.New("no events for duty") // This should never happen.
 	default:
@@ -469,7 +490,7 @@ func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bo
 	}
 }
 
-// newUnsupportedIgnorer returns a filter that ignores duties that are not supported by the node.
+// newUnsupportedIgnorer returns a filter that ignores duties that are not inclSupported by the node.
 func newUnsupportedIgnorer() func(ctx context.Context, duty core.Duty, failed bool, step step, reason reason) bool {
 	var (
 		loggedNoAggregator    bool
@@ -783,6 +804,19 @@ func (t *Tracker) BroadcasterBroadcast(duty core.Duty, pubkey core.PubKey, _ cor
 		step:    bcast,
 		pubkey:  pubkey,
 		stepErr: stepErr,
+	}:
+	}
+}
+
+func (t *Tracker) InclusionChecked(duty core.Duty, key core.PubKey, _ core.SignedData, err error) {
+	select {
+	case <-t.quit:
+		return
+	case t.input <- event{
+		duty:    duty,
+		step:    chainInclusion,
+		pubkey:  key,
+		stepErr: err,
 	}:
 	}
 }

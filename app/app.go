@@ -478,7 +478,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	inclusion, err := tracker.NewInclusion(ctx, eth2Cl)
+	inclusion, err := tracker.NewInclusion(ctx, eth2Cl, track.InclusionChecked)
 	if err != nil {
 		return err
 	}
@@ -625,11 +625,11 @@ func newTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(
 
 	analyser := core.NewDeadliner(ctx, "tracker_analyser", func(duty core.Duty) (time.Time, bool) {
 		d, ok := deadlineFunc(duty)
-		return d.Add(slotDuration), ok // Add one slot delay to analyser to capture duty expired errors.
+		return d.Add(tracker.InclMissedLag * slotDuration), ok // Add InclMissedLag slots delay to analyser to capture missed inclusion errors.
 	})
 	deleter := core.NewDeadliner(ctx, "tracker_deleter", func(duty core.Duty) (time.Time, bool) {
 		d, ok := deadlineFunc(duty)
-		return d.Add(time.Minute), ok // Delete duties after deadline+1min.
+		return d.Add(tracker.InclMissedLag * slotDuration).Add(time.Minute), ok // Delete duties after analyser_deadline+1min.
 	})
 
 	trackFrom, err := calculateTrackerDelay(ctx, eth2Cl, time.Now())

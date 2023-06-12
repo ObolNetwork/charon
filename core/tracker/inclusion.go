@@ -18,12 +18,12 @@ import (
 )
 
 const (
-	// inclCheckLag is the number of slots to lag before checking inclusion.
+	// InclCheckLag is the number of slots to lag before checking inclusion.
 	// Half an epoch is good compromise between finality and responsiveness.
-	inclCheckLag = 16
-	// inclTrimLag is the number of slots after which we delete cached submissions.
-	// This matches scheduler trimEpochOffset.
-	inclTrimLag = 32 * 3
+	InclCheckLag = 16
+	// InclMissedLag is the number of slots after which we assume the duty was not included and we
+	// delete cached submissions.
+	InclMissedLag = 32
 )
 
 // submission represents a duty submitted to the beacon node/chain.
@@ -41,8 +41,11 @@ type block struct {
 	AttestationsByDataRoot map[eth2p0.Root]*eth2p0.Attestation
 }
 
-// supported duty types.
-var supported = map[core.DutyType]bool{
+// trackerInclFunc defines the tracker callback for the inclusion checker.
+type trackerInclFunc func(core.Duty, core.PubKey, core.SignedData, error)
+
+// inclSupported defines duty types for which inclusion checks are supported.
+var inclSupported = map[core.DutyType]bool{
 	core.DutyAttester:        true,
 	core.DutyAggregator:      true,
 	core.DutyProposer:        true,
@@ -56,6 +59,7 @@ type inclusionCore struct {
 	mu          sync.Mutex
 	submissions []submission
 
+	trackerInclFunc trackerInclFunc
 	missedFunc      func(context.Context, submission)
 	attIncludedFunc func(context.Context, submission, block)
 }
@@ -63,7 +67,7 @@ type inclusionCore struct {
 // Submitted is called when a duty is submitted to the beacon node.
 // It adds the duty to the list of submitted duties.
 func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.SignedData, delay time.Duration) error {
-	if !supported[duty.Type] {
+	if !inclSupported[duty.Type] {
 		return nil
 	}
 
@@ -137,6 +141,7 @@ func (i *inclusionCore) Trim(ctx context.Context, slot int64) {
 
 		// Report missed and trim
 		i.missedFunc(ctx, sub)
+		i.trackerInclFunc(sub.Duty, sub.Pubkey, sub.Data, errors.New("duty not included on-chain"))
 	}
 	i.submissions = remaining
 }
@@ -159,6 +164,7 @@ func (i *inclusionCore) CheckBlock(ctx context.Context, block block) {
 			} else {
 				// Report inclusion and trim
 				i.attIncludedFunc(ctx, sub, block)
+				i.trackerInclFunc(sub.Duty, sub.Pubkey, sub.Data, nil)
 			}
 		case core.DutyAggregator:
 			ok, err := checkAggregationInclusion(sub, block)
@@ -170,6 +176,7 @@ func (i *inclusionCore) CheckBlock(ctx context.Context, block block) {
 			} else {
 				// Report inclusion and trim
 				i.attIncludedFunc(ctx, sub, block)
+				i.trackerInclFunc(sub.Duty, sub.Pubkey, sub.Data, nil)
 			}
 		case core.DutyProposer, core.DutyBuilderProposer:
 			if sub.Duty.Slot != block.Slot {
@@ -177,7 +184,8 @@ func (i *inclusionCore) CheckBlock(ctx context.Context, block block) {
 				continue
 			}
 
-			// Nothing to report for block inclusions, just trim
+			// Just report block inclusions to tracker
+			i.trackerInclFunc(sub.Duty, sub.Pubkey, sub.Data, nil)
 		default:
 			panic("bug: unexpected type") // Sanity check, this should never happen
 		}
@@ -283,7 +291,7 @@ func reportAttInclusion(ctx context.Context, sub submission, block block) {
 }
 
 // NewInclusion returns a new InclusionChecker.
-func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client) (*InclusionChecker, error) {
+func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client, trackerInclFunc trackerInclFunc) (*InclusionChecker, error) {
 	genesis, err := eth2Cl.GenesisTime(ctx)
 	if err != nil {
 		return nil, err
@@ -297,6 +305,7 @@ func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client) (*InclusionChecke
 	inclCore := &inclusionCore{
 		attIncludedFunc: reportAttInclusion,
 		missedFunc:      reportMissed,
+		trackerInclFunc: trackerInclFunc,
 	}
 
 	return &InclusionChecker{
@@ -336,7 +345,7 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			slot := int64(time.Since(a.genesis)/a.slotDuration) - inclCheckLag
+			slot := int64(time.Since(a.genesis)/a.slotDuration) - InclCheckLag
 			if checkedSlot == slot || slot < 0 {
 				continue
 			}
@@ -347,7 +356,7 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 			}
 
 			checkedSlot = slot
-			a.core.Trim(ctx, slot-inclTrimLag)
+			a.core.Trim(ctx, slot-InclMissedLag)
 		}
 	}
 }
