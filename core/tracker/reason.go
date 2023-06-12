@@ -186,4 +186,10 @@ var (
 		Short: "failed to broadcast duty to beacon node",
 		Long:  "Reason `bcast` indicates that beacon node returned an error while submitting aggregated duty signature to beacon node.",
 	}
+
+	reasonChainIncl = reason{
+		Code:  "chain_inclusion",
+		Short: "duty not included on-chain",
+		Long:  "Reason `chain_inclusion` indicates that even though charon broadcasted the duty successfully, it wasn't included in the beacon chain. This is expected for up to 20% of attestations. It may however indicate problematic charon broadcast delays or beacon node network problems.",
+	}
 )

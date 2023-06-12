@@ -198,6 +198,9 @@ type Tracker interface {
 
 	// BroadcasterBroadcast sends Broadcaster component's broadcast events to tracker.
 	BroadcasterBroadcast(Duty, PubKey, SignedData, error)
+
+	// InclusionChecked sends InclusionChecker component's check events to tracker.
+	InclusionChecked(Duty, PubKey, SignedData, error)
 }
 
 // wireFuncs defines the core workflow components as a list of input and output functions

@@ -106,6 +106,9 @@ func TestTrackerFailedDuty(t *testing.T) {
 				for _, pubkey := range pubkeys {
 					tr.SigAggAggregated(td.duty, pubkey, nil, nil)
 					tr.BroadcasterBroadcast(td.duty, pubkey, nil, nil)
+					if lastStep(td.duty.Type) == chainInclusion {
+						tr.InclusionChecked(td.duty, pubkey, nil, nil)
+					}
 				}
 
 				// Explicitly mark the current duty as deadlined.
@@ -127,26 +130,25 @@ func TestAnalyseDutyFailed(t *testing.T) {
 	randaoDuty := core.NewRandaoDuty(int64(slot))
 	syncMsgDuty := core.NewSyncMessageDuty(int64(slot))
 
-	t.Run("Failed", func(t *testing.T) {
-		// Failed at fetcher
+	// Note the order of the events inserted by subtests below is important.
+	events := make(map[core.Duty][]event)
+
+	t.Run("Failed at fetcher", func(t *testing.T) {
 		fetcherErr := errors.New("fetcher failed")
-		events := map[core.Duty][]event{
-			attDuty: {
-				{
-					duty:    attDuty,
-					step:    fetcher,
-					stepErr: errors.New("fetcher failed"),
-				},
-			},
-		}
+		events[attDuty] = append(events[attDuty], event{
+			duty:    attDuty,
+			step:    fetcher,
+			stepErr: errors.New("fetcher failed"),
+		})
 
 		failed, step, reason, err := analyseDutyFailed(attDuty, events, true)
 		require.ErrorAs(t, err, &fetcherErr)
 		require.True(t, failed)
 		require.Equal(t, step, fetcher)
 		require.Equal(t, reason, reasonFetcherError)
+	})
 
-		// Failed at consensus
+	t.Run("Failed at consensus", func(t *testing.T) {
 		consensusErr := errors.New("consensus failed")
 		events[attDuty] = append(events[attDuty], event{
 			duty:    attDuty,
@@ -154,25 +156,28 @@ func TestAnalyseDutyFailed(t *testing.T) {
 			stepErr: errors.New("consensus failed"),
 		})
 
-		failed, step, reason, err = analyseDutyFailed(attDuty, events, true)
+		failed, step, reason, err := analyseDutyFailed(attDuty, events, true)
 		require.ErrorAs(t, err, &consensusErr)
 		require.True(t, failed)
 		require.Equal(t, step, consensus)
 		require.Equal(t, reason, reasonConsensus)
+	})
 
-		// Failed at validatorAPI
+	// Failed at validatorAPI
+	t.Run("Failed at validatorAPI", func(t *testing.T) {
 		events[attDuty] = append(events[attDuty], event{
 			duty: attDuty,
 			step: dutyDB,
 		})
 
-		failed, step, reason, err = analyseDutyFailed(attDuty, events, true)
+		failed, step, reason, err := analyseDutyFailed(attDuty, events, true)
 		require.NoError(t, err)
 		require.True(t, failed)
 		require.Equal(t, step, validatorAPI)
 		require.Equal(t, reason, reasonValidatorAPI)
-
-		// Failed at parsigDBInternal
+	})
+	// Failed at parsigDBInternal
+	t.Run("Failed at parsigDBInternal", func(t *testing.T) {
 		parSigDBInternalErr := errors.New("parsigdb_internal failed")
 		events[attDuty] = append(events[attDuty], event{
 			duty:    attDuty,
@@ -180,25 +185,29 @@ func TestAnalyseDutyFailed(t *testing.T) {
 			stepErr: errors.New("parsigdb_internal failed"),
 		})
 
-		failed, step, reason, err = analyseDutyFailed(attDuty, events, true)
+		failed, step, reason, err := analyseDutyFailed(attDuty, events, true)
 		require.ErrorAs(t, err, &parSigDBInternalErr)
 		require.True(t, failed)
 		require.Equal(t, step, parSigDBInternal)
 		require.Equal(t, reason, reasonParSigDBInternal)
+	})
 
-		// Failed at parsigEx
+	// Failed at parsigEx
+	t.Run("Failed at parsigEx", func(t *testing.T) {
 		events[attDuty] = append(events[attDuty], event{
 			duty: attDuty,
 			step: parSigEx,
 		})
 
-		failed, step, reason, err = analyseDutyFailed(attDuty, events, true)
+		failed, step, reason, err := analyseDutyFailed(attDuty, events, true)
 		require.NoError(t, err)
 		require.True(t, failed)
 		require.Equal(t, step, parSigEx)
 		require.Equal(t, reason, reasonParSigExReceive)
+	})
 
-		// Failed at parsigDBInternal
+	// Failed at parsigDBInternal
+	t.Run("Failed at parsigDBInternal", func(t *testing.T) {
 		parSigDBExternalErr := errors.New("parsigdb_external failed")
 		events[attDuty] = append(events[attDuty], event{
 			duty:    attDuty,
@@ -206,19 +215,20 @@ func TestAnalyseDutyFailed(t *testing.T) {
 			stepErr: errors.New("parsigdb_external failed"),
 		})
 
-		failed, step, reason, err = analyseDutyFailed(attDuty, events, true)
+		failed, step, reason, err := analyseDutyFailed(attDuty, events, true)
 		require.ErrorAs(t, err, &parSigDBExternalErr)
 		require.True(t, failed)
 		require.Equal(t, step, parSigDBExternal)
 		require.Equal(t, reason, reasonParSigDBExternal)
+	})
 
-		// Failed at parsigDBThreshold
+	t.Run("Failed at parsigDBThreshold", func(t *testing.T) {
 		events[attDuty] = append(events[attDuty], event{
 			duty: attDuty,
 			step: parSigDBExternal,
 		})
 
-		failed, step, reason, err = analyseDutyFailed(attDuty, events, true)
+		failed, step, reason, err := analyseDutyFailed(attDuty, events, true)
 		require.NoError(t, err)
 		require.True(t, failed)
 		require.Equal(t, step, parSigDBExternal)
@@ -236,6 +246,36 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		require.True(t, failed)
 		require.Equal(t, step, parSigDBExternal)
 		require.Equal(t, reason, reasonParSigDBInconsistentSync)
+	})
+
+	t.Run("Failed at bcast", func(t *testing.T) {
+		bcastErr := errors.New("bcast failed")
+		events[attDuty] = append(events[attDuty], event{
+			duty:    attDuty,
+			step:    bcast,
+			stepErr: bcastErr,
+		})
+
+		failed, step, reason, err := analyseDutyFailed(attDuty, events, true)
+		require.ErrorIs(t, err, bcastErr)
+		require.True(t, failed)
+		require.Equal(t, step, bcast)
+		require.Equal(t, reason, reasonBcast)
+	})
+
+	t.Run("Failed at chain inclusion", func(t *testing.T) {
+		inclErr := errors.New("not included on chain")
+		events[attDuty] = append(events[attDuty], event{
+			duty:    attDuty,
+			step:    chainInclusion,
+			stepErr: inclErr,
+		})
+
+		failed, step, reason, err := analyseDutyFailed(attDuty, events, true)
+		require.ErrorIs(t, err, inclErr)
+		require.True(t, failed)
+		require.Equal(t, step, chainInclusion)
+		require.Equal(t, reason, reasonChainIncl)
 	})
 
 	t.Run("FailedAtFetcherAsRandaoFailed", func(t *testing.T) {
@@ -293,14 +333,35 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		require.Equal(t, reason, reasonFetcherProposerZeroRandaos)
 	})
 
-	t.Run("DutySuccess", func(t *testing.T) {
+	t.Run("Attester Duty Success", func(t *testing.T) {
 		var (
 			events  = make(map[core.Duty][]event)
 			attDuty = core.NewAttesterDuty(int64(1))
 		)
 
+		require.Equal(t, chainInclusion, lastStep(attDuty.Type))
+
 		for step := fetcher; step < sentinel; step++ {
-			events[attDuty] = append(events[attDuty], event{step: step})
+			events[attDuty] = append(events[attDuty], event{step: step, duty: attDuty})
+		}
+
+		failed, step, msg, err := analyseDutyFailed(attDuty, events, true)
+		require.NoError(t, err)
+		require.False(t, failed)
+		require.Equal(t, zero, step)
+		require.Empty(t, msg)
+	})
+
+	t.Run("SyncContrib Duty Success", func(t *testing.T) {
+		var (
+			events          = make(map[core.Duty][]event)
+			syncContribDuty = core.NewSyncContributionDuty(int64(1))
+		)
+
+		require.Equal(t, bcast, lastStep(syncContribDuty.Type))
+
+		for step := fetcher; step < chainInclusion; step++ {
+			events[attDuty] = append(events[attDuty], event{step: step, duty: syncContribDuty})
 		}
 
 		failed, step, msg, err := analyseDutyFailed(attDuty, events, true)
@@ -314,7 +375,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 func TestDutyFailedStep(t *testing.T) {
 	var events []event
 	for step := fetcher; step < sentinel; step++ {
-		events = append(events, event{step: step})
+		events = append(events, event{step: step, duty: core.NewAttesterDuty(0)})
 	}
 
 	t.Run("DutySuccess", func(t *testing.T) {
@@ -428,6 +489,9 @@ func TestTrackerParticipation(t *testing.T) {
 			for _, pk := range pubkeys {
 				tr.SigAggAggregated(td.duty, pk, nil, nil)
 				tr.BroadcasterBroadcast(td.duty, pk, nil, nil)
+				if lastStep(td.duty.Type) == chainInclusion {
+					tr.InclusionChecked(td.duty, pk, nil, nil)
+				}
 			}
 
 			// Explicitly mark the current duty as deadlined.
@@ -714,7 +778,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			}, "beacon api error"),
 		},
 		{
-			name: "beacon committee selections endpoint not supported",
+			name: "beacon committee selections endpoint not inclSupported",
 			duty: dutyAgg,
 			events: map[core.Duty][]event{
 				dutyAgg: {event{
@@ -825,7 +889,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			err:    nil,
 		},
 		{
-			name: "sync committee selections endpoint not supported",
+			name: "sync committee selections endpoint not inclSupported",
 			duty: dutySyncCon,
 			events: map[core.Duty][]event{
 				dutySyncCon: {event{
@@ -1090,23 +1154,24 @@ func TestAnalyseParSigs(t *testing.T) {
 }
 
 func TestDutyFailedMultipleEvents(t *testing.T) {
+	duty := core.NewAttesterDuty(123)
 	testErr := errors.New("test error")
 	var events []event
 	for step := fetcher; step < sentinel; step++ {
 		for i := 0; i < 5; i++ {
-			events = append(events, event{step: step, stepErr: testErr})
+			events = append(events, event{step: step, duty: duty, stepErr: testErr})
 		}
 	}
 
 	// Failed at last step.
 	failed, step, err := dutyFailedStep(events)
 	require.True(t, failed)
-	require.Equal(t, bcast, step)
+	require.Equal(t, chainInclusion, step)
 	require.ErrorIs(t, err, testErr)
 
 	// No Failure.
 	for step := fetcher; step < sentinel; step++ {
-		events = append(events, event{step: step})
+		events = append(events, event{step: step, duty: duty})
 	}
 	failed, step, err = dutyFailedStep(events)
 	require.False(t, failed)

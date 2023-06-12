@@ -37,7 +37,9 @@ func TestDuplicateAttData(t *testing.T) {
 		}, nil
 	}
 
-	incl, err := NewInclusion(ctx, bmock)
+	noopTrackerInclFunc := func(duty core.Duty, key core.PubKey, data core.SignedData, err error) {}
+
+	incl, err := NewInclusion(ctx, bmock, noopTrackerInclFunc)
 	require.NoError(t, err)
 
 	done := make(chan struct{})
@@ -81,6 +83,7 @@ func TestInclusion(t *testing.T) {
 		attIncludedFunc: func(ctx context.Context, sub submission, block block) {
 			included = append(included, sub.Duty)
 		},
+		trackerInclFunc: func(duty core.Duty, key core.PubKey, data core.SignedData, err error) {},
 	}
 
 	// Create some duties
