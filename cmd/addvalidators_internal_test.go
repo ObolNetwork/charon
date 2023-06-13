@@ -20,17 +20,11 @@ const (
 )
 
 func TestValidateConfigAddValidators(t *testing.T) {
-	_, record := testutil.RandomENR(t, 1)
-	op := state.Operator{
-		Address: testutil.RandomETHAddress(),
-		ENR:     record.String(),
-	}
-
 	tests := []struct {
-		name      string
-		conf      addValidatorsConfig
-		operators []state.Operator
-		errMsg    string
+		name   string
+		conf   addValidatorsConfig
+		numOps int
+		errMsg string
 	}{
 		{
 			name: "insufficient validators",
@@ -73,8 +67,8 @@ func TestValidateConfigAddValidators(t *testing.T) {
 				FeeRecipientAddrs: []string{feeRecipientAddr},
 				EnrPrivKeyfiles:   []string{enrPrivKeyFile},
 			},
-			operators: []state.Operator{op, op},
-			errMsg:    "insufficient enr private key files",
+			numOps: 2,
+			errMsg: "insufficient enr private key files",
 		},
 		{
 			name: "single addr for all validators",
@@ -105,7 +99,7 @@ func TestValidateConfigAddValidators(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateConf(tt.conf, tt.operators)
+			err := validateConf(tt.conf, tt.numOps)
 			if tt.errMsg != "" {
 				require.Equal(t, tt.errMsg, err.Error())
 			} else {
@@ -143,16 +137,16 @@ func TestValidateP2PKeysOrder(t *testing.T) {
 	t.Run("correct order", func(t *testing.T) {
 		var (
 			p2pKeys []*k1.PrivateKey
-			enrs    []string
+			ops     []state.Operator
 		)
 
 		for i := 0; i < n; i++ {
 			key, enrStr := testutil.RandomENR(t, seed+i)
 			p2pKeys = append(p2pKeys, key)
-			enrs = append(enrs, enrStr.String())
+			ops = append(ops, state.Operator{ENR: enrStr.String()})
 		}
 
-		err := validateP2PKeysOrder(p2pKeys, enrs)
+		err := validateP2PKeysOrder(p2pKeys, ops)
 		require.NoError(t, err)
 	})
 
@@ -165,14 +159,13 @@ func TestValidateP2PKeysOrder(t *testing.T) {
 	t.Run("invalid order", func(t *testing.T) {
 		var (
 			p2pKeys []*k1.PrivateKey
-			enrs    []string
+			ops     []state.Operator
 		)
 
 		for i := 0; i < n; i++ {
 			key, enrStr := testutil.RandomENR(t, seed+i)
 			p2pKeys = append(p2pKeys, key)
-			enrs = append(enrs, enrStr.String())
-			t.Log(enrStr.String())
+			ops = append(ops, state.Operator{ENR: enrStr.String()})
 		}
 
 		// Swap first and last elements of p2p keys list
@@ -181,7 +174,7 @@ func TestValidateP2PKeysOrder(t *testing.T) {
 		p2pKeys[0] = last
 		p2pKeys[n-1] = first
 
-		err := validateP2PKeysOrder(p2pKeys, enrs)
+		err := validateP2PKeysOrder(p2pKeys, ops)
 		require.ErrorContains(t, err, "invalid p2p key order")
 	})
 }

@@ -74,7 +74,16 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 		return err
 	}
 
-	if err = validateConf(conf, cState.Operators); err != nil {
+	if err = validateConf(conf, len(cState.Operators)); err != nil {
+		return err
+	}
+
+	p2pKeys, err := getP2PKeys(conf)
+	if err != nil {
+		return errors.Wrap(err, "load p2p keys")
+	}
+
+	if err := validateP2PKeysOrder(p2pKeys, cState.Operators); err != nil {
 		return err
 	}
 
@@ -98,20 +107,6 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 	genValsHash, err := genVals.Hash()
 	if err != nil {
 		return errors.Wrap(err, "hash gen vals")
-	}
-
-	p2pKeys, err := getP2PKeys(conf)
-	if err != nil {
-		return errors.Wrap(err, "load p2p keys")
-	}
-
-	var enrStrs []string
-	for _, enrStr := range cState.Operators {
-		enrStrs = append(enrStrs, enrStr.ENR)
-	}
-
-	if err := validateP2PKeysOrder(p2pKeys, enrStrs); err != nil {
-		return err
 	}
 
 	var approvals []state.SignedMutation
@@ -192,7 +187,19 @@ func loadClusterState(conf addValidatorsConfig) (state.Cluster, error) {
 		return state.NewClusterFromLock(*conf.TestConfig.Lock)
 	}
 
-	clusterState, err := state.Load(conf.Lockfile, nil)
+	verifyLock := func(lock cluster.Lock) error {
+		if err := lock.VerifyHashes(); err != nil {
+			return errors.Wrap(err, "cluster lock hash verification failed")
+		}
+
+		if err := lock.VerifySignatures(); err != nil {
+			return errors.Wrap(err, "cluster lock signature verification failed")
+		}
+
+		return nil
+	}
+
+	clusterState, err := state.Load(conf.Lockfile, verifyLock)
 	if err != nil {
 		return state.Cluster{}, errors.Wrap(err, "load cluster state")
 	}
@@ -201,7 +208,7 @@ func loadClusterState(conf addValidatorsConfig) (state.Cluster, error) {
 }
 
 // validateConf returns an error if the provided validators config fails validation checks.
-func validateConf(conf addValidatorsConfig, ops []state.Operator) error {
+func validateConf(conf addValidatorsConfig, numOps int) error {
 	if conf.NumVals <= 0 {
 		return errors.New("insufficient validator count", z.Int("validators", conf.NumVals))
 	}
@@ -225,8 +232,8 @@ func validateConf(conf addValidatorsConfig, ops []state.Operator) error {
 	if len(conf.TestConfig.P2PKeys) > 0 {
 		privKeysCount = len(conf.TestConfig.P2PKeys)
 	}
-	if privKeysCount != len(ops) {
-		return errors.New("insufficient enr private key files", z.Int("num_operators", len(ops)), z.Int("num_keyfiles", len(conf.EnrPrivKeyfiles)))
+	if privKeysCount != numOps {
+		return errors.New("insufficient enr private key files", z.Int("num_operators", numOps), z.Int("num_keyfiles", len(conf.EnrPrivKeyfiles)))
 	}
 
 	if conf.NumVals > 1 {
@@ -331,7 +338,12 @@ func getP2PKeys(conf addValidatorsConfig) ([]*k1.PrivateKey, error) {
 }
 
 // validateP2PKeysOrder ensures that the provided p2p private keys are ordered correctly by peer index.
-func validateP2PKeysOrder(p2pKeys []*k1.PrivateKey, enrs []string) error {
+func validateP2PKeysOrder(p2pKeys []*k1.PrivateKey, ops []state.Operator) error {
+	var enrs []string
+	for _, enrStr := range ops {
+		enrs = append(enrs, enrStr.ENR)
+	}
+
 	if len(p2pKeys) != len(enrs) {
 		return errors.New("length of p2p keys and enrs don't match", z.Int("p2pkeys", len(p2pKeys)), z.Int("enrs", len(enrs)))
 	}
