@@ -75,7 +75,7 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 	}
 
 	if err = validateConf(conf, len(cState.Operators)); err != nil {
-		return err
+		return errors.Wrap(err, "validate config")
 	}
 
 	p2pKeys, err := getP2PKeys(conf)
@@ -320,11 +320,11 @@ func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsCon
 
 // getP2PKeys returns a list of p2p private keys either by loading from disk or from test config.
 func getP2PKeys(conf addValidatorsConfig) ([]*k1.PrivateKey, error) {
-	var p2pKeys []*k1.PrivateKey
 	if len(conf.TestConfig.P2PKeys) > 0 {
-		p2pKeys = conf.TestConfig.P2PKeys
+		return conf.TestConfig.P2PKeys, nil
 	}
 
+	var p2pKeys []*k1.PrivateKey
 	for _, enrKeyFile := range conf.EnrPrivKeyfiles {
 		p2pKey, err := k1util.Load(enrKeyFile)
 		if err != nil {
