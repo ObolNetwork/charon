@@ -3,8 +3,10 @@
 package cmd
 
 import (
+	"context"
 	"testing"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
@@ -128,6 +130,58 @@ func TestRunAddValidators(t *testing.T) {
 		},
 	}
 
-	err := runAddValidatorsSolo(conf)
+	err := runAddValidatorsSolo(context.Background(), conf)
 	require.NoError(t, err)
+}
+
+func TestValidateP2PKeysOrder(t *testing.T) {
+	const (
+		seed = 123
+		n    = 4
+	)
+
+	t.Run("correct order", func(t *testing.T) {
+		var (
+			p2pKeys []*k1.PrivateKey
+			enrs    []string
+		)
+
+		for i := 0; i < n; i++ {
+			key, enrStr := testutil.RandomENR(t, seed+i)
+			p2pKeys = append(p2pKeys, key)
+			enrs = append(enrs, enrStr.String())
+		}
+
+		err := validateP2PKeysOrder(p2pKeys, enrs)
+		require.NoError(t, err)
+	})
+
+	t.Run("length mismatch", func(t *testing.T) {
+		key, _ := testutil.RandomENR(t, seed)
+		err := validateP2PKeysOrder([]*k1.PrivateKey{key}, nil)
+		require.ErrorContains(t, err, "length of p2p keys and enrs don't match")
+	})
+
+	t.Run("invalid order", func(t *testing.T) {
+		var (
+			p2pKeys []*k1.PrivateKey
+			enrs    []string
+		)
+
+		for i := 0; i < n; i++ {
+			key, enrStr := testutil.RandomENR(t, seed+i)
+			p2pKeys = append(p2pKeys, key)
+			enrs = append(enrs, enrStr.String())
+			t.Log(enrStr.String())
+		}
+
+		// Swap first and last elements of p2p keys list
+		first := p2pKeys[0]
+		last := p2pKeys[n-1]
+		p2pKeys[0] = last
+		p2pKeys[n-1] = first
+
+		err := validateP2PKeysOrder(p2pKeys, enrs)
+		require.ErrorContains(t, err, "invalid p2p key order")
+	})
 }
