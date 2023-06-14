@@ -114,6 +114,9 @@ type Config struct {
 
 	// SyntheticBlockProposals configures use of synthetic block proposals in simnet cluster.
 	SyntheticBlockProposals bool `json:"synthetic_block_proposals"`
+
+	// Monitoring enables monitoring stack for the compose cluster. It includes grafana, loki and jaeger services.
+	Monitoring bool `json:"monitoring"`
 }
 
 // VCStrings returns the VCs field as a slice of strings.
@@ -141,5 +144,6 @@ func NewDefaultConfig() Config {
 		FeatureSet:              defaultFeatureSet,
 		SlotDuration:            time.Second,
 		SyntheticBlockProposals: true,
+		Monitoring:              true,
 	}
 }

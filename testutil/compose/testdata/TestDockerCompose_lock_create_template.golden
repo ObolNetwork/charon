@@ -60,5 +60,6 @@
  "VCs": null,
  "Relay": false,
  "Monitoring": false,
+ "Alerting": false,
  "MonitoringPorts": false
 }

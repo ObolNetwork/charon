@@ -473,5 +473,6 @@
  ],
  "Relay": true,
  "Monitoring": true,
+ "Alerting": true,
  "MonitoringPorts": true
 }

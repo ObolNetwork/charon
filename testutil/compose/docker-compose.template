@@ -68,7 +68,7 @@ services:
   {{end -}}
   {{end -}}
 
-  {{if .Monitoring}}
+  {{if .Alerting}}
   curl:
     # Can be used to curl services; e.g. docker-compose exec curl curl http://prometheus:9090/api/v1/rules\?type\=alert
     image: curlimages/curl:latest
@@ -84,7 +84,9 @@ services:
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - ./prometheus/rules.yml:/etc/prometheus/rules.yml
+  {{end}}
 
+  {{if .Monitoring}}
   grafana:
     image: grafana/grafana:latest
     {{if .MonitoringPorts}}ports:

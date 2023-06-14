@@ -32,6 +32,7 @@ type TmplData struct {
 
 	Relay           bool
 	Monitoring      bool
+	Alerting        bool
 	MonitoringPorts bool
 }
 

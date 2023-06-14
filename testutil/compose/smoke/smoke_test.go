@@ -162,6 +162,7 @@ func TestSmoke(t *testing.T) {
 			require.NoError(t, err)
 
 			conf := compose.NewDefaultConfig()
+			conf.Monitoring = false
 			conf.DisableMonitoringPorts = true
 			conf.BuildLocal = true
 			conf.ImageTag = "local"
