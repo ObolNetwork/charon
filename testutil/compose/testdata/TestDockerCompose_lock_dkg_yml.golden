@@ -96,5 +96,7 @@ services:
       CHARON_LOKI_ADDRESS: http://loki:3100/loki/api/v1/push
   
 
+  
+
 networks:
   compose:
