@@ -1,0 +1,123 @@
+mutation:  {
+  parent:  "k\xf8Lqt\xcbtv6L\xc3\xdb\xd9h\xb0\xf7\x17.\xd8W\x94\xbb5\x8b\x0c;R]\xa1xo\x9f"
+  type:  "dv/add_validators/v0.0.1"
+  timestamp:  {
+    seconds:  1609459560
+  }
+  data:  {
+    [type.googleapis.com/cluster.statepb.v1.SignedMutationList]:  {
+      mutations:  {
+        mutation:  {
+          parent:  "k\xf8Lqt\xcbtv6L\xc3\xdb\xd9h\xb0\xf7\x17.\xd8W\x94\xbb5\x8b\x0c;R]\xa1xo\x9f"
+          type:  "dv/gen_validators/v0.0.1"
+          timestamp:  {
+            seconds:  1609459200
+          }
+          data:  {
+            [type.googleapis.com/cluster.statepb.v1.ValidatorList]:  {
+              validators:  {
+                public_key:  "\x96h/bc\xbeik\x02&6\xdf\xffFj\t=|H\xf6\x1f\x1ay\x1a\\n\x14n\xf6:\x83)\xb1\xf7\xfd\x93\xd7\n\t\xc0\xbb\x1a3\x9f\xe5w\x02q"
+                pub_shares:  "\xb8ɱQ9\xea\x96n\x93ֈ\xacxġ\xf2\xb2\xd9\xd0\xcd\xe0d\x0fnG\xec'\xf1\x1f[\xb2\x98\xc3c|nJ\xb6\x1cõN*\xcb\xc2a\xb5\xb5"
+                pub_shares:  "\xa0\xe4\xd16\xdb\x06\xddV5p\x8fx{\xd4\xc7\x1e\xa0\xe9o\xc4\x19\x99bm\x8c\x91<,w\xb9m\xec\xda\x12bʛ\x9e\xbb.\xf6\xea%\xe6\xc4\xf6\xb4\xc6"
+                pub_shares:  "\xa17^\xce:\xff\x9cս\x1f\n\xcf\x18-\x9f\xa5\xeai\xadz\ta\x11\x18\x8d;\xc0s\xe5i4\xa2\xc4?H-B3\x955|\xd7Yf\xadT2i"
+                pub_shares:  "\xb3<j(\xeab\xe2>W\xb8\x10\xbdh$\xc6\x04\xe4\xd8\xce\r\x94\r\x12\xfa5\xfcԥ\x1f\xdb\xe3\xe18\xb8\x1e/C\x8c\x18v\x0b\xca\xe5\xde~\n\xf4\xd1"
+                fee_recipient_address:  "0x52fdfc072182654f163f5f0f9a621d729566c74d"
+                withdrawal_address:  "0x81855ad8681d0d86d1e91e00167939cb6694d2c4"
+                builder_registration_json:  "{\"Version\":\"V1\",\"V1\":{\"message\":{\"fee_recipient\":\"0x52FDfc072182654f163F5F0f9A621D729566c74D\",\"gas_limit\":\"30000000\",\"timestamp\":\"1616508000\",\"pubkey\":\"0x96682f6263be696b022636dfff466a093d7c48f61f1a791a5c6e146ef63a8329b1f7fd93d70a09c0bb1a339fe5770271\"},\"signature\":\"0x83a4b59d0b44269dca0d1457673a4672d90881f1a5901774cfcd08c7ac3da736363355461f0f6786cf61880cd9a9417213b1ea152dba50b46b066d63fe23cb64ff7e2895d0339aa893a569d24a6183f75770af009dfa9231d242702b6a527f30\"}}"
+              }
+              validators:  {
+                public_key:  "\xa2\x97N\x9c\xa1\x7fZ\x98.\xe6R\x92\xf1a\xa63\x9esk\xef\xf4s\xf7\x1fvAw\r_x\x88&~ǆR\xa6\x86n͓+)\x06\xf2\xfc:\xa9"
+                pub_shares:  "\x81\xcf)\x12\x06?ߔ\t\xa2\x08\x11\xc4\xf5\x85y\xeaC\x190\xe7`\n\x80\xfeZ\x1c\x95\x83\xc6d\x0f \xee1\x03\x97\xa0r\xfb\xe4\xc7;`\x07\x86$\x10"
+                pub_shares:  "\xb3e\x99\xbbL\x84\"O)R\xfe\x8e\xf2\xed\x0c\x8b\xf4\xe5\xf5=\x1b\xb1!\x9bj>[5\xd2\x1bp*攘\x8f\xc4,|\xc0\x183N\x9b2u\xd3\x1c"
+                pub_shares:  "\x88[\xf0\xa7\x8dF\xa5\xb7\xe7\x18\xbe47\xe9\x11\x87\xf6\xa6W3\x84\xbe^\xf6U\x86,\t\x97\xbe\x14z\x0b\xab0\xa4ū\xb5\x7f\xdc&;\xd7t\\\xd0\x1a"
+                pub_shares:  "\xac\xfd\xa5^\x13\xd8\xdf\xdds\x89L\x97\x945\x85\xd3\xf1B\xd2=2\x89\x9a[~Q\xdc\x05II\xed\xbc\x96\xb4\xcbC5\xb9P\x80\xfdV\xbb{\xa2\x01\r("
+                fee_recipient_address:  "0xeb9d18a44784045d87f3c67cf22746e995af5a25"
+                withdrawal_address:  "0x5fb90badb37c5821b6d95526a41a9504680b4e7c"
+                builder_registration_json:  "{\"Version\":\"V1\",\"V1\":{\"message\":{\"fee_recipient\":\"0xEb9D18A44784045d87F3C67Cf22746e995aF5a25\",\"gas_limit\":\"30000000\",\"timestamp\":\"1616508000\",\"pubkey\":\"0xa2974e9ca17f5a982ee65292f161a6339e736beff473f71f7641770d5f7888267ec78652a6866ecd932b2906f2fc3aa9\"},\"signature\":\"0xa6dbab26d933b280435ecda94be722c2f4528b6e1c1ac85f40cc8de38d2f01c2db5cfdedb6bcd07feb052106cb2c8485026ab017b22d818968384be718802b9dd2ab6b18cdea1724ea6289b7678fc33ecc733099bc0c3e34c670e1edd78e0ead\"}}"
+              }
+              validators:  {
+                public_key:  "\xae'\x88?\xfa\x0f\xff\x9d\xe0\x12\x8cX\xfe~b\xae\xc3-eQ\x9a<\xe2vy\xe1h\xd2^\x1dO\x04_\x0bz\xcf\xd1{\x0b\x87\x06'\xdczV\x06#l"
+                pub_shares:  "\xac\xf8Y^;\x1e\xd3\xc2\\\x96؝\x90\xdb2\xef\x1a\xa4ML\xeb\xabB\xb0@Ru\x17|\xee\xb95\x83 ϊ#\xce\xc7\x11Ց޾=\x98V\xa7"
+                pub_shares:  "\xb0c\xb7O\x82\xfeԫ\x80\n\xe1\xf7\xd4\xef\xe2ͮ\xd5+\x02\xf7\xa6\xe7K\xfe^\x7f\x1c\xcdm\xf8㾮\xccfr\xe4\xfc\xff\x05\x01h\xd3\r\xb7q\xdd"
+                pub_shares:  "\x8a\x9e8\x15DY\x12P\xce+\x98\xb3e\xeeO\xf6M\xfa\xe5)\x02*\x16?\xb8\xbfd\xad\x98\xb4\xb1(t\xc4\x00\xa1u\x98\x10\xa1\x06\xb1J\x07\x82Ri\x86"
+                pub_shares:  "\x8a\x8f\x165\x1d\xb5PŽV\xe3^\x84\xe3\x11]\r@\xa9\xd2r\xa4\x00~r˛\x83\xf8\xd3\xcd\x14\x80\xa9\x95\x07\x1d` \x06\x01\xcd\xe6\x8dh\x98T\xf0"
+                fee_recipient_address:  "0x6325253fec738dd7a9e28bf921119c160f070244"
+                withdrawal_address:  "0x0bf5059875921e668a5bdf2c7fc4844592d2572b"
+                builder_registration_json:  "{\"Version\":\"V1\",\"V1\":{\"message\":{\"fee_recipient\":\"0x6325253FEc738DD7a9E28bf921119c160F070244\",\"gas_limit\":\"30000000\",\"timestamp\":\"1616508000\",\"pubkey\":\"0xae27883ffa0fff9de0128c58fe7e62aec32d65519a3ce27679e168d25e1d4f045f0b7acfd17b0b870627dc7a5606236c\"},\"signature\":\"0x9316371ecc3ac0afcda10150535be1a0a9586f7005c0beee087d515a322b270945f1492989dccfdd64ec7135b9a08f0d16112947bdaeddd432a67952d20ab655d93257ec9341d7a94cb6281b39a976b9bb835707258ac154a78a6ec1971f406d\"}}"
+              }
+            }
+          }
+        }
+      }
+      mutations:  {
+        mutation:  {
+          parent:  "\x93\xd1\"ż\x9eO\xff\x93\xba\xd5\"Y%\xf0\xbc\xd0/\xed\x91\xf3\xc1b\xe0\x01K\xb6\x8b\xe5\xcdc9"
+          type:  "dv/node_approvals/v0.0.1"
+          timestamp:  {
+            seconds:  1609459500
+          }
+          data:  {
+            [type.googleapis.com/cluster.statepb.v1.SignedMutationList]:  {
+              mutations:  {
+                mutation:  {
+                  parent:  "\x93\xd1\"ż\x9eO\xff\x93\xba\xd5\"Y%\xf0\xbc\xd0/\xed\x91\xf3\xc1b\xe0\x01K\xb6\x8b\xe5\xcdc9"
+                  type:  "dv/node_approval/v0.0.1"
+                  timestamp:  {
+                    seconds:  1609459260
+                  }
+                  data:  {
+                    [type.googleapis.com/cluster.statepb.v1.Empty]:  {}
+                  }
+                }
+                signer:  "\x02MKl\xd16\x102ʛҮ\xb9\xd9\x00\xaaME\xd9\xea\xd8\n\xc9B3t\xc4Q\xa7%M\x07f"
+                signature:  "\x81\xaa~d\xe4z\xa1\x1a4\xb0\xd8\"<\x89׈gd+wJ\xb3\x16\xa01\xce1hs2zDa\xe0\xbe\x00\xfc\xb0\x89ؖV\x89'\xe7k\xcb\x1e54\xdeO\x145\xe2\xa6p\x80\x11Y\x98\xd6\xc33"
+              }
+              mutations:  {
+                mutation:  {
+                  parent:  "\x93\xd1\"ż\x9eO\xff\x93\xba\xd5\"Y%\xf0\xbc\xd0/\xed\x91\xf3\xc1b\xe0\x01K\xb6\x8b\xe5\xcdc9"
+                  type:  "dv/node_approval/v0.0.1"
+                  timestamp:  {
+                    seconds:  1609459320
+                  }
+                  data:  {
+                    [type.googleapis.com/cluster.statepb.v1.Empty]:  {}
+                  }
+                }
+                signer:  "\x02S\x1f\xe6\x06\x814P='#\x132'\xc8g\xac\x8f\xa6\xc8<S~\x9aD\xc3Ž\xbd\xcb\x1f\xe37"
+                signature:  "\xeb\xa1B\xa9\x14$A\xcfU\xb2(z\x03\xceu\x05,\\/W\xc0\x7f\x0e\x85\xbf\xf1tω\x9c\xdb[&#\x82V\xdc\\\xcc\x10\xb5A\xf98\xad\xaeMK)[T.\xc9i\xfd\xbf\xacp\x83\xe0LP?\x9c"
+              }
+              mutations:  {
+                mutation:  {
+                  parent:  "\x93\xd1\"ż\x9eO\xff\x93\xba\xd5\"Y%\xf0\xbc\xd0/\xed\x91\xf3\xc1b\xe0\x01K\xb6\x8b\xe5\xcdc9"
+                  type:  "dv/node_approval/v0.0.1"
+                  timestamp:  {
+                    seconds:  1609459380
+                  }
+                  data:  {
+                    [type.googleapis.com/cluster.statepb.v1.Empty]:  {}
+                  }
+                }
+                signer:  "\x03F'y\xadJ\xad9QF\x14u\x1aq\x08_/\x10\xe1ǥ\x93\xe4\xe00ﵸr\x1c\xe5[\x0b"
+                signature:  "\xa2!\xabU\x80Mv\x83sއ\x8fo̕\xf2\x0c\x1d\xadi\xe9\xe0\x88\xcf\xe1\xd9-\xb8\xe5\x802f\\\xd6+Y\xe7\xe1\x12h\x0e\x06&Z\x86\xbf\x17\xa7\xa8+\xfe\x0ck\xfd]\x0f\xa1\xe0\xca?\x8b\xe9\x01\x19"
+              }
+              mutations:  {
+                mutation:  {
+                  parent:  "\x93\xd1\"ż\x9eO\xff\x93\xba\xd5\"Y%\xf0\xbc\xd0/\xed\x91\xf3\xc1b\xe0\x01K\xb6\x8b\xe5\xcdc9"
+                  type:  "dv/node_approval/v0.0.1"
+                  timestamp:  {
+                    seconds:  1609459440
+                  }
+                  data:  {
+                    [type.googleapis.com/cluster.statepb.v1.Empty]:  {}
+                  }
+                }
+                signer:  "\x03b\xc0\xa0F\xda\xcc\xe8m\xdd\x03C\xc6\xd3\xc7ǜ\"\x08\xba\r\x9c\x9c\xf2Jm\x04m!\xd2\x1f\x90\xf7"
+                signature:  "Ŭ59^\x19\xc0\x89\x00\xb6\xbb\xb8D\x08u\x8b\xe7\x1b\x0c\xb4\xe6y\t\x8d\x11\x07\x9c\xbal\xe5x\x8a#\x03r&\xa1\x1ch\xb7\xbdh\x08zܥA8\xcbB\x0b\x91^2\x80#TO\x03\xd5/\xaf\x18\xdb"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

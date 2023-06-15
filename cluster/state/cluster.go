@@ -3,13 +3,12 @@
 package state
 
 import (
-	"time"
-
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	pbv1 "github.com/obolnetwork/charon/cluster/statepb/v1"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
@@ -23,8 +22,8 @@ type Cluster struct {
 	Threshold    int
 	DKGAlgorithm string
 	ForkVersion  []byte
-	Operators    []Operator
-	Validators   []Validator
+	Operators    []*pbv1.Operator
+	Validators   []*pbv1.Validator
 }
 
 // Peers returns the operators as a slice of p2p peers.
@@ -32,14 +31,14 @@ func (c Cluster) Peers() ([]p2p.Peer, error) {
 	var resp []p2p.Peer
 	dedup := make(map[string]bool)
 	for i, operator := range c.Operators {
-		if dedup[operator.ENR] {
-			return nil, errors.New("cluster contains duplicate peer enrs", z.Str("enr", operator.ENR))
+		if dedup[operator.Enr] {
+			return nil, errors.New("cluster contains duplicate peer enrs", z.Str("enr", operator.Enr))
 		}
-		dedup[operator.ENR] = true
+		dedup[operator.Enr] = true
 
-		record, err := enr.Parse(operator.ENR)
+		record, err := enr.Parse(operator.Enr)
 		if err != nil {
-			return nil, errors.Wrap(err, "decode enr", z.Str("enr", operator.ENR))
+			return nil, errors.Wrap(err, "decode enr", z.Str("enr", operator.Enr))
 		}
 
 		p, err := p2p.NewPeerFromENR(record, i)
@@ -108,175 +107,17 @@ func (c Cluster) NodeIdx(pID peer.ID) (cluster.NodeIdx, error) {
 	return cluster.NodeIdx{}, errors.New("peer not in definition")
 }
 
-// Operator represents the operator of a node in the cluster.
-type Operator struct {
-	Address string `json:"address"`
-	ENR     string `json:"enr"`
+// ValidatorPublicKey returns the valIdx'th validator BLS group public key.
+func (c Cluster) ValidatorPublicKey(valIdx int) (tbls.PublicKey, error) {
+	return tblsconv.PubkeyFromBytes(c.Validators[valIdx].PublicKey)
 }
 
-// Validator represents a validator in the cluster.
-type Validator struct {
-	PubKey              []byte              `json:"public_key"`
-	PubShares           [][]byte            `json:"public_shares"`
-	FeeRecipientAddress string              `json:"fee_recipient_address"`
-	WithdrawalAddress   string              `json:"withdrawal_address"`
-	BuilderRegistration BuilderRegistration `json:"builder_registration"`
+// ValidatorPublicKeyHex returns the valIdx'th validator hex group public key.
+func (c Cluster) ValidatorPublicKeyHex(valIdx int) string {
+	return to0xHex(c.Validators[valIdx].PublicKey)
 }
 
-// PublicKey returns the validator BLS group public key.
-func (v Validator) PublicKey() (tbls.PublicKey, error) {
-	return tblsconv.PubkeyFromBytes(v.PubKey)
-}
-
-// PublicKeyHex returns the validator hex group public key.
-func (v Validator) PublicKeyHex() string {
-	return to0xHex(v.PubKey)
-}
-
-// PublicShare returns a peer's threshold BLS public share.
-func (v Validator) PublicShare(peerIdx int) (tbls.PublicKey, error) {
-	return tblsconv.PubkeyFromBytes(v.PubShares[peerIdx])
-}
-
-// toSSZ returns a SSZ friendly version of the validator.
-func (v Validator) toSSZ() validatorSSZ {
-	var pubshares []sszPubkey
-	for _, share := range v.PubShares {
-		pubshares = append(pubshares, sszPubkey{Pubkey: share})
-	}
-
-	// Convert to bytes ignoring errors, assume that verify has been called.
-	// TODO(corver): Extend genssz to handle errors in transform functions.
-	feeRecipient, _ := from0xHex(v.FeeRecipientAddress, 20)
-	withdrawal, _ := from0xHex(v.WithdrawalAddress, 20)
-
-	return validatorSSZ{
-		PubKey:              v.PubKey,
-		PubShares:           pubshares,
-		FeeRecipientAddress: feeRecipient,
-		WithdrawalAddress:   withdrawal,
-	}
-}
-
-type validatorJSON struct {
-	PubKey              ethHex                  `json:"public_key"`
-	PubShares           []ethHex                `json:"public_shares"`
-	FeeRecipientAddress string                  `json:"fee_recipient_address"`
-	WithdrawalAddress   string                  `json:"withdrawal_address"`
-	BuilderRegistration builderRegistrationJSON `json:"builder_registration"`
-}
-
-func validatorsToJSON(vals []Validator) []validatorJSON {
-	var resp []validatorJSON
-	for _, val := range vals {
-		var pubshares []ethHex
-		for _, share := range val.PubShares {
-			pubshares = append(pubshares, share)
-		}
-
-		resp = append(resp, validatorJSON{
-			PubKey:              val.PubKey,
-			PubShares:           pubshares,
-			FeeRecipientAddress: val.FeeRecipientAddress,
-			WithdrawalAddress:   val.WithdrawalAddress,
-			BuilderRegistration: registrationToJSON(val.BuilderRegistration),
-		})
-	}
-
-	return resp
-}
-
-func validatorsFromJSON(vals []validatorJSON) ([]Validator, error) {
-	var resp []Validator
-	for _, val := range vals {
-		var pubshares [][]byte
-		for _, share := range val.PubShares {
-			pubshares = append(pubshares, share)
-		}
-
-		reg, err := registrationFromJSON(val.BuilderRegistration)
-		if err != nil {
-			return nil, errors.Wrap(err, "validator registration from json")
-		}
-
-		resp = append(resp, Validator{
-			PubKey:              val.PubKey,
-			PubShares:           pubshares,
-			FeeRecipientAddress: val.FeeRecipientAddress,
-			WithdrawalAddress:   val.WithdrawalAddress,
-			BuilderRegistration: reg,
-		})
-	}
-
-	return resp, nil
-}
-
-type validatorSSZ struct {
-	PubKey              []byte      `ssz:"ByteList[256]"`
-	PubShares           []sszPubkey `ssz:"CompositeList[65536]"`
-	FeeRecipientAddress []byte      `ssz:"Bytes20"`
-	WithdrawalAddress   []byte      `ssz:"Bytes20"`
-}
-
-type sszPubkey struct {
-	Pubkey []byte `ssz:"ByteList[256]"`
-}
-
-// BuilderRegistration defines pre-generated signed validator builder registration to be sent to builder network.
-type BuilderRegistration struct {
-	Message   Registration `json:"message" ssz:"Composite" lock_hash:"0"`
-	Signature []byte       `json:"signature" ssz:"Bytes96" lock_hash:"1"`
-}
-
-// Registration defines unsigned validator registration message.
-type Registration struct {
-	FeeRecipient []byte    `json:"fee_recipient"  ssz:"Bytes20"`
-	GasLimit     int       `json:"gas_limit"  ssz:"uint64"`
-	Timestamp    time.Time `json:"timestamp"  ssz:"uint64,Unix"`
-	PubKey       []byte    `json:"pubkey"  ssz:"Bytes48"`
-}
-
-// builderRegistrationJSON is the json formatter of BuilderRegistration.
-type builderRegistrationJSON struct {
-	Message   registrationJSON `json:"message"`
-	Signature ethHex           `json:"signature"`
-}
-
-// registrationJSON is the json formatter of Registration.
-type registrationJSON struct {
-	FeeRecipient ethHex `json:"fee_recipient"`
-	GasLimit     int    `json:"gas_limit"`
-	Timestamp    string `json:"timestamp"`
-	PubKey       ethHex `json:"pubkey"`
-}
-
-// registrationToJSON converts BuilderRegistration to builderRegistrationJSON.
-func registrationToJSON(b BuilderRegistration) builderRegistrationJSON {
-	return builderRegistrationJSON{
-		Message: registrationJSON{
-			FeeRecipient: b.Message.FeeRecipient,
-			GasLimit:     b.Message.GasLimit,
-			Timestamp:    b.Message.Timestamp.Format(time.RFC3339),
-			PubKey:       b.Message.PubKey,
-		},
-		Signature: b.Signature,
-	}
-}
-
-// registrationFromJSON converts registrationFromJSON to BuilderRegistration.
-func registrationFromJSON(b builderRegistrationJSON) (BuilderRegistration, error) {
-	timestamp, err := time.Parse(time.RFC3339, b.Message.Timestamp)
-	if err != nil {
-		return BuilderRegistration{}, errors.Wrap(err, "parse timestamp")
-	}
-
-	return BuilderRegistration{
-		Message: Registration{
-			FeeRecipient: b.Message.FeeRecipient,
-			GasLimit:     b.Message.GasLimit,
-			Timestamp:    timestamp,
-			PubKey:       b.Message.PubKey,
-		},
-		Signature: b.Signature,
-	}, nil
+// ValidatorPublicShare returns the valIdx'th validator's peerIdx'th BLS public share.
+func (c Cluster) ValidatorPublicShare(valIdx int, peerIdx int) (tbls.PublicKey, error) {
+	return tblsconv.PubkeyFromBytes(c.Validators[valIdx].PubShares[peerIdx])
 }

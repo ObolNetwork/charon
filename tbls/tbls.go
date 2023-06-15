@@ -41,6 +41,10 @@ type Implementation interface {
 	// It returns a map that associates each private, compressed private key to its ID.
 	ThresholdSplit(secret PrivateKey, total uint, threshold uint) (map[int]PrivateKey, error)
 
+	// ThresholdSplitInsecure splits a secret into a number of shares, using a random number generator that is not
+	// cryptographically secure. This is useful for testing.
+	ThresholdSplitInsecure(t *testing.T, secret PrivateKey, total uint, threshold uint, random io.Reader) (map[int]PrivateKey, error)
+
 	// RecoverSecret recovers the original secret off the input shares.
 	RecoverSecret(shares map[int]PrivateKey, total uint, threshold uint) (PrivateKey, error)
 
@@ -93,6 +97,13 @@ func SecretToPublicKey(secret PrivateKey) (PublicKey, error) {
 // It returns a map that associates each private, compressed private key to its ID.
 func ThresholdSplit(secret PrivateKey, total uint, threshold uint) (map[int]PrivateKey, error) {
 	return impl.ThresholdSplit(secret, total, threshold)
+}
+
+// ThresholdSplitInsecure splits a secret into a number of shares, using a random number generator that is not
+// cryptographically secure. This is useful for testing.
+func ThresholdSplitInsecure(t *testing.T, secret PrivateKey, total uint, threshold uint, random io.Reader) (map[int]PrivateKey, error) {
+	t.Helper()
+	return impl.ThresholdSplitInsecure(t, secret, total, threshold, random)
 }
 
 // RecoverSecret recovers the original secret off the input shares.

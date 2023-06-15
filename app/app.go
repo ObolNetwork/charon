@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"sync"
@@ -15,7 +16,6 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -41,6 +41,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/state"
+	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/aggsigdb"
 	"github.com/obolnetwork/charon/core/bcast"
@@ -209,7 +210,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	initStartupMetrics(p2p.PeerName(tcpNode.ID()), cState.Threshold, len(cState.Operators), len(cState.Validators), network)
 
-	eth2Cl, err := newETH2Client(ctx, conf, life, cState.Validators, cState.ForkVersion)
+	eth2Cl, err := newETH2Client(ctx, conf, life, cState, cState.ForkVersion)
 	if err != nil {
 		return err
 	}
@@ -334,8 +335,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		allPubSharesByKey            = make(map[core.PubKey]map[int]tbls.PublicKey) // map[pubkey]map[shareIdx]pubshare
 		feeRecipientAddrByCorePubkey = make(map[core.PubKey]string)
 	)
-	for i, dv := range cState.Validators {
-		pubkey, err := dv.PublicKey()
+	for valIdx, dv := range cState.Validators {
+		pubkey, err := cState.ValidatorPublicKey(valIdx)
 		if err != nil {
 			return err
 		}
@@ -356,7 +357,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 			allPubShares[i+1] = pubshare
 		}
 
-		pubShare, err := dv.PublicShare(nodeIdx.PeerIdx)
+		pubShare, err := cState.ValidatorPublicShare(valIdx, nodeIdx.PeerIdx)
 		if err != nil {
 			return err
 		}
@@ -369,7 +370,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		corePubkeys = append(corePubkeys, corePubkey)
 		pubshares = append(pubshares, eth2Share)
 		allPubSharesByKey[corePubkey] = allPubShares
-		feeRecipientAddrByCorePubkey[corePubkey] = cState.FeeRecipientAddresses()[i]
+		feeRecipientAddrByCorePubkey[corePubkey] = cState.FeeRecipientAddresses()[valIdx]
 	}
 
 	peers, err := cState.Peers()
@@ -566,7 +567,7 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 // wireRecaster wires the rebroadcaster component to scheduler, sigAgg and broadcaster.
 // This is not done in core.Wire since recaster isn't really part of the official core workflow (yet).
 func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Scheduler, sigAgg core.SigAgg,
-	broadcaster core.Broadcaster, validators []state.Validator, builderAPI bool,
+	broadcaster core.Broadcaster, validators []*statepb.Validator, builderAPI bool,
 	callback func(context.Context, core.Duty, core.PubKey, core.SignedData) error,
 ) error {
 	recaster := bcast.NewRecaster()
@@ -585,23 +586,26 @@ func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Schedu
 
 	for _, val := range validators {
 		// Check if the current cluster state supports pre-generate validator registrations.
-		if len(val.BuilderRegistration.Signature) == 0 ||
-			len(val.BuilderRegistration.Message.FeeRecipient) == 0 ||
-			len(val.BuilderRegistration.Message.PubKey) == 0 {
+		if len(val.BuilderRegistrationJson) == 0 {
 			continue
 		}
 
-		pubkey, err := core.PubKeyFromBytes(val.PubKey)
+		reg := new(eth2api.VersionedSignedValidatorRegistration)
+		if err := json.Unmarshal(val.BuilderRegistrationJson, reg); err != nil {
+			return errors.Wrap(err, "unmarshal validator registration")
+		}
+
+		pubkey, err := core.PubKeyFromBytes(val.PublicKey)
 		if err != nil {
 			return errors.Wrap(err, "core pubkey from bytes")
 		}
 
-		signedData, err := core.NewVersionedSignedValidatorRegistration(builderRegistrationToETH2(val.BuilderRegistration))
+		signedData, err := core.NewVersionedSignedValidatorRegistration(reg)
 		if err != nil {
 			return errors.Wrap(err, "new versioned signed validator registration")
 		}
 
-		slot, err := slotFromTimestamp(ctx, eth2Cl, val.BuilderRegistration.Message.Timestamp)
+		slot, err := slotFromTimestamp(ctx, eth2Cl, reg.V1.Message.Timestamp)
 		if err != nil {
 			return errors.Wrap(err, "calculate slot from timestamp")
 		}
@@ -671,11 +675,11 @@ func calculateTrackerDelay(ctx context.Context, cl eth2wrap.Client, now time.Tim
 }
 
 // eth2PubKeys returns a list of BLS pubkeys of validators in the cluster lock.
-func eth2PubKeys(validators []state.Validator) ([]eth2p0.BLSPubKey, error) {
+func eth2PubKeys(cState state.Cluster) ([]eth2p0.BLSPubKey, error) {
 	var pubkeys []eth2p0.BLSPubKey
 
-	for _, dv := range validators {
-		pubkey, err := dv.PublicKey()
+	for valIdx := range cState.Validators {
+		pubkey, err := cState.ValidatorPublicKey(valIdx)
 		if err != nil {
 			return []eth2p0.BLSPubKey{}, err
 		}
@@ -690,9 +694,9 @@ func eth2PubKeys(validators []state.Validator) ([]eth2p0.BLSPubKey, error) {
 // newETH2Client returns a new eth2client; it is either a beaconmock for
 // simnet or a multi http client to a real beacon node.
 func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
-	validators []state.Validator, forkVersion []byte,
+	cState state.Cluster, forkVersion []byte,
 ) (eth2wrap.Client, error) {
-	pubkeys, err := eth2PubKeys(validators)
+	pubkeys, err := eth2PubKeys(cState)
 	if err != nil {
 		return nil, err
 	}
@@ -951,8 +955,8 @@ func setFeeRecipient(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) 
 // getDVPubkeys returns DV public keys from given cluster.Lock.
 func getDVPubkeys(cState state.Cluster) ([]core.PubKey, error) {
 	var pubkeys []core.PubKey
-	for _, dv := range cState.Validators {
-		pk, err := dv.PublicKey()
+	for valIdx := range cState.Validators {
+		pk, err := cState.ValidatorPublicKey(valIdx)
 		if err != nil {
 			return nil, err
 		}
@@ -1014,22 +1018,6 @@ func hex7(input []byte) string {
 	}
 
 	return resp[:7]
-}
-
-// builderRegistrationToETH2 converts cluster builder registration to eth2 versioned signed validator registration.
-func builderRegistrationToETH2(reg state.BuilderRegistration) *eth2api.VersionedSignedValidatorRegistration {
-	return &eth2api.VersionedSignedValidatorRegistration{
-		Version: eth2spec.BuilderVersionV1,
-		V1: &eth2v1.SignedValidatorRegistration{
-			Message: &eth2v1.ValidatorRegistration{
-				FeeRecipient: bellatrix.ExecutionAddress(reg.Message.FeeRecipient),
-				GasLimit:     uint64(reg.Message.GasLimit),
-				Timestamp:    reg.Message.Timestamp,
-				Pubkey:       eth2p0.BLSPubKey(reg.Message.PubKey),
-			},
-			Signature: eth2p0.BLSSignature(reg.Signature),
-		},
-	}
 }
 
 // slotFromTimestamp returns slot from the provided timestamp.

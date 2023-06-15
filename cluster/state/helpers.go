@@ -3,26 +3,29 @@
 package state
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
-	ssz "github.com/ferranbt/fastssz"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster"
+	pbv1 "github.com/obolnetwork/charon/cluster/statepb/v1"
 )
 
 // nowFunc is the time.Now function aliased for testing.
-var nowFunc = time.Now
+var nowFunc = timestamppb.Now
 
 // SetNowFuncForT sets the time.Now function for the duration of the test.
-func SetNowFuncForT(t *testing.T, f func() time.Time) {
+func SetNowFuncForT(t *testing.T, f func() *timestamppb.Timestamp) {
 	t.Helper()
 	cached := nowFunc
 	t.Cleanup(func() {
@@ -32,25 +35,92 @@ func SetNowFuncForT(t *testing.T, f func() time.Time) {
 	nowFunc = f
 }
 
-// hashRoot hashes a ssz root hasher object.
-func hashRoot(hasher rootHasher) ([32]byte, error) {
-	hw := ssz.DefaultHasherPool.Get()
-	defer ssz.DefaultHasherPool.Put(hw)
-
-	if err := hasher.HashTreeRootWith(hw); err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash tree root")
+// hashSignedMutation returns the hash of a signed mutation.
+func hashSignedMutation(signed *pbv1.SignedMutation) ([32]byte, error) {
+	if signed.Mutation == nil {
+		return [32]byte{}, errors.New("invalid signed mutation")
 	}
 
-	resp, err := hw.HashRoot()
+	h := sha256.New()
+
+	// Field 0: Mutation
+	b, err := hashMutation(signed.Mutation)
 	if err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash root")
+		return [32]byte{}, errors.Wrap(err, "hash mutation")
 	}
 
-	return resp, nil
+	if _, err := h.Write(b[:]); err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash mutation")
+	}
+
+	// Field 1: Signer
+	if _, err := h.Write(signed.Signer); err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash signer")
+	}
+
+	// Field 2: Signature
+	if _, err := h.Write(signed.Signature); err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash signature")
+	}
+
+	return [32]byte(h.Sum(nil)), nil
+}
+
+// hashMutation returns the hash of a mutation.
+func hashMutation(m *pbv1.Mutation) ([32]byte, error) {
+	if m.Timestamp == nil || m.Data == nil {
+		return [32]byte{}, errors.New("invalid mutation")
+	}
+
+	h := sha256.New()
+
+	// Field 0: Parent
+	if _, err := h.Write(m.Parent); err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash parent")
+	}
+
+	// Field 1: Type
+	if _, err := h.Write([]byte(m.Type)); err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash type")
+	}
+
+	// Field 2: Timestamp
+	if _, err := h.Write(int64ToBytes(m.Timestamp.Seconds)); err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash timestamp seconds")
+	}
+
+	if _, err := h.Write(int32ToBytes(m.Timestamp.Nanos)); err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash timestamp nanos")
+	}
+
+	// Field 3: Data
+	if _, err := h.Write([]byte(m.Data.TypeUrl)); err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash data type url")
+	}
+
+	if _, err := h.Write(m.Data.Value); err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash data value")
+	}
+
+	return [32]byte(h.Sum(nil)), nil
+}
+
+func int64ToBytes(i int64) []byte {
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, uint64(i))
+
+	return b
+}
+
+func int32ToBytes(i int32) []byte {
+	b := make([]byte, 4)
+	binary.LittleEndian.PutUint32(b, uint32(i))
+
+	return b
 }
 
 // verifyEmptySig verifies that the signed mutation isn't signed.
-func verifyEmptySig(signed SignedMutation) error {
+func verifyEmptySig(signed *pbv1.SignedMutation) error {
 	if len(signed.Signature) != 0 {
 		return errors.New("non-empty signature")
 	}
@@ -63,18 +133,18 @@ func verifyEmptySig(signed SignedMutation) error {
 }
 
 // SignK1 signs the mutation with the provided k1 secret.
-func SignK1(m Mutation, secret *k1.PrivateKey) (SignedMutation, error) {
-	hash, err := hashRoot(m)
+func SignK1(m *pbv1.Mutation, secret *k1.PrivateKey) (*pbv1.SignedMutation, error) {
+	hash, err := hashMutation(m)
 	if err != nil {
-		return SignedMutation{}, errors.Wrap(err, "hash mutation")
+		return nil, errors.Wrap(err, "hash mutation")
 	}
 
 	sig, err := k1util.Sign(secret, hash[:])
 	if err != nil {
-		return SignedMutation{}, errors.Wrap(err, "sign mutation")
+		return nil, errors.Wrap(err, "sign mutation")
 	}
 
-	return SignedMutation{
+	return &pbv1.SignedMutation{
 		Mutation:  m,
 		Signer:    secret.PubKey().SerializeCompressed(),
 		Signature: sig[:64], // Strip recovery id
@@ -84,13 +154,13 @@ func SignK1(m Mutation, secret *k1.PrivateKey) (SignedMutation, error) {
 // verifyK1SignedMutation verifies that the signed mutation is signed by a k1 key.
 //
 // TODO(corver): Figure out no-verify case.
-func verifyK1SignedMutation(signed SignedMutation) error {
+func verifyK1SignedMutation(signed *pbv1.SignedMutation) error {
 	pubkey, err := k1.ParsePubKey(signed.Signer)
 	if err != nil {
 		return errors.Wrap(err, "parse signer pubkey")
 	}
 
-	hash, err := hashRoot(signed.Mutation)
+	hash, err := hashMutation(signed.Mutation)
 	if err != nil {
 		return errors.Wrap(err, "hash mutation")
 	}
@@ -102,34 +172,6 @@ func verifyK1SignedMutation(signed SignedMutation) error {
 	}
 
 	return nil
-}
-
-// ethHex represents a byte slice that is json formatted as 0x prefixed hex.
-type ethHex []byte
-
-func (h *ethHex) UnmarshalJSON(data []byte) error {
-	var strHex string
-	if err := json.Unmarshal(data, &strHex); err != nil {
-		return errors.Wrap(err, "unmarshal hex string")
-	}
-
-	resp, err := hex.DecodeString(strings.TrimPrefix(strHex, "0x"))
-	if err != nil {
-		return errors.Wrap(err, "unmarshal hex")
-	}
-
-	*h = resp
-
-	return nil
-}
-
-func (h ethHex) MarshalJSON() ([]byte, error) {
-	resp, err := json.Marshal(to0xHex(h))
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal hex")
-	}
-
-	return resp, nil
 }
 
 // to0xHex returns the bytes as a 0x prefixed hex string.
@@ -157,20 +199,26 @@ func from0xHex(s string, length int) ([]byte, error) {
 	return b, nil
 }
 
-var _ MutationData = emptyData{}
+// ValidatorToProto converts a legacy cluster validator to a protobuf validator.
+func ValidatorToProto(val cluster.DistValidator, addrs cluster.ValidatorAddresses) (*pbv1.Validator, error) {
+	var regJSON []byte
+	if val.HasRegistration() {
+		reg, err := val.Eth2Registration()
+		if err != nil {
+			return nil, errors.Wrap(err, "eth2 builder registration")
+		}
 
-// emptyData is a empty MutationData implementation.
-type emptyData struct{}
-
-func (emptyData) HashTreeRootWith(ssz.HashWalker) error {
-	return nil
-}
-
-func (emptyData) MarshalJSON() ([]byte, error) {
-	b, err := json.Marshal(struct{}{})
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal empty data")
+		regJSON, err = json.Marshal(reg)
+		if err != nil {
+			return nil, errors.Wrap(err, "marshal builder registration")
+		}
 	}
 
-	return b, nil
+	return &pbv1.Validator{
+		PublicKey:               val.PubKey,
+		PubShares:               val.PubShares,
+		FeeRecipientAddress:     addrs.FeeRecipientAddress,
+		WithdrawalAddress:       addrs.WithdrawalAddress,
+		BuilderRegistrationJson: regJSON,
+	}, nil
 }

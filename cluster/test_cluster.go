@@ -49,7 +49,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 		rootPublic, err := tbls.SecretToPublicKey(rootSecret)
 		require.NoError(t, err)
 
-		shares, err := tbls.ThresholdSplit(rootSecret, uint(n), uint(k))
+		shares, err := tbls.ThresholdSplitInsecure(t, rootSecret, uint(n), uint(k), random)
 		require.NoError(t, err)
 
 		var pubshares [][]byte

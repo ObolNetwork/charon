@@ -3,14 +3,16 @@
 package state_test
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/state"
+	pbv1 "github.com/obolnetwork/charon/cluster/statepb/v1"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -22,12 +24,12 @@ func setIncrementingTime(t *testing.T) {
 	t.Helper()
 
 	ts := time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)
-	state.SetNowFuncForT(t, func() time.Time {
+	state.SetNowFuncForT(t, func() *timestamppb.Timestamp {
 		defer func() {
 			ts = ts.Add(time.Minute)
 		}()
 
-		return ts
+		return timestamppb.New(ts)
 	})
 }
 
@@ -38,7 +40,7 @@ func TestNodeApprovals(t *testing.T) {
 
 	parent := testutil.RandomArray32()
 
-	var approvals []state.SignedMutation
+	var approvals []*pbv1.SignedMutation
 	for _, secret := range secrets {
 		approval, err := state.SignNodeApproval(parent, secret)
 		require.NoError(t, err)
@@ -47,27 +49,27 @@ func TestNodeApprovals(t *testing.T) {
 	}
 
 	composite, err := state.NewNodeApprovalsComposite(approvals)
-	require.NoError(t, err)
+	testutil.RequireNoError(t, err)
 
-	t.Run("json", func(t *testing.T) {
-		testutil.RequireGoldenJSON(t, composite)
+	t.Run("proto", func(t *testing.T) {
+		testutil.RequireGoldenProto(t, composite)
 	})
 
 	t.Run("unmarshal", func(t *testing.T) {
-		b, err := json.Marshal(composite)
+		b, err := proto.Marshal(composite)
 		require.NoError(t, err)
-		var composite2 state.SignedMutation
-		testutil.RequireNoError(t, json.Unmarshal(b, &composite2))
-		require.EqualValues(t, composite, composite2)
+		composite2 := new(pbv1.SignedMutation)
+		testutil.RequireNoError(t, proto.Unmarshal(b, composite2))
+		testutil.RequireProtoEqual(t, composite, composite2)
 	})
 
 	t.Run("transform", func(t *testing.T) {
 		cluster, err := state.NewClusterFromLock(lock)
 		require.NoError(t, err)
 
-		cluster2, err := composite.Transform(cluster)
+		cluster2, err := state.Transform(cluster, composite)
 		require.NoError(t, err)
 
-		require.Equal(t, cluster, cluster2)
+		RequireClusterEqual(t, cluster, cluster2)
 	})
 }
