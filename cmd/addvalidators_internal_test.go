@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
-	pbv1 "github.com/obolnetwork/charon/cluster/statepb/v1"
+	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -137,13 +137,13 @@ func TestValidateP2PKeysOrder(t *testing.T) {
 	t.Run("correct order", func(t *testing.T) {
 		var (
 			p2pKeys []*k1.PrivateKey
-			ops     []*pbv1.Operator
+			ops     []*statepb.Operator
 		)
 
 		for i := 0; i < n; i++ {
 			key, enrStr := testutil.RandomENR(t, seed+i)
 			p2pKeys = append(p2pKeys, key)
-			ops = append(ops, &pbv1.Operator{Enr: enrStr.String()})
+			ops = append(ops, &statepb.Operator{Enr: enrStr.String()})
 		}
 
 		err := validateP2PKeysOrder(p2pKeys, ops)
@@ -159,13 +159,13 @@ func TestValidateP2PKeysOrder(t *testing.T) {
 	t.Run("invalid order", func(t *testing.T) {
 		var (
 			p2pKeys []*k1.PrivateKey
-			ops     []*pbv1.Operator
+			ops     []*statepb.Operator
 		)
 
 		for i := 0; i < n; i++ {
 			key, enrStr := testutil.RandomENR(t, seed+i)
 			p2pKeys = append(p2pKeys, key)
-			ops = append(ops, &pbv1.Operator{Enr: enrStr.String()})
+			ops = append(ops, &statepb.Operator{Enr: enrStr.String()})
 		}
 
 		// Swap first and last elements of p2p keys list
