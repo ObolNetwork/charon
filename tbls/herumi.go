@@ -43,21 +43,13 @@ type Herumi struct{}
 // provided random number generator. This is useful for testing.
 func (Herumi) GenerateInsecureKey(t *testing.T, random io.Reader) (PrivateKey, error) {
 	t.Helper()
-	for i := 0; i < 100; i++ {
-		b := make([]byte, 32)
-		_, err := random.Read(b)
-		require.NoError(t, err)
 
-		p := new(bls.SecretKey)
-		err = p.Deserialize(b)
-		if err != nil {
-			continue // Try again
-		}
-
-		return *(*PrivateKey)(p.Serialize()), nil
+	secret, err := generateInsecureSecret(t, random)
+	if err != nil {
+		return PrivateKey{}, err
 	}
 
-	return PrivateKey{}, errors.New("cannot generate insecure key")
+	return *(*PrivateKey)(secret.Serialize()), nil
 }
 
 func (Herumi) GenerateSecretKey() (PrivateKey, error) {
@@ -85,6 +77,58 @@ func (Herumi) SecretToPublicKey(secret PrivateKey) (PublicKey, error) {
 	}
 
 	return *(*PublicKey)(pubk.Serialize()), nil
+}
+
+// ThresholdSplitInsecure splits a secret into a number of shares, using a random number generator that is not
+// cryptographically secure. This is useful for testing.
+func (Herumi) ThresholdSplitInsecure(t *testing.T, secret PrivateKey, total uint, threshold uint, random io.Reader) (map[int]PrivateKey, error) {
+	t.Helper()
+	var p bls.SecretKey
+
+	if err := p.Deserialize(secret[:]); err != nil {
+		return nil, errors.Wrap(err, "cannot unmarshal bytes into Herumi secret key")
+	}
+
+	// master key Polynomial
+	poly := make([]bls.SecretKey, threshold)
+
+	poly[0] = p
+
+	// initialize threshold amount of points
+	for i := 1; i < int(threshold); i++ {
+		secret, err := generateInsecureSecret(t, random)
+		if err != nil {
+			return nil, err
+		}
+
+		poly[i] = secret
+	}
+
+	ret := make(map[int]PrivateKey)
+	for i := 1; i <= int(total); i++ {
+		var blsID bls.ID
+
+		err := blsID.SetDecString(fmt.Sprintf("%d", i))
+		if err != nil {
+			return nil, errors.Wrap(
+				err,
+				"cannot set ID",
+				z.Int("id_number", i),
+				z.Int("key_number", i),
+			)
+		}
+
+		var sk bls.SecretKey
+
+		err = sk.Set(poly, &blsID)
+		if err != nil {
+			return nil, errors.Wrap(err, "cannot set ID on polynomial", z.Int("id_number", i))
+		}
+
+		ret[i] = *(*PrivateKey)(sk.Serialize())
+	}
+
+	return ret, nil
 }
 
 func (Herumi) ThresholdSplit(secret PrivateKey, total uint, threshold uint) (map[int]PrivateKey, error) {
@@ -292,4 +336,25 @@ func (Herumi) VerifyAggregate(publicShares []PublicKey, signature Signature, dat
 	}
 
 	return nil
+}
+
+// generateInsecureSecret generates a secret that is not cryptographically secure using the
+// provided random number generator. This is useful for testing.
+func generateInsecureSecret(t *testing.T, random io.Reader) (bls.SecretKey, error) {
+	t.Helper()
+	for i := 0; i < 100; i++ {
+		b := make([]byte, 32)
+		_, err := random.Read(b)
+		require.NoError(t, err)
+
+		var p bls.SecretKey
+		err = p.Deserialize(b)
+		if err != nil {
+			continue // Try again
+		}
+
+		return p, nil
+	}
+
+	return bls.SecretKey{}, errors.New("cannot generate insecure key")
 }

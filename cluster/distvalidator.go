@@ -3,6 +3,12 @@
 package cluster
 
 import (
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -37,6 +43,43 @@ func (v DistValidator) PublicKeyHex() string {
 // PublicShare returns a peer's threshold BLS public share.
 func (v DistValidator) PublicShare(peerIdx int) (tbls.PublicKey, error) {
 	return tblsconv.PubkeyFromBytes(v.PubShares[peerIdx])
+}
+
+// ZeroRegistration returns a true if the validator has zero valued registration.
+func (v DistValidator) ZeroRegistration() bool {
+	reg := v.BuilderRegistration
+
+	return len(reg.Signature) == 0 &&
+		len(reg.Message.PubKey) == 0 &&
+		len(reg.Message.FeeRecipient) == 0 &&
+		reg.Message.GasLimit == 0 &&
+		reg.Message.Timestamp.IsZero()
+}
+
+// Eth2Registration returns the validator's Eth2 registration.
+func (v DistValidator) Eth2Registration() (*eth2api.VersionedSignedValidatorRegistration, error) {
+	reg := v.BuilderRegistration
+
+	if len(reg.Signature) != len(eth2p0.BLSSignature{}) ||
+		len(reg.Message.PubKey) != len(eth2p0.BLSPubKey{}) ||
+		len(reg.Message.FeeRecipient) != len(bellatrix.ExecutionAddress{}) ||
+		reg.Message.GasLimit == 0 ||
+		reg.Message.Timestamp.IsZero() {
+		return nil, errors.New("invalid registration")
+	}
+
+	return &eth2api.VersionedSignedValidatorRegistration{
+		Version: eth2spec.BuilderVersionV1,
+		V1: &eth2v1.SignedValidatorRegistration{
+			Message: &eth2v1.ValidatorRegistration{
+				FeeRecipient: bellatrix.ExecutionAddress(reg.Message.FeeRecipient),
+				GasLimit:     uint64(reg.Message.GasLimit),
+				Timestamp:    reg.Message.Timestamp,
+				Pubkey:       eth2p0.BLSPubKey(reg.Message.PubKey),
+			},
+			Signature: eth2p0.BLSSignature(reg.Signature),
+		},
+	}, nil
 }
 
 // distValidatorJSONv1x1 is the json formatter of DistValidator for versions v1.0.0 and v1.1.0.

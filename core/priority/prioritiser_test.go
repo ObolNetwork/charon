@@ -167,14 +167,7 @@ func requireAnyDuty(t *testing.T, anyOf []core.Duty, actual core.Duty) {
 func mustResultsToText(msgs []*pbv1.PriorityTopicResult) string {
 	var resp []string
 	for _, msg := range msgs {
-		b, err := prototext.MarshalOptions{
-			Multiline: true,
-		}.Marshal(msg)
-		if err != nil {
-			panic(err)
-		}
-
-		resp = append(resp, string(b))
+		resp = append(resp, prototext.Format(msg))
 	}
 
 	return strings.Join(resp, ",")

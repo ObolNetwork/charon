@@ -57,7 +57,7 @@ func testLoadLegacy(t *testing.T, version string) {
 	require.Equal(t, len(lock.Operators), len(cluster.Operators))
 
 	for i, validator := range cluster.Validators {
-		require.Equal(t, lock.Validators[i].PubKey, validator.PubKey)
+		require.Equal(t, lock.Validators[i].PubKey, validator.PublicKey)
 		require.Equal(t, lock.Validators[i].PubShares, validator.PubShares)
 		require.Equal(t, lock.ValidatorAddresses[i].FeeRecipientAddress, validator.FeeRecipientAddress)
 		require.Equal(t, lock.ValidatorAddresses[i].WithdrawalAddress, validator.WithdrawalAddress)
@@ -65,6 +65,6 @@ func testLoadLegacy(t *testing.T, version string) {
 
 	for i, operator := range cluster.Operators {
 		require.Equal(t, lock.Operators[i].Address, operator.Address)
-		require.Equal(t, lock.Operators[i].ENR, operator.ENR)
+		require.Equal(t, lock.Operators[i].ENR, operator.Enr)
 	}
 }

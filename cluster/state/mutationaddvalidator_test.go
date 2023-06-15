@@ -9,9 +9,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/state"
+	pbv1 "github.com/obolnetwork/charon/cluster/statepb/v1"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -26,15 +28,12 @@ func TestGenValidators(t *testing.T) {
 	require.NoError(t, json.Unmarshal(b, &lock))
 
 	// Convert validators into state.Validator
-	var vals []state.Validator
+	var vals []*pbv1.Validator
 	for i, validator := range lock.Validators {
-		vals = append(vals, state.Validator{
-			PubKey:              validator.PubKey,
-			PubShares:           validator.PubShares,
-			FeeRecipientAddress: lock.ValidatorAddresses[i].FeeRecipientAddress,
-			WithdrawalAddress:   lock.ValidatorAddresses[i].WithdrawalAddress,
-			BuilderRegistration: registrationsFromLock(t, validator.BuilderRegistration),
-		})
+		val, err := state.ValidatorToProto(validator, lock.ValidatorAddresses[i])
+		require.NoError(t, err)
+
+		vals = append(vals, val)
 	}
 
 	parent, err := hex.DecodeString("605ec6de4f1ae997dd3545513b934c335a833f4635dc9fad7758314f79ff0fae")
@@ -45,23 +44,25 @@ func TestGenValidators(t *testing.T) {
 	t.Run("unmarshal", func(t *testing.T) {
 		b, err := json.Marshal(signed)
 		require.NoError(t, err)
-		var signed2 state.SignedMutation
+		var signed2 *pbv1.SignedMutation
 		require.NoError(t, json.Unmarshal(b, &signed2))
 
-		require.Equal(t, signed, signed2)
+		testutil.RequireProtoEqual(t, signed, signed2)
 	})
 
 	t.Run("transform", func(t *testing.T) {
-		cluster, err := signed.Transform(state.Cluster{})
+		cluster, err := state.Transform(state.Cluster{}, signed)
 		require.NoError(t, err)
 
-		require.Equal(t, vals, cluster.Validators)
+		testutil.RequireProtosEqual(t, vals, cluster.Validators)
 	})
 
-	t.Run("json", func(t *testing.T) {
-		testutil.RequireGoldenJSON(t, signed)
+	t.Run("proto", func(t *testing.T) {
+		testutil.RequireGoldenProto(t, signed)
 	})
 }
+
+//go:generate go test . -update -run=TestAddValidators && go test . -run=TestAddValidators
 
 func TestAddValidators(t *testing.T) {
 	setIncrementingTime(t)
@@ -70,23 +71,20 @@ func TestAddValidators(t *testing.T) {
 	lock, secrets, _ := cluster.NewForT(t, 3, 3, nodes, 1)
 
 	// Convert validators into state.Validator
-	var vals []state.Validator
+	var vals []*pbv1.Validator
 	for i, validator := range lock.Validators {
-		vals = append(vals, state.Validator{
-			PubKey:              validator.PubKey,
-			PubShares:           randomShares(t, nodes),
-			FeeRecipientAddress: lock.ValidatorAddresses[i].FeeRecipientAddress,
-			WithdrawalAddress:   lock.ValidatorAddresses[i].WithdrawalAddress,
-			BuilderRegistration: registrationsFromLock(t, validator.BuilderRegistration),
-		})
+		val, err := state.ValidatorToProto(validator, lock.ValidatorAddresses[i])
+		require.NoError(t, err)
+
+		vals = append(vals, val)
 	}
 
 	genVals, err := state.NewGenValidators(testutil.RandomArray32(), vals)
 	require.NoError(t, err)
-	genHash, err := genVals.Hash()
+	genHash, err := state.Hash(genVals)
 	testutil.RequireNoError(t, err)
 
-	var approvals []state.SignedMutation
+	var approvals []*pbv1.SignedMutation
 	for _, secret := range secrets {
 		approval, err := state.SignNodeApproval(genHash, secret)
 		require.NoError(t, err)
@@ -100,18 +98,18 @@ func TestAddValidators(t *testing.T) {
 	addVals, err := state.NewAddValidators(genVals, nodeApprovals)
 	require.NoError(t, err)
 
-	t.Run("json", func(t *testing.T) {
-		testutil.RequireGoldenJSON(t, addVals)
+	t.Run("proto", func(t *testing.T) {
+		testutil.RequireGoldenProto(t, addVals)
 	})
 
 	t.Run("unmarshal", func(t *testing.T) {
-		b, err := json.MarshalIndent(addVals, "", "  ")
+		b, err := proto.Marshal(addVals)
 		require.NoError(t, err)
-		t.Logf("%s", b)
-		var addVals2 state.SignedMutation
-		require.NoError(t, json.Unmarshal(b, &addVals2))
 
-		require.Equal(t, addVals, addVals2)
+		addVals2 := new(pbv1.SignedMutation)
+		require.NoError(t, proto.Unmarshal(b, addVals2))
+
+		testutil.RequireProtoEqual(t, addVals, addVals2)
 	})
 
 	t.Run("transform", func(t *testing.T) {
@@ -120,35 +118,9 @@ func TestAddValidators(t *testing.T) {
 
 		cluster.Validators = nil
 
-		cluster, err = addVals.Transform(cluster)
+		cluster, err = state.Transform(cluster, addVals)
 		require.NoError(t, err)
 
-		require.Equal(t, vals, cluster.Validators)
+		testutil.RequireProtosEqual(t, vals, cluster.Validators)
 	})
-}
-
-func randomShares(t *testing.T, n int) [][]byte {
-	t.Helper()
-
-	var resp [][]byte
-	for i := 0; i < n; i++ {
-		pubkey := testutil.RandomEth2PubKey(t)
-		resp = append(resp, pubkey[:])
-	}
-
-	return resp
-}
-
-func registrationsFromLock(t *testing.T, r cluster.BuilderRegistration) state.BuilderRegistration {
-	t.Helper()
-
-	return state.BuilderRegistration{
-		Message: state.Registration{
-			FeeRecipient: r.Message.FeeRecipient,
-			GasLimit:     r.Message.GasLimit,
-			Timestamp:    r.Message.Timestamp,
-			PubKey:       r.Message.PubKey,
-		},
-		Signature: r.Signature,
-	}
 }

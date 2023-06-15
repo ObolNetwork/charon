@@ -275,6 +275,16 @@ func (r randomizedImpl) ThresholdSplit(secret tbls.PrivateKey, total uint, thres
 	return impl.ThresholdSplit(secret, total, threshold)
 }
 
+func (r randomizedImpl) ThresholdSplitInsecure(t *testing.T, secret tbls.PrivateKey, total uint, threshold uint, random io.Reader) (map[int]tbls.PrivateKey, error) {
+	t.Helper()
+	impl, err := r.selectImpl()
+	if err != nil {
+		return nil, err
+	}
+
+	return impl.ThresholdSplitInsecure(t, secret, total, threshold, random)
+}
+
 func (r randomizedImpl) RecoverSecret(shares map[int]tbls.PrivateKey, total uint, threshold uint) (tbls.PrivateKey, error) {
 	impl, err := r.selectImpl()
 	if err != nil {

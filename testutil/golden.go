@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/prototext"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -69,8 +71,20 @@ func RequireGoldenBytes(t *testing.T, data []byte, opts ...func(*string)) {
 func RequireGoldenJSON(t *testing.T, data interface{}, opts ...func(*string)) {
 	t.Helper()
 
+	if _, ok := data.(proto.Message); ok {
+		require.Fail(t, "RequireGoldenJSON should not be used with protobuf messages, use RequireGoldenProto")
+	}
+
 	b, err := json.MarshalIndent(data, "", " ")
 	require.NoError(t, err)
 
 	RequireGoldenBytes(t, b, opts...)
+}
+
+// RequireGoldenProto asserts that a golden testdata file exists containing the prototext serialised form of the protobuf message.
+// This is heavily inspired from https://github.com/sebdah/goldie.
+func RequireGoldenProto(t *testing.T, data proto.Message, opts ...func(*string)) {
+	t.Helper()
+
+	RequireGoldenBytes(t, []byte(prototext.Format(data)), opts...)
 }

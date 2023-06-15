@@ -9,16 +9,18 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/state"
+	pbv1 "github.com/obolnetwork/charon/cluster/statepb/v1"
 	"github.com/obolnetwork/charon/testutil"
 )
 
 //go:generate go test . -update
 
 func TestZeroCluster(t *testing.T) {
-	_, err := state.TypeLegacyLock.Transform(state.Cluster{Name: "foo"}, state.SignedMutation{})
+	_, err := state.TypeLegacyLock.Transform(state.Cluster{Name: "foo"}, &pbv1.SignedMutation{})
 	require.ErrorContains(t, err, "legacy lock not first mutation")
 }
 
@@ -32,41 +34,41 @@ func TestLegacyLock(t *testing.T) {
 	signed, err := state.NewLegacyLock(lock)
 	require.NoError(t, err)
 
-	t.Run("json", func(t *testing.T) {
-		testutil.RequireGoldenJSON(t, signed)
+	t.Run("proto", func(t *testing.T) {
+		testutil.RequireGoldenProto(t, signed)
 	})
 
 	t.Run("cluster", func(t *testing.T) {
-		cluster, err := state.Materialise(state.RawDAG{signed})
+		cluster, err := state.Materialise(&pbv1.SignedMutationList{Mutations: []*pbv1.SignedMutation{signed}})
 		require.NoError(t, err)
 		require.Equal(t, lock.LockHash, cluster.Hash[:])
-		testutil.RequireGoldenJSON(t, cluster)
+		RequireGoldenCluster(t, cluster)
 	})
 
-	b, err := json.MarshalIndent(signed, "", "  ")
+	b, err := proto.Marshal(signed)
 	require.NoError(t, err)
 
-	var signed2 state.SignedMutation
-	testutil.RequireNoError(t, json.Unmarshal(b, &signed2))
+	signed2 := new(pbv1.SignedMutation)
+	testutil.RequireNoError(t, proto.Unmarshal(b, signed2))
 
-	t.Run("json again", func(t *testing.T) {
-		testutil.RequireGoldenJSON(t, signed2, testutil.WithFilename("TestLegacyLock_json.golden"))
+	t.Run("proto again", func(t *testing.T) {
+		testutil.RequireGoldenProto(t, signed2, testutil.WithFilename("TestLegacyLock_proto.golden"))
 	})
 
 	t.Run("cluster loaded from lock", func(t *testing.T) {
 		cluster, err := state.Load("testdata/lock.json", nil)
 		require.NoError(t, err)
-		testutil.RequireGoldenJSON(t, cluster, testutil.WithFilename("TestLegacyLock_cluster.golden"))
+		RequireGoldenCluster(t, cluster, testutil.WithFilename("TestLegacyLock_cluster.golden"))
 	})
 
 	t.Run("cluster loaded from state", func(t *testing.T) {
-		b, err := json.Marshal([]state.SignedMutation{signed})
+		b, err := proto.Marshal(&pbv1.SignedMutationList{Mutations: []*pbv1.SignedMutation{signed}})
 		require.NoError(t, err)
-		file := path.Join(t.TempDir(), "state.json")
+		file := path.Join(t.TempDir(), "state.pb")
 		require.NoError(t, os.WriteFile(file, b, 0o644))
 
 		cluster, err := state.Load(file, nil)
 		require.NoError(t, err)
-		testutil.RequireGoldenJSON(t, cluster, testutil.WithFilename("TestLegacyLock_cluster.golden"))
+		RequireGoldenCluster(t, cluster, testutil.WithFilename("TestLegacyLock_cluster.golden"))
 	})
 }

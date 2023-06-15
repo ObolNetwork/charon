@@ -5,7 +5,9 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/spf13/cobra"
@@ -15,10 +17,12 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/state"
+	pbv1 "github.com/obolnetwork/charon/cluster/statepb/v1"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/eth2util/registration"
 	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // addValidatorsConfig is config for the `add-validators` command.
@@ -104,12 +108,12 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 		return errors.Wrap(err, "generate validators")
 	}
 
-	genValsHash, err := genVals.Hash()
+	genValsHash, err := state.Hash(genVals)
 	if err != nil {
 		return errors.Wrap(err, "hash gen vals")
 	}
 
-	var approvals []state.SignedMutation
+	var approvals []*pbv1.SignedMutation
 	for _, p2pKey := range p2pKeys {
 		// Perform individual `node_approval/v0.0.1` mutation using each operator's enr private key.
 		approval, err := state.SignNodeApproval(genValsHash, p2pKey)
@@ -133,7 +137,7 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 	}
 
 	// Finally, perform a cluster transformation.
-	_, err = addVals.Transform(cState)
+	_, err = state.Transform(cState, addVals)
 	if err != nil {
 		return errors.Wrap(err, "transform cluster state")
 	}
@@ -144,10 +148,10 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 }
 
 // builderRegistration returns a builder registration object using the provided inputs.
-func builderRegistration(secret tbls.PrivateKey, pubkey tbls.PublicKey, feeRecipientAddr string, forkVersion []byte) (state.BuilderRegistration, error) {
+func builderRegistration(secret tbls.PrivateKey, pubkey tbls.PublicKey, feeRecipientAddr string, forkVersion []byte) (*eth2v1.SignedValidatorRegistration, error) {
 	timestamp, err := eth2util.ForkVersionToGenesisTime(forkVersion)
 	if err != nil {
-		return state.BuilderRegistration{}, errors.Wrap(err, "invalid fork version")
+		return nil, errors.Wrap(err, "invalid fork version")
 	}
 
 	reg, err := registration.NewMessage(
@@ -157,27 +161,22 @@ func builderRegistration(secret tbls.PrivateKey, pubkey tbls.PublicKey, feeRecip
 		timestamp,
 	)
 	if err != nil {
-		return state.BuilderRegistration{}, errors.Wrap(err, "create registration message")
+		return nil, errors.Wrap(err, "create registration message")
 	}
 
 	sigRoot, err := registration.GetMessageSigningRoot(reg, eth2p0.Version(forkVersion))
 	if err != nil {
-		return state.BuilderRegistration{}, errors.Wrap(err, "registration signing root")
+		return nil, errors.Wrap(err, "registration signing root")
 	}
 
 	sig, err := tbls.Sign(secret, sigRoot[:])
 	if err != nil {
-		return state.BuilderRegistration{}, errors.Wrap(err, "sign registration root")
+		return nil, errors.Wrap(err, "sign registration root")
 	}
 
-	return state.BuilderRegistration{
-		Message: state.Registration{
-			FeeRecipient: reg.FeeRecipient[:],
-			GasLimit:     int(reg.GasLimit),
-			Timestamp:    timestamp,
-			PubKey:       reg.Pubkey[:],
-		},
-		Signature: sig[:],
+	return &eth2v1.SignedValidatorRegistration{
+		Message:   reg,
+		Signature: tblsconv.SigToETH2(sig),
 	}, nil
 }
 
@@ -259,32 +258,32 @@ func validateConf(conf addValidatorsConfig, numOps int) error {
 }
 
 // genNewVals returns a list of new validators from the provided config.
-func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsConfig) ([]state.Validator, error) {
+func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsConfig) ([]*pbv1.Validator, error) {
 	// Generate new validators
-	var vals []state.Validator
+	var vals []*pbv1.Validator
 	for i := 0; i < conf.NumVals; i++ {
 		// Generate private/public keypair
 		secret, err := tbls.GenerateSecretKey()
 		if err != nil {
-			return []state.Validator{}, errors.Wrap(err, "generate secret key")
+			return []*pbv1.Validator{}, errors.Wrap(err, "generate secret key")
 		}
 
 		pubkey, err := tbls.SecretToPublicKey(secret)
 		if err != nil {
-			return []state.Validator{}, errors.Wrap(err, "generate public key")
+			return []*pbv1.Validator{}, errors.Wrap(err, "generate public key")
 		}
 
 		// Split private key and generate public keyshares
 		shares, err := tbls.ThresholdSplit(secret, uint(numOps), uint(threshold))
 		if err != nil {
-			return []state.Validator{}, errors.Wrap(err, "threshold split key")
+			return []*pbv1.Validator{}, errors.Wrap(err, "threshold split key")
 		}
 
 		var pubshares [][]byte
 		for _, share := range shares {
 			pubshare, err := tbls.SecretToPublicKey(share)
 			if err != nil {
-				return []state.Validator{}, errors.Wrap(err, "generate public key")
+				return []*pbv1.Validator{}, errors.Wrap(err, "generate public key")
 			}
 
 			pubshares = append(pubshares, pubshare[:])
@@ -292,26 +291,31 @@ func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsCon
 
 		feeRecipientAddr, err := eth2util.ChecksumAddress(conf.FeeRecipientAddrs[i])
 		if err != nil {
-			return []state.Validator{}, errors.Wrap(err, "invalid fee recipient address")
+			return []*pbv1.Validator{}, errors.Wrap(err, "invalid fee recipient address")
 		}
 
 		withdrawalAddr, err := eth2util.ChecksumAddress(conf.WithdrawalAddrs[i])
 		if err != nil {
-			return []state.Validator{}, errors.Wrap(err, "invalid withdrawal address")
+			return []*pbv1.Validator{}, errors.Wrap(err, "invalid withdrawal address")
 		}
 
 		// Generate builder registration
 		builderReg, err := builderRegistration(secret, pubkey, feeRecipientAddr, forkVersion)
 		if err != nil {
-			return []state.Validator{}, err
+			return []*pbv1.Validator{}, err
 		}
 
-		vals = append(vals, state.Validator{
-			PubKey:              pubkey[:],
-			PubShares:           pubshares,
-			FeeRecipientAddress: feeRecipientAddr,
-			WithdrawalAddress:   withdrawalAddr,
-			BuilderRegistration: builderReg,
+		builderRegJSON, err := json.Marshal(builderReg)
+		if err != nil {
+			return []*pbv1.Validator{}, errors.Wrap(err, "marshal builder registration")
+		}
+
+		vals = append(vals, &pbv1.Validator{
+			PublicKey:               pubkey[:],
+			PubShares:               pubshares,
+			FeeRecipientAddress:     feeRecipientAddr,
+			WithdrawalAddress:       withdrawalAddr,
+			BuilderRegistrationJson: builderRegJSON,
 		})
 	}
 
@@ -338,10 +342,10 @@ func getP2PKeys(conf addValidatorsConfig) ([]*k1.PrivateKey, error) {
 }
 
 // validateP2PKeysOrder ensures that the provided p2p private keys are ordered correctly by peer index.
-func validateP2PKeysOrder(p2pKeys []*k1.PrivateKey, ops []state.Operator) error {
+func validateP2PKeysOrder(p2pKeys []*k1.PrivateKey, ops []*pbv1.Operator) error {
 	var enrs []string
 	for _, enrStr := range ops {
-		enrs = append(enrs, enrStr.ENR)
+		enrs = append(enrs, enrStr.Enr)
 	}
 
 	if len(p2pKeys) != len(enrs) {

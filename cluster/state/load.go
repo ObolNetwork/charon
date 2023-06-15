@@ -6,8 +6,11 @@ import (
 	"encoding/json"
 	"os"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/cluster"
+	pbv1 "github.com/obolnetwork/charon/cluster/statepb/v1"
 )
 
 // Load loads a cluster state from disk. It supports both legacy lock files and raw DAG files.
@@ -17,8 +20,8 @@ func Load(file string, lockCallback func(cluster.Lock) error) (Cluster, error) {
 		return Cluster{}, errors.Wrap(err, "read file")
 	}
 
-	var rawDAG RawDAG
-	if err := json.Unmarshal(b, &rawDAG); err != nil {
+	rawDAG := new(pbv1.SignedMutationList)
+	if err := proto.Unmarshal(b, rawDAG); err != nil {
 		return loadLegacyLock(b, lockCallback)
 	}
 
@@ -42,5 +45,5 @@ func loadLegacyLock(input []byte, lockCallback func(cluster.Lock) error) (Cluste
 		return Cluster{}, errors.Wrap(err, "create legacy lock")
 	}
 
-	return Materialise([]SignedMutation{legacy})
+	return Materialise(&pbv1.SignedMutationList{Mutations: []*pbv1.SignedMutation{legacy}})
 }

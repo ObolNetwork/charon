@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package cluster.statepb.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/any.proto";
+
+option go_package = "github.com/obolnetwork/charon/cluster/statepb/v1";
+
+// Mutation mutates the cluster state.
+message Mutation {
+  bytes                        parent = 1; // Parent is the hash of the parent mutation. It must be 32 bytes.
+  string                         type = 2; // Type is the type of mutation.
+  google.protobuf.Timestamp timestamp = 3; // Timestamp is the time of the mutation.
+  google.protobuf.Any            data = 4; // Data is the data of the mutation. Must be non-nil.
+}
+
+// SignedMutation is a mutation signed by a signer.
+message SignedMutation {
+  Mutation mutation = 1; // Mutation is the mutation.
+  bytes      signer = 2; // Signer is the identity (public key) of the signer.
+  bytes   signature = 3; // Signature is the signature of the mutation.
+}
+
+// SignedMutationList is a list of signed mutations.
+message SignedMutationList {
+  repeated SignedMutation mutations = 1; // Mutations is the list of mutations.
+}
+
+// Operator represents the operator of a node in the cluster.
+message Operator {
+  string address = 1; // Address is the operator's Ethereum address.
+  string     enr = 2; // enr identifies the operator's charon node.
+}
+
+// Validator represents a distributed validator managed by the DV cluster.
+message Validator {
+  bytes                public_key = 1; // PublicKey is the group public key of the validator.
+  repeated bytes       pub_shares = 2; // PubShares is the ordered list of public shares of the validator.
+  string    fee_recipient_address = 3; // FeeRecipientAddress is the fee recipient Ethereum address of the validator.
+  string       withdrawal_address = 4; // WithdrawalAddress is the withdrawal Ethereum address of the validator.
+  bytes builder_registration_json = 5; // BuilderRegistration is the pre-generated json-formatted builder-API validator registration of the validator.
+}
+
+// ValidatorList is a list of validators.
+message ValidatorList {
+  repeated Validator validators = 1; // Validators is the list of validators.
+}
+
+// LegacyLock represents a json formatted legacy cluster lock file.
+message LegacyLock  {
+  bytes json = 1;
+}
+
+// Empty is an empty/noop message.
+message Empty {}
+
