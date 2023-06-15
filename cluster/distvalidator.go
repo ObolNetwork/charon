@@ -45,15 +45,41 @@ func (v DistValidator) PublicShare(peerIdx int) (tbls.PublicKey, error) {
 	return tblsconv.PubkeyFromBytes(v.PubShares[peerIdx])
 }
 
-// HasRegistration returns a true if the validator has a valid registration.
-func (v DistValidator) HasRegistration() bool {
-	_, err := builderRegistrationToETH2(v.BuilderRegistration)
-	return err == nil
+// ZeroRegistration returns a true if the validator has zero valued registration.
+func (v DistValidator) ZeroRegistration() bool {
+	reg := v.BuilderRegistration
+
+	return len(reg.Signature) == 0 &&
+		len(reg.Message.PubKey) == 0 &&
+		len(reg.Message.FeeRecipient) == 0 &&
+		reg.Message.GasLimit == 0 &&
+		reg.Message.Timestamp.IsZero()
 }
 
 // Eth2Registration returns the validator's Eth2 registration.
 func (v DistValidator) Eth2Registration() (*eth2api.VersionedSignedValidatorRegistration, error) {
-	return builderRegistrationToETH2(v.BuilderRegistration)
+	reg := v.BuilderRegistration
+
+	if len(reg.Signature) != len(eth2p0.BLSSignature{}) ||
+		len(reg.Message.PubKey) != len(eth2p0.BLSPubKey{}) ||
+		len(reg.Message.FeeRecipient) != len(bellatrix.ExecutionAddress{}) ||
+		reg.Message.GasLimit == 0 ||
+		reg.Message.Timestamp.IsZero() {
+		return nil, errors.New("invalid registration")
+	}
+
+	return &eth2api.VersionedSignedValidatorRegistration{
+		Version: eth2spec.BuilderVersionV1,
+		V1: &eth2v1.SignedValidatorRegistration{
+			Message: &eth2v1.ValidatorRegistration{
+				FeeRecipient: bellatrix.ExecutionAddress(reg.Message.FeeRecipient),
+				GasLimit:     uint64(reg.Message.GasLimit),
+				Timestamp:    reg.Message.Timestamp,
+				Pubkey:       eth2p0.BLSPubKey(reg.Message.PubKey),
+			},
+			Signature: eth2p0.BLSSignature(reg.Signature),
+		},
+	}, nil
 }
 
 // distValidatorJSONv1x1 is the json formatter of DistValidator for versions v1.0.0 and v1.1.0.
@@ -227,28 +253,4 @@ func distValidatorsFromV1x7OrLater(distValidators []distValidatorJSONv1x7) ([]Di
 	}
 
 	return resp, nil
-}
-
-// builderRegistrationToETH2 converts builder registration to eth2 versioned signed validator registration.
-func builderRegistrationToETH2(reg BuilderRegistration) (*eth2api.VersionedSignedValidatorRegistration, error) {
-	if len(reg.Signature) != len(eth2p0.BLSSignature{}) ||
-		len(reg.Message.PubKey) != len(eth2p0.BLSPubKey{}) ||
-		len(reg.Message.FeeRecipient) != len(bellatrix.ExecutionAddress{}) ||
-		reg.Message.GasLimit == 0 ||
-		reg.Message.Timestamp.IsZero() {
-		return nil, errors.New("invalid registration")
-	}
-
-	return &eth2api.VersionedSignedValidatorRegistration{
-		Version: eth2spec.BuilderVersionV1,
-		V1: &eth2v1.SignedValidatorRegistration{
-			Message: &eth2v1.ValidatorRegistration{
-				FeeRecipient: bellatrix.ExecutionAddress(reg.Message.FeeRecipient),
-				GasLimit:     uint64(reg.Message.GasLimit),
-				Timestamp:    reg.Message.Timestamp,
-				Pubkey:       eth2p0.BLSPubKey(reg.Message.PubKey),
-			},
-			Signature: eth2p0.BLSSignature(reg.Signature),
-		},
-	}, nil
 }

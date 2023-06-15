@@ -202,7 +202,7 @@ func from0xHex(s string, length int) ([]byte, error) {
 // ValidatorToProto converts a legacy cluster validator to a protobuf validator.
 func ValidatorToProto(val cluster.DistValidator, addrs cluster.ValidatorAddresses) (*pbv1.Validator, error) {
 	var regJSON []byte
-	if val.HasRegistration() {
+	if !val.ZeroRegistration() {
 		reg, err := val.Eth2Registration()
 		if err != nil {
 			return nil, errors.Wrap(err, "eth2 builder registration")

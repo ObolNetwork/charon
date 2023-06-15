@@ -101,7 +101,7 @@ type SignedMutation struct {
 	unknownFields protoimpl.UnknownFields
 
 	Mutation  *Mutation `protobuf:"bytes,1,opt,name=mutation,proto3" json:"mutation,omitempty"`   // Mutation is the mutation.
-	Signer    []byte    `protobuf:"bytes,2,opt,name=signer,proto3" json:"signer,omitempty"`       // Signer is the identify (public key) of the signer.
+	Signer    []byte    `protobuf:"bytes,2,opt,name=signer,proto3" json:"signer,omitempty"`       // Signer is the identity (public key) of the signer.
 	Signature []byte    `protobuf:"bytes,3,opt,name=signature,proto3" json:"signature,omitempty"` // Signature is the signature of the mutation.
 }
 

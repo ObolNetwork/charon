@@ -18,7 +18,7 @@ message Mutation {
 // SignedMutation is a mutation signed by a signer.
 message SignedMutation {
   Mutation mutation = 1; // Mutation is the mutation.
-  bytes      signer = 2; // Signer is the identify (public key) of the signer.
+  bytes      signer = 2; // Signer is the identity (public key) of the signer.
   bytes   signature = 3; // Signature is the signature of the mutation.
 }
 

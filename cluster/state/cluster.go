@@ -107,17 +107,17 @@ func (c Cluster) NodeIdx(pID peer.ID) (cluster.NodeIdx, error) {
 	return cluster.NodeIdx{}, errors.New("peer not in definition")
 }
 
-// ValidatorPublicKey returns the valIdx'th validator BLS group public key.
-func (c Cluster) ValidatorPublicKey(valIdx int) (tbls.PublicKey, error) {
-	return tblsconv.PubkeyFromBytes(c.Validators[valIdx].PublicKey)
+// ValidatorPublicKey returns the idx'th validator BLS group public key.
+func (c Cluster) ValidatorPublicKey(idx int) (tbls.PublicKey, error) {
+	return tblsconv.PubkeyFromBytes(c.Validators[idx].PublicKey)
 }
 
-// ValidatorPublicKeyHex returns the valIdx'th validator hex group public key.
-func (c Cluster) ValidatorPublicKeyHex(valIdx int) string {
-	return to0xHex(c.Validators[valIdx].PublicKey)
+// ValidatorPublicKeyHex returns the idx'th validator hex group public key.
+func (c Cluster) ValidatorPublicKeyHex(idx int) string {
+	return to0xHex(c.Validators[idx].PublicKey)
 }
 
-// ValidatorPublicShare returns the valIdx'th validator's peerIdx'th BLS public share.
-func (c Cluster) ValidatorPublicShare(valIdx int, peerIdx int) (tbls.PublicKey, error) {
-	return tblsconv.PubkeyFromBytes(c.Validators[valIdx].PubShares[peerIdx])
+// ValidatorPublicShare returns the idx'th validator's peerIdx'th BLS public share.
+func (c Cluster) ValidatorPublicShare(idx int, peerIdx int) (tbls.PublicKey, error) {
+	return tblsconv.PubkeyFromBytes(c.Validators[idx].PubShares[peerIdx])
 }
