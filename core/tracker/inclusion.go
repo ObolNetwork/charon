@@ -99,6 +99,9 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 			return errors.New("invalid block")
 		}
 		if eth2wrap.IsSyntheticBlock(&block.VersionedSignedBeaconBlock) {
+			// Report inclusion for synthetic blocks as it is already included on-chain.
+			i.trackerInclFunc(duty, pubkey, data, nil)
+
 			return nil
 		}
 	} else if duty.Type == core.DutyBuilderProposer {
@@ -107,6 +110,9 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 			return errors.New("invalid blinded block")
 		}
 		if eth2wrap.IsSyntheticBlindedBlock(&block.VersionedSignedBlindedBeaconBlock) {
+			// Report inclusion for synthetic blinded blocks as it is already included on-chain.
+			i.trackerInclFunc(duty, pubkey, data, nil)
+
 			return nil
 		}
 	}
