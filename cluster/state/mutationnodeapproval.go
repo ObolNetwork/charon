@@ -10,18 +10,22 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
-	pbv1 "github.com/obolnetwork/charon/cluster/statepb/v1"
+	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
 )
 
 // SignNodeApproval signs a node approval mutation.
-func SignNodeApproval(parent [32]byte, secret *k1.PrivateKey) (*pbv1.SignedMutation, error) {
-	emptyAny, err := anypb.New(&pbv1.Empty{})
+func SignNodeApproval(parent []byte, secret *k1.PrivateKey) (*statepb.SignedMutation, error) {
+	emptyAny, err := anypb.New(&statepb.Empty{})
 	if err != nil {
 		return nil, errors.Wrap(err, "empty to any")
 	}
 
-	return SignK1(&pbv1.Mutation{
-		Parent:    parent[:],
+	if len(parent) != hashLen {
+		return nil, errors.New("invalid parent hash")
+	}
+
+	return SignK1(&statepb.Mutation{
+		Parent:    parent,
 		Type:      string(TypeNodeApproval),
 		Timestamp: nowFunc(),
 		Data:      emptyAny,
@@ -30,7 +34,7 @@ func SignNodeApproval(parent [32]byte, secret *k1.PrivateKey) (*pbv1.SignedMutat
 
 // NewNodeApprovalsComposite returns a new composite node approvals mutation.
 // Note the approvals must be for all nodes in the cluster ordered by peer index.
-func NewNodeApprovalsComposite(approvals []*pbv1.SignedMutation) (*pbv1.SignedMutation, error) {
+func NewNodeApprovalsComposite(approvals []*statepb.SignedMutation) (*statepb.SignedMutation, error) {
 	if len(approvals) == 0 {
 		return nil, errors.New("empty node approvals")
 	}
@@ -48,15 +52,15 @@ func NewNodeApprovalsComposite(approvals []*pbv1.SignedMutation) (*pbv1.SignedMu
 		}
 	}
 
-	anyList, err := anypb.New(&pbv1.SignedMutationList{
+	anyList, err := anypb.New(&statepb.SignedMutationList{
 		Mutations: approvals,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "mutations to any")
 	}
 
-	return &pbv1.SignedMutation{
-		Mutation: &pbv1.Mutation{
+	return &statepb.SignedMutation{
+		Mutation: &statepb.Mutation{
 			Parent:    parent,
 			Type:      string(TypeNodeApprovals),
 			Timestamp: nowFunc(),
@@ -67,12 +71,12 @@ func NewNodeApprovalsComposite(approvals []*pbv1.SignedMutation) (*pbv1.SignedMu
 }
 
 // verifyNodeApproval returns an error if the input signed mutation is not valid.
-func verifyNodeApproval(signed *pbv1.SignedMutation) error {
+func verifyNodeApproval(signed *statepb.SignedMutation) error {
 	if MutationType(signed.Mutation.Type) != TypeNodeApproval {
 		return errors.New("invalid mutation type")
 	}
 
-	empty := new(pbv1.Empty)
+	empty := new(statepb.Empty)
 	if err := signed.Mutation.Data.UnmarshalTo(empty); err != nil {
 		return errors.Wrap(err, "invalid node approval data")
 	}
@@ -81,17 +85,17 @@ func verifyNodeApproval(signed *pbv1.SignedMutation) error {
 }
 
 // transformNodeApprovals transforms the cluster state with the node approvals.
-func transformNodeApprovals(c Cluster, signed *pbv1.SignedMutation) (Cluster, error) {
+func transformNodeApprovals(c *statepb.Cluster, signed *statepb.SignedMutation) (*statepb.Cluster, error) {
 	if MutationType(signed.Mutation.Type) != TypeNodeApprovals {
 		return c, errors.New("invalid mutation type")
 	}
 
-	list := new(pbv1.SignedMutationList)
+	list := new(statepb.SignedMutationList)
 	if err := signed.Mutation.Data.UnmarshalTo(list); err != nil {
 		return c, errors.New("invalid node approval data")
 	}
 
-	peers, err := c.Peers()
+	peers, err := ClusterPeers(c)
 	if err != nil {
 		return c, errors.Wrap(err, "get peers")
 	}

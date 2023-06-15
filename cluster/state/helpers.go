@@ -18,8 +18,11 @@ import (
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
-	pbv1 "github.com/obolnetwork/charon/cluster/statepb/v1"
+	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
 )
+
+// hashLen is the length of a hash.
+const hashLen = 32
 
 // nowFunc is the time.Now function aliased for testing.
 var nowFunc = timestamppb.Now
@@ -36,9 +39,9 @@ func SetNowFuncForT(t *testing.T, f func() *timestamppb.Timestamp) {
 }
 
 // hashSignedMutation returns the hash of a signed mutation.
-func hashSignedMutation(signed *pbv1.SignedMutation) ([32]byte, error) {
+func hashSignedMutation(signed *statepb.SignedMutation) ([]byte, error) {
 	if signed.Mutation == nil {
-		return [32]byte{}, errors.New("invalid signed mutation")
+		return nil, errors.New("invalid signed mutation")
 	}
 
 	h := sha256.New()
@@ -46,63 +49,63 @@ func hashSignedMutation(signed *pbv1.SignedMutation) ([32]byte, error) {
 	// Field 0: Mutation
 	b, err := hashMutation(signed.Mutation)
 	if err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash mutation")
+		return nil, errors.Wrap(err, "hash mutation")
 	}
 
-	if _, err := h.Write(b[:]); err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash mutation")
+	if _, err := h.Write(b); err != nil {
+		return nil, errors.Wrap(err, "hash mutation")
 	}
 
 	// Field 1: Signer
 	if _, err := h.Write(signed.Signer); err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash signer")
+		return nil, errors.Wrap(err, "hash signer")
 	}
 
 	// Field 2: Signature
 	if _, err := h.Write(signed.Signature); err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash signature")
+		return nil, errors.Wrap(err, "hash signature")
 	}
 
-	return [32]byte(h.Sum(nil)), nil
+	return h.Sum(nil), nil
 }
 
 // hashMutation returns the hash of a mutation.
-func hashMutation(m *pbv1.Mutation) ([32]byte, error) {
+func hashMutation(m *statepb.Mutation) ([]byte, error) {
 	if m.Timestamp == nil || m.Data == nil {
-		return [32]byte{}, errors.New("invalid mutation")
+		return nil, errors.New("invalid mutation")
 	}
 
 	h := sha256.New()
 
 	// Field 0: Parent
 	if _, err := h.Write(m.Parent); err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash parent")
+		return nil, errors.Wrap(err, "hash parent")
 	}
 
 	// Field 1: Type
 	if _, err := h.Write([]byte(m.Type)); err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash type")
+		return nil, errors.Wrap(err, "hash type")
 	}
 
 	// Field 2: Timestamp
 	if _, err := h.Write(int64ToBytes(m.Timestamp.Seconds)); err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash timestamp seconds")
+		return nil, errors.Wrap(err, "hash timestamp seconds")
 	}
 
 	if _, err := h.Write(int32ToBytes(m.Timestamp.Nanos)); err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash timestamp nanos")
+		return nil, errors.Wrap(err, "hash timestamp nanos")
 	}
 
 	// Field 3: Data
 	if _, err := h.Write([]byte(m.Data.TypeUrl)); err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash data type url")
+		return nil, errors.Wrap(err, "hash data type url")
 	}
 
 	if _, err := h.Write(m.Data.Value); err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash data value")
+		return nil, errors.Wrap(err, "hash data value")
 	}
 
-	return [32]byte(h.Sum(nil)), nil
+	return h.Sum(nil), nil
 }
 
 func int64ToBytes(i int64) []byte {
@@ -120,7 +123,7 @@ func int32ToBytes(i int32) []byte {
 }
 
 // verifyEmptySig verifies that the signed mutation isn't signed.
-func verifyEmptySig(signed *pbv1.SignedMutation) error {
+func verifyEmptySig(signed *statepb.SignedMutation) error {
 	if len(signed.Signature) != 0 {
 		return errors.New("non-empty signature")
 	}
@@ -133,18 +136,18 @@ func verifyEmptySig(signed *pbv1.SignedMutation) error {
 }
 
 // SignK1 signs the mutation with the provided k1 secret.
-func SignK1(m *pbv1.Mutation, secret *k1.PrivateKey) (*pbv1.SignedMutation, error) {
+func SignK1(m *statepb.Mutation, secret *k1.PrivateKey) (*statepb.SignedMutation, error) {
 	hash, err := hashMutation(m)
 	if err != nil {
 		return nil, errors.Wrap(err, "hash mutation")
 	}
 
-	sig, err := k1util.Sign(secret, hash[:])
+	sig, err := k1util.Sign(secret, hash)
 	if err != nil {
 		return nil, errors.Wrap(err, "sign mutation")
 	}
 
-	return &pbv1.SignedMutation{
+	return &statepb.SignedMutation{
 		Mutation:  m,
 		Signer:    secret.PubKey().SerializeCompressed(),
 		Signature: sig[:64], // Strip recovery id
@@ -154,7 +157,7 @@ func SignK1(m *pbv1.Mutation, secret *k1.PrivateKey) (*pbv1.SignedMutation, erro
 // verifyK1SignedMutation verifies that the signed mutation is signed by a k1 key.
 //
 // TODO(corver): Figure out no-verify case.
-func verifyK1SignedMutation(signed *pbv1.SignedMutation) error {
+func verifyK1SignedMutation(signed *statepb.SignedMutation) error {
 	pubkey, err := k1.ParsePubKey(signed.Signer)
 	if err != nil {
 		return errors.Wrap(err, "parse signer pubkey")
@@ -165,7 +168,7 @@ func verifyK1SignedMutation(signed *pbv1.SignedMutation) error {
 		return errors.Wrap(err, "hash mutation")
 	}
 
-	if ok, err := k1util.Verify(pubkey, hash[:], signed.Signature); err != nil {
+	if ok, err := k1util.Verify(pubkey, hash, signed.Signature); err != nil {
 		return errors.Wrap(err, "verify signature")
 	} else if !ok {
 		return errors.New("invalid mutation signature")
@@ -200,7 +203,7 @@ func from0xHex(s string, length int) ([]byte, error) {
 }
 
 // ValidatorToProto converts a legacy cluster validator to a protobuf validator.
-func ValidatorToProto(val cluster.DistValidator, addrs cluster.ValidatorAddresses) (*pbv1.Validator, error) {
+func ValidatorToProto(val cluster.DistValidator, addrs cluster.ValidatorAddresses) (*statepb.Validator, error) {
 	var regJSON []byte
 	if !val.ZeroRegistration() {
 		reg, err := val.Eth2Registration()
@@ -214,7 +217,7 @@ func ValidatorToProto(val cluster.DistValidator, addrs cluster.ValidatorAddresse
 		}
 	}
 
-	return &pbv1.Validator{
+	return &statepb.Validator{
 		PublicKey:               val.PubKey,
 		PubShares:               val.PubShares,
 		FeeRecipientAddress:     addrs.FeeRecipientAddress,

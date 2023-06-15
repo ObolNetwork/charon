@@ -7,27 +7,27 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/cluster"
-	pbv1 "github.com/obolnetwork/charon/cluster/statepb/v1"
+	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
 )
 
-func Hash(signed *pbv1.SignedMutation) ([32]byte, error) {
+func Hash(signed *statepb.SignedMutation) ([]byte, error) {
 	// Return legacy lock hash if this is a legacy lock mutation.
 	if signed.Mutation.Type == string(TypeLegacyLock) {
-		legacyLock := new(pbv1.LegacyLock)
+		legacyLock := new(statepb.LegacyLock)
 		if err := signed.Mutation.Data.UnmarshalTo(legacyLock); err != nil {
-			return [32]byte{}, errors.Wrap(err, "mutation data to legacy lock")
+			return nil, errors.Wrap(err, "mutation data to legacy lock")
 		}
 
 		var lock cluster.Lock
 		if err := json.Unmarshal(legacyLock.Json, &lock); err != nil {
-			return [32]byte{}, errors.Wrap(err, "unmarshal lock")
+			return nil, errors.Wrap(err, "unmarshal lock")
 		}
 
 		if len(lock.LockHash) != 32 {
-			return [32]byte{}, errors.New("invalid lock hash")
+			return nil, errors.New("invalid lock hash")
 		}
 
-		return [32]byte(lock.LockHash), nil
+		return lock.LockHash, nil
 	}
 
 	// Otherwise return the hash of the signed mutation.
@@ -35,7 +35,11 @@ func Hash(signed *pbv1.SignedMutation) ([32]byte, error) {
 }
 
 // Transform returns a transformed cluster state by applying this mutation.
-func Transform(cluster Cluster, signed *pbv1.SignedMutation) (Cluster, error) {
+func Transform(cluster *statepb.Cluster, signed *statepb.SignedMutation) (*statepb.Cluster, error) {
+	if cluster == nil {
+		return nil, errors.New("nil cluster")
+	}
+
 	typ := MutationType(signed.Mutation.Type)
 
 	if !typ.Valid() {

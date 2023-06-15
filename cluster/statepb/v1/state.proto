@@ -7,6 +7,17 @@ import "google/protobuf/any.proto";
 
 option go_package = "github.com/obolnetwork/charon/cluster/statepb/v1";
 
+// Cluster represents the state of a cluster after applying a sequence of mutations.
+message Cluster {
+  bytes                    hash = 1; // Hash is the hash of first signed mutation, uniquely identifying cluster. It must be 32 bytes.
+  string                   name = 2; // Name is the name of the cluster.
+  int32               threshold = 3; // Threshold is the threshold of the cluster.
+  string          dkg_algorithm = 4; // DKGAlgorithm is the DKG algorithm used to create the validator keys of the cluster.
+  bytes            fork_version = 5; // ForkVersion is the fork version (network/chain) of the cluster. It must be 4 bytes.
+  repeated Operator   operators = 6; // Operators is the list of operators of the cluster.
+  repeated Validator validators = 7; // Validators is the list of validators of the cluster.
+}
+
 // Mutation mutates the cluster state.
 message Mutation {
   bytes                        parent = 1; // Parent is the hash of the parent mutation. It must be 32 bytes.

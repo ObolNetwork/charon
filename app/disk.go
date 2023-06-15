@@ -9,10 +9,11 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/state"
+	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
 )
 
 // loadClusterState returns the cluster state from the given file path.
-func loadClusterState(ctx context.Context, conf Config) (state.Cluster, error) {
+func loadClusterState(ctx context.Context, conf Config) (*statepb.Cluster, error) {
 	if conf.TestConfig.Lock != nil {
 		return state.NewClusterFromLock(*conf.TestConfig.Lock)
 	}
@@ -35,7 +36,7 @@ func loadClusterState(ctx context.Context, conf Config) (state.Cluster, error) {
 
 	clusterState, err := state.Load(conf.LockFile, verifyLock)
 	if err != nil {
-		return state.Cluster{}, errors.Wrap(err, "load cluster state")
+		return nil, errors.Wrap(err, "load cluster state")
 	}
 
 	return clusterState, nil

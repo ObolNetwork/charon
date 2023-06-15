@@ -97,7 +97,7 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 		conf.WithdrawalAddrs = repeatAddr(conf.WithdrawalAddrs[0], conf.NumVals)
 	}
 
-	vals, err := genNewVals(len(cState.Operators), cState.Threshold, cState.ForkVersion, conf)
+	vals, err := genNewVals(len(cState.Operators), int(cState.Threshold), cState.ForkVersion, conf)
 	if err != nil {
 		return err
 	}
@@ -181,7 +181,7 @@ func builderRegistration(secret tbls.PrivateKey, pubkey tbls.PublicKey, feeRecip
 }
 
 // loadClusterState returns the cluster state from the given file path.
-func loadClusterState(conf addValidatorsConfig) (state.Cluster, error) {
+func loadClusterState(conf addValidatorsConfig) (*pbv1.Cluster, error) {
 	if conf.TestConfig.Lock != nil {
 		return state.NewClusterFromLock(*conf.TestConfig.Lock)
 	}
@@ -200,7 +200,7 @@ func loadClusterState(conf addValidatorsConfig) (state.Cluster, error) {
 
 	clusterState, err := state.Load(conf.Lockfile, verifyLock)
 	if err != nil {
-		return state.Cluster{}, errors.Wrap(err, "load cluster state")
+		return nil, errors.Wrap(err, "load cluster state")
 	}
 
 	return clusterState, nil

@@ -3,7 +3,7 @@
 package state
 
 import (
-	pbv1 "github.com/obolnetwork/charon/cluster/statepb/v1"
+	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
 )
 
 // MutationType represents the type of a mutation.
@@ -21,7 +21,7 @@ func (t MutationType) String() string {
 }
 
 // Transform returns a transformed cluster state with the given mutation.
-func (t MutationType) Transform(cluster Cluster, signed *pbv1.SignedMutation) (Cluster, error) {
+func (t MutationType) Transform(cluster *statepb.Cluster, signed *statepb.SignedMutation) (*statepb.Cluster, error) {
 	return mutationDefs[t].TransformFunc(cluster, signed)
 }
 
@@ -35,7 +35,7 @@ const (
 )
 
 type mutationDef struct {
-	TransformFunc func(Cluster, *pbv1.SignedMutation) (Cluster, error)
+	TransformFunc func(*statepb.Cluster, *statepb.SignedMutation) (*statepb.Cluster, error)
 }
 
 var mutationDefs = make(map[MutationType]mutationDef)
@@ -50,7 +50,7 @@ func init() {
 	}
 
 	mutationDefs[TypeNodeApproval] = mutationDef{
-		TransformFunc: func(c Cluster, signed *pbv1.SignedMutation) (Cluster, error) {
+		TransformFunc: func(c *statepb.Cluster, signed *statepb.SignedMutation) (*statepb.Cluster, error) {
 			return c, verifyNodeApproval(signed)
 		},
 	}

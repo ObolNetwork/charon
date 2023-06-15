@@ -8,26 +8,19 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
-	pbv1 "github.com/obolnetwork/charon/cluster/statepb/v1"
+	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
-// Cluster represents the state of a cluster after applying a sequence of mutations.
-type Cluster struct {
-	Hash         [32]byte
-	Name         string
-	Threshold    int
-	DKGAlgorithm string
-	ForkVersion  []byte
-	Operators    []*pbv1.Operator
-	Validators   []*pbv1.Validator
-}
+// ClusterPeers returns the cluster operators as a slice of p2p peers.
+func ClusterPeers(c *statepb.Cluster) ([]p2p.Peer, error) {
+	if c == nil || len(c.Operators) == 0 {
+		return nil, errors.New("invalid cluster")
+	}
 
-// Peers returns the operators as a slice of p2p peers.
-func (c Cluster) Peers() ([]p2p.Peer, error) {
 	var resp []p2p.Peer
 	dedup := make(map[string]bool)
 	for i, operator := range c.Operators {
@@ -52,9 +45,9 @@ func (c Cluster) Peers() ([]p2p.Peer, error) {
 	return resp, nil
 }
 
-// PeerIDs is a convenience function that returns the operators p2p peer IDs.
-func (c Cluster) PeerIDs() ([]peer.ID, error) {
-	peers, err := c.Peers()
+// ClusterPeerIDs is a convenience function that returns the operators p2p peer IDs.
+func ClusterPeerIDs(c *statepb.Cluster) ([]peer.ID, error) {
+	peers, err := ClusterPeers(c)
 	if err != nil {
 		return nil, err
 	}
@@ -66,29 +59,9 @@ func (c Cluster) PeerIDs() ([]peer.ID, error) {
 	return resp, nil
 }
 
-// WithdrawalAddresses is a convenience function to return all withdrawal address from the validators slice.
-func (c Cluster) WithdrawalAddresses() []string {
-	var resp []string
-	for _, val := range c.Validators {
-		resp = append(resp, val.WithdrawalAddress)
-	}
-
-	return resp
-}
-
-// FeeRecipientAddresses is a convenience function that returns fee-recipient addresses for all the validators in the cluster state.
-func (c Cluster) FeeRecipientAddresses() []string {
-	var resp []string
-	for _, val := range c.Validators {
-		resp = append(resp, val.FeeRecipientAddress)
-	}
-
-	return resp
-}
-
-// NodeIdx returns the node index for the peer.
-func (c Cluster) NodeIdx(pID peer.ID) (cluster.NodeIdx, error) {
-	peers, err := c.Peers()
+// ClusterNodeIdx returns the node index for the peer in the cluster.
+func ClusterNodeIdx(c *statepb.Cluster, pID peer.ID) (cluster.NodeIdx, error) {
+	peers, err := ClusterPeers(c)
 	if err != nil {
 		return cluster.NodeIdx{}, err
 	}
@@ -107,17 +80,17 @@ func (c Cluster) NodeIdx(pID peer.ID) (cluster.NodeIdx, error) {
 	return cluster.NodeIdx{}, errors.New("peer not in definition")
 }
 
-// ValidatorPublicKey returns the idx'th validator BLS group public key.
-func (c Cluster) ValidatorPublicKey(idx int) (tbls.PublicKey, error) {
-	return tblsconv.PubkeyFromBytes(c.Validators[idx].PublicKey)
+// ValidatorPublicKey returns the validator BLS group public key.
+func ValidatorPublicKey(v *statepb.Validator) (tbls.PublicKey, error) {
+	return tblsconv.PubkeyFromBytes(v.PublicKey)
 }
 
-// ValidatorPublicKeyHex returns the idx'th validator hex group public key.
-func (c Cluster) ValidatorPublicKeyHex(idx int) string {
-	return to0xHex(c.Validators[idx].PublicKey)
+// ValidatorPublicKeyHex returns the validator hex group public key.
+func ValidatorPublicKeyHex(v *statepb.Validator) string {
+	return to0xHex(v.PublicKey)
 }
 
-// ValidatorPublicShare returns the idx'th validator's peerIdx'th BLS public share.
-func (c Cluster) ValidatorPublicShare(idx int, peerIdx int) (tbls.PublicKey, error) {
-	return tblsconv.PubkeyFromBytes(c.Validators[idx].PubShares[peerIdx])
+// ValidatorPublicShare returns the validator's peerIdx'th BLS public share.
+func ValidatorPublicShare(v *statepb.Validator, peerIdx int) (tbls.PublicKey, error) {
+	return tblsconv.PubkeyFromBytes(v.PubShares[peerIdx])
 }
