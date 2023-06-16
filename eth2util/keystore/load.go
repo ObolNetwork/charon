@@ -20,9 +20,9 @@ import (
 type KeyFiles []KeyFile
 
 // Keys returns the private keys in random order.
-func (s KeyFiles) Keys() []tbls.PrivateKey {
+func (k KeyFiles) Keys() []tbls.PrivateKey {
 	var resp []tbls.PrivateKey
-	for _, ks := range s {
+	for _, ks := range k {
 		resp = append(resp, ks.PrivateKey)
 	}
 
@@ -31,15 +31,15 @@ func (s KeyFiles) Keys() []tbls.PrivateKey {
 
 // SequencedKeys returns the private keys in strict sequential file index order from 0 to N.
 // If the indexes are unknown or not sequential or there are duplicates, an error is returned.
-func (s KeyFiles) SequencedKeys() ([]tbls.PrivateKey, error) {
-	resp := make([]tbls.PrivateKey, len(s))
+func (k KeyFiles) SequencedKeys() ([]tbls.PrivateKey, error) {
+	resp := make([]tbls.PrivateKey, len(k))
 	var zero tbls.PrivateKey
-	for _, ks := range s {
-		if ks.FileIndex == -1 {
+	for _, ks := range k {
+		if !ks.HasIndex() {
 			return nil, errors.New("unknown keystore index, filename not 'keystore-%d.json'", z.Str("filename", ks.Filename))
 		}
 
-		if ks.FileIndex < 0 || ks.FileIndex >= len(s) {
+		if ks.FileIndex < 0 || ks.FileIndex >= len(k) {
 			return nil, errors.New("out of sequence keystore index",
 				z.Int("index", ks.FileIndex), z.Str("filename", ks.Filename))
 		}
@@ -60,6 +60,11 @@ type KeyFile struct {
 	PrivateKey tbls.PrivateKey
 	Filename   string
 	FileIndex  int
+}
+
+// HasIndex returns true if the keystore file has an index.
+func (k KeyFile) HasIndex() bool {
+	return k.FileIndex != -1
 }
 
 // LoadFilesUnordered returns all decrypted keystore files stored in dir/keystore-*.json EIP-2335 Keystore files
