@@ -13,6 +13,7 @@ func Test_orderByKeystoreNum(t *testing.T) {
 		name     string
 		files    []string
 		want     []string
+		wantIdxs []int
 		errCheck require.ErrorAssertionFunc
 	}{
 		{
@@ -29,6 +30,7 @@ func Test_orderByKeystoreNum(t *testing.T) {
 				"/keystore-3.json",
 				"/keystore-10.json",
 			},
+			[]int{1, 2, 3, 10},
 			require.NoError,
 		},
 		{
@@ -45,6 +47,7 @@ func Test_orderByKeystoreNum(t *testing.T) {
 				"/keystore-insecure-3.json",
 				"/keystore-insecure-10.json",
 			},
+			[]int{1, 2, 3, 10},
 			require.NoError,
 		},
 		{
@@ -54,26 +57,29 @@ func Test_orderByKeystoreNum(t *testing.T) {
 				"/keystore-insecure-failtoo.json",
 			},
 			nil,
+			nil,
 			require.Error,
 		},
 		{
 			"single file path yields the exact same thing",
 			[]string{
-				"/keystore-0.json",
+				"/keystore-1.json",
 			},
 			[]string{
-				"/keystore-0.json",
+				"/keystore-1.json",
 			},
+			[]int{1},
 			require.NoError,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, _, err := orderByKeystoreNum(tt.files)
+			got, indices, err := orderByKeystoreNum(tt.files)
 
 			tt.errCheck(t, err)
 			require.Equal(t, tt.want, got)
+			require.Equal(t, tt.wantIdxs, indices)
 		})
 	}
 }

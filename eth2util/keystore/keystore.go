@@ -254,55 +254,39 @@ func LoadKeys(dir string) ([]tbls.PrivateKey, error) {
 
 // orderByKeystoreNum orders keystore file names by their index in ascending order.
 func orderByKeystoreNum(files []string) ([]string, []int, error) {
-	prefix := filepath.Dir(files[0])
+	// Handle one keystore case separately as comparator function is not called while sorting single element slice.
+	if len(files) == 1 {
+		fileIdx, err := validateKeystoreFilename(files[0])
+		if err != nil {
+			return nil, nil, err
+		}
 
-	extractor := regexp.MustCompile(`keystore-(?:insecure-)?([0-9]+).json`)
+		return files, []int{fileIdx}, nil
+	}
 
 	var sortErr error
 
 	idxSet := make(map[int]struct{})
 
 	sort.Slice(files, func(i, j int) bool {
-		first := strings.TrimPrefix(files[i], prefix)
-		second := strings.TrimPrefix(files[j], prefix)
-
-		if !extractor.MatchString(first) {
-			sortErr = errors.New(
-				"keystore filenames do not match expected pattern 'keystore-%d.json' or 'keystore-insecure-%d.json'",
-				z.Str("filename", first),
-			)
-
-			return false
-		}
-
-		if !extractor.MatchString(second) {
-			sortErr = errors.New(
-				"keystore filenames do not match expected pattern 'keystore-%d.json' or 'keystore-insecure-%d.json'",
-				z.Str("filename", second),
-			)
-
-			return false
-		}
-
-		firstNumRaw := extractor.FindStringSubmatch(first)[1]
-		secondNumRaw := extractor.FindStringSubmatch(second)[1]
-
-		firstNum, err := strconv.Atoi(firstNumRaw)
+		firstIdx, err := validateKeystoreFilename(files[i])
 		if err != nil {
-			sortErr = errors.New("malformed keystore index")
+			sortErr = err
+
 			return false
 		}
 
-		secondNum, err := strconv.Atoi(secondNumRaw)
+		secondIdx, err := validateKeystoreFilename(files[j])
 		if err != nil {
-			sortErr = errors.New("malformed keystore index")
+			sortErr = err
+
 			return false
 		}
 
-		idxSet[firstNum] = struct{}{}
-		idxSet[secondNum] = struct{}{}
+		idxSet[firstIdx] = struct{}{}
+		idxSet[secondIdx] = struct{}{}
 
-		return firstNum < secondNum
+		return firstIdx < secondIdx
 	})
 
 	if sortErr != nil {
@@ -310,7 +294,6 @@ func orderByKeystoreNum(files []string) ([]string, []int, error) {
 	}
 
 	var retIdx []int
-
 	for idx := range idxSet {
 		retIdx = append(retIdx, idx)
 	}
@@ -410,4 +393,25 @@ func randomHex32() (string, error) {
 	}
 
 	return hex.EncodeToString(b), nil
+}
+
+// validateKeystoreFilename validates keystore filename and returns index of the keystore file.
+func validateKeystoreFilename(file string) (int, error) {
+	prefix := filepath.Dir(file)
+	extractor := regexp.MustCompile(`keystore-(?:insecure-)?([0-9]+).json`)
+
+	fileName := strings.TrimPrefix(file, prefix)
+	if !extractor.MatchString(fileName) {
+		return 0, errors.New(
+			"keystore filenames do not match expected pattern 'keystore-%d.json' or 'keystore-insecure-%d.json'",
+			z.Str("filename", fileName),
+		)
+	}
+
+	fileIdx, err := strconv.Atoi(extractor.FindStringSubmatch(fileName)[1])
+	if err != nil {
+		return 0, errors.Wrap(err, "get index from file name")
+	}
+
+	return fileIdx, nil
 }
