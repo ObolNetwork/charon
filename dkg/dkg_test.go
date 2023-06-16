@@ -295,12 +295,15 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 	)
 	for i := 0; i < len(def.Operators); i++ {
 		dataDir := path.Join(dir, fmt.Sprintf("node%d", i))
-		keyShares, err := keystore.LoadKeysSequential(path.Join(dataDir, "/validator_keys"))
+		keyFiles, err := keystore.LoadFilesUnordered(path.Join(dataDir, "/validator_keys"))
 		require.NoError(t, err)
-		require.Len(t, keyShares, def.NumValidators)
+		require.Len(t, keyFiles, def.NumValidators)
 
-		for i, key := range keyShares {
-			secretShares[i] = append(secretShares[i], key)
+		secrets, err := keyFiles.SequencedKeys()
+		require.NoError(t, err)
+
+		for i, secret := range secrets {
+			secretShares[i] = append(secretShares[i], secret)
 		}
 
 		lockFile, err := os.ReadFile(path.Join(dataDir, "cluster-lock.json"))
