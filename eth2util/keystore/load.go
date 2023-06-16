@@ -17,6 +17,7 @@ import (
 	"github.com/obolnetwork/charon/tbls"
 )
 
+// KeyFiles wraps a list of key files with convenience functions.
 type KeyFiles []KeyFile
 
 // Keys returns the private keys of the files.
