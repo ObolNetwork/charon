@@ -381,7 +381,7 @@ func TestSplitKeys(t *testing.T) {
 			if test.expectedErrMsg != "" {
 				require.ErrorContains(t, err, test.expectedErrMsg)
 			} else {
-				require.NoError(t, err)
+				testutil.RequireNoError(t, err)
 
 				// Since `cluster-lock.json` is copied into each node directory, use any one of them.
 				b, err := os.ReadFile(path.Join(nodeDir(test.conf.ClusterDir, 0), "cluster-lock.json"))
