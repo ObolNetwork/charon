@@ -242,8 +242,13 @@ func TestSequencedKeys(t *testing.T) {
 			ok: true,
 		},
 		{
-			name:     "non-numeric",
+			name:     "single non-numeric",
 			suffixes: []string{"0", "1", "foo"},
+			ok:       false,
+		},
+		{
+			name:     "all non-numeric",
+			suffixes: []string{"foo", "bar02", "qux-01"},
 			ok:       false,
 		},
 	}

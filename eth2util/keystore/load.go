@@ -19,7 +19,7 @@ import (
 
 type KeyFiles []KeyFile
 
-// Keys returns the private keys in random order.
+// Keys returns the private keys of the files.
 func (k KeyFiles) Keys() []tbls.PrivateKey {
 	var resp []tbls.PrivateKey
 	for _, ks := range k {
@@ -101,10 +101,15 @@ func LoadFilesUnordered(dir string) (KeyFiles, error) {
 			return KeyFile{}, errors.Wrap(err, "keystore decryption", z.Str("filename", filename))
 		}
 
+		idx, err := extractFileIndex(filename)
+		if err != nil {
+			return KeyFile{}, errors.Wrap(err, "extract file index", z.Str("filename", filename))
+		}
+
 		return KeyFile{
 			PrivateKey: secret,
 			Filename:   filename,
-			FileIndex:  extractFileIndex(filename),
+			FileIndex:  idx,
 		}, nil
 	}
 
@@ -122,21 +127,21 @@ func LoadFilesUnordered(dir string) (KeyFiles, error) {
 var extractor = regexp.MustCompile(`keystore-(?:insecure-)?([0-9]+).json`)
 
 // extractFileIndex extracts the index from a keystore file name or returns -1
-// if an index cannot be extracted.
-func extractFileIndex(filename string) int {
+// if an index isn't present.
+func extractFileIndex(filename string) (int, error) {
 	if !extractor.MatchString(filename) {
-		return -1
+		return -1, nil
 	}
 
 	matches := extractor.FindStringSubmatch(filename)
 	if len(matches) != 2 {
-		return -1
+		return 0, errors.New("unexpected regex error")
 	}
 
 	idx, err := strconv.Atoi(matches[1])
 	if err != nil {
-		return -1
+		return 0, errors.New("unexpected regex error")
 	}
 
-	return idx
+	return idx, nil
 }
