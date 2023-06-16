@@ -166,7 +166,8 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 
 	// Check if NumValidators provided in the given definition file mismatches with the number of split-keys provided.
 	if conf.DefFile != "" && conf.SplitKeys && def.NumValidators != len(secrets) {
-		return errors.New("number of keystores provided in split-keys-dir does not matches with NumValidators in the given definition file")
+		return errors.New("number of keystores provided in split-keys-dir does not matches with NumValidators in the given definition file",
+			z.Int("num-validators", def.NumValidators), z.Int("split-keys-dir", len(secrets)))
 	}
 
 	// Check if provided --num-validators mismatches with the number of secrets obtained from split-keys-dir.
@@ -459,7 +460,12 @@ func getKeys(splitKeys bool, splitKeysDir string, numDVs int) ([]tbls.PrivateKey
 			return nil, errors.New("--split-keys-dir required when splitting keys")
 		}
 
-		return keystore.LoadKeys(splitKeysDir)
+		files, err := keystore.LoadFilesUnordered(splitKeysDir)
+		if err != nil {
+			return nil, err
+		}
+
+		return files.Keys(), nil
 	}
 
 	var secrets []tbls.PrivateKey

@@ -164,15 +164,15 @@ func combineTest(t *testing.T, lock cluster.Lock, shares [][]tbls.PrivateKey) {
 	err := combine.Combine(context.Background(), dir, od, true, combine.WithInsecureKeysForT(t))
 	require.NoError(t, err)
 
-	keys, err := keystore.LoadKeys(od)
+	keyFiles, err := keystore.LoadFilesUnordered(od)
 	require.NoError(t, err)
 
 	keysMap := make(map[string]string)
-	for _, key := range keys {
-		pk, err := tbls.SecretToPublicKey(key)
+	for _, keyFile := range keyFiles {
+		pk, err := tbls.SecretToPublicKey(keyFile.PrivateKey)
 		require.NoError(t, err)
 
-		keysMap[fmt.Sprintf("%#x", pk)] = fmt.Sprintf("%#x", key)
+		keysMap[fmt.Sprintf("%#x", pk)] = fmt.Sprintf("%#x", keyFile.PrivateKey)
 	}
 
 	for _, exp := range expectedData {
@@ -258,15 +258,15 @@ func TestCombineTwiceWithoutForceFails(t *testing.T) {
 	err = combine.Combine(context.Background(), dir, od, false, combine.WithInsecureKeysForT(t))
 	require.Error(t, err)
 
-	keys, err := keystore.LoadKeys(od)
+	keyFiles, err := keystore.LoadFilesUnordered(od)
 	require.NoError(t, err)
 
 	keysMap := make(map[string]string)
-	for _, key := range keys {
-		pk, err := tbls.SecretToPublicKey(key)
+	for _, keyFile := range keyFiles {
+		pk, err := tbls.SecretToPublicKey(keyFile.PrivateKey)
 		require.NoError(t, err)
 
-		keysMap[fmt.Sprintf("%#x", pk)] = fmt.Sprintf("%#x", key)
+		keysMap[fmt.Sprintf("%#x", pk)] = fmt.Sprintf("%#x", keyFile.PrivateKey)
 	}
 
 	for _, exp := range expectedData {

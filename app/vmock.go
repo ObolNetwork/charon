@@ -234,8 +234,12 @@ func newVMockEth2Provider(conf Config) func() (eth2wrap.Client, error) {
 func newVMockSigner(conf Config, pubshares []eth2p0.BLSPubKey) (validatormock.SignFunc, error) {
 	secrets := conf.TestConfig.SimnetKeys
 	if len(secrets) == 0 {
-		var err error
-		secrets, err = keystore.LoadKeys(conf.SimnetValidatorKeysDir)
+		keyFiles, err := keystore.LoadFilesUnordered(conf.SimnetValidatorKeysDir)
+		if err != nil {
+			return nil, err
+		}
+
+		secrets, err = keyFiles.SequencedKeys()
 		if err != nil {
 			return nil, err
 		}
