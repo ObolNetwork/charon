@@ -229,6 +229,11 @@ func TestSequencedKeys(t *testing.T) {
 			ok:       false,
 		},
 		{
+			name:     "missing range",
+			suffixes: []string{"0", "17"},
+			ok:       false,
+		},
+		{
 			name: "happy 20",
 			suffixes: []string{
 				"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
