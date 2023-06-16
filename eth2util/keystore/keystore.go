@@ -395,7 +395,7 @@ func randomHex32() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// validateKeystoreFilename validates keystore filename and returns index of the keystore file.
+// validateKeystoreFilename checks if the given keystore filename is valid and returns index of the keystore file.
 func validateKeystoreFilename(file string) (int, error) {
 	prefix := filepath.Dir(file)
 	extractor := regexp.MustCompile(`keystore-(?:insecure-)?([0-9]+).json`)

@@ -175,3 +175,37 @@ func TestLoadScrypt(t *testing.T) {
 
 	require.Equal(t, "10b16fc552aa607fa1399027f7b86ab789077e470b5653b338693dc2dde02468", fmt.Sprintf("%x", secrets[0]))
 }
+
+func TestStoreLoadSingleValidatorNotStartingFromOne(t *testing.T) {
+	dir := t.TempDir()
+
+	var secrets []tbls.PrivateKey
+	secret, err := tbls.GenerateSecretKey()
+	require.NoError(t, err)
+
+	secrets = append(secrets, secret)
+
+	err = keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
+	require.NoError(t, err)
+
+	require.NoError(
+		t,
+		os.Rename(
+			filepath.Join(dir, "keystore-insecure-0.json"),
+			filepath.Join(dir, "keystore-insecure-42.json"),
+		),
+	)
+
+	require.NoError(
+		t,
+		os.Rename(
+			filepath.Join(dir, "keystore-insecure-0.txt"),
+			filepath.Join(dir, "keystore-insecure-42.txt"),
+		),
+	)
+
+	actual, err := keystore.LoadKeysSequential(dir)
+	require.ErrorContains(t, err, "keystore indices must start from zero")
+
+	require.Empty(t, actual)
+}

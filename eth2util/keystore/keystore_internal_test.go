@@ -83,3 +83,51 @@ func Test_orderByKeystoreNum(t *testing.T) {
 		})
 	}
 }
+
+func Test_validateKeystoreFilename(t *testing.T) {
+	tests := []struct {
+		name    string
+		file    string
+		want    int
+		wantErr string
+	}{
+		{
+			name:    "filename with expected pattern",
+			file:    "keystore-25.json",
+			want:    25,
+			wantErr: "",
+		},
+		{
+			name:    "filename with expected pattern insecure",
+			file:    "keystore-insecure-25.json",
+			want:    25,
+			wantErr: "",
+		},
+		{
+			name:    "filename with unexpected pattern",
+			file:    "keystore-foo.json",
+			wantErr: "keystore filenames do not match expected pattern 'keystore-%d.json' or 'keystore-insecure-%d.json'",
+		},
+		{
+			name:    "filename with unexpected pattern",
+			file:    "keystore-foo.json",
+			wantErr: "keystore filenames do not match expected pattern 'keystore-%d.json' or 'keystore-insecure-%d.json'",
+		},
+		{
+			name:    "filename with unexpected pattern insecure",
+			file:    "keystore-insecure-foo.json",
+			wantErr: "keystore filenames do not match expected pattern 'keystore-%d.json' or 'keystore-insecure-%d.json'",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := validateKeystoreFilename(tt.file)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
