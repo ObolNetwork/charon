@@ -67,9 +67,14 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 	for _, pkp := range possibleKeyPaths {
 		log.Info(ctx, "Loading keystore", z.Str("path", pkp))
 
-		secrets, err := keystore.LoadKeysSequential(pkp)
+		keyFiles, err := keystore.LoadFilesUnordered(pkp)
 		if err != nil {
 			return errors.Wrap(err, "cannot load private key share", z.Str("path", pkp))
+		}
+
+		secrets, err := keyFiles.SequencedKeys()
+		if err != nil {
+			return errors.Wrap(err, "order private key shares")
 		}
 
 		for idx, secret := range secrets {
