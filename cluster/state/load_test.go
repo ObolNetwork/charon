@@ -48,10 +48,10 @@ func testLoadLegacy(t *testing.T, version string) {
 	cluster, err := state.Load(file, nil)
 	require.NoError(t, err)
 
-	require.Equal(t, lock.LockHash, cluster.Hash[:])
+	require.Equal(t, lock.LockHash, cluster.Hash)
 	require.Equal(t, lock.Name, cluster.Name)
-	require.Equal(t, lock.Threshold, cluster.Threshold)
-	require.Equal(t, lock.DKGAlgorithm, cluster.DKGAlgorithm)
+	require.EqualValues(t, lock.Threshold, cluster.Threshold)
+	require.Equal(t, lock.DKGAlgorithm, cluster.DkgAlgorithm)
 	require.Equal(t, lock.ForkVersion, cluster.ForkVersion)
 	require.Equal(t, len(lock.Validators), len(cluster.Validators))
 	require.Equal(t, len(lock.Operators), len(cluster.Operators))

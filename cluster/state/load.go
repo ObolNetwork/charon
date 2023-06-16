@@ -10,17 +10,17 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/cluster"
-	pbv1 "github.com/obolnetwork/charon/cluster/statepb/v1"
+	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
 )
 
 // Load loads a cluster state from disk. It supports both legacy lock files and raw DAG files.
-func Load(file string, lockCallback func(cluster.Lock) error) (Cluster, error) {
+func Load(file string, lockCallback func(cluster.Lock) error) (*statepb.Cluster, error) {
 	b, err := os.ReadFile(file)
 	if err != nil {
-		return Cluster{}, errors.Wrap(err, "read file")
+		return nil, errors.Wrap(err, "read file")
 	}
 
-	rawDAG := new(pbv1.SignedMutationList)
+	rawDAG := new(statepb.SignedMutationList)
 	if err := proto.Unmarshal(b, rawDAG); err != nil {
 		return loadLegacyLock(b, lockCallback)
 	}
@@ -28,22 +28,22 @@ func Load(file string, lockCallback func(cluster.Lock) error) (Cluster, error) {
 	return Materialise(rawDAG)
 }
 
-func loadLegacyLock(input []byte, lockCallback func(cluster.Lock) error) (Cluster, error) {
+func loadLegacyLock(input []byte, lockCallback func(cluster.Lock) error) (*statepb.Cluster, error) {
 	var lock cluster.Lock
 	if err := json.Unmarshal(input, &lock); err != nil {
-		return Cluster{}, errors.Wrap(err, "unmarshal legacy lock")
+		return nil, errors.Wrap(err, "unmarshal legacy lock")
 	}
 
 	if lockCallback != nil {
 		if err := lockCallback(lock); err != nil {
-			return Cluster{}, err
+			return nil, err
 		}
 	}
 
 	legacy, err := NewLegacyLock(lock)
 	if err != nil {
-		return Cluster{}, errors.Wrap(err, "create legacy lock")
+		return nil, errors.Wrap(err, "create legacy lock")
 	}
 
-	return Materialise(&pbv1.SignedMutationList{Mutations: []*pbv1.SignedMutation{legacy}})
+	return Materialise(&statepb.SignedMutationList{Mutations: []*statepb.SignedMutation{legacy}})
 }

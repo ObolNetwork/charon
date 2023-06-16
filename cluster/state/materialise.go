@@ -4,30 +4,30 @@ package state
 
 import (
 	"github.com/obolnetwork/charon/app/errors"
-	pbv1 "github.com/obolnetwork/charon/cluster/statepb/v1"
+	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
 )
 
 // Materialise transforms a raw DAG and returns the resulting cluster state.
-func Materialise(rawDAG *pbv1.SignedMutationList) (Cluster, error) {
+func Materialise(rawDAG *statepb.SignedMutationList) (*statepb.Cluster, error) {
 	if rawDAG == nil || len(rawDAG.Mutations) == 0 {
-		return Cluster{}, errors.New("empty raw DAG")
+		return nil, errors.New("empty raw DAG")
 	}
 
 	var (
-		cluster Cluster
+		cluster = new(statepb.Cluster)
 		err     error
 	)
 	for _, signed := range rawDAG.Mutations {
 		cluster, err = Transform(cluster, signed)
 		if err != nil {
-			return Cluster{}, err
+			return nil, err
 		}
 	}
 
 	// Cluster hash is the hash of the first mutation.
 	cluster.Hash, err = Hash(rawDAG.Mutations[0])
 	if err != nil {
-		return Cluster{}, errors.Wrap(err, "calculate cluster hash")
+		return nil, errors.Wrap(err, "calculate cluster hash")
 	}
 
 	return cluster, nil

@@ -12,7 +12,7 @@ import (
 
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/state"
-	pbv1 "github.com/obolnetwork/charon/cluster/statepb/v1"
+	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -38,9 +38,9 @@ func TestNodeApprovals(t *testing.T) {
 
 	lock, secrets, _ := cluster.NewForT(t, 1, 3, 4, 1)
 
-	parent := testutil.RandomArray32()
+	parent := testutil.RandomBytes32()
 
-	var approvals []*pbv1.SignedMutation
+	var approvals []*statepb.SignedMutation
 	for _, secret := range secrets {
 		approval, err := state.SignNodeApproval(parent, secret)
 		require.NoError(t, err)
@@ -58,7 +58,7 @@ func TestNodeApprovals(t *testing.T) {
 	t.Run("unmarshal", func(t *testing.T) {
 		b, err := proto.Marshal(composite)
 		require.NoError(t, err)
-		composite2 := new(pbv1.SignedMutation)
+		composite2 := new(statepb.SignedMutation)
 		testutil.RequireNoError(t, proto.Unmarshal(b, composite2))
 		testutil.RequireProtoEqual(t, composite, composite2)
 	})
@@ -70,6 +70,6 @@ func TestNodeApprovals(t *testing.T) {
 		cluster2, err := state.Transform(cluster, composite)
 		require.NoError(t, err)
 
-		RequireClusterEqual(t, cluster, cluster2)
+		testutil.RequireProtoEqual(t, cluster, cluster2)
 	})
 }

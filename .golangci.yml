@@ -45,6 +45,8 @@ linters-settings:
         alias: eth2capella
       - pkg: github.com/decred/dcrd/dcrec/secp256k1/v4
         alias: k1
+      - pkg: github.com/obolnetwork/charon/cluster/statepb/v1
+        alias: statepb
   nlreturn:
     block-size: 2
   revive:

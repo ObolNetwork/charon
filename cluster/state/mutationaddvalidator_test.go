@@ -13,7 +13,7 @@ import (
 
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/state"
-	pbv1 "github.com/obolnetwork/charon/cluster/statepb/v1"
+	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -28,7 +28,7 @@ func TestGenValidators(t *testing.T) {
 	require.NoError(t, json.Unmarshal(b, &lock))
 
 	// Convert validators into state.Validator
-	var vals []*pbv1.Validator
+	var vals []*statepb.Validator
 	for i, validator := range lock.Validators {
 		val, err := state.ValidatorToProto(validator, lock.ValidatorAddresses[i])
 		require.NoError(t, err)
@@ -38,20 +38,20 @@ func TestGenValidators(t *testing.T) {
 
 	parent, err := hex.DecodeString("605ec6de4f1ae997dd3545513b934c335a833f4635dc9fad7758314f79ff0fae")
 	require.NoError(t, err)
-	signed, err := state.NewGenValidators([32]byte(parent), vals)
+	signed, err := state.NewGenValidators(parent, vals)
 	require.NoError(t, err)
 
 	t.Run("unmarshal", func(t *testing.T) {
 		b, err := json.Marshal(signed)
 		require.NoError(t, err)
-		var signed2 *pbv1.SignedMutation
+		var signed2 *statepb.SignedMutation
 		require.NoError(t, json.Unmarshal(b, &signed2))
 
 		testutil.RequireProtoEqual(t, signed, signed2)
 	})
 
 	t.Run("transform", func(t *testing.T) {
-		cluster, err := state.Transform(state.Cluster{}, signed)
+		cluster, err := state.Transform(new(statepb.Cluster), signed)
 		require.NoError(t, err)
 
 		testutil.RequireProtosEqual(t, vals, cluster.Validators)
@@ -71,7 +71,7 @@ func TestAddValidators(t *testing.T) {
 	lock, secrets, _ := cluster.NewForT(t, 3, 3, nodes, 1)
 
 	// Convert validators into state.Validator
-	var vals []*pbv1.Validator
+	var vals []*statepb.Validator
 	for i, validator := range lock.Validators {
 		val, err := state.ValidatorToProto(validator, lock.ValidatorAddresses[i])
 		require.NoError(t, err)
@@ -79,12 +79,12 @@ func TestAddValidators(t *testing.T) {
 		vals = append(vals, val)
 	}
 
-	genVals, err := state.NewGenValidators(testutil.RandomArray32(), vals)
+	genVals, err := state.NewGenValidators(testutil.RandomBytes32(), vals)
 	require.NoError(t, err)
 	genHash, err := state.Hash(genVals)
 	testutil.RequireNoError(t, err)
 
-	var approvals []*pbv1.SignedMutation
+	var approvals []*statepb.SignedMutation
 	for _, secret := range secrets {
 		approval, err := state.SignNodeApproval(genHash, secret)
 		require.NoError(t, err)
@@ -106,7 +106,7 @@ func TestAddValidators(t *testing.T) {
 		b, err := proto.Marshal(addVals)
 		require.NoError(t, err)
 
-		addVals2 := new(pbv1.SignedMutation)
+		addVals2 := new(statepb.SignedMutation)
 		require.NoError(t, proto.Unmarshal(b, addVals2))
 
 		testutil.RequireProtoEqual(t, addVals, addVals2)

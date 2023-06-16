@@ -167,7 +167,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}
 
-	peers, err := cState.Peers()
+	peers, err := state.ClusterPeers(cState)
 	if err != nil {
 		return err
 	}
@@ -176,13 +176,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	lockHashHex := hex7(cState.Hash[:])
+	lockHashHex := hex7(cState.Hash)
 	tcpNode, err := wireP2P(ctx, life, conf, cState, p2pKey, lockHashHex)
 	if err != nil {
 		return err
 	}
 
-	nodeIdx, err := cState.NodeIdx(tcpNode.ID())
+	nodeIdx, err := state.ClusterNodeIdx(cState, tcpNode.ID())
 	if err != nil {
 		return errors.Wrap(err, "private key not matching cluster state file")
 	}
@@ -208,21 +208,21 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	initStartupMetrics(p2p.PeerName(tcpNode.ID()), cState.Threshold, len(cState.Operators), len(cState.Validators), network)
+	initStartupMetrics(p2p.PeerName(tcpNode.ID()), int(cState.Threshold), len(cState.Operators), len(cState.Validators), network)
 
 	eth2Cl, err := newETH2Client(ctx, conf, life, cState, cState.ForkVersion)
 	if err != nil {
 		return err
 	}
 
-	peerIDs, err := cState.PeerIDs()
+	peerIDs, err := state.ClusterPeerIDs(cState)
 	if err != nil {
 		return err
 	}
 
 	sender := new(p2p.Sender)
 
-	wirePeerInfo(life, tcpNode, peerIDs, cState.Hash[:], sender)
+	wirePeerInfo(life, tcpNode, peerIDs, cState.Hash, sender)
 
 	qbftDebug := newQBFTDebugger()
 
@@ -270,9 +270,9 @@ func wirePeerInfo(life *lifecycle.Manager, tcpNode host.Host, peers []peer.ID, l
 
 // wireP2P constructs the p2p tcp (libp2p) and udp (discv5) nodes and registers it with the life cycle manager.
 func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
-	cState state.Cluster, p2pKey *k1.PrivateKey, lockHashHex string,
+	cState *statepb.Cluster, p2pKey *k1.PrivateKey, lockHashHex string,
 ) (host.Host, error) {
-	peerIDs, err := cState.PeerIDs()
+	peerIDs, err := state.ClusterPeerIDs(cState)
 	if err != nil {
 		return nil, err
 	}
@@ -322,7 +322,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 // wireCoreWorkflow wires the core workflow components.
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
-	cState state.Cluster, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *k1.PrivateKey,
+	cState *statepb.Cluster, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *k1.PrivateKey,
 	eth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
 	qbftSniffer func(*pbv1.SniffedConsensusInstance), seenPubkeys func(core.PubKey),
 	vapiCalls func(),
@@ -335,8 +335,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		allPubSharesByKey            = make(map[core.PubKey]map[int]tbls.PublicKey) // map[pubkey]map[shareIdx]pubshare
 		feeRecipientAddrByCorePubkey = make(map[core.PubKey]string)
 	)
-	for valIdx, dv := range cState.Validators {
-		pubkey, err := cState.ValidatorPublicKey(valIdx)
+	for _, val := range cState.Validators {
+		pubkey, err := state.ValidatorPublicKey(val)
 		if err != nil {
 			return err
 		}
@@ -347,7 +347,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		}
 
 		allPubShares := make(map[int]tbls.PublicKey)
-		for i, b := range dv.PubShares {
+		for i, b := range val.PubShares {
 			pubshare, err := tblsconv.PubkeyFromBytes(b)
 			if err != nil {
 				return err
@@ -357,7 +357,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 			allPubShares[i+1] = pubshare
 		}
 
-		pubShare, err := cState.ValidatorPublicShare(valIdx, nodeIdx.PeerIdx)
+		pubShare, err := state.ValidatorPublicShare(val, nodeIdx.PeerIdx)
 		if err != nil {
 			return err
 		}
@@ -370,10 +370,10 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		corePubkeys = append(corePubkeys, corePubkey)
 		pubshares = append(pubshares, eth2Share)
 		allPubSharesByKey[corePubkey] = allPubShares
-		feeRecipientAddrByCorePubkey[corePubkey] = cState.FeeRecipientAddresses()[valIdx]
+		feeRecipientAddrByCorePubkey[corePubkey] = val.FeeRecipientAddress
 	}
 
-	peers, err := cState.Peers()
+	peers, err := state.ClusterPeers(cState)
 	if err != nil {
 		return err
 	}
@@ -429,7 +429,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	parSigDB := parsigdb.NewMemDB(cState.Threshold, deadlinerFunc("parsigdb"))
+	parSigDB := parsigdb.NewMemDB(int(cState.Threshold), deadlinerFunc("parsigdb"))
 
 	var parSigEx core.ParSigEx
 	if conf.TestConfig.ParSigExFunc != nil {
@@ -443,7 +443,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		parSigEx = parsigex.NewParSigEx(tcpNode, sender.SendAsync, nodeIdx.PeerIdx, peerIDs, verifyFunc)
 	}
 
-	sigAgg, err := sigagg.New(cState.Threshold, sigagg.NewVerifier(eth2Cl))
+	sigAgg, err := sigagg.New(int(cState.Threshold), sigagg.NewVerifier(eth2Cl))
 	if err != nil {
 		return err
 	}
@@ -463,7 +463,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	err = wirePrioritise(ctx, conf, life, tcpNode, peerIDs, cState.Threshold,
+	err = wirePrioritise(ctx, conf, life, tcpNode, peerIDs, int(cState.Threshold),
 		sender.SendReceive, cons, sched, p2pKey, deadlineFunc, mutableConf)
 	if err != nil {
 		return err
@@ -675,11 +675,11 @@ func calculateTrackerDelay(ctx context.Context, cl eth2wrap.Client, now time.Tim
 }
 
 // eth2PubKeys returns a list of BLS pubkeys of validators in the cluster lock.
-func eth2PubKeys(cState state.Cluster) ([]eth2p0.BLSPubKey, error) {
+func eth2PubKeys(cState *statepb.Cluster) ([]eth2p0.BLSPubKey, error) {
 	var pubkeys []eth2p0.BLSPubKey
 
-	for valIdx := range cState.Validators {
-		pubkey, err := cState.ValidatorPublicKey(valIdx)
+	for _, val := range cState.Validators {
+		pubkey, err := state.ValidatorPublicKey(val)
 		if err != nil {
 			return []eth2p0.BLSPubKey{}, err
 		}
@@ -694,7 +694,7 @@ func eth2PubKeys(cState state.Cluster) ([]eth2p0.BLSPubKey, error) {
 // newETH2Client returns a new eth2client; it is either a beaconmock for
 // simnet or a multi http client to a real beacon node.
 func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
-	cState state.Cluster, forkVersion []byte,
+	cState *statepb.Cluster, forkVersion []byte,
 ) (eth2wrap.Client, error) {
 	pubkeys, err := eth2PubKeys(cState)
 	if err != nil {
@@ -809,15 +809,15 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 }
 
 // newConsensus returns a new consensus component and its start lifecycle hook.
-func newConsensus(conf Config, cState state.Cluster, tcpNode host.Host, p2pKey *k1.PrivateKey,
+func newConsensus(conf Config, cState *statepb.Cluster, tcpNode host.Host, p2pKey *k1.PrivateKey,
 	sender *p2p.Sender, nodeIdx cluster.NodeIdx, deadliner core.Deadliner,
 	qbftSniffer func(*pbv1.SniffedConsensusInstance),
 ) (core.Consensus, lifecycle.IHookFunc, error) {
-	peers, err := cState.Peers()
+	peers, err := state.ClusterPeers(cState)
 	if err != nil {
 		return nil, nil, err
 	}
-	peerIDs, err := cState.PeerIDs()
+	peerIDs, err := state.ClusterPeerIDs(cState)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -953,10 +953,10 @@ func setFeeRecipient(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) 
 }
 
 // getDVPubkeys returns DV public keys from given cluster.Lock.
-func getDVPubkeys(cState state.Cluster) ([]core.PubKey, error) {
+func getDVPubkeys(cState *statepb.Cluster) ([]core.PubKey, error) {
 	var pubkeys []core.PubKey
-	for valIdx := range cState.Validators {
-		pk, err := cState.ValidatorPublicKey(valIdx)
+	for _, val := range cState.Validators {
+		pk, err := state.ValidatorPublicKey(val)
 		if err != nil {
 			return nil, err
 		}
