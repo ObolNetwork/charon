@@ -129,6 +129,7 @@ func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[
 		shareIdx:           shareIdx,
 		feeRecipientFunc:   feeRecipientFunc,
 		builderEnabled:     builderEnabled,
+		swallowRegFilter:   log.Filter(),
 	}, nil
 }
 
@@ -138,6 +139,7 @@ type Component struct {
 	insecureTest     bool
 	feeRecipientFunc func(core.PubKey) string
 	builderEnabled   core.BuilderEnabled
+	swallowRegFilter z.Field
 
 	// getVerifyShareFunc maps public shares (what the VC thinks as its public key)
 	// to public keys (the DV root public key)
@@ -495,22 +497,29 @@ func (c Component) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.
 
 // submitRegistration receives the partially signed validator (builder) registration.
 func (c Component) submitRegistration(ctx context.Context, registration *eth2api.VersionedSignedValidatorRegistration) error {
-	timestamp, err := registration.Timestamp()
-	if err != nil {
-		return err
-	}
-	slot, err := c.slotFromTimestamp(ctx, timestamp)
-	if err != nil {
-		return err
-	}
-
-	// Note this is the group pubkey
+	// Note this should be the group pubkey
 	eth2Pubkey, err := registration.PubKey()
 	if err != nil {
 		return err
 	}
 
 	pubkey, err := core.PubKeyFromBytes(eth2Pubkey[:])
+	if err != nil {
+		return err
+	}
+
+	if _, ok := c.getPubShareFunc(eth2Pubkey); !ok {
+		log.Debug(ctx, "Swallowing non-dv registration, "+
+			"this is a known limitation for many validator clients", z.Any("pubkey", pubkey), c.swallowRegFilter)
+
+		return nil
+	}
+
+	timestamp, err := registration.Timestamp()
+	if err != nil {
+		return err
+	}
+	slot, err := c.slotFromTimestamp(ctx, timestamp)
 	if err != nil {
 		return err
 	}

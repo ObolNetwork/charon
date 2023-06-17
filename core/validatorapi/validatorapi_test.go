@@ -1183,7 +1183,7 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 		},
 	}
 
-	output := make(chan core.ParSignedDataSet)
+	output := make(chan core.ParSignedDataSet, 1)
 
 	// Register subscriber
 	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
@@ -1198,16 +1198,20 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 		return nil
 	})
 
-	go func() {
-		err = vapi.SubmitValidatorRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signed})
-		require.NoError(t, err)
-	}()
+	err = vapi.SubmitValidatorRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signed})
+	require.NoError(t, err)
 
-	// Assert output, this is blocking since it requires subscribe block to execute.
+	// Assert output
 	actualData := <-output
 	registration, ok := actualData[corePubKey].SignedData.(core.VersionedSignedValidatorRegistration)
 	require.True(t, ok)
 	require.Equal(t, *signed, registration.VersionedSignedValidatorRegistration)
+
+	// Assert incorrect pubkey registration is swallowed
+	close(output) // Panic if registration is not swallowed
+	signed.V1.Message.Pubkey = testutil.RandomEth2PubKey(t)
+	err = vapi.SubmitValidatorRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signed})
+	require.NoError(t, err)
 }
 
 func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
