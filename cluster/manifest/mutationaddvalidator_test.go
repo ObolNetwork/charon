@@ -1,6 +1,6 @@
 // Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package state_test
+package manifest_test
 
 import (
 	"encoding/hex"
@@ -12,8 +12,8 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/cluster/state"
-	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
+	"github.com/obolnetwork/charon/cluster/manifest"
+	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -27,10 +27,10 @@ func TestGenValidators(t *testing.T) {
 	var lock cluster.Lock
 	require.NoError(t, json.Unmarshal(b, &lock))
 
-	// Convert validators into state.Validator
-	var vals []*statepb.Validator
+	// Convert validators into manifest.Validator
+	var vals []*manifestpb.Validator
 	for i, validator := range lock.Validators {
-		val, err := state.ValidatorToProto(validator, lock.ValidatorAddresses[i])
+		val, err := manifest.ValidatorToProto(validator, lock.ValidatorAddresses[i])
 		require.NoError(t, err)
 
 		vals = append(vals, val)
@@ -38,20 +38,20 @@ func TestGenValidators(t *testing.T) {
 
 	parent, err := hex.DecodeString("605ec6de4f1ae997dd3545513b934c335a833f4635dc9fad7758314f79ff0fae")
 	require.NoError(t, err)
-	signed, err := state.NewGenValidators(parent, vals)
+	signed, err := manifest.NewGenValidators(parent, vals)
 	require.NoError(t, err)
 
 	t.Run("unmarshal", func(t *testing.T) {
 		b, err := json.Marshal(signed)
 		require.NoError(t, err)
-		var signed2 *statepb.SignedMutation
+		var signed2 *manifestpb.SignedMutation
 		require.NoError(t, json.Unmarshal(b, &signed2))
 
 		testutil.RequireProtoEqual(t, signed, signed2)
 	})
 
 	t.Run("transform", func(t *testing.T) {
-		cluster, err := state.Transform(new(statepb.Cluster), signed)
+		cluster, err := manifest.Transform(new(manifestpb.Cluster), signed)
 		require.NoError(t, err)
 
 		testutil.RequireProtosEqual(t, vals, cluster.Validators)
@@ -70,32 +70,32 @@ func TestAddValidators(t *testing.T) {
 	nodes := 4
 	lock, secrets, _ := cluster.NewForT(t, 3, 3, nodes, 1)
 
-	// Convert validators into state.Validator
-	var vals []*statepb.Validator
+	// Convert validators into manifest.Validator
+	var vals []*manifestpb.Validator
 	for i, validator := range lock.Validators {
-		val, err := state.ValidatorToProto(validator, lock.ValidatorAddresses[i])
+		val, err := manifest.ValidatorToProto(validator, lock.ValidatorAddresses[i])
 		require.NoError(t, err)
 
 		vals = append(vals, val)
 	}
 
-	genVals, err := state.NewGenValidators(testutil.RandomBytes32(), vals)
+	genVals, err := manifest.NewGenValidators(testutil.RandomBytes32(), vals)
 	require.NoError(t, err)
-	genHash, err := state.Hash(genVals)
+	genHash, err := manifest.Hash(genVals)
 	testutil.RequireNoError(t, err)
 
-	var approvals []*statepb.SignedMutation
+	var approvals []*manifestpb.SignedMutation
 	for _, secret := range secrets {
-		approval, err := state.SignNodeApproval(genHash, secret)
+		approval, err := manifest.SignNodeApproval(genHash, secret)
 		require.NoError(t, err)
 
 		approvals = append(approvals, approval)
 	}
 
-	nodeApprovals, err := state.NewNodeApprovalsComposite(approvals)
+	nodeApprovals, err := manifest.NewNodeApprovalsComposite(approvals)
 	require.NoError(t, err)
 
-	addVals, err := state.NewAddValidators(genVals, nodeApprovals)
+	addVals, err := manifest.NewAddValidators(genVals, nodeApprovals)
 	require.NoError(t, err)
 
 	t.Run("proto", func(t *testing.T) {
@@ -106,19 +106,19 @@ func TestAddValidators(t *testing.T) {
 		b, err := proto.Marshal(addVals)
 		require.NoError(t, err)
 
-		addVals2 := new(statepb.SignedMutation)
+		addVals2 := new(manifestpb.SignedMutation)
 		require.NoError(t, proto.Unmarshal(b, addVals2))
 
 		testutil.RequireProtoEqual(t, addVals, addVals2)
 	})
 
 	t.Run("transform", func(t *testing.T) {
-		cluster, err := state.NewClusterFromLock(lock)
+		cluster, err := manifest.NewClusterFromLock(lock)
 		require.NoError(t, err)
 
 		cluster.Validators = nil
 
-		cluster, err = state.Transform(cluster, addVals)
+		cluster, err = manifest.Transform(cluster, addVals)
 		require.NoError(t, err)
 
 		testutil.RequireProtosEqual(t, vals, cluster.Validators)

@@ -1,6 +1,6 @@
 // Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package state_test
+package manifest_test
 
 import (
 	"testing"
@@ -8,14 +8,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/cluster/state"
-	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
+	"github.com/obolnetwork/charon/cluster/manifest"
+	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 )
 
 func TestDuplicateENRs(t *testing.T) {
 	lock, _, _ := cluster.NewForT(t, 1, 3, 4, 0)
 
-	_, err := state.ClusterPeers(&statepb.Cluster{Operators: []*statepb.Operator{
+	_, err := manifest.ClusterPeers(&manifestpb.Cluster{Operators: []*manifestpb.Operator{
 		{Enr: lock.Operators[0].ENR},
 		{Enr: lock.Operators[0].ENR},
 	}})

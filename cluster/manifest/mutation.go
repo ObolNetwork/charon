@@ -1,9 +1,9 @@
 // Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package state
+package manifest
 
 import (
-	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
+	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 )
 
 // MutationType represents the type of a mutation.
@@ -20,8 +20,8 @@ func (t MutationType) String() string {
 	return string(t)
 }
 
-// Transform returns a transformed cluster state with the given mutation.
-func (t MutationType) Transform(cluster *statepb.Cluster, signed *statepb.SignedMutation) (*statepb.Cluster, error) {
+// Transform returns a transformed cluster manifest with the given mutation.
+func (t MutationType) Transform(cluster *manifestpb.Cluster, signed *manifestpb.SignedMutation) (*manifestpb.Cluster, error) {
 	return mutationDefs[t].TransformFunc(cluster, signed)
 }
 
@@ -35,7 +35,7 @@ const (
 )
 
 type mutationDef struct {
-	TransformFunc func(*statepb.Cluster, *statepb.SignedMutation) (*statepb.Cluster, error)
+	TransformFunc func(*manifestpb.Cluster, *manifestpb.SignedMutation) (*manifestpb.Cluster, error)
 }
 
 var mutationDefs = make(map[MutationType]mutationDef)
@@ -50,7 +50,7 @@ func init() {
 	}
 
 	mutationDefs[TypeNodeApproval] = mutationDef{
-		TransformFunc: func(c *statepb.Cluster, signed *statepb.SignedMutation) (*statepb.Cluster, error) {
+		TransformFunc: func(c *manifestpb.Cluster, signed *manifestpb.SignedMutation) (*manifestpb.Cluster, error) {
 			return c, verifyNodeApproval(signed)
 		},
 	}

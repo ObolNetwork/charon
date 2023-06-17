@@ -1,6 +1,6 @@
 // Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package state
+package manifest
 
 import (
 	"bytes"
@@ -8,11 +8,11 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/errors"
-	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
+	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 )
 
 // NewGenValidators creates a new generate validators mutation.
-func NewGenValidators(parent []byte, validators []*statepb.Validator) (*statepb.SignedMutation, error) {
+func NewGenValidators(parent []byte, validators []*manifestpb.Validator) (*manifestpb.SignedMutation, error) {
 	if err := verifyGenValidators(validators); err != nil {
 		return nil, errors.Wrap(err, "verify validators")
 	}
@@ -21,13 +21,13 @@ func NewGenValidators(parent []byte, validators []*statepb.Validator) (*statepb.
 		return nil, errors.New("invalid parent hash")
 	}
 
-	valsAny, err := anypb.New(&statepb.ValidatorList{Validators: validators})
+	valsAny, err := anypb.New(&manifestpb.ValidatorList{Validators: validators})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal validators")
 	}
 
-	return &statepb.SignedMutation{
-		Mutation: &statepb.Mutation{
+	return &manifestpb.SignedMutation{
+		Mutation: &manifestpb.Mutation{
 			Parent:    parent,
 			Type:      string(TypeGenValidators),
 			Timestamp: nowFunc(),
@@ -38,7 +38,7 @@ func NewGenValidators(parent []byte, validators []*statepb.Validator) (*statepb.
 }
 
 // verifyGenValidators validates the GenValidators list, ensuring validators are populated with valid addresses.
-func verifyGenValidators(vals []*statepb.Validator) error {
+func verifyGenValidators(vals []*manifestpb.Validator) error {
 	if len(vals) == 0 {
 		return errors.New("no validators")
 	}
@@ -55,7 +55,7 @@ func verifyGenValidators(vals []*statepb.Validator) error {
 	return nil
 }
 
-func transformGenValidators(c *statepb.Cluster, signed *statepb.SignedMutation) (*statepb.Cluster, error) {
+func transformGenValidators(c *manifestpb.Cluster, signed *manifestpb.SignedMutation) (*manifestpb.Cluster, error) {
 	if err := verifyEmptySig(signed); err != nil {
 		return c, errors.Wrap(err, "verify empty sig")
 	}
@@ -64,7 +64,7 @@ func transformGenValidators(c *statepb.Cluster, signed *statepb.SignedMutation) 
 		return c, errors.New("invalid mutation type")
 	}
 
-	vals := new(statepb.ValidatorList)
+	vals := new(manifestpb.ValidatorList)
 	if err := signed.Mutation.Data.UnmarshalTo(vals); err != nil {
 		return c, errors.Wrap(err, "unmarshal validators")
 	}
@@ -75,7 +75,7 @@ func transformGenValidators(c *statepb.Cluster, signed *statepb.SignedMutation) 
 }
 
 // NewAddValidators creates a new composite add validators mutation from the provided gen validators and node approvals.
-func NewAddValidators(genValidators, nodeApprovals *statepb.SignedMutation) (*statepb.SignedMutation, error) {
+func NewAddValidators(genValidators, nodeApprovals *manifestpb.SignedMutation) (*manifestpb.SignedMutation, error) {
 	if MutationType(genValidators.Mutation.Type) != TypeGenValidators {
 		return nil, errors.New("invalid gen validators mutation type")
 	}
@@ -84,15 +84,15 @@ func NewAddValidators(genValidators, nodeApprovals *statepb.SignedMutation) (*st
 		return nil, errors.New("invalid node approvals mutation type")
 	}
 
-	dataAny, err := anypb.New(&statepb.SignedMutationList{
-		Mutations: []*statepb.SignedMutation{genValidators, nodeApprovals},
+	dataAny, err := anypb.New(&manifestpb.SignedMutationList{
+		Mutations: []*manifestpb.SignedMutation{genValidators, nodeApprovals},
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal signed mutation list")
 	}
 
-	return &statepb.SignedMutation{
-		Mutation: &statepb.Mutation{
+	return &manifestpb.SignedMutation{
+		Mutation: &manifestpb.Mutation{
 			Parent:    genValidators.Mutation.Parent,
 			Type:      string(TypeAddValidators),
 			Timestamp: nowFunc(),
@@ -102,7 +102,7 @@ func NewAddValidators(genValidators, nodeApprovals *statepb.SignedMutation) (*st
 	}, nil
 }
 
-func transformAddValidators(c *statepb.Cluster, signed *statepb.SignedMutation) (*statepb.Cluster, error) {
+func transformAddValidators(c *manifestpb.Cluster, signed *manifestpb.SignedMutation) (*manifestpb.Cluster, error) {
 	if err := verifyEmptySig(signed); err != nil {
 		return c, errors.Wrap(err, "verify empty sig")
 	}
@@ -111,7 +111,7 @@ func transformAddValidators(c *statepb.Cluster, signed *statepb.SignedMutation) 
 		return c, errors.New("invalid mutation type")
 	}
 
-	list := new(statepb.SignedMutationList)
+	list := new(manifestpb.SignedMutationList)
 	if err := signed.Mutation.Data.UnmarshalTo(list); err != nil {
 		return c, errors.Wrap(err, "unmarshal signed mutation list")
 	} else if len(list.Mutations) != 2 {

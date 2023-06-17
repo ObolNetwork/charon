@@ -1,13 +1,13 @@
 syntax = "proto3";
 
-package cluster.statepb.v1;
+package cluster.manifestpb.v1;
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/any.proto";
 
-option go_package = "github.com/obolnetwork/charon/cluster/statepb/v1";
+option go_package = "github.com/obolnetwork/charon/cluster/manifestpb/v1";
 
-// Cluster represents the state of a cluster after applying a sequence of mutations.
+// Cluster represents the manifest of a cluster after applying a sequence of mutations.
 message Cluster {
   bytes                    hash = 1; // Hash is the hash of first signed mutation, uniquely identifying cluster. It must be 32 bytes.
   string                   name = 2; // Name is the name of the cluster.
@@ -18,7 +18,7 @@ message Cluster {
   repeated Validator validators = 7; // Validators is the list of validators of the cluster.
 }
 
-// Mutation mutates the cluster state.
+// Mutation mutates the cluster manifest.
 message Mutation {
   bytes                        parent = 1; // Parent is the hash of the parent mutation. It must be 32 bytes.
   string                         type = 2; // Type is the type of mutation.

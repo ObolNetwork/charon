@@ -8,14 +8,14 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/cluster/state"
-	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
+	"github.com/obolnetwork/charon/cluster/manifest"
+	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 )
 
-// loadClusterState returns the cluster state from the given file path.
-func loadClusterState(ctx context.Context, conf Config) (*statepb.Cluster, error) {
+// loadClusterManifest returns the cluster manifest from the given file path.
+func loadClusterManifest(ctx context.Context, conf Config) (*manifestpb.Cluster, error) {
 	if conf.TestConfig.Lock != nil {
-		return state.NewClusterFromLock(*conf.TestConfig.Lock)
+		return manifest.NewClusterFromLock(*conf.TestConfig.Lock)
 	}
 
 	verifyLock := func(lock cluster.Lock) error {
@@ -34,10 +34,10 @@ func loadClusterState(ctx context.Context, conf Config) (*statepb.Cluster, error
 		return nil
 	}
 
-	clusterState, err := state.Load(conf.LockFile, verifyLock)
+	cluster, err := manifest.Load(conf.LockFile, verifyLock)
 	if err != nil {
-		return nil, errors.Wrap(err, "load cluster state")
+		return nil, errors.Wrap(err, "load cluster manifest")
 	}
 
-	return clusterState, nil
+	return cluster, nil
 }

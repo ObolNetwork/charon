@@ -1,6 +1,6 @@
 // Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package state
+package manifest
 
 import (
 	"encoding/json"
@@ -10,17 +10,18 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/cluster"
-	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
+	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 )
 
-// Load loads a cluster state from disk. It supports both legacy lock files and raw DAG files.
-func Load(file string, lockCallback func(cluster.Lock) error) (*statepb.Cluster, error) {
+// Load loads a cluster manifest from disk. It supports both legacy lock files and raw DAG files.
+// TODO(corver): Refactor, pass in two file names, try loading manifest.pb first, then legacy lock.
+func Load(file string, lockCallback func(cluster.Lock) error) (*manifestpb.Cluster, error) {
 	b, err := os.ReadFile(file)
 	if err != nil {
 		return nil, errors.Wrap(err, "read file")
 	}
 
-	rawDAG := new(statepb.SignedMutationList)
+	rawDAG := new(manifestpb.SignedMutationList)
 	if err := proto.Unmarshal(b, rawDAG); err != nil {
 		return loadLegacyLock(b, lockCallback)
 	}
@@ -28,7 +29,7 @@ func Load(file string, lockCallback func(cluster.Lock) error) (*statepb.Cluster,
 	return Materialise(rawDAG)
 }
 
-func loadLegacyLock(input []byte, lockCallback func(cluster.Lock) error) (*statepb.Cluster, error) {
+func loadLegacyLock(input []byte, lockCallback func(cluster.Lock) error) (*manifestpb.Cluster, error) {
 	var lock cluster.Lock
 	if err := json.Unmarshal(input, &lock); err != nil {
 		return nil, errors.Wrap(err, "unmarshal legacy lock")
@@ -45,5 +46,5 @@ func loadLegacyLock(input []byte, lockCallback func(cluster.Lock) error) (*state
 		return nil, errors.Wrap(err, "create legacy lock")
 	}
 
-	return Materialise(&statepb.SignedMutationList{Mutations: []*statepb.SignedMutation{legacy}})
+	return Materialise(&manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{legacy}})
 }

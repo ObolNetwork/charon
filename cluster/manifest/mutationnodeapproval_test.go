@@ -1,6 +1,6 @@
 // Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package state_test
+package manifest_test
 
 import (
 	"testing"
@@ -11,8 +11,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/cluster/state"
-	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
+	"github.com/obolnetwork/charon/cluster/manifest"
+	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -24,7 +24,7 @@ func setIncrementingTime(t *testing.T) {
 	t.Helper()
 
 	ts := time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)
-	state.SetNowFuncForT(t, func() *timestamppb.Timestamp {
+	manifest.SetNowFuncForT(t, func() *timestamppb.Timestamp {
 		defer func() {
 			ts = ts.Add(time.Minute)
 		}()
@@ -40,15 +40,15 @@ func TestNodeApprovals(t *testing.T) {
 
 	parent := testutil.RandomBytes32()
 
-	var approvals []*statepb.SignedMutation
+	var approvals []*manifestpb.SignedMutation
 	for _, secret := range secrets {
-		approval, err := state.SignNodeApproval(parent, secret)
+		approval, err := manifest.SignNodeApproval(parent, secret)
 		require.NoError(t, err)
 
 		approvals = append(approvals, approval)
 	}
 
-	composite, err := state.NewNodeApprovalsComposite(approvals)
+	composite, err := manifest.NewNodeApprovalsComposite(approvals)
 	testutil.RequireNoError(t, err)
 
 	t.Run("proto", func(t *testing.T) {
@@ -58,16 +58,16 @@ func TestNodeApprovals(t *testing.T) {
 	t.Run("unmarshal", func(t *testing.T) {
 		b, err := proto.Marshal(composite)
 		require.NoError(t, err)
-		composite2 := new(statepb.SignedMutation)
+		composite2 := new(manifestpb.SignedMutation)
 		testutil.RequireNoError(t, proto.Unmarshal(b, composite2))
 		testutil.RequireProtoEqual(t, composite, composite2)
 	})
 
 	t.Run("transform", func(t *testing.T) {
-		cluster, err := state.NewClusterFromLock(lock)
+		cluster, err := manifest.NewClusterFromLock(lock)
 		require.NoError(t, err)
 
-		cluster2, err := state.Transform(cluster, composite)
+		cluster2, err := manifest.Transform(cluster, composite)
 		require.NoError(t, err)
 
 		testutil.RequireProtoEqual(t, cluster, cluster2)

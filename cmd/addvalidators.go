@@ -16,8 +16,8 @@ import (
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/cluster/state"
-	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
+	"github.com/obolnetwork/charon/cluster/manifest"
+	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/eth2util/registration"
@@ -50,7 +50,7 @@ func newAddValidatorsCmd(runFunc func(context.Context, addValidatorsConfig) erro
 	cmd := &cobra.Command{
 		Use:   "add-validators-solo",
 		Short: "Creates and adds new validators to a solo distributed validator cluster",
-		Long:  `Creates and adds new validators to a distributed validator cluster. It generates keys for the new validators and also generates a new cluster state file with the legacy_lock and add_validators mutations. It is executed by a solo operator cluster.`,
+		Long:  `Creates and adds new validators to a distributed validator cluster. It generates keys for the new validators and also generates a new cluster manifest file with the legacy_lock and add_validators mutations. It is executed by a solo operator cluster.`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFunc(cmd.Context(), config)
@@ -72,13 +72,13 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 }
 
 func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err error) {
-	// Read lock file to load mutable cluster state.
-	cState, err := loadClusterState(conf)
+	// Read lock file to load mutable cluster manifest.
+	cluster, err := loadClusterState(conf)
 	if err != nil {
 		return err
 	}
 
-	if err = validateConf(conf, len(cState.Operators)); err != nil {
+	if err = validateConf(conf, len(cluster.Operators)); err != nil {
 		return errors.Wrap(err, "validate config")
 	}
 
@@ -87,7 +87,7 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 		return errors.Wrap(err, "load p2p keys")
 	}
 
-	if err := validateP2PKeysOrder(p2pKeys, cState.Operators); err != nil {
+	if err := validateP2PKeysOrder(p2pKeys, cluster.Operators); err != nil {
 		return err
 	}
 
@@ -97,26 +97,26 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 		conf.WithdrawalAddrs = repeatAddr(conf.WithdrawalAddrs[0], conf.NumVals)
 	}
 
-	vals, err := genNewVals(len(cState.Operators), int(cState.Threshold), cState.ForkVersion, conf)
+	vals, err := genNewVals(len(cluster.Operators), int(cluster.Threshold), cluster.ForkVersion, conf)
 	if err != nil {
 		return err
 	}
 
 	// Perform a `gen_validators/v0.0.1` mutation using the newly created validators.
-	genVals, err := state.NewGenValidators(cState.Hash, vals)
+	genVals, err := manifest.NewGenValidators(cluster.Hash, vals)
 	if err != nil {
 		return errors.Wrap(err, "generate validators")
 	}
 
-	genValsHash, err := state.Hash(genVals)
+	genValsHash, err := manifest.Hash(genVals)
 	if err != nil {
 		return errors.Wrap(err, "hash gen vals")
 	}
 
-	var approvals []*statepb.SignedMutation
+	var approvals []*manifestpb.SignedMutation
 	for _, p2pKey := range p2pKeys {
 		// Perform individual `node_approval/v0.0.1` mutation using each operator's enr private key.
-		approval, err := state.SignNodeApproval(genValsHash, p2pKey)
+		approval, err := manifest.SignNodeApproval(genValsHash, p2pKey)
 		if err != nil {
 			return err
 		}
@@ -125,24 +125,24 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 	}
 
 	// Perform a `node_approvals/v0.0.1` parallel composite mutation using above approvals.
-	nodeApprovals, err := state.NewNodeApprovalsComposite(approvals)
+	nodeApprovals, err := manifest.NewNodeApprovalsComposite(approvals)
 	if err != nil {
 		return errors.Wrap(err, "node approvals")
 	}
 
 	// Perform a `add_validators/v0.0.1` linear composite mutation using `gen_validators` and `node_approvals` mutations.
-	addVals, err := state.NewAddValidators(genVals, nodeApprovals)
+	addVals, err := manifest.NewAddValidators(genVals, nodeApprovals)
 	if err != nil {
 		return errors.Wrap(err, "add validators")
 	}
 
 	// Finally, perform a cluster transformation.
-	_, err = state.Transform(cState, addVals)
+	_, err = manifest.Transform(cluster, addVals)
 	if err != nil {
-		return errors.Wrap(err, "transform cluster state")
+		return errors.Wrap(err, "transform cluster manifest")
 	}
 
-	// TODO(xenowits): Write new cluster state to disk, see issue https://github.com/ObolNetwork/charon/issues/1887.
+	// TODO(xenowits): Write new cluster manifest to disk, see issue https://github.com/ObolNetwork/charon/issues/1887.
 
 	return nil
 }
@@ -180,10 +180,10 @@ func builderRegistration(secret tbls.PrivateKey, pubkey tbls.PublicKey, feeRecip
 	}, nil
 }
 
-// loadClusterState returns the cluster state from the given file path.
-func loadClusterState(conf addValidatorsConfig) (*statepb.Cluster, error) {
+// loadClusterState returns the cluster manifest from the given file path.
+func loadClusterState(conf addValidatorsConfig) (*manifestpb.Cluster, error) {
 	if conf.TestConfig.Lock != nil {
-		return state.NewClusterFromLock(*conf.TestConfig.Lock)
+		return manifest.NewClusterFromLock(*conf.TestConfig.Lock)
 	}
 
 	verifyLock := func(lock cluster.Lock) error {
@@ -198,12 +198,12 @@ func loadClusterState(conf addValidatorsConfig) (*statepb.Cluster, error) {
 		return nil
 	}
 
-	clusterState, err := state.Load(conf.Lockfile, verifyLock)
+	cluster, err := manifest.Load(conf.Lockfile, verifyLock)
 	if err != nil {
-		return nil, errors.Wrap(err, "load cluster state")
+		return nil, errors.Wrap(err, "load cluster manifest")
 	}
 
-	return clusterState, nil
+	return cluster, nil
 }
 
 // validateConf returns an error if the provided validators config fails validation checks.
@@ -258,32 +258,32 @@ func validateConf(conf addValidatorsConfig, numOps int) error {
 }
 
 // genNewVals returns a list of new validators from the provided config.
-func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsConfig) ([]*statepb.Validator, error) {
+func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsConfig) ([]*manifestpb.Validator, error) {
 	// Generate new validators
-	var vals []*statepb.Validator
+	var vals []*manifestpb.Validator
 	for i := 0; i < conf.NumVals; i++ {
 		// Generate private/public keypair
 		secret, err := tbls.GenerateSecretKey()
 		if err != nil {
-			return []*statepb.Validator{}, errors.Wrap(err, "generate secret key")
+			return []*manifestpb.Validator{}, errors.Wrap(err, "generate secret key")
 		}
 
 		pubkey, err := tbls.SecretToPublicKey(secret)
 		if err != nil {
-			return []*statepb.Validator{}, errors.Wrap(err, "generate public key")
+			return []*manifestpb.Validator{}, errors.Wrap(err, "generate public key")
 		}
 
 		// Split private key and generate public keyshares
 		shares, err := tbls.ThresholdSplit(secret, uint(numOps), uint(threshold))
 		if err != nil {
-			return []*statepb.Validator{}, errors.Wrap(err, "threshold split key")
+			return []*manifestpb.Validator{}, errors.Wrap(err, "threshold split key")
 		}
 
 		var pubshares [][]byte
 		for _, share := range shares {
 			pubshare, err := tbls.SecretToPublicKey(share)
 			if err != nil {
-				return []*statepb.Validator{}, errors.Wrap(err, "generate public key")
+				return []*manifestpb.Validator{}, errors.Wrap(err, "generate public key")
 			}
 
 			pubshares = append(pubshares, pubshare[:])
@@ -291,26 +291,26 @@ func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsCon
 
 		feeRecipientAddr, err := eth2util.ChecksumAddress(conf.FeeRecipientAddrs[i])
 		if err != nil {
-			return []*statepb.Validator{}, errors.Wrap(err, "invalid fee recipient address")
+			return []*manifestpb.Validator{}, errors.Wrap(err, "invalid fee recipient address")
 		}
 
 		withdrawalAddr, err := eth2util.ChecksumAddress(conf.WithdrawalAddrs[i])
 		if err != nil {
-			return []*statepb.Validator{}, errors.Wrap(err, "invalid withdrawal address")
+			return []*manifestpb.Validator{}, errors.Wrap(err, "invalid withdrawal address")
 		}
 
 		// Generate builder registration
 		builderReg, err := builderRegistration(secret, pubkey, feeRecipientAddr, forkVersion)
 		if err != nil {
-			return []*statepb.Validator{}, err
+			return []*manifestpb.Validator{}, err
 		}
 
 		builderRegJSON, err := json.Marshal(builderReg)
 		if err != nil {
-			return []*statepb.Validator{}, errors.Wrap(err, "marshal builder registration")
+			return []*manifestpb.Validator{}, errors.Wrap(err, "marshal builder registration")
 		}
 
-		vals = append(vals, &statepb.Validator{
+		vals = append(vals, &manifestpb.Validator{
 			PublicKey:               pubkey[:],
 			PubShares:               pubshares,
 			FeeRecipientAddress:     feeRecipientAddr,
@@ -342,7 +342,7 @@ func getP2PKeys(conf addValidatorsConfig) ([]*k1.PrivateKey, error) {
 }
 
 // validateP2PKeysOrder ensures that the provided p2p private keys are ordered correctly by peer index.
-func validateP2PKeysOrder(p2pKeys []*k1.PrivateKey, ops []*statepb.Operator) error {
+func validateP2PKeysOrder(p2pKeys []*k1.PrivateKey, ops []*manifestpb.Operator) error {
 	var enrs []string
 	for _, enrStr := range ops {
 		enrs = append(enrs, enrStr.Enr)
