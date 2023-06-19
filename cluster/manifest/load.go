@@ -22,6 +22,7 @@ func Load(file string, lockCallback func(cluster.Lock) error) (*manifestpb.Clust
 	}
 
 	rawDAG := new(manifestpb.SignedMutationList)
+
 	if err := proto.Unmarshal(b, rawDAG); err != nil {
 		return loadLegacyLock(b, lockCallback)
 	}
@@ -31,6 +32,7 @@ func Load(file string, lockCallback func(cluster.Lock) error) (*manifestpb.Clust
 
 func loadLegacyLock(input []byte, lockCallback func(cluster.Lock) error) (*manifestpb.Cluster, error) {
 	var lock cluster.Lock
+
 	if err := json.Unmarshal(input, &lock); err != nil {
 		return nil, errors.Wrap(err, "unmarshal legacy lock")
 	}
