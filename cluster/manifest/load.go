@@ -22,6 +22,7 @@ func Load(file string, lockCallback func(cluster.Lock) error) (*manifestpb.Clust
 	}
 
 	rawDAG := new(manifestpb.SignedMutationList)
+
 	if err := proto.Unmarshal(b, rawDAG); err != nil {
 		return loadLegacyLock(b, lockCallback)
 	}
