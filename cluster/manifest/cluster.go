@@ -1,6 +1,6 @@
 // Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package state
+package manifest
 
 import (
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -8,7 +8,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
-	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
+	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
@@ -16,7 +16,7 @@ import (
 )
 
 // ClusterPeers returns the cluster operators as a slice of p2p peers.
-func ClusterPeers(c *statepb.Cluster) ([]p2p.Peer, error) {
+func ClusterPeers(c *manifestpb.Cluster) ([]p2p.Peer, error) {
 	if c == nil || len(c.Operators) == 0 {
 		return nil, errors.New("invalid cluster")
 	}
@@ -46,7 +46,7 @@ func ClusterPeers(c *statepb.Cluster) ([]p2p.Peer, error) {
 }
 
 // ClusterPeerIDs is a convenience function that returns the operators p2p peer IDs.
-func ClusterPeerIDs(c *statepb.Cluster) ([]peer.ID, error) {
+func ClusterPeerIDs(c *manifestpb.Cluster) ([]peer.ID, error) {
 	peers, err := ClusterPeers(c)
 	if err != nil {
 		return nil, err
@@ -60,7 +60,7 @@ func ClusterPeerIDs(c *statepb.Cluster) ([]peer.ID, error) {
 }
 
 // ClusterNodeIdx returns the node index for the peer in the cluster.
-func ClusterNodeIdx(c *statepb.Cluster, pID peer.ID) (cluster.NodeIdx, error) {
+func ClusterNodeIdx(c *manifestpb.Cluster, pID peer.ID) (cluster.NodeIdx, error) {
 	peers, err := ClusterPeers(c)
 	if err != nil {
 		return cluster.NodeIdx{}, err
@@ -81,16 +81,16 @@ func ClusterNodeIdx(c *statepb.Cluster, pID peer.ID) (cluster.NodeIdx, error) {
 }
 
 // ValidatorPublicKey returns the validator BLS group public key.
-func ValidatorPublicKey(v *statepb.Validator) (tbls.PublicKey, error) {
+func ValidatorPublicKey(v *manifestpb.Validator) (tbls.PublicKey, error) {
 	return tblsconv.PubkeyFromBytes(v.PublicKey)
 }
 
 // ValidatorPublicKeyHex returns the validator hex group public key.
-func ValidatorPublicKeyHex(v *statepb.Validator) string {
+func ValidatorPublicKeyHex(v *manifestpb.Validator) string {
 	return to0xHex(v.PublicKey)
 }
 
 // ValidatorPublicShare returns the validator's peerIdx'th BLS public share.
-func ValidatorPublicShare(v *statepb.Validator, peerIdx int) (tbls.PublicKey, error) {
+func ValidatorPublicShare(v *manifestpb.Validator, peerIdx int) (tbls.PublicKey, error) {
 	return tblsconv.PubkeyFromBytes(v.PubShares[peerIdx])
 }

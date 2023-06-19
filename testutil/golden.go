@@ -86,5 +86,16 @@ func RequireGoldenJSON(t *testing.T, data interface{}, opts ...func(*string)) {
 func RequireGoldenProto(t *testing.T, data proto.Message, opts ...func(*string)) {
 	t.Helper()
 
-	RequireGoldenBytes(t, []byte(prototext.Format(data)), opts...)
+	// The prototext package produces unstable output to prevent programmatic use.
+	// This breaks golden file matching randomly.
+	// Workaround is to use tabs for indentation, then to remove all double spaces
+	// prototext sometimes adds for unstable output.
+
+	res := prototext.MarshalOptions{
+		Indent: "\t",
+	}.Format(data)
+
+	res = strings.ReplaceAll(res, "  ", " ")
+
+	RequireGoldenBytes(t, []byte(res), opts...)
 }

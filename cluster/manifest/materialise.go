@@ -1,20 +1,20 @@
 // Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package state
+package manifest
 
 import (
 	"github.com/obolnetwork/charon/app/errors"
-	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
+	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 )
 
-// Materialise transforms a raw DAG and returns the resulting cluster state.
-func Materialise(rawDAG *statepb.SignedMutationList) (*statepb.Cluster, error) {
+// Materialise transforms a raw DAG and returns the resulting cluster manifest.
+func Materialise(rawDAG *manifestpb.SignedMutationList) (*manifestpb.Cluster, error) {
 	if rawDAG == nil || len(rawDAG.Mutations) == 0 {
 		return nil, errors.New("empty raw DAG")
 	}
 
 	var (
-		cluster = new(statepb.Cluster)
+		cluster = new(manifestpb.Cluster)
 		err     error
 	)
 	for _, signed := range rawDAG.Mutations {

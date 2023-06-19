@@ -1,6 +1,6 @@
 // Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package state_test
+package manifest_test
 
 import (
 	"encoding/json"
@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/cluster/state"
+	"github.com/obolnetwork/charon/cluster/manifest"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -45,7 +45,7 @@ func testLoadLegacy(t *testing.T, version string) {
 	err = os.WriteFile(file, b, 0o644)
 	require.NoError(t, err)
 
-	cluster, err := state.Load(file, nil)
+	cluster, err := manifest.Load(file, nil)
 	require.NoError(t, err)
 
 	require.Equal(t, lock.LockHash, cluster.Hash)

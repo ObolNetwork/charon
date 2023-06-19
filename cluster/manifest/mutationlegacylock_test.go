@@ -1,6 +1,6 @@
 // Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package state_test
+package manifest_test
 
 import (
 	"encoding/json"
@@ -12,15 +12,15 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/cluster/state"
-	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
+	"github.com/obolnetwork/charon/cluster/manifest"
+	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 	"github.com/obolnetwork/charon/testutil"
 )
 
 //go:generate go test . -update
 
 func TestZeroCluster(t *testing.T) {
-	_, err := state.TypeLegacyLock.Transform(&statepb.Cluster{Name: "foo"}, &statepb.SignedMutation{})
+	_, err := manifest.TypeLegacyLock.Transform(&manifestpb.Cluster{Name: "foo"}, &manifestpb.SignedMutation{})
 	require.ErrorContains(t, err, "legacy lock not first mutation")
 }
 
@@ -31,7 +31,7 @@ func TestLegacyLock(t *testing.T) {
 	var lock cluster.Lock
 	testutil.RequireNoError(t, json.Unmarshal(lockJON, &lock))
 
-	signed, err := state.NewLegacyLock(lock)
+	signed, err := manifest.NewLegacyLock(lock)
 	require.NoError(t, err)
 
 	t.Run("proto", func(t *testing.T) {
@@ -39,7 +39,7 @@ func TestLegacyLock(t *testing.T) {
 	})
 
 	t.Run("cluster", func(t *testing.T) {
-		cluster, err := state.Materialise(&statepb.SignedMutationList{Mutations: []*statepb.SignedMutation{signed}})
+		cluster, err := manifest.Materialise(&manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{signed}})
 		require.NoError(t, err)
 		require.Equal(t, lock.LockHash, cluster.Hash)
 		testutil.RequireGoldenProto(t, cluster)
@@ -48,7 +48,7 @@ func TestLegacyLock(t *testing.T) {
 	b, err := proto.Marshal(signed)
 	require.NoError(t, err)
 
-	signed2 := new(statepb.SignedMutation)
+	signed2 := new(manifestpb.SignedMutation)
 	testutil.RequireNoError(t, proto.Unmarshal(b, signed2))
 
 	t.Run("proto again", func(t *testing.T) {
@@ -56,18 +56,18 @@ func TestLegacyLock(t *testing.T) {
 	})
 
 	t.Run("cluster loaded from lock", func(t *testing.T) {
-		cluster, err := state.Load("testdata/lock.json", nil)
+		cluster, err := manifest.Load("testdata/lock.json", nil)
 		require.NoError(t, err)
 		testutil.RequireGoldenProto(t, cluster, testutil.WithFilename("TestLegacyLock_cluster.golden"))
 	})
 
-	t.Run("cluster loaded from state", func(t *testing.T) {
-		b, err := proto.Marshal(&statepb.SignedMutationList{Mutations: []*statepb.SignedMutation{signed}})
+	t.Run("cluster loaded from manifest", func(t *testing.T) {
+		b, err := proto.Marshal(&manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{signed}})
 		require.NoError(t, err)
-		file := path.Join(t.TempDir(), "state.pb")
+		file := path.Join(t.TempDir(), "manifest.pb")
 		require.NoError(t, os.WriteFile(file, b, 0o644))
 
-		cluster, err := state.Load(file, nil)
+		cluster, err := manifest.Load(file, nil)
 		require.NoError(t, err)
 		testutil.RequireGoldenProto(t, cluster, testutil.WithFilename("TestLegacyLock_cluster.golden"))
 	})

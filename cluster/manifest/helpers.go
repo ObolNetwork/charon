@@ -1,6 +1,6 @@
 // Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package state
+package manifest
 
 import (
 	"crypto/sha256"
@@ -18,7 +18,7 @@ import (
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
-	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
+	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 )
 
 // hashLen is the length of a hash.
@@ -39,7 +39,7 @@ func SetNowFuncForT(t *testing.T, f func() *timestamppb.Timestamp) {
 }
 
 // hashSignedMutation returns the hash of a signed mutation.
-func hashSignedMutation(signed *statepb.SignedMutation) ([]byte, error) {
+func hashSignedMutation(signed *manifestpb.SignedMutation) ([]byte, error) {
 	if signed.Mutation == nil {
 		return nil, errors.New("invalid signed mutation")
 	}
@@ -70,7 +70,7 @@ func hashSignedMutation(signed *statepb.SignedMutation) ([]byte, error) {
 }
 
 // hashMutation returns the hash of a mutation.
-func hashMutation(m *statepb.Mutation) ([]byte, error) {
+func hashMutation(m *manifestpb.Mutation) ([]byte, error) {
 	if m.Timestamp == nil || m.Data == nil {
 		return nil, errors.New("invalid mutation")
 	}
@@ -123,7 +123,7 @@ func int32ToBytes(i int32) []byte {
 }
 
 // verifyEmptySig verifies that the signed mutation isn't signed.
-func verifyEmptySig(signed *statepb.SignedMutation) error {
+func verifyEmptySig(signed *manifestpb.SignedMutation) error {
 	if len(signed.Signature) != 0 {
 		return errors.New("non-empty signature")
 	}
@@ -136,7 +136,7 @@ func verifyEmptySig(signed *statepb.SignedMutation) error {
 }
 
 // SignK1 signs the mutation with the provided k1 secret.
-func SignK1(m *statepb.Mutation, secret *k1.PrivateKey) (*statepb.SignedMutation, error) {
+func SignK1(m *manifestpb.Mutation, secret *k1.PrivateKey) (*manifestpb.SignedMutation, error) {
 	hash, err := hashMutation(m)
 	if err != nil {
 		return nil, errors.Wrap(err, "hash mutation")
@@ -147,7 +147,7 @@ func SignK1(m *statepb.Mutation, secret *k1.PrivateKey) (*statepb.SignedMutation
 		return nil, errors.Wrap(err, "sign mutation")
 	}
 
-	return &statepb.SignedMutation{
+	return &manifestpb.SignedMutation{
 		Mutation:  m,
 		Signer:    secret.PubKey().SerializeCompressed(),
 		Signature: sig[:64], // Strip recovery id
@@ -157,7 +157,7 @@ func SignK1(m *statepb.Mutation, secret *k1.PrivateKey) (*statepb.SignedMutation
 // verifyK1SignedMutation verifies that the signed mutation is signed by a k1 key.
 //
 // TODO(corver): Figure out no-verify case.
-func verifyK1SignedMutation(signed *statepb.SignedMutation) error {
+func verifyK1SignedMutation(signed *manifestpb.SignedMutation) error {
 	pubkey, err := k1.ParsePubKey(signed.Signer)
 	if err != nil {
 		return errors.Wrap(err, "parse signer pubkey")
@@ -203,7 +203,7 @@ func from0xHex(s string, length int) ([]byte, error) {
 }
 
 // ValidatorToProto converts a legacy cluster validator to a protobuf validator.
-func ValidatorToProto(val cluster.DistValidator, addrs cluster.ValidatorAddresses) (*statepb.Validator, error) {
+func ValidatorToProto(val cluster.DistValidator, addrs cluster.ValidatorAddresses) (*manifestpb.Validator, error) {
 	var regJSON []byte
 	if !val.ZeroRegistration() {
 		reg, err := val.Eth2Registration()
@@ -217,7 +217,7 @@ func ValidatorToProto(val cluster.DistValidator, addrs cluster.ValidatorAddresse
 		}
 	}
 
-	return &statepb.Validator{
+	return &manifestpb.Validator{
 		PublicKey:               val.PubKey,
 		PubShares:               val.PubShares,
 		FeeRecipientAddress:     addrs.FeeRecipientAddress,

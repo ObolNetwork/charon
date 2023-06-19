@@ -1,19 +1,19 @@
 // Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package state
+package manifest
 
 import (
 	"encoding/json"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/cluster"
-	statepb "github.com/obolnetwork/charon/cluster/statepb/v1"
+	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 )
 
-func Hash(signed *statepb.SignedMutation) ([]byte, error) {
+func Hash(signed *manifestpb.SignedMutation) ([]byte, error) {
 	// Return legacy lock hash if this is a legacy lock mutation.
 	if signed.Mutation.Type == string(TypeLegacyLock) {
-		legacyLock := new(statepb.LegacyLock)
+		legacyLock := new(manifestpb.LegacyLock)
 		if err := signed.Mutation.Data.UnmarshalTo(legacyLock); err != nil {
 			return nil, errors.Wrap(err, "mutation data to legacy lock")
 		}
@@ -34,8 +34,8 @@ func Hash(signed *statepb.SignedMutation) ([]byte, error) {
 	return hashSignedMutation(signed)
 }
 
-// Transform returns a transformed cluster state by applying this mutation.
-func Transform(cluster *statepb.Cluster, signed *statepb.SignedMutation) (*statepb.Cluster, error) {
+// Transform returns a transformed cluster manifest by applying this mutation.
+func Transform(cluster *manifestpb.Cluster, signed *manifestpb.SignedMutation) (*manifestpb.Cluster, error) {
 	if cluster == nil {
 		return nil, errors.New("nil cluster")
 	}
