@@ -14,7 +14,7 @@ import (
 )
 
 // Load loads a cluster manifest from disk. It supports both legacy lock files and raw DAG files.
-// TODO(corver): Refactor, pass in two file names, try loading manifest.pb first, then legacy lock.
+// TODO(xenowits): Refactor, pass in two file names, try loading manifest.pb first, then legacy lock.
 func Load(file string, lockCallback func(cluster.Lock) error) (*manifestpb.Cluster, error) {
 	b, err := os.ReadFile(file)
 	if err != nil {
