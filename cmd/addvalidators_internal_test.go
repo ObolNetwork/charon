@@ -123,7 +123,7 @@ func TestRunAddValidators(t *testing.T) {
 
 	tmp := t.TempDir()
 	manifestFile := path.Join(tmp, "cluster-manifest.pb")
-	backupDir := path.Join(tmp, "cluster-backups")
+	backupDir := path.Join(tmp, "cluster-manifest-backups")
 
 	conf := addValidatorsConfig{
 		NumVals:           1,
@@ -159,7 +159,7 @@ func TestRunAddValidators(t *testing.T) {
 	b, err = os.ReadFile(backupFile)
 	require.NoError(t, err)
 
-	// Verify if new validator is included in updated cluster manifest
+	// Verify if backup manifest still contains a single validator, ie, it is unchanged
 	var msgBackup manifestpb.Cluster
 	require.NoError(t, proto.Unmarshal(b, &msgBackup))
 	require.Equal(t, len(msgBackup.Validators), valCount)
