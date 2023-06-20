@@ -119,6 +119,9 @@ func TestRunAddValidators(t *testing.T) {
 
 	tmp := t.TempDir()
 	manifestFile := path.Join(tmp, "cluster-manifest.pb")
+	backupDir := path.Join(tmp, "cluster-backups")
+	require.NoError(t, os.Mkdir(backupDir, 0o777))
+
 	conf := addValidatorsConfig{
 		NumVals:           1,
 		WithdrawalAddrs:   []string{feeRecipientAddr},
@@ -128,6 +131,7 @@ func TestRunAddValidators(t *testing.T) {
 			P2PKeys: p2pKeys,
 		},
 		ClusterManifestFile: manifestFile,
+		ClusterBackupDir:    backupDir,
 	}
 
 	err := runAddValidatorsSolo(context.Background(), conf)

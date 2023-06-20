@@ -6,7 +6,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
+	"path"
+	"strings"
+	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -29,13 +33,14 @@ import (
 
 // addValidatorsConfig is config for the `add-validators` command.
 type addValidatorsConfig struct {
-	NumVals           int
-	WithdrawalAddrs   []string
-	FeeRecipientAddrs []string
+	NumVals           int      // No of validators to add
+	WithdrawalAddrs   []string // Withdrawal address of each validator
+	FeeRecipientAddrs []string // Fee recipient address of each validator
 
-	Lockfile            string
-	ClusterManifestFile string
-	EnrPrivKeyfiles     []string
+	Lockfile            string   // Path to the legacy cluster lock file
+	ClusterManifestFile string   // Path to the cluster manifest file
+	ClusterBackupDir    string   // Directory containing cluster manifest backup files
+	EnrPrivKeyfiles     []string // Paths to node enr private keys
 
 	TestConfig TestConfig
 }
@@ -73,14 +78,21 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 	cmd.Flags().StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each new validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
 	cmd.Flags().StringVar(&config.Lockfile, "lock-file", ".charon/cluster-lock.json", "The path to the legacy cluster lock file defining distributed validator cluster.")
 	cmd.Flags().StringVar(&config.ClusterManifestFile, "manifest-file", ".charon/cluster-manifest.pb", "The path to the cluster manifest file.")
+	cmd.Flags().StringVar(&config.ClusterBackupDir, "cluster-backup-dir", ".charon/cluster-backups", "The directory containing cluster manifest backup files.")
 	cmd.Flags().StringSliceVar(&config.EnrPrivKeyfiles, "private-key-files", nil, "Comma separated list of paths to charon enr private key files. This should be in the same order as the operators, ie, first private key file should correspond to the first operator and so on.")
 }
 
 func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err error) {
-	// Read lock file to load mutable cluster manifest.
+	// Read lock file to load mutable cluster manifest
 	cluster, err := loadClusterManifest(conf)
 	if err != nil {
 		return err
+	}
+
+	// Write backup of the current cluster manifest to disk
+	err = writeClusterManifest(manifestBackupFilename(conf.ClusterBackupDir), cluster)
+	if err != nil {
+		return errors.Wrap(err, "write cluster manifest backup")
 	}
 
 	if err = validateConf(conf, len(cluster.Operators)); err != nil {
@@ -399,4 +411,14 @@ func repeatAddr(addr string, numVals int) []string {
 	}
 
 	return addrs
+}
+
+// manifestBackupFilename returns the manifest backup filename in "YYYYMMDD" format.
+func manifestBackupFilename(backupDir string) string {
+	ts := time.Now().Format(time.RFC3339)                                    // "2006-01-02T15:04:05Z07:00"
+	date := strings.Split(ts, "T")[0]                                        // "2006-01-02"
+	withoutHyphens := strings.ReplaceAll(date, "-", "")                      // "20060102"
+	filename := fmt.Sprintf("cluster-manifest-backup-%s.pb", withoutHyphens) // "cluster-manifest-backup-20060102.pb"
+
+	return path.Join(backupDir, filename)
 }
