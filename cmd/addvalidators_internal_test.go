@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"path"
+	"strings"
 	"testing"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -195,5 +196,40 @@ func TestValidateP2PKeysOrder(t *testing.T) {
 
 		err := validateP2PKeysOrder(p2pKeys, ops)
 		require.ErrorContains(t, err, "invalid p2p key order")
+	})
+}
+
+func TestWriteClusterBackup(t *testing.T) {
+	t.Run("dir is a file", func(t *testing.T) {
+		file := path.Join(t.TempDir(), "clusters")
+		_, err := os.Create(file)
+		require.NoError(t, err)
+
+		err = writeClusterBackup(file, &manifestpb.Cluster{})
+		require.ErrorContains(t, err, "backup dir already exists and is a file")
+	})
+
+	t.Run("dir already exists", func(t *testing.T) {
+		dir := t.TempDir()
+		clusterName := "Test#001"
+		err := writeClusterBackup(dir, &manifestpb.Cluster{Name: clusterName})
+		require.NoError(t, err)
+
+		entries, err := os.ReadDir(dir)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(entries))
+		require.True(t, strings.Contains(entries[0].Name(), "cluster-manifest-backup"))
+
+		b, err := os.ReadFile(path.Join(dir, entries[0].Name()))
+		require.NoError(t, err)
+
+		var msg manifestpb.Cluster
+		require.NoError(t, proto.Unmarshal(b, &msg))
+		require.Equal(t, clusterName, msg.Name)
+	})
+
+	t.Run("create backup dir", func(t *testing.T) {
+		err := writeClusterBackup("", &manifestpb.Cluster{})
+		require.ErrorContains(t, err, "create backup dir")
 	})
 }

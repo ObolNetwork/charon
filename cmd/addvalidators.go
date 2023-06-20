@@ -89,11 +89,8 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 		return err
 	}
 
-	// Write backup of the current cluster manifest to disk
-	err = writeClusterBackup(conf.ClusterBackupDir, cluster)
-	if err != nil {
-		return err
-	}
+	// Will be used to create cluster backup
+	oldCluster := proto.Clone(cluster).(*manifestpb.Cluster)
 
 	if err = validateConf(conf, len(cluster.Operators)); err != nil {
 		return errors.Wrap(err, "validate config")
@@ -157,6 +154,12 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 	cluster, err = manifest.Transform(cluster, addVals)
 	if err != nil {
 		return errors.Wrap(err, "transform cluster manifest")
+	}
+
+	// Save cluster backup to disk
+	err = writeClusterBackup(conf.ClusterBackupDir, oldCluster)
+	if err != nil {
+		return err
 	}
 
 	// Save cluster manifest to disk
