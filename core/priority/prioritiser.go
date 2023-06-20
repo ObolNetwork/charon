@@ -201,7 +201,7 @@ func (p *Prioritiser) Prioritise(ctx context.Context, msg *pbv1.PriorityMsg) err
 // handleRequest handles a priority message exchange initiated by a peer.
 func (p *Prioritiser) handleRequest(ctx context.Context, pID peer.ID, msg *pbv1.PriorityMsg) (*pbv1.PriorityMsg, error) {
 	if msg == nil {
-		return nil, errors.New("priority msg proto cannot be nil")
+		return nil, errors.New("nil priority message")
 	}
 
 	if pID.String() != msg.PeerId {
