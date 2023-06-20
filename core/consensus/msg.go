@@ -17,6 +17,10 @@ import (
 
 // newMsg returns a new msg.
 func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]byte]*anypb.Any) (msg, error) {
+	if pbMsg == nil {
+		return msg{}, errors.New("nil qbft message")
+	}
+
 	// Do all possible error conversions first.
 	var (
 		valueHash         [32]byte
