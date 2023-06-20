@@ -122,7 +122,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, minRequired int,
 		func() proto.Message { return new(pbv1.PriorityMsg) },
 		func(ctx context.Context, pID peer.ID, msg proto.Message) (proto.Message, bool, error) {
 			prioMsg, ok := msg.(*pbv1.PriorityMsg)
-			if !ok {
+			if !ok || prioMsg == nil {
 				return nil, false, errors.New("invalid priority message")
 			}
 
@@ -200,6 +200,10 @@ func (p *Prioritiser) Prioritise(ctx context.Context, msg *pbv1.PriorityMsg) err
 
 // handleRequest handles a priority message exchange initiated by a peer.
 func (p *Prioritiser) handleRequest(ctx context.Context, pID peer.ID, msg *pbv1.PriorityMsg) (*pbv1.PriorityMsg, error) {
+	if msg == nil {
+		return nil, errors.New("priority msg proto cannot be nil")
+	}
+
 	if pID.String() != msg.PeerId {
 		return nil, errors.New("invalid priority message peer id", z.Str("expect", pID.String()), z.Str("actual", msg.PeerId))
 	} else if err := p.msgValidator(msg); err != nil {
