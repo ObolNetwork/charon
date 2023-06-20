@@ -7,9 +7,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
-	"strings"
 	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -90,9 +90,9 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 	}
 
 	// Write backup of the current cluster manifest to disk
-	err = writeClusterManifest(manifestBackupFilename(conf.ClusterBackupDir), cluster)
+	err = writeClusterBackup(conf.ClusterBackupDir, cluster)
 	if err != nil {
-		return errors.Wrap(err, "write cluster manifest backup")
+		return err
 	}
 
 	if err = validateConf(conf, len(cluster.Operators)); err != nil {
@@ -238,6 +238,33 @@ func writeClusterManifest(filename string, cluster *manifestpb.Cluster) error {
 	err = os.WriteFile(filename, b, 0o644) // Read-write
 	if err != nil {
 		return errors.Wrap(err, "write cluster manifest")
+	}
+
+	return nil
+}
+
+// writeClusterBackup writes the provided cluster in a cluster manifest backup file inside the backup directory.
+func writeClusterBackup(backupDir string, cluster *manifestpb.Cluster) error {
+	// Check if the backup directory exists, creating a new one if it doesn't exist.
+	info, err := os.Stat(backupDir)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return errors.Wrap(err, "error retrieving backup dir info", z.Str("backup-dir", backupDir))
+	} else if err != nil && errors.Is(err, fs.ErrNotExist) {
+		err := os.Mkdir(backupDir, 0o755)
+		if err != nil {
+			return errors.Wrap(err, "create backup dir", z.Str("backup-dir", backupDir))
+		}
+	} else if err == nil && !info.IsDir() {
+		return errors.New("backup dir already exists and is a file", z.Str("backup-dir", backupDir))
+	}
+
+	filename := fmt.Sprintf("cluster-manifest-backup-%d.pb", time.Now().Unix()) // "cluster-manifest-backup-1687250009.pb"
+	backupFile := path.Join(backupDir, filename)
+
+	// Write the backup to disk
+	err = writeClusterManifest(backupFile, cluster)
+	if err != nil {
+		return errors.Wrap(err, "write cluster manifest backup")
 	}
 
 	return nil
@@ -411,14 +438,4 @@ func repeatAddr(addr string, numVals int) []string {
 	}
 
 	return addrs
-}
-
-// manifestBackupFilename returns the manifest backup filename in "YYYYMMDD" format.
-func manifestBackupFilename(backupDir string) string {
-	ts := time.Now().Format(time.RFC3339)                                    // "2006-01-02T15:04:05Z07:00"
-	date := strings.Split(ts, "T")[0]                                        // "2006-01-02"
-	withoutHyphens := strings.ReplaceAll(date, "-", "")                      // "20060102"
-	filename := fmt.Sprintf("cluster-manifest-backup-%s.pb", withoutHyphens) // "cluster-manifest-backup-20060102.pb"
-
-	return path.Join(backupDir, filename)
 }

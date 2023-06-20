@@ -120,7 +120,6 @@ func TestRunAddValidators(t *testing.T) {
 	tmp := t.TempDir()
 	manifestFile := path.Join(tmp, "cluster-manifest.pb")
 	backupDir := path.Join(tmp, "cluster-backups")
-	require.NoError(t, os.Mkdir(backupDir, 0o777))
 
 	conf := addValidatorsConfig{
 		NumVals:           1,
