@@ -115,8 +115,11 @@ func TestValidateConfigAddValidators(t *testing.T) {
 
 // TODO(xenowits): Add more extensive tests, this is just a very simple unit test.
 func TestRunAddValidators(t *testing.T) {
-	const n = 3
-	lock, p2pKeys, _ := cluster.NewForT(t, 1, n, n, 0)
+	const (
+		n        = 3
+		valCount = 1
+	)
+	lock, p2pKeys, _ := cluster.NewForT(t, valCount, n, n, 0)
 
 	tmp := t.TempDir()
 	manifestFile := path.Join(tmp, "cluster-manifest.pb")
@@ -137,15 +140,29 @@ func TestRunAddValidators(t *testing.T) {
 	err := runAddValidatorsSolo(context.Background(), conf)
 	require.NoError(t, err)
 
-	// Verify if the cluster manifest file is saved to disk
+	// Verify the new cluster manifest
 	b, err := os.ReadFile(manifestFile)
 	require.NoError(t, err)
 
 	var msg manifestpb.Cluster
 	require.NoError(t, proto.Unmarshal(b, &msg))
+	require.Equal(t, len(msg.Validators), 2) // valCount+1
+	require.Equal(t, msg.Validators[1].FeeRecipientAddress, feeRecipientAddr)
+
+	// Verify the backup cluster manifest
+	entries, err := os.ReadDir(backupDir)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(entries))
+	require.True(t, strings.Contains(entries[0].Name(), "cluster-manifest-backup"))
+
+	backupFile := path.Join(backupDir, entries[0].Name())
+	b, err = os.ReadFile(backupFile)
+	require.NoError(t, err)
 
 	// Verify if new validator is included in updated cluster manifest
-	require.Equal(t, msg.Validators[len(msg.Validators)-1].FeeRecipientAddress, feeRecipientAddr)
+	var msgBackup manifestpb.Cluster
+	require.NoError(t, proto.Unmarshal(b, &msgBackup))
+	require.Equal(t, len(msgBackup.Validators), valCount)
 }
 
 func TestValidateP2PKeysOrder(t *testing.T) {
