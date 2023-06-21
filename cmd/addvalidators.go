@@ -6,11 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
-	"io/fs"
 	"os"
-	"path"
-	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -78,7 +74,6 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 	cmd.Flags().StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each new validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
 	cmd.Flags().StringVar(&config.Lockfile, "lock-file", ".charon/cluster-lock.json", "The path to the legacy cluster lock file defining distributed validator cluster.")
 	cmd.Flags().StringVar(&config.ClusterManifestFile, "manifest-file", ".charon/cluster-manifest.pb", "The path to the cluster manifest file.")
-	cmd.Flags().StringVar(&config.ClusterBackupDir, "cluster-backup-dir", ".charon/cluster-manifest-backups", "The directory containing cluster manifest backup files.")
 	cmd.Flags().StringSliceVar(&config.EnrPrivKeyfiles, "private-key-files", nil, "Comma separated list of paths to charon enr private key files. This should be in the same order as the operators, ie, first private key file should correspond to the first operator and so on.")
 }
 
@@ -88,9 +83,6 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 	if err != nil {
 		return err
 	}
-
-	// Will be used to create cluster backup
-	oldCluster := proto.Clone(cluster).(*manifestpb.Cluster)
 
 	if err = validateConf(conf, len(cluster.Operators)); err != nil {
 		return errors.Wrap(err, "validate config")
@@ -154,12 +146,6 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 	cluster, err = manifest.Transform(cluster, addVals)
 	if err != nil {
 		return errors.Wrap(err, "transform cluster manifest")
-	}
-
-	// Save cluster backup to disk
-	err = writeClusterBackup(conf.ClusterBackupDir, oldCluster)
-	if err != nil {
-		return err
 	}
 
 	// Save cluster manifest to disk
@@ -241,33 +227,6 @@ func writeClusterManifest(filename string, cluster *manifestpb.Cluster) error {
 	err = os.WriteFile(filename, b, 0o644) // Read-write
 	if err != nil {
 		return errors.Wrap(err, "write cluster manifest")
-	}
-
-	return nil
-}
-
-// writeClusterBackup writes the provided cluster in a cluster manifest backup file inside the backup directory.
-func writeClusterBackup(backupDir string, cluster *manifestpb.Cluster) error {
-	// Check if the backup directory exists, creating a new one if it doesn't exist.
-	info, err := os.Stat(backupDir)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return errors.Wrap(err, "error retrieving backup dir info", z.Str("backup-dir", backupDir))
-	} else if err != nil && errors.Is(err, fs.ErrNotExist) {
-		err := os.Mkdir(backupDir, 0o755)
-		if err != nil {
-			return errors.Wrap(err, "create backup dir", z.Str("backup-dir", backupDir))
-		}
-	} else if err == nil && !info.IsDir() {
-		return errors.New("backup dir already exists and is a file", z.Str("backup-dir", backupDir))
-	}
-
-	filename := fmt.Sprintf("cluster-manifest-backup-%d.pb", time.Now().Unix()) // "cluster-manifest-backup-1687250009.pb"
-	backupFile := path.Join(backupDir, filename)
-
-	// Write the backup to disk
-	err = writeClusterManifest(backupFile, cluster)
-	if err != nil {
-		return errors.Wrap(err, "write cluster manifest backup")
 	}
 
 	return nil
