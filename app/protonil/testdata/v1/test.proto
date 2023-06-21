@@ -24,6 +24,7 @@ message M4 {
   string name = 1;
   map<string, M3> m3_map = 2;
   repeated M3 m3_list = 3;
+  reserved 4;
 }
 
 // MaxIndex is used to test the max index
