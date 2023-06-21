@@ -20,6 +20,12 @@ message M3 {
   string name = 2; // Note it doesn't start at 1
 }
 
+message M4 {
+  string name = 1;
+  map<string, M3> m3_map = 2;
+  repeated M3 m3_list = 3;
+}
+
 // MaxIndex is used to test the max index
 message MaxIndex {
   string name = 65;

@@ -17,8 +17,8 @@ message QBFTMsg {
   int64                          prepared_round        = 6;
   reserved                                               7 ;
   bytes                          signature             = 8;
-  google.protobuf.Any            value                 = 9  [deprecated = true]; // Prefer value_hash and ConsensusMsg.values. Remove in v0.15.
-  google.protobuf.Any            prepared_value        = 10 [deprecated = true]; // Prefer prepared_value_hash and ConsensusMsg.values. Remove in v0.15.
+  reserved                                               9;
+  reserved                                               10;
   bytes                          value_hash            = 11;
   bytes                          prepared_value_hash   = 12;
 }

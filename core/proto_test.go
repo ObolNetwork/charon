@@ -23,7 +23,7 @@ func TestDutyProto(t *testing.T) {
 	duty2 := core.DutyFromProto(pb1)
 	pb2 := core.DutyToProto(duty2)
 	require.Equal(t, duty1, duty2)
-	require.Equal(t, pb1, pb2)
+	testutil.RequireProtoEqual(t, pb1, pb2)
 }
 
 func TestParSignedDataSetProto(t *testing.T) {
@@ -98,7 +98,7 @@ func TestParSignedDataSetProto(t *testing.T) {
 			pb2, err := core.ParSignedDataSetToProto(set2)
 			require.NoError(t, err)
 			require.Equal(t, set1, set2)
-			require.Equal(t, pb1, pb2)
+			testutil.RequireProtoEqual(t, pb1, pb2)
 
 			b, err := proto.Marshal(pb1)
 			require.NoError(t, err)
@@ -106,8 +106,7 @@ func TestParSignedDataSetProto(t *testing.T) {
 			pb3 := new(pbv1.ParSignedDataSet)
 			err = proto.Unmarshal(b, pb3)
 			require.NoError(t, err)
-
-			require.True(t, proto.Equal(pb1, pb3))
+			testutil.RequireProtoEqual(t, pb1, pb3)
 		})
 	}
 }
@@ -152,7 +151,7 @@ func TestUnsignedDataToProto(t *testing.T) {
 			pb2, err := core.UnsignedDataSetToProto(set2)
 			require.NoError(t, err)
 			require.Equal(t, set1, set2)
-			require.Equal(t, pb1, pb2)
+			testutil.RequireProtoEqual(t, pb1, pb2)
 
 			b, err := proto.Marshal(pb1)
 			require.NoError(t, err)
@@ -160,8 +159,7 @@ func TestUnsignedDataToProto(t *testing.T) {
 			pb3 := new(pbv1.UnsignedDataSet)
 			err = proto.Unmarshal(b, pb3)
 			require.NoError(t, err)
-
-			require.True(t, proto.Equal(pb1, pb3))
+			testutil.RequireProtoEqual(t, pb1, pb3)
 		})
 	}
 }
@@ -181,7 +179,7 @@ func TestParSignedData(t *testing.T) {
 			pb2, err := core.ParSignedDataToProto(parSig2)
 			require.NoError(t, err)
 			require.Equal(t, parSig1, parSig2)
-			require.Equal(t, pb1, pb2)
+			testutil.RequireProtoEqual(t, pb1, pb2)
 
 			b, err := proto.Marshal(pb1)
 			require.NoError(t, err)
@@ -189,8 +187,7 @@ func TestParSignedData(t *testing.T) {
 			pb3 := new(pbv1.ParSignedData)
 			err = proto.Unmarshal(b, pb3)
 			require.NoError(t, err)
-
-			require.True(t, proto.Equal(pb1, pb3))
+			testutil.RequireProtoEqual(t, pb1, pb3)
 		})
 	}
 }
@@ -239,7 +236,7 @@ func randomSignedData(t *testing.T) map[core.DutyType]core.SignedData {
 
 func TestNilPointerChecks(t *testing.T) {
 	_, err := core.ParSignedDataFromProto(core.DutyAttester, nil)
-	require.ErrorContains(t, err, "partial signed data proto cannot be nil")
+	require.ErrorContains(t, err, "invalid partial signed proto: nil protobuf message")
 
 	_, err = core.ParSignedDataSetFromProto(core.DutyAttester, nil)
 	require.ErrorContains(t, err, "invalid partial signed data set proto fields")

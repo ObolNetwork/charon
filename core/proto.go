@@ -9,6 +9,7 @@ import (
 	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/protonil"
 	"github.com/obolnetwork/charon/app/z"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 )
@@ -47,8 +48,8 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (ParSignedDa
 	//  For now, it is a good way to catch compatibility issues. But we should
 	//  recover panics and return an error before launching mainnet.
 
-	if data == nil {
-		return ParSignedData{}, errors.New("partial signed data proto cannot be nil")
+	if err := protonil.Check(data); err != nil {
+		return ParSignedData{}, errors.Wrap(err, "invalid partial signed proto")
 	}
 
 	var signedData SignedData
