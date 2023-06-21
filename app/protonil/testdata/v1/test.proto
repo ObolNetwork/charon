@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package app.protonil.testdata.v1;
+
+option go_package = "github.com/obolnetwork/charon/app/protonil/testdata/v1";
+
+message M1 {
+  string name = 1;
+  M2 m2 = 2;
+  optional M2 m2_optional = 3;
+}
+
+message M2 {
+  string name = 1;
+  M3 m3 = 2;
+  optional M3 m3_optional = 3;
+}
+
+message M3 {
+  string name = 2; // Note it doesn't start at 1
+}
+
+// MaxIndex is used to test the max index
+message MaxIndex {
+  string name = 65;
+}
+
+// Attack is a weird message that extends M1
+// and adds a unknown field and a invalid numbered field.
+// Both should be ignored.
+message Attack {
+  string name = 1;
+  M2 m2 = 2;
+  optional M2 m2_optional = 3;
+  M3 m3_unknown = 4;
+  M3 m3_attack = 99999999;
+}
