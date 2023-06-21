@@ -3,6 +3,7 @@
 package protonil_test
 
 import (
+	"fmt"
 	"testing"
 
 	fuzz "github.com/google/gofuzz"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/obolnetwork/charon/app/protonil"
 	v1 "github.com/obolnetwork/charon/app/protonil/testdata/v1"
+	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
+	corepb "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -88,11 +91,27 @@ func TestCheck(t *testing.T) {
 	}
 }
 
-func TestFuzzCheck(t *testing.T) {
+func TestFuzz(t *testing.T) {
+	tests := []proto.Message{
+		new(v1.M1),
+		new(v1.M2),
+		new(v1.M3),
+		new(manifestpb.Cluster),
+		new(manifestpb.SignedMutation),
+		new(manifestpb.SignedMutationList),
+		new(manifestpb.LegacyLock),
+		new(corepb.QBFTMsg),
+		new(corepb.PriorityScoredResult),
+		new(corepb.SniffedConsensusInstance),
+	}
+
 	fuzzer := fuzz.New().NilChance(0)
-	m1 := new(v1.M1)
-	fuzzer.Fuzz(m1)
-	testutil.RequireNoError(t, protonil.Check(m1))
+	for _, msg := range tests {
+		t.Run(fmt.Sprintf("%T", msg), func(t *testing.T) {
+			fuzzer.Fuzz(msg)
+			testutil.RequireNoError(t, protonil.Check(msg))
+		})
+	}
 }
 
 func BenchmarkCheck(b *testing.B) {
