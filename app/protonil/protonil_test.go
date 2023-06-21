@@ -7,6 +7,7 @@ import (
 
 	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/protonil"
 	v1 "github.com/obolnetwork/charon/app/protonil/testdata/v1"
@@ -108,4 +109,26 @@ func BenchmarkCheck(b *testing.B) {
 func TestMaxIndex(t *testing.T) {
 	err := protonil.Check(new(v1.MaxIndex))
 	require.ErrorContains(t, err, "this should never happen")
+}
+
+func TestAttack(t *testing.T) {
+	attack := &v1.Attack{
+		Name: "attack",
+		M2: &v1.M2{
+			Name: "m2",
+			M3:   &v1.M3{Name: "m3"},
+		},
+		M3Unknown: nil,                    // This is ignored
+		M3Attack:  &v1.M3{Name: "attack"}, // This is also ignored
+	}
+
+	b, err := proto.Marshal(attack)
+	require.NoError(t, err)
+
+	m1 := new(v1.M1)
+	err = proto.Unmarshal(b, m1)
+	require.NoError(t, err)
+
+	err = protonil.Check(m1)
+	require.NoError(t, err)
 }

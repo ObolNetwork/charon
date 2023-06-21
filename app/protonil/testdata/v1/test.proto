@@ -24,3 +24,14 @@ message M3 {
 message MaxIndex {
   string name = 65;
 }
+
+// Attack is a weird message that extends M1
+// and adds a unknown field and a invalid numbered field.
+// Both should be ignored.
+message Attack {
+  string name = 1;
+  M2 m2 = 2;
+  optional M2 m2_optional = 3;
+  M3 m3_unknown = 4;
+  M3 m3_attack = 99999999;
+}
