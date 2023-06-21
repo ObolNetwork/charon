@@ -20,6 +20,9 @@ const maxFieldNumber = 64
 
 // Check returns an error if the protobuf message is nil or if it contains nil fields
 // that are not marked as optional.
+//
+// Note this only applies to "message" fields, not primitive scalars or "map" or "list" fields
+// since their zero values are valid.
 func Check(msg proto.Message) error {
 	rMsg := msg.ProtoReflect()
 	if !rMsg.IsValid() {
