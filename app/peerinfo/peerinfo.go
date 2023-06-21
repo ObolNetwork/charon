@@ -177,6 +177,9 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 				p2p.WithSendReceiveRTT(rttCallback), p2p.WithDelimitedProtocol(protocolID2))
 			if err != nil {
 				return // Logging handled by send func.
+			} else if resp.SentAt == nil || resp.StartedAt == nil {
+				log.Error(ctx, "Invalid peerinfo response", err, z.Str("peer", p2p.PeerName(peerID)))
+				return
 			}
 
 			expectedSentAt := time.Now().Add(-rtt / 2)
