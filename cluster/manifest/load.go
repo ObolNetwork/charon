@@ -14,7 +14,7 @@ import (
 )
 
 // Load loads a cluster manifest from disk. It supports both legacy lock files and raw DAG files.
-// TODO(xenowits): Refactor, pass in two file names, try loading manifest.pb first, then legacy lock.
+// TODO(xenowits): Refactor, load either from manifest or lock file, see https://github.com/ObolNetwork/charon/issues/2334.
 func Load(file string, lockCallback func(cluster.Lock) error) (*manifestpb.Cluster, error) {
 	b, err := os.ReadFile(file)
 	if err != nil {

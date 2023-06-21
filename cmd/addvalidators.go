@@ -35,7 +35,6 @@ type addValidatorsConfig struct {
 
 	Lockfile            string   // Path to the legacy cluster lock file
 	ClusterManifestFile string   // Path to the cluster manifest file
-	ClusterBackupDir    string   // Directory containing cluster manifest backup files
 	EnrPrivKeyfiles     []string // Paths to node enr private keys
 
 	TestConfig TestConfig
@@ -78,7 +77,7 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 }
 
 func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err error) {
-	// Read lock file to load mutable cluster manifest
+	// Read lock file to load cluster manifest
 	cluster, err := loadClusterManifest(conf)
 	if err != nil {
 		return err
@@ -148,6 +147,8 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 		return errors.Wrap(err, "transform cluster manifest")
 	}
 
+	// TODO(xenowits): Write cluster backup, see https://github.com/ObolNetwork/charon/issues/2345.
+
 	// Save cluster manifest to disk
 	err = writeClusterManifest(conf.ClusterManifestFile, cluster)
 	if err != nil {
@@ -190,7 +191,7 @@ func builderRegistration(secret tbls.PrivateKey, pubkey tbls.PublicKey, feeRecip
 	}, nil
 }
 
-// loadClusterManifest returns the cluster manifest from the given file path.
+// loadClusterManifest returns the cluster manifest from the provided config.
 func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, error) {
 	if conf.TestConfig.Lock != nil {
 		return manifest.NewClusterFromLock(*conf.TestConfig.Lock)
