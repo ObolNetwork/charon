@@ -66,7 +66,7 @@ func (c *client) Broadcast(ctx context.Context, msgID string, msg proto.Message)
 
 	fork, join, cancel := forkjoin.New(ctx, func(ctx context.Context, pID peer.ID) (*pb.BCastSigResponse, error) {
 		sigResp := new(pb.BCastSigResponse)
-		err := c.sendRecvFunc(ctx, c.tcpNode, pID, sigReq, sigResp, protocolIDSig, p2p.WithDelimitedProtocol(protocolIDSig))
+		err := c.sendRecvFunc(ctx, c.tcpNode, pID, sigReq, sigResp, protocolIDSig)
 
 		return sigResp, err
 	})
@@ -133,7 +133,7 @@ func (c *client) Broadcast(ctx context.Context, msgID string, msg proto.Message)
 			continue // Skip self.
 		}
 
-		err := c.sendFunc(ctx, c.tcpNode, protocolIDMsg, pID, bcastMsg, p2p.WithDelimitedProtocol(protocolIDMsg))
+		err := c.sendFunc(ctx, c.tcpNode, protocolIDMsg, pID, bcastMsg)
 		if err != nil {
 			return errors.Wrap(err, "send message")
 		}

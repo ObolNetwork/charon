@@ -21,13 +21,12 @@ import (
 )
 
 const (
-	protocolID1 = "/charon/parsigex/1.0.0"
 	protocolID2 = "/charon/parsigex/2.0.0"
 )
 
 // Protocols returns the supported protocols of this package in order of precedence.
 func Protocols() []protocol.ID {
-	return []protocol.ID{protocolID2, protocolID1}
+	return []protocol.ID{protocolID2}
 }
 
 func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []peer.ID, verifyFunc func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error) *ParSigEx {
@@ -40,7 +39,7 @@ func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []
 	}
 
 	newReq := func() proto.Message { return new(pbv1.ParSigExMsg) }
-	p2p.RegisterHandler("parsigex", tcpNode, protocolID1, newReq, parSigEx.handle, p2p.WithDelimitedProtocol(protocolID2))
+	p2p.RegisterHandler("parsigex", tcpNode, protocolID2, newReq, parSigEx.handle)
 
 	return parSigEx
 }
@@ -115,7 +114,7 @@ func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSi
 			continue
 		}
 
-		if err := m.sendFunc(ctx, m.tcpNode, protocolID1, p, &msg, p2p.WithDelimitedProtocol(protocolID2)); err != nil {
+		if err := m.sendFunc(ctx, m.tcpNode, protocolID2, p, &msg); err != nil {
 			return err
 		}
 	}
