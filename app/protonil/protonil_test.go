@@ -20,23 +20,23 @@ import (
 func TestCheck(t *testing.T) {
 	tests := []struct {
 		name    string
-		m1      *v1.M1
+		msg     proto.Message
 		wantErr string
 	}{
 		{
 			name:    "nil",
-			m1:      nil,
+			msg:     nil,
 			wantErr: "nil protobuf message",
 		},
 		{
-			name:    "zero m1, nil m2",
-			m1:      &v1.M1{},
+			name:    "zero msg, nil m2",
+			msg:     &v1.M1{},
 			wantErr: "nil proto field",
 		},
 		{
 			name: "all populated",
-			m1: &v1.M1{
-				Name: "m1",
+			msg: &v1.M1{
+				Name: "msg",
 				M2: &v1.M2{
 					Name:       "m2",
 					M3:         &v1.M3{Name: "m3"},
@@ -52,8 +52,8 @@ func TestCheck(t *testing.T) {
 		},
 		{
 			name: "optionals nil",
-			m1: &v1.M1{
-				Name: "m1",
+			msg: &v1.M1{
+				Name: "msg",
 				M2: &v1.M2{
 					Name:       "m2",
 					M3:         &v1.M3{Name: "m3"},
@@ -65,8 +65,8 @@ func TestCheck(t *testing.T) {
 		},
 		{
 			name: "nil m3 in optional m2",
-			m1: &v1.M1{
-				Name: "m1",
+			msg: &v1.M1{
+				Name: "msg",
 				M2: &v1.M2{
 					Name: "m2",
 					M3:   &v1.M3{Name: "m3"},
@@ -78,10 +78,49 @@ func TestCheck(t *testing.T) {
 			},
 			wantErr: "inner message field: nil proto field",
 		},
+		{
+			name:    "zero m4",
+			msg:     &v1.M4{},
+			wantErr: "",
+		},
+		{
+			name: "m4 with non-empty containers",
+			msg: &v1.M4{
+				M3Map: map[string]*v1.M3{
+					"k0": {Name: "v0"},
+					"k1": {Name: "v1"},
+				},
+				M3List: []*v1.M3{
+					{Name: "elem0"},
+					{Name: "elem1"},
+				},
+			},
+			wantErr: "",
+		},
+		{
+			name: "m4 with nil map value",
+			msg: &v1.M4{
+				M3Map: map[string]*v1.M3{
+					"k0": nil,
+					"k1": {Name: "v1"},
+				},
+			},
+			wantErr: "map value: nil protobuf message",
+		},
+		{
+			name: "m4 with nil list element",
+			msg: &v1.M4{
+				M3List: []*v1.M3{
+					nil,
+					{Name: "elem1"},
+				},
+			},
+			wantErr: "list element: nil protobuf message",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := protonil.Check(test.m1)
+			err := protonil.Check(test.msg)
 			if test.wantErr != "" {
 				require.ErrorContains(t, err, test.wantErr)
 			} else {
@@ -96,6 +135,7 @@ func TestFuzz(t *testing.T) {
 		new(v1.M1),
 		new(v1.M2),
 		new(v1.M3),
+		new(v1.M4),
 		new(manifestpb.Cluster),
 		new(manifestpb.SignedMutation),
 		new(manifestpb.SignedMutationList),

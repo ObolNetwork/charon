@@ -15,6 +15,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/protonil"
 	"github.com/obolnetwork/charon/app/z"
 )
 
@@ -83,6 +84,9 @@ func RegisterHandler(logTopic string, tcpNode host.Host, pID protocol.ID,
 			return
 		} else if err != nil {
 			log.Error(ctx, "LibP2P read request", err, z.Any("duration", time.Since(t0)))
+			return
+		} else if err := protonil.Check(req); err != nil {
+			log.Warn(ctx, "LibP2P received invalid proto", err)
 			return
 		}
 

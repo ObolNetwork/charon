@@ -24,6 +24,10 @@ const maxFieldNumber = 64
 // Note this only applies to "message" fields, not primitive scalars or "map" or "list" fields
 // since their zero values are valid.
 func Check(msg proto.Message) error {
+	if msg == nil {
+		return errors.New("nil protobuf message")
+	}
+
 	rMsg := msg.ProtoReflect()
 	if !rMsg.IsValid() {
 		return errors.New("nil protobuf message")
@@ -46,8 +50,44 @@ func Check(msg proto.Message) error {
 		}
 		checked++
 
-		if field.IsMap() || field.IsList() {
-			// Nil maps and lists are equivalent to empty maps and lists.
+		// Check the values of map fields.
+		if field.IsMap() {
+			var err error
+			rMsg.Get(field).Map().Range(func(_ protoreflect.MapKey, val protoreflect.Value) bool {
+				value, ok := valueToMsg(val)
+				if !ok {
+					// Not a message value type.
+					return false
+				}
+
+				err = Check(value.Interface())
+
+				return err == nil
+			})
+
+			if err != nil {
+				return errors.Wrap(err, "map value", z.Any("map", field.Name()))
+			}
+
+			continue
+		}
+
+		// Check elements of list fields.
+		if field.IsList() {
+			list := rMsg.Get(field).List()
+			for i := 0; i < list.Len(); i++ {
+				elem, ok := valueToMsg(list.Get(i))
+				if !ok {
+					// Not a message element type.
+					break
+				}
+
+				if err := Check(elem.Interface()); err != nil {
+					return errors.Wrap(err, "list element",
+						z.Any("list", field.Name()), z.Int("index", i))
+				}
+			}
+
 			continue
 		}
 
@@ -79,4 +119,16 @@ func Check(msg proto.Message) error {
 	}
 
 	return nil
+}
+
+// valueToMsg converts a protoreflect.Value to a protoreflect.Message if possible.
+func valueToMsg(val protoreflect.Value) (protoreflect.Message, bool) {
+	iface := val.Interface()
+	if iface == nil {
+		return nil, false
+	}
+
+	elemMsg, ok := iface.(protoreflect.Message)
+
+	return elemMsg, ok
 }
