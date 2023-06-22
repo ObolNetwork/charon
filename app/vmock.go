@@ -127,13 +127,28 @@ func newVMockWrapper(conf Config, pubshares []eth2p0.BLSPubKey,
 
 	// Mutable state
 	var (
-		mu                  sync.Mutex
-		attester            = new(validatormock.SlotAttester)
-		syncCommMem         = new(validatormock.SyncCommMember)
-		prevSlot, prevEpoch int64
+		mu           sync.Mutex
+		attesters    = make(map[eth2p0.Slot]*validatormock.SlotAttester)
+		syncCommMems = make(map[eth2p0.Epoch]*validatormock.SyncCommMember)
 	)
 
-	return func(ctx context.Context, slot int64, fn vMockCallback) {
+	// Trim state to avoid memory leak.
+	const trimOffset = 2
+	trim := func(slot eth2p0.Slot, epoch eth2p0.Epoch) {
+		for s := range attesters {
+			if s < slot-trimOffset {
+				delete(attesters, s)
+			}
+		}
+
+		for e := range syncCommMems {
+			if e < epoch-trimOffset {
+				delete(syncCommMems, e)
+			}
+		}
+	}
+
+	return func(ctx context.Context, slotInt int64, fn vMockCallback) {
 		mu.Lock()
 		defer mu.Unlock()
 
@@ -145,27 +160,31 @@ func newVMockWrapper(conf Config, pubshares []eth2p0.BLSPubKey,
 			return
 		}
 
-		epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, eth2p0.Slot(slot))
+		slot := eth2p0.Slot(slotInt)
+		epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, slot)
 		if err != nil {
 			log.Error(ctx, "Epoch from slot", err)
 			return
 		}
 
-		// Create new slot attester on new slots
-		if slot != 0 && prevSlot != slot {
-			attester = validatormock.NewSlotAttester(eth2Cl, eth2p0.Slot(slot), signFunc, pubshares)
-
-			prevSlot = slot
+		// Get or create a slot attester for the slot
+		attester, ok := attesters[slot]
+		if !ok {
+			attester = validatormock.NewSlotAttester(eth2Cl, slot, signFunc, pubshares)
+			attesters[slot] = attester
 		}
 
-		// Create new sync committee member on new epochs, also refresh validator cache.
-		if epoch != 0 && prevEpoch != int64(epoch) {
+		// Get or create a sync committee member for the epoch
+		syncCommMem, ok := syncCommMems[epoch]
+		if !ok {
 			syncCommMem = validatormock.NewSyncCommMember(eth2Cl, epoch, signFunc, pubshares)
+			syncCommMems[epoch] = syncCommMem
 
+			// Refresh validator cache on new epochs
 			eth2Cl.SetValidatorCache(eth2wrap.NewValidatorCache(eth2Cl, pubshares).Get)
-
-			prevEpoch = int64(epoch)
 		}
+
+		trim(slot, epoch)
 
 		state := vMockState{
 			Eth2Cl:         eth2Cl,
