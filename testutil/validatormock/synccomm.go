@@ -67,7 +67,7 @@ func (s *SyncCommMember) Epoch() eth2p0.Epoch {
 	return s.epoch
 }
 
-func (s *SyncCommMember) setSelections(slot eth2p0.Slot, selections syncSelections) {
+func (s *SyncCommMember) setSelections(slot eth2p0.Slot, selections syncSelections) error {
 	s.mutable.Lock()
 	defer s.mutable.Unlock()
 
@@ -80,7 +80,13 @@ func (s *SyncCommMember) setSelections(slot eth2p0.Slot, selections syncSelectio
 		s.mutable.selectionsOK[slot] = ch
 	}
 
+	if isClosed(ch) {
+		return errors.New("selections already set")
+	}
+
 	close(ch)
+
+	return nil
 }
 
 // getSelections returns the sync committee selections for the provided slot.
@@ -106,7 +112,7 @@ func (s *SyncCommMember) getSelectionsOK(slot eth2p0.Slot) chan struct{} {
 }
 
 // setBlockRoot sets block root for the slot.
-func (s *SyncCommMember) setBlockRoot(slot eth2p0.Slot, blockRoot eth2p0.Root) {
+func (s *SyncCommMember) setBlockRoot(slot eth2p0.Slot, blockRoot eth2p0.Root) error {
 	s.mutable.Lock()
 	defer s.mutable.Unlock()
 
@@ -119,7 +125,13 @@ func (s *SyncCommMember) setBlockRoot(slot eth2p0.Slot, blockRoot eth2p0.Root) {
 		s.mutable.blockRootOK[slot] = ch
 	}
 
+	if isClosed(ch) {
+		return errors.New("block root already set")
+	}
+
 	close(ch)
+
+	return nil
 }
 
 // getBlockRoot returns the beacon block root for the provided slot.
@@ -144,13 +156,19 @@ func (s *SyncCommMember) getBlockRootOK(slot eth2p0.Slot) chan struct{} {
 	return ch
 }
 
-func (s *SyncCommMember) setDuties(vals eth2wrap.ActiveValidators, duties syncDuties) {
+func (s *SyncCommMember) setDuties(vals eth2wrap.ActiveValidators, duties syncDuties) error {
 	s.mutable.Lock()
 	defer s.mutable.Unlock()
+
+	if isClosed(s.dutiesOK) {
+		return errors.New("duties already set")
+	}
 
 	s.mutable.vals = vals
 	s.mutable.duties = duties
 	close(s.dutiesOK)
+
+	return nil
 }
 
 func (s *SyncCommMember) getDuties() syncDuties {
@@ -179,7 +197,9 @@ func (s *SyncCommMember) PrepareEpoch(ctx context.Context) error {
 		return err
 	}
 
-	s.setDuties(vals, duties)
+	if err := s.setDuties(vals, duties); err != nil {
+		return err
+	}
 
 	err = subscribeSyncCommSubnets(ctx, s.eth2Cl, s.epoch, duties)
 	if err != nil {
@@ -198,9 +218,7 @@ func (s *SyncCommMember) PrepareSlot(ctx context.Context, slot eth2p0.Slot) erro
 		return err
 	}
 
-	s.setSelections(slot, selections)
-
-	return nil
+	return s.setSelections(slot, selections)
 }
 
 // Message submits sync committee messages at 1/3rd into the slot. It also sets the beacon block root for the slot.
@@ -209,8 +227,7 @@ func (s *SyncCommMember) Message(ctx context.Context, slot eth2p0.Slot) error {
 
 	duties := s.getDuties()
 	if len(duties) == 0 {
-		s.setBlockRoot(slot, eth2p0.Root{})
-		return nil
+		return s.setBlockRoot(slot, eth2p0.Root{})
 	}
 
 	blockRoot, err := s.eth2Cl.BeaconBlockRoot(ctx, "head")
@@ -223,9 +240,7 @@ func (s *SyncCommMember) Message(ctx context.Context, slot eth2p0.Slot) error {
 		return err
 	}
 
-	s.setBlockRoot(slot, *blockRoot)
-
-	return nil
+	return s.setBlockRoot(slot, *blockRoot)
 }
 
 // Aggregate submits SignedContributionAndProof at 2/3rd into the slot. It does sync committee aggregations.
@@ -471,4 +486,14 @@ func aggContributions(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Sign
 	}
 
 	return true, nil
+}
+
+// isClosed returns true if the channel is closed.
+func isClosed(ch chan struct{}) bool {
+	select {
+	case <-ch:
+		return true
+	default:
+		return false
+	}
 }
