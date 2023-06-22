@@ -4,10 +4,13 @@ package cmd
 
 import (
 	"context"
+	"os"
+	"path"
 	"testing"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/cluster"
 	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
@@ -111,8 +114,14 @@ func TestValidateConfigAddValidators(t *testing.T) {
 
 // TODO(xenowits): Add more extensive tests, this is just a very simple unit test.
 func TestRunAddValidators(t *testing.T) {
-	const n = 3
-	lock, p2pKeys, _ := cluster.NewForT(t, 1, n, n, 0)
+	const (
+		n        = 3
+		valCount = 1
+	)
+	lock, p2pKeys, _ := cluster.NewForT(t, valCount, n, n, 0)
+
+	tmp := t.TempDir()
+	manifestFile := path.Join(tmp, "cluster-manifest.pb")
 
 	conf := addValidatorsConfig{
 		NumVals:           1,
@@ -122,10 +131,20 @@ func TestRunAddValidators(t *testing.T) {
 			Lock:    &lock,
 			P2PKeys: p2pKeys,
 		},
+		ClusterManifestFile: manifestFile,
 	}
 
 	err := runAddValidatorsSolo(context.Background(), conf)
 	require.NoError(t, err)
+
+	// Verify the new cluster manifest
+	b, err := os.ReadFile(manifestFile)
+	require.NoError(t, err)
+
+	var msg manifestpb.Cluster
+	require.NoError(t, proto.Unmarshal(b, &msg))
+	require.Equal(t, len(msg.Validators), 2) // valCount+1
+	require.Equal(t, msg.Validators[1].FeeRecipientAddress, feeRecipientAddr)
 }
 
 func TestValidateP2PKeysOrder(t *testing.T) {

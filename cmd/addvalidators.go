@@ -6,11 +6,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"os"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/spf13/cobra"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/k1util"
@@ -27,11 +29,13 @@ import (
 
 // addValidatorsConfig is config for the `add-validators` command.
 type addValidatorsConfig struct {
-	Lockfile          string
-	EnrPrivKeyfiles   []string
-	NumVals           int
-	WithdrawalAddrs   []string
-	FeeRecipientAddrs []string
+	NumVals           int      // No of validators to add
+	WithdrawalAddrs   []string // Withdrawal address of each validator
+	FeeRecipientAddrs []string // Fee recipient address of each validator
+
+	Lockfile            string   // Path to the legacy cluster lock file
+	ClusterManifestFile string   // Path to the cluster manifest file
+	EnrPrivKeyfiles     []string // Paths to node enr private keys
 
 	TestConfig TestConfig
 }
@@ -65,15 +69,16 @@ func newAddValidatorsCmd(runFunc func(context.Context, addValidatorsConfig) erro
 // bindAddValidatorsFlags binds command line flags for the `add-validators` command.
 func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 	cmd.Flags().IntVar(&config.NumVals, "num-validators", 1, "The count of new distributed validators to add in the cluster.")
-	cmd.Flags().StringVar(&config.Lockfile, "lock-file", ".charon/cluster-lock.json", "The path to the legacy cluster lock file defining distributed validator cluster.")
-	cmd.Flags().StringSliceVar(&config.EnrPrivKeyfiles, "private-key-files", nil, "Comma separated list of paths to charon enr private key files. This should be in the same order as the operators, ie, first private key file should correspond to the first operator and so on.")
 	cmd.Flags().StringSliceVar(&config.FeeRecipientAddrs, "fee-recipient-addresses", nil, "Comma separated list of Ethereum addresses of the fee recipient for each new validator. Either provide a single fee recipient address or fee recipient addresses for each validator.")
 	cmd.Flags().StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each new validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
+	cmd.Flags().StringVar(&config.Lockfile, "lock-file", ".charon/cluster-lock.json", "The path to the legacy cluster lock file defining distributed validator cluster. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
+	cmd.Flags().StringVar(&config.ClusterManifestFile, "manifest-file", ".charon/cluster-manifest.pb", "The path to the cluster manifest file. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
+	cmd.Flags().StringSliceVar(&config.EnrPrivKeyfiles, "private-key-files", nil, "Comma separated list of paths to charon enr private key files. This should be in the same order as the operators, ie, first private key file should correspond to the first operator and so on.")
 }
 
 func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err error) {
-	// Read lock file to load mutable cluster manifest.
-	cluster, err := loadClusterState(conf)
+	// Read lock file to load cluster manifest
+	cluster, err := loadClusterManifest(conf)
 	if err != nil {
 		return err
 	}
@@ -137,12 +142,18 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 	}
 
 	// Finally, perform a cluster transformation.
-	_, err = manifest.Transform(cluster, addVals)
+	cluster, err = manifest.Transform(cluster, addVals)
 	if err != nil {
 		return errors.Wrap(err, "transform cluster manifest")
 	}
 
-	// TODO(xenowits): Write new cluster manifest to disk, see issue https://github.com/ObolNetwork/charon/issues/1887.
+	// TODO(xenowits): Write cluster backup, see https://github.com/ObolNetwork/charon/issues/2345.
+
+	// Save cluster manifest to disk
+	err = writeClusterManifest(conf.ClusterManifestFile, cluster)
+	if err != nil {
+		return errors.Wrap(err, "write cluster manifest")
+	}
 
 	return nil
 }
@@ -180,8 +191,8 @@ func builderRegistration(secret tbls.PrivateKey, pubkey tbls.PublicKey, feeRecip
 	}, nil
 }
 
-// loadClusterState returns the cluster manifest from the given file path.
-func loadClusterState(conf addValidatorsConfig) (*manifestpb.Cluster, error) {
+// loadClusterManifest returns the cluster manifest from the provided config.
+func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, error) {
 	if conf.TestConfig.Lock != nil {
 		return manifest.NewClusterFromLock(*conf.TestConfig.Lock)
 	}
@@ -204,6 +215,22 @@ func loadClusterState(conf addValidatorsConfig) (*manifestpb.Cluster, error) {
 	}
 
 	return cluster, nil
+}
+
+// writeClusterManifest writes the provided cluster manifest to disk.
+func writeClusterManifest(filename string, cluster *manifestpb.Cluster) error {
+	b, err := proto.Marshal(cluster)
+	if err != nil {
+		return errors.Wrap(err, "marshal proto")
+	}
+
+	//nolint:gosec // File needs to be read-write since the cluster manifest is modified by mutations.
+	err = os.WriteFile(filename, b, 0o644) // Read-write
+	if err != nil {
+		return errors.Wrap(err, "write cluster manifest")
+	}
+
+	return nil
 }
 
 // validateConf returns an error if the provided validators config fails validation checks.
