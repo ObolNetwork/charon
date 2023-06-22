@@ -10,9 +10,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/manifest"
+	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -20,6 +22,64 @@ func TestLoadLegacy(t *testing.T) {
 	for _, version := range cluster.SupportedVersionsForT(t) {
 		t.Run(version, func(t *testing.T) {
 			testLoadLegacy(t, version)
+		})
+	}
+}
+
+func TestLoad(t *testing.T) {
+	legacyLockFile := "testdata/lock.json"
+	lockJSON, err := os.ReadFile(legacyLockFile)
+	require.NoError(t, err)
+
+	var lock cluster.Lock
+	testutil.RequireNoError(t, json.Unmarshal(lockJSON, &lock))
+
+	legacyLock, err := manifest.NewLegacyLock(lock)
+	require.NoError(t, err)
+
+	cluster, err := manifest.Materialise(&manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{legacyLock}})
+	require.NoError(t, err)
+
+	b, err := proto.Marshal(cluster)
+	require.NoError(t, err)
+
+	manifestFile := path.Join(t.TempDir(), "cluster-manifest.pb")
+	require.NoError(t, os.WriteFile(manifestFile, b, 0o644))
+
+	tests := []struct {
+		name           string
+		manifestFile   string
+		legacyLockFile string
+		errorMsg       string
+	}{
+		{
+			name:     "no file",
+			errorMsg: "read legacy lock",
+		},
+		{
+			name:         "only manifest",
+			manifestFile: manifestFile,
+		},
+		{
+			name:           "only legacy lock",
+			legacyLockFile: legacyLockFile,
+		},
+		{
+			name:           "both files",
+			manifestFile:   manifestFile,
+			legacyLockFile: legacyLockFile,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loaded, _, err := manifest.Load(tt.manifestFile, tt.legacyLockFile, nil)
+			if tt.errorMsg != "" {
+				require.ErrorContains(t, err, tt.errorMsg)
+				return
+			}
+
+			require.True(t, proto.Equal(cluster, loaded))
 		})
 	}
 }
@@ -45,7 +105,7 @@ func testLoadLegacy(t *testing.T, version string) {
 	err = os.WriteFile(file, b, 0o644)
 	require.NoError(t, err)
 
-	cluster, err := manifest.Load(file, nil)
+	cluster, loadMetadata, err := manifest.Load("", file, nil)
 	require.NoError(t, err)
 
 	require.Equal(t, lock.LockHash, cluster.Hash)
@@ -55,6 +115,8 @@ func testLoadLegacy(t *testing.T, version string) {
 	require.Equal(t, lock.ForkVersion, cluster.ForkVersion)
 	require.Equal(t, len(lock.Validators), len(cluster.Validators))
 	require.Equal(t, len(lock.Operators), len(cluster.Operators))
+	require.Equal(t, loadMetadata.IsLegacyLock, true)
+	require.Equal(t, loadMetadata.Filename, file)
 
 	for i, validator := range cluster.Validators {
 		require.Equal(t, lock.Validators[i].PubKey, validator.PublicKey)

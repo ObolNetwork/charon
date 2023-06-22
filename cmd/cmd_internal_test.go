@@ -72,6 +72,7 @@ func TestCmdFlags(t *testing.T) {
 					Disabled:  nil,
 				},
 				LockFile:               ".charon/cluster-lock.json",
+				ClusterManifestFile:    ".charon/cluster-manifest.pb",
 				PrivKeyFile:            ".charon/charon-enr-private-key",
 				PrivKeyLocking:         false,
 				SimnetValidatorKeysDir: ".charon/validator_keys",

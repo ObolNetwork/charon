@@ -78,7 +78,7 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 
 func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err error) {
 	// Read lock file to load cluster manifest
-	cluster, err := loadClusterManifest(conf)
+	cluster, loadMetadata, err := loadClusterManifest(conf)
 	if err != nil {
 		return err
 	}
@@ -147,7 +147,11 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 		return errors.Wrap(err, "transform cluster manifest")
 	}
 
-	// TODO(xenowits): Write cluster backup, see https://github.com/ObolNetwork/charon/issues/2345.
+	// Save cluster backup to disk
+	//nolint:revive,staticcheck
+	if loadMetadata.IsLegacyLock {
+		// TODO(xenowits): Write cluster backup, see https://github.com/ObolNetwork/charon/issues/2345.
+	}
 
 	// Save cluster manifest to disk
 	err = writeClusterManifest(conf.ClusterManifestFile, cluster)
@@ -192,9 +196,10 @@ func builderRegistration(secret tbls.PrivateKey, pubkey tbls.PublicKey, feeRecip
 }
 
 // loadClusterManifest returns the cluster manifest from the provided config.
-func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, error) {
+func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, manifest.LoadMetadata, error) {
 	if conf.TestConfig.Lock != nil {
-		return manifest.NewClusterFromLock(*conf.TestConfig.Lock)
+		m, err := manifest.NewClusterFromLock(*conf.TestConfig.Lock)
+		return m, manifest.LoadMetadata{}, err
 	}
 
 	verifyLock := func(lock cluster.Lock) error {
@@ -209,12 +214,12 @@ func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, error) 
 		return nil
 	}
 
-	cluster, err := manifest.Load(conf.Lockfile, verifyLock)
+	cluster, loadMetadata, err := manifest.Load(conf.ClusterManifestFile, conf.Lockfile, verifyLock)
 	if err != nil {
-		return nil, errors.Wrap(err, "load cluster manifest")
+		return nil, manifest.LoadMetadata{}, errors.Wrap(err, "load cluster manifest")
 	}
 
-	return cluster, nil
+	return cluster, loadMetadata, nil
 }
 
 // writeClusterManifest writes the provided cluster manifest to disk.

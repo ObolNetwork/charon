@@ -13,21 +13,47 @@ import (
 	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 )
 
-// Load loads a cluster manifest from disk. It supports both legacy lock files and raw DAG files.
-// TODO(xenowits): Refactor, load either from manifest or lock file, see https://github.com/ObolNetwork/charon/issues/2334.
-func Load(file string, lockCallback func(cluster.Lock) error) (*manifestpb.Cluster, error) {
-	b, err := os.ReadFile(file)
+// LoadMetadata represents the result of loading a cluster from cluster manifest or legacy lock file.
+type LoadMetadata struct {
+	Filename     string // Name of the file from which the cluster was loaded
+	IsLegacyLock bool   // True if cluster was loaded from legacy lock file
+}
+
+// Load loads a cluster from disk. It supports reading from both cluster manifest and legacy lock files.
+// If both files are provided, it first reads the manifest file before reading the legacy lock file.
+// TODO(xenowits): Remove loading from legacy lock when we fully adopt mutable cluster manifests.
+func Load(manifestFile, legacyLockFile string, lockCallback func(cluster.Lock) error) (*manifestpb.Cluster, LoadMetadata, error) {
+	b, err := os.ReadFile(manifestFile)
+	if err == nil {
+		manifest := new(manifestpb.Cluster)
+		if err := proto.Unmarshal(b, manifest); err != nil {
+			return nil, LoadMetadata{}, errors.Wrap(err, "unmarshal cluster manifest")
+		}
+
+		return manifest, LoadMetadata{Filename: manifestFile, IsLegacyLock: false}, nil
+	}
+
+	b, err = os.ReadFile(legacyLockFile)
 	if err != nil {
-		return nil, errors.Wrap(err, "read file")
+		return nil, LoadMetadata{}, errors.Wrap(err, "read legacy lock file")
 	}
 
 	rawDAG := new(manifestpb.SignedMutationList)
-
 	if err := proto.Unmarshal(b, rawDAG); err != nil {
-		return loadLegacyLock(b, lockCallback)
+		m, err := loadLegacyLock(b, lockCallback)
+		if err != nil {
+			return nil, LoadMetadata{}, errors.Wrap(err, "load legacy lock")
+		}
+
+		return m, LoadMetadata{Filename: legacyLockFile, IsLegacyLock: true}, nil
 	}
 
-	return Materialise(rawDAG)
+	m, err := Materialise(rawDAG)
+	if err != nil {
+		return nil, LoadMetadata{}, errors.Wrap(err, "materialise raw DAG")
+	}
+
+	return m, LoadMetadata{Filename: legacyLockFile, IsLegacyLock: true}, nil
 }
 
 func loadLegacyLock(input []byte, lockCallback func(cluster.Lock) error) (*manifestpb.Cluster, error) {
