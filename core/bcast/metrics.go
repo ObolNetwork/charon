@@ -38,15 +38,15 @@ var (
 		Namespace: "core",
 		Subsystem: "bcast",
 		Name:      "recast_total",
-		Help:      "The total count of recasted registrations by type; 'pregen' vs 'vc'",
-	}, []string{"type"})
+		Help:      "The total count of recasted registrations by source; 'pregen' vs 'downstream'",
+	}, []string{"source"})
 
 	recastErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "core",
 		Subsystem: "bcast",
 		Name:      "recast_errors_total",
-		Help:      "The total count of failed recasted registrations by type; 'pregen' vs 'vc'",
-	}, []string{"type"})
+		Help:      "The total count of failed recasted registrations by source; 'pregen' vs 'downstream'",
+	}, []string{"source"})
 )
 
 // instrumentDuty increments the duty counter.

@@ -13,6 +13,13 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
+const (
+	// regSourcePregen defines a pregenerated registration.
+	regSourcePregen = "pregen"
+	// regSourceDownstream defines a registration submitted by a downstream VC.
+	regSourceDownstream = "downstream"
+)
+
 type recastTuple struct {
 	duty    core.Duty
 	aggData core.SignedData
@@ -115,10 +122,10 @@ func incRegCounter(tuple recastTuple, counterVec *prometheus.CounterVec) {
 		return
 	}
 
-	typ := "pregen"
+	source := regSourcePregen
 	if tuple.duty.Slot > 0 {
-		typ = "vc"
+		source = regSourceDownstream
 	}
 
-	counterVec.WithLabelValues(typ).Inc()
+	counterVec.WithLabelValues(source).Inc()
 }
