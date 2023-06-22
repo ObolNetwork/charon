@@ -4,7 +4,6 @@ package p2p
 
 import (
 	"context"
-	"io"
 	"sync"
 	"time"
 
@@ -156,24 +155,15 @@ func WithSendReceiveRTT(callback func(time.Duration)) func(*sendRecvOpts) {
 	}
 }
 
-// WithDelimitedProtocol returns an option that adds a length delimited read/writer for the provide protocol.
-func WithDelimitedProtocol(pID protocol.ID) func(*sendRecvOpts) {
-	return func(opts *sendRecvOpts) {
-		opts.protocols = append([]protocol.ID{pID}, opts.protocols...) // Add to front
-		opts.writersByProtocol[pID] = func(s network.Stream) pbio.Writer { return pbio.NewDelimitedWriter(s) }
-		opts.readersByProtocol[pID] = func(s network.Stream) pbio.Reader { return pbio.NewDelimitedReader(s, maxMsgSize) }
-	}
-}
-
-// defaultSendRecvOpts returns the default sendRecvOpts, it uses the legacy writers and noop rtt callback.
+// defaultSendRecvOpts returns the default sendRecvOpts, it uses the delimited read-writers and noop rtt callback.
 func defaultSendRecvOpts(pID protocol.ID) sendRecvOpts {
 	return sendRecvOpts{
 		protocols: []protocol.ID{pID},
 		writersByProtocol: map[protocol.ID]func(s network.Stream) pbio.Writer{
-			pID: func(s network.Stream) pbio.Writer { return legacyReadWriter{s} },
+			pID: func(s network.Stream) pbio.Writer { return pbio.NewDelimitedWriter(s) },
 		},
 		readersByProtocol: map[protocol.ID]func(s network.Stream) pbio.Reader{
-			pID: func(s network.Stream) pbio.Reader { return legacyReadWriter{s} },
+			pID: func(s network.Stream) pbio.Reader { return pbio.NewDelimitedReader(s, maxMsgSize) },
 		},
 		rttCallback: func(time.Duration) {},
 	}
@@ -222,17 +212,8 @@ func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
 		return errors.Wrap(err, "close write", z.Any("protocol", s.Protocol()))
 	}
 
-	zeroResp := proto.Clone(resp)
-
 	if err = reader.ReadMsg(resp); err != nil {
 		return errors.Wrap(err, "read response", z.Any("protocol", s.Protocol()))
-	}
-
-	// TODO(corver): Remove this once we only use length-delimited protocols.
-	//  This was added since legacy stream delimited readers couldn't distinguish between
-	//  no response and a zero response.
-	if proto.Equal(resp, zeroResp) {
-		return errors.New("no or zero response received", z.Any("protocol", s.Protocol()))
 	}
 
 	if err = s.Close(); err != nil {
@@ -269,38 +250,6 @@ func Send(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID pe
 
 	if err := s.Close(); err != nil {
 		return errors.Wrap(err, "close stream", z.Any("protocol", s.Protocol()))
-	}
-
-	return nil
-}
-
-// legacyReadWriter implements pbio.Reader and pbio.Writer without length delimited encoding.
-type legacyReadWriter struct {
-	stream network.Stream
-}
-
-// WriteMsg writes a protobuf message to the stream.
-func (w legacyReadWriter) WriteMsg(m proto.Message) error {
-	b, err := proto.Marshal(m)
-	if err != nil {
-		return errors.Wrap(err, "marshal proto")
-	}
-
-	_, err = w.stream.Write(b)
-
-	return err
-}
-
-// ReadMsg reads a single protobuf message from the whole stream.
-// The stream must be closed after the message was sent.
-func (w legacyReadWriter) ReadMsg(m proto.Message) error {
-	b, err := io.ReadAll(w.stream)
-	if err != nil {
-		return errors.Wrap(err, "read proto")
-	}
-
-	if err = proto.Unmarshal(b, m); err != nil {
-		return errors.Wrap(err, "unmarshal proto")
 	}
 
 	return nil
