@@ -6,9 +6,18 @@ import (
 	"context"
 	"sync"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+)
+
+const (
+	// regSourcePregen defines a pregenerated registration.
+	regSourcePregen = "pregen"
+	// regSourceDownstream defines a registration submitted by a downstream VC.
+	regSourceDownstream = "downstream"
 )
 
 type recastTuple struct {
@@ -98,9 +107,25 @@ func (r *Recaster) SlotTicked(ctx context.Context, slot core.Slot) error {
 			err := sub(ctx, tuple.duty, pubkey, tuple.aggData)
 			if err != nil {
 				log.Error(ctx, "Rebroadcast duty error (will retry next epoch)", err)
+				incRegCounter(tuple, recastErrors)
 			}
+			incRegCounter(tuple, recastTotal)
 		}
 	}
 
 	return nil
+}
+
+// incRegCounter increments the registration counter if applicable.
+func incRegCounter(tuple recastTuple, counterVec *prometheus.CounterVec) {
+	if tuple.duty.Type != core.DutyBuilderRegistration {
+		return
+	}
+
+	source := regSourcePregen
+	if tuple.duty.Slot > 0 {
+		source = regSourceDownstream
+	}
+
+	counterVec.WithLabelValues(source).Inc()
 }

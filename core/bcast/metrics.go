@@ -11,27 +11,43 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-var broadcastCounter = promauto.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "core",
-	Subsystem: "bcast",
-	Name:      "broadcast_total",
-	Help:      "The total count of successfully broadcast duties by type",
-}, []string{"duty"})
+var (
+	broadcastCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "bcast",
+		Name:      "broadcast_total",
+		Help:      "The total count of successfully broadcast duties by type",
+	}, []string{"duty"})
 
-var broadcastDelay = promauto.NewHistogramVec(prometheus.HistogramOpts{
-	Namespace: "core",
-	Subsystem: "bcast",
-	Name:      "broadcast_delay_seconds",
-	Help:      "Duty broadcast delay from start of slot in seconds by type",
-	Buckets:   []float64{.05, .1, .25, .5, 1, 2.5, 5, 10, 20, 30, 60},
-}, []string{"duty"})
+	broadcastDelay = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "core",
+		Subsystem: "bcast",
+		Name:      "broadcast_delay_seconds",
+		Help:      "Duty broadcast delay from start of slot in seconds by type",
+		Buckets:   []float64{.05, .1, .25, .5, 1, 2.5, 5, 10, 20, 30, 60},
+	}, []string{"duty"})
 
-var recastRegistrationCounter = promauto.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "core",
-	Subsystem: "bcast",
-	Name:      "recast_registration_total",
-	Help:      "The total number of unique validator registration stored in recaster per pubkey",
-}, []string{"pubkey"})
+	recastRegistrationCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "bcast",
+		Name:      "recast_registration_total",
+		Help:      "The total number of unique validator registration stored in recaster per pubkey",
+	}, []string{"pubkey"})
+
+	recastTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "bcast",
+		Name:      "recast_total",
+		Help:      "The total count of recasted registrations by source; 'pregen' vs 'downstream'",
+	}, []string{"source"})
+
+	recastErrors = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "bcast",
+		Name:      "recast_errors_total",
+		Help:      "The total count of failed recasted registrations by source; 'pregen' vs 'downstream'",
+	}, []string{"source"})
+)
 
 // instrumentDuty increments the duty counter.
 func instrumentDuty(duty core.Duty, delay time.Duration) {
