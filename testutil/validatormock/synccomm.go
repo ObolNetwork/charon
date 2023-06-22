@@ -161,7 +161,7 @@ func (s *SyncCommMember) setDuties(vals eth2wrap.ActiveValidators, duties syncDu
 	defer s.mutable.Unlock()
 
 	if isClosed(s.dutiesOK) {
-		return errors.New("bug: duties already set")
+		return errors.New("duties already set")
 	}
 
 	s.mutable.vals = vals
