@@ -60,7 +60,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 		z.Str("output_dir", outputDir),
 	)
 
-	manifestContent, possibleKeyPaths, err := loadManifest(ctx, inputDir, noverify)
+	cluster, possibleKeyPaths, err := loadManifest(ctx, inputDir, noverify)
 	if err != nil {
 		return errors.Wrap(err, "cannot open manifest file")
 	}
@@ -90,28 +90,28 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 	for valIdx := 0; valIdx < len(privkeys); valIdx++ {
 		pkSet := privkeys[valIdx]
 
-		if len(pkSet) != len(manifestContent.Operators) {
+		if len(pkSet) != len(cluster.Operators) {
 			return errors.New(
 				"not all private key shares found for validator",
 				z.Int("validator_index", valIdx),
-				z.Int("expected", len(manifestContent.Operators)),
+				z.Int("expected", len(cluster.Operators)),
 				z.Int("actual", len(pkSet)),
 			)
 		}
 
 		log.Info(ctx, "Recombining private key shares", z.Int("validator_index", valIdx))
-		shares, err := shareIdxByPubkeys(manifestContent, pkSet, valIdx)
+		shares, err := shareIdxByPubkeys(cluster, pkSet, valIdx)
 		if err != nil {
 			return err
 		}
 
-		secret, err := tbls.RecoverSecret(shares, uint(len(manifestContent.Operators)), uint(manifestContent.Threshold))
+		secret, err := tbls.RecoverSecret(shares, uint(len(cluster.Operators)), uint(cluster.Threshold))
 		if err != nil {
 			return errors.Wrap(err, "cannot recover private key share", z.Int("validator_index", valIdx))
 		}
 
 		// require that the generated secret pubkey matches what's in the lockfile for the valIdx validator
-		val := manifestContent.Validators[valIdx]
+		val := cluster.Validators[valIdx]
 
 		valPk, err := tblsconv.PubkeyFromBytes(val.PublicKey)
 		if err != nil {
