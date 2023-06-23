@@ -4,12 +4,9 @@ package combine
 
 import (
 	"context"
-	"crypto/sha256"
 	"os"
 	"path/filepath"
 	"testing"
-
-	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -186,7 +183,7 @@ func shareIdxByPubkeys(manifest *manifestpb.Cluster, secrets []tbls.PrivateKey, 
 }
 
 // WithInsecureKeysForT is a functional option for Combine that will use the insecure keystore.StoreKeysInsecure function.
-func WithInsecureKeysForT(*testing.T) func(*options) {
+func WithInsecureKeysForT(_ *testing.T) func(*options) {
 	return func(o *options) {
 		o.keyStoreFunc = func(secrets []tbls.PrivateKey, dir string) error {
 			return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
@@ -212,7 +209,6 @@ func loadManifest(ctx context.Context, dir string, noverify bool) (*manifestpb.C
 	var (
 		possibleValKeysDir []string
 		lastManifest       *manifestpb.Cluster
-		lastValHash        [32]byte
 	)
 
 	for _, sd := range root {
@@ -239,19 +235,7 @@ func loadManifest(ctx context.Context, dir string, noverify bool) (*manifestpb.C
 
 		possibleValKeysDir = append(possibleValKeysDir, vcdPath)
 
-		data, err := proto.Marshal(&manifestpb.ValidatorList{Validators: cl.Validators})
-		if err != nil {
-			return nil, nil, errors.New("manifest contains wrong validator data", z.Str("name", sd.Name()))
-		}
-
-		valHash := sha256.Sum256(data)
-
-		if lastValHash != [32]byte{} && valHash != lastValHash {
-			return nil, nil, errors.New("found different validator data in node directory", z.Str("name", sd.Name()))
-		}
-
 		lastManifest = cl
-		lastValHash = valHash
 	}
 
 	if lastManifest == nil {

@@ -128,7 +128,7 @@ func TestCombineNoVerifyDifferentValidatorData(t *testing.T) {
 	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
 	combineTest(t, lock, shares, true, true, func(valIndex int, src cluster.Lock) cluster.Lock {
 		if valIndex == 1 {
-			src.Validators[valIndex].PubKey = bytes.Repeat([]byte{42}, 32)
+			src.Validators[valIndex].PubKey = bytes.Repeat([]byte{42}, 48)
 		}
 
 		return src
