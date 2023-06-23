@@ -3,6 +3,7 @@
 package combine_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -18,11 +19,15 @@ import (
 	"github.com/obolnetwork/charon/tbls"
 )
 
+func noLockModif(_ int, l cluster.Lock) cluster.Lock {
+	return l
+}
+
 func TestCombineNoLockfile(t *testing.T) {
 	td := t.TempDir()
 	od := t.TempDir()
-	err := combine.Combine(context.Background(), td, od, false)
-	require.ErrorContains(t, err, "lock file not found")
+	err := combine.Combine(context.Background(), td, od, false, false)
+	require.ErrorContains(t, err, "no manifest file found")
 }
 
 func TestCombineCannotLoadKeystore(t *testing.T) {
@@ -77,22 +82,67 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 
 	require.NoError(t, os.RemoveAll(filepath.Join(dir, "node0")))
 
-	err := combine.Combine(context.Background(), dir, od, false, combine.WithInsecureKeysForT(t))
+	err := combine.Combine(context.Background(), dir, od, false, false, combine.WithInsecureKeysForT(t))
 	require.Error(t, err)
 }
 
 // This test exists because of https://github.com/ObolNetwork/charon/issues/2151.
 func TestCombineLotsOfVals(t *testing.T) {
 	lock, _, shares := cluster.NewForT(t, 100, 3, 4, 0)
-	combineTest(t, lock, shares)
+	combineTest(t, lock, shares, false, false, noLockModif)
 }
 
 func TestCombine(t *testing.T) {
 	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
-	combineTest(t, lock, shares)
+	combineTest(t, lock, shares, false, false, noLockModif)
 }
 
-func combineTest(t *testing.T, lock cluster.Lock, shares [][]tbls.PrivateKey) {
+func TestCombineNoVerifyGoodLock(t *testing.T) {
+	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
+	combineTest(t, lock, shares, true, false, noLockModif)
+}
+
+func TestCombineNoVerifyBadLock(t *testing.T) {
+	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
+	combineTest(t, lock, shares, true, false, func(valIndex int, src cluster.Lock) cluster.Lock {
+		if valIndex == 1 {
+			src.Name = "booohooo"
+		}
+
+		return src
+	})
+}
+
+func TestCombineBadLock(t *testing.T) {
+	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
+	combineTest(t, lock, shares, false, true, func(valIndex int, src cluster.Lock) cluster.Lock {
+		if valIndex == 1 {
+			src.Name = "booohooo"
+		}
+
+		return src
+	})
+}
+
+func TestCombineNoVerifyDifferentValidatorData(t *testing.T) {
+	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
+	combineTest(t, lock, shares, true, true, func(valIndex int, src cluster.Lock) cluster.Lock {
+		if valIndex == 1 {
+			src.Validators[valIndex].PubKey = bytes.Repeat([]byte{42}, 48)
+		}
+
+		return src
+	})
+}
+
+func combineTest(
+	t *testing.T,
+	lock cluster.Lock,
+	shares [][]tbls.PrivateKey,
+	noVerify bool,
+	wantErr bool,
+	modifyLockFile func(valIndex int, src cluster.Lock) cluster.Lock,
+) {
 	t.Helper()
 
 	// calculate expected public keys and secrets
@@ -147,6 +197,7 @@ func combineTest(t *testing.T, lock cluster.Lock, shares [][]tbls.PrivateKey) {
 	}
 
 	for idx, keys := range secrets {
+		idx := idx
 		ep := filepath.Join(dir, fmt.Sprintf("node%d", idx))
 
 		vk := filepath.Join(ep, "validator_keys")
@@ -158,10 +209,15 @@ func combineTest(t *testing.T, lock cluster.Lock, shares [][]tbls.PrivateKey) {
 		lf, err := os.OpenFile(filepath.Join(ep, "cluster-lock.json"), os.O_WRONLY|os.O_CREATE, 0o755)
 		require.NoError(t, err)
 
-		require.NoError(t, json.NewEncoder(lf).Encode(lock))
+		require.NoError(t, json.NewEncoder(lf).Encode(modifyLockFile(idx, lock)))
 	}
 
-	err := combine.Combine(context.Background(), dir, od, true, combine.WithInsecureKeysForT(t))
+	err := combine.Combine(context.Background(), dir, od, true, noVerify, combine.WithInsecureKeysForT(t))
+	if wantErr {
+		require.Error(t, err)
+		return
+	}
+
 	require.NoError(t, err)
 
 	keyFiles, err := keystore.LoadFilesUnordered(od)
@@ -252,10 +308,10 @@ func TestCombineTwiceWithoutForceFails(t *testing.T) {
 		require.NoError(t, json.NewEncoder(lf).Encode(lock))
 	}
 
-	err := combine.Combine(context.Background(), dir, od, false, combine.WithInsecureKeysForT(t))
+	err := combine.Combine(context.Background(), dir, od, false, false, combine.WithInsecureKeysForT(t))
 	require.NoError(t, err)
 
-	err = combine.Combine(context.Background(), dir, od, false, combine.WithInsecureKeysForT(t))
+	err = combine.Combine(context.Background(), dir, od, false, false, combine.WithInsecureKeysForT(t))
 	require.Error(t, err)
 
 	keyFiles, err := keystore.LoadFilesUnordered(od)
