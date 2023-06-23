@@ -70,7 +70,10 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 			// Eth1Data.BlockHash must be 32 bytes
 			func(e *eth2p0.ETH1Data, c fuzz.Continue) {
 				c.FuzzNoCustom(e)
-				e.BlockHash = RandomBytes32()
+
+				var blockHash [32]byte
+				_, _ = c.Read(blockHash[:])
+				e.BlockHash = blockHash[:]
 			},
 			// Just zero BeaconBlockBody.Deposits to pass validation.
 			func(e *[]*eth2p0.Deposit, c fuzz.Continue) {
