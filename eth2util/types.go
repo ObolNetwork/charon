@@ -4,6 +4,7 @@ package eth2util
 
 import (
 	"encoding/json"
+	"strings"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
@@ -67,6 +68,15 @@ func (s *SignedEpoch) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &resp); err != nil {
 		return errors.Wrap(err, "unmarshal signed epoch")
 	}
+	s.Epoch = resp.Epoch
+
+	if strings.HasPrefix(string(resp.Signature), "\"0x") {
+		if err := json.Unmarshal(resp.Signature, &s.Signature); err != nil {
+			return errors.Wrap(err, "unmarshal signed epoch signature")
+		}
+
+		return nil
+	}
 
 	var sig []byte
 	if err := json.Unmarshal(resp.Signature, &sig); err != nil {
@@ -75,7 +85,6 @@ func (s *SignedEpoch) UnmarshalJSON(b []byte) error {
 		return errors.New("invalid legacy signed epoch signature length")
 	}
 
-	s.Epoch = resp.Epoch
 	s.Signature = eth2p0.BLSSignature(sig)
 
 	return nil
