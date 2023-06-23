@@ -143,12 +143,12 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 
 // shareIdxByPubkeys maps private keys to the valIndex validator public shares in the manifest file.
 // It preserves the order as found in the validator public share slice.
-func shareIdxByPubkeys(manifest *manifestpb.Cluster, secrets []tbls.PrivateKey, valIndex int) (map[int]tbls.PrivateKey, error) {
+func shareIdxByPubkeys(cluster *manifestpb.Cluster, secrets []tbls.PrivateKey, valIndex int) (map[int]tbls.PrivateKey, error) {
 	pubkMap := make(map[tbls.PublicKey]int)
 
-	for peerIdx := 0; peerIdx < len(manifest.Validators[valIndex].PubShares); peerIdx++ {
+	for peerIdx := 0; peerIdx < len(cluster.Validators[valIndex].PubShares); peerIdx++ {
 		peerIdx := peerIdx
-		pubShareRaw := manifest.Validators[valIndex].GetPubShares()[peerIdx]
+		pubShareRaw := cluster.Validators[valIndex].GetPubShares()[peerIdx]
 
 		pubShare, err := tblsconv.PubkeyFromBytes(pubShareRaw)
 		if err != nil {
@@ -208,7 +208,7 @@ func loadManifest(ctx context.Context, dir string, noverify bool) (*manifestpb.C
 
 	var (
 		possibleValKeysDir []string
-		lastManifest       *manifestpb.Cluster
+		lastCluster        *manifestpb.Cluster
 	)
 
 	for _, sd := range root {
@@ -235,14 +235,14 @@ func loadManifest(ctx context.Context, dir string, noverify bool) (*manifestpb.C
 
 		possibleValKeysDir = append(possibleValKeysDir, vcdPath)
 
-		lastManifest = cl
+		lastCluster = cl
 	}
 
-	if lastManifest == nil {
+	if lastCluster == nil {
 		return nil, nil, errors.New("no manifest file found")
 	}
 
-	return lastManifest, possibleValKeysDir, nil
+	return lastCluster, possibleValKeysDir, nil
 }
 
 func verifyLock(ctx context.Context, lock cluster.Lock, noverify bool) error {
