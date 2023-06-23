@@ -11,11 +11,12 @@ import (
 	"github.com/obolnetwork/charon/cmd/combine"
 )
 
-func newCombineCmd(runFunc func(ctx context.Context, clusterDir, outputDir string, force bool) error) *cobra.Command {
+func newCombineCmd(runFunc func(ctx context.Context, clusterDir, outputDir string, force, noverify bool) error) *cobra.Command {
 	var (
 		clusterDir string
 		outputDir  string
 		force      bool
+		noverify   bool
 	)
 
 	cmd := &cobra.Command{
@@ -24,7 +25,13 @@ func newCombineCmd(runFunc func(ctx context.Context, clusterDir, outputDir strin
 		Long:  "Combines the private key shares from a threshold of operators in a distributed validator cluster into a set of validator private keys that can be imported into a standard Ethereum validator client.\n\nWarning: running the resulting private keys in a validator alongside the original distributed validator cluster *will* result in slashing.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runFunc(cmd.Context(), clusterDir, outputDir, force)
+			return runFunc(
+				cmd.Context(),
+				clusterDir,
+				outputDir,
+				force,
+				noverify,
+			)
 		},
 	}
 
@@ -35,11 +42,13 @@ func newCombineCmd(runFunc func(ctx context.Context, clusterDir, outputDir strin
 		&force,
 	)
 
+	bindNoVerifyFlag(cmd.Flags(), &noverify)
+
 	return cmd
 }
 
-func newCombineFunc(ctx context.Context, clusterDir, outputDir string, force bool) error {
-	return combine.Combine(ctx, clusterDir, outputDir, force)
+func newCombineFunc(ctx context.Context, clusterDir, outputDir string, force, noverify bool) error {
+	return combine.Combine(ctx, clusterDir, outputDir, force, noverify)
 }
 
 func bindCombineFlags(flags *pflag.FlagSet, clusterDir, outputDir *string, force *bool) {

@@ -5,18 +5,21 @@ package combine
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/json"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/manifest"
+	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // Combine combines validator private key shares contained in inputDir, and writes the original BLS12-381 private keys.
@@ -25,7 +28,7 @@ import (
 // Note all nodes directories must be preset and all validator private key shares must be present.
 //
 // Combine will create a new directory named after "outputDir", which will contain Keystore files.
-func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts ...func(*options)) error {
+func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bool, opts ...func(*options)) error {
 	o := options{
 		keyStoreFunc: keystore.StoreKeys,
 	}
@@ -57,9 +60,9 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 		z.Str("output_dir", outputDir),
 	)
 
-	lock, possibleKeyPaths, err := loadLockfile(inputDir)
+	manifestContent, possibleKeyPaths, err := loadManifest(ctx, inputDir, noverify)
 	if err != nil {
-		return errors.Wrap(err, "cannot open lock file")
+		return errors.Wrap(err, "cannot open manifest file")
 	}
 
 	privkeys := make(map[int][]tbls.PrivateKey)
@@ -87,32 +90,32 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 	for valIdx := 0; valIdx < len(privkeys); valIdx++ {
 		pkSet := privkeys[valIdx]
 
-		if len(pkSet) != len(lock.Operators) {
+		if len(pkSet) != len(manifestContent.Operators) {
 			return errors.New(
 				"not all private key shares found for validator",
 				z.Int("validator_index", valIdx),
-				z.Int("expected", len(lock.Operators)),
+				z.Int("expected", len(manifestContent.Operators)),
 				z.Int("actual", len(pkSet)),
 			)
 		}
 
 		log.Info(ctx, "Recombining private key shares", z.Int("validator_index", valIdx))
-		shares, err := shareIdxByPubkeys(lock, pkSet, valIdx)
+		shares, err := shareIdxByPubkeys(manifestContent, pkSet, valIdx)
 		if err != nil {
 			return err
 		}
 
-		secret, err := tbls.RecoverSecret(shares, uint(len(lock.Operators)), uint(lock.Threshold))
+		secret, err := tbls.RecoverSecret(shares, uint(len(manifestContent.Operators)), uint(manifestContent.Threshold))
 		if err != nil {
 			return errors.Wrap(err, "cannot recover private key share", z.Int("validator_index", valIdx))
 		}
 
 		// require that the generated secret pubkey matches what's in the lockfile for the valIdx validator
-		val := lock.Validators[valIdx]
+		val := manifestContent.Validators[valIdx]
 
-		valPk, err := val.PublicKey()
+		valPk, err := tblsconv.PubkeyFromBytes(val.PublicKey)
 		if err != nil {
-			return errors.Wrap(err, "public key for validator from lockfile", z.Int("validator_index", valIdx))
+			return errors.Wrap(err, "public key for validator from manifest", z.Int("validator_index", valIdx))
 		}
 
 		genPubkey, err := tbls.SecretToPublicKey(secret)
@@ -141,16 +144,18 @@ func Combine(ctx context.Context, inputDir, outputDir string, force bool, opts .
 	return nil
 }
 
-// shareIdxByPubkeys maps private keys to the valIndex validator public shares in the lock file.
+// shareIdxByPubkeys maps private keys to the valIndex validator public shares in the manifest file.
 // It preserves the order as found in the validator public share slice.
-func shareIdxByPubkeys(lock cluster.Lock, secrets []tbls.PrivateKey, valIndex int) (map[int]tbls.PrivateKey, error) {
+func shareIdxByPubkeys(manifest *manifestpb.Cluster, secrets []tbls.PrivateKey, valIndex int) (map[int]tbls.PrivateKey, error) {
 	pubkMap := make(map[tbls.PublicKey]int)
 
-	for peerIdx := 0; peerIdx < len(lock.Validators[valIndex].PubShares); peerIdx++ {
+	for peerIdx := 0; peerIdx < len(manifest.Validators[valIndex].PubShares); peerIdx++ {
 		peerIdx := peerIdx
-		pubShare, err := lock.Validators[valIndex].PublicShare(peerIdx)
+		pubShareRaw := manifest.Validators[valIndex].GetPubShares()[peerIdx]
+
+		pubShare, err := tblsconv.PubkeyFromBytes(pubShareRaw)
 		if err != nil {
-			return nil, errors.Wrap(err, "pubshare from lock")
+			return nil, errors.Wrap(err, "pubkey from share")
 		}
 
 		// share indexes are 1-indexed
@@ -193,20 +198,21 @@ type options struct {
 	keyStoreFunc func(secrets []tbls.PrivateKey, dir string) error
 }
 
-// loadLockfile loads a lockfile from one of the charon directories contained in dir.
+// loadManifest loads a cluster manifest from one of the charon directories contained in dir.
 // It checks that all the directories containing a validator_keys subdirectory contain the same cluster_lock.json file.
-// It returns the cluster.Lock read from the lock file, and a list of directories that possibly contains keys.
-func loadLockfile(dir string) (cluster.Lock, []string, error) {
+// It returns the v1.Cluster read from the manifest, and a list of directories that possibly contains keys.
+func loadManifest(ctx context.Context, dir string, noverify bool) (*manifestpb.Cluster, []string, error) {
+	// TODO(gsora): this function only deals with lock files, waiting for #2334 to be solved.
+
 	root, err := os.ReadDir(dir)
 	if err != nil {
-		return cluster.Lock{}, nil, errors.Wrap(err, "can't read directory")
+		return nil, nil, errors.Wrap(err, "can't read directory")
 	}
 
 	var (
-		lfFound            bool
-		lastLockfileHash   [32]byte
-		lfContent          []byte
 		possibleValKeysDir []string
+		lastManifest       *manifestpb.Cluster
+		lastValHash        [32]byte
 	)
 
 	for _, sd := range root {
@@ -216,9 +222,12 @@ func loadLockfile(dir string) (cluster.Lock, []string, error) {
 
 		// try opening the lock file
 		lfPath := filepath.Join(dir, sd.Name(), "cluster-lock.json")
-		b, err := os.Open(lfPath)
+
+		cl, err := manifest.Load(lfPath, func(lock cluster.Lock) error {
+			return verifyLock(ctx, lock, noverify)
+		})
 		if err != nil {
-			continue
+			return nil, nil, errors.Wrap(err, "manifest load error", z.Str("name", sd.Name()))
 		}
 
 		// does this directory contains a "validator_keys" directory? if yes continue and add it as a candidate
@@ -230,38 +239,40 @@ func loadLockfile(dir string) (cluster.Lock, []string, error) {
 
 		possibleValKeysDir = append(possibleValKeysDir, vcdPath)
 
-		lfc, err := io.ReadAll(b)
+		data, err := proto.Marshal(&manifestpb.ValidatorList{Validators: cl.Validators})
 		if err != nil {
-			continue
+			return nil, nil, errors.New("manifest contains wrong validator data", z.Str("name", sd.Name()))
 		}
 
-		lfHash := sha256.Sum256(lfc)
+		valHash := sha256.Sum256(data)
 
-		if lastLockfileHash != [32]byte{} && lfHash != lastLockfileHash {
-			return cluster.Lock{}, nil, errors.New("found different lockfile in node directory", z.Str("name", sd.Name()))
+		if lastValHash != [32]byte{} && valHash != lastValHash {
+			return nil, nil, errors.New("found different validator data in node directory", z.Str("name", sd.Name()))
 		}
 
-		lastLockfileHash = lfHash
-		lfContent = lfc
-		lfFound = true
+		lastManifest = cl
+		lastValHash = valHash
 	}
 
-	if !lfFound {
-		return cluster.Lock{}, nil, errors.New("lock file not found")
+	if lastManifest == nil {
+		return nil, nil, errors.New("no manifest file found")
 	}
 
-	var lock cluster.Lock
-	if err := json.Unmarshal(lfContent, &lock); err != nil {
-		return cluster.Lock{}, nil, errors.Wrap(err, "unmarshal lock file")
+	return lastManifest, possibleValKeysDir, nil
+}
+
+func verifyLock(ctx context.Context, lock cluster.Lock, noverify bool) error {
+	if err := lock.VerifyHashes(); err != nil && !noverify {
+		return errors.Wrap(err, "cluster lock hash verification failed. Run with --no-verify to bypass verification at own risk")
+	} else if err != nil && noverify {
+		log.Warn(ctx, "Ignoring failed cluster lock hash verification due to --no-verify flag", err)
 	}
 
-	if err := lock.VerifyHashes(); err != nil {
-		return cluster.Lock{}, nil, errors.Wrap(err, "cluster lock hash verification failed")
+	if err := lock.VerifySignatures(); err != nil && !noverify {
+		return errors.Wrap(err, "cluster lock signature verification failed. Run with --no-verify to bypass verification at own risk")
+	} else if err != nil && noverify {
+		log.Warn(ctx, "Ignoring failed cluster lock signature verification due to --no-verify flag", err)
 	}
 
-	if err := lock.VerifySignatures(); err != nil {
-		return cluster.Lock{}, nil, errors.Wrap(err, "cluster lock signature verification failed")
-	}
-
-	return lock, possibleValKeysDir, nil
+	return nil
 }
