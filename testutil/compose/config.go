@@ -117,6 +117,9 @@ type Config struct {
 
 	// Monitoring enables monitoring stack for the compose cluster. It includes grafana, loki and jaeger services.
 	Monitoring bool `json:"monitoring"`
+
+	// BuilderAPI enables the builder API for the compose cluster.
+	BuilderAPI bool `json:"builder_api"`
 }
 
 // VCStrings returns the VCs field as a slice of strings.

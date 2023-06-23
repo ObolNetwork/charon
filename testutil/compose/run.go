@@ -25,7 +25,7 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 	)
 	for i := 0; i < conf.NumNodes; i++ {
 		typ := conf.VCs[i%len(conf.VCs)]
-		vc, err := getVC(typ, i, conf.NumValidators, conf.InsecureKeys)
+		vc, err := getVC(typ, i, conf.NumValidators, conf.InsecureKeys, conf.BuilderAPI)
 		if err != nil {
 			return TmplData{}, err
 		}
@@ -64,7 +64,7 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 }
 
 // getVC returns the validator client template data for the provided type and index.
-func getVC(typ VCType, nodeIdx int, numVals int, insecure bool) (TmplVC, error) {
+func getVC(typ VCType, nodeIdx int, numVals int, insecure, builderAPI bool) (TmplVC, error) {
 	vcByType := map[VCType]TmplVC{
 		VCVouch: {
 			Label: string(VCVouch),
@@ -87,7 +87,8 @@ func getVC(typ VCType, nodeIdx int, numVals int, insecure bool) (TmplVC, error) 
       --beacon-node-api-endpoint="http://node{{.NodeIdx}}:3600"
       {{range .TekuKeys}}--validator-keys="{{.}}"
       {{end -}}
-      --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"`,
+      --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"
+      --validators-proposer-blinded-blocks-enabled={{.BuilderAPI}}`,
 		},
 	}
 
@@ -102,11 +103,13 @@ func getVC(typ VCType, nodeIdx int, numVals int, insecure bool) (TmplVC, error) 
 			}
 		}
 		data := struct {
-			TekuKeys []string
-			NodeIdx  int
+			TekuKeys   []string
+			NodeIdx    int
+			BuilderAPI bool
 		}{
-			NodeIdx:  nodeIdx,
-			TekuKeys: keys,
+			NodeIdx:    nodeIdx,
+			TekuKeys:   keys,
+			BuilderAPI: builderAPI,
 		}
 		var buf bytes.Buffer
 		err := template.Must(template.New("").Parse(resp.Command)).Execute(&buf, data)

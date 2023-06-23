@@ -33,6 +33,7 @@ services:
       CHARON_LOKI_ADDRESSES: http://loki:3100/loki/api/v1/push
       CHARON_LOKI_SERVICE: node0
       CHARON_SYNTHETIC_BLOCK_PROPOSALS: "true"
+      CHARON_BUILDER_API: "false"
     
     ports:
       - "3600:3600"
@@ -68,6 +69,7 @@ services:
       CHARON_LOKI_ADDRESSES: http://loki:3100/loki/api/v1/push
       CHARON_LOKI_SERVICE: node1
       CHARON_SYNTHETIC_BLOCK_PROPOSALS: "true"
+      CHARON_BUILDER_API: "false"
     
     ports:
       - "13600:3600"
@@ -103,6 +105,7 @@ services:
       CHARON_LOKI_ADDRESSES: http://loki:3100/loki/api/v1/push
       CHARON_LOKI_SERVICE: node2
       CHARON_SYNTHETIC_BLOCK_PROPOSALS: "true"
+      CHARON_BUILDER_API: "false"
     
     ports:
       - "23600:3600"
@@ -138,6 +141,7 @@ services:
       CHARON_LOKI_ADDRESSES: http://loki:3100/loki/api/v1/push
       CHARON_LOKI_SERVICE: node3
       CHARON_SYNTHETIC_BLOCK_PROPOSALS: "true"
+      CHARON_BUILDER_API: "false"
     
     ports:
       - "33600:3600"
@@ -172,6 +176,7 @@ services:
       --validator-keys="/compose/node0/validator_keys/keystore-0.json:/compose/node0/validator_keys/keystore-0.txt"
       --validator-keys="/compose/node0/validator_keys/keystore-1.json:/compose/node0/validator_keys/keystore-1.txt"
       --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"
+      --validators-proposer-blinded-blocks-enabled=false
     networks: [compose]
     depends_on: [node0]
     environment:
@@ -197,6 +202,7 @@ services:
       --validator-keys="/compose/node3/validator_keys/keystore-0.json:/compose/node3/validator_keys/keystore-0.txt"
       --validator-keys="/compose/node3/validator_keys/keystore-1.json:/compose/node3/validator_keys/keystore-1.txt"
       --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"
+      --validators-proposer-blinded-blocks-enabled=false
     networks: [compose]
     depends_on: [node3]
     environment:
