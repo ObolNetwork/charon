@@ -100,6 +100,6 @@ func TestParseTemplate(t *testing.T) {
 	_, err := template.New("").Parse(string(tmpl))
 	require.NoError(t, err)
 
-	_, err = getVC(VCTeku, 0, 1, false)
+	_, err = getVC(VCTeku, 0, 1, false, true)
 	require.NoError(t, err)
 }
