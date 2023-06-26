@@ -26,6 +26,12 @@ const (
 	InclMissedLag = 32
 )
 
+// subkey uniquely identifies a submission.
+type subkey struct {
+	Duty   core.Duty
+	Pubkey core.PubKey
+}
+
 // submission represents a duty submitted to the beacon node/chain.
 type submission struct {
 	Duty        core.Duty
@@ -57,7 +63,7 @@ var inclSupported = map[core.DutyType]bool{
 // It has a simplified API to allow for easy testing.
 type inclusionCore struct {
 	mu          sync.Mutex
-	submissions []submission
+	submissions map[subkey]submission
 
 	trackerInclFunc trackerInclFunc
 	missedFunc      func(context.Context, submission)
@@ -119,13 +125,15 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	i.submissions = append(i.submissions, submission{
+
+	key := subkey{Duty: duty, Pubkey: pubkey}
+	i.submissions[key] = submission{
 		Duty:        duty,
 		Pubkey:      pubkey,
 		Data:        data,
 		AttDataRoot: attRoot,
 		Delay:       delay,
-	})
+	}
 
 	return nil
 }
@@ -137,19 +145,17 @@ func (i *inclusionCore) Trim(ctx context.Context, slot int64) {
 	defer i.mu.Unlock()
 
 	// Trim submissions
-	var remaining []submission
-	for _, sub := range i.submissions {
+	for key, sub := range i.submissions {
 		if sub.Duty.Slot > slot {
-			// Keep
-			remaining = append(remaining, sub)
 			continue
 		}
 
 		// Report missed and trim
 		i.missedFunc(ctx, sub)
 		i.trackerInclFunc(sub.Duty, sub.Pubkey, sub.Data, errors.New("duty not included on-chain"))
+
+		delete(i.submissions, key)
 	}
-	i.submissions = remaining
 }
 
 // CheckBlock checks whether the block includes any of the submitted duties.
@@ -157,47 +163,43 @@ func (i *inclusionCore) CheckBlock(ctx context.Context, block block) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
-	var remaining []submission
-	for _, sub := range i.submissions {
+	for key, sub := range i.submissions {
 		switch sub.Duty.Type {
 		case core.DutyAttester:
 			ok, err := checkAttestationInclusion(sub, block)
 			if err != nil {
 				log.Warn(ctx, "Failed to check attestation inclusion", err)
+			} else if !ok {
+				continue
 			}
-			if !ok {
-				remaining = append(remaining, sub)
-			} else {
-				// Report inclusion and trim
-				i.attIncludedFunc(ctx, sub, block)
-				i.trackerInclFunc(sub.Duty, sub.Pubkey, sub.Data, nil)
-			}
+
+			// Report inclusion and trim
+			i.attIncludedFunc(ctx, sub, block)
+			i.trackerInclFunc(sub.Duty, sub.Pubkey, sub.Data, nil)
+			delete(i.submissions, key)
 		case core.DutyAggregator:
 			ok, err := checkAggregationInclusion(sub, block)
 			if err != nil {
 				log.Warn(ctx, "Failed to check aggregate inclusion", err)
+			} else if !ok {
+				continue
 			}
-			if !ok {
-				remaining = append(remaining, sub)
-			} else {
-				// Report inclusion and trim
-				i.attIncludedFunc(ctx, sub, block)
-				i.trackerInclFunc(sub.Duty, sub.Pubkey, sub.Data, nil)
-			}
+			// Report inclusion and trim
+			i.attIncludedFunc(ctx, sub, block)
+			i.trackerInclFunc(sub.Duty, sub.Pubkey, sub.Data, nil)
+			delete(i.submissions, key)
 		case core.DutyProposer, core.DutyBuilderProposer:
 			if sub.Duty.Slot != block.Slot {
-				remaining = append(remaining, sub)
 				continue
 			}
 
-			// Just report block inclusions to tracker
+			// Just report block inclusions to tracker and trim
 			i.trackerInclFunc(sub.Duty, sub.Pubkey, sub.Data, nil)
+			delete(i.submissions, key)
 		default:
 			panic("bug: unexpected type") // Sanity check, this should never happen
 		}
 	}
-
-	i.submissions = remaining
 }
 
 // checkAggregationInclusion checks whether the aggregation is included in the block.
@@ -312,6 +314,7 @@ func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client, trackerInclFunc t
 		attIncludedFunc: reportAttInclusion,
 		missedFunc:      reportMissed,
 		trackerInclFunc: trackerInclFunc,
+		submissions:     make(map[subkey]submission),
 	}
 
 	return &InclusionChecker{

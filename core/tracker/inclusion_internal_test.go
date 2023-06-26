@@ -84,6 +84,7 @@ func TestInclusion(t *testing.T) {
 			included = append(included, sub.Duty)
 		},
 		trackerInclFunc: func(duty core.Duty, key core.PubKey, data core.SignedData, err error) {},
+		submissions:     make(map[subkey]submission),
 	}
 
 	// Create some duties
