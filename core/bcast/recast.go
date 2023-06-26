@@ -124,7 +124,6 @@ func (r *Recaster) SlotTicked(ctx context.Context, slot core.Slot) error {
 		}
 
 		if _, found := activeVals[ethPk]; !found {
-			log.Debug(ctx, "Ignoring non-active validator", z.Str("pubkey", pubkey.String()))
 			continue
 		}
 
