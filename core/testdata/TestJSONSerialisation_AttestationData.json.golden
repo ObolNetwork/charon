@@ -1,0 +1,24 @@
+{
+  "attestation_data": {
+    "slot": "11154013587666973726",
+    "index": "12258969221770119542",
+    "beacon_block_root": "0x72908d45b0164a1ed1fe5f6c6bb64a52fa1a95e2bdff2aea5190ce067ad5d23f",
+    "source": {
+      "epoch": "1675651969047236048",
+      "root": "0xce92f83e0212d3077d0549b01b83b78e64fc147e5086ae7c1ac5bbb6496af670"
+    },
+    "target": {
+      "epoch": "6562747694429334430",
+      "root": "0xd88158d69078e3e244ee141c7cfe1c0ef0c2f60c29616c2f6b3a805e91ebdedc"
+    }
+  },
+  "attestation_duty": {
+    "pubkey": "0xf4a80680595fb94b57636910c8ea580e905fda113b925adfac8d80ebb68deac0c0d6cb9aa138c60f34218fefbffdf6e0",
+    "slot": "16816304742405039179",
+    "validator_index": "4222784135690522777",
+    "committee_index": "6470474537659727044",
+    "committee_length": "5604160141860519827",
+    "committees_at_slot": "12387478413260866247",
+    "validator_committee_index": "17766786039778452101"
+  }
+}
