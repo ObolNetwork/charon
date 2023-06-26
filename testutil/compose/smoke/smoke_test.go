@@ -110,9 +110,9 @@ func TestSmoke(t *testing.T) {
 			},
 			RunTmplFunc: func(data *compose.TmplData) {
 				data.VCs[0].Image = "consensys/teku:latest"
-				data.VCs[1].Image = "consensys/teku:22.5"
-				data.VCs[2].Image = "consensys/teku:22.4"
-				data.VCs[3].Image = "consensys/teku:22.3"
+				data.VCs[1].Image = "consensys/teku:23.6.0"
+				data.VCs[2].Image = "consensys/teku:23.5.0"
+				data.VCs[3].Image = "consensys/teku:23.4.0"
 			},
 		},
 		{
