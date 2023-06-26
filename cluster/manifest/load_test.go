@@ -50,6 +50,7 @@ func TestLoad(t *testing.T) {
 		name           string
 		manifestFile   string
 		legacyLockFile string
+		isLegacyLock   bool
 		errorMsg       string
 	}{
 		{
@@ -63,6 +64,7 @@ func TestLoad(t *testing.T) {
 		{
 			name:           "only legacy lock",
 			legacyLockFile: legacyLockFile,
+			isLegacyLock:   true,
 		},
 		{
 			name:           "both files",
@@ -73,13 +75,21 @@ func TestLoad(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			loaded, _, err := manifest.Load(tt.manifestFile, tt.legacyLockFile, nil)
+			loaded, loadMetadata, err := manifest.Load(tt.manifestFile, tt.legacyLockFile, nil)
 			if tt.errorMsg != "" {
 				require.ErrorContains(t, err, tt.errorMsg)
 				return
 			}
 
 			require.True(t, proto.Equal(cluster, loaded))
+
+			if tt.isLegacyLock {
+				require.Equal(t, tt.legacyLockFile, loadMetadata.Filename)
+			} else {
+				require.Equal(t, tt.manifestFile, loadMetadata.Filename)
+			}
+
+			require.Equal(t, tt.isLegacyLock, loadMetadata.IsLegacyLock)
 		})
 	}
 }
