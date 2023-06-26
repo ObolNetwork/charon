@@ -33,9 +33,9 @@ type addValidatorsConfig struct {
 	WithdrawalAddrs   []string // Withdrawal address of each validator
 	FeeRecipientAddrs []string // Fee recipient address of each validator
 
-	Lockfile            string   // Path to the legacy cluster lock file
-	ClusterManifestFile string   // Path to the cluster manifest file
-	EnrPrivKeyfiles     []string // Paths to node enr private keys
+	Lockfile        string   // Path to the legacy cluster lock file
+	ManifestFile    string   // Path to the cluster manifest file
+	EnrPrivKeyfiles []string // Paths to node enr private keys
 
 	TestConfig TestConfig
 }
@@ -72,7 +72,7 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 	cmd.Flags().StringSliceVar(&config.FeeRecipientAddrs, "fee-recipient-addresses", nil, "Comma separated list of Ethereum addresses of the fee recipient for each new validator. Either provide a single fee recipient address or fee recipient addresses for each validator.")
 	cmd.Flags().StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each new validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
 	cmd.Flags().StringVar(&config.Lockfile, "lock-file", ".charon/cluster-lock.json", "The path to the legacy cluster lock file defining distributed validator cluster. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
-	cmd.Flags().StringVar(&config.ClusterManifestFile, "manifest-file", ".charon/cluster-manifest.pb", "The path to the cluster manifest file. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
+	cmd.Flags().StringVar(&config.ManifestFile, "manifest-file", ".charon/cluster-manifest.pb", "The path to the cluster manifest file. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
 	cmd.Flags().StringSliceVar(&config.EnrPrivKeyfiles, "private-key-files", nil, "Comma separated list of paths to charon enr private key files. This should be in the same order as the operators, ie, first private key file should correspond to the first operator and so on.")
 }
 
@@ -154,7 +154,7 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 	}
 
 	// Save cluster manifest to disk
-	err = writeClusterManifest(conf.ClusterManifestFile, cluster)
+	err = writeClusterManifest(conf.ManifestFile, cluster)
 	if err != nil {
 		return errors.Wrap(err, "write cluster manifest")
 	}
@@ -214,7 +214,7 @@ func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, manifes
 		return nil
 	}
 
-	cluster, loadMetadata, err := manifest.Load(conf.ClusterManifestFile, conf.Lockfile, verifyLock)
+	cluster, loadMetadata, err := manifest.Load(conf.ManifestFile, conf.Lockfile, verifyLock)
 	if err != nil {
 		return nil, manifest.LoadMetadata{}, errors.Wrap(err, "load cluster manifest")
 	}
