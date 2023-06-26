@@ -131,7 +131,7 @@ func TestRunAddValidators(t *testing.T) {
 			Lock:    &lock,
 			P2PKeys: p2pKeys,
 		},
-		ClusterManifestFile: manifestFile,
+		ManifestFile: manifestFile,
 	}
 
 	err := runAddValidatorsSolo(context.Background(), conf)

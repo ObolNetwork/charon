@@ -72,6 +72,7 @@ type Config struct {
 	Log                     log.Config
 	Feature                 featureset.Config
 	LockFile                string
+	ManifestFile            string
 	NoVerify                bool
 	PrivKeyFile             string
 	PrivKeyLocking          bool

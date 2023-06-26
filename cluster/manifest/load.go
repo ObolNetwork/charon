@@ -13,21 +13,31 @@ import (
 	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 )
 
-// Load loads a cluster manifest from disk. It supports both legacy lock files and raw DAG files.
-// TODO(xenowits): Refactor, load either from manifest or lock file, see https://github.com/ObolNetwork/charon/issues/2334.
-func Load(file string, lockCallback func(cluster.Lock) error) (*manifestpb.Cluster, error) {
-	b, err := os.ReadFile(file)
+// Load loads a cluster from disk and returns true if cluster was loaded from a legacy lock file.
+// It supports reading from both cluster manifest and legacy lock files.
+// If both files are provided, it first reads the manifest file before reading the legacy lock file.
+func Load(manifestFile, legacyLockFile string, lockCallback func(cluster.Lock) error) (*manifestpb.Cluster, bool, error) {
+	b, err := os.ReadFile(manifestFile)
+	if err == nil {
+		manifest := new(manifestpb.Cluster)
+		if err := proto.Unmarshal(b, manifest); err != nil {
+			return nil, false, errors.Wrap(err, "unmarshal cluster manifest")
+		}
+
+		return manifest, false, nil
+	}
+
+	b, err = os.ReadFile(legacyLockFile)
 	if err != nil {
-		return nil, errors.Wrap(err, "read file")
+		return nil, false, errors.Wrap(err, "read legacy lock file")
 	}
 
-	rawDAG := new(manifestpb.SignedMutationList)
-
-	if err := proto.Unmarshal(b, rawDAG); err != nil {
-		return loadLegacyLock(b, lockCallback)
+	m, err := loadLegacyLock(b, lockCallback)
+	if err != nil {
+		return nil, false, errors.Wrap(err, "load legacy lock")
 	}
 
-	return Materialise(rawDAG)
+	return m, true, nil
 }
 
 func loadLegacyLock(input []byte, lockCallback func(cluster.Lock) error) (*manifestpb.Cluster, error) {

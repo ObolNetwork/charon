@@ -33,9 +33,9 @@ type addValidatorsConfig struct {
 	WithdrawalAddrs   []string // Withdrawal address of each validator
 	FeeRecipientAddrs []string // Fee recipient address of each validator
 
-	Lockfile            string   // Path to the legacy cluster lock file
-	ClusterManifestFile string   // Path to the cluster manifest file
-	EnrPrivKeyfiles     []string // Paths to node enr private keys
+	Lockfile        string   // Path to the legacy cluster lock file
+	ManifestFile    string   // Path to the cluster manifest file
+	EnrPrivKeyfiles []string // Paths to node enr private keys
 
 	TestConfig TestConfig
 }
@@ -72,13 +72,13 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 	cmd.Flags().StringSliceVar(&config.FeeRecipientAddrs, "fee-recipient-addresses", nil, "Comma separated list of Ethereum addresses of the fee recipient for each new validator. Either provide a single fee recipient address or fee recipient addresses for each validator.")
 	cmd.Flags().StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each new validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
 	cmd.Flags().StringVar(&config.Lockfile, "lock-file", ".charon/cluster-lock.json", "The path to the legacy cluster lock file defining distributed validator cluster. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
-	cmd.Flags().StringVar(&config.ClusterManifestFile, "manifest-file", ".charon/cluster-manifest.pb", "The path to the cluster manifest file. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
+	cmd.Flags().StringVar(&config.ManifestFile, "manifest-file", ".charon/cluster-manifest.pb", "The path to the cluster manifest file. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
 	cmd.Flags().StringSliceVar(&config.EnrPrivKeyfiles, "private-key-files", nil, "Comma separated list of paths to charon enr private key files. This should be in the same order as the operators, ie, first private key file should correspond to the first operator and so on.")
 }
 
 func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err error) {
 	// Read lock file to load cluster manifest
-	cluster, err := loadClusterManifest(conf)
+	cluster, _, err := loadClusterManifest(conf)
 	if err != nil {
 		return err
 	}
@@ -147,10 +147,11 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 		return errors.Wrap(err, "transform cluster manifest")
 	}
 
+	// Save backup to disk if cluster loaded from manifest
 	// TODO(xenowits): Write cluster backup, see https://github.com/ObolNetwork/charon/issues/2345.
 
 	// Save cluster manifest to disk
-	err = writeClusterManifest(conf.ClusterManifestFile, cluster)
+	err = writeClusterManifest(conf.ManifestFile, cluster)
 	if err != nil {
 		return errors.Wrap(err, "write cluster manifest")
 	}
@@ -191,10 +192,12 @@ func builderRegistration(secret tbls.PrivateKey, pubkey tbls.PublicKey, feeRecip
 	}, nil
 }
 
-// loadClusterManifest returns the cluster manifest from the provided config.
-func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, error) {
+// loadClusterManifest returns the cluster manifest from the provided config. It returns true if
+// the cluster was loaded from a legacy lock file.
+func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, bool, error) {
 	if conf.TestConfig.Lock != nil {
-		return manifest.NewClusterFromLock(*conf.TestConfig.Lock)
+		m, err := manifest.NewClusterFromLock(*conf.TestConfig.Lock)
+		return m, false, err
 	}
 
 	verifyLock := func(lock cluster.Lock) error {
@@ -209,12 +212,12 @@ func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, error) 
 		return nil
 	}
 
-	cluster, err := manifest.Load(conf.Lockfile, verifyLock)
+	cluster, isLegacyLock, err := manifest.Load(conf.ManifestFile, conf.Lockfile, verifyLock)
 	if err != nil {
-		return nil, errors.Wrap(err, "load cluster manifest")
+		return nil, false, errors.Wrap(err, "load cluster manifest")
 	}
 
-	return cluster, nil
+	return cluster, isLegacyLock, nil
 }
 
 // writeClusterManifest writes the provided cluster manifest to disk.

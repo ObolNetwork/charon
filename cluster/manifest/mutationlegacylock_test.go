@@ -25,27 +25,27 @@ func TestZeroCluster(t *testing.T) {
 }
 
 func TestLegacyLock(t *testing.T) {
-	lockJON, err := os.ReadFile("testdata/lock.json")
+	lockJSON, err := os.ReadFile("testdata/lock.json")
 	require.NoError(t, err)
 
 	var lock cluster.Lock
-	testutil.RequireNoError(t, json.Unmarshal(lockJON, &lock))
+	testutil.RequireNoError(t, json.Unmarshal(lockJSON, &lock))
 
-	signed, err := manifest.NewLegacyLock(lock)
+	legacyLock, err := manifest.NewLegacyLock(lock)
 	require.NoError(t, err)
 
 	t.Run("proto", func(t *testing.T) {
-		testutil.RequireGoldenProto(t, signed)
+		testutil.RequireGoldenProto(t, legacyLock)
 	})
 
 	t.Run("cluster", func(t *testing.T) {
-		cluster, err := manifest.Materialise(&manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{signed}})
+		cluster, err := manifest.Materialise(&manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{legacyLock}})
 		require.NoError(t, err)
 		require.Equal(t, lock.LockHash, cluster.Hash)
-		testutil.RequireGoldenProto(t, cluster)
+		testutil.RequireGoldenProto(t, cluster, testutil.WithFilename("TestLegacyLock_cluster.golden"))
 	})
 
-	b, err := proto.Marshal(signed)
+	b, err := proto.Marshal(legacyLock)
 	require.NoError(t, err)
 
 	signed2 := new(manifestpb.SignedMutation)
@@ -56,19 +56,26 @@ func TestLegacyLock(t *testing.T) {
 	})
 
 	t.Run("cluster loaded from lock", func(t *testing.T) {
-		cluster, err := manifest.Load("testdata/lock.json", nil)
+		cluster, isLegacyLock, err := manifest.Load("", "testdata/lock.json", nil)
 		require.NoError(t, err)
+		require.Equal(t, true, isLegacyLock)
+
 		testutil.RequireGoldenProto(t, cluster, testutil.WithFilename("TestLegacyLock_cluster.golden"))
 	})
 
 	t.Run("cluster loaded from manifest", func(t *testing.T) {
-		b, err := proto.Marshal(&manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{signed}})
+		cluster, err := manifest.Materialise(&manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{legacyLock}})
+		require.NoError(t, err)
+
+		b, err := proto.Marshal(cluster)
 		require.NoError(t, err)
 		file := path.Join(t.TempDir(), "manifest.pb")
 		require.NoError(t, os.WriteFile(file, b, 0o644))
 
-		cluster, err := manifest.Load(file, nil)
+		cluster, isLegacyLock, err := manifest.Load(file, "", nil)
 		require.NoError(t, err)
+		require.Equal(t, false, isLegacyLock)
+
 		testutil.RequireGoldenProto(t, cluster, testutil.WithFilename("TestLegacyLock_cluster.golden"))
 	})
 }

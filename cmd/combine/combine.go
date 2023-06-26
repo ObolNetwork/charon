@@ -217,9 +217,10 @@ func loadManifest(ctx context.Context, dir string, noverify bool) (*manifestpb.C
 		}
 
 		// try opening the lock file
-		lfPath := filepath.Join(dir, sd.Name(), "cluster-lock.json")
+		lockFile := filepath.Join(dir, sd.Name(), "cluster-lock.json")
+		manifestFile := filepath.Join(dir, sd.Name(), "cluster-manifest.pb")
 
-		cl, err := manifest.Load(lfPath, func(lock cluster.Lock) error {
+		cl, _, err := manifest.Load(manifestFile, lockFile, func(lock cluster.Lock) error {
 			return verifyLock(ctx, lock, noverify)
 		})
 		if err != nil {
