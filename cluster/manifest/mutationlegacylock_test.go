@@ -56,10 +56,9 @@ func TestLegacyLock(t *testing.T) {
 	})
 
 	t.Run("cluster loaded from lock", func(t *testing.T) {
-		cluster, loadMetadata, err := manifest.Load("", "testdata/lock.json", nil)
+		cluster, isLegacyLock, err := manifest.Load("", "testdata/lock.json", nil)
 		require.NoError(t, err)
-		require.Equal(t, true, loadMetadata.IsLegacyLock)
-		require.Equal(t, "testdata/lock.json", loadMetadata.Filename)
+		require.Equal(t, true, isLegacyLock)
 
 		testutil.RequireGoldenProto(t, cluster, testutil.WithFilename("TestLegacyLock_cluster.golden"))
 	})
@@ -73,10 +72,9 @@ func TestLegacyLock(t *testing.T) {
 		file := path.Join(t.TempDir(), "manifest.pb")
 		require.NoError(t, os.WriteFile(file, b, 0o644))
 
-		cluster, loadMetadata, err := manifest.Load(file, "", nil)
+		cluster, isLegacyLock, err := manifest.Load(file, "", nil)
 		require.NoError(t, err)
-		require.Equal(t, false, loadMetadata.IsLegacyLock)
-		require.Equal(t, file, loadMetadata.Filename)
+		require.Equal(t, false, isLegacyLock)
 
 		testutil.RequireGoldenProto(t, cluster, testutil.WithFilename("TestLegacyLock_cluster.golden"))
 	})

@@ -78,7 +78,7 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 
 func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err error) {
 	// Read lock file to load cluster manifest
-	cluster, loadMetadata, err := loadClusterManifest(conf)
+	cluster, _, err := loadClusterManifest(conf)
 	if err != nil {
 		return err
 	}
@@ -147,11 +147,8 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 		return errors.Wrap(err, "transform cluster manifest")
 	}
 
-	// Save cluster backup to disk
-	//nolint:revive,staticcheck
-	if loadMetadata.IsLegacyLock {
-		// TODO(xenowits): Write cluster backup, see https://github.com/ObolNetwork/charon/issues/2345.
-	}
+	// Save backup to disk if cluster loaded from manifest
+	// TODO(xenowits): Write cluster backup, see https://github.com/ObolNetwork/charon/issues/2345.
 
 	// Save cluster manifest to disk
 	err = writeClusterManifest(conf.ManifestFile, cluster)
@@ -195,11 +192,12 @@ func builderRegistration(secret tbls.PrivateKey, pubkey tbls.PublicKey, feeRecip
 	}, nil
 }
 
-// loadClusterManifest returns the cluster manifest from the provided config.
-func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, manifest.LoadMetadata, error) {
+// loadClusterManifest returns the cluster manifest from the provided config. It returns true if
+// the cluster was loaded from a legacy lock file.
+func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, bool, error) {
 	if conf.TestConfig.Lock != nil {
 		m, err := manifest.NewClusterFromLock(*conf.TestConfig.Lock)
-		return m, manifest.LoadMetadata{}, err
+		return m, false, err
 	}
 
 	verifyLock := func(lock cluster.Lock) error {
@@ -214,12 +212,12 @@ func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, manifes
 		return nil
 	}
 
-	cluster, loadMetadata, err := manifest.Load(conf.ManifestFile, conf.Lockfile, verifyLock)
+	cluster, isLegacyLock, err := manifest.Load(conf.ManifestFile, conf.Lockfile, verifyLock)
 	if err != nil {
-		return nil, manifest.LoadMetadata{}, errors.Wrap(err, "load cluster manifest")
+		return nil, false, errors.Wrap(err, "load cluster manifest")
 	}
 
-	return cluster, loadMetadata, nil
+	return cluster, isLegacyLock, nil
 }
 
 // writeClusterManifest writes the provided cluster manifest to disk.
