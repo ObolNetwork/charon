@@ -16,7 +16,6 @@ import (
 // Load loads a cluster from disk and returns true if cluster was loaded from a legacy lock file.
 // It supports reading from both cluster manifest and legacy lock files.
 // If both files are provided, it first reads the manifest file before reading the legacy lock file.
-// TODO(xenowits): Remove loading from legacy lock when we fully adopt mutable cluster manifests.
 func Load(manifestFile, legacyLockFile string, lockCallback func(cluster.Lock) error) (*manifestpb.Cluster, bool, error) {
 	b, err := os.ReadFile(manifestFile)
 	if err == nil {
