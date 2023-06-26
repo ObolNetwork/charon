@@ -250,6 +250,7 @@ func writeClusterManifest(filename string, cluster *manifestpb.Cluster) error {
 }
 
 // writeManifestBackup writes the provided cluster in a cluster manifest backup file inside the backup directory.
+// The backup files are stored as "cluster-manifest-backup-<unix_timestamp>.pb".
 func writeManifestBackup(backupDir string, cluster *manifestpb.Cluster) error {
 	// Check if the backup directory exists, creating a new one if it doesn't exist.
 	info, err := os.Stat(backupDir)
@@ -264,11 +265,11 @@ func writeManifestBackup(backupDir string, cluster *manifestpb.Cluster) error {
 		return errors.New("backup dir already exists and is a file", z.Str("backup-dir", backupDir))
 	}
 
-	filename := fmt.Sprintf("cluster-manifest-backup-%d.pb", time.Now().Unix()) // "cluster-manifest-backup-1687250009.pb"
-	backupFile := path.Join(backupDir, filename)
+	filename := fmt.Sprintf("cluster-manifest-backup-%d.pb", time.Now().Unix()) // Ex: "cluster-manifest-backup-1687250009.pb"
+	backupPath := path.Join(backupDir, filename)
 
-	// Write the backup to disk
-	err = writeClusterManifest(backupFile, cluster)
+	// Write backup to disk
+	err = writeClusterManifest(backupPath, cluster)
 	if err != nil {
 		return errors.Wrap(err, "write cluster manifest backup")
 	}
