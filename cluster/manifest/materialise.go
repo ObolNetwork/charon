@@ -24,10 +24,16 @@ func Materialise(rawDAG *manifestpb.SignedMutationList) (*manifestpb.Cluster, er
 		}
 	}
 
-	// Cluster hash is the hash of the first mutation.
-	cluster.Hash, err = Hash(rawDAG.Mutations[0])
+	// InitialMutationHash is the hash of the first mutation.
+	cluster.InitialMutationHash, err = Hash(rawDAG.Mutations[0])
 	if err != nil {
-		return nil, errors.Wrap(err, "calculate cluster hash")
+		return nil, errors.Wrap(err, "calculate initial hash")
+	}
+
+	// LatestMutationHash is the hash of the last mutation.
+	cluster.LatestMutationHash, err = Hash(rawDAG.Mutations[len(rawDAG.Mutations)-1])
+	if err != nil {
+		return nil, errors.Wrap(err, "calculate latest hash")
 	}
 
 	return cluster, nil

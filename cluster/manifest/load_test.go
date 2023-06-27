@@ -112,7 +112,8 @@ func testLoadLegacy(t *testing.T, version string) {
 	cluster, isLegacyLock, err := manifest.Load("", file, nil)
 	require.NoError(t, err)
 
-	require.Equal(t, lock.LockHash, cluster.Hash)
+	require.Equal(t, lock.LockHash, cluster.InitialMutationHash)
+	require.Equal(t, lock.LockHash, cluster.LatestMutationHash)
 	require.Equal(t, lock.Name, cluster.Name)
 	require.EqualValues(t, lock.Threshold, cluster.Threshold)
 	require.Equal(t, lock.DKGAlgorithm, cluster.DkgAlgorithm)
