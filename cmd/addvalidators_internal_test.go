@@ -123,7 +123,6 @@ func TestRunAddValidators(t *testing.T) {
 
 	tmp := t.TempDir()
 	manifestFile := path.Join(tmp, "cluster-manifest.pb")
-	backupDir := path.Join(tmp, "cluster-manifest-backups")
 	conf := addValidatorsConfig{
 		NumVals:           1,
 		WithdrawalAddrs:   []string{feeRecipientAddr},
@@ -132,8 +131,8 @@ func TestRunAddValidators(t *testing.T) {
 			Lock:    &lock,
 			P2PKeys: p2pKeys,
 		},
-		ManifestFile:      manifestFile,
-		ManifestBackupDir: backupDir,
+		ManifestFile: manifestFile,
+		DataDir:      tmp,
 	}
 
 	err := runAddValidatorsSolo(context.Background(), conf)
@@ -147,21 +146,6 @@ func TestRunAddValidators(t *testing.T) {
 	require.NoError(t, proto.Unmarshal(b, msg))
 	require.Equal(t, len(msg.Validators), 2) // valCount+1
 	require.Equal(t, msg.Validators[1].FeeRecipientAddress, feeRecipientAddr)
-
-	// Verify if backup directory is created
-	entries, err := os.ReadDir(backupDir)
-	require.NoError(t, err)
-	require.Equal(t, 1, len(entries))
-	require.True(t, strings.Contains(entries[0].Name(), "cluster-manifest-backup"))
-
-	backupFile := path.Join(backupDir, entries[0].Name())
-	b, err = os.ReadFile(backupFile)
-	require.NoError(t, err)
-
-	// Verify if backup manifest still contains a single validator, ie, it is unchanged
-	msgBackup := new(manifestpb.Cluster)
-	require.NoError(t, proto.Unmarshal(b, msgBackup))
-	require.Equal(t, len(msgBackup.Validators), valCount)
 }
 
 func TestValidateP2PKeysOrder(t *testing.T) {
@@ -216,36 +200,22 @@ func TestValidateP2PKeysOrder(t *testing.T) {
 }
 
 func TestWriteClusterBackup(t *testing.T) {
-	t.Run("dir is a file", func(t *testing.T) {
-		file := path.Join(t.TempDir(), "clusters")
-		_, err := os.Create(file)
-		require.NoError(t, err)
+	tmp := t.TempDir()
+	clusterName := "test"
+	c := manifestpb.Cluster{Name: clusterName}
+	require.NoError(t, writeManifestBackup(tmp, &c))
 
-		err = writeManifestBackup(file, &manifestpb.Cluster{})
-		require.ErrorContains(t, err, "backup dir already exists and is a file")
-	})
+	// Verify if backup file is created
+	entries, err := os.ReadDir(tmp)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(entries))
+	require.True(t, strings.Contains(entries[0].Name(), "cluster-manifest-backup"))
 
-	t.Run("dir already exists", func(t *testing.T) {
-		dir := t.TempDir()
-		clusterName := "Test#001"
-		err := writeManifestBackup(dir, &manifestpb.Cluster{Name: clusterName})
-		require.NoError(t, err)
+	backupFile := path.Join(tmp, entries[0].Name())
+	b, err := os.ReadFile(backupFile)
+	require.NoError(t, err)
 
-		entries, err := os.ReadDir(dir)
-		require.NoError(t, err)
-		require.Equal(t, 1, len(entries))
-		require.True(t, strings.Contains(entries[0].Name(), "cluster-manifest-backup"))
-
-		b, err := os.ReadFile(path.Join(dir, entries[0].Name()))
-		require.NoError(t, err)
-
-		var msg manifestpb.Cluster
-		require.NoError(t, proto.Unmarshal(b, &msg))
-		require.Equal(t, clusterName, msg.Name)
-	})
-
-	t.Run("create backup dir", func(t *testing.T) {
-		err := writeManifestBackup("", &manifestpb.Cluster{})
-		require.ErrorContains(t, err, "create backup dir")
-	})
+	backup := new(manifestpb.Cluster)
+	require.NoError(t, proto.Unmarshal(b, backup))
+	require.Equal(t, clusterName, backup.Name)
 }

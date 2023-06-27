@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"os"
 	"path"
 	"time"
@@ -37,10 +36,10 @@ type addValidatorsConfig struct {
 	WithdrawalAddrs   []string // Withdrawal address of each validator
 	FeeRecipientAddrs []string // Fee recipient address of each validator
 
-	Lockfile          string   // Path to the legacy cluster lock file
-	ManifestFile      string   // Path to the cluster manifest file
-	ManifestBackupDir string   // Directory to store cluster manifest backups
-	EnrPrivKeyfiles   []string // Paths to node enr private keys
+	Lockfile        string   // Path to the legacy cluster lock file
+	ManifestFile    string   // Path to the cluster manifest file
+	DataDir         string   // Data directory to store cluster manifest backups
+	EnrPrivKeyfiles []string // Paths to node enr private keys
 
 	TestConfig TestConfig
 }
@@ -78,7 +77,7 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 	cmd.Flags().StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each new validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
 	cmd.Flags().StringVar(&config.Lockfile, "lock-file", ".charon/cluster-lock.json", "The path to the legacy cluster lock file defining distributed validator cluster. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
 	cmd.Flags().StringVar(&config.ManifestFile, "manifest-file", ".charon/cluster-manifest.pb", "The path to the cluster manifest file. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
-	cmd.Flags().StringVar(&config.ManifestBackupDir, "manifest-backup-dir", ".charon/cluster-manifest-backups", "Directory for backing up the manifest file before overwrite.")
+	cmd.Flags().StringVar(&config.DataDir, "data-dir", ".charon", "The directory where cluster manifest backups are stored.")
 	cmd.Flags().StringSliceVar(&config.EnrPrivKeyfiles, "private-key-files", nil, "Comma separated list of paths to charon enr private key files. This should be in the same order as the operators, ie, first private key file should correspond to the first operator and so on.")
 }
 
@@ -157,7 +156,7 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 
 	// Save manifest backup to disk before overriding manifest file
 	if !isLegacyLock {
-		err = writeManifestBackup(conf.ManifestBackupDir, manifestBackup)
+		err = writeManifestBackup(conf.DataDir, manifestBackup)
 		if err != nil {
 			return err
 		}
@@ -249,27 +248,15 @@ func writeClusterManifest(filename string, cluster *manifestpb.Cluster) error {
 	return nil
 }
 
-// writeManifestBackup writes the provided cluster in a cluster manifest backup file inside the backup directory.
-// The backup files are stored as "cluster-manifest-backup-<unix_timestamp>.pb".
-func writeManifestBackup(backupDir string, cluster *manifestpb.Cluster) error {
-	// Check if the backup directory exists, creating a new one if it doesn't exist.
-	info, err := os.Stat(backupDir)
-	if errors.Is(err, fs.ErrNotExist) {
-		err := os.Mkdir(backupDir, 0o755)
-		if err != nil {
-			return errors.Wrap(err, "create backup dir", z.Str("backup-dir", backupDir))
-		}
-	} else if err != nil {
-		return errors.Wrap(err, "error retrieving backup dir info", z.Str("backup-dir", backupDir))
-	} else if !info.IsDir() {
-		return errors.New("backup dir already exists and is a file", z.Str("backup-dir", backupDir))
-	}
-
-	filename := fmt.Sprintf("cluster-manifest-backup-%d.pb", time.Now().Unix()) // Ex: "cluster-manifest-backup-1687250009.pb"
-	backupPath := path.Join(backupDir, filename)
+// writeManifestBackup writes the provided cluster in a cluster manifest backup file.
+// The backup files are stored as "cluster-manifest-backup-YYYYMMDDHHMMSS.pb".
+func writeManifestBackup(datadir string, cluster *manifestpb.Cluster) error {
+	currentTime := time.Now().Format("20060102150405")
+	filename := fmt.Sprintf("cluster-manifest-backup-%s.pb", currentTime) // Ex: "cluster-manifest-backup-20060102150405.pb"
+	backupPath := path.Join(datadir, filename)
 
 	// Write backup to disk
-	err = writeClusterManifest(backupPath, cluster)
+	err := writeClusterManifest(backupPath, cluster)
 	if err != nil {
 		return errors.Wrap(err, "write cluster manifest backup")
 	}
