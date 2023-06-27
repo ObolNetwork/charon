@@ -111,7 +111,7 @@ func TestCombineBothManifestAndLockForAll(t *testing.T) {
 
 func TestCombineBothManifestAndLockForSome(t *testing.T) {
 	lock, _, shares := cluster.NewForT(t, 100, 3, 4, 0)
-	combineTest(t, lock, shares, false, true, noLockModif, []manifestChoice{
+	combineTest(t, lock, shares, false, false, noLockModif, []manifestChoice{
 		ManifestOnly,
 		Both,
 		Both,

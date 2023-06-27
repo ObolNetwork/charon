@@ -3,6 +3,7 @@
 package combine
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -210,10 +211,10 @@ func loadManifest(ctx context.Context, dir string, noverify bool) (*manifestpb.C
 	var (
 		possibleValKeysDir []string
 		lastCluster        *manifestpb.Cluster
-		didReadLegacyLock  bool
+		lastMutationHash   []byte
 	)
 
-	for idx, sd := range root {
+	for _, sd := range root {
 		if !sd.IsDir() {
 			continue
 		}
@@ -222,18 +223,20 @@ func loadManifest(ctx context.Context, dir string, noverify bool) (*manifestpb.C
 		lockFile := filepath.Join(dir, sd.Name(), "cluster-lock.json")
 		manifestFile := filepath.Join(dir, sd.Name(), "cluster-manifest.pb")
 
-		cl, legacyLockLoaded, err := manifest.Load(manifestFile, lockFile, func(lock cluster.Lock) error {
+		cl, _, err := manifest.Load(manifestFile, lockFile, func(lock cluster.Lock) error {
 			return verifyLock(ctx, lock, noverify)
 		})
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "manifest load error", z.Str("name", sd.Name()))
 		}
 
-		if (didReadLegacyLock != legacyLockLoaded) && idx != 0 {
-			return nil, nil, errors.New("loaded legacy lock, but not all other directories being combined contain one")
-		}
+		if !noverify {
+			if len(lastMutationHash) != 0 && !bytes.Equal(lastMutationHash, cl.LatestMutationHash) {
+				return nil, nil, errors.New("mismatching last mutation hash")
+			}
 
-		didReadLegacyLock = legacyLockLoaded
+			lastMutationHash = cl.LatestMutationHash
+		}
 
 		// does this directory contains a "validator_keys" directory? if yes continue and add it as a candidate
 		vcdPath := filepath.Join(dir, sd.Name(), "validator_keys")
