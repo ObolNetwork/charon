@@ -187,9 +187,10 @@ func TestRunAddValidators(t *testing.T) {
 		cluster = new(manifestpb.Cluster)
 		require.NoError(t, proto.Unmarshal(b, cluster))
 
-		// The cluster manifest should contain three validators since the original cluster
-		// already had one validator, and we added two more.
+		// The cluster manifest should contain three validators now since the
+		// original cluster already had one validator, and we added two more.
 		require.Equal(t, valCount+2, len(cluster.Validators))
+		require.Equal(t, cluster.InitialMutationHash, lock.LockHash)
 
 		entries, err := os.ReadDir(tmp)
 		require.NoError(t, err)
