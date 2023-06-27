@@ -91,7 +91,7 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 
 func TestCombineAllManifest(t *testing.T) {
 	lock, _, shares := cluster.NewForT(t, 100, 3, 4, 0)
-	combineTest(t, lock, shares, false, false, noLockModif, []ManifestChoice{
+	combineTest(t, lock, shares, false, false, noLockModif, []manifestChoice{
 		ManifestOnly,
 		ManifestOnly,
 		ManifestOnly,
@@ -101,7 +101,7 @@ func TestCombineAllManifest(t *testing.T) {
 
 func TestCombineBothManifestAndLockForAll(t *testing.T) {
 	lock, _, shares := cluster.NewForT(t, 100, 3, 4, 0)
-	combineTest(t, lock, shares, false, false, noLockModif, []ManifestChoice{
+	combineTest(t, lock, shares, false, false, noLockModif, []manifestChoice{
 		Both,
 		Both,
 		Both,
@@ -111,7 +111,7 @@ func TestCombineBothManifestAndLockForAll(t *testing.T) {
 
 func TestCombineBothManifestAndLockForSome(t *testing.T) {
 	lock, _, shares := cluster.NewForT(t, 100, 3, 4, 0)
-	combineTest(t, lock, shares, false, true, noLockModif, []ManifestChoice{
+	combineTest(t, lock, shares, false, true, noLockModif, []manifestChoice{
 		ManifestOnly,
 		Both,
 		Both,
@@ -168,10 +168,10 @@ func TestCombineNoVerifyDifferentValidatorData(t *testing.T) {
 	}, nil)
 }
 
-type ManifestChoice int
+type manifestChoice int
 
 const (
-	ManifestOnly ManifestChoice = iota
+	ManifestOnly manifestChoice = iota
 	LockOnly
 	Both
 )
@@ -217,7 +217,7 @@ func combineTest(
 	noVerify bool,
 	wantErr bool,
 	modifyLockFile func(valIndex int, src cluster.Lock) cluster.Lock,
-	manifestOrLock []ManifestChoice,
+	manifestOrLock []manifestChoice,
 ) {
 	t.Helper()
 
