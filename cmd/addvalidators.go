@@ -48,6 +48,8 @@ type addValidatorsConfig struct {
 type TestConfig struct {
 	// Lock provides the lock explicitly, skips loading from disk.
 	Lock *cluster.Lock
+	// Manifest provides the cluster manifest explicitly, skips loading from disk.
+	Manifest *manifestpb.Cluster
 	// P2PKeys provides the p2p private keys explicitly, skips loading keystores from disk.
 	P2PKeys []*k1.PrivateKey
 }
@@ -207,6 +209,10 @@ func builderRegistration(secret tbls.PrivateKey, pubkey tbls.PublicKey, feeRecip
 // loadClusterManifest returns the cluster manifest from the provided config. It returns true if
 // the cluster was loaded from a legacy lock file.
 func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, bool, error) {
+	if conf.TestConfig.Manifest != nil {
+		return conf.TestConfig.Manifest, false, nil
+	}
+
 	if conf.TestConfig.Lock != nil {
 		m, err := manifest.NewClusterFromLock(*conf.TestConfig.Lock)
 		return m, false, err

@@ -119,39 +119,85 @@ func TestRunAddValidators(t *testing.T) {
 		n        = 3
 		valCount = 1
 	)
-	lock, p2pKeys, _ := cluster.NewForT(t, valCount, n, n, 0)
 
-	tmp := t.TempDir()
-	manifestFile := path.Join(tmp, "cluster-manifest.pb")
-	conf := addValidatorsConfig{
-		NumVals:           1,
-		WithdrawalAddrs:   []string{feeRecipientAddr},
-		FeeRecipientAddrs: []string{feeRecipientAddr},
-		TestConfig: TestConfig{
-			Lock:    &lock,
-			P2PKeys: p2pKeys,
-		},
-		ManifestFile: manifestFile,
-	}
+	t.Run("add validators once", func(t *testing.T) {
+		lock, p2pKeys, _ := cluster.NewForT(t, valCount, n, n, 0)
 
-	err := runAddValidatorsSolo(context.Background(), conf)
-	require.NoError(t, err)
+		tmp := t.TempDir()
+		manifestFile := path.Join(tmp, "cluster-manifest.pb")
 
-	// Verify the new cluster manifest
-	b, err := os.ReadFile(manifestFile)
-	require.NoError(t, err)
+		conf := addValidatorsConfig{
+			NumVals:           1,
+			WithdrawalAddrs:   []string{feeRecipientAddr},
+			FeeRecipientAddrs: []string{feeRecipientAddr},
+			TestConfig: TestConfig{
+				Lock:    &lock,
+				P2PKeys: p2pKeys,
+			},
+			ManifestFile: manifestFile,
+		}
 
-	msg := new(manifestpb.Cluster)
-	require.NoError(t, proto.Unmarshal(b, msg))
-	require.Equal(t, len(msg.Validators), 2) // valCount+1
-	require.Equal(t, msg.Validators[1].FeeRecipientAddress, feeRecipientAddr)
+		err := runAddValidatorsSolo(context.Background(), conf)
+		require.NoError(t, err)
 
-	entries, err := os.ReadDir(tmp)
-	require.NoError(t, err)
-	require.Equal(t, 2, len(entries))
+		// Verify the new cluster manifest
+		b, err := os.ReadFile(manifestFile)
+		require.NoError(t, err)
 
-	require.True(t, strings.Contains(entries[0].Name(), "cluster-manifest-backup"))
-	require.True(t, strings.Contains(entries[1].Name(), "cluster-manifest"))
+		var msg manifestpb.Cluster
+		require.NoError(t, proto.Unmarshal(b, &msg))
+		require.Equal(t, len(msg.Validators), 2) // valCount+1
+		require.Equal(t, msg.Validators[1].FeeRecipientAddress, feeRecipientAddr)
+	})
+
+	t.Run("add validators twice", func(t *testing.T) {
+		lock, p2pKeys, _ := cluster.NewForT(t, valCount, n, n, 0)
+
+		tmp := t.TempDir()
+		manifestFile := path.Join(tmp, "cluster-manifest.pb")
+		conf := addValidatorsConfig{
+			NumVals:           1,
+			WithdrawalAddrs:   []string{feeRecipientAddr},
+			FeeRecipientAddrs: []string{feeRecipientAddr},
+			TestConfig: TestConfig{
+				Lock:    &lock,
+				P2PKeys: p2pKeys,
+			},
+			ManifestFile: manifestFile,
+		}
+
+		// First add one validator
+		require.NoError(t, runAddValidatorsSolo(context.Background(), conf))
+
+		b, err := os.ReadFile(manifestFile)
+		require.NoError(t, err)
+		cluster := new(manifestpb.Cluster)
+		require.NoError(t, proto.Unmarshal(b, cluster))
+		require.Equal(t, cluster.InitialMutationHash, lock.LockHash)
+
+		// Run the second add validators command using cluster manifest output from the first run
+		conf.TestConfig.Lock = nil
+		conf.TestConfig.Manifest = cluster
+
+		// Then add another one
+		require.NoError(t, runAddValidatorsSolo(context.Background(), conf))
+
+		b, err = os.ReadFile(manifestFile)
+		require.NoError(t, err)
+		cluster = new(manifestpb.Cluster)
+		require.NoError(t, proto.Unmarshal(b, cluster))
+
+		// The cluster manifest should contain three validators since the original cluster
+		// already had one validator, and we added two more.
+		require.Equal(t, valCount+2, len(cluster.Validators))
+
+		entries, err := os.ReadDir(tmp)
+		require.NoError(t, err)
+		require.Equal(t, 2, len(entries))
+
+		require.True(t, strings.Contains(entries[0].Name(), "cluster-manifest-backup"))
+		require.True(t, strings.Contains(entries[1].Name(), "cluster-manifest"))
+	})
 }
 
 func TestValidateP2PKeysOrder(t *testing.T) {
