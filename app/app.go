@@ -177,7 +177,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	lockHashHex := hex7(cluster.Hash)
+	lockHashHex := hex7(cluster.InitialMutationHash)
 	tcpNode, err := wireP2P(ctx, life, conf, cluster, p2pKey, lockHashHex)
 	if err != nil {
 		return err
@@ -223,7 +223,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	sender := new(p2p.Sender)
 
-	wirePeerInfo(life, tcpNode, peerIDs, cluster.Hash, sender)
+	wirePeerInfo(life, tcpNode, peerIDs, cluster.InitialMutationHash, sender)
 
 	qbftDebug := newQBFTDebugger()
 
