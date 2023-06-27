@@ -571,7 +571,23 @@ func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Schedu
 	broadcaster core.Broadcaster, validators []*manifestpb.Validator, builderAPI bool,
 	callback func(context.Context, core.Duty, core.PubKey, core.SignedData) error,
 ) error {
-	recaster := bcast.NewRecaster()
+	recaster, err := bcast.NewRecaster(func(ctx context.Context) (map[eth2p0.BLSPubKey]struct{}, error) {
+		valList, err := eth2Cl.ActiveValidators(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		ret := make(map[eth2p0.BLSPubKey]struct{})
+
+		for _, v := range valList {
+			ret[v] = struct{}{}
+		}
+
+		return ret, nil
+	})
+	if err != nil {
+		return errors.Wrap(err, "recaster init")
+	}
 
 	sched.SubscribeSlots(recaster.SlotTicked)
 	sigAgg.Subscribe(recaster.Store)

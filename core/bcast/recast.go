@@ -6,8 +6,10 @@ import (
 	"context"
 	"sync"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -26,17 +28,23 @@ type recastTuple struct {
 }
 
 // NewRecaster returns a new recaster.
-func NewRecaster() *Recaster {
-	return &Recaster{
-		tuples: make(map[core.PubKey]recastTuple),
+func NewRecaster(activeValsFunc func(context.Context) (map[eth2p0.BLSPubKey]struct{}, error)) (*Recaster, error) {
+	if activeValsFunc == nil {
+		return nil, errors.New("active validators provider is nil")
 	}
+
+	return &Recaster{
+		tuples:         make(map[core.PubKey]recastTuple),
+		activeValsFunc: activeValsFunc,
+	}, nil
 }
 
 // Recaster rebroadcasts core.DutyBuilderRegistration aggregate signatures every epoch.
 type Recaster struct {
-	mu     sync.Mutex
-	tuples map[core.PubKey]recastTuple
-	subs   []func(context.Context, core.Duty, core.PubKey, core.SignedData) error
+	mu             sync.Mutex
+	tuples         map[core.PubKey]recastTuple
+	activeValsFunc func(context.Context) (map[eth2p0.BLSPubKey]struct{}, error)
+	subs           []func(context.Context, core.Duty, core.PubKey, core.SignedData) error
 }
 
 // Subscribe subscribes to rebroadcasted duties.
@@ -101,8 +109,24 @@ func (r *Recaster) SlotTicked(ctx context.Context, slot core.Slot) error {
 	}
 	r.mu.Unlock()
 
+	activeVals, err := r.activeValsFunc(ctx)
+	if err != nil {
+		return errors.Wrap(err, "get active validator")
+	}
+
 	for pubkey, tuple := range clonedTuples {
 		ctx := log.WithCtx(ctx, z.Any("duty", tuple.duty))
+
+		ethPk, err := pubkey.ToETH2()
+		if err != nil {
+			log.Error(ctx, "Can't convert pubkey to eth2 format", err)
+			continue
+		}
+
+		if _, found := activeVals[ethPk]; !found {
+			continue
+		}
+
 		for _, sub := range clonedSubs {
 			err := sub(ctx, tuple.duty, pubkey, tuple.aggData)
 			if err != nil {
