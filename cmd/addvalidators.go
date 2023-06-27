@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -38,7 +39,6 @@ type addValidatorsConfig struct {
 
 	Lockfile        string   // Path to the legacy cluster lock file
 	ManifestFile    string   // Path to the cluster manifest file
-	DataDir         string   // Data directory to store cluster manifest backups
 	EnrPrivKeyfiles []string // Paths to node enr private keys
 
 	TestConfig TestConfig
@@ -77,7 +77,6 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 	cmd.Flags().StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each new validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
 	cmd.Flags().StringVar(&config.Lockfile, "lock-file", ".charon/cluster-lock.json", "The path to the legacy cluster lock file defining distributed validator cluster. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
 	cmd.Flags().StringVar(&config.ManifestFile, "manifest-file", ".charon/cluster-manifest.pb", "The path to the cluster manifest file. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
-	cmd.Flags().StringVar(&config.DataDir, "data-dir", ".charon", "The directory where cluster manifest backups are stored.")
 	cmd.Flags().StringSliceVar(&config.EnrPrivKeyfiles, "private-key-files", nil, "Comma separated list of paths to charon enr private key files. This should be in the same order as the operators, ie, first private key file should correspond to the first operator and so on.")
 }
 
@@ -156,7 +155,8 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 
 	// Save manifest backup to disk before overriding manifest file
 	if !isLegacyLock {
-		err = writeManifestBackup(conf.DataDir, manifestBackup)
+		dataDir := filepath.Dir(conf.ManifestFile)
+		err = writeManifestBackup(dataDir, manifestBackup)
 		if err != nil {
 			return err
 		}

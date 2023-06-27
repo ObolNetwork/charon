@@ -132,7 +132,6 @@ func TestRunAddValidators(t *testing.T) {
 			P2PKeys: p2pKeys,
 		},
 		ManifestFile: manifestFile,
-		DataDir:      tmp,
 	}
 
 	err := runAddValidatorsSolo(context.Background(), conf)
@@ -146,6 +145,13 @@ func TestRunAddValidators(t *testing.T) {
 	require.NoError(t, proto.Unmarshal(b, msg))
 	require.Equal(t, len(msg.Validators), 2) // valCount+1
 	require.Equal(t, msg.Validators[1].FeeRecipientAddress, feeRecipientAddr)
+
+	entries, err := os.ReadDir(tmp)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(entries))
+
+	require.True(t, strings.Contains(entries[0].Name(), "cluster-manifest-backup"))
+	require.True(t, strings.Contains(entries[1].Name(), "cluster-manifest"))
 }
 
 func TestValidateP2PKeysOrder(t *testing.T) {
