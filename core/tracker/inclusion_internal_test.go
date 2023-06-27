@@ -5,6 +5,7 @@ package tracker
 import (
 	"context"
 	"math/rand"
+	"sort"
 	"testing"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -90,12 +91,16 @@ func TestInclusion(t *testing.T) {
 	// Create some duties
 	att1 := testutil.RandomAttestation()
 	att1Duty := core.NewAttesterDuty(int64(att1.Data.Slot))
+
 	agg2 := testutil.RandomSignedAggregateAndProof()
 	agg2Duty := core.NewAggregatorDuty(int64(agg2.Message.Aggregate.Data.Slot))
+
 	att3 := testutil.RandomAttestation()
 	att3Duty := core.NewAttesterDuty(int64(att3.Data.Slot))
+
 	block4 := testutil.RandomCapellaVersionedSignedBeaconBlock()
 	block4Duty := core.NewProposerDuty(int64(block4.Capella.Message.Slot))
+
 	block5 := testutil.RandomCapellaVersionedSignedBlindedBeaconBlock()
 	block5.Capella.Message.Body.Graffiti = eth2wrap.GetSyntheticGraffiti() // Ignored, not included or missed.
 	block5Duty := core.NewBuilderProposerDuty(int64(block5.Capella.Message.Slot))
@@ -135,8 +140,15 @@ func TestInclusion(t *testing.T) {
 	// Check the block
 	incl.CheckBlock(context.Background(), block)
 
-	// Assert that the 1st and 2nd duty was included
-	require.Equal(t, []core.Duty{att1Duty, agg2Duty}, included)
+	// Assert that the 1st and 2nd duty was included, sort duties to make order deterministic
+	duties := []core.Duty{att1Duty, agg2Duty}
+	sort.Slice(duties, func(i, j int) bool {
+		return duties[i].Type > duties[j].Type
+	})
+	sort.Slice(included, func(i, j int) bool {
+		return included[i].Type > included[j].Type
+	})
+	require.Equal(t, duties, included)
 
 	// Trim the duties
 	incl.Trim(context.Background(), att3Duty.Slot)
