@@ -108,7 +108,7 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 	}
 
 	// Perform a `gen_validators/v0.0.1` mutation using the newly created validators.
-	genVals, err := manifest.NewGenValidators(cluster.Hash, vals)
+	genVals, err := manifest.NewGenValidators(cluster.LatestMutationHash, vals)
 	if err != nil {
 		return errors.Wrap(err, "generate validators")
 	}

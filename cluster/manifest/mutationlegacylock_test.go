@@ -41,7 +41,8 @@ func TestLegacyLock(t *testing.T) {
 	t.Run("cluster", func(t *testing.T) {
 		cluster, err := manifest.Materialise(&manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{legacyLock}})
 		require.NoError(t, err)
-		require.Equal(t, lock.LockHash, cluster.Hash)
+		require.Equal(t, lock.LockHash, cluster.InitialMutationHash)
+		require.Equal(t, lock.LockHash, cluster.LatestMutationHash)
 		testutil.RequireGoldenProto(t, cluster, testutil.WithFilename("TestLegacyLock_cluster.golden"))
 	})
 
