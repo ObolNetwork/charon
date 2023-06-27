@@ -5,7 +5,6 @@ package tracker
 import (
 	"context"
 	"math/rand"
-	"sort"
 	"testing"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -140,15 +139,9 @@ func TestInclusion(t *testing.T) {
 	// Check the block
 	incl.CheckBlock(context.Background(), block)
 
-	// Assert that the 1st and 2nd duty was included, sort duties to make order deterministic
+	// Assert that the 1st and 2nd duty was included
 	duties := []core.Duty{att1Duty, agg2Duty}
-	sort.Slice(duties, func(i, j int) bool {
-		return duties[i].Type > duties[j].Type
-	})
-	sort.Slice(included, func(i, j int) bool {
-		return included[i].Type > included[j].Type
-	})
-	require.Equal(t, duties, included)
+	require.ElementsMatch(t, included, duties)
 
 	// Trim the duties
 	incl.Trim(context.Background(), att3Duty.Slot)
