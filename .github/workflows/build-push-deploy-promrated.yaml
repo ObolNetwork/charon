@@ -51,7 +51,7 @@ jobs:
     - name: Set short git commit SHA
       id: vars
       run: |
-        calculatedSha=$(git rev-parse --short ${{ github.sha }})
+        calculatedSha=$(git rev-parse --short=7 ${{ github.sha }})
         echo "::set-output name=short_sha::$calculatedSha"
 
     - name: Confirm git commit SHA output
