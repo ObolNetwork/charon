@@ -196,11 +196,12 @@ type options struct {
 }
 
 // loadManifest loads a cluster manifest from one of the charon directories contained in dir.
-// It checks that all the directories containing a validator_keys subdirectory contain the same cluster_lock.json file.
+// It checks that all the directories containing a validator_keys subdirectory contain the same manifest file, or lock file.
+// loadManifest gives precedence to the manifest file.
+// loadManifest will fail if some of the directories contain a different set of manifest and lock file.
+// For example, if 3 out of 4 directories contain both manifest and lock file, and the fourth only contains lock, loadManifest will return error.
 // It returns the v1.Cluster read from the manifest, and a list of directories that possibly contains keys.
 func loadManifest(ctx context.Context, dir string, noverify bool) (*manifestpb.Cluster, []string, error) {
-	// TODO(gsora): this function only deals with lock files, waiting for #2334 to be solved.
-
 	root, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "can't read directory")
@@ -209,9 +210,10 @@ func loadManifest(ctx context.Context, dir string, noverify bool) (*manifestpb.C
 	var (
 		possibleValKeysDir []string
 		lastCluster        *manifestpb.Cluster
+		didReadLegacyLock  bool
 	)
 
-	for _, sd := range root {
+	for idx, sd := range root {
 		if !sd.IsDir() {
 			continue
 		}
@@ -220,12 +222,18 @@ func loadManifest(ctx context.Context, dir string, noverify bool) (*manifestpb.C
 		lockFile := filepath.Join(dir, sd.Name(), "cluster-lock.json")
 		manifestFile := filepath.Join(dir, sd.Name(), "cluster-manifest.pb")
 
-		cl, _, err := manifest.Load(manifestFile, lockFile, func(lock cluster.Lock) error {
+		cl, legacyLockLoaded, err := manifest.Load(manifestFile, lockFile, func(lock cluster.Lock) error {
 			return verifyLock(ctx, lock, noverify)
 		})
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "manifest load error", z.Str("name", sd.Name()))
 		}
+
+		if (didReadLegacyLock != legacyLockLoaded) && idx != 0 {
+			return nil, nil, errors.New("loaded legacy lock, but not all other directories being combined contain one")
+		}
+
+		didReadLegacyLock = legacyLockLoaded
 
 		// does this directory contains a "validator_keys" directory? if yes continue and add it as a candidate
 		vcdPath := filepath.Join(dir, sd.Name(), "validator_keys")
