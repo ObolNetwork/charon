@@ -215,7 +215,7 @@ func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, bool, e
 
 	if conf.TestConfig.Lock != nil {
 		m, err := manifest.NewClusterFromLock(*conf.TestConfig.Lock)
-		return m, false, err
+		return m, true, err
 	}
 
 	verifyLock := func(lock cluster.Lock) error {
