@@ -399,13 +399,22 @@ func TestSplitKeys(t *testing.T) {
 }
 
 func TestMultipleAddresses(t *testing.T) {
-	t.Run("insufficient addresses in config", func(t *testing.T) {
+	t.Run("insufficient fee recipient addresses", func(t *testing.T) {
 		err := runCreateCluster(context.Background(), io.Discard, clusterConfig{
 			NumDVs:            4,
 			FeeRecipientAddrs: []string{},
 			WithdrawalAddrs:   []string{},
 		})
-		require.ErrorContains(t, err, "insufficient fee recipient addresses")
+		require.ErrorContains(t, err, "mismatching --num-validators and --fee-recipient-addresses")
+	})
+
+	t.Run("insufficient withdrawal addresses", func(t *testing.T) {
+		err := runCreateCluster(context.Background(), io.Discard, clusterConfig{
+			NumDVs:            1,
+			FeeRecipientAddrs: []string{feeRecipientAddr},
+			WithdrawalAddrs:   []string{},
+		})
+		require.ErrorContains(t, err, "mismatching --num-validators and --withdrawal-addresses")
 	})
 
 	t.Run("insufficient addresses from remote URL", func(t *testing.T) {

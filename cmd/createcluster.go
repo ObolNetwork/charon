@@ -933,11 +933,13 @@ func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) 
 // validateAddresses checks if we have sufficient addresses. It also fills addresses slices if only one is provided.
 func validateAddresses(numVals int, feeRecipientAddrs []string, withdrawalAddrs []string) ([]string, []string, error) {
 	if len(feeRecipientAddrs) != numVals && len(feeRecipientAddrs) != 1 {
-		return nil, nil, errors.New("insufficient fee recipient addresses")
+		return nil, nil, errors.New("mismatching --num-validators and --fee-recipient-addresses",
+			z.Int("num_validators", numVals), z.Int("addresses", len(feeRecipientAddrs)))
 	}
 
 	if len(withdrawalAddrs) != numVals && len(withdrawalAddrs) != 1 {
-		return nil, nil, errors.New("insufficient withdrawal addresses")
+		return nil, nil, errors.New("mismatching --num-validators and --withdrawal-addresses",
+			z.Int("num_validators", numVals), z.Int("addresses", len(withdrawalAddrs)))
 	}
 
 	if len(feeRecipientAddrs) == 1 {
