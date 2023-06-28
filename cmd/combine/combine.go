@@ -211,7 +211,6 @@ func loadManifest(ctx context.Context, dir string, noverify bool) (*manifestpb.C
 	var (
 		possibleValKeysDir []string
 		lastCluster        *manifestpb.Cluster
-		lastMutationHash   []byte
 	)
 
 	for _, sd := range root {
@@ -231,11 +230,9 @@ func loadManifest(ctx context.Context, dir string, noverify bool) (*manifestpb.C
 		}
 
 		if !noverify {
-			if len(lastMutationHash) != 0 && !bytes.Equal(lastMutationHash, cl.LatestMutationHash) {
+			if lastCluster != nil && !bytes.Equal(lastCluster.LatestMutationHash, cl.LatestMutationHash) {
 				return nil, nil, errors.New("mismatching last mutation hash")
 			}
-
-			lastMutationHash = cl.LatestMutationHash
 		}
 
 		// does this directory contains a "validator_keys" directory? if yes continue and add it as a candidate
