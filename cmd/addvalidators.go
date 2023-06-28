@@ -6,7 +6,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
+	"path"
+	"path/filepath"
+	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -78,10 +82,12 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 
 func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err error) {
 	// Read lock file to load cluster manifest
-	cluster, _, err := loadClusterManifest(conf)
+	cluster, isLegacyLock, err := loadClusterManifest(conf)
 	if err != nil {
 		return err
 	}
+
+	manifestBackup := proto.Clone(cluster).(*manifestpb.Cluster)
 
 	if err = validateConf(conf, len(cluster.Operators)); err != nil {
 		return errors.Wrap(err, "validate config")
@@ -147,13 +153,19 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 		return errors.Wrap(err, "transform cluster manifest")
 	}
 
-	// Save backup to disk if cluster loaded from manifest
-	// TODO(xenowits): Write cluster backup, see https://github.com/ObolNetwork/charon/issues/2345.
+	// Save manifest backup to disk before overriding manifest file
+	if !isLegacyLock {
+		dataDir := filepath.Dir(conf.ManifestFile)
+		err = writeManifestBackup(dataDir, manifestBackup)
+		if err != nil {
+			return err
+		}
+	}
 
 	// Save cluster manifest to disk
 	err = writeClusterManifest(conf.ManifestFile, cluster)
 	if err != nil {
-		return errors.Wrap(err, "write cluster manifest")
+		return err
 	}
 
 	return nil
@@ -231,6 +243,22 @@ func writeClusterManifest(filename string, cluster *manifestpb.Cluster) error {
 	err = os.WriteFile(filename, b, 0o644) // Read-write
 	if err != nil {
 		return errors.Wrap(err, "write cluster manifest")
+	}
+
+	return nil
+}
+
+// writeManifestBackup writes the provided cluster in a cluster manifest backup file.
+// The backup files are stored as "cluster-manifest-backup-YYYYMMDDHHMMSS.pb".
+func writeManifestBackup(datadir string, cluster *manifestpb.Cluster) error {
+	currentTime := time.Now().Format("20060102150405")
+	filename := fmt.Sprintf("cluster-manifest-backup-%s.pb", currentTime) // Ex: "cluster-manifest-backup-20060102150405.pb"
+	backupPath := path.Join(datadir, filename)
+
+	// Write backup to disk
+	err := writeClusterManifest(backupPath, cluster)
+	if err != nil {
+		return errors.Wrap(err, "write cluster manifest backup")
 	}
 
 	return nil

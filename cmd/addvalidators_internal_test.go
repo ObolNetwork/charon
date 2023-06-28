@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"path"
+	"strings"
 	"testing"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -122,7 +123,6 @@ func TestRunAddValidators(t *testing.T) {
 
 	tmp := t.TempDir()
 	manifestFile := path.Join(tmp, "cluster-manifest.pb")
-
 	conf := addValidatorsConfig{
 		NumVals:           1,
 		WithdrawalAddrs:   []string{feeRecipientAddr},
@@ -141,10 +141,17 @@ func TestRunAddValidators(t *testing.T) {
 	b, err := os.ReadFile(manifestFile)
 	require.NoError(t, err)
 
-	var msg manifestpb.Cluster
-	require.NoError(t, proto.Unmarshal(b, &msg))
+	msg := new(manifestpb.Cluster)
+	require.NoError(t, proto.Unmarshal(b, msg))
 	require.Equal(t, len(msg.Validators), 2) // valCount+1
 	require.Equal(t, msg.Validators[1].FeeRecipientAddress, feeRecipientAddr)
+
+	entries, err := os.ReadDir(tmp)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(entries))
+
+	require.True(t, strings.Contains(entries[0].Name(), "cluster-manifest-backup"))
+	require.True(t, strings.Contains(entries[1].Name(), "cluster-manifest"))
 }
 
 func TestValidateP2PKeysOrder(t *testing.T) {
@@ -196,4 +203,25 @@ func TestValidateP2PKeysOrder(t *testing.T) {
 		err := validateP2PKeysOrder(p2pKeys, ops)
 		require.ErrorContains(t, err, "invalid p2p key order")
 	})
+}
+
+func TestWriteClusterBackup(t *testing.T) {
+	tmp := t.TempDir()
+	clusterName := "test"
+	c := manifestpb.Cluster{Name: clusterName}
+	require.NoError(t, writeManifestBackup(tmp, &c))
+
+	// Verify if backup file is created
+	entries, err := os.ReadDir(tmp)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(entries))
+	require.True(t, strings.Contains(entries[0].Name(), "cluster-manifest-backup"))
+
+	backupFile := path.Join(tmp, entries[0].Name())
+	b, err := os.ReadFile(backupFile)
+	require.NoError(t, err)
+
+	backup := new(manifestpb.Cluster)
+	require.NoError(t, proto.Unmarshal(b, backup))
+	require.Equal(t, clusterName, backup.Name)
 }
