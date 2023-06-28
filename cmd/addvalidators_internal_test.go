@@ -146,8 +146,9 @@ func TestRunAddValidators(t *testing.T) {
 
 		var msg manifestpb.Cluster
 		require.NoError(t, proto.Unmarshal(b, &msg))
-		require.Equal(t, len(msg.Validators), 2) // valCount+1
+		require.Equal(t, valCount+1, len(msg.Validators))
 		require.Equal(t, msg.Validators[1].FeeRecipientAddress, feeRecipientAddr)
+		require.Equal(t, msg.Validators[1].WithdrawalAddress, feeRecipientAddr)
 	})
 
 	t.Run("add validators twice", func(t *testing.T) {
@@ -179,7 +180,7 @@ func TestRunAddValidators(t *testing.T) {
 		conf.TestConfig.Lock = nil
 		conf.TestConfig.Manifest = cluster
 
-		// Then add another one
+		// Then add the second validator
 		require.NoError(t, runAddValidatorsSolo(context.Background(), conf))
 
 		b, err = os.ReadFile(manifestFile)
