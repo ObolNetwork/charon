@@ -3,6 +3,7 @@
 package combine
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -196,11 +197,12 @@ type options struct {
 }
 
 // loadManifest loads a cluster manifest from one of the charon directories contained in dir.
-// It checks that all the directories containing a validator_keys subdirectory contain the same cluster_lock.json file.
+// It checks that all the directories containing a validator_keys subdirectory contain the same manifest file, or lock file.
+// loadManifest gives precedence to the manifest file.
+// loadManifest will fail if some of the directories contain a different set of manifest and lock file.
+// For example, if 3 out of 4 directories contain both manifest and lock file, and the fourth only contains lock, loadManifest will return error.
 // It returns the v1.Cluster read from the manifest, and a list of directories that possibly contains keys.
 func loadManifest(ctx context.Context, dir string, noverify bool) (*manifestpb.Cluster, []string, error) {
-	// TODO(gsora): this function only deals with lock files, waiting for #2334 to be solved.
-
 	root, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "can't read directory")
@@ -225,6 +227,12 @@ func loadManifest(ctx context.Context, dir string, noverify bool) (*manifestpb.C
 		})
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "manifest load error", z.Str("name", sd.Name()))
+		}
+
+		if !noverify {
+			if lastCluster != nil && !bytes.Equal(lastCluster.LatestMutationHash, cl.LatestMutationHash) {
+				return nil, nil, errors.New("mismatching last mutation hash")
+			}
 		}
 
 		// does this directory contains a "validator_keys" directory? if yes continue and add it as a candidate

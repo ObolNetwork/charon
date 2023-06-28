@@ -12,8 +12,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/manifest"
+	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 	"github.com/obolnetwork/charon/cmd/combine"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
@@ -86,20 +89,50 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestCombineAllManifest(t *testing.T) {
+	lock, _, shares := cluster.NewForT(t, 100, 3, 4, 0)
+	combineTest(t, lock, shares, false, false, noLockModif, []manifestChoice{
+		ManifestOnly,
+		ManifestOnly,
+		ManifestOnly,
+		ManifestOnly,
+	})
+}
+
+func TestCombineBothManifestAndLockForAll(t *testing.T) {
+	lock, _, shares := cluster.NewForT(t, 100, 3, 4, 0)
+	combineTest(t, lock, shares, false, false, noLockModif, []manifestChoice{
+		Both,
+		Both,
+		Both,
+		Both,
+	})
+}
+
+func TestCombineBothManifestAndLockForSome(t *testing.T) {
+	lock, _, shares := cluster.NewForT(t, 100, 3, 4, 0)
+	combineTest(t, lock, shares, false, false, noLockModif, []manifestChoice{
+		ManifestOnly,
+		Both,
+		Both,
+		LockOnly,
+	})
+}
+
 // This test exists because of https://github.com/ObolNetwork/charon/issues/2151.
 func TestCombineLotsOfVals(t *testing.T) {
 	lock, _, shares := cluster.NewForT(t, 100, 3, 4, 0)
-	combineTest(t, lock, shares, false, false, noLockModif)
+	combineTest(t, lock, shares, false, false, noLockModif, nil)
 }
 
 func TestCombine(t *testing.T) {
 	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
-	combineTest(t, lock, shares, false, false, noLockModif)
+	combineTest(t, lock, shares, false, false, noLockModif, nil)
 }
 
 func TestCombineNoVerifyGoodLock(t *testing.T) {
 	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
-	combineTest(t, lock, shares, true, false, noLockModif)
+	combineTest(t, lock, shares, true, false, noLockModif, nil)
 }
 
 func TestCombineNoVerifyBadLock(t *testing.T) {
@@ -110,7 +143,7 @@ func TestCombineNoVerifyBadLock(t *testing.T) {
 		}
 
 		return src
-	})
+	}, nil)
 }
 
 func TestCombineBadLock(t *testing.T) {
@@ -121,7 +154,7 @@ func TestCombineBadLock(t *testing.T) {
 		}
 
 		return src
-	})
+	}, nil)
 }
 
 func TestCombineNoVerifyDifferentValidatorData(t *testing.T) {
@@ -132,7 +165,49 @@ func TestCombineNoVerifyDifferentValidatorData(t *testing.T) {
 		}
 
 		return src
-	})
+	}, nil)
+}
+
+type manifestChoice int
+
+const (
+	ManifestOnly manifestChoice = iota
+	LockOnly
+	Both
+)
+
+func writeManifest(
+	t *testing.T,
+	valIdx int,
+	modifyLockFile func(valIndex int, src cluster.Lock) cluster.Lock,
+	path string,
+	lock cluster.Lock,
+) {
+	t.Helper()
+	legacy, err := manifest.NewLegacyLock(modifyLockFile(valIdx, lock))
+	require.NoError(t, err)
+
+	cluster, err := manifest.Materialise(&manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{legacy}})
+	require.NoError(t, err)
+
+	data, err := proto.Marshal(cluster)
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(filepath.Join(path, "cluster-manifest.pb"), data, 0o755))
+}
+
+func writeLock(
+	t *testing.T,
+	valIdx int,
+	modifyLockFile func(valIndex int, src cluster.Lock) cluster.Lock,
+	path string,
+	lock cluster.Lock,
+) {
+	t.Helper()
+	lf, err := os.OpenFile(filepath.Join(path, "cluster-lock.json"), os.O_WRONLY|os.O_CREATE, 0o755)
+	require.NoError(t, err)
+
+	require.NoError(t, json.NewEncoder(lf).Encode(modifyLockFile(valIdx, lock)))
 }
 
 func combineTest(
@@ -142,6 +217,7 @@ func combineTest(
 	noVerify bool,
 	wantErr bool,
 	modifyLockFile func(valIndex int, src cluster.Lock) cluster.Lock,
+	manifestOrLock []manifestChoice,
 ) {
 	t.Helper()
 
@@ -206,10 +282,21 @@ func combineTest(
 		require.NoError(t, os.Mkdir(vk, 0o755))
 		require.NoError(t, keystore.StoreKeysInsecure(keys, vk, keystore.ConfirmInsecureKeys))
 
-		lf, err := os.OpenFile(filepath.Join(ep, "cluster-lock.json"), os.O_WRONLY|os.O_CREATE, 0o755)
-		require.NoError(t, err)
+		if len(manifestOrLock) == 0 {
+			// default to lockfile
+			writeLock(t, idx, modifyLockFile, ep, lock)
+			continue
+		}
 
-		require.NoError(t, json.NewEncoder(lf).Encode(modifyLockFile(idx, lock)))
+		switch manifestOrLock[idx] {
+		case ManifestOnly:
+			writeManifest(t, idx, modifyLockFile, ep, lock)
+		case LockOnly:
+			writeLock(t, idx, modifyLockFile, ep, lock)
+		case Both:
+			writeManifest(t, idx, modifyLockFile, ep, lock)
+			writeLock(t, idx, modifyLockFile, ep, lock)
+		}
 	}
 
 	err := combine.Combine(context.Background(), dir, od, true, noVerify, combine.WithInsecureKeysForT(t))
