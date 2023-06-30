@@ -14,12 +14,11 @@ type labelSelector func(*pb.MetricFamily) (*pb.Metric, error)
 
 // maxLabel returns the metric with the highest value.
 func maxLabel(metricsFam *pb.MetricFamily) *pb.Metric { //nolint: unused // This is used in the future.
-	var max *pb.Metric
+	var (
+		max  float64
+		resp *pb.Metric
+	)
 	for _, metric := range metricsFam.Metric {
-		if max == nil {
-			max = metric
-		}
-
 		var val float64
 		switch metricsFam.GetType() {
 		case pb.MetricType_COUNTER:
@@ -30,12 +29,13 @@ func maxLabel(metricsFam *pb.MetricFamily) *pb.Metric { //nolint: unused // This
 			panic("invalid metric type for simple value labelSelector")
 		}
 
-		if val > max.Counter.GetValue() {
-			max = metric
+		if max == 0 || val > max {
+			max = val
+			resp = metric
 		}
 	}
 
-	return max
+	return resp
 }
 
 // countNonZeroLabels counts the number of metrics that have a non-zero value.
@@ -65,12 +65,20 @@ func noLabels(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
 
 // sumLabels returns a selector that sums the values of all metrics that match all of the label pairs.
 func sumLabels(metricsFam *pb.MetricFamily) (*pb.Metric, error) { //nolint: unused // This is used in the future.
-	sum := new(pb.Metric)
-	for _, metric := range metricsFam.Metric {
+	sum := &pb.Metric{
+		TimestampMs: metricsFam.Metric[0].TimestampMs,
+	}
+	for i, metric := range metricsFam.Metric {
 		switch metricsFam.GetType() {
 		case pb.MetricType_COUNTER:
+			if i == 0 {
+				sum.Counter = new(pb.Counter)
+			}
 			*sum.Counter.Value += metric.Counter.GetValue()
 		case pb.MetricType_GAUGE:
+			if i == 0 {
+				sum.Gauge = new(pb.Gauge)
+			}
 			*sum.Gauge.Value += metric.Gauge.GetValue()
 		case pb.MetricType_HISTOGRAM:
 			return nil, errors.New("histogram sum not implemented yet")
