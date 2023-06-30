@@ -25,13 +25,15 @@ import (
 )
 
 const (
-	period                  = time.Minute
+	period = time.Minute
+
+	protocolID1 protocol.ID = "/charon/peerinfo/1.0.0"
 	protocolID2 protocol.ID = "/charon/peerinfo/2.0.0"
 )
 
 // Protocols returns the supported protocols of this package in order of precedence.
 func Protocols() []protocol.ID {
-	return []protocol.ID{protocolID2}
+	return []protocol.ID{protocolID2, protocolID1}
 }
 
 type (
@@ -80,7 +82,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, loc
 	startTime := timestamppb.New(nowFunc())
 
 	// Register a simple handler that returns our info and ignores the request.
-	registerHandler("peerinfo", tcpNode, protocolID2,
+	registerHandler("peerinfo", tcpNode, protocolID1,
 		func() proto.Message { return new(pbv1.PeerInfo) },
 		func(context.Context, peer.ID, proto.Message) (proto.Message, bool, error) {
 			return &pbv1.PeerInfo{
@@ -91,6 +93,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, loc
 				StartedAt:     startTime,
 			}, true, nil
 		},
+		p2p.WithDelimitedProtocol(protocolID2),
 	)
 
 	// Create log filters
@@ -170,8 +173,8 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			}
 
 			resp := new(pbv1.PeerInfo)
-			err := p.sendFunc(ctx, p.tcpNode, peerID, req, resp, protocolID2,
-				p2p.WithSendReceiveRTT(rttCallback))
+			err := p.sendFunc(ctx, p.tcpNode, peerID, req, resp, protocolID1,
+				p2p.WithSendReceiveRTT(rttCallback), p2p.WithDelimitedProtocol(protocolID2))
 			if err != nil {
 				return // Logging handled by send func.
 			} else if resp.SentAt == nil || resp.StartedAt == nil {

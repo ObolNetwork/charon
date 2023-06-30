@@ -28,12 +28,13 @@ import (
 
 const (
 	recvBuffer  = 100 // Allow buffering some initial messages when this node is late to start an instance.
+	protocolID1 = "/charon/consensus/qbft/1.0.0"
 	protocolID2 = "/charon/consensus/qbft/2.0.0"
 )
 
 // Protocols returns the supported protocols of this package in order of precedence.
 func Protocols() []protocol.ID {
-	return []protocol.ID{protocolID2}
+	return []protocol.ID{protocolID2, protocolID1}
 }
 
 type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) error
@@ -226,9 +227,9 @@ func (c *Component) SubscribePriority(fn func(ctx context.Context, duty core.Dut
 
 // Start registers the libp2p receive handler and starts a goroutine that cleans state. This should only be called once.
 func (c *Component) Start(ctx context.Context) {
-	p2p.RegisterHandler("qbft", c.tcpNode, protocolID2,
+	p2p.RegisterHandler("qbft", c.tcpNode, protocolID1,
 		func() proto.Message { return new(pbv1.ConsensusMsg) },
-		c.handle)
+		c.handle, p2p.WithDelimitedProtocol(protocolID2))
 
 	go func() {
 		for {

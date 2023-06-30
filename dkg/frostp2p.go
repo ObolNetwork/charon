@@ -55,6 +55,7 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, bcastComp
 	p2p.RegisterHandler("frost", tcpNode, round1P2PID,
 		func() proto.Message { return new(pb.FrostRound1P2P) },
 		newP2PCallback(tcpNode, peers, round1P2PRecv, numVals),
+		p2p.WithDelimitedProtocol(round1P2PID),
 	)
 
 	bcastCallback := newBcastCallback(peers, round1CastsRecv, round2CastsRecv, threshold, numVals)
@@ -237,7 +238,7 @@ func (f *frostP2P) Round1(ctx context.Context, castR1 map[msgKey]frost.Round1Bca
 			return nil, nil, errors.New("bug: unexpected p2p message to self")
 		}
 
-		err := p2p.Send(ctx, f.tcpNode, round1P2PID, pID, p2pMsg)
+		err := p2p.Send(ctx, f.tcpNode, round1P2PID, pID, p2pMsg, p2p.WithDelimitedProtocol(round1P2PID))
 		if err != nil {
 			return nil, nil, err
 		}

@@ -24,8 +24,8 @@ func DoOnce(ctx context.Context, tcpNode host.Host, peerID peer.ID) (*pbv1.PeerI
 
 	req := new(pbv1.PeerInfo) //  TODO(corver): Populate request fields and make them required.
 	resp := new(pbv1.PeerInfo)
-	err := p2p.SendReceive(ctx, tcpNode, peerID, req, resp, protocolID2,
-		p2p.WithSendReceiveRTT(rttCallback))
+	err := p2p.SendReceive(ctx, tcpNode, peerID, req, resp, protocolID1,
+		p2p.WithSendReceiveRTT(rttCallback), p2p.WithDelimitedProtocol(protocolID2))
 	if err != nil {
 		return nil, 0, false, err
 	}

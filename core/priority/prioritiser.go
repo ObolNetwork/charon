@@ -37,12 +37,13 @@ import (
 )
 
 const (
+	protocolID1 = "charon/priority/1.1.0"
 	protocolID2 = "charon/priority/2.0.0"
 )
 
 // Protocols returns the supported protocols of this package in order of precedence.
 func Protocols() []protocol.ID {
-	return []protocol.ID{protocolID2}
+	return []protocol.ID{protocolID2, protocolID1}
 }
 
 // Topic groups priorities in an instance.
@@ -117,7 +118,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, minRequired int,
 	})
 
 	// Register prioritiser protocol handler.
-	registerHandlerFunc("priority", tcpNode, protocolID2,
+	registerHandlerFunc("priority", tcpNode, protocolID1,
 		func() proto.Message { return new(pbv1.PriorityMsg) },
 		func(ctx context.Context, pID peer.ID, msg proto.Message) (proto.Message, bool, error) {
 			prioMsg, ok := msg.(*pbv1.PriorityMsg)
@@ -132,7 +133,8 @@ func newInternal(tcpNode host.Host, peers []peer.ID, minRequired int,
 			}
 
 			return resp, true, nil
-		})
+		},
+		p2p.WithDelimitedProtocol(protocolID2))
 
 	return p
 }
@@ -331,7 +333,7 @@ func exchange(ctx context.Context, tcpNode host.Host, peers []peer.ID, msgValida
 
 		go func(pID peer.ID) {
 			response := new(pbv1.PriorityMsg)
-			err := sendFunc(ctx, tcpNode, pID, own, response, protocolID2)
+			err := sendFunc(ctx, tcpNode, pID, own, response, protocolID1, p2p.WithDelimitedProtocol(protocolID2))
 			if err != nil {
 				// No need to log, since transport will do it.
 				return
