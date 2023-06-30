@@ -19,6 +19,7 @@ const (
 	maxScrapes   = 10
 )
 
+// NewChecker returns a new health checker.
 func NewChecker(metadata Metadata, gatherer prometheus.Gatherer) *Checker {
 	return &Checker{
 		metadata:     metadata,
@@ -30,6 +31,7 @@ func NewChecker(metadata Metadata, gatherer prometheus.Gatherer) *Checker {
 	}
 }
 
+// Checker is a health checker.
 type Checker struct {
 	metadata     Metadata
 	checks       []check
@@ -40,6 +42,7 @@ type Checker struct {
 	logFilter    z.Field
 }
 
+// Run runs the health checker until the context is canceled.
 func (c *Checker) Run(ctx context.Context) {
 	ticker := time.NewTicker(c.scrapePeriod)
 	defer ticker.Stop()
@@ -59,6 +62,7 @@ func (c *Checker) Run(ctx context.Context) {
 	}
 }
 
+// Instrument runs all health checks and updates the check gauge.
 func (c *Checker) instrument(ctx context.Context) {
 	for _, check := range c.checks {
 		failing, err := check.Func(c.query, c.metadata)
@@ -76,6 +80,7 @@ func (c *Checker) instrument(ctx context.Context) {
 	}
 }
 
+// scrape scrapes metrics from the gatherer.
 func (c *Checker) scrape() error {
 	metrics, err := c.gatherer.Gather()
 	if err != nil {
