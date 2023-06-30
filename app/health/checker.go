@@ -1,5 +1,6 @@
 // Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
+// Package health provides health checks for the application.
 package health
 
 import (
@@ -15,8 +16,10 @@ import (
 )
 
 const (
+	// scrapePeriod is the period between scrapes.
 	scrapePeriod = 30 * time.Second
-	maxScrapes   = 10
+	// maxScrapes is the maximum number of scrapes to keep.
+	maxScrapes = 10
 )
 
 // NewChecker returns a new health checker.

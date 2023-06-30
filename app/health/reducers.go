@@ -8,6 +8,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
+// counterIncrease returns the increase in a time series of counter metrics.
 func counterIncrease(samples []*pb.Metric) (float64, error) {
 	if len(samples) < 2 {
 		return 0, nil
@@ -23,6 +24,7 @@ func counterIncrease(samples []*pb.Metric) (float64, error) {
 	return last.GetValue() - first.GetValue(), nil
 }
 
+// gaugeMax returns the maximum value in a time series of gauge metrics.
 func gaugeMax(samples []*pb.Metric) (float64, error) {
 	var max float64
 	for _, sample := range samples {
@@ -38,6 +40,7 @@ func gaugeMax(samples []*pb.Metric) (float64, error) {
 	return max, nil
 }
 
+// gaugeMin returns the minimum value in a time series of gauge metrics.
 func gaugeMin(samples []*pb.Metric) (float64, error) {
 	var min float64
 	for _, sample := range samples {

@@ -4,6 +4,7 @@ package health
 
 import pb "github.com/prometheus/client_model/go"
 
+// severity is the severity of a health check.
 type severity string
 
 const (

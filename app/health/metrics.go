@@ -8,12 +8,9 @@ import (
 	"github.com/obolnetwork/charon/app/promauto"
 )
 
-var checkGauge = promauto.NewGaugeVec(
-	prometheus.GaugeOpts{
-		Namespace: "app",
-		Subsystem: "health",
-		Name:      "checks",
-		Help:      "Application health checks by name and severity. Set to 1 for failing, 0 for ok.",
-	},
-	[]string{"severity", "name"},
-)
+var checkGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	Namespace: "app",
+	Subsystem: "health",
+	Name:      "checks",
+	Help:      "Application health checks by name and severity. Set to 1 for failing, 0 for ok.",
+}, []string{"severity", "name"})
