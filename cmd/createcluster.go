@@ -107,7 +107,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
 	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, goerli, gnosis, sepolia.")
 	flags.BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it.")
-	flags.IntVar(&config.NumDVs, "num-validators", 1, "The number of distributed validators needed in the cluster.")
+	flags.IntVar(&config.NumDVs, "num-validators", 0, "The number of distributed validators needed in the cluster.")
 	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Does not re-create deposit data for this key.")
 	flags.StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-existing-keys.")
 	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech", "The URL to publish the lock file to.")
@@ -137,6 +137,11 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	// Ensure sufficient auth tokens are provided for the keymanager addresses
 	if len(conf.KeymanagerAddrs) != len(conf.KeymanagerAuthTokens) {
 		return errors.New("number of --keymanager-addresses do not match --keymanager-auth-tokens. Please fix configuration flags")
+	}
+
+	if conf.SplitKeys && conf.NumDVs == 0 {
+		// set conf.NumDVs to 1 if the user didn't specify num-validators
+		conf.NumDVs = 1
 	}
 
 	var def cluster.Definition
