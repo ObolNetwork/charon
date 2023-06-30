@@ -156,6 +156,7 @@ var checks = []check{
 	},
 }
 
+// l is a concise convenience function to create a label pair.
 func l(name, val string) *pb.LabelPair {
 	return &pb.LabelPair{
 		Name:  &name,
