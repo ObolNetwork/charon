@@ -310,7 +310,7 @@ func cleanNodeDirs(clusterDir string, nodeAmount int) error {
 	for idx := 0; idx < nodeAmount; idx++ {
 		nodeDirPath := path.Join(nodeDir(clusterDir, idx))
 		if err := os.RemoveAll(nodeDirPath); err != nil {
-			return errors.Wrap(err, "remove cluster dir")
+			return errors.Wrap(err, "remove node dir")
 		}
 	}
 
