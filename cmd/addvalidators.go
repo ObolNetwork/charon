@@ -473,7 +473,7 @@ func printPubkeys(ctx context.Context, vals []*manifestpb.Validator) {
 	for _, val := range vals {
 		pk, err := shortPubkey(val.PublicKey)
 		if err != nil {
-			log.Debug(ctx, "Cannot log validator public key")
+			log.Error(ctx, "Cannot log validator public key", err)
 			continue
 		}
 		log.Debug(ctx, "Created new validator", z.Str("pubkey", pk))
