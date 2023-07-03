@@ -66,6 +66,18 @@ func TestSend(t *testing.T) {
 			delimitedOnlyServer: true,
 			delimitedOnlyClient: true,
 		},
+		{
+			name:                "delimited only client and non-delimited server, protocols not supported",
+			delimitedClient:     true,
+			delimitedServer:     false,
+			delimitedOnlyClient: true,
+		},
+		{
+			name:                "non-delimited client and delimited only server, protocols not supported",
+			delimitedClient:     false,
+			delimitedServer:     true,
+			delimitedOnlyServer: true,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -142,6 +154,27 @@ func testSend(t *testing.T, delimitedClient, delimitedServer, delimitedOnlyClien
 		},
 		serverOpt...,
 	)
+
+	protocolNotSupported := func() bool {
+		// Client supports ONLY delimited protocol while Server supports ONLY non-delimited protocol.
+		if getBasicProtoIDClient() == pID2 && !delimitedServer {
+			return true
+		}
+
+		// Server supports ONLY delimited protocol while Client supports ONLY non-delimited protocol.
+		if getBasicProtoIDServer() == pID2 && !delimitedClient {
+			return true
+		}
+
+		return false
+	}
+
+	if protocolNotSupported() {
+		err := p2p.Send(ctx, client, getBasicProtoIDClient(), server.ID(), &pbv1.Duty{Slot: 100}, clientOpt...)
+		require.ErrorContains(t, err, "protocols not supported")
+
+		return
+	}
 
 	t.Run("server error", func(t *testing.T) {
 		err := p2p.Send(ctx, client, getBasicProtoIDClient(), server.ID(), &pbv1.Duty{Slot: -1}, clientOpt...)

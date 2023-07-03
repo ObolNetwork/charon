@@ -21,9 +21,11 @@ import (
 
 func TestSendReceive(t *testing.T) {
 	tests := []struct {
-		name            string
-		delimitedClient bool
-		delimitedServer bool
+		name                string
+		delimitedClient     bool
+		delimitedServer     bool
+		delimitedOnlyClient bool
+		delimitedOnlyServer bool
 	}{
 		{
 			name:            "non-delimited client and server",
@@ -45,15 +47,46 @@ func TestSendReceive(t *testing.T) {
 			delimitedClient: false,
 			delimitedServer: true,
 		},
+		{
+			name:                "delimited only client and delimited server",
+			delimitedClient:     true,
+			delimitedServer:     true,
+			delimitedOnlyClient: true,
+		},
+		{
+			name:                "delimited client and delimited only server",
+			delimitedClient:     true,
+			delimitedServer:     true,
+			delimitedOnlyServer: true,
+		},
+		{
+			name:                "delimited only client and delimited only server",
+			delimitedClient:     true,
+			delimitedServer:     true,
+			delimitedOnlyServer: true,
+			delimitedOnlyClient: true,
+		},
+		{
+			name:                "delimited only client and non-delimited server, protocols not supported",
+			delimitedClient:     true,
+			delimitedServer:     false,
+			delimitedOnlyClient: true,
+		},
+		{
+			name:                "non-delimited client and delimited only server, protocols not supported",
+			delimitedClient:     false,
+			delimitedServer:     true,
+			delimitedOnlyServer: true,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testSendReceive(t, test.delimitedClient, test.delimitedServer)
+			testSendReceive(t, test.delimitedClient, test.delimitedServer, test.delimitedOnlyClient, test.delimitedOnlyServer)
 		})
 	}
 }
 
-func testSendReceive(t *testing.T, delimitedClient, delimitedServer bool) {
+func testSendReceive(t *testing.T, delimitedClient, delimitedServer, delimitedOnlyClient, delimitedOnlyServer bool) {
 	t.Helper()
 
 	var (
@@ -64,6 +97,22 @@ func testSendReceive(t *testing.T, delimitedClient, delimitedServer bool) {
 		server      = testutil.CreateHost(t, testutil.AvailableAddr(t))
 		client      = testutil.CreateHost(t, testutil.AvailableAddr(t))
 	)
+
+	getBasicProtoIDClient := func() protocol.ID {
+		if delimitedClient && delimitedOnlyClient {
+			return pID2
+		}
+
+		return pID1
+	}
+
+	getBasicProtoIDServer := func() protocol.ID {
+		if delimitedServer && delimitedOnlyServer {
+			return pID2
+		}
+
+		return pID1
+	}
 
 	var serverOpt []p2p.SendRecvOption
 	if delimitedServer {
@@ -81,7 +130,7 @@ func testSendReceive(t *testing.T, delimitedClient, delimitedServer bool) {
 	//  - Errors if slot is negative
 	//  - Echos the duty request if slot is even
 	//  - Returns nothing is slot is odd
-	p2p.RegisterHandler("server", server, pID1,
+	p2p.RegisterHandler("server", server, getBasicProtoIDServer(),
 		func() proto.Message { return new(pbv1.Duty) },
 		func(ctx context.Context, peerID peer.ID, req proto.Message) (proto.Message, bool, error) {
 			log.Info(ctx, "See protocol logging field")
@@ -103,9 +152,30 @@ func testSendReceive(t *testing.T, delimitedClient, delimitedServer bool) {
 
 	sendReceive := func(slot int64) (*pbv1.Duty, error) {
 		resp := new(pbv1.Duty)
-		err := p2p.SendReceive(ctx, client, server.ID(), &pbv1.Duty{Slot: slot}, resp, pID1, clientOpt...)
+		err := p2p.SendReceive(ctx, client, server.ID(), &pbv1.Duty{Slot: slot}, resp, getBasicProtoIDClient(), clientOpt...)
 
 		return resp, err
+	}
+
+	protocolNotSupported := func() bool {
+		// Client supports ONLY delimited protocol while Server supports ONLY non-delimited protocol.
+		if getBasicProtoIDClient() == pID2 && !delimitedServer {
+			return true
+		}
+
+		// Server supports ONLY delimited protocol while Client supports ONLY non-delimited protocol.
+		if getBasicProtoIDServer() == pID2 && !delimitedClient {
+			return true
+		}
+
+		return false
+	}
+
+	if protocolNotSupported() {
+		_, err := sendReceive(100)
+		require.ErrorContains(t, err, "protocols not supported")
+
+		return
 	}
 
 	t.Run("server error", func(t *testing.T) {
