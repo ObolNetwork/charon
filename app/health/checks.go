@@ -2,7 +2,9 @@
 
 package health
 
-import pb "github.com/prometheus/client_model/go"
+import (
+	pb "github.com/prometheus/client_model/go"
+)
 
 // severity is the severity of a health check.
 type severity string
@@ -33,7 +35,7 @@ type check struct {
 }
 
 // query abstracts the function to query the metric store returning a selected time series for a given metric name.
-type query func(name string, selector labelSelector) ([]*pb.Metric, error)
+type query func(name string, selector labelSelector, reducer seriesReducer) (float64, error)
 
 // checks is a list of health checks.
 var checks = []check{
@@ -42,12 +44,7 @@ var checks = []check{
 		Description: "Error logs detected that require human intervention.",
 		Severity:    severityCritical,
 		Func: func(q query, _ Metadata) (bool, error) {
-			counts, err := q("app_log_error_total", noLabels)
-			if err != nil {
-				return false, err
-			}
-
-			increase, err := counterIncrease(counts)
+			increase, err := q("app_log_error_total", noLabels, counterIncrease)
 			if err != nil {
 				return false, err
 			}
@@ -60,12 +57,7 @@ var checks = []check{
 		Description: "High rate of warning logs. Please check the logs for more details.",
 		Severity:    severityCritical,
 		Func: func(q query, m Metadata) (bool, error) {
-			counts, err := q("app_log_error_total", noLabels)
-			if err != nil {
-				return false, err
-			}
-
-			increase, err := counterIncrease(counts)
+			increase, err := q("app_log_warning_total", noLabels, counterIncrease)
 			if err != nil {
 				return false, err
 			}
@@ -78,12 +70,7 @@ var checks = []check{
 		Description: "Beacon Node in syncing state.",
 		Severity:    severityCritical,
 		Func: func(q query, m Metadata) (bool, error) {
-			gaugeVals, err := q("app_monitoring_beacon_node_syncing", noLabels)
-			if err != nil {
-				return false, err
-			}
-
-			max, err := gaugeMax(gaugeVals)
+			max, err := q("app_monitoring_beacon_node_syncing", noLabels, gaugeMax)
 			if err != nil {
 				return false, err
 			}
@@ -96,12 +83,7 @@ var checks = []check{
 		Description: "Not connected to at least quorum peers. Check logs for networking issue or coordinate with peers.",
 		Severity:    severityCritical,
 		Func: func(q query, m Metadata) (bool, error) {
-			counts, err := q("p2p_peer_connection_total", countNonZeroLabels)
-			if err != nil {
-				return false, err
-			}
-
-			min, err := gaugeMin(counts)
+			min, err := q("p2p_peer_connection_total", countNonZeroLabels, gaugeMin)
 			if err != nil {
 				return false, err
 			}
@@ -114,12 +96,9 @@ var checks = []check{
 		Description: "Pending validators detected. Activate them to start validating.",
 		Severity:    severityInfo,
 		Func: func(q query, m Metadata) (bool, error) {
-			counts, err := q("core_scheduler_validator_status", countLabels(l("status", "pending")))
-			if err != nil {
-				return false, err
-			}
-
-			max, err := gaugeMax(counts)
+			max, err := q("core_scheduler_validator_status",
+				countLabels(l("status", "pending")),
+				gaugeMax)
 			if err != nil {
 				return false, err
 			}
@@ -132,22 +111,16 @@ var checks = []check{
 		Description: "Proposal failures detected. See <link to troubleshoot proposal failures>.",
 		Severity:    severityWarning,
 		Func: func(q query, m Metadata) (bool, error) {
-			full, err := q("core_tracker_failed_duties_total", selectLabel(l("duty", "proposal")))
+			fullIncrease, err := q("core_tracker_failed_duties_total",
+				selectLabel(l("duty", "proposal")),
+				counterIncrease)
 			if err != nil {
 				return false, err
 			}
 
-			builder, err := q("core_tracker_failed_duties_total", selectLabel(l("duty", "builder_proposal")))
-			if err != nil {
-				return false, err
-			}
-
-			fullIncrease, err := counterIncrease(full)
-			if err != nil {
-				return false, err
-			}
-
-			builderIncrease, err := counterIncrease(builder)
+			builderIncrease, err := q("core_tracker_failed_duties_total",
+				selectLabel(l("duty", "builder_proposal")),
+				counterIncrease)
 			if err != nil {
 				return false, err
 			}

@@ -68,7 +68,7 @@ func (c *Checker) Run(ctx context.Context) {
 // instrument runs all health checks and updates the check gauge.
 func (c *Checker) instrument(ctx context.Context) {
 	for _, check := range c.checks {
-		failing, err := check.Func(c.query, c.metadata)
+		failing, err := check.Func(newQueryFunc(c.metrics), c.metadata)
 		if err != nil {
 			log.Warn(ctx, "Health check failed", err, z.Str("check", check.Name), c.logFilter)
 			// Clear checks that fail
@@ -99,28 +99,35 @@ func (c *Checker) scrape() error {
 	return nil
 }
 
-// query return a selected time series for a provided metric name.
-func (c *Checker) query(name string, selector labelSelector) ([]*pb.Metric, error) {
-	var resp []*pb.Metric
-	for _, fams := range c.metrics {
-		for _, fam := range fams {
-			if fam.GetName() != name {
-				continue
-			} else if len(fam.Metric) == 0 {
-				continue
-			}
-			selected, err := selector(fam)
-			if err != nil {
-				return nil, errors.Wrap(err, "select metric")
-			} else if selected == nil {
-				continue
-			}
+// newQueryFunc return a query function that returns the reduces value from selected time series for a provided metric name.
+func newQueryFunc(metrics [][]*pb.MetricFamily) func(string, labelSelector, seriesReducer) (float64, error) {
+	return func(name string, selector labelSelector, reducer seriesReducer) (float64, error) {
+		var selectedMetrics []*pb.Metric
+		for _, fams := range metrics {
+			for _, fam := range fams {
+				if fam.GetName() != name {
+					continue
+				} else if len(fam.Metric) == 0 {
+					continue
+				}
+				selected, err := selector(fam)
+				if err != nil {
+					return 0, errors.Wrap(err, "label selector")
+				} else if selected == nil {
+					continue
+				}
 
-			resp = append(resp, selected)
+				selectedMetrics = append(selectedMetrics, selected)
 
-			break
+				break
+			}
 		}
-	}
 
-	return resp, nil
+		reducedVal, err := reducer(selectedMetrics)
+		if err != nil {
+			return 0, errors.Wrap(err, "series reducer")
+		}
+
+		return reducedVal, nil
+	}
 }
