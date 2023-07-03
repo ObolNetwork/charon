@@ -141,8 +141,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 
 	var secrets []tbls.PrivateKey
 
-	switch conf.SplitKeys {
-	case true:
+	if conf.SplitKeys {
 		if conf.NumDVs != 0 {
 			return errors.New("can't specify --num-validators with --split-existing-keys. Please fix configuration flags")
 		}
@@ -153,7 +152,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		}
 
 		conf.NumDVs = len(secrets)
-	default:
+	} else {
 		if conf.NumDVs == 0 {
 			return errors.New("missing --num-validators flag")
 		}
