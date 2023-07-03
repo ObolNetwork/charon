@@ -122,17 +122,12 @@ func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
 func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) error {
 	var err error
 
-	absClusterDir, err := filepath.Abs(conf.ClusterDir)
-	if err != nil {
-		return errors.Wrap(err, "obtain absolute path")
-	}
-
 	if conf.Clean {
 		// Remove previous directories
-		if err = os.RemoveAll(absClusterDir); err != nil {
+		if err = os.RemoveAll(conf.ClusterDir); err != nil {
 			return errors.Wrap(err, "remove cluster dir")
 		}
-	} else if _, err = os.Stat(path.Join(nodeDir(absClusterDir, 0), "cluster-lock.json")); err == nil {
+	} else if _, err = os.Stat(path.Join(nodeDir(conf.ClusterDir, 0), "cluster-lock.json")); err == nil {
 		return errors.New("existing cluster found. Try again with --clean")
 	}
 
@@ -307,9 +302,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		writeWarning(w)
 	}
 
-	writeOutput(w, conf.SplitKeys, absClusterDir, numNodes, keysToDisk)
-
-	return nil
+	return writeOutput(w, conf.SplitKeys, conf.ClusterDir, numNodes, keysToDisk)
 }
 
 // signDepositDatas returns Distributed Validator pubkeys and deposit data signatures corresponding to each pubkey.
@@ -760,12 +753,17 @@ func newPeer(clusterDir string, peerIdx int) (enr.Record, *k1.PrivateKey, error)
 }
 
 // writeOutput writes the cluster generation output.
-func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int, keysToDisk bool) {
+func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int, keysToDisk bool) error {
+	absClusterDir, err := filepath.Abs(clusterDir)
+	if err != nil {
+		return errors.Wrap(err, "obtain absolute path")
+	}
+
 	var sb strings.Builder
 	_, _ = sb.WriteString("Created charon cluster:\n")
 	_, _ = sb.WriteString(fmt.Sprintf(" --split-existing-keys=%v\n", splitKeys))
 	_, _ = sb.WriteString("\n")
-	_, _ = sb.WriteString(strings.TrimSuffix(clusterDir, "/") + "/\n")
+	_, _ = sb.WriteString(strings.TrimSuffix(absClusterDir, "/") + "/\n")
 	_, _ = sb.WriteString(fmt.Sprintf("├─ node[0-%d]/\t\t\tDirectory for each node\n", numNodes-1))
 	_, _ = sb.WriteString("│  ├─ charon-enr-private-key\tCharon networking private key for node authentication\n")
 	_, _ = sb.WriteString("│  ├─ cluster-lock.json\t\tCluster lock defines the cluster lock file which is signed by all nodes\n")
@@ -777,6 +775,8 @@ func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int,
 	}
 
 	_, _ = fmt.Fprint(out, sb.String())
+
+	return nil
 }
 
 // nodeDir returns a node directory.
