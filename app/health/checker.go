@@ -65,7 +65,7 @@ func (c *Checker) Run(ctx context.Context) {
 	}
 }
 
-// Instrument runs all health checks and updates the check gauge.
+// instrument runs all health checks and updates the check gauge.
 func (c *Checker) instrument(ctx context.Context) {
 	for _, check := range c.checks {
 		failing, err := check.Func(c.query, c.metadata)
