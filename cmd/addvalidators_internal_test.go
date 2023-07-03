@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path"
 	"strings"
@@ -20,7 +21,6 @@ import (
 
 const (
 	feeRecipientAddr = "0x0000000000000000000000000000000000000000"
-	enrPrivKeyFile   = ".charon/charon-enr-private-key"
 )
 
 func TestValidateConfigAddValidators(t *testing.T) {
@@ -64,17 +64,6 @@ func TestValidateConfigAddValidators(t *testing.T) {
 			errMsg: "fee recipient and withdrawal addresses lengths mismatch",
 		},
 		{
-			name: "insufficient enr private key files",
-			conf: addValidatorsConfig{
-				NumVals:           1,
-				WithdrawalAddrs:   []string{feeRecipientAddr},
-				FeeRecipientAddrs: []string{feeRecipientAddr},
-				EnrPrivKeyfiles:   []string{enrPrivKeyFile},
-			},
-			numOps: 2,
-			errMsg: "insufficient enr private key files",
-		},
-		{
 			name: "single addr for all validators",
 			conf: addValidatorsConfig{
 				NumVals:           2,
@@ -103,7 +92,7 @@ func TestValidateConfigAddValidators(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateConf(tt.conf, tt.numOps)
+			err := validateConf(tt.conf)
 			if tt.errMsg != "" {
 				require.Equal(t, tt.errMsg, err.Error())
 			} else {
@@ -120,11 +109,19 @@ func TestRunAddValidators(t *testing.T) {
 		valCount = 1
 	)
 
+	var nodeDirnames []string
+	for i := 0; i < n; i++ {
+		nodeDirnames = append(nodeDirnames, fmt.Sprintf("node%d", i))
+	}
+
 	t.Run("add validators once", func(t *testing.T) {
 		lock, p2pKeys, _ := cluster.NewForT(t, valCount, n, n, 0)
 
 		tmp := t.TempDir()
-		manifestFile := path.Join(tmp, "cluster-manifest.pb")
+		for _, dirname := range nodeDirnames {
+			dir := path.Join(tmp, dirname)
+			require.NoError(t, os.Mkdir(dir, 0o777))
+		}
 
 		conf := addValidatorsConfig{
 			NumVals:           1,
@@ -134,14 +131,14 @@ func TestRunAddValidators(t *testing.T) {
 				Lock:    &lock,
 				P2PKeys: p2pKeys,
 			},
-			ManifestFile: manifestFile,
+			ClusterDir: tmp,
 		}
 
 		err := runAddValidatorsSolo(context.Background(), conf)
 		require.NoError(t, err)
 
 		// Verify the new cluster manifest
-		b, err := os.ReadFile(manifestFile)
+		b, err := os.ReadFile(path.Join(tmp, "node0", "cluster-manifest.pb"))
 		require.NoError(t, err)
 
 		var msg manifestpb.Cluster
@@ -155,7 +152,11 @@ func TestRunAddValidators(t *testing.T) {
 		lock, p2pKeys, _ := cluster.NewForT(t, valCount, n, n, 0)
 
 		tmp := t.TempDir()
-		manifestFile := path.Join(tmp, "cluster-manifest.pb")
+		for _, dirname := range nodeDirnames {
+			dir := path.Join(tmp, dirname)
+			require.NoError(t, os.Mkdir(dir, 0o777))
+		}
+
 		conf := addValidatorsConfig{
 			NumVals:           1,
 			WithdrawalAddrs:   []string{feeRecipientAddr},
@@ -164,12 +165,13 @@ func TestRunAddValidators(t *testing.T) {
 				Lock:    &lock,
 				P2PKeys: p2pKeys,
 			},
-			ManifestFile: manifestFile,
+			ClusterDir: tmp,
 		}
 
 		// First add one validator
 		require.NoError(t, runAddValidatorsSolo(context.Background(), conf))
 
+		manifestFile := path.Join(tmp, "node0", "cluster-manifest.pb")
 		b, err := os.ReadFile(manifestFile)
 		require.NoError(t, err)
 		cluster := new(manifestpb.Cluster)
@@ -193,7 +195,7 @@ func TestRunAddValidators(t *testing.T) {
 		require.Equal(t, valCount+2, len(cluster.Validators))
 		require.Equal(t, cluster.InitialMutationHash, lock.LockHash)
 
-		entries, err := os.ReadDir(tmp)
+		entries, err := os.ReadDir(path.Join(tmp, "node0"))
 		require.NoError(t, err)
 		require.Equal(t, 2, len(entries))
 
@@ -256,16 +258,22 @@ func TestValidateP2PKeysOrder(t *testing.T) {
 func TestWriteClusterBackup(t *testing.T) {
 	tmp := t.TempDir()
 	clusterName := "test"
+	numOperators := 3
+	for i := 0; i < numOperators; i++ {
+		dir := path.Join(tmp, fmt.Sprintf("node%d", i))
+		require.NoError(t, os.Mkdir(dir, 0o777))
+	}
+
 	c := manifestpb.Cluster{Name: clusterName}
-	require.NoError(t, writeManifestBackup(tmp, &c))
+	require.NoError(t, writeManifestBackups(tmp, numOperators, &c))
 
 	// Verify if backup file is created
-	entries, err := os.ReadDir(tmp)
+	entries, err := os.ReadDir(path.Join(tmp, "node0"))
 	require.NoError(t, err)
 	require.Equal(t, 1, len(entries))
 	require.True(t, strings.Contains(entries[0].Name(), "cluster-manifest-backup"))
 
-	backupFile := path.Join(tmp, entries[0].Name())
+	backupFile := path.Join(tmp, "node0", entries[0].Name())
 	b, err := os.ReadFile(backupFile)
 	require.NoError(t, err)
 

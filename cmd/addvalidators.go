@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"path/filepath"
 	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -41,9 +40,9 @@ type addValidatorsConfig struct {
 	FeeRecipientAddrs []string   // Fee recipient address of each validator
 	Log               log.Config // Config for logging
 
-	Lockfile        string   // Path to the legacy cluster lock file
-	ManifestFile    string   // Path to the cluster manifest file
-	EnrPrivKeyfiles []string // Paths to node enr private keys
+	Lockfile     string // Path to the legacy cluster lock file
+	ManifestFile string // Path to the cluster manifest file
+	ClusterDir   string // Path to the cluster directory
 
 	TestConfig TestConfig
 }
@@ -86,9 +85,9 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 	cmd.Flags().IntVar(&config.NumVals, "num-validators", 1, "The count of new distributed validators to add in the cluster.")
 	cmd.Flags().StringSliceVar(&config.FeeRecipientAddrs, "fee-recipient-addresses", nil, "Comma separated list of Ethereum addresses of the fee recipient for each new validator. Either provide a single fee recipient address or fee recipient addresses for each validator.")
 	cmd.Flags().StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each new validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
-	cmd.Flags().StringVar(&config.Lockfile, "lock-file", ".charon/cluster-lock.json", "The path to the legacy cluster lock file defining distributed validator cluster. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
-	cmd.Flags().StringVar(&config.ManifestFile, "manifest-file", ".charon/cluster-manifest.pb", "The path to the cluster manifest file. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
-	cmd.Flags().StringSliceVar(&config.EnrPrivKeyfiles, "private-key-files", nil, "Comma separated list of paths to charon enr private key files. This should be in the same order as the operators, ie, first private key file should correspond to the first operator and so on.")
+	cmd.Flags().StringVar(&config.Lockfile, "lock-file", "cluster-lock.json", "The path to the legacy cluster lock file defining distributed validator cluster. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
+	cmd.Flags().StringVar(&config.ManifestFile, "manifest-file", "cluster-manifest.pb", "The path to the cluster manifest file. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
+	cmd.Flags().StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The path to the charon cluster directory. This directory should contain directories for individual charon nodes, ie, node0, node1 and so on.")
 }
 
 func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err error) {
@@ -104,11 +103,11 @@ func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err er
 
 	manifestBackup := proto.Clone(cluster).(*manifestpb.Cluster)
 
-	if err = validateConf(conf, len(cluster.Operators)); err != nil {
+	if err = validateConf(conf); err != nil {
 		return errors.Wrap(err, "validate config")
 	}
 
-	p2pKeys, err := getP2PKeys(conf)
+	p2pKeys, err := getP2PKeys(conf.ClusterDir, len(cluster.Operators), conf.TestConfig)
 	if err != nil {
 		return errors.Wrap(err, "load p2p keys")
 	}
@@ -168,18 +167,17 @@ func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err er
 		return errors.Wrap(err, "transform cluster manifest")
 	}
 
-	// Save manifest backup to disk before overriding manifest file
+	// Save manifest backups to disk before overriding manifest file
 	if !isLegacyLock {
-		dataDir := filepath.Dir(conf.ManifestFile)
-		err = writeManifestBackup(dataDir, manifestBackup)
+		err = writeManifestBackups(conf.ClusterDir, len(cluster.Operators), manifestBackup)
 		if err != nil {
 			return err
 		}
 		log.Debug(ctx, "Saved cluster manifest backup to disk")
 	}
 
-	// Save cluster manifest to disk
-	err = writeClusterManifest(conf.ManifestFile, cluster)
+	// Save cluster manifests to disk
+	err = writeClusterManifests(conf.ClusterDir, len(cluster.Operators), cluster)
 	if err != nil {
 		return err
 	}
@@ -256,40 +254,52 @@ func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, bool, e
 	return cluster, isLegacyLock, nil
 }
 
-// writeClusterManifest writes the provided cluster manifest to disk.
-func writeClusterManifest(filename string, cluster *manifestpb.Cluster) error {
+// writeClusterManifests writes the provided cluster manifest to node directories on disk.
+func writeClusterManifests(clusterDir string, numOps int, cluster *manifestpb.Cluster) error {
 	b, err := proto.Marshal(cluster)
 	if err != nil {
 		return errors.Wrap(err, "marshal proto")
 	}
 
-	//nolint:gosec // File needs to be read-write since the cluster manifest is modified by mutations.
-	err = os.WriteFile(filename, b, 0o644) // Read-write
-	if err != nil {
-		return errors.Wrap(err, "write cluster manifest")
+	// Write cluster manifest to node directories on disk
+	for i := 0; i < numOps; i++ {
+		dir := path.Join(clusterDir, fmt.Sprintf("node%d", i))
+		filename := path.Join(dir, "cluster-manifest.pb")
+		//nolint:gosec // File needs to be read-write since the cluster manifest is modified by mutations.
+		err = os.WriteFile(filename, b, 0o644) // Read-write
+		if err != nil {
+			return errors.Wrap(err, "write cluster manifest")
+		}
 	}
 
 	return nil
 }
 
-// writeManifestBackup writes the provided cluster in a cluster manifest backup file.
+// writeManifestBackups writes the provided cluster as backup to node directories on disk.
 // The backup files are stored as "cluster-manifest-backup-YYYYMMDDHHMMSS.pb".
-func writeManifestBackup(datadir string, cluster *manifestpb.Cluster) error {
+func writeManifestBackups(clusterDir string, numOps int, cluster *manifestpb.Cluster) error {
 	currentTime := time.Now().Format("20060102150405")
 	filename := fmt.Sprintf("cluster-manifest-backup-%s.pb", currentTime) // Ex: "cluster-manifest-backup-20060102150405.pb"
-	backupPath := path.Join(datadir, filename)
-
-	// Write backup to disk
-	err := writeClusterManifest(backupPath, cluster)
+	b, err := proto.Marshal(cluster)
 	if err != nil {
-		return errors.Wrap(err, "write cluster manifest backup")
+		return errors.Wrap(err, "marshal proto")
+	}
+
+	// Write manifest backup to node directories on disk
+	for i := 0; i < numOps; i++ {
+		dir := path.Join(clusterDir, fmt.Sprintf("node%d", i))
+		backupPath := path.Join(dir, filename)
+		err = os.WriteFile(backupPath, b, 0o444) //nolint:gosec, Read-only
+		if err != nil {
+			return errors.Wrap(err, "write manifest backup")
+		}
 	}
 
 	return nil
 }
 
 // validateConf returns an error if the provided validators config fails validation checks.
-func validateConf(conf addValidatorsConfig, numOps int) error {
+func validateConf(conf addValidatorsConfig) error {
 	if conf.NumVals <= 0 {
 		return errors.New("insufficient validator count", z.Int("validators", conf.NumVals))
 	}
@@ -307,14 +317,6 @@ func validateConf(conf addValidatorsConfig, numOps int) error {
 			z.Int("fee_recipients", len(conf.FeeRecipientAddrs)),
 			z.Int("withdrawal_addresses", len(conf.WithdrawalAddrs)),
 		)
-	}
-
-	privKeysCount := len(conf.EnrPrivKeyfiles)
-	if len(conf.TestConfig.P2PKeys) > 0 {
-		privKeysCount = len(conf.TestConfig.P2PKeys)
-	}
-	if privKeysCount != numOps {
-		return errors.New("insufficient enr private key files", z.Int("num_operators", numOps), z.Int("num_keyfiles", len(conf.EnrPrivKeyfiles)))
 	}
 
 	if conf.NumVals > 1 {
@@ -405,13 +407,15 @@ func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsCon
 }
 
 // getP2PKeys returns a list of p2p private keys either by loading from disk or from test config.
-func getP2PKeys(conf addValidatorsConfig) ([]*k1.PrivateKey, error) {
-	if len(conf.TestConfig.P2PKeys) > 0 {
-		return conf.TestConfig.P2PKeys, nil
+func getP2PKeys(clusterDir string, numOps int, testConfig TestConfig) ([]*k1.PrivateKey, error) {
+	if len(testConfig.P2PKeys) > 0 {
+		return testConfig.P2PKeys, nil
 	}
 
 	var p2pKeys []*k1.PrivateKey
-	for _, enrKeyFile := range conf.EnrPrivKeyfiles {
+	for i := 0; i < numOps; i++ {
+		dir := path.Join(clusterDir, fmt.Sprintf("node%d", i))
+		enrKeyFile := path.Join(dir, "charon-enr-private-key")
 		p2pKey, err := k1util.Load(enrKeyFile)
 		if err != nil {
 			return nil, errors.Wrap(err, "load enr private key")
