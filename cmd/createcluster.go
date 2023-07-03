@@ -124,11 +124,11 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 
 	if conf.Clean {
 		// Remove previous directories
-		if err = os.RemoveAll(conf.ClusterDir); err != nil {
-			return errors.Wrap(err, "remove cluster dir")
+		if err = cleanNodeDirs(conf.ClusterDir, conf.NumNodes); err != nil {
+			return err
 		}
-	} else if _, err = os.Stat(path.Join(nodeDir(conf.ClusterDir, 0), "cluster-lock.json")); err == nil {
-		return errors.New("existing cluster found. Try again with --clean")
+	} else if err = detectNodeDirs(conf.ClusterDir, conf.NumNodes); err != nil {
+		return err
 	}
 
 	// Map prater to goerli to ensure backwards compatibility with older cluster definitions and cluster locks.
@@ -303,6 +303,30 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	return writeOutput(w, conf.SplitKeys, conf.ClusterDir, numNodes, keysToDisk)
+}
+
+// cleanNodeDirs deletes all the `nodeX` directories contained in clusterDir.
+func cleanNodeDirs(clusterDir string, nodeAmount int) error {
+	for idx := 0; idx < nodeAmount; idx++ {
+		nodeDirPath := path.Join(nodeDir(clusterDir, idx))
+		if err := os.RemoveAll(nodeDirPath); err != nil {
+			return errors.Wrap(err, "remove cluster dir")
+		}
+	}
+
+	return nil
+}
+
+// detectNodeDirs returns error if there's a `nodeX`-style directory in clusterDir.
+func detectNodeDirs(clusterDir string, nodeAmount int) error {
+	for idx := 0; idx < nodeAmount; idx++ {
+		nodeDirPath := path.Join(nodeDir(clusterDir, idx))
+		if _, err := os.Stat(filepath.Join(nodeDirPath, "cluster-lock.json")); err == nil {
+			return errors.New("found existing node directory, try again with --clean", z.Str("path", nodeDirPath))
+		}
+	}
+
+	return nil
 }
 
 // signDepositDatas returns Distributed Validator pubkeys and deposit data signatures corresponding to each pubkey.

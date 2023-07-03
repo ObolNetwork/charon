@@ -211,6 +211,71 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition)
 	})
 }
 
+func TestCreateClusterCleanFlag(t *testing.T) {
+	cfg := clusterConfig{
+		NumNodes:          4,
+		Threshold:         3,
+		NumDVs:            1,
+		FeeRecipientAddrs: repeatAddr("0x71C7656EC7ab88b098defB751B7401B5f6d8976F", 1),
+		WithdrawalAddrs:   repeatAddr("0x71C7656EC7ab88b098defB751B7401B5f6d8976F", 1),
+		Network:           eth2util.Goerli.Name,
+		Name:              "test",
+	}
+
+	t.Run("double creation without clean fails", func(t *testing.T) {
+		cfg := cfg
+
+		td, err := os.MkdirTemp(t.TempDir(), "createcluster*")
+		require.NoError(t, err)
+
+		cfg.ClusterDir = td
+
+		var buf bytes.Buffer
+		err = runCreateCluster(context.Background(), &buf, cfg)
+		if err != nil {
+			log.Error(context.Background(), "", err)
+		}
+		require.NoError(t, err)
+
+		err = runCreateCluster(context.Background(), &buf, cfg)
+		require.ErrorContains(t, err, "found existing node directory, try again with --clean")
+
+		for idx := 0; idx < cfg.NumNodes; idx++ {
+			nodeDirPath := path.Join(nodeDir(cfg.ClusterDir, idx))
+			_, err = os.Stat(filepath.Join(nodeDirPath, "cluster-lock.json"))
+
+			require.NoError(t, err)
+		}
+	})
+
+	t.Run("double creation with clean succeeds", func(t *testing.T) {
+		cfg := cfg
+
+		td, err := os.MkdirTemp(t.TempDir(), "createcluster*")
+		require.NoError(t, err)
+
+		cfg.ClusterDir = td
+		cfg.Clean = true
+
+		var buf bytes.Buffer
+		err = runCreateCluster(context.Background(), &buf, cfg)
+		if err != nil {
+			log.Error(context.Background(), "", err)
+		}
+		require.NoError(t, err)
+
+		err = runCreateCluster(context.Background(), &buf, cfg)
+		require.NoError(t, err)
+
+		for idx := 0; idx < cfg.NumNodes; idx++ {
+			nodeDirPath := path.Join(nodeDir(cfg.ClusterDir, idx))
+			_, err = os.Stat(filepath.Join(nodeDirPath, "cluster-lock.json"))
+
+			require.NoError(t, err)
+		}
+	})
+}
+
 func TestValidateDef(t *testing.T) {
 	ctx := context.Background()
 	conf := clusterConfig{
