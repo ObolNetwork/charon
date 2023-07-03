@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -97,7 +98,7 @@ func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig)
 
 func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.Name, "name", "", "The cluster name")
-	flags.StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The target folder to create the cluster in.")
+	flags.StringVar(&config.ClusterDir, "cluster-dir", "./", "The target folder to create the cluster in.")
 	flags.StringVar(&config.DefFile, "definition-file", "", "Optional path to a cluster definition file or an HTTP URL. This overrides all other configuration flags.")
 	flags.StringSliceVar(&config.KeymanagerAddrs, "keymanager-addresses", nil, "Comma separated list of keymanager URLs to import validator key shares to. Note that multiple addresses are required, one for each node in the cluster, with node0's keyshares being imported to the first address, node1's keyshares to the second, and so on.")
 	flags.StringSliceVar(&config.KeymanagerAuthTokens, "keymanager-auth-tokens", nil, "Authentication bearer tokens to interact with the keymanager URLs. Don't include the \"Bearer\" symbol, only include the api-token.")
@@ -120,12 +121,18 @@ func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
 
 func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) error {
 	var err error
+
+	absClusterDir, err := filepath.Abs(conf.ClusterDir)
+	if err != nil {
+		return errors.Wrap(err, "obtain absolute path")
+	}
+
 	if conf.Clean {
 		// Remove previous directories
-		if err = os.RemoveAll(conf.ClusterDir); err != nil {
+		if err = os.RemoveAll(absClusterDir); err != nil {
 			return errors.Wrap(err, "remove cluster dir")
 		}
-	} else if _, err = os.Stat(path.Join(nodeDir(conf.ClusterDir, 0), "cluster-lock.json")); err == nil {
+	} else if _, err = os.Stat(path.Join(nodeDir(absClusterDir, 0), "cluster-lock.json")); err == nil {
 		return errors.New("existing cluster found. Try again with --clean")
 	}
 
@@ -300,7 +307,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		writeWarning(w)
 	}
 
-	writeOutput(w, conf.SplitKeys, conf.ClusterDir, numNodes, keysToDisk)
+	writeOutput(w, conf.SplitKeys, absClusterDir, numNodes, keysToDisk)
 
 	return nil
 }
