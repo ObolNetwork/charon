@@ -107,7 +107,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
 	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, goerli, gnosis, sepolia.")
 	flags.BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it.")
-	flags.IntVar(&config.NumDVs, "num-validators", 1, "The number of distributed validators needed in the cluster.")
+	flags.IntVar(&config.NumDVs, "num-validators", 0, "The number of distributed validators needed in the cluster.")
 	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Does not re-create deposit data for this key.")
 	flags.StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-existing-keys.")
 	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech", "The URL to publish the lock file to.")
@@ -139,6 +139,30 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return errors.New("number of --keymanager-addresses do not match --keymanager-auth-tokens. Please fix configuration flags")
 	}
 
+	var secrets []tbls.PrivateKey
+
+	if conf.SplitKeys {
+		if conf.NumDVs != 0 {
+			return errors.New("can't specify --num-validators with --split-existing-keys. Please fix configuration flags")
+		}
+
+		secrets, err = getKeys(conf.SplitKeysDir)
+		if err != nil {
+			return err
+		}
+
+		conf.NumDVs = len(secrets)
+	} else {
+		if conf.NumDVs == 0 {
+			return errors.New("missing --num-validators flag")
+		}
+
+		secrets, err = generateKeys(conf.NumDVs)
+		if err != nil {
+			return err
+		}
+	}
+
 	var def cluster.Definition
 	if conf.DefFile != "" { // Load definition from DefFile
 		def, err = loadDefinition(ctx, conf.DefFile)
@@ -152,52 +176,18 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		}
 	}
 
-	numNodes := len(def.Operators)
+	if def.NumValidators != conf.NumDVs {
+		errTmpl := "provided cluster definition doesn't contain the same amount of validators"
 
-	if !conf.SplitKeys && def.NumValidators == 0 {
-		return errors.New("num-validators cannot be equal to 0")
-	}
+		err := errors.New(errTmpl + " as specified in --num-validators")
+		if conf.SplitKeys {
+			err = errors.New(errTmpl + " contained in --split-keys-dir")
+		}
 
-	// Get root bls secrets
-	secrets, err := getKeys(conf.SplitKeys, conf.SplitKeysDir, def.NumValidators)
-	if err != nil {
 		return err
 	}
 
-	// Check if NumValidators provided in the given definition file mismatches with the number of split-keys provided.
-	if conf.DefFile != "" && conf.SplitKeys && def.NumValidators != len(secrets) {
-		return errors.New("number of keystores provided in split-keys-dir does not matches with NumValidators in the given definition file",
-			z.Int("num-validators", def.NumValidators), z.Int("split-keys-dir", len(secrets)))
-	}
-
-	// Check if provided --num-validators mismatches with the number of secrets obtained from split-keys-dir.
-	if conf.SplitKeys && def.NumValidators != len(secrets) {
-		if def.NumValidators > 1 {
-			return errors.New("num-validators provided is not equal to keystores provided in split-keys-dir",
-				z.Int("num-validators", def.NumValidators), z.Int("split-keys", len(secrets)))
-		}
-
-		// Override definition according to the secrets obtained from split-keys-dir if num-validators are 0 or 1 (default).
-		def.NumValidators = len(secrets)
-		feeRecipientAddrs, withdrawalAddrs, err := validateAddresses(def.NumValidators, conf.FeeRecipientAddrs, conf.WithdrawalAddrs)
-		if err != nil {
-			return err
-		}
-
-		def.ValidatorAddresses = []cluster.ValidatorAddresses{}
-		for i := 0; i < def.NumValidators; i++ {
-			def.ValidatorAddresses = append(def.ValidatorAddresses, cluster.ValidatorAddresses{
-				FeeRecipientAddress: feeRecipientAddrs[i],
-				WithdrawalAddress:   withdrawalAddrs[i],
-			})
-		}
-
-		// Update config and definition hash.
-		def, err = def.SetDefinitionHashes()
-		if err != nil {
-			return err
-		}
-	}
+	numNodes := len(def.Operators)
 
 	// Validate definition
 	err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
@@ -453,21 +443,22 @@ func writeWarning(w io.Writer) {
 	_, _ = w.Write([]byte(sb.String()))
 }
 
-// getKeys fetches secret keys for each distributed validator.
-func getKeys(splitKeys bool, splitKeysDir string, numDVs int) ([]tbls.PrivateKey, error) {
-	if splitKeys {
-		if splitKeysDir == "" {
-			return nil, errors.New("--split-keys-dir required when splitting keys")
-		}
-
-		files, err := keystore.LoadFilesUnordered(splitKeysDir)
-		if err != nil {
-			return nil, err
-		}
-
-		return files.Keys(), nil
+// getKeys fetches secret keys from splitKeysDir.
+func getKeys(splitKeysDir string) ([]tbls.PrivateKey, error) {
+	if splitKeysDir == "" {
+		return nil, errors.New("--split-keys-dir required when splitting keys")
 	}
 
+	files, err := keystore.LoadFilesUnordered(splitKeysDir)
+	if err != nil {
+		return nil, err
+	}
+
+	return files.Keys(), nil
+}
+
+// generateKeys generates numDVs amount of tbls.PrivateKeys.
+func generateKeys(numDVs int) ([]tbls.PrivateKey, error) {
 	var secrets []tbls.PrivateKey
 	for i := 0; i < numDVs; i++ {
 		secret, err := tbls.GenerateSecretKey()
