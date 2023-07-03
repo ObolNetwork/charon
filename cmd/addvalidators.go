@@ -5,6 +5,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -20,10 +21,12 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/k1util"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/manifest"
 	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/eth2util/registration"
@@ -33,9 +36,10 @@ import (
 
 // addValidatorsConfig is config for the `add-validators` command.
 type addValidatorsConfig struct {
-	NumVals           int      // No of validators to add
-	WithdrawalAddrs   []string // Withdrawal address of each validator
-	FeeRecipientAddrs []string // Fee recipient address of each validator
+	NumVals           int        // No of validators to add
+	WithdrawalAddrs   []string   // Withdrawal address of each validator
+	FeeRecipientAddrs []string   // Fee recipient address of each validator
+	Log               log.Config // Config for logging
 
 	Lockfile        string   // Path to the legacy cluster lock file
 	ManifestFile    string   // Path to the cluster manifest file
@@ -63,11 +67,16 @@ func newAddValidatorsCmd(runFunc func(context.Context, addValidatorsConfig) erro
 		Long:  `Creates and adds new validators to a distributed validator cluster. It generates keys for the new validators and also generates a new cluster manifest file with the legacy_lock and add_validators mutations. It is executed by a solo operator cluster.`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := log.InitLogger(config.Log); err != nil {
+				return err
+			}
+
 			return runFunc(cmd.Context(), config)
 		},
 	}
 
 	bindAddValidatorsFlags(cmd, &config)
+	bindLogFlags(cmd.Flags(), &config.Log)
 
 	return cmd
 }
@@ -82,12 +91,16 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 	cmd.Flags().StringSliceVar(&config.EnrPrivKeyfiles, "private-key-files", nil, "Comma separated list of paths to charon enr private key files. This should be in the same order as the operators, ie, first private key file should correspond to the first operator and so on.")
 }
 
-func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err error) {
+func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err error) {
 	// Read lock file to load cluster manifest
 	cluster, isLegacyLock, err := loadClusterManifest(conf)
 	if err != nil {
 		return err
 	}
+	log.Info(ctx, "Cluster manifest loaded",
+		z.Str("cluster_name", cluster.Name),
+		z.Str("cluster_hash", hex7(cluster.InitialMutationHash)),
+		z.Int("num_validators", len(cluster.Validators)))
 
 	manifestBackup := proto.Clone(cluster).(*manifestpb.Cluster)
 
@@ -162,6 +175,7 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 		if err != nil {
 			return err
 		}
+		log.Debug(ctx, "Saved cluster manifest backup to disk")
 	}
 
 	// Save cluster manifest to disk
@@ -169,6 +183,10 @@ func runAddValidatorsSolo(_ context.Context, conf addValidatorsConfig) (err erro
 	if err != nil {
 		return err
 	}
+	log.Debug(ctx, "Saved cluster manifest file to disk")
+
+	printPubkeys(ctx, vals)
+	log.Info(ctx, "Successfully added validators to cluster 🎉")
 
 	return nil
 }
@@ -438,4 +456,36 @@ func repeatAddr(addr string, numVals int) []string {
 	}
 
 	return addrs
+}
+
+// hex7 returns the first 7 (or less) hex chars of the provided bytes.
+func hex7(input []byte) string {
+	resp := hex.EncodeToString(input)
+	if len(resp) <= 7 {
+		return resp
+	}
+
+	return resp[:7]
+}
+
+// printPubkeys prints pubkeys of the newly added validators.
+func printPubkeys(ctx context.Context, vals []*manifestpb.Validator) {
+	for _, val := range vals {
+		pk, err := shortPubkey(val.PublicKey)
+		if err != nil {
+			log.Error(ctx, "Cannot log validator public key", err)
+			continue
+		}
+		log.Debug(ctx, "Created new validator", z.Str("pubkey", pk))
+	}
+}
+
+// shortPubkey returns the short version of the input public key bytes.
+func shortPubkey(input []byte) (string, error) {
+	pubkey, err := core.PubKeyFromBytes(input)
+	if err != nil {
+		return "", errors.Wrap(err, "pubkey from bytes")
+	}
+
+	return pubkey.String(), nil
 }
