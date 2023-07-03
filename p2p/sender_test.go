@@ -19,11 +19,13 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestSendReceive(t *testing.T) {
+func TestSend(t *testing.T) {
 	tests := []struct {
-		name            string
-		delimitedClient bool
-		delimitedServer bool
+		name                string
+		delimitedClient     bool
+		delimitedServer     bool
+		delimitedOnlyClient bool
+		delimitedOnlyServer bool
 	}{
 		{
 			name:            "non-delimited client and server",
@@ -45,15 +47,34 @@ func TestSendReceive(t *testing.T) {
 			delimitedClient: false,
 			delimitedServer: true,
 		},
+		{
+			name:                "delimited only client and delimited server",
+			delimitedClient:     true,
+			delimitedServer:     true,
+			delimitedOnlyClient: true,
+		},
+		{
+			name:                "delimited client and delimited only server",
+			delimitedClient:     true,
+			delimitedServer:     true,
+			delimitedOnlyServer: true,
+		},
+		{
+			name:                "delimited only client and delimited only server",
+			delimitedClient:     true,
+			delimitedServer:     true,
+			delimitedOnlyServer: true,
+			delimitedOnlyClient: true,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testSendReceive(t, test.delimitedClient, test.delimitedServer)
+			testSend(t, test.delimitedClient, test.delimitedServer, test.delimitedOnlyClient, test.delimitedOnlyServer)
 		})
 	}
 }
 
-func testSendReceive(t *testing.T, delimitedClient, delimitedServer bool) {
+func testSend(t *testing.T, delimitedClient, delimitedServer, delimitedOnlyClient, delimitedOnlyServer bool) {
 	t.Helper()
 
 	var (
@@ -64,6 +85,22 @@ func testSendReceive(t *testing.T, delimitedClient, delimitedServer bool) {
 		server      = testutil.CreateHost(t, testutil.AvailableAddr(t))
 		client      = testutil.CreateHost(t, testutil.AvailableAddr(t))
 	)
+
+	getBasicProtoIDClient := func() protocol.ID {
+		if delimitedClient && delimitedOnlyClient {
+			return pID2
+		}
+
+		return pID1
+	}
+
+	getBasicProtoIDServer := func() protocol.ID {
+		if delimitedServer && delimitedOnlyServer {
+			return pID2
+		}
+
+		return pID1
+	}
 
 	var serverOpt []p2p.SendRecvOption
 	if delimitedServer {
@@ -77,11 +114,13 @@ func testSendReceive(t *testing.T, delimitedClient, delimitedServer bool) {
 
 	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
 
+	// Catch server errors.
+	serverErrChan := make(chan error)
+
 	// Register the server handler that either:
 	//  - Errors if slot is negative
-	//  - Echos the duty request if slot is even
-	//  - Returns nothing is slot is odd
-	p2p.RegisterHandler("server", server, pID1,
+	//  - Returns nothing otherwise
+	p2p.RegisterHandler("server", server, getBasicProtoIDServer(),
 		func() proto.Message { return new(pbv1.Duty) },
 		func(ctx context.Context, peerID peer.ID, req proto.Message) (proto.Message, bool, error) {
 			log.Info(ctx, "See protocol logging field")
@@ -90,46 +129,29 @@ func testSendReceive(t *testing.T, delimitedClient, delimitedServer bool) {
 			duty, ok := req.(*pbv1.Duty)
 			require.True(t, ok)
 
+			var err error
+			defer func() {
+				serverErrChan <- err
+			}()
+
 			if duty.Slot < 0 {
-				return nil, false, errNegative
-			} else if duty.Slot%2 == 0 {
-				return duty, true, nil
-			} else {
-				return nil, false, nil
+				err = errNegative
 			}
+
+			return nil, false, err
 		},
 		serverOpt...,
 	)
 
-	sendReceive := func(slot int64) (*pbv1.Duty, error) {
-		resp := new(pbv1.Duty)
-		err := p2p.SendReceive(ctx, client, server.ID(), &pbv1.Duty{Slot: slot}, resp, pID1, clientOpt...)
-
-		return resp, err
-	}
-
 	t.Run("server error", func(t *testing.T) {
-		_, err := sendReceive(-1)
-		if delimitedClient && delimitedServer {
-			require.ErrorContains(t, err, "read response: EOF")
-		} else {
-			require.ErrorContains(t, err, "no or zero response received")
-		}
+		err := p2p.Send(ctx, client, getBasicProtoIDClient(), server.ID(), &pbv1.Duty{Slot: -1}, clientOpt...)
+		require.NoError(t, err)
+		require.ErrorContains(t, <-serverErrChan, "negative slot")
 	})
 
 	t.Run("ok", func(t *testing.T) {
-		slot := int64(100)
-		resp, err := sendReceive(slot)
+		err := p2p.Send(ctx, client, getBasicProtoIDClient(), server.ID(), &pbv1.Duty{Slot: 100}, clientOpt...)
 		require.NoError(t, err)
-		require.Equal(t, slot, resp.Slot)
-	})
-
-	t.Run("empty response", func(t *testing.T) {
-		_, err := sendReceive(101)
-		if delimitedClient && delimitedServer {
-			require.ErrorContains(t, err, "read response: EOF")
-		} else {
-			require.ErrorContains(t, err, "no or zero response received")
-		}
+		require.NoError(t, <-serverErrChan)
 	})
 }
