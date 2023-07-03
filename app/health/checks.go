@@ -34,7 +34,7 @@ type check struct {
 	Func func(query, Metadata) (bool, error)
 }
 
-// query abstracts the function to query the metric store returning a selected time series for a given metric name.
+// query abstracts the function to query the metric store returning a value by reducing the selected time series for a given metric name.
 type query func(name string, selector labelSelector, reducer seriesReducer) (float64, error)
 
 // checks is a list of health checks.
