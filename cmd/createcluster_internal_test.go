@@ -76,11 +76,24 @@ func TestCreateCluster(t *testing.T) {
 			},
 		},
 		{
+			Name:        "missing nodes amount flag",
+			Config:      clusterConfig{},
+			expectedErr: "missing --nodes parameter",
+		},
+		{
+			Name: "missing network flag",
+			Config: clusterConfig{
+				NumNodes: 4,
+			},
+			expectedErr: "missing --network parameter",
+		},
+		{
 			Name: "missing numdvs with no split keys set",
 			Config: clusterConfig{
 				NumNodes:  4,
 				Threshold: 3,
 				NumDVs:    0,
+				Network:   defaultNetwork,
 			},
 			expectedErr: "missing --num-validators flag",
 		},
@@ -91,6 +104,7 @@ func TestCreateCluster(t *testing.T) {
 				Threshold: 3,
 				SplitKeys: true,
 				NumDVs:    1,
+				Network:   defaultNetwork,
 			},
 			expectedErr: "can't specify --num-validators with --split-existing-keys. Please fix configuration flags",
 		},
@@ -106,14 +120,16 @@ func TestCreateCluster(t *testing.T) {
 		{
 			Name: "solo flow definition from disk",
 			Config: clusterConfig{
-				DefFile: defPath,
-				NumDVs:  2,
+				DefFile:  defPath,
+				NumDVs:   2,
+				NumNodes: 4,
 			},
 		},
 		{
 			Name: "solo flow definition from network",
 			Config: clusterConfig{
-				NumDVs: 2,
+				NumDVs:   2,
+				NumNodes: 4,
 			},
 			defFileProvider: func() []byte {
 				data, err := json.Marshal(def)
@@ -125,7 +141,9 @@ func TestCreateCluster(t *testing.T) {
 		{
 			Name: "number of validators in def file differs from --num-validators",
 			Config: clusterConfig{
-				NumDVs: 2,
+				NumDVs:   2,
+				NumNodes: 4,
+				Network:  defaultNetwork,
 			},
 			defFileProvider: func() []byte {
 				def := def
@@ -143,6 +161,8 @@ func TestCreateCluster(t *testing.T) {
 			Name: "number of validators in def file differs from amount of keys in splitkeys",
 			Config: clusterConfig{
 				SplitKeys: true,
+				NumNodes:  4,
+				Network:   defaultNetwork,
 			},
 			defFileProvider: func() []byte {
 				def := def
@@ -195,7 +215,7 @@ func TestCreateCluster(t *testing.T) {
 			test.Config.WithdrawalAddrs = []string{zeroAddress}
 			test.Config.FeeRecipientAddrs = []string{zeroAddress}
 
-			if test.Config.Network == "" {
+			if test.Config.Network == "" && test.expectedErr == "" {
 				test.Config.Network = eth2util.Goerli.Name
 			}
 
@@ -403,7 +423,9 @@ func TestSplitKeys(t *testing.T) {
 			name:         "split keys from local definition with mismatch NumValidators",
 			numSplitKeys: 2,
 			conf: clusterConfig{
-				DefFile: "../cluster/examples/cluster-definition-002.json",
+				DefFile:  "../cluster/examples/cluster-definition-002.json",
+				NumNodes: 4,
+				Network:  defaultNetwork,
 			},
 			expectedErrMsg: "provided cluster definition doesn't contain the same amount of validators contained in --split-keys-dir",
 		},
@@ -413,6 +435,8 @@ func TestSplitKeys(t *testing.T) {
 			conf: clusterConfig{
 				DefFile:    "../cluster/examples/cluster-definition-002.json",
 				ClusterDir: t.TempDir(),
+				NumNodes:   4,
+				Network:    defaultNetwork,
 			},
 		},
 		{
@@ -475,6 +499,8 @@ func TestMultipleAddresses(t *testing.T) {
 	t.Run("insufficient fee recipient addresses", func(t *testing.T) {
 		err := runCreateCluster(context.Background(), io.Discard, clusterConfig{
 			NumDVs:            4,
+			NumNodes:          4,
+			Network:           defaultNetwork,
 			FeeRecipientAddrs: []string{},
 			WithdrawalAddrs:   []string{},
 		})
@@ -484,6 +510,8 @@ func TestMultipleAddresses(t *testing.T) {
 	t.Run("insufficient withdrawal addresses", func(t *testing.T) {
 		err := runCreateCluster(context.Background(), io.Discard, clusterConfig{
 			NumDVs:            1,
+			NumNodes:          4,
+			Network:           defaultNetwork,
 			FeeRecipientAddrs: []string{feeRecipientAddr},
 			WithdrawalAddrs:   []string{},
 		})
@@ -507,7 +535,7 @@ func TestMultipleAddresses(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		err := runCreateCluster(context.Background(), io.Discard, clusterConfig{DefFile: srv.URL, NumNodes: minNodes, NumDVs: 2})
+		err := runCreateCluster(context.Background(), io.Discard, clusterConfig{DefFile: srv.URL, NumNodes: minNodes, NumDVs: 2, Network: defaultNetwork})
 		require.ErrorContains(t, err, "num_validators not matching validators length")
 	})
 }
@@ -565,6 +593,8 @@ func TestKeymanager(t *testing.T) {
 	conf.ClusterDir = t.TempDir()
 
 	t.Run("all successful", func(t *testing.T) {
+		require.NoError(t, os.RemoveAll(conf.ClusterDir))
+
 		// Run create cluster command
 		var buf bytes.Buffer
 		err = runCreateCluster(context.Background(), &buf, conf)
@@ -588,6 +618,8 @@ func TestKeymanager(t *testing.T) {
 	})
 
 	t.Run("some unsuccessful", func(t *testing.T) {
+		require.NoError(t, os.RemoveAll(conf.ClusterDir))
+
 		// Close one server so that request to it fails
 		servers[0].Close()
 
@@ -601,6 +633,8 @@ func TestKeymanager(t *testing.T) {
 	})
 
 	t.Run("lengths don't match", func(t *testing.T) {
+		require.NoError(t, os.RemoveAll(conf.ClusterDir))
+
 		// Construct an incorrect config where len(KeymanagerAuthTokens) = len(KeymanagerAddresses)-1
 		incorrectConf := conf
 		incorrectConf.KeymanagerAuthTokens = incorrectConf.KeymanagerAuthTokens[1:]
