@@ -279,11 +279,11 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 // validateCreateConfig returns an error if any of the provided config parameters are invalid.
 func validateCreateConfig(conf clusterConfig) error {
 	if conf.NumNodes == 0 {
-		return errors.New("missing --nodes parameter")
+		return errors.New("missing --nodes flag")
 	}
 
 	if len(strings.TrimSpace(conf.Network)) == 0 {
-		return errors.New("missing --network parameter")
+		return errors.New("missing --network flag")
 	}
 
 	if err := detectNodeDirs(conf.ClusterDir, conf.NumNodes); err != nil {
