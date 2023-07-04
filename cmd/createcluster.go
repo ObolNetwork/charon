@@ -276,7 +276,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	return writeOutput(w, conf.SplitKeys, conf.ClusterDir, numNodes, keysToDisk)
 }
 
-// validateCreateConfig  eturns an error if any of the provided config parameter is invalid.
+// validateCreateConfig returns an error if any of the provided config parameters are invalid.
 func validateCreateConfig(conf clusterConfig) error {
 	if conf.NumNodes == 0 {
 		return errors.New("missing --nodes parameter")
