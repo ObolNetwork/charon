@@ -78,14 +78,14 @@ func TestCreateCluster(t *testing.T) {
 		{
 			Name:        "missing nodes amount flag",
 			Config:      clusterConfig{},
-			expectedErr: "missing --nodes parameter",
+			expectedErr: "missing --nodes flag",
 		},
 		{
 			Name: "missing network flag",
 			Config: clusterConfig{
 				NumNodes: 4,
 			},
-			expectedErr: "missing --network parameter",
+			expectedErr: "missing --network flag",
 		},
 		{
 			Name: "missing numdvs with no split keys set",
