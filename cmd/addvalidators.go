@@ -167,11 +167,10 @@ func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err er
 		return errors.Wrap(err, "transform cluster manifest")
 	}
 
-	err = saveDepositDatas(conf.ClusterDir, len(cluster.Operators), secrets, vals, cluster.ForkVersion)
+	err = saveDepositDatas(ctx, conf.ClusterDir, len(cluster.Operators), secrets, vals, cluster.ForkVersion)
 	if err != nil {
 		return err
 	}
-	log.Debug(ctx, "Saved deposit data file to disk")
 
 	// Save cluster manifests to disk
 	err = writeClusterManifests(conf.ClusterDir, len(cluster.Operators), cluster)
@@ -274,7 +273,7 @@ func writeClusterManifests(clusterDir string, numOps int, cluster *manifestpb.Cl
 }
 
 // saveDepositDatas creates deposit data for each validator and writes the deposit data to disk for each node.
-func saveDepositDatas(clusterDir string, numOps int, secrets []tbls.PrivateKey, vals []*manifestpb.Validator, forkVersion []byte) error {
+func saveDepositDatas(ctx context.Context, clusterDir string, numOps int, secrets []tbls.PrivateKey, vals []*manifestpb.Validator, forkVersion []byte) error {
 	network, err := eth2util.ForkVersionToNetwork(forkVersion)
 	if err != nil {
 		return errors.Wrap(err, "fork version to network")
@@ -321,6 +320,8 @@ func saveDepositDatas(clusterDir string, numOps int, secrets []tbls.PrivateKey, 
 			return errors.Wrap(err, "write deposit data")
 		}
 	}
+
+	log.Debug(ctx, "Saved deposit data file to disk", z.Str("deposit_data", filename))
 
 	return nil
 }
