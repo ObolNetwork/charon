@@ -9,7 +9,6 @@ import (
 	"path"
 	"strings"
 	"testing"
-	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
@@ -210,10 +209,10 @@ func TestRunAddValidators(t *testing.T) {
 
 		entries, err := os.ReadDir(path.Join(tmp, "node0"))
 		require.NoError(t, err)
-		require.Equal(t, 3, len(entries))
+		require.Equal(t, 2, len(entries))
 
-		require.True(t, strings.Contains(entries[0].Name(), "cluster-manifest-backup"))
-		require.True(t, strings.Contains(entries[1].Name(), "cluster-manifest"))
+		require.True(t, strings.Contains(entries[0].Name(), "cluster-manifest"))
+		require.True(t, strings.Contains(entries[1].Name(), "deposit-data"))
 	})
 }
 
@@ -266,32 +265,4 @@ func TestValidateP2PKeysOrder(t *testing.T) {
 		err := validateP2PKeysOrder(p2pKeys, ops)
 		require.ErrorContains(t, err, "invalid p2p key order")
 	})
-}
-
-func TestWriteClusterBackup(t *testing.T) {
-	tmp := t.TempDir()
-	clusterName := "test"
-	numOperators := 3
-	for i := 0; i < numOperators; i++ {
-		dir := path.Join(tmp, fmt.Sprintf("node%d", i))
-		require.NoError(t, os.Mkdir(dir, 0o777))
-	}
-
-	c := manifestpb.Cluster{Name: clusterName}
-	currTime := time.Now().Format("20060102150405")
-	require.NoError(t, writeManifestBackups(tmp, numOperators, &c, currTime))
-
-	// Verify if backup file is created
-	entries, err := os.ReadDir(path.Join(tmp, "node0"))
-	require.NoError(t, err)
-	require.Equal(t, 1, len(entries))
-	require.True(t, strings.Contains(entries[0].Name(), "cluster-manifest-backup"))
-
-	backupFile := path.Join(tmp, "node0", entries[0].Name())
-	b, err := os.ReadFile(backupFile)
-	require.NoError(t, err)
-
-	backup := new(manifestpb.Cluster)
-	require.NoError(t, proto.Unmarshal(b, backup))
-	require.Equal(t, clusterName, backup.Name)
 }

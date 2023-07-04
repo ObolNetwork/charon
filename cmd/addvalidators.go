@@ -94,7 +94,7 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 
 func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err error) {
 	// Read lock file to load cluster manifest
-	cluster, isLegacyLock, err := loadClusterManifest(conf)
+	cluster, _, err := loadClusterManifest(conf)
 	if err != nil {
 		return err
 	}
@@ -102,8 +102,6 @@ func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err er
 		z.Str("cluster_name", cluster.Name),
 		z.Str("cluster_hash", hex7(cluster.InitialMutationHash)),
 		z.Int("num_validators", len(cluster.Validators)))
-
-	manifestBackup := proto.Clone(cluster).(*manifestpb.Cluster)
 
 	if err = validateConf(conf); err != nil {
 		return errors.Wrap(err, "validate config")
@@ -169,22 +167,11 @@ func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err er
 		return errors.Wrap(err, "transform cluster manifest")
 	}
 
-	currTime := time.Now().Format("20060102150405")
-
-	err = saveDepositDatas(conf.ClusterDir, len(cluster.Operators), secrets, vals, cluster.ForkVersion, currTime)
+	err = saveDepositDatas(conf.ClusterDir, len(cluster.Operators), secrets, vals, cluster.ForkVersion)
 	if err != nil {
 		return err
 	}
 	log.Debug(ctx, "Saved deposit data file to disk")
-
-	// Save manifest backups to disk before overriding manifest file
-	if !isLegacyLock {
-		err = writeManifestBackups(conf.ClusterDir, len(cluster.Operators), manifestBackup, currTime)
-		if err != nil {
-			return err
-		}
-		log.Debug(ctx, "Saved cluster manifest backup to disk")
-	}
 
 	// Save cluster manifests to disk
 	err = writeClusterManifests(conf.ClusterDir, len(cluster.Operators), cluster)
@@ -234,6 +221,7 @@ func builderRegistration(secret tbls.PrivateKey, pubkey tbls.PublicKey, feeRecip
 
 // loadClusterManifest returns the cluster manifest from the provided config. It returns true if
 // the cluster was loaded from a legacy lock file.
+// TODO(xenowits): Refactor to return only (cluster, error).
 func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, bool, error) {
 	if conf.TestConfig.Manifest != nil {
 		return conf.TestConfig.Manifest, false, nil
@@ -285,30 +273,8 @@ func writeClusterManifests(clusterDir string, numOps int, cluster *manifestpb.Cl
 	return nil
 }
 
-// writeManifestBackups writes the provided cluster as backup to node directories on disk.
-// The backup files are stored as "cluster-manifest-backup-YYYYMMDDHHMMSS.pb".
-func writeManifestBackups(clusterDir string, numOps int, cluster *manifestpb.Cluster, currTime string) error {
-	filename := fmt.Sprintf("cluster-manifest-backup-%s.pb", currTime) // Ex: "cluster-manifest-backup-20060102150405.pb"
-	b, err := proto.Marshal(cluster)
-	if err != nil {
-		return errors.Wrap(err, "marshal proto")
-	}
-
-	// Write manifest backup to node directories on disk
-	for i := 0; i < numOps; i++ {
-		dir := path.Join(clusterDir, fmt.Sprintf("node%d", i))
-		backupPath := path.Join(dir, filename)
-		err = os.WriteFile(backupPath, b, 0o444) //nolint:gosec, Read-only
-		if err != nil {
-			return errors.Wrap(err, "write manifest backup")
-		}
-	}
-
-	return nil
-}
-
 // saveDepositDatas creates deposit data for each validator and writes the deposit data to disk for each node.
-func saveDepositDatas(clusterDir string, numOps int, secrets []tbls.PrivateKey, vals []*manifestpb.Validator, forkVersion []byte, currTime string) error {
+func saveDepositDatas(clusterDir string, numOps int, secrets []tbls.PrivateKey, vals []*manifestpb.Validator, forkVersion []byte) error {
 	network, err := eth2util.ForkVersionToNetwork(forkVersion)
 	if err != nil {
 		return errors.Wrap(err, "fork version to network")
@@ -345,7 +311,8 @@ func saveDepositDatas(clusterDir string, numOps int, secrets []tbls.PrivateKey, 
 		return err
 	}
 
-	filename := fmt.Sprintf("deposit-data-%s.pb", currTime) // Ex: "cluster-manifest-backup-20060102150405.pb"
+	currTime := time.Now().Format("20060102150405")
+	filename := fmt.Sprintf("deposit-data-%s.json", currTime) // Ex: "deposit-data-20060102150405.json"
 	for i := 0; i < numOps; i++ {
 		depositPath := filepath.Join(nodeDir(clusterDir, i), filename)
 		//nolint:gosec // File needs to be read-only for everybody
