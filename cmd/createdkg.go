@@ -79,7 +79,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		conf.Network = eth2util.Goerli.Name
 	}
 
-	if err = validateConfig(conf.Threshold, len(conf.OperatorENRs), conf.Network); err != nil {
+	if err = validateDKGConfig(conf.Threshold, len(conf.OperatorENRs), conf.Network); err != nil {
 		return err
 	}
 
@@ -174,8 +174,8 @@ func validateWithdrawalAddrs(addrs []string, network string) error {
 	return nil
 }
 
-// validateConfig returns an error if any of the provided config parameter is invalid.
-func validateConfig(threshold, numOperators int, network string) error {
+// validateDKGConfig returns an error if any of the provided config parameter is invalid.
+func validateDKGConfig(threshold, numOperators int, network string) error {
 	if threshold > numOperators {
 		return errors.New("threshold cannot be greater than length of operators",
 			z.Int("threshold", threshold), z.Int("operators", numOperators))

@@ -180,25 +180,25 @@ func TestValidateWithdrawalAddr(t *testing.T) {
 	})
 }
 
-func TestValidateConfig(t *testing.T) {
+func TestValidateDKGConfig(t *testing.T) {
 	t.Run("invalid threshold", func(t *testing.T) {
 		threshold := 5
 		numOperators := 4
-		err := validateConfig(threshold, numOperators, "")
+		err := validateDKGConfig(threshold, numOperators, "")
 		require.ErrorContains(t, err, "threshold cannot be greater than length of operators")
 	})
 
 	t.Run("insufficient ENRs", func(t *testing.T) {
 		threshold := 1
 		numOperators := 2
-		err := validateConfig(threshold, numOperators, "")
+		err := validateDKGConfig(threshold, numOperators, "")
 		require.ErrorContains(t, err, "insufficient operator ENRs")
 	})
 
 	t.Run("invalid network", func(t *testing.T) {
 		threshold := 3
 		numOperators := 4
-		err := validateConfig(threshold, numOperators, "cosmos")
+		err := validateDKGConfig(threshold, numOperators, "cosmos")
 		require.ErrorContains(t, err, "unsupported network")
 	})
 }
