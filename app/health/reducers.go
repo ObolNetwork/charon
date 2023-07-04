@@ -8,6 +8,9 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
+// seriesReducer is a function that reduces a time series of metrics to a single value.
+type seriesReducer func([]*pb.Metric) (float64, error)
+
 // counterIncrease returns the increase in a time series of counter metrics.
 func counterIncrease(samples []*pb.Metric) (float64, error) {
 	if len(samples) < 2 {
