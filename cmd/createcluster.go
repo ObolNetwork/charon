@@ -306,7 +306,7 @@ func detectNodeDirs(clusterDir string, nodeAmount int) error {
 		}
 
 		if _, err := os.Stat(filepath.Join(absPath, "cluster-lock.json")); err == nil {
-			return errors.New("found existing node directory, please ensure it is deleted before running this command", z.Str("node_path", absPath))
+			return errors.New("existing node directory found, please delete it before running this command", z.Str("node_path", absPath))
 		}
 	}
 
