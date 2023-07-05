@@ -220,7 +220,7 @@ func builderRegistration(secret tbls.PrivateKey, pubkey tbls.PublicKey, feeRecip
 
 // loadClusterManifest returns the cluster manifest from the provided config. It returns true if
 // the cluster was loaded from a legacy lock file.
-// TODO(xenowits): Refactor to return only (cluster, error).
+// TODO(xenowits): Refactor to remove boolean in return values, ie, return only (cluster, error).
 func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, bool, error) {
 	if conf.TestConfig.Manifest != nil {
 		return conf.TestConfig.Manifest, false, nil
@@ -381,26 +381,26 @@ func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsCon
 		// Generate private/public keypair
 		secret, err := tbls.GenerateSecretKey()
 		if err != nil {
-			return []*manifestpb.Validator{}, []tbls.PrivateKey{}, errors.Wrap(err, "generate secret key")
+			return nil, nil, errors.Wrap(err, "generate secret key")
 		}
 		secrets = append(secrets, secret)
 
 		pubkey, err := tbls.SecretToPublicKey(secret)
 		if err != nil {
-			return []*manifestpb.Validator{}, []tbls.PrivateKey{}, errors.Wrap(err, "generate public key")
+			return nil, nil, errors.Wrap(err, "generate public key")
 		}
 
 		// Split private key and generate public keyshares
 		shares, err := tbls.ThresholdSplit(secret, uint(numOps), uint(threshold))
 		if err != nil {
-			return []*manifestpb.Validator{}, []tbls.PrivateKey{}, errors.Wrap(err, "threshold split key")
+			return nil, nil, errors.Wrap(err, "threshold split key")
 		}
 
 		var pubshares [][]byte
 		for _, share := range shares {
 			pubshare, err := tbls.SecretToPublicKey(share)
 			if err != nil {
-				return []*manifestpb.Validator{}, []tbls.PrivateKey{}, errors.Wrap(err, "generate public key")
+				return nil, nil, errors.Wrap(err, "generate public key")
 			}
 
 			pubshares = append(pubshares, pubshare[:])
@@ -408,23 +408,23 @@ func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsCon
 
 		feeRecipientAddr, err := eth2util.ChecksumAddress(conf.FeeRecipientAddrs[i])
 		if err != nil {
-			return []*manifestpb.Validator{}, []tbls.PrivateKey{}, errors.Wrap(err, "invalid fee recipient address")
+			return nil, nil, errors.Wrap(err, "invalid fee recipient address")
 		}
 
 		withdrawalAddr, err := eth2util.ChecksumAddress(conf.WithdrawalAddrs[i])
 		if err != nil {
-			return []*manifestpb.Validator{}, []tbls.PrivateKey{}, errors.Wrap(err, "invalid withdrawal address")
+			return nil, nil, errors.Wrap(err, "invalid withdrawal address")
 		}
 
 		// Generate builder registration
 		builderReg, err := builderRegistration(secret, pubkey, feeRecipientAddr, forkVersion)
 		if err != nil {
-			return []*manifestpb.Validator{}, []tbls.PrivateKey{}, err
+			return nil, nil, err
 		}
 
 		builderRegJSON, err := json.Marshal(builderReg)
 		if err != nil {
-			return []*manifestpb.Validator{}, []tbls.PrivateKey{}, errors.Wrap(err, "marshal builder registration")
+			return nil, nil, errors.Wrap(err, "marshal builder registration")
 		}
 
 		vals = append(vals, &manifestpb.Validator{
