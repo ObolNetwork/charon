@@ -46,8 +46,9 @@ func countNonZeroLabels(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
 	}
 
 	for _, metric := range metricsFam.Metric {
-		if metric.Gauge.GetValue() != 0 {
-			*(gauge.Gauge).Value++
+		if metric.Gauge.GetValue() != 0 || metric.Counter.GetValue() != 0 {
+			incremented := gauge.Gauge.GetValue() + 1
+			gauge.Gauge.Value = &incremented
 		}
 	}
 
@@ -99,7 +100,9 @@ func countLabels(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb
 		}
 		for _, metric := range metricsFam.Metric {
 			if labelsContain(metric.Label, labels) {
-				*count.Gauge.Value++
+				value := metric.Gauge.GetValue() + metric.Counter.GetValue()
+				sum := count.Gauge.GetValue() + value
+				count.Gauge.Value = &sum
 			}
 		}
 

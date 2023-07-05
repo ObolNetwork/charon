@@ -42,19 +42,3 @@ func gaugeMax(samples []*pb.Metric) (float64, error) {
 
 	return max, nil
 }
-
-// gaugeMin returns the minimum value in a time series of gauge metrics.
-func gaugeMin(samples []*pb.Metric) (float64, error) {
-	var min float64
-	for _, sample := range samples {
-		if sample.Gauge == nil {
-			return 0, errors.New("bug: non-gauge metric passed")
-		}
-
-		if sample.Gauge.GetValue() < min {
-			min = sample.Gauge.GetValue()
-		}
-	}
-
-	return min, nil
-}

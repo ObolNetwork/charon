@@ -83,12 +83,12 @@ var checks = []check{
 		Description: "Not connected to at least quorum peers. Check logs for networking issue or coordinate with peers.",
 		Severity:    severityCritical,
 		Func: func(q query, m Metadata) (bool, error) {
-			min, err := q("p2p_peer_connection_total", countNonZeroLabels, gaugeMin)
+			max, err := q("ping_success", countNonZeroLabels, gaugeMax)
 			if err != nil {
 				return false, err
 			}
 
-			return min < float64(m.QuorumPeers), nil
+			return max < float64(m.QuorumPeers), nil
 		},
 	},
 	{
@@ -112,7 +112,7 @@ var checks = []check{
 		Severity:    severityWarning,
 		Func: func(q query, m Metadata) (bool, error) {
 			fullIncrease, err := q("core_tracker_failed_duties_total",
-				selectLabel(l("duty", "proposal")),
+				selectLabel(l("duty", "^proposal$")),
 				counterIncrease)
 			if err != nil {
 				return false, err

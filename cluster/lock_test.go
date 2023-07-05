@@ -3,6 +3,8 @@
 package cluster_test
 
 import (
+	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -11,7 +13,13 @@ import (
 )
 
 func TestVerifyLock(t *testing.T) {
-	lock, _, _ := cluster.NewForT(t, 3, 3, 4, 0)
-	require.NoError(t, lock.Definition.VerifySignatures())
+	b, err := os.ReadFile("/Users/corver/Downloads/cluster-lock (1).json")
+	require.NoError(t, err)
+
+	var lock cluster.Lock
+	err = json.Unmarshal(b, &lock)
+	require.NoError(t, err)
+
+	require.NoError(t, lock.VerifyHashes())
 	require.NoError(t, lock.VerifySignatures())
 }
