@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -27,6 +28,7 @@ import (
 	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/eth2util/registration"
 	"github.com/obolnetwork/charon/tbls"
@@ -92,7 +94,7 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 
 func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err error) {
 	// Read lock file to load cluster manifest
-	cluster, isLegacyLock, err := loadClusterManifest(conf)
+	cluster, _, err := loadClusterManifest(conf)
 	if err != nil {
 		return err
 	}
@@ -100,8 +102,6 @@ func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err er
 		z.Str("cluster_name", cluster.Name),
 		z.Str("cluster_hash", hex7(cluster.InitialMutationHash)),
 		z.Int("num_validators", len(cluster.Validators)))
-
-	manifestBackup := proto.Clone(cluster).(*manifestpb.Cluster)
 
 	if err = validateConf(conf); err != nil {
 		return errors.Wrap(err, "validate config")
@@ -122,7 +122,7 @@ func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err er
 		conf.WithdrawalAddrs = repeatAddr(conf.WithdrawalAddrs[0], conf.NumVals)
 	}
 
-	vals, err := genNewVals(len(cluster.Operators), int(cluster.Threshold), cluster.ForkVersion, conf)
+	vals, secrets, err := genNewVals(len(cluster.Operators), int(cluster.Threshold), cluster.ForkVersion, conf)
 	if err != nil {
 		return err
 	}
@@ -167,13 +167,9 @@ func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err er
 		return errors.Wrap(err, "transform cluster manifest")
 	}
 
-	// Save manifest backups to disk before overriding manifest file
-	if !isLegacyLock {
-		err = writeManifestBackups(conf.ClusterDir, len(cluster.Operators), manifestBackup)
-		if err != nil {
-			return err
-		}
-		log.Debug(ctx, "Saved cluster manifest backup to disk")
+	err = saveDepositDatas(ctx, conf.ClusterDir, len(cluster.Operators), secrets, vals, cluster.ForkVersion)
+	if err != nil {
+		return err
 	}
 
 	// Save cluster manifests to disk
@@ -224,6 +220,7 @@ func builderRegistration(secret tbls.PrivateKey, pubkey tbls.PublicKey, feeRecip
 
 // loadClusterManifest returns the cluster manifest from the provided config. It returns true if
 // the cluster was loaded from a legacy lock file.
+// TODO(xenowits): Refactor to remove boolean in return values, ie, return only (cluster, error).
 func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, bool, error) {
 	if conf.TestConfig.Manifest != nil {
 		return conf.TestConfig.Manifest, false, nil
@@ -275,25 +272,56 @@ func writeClusterManifests(clusterDir string, numOps int, cluster *manifestpb.Cl
 	return nil
 }
 
-// writeManifestBackups writes the provided cluster as backup to node directories on disk.
-// The backup files are stored as "cluster-manifest-backup-YYYYMMDDHHMMSS.pb".
-func writeManifestBackups(clusterDir string, numOps int, cluster *manifestpb.Cluster) error {
-	currentTime := time.Now().Format("20060102150405")
-	filename := fmt.Sprintf("cluster-manifest-backup-%s.pb", currentTime) // Ex: "cluster-manifest-backup-20060102150405.pb"
-	b, err := proto.Marshal(cluster)
+// saveDepositDatas creates deposit data for each validator and writes the deposit data to disk for each node.
+func saveDepositDatas(ctx context.Context, clusterDir string, numOps int, secrets []tbls.PrivateKey, vals []*manifestpb.Validator, forkVersion []byte) error {
+	network, err := eth2util.ForkVersionToNetwork(forkVersion)
 	if err != nil {
-		return errors.Wrap(err, "marshal proto")
+		return errors.Wrap(err, "fork version to network")
 	}
 
-	// Write manifest backup to node directories on disk
-	for i := 0; i < numOps; i++ {
-		dir := path.Join(clusterDir, fmt.Sprintf("node%d", i))
-		backupPath := path.Join(dir, filename)
-		err = os.WriteFile(backupPath, b, 0o444) //nolint:gosec, Read-only
+	var depositDatas []eth2p0.DepositData
+	for i, val := range vals {
+		depositMsg, err := deposit.NewMessage(eth2p0.BLSPubKey(val.PublicKey), val.WithdrawalAddress)
 		if err != nil {
-			return errors.Wrap(err, "write manifest backup")
+			return errors.Wrap(err, "new deposit message")
+		}
+
+		sigRoot, err := deposit.GetMessageSigningRoot(depositMsg, network)
+		if err != nil {
+			return errors.Wrap(err, "get deposit message root")
+		}
+
+		sig, err := tbls.Sign(secrets[i], sigRoot[:])
+		if err != nil {
+			return errors.Wrap(err, "sign deposit message root")
+		}
+
+		depositDatas = append(depositDatas, eth2p0.DepositData{
+			PublicKey:             depositMsg.PublicKey,
+			WithdrawalCredentials: depositMsg.WithdrawalCredentials,
+			Amount:                depositMsg.Amount,
+			Signature:             eth2p0.BLSSignature(sig),
+		})
+	}
+
+	// Serialize the deposit data into bytes
+	bytes, err := deposit.MarshalDepositData(depositDatas, network)
+	if err != nil {
+		return err
+	}
+
+	currTime := time.Now().Format("20060102150405")
+	filename := fmt.Sprintf("deposit-data-%s.json", currTime) // Ex: "deposit-data-20060102150405.json"
+	for i := 0; i < numOps; i++ {
+		depositPath := filepath.Join(nodeDir(clusterDir, i), filename)
+		//nolint:gosec // File needs to be read-only for everybody
+		err = os.WriteFile(depositPath, bytes, 0o444)
+		if err != nil {
+			return errors.Wrap(err, "write deposit data")
 		}
 	}
+
+	log.Debug(ctx, "Saved deposit data file to disk", z.Str("deposit_data", filename))
 
 	return nil
 }
@@ -341,33 +369,38 @@ func validateConf(conf addValidatorsConfig) error {
 	return nil
 }
 
-// genNewVals returns a list of new validators from the provided config.
-func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsConfig) ([]*manifestpb.Validator, error) {
+// genNewVals returns a list of new validators and their corresponding private keys from the provided config.
+func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsConfig) ([]*manifestpb.Validator, []tbls.PrivateKey, error) {
 	// Generate new validators
-	var vals []*manifestpb.Validator
+	var (
+		vals    []*manifestpb.Validator
+		secrets []tbls.PrivateKey
+	)
+
 	for i := 0; i < conf.NumVals; i++ {
 		// Generate private/public keypair
 		secret, err := tbls.GenerateSecretKey()
 		if err != nil {
-			return []*manifestpb.Validator{}, errors.Wrap(err, "generate secret key")
+			return nil, nil, errors.Wrap(err, "generate secret key")
 		}
+		secrets = append(secrets, secret)
 
 		pubkey, err := tbls.SecretToPublicKey(secret)
 		if err != nil {
-			return []*manifestpb.Validator{}, errors.Wrap(err, "generate public key")
+			return nil, nil, errors.Wrap(err, "generate public key")
 		}
 
 		// Split private key and generate public keyshares
 		shares, err := tbls.ThresholdSplit(secret, uint(numOps), uint(threshold))
 		if err != nil {
-			return []*manifestpb.Validator{}, errors.Wrap(err, "threshold split key")
+			return nil, nil, errors.Wrap(err, "threshold split key")
 		}
 
 		var pubshares [][]byte
 		for _, share := range shares {
 			pubshare, err := tbls.SecretToPublicKey(share)
 			if err != nil {
-				return []*manifestpb.Validator{}, errors.Wrap(err, "generate public key")
+				return nil, nil, errors.Wrap(err, "generate public key")
 			}
 
 			pubshares = append(pubshares, pubshare[:])
@@ -375,23 +408,23 @@ func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsCon
 
 		feeRecipientAddr, err := eth2util.ChecksumAddress(conf.FeeRecipientAddrs[i])
 		if err != nil {
-			return []*manifestpb.Validator{}, errors.Wrap(err, "invalid fee recipient address")
+			return nil, nil, errors.Wrap(err, "invalid fee recipient address")
 		}
 
 		withdrawalAddr, err := eth2util.ChecksumAddress(conf.WithdrawalAddrs[i])
 		if err != nil {
-			return []*manifestpb.Validator{}, errors.Wrap(err, "invalid withdrawal address")
+			return nil, nil, errors.Wrap(err, "invalid withdrawal address")
 		}
 
 		// Generate builder registration
 		builderReg, err := builderRegistration(secret, pubkey, feeRecipientAddr, forkVersion)
 		if err != nil {
-			return []*manifestpb.Validator{}, err
+			return nil, nil, err
 		}
 
 		builderRegJSON, err := json.Marshal(builderReg)
 		if err != nil {
-			return []*manifestpb.Validator{}, errors.Wrap(err, "marshal builder registration")
+			return nil, nil, errors.Wrap(err, "marshal builder registration")
 		}
 
 		vals = append(vals, &manifestpb.Validator{
@@ -403,7 +436,7 @@ func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsCon
 		})
 	}
 
-	return vals, nil
+	return vals, secrets, nil
 }
 
 // getP2PKeys returns a list of p2p private keys either by loading from disk or from test config.
