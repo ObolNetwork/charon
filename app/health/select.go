@@ -64,33 +64,6 @@ func noLabels(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
 	return metricsFam.Metric[0], nil
 }
 
-// sumLabels returns a selector that sums the values of all metrics that match all of the label pairs.
-func sumLabels(metricsFam *pb.MetricFamily) (*pb.Metric, error) { //nolint: unused // This is used in the future.
-	sum := &pb.Metric{
-		TimestampMs: metricsFam.Metric[0].TimestampMs,
-	}
-	for i, metric := range metricsFam.Metric {
-		switch metricsFam.GetType() {
-		case pb.MetricType_COUNTER:
-			if i == 0 {
-				sum.Counter = new(pb.Counter)
-			}
-			*sum.Counter.Value += metric.Counter.GetValue()
-		case pb.MetricType_GAUGE:
-			if i == 0 {
-				sum.Gauge = new(pb.Gauge)
-			}
-			*sum.Gauge.Value += metric.Gauge.GetValue()
-		case pb.MetricType_HISTOGRAM:
-			return nil, errors.New("histogram sum not implemented yet")
-		default:
-			return nil, errors.New("invalid metric type")
-		}
-	}
-
-	return sum, nil
-}
-
 // countLabels returns a selector that counts the number of metrics that match all of the label pairs.
 func countLabels(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
 	return func(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
@@ -110,8 +83,31 @@ func countLabels(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb
 	}
 }
 
+// sumLabels returns a selector that sums all metrics that match all of the label pairs.
+func sumLabels(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
+	return func(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
+		if metricsFam.GetType() != pb.MetricType_GAUGE && metricsFam.GetType() != pb.MetricType_COUNTER {
+			return nil, errors.New("bug: unsupported metric type")
+		}
+
+		sum := &pb.Metric{
+			Gauge:       new(pb.Gauge),
+			TimestampMs: metricsFam.Metric[0].TimestampMs,
+		}
+		for _, metric := range metricsFam.Metric {
+			if labelsContain(metric.Label, labels) {
+				value := metric.Gauge.GetValue() + metric.Counter.GetValue()
+				summed := sum.Gauge.GetValue() + value
+				sum.Gauge.Value = &summed
+			}
+		}
+
+		return sum, nil
+	}
+}
+
 // selectLabel returns a selector that returns the first metric that matches all of the label pairs.
-func selectLabel(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
+func selectLabel(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb.Metric, error) { //nolint: unused // This is used in the future.
 	return func(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
 		var found *pb.Metric
 		for _, metric := range metricsFam.Metric {

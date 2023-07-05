@@ -11,20 +11,20 @@ import (
 // seriesReducer is a function that reduces a time series of metrics to a single value.
 type seriesReducer func([]*pb.Metric) (float64, error)
 
-// counterIncrease returns the increase in a time series of counter metrics.
-func counterIncrease(samples []*pb.Metric) (float64, error) {
+// increase returns the increase in a time series of counter metrics.
+func increase(samples []*pb.Metric) (float64, error) {
 	if len(samples) < 2 {
 		return 0, nil
 	}
 
-	first := samples[0].Counter
-	last := samples[len(samples)-1].Counter
-
-	if first == nil || last == nil {
-		return 0, errors.New("bug: non-counter metrics passed")
+	if samples[0].Counter == nil && samples[0].Gauge == nil {
+		return 0, errors.New("bug: unsupported metric passed")
 	}
 
-	return last.GetValue() - first.GetValue(), nil
+	first := samples[0].Counter.GetValue() + samples[0].Gauge.GetValue()
+	last := samples[len(samples)-1].Counter.GetValue() + samples[len(samples)-1].Gauge.GetValue()
+
+	return last - first, nil
 }
 
 // gaugeMax returns the maximum value in a time series of gauge metrics.
