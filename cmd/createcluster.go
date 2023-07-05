@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -97,16 +98,15 @@ func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig)
 
 func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.Name, "name", "", "The cluster name")
-	flags.StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The target folder to create the cluster in.")
+	flags.StringVar(&config.ClusterDir, "cluster-dir", "./", "The target folder to create the cluster in.")
 	flags.StringVar(&config.DefFile, "definition-file", "", "Optional path to a cluster definition file or an HTTP URL. This overrides all other configuration flags.")
 	flags.StringSliceVar(&config.KeymanagerAddrs, "keymanager-addresses", nil, "Comma separated list of keymanager URLs to import validator key shares to. Note that multiple addresses are required, one for each node in the cluster, with node0's keyshares being imported to the first address, node1's keyshares to the second, and so on.")
 	flags.StringSliceVar(&config.KeymanagerAuthTokens, "keymanager-auth-tokens", nil, "Authentication bearer tokens to interact with the keymanager URLs. Don't include the \"Bearer\" symbol, only include the api-token.")
-	flags.IntVarP(&config.NumNodes, "nodes", "", 4, "The number of charon nodes in the cluster. Minimum is 3.")
-	flags.IntVarP(&config.Threshold, "threshold", "", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
+	flags.IntVar(&config.NumNodes, "nodes", 0, "The number of charon nodes in the cluster. Minimum is 3.")
+	flags.IntVar(&config.Threshold, "threshold", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
 	flags.StringSliceVar(&config.FeeRecipientAddrs, "fee-recipient-addresses", nil, "Comma separated list of Ethereum addresses of the fee recipient for each validator. Either provide a single fee recipient address or fee recipient addresses for each validator.")
 	flags.StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
-	flags.StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, goerli, gnosis, sepolia.")
-	flags.BoolVar(&config.Clean, "clean", false, "Delete the cluster directory before generating it.")
+	flags.StringVar(&config.Network, "network", "", "Ethereum network to create validators for. Options: mainnet, goerli, gnosis, sepolia.")
 	flags.IntVar(&config.NumDVs, "num-validators", 0, "The number of distributed validators needed in the cluster.")
 	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Does not re-create deposit data for this key.")
 	flags.StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-existing-keys.")
@@ -120,13 +120,9 @@ func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
 
 func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) error {
 	var err error
-	if conf.Clean {
-		// Remove previous directories
-		if err = os.RemoveAll(conf.ClusterDir); err != nil {
-			return errors.Wrap(err, "remove cluster dir")
-		}
-	} else if _, err = os.Stat(path.Join(nodeDir(conf.ClusterDir, 0), "cluster-lock.json")); err == nil {
-		return errors.New("existing cluster found. Try again with --clean")
+
+	if err = validateCreateConfig(conf); err != nil {
+		return err
 	}
 
 	// Map prater to goerli to ensure backwards compatibility with older cluster definitions and cluster locks.
@@ -134,18 +130,9 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		conf.Network = eth2util.Goerli.Name
 	}
 
-	// Ensure sufficient auth tokens are provided for the keymanager addresses
-	if len(conf.KeymanagerAddrs) != len(conf.KeymanagerAuthTokens) {
-		return errors.New("number of --keymanager-addresses do not match --keymanager-auth-tokens. Please fix configuration flags")
-	}
-
 	var secrets []tbls.PrivateKey
 
 	if conf.SplitKeys {
-		if conf.NumDVs != 0 {
-			return errors.New("can't specify --num-validators with --split-existing-keys. Please fix configuration flags")
-		}
-
 		secrets, err = getKeys(conf.SplitKeysDir)
 		if err != nil {
 			return err
@@ -153,10 +140,6 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 
 		conf.NumDVs = len(secrets)
 	} else {
-		if conf.NumDVs == 0 {
-			return errors.New("missing --num-validators flag")
-		}
-
 		secrets, err = generateKeys(conf.NumDVs)
 		if err != nil {
 			return err
@@ -290,7 +273,53 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		writeWarning(w)
 	}
 
-	writeOutput(w, conf.SplitKeys, conf.ClusterDir, numNodes, keysToDisk)
+	return writeOutput(w, conf.SplitKeys, conf.ClusterDir, numNodes, keysToDisk)
+}
+
+// validateCreateConfig returns an error if any of the provided config parameters are invalid.
+func validateCreateConfig(conf clusterConfig) error {
+	if conf.NumNodes == 0 {
+		return errors.New("missing --nodes flag")
+	}
+
+	if len(strings.TrimSpace(conf.Network)) == 0 {
+		return errors.New("missing --network flag")
+	}
+
+	if err := detectNodeDirs(conf.ClusterDir, conf.NumNodes); err != nil {
+		return err
+	}
+
+	// Ensure sufficient auth tokens are provided for the keymanager addresses
+	if len(conf.KeymanagerAddrs) != len(conf.KeymanagerAuthTokens) {
+		return errors.New("number of --keymanager-addresses do not match --keymanager-auth-tokens. Please fix configuration flags")
+	}
+
+	if conf.SplitKeys {
+		if conf.NumDVs != 0 {
+			return errors.New("can't specify --num-validators with --split-existing-keys. Please fix configuration flags")
+		}
+	} else {
+		if conf.NumDVs == 0 {
+			return errors.New("missing --num-validators flag")
+		}
+	}
+
+	return nil
+}
+
+// detectNodeDirs returns error if there's a `nodeX`-style directory in clusterDir.
+func detectNodeDirs(clusterDir string, nodeAmount int) error {
+	for idx := 0; idx < nodeAmount; idx++ {
+		absPath, err := filepath.Abs(nodeDir(clusterDir, idx))
+		if err != nil {
+			return errors.Wrap(err, "absolute path retrieval")
+		}
+
+		if _, err := os.Stat(filepath.Join(absPath, "cluster-lock.json")); err == nil {
+			return errors.New("existing node directory found, please delete it before running this command", z.Str("node_path", absPath))
+		}
+	}
 
 	return nil
 }
@@ -744,12 +773,17 @@ func newPeer(clusterDir string, peerIdx int) (enr.Record, *k1.PrivateKey, error)
 }
 
 // writeOutput writes the cluster generation output.
-func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int, keysToDisk bool) {
+func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int, keysToDisk bool) error {
+	absClusterDir, err := filepath.Abs(clusterDir)
+	if err != nil {
+		return errors.Wrap(err, "absolute path retrieval")
+	}
+
 	var sb strings.Builder
 	_, _ = sb.WriteString("Created charon cluster:\n")
 	_, _ = sb.WriteString(fmt.Sprintf(" --split-existing-keys=%v\n", splitKeys))
 	_, _ = sb.WriteString("\n")
-	_, _ = sb.WriteString(strings.TrimSuffix(clusterDir, "/") + "/\n")
+	_, _ = sb.WriteString(strings.TrimSuffix(absClusterDir, "/") + "/\n")
 	_, _ = sb.WriteString(fmt.Sprintf("├─ node[0-%d]/\t\t\tDirectory for each node\n", numNodes-1))
 	_, _ = sb.WriteString("│  ├─ charon-enr-private-key\tCharon networking private key for node authentication\n")
 	_, _ = sb.WriteString("│  ├─ cluster-lock.json\t\tCluster lock defines the cluster lock file which is signed by all nodes\n")
@@ -761,6 +795,8 @@ func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int,
 	}
 
 	_, _ = fmt.Fprint(out, sb.String())
+
+	return nil
 }
 
 // nodeDir returns a node directory.
