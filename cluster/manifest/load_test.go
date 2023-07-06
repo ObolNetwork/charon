@@ -50,7 +50,6 @@ func TestLoad(t *testing.T) {
 		name           string
 		manifestFile   string
 		legacyLockFile string
-		isLegacyLock   bool
 		errorMsg       string
 	}{
 		{
@@ -64,7 +63,6 @@ func TestLoad(t *testing.T) {
 		{
 			name:           "only legacy lock",
 			legacyLockFile: legacyLockFile,
-			isLegacyLock:   true,
 		},
 		{
 			name:           "both files",
@@ -75,15 +73,13 @@ func TestLoad(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			loaded, isLegacyLock, err := manifest.Load(tt.manifestFile, tt.legacyLockFile, nil)
+			loaded, err := manifest.Load(tt.manifestFile, tt.legacyLockFile, nil)
 			if tt.errorMsg != "" {
 				require.ErrorContains(t, err, tt.errorMsg)
 				return
 			}
 
 			require.True(t, proto.Equal(cluster, loaded))
-
-			require.Equal(t, tt.isLegacyLock, isLegacyLock)
 		})
 	}
 }
@@ -109,7 +105,7 @@ func testLoadLegacy(t *testing.T, version string) {
 	err = os.WriteFile(file, b, 0o644)
 	require.NoError(t, err)
 
-	cluster, isLegacyLock, err := manifest.Load("", file, nil)
+	cluster, err := manifest.Load("", file, nil)
 	require.NoError(t, err)
 
 	require.Equal(t, lock.LockHash, cluster.InitialMutationHash)
@@ -120,7 +116,6 @@ func testLoadLegacy(t *testing.T, version string) {
 	require.Equal(t, lock.ForkVersion, cluster.ForkVersion)
 	require.Equal(t, len(lock.Validators), len(cluster.Validators))
 	require.Equal(t, len(lock.Operators), len(cluster.Operators))
-	require.Equal(t, isLegacyLock, true)
 
 	for i, validator := range cluster.Validators {
 		require.Equal(t, lock.Validators[i].PubKey, validator.PublicKey)
