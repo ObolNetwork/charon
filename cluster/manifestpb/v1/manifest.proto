@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package cluster.manifestpb.v1;
 
-import "google/protobuf/timestamp.proto";
 import "google/protobuf/any.proto";
 
 option go_package = "github.com/obolnetwork/charon/cluster/manifestpb/v1";
@@ -23,8 +22,7 @@ message Cluster {
 message Mutation {
   bytes                        parent = 1; // Parent is the hash of the parent mutation. It must be 32 bytes.
   string                         type = 2; // Type is the type of mutation.
-  google.protobuf.Timestamp timestamp = 3; // Timestamp is the time of the mutation.
-  google.protobuf.Any            data = 4; // Data is the data of the mutation. Must be non-nil.
+  google.protobuf.Any            data = 3; // Data is the data of the mutation. Must be non-nil.
 }
 
 // SignedMutation is a mutation signed by a signer.
