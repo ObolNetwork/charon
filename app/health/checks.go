@@ -43,7 +43,7 @@ var checks = []check{
 		// TODO(corver): Change this to critical on any error once we aligned with only logging errors when human intervention is required.
 		Name:        "high_error_log_rate",
 		Description: "High rate of error logs. Please check the logs for more details.",
-		Severity:    severityCritical,
+		Severity:    severityWarning,
 		Func: func(q query, m Metadata) (bool, error) {
 			increase, err := q("app_log_error_total", noLabels, increase)
 			if err != nil {
