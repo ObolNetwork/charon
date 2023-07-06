@@ -112,7 +112,7 @@ var checks = []check{
 		Severity:    severityWarning,
 		Func: func(q query, m Metadata) (bool, error) {
 			increase, err := q("core_tracker_failed_duties_total",
-				sumLabels(l("duty", "proposal")), increase)
+				sumLabels(l("duty", ".*proposal")), increase)
 			if err != nil {
 				return false, err
 			}
