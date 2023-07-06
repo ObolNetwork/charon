@@ -136,7 +136,7 @@ func TestInsufficientPeerCheck(t *testing.T) {
 		QuorumPeers: 2,
 	}
 	checkName := "insufficient_connected_peers"
-	metricName := "ping_success"
+	metricName := "p2p_ping_success"
 
 	peer1 := genLabels("peer", "1")
 	peer2 := genLabels("peer", "2")
@@ -216,8 +216,10 @@ func TestBNSyncingCheck(t *testing.T) {
 }
 
 func TestErrorLogsCheck(t *testing.T) {
-	m := Metadata{}
-	checkName := "error_logs"
+	m := Metadata{
+		NumValidators: 10,
+	}
+	checkName := "high_error_log_rate"
 	metricName := "app_log_error_total"
 
 	t.Run("no data", func(t *testing.T) {
@@ -236,15 +238,15 @@ func TestErrorLogsCheck(t *testing.T) {
 		)
 	})
 
-	t.Run("single error", func(t *testing.T) {
-		testCheck(t, m, checkName, true,
-			genFam(metricName, genCounter(nil, 0, 0, 1)),
+	t.Run("too few", func(t *testing.T) {
+		testCheck(t, m, checkName, false,
+			genFam(metricName, genCounter(nil, 0, 0, 10)),
 		)
 	})
 
-	t.Run("multiple errors", func(t *testing.T) {
+	t.Run("sufficient", func(t *testing.T) {
 		testCheck(t, m, checkName, true,
-			genFam(metricName, genCounter(nil, 10, 20, 30, 40, 50)),
+			genFam(metricName, genCounter(nil, 10, 20, 30, 40, 500)),
 		)
 	})
 }
