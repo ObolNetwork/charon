@@ -15,10 +15,11 @@ import (
 	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 )
 
-// nolint(unparam) // holding this until the TODO item is merged
 // loadClusterManifest returns the cluster manifest from the provided config. It returns true if
 // the cluster was loaded from a legacy lock file.
 // TODO(xenowits): Refactor to remove boolean in return values, ie, return only (cluster, error).
+//
+//nolint:unparam // holding this until the TODO item is merged
 func loadClusterManifest(manifestFile, lockFile string) (*manifestpb.Cluster, bool, error) {
 	verifyLock := func(lock cluster.Lock) error {
 		if err := lock.VerifyHashes(); err != nil {
