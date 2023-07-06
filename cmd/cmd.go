@@ -46,6 +46,7 @@ func New() *cobra.Command {
 		newCombineCmd(newCombineFunc),
 		newAlphaCmd(
 			newAddValidatorsCmd(runAddValidatorsSolo),
+			newViewClusterManifestCmd(runViewClusterManifest),
 		),
 	)
 }

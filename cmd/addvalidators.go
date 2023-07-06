@@ -17,7 +17,6 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/spf13/cobra"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/k1util"
@@ -93,11 +92,23 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 }
 
 func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err error) {
-	// Read lock file to load cluster manifest
-	cluster, _, err := loadClusterManifest(conf)
-	if err != nil {
-		return err
+	var cluster *manifestpb.Cluster
+
+	if conf.TestConfig.Manifest != nil {
+		cluster = conf.TestConfig.Manifest
+	} else if conf.TestConfig.Lock != nil {
+		cluster, err = manifest.NewClusterFromLock(*conf.TestConfig.Lock)
+		if err != nil {
+			return err
+		}
+	} else {
+		// Read lock file to load cluster manifest
+		cluster, _, err = loadClusterManifest(conf.ManifestFile, conf.Lockfile)
+		if err != nil {
+			return err
+		}
 	}
+
 	log.Info(ctx, "Cluster manifest loaded",
 		z.Str("cluster_name", cluster.Name),
 		z.Str("cluster_hash", hex7(cluster.InitialMutationHash)),
@@ -216,60 +227,6 @@ func builderRegistration(secret tbls.PrivateKey, pubkey tbls.PublicKey, feeRecip
 		Message:   reg,
 		Signature: tblsconv.SigToETH2(sig),
 	}, nil
-}
-
-// loadClusterManifest returns the cluster manifest from the provided config. It returns true if
-// the cluster was loaded from a legacy lock file.
-// TODO(xenowits): Refactor to remove boolean in return values, ie, return only (cluster, error).
-func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, bool, error) {
-	if conf.TestConfig.Manifest != nil {
-		return conf.TestConfig.Manifest, false, nil
-	}
-
-	if conf.TestConfig.Lock != nil {
-		m, err := manifest.NewClusterFromLock(*conf.TestConfig.Lock)
-		return m, true, err
-	}
-
-	verifyLock := func(lock cluster.Lock) error {
-		if err := lock.VerifyHashes(); err != nil {
-			return errors.Wrap(err, "cluster lock hash verification failed")
-		}
-
-		if err := lock.VerifySignatures(); err != nil {
-			return errors.Wrap(err, "cluster lock signature verification failed")
-		}
-
-		return nil
-	}
-
-	cluster, isLegacyLock, err := manifest.Load(conf.ManifestFile, conf.Lockfile, verifyLock)
-	if err != nil {
-		return nil, false, errors.Wrap(err, "load cluster manifest")
-	}
-
-	return cluster, isLegacyLock, nil
-}
-
-// writeClusterManifests writes the provided cluster manifest to node directories on disk.
-func writeClusterManifests(clusterDir string, numOps int, cluster *manifestpb.Cluster) error {
-	b, err := proto.Marshal(cluster)
-	if err != nil {
-		return errors.Wrap(err, "marshal proto")
-	}
-
-	// Write cluster manifest to node directories on disk
-	for i := 0; i < numOps; i++ {
-		dir := path.Join(clusterDir, fmt.Sprintf("node%d", i))
-		filename := path.Join(dir, "cluster-manifest.pb")
-		//nolint:gosec // File needs to be read-write since the cluster manifest is modified by mutations.
-		err = os.WriteFile(filename, b, 0o644) // Read-write
-		if err != nil {
-			return errors.Wrap(err, "write cluster manifest")
-		}
-	}
-
-	return nil
 }
 
 // saveDepositDatas creates deposit data for each validator and writes the deposit data to disk for each node.
