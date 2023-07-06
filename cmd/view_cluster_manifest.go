@@ -8,17 +8,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"unicode"
 
 	"github.com/spf13/cobra"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-func newViewClusterManifestCmd(runFunc func(string) error) *cobra.Command {
+func newViewClusterManifestCmd(runFunc func(io.Writer, string) error) *cobra.Command {
 	var manifestFilePath string
 
 	cmd := &cobra.Command{
@@ -27,7 +27,7 @@ func newViewClusterManifestCmd(runFunc func(string) error) *cobra.Command {
 		Long:  `Opens and shows the specified cluster manifest by printing its content in JSON form.`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runFunc(manifestFilePath)
+			return runFunc(cmd.OutOrStdout(), manifestFilePath)
 		},
 	}
 
@@ -36,8 +36,8 @@ func newViewClusterManifestCmd(runFunc func(string) error) *cobra.Command {
 	return cmd
 }
 
-func runViewClusterManifest(manifestFilePath string) error {
-	return viewClusterManifest(manifestFilePath, os.Stdout)
+func runViewClusterManifest(out io.Writer, manifestFilePath string) error {
+	return viewClusterManifest(manifestFilePath, out)
 }
 
 func viewClusterManifest(manifestFilePath string, out io.Writer) error {
@@ -46,28 +46,39 @@ func viewClusterManifest(manifestFilePath string, out io.Writer) error {
 		return err
 	}
 
-	rawJSON, err := protojson.Marshal(cluster)
+	clusterJSON, err := protoToJSON(cluster)
 	if err != nil {
-		return errors.Wrap(err, "protojson marshal")
+		return err
+	}
+
+	if _, err := fmt.Fprintln(out, string(clusterJSON)); err != nil {
+		return errors.Wrap(err, "cluster json output write")
+	}
+
+	return nil
+}
+
+// protoToJSON returns the JSON representation of msg, with key fields transformed in snake case and all byte slices
+// expressed as 0x-prefixed hex encoded strings.
+func protoToJSON(msg proto.Message) ([]byte, error) {
+	rawJSON, err := protojson.Marshal(msg)
+	if err != nil {
+		return nil, errors.Wrap(err, "protojson marshal")
 	}
 
 	jmap := make(map[string]any)
 	if err := json.Unmarshal(rawJSON, &jmap); err != nil {
-		return errors.Wrap(err, "json unmarshal protojson output")
+		return nil, errors.Wrap(err, "json unmarshal protojson output")
 	}
 
 	jmap = formatMap(jmap)
 
 	final, err := json.MarshalIndent(jmap, "", " ")
 	if err != nil {
-		return errors.Wrap(err, "json marshal")
+		return nil, errors.Wrap(err, "json marshal")
 	}
 
-	if _, err := fmt.Fprintln(out, string(final)); err != nil {
-		return errors.Wrap(err, "cluster json output write")
-	}
-
-	return nil
+	return final, nil
 }
 
 // formatMap explores input and tries to convert any string it encounters in either a 0x-prefixed hex string, or if

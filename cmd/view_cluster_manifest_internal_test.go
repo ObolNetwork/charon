@@ -15,10 +15,15 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/manifest"
 	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
+	"github.com/obolnetwork/charon/testutil"
 )
 
+//go:generate go test . -run=Test_viewClusterManifest -update
+
 func Test_viewClusterManifest(t *testing.T) {
-	lock, _, _ := cluster.NewForT(t, 1, 4, 4, 1)
+	lock, _, _ := cluster.NewForT(t, 1, 4, 4, 1, func(definition *cluster.Definition) {
+		definition.Timestamp = "2022-07-19T18:19:58+02:00" // Make deterministic
+	})
 
 	lockMutation, err := manifest.NewLegacyLock(lock)
 	require.NoError(t, err)
@@ -41,4 +46,6 @@ func Test_viewClusterManifest(t *testing.T) {
 	outputMap := make(map[string]any)
 
 	require.NoError(t, json.Unmarshal(output.Bytes(), &outputMap))
+
+	testutil.RequireGoldenBytes(t, output.Bytes())
 }
