@@ -16,29 +16,28 @@ import (
 // Load loads a cluster from disk and returns true if cluster was loaded from a legacy lock file.
 // It supports reading from both cluster manifest and legacy lock files.
 // If both files are provided, it first reads the manifest file before reading the legacy lock file.
-// TODO(xenowits): Refactor to return only (cluster, error).
-func Load(manifestFile, legacyLockFile string, lockCallback func(cluster.Lock) error) (*manifestpb.Cluster, bool, error) {
+func Load(manifestFile, legacyLockFile string, lockCallback func(cluster.Lock) error) (*manifestpb.Cluster, error) {
 	b, err := os.ReadFile(manifestFile)
 	if err == nil {
 		manifest := new(manifestpb.Cluster)
 		if err := proto.Unmarshal(b, manifest); err != nil {
-			return nil, false, errors.Wrap(err, "unmarshal cluster manifest")
+			return nil, errors.Wrap(err, "unmarshal cluster manifest")
 		}
 
-		return manifest, false, nil
+		return manifest, nil
 	}
 
 	b, err = os.ReadFile(legacyLockFile)
 	if err != nil {
-		return nil, false, errors.Wrap(err, "read legacy lock file")
+		return nil, errors.Wrap(err, "read legacy lock file")
 	}
 
 	m, err := loadLegacyLock(b, lockCallback)
 	if err != nil {
-		return nil, false, errors.Wrap(err, "load legacy lock")
+		return nil, errors.Wrap(err, "load legacy lock")
 	}
 
-	return m, true, nil
+	return m, nil
 }
 
 func loadLegacyLock(input []byte, lockCallback func(cluster.Lock) error) (*manifestpb.Cluster, error) {

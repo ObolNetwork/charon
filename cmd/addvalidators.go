@@ -94,7 +94,7 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 
 func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err error) {
 	// Read lock file to load cluster manifest
-	cluster, _, err := loadClusterManifest(conf)
+	cluster, err := loadClusterManifest(conf)
 	if err != nil {
 		return err
 	}
@@ -220,15 +220,13 @@ func builderRegistration(secret tbls.PrivateKey, pubkey tbls.PublicKey, feeRecip
 
 // loadClusterManifest returns the cluster manifest from the provided config. It returns true if
 // the cluster was loaded from a legacy lock file.
-// TODO(xenowits): Refactor to remove boolean in return values, ie, return only (cluster, error).
-func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, bool, error) {
+func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, error) {
 	if conf.TestConfig.Manifest != nil {
-		return conf.TestConfig.Manifest, false, nil
+		return conf.TestConfig.Manifest, nil
 	}
 
 	if conf.TestConfig.Lock != nil {
-		m, err := manifest.NewClusterFromLock(*conf.TestConfig.Lock)
-		return m, true, err
+		return manifest.NewClusterFromLock(*conf.TestConfig.Lock)
 	}
 
 	verifyLock := func(lock cluster.Lock) error {
@@ -243,12 +241,12 @@ func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, bool, e
 		return nil
 	}
 
-	cluster, isLegacyLock, err := manifest.Load(conf.ManifestFile, conf.Lockfile, verifyLock)
+	cluster, err := manifest.Load(conf.ManifestFile, conf.Lockfile, verifyLock)
 	if err != nil {
-		return nil, false, errors.Wrap(err, "load cluster manifest")
+		return nil, errors.Wrap(err, "load cluster manifest")
 	}
 
-	return cluster, isLegacyLock, nil
+	return cluster, nil
 }
 
 // writeClusterManifests writes the provided cluster manifest to node directories on disk.
