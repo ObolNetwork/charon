@@ -101,6 +101,8 @@ func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err er
 	if err != nil {
 		return err
 	}
+	nextKeystoreIdx := len(cluster.Validators)
+
 	log.Info(ctx, "Cluster manifest loaded",
 		z.Str("cluster_name", cluster.Name),
 		z.Str("cluster_hash", hex7(cluster.InitialMutationHash)),
@@ -170,7 +172,6 @@ func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err er
 		return errors.Wrap(err, "transform cluster manifest")
 	}
 
-	nextKeystoreIdx := len(cluster.Validators) - conf.NumVals
 	err = writeNewKeystores(conf.ClusterDir, len(cluster.Operators), nextKeystoreIdx, shareSets)
 	if err != nil {
 		return err
@@ -337,7 +338,13 @@ func saveDepositDatas(ctx context.Context, clusterDir string, numOps int, secret
 // in ascending order, starting from the next available index after the last saved keystore in the validator_keys/
 // directory. For example, if the directory already contains keystores up to keystore-X.json, the new
 // keystores will be saved as keystore-(X+1).json, keystore-(X+2.json), and so on.
-func writeNewKeystores(clusterDir string, numOps, nextKeystoreIdx int, shareSets [][]tbls.PrivateKey) error {
+func writeNewKeystores(clusterDir string, numOps, firstKeystoreIdx int, shareSets [][]tbls.PrivateKey) error {
+	for _, shares := range shareSets {
+		if len(shares) != numOps {
+			return errors.New("insufficient shares", z.Int("num_shares", len(shares)), z.Int("num_operators", numOps))
+		}
+	}
+
 	for i := 0; i < numOps; i++ {
 		var secrets []tbls.PrivateKey // All partial keys for node<i>
 		for _, shares := range shareSets {
@@ -346,7 +353,7 @@ func writeNewKeystores(clusterDir string, numOps, nextKeystoreIdx int, shareSets
 
 		for idx, secret := range secrets {
 			keysDir := path.Join(nodeDir(clusterDir, i), "/validator_keys")
-			filename := path.Join(keysDir, fmt.Sprintf("keystore-%d.json", nextKeystoreIdx+idx))
+			filename := path.Join(keysDir, fmt.Sprintf("keystore-%d.json", firstKeystoreIdx+idx))
 			password, err := randomHex32()
 			if err != nil {
 				return err
@@ -421,7 +428,7 @@ func validateConf(conf addValidatorsConfig) error {
 	return nil
 }
 
-// genNewVals returns a list of new validators and their corresponding private keys from the provided config.
+// genNewVals returns a list of new validators, their corresponding private keys and threshold keyshares from the provided config.
 func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsConfig) ([]*manifestpb.Validator, []tbls.PrivateKey, [][]tbls.PrivateKey, error) {
 	// Generate new validators
 	var (
