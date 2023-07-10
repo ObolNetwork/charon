@@ -71,17 +71,15 @@ func TestCmdFlags(t *testing.T) {
 					Enabled:   nil,
 					Disabled:  nil,
 				},
-				LockFile:               ".charon/cluster-lock.json",
-				ManifestFile:           ".charon/cluster-manifest.pb",
-				PrivKeyFile:            ".charon/charon-enr-private-key",
-				PrivKeyLocking:         false,
-				SimnetValidatorKeysDir: ".charon/validator_keys",
-				SimnetSlotDuration:     time.Second,
-				MonitoringAddr:         "127.0.0.1:3620",
-				ValidatorAPIAddr:       "127.0.0.1:3600",
-				BeaconNodeAddrs:        []string{"http://beacon.node"},
-				JaegerAddr:             "",
-				JaegerService:          "charon",
+				LockFile:         ".charon/cluster-lock.json",
+				ManifestFile:     ".charon/cluster-manifest.pb",
+				PrivKeyFile:      ".charon/charon-enr-private-key",
+				PrivKeyLocking:   false,
+				MonitoringAddr:   "127.0.0.1:3620",
+				ValidatorAPIAddr: "127.0.0.1:3600",
+				BeaconNodeAddrs:  []string{"http://beacon.node"},
+				JaegerAddr:       "",
+				JaegerService:    "charon",
 			},
 		},
 		{
@@ -100,6 +98,48 @@ func TestCmdFlags(t *testing.T) {
 			Args:     slice("run"),
 			ErrorMsg: "either flag 'beacon-node-endpoints' or flag 'simnet-beacon-mock=true' must be specified",
 		},
+		{
+			Name: "unsafe run",
+			Args: slice("unsafe", "run"),
+			Envs: map[string]string{
+				"CHARON_BEACON_NODE_ENDPOINTS": "http://beacon.node",
+			},
+			AppConfig: &app.Config{
+				Log: log.Config{
+					Level:       "info",
+					Format:      "console",
+					Color:       "auto",
+					LokiService: "charon",
+				},
+				P2P: p2p.Config{
+					Relays:    []string{"https://0.relay.obol.tech"},
+					TCPAddrs:  nil,
+					Allowlist: "",
+					Denylist:  "",
+				},
+				Feature: featureset.Config{
+					MinStatus: "stable",
+					Enabled:   nil,
+					Disabled:  nil,
+				},
+				LockFile:               ".charon/cluster-lock.json",
+				ManifestFile:           ".charon/cluster-manifest.pb",
+				PrivKeyFile:            ".charon/charon-enr-private-key",
+				PrivKeyLocking:         false,
+				SimnetValidatorKeysDir: ".charon/validator_keys",
+				SimnetSlotDuration:     time.Second,
+				MonitoringAddr:         "127.0.0.1:3620",
+				ValidatorAPIAddr:       "127.0.0.1:3600",
+				BeaconNodeAddrs:        []string{"http://beacon.node"},
+				JaegerAddr:             "",
+				JaegerService:          "charon",
+			},
+		},
+		{
+			Name:     "run with unsafe flags, unknown flags",
+			Args:     slice("run", "--simnet-beacon-mock=true"),
+			ErrorMsg: "unknown flag: --simnet-beacon-mock",
+		},
 	}
 
 	for _, test := range tests {
@@ -114,7 +154,7 @@ func TestCmdFlags(t *testing.T) {
 					require.Equal(t, *test.AppConfig, config)
 
 					return nil
-				}, true),
+				}, false),
 				newCreateCmd(
 					newCreateEnrCmd(func(_ io.Writer, datadir string) error {
 						require.Equal(t, test.Datadir, datadir)
@@ -122,6 +162,12 @@ func TestCmdFlags(t *testing.T) {
 						return nil
 					}),
 				),
+				newUnsafeCmd(newRunCmd(func(_ context.Context, config app.Config) error {
+					require.NotNil(t, test.AppConfig)
+					require.Equal(t, *test.AppConfig, config)
+
+					return nil
+				}, true)),
 			)
 
 			// Set envs (only for duration of the test)
