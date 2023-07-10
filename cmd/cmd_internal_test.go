@@ -114,7 +114,7 @@ func TestCmdFlags(t *testing.T) {
 					require.Equal(t, *test.AppConfig, config)
 
 					return nil
-				}),
+				}, true),
 				newCreateCmd(
 					newCreateEnrCmd(func(_ io.Writer, datadir string) error {
 						require.Equal(t, test.Datadir, datadir)

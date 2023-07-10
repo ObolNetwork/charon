@@ -38,7 +38,7 @@ func TestBindPrivKeyFlag(t *testing.T) {
 			root := newRootCmd(
 				newRunCmd(func(_ context.Context, config app.Config) error {
 					return nil
-				}),
+				}, false),
 			)
 
 			// Set envs (only for duration of the test)

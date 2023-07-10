@@ -35,7 +35,7 @@ func New() *cobra.Command {
 	return newRootCmd(
 		newVersionCmd(runVersionCmd),
 		newEnrCmd(runNewENR),
-		newRunCmd(app.Run),
+		newRunCmd(app.Run, false),
 		newRelayCmd(relay.Run),
 		newDKGCmd(dkg.Run),
 		newCreateCmd(
@@ -47,6 +47,7 @@ func New() *cobra.Command {
 		newAlphaCmd(
 			newAddValidatorsCmd(runAddValidatorsSolo),
 		),
+		newUnsafeCmd(newRunCmd(app.Run, true)),
 	)
 }
 

@@ -30,7 +30,7 @@ var update = flag.Bool("update-markdown", false, "Updates the reference markdown
 func TestConfigReference(t *testing.T) {
 	cmd := newRootCmd(newRunCmd(func(context.Context, app.Config) error {
 		return nil
-	}))
+	}, false))
 
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
