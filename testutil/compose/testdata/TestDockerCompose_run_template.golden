@@ -2,7 +2,7 @@
  "ComposeDir": "testdir",
  "CharonImageTag": "latest",
  "CharonEntrypoint": "",
- "CharonCommand": "run",
+ "CharonCommand": "unsafe run",
  "Nodes": [
   {
    "ImageTag": "",

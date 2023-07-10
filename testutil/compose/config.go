@@ -17,7 +17,7 @@ const (
 
 	charonImage      = "obolnetwork/charon"
 	containerBinary  = "/usr/local/bin/charon"
-	cmdRun           = "run"
+	cmdRun           = "unsafe run"
 	cmdDKG           = "dkg"
 	cmdCreateCluster = "[create,cluster]"
 	cmdCreateDKG     = "[create,dkg]"
