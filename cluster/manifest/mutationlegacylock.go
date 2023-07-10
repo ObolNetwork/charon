@@ -3,7 +3,9 @@
 package manifest
 
 import (
+	"bytes"
 	"encoding/json"
+	"testing"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -15,8 +17,8 @@ import (
 	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 )
 
-func NewClusterFromLock(lock cluster.Lock) (*manifestpb.Cluster, error) {
-	signed, err := NewLegacyLock(lock)
+func NewClusterFromLockForT(_ *testing.T, lock cluster.Lock) (*manifestpb.Cluster, error) {
+	signed, err := NewLegacyLockForT(nil, lock)
 	if err != nil {
 		return nil, err
 	}
@@ -24,16 +26,17 @@ func NewClusterFromLock(lock cluster.Lock) (*manifestpb.Cluster, error) {
 	return Materialise(&manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{signed}})
 }
 
-// NewLegacyLock return a new legacy lock mutation from the provided lock.
-func NewLegacyLock(lock cluster.Lock) (*manifestpb.SignedMutation, error) {
-	timestamp, err := time.Parse(time.RFC3339, lock.Timestamp)
-	if err != nil {
-		return nil, errors.Wrap(err, "parse lock timestamp")
+// NewRawLegacyLock return a new legacy lock mutation from the provided raw json bytes.
+func NewRawLegacyLock(b []byte) (*manifestpb.SignedMutation, error) {
+	// Verify that the bytes is a valid lock.
+	var l cluster.Lock
+	if err := json.Unmarshal(b, &l); err != nil {
+		return nil, errors.Wrap(err, "unmarshal lock")
 	}
 
-	b, err := json.Marshal(lock)
+	timestamp, err := time.Parse(time.RFC3339, l.Timestamp)
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal lock")
+		return nil, errors.Wrap(err, "parse lock timestamp")
 	}
 
 	lockAny, err := anypb.New(&manifestpb.LegacyLock{Json: b})
@@ -52,6 +55,25 @@ func NewLegacyLock(lock cluster.Lock) (*manifestpb.SignedMutation, error) {
 		},
 		// No signer or signature
 	}, nil
+}
+
+// NewLegacyLockForT return a new legacy lock mutation from the provided lock.
+func NewLegacyLockForT(_ *testing.T, lock cluster.Lock) (*manifestpb.SignedMutation, error) {
+	// Marshalling below re-calculates the lock hash, so ensure it matches.
+	lock2, err := lock.SetLockHash()
+	if err != nil {
+		return nil, errors.Wrap(err, "set lock hash")
+	} else if !bytes.Equal(lock2.LockHash, lock.LockHash) {
+		return nil, errors.New("this method only supports valid locks," +
+			" use NewRawLegacyLock for --no-verify support")
+	}
+
+	b, err := json.Marshal(lock)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal lock")
+	}
+
+	return NewRawLegacyLock(b)
 }
 
 // verifyLegacyLock verifies that the signed mutation is a valid legacy lock.

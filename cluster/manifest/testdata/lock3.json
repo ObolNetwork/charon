@@ -1,0 +1,57 @@
+{
+  "cluster_definition": {
+    "name": "charon-prater-0",
+    "operators": [
+      {
+        "address": "",
+        "enr": "enr:-HW4QF2RMV8obWowPwISf9fc3dQr2zw8U1DEqfu6Ar2uqQ6MKzTFwXqJSgM3iD9DaVPVY68isJObJV6FnfH3u0AOiUeAgmlkgnY0iXNlY3AyNTZrMaEDrQnhqfEOaHhhf3QXxY4uHRqILOMyMZuJUeFoltYE2Jc=",
+        "nonce": 0,
+        "config_signature": null,
+        "enr_signature": null
+      },
+      {
+        "address": "",
+        "enr": "enr:-HW4QAc81iqAqHBRgAhPKqbda6oE31-0pkPuDaHuY90famQOIFF8UC-oa2fL4squdB_XAfmWFRv_FHTl0VVEkeR-KXGAgmlkgnY0iXNlY3AyNTZrMaECUi2Tux-Xh4J37bysHp7RVFclh9FO8A4TDaOJoturxDU=",
+        "nonce": 0,
+        "config_signature": null,
+        "enr_signature": null
+      },
+      {
+        "address": "",
+        "enr": "enr:-HW4QP6hfTWouGrDs-C_1aoE5eHSNkYjq4CVU_JbFW5mEF9cdmcxIzGYAjUvOrHzHHck7PIdx90CtJ13ecHvvMz-X-2AgmlkgnY0iXNlY3AyNTZrMaEDXUMw0caVYc5QkbcyOZsM_x_OH8yM9zGdHbwaaaYtC_w=",
+        "nonce": 0,
+        "config_signature": null,
+        "enr_signature": null
+      },
+      {
+        "address": "",
+        "enr": "enr:-HW4QMfl_MRPeNcytOtcKkVcozl0njNpdOCOWXa3TsBVGieWT8SrW1Fjjd_OCiAHubHKKvrLX77OywINd-m-TR4fzeeAgmlkgnY0iXNlY3AyNTZrMaECU1nCUb_kkmBfZhoTJbTfERVTwy_eCJAGtbUtJXq3NmQ=",
+        "nonce": 0,
+        "config_signature": null,
+        "enr_signature": null
+      }
+    ],
+    "timestamp": "2022-07-28T20:14:55+05:30",
+    "uuid": "AADB7802-4799-1F64-8A50-A0DC06E150B5",
+    "version": "v1.0.0",
+    "num_validators": 1,
+    "threshold": 3,
+    "dkg_algorithm": "default",
+    "fork_version": "0x00001020",
+    "config_hash": "MapzsnNQdn+vtDWPQIJBx42ksUshUIsoldOutrUBSIc=",
+    "definition_hash": "loLR8lM92XGS5RSvI9O3urZwTcmBBk21NdTlmjtOw0I="
+  },
+  "distributed_validators": [
+    {
+      "distributed_public_key": "0x84c3aae6124973ad260ab2f783dfbcf512502c5b3dc174ecf624021361439dcc299d59718fed01c42691a9d7ba20f3d8",
+      "public_shares": [
+        "tUPZ6bcIk9WsYY7Xz5A3Z3KI9iP4pkMszyDyYLChrSaGbVjN3mXw35H0rZwBC6MK",
+        "ofY0DKMUDakt7CChpdhLlGMOT03Lz/OV4l7srA8sO8ky4El37HezbS4kglL1kz/n",
+        "jNHlrN1eCoPaAr7NBdytgN5N6NBER+/ViQfgl8t9udvVgZgRoryZfgXln0E/uwDK",
+        "lMeTwxhP7VMVBbLSgavO8y7x5RIK9bz59GhVEmOTv8xmTv8b8tj2qsv5UejOnJXE"
+      ]
+    }
+  ],
+  "signature_aggregate": null,
+  "lock_hash": "QHP+VCPyLO5ecXxKEwaZu1qcBHxXzOtAVOXtv1I5ttI="
+}

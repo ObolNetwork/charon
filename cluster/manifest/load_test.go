@@ -4,6 +4,7 @@ package manifest_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"os"
 	"path"
@@ -34,7 +35,7 @@ func TestLoad(t *testing.T) {
 	var lock cluster.Lock
 	testutil.RequireNoError(t, json.Unmarshal(lockJSON, &lock))
 
-	legacyLock, err := manifest.NewLegacyLock(lock)
+	legacyLock, err := manifest.NewLegacyLockForT(t, lock)
 	require.NoError(t, err)
 
 	cluster, err := manifest.Materialise(&manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{legacyLock}})
@@ -128,4 +129,14 @@ func testLoadLegacy(t *testing.T, version string) {
 		require.Equal(t, lock.Operators[i].Address, operator.Address)
 		require.Equal(t, lock.Operators[i].ENR, operator.Enr)
 	}
+}
+
+// TestLoadModifiedLegacyLock ensure the incorrect hard-coded hash is used for
+// legacy locks. This ensures the cluster hash doesn't change even if lock files
+// were modified and run with --no-verify.
+func TestLoadModifiedLegacyLock(t *testing.T) {
+	cluster, err := manifest.Load("", "testdata/lock3.json", nil)
+	require.NoError(t, err)
+	hashHex := fmt.Sprintf("%x", cluster.InitialMutationHash)
+	require.Equal(t, "4073fe542", hashHex[:9])
 }
