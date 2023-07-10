@@ -28,7 +28,7 @@ func Load(manifestFile, legacyLockFile string, lockCallback func(cluster.Lock) e
 	switch {
 	case err1 == nil && err2 == nil:
 		// Both files loaded successfully, check if cluster hashes match
-		if !bytes.Equal(manifestCluster.InitialMutationHash, legacyCluster.LatestMutationHash) {
+		if !bytes.Equal(manifestCluster.InitialMutationHash, legacyCluster.InitialMutationHash) {
 			return nil, errors.New("manifest and legacy cluster hashes don't match",
 				z.Str("manifest_hash", hex.EncodeToString(manifestCluster.InitialMutationHash)),
 				z.Str("legacy_hash", hex.EncodeToString(legacyCluster.InitialMutationHash)))
