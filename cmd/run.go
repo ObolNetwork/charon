@@ -19,7 +19,7 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-func newRunCmd(runFunc func(context.Context, app.Config) error, isUnsafe bool) *cobra.Command {
+func newRunCmd(runFunc func(context.Context, app.Config) error, unsafe bool) *cobra.Command {
 	var conf app.Config
 
 	cmd := &cobra.Command{
@@ -38,7 +38,7 @@ func newRunCmd(runFunc func(context.Context, app.Config) error, isUnsafe bool) *
 		},
 	}
 
-	if isUnsafe {
+	if unsafe {
 		bindUnsafeRunFlags(cmd, &conf)
 	}
 
