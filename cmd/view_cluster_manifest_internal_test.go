@@ -25,7 +25,7 @@ func Test_viewClusterManifest(t *testing.T) {
 		definition.Timestamp = "2022-07-19T18:19:58+02:00" // Make deterministic
 	})
 
-	lockMutation, err := manifest.NewLegacyLock(lock)
+	lockMutation, err := manifest.NewLegacyLockForT(t, lock)
 	require.NoError(t, err)
 
 	cluster, err := manifest.Materialise(&manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{lockMutation}})
