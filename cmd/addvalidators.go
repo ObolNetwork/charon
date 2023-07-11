@@ -18,6 +18,8 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/spf13/cobra"
+
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
@@ -33,7 +35,6 @@ import (
 	"github.com/obolnetwork/charon/eth2util/registration"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
-	"github.com/spf13/cobra"
 )
 
 // addValidatorsConfig is config for the `add-validators` command.
@@ -47,11 +48,11 @@ type addValidatorsConfig struct {
 	ManifestFile string // Path to the cluster manifest file
 	ClusterDir   string // Path to the cluster directory
 
-	TestConfig TestConfig
+	TestConfig addValidatorTestConfig
 }
 
-// TestConfig defines additional test-only config.
-type TestConfig struct {
+// addValidatorTestConfig defines additional test-only config.
+type addValidatorTestConfig struct {
 	// Lock provides the lock explicitly, skips loading from disk.
 	Lock *cluster.Lock
 	// Manifest provides the cluster manifest explicitly, skips loading from disk.
@@ -464,7 +465,7 @@ func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsCon
 }
 
 // getP2PKeys returns a list of p2p private keys either by loading from disk or from test config.
-func getP2PKeys(clusterDir string, numOps int, testConfig TestConfig) ([]*k1.PrivateKey, error) {
+func getP2PKeys(clusterDir string, numOps int, testConfig addValidatorTestConfig) ([]*k1.PrivateKey, error) {
 	if len(testConfig.P2PKeys) > 0 {
 		return testConfig.P2PKeys, nil
 	}

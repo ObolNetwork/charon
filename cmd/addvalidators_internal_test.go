@@ -128,7 +128,7 @@ func TestRunAddValidators(t *testing.T) {
 			NumVals:           1,
 			WithdrawalAddrs:   []string{feeRecipientAddr},
 			FeeRecipientAddrs: []string{feeRecipientAddr},
-			TestConfig: TestConfig{
+			TestConfig: addValidatorTestConfig{
 				Lock:    &lock,
 				P2PKeys: p2pKeys,
 			},
@@ -163,7 +163,7 @@ func TestRunAddValidators(t *testing.T) {
 			NumVals:           1,
 			WithdrawalAddrs:   []string{feeRecipientAddr},
 			FeeRecipientAddrs: []string{feeRecipientAddr},
-			TestConfig: TestConfig{
+			TestConfig: addValidatorTestConfig{
 				Lock:    &lock,
 				P2PKeys: p2pKeys,
 			},
