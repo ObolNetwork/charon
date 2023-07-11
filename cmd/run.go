@@ -73,7 +73,13 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().StringVar(&config.MonitoringAddr, "monitoring-address", "127.0.0.1:3620", "Listening address (ip and port) for the monitoring API (prometheus, pprof).")
 	cmd.Flags().StringVar(&config.JaegerAddr, "jaeger-address", "", "Listening address for jaeger tracing.")
 	cmd.Flags().StringVar(&config.JaegerService, "jaeger-service", "charon", "Service name used for jaeger tracing.")
+	cmd.Flags().BoolVar(&config.SimnetBMock, "simnet-beacon-mock", false, "Enables an internal mock beacon node for running a simnet.")
+	cmd.Flags().BoolVar(&config.SimnetVMock, "simnet-validator-mock", false, "Enables an internal mock validator client when running a simnet. Requires simnet-beacon-mock.")
+	cmd.Flags().StringVar(&config.SimnetValidatorKeysDir, "simnet-validator-keys-dir", ".charon/validator_keys", "The directory containing the simnet validator key shares.")
 	cmd.Flags().BoolVar(&config.BuilderAPI, "builder-api", false, "Enables the builder api. Will only produce builder blocks. Builder API must also be enabled on the validator client. Beacon node must be connected to a builder-relay to access the builder network.")
+	cmd.Flags().BoolVar(&config.SyntheticBlockProposals, "synthetic-block-proposals", false, "Enables additional synthetic block proposal duties. Used for testing of rare duties.")
+	cmd.Flags().DurationVar(&config.SimnetSlotDuration, "simnet-slot-duration", time.Second, "Configures slot duration in simnet beacon mock.")
+	cmd.Flags().BoolVar(&config.SimnetBMockFuzz, "simnet-beacon-mock-fuzz", false, "Configures simnet beaconmock to return fuzzed responses.")
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error {
 		if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {
@@ -84,13 +90,9 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	})
 }
 
+// TODO(dhruv): add more test only flags to this function.
 func bindUnsafeRunFlags(cmd *cobra.Command, config *app.Config) {
-	cmd.Flags().BoolVar(&config.SimnetBMock, "simnet-beacon-mock", false, "Enables an internal mock beacon node for running a simnet.")
-	cmd.Flags().BoolVar(&config.SimnetVMock, "simnet-validator-mock", false, "Enables an internal mock validator client when running a simnet. Requires simnet-beacon-mock.")
-	cmd.Flags().StringVar(&config.SimnetValidatorKeysDir, "simnet-validator-keys-dir", ".charon/validator_keys", "The directory containing the simnet validator key shares.")
-	cmd.Flags().BoolVar(&config.SyntheticBlockProposals, "synthetic-block-proposals", false, "Enables additional synthetic block proposal duties. Used for testing of rare duties.")
-	cmd.Flags().DurationVar(&config.SimnetSlotDuration, "simnet-slot-duration", time.Second, "Configures slot duration in simnet beacon mock.")
-	cmd.Flags().BoolVar(&config.SimnetBMockFuzz, "simnet-beacon-mock-fuzz", false, "Configures simnet beaconmock to return fuzzed responses.")
+	cmd.Flags().BoolVar(&config.CharonP2PFuzz, "charon-p2p-fuzz", false, "Configures charon p2p network to send fuzzed data to its peers.")
 }
 
 func bindPrivKeyFlag(cmd *cobra.Command, privKeyFile *string, privkeyLockEnabled *bool) {

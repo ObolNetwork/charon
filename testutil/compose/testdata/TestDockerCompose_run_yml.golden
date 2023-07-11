@@ -2,7 +2,7 @@ version: "3.8"
 
 x-node-base: &node-base
   image: obolnetwork/charon:latest
-  command: unsafe run
+  command: run
   networks: [compose]
   volumes: [testdir:/compose]
   depends_on: [relay]

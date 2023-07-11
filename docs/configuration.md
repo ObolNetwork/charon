@@ -120,33 +120,39 @@ Usage:
   charon run [flags]
 
 Flags:
-      --beacon-node-endpoints strings   Comma separated list of one or more beacon node endpoint URLs.
-      --builder-api                     Enables the builder api. Will only produce builder blocks. Builder API must also be enabled on the validator client. Beacon node must be connected to a builder-relay to access the builder network.
-      --feature-set string              Minimum feature set to enable by default: alpha, beta, or stable. Warning: modify at own risk. (default "stable")
-      --feature-set-disable strings     Comma-separated list of features to disable, overriding the default minimum feature set.
-      --feature-set-enable strings      Comma-separated list of features to enable, overriding the default minimum feature set.
-  -h, --help                            Help for run
-      --jaeger-address string           Listening address for jaeger tracing.
-      --jaeger-service string           Service name used for jaeger tracing. (default "charon")
-      --lock-file string                The path to the cluster lock file defining distributed validator cluster. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence. (default ".charon/cluster-lock.json")
-      --log-color string                Log color; auto, force, disable. (default "auto")
-      --log-format string               Log format; console, logfmt or json (default "console")
-      --log-level string                Log level; debug, info, warn or error (default "info")
-      --loki-addresses strings          Enables sending of logfmt structured logs to these Loki log aggregation server addresses. This is in addition to normal stderr logs.
-      --loki-service string             Service label sent with logs to Loki. (default "charon")
-      --manifest-file string            The path to the cluster manifest file. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence. (default ".charon/cluster-manifest.pb")
-      --monitoring-address string       Listening address (ip and port) for the monitoring API (prometheus, pprof). (default "127.0.0.1:3620")
-      --no-verify                       Disables cluster definition and lock file verification.
-      --p2p-allowlist string            Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.
-      --p2p-denylist string             Comma-separated list of CIDR subnets for disallowing certain peer connections. Example: 192.168.0.0/16 would disallow connections to peers on your local network. The default is to accept all connections.
-      --p2p-disable-reuseport           Disables TCP port reuse for outgoing libp2p connections.
-      --p2p-external-hostname string    The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.
-      --p2p-external-ip string          The IP address advertised by libp2p. This may be used to advertise an external IP.
-      --p2p-relays strings              Comma-separated list of libp2p relay URLs or multiaddrs. (default [https://0.relay.obol.tech])
-      --p2p-tcp-address strings         Comma-separated list of listening TCP addresses (ip and port) for libP2P traffic. Empty default doesn't bind to local port therefore only supports outgoing connections.
-      --private-key-file string         The path to the charon enr private key file. (default ".charon/charon-enr-private-key")
-      --private-key-file-lock           Enables private key locking to prevent multiple instances using the same key.
-      --validator-api-address string    Listening address (ip and port) for validator-facing traffic proxying the beacon-node API. (default "127.0.0.1:3600")
+      --beacon-node-endpoints strings      Comma separated list of one or more beacon node endpoint URLs.
+      --builder-api                        Enables the builder api. Will only produce builder blocks. Builder API must also be enabled on the validator client. Beacon node must be connected to a builder-relay to access the builder network.
+      --feature-set string                 Minimum feature set to enable by default: alpha, beta, or stable. Warning: modify at own risk. (default "stable")
+      --feature-set-disable strings        Comma-separated list of features to disable, overriding the default minimum feature set.
+      --feature-set-enable strings         Comma-separated list of features to enable, overriding the default minimum feature set.
+  -h, --help                               Help for run
+      --jaeger-address string              Listening address for jaeger tracing.
+      --jaeger-service string              Service name used for jaeger tracing. (default "charon")
+      --lock-file string                   The path to the cluster lock file defining distributed validator cluster. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence. (default ".charon/cluster-lock.json")
+      --log-color string                   Log color; auto, force, disable. (default "auto")
+      --log-format string                  Log format; console, logfmt or json (default "console")
+      --log-level string                   Log level; debug, info, warn or error (default "info")
+      --loki-addresses strings             Enables sending of logfmt structured logs to these Loki log aggregation server addresses. This is in addition to normal stderr logs.
+      --loki-service string                Service label sent with logs to Loki. (default "charon")
+      --manifest-file string               The path to the cluster manifest file. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence. (default ".charon/cluster-manifest.pb")
+      --monitoring-address string          Listening address (ip and port) for the monitoring API (prometheus, pprof). (default "127.0.0.1:3620")
+      --no-verify                          Disables cluster definition and lock file verification.
+      --p2p-allowlist string               Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.
+      --p2p-denylist string                Comma-separated list of CIDR subnets for disallowing certain peer connections. Example: 192.168.0.0/16 would disallow connections to peers on your local network. The default is to accept all connections.
+      --p2p-disable-reuseport              Disables TCP port reuse for outgoing libp2p connections.
+      --p2p-external-hostname string       The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.
+      --p2p-external-ip string             The IP address advertised by libp2p. This may be used to advertise an external IP.
+      --p2p-relays strings                 Comma-separated list of libp2p relay URLs or multiaddrs. (default [https://0.relay.obol.tech])
+      --p2p-tcp-address strings            Comma-separated list of listening TCP addresses (ip and port) for libP2P traffic. Empty default doesn't bind to local port therefore only supports outgoing connections.
+      --private-key-file string            The path to the charon enr private key file. (default ".charon/charon-enr-private-key")
+      --private-key-file-lock              Enables private key locking to prevent multiple instances using the same key.
+      --simnet-beacon-mock                 Enables an internal mock beacon node for running a simnet.
+      --simnet-beacon-mock-fuzz            Configures simnet beaconmock to return fuzzed responses.
+      --simnet-slot-duration duration      Configures slot duration in simnet beacon mock. (default 1s)
+      --simnet-validator-keys-dir string   The directory containing the simnet validator key shares. (default ".charon/validator_keys")
+      --simnet-validator-mock              Enables an internal mock validator client when running a simnet. Requires simnet-beacon-mock.
+      --synthetic-block-proposals          Enables additional synthetic block proposal duties. Used for testing of rare duties.
+      --validator-api-address string       Listening address (ip and port) for validator-facing traffic proxying the beacon-node API. (default "127.0.0.1:3600")
 
 ````
 <!-- Code above generated by cmd/cmd_internal_test.go#TestConfigReference. DO NOT EDIT -->
