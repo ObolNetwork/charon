@@ -4,7 +4,6 @@ package cmd
 
 import (
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -37,10 +36,6 @@ func newViewClusterManifestCmd(runFunc func(io.Writer, string) error) *cobra.Com
 }
 
 func runViewClusterManifest(out io.Writer, manifestFilePath string) error {
-	return viewClusterManifest(manifestFilePath, out)
-}
-
-func viewClusterManifest(manifestFilePath string, out io.Writer) error {
 	cluster, _, err := loadClusterManifest(manifestFilePath, "")
 	if err != nil {
 		return err
@@ -129,7 +124,7 @@ func rawString(data string) any {
 	// if we're able to unmarshal in a map do it, otherwise hex encode and return
 	brJSON := make(map[string]any)
 	if err := json.Unmarshal(bytes, &brJSON); err != nil {
-		return "0x" + hex.EncodeToString(bytes)
+		return fmt.Sprintf("%#x", bytes)
 	}
 
 	return brJSON

@@ -39,7 +39,7 @@ func Test_viewClusterManifest(t *testing.T) {
 	require.NoError(t, os.WriteFile(clusterPath, clusterBytes, 0o655))
 
 	var output bytes.Buffer
-	require.NoError(t, viewClusterManifest(clusterPath, &output))
+	require.NoError(t, runViewClusterManifest(&output, clusterPath))
 
 	require.NotEmpty(t, output.Bytes())
 
