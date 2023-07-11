@@ -36,7 +36,7 @@ func newViewClusterManifestCmd(runFunc func(io.Writer, string) error) *cobra.Com
 }
 
 func runViewClusterManifest(out io.Writer, manifestFilePath string) error {
-	cluster, _, err := loadClusterManifest(manifestFilePath, "")
+	cluster, err := loadClusterManifest(manifestFilePath, "")
 	if err != nil {
 		return err
 	}

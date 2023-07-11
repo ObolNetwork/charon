@@ -17,10 +17,7 @@ import (
 
 // loadClusterManifest returns the cluster manifest from the provided config. It returns true if
 // the cluster was loaded from a legacy lock file.
-// TODO(xenowits): Refactor to remove boolean in return values, ie, return only (cluster, error).
-//
-//nolint:unparam // holding this until the TODO item is merged
-func loadClusterManifest(manifestFile, lockFile string) (*manifestpb.Cluster, bool, error) {
+func loadClusterManifest(manifestFilePath, lockFilePath string) (*manifestpb.Cluster, error) {
 	verifyLock := func(lock cluster.Lock) error {
 		if err := lock.VerifyHashes(); err != nil {
 			return errors.Wrap(err, "cluster lock hash verification failed")
@@ -33,12 +30,12 @@ func loadClusterManifest(manifestFile, lockFile string) (*manifestpb.Cluster, bo
 		return nil
 	}
 
-	cluster, isLegacyLock, err := manifest.Load(manifestFile, lockFile, verifyLock)
+	cluster, err := manifest.Load(manifestFilePath, lockFilePath, verifyLock)
 	if err != nil {
-		return nil, false, errors.Wrap(err, "load cluster manifest")
+		return nil, errors.Wrap(err, "load cluster manifest")
 	}
 
-	return cluster, isLegacyLock, nil
+	return cluster, nil
 }
 
 // writeClusterManifests writes the provided cluster manifest to node directories on disk.
