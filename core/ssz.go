@@ -8,6 +8,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
+	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -238,11 +239,12 @@ func (b *VersionedSignedBlindedBeaconBlock) sszValFromVersion(version eth2spec.D
 		}
 
 		return b.Capella, nil
+	case eth2spec.DataVersionDeneb:
+		if b.Deneb == nil {
+			b.Deneb = new(eth2deneb.SignedBlindedBeaconBlock)
+		}
 
-	//	if b.Deneb == nil {
-	//		b.Deneb = new(v1deneb.SignedBlindedBeaconBlock)
-	//	}
-	//	return b.Deneb, nil
+		return b.Deneb, nil
 	default:
 		return nil, errors.New("invalid version")
 	}
@@ -303,10 +305,12 @@ func (b *VersionedBlindedBeaconBlock) sszValFromVersion(version eth2spec.DataVer
 		}
 
 		return b.Capella, nil
-	//	if b.Deneb == nil {
-	//		b.Deneb = new(v1deneb.SignedBlindedBeaconBlock)
-	//	}
-	//	return b.Deneb, nil
+	case eth2spec.DataVersionDeneb:
+		if b.Deneb == nil {
+			b.Deneb = new(eth2deneb.BlindedBeaconBlock)
+		}
+
+		return b.Deneb, nil
 	default:
 		return nil, errors.New("invalid version")
 	}

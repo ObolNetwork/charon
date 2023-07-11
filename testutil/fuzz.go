@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	v1deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
@@ -28,7 +27,7 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 	blindedVersions := []eth2spec.DataVersion{
 		eth2spec.DataVersionBellatrix,
 		eth2spec.DataVersionCapella,
-		// eth2spec.DataVersionDeneb,
+		eth2spec.DataVersionDeneb,
 	}
 
 	allVersions := []eth2spec.DataVersion{
@@ -95,10 +94,6 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 					bits.SetBitAt(uint64(i), true)
 				}
 				e.AggregationBits = bits
-			},
-			// VersionBlindedBeaconBlock.Deneb SSZ not supported by goeth2client yet, so nil it.
-			func(e **v1deneb.BlindedBeaconBlock, c fuzz.Continue) {
-				*e = nil
 			},
 			// []deneb.KzgCommitment has max.
 			func(e *[]deneb.KzgCommitment, c fuzz.Continue) {
