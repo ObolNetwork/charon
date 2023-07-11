@@ -28,7 +28,7 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-//go:generate go test . -run=TestCreateCluster -update -clean
+//go:generate go test . -run=TestCreateCluster -update
 
 func TestCreateCluster(t *testing.T) {
 	defPath := "../cluster/examples/cluster-definition-004.json"

@@ -19,7 +19,6 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/spf13/cobra"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/k1util"
@@ -49,11 +48,11 @@ type addValidatorsConfig struct {
 	ManifestFile string // Path to the cluster manifest file
 	ClusterDir   string // Path to the cluster directory
 
-	TestConfig TestConfig
+	TestConfig addValidatorTestConfig
 }
 
-// TestConfig defines additional test-only config.
-type TestConfig struct {
+// addValidatorTestConfig defines additional test-only config.
+type addValidatorTestConfig struct {
 	// Lock provides the lock explicitly, skips loading from disk.
 	Lock *cluster.Lock
 	// Manifest provides the cluster manifest explicitly, skips loading from disk.
@@ -96,11 +95,22 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 }
 
 func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err error) {
-	// Read lock file to load cluster manifest
-	cluster, err := loadClusterManifest(conf)
-	if err != nil {
-		return err
+	var cluster *manifestpb.Cluster
+
+	if conf.TestConfig.Manifest != nil {
+		cluster = conf.TestConfig.Manifest
+	} else if conf.TestConfig.Lock != nil {
+		cluster, err = manifest.NewClusterFromLock(*conf.TestConfig.Lock)
+		if err != nil {
+			return err
+		}
+	} else {
+		cluster, err = loadClusterManifest(conf.ManifestFile, conf.Lockfile)
+		if err != nil {
+			return err
+		}
 	}
+
 	nextKeystoreIdx := len(cluster.Validators)
 
 	log.Info(ctx, "Cluster manifest loaded",
@@ -226,58 +236,6 @@ func builderRegistration(secret tbls.PrivateKey, pubkey tbls.PublicKey, feeRecip
 		Message:   reg,
 		Signature: tblsconv.SigToETH2(sig),
 	}, nil
-}
-
-// loadClusterManifest returns the cluster manifest from the provided config. It returns true if
-// the cluster was loaded from a legacy lock file.
-func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, error) {
-	if conf.TestConfig.Manifest != nil {
-		return conf.TestConfig.Manifest, nil
-	}
-
-	if conf.TestConfig.Lock != nil {
-		return manifest.NewClusterFromLock(*conf.TestConfig.Lock)
-	}
-
-	verifyLock := func(lock cluster.Lock) error {
-		if err := lock.VerifyHashes(); err != nil {
-			return errors.Wrap(err, "cluster lock hash verification failed")
-		}
-
-		if err := lock.VerifySignatures(); err != nil {
-			return errors.Wrap(err, "cluster lock signature verification failed")
-		}
-
-		return nil
-	}
-
-	cluster, err := manifest.Load(conf.ManifestFile, conf.Lockfile, verifyLock)
-	if err != nil {
-		return nil, errors.Wrap(err, "load cluster manifest")
-	}
-
-	return cluster, nil
-}
-
-// writeClusterManifests writes the provided cluster manifest to node directories on disk.
-func writeClusterManifests(clusterDir string, numOps int, cluster *manifestpb.Cluster) error {
-	b, err := proto.Marshal(cluster)
-	if err != nil {
-		return errors.Wrap(err, "marshal proto")
-	}
-
-	// Write cluster manifest to node directories on disk
-	for i := 0; i < numOps; i++ {
-		dir := path.Join(clusterDir, fmt.Sprintf("node%d", i))
-		filename := path.Join(dir, "cluster-manifest.pb")
-		//nolint:gosec // File needs to be read-write since the cluster manifest is modified by mutations.
-		err = os.WriteFile(filename, b, 0o644) // Read-write
-		if err != nil {
-			return errors.Wrap(err, "write cluster manifest")
-		}
-	}
-
-	return nil
 }
 
 // saveDepositDatas creates deposit data for each validator and writes the deposit data to disk for each node.
@@ -507,7 +465,7 @@ func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsCon
 }
 
 // getP2PKeys returns a list of p2p private keys either by loading from disk or from test config.
-func getP2PKeys(clusterDir string, numOps int, testConfig TestConfig) ([]*k1.PrivateKey, error) {
+func getP2PKeys(clusterDir string, numOps int, testConfig addValidatorTestConfig) ([]*k1.PrivateKey, error) {
 	if len(testConfig.P2PKeys) > 0 {
 		return testConfig.P2PKeys, nil
 	}
