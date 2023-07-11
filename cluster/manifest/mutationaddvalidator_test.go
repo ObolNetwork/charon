@@ -113,7 +113,7 @@ func TestAddValidators(t *testing.T) {
 	})
 
 	t.Run("transform", func(t *testing.T) {
-		cluster, err := manifest.NewClusterFromLock(lock)
+		cluster, err := manifest.NewClusterFromLockForT(t, lock)
 		require.NoError(t, err)
 
 		cluster.Validators = nil

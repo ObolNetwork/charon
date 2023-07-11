@@ -53,7 +53,7 @@ func loadLegacyLock(input []byte, lockCallback func(cluster.Lock) error) (*manif
 		}
 	}
 
-	legacy, err := NewLegacyLock(lock)
+	legacy, err := NewRawLegacyLock(input)
 	if err != nil {
 		return nil, errors.Wrap(err, "create legacy lock")
 	}

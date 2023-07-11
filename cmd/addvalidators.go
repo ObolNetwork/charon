@@ -100,7 +100,7 @@ func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err er
 	if conf.TestConfig.Manifest != nil {
 		cluster = conf.TestConfig.Manifest
 	} else if conf.TestConfig.Lock != nil {
-		cluster, err = manifest.NewClusterFromLock(*conf.TestConfig.Lock)
+		cluster, err = manifest.NewClusterFromLockForT(nil, *conf.TestConfig.Lock)
 		if err != nil {
 			return err
 		}

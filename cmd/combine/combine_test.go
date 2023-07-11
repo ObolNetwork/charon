@@ -184,7 +184,7 @@ func writeManifest(
 	lock cluster.Lock,
 ) {
 	t.Helper()
-	legacy, err := manifest.NewLegacyLock(modifyLockFile(valIdx, lock))
+	legacy, err := manifest.NewLegacyLockForT(t, modifyLockFile(valIdx, lock))
 	require.NoError(t, err)
 
 	cluster, err := manifest.Materialise(&manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{legacy}})

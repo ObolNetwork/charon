@@ -31,7 +31,7 @@ func TestLegacyLock(t *testing.T) {
 	var lock cluster.Lock
 	testutil.RequireNoError(t, json.Unmarshal(lockJSON, &lock))
 
-	legacyLock, err := manifest.NewLegacyLock(lock)
+	legacyLock, err := manifest.NewLegacyLockForT(t, lock)
 	require.NoError(t, err)
 
 	t.Run("proto", func(t *testing.T) {
