@@ -1207,23 +1207,23 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 	mux.HandleFunc("/eth/v1/beacon/genesis", func(w http.ResponseWriter, r *http.Request) {
 		res, err := mock.Genesis(ctx)
 		require.NoError(t, err)
-		writeResponse(ctx, w, "", res)
+		writeResponse(ctx, w, "", res, nil)
 	})
 	mux.HandleFunc("/eth/v1/config/spec", func(w http.ResponseWriter, r *http.Request) {
 		res := map[string]interface{}{
 			"SLOTS_PER_EPOCH": fmt.Sprint(slotsPerEpoch),
 		}
-		writeResponse(ctx, w, "", nest(res, "data"))
+		writeResponse(ctx, w, "", nest(res, "data"), nil)
 	})
 	mux.HandleFunc("/eth/v1/config/deposit_contract", func(w http.ResponseWriter, r *http.Request) {
 		res, err := mock.DepositContract(ctx)
 		require.NoError(t, err)
-		writeResponse(ctx, w, "", res)
+		writeResponse(ctx, w, "", res, nil)
 	})
 	mux.HandleFunc("/eth/v1/config/fork_schedule", func(w http.ResponseWriter, r *http.Request) {
 		res, err := mock.ForkSchedule(ctx)
 		require.NoError(t, err)
-		writeResponse(ctx, w, "", nest(res, "data"))
+		writeResponse(ctx, w, "", nest(res, "data"), nil)
 	})
 
 	if h.ProxyHandler != nil {
