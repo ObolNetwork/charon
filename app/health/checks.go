@@ -40,24 +40,25 @@ type query func(name string, selector labelSelector, reducer seriesReducer) (flo
 // checks is a list of health checks.
 var checks = []check{
 	{
-		Name:        "error_logs",
-		Description: "Error logs detected that require human intervention.",
-		Severity:    severityCritical,
-		Func: func(q query, _ Metadata) (bool, error) {
-			increase, err := q("app_log_error_total", noLabels, counterIncrease)
+		// TODO(corver): Change this to critical on any error once we aligned with only logging errors when human intervention is required.
+		Name:        "high_error_log_rate",
+		Description: "High rate of error logs. Please check the logs for more details.",
+		Severity:    severityWarning,
+		Func: func(q query, m Metadata) (bool, error) {
+			increase, err := q("app_log_error_total", noLabels, increase)
 			if err != nil {
 				return false, err
 			}
 
-			return increase > 0, nil
+			return increase > 2*float64(m.NumValidators), nil // Allow 2 errors per validator.
 		},
 	},
 	{
 		Name:        "high_warning_log_rate",
 		Description: "High rate of warning logs. Please check the logs for more details.",
-		Severity:    severityCritical,
+		Severity:    severityWarning,
 		Func: func(q query, m Metadata) (bool, error) {
-			increase, err := q("app_log_warning_total", noLabels, counterIncrease)
+			increase, err := q("app_log_warning_total", noLabels, increase)
 			if err != nil {
 				return false, err
 			}
@@ -83,12 +84,14 @@ var checks = []check{
 		Description: "Not connected to at least quorum peers. Check logs for networking issue or coordinate with peers.",
 		Severity:    severityCritical,
 		Func: func(q query, m Metadata) (bool, error) {
-			min, err := q("p2p_peer_connection_total", countNonZeroLabels, gaugeMin)
+			max, err := q("p2p_ping_success", countNonZeroLabels, gaugeMax)
 			if err != nil {
 				return false, err
 			}
 
-			return min < float64(m.QuorumPeers), nil
+			required := float64(m.QuorumPeers) - 1 // Exclude self
+
+			return max < required, nil
 		},
 	},
 	{
@@ -111,21 +114,13 @@ var checks = []check{
 		Description: "Proposal failures detected. See <link to troubleshoot proposal failures>.",
 		Severity:    severityWarning,
 		Func: func(q query, m Metadata) (bool, error) {
-			fullIncrease, err := q("core_tracker_failed_duties_total",
-				selectLabel(l("duty", "proposal")),
-				counterIncrease)
+			increase, err := q("core_tracker_failed_duties_total",
+				sumLabels(l("duty", ".*proposal")), increase)
 			if err != nil {
 				return false, err
 			}
 
-			builderIncrease, err := q("core_tracker_failed_duties_total",
-				selectLabel(l("duty", "builder_proposal")),
-				counterIncrease)
-			if err != nil {
-				return false, err
-			}
-
-			return fullIncrease+builderIncrease > 0, nil
+			return increase > 0, nil
 		},
 	},
 }

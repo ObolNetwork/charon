@@ -5,18 +5,21 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/spf13/cobra"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/k1util"
@@ -29,6 +32,7 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/enr"
+	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/eth2util/registration"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -92,22 +96,12 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 }
 
 func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err error) {
-	var cluster *manifestpb.Cluster
-
-	if conf.TestConfig.Manifest != nil {
-		cluster = conf.TestConfig.Manifest
-	} else if conf.TestConfig.Lock != nil {
-		cluster, err = manifest.NewClusterFromLock(*conf.TestConfig.Lock)
-		if err != nil {
-			return err
-		}
-	} else {
-		// Read lock file to load cluster manifest
-		cluster, _, err = loadClusterManifest(conf.ManifestFile, conf.Lockfile)
-		if err != nil {
-			return err
-		}
+	// Read lock file to load cluster manifest
+	cluster, err := loadClusterManifest(conf)
+	if err != nil {
+		return err
 	}
+	nextKeystoreIdx := len(cluster.Validators)
 
 	log.Info(ctx, "Cluster manifest loaded",
 		z.Str("cluster_name", cluster.Name),
@@ -133,7 +127,7 @@ func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err er
 		conf.WithdrawalAddrs = repeatAddr(conf.WithdrawalAddrs[0], conf.NumVals)
 	}
 
-	vals, secrets, err := genNewVals(len(cluster.Operators), int(cluster.Threshold), cluster.ForkVersion, conf)
+	vals, secrets, shareSets, err := genNewVals(len(cluster.Operators), int(cluster.Threshold), cluster.ForkVersion, conf)
 	if err != nil {
 		return err
 	}
@@ -176,6 +170,11 @@ func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err er
 	cluster, err = manifest.Transform(cluster, addVals)
 	if err != nil {
 		return errors.Wrap(err, "transform cluster manifest")
+	}
+
+	err = writeNewKeystores(conf.ClusterDir, len(cluster.Operators), nextKeystoreIdx, shareSets)
+	if err != nil {
+		return err
 	}
 
 	err = saveDepositDatas(ctx, conf.ClusterDir, len(cluster.Operators), secrets, vals, cluster.ForkVersion)
@@ -227,6 +226,58 @@ func builderRegistration(secret tbls.PrivateKey, pubkey tbls.PublicKey, feeRecip
 		Message:   reg,
 		Signature: tblsconv.SigToETH2(sig),
 	}, nil
+}
+
+// loadClusterManifest returns the cluster manifest from the provided config. It returns true if
+// the cluster was loaded from a legacy lock file.
+func loadClusterManifest(conf addValidatorsConfig) (*manifestpb.Cluster, error) {
+	if conf.TestConfig.Manifest != nil {
+		return conf.TestConfig.Manifest, nil
+	}
+
+	if conf.TestConfig.Lock != nil {
+		return manifest.NewClusterFromLock(*conf.TestConfig.Lock)
+	}
+
+	verifyLock := func(lock cluster.Lock) error {
+		if err := lock.VerifyHashes(); err != nil {
+			return errors.Wrap(err, "cluster lock hash verification failed")
+		}
+
+		if err := lock.VerifySignatures(); err != nil {
+			return errors.Wrap(err, "cluster lock signature verification failed")
+		}
+
+		return nil
+	}
+
+	cluster, err := manifest.Load(conf.ManifestFile, conf.Lockfile, verifyLock)
+	if err != nil {
+		return nil, errors.Wrap(err, "load cluster manifest")
+	}
+
+	return cluster, nil
+}
+
+// writeClusterManifests writes the provided cluster manifest to node directories on disk.
+func writeClusterManifests(clusterDir string, numOps int, cluster *manifestpb.Cluster) error {
+	b, err := proto.Marshal(cluster)
+	if err != nil {
+		return errors.Wrap(err, "marshal proto")
+	}
+
+	// Write cluster manifest to node directories on disk
+	for i := 0; i < numOps; i++ {
+		dir := path.Join(clusterDir, fmt.Sprintf("node%d", i))
+		filename := path.Join(dir, "cluster-manifest.pb")
+		//nolint:gosec // File needs to be read-write since the cluster manifest is modified by mutations.
+		err = os.WriteFile(filename, b, 0o644) // Read-write
+		if err != nil {
+			return errors.Wrap(err, "write cluster manifest")
+		}
+	}
+
+	return nil
 }
 
 // saveDepositDatas creates deposit data for each validator and writes the deposit data to disk for each node.
@@ -283,6 +334,57 @@ func saveDepositDatas(ctx context.Context, clusterDir string, numOps int, secret
 	return nil
 }
 
+// writeNewKeystores saves keystores for new validators to disk for each node. The new keystore files are saved
+// in ascending order, starting from the next available index after the last saved keystore in the validator_keys/
+// directory. For example, if the directory already contains keystores up to keystore-X.json, the new
+// keystores will be saved as keystore-(X+1).json, keystore-(X+2.json), and so on.
+func writeNewKeystores(clusterDir string, numOps, firstKeystoreIdx int, shareSets [][]tbls.PrivateKey) error {
+	for _, shares := range shareSets {
+		if len(shares) != numOps {
+			return errors.New("insufficient shares", z.Int("num_shares", len(shares)), z.Int("num_operators", numOps))
+		}
+	}
+
+	for i := 0; i < numOps; i++ {
+		var secrets []tbls.PrivateKey // All partial keys for node<i>
+		for _, shares := range shareSets {
+			secrets = append(secrets, shares[i])
+		}
+
+		for idx, secret := range secrets {
+			keysDir := path.Join(nodeDir(clusterDir, i), "/validator_keys")
+			filename := path.Join(keysDir, fmt.Sprintf("keystore-%d.json", firstKeystoreIdx+idx))
+			password, err := randomHex32()
+			if err != nil {
+				return err
+			}
+
+			store, err := keystore.Encrypt(secret, password, rand.Reader)
+			if err != nil {
+				return errors.Wrap(err, "encryption error", z.Str("filename", filename))
+			}
+
+			b, err := json.MarshalIndent(store, "", " ")
+			if err != nil {
+				return errors.Wrap(err, "marshal keystore", z.Str("filename", filename))
+			}
+
+			//nolint:gosec // File needs to be read-only for everybody
+			if err := os.WriteFile(filename, b, 0o444); err != nil {
+				return errors.Wrap(err, "write keystore", z.Str("filename", filename))
+			}
+
+			passwordFile := strings.Replace(filename, ".json", ".txt", 1)
+			err = os.WriteFile(passwordFile, []byte(password), 0o400)
+			if err != nil {
+				return errors.Wrap(err, "write password file")
+			}
+		}
+	}
+
+	return nil
+}
+
 // validateConf returns an error if the provided validators config fails validation checks.
 func validateConf(conf addValidatorsConfig) error {
 	if conf.NumVals <= 0 {
@@ -326,38 +428,46 @@ func validateConf(conf addValidatorsConfig) error {
 	return nil
 }
 
-// genNewVals returns a list of new validators and their corresponding private keys from the provided config.
-func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsConfig) ([]*manifestpb.Validator, []tbls.PrivateKey, error) {
+// genNewVals returns a list of new validators, their corresponding private keys and threshold keyshares from the provided config.
+func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsConfig) ([]*manifestpb.Validator, []tbls.PrivateKey, [][]tbls.PrivateKey, error) {
 	// Generate new validators
 	var (
-		vals    []*manifestpb.Validator
-		secrets []tbls.PrivateKey
+		vals      []*manifestpb.Validator
+		secrets   []tbls.PrivateKey
+		shareSets [][]tbls.PrivateKey
 	)
 
 	for i := 0; i < conf.NumVals; i++ {
 		// Generate private/public keypair
 		secret, err := tbls.GenerateSecretKey()
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "generate secret key")
+			return nil, nil, nil, errors.Wrap(err, "generate secret key")
 		}
 		secrets = append(secrets, secret)
 
 		pubkey, err := tbls.SecretToPublicKey(secret)
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "generate public key")
+			return nil, nil, nil, errors.Wrap(err, "generate public key")
 		}
 
 		// Split private key and generate public keyshares
 		shares, err := tbls.ThresholdSplit(secret, uint(numOps), uint(threshold))
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "threshold split key")
+			return nil, nil, nil, errors.Wrap(err, "threshold split key")
 		}
+
+		// Preserve order when transforming from map of private shares to array of private keys.
+		secretSet := make([]tbls.PrivateKey, len(shares))
+		for j := 1; j <= len(shares); j++ {
+			secretSet[j-1] = shares[j]
+		}
+		shareSets = append(shareSets, secretSet)
 
 		var pubshares [][]byte
 		for _, share := range shares {
 			pubshare, err := tbls.SecretToPublicKey(share)
 			if err != nil {
-				return nil, nil, errors.Wrap(err, "generate public key")
+				return nil, nil, nil, errors.Wrap(err, "generate public key")
 			}
 
 			pubshares = append(pubshares, pubshare[:])
@@ -365,23 +475,23 @@ func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsCon
 
 		feeRecipientAddr, err := eth2util.ChecksumAddress(conf.FeeRecipientAddrs[i])
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "invalid fee recipient address")
+			return nil, nil, nil, errors.Wrap(err, "invalid fee recipient address")
 		}
 
 		withdrawalAddr, err := eth2util.ChecksumAddress(conf.WithdrawalAddrs[i])
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "invalid withdrawal address")
+			return nil, nil, nil, errors.Wrap(err, "invalid withdrawal address")
 		}
 
 		// Generate builder registration
 		builderReg, err := builderRegistration(secret, pubkey, feeRecipientAddr, forkVersion)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 
 		builderRegJSON, err := json.Marshal(builderReg)
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "marshal builder registration")
+			return nil, nil, nil, errors.Wrap(err, "marshal builder registration")
 		}
 
 		vals = append(vals, &manifestpb.Validator{
@@ -393,7 +503,7 @@ func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsCon
 		})
 	}
 
-	return vals, secrets, nil
+	return vals, secrets, shareSets, nil
 }
 
 // getP2PKeys returns a list of p2p private keys either by loading from disk or from test config.
@@ -482,4 +592,15 @@ func shortPubkey(input []byte) (string, error) {
 	}
 
 	return pubkey.String(), nil
+}
+
+// randomHex32 returns a random 32 character hex string. It uses crypto/rand.
+func randomHex32() (string, error) {
+	b := make([]byte, 16)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", errors.Wrap(err, "read random")
+	}
+
+	return hex.EncodeToString(b), nil
 }

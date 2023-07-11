@@ -18,6 +18,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_eth2_errors_total` | Counter | Total number of errors returned by eth2 beacon node requests | `endpoint` |
 | `app_eth2_latency_seconds` | Histogram | Latency in seconds for eth2 beacon node requests | `endpoint` |
 | `app_git_commit` | Gauge | Constant gauge with label set to current git commit hash | `git_hash` |
+| `app_health_checks` | Gauge | Application health checks by name and severity. Set to 1 for failing, 0 for ok. | `severity, name` |
 | `app_log_error_total` | Counter | Total count of logged errors by topic | `topic` |
 | `app_log_warn_total` | Counter | Total count of logged warnings by topic | `topic` |
 | `app_monitoring_readyz` | Gauge | Set to 1 if the node is operational and monitoring api `/readyz` endpoint is returning 200s. Else `/readyz` is returning 500s and this metric is either set to 2 if the beacon node is down, or3 if the beacon node is syncing, or4 if quorum peers are not connected. |  |

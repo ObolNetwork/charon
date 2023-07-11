@@ -19,6 +19,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/health"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
@@ -90,7 +91,15 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 		ReadHeaderTimeout: time.Second,
 	}
 
+	// Create and start health checker.
+	checker := health.NewChecker(health.Metadata{
+		NumValidators: len(pubkeys),
+		NumPeers:      len(peerIDs),
+		QuorumPeers:   cluster.Threshold(len(peerIDs)),
+	}, registry)
+
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartMonitoringAPI, httpServeHook(server.ListenAndServe))
+	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartMonitoringAPI, lifecycle.HookFuncCtx(checker.Run))
 	life.RegisterStop(lifecycle.StopMonitoringAPI, lifecycle.HookFunc(server.Shutdown))
 }
 

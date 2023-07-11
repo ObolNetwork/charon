@@ -121,6 +121,7 @@ func TestRunAddValidators(t *testing.T) {
 		for _, dirname := range nodeDirnames {
 			dir := path.Join(tmp, dirname)
 			require.NoError(t, os.Mkdir(dir, 0o777))
+			require.NoError(t, os.Mkdir(path.Join(dir, "validator_keys"), 0o777))
 		}
 
 		conf := addValidatorsConfig{
@@ -155,6 +156,7 @@ func TestRunAddValidators(t *testing.T) {
 		for _, dirname := range nodeDirnames {
 			dir := path.Join(tmp, dirname)
 			require.NoError(t, os.Mkdir(dir, 0o777))
+			require.NoError(t, os.Mkdir(path.Join(dir, "validator_keys"), 0o777))
 		}
 
 		conf := addValidatorsConfig{
@@ -209,10 +211,11 @@ func TestRunAddValidators(t *testing.T) {
 
 		entries, err := os.ReadDir(path.Join(tmp, "node0"))
 		require.NoError(t, err)
-		require.Equal(t, 2, len(entries))
+		require.Equal(t, 3, len(entries))
 
 		require.True(t, strings.Contains(entries[0].Name(), "cluster-manifest"))
 		require.True(t, strings.Contains(entries[1].Name(), "deposit-data"))
+		require.True(t, strings.Contains(entries[2].Name(), "validator_keys"))
 	})
 }
 
