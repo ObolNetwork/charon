@@ -645,13 +645,16 @@ func newTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(
 		return nil, err
 	}
 
+	// Add InclMissedLag slots and InclCheckLag delay to analyser to capture missed inclusion errors.
+	trackerDelay := tracker.InclMissedLag + tracker.InclCheckLag
+
 	analyser := core.NewDeadliner(ctx, "tracker_analyser", func(duty core.Duty) (time.Time, bool) {
 		d, ok := deadlineFunc(duty)
-		return d.Add(tracker.InclMissedLag * slotDuration), ok // Add InclMissedLag slots delay to analyser to capture missed inclusion errors.
+		return d.Add(time.Duration(trackerDelay) * slotDuration), ok
 	})
 	deleter := core.NewDeadliner(ctx, "tracker_deleter", func(duty core.Duty) (time.Time, bool) {
 		d, ok := deadlineFunc(duty)
-		return d.Add(tracker.InclMissedLag * slotDuration).Add(time.Minute), ok // Delete duties after analyser_deadline+1min.
+		return d.Add(time.Duration(trackerDelay) * slotDuration).Add(time.Minute), ok // Delete duties after analyser_deadline+1min.
 	})
 
 	trackFrom, err := calculateTrackerDelay(ctx, eth2Cl, time.Now())
