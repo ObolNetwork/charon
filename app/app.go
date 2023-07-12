@@ -88,6 +88,7 @@ type Config struct {
 	SyntheticBlockProposals bool
 	BuilderAPI              bool
 	SimnetBMockFuzz         bool
+	CharonP2PFuzz           bool
 
 	TestConfig TestConfig
 }

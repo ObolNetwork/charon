@@ -19,7 +19,7 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
+func newRunCmd(runFunc func(context.Context, app.Config) error, unsafe bool) *cobra.Command {
 	var conf app.Config
 
 	cmd := &cobra.Command{
@@ -36,6 +36,10 @@ func newRunCmd(runFunc func(context.Context, app.Config) error) *cobra.Command {
 
 			return runFunc(cmd.Context(), conf)
 		},
+	}
+
+	if unsafe {
+		bindUnsafeRunFlags(cmd, &conf)
 	}
 
 	bindPrivKeyFlag(cmd, &conf.PrivKeyFile, &conf.PrivKeyLocking)
@@ -84,6 +88,11 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 
 		return nil
 	})
+}
+
+// TODO(dhruv): add more test only flags to this function.
+func bindUnsafeRunFlags(cmd *cobra.Command, config *app.Config) {
+	cmd.Flags().BoolVar(&config.CharonP2PFuzz, "charon-p2p-fuzz", false, "Configures charon p2p network to send fuzzed data to its peers.")
 }
 
 func bindPrivKeyFlag(cmd *cobra.Command, privKeyFile *string, privkeyLockEnabled *bool) {
