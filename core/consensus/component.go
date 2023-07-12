@@ -126,6 +126,27 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer roundTimer,
 	}
 }
 
+// newInstanceIO returns a new instanceIO.
+func newInstanceIO() instanceIO {
+	return instanceIO{
+		recvBuffer:  make(chan msg, recvBuffer),
+		hashCh:      make(chan [32]byte, 1),
+		valueCh:     make(chan proto.Message, 1),
+		errCh:       make(chan error, 1),
+		decidedAtCh: make(chan time.Time, 1),
+	}
+}
+
+// instance defines the async input and output channels of a
+// single consensus instance in the Component.
+type instanceIO struct {
+	recvBuffer  chan msg           // Outer receive buffers.
+	hashCh      chan [32]byte      // Async input hash channel.
+	valueCh     chan proto.Message // Async input value channel.
+	errCh       chan error         // Async output error channel.
+	decidedAtCh chan time.Time     // Async output decided timestamp channel.
+}
+
 // New returns a new consensus QBFT component.
 func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey,
 	deadliner core.Deadliner, snifferFunc func(*pbv1.SniffedConsensusInstance),
@@ -156,10 +177,7 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.Pri
 		dropFilter:  log.Filter(),
 		timerFunc:   getTimerFunc(),
 	}
-	c.mutable.recvBuffers = make(map[core.Duty]chan msg)
-	c.mutable.inputValues = make(map[core.Duty]chan proto.Message)
-	c.mutable.inputHashes = make(map[core.Duty]chan [32]byte)
-	c.mutable.returnErrs = make(map[core.Duty]chan error)
+	c.mutable.instances = make(map[core.Duty]instanceIO)
 
 	return c, nil
 }
@@ -182,10 +200,7 @@ type Component struct {
 	// Mutable state
 	mutable struct {
 		sync.Mutex
-		recvBuffers map[core.Duty]chan msg           // Instance outer receive buffers.
-		inputHashes map[core.Duty]chan [32]byte      // Instance input hash channels.
-		inputValues map[core.Duty]chan proto.Message // Instance input value channels.
-		returnErrs  map[core.Duty]chan error         // Instance return error channels.
+		instances map[core.Duty]instanceIO
 	}
 }
 
@@ -237,7 +252,7 @@ func (c *Component) Start(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case duty := <-c.deadliner.C():
-				c.deleteMutable(duty)
+				c.deleteInstanceIO(duty)
 			}
 		}
 	}()
@@ -272,22 +287,35 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 		return err
 	}
 
-	valCh, hashCh, errCh, running := c.getInstanceChans(duty)
+	inst, running := c.getInstanceIO(duty)
 
+	// Provide proposal inputs to the instance.
 	select {
-	case valCh <- value:
+	case inst.valueCh <- value:
 	default:
 		return errors.New("input channel full")
 	}
 
 	select {
-	case hashCh <- hash:
+	case inst.hashCh <- hash:
 	default:
 		return errors.New("input channel full")
 	}
+
+	// Instrument consensus duration using decidedAt output.
+	proposedAt := time.Now()
+	defer func() {
+		select {
+		case decidedAt := <-inst.decidedAtCh:
+			timerType := c.timerFunc(duty).Type()
+			duration := decidedAt.Sub(proposedAt)
+			consensusDuration.WithLabelValues(duty.String(), string(timerType)).Observe(duration.Seconds())
+		default:
+		}
+	}()
 
 	if running { // Participate was already called, instance is running.
-		return <-errCh
+		return <-inst.errCh
 	}
 
 	return c.runInstance(ctx, duty)
@@ -304,7 +332,7 @@ func (c *Component) Participate(ctx context.Context, duty core.Duty) error {
 		return nil // Not an eager start timer, wait for Propose to start.
 	}
 
-	if _, _, _, running := c.getInstanceChans(duty); running {
+	if _, running := c.getInstanceIO(duty); running {
 		return nil // Instance already running.
 	}
 
@@ -335,20 +363,18 @@ func (c *Component) runInstance(ctx context.Context, duty core.Duty) (err error)
 		return err
 	}
 
+	inst, _ := c.getInstanceIO(duty)
+	defer func() {
+		inst.errCh <- err // Send resulting error to errCh.
+	}()
+
 	// Instrument consensus instance.
-	var (
-		t0      = time.Now()
-		decided bool
-	)
+	var decided bool
 	decideCallback := func(qcommit []qbft.Msg[core.Duty, [32]byte]) {
 		decided = true
-		instrumentConsensus(duty, qcommit[0].Round(), t0, roundTimer.Type())
+		decidedRoundsGauge.WithLabelValues(duty.Type.String(), string(roundTimer.Type())).Set(float64(qcommit[0].Round()))
+		inst.decidedAtCh <- time.Now()
 	}
-
-	valueCh, hashCh, errCh, _ := c.getInstanceChans(duty)
-	defer func() {
-		errCh <- err // Send resulting error to errCh.
-	}()
 
 	// Create a new qbft definition for this instance.
 	def := newDefinition(len(c.peers), c.subscribers, roundTimer, decideCallback)
@@ -357,7 +383,7 @@ func (c *Component) runInstance(ctx context.Context, duty core.Duty) (err error)
 	t := transport{
 		component:  c,
 		values:     make(map[[32]byte]*anypb.Any),
-		valueCh:    valueCh,
+		valueCh:    inst.valueCh,
 		recvBuffer: make(chan qbft.Msg[core.Duty, [32]byte]),
 		sniffer:    newSniffer(int64(def.Nodes), peerIdx),
 	}
@@ -377,7 +403,7 @@ func (c *Component) runInstance(ctx context.Context, duty core.Duty) (err error)
 	}
 
 	// Run the algo, blocking until the context is cancelled.
-	err = qbft.Run[core.Duty, [32]byte](ctx, def, qt, duty, peerIdx, hashCh)
+	err = qbft.Run[core.Duty, [32]byte](ctx, def, qt, duty, peerIdx, inst.hashCh)
 	if err != nil && !isContextErr(err) {
 		consensusError.Inc()
 		return err // Only return non-context errors.
@@ -458,56 +484,37 @@ func (c *Component) getRecvBuffer(duty core.Duty) chan msg {
 	c.mutable.Lock()
 	defer c.mutable.Unlock()
 
-	ch, ok := c.mutable.recvBuffers[duty]
+	inst, ok := c.mutable.instances[duty]
 	if !ok {
-		ch = make(chan msg, recvBuffer)
-		c.mutable.recvBuffers[duty] = ch
+		inst = newInstanceIO()
+		c.mutable.instances[duty] = inst
 	}
 
-	return ch
+	return inst.recvBuffer
 }
 
-// getInstanceChans returns the duty's input value and hash and error channels and true if they were previously created.
-func (c *Component) getInstanceChans(duty core.Duty) (chan proto.Message, chan [32]byte, chan error, bool) {
+// getInstanceIO returns the duty's instance and true if it were previously created.
+func (c *Component) getInstanceIO(duty core.Duty) (instanceIO, bool) {
 	c.mutable.Lock()
 	defer c.mutable.Unlock()
 
-	valCh, ok := c.mutable.inputValues[duty]
-	if !ok { // Create new channels.
-		valCh = make(chan proto.Message, 1)
-		c.mutable.inputValues[duty] = valCh
+	inst, ok := c.mutable.instances[duty]
+	if !ok { // Create new instanceIO.
+		inst = newInstanceIO()
+		c.mutable.instances[duty] = inst
 
-		hashCh := make(chan [32]byte, 1)
-		c.mutable.inputHashes[duty] = hashCh
-
-		errCh := make(chan error, 1)
-		c.mutable.returnErrs[duty] = errCh
-
-		return valCh, hashCh, errCh, false
+		return inst, false
 	}
 
-	// Return existing channels.
-	hashCh, ok := c.mutable.inputHashes[duty]
-	if !ok {
-		panic("bug: this should never happen")
-	}
-
-	errCh, ok := c.mutable.returnErrs[duty]
-	if !ok {
-		panic("bug: this should never happen")
-	}
-
-	return valCh, hashCh, errCh, true
+	return inst, true
 }
 
-// deleteMutable deletes the receive channel and recvDropped map entry for the duty.
-func (c *Component) deleteMutable(duty core.Duty) {
+// deleteInstanceIO deletes the instanceIO for the duty.
+func (c *Component) deleteInstanceIO(duty core.Duty) {
 	c.mutable.Lock()
 	defer c.mutable.Unlock()
 
-	delete(c.mutable.recvBuffers, duty)
-	delete(c.mutable.inputHashes, duty)
-	delete(c.mutable.inputValues, duty)
+	delete(c.mutable.instances, duty)
 }
 
 // getPeerIdx returns the local peer index.

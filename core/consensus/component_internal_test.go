@@ -371,7 +371,7 @@ func TestComponent_handle(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var tc Component
 			tc.deadliner = testDeadliner{}
-			tc.mutable.recvBuffers = make(map[core.Duty]chan msg)
+			tc.mutable.instances = make(map[core.Duty]instanceIO)
 
 			msg := &pbv1.ConsensusMsg{
 				Msg: randomMsg(t),
