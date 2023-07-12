@@ -347,6 +347,72 @@ func TestRawRouter(t *testing.T) {
 		testRawRouter(t, handler, callback)
 		require.True(t, done.Load())
 	})
+
+	t.Run("get response header for beacon block proposal", func(t *testing.T) {
+		block := &eth2spec.VersionedBeaconBlock{
+			Version: eth2spec.DataVersionCapella,
+			Capella: testutil.RandomCapellaBeaconBlock(),
+		}
+		expectedSlot, err := block.Slot()
+		require.NoError(t, err)
+		randao := block.Capella.Body.RANDAOReveal
+		handler := testHandler{
+			BeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2spec.VersionedBeaconBlock, error) {
+				require.Equal(t, expectedSlot, slot)
+				require.Equal(t, randao, randaoReveal)
+
+				return block, nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			res, err := http.Get(baseURL + fmt.Sprintf("/eth/v2/validator/blocks/%d?randao_reveal=%#x", expectedSlot, randao))
+			require.NoError(t, err)
+
+			// Verify response header.
+			require.Equal(t, block.Version.String(), res.Header.Get("Eth-Consensus-Version"))
+
+			var blockRes proposeBlockResponseCapella
+			err = json.NewDecoder(res.Body).Decode(&blockRes)
+			require.NoError(t, err)
+			require.EqualValues(t, block.Capella, blockRes.Data)
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("get response header for blinded block proposal", func(t *testing.T) {
+		block := &eth2api.VersionedBlindedBeaconBlock{
+			Version: eth2spec.DataVersionCapella,
+			Capella: testutil.RandomCapellaBlindedBeaconBlock(),
+		}
+		expectedSlot, err := block.Slot()
+		require.NoError(t, err)
+		randao := block.Capella.Body.RANDAOReveal
+		handler := testHandler{
+			BlindedBeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error) {
+				require.Equal(t, expectedSlot, slot)
+				require.Equal(t, randao, randaoReveal)
+
+				return block, nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			res, err := http.Get(baseURL + fmt.Sprintf("/eth/v1/validator/blinded_blocks/%d?randao_reveal=%#x", expectedSlot, randao))
+			require.NoError(t, err)
+
+			// Verify response header.
+			require.Equal(t, block.Version.String(), res.Header.Get("Eth-Consensus-Version"))
+
+			var blockRes proposeBlindedBlockResponseCapella
+			err = json.NewDecoder(res.Body).Decode(&blockRes)
+			require.NoError(t, err)
+			require.EqualValues(t, block.Capella, blockRes.Data)
+		}
+
+		testRawRouter(t, handler, callback)
+	})
 }
 
 //nolint:maintidx // This function is a test of tests, so analysed as "complex".
@@ -1207,23 +1273,23 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 	mux.HandleFunc("/eth/v1/beacon/genesis", func(w http.ResponseWriter, r *http.Request) {
 		res, err := mock.Genesis(ctx)
 		require.NoError(t, err)
-		writeResponse(ctx, w, "", res)
+		writeResponse(ctx, w, "", res, nil)
 	})
 	mux.HandleFunc("/eth/v1/config/spec", func(w http.ResponseWriter, r *http.Request) {
 		res := map[string]interface{}{
 			"SLOTS_PER_EPOCH": fmt.Sprint(slotsPerEpoch),
 		}
-		writeResponse(ctx, w, "", nest(res, "data"))
+		writeResponse(ctx, w, "", nest(res, "data"), nil)
 	})
 	mux.HandleFunc("/eth/v1/config/deposit_contract", func(w http.ResponseWriter, r *http.Request) {
 		res, err := mock.DepositContract(ctx)
 		require.NoError(t, err)
-		writeResponse(ctx, w, "", res)
+		writeResponse(ctx, w, "", res, nil)
 	})
 	mux.HandleFunc("/eth/v1/config/fork_schedule", func(w http.ResponseWriter, r *http.Request) {
 		res, err := mock.ForkSchedule(ctx)
 		require.NoError(t, err)
-		writeResponse(ctx, w, "", nest(res, "data"))
+		writeResponse(ctx, w, "", nest(res, "data"), nil)
 	})
 
 	if h.ProxyHandler != nil {
