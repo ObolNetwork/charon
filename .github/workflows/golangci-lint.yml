@@ -14,9 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Config options can be found in README here: https://github.com/golangci/golangci-lint-action
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v4
         with:
-          go-version: '1.20.5'
+          go-version: '1.20.6'
       - uses: actions/checkout@v3
       - name: golangci-lint
         uses: golangci/golangci-lint-action@master
