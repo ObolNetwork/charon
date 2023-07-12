@@ -28,10 +28,9 @@ func NewGenValidators(parent []byte, validators []*manifestpb.Validator) (*manif
 
 	return &manifestpb.SignedMutation{
 		Mutation: &manifestpb.Mutation{
-			Parent:    parent,
-			Type:      string(TypeGenValidators),
-			Timestamp: nowFunc(),
-			Data:      valsAny,
+			Parent: parent,
+			Type:   string(TypeGenValidators),
+			Data:   valsAny,
 		},
 		// No signer or signature.
 	}, nil
@@ -93,10 +92,9 @@ func NewAddValidators(genValidators, nodeApprovals *manifestpb.SignedMutation) (
 
 	return &manifestpb.SignedMutation{
 		Mutation: &manifestpb.Mutation{
-			Parent:    genValidators.Mutation.Parent,
-			Type:      string(TypeAddValidators),
-			Timestamp: nowFunc(),
-			Data:      dataAny,
+			Parent: genValidators.Mutation.Parent,
+			Type:   string(TypeAddValidators),
+			Data:   dataAny,
 		},
 		// Composite mutations have no signer or signature.
 	}, nil

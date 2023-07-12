@@ -7,6 +7,7 @@ import (
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
@@ -15,9 +16,9 @@ import (
 
 // SignNodeApproval signs a node approval mutation.
 func SignNodeApproval(parent []byte, secret *k1.PrivateKey) (*manifestpb.SignedMutation, error) {
-	emptyAny, err := anypb.New(&manifestpb.Empty{})
+	timestampAny, err := anypb.New(nowFunc())
 	if err != nil {
-		return nil, errors.Wrap(err, "empty to any")
+		return nil, errors.Wrap(err, "timestamp to any")
 	}
 
 	if len(parent) != hashLen {
@@ -25,10 +26,9 @@ func SignNodeApproval(parent []byte, secret *k1.PrivateKey) (*manifestpb.SignedM
 	}
 
 	return SignK1(&manifestpb.Mutation{
-		Parent:    parent,
-		Type:      string(TypeNodeApproval),
-		Timestamp: nowFunc(),
-		Data:      emptyAny,
+		Parent: parent,
+		Type:   string(TypeNodeApproval),
+		Data:   timestampAny,
 	}, secret)
 }
 
@@ -61,10 +61,9 @@ func NewNodeApprovalsComposite(approvals []*manifestpb.SignedMutation) (*manifes
 
 	return &manifestpb.SignedMutation{
 		Mutation: &manifestpb.Mutation{
-			Parent:    parent,
-			Type:      string(TypeNodeApprovals),
-			Timestamp: nowFunc(),
-			Data:      anyList,
+			Parent: parent,
+			Type:   string(TypeNodeApprovals),
+			Data:   anyList,
 		},
 		// Composite types do not have signatures
 	}, nil
@@ -76,9 +75,9 @@ func verifyNodeApproval(signed *manifestpb.SignedMutation) error {
 		return errors.New("invalid mutation type")
 	}
 
-	empty := new(manifestpb.Empty)
-	if err := signed.Mutation.Data.UnmarshalTo(empty); err != nil {
-		return errors.Wrap(err, "invalid node approval data")
+	timestamp := new(timestamppb.Timestamp)
+	if err := signed.Mutation.Data.UnmarshalTo(timestamp); err != nil {
+		return errors.Wrap(err, "invalid node approval timestamp data")
 	}
 
 	return verifyK1SignedMutation(signed)
