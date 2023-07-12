@@ -1280,7 +1280,7 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 		res := testutil.RandomBeaconState(t)
 		w.Header().Add("Eth-Consensus-Version", res.Version.String())
 
-		writeResponse(ctx, w, "", nest(res.Capella, "data"))
+		writeResponse(ctx, w, "", nest(res.Capella, "data"), nil)
 	})
 
 	if h.ProxyHandler != nil {
