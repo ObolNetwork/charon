@@ -613,26 +613,11 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("get validators with no validator ids provided", func(t *testing.T) {
-		const numVals = 4
-		handler := testHandler{
-			ValidatorsFunc: func(_ context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
-				require.Nil(t, indices)
-
-				res := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
-				for i := 0; i < numVals; i++ {
-					res[eth2p0.ValidatorIndex(i)] = testutil.RandomValidator(t)
-				}
-
-				return res, nil
-			},
-		}
-
+		const numVals = 2
+		handler := testHandler{}
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			res, err := cl.ValidatorsByPubKey(ctx, "head", nil)
-			require.NoError(t, err)
-			require.Len(t, res, numVals)
-
-			res, err = cl.Validators(ctx, "head", nil)
+			// Validators fetches all validators from beacon state as per go-eth2-client v0.18.0.
+			res, err := cl.Validators(ctx, "head", nil)
 			require.NoError(t, err)
 			require.Len(t, res, numVals)
 		}
@@ -1290,6 +1275,12 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 		res, err := mock.ForkSchedule(ctx)
 		require.NoError(t, err)
 		writeResponse(ctx, w, "", nest(res, "data"), nil)
+	})
+	mux.HandleFunc("/eth/v2/debug/beacon/states/head", func(w http.ResponseWriter, r *http.Request) {
+		res := testutil.RandomBeaconState(t)
+		w.Header().Add("Eth-Consensus-Version", res.Version.String())
+
+		writeResponse(ctx, w, "", nest(res.Capella, "data"), nil)
 	})
 
 	if h.ProxyHandler != nil {
