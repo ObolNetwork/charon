@@ -70,7 +70,7 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 
 		// Prepare sync committee selections when slots tick.
 		vMockWrap(ctx, slot.Slot, func(ctx context.Context, state vMockState) error {
-			// TODODEither call if it is first slot in epoch or on charon startup.
+			// TODO(xenowits): Refactor to prepare sync selections for current and next epochs
 			return state.SyncCommMember.PrepareSlot(ctx, eth2p0.Slot(slot.Slot))
 		})
 
@@ -106,7 +106,7 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 type vMockState struct {
 	Eth2Cl         eth2wrap.Client
 	SignFunc       validatormock.SignFunc
-	Attester       *validatormock.Attester // Changes every slot
+	Attester       *validatormock.Attester
 	SyncCommMember *validatormock.SyncCommMember
 }
 
@@ -127,22 +127,22 @@ func newVMockWrapper(conf Config, pubshares []eth2p0.BLSPubKey,
 	// Mutable state
 	var (
 		mu           sync.Mutex
-		attesters    = make(map[eth2p0.Slot]*validatormock.Attester)
+		attesters    = make(map[eth2p0.Epoch]*validatormock.Attester)
 		syncCommMems = make(map[eth2p0.Epoch]*validatormock.SyncCommMember)
 	)
 
 	// Trim state to avoid memory leak.
 	const trimOffset = 2
-	trim := func(slot eth2p0.Slot, epoch eth2p0.Epoch) {
-		for s := range attesters {
-			if s < slot-trimOffset {
-				delete(attesters, s)
+	trim := func(epoch eth2p0.Epoch) {
+		for a := range attesters {
+			if a < epoch-trimOffset {
+				delete(attesters, a)
 			}
 		}
 
-		for e := range syncCommMems {
-			if e < epoch-trimOffset {
-				delete(syncCommMems, e)
+		for s := range syncCommMems {
+			if s < epoch-trimOffset {
+				delete(syncCommMems, s)
 			}
 		}
 	}
@@ -166,11 +166,11 @@ func newVMockWrapper(conf Config, pubshares []eth2p0.BLSPubKey,
 			return
 		}
 
-		// Get or create a slot attester for the slot
-		attester, ok := attesters[slot]
+		// Get or create a slot attester for the epoch
+		attester, ok := attesters[epoch]
 		if !ok {
 			attester = validatormock.NewAttester(eth2Cl, epoch, signFunc, pubshares)
-			attesters[slot] = attester
+			attesters[epoch] = attester
 		}
 
 		// Get or create a sync committee member for the epoch
@@ -183,7 +183,7 @@ func newVMockWrapper(conf Config, pubshares []eth2p0.BLSPubKey,
 			eth2Cl.SetValidatorCache(eth2wrap.NewValidatorCache(eth2Cl, pubshares).Get)
 		}
 
-		trim(slot, epoch)
+		trim(epoch)
 
 		state := vMockState{
 			Eth2Cl:         eth2Cl,

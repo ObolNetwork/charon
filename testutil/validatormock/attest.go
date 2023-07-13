@@ -191,7 +191,7 @@ func wait(ctx context.Context, chs ...chan struct{}) {
 	}
 }
 
-// prepareAttesters returns the attester duties for the provided validators and epoch.
+// prepareAttesters returns the attester duties for the provided validators in the given epoch.
 func prepareAttesters(ctx context.Context, eth2Cl eth2wrap.Client, vals eth2wrap.ActiveValidators, epoch eth2p0.Epoch) (attDuties, error) {
 	if len(vals) == 0 {
 		return nil, nil
@@ -205,7 +205,7 @@ func prepareAttesters(ctx context.Context, eth2Cl eth2wrap.Client, vals eth2wrap
 	return duties, nil
 }
 
-// prepareAggregators does beacon committee subscription selections for the provided attesters and returns the selected aggregators.
+// prepareAggregators does beacon committee selections for the provided attesters and returns the selected aggregators.
 func prepareAggregators(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, vals eth2wrap.ActiveValidators, duties attDuties) (attSelections, error) {
 	if len(duties) == 0 {
 		return nil, nil

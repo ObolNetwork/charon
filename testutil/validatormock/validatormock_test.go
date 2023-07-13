@@ -98,7 +98,7 @@ func TestAttest(t *testing.T) {
 			// Assert length and expected attestations
 			require.Len(t, atts, test.ExpectAttestations)
 			require.Len(t, aggs, test.ExpectAggregations)
-			require.NotNil(t, subs)
+			require.Equal(t, 2*len(valSet), len(subs))
 
 			// Sort the outputs to make it deterministic to compare with json.
 			sort.Slice(atts, func(i, j int) bool {
