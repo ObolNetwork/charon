@@ -222,7 +222,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	// Enable p2p fuzzing if --charon-p2p-fuzz is set.
+	// Enable p2p fuzzing if --p2p-fuzz is set.
 	if conf.P2PFuzz {
 		p2p.EnableP2PFuzz()
 	}
