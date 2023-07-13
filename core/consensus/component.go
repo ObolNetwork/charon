@@ -137,7 +137,7 @@ func newInstanceIO() instanceIO {
 	}
 }
 
-// instance defines the async input and output channels of a
+// instanceIO defines the async input and output channels of a
 // single consensus instance in the Component.
 type instanceIO struct {
 	recvBuffer  chan msg           // Outer receive buffers.
