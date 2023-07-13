@@ -289,7 +289,7 @@ func (c *Component) SubscribePriority(fn func(ctx context.Context, duty core.Dut
 func (c *Component) Start(ctx context.Context) {
 	p2p.RegisterHandler("qbft", c.tcpNode, protocolID1,
 		func() proto.Message { return new(pbv1.ConsensusMsg) },
-		c.handle, p2p.WithDelimitedProtocol(protocolID2))
+		c.handle, p2p.WithDelimitedProtocol(protocolID2), p2p.WithFuzzReaderWriter())
 
 	go func() {
 		for {

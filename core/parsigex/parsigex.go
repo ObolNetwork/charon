@@ -40,7 +40,8 @@ func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []
 	}
 
 	newReq := func() proto.Message { return new(pbv1.ParSigExMsg) }
-	p2p.RegisterHandler("parsigex", tcpNode, protocolID1, newReq, parSigEx.handle, p2p.WithDelimitedProtocol(protocolID2))
+	p2p.RegisterHandler("parsigex", tcpNode, protocolID1, newReq, parSigEx.handle, p2p.WithDelimitedProtocol(protocolID2),
+		p2p.WithFuzzReaderWriter())
 
 	return parSigEx
 }
@@ -115,7 +116,7 @@ func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSi
 			continue
 		}
 
-		if err := m.sendFunc(ctx, m.tcpNode, protocolID1, p, &msg, p2p.WithDelimitedProtocol(protocolID2)); err != nil {
+		if err := m.sendFunc(ctx, m.tcpNode, protocolID1, p, &msg, p2p.WithDelimitedProtocol(protocolID2), p2p.WithFuzzReaderWriter()); err != nil {
 			return err
 		}
 	}

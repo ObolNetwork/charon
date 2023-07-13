@@ -102,7 +102,7 @@ func TestCmdFlags(t *testing.T) {
 		},
 		{
 			Name: "unsafe run",
-			Args: slice("unsafe", "run", "--charon-p2p-fuzz=true"),
+			Args: slice("unsafe", "run", "--p2p-fuzz=true"),
 			Envs: map[string]string{
 				"CHARON_BEACON_NODE_ENDPOINTS": "http://beacon.node",
 			},
@@ -135,7 +135,7 @@ func TestCmdFlags(t *testing.T) {
 				BeaconNodeAddrs:        []string{"http://beacon.node"},
 				JaegerAddr:             "",
 				JaegerService:          "charon",
-				CharonP2PFuzz:          true,
+				P2PFuzz:                true,
 			},
 		},
 		{

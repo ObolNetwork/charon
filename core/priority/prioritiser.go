@@ -134,7 +134,8 @@ func newInternal(tcpNode host.Host, peers []peer.ID, minRequired int,
 
 			return resp, true, nil
 		},
-		p2p.WithDelimitedProtocol(protocolID2))
+		p2p.WithDelimitedProtocol(protocolID2),
+		p2p.WithFuzzReaderWriter())
 
 	return p
 }
@@ -337,7 +338,7 @@ func exchange(ctx context.Context, tcpNode host.Host, peers []peer.ID, msgValida
 
 		go func(pID peer.ID) {
 			response := new(pbv1.PriorityMsg)
-			err := sendFunc(ctx, tcpNode, pID, own, response, protocolID1, p2p.WithDelimitedProtocol(protocolID2))
+			err := sendFunc(ctx, tcpNode, pID, own, response, protocolID1, p2p.WithDelimitedProtocol(protocolID2), p2p.WithFuzzReaderWriter())
 			if err != nil {
 				// No need to log, since transport will do it.
 				return

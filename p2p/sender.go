@@ -26,6 +26,13 @@ const (
 	maxMsgSize       = 128 << 20 // 128MB
 )
 
+// p2pFuzzEnabled is used to enable peer to peer fuzzing in charon.
+var p2pFuzzEnabled bool
+
+func EnableP2PFuzz() {
+	p2pFuzzEnabled = true
+}
+
 // SendFunc is an abstract function responsible for sending libp2p messages.
 type SendFunc func(context.Context, host.Host, protocol.ID, peer.ID, proto.Message, ...SendRecvOption) error
 
@@ -162,6 +169,29 @@ func WithDelimitedProtocol(pID protocol.ID) func(*sendRecvOpts) {
 		opts.protocols = append([]protocol.ID{pID}, opts.protocols...) // Add to front
 		opts.writersByProtocol[pID] = func(s network.Stream) pbio.Writer { return pbio.NewDelimitedWriter(s) }
 		opts.readersByProtocol[pID] = func(s network.Stream) pbio.Reader { return pbio.NewDelimitedReader(s, maxMsgSize) }
+	}
+}
+
+// WithFuzzReaderWriter returns an option that sets a fuzz reader writer to all the protocols if p2p fuzz is enabled.
+//
+// If p2p fuzz is enabled, this option sets a fuzz reader writer for each protocol in the provided sendRecvOpts.
+// The fuzz reader writer is responsible for creating a customized reader and writer for each network stream
+// associated with a specific protocol. The reader and writer implement the pbio.Reader and pbio.Writer interfaces,
+// respectively, from the "pbio" package.
+func WithFuzzReaderWriter() func(*sendRecvOpts) {
+	return func(opts *sendRecvOpts) {
+		if !p2pFuzzEnabled {
+			return
+		}
+
+		for _, pID := range opts.protocols {
+			opts.writersByProtocol[pID] = func(s network.Stream) pbio.Writer {
+				return &fuzzReaderWriter{w: pbio.NewDelimitedWriter(s)}
+			}
+			opts.readersByProtocol[pID] = func(s network.Stream) pbio.Reader {
+				return &fuzzReaderWriter{}
+			}
+		}
 	}
 }
 

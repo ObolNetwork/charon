@@ -88,7 +88,7 @@ type Config struct {
 	SyntheticBlockProposals bool
 	BuilderAPI              bool
 	SimnetBMockFuzz         bool
-	CharonP2PFuzz           bool
+	P2PFuzz                 bool
 
 	TestConfig TestConfig
 }
@@ -220,6 +220,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 	peerIDs, err := manifest.ClusterPeerIDs(cluster)
 	if err != nil {
 		return err
+	}
+
+	// Enable p2p fuzzing if --charon-p2p-fuzz is set.
+	if conf.P2PFuzz {
+		p2p.EnableP2PFuzz()
 	}
 
 	sender := new(p2p.Sender)
