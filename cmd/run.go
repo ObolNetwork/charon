@@ -92,7 +92,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 
 // TODO(dhruv): add more test only flags to this function.
 func bindUnsafeRunFlags(cmd *cobra.Command, config *app.Config) {
-	cmd.Flags().BoolVar(&config.P2PFuzz, "p2p-fuzz", false, "Configures charon p2p network to send fuzzed data to its peers.")
+	cmd.Flags().BoolVar(&config.P2PFuzz, "p2p-fuzz", false, "Configures charon to send fuzzed data via p2p network to its peers.")
 }
 
 func bindPrivKeyFlag(cmd *cobra.Command, privKeyFile *string, privkeyLockEnabled *bool) {

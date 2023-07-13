@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	_ pbio.Reader = new(fuzzReaderWriter)
-	_ pbio.Writer = new(fuzzReaderWriter)
+	_ pbio.Reader = fuzzReaderWriter{}
+	_ pbio.Writer = fuzzReaderWriter{}
 )
 
 // fuzzReaderWriter implements the pbio.Reader and pbio.Writer interfaces and provides functionality
@@ -20,14 +20,14 @@ type fuzzReaderWriter struct {
 }
 
 // ReadMsg fuzzes the received message, and stores the fuzzed data in the provided `msg` argument.
-func (*fuzzReaderWriter) ReadMsg(msg proto.Message) error {
+func (fuzzReaderWriter) ReadMsg(msg proto.Message) error {
 	fuzz.New().Fuzz(msg)
 
 	return nil
 }
 
 // WriteMsg writes the fuzzed message using the associated writer.
-func (f *fuzzReaderWriter) WriteMsg(msg proto.Message) error {
+func (f fuzzReaderWriter) WriteMsg(msg proto.Message) error {
 	cloneMsg := proto.Clone(msg)
 	fuzz.New().Fuzz(cloneMsg)
 
