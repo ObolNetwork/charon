@@ -3,6 +3,7 @@
 package core
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 
@@ -248,6 +249,9 @@ func unmarshal(data []byte, v any) error {
 	if unmarshaller, ok := v.(ssz.Unmarshaler); ok {
 		if err := unmarshaller.UnmarshalSSZ(data); err == nil {
 			return nil
+		} else if !bytes.HasPrefix(bytes.TrimSpace(data), []byte("{")) {
+			// No json prefix, so no point attempting json unmarshalling.
+			return errors.Wrap(err, "unmarshal ssz")
 		}
 	}
 
