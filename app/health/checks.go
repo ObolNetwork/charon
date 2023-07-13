@@ -45,7 +45,7 @@ var checks = []check{
 		Description: "High rate of error logs. Please check the logs for more details.",
 		Severity:    severityWarning,
 		Func: func(q query, m Metadata) (bool, error) {
-			increase, err := q("app_log_error_total", noLabels, increase)
+			increase, err := q("app_log_error_total", sumLabels(), increase)
 			if err != nil {
 				return false, err
 			}
@@ -58,7 +58,7 @@ var checks = []check{
 		Description: "High rate of warning logs. Please check the logs for more details.",
 		Severity:    severityWarning,
 		Func: func(q query, m Metadata) (bool, error) {
-			increase, err := q("app_log_warning_total", noLabels, increase)
+			increase, err := q("app_log_warning_total", sumLabels(), increase)
 			if err != nil {
 				return false, err
 			}

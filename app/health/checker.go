@@ -47,6 +47,7 @@ type Checker struct {
 
 // Run runs the health checker until the context is canceled.
 func (c *Checker) Run(ctx context.Context) {
+	ctx = log.WithTopic(ctx, "health")
 	ticker := time.NewTicker(c.scrapePeriod)
 	defer ticker.Stop()
 

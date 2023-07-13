@@ -222,31 +222,53 @@ func TestErrorLogsCheck(t *testing.T) {
 	checkName := "high_error_log_rate"
 	metricName := "app_log_error_total"
 
+	topicA := genLabels("topic", "a")
+	topicB := genLabels("topic", "b")
+
 	t.Run("no data", func(t *testing.T) {
 		testCheck(t, m, checkName, false, nil)
 	})
 
 	t.Run("single zero", func(t *testing.T) {
 		testCheck(t, m, checkName, false,
-			genFam(metricName, genCounter(nil, 0)),
+			genFam(metricName, genCounter(topicA, 0)),
+		)
+	})
+
+	t.Run("multiple zeros", func(t *testing.T) {
+		testCheck(t, m, checkName, false,
+			genFam(metricName,
+				genCounter(topicA, 0, 0, 0),
+				genCounter(topicB, 0, 0, 0),
+			),
 		)
 	})
 
 	t.Run("multiple constants", func(t *testing.T) {
 		testCheck(t, m, checkName, false,
-			genFam(metricName, genCounter(nil, 1, 1, 1)),
+			genFam(metricName, genCounter(topicA, 1, 1, 1)),
 		)
 	})
 
 	t.Run("too few", func(t *testing.T) {
 		testCheck(t, m, checkName, false,
-			genFam(metricName, genCounter(nil, 0, 0, 10)),
+			genFam(metricName, genCounter(topicA, 0, 0, 10)),
+		)
+	})
+
+	t.Run("too few multi", func(t *testing.T) {
+		testCheck(t, m, checkName, false,
+			genFam(metricName,
+				genCounter(topicA, 0, 0, 5),
+				genCounter(topicB, 0, 0, 5),
+			),
 		)
 	})
 
 	t.Run("sufficient", func(t *testing.T) {
 		testCheck(t, m, checkName, true,
-			genFam(metricName, genCounter(nil, 10, 20, 30, 40, 500)),
+			genFam(metricName,
+				genCounter(topicA, 10, 20, 30, 40, 500)),
 		)
 	})
 }
@@ -257,6 +279,8 @@ func TestWarnLogsCheck(t *testing.T) {
 	}
 	checkName := "high_warning_log_rate"
 	metricName := "app_log_warning_total"
+	topicA := genLabels("topic", "a")
+	topicB := genLabels("topic", "b")
 
 	t.Run("no data", func(t *testing.T) {
 		testCheck(t, m, checkName, false, nil)
@@ -264,25 +288,44 @@ func TestWarnLogsCheck(t *testing.T) {
 
 	t.Run("single zero", func(t *testing.T) {
 		testCheck(t, m, checkName, false,
-			genFam(metricName, genCounter(nil, 0)),
+			genFam(metricName, genCounter(topicA, 0)),
+		)
+	})
+
+	t.Run("multiple zeros", func(t *testing.T) {
+		testCheck(t, m, checkName, false,
+			genFam(metricName,
+				genCounter(topicA, 0, 0, 0),
+				genCounter(topicB, 0, 0, 0),
+			),
 		)
 	})
 
 	t.Run("multiple constants", func(t *testing.T) {
 		testCheck(t, m, checkName, false,
-			genFam(metricName, genCounter(nil, 1, 1, 1)),
+			genFam(metricName, genCounter(topicA, 1, 1, 1)),
 		)
 	})
 
 	t.Run("too few", func(t *testing.T) {
 		testCheck(t, m, checkName, false,
-			genFam(metricName, genCounter(nil, 0, 0, 10)),
+			genFam(metricName, genCounter(topicA, 0, 0, 10)),
+		)
+	})
+
+	t.Run("too few multi", func(t *testing.T) {
+		testCheck(t, m, checkName, false,
+			genFam(metricName,
+				genCounter(topicA, 0, 0, 5),
+				genCounter(topicB, 0, 0, 5),
+			),
 		)
 	})
 
 	t.Run("sufficient", func(t *testing.T) {
 		testCheck(t, m, checkName, true,
-			genFam(metricName, genCounter(nil, 10, 20, 30, 40, 500)),
+			genFam(metricName,
+				genCounter(topicA, 10, 20, 30, 40, 500)),
 		)
 	})
 }
