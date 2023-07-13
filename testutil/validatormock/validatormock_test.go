@@ -11,11 +11,13 @@ import (
 	"testing"
 	"time"
 
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 	"github.com/obolnetwork/charon/testutil/validatormock"
@@ -40,6 +42,7 @@ func TestAttest(t *testing.T) {
 			ExpectAggregations: 1, // 1st is aggregator in first slot
 		},
 	}
+
 	for _, test := range tests {
 		t.Run(fmt.Sprint(test.DutyFactor), func(t *testing.T) {
 			ctx := context.Background()
@@ -57,12 +60,17 @@ func TestAttest(t *testing.T) {
 			// Callback to collect attestations
 			var atts []*eth2p0.Attestation
 			var aggs []*eth2p0.SignedAggregateAndProof
+			var subs []*eth2v1.BeaconCommitteeSubscription
 			beaconMock.SubmitAttestationsFunc = func(_ context.Context, attestations []*eth2p0.Attestation) error {
 				atts = attestations
 				return nil
 			}
 			beaconMock.SubmitAggregateAttestationsFunc = func(_ context.Context, aggAndProofs []*eth2p0.SignedAggregateAndProof) error {
 				aggs = aggAndProofs
+				return nil
+			}
+			beaconMock.SubmitBeaconCommitteeSubscriptionsFunc = func(ctx context.Context, subscriptions []*eth2v1.BeaconCommitteeSubscription) error {
+				subs = subscriptions
 				return nil
 			}
 
@@ -74,21 +82,23 @@ func TestAttest(t *testing.T) {
 				return sig, nil
 			}
 
-			// Get first slot in epoch 1
+			epoch := eth2p0.Epoch(1)
+			attester := validatormock.NewAttester(beaconMock, epoch, signFunc, valSet.PublicKeys())
 			slotsPerEpoch, err := beaconMock.SlotsPerEpoch(ctx)
 			require.NoError(t, err)
+			duty := core.Duty{Slot: int64(uint64(epoch) * slotsPerEpoch), Type: core.DutyAttester}
 
-			attester := validatormock.NewSlotAttester(beaconMock, eth2p0.Slot(slotsPerEpoch), signFunc, valSet.PublicKeys())
+			require.NoError(t, attester.PrepareEpoch(ctx))
+			require.NoError(t, attester.Attest(ctx, duty))
 
-			require.NoError(t, attester.Prepare(ctx))
-			require.NoError(t, attester.Attest(ctx))
-			ok, err := attester.Aggregate(ctx)
+			ok, err := attester.Aggregate(ctx, duty)
 			require.NoError(t, err)
 			require.Equal(t, test.ExpectAggregations > 0, ok)
 
 			// Assert length and expected attestations
 			require.Len(t, atts, test.ExpectAttestations)
 			require.Len(t, aggs, test.ExpectAggregations)
+			require.NotNil(t, subs)
 
 			// Sort the outputs to make it deterministic to compare with json.
 			sort.Slice(atts, func(i, j int) bool {

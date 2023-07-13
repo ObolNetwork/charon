@@ -207,20 +207,25 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 
 	// Configure beacon mock to call validator API for submissions
 	bmock.SubmitAttestationsFunc = vapi.SubmitAttestations
+	bmock.SubmitBeaconCommitteeSubscriptionsFunc = func(ctx context.Context, subscriptions []*eth2v1.BeaconCommitteeSubscription) error {
+		return nil
+	}
 
 	signer, err := validatormock.NewSigner(secret)
 	require.NoError(t, err)
 
-	// Run attestation using validator mock
-	attester := validatormock.NewSlotAttester(
-		bmock,
-		eth2p0.Slot(epochSlot),
-		signer,
-		[]eth2p0.BLSPubKey{validator.Validator.PublicKey},
-	)
+	epoch := eth2p0.Epoch(1)
 
-	require.NoError(t, attester.Prepare(ctx))
-	require.NoError(t, attester.Attest(ctx))
+	// Run attestation using validator mock
+	attester := validatormock.NewAttester(bmock, epoch, signer, []eth2p0.BLSPubKey{validator.Validator.PublicKey})
+
+	require.NoError(t, attester.PrepareEpoch(ctx))
+
+	slotsPerEpoch, err := bmock.SlotsPerEpoch(ctx)
+	require.NoError(t, err)
+	duty := core.Duty{Slot: int64(uint64(epoch) * slotsPerEpoch), Type: core.DutyAttester}
+
+	require.NoError(t, attester.Attest(ctx, duty))
 }
 
 // TestSignAndVerify signs and verifies the signature.
@@ -425,7 +430,7 @@ func TestComponent_SubmitBeaconBlock(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
 	require.NoError(t, err)
 
-	// Prepare unsigned beacon block
+	// PrepareEpoch unsigned beacon block
 	msg := []byte("randao reveal")
 	sig, err := tbls.Sign(secret, msg)
 	require.NoError(t, err)
@@ -506,7 +511,7 @@ func TestComponent_SubmitBeaconBlockInvalidSignature(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
 	require.NoError(t, err)
 
-	// Prepare unsigned beacon block
+	// PrepareEpoch unsigned beacon block
 	msg := []byte("randao reveal")
 	sig, err := tbls.Sign(secret, msg)
 	require.NoError(t, err)
@@ -736,7 +741,7 @@ func TestComponent_SubmitBlindedBeaconBlock(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderTrue, nil)
 	require.NoError(t, err)
 
-	// Prepare unsigned beacon block
+	// PrepareEpoch unsigned beacon block
 	msg := []byte("randao reveal")
 	sig, err := tbls.Sign(secret, msg)
 	require.NoError(t, err)
@@ -813,7 +818,7 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidSignature(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderTrue, nil)
 	require.NoError(t, err)
 
-	// Prepare unsigned beacon block
+	// PrepareEpoch unsigned beacon block
 	msg := []byte("randao reveal")
 	sig, err := tbls.Sign(secret, msg)
 	require.NoError(t, err)
@@ -964,7 +969,7 @@ func TestComponent_SubmitVoluntaryExit(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
 	require.NoError(t, err)
 
-	// Prepare unsigned voluntary exit
+	// PrepareEpoch unsigned voluntary exit
 	exit := &eth2p0.VoluntaryExit{
 		Epoch:          epoch,
 		ValidatorIndex: vIdx,

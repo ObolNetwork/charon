@@ -14,6 +14,7 @@ import (
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
@@ -26,11 +27,11 @@ type (
 	attDatas      []*eth2p0.AttestationData
 )
 
-// NewSlotAttester returns a new SlotAttester.
-func NewSlotAttester(eth2Cl eth2wrap.Client, slot eth2p0.Slot, signFunc SignFunc, pubkeys []eth2p0.BLSPubKey) *SlotAttester {
-	return &SlotAttester{
+// NewAttester returns a new Attester.
+func NewAttester(eth2Cl eth2wrap.Client, epoch eth2p0.Epoch, signFunc SignFunc, pubkeys []eth2p0.BLSPubKey) *Attester {
+	return &Attester{
 		eth2Cl:       eth2Cl,
-		slot:         slot,
+		epoch:        epoch,
 		pubkeys:      pubkeys,
 		signFunc:     signFunc,
 		dutiesOK:     make(chan struct{}),
@@ -39,11 +40,11 @@ func NewSlotAttester(eth2Cl eth2wrap.Client, slot eth2p0.Slot, signFunc SignFunc
 	}
 }
 
-// SlotAttester is a stateful structure providing a slot attestation and aggregation API excluding scheduling.
-type SlotAttester struct {
+// Attester is a stateful structure providing attestation and aggregation API excluding scheduling.
+type Attester struct {
 	// Immutable fields
 	eth2Cl   eth2wrap.Client
-	slot     eth2p0.Slot
+	epoch    eth2p0.Epoch
 	pubkeys  []eth2p0.BLSPubKey
 	signFunc SignFunc
 
@@ -61,44 +62,56 @@ type SlotAttester struct {
 	datasOK      chan struct{}
 }
 
-// Slot returns the attester slot.
-func (a *SlotAttester) Slot() eth2p0.Slot {
-	return a.slot
-}
-
-// Prepare should be called at the start of slot, it does the following:
-// - Filters active validators for the slot (this could be cached at start of epoch)
-// - Fetches attester attDuties for the slot (this could be cached at start of epoch).
-// - Prepares aggregation attDuties for slot attesters.
+// PrepareEpoch should be called at the start of an epoch, it does the following:
+// - Filters active validators for the epoch (this could be cached at start of epoch).
+// - Fetches attester duties for the current and next epochs (this could be cached at start of epoch).
+// - Prepares aggregation duties for validators having attester duties.
 // It panics if called more than once.
-// TODO(xenowits): Figure out why is this called twice sometimes (https://github.com/ObolNetwork/charon/issues/1389)).
-func (a *SlotAttester) Prepare(ctx context.Context) error {
+func (a *Attester) PrepareEpoch(ctx context.Context) error {
 	vals, err := a.eth2Cl.ActiveValidators(ctx)
 	if err != nil {
 		return err
 	}
 
-	duties, err := prepareAttesters(ctx, a.eth2Cl, vals, a.slot)
+	// Get attester duties for the validators for current and next epochs
+	duties, err := prepareAttesters(ctx, a.eth2Cl, vals, a.epoch)
 	if err != nil {
 		return err
 	}
-	a.setPrepareDuties(vals, duties)
 
-	selections, err := prepareAggregators(ctx, a.eth2Cl, a.signFunc, vals, duties, a.slot)
+	dutiesNextEpoch, err := prepareAttesters(ctx, a.eth2Cl, vals, a.epoch+1)
 	if err != nil {
 		return err
 	}
+
+	// Set attester duties for current and next epochs
+	duties = append(duties, dutiesNextEpoch...)
+	a.setDuties(vals, duties)
+
+	// Prepare attestation aggregators for the current and next epochs
+	selections, err := prepareAggregators(ctx, a.eth2Cl, a.signFunc, vals, duties)
+	if err != nil {
+		return err
+	}
+
+	// Set aggregators
 	a.setPrepareSelections(selections)
+
+	// Subscribe to beacon committee subnets
+	err = subscribeBeaconCommSubnets(ctx, a.eth2Cl, a.epoch, duties, selections)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
 
 // Attest should be called at latest 1/3 into the slot, it does slot attestations.
-func (a *SlotAttester) Attest(ctx context.Context) error {
-	// Wait for Prepare complete
+func (a *Attester) Attest(ctx context.Context, duty core.Duty) error {
+	// Wait for PrepareEpoch to complete
 	wait(ctx, a.dutiesOK)
 
-	datas, err := attest(ctx, a.eth2Cl, a.signFunc, a.slot, a.getAttDuties())
+	datas, err := attest(ctx, a.eth2Cl, a.signFunc, eth2p0.Slot(duty.Slot), a.getAttDuties())
 	if err != nil {
 		return err
 	}
@@ -108,15 +121,14 @@ func (a *SlotAttester) Attest(ctx context.Context) error {
 }
 
 // Aggregate should be called at latest 2/3 into the slot, it does slot attestation aggregations.
-func (a *SlotAttester) Aggregate(ctx context.Context) (bool, error) {
-	// Wait for Prepare and Attest to complete
+func (a *Attester) Aggregate(ctx context.Context, duty core.Duty) (bool, error) {
+	// Wait for PrepareEpoch and Attest to complete
 	wait(ctx, a.dutiesOK, a.selectionsOK, a.datasOK)
 
-	return aggregate(ctx, a.eth2Cl, a.signFunc, a.slot, a.getVals(),
-		a.getAttDuties(), a.getSelections(), a.getDatas())
+	return aggregate(ctx, a.eth2Cl, a.signFunc, eth2p0.Slot(duty.Slot), a.getVals(), a.getAttDuties(), a.getSelections(), a.getDatas())
 }
 
-func (a *SlotAttester) setPrepareDuties(vals eth2wrap.ActiveValidators, duties attDuties) {
+func (a *Attester) setDuties(vals eth2wrap.ActiveValidators, duties attDuties) {
 	a.mutable.Lock()
 	defer a.mutable.Unlock()
 
@@ -125,7 +137,7 @@ func (a *SlotAttester) setPrepareDuties(vals eth2wrap.ActiveValidators, duties a
 	close(a.dutiesOK)
 }
 
-func (a *SlotAttester) setPrepareSelections(selections attSelections) {
+func (a *Attester) setPrepareSelections(selections attSelections) {
 	a.mutable.Lock()
 	defer a.mutable.Unlock()
 
@@ -133,7 +145,7 @@ func (a *SlotAttester) setPrepareSelections(selections attSelections) {
 	close(a.selectionsOK)
 }
 
-func (a *SlotAttester) setAttestDatas(datas attDatas) {
+func (a *Attester) setAttestDatas(datas attDatas) {
 	a.mutable.Lock()
 	defer a.mutable.Unlock()
 
@@ -141,28 +153,28 @@ func (a *SlotAttester) setAttestDatas(datas attDatas) {
 	close(a.datasOK)
 }
 
-func (a *SlotAttester) getVals() eth2wrap.ActiveValidators {
+func (a *Attester) getVals() eth2wrap.ActiveValidators {
 	a.mutable.Lock()
 	defer a.mutable.Unlock()
 
 	return a.mutable.vals
 }
 
-func (a *SlotAttester) getAttDuties() attDuties {
+func (a *Attester) getAttDuties() attDuties {
 	a.mutable.Lock()
 	defer a.mutable.Unlock()
 
 	return a.mutable.duties
 }
 
-func (a *SlotAttester) getSelections() attSelections {
+func (a *Attester) getSelections() attSelections {
 	a.mutable.Lock()
 	defer a.mutable.Unlock()
 
 	return a.mutable.selections
 }
 
-func (a *SlotAttester) getDatas() attDatas {
+func (a *Attester) getDatas() attDatas {
 	a.mutable.Lock()
 	defer a.mutable.Unlock()
 
@@ -179,58 +191,24 @@ func wait(ctx context.Context, chs ...chan struct{}) {
 	}
 }
 
-// prepareAttesters returns the attesters (including duty and data) for the provided validators and slot.
-func prepareAttesters(ctx context.Context, eth2Cl eth2wrap.Client, vals eth2wrap.ActiveValidators,
-	slot eth2p0.Slot,
-) (attDuties, error) {
+// prepareAttesters returns the attester duties for the provided validators and epoch.
+func prepareAttesters(ctx context.Context, eth2Cl eth2wrap.Client, vals eth2wrap.ActiveValidators, epoch eth2p0.Epoch) (attDuties, error) {
 	if len(vals) == 0 {
 		return nil, nil
 	}
 
-	epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, slot)
+	duties, err := eth2Cl.AttesterDuties(ctx, epoch, vals.Indices())
 	if err != nil {
 		return nil, err
-	}
-
-	epochDuties, err := eth2Cl.AttesterDuties(ctx, epoch, vals.Indices())
-	if err != nil {
-		return nil, err
-	}
-
-	var duties attDuties
-	for _, duty := range epochDuties {
-		if duty.Slot != slot {
-			continue
-		}
-
-		duties = append(duties, duty)
 	}
 
 	return duties, nil
 }
 
-// prepareAggregators does beacon committee subscription selection for the provided attesters
-// and returns the selected aggregators.
-func prepareAggregators(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
-	vals eth2wrap.ActiveValidators, duties attDuties, slot eth2p0.Slot,
-) (attSelections, error) {
+// prepareAggregators does beacon committee subscription selections for the provided attesters and returns the selected aggregators.
+func prepareAggregators(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, vals eth2wrap.ActiveValidators, duties attDuties) (attSelections, error) {
 	if len(duties) == 0 {
 		return nil, nil
-	}
-
-	epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, slot)
-	if err != nil {
-		return nil, err
-	}
-
-	slotRoot, err := eth2util.SlotHashRoot(slot)
-	if err != nil {
-		return nil, err
-	}
-
-	sigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainSelectionProof, epoch, slotRoot)
-	if err != nil {
-		return nil, err
 	}
 
 	var (
@@ -243,13 +221,27 @@ func prepareAggregators(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Si
 			return nil, errors.New("missing validator index")
 		}
 
+		epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, duty.Slot)
+		if err != nil {
+			return nil, err
+		}
+
+		slotRoot, err := eth2util.SlotHashRoot(duty.Slot)
+		if err != nil {
+			return nil, err
+		}
+
+		sigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainSelectionProof, epoch, slotRoot)
+		if err != nil {
+			return nil, err
+		}
+
 		slotSig, err := signFunc(pubkey, sigData[:])
 		if err != nil {
 			return nil, err
 		}
 
 		commLengths[duty.ValidatorIndex] = duty.CommitteeLength
-
 		partials = append(partials, &eth2exp.BeaconCommitteeSelection{
 			ValidatorIndex: duty.ValidatorIndex,
 			Slot:           duty.Slot,
@@ -274,21 +266,63 @@ func prepareAggregators(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Si
 		selections = append(selections, selection)
 	}
 
-	log.Info(ctx, "Mock beacon committee subscription submitted", z.Int("aggregators", len(selections)))
-
 	return selections, nil
 }
 
-// attest does attestations for the provided attesters and returns the attestation attDatas.
-func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot eth2p0.Slot, duties attDuties,
-) (attDatas, error) {
+// subscribeBeaconCommSubnets submits beacon committee subscriptions at the start of an epoch for the current and next epochs.
+func subscribeBeaconCommSubnets(ctx context.Context, eth2Cl eth2wrap.Client, epoch eth2p0.Epoch, duties attDuties, selections attSelections) error {
+	if len(duties) == 0 {
+		return nil
+	}
+
+	var subs []*eth2v1.BeaconCommitteeSubscription
+	for _, duty := range duties {
+		// Check if attester is also the aggregator for this slot
+		isAggregator := false
+		for _, selection := range selections {
+			if duty.Slot == selection.Slot && duty.ValidatorIndex == selection.ValidatorIndex {
+				isAggregator = true
+				break
+			}
+		}
+
+		subs = append(subs, &eth2v1.BeaconCommitteeSubscription{
+			ValidatorIndex:   duty.ValidatorIndex,
+			Slot:             duty.Slot,
+			CommitteeIndex:   duty.CommitteeIndex,
+			CommitteesAtSlot: duty.CommitteesAtSlot,
+			IsAggregator:     isAggregator,
+		})
+	}
+
+	err := eth2Cl.SubmitBeaconCommitteeSubscriptions(ctx, subs)
+	if err != nil {
+		return err
+	}
+
+	log.Info(ctx, "Mock beacon committee subscription submitted", z.Int("current_epoch", int(epoch)), z.Int("next_epoch", int(epoch+1)))
+
+	return nil
+}
+
+// attest does attestations for the provided attesters in the provided slot and returns the attestation datas.
+func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot eth2p0.Slot, duties attDuties) (attDatas, error) {
 	if len(duties) == 0 {
 		return nil, nil
 	}
 
+	var slotDuties attDuties
+	for _, duty := range duties {
+		if duty.Slot != slot {
+			continue
+		}
+
+		slotDuties = append(slotDuties, duty)
+	}
+
 	// Group attDuties by committee.
 	dutyByComm := make(map[eth2p0.CommitteeIndex][]*eth2v1.AttesterDuty)
-	for _, duty := range duties {
+	for _, duty := range slotDuties {
 		dutyByComm[duty.CommitteeIndex] = append(dutyByComm[duty.CommitteeIndex], duty)
 	}
 
@@ -318,6 +352,7 @@ func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot
 			if err != nil {
 				return nil, err
 			}
+
 			aggBits := bitfield.NewBitlist(duty.CommitteeLength)
 			aggBits.SetBitAt(duty.ValidatorCommitteeIndex, true)
 
@@ -337,7 +372,7 @@ func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot
 	return datas, nil
 }
 
-// aggregate does attestation aggregation for the provided validators, attSelections and attestation attDatas and returns true.
+// aggregate does attestation aggregation for the provided validators in the given slot and returns true.
 // It returns false if aggregation is not required.
 func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot eth2p0.Slot,
 	vals eth2wrap.ActiveValidators, duties attDuties, selections attSelections, datas attDatas,
@@ -346,13 +381,22 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 		return false, nil
 	}
 
+	var slotDuties attDuties
+	for _, duty := range duties {
+		if duty.Slot != slot {
+			continue
+		}
+
+		slotDuties = append(slotDuties, duty)
+	}
+
 	epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, slot)
 	if err != nil {
 		return false, err
 	}
 
 	committees := make(map[eth2p0.ValidatorIndex]eth2p0.CommitteeIndex)
-	for _, duty := range duties {
+	for _, duty := range slotDuties {
 		committees[duty.ValidatorIndex] = duty.CommitteeIndex
 	}
 
@@ -361,6 +405,10 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 		attsByComm = make(map[eth2p0.CommitteeIndex]*eth2p0.Attestation)
 	)
 	for _, selection := range selections {
+		if selection.Slot != slot {
+			continue
+		}
+
 		commIdx, ok := committees[selection.ValidatorIndex]
 		if !ok {
 			return false, errors.New("missing duty for selection")
