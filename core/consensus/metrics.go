@@ -3,12 +3,9 @@
 package consensus
 
 import (
-	"time"
-
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/obolnetwork/charon/app/promauto"
-	"github.com/obolnetwork/charon/core"
 )
 
 var (
@@ -41,8 +38,3 @@ var (
 		Help:      "Total count of consensus errors",
 	})
 )
-
-func instrumentConsensus(duty core.Duty, round int64, startTime time.Time, typ timerType) {
-	decidedRoundsGauge.WithLabelValues(duty.Type.String(), string(typ)).Set(float64(round))
-	consensusDuration.WithLabelValues(duty.Type.String(), string(typ)).Observe(time.Since(startTime).Seconds())
-}
