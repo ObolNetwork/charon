@@ -105,11 +105,8 @@ func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSi
 	}
 
 	// TODO: remove this from prod once we know what's going on
-	for _, data := range pb.Set {
-		_, err = core.ParSignedDataFromProto(duty.Type, data)
-		if err != nil {
-			log.Warn(ctx, "ParSignedDataSet which was just marshaled can't be unmarshaled back", err)
-		}
+	if _, err = core.ParSignedDataSetFromProto(duty.Type, pb); err != nil {
+		log.Warn(ctx, "ParSignedDataSet which was just marshaled can't be unmarshaled back", err)
 	}
 
 	msg := pbv1.ParSigExMsg{
