@@ -33,7 +33,10 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 		return err
 	}
 
-	onStartup := true
+	var (
+		mu        sync.Mutex
+		onStartup = true
+	)
 	sched.SubscribeSlots(func(ctx context.Context, slot core.Slot) error {
 		// Prepare attestations when slots tick.
 		vMockWrap(ctx, slot.Slot, func(ctx context.Context, state vMockState) error {
@@ -67,7 +70,9 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 			})
 		}
 
+		mu.Lock()
 		onStartup = false
+		mu.Unlock()
 
 		// Prepare sync committee selections when slots tick.
 		vMockWrap(ctx, slot.Slot, func(ctx context.Context, state vMockState) error {
