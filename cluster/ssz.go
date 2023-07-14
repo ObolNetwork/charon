@@ -3,6 +3,8 @@
 package cluster
 
 import (
+	"time"
+
 	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -695,7 +697,7 @@ func hashRegistration(r Registration, hh ssz.HashWalker) error {
 	hh.PutUint64(uint64(r.GasLimit))
 
 	// Field (2) 'Timestamp' Bytes48
-	hh.PutBytes([]byte(r.Timestamp.String()))
+	hh.PutBytes([]byte(r.Timestamp.Format(time.RFC3339)))
 
 	// Field (3) 'PubKey' Bytes48
 	if err := putBytesN(hh, r.PubKey, sszLenPubKey); err != nil {
