@@ -26,6 +26,68 @@ type (
 	attDatas      []*eth2p0.AttestationData
 )
 
+// NewAttester creates and returns a new instance of Attester.
+func NewAttester(eth2Cl eth2wrap.Client, epoch eth2p0.Epoch, signFunc SignFunc, pubkeys []eth2p0.BLSPubKey) *Attester {
+	slotAttesters := make(map[eth2p0.Slot]*SlotAttester)
+
+	return &Attester{
+		eth2Cl:        eth2Cl,
+		epoch:         epoch,
+		pubkeys:       pubkeys,
+		signFunc:      signFunc,
+		slotAttesters: slotAttesters,
+	}
+}
+
+// Attester stores SlotAttester instances for current and next epochs.
+type Attester struct {
+	eth2Cl   eth2wrap.Client
+	epoch    eth2p0.Epoch
+	pubkeys  []eth2p0.BLSPubKey
+	signFunc SignFunc
+
+	slotAttesters map[eth2p0.Slot]*SlotAttester
+}
+
+// PrepareEpoch prepares attester duties for the current and next epochs and stores the duties in the Attester state.
+func (a *Attester) PrepareEpoch(ctx context.Context) error {
+	slotsPerEpoch, err := a.eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return err
+	}
+
+	slotStart := uint64(a.epoch) * slotsPerEpoch
+	slotEnd := uint64(a.epoch+2) * slotsPerEpoch
+	// Prepare attesters for current and next epochs and store them in a map for each slot.
+	for slot := slotStart; slot < slotEnd; slot++ {
+		attester := NewSlotAttester(a.eth2Cl, eth2p0.Slot(slot), a.signFunc, a.pubkeys)
+		err := attester.Prepare(ctx)
+		if err != nil {
+			return errors.Wrap(err, "prepare attester")
+		}
+
+		a.slotAttesters[eth2p0.Slot(slot)] = attester
+	}
+
+	return nil
+}
+
+// GetSlotAttester returns SlotAttester for the provided slot.
+func (a *Attester) GetSlotAttester(ctx context.Context, slot eth2p0.Slot) (*SlotAttester, error) {
+	attester, ok := a.slotAttesters[slot]
+	if !ok {
+		attester := NewSlotAttester(a.eth2Cl, slot, a.signFunc, a.pubkeys)
+		err := attester.Prepare(ctx)
+		if err != nil {
+			return nil, errors.Wrap(err, "prepare attester")
+		}
+
+		return attester, nil
+	}
+
+	return attester, nil
+}
+
 // NewSlotAttester returns a new SlotAttester.
 func NewSlotAttester(eth2Cl eth2wrap.Client, slot eth2p0.Slot, signFunc SignFunc, pubkeys []eth2p0.BLSPubKey) *SlotAttester {
 	return &SlotAttester{
@@ -71,7 +133,6 @@ func (a *SlotAttester) Slot() eth2p0.Slot {
 // - Fetches attester attDuties for the slot (this could be cached at start of epoch).
 // - Prepares aggregation attDuties for slot attesters.
 // It panics if called more than once.
-// TODO(xenowits): Figure out why is this called twice sometimes (https://github.com/ObolNetwork/charon/issues/1389)).
 func (a *SlotAttester) Prepare(ctx context.Context) error {
 	vals, err := a.eth2Cl.ActiveValidators(ctx)
 	if err != nil {

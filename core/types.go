@@ -403,7 +403,7 @@ type Eth2SignedData interface {
 	SignedData
 	// DomainName returns domain associated with underlying signed data.
 	DomainName() signing.DomainName
-	// Epoch returns eth2p0.Epoch associated with underlying type.
+	// Epoch returns eth2p0.epoch associated with underlying type.
 	Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error)
 }
 
