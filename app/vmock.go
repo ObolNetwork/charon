@@ -110,9 +110,8 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 
 // vMockState is the current validator mock state.
 type vMockState struct {
-	Eth2Cl   eth2wrap.Client
-	SignFunc validatormock.SignFunc
-	// Attester       *validatormock.SlotAttester // Changes every slot
+	Eth2Cl         eth2wrap.Client
+	SignFunc       validatormock.SignFunc
 	Attester       *validatormock.Attester
 	SyncCommMember *validatormock.SyncCommMember
 }
