@@ -251,13 +251,13 @@ func unmarshal(data []byte, v any) error {
 			return nil
 		} else if !bytes.HasPrefix(bytes.TrimSpace(data), []byte("{")) {
 			// No json prefix, so no point attempting json unmarshalling.
-			return errors.Wrap(err, "unmarshal ssz")
+			return errors.Wrap(err, "unmarshal ssz", z.Hex("data", data))
 		}
 	}
 
 	// Else try json
 	if err := json.Unmarshal(data, v); err != nil {
-		return errors.Wrap(err, "unmarshal json")
+		return errors.Wrap(err, "unmarshal json", z.Hex("data", data))
 	}
 
 	return nil
