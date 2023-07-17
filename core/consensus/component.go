@@ -282,6 +282,9 @@ func (c *Component) ProposePriority(ctx context.Context, duty core.Duty, msg *pb
 // It either runs the consensus instance if it is not already running or
 // waits until it completes, in both cases it returns the resulting error.
 func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Message) error {
+	// TODO(corver): Remove debug log before v0.17 release.
+	log.Debug(ctx, "Consensus proposed", z.Any("duty", duty))
+
 	hash, err := hashProto(value)
 	if err != nil {
 		return err
@@ -332,6 +335,9 @@ func (c *Component) Participate(ctx context.Context, duty core.Duty) error {
 		return nil // Not an eager start timer, wait for Propose to start.
 	}
 
+	// TODO(corver): Remove debug log before v0.17 release.
+	log.Debug(ctx, "Consensus participated", z.Any("duty", duty))
+
 	if _, running := c.getInstanceIO(duty); running {
 		return nil // Instance already running.
 	}
@@ -341,6 +347,7 @@ func (c *Component) Participate(ctx context.Context, duty core.Duty) error {
 
 // runInstance blocks and runs a consensus instance for the given duty.
 // It returns an error or nil when the context is cancelled.
+// Note each instance may only be run once.
 func (c *Component) runInstance(ctx context.Context, duty core.Duty) (err error) {
 	roundTimer := c.timerFunc(duty)
 	ctx = log.WithTopic(ctx, "qbft")
@@ -348,25 +355,25 @@ func (c *Component) runInstance(ctx context.Context, duty core.Duty) (err error)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	if !c.deadliner.Add(duty) {
-		log.Warn(ctx, "Skipping consensus for expired duty", nil)
-		return nil
-	}
-
 	log.Debug(ctx, "QBFT consensus instance starting",
 		z.Any("peers", c.peerLabels),
 		z.Any("timer", string(roundTimer.Type())),
 	)
 
-	peerIdx, err := c.getPeerIdx()
-	if err != nil {
-		return err
-	}
-
 	inst, _ := c.getInstanceIO(duty)
 	defer func() {
 		inst.errCh <- err // Send resulting error to errCh.
 	}()
+
+	if !c.deadliner.Add(duty) {
+		log.Warn(ctx, "Skipping consensus for expired duty", nil)
+		return nil
+	}
+
+	peerIdx, err := c.getPeerIdx()
+	if err != nil {
+		return err
+	}
 
 	// Instrument consensus instance.
 	var decided bool
