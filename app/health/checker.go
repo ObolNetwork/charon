@@ -9,6 +9,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	pb "github.com/prometheus/client_model/go"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -56,7 +57,7 @@ func (c *Checker) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := c.scrape(); err != nil {
+			if err := c.scrape(ctx); err != nil {
 				log.Warn(ctx, "Failed to scrape metrics", err)
 				continue
 			}
@@ -85,11 +86,27 @@ func (c *Checker) instrument(ctx context.Context) {
 }
 
 // scrape scrapes metrics from the gatherer.
-func (c *Checker) scrape() error {
-	metrics, err := c.gatherer.Gather()
+func (c *Checker) scrape(ctx context.Context) error {
+	rawMetrics, err := c.gatherer.Gather()
 	if err != nil {
 		return errors.Wrap(err, "gather metrics")
 	}
+
+	// Clone Gather() output to avoid prometheus side-effects.
+	var metrics []*pb.MetricFamily
+
+	var metricsAmt int
+	for _, rm := range rawMetrics {
+		rawClonedRm := proto.Clone(rm)
+		metrics = append(metrics, rawClonedRm.(*pb.MetricFamily))
+		metricsAmt += len(rm.Metric)
+	}
+
+	log.Debug(ctx,
+		"gathered metrics",
+		z.Int("stored_total", len(c.metrics)),
+		z.Int("metric_families", len(metrics)),
+		z.Int("metrics_amount", metricsAmt))
 
 	c.metrics = append(c.metrics, metrics)
 
