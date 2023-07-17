@@ -127,8 +127,9 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer roundTimer,
 }
 
 // newInstanceIO returns a new instanceIO.
-func newInstanceIO() instanceIO {
-	return instanceIO{
+func newInstanceIO() *instanceIO {
+	return &instanceIO{
+		started:     make(chan struct{}),
 		recvBuffer:  make(chan msg, recvBuffer),
 		hashCh:      make(chan [32]byte, 1),
 		valueCh:     make(chan proto.Message, 1),
@@ -140,11 +141,27 @@ func newInstanceIO() instanceIO {
 // instanceIO defines the async input and output channels of a
 // single consensus instance in the Component.
 type instanceIO struct {
+	mu          sync.Mutex         // Protects the started channel.
+	started     chan struct{}      // Closed when the instance is started.
 	recvBuffer  chan msg           // Outer receive buffers.
 	hashCh      chan [32]byte      // Async input hash channel.
 	valueCh     chan proto.Message // Async input value channel.
 	errCh       chan error         // Async output error channel.
 	decidedAtCh chan time.Time     // Async output decided timestamp channel.
+}
+
+// Start marks the instance as started or returns an error if already started.
+func (i *instanceIO) Start() error {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	select {
+	case <-i.started:
+		return errors.New("consensus instance already started")
+	default:
+		close(i.started)
+		return nil
+	}
 }
 
 // New returns a new consensus QBFT component.
@@ -177,7 +194,7 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.Pri
 		dropFilter:  log.Filter(),
 		timerFunc:   getTimerFunc(),
 	}
-	c.mutable.instances = make(map[core.Duty]instanceIO)
+	c.mutable.instances = make(map[core.Duty]*instanceIO)
 
 	return c, nil
 }
@@ -200,7 +217,7 @@ type Component struct {
 	// Mutable state
 	mutable struct {
 		sync.Mutex
-		instances map[core.Duty]instanceIO
+		instances map[core.Duty]*instanceIO
 	}
 }
 
@@ -282,6 +299,8 @@ func (c *Component) ProposePriority(ctx context.Context, duty core.Duty, msg *pb
 // It either runs the consensus instance if it is not already running or
 // waits until it completes, in both cases it returns the resulting error.
 func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Message) error {
+	log.Debug(ctx, "Consensus proposed", z.Any("duty", duty))
+
 	hash, err := hashProto(value)
 	if err != nil {
 		return err
@@ -329,8 +348,10 @@ func (c *Component) Participate(ctx context.Context, duty core.Duty) error {
 	}
 
 	if !c.timerFunc(duty).Type().Eager() {
-		return nil // Not an eager start timer, wait for Propose to start.
+		return nil // Not an eager Start timer, wait for Propose to Start.
 	}
+
+	log.Debug(ctx, "Consensus participated", z.Any("duty", duty))
 
 	if _, running := c.getInstanceIO(duty); running {
 		return nil // Instance already running.
@@ -341,12 +362,27 @@ func (c *Component) Participate(ctx context.Context, duty core.Duty) error {
 
 // runInstance blocks and runs a consensus instance for the given duty.
 // It returns an error or nil when the context is cancelled.
+// Note each instance may only be run once.
 func (c *Component) runInstance(ctx context.Context, duty core.Duty) (err error) {
 	roundTimer := c.timerFunc(duty)
 	ctx = log.WithTopic(ctx, "qbft")
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	log.Debug(ctx, "QBFT consensus instance starting",
+		z.Any("peers", c.peerLabels),
+		z.Any("timer", string(roundTimer.Type())),
+	)
+
+	inst, _ := c.getInstanceIO(duty)
+	defer func() {
+		inst.errCh <- err // Send resulting error to errCh.
+	}()
+
+	if err := inst.Start(); err != nil {
+		return err
+	}
 
 	if !c.deadliner.Add(duty) {
 		log.Warn(ctx, "Skipping consensus for expired duty", nil)
@@ -362,11 +398,6 @@ func (c *Component) runInstance(ctx context.Context, duty core.Duty) (err error)
 	if err != nil {
 		return err
 	}
-
-	inst, _ := c.getInstanceIO(duty)
-	defer func() {
-		inst.errCh <- err // Send resulting error to errCh.
-	}()
 
 	// Instrument consensus instance.
 	var decided bool
@@ -494,7 +525,7 @@ func (c *Component) getRecvBuffer(duty core.Duty) chan msg {
 }
 
 // getInstanceIO returns the duty's instance and true if it were previously created.
-func (c *Component) getInstanceIO(duty core.Duty) (instanceIO, bool) {
+func (c *Component) getInstanceIO(duty core.Duty) (*instanceIO, bool) {
 	c.mutable.Lock()
 	defer c.mutable.Unlock()
 
