@@ -5,6 +5,7 @@ package validatormock
 import (
 	"context"
 	"sync"
+	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -46,7 +47,27 @@ type Attester struct {
 	pubkeys  []eth2p0.BLSPubKey
 	signFunc SignFunc
 
+	mu            sync.Mutex
 	slotAttesters map[eth2p0.Slot]*SlotAttester
+}
+
+func (a *Attester) SetSlotAttester(slot eth2p0.Slot, attester *SlotAttester) {
+	a.mu.Lock()
+	a.slotAttesters[slot] = attester
+	a.mu.Unlock()
+}
+
+func (a *Attester) GetSlotAttester(slot eth2p0.Slot) (*SlotAttester, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	attester, ok := a.slotAttesters[slot]
+	if !ok {
+		// TODO(xenowits): Should we create a new slot attester for this slot if not found?
+		return nil, errors.New("attester for slot not found", z.U64("slot", uint64(slot)))
+	}
+
+	return attester, nil
 }
 
 // PrepareEpoch prepares attester duties for the current and next epochs and stores the duties in the Attester state.
@@ -56,36 +77,34 @@ func (a *Attester) PrepareEpoch(ctx context.Context) error {
 		return err
 	}
 
-	slotStart := uint64(a.epoch) * slotsPerEpoch
-	slotEnd := uint64(a.epoch+2) * slotsPerEpoch
+	// Get list of active validators
+	vals, err := a.eth2Cl.ActiveValidators(ctx)
+	if err != nil {
+		return err
+	}
+
+	slotStart, err := a.getCurrentSlot(ctx)
+	if err != nil {
+		return err
+	}
+	slotEnd := eth2p0.Slot(uint64(a.epoch+2) * slotsPerEpoch)
+
 	// Prepare attesters for current and next epochs and store them in a map for each slot.
 	for slot := slotStart; slot < slotEnd; slot++ {
-		attester := NewSlotAttester(a.eth2Cl, eth2p0.Slot(slot), a.signFunc, a.pubkeys)
-		err := attester.Prepare(ctx)
-		if err != nil {
-			return errors.Wrap(err, "prepare attester")
-		}
+		s := slot
+		go func(slot eth2p0.Slot) {
+			attester := NewSlotAttester(a.eth2Cl, slot, a.signFunc, a.pubkeys)
+			err := attester.Prepare(ctx, vals)
+			if err != nil {
+				log.Error(ctx, "Prepare attester", err, z.U64("slot", uint64(slot)))
+				return
+			}
 
-		a.slotAttesters[eth2p0.Slot(slot)] = attester
+			a.SetSlotAttester(slot, attester)
+		}(s)
 	}
 
 	return nil
-}
-
-// GetSlotAttester returns SlotAttester for the provided slot.
-func (a *Attester) GetSlotAttester(ctx context.Context, slot eth2p0.Slot) (*SlotAttester, error) {
-	attester, ok := a.slotAttesters[slot]
-	if !ok {
-		attester := NewSlotAttester(a.eth2Cl, slot, a.signFunc, a.pubkeys)
-		err := attester.Prepare(ctx)
-		if err != nil {
-			return nil, errors.Wrap(err, "prepare attester")
-		}
-
-		return attester, nil
-	}
-
-	return attester, nil
 }
 
 // NewSlotAttester returns a new SlotAttester.
@@ -129,27 +148,30 @@ func (a *SlotAttester) Slot() eth2p0.Slot {
 }
 
 // Prepare should be called at the start of slot, it does the following:
-// - Filters active validators for the slot (this could be cached at start of epoch)
-// - Fetches attester attDuties for the slot (this could be cached at start of epoch).
-// - Prepares aggregation attDuties for slot attesters.
+// - Fetches attester duties for the slot.
+// - Prepares aggregation duties for slot attesters.
+// - Submits beacon committee subscriptions for slot attesters.
 // It panics if called more than once.
-func (a *SlotAttester) Prepare(ctx context.Context) error {
-	vals, err := a.eth2Cl.ActiveValidators(ctx)
-	if err != nil {
-		return err
-	}
-
+func (a *SlotAttester) Prepare(ctx context.Context, vals eth2wrap.ActiveValidators) error {
+	// Get attester duties
 	duties, err := prepareAttesters(ctx, a.eth2Cl, vals, a.slot)
 	if err != nil {
 		return err
 	}
 	a.setPrepareDuties(vals, duties)
 
+	// Get attestation aggregators
 	selections, err := prepareAggregators(ctx, a.eth2Cl, a.signFunc, vals, duties, a.slot)
 	if err != nil {
 		return err
 	}
 	a.setPrepareSelections(selections)
+
+	// Subscribe to beacon committee subnets
+	err = subscribeBeaconCommSubnets(ctx, a.eth2Cl, a.slot, duties, selections)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -494,4 +516,57 @@ func getAggregateAttestation(ctx context.Context, eth2Cl eth2wrap.Client, datas 
 	}
 
 	return nil, errors.New("missing attestation data for committee index")
+}
+
+// getCurrentSlot returns the current slot.
+func (a *Attester) getCurrentSlot(ctx context.Context) (eth2p0.Slot, error) {
+	genesisTime, err := a.eth2Cl.GenesisTime(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "get genesis time")
+	}
+
+	slotDuration, err := a.eth2Cl.SlotDuration(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "get slot duration")
+	}
+
+	currentSlot := int64(time.Since(genesisTime) / slotDuration)
+
+	return eth2p0.Slot(currentSlot), nil
+}
+
+// subscribeBeaconCommSubnets submits beacon committee subscriptions at the start of an epoch for the current and next epochs.
+func subscribeBeaconCommSubnets(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0.Slot, duties attDuties, selections attSelections) error {
+	if len(duties) == 0 {
+		return nil
+	}
+
+	var subs []*eth2v1.BeaconCommitteeSubscription
+	for _, duty := range duties {
+		// Check if attester is also the aggregator for this slot
+		isAggregator := false
+		for _, selection := range selections {
+			if duty.Slot == selection.Slot && duty.ValidatorIndex == selection.ValidatorIndex {
+				isAggregator = true
+				break
+			}
+		}
+
+		subs = append(subs, &eth2v1.BeaconCommitteeSubscription{
+			ValidatorIndex:   duty.ValidatorIndex,
+			Slot:             duty.Slot,
+			CommitteeIndex:   duty.CommitteeIndex,
+			CommitteesAtSlot: duty.CommitteesAtSlot,
+			IsAggregator:     isAggregator,
+		})
+	}
+
+	err := eth2Cl.SubmitBeaconCommitteeSubscriptions(ctx, subs)
+	if err != nil {
+		return err
+	}
+
+	log.Info(ctx, "Mock beacon committee subscription submitted", z.Int("slot", int(slot)))
+
+	return nil
 }

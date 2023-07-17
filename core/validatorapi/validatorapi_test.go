@@ -207,6 +207,9 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 
 	// Configure beacon mock to call validator API for submissions
 	bmock.SubmitAttestationsFunc = vapi.SubmitAttestations
+	bmock.SubmitBeaconCommitteeSubscriptionsFunc = func(ctx context.Context, subscriptions []*eth2v1.BeaconCommitteeSubscription) error {
+		return nil
+	}
 
 	signer, err := validatormock.NewSigner(secret)
 	require.NoError(t, err)
@@ -219,7 +222,10 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 		[]eth2p0.BLSPubKey{validator.Validator.PublicKey},
 	)
 
-	require.NoError(t, attester.Prepare(ctx))
+	vals := make(eth2wrap.ActiveValidators)
+	vals[vIdx] = validator.Validator.PublicKey
+
+	require.NoError(t, attester.Prepare(ctx, vals))
 	require.NoError(t, attester.Attest(ctx))
 }
 

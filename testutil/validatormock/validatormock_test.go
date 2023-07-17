@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -65,6 +66,10 @@ func TestAttest(t *testing.T) {
 				aggs = aggAndProofs
 				return nil
 			}
+			beaconMock.SubmitBeaconCommitteeSubscriptionsFunc = func(_ context.Context, subscriptions []*eth2v1.BeaconCommitteeSubscription) error {
+				// TODO(xenowits): Add test to assert count of subscriptions.
+				return nil
+			}
 
 			// Signature stub function
 			signFunc := func(key eth2p0.BLSPubKey, _ []byte) (eth2p0.BLSSignature, error) {
@@ -80,7 +85,14 @@ func TestAttest(t *testing.T) {
 
 			attester := validatormock.NewSlotAttester(beaconMock, eth2p0.Slot(slotsPerEpoch), signFunc, valSet.PublicKeys())
 
-			require.NoError(t, attester.Prepare(ctx))
+			vals := make(eth2wrap.ActiveValidators)
+			for vIdx, val := range valSet {
+				pk, err := val.PubKey(context.Background())
+				require.NoError(t, err)
+				vals[vIdx] = pk
+			}
+
+			require.NoError(t, attester.Prepare(ctx, vals))
 			require.NoError(t, attester.Attest(ctx))
 			ok, err := attester.Aggregate(ctx)
 			require.NoError(t, err)

@@ -94,7 +94,7 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 	// Handle duties when triggered.
 	sched.SubscribeDuties(func(ctx context.Context, duty core.Duty, _ core.DutyDefinitionSet) error {
 		vMockWrap(ctx, duty.Slot, func(ctx context.Context, state vMockState) error {
-			attester, err := state.Attester.GetSlotAttester(ctx, eth2p0.Slot(duty.Slot))
+			attester, err := state.Attester.GetSlotAttester(eth2p0.Slot(duty.Slot))
 			if err != nil {
 				return errors.Wrap(err, "get slot attester")
 			}
