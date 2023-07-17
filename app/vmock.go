@@ -33,7 +33,23 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 		return err
 	}
 
-	onStartup := true
+	var (
+		mu         sync.Mutex
+		startingUp = true
+	)
+	onStartup := func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return startingUp
+	}
+	clearOnStartup := func() {
+		mu.Lock()
+		defer mu.Unlock()
+
+		startingUp = false
+	}
+
 	sched.SubscribeSlots(func(ctx context.Context, slot core.Slot) error {
 		// Prepare attestations when slots tick.
 		vMockWrap(ctx, slot.Slot, func(ctx context.Context, state vMockState) error {
@@ -41,7 +57,7 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 		})
 
 		// Prepare sync committee message when epoch tick.
-		if onStartup || slot.FirstInEpoch() {
+		if onStartup() || slot.FirstInEpoch() {
 			vMockWrap(ctx, slot.Slot, func(ctx context.Context, state vMockState) error {
 				// Either call if it is first slot in epoch or on charon startup.
 				return state.SyncCommMember.PrepareEpoch(ctx)
@@ -49,7 +65,7 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 		}
 
 		// Submit validator registrations when epoch tick.
-		if onStartup || slot.FirstInEpoch() {
+		if onStartup() || slot.FirstInEpoch() {
 			vMockWrap(ctx, slot.Slot, func(ctx context.Context, state vMockState) error {
 				regs, err := validatormock.RegistrationsFromProposerConfig(ctx, state.Eth2Cl)
 				if err != nil {
@@ -67,7 +83,7 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 			})
 		}
 
-		onStartup = false
+		clearOnStartup()
 
 		// Prepare sync committee selections when slots tick.
 		vMockWrap(ctx, slot.Slot, func(ctx context.Context, state vMockState) error {
