@@ -231,7 +231,7 @@ func byteSliceArrayToEthHex(data [][]byte) []ethHex {
 	return ret
 }
 
-func distValidatorsFromV1x7OrLater(distValidators []distValidatorJSONv1x7) ([]DistValidator, error) {
+func distValidatorsFromV1x7OrLater(distValidators []distValidatorJSONv1x7) []DistValidator {
 	var resp []DistValidator
 	for _, dv := range distValidators {
 		var shares [][]byte
@@ -239,18 +239,13 @@ func distValidatorsFromV1x7OrLater(distValidators []distValidatorJSONv1x7) ([]Di
 			shares = append(shares, share)
 		}
 
-		reg, err := registrationFromJSON(dv.BuilderRegistration)
-		if err != nil {
-			return nil, errors.Wrap(err, "registration from json")
-		}
-
 		resp = append(resp, DistValidator{
 			PubKey:              dv.PubKey,
 			PubShares:           shares,
 			DepositData:         depositDataFromJSON(dv.DepositData),
-			BuilderRegistration: reg,
+			BuilderRegistration: registrationFromJSON(dv.BuilderRegistration),
 		})
 	}
 
-	return resp, nil
+	return resp
 }

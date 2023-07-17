@@ -4,8 +4,6 @@ package cluster
 
 import (
 	"time"
-
-	"github.com/obolnetwork/charon/app/errors"
 )
 
 // BuilderRegistration defines pre-generated signed validator builder registration to be sent to builder network.
@@ -32,7 +30,7 @@ type builderRegistrationJSON struct {
 type registrationJSON struct {
 	FeeRecipient ethHex `json:"fee_recipient"`
 	GasLimit     int    `json:"gas_limit"`
-	Timestamp    string `json:"timestamp"`
+	Timestamp    int    `json:"timestamp"`
 	PubKey       ethHex `json:"pubkey"`
 }
 
@@ -42,7 +40,7 @@ func registrationToJSON(b BuilderRegistration) builderRegistrationJSON {
 		Message: registrationJSON{
 			FeeRecipient: b.Message.FeeRecipient,
 			GasLimit:     b.Message.GasLimit,
-			Timestamp:    b.Message.Timestamp.Format(time.RFC3339),
+			Timestamp:    int(b.Message.Timestamp.Unix()),
 			PubKey:       b.Message.PubKey,
 		},
 		Signature: b.Signature,
@@ -50,19 +48,14 @@ func registrationToJSON(b BuilderRegistration) builderRegistrationJSON {
 }
 
 // registrationFromJSON converts registrationFromJSON to BuilderRegistration.
-func registrationFromJSON(b builderRegistrationJSON) (BuilderRegistration, error) {
-	timestamp, err := time.Parse(time.RFC3339, b.Message.Timestamp)
-	if err != nil {
-		return BuilderRegistration{}, errors.Wrap(err, "parse timestamp")
-	}
-
+func registrationFromJSON(b builderRegistrationJSON) BuilderRegistration {
 	return BuilderRegistration{
 		Message: Registration{
 			FeeRecipient: b.Message.FeeRecipient,
 			GasLimit:     b.Message.GasLimit,
-			Timestamp:    timestamp,
+			Timestamp:    time.Unix(int64(b.Message.Timestamp), 0),
 			PubKey:       b.Message.PubKey,
 		},
 		Signature: b.Signature,
-	}, nil
+	}
 }
