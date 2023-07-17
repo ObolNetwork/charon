@@ -43,7 +43,7 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 
 		return startingUp
 	}
-	setOnStartup := func() {
+	clearOnStartup := func() {
 		mu.Lock()
 		defer mu.Unlock()
 
@@ -83,7 +83,7 @@ func wireValidatorMock(conf Config, pubshares []eth2p0.BLSPubKey, sched core.Sch
 			})
 		}
 
-		setOnStartup()
+		clearOnStartup()
 
 		// Prepare sync committee selections when slots tick.
 		vMockWrap(ctx, slot.Slot, func(ctx context.Context, state vMockState) error {
