@@ -127,9 +127,8 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer roundTimer,
 }
 
 // newInstanceIO returns a new instanceIO.
-func newInstanceIO() *instanceIO {
-	return &instanceIO{
-		started:     make(chan struct{}),
+func newInstanceIO() instanceIO {
+	return instanceIO{
 		recvBuffer:  make(chan msg, recvBuffer),
 		hashCh:      make(chan [32]byte, 1),
 		valueCh:     make(chan proto.Message, 1),
@@ -141,27 +140,11 @@ func newInstanceIO() *instanceIO {
 // instanceIO defines the async input and output channels of a
 // single consensus instance in the Component.
 type instanceIO struct {
-	mu          sync.Mutex         // Protects the started channel.
-	started     chan struct{}      // Closed when the instance is started.
 	recvBuffer  chan msg           // Outer receive buffers.
 	hashCh      chan [32]byte      // Async input hash channel.
 	valueCh     chan proto.Message // Async input value channel.
 	errCh       chan error         // Async output error channel.
 	decidedAtCh chan time.Time     // Async output decided timestamp channel.
-}
-
-// Start marks the instance as started or returns an error if already started.
-func (i *instanceIO) Start() error {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-
-	select {
-	case <-i.started:
-		return errors.New("consensus instance already started")
-	default:
-		close(i.started)
-		return nil
-	}
 }
 
 // New returns a new consensus QBFT component.
@@ -194,7 +177,7 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.Pri
 		dropFilter:  log.Filter(),
 		timerFunc:   getTimerFunc(),
 	}
-	c.mutable.instances = make(map[core.Duty]*instanceIO)
+	c.mutable.instances = make(map[core.Duty]instanceIO)
 
 	return c, nil
 }
@@ -217,7 +200,7 @@ type Component struct {
 	// Mutable state
 	mutable struct {
 		sync.Mutex
-		instances map[core.Duty]*instanceIO
+		instances map[core.Duty]instanceIO
 	}
 }
 
@@ -380,10 +363,6 @@ func (c *Component) runInstance(ctx context.Context, duty core.Duty) (err error)
 		inst.errCh <- err // Send resulting error to errCh.
 	}()
 
-	if err := inst.Start(); err != nil {
-		return err
-	}
-
 	if !c.deadliner.Add(duty) {
 		log.Warn(ctx, "Skipping consensus for expired duty", nil)
 		return nil
@@ -525,7 +504,7 @@ func (c *Component) getRecvBuffer(duty core.Duty) chan msg {
 }
 
 // getInstanceIO returns the duty's instance and true if it were previously created.
-func (c *Component) getInstanceIO(duty core.Duty) (*instanceIO, bool) {
+func (c *Component) getInstanceIO(duty core.Duty) (instanceIO, bool) {
 	c.mutable.Lock()
 	defer c.mutable.Unlock()
 
