@@ -94,6 +94,7 @@ func (c *Checker) scrape() error {
 	c.metrics = append(c.metrics, metrics)
 
 	if len(c.metrics) > c.maxScrapes {
+		c.metrics[0] = nil
 		c.metrics = c.metrics[1:]
 	}
 
