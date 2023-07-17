@@ -332,7 +332,7 @@ func (c *Component) Participate(ctx context.Context, duty core.Duty) error {
 	}
 
 	if !c.timerFunc(duty).Type().Eager() {
-		return nil // Not an eager Start timer, wait for Propose to Start.
+		return nil // Not an eager start timer, wait for Propose to start.
 	}
 
 	// TODO(corver): Remove debug log before v0.17 release.
