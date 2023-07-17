@@ -282,6 +282,7 @@ func (c *Component) ProposePriority(ctx context.Context, duty core.Duty, msg *pb
 // It either runs the consensus instance if it is not already running or
 // waits until it completes, in both cases it returns the resulting error.
 func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Message) error {
+	// TODO(corver): Remove debug log before v0.17 release.
 	log.Debug(ctx, "Consensus proposed", z.Any("duty", duty))
 
 	hash, err := hashProto(value)
@@ -334,6 +335,7 @@ func (c *Component) Participate(ctx context.Context, duty core.Duty) error {
 		return nil // Not an eager Start timer, wait for Propose to Start.
 	}
 
+	// TODO(corver): Remove debug log before v0.17 release.
 	log.Debug(ctx, "Consensus participated", z.Any("duty", duty))
 
 	if _, running := c.getInstanceIO(duty); running {
@@ -367,11 +369,6 @@ func (c *Component) runInstance(ctx context.Context, duty core.Duty) (err error)
 		log.Warn(ctx, "Skipping consensus for expired duty", nil)
 		return nil
 	}
-
-	log.Debug(ctx, "QBFT consensus instance starting",
-		z.Any("peers", c.peerLabels),
-		z.Any("timer", string(roundTimer.Type())),
-	)
 
 	peerIdx, err := c.getPeerIdx()
 	if err != nil {
