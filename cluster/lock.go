@@ -374,20 +374,14 @@ func unmarshalLockV1x7OrLater(data []byte) (lock Lock, err error) {
 		return Lock{}, errors.Wrap(err, "unmarshal definition")
 	}
 
-	vals, err := distValidatorsFromV1x7OrLater(lockJSON.Validators)
-	if err != nil {
-		return Lock{}, err
-	}
-
 	var nodeSignatures [][]byte
-
 	for _, ns := range lockJSON.NodeSignatures {
 		nodeSignatures = append(nodeSignatures, ns)
 	}
 
 	lock = Lock{
 		Definition:         lockJSON.Definition,
-		Validators:         vals,
+		Validators:         distValidatorsFromV1x7OrLater(lockJSON.Validators),
 		SignatureAggregate: lockJSON.SignatureAggregate,
 		LockHash:           lockJSON.LockHash,
 		NodeSignatures:     nodeSignatures,

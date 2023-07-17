@@ -691,11 +691,11 @@ func hashRegistration(r Registration, hh ssz.HashWalker) error {
 	// Field (0) 'FeeRecipient'
 	hh.PutBytes(r.FeeRecipient)
 
-	// Field (1) 'GasLimit' Bytes48
+	// Field (1) 'GasLimit' uint64
 	hh.PutUint64(uint64(r.GasLimit))
 
-	// Field (2) 'Timestamp' Bytes48
-	hh.PutBytes([]byte(r.Timestamp.String()))
+	// Field (2) 'Timestamp' uint64
+	hh.PutUint64(uint64(r.Timestamp.Unix()))
 
 	// Field (3) 'PubKey' Bytes48
 	if err := putBytesN(hh, r.PubKey, sszLenPubKey); err != nil {
