@@ -312,7 +312,7 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 		case decidedAt := <-inst.decidedAtCh:
 			timerType := c.timerFunc(duty).Type()
 			duration := decidedAt.Sub(proposedAt)
-			consensusDuration.WithLabelValues(duty.String(), string(timerType)).Observe(duration.Seconds())
+			consensusDuration.WithLabelValues(duty.Type.String(), string(timerType)).Observe(duration.Seconds())
 		default:
 		}
 	}()
