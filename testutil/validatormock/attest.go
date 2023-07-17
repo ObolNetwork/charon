@@ -40,7 +40,7 @@ func NewAttester(eth2Cl eth2wrap.Client, epoch eth2p0.Epoch, signFunc SignFunc, 
 	}
 }
 
-// Attester stores SlotAttester instances for current and next epochs.
+// Attester stores SlotAttester instances for the current epoch.
 type Attester struct {
 	eth2Cl   eth2wrap.Client
 	epoch    eth2p0.Epoch
@@ -51,12 +51,15 @@ type Attester struct {
 	slotAttesters map[eth2p0.Slot]*SlotAttester
 }
 
+// SetSlotAttester sets SlotAttester for the provided slot.
 func (a *Attester) SetSlotAttester(slot eth2p0.Slot, attester *SlotAttester) {
 	a.mu.Lock()
 	a.slotAttesters[slot] = attester
 	a.mu.Unlock()
 }
 
+// GetSlotAttester returns SlotAttester for the provided slot. It returns an error
+// if SlotAttester for the provided slot doesn't exist.
 func (a *Attester) GetSlotAttester(slot eth2p0.Slot) (*SlotAttester, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -89,6 +92,10 @@ func (a *Attester) PrepareEpoch(ctx context.Context) error {
 	}
 	slotEnd := eth2p0.Slot(uint64(a.epoch+2) * slotsPerEpoch)
 
+	isNextEpochSlot := func(slot eth2p0.Slot) bool {
+		return slot >= eth2p0.Slot(uint64(a.epoch+1)*slotsPerEpoch)
+	}
+
 	// Prepare attesters for current and next epochs and store them in a map for each slot.
 	for slot := slotStart; slot < slotEnd; slot++ {
 		s := slot
@@ -97,6 +104,12 @@ func (a *Attester) PrepareEpoch(ctx context.Context) error {
 			err := attester.Prepare(ctx, vals)
 			if err != nil {
 				log.Error(ctx, "Prepare attester", err, z.U64("slot", uint64(slot)))
+				return
+			}
+
+			// Don't store slot attesters for slots in the next epoch.
+			// Those are used only for subscribing to beacon committee subnets.
+			if isNextEpochSlot(slot) {
 				return
 			}
 
