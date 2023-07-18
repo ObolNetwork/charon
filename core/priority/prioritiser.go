@@ -303,6 +303,10 @@ func runInstance(ctx context.Context, duty core.Duty, own *pbv1.PriorityMsg,
 		case msg := <-responses:
 			addMsg(msg)
 		case <-exTimeout:
+			if consStarted {
+				continue
+			}
+
 			log.Debug(ctx, "Priority protocol instance exchange timeout, starting consensus")
 			consStarted = true
 			err := startConsensus(ctx, duty, msgs, minRequired, consensus)
