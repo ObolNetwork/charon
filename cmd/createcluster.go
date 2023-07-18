@@ -148,16 +148,8 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 			return err
 		}
 
-		defWAddrs := def.WithdrawalAddresses()
-		defFAddrs := def.FeeRecipientAddresses()
-
-		if len(defFAddrs) != 0 {
-			conf.FeeRecipientAddrs = defFAddrs
-		}
-
-		if len(defWAddrs) != 0 {
-			conf.WithdrawalAddrs = defWAddrs
-		}
+		conf.FeeRecipientAddrs = def.FeeRecipientAddresses()
+		conf.WithdrawalAddrs = def.WithdrawalAddresses()
 
 		if strings.TrimSpace(def.Name) != "" {
 			conf.Name = def.Name
