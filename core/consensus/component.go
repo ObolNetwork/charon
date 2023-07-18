@@ -129,22 +129,52 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer roundTimer,
 // newInstanceIO returns a new instanceIO.
 func newInstanceIO() instanceIO {
 	return instanceIO{
-		recvBuffer:  make(chan msg, recvBuffer),
-		hashCh:      make(chan [32]byte, 1),
-		valueCh:     make(chan proto.Message, 1),
-		errCh:       make(chan error, 1),
-		decidedAtCh: make(chan time.Time, 1),
+		participated: make(chan struct{}),
+		proposed:     make(chan struct{}),
+		recvBuffer:   make(chan msg, recvBuffer),
+		hashCh:       make(chan [32]byte, 1),
+		valueCh:      make(chan proto.Message, 1),
+		errCh:        make(chan error, 1),
+		decidedAtCh:  make(chan time.Time, 1),
 	}
 }
 
 // instanceIO defines the async input and output channels of a
 // single consensus instance in the Component.
 type instanceIO struct {
-	recvBuffer  chan msg           // Outer receive buffers.
-	hashCh      chan [32]byte      // Async input hash channel.
-	valueCh     chan proto.Message // Async input value channel.
-	errCh       chan error         // Async output error channel.
-	decidedAtCh chan time.Time     // Async output decided timestamp channel.
+	participated chan struct{}      // Closed when Participate was called for this instance.
+	proposed     chan struct{}      // Closed when Propose was called for this instance.
+	recvBuffer   chan msg           // Outer receive buffers.
+	hashCh       chan [32]byte      // Async input hash channel.
+	valueCh      chan proto.Message // Async input value channel.
+	errCh        chan error         // Async output error channel.
+	decidedAtCh  chan time.Time     // Async output decided timestamp channel.
+}
+
+// MarkParticipated marks the instance as participated.
+// It returns an error if the instance was already marked as participated.
+func (io *instanceIO) MarkParticipated() error {
+	select {
+	case <-io.participated:
+		return errors.New("already participated")
+	default:
+		close(io.participated)
+	}
+
+	return nil
+}
+
+// MarkProposed marks the instance as proposed.
+// It returns an error if the instance was already marked as proposed.
+func (io *instanceIO) MarkProposed() error {
+	select {
+	case <-io.proposed:
+		return errors.New("already proposed")
+	default:
+		close(io.proposed)
+	}
+
+	return nil
 }
 
 // New returns a new consensus QBFT component.
@@ -261,6 +291,7 @@ func (c *Component) Start(ctx context.Context) {
 // Propose enqueues the proposed value to a consensus instance input channels.
 // It either runs the consensus instance if it is not already running or
 // waits until it completes, in both cases it returns the resulting error.
+// Note this errors if called multiple times for the same duty.
 func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.UnsignedDataSet) error {
 	// Hash the proposed data, since qbft only supports simple comparable values.
 	value, err := core.UnsignedDataSetToProto(data)
@@ -274,6 +305,7 @@ func (c *Component) Propose(ctx context.Context, duty core.Duty, data core.Unsig
 // ProposePriority enqueues the proposed value to a consensus instance input channels.
 // It either runs the consensus instance if it is not already running or
 // waits until it completes, in both cases it returns the resulting error.
+// Note this errors if called multiple times for the same duty.
 func (c *Component) ProposePriority(ctx context.Context, duty core.Duty, msg *pbv1.PriorityResult) error {
 	return c.propose(ctx, duty, msg)
 }
@@ -281,16 +313,18 @@ func (c *Component) ProposePriority(ctx context.Context, duty core.Duty, msg *pb
 // propose enqueues the proposed value to a consensus instance input channels.
 // It either runs the consensus instance if it is not already running or
 // waits until it completes, in both cases it returns the resulting error.
+// Note this errors if called multiple times for the same duty.
 func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Message) error {
-	// TODO(corver): Remove debug log before v0.17 release.
-	log.Debug(ctx, "Consensus proposed", z.Any("duty", duty))
-
 	hash, err := hashProto(value)
 	if err != nil {
 		return err
 	}
 
 	inst, running := c.getInstanceIO(duty)
+
+	if err := inst.MarkProposed(); err != nil {
+		return errors.Wrap(err, "propose consensus", z.Any("duty", duty))
+	}
 
 	// Provide proposal inputs to the instance.
 	select {
@@ -326,6 +360,7 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 
 // Participate runs a new a consensus instance if an eager timer is defined and Propose not already called.
 // Note Propose must still be called for this peer to propose a value when leading a round.
+// Note this errors if called multiple times for the same duty.
 func (c *Component) Participate(ctx context.Context, duty core.Duty) error {
 	if duty.Type == core.DutyAggregator || duty.Type == core.DutySyncContribution {
 		return nil // No eager consensus for potential no-op aggregation duties.
@@ -335,10 +370,13 @@ func (c *Component) Participate(ctx context.Context, duty core.Duty) error {
 		return nil // Not an eager start timer, wait for Propose to start.
 	}
 
-	// TODO(corver): Remove debug log before v0.17 release.
-	log.Debug(ctx, "Consensus participated", z.Any("duty", duty))
+	inst, running := c.getInstanceIO(duty)
 
-	if _, running := c.getInstanceIO(duty); running {
+	if err := inst.MarkParticipated(); err != nil {
+		return errors.Wrap(err, "participate consensus", z.Any("duty", duty))
+	}
+
+	if running {
 		return nil // Instance already running.
 	}
 
