@@ -4,6 +4,7 @@ package cluster_test
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"math/rand"
 	"os"
@@ -11,10 +12,14 @@ import (
 	"strings"
 	"testing"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/keystore"
+	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -266,4 +271,78 @@ func isAnyVersion(version string, list ...string) bool {
 	}
 
 	return false
+}
+
+var newLock = flag.Bool("new-lock", false, "Generate new cluster lock file.")
+
+func TestGenerateLatestLock(t *testing.T) {
+	if !*newLock {
+		t.Skip()
+	}
+
+	lockBytes, err := os.ReadFile("../.charon/node0/cluster-lock.json")
+	require.NoError(t, err)
+
+	var oldLock cluster.Lock
+	err = json.Unmarshal(lockBytes, &oldLock)
+	require.NoError(t, err)
+
+	var (
+		enrKeys   []*k1.PrivateKey
+		keyshares []tbls.PrivateKey
+	)
+	for i := 0; i < len(oldLock.Operators); i++ {
+		keyFiles, err := keystore.LoadFilesUnordered(fmt.Sprintf("../.charon/node%d/validator_keys", i))
+		require.NoError(t, err)
+
+		secrets, err := keyFiles.SequencedKeys()
+		require.NoError(t, err)
+
+		keyshares = append(keyshares, secrets...)
+
+		p2pKey, err := k1util.Load(fmt.Sprintf("../.charon/node%d/charon-enr-private-key", i))
+		require.NoError(t, err)
+
+		enrKeys = append(enrKeys, p2pKey)
+	}
+
+	newLock := cluster.Lock{
+		Definition: oldLock.Definition,
+		Validators: oldLock.Validators,
+	}
+
+	newLock, err = newLock.SetLockHash()
+	require.NoError(t, err)
+	require.NotNil(t, newLock.LockHash)
+
+	// Fill signature_aggregate field.
+	var sigs []tbls.Signature
+	for _, key := range keyshares {
+		sig, err := tbls.Sign(key, newLock.LockHash)
+		require.NoError(t, err)
+
+		sigs = append(sigs, sig)
+	}
+
+	sigAgg, err := tbls.Aggregate(sigs)
+	require.NoError(t, err)
+
+	newLock.SignatureAggregate = sigAgg[:]
+
+	// Generate node_signatures.
+	var nodeSigs [][]byte
+	for _, key := range enrKeys {
+		nodeSig, err := k1util.Sign(key, newLock.LockHash)
+		require.NoError(t, err)
+
+		nodeSigs = append(nodeSigs, nodeSig)
+	}
+
+	newLock.NodeSignatures = nodeSigs
+	require.NoError(t, newLock.VerifySignatures())
+
+	lockBytes, err = json.MarshalIndent(newLock, "", " ")
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile("cluster-lock.json", lockBytes, 0o444))
 }
