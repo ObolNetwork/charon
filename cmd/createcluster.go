@@ -139,11 +139,6 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		}
 
 		conf.NumDVs = len(secrets)
-	} else {
-		secrets, err = generateKeys(conf.NumDVs)
-		if err != nil {
-			return err
-		}
 	}
 
 	var def cluster.Definition
@@ -152,6 +147,25 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		if err != nil {
 			return err
 		}
+
+		defWAddrs := def.WithdrawalAddresses()
+		defFAddrs := def.FeeRecipientAddresses()
+
+		if len(defFAddrs) != 0 {
+			conf.FeeRecipientAddrs = defFAddrs
+		}
+
+		if len(defWAddrs) != 0 {
+			conf.WithdrawalAddrs = defWAddrs
+		}
+
+		if strings.TrimSpace(def.Name) != "" {
+			conf.Name = def.Name
+		}
+
+		conf.NumNodes = len(def.Operators)
+		conf.NumDVs = def.NumValidators
+		conf.Threshold = def.Threshold
 	} else { // Create new definition from cluster config
 		def, err = newDefFromConfig(ctx, conf)
 		if err != nil {
@@ -159,15 +173,12 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		}
 	}
 
-	if def.NumValidators != conf.NumDVs {
-		errTmpl := "provided cluster definition doesn't contain the same amount of validators"
-
-		err := errors.New(errTmpl + " as specified in --num-validators")
-		if conf.SplitKeys {
-			err = errors.New(errTmpl + " contained in --split-keys-dir")
+	if len(secrets) == 0 {
+		// this is the case in which split-keys is undefined and user passed validator amount on CLI
+		secrets, err = generateKeys(conf.NumDVs)
+		if err != nil {
+			return err
 		}
-
-		return err
 	}
 
 	numNodes := len(def.Operators)
@@ -278,7 +289,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 
 // validateCreateConfig returns an error if any of the provided config parameters are invalid.
 func validateCreateConfig(conf clusterConfig) error {
-	if conf.NumNodes == 0 {
+	if conf.NumNodes == 0 && conf.DefFile == "" { // if there's a definition file, infer this value from it later
 		return errors.New("missing --nodes flag")
 	}
 
@@ -300,7 +311,7 @@ func validateCreateConfig(conf clusterConfig) error {
 			return errors.New("can't specify --num-validators with --split-existing-keys. Please fix configuration flags")
 		}
 	} else {
-		if conf.NumDVs == 0 {
+		if conf.NumDVs == 0 && conf.DefFile == "" { // if there's a definition file, infer this value from it later
 			return errors.New("missing --num-validators flag")
 		}
 	}

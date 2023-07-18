@@ -120,77 +120,17 @@ func TestCreateCluster(t *testing.T) {
 		{
 			Name: "solo flow definition from disk",
 			Config: clusterConfig{
-				DefFile:  defPath,
-				NumDVs:   2,
-				NumNodes: 4,
+				DefFile: defPath,
 			},
 		},
 		{
-			Name: "solo flow definition from network",
-			Config: clusterConfig{
-				NumDVs:   2,
-				NumNodes: 4,
-			},
+			Name:   "solo flow definition from network",
+			Config: clusterConfig{},
 			defFileProvider: func() []byte {
 				data, err := json.Marshal(def)
 				require.NoError(t, err)
 
 				return data
-			},
-		},
-		{
-			Name: "number of validators in def file differs from --num-validators",
-			Config: clusterConfig{
-				NumDVs:   2,
-				NumNodes: 4,
-				Network:  defaultNetwork,
-			},
-			defFileProvider: func() []byte {
-				def := def
-
-				def.NumValidators = 3
-				def.ValidatorAddresses = make([]cluster.ValidatorAddresses, 3)
-				data, err := json.Marshal(def)
-				require.NoError(t, err)
-
-				return data
-			},
-			expectedErr: "provided cluster definition doesn't contain the same amount of validators as specified in --num-validators",
-		},
-		{
-			Name: "number of validators in def file differs from amount of keys in splitkeys",
-			Config: clusterConfig{
-				SplitKeys: true,
-				NumNodes:  4,
-				Network:   defaultNetwork,
-			},
-			defFileProvider: func() []byte {
-				def := def
-
-				def.NumValidators = 3
-				def.ValidatorAddresses = make([]cluster.ValidatorAddresses, 3)
-				data, err := json.Marshal(def)
-				require.NoError(t, err)
-
-				return data
-			},
-			expectedErr: "provided cluster definition doesn't contain the same amount of validators contained in --split-keys-dir",
-			Prep: func(t *testing.T, config clusterConfig) clusterConfig {
-				t.Helper()
-
-				keyDir := t.TempDir()
-
-				secret1, err := tbls.GenerateSecretKey()
-				require.NoError(t, err)
-				secret2, err := tbls.GenerateSecretKey()
-				require.NoError(t, err)
-
-				err = keystore.StoreKeysInsecure([]tbls.PrivateKey{secret1, secret2}, keyDir, keystore.ConfirmInsecureKeys)
-				require.NoError(t, err)
-
-				config.SplitKeysDir = keyDir
-
-				return config
 			},
 		},
 	}
@@ -420,17 +360,7 @@ func TestSplitKeys(t *testing.T) {
 		expectedErrMsg string
 	}{
 		{
-			name:         "split keys from local definition with mismatch NumValidators",
-			numSplitKeys: 2,
-			conf: clusterConfig{
-				DefFile:  "../cluster/examples/cluster-definition-002.json",
-				NumNodes: 4,
-				Network:  defaultNetwork,
-			},
-			expectedErrMsg: "provided cluster definition doesn't contain the same amount of validators contained in --split-keys-dir",
-		},
-		{
-			name:         "split keys from local definition with same NumValidators",
+			name:         "split keys from local definition",
 			numSplitKeys: 1,
 			conf: clusterConfig{
 				DefFile:    "../cluster/examples/cluster-definition-002.json",
