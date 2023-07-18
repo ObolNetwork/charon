@@ -151,8 +151,8 @@ type instanceIO struct {
 	decidedAtCh  chan time.Time     // Async output decided timestamp channel.
 }
 
-// MarkParticipated marks the instance as participated, it returns
-// and error if the instance was already marked as participated.
+// MarkParticipated marks the instance as participated.
+// It returns an error if the instance was already marked as participated.
 func (io *instanceIO) MarkParticipated() error {
 	select {
 	case <-io.participated:
@@ -164,8 +164,8 @@ func (io *instanceIO) MarkParticipated() error {
 	return nil
 }
 
-// MarkProposed marks the instance as proposed, it returns
-// and error if the instance was already marked as proposed.
+// MarkProposed marks the instance as proposed.
+// It returns an error if the instance was already marked as proposed.
 func (io *instanceIO) MarkProposed() error {
 	select {
 	case <-io.proposed:
