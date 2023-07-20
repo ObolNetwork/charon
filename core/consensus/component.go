@@ -179,8 +179,9 @@ func (io *instanceIO) MarkProposed() error {
 	return nil
 }
 
-// ShouldRun marks the instance as running.
-// It returns false if the instance was already marked as running.
+// ShouldRun checks the current status of the instance.
+// If the instance is not already running, it returns true and marks the instance as running.
+// It returns false if the instance is already running.
 func (io *instanceIO) ShouldRun() bool {
 	select {
 	case <-io.running:
