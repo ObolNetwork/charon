@@ -74,6 +74,10 @@ linters-settings:
         disabled: true
       - name: cognitive-complexity
         disabled: true
+      - name: comment-spacings
+        disabled: true
+      - name: use-any
+        disabled: true
       # Some configured revive rules
       - name: unhandled-error
         arguments:
