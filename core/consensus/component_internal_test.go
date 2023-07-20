@@ -466,17 +466,18 @@ func TestInstanceIO_ShouldRun(t *testing.T) {
 		c.deadliner = testDeadliner{}
 		c.mutable.instances = make(map[core.Duty]instanceIO)
 
-		msg := &pbv1.ConsensusMsg{
-			Msg: randomMsg(t),
-		}
+		// Generate a p2p private key.
 		p2pKey := testutil.GenerateInsecureK1Key(t, 0)
 		c.pubkeys = make(map[int64]*k1.PublicKey)
 		c.pubkeys[0] = p2pKey.PubKey()
 
 		duty := core.Duty{Slot: 42, Type: 1}
+		msg := &pbv1.ConsensusMsg{
+			Msg: randomMsg(t),
+		}
 		msg = signConsensusMsg(t, msg, p2pKey, duty)
 
-		// It should create new instance of instanceIO for the give duty.
+		// It should create new instance of instanceIO for the given duty.
 		_, _, err := c.handle(context.Background(), "peerID", msg)
 		require.NoError(t, err)
 
@@ -494,23 +495,24 @@ func TestInstanceIO_ShouldRun(t *testing.T) {
 		c.mutable.instances = make(map[core.Duty]instanceIO)
 		c.timerFunc = getTimerFunc()
 
-		msg := &pbv1.ConsensusMsg{
-			Msg: randomMsg(t),
-		}
+		// Generate a p2p private key pair.
 		p2pKey := testutil.GenerateInsecureK1Key(t, 0)
 		c.pubkeys = make(map[int64]*k1.PublicKey)
 		c.pubkeys[0] = p2pKey.PubKey()
 
 		duty := core.Duty{Slot: 42, Type: 1}
+		msg := &pbv1.ConsensusMsg{
+			Msg: randomMsg(t),
+		}
 		msg = signConsensusMsg(t, msg, p2pKey, duty)
 
-		// It should create new instance of instanceIO for the give duty.
+		// It should create new instance of instanceIO for the given duty.
 		_, _, err := c.handle(ctx, "peerID", msg)
 		require.NoError(t, err)
 
 		pubkey := testutil.RandomCorePubKey(t)
 
-		// It should mark instance as running by calling inst.ShouldRun().
+		// Propose should internally mark instance as running by calling inst.ShouldRun().
 		err = c.Propose(ctx, duty, core.UnsignedDataSet{pubkey: testutil.RandomCoreAttestationData(t)})
 		require.Error(t, err) // It should return an error as no peers are specified.
 
