@@ -131,6 +131,7 @@ func newInstanceIO() instanceIO {
 	return instanceIO{
 		participated: make(chan struct{}),
 		proposed:     make(chan struct{}),
+		running:      make(chan struct{}),
 		recvBuffer:   make(chan msg, recvBuffer),
 		hashCh:       make(chan [32]byte, 1),
 		valueCh:      make(chan proto.Message, 1),
@@ -144,6 +145,7 @@ func newInstanceIO() instanceIO {
 type instanceIO struct {
 	participated chan struct{}      // Closed when Participate was called for this instance.
 	proposed     chan struct{}      // Closed when Propose was called for this instance.
+	running      chan struct{}      // Closed when runInstance was already called.
 	recvBuffer   chan msg           // Outer receive buffers.
 	hashCh       chan [32]byte      // Async input hash channel.
 	valueCh      chan proto.Message // Async input value channel.
@@ -175,6 +177,20 @@ func (io *instanceIO) MarkProposed() error {
 	}
 
 	return nil
+}
+
+// ShouldRun checks the current status of the instance.
+// If the instance is not already running, it returns true and marks the instance as running.
+// It returns false if the instance is already running.
+func (io *instanceIO) ShouldRun() bool {
+	select {
+	case <-io.running:
+		return false
+	default:
+		close(io.running)
+	}
+
+	return true
 }
 
 // New returns a new consensus QBFT component.
@@ -320,7 +336,7 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 		return err
 	}
 
-	inst, running := c.getInstanceIO(duty)
+	inst := c.getInstanceIO(duty)
 
 	if err := inst.MarkProposed(); err != nil {
 		return errors.Wrap(err, "propose consensus", z.Any("duty", duty))
@@ -351,7 +367,7 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 		}
 	}()
 
-	if running { // Participate was already called, instance is running.
+	if !inst.ShouldRun() { // Participate was already called, instance is running.
 		return <-inst.errCh
 	}
 
@@ -370,13 +386,13 @@ func (c *Component) Participate(ctx context.Context, duty core.Duty) error {
 		return nil // Not an eager start timer, wait for Propose to start.
 	}
 
-	inst, running := c.getInstanceIO(duty)
+	inst := c.getInstanceIO(duty)
 
 	if err := inst.MarkParticipated(); err != nil {
 		return errors.Wrap(err, "participate consensus", z.Any("duty", duty))
 	}
 
-	if running {
+	if !inst.ShouldRun() {
 		return nil // Instance already running.
 	}
 
@@ -398,7 +414,7 @@ func (c *Component) runInstance(ctx context.Context, duty core.Duty) (err error)
 		z.Any("timer", string(roundTimer.Type())),
 	)
 
-	inst, _ := c.getInstanceIO(duty)
+	inst := c.getInstanceIO(duty)
 	defer func() {
 		inst.errCh <- err // Send resulting error to errCh.
 	}()
@@ -539,7 +555,7 @@ func (c *Component) getRecvBuffer(duty core.Duty) chan msg {
 }
 
 // getInstanceIO returns the duty's instance and true if it were previously created.
-func (c *Component) getInstanceIO(duty core.Duty) (instanceIO, bool) {
+func (c *Component) getInstanceIO(duty core.Duty) instanceIO {
 	c.mutable.Lock()
 	defer c.mutable.Unlock()
 
@@ -548,10 +564,10 @@ func (c *Component) getInstanceIO(duty core.Duty) (instanceIO, bool) {
 		inst = newInstanceIO()
 		c.mutable.instances[duty] = inst
 
-		return inst, false
+		return inst
 	}
 
-	return inst, true
+	return inst
 }
 
 // deleteInstanceIO deletes the instanceIO for the duty.
