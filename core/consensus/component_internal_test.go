@@ -454,6 +454,73 @@ func TestComponentHandle(t *testing.T) {
 	}
 }
 
+func TestInstanceIO_ShouldRun(t *testing.T) {
+	t.Run("ShouldRun for new instance", func(t *testing.T) {
+		inst1 := newInstanceIO()
+		require.True(t, inst1.ShouldRun())
+		require.False(t, inst1.ShouldRun())
+	})
+
+	t.Run("ShouldRun after handle", func(t *testing.T) {
+		var c Component
+		c.deadliner = testDeadliner{}
+		c.mutable.instances = make(map[core.Duty]instanceIO)
+
+		msg := &pbv1.ConsensusMsg{
+			Msg: randomMsg(t),
+		}
+		p2pKey := testutil.GenerateInsecureK1Key(t, 0)
+		c.pubkeys = make(map[int64]*k1.PublicKey)
+		c.pubkeys[0] = p2pKey.PubKey()
+
+		duty := core.Duty{Slot: 42, Type: 1}
+		msg = signConsensusMsg(t, msg, p2pKey, duty)
+
+		// It should create new instance of instanceIO for the give duty.
+		_, _, err := c.handle(context.Background(), "peerID", msg)
+		require.NoError(t, err)
+
+		inst, ok := c.mutable.instances[duty]
+		require.True(t, ok)
+		require.True(t, inst.ShouldRun())
+		require.False(t, inst.ShouldRun())
+	})
+
+	t.Run("Call Propose after handle", func(t *testing.T) {
+		ctx := context.Background()
+
+		var c Component
+		c.deadliner = testDeadliner{}
+		c.mutable.instances = make(map[core.Duty]instanceIO)
+		c.timerFunc = getTimerFunc()
+
+		msg := &pbv1.ConsensusMsg{
+			Msg: randomMsg(t),
+		}
+		p2pKey := testutil.GenerateInsecureK1Key(t, 0)
+		c.pubkeys = make(map[int64]*k1.PublicKey)
+		c.pubkeys[0] = p2pKey.PubKey()
+
+		duty := core.Duty{Slot: 42, Type: 1}
+		msg = signConsensusMsg(t, msg, p2pKey, duty)
+
+		// It should create new instance of instanceIO for the give duty.
+		_, _, err := c.handle(ctx, "peerID", msg)
+		require.NoError(t, err)
+
+		pubkey := testutil.RandomCorePubKey(t)
+
+		// It should mark instance as running by calling inst.ShouldRun().
+		err = c.Propose(ctx, duty, core.UnsignedDataSet{pubkey: testutil.RandomCoreAttestationData(t)})
+		require.Error(t, err) // It should return an error as no peers are specified.
+
+		// Check if ShouldRun is called before.
+		inst, ok := c.mutable.instances[duty]
+		require.True(t, ok)
+		require.False(t, inst.ShouldRun())
+	})
+}
+
 // testDeadliner is a mock deadliner implementation.
 type testDeadliner struct {
 	deadlineChan chan core.Duty
@@ -465,4 +532,46 @@ func (testDeadliner) Add(core.Duty) bool {
 
 func (t testDeadliner) C() <-chan core.Duty {
 	return t.deadlineChan
+}
+
+func signConsensusMsg(t *testing.T, msg *pbv1.ConsensusMsg, privKey *k1.PrivateKey, duty core.Duty) *pbv1.ConsensusMsg {
+	t.Helper()
+
+	msg.Msg.Duty.Type = int32(duty.Type)
+	msg.Msg.PeerIdx = 0
+	msg.Msg.Duty = &pbv1.Duty{
+		Slot: duty.Slot,
+		Type: int32(duty.Type),
+	}
+
+	// Sign the base message
+	msgHash, err := hashProto(msg.Msg)
+	require.NoError(t, err)
+
+	sign, err := k1util.Sign(privKey, msgHash[:])
+	require.NoError(t, err)
+
+	msg.Msg.Signature = sign
+
+	// construct a justification
+	msg.Justification = []*pbv1.QBFTMsg{
+		randomMsg(t),
+	}
+
+	msg.Justification[0].PeerIdx = 0
+	msg.Justification[0].Duty = &pbv1.Duty{
+		Slot: duty.Slot,
+		Type: int32(duty.Type),
+	}
+
+	// Sign the justification
+	justHash, err := hashProto(msg.Justification[0])
+	require.NoError(t, err)
+
+	justSign, err := k1util.Sign(privKey, justHash[:])
+	require.NoError(t, err)
+
+	msg.Justification[0].Signature = justSign
+
+	return msg
 }
