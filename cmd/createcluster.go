@@ -132,6 +132,10 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 
 	var secrets []tbls.PrivateKey
 
+	// If we're splitting keys, read them from SplitKeysDir and set conf.NumDVs to the amount of
+	// secrets we read.
+	// If SplitKeys wasn't set, we wouldn't have reached this part of code because validateCreateConfig()
+	// would've already errored.
 	if conf.SplitKeys {
 		secrets, err = getKeys(conf.SplitKeysDir)
 		if err != nil {
