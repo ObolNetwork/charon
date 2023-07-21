@@ -613,13 +613,23 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("get validators with no validator ids provided", func(t *testing.T) {
-		const numVals = 2
-		handler := testHandler{}
+		idx := eth2p0.ValidatorIndex(99)
+		handler := testHandler{
+			ValidatorsFunc: func(_ context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+				val := testutil.RandomValidator(t)
+				val.Index = idx
+
+				return map[eth2p0.ValidatorIndex]*eth2v1.Validator{
+					idx: val,
+				}, nil
+			},
+		}
+
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			// Validators fetches all validators from beacon state as per go-eth2-client v0.18.0.
 			res, err := cl.Validators(ctx, "head", nil)
 			require.NoError(t, err)
-			require.Len(t, res, numVals)
+			require.Len(t, res, 1)
+			require.NotNil(t, res[idx])
 		}
 
 		testRouter(t, handler, callback)
