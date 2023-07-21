@@ -48,6 +48,7 @@ func TestCreateCluster(t *testing.T) {
 				NumNodes:  4,
 				Threshold: 3,
 				NumDVs:    1,
+				Network:   eth2util.Goerli.Name,
 			},
 		},
 		{
@@ -56,6 +57,7 @@ func TestCreateCluster(t *testing.T) {
 				NumNodes:  4,
 				Threshold: 3,
 				SplitKeys: true,
+				Network:   eth2util.Goerli.Name,
 			},
 			Prep: func(t *testing.T, config clusterConfig) clusterConfig {
 				t.Helper()
@@ -76,8 +78,59 @@ func TestCreateCluster(t *testing.T) {
 			},
 		},
 		{
-			Name:        "missing nodes amount flag",
-			Config:      clusterConfig{},
+			Name: "splitkeys with cluster definition",
+			Config: clusterConfig{
+				DefFile:   defPath,
+				SplitKeys: true,
+				Network:   defaultNetwork,
+			},
+			Prep: func(t *testing.T, config clusterConfig) clusterConfig {
+				t.Helper()
+
+				keyDir := t.TempDir()
+
+				secret1, err := tbls.GenerateSecretKey()
+				require.NoError(t, err)
+				secret2, err := tbls.GenerateSecretKey()
+				require.NoError(t, err)
+
+				err = keystore.StoreKeysInsecure([]tbls.PrivateKey{secret1, secret2}, keyDir, keystore.ConfirmInsecureKeys)
+				require.NoError(t, err)
+
+				config.SplitKeysDir = keyDir
+
+				return config
+			},
+		},
+		{
+			Name: "splitkeys with cluster definition, but amount of keys read from disk differ",
+			Config: clusterConfig{
+				DefFile:   defPath,
+				SplitKeys: true,
+				Network:   defaultNetwork,
+			},
+			Prep: func(t *testing.T, config clusterConfig) clusterConfig {
+				t.Helper()
+
+				keyDir := t.TempDir()
+
+				secret1, err := tbls.GenerateSecretKey()
+				require.NoError(t, err)
+
+				err = keystore.StoreKeysInsecure([]tbls.PrivateKey{secret1}, keyDir, keystore.ConfirmInsecureKeys)
+				require.NoError(t, err)
+
+				config.SplitKeysDir = keyDir
+
+				return config
+			},
+			expectedErr: "amount of keys read from disk differs from cluster definition",
+		},
+		{
+			Name: "missing nodes amount flag",
+			Config: clusterConfig{
+				Network: defaultNetwork,
+			},
 			expectedErr: "missing --nodes flag",
 		},
 		{
@@ -121,11 +174,14 @@ func TestCreateCluster(t *testing.T) {
 			Name: "solo flow definition from disk",
 			Config: clusterConfig{
 				DefFile: defPath,
+				Network: eth2util.Goerli.Name,
 			},
 		},
 		{
-			Name:   "solo flow definition from network",
-			Config: clusterConfig{},
+			Name: "solo flow definition from network",
+			Config: clusterConfig{
+				Network: eth2util.Goerli.Name,
+			},
 			defFileProvider: func() []byte {
 				data, err := json.Marshal(def)
 				require.NoError(t, err)
@@ -154,10 +210,6 @@ func TestCreateCluster(t *testing.T) {
 			test.Config.InsecureKeys = true
 			test.Config.WithdrawalAddrs = []string{zeroAddress}
 			test.Config.FeeRecipientAddrs = []string{zeroAddress}
-
-			if test.Config.Network == "" && test.expectedErr == "" {
-				test.Config.Network = eth2util.Goerli.Name
-			}
 
 			testCreateCluster(t, test.Config, def, test.expectedErr)
 		})

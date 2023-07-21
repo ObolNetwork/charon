@@ -142,6 +142,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 			return err
 		}
 
+		// Needed if --split-existing-keys is called without a definition file.
 		conf.NumDVs = len(secrets)
 	}
 
@@ -152,13 +153,6 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		if err != nil {
 			return err
 		}
-
-		conf.FeeRecipientAddrs = def.FeeRecipientAddresses()
-		conf.WithdrawalAddrs = def.WithdrawalAddresses()
-		conf.Name = def.Name
-		conf.NumNodes = len(def.Operators)
-		conf.NumDVs = def.NumValidators
-		conf.Threshold = def.Threshold
 	} else { // Create new definition from cluster config
 		def, err = newDefFromConfig(ctx, conf)
 		if err != nil {
@@ -168,10 +162,14 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 
 	if len(secrets) == 0 {
 		// this is the case in which split-keys is undefined and user passed validator amount on CLI
-		secrets, err = generateKeys(conf.NumDVs)
+		secrets, err = generateKeys(def.NumValidators)
 		if err != nil {
 			return err
 		}
+	}
+
+	if len(secrets) != def.NumValidators {
+		return errors.New("amount of keys read from disk differs from cluster definition", z.Int("disk", len(secrets)), z.Int("definition", def.NumValidators))
 	}
 
 	numNodes := len(def.Operators)
