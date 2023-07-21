@@ -205,7 +205,7 @@ func (b VersionedSignedBlindedBeaconBlock) MarshalSSZTo(buf []byte) ([]byte, err
 func (b *VersionedSignedBlindedBeaconBlock) UnmarshalSSZ(buf []byte) error {
 	version, err := unmarshalSSZVersioned(buf, b.sszValFromVersion)
 	if err != nil {
-		return errors.Wrap(err, "unmarshal VersionedSignedBeaconBlock")
+		return errors.Wrap(err, "unmarshal VersionedSignedBlindedBeaconBlock")
 	}
 
 	b.Version = version
