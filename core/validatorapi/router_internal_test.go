@@ -36,6 +36,7 @@ import (
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
+	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 const (
@@ -613,13 +614,16 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("get validators with no validator ids provided", func(t *testing.T) {
-		const numVals = 2
-		handler := testHandler{}
+		handler := testHandler{
+			ValidatorsFunc: func(_ context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+				return beaconmock.ValidatorSetA, nil
+			},
+		}
+
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			// Validators fetches all validators from beacon state as per go-eth2-client v0.18.0.
 			res, err := cl.Validators(ctx, "head", nil)
 			require.NoError(t, err)
-			require.Len(t, res, numVals)
+			require.EqualValues(t, beaconmock.ValidatorSetA, res)
 		}
 
 		testRouter(t, handler, callback)
