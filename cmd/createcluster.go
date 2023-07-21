@@ -141,6 +141,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		conf.NumDVs = len(secrets)
 	}
 
+	// Get a cluster definition, either from a definition file or from the config.
 	var def cluster.Definition
 	if conf.DefFile != "" { // Load definition from DefFile
 		def, err = loadDefinition(ctx, conf.DefFile)
@@ -150,11 +151,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 
 		conf.FeeRecipientAddrs = def.FeeRecipientAddresses()
 		conf.WithdrawalAddrs = def.WithdrawalAddresses()
-
-		if strings.TrimSpace(def.Name) != "" {
-			conf.Name = def.Name
-		}
-
+		conf.Name = def.Name
 		conf.NumNodes = len(def.Operators)
 		conf.NumDVs = def.NumValidators
 		conf.Threshold = def.Threshold
@@ -192,8 +189,8 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return errors.Wrap(err, "mkdir")
 	}
 
-	// Create operators
-	ops, opsKeys, err := getOperators(numNodes, conf.ClusterDir)
+	// Create operators and their enr node keys
+	ops, nodeKeys, err := getOperators(numNodes, conf.ClusterDir)
 	if err != nil {
 		return err
 	}
@@ -249,17 +246,14 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
-	var opsLockSigs [][]byte
-	for _, opKey := range opsKeys {
-		sig, err := k1util.Sign(opKey, lock.LockHash)
+	for _, opKey := range nodeKeys {
+		nodeSig, err := k1util.Sign(opKey, lock.LockHash)
 		if err != nil {
 			return err
 		}
 
-		opsLockSigs = append(opsLockSigs, sig)
+		lock.NodeSignatures = append(lock.NodeSignatures, nodeSig)
 	}
-
-	lock.NodeSignatures = opsLockSigs
 
 	// Write cluster-lock file
 	if conf.Publish {
