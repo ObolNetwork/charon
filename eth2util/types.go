@@ -6,11 +6,46 @@ import (
 	"encoding/json"
 	"strings"
 
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
+
+// DataVersion defines the spec version of the data in a response.
+// The number values match those of go-eth2-client v0.17 and earlier releases.
+// This allows us to be compatible with those older versions when serialising as numbers.
+//
+// We should migrate to serialising as strings to aligned with eth2 spec at which
+// point this type can be removed in favour of the go-eth2-client type.
+type DataVersion eth2spec.DataVersion
+
+const (
+	DataVersionPhase0    DataVersion = 0
+	DataVersionAltair    DataVersion = 1
+	DataVersionBellatrix DataVersion = 2
+	DataVersionCapella   DataVersion = 3
+	DataVersionDeneb     DataVersion = 4
+)
+
+// String returns the string representation of the DataVersion.
+func (v DataVersion) String() string {
+	switch v {
+	case DataVersionPhase0:
+		return "phase0"
+	case DataVersionAltair:
+		return "altair"
+	case DataVersionBellatrix:
+		return "bellatrix"
+	case DataVersionCapella:
+		return "capella"
+	case DataVersionDeneb:
+		return "deneb"
+	default:
+		return "unknown"
+	}
+}
 
 // SignedEpoch represents signature of corresponding epoch.
 type SignedEpoch struct {

@@ -15,6 +15,7 @@ import (
 	"github.com/prysmaticlabs/go-bitfield"
 
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
 )
 
 // NewEth2Fuzzer returns a fuzzer for valid eth2 types using the provided seed,
@@ -105,22 +106,22 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 			// Populate one of the versions of these Versioned*Block types.
 			func(e *core.VersionedSignedBlindedBeaconBlock, c fuzz.Continue) {
 				e.Version = blindedVersions[(c.Intn(len(blindedVersions)))]
-				val := core.VersionedSSZValueForT(t, e, e.Version)
+				val := core.VersionedSSZValueForT(t, e, eth2util.DataVersion(e.Version))
 				c.Fuzz(val)
 			},
 			func(e *core.VersionedBlindedBeaconBlock, c fuzz.Continue) {
 				e.Version = blindedVersions[(c.Intn(len(blindedVersions)))]
-				val := core.VersionedSSZValueForT(t, e, e.Version)
+				val := core.VersionedSSZValueForT(t, e, eth2util.DataVersion(e.Version))
 				c.Fuzz(val)
 			},
 			func(e *core.VersionedSignedBeaconBlock, c fuzz.Continue) {
 				e.Version = allVersions[(c.Intn(len(allVersions)))]
-				val := core.VersionedSSZValueForT(t, e, e.Version)
+				val := core.VersionedSSZValueForT(t, e, eth2util.DataVersion(e.Version))
 				c.Fuzz(val)
 			},
 			func(e *core.VersionedBeaconBlock, c fuzz.Continue) {
 				e.Version = allVersions[(c.Intn(len(allVersions)))]
-				val := core.VersionedSSZValueForT(t, e, e.Version)
+				val := core.VersionedSSZValueForT(t, e, eth2util.DataVersion(e.Version))
 				c.Fuzz(val)
 			},
 		)
