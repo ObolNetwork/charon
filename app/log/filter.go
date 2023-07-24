@@ -26,9 +26,9 @@ type filter struct {
 	limit rate.Limit
 }
 
-// defaultFilter returns the default filter with a period of 1 hour.
+// defaultFilter returns the default filter with a period of 1 minute.
 func defaultFilter() filter {
-	return filter{limit: rate.Every(time.Hour)}
+	return filter{limit: rate.Every(time.Minute)}
 }
 
 // Filter returns a stateful structure logging field that results in
@@ -39,7 +39,7 @@ func defaultFilter() filter {
 //	for event := range eventPipe() {
 //	  err := process(event)
 //	  if err != nil {
-//	    log.Error(ctx, "This error should only be logged max once an hour", err, filter)
+//	    log.Error(ctx, "This error should only be logged max once an minute", err, filter)
 //	  }
 //	}
 func Filter(opts ...FilterOption) z.Field {
