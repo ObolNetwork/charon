@@ -277,8 +277,13 @@ func (b VersionedSignedBeaconBlock) MarshalJSON() ([]byte, error) {
 		return nil, errors.Wrap(err, "marshal block")
 	}
 
+	version, err := eth2util.DataVersionFromETH2(b.Version)
+	if err != nil {
+		return nil, errors.Wrap(err, "convert version")
+	}
+
 	resp, err := json.Marshal(versionedRawBlockJSON{
-		Version: int(b.Version),
+		Version: version,
 		Block:   block,
 	})
 	if err != nil {
@@ -294,7 +299,7 @@ func (b *VersionedSignedBeaconBlock) UnmarshalJSON(input []byte) error {
 		return errors.Wrap(err, "unmarshal block")
 	}
 
-	resp := eth2spec.VersionedSignedBeaconBlock{Version: eth2spec.DataVersion(raw.Version)}
+	resp := eth2spec.VersionedSignedBeaconBlock{Version: raw.Version.ToETH2()}
 	switch resp.Version {
 	case eth2spec.DataVersionPhase0:
 		block := new(eth2p0.SignedBeaconBlock)
@@ -460,8 +465,13 @@ func (b VersionedSignedBlindedBeaconBlock) MarshalJSON() ([]byte, error) {
 		return nil, errors.Wrap(err, "marshal block")
 	}
 
+	version, err := eth2util.DataVersionFromETH2(b.Version)
+	if err != nil {
+		return nil, errors.Wrap(err, "convert version")
+	}
+
 	resp, err := json.Marshal(versionedRawBlockJSON{
-		Version: int(b.Version),
+		Version: version,
 		Block:   block,
 	})
 	if err != nil {
@@ -477,7 +487,7 @@ func (b *VersionedSignedBlindedBeaconBlock) UnmarshalJSON(input []byte) error {
 		return errors.Wrap(err, "unmarshal block")
 	}
 
-	resp := eth2api.VersionedSignedBlindedBeaconBlock{Version: eth2spec.DataVersion(raw.Version)}
+	resp := eth2api.VersionedSignedBlindedBeaconBlock{Version: raw.Version.ToETH2()}
 	switch resp.Version {
 	case eth2spec.DataVersionBellatrix:
 		block := new(eth2bellatrix.SignedBlindedBeaconBlock)
@@ -508,8 +518,8 @@ func (b *VersionedSignedBlindedBeaconBlock) UnmarshalJSON(input []byte) error {
 
 // versionedRawBlockJSON is a custom VersionedSignedBeaconBlock or VersionedSignedBlindedBeaconBlock serialiser.
 type versionedRawBlockJSON struct {
-	Version int             `json:"version"`
-	Block   json.RawMessage `json:"block"`
+	Version eth2util.DataVersion `json:"version"`
+	Block   json.RawMessage      `json:"block"`
 }
 
 // NewAttestation is a convenience function that returns a new wrapped attestation.

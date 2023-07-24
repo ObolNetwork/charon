@@ -19,31 +19,131 @@ import (
 //
 // We should migrate to serialising as strings to aligned with eth2 spec at which
 // point this type can be removed in favour of the go-eth2-client type.
-type DataVersion eth2spec.DataVersion
+type DataVersion string
 
 const (
-	DataVersionPhase0    DataVersion = 0
-	DataVersionAltair    DataVersion = 1
-	DataVersionBellatrix DataVersion = 2
-	DataVersionCapella   DataVersion = 3
-	DataVersionDeneb     DataVersion = 4
+	DataVersionUnknown   DataVersion = ""
+	DataVersionPhase0    DataVersion = "phase0"
+	DataVersionAltair    DataVersion = "altair"
+	DataVersionBellatrix DataVersion = "bellatrix"
+	DataVersionCapella   DataVersion = "capella"
+	DataVersionDeneb     DataVersion = "deneb"
 )
+
+// legacyDataVersionValues maps DataVersion to the integer value used by go-eth2-client pre-v0.18.
+var legacyDataVersionValues = map[DataVersion]int{
+	DataVersionPhase0:    0,
+	DataVersionAltair:    1,
+	DataVersionBellatrix: 2,
+	DataVersionCapella:   3,
+	DataVersionDeneb:     4,
+}
+
+// MarshalJSON marshals the DataVersion as a number equaled to the go-eth2-client
+// pre-v0.18 integer value.
+func (v DataVersion) MarshalJSON() ([]byte, error) {
+	val, ok := legacyDataVersionValues[v]
+	if !ok {
+		return nil, errors.New("unknown data version")
+	}
+
+	b, err := json.Marshal(val)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal data version")
+	}
+
+	// TODO(corver): marshal as string in next step of migration in v0.18.
+
+	return b, nil
+}
+
+// UnmarshalJSON unmarshals the DataVersion from strings or a number equaled to the go-eth2-client
+// pre-v0.18 integer value.
+func (v *DataVersion) UnmarshalJSON(input []byte) error {
+	var strVal string
+	if err := json.Unmarshal(input, &strVal); err == nil {
+		if _, ok := legacyDataVersionValues[DataVersion(strVal)]; !ok {
+			return errors.New("unknown data version string")
+		}
+
+		*v = DataVersion(strVal)
+
+		return nil
+	}
+	var intVal int
+	if err := json.Unmarshal(input, &intVal); err != nil {
+		return errors.Wrap(err, "failed to unmarshal data version")
+	}
+
+	for version, val := range legacyDataVersionValues {
+		if intVal == val {
+			*v = version
+			return nil
+		}
+	}
+
+	return errors.New("unknown data version")
+}
+
+// ToUint64 returns the integer value used by go-eth2-client pre-v0.18.
+func (v DataVersion) ToUint64() uint64 {
+	return uint64(legacyDataVersionValues[v])
+}
+
+// ToETH2 returns a eth2spec.DataVersion equivalent to the DataVersion.
+func (v DataVersion) ToETH2() eth2spec.DataVersion {
+	switch v {
+	case DataVersionPhase0:
+		return eth2spec.DataVersionPhase0
+	case DataVersionAltair:
+		return eth2spec.DataVersionAltair
+	case DataVersionBellatrix:
+		return eth2spec.DataVersionBellatrix
+	case DataVersionCapella:
+		return eth2spec.DataVersionCapella
+	case DataVersionDeneb:
+		return eth2spec.DataVersionDeneb
+	default:
+		return eth2spec.DataVersion(0)
+	}
+}
 
 // String returns the string representation of the DataVersion.
 func (v DataVersion) String() string {
-	switch v {
-	case DataVersionPhase0:
-		return "phase0"
-	case DataVersionAltair:
-		return "altair"
-	case DataVersionBellatrix:
-		return "bellatrix"
-	case DataVersionCapella:
-		return "capella"
-	case DataVersionDeneb:
-		return "deneb"
-	default:
+	_, ok := legacyDataVersionValues[v]
+	if !ok {
 		return "unknown"
+	}
+
+	return string(v)
+}
+
+// DataVersionFromUint64 returns the DataVersion from the integer value used by go-eth2-client pre-v0.18.
+func DataVersionFromUint64(val uint64) (DataVersion, error) {
+	for version, v := range legacyDataVersionValues {
+		if val == uint64(v) {
+			return version, nil
+		}
+	}
+
+	return DataVersionUnknown, errors.New("unknown data version")
+}
+
+// DataVersionFromETH2 returns the DataVersion from the eth2spec.DataVersion.
+func DataVersionFromETH2(version eth2spec.DataVersion) (DataVersion, error) {
+	switch version {
+	case eth2spec.DataVersionPhase0:
+		return DataVersionPhase0, nil
+	case eth2spec.DataVersionAltair:
+		return DataVersionAltair, nil
+	case eth2spec.DataVersionBellatrix:
+		return DataVersionBellatrix, nil
+	case eth2spec.DataVersionCapella:
+		return DataVersionCapella, nil
+	case eth2spec.DataVersionDeneb:
+		return DataVersionDeneb, nil
+	default:
+		return DataVersionUnknown, errors.New("unknown data version")
 	}
 }
 

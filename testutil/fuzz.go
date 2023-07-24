@@ -13,6 +13,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	fuzz "github.com/google/gofuzz"
 	"github.com/prysmaticlabs/go-bitfield"
+	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
@@ -106,22 +107,34 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 			// Populate one of the versions of these Versioned*Block types.
 			func(e *core.VersionedSignedBlindedBeaconBlock, c fuzz.Continue) {
 				e.Version = blindedVersions[(c.Intn(len(blindedVersions)))]
-				val := core.VersionedSSZValueForT(t, e, eth2util.DataVersion(e.Version))
+				version, err := eth2util.DataVersionFromETH2(e.Version)
+				require.NoError(t, err)
+
+				val := core.VersionedSSZValueForT(t, e, version)
 				c.Fuzz(val)
 			},
 			func(e *core.VersionedBlindedBeaconBlock, c fuzz.Continue) {
 				e.Version = blindedVersions[(c.Intn(len(blindedVersions)))]
-				val := core.VersionedSSZValueForT(t, e, eth2util.DataVersion(e.Version))
+				version, err := eth2util.DataVersionFromETH2(e.Version)
+				require.NoError(t, err)
+
+				val := core.VersionedSSZValueForT(t, e, version)
 				c.Fuzz(val)
 			},
 			func(e *core.VersionedSignedBeaconBlock, c fuzz.Continue) {
 				e.Version = allVersions[(c.Intn(len(allVersions)))]
-				val := core.VersionedSSZValueForT(t, e, eth2util.DataVersion(e.Version))
+				version, err := eth2util.DataVersionFromETH2(e.Version)
+				require.NoError(t, err)
+
+				val := core.VersionedSSZValueForT(t, e, version)
 				c.Fuzz(val)
 			},
 			func(e *core.VersionedBeaconBlock, c fuzz.Continue) {
 				e.Version = allVersions[(c.Intn(len(allVersions)))]
-				val := core.VersionedSSZValueForT(t, e, eth2util.DataVersion(e.Version))
+				version, err := eth2util.DataVersionFromETH2(e.Version)
+				require.NoError(t, err)
+
+				val := core.VersionedSSZValueForT(t, e, version)
 				c.Fuzz(val)
 			},
 		)

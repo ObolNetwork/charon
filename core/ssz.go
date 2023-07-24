@@ -9,7 +9,6 @@ import (
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
-	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
@@ -43,7 +42,12 @@ func (b VersionedSignedBeaconBlock) MarshalSSZ() ([]byte, error) {
 
 // MarshalSSZTo ssz marshals the VersionedSignedBeaconBlock object to a target array.
 func (b VersionedSignedBeaconBlock) MarshalSSZTo(buf []byte) ([]byte, error) {
-	return marshalSSZVersionedTo(buf, eth2util.DataVersion(b.Version), b.sszValFromVersion)
+	version, err := eth2util.DataVersionFromETH2(b.Version)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid version")
+	}
+
+	return marshalSSZVersionedTo(buf, version, b.sszValFromVersion)
 }
 
 // UnmarshalSSZ ssz unmarshals the VersionedSignedBeaconBlock object.
@@ -53,14 +57,20 @@ func (b *VersionedSignedBeaconBlock) UnmarshalSSZ(buf []byte) error {
 		return errors.Wrap(err, "unmarshal VersionedSignedBeaconBlock")
 	}
 
-	b.Version = eth2spec.DataVersion(version)
+	b.Version = version.ToETH2()
 
 	return nil
 }
 
 // SizeSSZ returns the ssz encoded size in bytes for the VersionedSignedBeaconBlock object.
 func (b VersionedSignedBeaconBlock) SizeSSZ() int {
-	val, err := b.sszValFromVersion(eth2util.DataVersion(b.Version))
+	version, err := eth2util.DataVersionFromETH2(b.Version)
+	if err != nil {
+		// SSZMarshaller interface doesn't return an error, so we can't either.
+		return 0
+	}
+
+	val, err := b.sszValFromVersion(version)
 	if err != nil {
 		// SSZMarshaller interface doesn't return an error, so we can't either.
 		return 0
@@ -121,7 +131,12 @@ func (b VersionedBeaconBlock) MarshalSSZ() ([]byte, error) {
 
 // MarshalSSZTo ssz marshals the VersionedBeaconBlock object to a target array.
 func (b VersionedBeaconBlock) MarshalSSZTo(buf []byte) ([]byte, error) {
-	return marshalSSZVersionedTo(buf, eth2util.DataVersion(b.Version), b.sszValFromVersion)
+	version, err := eth2util.DataVersionFromETH2(b.Version)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid version")
+	}
+
+	return marshalSSZVersionedTo(buf, version, b.sszValFromVersion)
 }
 
 // UnmarshalSSZ ssz unmarshals the VersionedBeaconBlock object.
@@ -131,14 +146,20 @@ func (b *VersionedBeaconBlock) UnmarshalSSZ(buf []byte) error {
 		return errors.Wrap(err, "unmarshal VersionedSignedBeaconBlock")
 	}
 
-	b.Version = eth2spec.DataVersion(version)
+	b.Version = version.ToETH2()
 
 	return nil
 }
 
 // SizeSSZ returns the ssz encoded size in bytes for the VersionedBeaconBlock object.
 func (b VersionedBeaconBlock) SizeSSZ() int {
-	val, err := b.sszValFromVersion(eth2util.DataVersion(b.Version))
+	version, err := eth2util.DataVersionFromETH2(b.Version)
+	if err != nil {
+		// SSZMarshaller interface doesn't return an error, so we can't either.
+		return 0
+	}
+
+	val, err := b.sszValFromVersion(version)
 	if err != nil {
 		// SSZMarshaller interface doesn't return an error, so we can't either.
 		return 0
@@ -199,7 +220,12 @@ func (b VersionedSignedBlindedBeaconBlock) MarshalSSZ() ([]byte, error) {
 
 // MarshalSSZTo ssz marshals the VersionedSignedBlindedBeaconBlock object to a target array.
 func (b VersionedSignedBlindedBeaconBlock) MarshalSSZTo(buf []byte) ([]byte, error) {
-	return marshalSSZVersionedTo(buf, eth2util.DataVersion(b.Version), b.sszValFromVersion)
+	version, err := eth2util.DataVersionFromETH2(b.Version)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid version")
+	}
+
+	return marshalSSZVersionedTo(buf, version, b.sszValFromVersion)
 }
 
 // UnmarshalSSZ ssz unmarshals the VersionedSignedBlindedBeaconBlock object.
@@ -209,14 +235,20 @@ func (b *VersionedSignedBlindedBeaconBlock) UnmarshalSSZ(buf []byte) error {
 		return errors.Wrap(err, "unmarshal VersionedSignedBlindedBeaconBlock")
 	}
 
-	b.Version = eth2spec.DataVersion(version)
+	b.Version = version.ToETH2()
 
 	return nil
 }
 
 // SizeSSZ returns the ssz encoded size in bytes for the VersionedSignedBlindedBeaconBlock object.
 func (b VersionedSignedBlindedBeaconBlock) SizeSSZ() int {
-	val, err := b.sszValFromVersion(eth2util.DataVersion(b.Version))
+	version, err := eth2util.DataVersionFromETH2(b.Version)
+	if err != nil {
+		// SSZMarshaller interface doesn't return an error, so we can't either.
+		return 0
+	}
+
+	val, err := b.sszValFromVersion(version)
 	if err != nil {
 		// SSZMarshaller interface doesn't return an error, so we can't either.
 		return 0
@@ -265,7 +297,12 @@ func (b VersionedBlindedBeaconBlock) MarshalSSZ() ([]byte, error) {
 
 // MarshalSSZTo ssz marshals the VersionedBlindedBeaconBlock object to a target array.
 func (b VersionedBlindedBeaconBlock) MarshalSSZTo(buf []byte) ([]byte, error) {
-	return marshalSSZVersionedTo(buf, eth2util.DataVersion(b.Version), b.sszValFromVersion)
+	version, err := eth2util.DataVersionFromETH2(b.Version)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid version")
+	}
+
+	return marshalSSZVersionedTo(buf, version, b.sszValFromVersion)
 }
 
 // UnmarshalSSZ ssz unmarshals the VersionedBlindedBeaconBlock object.
@@ -275,14 +312,20 @@ func (b *VersionedBlindedBeaconBlock) UnmarshalSSZ(buf []byte) error {
 		return errors.Wrap(err, "unmarshal VersionedSignedBeaconBlock")
 	}
 
-	b.Version = eth2spec.DataVersion(version)
+	b.Version = version.ToETH2()
 
 	return nil
 }
 
 // SizeSSZ returns the ssz encoded size in bytes for the VersionedBlindedBeaconBlock object.
 func (b VersionedBlindedBeaconBlock) SizeSSZ() int {
-	val, err := b.sszValFromVersion(eth2util.DataVersion(b.Version))
+	version, err := eth2util.DataVersionFromETH2(b.Version)
+	if err != nil {
+		// SSZMarshaller interface doesn't return an error, so we can't either.
+		return 0
+	}
+
+	val, err := b.sszValFromVersion(version)
 	if err != nil {
 		// SSZMarshaller interface doesn't return an error, so we can't either.
 		return 0
@@ -323,10 +366,12 @@ const versionedOffset = 8 + 4 // version (uint64) + offset (uint32)
 // marshalSSZVersionedTo marshals a versioned object to a target array.
 func marshalSSZVersionedTo(dst []byte, version eth2util.DataVersion, valFunc func(eth2util.DataVersion) (sszType, error)) ([]byte, error) {
 	// Field (0) 'Version'
-	dst = ssz.MarshalUint64(dst, uint64(version))
+	dst = ssz.MarshalUint64(dst, version.ToUint64())
 
 	// Offset (1) 'Value'
 	dst = ssz.WriteOffset(dst, versionedOffset)
+
+	// TODO(corver): Add a constant length data version string field, ensure this is backwards compatible.
 
 	val, err := valFunc(version)
 	if err != nil {
@@ -344,25 +389,30 @@ func marshalSSZVersionedTo(dst []byte, version eth2util.DataVersion, valFunc fun
 // unmarshalSSZVersioned unmarshals a versioned object.
 func unmarshalSSZVersioned(buf []byte, valFunc func(eth2util.DataVersion) (sszType, error)) (eth2util.DataVersion, error) {
 	if len(buf) < versionedOffset {
-		return 0, errors.Wrap(ssz.ErrSize, "versioned object too short")
+		return "", errors.Wrap(ssz.ErrSize, "versioned object too short")
 	}
 
 	// Field (0) 'Version'
-	version := eth2util.DataVersion(ssz.UnmarshallUint64(buf[0:8]))
+	version, err := eth2util.DataVersionFromUint64(ssz.UnmarshallUint64(buf[0:8]))
+	if err != nil {
+		return "", errors.Wrap(err, "unmarshal sszValFromVersion version")
+	}
 
 	// Offset (1) 'Value'
 	o1 := ssz.ReadOffset(buf[8:12])
 	if versionedOffset > o1 {
-		return 0, errors.Wrap(ssz.ErrOffset, "sszValFromVersion offset", z.Any("version", version))
+		return "", errors.Wrap(ssz.ErrOffset, "sszValFromVersion offset", z.Any("version", version))
 	}
+
+	// TODO(corver): Add a constant length data version string field, ensure this is backwards compatible.
 
 	val, err := valFunc(version)
 	if err != nil {
-		return 0, errors.Wrap(err, "sszValFromVersion from version", z.Any("version", version))
+		return "", errors.Wrap(err, "sszValFromVersion from version", z.Any("version", version))
 	}
 
 	if err = val.UnmarshalSSZ(buf[o1:]); err != nil {
-		return 0, errors.Wrap(err, "unmarshal sszValFromVersion", z.Any("version", version))
+		return "", errors.Wrap(err, "unmarshal sszValFromVersion", z.Any("version", version))
 	}
 
 	return version, nil
