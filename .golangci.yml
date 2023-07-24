@@ -77,7 +77,7 @@ linters-settings:
       - name: comment-spacings
         disabled: true
       - name: use-any
-        disabled: true
+        disabled: false
       # Some configured revive rules
       - name: unhandled-error
         arguments:
@@ -121,8 +121,6 @@ issues:
     - "shadows an import name" # Relax revive
     - "confusing-naming" # Relax revive
     - "nested-structs" # Relax revive
-    - "comment-spacings: no space between comment delimiter and comment text" # Relax revive
-    - "use-any: since GO 1.18 'interface{}' can be replaced by 'any'" # Relax revive
     - "0xhex" # Relax revive and staticcheck about our custom struct tag
     - "shadow: declaration of \"err\" shadows declaration" # Relax govet
 

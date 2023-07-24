@@ -117,12 +117,12 @@ func storeKeysInternal(secrets []tbls.PrivateKey, dir string, filenameFmt string
 
 // Keystore json file representation as a Go struct.
 type Keystore struct {
-	Crypto      map[string]interface{} `json:"crypto"`
-	Description string                 `json:"description"`
-	Pubkey      string                 `json:"pubkey"`
-	Path        string                 `json:"path"`
-	ID          string                 `json:"uuid"`
-	Version     uint                   `json:"version"`
+	Crypto      map[string]any `json:"crypto"`
+	Description string         `json:"description"`
+	Pubkey      string         `json:"pubkey"`
+	Path        string         `json:"path"`
+	ID          string         `json:"uuid"`
+	Version     uint           `json:"version"`
 }
 
 // Encrypt returns the secret as an encrypted Keystore using pbkdf2 cipher.

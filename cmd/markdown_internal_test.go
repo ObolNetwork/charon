@@ -185,7 +185,7 @@ func TestTrackerReasonReference(t *testing.T) {
 	writeMarkdown(t, "../docs/reasons.md", tpl, reasons)
 }
 
-func writeMarkdown(t *testing.T, file string, tpl *template.Template, data interface{}) {
+func writeMarkdown(t *testing.T, file string, tpl *template.Template, data any) {
 	t.Helper()
 
 	var buf bytes.Buffer

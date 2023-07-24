@@ -68,7 +68,7 @@ func RequireGoldenBytes(t *testing.T, data []byte, opts ...func(*string)) {
 
 // RequireGoldenJSON asserts that a golden testdata file exists containing the JSON serialised form of the data object.
 // This is heavily inspired from https://github.com/sebdah/goldie.
-func RequireGoldenJSON(t *testing.T, data interface{}, opts ...func(*string)) {
+func RequireGoldenJSON(t *testing.T, data any, opts ...func(*string)) {
 	t.Helper()
 
 	if _, ok := data.(proto.Message); ok {
