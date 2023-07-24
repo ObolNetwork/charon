@@ -454,7 +454,7 @@ func TestComponentHandle(t *testing.T) {
 	}
 }
 
-func TestInstanceIO_ShouldRun(t *testing.T) {
+func TestInstanceIO_MaybeStart(t *testing.T) {
 	t.Run("MaybeStart for new instance", func(t *testing.T) {
 		inst1 := newInstanceIO()
 		require.True(t, inst1.MaybeStart())
