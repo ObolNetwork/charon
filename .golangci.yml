@@ -76,8 +76,6 @@ linters-settings:
         disabled: true
       - name: comment-spacings
         disabled: true
-      - name: use-any
-        disabled: false
       # Some configured revive rules
       - name: unhandled-error
         arguments:
