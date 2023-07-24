@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +17,35 @@ import (
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil"
 )
+
+//go:generate go test . -run=TestSSZSerialisation -update
+
+func TestSSZSerialisation(t *testing.T) {
+	for _, typFunc := range coreTypeFuncs {
+		any1, any2 := typFunc(), typFunc()
+
+		name := fmt.Sprintf("%T", any1)
+		name = strings.TrimPrefix(name, "*core.")
+		name += ".ssz"
+
+		if _, ok := any1.(ssz.Marshaler); !ok {
+			t.Logf("Skipping non SSZ type: %v", name)
+			continue
+		}
+
+		t.Run(name, func(t *testing.T) {
+			testutil.NewEth2Fuzzer(t, 1).Fuzz(any1)
+
+			b, err := ssz.MarshalSSZ(any1.(ssz.Marshaler))
+			testutil.RequireNoError(t, err)
+			testutil.RequireGoldenBytes(t, b)
+
+			err = any2.(ssz.Unmarshaler).UnmarshalSSZ(b)
+			testutil.RequireNoError(t, err)
+			require.Equal(t, any1, any2)
+		})
+	}
+}
 
 // TestSSZ tests SSZ marshalling and unmarshalling.
 func TestSSZ(t *testing.T) {
