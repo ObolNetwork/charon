@@ -17,7 +17,7 @@ import (
 // The number values match those of go-eth2-client v0.17 and earlier releases.
 // This allows us to be compatible with those older versions when serialising as numbers.
 //
-// We should migrate to serialising as strings to aligned with eth2 spec at which
+// We should maybe migrate to serialising as strings to aligned with eth2 spec at which
 // point this type can be removed in favour of the go-eth2-client type.
 type DataVersion string
 
@@ -30,8 +30,8 @@ const (
 	DataVersionDeneb     DataVersion = "deneb"
 )
 
-// legacyDataVersionValues maps DataVersion to the integer value used by go-eth2-client pre-v0.18.
-var legacyDataVersionValues = map[DataVersion]int{
+// dataVersionValues maps DataVersion to the integer value used by go-eth2-client pre-v0.18.
+var dataVersionValues = map[DataVersion]int{
 	DataVersionPhase0:    0,
 	DataVersionAltair:    1,
 	DataVersionBellatrix: 2,
@@ -42,7 +42,7 @@ var legacyDataVersionValues = map[DataVersion]int{
 // MarshalJSON marshals the DataVersion as a number equaled to the go-eth2-client
 // pre-v0.18 integer value.
 func (v DataVersion) MarshalJSON() ([]byte, error) {
-	val, ok := legacyDataVersionValues[v]
+	val, ok := dataVersionValues[v]
 	if !ok {
 		return nil, errors.New("unknown data version")
 	}
@@ -52,30 +52,18 @@ func (v DataVersion) MarshalJSON() ([]byte, error) {
 		return nil, errors.Wrap(err, "failed to marshal data version")
 	}
 
-	// TODO(corver): marshal as string in next step of migration in v0.18.
-
 	return b, nil
 }
 
 // UnmarshalJSON unmarshals the DataVersion from strings or a number equaled to the go-eth2-client
 // pre-v0.18 integer value.
 func (v *DataVersion) UnmarshalJSON(input []byte) error {
-	var strVal string
-	if err := json.Unmarshal(input, &strVal); err == nil {
-		if _, ok := legacyDataVersionValues[DataVersion(strVal)]; !ok {
-			return errors.New("unknown data version string")
-		}
-
-		*v = DataVersion(strVal)
-
-		return nil
-	}
 	var intVal int
 	if err := json.Unmarshal(input, &intVal); err != nil {
 		return errors.Wrap(err, "failed to unmarshal data version")
 	}
 
-	for version, val := range legacyDataVersionValues {
+	for version, val := range dataVersionValues {
 		if intVal == val {
 			*v = version
 			return nil
@@ -87,7 +75,7 @@ func (v *DataVersion) UnmarshalJSON(input []byte) error {
 
 // ToUint64 returns the integer value used by go-eth2-client pre-v0.18.
 func (v DataVersion) ToUint64() uint64 {
-	return uint64(legacyDataVersionValues[v])
+	return uint64(dataVersionValues[v])
 }
 
 // ToETH2 returns a eth2spec.DataVersion equivalent to the DataVersion.
@@ -110,7 +98,7 @@ func (v DataVersion) ToETH2() eth2spec.DataVersion {
 
 // String returns the string representation of the DataVersion.
 func (v DataVersion) String() string {
-	_, ok := legacyDataVersionValues[v]
+	_, ok := dataVersionValues[v]
 	if !ok {
 		return "unknown"
 	}
@@ -120,7 +108,7 @@ func (v DataVersion) String() string {
 
 // DataVersionFromUint64 returns the DataVersion from the integer value used by go-eth2-client pre-v0.18.
 func DataVersionFromUint64(val uint64) (DataVersion, error) {
-	for version, v := range legacyDataVersionValues {
+	for version, v := range dataVersionValues {
 		if val == uint64(v) {
 			return version, nil
 		}
@@ -178,7 +166,6 @@ func (s SignedEpoch) HashTreeRootWith(hh ssz.HashWalker) error {
 type legacySignature [96]byte
 
 // MarshalJSON marshalls legacy []byte signatures to remain compatible with v0.16.
-// Migrate to eth2p0.BLSSignature in v0.18.
 func (s SignedEpoch) MarshalJSON() ([]byte, error) {
 	rawSig, err := json.Marshal(legacySignature(s.Signature))
 	if err != nil {

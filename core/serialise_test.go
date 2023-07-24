@@ -5,7 +5,6 @@ package core_test
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 
@@ -56,29 +55,6 @@ func TestJSONSerialisation(t *testing.T) {
 			err = json.Unmarshal(b, any2)
 			testutil.RequireNoError(t, err)
 			require.Equal(t, any1, any2)
-		})
-	}
-}
-
-// Ensures that this version supports reading versioned types with string data version.
-func TestStringDataVersionJSON(t *testing.T) {
-	for _, typFunc := range coreTypeFuncs {
-		any1 := typFunc()
-		name := fmt.Sprintf("%T", any1)
-		name = strings.TrimPrefix(name, "*core.")
-		name += ".json"
-
-		if !strings.Contains(name, "Versioned") {
-			t.Logf("Skipping non-versioned type %s", name)
-			continue
-		}
-
-		t.Run(name, func(t *testing.T) {
-			b, err := os.ReadFile("testdata/" + strings.ReplaceAll(t.Name(), "/", "_"))
-			testutil.RequireNoError(t, err)
-
-			err = json.Unmarshal(b, any1)
-			testutil.RequireNoError(t, err)
 		})
 	}
 }
