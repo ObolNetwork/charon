@@ -75,7 +75,7 @@ linters-settings:
       - name: cognitive-complexity
         disabled: true
       - name: comment-spacings
-        disabled: true
+        disabled: true # Doesn't support latest go spec comments
       # Some configured revive rules
       - name: unhandled-error
         arguments:
