@@ -106,13 +106,13 @@ type asserter struct {
 func (a *asserter) await(ctx context.Context, t *testing.T, expect int) error {
 	t.Helper()
 
-	var actual map[interface{}]bool
+	var actual map[any]bool
 
 	ok := assert.Eventually(t, func() bool {
 		if ctx.Err() != nil {
 			return true
 		}
-		actual = make(map[interface{}]bool)
+		actual = make(map[any]bool)
 		a.callbacks.Range(func(k, v interface{}) bool {
 			actual[k] = true
 

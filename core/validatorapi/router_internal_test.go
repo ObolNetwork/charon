@@ -1265,7 +1265,7 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 		writeResponse(ctx, w, "", res, nil)
 	})
 	mux.HandleFunc("/eth/v1/config/spec", func(w http.ResponseWriter, r *http.Request) {
-		res := map[string]interface{}{
+		res := map[string]any{
 			"SLOTS_PER_EPOCH": fmt.Sprint(slotsPerEpoch),
 		}
 		writeResponse(ctx, w, "", nest(res, "data"), nil)
@@ -1295,7 +1295,7 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 }
 
 // nest returns a json nested version the data objected. Note nests must be provided in inverse order.
-func nest(data interface{}, nests ...string) interface{} {
+func nest(data any, nests ...string) any {
 	res := data
 
 	for _, nest := range nests {

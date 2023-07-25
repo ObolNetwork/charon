@@ -55,7 +55,7 @@ func NewTCPNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater C
 		return nil, err
 	}
 
-	var tcpOpts []interface{} // libp2p.Transport requires empty interface options.
+	var tcpOpts []any // libp2p.Transport requires empty interface options.
 	if cfg.DisableReuseport {
 		tcpOpts = append(tcpOpts, tcp.DisableReuseport())
 	}
