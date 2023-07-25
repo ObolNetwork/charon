@@ -106,6 +106,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
+	// This DKG only supports a few specific config versions.
+	if def.Version != "v1.6.0" && def.Version != "v1.7.0" {
+		return errors.New("only v1.6.0 and v1.7.0 cluster definition version supported")
+	}
+
 	if err := validateKeymanagerFlags(conf.KeymanagerAddr, conf.KeymanagerAuthToken); err != nil {
 		return err
 	}
@@ -267,6 +272,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 	lock.NodeSignatures, err = nodeSigCaster.exchange(ctx, key, lock.LockHash)
 	if err != nil {
 		return errors.Wrap(err, "k1 lock hash signature exchange")
+	}
+
+	if !cluster.SupportNodeSignatures(lock.Version) {
+		lock.NodeSignatures = nil
 	}
 
 	if !conf.NoVerify {
@@ -470,6 +479,12 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 	vals, err := createDistValidators(shares, depositDatas, valRegs)
 	if err != nil {
 		return cluster.Lock{}, err
+	}
+
+	if !cluster.SupportPregenRegistrations(def.Version) {
+		for i := range vals {
+			vals[i].BuilderRegistration = cluster.BuilderRegistration{}
+		}
 	}
 
 	lock := cluster.Lock{
