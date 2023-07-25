@@ -182,44 +182,66 @@ func (l Lock) VerifySignatures() error {
 
 	err = l.verifyBuilderRegistrations()
 	if err != nil {
-		return errors.Wrap(err, "verify pre-generate builder registrations")
+		return errors.Wrap(err, "verify pre-generated builder registrations")
 	}
 
-	if len(l.NodeSignatures) != 0 {
-		// Ensure the K1 lock hash signature verify
-		for idx := 0; idx < len(l.Operators); idx++ {
-			record, err := enr.Parse(l.Operators[idx].ENR)
-			if err != nil {
-				return errors.Wrap(err, "operator ENR")
-			}
+	return l.verifyNodeSignatures()
+}
 
-			sig := l.NodeSignatures[idx]
-			verified, err := k1util.Verify(record.PubKey, l.LockHash, sig[:len(sig)-1])
-			if err != nil {
-				return errors.Wrap(err, "operator node signature check")
-			}
+// verifyNodeSignatures returns true an error if the node signatures field is not correctly
+// populated or otherwise invalid.
+func (l Lock) verifyNodeSignatures() error {
+	if isAnyVersion(l.Version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6) {
+		if len(l.NodeSignatures) > 0 {
+			return errors.New("unexpected node signatures")
+		}
 
-			if !verified {
-				return errors.New(
-					"operator k1 lock hash signature verification failed",
-					z.Int("operator_index", idx),
-				)
-			}
+		return nil
+	}
+
+	// Ensure correct count of node signatures.
+	if len(l.NodeSignatures) != len(l.Operators) {
+		return errors.New("invalid node signature count")
+	}
+
+	// Verify the node signatures
+	for idx := 0; idx < len(l.Operators); idx++ {
+		record, err := enr.Parse(l.Operators[idx].ENR)
+		if err != nil {
+			return errors.Wrap(err, "operator ENR")
+		}
+
+		verified, err := k1util.Verify65(record.PubKey, l.LockHash, l.NodeSignatures[idx])
+		if err != nil {
+			return errors.Wrap(err, "node signature check")
+		} else if !verified {
+			return errors.New("node signature verification failed",
+				z.Int("peer_index", idx),
+			)
 		}
 	}
 
 	return nil
 }
 
-// verifyBuilderRegistrations returns an error if populated builder registrations from json are invalid.
+// verifyBuilderRegistrations returns an error if the populated builder registrations are invalid.
 func (l Lock) verifyBuilderRegistrations() error {
 	feeRecipientAddrs := l.FeeRecipientAddresses()
 	for i, val := range l.Validators {
-		// Check if the current cluster state supports pre-generate validator registrations.
-		if len(val.BuilderRegistration.Signature) == 0 ||
+		noRegistration := len(val.BuilderRegistration.Signature) == 0 ||
 			len(val.BuilderRegistration.Message.FeeRecipient) == 0 ||
-			len(val.BuilderRegistration.Message.PubKey) == 0 {
+			len(val.BuilderRegistration.Message.PubKey) == 0
+
+		if isAnyVersion(l.Version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6) {
+			if !noRegistration {
+				return errors.New("unexpected validator registration")
+			}
+
 			continue
+		}
+
+		if noRegistration {
+			return errors.New("missing validator registration", z.Int("i", i))
 		}
 
 		regMsg, err := registration.NewMessage(eth2p0.BLSPubKey(val.PubKey), feeRecipientAddrs[i], uint64(val.BuilderRegistration.Message.GasLimit), val.BuilderRegistration.Message.Timestamp)

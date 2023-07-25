@@ -56,10 +56,11 @@ func TestK1Util(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, fromHex(t, sig1), sig)
 
-	ok, err := k1util.Verify(
-		key.PubKey(),
-		digest,
-		sig[:len(sig)-1])
+	ok, err := k1util.Verify65(key.PubKey(), digest, sig)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	ok, err = k1util.Verify64(key.PubKey(), digest, sig[:len(sig)-1])
 	require.NoError(t, err)
 	require.True(t, ok)
 
@@ -80,10 +81,11 @@ func TestRandom(t *testing.T) {
 	sig, err := k1util.Sign(key, digest)
 	require.NoError(t, err)
 
-	ok, err := k1util.Verify(
-		key.PubKey(),
-		digest,
-		sig[:len(sig)-1])
+	ok, err := k1util.Verify65(key.PubKey(), digest, sig)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	ok, err = k1util.Verify64(key.PubKey(), digest, sig[:len(sig)-1])
 	require.NoError(t, err)
 	require.True(t, ok)
 
@@ -161,7 +163,7 @@ func BenchmarkRecoverVerify(b *testing.B) {
 
 	b.Run("verify", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			ok, err := k1util.Verify(
+			ok, err := k1util.Verify64(
 				key.PubKey(),
 				digest,
 				sig[:len(sig)-1])

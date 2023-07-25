@@ -126,7 +126,7 @@ func SignK1(m *manifestpb.Mutation, secret *k1.PrivateKey) (*manifestpb.SignedMu
 	return &manifestpb.SignedMutation{
 		Mutation:  m,
 		Signer:    secret.PubKey().SerializeCompressed(),
-		Signature: sig[:64], // Strip recovery id
+		Signature: sig,
 	}, nil
 }
 
@@ -144,7 +144,7 @@ func verifyK1SignedMutation(signed *manifestpb.SignedMutation) error {
 		return errors.Wrap(err, "hash mutation")
 	}
 
-	if ok, err := k1util.Verify(pubkey, hash, signed.Signature); err != nil {
+	if ok, err := k1util.Verify65(pubkey, hash, signed.Signature); err != nil {
 		return errors.Wrap(err, "verify signature")
 	} else if !ok {
 		return errors.New("invalid mutation signature")

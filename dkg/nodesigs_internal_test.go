@@ -224,7 +224,7 @@ func TestSigsCallbacks(t *testing.T) {
 			msg,
 		)
 
-		require.ErrorContains(t, err, "invalid node signature")
+		require.ErrorContains(t, err, "verify node signature: invalid recovery id")
 	})
 
 	t.Run("malformed signature", func(t *testing.T) {
@@ -239,7 +239,7 @@ func TestSigsCallbacks(t *testing.T) {
 			msg,
 		)
 
-		require.ErrorContains(t, err, "verify signature")
+		require.ErrorContains(t, err, "verify node signature: signature not 65 bytes")
 	})
 
 	t.Run("ok", func(t *testing.T) {
