@@ -15,7 +15,6 @@ import (
 
 // DataVersion defines the spec version of the data in a response.
 // The number values match those of go-eth2-client v0.17 and earlier releases.
-// This allows us to be compatible with those older versions when serialising as numbers.
 //
 // We should maybe migrate to serialising as strings to aligned with eth2 spec at which
 // point this type can be removed in favour of the go-eth2-client type.
@@ -132,6 +131,103 @@ func DataVersionFromETH2(version eth2spec.DataVersion) (DataVersion, error) {
 		return DataVersionDeneb, nil
 	default:
 		return DataVersionUnknown, errors.New("unknown data version")
+	}
+}
+
+// BuilderVersion defines the builder spec version.
+// The number values match those of go-eth2-client v0.17 and earlier releases.
+//
+// We should maybe migrate to serialising as strings to aligned with eth2 spec at which
+// point this type can be removed in favour of the go-eth2-client type.
+type BuilderVersion string
+
+const (
+	BuilderVersionUnknown BuilderVersion = ""
+	BuilderVersionV1      BuilderVersion = "v1"
+)
+
+// builderVersionValues maps BuilderVersion to the integer value used by go-eth2-client pre-v0.18.
+var builderVersionValues = map[BuilderVersion]int{
+	BuilderVersionV1: 0,
+}
+
+// MarshalJSON marshals the BuilderVersion as a number equaled to the go-eth2-client
+// pre-v0.18 integer value.
+func (v BuilderVersion) MarshalJSON() ([]byte, error) {
+	val, ok := builderVersionValues[v]
+	if !ok {
+		return nil, errors.New("unknown builder version")
+	}
+
+	b, err := json.Marshal(val)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal builder version")
+	}
+
+	return b, nil
+}
+
+// UnmarshalJSON unmarshals the BuilderVersion from strings or a number equaled to the go-eth2-client
+// pre-v0.18 integer value.
+func (v *BuilderVersion) UnmarshalJSON(input []byte) error {
+	var intVal int
+	if err := json.Unmarshal(input, &intVal); err != nil {
+		return errors.Wrap(err, "failed to unmarshal builder version")
+	}
+
+	for version, val := range builderVersionValues {
+		if intVal == val {
+			*v = version
+			return nil
+		}
+	}
+
+	return errors.New("unknown builder version")
+}
+
+// ToUint64 returns the integer value used by go-eth2-client pre-v0.18.
+func (v BuilderVersion) ToUint64() uint64 {
+	return uint64(builderVersionValues[v])
+}
+
+// ToETH2 returns a eth2spec.BuilderVersion equivalent to the BuilderVersion.
+func (v BuilderVersion) ToETH2() eth2spec.BuilderVersion {
+	switch v {
+	case BuilderVersionV1:
+		return eth2spec.BuilderVersionV1
+	default:
+		return eth2spec.BuilderVersion(0)
+	}
+}
+
+// String returns the string representation of the BuilderVersion.
+func (v BuilderVersion) String() string {
+	_, ok := builderVersionValues[v]
+	if !ok {
+		return "unknown"
+	}
+
+	return string(v)
+}
+
+// BuilderVersionFromUint64 returns the BuilderVersion from the integer value used by go-eth2-client pre-v0.18.
+func BuilderVersionFromUint64(val uint64) (BuilderVersion, error) {
+	for version, v := range builderVersionValues {
+		if val == uint64(v) {
+			return version, nil
+		}
+	}
+
+	return BuilderVersionUnknown, errors.New("unknown builder version")
+}
+
+// BuilderVersionFromETH2 returns the BuilderVersion from the eth2spec.BuilderVersion.
+func BuilderVersionFromETH2(version eth2spec.BuilderVersion) (BuilderVersion, error) {
+	switch version {
+	case eth2spec.BuilderVersionV1:
+		return BuilderVersionV1, nil
+	default:
+		return BuilderVersionUnknown, errors.New("unknown builder version")
 	}
 }
 

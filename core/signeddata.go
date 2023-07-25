@@ -662,8 +662,8 @@ func (e *SignedVoluntaryExit) UnmarshalJSON(b []byte) error {
 
 // versionedRawValidatorRegistrationJSON is a custom VersionedSignedValidator serialiser.
 type versionedRawValidatorRegistrationJSON struct {
-	Version      int             `json:"version"`
-	Registration json.RawMessage `json:"registration"`
+	Version      eth2util.BuilderVersion `json:"version"`
+	Registration json.RawMessage         `json:"registration"`
 }
 
 // NewVersionedSignedValidatorRegistration is a convenience function that returns a new signed validator (builder) registration.
@@ -763,8 +763,13 @@ func (r VersionedSignedValidatorRegistration) MarshalJSON() ([]byte, error) {
 		return nil, errors.Wrap(err, "marshal registration")
 	}
 
+	version, err := eth2util.BuilderVersionFromETH2(r.Version)
+	if err != nil {
+		return nil, errors.Wrap(err, "convert version")
+	}
+
 	resp, err := json.Marshal(versionedRawValidatorRegistrationJSON{
-		Version:      int(r.Version),
+		Version:      version,
 		Registration: registration,
 	})
 	if err != nil {
@@ -780,7 +785,7 @@ func (r *VersionedSignedValidatorRegistration) UnmarshalJSON(input []byte) error
 		return errors.Wrap(err, "unmarshal validator (builder) registration")
 	}
 
-	resp := eth2api.VersionedSignedValidatorRegistration{Version: eth2spec.BuilderVersion(raw.Version)}
+	resp := eth2api.VersionedSignedValidatorRegistration{Version: raw.Version.ToETH2()}
 	switch resp.Version {
 	case eth2spec.BuilderVersionV1:
 		registration := new(eth2v1.SignedValidatorRegistration)
