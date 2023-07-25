@@ -7,14 +7,15 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/manifest"
 	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -139,14 +140,13 @@ func TestRunAddValidators(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify the new cluster manifest
-		b, err := os.ReadFile(path.Join(tmp, "node0", "cluster-manifest.pb"))
+		manifestFile := filepath.Join(tmp, "node0", "cluster-manifest.pb")
+		cluster, err := manifest.LoadManifest(manifestFile, "", nil)
 		require.NoError(t, err)
 
-		var msg manifestpb.Cluster
-		require.NoError(t, proto.Unmarshal(b, &msg))
-		require.Equal(t, valCount+1, len(msg.Validators))
-		require.Equal(t, msg.Validators[1].FeeRecipientAddress, feeRecipientAddr)
-		require.Equal(t, msg.Validators[1].WithdrawalAddress, feeRecipientAddr)
+		require.Equal(t, valCount+1, len(cluster.Validators))
+		require.Equal(t, cluster.Validators[1].FeeRecipientAddress, feeRecipientAddr)
+		require.Equal(t, cluster.Validators[1].WithdrawalAddress, feeRecipientAddr)
 	})
 
 	t.Run("add validators twice", func(t *testing.T) {
@@ -173,16 +173,18 @@ func TestRunAddValidators(t *testing.T) {
 		// First add one validator
 		require.NoError(t, runAddValidatorsSolo(context.Background(), conf))
 
-		manifestFile := path.Join(tmp, "node0", "cluster-manifest.pb")
-		b, err := os.ReadFile(manifestFile)
+		manifestFile := filepath.Join(tmp, "node0", "cluster-manifest.pb")
+		rawDAG, err := manifest.LoadDAG(manifestFile, "", nil)
 		require.NoError(t, err)
-		cluster := new(manifestpb.Cluster)
-		require.NoError(t, proto.Unmarshal(b, cluster))
+
+		cluster, err := manifest.Materialise(rawDAG)
+		require.NoError(t, err)
 		require.Equal(t, cluster.InitialMutationHash, lock.LockHash)
 
 		// Run the second add validators command using cluster manifest output from the first run
 		conf.TestConfig.Lock = nil
-		conf.TestConfig.Manifest = cluster
+		conf.TestConfig.ClusterDAG = rawDAG
+
 		// Delete existing deposit data file in each node directory since the deposit file names are same
 		// when add validators command is run twice consecutively. This is because the test finishes in
 		// milliseconds and filenames are named YYYYMMDDHHMMSS which doesn't account for milliseconds.
@@ -199,10 +201,8 @@ func TestRunAddValidators(t *testing.T) {
 		// Then add the second validator
 		require.NoError(t, runAddValidatorsSolo(context.Background(), conf))
 
-		b, err = os.ReadFile(manifestFile)
+		cluster, err = manifest.LoadManifest(manifestFile, "", nil)
 		require.NoError(t, err)
-		cluster = new(manifestpb.Cluster)
-		require.NoError(t, proto.Unmarshal(b, cluster))
 
 		// The cluster manifest should contain three validators now since the
 		// original cluster already had one validator, and we added two more.

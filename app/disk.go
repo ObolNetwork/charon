@@ -15,7 +15,7 @@ import (
 // loadClusterManifest returns the cluster manifest from the given file path.
 func loadClusterManifest(ctx context.Context, conf Config) (*manifestpb.Cluster, error) {
 	if conf.TestConfig.Lock != nil {
-		return manifest.NewClusterFromLockForT(nil, *conf.TestConfig.Lock)
+		return manifest.NewManifestFromLockForT(nil, *conf.TestConfig.Lock)
 	}
 
 	verifyLock := func(lock cluster.Lock) error {
@@ -34,7 +34,7 @@ func loadClusterManifest(ctx context.Context, conf Config) (*manifestpb.Cluster,
 		return nil
 	}
 
-	cluster, err := manifest.Load(conf.ManifestFile, conf.LockFile, verifyLock)
+	cluster, err := manifest.LoadManifest(conf.ManifestFile, conf.LockFile, verifyLock)
 	if err != nil {
 		return nil, errors.Wrap(err, "load cluster manifest")
 	}

@@ -56,7 +56,7 @@ type addValidatorTestConfig struct {
 	// Lock provides the lock explicitly, skips loading from disk.
 	Lock *cluster.Lock
 	// Manifest provides the cluster manifest explicitly, skips loading from disk.
-	Manifest *manifestpb.Cluster
+	ClusterDAG *manifestpb.SignedMutationList
 	// P2PKeys provides the p2p private keys explicitly, skips loading keystores from disk.
 	P2PKeys []*k1.PrivateKey
 }
@@ -95,20 +95,19 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 }
 
 func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err error) {
-	var cluster *manifestpb.Cluster
+	var (
+		rawDAG  *manifestpb.SignedMutationList
+		cluster *manifestpb.Cluster
+	)
 
-	if conf.TestConfig.Manifest != nil {
-		cluster = conf.TestConfig.Manifest
-	} else if conf.TestConfig.Lock != nil {
-		cluster, err = manifest.NewClusterFromLockForT(nil, *conf.TestConfig.Lock)
-		if err != nil {
-			return err
-		}
-	} else {
-		cluster, err = loadClusterManifest(conf.ManifestFile, conf.Lockfile)
-		if err != nil {
-			return err
-		}
+	rawDAG, err = loadDAG(conf)
+	if err != nil {
+		return err
+	}
+
+	cluster, err = manifest.Materialise(rawDAG)
+	if err != nil {
+		return errors.Wrap(err, "materialise cluster dag")
 	}
 
 	nextKeystoreIdx := len(cluster.Validators)
@@ -176,6 +175,9 @@ func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err er
 		return errors.Wrap(err, "add validators")
 	}
 
+	// Append the final `add_validators/v0.0.1` mutation to the raw DAG
+	rawDAG.Mutations = append(rawDAG.Mutations, addVals)
+
 	// Finally, perform a cluster transformation.
 	cluster, err = manifest.Transform(cluster, addVals)
 	if err != nil {
@@ -187,13 +189,13 @@ func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err er
 		return err
 	}
 
-	err = saveDepositDatas(ctx, conf.ClusterDir, len(cluster.Operators), secrets, vals, cluster.ForkVersion)
+	err = writeDepositDatas(ctx, conf.ClusterDir, len(cluster.Operators), secrets, vals, cluster.ForkVersion)
 	if err != nil {
 		return err
 	}
 
 	// Save cluster manifests to disk
-	err = writeClusterManifests(conf.ClusterDir, len(cluster.Operators), cluster)
+	err = writeCluster(conf.ClusterDir, len(cluster.Operators), rawDAG)
 	if err != nil {
 		return err
 	}
@@ -238,8 +240,8 @@ func builderRegistration(secret tbls.PrivateKey, pubkey tbls.PublicKey, feeRecip
 	}, nil
 }
 
-// saveDepositDatas creates deposit data for each validator and writes the deposit data to disk for each node.
-func saveDepositDatas(ctx context.Context, clusterDir string, numOps int, secrets []tbls.PrivateKey, vals []*manifestpb.Validator, forkVersion []byte) error {
+// writeDepositDatas creates deposit data for each validator and writes the deposit data to disk for each node.
+func writeDepositDatas(ctx context.Context, clusterDir string, numOps int, secrets []tbls.PrivateKey, vals []*manifestpb.Validator, forkVersion []byte) error {
 	network, err := eth2util.ForkVersionToNetwork(forkVersion)
 	if err != nil {
 		return errors.Wrap(err, "fork version to network")
@@ -462,6 +464,29 @@ func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsCon
 	}
 
 	return vals, secrets, shareSets, nil
+}
+
+// loadDAG returns the raw DAG from the provided config.
+func loadDAG(conf addValidatorsConfig) (*manifestpb.SignedMutationList, error) {
+	var (
+		rawDAG *manifestpb.SignedMutationList
+		err    error
+	)
+	if conf.TestConfig.ClusterDAG != nil {
+		rawDAG = conf.TestConfig.ClusterDAG
+	} else if conf.TestConfig.Lock != nil {
+		rawDAG, err = manifest.NewDAGFromLockForT(nil, *conf.TestConfig.Lock)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		rawDAG, err = loadDAGFromDisk(conf.ManifestFile, conf.Lockfile)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return rawDAG, nil
 }
 
 // getP2PKeys returns a list of p2p private keys either by loading from disk or from test config.
