@@ -21,6 +21,7 @@ import (
 //go:generate go test . -v -update -clean
 
 const (
+	v1_7 = "v1.7.0"
 	v1_6 = "v1.6.0"
 	v1_5 = "v1.5.0"
 	v1_4 = "v1.4.0"
@@ -228,7 +229,7 @@ func TestExamples(t *testing.T) {
 		})
 	}
 
-	defFiles, err := filepath.Glob("examples/*-definition*")
+	defFiles, err := filepath.Glob("examples/*definition*")
 	require.NoError(t, err)
 
 	for _, file := range defFiles {
