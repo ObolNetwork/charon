@@ -25,11 +25,12 @@ import (
 )
 
 const (
-	contentType  = "application/x-protobuf"
-	maxErrMsgLen = 1024
-	httpTimeout  = 10 * time.Second
-	batchWait    = 1 * time.Second
-	batchMax     = 5 * 1 << 20 // 5MB
+	contentType   = "application/x-protobuf"
+	maxErrMsgLen  = 1024
+	httpTimeout   = 10 * time.Second
+	batchWait     = 1 * time.Second
+	batchMax      = 5 * 1 << 20 // 5MB
+	maxLogLineLen = 4 << 10
 )
 
 // lazyLabelsFunc abstracts lazy loading of labels, logs will only be sent when it returns true.
@@ -39,18 +40,18 @@ type lazyLabelsFunc func() (map[string]string, bool)
 type logFunc func(string, error)
 
 // NewForT returns a new Client for testing.
-func NewForT(endpoint string, serviceLabel string, batchWait time.Duration, batchMax int,
+func NewForT(endpoint string, serviceLabel string, batchWait time.Duration, batchMax, maxLogLineLen int,
 	moreLabelsFunc lazyLabelsFunc,
 ) *Client {
-	return newInternal(endpoint, serviceLabel, batchWait, batchMax, func(string, error) {}, moreLabelsFunc)
+	return newInternal(endpoint, serviceLabel, batchWait, batchMax, maxLogLineLen, func(string, error) {}, moreLabelsFunc)
 }
 
 // New returns a new Client.
 func New(endpoint string, serviceLabel string, logFunc logFunc, moreLabelsFunc lazyLabelsFunc) *Client {
-	return newInternal(endpoint, serviceLabel, batchWait, batchMax, logFunc, moreLabelsFunc)
+	return newInternal(endpoint, serviceLabel, batchWait, batchMax, maxLogLineLen, logFunc, moreLabelsFunc)
 }
 
-func newInternal(endpoint string, serviceLabel string, batchWait time.Duration, batchMax int,
+func newInternal(endpoint string, serviceLabel string, batchWait time.Duration, batchMax, maxLogLineLen int,
 	logFunc logFunc, moreLabelsFunc lazyLabelsFunc,
 ) *Client {
 	return &Client{
@@ -60,6 +61,7 @@ func newInternal(endpoint string, serviceLabel string, batchWait time.Duration, 
 		input:          make(chan string),
 		batchMax:       batchMax,
 		batchWait:      batchWait,
+		maxLogLineLen:  maxLogLineLen,
 		logFunc:        logFunc,
 		serviceLabel:   serviceLabel,
 		moreLabelsFunc: moreLabelsFunc,
@@ -74,6 +76,7 @@ type Client struct {
 	endpoint       string
 	batchWait      time.Duration
 	batchMax       int
+	maxLogLineLen  int
 	serviceLabel   string
 	moreLabelsFunc lazyLabelsFunc
 	logFunc        logFunc
@@ -101,10 +104,15 @@ func (c *Client) Run() {
 	for {
 		select {
 		case line := <-c.input:
+			if len(line) > c.maxLogLineLen && c.maxLogLineLen != 0 {
+				continue // Silently drop log line longer than maxLogLineSize if set
+			}
+
 			batch.Add(&pbv1.Entry{
 				Timestamp: timestamppb.Now(),
 				Line:      line,
 			})
+
 			if batch.Size() > c.batchMax {
 				batch = newBatch() // Just silently drop, there should have been multiple error logs below.
 			}
