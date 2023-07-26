@@ -75,7 +75,7 @@ func TestLoadManifest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Load raw DAG from disk
+			// Load raw cluster DAG from disk
 			dag, err := manifest.LoadDAG(tt.manifestFile, tt.legacyLockFile, nil)
 			if tt.errorMsg != "" {
 				require.ErrorContains(t, err, tt.errorMsg)
@@ -83,7 +83,7 @@ func TestLoadManifest(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			require.Equal(t, 1, len(dag.Mutations)) // Only mutation is the legacy_lock mutation
+			require.Equal(t, 1, len(dag.Mutations)) // The only mutation is the `legacy_lock` mutation
 
 			clusterFromDAG, err := manifest.Materialise(dag)
 			require.NoError(t, err)

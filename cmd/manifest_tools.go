@@ -15,7 +15,7 @@ import (
 	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 )
 
-// loadClusterManifest returns the cluster manifest from disk.
+// loadClusterManifest loads cluster manifest from disk.
 func loadClusterManifest(manifestFilePath, lockFilePath string) (*manifestpb.Cluster, error) {
 	verifyLock := func(lock cluster.Lock) error {
 		if err := lock.VerifyHashes(); err != nil {
@@ -37,7 +37,7 @@ func loadClusterManifest(manifestFilePath, lockFilePath string) (*manifestpb.Clu
 	return cluster, nil
 }
 
-// loadDAGFromDisk loads the cluster DAG from disk.
+// loadDAGFromDisk loads cluster DAG from disk.
 func loadDAGFromDisk(manifestFilePath, lockFilePath string) (*manifestpb.SignedMutationList, error) {
 	verifyLock := func(lock cluster.Lock) error {
 		if err := lock.VerifyHashes(); err != nil {
