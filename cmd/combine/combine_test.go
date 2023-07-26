@@ -187,10 +187,8 @@ func writeManifest(
 	legacy, err := manifest.NewLegacyLockForT(t, modifyLockFile(valIdx, lock))
 	require.NoError(t, err)
 
-	cluster, err := manifest.Materialise(&manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{legacy}})
-	require.NoError(t, err)
-
-	data, err := proto.Marshal(cluster)
+	dag := &manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{legacy}}
+	data, err := proto.Marshal(dag)
 	require.NoError(t, err)
 
 	require.NoError(t, os.WriteFile(filepath.Join(path, "cluster-manifest.pb"), data, 0o755))

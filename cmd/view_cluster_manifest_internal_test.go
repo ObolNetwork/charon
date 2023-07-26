@@ -28,10 +28,9 @@ func Test_viewClusterManifest(t *testing.T) {
 	lockMutation, err := manifest.NewLegacyLockForT(t, lock)
 	require.NoError(t, err)
 
-	cluster, err := manifest.Materialise(&manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{lockMutation}})
-	require.NoError(t, err)
+	dag := &manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{lockMutation}}
 
-	clusterBytes, err := proto.Marshal(cluster)
+	clusterBytes, err := proto.Marshal(dag)
 	require.NoError(t, err)
 
 	clusterPath := filepath.Join(t.TempDir(), "cluster-manifest.pb")

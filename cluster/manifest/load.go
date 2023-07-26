@@ -13,37 +13,54 @@ import (
 	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 )
 
-// Load loads a cluster from disk and returns true if cluster was loaded from a legacy lock file.
-// It supports reading from both cluster manifest and legacy lock files.
+// LoadCluster returns the current state from disk by reading either from cluster manifest or legacy lock file.
 // If both files are provided, it first reads the manifest file before reading the legacy lock file.
-func Load(manifestFile, legacyLockFile string, lockCallback func(cluster.Lock) error) (*manifestpb.Cluster, error) {
+func LoadCluster(manifestFile, legacyLockFile string, lockCallback func(cluster.Lock) error) (*manifestpb.Cluster, error) {
+	dag, err := LoadDAG(manifestFile, legacyLockFile, lockCallback)
+	if err != nil {
+		return nil, errors.Wrap(err, "load dag from disk")
+	}
+
+	cluster, err := Materialise(dag)
+	if err != nil {
+		return nil, errors.Wrap(err, "materialise dag")
+	}
+
+	return cluster, nil
+}
+
+// LoadDAG returns the raw cluster DAG from disk by reading either from cluster manifest or legacy lock file.
+// If both files are provided, it first reads the manifest file before reading the legacy lock file.
+func LoadDAG(manifestFile, legacyLockFile string, lockCallback func(cluster.Lock) error) (*manifestpb.SignedMutationList, error) {
 	b, err := os.ReadFile(manifestFile)
 	if err == nil {
-		manifest := new(manifestpb.Cluster)
-		if err := proto.Unmarshal(b, manifest); err != nil {
-			return nil, errors.Wrap(err, "unmarshal cluster manifest")
+		rawDAG := new(manifestpb.SignedMutationList)
+		if err := proto.Unmarshal(b, rawDAG); err != nil {
+			return rawDAG, errors.Wrap(err, "unmarshal cluster manifest")
 		}
 
-		return manifest, nil
+		return rawDAG, nil
 	}
 
-	b, err = os.ReadFile(legacyLockFile)
-	if err != nil {
-		return nil, errors.Wrap(err, "read legacy lock file")
-	}
-
-	m, err := loadLegacyLock(b, lockCallback)
+	rawDAG, err := loadLegacyLock(legacyLockFile, lockCallback)
 	if err != nil {
 		return nil, errors.Wrap(err, "load legacy lock")
 	}
 
-	return m, nil
+	return rawDAG, nil
 }
 
-func loadLegacyLock(input []byte, lockCallback func(cluster.Lock) error) (*manifestpb.Cluster, error) {
+// loadLegacyLock returns the raw DAG from a legacy lock file on disk.
+// It also accepts a callback that is called on the loaded lock.
+func loadLegacyLock(filename string, lockCallback func(cluster.Lock) error) (*manifestpb.SignedMutationList, error) {
+	b, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, errors.Wrap(err, "read legacy lock file")
+	}
+
 	var lock cluster.Lock
 
-	if err := json.Unmarshal(input, &lock); err != nil {
+	if err := json.Unmarshal(b, &lock); err != nil {
 		return nil, errors.Wrap(err, "unmarshal legacy lock")
 	}
 
@@ -53,10 +70,10 @@ func loadLegacyLock(input []byte, lockCallback func(cluster.Lock) error) (*manif
 		}
 	}
 
-	legacy, err := NewRawLegacyLock(input)
+	legacy, err := NewRawLegacyLock(b)
 	if err != nil {
 		return nil, errors.Wrap(err, "create legacy lock")
 	}
 
-	return Materialise(&manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{legacy}})
+	return &manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{legacy}}, nil
 }
