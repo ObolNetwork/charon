@@ -30,7 +30,7 @@ const (
 	httpTimeout   = 10 * time.Second
 	batchWait     = 1 * time.Second
 	batchMax      = 5 * 1 << 20 // 5MB
-	maxLogLineLen = 4 << 10
+	maxLogLineLen = 4 << 10     // 4096B
 )
 
 // lazyLabelsFunc abstracts lazy loading of labels, logs will only be sent when it returns true.
