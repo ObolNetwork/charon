@@ -105,7 +105,7 @@ func (c *Client) Run() {
 		select {
 		case line := <-c.input:
 			if len(line) > c.maxLogLineLen && c.maxLogLineLen != 0 {
-				continue // Silently drop log line longer than maxLogLineSize if set
+				continue // Silently drop log line longer than maxLogLineLen if set
 			}
 
 			batch.Add(&pbv1.Entry{
