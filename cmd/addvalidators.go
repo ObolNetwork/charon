@@ -95,17 +95,12 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 }
 
 func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err error) {
-	var (
-		rawDAG  *manifestpb.SignedMutationList
-		cluster *manifestpb.Cluster
-	)
-
-	rawDAG, err = loadDAG(conf)
+	rawDAG, err := loadDAG(conf)
 	if err != nil {
 		return err
 	}
 
-	cluster, err = manifest.Materialise(rawDAG)
+	cluster, err := manifest.Materialise(rawDAG)
 	if err != nil {
 		return errors.Wrap(err, "materialise cluster dag")
 	}

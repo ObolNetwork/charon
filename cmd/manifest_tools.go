@@ -29,7 +29,7 @@ func loadClusterManifest(manifestFilePath, lockFilePath string) (*manifestpb.Clu
 		return nil
 	}
 
-	cluster, err := manifest.LoadManifest(manifestFilePath, lockFilePath, verifyLock)
+	cluster, err := manifest.LoadCluster(manifestFilePath, lockFilePath, verifyLock)
 	if err != nil {
 		return nil, errors.Wrap(err, "load cluster manifest from disk")
 	}

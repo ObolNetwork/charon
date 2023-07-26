@@ -64,7 +64,7 @@ func TestNodeApprovals(t *testing.T) {
 	})
 
 	t.Run("transform", func(t *testing.T) {
-		cluster, err := manifest.NewManifestFromLockForT(t, lock)
+		cluster, err := manifest.NewClusterFromLockForT(t, lock)
 		require.NoError(t, err)
 
 		cluster2, err := manifest.Transform(cluster, composite)

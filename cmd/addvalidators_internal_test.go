@@ -141,7 +141,7 @@ func TestRunAddValidators(t *testing.T) {
 
 		// Verify the new cluster manifest
 		manifestFile := filepath.Join(tmp, "node0", "cluster-manifest.pb")
-		cluster, err := manifest.LoadManifest(manifestFile, "", nil)
+		cluster, err := manifest.LoadCluster(manifestFile, "", nil)
 		require.NoError(t, err)
 
 		require.Equal(t, valCount+1, len(cluster.Validators))
@@ -201,7 +201,7 @@ func TestRunAddValidators(t *testing.T) {
 		// Then add the second validator
 		require.NoError(t, runAddValidatorsSolo(context.Background(), conf))
 
-		cluster, err = manifest.LoadManifest(manifestFile, "", nil)
+		cluster, err = manifest.LoadCluster(manifestFile, "", nil)
 		require.NoError(t, err)
 
 		// The cluster manifest should contain three validators now since the

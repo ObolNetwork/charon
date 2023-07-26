@@ -13,9 +13,9 @@ import (
 	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 )
 
-// LoadManifest loads a cluster manifest from disk by reading either from cluster manifest or legacy lock file.
+// LoadCluster returns the current state from disk by reading either from cluster manifest or legacy lock file.
 // If both files are provided, it first reads the manifest file before reading the legacy lock file.
-func LoadManifest(manifestFile, legacyLockFile string, lockCallback func(cluster.Lock) error) (*manifestpb.Cluster, error) {
+func LoadCluster(manifestFile, legacyLockFile string, lockCallback func(cluster.Lock) error) (*manifestpb.Cluster, error) {
 	dag, err := LoadDAG(manifestFile, legacyLockFile, lockCallback)
 	if err != nil {
 		return nil, errors.Wrap(err, "load dag from disk")

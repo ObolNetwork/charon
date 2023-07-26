@@ -89,7 +89,7 @@ func TestLoadManifest(t *testing.T) {
 			require.NoError(t, err)
 
 			// Load cluster manifest from disk
-			loaded, err := manifest.LoadManifest(tt.manifestFile, tt.legacyLockFile, nil)
+			loaded, err := manifest.LoadCluster(tt.manifestFile, tt.legacyLockFile, nil)
 			require.NoError(t, err)
 
 			require.True(t, proto.Equal(cluster, loaded))
@@ -119,7 +119,7 @@ func testLoadLegacy(t *testing.T, version string) {
 	err = os.WriteFile(file, b, 0o644)
 	require.NoError(t, err)
 
-	cluster, err := manifest.LoadManifest("", file, nil)
+	cluster, err := manifest.LoadCluster("", file, nil)
 	require.NoError(t, err)
 
 	require.Equal(t, lock.LockHash, cluster.InitialMutationHash)
@@ -148,7 +148,7 @@ func testLoadLegacy(t *testing.T, version string) {
 // legacy locks. This ensures the cluster hash doesn't change even if lock files
 // were modified and run with --no-verify.
 func TestLoadModifiedLegacyLock(t *testing.T) {
-	cluster, err := manifest.LoadManifest("", "testdata/lock3.json", nil)
+	cluster, err := manifest.LoadCluster("", "testdata/lock3.json", nil)
 	require.NoError(t, err)
 	hashHex := fmt.Sprintf("%x", cluster.InitialMutationHash)
 	require.Equal(t, "4073fe542", hashHex[:9])
