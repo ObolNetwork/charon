@@ -29,7 +29,7 @@ func LoadCluster(manifestFile, legacyLockFile string, lockCallback func(cluster.
 	return cluster, nil
 }
 
-// LoadDAG loads a raw DAG from disk by reading either from cluster manifest or legacy lock file.
+// LoadDAG returns the raw cluster DAG from disk by reading either from cluster manifest or legacy lock file.
 // If both files are provided, it first reads the manifest file before reading the legacy lock file.
 func LoadDAG(manifestFile, legacyLockFile string, lockCallback func(cluster.Lock) error) (*manifestpb.SignedMutationList, error) {
 	b, err := os.ReadFile(manifestFile)
@@ -50,6 +50,8 @@ func LoadDAG(manifestFile, legacyLockFile string, lockCallback func(cluster.Lock
 	return rawDAG, nil
 }
 
+// loadLegacyLock returns the raw DAG from a legacy lock file on disk.
+// It also accepts a callback that is called on the loaded lock.
 func loadLegacyLock(filename string, lockCallback func(cluster.Lock) error) (*manifestpb.SignedMutationList, error) {
 	b, err := os.ReadFile(filename)
 	if err != nil {
