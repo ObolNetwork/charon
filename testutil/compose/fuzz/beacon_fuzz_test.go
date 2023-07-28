@@ -20,14 +20,14 @@ import (
 //go:generate go test . -run=TestBeaconFuzz -integration -v
 
 var (
-	integration = flag.Bool("integration", false, "Enable docker based integration test")
+	beaconFuzz  = flag.Bool("beacon-fuzz", false, "Enable docker based integration test")
 	sudoPerms   = flag.Bool("sudo-perms", false, "Enables changing all compose artefacts file permissions using sudo.")
 	logDir      = flag.String("log-dir", "", "Specifies the directory to store test docker-compose logs. Empty defaults to stdout.")
-	fuzzTimeout = flag.Duration("fuzz-timeout", time.Minute*10, "Specifies the duration of the beacon fuzz test.")
+	fuzzTimeout = flag.Duration("timeout", time.Minute*10, "Specifies the duration of the beacon fuzz test.")
 )
 
 func TestBeaconFuzz(t *testing.T) {
-	if !*integration {
+	if !*beaconFuzz {
 		t.Skip("Skipping beacon fuzz integration test")
 	}
 
