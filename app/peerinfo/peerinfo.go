@@ -94,7 +94,6 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, loc
 			}, true, nil
 		},
 		p2p.WithDelimitedProtocol(protocolID2),
-		p2p.WithFuzzReaderWriter(),
 	)
 
 	// Create log filters
@@ -175,7 +174,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 
 			resp := new(pbv1.PeerInfo)
 			err := p.sendFunc(ctx, p.tcpNode, peerID, req, resp, protocolID1,
-				p2p.WithSendReceiveRTT(rttCallback), p2p.WithDelimitedProtocol(protocolID2), p2p.WithFuzzReaderWriter())
+				p2p.WithSendReceiveRTT(rttCallback), p2p.WithDelimitedProtocol(protocolID2))
 			if err != nil {
 				return // Logging handled by send func.
 			} else if resp.SentAt == nil || resp.StartedAt == nil {

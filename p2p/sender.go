@@ -26,12 +26,10 @@ const (
 	maxMsgSize       = 128 << 20 // 128MB
 )
 
-// p2pFuzzEnabled is used to enable peer to peer fuzzing in charon.
-var p2pFuzzEnabled bool
-
-func EnableP2PFuzz() {
-	p2pFuzzEnabled = true
-}
+var (
+	defaultWriterFunc = func(s network.Stream) pbio.Writer { return legacyReadWriter{s} }
+	defaultReaderFunc = func(s network.Stream) pbio.Reader { return legacyReadWriter{s} }
+)
 
 // SendFunc is an abstract function responsible for sending libp2p messages.
 type SendFunc func(context.Context, host.Host, protocol.ID, peer.ID, proto.Message, ...SendRecvOption) error
@@ -172,26 +170,17 @@ func WithDelimitedProtocol(pID protocol.ID) func(*sendRecvOpts) {
 	}
 }
 
-// WithFuzzReaderWriter returns an option that sets a fuzz reader writer to all the protocols if p2p fuzz is enabled.
+// SetFuzzerDefaultsUnsafe sets default reader and writer functions to fuzzed versions of the same if p2p fuzz is enabled.
 //
-// If p2p fuzz is enabled, this option sets a fuzz reader writer for each protocol in the provided sendRecvOpts.
-// The fuzz reader writer is responsible for creating a customized reader and writer for each network stream
+// The fuzzReaderWriter is responsible for creating a customized reader and writer for each network stream
 // associated with a specific protocol. The reader and writer implement the pbio.Reader and pbio.Writer interfaces,
 // respectively, from the "pbio" package.
-func WithFuzzReaderWriter() func(*sendRecvOpts) {
-	return func(opts *sendRecvOpts) {
-		if !p2pFuzzEnabled {
-			return
-		}
-
-		for _, pID := range opts.protocols {
-			opts.writersByProtocol[pID] = func(s network.Stream) pbio.Writer {
-				return &fuzzReaderWriter{w: pbio.NewDelimitedWriter(s)}
-			}
-			opts.readersByProtocol[pID] = func(s network.Stream) pbio.Reader {
-				return &fuzzReaderWriter{}
-			}
-		}
+func SetFuzzerDefaultsUnsafe() {
+	defaultWriterFunc = func(s network.Stream) pbio.Writer {
+		return fuzzReaderWriter{w: pbio.NewDelimitedWriter(s)}
+	}
+	defaultReaderFunc = func(s network.Stream) pbio.Reader {
+		return fuzzReaderWriter{}
 	}
 }
 
@@ -200,10 +189,10 @@ func defaultSendRecvOpts(pID protocol.ID) sendRecvOpts {
 	return sendRecvOpts{
 		protocols: []protocol.ID{pID},
 		writersByProtocol: map[protocol.ID]func(s network.Stream) pbio.Writer{
-			pID: func(s network.Stream) pbio.Writer { return legacyReadWriter{s} },
+			pID: defaultWriterFunc,
 		},
 		readersByProtocol: map[protocol.ID]func(s network.Stream) pbio.Reader{
-			pID: func(s network.Stream) pbio.Reader { return legacyReadWriter{s} },
+			pID: defaultReaderFunc,
 		},
 		rttCallback: func(time.Duration) {},
 	}

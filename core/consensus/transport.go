@@ -130,7 +130,7 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 		}
 
 		err = t.component.sender.SendAsync(ctx, t.component.tcpNode, protocolID1, p.ID, msg.ToConsensusMsg(),
-			p2p.WithDelimitedProtocol(protocolID2), p2p.WithFuzzReaderWriter())
+			p2p.WithDelimitedProtocol(protocolID2))
 		if err != nil {
 			return err
 		}

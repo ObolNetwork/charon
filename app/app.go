@@ -224,7 +224,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	// Enable p2p fuzzing if --p2p-fuzz is set.
 	if conf.P2PFuzz {
-		p2p.EnableP2PFuzz()
+		p2p.SetFuzzerDefaultsUnsafe()
 	}
 
 	sender := new(p2p.Sender)
