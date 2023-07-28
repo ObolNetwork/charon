@@ -5,7 +5,7 @@ RUN apt-get update && apt-get install -y build-essential git
 # Prep and copy source
 WORKDIR /app/charon
 COPY . .
-# Populate GO_BUILD_FLAG with a build arg to provide a optional go build flag.
+# Populate GO_BUILD_FLAG with a build arg to provide an optional go build flag.
 ARG GO_BUILD_FLAG
 ENV GO_BUILD_FLAG=${GO_BUILD_FLAG}
 RUN echo "Building with GO_BUILD_FLAG='${GO_BUILD_FLAG}'"
