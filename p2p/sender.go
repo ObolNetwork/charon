@@ -173,7 +173,7 @@ func WithDelimitedProtocol(pID protocol.ID) func(*sendRecvOpts) {
 // SetFuzzerDefaultsUnsafe sets default reader and writer functions to fuzzed versions of the same if p2p fuzz is enabled.
 //
 // The fuzzReaderWriter is responsible for creating a customized reader and writer for each network stream
-// associated with a specific protocol. The reader and writer implement the pbio.Reader and pbio.Writer interfaces,
+// associated with a specific protocol. The reader and writer implement the pbio.Reader and pbio.Writer interfaces respectively
 // respectively, from the "pbio" package.
 func SetFuzzerDefaultsUnsafe() {
 	defaultWriterFunc = func(s network.Stream) pbio.Writer {
