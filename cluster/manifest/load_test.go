@@ -56,7 +56,7 @@ func TestLoadManifest(t *testing.T) {
 	}{
 		{
 			name:     "no file",
-			errorMsg: "read legacy lock",
+			errorMsg: "couldn't load cluster dag from either manifest or legacy lock file",
 		},
 		{
 			name:         "only manifest",
@@ -70,6 +70,12 @@ func TestLoadManifest(t *testing.T) {
 			name:           "both files",
 			manifestFile:   manifestFile,
 			legacyLockFile: legacyLockFile,
+		},
+		{
+			name:           "mismatching cluster hashes",
+			manifestFile:   manifestFile,
+			legacyLockFile: "testdata/lock2.json",
+			errorMsg:       "manifest and legacy cluster hashes don't match",
 		},
 	}
 

@@ -3,18 +3,25 @@
 package manifest
 
 import (
+	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 )
 
-// LoadCluster returns the current state from disk by reading either from cluster manifest or legacy lock file.
-// If both files are provided, it first reads the manifest file before reading the legacy lock file.
+// LoadCluster returns the current cluster state from disk by reading either from cluster manifest or legacy lock file.
+// If both files are provided, both files are read and
+//   - If cluster hashes don't match, an error is returned
+//   - If cluster hashes match, the cluster loaded from the manifest file is returned
+//
+// It returns an error if the cluster can't be loaded from either file.
 func LoadCluster(manifestFile, legacyLockFile string, lockCallback func(cluster.Lock) error) (*manifestpb.Cluster, error) {
 	dag, err := LoadDAG(manifestFile, legacyLockFile, lockCallback)
 	if err != nil {
@@ -30,29 +37,53 @@ func LoadCluster(manifestFile, legacyLockFile string, lockCallback func(cluster.
 }
 
 // LoadDAG returns the raw cluster DAG from disk by reading either from cluster manifest or legacy lock file.
-// If both files are provided, it first reads the manifest file before reading the legacy lock file.
+// If both files are provided, both files are read and
+//   - If cluster hashes don't match, an error is returned
+//   - If cluster hashes match, the DAG loaded from the manifest file is returned
+//
+// It returns an error if the DAG can't be loaded from either file.
 func LoadDAG(manifestFile, legacyLockFile string, lockCallback func(cluster.Lock) error) (*manifestpb.SignedMutationList, error) {
-	b, err := os.ReadFile(manifestFile)
-	if err == nil {
-		rawDAG := new(manifestpb.SignedMutationList)
-		if err := proto.Unmarshal(b, rawDAG); err != nil {
-			return rawDAG, errors.Wrap(err, "unmarshal cluster manifest")
+	dagManifest, errManifest := loadDAGFromManifest(manifestFile)
+	dagLegacy, errLegacy := loadDAGFromLegacyLock(legacyLockFile, lockCallback)
+
+	switch {
+	case errManifest == nil && errLegacy == nil:
+		// Both files loaded successfully, check if cluster hashes match
+		if err := clusterHashesMatch(dagManifest, dagLegacy); err != nil {
+			return nil, err
 		}
 
-		return rawDAG, nil
+		return dagManifest, nil
+	case errManifest == nil:
+		// Cluster manifest loaded successfully
+		return dagManifest, nil
+	case errLegacy == nil:
+		// Legacy cluster lock loaded successfully
+		return dagLegacy, nil
+	default:
+		// None of the files were loaded successfully, so return an error
+		return nil, errors.New("couldn't load cluster dag from either manifest or legacy lock file", z.Err(errManifest), z.Err(errLegacy))
+	}
+}
+
+// loadDAGFromManifest returns the raw DAG from cluster manifest file on disk.
+func loadDAGFromManifest(filename string) (*manifestpb.SignedMutationList, error) {
+	b, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, errors.Wrap(err, "read manifest file")
 	}
 
-	rawDAG, err := loadLegacyLock(legacyLockFile, lockCallback)
-	if err != nil {
-		return nil, errors.Wrap(err, "load legacy lock")
+	rawDAG := new(manifestpb.SignedMutationList)
+	if err := proto.Unmarshal(b, rawDAG); err != nil {
+		return rawDAG, errors.Wrap(err, "unmarshal cluster manifest")
 	}
 
 	return rawDAG, nil
 }
 
-// loadLegacyLock returns the raw DAG from a legacy lock file on disk.
+// loadDAGFromLegacyLock returns the raw DAG from legacy lock file on disk.
 // It also accepts a callback that is called on the loaded lock.
-func loadLegacyLock(filename string, lockCallback func(cluster.Lock) error) (*manifestpb.SignedMutationList, error) {
+func loadDAGFromLegacyLock(filename string, lockCallback func(cluster.Lock) error) (*manifestpb.SignedMutationList, error) {
 	b, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, errors.Wrap(err, "read legacy lock file")
@@ -76,4 +107,25 @@ func loadLegacyLock(filename string, lockCallback func(cluster.Lock) error) (*ma
 	}
 
 	return &manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{legacy}}, nil
+}
+
+// clusterHashesMatch returns an error if the cluster hashes of the provided DAGs don't match.
+func clusterHashesMatch(dagManifest, dagLegacy *manifestpb.SignedMutationList) error {
+	clusterManifest, err := Materialise(dagManifest)
+	if err != nil {
+		return errors.Wrap(err, "materialise dag")
+	}
+
+	clusterLegacy, err := Materialise(dagLegacy)
+	if err != nil {
+		return errors.Wrap(err, "materialise dag")
+	}
+
+	if !bytes.Equal(clusterManifest.InitialMutationHash, clusterLegacy.InitialMutationHash) {
+		return errors.New("manifest and legacy cluster hashes don't match",
+			z.Str("manifest_hash", hex.EncodeToString(clusterManifest.InitialMutationHash)),
+			z.Str("legacy_hash", hex.EncodeToString(clusterLegacy.InitialMutationHash)))
+	}
+
+	return nil
 }
