@@ -90,7 +90,7 @@ jobs:
       - run: |
           echo "CHARON_REPO=$(pwd)" >> $GITHUB_ENV
           echo "DOCKER_BUILDKIT=1" >> $GITHUB_ENV
-      - run: go test -race github.com/obolnetwork/charon/testutil/compose/fuzz -v -beacon-fuzz -sudo-perms -timeout=20m -log-dir=.
+      - run: go test -race github.com/obolnetwork/charon/testutil/compose/fuzz -v -fuzz -sudo-perms -timeout=20m -log-dir=.
       - uses: actions/upload-artifact@v3
         if: always()
         with:
