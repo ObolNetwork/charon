@@ -19,7 +19,7 @@ var version = "v0.17-rc"
 
 // Version is the branch version of the codebase.
 //   - Main branch: v0.X-dev
-//   - Release branch: v0.X-rc
+//   - Release branch: v0.Y-rc
 var Version, _ = Parse(version) // Error is caught in tests.
 
 // Supported returns the supported minor versions in order of precedence.
