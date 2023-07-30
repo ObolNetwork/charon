@@ -80,7 +80,7 @@ func newMetricSubmitter() func(pubkey core.PubKey, totalBal eth2p0.Gwei, status 
 	return func(pubkey core.PubKey, totalBal eth2p0.Gwei, status string) {
 		balanceGauge.WithLabelValues(string(pubkey), pubkey.String()).Set(float64(totalBal))
 
-		statusGauge.ResetMatching(string(pubkey), pubkey.String())
+		statusGauge.Reset(string(pubkey), pubkey.String())
 		statusGauge.WithLabelValues(string(pubkey), pubkey.String(), status).Set(1)
 	}
 }

@@ -224,7 +224,7 @@ func beaconNodeVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, clock 
 			return
 		}
 
-		beaconNodeVersionGauge.ResetAll()
+		beaconNodeVersionGauge.Reset()
 		beaconNodeVersionGauge.WithLabelValues(version).Set(1)
 	}
 

@@ -32,7 +32,7 @@ func TestResetGaugeVec(t *testing.T) {
 	testResetGauge.WithLabelValues("2", "b").Set(2)
 	assertVecLen(t, registry, resetTest, 2)
 
-	testResetGauge.ResetAll()
+	testResetGauge.Reset()
 	assertVecLen(t, registry, resetTest, 0)
 
 	testResetGauge.WithLabelValues("3", "c").Set(3)
@@ -47,10 +47,10 @@ func TestResetGaugeVec(t *testing.T) {
 	testResetGauge.WithLabelValues("4", "z").Set(4)
 	assertVecLen(t, registry, resetTest, 4)
 
-	testResetGauge.ResetMatching("3", "c")
+	testResetGauge.Reset("3", "c")
 	assertVecLen(t, registry, resetTest, 3)
 
-	testResetGauge.ResetMatching("3")
+	testResetGauge.Reset("3")
 	assertVecLen(t, registry, resetTest, 1)
 }
 

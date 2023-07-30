@@ -266,9 +266,9 @@ func newMetricsSubmitter() metricSubmitter {
 		}
 		// TODO(corver): Validate version and githash with regex
 
-		peerVersion.ResetMatching(peerName)
+		peerVersion.Reset(peerName)
 		peerVersion.WithLabelValues(peerName, version).Set(1)
-		peerGitHash.ResetMatching(peerName)
+		peerGitHash.Reset(peerName)
 		peerGitHash.WithLabelValues(peerName, gitHash).Set(1)
 	}
 }

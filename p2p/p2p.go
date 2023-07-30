@@ -328,7 +328,7 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 					}
 				}
 
-				peerStreamGauge.ResetAll() // Reset stream gauge to clear previously set protocols.
+				peerStreamGauge.Reset() // Reset stream gauge to clear previously set protocols.
 				for _, pID := range peerIDs {
 					for _, typ := range []string{addrTypeRelay, addrTypeDirect} {
 						cKey := connKey{PeerName: PeerName(pID), Type: typ}
