@@ -217,23 +217,15 @@ func beaconNodeSyncing(ctx context.Context, eth2Cl eth2client.NodeSyncingProvide
 func beaconNodeVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
 	nodeVersionTicker := clock.NewTicker(10 * time.Minute)
 
-	// TODO(corver): Refactor to use ResetGauge.
-	var prevNodeVersion string
 	setNodeVersion := func() {
 		version, err := eth2Cl.NodeVersion(ctx)
 		if err != nil {
 			log.Error(ctx, "Failed to get beacon node version", err)
 			return
 		}
-		if version == prevNodeVersion {
-			return
-		}
 
-		if prevNodeVersion != "" {
-			beaconNodeVersionGauge.WithLabelValues(prevNodeVersion).Set(0)
-		}
+		beaconNodeVersionGauge.ResetAll()
 		beaconNodeVersionGauge.WithLabelValues(version).Set(1)
-		prevNodeVersion = version
 	}
 
 	go func() {

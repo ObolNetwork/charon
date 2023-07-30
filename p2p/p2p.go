@@ -307,7 +307,6 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 				return
 			case <-ticker.C:
 				// Instrument connection and stream counts.
-				peerStreamGauge.Reset() // Reset stream gauge to clear previously set protocols.
 				counts := make(map[connKey]int)
 				streams := make(map[streamKey]int)
 
@@ -328,6 +327,8 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 						streams[sKey]++
 					}
 				}
+
+				peerStreamGauge.ResetAll() // Reset stream gauge to clear previously set protocols.
 				for _, pID := range peerIDs {
 					for _, typ := range []string{addrTypeRelay, addrTypeDirect} {
 						cKey := connKey{PeerName: PeerName(pID), Type: typ}

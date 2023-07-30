@@ -43,8 +43,29 @@ func (g *ResetGaugeVec) WithLabelValues(lvs ...string) prometheus.Gauge {
 	return g.inner.WithLabelValues(lvs...)
 }
 
-// Reset deletes all previously set labels.
-func (g *ResetGaugeVec) Reset() {
+// ResetMatching deletes all previously set labels that match all the given label values.
+func (g *ResetGaugeVec) ResetMatching(lvs ...string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	for label := range g.labels {
+		foundAll := true
+		for _, check := range lvs {
+			if !strings.Contains(label, check) {
+				foundAll = false
+				break
+			}
+		}
+
+		if foundAll {
+			g.inner.DeleteLabelValues(strings.Split(label, separator)...)
+			delete(g.labels, label)
+		}
+	}
+}
+
+// ResetAll deletes all previously set labels.
+func (g *ResetGaugeVec) ResetAll() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 

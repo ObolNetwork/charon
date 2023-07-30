@@ -17,7 +17,7 @@ var (
 		ConstLabels: nil,
 	}, []string{"peer"})
 
-	peerVersion = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	peerVersion = promauto.NewResetGaugeVec(prometheus.GaugeOpts{
 		Namespace:   "app",
 		Subsystem:   "peerinfo",
 		Name:        "version",
@@ -25,7 +25,7 @@ var (
 		ConstLabels: nil,
 	}, []string{"peer", "version"})
 
-	peerGitHash = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	peerGitHash = promauto.NewResetGaugeVec(prometheus.GaugeOpts{
 		Namespace:   "app",
 		Subsystem:   "peerinfo",
 		Name:        "git_commit",

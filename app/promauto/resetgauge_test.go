@@ -16,22 +16,41 @@ const resetTest = "reset_test"
 var testResetGauge = promauto.NewResetGaugeVec(prometheus.GaugeOpts{
 	Name: resetTest,
 	Help: "",
-}, []string{"label"})
+}, []string{"label0", "label1"})
 
 func TestResetGaugeVec(t *testing.T) {
 	registry, err := promauto.NewRegistry(nil)
 	require.NoError(t, err)
 
-	testResetGauge.WithLabelValues("1").Set(1)
+	testResetGauge.WithLabelValues("1", "a").Set(0)
 	assertVecLen(t, registry, resetTest, 1)
 
-	testResetGauge.WithLabelValues("2").Set(2)
+	// Same labels, should not increase length
+	testResetGauge.WithLabelValues("1", "a").Set(1)
+	assertVecLen(t, registry, resetTest, 1)
+
+	testResetGauge.WithLabelValues("2", "b").Set(2)
 	assertVecLen(t, registry, resetTest, 2)
 
-	testResetGauge.Reset()
+	testResetGauge.ResetAll()
 	assertVecLen(t, registry, resetTest, 0)
 
-	testResetGauge.WithLabelValues("3").Set(3)
+	testResetGauge.WithLabelValues("3", "c").Set(3)
+	assertVecLen(t, registry, resetTest, 1)
+
+	testResetGauge.WithLabelValues("3", "d").Set(3)
+	assertVecLen(t, registry, resetTest, 2)
+
+	testResetGauge.WithLabelValues("3", "e").Set(3)
+	assertVecLen(t, registry, resetTest, 3)
+
+	testResetGauge.WithLabelValues("4", "z").Set(4)
+	assertVecLen(t, registry, resetTest, 4)
+
+	testResetGauge.ResetMatching("3", "c")
+	assertVecLen(t, registry, resetTest, 3)
+
+	testResetGauge.ResetMatching("3")
 	assertVecLen(t, registry, resetTest, 1)
 }
 

@@ -49,7 +49,7 @@ var (
 		Help:      "Total balance of a validator by public key",
 	}, []string{"pubkey_full", "pubkey"})
 
-	statusGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	statusGauge = promauto.NewResetGaugeVec(prometheus.GaugeOpts{
 		Namespace: "core",
 		Subsystem: "scheduler",
 		Name:      "validator_status",
@@ -77,16 +77,10 @@ func instrumentDuty(duty core.Duty, defSet core.DutyDefinitionSet) {
 
 // newMetricSubmitter returns a function that sets validator balance and status metric.
 func newMetricSubmitter() func(pubkey core.PubKey, totalBal eth2p0.Gwei, status string) {
-	// TODO(corver): Refactor to use ResetGauge.
-	prevStatus := make(map[core.PubKey]string)
-
 	return func(pubkey core.PubKey, totalBal eth2p0.Gwei, status string) {
 		balanceGauge.WithLabelValues(string(pubkey), pubkey.String()).Set(float64(totalBal))
-		statusGauge.WithLabelValues(string(pubkey), pubkey.String(), status).Set(1)
 
-		if prev, ok := prevStatus[pubkey]; ok && prev != status { // Validator status changed
-			statusGauge.WithLabelValues(string(pubkey), pubkey.String(), prev).Set(0)
-		}
-		prevStatus[pubkey] = status
+		statusGauge.ResetMatching(string(pubkey), pubkey.String())
+		statusGauge.WithLabelValues(string(pubkey), pubkey.String(), status).Set(1)
 	}
 }
