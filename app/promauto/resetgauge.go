@@ -50,17 +50,19 @@ func (g *ResetGaugeVec) Reset(lvs ...string) {
 	defer g.mu.Unlock()
 
 	for label := range g.labels {
-		foundAll := true
+		match := true
 		for _, check := range lvs {
 			if !strings.Contains(label, check) {
-				foundAll = false
+				match = false
 				break
 			}
 		}
 
-		if foundAll {
-			g.inner.DeleteLabelValues(strings.Split(label, separator)...)
-			delete(g.labels, label)
+		if !match {
+			continue
 		}
+
+		g.inner.DeleteLabelValues(strings.Split(label, separator)...)
+		delete(g.labels, label)
 	}
 }
