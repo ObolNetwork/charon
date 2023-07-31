@@ -4,6 +4,7 @@ package bcast
 
 import (
 	"context"
+	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/protobuf/proto"
@@ -14,6 +15,7 @@ const (
 	protocolIDPrefix = "/charon/dkg/bcast/1.0.0"
 	protocolIDSig    = protocolIDPrefix + "/sig"
 	protocolIDMsg    = protocolIDPrefix + "/msg"
+	receiveTimeout   = time.Minute // Allow for peers to be out of sync, with some sending messages much earlier and having to wait.
 )
 
 // hashFunc is a function that hashes a any-wrapped protobuf message.

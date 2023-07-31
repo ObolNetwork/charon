@@ -5,6 +5,7 @@ package p2p_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
@@ -18,6 +19,24 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
 )
+
+func TestWithReceiveTimeout(t *testing.T) {
+	server := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
+
+	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), time.Hour)
+
+	protocolID := protocol.ID("testprotocol")
+	p2p.RegisterHandler("test", server, protocolID, func() proto.Message { return new(pbv1.Duty) },
+		func(ctx context.Context, peerID peer.ID, req proto.Message) (proto.Message, bool, error) {
+			require.Error(t, ctx.Err()) // Assert the context has been closed already since 0 timeout.
+			return nil, false, nil
+		}, p2p.WithReceiveTimeout(0))
+
+	err := p2p.SendReceive(context.Background(), client, server.ID(), new(pbv1.Duty), new(pbv1.Duty), protocolID)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "no or zero response received")
+}
 
 func TestSend(t *testing.T) {
 	var (

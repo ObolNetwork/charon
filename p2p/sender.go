@@ -21,9 +21,10 @@ import (
 )
 
 const (
-	senderHysteresis = 3
-	senderBuffer     = senderHysteresis + 1
-	maxMsgSize       = 128 << 20 // 128MB
+	senderHysteresis  = 3
+	senderBuffer      = senderHysteresis + 1
+	maxMsgSize        = 128 << 20 // 128MB
+	defaultRcvTimeout = time.Second * 5
 )
 
 // SendFunc is an abstract function responsible for sending libp2p messages.
@@ -147,6 +148,14 @@ type sendRecvOpts struct {
 	writersByProtocol map[protocol.ID]func(network.Stream) pbio.Writer
 	readersByProtocol map[protocol.ID]func(network.Stream) pbio.Reader
 	rttCallback       func(time.Duration)
+	receiveTimeout    time.Duration
+}
+
+// WithReceiveTimeout returns an option for SendReceive that sets a timeout for handling incoming messages.
+func WithReceiveTimeout(timeout time.Duration) func(*sendRecvOpts) {
+	return func(opts *sendRecvOpts) {
+		opts.receiveTimeout = timeout
+	}
 }
 
 // WithSendReceiveRTT returns an option for SendReceive that sets a callback for the RTT.
@@ -175,7 +184,8 @@ func defaultSendRecvOpts(pID protocol.ID) sendRecvOpts {
 		readersByProtocol: map[protocol.ID]func(s network.Stream) pbio.Reader{
 			pID: func(s network.Stream) pbio.Reader { return legacyReadWriter{s} },
 		},
-		rttCallback: func(time.Duration) {},
+		rttCallback:    func(time.Duration) {},
+		receiveTimeout: defaultRcvTimeout,
 	}
 }
 
