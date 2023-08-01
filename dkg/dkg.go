@@ -183,7 +183,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.Wrap(err, "get peer IDs")
 	}
 
-	ex := newExchanger(tcpNode, nodeIdx.PeerIdx, peerIds, def.NumValidators)
+	ex := newExchanger(ctx, tcpNode, nodeIdx.PeerIdx, peerIds, def.NumValidators, []sigType{
+		sigLock,
+		sigDepositData,
+		sigValidatorRegistration,
+	})
 
 	// Register Frost libp2p handlers
 	peerMap := make(map[peer.ID]cluster.NodeIdx)
