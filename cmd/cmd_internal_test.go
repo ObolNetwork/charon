@@ -135,7 +135,9 @@ func TestCmdFlags(t *testing.T) {
 				BeaconNodeAddrs:        []string{"http://beacon.node"},
 				JaegerAddr:             "",
 				JaegerService:          "charon",
-				P2PFuzz:                true,
+				TestConfig: app.TestConfig{
+					P2PFuzz: true,
+				},
 			},
 		},
 		{

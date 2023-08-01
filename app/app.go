@@ -88,7 +88,6 @@ type Config struct {
 	SyntheticBlockProposals bool
 	BuilderAPI              bool
 	SimnetBMockFuzz         bool
-	P2PFuzz                 bool
 
 	TestConfig TestConfig
 }
@@ -117,6 +116,9 @@ type TestConfig struct {
 	TCPNodeCallback func(host.Host)
 	// LibP2POpts provide test specific libp2p options.
 	LibP2POpts []libp2p.Option
+	// P2PFuzz enables peer to peer fuzzing of charon nodes in a cluster.
+	// If enabled, this node will send fuzzed data over p2p to its peers in the cluster.
+	P2PFuzz bool
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -223,7 +225,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	// Enable p2p fuzzing if --p2p-fuzz is set.
-	if conf.P2PFuzz {
+	if conf.TestConfig.P2PFuzz {
 		p2p.SetFuzzerDefaultsUnsafe()
 	}
 
