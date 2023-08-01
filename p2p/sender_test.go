@@ -35,7 +35,7 @@ func TestWithReceiveTimeout(t *testing.T) {
 
 	err := p2p.SendReceive(context.Background(), client, server.ID(), new(pbv1.Duty), new(pbv1.Duty), protocolID)
 	require.Error(t, err)
-	require.ErrorContains(t, err, "no or zero response received")
+	require.ErrorContains(t, err, "read response: EOF")
 }
 
 func TestWithSendTimeout(t *testing.T) {
