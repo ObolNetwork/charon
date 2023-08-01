@@ -29,14 +29,12 @@ func newServer(tcpNode host.Host, signFunc signFunc, verifyFunc verifyFunc) *ser
 	p2p.RegisterHandler("bcast", tcpNode, protocolIDSig,
 		func() proto.Message { return new(pb.BCastSigRequest) },
 		s.handleSigRequest,
-		p2p.WithDelimitedProtocol(protocolIDSig),
 		p2p.WithReceiveTimeout(receiveTimeout),
 	)
 
 	p2p.RegisterHandler("bcast", tcpNode, protocolIDMsg,
 		func() proto.Message { return new(pb.BCastMessage) },
 		s.handleMessage,
-		p2p.WithDelimitedProtocol(protocolIDMsg),
 		p2p.WithReceiveTimeout(receiveTimeout),
 	)
 

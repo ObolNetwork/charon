@@ -21,107 +21,12 @@ import (
 
 func TestSendReceive(t *testing.T) {
 	var (
-		undelimID = protocol.ID("undelimited")
-		delimID   = protocol.ID("delimited")
-	)
-
-	tests := []struct {
-		name               string
-		delimitedClient    bool
-		delimitedServer    bool
-		clientBasicProtoID protocol.ID
-		serverBasicProtoID protocol.ID
-	}{
-		{
-			name:               "non-delimited client and server",
-			delimitedClient:    false,
-			delimitedServer:    false,
-			clientBasicProtoID: undelimID,
-			serverBasicProtoID: undelimID,
-		},
-		{
-			name:               "delimited client and server",
-			delimitedClient:    true,
-			delimitedServer:    true,
-			clientBasicProtoID: undelimID,
-			serverBasicProtoID: undelimID,
-		},
-		{
-			name:               "delimited client and non-delimited server",
-			delimitedClient:    true,
-			delimitedServer:    false,
-			clientBasicProtoID: undelimID,
-			serverBasicProtoID: undelimID,
-		},
-		{
-			name:               "non-delimited client and delimited server",
-			delimitedClient:    false,
-			delimitedServer:    true,
-			clientBasicProtoID: undelimID,
-			serverBasicProtoID: undelimID,
-		},
-		{
-			name:               "delimited only client and delimited server",
-			delimitedClient:    true,
-			delimitedServer:    true,
-			clientBasicProtoID: delimID,
-			serverBasicProtoID: undelimID,
-		},
-		{
-			name:               "delimited client and delimited only server",
-			delimitedClient:    true,
-			delimitedServer:    true,
-			clientBasicProtoID: undelimID,
-			serverBasicProtoID: delimID,
-		},
-		{
-			name:               "delimited only client and delimited only server",
-			delimitedClient:    true,
-			delimitedServer:    true,
-			clientBasicProtoID: delimID,
-			serverBasicProtoID: delimID,
-		},
-		{
-			name:               "delimited only client and non-delimited server, protocols not supported",
-			delimitedClient:    true,
-			delimitedServer:    false,
-			clientBasicProtoID: delimID,
-			serverBasicProtoID: undelimID,
-		},
-		{
-			name:               "non-delimited client and delimited only server, protocols not supported",
-			delimitedClient:    false,
-			delimitedServer:    true,
-			clientBasicProtoID: undelimID,
-			serverBasicProtoID: delimID,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			testSendReceive(t, test.clientBasicProtoID, test.serverBasicProtoID, delimID, test.delimitedClient, test.delimitedServer)
-		})
-	}
-}
-
-func testSendReceive(t *testing.T, clientBasicProtoID, serverBasicProtoID, delimitedID protocol.ID, delimitedClient, delimitedServer bool) {
-	t.Helper()
-
-	var (
+		pID         = protocol.ID("delimited")
 		errNegative = errors.New("negative slot")
 		ctx         = context.Background()
 		server      = testutil.CreateHost(t, testutil.AvailableAddr(t))
 		client      = testutil.CreateHost(t, testutil.AvailableAddr(t))
 	)
-
-	var serverOpt []p2p.SendRecvOption
-	if delimitedServer {
-		serverOpt = append(serverOpt, p2p.WithDelimitedProtocol(delimitedID))
-	}
-
-	var clientOpt []p2p.SendRecvOption
-	if delimitedClient {
-		clientOpt = append(clientOpt, p2p.WithDelimitedProtocol(delimitedID))
-	}
 
 	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
 
@@ -129,7 +34,7 @@ func testSendReceive(t *testing.T, clientBasicProtoID, serverBasicProtoID, delim
 	//  - Errors if slot is negative
 	//  - Echos the duty request if slot is even
 	//  - Returns nothing is slot is odd
-	p2p.RegisterHandler("server", server, serverBasicProtoID,
+	p2p.RegisterHandler("server", server, pID,
 		func() proto.Message { return new(pbv1.Duty) },
 		func(ctx context.Context, peerID peer.ID, req proto.Message) (proto.Message, bool, error) {
 			log.Info(ctx, "See protocol logging field")
@@ -146,44 +51,18 @@ func testSendReceive(t *testing.T, clientBasicProtoID, serverBasicProtoID, delim
 				return nil, false, nil
 			}
 		},
-		serverOpt...,
 	)
 
 	sendReceive := func(slot int64) (*pbv1.Duty, error) {
 		resp := new(pbv1.Duty)
-		err := p2p.SendReceive(ctx, client, server.ID(), &pbv1.Duty{Slot: slot}, resp, clientBasicProtoID, clientOpt...)
+		err := p2p.SendReceive(ctx, client, server.ID(), &pbv1.Duty{Slot: slot}, resp, pID)
 
 		return resp, err
 	}
 
-	protocolNotSupported := func() bool {
-		// Client supports ONLY delimited protocol while Server supports ONLY non-delimited protocol.
-		if clientBasicProtoID == delimitedID && !delimitedServer {
-			return true
-		}
-
-		// Server supports ONLY delimited protocol while Client supports ONLY non-delimited protocol.
-		if serverBasicProtoID == delimitedID && !delimitedClient {
-			return true
-		}
-
-		return false
-	}
-
-	if protocolNotSupported() {
-		_, err := sendReceive(100)
-		require.ErrorContains(t, err, "protocols not supported")
-
-		return
-	}
-
 	t.Run("server error", func(t *testing.T) {
 		_, err := sendReceive(-1)
-		if delimitedClient && delimitedServer {
-			require.ErrorContains(t, err, "read response: EOF")
-		} else {
-			require.ErrorContains(t, err, "no or zero response received")
-		}
+		require.ErrorContains(t, err, "read response: EOF")
 	})
 
 	t.Run("ok", func(t *testing.T) {
@@ -195,10 +74,6 @@ func testSendReceive(t *testing.T, clientBasicProtoID, serverBasicProtoID, delim
 
 	t.Run("empty response", func(t *testing.T) {
 		_, err := sendReceive(101)
-		if delimitedClient && delimitedServer {
-			require.ErrorContains(t, err, "read response: EOF")
-		} else {
-			require.ErrorContains(t, err, "no or zero response received")
-		}
+		require.ErrorContains(t, err, "read response: EOF")
 	})
 }
