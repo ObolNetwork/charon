@@ -15,7 +15,8 @@ const (
 	protocolIDPrefix = "/charon/dkg/bcast/1.0.0"
 	protocolIDSig    = protocolIDPrefix + "/sig"
 	protocolIDMsg    = protocolIDPrefix + "/msg"
-	receiveTimeout   = time.Minute // Allow for peers to be out of sync, with some sending messages much earlier and having to wait.
+	receiveTimeout   = time.Minute                 // Allow for peers to be out of sync, with some sending messages much earlier and having to wait.
+	sendTimeout      = time.Minute + 2*time.Second // Allow for server to timeout first.
 )
 
 // hashFunc is a function that hashes a any-wrapped protobuf message.

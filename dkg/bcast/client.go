@@ -133,7 +133,8 @@ func (c *client) Broadcast(ctx context.Context, msgID string, msg proto.Message)
 			continue // Skip self.
 		}
 
-		err := c.sendFunc(ctx, c.tcpNode, protocolIDMsg, pID, bcastMsg, p2p.WithDelimitedProtocol(protocolIDMsg))
+		err := c.sendFunc(ctx, c.tcpNode, protocolIDMsg, pID, bcastMsg,
+			p2p.WithDelimitedProtocol(protocolIDMsg), p2p.WithSendTimeout(sendTimeout))
 		if err != nil {
 			return errors.Wrap(err, "send message")
 		}
