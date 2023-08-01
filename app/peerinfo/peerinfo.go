@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"sync"
 	"testing"
 	"time"
 
@@ -241,13 +240,6 @@ func supportedPeerVersion(peerVersion string, supported []version.SemVer) error 
 
 // newMetricsSubmitter returns a prometheus metric submitter.
 func newMetricsSubmitter() metricSubmitter {
-	var (
-		mu sync.Mutex
-		// TODO(corver): Refactor to use ResetGauge.
-		prevVersions  = make(map[string]string)
-		prevGitHashes = make(map[string]string)
-	)
-
 	return func(peerID peer.ID, clockOffset time.Duration, version string, gitHash string,
 		startTime time.Time,
 	) {
@@ -274,20 +266,9 @@ func newMetricsSubmitter() metricSubmitter {
 		}
 		// TODO(corver): Validate version and githash with regex
 
+		peerVersion.Reset(peerName)
 		peerVersion.WithLabelValues(peerName, version).Set(1)
+		peerGitHash.Reset(peerName)
 		peerGitHash.WithLabelValues(peerName, gitHash).Set(1)
-
-		// Clear previous metrics if changed
-		mu.Lock()
-		defer mu.Unlock()
-
-		if prev, ok := prevVersions[peerName]; ok && version != prev {
-			peerVersion.WithLabelValues(peerName, prev).Set(0)
-		}
-		if prev, ok := prevGitHashes[peerName]; ok && gitHash != prev {
-			peerGitHash.WithLabelValues(peerName, prev).Set(0)
-		}
-		prevVersions[peerName] = version
-		prevGitHashes[peerName] = gitHash
 	}
 }
