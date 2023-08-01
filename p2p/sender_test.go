@@ -38,6 +38,24 @@ func TestWithReceiveTimeout(t *testing.T) {
 	require.ErrorContains(t, err, "no or zero response received")
 }
 
+func TestWithSendTimeout(t *testing.T) {
+	server := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
+
+	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), time.Hour)
+
+	protocolID := protocol.ID("testprotocol")
+	p2p.RegisterHandler("test", server, protocolID, func() proto.Message { return new(pbv1.Duty) },
+		func(ctx context.Context, peerID peer.ID, req proto.Message) (proto.Message, bool, error) {
+			return nil, false, nil
+		})
+
+	err := p2p.SendReceive(context.Background(), client, server.ID(),
+		new(pbv1.Duty), new(pbv1.Duty), protocolID, p2p.WithSendTimeout(0))
+	require.Error(t, err)
+	require.ErrorContains(t, err, "deadline")
+}
+
 func TestSend(t *testing.T) {
 	var (
 		undelimID = protocol.ID("undelimited")
