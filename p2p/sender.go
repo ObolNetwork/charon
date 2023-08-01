@@ -26,6 +26,11 @@ const (
 	maxMsgSize       = 128 << 20 // 128MB
 )
 
+var (
+	defaultWriterFunc = func(s network.Stream) pbio.Writer { return legacyReadWriter{s} }
+	defaultReaderFunc = func(s network.Stream) pbio.Reader { return legacyReadWriter{s} }
+)
+
 // SendFunc is an abstract function responsible for sending libp2p messages.
 type SendFunc func(context.Context, host.Host, protocol.ID, peer.ID, proto.Message, ...SendRecvOption) error
 
@@ -165,15 +170,29 @@ func WithDelimitedProtocol(pID protocol.ID) func(*sendRecvOpts) {
 	}
 }
 
+// SetFuzzerDefaultsUnsafe sets default reader and writer functions to fuzzed versions of the same if p2p fuzz is enabled.
+//
+// The fuzzReaderWriter is responsible for creating a customized reader and writer for each network stream
+// associated with a specific protocol. The reader and writer implement the pbio.Reader and pbio.Writer interfaces respectively
+// respectively, from the "pbio" package.
+func SetFuzzerDefaultsUnsafe() {
+	defaultWriterFunc = func(s network.Stream) pbio.Writer {
+		return fuzzReaderWriter{w: pbio.NewDelimitedWriter(s)}
+	}
+	defaultReaderFunc = func(s network.Stream) pbio.Reader {
+		return fuzzReaderWriter{}
+	}
+}
+
 // defaultSendRecvOpts returns the default sendRecvOpts, it uses the legacy writers and noop rtt callback.
 func defaultSendRecvOpts(pID protocol.ID) sendRecvOpts {
 	return sendRecvOpts{
 		protocols: []protocol.ID{pID},
 		writersByProtocol: map[protocol.ID]func(s network.Stream) pbio.Writer{
-			pID: func(s network.Stream) pbio.Writer { return legacyReadWriter{s} },
+			pID: defaultWriterFunc,
 		},
 		readersByProtocol: map[protocol.ID]func(s network.Stream) pbio.Reader{
-			pID: func(s network.Stream) pbio.Reader { return legacyReadWriter{s} },
+			pID: defaultReaderFunc,
 		},
 		rttCallback: func(time.Duration) {},
 	}

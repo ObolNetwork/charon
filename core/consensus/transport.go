@@ -140,8 +140,6 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 }
 
 // ProcessReceives processes received messages from the outer buffer until the context is closed.
-//
-
 func (t *transport) ProcessReceives(ctx context.Context, outerBuffer chan msg) {
 	for {
 		select {
