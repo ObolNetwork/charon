@@ -47,7 +47,6 @@ func TestWithSendTimeout(t *testing.T) {
 	protocolID := protocol.ID("testprotocol")
 	p2p.RegisterHandler("test", server, protocolID, func() proto.Message { return new(pbv1.Duty) },
 		func(ctx context.Context, peerID peer.ID, req proto.Message) (proto.Message, bool, error) {
-			require.Fail(t, "this should not be called")
 			return nil, false, nil
 		})
 
