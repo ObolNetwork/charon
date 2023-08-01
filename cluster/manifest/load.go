@@ -70,12 +70,12 @@ func LoadDAG(manifestFile, legacyLockFile string, lockCallback func(cluster.Lock
 func loadDAGFromManifest(filename string) (*manifestpb.SignedMutationList, error) {
 	b, err := os.ReadFile(filename)
 	if err != nil {
-		return nil, errors.Wrap(err, "read manifest file")
+		return nil, errors.Wrap(err, "read manifest file", z.Str("file", filename))
 	}
 
 	rawDAG := new(manifestpb.SignedMutationList)
 	if err := proto.Unmarshal(b, rawDAG); err != nil {
-		return rawDAG, errors.Wrap(err, "unmarshal cluster manifest")
+		return rawDAG, errors.Wrap(err, "unmarshal cluster dag", z.Str("file", filename))
 	}
 
 	return rawDAG, nil
@@ -86,13 +86,13 @@ func loadDAGFromManifest(filename string) (*manifestpb.SignedMutationList, error
 func loadDAGFromLegacyLock(filename string, lockCallback func(cluster.Lock) error) (*manifestpb.SignedMutationList, error) {
 	b, err := os.ReadFile(filename)
 	if err != nil {
-		return nil, errors.Wrap(err, "read legacy lock file")
+		return nil, errors.Wrap(err, "read legacy lock file", z.Str("file", filename))
 	}
 
 	var lock cluster.Lock
 
 	if err := json.Unmarshal(b, &lock); err != nil {
-		return nil, errors.Wrap(err, "unmarshal legacy lock")
+		return nil, errors.Wrap(err, "unmarshal legacy lock", z.Str("file", filename))
 	}
 
 	if lockCallback != nil {
@@ -111,20 +111,20 @@ func loadDAGFromLegacyLock(filename string, lockCallback func(cluster.Lock) erro
 
 // clusterHashesMatch returns an error if the cluster hashes of the provided DAGs don't match.
 func clusterHashesMatch(dagManifest, dagLegacy *manifestpb.SignedMutationList) error {
-	clusterManifest, err := Materialise(dagManifest)
+	hashManifest, err := Hash(dagManifest.Mutations[0])
 	if err != nil {
 		return errors.Wrap(err, "materialise dag")
 	}
 
-	clusterLegacy, err := Materialise(dagLegacy)
+	hashLegacy, err := Hash(dagLegacy.Mutations[0])
 	if err != nil {
 		return errors.Wrap(err, "materialise dag")
 	}
 
-	if !bytes.Equal(clusterManifest.InitialMutationHash, clusterLegacy.InitialMutationHash) {
+	if !bytes.Equal(hashManifest, hashLegacy) {
 		return errors.New("manifest and legacy cluster hashes don't match",
-			z.Str("manifest_hash", hex.EncodeToString(clusterManifest.InitialMutationHash)),
-			z.Str("legacy_hash", hex.EncodeToString(clusterLegacy.InitialMutationHash)))
+			z.Str("manifest_hash", hex.EncodeToString(hashManifest)),
+			z.Str("legacy_hash", hex.EncodeToString(hashLegacy)))
 	}
 
 	return nil
