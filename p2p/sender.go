@@ -21,10 +21,11 @@ import (
 )
 
 const (
-	senderHysteresis  = 3
-	senderBuffer      = senderHysteresis + 1
-	maxMsgSize        = 128 << 20 // 128MB
-	defaultRcvTimeout = time.Second * 5
+	senderHysteresis   = 3
+	senderBuffer       = senderHysteresis + 1
+	maxMsgSize         = 128 << 20 // 128MB
+	defaultRcvTimeout  = time.Second * 5
+	defaultSendTimeout = defaultRcvTimeout + 2*time.Second // Allow for up to 1s hop latency (2s RTT)
 )
 
 var (
@@ -154,12 +155,20 @@ type sendRecvOpts struct {
 	readersByProtocol map[protocol.ID]func(network.Stream) pbio.Reader
 	rttCallback       func(time.Duration)
 	receiveTimeout    time.Duration
+	sendTimeout       time.Duration
 }
 
 // WithReceiveTimeout returns an option for SendReceive that sets a timeout for handling incoming messages.
 func WithReceiveTimeout(timeout time.Duration) func(*sendRecvOpts) {
 	return func(opts *sendRecvOpts) {
 		opts.receiveTimeout = timeout
+	}
+}
+
+// WithSendTimeout returns an option for SendReceive that sets a timeout for sending messages.
+func WithSendTimeout(timeout time.Duration) func(*sendRecvOpts) {
+	return func(opts *sendRecvOpts) {
+		opts.sendTimeout = timeout
 	}
 }
 
@@ -205,6 +214,7 @@ func defaultSendRecvOpts(pID protocol.ID) sendRecvOpts {
 		},
 		rttCallback:    func(time.Duration) {},
 		receiveTimeout: defaultRcvTimeout,
+		sendTimeout:    defaultSendTimeout,
 	}
 }
 
@@ -228,6 +238,9 @@ func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
 	s, err := tcpNode.NewStream(network.WithUseTransient(ctx, ""), peerID, o.protocols...)
 	if err != nil {
 		return errors.Wrap(err, "new stream", z.Any("protocols", o.protocols))
+	}
+	if err := s.SetDeadline(time.Now().Add(o.sendTimeout)); err != nil {
+		return errors.Wrap(err, "set deadline")
 	}
 
 	writeFunc, ok := o.writersByProtocol[s.Protocol()]
@@ -285,6 +298,9 @@ func Send(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID pe
 	s, err := tcpNode.NewStream(network.WithUseTransient(ctx, ""), peerID, o.protocols...)
 	if err != nil {
 		return errors.Wrap(err, "tcpNode stream")
+	}
+	if err := s.SetDeadline(time.Now().Add(o.sendTimeout)); err != nil {
+		return errors.Wrap(err, "set deadline")
 	}
 
 	writeFunc, ok := o.writersByProtocol[s.Protocol()]
