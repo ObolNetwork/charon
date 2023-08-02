@@ -166,15 +166,17 @@ func (e *exchanger) exchange(ctx context.Context, sigType sigType, set core.ParS
 	tick := time.NewTicker(50 * time.Millisecond)
 	defer tick.Stop()
 
-	for range tick.C {
-		// We are done when we have ParSignedData of all the DVs from all each peer
-		if data := e.sigData.get(sigType); data != nil {
-			return data, nil
+	for {
+		select {
+		case <-tick.C:
+			// We are done when we have ParSignedData of all the DVs from all each peer
+			if data := e.sigData.get(sigType); data != nil {
+				return data, nil
+			}
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		}
 	}
-
-	// should never happen
-	return nil, errors.New("no data for sigType", z.Int("sigType", int(sigType)))
 }
 
 // pushPsigs is responsible for writing partial signature data to sigChan obtained from other peers.
