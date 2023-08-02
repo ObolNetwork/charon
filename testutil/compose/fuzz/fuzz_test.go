@@ -17,18 +17,16 @@ import (
 	"github.com/obolnetwork/charon/testutil/compose"
 )
 
-//go:generate go test . -run=TestBeaconFuzz -integration -v
-
 var (
-	fuzz        = flag.Bool("fuzz", false, "Enable docker based integration test")
+	fuzzer      = flag.Bool("fuzzer", false, "Enables docker based fuzzer tests")
 	sudoPerms   = flag.Bool("sudo-perms", false, "Enables changing all compose artefacts file permissions using sudo.")
 	logDir      = flag.String("log-dir", "", "Specifies the directory to store test docker-compose logs. Empty defaults to stdout.")
-	fuzzTimeout = flag.Duration("timeout", time.Minute*10, "Specifies the duration of the beacon fuzz test.")
+	fuzzTimeout = flag.Duration("timeout", time.Minute*10, "Specifies the duration of the beacon fuzzer test.")
 )
 
 func TestBeaconFuzz(t *testing.T) {
-	if !*fuzz {
-		t.Skip("Skipping beacon fuzz integration test")
+	if !*fuzzer {
+		t.Skip("Skipping beacon fuzzer integration test")
 	}
 
 	dir, err := os.MkdirTemp("", "")
@@ -60,8 +58,8 @@ func TestBeaconFuzz(t *testing.T) {
 }
 
 func TestP2PFuzz(t *testing.T) {
-	if !*fuzz {
-		t.Skip("Skipping p2p fuzz integration test")
+	if !*fuzzer {
+		t.Skip("Skipping p2p fuzzer integration test")
 	}
 
 	dir, err := os.MkdirTemp("", "")
