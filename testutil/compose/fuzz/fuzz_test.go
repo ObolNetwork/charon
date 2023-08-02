@@ -58,3 +58,35 @@ func TestBeaconFuzz(t *testing.T) {
 	err = compose.Auto(context.Background(), autoConfig)
 	testutil.RequireNoError(t, err)
 }
+
+func TestP2PFuzz(t *testing.T) {
+	if !*fuzz {
+		t.Skip("Skipping p2p fuzz integration test")
+	}
+
+	dir, err := os.MkdirTemp("", "")
+	require.NoError(t, err)
+
+	conf := compose.NewDefaultConfig()
+	conf.DisableMonitoringPorts = true
+	conf.BuildLocal = true
+	conf.P2PFuzz = true
+	conf.ImageTag = "local"
+	conf.InsecureKeys = true
+	require.NoError(t, compose.WriteConfig(dir, conf))
+
+	os.Args = []string{"cobra.test"}
+
+	autoConfig := compose.AutoConfig{
+		Dir:          dir,
+		AlertTimeout: *fuzzTimeout,
+		SudoPerms:    *sudoPerms,
+	}
+
+	if *logDir != "" {
+		autoConfig.LogFile = path.Join(*logDir, fmt.Sprintf("%s.log", t.Name()))
+	}
+
+	err = compose.Auto(context.Background(), autoConfig)
+	testutil.RequireNoError(t, err)
+}

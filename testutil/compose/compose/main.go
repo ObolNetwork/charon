@@ -139,6 +139,7 @@ func newNewCmd() *cobra.Command {
 	insecureKeys := cmd.Flags().Bool("insecure-keys", conf.InsecureKeys, "To generate keys quickly.")
 	slotDuration := cmd.Flags().Duration("simnet-slot-duration", time.Second, "Configures slot duration in simnet beacon mock.")
 	fuzz := cmd.Flags().Bool("fuzz", false, "Configures simnet beaconmock to return fuzzed responses.")
+	p2pFuzz := cmd.Flags().Bool("p2p-fuzz", false, "Configures charon p2p network to return fuzzed responses of one of the nodes in the cluster.")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		conf.KeyGen = compose.KeyGen(*keygen)
@@ -153,6 +154,7 @@ func newNewCmd() *cobra.Command {
 		conf.InsecureKeys = *insecureKeys
 		conf.SlotDuration = *slotDuration
 		conf.Fuzz = *fuzz
+		conf.P2PFuzz = *p2pFuzz
 
 		if conf.BuildLocal {
 			conf.ImageTag = "local"
