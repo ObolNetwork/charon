@@ -83,12 +83,39 @@ func TestExchanger(t *testing.T) {
 	}
 
 	for i := 0; i < nodes; i++ {
-		ex := newExchanger(hosts[i], i, peers, dvs)
+		ex := newExchanger(hosts[i], i, peers, dvs, []sigType{
+			sigLock,
+			sigDepositData,
+			sigValidatorRegistration,
+		})
 		exchangers = append(exchangers, ex)
 	}
 
 	respChan := make(chan map[core.PubKey][]core.ParSignedData)
 	var wg sync.WaitGroup
+
+	// send multiple (supported) messages at the same time, showing that exchanger can exchange messages of various
+	// sigTypes concurrently
+	for i := 0; i < nodes; i++ {
+		wg.Add(2)
+		go func(node int) {
+			defer wg.Done()
+
+			data, err := exchangers[node].exchange(ctx, sigDepositData, dataToBeSent[node])
+			require.NoError(t, err)
+
+			respChan <- data
+		}(i)
+		go func(node int) {
+			defer wg.Done()
+
+			data, err := exchangers[node].exchange(ctx, sigValidatorRegistration, dataToBeSent[node])
+			require.NoError(t, err)
+
+			respChan <- data
+		}(i)
+	}
+
 	for i := 0; i < nodes; i++ {
 		wg.Add(1)
 		go func(node int) {
