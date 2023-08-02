@@ -57,21 +57,22 @@ func (stb *dataByPubkey) set(pubKey core.PubKey, sigType sigType, data []core.Pa
 }
 
 // get gets all the core.ParSignedData for a given core.PubKey.
-func (stb *dataByPubkey) get(sigType sigType) map[core.PubKey][]core.ParSignedData {
+func (stb *dataByPubkey) get(sigType sigType) (map[core.PubKey][]core.ParSignedData, bool) {
 	stb.lock.Lock()
 	defer stb.lock.Unlock()
 
-	if len(stb.store[sigType]) == 0 {
-		return nil
+	data, ok := stb.store[sigType]
+	if !ok {
+		return nil, ok
 	}
 
 	ret := make(map[core.PubKey][]core.ParSignedData)
 
-	for k, v := range stb.store[sigType] {
+	for k, v := range data {
 		ret[k] = v
 	}
 
-	return ret
+	return ret, ok
 }
 
 // sigData includes the fields obtained from sigdb when threshold is reached.
@@ -170,7 +171,7 @@ func (e *exchanger) exchange(ctx context.Context, sigType sigType, set core.ParS
 		select {
 		case <-tick.C:
 			// We are done when we have ParSignedData of all the DVs from all each peer
-			if data := e.sigData.get(sigType); data != nil {
+			if data, ok := e.sigData.get(sigType); ok {
 				return data, nil
 			}
 		case <-ctx.Done():
