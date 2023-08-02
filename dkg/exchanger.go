@@ -11,7 +11,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/parsigdb"
@@ -75,16 +74,8 @@ func (stb *dataByPubkey) get(sigType sigType) (map[core.PubKey][]core.ParSignedD
 	return ret, ok
 }
 
-// sigData includes the fields obtained from sigdb when threshold is reached.
-type sigData struct {
-	sigType sigType
-	pubkey  core.PubKey
-	psigs   []core.ParSignedData
-}
-
 // exchanger is responsible for exchanging partial signatures between peers on libp2p.
 type exchanger struct {
-	sigChan  chan sigData
 	sigex    *parsigex.ParSigEx
 	sigdb    *parsigdb.MemDB
 	numVals  int
@@ -92,7 +83,7 @@ type exchanger struct {
 	sigData  dataByPubkey
 }
 
-func newExchanger(ctx context.Context, tcpNode host.Host, peerIdx int, peers []peer.ID, vals int, sigTypes []sigType) *exchanger {
+func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int, sigTypes []sigType) *exchanger {
 	// Partial signature roots not known yet, so skip verification in parsigex, rather verify before we aggregate.
 	noopVerifier := func(ctx context.Context, duty core.Duty, key core.PubKey, data core.ParSignedData) error {
 		return nil
@@ -108,7 +99,6 @@ func newExchanger(ctx context.Context, tcpNode host.Host, peerIdx int, peers []p
 		// threshold is len(peers) to wait until we get all the partial sigs from all the peers per DV
 		sigdb:    parsigdb.NewMemDB(len(peers), noopDeadliner{}),
 		sigex:    parsigex.NewParSigEx(tcpNode, p2p.Send, peerIdx, peers, noopVerifier),
-		sigChan:  make(chan sigData, vals), // Allow buffering all signature sets
 		numVals:  vals,
 		sigTypes: st,
 		sigData: dataByPubkey{
@@ -122,36 +112,7 @@ func newExchanger(ctx context.Context, tcpNode host.Host, peerIdx int, peers []p
 	ex.sigdb.SubscribeThreshold(ex.pushPsigs)
 	ex.sigex.Subscribe(ex.sigdb.StoreExternal)
 
-	go func() {
-		if err := ex.readSigs(ctx); err != nil {
-			log.Warn(ctx, "Exchanger readSigs ctx error", err)
-		}
-	}()
-
 	return ex
-}
-
-func (e *exchanger) readSigs(ctx context.Context) error {
-	ctx = log.WithTopic(ctx, "exchanger")
-
-	for {
-		select {
-		case <-ctx.Done():
-			err := ctx.Err()
-			if !errors.Is(err, context.Canceled) {
-				return err
-			}
-
-			return nil
-		case peerSet := <-e.sigChan:
-			if !e.sigTypes[peerSet.sigType] {
-				log.Warn(ctx, "Unrecognized sigType", nil, z.Int("sigType", int(peerSet.sigType)))
-				continue
-			}
-
-			e.sigData.set(peerSet.pubkey, peerSet.sigType, peerSet.psigs)
-		}
-	}
 }
 
 // exchange exhanges partial signatures of lockhash/deposit-data among dkg participants and returns all the partial
@@ -182,11 +143,13 @@ func (e *exchanger) exchange(ctx context.Context, sigType sigType, set core.ParS
 
 // pushPsigs is responsible for writing partial signature data to sigChan obtained from other peers.
 func (e *exchanger) pushPsigs(_ context.Context, duty core.Duty, pk core.PubKey, psigs []core.ParSignedData) error {
-	e.sigChan <- sigData{
-		sigType: sigType(duty.Slot),
-		pubkey:  pk,
-		psigs:   psigs,
+	sigType := sigType(duty.Slot)
+
+	if !e.sigTypes[sigType] {
+		return errors.New("unrecognized sigType", z.Int("sigType", int(sigType)))
 	}
+
+	e.sigData.set(pk, sigType, psigs)
 
 	return nil
 }

@@ -83,7 +83,7 @@ func TestExchanger(t *testing.T) {
 	}
 
 	for i := 0; i < nodes; i++ {
-		ex := newExchanger(ctx, hosts[i], i, peers, dvs, []sigType{
+		ex := newExchanger(hosts[i], i, peers, dvs, []sigType{
 			sigLock,
 			sigDepositData,
 			sigValidatorRegistration,
