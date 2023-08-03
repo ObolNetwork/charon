@@ -490,17 +490,17 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 
 	var step int
 	stepSyncFunc := func(ctx context.Context) error {
-		log.Debug(ctx, "Waiting for peers to complete next step", z.Int("step", step))
+		// Start next step ourselves by incrementing our step client side
+		step++
+		for _, client := range clients {
+			client.SetStep(step)
+		}
+
+		log.Debug(ctx, "Waiting for peers to start next step", z.Int("step", step))
 
 		if err := server.AwaitAllAtStep(ctx, step); err != nil {
 			return errors.Wrap(err, "sync step", z.Int("step", step))
 		}
-
-		for _, client := range clients {
-			client.IncStep()
-		}
-
-		step++
 
 		return nil
 	}

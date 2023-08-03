@@ -136,7 +136,7 @@ func testCluster(t *testing.T, n int, versions map[int]version.SemVer, expectErr
 		assertAllAtStep(ctx, t, servers, i)
 
 		for _, client := range clients {
-			client.IncStep()
+			client.SetStep(i + 1)
 		}
 	}
 

@@ -103,12 +103,12 @@ func (c *Client) Run(ctx context.Context) error {
 	}
 }
 
-// IncStep increments the current step.
-func (c *Client) IncStep() {
+// SetStep sets the current step.
+func (c *Client) SetStep(step int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.step++
+	c.step = step
 }
 
 // getStep returns the current step.
