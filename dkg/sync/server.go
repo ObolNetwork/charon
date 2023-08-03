@@ -133,7 +133,9 @@ func (s *Server) AwaitAllAtStep(ctx context.Context, step int) error {
 				return err
 			}
 
-			if s.isAllAtStep(step) {
+			if ok, err := s.isAllAtStep(step); err != nil {
+				return err
+			} else if ok {
 				return nil
 			}
 		}
@@ -196,21 +198,24 @@ func (s *Server) isAllShutdown() bool {
 // Allowing next step is required since atomic step increases are impossible in distributed systems
 // so one peer will always increment first putting it ahead of the others. At least we know all peers
 // are or were at the given step.
-func (s *Server) isAllAtStep(step int) bool {
+func (s *Server) isAllAtStep(step int) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if len(s.steps) != s.allCount {
-		return false
+		return false, nil
 	}
 
 	for _, actual := range s.steps {
+		if actual >= step+2 {
+			return false, errors.New("peer step is too far ahead", z.Int("peer_step", actual), z.Int("local_step", step))
+		}
 		if actual != step && actual != step+1 {
-			return false
+			return false, nil
 		}
 	}
 
-	return true
+	return true, nil
 }
 
 // clearConnected clears connected state for the given peer.
