@@ -138,7 +138,7 @@ func newNewCmd() *cobra.Command {
 	nodes := cmd.Flags().Int("nodes", conf.NumNodes, "Number of charon nodes in the cluster.")
 	insecureKeys := cmd.Flags().Bool("insecure-keys", conf.InsecureKeys, "To generate keys quickly.")
 	slotDuration := cmd.Flags().Duration("simnet-slot-duration", time.Second, "Configures slot duration in simnet beacon mock.")
-	fuzz := cmd.Flags().Bool("fuzz", false, "Configures simnet beaconmock to return fuzzed responses.")
+	beaconFuzz := cmd.Flags().Bool("beacon-fuzz", false, "Configures simnet beaconmock to return fuzzed responses.")
 	p2pFuzz := cmd.Flags().Bool("p2p-fuzz", false, "Configures charon p2p network to return fuzzed responses of one of the nodes in the cluster.")
 
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
@@ -153,7 +153,7 @@ func newNewCmd() *cobra.Command {
 		conf.Threshold = cluster.Threshold(conf.NumNodes)
 		conf.InsecureKeys = *insecureKeys
 		conf.SlotDuration = *slotDuration
-		conf.Fuzz = *fuzz
+		conf.BeaconFuzz = *beaconFuzz
 		conf.P2PFuzz = *p2pFuzz
 
 		if conf.BuildLocal {

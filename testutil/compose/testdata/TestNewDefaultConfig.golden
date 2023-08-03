@@ -19,7 +19,7 @@
  "disable_monitoring_ports": false,
  "insecure_keys": false,
  "slot_duration": 1000000000,
- "fuzz": false,
+ "beacon-fuzz": false,
  "p2p-fuzz": false,
  "synthetic_block_proposals": true,
  "monitoring": true,
