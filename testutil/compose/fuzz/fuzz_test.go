@@ -40,7 +40,7 @@ func TestFuzzers(t *testing.T) {
 		timeout    time.Duration
 	}{
 		{
-			name: "beacon fuzz tests",
+			name: "beacon_fuzz_tests",
 			configFunc: func(config compose.Config) compose.Config {
 				config.BeaconFuzz = true
 
@@ -49,7 +49,7 @@ func TestFuzzers(t *testing.T) {
 			timeout: time.Minute * 20,
 		},
 		{
-			name: "p2p fuzz tests",
+			name: "p2p_fuzz_tests",
 			configFunc: func(config compose.Config) compose.Config {
 				config.P2PFuzz = true
 
@@ -76,7 +76,7 @@ func TestFuzzers(t *testing.T) {
 			}
 
 			if *logDir != "" {
-				autoConfig.LogFile = path.Join(*logDir, fmt.Sprintf("%s.log", t.Name()))
+				autoConfig.LogFile = path.Join(*logDir, fmt.Sprintf("%s.log", test.name))
 			}
 
 			err = compose.Auto(context.Background(), autoConfig)
