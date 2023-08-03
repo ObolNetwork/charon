@@ -11,6 +11,7 @@ message MsgSync {
  bytes hash_signature = 2;
  bool shutdown = 3;
  string version = 4;
+ int64 step = 5;
 }
 
 message MsgSyncResponse {

@@ -127,6 +127,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 				return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
 			},
 			ShutdownCallback: shutdownSync,
+			SyncOpts:         []func(*dkgsync.Client){dkgsync.WithPeriod(time.Millisecond * 50)},
 		},
 	}
 

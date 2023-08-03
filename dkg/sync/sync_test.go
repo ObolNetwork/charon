@@ -97,7 +97,7 @@ func testCluster(t *testing.T, n int, versions map[int]version.SemVer, expectErr
 			hashSig, err := keys[i].Sign(hash)
 			require.NoError(t, err)
 
-			client := sync.NewClient(tcpNodes[i], tcpNodes[j].ID(), hashSig, versions[i])
+			client := sync.NewClient(tcpNodes[i], tcpNodes[j].ID(), hashSig, versions[i], sync.WithPeriod(time.Millisecond*100))
 			clients = append(clients, client)
 
 			ctx := log.WithTopic(ctx, fmt.Sprintf("client%d_%d", i, j))
@@ -132,6 +132,14 @@ func testCluster(t *testing.T, n int, versions map[int]version.SemVer, expectErr
 		return
 	}
 
+	for i := 0; i < 5; i++ {
+		assertAllAtStep(ctx, t, servers, i)
+
+		for _, client := range clients {
+			client.IncStep()
+		}
+	}
+
 	t.Log("client.IsConnected")
 	for _, client := range clients {
 		require.True(t, client.IsConnected())
@@ -147,6 +155,19 @@ func testCluster(t *testing.T, n int, versions map[int]version.SemVer, expectErr
 	for _, server := range servers {
 		err := server.AwaitAllShutdown(ctx)
 		require.NoError(t, err)
+	}
+}
+
+func assertAllAtStep(ctx context.Context, t *testing.T, servers []*sync.Server, step int) {
+	t.Helper()
+	for _, server := range servers {
+		err := server.AwaitAllAtStep(ctx, step)
+		require.NoError(t, err)
+
+		checkCtx, cancel := context.WithTimeout(ctx, time.Millisecond*10)
+		err = server.AwaitAllAtStep(checkCtx, step+1)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		cancel()
 	}
 }
 
