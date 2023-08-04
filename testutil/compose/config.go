@@ -18,6 +18,7 @@ const (
 	charonImage      = "obolnetwork/charon"
 	containerBinary  = "/usr/local/bin/charon"
 	cmdRun           = "run"
+	cmdUnsafeRun     = "[unsafe,run]"
 	cmdDKG           = "dkg"
 	cmdCreateCluster = "[create,cluster]"
 	cmdCreateDKG     = "[create,dkg]"
@@ -109,8 +110,11 @@ type Config struct {
 	// SlotDuration configures slot duration on simnet beacon mock for all the nodes in the cluster.
 	SlotDuration time.Duration `json:"slot_duration"`
 
-	// Fuzz configures simnet beaconmock to return fuzzed responses.
-	Fuzz bool `json:"fuzz"`
+	// BeaconFuzz configures simnet beaconmock to return fuzzed responses.
+	BeaconFuzz bool `json:"beacon-fuzz"`
+
+	// P2PFuzz configures charon p2p network to send and receive fuzzed messages.
+	P2PFuzz bool `json:"p2p-fuzz"`
 
 	// SyntheticBlockProposals configures use of synthetic block proposals in simnet cluster.
 	SyntheticBlockProposals bool `json:"synthetic_block_proposals"`
