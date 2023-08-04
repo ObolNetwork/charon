@@ -38,7 +38,7 @@ func NewClient(tcpNode host.Host, peer peer.ID, hashSig []byte, version version.
 		done:      make(chan struct{}),
 		reconnect: true,
 		version:   version,
-		period:    time.Second,
+		period:    250 * time.Millisecond,
 	}
 
 	for _, opt := range opts {
