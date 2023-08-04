@@ -350,8 +350,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	log.Info(ctx, "Successfully completed DKG ceremony 🎉")
-
 	if err = stopSync(ctx); err != nil {
 		return errors.Wrap(err, "sync shutdown") // Consider increasing --shutdown-delay if this occurs often.
 	}
@@ -361,6 +359,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	log.Debug(ctx, "Graceful shutdown delay", z.Int("seconds", int(conf.ShutdownDelay.Seconds())))
 	time.Sleep(conf.ShutdownDelay)
+
+	log.Info(ctx, "Successfully completed DKG ceremony 🎉")
 
 	return nil
 }
