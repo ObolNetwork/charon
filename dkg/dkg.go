@@ -314,10 +314,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}
 
-	if err = stopSync(ctx); err != nil {
-		return errors.Wrap(err, "sync shutdown") // Consider increasing --shutdown-delay if this occurs often.
-	}
-
 	// Write keystores, deposit data and cluster lock files after exchange of partial signatures in order
 	// to prevent partial data writes in case of peer connection lost
 
@@ -348,6 +344,15 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 	log.Debug(ctx, "Saved deposit data file to disk")
+
+	// Signature verification and disk key write was step 6, advance to step 7
+	if err := nextStepSync(ctx); err != nil {
+		return err
+	}
+
+	if err = stopSync(ctx); err != nil {
+		return errors.Wrap(err, "sync shutdown") // Consider increasing --shutdown-delay if this occurs often.
+	}
 
 	if conf.TestConfig.ShutdownCallback != nil {
 		conf.TestConfig.ShutdownCallback()
