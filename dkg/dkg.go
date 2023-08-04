@@ -345,12 +345,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	log.Debug(ctx, "Saved deposit data file to disk")
 
-	if conf.TestConfig.ShutdownCallback != nil {
-		conf.TestConfig.ShutdownCallback()
-	}
-	log.Debug(ctx, "Graceful shutdown delay", z.Int("seconds", int(conf.ShutdownDelay.Seconds())))
-	time.Sleep(conf.ShutdownDelay)
-
 	// Signature verification and disk key write was step 6, advance to step 7
 	if err := nextStepSync(ctx); err != nil {
 		return err
@@ -361,6 +355,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 	if err = stopSync(ctx); err != nil {
 		return errors.Wrap(err, "sync shutdown") // Consider increasing --shutdown-delay if this occurs often.
 	}
+
+	if conf.TestConfig.ShutdownCallback != nil {
+		conf.TestConfig.ShutdownCallback()
+	}
+	log.Debug(ctx, "Graceful shutdown delay", z.Int("seconds", int(conf.ShutdownDelay.Seconds())))
+	time.Sleep(conf.ShutdownDelay)
 
 	return nil
 }
