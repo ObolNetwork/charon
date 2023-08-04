@@ -25,9 +25,9 @@ import (
 type sigType int
 
 const (
-	// dutyLock is responsible for lock hash signed partial signatures exchange and aggregation.
+	// sigLock is responsible for lock hash signed partial signatures exchange and aggregation.
 	sigLock sigType = 101
-	// dutyDepositData is responsible for deposit data signed partial signatures exchange and aggregation.
+	// sigDepositData is responsible for deposit data signed partial signatures exchange and aggregation.
 	sigDepositData sigType = 102
 	// sigValidatorRegistration is responsible for the pre-generated validator registration exchange and aggregation.
 	sigValidatorRegistration sigType = 103
@@ -38,8 +38,9 @@ type sigTypeStore map[sigType]map[core.PubKey][]core.ParSignedData
 
 // dataByPubkey maps a sigType to its map of public key to slice of core.ParSignedData..
 type dataByPubkey struct {
-	store sigTypeStore
-	lock  sync.Mutex
+	numVals int
+	store   sigTypeStore
+	lock    sync.Mutex
 }
 
 // set sets data for the given sigType and core.PubKey.
@@ -65,6 +66,10 @@ func (stb *dataByPubkey) get(sigType sigType) (map[core.PubKey][]core.ParSignedD
 		return nil, ok
 	}
 
+	if len(data) != stb.numVals {
+		return nil, false
+	}
+
 	ret := make(map[core.PubKey][]core.ParSignedData)
 
 	for k, v := range data {
@@ -78,7 +83,6 @@ func (stb *dataByPubkey) get(sigType sigType) (map[core.PubKey][]core.ParSignedD
 type exchanger struct {
 	sigex    *parsigex.ParSigEx
 	sigdb    *parsigdb.MemDB
-	numVals  int
 	sigTypes map[sigType]bool
 	sigData  dataByPubkey
 }
@@ -99,11 +103,11 @@ func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int, sig
 		// threshold is len(peers) to wait until we get all the partial sigs from all the peers per DV
 		sigdb:    parsigdb.NewMemDB(len(peers), noopDeadliner{}),
 		sigex:    parsigex.NewParSigEx(tcpNode, p2p.Send, peerIdx, peers, noopVerifier),
-		numVals:  vals,
 		sigTypes: st,
 		sigData: dataByPubkey{
-			store: sigTypeStore{},
-			lock:  sync.Mutex{},
+			store:   sigTypeStore{},
+			numVals: vals,
+			lock:    sync.Mutex{},
 		},
 	}
 
