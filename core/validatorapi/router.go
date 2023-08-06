@@ -912,8 +912,12 @@ func proxyHandler(ctx context.Context, eth2Cl addressProvider) http.HandlerFunc 
 		}
 		proxy.ErrorLog = stdlog.New(io.Discard, "", 0)
 
+		// Use provided context for proxied requests, so long running
+		// requests are cancelled when this context is cancelled (soft shutdown).
+		clonedReq := r.Clone(ctx)
+
 		defer observeAPILatency("proxy")()
-		proxy.ServeHTTP(proxyResponseWriter{w.(writeFlusher)}, r.Clone(ctx))
+		proxy.ServeHTTP(proxyResponseWriter{w.(writeFlusher)}, clonedReq)
 	}
 }
 
