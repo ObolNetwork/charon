@@ -44,13 +44,47 @@ const (
 	infoLevel     = 1 // 1 is InfoLevel, this avoids importing zerolog directly.
 )
 
+type addr string
+
+func (a addr) Address() string {
+	return string(a)
+}
+
+func TestProxyShutdown(t *testing.T) {
+	// Start a server that will block until the request is cancelled.
+	serving := make(chan struct{})
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(serving)
+		<-r.Context().Done()
+	}))
+
+	// Start a proxy server that will proxy to the target server.
+	ctx, cancel := context.WithCancel(context.Background())
+	proxy := httptest.NewServer(proxyHandler(ctx, addr(target.URL)))
+
+	// Make a request to the proxy server, this will block until the proxy is shutdown.
+	done := make(chan struct{})
+	go func() {
+		_, err := http.Get(proxy.URL)
+		require.NoError(t, err)
+		close(done)
+	}()
+
+	// Wait for the target server is serving the request.
+	<-serving
+	// Shutdown the proxy server.
+	cancel()
+	// Wait for the request to complete.
+	<-done
+}
+
 func TestRouterIntegration(t *testing.T) {
 	beaconURL, ok := os.LookupEnv("BEACON_URL")
 	if !ok {
 		t.Skip("Skipping integration test since BEACON_URL not found")
 	}
 
-	r, err := NewRouter(Handler(nil), testBeaconAddr{addr: beaconURL})
+	r, err := NewRouter(context.Background(), Handler(nil), testBeaconAddr{addr: beaconURL})
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -1031,7 +1065,7 @@ func TestBeaconCommitteeSelections(t *testing.T) {
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
-	r, err := NewRouter(handler, testBeaconAddr{addr: proxy.URL})
+	r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL})
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -1093,7 +1127,7 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
-	r, err := NewRouter(handler, testBeaconAddr{addr: proxy.URL})
+	r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL})
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -1118,13 +1152,13 @@ func testRouter(t *testing.T, handler testHandler, callback func(context.Context
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
-	r, err := NewRouter(handler, testBeaconAddr{addr: proxy.URL})
+	ctx := context.Background()
+
+	r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL})
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
 	defer server.Close()
-
-	ctx := context.Background()
 
 	cl, err := eth2http.New(ctx, eth2http.WithAddress(server.URL), eth2http.WithLogLevel(infoLevel))
 	require.NoError(t, err)
@@ -1139,7 +1173,7 @@ func testRawRouter(t *testing.T, handler testHandler, callback func(context.Cont
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
-	r, err := NewRouter(handler, testBeaconAddr{addr: proxy.URL})
+	r, err := NewRouter(context.Background(), handler, testBeaconAddr{addr: proxy.URL})
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)

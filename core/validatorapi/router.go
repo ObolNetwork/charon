@@ -80,7 +80,7 @@ type Handler interface {
 // NewRouter returns a new validator http server router. The http router
 // translates http requests related to the distributed validator to the Handler.
 // All other requests are reverse-proxied to the beacon-node address.
-func NewRouter(h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
+func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
 	// Register subset of distributed validator related endpoints.
 	endpoints := []struct {
 		Name    string
@@ -215,7 +215,7 @@ func NewRouter(h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
 	}
 
 	// Everything else is proxied
-	r.PathPrefix("/").Handler(proxyHandler(eth2Cl))
+	r.PathPrefix("/").Handler(proxyHandler(ctx, eth2Cl))
 
 	return r, nil
 }
@@ -880,11 +880,17 @@ func nodeVersion(p eth2client.NodeVersionProvider) handlerFunc {
 	}
 }
 
+// addressProvider provides the address of the active beacon node.
+type addressProvider interface {
+	Address() string
+}
+
 // proxyHandler returns a reverse proxy handler.
-func proxyHandler(eth2Cl eth2wrap.Client) http.HandlerFunc {
+// Proxied requests use the provided context, so are cancelled when the context is cancelled.
+func proxyHandler(ctx context.Context, eth2Cl addressProvider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Get active beacon node address.
-		targetURL, err := getBeaconNodeAddress(r.Context(), eth2Cl)
+		targetURL, err := getBeaconNodeAddress(eth2Cl)
 		if err != nil {
 			ctx := log.WithTopic(r.Context(), "vapi")
 			log.Error(ctx, "Proxy target beacon node address", err)
@@ -894,7 +900,6 @@ func proxyHandler(eth2Cl eth2wrap.Client) http.HandlerFunc {
 		}
 		// Get address for active beacon node
 		proxy := httputil.NewSingleHostReverseProxy(targetURL)
-
 		// Extend default proxy director with basic auth and host header.
 		defaultDirector := proxy.Director
 		proxy.Director = func(req *http.Request) {
@@ -908,30 +913,13 @@ func proxyHandler(eth2Cl eth2wrap.Client) http.HandlerFunc {
 		proxy.ErrorLog = stdlog.New(io.Discard, "", 0)
 
 		defer observeAPILatency("proxy")()
-		proxy.ServeHTTP(proxyResponseWriter{w.(writeFlusher)}, r)
+		proxy.ServeHTTP(proxyResponseWriter{w.(writeFlusher)}, r.Clone(ctx))
 	}
 }
 
 // getBeaconNodeAddress returns an active beacon node proxy target address.
-func getBeaconNodeAddress(ctx context.Context, eth2Cl eth2wrap.Client) (*url.URL, error) {
+func getBeaconNodeAddress(eth2Cl addressProvider) (*url.URL, error) {
 	addr := eth2Cl.Address()
-	if addr == "none" {
-		// Trigger refresh of inactive clients to hopefully resolve any active clients.
-		syncProvider, ok := eth2Cl.(eth2client.NodeSyncingProvider)
-		if !ok {
-			return nil, errors.New("invalid eth2 client")
-		}
-		_, err := syncProvider.NodeSyncing(ctx)
-		if err != nil {
-			return nil, errors.New("no active beacon nodes") // Not wrapping since error will be confusing.
-		}
-
-		addr = eth2Cl.Address()
-		if addr == "none" {
-			return nil, errors.New("no active beacon nodes")
-		}
-	}
-
 	targetURL, err := url.Parse(addr)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid beacon node address", z.Str("address", addr))
