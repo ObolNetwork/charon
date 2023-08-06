@@ -887,10 +887,10 @@ type addressProvider interface {
 
 // proxyHandler returns a reverse proxy handler.
 // Proxied requests use the provided context, so are cancelled when the context is cancelled.
-func proxyHandler(ctx context.Context, eth2Cl addressProvider) http.HandlerFunc {
+func proxyHandler(ctx context.Context, addrProvider addressProvider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Get active beacon node address.
-		targetURL, err := getBeaconNodeAddress(eth2Cl)
+		targetURL, err := getBeaconNodeAddress(addrProvider)
 		if err != nil {
 			ctx := log.WithTopic(r.Context(), "vapi")
 			log.Error(ctx, "Proxy target beacon node address", err)
@@ -922,8 +922,8 @@ func proxyHandler(ctx context.Context, eth2Cl addressProvider) http.HandlerFunc 
 }
 
 // getBeaconNodeAddress returns an active beacon node proxy target address.
-func getBeaconNodeAddress(eth2Cl addressProvider) (*url.URL, error) {
-	addr := eth2Cl.Address()
+func getBeaconNodeAddress(addrProvider addressProvider) (*url.URL, error) {
+	addr := addrProvider.Address()
 	targetURL, err := url.Parse(addr)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid beacon node address", z.Str("address", addr))
