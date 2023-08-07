@@ -5,6 +5,7 @@ package obolapi
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"net/url"
@@ -15,16 +16,29 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 )
 
+const (
+	// launchpadReturnPath is the URL path at which one can find details for a given cluster lock hash.
+	launchpadReturnPath = "/clusters/details"
+
+	// lockQueryStr is the URL query string for the lock hash parameter.
+	lockQueryStr = "lockHash"
+)
+
 // New returns a new Client.
-func New(url string) Client {
-	return Client{
-		baseURL: url,
+func New(urlStr string) (Client, error) {
+	apiURL, err := url.ParseRequestURI(urlStr)
+	if err != nil {
+		return Client{}, errors.Wrap(err, "could not parse Obol API URL")
 	}
+
+	return Client{
+		baseURL: apiURL,
+	}, nil
 }
 
 // Client is the REST client for obol-api requests.
 type Client struct {
-	baseURL string // Base obol-api URL
+	baseURL *url.URL // Base obol-api URL
 }
 
 // PublishLock posts the lockfile to obol-api.
@@ -32,27 +46,36 @@ func (c Client) PublishLock(ctx context.Context, lock cluster.Lock) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	addr, err := url.JoinPath(c.baseURL, "lock")
-	if err != nil {
-		return errors.Wrap(err, "invalid address")
-	}
-
-	url, err := url.Parse(addr)
-	if err != nil {
-		return errors.Wrap(err, "invalid endpoint")
-	}
+	addr := *c.baseURL
+	addr.Path = "lock"
 
 	b, err := lock.MarshalJSON()
 	if err != nil {
 		return errors.Wrap(err, "marshal lock")
 	}
 
-	err = httpPost(ctx, url, b)
+	err = httpPost(ctx, &addr, b)
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// LaunchpadURLForLock returns the Launchpad cluster dashboard page for a given lock, on the given
+// Obol API client.
+func (c Client) LaunchpadURLForLock(lock cluster.Lock) string {
+	lURL := *c.baseURL
+
+	lURL.Path = launchpadReturnPath
+
+	qs := url.Values{}
+
+	qs.Set(lockQueryStr, hex.EncodeToString(lock.LockHash))
+
+	lURL.RawQuery = qs.Encode()
+
+	return lURL.String()
 }
 
 func httpPost(ctx context.Context, url *url.URL, b []byte) error {

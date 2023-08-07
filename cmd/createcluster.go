@@ -258,9 +258,14 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 
 	lock.NodeSignatures = opsLockSigs
 
+	// dashboardURL is the Launchpad dashboard url for a given lock file.
+	// If empty, either conf.Publish wasn't specified or there was a processing error in publishing
+	// the generated lock file.
+	var dashboardURL string
+
 	// Write cluster-lock file
 	if conf.Publish {
-		if err = writeLockToAPI(ctx, conf.PublishAddr, lock); err != nil {
+		if dashboardURL, err = writeLockToAPI(ctx, conf.PublishAddr, lock); err != nil {
 			log.Warn(ctx, "Couldn't publish lock file to Obol API", err)
 		}
 	}
@@ -273,7 +278,15 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		writeWarning(w)
 	}
 
-	return writeOutput(w, conf.SplitKeys, conf.ClusterDir, numNodes, keysToDisk)
+	if err := writeOutput(w, conf.SplitKeys, conf.ClusterDir, numNodes, keysToDisk); err != nil {
+		return err
+	}
+
+	if dashboardURL != "" {
+		log.Info(ctx, fmt.Sprintf("You can find your newly-created cluster dashboard here: %s", dashboardURL))
+	}
+
+	return nil
 }
 
 // validateCreateConfig returns an error if any of the provided config parameters are invalid.
@@ -945,16 +958,19 @@ func randomHex64() (string, error) {
 }
 
 // writeLockToAPI posts the lock file to obol-api.
-func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) error {
-	cl := obolapi.New(publishAddr)
+func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) (string, error) {
+	cl, err := obolapi.New(publishAddr)
+	if err != nil {
+		return "", err
+	}
 
 	if err := cl.PublishLock(ctx, lock); err != nil {
-		return err
+		return "", err
 	}
 
 	log.Info(ctx, "Published lock file", z.Str("addr", publishAddr))
 
-	return nil
+	return cl.LaunchpadURLForLock(lock), nil
 }
 
 // validateAddresses checks if we have sufficient addresses. It also fills addresses slices if only one is provided.
