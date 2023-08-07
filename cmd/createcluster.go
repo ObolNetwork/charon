@@ -956,7 +956,7 @@ func randomHex64() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// writeLockToAPI posts the lock file to obol-api.
+// writeLockToAPI posts the lock file to obol-api and returns the Launchpad dashboard URL.
 func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) (string, error) {
 	cl, err := obolapi.New(publishAddr)
 	if err != nil {
