@@ -15,8 +15,7 @@ import (
 	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 )
 
-// loadClusterManifest returns the cluster manifest from the provided config. It returns true if
-// the cluster was loaded from a legacy lock file.
+// loadClusterManifest loads cluster manifest from disk.
 func loadClusterManifest(manifestFilePath, lockFilePath string) (*manifestpb.Cluster, error) {
 	verifyLock := func(lock cluster.Lock) error {
 		if err := lock.VerifyHashes(); err != nil {
@@ -30,19 +29,41 @@ func loadClusterManifest(manifestFilePath, lockFilePath string) (*manifestpb.Clu
 		return nil
 	}
 
-	cluster, err := manifest.Load(manifestFilePath, lockFilePath, verifyLock)
+	cluster, err := manifest.LoadCluster(manifestFilePath, lockFilePath, verifyLock)
 	if err != nil {
-		return nil, errors.Wrap(err, "load cluster manifest")
+		return nil, errors.Wrap(err, "load cluster manifest from disk")
 	}
 
 	return cluster, nil
 }
 
-// writeClusterManifests writes the provided cluster manifest to node directories on disk.
-func writeClusterManifests(clusterDir string, numOps int, cluster *manifestpb.Cluster) error {
-	b, err := proto.Marshal(cluster)
+// loadDAGFromDisk loads cluster DAG from disk.
+func loadDAGFromDisk(manifestFilePath, lockFilePath string) (*manifestpb.SignedMutationList, error) {
+	verifyLock := func(lock cluster.Lock) error {
+		if err := lock.VerifyHashes(); err != nil {
+			return errors.Wrap(err, "cluster lock hash verification failed")
+		}
+
+		if err := lock.VerifySignatures(); err != nil {
+			return errors.Wrap(err, "cluster lock signature verification failed")
+		}
+
+		return nil
+	}
+
+	dag, err := manifest.LoadDAG(manifestFilePath, lockFilePath, verifyLock)
 	if err != nil {
-		return errors.Wrap(err, "marshal proto")
+		return nil, errors.Wrap(err, "load cluster dag from disk")
+	}
+
+	return dag, nil
+}
+
+// writeCluster writes the provided cluster DAG as manifest file to node directories on disk.
+func writeCluster(clusterDir string, numOps int, dag *manifestpb.SignedMutationList) error {
+	b, err := proto.Marshal(dag)
+	if err != nil {
+		return errors.Wrap(err, "proto marshal dag")
 	}
 
 	// Write cluster manifest to node directories on disk

@@ -19,8 +19,9 @@ import (
 
 const (
 	// InclCheckLag is the number of slots to lag before checking inclusion.
-	// Half an epoch is good compromise between finality and responsiveness.
-	InclCheckLag = 16
+	// We wait for 4 slots to mitigate against reorgs as it should cover almost all reorg scenarios.
+	// Reorgs of more than 4 slots are very rare in ethereum PoS.
+	InclCheckLag = 4
 	// InclMissedLag is the number of slots after which we assume the duty was not included and we
 	// delete cached submissions.
 	InclMissedLag = 32

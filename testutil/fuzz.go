@@ -7,15 +7,16 @@ import (
 	"testing"
 	"time"
 
-	v1deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	fuzz "github.com/google/gofuzz"
 	"github.com/prysmaticlabs/go-bitfield"
+	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
 )
 
 // NewEth2Fuzzer returns a fuzzer for valid eth2 types using the provided seed,
@@ -28,7 +29,7 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 	blindedVersions := []eth2spec.DataVersion{
 		eth2spec.DataVersionBellatrix,
 		eth2spec.DataVersionCapella,
-		// eth2spec.DataVersionDeneb,
+		eth2spec.DataVersionDeneb,
 	}
 
 	allVersions := []eth2spec.DataVersion{
@@ -96,10 +97,6 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				}
 				e.AggregationBits = bits
 			},
-			// VersionBlindedBeaconBlock.Deneb SSZ not supported by goeth2client yet, so nil it.
-			func(e **v1deneb.BlindedBeaconBlock, c fuzz.Continue) {
-				*e = nil
-			},
 			// []deneb.KzgCommitment has max.
 			func(e *[]deneb.KzgCommitment, c fuzz.Continue) {
 				c.FuzzNoCustom(e)
@@ -110,22 +107,34 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 			// Populate one of the versions of these Versioned*Block types.
 			func(e *core.VersionedSignedBlindedBeaconBlock, c fuzz.Continue) {
 				e.Version = blindedVersions[(c.Intn(len(blindedVersions)))]
-				val := core.VersionedSSZValueForT(t, e, e.Version)
+				version, err := eth2util.DataVersionFromETH2(e.Version)
+				require.NoError(t, err)
+
+				val := core.VersionedSSZValueForT(t, e, version)
 				c.Fuzz(val)
 			},
 			func(e *core.VersionedBlindedBeaconBlock, c fuzz.Continue) {
 				e.Version = blindedVersions[(c.Intn(len(blindedVersions)))]
-				val := core.VersionedSSZValueForT(t, e, e.Version)
+				version, err := eth2util.DataVersionFromETH2(e.Version)
+				require.NoError(t, err)
+
+				val := core.VersionedSSZValueForT(t, e, version)
 				c.Fuzz(val)
 			},
 			func(e *core.VersionedSignedBeaconBlock, c fuzz.Continue) {
 				e.Version = allVersions[(c.Intn(len(allVersions)))]
-				val := core.VersionedSSZValueForT(t, e, e.Version)
+				version, err := eth2util.DataVersionFromETH2(e.Version)
+				require.NoError(t, err)
+
+				val := core.VersionedSSZValueForT(t, e, version)
 				c.Fuzz(val)
 			},
 			func(e *core.VersionedBeaconBlock, c fuzz.Continue) {
 				e.Version = allVersions[(c.Intn(len(allVersions)))]
-				val := core.VersionedSSZValueForT(t, e, e.Version)
+				version, err := eth2util.DataVersionFromETH2(e.Version)
+				require.NoError(t, err)
+
+				val := core.VersionedSSZValueForT(t, e, version)
 				c.Fuzz(val)
 			},
 		)

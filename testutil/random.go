@@ -527,6 +527,20 @@ func RandomSyncCommitteeMessage() *altair.SyncCommitteeMessage {
 	}
 }
 
+func RandomSyncCommittee(t *testing.T) *altair.SyncCommittee {
+	t.Helper()
+
+	var pubkeys []eth2p0.BLSPubKey
+	for i := 0; i < 512; i++ {
+		pubkeys = append(pubkeys, RandomEth2PubKey(t))
+	}
+
+	return &altair.SyncCommittee{
+		Pubkeys:         pubkeys,
+		AggregatePubkey: RandomEth2PubKey(t),
+	}
+}
+
 func RandomSyncCommitteeSelection() *eth2exp.SyncCommitteeSelection {
 	return &eth2exp.SyncCommitteeSelection{
 		ValidatorIndex:    RandomVIdx(),
@@ -627,6 +641,62 @@ func RandomProposerDuty(t *testing.T) *eth2v1.ProposerDuty {
 		PubKey:         RandomEth2PubKey(t),
 		Slot:           RandomSlot(),
 		ValidatorIndex: RandomVIdx(),
+	}
+}
+
+func RandomBeaconState(t *testing.T) *eth2spec.VersionedBeaconState {
+	t.Helper()
+
+	return &eth2spec.VersionedBeaconState{
+		Version: eth2spec.DataVersionCapella,
+		Capella: &capella.BeaconState{
+			GenesisTime:           uint64(time.Now().Unix()),
+			GenesisValidatorsRoot: RandomRoot(),
+			Slot:                  RandomSlot(),
+			Fork: &eth2p0.Fork{
+				PreviousVersion: eth2p0.Version{},
+				CurrentVersion:  eth2p0.Version{},
+				Epoch:           0,
+			},
+			LatestBlockHeader: &eth2p0.BeaconBlockHeader{},
+			BlockRoots:        []eth2p0.Root{RandomRoot()},
+			StateRoots:        []eth2p0.Root{RandomRoot()},
+			HistoricalRoots:   []eth2p0.Root{RandomRoot()},
+			ETH1Data: &eth2p0.ETH1Data{
+				DepositRoot:  RandomRoot(),
+				DepositCount: 0,
+				BlockHash:    RandomBytes32(),
+			},
+			// ETH1DataVotes:                nil,
+			// ETH1DepositIndex:             0,
+			Validators: []*eth2p0.Validator{
+				RandomValidator(t).Validator,
+				RandomValidator(t).Validator,
+			},
+			Balances: []eth2p0.Gwei{RandomGwei(), RandomGwei()},
+			// RANDAOMixes:                  nil,
+			// Slashings:                    nil,
+			// PreviousEpochParticipation:   nil,
+			// CurrentEpochParticipation:    nil,
+			JustificationBits:           RandomBitVec4(),
+			PreviousJustifiedCheckpoint: RandomCheckpoint(),
+			CurrentJustifiedCheckpoint:  RandomCheckpoint(),
+			FinalizedCheckpoint:         RandomCheckpoint(),
+			// InactivityScores:             nil,
+			CurrentSyncCommittee: RandomSyncCommittee(t),
+			NextSyncCommittee:    RandomSyncCommittee(t),
+			// LatestExecutionPayloadHeader: nil,
+			// NextWithdrawalIndex:          0,
+			// NextWithdrawalValidatorIndex: 0,
+			HistoricalSummaries: []*capella.HistoricalSummary{RandomHistoricalSummary()},
+		},
+	}
+}
+
+func RandomHistoricalSummary() *capella.HistoricalSummary {
+	return &capella.HistoricalSummary{
+		BlockSummaryRoot: RandomRoot(),
+		StateSummaryRoot: RandomRoot(),
 	}
 }
 
@@ -738,6 +808,15 @@ func RandomBitVec() bitfield.Bitvector128 {
 	size := 128
 	index := rand.Intn(size)
 	resp := bitfield.NewBitvector128()
+	resp.SetBitAt(uint64(index), true)
+
+	return resp
+}
+
+func RandomBitVec4() bitfield.Bitvector4 {
+	size := 4
+	index := rand.Intn(size)
+	resp := bitfield.NewBitvector4()
 	resp.SetBitAt(uint64(index), true)
 
 	return resp

@@ -88,7 +88,6 @@ type Config struct {
 	SyntheticBlockProposals bool
 	BuilderAPI              bool
 	SimnetBMockFuzz         bool
-	CharonP2PFuzz           bool
 
 	TestConfig TestConfig
 }
@@ -117,6 +116,9 @@ type TestConfig struct {
 	TCPNodeCallback func(host.Host)
 	// LibP2POpts provide test specific libp2p options.
 	LibP2POpts []libp2p.Option
+	// P2PFuzz enables peer to peer fuzzing of charon nodes in a cluster.
+	// If enabled, this node will send fuzzed data over p2p to its peers in the cluster.
+	P2PFuzz bool
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -220,6 +222,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 	peerIDs, err := manifest.ClusterPeerIDs(cluster)
 	if err != nil {
 		return err
+	}
+
+	// Enable p2p fuzzing if --p2p-fuzz is set.
+	if conf.TestConfig.P2PFuzz {
+		p2p.SetFuzzerDefaultsUnsafe()
 	}
 
 	sender := new(p2p.Sender)
@@ -427,7 +434,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	if err := wireVAPIRouter(life, conf.ValidatorAPIAddr, eth2Cl, vapi, vapiCalls); err != nil {
+	if err := wireVAPIRouter(ctx, life, conf.ValidatorAPIAddr, eth2Cl, vapi, vapiCalls); err != nil {
 		return err
 	}
 
@@ -645,13 +652,16 @@ func newTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(
 		return nil, err
 	}
 
+	// Add InclMissedLag slots and InclCheckLag delay to analyser to capture missed inclusion errors.
+	trackerDelay := tracker.InclMissedLag + tracker.InclCheckLag
+
 	analyser := core.NewDeadliner(ctx, "tracker_analyser", func(duty core.Duty) (time.Time, bool) {
 		d, ok := deadlineFunc(duty)
-		return d.Add(tracker.InclMissedLag * slotDuration), ok // Add InclMissedLag slots delay to analyser to capture missed inclusion errors.
+		return d.Add(time.Duration(trackerDelay) * slotDuration), ok
 	})
 	deleter := core.NewDeadliner(ctx, "tracker_deleter", func(duty core.Duty) (time.Time, bool) {
 		d, ok := deadlineFunc(duty)
-		return d.Add(tracker.InclMissedLag * slotDuration).Add(time.Minute), ok // Delete duties after analyser_deadline+1min.
+		return d.Add(time.Duration(trackerDelay) * slotDuration).Add(time.Minute), ok // Delete duties after analyser_deadline+1min.
 	})
 
 	trackFrom, err := calculateTrackerDelay(ctx, eth2Cl, time.Now())
@@ -886,10 +896,10 @@ func createMockValidators(pubkeys []eth2p0.BLSPubKey) beaconmock.ValidatorSet {
 }
 
 // wireVAPIRouter constructs the validator API router and registers it with the life cycle manager.
-func wireVAPIRouter(life *lifecycle.Manager, vapiAddr string, eth2Cl eth2wrap.Client,
+func wireVAPIRouter(ctx context.Context, life *lifecycle.Manager, vapiAddr string, eth2Cl eth2wrap.Client,
 	handler validatorapi.Handler, vapiCalls func(),
 ) error {
-	vrouter, err := validatorapi.NewRouter(handler, eth2Cl)
+	vrouter, err := validatorapi.NewRouter(ctx, handler, eth2Cl)
 	if err != nil {
 		return errors.Wrap(err, "new monitoring server")
 	}

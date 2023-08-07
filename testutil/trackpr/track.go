@@ -111,7 +111,7 @@ func track(ctx context.Context, ghToken string, pr PR, organization string, proj
 // getProjectData returns project data for the GitHub project.
 func getProjectData(ctx context.Context, client *gh.Client, organization string, projectNumber int) (projectData, error) {
 	query := new(projectQuery)
-	variables := map[string]interface{}{
+	variables := map[string]any{
 		"org":    gh.String(organization),
 		"number": gh.Int(projectNumber),
 	}

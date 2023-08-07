@@ -17,7 +17,6 @@ import (
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/core/qbft"
-	"github.com/obolnetwork/charon/p2p"
 )
 
 // transport encapsulates receiving and broadcasting for a consensus instance/duty.
@@ -129,8 +128,7 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 			continue
 		}
 
-		err = t.component.sender.SendAsync(ctx, t.component.tcpNode, protocolID1, p.ID, msg.ToConsensusMsg(),
-			p2p.WithDelimitedProtocol(protocolID2))
+		err = t.component.sender.SendAsync(ctx, t.component.tcpNode, protocolID2, p.ID, msg.ToConsensusMsg())
 		if err != nil {
 			return err
 		}
@@ -140,8 +138,6 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 }
 
 // ProcessReceives processes received messages from the outer buffer until the context is closed.
-//
-
 func (t *transport) ProcessReceives(ctx context.Context, outerBuffer chan msg) {
 	for {
 		select {

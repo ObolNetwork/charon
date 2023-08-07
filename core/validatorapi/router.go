@@ -80,7 +80,7 @@ type Handler interface {
 // NewRouter returns a new validator http server router. The http router
 // translates http requests related to the distributed validator to the Handler.
 // All other requests are reverse-proxied to the beacon-node address.
-func NewRouter(h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
+func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
 	// Register subset of distributed validator related endpoints.
 	endpoints := []struct {
 		Name    string
@@ -215,7 +215,7 @@ func NewRouter(h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
 	}
 
 	// Everything else is proxied
-	r.PathPrefix("/").Handler(proxyHandler(eth2Cl))
+	r.PathPrefix("/").Handler(proxyHandler(ctx, eth2Cl))
 
 	return r, nil
 }
@@ -236,7 +236,7 @@ func (a apiError) Error() string {
 
 // handlerFunc is a convenient handler function providing a context, parsed path parameters,
 // the request body, and returning the response struct or an error.
-type handlerFunc func(ctx context.Context, params map[string]string, query url.Values, typ contentType, body []byte) (res interface{}, err error)
+type handlerFunc func(ctx context.Context, params map[string]string, query url.Values, typ contentType, body []byte) (res any, headers http.Header, err error)
 
 // wrap adapts the handler function returning a standard http handler.
 // It does tracing, metrics and response and error writing.
@@ -270,641 +270,20 @@ func wrap(endpoint string, handler handlerFunc) http.Handler {
 			return
 		}
 
-		res, err := handler(ctx, mux.Vars(r), r.URL.Query(), typ, body)
+		res, headers, err := handler(ctx, mux.Vars(r), r.URL.Query(), typ, body)
 		if err != nil {
 			writeError(ctx, w, endpoint, err)
 			return
 		}
 
-		writeResponse(ctx, w, endpoint, res)
+		writeResponse(ctx, w, endpoint, res, headers)
 	}
 
 	return wrapTrace(endpoint, wrap)
 }
 
-// wrapTrace wraps the passed handler in a OpenTelemetry tracing span.
-func wrapTrace(endpoint string, handler http.HandlerFunc) http.Handler {
-	return otelhttp.NewHandler(handler, "core/validatorapi."+endpoint)
-}
-
-// getValidator returns a handler function for the get validators by pubkey or index endpoint.
-func getValidators(p eth2client.ValidatorsProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (interface{}, error) {
-		stateID := params["state_id"]
-
-		resp, err := getValidatorsByID(ctx, p, stateID, getValidatorIDs(query)...)
-		if err != nil {
-			return nil, err
-		} else if len(resp) == 0 {
-			resp = []v1Validator{} // Return empty json array instead of null.
-		}
-
-		return validatorsResponse{Data: resp}, nil
-	}
-}
-
-// getValidator returns a handler function for the get validators by pubkey or index endpoint.
-func getValidator(p eth2client.ValidatorsProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, _ url.Values, _ contentType, _ []byte) (interface{}, error) {
-		stateID := params["state_id"]
-		id := params["validator_id"]
-
-		vals, err := getValidatorsByID(ctx, p, stateID, id)
-		if err != nil {
-			return nil, err
-		} else if len(vals) == 0 {
-			return nil, apiError{
-				StatusCode: http.StatusNotFound,
-				Message:    "NotFound",
-			}
-		} else if len(vals) != 1 {
-			return nil, errors.New("unexpected number of validators")
-		}
-
-		return validatorResponse{Data: vals[0]}, nil
-	}
-}
-
-// attestationData returns a handler function for the attestation data endpoint.
-func attestationData(p eth2client.AttestationDataProvider) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, query url.Values, _ contentType, _ []byte) (interface{}, error) {
-		slot, err := uintQuery(query, "slot")
-		if err != nil {
-			return nil, err
-		}
-
-		commIdx, err := uintQuery(query, "committee_index")
-		if err != nil {
-			return nil, err
-		}
-
-		data, err := p.AttestationData(ctx, eth2p0.Slot(slot), eth2p0.CommitteeIndex(commIdx))
-		if err != nil {
-			return nil, err
-		}
-
-		return struct {
-			Data *eth2p0.AttestationData `json:"data"`
-		}{
-			Data: data,
-		}, nil
-	}
-}
-
-// submitAttestations returns a handler function for the attestation submitter endpoint.
-func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (interface{}, error) {
-		var atts []*eth2p0.Attestation
-		err := unmarshal(typ, body, &atts)
-		if err != nil {
-			return nil, errors.Wrap(err, "unmarshal attestations")
-		}
-
-		return nil, p.SubmitAttestations(ctx, atts)
-	}
-}
-
-// proposerDuties returns a handler function for the proposer duty endpoint.
-func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, _ url.Values, _ contentType, _ []byte) (interface{}, error) {
-		epoch, err := uintParam(params, "epoch")
-		if err != nil {
-			return nil, err
-		}
-
-		// Note the ProposerDutiesProvider interface adds some sugar to the official eth2spec.
-		// ValidatorIndices aren't provided over the wire.
-		data, err := p.ProposerDuties(ctx, eth2p0.Epoch(epoch), nil)
-		if err != nil {
-			return nil, err
-		} else if len(data) == 0 { // Return empty json array instead of null
-			data = []*eth2v1.ProposerDuty{}
-		}
-
-		return proposerDutiesResponse{
-			ExecutionOptimistic: false,           // TODO(dhruv): Fill this properly
-			DependentRoot:       stubRoot(epoch), // TODO(corver): Fill this properly
-			Data:                data,
-		}, nil
-	}
-}
-
-// attesterDuties returns a handler function for the attester duty endpoint.
-func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, _ url.Values, typ contentType, body []byte) (interface{}, error) {
-		epoch, err := uintParam(params, "epoch")
-		if err != nil {
-			return nil, err
-		}
-
-		var req valIndexesJSON
-		if err := unmarshal(typ, body, &req); err != nil {
-			return nil, err
-		}
-
-		data, err := p.AttesterDuties(ctx, eth2p0.Epoch(epoch), req)
-		if err != nil {
-			return nil, err
-		} else if len(data) == 0 { // Return empty json array instead of null
-			data = []*eth2v1.AttesterDuty{}
-		}
-
-		return attesterDutiesResponse{
-			ExecutionOptimistic: false,           // TODO(dhruv): Fill this properly
-			DependentRoot:       stubRoot(epoch), // TODO(corver): Fill this properly
-			Data:                data,
-		}, nil
-	}
-}
-
-// syncCommitteeDuties returns a handler function for the sync committee duty endpoint.
-func syncCommitteeDuties(p eth2client.SyncCommitteeDutiesProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, _ url.Values, typ contentType, body []byte) (interface{}, error) {
-		epoch, err := uintParam(params, "epoch")
-		if err != nil {
-			return nil, err
-		}
-
-		var req valIndexesJSON
-		if err := unmarshal(typ, body, &req); err != nil {
-			return nil, err
-		}
-
-		data, err := p.SyncCommitteeDuties(ctx, eth2p0.Epoch(epoch), req)
-		if err != nil {
-			return nil, err
-		} else if len(data) == 0 { // Return empty json array instead of null
-			data = []*eth2v1.SyncCommitteeDuty{}
-		}
-
-		return syncCommitteeDutiesResponse{Data: data}, nil
-	}
-}
-
-// syncCommitteeContribution returns a handler function for get sync committee contribution endpoint.
-func syncCommitteeContribution(s eth2client.SyncCommitteeContributionProvider) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, query url.Values, _ contentType, _ []byte) (interface{}, error) {
-		slot, err := uintQuery(query, "slot")
-		if err != nil {
-			return nil, err
-		}
-
-		subcommIdx, err := uintQuery(query, "subcommittee_index")
-		if err != nil {
-			return nil, err
-		}
-
-		var beaconBlockRoot eth2p0.Root
-		err = hexQueryFixed(query, "beacon_block_root", beaconBlockRoot[:])
-		if err != nil {
-			return nil, err
-		}
-
-		contribution, err := s.SyncCommitteeContribution(ctx, eth2p0.Slot(slot), subcommIdx, beaconBlockRoot)
-		if err != nil {
-			return nil, err
-		}
-
-		return syncCommitteeContributionResponse{Data: contribution}, nil
-	}
-}
-
-// submitContributionAndProofs returns a handler function for sync committee contributions submitter endpoint.
-func submitContributionAndProofs(s eth2client.SyncCommitteeContributionsSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (interface{}, error) {
-		var contributionAndProofs []*altair.SignedContributionAndProof
-		err := unmarshal(typ, body, &contributionAndProofs)
-		if err != nil {
-			return nil, errors.Wrap(err, "unmarshal signed contribution and proofs")
-		}
-
-		return nil, s.SubmitSyncCommitteeContributions(ctx, contributionAndProofs)
-	}
-}
-
-// proposeBlock receives the randao from the validator and returns the unsigned BeaconBlock.
-func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (interface{}, error) {
-		slot, err := uintParam(params, "slot")
-		if err != nil {
-			return nil, err
-		}
-
-		var randao eth2p0.BLSSignature
-		if err = hexQueryFixed(query, "randao_reveal", randao[:]); err != nil {
-			return nil, err
-		}
-
-		graffiti, _, err := hexQuery(query, "graffiti") // Graffiti is optional.
-		if err != nil {
-			return nil, err
-		}
-
-		block, err := p.BeaconBlockProposal(ctx, eth2p0.Slot(slot), randao, graffiti)
-		if err != nil {
-			return nil, err
-		}
-
-		switch block.Version {
-		case eth2spec.DataVersionPhase0:
-			if block.Phase0 == nil {
-				return 0, errors.New("no phase0 block")
-			}
-
-			return proposeBlockResponsePhase0{
-				Version: eth2spec.DataVersionPhase0.String(),
-				Data:    block.Phase0,
-			}, nil
-		case eth2spec.DataVersionAltair:
-			if block.Altair == nil {
-				return 0, errors.New("no altair block")
-			}
-
-			return proposeBlockResponseAltair{
-				Version: eth2spec.DataVersionAltair.String(),
-				Data:    block.Altair,
-			}, nil
-		case eth2spec.DataVersionBellatrix:
-			if block.Bellatrix == nil {
-				return 0, errors.New("no bellatrix block")
-			}
-
-			return proposeBlockResponseBellatrix{
-				Version: eth2spec.DataVersionBellatrix.String(),
-				Data:    block.Bellatrix,
-			}, nil
-		case eth2spec.DataVersionCapella:
-			if block.Capella == nil {
-				return 0, errors.New("no capella block")
-			}
-
-			return proposeBlockResponseCapella{
-				Version: eth2spec.DataVersionCapella.String(),
-				Data:    block.Capella,
-			}, nil
-		case eth2spec.DataVersionDeneb:
-			if block.Deneb == nil {
-				return 0, errors.New("no deneb block")
-			}
-
-			return proposeBlockResponseDeneb{
-				Version: eth2spec.DataVersionDeneb.String(),
-				Data:    block.Deneb,
-			}, nil
-		default:
-			return 0, errors.New("invalid block")
-		}
-	}
-}
-
-// proposeBlindedBlock receives the randao from the validator and returns the unsigned BlindedBeaconBlock.
-func proposeBlindedBlock(p eth2client.BlindedBeaconBlockProposalProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (interface{}, error) {
-		slot, err := uintParam(params, "slot")
-		if err != nil {
-			return nil, err
-		}
-
-		var randao eth2p0.BLSSignature
-		if err := hexQueryFixed(query, "randao_reveal", randao[:]); err != nil {
-			return nil, err
-		}
-
-		block, err := p.BlindedBeaconBlockProposal(ctx, eth2p0.Slot(slot), randao, nil)
-		if err != nil {
-			return nil, err
-		}
-
-		switch block.Version {
-		case eth2spec.DataVersionBellatrix:
-			if block.Bellatrix == nil {
-				return 0, errors.New("no bellatrix block")
-			}
-
-			return proposeBlindedBlockResponseBellatrix{
-				Version: "BELLATRIX",
-				Data:    block.Bellatrix,
-			}, nil
-		case eth2spec.DataVersionCapella:
-			if block.Capella == nil {
-				return 0, errors.New("no capella block")
-			}
-
-			return proposeBlindedBlockResponseCapella{
-				Version: "CAPELLA",
-				Data:    block.Capella,
-			}, nil
-		case eth2spec.DataVersionDeneb:
-			if block.Deneb == nil {
-				return 0, errors.New("no deneb block")
-			}
-
-			return proposeBlindedBlockResponseDeneb{
-				Version: "DENEB",
-				Data:    block.Deneb,
-			}, nil
-		default:
-			return 0, errors.New("invalid block")
-		}
-	}
-}
-
-func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (interface{}, error) {
-		capellaBlock := new(capella.SignedBeaconBlock)
-		err := unmarshal(typ, body, capellaBlock)
-		if err == nil {
-			block := &eth2spec.VersionedSignedBeaconBlock{
-				Version: eth2spec.DataVersionCapella,
-				Capella: capellaBlock,
-			}
-
-			return nil, p.SubmitBeaconBlock(ctx, block)
-		}
-
-		bellatrixBlock := new(bellatrix.SignedBeaconBlock)
-		err = unmarshal(typ, body, bellatrixBlock)
-		if err == nil {
-			block := &eth2spec.VersionedSignedBeaconBlock{
-				Version:   eth2spec.DataVersionBellatrix,
-				Bellatrix: bellatrixBlock,
-			}
-
-			return nil, p.SubmitBeaconBlock(ctx, block)
-		}
-
-		altairBlock := new(altair.SignedBeaconBlock)
-		err = unmarshal(typ, body, altairBlock)
-		if err == nil {
-			block := &eth2spec.VersionedSignedBeaconBlock{
-				Version: eth2spec.DataVersionAltair,
-				Altair:  altairBlock,
-			}
-
-			return nil, p.SubmitBeaconBlock(ctx, block)
-		}
-
-		phase0Block := new(eth2p0.SignedBeaconBlock)
-		err = unmarshal(typ, body, phase0Block)
-		if err == nil {
-			block := &eth2spec.VersionedSignedBeaconBlock{
-				Version: eth2spec.DataVersionPhase0,
-				Phase0:  phase0Block,
-			}
-
-			return nil, p.SubmitBeaconBlock(ctx, block)
-		}
-
-		return nil, errors.New("invalid submitted block", z.Hex("body", body))
-	}
-}
-
-func submitBlindedBlock(p eth2client.BlindedBeaconBlockSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (interface{}, error) {
-		// The blinded block maybe either bellatrix or capella.
-		capellaBlock := new(eth2capella.SignedBlindedBeaconBlock)
-		err := unmarshal(typ, body, capellaBlock)
-		if err == nil {
-			block := &eth2api.VersionedSignedBlindedBeaconBlock{
-				Version: eth2spec.DataVersionCapella,
-				Capella: capellaBlock,
-			}
-
-			return nil, p.SubmitBlindedBeaconBlock(ctx, block)
-		}
-
-		bellatrixBlock := new(eth2bellatrix.SignedBlindedBeaconBlock)
-		err = unmarshal(typ, body, bellatrixBlock)
-		if err == nil {
-			block := &eth2api.VersionedSignedBlindedBeaconBlock{
-				Version:   eth2spec.DataVersionBellatrix,
-				Bellatrix: bellatrixBlock,
-			}
-
-			return nil, p.SubmitBlindedBeaconBlock(ctx, block)
-		}
-
-		return nil, errors.New("invalid block")
-	}
-}
-
-// submitValidatorRegistrations returns a handler function for the validator (builder) registration submitter endpoint.
-func submitValidatorRegistrations(r eth2client.ValidatorRegistrationsSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (interface{}, error) {
-		var unversioned []*eth2v1.SignedValidatorRegistration
-		if err := unmarshal(typ, body, &unversioned); err != nil {
-			return nil, errors.Wrap(err, "unmarshal signed builder registration")
-		}
-
-		var versioned []*eth2api.VersionedSignedValidatorRegistration
-		for _, registration := range unversioned {
-			versioned = append(versioned, &eth2api.VersionedSignedValidatorRegistration{
-				Version: eth2spec.BuilderVersionV1,
-				V1:      registration,
-			})
-		}
-
-		return nil, r.SubmitValidatorRegistrations(ctx, versioned)
-	}
-}
-
-// aggregateBeaconCommitteeSelections receives partial beacon committee selections and returns aggregated selections.
-func aggregateBeaconCommitteeSelections(a eth2exp.BeaconCommitteeSelectionAggregator) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (res interface{}, err error) {
-		var selections []*eth2exp.BeaconCommitteeSelection
-		if err := unmarshal(typ, body, &selections); err != nil {
-			return nil, errors.Wrap(err, "unmarshal beacon committee selections")
-		}
-
-		resp, err := a.AggregateBeaconCommitteeSelections(ctx, selections)
-		if err != nil {
-			return nil, err
-		}
-
-		return aggregateBeaconCommitteeSelectionsJSON{Data: resp}, nil
-	}
-}
-
-// aggregateSyncCommitteeSelections receives partial sync committee selections and returns aggregated selections.
-func aggregateSyncCommitteeSelections(a eth2exp.SyncCommitteeSelectionAggregator) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (res interface{}, err error) {
-		var selections []*eth2exp.SyncCommitteeSelection
-		if err := unmarshal(typ, body, &selections); err != nil {
-			return nil, errors.Wrap(err, "unmarshal sync committee selections")
-		}
-
-		resp, err := a.AggregateSyncCommitteeSelections(ctx, selections)
-		if err != nil {
-			return nil, err
-		}
-
-		return aggregateSyncCommitteeSelectionsJSON{Data: resp}, nil
-	}
-}
-
-// submitExit returns a handler function for the exit submitter endpoint.
-func submitExit(p eth2client.VoluntaryExitSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (interface{}, error) {
-		exit := new(eth2p0.SignedVoluntaryExit)
-		if err := unmarshal(typ, body, exit); err != nil {
-			return nil, errors.Wrap(err, "unmarshal signed voluntary exit")
-		}
-
-		return nil, p.SubmitVoluntaryExit(ctx, exit)
-	}
-}
-
-func proposerConfig(p eth2exp.ProposerConfigProvider) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, _ contentType, _ []byte) (interface{}, error) {
-		return p.ProposerConfig(ctx)
-	}
-}
-
-func aggregateAttestation(p eth2client.AggregateAttestationProvider) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, query url.Values, _ contentType, _ []byte) (interface{}, error) {
-		slot, err := uintQuery(query, "slot")
-		if err != nil {
-			return nil, err
-		}
-
-		var attDataRoot eth2p0.Root
-		if err := hexQueryFixed(query, "attestation_data_root", attDataRoot[:]); err != nil {
-			return nil, err
-		}
-
-		data, err := p.AggregateAttestation(ctx, eth2p0.Slot(slot), attDataRoot)
-		if err != nil {
-			return nil, err
-		}
-
-		return struct {
-			Data *eth2p0.Attestation `json:"data"`
-		}{
-			Data: data,
-		}, nil
-	}
-}
-
-func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (interface{}, error) {
-		var aggs []*eth2p0.SignedAggregateAndProof
-		err := unmarshal(typ, body, &aggs)
-		if err != nil {
-			return nil, errors.Wrap(err, "unmarshal signed aggregate and proofs")
-		}
-
-		err = s.SubmitAggregateAttestations(ctx, aggs)
-		if err != nil {
-			return nil, err
-		}
-
-		return nil, nil
-	}
-}
-
-func submitSyncCommitteeMessages(s eth2client.SyncCommitteeMessagesSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (interface{}, error) {
-		var msgs []*altair.SyncCommitteeMessage
-		err := unmarshal(typ, body, &msgs)
-		if err != nil {
-			return nil, errors.Wrap(err, "unmarshal sync committee messages")
-		}
-
-		err = s.SubmitSyncCommitteeMessages(ctx, msgs)
-		if err != nil {
-			return nil, err
-		}
-
-		return nil, nil
-	}
-}
-
-// submitProposalPreparations swallows fee-recipient-address from validator client as it should be
-// configured by charon from cluster-lock.json and VC need not be configured with correct fee-recipient-address.
-func submitProposalPreparations() handlerFunc {
-	return func(context.Context, map[string]string, url.Values, contentType, []byte) (interface{}, error) {
-		return nil, nil
-	}
-}
-
-// nodeVersion returns the version of the node.
-func nodeVersion(p eth2client.NodeVersionProvider) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, _ contentType, _ []byte) (interface{}, error) {
-		version, err := p.NodeVersion(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		return nodeVersionResponse{
-			Data: struct {
-				Version string `json:"version"`
-			}(struct{ Version string }{Version: version}),
-		}, nil
-	}
-}
-
-// proxyHandler returns a reverse proxy handler.
-func proxyHandler(eth2Cl eth2wrap.Client) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Get active beacon node address.
-		targetURL, err := getBeaconNodeAddress(r.Context(), eth2Cl)
-		if err != nil {
-			ctx := log.WithTopic(r.Context(), "vapi")
-			log.Error(ctx, "Proxy target beacon node address", err)
-			writeError(ctx, w, "proxy", err)
-
-			return
-		}
-		// Get address for active beacon node
-		proxy := httputil.NewSingleHostReverseProxy(targetURL)
-
-		// Extend default proxy director with basic auth and host header.
-		defaultDirector := proxy.Director
-		proxy.Director = func(req *http.Request) {
-			if targetURL.User != nil {
-				password, _ := targetURL.User.Password()
-				req.SetBasicAuth(targetURL.User.Username(), password)
-			}
-			req.Host = targetURL.Host
-			defaultDirector(req)
-		}
-		proxy.ErrorLog = stdlog.New(io.Discard, "", 0)
-
-		defer observeAPILatency("proxy")()
-		proxy.ServeHTTP(proxyResponseWriter{w.(writeFlusher)}, r)
-	}
-}
-
-// getBeaconNodeAddress returns an active beacon node proxy target address.
-func getBeaconNodeAddress(ctx context.Context, eth2Cl eth2wrap.Client) (*url.URL, error) {
-	addr := eth2Cl.Address()
-	if addr == "none" {
-		// Trigger refresh of inactive clients to hopefully resolve any active clients.
-		syncProvider, ok := eth2Cl.(eth2client.NodeSyncingProvider)
-		if !ok {
-			return nil, errors.New("invalid eth2 client")
-		}
-		_, err := syncProvider.NodeSyncing(ctx)
-		if err != nil {
-			return nil, errors.New("no active beacon nodes") // Not wrapping since error will be confusing.
-		}
-
-		addr = eth2Cl.Address()
-		if addr == "none" {
-			return nil, errors.New("no active beacon nodes")
-		}
-	}
-
-	targetURL, err := url.Parse(addr)
-	if err != nil {
-		return nil, errors.Wrap(err, "invalid beacon node address", z.Str("address", addr))
-	}
-
-	return targetURL, nil
-}
-
 // writeResponse writes the 200 OK response and json response body.
-func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, response interface{}) {
+func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, response any, headers http.Header) {
 	if response == nil {
 		return
 	}
@@ -917,10 +296,640 @@ func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, 
 
 	w.Header().Set("Content-Type", "application/json")
 
+	for name, values := range headers {
+		for _, val := range values {
+			w.Header().Add(name, val)
+		}
+	}
+
 	if _, err = w.Write(b); err != nil {
 		// Too late to also try to writeError at this point, so just log.
 		log.Error(ctx, "Failed writing api response", err)
 	}
+}
+
+// wrapTrace wraps the passed handler in a OpenTelemetry tracing span.
+func wrapTrace(endpoint string, handler http.HandlerFunc) http.Handler {
+	return otelhttp.NewHandler(handler, "core/validatorapi."+endpoint)
+}
+
+// getValidator returns a handler function for the get validators by pubkey or index endpoint.
+func getValidators(p eth2client.ValidatorsProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+		stateID := params["state_id"]
+
+		resp, err := getValidatorsByID(ctx, p, stateID, getValidatorIDs(query)...)
+		if err != nil {
+			return nil, nil, err
+		} else if len(resp) == 0 {
+			resp = []v1Validator{} // Return empty json array instead of null.
+		}
+
+		return validatorsResponse{Data: resp}, nil, nil
+	}
+}
+
+// getValidator returns a handler function for the get validators by pubkey or index endpoint.
+func getValidator(p eth2client.ValidatorsProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+		stateID := params["state_id"]
+		id := params["validator_id"]
+
+		vals, err := getValidatorsByID(ctx, p, stateID, id)
+		if err != nil {
+			return nil, nil, err
+		} else if len(vals) == 0 {
+			return nil, nil, apiError{
+				StatusCode: http.StatusNotFound,
+				Message:    "NotFound",
+			}
+		} else if len(vals) != 1 {
+			return nil, nil, errors.New("unexpected number of validators")
+		}
+
+		return validatorResponse{Data: vals[0]}, nil, nil
+	}
+}
+
+// attestationData returns a handler function for the attestation data endpoint.
+func attestationData(p eth2client.AttestationDataProvider) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+		slot, err := uintQuery(query, "slot")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		commIdx, err := uintQuery(query, "committee_index")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		data, err := p.AttestationData(ctx, eth2p0.Slot(slot), eth2p0.CommitteeIndex(commIdx))
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return struct {
+			Data *eth2p0.AttestationData `json:"data"`
+		}{
+			Data: data,
+		}, nil, nil
+	}
+}
+
+// submitAttestations returns a handler function for the attestation submitter endpoint.
+func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		var atts []*eth2p0.Attestation
+		err := unmarshal(typ, body, &atts)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "unmarshal attestations")
+		}
+
+		return nil, nil, p.SubmitAttestations(ctx, atts)
+	}
+}
+
+// proposerDuties returns a handler function for the proposer duty endpoint.
+func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+		epoch, err := uintParam(params, "epoch")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// Note the ProposerDutiesProvider interface adds some sugar to the official eth2spec.
+		// ValidatorIndices aren't provided over the wire.
+		data, err := p.ProposerDuties(ctx, eth2p0.Epoch(epoch), nil)
+		if err != nil {
+			return nil, nil, err
+		} else if len(data) == 0 { // Return empty json array instead of null
+			data = []*eth2v1.ProposerDuty{}
+		}
+
+		return proposerDutiesResponse{
+			ExecutionOptimistic: false,           // TODO(dhruv): Fill this properly
+			DependentRoot:       stubRoot(epoch), // TODO(corver): Fill this properly
+			Data:                data,
+		}, nil, nil
+	}
+}
+
+// attesterDuties returns a handler function for the attester duty endpoint.
+func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		epoch, err := uintParam(params, "epoch")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		var req valIndexesJSON
+		if err := unmarshal(typ, body, &req); err != nil {
+			return nil, nil, err
+		}
+
+		data, err := p.AttesterDuties(ctx, eth2p0.Epoch(epoch), req)
+		if err != nil {
+			return nil, nil, err
+		} else if len(data) == 0 { // Return empty json array instead of null
+			data = []*eth2v1.AttesterDuty{}
+		}
+
+		return attesterDutiesResponse{
+			ExecutionOptimistic: false,           // TODO(dhruv): Fill this properly
+			DependentRoot:       stubRoot(epoch), // TODO(corver): Fill this properly
+			Data:                data,
+		}, nil, nil
+	}
+}
+
+// syncCommitteeDuties returns a handler function for the sync committee duty endpoint.
+func syncCommitteeDuties(p eth2client.SyncCommitteeDutiesProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		epoch, err := uintParam(params, "epoch")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		var req valIndexesJSON
+		if err := unmarshal(typ, body, &req); err != nil {
+			return nil, nil, err
+		}
+
+		data, err := p.SyncCommitteeDuties(ctx, eth2p0.Epoch(epoch), req)
+		if err != nil {
+			return nil, nil, err
+		} else if len(data) == 0 { // Return empty json array instead of null
+			data = []*eth2v1.SyncCommitteeDuty{}
+		}
+
+		return syncCommitteeDutiesResponse{Data: data}, nil, nil
+	}
+}
+
+// syncCommitteeContribution returns a handler function for get sync committee contribution endpoint.
+func syncCommitteeContribution(s eth2client.SyncCommitteeContributionProvider) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+		slot, err := uintQuery(query, "slot")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		subcommIdx, err := uintQuery(query, "subcommittee_index")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		var beaconBlockRoot eth2p0.Root
+		err = hexQueryFixed(query, "beacon_block_root", beaconBlockRoot[:])
+		if err != nil {
+			return nil, nil, err
+		}
+
+		contribution, err := s.SyncCommitteeContribution(ctx, eth2p0.Slot(slot), subcommIdx, beaconBlockRoot)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return syncCommitteeContributionResponse{Data: contribution}, nil, nil
+	}
+}
+
+// submitContributionAndProofs returns a handler function for sync committee contributions submitter endpoint.
+func submitContributionAndProofs(s eth2client.SyncCommitteeContributionsSubmitter) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		var contributionAndProofs []*altair.SignedContributionAndProof
+		err := unmarshal(typ, body, &contributionAndProofs)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "unmarshal signed contribution and proofs")
+		}
+
+		return nil, nil, s.SubmitSyncCommitteeContributions(ctx, contributionAndProofs)
+	}
+}
+
+// proposeBlock receives the randao from the validator and returns the unsigned BeaconBlock.
+func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+		slot, err := uintParam(params, "slot")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		var randao eth2p0.BLSSignature
+		if err = hexQueryFixed(query, "randao_reveal", randao[:]); err != nil {
+			return nil, nil, err
+		}
+
+		graffiti, _, err := hexQuery(query, "graffiti") // Graffiti is optional.
+		if err != nil {
+			return nil, nil, err
+		}
+
+		block, err := p.BeaconBlockProposal(ctx, eth2p0.Slot(slot), randao, graffiti)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		resHeaders := make(http.Header)
+		resHeaders.Add("Eth-Consensus-Version", block.Version.String())
+
+		switch block.Version {
+		case eth2spec.DataVersionPhase0:
+			if block.Phase0 == nil {
+				return 0, nil, errors.New("no phase0 block")
+			}
+
+			return proposeBlockResponsePhase0{
+				Version: eth2spec.DataVersionPhase0.String(),
+				Data:    block.Phase0,
+			}, resHeaders, nil
+		case eth2spec.DataVersionAltair:
+			if block.Altair == nil {
+				return 0, nil, errors.New("no altair block")
+			}
+
+			return proposeBlockResponseAltair{
+				Version: eth2spec.DataVersionAltair.String(),
+				Data:    block.Altair,
+			}, resHeaders, nil
+		case eth2spec.DataVersionBellatrix:
+			if block.Bellatrix == nil {
+				return 0, nil, errors.New("no bellatrix block")
+			}
+
+			return proposeBlockResponseBellatrix{
+				Version: eth2spec.DataVersionBellatrix.String(),
+				Data:    block.Bellatrix,
+			}, resHeaders, nil
+		case eth2spec.DataVersionCapella:
+			if block.Capella == nil {
+				return 0, nil, errors.New("no capella block")
+			}
+
+			return proposeBlockResponseCapella{
+				Version: eth2spec.DataVersionCapella.String(),
+				Data:    block.Capella,
+			}, resHeaders, nil
+		case eth2spec.DataVersionDeneb:
+			if block.Deneb == nil {
+				return 0, nil, errors.New("no deneb block")
+			}
+
+			return proposeBlockResponseDeneb{
+				Version: eth2spec.DataVersionDeneb.String(),
+				Data:    block.Deneb,
+			}, resHeaders, nil
+		default:
+			return 0, nil, errors.New("invalid block")
+		}
+	}
+}
+
+// proposeBlindedBlock receives the randao from the validator and returns the unsigned BlindedBeaconBlock.
+func proposeBlindedBlock(p eth2client.BlindedBeaconBlockProposalProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+		slot, err := uintParam(params, "slot")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		var randao eth2p0.BLSSignature
+		if err := hexQueryFixed(query, "randao_reveal", randao[:]); err != nil {
+			return nil, nil, err
+		}
+
+		block, err := p.BlindedBeaconBlockProposal(ctx, eth2p0.Slot(slot), randao, nil)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		resHeaders := make(http.Header)
+		resHeaders.Add("Eth-Consensus-Version", block.Version.String())
+
+		switch block.Version {
+		case eth2spec.DataVersionBellatrix:
+			if block.Bellatrix == nil {
+				return 0, nil, errors.New("no bellatrix block")
+			}
+
+			return proposeBlindedBlockResponseBellatrix{
+				Version: "BELLATRIX",
+				Data:    block.Bellatrix,
+			}, resHeaders, nil
+		case eth2spec.DataVersionCapella:
+			if block.Capella == nil {
+				return 0, nil, errors.New("no capella block")
+			}
+
+			return proposeBlindedBlockResponseCapella{
+				Version: "CAPELLA",
+				Data:    block.Capella,
+			}, resHeaders, nil
+		case eth2spec.DataVersionDeneb:
+			if block.Deneb == nil {
+				return 0, nil, errors.New("no deneb block")
+			}
+
+			return proposeBlindedBlockResponseDeneb{
+				Version: "DENEB",
+				Data:    block.Deneb,
+			}, resHeaders, nil
+		default:
+			return 0, nil, errors.New("invalid block")
+		}
+	}
+}
+
+func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		capellaBlock := new(capella.SignedBeaconBlock)
+		err := unmarshal(typ, body, capellaBlock)
+		if err == nil {
+			block := &eth2spec.VersionedSignedBeaconBlock{
+				Version: eth2spec.DataVersionCapella,
+				Capella: capellaBlock,
+			}
+
+			return nil, nil, p.SubmitBeaconBlock(ctx, block)
+		}
+
+		bellatrixBlock := new(bellatrix.SignedBeaconBlock)
+		err = unmarshal(typ, body, bellatrixBlock)
+		if err == nil {
+			block := &eth2spec.VersionedSignedBeaconBlock{
+				Version:   eth2spec.DataVersionBellatrix,
+				Bellatrix: bellatrixBlock,
+			}
+
+			return nil, nil, p.SubmitBeaconBlock(ctx, block)
+		}
+
+		altairBlock := new(altair.SignedBeaconBlock)
+		err = unmarshal(typ, body, altairBlock)
+		if err == nil {
+			block := &eth2spec.VersionedSignedBeaconBlock{
+				Version: eth2spec.DataVersionAltair,
+				Altair:  altairBlock,
+			}
+
+			return nil, nil, p.SubmitBeaconBlock(ctx, block)
+		}
+
+		phase0Block := new(eth2p0.SignedBeaconBlock)
+		err = unmarshal(typ, body, phase0Block)
+		if err == nil {
+			block := &eth2spec.VersionedSignedBeaconBlock{
+				Version: eth2spec.DataVersionPhase0,
+				Phase0:  phase0Block,
+			}
+
+			return nil, nil, p.SubmitBeaconBlock(ctx, block)
+		}
+
+		return nil, nil, errors.New("invalid submitted block", z.Hex("body", body))
+	}
+}
+
+func submitBlindedBlock(p eth2client.BlindedBeaconBlockSubmitter) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		// The blinded block maybe either bellatrix or capella.
+		capellaBlock := new(eth2capella.SignedBlindedBeaconBlock)
+		err := unmarshal(typ, body, capellaBlock)
+		if err == nil {
+			block := &eth2api.VersionedSignedBlindedBeaconBlock{
+				Version: eth2spec.DataVersionCapella,
+				Capella: capellaBlock,
+			}
+
+			return nil, nil, p.SubmitBlindedBeaconBlock(ctx, block)
+		}
+
+		bellatrixBlock := new(eth2bellatrix.SignedBlindedBeaconBlock)
+		err = unmarshal(typ, body, bellatrixBlock)
+		if err == nil {
+			block := &eth2api.VersionedSignedBlindedBeaconBlock{
+				Version:   eth2spec.DataVersionBellatrix,
+				Bellatrix: bellatrixBlock,
+			}
+
+			return nil, nil, p.SubmitBlindedBeaconBlock(ctx, block)
+		}
+
+		return nil, nil, errors.New("invalid block")
+	}
+}
+
+// submitValidatorRegistrations returns a handler function for the validator (builder) registration submitter endpoint.
+func submitValidatorRegistrations(r eth2client.ValidatorRegistrationsSubmitter) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		var unversioned []*eth2v1.SignedValidatorRegistration
+		if err := unmarshal(typ, body, &unversioned); err != nil {
+			return nil, nil, errors.Wrap(err, "unmarshal signed builder registration")
+		}
+
+		var versioned []*eth2api.VersionedSignedValidatorRegistration
+		for _, registration := range unversioned {
+			versioned = append(versioned, &eth2api.VersionedSignedValidatorRegistration{
+				Version: eth2spec.BuilderVersionV1,
+				V1:      registration,
+			})
+		}
+
+		return nil, nil, r.SubmitValidatorRegistrations(ctx, versioned)
+	}
+}
+
+// aggregateBeaconCommitteeSelections receives partial beacon committee selections and returns aggregated selections.
+func aggregateBeaconCommitteeSelections(a eth2exp.BeaconCommitteeSelectionAggregator) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (res any, headers http.Header, err error) {
+		var selections []*eth2exp.BeaconCommitteeSelection
+		if err := unmarshal(typ, body, &selections); err != nil {
+			return nil, nil, errors.Wrap(err, "unmarshal beacon committee selections")
+		}
+
+		resp, err := a.AggregateBeaconCommitteeSelections(ctx, selections)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return aggregateBeaconCommitteeSelectionsJSON{Data: resp}, nil, nil
+	}
+}
+
+// aggregateSyncCommitteeSelections receives partial sync committee selections and returns aggregated selections.
+func aggregateSyncCommitteeSelections(a eth2exp.SyncCommitteeSelectionAggregator) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (res any, headers http.Header, err error) {
+		var selections []*eth2exp.SyncCommitteeSelection
+		if err := unmarshal(typ, body, &selections); err != nil {
+			return nil, nil, errors.Wrap(err, "unmarshal sync committee selections")
+		}
+
+		resp, err := a.AggregateSyncCommitteeSelections(ctx, selections)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return aggregateSyncCommitteeSelectionsJSON{Data: resp}, nil, nil
+	}
+}
+
+// submitExit returns a handler function for the exit submitter endpoint.
+func submitExit(p eth2client.VoluntaryExitSubmitter) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		exit := new(eth2p0.SignedVoluntaryExit)
+		if err := unmarshal(typ, body, exit); err != nil {
+			return nil, nil, errors.Wrap(err, "unmarshal signed voluntary exit")
+		}
+
+		return nil, nil, p.SubmitVoluntaryExit(ctx, exit)
+	}
+}
+
+func proposerConfig(p eth2exp.ProposerConfigProvider) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+		resp, err := p.ProposerConfig(ctx)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "proposer config")
+		}
+
+		return resp, nil, nil
+	}
+}
+
+func aggregateAttestation(p eth2client.AggregateAttestationProvider) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+		slot, err := uintQuery(query, "slot")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		var attDataRoot eth2p0.Root
+		if err := hexQueryFixed(query, "attestation_data_root", attDataRoot[:]); err != nil {
+			return nil, nil, err
+		}
+
+		data, err := p.AggregateAttestation(ctx, eth2p0.Slot(slot), attDataRoot)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return struct {
+			Data *eth2p0.Attestation `json:"data"`
+		}{
+			Data: data,
+		}, nil, nil
+	}
+}
+
+func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		var aggs []*eth2p0.SignedAggregateAndProof
+		err := unmarshal(typ, body, &aggs)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "unmarshal signed aggregate and proofs")
+		}
+
+		err = s.SubmitAggregateAttestations(ctx, aggs)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return nil, nil, nil
+	}
+}
+
+func submitSyncCommitteeMessages(s eth2client.SyncCommitteeMessagesSubmitter) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		var msgs []*altair.SyncCommitteeMessage
+		err := unmarshal(typ, body, &msgs)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "unmarshal sync committee messages")
+		}
+
+		err = s.SubmitSyncCommitteeMessages(ctx, msgs)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return nil, nil, nil
+	}
+}
+
+// submitProposalPreparations swallows fee-recipient-address from validator client as it should be
+// configured by charon from cluster-lock.json and VC need not be configured with correct fee-recipient-address.
+func submitProposalPreparations() handlerFunc {
+	return func(context.Context, map[string]string, url.Values, contentType, []byte) (any, http.Header, error) {
+		return nil, nil, nil
+	}
+}
+
+// nodeVersion returns the version of the node.
+func nodeVersion(p eth2client.NodeVersionProvider) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+		version, err := p.NodeVersion(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return nodeVersionResponse{
+			Data: struct {
+				Version string `json:"version"`
+			}(struct{ Version string }{Version: version}),
+		}, nil, nil
+	}
+}
+
+// addressProvider provides the address of the active beacon node.
+type addressProvider interface {
+	Address() string
+}
+
+// proxyHandler returns a reverse proxy handler.
+// Proxied requests use the provided context, so are cancelled when the context is cancelled.
+func proxyHandler(ctx context.Context, addrProvider addressProvider) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Get active beacon node address.
+		targetURL, err := getBeaconNodeAddress(addrProvider)
+		if err != nil {
+			ctx := log.WithTopic(r.Context(), "vapi")
+			log.Error(ctx, "Proxy target beacon node address", err)
+			writeError(ctx, w, "proxy", err)
+
+			return
+		}
+		// Get address for active beacon node
+		proxy := httputil.NewSingleHostReverseProxy(targetURL)
+		// Extend default proxy director with basic auth and host header.
+		defaultDirector := proxy.Director
+		proxy.Director = func(req *http.Request) {
+			if targetURL.User != nil {
+				password, _ := targetURL.User.Password()
+				req.SetBasicAuth(targetURL.User.Username(), password)
+			}
+			req.Host = targetURL.Host
+			defaultDirector(req)
+		}
+		proxy.ErrorLog = stdlog.New(io.Discard, "", 0)
+
+		// Use provided context for proxied requests, so long running
+		// requests are cancelled when this context is cancelled (soft shutdown).
+		clonedReq := r.Clone(ctx)
+
+		defer observeAPILatency("proxy")()
+		proxy.ServeHTTP(proxyResponseWriter{w.(writeFlusher)}, clonedReq)
+	}
+}
+
+// getBeaconNodeAddress returns an active beacon node proxy target address.
+func getBeaconNodeAddress(addrProvider addressProvider) (*url.URL, error) {
+	addr := addrProvider.Address()
+	targetURL, err := url.Parse(addr)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid beacon node address", z.Str("address", addr))
+	}
+
+	return targetURL, nil
 }
 
 // writeError writes a http json error response object.
@@ -982,7 +991,7 @@ func writeError(ctx context.Context, w http.ResponseWriter, endpoint string, err
 
 // unmarshal parses body with the appropriate unmarshaler based on the contentType and stores the result
 // in the value pointed to by v.
-func unmarshal(typ contentType, body []byte, v interface{}) error {
+func unmarshal(typ contentType, body []byte, v any) error {
 	if len(body) == 0 {
 		return apiError{
 			StatusCode: http.StatusBadRequest,

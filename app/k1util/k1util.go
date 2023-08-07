@@ -58,11 +58,24 @@ func Sign(key *k1.PrivateKey, hash []byte) ([]byte, error) {
 	return sig, nil
 }
 
-// Verify returns whether the signature is valid for the provided hash
+// Verify65 returns whether the 65 byte signature is valid for the provided hash
+// and secp256k1 public key.
+//
+// Note the signature MUST be 64 bytes in the [R || S || V] format where V is the recovery ID.
+func Verify65(pubkey *k1.PublicKey, hash []byte, sig []byte) (bool, error) {
+	recovered, err := Recover(hash, sig)
+	if err != nil {
+		return false, err
+	}
+
+	return pubkey.IsEqual(recovered), nil
+}
+
+// Verify64 returns whether the 64 byte signature is valid for the provided hash
 // and secp256k1 public key.
 //
 // Note the signature MUST be 64 bytes in the [R || S] format without recovery ID.
-func Verify(pubkey *k1.PublicKey, hash []byte, sig []byte) (bool, error) {
+func Verify64(pubkey *k1.PublicKey, hash []byte, sig []byte) (bool, error) {
 	if len(sig) != 2*scalarLen {
 		return false, errors.New("signature not 64 bytes")
 	}

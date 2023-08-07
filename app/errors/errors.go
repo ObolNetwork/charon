@@ -73,7 +73,7 @@ func SkipWrap(err error, msg string, skip int, fields ...z.Field) error {
 	}
 
 	return structured{
-		err:    fmt.Errorf("%s: %w", msg, err), //nolint: forbidigo // Wrap error message using stdlib.
+		err:    fmt.Errorf("%s: %w", msg, err), //nolint:forbidigo // Wrap error message using stdlib.
 		fields: fields,
 		stack:  stack,
 	}

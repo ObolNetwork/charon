@@ -132,20 +132,21 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 
 	var secrets []tbls.PrivateKey
 
+	// If we're splitting keys, read them from SplitKeysDir and set conf.NumDVs to the amount of
+	// secrets we read.
+	// If SplitKeys wasn't set, we wouldn't have reached this part of code because validateCreateConfig()
+	// would've already errored.
 	if conf.SplitKeys {
 		secrets, err = getKeys(conf.SplitKeysDir)
 		if err != nil {
 			return err
 		}
 
+		// Needed if --split-existing-keys is called without a definition file.
 		conf.NumDVs = len(secrets)
-	} else {
-		secrets, err = generateKeys(conf.NumDVs)
-		if err != nil {
-			return err
-		}
 	}
 
+	// Get a cluster definition, either from a definition file or from the config.
 	var def cluster.Definition
 	if conf.DefFile != "" { // Load definition from DefFile
 		def, err = loadDefinition(ctx, conf.DefFile)
@@ -159,15 +160,16 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		}
 	}
 
-	if def.NumValidators != conf.NumDVs {
-		errTmpl := "provided cluster definition doesn't contain the same amount of validators"
-
-		err := errors.New(errTmpl + " as specified in --num-validators")
-		if conf.SplitKeys {
-			err = errors.New(errTmpl + " contained in --split-keys-dir")
+	if len(secrets) == 0 {
+		// this is the case in which split-keys is undefined and user passed validator amount on CLI
+		secrets, err = generateKeys(def.NumValidators)
+		if err != nil {
+			return err
 		}
+	}
 
-		return err
+	if len(secrets) != def.NumValidators {
+		return errors.New("amount of keys read from disk differs from cluster definition", z.Int("disk", len(secrets)), z.Int("definition", def.NumValidators))
 	}
 
 	numNodes := len(def.Operators)
@@ -189,8 +191,8 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return errors.Wrap(err, "mkdir")
 	}
 
-	// Create operators
-	ops, opsKeys, err := getOperators(numNodes, conf.ClusterDir)
+	// Create operators and their enr node keys
+	ops, nodeKeys, err := getOperators(numNodes, conf.ClusterDir)
 	if err != nil {
 		return err
 	}
@@ -246,17 +248,14 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
-	var opsLockSigs [][]byte
-	for _, opKey := range opsKeys {
-		sig, err := k1util.Sign(opKey, lock.LockHash)
+	for _, opKey := range nodeKeys {
+		nodeSig, err := k1util.Sign(opKey, lock.LockHash)
 		if err != nil {
 			return err
 		}
 
-		opsLockSigs = append(opsLockSigs, sig)
+		lock.NodeSignatures = append(lock.NodeSignatures, nodeSig)
 	}
-
-	lock.NodeSignatures = opsLockSigs
 
 	// dashboardURL is the Launchpad dashboard url for a given lock file.
 	// If empty, either conf.Publish wasn't specified or there was a processing error in publishing
@@ -291,7 +290,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 
 // validateCreateConfig returns an error if any of the provided config parameters are invalid.
 func validateCreateConfig(conf clusterConfig) error {
-	if conf.NumNodes == 0 {
+	if conf.NumNodes == 0 && conf.DefFile == "" { // if there's a definition file, infer this value from it later
 		return errors.New("missing --nodes flag")
 	}
 
@@ -313,7 +312,7 @@ func validateCreateConfig(conf clusterConfig) error {
 			return errors.New("can't specify --num-validators with --split-existing-keys. Please fix configuration flags")
 		}
 	} else {
-		if conf.NumDVs == 0 {
+		if conf.NumDVs == 0 && conf.DefFile == "" { // if there's a definition file, infer this value from it later
 			return errors.New("missing --num-validators flag")
 		}
 	}

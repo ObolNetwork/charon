@@ -118,7 +118,7 @@ func ValidNetwork(name string) bool {
 func NetworkToGenesisTime(name string) (time.Time, error) {
 	for _, network := range supportedNetworks {
 		if name == network.Name {
-			return time.Unix(network.GenesisTimestamp, 0).UTC(), nil
+			return time.Unix(network.GenesisTimestamp, 0), nil
 		}
 	}
 
@@ -128,7 +128,7 @@ func NetworkToGenesisTime(name string) (time.Time, error) {
 func ForkVersionToGenesisTime(forkVersion []byte) (time.Time, error) {
 	for _, network := range supportedNetworks {
 		if fmt.Sprintf("%#x", forkVersion) == network.GenesisForkVersionHex {
-			return time.Unix(network.GenesisTimestamp, 0).UTC(), nil
+			return time.Unix(network.GenesisTimestamp, 0), nil
 		}
 	}
 

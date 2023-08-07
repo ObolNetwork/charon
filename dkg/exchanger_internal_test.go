@@ -58,6 +58,12 @@ func TestExchanger(t *testing.T) {
 		hosts      []host.Host
 		hostsInfo  []peer.AddrInfo
 		exchangers []*exchanger
+
+		expectedSigTypes = []sigType{
+			sigLock,
+			sigDepositData,
+			sigValidatorRegistration,
+		}
 	)
 
 	// Create hosts
@@ -83,12 +89,46 @@ func TestExchanger(t *testing.T) {
 	}
 
 	for i := 0; i < nodes; i++ {
-		ex := newExchanger(hosts[i], i, peers, dvs)
+		ex := newExchanger(hosts[i], i, peers, dvs, expectedSigTypes)
 		exchangers = append(exchangers, ex)
 	}
 
-	respChan := make(chan map[core.PubKey][]core.ParSignedData)
+	type respStruct struct {
+		data    map[core.PubKey][]core.ParSignedData
+		sigType sigType
+	}
+
+	respChan := make(chan respStruct)
 	var wg sync.WaitGroup
+
+	// send multiple (supported) messages at the same time, showing that exchanger can exchange messages of various
+	// sigTypes concurrently
+	for i := 0; i < nodes; i++ {
+		wg.Add(2)
+		go func(node int) {
+			defer wg.Done()
+
+			data, err := exchangers[node].exchange(ctx, sigDepositData, dataToBeSent[node])
+			require.NoError(t, err)
+
+			respChan <- respStruct{
+				data:    data,
+				sigType: sigDepositData,
+			}
+		}(i)
+		go func(node int) {
+			defer wg.Done()
+
+			data, err := exchangers[node].exchange(ctx, sigValidatorRegistration, dataToBeSent[node])
+			require.NoError(t, err)
+
+			respChan <- respStruct{
+				data:    data,
+				sigType: sigValidatorRegistration,
+			}
+		}(i)
+	}
+
 	for i := 0; i < nodes; i++ {
 		wg.Add(1)
 		go func(node int) {
@@ -97,7 +137,10 @@ func TestExchanger(t *testing.T) {
 			data, err := exchangers[node].exchange(ctx, sigLock, dataToBeSent[node])
 			require.NoError(t, err)
 
-			respChan <- data
+			respChan <- respStruct{
+				data:    data,
+				sigType: sigLock,
+			}
 		}(i)
 	}
 
@@ -106,12 +149,22 @@ func TestExchanger(t *testing.T) {
 		close(respChan) // Closes response channel once all the goroutines are done with writing.
 	}()
 
-	var actual []map[core.PubKey][]core.ParSignedData
+	actual := make(sigTypeStore)
 	for res := range respChan {
-		actual = append(actual, res)
+		actual[res.sigType] = res.data
 	}
 
-	for i := 0; i < nodes; i++ {
-		reflect.DeepEqual(actual[i], expectedData)
+	// test that data we expected arrived, for each sigType
+	for _, data := range actual {
+		reflect.DeepEqual(data, expectedData)
 	}
+
+	// test that all sigTypes expected to arrive actually arrived
+	for _, expectedSigType := range expectedSigTypes {
+		_, ok := actual[expectedSigType]
+		require.True(t, ok, "missing sigType %d from received data", expectedSigType)
+	}
+
+	// require that we encountered all the sigTypes expected
+	require.Len(t, actual, len(expectedSigTypes))
 }

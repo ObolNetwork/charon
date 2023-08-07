@@ -36,7 +36,7 @@ func TestStdOutTracer(t *testing.T) {
 
 	require.NoError(t, stop(ctx))
 
-	var m map[string]interface{}
+	var m map[string]any
 	d := json.NewDecoder(&buf)
 
 	err = d.Decode(&m)

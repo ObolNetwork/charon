@@ -54,3 +54,13 @@ func SupportedVersionsForT(*testing.T) []string {
 
 	return resp
 }
+
+// SupportPregenRegistrations returns true if the version is v1.7 or later.
+func SupportPregenRegistrations(version string) bool {
+	return !isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6)
+}
+
+// SupportNodeSignatures returns true if the version is v1.7 or later.
+func SupportNodeSignatures(version string) bool {
+	return !isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6)
+}

@@ -19,6 +19,7 @@ import (
 	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/eth2util"
 )
 
 var (
@@ -206,8 +207,13 @@ func (b VersionedBeaconBlock) MarshalJSON() ([]byte, error) {
 		return nil, errors.Wrap(err, "marshal block")
 	}
 
+	version, err := eth2util.DataVersionFromETH2(b.Version)
+	if err != nil {
+		return nil, errors.Wrap(err, "convert version")
+	}
+
 	resp, err := json.Marshal(versionedRawBlockJSON{
-		Version: int(b.Version),
+		Version: version,
 		Block:   block,
 	})
 	if err != nil {
@@ -223,7 +229,7 @@ func (b *VersionedBeaconBlock) UnmarshalJSON(input []byte) error {
 		return errors.Wrap(err, "unmarshal block")
 	}
 
-	resp := eth2spec.VersionedBeaconBlock{Version: eth2spec.DataVersion(raw.Version)}
+	resp := eth2spec.VersionedBeaconBlock{Version: raw.Version.ToETH2()}
 	switch resp.Version {
 	case eth2spec.DataVersionPhase0:
 		block := new(eth2p0.BeaconBlock)
@@ -319,8 +325,13 @@ func (b VersionedBlindedBeaconBlock) MarshalJSON() ([]byte, error) {
 		return nil, errors.Wrap(err, "marshal block")
 	}
 
+	version, err := eth2util.DataVersionFromETH2(b.Version)
+	if err != nil {
+		return nil, errors.Wrap(err, "convert version")
+	}
+
 	resp, err := json.Marshal(versionedRawBlockJSON{
-		Version: int(b.Version),
+		Version: version,
 		Block:   block,
 	})
 	if err != nil {
@@ -336,7 +347,7 @@ func (b *VersionedBlindedBeaconBlock) UnmarshalJSON(input []byte) error {
 		return errors.Wrap(err, "unmarshal block")
 	}
 
-	resp := eth2api.VersionedBlindedBeaconBlock{Version: eth2spec.DataVersion(raw.Version)}
+	resp := eth2api.VersionedBlindedBeaconBlock{Version: raw.Version.ToETH2()}
 	switch resp.Version {
 	case eth2spec.DataVersionBellatrix:
 		block := new(eth2bellatrix.BlindedBeaconBlock)

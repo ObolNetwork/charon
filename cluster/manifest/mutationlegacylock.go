@@ -6,17 +6,26 @@ import (
 	"bytes"
 	"encoding/json"
 	"testing"
-	"time"
 
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/cluster"
 	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 )
 
+// NewDAGFromLockForT returns a cluster DAG from the provided lock for use in tests.
+func NewDAGFromLockForT(_ *testing.T, lock cluster.Lock) (*manifestpb.SignedMutationList, error) {
+	signed, err := NewLegacyLockForT(nil, lock)
+	if err != nil {
+		return nil, err
+	}
+
+	return &manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{signed}}, nil
+}
+
+// NewClusterFromLockForT returns a cluster manifest from the provided lock for use in tests.
 func NewClusterFromLockForT(_ *testing.T, lock cluster.Lock) (*manifestpb.Cluster, error) {
 	signed, err := NewLegacyLockForT(nil, lock)
 	if err != nil {
@@ -29,14 +38,8 @@ func NewClusterFromLockForT(_ *testing.T, lock cluster.Lock) (*manifestpb.Cluste
 // NewRawLegacyLock return a new legacy lock mutation from the provided raw json bytes.
 func NewRawLegacyLock(b []byte) (*manifestpb.SignedMutation, error) {
 	// Verify that the bytes is a valid lock.
-	var l cluster.Lock
-	if err := json.Unmarshal(b, &l); err != nil {
+	if err := json.Unmarshal(b, new(cluster.Lock)); err != nil {
 		return nil, errors.Wrap(err, "unmarshal lock")
-	}
-
-	timestamp, err := time.Parse(time.RFC3339, l.Timestamp)
-	if err != nil {
-		return nil, errors.Wrap(err, "parse lock timestamp")
 	}
 
 	lockAny, err := anypb.New(&manifestpb.LegacyLock{Json: b})
@@ -48,10 +51,9 @@ func NewRawLegacyLock(b []byte) (*manifestpb.SignedMutation, error) {
 
 	return &manifestpb.SignedMutation{
 		Mutation: &manifestpb.Mutation{
-			Parent:    zeroParent[:], // Empty parent
-			Type:      string(TypeLegacyLock),
-			Timestamp: timestamppb.New(timestamp),
-			Data:      lockAny,
+			Parent: zeroParent[:], // Empty parent
+			Type:   string(TypeLegacyLock),
+			Data:   lockAny,
 		},
 		// No signer or signature
 	}, nil

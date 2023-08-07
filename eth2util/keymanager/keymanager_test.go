@@ -148,7 +148,7 @@ type mockKeymanagerReq struct {
 
 // noopKeystore is a mock keystore for use in tests.
 type noopKeystore struct {
-	Crypto map[string]interface{} `json:"crypto"`
+	Crypto map[string]any `json:"crypto"`
 }
 
 // decrypt returns the secret from the encrypted keystore.

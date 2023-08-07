@@ -4,7 +4,6 @@ package manifest
 
 import (
 	"crypto/sha256"
-	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -71,7 +70,7 @@ func hashSignedMutation(signed *manifestpb.SignedMutation) ([]byte, error) {
 
 // hashMutation returns the hash of a mutation.
 func hashMutation(m *manifestpb.Mutation) ([]byte, error) {
-	if m.Timestamp == nil || m.Data == nil {
+	if m.Data == nil {
 		return nil, errors.New("invalid mutation")
 	}
 
@@ -87,16 +86,7 @@ func hashMutation(m *manifestpb.Mutation) ([]byte, error) {
 		return nil, errors.Wrap(err, "hash type")
 	}
 
-	// Field 2: Timestamp
-	if _, err := h.Write(int64ToBytes(m.Timestamp.Seconds)); err != nil {
-		return nil, errors.Wrap(err, "hash timestamp seconds")
-	}
-
-	if _, err := h.Write(int32ToBytes(m.Timestamp.Nanos)); err != nil {
-		return nil, errors.Wrap(err, "hash timestamp nanos")
-	}
-
-	// Field 3: Data
+	// Field 2: Data
 	if _, err := h.Write([]byte(m.Data.TypeUrl)); err != nil {
 		return nil, errors.Wrap(err, "hash data type url")
 	}
@@ -106,20 +96,6 @@ func hashMutation(m *manifestpb.Mutation) ([]byte, error) {
 	}
 
 	return h.Sum(nil), nil
-}
-
-func int64ToBytes(i int64) []byte {
-	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, uint64(i))
-
-	return b
-}
-
-func int32ToBytes(i int32) []byte {
-	b := make([]byte, 4)
-	binary.LittleEndian.PutUint32(b, uint32(i))
-
-	return b
 }
 
 // verifyEmptySig verifies that the signed mutation isn't signed.
@@ -150,7 +126,7 @@ func SignK1(m *manifestpb.Mutation, secret *k1.PrivateKey) (*manifestpb.SignedMu
 	return &manifestpb.SignedMutation{
 		Mutation:  m,
 		Signer:    secret.PubKey().SerializeCompressed(),
-		Signature: sig[:64], // Strip recovery id
+		Signature: sig,
 	}, nil
 }
 
@@ -168,7 +144,7 @@ func verifyK1SignedMutation(signed *manifestpb.SignedMutation) error {
 		return errors.Wrap(err, "hash mutation")
 	}
 
-	if ok, err := k1util.Verify(pubkey, hash, signed.Signature); err != nil {
+	if ok, err := k1util.Verify65(pubkey, hash, signed.Signature); err != nil {
 		return errors.Wrap(err, "verify signature")
 	} else if !ok {
 		return errors.New("invalid mutation signature")

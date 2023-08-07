@@ -1,9 +1,6 @@
 mutation: {
 	parent: "`^\xc6\xdeO\x1a\xe9\x97\xdd5EQ;\x93L3Z\x83?F5ܟ\xadwX1Oy\xff\x0f\xae"
 	type: "dv/gen_validators/v0.0.1"
-	timestamp: {
-		seconds: 1609459200
-	}
 	data: {
 		[type.googleapis.com/cluster.manifestpb.v1.ValidatorList]: {
 			validators: {

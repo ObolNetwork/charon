@@ -52,6 +52,7 @@ func TestDKG(t *testing.T) {
 	tests := []struct {
 		name       string
 		dkgAlgo    string
+		version    string // Defaults to latest if empty
 		keymanager bool
 		publish    bool
 	}{
@@ -60,7 +61,12 @@ func TestDKG(t *testing.T) {
 			dkgAlgo: "keycast",
 		},
 		{
-			name:    "frost",
+			name:    "frost_v16",
+			version: "v1.6.0",
+			dkgAlgo: "frost",
+		},
+		{
+			name:    "frost_latest",
 			dkgAlgo: "frost",
 		},
 		{
@@ -77,7 +83,14 @@ func TestDKG(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 1, withAlgo(test.dkgAlgo))
+			opts := []func(*cluster.Definition){
+				withAlgo(test.dkgAlgo),
+			}
+			if test.version != "" {
+				opts = append(opts, cluster.WithVersion(test.version))
+			}
+
+			lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 1, opts...)
 			dir := t.TempDir()
 
 			testDKG(t, lock.Definition, dir, keys, test.keymanager, test.publish)
@@ -114,6 +127,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 				return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
 			},
 			ShutdownCallback: shutdownSync,
+			SyncOpts:         []func(*dkgsync.Client){dkgsync.WithPeriod(time.Millisecond * 50)},
 		},
 	}
 
@@ -183,7 +197,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	err := <-runChan
 	cancel()
 	testutil.SkipIfBindErr(t, err)
-	require.NoError(t, err)
+	testutil.RequireNoError(t, err)
 
 	// check that the privkey lock file has been deleted in all nodes at the end of dkg
 	for i := 0; i < len(def.Operators); i++ {
@@ -301,8 +315,8 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 		secrets, err := keyFiles.SequencedKeys()
 		require.NoError(t, err)
 
-		for i, secret := range secrets {
-			secretShares[i] = append(secretShares[i], secret)
+		for j, secret := range secrets {
+			secretShares[j] = append(secretShares[j], secret)
 		}
 
 		lockFile, err := os.ReadFile(path.Join(dataDir, "cluster-lock.json"))
@@ -313,10 +327,15 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 		require.NoError(t, lock.VerifySignatures())
 		locks = append(locks, lock)
 
-		for _, val := range lock.Validators {
+		for j, val := range lock.Validators {
 			// Assert Deposit Data
 			require.EqualValues(t, val.PubKey, val.DepositData.PubKey)
 			require.EqualValues(t, 32_000_000_000, val.DepositData.Amount)
+
+			if !cluster.SupportPregenRegistrations(lock.Version) {
+				require.Empty(t, val.BuilderRegistration.Signature)
+				continue
+			}
 
 			// Assert Builder Registration
 			require.EqualValues(t, val.PubKey, val.BuilderRegistration.Message.PubKey)
@@ -342,10 +361,11 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 
 			err = tbls.Verify(pubkey, sigRoot[:], sig)
 			require.NoError(t, err)
-		}
 
-		for i, addrs := range lock.ValidatorAddresses {
-			require.EqualValues(t, addrs.FeeRecipientAddress, fmt.Sprintf("%#x", lock.Validators[i].BuilderRegistration.Message.FeeRecipient))
+			require.EqualValues(t,
+				lock.ValidatorAddresses[j].FeeRecipientAddress,
+				fmt.Sprintf("%#x", val.BuilderRegistration.Message.FeeRecipient),
+			)
 		}
 	}
 
