@@ -5,7 +5,6 @@ package obolapi_test
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -88,8 +87,11 @@ func TestLaunchpadDashURL(t *testing.T) {
 		parsedRes, err := url.ParseRequestURI(result)
 		require.NoError(t, err)
 
-		require.Equal(t, parsedRes.Host, "safe.today")
-		require.Equal(t, parsedRes.Path, "/clusters/details")
-		require.Equal(t, parsedRes.Query().Get("lockHash"), hex.EncodeToString(bytes.Repeat([]byte{0x42}, 32)))
+		require.Equal(t, "safe.today", parsedRes.Host)
+		require.Equal(
+			t,
+			"/lock/0x4242424242424242424242424242424242424242424242424242424242424242/launchpad",
+			parsedRes.Path,
+		)
 	})
 }
