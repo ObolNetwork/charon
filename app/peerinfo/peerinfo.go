@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"regexp"
 	"testing"
 	"time"
 
@@ -27,6 +28,8 @@ const (
 	period                  = time.Minute
 	protocolID2 protocol.ID = "/charon/peerinfo/2.0.0"
 )
+
+var gitHashMatch = regexp.MustCompile("^[0-9a-f]{7}$")
 
 // Protocols returns the supported protocols of this package in order of precedence.
 func Protocols() []protocol.ID {
@@ -177,12 +180,17 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 				return
 			}
 
+			name := p2p.PeerName(peerID)
+
+			// Validator git hash with regex.
+			if !gitHashMatch.Match([]byte(resp.GitHash)) {
+				log.Error(ctx, "Invalid peer git hash", nil, z.Str("peer", name))
+				return
+			}
+
 			expectedSentAt := time.Now().Add(-rtt / 2)
 			actualSentAt := resp.SentAt.AsTime()
 			clockOffset := actualSentAt.Sub(expectedSentAt)
-			p.metricSubmitter(peerID, clockOffset, resp.CharonVersion, resp.GitHash, resp.StartedAt.AsTime())
-
-			name := p2p.PeerName(peerID)
 
 			if err := supportedPeerVersion(resp.CharonVersion, version.Supported()); err != nil {
 				peerCompatibleGauge.WithLabelValues(name).Set(0) // Set to false
@@ -194,9 +202,14 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 					z.Any("supported_versions", version.Supported()),
 					p.versionFilters[peerID],
 				)
-			} else {
-				peerCompatibleGauge.WithLabelValues(name).Set(1) // Set to false
+
+				return
 			}
+
+			// Set peer compatibility to true.
+			peerCompatibleGauge.WithLabelValues(name).Set(1)
+
+			p.metricSubmitter(peerID, clockOffset, resp.CharonVersion, resp.GitHash, resp.StartedAt.AsTime())
 
 			// Log unexpected lock hash
 			if !bytes.Equal(resp.LockHash, p.lockHash) {
