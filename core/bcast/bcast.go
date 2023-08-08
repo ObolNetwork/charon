@@ -169,7 +169,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 
 		err = b.eth2Cl.SubmitSyncCommitteeMessages(ctx, msgs)
 		if err == nil {
-			log.Info(ctx, "Successfully submitted sync committee message to beacon node",
+			log.Info(ctx, "Successfully submitted sync committee messages to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)))
 		}
 

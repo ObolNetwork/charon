@@ -635,8 +635,7 @@ func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Schedu
 			return errors.Wrap(err, "calculate slot from timestamp")
 		}
 
-		set := map[core.PubKey]core.SignedData{pubkey: signedData}
-		if err = recaster.Store(ctx, core.NewBuilderRegistrationDuty(slot), set); err != nil {
+		if err = recaster.Store(ctx, core.NewBuilderRegistrationDuty(slot), core.SignedDataSet{pubkey: signedData}); err != nil {
 			return errors.Wrap(err, "recaster store registration")
 		}
 	}
