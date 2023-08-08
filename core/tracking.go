@@ -50,26 +50,26 @@ func WithTracking(tracker Tracker, inclusion InclusionChecker) WireOption {
 
 			return err
 		}
-		w.SigAggAggregate = func(ctx context.Context, duty Duty, key PubKey, data []ParSignedData) error {
-			err := clone.SigAggAggregate(ctx, duty, key, data)
-			tracker.SigAggAggregated(duty, key, data, err)
+		w.SigAggAggregate = func(ctx context.Context, duty Duty, set map[PubKey][]ParSignedData) error {
+			err := clone.SigAggAggregate(ctx, duty, set)
+			tracker.SigAggAggregated(duty, set, err)
 
 			return err
 		}
-		w.AggSigDBStore = func(ctx context.Context, duty Duty, key PubKey, data SignedData) error {
-			err := clone.AggSigDBStore(ctx, duty, key, data)
-			tracker.AggSigDBStored(duty, key, data, err)
+		w.AggSigDBStore = func(ctx context.Context, duty Duty, set SignedDataSet) error {
+			err := clone.AggSigDBStore(ctx, duty, set)
+			tracker.AggSigDBStored(duty, set, err)
 
 			return err
 		}
-		w.BroadcasterBroadcast = func(ctx context.Context, duty Duty, pubkey PubKey, data SignedData) error {
+		w.BroadcasterBroadcast = func(ctx context.Context, duty Duty, set SignedDataSet) error {
 			// Check inclusion even if we fail to broadcast, since peers may succeed.
-			if err := inclusion.Submitted(duty, pubkey, data); err != nil {
+			if err := inclusion.Submitted(duty, set); err != nil {
 				log.Error(ctx, "Bug: failed to submit duty to inclusion checker", err)
 			}
 
-			err := clone.BroadcasterBroadcast(ctx, duty, pubkey, data)
-			tracker.BroadcasterBroadcast(duty, pubkey, data, err)
+			err := clone.BroadcasterBroadcast(ctx, duty, set)
+			tracker.BroadcasterBroadcast(duty, set, err)
 			if err != nil {
 				return err
 			}

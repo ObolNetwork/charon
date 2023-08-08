@@ -109,7 +109,7 @@ type TestConfig struct {
 	// SimnetBMockOpts defines additional simnet beacon mock options.
 	SimnetBMockOpts []beaconmock.Option
 	// BroadcastCallback is called when a duty is completed and sent to the broadcast component.
-	BroadcastCallback func(context.Context, core.Duty, core.PubKey, core.SignedData) error
+	BroadcastCallback func(context.Context, core.Duty, core.SignedDataSet) error
 	// PrioritiseCallback is called with priority protocol results.
 	PrioritiseCallback func(context.Context, core.Duty, []priority.TopicResult) error
 	// TCPNodeCallback provides test logic access to the libp2p host.
@@ -577,7 +577,7 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 // This is not done in core.Wire since recaster isn't really part of the official core workflow (yet).
 func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Scheduler, sigAgg core.SigAgg,
 	broadcaster core.Broadcaster, validators []*manifestpb.Validator, builderAPI bool,
-	callback func(context.Context, core.Duty, core.PubKey, core.SignedData) error,
+	callback func(context.Context, core.Duty, core.SignedDataSet) error,
 ) error {
 	recaster, err := bcast.NewRecaster(func(ctx context.Context) (map[eth2p0.BLSPubKey]struct{}, error) {
 		valList, err := eth2Cl.ActiveValidators(ctx)
@@ -635,7 +635,8 @@ func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Schedu
 			return errors.Wrap(err, "calculate slot from timestamp")
 		}
 
-		if err = recaster.Store(ctx, core.NewBuilderRegistrationDuty(slot), pubkey, signedData); err != nil {
+		set := map[core.PubKey]core.SignedData{pubkey: signedData}
+		if err = recaster.Store(ctx, core.NewBuilderRegistrationDuty(slot), set); err != nil {
 			return errors.Wrap(err, "recaster store registration")
 		}
 	}

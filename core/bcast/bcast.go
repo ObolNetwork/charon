@@ -39,9 +39,8 @@ type Broadcaster struct {
 }
 
 // Broadcast broadcasts the aggregated signed duty data object to the beacon-node.
-func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.PubKey, aggData core.SignedData) (err error) {
+func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.SignedDataSet) (err error) {
 	ctx = log.WithTopic(ctx, "bcast")
-	ctx = log.WithCtx(ctx, z.Any("pubkey", pubkey))
 	defer func() {
 		if err == nil {
 			instrumentDuty(duty, b.delayFunc(duty.Slot))
@@ -50,25 +49,30 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 
 	switch duty.Type {
 	case core.DutyAttester:
-		att, ok := aggData.(core.Attestation)
-		if !ok {
-			return errors.New("invalid attestation")
+		atts, err := setToAttestations(set)
+		if err != nil {
+			return err
 		}
 
-		err = b.eth2Cl.SubmitAttestations(ctx, []*eth2p0.Attestation{&att.Attestation})
+		err = b.eth2Cl.SubmitAttestations(ctx, atts)
 		if err != nil && strings.Contains(err.Error(), "PriorAttestationKnown") {
 			// Lighthouse isn't idempotent, so just swallow this non-issue.
 			// See reference github.com/attestantio/go-eth2-client@v0.11.7/multi/submitattestations.go:38
 			err = nil
 		}
 		if err == nil {
-			log.Info(ctx, "Successfully submitted attestation to beacon node",
+			log.Info(ctx, "Successfully submitted attestations to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)),
 			)
 		}
 
 		return err
 	case core.DutyProposer:
+		pubkey, aggData, err := setToOne(set)
+		if err != nil {
+			return err
+		}
+
 		block, ok := aggData.(core.VersionedSignedBeaconBlock)
 		if !ok {
 			return errors.New("invalid block")
@@ -78,12 +82,18 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 		if err == nil {
 			log.Info(ctx, "Successfully submitted block proposal to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)),
+				z.Any("pubkey", pubkey),
 			)
 		}
 
 		return err
 
 	case core.DutyBuilderProposer:
+		pubkey, aggData, err := setToOne(set)
+		if err != nil {
+			return err
+		}
+
 		block, ok := aggData.(core.VersionedSignedBlindedBeaconBlock)
 		if !ok {
 			return errors.New("invalid block")
@@ -93,20 +103,21 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 		if err == nil {
 			log.Info(ctx, "Successfully submitted blinded block proposal to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)),
+				z.Any("pubkey", pubkey),
 			)
 		}
 
 		return err
 
 	case core.DutyBuilderRegistration:
-		registration, ok := aggData.(core.VersionedSignedValidatorRegistration)
-		if !ok {
-			return errors.New("invalid validator registration")
+		registrations, err := setToRegistrations(set)
+		if err != nil {
+			return err
 		}
 
-		err = b.eth2Cl.SubmitValidatorRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{&registration.VersionedSignedValidatorRegistration})
+		err = b.eth2Cl.SubmitValidatorRegistrations(ctx, registrations)
 		if err == nil {
-			log.Info(ctx, "Successfully submitted validator registration to beacon node",
+			log.Info(ctx, "Successfully submitted validator registrations to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)),
 			)
 		}
@@ -114,16 +125,20 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 		return err
 
 	case core.DutyExit:
-		exit, ok := aggData.(core.SignedVoluntaryExit)
-		if !ok {
-			return errors.New("invalid exit")
-		}
+		var err error // Try submitting all exits and return last error.
+		for pubkey, aggData := range set {
+			exit, ok := aggData.(core.SignedVoluntaryExit)
+			if !ok {
+				return errors.New("invalid exit")
+			}
 
-		err = b.eth2Cl.SubmitVoluntaryExit(ctx, &exit.SignedVoluntaryExit)
-		if err == nil {
-			log.Info(ctx, "Successfully submitted voluntary exit to beacon node",
-				z.Any("delay", b.delayFunc(duty.Slot)),
-			)
+			err = b.eth2Cl.SubmitVoluntaryExit(ctx, &exit.SignedVoluntaryExit)
+			if err == nil {
+				log.Info(ctx, "Successfully submitted voluntary exit to beacon node",
+					z.Any("delay", b.delayFunc(duty.Slot)),
+					z.Any("pubkey", pubkey),
+				)
+			}
 		}
 
 		return err
@@ -134,25 +149,25 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 		// Beacon committee selections are only applicable to DVT, not broadcasted to beacon chain.
 		return nil
 	case core.DutyAggregator:
-		aggAndProof, ok := aggData.(core.SignedAggregateAndProof)
-		if !ok {
-			return errors.New("invalid aggregate and proof")
+		aggAndProofs, err := setToAggAndProof(set)
+		if err != nil {
+			return err
 		}
 
-		err = b.eth2Cl.SubmitAggregateAttestations(ctx, []*eth2p0.SignedAggregateAndProof{&aggAndProof.SignedAggregateAndProof})
+		err = b.eth2Cl.SubmitAggregateAttestations(ctx, aggAndProofs)
 		if err == nil {
-			log.Info(ctx, "Successfully submitted attestation aggregation to beacon node",
+			log.Info(ctx, "Successfully submitted attestation aggregations to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)))
 		}
 
 		return err
 	case core.DutySyncMessage:
-		msg, ok := aggData.(core.SignedSyncMessage)
-		if !ok {
-			return errors.New("invalid sync committee message")
+		msgs, err := setToSyncMessages(set)
+		if err != nil {
+			return err
 		}
 
-		err := b.eth2Cl.SubmitSyncCommitteeMessages(ctx, []*altair.SyncCommitteeMessage{&msg.SyncCommitteeMessage})
+		err = b.eth2Cl.SubmitSyncCommitteeMessages(ctx, msgs)
 		if err == nil {
 			log.Info(ctx, "Successfully submitted sync committee message to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)))
@@ -163,12 +178,12 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 		// Sync committee selections are only applicable to DVT, not broadcasted to beacon chain.
 		return nil
 	case core.DutySyncContribution:
-		contribution, ok := aggData.(core.SignedSyncContributionAndProof)
-		if !ok {
-			return errors.New("invalid sync contribution and proof")
+		contributions, err := setToSyncContributions(set)
+		if err != nil {
+			return err
 		}
 
-		err := b.eth2Cl.SubmitSyncCommitteeContributions(ctx, []*altair.SignedContributionAndProof{&contribution.SignedContributionAndProof})
+		err = b.eth2Cl.SubmitSyncCommitteeContributions(ctx, contributions)
 		if err == nil {
 			log.Info(ctx, "Successfully submitted sync committee contribution to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)))
@@ -178,6 +193,93 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, pubkey core.
 	default:
 		return errors.New("unsupported duty type")
 	}
+}
+
+// setToSyncContributions converts a set of signed data into a list of sync committee contributions.
+func setToSyncContributions(set core.SignedDataSet) ([]*altair.SignedContributionAndProof, error) {
+	var resp []*altair.SignedContributionAndProof
+	for _, contribution := range set {
+		contribution, ok := contribution.(core.SignedSyncContributionAndProof)
+		if !ok {
+			return nil, errors.New("invalid sync committee contribution")
+		}
+
+		resp = append(resp, &contribution.SignedContributionAndProof)
+	}
+
+	return resp, nil
+}
+
+// setToSyncMessages converts a set of signed data into a list of sync committee messages.
+func setToSyncMessages(set core.SignedDataSet) ([]*altair.SyncCommitteeMessage, error) {
+	var resp []*altair.SyncCommitteeMessage
+	for _, msg := range set {
+		msg, ok := msg.(core.SignedSyncMessage)
+		if !ok {
+			return nil, errors.New("invalid sync committee message")
+		}
+
+		resp = append(resp, &msg.SyncCommitteeMessage)
+	}
+
+	return resp, nil
+}
+
+// setToAggAndProof converts a set of signed data into a list of aggregate and proofs.
+func setToAggAndProof(set core.SignedDataSet) ([]*eth2p0.SignedAggregateAndProof, error) {
+	var resp []*eth2p0.SignedAggregateAndProof
+	for _, aggAndProof := range set {
+		aggAndProof, ok := aggAndProof.(core.SignedAggregateAndProof)
+		if !ok {
+			return nil, errors.New("invalid aggregate and proof")
+		}
+
+		resp = append(resp, &aggAndProof.SignedAggregateAndProof)
+	}
+
+	return resp, nil
+}
+
+// setToRegistrations converts a set of signed data into a list of registrations.
+func setToRegistrations(set core.SignedDataSet) ([]*eth2api.VersionedSignedValidatorRegistration, error) {
+	var resp []*eth2api.VersionedSignedValidatorRegistration
+	for _, reg := range set {
+		reg, ok := reg.(core.VersionedSignedValidatorRegistration)
+		if !ok {
+			return nil, errors.New("invalid registration")
+		}
+
+		resp = append(resp, &reg.VersionedSignedValidatorRegistration)
+	}
+
+	return resp, nil
+}
+
+// setToOne converts a set of signed data into a single signed data.
+func setToOne(set core.SignedDataSet) (core.PubKey, core.SignedData, error) {
+	if len(set) != 1 {
+		return "", nil, errors.New("expected one item in set")
+	}
+
+	for pubkey, data := range set {
+		return pubkey, data, nil
+	}
+
+	return "", nil, errors.New("expected one item in set")
+}
+
+// setToAttestations converts a set of signed data into a list of attestations.
+func setToAttestations(set core.SignedDataSet) ([]*eth2p0.Attestation, error) {
+	var resp []*eth2p0.Attestation
+	for _, att := range set {
+		att, ok := att.(core.Attestation)
+		if !ok {
+			return nil, errors.New("invalid attestation")
+		}
+		resp = append(resp, &att.Attestation)
+	}
+
+	return resp, nil
 }
 
 // newDelayFunc returns a function that calculates the delay since the start of a slot.

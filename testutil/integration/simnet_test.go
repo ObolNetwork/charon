@@ -323,13 +323,16 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 				SimnetKeys:         []tbls.PrivateKey{args.SimnetKeys[i]},
 				LcastTransportFunc: lcastTransportFunc,
 				ParSigExFunc:       parSigExFunc,
-				BroadcastCallback: func(_ context.Context, duty core.Duty, key core.PubKey, data core.SignedData) error {
-					select {
-					case <-ctx.Done():
-						return ctx.Err()
-					case results <- simResult{Duty: duty, Pubkey: key, Data: data, PeerIdx: peerIdx}:
-						return nil
+				BroadcastCallback: func(_ context.Context, duty core.Duty, set core.SignedDataSet) error {
+					for key, data := range set {
+						select {
+						case <-ctx.Done():
+							return ctx.Err()
+						case results <- simResult{Duty: duty, Pubkey: key, Data: data, PeerIdx: peerIdx}:
+						}
 					}
+
+					return nil
 				},
 				SimnetBMockOpts: append([]beaconmock.Option{
 					beaconmock.WithSlotsPerEpoch(1),

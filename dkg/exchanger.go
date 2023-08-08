@@ -146,14 +146,16 @@ func (e *exchanger) exchange(ctx context.Context, sigType sigType, set core.ParS
 }
 
 // pushPsigs is responsible for writing partial signature data to sigChan obtained from other peers.
-func (e *exchanger) pushPsigs(_ context.Context, duty core.Duty, pk core.PubKey, psigs []core.ParSignedData) error {
+func (e *exchanger) pushPsigs(_ context.Context, duty core.Duty, set map[core.PubKey][]core.ParSignedData) error {
 	sigType := sigType(duty.Slot)
 
 	if !e.sigTypes[sigType] {
 		return errors.New("unrecognized sigType", z.Int("sigType", int(sigType)))
 	}
 
-	e.sigData.set(pk, sigType, psigs)
+	for pk, psigs := range set {
+		e.sigData.set(pk, sigType, psigs)
+	}
 
 	return nil
 }

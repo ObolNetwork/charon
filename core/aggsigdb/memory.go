@@ -41,7 +41,17 @@ type MemDB struct {
 }
 
 // Store implements core.AggSigDB, see its godoc.
-func (db *MemDB) Store(ctx context.Context, duty core.Duty, pubKey core.PubKey, data core.SignedData) error {
+func (db *MemDB) Store(ctx context.Context, duty core.Duty, set core.SignedDataSet) error {
+	for pubKey, data := range set {
+		if err := db.store(ctx, duty, pubKey, data); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (db *MemDB) store(ctx context.Context, duty core.Duty, pubKey core.PubKey, data core.SignedData) error {
 	clone, err := data.Clone() // Clone before storing.
 	if err != nil {
 		return err
