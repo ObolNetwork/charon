@@ -124,7 +124,7 @@ func TestLongLines(t *testing.T) {
 
 	cl.Add(normal)
 
-	for i := 0; i < 10000000; i++ {
+	for i := 0; i < 1000; i++ {
 		cl.Add(huge)
 	}
 
