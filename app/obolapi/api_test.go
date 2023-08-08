@@ -3,11 +3,13 @@
 package obolapi_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -45,8 +47,51 @@ func TestLockPublish(t *testing.T) {
 
 		lock, _, _ := cluster.NewForT(t, 3, 3, 4, 0, opts...)
 
-		cl := obolapi.New(srv.URL)
-		err := cl.PublishLock(ctx, lock)
+		cl, err := obolapi.New(srv.URL)
 		require.NoError(t, err)
+		err = cl.PublishLock(ctx, lock)
+		require.NoError(t, err)
+	})
+}
+
+func TestURLParsing(t *testing.T) {
+	t.Run("invalid url", func(t *testing.T) {
+		cl, err := obolapi.New("badURL")
+		require.Error(t, err)
+		require.Empty(t, cl)
+	})
+
+	t.Run("http url", func(t *testing.T) {
+		cl, err := obolapi.New("http://unsafe.today")
+		require.NoError(t, err)
+		require.NotEmpty(t, cl)
+	})
+
+	t.Run("https url", func(t *testing.T) {
+		cl, err := obolapi.New("https://safe.today")
+		require.NoError(t, err)
+		require.NotEmpty(t, cl)
+	})
+}
+
+func TestLaunchpadDashURL(t *testing.T) {
+	t.Run("produced url is what we expect", func(t *testing.T) {
+		cl, err := obolapi.New("https://safe.today")
+		require.NoError(t, err)
+		require.NotEmpty(t, cl)
+
+		result := cl.LaunchpadURLForLock(cluster.Lock{LockHash: bytes.Repeat([]byte{0x42}, 32)})
+
+		require.NotEmpty(t, result)
+
+		parsedRes, err := url.ParseRequestURI(result)
+		require.NoError(t, err)
+
+		require.Equal(t, "safe.today", parsedRes.Host)
+		require.Equal(
+			t,
+			"/lock/0x4242424242424242424242424242424242424242424242424242424242424242/launchpad",
+			parsedRes.Path,
+		)
 	})
 }

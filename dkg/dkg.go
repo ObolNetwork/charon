@@ -304,8 +304,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 		log.Debug(ctx, "Saved keyshares to disk")
 	}
 
+	// dashboardURL is the Launchpad dashboard url for a given lock file.
+	// If empty, either conf.Publish wasn't specified or there was a processing error in publishing
+	// the generated lock file.
+	var dashboardURL string
+
 	if conf.Publish {
-		if err = writeLockToAPI(ctx, conf.PublishAddr, lock); err != nil {
+		if dashboardURL, err = writeLockToAPI(ctx, conf.PublishAddr, lock); err != nil {
 			log.Warn(ctx, "Couldn't publish lock file to Obol API", err)
 		}
 	}
@@ -328,6 +333,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 	time.Sleep(conf.ShutdownDelay)
 
 	log.Info(ctx, "Successfully completed DKG ceremony 🎉")
+
+	if dashboardURL != "" {
+		log.Info(ctx, fmt.Sprintf("You can find your newly-created cluster dashboard here: %s", dashboardURL))
+	}
 
 	return nil
 }
@@ -966,17 +975,20 @@ func createDistValidators(shares []share, depositDatas []eth2p0.DepositData, val
 	return dvs, nil
 }
 
-// writeLockToAPI posts the lock file to obol-api.
-func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) error {
-	cl := obolapi.New(publishAddr)
+// writeLockToAPI posts the lock file to obol-api and returns the Launchpad dashboard URL.
+func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) (string, error) {
+	cl, err := obolapi.New(publishAddr)
+	if err != nil {
+		return "", err
+	}
 
 	if err := cl.PublishLock(ctx, lock); err != nil {
-		return err
+		return "", err
 	}
 
 	log.Debug(ctx, "Published lock file to api")
 
-	return nil
+	return cl.LaunchpadURLForLock(lock), nil
 }
 
 // validateKeymanagerFlags returns an error if one keymanager flag is present but the other is not.
