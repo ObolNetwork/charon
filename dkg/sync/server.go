@@ -42,6 +42,7 @@ func NewServer(tcpNode host.Host, allCount int, defHash []byte, version version.
 		allCount:  allCount,
 		shutdown:  make(map[peer.ID]struct{}),
 		connected: make(map[peer.ID]struct{}),
+		steps:     make(map[peer.ID]int),
 		version:   version,
 	}
 }
@@ -59,6 +60,7 @@ type Server struct {
 	mu        sync.Mutex
 	shutdown  map[peer.ID]struct{}
 	connected map[peer.ID]struct{}
+	steps     map[peer.ID]int
 	err       error // To return error and exit anywhere in the server flow
 }
 
@@ -117,6 +119,29 @@ func (s *Server) AwaitAllShutdown(ctx context.Context) error {
 	}
 }
 
+// AwaitAllAtStep blocks until all peers have reported to be at the given step or returns an error.
+func (s *Server) AwaitAllAtStep(ctx context.Context, step int) error {
+	timer := time.NewTicker(time.Millisecond)
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			if err := s.Err(); err != nil {
+				return err
+			}
+
+			if ok, err := s.isAllAtStep(step); err != nil {
+				return err
+			} else if ok {
+				return nil
+			}
+		}
+	}
+}
+
 // isConnected returns the shared connected state for the peer.
 func (s *Server) isConnected(pID peer.ID) bool {
 	s.mu.Lock()
@@ -145,6 +170,14 @@ func (s *Server) setShutdown(pID peer.ID) {
 	s.shutdown[pID] = struct{}{}
 }
 
+// setStep sets the peer's reported step.
+func (s *Server) setStep(pID peer.ID, step int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.steps[pID] = step
+}
+
 // isAllConnected returns if all expected peers are connected.
 func (s *Server) isAllConnected() bool {
 	s.mu.Lock()
@@ -159,6 +192,30 @@ func (s *Server) isAllShutdown() bool {
 	defer s.mu.Unlock()
 
 	return len(s.shutdown) == s.allCount
+}
+
+// isAllAtStep returns if all peers are reporting to be at the given or the next step.
+// Allowing next step is required since atomic step increases are impossible in distributed systems
+// so one peer will always increment first putting it ahead of the others. At least we know all peers
+// are or were at the given step.
+func (s *Server) isAllAtStep(step int) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if len(s.steps) != s.allCount {
+		return false, nil
+	}
+
+	for _, actual := range s.steps {
+		if actual >= step+2 {
+			return false, errors.New("peer step is too far ahead", z.Int("peer_step", actual), z.Int("local_step", step))
+		}
+		if actual != step && actual != step+1 {
+			return false, nil
+		}
+	}
+
+	return true, nil
 }
 
 // clearConnected clears connected state for the given peer.
@@ -204,6 +261,8 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 			count := s.setConnected(pID)
 			log.Info(ctx, fmt.Sprintf("Connected to peer %d of %d", count, s.allCount))
 		}
+
+		s.setStep(pID, int(msg.Step))
 
 		// Write response message
 		if err := writeSizedProto(stream, resp); err != nil {
