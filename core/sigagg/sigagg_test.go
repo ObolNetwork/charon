@@ -45,7 +45,7 @@ func TestSigAgg(t *testing.T) {
 	t.Run("threshold sigs", func(t *testing.T) {
 		agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 		require.NoError(t, err)
-		err = agg.Aggregate(ctx, core.Duty{}, "", nil)
+		err = agg.Aggregate(ctx, core.Duty{}, map[core.PubKey][]core.ParSignedData{"": nil})
 		require.ErrorContains(t, err, "require threshold signatures")
 	})
 
@@ -61,7 +61,7 @@ func TestSigAgg(t *testing.T) {
 
 		agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 		require.NoError(t, err)
-		err = agg.Aggregate(ctx, core.Duty{}, "", parsigs)
+		err = agg.Aggregate(ctx, core.Duty{}, map[core.PubKey][]core.ParSignedData{"": parsigs})
 		require.ErrorContains(t, err, "number of partial signatures less than threshold")
 	})
 }
@@ -126,10 +126,14 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 	agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 	require.NoError(t, err)
 
+	corePubKey := core.PubKeyFrom48Bytes(pubKey)
+
 	// Assert output
-	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
-		require.Equal(t, expect, aggData.Signature())
-		sig, err := tblsconv.SigFromCore(aggData.Signature())
+	agg.Subscribe(func(_ context.Context, _ core.Duty, set core.SignedDataSet) error {
+		require.Len(t, set, 1)
+
+		require.Equal(t, expect, set[corePubKey].Signature())
+		sig, err := tblsconv.SigFromCore(set[corePubKey].Signature())
 		require.NoError(t, err)
 
 		require.NoError(t, tbls.Verify(pubKey, msg[:], sig))
@@ -139,7 +143,7 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 	})
 
 	// Run aggregation
-	err = agg.Aggregate(ctx, core.Duty{Type: core.DutyAttester}, core.PubKeyFrom48Bytes(pubKey), parsigs)
+	err = agg.Aggregate(ctx, core.Duty{Type: core.DutyAttester}, toMap(corePubKey, parsigs))
 	require.NoError(t, err)
 }
 
@@ -199,10 +203,12 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 	agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 	require.NoError(t, err)
 
+	corePubkey := core.PubKeyFrom48Bytes(pubKey)
+
 	// Assert output
-	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
-		require.Equal(t, expect, aggData.Signature())
-		sig, err := tblsconv.SigFromCore(aggData.Signature())
+	agg.Subscribe(func(_ context.Context, _ core.Duty, set core.SignedDataSet) error {
+		require.Equal(t, expect, set[corePubkey].Signature())
+		sig, err := tblsconv.SigFromCore(set[corePubkey].Signature())
 		require.NoError(t, err)
 
 		require.NoError(t, tbls.Verify(pubKey, msg[:], sig))
@@ -212,7 +218,7 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 	})
 
 	// Run aggregation
-	err = agg.Aggregate(ctx, core.Duty{Type: core.DutyRandao}, core.PubKeyFrom48Bytes(pubKey), parsigs)
+	err = agg.Aggregate(ctx, core.Duty{Type: core.DutyRandao}, toMap(corePubkey, parsigs))
 	require.NoError(t, err)
 }
 
@@ -278,10 +284,12 @@ func TestSigAgg_DutyExit(t *testing.T) {
 	agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 	require.NoError(t, err)
 
+	corePubkey := core.PubKeyFrom48Bytes(pubKey)
+
 	// Assert output
-	agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
-		require.Equal(t, expect, aggData.Signature())
-		sig, err := tblsconv.SigFromCore(aggData.Signature())
+	agg.Subscribe(func(_ context.Context, _ core.Duty, set core.SignedDataSet) error {
+		require.Equal(t, expect, set[corePubkey].Signature())
+		sig, err := tblsconv.SigFromCore(set[corePubkey].Signature())
 		require.NoError(t, err)
 
 		require.NoError(t, tbls.Verify(pubKey, msg[:], sig))
@@ -291,7 +299,7 @@ func TestSigAgg_DutyExit(t *testing.T) {
 	})
 
 	// Run aggregation
-	err = agg.Aggregate(ctx, core.Duty{Type: core.DutyExit}, core.PubKeyFrom48Bytes(pubKey), parsigs)
+	err = agg.Aggregate(ctx, core.Duty{Type: core.DutyExit}, toMap(corePubkey, parsigs))
 	require.NoError(t, err)
 }
 
@@ -415,10 +423,12 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 			agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 			require.NoError(t, err)
 
+			corePubkey := core.PubKeyFrom48Bytes(pubKey)
+
 			// Assert output
-			agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
-				require.Equal(t, expect, aggData.Signature())
-				sig, err := tblsconv.SigFromCore(aggData.Signature())
+			agg.Subscribe(func(_ context.Context, _ core.Duty, set core.SignedDataSet) error {
+				require.Equal(t, expect, set[corePubkey].Signature())
+				sig, err := tblsconv.SigFromCore(set[corePubkey].Signature())
 				require.NoError(t, err)
 
 				require.NoError(t, tbls.Verify(pubKey, msg[:], sig))
@@ -428,7 +438,7 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 			})
 
 			// Run aggregation
-			err = agg.Aggregate(ctx, core.Duty{Type: core.DutyProposer}, core.PubKeyFrom48Bytes(pubKey), parsigs)
+			err = agg.Aggregate(ctx, core.Duty{Type: core.DutyProposer}, toMap(corePubkey, parsigs))
 			require.NoError(t, err)
 		})
 	}
@@ -534,10 +544,12 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 			agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 			require.NoError(t, err)
 
+			corePubkey := core.PubKeyFrom48Bytes(pubKey)
+
 			// Assert output
-			agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
-				require.Equal(t, expect, aggData.Signature())
-				sig, err := tblsconv.SigFromCore(aggData.Signature())
+			agg.Subscribe(func(_ context.Context, _ core.Duty, set core.SignedDataSet) error {
+				require.Equal(t, expect, set[corePubkey].Signature())
+				sig, err := tblsconv.SigFromCore(set[corePubkey].Signature())
 				require.NoError(t, err)
 
 				require.NoError(t, tbls.Verify(pubKey, msg[:], sig))
@@ -547,7 +559,7 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 			})
 
 			// Run aggregation
-			err = agg.Aggregate(ctx, core.Duty{Type: core.DutyBuilderProposer}, core.PubKeyFrom48Bytes(pubKey), parsigs)
+			err = agg.Aggregate(ctx, core.Duty{Type: core.DutyBuilderProposer}, toMap(corePubkey, parsigs))
 			require.NoError(t, err)
 		})
 	}
@@ -641,10 +653,12 @@ func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
 			agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 			require.NoError(t, err)
 
+			corePubkey := core.PubKeyFrom48Bytes(pubKey)
+
 			// Assert output
-			agg.Subscribe(func(_ context.Context, _ core.Duty, _ core.PubKey, aggData core.SignedData) error {
-				require.Equal(t, expect, aggData.Signature())
-				sig, err := tblsconv.SigFromCore(aggData.Signature())
+			agg.Subscribe(func(_ context.Context, _ core.Duty, set core.SignedDataSet) error {
+				require.Equal(t, expect, set[corePubkey].Signature())
+				sig, err := tblsconv.SigFromCore(set[corePubkey].Signature())
 				require.NoError(t, err)
 
 				require.NoError(t, tbls.Verify(pubKey, msg[:], sig))
@@ -654,8 +668,12 @@ func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
 			})
 
 			// Run aggregation
-			err = agg.Aggregate(ctx, core.Duty{Type: core.DutyBuilderRegistration}, core.PubKeyFrom48Bytes(pubKey), parsigs)
+			err = agg.Aggregate(ctx, core.Duty{Type: core.DutyBuilderRegistration}, toMap(core.PubKeyFrom48Bytes(pubKey), parsigs))
 			require.NoError(t, err)
 		})
 	}
+}
+
+func toMap(pubkey core.PubKey, datas []core.ParSignedData) map[core.PubKey][]core.ParSignedData {
+	return map[core.PubKey][]core.ParSignedData{pubkey: datas}
 }

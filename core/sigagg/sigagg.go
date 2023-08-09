@@ -36,20 +36,54 @@ func New(threshold int, verifyFunc func(context.Context, core.PubKey, core.Signe
 type Aggregator struct {
 	threshold  int
 	verifyFunc func(context.Context, core.PubKey, core.SignedData) error
-	subs       []func(context.Context, core.Duty, core.PubKey, core.SignedData) error
+	subs       []func(context.Context, core.Duty, core.SignedDataSet) error
 }
 
 // Subscribe registers a callback for aggregated signed duty data.
-func (a *Aggregator) Subscribe(fn func(context.Context, core.Duty, core.PubKey, core.SignedData) error) {
+func (a *Aggregator) Subscribe(fn func(context.Context, core.Duty, core.SignedDataSet) error) {
 	a.subs = append(a.subs, fn)
 }
 
-// Aggregate aggregates the partially signed duty data for the DV.
-func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.PubKey, parSigs []core.ParSignedData) error {
+// Aggregate aggregates the partially signed duty datas for the set of DVs.
+func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, set map[core.PubKey][]core.ParSignedData) error {
 	ctx = log.WithTopic(ctx, "sigagg")
 
+	if len(set) == 0 {
+		return errors.New("empty partial signed data set")
+	}
+
+	output := make(core.SignedDataSet)
+	for pubkey, parSigs := range set {
+		signed, err := a.aggregate(ctx, pubkey, parSigs)
+		if err != nil {
+			return errors.Wrap(err, "threshold aggregate", z.Any("pubkey", pubkey))
+		}
+
+		output[pubkey] = signed
+	}
+
+	log.Debug(ctx, "Threshold aggregated partial signatures")
+
+	// Call subscriptions.
+	for _, sub := range a.subs {
+		// Clone before calling each subscriber.
+		cloned, err := output.Clone()
+		if err != nil {
+			return err
+		}
+
+		if err := sub(ctx, duty, cloned); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// aggregate threshold aggregates the partial signed data for a provided DV.
+func (a *Aggregator) aggregate(ctx context.Context, pubkey core.PubKey, parSigs []core.ParSignedData) (core.SignedData, error) {
 	if len(parSigs) < a.threshold {
-		return errors.New("require threshold signatures")
+		return nil, errors.New("require threshold signatures")
 	}
 
 	// Get all partial signatures.
@@ -57,13 +91,13 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 	for _, parSig := range parSigs {
 		sig, err := tblsconv.SigFromCore(parSig.Signature())
 		if err != nil {
-			return errors.Wrap(err, "signature from core")
+			return nil, errors.Wrap(err, "signature from core")
 		}
 		blsSigs[parSig.ShareIdx] = sig
 	}
 
 	if len(blsSigs) < a.threshold {
-		return errors.New("number of partial signatures less than threshold", z.Int("threshold", a.threshold), z.Int("got", len(blsSigs)))
+		return nil, errors.New("number of partial signatures less than threshold", z.Int("threshold", a.threshold), z.Int("got", len(blsSigs)))
 	}
 
 	// Aggregate signatures
@@ -71,34 +105,20 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, pubkey core.
 	sig, err := tbls.ThresholdAggregate(blsSigs)
 	span.End()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Inject signature into one of the parSigs resulting in aggregate signed data.
 	aggSig, err := parSigs[0].SetSignature(tblsconv.SigToCore(sig))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := a.verifyFunc(ctx, pubkey, aggSig); err != nil {
-		return err
+		return nil, err
 	}
 
-	log.Debug(ctx, "Threshold aggregated partial signatures")
-
-	// Call subscriptions.
-	for _, sub := range a.subs {
-		clone, err := aggSig.Clone() // Clone before calling each subscriber.
-		if err != nil {
-			return err
-		}
-
-		if err := sub(ctx, duty, pubkey, clone); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return aggSig, nil
 }
 
 // NewVerifier returns a signature verification function for aggregated signatures.

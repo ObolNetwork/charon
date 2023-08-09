@@ -337,9 +337,16 @@ type InclusionChecker struct {
 }
 
 // Submitted is called when a duty has been submitted.
-func (a *InclusionChecker) Submitted(duty core.Duty, pubkey core.PubKey, data core.SignedData) error {
+func (a *InclusionChecker) Submitted(duty core.Duty, set core.SignedDataSet) error {
 	slotStart := a.genesis.Add(a.slotDuration * time.Duration(duty.Slot))
-	return a.core.Submitted(duty, pubkey, data, time.Since(slotStart))
+
+	for key, data := range set {
+		if err := a.core.Submitted(duty, key, data, time.Since(slotStart)); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (a *InclusionChecker) Run(ctx context.Context) {

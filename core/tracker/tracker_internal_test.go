@@ -104,8 +104,8 @@ func TestTrackerFailedDuty(t *testing.T) {
 				tr.ParSigDBStoredInternal(td.duty, td.parSignedDataSet, nil)
 				tr.ParSigDBStoredExternal(td.duty, td.parSignedDataSet, nil)
 				for _, pubkey := range pubkeys {
-					tr.SigAggAggregated(td.duty, pubkey, nil, nil)
-					tr.BroadcasterBroadcast(td.duty, pubkey, nil, nil)
+					tr.SigAggAggregated(td.duty, map[core.PubKey][]core.ParSignedData{pubkey: nil}, nil)
+					tr.BroadcasterBroadcast(td.duty, core.SignedDataSet{pubkey: nil}, nil)
 					if lastStep(td.duty.Type) == chainInclusion {
 						tr.InclusionChecked(td.duty, pubkey, nil, nil)
 					}
@@ -487,8 +487,8 @@ func TestTrackerParticipation(t *testing.T) {
 				tr.ParSigDBStoredExternal(td.duty, data, nil)
 			}
 			for _, pk := range pubkeys {
-				tr.SigAggAggregated(td.duty, pk, nil, nil)
-				tr.BroadcasterBroadcast(td.duty, pk, nil, nil)
+				tr.SigAggAggregated(td.duty, map[core.PubKey][]core.ParSignedData{pk: nil}, nil)
+				tr.BroadcasterBroadcast(td.duty, core.SignedDataSet{pk: nil}, nil)
 				if lastStep(td.duty.Type) == chainInclusion {
 					tr.InclusionChecked(td.duty, pk, nil, nil)
 				}
@@ -726,7 +726,7 @@ func TestFromSlot(t *testing.T) {
 		close(done)
 	}()
 
-	tr.SigAggAggregated(core.NewAggregatorDuty(thisSlot), "", nil, nil)
+	tr.SigAggAggregated(core.NewAggregatorDuty(thisSlot), map[core.PubKey][]core.ParSignedData{"": nil}, nil)
 	tr.ParSigDBStoredInternal(core.NewProposerDuty(thisSlot), nil, nil)
 	tr.FetcherFetched(core.NewAggregatorDuty(thisSlot), nil, nil)
 

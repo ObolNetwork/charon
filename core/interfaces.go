@@ -105,7 +105,7 @@ type ValidatorAPI interface {
 	// RegisterAwaitAggAttestation registers a function to query aggregated attestation.
 	RegisterAwaitAggAttestation(fn func(ctx context.Context, slot int64, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error))
 
-	// RegisterAggSigDB registers a function to query aggregated signed data from aggSigDB.
+	// RegisterAwaitAggSigDB registers a function to query aggregated signed data from aggSigDB.
 	RegisterAwaitAggSigDB(func(context.Context, Duty, PubKey) (SignedData, error))
 
 	// Subscribe registers a function to store partially signed data sets.
@@ -126,8 +126,8 @@ type ParSigDB interface {
 	SubscribeInternal(func(context.Context, Duty, ParSignedDataSet) error)
 
 	// SubscribeThreshold registers a callback when *threshold*
-	// partially signed duty is reached for a DV.
-	SubscribeThreshold(func(context.Context, Duty, PubKey, []ParSignedData) error)
+	// partially signed duty is reached for the set of DVs.
+	SubscribeThreshold(func(context.Context, Duty, map[PubKey][]ParSignedData) error)
 }
 
 // ParSigEx exchanges partially signed duty data sets.
@@ -142,32 +142,32 @@ type ParSigEx interface {
 
 // SigAgg aggregates threshold partial signatures.
 type SigAgg interface {
-	// Aggregate aggregates the partially signed duty data for the DV.
-	Aggregate(context.Context, Duty, PubKey, []ParSignedData) error
+	// Aggregate aggregates the partially signed duty datas for the set of DVs.
+	Aggregate(context.Context, Duty, map[PubKey][]ParSignedData) error
 
-	// Subscribe registers a callback for aggregated signed duty data.
-	Subscribe(func(context.Context, Duty, PubKey, SignedData) error)
+	// Subscribe registers a callback for aggregated signed duty data set.
+	Subscribe(func(context.Context, Duty, SignedDataSet) error)
 }
 
 // AggSigDB persists aggregated signed duty data.
 type AggSigDB interface {
-	// Store stores aggregated signed duty data.
-	Store(context.Context, Duty, PubKey, SignedData) error
+	// Store stores aggregated signed duty data set.
+	Store(context.Context, Duty, SignedDataSet) error
 
 	// Await blocks and returns the aggregated signed duty data when available.
 	Await(context.Context, Duty, PubKey) (SignedData, error)
 }
 
-// Broadcaster broadcasts aggregated signed duty data to the beacon node.
+// Broadcaster broadcasts aggregated signed duty data set to the beacon node.
 type Broadcaster interface {
-	Broadcast(context.Context, Duty, PubKey, SignedData) error
+	Broadcast(context.Context, Duty, SignedDataSet) error
 }
 
 // InclusionChecker checks whether submitted duties have been included on-chain.
 // TODO(corver): Merge this with tracker below as a compose multi tracker.
 type InclusionChecker interface {
-	// Submitted is called when a duty has been submitted.
-	Submitted(duty Duty, pubkey PubKey, data SignedData) error
+	// Submitted is called when a duty set has been submitted.
+	Submitted(Duty, SignedDataSet) error
 }
 
 // Tracker sends core component events for further analysis and instrumentation.
@@ -191,13 +191,13 @@ type Tracker interface {
 	ParSigDBStoredExternal(Duty, ParSignedDataSet, error)
 
 	// SigAggAggregated sends SigAgg component's aggregate events to tracker.
-	SigAggAggregated(Duty, PubKey, []ParSignedData, error)
+	SigAggAggregated(Duty, map[PubKey][]ParSignedData, error)
 
 	// AggSigDBStored sends AggSigDB component's store events to tracker.
-	AggSigDBStored(Duty, PubKey, SignedData, error)
+	AggSigDBStored(Duty, SignedDataSet, error)
 
 	// BroadcasterBroadcast sends Broadcaster component's broadcast events to tracker.
-	BroadcasterBroadcast(Duty, PubKey, SignedData, error)
+	BroadcasterBroadcast(Duty, SignedDataSet, error)
 
 	// InclusionChecked sends InclusionChecker component's check events to tracker.
 	InclusionChecked(Duty, PubKey, SignedData, error)
@@ -235,14 +235,14 @@ type wireFuncs struct {
 	ParSigDBStoreInternal               func(context.Context, Duty, ParSignedDataSet) error
 	ParSigDBStoreExternal               func(context.Context, Duty, ParSignedDataSet) error
 	ParSigDBSubscribeInternal           func(func(context.Context, Duty, ParSignedDataSet) error)
-	ParSigDBSubscribeThreshold          func(func(context.Context, Duty, PubKey, []ParSignedData) error)
+	ParSigDBSubscribeThreshold          func(func(context.Context, Duty, map[PubKey][]ParSignedData) error)
 	ParSigExBroadcast                   func(context.Context, Duty, ParSignedDataSet) error
 	ParSigExSubscribe                   func(func(context.Context, Duty, ParSignedDataSet) error)
-	SigAggAggregate                     func(context.Context, Duty, PubKey, []ParSignedData) error
-	SigAggSubscribe                     func(func(context.Context, Duty, PubKey, SignedData) error)
-	AggSigDBStore                       func(context.Context, Duty, PubKey, SignedData) error
+	SigAggAggregate                     func(context.Context, Duty, map[PubKey][]ParSignedData) error
+	SigAggSubscribe                     func(func(context.Context, Duty, SignedDataSet) error)
+	AggSigDBStore                       func(context.Context, Duty, SignedDataSet) error
 	AggSigDBAwait                       func(context.Context, Duty, PubKey) (SignedData, error)
-	BroadcasterBroadcast                func(context.Context, Duty, PubKey, SignedData) error
+	BroadcasterBroadcast                func(context.Context, Duty, SignedDataSet) error
 }
 
 // WireOption defines a functional option to configure wiring.

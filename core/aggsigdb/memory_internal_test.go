@@ -27,7 +27,7 @@ func TestDutyExpiration(t *testing.T) {
 	pubkey := testutil.RandomCorePubKey(t)
 	sig := testutil.RandomCoreSignature()
 
-	err := db.Store(ctx, duty, pubkey, sig)
+	err := db.Store(ctx, duty, core.SignedDataSet{pubkey: sig})
 	require.NoError(t, err)
 
 	resp, err := db.Await(ctx, duty, pubkey)
@@ -94,7 +94,7 @@ func TestCancelledQuery(t *testing.T) {
 	wg.Wait()
 
 	// Store something and ensure no blocked queries
-	err := db.Store(ctx, duty, pubkey, sig)
+	err := db.Store(ctx, duty, core.SignedDataSet{pubkey: sig})
 	require.NoError(t, err)
 	require.Equal(t, 0, <-queryCount)
 }

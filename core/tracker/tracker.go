@@ -767,44 +767,50 @@ func (t *Tracker) ParSigDBStoredExternal(duty core.Duty, set core.ParSignedDataS
 }
 
 // SigAggAggregated implements core.Tracker interface.
-func (t *Tracker) SigAggAggregated(duty core.Duty, pubkey core.PubKey, _ []core.ParSignedData, stepErr error) {
-	select {
-	case <-t.quit:
-		return
-	case t.input <- event{
-		duty:    duty,
-		step:    sigAgg,
-		pubkey:  pubkey,
-		stepErr: stepErr,
-	}:
+func (t *Tracker) SigAggAggregated(duty core.Duty, set map[core.PubKey][]core.ParSignedData, stepErr error) {
+	for pubkey := range set {
+		select {
+		case <-t.quit:
+			return
+		case t.input <- event{
+			duty:    duty,
+			step:    sigAgg,
+			pubkey:  pubkey,
+			stepErr: stepErr,
+		}:
+		}
 	}
 }
 
 // AggSigDBStored implements core.Tracker interface.
-func (t *Tracker) AggSigDBStored(duty core.Duty, pubkey core.PubKey, _ core.SignedData, stepErr error) {
-	select {
-	case <-t.quit:
-		return
-	case t.input <- event{
-		duty:    duty,
-		step:    aggSigDB,
-		pubkey:  pubkey,
-		stepErr: stepErr,
-	}:
+func (t *Tracker) AggSigDBStored(duty core.Duty, set core.SignedDataSet, stepErr error) {
+	for pubkey := range set {
+		select {
+		case <-t.quit:
+			return
+		case t.input <- event{
+			duty:    duty,
+			step:    aggSigDB,
+			pubkey:  pubkey,
+			stepErr: stepErr,
+		}:
+		}
 	}
 }
 
 // BroadcasterBroadcast implements core.Tracker interface.
-func (t *Tracker) BroadcasterBroadcast(duty core.Duty, pubkey core.PubKey, _ core.SignedData, stepErr error) {
-	select {
-	case <-t.quit:
-		return
-	case t.input <- event{
-		duty:    duty,
-		step:    bcast,
-		pubkey:  pubkey,
-		stepErr: stepErr,
-	}:
+func (t *Tracker) BroadcasterBroadcast(duty core.Duty, set core.SignedDataSet, stepErr error) {
+	for pubkey := range set {
+		select {
+		case <-t.quit:
+			return
+		case t.input <- event{
+			duty:    duty,
+			step:    bcast,
+			pubkey:  pubkey,
+			stepErr: stepErr,
+		}:
+		}
 	}
 }
 

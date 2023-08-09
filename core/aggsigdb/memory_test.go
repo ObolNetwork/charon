@@ -25,7 +25,7 @@ func TestCoreAggsigdb_MemDB_WriteRead(t *testing.T) {
 	testPubKey := core.PubKey("pubkey")
 	testSignedData := testutil.RandomCoreSignature()
 
-	err := db.Store(context.Background(), testDuty, testPubKey, testSignedData)
+	err := db.Store(context.Background(), testDuty, core.SignedDataSet{testPubKey: testSignedData})
 	require.NoError(t, err)
 
 	result, err := db.Await(context.Background(), testDuty, testPubKey)
@@ -57,7 +57,7 @@ func TestCoreAggsigdb_MemDB_WriteUnblocks(t *testing.T) {
 
 	runtime.Gosched()
 
-	err := db.Store(context.Background(), testDuty, testPubKey, testSignedData)
+	err := db.Store(context.Background(), testDuty, core.SignedDataSet{testPubKey: testSignedData})
 	require.NoError(t, err)
 
 	wg.Wait()
@@ -137,10 +137,10 @@ func TestCoreAggsigdb_MemDB_CancelAwaitDoesnotblock(t *testing.T) {
 	cancel()
 	wg.Wait()
 
-	err := db.Store(context.Background(), testDuty, testPubKey, testSignedData)
+	err := db.Store(context.Background(), testDuty, core.SignedDataSet{testPubKey: testSignedData})
 	require.Error(t, err)
 
-	err = db.Store(context.Background(), testDuty, testPubKey2, testSignedData)
+	err = db.Store(context.Background(), testDuty, core.SignedDataSet{testPubKey2: testSignedData})
 	require.Error(t, err)
 }
 
@@ -155,10 +155,10 @@ func TestCoreAggsigdb_MemDB_CannotOverwrite(t *testing.T) {
 	testSignedData := testutil.RandomCoreSignature()
 	testSignedData2 := testutil.RandomCoreSignature()
 
-	err := db.Store(context.Background(), testDuty, testPubKey, testSignedData)
+	err := db.Store(context.Background(), testDuty, core.SignedDataSet{testPubKey: testSignedData})
 	require.NoError(t, err)
 
-	err = db.Store(context.Background(), testDuty, testPubKey, testSignedData2)
+	err = db.Store(context.Background(), testDuty, core.SignedDataSet{testPubKey: testSignedData2})
 	require.Error(t, err)
 }
 
@@ -172,10 +172,10 @@ func TestCoreAggsigdb_MemDB_WriteIdempotent(t *testing.T) {
 	testPubKey := core.PubKey("pubkey")
 	testSignedData := testutil.RandomCoreSignature()
 
-	err := db.Store(context.Background(), testDuty, testPubKey, testSignedData)
+	err := db.Store(context.Background(), testDuty, core.SignedDataSet{testPubKey: testSignedData})
 	require.NoError(t, err)
 
-	err = db.Store(context.Background(), testDuty, testPubKey, testSignedData)
+	err = db.Store(context.Background(), testDuty, core.SignedDataSet{testPubKey: testSignedData})
 	require.NoError(t, err)
 
 	result, err := db.Await(context.Background(), testDuty, testPubKey)
@@ -192,7 +192,7 @@ func TestCoreAggsigdb_MemDB_WriteReadAftersStopped(t *testing.T) {
 	testPubKey := core.PubKey("pubkey")
 	testSignedData := testutil.RandomCoreSignature()
 
-	err := db.Store(context.Background(), testDuty, testPubKey, testSignedData)
+	err := db.Store(context.Background(), testDuty, core.SignedDataSet{testPubKey: testSignedData})
 	require.NoError(t, err)
 
 	result, err := db.Await(context.Background(), testDuty, testPubKey)
@@ -201,7 +201,7 @@ func TestCoreAggsigdb_MemDB_WriteReadAftersStopped(t *testing.T) {
 
 	cancel()
 
-	err = db.Store(context.Background(), testDuty, testPubKey, testSignedData)
+	err = db.Store(context.Background(), testDuty, core.SignedDataSet{testPubKey: testSignedData})
 	require.Equal(t, err.Error(), aggsigdb.ErrStopped.Error())
 
 	_, err = db.Await(context.Background(), testDuty, testPubKey)

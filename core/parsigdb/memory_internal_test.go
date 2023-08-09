@@ -122,7 +122,7 @@ func TestMemDBThreshold(t *testing.T) {
 	go db.Trim(ctx)
 
 	timesCalled := 0
-	db.SubscribeThreshold(func(_ context.Context, _ core.Duty, _ core.PubKey, _ []core.ParSignedData) error {
+	db.SubscribeThreshold(func(_ context.Context, _ core.Duty, _ map[core.PubKey][]core.ParSignedData) error {
 		timesCalled++
 
 		return nil

@@ -55,9 +55,9 @@ func TestBroadcast(t *testing.T) {
 
 			for i := 0; i < test.bcastCnt; i++ {
 				err := bcaster.Broadcast(ctx,
-					core.Duty{Type: test.duty},
-					testutil.RandomCorePubKey(t),
-					test.aggData,
+					core.Duty{Type: test.duty}, core.SignedDataSet{
+						testutil.RandomCorePubKey(t): test.aggData,
+					},
 				)
 				require.NoError(t, err)
 			}

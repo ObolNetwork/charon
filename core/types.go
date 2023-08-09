@@ -447,6 +447,24 @@ func (s ParSignedDataSet) Clone() (ParSignedDataSet, error) {
 	return resp, nil
 }
 
+// SignedDataSet is a set of signed duty data objects, one per validator.
+type SignedDataSet map[PubKey]SignedData
+
+// Clone returns a cloned copy of the SignedDataSet. For an immutable core workflow architecture,
+// remember to clone data when it leaves the current scope (sharing, storing, returning, etc).
+func (s SignedDataSet) Clone() (SignedDataSet, error) {
+	resp := make(SignedDataSet, len(s))
+	for key, data := range s {
+		var err error
+		resp[key], err = data.Clone()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return resp, nil
+}
+
 // Slot is a beacon chain slot including chain metadata to infer epoch and next slot.
 type Slot struct {
 	Slot          int64
