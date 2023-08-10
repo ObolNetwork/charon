@@ -41,9 +41,9 @@ type logFunc func(string, error)
 
 // NewForT returns a new Client for testing.
 func NewForT(endpoint string, serviceLabel string, batchWait time.Duration, batchMax, maxLogLineLen int,
-	moreLabelsFunc lazyLabelsFunc,
+	moreLabelsFunc lazyLabelsFunc, logFunc logFunc,
 ) *Client {
-	return newInternal(endpoint, serviceLabel, batchWait, batchMax, maxLogLineLen, func(string, error) {}, moreLabelsFunc)
+	return newInternal(endpoint, serviceLabel, batchWait, batchMax, maxLogLineLen, logFunc, moreLabelsFunc)
 }
 
 // New returns a new Client.
