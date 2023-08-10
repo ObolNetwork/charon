@@ -14,7 +14,8 @@ const defaultAllowedFutureEpochs = 2
 
 // DutyGaterFunc is a function that returns true if the duty is allowed to be processed.
 // It checks whether or not duties received from peers over the wire are too far in the future.
-type DutyGaterFunc func(duty Duty) bool
+// It doesn't check whether or not the duty is in the past, that is done by Deadliner.
+type DutyGaterFunc func(Duty) bool
 
 // WithDutyGaterForT returns a function that sets the nowFunc and allowedFutureEpochs in
 // order to create a DutyGaterFunc for use in tests.
