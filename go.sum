@@ -66,8 +66,8 @@ github.com/bradfitz/go-smtpd v0.0.0-20170404230938-deb6d6237625/go.mod h1:HYsPBT
 github.com/btcsuite/btcd v0.22.1 h1:CnwP9LM/M9xuRrGSCGeMVs9iv09uMqwsVX7EeIpgV2c=
 github.com/btcsuite/btcd v0.22.1/go.mod h1:wqgTSL29+50LRkmOVknEdmt8ZojIzhuWvgu/iptuN7Y=
 github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1 h1:q0rUy8C/TYNBQS1+CGKw68tLOFYSNEs0TFnxxnS9+4U=
-github.com/bufbuild/buf v1.26.0 h1:rB8pErEkxdUNhVZ3+ClFEoJRaa+o2FjEecCWL2S3Qs4=
-github.com/bufbuild/buf v1.26.0/go.mod h1:UMPncXMWgrmIM+0QpwTEwjNr2SA0z2YIVZZsmNflvB4=
+github.com/bufbuild/buf v1.26.1 h1:+GdU4z2paCmDclnjLv7MqnVi3AGviImlIKhG0MHH9FA=
+github.com/bufbuild/buf v1.26.1/go.mod h1:UMPncXMWgrmIM+0QpwTEwjNr2SA0z2YIVZZsmNflvB4=
 github.com/bufbuild/connect-go v1.9.0 h1:JIgAeNuFpo+SUPfU19Yt5TcWlznsN5Bv10/gI/6Pjoc=
 github.com/bufbuild/connect-go v1.9.0/go.mod h1:CAIePUgkDR5pAFaylSMtNK45ANQjp9JvpluG20rhpV8=
 github.com/bufbuild/connect-opentelemetry-go v0.4.0 h1:6JAn10SNqlQ/URhvRNGrIlczKw1wEXknBUUtmWqOiak=
