@@ -4,7 +4,6 @@ package validatormock
 
 import (
 	"context"
-	"github.com/obolnetwork/charon/core"
 	"sort"
 	"sync"
 	"time"
@@ -17,6 +16,7 @@ import (
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
@@ -250,12 +250,23 @@ type wrapper interface {
 
 // slotOffsets defines the offsets at which the duties should be triggered.
 var slotOffsets = map[core.DutyType]func(core.Slot, bool, wrapper) (time.Duration, bool){
+	core.DutyPrepareAggregator:       startOfPrevEpochOrStartup,
 	core.DutyAttester:                fraction(1, 3), // 1/3 slot duration
 	core.DutyAggregator:              fraction(2, 3), // 2/3 slot duration
-	core.DutySyncContribution:        fraction(2, 3),
 	dutySubscribeSyncContribution:    startOfPrevEpochOrStartup,
-	core.DutyPrepareSyncContribution: fraction(1, 3),
-	core.DutySyncMessage:             startOfPrevEpochOrStartup,
+	core.DutyPrepareSyncContribution: startOfPrevEpochOrStartup,
+	core.DutySyncMessage:             fraction(1, 3),
+	core.DutySyncContribution:        fraction(2, 3),
+	core.DutyProposer:                startOfSlot,
+	core.DutyBuilderProposer:         startOfSlot,
+}
+
+func startOfSlot(_ core.Slot, startup bool, _ wrapper) (time.Duration, bool) {
+	if startup {
+		return 0, false
+	}
+
+	return 0, true
 }
 
 func startOfPrevEpochOrStartup(slot core.Slot, startup bool, wrapper wrapper) (time.Duration, bool) {
@@ -274,7 +285,10 @@ func startOfPrevEpoch(slot core.Slot, wrapper wrapper) (time.Duration, bool) {
 
 // fraction returns a function that calculates slot offset based on the fraction x/y of total slot duration.
 func fraction(x, y int64) func(core.Slot, bool, wrapper) (time.Duration, bool) {
-	return func(slot core.Slot, _ bool, _ wrapper) (time.Duration, bool) {
+	return func(slot core.Slot, isStartup bool, _ wrapper) (time.Duration, bool) {
+		if isStartup {
+			return 0, false
+		}
 		return (slot.SlotDuration * time.Duration(x)) / time.Duration(y), true
 	}
 }
