@@ -52,11 +52,17 @@ func StoreKeysInsecure(secrets []tbls.PrivateKey, dir string, _ confirmInsecure)
 
 // StoreKeys stores the secrets in dir/keystore-%d.json EIP 2335 Keystore files
 // with new random passwords stored in dir/Keystore-%d.txt.
+//
+// Note it doesn't ensure the folder dir exists.
 func StoreKeys(secrets []tbls.PrivateKey, dir string) error {
 	return storeKeysInternal(secrets, dir, "keystore-%d.json")
 }
 
 func storeKeysInternal(secrets []tbls.PrivateKey, dir string, filenameFmt string, opts ...keystorev4.Option) error {
+	if err := checkDir(dir); err != nil {
+		return err
+	}
+
 	type data struct {
 		index  int
 		secret tbls.PrivateKey
@@ -205,4 +211,17 @@ func randomHex32() (string, error) {
 	}
 
 	return hex.EncodeToString(b), nil
+}
+
+// checkDir checks if dir exists and is a directory.
+func checkDir(dir string) error {
+	if info, err := os.Stat(dir); os.IsNotExist(err) {
+		return errors.Wrap(err, "keystore dir does not exist", z.Str("dir", dir))
+	} else if err != nil {
+		return errors.Wrap(err, "check keystore dir", z.Str("dir", dir))
+	} else if !info.IsDir() {
+		return errors.New("keystore dir is not a directory", z.Str("dir", dir))
+	}
+
+	return nil
 }
