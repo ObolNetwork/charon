@@ -99,10 +99,18 @@ func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int, sig
 		st[sigType] = true
 	}
 
+	dutyGaterFunc := func(duty core.Duty) bool {
+		if duty.Type != core.DutySignature {
+			return false
+		}
+
+		return st[sigType(duty.Slot)]
+	}
+
 	ex := &exchanger{
 		// threshold is len(peers) to wait until we get all the partial sigs from all the peers per DV
 		sigdb:    parsigdb.NewMemDB(len(peers), noopDeadliner{}),
-		sigex:    parsigex.NewParSigEx(tcpNode, p2p.Send, peerIdx, peers, noopVerifier),
+		sigex:    parsigex.NewParSigEx(tcpNode, p2p.Send, peerIdx, peers, noopVerifier, dutyGaterFunc),
 		sigTypes: st,
 		sigData: dataByPubkey{
 			store:   sigTypeStore{},

@@ -27,13 +27,17 @@ func Protocols() []protocol.ID {
 	return []protocol.ID{protocolID2}
 }
 
-func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []peer.ID, verifyFunc func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error) *ParSigEx {
+func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []peer.ID,
+	verifyFunc func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error,
+	gaterFunc core.DutyGaterFunc,
+) *ParSigEx {
 	parSigEx := &ParSigEx{
 		tcpNode:    tcpNode,
 		sendFunc:   sendFunc,
 		peerIdx:    peerIdx,
 		peers:      peers,
 		verifyFunc: verifyFunc,
+		gaterFunc:  gaterFunc,
 	}
 
 	newReq := func() proto.Message { return new(pbv1.ParSigExMsg) }
@@ -50,6 +54,7 @@ type ParSigEx struct {
 	peerIdx    int
 	peers      []peer.ID
 	verifyFunc func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error
+	gaterFunc  core.DutyGaterFunc
 	subs       []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
@@ -65,6 +70,10 @@ func (m *ParSigEx) handle(ctx context.Context, _ peer.ID, req proto.Message) (pr
 
 	duty := core.DutyFromProto(pb.Duty)
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
+
+	if !m.gaterFunc(duty) {
+		return nil, false, errors.New("invalid duty")
+	}
 
 	set, err := core.ParSignedDataSetFromProto(duty.Type, pb.DataSet)
 	if err != nil {

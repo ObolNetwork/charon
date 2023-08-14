@@ -32,16 +32,24 @@ func TestDutyGater(t *testing.T) {
 	))
 	require.NoError(t, err)
 
+	typ := core.DutyAttester
+
 	// Allow slots 0-5.
-	require.True(t, gater(core.Duty{Slot: 0})) // Current epoch
-	require.True(t, gater(core.Duty{Slot: 1}))
-	require.True(t, gater(core.Duty{Slot: 2})) // N+1 epoch
-	require.True(t, gater(core.Duty{Slot: 3}))
-	require.True(t, gater(core.Duty{Slot: 4})) // N+2 epoch
-	require.True(t, gater(core.Duty{Slot: 5}))
+	require.True(t, gater(core.Duty{Slot: 0, Type: typ})) // Current epoch
+	require.True(t, gater(core.Duty{Slot: 1, Type: typ}))
+	require.True(t, gater(core.Duty{Slot: 2, Type: typ})) // N+1 epoch
+	require.True(t, gater(core.Duty{Slot: 3, Type: typ}))
+	require.True(t, gater(core.Duty{Slot: 4, Type: typ})) // N+2 epoch
+	require.True(t, gater(core.Duty{Slot: 5, Type: typ}))
 
 	// Disallow slots 6 and after.
-	require.False(t, gater(core.Duty{Slot: 6})) // N+3 epoch
-	require.False(t, gater(core.Duty{Slot: 7}))
-	require.False(t, gater(core.Duty{Slot: 1000}))
+	require.False(t, gater(core.Duty{Slot: 6, Type: typ})) // N+3 epoch
+	require.False(t, gater(core.Duty{Slot: 7, Type: typ}))
+	require.False(t, gater(core.Duty{Slot: 1000, Type: typ}))
+
+	// Disallow invalid type
+	require.False(t, gater(core.Duty{Slot: 0, Type: -1}))
+	require.False(t, gater(core.Duty{Slot: 1, Type: 0}))
+	require.False(t, gater(core.Duty{Slot: 2, Type: 100}))
+	require.False(t, gater(core.Duty{Slot: 3, Type: 1000}))
 }

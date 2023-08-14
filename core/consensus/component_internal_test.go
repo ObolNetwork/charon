@@ -372,6 +372,7 @@ func TestComponent_handle(t *testing.T) {
 			var tc Component
 			tc.deadliner = testDeadliner{}
 			tc.mutable.instances = make(map[core.Duty]instanceIO)
+			tc.gaterFunc = func(core.Duty) bool { return true }
 
 			msg := &pbv1.ConsensusMsg{
 				Msg: randomMsg(t),
@@ -448,7 +449,11 @@ func TestComponentHandle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, _, err := new(Component).handle(ctx, "", tt.msg)
+			c := &Component{
+				gaterFunc: func(core.Duty) bool { return true },
+			}
+
+			_, _, err := c.handle(ctx, "", tt.msg)
 			require.ErrorContains(t, err, tt.errorMsg)
 		})
 	}
@@ -464,6 +469,7 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 	t.Run("MaybeStart after handle", func(t *testing.T) {
 		var c Component
 		c.deadliner = testDeadliner{}
+		c.gaterFunc = func(core.Duty) bool { return true }
 		c.mutable.instances = make(map[core.Duty]instanceIO)
 
 		// Generate a p2p private key.
@@ -492,6 +498,7 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 
 		var c Component
 		c.deadliner = testDeadliner{}
+		c.gaterFunc = func(core.Duty) bool { return true }
 		c.mutable.instances = make(map[core.Duty]instanceIO)
 		c.timerFunc = getTimerFunc()
 
