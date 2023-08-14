@@ -248,8 +248,10 @@ type wrapper interface {
 	wrapEpoch(epoch int64) Epoch
 }
 
+type offsetFunc func(core.Slot, bool, wrapper) (time.Duration, bool)
+
 // slotOffsets defines the offsets at which the duties should be triggered.
-var slotOffsets = map[core.DutyType]func(core.Slot, bool, wrapper) (time.Duration, bool){
+var slotOffsets = map[core.DutyType]offsetFunc{
 	core.DutyPrepareAggregator:       startOfPrevEpochOrStartup,
 	core.DutyAttester:                fraction(1, 3), // 1/3 slot duration
 	core.DutyAggregator:              fraction(2, 3), // 2/3 slot duration
