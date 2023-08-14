@@ -68,15 +68,20 @@ func TestParSigEx(t *testing.T) {
 			hosts[i].Peerstore().AddAddrs(hostsInfo[k].ID, hostsInfo[k].Addrs, peerstore.PermanentAddrTTL)
 		}
 	}
+	verifyFunc := func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error {
+		return nil
+	}
+
+	gaterFunc := func(core.Duty) bool {
+		return true
+	}
 
 	var wg sync.WaitGroup
 
 	// create ParSigEx components for each host
 	for i := 0; i < n; i++ {
 		wg.Add(n - 1)
-		sigex := parsigex.NewParSigEx(hosts[i], p2p.Send, i, peers, func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error {
-			return nil
-		})
+		sigex := parsigex.NewParSigEx(hosts[i], p2p.Send, i, peers, verifyFunc, gaterFunc)
 		sigex.Subscribe(func(_ context.Context, d core.Duty, set core.ParSignedDataSet) error {
 			defer wg.Done()
 

@@ -13,8 +13,9 @@ import (
 const defaultAllowedFutureEpochs = 2
 
 // DutyGaterFunc is a function that returns true if the duty is allowed to be processed.
-// It checks whether or not duties received from peers over the wire are too far in the future.
-// It doesn't check whether or not the duty is in the past, that is done by Deadliner.
+// It checks whether duties received from peers over the wire are too far in the future
+// or whether the type is invalid. It doesn't check whether the duty
+// is in the past, that is done by Deadliner.
 type DutyGaterFunc func(Duty) bool
 
 // WithDutyGaterForT returns a function that sets the nowFunc and allowedFutureEpochs in
@@ -57,6 +58,10 @@ func NewDutyGater(ctx context.Context, eth2Cl eth2wrap.Client, opts ...func(*dut
 	}
 
 	return func(duty Duty) bool {
+		if !duty.Type.Valid() {
+			return false
+		}
+
 		currentSlot := o.nowFunc().Sub(genesisTime) / slotDuration
 		currentEpoch := uint64(currentSlot) / slotsPerEpoch
 

@@ -193,7 +193,7 @@ func (io instanceIO) MaybeStart() bool {
 
 // New returns a new consensus QBFT component.
 func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey,
-	deadliner core.Deadliner, snifferFunc func(*pbv1.SniffedConsensusInstance),
+	deadliner core.Deadliner, gaterFunc core.DutyGaterFunc, snifferFunc func(*pbv1.SniffedConsensusInstance),
 ) (*Component, error) {
 	// Extract peer pubkeys.
 	keys := make(map[int64]*k1.PublicKey)
@@ -218,6 +218,7 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.Pri
 		pubkeys:     keys,
 		deadliner:   deadliner,
 		snifferFunc: snifferFunc,
+		gaterFunc:   gaterFunc,
 		dropFilter:  log.Filter(),
 		timerFunc:   getTimerFunc(),
 	}
@@ -238,6 +239,7 @@ type Component struct {
 	subs        []subscriber
 	deadliner   core.Deadliner
 	snifferFunc func(*pbv1.SniffedConsensusInstance)
+	gaterFunc   core.DutyGaterFunc
 	dropFilter  z.Field // Filter buffer overflow errors (possible DDoS)
 	timerFunc   timerFunc
 
@@ -492,6 +494,10 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 
 	duty := core.DutyFromProto(pbMsg.Msg.Duty)
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
+
+	if !c.gaterFunc(duty) {
+		return nil, false, errors.New("invalid duty", z.Any("duty", duty))
+	}
 
 	for _, justification := range pbMsg.Justification {
 		if err := verifyMsg(justification, c.pubkeys); err != nil {
