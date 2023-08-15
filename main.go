@@ -8,6 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	_ "golang.org/x/exp/slices" // Imported to manually override libp2p dependency
+
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cmd"
 )
