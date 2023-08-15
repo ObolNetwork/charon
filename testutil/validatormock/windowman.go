@@ -48,6 +48,7 @@ type dutyWindowManager struct {
 }
 
 // dutiesForSlotAndTypes returns the duties that should be performed in the provided slot and types.
+// It is basically a reverse-lookup for duties in other slots that should be scheduled in this slot.
 //
 // It scans a range of slots in lookAheadEpochs to determine which duties should be performed in
 // the provided slot.
