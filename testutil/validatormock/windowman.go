@@ -52,7 +52,7 @@ type dutyWindowManager struct {
 // It scans a range of slots in lookAheadEpochs to determine which duties should be performed in
 // the provided slot.
 func (m *dutyWindowManager) dutiesForSlotAndTypes(slot metaSlot, types ...core.DutyType) map[scheduleTuple]struct{} {
-	var resp = make(map[scheduleTuple]struct{})
+	resp := make(map[scheduleTuple]struct{})
 	for _, dutyType := range types {
 		offsetFunc, ok := offsetFuncs[dutyType]
 		if !ok {
@@ -139,7 +139,6 @@ func (m *dutyWindowManager) scheduleSlot(slot metaSlot) {
 }
 
 func (m *dutyWindowManager) manageEpochState(epoch metaEpoch) {
-
 	// Delete attesters for the previous epoch.
 	m.deleteAttesters(epoch.Prev())
 
@@ -248,6 +247,8 @@ var offsetFuncs = map[core.DutyType]offsetFunc{
 	core.DutySyncContribution:        fraction(2, 3),
 }
 
+// startupLookbackDuties are all the duties that are scheduled before the current slot.
+// TODO: This could be inferred from offsetFuncs.
 var startupLookbackDuties = []core.DutyType{
 	core.DutyPrepareAggregator,
 	dutySubscribeSyncContribution,
@@ -268,7 +269,7 @@ func fraction(x, y int64) func(slot metaSlot) time.Time {
 	}
 }
 
-// sleepUntil abstracts sleeping until a start time
+// sleepUntil abstracts sleeping until a start time.
 var sleepUntil = func(startTime time.Time) <-chan time.Time {
 	return time.After(time.Until(startTime))
 }
