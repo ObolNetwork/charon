@@ -103,6 +103,24 @@ func (e metaEpoch) SlotsForLookAhead(totalEpochs int) []metaSlot {
 	return resp
 }
 
+func (e metaEpoch) SlotsForLookBack(totalEpochs int) []metaSlot {
+	epoch := e
+	for i := 0; i < totalEpochs; i++ {
+		epoch = epoch.Prev()
+	}
+
+	slot := epoch.FirstSlot()
+	total := totalEpochs * e.meta.SlotsPerEpoch
+
+	var resp []metaSlot
+	for i := 0; i < total; i++ {
+		resp = append(resp, slot)
+		slot = slot.Next()
+	}
+
+	return resp
+}
+
 func (e metaEpoch) Next() metaEpoch {
 	return metaEpoch{
 		Epoch: e.Epoch + 1,

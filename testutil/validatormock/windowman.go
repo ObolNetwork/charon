@@ -21,7 +21,8 @@ const (
 	// dutySubscribeSyncContribution is a custom vmock duty not implemented by the charon core workflow.
 	dutySubscribeSyncContribution core.DutyType = 101
 
-	epochLookAhead = 2
+	// epochWindow is the window size of the dutyWindowManager.
+	epochWindow = 2
 )
 
 // scheduleTuple is a tuple of a duty and the time it should be performed.
@@ -53,8 +54,14 @@ type dutyWindowManager struct {
 func (m *dutyWindowManager) dutiesForSlotAndTypes(slot metaSlot, types ...core.DutyType) map[scheduleTuple]struct{} {
 	var resp = make(map[scheduleTuple]struct{})
 	for _, dutyType := range types {
-		for _, checkSlot := range slot.Epoch().SlotsForLookAhead(epochLookAhead) {
-			startTime := offsetFuncs[dutyType](checkSlot)
+		offsetFunc, ok := offsetFuncs[dutyType]
+		if !ok {
+			// Not offset func for duty
+			continue
+		}
+
+		for _, checkSlot := range slot.Epoch().SlotsForLookAhead(epochWindow) {
+			startTime := offsetFunc(checkSlot)
 			if slot.InSlot(startTime) {
 				// DutyType not scheduled in input slot.
 				continue
@@ -117,13 +124,11 @@ func (m *dutyWindowManager) scheduleSlot(slot metaSlot) {
 	// Get duties to perform this slot
 	duties := m.dutiesForSlotAndTypes(slot, core.AllDutyTypes()...)
 
-	// If startup, add startup duty types for each of their startup slots.
+	// If startup, add startup duty types for each of their lookback slots.
 	if isStartup {
-		for startupDuty, startSlotsFunc := range onStartupDuties {
-			for _, startupSlot := range startSlotsFunc(slot) {
-				for duty := range m.dutiesForSlotAndTypes(startupSlot, startupDuty) {
-					duties[duty] = struct{}{}
-				}
+		for _, lookbackSlot := range slot.Epoch().SlotsForLookBack(epochWindow) {
+			for duty := range m.dutiesForSlotAndTypes(lookbackSlot, startupLookbackDuties...) {
+				duties[duty] = struct{}{}
 			}
 		}
 	}
@@ -141,7 +146,7 @@ func (m *dutyWindowManager) manageEpochState(epoch metaEpoch) {
 	// TODO: Also delete syncCommMembers
 
 	// Start attesters for this up to lookAhead epoch if not present (idempotent).
-	for i := 0; i < epochLookAhead; i++ {
+	for i := 0; i < epochWindow; i++ {
 		m.startAttesters(epoch)
 
 		// // TODO: Also start syncCommMembers
@@ -243,30 +248,10 @@ var offsetFuncs = map[core.DutyType]offsetFunc{
 	core.DutySyncContribution:        fraction(2, 3),
 }
 
-// startupSlotsFunc returns a range of slots for which duties should be scheduled
-// for a given initial startup slot.
-type startupSlotsFunc func(metaSlot) []metaSlot
-
-// onStartupDuties defines the duties that should be triggered on startup.
-var onStartupDuties = map[core.DutyType]startupSlotsFunc{
-	core.DutyPrepareAggregator:       currAndNextEpochSlots,
-	dutySubscribeSyncContribution:    currAndNextEpochSlots,
-	core.DutyPrepareSyncContribution: currAndNextEpochSlots,
-}
-
-// currAndNextEpochSlots returns a range of slots from the provided to last of the next epoch.
-func currAndNextEpochSlots(slot metaSlot) []metaSlot {
-	var resp []metaSlot
-
-	endExcl := slot.Epoch().Next().Next().FirstSlot()
-	total := endExcl.Slot - slot.Slot
-
-	for i := int64(0); i < total; i++ {
-		resp = append(resp, slot)
-		slot = slot.Next()
-	}
-
-	return resp
+var startupLookbackDuties = []core.DutyType{
+	core.DutyPrepareAggregator,
+	dutySubscribeSyncContribution,
+	core.DutyPrepareSyncContribution,
 }
 
 // startOfPrevEpoch returns the start time of the previous epoch.
