@@ -15,6 +15,8 @@ import (
 )
 
 func TestDutyExpiration(t *testing.T) {
+	t.Skip("Disabled due to race condition, see https://github.com/ObolNetwork/charon/issues/2546")
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	deadliner := newTestDeadliner()
