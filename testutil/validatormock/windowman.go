@@ -94,10 +94,10 @@ func (m *dutyWindowManager) Run(ctx context.Context) {
 				select {
 				case <-ctx.Done():
 					return
-				case <-sleepUntil(next.startTime):
-					err := m.runDuty(ctx, next.duty)
+				case <-sleepUntil(scheduled.startTime):
+					err := m.runDuty(ctx, scheduled.duty)
 					if err != nil {
-						log.Warn(ctx, "Duty failed", err, z.Any("duty", next.duty))
+						log.Warn(ctx, "Duty failed", err, z.Any("duty", scheduled.duty))
 					}
 				}
 			}(next)
