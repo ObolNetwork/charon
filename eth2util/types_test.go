@@ -31,7 +31,7 @@ func TestUnmarshallingSignedEpoch(t *testing.T) {
 	epoch := eth2p0.Epoch(rand.Int())
 	sig := testutil.RandomBytes96()
 
-	newTmpl := `{"epoch": %d,"signature": "%#x"}`
+	newTmpl := `{"epoch":%d,"signature":"%#x"}`
 	b := []byte(fmt.Sprintf(newTmpl, epoch, sig))
 
 	var e1 eth2util.SignedEpoch
@@ -39,6 +39,13 @@ func TestUnmarshallingSignedEpoch(t *testing.T) {
 	testutil.RequireNoError(t, err)
 	require.Equal(t, sig, e1.Signature[:])
 	require.Equal(t, epoch, e1.Epoch)
+
+	b2, err := json.Marshal(eth2util.SignedEpoch{
+		Epoch:     epoch,
+		Signature: eth2p0.BLSSignature(sig),
+	})
+	testutil.RequireNoError(t, err)
+	require.Equal(t, string(b), string(b2))
 
 	type legacySig [96]byte
 	sigB, err := json.Marshal(legacySig(sig))

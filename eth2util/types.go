@@ -258,31 +258,20 @@ func (s SignedEpoch) HashTreeRootWith(hh ssz.HashWalker) error {
 	return nil
 }
 
-// legacySignature marshals to []byte to remain compatible with v0.16.
-type legacySignature [96]byte
-
-// MarshalJSON marshalls legacy []byte signatures to remain compatible with v0.16.
+// MarshalJSON marshals the SignedEpoch as json. It only supports 0xhex signatures.
 func (s SignedEpoch) MarshalJSON() ([]byte, error) {
-	rawSig, err := json.Marshal(legacySignature(s.Signature))
+	b, err := json.Marshal(signedEpochJSON(s))
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal legacy signed epoch signature")
+		return nil, errors.Wrap(err, "marshal signed epoch signature")
 	}
 
-	resp, err := json.Marshal(signedEpochJSON{
-		Epoch:     s.Epoch,
-		Signature: rawSig,
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal signed epoch")
-	}
-
-	return resp, nil
+	return b, nil
 }
 
 // UnmarshalJSON unmarshalls both legacy []byte as well as 0xhex signatures.
 // Remove support for legacy []byte in v0.19.
 func (s *SignedEpoch) UnmarshalJSON(b []byte) error {
-	var resp signedEpochJSON
+	var resp legacySignedEpochJSON
 	if err := json.Unmarshal(b, &resp); err != nil {
 		return errors.Wrap(err, "unmarshal signed epoch")
 	}
@@ -308,10 +297,16 @@ func (s *SignedEpoch) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// signedEpochJSON supports both legacy []byte and 0xhex signatures
-//
-// TODO(corver): Revert to eth2p0.BLSSignature in v0.19.
+// signedEpochJSON supports 0xhex signatures.
 type signedEpochJSON struct {
+	Epoch     eth2p0.Epoch        `json:"epoch"`
+	Signature eth2p0.BLSSignature `json:"signature"`
+}
+
+// legacySignedEpochJSON supports both legacy []byte and 0xhex signatures
+//
+// TODO(corver): Remove in v0.19.
+type legacySignedEpochJSON struct {
 	Epoch     eth2p0.Epoch    `json:"epoch"`
 	Signature json.RawMessage `json:"signature"`
 }
