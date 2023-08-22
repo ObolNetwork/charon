@@ -297,7 +297,7 @@ func (s *SignedEpoch) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// // legacySignedEpochJSON supports 0xhex signatures.
+// signedEpochJSON supports 0xhex signatures.
 type signedEpochJSON struct {
 	Epoch     eth2p0.Epoch        `json:"epoch"`
 	Signature eth2p0.BLSSignature `json:"signature"`
