@@ -6,7 +6,6 @@ import (
 	"context"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -15,14 +14,20 @@ import (
 )
 
 func TestDutyExpiration(t *testing.T) {
-	t.Skip("Disabled due to race condition, see https://github.com/ObolNetwork/charon/issues/2546")
+	t.Parallel()
 
+	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
 
 	deadliner := newTestDeadliner()
 	db := NewMemDB(deadliner)
 
-	go db.Run(ctx)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		db.Run(ctx)
+	}()
 
 	slot := int64(99)
 	duty := core.NewAttesterDuty(slot)
@@ -41,18 +46,18 @@ func TestDutyExpiration(t *testing.T) {
 	// Why?
 	// aggsigdb relies on channels and a single executing goroutine to synchronize access to its internal data structure
 	// and while this is cool and useful, it makes our life hard in this test.
-	// So what I'm doing here is to explicitly cancel the context, which will close the goroutine spawned for
-	// db.Run(), then I'll wait a few millisecond to allow the dust to settle.
-	// After that, we can proceed with the test data condition checks.
-	// Ugly, but it works. I'll have to rewrite this package at some point.
+	// So what I'm doing here is to explicitly cancel the context
+	// And wait till go routine is closed
 	cancel()
-	time.Sleep(50 * time.Millisecond)
+	wg.Wait()
 
 	require.Empty(t, db.data)
 	require.Empty(t, db.keysByDuty)
 }
 
 func TestCancelledQuery(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
