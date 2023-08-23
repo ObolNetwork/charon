@@ -17,7 +17,7 @@ require (
 	github.com/jsternberg/zap-logfmt v1.3.0
 	github.com/libp2p/go-libp2p v0.29.2
 	github.com/libp2p/go-msgio v0.3.0
-	github.com/multiformats/go-multiaddr v0.10.1
+	github.com/multiformats/go-multiaddr v0.11.0
 	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/client_model v0.4.0
 	github.com/protolambda/eth2-shuffle v1.1.0
@@ -38,7 +38,7 @@ require (
 	go.uber.org/goleak v1.2.1
 	go.uber.org/zap v1.25.0
 	golang.org/x/crypto v0.12.0
-	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1 // Manually downgraded this to be compatible with libp2p v0.29.2
+	golang.org/x/exp v0.0.0-20230725012225-302865e7556b // Manually downgraded this to be compatible with libp2p v0.29.2
 	golang.org/x/sync v0.3.0
 	golang.org/x/term v0.11.0
 	golang.org/x/time v0.3.0
