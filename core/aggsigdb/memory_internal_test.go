@@ -14,8 +14,6 @@ import (
 )
 
 func TestDutyExpiration(t *testing.T) {
-	t.Parallel()
-
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -56,8 +54,6 @@ func TestDutyExpiration(t *testing.T) {
 }
 
 func TestCancelledQuery(t *testing.T) {
-	t.Parallel()
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
