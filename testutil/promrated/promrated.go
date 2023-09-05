@@ -120,7 +120,7 @@ func reportMetrics(ctx context.Context, config Config) {
 }
 
 func contains(arr []string, s string) bool {
-	var result bool = false
+	result := false
 	for _, x := range arr {
 		if x == s {
 			result = true
