@@ -81,7 +81,7 @@ func reportMetrics(ctx context.Context, config Config) {
 		if contains(config.Networks, validator.ClusterNetwork) {
 			stats, err := getValidatorStatistics(ctx, config.RatedEndpoint, config.RatedAuth, validator)
 			if err != nil {
-				log.Error(ctx, "Getting validator statistics", err, z.Str("validator", validator.PubKey))
+				log.Error(ctx, "Getting validator statistics", err, z.Str("pubkey", validator.PubKey))
 				continue
 			}
 
@@ -119,6 +119,7 @@ func reportMetrics(ctx context.Context, config Config) {
 	}
 }
 
+// contains checks if array contains a string s.
 func contains(arr []string, s string) bool {
 	result := false
 	for _, x := range arr {
