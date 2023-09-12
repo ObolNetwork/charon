@@ -36,7 +36,6 @@ import (
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
-	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 const (
@@ -649,15 +648,17 @@ func TestRouter(t *testing.T) {
 
 	t.Run("get validators with no validator ids provided", func(t *testing.T) {
 		handler := testHandler{
-			ValidatorsFunc: func(_ context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
-				return beaconmock.ValidatorSetA, nil
+			BeaconStateFunc: func(ctx context.Context, stateId string) (*eth2spec.VersionedBeaconState, error) {
+				return testutil.RandomBeaconState(t), nil
 			},
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
 			res, err := cl.Validators(ctx, "head", nil)
 			require.NoError(t, err)
-			require.EqualValues(t, beaconmock.ValidatorSetA, res)
+
+			// Two validators are expected as the testutil.RandomBeaconState(t) returns two validators.
+			require.Equal(t, 2, len(res))
 		}
 
 		testRouter(t, handler, callback)
@@ -1187,6 +1188,7 @@ func testRawRouter(t *testing.T, handler testHandler, callback func(context.Cont
 // mocked beacon-node endpoints required by the eth2http client during startup.
 type testHandler struct {
 	Handler
+	eth2client.BeaconStateProvider
 	ProxyHandler                           http.HandlerFunc
 	AggregateSyncCommitteeSelectionsFunc   func(ctx context.Context, partialSelections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error)
 	AttestationDataFunc                    func(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
@@ -1198,6 +1200,7 @@ type testHandler struct {
 	ProposerDutiesFunc                     func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
 	NodeVersionFunc                        func(ctx context.Context) (string, error)
 	ValidatorsFunc                         func(ctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+	BeaconStateFunc                        func(ctx context.Context, stateId string) (*eth2spec.VersionedBeaconState, error)
 	ValidatorsByPubKeyFunc                 func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
 	SubmitVoluntaryExitFunc                func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error
 	SubmitValidatorRegistrationsFunc       func(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error
@@ -1234,6 +1237,10 @@ func (h testHandler) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2ap
 
 func (h testHandler) Validators(ctx context.Context, stateID string, indices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 	return h.ValidatorsFunc(ctx, stateID, indices)
+}
+
+func (h testHandler) BeaconState(ctx context.Context, stateID string) (*eth2spec.VersionedBeaconState, error) {
+	return h.BeaconStateFunc(ctx, stateID)
 }
 
 func (h testHandler) ValidatorsByPubKey(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
