@@ -32,7 +32,7 @@ const (
 	insecureCost = 4
 
 	// loadStoreWorkers is the amount of workers to use when loading/storing keys concurrently.
-	loadStoreWorkers = 64
+	loadStoreWorkers = 10
 )
 
 type confirmInsecure struct{}
