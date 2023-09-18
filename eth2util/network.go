@@ -50,10 +50,16 @@ var (
 		GenesisForkVersionHex: "0x90000069",
 		GenesisTimestamp:      1655733600,
 	}
+	Holesky = Network{
+		ChainID:               17000,
+		Name:                  "holesky",
+		GenesisForkVersionHex: "0x00017000",
+		GenesisTimestamp:      1694786400,
+	}
 )
 
 var supportedNetworks = []Network{
-	Mainnet, Goerli, Gnosis, Sepolia,
+	Mainnet, Goerli, Gnosis, Sepolia, Holesky,
 }
 
 // ForkVersionToChainID returns the chainID corresponding to the provided fork version.
