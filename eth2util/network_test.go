@@ -74,6 +74,10 @@ func TestSupportedNetwork(t *testing.T) {
 		require.True(t, eth2util.ValidNetwork("sepolia"))
 	})
 
+	t.Run("supported network", func(t *testing.T) {
+		require.True(t, eth2util.ValidNetwork("holesky"))
+	})
+
 	t.Run("unsupported network", func(t *testing.T) {
 		require.False(t, eth2util.ValidNetwork("ropsten"))
 	})
