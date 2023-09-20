@@ -50,6 +50,7 @@ var (
 		GenesisForkVersionHex: "0x90000069",
 		GenesisTimestamp:      1655733600,
 	}
+	// Holesky metadata taken from https://github.com/eth-clients/holesky#metadata.
 	Holesky = Network{
 		ChainID:               17000,
 		Name:                  "holesky",
