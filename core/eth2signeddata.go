@@ -49,7 +49,7 @@ func (VersionedSignedBeaconBlock) DomainName() signing.DomainName {
 }
 
 func (v VersionedSignedBeaconBlock) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
-	slot, err := v.VersionedSignedBeaconBlock.Slot()
+	slot, err := v.VersionedSignedBeaconBlockDeneb.Slot()
 	if err != nil {
 		return 0, err
 	}

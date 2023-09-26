@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/obolnetwork/charon/tbls"
 	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -394,6 +395,7 @@ type SignedData interface {
 	Signatures() []Signature
 	// SetSignatures returns a copy of signed duty data with the signatures replaced.
 	SetSignatures([]Signature) (SignedData, error)
+	Verify(pubkey tbls.PublicKey) error
 
 	// MessageRoot returns the unsigned data message root.
 	MessageRoot() ([32]byte, error)

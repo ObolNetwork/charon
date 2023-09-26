@@ -29,6 +29,7 @@ const (
 	DomainSyncCommittee               DomainName = "DOMAIN_SYNC_COMMITTEE"
 	DomainSyncCommitteeSelectionProof DomainName = "DOMAIN_SYNC_COMMITTEE_SELECTION_PROOF"
 	DomainContributionAndProof        DomainName = "DOMAIN_CONTRIBUTION_AND_PROOF"
+	DomainBlobSidecar                 DomainName = "DOMAIN_BLOB_SIDECAR"
 	DomainDeposit                     DomainName = "DOMAIN_DEPOSIT"
 )
 
