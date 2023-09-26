@@ -48,8 +48,8 @@ func (VersionedSignedBeaconBlock) DomainName() signing.DomainName {
 	return signing.DomainBeaconProposer
 }
 
-func (b VersionedSignedBeaconBlock) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
-	slot, err := b.VersionedSignedBeaconBlock.Slot()
+func (v VersionedSignedBeaconBlock) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	slot, err := v.VersionedSignedBeaconBlock.Slot()
 	if err != nil {
 		return 0, err
 	}
