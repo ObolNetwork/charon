@@ -23,6 +23,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/core/denebcharon"
 	"github.com/obolnetwork/charon/core/validatorapi"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
@@ -456,7 +457,7 @@ func TestComponent_SubmitBeaconBlock(t *testing.T) {
 	s, err := tbls.Sign(secret, sigData[:])
 	require.NoError(t, err)
 
-	signedBlock := &core.VersionedSignedBeaconBlockDeneb{
+	signedBlock := &denebcharon.VersionedSignedBeaconBlock{
 		Version: eth2spec.DataVersionPhase0,
 		Phase0: &eth2p0.SignedBeaconBlock{
 			Message:   unsignedBlock.Phase0,
@@ -468,7 +469,7 @@ func TestComponent_SubmitBeaconBlock(t *testing.T) {
 	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 		block, ok := set[corePubKey].SignedData.(core.VersionedSignedBeaconBlock)
 		require.True(t, ok)
-		require.Equal(t, *signedBlock, block.VersionedSignedBeaconBlockDeneb)
+		require.Equal(t, *signedBlock, block.VersionedSignedBeaconBlock)
 
 		return nil
 	})
@@ -524,7 +525,7 @@ func TestComponent_SubmitBeaconBlockInvalidSignature(t *testing.T) {
 	unsignedBlock.Slot = slot
 	unsignedBlock.ProposerIndex = vIdx
 
-	signedBlock := &core.VersionedSignedBeaconBlockDeneb{
+	signedBlock := &denebcharon.VersionedSignedBeaconBlock{
 		Version: eth2spec.DataVersionPhase0,
 		Phase0: &eth2p0.SignedBeaconBlock{
 			Message:   unsignedBlock,
@@ -573,42 +574,42 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 	// invalid block scenarios
 	tests := []struct {
 		name   string
-		block  *core.VersionedSignedBeaconBlockDeneb
+		block  *denebcharon.VersionedSignedBeaconBlock
 		errMsg string
 	}{
 		{
 			name:   "no phase 0 block",
-			block:  &core.VersionedSignedBeaconBlockDeneb{Version: eth2spec.DataVersionPhase0},
+			block:  &denebcharon.VersionedSignedBeaconBlock{Version: eth2spec.DataVersionPhase0},
 			errMsg: "no phase0 block",
 		},
 		{
 			name:   "no altair block",
-			block:  &core.VersionedSignedBeaconBlockDeneb{Version: eth2spec.DataVersionAltair},
+			block:  &denebcharon.VersionedSignedBeaconBlock{Version: eth2spec.DataVersionAltair},
 			errMsg: "no altair block",
 		},
 		{
 			name:   "no bellatrix block",
-			block:  &core.VersionedSignedBeaconBlockDeneb{Version: eth2spec.DataVersionBellatrix},
+			block:  &denebcharon.VersionedSignedBeaconBlock{Version: eth2spec.DataVersionBellatrix},
 			errMsg: "no bellatrix block",
 		},
 		{
 			name:   "no capella block",
-			block:  &core.VersionedSignedBeaconBlockDeneb{Version: eth2spec.DataVersionCapella},
+			block:  &denebcharon.VersionedSignedBeaconBlock{Version: eth2spec.DataVersionCapella},
 			errMsg: "no capella block",
 		},
 		{
 			name:   "no deneb block",
-			block:  &core.VersionedSignedBeaconBlockDeneb{Version: eth2spec.DataVersionDeneb},
+			block:  &denebcharon.VersionedSignedBeaconBlock{Version: eth2spec.DataVersionDeneb},
 			errMsg: "no denb block",
 		},
 		{
 			name:   "none",
-			block:  &core.VersionedSignedBeaconBlockDeneb{Version: eth2spec.DataVersion(6)},
+			block:  &denebcharon.VersionedSignedBeaconBlock{Version: eth2spec.DataVersion(6)},
 			errMsg: "unknown version",
 		},
 		{
 			name: "no phase 0 sig",
-			block: &core.VersionedSignedBeaconBlockDeneb{
+			block: &denebcharon.VersionedSignedBeaconBlock{
 				Version: eth2spec.DataVersionPhase0,
 				Phase0: &eth2p0.SignedBeaconBlock{
 					Message:   &eth2p0.BeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomPhase0BeaconBlockBody()},
@@ -619,7 +620,7 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 		},
 		{
 			name: "no altair sig",
-			block: &core.VersionedSignedBeaconBlockDeneb{
+			block: &denebcharon.VersionedSignedBeaconBlock{
 				Version: eth2spec.DataVersionAltair,
 				Altair: &altair.SignedBeaconBlock{
 					Message:   &altair.BeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomAltairBeaconBlockBody()},
@@ -630,7 +631,7 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 		},
 		{
 			name: "no bellatrix sig",
-			block: &core.VersionedSignedBeaconBlockDeneb{
+			block: &denebcharon.VersionedSignedBeaconBlock{
 				Version: eth2spec.DataVersionBellatrix,
 				Bellatrix: &bellatrix.SignedBeaconBlock{
 					Message:   &bellatrix.BeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomBellatrixBeaconBlockBody()},

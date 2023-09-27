@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/core/denebcharon"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -35,7 +36,7 @@ func TestSynthProposer(t *testing.T) {
 	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(set), beaconmock.WithSlotsPerEpoch(slotsPerEpoch))
 	require.NoError(t, err)
 
-	bmock.SubmitBeaconBlockFunc = func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
+	bmock.SubmitBeaconBlockFunc = func(ctx context.Context, block *denebcharon.VersionedSignedBeaconBlock) error {
 		require.Equal(t, realBlockSlot, block.Capella.Message.Slot)
 		close(done)
 
@@ -102,7 +103,7 @@ func TestSynthProposer(t *testing.T) {
 		}
 		require.Equal(t, spec.DataVersionCapella, block.Version)
 
-		signed := testutil.RandomCapellaVersionedSignedBeaconBlock()
+		signed := testutil.RandomVersionedSignedBeaconBlock()
 		signed.Capella.Message = block.Capella
 		err = eth2Cl.SubmitBeaconBlock(ctx, signed)
 		require.NoError(t, err)

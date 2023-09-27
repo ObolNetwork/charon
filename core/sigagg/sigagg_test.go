@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/core/denebcharon"
 	"github.com/obolnetwork/charon/core/sigagg"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
@@ -326,11 +327,11 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		block *core.VersionedSignedBeaconBlockDeneb
+		block *denebcharon.VersionedSignedBeaconBlock
 	}{
 		{
 			name: "phase0 block",
-			block: &core.VersionedSignedBeaconBlockDeneb{
+			block: &denebcharon.VersionedSignedBeaconBlock{
 				Version: eth2spec.DataVersionPhase0,
 				Phase0: &eth2p0.SignedBeaconBlock{
 					Message:   testutil.RandomPhase0BeaconBlock(),
@@ -340,7 +341,7 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 		},
 		{
 			name: "altair block",
-			block: &core.VersionedSignedBeaconBlockDeneb{
+			block: &denebcharon.VersionedSignedBeaconBlock{
 				Version: eth2spec.DataVersionAltair,
 				Altair: &altair.SignedBeaconBlock{
 					Message:   testutil.RandomAltairBeaconBlock(),
@@ -350,7 +351,7 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 		},
 		{
 			name: "bellatrix block",
-			block: &core.VersionedSignedBeaconBlockDeneb{
+			block: &denebcharon.VersionedSignedBeaconBlock{
 				Version: eth2spec.DataVersionBellatrix,
 				Bellatrix: &bellatrix.SignedBeaconBlock{
 					Message:   testutil.RandomBellatrixBeaconBlock(),
@@ -360,7 +361,7 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 		},
 		{
 			name: "capella block",
-			block: &core.VersionedSignedBeaconBlockDeneb{
+			block: &denebcharon.VersionedSignedBeaconBlock{
 				Version: eth2spec.DataVersionCapella,
 				Capella: &capella.SignedBeaconBlock{
 					Message:   testutil.RandomCapellaBeaconBlock(),

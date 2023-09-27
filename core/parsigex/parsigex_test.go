@@ -157,7 +157,7 @@ func TestParSigExVerifier(t *testing.T) {
 	})
 
 	t.Run("Verify block", func(t *testing.T) {
-		block := testutil.RandomCapellaVersionedSignedBeaconBlock()
+		block := testutil.RandomVersionedSignedBeaconBlock()
 		block.Capella.Message.Slot = slot
 		sigRoot, err := block.Root()
 		require.NoError(t, err)

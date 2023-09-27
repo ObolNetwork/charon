@@ -22,6 +22,7 @@ import (
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/core/denebcharon"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
@@ -354,7 +355,7 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 	return block, nil
 }
 
-func (c Component) SubmitBeaconBlock(ctx context.Context, block *core.VersionedSignedBeaconBlockDeneb) error {
+func (c Component) SubmitBeaconBlock(ctx context.Context, block *denebcharon.VersionedSignedBeaconBlock) error {
 	// Calculate slot epoch
 	slot, err := block.Slot()
 	if err != nil {

@@ -1,6 +1,6 @@
 // Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package core
+package denebcharon
 
 import (
 	"github.com/attestantio/go-eth2-client/api/v1/deneb"
@@ -13,9 +13,9 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-// VersionedSignedBeaconBlockDeneb contains a versioned signed beacon block with new deneb.BlockContents.
-// This is a placeholder struct until eth2spec.VersionedSignedBeaconBlock includes deneb.BlockContents.
-type VersionedSignedBeaconBlockDeneb struct {
+// VersionedSignedBeaconBlock contains a versioned signed beacon block with new deneb.BlockContents.
+// This is a placeholder struct until spec.VersionedSignedBeaconBlock includes deneb.BlockContents.
+type VersionedSignedBeaconBlock struct {
 	Version   eth2spec.DataVersion
 	Phase0    *eth2p0.SignedBeaconBlock
 	Altair    *altair.SignedBeaconBlock
@@ -25,7 +25,7 @@ type VersionedSignedBeaconBlockDeneb struct {
 }
 
 // Slot returns the slot of the signed beacon block.
-func (v *VersionedSignedBeaconBlockDeneb) Slot() (eth2p0.Slot, error) {
+func (v *VersionedSignedBeaconBlock) Slot() (eth2p0.Slot, error) {
 	switch v.Version {
 	case eth2spec.DataVersionPhase0:
 		if v.Phase0 == nil || v.Phase0.Message == nil {

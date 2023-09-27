@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/core/denebcharon"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
@@ -276,7 +277,7 @@ func RandomCapellaCoreVersionedBeaconBlock() core.VersionedBeaconBlock {
 
 func RandomBellatrixCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconBlock {
 	return core.VersionedSignedBeaconBlock{
-		VersionedSignedBeaconBlockDeneb: core.VersionedSignedBeaconBlockDeneb{
+		VersionedSignedBeaconBlock: denebcharon.VersionedSignedBeaconBlock{
 			Version: eth2spec.DataVersionBellatrix,
 			Bellatrix: &bellatrix.SignedBeaconBlock{
 				Message:   RandomBellatrixBeaconBlock(),
@@ -288,7 +289,7 @@ func RandomBellatrixCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconB
 
 func RandomCapellaCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconBlock {
 	return core.VersionedSignedBeaconBlock{
-		VersionedSignedBeaconBlockDeneb: core.VersionedSignedBeaconBlockDeneb{
+		VersionedSignedBeaconBlock: denebcharon.VersionedSignedBeaconBlock{
 			Version: eth2spec.DataVersionCapella,
 			Capella: &capella.SignedBeaconBlock{
 				Message:   RandomCapellaBeaconBlock(),
@@ -301,6 +302,18 @@ func RandomCapellaCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconBlo
 // RandomCapellaVersionedSignedBeaconBlock returns a random signed capella beacon block.
 func RandomCapellaVersionedSignedBeaconBlock() *eth2spec.VersionedSignedBeaconBlock {
 	return &eth2spec.VersionedSignedBeaconBlock{
+		Version: eth2spec.DataVersionCapella,
+		Capella: &capella.SignedBeaconBlock{
+			Message:   RandomCapellaBeaconBlock(),
+			Signature: RandomEth2Signature(),
+		},
+	}
+}
+
+// RandomVersionedSignedBeaconBlock returns a random signed capella beacon block.
+// TODO(xenowits): Can remove this later.
+func RandomVersionedSignedBeaconBlock() *denebcharon.VersionedSignedBeaconBlock {
+	return &denebcharon.VersionedSignedBeaconBlock{
 		Version: eth2spec.DataVersionCapella,
 		Capella: &capella.SignedBeaconBlock{
 			Message:   RandomCapellaBeaconBlock(),

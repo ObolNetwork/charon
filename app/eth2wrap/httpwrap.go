@@ -19,7 +19,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/core/denebcharon"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
@@ -41,7 +41,7 @@ type NodePeerCountProvider interface {
 // BeaconBlockSubmitter is the interface for submitting beacon blocks.
 type BeaconBlockSubmitter interface {
 	// SubmitBeaconBlock submits a beacon block.
-	SubmitBeaconBlock(ctx context.Context, block *core.VersionedSignedBeaconBlockDeneb) error
+	SubmitBeaconBlock(ctx context.Context, block *denebcharon.VersionedSignedBeaconBlock) error
 }
 
 // NewHTTPAdapterForT returns a http adapter for testing non-eth2service methods as it is nil.
@@ -99,7 +99,7 @@ func (h *httpAdapter) AggregateBeaconCommitteeSelections(ctx context.Context, se
 		return nil, errors.Wrap(err, "marshal submit beacon committee selections")
 	}
 
-	respBody, err := httpPost(ctx, h.address, "/eth/v1/validator/beacon_committee_selections", bytes.NewReader(reqBody), h.timeout)
+	respBody, err := httpPost(ctx, h.address, "/eth/v1/validator/beacon_committee_selections", bytes.NewReader(reqBody), h.timeout, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "submit beacon committee selections")
 	}
@@ -119,7 +119,7 @@ func (h *httpAdapter) AggregateSyncCommitteeSelections(ctx context.Context, sele
 		return nil, errors.Wrap(err, "marshal sync committee selections")
 	}
 
-	respBody, err := httpPost(ctx, h.address, "/eth/v1/validator/sync_committee_selections", bytes.NewReader(reqBody), h.timeout)
+	respBody, err := httpPost(ctx, h.address, "/eth/v1/validator/sync_committee_selections", bytes.NewReader(reqBody), h.timeout, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "submit sync committee selections")
 	}
@@ -189,8 +189,24 @@ func (h *httpAdapter) NodePeerCount(ctx context.Context) (int, error) {
 	return resp.Data.Connected, nil
 }
 
-func (h *httpAdapter) SubmitBeaconBlock(ctx context.Context, block *core.VersionedSignedBeaconBlockDeneb) error {
-	// TODO(xenowits): Implement this.
+// SubmitBeaconBlock submits a beacon block.
+// See https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/publishBlockV2.
+func (h *httpAdapter) SubmitBeaconBlock(ctx context.Context, block *denebcharon.VersionedSignedBeaconBlock) error {
+	const path = "/eth/v2/beacon/blocks"
+
+	reqBody, err := json.Marshal(block)
+	if err != nil {
+		return errors.Wrap(err, "marshal signed beacon block")
+	}
+
+	var header http.Header
+	header.Add("Eth-Consensus-Version", block.Version.String())
+
+	_, err = httpPost(ctx, h.address, path, bytes.NewReader(reqBody), h.timeout, header)
+	if err != nil {
+		return errors.Wrap(err, "submit signed beacon block")
+	}
+
 	return nil
 }
 
@@ -212,7 +228,7 @@ type peerCountJSON struct {
 	} `json:"data"`
 }
 
-func httpPost(ctx context.Context, base string, endpoint string, body io.Reader, timeout time.Duration) ([]byte, error) {
+func httpPost(ctx context.Context, base string, endpoint string, body io.Reader, timeout time.Duration, header http.Header) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -230,6 +246,8 @@ func httpPost(ctx context.Context, base string, endpoint string, body io.Reader,
 	if err != nil {
 		return nil, errors.Wrap(err, "new POST request with ctx")
 	}
+
+	req.Header = header
 
 	res, err := new(http.Client).Do(req)
 	if err != nil {

@@ -21,6 +21,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/core/denebcharon"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
@@ -146,7 +147,7 @@ func (s Signature) ToETH2() eth2p0.BLSSignature {
 }
 
 // NewVersionedSignedBeaconBlock validates and returns a new wrapped VersionedSignedBeaconBlock.
-func NewVersionedSignedBeaconBlock(block *VersionedSignedBeaconBlockDeneb) (VersionedSignedBeaconBlock, error) {
+func NewVersionedSignedBeaconBlock(block *denebcharon.VersionedSignedBeaconBlock) (VersionedSignedBeaconBlock, error) {
 	switch block.Version {
 	case eth2spec.DataVersionPhase0:
 		if block.Phase0 == nil {
@@ -172,11 +173,11 @@ func NewVersionedSignedBeaconBlock(block *VersionedSignedBeaconBlockDeneb) (Vers
 		return VersionedSignedBeaconBlock{}, errors.New("unknown version")
 	}
 
-	return VersionedSignedBeaconBlock{VersionedSignedBeaconBlockDeneb: *block}, nil
+	return VersionedSignedBeaconBlock{VersionedSignedBeaconBlock: *block}, nil
 }
 
 // NewPartialVersionedSignedBeaconBlock is a convenience function that returns a new partial signed block.
-func NewPartialVersionedSignedBeaconBlock(block *VersionedSignedBeaconBlockDeneb, shareIdx int) (ParSignedData, error) {
+func NewPartialVersionedSignedBeaconBlock(block *denebcharon.VersionedSignedBeaconBlock, shareIdx int) (ParSignedData, error) {
 	wrap, err := NewVersionedSignedBeaconBlock(block)
 	if err != nil {
 		return ParSignedData{}, err
@@ -190,7 +191,7 @@ func NewPartialVersionedSignedBeaconBlock(block *VersionedSignedBeaconBlockDeneb
 
 // VersionedSignedBeaconBlock is a signed versioned beacon block and implements SignedData.
 type VersionedSignedBeaconBlock struct {
-	VersionedSignedBeaconBlockDeneb // Could subtype instead of embed, but aligning with Attestation that cannot subtype.
+	denebcharon.VersionedSignedBeaconBlock // Could subtype instead of embed, but aligning with Attestation that cannot subtype.
 }
 
 func (v VersionedSignedBeaconBlock) MessageRoot() ([32]byte, error) {
@@ -459,15 +460,15 @@ func (v VersionedSignedBeaconBlock) MarshalJSON() ([]byte, error) {
 	switch v.Version {
 	// No block nil checks since `NewVersionedSignedBeaconBlock` assumed.
 	case eth2spec.DataVersionPhase0:
-		marshaller = v.VersionedSignedBeaconBlockDeneb.Phase0
+		marshaller = v.VersionedSignedBeaconBlock.Phase0
 	case eth2spec.DataVersionAltair:
-		marshaller = v.VersionedSignedBeaconBlockDeneb.Altair
+		marshaller = v.VersionedSignedBeaconBlock.Altair
 	case eth2spec.DataVersionBellatrix:
-		marshaller = v.VersionedSignedBeaconBlockDeneb.Bellatrix
+		marshaller = v.VersionedSignedBeaconBlock.Bellatrix
 	case eth2spec.DataVersionCapella:
-		marshaller = v.VersionedSignedBeaconBlockDeneb.Capella
+		marshaller = v.VersionedSignedBeaconBlock.Capella
 	case eth2spec.DataVersionDeneb:
-		marshaller = v.VersionedSignedBeaconBlockDeneb.Deneb
+		marshaller = v.VersionedSignedBeaconBlock.Deneb
 	default:
 		return nil, errors.New("unknown version")
 	}
@@ -499,7 +500,7 @@ func (v *VersionedSignedBeaconBlock) UnmarshalJSON(input []byte) error {
 		return errors.Wrap(err, "unmarshal block")
 	}
 
-	resp := VersionedSignedBeaconBlockDeneb{Version: raw.Version.ToETH2()}
+	resp := denebcharon.VersionedSignedBeaconBlock{Version: raw.Version.ToETH2()}
 	switch resp.Version {
 	case eth2spec.DataVersionPhase0:
 		block := new(eth2p0.SignedBeaconBlock)
@@ -535,7 +536,7 @@ func (v *VersionedSignedBeaconBlock) UnmarshalJSON(input []byte) error {
 		return errors.New("unknown version")
 	}
 
-	v.VersionedSignedBeaconBlockDeneb = resp
+	v.VersionedSignedBeaconBlock = resp
 
 	return nil
 }
@@ -590,7 +591,7 @@ func (VersionedSignedBlindedBeaconBlock) Signatures() []Signature {
 	panic("implement me")
 }
 
-func (VersionedSignedBlindedBeaconBlock) SetSignatures(signatures []Signature) (SignedData, error) {
+func (VersionedSignedBlindedBeaconBlock) SetSignatures(_ []Signature) (SignedData, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -755,12 +756,12 @@ type Attestation struct {
 	eth2p0.Attestation
 }
 
-func (a Attestation) Signatures() []Signature {
+func (Attestation) Signatures() []Signature {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (Attestation) SetSignatures(signatures []Signature) (SignedData, error) {
+func (Attestation) SetSignatures(_ []Signature) (SignedData, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -856,7 +857,7 @@ func (SignedVoluntaryExit) Signatures() []Signature {
 	panic("implement me")
 }
 
-func (SignedVoluntaryExit) SetSignatures(signatures []Signature) (SignedData, error) {
+func (SignedVoluntaryExit) SetSignatures(_ []Signature) (SignedData, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -1106,7 +1107,7 @@ func (SignedRandao) Signatures() []Signature {
 	panic("implement me")
 }
 
-func (SignedRandao) SetSignatures(signatures []Signature) (SignedData, error) {
+func (SignedRandao) SetSignatures(_ []Signature) (SignedData, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -1182,7 +1183,7 @@ func (BeaconCommitteeSelection) Signatures() []Signature {
 	panic("implement me")
 }
 
-func (BeaconCommitteeSelection) SetSignatures(signatures []Signature) (SignedData, error) {
+func (BeaconCommitteeSelection) SetSignatures(_ []Signature) (SignedData, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -1344,7 +1345,7 @@ func (SignedAggregateAndProof) Signatures() []Signature {
 	panic("implement me")
 }
 
-func (SignedAggregateAndProof) SetSignatures(signatures []Signature) (SignedData, error) {
+func (SignedAggregateAndProof) SetSignatures(_ []Signature) (SignedData, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -1436,7 +1437,7 @@ func (SignedSyncMessage) Signatures() []Signature {
 	panic("implement me")
 }
 
-func (SignedSyncMessage) SetSignatures(signatures []Signature) (SignedData, error) {
+func (SignedSyncMessage) SetSignatures(_ []Signature) (SignedData, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -1518,7 +1519,7 @@ type SyncContributionAndProof struct {
 	altair.ContributionAndProof
 }
 
-func (s SyncContributionAndProof) DomainNames() []signing.DomainName {
+func (SyncContributionAndProof) DomainNames() []signing.DomainName {
 	return []signing.DomainName{signing.DomainContributionAndProof}
 }
 
@@ -1532,7 +1533,7 @@ func (SyncContributionAndProof) Signatures() []Signature {
 	panic("implement me")
 }
 
-func (SyncContributionAndProof) SetSignatures(signatures []Signature) (SignedData, error) {
+func (SyncContributionAndProof) SetSignatures(_ []Signature) (SignedData, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -1639,7 +1640,7 @@ func (SignedSyncContributionAndProof) Signatures() []Signature {
 	panic("implement me")
 }
 
-func (SignedSyncContributionAndProof) SetSignatures(signatures []Signature) (SignedData, error) {
+func (SignedSyncContributionAndProof) SetSignatures(_ []Signature) (SignedData, error) {
 	// TODO implement me
 	panic("implement me")
 }

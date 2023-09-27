@@ -16,6 +16,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/bcast"
+	"github.com/obolnetwork/charon/core/denebcharon"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -107,7 +108,7 @@ func beaconBlockData(t *testing.T, mock *beaconmock.Mock) test {
 
 	asserted := make(chan struct{})
 
-	block1 := eth2spec.VersionedSignedBeaconBlock{
+	block1 := denebcharon.VersionedSignedBeaconBlock{
 		Version: eth2spec.DataVersionPhase0,
 		Phase0: &eth2p0.SignedBeaconBlock{
 			Message:   testutil.RandomPhase0BeaconBlock(),
@@ -117,7 +118,7 @@ func beaconBlockData(t *testing.T, mock *beaconmock.Mock) test {
 
 	aggData := core.VersionedSignedBeaconBlock{VersionedSignedBeaconBlock: block1}
 
-	mock.SubmitBeaconBlockFunc = func(ctx context.Context, block2 *eth2spec.VersionedSignedBeaconBlock) error {
+	mock.SubmitBeaconBlockFunc = func(ctx context.Context, block2 *denebcharon.VersionedSignedBeaconBlock) error {
 		require.Equal(t, block1, *block2)
 		close(asserted)
 

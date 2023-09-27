@@ -43,10 +43,22 @@ func VerifyEth2SignedData(ctx context.Context, eth2Cl eth2wrap.Client, data Eth2
 	}
 	domainNames := data.DomainNames()
 
-	for i, sig := range sigs {
-		err := signing.Verify(ctx, eth2Cl, domainNames[i], epoch, sigRoots[i], sig.ToETH2(), pubkey)
-		if err != nil {
-			return errors.Wrap(err, "verify signed data", z.Str("domain", string(domainNames[i])))
+	// TODO(xenowits): Figure out a correct way to deal with signed objects with multiple domain names.
+	// At the time of writing, only deneb beacon blocks have more than 1 domain (proposal, blob sidecar).
+	domain0 := domainNames[0]
+	err = signing.Verify(ctx, eth2Cl, domain0, epoch, sigRoots[0], sigs[0].ToETH2(), pubkey)
+	if err != nil {
+		return errors.Wrap(err, "verify signed data", z.Str("domain", string(domainNames[0])))
+	}
+
+	if len(domainNames) > 1 {
+		// Verify signed blob sidecars
+		domain1 := domainNames[1]
+		for i, sig := range sigs {
+			err = signing.Verify(ctx, eth2Cl, domain1, epoch, sigRoots[i], sig.ToETH2(), pubkey)
+			if err != nil {
+				return errors.Wrap(err, "verify signed data", z.Str("domain", string(domainNames[i])))
+			}
 		}
 	}
 
@@ -60,11 +72,11 @@ func (VersionedSignedBeaconBlock) DomainName() signing.DomainName {
 }
 
 func (VersionedSignedBeaconBlock) DomainNames() []signing.DomainName {
-	return []signing.DomainName{signing.DomainBlobSidecar, signing.DomainBlobSidecar}
+	return []signing.DomainName{signing.DomainBeaconProposer, signing.DomainBlobSidecar}
 }
 
 func (v VersionedSignedBeaconBlock) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
-	slot, err := v.VersionedSignedBeaconBlockDeneb.Slot()
+	slot, err := v.VersionedSignedBeaconBlock.Slot()
 	if err != nil {
 		return 0, err
 	}

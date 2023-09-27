@@ -20,6 +20,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/core/denebcharon"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
@@ -109,7 +110,7 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 	}
 
 	// create signed beacon block
-	signedBlock := new(eth2spec.VersionedSignedBeaconBlock)
+	signedBlock := new(denebcharon.VersionedSignedBeaconBlock)
 	signedBlock.Version = block.Version
 	switch block.Version {
 	case eth2spec.DataVersionPhase0:

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/core/denebcharon"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -27,7 +28,7 @@ func TestSignedDataSetSignature(t *testing.T) {
 		{
 			name: "versioned signed beacon block",
 			data: core.VersionedSignedBeaconBlock{
-				VersionedSignedBeaconBlockDeneb: core.VersionedSignedBeaconBlockDeneb{
+				VersionedSignedBeaconBlock: denebcharon.VersionedSignedBeaconBlock{
 					Version: eth2spec.DataVersionBellatrix,
 					Bellatrix: &bellatrix.SignedBeaconBlock{
 						Message:   testutil.RandomBellatrixBeaconBlock(),

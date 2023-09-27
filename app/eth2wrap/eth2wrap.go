@@ -19,7 +19,7 @@ import (
 	"github.com/obolnetwork/charon/app/forkjoin"
 	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/core/denebcharon"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
@@ -241,7 +241,7 @@ func (m multi) NodePeerCount(ctx context.Context) (int, error) {
 	return res, err
 }
 
-func (m multi) SubmitBeaconBlock(ctx context.Context, block *core.VersionedSignedBeaconBlockDeneb) error {
+func (m multi) SubmitBeaconBlock(ctx context.Context, block *denebcharon.VersionedSignedBeaconBlock) error {
 	const label = "submit_beacon_block"
 	defer latency(label)()
 

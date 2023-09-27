@@ -34,6 +34,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/core/denebcharon"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -322,10 +323,10 @@ func TestRawRouter(t *testing.T) {
 	t.Run("submit bellatrix ssz beacon block", func(t *testing.T) {
 		var done atomic.Bool
 		coreBlock := testutil.RandomBellatrixCoreVersionedSignedBeaconBlock()
-		block := &coreBlock.VersionedSignedBeaconBlockDeneb
+		block := &coreBlock.VersionedSignedBeaconBlock
 
 		handler := testHandler{
-			SubmitBeaconBlockFunc: func(ctx context.Context, actual *eth2spec.VersionedSignedBeaconBlock) error {
+			SubmitBeaconBlockFunc: func(ctx context.Context, actual *denebcharon.VersionedSignedBeaconBlock) error {
 				require.Equal(t, block, actual)
 				done.Store(true)
 
@@ -353,10 +354,10 @@ func TestRawRouter(t *testing.T) {
 
 	t.Run("submit capella ssz beacon block", func(t *testing.T) {
 		var done atomic.Bool
-		block := testutil.RandomCapellaVersionedSignedBeaconBlock()
+		block := testutil.RandomVersionedSignedBeaconBlock()
 
 		handler := testHandler{
-			SubmitBeaconBlockFunc: func(ctx context.Context, actual *eth2spec.VersionedSignedBeaconBlock) error {
+			SubmitBeaconBlockFunc: func(ctx context.Context, actual *denebcharon.VersionedSignedBeaconBlock) error {
 				require.Equal(t, block, actual)
 				done.Store(true)
 
@@ -784,7 +785,7 @@ func TestRouter(t *testing.T) {
 			},
 		}
 		handler := testHandler{
-			SubmitBeaconBlockFunc: func(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
+			SubmitBeaconBlockFunc: func(ctx context.Context, block *denebcharon.VersionedSignedBeaconBlock) error {
 				require.Equal(t, block, block1)
 				return nil
 			},
@@ -807,7 +808,7 @@ func TestRouter(t *testing.T) {
 			},
 		}
 		handler := testHandler{
-			SubmitBeaconBlockFunc: func(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
+			SubmitBeaconBlockFunc: func(ctx context.Context, block *denebcharon.VersionedSignedBeaconBlock) error {
 				require.Equal(t, block, block1)
 				return nil
 			},
@@ -830,7 +831,7 @@ func TestRouter(t *testing.T) {
 			},
 		}
 		handler := testHandler{
-			SubmitBeaconBlockFunc: func(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
+			SubmitBeaconBlockFunc: func(ctx context.Context, block *denebcharon.VersionedSignedBeaconBlock) error {
 				require.Equal(t, block, block1)
 				return nil
 			},
@@ -853,7 +854,7 @@ func TestRouter(t *testing.T) {
 			},
 		}
 		handler := testHandler{
-			SubmitBeaconBlockFunc: func(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
+			SubmitBeaconBlockFunc: func(ctx context.Context, block *denebcharon.VersionedSignedBeaconBlock) error {
 				require.Equal(t, block, block1)
 				return nil
 			},
@@ -1194,7 +1195,7 @@ type testHandler struct {
 	AttestationDataFunc                    func(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
 	AttesterDutiesFunc                     func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
 	BeaconBlockProposalFunc                func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2spec.VersionedBeaconBlock, error)
-	SubmitBeaconBlockFunc                  func(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error
+	SubmitBeaconBlockFunc                  func(ctx context.Context, block *denebcharon.VersionedSignedBeaconBlock) error
 	BlindedBeaconBlockProposalFunc         func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error)
 	SubmitBlindedBeaconBlockFunc           func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error
 	ProposerDutiesFunc                     func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
@@ -1223,7 +1224,7 @@ func (h testHandler) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, 
 	return h.BeaconBlockProposalFunc(ctx, slot, randaoReveal, graffiti)
 }
 
-func (h testHandler) SubmitBeaconBlock(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
+func (h testHandler) SubmitBeaconBlock(ctx context.Context, block *denebcharon.VersionedSignedBeaconBlock) error {
 	return h.SubmitBeaconBlockFunc(ctx, block)
 }
 

@@ -39,6 +39,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/core/denebcharon"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -59,7 +60,7 @@ type Handler interface {
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
 	eth2client.BeaconBlockProposalProvider
-	eth2client.BeaconBlockSubmitter
+	eth2wrap.BeaconBlockSubmitter
 	eth2exp.BeaconCommitteeSelectionAggregator
 	eth2client.BlindedBeaconBlockProposalProvider
 	eth2client.BlindedBeaconBlockSubmitter
@@ -641,12 +642,12 @@ func proposeBlindedBlock(p eth2client.BlindedBeaconBlockProposalProvider) handle
 	}
 }
 
-func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
+func submitBlock(p eth2wrap.BeaconBlockSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		capellaBlock := new(capella.SignedBeaconBlock)
 		err := unmarshal(typ, body, capellaBlock)
 		if err == nil {
-			block := &eth2spec.VersionedSignedBeaconBlock{
+			block := &denebcharon.VersionedSignedBeaconBlock{
 				Version: eth2spec.DataVersionCapella,
 				Capella: capellaBlock,
 			}
@@ -657,7 +658,7 @@ func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
 		bellatrixBlock := new(bellatrix.SignedBeaconBlock)
 		err = unmarshal(typ, body, bellatrixBlock)
 		if err == nil {
-			block := &eth2spec.VersionedSignedBeaconBlock{
+			block := &denebcharon.VersionedSignedBeaconBlock{
 				Version:   eth2spec.DataVersionBellatrix,
 				Bellatrix: bellatrixBlock,
 			}
@@ -668,7 +669,7 @@ func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
 		altairBlock := new(altair.SignedBeaconBlock)
 		err = unmarshal(typ, body, altairBlock)
 		if err == nil {
-			block := &eth2spec.VersionedSignedBeaconBlock{
+			block := &denebcharon.VersionedSignedBeaconBlock{
 				Version: eth2spec.DataVersionAltair,
 				Altair:  altairBlock,
 			}
@@ -679,7 +680,7 @@ func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
 		phase0Block := new(eth2p0.SignedBeaconBlock)
 		err = unmarshal(typ, body, phase0Block)
 		if err == nil {
-			block := &eth2spec.VersionedSignedBeaconBlock{
+			block := &denebcharon.VersionedSignedBeaconBlock{
 				Version: eth2spec.DataVersionPhase0,
 				Phase0:  phase0Block,
 			}

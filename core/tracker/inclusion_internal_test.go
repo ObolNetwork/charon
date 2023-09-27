@@ -97,7 +97,7 @@ func TestInclusion(t *testing.T) {
 	att3 := testutil.RandomAttestation()
 	att3Duty := core.NewAttesterDuty(int64(att3.Data.Slot))
 
-	block4 := testutil.RandomCapellaVersionedSignedBeaconBlock()
+	block4 := testutil.RandomVersionedSignedBeaconBlock()
 	block4Duty := core.NewProposerDuty(int64(block4.Capella.Message.Slot))
 
 	block5 := testutil.RandomCapellaVersionedSignedBlindedBeaconBlock()
