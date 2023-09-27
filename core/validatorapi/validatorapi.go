@@ -354,7 +354,7 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 	return block, nil
 }
 
-func (c Component) SubmitBeaconBlock(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
+func (c Component) SubmitBeaconBlock(ctx context.Context, block *core.VersionedSignedBeaconBlockDeneb) error {
 	// Calculate slot epoch
 	slot, err := block.Slot()
 	if err != nil {

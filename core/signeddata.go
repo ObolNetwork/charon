@@ -5,6 +5,7 @@ package core
 import (
 	"context"
 	"encoding/json"
+
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
@@ -17,13 +18,13 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
-	"github.com/obolnetwork/charon/tbls"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
+	"github.com/obolnetwork/charon/tbls"
 )
 
 var (
@@ -77,23 +78,22 @@ func NewPartialSignature(sig Signature, shareIdx int) ParSignedData {
 // Signature is a BLS12-381 Signature. It implements SignedData.
 type Signature []byte
 
-func (s Signature) Verify() error {
+func (Signature) Signatures() []Signature {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (s Signature) Signatures() []Signature {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (s Signature) SetSignatures(signatures []Signature) (SignedData, error) {
+func (Signature) SetSignatures(_ []Signature) (SignedData, error) {
 	// TODO implement me
 	panic("implement me")
 }
 
 func (Signature) MessageRoot() ([32]byte, error) {
 	return [32]byte{}, errors.New("unsigned data root not supported by signature type")
+}
+
+func (Signature) MessageRoots() ([][32]byte, error) {
+	return [][32]byte{}, errors.New("unsigned data root not supported by signature type")
 }
 
 func (s Signature) Clone() (SignedData, error) {
@@ -211,6 +211,61 @@ func (v VersionedSignedBeaconBlock) MessageRoot() ([32]byte, error) {
 	}
 }
 
+func (v VersionedSignedBeaconBlock) MessageRoots() ([][32]byte, error) {
+	switch v.Version {
+	// No block nil checks since `NewVersionedSignedBeaconBlock` assumed.
+	case eth2spec.DataVersionPhase0:
+		root, err := v.Phase0.Message.HashTreeRoot()
+		if err != nil {
+			return nil, errors.Wrap(err, "hash signed block message")
+		}
+
+		return [][32]byte{root}, nil
+	case eth2spec.DataVersionAltair:
+		root, err := v.Altair.Message.HashTreeRoot()
+		if err != nil {
+			return nil, errors.Wrap(err, "hash signed block message")
+		}
+
+		return [][32]byte{root}, nil
+	case eth2spec.DataVersionBellatrix:
+		root, err := v.Bellatrix.Message.HashTreeRoot()
+		if err != nil {
+			return nil, errors.Wrap(err, "hash signed block message")
+		}
+
+		return [][32]byte{root}, nil
+	case eth2spec.DataVersionCapella:
+		root, err := v.Capella.Message.HashTreeRoot()
+		if err != nil {
+			return nil, errors.Wrap(err, "hash signed block message")
+		}
+
+		return [][32]byte{root}, nil
+	case eth2spec.DataVersionDeneb:
+		var msgRoots [][32]byte
+		blockRoot, err := v.Deneb.SignedBlock.Message.HashTreeRoot()
+		if err != nil {
+			return nil, errors.Wrap(err, "hash signed block message")
+		}
+
+		msgRoots = append(msgRoots, blockRoot)
+
+		for _, blob := range v.Deneb.SignedBlobSidecars {
+			blobRoot, err := blob.HashTreeRoot()
+			if err != nil {
+				return nil, errors.Wrap(err, "hash blob sidecar")
+			}
+
+			msgRoots = append(msgRoots, blobRoot)
+		}
+
+		return msgRoots, nil
+	default:
+		panic("unknown version") // Note this is avoided by using `NewVersionedSignedBeaconBlock`.
+	}
+}
+
 func (v VersionedSignedBeaconBlock) Clone() (SignedData, error) {
 	return v.clone()
 }
@@ -291,8 +346,6 @@ func (v VersionedSignedBeaconBlock) Signatures() []Signature {
 	default:
 		panic("unknown version") // Note this is avoided by using `NewVersionedSignedBeaconBlock`.
 	}
-
-	return nil
 }
 
 func (v VersionedSignedBeaconBlock) SetSignatures(signatures []Signature) (SignedData, error) {
@@ -325,7 +378,6 @@ func (v VersionedSignedBeaconBlock) SetSignatures(signatures []Signature) (Signe
 }
 
 func (v VersionedSignedBeaconBlock) Verify(ctx context.Context, eth2Cl eth2wrap.Client, pubkey tbls.PublicKey) error {
-	// signing.Verify(ctx, eth2Cl, data.DomainName(), epoch, sigRoot, data.Signature().ToETH2(), pubkey)
 	switch v.Version {
 	case eth2spec.DataVersionPhase0:
 		if v.Phase0 == nil {
@@ -528,17 +580,17 @@ type VersionedSignedBlindedBeaconBlock struct {
 	eth2api.VersionedSignedBlindedBeaconBlock // Could subtype instead of embed, but aligning with Attestation that cannot subtype.
 }
 
-func (b VersionedSignedBlindedBeaconBlock) Verify() error {
+func (VersionedSignedBlindedBeaconBlock) MessageRoots() ([][32]byte, error) {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (b VersionedSignedBlindedBeaconBlock) Signatures() []Signature {
+func (VersionedSignedBlindedBeaconBlock) Signatures() []Signature {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (b VersionedSignedBlindedBeaconBlock) SetSignatures(signatures []Signature) (SignedData, error) {
+func (VersionedSignedBlindedBeaconBlock) SetSignatures(signatures []Signature) (SignedData, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -703,23 +755,27 @@ type Attestation struct {
 	eth2p0.Attestation
 }
 
-func (a Attestation) Verify() error {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (a Attestation) Signatures() []Signature {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (a Attestation) SetSignatures(signatures []Signature) (SignedData, error) {
+func (Attestation) SetSignatures(signatures []Signature) (SignedData, error) {
 	// TODO implement me
 	panic("implement me")
 }
 
 func (a Attestation) MessageRoot() ([32]byte, error) {
 	return a.Data.HashTreeRoot()
+}
+
+func (a Attestation) MessageRoots() ([][32]byte, error) {
+	root, err := a.Data.HashTreeRoot()
+	if err != nil {
+		return nil, errors.Wrap(err, "hash attestation")
+	}
+
+	return [][32]byte{root}, nil
 }
 
 func (a Attestation) Clone() (SignedData, error) {
@@ -795,23 +851,27 @@ type SignedVoluntaryExit struct {
 	eth2p0.SignedVoluntaryExit
 }
 
-func (e SignedVoluntaryExit) Verify() error {
+func (SignedVoluntaryExit) Signatures() []Signature {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (e SignedVoluntaryExit) Signatures() []Signature {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (e SignedVoluntaryExit) SetSignatures(signatures []Signature) (SignedData, error) {
+func (SignedVoluntaryExit) SetSignatures(signatures []Signature) (SignedData, error) {
 	// TODO implement me
 	panic("implement me")
 }
 
 func (e SignedVoluntaryExit) MessageRoot() ([32]byte, error) {
 	return e.Message.HashTreeRoot()
+}
+
+func (e SignedVoluntaryExit) MessageRoots() ([][32]byte, error) {
+	root, err := e.Message.HashTreeRoot()
+	if err != nil {
+		return nil, errors.Wrap(err, "hash signed voluntary exit")
+	}
+
+	return [][32]byte{root}, nil
 }
 
 func (e SignedVoluntaryExit) Clone() (SignedData, error) {
@@ -891,17 +951,17 @@ type VersionedSignedValidatorRegistration struct {
 	eth2api.VersionedSignedValidatorRegistration
 }
 
-func (r VersionedSignedValidatorRegistration) Verify() error {
+func (VersionedSignedValidatorRegistration) MessageRoots() ([][32]byte, error) {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (r VersionedSignedValidatorRegistration) Signatures() []Signature {
+func (VersionedSignedValidatorRegistration) Signatures() []Signature {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (r VersionedSignedValidatorRegistration) SetSignatures(signatures []Signature) (SignedData, error) {
+func (VersionedSignedValidatorRegistration) SetSignatures(_ []Signature) (SignedData, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -1036,17 +1096,17 @@ type SignedRandao struct {
 	eth2util.SignedEpoch
 }
 
-func (s SignedRandao) Verify() error {
+func (SignedRandao) MessageRoots() ([][32]byte, error) {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (s SignedRandao) Signatures() []Signature {
+func (SignedRandao) Signatures() []Signature {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (s SignedRandao) SetSignatures(signatures []Signature) (SignedData, error) {
+func (SignedRandao) SetSignatures(signatures []Signature) (SignedData, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -1112,17 +1172,17 @@ type BeaconCommitteeSelection struct {
 	eth2exp.BeaconCommitteeSelection
 }
 
-func (s BeaconCommitteeSelection) Verify() error {
+func (BeaconCommitteeSelection) MessageRoots() ([][32]byte, error) {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (s BeaconCommitteeSelection) Signatures() []Signature {
+func (BeaconCommitteeSelection) Signatures() []Signature {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (s BeaconCommitteeSelection) SetSignatures(signatures []Signature) (SignedData, error) {
+func (BeaconCommitteeSelection) SetSignatures(signatures []Signature) (SignedData, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -1188,7 +1248,7 @@ type SyncCommitteeSelection struct {
 	eth2exp.SyncCommitteeSelection
 }
 
-func (s SyncCommitteeSelection) Verify() error {
+func (SyncCommitteeSelection) MessageRoots() ([][32]byte, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -1274,17 +1334,17 @@ type SignedAggregateAndProof struct {
 	eth2p0.SignedAggregateAndProof
 }
 
-func (s SignedAggregateAndProof) Verify() error {
+func (SignedAggregateAndProof) MessageRoots() ([][32]byte, error) {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (s SignedAggregateAndProof) Signatures() []Signature {
+func (SignedAggregateAndProof) Signatures() []Signature {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (s SignedAggregateAndProof) SetSignatures(signatures []Signature) (SignedData, error) {
+func (SignedAggregateAndProof) SetSignatures(signatures []Signature) (SignedData, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -1366,17 +1426,17 @@ type SignedSyncMessage struct {
 	altair.SyncCommitteeMessage
 }
 
-func (s SignedSyncMessage) Verify() error {
+func (SignedSyncMessage) MessageRoots() ([][32]byte, error) {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (s SignedSyncMessage) Signatures() []Signature {
+func (SignedSyncMessage) Signatures() []Signature {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (s SignedSyncMessage) SetSignatures(signatures []Signature) (SignedData, error) {
+func (SignedSyncMessage) SetSignatures(signatures []Signature) (SignedData, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -1458,17 +1518,21 @@ type SyncContributionAndProof struct {
 	altair.ContributionAndProof
 }
 
-func (s SyncContributionAndProof) Verify() error {
+func (s SyncContributionAndProof) DomainNames() []signing.DomainName {
+	return []signing.DomainName{signing.DomainContributionAndProof}
+}
+
+func (SyncContributionAndProof) MessageRoots() ([][32]byte, error) {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (s SyncContributionAndProof) Signatures() []Signature {
+func (SyncContributionAndProof) Signatures() []Signature {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (s SyncContributionAndProof) SetSignatures(signatures []Signature) (SignedData, error) {
+func (SyncContributionAndProof) SetSignatures(signatures []Signature) (SignedData, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -1565,17 +1629,17 @@ type SignedSyncContributionAndProof struct {
 	altair.SignedContributionAndProof
 }
 
-func (s SignedSyncContributionAndProof) Verify() error {
+func (SignedSyncContributionAndProof) MessageRoots() ([][32]byte, error) {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (s SignedSyncContributionAndProof) Signatures() []Signature {
+func (SignedSyncContributionAndProof) Signatures() []Signature {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (s SignedSyncContributionAndProof) SetSignatures(signatures []Signature) (SignedData, error) {
+func (SignedSyncContributionAndProof) SetSignatures(signatures []Signature) (SignedData, error) {
 	// TODO implement me
 	panic("implement me")
 }

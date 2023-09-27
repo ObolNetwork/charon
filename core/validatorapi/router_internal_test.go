@@ -322,7 +322,7 @@ func TestRawRouter(t *testing.T) {
 	t.Run("submit bellatrix ssz beacon block", func(t *testing.T) {
 		var done atomic.Bool
 		coreBlock := testutil.RandomBellatrixCoreVersionedSignedBeaconBlock()
-		block := &coreBlock.VersionedSignedBeaconBlock
+		block := &coreBlock.VersionedSignedBeaconBlockDeneb
 
 		handler := testHandler{
 			SubmitBeaconBlockFunc: func(ctx context.Context, actual *eth2spec.VersionedSignedBeaconBlock) error {

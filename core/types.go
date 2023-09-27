@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/obolnetwork/charon/tbls"
 	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -395,10 +394,12 @@ type SignedData interface {
 	Signatures() []Signature
 	// SetSignatures returns a copy of signed duty data with the signatures replaced.
 	SetSignatures([]Signature) (SignedData, error)
-	Verify(pubkey tbls.PublicKey) error
 
 	// MessageRoot returns the unsigned data message root.
 	MessageRoot() ([32]byte, error)
+	// MessageRoots returns the unsigned data message roots.
+	MessageRoots() ([][32]byte, error)
+
 	// Clone returns a cloned copy of the SignedData. For an immutable core workflow architecture,
 	// remember to clone data when it leaves the current scope (sharing, storing, returning, etc).
 	Clone() (SignedData, error)
@@ -411,6 +412,10 @@ type Eth2SignedData interface {
 	SignedData
 	// DomainName returns domain associated with underlying signed data.
 	DomainName() signing.DomainName
+
+	// DomainNames returns domains associated with underlying signed data.
+	DomainNames() []signing.DomainName
+
 	// Epoch returns eth2p0.Epoch associated with underlying type.
 	Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error)
 }

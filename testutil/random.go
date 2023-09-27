@@ -276,7 +276,7 @@ func RandomCapellaCoreVersionedBeaconBlock() core.VersionedBeaconBlock {
 
 func RandomBellatrixCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconBlock {
 	return core.VersionedSignedBeaconBlock{
-		VersionedSignedBeaconBlock: eth2spec.VersionedSignedBeaconBlock{
+		VersionedSignedBeaconBlockDeneb: core.VersionedSignedBeaconBlockDeneb{
 			Version: eth2spec.DataVersionBellatrix,
 			Bellatrix: &bellatrix.SignedBeaconBlock{
 				Message:   RandomBellatrixBeaconBlock(),
@@ -288,7 +288,7 @@ func RandomBellatrixCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconB
 
 func RandomCapellaCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconBlock {
 	return core.VersionedSignedBeaconBlock{
-		VersionedSignedBeaconBlock: eth2spec.VersionedSignedBeaconBlock{
+		VersionedSignedBeaconBlockDeneb: core.VersionedSignedBeaconBlockDeneb{
 			Version: eth2spec.DataVersionCapella,
 			Capella: &capella.SignedBeaconBlock{
 				Message:   RandomCapellaBeaconBlock(),

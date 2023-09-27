@@ -27,7 +27,7 @@ func TestSignedDataSetSignature(t *testing.T) {
 		{
 			name: "versioned signed beacon block",
 			data: core.VersionedSignedBeaconBlock{
-				VersionedSignedBeaconBlock: eth2spec.VersionedSignedBeaconBlock{
+				VersionedSignedBeaconBlockDeneb: core.VersionedSignedBeaconBlockDeneb{
 					Version: eth2spec.DataVersionBellatrix,
 					Bellatrix: &bellatrix.SignedBeaconBlock{
 						Message:   testutil.RandomBellatrixBeaconBlock(),
