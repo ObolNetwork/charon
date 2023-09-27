@@ -47,6 +47,7 @@ type Client interface {
     eth2exp.ProposerConfigProvider
     BlockAttestationsProvider
     NodePeerCountProvider
+	BeaconBlockSubmitter
 
     ActiveValidatorsProvider
     SetValidatorCache(func(context.Context) (ActiveValidators, error))
@@ -102,7 +103,6 @@ type Client interface {
 		"AttesterDutiesProvider":                true,
 		"BeaconBlockProposalProvider":           true,
 		"BeaconBlockRootProvider":               false,
-		"BeaconBlockSubmitter":                  true,
 		"BeaconCommitteeSubscriptionsSubmitter": true,
 		"BlindedBeaconBlockProposalProvider":    true,
 		"BlindedBeaconBlockSubmitter":           true,

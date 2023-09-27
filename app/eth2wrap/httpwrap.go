@@ -19,6 +19,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
@@ -35,6 +36,12 @@ type BlockAttestationsProvider interface {
 type NodePeerCountProvider interface {
 	// NodePeerCount provides peer count of the beacon node.
 	NodePeerCount(ctx context.Context) (int, error)
+}
+
+// BeaconBlockSubmitter is the interface for submitting beacon blocks.
+type BeaconBlockSubmitter interface {
+	// SubmitBeaconBlock submits a beacon block.
+	SubmitBeaconBlock(ctx context.Context, block *core.VersionedSignedBeaconBlockDeneb) error
 }
 
 // NewHTTPAdapterForT returns a http adapter for testing non-eth2service methods as it is nil.
@@ -180,6 +187,11 @@ func (h *httpAdapter) NodePeerCount(ctx context.Context) (int, error) {
 	}
 
 	return resp.Data.Connected, nil
+}
+
+func (h *httpAdapter) SubmitBeaconBlock(ctx context.Context, block *core.VersionedSignedBeaconBlockDeneb) error {
+	// TODO(xenowits): Implement this.
+	return nil
 }
 
 type submitBeaconCommitteeSelectionsJSON struct {

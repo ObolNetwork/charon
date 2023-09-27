@@ -326,11 +326,11 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		block *eth2spec.VersionedSignedBeaconBlock
+		block *core.VersionedSignedBeaconBlockDeneb
 	}{
 		{
 			name: "phase0 block",
-			block: &eth2spec.VersionedSignedBeaconBlock{
+			block: &core.VersionedSignedBeaconBlockDeneb{
 				Version: eth2spec.DataVersionPhase0,
 				Phase0: &eth2p0.SignedBeaconBlock{
 					Message:   testutil.RandomPhase0BeaconBlock(),
@@ -340,7 +340,7 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 		},
 		{
 			name: "altair block",
-			block: &eth2spec.VersionedSignedBeaconBlock{
+			block: &core.VersionedSignedBeaconBlockDeneb{
 				Version: eth2spec.DataVersionAltair,
 				Altair: &altair.SignedBeaconBlock{
 					Message:   testutil.RandomAltairBeaconBlock(),
@@ -350,7 +350,7 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 		},
 		{
 			name: "bellatrix block",
-			block: &eth2spec.VersionedSignedBeaconBlock{
+			block: &core.VersionedSignedBeaconBlockDeneb{
 				Version: eth2spec.DataVersionBellatrix,
 				Bellatrix: &bellatrix.SignedBeaconBlock{
 					Message:   testutil.RandomBellatrixBeaconBlock(),
@@ -360,7 +360,7 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 		},
 		{
 			name: "capella block",
-			block: &eth2spec.VersionedSignedBeaconBlock{
+			block: &core.VersionedSignedBeaconBlockDeneb{
 				Version: eth2spec.DataVersionCapella,
 				Capella: &capella.SignedBeaconBlock{
 					Message:   testutil.RandomCapellaBeaconBlock(),

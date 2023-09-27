@@ -25,6 +25,7 @@ type Client interface {
 	eth2exp.ProposerConfigProvider
 	BlockAttestationsProvider
 	NodePeerCountProvider
+	BeaconBlockSubmitter
 
 	ActiveValidatorsProvider
 	SetValidatorCache(func(context.Context) (ActiveValidators, error))
@@ -36,7 +37,6 @@ type Client interface {
 	eth2client.AttesterDutiesProvider
 	eth2client.BeaconBlockProposalProvider
 	eth2client.BeaconBlockRootProvider
-	eth2client.BeaconBlockSubmitter
 	eth2client.BeaconCommitteeSubscriptionsSubmitter
 	eth2client.BlindedBeaconBlockProposalProvider
 	eth2client.BlindedBeaconBlockSubmitter
@@ -404,26 +404,6 @@ func (m multi) BeaconBlockRoot(ctx context.Context, blockID string) (*phase0.Roo
 	}
 
 	return res0, err
-}
-
-// SubmitBeaconBlock submits a beacon block.
-func (m multi) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
-	const label = "submit_beacon_block"
-	defer latency(label)()
-
-	err := submit(ctx, m.clients,
-		func(ctx context.Context, cl Client) error {
-			return cl.SubmitBeaconBlock(ctx, block)
-		},
-		m.bestIdx,
-	)
-
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return err
 }
 
 // SubmitBeaconCommitteeSubscriptions subscribes to beacon committees.
@@ -947,16 +927,6 @@ func (l *lazy) BeaconBlockRoot(ctx context.Context, blockID string) (res0 *phase
 	}
 
 	return cl.BeaconBlockRoot(ctx, blockID)
-}
-
-// SubmitBeaconBlock submits a beacon block.
-func (l *lazy) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) (err error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return err
-	}
-
-	return cl.SubmitBeaconBlock(ctx, block)
 }
 
 // SubmitBeaconCommitteeSubscriptions subscribes to beacon committees.

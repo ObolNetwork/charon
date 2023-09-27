@@ -78,7 +78,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 			return errors.New("invalid block")
 		}
 
-		err = b.eth2Cl.SubmitBeaconBlock(ctx, &block.VersionedSignedBeaconBlock)
+		err = b.eth2Cl.SubmitBeaconBlock(ctx, &block.VersionedSignedBeaconBlockDeneb)
 		if err == nil {
 			log.Info(ctx, "Successfully submitted block proposal to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)),

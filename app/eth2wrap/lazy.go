@@ -9,6 +9,7 @@ import (
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
@@ -160,4 +161,13 @@ func (l *lazy) NodePeerCount(ctx context.Context) (int, error) {
 	}
 
 	return cl.NodePeerCount(ctx)
+}
+
+func (l *lazy) SubmitBeaconBlock(ctx context.Context, block *core.VersionedSignedBeaconBlockDeneb) error {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	return cl.SubmitBeaconBlock(ctx, block)
 }

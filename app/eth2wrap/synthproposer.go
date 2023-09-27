@@ -22,6 +22,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/core"
 )
 
 const (
@@ -189,7 +190,7 @@ func (h *synthWrapper) SubmitBlindedBeaconBlock(ctx context.Context, block *api.
 }
 
 // SubmitBeaconBlock submits a beacon block or swallows it if marked as synthetic.
-func (h *synthWrapper) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
+func (h *synthWrapper) SubmitBeaconBlock(ctx context.Context, block *core.VersionedSignedBeaconBlockDeneb) error {
 	if IsSyntheticBlock(block) {
 		log.Debug(ctx, "Synthetic beacon block swallowed")
 		return nil
@@ -222,7 +223,7 @@ func IsSyntheticBlindedBlock(block *api.VersionedSignedBlindedBeaconBlock) bool 
 }
 
 // IsSyntheticBlock returns true if the block is a synthetic block.
-func IsSyntheticBlock(block *spec.VersionedSignedBeaconBlock) bool {
+func IsSyntheticBlock(block *core.VersionedSignedBeaconBlockDeneb) bool {
 	var graffiti [32]byte
 	switch block.Version {
 	case spec.DataVersionPhase0:
@@ -233,6 +234,8 @@ func IsSyntheticBlock(block *spec.VersionedSignedBeaconBlock) bool {
 		graffiti = block.Bellatrix.Message.Body.Graffiti
 	case spec.DataVersionCapella:
 		graffiti = block.Capella.Message.Body.Graffiti
+	case spec.DataVersionDeneb:
+		graffiti = block.Deneb.SignedBlock.Message.Body.Graffiti
 	default:
 		return false
 	}

@@ -19,6 +19,7 @@ import (
 	"github.com/obolnetwork/charon/app/forkjoin"
 	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
@@ -238,6 +239,24 @@ func (m multi) NodePeerCount(ctx context.Context) (int, error) {
 	}
 
 	return res, err
+}
+
+func (m multi) SubmitBeaconBlock(ctx context.Context, block *core.VersionedSignedBeaconBlockDeneb) error {
+	const label = "submit_beacon_block"
+	defer latency(label)()
+
+	_, err := provide(ctx, m.clients,
+		func(ctx context.Context, cl Client) (int, error) {
+			return 0, cl.SubmitBeaconBlock(ctx, block)
+		},
+		nil, m.bestIdx,
+	)
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return err
 }
 
 // provide calls the work function with each client in parallel, returning the
