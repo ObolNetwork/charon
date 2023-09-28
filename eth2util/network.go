@@ -54,7 +54,7 @@ var (
 	Holesky = Network{
 		ChainID:               17000,
 		Name:                  "holesky",
-		GenesisForkVersionHex: "0x00017000",
+		GenesisForkVersionHex: "0x01017000",
 		GenesisTimestamp:      1696000704,
 	}
 )
