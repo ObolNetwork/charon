@@ -403,7 +403,7 @@ The validator API provides the following beacon-node endpoints relating to dutie
   - Set the BLS private share `index` to charon node index.
   - Combine `ParSignedData`s into a `SignedDutyDataSet`.
   - Store `SignedDutyDataSet` in the `SigDB`
-- `POST /eth/v1/beacon/blocks` Publish a signed block
+- `POST /eth/v2/beacon/blocks` Publish a signed block
   - The request body contains `SignedBeaconBlock` object composed of `BeaconBlock` object (produced by beacon node) and validator signature.
   - Lookup `PubKey` by querying the `Scheduler` `AwaitProposer` with the slot in the request body.
   - Construct a `DutyProposer` `ParSignedData` and submit it to `ParSigDB` for async aggregation and broadcast to beacon node.

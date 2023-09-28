@@ -56,7 +56,7 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 	}
 
 	var pubkey eth2p0.BLSPubKey
-	var block *eth2spec.VersionedBeaconBlock
+	var block *denebcharon.VersionedBeaconBlock
 	for _, duty := range duties {
 		if duty.Slot != slot {
 			continue

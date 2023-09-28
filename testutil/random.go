@@ -17,12 +17,15 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
+	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
+	"github.com/attestantio/go-eth2-client/spec/deneb"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/holiman/uint256"
 	"github.com/libp2p/go-libp2p"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -190,6 +193,16 @@ func RandomBellatrixBeaconBlock() *bellatrix.BeaconBlock {
 	}
 }
 
+func RandomDenebBeaconBlock() *deneb.BeaconBlock {
+	return &deneb.BeaconBlock{
+		Slot:          RandomSlot(),
+		ProposerIndex: RandomVIdx(),
+		ParentRoot:    RandomRoot(),
+		StateRoot:     RandomRoot(),
+		Body:          RandomDenebBeaconBlockBody(),
+	}
+}
+
 func RandomBellatrixSignedBeaconBlock() *bellatrix.SignedBeaconBlock {
 	return &bellatrix.SignedBeaconBlock{
 		Message:   RandomBellatrixBeaconBlock(),
@@ -216,10 +229,36 @@ func RandomBellatrixBeaconBlockBody() *bellatrix.BeaconBlockBody {
 	}
 }
 
+func RandomDenebBeaconBlockBody() *deneb.BeaconBlockBody {
+	return &deneb.BeaconBlockBody{
+		RANDAOReveal: RandomEth2Signature(),
+		ETH1Data: &eth2p0.ETH1Data{
+			DepositRoot:  RandomRoot(),
+			DepositCount: 0,
+			BlockHash:    RandomBytes32(),
+		},
+		Graffiti:          RandomArray32(),
+		ProposerSlashings: []*eth2p0.ProposerSlashing{},
+		AttesterSlashings: []*eth2p0.AttesterSlashing{},
+		Attestations:      []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
+		Deposits:          []*eth2p0.Deposit{},
+		VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
+		SyncAggregate:     RandomSyncAggregate(),
+		ExecutionPayload:  RandomDenebExecutionPayLoad(),
+	}
+}
+
 func RandomCapellaBeaconBlock() *capella.BeaconBlock {
 	return &capella.BeaconBlock{
 		Slot: RandomSlot(),
 		Body: RandomCapellaBeaconBlockBody(),
+	}
+}
+
+func RandomDenebSignedBeaconBlock() *deneb.SignedBeaconBlock {
+	return &deneb.SignedBeaconBlock{
+		Message:   RandomDenebBeaconBlock(),
+		Signature: RandomEth2Signature(),
 	}
 }
 
@@ -259,7 +298,7 @@ func RandomCapellaExecutionPayload() *capella.ExecutionPayload {
 
 func RandomBellatrixCoreVersionedBeaconBlock() core.VersionedBeaconBlock {
 	return core.VersionedBeaconBlock{
-		VersionedBeaconBlock: eth2spec.VersionedBeaconBlock{
+		VersionedBeaconBlock: denebcharon.VersionedBeaconBlock{
 			Version:   eth2spec.DataVersionBellatrix,
 			Bellatrix: RandomBellatrixBeaconBlock(),
 		},
@@ -268,7 +307,7 @@ func RandomBellatrixCoreVersionedBeaconBlock() core.VersionedBeaconBlock {
 
 func RandomCapellaCoreVersionedBeaconBlock() core.VersionedBeaconBlock {
 	return core.VersionedBeaconBlock{
-		VersionedBeaconBlock: eth2spec.VersionedBeaconBlock{
+		VersionedBeaconBlock: denebcharon.VersionedBeaconBlock{
 			Version: eth2spec.DataVersionCapella,
 			Capella: RandomCapellaBeaconBlock(),
 		},
@@ -297,6 +336,38 @@ func RandomCapellaCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconBlo
 			},
 		},
 	}
+}
+
+func RandomDenebSignedBlockContents() *eth2deneb.SignedBlockContents {
+	return &eth2deneb.SignedBlockContents{
+		SignedBlock:        RandomDenebSignedBeaconBlock(),
+		SignedBlobSidecars: RandomDenebSignedBlobSidecars(),
+	}
+}
+
+func RandomDenebCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconBlock {
+	return core.VersionedSignedBeaconBlock{
+		VersionedSignedBeaconBlock: denebcharon.VersionedSignedBeaconBlock{
+			Version: eth2spec.DataVersionDeneb,
+			Deneb:   RandomDenebSignedBlockContents(),
+		},
+	}
+}
+
+func RandomDenebSignedBlobSidecars() []*deneb.SignedBlobSidecar {
+	const maxBlobsPerBlock = 6
+	var resp []*deneb.SignedBlobSidecar
+	for i := 0; i < maxBlobsPerBlock; i++ {
+		resp = append(resp, &deneb.SignedBlobSidecar{
+			Message: &deneb.BlobSidecar{
+				Index: deneb.BlobIndex(i),
+				Slot:  RandomSlot(),
+			},
+			Signature: RandomEth2Signature(),
+		})
+	}
+
+	return resp
 }
 
 // RandomCapellaVersionedSignedBeaconBlock returns a random signed capella beacon block.
@@ -594,6 +665,22 @@ func RandomBellatrixExecutionPayLoad() *bellatrix.ExecutionPayload {
 		ExtraData:     RandomBytes32(),
 		BaseFeePerGas: RandomArray32(),
 		BlockHash:     RandomArray32(),
+		Transactions:  []bellatrix.Transaction{},
+	}
+}
+
+func RandomDenebExecutionPayLoad() *deneb.ExecutionPayload {
+	baseFeePerGas := new(uint256.Int)
+	baseFeePerGas.SetBytes(RandomBytes32())
+
+	return &deneb.ExecutionPayload{
+		ParentHash:    RandomArray32(),
+		StateRoot:     RandomArray32(),
+		ReceiptsRoot:  RandomArray32(),
+		PrevRandao:    RandomArray32(),
+		ExtraData:     RandomBytes32(),
+		BlockHash:     RandomArray32(),
+		BaseFeePerGas: baseFeePerGas,
 		Transactions:  []bellatrix.Transaction{},
 	}
 }

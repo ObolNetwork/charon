@@ -26,6 +26,7 @@ type Client interface {
 	BlockAttestationsProvider
 	NodePeerCountProvider
 	BeaconBlockSubmitter
+	BeaconBlockProposalProvider
 
 	ActiveValidatorsProvider
 	SetValidatorCache(func(context.Context) (ActiveValidators, error))
@@ -35,7 +36,6 @@ type Client interface {
 	eth2client.AttestationDataProvider
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
-	eth2client.BeaconBlockProposalProvider
 	eth2client.BeaconBlockRootProvider
 	eth2client.BeaconCommitteeSubscriptionsSubmitter
 	eth2client.BlindedBeaconBlockProposalProvider
@@ -364,26 +364,6 @@ func (m multi) SubmitSyncCommitteeContributions(ctx context.Context, contributio
 	}
 
 	return err
-}
-
-// BeaconBlockProposal fetches a proposed beacon block for signing.
-func (m multi) BeaconBlockProposal(ctx context.Context, slot phase0.Slot, randaoReveal phase0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
-	const label = "beacon_block_proposal"
-	defer latency(label)()
-
-	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (*spec.VersionedBeaconBlock, error) {
-			return cl.BeaconBlockProposal(ctx, slot, randaoReveal, graffiti)
-		},
-		nil, m.bestIdx,
-	)
-
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return res0, err
 }
 
 // BeaconBlockRoot fetches a block's root given a block ID.
@@ -907,16 +887,6 @@ func (l *lazy) SubmitSyncCommitteeContributions(ctx context.Context, contributio
 	}
 
 	return cl.SubmitSyncCommitteeContributions(ctx, contributionAndProofs)
-}
-
-// BeaconBlockProposal fetches a proposed beacon block for signing.
-func (l *lazy) BeaconBlockProposal(ctx context.Context, slot phase0.Slot, randaoReveal phase0.BLSSignature, graffiti []byte) (res0 *spec.VersionedBeaconBlock, err error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return res0, err
-	}
-
-	return cl.BeaconBlockProposal(ctx, slot, randaoReveal, graffiti)
 }
 
 // BeaconBlockRoot fetches a block's root given a block ID.

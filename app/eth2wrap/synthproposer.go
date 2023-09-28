@@ -85,7 +85,7 @@ func (h *synthWrapper) SubmitProposalPreparations(ctx context.Context, preparati
 }
 
 // BeaconBlockProposal returns an unsigned beacon block, possibly marked as synthetic.
-func (h *synthWrapper) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
+func (h *synthWrapper) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, graffiti []byte) (*denebcharon.VersionedBeaconBlock, error) {
 	vIdx, ok, err := h.synthProposerCache.SyntheticVIdx(ctx, h.Client, slot)
 	if err != nil {
 		return nil, err
@@ -114,7 +114,7 @@ func (h *synthWrapper) BlindedBeaconBlockProposal(ctx context.Context, slot eth2
 }
 
 // syntheticBlock returns a synthetic beacon block to propose.
-func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot, vIdx eth2p0.ValidatorIndex) (*spec.VersionedBeaconBlock, error) {
+func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot, vIdx eth2p0.ValidatorIndex) (*denebcharon.VersionedBeaconBlock, error) {
 	var signedBlock *spec.VersionedSignedBeaconBlock
 
 	// Work our way back from previous slot to find a block to base the synthetic block on.
@@ -139,7 +139,7 @@ func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot, vId
 
 	feeRecipient := h.getFeeRecipient(vIdx)
 
-	block := &spec.VersionedBeaconBlock{Version: signedBlock.Version}
+	block := &denebcharon.VersionedBeaconBlock{Version: signedBlock.Version}
 
 	switch signedBlock.Version {
 	case spec.DataVersionPhase0:
@@ -402,7 +402,7 @@ func getStandardHashFn() shuffle.HashFn {
 }
 
 // blindedBlock converts a normal block into a blinded block.
-func blindedBlock(block *spec.VersionedBeaconBlock) (*api.VersionedBlindedBeaconBlock, error) {
+func blindedBlock(block *denebcharon.VersionedBeaconBlock) (*api.VersionedBlindedBeaconBlock, error) {
 	var resp *api.VersionedBlindedBeaconBlock
 	// Blinded blocks are only available from bellatrix.
 	switch block.Version {

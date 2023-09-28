@@ -366,7 +366,7 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 	pubkey, err := core.PubKeyFromBytes(pk[:])
 	require.NoError(t, err)
 
-	block1 := &eth2spec.VersionedBeaconBlock{
+	block1 := &denebcharon.VersionedBeaconBlock{
 		Version: eth2spec.DataVersionPhase0,
 		Phase0:  testutil.RandomPhase0BeaconBlock(),
 	}
@@ -378,7 +378,7 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 		return core.DutyDefinitionSet{pubkey: nil}, nil
 	})
 
-	component.RegisterAwaitBeaconBlock(func(ctx context.Context, slot int64) (*eth2spec.VersionedBeaconBlock, error) {
+	component.RegisterAwaitBeaconBlock(func(ctx context.Context, slot int64) (*denebcharon.VersionedBeaconBlock, error) {
 		return block1, nil
 	})
 

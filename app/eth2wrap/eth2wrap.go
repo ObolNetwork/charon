@@ -241,6 +241,24 @@ func (m multi) NodePeerCount(ctx context.Context) (int, error) {
 	return res, err
 }
 
+func (m multi) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*denebcharon.VersionedBeaconBlock, error) {
+	const label = "beacon_block_proposal"
+	defer latency(label)()
+
+	res, err := provide(ctx, m.clients,
+		func(ctx context.Context, cl Client) (*denebcharon.VersionedBeaconBlock, error) {
+			return cl.BeaconBlockProposal(ctx, slot, randaoReveal, graffiti)
+		},
+		nil, m.bestIdx,
+	)
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res, err
+}
+
 func (m multi) SubmitBeaconBlock(ctx context.Context, block *denebcharon.VersionedSignedBeaconBlock) error {
 	const label = "submit_beacon_block"
 	defer latency(label)()

@@ -25,6 +25,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
+	"github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -59,7 +60,7 @@ type Handler interface {
 	eth2client.AttestationDataProvider
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
-	eth2client.BeaconBlockProposalProvider
+	eth2wrap.BeaconBlockProposalProvider
 	eth2wrap.BeaconBlockSubmitter
 	eth2exp.BeaconCommitteeSelectionAggregator
 	eth2client.BlindedBeaconBlockProposalProvider
@@ -130,7 +131,7 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client) (*mux.Rou
 		},
 		{
 			Name:    "submit_block",
-			Path:    "/eth/v1/beacon/blocks",
+			Path:    "/eth/v2/beacon/blocks",
 			Handler: submitBlock(h),
 		},
 		{
@@ -510,7 +511,7 @@ func submitContributionAndProofs(s eth2client.SyncCommitteeContributionsSubmitte
 }
 
 // proposeBlock receives the randao from the validator and returns the unsigned BeaconBlock.
-func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
+func proposeBlock(p eth2wrap.BeaconBlockProposalProvider) handlerFunc {
 	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		slot, err := uintParam(params, "slot")
 		if err != nil {
@@ -644,8 +645,19 @@ func proposeBlindedBlock(p eth2client.BlindedBeaconBlockProposalProvider) handle
 
 func submitBlock(p eth2wrap.BeaconBlockSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		denebBlockContents := new(deneb.SignedBlockContents)
+		err := unmarshal(typ, body, denebBlockContents)
+		if err == nil {
+			block := &denebcharon.VersionedSignedBeaconBlock{
+				Version: eth2spec.DataVersionDeneb,
+				Deneb:   denebBlockContents,
+			}
+
+			return nil, nil, p.SubmitBeaconBlock(ctx, block)
+		}
+
 		capellaBlock := new(capella.SignedBeaconBlock)
-		err := unmarshal(typ, body, capellaBlock)
+		err = unmarshal(typ, body, capellaBlock)
 		if err == nil {
 			block := &denebcharon.VersionedSignedBeaconBlock{
 				Version: eth2spec.DataVersionCapella,

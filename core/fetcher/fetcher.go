@@ -17,6 +17,7 @@ import (
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/core/denebcharon"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
@@ -351,7 +352,7 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot int64, defSet 
 }
 
 // verifyFeeRecipient logs a warning when fee recipient is not correctly populated in the block.
-func verifyFeeRecipient(ctx context.Context, block *eth2spec.VersionedBeaconBlock, feeRecipientAddress string) {
+func verifyFeeRecipient(ctx context.Context, block *denebcharon.VersionedBeaconBlock, feeRecipientAddress string) {
 	// Note that fee-recipient is not available in forks earlier than bellatrix.
 	var actualAddr string
 
@@ -360,6 +361,8 @@ func verifyFeeRecipient(ctx context.Context, block *eth2spec.VersionedBeaconBloc
 		actualAddr = fmt.Sprintf("%#x", block.Bellatrix.Body.ExecutionPayload.FeeRecipient)
 	case eth2spec.DataVersionCapella:
 		actualAddr = fmt.Sprintf("%#x", block.Capella.Body.ExecutionPayload.FeeRecipient)
+	case eth2spec.DataVersionDeneb:
+		actualAddr = fmt.Sprintf("%#x", block.Deneb.Block.Body.ExecutionPayload.FeeRecipient)
 	default:
 		return
 	}

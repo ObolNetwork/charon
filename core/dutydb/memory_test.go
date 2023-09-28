@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/core/denebcharon"
 	"github.com/obolnetwork/charon/core/dutydb"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -133,7 +134,7 @@ func TestMemDBProposer(t *testing.T) {
 	slots := [queries]int64{123, 456, 789}
 
 	type response struct {
-		block *eth2spec.VersionedBeaconBlock
+		block *denebcharon.VersionedBeaconBlock
 	}
 	var awaitResponse [queries]chan response
 	for i := 0; i < queries; i++ {
@@ -145,10 +146,10 @@ func TestMemDBProposer(t *testing.T) {
 		}(i)
 	}
 
-	blocks := make([]*eth2spec.VersionedBeaconBlock, queries)
+	blocks := make([]*denebcharon.VersionedBeaconBlock, queries)
 	pubkeysByIdx := make(map[eth2p0.ValidatorIndex]core.PubKey)
 	for i := 0; i < queries; i++ {
-		blocks[i] = &eth2spec.VersionedBeaconBlock{
+		blocks[i] = &denebcharon.VersionedBeaconBlock{
 			Version: eth2spec.DataVersionPhase0,
 			Phase0:  testutil.RandomPhase0BeaconBlock(),
 		}
@@ -301,12 +302,12 @@ func TestMemDBClashingBlocks(t *testing.T) {
 	db := dutydb.NewMemDB(new(testDeadliner))
 
 	const slot = 123
-	block1 := &eth2spec.VersionedBeaconBlock{
+	block1 := &denebcharon.VersionedBeaconBlock{
 		Version: eth2spec.DataVersionPhase0,
 		Phase0:  testutil.RandomPhase0BeaconBlock(),
 	}
 	block1.Phase0.Slot = eth2p0.Slot(slot)
-	block2 := &eth2spec.VersionedBeaconBlock{
+	block2 := &denebcharon.VersionedBeaconBlock{
 		Version: eth2spec.DataVersionPhase0,
 		Phase0:  testutil.RandomPhase0BeaconBlock(),
 	}
@@ -339,7 +340,7 @@ func TestMemDBClashProposer(t *testing.T) {
 
 	const slot = 123
 
-	block := &eth2spec.VersionedBeaconBlock{
+	block := &denebcharon.VersionedBeaconBlock{
 		Version: eth2spec.DataVersionPhase0,
 		Phase0:  testutil.RandomPhase0BeaconBlock(),
 	}

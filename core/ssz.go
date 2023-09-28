@@ -12,7 +12,6 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
-	"github.com/attestantio/go-eth2-client/spec/deneb"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
 	"github.com/stretchr/testify/require"
@@ -197,7 +196,7 @@ func (b *VersionedBeaconBlock) sszValFromVersion(version eth2util.DataVersion) (
 		return b.Capella, nil
 	case eth2util.DataVersionDeneb:
 		if b.Deneb == nil {
-			b.Deneb = new(deneb.BeaconBlock)
+			b.Deneb = new(eth2deneb.BlockContents)
 		}
 
 		return b.Deneb, nil

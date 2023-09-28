@@ -15,7 +15,6 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
-	"github.com/attestantio/go-eth2-client/spec/deneb"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -115,8 +114,8 @@ type proposeBlockResponseCapella struct {
 }
 
 type proposeBlockResponseDeneb struct {
-	Version string             `json:"version"`
-	Data    *deneb.BeaconBlock `json:"data"`
+	Version string                   `json:"version"`
+	Data    *eth2deneb.BlockContents `json:"data"`
 }
 
 type validatorsResponse struct {

@@ -5,6 +5,7 @@ package eth2wrap
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -36,6 +37,12 @@ type BlockAttestationsProvider interface {
 type NodePeerCountProvider interface {
 	// NodePeerCount provides peer count of the beacon node.
 	NodePeerCount(ctx context.Context) (int, error)
+}
+
+// BeaconBlockProposalProvider is the interface for providing beacon block proposals.
+type BeaconBlockProposalProvider interface {
+	// BeaconBlockProposal fetches a proposed beacon block for signing.
+	BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*denebcharon.VersionedBeaconBlock, error)
 }
 
 // BeaconBlockSubmitter is the interface for submitting beacon blocks.
@@ -199,7 +206,7 @@ func (h *httpAdapter) SubmitBeaconBlock(ctx context.Context, block *denebcharon.
 		return errors.Wrap(err, "marshal signed beacon block")
 	}
 
-	var header http.Header
+	header := make(http.Header)
 	header.Add("Eth-Consensus-Version", block.Version.String())
 
 	_, err = httpPost(ctx, h.address, path, bytes.NewReader(reqBody), h.timeout, header)
@@ -208,6 +215,57 @@ func (h *httpAdapter) SubmitBeaconBlock(ctx context.Context, block *denebcharon.
 	}
 
 	return nil
+}
+
+// BeaconBlockProposal fetches a proposed beacon block for signing.
+// See https://ethereum.github.io/beacon-APIs/#/Validator/produceBlockV2.
+func (h *httpAdapter) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*denebcharon.VersionedBeaconBlock, error) {
+	path := fmt.Sprintf("/eth/v2/validator/blocks/%d", slot)
+
+	ctx, cancel := context.WithTimeout(ctx, h.timeout)
+	defer cancel()
+
+	addr, err := url.JoinPath(h.address, path)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid address")
+	}
+
+	u, err := url.Parse(addr)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid endpoint")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "new GET request with ctx")
+	}
+
+	q := u.Query()
+	q.Add("randao_reveal", randaoReveal.String())
+	q.Add("graffiti", hex.EncodeToString(graffiti))
+	u.RawQuery = q.Encode()
+
+	res, err := new(http.Client).Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to call GET endpoint")
+	}
+	defer res.Body.Close()
+
+	respBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read GET response")
+	}
+
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.New("request beacon block failed", z.Int("status", res.StatusCode), z.Str("body", string(respBody)))
+	}
+
+	var resp denebcharon.VersionedBeaconBlock
+	if err := json.Unmarshal(respBody, &resp); err != nil {
+		return nil, errors.Wrap(err, "failed to parse beacon block response")
+	}
+
+	return &resp, nil
 }
 
 type submitBeaconCommitteeSelectionsJSON struct {

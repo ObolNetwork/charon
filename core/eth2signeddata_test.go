@@ -28,7 +28,7 @@ func TestVerifyEth2SignedData(t *testing.T) {
 		},
 		{
 			name: "verify beacon block",
-			data: testutil.RandomBellatrixCoreVersionedSignedBeaconBlock(),
+			data: testutil.RandomDenebCoreVersionedSignedBeaconBlock(),
 		},
 		{
 			name: "verify blinded beacon block bellatrix",
@@ -92,15 +92,26 @@ func TestVerifyEth2SignedData(t *testing.T) {
 			epoch, err := test.data.Epoch(context.Background(), bmock)
 			require.NoError(t, err)
 
-			root, err := test.data.MessageRoot()
+			roots, err := test.data.MessageRoots()
 			require.NoError(t, err)
 
-			sigData, err := signing.GetDataRoot(context.Background(), bmock, test.data.DomainName(), epoch, root)
+			domains := test.data.DomainNames()
+
+			privkey, err := tbls.GenerateSecretKey()
+			require.NoError(t, err)
+			pubkey, err := tbls.SecretToPublicKey(privkey)
 			require.NoError(t, err)
 
-			sig, pubkey := sign(t, sigData[:])
+			var sigs []core.Signature
+			for i := 0; i < len(roots); i++ {
+				sigData, err := signing.GetDataRoot(context.Background(), bmock, domains[i], epoch, roots[i])
+				require.NoError(t, err)
 
-			s, err := test.data.SetSignature(sig)
+				sig := signWithKey(t, sigData[:], privkey)
+				sigs = append(sigs, sig)
+			}
+
+			s, err := test.data.SetSignatures(sigs)
 			require.NoError(t, err)
 
 			eth2Signed, ok := s.(core.Eth2SignedData)
@@ -111,17 +122,11 @@ func TestVerifyEth2SignedData(t *testing.T) {
 	}
 }
 
-func sign(t *testing.T, data []byte) (core.Signature, tbls.PublicKey) {
+func signWithKey(t *testing.T, data []byte, secret tbls.PrivateKey) core.Signature {
 	t.Helper()
-
-	secret, err := tbls.GenerateSecretKey()
-	require.NoError(t, err)
-
-	pk, err := tbls.SecretToPublicKey(secret)
-	require.NoError(t, err)
 
 	sig, err := tbls.Sign(secret, data)
 	require.NoError(t, err)
 
-	return tblsconv.SigToCore(sig), pk
+	return tblsconv.SigToCore(sig)
 }

@@ -163,6 +163,15 @@ func (l *lazy) NodePeerCount(ctx context.Context) (int, error) {
 	return cl.NodePeerCount(ctx)
 }
 
+func (l *lazy) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*denebcharon.VersionedBeaconBlock, error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return cl.BeaconBlockProposal(ctx, slot, randaoReveal, graffiti)
+}
+
 func (l *lazy) SubmitBeaconBlock(ctx context.Context, block *denebcharon.VersionedSignedBeaconBlock) error {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {

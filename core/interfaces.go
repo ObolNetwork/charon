@@ -6,9 +6,10 @@ import (
 	"context"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
-	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+
+	"github.com/obolnetwork/charon/core/denebcharon"
 )
 
 // Scheduler triggers the start of a duty workflow.
@@ -46,7 +47,7 @@ type DutyDB interface {
 
 	// AwaitBeaconBlock blocks and returns the proposed beacon block
 	// for the slot when available.
-	AwaitBeaconBlock(ctx context.Context, slot int64) (*eth2spec.VersionedBeaconBlock, error)
+	AwaitBeaconBlock(ctx context.Context, slot int64) (*denebcharon.VersionedBeaconBlock, error)
 
 	// AwaitBlindedBeaconBlock blocks and returns the proposed blinded beacon block
 	// for the slot when available.
@@ -85,7 +86,7 @@ type Consensus interface {
 // ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the DutyDB and stores partial signed data in the ParSigDB.
 type ValidatorAPI interface {
 	// RegisterAwaitBeaconBlock registers a function to query unsigned beacon block by slot.
-	RegisterAwaitBeaconBlock(func(ctx context.Context, slot int64) (*eth2spec.VersionedBeaconBlock, error))
+	RegisterAwaitBeaconBlock(func(ctx context.Context, slot int64) (*denebcharon.VersionedBeaconBlock, error))
 
 	// RegisterAwaitBlindedBeaconBlock registers a function to query unsigned blinded beacon block by slot.
 	RegisterAwaitBlindedBeaconBlock(func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error))
@@ -217,7 +218,7 @@ type wireFuncs struct {
 	ConsensusPropose                    func(context.Context, Duty, UnsignedDataSet) error
 	ConsensusSubscribe                  func(func(context.Context, Duty, UnsignedDataSet) error)
 	DutyDBStore                         func(context.Context, Duty, UnsignedDataSet) error
-	DutyDBAwaitBeaconBlock              func(ctx context.Context, slot int64) (*eth2spec.VersionedBeaconBlock, error)
+	DutyDBAwaitBeaconBlock              func(ctx context.Context, slot int64) (*denebcharon.VersionedBeaconBlock, error)
 	DutyDBAwaitBlindedBeaconBlock       func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error)
 	DutyDBAwaitAttestation              func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
 	DutyDBPubKeyByAttestation           func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error)
@@ -225,7 +226,7 @@ type wireFuncs struct {
 	DutyDBAwaitSyncContribution         func(ctx context.Context, slot, subcommIdx int64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	VAPIRegisterAwaitAttestation        func(func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error))
 	VAPIRegisterAwaitSyncContribution   func(func(ctx context.Context, slot, subcommIdx int64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error))
-	VAPIRegisterAwaitBeaconBlock        func(func(ctx context.Context, slot int64) (*eth2spec.VersionedBeaconBlock, error))
+	VAPIRegisterAwaitBeaconBlock        func(func(ctx context.Context, slot int64) (*denebcharon.VersionedBeaconBlock, error))
 	VAPIRegisterAwaitBlindedBeaconBlock func(func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error))
 	VAPIRegisterGetDutyDefinition       func(func(context.Context, Duty) (DutyDefinitionSet, error))
 	VAPIRegisterPubKeyByAttestation     func(func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error))

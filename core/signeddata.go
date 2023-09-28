@@ -15,7 +15,6 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
-	"github.com/attestantio/go-eth2-client/spec/deneb"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
 
@@ -79,16 +78,6 @@ func NewPartialSignature(sig Signature, shareIdx int) ParSignedData {
 // Signature is a BLS12-381 Signature. It implements SignedData.
 type Signature []byte
 
-func (Signature) Signatures() []Signature {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (Signature) SetSignatures(_ []Signature) (SignedData, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (Signature) MessageRoot() ([32]byte, error) {
 	return [32]byte{}, errors.New("unsigned data root not supported by signature type")
 }
@@ -116,6 +105,14 @@ func (s Signature) Signature() Signature {
 
 func (Signature) SetSignature(sig Signature) (SignedData, error) {
 	return sig, nil
+}
+
+func (s Signature) Signatures() []Signature {
+	return []Signature{s}
+}
+
+func (Signature) SetSignatures(sigs []Signature) (SignedData, error) {
+	return sigs[0], nil
 }
 
 func (s Signature) MarshalJSON() ([]byte, error) {
@@ -253,7 +250,7 @@ func (v VersionedSignedBeaconBlock) MessageRoots() ([][32]byte, error) {
 		msgRoots = append(msgRoots, blockRoot)
 
 		for _, blob := range v.Deneb.SignedBlobSidecars {
-			blobRoot, err := blob.HashTreeRoot()
+			blobRoot, err := blob.Message.HashTreeRoot()
 			if err != nil {
 				return nil, errors.Wrap(err, "hash blob sidecar")
 			}
@@ -368,8 +365,8 @@ func (v VersionedSignedBeaconBlock) SetSignatures(signatures []Signature) (Signe
 		// First set signature for SignedBlock
 		resp.Deneb.SignedBlock.Signature = signatures[0].ToETH2()
 		// Then, set signatures for the Signed blob sidecars
-		for i, blob := range resp.Deneb.SignedBlobSidecars {
-			blob.Signature = signatures[i+1].ToETH2()
+		for i := 1; i < len(signatures); i++ {
+			resp.Deneb.SignedBlobSidecars[i-1].Signature = eth2p0.BLSSignature(signatures[i])
 		}
 	default:
 		return nil, errors.New("unknown type")
@@ -527,11 +524,12 @@ func (v *VersionedSignedBeaconBlock) UnmarshalJSON(input []byte) error {
 		}
 		resp.Capella = block
 	case eth2spec.DataVersionDeneb:
-		block := new(deneb.SignedBeaconBlock)
+		block := new(eth2deneb.SignedBlockContents)
 		if err := json.Unmarshal(raw.Block, &block); err != nil {
 			return errors.Wrap(err, "unmarshal deneb")
 		}
-		resp.Deneb.SignedBlock = block
+
+		resp.Deneb = block
 	default:
 		return errors.New("unknown version")
 	}
@@ -581,21 +579,6 @@ type VersionedSignedBlindedBeaconBlock struct {
 	eth2api.VersionedSignedBlindedBeaconBlock // Could subtype instead of embed, but aligning with Attestation that cannot subtype.
 }
 
-func (VersionedSignedBlindedBeaconBlock) MessageRoots() ([][32]byte, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (VersionedSignedBlindedBeaconBlock) Signatures() []Signature {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (VersionedSignedBlindedBeaconBlock) SetSignatures(_ []Signature) (SignedData, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (b VersionedSignedBlindedBeaconBlock) MessageRoot() ([32]byte, error) {
 	switch b.Version {
 	// No block nil checks since `NewVersionedSignedBlindedBeaconBlock` assumed.
@@ -608,6 +591,30 @@ func (b VersionedSignedBlindedBeaconBlock) MessageRoot() ([32]byte, error) {
 	default:
 		panic("unknown version") // Note this is avoided by using `NewVersionedSignedBlindedBeaconBlock`.
 	}
+}
+
+func (b VersionedSignedBlindedBeaconBlock) MessageRoots() ([][32]byte, error) {
+	var (
+		root eth2p0.Root
+		err  error
+	)
+	switch b.Version {
+	// No block nil checks since `NewVersionedSignedBlindedBeaconBlock` assumed.
+	case eth2spec.DataVersionBellatrix:
+		root, err = b.Bellatrix.Message.HashTreeRoot()
+	case eth2spec.DataVersionCapella:
+		root, err = b.Capella.Message.HashTreeRoot()
+	case eth2spec.DataVersionDeneb:
+		root, err = b.Deneb.Message.HashTreeRoot()
+	default:
+		panic("unknown version") // Note this is avoided by using `NewVersionedSignedBlindedBeaconBlock`.
+	}
+
+	if err != nil {
+		return nil, errors.Wrap(err, "hash message root")
+	}
+
+	return [][32]byte{root}, nil
 }
 
 func (b VersionedSignedBlindedBeaconBlock) Clone() (SignedData, error) {
@@ -647,6 +654,42 @@ func (b VersionedSignedBlindedBeaconBlock) SetSignature(sig Signature) (SignedDa
 		return nil, err
 	}
 
+	switch resp.Version {
+	// No block nil checks since `NewVersionedSignedBlindedBeaconBlock` assumed.
+	case eth2spec.DataVersionBellatrix:
+		resp.Bellatrix.Signature = sig.ToETH2()
+	case eth2spec.DataVersionCapella:
+		resp.Capella.Signature = sig.ToETH2()
+	case eth2spec.DataVersionDeneb:
+		resp.Deneb.Signature = sig.ToETH2()
+	default:
+		return nil, errors.New("unknown type")
+	}
+
+	return resp, nil
+}
+
+func (b VersionedSignedBlindedBeaconBlock) Signatures() []Signature {
+	switch b.Version {
+	// No block nil checks since `NewVersionedSignedBlindedBeaconBlock` assumed.
+	case eth2spec.DataVersionBellatrix:
+		return []Signature{SigFromETH2(b.Bellatrix.Signature)}
+	case eth2spec.DataVersionCapella:
+		return []Signature{SigFromETH2(b.Capella.Signature)}
+	case eth2spec.DataVersionDeneb:
+		return []Signature{SigFromETH2(b.Deneb.Signature)}
+	default:
+		panic("unknown version") // Note this is avoided by using `NewVersionedSignedBlindedBeaconBlock`.
+	}
+}
+
+func (b VersionedSignedBlindedBeaconBlock) SetSignatures(sigs []Signature) (SignedData, error) {
+	resp, err := b.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	sig := sigs[0]
 	switch resp.Version {
 	// No block nil checks since `NewVersionedSignedBlindedBeaconBlock` assumed.
 	case eth2spec.DataVersionBellatrix:

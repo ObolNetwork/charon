@@ -176,7 +176,7 @@ func TestRawRouter(t *testing.T) {
 
 	t.Run("empty graffiti", func(t *testing.T) {
 		handler := testHandler{}
-		handler.BeaconBlockProposalFunc = func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2spec.VersionedBeaconBlock, error) {
+		handler.BeaconBlockProposalFunc = func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*denebcharon.VersionedBeaconBlock, error) {
 			require.Empty(t, graffiti)
 			resp := testutil.RandomBellatrixCoreVersionedBeaconBlock().VersionedBeaconBlock
 
@@ -339,7 +339,7 @@ func TestRawRouter(t *testing.T) {
 			require.NoError(t, err)
 
 			req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-				baseURL+"/eth/v1/beacon/blocks", bytes.NewReader(b))
+				baseURL+"/eth/v2/beacon/blocks", bytes.NewReader(b))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/octet-stream")
 
@@ -370,7 +370,7 @@ func TestRawRouter(t *testing.T) {
 			require.NoError(t, err)
 
 			req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-				baseURL+"/eth/v1/beacon/blocks", bytes.NewReader(b))
+				baseURL+"/eth/v2/beacon/blocks", bytes.NewReader(b))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/octet-stream")
 
@@ -384,7 +384,7 @@ func TestRawRouter(t *testing.T) {
 	})
 
 	t.Run("get response header for beacon block proposal", func(t *testing.T) {
-		block := &eth2spec.VersionedBeaconBlock{
+		block := &denebcharon.VersionedBeaconBlock{
 			Version: eth2spec.DataVersionCapella,
 			Capella: testutil.RandomCapellaBeaconBlock(),
 		}
@@ -392,7 +392,7 @@ func TestRawRouter(t *testing.T) {
 		require.NoError(t, err)
 		randao := block.Capella.Body.RANDAOReveal
 		handler := testHandler{
-			BeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2spec.VersionedBeaconBlock, error) {
+			BeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*denebcharon.VersionedBeaconBlock, error) {
 				require.Equal(t, expectedSlot, slot)
 				require.Equal(t, randao, randaoReveal)
 
@@ -738,7 +738,7 @@ func TestRouter(t *testing.T) {
 
 	t.Run("submit randao", func(t *testing.T) {
 		handler := testHandler{
-			BeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2spec.VersionedBeaconBlock, error) {
+			BeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*denebcharon.VersionedBeaconBlock, error) {
 				return nil, errors.New("not implemented")
 			},
 		}
@@ -777,7 +777,7 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("submit block phase0", func(t *testing.T) {
-		block1 := &eth2spec.VersionedSignedBeaconBlock{
+		block1 := &denebcharon.VersionedSignedBeaconBlock{
 			Version: eth2spec.DataVersionPhase0,
 			Phase0: &eth2p0.SignedBeaconBlock{
 				Message:   testutil.RandomPhase0BeaconBlock(),
@@ -800,7 +800,7 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("submit block altair", func(t *testing.T) {
-		block1 := &eth2spec.VersionedSignedBeaconBlock{
+		block1 := &denebcharon.VersionedSignedBeaconBlock{
 			Version: eth2spec.DataVersionAltair,
 			Altair: &altair.SignedBeaconBlock{
 				Message:   testutil.RandomAltairBeaconBlock(),
@@ -1194,7 +1194,7 @@ type testHandler struct {
 	AggregateSyncCommitteeSelectionsFunc   func(ctx context.Context, partialSelections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error)
 	AttestationDataFunc                    func(ctx context.Context, slot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
 	AttesterDutiesFunc                     func(ctx context.Context, epoch eth2p0.Epoch, il []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
-	BeaconBlockProposalFunc                func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2spec.VersionedBeaconBlock, error)
+	BeaconBlockProposalFunc                func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*denebcharon.VersionedBeaconBlock, error)
 	SubmitBeaconBlockFunc                  func(ctx context.Context, block *denebcharon.VersionedSignedBeaconBlock) error
 	BlindedBeaconBlockProposalFunc         func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error)
 	SubmitBlindedBeaconBlockFunc           func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error
@@ -1220,7 +1220,7 @@ func (h testHandler) AttesterDuties(ctx context.Context, epoch eth2p0.Epoch, il 
 	return h.AttesterDutiesFunc(ctx, epoch, il)
 }
 
-func (h testHandler) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2spec.VersionedBeaconBlock, error) {
+func (h testHandler) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*denebcharon.VersionedBeaconBlock, error) {
 	return h.BeaconBlockProposalFunc(ctx, slot, randaoReveal, graffiti)
 }
 

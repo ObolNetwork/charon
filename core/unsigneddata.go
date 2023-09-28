@@ -14,11 +14,11 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
-	"github.com/attestantio/go-eth2-client/spec/deneb"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/core/denebcharon"
 	"github.com/obolnetwork/charon/eth2util"
 )
 
@@ -141,7 +141,7 @@ func (a *AggregatedAttestation) UnmarshalSSZ(b []byte) error {
 }
 
 // NewVersionedBeaconBlock validates and returns a new wrapped VersionedBeaconBlock.
-func NewVersionedBeaconBlock(block *eth2spec.VersionedBeaconBlock) (VersionedBeaconBlock, error) {
+func NewVersionedBeaconBlock(block *denebcharon.VersionedBeaconBlock) (VersionedBeaconBlock, error) {
 	switch block.Version {
 	case eth2spec.DataVersionPhase0:
 		if block.Phase0 == nil {
@@ -171,7 +171,7 @@ func NewVersionedBeaconBlock(block *eth2spec.VersionedBeaconBlock) (VersionedBea
 }
 
 type VersionedBeaconBlock struct {
-	eth2spec.VersionedBeaconBlock
+	denebcharon.VersionedBeaconBlock
 }
 
 func (b VersionedBeaconBlock) Clone() (UnsignedData, error) {
@@ -229,7 +229,7 @@ func (b *VersionedBeaconBlock) UnmarshalJSON(input []byte) error {
 		return errors.Wrap(err, "unmarshal block")
 	}
 
-	resp := eth2spec.VersionedBeaconBlock{Version: raw.Version.ToETH2()}
+	resp := denebcharon.VersionedBeaconBlock{Version: raw.Version.ToETH2()}
 	switch resp.Version {
 	case eth2spec.DataVersionPhase0:
 		block := new(eth2p0.BeaconBlock)
@@ -256,7 +256,7 @@ func (b *VersionedBeaconBlock) UnmarshalJSON(input []byte) error {
 		}
 		resp.Capella = block
 	case eth2spec.DataVersionDeneb:
-		block := new(deneb.BeaconBlock)
+		block := new(eth2deneb.BlockContents)
 		if err := json.Unmarshal(raw.Block, &block); err != nil {
 			return errors.Wrap(err, "unmarshal deneb")
 		}

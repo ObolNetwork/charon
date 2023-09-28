@@ -11,7 +11,6 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"go.opentelemetry.io/otel/trace"
@@ -156,7 +155,7 @@ type Component struct {
 
 	pubKeyByAttFunc           func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error)
 	awaitAttFunc              func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
-	awaitBlockFunc            func(ctx context.Context, slot int64) (*eth2spec.VersionedBeaconBlock, error)
+	awaitBlockFunc            func(ctx context.Context, slot int64) (*denebcharon.VersionedBeaconBlock, error)
 	awaitBlindedBlockFunc     func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error)
 	awaitSyncContributionFunc func(ctx context.Context, slot, subcommIdx int64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	awaitAggAttFunc           func(ctx context.Context, slot int64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)
@@ -167,7 +166,7 @@ type Component struct {
 
 // RegisterAwaitBeaconBlock registers a function to query unsigned beacon block.
 // It supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitBeaconBlock(fn func(ctx context.Context, slot int64) (*eth2spec.VersionedBeaconBlock, error)) {
+func (c *Component) RegisterAwaitBeaconBlock(fn func(ctx context.Context, slot int64) (*denebcharon.VersionedBeaconBlock, error)) {
 	c.awaitBlockFunc = fn
 }
 
@@ -297,7 +296,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 }
 
 // BeaconBlockProposal submits the randao for aggregation and inclusion in DutyProposer and then queries the dutyDB for an unsigned beacon block.
-func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, _ []byte) (*eth2spec.VersionedBeaconBlock, error) {
+func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, _ []byte) (*denebcharon.VersionedBeaconBlock, error) {
 	// Get proposer pubkey (this is a blocking query).
 	pubkey, err := c.getProposerPubkey(ctx, core.NewProposerDuty(int64(slot)))
 	if err != nil {

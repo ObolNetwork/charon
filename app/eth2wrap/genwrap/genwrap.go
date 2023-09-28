@@ -48,6 +48,7 @@ type Client interface {
     BlockAttestationsProvider
     NodePeerCountProvider
 	BeaconBlockSubmitter
+	BeaconBlockProposalProvider
 
     ActiveValidatorsProvider
     SetValidatorCache(func(context.Context) (ActiveValidators, error))
@@ -101,7 +102,6 @@ type Client interface {
 		"AttestationDataProvider":               true,
 		"AttestationsSubmitter":                 true,
 		"AttesterDutiesProvider":                true,
-		"BeaconBlockProposalProvider":           true,
 		"BeaconBlockRootProvider":               false,
 		"BeaconCommitteeSubscriptionsSubmitter": true,
 		"BlindedBeaconBlockProposalProvider":    true,
