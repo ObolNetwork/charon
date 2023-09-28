@@ -115,7 +115,7 @@ func (s *Scheduler) Run() error {
 
 			instrumentSlot(slot)
 
-			go s.emitCoreSlot(ctx, slot)
+			s.emitCoreSlot(ctx, slot)
 
 			s.scheduleSlot(ctx, slot)
 		}

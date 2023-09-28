@@ -8,38 +8,38 @@ import "time"
 type specMeta struct {
 	GenesisTime   time.Time
 	SlotDuration  time.Duration
-	SlotsPerEpoch int
+	SlotsPerEpoch uint64
 }
 
-func (m specMeta) SlotStartTime(slot int64) time.Time {
+func (m specMeta) SlotStartTime(slot uint64) time.Time {
 	return m.GenesisTime.Add(time.Duration(slot) * m.SlotDuration)
 }
 
-func (m specMeta) EpochFromSlot(slot int64) metaEpoch {
-	epoch := slot / int64(m.SlotsPerEpoch)
+func (m specMeta) EpochFromSlot(slot uint64) metaEpoch {
+	epoch := slot / m.SlotsPerEpoch
 	return metaEpoch{
 		Epoch: epoch,
 		meta:  m,
 	}
 }
 
-func (m specMeta) FirstSlotInEpoch(epoch int64) metaSlot {
+func (m specMeta) FirstSlotInEpoch(epoch uint64) metaSlot {
 	return metaSlot{
-		Slot: epoch * int64(m.SlotsPerEpoch),
+		Slot: epoch * m.SlotsPerEpoch,
 		meta: m,
 	}
 }
 
-func (m specMeta) LastSlotInEpoch(epoch int64) metaSlot {
+func (m specMeta) LastSlotInEpoch(epoch uint64) metaSlot {
 	return metaSlot{
-		Slot: (epoch+1)*int64(m.SlotsPerEpoch) - 1,
+		Slot: (epoch+1)*m.SlotsPerEpoch - 1,
 		meta: m,
 	}
 }
 
 // metaSlot defines a slot with knowledge of spec metadata.
 type metaSlot struct {
-	Slot int64
+	Slot uint64
 	meta specMeta
 }
 
@@ -75,7 +75,7 @@ func (s metaSlot) FirstInEpoch() bool {
 
 // metaEpoch defines an epoch with knowledge of spec metadata.
 type metaEpoch struct {
-	Epoch int64
+	Epoch uint64
 	meta  specMeta
 }
 
@@ -91,10 +91,10 @@ func (e metaEpoch) Slots() []metaSlot {
 	return e.SlotsForLookAhead(1)
 }
 
-func (e metaEpoch) SlotsForLookAhead(totalEpochs int) []metaSlot {
+func (e metaEpoch) SlotsForLookAhead(totalEpochs uint64) []metaSlot {
 	slot := e.FirstSlot()
 	var resp []metaSlot
-	for i := 0; i < totalEpochs*e.meta.SlotsPerEpoch; i++ {
+	for i := uint64(0); i < totalEpochs*e.meta.SlotsPerEpoch; i++ {
 		resp = append(resp, slot)
 		slot = slot.Next()
 	}
@@ -102,9 +102,9 @@ func (e metaEpoch) SlotsForLookAhead(totalEpochs int) []metaSlot {
 	return resp
 }
 
-func (e metaEpoch) SlotsForLookBack(totalEpochs int) []metaSlot {
+func (e metaEpoch) SlotsForLookBack(totalEpochs uint64) []metaSlot {
 	epoch := e
-	for i := 0; i < totalEpochs; i++ {
+	for i := uint64(0); i < totalEpochs; i++ {
 		epoch = epoch.Prev()
 	}
 
@@ -112,7 +112,7 @@ func (e metaEpoch) SlotsForLookBack(totalEpochs int) []metaSlot {
 	total := totalEpochs * e.meta.SlotsPerEpoch
 
 	var resp []metaSlot
-	for i := 0; i < total; i++ {
+	for i := uint64(0); i < total; i++ {
 		resp = append(resp, slot)
 		slot = slot.Next()
 	}
@@ -129,7 +129,7 @@ func (e metaEpoch) Next() metaEpoch {
 
 func (e metaEpoch) Prev() metaEpoch {
 	return metaEpoch{
-		Epoch: e.Epoch + 1,
+		Epoch: e.Epoch - 1,
 		meta:  e.meta,
 	}
 }

@@ -54,8 +54,14 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 		return err
 	}
 
-	var pubkey eth2p0.BLSPubKey
-	var block *eth2spec.VersionedBeaconBlock
+	if len(duties) == 0 {
+		return nil
+	}
+
+	var (
+		pubkey eth2p0.BLSPubKey
+		block  *eth2spec.VersionedBeaconBlock
+	)
 	for _, duty := range duties {
 		if duty.Slot != slot {
 			continue
@@ -165,8 +171,14 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 		return err
 	}
 
-	var pubkey eth2p0.BLSPubKey
-	var block *eth2api.VersionedBlindedBeaconBlock
+	if len(duties) == 0 {
+		return nil
+	}
+
+	var (
+		pubkey eth2p0.BLSPubKey
+		block  *eth2api.VersionedBlindedBeaconBlock
+	)
 	for _, duty := range duties {
 		if duty.Slot != slot {
 			continue
