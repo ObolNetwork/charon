@@ -5,6 +5,7 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"sort"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -24,7 +25,6 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
-	"github.com/obolnetwork/charon/tbls"
 )
 
 var (
@@ -375,83 +375,6 @@ func (v VersionedSignedBeaconBlock) SetSignatures(signatures []Signature) (Signe
 	return resp, nil
 }
 
-func (v VersionedSignedBeaconBlock) Verify(ctx context.Context, eth2Cl eth2wrap.Client, pubkey tbls.PublicKey) error {
-	switch v.Version {
-	case eth2spec.DataVersionPhase0:
-		if v.Phase0 == nil {
-			return errors.New("no phase0 block")
-		}
-
-		epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, v.Phase0.Message.Slot)
-		if err != nil {
-			return err
-		}
-
-		sigRoot, err := v.Root()
-		if err != nil {
-			return err
-		}
-
-		return signing.Verify(ctx, eth2Cl, signing.DomainBeaconProposer, epoch, sigRoot, v.Phase0.Signature, pubkey)
-	case eth2spec.DataVersionAltair:
-		if v.Altair == nil {
-			return errors.New("no altair block")
-		}
-	case eth2spec.DataVersionBellatrix:
-		if v.Bellatrix == nil {
-			return errors.New("no bellatrix block")
-		}
-	case eth2spec.DataVersionCapella:
-		if v.Capella == nil {
-			return errors.New("no capella block")
-		}
-	case eth2spec.DataVersionDeneb:
-		if v.Deneb == nil || v.Deneb.SignedBlock == nil || v.Deneb.SignedBlock.Message == nil {
-			return errors.New("no deneb block")
-		}
-
-		epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, v.Deneb.SignedBlock.Message.Slot)
-		if err != nil {
-			return err
-		}
-
-		// First verify the beacon block
-		blockRoot, err := v.Deneb.SignedBlock.HashTreeRoot()
-		if err != nil {
-			return err
-		}
-		var sigRoot eth2p0.Root
-		copy(sigRoot[:], blockRoot[:])
-
-		err = signing.Verify(ctx, eth2Cl, signing.DomainBeaconProposer, epoch, sigRoot, v.Phase0.Signature, pubkey)
-		if err != nil {
-			return errors.Wrap(err, "verify beacon block")
-		}
-
-		// Then finally verify each blob sidecar
-		for _, blob := range v.Deneb.SignedBlobSidecars {
-			blobRoot, err := blob.HashTreeRoot()
-			if err != nil {
-				return err
-			}
-
-			var sigRoot eth2p0.Root
-			copy(sigRoot[:], blobRoot[:])
-
-			err = signing.Verify(ctx, eth2Cl, signing.DomainBlobSidecar, epoch, sigRoot, v.Phase0.Signature, pubkey)
-			if err != nil {
-				return errors.Wrap(err, "verify blob sidecar")
-			}
-		}
-
-		return nil
-	default:
-		return errors.New("unknown version")
-	}
-
-	return nil
-}
-
 func (v VersionedSignedBeaconBlock) MarshalJSON() ([]byte, error) {
 	var marshaller json.Marshaler
 	switch v.Version {
@@ -528,6 +451,11 @@ func (v *VersionedSignedBeaconBlock) UnmarshalJSON(input []byte) error {
 		if err := json.Unmarshal(raw.Block, &block); err != nil {
 			return errors.Wrap(err, "unmarshal deneb")
 		}
+
+		// Sort the blob sidecars in increasing order of blob indexes in case they are unordered.
+		sort.Slice(block.SignedBlobSidecars, func(i, j int) bool {
+			return block.SignedBlobSidecars[i].Message.Index < block.SignedBlobSidecars[j].Message.Index
+		})
 
 		resp.Deneb = block
 	default:

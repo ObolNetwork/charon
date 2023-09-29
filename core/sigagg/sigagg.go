@@ -86,39 +86,79 @@ func (a *Aggregator) aggregate(ctx context.Context, pubkey core.PubKey, parSigs 
 		return nil, errors.New("require threshold signatures")
 	}
 
-	// Get all partial signatures.
-	blsSigs := make(map[int]tbls.Signature)
+	// +=============+============+============+============+============+
+	// | Data/Charon |   Data0    |   Data1    |   Data2    |   Data3    |
+	// +=============+============+============+============+============+
+	// | Charon 0    | ParSig[00] | ParSig[01] | ParSig[02] | ParSig[03] |
+	// 	+-------------+------------+------------+------------+------------+
+	// | Charon 1    | ParSig[10] | ParSig[01] | ParSig[12] | ParSig[13] |
+	// 	+-------------+------------+------------+------------+------------+
+	// | Charon 2    | ParSig[20] | ParSig[21] | ParSig[22] | ParSig[23] |
+	// 	+-------------+------------+------------+------------+------------+
+	// | Charon 3    | ParSig[30] | ParSig[31] | ParSig[32] | ParSig[33] |
+	// 	+-------------+------------+------------+------------+------------+
+	// | Aggregate   | Sig[0]     | Sig[1]     | Sig[2]     | Sig[3]     |
+	// 	+-------------+------------+------------+------------+------------+
+
+	rows := make(map[int][]tbls.Signature)
 	for _, parSig := range parSigs {
-		sig, err := tblsconv.SigFromCore(parSig.Signature())
-		if err != nil {
-			return nil, errors.Wrap(err, "signature from core")
+		var sigs []tbls.Signature
+		for _, s := range parSig.Signatures() {
+			sig, err := tblsconv.SigFromCore(s.Signature())
+			if err != nil {
+				return nil, errors.Wrap(err, "signature from core")
+			}
+
+			sigs = append(sigs, sig)
 		}
-		blsSigs[parSig.ShareIdx] = sig
+
+		rows[parSig.ShareIdx] = sigs
 	}
 
-	if len(blsSigs) < a.threshold {
-		return nil, errors.New("number of partial signatures less than threshold", z.Int("threshold", a.threshold), z.Int("got", len(blsSigs)))
+	if len(rows) < a.threshold {
+		return nil, errors.New("number of partial signatures less than threshold", z.Int("threshold", a.threshold), z.Int("got", len(rows)))
+	}
+
+	// Check if each peer has the same number of signatures.
+	sigLens := make(map[int]struct{})
+	sigLen := 0
+	for _, row := range rows {
+		sigLen = len(row)
+		sigLens[sigLen] = struct{}{}
+	}
+	if len(sigLens) > 1 {
+		return nil, errors.New("number of signatures for each peer doesn't match")
 	}
 
 	// Aggregate signatures
 	_, span := tracer.Start(ctx, "tbls.Aggregate")
-	sig, err := tbls.ThresholdAggregate(blsSigs)
-	span.End()
-	if err != nil {
-		return nil, err
+	var aggregatedRow []core.Signature
+	for i := 0; i < sigLen; i++ {
+		column := make(map[int]tbls.Signature)
+		for shareIdx, parsig := range rows {
+			column[shareIdx] = parsig[i]
+		}
+
+		sig, err := tbls.ThresholdAggregate(column)
+		if err != nil {
+			return nil, err
+		}
+
+		aggregatedRow = append(aggregatedRow, tblsconv.SigToCore(sig))
 	}
+	span.End()
 
 	// Inject signature into one of the parSigs resulting in aggregate signed data.
-	aggSig, err := parSigs[0].SetSignature(tblsconv.SigToCore(sig))
+	aggSigs, err := parSigs[0].SetSignatures(aggregatedRow)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := a.verifyFunc(ctx, pubkey, aggSig); err != nil {
+	if err := a.verifyFunc(ctx, pubkey, aggSigs); err != nil {
 		return nil, err
 	}
 
-	return aggSig, nil
+	return aggSigs, nil
 }
 
 // NewVerifier returns a signature verification function for aggregated signatures.
