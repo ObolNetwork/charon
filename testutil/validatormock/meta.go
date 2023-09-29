@@ -66,7 +66,7 @@ func (s metaSlot) InSlot(t time.Time) bool {
 	startTime := s.StartTime()      // Including
 	endTime := s.Next().StartTime() // Excluding
 
-	return t.Compare(startTime) > 0 && t.Compare(endTime) < 1
+	return (t.After(startTime) && t.Before(endTime)) || t.Equal(startTime)
 }
 
 func (s metaSlot) FirstInEpoch() bool {

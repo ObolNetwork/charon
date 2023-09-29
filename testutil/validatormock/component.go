@@ -89,7 +89,7 @@ func dutiesForSlot(slot metaSlot, types ...core.DutyType) map[scheduleTuple]stru
 
 		for _, checkSlot := range slot.Epoch().SlotsForLookAhead(epochWindow) {
 			startTime := offsetFunc(checkSlot)
-			if slot.InSlot(startTime) {
+			if !slot.InSlot(startTime) {
 				// DutyType not scheduled in input slot.
 				continue
 			}
@@ -369,12 +369,20 @@ func (m *Component) setAttester(attester *SlotAttester) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if _, ok := m.attestersBySlot[uint64(attester.Slot())]; ok {
+		return
+	}
+
 	m.attestersBySlot[uint64(attester.Slot())] = attester
 }
 
 func (m *Component) setSyncCommMember(syncCommMem *SyncCommMember) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	if _, ok := m.syncCommsByEpoch[uint64(syncCommMem.epoch)]; ok {
+		return
+	}
 
 	m.syncCommsByEpoch[uint64(syncCommMem.epoch)] = syncCommMem
 }
