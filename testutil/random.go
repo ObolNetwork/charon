@@ -354,6 +354,7 @@ func RandomDenebCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconBlock
 	}
 }
 
+// RandomDenebSignedBlobSidecars returns a list of random deneb.SignedBlobSidecar.
 func RandomDenebSignedBlobSidecars() []*deneb.SignedBlobSidecar {
 	const maxBlobsPerBlock = 6
 	var resp []*deneb.SignedBlobSidecar

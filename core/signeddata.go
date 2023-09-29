@@ -799,16 +799,6 @@ type Attestation struct {
 	eth2p0.Attestation
 }
 
-func (Attestation) Signatures() []Signature {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (Attestation) SetSignatures(_ []Signature) (SignedData, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (a Attestation) MessageRoot() ([32]byte, error) {
 	return a.Data.HashTreeRoot()
 }
@@ -854,6 +844,25 @@ func (a Attestation) SetSignature(sig Signature) (SignedData, error) {
 	return resp, nil
 }
 
+func (a Attestation) Signatures() []Signature {
+	return []Signature{SigFromETH2(a.Attestation.Signature)}
+}
+
+func (a Attestation) SetSignatures(sigs []Signature) (SignedData, error) {
+	resp, err := a.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(sigs) > 1 {
+		return nil, errors.New("signatures exceed 1")
+	}
+
+	resp.Attestation.Signature = sigs[0].ToETH2()
+
+	return resp, nil
+}
+
 func (a Attestation) MarshalJSON() ([]byte, error) {
 	return a.Attestation.MarshalJSON()
 }
@@ -893,16 +902,6 @@ func NewPartialSignedVoluntaryExit(exit *eth2p0.SignedVoluntaryExit, shareIdx in
 
 type SignedVoluntaryExit struct {
 	eth2p0.SignedVoluntaryExit
-}
-
-func (SignedVoluntaryExit) Signatures() []Signature {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (SignedVoluntaryExit) SetSignatures(_ []Signature) (SignedData, error) {
-	// TODO implement me
-	panic("implement me")
 }
 
 func (e SignedVoluntaryExit) MessageRoot() ([32]byte, error) {
@@ -945,6 +944,25 @@ func (e SignedVoluntaryExit) SetSignature(sig Signature) (SignedData, error) {
 	}
 
 	resp.SignedVoluntaryExit.Signature = sig.ToETH2()
+
+	return resp, nil
+}
+
+func (e SignedVoluntaryExit) Signatures() []Signature {
+	return []Signature{SigFromETH2(e.SignedVoluntaryExit.Signature)}
+}
+
+func (e SignedVoluntaryExit) SetSignatures(sigs []Signature) (SignedData, error) {
+	resp, err := e.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(sigs) > 1 {
+		return nil, errors.New("signatures exceed 1")
+	}
+
+	resp.SignedVoluntaryExit.Signature = sigs[0].ToETH2()
 
 	return resp, nil
 }
@@ -995,25 +1013,24 @@ type VersionedSignedValidatorRegistration struct {
 	eth2api.VersionedSignedValidatorRegistration
 }
 
-func (VersionedSignedValidatorRegistration) MessageRoots() ([][32]byte, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (VersionedSignedValidatorRegistration) Signatures() []Signature {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (VersionedSignedValidatorRegistration) SetSignatures(_ []Signature) (SignedData, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (r VersionedSignedValidatorRegistration) MessageRoot() ([32]byte, error) {
 	switch r.Version {
 	case eth2spec.BuilderVersionV1:
 		return r.V1.Message.HashTreeRoot()
+	default:
+		panic("unknown version")
+	}
+}
+
+func (r VersionedSignedValidatorRegistration) MessageRoots() ([][32]byte, error) {
+	switch r.Version {
+	case eth2spec.BuilderVersionV1:
+		root, err := r.V1.Message.HashTreeRoot()
+		if err != nil {
+			return nil, err
+		}
+
+		return [][32]byte{root}, nil
 	default:
 		panic("unknown version")
 	}
@@ -1054,6 +1071,35 @@ func (r VersionedSignedValidatorRegistration) SetSignature(sig Signature) (Signe
 	switch resp.Version {
 	case eth2spec.BuilderVersionV1:
 		resp.V1.Signature = sig.ToETH2()
+	default:
+		return nil, errors.New("unknown type")
+	}
+
+	return resp, nil
+}
+
+func (r VersionedSignedValidatorRegistration) Signatures() []Signature {
+	switch r.Version {
+	case eth2spec.BuilderVersionV1:
+		return []Signature{SigFromETH2(r.V1.Signature)}
+	default:
+		panic("unknown version")
+	}
+}
+
+func (r VersionedSignedValidatorRegistration) SetSignatures(sigs []Signature) (SignedData, error) {
+	resp, err := r.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(sigs) > 1 {
+		return nil, errors.New("signatures exceed 1")
+	}
+
+	switch resp.Version {
+	case eth2spec.BuilderVersionV1:
+		resp.V1.Signature = sigs[0].ToETH2()
 	default:
 		return nil, errors.New("unknown type")
 	}
@@ -1140,23 +1186,17 @@ type SignedRandao struct {
 	eth2util.SignedEpoch
 }
 
-func (SignedRandao) MessageRoots() ([][32]byte, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (SignedRandao) Signatures() []Signature {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (SignedRandao) SetSignatures(_ []Signature) (SignedData, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (s SignedRandao) MessageRoot() ([32]byte, error) {
 	return s.SignedEpoch.HashTreeRoot()
+}
+
+func (s SignedRandao) MessageRoots() ([][32]byte, error) {
+	msgRoot, err := s.SignedEpoch.HashTreeRoot()
+	if err != nil {
+		return nil, err
+	}
+
+	return [][32]byte{msgRoot}, nil
 }
 
 func (s SignedRandao) Signature() Signature {
@@ -1170,6 +1210,25 @@ func (s SignedRandao) SetSignature(sig Signature) (SignedData, error) {
 	}
 
 	resp.SignedEpoch.Signature = sig.ToETH2()
+
+	return resp, nil
+}
+
+func (s SignedRandao) Signatures() []Signature {
+	return []Signature{SigFromETH2(s.SignedEpoch.Signature)}
+}
+
+func (s SignedRandao) SetSignatures(sigs []Signature) (SignedData, error) {
+	resp, err := s.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(sigs) > 1 {
+		return nil, errors.New("signatures exceed 1")
+	}
+
+	resp.SignedEpoch.Signature = sigs[0].ToETH2()
 
 	return resp, nil
 }
@@ -1216,23 +1275,17 @@ type BeaconCommitteeSelection struct {
 	eth2exp.BeaconCommitteeSelection
 }
 
-func (BeaconCommitteeSelection) MessageRoots() ([][32]byte, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (BeaconCommitteeSelection) Signatures() []Signature {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (BeaconCommitteeSelection) SetSignatures(_ []Signature) (SignedData, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (s BeaconCommitteeSelection) MessageRoot() ([32]byte, error) {
 	return eth2util.SlotHashRoot(s.Slot)
+}
+
+func (s BeaconCommitteeSelection) MessageRoots() ([][32]byte, error) {
+	msgRoot, err := eth2util.SlotHashRoot(s.Slot)
+	if err != nil {
+		return nil, err
+	}
+
+	return [][32]byte{msgRoot}, nil
 }
 
 func (s BeaconCommitteeSelection) Signature() Signature {
@@ -1246,6 +1299,25 @@ func (s BeaconCommitteeSelection) SetSignature(sig Signature) (SignedData, error
 	}
 
 	resp.SelectionProof = sig.ToETH2()
+
+	return resp, nil
+}
+
+func (s BeaconCommitteeSelection) Signatures() []Signature {
+	return []Signature{SigFromETH2(s.SelectionProof)}
+}
+
+func (s BeaconCommitteeSelection) SetSignatures(sigs []Signature) (SignedData, error) {
+	resp, err := s.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(sigs) > 1 {
+		return nil, errors.New("signatures exceed 1")
+	}
+
+	resp.SelectionProof = sigs[0].ToETH2()
 
 	return resp, nil
 }
@@ -1292,11 +1364,6 @@ type SyncCommitteeSelection struct {
 	eth2exp.SyncCommitteeSelection
 }
 
-func (SyncCommitteeSelection) MessageRoots() ([][32]byte, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
 // MessageRoot returns the signing root for the provided SyncCommitteeSelection.
 // Refer https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#syncaggregatorselectiondata
 func (s SyncCommitteeSelection) MessageRoot() ([32]byte, error) {
@@ -1306,6 +1373,20 @@ func (s SyncCommitteeSelection) MessageRoot() ([32]byte, error) {
 	}
 
 	return data.HashTreeRoot()
+}
+
+func (s SyncCommitteeSelection) MessageRoots() ([][32]byte, error) {
+	data := altair.SyncAggregatorSelectionData{
+		Slot:              s.Slot,
+		SubcommitteeIndex: uint64(s.SubcommitteeIndex),
+	}
+
+	msgRoot, err := data.HashTreeRoot()
+	if err != nil {
+		return nil, err
+	}
+
+	return [][32]byte{msgRoot}, nil
 }
 
 func (s SyncCommitteeSelection) Signature() Signature {
@@ -1378,23 +1459,17 @@ type SignedAggregateAndProof struct {
 	eth2p0.SignedAggregateAndProof
 }
 
-func (SignedAggregateAndProof) MessageRoots() ([][32]byte, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (SignedAggregateAndProof) Signatures() []Signature {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (SignedAggregateAndProof) SetSignatures(_ []Signature) (SignedData, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (s SignedAggregateAndProof) MessageRoot() ([32]byte, error) {
 	return s.Message.HashTreeRoot()
+}
+
+func (s SignedAggregateAndProof) MessageRoots() ([][32]byte, error) {
+	root, err := s.Message.HashTreeRoot()
+	if err != nil {
+		return nil, err
+	}
+
+	return [][32]byte{root}, nil
 }
 
 func (s SignedAggregateAndProof) Signature() Signature {
@@ -1408,6 +1483,25 @@ func (s SignedAggregateAndProof) SetSignature(sig Signature) (SignedData, error)
 	}
 
 	resp.SignedAggregateAndProof.Signature = sig.ToETH2()
+
+	return resp, nil
+}
+
+func (s SignedAggregateAndProof) Signatures() []Signature {
+	return []Signature{SigFromETH2(s.SignedAggregateAndProof.Signature)}
+}
+
+func (s SignedAggregateAndProof) SetSignatures(sigs []Signature) (SignedData, error) {
+	resp, err := s.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(sigs) > 1 {
+		return nil, errors.New("signatures exceed 1")
+	}
+
+	resp.SignedAggregateAndProof.Signature = sigs[0].ToETH2()
 
 	return resp, nil
 }
@@ -1470,23 +1564,12 @@ type SignedSyncMessage struct {
 	altair.SyncCommitteeMessage
 }
 
-func (SignedSyncMessage) MessageRoots() ([][32]byte, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (SignedSyncMessage) Signatures() []Signature {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (SignedSyncMessage) SetSignatures(_ []Signature) (SignedData, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (s SignedSyncMessage) MessageRoot() ([32]byte, error) {
 	return s.BeaconBlockRoot, nil
+}
+
+func (s SignedSyncMessage) MessageRoots() ([][32]byte, error) {
+	return [][32]byte{s.BeaconBlockRoot}, nil
 }
 
 func (s SignedSyncMessage) Signature() Signature {
@@ -1500,6 +1583,25 @@ func (s SignedSyncMessage) SetSignature(sig Signature) (SignedData, error) {
 	}
 
 	resp.SyncCommitteeMessage.Signature = sig.ToETH2()
+
+	return resp, nil
+}
+
+func (s SignedSyncMessage) Signatures() []Signature {
+	return []Signature{SigFromETH2(s.SyncCommitteeMessage.Signature)}
+}
+
+func (s SignedSyncMessage) SetSignatures(sigs []Signature) (SignedData, error) {
+	resp, err := s.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(sigs) > 1 {
+		return nil, errors.New("signatures exceed 1")
+	}
+
+	resp.SyncCommitteeMessage.Signature = sigs[0].ToETH2()
 
 	return resp, nil
 }
@@ -1673,25 +1775,19 @@ type SignedSyncContributionAndProof struct {
 	altair.SignedContributionAndProof
 }
 
-func (SignedSyncContributionAndProof) MessageRoots() ([][32]byte, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (SignedSyncContributionAndProof) Signatures() []Signature {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (SignedSyncContributionAndProof) SetSignatures(_ []Signature) (SignedData, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
 // MessageRoot returns the signing root for the provided SignedSyncContributionAndProof.
 // Refer get_contribution_and_proof_signature from https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#broadcast-sync-committee-contribution.
 func (s SignedSyncContributionAndProof) MessageRoot() ([32]byte, error) {
 	return s.Message.HashTreeRoot()
+}
+
+func (s SignedSyncContributionAndProof) MessageRoots() ([][32]byte, error) {
+	msgRoot, err := s.Message.HashTreeRoot()
+	if err != nil {
+		return nil, err
+	}
+
+	return [][32]byte{msgRoot}, nil
 }
 
 func (s SignedSyncContributionAndProof) Signature() Signature {
@@ -1705,6 +1801,25 @@ func (s SignedSyncContributionAndProof) SetSignature(sig Signature) (SignedData,
 	}
 
 	resp.SignedContributionAndProof.Signature = sig.ToETH2()
+
+	return resp, err
+}
+
+func (s SignedSyncContributionAndProof) Signatures() []Signature {
+	return []Signature{SigFromETH2(s.SignedContributionAndProof.Signature)}
+}
+
+func (s SignedSyncContributionAndProof) SetSignatures(sigs []Signature) (SignedData, error) {
+	resp, err := s.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(sigs) > 1 {
+		return nil, errors.New("signatures exceed 1")
+	}
+
+	resp.SignedContributionAndProof.Signature = sigs[0].ToETH2()
 
 	return resp, err
 }

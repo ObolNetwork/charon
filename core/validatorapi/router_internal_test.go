@@ -777,7 +777,9 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("submit block phase0", func(t *testing.T) {
-		block1 := &denebcharon.VersionedSignedBeaconBlock{
+		// TODO(xenowits): Fix all submit block to use denebcharon instead of eth2spec.
+		// Will need to change callback to use the new type instead of eth2's.
+		block1 := &eth2spec.VersionedSignedBeaconBlock{
 			Version: eth2spec.DataVersionPhase0,
 			Phase0: &eth2p0.SignedBeaconBlock{
 				Message:   testutil.RandomPhase0BeaconBlock(),
@@ -800,7 +802,7 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("submit block altair", func(t *testing.T) {
-		block1 := &denebcharon.VersionedSignedBeaconBlock{
+		block1 := &eth2spec.VersionedSignedBeaconBlock{
 			Version: eth2spec.DataVersionAltair,
 			Altair: &altair.SignedBeaconBlock{
 				Message:   testutil.RandomAltairBeaconBlock(),
