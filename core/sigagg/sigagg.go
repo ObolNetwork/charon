@@ -86,6 +86,8 @@ func (a *Aggregator) aggregate(ctx context.Context, pubkey core.PubKey, parSigs 
 		return nil, errors.New("require threshold signatures")
 	}
 
+	// The following tables shows the layout of the data to be aggregated.
+	// Note that the signature aggregation will be performed for each individual column.
 	// +=============+============+============+============+============+
 	// | Data/Charon |   Data0    |   Data1    |   Data2    |   Data3    |
 	// +=============+============+============+============+============+
@@ -100,7 +102,7 @@ func (a *Aggregator) aggregate(ctx context.Context, pubkey core.PubKey, parSigs 
 	// | Aggregate   | Sig[0]     | Sig[1]     | Sig[2]     | Sig[3]     |
 	// 	+-------------+------------+------------+------------+------------+
 
-	rows := make(map[int][]tbls.Signature)
+	parsigsPerPeer := make(map[int][]tbls.Signature)
 	for _, parSig := range parSigs {
 		var sigs []tbls.Signature
 		for _, s := range parSig.Signatures() {
@@ -112,19 +114,22 @@ func (a *Aggregator) aggregate(ctx context.Context, pubkey core.PubKey, parSigs 
 			sigs = append(sigs, sig)
 		}
 
-		rows[parSig.ShareIdx] = sigs
+		parsigsPerPeer[parSig.ShareIdx] = sigs
 	}
 
-	if len(rows) < a.threshold {
-		return nil, errors.New("number of partial signatures less than threshold", z.Int("threshold", a.threshold), z.Int("got", len(rows)))
+	if len(parsigsPerPeer) < a.threshold {
+		return nil, errors.New("number of partial signatures less than threshold", z.Int("threshold", a.threshold), z.Int("got", len(parsigsPerPeer)))
 	}
 
 	// Check if each peer has the same number of signatures.
 	sigLens := make(map[int]struct{})
 	sigLen := 0
-	for _, row := range rows {
+	for _, row := range parsigsPerPeer {
 		sigLen = len(row)
 		sigLens[sigLen] = struct{}{}
+	}
+	if sigLen == 0 {
+		return nil, errors.New("empty signatures")
 	}
 	if len(sigLens) > 1 {
 		return nil, errors.New("number of signatures for each peer doesn't match")
@@ -132,33 +137,33 @@ func (a *Aggregator) aggregate(ctx context.Context, pubkey core.PubKey, parSigs 
 
 	// Aggregate signatures
 	_, span := tracer.Start(ctx, "tbls.Aggregate")
-	var aggregatedRow []core.Signature
+	var aggregatedSigs []core.Signature
 	for i := 0; i < sigLen; i++ {
-		column := make(map[int]tbls.Signature)
-		for shareIdx, parsig := range rows {
-			column[shareIdx] = parsig[i]
+		parsigs := make(map[int]tbls.Signature)
+		for shareIdx, parsig := range parsigsPerPeer {
+			parsigs[shareIdx] = parsig[i]
 		}
 
-		sig, err := tbls.ThresholdAggregate(column)
+		sig, err := tbls.ThresholdAggregate(parsigs)
 		if err != nil {
 			return nil, err
 		}
 
-		aggregatedRow = append(aggregatedRow, tblsconv.SigToCore(sig))
+		aggregatedSigs = append(aggregatedSigs, tblsconv.SigToCore(sig))
 	}
 	span.End()
 
 	// Inject signature into one of the parSigs resulting in aggregate signed data.
-	aggSigs, err := parSigs[0].SetSignatures(aggregatedRow)
+	aggData, err := parSigs[0].SetSignatures(aggregatedSigs)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := a.verifyFunc(ctx, pubkey, aggSigs); err != nil {
+	if err := a.verifyFunc(ctx, pubkey, aggData); err != nil {
 		return nil, err
 	}
 
-	return aggSigs, nil
+	return aggData, nil
 }
 
 // NewVerifier returns a signature verification function for aggregated signatures.
