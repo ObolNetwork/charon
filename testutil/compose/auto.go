@@ -187,7 +187,7 @@ func fixPerms(ctx context.Context, dir string) error {
 func execDown(ctx context.Context, dir string) error {
 	log.Info(ctx, "Executing docker-compose down")
 
-	cmd := exec.CommandContext(ctx, "docker compose", "down",
+	cmd := exec.CommandContext(ctx, "docker", "compose", "down",
 		"--remove-orphans",
 		"--timeout=2",
 	)
@@ -235,7 +235,7 @@ func execUp(ctx context.Context, dir string, out io.Writer) error {
 // execBuildAndCreate builds and creates containers. It should be called before execUp for run step.
 func execBuildAndCreate(ctx context.Context, dir string) error {
 	log.Info(ctx, "Executing docker-compose up --no-start --build")
-	cmd := exec.CommandContext(ctx, "docker compose", "up", "--no-start", "--build")
+	cmd := exec.CommandContext(ctx, "docker", "compose", "up", "--no-start", "--build")
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return errors.Wrap(err, "exec docker compose up --no-start --build", z.Str("output", string(out)))
