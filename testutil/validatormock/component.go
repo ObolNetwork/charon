@@ -81,26 +81,28 @@ type Component struct {
 func dutiesForSlot(slot metaSlot, types ...core.DutyType) map[scheduleTuple]struct{} {
 	resp := make(map[scheduleTuple]struct{})
 	for _, dutyType := range types {
-		offsetFunc, ok := offsetFuncs[dutyType]
+		dutyStartFuncs, ok := offsetFuncsByDuty[dutyType]
 		if !ok {
 			// Not offset func for duty
 			continue
 		}
 
 		for _, checkSlot := range slot.Epoch().SlotsForLookAhead(epochWindow) {
-			startTime := offsetFunc(checkSlot)
-			if !slot.InSlot(startTime) {
-				// DutyType not scheduled in input slot.
-				continue
-			}
+			for _, startTimeFunc := range dutyStartFuncs {
+				startTime := startTimeFunc(checkSlot)
+				if !slot.InSlot(startTime) {
+					// DutyType not scheduled in input slot.
+					continue
+				}
 
-			resp[scheduleTuple{
-				duty: core.Duty{
-					Type: dutyType,
-					Slot: int64(checkSlot.Slot),
-				},
-				startTime: startTime,
-			}] = struct{}{}
+				resp[scheduleTuple{
+					duty: core.Duty{
+						Type: dutyType,
+						Slot: int64(checkSlot.Slot),
+					},
+					startTime: startTime,
+				}] = struct{}{}
+			}
 		}
 	}
 
@@ -369,20 +371,12 @@ func (m *Component) setAttester(attester *SlotAttester) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if _, ok := m.attestersBySlot[uint64(attester.Slot())]; ok {
-		return
-	}
-
 	m.attestersBySlot[uint64(attester.Slot())] = attester
 }
 
 func (m *Component) setSyncCommMember(syncCommMem *SyncCommMember) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	if _, ok := m.syncCommsByEpoch[uint64(syncCommMem.epoch)]; ok {
-		return
-	}
 
 	m.syncCommsByEpoch[uint64(syncCommMem.epoch)] = syncCommMem
 }
@@ -404,17 +398,17 @@ func orderByTime(duties map[scheduleTuple]struct{}) []scheduleTuple {
 // offsetFunc that returns the time at which a duty should be triggered for a given slot.
 type offsetFunc func(metaSlot) time.Time
 
-// offsetFuncs defines the offsets by duty type.
-var offsetFuncs = map[core.DutyType]offsetFunc{
-	core.DutyPrepareAggregator:       startOfPrevEpoch,
-	core.DutyAttester:                fraction(1, 3), // 1/3 slot duration
-	core.DutyAggregator:              fraction(2, 3), // 2/3 slot duration
-	core.DutyProposer:                slotStartTime,
-	core.DutyBuilderProposer:         slotStartTime,
-	core.DutyBuilderRegistration:     startOfCurrentEpoch,
-	core.DutyPrepareSyncContribution: startOfPrevEpoch,
-	core.DutySyncMessage:             fraction(1, 3),
-	core.DutySyncContribution:        fraction(2, 3),
+// offsetFuncsByDuty defines the offsets by duty type.
+var offsetFuncsByDuty = map[core.DutyType][]offsetFunc{
+	core.DutyPrepareAggregator:       {startOfPrevEpoch, startOfCurrentEpoch},
+	core.DutyAttester:                {fraction(1, 3)}, // 1/3 slot duration
+	core.DutyAggregator:              {fraction(2, 3)}, // 2/3 slot duration
+	core.DutyProposer:                {slotStartTime},
+	core.DutyBuilderProposer:         {slotStartTime},
+	core.DutyBuilderRegistration:     {startOfCurrentEpoch},
+	core.DutyPrepareSyncContribution: {startOfPrevEpoch, startOfCurrentEpoch},
+	core.DutySyncMessage:             {fraction(1, 3)},
+	core.DutySyncContribution:        {fraction(2, 3)},
 }
 
 // startOfPrevEpoch returns the start time of the previous epoch.
