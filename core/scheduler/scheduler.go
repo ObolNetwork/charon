@@ -115,6 +115,8 @@ func (s *Scheduler) Run() error {
 
 			instrumentSlot(slot)
 
+			// emitCoreSlot doesn't need to be called inside a goroutine
+			// as it calls subscribers in their separate goroutines.
 			s.emitCoreSlot(ctx, slot)
 
 			s.scheduleSlot(ctx, slot)

@@ -60,7 +60,7 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 	}
 
 	log.Info(ctx, "Created docker-compose.yml")
-	log.Info(ctx, "Run the cluster with: docker-compose up")
+	log.Info(ctx, "Run the cluster with: docker compose up")
 
 	if err := WriteDockerCompose(dir, data); err != nil {
 		return TmplData{}, err

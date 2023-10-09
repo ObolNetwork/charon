@@ -6,7 +6,6 @@ import (
 	"context"
 	"sort"
 	"sync"
-	"testing"
 	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -56,7 +55,10 @@ func New(ctx context.Context,
 	return c
 }
 
-// Component manages stateful duties for given public keys over a sliding window of slots and epochs.
+// Component manages stateful duties for specified public keys within a sliding window of slots and epochs.
+// It maintains a set of duties to be performed within the sliding window, which has a length equal to epochWindow.
+// The sliding window begins from the current epoch and instantiates validator roles (e.g., attester, syncCommMember)
+// for each slot within the window upon startup or at the beginning of each epoch.
 type Component struct {
 	// Immutable state.
 	eth2ClProvider func() (eth2wrap.Client, error)
@@ -81,7 +83,7 @@ type Component struct {
 func dutiesForSlot(slot metaSlot, types ...core.DutyType) map[scheduleTuple]struct{} {
 	resp := make(map[scheduleTuple]struct{})
 	for _, dutyType := range types {
-		dutyStartFuncs, ok := offsetFuncsByDuty[dutyType]
+		dutyStartFuncs, ok := dutyStartTimeFuncsByDuty[dutyType]
 		if !ok {
 			// Not offset func for duty
 			continue
@@ -142,6 +144,8 @@ func (m *Component) SlotTicked(ctx context.Context, slot core.Slot) error {
 }
 
 // scheduleSlot is called when the slot ticks and schedules duties for the provided slot.
+// It schedules all the duties which are expected to be performed in the provided slot.
+// On startup or at the start of epoch it also instantiates the epoch state.
 func (m *Component) scheduleSlot(ctx context.Context, slot metaSlot) error {
 	isStartup := m.isStartup() // Trigger startup duties on first call to this method
 
@@ -298,6 +302,7 @@ func (m *Component) runDuty(ctx context.Context, duty core.Duty) error {
 	return nil
 }
 
+// startAttesters instantiate and sets new attesters for the given epoch.
 func (m *Component) startAttesters(epoch metaEpoch) error {
 	for _, slot := range epoch.Slots() {
 		eth2Cl, err := m.eth2ClProvider()
@@ -312,6 +317,7 @@ func (m *Component) startAttesters(epoch metaEpoch) error {
 	return nil
 }
 
+// startSyncCommMembers instantiate and sets new sync committee members for the given epoch.
 func (m *Component) startSyncCommMembers(ctx context.Context, epoch metaEpoch) error {
 	eth2Cl, err := m.eth2ClProvider()
 	if err != nil {
@@ -328,6 +334,7 @@ func (m *Component) startSyncCommMembers(ctx context.Context, epoch metaEpoch) e
 	return nil
 }
 
+// deleteAttesters deletes all the attesters in the given epoch.
 func (m *Component) deleteAttesters(epoch metaEpoch) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -337,6 +344,7 @@ func (m *Component) deleteAttesters(epoch metaEpoch) {
 	}
 }
 
+// deleteSyncCommMembers deletes all the sync committee members in the given epoch.
 func (m *Component) deleteSyncCommMembers(epoch metaEpoch) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -344,6 +352,7 @@ func (m *Component) deleteSyncCommMembers(epoch metaEpoch) {
 	delete(m.syncCommsByEpoch, epoch.Epoch)
 }
 
+// slotAttester returns attester of the given slot.
 func (m *Component) slotAttester(slot uint64) *SlotAttester {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -351,6 +360,7 @@ func (m *Component) slotAttester(slot uint64) *SlotAttester {
 	return m.attestersBySlot[slot] // Make nil values valid noops
 }
 
+// syncCommMember returns sync committee member of the given epoch.
 func (m *Component) syncCommMember(epoch uint64) *SyncCommMember {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -358,15 +368,18 @@ func (m *Component) syncCommMember(epoch uint64) *SyncCommMember {
 	return m.syncCommsByEpoch[epoch]
 }
 
+// isStartup returns true if vmock is just started and sets started field to true.
 func (m *Component) isStartup() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	isStartup := !m.started
+	m.started = true
 
 	return isStartup
 }
 
+// setAttester sets attester with the given slot.
 func (m *Component) setAttester(attester *SlotAttester) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -374,6 +387,7 @@ func (m *Component) setAttester(attester *SlotAttester) {
 	m.attestersBySlot[uint64(attester.Slot())] = attester
 }
 
+// setSyncCommMember sets sync committee member with the given epoch.
 func (m *Component) setSyncCommMember(syncCommMem *SyncCommMember) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -395,11 +409,11 @@ func orderByTime(duties map[scheduleTuple]struct{}) []scheduleTuple {
 	return resp
 }
 
-// offsetFunc that returns the time at which a duty should be triggered for a given slot.
-type offsetFunc func(metaSlot) time.Time
+// dutyStartTimeFunc that returns the time at which a duty should be triggered for a given slot.
+type dutyStartTimeFunc func(metaSlot) time.Time
 
-// offsetFuncsByDuty defines the offsets by duty type.
-var offsetFuncsByDuty = map[core.DutyType][]offsetFunc{
+// dutyStartTimeFuncsByDuty defines the offsets by duty type.
+var dutyStartTimeFuncsByDuty = map[core.DutyType][]dutyStartTimeFunc{
 	core.DutyPrepareAggregator:       {startOfPrevEpoch, startOfCurrentEpoch},
 	core.DutyAttester:                {fraction(1, 3)}, // 1/3 slot duration
 	core.DutyAggregator:              {fraction(2, 3)}, // 2/3 slot duration
@@ -438,15 +452,4 @@ func slotStartTime(slot metaSlot) time.Time {
 // sleepUntil abstracts sleeping until a start time.
 var sleepUntil = func(startTime time.Time) <-chan time.Time {
 	return time.After(time.Until(startTime))
-}
-
-// SetSleepUntilForT sets the sleepUntil function for the duration of the test.
-func SetSleepUntilForT(t *testing.T, fn func(startTime time.Time) <-chan time.Time) {
-	t.Helper()
-	cached := sleepUntil
-	sleepUntil = fn
-
-	t.Cleanup(func() {
-		sleepUntil = cached
-	})
 }

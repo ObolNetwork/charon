@@ -94,7 +94,7 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 			break
 		}
 
-		_, _ = w.Write([]byte("===== " + step.Name + " step: docker-compose up =====\n"))
+		_, _ = w.Write([]byte("===== " + step.Name + " step: docker compose up =====\n"))
 
 		if err := execUp(ctx, conf.Dir, w); err != nil {
 			return err
@@ -104,9 +104,9 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 	// Ensure everything is clean before we start with alert test.
 	_ = execDown(ctx, conf.Dir)
 
-	_, _ = w.Write([]byte("===== run step: docker-compose up --no-start --build =====\n"))
+	_, _ = w.Write([]byte("===== run step: docker compose up --no-start --build =====\n"))
 
-	// Build and create docker-compose services before executing docker-compose up.
+	// Build and create docker-compose services before executing docker compose up.
 	if err = execBuildAndCreate(ctx, conf.Dir); err != nil {
 		return err
 	}
@@ -123,7 +123,7 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 		_ = execDown(context.Background(), conf.Dir)
 	}()
 
-	_, _ = w.Write([]byte("===== run step: docker-compose up =====\n"))
+	_, _ = w.Write([]byte("===== run step: docker compose up =====\n"))
 
 	if err = execUp(ctx, conf.Dir, w); err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		return err
@@ -183,9 +183,9 @@ func fixPerms(ctx context.Context, dir string) error {
 	return nil
 }
 
-// execDown executes `docker-compose down`.
+// execDown executes `docker compose down`.
 func execDown(ctx context.Context, dir string) error {
-	log.Info(ctx, "Executing docker-compose down")
+	log.Info(ctx, "Executing docker compose down")
 
 	cmd := exec.CommandContext(ctx, "docker", "compose", "down",
 		"--remove-orphans",
@@ -201,18 +201,18 @@ func execDown(ctx context.Context, dir string) error {
 	return nil
 }
 
-// execUp executes `docker-compose up` and it writes docker compose logs to the given out io.Writer.
+// execUp executes `docker compose up` and it writes docker compose logs to the given out io.Writer.
 func execUp(ctx context.Context, dir string, out io.Writer) error {
 	// Build first so containers start at the same time below.
 	log.Info(ctx, "Executing docker-compose build")
-	cmd := exec.CommandContext(ctx, "docker-compose", "build", "--parallel")
+	cmd := exec.CommandContext(ctx, "docker", "compose", "build", "--parallel")
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return errors.Wrap(err, "exec docker-compose build", z.Str("output", string(out)))
+		return errors.Wrap(err, "exec docker compose build", z.Str("output", string(out)))
 	}
 
-	log.Info(ctx, "Executing docker-compose up")
-	cmd = exec.CommandContext(ctx, "docker-compose", "up",
+	log.Info(ctx, "Executing docker compose up")
+	cmd = exec.CommandContext(ctx, "docker", "compose", "up",
 		"--remove-orphans",
 		"--abort-on-container-exit",
 		"--quiet-pull",
@@ -234,7 +234,7 @@ func execUp(ctx context.Context, dir string, out io.Writer) error {
 
 // execBuildAndCreate builds and creates containers. It should be called before execUp for run step.
 func execBuildAndCreate(ctx context.Context, dir string) error {
-	log.Info(ctx, "Executing docker-compose up --no-start --build")
+	log.Info(ctx, "Executing docker compose up --no-start --build")
 	cmd := exec.CommandContext(ctx, "docker", "compose", "up", "--no-start", "--build")
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
