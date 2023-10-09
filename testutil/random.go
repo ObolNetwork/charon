@@ -338,6 +338,18 @@ func RandomCapellaCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconBlo
 	}
 }
 
+func RandomDenebBlockContents() *eth2deneb.BlockContents {
+	signedBlockContents := RandomDenebSignedBlockContents()
+
+	var resp eth2deneb.BlockContents
+	resp.Block = signedBlockContents.SignedBlock.Message
+	for _, signedBlob := range signedBlockContents.SignedBlobSidecars {
+		resp.BlobSidecars = append(resp.BlobSidecars, signedBlob.Message)
+	}
+
+	return &resp
+}
+
 func RandomDenebSignedBlockContents() *eth2deneb.SignedBlockContents {
 	return &eth2deneb.SignedBlockContents{
 		SignedBlock:        RandomDenebSignedBeaconBlock(),

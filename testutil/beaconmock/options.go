@@ -467,6 +467,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		httpServer:   httpServer,
 		headProducer: headProducer,
 		BeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*denebcharon.VersionedBeaconBlock, error) {
+			// TODO(xenowits): Return a deneb block instead of a capella block.
 			block := &denebcharon.VersionedBeaconBlock{
 				Version: eth2spec.DataVersionCapella,
 				Capella: testutil.RandomCapellaBeaconBlock(),

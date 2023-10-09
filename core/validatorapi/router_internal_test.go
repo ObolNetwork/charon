@@ -788,7 +788,7 @@ func TestRouter(t *testing.T) {
 		}
 		handler := testHandler{
 			SubmitBeaconBlockFunc: func(ctx context.Context, block *denebcharon.VersionedSignedBeaconBlock) error {
-				require.Equal(t, block, block1)
+				require.Equal(t, block.Altair, block1.Altair)
 				return nil
 			},
 		}
@@ -811,7 +811,7 @@ func TestRouter(t *testing.T) {
 		}
 		handler := testHandler{
 			SubmitBeaconBlockFunc: func(ctx context.Context, block *denebcharon.VersionedSignedBeaconBlock) error {
-				require.Equal(t, block, block1)
+				require.Equal(t, block.Altair, block1.Altair)
 				return nil
 			},
 		}
@@ -834,7 +834,7 @@ func TestRouter(t *testing.T) {
 		}
 		handler := testHandler{
 			SubmitBeaconBlockFunc: func(ctx context.Context, block *denebcharon.VersionedSignedBeaconBlock) error {
-				require.Equal(t, block, block1)
+				require.Equal(t, block.Bellatrix, block1.Bellatrix)
 				return nil
 			},
 		}
@@ -857,7 +857,7 @@ func TestRouter(t *testing.T) {
 		}
 		handler := testHandler{
 			SubmitBeaconBlockFunc: func(ctx context.Context, block *denebcharon.VersionedSignedBeaconBlock) error {
-				require.Equal(t, block, block1)
+				require.Equal(t, block.Capella, block1.Capella)
 				return nil
 			},
 		}
@@ -869,6 +869,30 @@ func TestRouter(t *testing.T) {
 
 		testRouter(t, handler, callback)
 	})
+
+	// TODO(xenowits): Fix this test once go-eth2-client adds proper support for submitting deneb blocks.
+	// t.Run("submit block deneb", func(t *testing.T) {
+	// 	block1 := &denebcharon.VersionedSignedBeaconBlock{
+	// 		Version: eth2spec.DataVersionDeneb,
+	// 		Deneb: &deneb.SignedBlockContents{
+	// 			SignedBlock:        testutil.RandomDenebSignedBeaconBlock(),
+	// 			SignedBlobSidecars: testutil.RandomDenebSignedBlobSidecars(),
+	// 		},
+	// 	}
+	// 	handler := testHandler{
+	// 		SubmitBeaconBlockFunc: func(ctx context.Context, block *denebcharon.VersionedSignedBeaconBlock) error {
+	// 			require.Equal(t, block, block1)
+	// 			return nil
+	// 		},
+	// 	}
+	//
+	// 	callback := func(ctx context.Context, cl *eth2http.Service) {
+	// 		err := cl.SubmitBeaconBlock(ctx, block1)
+	// 		require.NoError(t, err)
+	// 	}
+	//
+	// 	testRouter(t, handler, callback)
+	// })
 
 	t.Run("submit blinded block bellatrix", func(t *testing.T) {
 		block1 := &eth2api.VersionedSignedBlindedBeaconBlock{

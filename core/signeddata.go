@@ -1596,19 +1596,18 @@ func (SyncContributionAndProof) DomainNames() []signing.DomainName {
 	return []signing.DomainName{signing.DomainContributionAndProof}
 }
 
-func (SyncContributionAndProof) MessageRoots() ([][32]byte, error) {
-	// TODO implement me
-	panic("implement me")
-}
+func (s SyncContributionAndProof) MessageRoots() ([][32]byte, error) {
+	data := altair.SyncAggregatorSelectionData{
+		Slot:              s.ContributionAndProof.Contribution.Slot,
+		SubcommitteeIndex: s.ContributionAndProof.Contribution.SubcommitteeIndex,
+	}
 
-func (SyncContributionAndProof) Signatures() []Signature {
-	// TODO implement me
-	panic("implement me")
-}
+	root, err := data.HashTreeRoot()
+	if err != nil {
+		return nil, errors.Wrap(err, "hash sync contribution and proof")
+	}
 
-func (SyncContributionAndProof) SetSignatures(_ []Signature) (SignedData, error) {
-	// TODO implement me
-	panic("implement me")
+	return [][32]byte{root}, nil
 }
 
 // MessageRoot returns the signing root for the provided SyncContributionAndProof.
@@ -1635,6 +1634,25 @@ func (s SyncContributionAndProof) SetSignature(sig Signature) (SignedData, error
 	resp.SelectionProof = sig.ToETH2()
 
 	return resp, err
+}
+
+func (s SyncContributionAndProof) Signatures() []Signature {
+	return []Signature{SigFromETH2(s.ContributionAndProof.SelectionProof)}
+}
+
+func (s SyncContributionAndProof) SetSignatures(sigs []Signature) (SignedData, error) {
+	resp, err := s.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(sigs) > 1 {
+		return nil, errors.New("more than 1 signatures found")
+	}
+
+	resp.SelectionProof = sigs[0].ToETH2()
+
+	return resp, nil
 }
 
 func (s SyncContributionAndProof) Clone() (SignedData, error) {

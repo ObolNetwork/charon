@@ -130,7 +130,12 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client) (*mux.Rou
 			Handler: proposeBlock(h),
 		},
 		{
-			Name:    "submit_block",
+			Name:    "submit_block_v1",
+			Path:    "/eth/v1/beacon/blocks",
+			Handler: submitBlock(h),
+		},
+		{
+			Name:    "submit_block_v2",
 			Path:    "/eth/v2/beacon/blocks",
 			Handler: submitBlock(h),
 		},
