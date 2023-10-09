@@ -129,6 +129,10 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 		combinedKeys = append(combinedKeys, secret)
 	}
 
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return errors.Wrap(err, "ensure output directory exists", z.Str("output_dir", outputDir))
+	}
+
 	ksPath := filepath.Join(outputDir, "keystore-0.json")
 	_, err = os.Stat(ksPath)
 	if err == nil && !force {

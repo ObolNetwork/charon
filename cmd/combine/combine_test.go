@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"testing"
 
@@ -249,7 +250,7 @@ func combineTest(
 	}
 
 	dir := t.TempDir()
-	od := t.TempDir()
+	od := path.Join(dir, "validator_keys")
 
 	// flatten secrets, each validator slice is unpacked in a flat structure
 	var rawSecrets []tbls.PrivateKey
