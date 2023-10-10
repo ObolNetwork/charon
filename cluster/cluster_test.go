@@ -294,7 +294,7 @@ func TestGenerateLatestLock(t *testing.T) {
 		enrKeys   []*k1.PrivateKey
 		keyshares []tbls.PrivateKey
 	)
-	for i := 0; i < len(oldLock.Operators); i++ {
+	for i := 0; i < len(oldLock.Definition.Operators); i++ {
 		keyFiles, err := keystore.LoadFilesUnordered(fmt.Sprintf("../.charon/node%d/validator_keys", i))
 		require.NoError(t, err)
 
@@ -351,7 +351,7 @@ func TestGenerateLatestLock(t *testing.T) {
 }
 
 type oldLockJSON struct {
-	cluster.Definition `json:"cluster_definition"`
+	Definition         cluster.Definition      `json:"cluster_definition"`
 	Validators         []distValidatorJSONv1x7 `json:"distributed_validators"`
 	SignatureAggregate ethHex                  `json:"signature_aggregate"`
 	LockHash           ethHex                  `json:"lock_hash"`
