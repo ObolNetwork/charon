@@ -79,11 +79,11 @@ func NewPartialSignature(sig Signature, shareIdx int) ParSignedData {
 type Signature []byte
 
 func (Signature) HashRoot() ([32]byte, error) {
-	return [32]byte{}, errors.New("signed data root not supported by signature type")
+	return [32]byte{}, errors.New("signed hash root not supported by signature type")
 }
 
 func (Signature) MessageRoots() ([][32]byte, error) {
-	return [][32]byte{}, errors.New("signed data root not supported by signature type")
+	return [][32]byte{}, errors.New("signed message root not supported by signature type")
 }
 
 func (s Signature) Clone() (SignedData, error) {
@@ -189,7 +189,7 @@ func (b VersionedSignedBeaconBlock) HashRoot() ([32]byte, error) {
 		return [32]byte{}, err
 	}
 
-	// TODO(xenowits): Return hash tree root of all roots when len(roots) > 1
+	// TODO(xenowits/deneb): Return hash tree root of all roots when len(roots) > 1
 	return roots[0], nil
 }
 
@@ -415,7 +415,7 @@ func NewPartialVersionedSignedBlindedBeaconBlock(block *eth2api.VersionedSignedB
 	}
 
 	return ParSignedData{
-		SignedData: &wrap,
+		SignedData: wrap,
 		ShareIdx:   shareIdx,
 	}, nil
 }
@@ -1402,8 +1402,8 @@ func (s SyncContributionAndProof) SetSignatures(sigs []Signature) (SignedData, e
 		return nil, err
 	}
 
-	if len(sigs) > 1 {
-		return nil, errors.New("more than 1 signatures found")
+	if len(sigs) == 0 {
+		return nil, errors.New("zero signatures")
 	}
 
 	resp.SelectionProof = sigs[0].ToETH2()
@@ -1507,8 +1507,8 @@ func (s SignedSyncContributionAndProof) SetSignatures(sigs []Signature) (SignedD
 		return nil, err
 	}
 
-	if len(sigs) > 1 {
-		return nil, errors.New("signatures exceed 1")
+	if len(sigs) == 0 {
+		return nil, errors.New("zero signatures")
 	}
 
 	resp.SignedContributionAndProof.Signature = sigs[0].ToETH2()
