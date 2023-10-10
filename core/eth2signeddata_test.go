@@ -92,15 +92,15 @@ func TestVerifyEth2SignedData(t *testing.T) {
 			epoch, err := test.data.Epoch(context.Background(), bmock)
 			require.NoError(t, err)
 
-			root, err := test.data.MessageRoot()
+			roots, err := test.data.MessageRoots()
 			require.NoError(t, err)
 
-			sigData, err := signing.GetDataRoot(context.Background(), bmock, test.data.DomainName(), epoch, root)
+			sigData, err := signing.GetDataRoot(context.Background(), bmock, test.data.DomainNames()[0], epoch, roots[0])
 			require.NoError(t, err)
 
 			sig, pubkey := sign(t, sigData[:])
 
-			s, err := test.data.SetSignature(sig)
+			s, err := test.data.SetSignatures([]core.Signature{sig})
 			require.NoError(t, err)
 
 			eth2Signed, ok := s.(core.Eth2SignedData)

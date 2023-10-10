@@ -195,9 +195,9 @@ func TestParSignedData(t *testing.T) {
 func TestSetSignature(t *testing.T) {
 	for typ, signedData := range randomSignedData(t) {
 		t.Run(typ.String(), func(t *testing.T) {
-			signedData2, err := signedData.SetSignature(testutil.RandomCoreSignature())
+			signedData2, err := signedData.SetSignatures([]core.Signature{testutil.RandomCoreSignature()})
 			require.NoError(t, err)
-			require.NotEqual(t, signedData.Signature(), signedData2.Signature()) // Asset original not modified
+			require.NotEqual(t, signedData.Signatures(), signedData2.Signatures()) // Asset original not modified
 		})
 	}
 }

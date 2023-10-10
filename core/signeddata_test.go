@@ -100,14 +100,14 @@ func TestSignedDataSetSignature(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			clone, err := test.data.SetSignature(testutil.RandomCoreSignature())
+			clone, err := test.data.SetSignatures([]core.Signature{testutil.RandomCoreSignature()})
 			require.NoError(t, err)
-			require.NotEqual(t, clone.Signature(), test.data.Signature())
-			require.NotEmpty(t, clone.Signature())
+			require.NotEqual(t, clone.Signatures(), test.data.Signatures())
+			require.NotEmpty(t, clone.Signatures())
 
-			msgRoot, err := test.data.MessageRoot()
+			msgRoot, err := test.data.MessageRoots()
 			require.NoError(t, err)
-			cloneRoot, err := test.data.MessageRoot()
+			cloneRoot, err := test.data.MessageRoots()
 			require.NoError(t, err)
 			require.Equal(t, msgRoot, cloneRoot)
 		})

@@ -204,11 +204,11 @@ func getThresholdMatching(typ core.DutyType, sigs []core.ParSignedData, threshol
 		return sigs, len(sigs) == threshold, nil
 	}
 
-	sigsByMsgRoot := make(map[[32]byte][]core.ParSignedData)
+	sigsByMsgRoot := make(map[[32]byte][]core.ParSignedData) // map[Root][]ParSignedData
 	for _, sig := range sigs {
-		root, err := sig.MessageRoot()
+		root, err := sig.HashRoot()
 		if err != nil {
-			return nil, false, errors.Wrap(err, "message root")
+			return nil, false, errors.Wrap(err, "message hash root")
 		}
 
 		sigsByMsgRoot[root] = append(sigsByMsgRoot[root], sig)
