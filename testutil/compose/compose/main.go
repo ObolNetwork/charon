@@ -198,5 +198,5 @@ func addDirFlag(flags *pflag.FlagSet) *string {
 }
 
 func addUpFlag(flags *pflag.FlagSet) *bool {
-	return flags.Bool("up", true, "Execute `docker-compose up` when compose command completes")
+	return flags.Bool("up", true, "Execute `docker compose up` when compose command completes")
 }
