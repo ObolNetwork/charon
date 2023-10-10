@@ -3,6 +3,7 @@
 package cluster_test
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -11,10 +12,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util"
@@ -283,7 +286,7 @@ func TestGenerateLatestLock(t *testing.T) {
 	lockBytes, err := os.ReadFile("../.charon/node0/cluster-lock.json")
 	require.NoError(t, err)
 
-	var oldLock cluster.Lock
+	var oldLock oldLockJSON
 	err = json.Unmarshal(lockBytes, &oldLock)
 	require.NoError(t, err)
 
@@ -308,7 +311,7 @@ func TestGenerateLatestLock(t *testing.T) {
 
 	newLock := cluster.Lock{
 		Definition: oldLock.Definition,
-		Validators: oldLock.Validators,
+		Validators: distValidatorsFromV1x7OrLater(t, oldLock.Validators),
 	}
 
 	newLock, err = newLock.SetLockHash()
@@ -345,4 +348,111 @@ func TestGenerateLatestLock(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, os.WriteFile("cluster-lock.json", lockBytes, 0o444))
+}
+
+type oldLockJSON struct {
+	cluster.Definition `json:"cluster_definition"`
+	Validators         []distValidatorJSONv1x7 `json:"distributed_validators"`
+	SignatureAggregate ethHex                  `json:"signature_aggregate"`
+	LockHash           ethHex                  `json:"lock_hash"`
+	NodeSignatures     []ethHex                `json:"node_signatures"`
+}
+
+type ethHex []byte
+
+func (h *ethHex) UnmarshalJSON(data []byte) error {
+	var strHex string
+	if err := json.Unmarshal(data, &strHex); err != nil {
+		return errors.Wrap(err, "unmarshal hex string")
+	}
+
+	resp, err := hex.DecodeString(strings.TrimPrefix(strHex, "0x"))
+	if err != nil {
+		return errors.Wrap(err, "unmarshal hex")
+	}
+
+	*h = resp
+
+	return nil
+}
+
+func (h ethHex) MarshalJSON() ([]byte, error) {
+	resp, err := json.Marshal(to0xHex(h))
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal hex")
+	}
+
+	return resp, nil
+}
+
+func to0xHex(b []byte) string {
+	if len(b) == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("%#x", b)
+}
+
+type distValidatorJSONv1x7 struct {
+	PubKey              ethHex                  `json:"distributed_public_key"`
+	PubShares           []ethHex                `json:"public_shares,omitempty"`
+	DepositData         depositDataJSON         `json:"deposit_data,omitempty"`
+	BuilderRegistration builderRegistrationJSON `json:"builder_registration,omitempty"`
+}
+
+type depositDataJSON struct {
+	PubKey                ethHex `json:"pubkey"`
+	WithdrawalCredentials ethHex `json:"withdrawal_credentials"`
+	Amount                int    `json:"amount,string"`
+	Signature             ethHex `json:"signature"`
+}
+
+type builderRegistrationJSON struct {
+	Message   registrationJSON `json:"message"`
+	Signature ethHex           `json:"signature"`
+}
+
+// registrationJSON is the json formatter of Registration.
+type registrationJSON struct {
+	FeeRecipient ethHex `json:"fee_recipient"`
+	GasLimit     int    `json:"gas_limit"`
+	Timestamp    string `json:"timestamp"`
+	PubKey       ethHex `json:"pubkey"`
+}
+
+func distValidatorsFromV1x7OrLater(t *testing.T, distValidators []distValidatorJSONv1x7) []cluster.DistValidator {
+	t.Helper()
+
+	var resp []cluster.DistValidator
+	for _, dv := range distValidators {
+		var shares [][]byte
+		for _, share := range dv.PubShares {
+			shares = append(shares, share)
+		}
+
+		timestamp, err := time.Parse(time.RFC3339, dv.BuilderRegistration.Message.Timestamp)
+		require.NoError(t, err)
+
+		resp = append(resp, cluster.DistValidator{
+			PubKey:    dv.PubKey,
+			PubShares: shares,
+			DepositData: cluster.DepositData{
+				PubKey:                dv.DepositData.PubKey,
+				WithdrawalCredentials: dv.DepositData.WithdrawalCredentials,
+				Amount:                dv.DepositData.Amount,
+				Signature:             dv.DepositData.Signature,
+			},
+			BuilderRegistration: cluster.BuilderRegistration{
+				Message: cluster.Registration{
+					FeeRecipient: dv.BuilderRegistration.Message.FeeRecipient,
+					GasLimit:     dv.BuilderRegistration.Message.GasLimit,
+					Timestamp:    timestamp,
+					PubKey:       dv.BuilderRegistration.Message.PubKey,
+				},
+				Signature: dv.BuilderRegistration.Signature,
+			},
+		})
+	}
+
+	return resp
 }
