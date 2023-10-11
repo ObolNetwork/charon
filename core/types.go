@@ -391,8 +391,6 @@ type SignedData interface {
 	SetSignatures([]Signature) (SignedData, error)
 	// MessageRoots returns the unsigned data message roots.
 	MessageRoots() ([][32]byte, error)
-	// HashRoot returns the final root of the unsigned data.
-	HashRoot() ([32]byte, error)
 	// Clone returns a cloned copy of the SignedData. For an immutable core workflow architecture,
 	// remember to clone data when it leaves the current scope (sharing, storing, returning, etc).
 	Clone() (SignedData, error)

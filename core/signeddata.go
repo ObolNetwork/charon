@@ -59,6 +59,33 @@ var (
 	_ ssz.Unmarshaler = new(SignedSyncContributionAndProof)
 )
 
+// HashMessageRoots hashes together the message roots of the provided SignedData and returns the final hash.
+// It provides a unique fingerprint/digest of the SignedData instance.
+func HashMessageRoots(data SignedData) ([32]byte, error) {
+	roots, err := data.MessageRoots()
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "message roots")
+	}
+
+	hh := ssz.DefaultHasherPool.Get()
+	defer ssz.DefaultHasherPool.Put(hh)
+
+	indx := hh.Index()
+
+	for _, root := range roots {
+		hh.PutBytes(root[:])
+	}
+
+	hh.Merkleize(indx)
+
+	resp, err := hh.HashRoot()
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash root")
+	}
+
+	return resp, nil
+}
+
 // SigFromETH2 returns a new signature from eth2 phase0 BLSSignature.
 func SigFromETH2(sig eth2p0.BLSSignature) Signature {
 	s := make(Signature, sigLen)
@@ -77,10 +104,6 @@ func NewPartialSignature(sig Signature, shareIdx int) ParSignedData {
 
 // Signature is a BLS12-381 Signature. It implements SignedData.
 type Signature []byte
-
-func (Signature) HashRoot() ([32]byte, error) {
-	return [32]byte{}, errors.New("signed hash root not supported by signature type")
-}
 
 func (Signature) MessageRoots() ([][32]byte, error) {
 	return [][32]byte{}, errors.New("signed message root not supported by signature type")
@@ -181,16 +204,6 @@ func NewPartialVersionedSignedBeaconBlock(block *eth2spec.VersionedSignedBeaconB
 // VersionedSignedBeaconBlock is a signed versioned beacon block and implements SignedData.
 type VersionedSignedBeaconBlock struct {
 	eth2spec.VersionedSignedBeaconBlock // Could subtype instead of embed, but aligning with Attestation that cannot subtype.
-}
-
-func (b VersionedSignedBeaconBlock) HashRoot() ([32]byte, error) {
-	roots, err := b.MessageRoots()
-	if err != nil {
-		return [32]byte{}, err
-	}
-
-	// TODO(xenowits/deneb): Return hash tree root of all roots when len(roots) > 1
-	return roots[0], nil
 }
 
 func (b VersionedSignedBeaconBlock) MessageRoots() ([][32]byte, error) {
@@ -425,15 +438,6 @@ type VersionedSignedBlindedBeaconBlock struct {
 	eth2api.VersionedSignedBlindedBeaconBlock // Could subtype instead of embed, but aligning with Attestation that cannot subtype.
 }
 
-func (b VersionedSignedBlindedBeaconBlock) HashRoot() ([32]byte, error) {
-	roots, err := b.MessageRoots()
-	if err != nil {
-		return [32]byte{}, err
-	}
-
-	return roots[0], nil
-}
-
 func (b VersionedSignedBlindedBeaconBlock) MessageRoots() ([][32]byte, error) {
 	switch b.Version {
 	// No block nil checks since `NewVersionedSignedBlindedBeaconBlock` assumed.
@@ -613,10 +617,6 @@ type Attestation struct {
 	eth2p0.Attestation
 }
 
-func (a Attestation) HashRoot() ([32]byte, error) {
-	return a.Data.HashTreeRoot()
-}
-
 func (a Attestation) MessageRoots() ([][32]byte, error) {
 	root, err := a.Data.HashTreeRoot()
 	if err != nil {
@@ -701,10 +701,6 @@ func NewPartialSignedVoluntaryExit(exit *eth2p0.SignedVoluntaryExit, shareIdx in
 
 type SignedVoluntaryExit struct {
 	eth2p0.SignedVoluntaryExit
-}
-
-func (e SignedVoluntaryExit) HashRoot() ([32]byte, error) {
-	return e.Message.HashTreeRoot()
 }
 
 func (e SignedVoluntaryExit) MessageRoots() ([][32]byte, error) {
@@ -795,15 +791,6 @@ func NewPartialVersionedSignedValidatorRegistration(registration *eth2api.Versio
 // VersionedSignedValidatorRegistration is a signed versioned validator (builder) registration and implements SignedData.
 type VersionedSignedValidatorRegistration struct {
 	eth2api.VersionedSignedValidatorRegistration
-}
-
-func (r VersionedSignedValidatorRegistration) HashRoot() ([32]byte, error) {
-	roots, err := r.MessageRoots()
-	if err != nil {
-		return [32]byte{}, err
-	}
-
-	return roots[0], nil
 }
 
 func (r VersionedSignedValidatorRegistration) MessageRoots() ([][32]byte, error) {
@@ -945,15 +932,6 @@ type SignedRandao struct {
 	eth2util.SignedEpoch
 }
 
-func (s SignedRandao) HashRoot() ([32]byte, error) {
-	roots, err := s.MessageRoots()
-	if err != nil {
-		return [32]byte{}, err
-	}
-
-	return roots[0], nil
-}
-
 func (s SignedRandao) MessageRoots() ([][32]byte, error) {
 	msgRoot, err := s.SignedEpoch.HashTreeRoot()
 	if err != nil {
@@ -1022,15 +1000,6 @@ func NewPartialSignedBeaconCommitteeSelection(selection *eth2exp.BeaconCommittee
 // BeaconCommitteeSelection wraps a BeaconCommitteeSelection which implements SignedData.
 type BeaconCommitteeSelection struct {
 	eth2exp.BeaconCommitteeSelection
-}
-
-func (s BeaconCommitteeSelection) HashRoot() ([32]byte, error) {
-	msgRoot, err := eth2util.SlotHashRoot(s.Slot)
-	if err != nil {
-		return [32]byte{}, err
-	}
-
-	return msgRoot, nil
 }
 
 func (s BeaconCommitteeSelection) MessageRoots() ([][32]byte, error) {
@@ -1103,15 +1072,6 @@ type SyncCommitteeSelection struct {
 	eth2exp.SyncCommitteeSelection
 }
 
-func (s SyncCommitteeSelection) HashRoot() ([32]byte, error) {
-	roots, err := s.MessageRoots()
-	if err != nil {
-		return [32]byte{}, err
-	}
-
-	return roots[0], nil
-}
-
 // MessageRoots returns the signing roots for the provided SyncCommitteeSelection.
 // Refer https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#syncaggregatorselectiondata
 func (s SyncCommitteeSelection) MessageRoots() ([][32]byte, error) {
@@ -1181,15 +1141,6 @@ func NewPartialSignedAggregateAndProof(data *eth2p0.SignedAggregateAndProof, sha
 // SignedAggregateAndProof wraps eth2p0.SignedAggregateAndProof and implements SignedData.
 type SignedAggregateAndProof struct {
 	eth2p0.SignedAggregateAndProof
-}
-
-func (s SignedAggregateAndProof) HashRoot() ([32]byte, error) {
-	roots, err := s.MessageRoots()
-	if err != nil {
-		return [32]byte{}, err
-	}
-
-	return roots[0], nil
 }
 
 func (s SignedAggregateAndProof) MessageRoots() ([][32]byte, error) {
@@ -1278,10 +1229,6 @@ type SignedSyncMessage struct {
 	altair.SyncCommitteeMessage
 }
 
-func (s SignedSyncMessage) HashRoot() ([32]byte, error) {
-	return s.BeaconBlockRoot, nil
-}
-
 func (s SignedSyncMessage) MessageRoots() ([][32]byte, error) {
 	return [][32]byte{s.BeaconBlockRoot}, nil
 }
@@ -1361,15 +1308,6 @@ func NewPartialSyncContributionAndProof(proof *altair.ContributionAndProof, shar
 // SyncContributionAndProof wraps altair.ContributionAndProof and implements SignedData.
 type SyncContributionAndProof struct {
 	altair.ContributionAndProof
-}
-
-func (s SyncContributionAndProof) HashRoot() ([32]byte, error) {
-	roots, err := s.MessageRoots()
-	if err != nil {
-		return [32]byte{}, err
-	}
-
-	return roots[0], nil
 }
 
 // MessageRoots returns the signing roots for the provided SyncContributionAndProof.
@@ -1471,15 +1409,6 @@ func NewPartialSignedSyncContributionAndProof(proof *altair.SignedContributionAn
 // SignedSyncContributionAndProof wraps altair.SignedContributionAndProof and implements SignedData.
 type SignedSyncContributionAndProof struct {
 	altair.SignedContributionAndProof
-}
-
-func (s SignedSyncContributionAndProof) HashRoot() ([32]byte, error) {
-	roots, err := s.MessageRoots()
-	if err != nil {
-		return [32]byte{}, err
-	}
-
-	return roots[0], nil
 }
 
 // MessageRoots returns the signing roots for the provided SignedSyncContributionAndProof.
