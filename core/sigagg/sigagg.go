@@ -93,7 +93,7 @@ func (a *Aggregator) aggregate(ctx context.Context, pubkey core.PubKey, parSigs 
 	// +=============+============+============+============+============+
 	// | Charon 0    | ParSig[00] | ParSig[01] | ParSig[02] | ParSig[03] |
 	// 	+-------------+------------+------------+------------+------------+
-	// | Charon 1    | ParSig[10] | ParSig[01] | ParSig[12] | ParSig[13] |
+	// | Charon 1    | ParSig[10] | ParSig[11] | ParSig[12] | ParSig[13] |
 	// 	+-------------+------------+------------+------------+------------+
 	// | Charon 2    | ParSig[20] | ParSig[21] | ParSig[22] | ParSig[23] |
 	// 	+-------------+------------+------------+------------+------------+
@@ -103,6 +103,7 @@ func (a *Aggregator) aggregate(ctx context.Context, pubkey core.PubKey, parSigs 
 	// 	+-------------+------------+------------+------------+------------+
 
 	parsigsPerPeer := make(map[int][]tbls.Signature)
+	var peerSigsLen int // Length of signatures for each charon peer
 	for _, parSig := range parSigs {
 		var sigs []tbls.Signature
 		for _, s := range parSig.Signatures() {
@@ -115,30 +116,26 @@ func (a *Aggregator) aggregate(ctx context.Context, pubkey core.PubKey, parSigs 
 		}
 
 		parsigsPerPeer[parSig.ShareIdx] = sigs
+
+		if peerSigsLen == 0 {
+			peerSigsLen = len(sigs)
+		} else if peerSigsLen > 0 && peerSigsLen != len(sigs) {
+			// Check if each peer has the same number of signatures.
+			return nil, errors.New("number of signatures for each peer doesn't match", z.Int("peer_x", peerSigsLen), z.Int("peer_y", len(sigs)))
+		}
 	}
 
 	if len(parsigsPerPeer) < a.threshold {
 		return nil, errors.New("number of partial signatures less than threshold", z.Int("threshold", a.threshold), z.Int("got", len(parsigsPerPeer)))
 	}
-
-	// Check if each peer has the same number of signatures.
-	sigLens := make(map[int]struct{})
-	var sigLen int
-	for _, row := range parsigsPerPeer {
-		sigLen = len(row)
-		sigLens[sigLen] = struct{}{}
-	}
-	if sigLen == 0 {
-		return nil, errors.New("empty signatures")
-	}
-	if len(sigLens) > 1 {
-		return nil, errors.New("number of signatures for each peer doesn't match")
+	if peerSigsLen == 0 {
+		return nil, errors.New("no signatures for each peer")
 	}
 
 	// Aggregate signatures
-	_, span := tracer.Start(ctx, "tbls.Aggregate")
+	_, span := tracer.Start(ctx, "tbls.ThresholdAggregate")
 	var aggregatedSigs []core.Signature
-	for i := 0; i < sigLen; i++ { // Aggregate partial signatures from each column
+	for i := 0; i < peerSigsLen; i++ { // Aggregate partial signatures from each column
 		parsigs := make(map[int]tbls.Signature)
 		for shareIdx, parsig := range parsigsPerPeer {
 			parsigs[shareIdx] = parsig[i]

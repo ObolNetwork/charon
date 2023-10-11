@@ -151,6 +151,7 @@ func ParSignedDataToProto(data ParSignedData) (*pbv1.ParSignedData, error) {
 
 	return &pbv1.ParSignedData{
 		Data:       d,
+		Signature:  sigs[0], // TODO(xenowits): Remove this when v0.19.0 is released.
 		Signatures: sigs,
 		ShareIdx:   int32(data.ShareIdx),
 	}, nil

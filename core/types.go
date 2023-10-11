@@ -389,7 +389,7 @@ type SignedData interface {
 	Signatures() []Signature
 	// SetSignatures returns a copy of signed duty data with the signatures replaced.
 	SetSignatures([]Signature) (SignedData, error)
-	// MessageRoots returns the unsigned data message roots.
+	// MessageRoots returns the message roots for the unsigned data corresponding to each signature.
 	MessageRoots() ([][32]byte, error)
 	// Clone returns a cloned copy of the SignedData. For an immutable core workflow architecture,
 	// remember to clone data when it leaves the current scope (sharing, storing, returning, etc).
@@ -401,7 +401,7 @@ type SignedData interface {
 // Eth2SignedData wraps SignedData and adds eth2 BLS signature specific methods.
 type Eth2SignedData interface {
 	SignedData
-	// DomainNames returns domains associated with underlying signed data.
+	// DomainNames returns domain names associated with underlying signature types of the signed data.
 	DomainNames() []signing.DomainName
 	// Epoch returns eth2p0.Epoch associated with underlying type.
 	Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error)

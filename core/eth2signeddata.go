@@ -43,6 +43,13 @@ func VerifyEth2SignedData(ctx context.Context, eth2Cl eth2wrap.Client, data Eth2
 		return err
 	}
 
+	if len(domainNames) != len(msgRoots) {
+		return errors.New("mismatching lengths", z.Int("domain_names", len(domainNames)), z.Int("message_roots", len(msgRoots)))
+	}
+	if len(domainNames) != len(sigs) {
+		return errors.New("mismatching lengths", z.Int("domain_names", len(domainNames)), z.Int("signatures", len(sigs)))
+	}
+
 	for i, sig := range sigs {
 		err = signing.Verify(ctx, eth2Cl, domainNames[i], epoch, msgRoots[i], sig.ToETH2(), pubkey)
 		if err != nil {
