@@ -1363,10 +1363,6 @@ type SyncContributionAndProof struct {
 	altair.ContributionAndProof
 }
 
-func (SyncContributionAndProof) DomainNames() []signing.DomainName {
-	return []signing.DomainName{signing.DomainContributionAndProof}
-}
-
 func (s SyncContributionAndProof) HashRoot() ([32]byte, error) {
 	roots, err := s.MessageRoots()
 	if err != nil {
@@ -1433,8 +1429,8 @@ func (s *SyncContributionAndProof) UnmarshalJSON(input []byte) error {
 	return s.ContributionAndProof.UnmarshalJSON(input)
 }
 
-func (SyncContributionAndProof) DomainName() signing.DomainName {
-	return signing.DomainSyncCommitteeSelectionProof
+func (SyncContributionAndProof) DomainNames() []signing.DomainName {
+	return []signing.DomainName{signing.DomainSyncCommitteeSelectionProof}
 }
 
 func (s SyncContributionAndProof) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {

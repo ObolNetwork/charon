@@ -38,13 +38,13 @@ func VerifyEth2SignedData(ctx context.Context, eth2Cl eth2wrap.Client, data Eth2
 
 	sigs := data.Signatures()
 	domainNames := data.DomainNames()
-	sigRoots, err := data.MessageRoots()
+	msgRoots, err := data.MessageRoots()
 	if err != nil {
 		return err
 	}
 
 	for i, sig := range sigs {
-		err = signing.Verify(ctx, eth2Cl, domainNames[i], epoch, sigRoots[i], sig.ToETH2(), pubkey)
+		err = signing.Verify(ctx, eth2Cl, domainNames[i], epoch, msgRoots[i], sig.ToETH2(), pubkey)
 		if err != nil {
 			return errors.Wrap(err, "verify signed data", z.Str("domain", string(domainNames[i])))
 		}
