@@ -439,7 +439,7 @@ func extractParSigs(ctx context.Context, events []event) parsigsByMsg {
 		}
 		dedup[key] = true
 
-		root, err := e.parSig.MessageRoot()
+		root, err := core.HashMessageRoots(e.parSig.SignedData)
 		if err != nil {
 			log.Warn(ctx, "Parsig message root", err)
 			continue // Just log and ignore as this is highly unlikely and non-critical code.

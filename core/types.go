@@ -385,12 +385,12 @@ func (s UnsignedDataSet) Clone() (UnsignedDataSet, error) {
 
 // SignedData is a signed duty data.
 type SignedData interface {
-	// Signature returns the signed duty data's signature.
-	Signature() Signature
-	// SetSignature returns a copy of signed duty data with the signature replaced.
-	SetSignature(Signature) (SignedData, error)
-	// MessageRoot returns the unsigned data message root.
-	MessageRoot() ([32]byte, error)
+	// Signatures returns the signed duty data's signatures.
+	Signatures() []Signature
+	// SetSignatures returns a copy of signed duty data with the signatures replaced.
+	SetSignatures([]Signature) (SignedData, error)
+	// MessageRoots returns the message roots for the unsigned data corresponding to each signature.
+	MessageRoots() ([][32]byte, error)
 	// Clone returns a cloned copy of the SignedData. For an immutable core workflow architecture,
 	// remember to clone data when it leaves the current scope (sharing, storing, returning, etc).
 	Clone() (SignedData, error)
@@ -401,8 +401,8 @@ type SignedData interface {
 // Eth2SignedData wraps SignedData and adds eth2 BLS signature specific methods.
 type Eth2SignedData interface {
 	SignedData
-	// DomainName returns domain associated with underlying signed data.
-	DomainName() signing.DomainName
+	// DomainNames returns domain names associated with underlying signature types of the signed data.
+	DomainNames() []signing.DomainName
 	// Epoch returns eth2p0.Epoch associated with underlying type.
 	Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error)
 }

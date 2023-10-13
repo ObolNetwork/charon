@@ -46,7 +46,7 @@ const (
 //go:generate go test . -integration -v -run=TestSimnetDuties
 
 func TestSimnetDuties(t *testing.T) {
-	skipIfDisabled(t)
+	// skipIfDisabled(t)
 
 	tests := []struct {
 		name               string
@@ -371,7 +371,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 				actual, err := res.Data.MarshalJSON()
 				require.NoError(t, err)
 				require.Equal(t, expect, actual)
-				require.Equal(t, datas[res.Duty].Signature(), res.Data.Signature())
+				require.Equal(t, datas[res.Duty].Signatures(), res.Data.Signatures())
 			}
 
 			// Assert we get results for all types from all peers.
@@ -473,7 +473,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 		fmt.Sprintf("--name=%s", name),
 		fmt.Sprintf("--volume=%s:/keys", tempDir),
 		"--user=root", // Root required to read volume files in GitHub actions.
-		"consensys/teku:develop",
+		"consensys/teku:23.9.0",
 	}
 	dockerArgs = append(dockerArgs, tekuArgs...)
 	t.Logf("docker args: %v", dockerArgs)

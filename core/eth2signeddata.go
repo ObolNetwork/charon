@@ -7,7 +7,9 @@ import (
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
@@ -27,25 +29,41 @@ var (
 	_ Eth2SignedData = SyncCommitteeSelection{}
 )
 
-// VerifyEth2SignedData verifies signature associated with given Eth2SignedData.
+// VerifyEth2SignedData verifies signatures associated with the given Eth2SignedData.
 func VerifyEth2SignedData(ctx context.Context, eth2Cl eth2wrap.Client, data Eth2SignedData, pubkey tbls.PublicKey) error {
 	epoch, err := data.Epoch(ctx, eth2Cl)
 	if err != nil {
 		return err
 	}
 
-	sigRoot, err := data.MessageRoot()
+	sigs := data.Signatures()
+	domainNames := data.DomainNames()
+	msgRoots, err := data.MessageRoots()
 	if err != nil {
 		return err
 	}
 
-	return signing.Verify(ctx, eth2Cl, data.DomainName(), epoch, sigRoot, data.Signature().ToETH2(), pubkey)
+	if len(domainNames) != len(msgRoots) {
+		return errors.New("mismatching lengths", z.Int("domain_names", len(domainNames)), z.Int("message_roots", len(msgRoots)))
+	}
+	if len(domainNames) != len(sigs) {
+		return errors.New("mismatching lengths", z.Int("domain_names", len(domainNames)), z.Int("signatures", len(sigs)))
+	}
+
+	for i, sig := range sigs {
+		err = signing.Verify(ctx, eth2Cl, domainNames[i], epoch, msgRoots[i], sig.ToETH2(), pubkey)
+		if err != nil {
+			return errors.Wrap(err, "verify signed data", z.Str("domain", string(domainNames[i])))
+		}
+	}
+
+	return nil
 }
 
 // Implement Eth2SignedData for VersionedSignedBeaconBlock.
 
-func (VersionedSignedBeaconBlock) DomainName() signing.DomainName {
-	return signing.DomainBeaconProposer
+func (VersionedSignedBeaconBlock) DomainNames() []signing.DomainName {
+	return []signing.DomainName{signing.DomainBeaconProposer}
 }
 
 func (b VersionedSignedBeaconBlock) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
@@ -59,8 +77,8 @@ func (b VersionedSignedBeaconBlock) Epoch(ctx context.Context, eth2Cl eth2wrap.C
 
 // Implement Eth2SignedData for VersionedSignedBlindedBeaconBlock.
 
-func (VersionedSignedBlindedBeaconBlock) DomainName() signing.DomainName {
-	return signing.DomainBeaconProposer
+func (VersionedSignedBlindedBeaconBlock) DomainNames() []signing.DomainName {
+	return []signing.DomainName{signing.DomainBeaconProposer}
 }
 
 func (b VersionedSignedBlindedBeaconBlock) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
@@ -74,8 +92,8 @@ func (b VersionedSignedBlindedBeaconBlock) Epoch(ctx context.Context, eth2Cl eth
 
 // Implement Eth2SignedData for Attestation.
 
-func (Attestation) DomainName() signing.DomainName {
-	return signing.DomainBeaconAttester
+func (Attestation) DomainNames() []signing.DomainName {
+	return []signing.DomainName{signing.DomainBeaconAttester}
 }
 
 func (a Attestation) Epoch(_ context.Context, _ eth2wrap.Client) (eth2p0.Epoch, error) {
@@ -84,8 +102,8 @@ func (a Attestation) Epoch(_ context.Context, _ eth2wrap.Client) (eth2p0.Epoch, 
 
 // Implement Eth2SignedData for SignedVoluntaryExit.
 
-func (SignedVoluntaryExit) DomainName() signing.DomainName {
-	return signing.DomainExit
+func (SignedVoluntaryExit) DomainNames() []signing.DomainName {
+	return []signing.DomainName{signing.DomainExit}
 }
 
 func (e SignedVoluntaryExit) Epoch(_ context.Context, _ eth2wrap.Client) (eth2p0.Epoch, error) {
@@ -94,8 +112,8 @@ func (e SignedVoluntaryExit) Epoch(_ context.Context, _ eth2wrap.Client) (eth2p0
 
 // Implement Eth2SignedData for VersionedSignedValidatorRegistration.
 
-func (VersionedSignedValidatorRegistration) DomainName() signing.DomainName {
-	return signing.DomainApplicationBuilder
+func (VersionedSignedValidatorRegistration) DomainNames() []signing.DomainName {
+	return []signing.DomainName{signing.DomainApplicationBuilder}
 }
 
 func (VersionedSignedValidatorRegistration) Epoch(context.Context, eth2wrap.Client) (eth2p0.Epoch, error) {
@@ -105,8 +123,8 @@ func (VersionedSignedValidatorRegistration) Epoch(context.Context, eth2wrap.Clie
 
 // Implement Eth2SignedData for SignedRandao.
 
-func (SignedRandao) DomainName() signing.DomainName {
-	return signing.DomainRandao
+func (SignedRandao) DomainNames() []signing.DomainName {
+	return []signing.DomainName{signing.DomainRandao}
 }
 
 func (s SignedRandao) Epoch(_ context.Context, _ eth2wrap.Client) (eth2p0.Epoch, error) {
@@ -115,8 +133,8 @@ func (s SignedRandao) Epoch(_ context.Context, _ eth2wrap.Client) (eth2p0.Epoch,
 
 // Implement Eth2SignedData for BeaconCommitteeSelection.
 
-func (BeaconCommitteeSelection) DomainName() signing.DomainName {
-	return signing.DomainSelectionProof
+func (BeaconCommitteeSelection) DomainNames() []signing.DomainName {
+	return []signing.DomainName{signing.DomainSelectionProof}
 }
 
 func (s BeaconCommitteeSelection) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
@@ -125,8 +143,8 @@ func (s BeaconCommitteeSelection) Epoch(ctx context.Context, eth2Cl eth2wrap.Cli
 
 // Implement Eth2SignedData for SignedAggregateAndProof.
 
-func (SignedAggregateAndProof) DomainName() signing.DomainName {
-	return signing.DomainAggregateAndProof
+func (SignedAggregateAndProof) DomainNames() []signing.DomainName {
+	return []signing.DomainName{signing.DomainAggregateAndProof}
 }
 
 func (s SignedAggregateAndProof) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
@@ -135,8 +153,8 @@ func (s SignedAggregateAndProof) Epoch(ctx context.Context, eth2Cl eth2wrap.Clie
 
 // Implement Eth2SignedData for SignedSyncMessage.
 
-func (SignedSyncMessage) DomainName() signing.DomainName {
-	return signing.DomainSyncCommittee
+func (SignedSyncMessage) DomainNames() []signing.DomainName {
+	return []signing.DomainName{signing.DomainSyncCommittee}
 }
 
 func (s SignedSyncMessage) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
@@ -145,8 +163,8 @@ func (s SignedSyncMessage) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (e
 
 // Implement Eth2SignedData for SignedSyncContributionAndProof.
 
-func (SignedSyncContributionAndProof) DomainName() signing.DomainName {
-	return signing.DomainContributionAndProof
+func (SignedSyncContributionAndProof) DomainNames() []signing.DomainName {
+	return []signing.DomainName{signing.DomainContributionAndProof}
 }
 
 func (s SignedSyncContributionAndProof) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
@@ -155,8 +173,8 @@ func (s SignedSyncContributionAndProof) Epoch(ctx context.Context, eth2Cl eth2wr
 
 // Implement Eth2SignedData for SyncCommitteeSelection.
 
-func (SyncCommitteeSelection) DomainName() signing.DomainName {
-	return signing.DomainSyncCommitteeSelectionProof
+func (SyncCommitteeSelection) DomainNames() []signing.DomainName {
+	return []signing.DomainName{signing.DomainSyncCommitteeSelectionProof}
 }
 
 func (s SyncCommitteeSelection) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {

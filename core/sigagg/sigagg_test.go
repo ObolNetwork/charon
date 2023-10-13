@@ -76,7 +76,7 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 
 	att := core.NewAttestation(testutil.RandomAttestation())
 
-	msgRoot, err := att.MessageRoot()
+	msgRoots, err := att.MessageRoots()
 	require.NoError(t, err)
 
 	bmock, err := beaconmock.New()
@@ -85,7 +85,7 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 	epoch, err := att.Epoch(ctx, bmock)
 	require.NoError(t, err)
 
-	msg, err := signing.GetDataRoot(ctx, bmock, att.DomainName(), epoch, msgRoot)
+	msg, err := signing.GetDataRoot(ctx, bmock, att.DomainNames()[0], epoch, msgRoots[0])
 	require.NoError(t, err)
 
 	// Generate private shares
@@ -121,7 +121,7 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 	// Create expected aggregated signature
 	aggSig, err := tbls.ThresholdAggregate(psigs)
 	require.NoError(t, err)
-	expect := tblsconv.SigToCore(aggSig)
+	expect := []core.Signature{tblsconv.SigToCore(aggSig)}
 
 	agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 	require.NoError(t, err)
@@ -132,8 +132,8 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 	agg.Subscribe(func(_ context.Context, _ core.Duty, set core.SignedDataSet) error {
 		require.Len(t, set, 1)
 
-		require.Equal(t, expect, set[corePubKey].Signature())
-		sig, err := tblsconv.SigFromCore(set[corePubKey].Signature())
+		require.Equal(t, expect, set[corePubKey].Signatures())
+		sig, err := tblsconv.SigFromCore(set[corePubKey].Signatures()[0])
 		require.NoError(t, err)
 
 		require.NoError(t, tbls.Verify(pubKey, msg[:], sig))
@@ -160,10 +160,10 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 	require.NoError(t, err)
 
 	randao := core.NewSignedRandao(epoch, eth2p0.BLSSignature{})
-	randaoRoot, err := randao.MessageRoot()
+	randaoRoots, err := randao.MessageRoots()
 	require.NoError(t, err)
 
-	msg, err := signing.GetDataRoot(ctx, bmock, randao.DomainName(), epoch, randaoRoot)
+	msg, err := signing.GetDataRoot(ctx, bmock, randao.DomainNames()[0], epoch, randaoRoots[0])
 	require.NoError(t, err)
 
 	// Generate private shares
@@ -198,7 +198,7 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 	// Create expected aggregated signature
 	aggSig, err := tbls.ThresholdAggregate(psigs)
 	require.NoError(t, err)
-	expect := tblsconv.SigToCore(aggSig)
+	expect := []core.Signature{tblsconv.SigToCore(aggSig)}
 
 	agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 	require.NoError(t, err)
@@ -207,8 +207,8 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 
 	// Assert output
 	agg.Subscribe(func(_ context.Context, _ core.Duty, set core.SignedDataSet) error {
-		require.Equal(t, expect, set[corePubkey].Signature())
-		sig, err := tblsconv.SigFromCore(set[corePubkey].Signature())
+		require.Equal(t, expect, set[corePubkey].Signatures())
+		sig, err := tblsconv.SigFromCore(set[corePubkey].Signatures()[0])
 		require.NoError(t, err)
 
 		require.NoError(t, tbls.Verify(pubKey, msg[:], sig))
@@ -248,10 +248,10 @@ func TestSigAgg_DutyExit(t *testing.T) {
 	exitMsg.Message.Epoch = epoch
 
 	volexit := core.NewSignedVoluntaryExit(exitMsg)
-	exitRoot, err := volexit.MessageRoot()
+	exitRoots, err := volexit.MessageRoots()
 	require.NoError(t, err)
 
-	msg, err := signing.GetDataRoot(ctx, bmock, volexit.DomainName(), epoch, exitRoot)
+	msg, err := signing.GetDataRoot(ctx, bmock, volexit.DomainNames()[0], epoch, exitRoots[0])
 	require.NoError(t, err)
 
 	// Create partial signatures (in two formats)
@@ -279,7 +279,7 @@ func TestSigAgg_DutyExit(t *testing.T) {
 
 	aggSig, err := tbls.ThresholdAggregate(psigs)
 	require.NoError(t, err)
-	expect := tblsconv.SigToCore(aggSig)
+	expect := []core.Signature{tblsconv.SigToCore(aggSig)}
 
 	agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 	require.NoError(t, err)
@@ -288,8 +288,8 @@ func TestSigAgg_DutyExit(t *testing.T) {
 
 	// Assert output
 	agg.Subscribe(func(_ context.Context, _ core.Duty, set core.SignedDataSet) error {
-		require.Equal(t, expect, set[corePubkey].Signature())
-		sig, err := tblsconv.SigFromCore(set[corePubkey].Signature())
+		require.Equal(t, expect, set[corePubkey].Signatures())
+		sig, err := tblsconv.SigFromCore(set[corePubkey].Signatures()[0])
 		require.NoError(t, err)
 
 		require.NoError(t, tbls.Verify(pubKey, msg[:], sig))
@@ -375,50 +375,87 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 			block, err := core.NewVersionedSignedBeaconBlock(test.block)
 			require.NoError(t, err)
 
-			msgRoot, err := block.MessageRoot()
+			msgRoots, err := block.MessageRoots()
 			require.NoError(t, err)
+			domainNames := block.DomainNames()
+
+			require.Equal(t, len(msgRoots), len(domainNames))
 
 			epoch, err := block.Epoch(ctx, bmock)
 			require.NoError(t, err)
 
-			msg, err := signing.GetDataRoot(ctx, bmock, block.DomainName(), epoch, msgRoot)
-			require.NoError(t, err)
-
 			// Create partial signatures (in two formats)
 			var (
-				parsigs []core.ParSignedData
-				psigs   map[int]tbls.Signature
+				msgsPerPeer  map[int][][32]byte
+				parsigs      []core.ParSignedData
+				psigsPerPeer map[int][]tbls.Signature
 			)
 
-			psigs = make(map[int]tbls.Signature)
+			msgsPerPeer = make(map[int][][32]byte)
+			psigsPerPeer = make(map[int][]tbls.Signature)
 
-			for idx, secret := range secrets {
-				sig, err := tbls.Sign(secret, msg[:])
+			for idx, secret := range secrets { // For each charon peer
+				var sigs []tbls.Signature // Signatures on data by the peer
+				// Sign the message roots
+				for i, msgRoot := range msgRoots {
+					msg, err := signing.GetDataRoot(ctx, bmock, domainNames[i], epoch, msgRoot)
+					require.NoError(t, err)
+					msgsPerPeer[idx] = append(msgsPerPeer[idx], msg)
+
+					sig, err := tbls.Sign(secret, msg[:])
+					require.NoError(t, err)
+					sigs = append(sigs, sig)
+				}
+
+				var sigCores []core.Signature
+				for _, sig := range sigs {
+					sigCores = append(sigCores, tblsconv.SigToCore(sig))
+				}
+
+				signed, err := block.SetSignatures(sigCores)
 				require.NoError(t, err)
 
-				block, err := core.NewVersionedSignedBeaconBlock(test.block)
-				require.NoError(t, err)
+				var coreSigs []tbls.Signature
+				for _, sig := range signed.Signatures() {
+					coreSig, err := tblsconv.SigFromCore(sig)
+					require.NoError(t, err)
+					coreSigs = append(coreSigs, coreSig)
+				}
 
-				sigCore := tblsconv.SigToCore(sig)
-				signed, err := block.SetSignature(sigCore)
-				require.NoError(t, err)
+				require.Equal(t, sigs, coreSigs)
 
-				coreSig, err := tblsconv.SigFromCore(signed.Signature())
-				require.NoError(t, err)
-
-				require.Equal(t, sig, coreSig)
-
-				psigs[idx] = sig
+				psigsPerPeer[idx] = sigs
 				parsigs = append(parsigs, core.ParSignedData{
 					SignedData: signed,
 					ShareIdx:   idx,
 				})
 			}
 
+			// Check if each peer has the same number of signatures.
+			sigLens := make(map[int]struct{})
+			var sigLen int
+			for _, row := range psigsPerPeer {
+				sigLen = len(row)
+				sigLens[sigLen] = struct{}{}
+			}
+			require.NotEqual(t, sigLen, 0)
+
+			// Aggregate partial signatures from each column.
+			var aggregatedSigs []core.Signature
+			for i := 0; i < sigLen; i++ {
+				prsigs := make(map[int]tbls.Signature)
+				for shareIdx, parsig := range psigsPerPeer {
+					prsigs[shareIdx] = parsig[i]
+				}
+
+				sig, err := tbls.ThresholdAggregate(prsigs)
+				require.NoError(t, err)
+
+				aggregatedSigs = append(aggregatedSigs, tblsconv.SigToCore(sig))
+			}
+
 			// Create expected aggregated signature
-			aggSig, err := tbls.ThresholdAggregate(psigs)
-			require.NoError(t, err)
-			expect := tblsconv.SigToCore(aggSig)
+			expect := aggregatedSigs
 
 			agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 			require.NoError(t, err)
@@ -427,12 +464,23 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 
 			// Assert output
 			agg.Subscribe(func(_ context.Context, _ core.Duty, set core.SignedDataSet) error {
-				require.Equal(t, expect, set[corePubkey].Signature())
-				sig, err := tblsconv.SigFromCore(set[corePubkey].Signature())
-				require.NoError(t, err)
+				require.Equal(t, expect, set[corePubkey].Signatures())
 
-				require.NoError(t, tbls.Verify(pubKey, msg[:], sig))
-				require.NoError(t, err)
+				var sigs []tbls.Signature
+				for _, sig := range set[corePubkey].Signatures() {
+					resp, err := tblsconv.SigFromCore(sig)
+					require.NoError(t, err)
+					sigs = append(sigs, resp)
+				}
+
+				for _, msgs := range msgsPerPeer {
+					for i := 0; i < sigLen; i++ { // Verify aggregated signatures column-wise
+						err := tbls.Verify(pubKey, msgs[i][:], sigs[i])
+						require.NoError(t, err)
+					}
+
+					break
+				}
 
 				return nil
 			})
@@ -496,13 +544,13 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 			block, err := core.NewVersionedSignedBlindedBeaconBlock(test.block)
 			require.NoError(t, err)
 
-			msgRoot, err := block.MessageRoot()
+			msgRoots, err := block.MessageRoots()
 			require.NoError(t, err)
 
 			epoch, err := block.Epoch(ctx, bmock)
 			require.NoError(t, err)
 
-			msg, err := signing.GetDataRoot(ctx, bmock, block.DomainName(), epoch, msgRoot)
+			msg, err := signing.GetDataRoot(ctx, bmock, block.DomainNames()[0], epoch, msgRoots[0])
 			require.NoError(t, err)
 
 			// Create partial signatures (in two formats)
@@ -521,10 +569,10 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 				require.NoError(t, err)
 
 				sigCore := tblsconv.SigToCore(sig)
-				signed, err := block.SetSignature(sigCore)
+				signed, err := block.SetSignatures([]core.Signature{sigCore})
 				require.NoError(t, err)
 
-				coreSig, err := tblsconv.SigFromCore(signed.Signature())
+				coreSig, err := tblsconv.SigFromCore(signed.Signatures()[0])
 				require.NoError(t, err)
 
 				require.Equal(t, sig, coreSig)
@@ -539,7 +587,7 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 			// Create expected aggregated signature
 			aggSig, err := tbls.ThresholdAggregate(psigs)
 			require.NoError(t, err)
-			expect := tblsconv.SigToCore(aggSig)
+			expect := []core.Signature{tblsconv.SigToCore(aggSig)}
 
 			agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 			require.NoError(t, err)
@@ -548,8 +596,8 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 
 			// Assert output
 			agg.Subscribe(func(_ context.Context, _ core.Duty, set core.SignedDataSet) error {
-				require.Equal(t, expect, set[corePubkey].Signature())
-				sig, err := tblsconv.SigFromCore(set[corePubkey].Signature())
+				require.Equal(t, expect, set[corePubkey].Signatures())
+				sig, err := tblsconv.SigFromCore(set[corePubkey].Signatures()[0])
 				require.NoError(t, err)
 
 				require.NoError(t, tbls.Verify(pubKey, msg[:], sig))
@@ -608,10 +656,10 @@ func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
 			reg, err := core.NewVersionedSignedValidatorRegistration(test.registration)
 			require.NoError(t, err)
 
-			msgRoot, err := reg.MessageRoot()
+			msgRoots, err := reg.MessageRoots()
 			require.NoError(t, err)
 
-			msg, err := signing.GetDataRoot(ctx, bmock, reg.DomainName(), epoch, msgRoot)
+			msg, err := signing.GetDataRoot(ctx, bmock, reg.DomainNames()[0], epoch, msgRoots[0])
 			require.NoError(t, err)
 
 			// Create partial signatures (in two formats)
@@ -630,10 +678,10 @@ func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
 				require.NoError(t, err)
 
 				sigCore := tblsconv.SigToCore(sig)
-				signed, err := block.SetSignature(sigCore)
+				signed, err := block.SetSignatures([]core.Signature{sigCore})
 				require.NoError(t, err)
 
-				coreSig, err := tblsconv.SigFromCore(signed.Signature())
+				coreSig, err := tblsconv.SigFromCore(signed.Signatures()[0])
 				require.NoError(t, err)
 
 				require.Equal(t, sig, coreSig)
@@ -648,7 +696,7 @@ func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
 			// Create expected aggregated signature
 			aggSig, err := tbls.ThresholdAggregate(psigs)
 			require.NoError(t, err)
-			expect := tblsconv.SigToCore(aggSig)
+			expect := []core.Signature{tblsconv.SigToCore(aggSig)}
 
 			agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 			require.NoError(t, err)
@@ -657,8 +705,8 @@ func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
 
 			// Assert output
 			agg.Subscribe(func(_ context.Context, _ core.Duty, set core.SignedDataSet) error {
-				require.Equal(t, expect, set[corePubkey].Signature())
-				sig, err := tblsconv.SigFromCore(set[corePubkey].Signature())
+				require.Equal(t, expect, set[corePubkey].Signatures())
+				sig, err := tblsconv.SigFromCore(set[corePubkey].Signatures()[0])
 				require.NoError(t, err)
 
 				require.NoError(t, tbls.Verify(pubKey, msg[:], sig))
