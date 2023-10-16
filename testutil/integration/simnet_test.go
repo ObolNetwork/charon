@@ -473,7 +473,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 		fmt.Sprintf("--name=%s", name),
 		fmt.Sprintf("--volume=%s:/keys", tempDir),
 		"--user=root", // Root required to read volume files in GitHub actions.
-		"consensys/teku:latest",
+		"consensys/teku:develop",
 	}
 	dockerArgs = append(dockerArgs, tekuArgs...)
 	t.Logf("docker args: %v", dockerArgs)
