@@ -46,7 +46,7 @@ const (
 //go:generate go test . -integration -v -run=TestSimnetDuties
 
 func TestSimnetDuties(t *testing.T) {
-	// skipIfDisabled(t)
+	skipIfDisabled(t)
 
 	tests := []struct {
 		name               string
@@ -473,7 +473,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 		fmt.Sprintf("--name=%s", name),
 		fmt.Sprintf("--volume=%s:/keys", tempDir),
 		"--user=root", // Root required to read volume files in GitHub actions.
-		"consensys/teku:23.9.0",
+		"consensys/teku:latest",
 	}
 	dockerArgs = append(dockerArgs, tekuArgs...)
 	t.Logf("docker args: %v", dockerArgs)
