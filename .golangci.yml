@@ -8,6 +8,11 @@ linters-settings:
   dupl:
     # tokens count to trigger issue, 150 by default
     threshold: 400
+  depguard:
+    rules:
+      main:
+        allow:
+          - *
   exhaustive:
     default-signifies-exhaustive: true
   forbidigo:
