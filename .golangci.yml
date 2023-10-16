@@ -12,7 +12,14 @@ linters-settings:
     rules:
       main:
         allow:
-          - *
+          - $gostd
+        deny:
+          - pkg: "github.com/pkg/errors"
+            desc: Prefer ./app/errors
+          - pkg: "github.com/golang/protobuf"
+            desc: Prefer google.golang.org/protobuf
+          - pkg: "github.com/gogo/protobuf/proto"
+            desc: Prefer google.golang.org/protobuf
   exhaustive:
     default-signifies-exhaustive: true
   forbidigo:
