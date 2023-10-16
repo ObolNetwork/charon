@@ -183,7 +183,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			name := p2p.PeerName(peerID)
 
 			// Validator git hash with regex.
-			if !gitHashMatch.Match([]byte(resp.GitHash)) {
+			if !gitHashMatch.MatchString(resp.GitHash) {
 				log.Warn(ctx, "Invalid peer git hash", nil, z.Str("peer", name))
 				return
 			}

@@ -15,7 +15,7 @@ repos:
     rev: v0.0.2
     hooks:
       - id: check-go-version
-        args: [ -v=go1.20 ] # Only check minor version locally
+        args: [ -v=go1.21 ] # Only check minor version locally
         pass_filenames: false
         additional_dependencies: [ packaging ]
       - id: check-licence-header
