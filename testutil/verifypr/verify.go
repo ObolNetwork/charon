@@ -93,7 +93,7 @@ func verifyTitle(title string) error {
 		return errors.New("title isn't prefixed with 'package[/subpackage]:'")
 	}
 
-	if !titlePrefix.Match([]byte(split[0])) {
+	if !titlePrefix.MatchString(split[0]) {
 		return errors.New("title prefix doesn't match regex")
 	}
 
