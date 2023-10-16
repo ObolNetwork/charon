@@ -105,38 +105,38 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddresse
 //   - definition_hash: field ordering when calculating definition hash. Some fields are excluded indicated by `-`.
 type Definition struct {
 	// UUID is a human-readable random unique identifier. Max 64 chars.
-	UUID string `json:"uuid" ssz:"ByteList[64]" config_hash:"0" definition_hash:"0"`
+	UUID string `config_hash:"0" definition_hash:"0" json:"uuid" ssz:"ByteList[64]"`
 
 	// Name is a human-readable cosmetic identifier. Max 256 chars.
-	Name string `json:"name" ssz:"ByteList[256]" config_hash:"1" definition_hash:"1"`
+	Name string `config_hash:"1" definition_hash:"1" json:"name" ssz:"ByteList[256]"`
 
 	// Version is the schema version of this definition. Max 16 chars.
-	Version string `json:"version" ssz:"ByteList[16]" config_hash:"2" definition_hash:"2"`
+	Version string `config_hash:"2" definition_hash:"2" json:"version" ssz:"ByteList[16]"`
 
 	// Timestamp is the human-readable timestamp of this definition. Max 32 chars.
 	// Note that this was added in v1.1.0, so may be empty for older versions.
-	Timestamp string `json:"timestamp" ssz:"ByteList[32]" config_hash:"3" definition_hash:"3"`
+	Timestamp string `config_hash:"3" definition_hash:"3" json:"timestamp" ssz:"ByteList[32]"`
 
 	// NumValidators is the number of DVs (n*32ETH) to be created in the cluster lock file.
-	NumValidators int `json:"num_validators" ssz:"uint64" config_hash:"4" definition_hash:"4"`
+	NumValidators int `config_hash:"4" definition_hash:"4" json:"num_validators" ssz:"uint64"`
 
 	// Threshold required for signature reconstruction. Defaults to safe value for number of nodes/peers.
-	Threshold int `json:"threshold" ssz:"uint64" config_hash:"5" definition_hash:"5"`
+	Threshold int `config_hash:"5" definition_hash:"5" json:"threshold" ssz:"uint64"`
 
 	// DKGAlgorithm to use for key generation. Max 32 chars.
-	DKGAlgorithm string `json:"dkg_algorithm" ssz:"ByteList[32]" config_hash:"6" definition_hash:"6"`
+	DKGAlgorithm string `config_hash:"6" definition_hash:"6" json:"dkg_algorithm" ssz:"ByteList[32]"`
 
 	// ForkVersion defines the cluster's 4 byte beacon chain fork version (network/chain identifier).
 	ForkVersion []byte `json:"fork_version,0xhex" ssz:"Bytes4" config_hash:"7" definition_hash:"7"`
 
 	// Operators define the charon nodes in the cluster and their operators. Max 256 operators.
-	Operators []Operator `json:"operators" ssz:"CompositeList[256]" config_hash:"8" definition_hash:"8"`
+	Operators []Operator `config_hash:"8" definition_hash:"8" json:"operators" ssz:"CompositeList[256]"`
 
 	// Creator identifies the creator of a cluster definition. They may also be an operator.
-	Creator Creator `json:"creator" ssz:"Composite" config_hash:"9" definition_hash:"9"`
+	Creator Creator `config_hash:"9" definition_hash:"9" json:"creator" ssz:"Composite"`
 
 	// ValidatorAddresses define addresses of each validator.
-	ValidatorAddresses []ValidatorAddresses `json:"validators" ssz:"CompositeList[65536]" config_hash:"10" definition_hash:"10"`
+	ValidatorAddresses []ValidatorAddresses `config_hash:"10" definition_hash:"10" json:"validators" ssz:"CompositeList[65536]"`
 
 	// ConfigHash uniquely identifies a cluster definition excluding operator ENRs and signatures.
 	ConfigHash []byte `json:"config_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"11"`

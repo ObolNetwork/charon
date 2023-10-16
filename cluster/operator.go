@@ -18,7 +18,7 @@ type Operator struct {
 	Address string `json:"address,0xhex" ssz:"Bytes20" config_hash:"0" definition_hash:"0"`
 
 	// ENR identifies the charon node. Max 1024 chars.
-	ENR string `json:"enr" ssz:"ByteList[1024]" config_hash:"-" definition_hash:"1"`
+	ENR string `config_hash:"-" definition_hash:"1" json:"enr" ssz:"ByteList[1024]"`
 
 	// ConfigSignature is an EIP712 signature of the config_hash using privkey corresponding to operator Ethereum Address.
 	ConfigSignature []byte `json:"config_signature,0xhex" ssz:"Bytes65" config_hash:"-" definition_hash:"2"`

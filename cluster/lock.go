@@ -20,22 +20,22 @@ import (
 // Lock extends the cluster config Definition with bls threshold public keys and checksums.
 type Lock struct {
 	// Definition is embedded and extended by Lock.
-	Definition `json:"cluster_definition" ssz:"Composite" lock_hash:"0"`
+	Definition `json:"cluster_definition" lock_hash:"0" ssz:"Composite"`
 
 	// Validators are the distributed validators (n*32ETH) managed by the cluster.
-	Validators []DistValidator `json:"distributed_validators" ssz:"Composite[65536]" lock_hash:"1"`
+	Validators []DistValidator `json:"distributed_validators" lock_hash:"1" ssz:"Composite[65536]"`
 
 	// LockHash uniquely identifies a cluster lock.
-	LockHash []byte `json:"lock_hash" ssz:"Bytes32" lock_hash:"-"`
+	LockHash []byte `json:"lock_hash" lock_hash:"-" ssz:"Bytes32"`
 
 	// SignatureAggregate is the bls aggregate signature of the lock hash signed by
 	// all the private key shares of all the distributed validators.
 	// It acts as an attestation by all the distributed validators
 	// of the charon cluster they are part of.
-	SignatureAggregate []byte `json:"signature_aggregate" ssz:"Bytes96" lock_hash:"-"`
+	SignatureAggregate []byte `json:"signature_aggregate" lock_hash:"-" ssz:"Bytes96"`
 
 	// NodeSignatures contains a signature of the lock hash for each operator defined in the Definition.
-	NodeSignatures [][]byte `json:"node_signatures" ssz:"Composite" lock_hash:"-"`
+	NodeSignatures [][]byte `json:"node_signatures" lock_hash:"-" ssz:"Composite"`
 }
 
 func (l Lock) MarshalJSON() ([]byte, error) {
