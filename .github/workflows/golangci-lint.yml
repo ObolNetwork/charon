@@ -21,7 +21,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:
-          version: v1.52.2
+          version: v1.54.2
       - name: notify failure
         if: failure() && github.ref == 'refs/heads/main'
         env:
