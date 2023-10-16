@@ -11,8 +11,6 @@ linters-settings:
   depguard:
     rules:
       main:
-        allow:
-          - $gostd
         deny:
           - pkg: "github.com/pkg/errors"
             desc: Prefer ./app/errors
