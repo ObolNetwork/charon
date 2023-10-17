@@ -84,6 +84,8 @@ func (a *SlotAttester) Prepare(ctx context.Context) error {
 	}
 	a.setPrepareDuties(vals, duties)
 
+	log.Debug(ctx, "Set attester duties", z.Any("slot", a.slot))
+
 	selections, err := prepareAggregators(ctx, a.eth2Cl, a.signFunc, vals, duties, a.slot)
 	if err != nil {
 		return err
