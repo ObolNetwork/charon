@@ -46,7 +46,7 @@ const (
 //go:generate go test . -integration -v -run=TestSimnetDuties
 
 func TestSimnetDuties(t *testing.T) {
-	// skipIfDisabled(t)
+	skipIfDisabled(t)
 
 	tests := []struct {
 		name               string

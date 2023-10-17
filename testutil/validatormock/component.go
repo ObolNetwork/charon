@@ -182,6 +182,8 @@ func (m *Component) manageEpochState(ctx context.Context, epoch metaEpoch) error
 		// Delete sync committee members.
 		m.deleteSyncCommMembers(e)
 
+		log.Debug(ctx, "Deleted attesters and sync committee members", z.U64("epoch", e.Epoch))
+
 		e = e.Prev()
 	}
 
