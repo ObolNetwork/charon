@@ -20,6 +20,10 @@ import (
 // epochWindow is the window size of the lookahead.
 const epochWindow = 2
 
+// delayStartSlots is the number slots to wait before starting validatormock.
+// This is needed to avoid inconsistencies between peers on startup in simnet tests .
+const delayStartSlots = 2
+
 // scheduleTuple is a tuple of a duty and the time it should be performed.
 type scheduleTuple struct {
 	duty      core.Duty
@@ -70,6 +74,7 @@ type Component struct {
 
 	// Mutable state.
 	mu               sync.Mutex
+	delaySlots       int
 	started          bool                       // Whether SlotTicked has been called.
 	attestersBySlot  map[uint64]*SlotAttester   // Slot attesters indexed by slot number.
 	syncCommsByEpoch map[uint64]*SyncCommMember // SyncCommMember indexed by epoch number.
@@ -140,7 +145,26 @@ func (m *Component) Run(ctx context.Context) {
 // SlotTicked is called when a slot ticks/starts. This is called by the scheduler component.
 // This is only called once per slot.
 func (m *Component) SlotTicked(ctx context.Context, slot core.Slot) error {
+	// Check if we need to wait for sometime to start scheduling duties.
+	if m.delayOnStartup() {
+		return nil
+	}
+
 	return m.scheduleSlot(ctx, metaSlot{Slot: uint64(slot.Slot), meta: m.meta})
+}
+
+// delayOnStartup returns true if we need to omit performing duties in the upcoming slot.
+func (m *Component) delayOnStartup() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.delaySlots == delayStartSlots {
+		return false
+	}
+
+	m.delaySlots++
+
+	return true
 }
 
 // scheduleSlot is called when the slot ticks and schedules duties for the provided slot.
@@ -181,8 +205,6 @@ func (m *Component) manageEpochState(ctx context.Context, epoch metaEpoch) error
 
 		// Delete sync committee members.
 		m.deleteSyncCommMembers(e)
-
-		log.Debug(ctx, "Deleted attesters and sync committee members", z.U64("epoch", e.Epoch))
 
 		e = e.Prev()
 	}
