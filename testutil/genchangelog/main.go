@@ -424,7 +424,7 @@ func getFirstMatch(r *regexp.Regexp, s string) (string, bool) {
 
 // getLatestTags returns the latest N git tags.
 func getLatestTags(n int) ([]string, error) {
-	out, err := exec.Command("git", "fetch", "--tags").CombinedOutput()
+	out, err := exec.Command("git", "fetch", "--tags", "-f").CombinedOutput()
 	if err != nil {
 		return nil, errors.Wrap(err, "git fetch", z.Str("out", string(out)))
 	}
