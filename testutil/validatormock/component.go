@@ -22,7 +22,7 @@ const (
 	epochWindow = 2
 
 	// delayStartSlots is the number slots to wait before starting validatormock.
-	// This is needed to avoid inconsistencies between peers on startup in simnet tests .
+	// This is needed to avoid inconsistencies between peers on startup in simnet tests.
 	delayStartSlots = 2
 )
 
