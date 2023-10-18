@@ -17,12 +17,14 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-// epochWindow is the window size of the lookahead.
-const epochWindow = 2
+const (
+	// epochWindow is the window size of the lookahead.
+	epochWindow = 2
 
-// delayStartSlots is the number slots to wait before starting validatormock.
-// This is needed to avoid inconsistencies between peers on startup in simnet tests .
-const delayStartSlots = 2
+	// delayStartSlots is the number slots to wait before starting validatormock.
+	// This is needed to avoid inconsistencies between peers on startup in simnet tests .
+	delayStartSlots = 2
+)
 
 // scheduleTuple is a tuple of a duty and the time it should be performed.
 type scheduleTuple struct {
