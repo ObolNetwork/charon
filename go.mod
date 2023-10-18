@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/attestantio/go-eth2-client v0.18.3
-	github.com/bufbuild/buf v1.27.0
+	github.com/bufbuild/buf v1.27.1
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0
 	github.com/ferranbt/fastssz v0.1.3
@@ -47,7 +47,7 @@ require (
 
 require (
 	connectrpc.com/connect v1.11.1 // indirect
-	connectrpc.com/otelconnect v0.5.0 // indirect
+	connectrpc.com/otelconnect v0.6.0 // indirect
 	filippo.io/edwards25519 v1.0.0-rc.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
@@ -63,7 +63,7 @@ require (
 	github.com/containerd/cgroups v1.1.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.14.3 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
-	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.3 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
 	github.com/distribution/reference v0.5.0 // indirect
@@ -102,7 +102,7 @@ require (
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
 	github.com/jdx/go-netrc v1.0.0 // indirect
-	github.com/klauspost/compress v1.17.0 // indirect
+	github.com/klauspost/compress v1.17.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.5 // indirect
 	github.com/klauspost/pgzip v1.2.6 // indirect
 	github.com/koron/go-ssdp v0.0.4 // indirect
