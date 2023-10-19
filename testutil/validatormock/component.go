@@ -452,7 +452,7 @@ var dutyStartTimeFuncsByDuty = map[core.DutyType][]dutyStartTimeFunc{
 	core.DutyProposer:                {slotStartTime},
 	core.DutyBuilderProposer:         {slotStartTime},
 	core.DutyBuilderRegistration:     {startOfCurrentEpoch},
-	core.DutyPrepareSyncContribution: {startOfPrevEpoch, startOfCurrentEpoch},
+	core.DutyPrepareSyncContribution: {slotStartTime},
 	core.DutySyncMessage:             {fraction(1, 3)},
 	core.DutySyncContribution:        {fraction(2, 3)},
 }
