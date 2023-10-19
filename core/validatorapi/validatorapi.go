@@ -749,7 +749,7 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 
 // SyncCommitteeContribution returns sync committee contribution data for the given subcommittee and beacon block root.
 func (c Component) SyncCommitteeContribution(ctx context.Context, opts *eth2api.SyncCommitteeContributionOpts) (*eth2api.Response[*altair.SyncCommitteeContribution], error) {
-	contrib, err := c.awaitSyncContributionFunc(ctx, int64(opts.Slot), int64(opts.Slot), opts.BeaconBlockRoot)
+	contrib, err := c.awaitSyncContributionFunc(ctx, int64(opts.Slot), int64(opts.SubcommitteeIndex), opts.BeaconBlockRoot)
 	if err != nil {
 		return nil, err
 	}
