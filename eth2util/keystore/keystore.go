@@ -97,6 +97,7 @@ func storeKeysInternal(secrets []tbls.PrivateKey, dir string, filenameFmt string
 				return nil, errors.Wrap(err, "store password", z.Str("filename", filename))
 			}
 
+			//nolint:nilnil
 			return nil, nil
 		},
 		forkjoin.WithWorkers(loadStoreWorkers),

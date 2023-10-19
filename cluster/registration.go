@@ -8,16 +8,16 @@ import (
 
 // BuilderRegistration defines pre-generated signed validator builder registration to be sent to builder network.
 type BuilderRegistration struct {
-	Message   Registration `json:"message" ssz:"Composite" lock_hash:"0"`
-	Signature []byte       `json:"signature" ssz:"Bytes96" lock_hash:"1"`
+	Message   Registration `json:"message"   lock_hash:"0" ssz:"Composite"`
+	Signature []byte       `json:"signature" lock_hash:"1" ssz:"Bytes96"`
 }
 
 // Registration defines unsigned validator registration message.
 type Registration struct {
-	FeeRecipient []byte    `json:"fee_recipient"  ssz:"Bytes20" lock_hash:"0"`
-	GasLimit     int       `json:"gas_limit"  ssz:"uint64" lock_hash:"1"`
-	Timestamp    time.Time `json:"timestamp"  ssz:"uint64" lock_hash:"2"`
-	PubKey       []byte    `json:"pubkey"  ssz:"Bytes48" lock_hash:"3"`
+	FeeRecipient []byte    `json:"fee_recipient" lock_hash:"0" ssz:"Bytes20"`
+	GasLimit     int       `json:"gas_limit"     lock_hash:"1" ssz:"uint64"`
+	Timestamp    time.Time `json:"timestamp"     lock_hash:"2" ssz:"uint64"`
+	PubKey       []byte    `json:"pubkey"        lock_hash:"3" ssz:"Bytes48"`
 }
 
 // builderRegistrationJSON is the json formatter of BuilderRegistration.

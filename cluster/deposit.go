@@ -6,16 +6,16 @@ package cluster
 // https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#depositdata
 type DepositData struct {
 	// PubKey is the validator public key.
-	PubKey []byte `json:"pubkey"  ssz:"Bytes48" lock_hash:"0"`
+	PubKey []byte `json:"pubkey" lock_hash:"0" ssz:"Bytes48"`
 
 	// WithdrawalCredentials included in the deposit.
-	WithdrawalCredentials []byte `json:"withdrawal_credentials"  ssz:"Bytes32" lock_hash:"1"`
+	WithdrawalCredentials []byte `json:"withdrawal_credentials" lock_hash:"1" ssz:"Bytes32"`
 
 	// Amount is the amount in Gwei to be deposited.
-	Amount int `json:"amount"  ssz:"uint64" lock_hash:"2"`
+	Amount int `json:"amount" lock_hash:"2" ssz:"uint64"`
 
 	// Signature is the BLS signature of the deposit message (above three fields).
-	Signature []byte `json:"signature"  ssz:"Bytes96" lock_hash:"3"`
+	Signature []byte `json:"signature" lock_hash:"3" ssz:"Bytes96"`
 }
 
 // depositDataJSON is the json formatter of DepositData.
