@@ -16,12 +16,12 @@ jobs:
       # Config options can be found in README here: https://github.com/golangci/golangci-lint-action
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.20.7'
+          go-version: '1.21.3'
       - uses: actions/checkout@v3
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:
-          version: v1.52.2
+          version: v1.54.2
       - name: notify failure
         if: failure() && github.ref == 'refs/heads/main'
         env:

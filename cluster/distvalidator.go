@@ -17,17 +17,17 @@ import (
 // DistValidator is a distributed validator (1x32ETH) managed by the cluster.
 type DistValidator struct {
 	// PubKey is the distributed validator group public key.
-	PubKey []byte `json:"distributed_public_key"  ssz:"Bytes48" lock_hash:"0"`
+	PubKey []byte `json:"distributed_public_key" lock_hash:"0" ssz:"Bytes48"`
 
 	// PubShares are the public keys corresponding to each node's secret key share.
 	// It can be used to verify a partial signature created by any node in the cluster.
-	PubShares [][]byte `json:"public_shares,omitempty" ssz:"CompositeList[256],Bytes48" lock_hash:"1"`
+	PubShares [][]byte `json:"public_shares,omitempty" lock_hash:"1" ssz:"CompositeList[256],Bytes48"`
 
 	// DepositData is the validator deposit data.
-	DepositData DepositData `json:"deposit_data,omitempty" ssz:"Composite" lock_hash:"2"`
+	DepositData DepositData `json:"deposit_data,omitempty" lock_hash:"2" ssz:"Composite"`
 
 	// BuilderRegistration is the pre-generated signed validator builder registration.
-	BuilderRegistration BuilderRegistration `json:"builder_registration,omitempty" ssz:"Composite" lock_hash:"3"`
+	BuilderRegistration BuilderRegistration `json:"builder_registration,omitempty" lock_hash:"3" ssz:"Composite"`
 }
 
 // PublicKey returns the validator BLS group public key.
