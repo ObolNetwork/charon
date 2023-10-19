@@ -95,6 +95,11 @@ func (v SemVer) String() string {
 	return fmt.Sprintf("v%d.%d-%s", v.major, v.minor, v.preRelease)
 }
 
+// PreRelease returns true if v represents a tag for a pre-release.
+func (v SemVer) PreRelease() bool {
+	return v.semVerType == typePreRelease
+}
+
 // Minor returns the minor version of the semantic version.
 // It strips the typePatch version and pre-release label if present.
 func (v SemVer) Minor() SemVer {
