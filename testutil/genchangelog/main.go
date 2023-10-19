@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -84,6 +85,7 @@ type tplData struct {
 	RangeText  string
 	RangeLink  string
 	Categories []tplCategory
+	ExtraPRs   []pullRequest
 }
 
 // tplCategory is a category section in the changelog.
@@ -132,7 +134,7 @@ func run(gitRange string, output string, token string) error {
 			return err
 		}
 
-		gitRange = fmt.Sprintf("%s..%s", tags[1], tags[0])
+		gitRange = fmt.Sprintf("%s..%s", tags[0], tags[1])
 		fmt.Printf("Flag --range empty, defaulting to %s\n", gitRange)
 	}
 
@@ -231,8 +233,16 @@ func execTemplate(data tplData) ([]byte, error) {
 
 // tplDataFromPRs builds the template data from the provides PRs, git range, issue title func.
 func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (string, string, error)) (tplData, error) {
+	var noIssuePRs []pullRequest
 	issues := make(map[int]tplIssue)
+
 	for _, pr := range prs {
+		if pr.Issue == 0 {
+			// zero-indexed element from issues represents all the PRs with no issue associated
+			noIssuePRs = append(noIssuePRs, pr)
+			continue
+		}
+
 		issue := issues[pr.Issue]
 		issue.Number = pr.Issue
 		issue.Label = fmt.Sprintf("#%d", pr.Issue)
@@ -240,6 +250,17 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (str
 		issue.PRs = append(issue.PRs, tplPR{Label: fmt.Sprintf("#%d", pr.Number)})
 		issues[pr.Issue] = issue
 	}
+
+	// order PRs with no issue by their number, ascending
+	slices.SortFunc(noIssuePRs, func(a, b pullRequest) int {
+		if a.Number < b.Number {
+			return -1
+		} else if a.Number > b.Number {
+			return 1
+		} else {
+			return 0
+		}
+	})
 
 	cats := make(map[string]tplCategory)
 	for _, issue := range issues {
@@ -283,6 +304,7 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (str
 		RangeText:  gitRange,
 		RangeLink:  fmt.Sprintf("https://github.com/obolnetwork/charon/compare/%s", gitRange),
 		Categories: catSlice,
+		ExtraPRs:   noIssuePRs,
 	}, nil
 }
 
@@ -365,14 +387,22 @@ func prFromLog(l log) (pullRequest, bool) {
 
 	category, ok = getFirstMatch(categoryRegex, l.Body)
 	if !ok {
-		fmt.Printf("Failed parsing category from git body (%v): %s\n", l.Commit, l.Subject)
-		return pullRequest{}, false
+		return pullRequest{
+			Number:   number,
+			Title:    l.Subject,
+			Category: category,
+			Issue:    issue,
+		}, true
 	} else if skippedCategories[category] {
 		fmt.Printf("Skipping PR with '%s' category (%v): %s\n", category, l.Commit, l.Subject)
 		return pullRequest{}, false
 	} else if categoryOrder[category] == 0 {
-		fmt.Printf("Unsupported category %s (%v): %s\n", category, l.Commit, l.Subject)
-		return pullRequest{}, false
+		return pullRequest{
+			Number:   number,
+			Title:    l.Subject,
+			Category: category,
+			Issue:    issue,
+		}, true
 	}
 
 	ticket, ok := getFirstMatch(ticketRegex, l.Body)
@@ -380,8 +410,12 @@ func prFromLog(l log) (pullRequest, bool) {
 		fmt.Printf("Failed parsing ticket from git body (%v): %s\n", l.Commit, l.Subject)
 		return pullRequest{}, false
 	} else if strings.Contains(ticket, "none") {
-		fmt.Printf("Skipping PR with 'none' ticket (%s): %s\n", l.Commit, l.Subject)
-		return pullRequest{}, false
+		return pullRequest{
+			Number:   number,
+			Title:    l.Subject,
+			Category: category,
+			Issue:    issue,
+		}, true
 	} else {
 		issue, ok = getNumber(ticket)
 		if !ok {
