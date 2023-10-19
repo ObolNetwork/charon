@@ -4,11 +4,10 @@
 // It requires the following:
 //   - Each commit is a squash merged GitHub PR.
 //   - The commit subject contains the PR number '(#123)'.
-//   - Each commit contains a 'category: foo' line in the body.
-//   - Each commit is linked to a Github Issue via a 'ticket: #321' line in the body.
-//   - Only PRs with supported categories linked to Issues will be included in the changelog.
 //
-//nolint:forbidigo,gosec
+// PRs that don't have a linked ticket or category will be placed in the "What's changed" section of the changelog.
+//
+//nolint:forbidigo
 package main
 
 import (
