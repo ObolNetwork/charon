@@ -31,6 +31,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	applog "github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 )
 
@@ -429,18 +430,31 @@ func getLatestTags(n int) ([]string, error) {
 		return nil, errors.Wrap(err, "git fetch", z.Str("out", string(out)))
 	}
 
-	out, err = exec.Command("git", "rev-list", "--tags", "--max-count="+fmt.Sprint(n)).CombinedOutput()
+	out, err = exec.Command("git", "tag", "--sort=v:refname").CombinedOutput()
 	if err != nil {
-		return nil, errors.Wrap(err, "git rev-list", z.Str("out", string(out)))
+		return nil, errors.Wrap(err, "git tag", z.Str("out", string(out)))
 	}
 
-	args := []string{"describe", "--tags", "--abbrev=0"}
-	args = append(args, strings.Fields(string(out))...)
+	var tags []string
 
-	out, err = exec.Command("git", args...).CombinedOutput()
-	if err != nil {
-		return nil, errors.Wrap(err, "git describe", z.Str("out", string(out)))
+	// filter out rc releases
+	for _, tag := range strings.Fields(string(out)) {
+		versionInfo, err := version.Parse(tag)
+		if err != nil {
+			return nil, errors.Wrap(err, "can't parse tag version")
+		}
+
+		if versionInfo.PreRelease() {
+			continue
+		}
+
+		tags = append(tags, tag)
 	}
 
-	return strings.Fields(string(out)), nil
+	if len(tags) < n {
+		return nil, errors.New("not enough tags", z.Int("expected", n), z.Int("available", len(tags)))
+	}
+
+	// return the latest N tags
+	return tags[len(tags)-n:], nil
 }
