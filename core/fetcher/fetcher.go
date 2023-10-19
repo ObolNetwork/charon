@@ -127,11 +127,21 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, defSet core
 
 		eth2AttData, ok := dataByCommIdx[commIdx]
 		if !ok {
-			var err error
-			eth2AttData, err = f.eth2Cl.AttestationData(ctx, eth2p0.Slot(uint64(slot)), commIdx)
+			var (
+				err      error
+				eth2Resp *eth2api.Response[*eth2p0.AttestationData]
+			)
+			opts := &eth2api.AttestationDataOpts{
+				Slot:           eth2p0.Slot(uint64(slot)),
+				CommitteeIndex: commIdx,
+			}
+			eth2Resp, err = f.eth2Cl.AttestationData(ctx, opts)
 			if err != nil {
 				return nil, err
-			} else if eth2AttData == nil {
+			}
+
+			eth2AttData = eth2Resp.Data
+			if eth2Resp.Data == nil {
 				return nil, errors.New("attestation data cannot be nil")
 			}
 
@@ -201,10 +211,17 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet co
 		}
 
 		// Query BN for aggregate attestation.
-		aggAtt, err = f.eth2Cl.AggregateAttestation(ctx, eth2p0.Slot(slot), dataRoot)
+		opts := &eth2api.AggregateAttestationOpts{
+			Slot:                eth2p0.Slot(slot),
+			AttestationDataRoot: dataRoot,
+		}
+		eth2Resp, err := f.eth2Cl.AggregateAttestation(ctx, opts)
 		if err != nil {
 			return core.UnsignedDataSet{}, err
-		} else if aggAtt == nil {
+		}
+
+		aggAtt = eth2Resp.Data
+		if aggAtt == nil {
 			// Some beacon nodes return nil if the root is not found, return retryable error.
 			// This could happen if the beacon node didn't subscribe to the correct subnet.
 			return core.UnsignedDataSet{}, errors.New("aggregate attestation not found by root (retryable)", z.Hex("root", dataRoot[:]))
@@ -236,10 +253,17 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, defSet core
 		var graffiti [32]byte
 		commitSHA, _ := version.GitCommit()
 		copy(graffiti[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
-		block, err := f.eth2Cl.BeaconBlockProposal(ctx, eth2p0.Slot(uint64(slot)), randao, graffiti[:])
+
+		opts := &eth2api.BeaconBlockProposalOpts{
+			Slot:         eth2p0.Slot(uint64(slot)),
+			RandaoReveal: randao,
+			Graffiti:     graffiti,
+		}
+		eth2Resp, err := f.eth2Cl.BeaconBlockProposal(ctx, opts)
 		if err != nil {
 			return nil, err
 		}
+		block := eth2Resp.Data
 
 		// Ensure fee recipient is correctly populated in block.
 		verifyFeeRecipient(ctx, block, f.feeRecipientFunc(pubkey))
@@ -274,10 +298,17 @@ func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot int64, defS
 		var graffiti [32]byte
 		commitSHA, _ := version.GitCommit()
 		copy(graffiti[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
-		block, err := f.eth2Cl.BlindedBeaconBlockProposal(ctx, eth2p0.Slot(uint64(slot)), randao, graffiti[:])
+
+		opts := &eth2api.BlindedBeaconBlockProposalOpts{
+			Slot:         eth2p0.Slot(uint64(slot)),
+			RandaoReveal: randao,
+			Graffiti:     graffiti,
+		}
+		eth2Resp, err := f.eth2Cl.BlindedBeaconBlockProposal(ctx, opts)
 		if err != nil {
 			return nil, err
 		}
+		block := eth2Resp.Data
 
 		verifyFeeRecipientBlindedBlock(ctx, block, f.feeRecipientFunc(pubkey))
 
@@ -332,10 +363,18 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot int64, defSet 
 		blockRoot := msg.BeaconBlockRoot
 
 		// Query BN for sync committee contribution.
-		contribution, err := f.eth2Cl.SyncCommitteeContribution(ctx, eth2p0.Slot(slot), subcommIdx, blockRoot)
+		opts := &eth2api.SyncCommitteeContributionOpts{
+			Slot:              eth2p0.Slot(slot),
+			SubcommitteeIndex: subcommIdx,
+			BeaconBlockRoot:   blockRoot,
+		}
+		eth2Resp, err := f.eth2Cl.SyncCommitteeContribution(ctx, opts)
 		if err != nil {
 			return core.UnsignedDataSet{}, err
-		} else if contribution == nil {
+		}
+
+		contribution := eth2Resp.Data
+		if contribution == nil {
 			// Some beacon nodes return nil if the beacon block root is not found for the subcommittee, return retryable error.
 			// This could happen if the beacon node didn't subscribe to the correct subnet.
 			return core.UnsignedDataSet{}, errors.New("sync committee contribution not found by root (retryable)", z.U64("subcommidx", subcommIdx), z.Hex("root", blockRoot[:]))

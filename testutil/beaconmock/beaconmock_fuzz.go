@@ -123,7 +123,7 @@ func WithBeaconMockFuzzer() Option {
 			return att, nil
 		}
 
-		mock.ValidatorsFunc = func(context.Context, string, []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+		mock.ValidatorsFunc = func(context.Context, *eth2api.ValidatorsOpts) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 			var vals map[eth2p0.ValidatorIndex]*eth2v1.Validator
 			fuzz.New().Fuzz(&vals)
 

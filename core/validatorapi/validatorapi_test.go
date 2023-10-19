@@ -390,8 +390,15 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 		return nil
 	})
 
-	block2, err := component.BeaconBlockProposal(ctx, slot, randao, []byte{})
+	opts := &eth2api.BeaconBlockProposalOpts{
+		Slot:         slot,
+		RandaoReveal: randao,
+		Graffiti:     [32]byte{},
+	}
+	eth2Resp2, err := component.BeaconBlockProposal(ctx, opts)
 	require.NoError(t, err)
+	block2 := eth2Resp2.Data
+
 	require.Equal(t, block1, block2)
 }
 
@@ -706,8 +713,15 @@ func TestComponent_BlindedBeaconBlockProposal(t *testing.T) {
 		return nil
 	})
 
-	block2, err := component.BlindedBeaconBlockProposal(ctx, slot, randao, []byte{})
+	opts := &eth2api.BlindedBeaconBlockProposalOpts{
+		Slot:         slot,
+		RandaoReveal: randao,
+		Graffiti:     [32]byte{},
+	}
+	ethResp2, err := component.BlindedBeaconBlockProposal(ctx, opts)
 	require.NoError(t, err)
+	block2 := ethResp2.Data
+
 	require.Equal(t, block1, block2)
 }
 
@@ -1095,8 +1109,14 @@ func TestComponent_Duties(t *testing.T) {
 		// Construct the validator api component
 		vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
 		require.NoError(t, err)
-		duties, err := vapi.ProposerDuties(ctx, eth2p0.Epoch(epch), []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)})
+
+		opts := &eth2api.ProposerDutiesOpts{
+			Epoch:   eth2p0.Epoch(epch),
+			Indices: []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)},
+		}
+		eth2Resp, err := vapi.ProposerDuties(ctx, opts)
 		require.NoError(t, err)
+		duties := eth2Resp.Data
 		require.Len(t, duties, 1)
 		require.Equal(t, duties[0].PubKey, eth2Share)
 	})
@@ -1115,8 +1135,14 @@ func TestComponent_Duties(t *testing.T) {
 		// Construct the validator api component
 		vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
 		require.NoError(t, err)
-		duties, err := vapi.AttesterDuties(ctx, eth2p0.Epoch(epch), []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)})
+
+		opts := &eth2api.AttesterDutiesOpts{
+			Epoch:   eth2p0.Epoch(epch),
+			Indices: []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)},
+		}
+		resp, err := vapi.AttesterDuties(ctx, opts)
 		require.NoError(t, err)
+		duties := resp.Data
 		require.Len(t, duties, 1)
 		require.Equal(t, duties[0].PubKey, eth2Share)
 	})
@@ -1135,8 +1161,14 @@ func TestComponent_Duties(t *testing.T) {
 		// Construct the validator api component
 		vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
 		require.NoError(t, err)
-		duties, err := vapi.SyncCommitteeDuties(ctx, eth2p0.Epoch(epch), []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)})
+
+		opts := &eth2api.SyncCommitteeDutiesOpts{
+			Epoch:   eth2p0.Epoch(epch),
+			Indices: []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)},
+		}
+		eth2Resp, err := vapi.SyncCommitteeDuties(ctx, opts)
 		require.NoError(t, err)
+		duties := eth2Resp.Data
 		require.Len(t, duties, 1)
 		require.Equal(t, duties[0].PubKey, eth2Share)
 	})
@@ -1656,8 +1688,12 @@ func TestComponent_GetAllValidators(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
 	require.NoError(t, err)
 
-	vals, err := vapi.Validators(context.Background(), "head", nil)
+	opts := &eth2api.ValidatorsOpts{
+		State: "head",
+	}
+	resp, err := vapi.Validators(context.Background(), opts)
 	require.NoError(t, err)
+	vals := resp.Data
 	require.Len(t, vals, totalVals)
 
 	for _, val := range clusterVals {
@@ -1689,7 +1725,11 @@ func TestComponent_GetClusterValidatorsWithError(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, make(map[core.PubKey]map[int]tbls.PublicKey), shareIdx, nil, testutil.BuilderFalse, nil)
 	require.NoError(t, err)
 
-	_, err = vapi.Validators(context.Background(), "head", indices)
+	opts := &eth2api.ValidatorsOpts{
+		State:   "head",
+		Indices: indices,
+	}
+	_, err = vapi.Validators(context.Background(), opts)
 	require.ErrorContains(t, err, "pubshare not found")
 }
 

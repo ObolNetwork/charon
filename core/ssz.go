@@ -197,7 +197,7 @@ func (b *VersionedBeaconBlock) sszValFromVersion(version eth2util.DataVersion) (
 		return b.Capella, nil
 	case eth2util.DataVersionDeneb:
 		if b.Deneb == nil {
-			b.Deneb = new(deneb.BeaconBlock)
+			b.Deneb = new(eth2deneb.BlockContents)
 		}
 
 		return b.Deneb, nil

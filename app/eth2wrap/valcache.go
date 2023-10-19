@@ -6,6 +6,7 @@ import (
 	"context"
 	"sync"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -88,10 +89,15 @@ func (c *ValidatorCache) Get(ctx context.Context) (ActiveValidators, error) {
 		return c.active, nil
 	}
 
-	vals, err := c.eth2Cl.ValidatorsByPubKey(ctx, "head", c.pubkeys)
+	opts := &eth2api.ValidatorsOpts{
+		State:   "head",
+		PubKeys: c.pubkeys,
+	}
+	eth2Resp, err := c.eth2Cl.Validators(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
+	vals := eth2Resp.Data
 
 	resp := make(ActiveValidators)
 	for _, val := range vals {

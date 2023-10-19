@@ -40,6 +40,7 @@ type Client interface {
 	eth2client.BeaconCommitteeSubscriptionsSubmitter
 	eth2client.BlindedBeaconBlockProposalProvider
 	eth2client.BlindedBeaconBlockSubmitter
+	eth2client.BlindedProposalSubmitter
 	eth2client.DepositContractProvider
 	eth2client.DomainProvider
 	eth2client.ForkProvider
@@ -49,6 +50,7 @@ type Client interface {
 	eth2client.NodeSyncingProvider
 	eth2client.NodeVersionProvider
 	eth2client.ProposalPreparationsSubmitter
+	eth2client.ProposalSubmitter
 	eth2client.ProposerDutiesProvider
 	eth2client.SignedBeaconBlockProvider
 	eth2client.SlotDurationProvider
@@ -66,11 +68,11 @@ type Client interface {
 
 // NodeVersion returns a free-text string with the node version.
 // Note this endpoint is cached in go-eth2-client.
-func (m multi) NodeVersion(ctx context.Context) (string, error) {
+func (m multi) NodeVersion(ctx context.Context) (*api.Response[string], error) {
 	const label = "node_version"
 
 	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (string, error) {
+		func(ctx context.Context, cl Client) (*api.Response[string], error) {
 			return cl.NodeVersion(ctx)
 		},
 		nil, m.bestIdx,
@@ -124,13 +126,13 @@ func (m multi) SlotsPerEpoch(ctx context.Context) (uint64, error) {
 	return res0, err
 }
 
-// DepositContract provides details of the Ethereum 1 deposit contract for the chain.
+// DepositContract provides details of the execution deposit contract for the chain.
 // Note this endpoint is cached in go-eth2-client.
-func (m multi) DepositContract(ctx context.Context) (*apiv1.DepositContract, error) {
+func (m multi) DepositContract(ctx context.Context) (*api.Response[*apiv1.DepositContract], error) {
 	const label = "deposit_contract"
 
 	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (*apiv1.DepositContract, error) {
+		func(ctx context.Context, cl Client) (*api.Response[*apiv1.DepositContract], error) {
 			return cl.DepositContract(ctx)
 		},
 		nil, m.bestIdx,
@@ -145,13 +147,13 @@ func (m multi) DepositContract(ctx context.Context) (*apiv1.DepositContract, err
 }
 
 // SignedBeaconBlock fetches a signed beacon block given a block ID.
-func (m multi) SignedBeaconBlock(ctx context.Context, blockID string) (*spec.VersionedSignedBeaconBlock, error) {
+func (m multi) SignedBeaconBlock(ctx context.Context, opts *api.SignedBeaconBlockOpts) (*api.Response[*spec.VersionedSignedBeaconBlock], error) {
 	const label = "signed_beacon_block"
 	defer latency(label)()
 
 	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (*spec.VersionedSignedBeaconBlock, error) {
-			return cl.SignedBeaconBlock(ctx, blockID)
+		func(ctx context.Context, cl Client) (*api.Response[*spec.VersionedSignedBeaconBlock], error) {
+			return cl.SignedBeaconBlock(ctx, opts)
 		},
 		nil, m.bestIdx,
 	)
@@ -164,14 +166,14 @@ func (m multi) SignedBeaconBlock(ctx context.Context, blockID string) (*spec.Ver
 	return res0, err
 }
 
-// AggregateAttestation fetches the aggregate attestation given an attestation.
-func (m multi) AggregateAttestation(ctx context.Context, slot phase0.Slot, attestationDataRoot phase0.Root) (*phase0.Attestation, error) {
+// AggregateAttestation fetches the aggregate attestation for the given options.
+func (m multi) AggregateAttestation(ctx context.Context, opts *api.AggregateAttestationOpts) (*api.Response[*phase0.Attestation], error) {
 	const label = "aggregate_attestation"
 	defer latency(label)()
 
 	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (*phase0.Attestation, error) {
-			return cl.AggregateAttestation(ctx, slot, attestationDataRoot)
+		func(ctx context.Context, cl Client) (*api.Response[*phase0.Attestation], error) {
+			return cl.AggregateAttestation(ctx, opts)
 		},
 		isAggregateAttestationOk, m.bestIdx,
 	)
@@ -204,14 +206,14 @@ func (m multi) SubmitAggregateAttestations(ctx context.Context, aggregateAndProo
 	return err
 }
 
-// AttestationData fetches the attestation data for the given slot and committee index.
-func (m multi) AttestationData(ctx context.Context, slot phase0.Slot, committeeIndex phase0.CommitteeIndex) (*phase0.AttestationData, error) {
+// AttestationData fetches the attestation data for the given options.
+func (m multi) AttestationData(ctx context.Context, opts *api.AttestationDataOpts) (*api.Response[*phase0.AttestationData], error) {
 	const label = "attestation_data"
 	defer latency(label)()
 
 	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (*phase0.AttestationData, error) {
-			return cl.AttestationData(ctx, slot, committeeIndex)
+		func(ctx context.Context, cl Client) (*api.Response[*phase0.AttestationData], error) {
+			return cl.AttestationData(ctx, opts)
 		},
 		nil, m.bestIdx,
 	)
@@ -245,14 +247,13 @@ func (m multi) SubmitAttestations(ctx context.Context, attestations []*phase0.At
 }
 
 // AttesterDuties obtains attester duties.
-// If validatorIndicess is nil it will return all duties for the given epoch.
-func (m multi) AttesterDuties(ctx context.Context, epoch phase0.Epoch, validatorIndices []phase0.ValidatorIndex) ([]*apiv1.AttesterDuty, error) {
+func (m multi) AttesterDuties(ctx context.Context, opts *api.AttesterDutiesOpts) (*api.Response[[]*apiv1.AttesterDuty], error) {
 	const label = "attester_duties"
 	defer latency(label)()
 
 	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) ([]*apiv1.AttesterDuty, error) {
-			return cl.AttesterDuties(ctx, epoch, validatorIndices)
+		func(ctx context.Context, cl Client) (*api.Response[[]*apiv1.AttesterDuty], error) {
+			return cl.AttesterDuties(ctx, opts)
 		},
 		nil, m.bestIdx,
 	)
@@ -267,13 +268,13 @@ func (m multi) AttesterDuties(ctx context.Context, epoch phase0.Epoch, validator
 
 // SyncCommitteeDuties obtains sync committee duties.
 // If validatorIndicess is nil it will return all duties for the given epoch.
-func (m multi) SyncCommitteeDuties(ctx context.Context, epoch phase0.Epoch, validatorIndices []phase0.ValidatorIndex) ([]*apiv1.SyncCommitteeDuty, error) {
+func (m multi) SyncCommitteeDuties(ctx context.Context, opts *api.SyncCommitteeDutiesOpts) (*api.Response[[]*apiv1.SyncCommitteeDuty], error) {
 	const label = "sync_committee_duties"
 	defer latency(label)()
 
 	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) ([]*apiv1.SyncCommitteeDuty, error) {
-			return cl.SyncCommitteeDuties(ctx, epoch, validatorIndices)
+		func(ctx context.Context, cl Client) (*api.Response[[]*apiv1.SyncCommitteeDuty], error) {
+			return cl.SyncCommitteeDuties(ctx, opts)
 		},
 		nil, m.bestIdx,
 	)
@@ -327,13 +328,13 @@ func (m multi) SubmitSyncCommitteeSubscriptions(ctx context.Context, subscriptio
 }
 
 // SyncCommitteeContribution provides a sync committee contribution.
-func (m multi) SyncCommitteeContribution(ctx context.Context, slot phase0.Slot, subcommitteeIndex uint64, beaconBlockRoot phase0.Root) (*altair.SyncCommitteeContribution, error) {
+func (m multi) SyncCommitteeContribution(ctx context.Context, opts *api.SyncCommitteeContributionOpts) (*api.Response[*altair.SyncCommitteeContribution], error) {
 	const label = "sync_committee_contribution"
 	defer latency(label)()
 
 	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (*altair.SyncCommitteeContribution, error) {
-			return cl.SyncCommitteeContribution(ctx, slot, subcommitteeIndex, beaconBlockRoot)
+		func(ctx context.Context, cl Client) (*api.Response[*altair.SyncCommitteeContribution], error) {
+			return cl.SyncCommitteeContribution(ctx, opts)
 		},
 		nil, m.bestIdx,
 	)
@@ -366,14 +367,14 @@ func (m multi) SubmitSyncCommitteeContributions(ctx context.Context, contributio
 	return err
 }
 
-// BeaconBlockProposal fetches a proposed beacon block for signing.
-func (m multi) BeaconBlockProposal(ctx context.Context, slot phase0.Slot, randaoReveal phase0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
+// BeaconBlockProposal fetches a beacon block for signing.
+func (m multi) BeaconBlockProposal(ctx context.Context, opts *api.BeaconBlockProposalOpts) (*api.Response[*spec.VersionedBeaconBlock], error) {
 	const label = "beacon_block_proposal"
 	defer latency(label)()
 
 	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (*spec.VersionedBeaconBlock, error) {
-			return cl.BeaconBlockProposal(ctx, slot, randaoReveal, graffiti)
+		func(ctx context.Context, cl Client) (*api.Response[*spec.VersionedBeaconBlock], error) {
+			return cl.BeaconBlockProposal(ctx, opts)
 		},
 		nil, m.bestIdx,
 	)
@@ -386,14 +387,14 @@ func (m multi) BeaconBlockProposal(ctx context.Context, slot phase0.Slot, randao
 	return res0, err
 }
 
-// BeaconBlockRoot fetches a block's root given a block ID.
+// BeaconBlockRoot fetches a block's root given a set of options.
 // Note this endpoint is cached in go-eth2-client.
-func (m multi) BeaconBlockRoot(ctx context.Context, blockID string) (*phase0.Root, error) {
+func (m multi) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRootOpts) (*api.Response[*phase0.Root], error) {
 	const label = "beacon_block_root"
 
 	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (*phase0.Root, error) {
-			return cl.BeaconBlockRoot(ctx, blockID)
+		func(ctx context.Context, cl Client) (*api.Response[*phase0.Root], error) {
+			return cl.BeaconBlockRoot(ctx, opts)
 		},
 		nil, m.bestIdx,
 	)
@@ -407,6 +408,8 @@ func (m multi) BeaconBlockRoot(ctx context.Context, blockID string) (*phase0.Roo
 }
 
 // SubmitBeaconBlock submits a beacon block.
+//
+// Deprecated: this will not work from the deneb hard-fork onwards.  Use ProposalSubmitter.SubmitProposal() instead.
 func (m multi) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
 	const label = "submit_beacon_block"
 	defer latency(label)()
@@ -414,6 +417,26 @@ func (m multi) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSigne
 	err := submit(ctx, m.clients,
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitBeaconBlock(ctx, block)
+		},
+		m.bestIdx,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return err
+}
+
+// SubmitProposal submits a proposal.
+func (m multi) SubmitProposal(ctx context.Context, block *api.VersionedSignedProposal) error {
+	const label = "submit_proposal"
+	defer latency(label)()
+
+	err := submit(ctx, m.clients,
+		func(ctx context.Context, cl Client) error {
+			return cl.SubmitProposal(ctx, block)
 		},
 		m.bestIdx,
 	)
@@ -447,13 +470,13 @@ func (m multi) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscript
 }
 
 // BlindedBeaconBlockProposal fetches a blinded proposed beacon block for signing.
-func (m multi) BlindedBeaconBlockProposal(ctx context.Context, slot phase0.Slot, randaoReveal phase0.BLSSignature, graffiti []byte) (*api.VersionedBlindedBeaconBlock, error) {
+func (m multi) BlindedBeaconBlockProposal(ctx context.Context, opts *api.BlindedBeaconBlockProposalOpts) (*api.Response[*api.VersionedBlindedBeaconBlock], error) {
 	const label = "blinded_beacon_block_proposal"
 	defer latency(label)()
 
 	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (*api.VersionedBlindedBeaconBlock, error) {
-			return cl.BlindedBeaconBlockProposal(ctx, slot, randaoReveal, graffiti)
+		func(ctx context.Context, cl Client) (*api.Response[*api.VersionedBlindedBeaconBlock], error) {
+			return cl.BlindedBeaconBlockProposal(ctx, opts)
 		},
 		nil, m.bestIdx,
 	)
@@ -467,6 +490,8 @@ func (m multi) BlindedBeaconBlockProposal(ctx context.Context, slot phase0.Slot,
 }
 
 // SubmitBlindedBeaconBlock submits a beacon block.
+//
+// Deprecated: this will not work from the deneb hard-fork onwards.  Use BlindedProposalSubmitter.SubmitBlindedProposal() instead.
 func (m multi) SubmitBlindedBeaconBlock(ctx context.Context, block *api.VersionedSignedBlindedBeaconBlock) error {
 	const label = "submit_blinded_beacon_block"
 	defer latency(label)()
@@ -474,6 +499,26 @@ func (m multi) SubmitBlindedBeaconBlock(ctx context.Context, block *api.Versione
 	err := submit(ctx, m.clients,
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitBlindedBeaconBlock(ctx, block)
+		},
+		m.bestIdx,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return err
+}
+
+// SubmitBlindedProposal submits a beacon block.
+func (m multi) SubmitBlindedProposal(ctx context.Context, block *api.VersionedSignedBlindedProposal) error {
+	const label = "submit_blinded_proposal"
+	defer latency(label)()
+
+	err := submit(ctx, m.clients,
+		func(ctx context.Context, cl Client) error {
+			return cl.SubmitBlindedProposal(ctx, block)
 		},
 		m.bestIdx,
 	)
@@ -507,13 +552,13 @@ func (m multi) SubmitValidatorRegistrations(ctx context.Context, registrations [
 }
 
 // Fork fetches fork information for the given state.
-func (m multi) Fork(ctx context.Context, stateID string) (*phase0.Fork, error) {
+func (m multi) Fork(ctx context.Context, opts *api.ForkOpts) (*api.Response[*phase0.Fork], error) {
 	const label = "fork"
 	defer latency(label)()
 
 	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (*phase0.Fork, error) {
-			return cl.Fork(ctx, stateID)
+		func(ctx context.Context, cl Client) (*api.Response[*phase0.Fork], error) {
+			return cl.Fork(ctx, opts)
 		},
 		nil, m.bestIdx,
 	)
@@ -527,12 +572,12 @@ func (m multi) Fork(ctx context.Context, stateID string) (*phase0.Fork, error) {
 }
 
 // ForkSchedule provides details of past and future changes in the chain's fork version.
-func (m multi) ForkSchedule(ctx context.Context) ([]*phase0.Fork, error) {
+func (m multi) ForkSchedule(ctx context.Context) (*api.Response[[]*phase0.Fork], error) {
 	const label = "fork_schedule"
 	defer latency(label)()
 
 	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) ([]*phase0.Fork, error) {
+		func(ctx context.Context, cl Client) (*api.Response[[]*phase0.Fork], error) {
 			return cl.ForkSchedule(ctx)
 		},
 		nil, m.bestIdx,
@@ -548,11 +593,11 @@ func (m multi) ForkSchedule(ctx context.Context) ([]*phase0.Fork, error) {
 
 // Genesis fetches genesis information for the chain.
 // Note this endpoint is cached in go-eth2-client.
-func (m multi) Genesis(ctx context.Context) (*apiv1.Genesis, error) {
+func (m multi) Genesis(ctx context.Context) (*api.Response[*apiv1.Genesis], error) {
 	const label = "genesis"
 
 	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (*apiv1.Genesis, error) {
+		func(ctx context.Context, cl Client) (*api.Response[*apiv1.Genesis], error) {
 			return cl.Genesis(ctx)
 		},
 		nil, m.bestIdx,
@@ -567,12 +612,12 @@ func (m multi) Genesis(ctx context.Context) (*apiv1.Genesis, error) {
 }
 
 // NodeSyncing provides the state of the node's synchronization with the chain.
-func (m multi) NodeSyncing(ctx context.Context) (*apiv1.SyncState, error) {
+func (m multi) NodeSyncing(ctx context.Context) (*api.Response[*apiv1.SyncState], error) {
 	const label = "node_syncing"
 	defer latency(label)()
 
 	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (*apiv1.SyncState, error) {
+		func(ctx context.Context, cl Client) (*api.Response[*apiv1.SyncState], error) {
 			return cl.NodeSyncing(ctx)
 		},
 		isSyncStateOk, m.bestIdx,
@@ -607,15 +652,14 @@ func (m multi) SubmitProposalPreparations(ctx context.Context, preparations []*a
 	return err
 }
 
-// ProposerDuties obtains proposer duties for the given epoch.
-// If validatorIndices is empty all duties are returned, otherwise only matching duties are returned.
-func (m multi) ProposerDuties(ctx context.Context, epoch phase0.Epoch, validatorIndices []phase0.ValidatorIndex) ([]*apiv1.ProposerDuty, error) {
+// ProposerDuties obtains proposer duties for the given options.
+func (m multi) ProposerDuties(ctx context.Context, opts *api.ProposerDutiesOpts) (*api.Response[[]*apiv1.ProposerDuty], error) {
 	const label = "proposer_duties"
 	defer latency(label)()
 
 	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) ([]*apiv1.ProposerDuty, error) {
-			return cl.ProposerDuties(ctx, epoch, validatorIndices)
+		func(ctx context.Context, cl Client) (*api.Response[[]*apiv1.ProposerDuty], error) {
+			return cl.ProposerDuties(ctx, opts)
 		},
 		nil, m.bestIdx,
 	)
@@ -630,11 +674,11 @@ func (m multi) ProposerDuties(ctx context.Context, epoch phase0.Epoch, validator
 
 // Spec provides the spec information of the chain.
 // Note this endpoint is cached in go-eth2-client.
-func (m multi) Spec(ctx context.Context) (map[string]interface{}, error) {
+func (m multi) Spec(ctx context.Context) (*api.Response[map[string]any], error) {
 	const label = "spec"
 
 	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (map[string]interface{}, error) {
+		func(ctx context.Context, cl Client) (*api.Response[map[string]any], error) {
 			return cl.Spec(ctx)
 		},
 		nil, m.bestIdx,
@@ -648,40 +692,14 @@ func (m multi) Spec(ctx context.Context) (map[string]interface{}, error) {
 	return res0, err
 }
 
-// Validators provides the validators, with their balance and status, for a given state.
-// stateID can be a slot number or state root, or one of the special values "genesis", "head", "justified" or "finalized".
-// validatorIndices is a list of validator indices to restrict the returned values.  If no validators IDs are supplied no filter
-// will be applied.
-func (m multi) Validators(ctx context.Context, stateID string, validatorIndices []phase0.ValidatorIndex) (map[phase0.ValidatorIndex]*apiv1.Validator, error) {
+// Validators provides the validators, with their balance and status, for the given options.
+func (m multi) Validators(ctx context.Context, opts *api.ValidatorsOpts) (*api.Response[map[phase0.ValidatorIndex]*apiv1.Validator], error) {
 	const label = "validators"
 	defer latency(label)()
 
 	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (map[phase0.ValidatorIndex]*apiv1.Validator, error) {
-			return cl.Validators(ctx, stateID, validatorIndices)
-		},
-		nil, m.bestIdx,
-	)
-
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return res0, err
-}
-
-// ValidatorsByPubKey provides the validators, with their balance and status, for a given state.
-// stateID can be a slot number or state root, or one of the special values "genesis", "head", "justified" or "finalized".
-// validatorPubKeys is a list of validator public keys to restrict the returned values.  If no validators public keys are
-// supplied no filter will be applied.
-func (m multi) ValidatorsByPubKey(ctx context.Context, stateID string, validatorPubKeys []phase0.BLSPubKey) (map[phase0.ValidatorIndex]*apiv1.Validator, error) {
-	const label = "validators_by_pub_key"
-	defer latency(label)()
-
-	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (map[phase0.ValidatorIndex]*apiv1.Validator, error) {
-			return cl.ValidatorsByPubKey(ctx, stateID, validatorPubKeys)
+		func(ctx context.Context, cl Client) (*api.Response[map[phase0.ValidatorIndex]*apiv1.Validator], error) {
+			return cl.Validators(ctx, opts)
 		},
 		nil, m.bestIdx,
 	)
@@ -778,7 +796,7 @@ func (m multi) GenesisTime(ctx context.Context) (time.Time, error) {
 }
 
 // NodeVersion returns a free-text string with the node version.
-func (l *lazy) NodeVersion(ctx context.Context) (res0 string, err error) {
+func (l *lazy) NodeVersion(ctx context.Context) (res0 *api.Response[string], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
@@ -807,8 +825,8 @@ func (l *lazy) SlotsPerEpoch(ctx context.Context) (res0 uint64, err error) {
 	return cl.SlotsPerEpoch(ctx)
 }
 
-// DepositContract provides details of the Ethereum 1 deposit contract for the chain.
-func (l *lazy) DepositContract(ctx context.Context) (res0 *apiv1.DepositContract, err error) {
+// DepositContract provides details of the execution deposit contract for the chain.
+func (l *lazy) DepositContract(ctx context.Context) (res0 *api.Response[*apiv1.DepositContract], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
@@ -818,23 +836,23 @@ func (l *lazy) DepositContract(ctx context.Context) (res0 *apiv1.DepositContract
 }
 
 // SignedBeaconBlock fetches a signed beacon block given a block ID.
-func (l *lazy) SignedBeaconBlock(ctx context.Context, blockID string) (res0 *spec.VersionedSignedBeaconBlock, err error) {
+func (l *lazy) SignedBeaconBlock(ctx context.Context, opts *api.SignedBeaconBlockOpts) (res0 *api.Response[*spec.VersionedSignedBeaconBlock], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
 
-	return cl.SignedBeaconBlock(ctx, blockID)
+	return cl.SignedBeaconBlock(ctx, opts)
 }
 
-// AggregateAttestation fetches the aggregate attestation given an attestation.
-func (l *lazy) AggregateAttestation(ctx context.Context, slot phase0.Slot, attestationDataRoot phase0.Root) (res0 *phase0.Attestation, err error) {
+// AggregateAttestation fetches the aggregate attestation for the given options.
+func (l *lazy) AggregateAttestation(ctx context.Context, opts *api.AggregateAttestationOpts) (res0 *api.Response[*phase0.Attestation], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
 
-	return cl.AggregateAttestation(ctx, slot, attestationDataRoot)
+	return cl.AggregateAttestation(ctx, opts)
 }
 
 // SubmitAggregateAttestations submits aggregate attestations.
@@ -847,14 +865,14 @@ func (l *lazy) SubmitAggregateAttestations(ctx context.Context, aggregateAndProo
 	return cl.SubmitAggregateAttestations(ctx, aggregateAndProofs)
 }
 
-// AttestationData fetches the attestation data for the given slot and committee index.
-func (l *lazy) AttestationData(ctx context.Context, slot phase0.Slot, committeeIndex phase0.CommitteeIndex) (res0 *phase0.AttestationData, err error) {
+// AttestationData fetches the attestation data for the given options.
+func (l *lazy) AttestationData(ctx context.Context, opts *api.AttestationDataOpts) (res0 *api.Response[*phase0.AttestationData], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
 
-	return cl.AttestationData(ctx, slot, committeeIndex)
+	return cl.AttestationData(ctx, opts)
 }
 
 // SubmitAttestations submits attestations.
@@ -868,25 +886,24 @@ func (l *lazy) SubmitAttestations(ctx context.Context, attestations []*phase0.At
 }
 
 // AttesterDuties obtains attester duties.
-// If validatorIndicess is nil it will return all duties for the given epoch.
-func (l *lazy) AttesterDuties(ctx context.Context, epoch phase0.Epoch, validatorIndices []phase0.ValidatorIndex) (res0 []*apiv1.AttesterDuty, err error) {
+func (l *lazy) AttesterDuties(ctx context.Context, opts *api.AttesterDutiesOpts) (res0 *api.Response[[]*apiv1.AttesterDuty], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
 
-	return cl.AttesterDuties(ctx, epoch, validatorIndices)
+	return cl.AttesterDuties(ctx, opts)
 }
 
 // SyncCommitteeDuties obtains sync committee duties.
 // If validatorIndicess is nil it will return all duties for the given epoch.
-func (l *lazy) SyncCommitteeDuties(ctx context.Context, epoch phase0.Epoch, validatorIndices []phase0.ValidatorIndex) (res0 []*apiv1.SyncCommitteeDuty, err error) {
+func (l *lazy) SyncCommitteeDuties(ctx context.Context, opts *api.SyncCommitteeDutiesOpts) (res0 *api.Response[[]*apiv1.SyncCommitteeDuty], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
 
-	return cl.SyncCommitteeDuties(ctx, epoch, validatorIndices)
+	return cl.SyncCommitteeDuties(ctx, opts)
 }
 
 // SubmitSyncCommitteeMessages submits sync committee messages.
@@ -910,13 +927,13 @@ func (l *lazy) SubmitSyncCommitteeSubscriptions(ctx context.Context, subscriptio
 }
 
 // SyncCommitteeContribution provides a sync committee contribution.
-func (l *lazy) SyncCommitteeContribution(ctx context.Context, slot phase0.Slot, subcommitteeIndex uint64, beaconBlockRoot phase0.Root) (res0 *altair.SyncCommitteeContribution, err error) {
+func (l *lazy) SyncCommitteeContribution(ctx context.Context, opts *api.SyncCommitteeContributionOpts) (res0 *api.Response[*altair.SyncCommitteeContribution], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
 
-	return cl.SyncCommitteeContribution(ctx, slot, subcommitteeIndex, beaconBlockRoot)
+	return cl.SyncCommitteeContribution(ctx, opts)
 }
 
 // SubmitSyncCommitteeContributions submits sync committee contributions.
@@ -929,27 +946,29 @@ func (l *lazy) SubmitSyncCommitteeContributions(ctx context.Context, contributio
 	return cl.SubmitSyncCommitteeContributions(ctx, contributionAndProofs)
 }
 
-// BeaconBlockProposal fetches a proposed beacon block for signing.
-func (l *lazy) BeaconBlockProposal(ctx context.Context, slot phase0.Slot, randaoReveal phase0.BLSSignature, graffiti []byte) (res0 *spec.VersionedBeaconBlock, err error) {
+// BeaconBlockProposal fetches a beacon block for signing.
+func (l *lazy) BeaconBlockProposal(ctx context.Context, opts *api.BeaconBlockProposalOpts) (res0 *api.Response[*spec.VersionedBeaconBlock], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
 
-	return cl.BeaconBlockProposal(ctx, slot, randaoReveal, graffiti)
+	return cl.BeaconBlockProposal(ctx, opts)
 }
 
-// BeaconBlockRoot fetches a block's root given a block ID.
-func (l *lazy) BeaconBlockRoot(ctx context.Context, blockID string) (res0 *phase0.Root, err error) {
+// BeaconBlockRoot fetches a block's root given a set of options.
+func (l *lazy) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRootOpts) (res0 *api.Response[*phase0.Root], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
 
-	return cl.BeaconBlockRoot(ctx, blockID)
+	return cl.BeaconBlockRoot(ctx, opts)
 }
 
 // SubmitBeaconBlock submits a beacon block.
+//
+// Deprecated: this will not work from the deneb hard-fork onwards.  Use ProposalSubmitter.SubmitProposal() instead.
 func (l *lazy) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) (err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
@@ -957,6 +976,16 @@ func (l *lazy) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSigne
 	}
 
 	return cl.SubmitBeaconBlock(ctx, block)
+}
+
+// SubmitProposal submits a proposal.
+func (l *lazy) SubmitProposal(ctx context.Context, block *api.VersionedSignedProposal) (err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	return cl.SubmitProposal(ctx, block)
 }
 
 // SubmitBeaconCommitteeSubscriptions subscribes to beacon committees.
@@ -970,16 +999,18 @@ func (l *lazy) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscript
 }
 
 // BlindedBeaconBlockProposal fetches a blinded proposed beacon block for signing.
-func (l *lazy) BlindedBeaconBlockProposal(ctx context.Context, slot phase0.Slot, randaoReveal phase0.BLSSignature, graffiti []byte) (res0 *api.VersionedBlindedBeaconBlock, err error) {
+func (l *lazy) BlindedBeaconBlockProposal(ctx context.Context, opts *api.BlindedBeaconBlockProposalOpts) (res0 *api.Response[*api.VersionedBlindedBeaconBlock], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
 
-	return cl.BlindedBeaconBlockProposal(ctx, slot, randaoReveal, graffiti)
+	return cl.BlindedBeaconBlockProposal(ctx, opts)
 }
 
 // SubmitBlindedBeaconBlock submits a beacon block.
+//
+// Deprecated: this will not work from the deneb hard-fork onwards.  Use BlindedProposalSubmitter.SubmitBlindedProposal() instead.
 func (l *lazy) SubmitBlindedBeaconBlock(ctx context.Context, block *api.VersionedSignedBlindedBeaconBlock) (err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
@@ -987,6 +1018,16 @@ func (l *lazy) SubmitBlindedBeaconBlock(ctx context.Context, block *api.Versione
 	}
 
 	return cl.SubmitBlindedBeaconBlock(ctx, block)
+}
+
+// SubmitBlindedProposal submits a beacon block.
+func (l *lazy) SubmitBlindedProposal(ctx context.Context, block *api.VersionedSignedBlindedProposal) (err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	return cl.SubmitBlindedProposal(ctx, block)
 }
 
 // SubmitValidatorRegistrations submits a validator registration.
@@ -1000,17 +1041,17 @@ func (l *lazy) SubmitValidatorRegistrations(ctx context.Context, registrations [
 }
 
 // Fork fetches fork information for the given state.
-func (l *lazy) Fork(ctx context.Context, stateID string) (res0 *phase0.Fork, err error) {
+func (l *lazy) Fork(ctx context.Context, opts *api.ForkOpts) (res0 *api.Response[*phase0.Fork], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
 
-	return cl.Fork(ctx, stateID)
+	return cl.Fork(ctx, opts)
 }
 
 // ForkSchedule provides details of past and future changes in the chain's fork version.
-func (l *lazy) ForkSchedule(ctx context.Context) (res0 []*phase0.Fork, err error) {
+func (l *lazy) ForkSchedule(ctx context.Context) (res0 *api.Response[[]*phase0.Fork], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
@@ -1020,7 +1061,7 @@ func (l *lazy) ForkSchedule(ctx context.Context) (res0 []*phase0.Fork, err error
 }
 
 // Genesis fetches genesis information for the chain.
-func (l *lazy) Genesis(ctx context.Context) (res0 *apiv1.Genesis, err error) {
+func (l *lazy) Genesis(ctx context.Context) (res0 *api.Response[*apiv1.Genesis], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
@@ -1030,7 +1071,7 @@ func (l *lazy) Genesis(ctx context.Context) (res0 *apiv1.Genesis, err error) {
 }
 
 // NodeSyncing provides the state of the node's synchronization with the chain.
-func (l *lazy) NodeSyncing(ctx context.Context) (res0 *apiv1.SyncState, err error) {
+func (l *lazy) NodeSyncing(ctx context.Context) (res0 *api.Response[*apiv1.SyncState], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
@@ -1050,19 +1091,18 @@ func (l *lazy) SubmitProposalPreparations(ctx context.Context, preparations []*a
 	return cl.SubmitProposalPreparations(ctx, preparations)
 }
 
-// ProposerDuties obtains proposer duties for the given epoch.
-// If validatorIndices is empty all duties are returned, otherwise only matching duties are returned.
-func (l *lazy) ProposerDuties(ctx context.Context, epoch phase0.Epoch, validatorIndices []phase0.ValidatorIndex) (res0 []*apiv1.ProposerDuty, err error) {
+// ProposerDuties obtains proposer duties for the given options.
+func (l *lazy) ProposerDuties(ctx context.Context, opts *api.ProposerDutiesOpts) (res0 *api.Response[[]*apiv1.ProposerDuty], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
 
-	return cl.ProposerDuties(ctx, epoch, validatorIndices)
+	return cl.ProposerDuties(ctx, opts)
 }
 
 // Spec provides the spec information of the chain.
-func (l *lazy) Spec(ctx context.Context) (res0 map[string]interface{}, err error) {
+func (l *lazy) Spec(ctx context.Context) (res0 *api.Response[map[string]any], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
@@ -1071,30 +1111,14 @@ func (l *lazy) Spec(ctx context.Context) (res0 map[string]interface{}, err error
 	return cl.Spec(ctx)
 }
 
-// Validators provides the validators, with their balance and status, for a given state.
-// stateID can be a slot number or state root, or one of the special values "genesis", "head", "justified" or "finalized".
-// validatorIndices is a list of validator indices to restrict the returned values.  If no validators IDs are supplied no filter
-// will be applied.
-func (l *lazy) Validators(ctx context.Context, stateID string, validatorIndices []phase0.ValidatorIndex) (res0 map[phase0.ValidatorIndex]*apiv1.Validator, err error) {
+// Validators provides the validators, with their balance and status, for the given options.
+func (l *lazy) Validators(ctx context.Context, opts *api.ValidatorsOpts) (res0 *api.Response[map[phase0.ValidatorIndex]*apiv1.Validator], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
 
-	return cl.Validators(ctx, stateID, validatorIndices)
-}
-
-// ValidatorsByPubKey provides the validators, with their balance and status, for a given state.
-// stateID can be a slot number or state root, or one of the special values "genesis", "head", "justified" or "finalized".
-// validatorPubKeys is a list of validator public keys to restrict the returned values.  If no validators public keys are
-// supplied no filter will be applied.
-func (l *lazy) ValidatorsByPubKey(ctx context.Context, stateID string, validatorPubKeys []phase0.BLSPubKey) (res0 map[phase0.ValidatorIndex]*apiv1.Validator, err error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return res0, err
-	}
-
-	return cl.ValidatorsByPubKey(ctx, stateID, validatorPubKeys)
+	return cl.Validators(ctx, opts)
 }
 
 // SubmitVoluntaryExit submits a voluntary exit.

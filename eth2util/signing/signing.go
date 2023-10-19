@@ -34,10 +34,11 @@ const (
 
 // GetDomain returns the beacon domain for the provided type.
 func GetDomain(ctx context.Context, eth2Cl eth2wrap.Client, name DomainName, epoch eth2p0.Epoch) (eth2p0.Domain, error) {
-	spec, err := eth2Cl.Spec(ctx)
+	resp, err := eth2Cl.Spec(ctx)
 	if err != nil {
 		return eth2p0.Domain{}, err
 	}
+	spec := resp.Data
 
 	domainType, ok := spec[string(name)]
 	if !ok {

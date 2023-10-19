@@ -72,9 +72,14 @@ func (h *synthWrapper) getFeeRecipient(vIdx eth2p0.ValidatorIndex) bellatrix.Exe
 
 // ProposerDuties returns upstream proposer duties for the provided validator indexes or
 // upstream proposer duties and synthetic duties for all cluster validators if enabled.
-func (h *synthWrapper) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, _ []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+func (h *synthWrapper) ProposerDuties(ctx context.Context, opts *api.ProposerDutiesOpts) (*api.Response[[]*eth2v1.ProposerDuty], error) {
 	// TODO(corver): Should we support fetching duties for other validators not in the cluster?
-	return h.synthProposerCache.Duties(ctx, h.Client, epoch)
+	duties, err := h.synthProposerCache.Duties(ctx, h.Client, opts.Epoch)
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.Response[[]*eth2v1.ProposerDuty]{Data: duties}, nil
 }
 
 func (h *synthWrapper) SubmitProposalPreparations(ctx context.Context, preparations []*eth2v1.ProposalPreparation) error {
@@ -84,32 +89,52 @@ func (h *synthWrapper) SubmitProposalPreparations(ctx context.Context, preparati
 }
 
 // BeaconBlockProposal returns an unsigned beacon block, possibly marked as synthetic.
-func (h *synthWrapper) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, graffiti []byte) (*spec.VersionedBeaconBlock, error) {
-	vIdx, ok, err := h.synthProposerCache.SyntheticVIdx(ctx, h.Client, slot)
+func (h *synthWrapper) BeaconBlockProposal(ctx context.Context, opts *api.BeaconBlockProposalOpts) (*api.Response[*spec.VersionedBeaconBlock], error) {
+	vIdx, ok, err := h.synthProposerCache.SyntheticVIdx(ctx, h.Client, opts.Slot)
 	if err != nil {
 		return nil, err
 	} else if !ok {
-		return h.Client.BeaconBlockProposal(ctx, slot, randao, graffiti)
+		resp, err := h.Client.BeaconBlockProposal(ctx, opts)
+		if err != nil {
+			return nil, errors.Wrap(err, "propose beacon block")
+		}
+
+		return resp, nil
 	}
 
-	return h.syntheticBlock(ctx, slot, vIdx)
+	block, err := h.syntheticBlock(ctx, opts.Slot, vIdx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.Response[*spec.VersionedBeaconBlock]{Data: block}, nil
 }
 
 // BlindedBeaconBlockProposal returns an unsigned blinded beacon block, possibly marked as synthetic.
-func (h *synthWrapper) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, graffiti []byte) (*api.VersionedBlindedBeaconBlock, error) {
-	vIdx, ok, err := h.synthProposerCache.SyntheticVIdx(ctx, h.Client, slot)
+func (h *synthWrapper) BlindedBeaconBlockProposal(ctx context.Context, opts *api.BlindedBeaconBlockProposalOpts) (*api.Response[*api.VersionedBlindedBeaconBlock], error) {
+	vIdx, ok, err := h.synthProposerCache.SyntheticVIdx(ctx, h.Client, opts.Slot)
 	if err != nil {
 		return nil, err
 	} else if !ok {
-		return h.Client.BlindedBeaconBlockProposal(ctx, slot, randao, graffiti)
+		resp, err := h.Client.BlindedBeaconBlockProposal(ctx, opts)
+		if err != nil {
+			return nil, errors.Wrap(err, "propose blinded beacon block")
+		}
+
+		return resp, nil
 	}
 
-	block, err := h.syntheticBlock(ctx, slot, vIdx)
+	block, err := h.syntheticBlock(ctx, opts.Slot, vIdx)
 	if err != nil {
 		return nil, err
 	}
 
-	return blindedBlock(block)
+	syncBlindedBlock, err := blindedBlock(block)
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.Response[*api.VersionedBlindedBeaconBlock]{Data: syncBlindedBlock}, nil
 }
 
 // syntheticBlock returns a synthetic beacon block to propose.
@@ -118,14 +143,17 @@ func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot, vId
 
 	// Work our way back from previous slot to find a block to base the synthetic block on.
 	for prev := slot - 1; prev > 0; prev-- {
-		signed, err := h.Client.SignedBeaconBlock(ctx, fmt.Sprint(prev))
+		opts := &api.SignedBeaconBlockOpts{
+			Block: fmt.Sprint(prev),
+		}
+		signed, err := h.Client.SignedBeaconBlock(ctx, opts)
 		if err != nil {
 			return nil, err
 		} else if signed == nil { // go-eth2-client returns nil if block is not found.
 			continue
 		}
 
-		signedBlock = signed
+		signedBlock = signed.Data
 
 		break
 	}
@@ -279,10 +307,16 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 	}
 
 	// Get actual duties for all validators for the epoch.
-	duties, err = eth2Cl.ProposerDuties(ctx, epoch, vals.Indices())
+	opts := &api.ProposerDutiesOpts{
+		Epoch:   epoch,
+		Indices: vals.Indices(),
+	}
+	resp, err := eth2Cl.ProposerDuties(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
+
+	duties = resp.Data
 
 	// Get slotsPerEpoch and the starting slot of the epoch.
 	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)

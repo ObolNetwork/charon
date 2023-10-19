@@ -117,15 +117,17 @@ type Mock struct {
 	BlockAttestationsFunc                  func(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error)
 	NodePeerCountFunc                      func(ctx context.Context) (int, error)
 	BlindedBeaconBlockProposalFunc         func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error)
+	BlindedProposalFunc                    func(ctx context.Context, block *eth2api.VersionedSignedBlindedProposal) error
 	BeaconBlockProposalFunc                func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2spec.VersionedBeaconBlock, error)
 	SignedBeaconBlockFunc                  func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error)
 	ProposerDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
 	SubmitAttestationsFunc                 func(context.Context, []*eth2p0.Attestation) error
 	SubmitBeaconBlockFunc                  func(context.Context, *eth2spec.VersionedSignedBeaconBlock) error
+	SubmitProposalFunc                     func(ctx context.Context, block *eth2api.VersionedSignedProposal) error
 	SubmitBlindedBeaconBlockFunc           func(context.Context, *eth2api.VersionedSignedBlindedBeaconBlock) error
 	SubmitVoluntaryExitFunc                func(context.Context, *eth2p0.SignedVoluntaryExit) error
 	ValidatorsByPubKeyFunc                 func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
-	ValidatorsFunc                         func(context.Context, string, []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+	ValidatorsFunc                         func(context.Context, *eth2api.ValidatorsOpts) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
 	GenesisTimeFunc                        func(context.Context) (time.Time, error)
 	NodeSyncingFunc                        func(context.Context) (*eth2v1.SyncState, error)
 	SubmitValidatorRegistrationsFunc       func(context.Context, []*eth2api.VersionedSignedValidatorRegistration) error
@@ -143,6 +145,122 @@ type Mock struct {
 	SubmitProposalPreparationsFunc         func(ctx context.Context, preparations []*eth2v1.ProposalPreparation) error
 	ForkScheduleFunc                       func(context.Context) ([]*eth2p0.Fork, error)
 	ProposerConfigFunc                     func(context.Context) (*eth2exp.ProposerConfigResponse, error)
+}
+
+func (m Mock) AggregateAttestation(ctx context.Context, opts *eth2api.AggregateAttestationOpts) (*eth2api.Response[*eth2p0.Attestation], error) {
+	aggAtt, err := m.AggregateAttestationFunc(ctx, opts.Slot, opts.AttestationDataRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	return &eth2api.Response[*eth2p0.Attestation]{Data: aggAtt}, nil
+}
+
+func (m Mock) AttestationData(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error) {
+	attData, err := m.AttestationDataFunc(ctx, opts.Slot, opts.CommitteeIndex)
+	if err != nil {
+		return nil, err
+	}
+
+	return &eth2api.Response[*eth2p0.AttestationData]{Data: attData}, nil
+}
+
+func (m Mock) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {
+	duties, err := m.AttesterDutiesFunc(ctx, opts.Epoch, opts.Indices)
+	if err != nil {
+		return nil, err
+	}
+
+	return &eth2api.Response[[]*eth2v1.AttesterDuty]{Data: duties}, nil
+}
+
+func (m Mock) BeaconBlockProposal(ctx context.Context, opts *eth2api.BeaconBlockProposalOpts) (*eth2api.Response[*eth2spec.VersionedBeaconBlock], error) {
+	block, err := m.BeaconBlockProposalFunc(ctx, opts.Slot, opts.RandaoReveal, opts.Graffiti[:])
+	if err != nil {
+		return nil, err
+	}
+
+	return &eth2api.Response[*eth2spec.VersionedBeaconBlock]{Data: block}, nil
+}
+
+func (m Mock) BlindedBeaconBlockProposal(ctx context.Context, opts *eth2api.BlindedBeaconBlockProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedBeaconBlock], error) {
+	block, err := m.BlindedBeaconBlockProposalFunc(ctx, opts.Slot, opts.RandaoReveal, opts.Graffiti[:])
+	if err != nil {
+		return nil, err
+	}
+
+	return &eth2api.Response[*eth2api.VersionedBlindedBeaconBlock]{Data: block}, nil
+}
+
+func (m Mock) SubmitBlindedProposal(ctx context.Context, block *eth2api.VersionedSignedBlindedProposal) error {
+	return m.BlindedProposalFunc(ctx, block)
+}
+
+func (m Mock) ForkSchedule(ctx context.Context) (*eth2api.Response[[]*eth2p0.Fork], error) {
+	schedule, err := m.ForkScheduleFunc(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &eth2api.Response[[]*eth2p0.Fork]{Data: schedule}, nil
+}
+
+func (m Mock) NodeSyncing(ctx context.Context) (*eth2api.Response[*eth2v1.SyncState], error) {
+	schedule, err := m.NodeSyncingFunc(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &eth2api.Response[*eth2v1.SyncState]{Data: schedule}, nil
+}
+
+func (m Mock) SubmitProposal(ctx context.Context, block *eth2api.VersionedSignedProposal) error {
+	return m.SubmitProposalFunc(ctx, block)
+}
+
+func (m Mock) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error) {
+	duties, err := m.ProposerDutiesFunc(ctx, opts.Epoch, opts.Indices)
+	if err != nil {
+		return nil, err
+	}
+
+	return &eth2api.Response[[]*eth2v1.ProposerDuty]{Data: duties}, nil
+}
+
+func (m Mock) SignedBeaconBlock(ctx context.Context, opts *eth2api.SignedBeaconBlockOpts) (*eth2api.Response[*eth2spec.VersionedSignedBeaconBlock], error) {
+	block, err := m.SignedBeaconBlockFunc(ctx, opts.Block)
+	if err != nil {
+		return nil, err
+	}
+
+	return &eth2api.Response[*eth2spec.VersionedSignedBeaconBlock]{Data: block}, nil
+}
+
+func (m Mock) SyncCommitteeContribution(ctx context.Context, opts *eth2api.SyncCommitteeContributionOpts) (*eth2api.Response[*altair.SyncCommitteeContribution], error) {
+	contrib, err := m.SyncCommitteeContributionFunc(ctx, opts.Slot, opts.SubcommitteeIndex, opts.BeaconBlockRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	return &eth2api.Response[*altair.SyncCommitteeContribution]{Data: contrib}, nil
+}
+
+func (m Mock) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCommitteeDutiesOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeDuty], error) {
+	duties, err := m.SyncCommitteeDutiesFunc(ctx, opts.Epoch, opts.Indices)
+	if err != nil {
+		return nil, err
+	}
+
+	return &eth2api.Response[[]*eth2v1.SyncCommitteeDuty]{Data: duties}, nil
+}
+
+func (m Mock) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) {
+	vals, err := m.ValidatorsFunc(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return &eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator]{Data: vals}, nil
 }
 
 func (Mock) SetValidatorCache(func(context.Context) (eth2wrap.ActiveValidators, error)) {
@@ -177,40 +295,12 @@ func (m Mock) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedVolunt
 	return m.SubmitVoluntaryExitFunc(ctx, exit)
 }
 
-func (m Mock) AttestationData(ctx context.Context, slot eth2p0.Slot, committeeIndex eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
-	return m.AttestationDataFunc(ctx, slot, committeeIndex)
-}
-
-func (m Mock) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error) {
-	return m.BlindedBeaconBlockProposalFunc(ctx, slot, randaoReveal, graffiti)
-}
-
-func (m Mock) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2spec.VersionedBeaconBlock, error) {
-	return m.BeaconBlockProposalFunc(ctx, slot, randaoReveal, graffiti)
-}
-
-func (m Mock) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
-	return m.ProposerDutiesFunc(ctx, epoch, validatorIndices)
-}
-
-func (m Mock) AttesterDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
-	return m.AttesterDutiesFunc(ctx, epoch, validatorIndices)
-}
-
-func (m Mock) Validators(ctx context.Context, stateID string, validatorIndices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
-	return m.ValidatorsFunc(ctx, stateID, validatorIndices)
-}
-
 func (m Mock) ValidatorsByPubKey(ctx context.Context, stateID string, validatorPubKeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 	return m.ValidatorsByPubKeyFunc(ctx, stateID, validatorPubKeys)
 }
 
 func (m Mock) GenesisTime(ctx context.Context) (time.Time, error) {
 	return m.GenesisTimeFunc(ctx)
-}
-
-func (m Mock) NodeSyncing(ctx context.Context) (*eth2v1.SyncState, error) {
-	return m.NodeSyncingFunc(ctx)
 }
 
 func (m Mock) SubmitValidatorRegistrations(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error {
@@ -229,16 +319,8 @@ func (m Mock) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscripti
 	return m.SubmitBeaconCommitteeSubscriptionsFunc(ctx, subscriptions)
 }
 
-func (m Mock) AggregateAttestation(ctx context.Context, slot eth2p0.Slot, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error) {
-	return m.AggregateAttestationFunc(ctx, slot, attestationDataRoot)
-}
-
 func (m Mock) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
 	return m.SubmitAggregateAttestationsFunc(ctx, aggregateAndProofs)
-}
-
-func (m Mock) SyncCommitteeDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
-	return m.SyncCommitteeDutiesFunc(ctx, epoch, validatorIndices)
 }
 
 func (m Mock) SubmitSyncCommitteeMessages(ctx context.Context, messages []*altair.SyncCommitteeMessage) error {
@@ -249,10 +331,6 @@ func (m Mock) SubmitSyncCommitteeContributions(ctx context.Context, contribution
 	return m.SubmitSyncCommitteeContributionsFunc(ctx, contributionAndProofs)
 }
 
-func (m Mock) SyncCommitteeContribution(ctx context.Context, slot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
-	return m.SyncCommitteeContributionFunc(ctx, slot, subcommitteeIndex, beaconBlockRoot)
-}
-
 func (m Mock) SubmitSyncCommitteeSubscriptions(ctx context.Context, subscriptions []*eth2v1.SyncCommitteeSubscription) error {
 	return m.SubmitSyncCommitteeSubscriptionsFunc(ctx, subscriptions)
 }
@@ -261,16 +339,8 @@ func (m Mock) SubmitProposalPreparations(ctx context.Context, preparations []*et
 	return m.SubmitProposalPreparationsFunc(ctx, preparations)
 }
 
-func (m Mock) SignedBeaconBlock(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error) {
-	return m.SignedBeaconBlockFunc(ctx, blockID)
-}
-
 func (m Mock) SlotsPerEpoch(ctx context.Context) (uint64, error) {
 	return m.SlotsPerEpochFunc(ctx)
-}
-
-func (m Mock) ForkSchedule(ctx context.Context) ([]*eth2p0.Fork, error) {
-	return m.ForkScheduleFunc(ctx)
 }
 
 func (m Mock) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {

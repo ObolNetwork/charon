@@ -6,6 +6,7 @@ import (
 	"context"
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -22,9 +23,13 @@ func TestDeterministicAttesterDuties(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	attDuty, err := bmock.AttesterDuties(context.Background(), 1, []eth2p0.ValidatorIndex{2})
+	opts := &eth2api.AttesterDutiesOpts{
+		Epoch:   1,
+		Indices: []eth2p0.ValidatorIndex{2},
+	}
+	resp, err := bmock.AttesterDuties(context.Background(), opts)
 	require.NoError(t, err)
-	testutil.RequireGoldenJSON(t, attDuty)
+	testutil.RequireGoldenJSON(t, resp.Data)
 }
 
 func TestDeterministicProposerDuties(t *testing.T) {
@@ -34,9 +39,13 @@ func TestDeterministicProposerDuties(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	proDuty, err := bmock.ProposerDuties(context.Background(), 1, []eth2p0.ValidatorIndex{2})
+	opts := &eth2api.ProposerDutiesOpts{
+		Epoch:   1,
+		Indices: []eth2p0.ValidatorIndex{2},
+	}
+	resp, err := bmock.ProposerDuties(context.Background(), opts)
 	require.NoError(t, err)
-	testutil.RequireGoldenJSON(t, proDuty)
+	testutil.RequireGoldenJSON(t, resp.Data)
 }
 
 func TestAttestationStore(t *testing.T) {
@@ -45,24 +54,46 @@ func TestAttestationStore(t *testing.T) {
 
 	ctx := context.Background()
 
-	attData, err := bmock.AttestationData(ctx, 1, 2)
+	opts := &eth2api.AttestationDataOpts{
+		Slot:           1,
+		CommitteeIndex: 2,
+	}
+	resp, err := bmock.AttestationData(ctx, opts)
 	require.NoError(t, err)
+	attData := resp.Data
 	testutil.RequireGoldenJSON(t, attData)
 
 	root, err := attData.HashTreeRoot()
 	require.NoError(t, err)
 
-	att, err := bmock.AggregateAttestation(ctx, 0, root) // Slot is ignored.
+	aggAttOpts := &eth2api.AggregateAttestationOpts{
+		Slot:                0,
+		AttestationDataRoot: root,
+	}
+	bmockResp, err := bmock.AggregateAttestation(ctx, aggAttOpts) // Slot is ignored.
 	require.NoError(t, err)
+	att := bmockResp.Data
 	require.Equal(t, attData, att.Data)
 
-	_, err = bmock.AggregateAttestation(ctx, attData.Slot, eth2p0.Root{}) // Not found
+	aggAttopts2 := &eth2api.AggregateAttestationOpts{
+		Slot:                attData.Slot,
+		AttestationDataRoot: eth2p0.Root{},
+	}
+	_, err = bmock.AggregateAttestation(ctx, aggAttopts2) // Not found
 	require.Error(t, err)
 
 	// New attestation data with much larger slots delete old ones.
-	_, err = bmock.AttestationData(ctx, 99, 2)
+	attDataOpts := &eth2api.AttestationDataOpts{
+		Slot:           99,
+		CommitteeIndex: 2,
+	}
+	_, err = bmock.AttestationData(ctx, attDataOpts)
 	require.NoError(t, err)
 
-	_, err = bmock.AggregateAttestation(ctx, 0, root) // Deleted.
+	aggDataOpts := &eth2api.AggregateAttestationOpts{
+		Slot:                0,
+		AttestationDataRoot: root,
+	}
+	_, err = bmock.AggregateAttestation(ctx, aggDataOpts) // Deleted.
 	require.Error(t, err)
 }

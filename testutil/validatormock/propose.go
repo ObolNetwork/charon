@@ -49,10 +49,15 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 		indexes = append(indexes, index)
 	}
 
-	duties, err := eth2Cl.ProposerDuties(ctx, epoch, indexes)
+	opts := &eth2api.ProposerDutiesOpts{
+		Epoch:   epoch,
+		Indices: indexes,
+	}
+	eth2Resp, err := eth2Cl.ProposerDuties(ctx, opts)
 	if err != nil {
 		return err
 	}
+	duties := eth2Resp.Data
 
 	var slotProposer *eth2v1.ProposerDuty
 	for _, duty := range duties {
@@ -89,10 +94,16 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 	}
 
 	// Get Unsigned beacon block with given randao and slot
-	block, err = eth2Cl.BeaconBlockProposal(ctx, slot, randao, nil)
+	proposalOpts := &eth2api.BeaconBlockProposalOpts{
+		Slot:         slot,
+		RandaoReveal: randao,
+		Graffiti:     [32]byte{},
+	}
+	eth2ProposalResp, err := eth2Cl.BeaconBlockProposal(ctx, proposalOpts)
 	if err != nil {
 		return errors.Wrap(err, "vmock beacon block proposal")
 	}
+	block = eth2ProposalResp.Data
 
 	if block == nil {
 		return errors.New("block not found")
@@ -166,10 +177,15 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 		indexes = append(indexes, index)
 	}
 
-	duties, err := eth2Cl.ProposerDuties(ctx, epoch, indexes)
+	opts := &eth2api.ProposerDutiesOpts{
+		Epoch:   epoch,
+		Indices: indexes,
+	}
+	eth2Resp, err := eth2Cl.ProposerDuties(ctx, opts)
 	if err != nil {
 		return err
 	}
+	duties := eth2Resp.Data
 
 	var slotProposer *eth2v1.ProposerDuty
 	for _, duty := range duties {
@@ -206,10 +222,16 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 	}
 
 	// Get Unsigned beacon block with given randao and slot
-	block, err = eth2Cl.BlindedBeaconBlockProposal(ctx, slot, randao, nil)
+	proposalOpts := &eth2api.BlindedBeaconBlockProposalOpts{
+		Slot:         slot,
+		RandaoReveal: randao,
+		Graffiti:     [32]byte{},
+	}
+	proposalResp, err := eth2Cl.BlindedBeaconBlockProposal(ctx, proposalOpts)
 	if err != nil {
 		return errors.Wrap(err, "vmock blinded beacon block proposal")
 	}
+	block = proposalResp.Data
 
 	if block == nil {
 		return errors.New("block not found")

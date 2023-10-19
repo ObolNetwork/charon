@@ -226,11 +226,16 @@ func (c *Component) Subscribe(fn func(context.Context, core.Duty, core.ParSigned
 }
 
 // AttestationData implements the eth2client.AttesterDutiesProvider for the router.
-func (c Component) AttestationData(parent context.Context, slot eth2p0.Slot, committeeIndex eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
-	ctx, span := core.StartDutyTrace(parent, core.NewAttesterDuty(int64(slot)), "core/validatorapi.AttestationData")
+func (c Component) AttestationData(parent context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error) {
+	ctx, span := core.StartDutyTrace(parent, core.NewAttesterDuty(int64(opts.Slot)), "core/validatorapi.AttestationData")
 	defer span.End()
 
-	return c.awaitAttFunc(ctx, int64(slot), int64(committeeIndex))
+	att, err := c.awaitAttFunc(ctx, int64(opts.Slot), int64(opts.CommitteeIndex))
+	if err != nil {
+		return nil, err
+	}
+
+	return &eth2api.Response[*eth2p0.AttestationData]{Data: att}, nil
 }
 
 // SubmitAttestations implements the eth2client.AttestationsSubmitter for the router.
@@ -296,24 +301,24 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 }
 
 // BeaconBlockProposal submits the randao for aggregation and inclusion in DutyProposer and then queries the dutyDB for an unsigned beacon block.
-func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, _ []byte) (*eth2spec.VersionedBeaconBlock, error) {
+func (c Component) BeaconBlockProposal(ctx context.Context, opts *eth2api.BeaconBlockProposalOpts) (*eth2api.Response[*eth2spec.VersionedBeaconBlock], error) {
 	// Get proposer pubkey (this is a blocking query).
-	pubkey, err := c.getProposerPubkey(ctx, core.NewProposerDuty(int64(slot)))
+	pubkey, err := c.getProposerPubkey(ctx, core.NewProposerDuty(int64(opts.Slot)))
 	if err != nil {
 		return nil, err
 	}
 
-	epoch, err := eth2util.EpochFromSlot(ctx, c.eth2Cl, slot)
+	epoch, err := eth2util.EpochFromSlot(ctx, c.eth2Cl, opts.Slot)
 	if err != nil {
 		return nil, err
 	}
 
 	sigEpoch := eth2util.SignedEpoch{
 		Epoch:     epoch,
-		Signature: randao,
+		Signature: opts.RandaoReveal,
 	}
 
-	duty := core.NewRandaoDuty(int64(slot))
+	duty := core.NewRandaoDuty(int64(opts.Slot))
 	parSig := core.NewPartialSignedRandao(sigEpoch.Epoch, sigEpoch.Signature, c.shareIdx)
 
 	// Verify randao signature
@@ -346,12 +351,12 @@ func (c Component) BeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, ra
 	//  - Once inserted, the query below will return.
 
 	// Query unsigned block (this is blocking).
-	block, err := c.awaitBlockFunc(ctx, int64(slot))
+	block, err := c.awaitBlockFunc(ctx, int64(opts.Slot))
 	if err != nil {
 		return nil, err
 	}
 
-	return block, nil
+	return &eth2api.Response[*eth2spec.VersionedBeaconBlock]{Data: block}, nil
 }
 
 func (c Component) SubmitBeaconBlock(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
@@ -396,24 +401,24 @@ func (c Component) SubmitBeaconBlock(ctx context.Context, block *eth2spec.Versio
 }
 
 // BlindedBeaconBlockProposal submits the randao for aggregation and inclusion in DutyBuilderProposer and then queries the dutyDB for an unsigned blinded beacon block.
-func (c Component) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.Slot, randao eth2p0.BLSSignature, _ []byte) (*eth2api.VersionedBlindedBeaconBlock, error) {
+func (c Component) BlindedBeaconBlockProposal(ctx context.Context, opts *eth2api.BlindedBeaconBlockProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedBeaconBlock], error) {
 	// Get proposer pubkey (this is a blocking query).
-	pubkey, err := c.getProposerPubkey(ctx, core.NewBuilderProposerDuty(int64(slot)))
+	pubkey, err := c.getProposerPubkey(ctx, core.NewBuilderProposerDuty(int64(opts.Slot)))
 	if err != nil {
 		return nil, err
 	}
 
-	epoch, err := eth2util.EpochFromSlot(ctx, c.eth2Cl, slot)
+	epoch, err := eth2util.EpochFromSlot(ctx, c.eth2Cl, opts.Slot)
 	if err != nil {
 		return nil, err
 	}
 
 	sigEpoch := eth2util.SignedEpoch{
 		Epoch:     epoch,
-		Signature: randao,
+		Signature: opts.RandaoReveal,
 	}
 
-	duty := core.NewRandaoDuty(int64(slot))
+	duty := core.NewRandaoDuty(int64(opts.Slot))
 	parSig := core.NewPartialSignedRandao(sigEpoch.Epoch, sigEpoch.Signature, c.shareIdx)
 
 	// Verify randao signature
@@ -446,12 +451,12 @@ func (c Component) BlindedBeaconBlockProposal(ctx context.Context, slot eth2p0.S
 	//  - Once inserted, the query below will return.
 
 	// Query unsigned block (this is blocking).
-	block, err := c.awaitBlindedBlockFunc(ctx, int64(slot))
+	block, err := c.awaitBlindedBlockFunc(ctx, int64(opts.Slot))
 	if err != nil {
 		return nil, err
 	}
 
-	return block, nil
+	return &eth2api.Response[*eth2api.VersionedBlindedBeaconBlock]{Data: block}, nil
 }
 
 func (c Component) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
@@ -674,8 +679,13 @@ func (c Component) AggregateBeaconCommitteeSelections(ctx context.Context, selec
 
 // AggregateAttestation returns the aggregate attestation for the given attestation root.
 // It does a blocking query to DutyAggregator unsigned data from dutyDB.
-func (c Component) AggregateAttestation(ctx context.Context, slot eth2p0.Slot, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error) {
-	return c.awaitAggAttFunc(ctx, int64(slot), attestationDataRoot)
+func (c Component) AggregateAttestation(ctx context.Context, opts *eth2api.AggregateAttestationOpts) (*eth2api.Response[*eth2p0.Attestation], error) {
+	aggAtt, err := c.awaitAggAttFunc(ctx, int64(opts.Slot), opts.AttestationDataRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	return &eth2api.Response[*eth2p0.Attestation]{Data: aggAtt}, nil
 }
 
 // SubmitAggregateAttestations receives partially signed aggregateAndProofs.
@@ -738,8 +748,13 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 }
 
 // SyncCommitteeContribution returns sync committee contribution data for the given subcommittee and beacon block root.
-func (c Component) SyncCommitteeContribution(ctx context.Context, slot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
-	return c.awaitSyncContributionFunc(ctx, int64(slot), int64(subcommitteeIndex), beaconBlockRoot)
+func (c Component) SyncCommitteeContribution(ctx context.Context, opts *eth2api.SyncCommitteeContributionOpts) (*eth2api.Response[*altair.SyncCommitteeContribution], error) {
+	contrib, err := c.awaitSyncContributionFunc(ctx, int64(opts.Slot), int64(opts.Slot), opts.BeaconBlockRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	return &eth2api.Response[*altair.SyncCommitteeContribution]{Data: contrib}, nil
 }
 
 // SubmitSyncCommitteeMessages receives the partially signed altair.SyncCommitteeMessage.
@@ -899,11 +914,13 @@ func (c Component) AggregateSyncCommitteeSelections(ctx context.Context, partial
 	return c.getAggregateSyncCommSelection(ctx, psigsBySlot)
 }
 
-func (c Component) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
-	duties, err := c.eth2Cl.ProposerDuties(ctx, epoch, validatorIndices)
+// ProposerDuties obtains proposer duties for the given options.
+func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error) {
+	eth2Resp, err := c.eth2Cl.ProposerDuties(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
+	duties := eth2Resp.Data
 
 	// Replace root public keys with public shares
 	for i := 0; i < len(duties); i++ {
@@ -919,14 +936,15 @@ func (c Component) ProposerDuties(ctx context.Context, epoch eth2p0.Epoch, valid
 		duties[i].PubKey = pubshare
 	}
 
-	return duties, nil
+	return &eth2api.Response[[]*eth2v1.ProposerDuty]{Data: duties}, nil
 }
 
-func (c Component) AttesterDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
-	duties, err := c.eth2Cl.AttesterDuties(ctx, epoch, validatorIndices)
+func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {
+	eth2Resp, err := c.eth2Cl.AttesterDuties(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
+	duties := eth2Resp.Data
 
 	// Replace root public keys with public shares.
 	for i := 0; i < len(duties); i++ {
@@ -941,14 +959,16 @@ func (c Component) AttesterDuties(ctx context.Context, epoch eth2p0.Epoch, valid
 		duties[i].PubKey = pubshare
 	}
 
-	return duties, nil
+	return &eth2api.Response[[]*eth2v1.AttesterDuty]{Data: duties}, nil
 }
 
-func (c Component) SyncCommitteeDuties(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
-	duties, err := c.eth2Cl.SyncCommitteeDuties(ctx, epoch, validatorIndices)
+// SyncCommitteeDuties obtains sync committee duties. If validatorIndices is nil it will return all duties for the given epoch.
+func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCommitteeDutiesOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeDuty], error) {
+	eth2Resp, err := c.eth2Cl.SyncCommitteeDuties(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
+	duties := eth2Resp.Data
 
 	// Replace root public keys with public shares.
 	for i := 0; i < len(duties); i++ {
@@ -963,16 +983,22 @@ func (c Component) SyncCommitteeDuties(ctx context.Context, epoch eth2p0.Epoch, 
 		duties[i].PubKey = pubshare
 	}
 
-	return duties, nil
+	return &eth2api.Response[[]*eth2v1.SyncCommitteeDuty]{Data: duties}, nil
 }
 
-func (c Component) Validators(ctx context.Context, stateID string, validatorIndices []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
-	vals, err := c.eth2Cl.Validators(ctx, stateID, validatorIndices)
+func (c Component) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) {
+	eth2Resp, err := c.eth2Cl.Validators(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+	vals := eth2Resp.Data
+
+	convertedVals, err := c.convertValidators(vals, len(opts.Indices) == 0)
 	if err != nil {
 		return nil, err
 	}
 
-	return c.convertValidators(vals, len(validatorIndices) == 0)
+	return &eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator]{Data: convertedVals}, nil
 }
 
 func (c Component) ValidatorsByPubKey(ctx context.Context, stateID string, pubshares []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
@@ -987,20 +1013,26 @@ func (c Component) ValidatorsByPubKey(ctx context.Context, stateID string, pubsh
 		pubkeys = append(pubkeys, pubkey)
 	}
 
-	valMap, err := c.eth2Cl.ValidatorsByPubKey(ctx, stateID, pubkeys)
+	opts := &eth2api.ValidatorsOpts{
+		State:   stateID,
+		PubKeys: pubkeys,
+	}
+	eth2Resp, err := c.eth2Cl.Validators(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
+	valMap := eth2Resp.Data
 
 	// Then convert back.
 	return c.convertValidators(valMap, len(pubkeys) == 0)
 }
 
 // NodeVersion returns the current version of charon.
-func (Component) NodeVersion(context.Context) (string, error) {
+func (Component) NodeVersion(ctx context.Context) (*eth2api.Response[string], error) {
 	commitSHA, _ := version.GitCommit()
+	charonVersion := fmt.Sprintf("obolnetwork/charon/%v-%s/%s-%s", version.Version, commitSHA, runtime.GOARCH, runtime.GOOS)
 
-	return fmt.Sprintf("obolnetwork/charon/%v-%s/%s-%s", version.Version, commitSHA, runtime.GOARCH, runtime.GOOS), nil
+	return &eth2api.Response[string]{Data: charonVersion}, nil
 }
 
 // convertValidators returns the validator map with root public keys replaced by public shares for all validators that are part of the cluster.

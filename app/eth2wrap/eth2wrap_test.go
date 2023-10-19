@@ -160,7 +160,7 @@ func TestSyncState(t *testing.T) {
 
 	resp, err := eth2Cl.NodeSyncing(context.Background())
 	require.NoError(t, err)
-	require.False(t, resp.IsSyncing)
+	require.False(t, resp.Data.IsSyncing)
 }
 
 func TestErrors(t *testing.T) {
@@ -201,18 +201,6 @@ func TestErrors(t *testing.T) {
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "beacon api slots_per_epoch: context canceled")
-	})
-
-	t.Run("go-eth2-client http error", func(t *testing.T) {
-		bmock, err := beaconmock.New()
-		require.NoError(t, err)
-		eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, bmock.Address())
-		require.NoError(t, err)
-
-		_, err = eth2Cl.AggregateAttestation(ctx, 0, eth2p0.Root{})
-		log.Error(ctx, "See this error log for fields", err)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "beacon api aggregate_attestation: nok http response")
 	})
 
 	t.Run("zero net op error", func(t *testing.T) {

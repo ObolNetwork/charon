@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	eth2client "github.com/attestantio/go-eth2-client"
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -230,10 +231,12 @@ func (s *SyncCommMember) Message(ctx context.Context, slot eth2p0.Slot) error {
 		return s.setBlockRoot(slot, eth2p0.Root{})
 	}
 
-	blockRoot, err := s.eth2Cl.BeaconBlockRoot(ctx, "head")
+	opts := &eth2api.BeaconBlockRootOpts{Block: "head"}
+	eth2Resp, err := s.eth2Cl.BeaconBlockRoot(ctx, opts)
 	if err != nil {
 		return err
 	}
+	blockRoot := eth2Resp.Data
 
 	err = submitSyncMessages(ctx, s.eth2Cl, slot, *blockRoot, s.signFunc, duties)
 	if err != nil {
@@ -257,7 +260,16 @@ func prepareSyncCommDuties(ctx context.Context, eth2Cl eth2wrap.Client, vals eth
 		return nil, nil
 	}
 
-	return eth2Cl.SyncCommitteeDuties(ctx, epoch, vals.Indices())
+	opts := &eth2api.SyncCommitteeDutiesOpts{
+		Epoch:   epoch,
+		Indices: vals.Indices(),
+	}
+	eth2Resp, err := eth2Cl.SyncCommitteeDuties(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return eth2Resp.Data, nil
 }
 
 // subscribeSyncCommSubnets submits sync committee subscriptions at the start of an epoch until next epoch.
@@ -360,10 +372,11 @@ func prepareSyncSelections(ctx context.Context, eth2Cl eth2wrap.Client, signFunc
 
 // getSubcommittees returns the subcommittee indexes for the provided sync committee duty.
 func getSubcommittees(ctx context.Context, eth2Cl eth2client.SpecProvider, duty *eth2v1.SyncCommitteeDuty) ([]eth2p0.CommitteeIndex, error) {
-	spec, err := eth2Cl.Spec(ctx)
+	eth2Resp, err := eth2Cl.Spec(ctx)
 	if err != nil {
 		return nil, err
 	}
+	spec := eth2Resp.Data
 
 	commSize, ok := spec["SYNC_COMMITTEE_SIZE"].(uint64)
 	if !ok {
@@ -441,10 +454,16 @@ func aggContributions(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Sign
 	var signedContribAndProofs []*altair.SignedContributionAndProof
 	for _, selection := range selections {
 		// Query BN to get sync committee contribution.
-		contrib, err := eth2Cl.SyncCommitteeContribution(ctx, selection.Slot, uint64(selection.SubcommitteeIndex), blockRoot)
+		opts := &eth2api.SyncCommitteeContributionOpts{
+			Slot:              selection.Slot,
+			SubcommitteeIndex: uint64(selection.SubcommitteeIndex),
+			BeaconBlockRoot:   blockRoot,
+		}
+		eth2Resp, err := eth2Cl.SyncCommitteeContribution(ctx, opts)
 		if err != nil {
 			return false, err
 		}
+		contrib := eth2Resp.Data
 
 		vIdx := selection.ValidatorIndex
 		contribAndProof := &altair.ContributionAndProof{

@@ -2,6 +2,8 @@ module github.com/obolnetwork/charon
 
 go 1.21
 
+replace github.com/attestantio/go-eth2-client => github.com/attestantio/go-eth2-client v0.18.4-0.20231017132834-120f20218d42
+
 require (
 	github.com/attestantio/go-eth2-client v0.18.3
 	github.com/bufbuild/buf v1.27.1
@@ -96,6 +98,7 @@ require (
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/holiman/uint256 v1.2.2 // indirect
+	github.com/huandu/go-clone v1.6.0 // indirect
 	github.com/huin/goupnp v1.2.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/ipfs/go-cid v0.4.1 // indirect
