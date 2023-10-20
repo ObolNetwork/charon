@@ -372,36 +372,26 @@ func prFromLog(l log) (pullRequest, bool) {
 		return pullRequest{}, false
 	}
 
-	var (
-		category string
-		issue    int
-		number   int
-	)
+	var ok bool
 
-	number, ok := getNumber(l.Subject)
+	pr := pullRequest{
+		Title: l.Subject,
+	}
+
+	pr.Number, ok = getNumber(l.Subject)
 	if !ok {
 		fmt.Printf("Failed parsing PR number from git subject (%v): %s\n", l.Commit, l.Subject)
 		return pullRequest{}, false
 	}
 
-	category, ok = getFirstMatch(categoryRegex, l.Body)
+	pr.Category, ok = getFirstMatch(categoryRegex, l.Body)
 	if !ok {
-		return pullRequest{
-			Number:   number,
-			Title:    l.Subject,
-			Category: category,
-			Issue:    issue,
-		}, true
-	} else if skippedCategories[category] {
-		fmt.Printf("Skipping PR with '%s' category (%v): %s\n", category, l.Commit, l.Subject)
+		return pr, true
+	} else if skippedCategories[pr.Category] {
+		fmt.Printf("Skipping PR with '%s' category (%v): %s\n", pr.Category, l.Commit, l.Subject)
 		return pullRequest{}, false
-	} else if categoryOrder[category] == 0 {
-		return pullRequest{
-			Number:   number,
-			Title:    l.Subject,
-			Category: category,
-			Issue:    issue,
-		}, true
+	} else if categoryOrder[pr.Category] == 0 {
+		return pr, true
 	}
 
 	ticket, ok := getFirstMatch(ticketRegex, l.Body)
@@ -409,26 +399,16 @@ func prFromLog(l log) (pullRequest, bool) {
 		fmt.Printf("Failed parsing ticket from git body (%v): %s\n", l.Commit, l.Subject)
 		return pullRequest{}, false
 	} else if strings.Contains(ticket, "none") {
-		return pullRequest{
-			Number:   number,
-			Title:    l.Subject,
-			Category: category,
-			Issue:    issue,
-		}, true
+		return pr, true
 	} else {
-		issue, ok = getNumber(ticket)
+		pr.Issue, ok = getNumber(ticket)
 		if !ok {
 			fmt.Printf("Failed parsing issue number from ticket (%v): %s \n", l.Commit, ticket)
 			return pullRequest{}, false
 		}
 	}
 
-	return pullRequest{
-		Number:   number,
-		Title:    l.Subject,
-		Category: category,
-		Issue:    issue,
-	}, true
+	return pr, true
 }
 
 // getNumber returns a github issue number from the string.
