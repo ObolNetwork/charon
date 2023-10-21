@@ -390,7 +390,7 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 		return nil
 	})
 
-	opts := &eth2api.BeaconBlockProposalOpts{
+	opts := &eth2api.ProposalOpts{
 		Slot:         slot,
 		RandaoReveal: randao,
 		Graffiti:     [32]byte{},
@@ -713,7 +713,7 @@ func TestComponent_BlindedBeaconBlockProposal(t *testing.T) {
 		return nil
 	})
 
-	opts := &eth2api.BlindedBeaconBlockProposalOpts{
+	opts := &eth2api.BlindedProposalOpts{
 		Slot:         slot,
 		RandaoReveal: randao,
 		Graffiti:     [32]byte{},

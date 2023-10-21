@@ -73,7 +73,7 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 
 	var (
 		pubkey eth2p0.BLSPubKey
-		block  *eth2spec.VersionedBeaconBlock
+		block  *eth2api.VersionedProposal
 	)
 	pubkey = slotProposer.PubKey
 
@@ -94,12 +94,12 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 	}
 
 	// Get Unsigned beacon block with given randao and slot
-	proposalOpts := &eth2api.BeaconBlockProposalOpts{
+	proposalOpts := &eth2api.ProposalOpts{
 		Slot:         slot,
 		RandaoReveal: randao,
 		Graffiti:     [32]byte{},
 	}
-	eth2ProposalResp, err := eth2Cl.BeaconBlockProposal(ctx, proposalOpts)
+	eth2ProposalResp, err := eth2Cl.Proposal(ctx, proposalOpts)
 	if err != nil {
 		return errors.Wrap(err, "vmock beacon block proposal")
 	}
@@ -201,7 +201,7 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 
 	var (
 		pubkey eth2p0.BLSPubKey
-		block  *eth2api.VersionedBlindedBeaconBlock
+		block  *eth2api.VersionedBlindedProposal
 	)
 	pubkey = slotProposer.PubKey
 
@@ -222,12 +222,12 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 	}
 
 	// Get Unsigned beacon block with given randao and slot
-	proposalOpts := &eth2api.BlindedBeaconBlockProposalOpts{
+	proposalOpts := &eth2api.BlindedProposalOpts{
 		Slot:         slot,
 		RandaoReveal: randao,
 		Graffiti:     [32]byte{},
 	}
-	proposalResp, err := eth2Cl.BlindedBeaconBlockProposal(ctx, proposalOpts)
+	proposalResp, err := eth2Cl.BlindedProposal(ctx, proposalOpts)
 	if err != nil {
 		return errors.Wrap(err, "vmock blinded beacon block proposal")
 	}

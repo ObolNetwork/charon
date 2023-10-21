@@ -175,11 +175,11 @@ func TestRawRouter(t *testing.T) {
 
 	t.Run("empty graffiti", func(t *testing.T) {
 		handler := testHandler{}
-		handler.BeaconBlockProposalFunc = func(ctx context.Context, opts *eth2api.BeaconBlockProposalOpts) (*eth2api.Response[*eth2spec.VersionedBeaconBlock], error) {
+		handler.ProposalFunc = func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
 			require.Empty(t, opts.Graffiti)
-			resp := testutil.RandomBellatrixCoreVersionedBeaconBlock().VersionedBeaconBlock
+			resp := testutil.RandomVersionedProposal()
 
-			return &eth2api.Response[*eth2spec.VersionedBeaconBlock]{Data: &resp}, nil
+			return &eth2api.Response[*eth2api.VersionedProposal]{Data: resp}, nil
 		}
 
 		callback := func(ctx context.Context, baseURL string) {
@@ -383,7 +383,7 @@ func TestRawRouter(t *testing.T) {
 	})
 
 	t.Run("get response header for beacon block proposal", func(t *testing.T) {
-		block := &eth2spec.VersionedBeaconBlock{
+		block := &eth2api.VersionedProposal{
 			Version: eth2spec.DataVersionCapella,
 			Capella: testutil.RandomCapellaBeaconBlock(),
 		}
@@ -391,11 +391,11 @@ func TestRawRouter(t *testing.T) {
 		require.NoError(t, err)
 		randao := block.Capella.Body.RANDAOReveal
 		handler := testHandler{
-			BeaconBlockProposalFunc: func(ctx context.Context, opts *eth2api.BeaconBlockProposalOpts) (*eth2api.Response[*eth2spec.VersionedBeaconBlock], error) {
+			ProposalFunc: func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
 				require.Equal(t, expectedSlot, opts.Slot)
 				require.Equal(t, randao, opts.RandaoReveal)
 
-				return &eth2api.Response[*eth2spec.VersionedBeaconBlock]{Data: block}, nil
+				return &eth2api.Response[*eth2api.VersionedProposal]{Data: block}, nil
 			},
 		}
 
@@ -416,7 +416,7 @@ func TestRawRouter(t *testing.T) {
 	})
 
 	t.Run("get response header for blinded block proposal", func(t *testing.T) {
-		block := &eth2api.VersionedBlindedBeaconBlock{
+		block := &eth2api.VersionedBlindedProposal{
 			Version: eth2spec.DataVersionCapella,
 			Capella: testutil.RandomCapellaBlindedBeaconBlock(),
 		}
@@ -424,11 +424,11 @@ func TestRawRouter(t *testing.T) {
 		require.NoError(t, err)
 		randao := block.Capella.Body.RANDAOReveal
 		handler := testHandler{
-			BlindedBeaconBlockProposalFunc: func(ctx context.Context, opts *eth2api.BlindedBeaconBlockProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedBeaconBlock], error) {
+			BlindedProposalFunc: func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error) {
 				require.Equal(t, expectedSlot, opts.Slot)
 				require.Equal(t, randao, opts.RandaoReveal)
 
-				return &eth2api.Response[*eth2api.VersionedBlindedBeaconBlock]{Data: block}, nil
+				return &eth2api.Response[*eth2api.VersionedBlindedProposal]{Data: block}, nil
 			},
 		}
 
@@ -786,8 +786,8 @@ func TestRouter(t *testing.T) {
 
 	t.Run("submit randao", func(t *testing.T) {
 		handler := testHandler{
-			BeaconBlockProposalFunc: func(ctx context.Context, opts *eth2api.BeaconBlockProposalOpts) (*eth2api.Response[*eth2spec.VersionedBeaconBlock], error) {
-				return &eth2api.Response[*eth2spec.VersionedBeaconBlock]{Data: nil}, errors.New("not implemented")
+			ProposalFunc: func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
+				return &eth2api.Response[*eth2api.VersionedProposal]{Data: nil}, errors.New("not implemented")
 			},
 		}
 
@@ -796,12 +796,12 @@ func TestRouter(t *testing.T) {
 			randaoReveal := testutil.RandomEth2Signature()
 			graffiti := testutil.RandomArray32()
 
-			opts := &eth2api.BeaconBlockProposalOpts{
+			opts := &eth2api.ProposalOpts{
 				Slot:         slot,
 				RandaoReveal: randaoReveal,
 				Graffiti:     graffiti,
 			}
-			res, err := cl.BeaconBlockProposal(ctx, opts)
+			res, err := cl.Proposal(ctx, opts)
 			require.Error(t, err)
 			// TODO(xenowits): Fix this test prior to merging. Debug why res is nil.
 			// require.ErrorContains(t, err, "not implemented")
@@ -813,8 +813,8 @@ func TestRouter(t *testing.T) {
 
 	t.Run("submit randao blinded block", func(t *testing.T) {
 		handler := testHandler{
-			BlindedBeaconBlockProposalFunc: func(ctx context.Context, opts *eth2api.BlindedBeaconBlockProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedBeaconBlock], error) {
-				return nil, errors.New("not implemented")
+			BlindedProposalFunc: func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error) {
+				return &eth2api.Response[*eth2api.VersionedBlindedProposal]{}, errors.New("not implemented")
 			},
 		}
 
@@ -823,12 +823,12 @@ func TestRouter(t *testing.T) {
 			randaoReveal := testutil.RandomEth2Signature()
 			graffiti := testutil.RandomArray32()
 
-			opts := &eth2api.BlindedBeaconBlockProposalOpts{
+			opts := &eth2api.BlindedProposalOpts{
 				Slot:         slot,
 				RandaoReveal: randaoReveal,
 				Graffiti:     graffiti,
 			}
-			res, err := cl.BlindedBeaconBlockProposal(ctx, opts)
+			res, err := cl.BlindedProposal(ctx, opts)
 			require.Error(t, err)
 			// TODO(xenowits): Fix this test prior to merging. Debug why res is nil.
 			require.Nil(t, res)
@@ -1261,9 +1261,9 @@ type testHandler struct {
 	AggregateSyncCommitteeSelectionsFunc   func(ctx context.Context, partialSelections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error)
 	AttestationDataFunc                    func(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error)
 	AttesterDutiesFunc                     func(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error)
-	BeaconBlockProposalFunc                func(ctx context.Context, opts *eth2api.BeaconBlockProposalOpts) (*eth2api.Response[*eth2spec.VersionedBeaconBlock], error)
+	ProposalFunc                           func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error)
 	SubmitBeaconBlockFunc                  func(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error
-	BlindedBeaconBlockProposalFunc         func(ctx context.Context, opts *eth2api.BlindedBeaconBlockProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedBeaconBlock], error)
+	BlindedProposalFunc                    func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error)
 	SubmitBlindedBeaconBlockFunc           func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error
 	ProposerDutiesFunc                     func(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error)
 	NodeVersionFunc                        func(ctx context.Context) (*eth2api.Response[string], error)
@@ -1287,16 +1287,16 @@ func (h testHandler) AttesterDuties(ctx context.Context, opts *eth2api.AttesterD
 	return h.AttesterDutiesFunc(ctx, opts)
 }
 
-func (h testHandler) BeaconBlockProposal(ctx context.Context, opts *eth2api.BeaconBlockProposalOpts) (*eth2api.Response[*eth2spec.VersionedBeaconBlock], error) {
-	return h.BeaconBlockProposalFunc(ctx, opts)
+func (h testHandler) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
+	return h.ProposalFunc(ctx, opts)
 }
 
 func (h testHandler) SubmitBeaconBlock(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
 	return h.SubmitBeaconBlockFunc(ctx, block)
 }
 
-func (h testHandler) BlindedBeaconBlockProposal(ctx context.Context, opts *eth2api.BlindedBeaconBlockProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedBeaconBlock], error) {
-	return h.BlindedBeaconBlockProposalFunc(ctx, opts)
+func (h testHandler) BlindedProposal(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error) {
+	return h.BlindedProposalFunc(ctx, opts)
 }
 
 func (h testHandler) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error {

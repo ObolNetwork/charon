@@ -87,8 +87,14 @@ type ValidatorAPI interface {
 	// RegisterAwaitBeaconBlock registers a function to query unsigned beacon block by slot.
 	RegisterAwaitBeaconBlock(func(ctx context.Context, slot int64) (*eth2spec.VersionedBeaconBlock, error))
 
+	// RegisterAwaitProposal registers a function to query unsigned beacon block proposals by providing necessary options.
+	RegisterAwaitProposal(func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error))
+
 	// RegisterAwaitBlindedBeaconBlock registers a function to query unsigned blinded beacon block by slot.
 	RegisterAwaitBlindedBeaconBlock(func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error))
+
+	// RegisterAwaitBlindedProposal registers a function to query unsigned blinded beacon block proposals by providing necessary options.
+	RegisterAwaitBlindedProposal(func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.VersionedBlindedProposal, error))
 
 	// RegisterAwaitAttestation registers a function to query attestation data.
 	RegisterAwaitAttestation(func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error))
@@ -226,7 +232,9 @@ type wireFuncs struct {
 	VAPIRegisterAwaitAttestation        func(func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error))
 	VAPIRegisterAwaitSyncContribution   func(func(ctx context.Context, slot, subcommIdx int64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error))
 	VAPIRegisterAwaitBeaconBlock        func(func(ctx context.Context, slot int64) (*eth2spec.VersionedBeaconBlock, error))
+	VAPIRegisterAwaitProposal           func(func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error))
 	VAPIRegisterAwaitBlindedBeaconBlock func(func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error))
+	VAPIRegisterAwaitBlindedProposal    func(func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.VersionedBlindedProposal, error))
 	VAPIRegisterGetDutyDefinition       func(func(context.Context, Duty) (DutyDefinitionSet, error))
 	VAPIRegisterPubKeyByAttestation     func(func(ctx context.Context, slot, commIdx, valCommIdx int64) (PubKey, error))
 	VAPIRegisterAwaitAggAttestation     func(func(ctx context.Context, slot int64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error))
@@ -280,7 +288,9 @@ func Wire(sched Scheduler,
 		DutyDBAwaitAggAttestation:           dutyDB.AwaitAggAttestation,
 		DutyDBAwaitSyncContribution:         dutyDB.AwaitSyncContribution,
 		VAPIRegisterAwaitBeaconBlock:        vapi.RegisterAwaitBeaconBlock,
+		VAPIRegisterAwaitProposal:           vapi.RegisterAwaitProposal,
 		VAPIRegisterAwaitBlindedBeaconBlock: vapi.RegisterAwaitBlindedBeaconBlock,
+		VAPIRegisterAwaitBlindedProposal:    vapi.RegisterAwaitBlindedProposal,
 		VAPIRegisterAwaitAttestation:        vapi.RegisterAwaitAttestation,
 		VAPIRegisterAwaitSyncContribution:   vapi.RegisterAwaitSyncContribution,
 		VAPIRegisterGetDutyDefinition:       vapi.RegisterGetDutyDefinition,

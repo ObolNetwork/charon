@@ -58,10 +58,10 @@ type Handler interface {
 	eth2client.AttestationDataProvider
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
-	eth2client.BeaconBlockProposalProvider
+	eth2client.ProposalProvider
 	eth2client.BeaconBlockSubmitter
 	eth2exp.BeaconCommitteeSelectionAggregator
-	eth2client.BlindedBeaconBlockProposalProvider
+	eth2client.BlindedProposalProvider
 	eth2client.BlindedBeaconBlockSubmitter
 	eth2client.NodeVersionProvider
 	eth2client.ProposerDutiesProvider
@@ -541,7 +541,7 @@ func submitContributionAndProofs(s eth2client.SyncCommitteeContributionsSubmitte
 }
 
 // proposeBlock receives the randao from the validator and returns the unsigned BeaconBlock.
-func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
+func proposeBlock(p eth2client.ProposalProvider) handlerFunc {
 	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		slot, err := uintParam(params, "slot")
 		if err != nil {
@@ -560,12 +560,12 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 
 		var graff [32]byte
 		copy(graff[:], graffiti)
-		opts := &eth2api.BeaconBlockProposalOpts{
+		opts := &eth2api.ProposalOpts{
 			Slot:         eth2p0.Slot(slot),
 			RandaoReveal: randao,
 			Graffiti:     graff,
 		}
-		eth2Resp, err := p.BeaconBlockProposal(ctx, opts)
+		eth2Resp, err := p.Proposal(ctx, opts)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -627,7 +627,7 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 }
 
 // proposeBlindedBlock receives the randao from the validator and returns the unsigned BlindedBeaconBlock.
-func proposeBlindedBlock(p eth2client.BlindedBeaconBlockProposalProvider) handlerFunc {
+func proposeBlindedBlock(p eth2client.BlindedProposalProvider) handlerFunc {
 	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		slot, err := uintParam(params, "slot")
 		if err != nil {
@@ -639,12 +639,12 @@ func proposeBlindedBlock(p eth2client.BlindedBeaconBlockProposalProvider) handle
 			return nil, nil, err
 		}
 
-		opts := &eth2api.BlindedBeaconBlockProposalOpts{
+		opts := &eth2api.BlindedProposalOpts{
 			Slot:         eth2p0.Slot(slot),
 			RandaoReveal: randao,
 			Graffiti:     [32]byte{},
 		}
-		eth2Resp, err := p.BlindedBeaconBlockProposal(ctx, opts)
+		eth2Resp, err := p.BlindedProposal(ctx, opts)
 		if err != nil {
 			return nil, nil, err
 		}

@@ -254,26 +254,26 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, defSet core
 		commitSHA, _ := version.GitCommit()
 		copy(graffiti[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
 
-		opts := &eth2api.BeaconBlockProposalOpts{
+		opts := &eth2api.ProposalOpts{
 			Slot:         eth2p0.Slot(uint64(slot)),
 			RandaoReveal: randao,
 			Graffiti:     graffiti,
 		}
-		eth2Resp, err := f.eth2Cl.BeaconBlockProposal(ctx, opts)
+		eth2Resp, err := f.eth2Cl.Proposal(ctx, opts)
 		if err != nil {
 			return nil, err
 		}
-		block := eth2Resp.Data
+		proposal := eth2Resp.Data
 
-		// Ensure fee recipient is correctly populated in block.
-		verifyFeeRecipient(ctx, block, f.feeRecipientFunc(pubkey))
+		// Ensure fee recipient is correctly populated in proposal.
+		verifyFeeRecipient(ctx, proposal, f.feeRecipientFunc(pubkey))
 
-		coreBlock, err := core.NewVersionedBeaconBlock(block)
+		coreProposal, err := core.NewVersionedProposal(proposal)
 		if err != nil {
-			return nil, errors.Wrap(err, "new block")
+			return nil, errors.Wrap(err, "new proposal")
 		}
 
-		resp[pubkey] = coreBlock
+		resp[pubkey] = coreProposal
 	}
 
 	return resp, nil
@@ -299,25 +299,25 @@ func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot int64, defS
 		commitSHA, _ := version.GitCommit()
 		copy(graffiti[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
 
-		opts := &eth2api.BlindedBeaconBlockProposalOpts{
+		opts := &eth2api.BlindedProposalOpts{
 			Slot:         eth2p0.Slot(uint64(slot)),
 			RandaoReveal: randao,
 			Graffiti:     graffiti,
 		}
-		eth2Resp, err := f.eth2Cl.BlindedBeaconBlockProposal(ctx, opts)
+		eth2Resp, err := f.eth2Cl.BlindedProposal(ctx, opts)
 		if err != nil {
 			return nil, err
 		}
-		block := eth2Resp.Data
+		blindedProposal := eth2Resp.Data
 
-		verifyFeeRecipientBlindedBlock(ctx, block, f.feeRecipientFunc(pubkey))
+		verifyFeeRecipientBlindedBlock(ctx, blindedProposal, f.feeRecipientFunc(pubkey))
 
-		coreBlock, err := core.NewVersionedBlindedBeaconBlock(block)
+		coreProposal, err := core.NewVersionedBlindedProposal(blindedProposal)
 		if err != nil {
 			return nil, errors.Wrap(err, "new block")
 		}
 
-		resp[pubkey] = coreBlock
+		resp[pubkey] = coreProposal
 	}
 
 	return resp, nil
@@ -390,41 +390,41 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot int64, defSet 
 }
 
 // verifyFeeRecipient logs a warning when fee recipient is not correctly populated in the block.
-func verifyFeeRecipient(ctx context.Context, block *eth2spec.VersionedBeaconBlock, feeRecipientAddress string) {
+func verifyFeeRecipient(ctx context.Context, proposal *eth2api.VersionedProposal, feeRecipientAddress string) {
 	// Note that fee-recipient is not available in forks earlier than bellatrix.
 	var actualAddr string
 
-	switch block.Version {
+	switch proposal.Version {
 	case eth2spec.DataVersionBellatrix:
-		actualAddr = fmt.Sprintf("%#x", block.Bellatrix.Body.ExecutionPayload.FeeRecipient)
+		actualAddr = fmt.Sprintf("%#x", proposal.Bellatrix.Body.ExecutionPayload.FeeRecipient)
 	case eth2spec.DataVersionCapella:
-		actualAddr = fmt.Sprintf("%#x", block.Capella.Body.ExecutionPayload.FeeRecipient)
+		actualAddr = fmt.Sprintf("%#x", proposal.Capella.Body.ExecutionPayload.FeeRecipient)
 	default:
 		return
 	}
 
 	if actualAddr != "" && !strings.EqualFold(actualAddr, feeRecipientAddress) {
-		log.Warn(ctx, "Proposing block with unexpected fee recipient address", nil,
+		log.Warn(ctx, "Proposing proposal with unexpected fee recipient address", nil,
 			z.Str("expected", feeRecipientAddress), z.Str("actual", actualAddr))
 	}
 }
 
 // verifyFeeRecipientBlindedBlock logs a warning when fee recipient is not correctly populated in the provided blinded beacon block.
-func verifyFeeRecipientBlindedBlock(ctx context.Context, block *eth2api.VersionedBlindedBeaconBlock, feeRecipientAddress string) {
+func verifyFeeRecipientBlindedBlock(ctx context.Context, proposal *eth2api.VersionedBlindedProposal, feeRecipientAddress string) {
 	// Note that fee-recipient is not available in forks earlier than bellatrix.
 	var actualAddr string
 
-	switch block.Version {
+	switch proposal.Version {
 	case eth2spec.DataVersionBellatrix:
-		actualAddr = fmt.Sprintf("%#x", block.Bellatrix.Body.ExecutionPayloadHeader.FeeRecipient)
+		actualAddr = fmt.Sprintf("%#x", proposal.Bellatrix.Body.ExecutionPayloadHeader.FeeRecipient)
 	case eth2spec.DataVersionCapella:
-		actualAddr = fmt.Sprintf("%#x", block.Capella.Body.ExecutionPayloadHeader.FeeRecipient)
+		actualAddr = fmt.Sprintf("%#x", proposal.Capella.Body.ExecutionPayloadHeader.FeeRecipient)
 	default:
 		return
 	}
 
 	if actualAddr != "" && !strings.EqualFold(actualAddr, feeRecipientAddress) {
-		log.Warn(ctx, "Proposing block with unexpected fee recipient address", nil,
+		log.Warn(ctx, "Proposing proposal with unexpected fee recipient address", nil,
 			z.Str("expected", feeRecipientAddress), z.Str("actual", actualAddr))
 	}
 }

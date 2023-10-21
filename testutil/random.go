@@ -320,6 +320,14 @@ func RandomVersionedSignedProposal() *eth2api.VersionedSignedProposal {
 	}
 }
 
+// RandomVersionedProposal returns a random versioned proposal containing capella beacon block.
+func RandomVersionedProposal() *eth2api.VersionedProposal {
+	return &eth2api.VersionedProposal{
+		Version: eth2spec.DataVersionCapella,
+		Capella: RandomCapellaBeaconBlock(),
+	}
+}
+
 func RandomBellatrixBlindedBeaconBlock() *eth2bellatrix.BlindedBeaconBlock {
 	return &eth2bellatrix.BlindedBeaconBlock{
 		Slot:          RandomSlot(),
