@@ -333,7 +333,7 @@ func padTo(b []byte, size int) []byte {
 	return append(b, make([]byte, size-len(b))...)
 }
 
-func TestComponent_BeaconBlockProposal(t *testing.T) {
+func TestComponent_Proposal(t *testing.T) {
 	ctx := context.Background()
 	eth2Cl, err := beaconmock.New()
 	require.NoError(t, err)
@@ -365,7 +365,7 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 	pubkey, err := core.PubKeyFromBytes(pk[:])
 	require.NoError(t, err)
 
-	block1 := &eth2spec.VersionedBeaconBlock{
+	block1 := &eth2api.VersionedProposal{
 		Version: eth2spec.DataVersionPhase0,
 		Phase0:  testutil.RandomPhase0BeaconBlock(),
 	}
@@ -377,7 +377,7 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 		return core.DutyDefinitionSet{pubkey: nil}, nil
 	})
 
-	component.RegisterAwaitBeaconBlock(func(ctx context.Context, slot int64) (*eth2spec.VersionedBeaconBlock, error) {
+	component.RegisterAwaitProposal(func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error) {
 		return block1, nil
 	})
 
@@ -395,14 +395,14 @@ func TestComponent_BeaconBlockProposal(t *testing.T) {
 		RandaoReveal: randao,
 		Graffiti:     [32]byte{},
 	}
-	eth2Resp2, err := component.BeaconBlockProposal(ctx, opts)
+	eth2Resp2, err := component.Proposal(ctx, opts)
 	require.NoError(t, err)
 	block2 := eth2Resp2.Data
 
 	require.Equal(t, block1, block2)
 }
 
-func TestComponent_SubmitBeaconBlock(t *testing.T) {
+func TestComponent_SubmitProposal(t *testing.T) {
 	ctx := context.Background()
 
 	// Create keys (just use normal keys, not split tbls)
@@ -656,7 +656,7 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 	}
 }
 
-func TestComponent_BlindedBeaconBlockProposal(t *testing.T) {
+func TestComponent_BlindedProposal(t *testing.T) {
 	ctx := context.Background()
 	eth2Cl, err := beaconmock.New()
 	require.NoError(t, err)
@@ -688,7 +688,7 @@ func TestComponent_BlindedBeaconBlockProposal(t *testing.T) {
 	pubkey, err := core.PubKeyFromBytes(pk[:])
 	require.NoError(t, err)
 
-	block1 := &eth2api.VersionedBlindedBeaconBlock{
+	block1 := &eth2api.VersionedBlindedProposal{
 		Version:   eth2spec.DataVersionPhase0,
 		Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(),
 	}
@@ -700,9 +700,13 @@ func TestComponent_BlindedBeaconBlockProposal(t *testing.T) {
 		return core.DutyDefinitionSet{pubkey: nil}, nil
 	})
 
-	component.RegisterAwaitBlindedBeaconBlock(func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error) {
+	component.RegisterAwaitBlindedProposal(func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.VersionedBlindedProposal, error) {
 		return block1, nil
 	})
+
+	// component.RegisterAwaitBlindedBeaconBlock(func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error) {
+	// 	return block1, nil
+	// })
 
 	component.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 		require.Equal(t, set, core.ParSignedDataSet{
@@ -718,7 +722,7 @@ func TestComponent_BlindedBeaconBlockProposal(t *testing.T) {
 		RandaoReveal: randao,
 		Graffiti:     [32]byte{},
 	}
-	ethResp2, err := component.BlindedBeaconBlockProposal(ctx, opts)
+	ethResp2, err := component.BlindedProposal(ctx, opts)
 	require.NoError(t, err)
 	block2 := ethResp2.Data
 
