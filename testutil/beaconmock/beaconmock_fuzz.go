@@ -8,7 +8,6 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	fuzz "github.com/google/gofuzz"
@@ -109,8 +108,8 @@ func WithBeaconMockFuzzer() Option {
 			return attData, nil
 		}
 
-		mock.BeaconBlockProposalFunc = func(context.Context, eth2p0.Slot, eth2p0.BLSSignature, []byte) (*eth2spec.VersionedBeaconBlock, error) {
-			var block *eth2spec.VersionedBeaconBlock
+		mock.ProposalFunc = func(context.Context, *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error) {
+			var block *eth2api.VersionedProposal
 			fuzz.New().Fuzz(&block)
 
 			return block, nil
@@ -130,8 +129,8 @@ func WithBeaconMockFuzzer() Option {
 			return vals, nil
 		}
 
-		mock.BlindedBeaconBlockProposalFunc = func(context.Context, eth2p0.Slot, eth2p0.BLSSignature, []byte) (*eth2api.VersionedBlindedBeaconBlock, error) {
-			var block *eth2api.VersionedBlindedBeaconBlock
+		mock.BlindedProposalFunc = func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.VersionedBlindedProposal, error) {
+			var block *eth2api.VersionedBlindedProposal
 			fuzz.New().Fuzz(&block)
 
 			return block, nil

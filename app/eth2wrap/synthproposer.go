@@ -10,10 +10,11 @@ import (
 	"sync"
 
 	eth2client "github.com/attestantio/go-eth2-client"
-	"github.com/attestantio/go-eth2-client/api"
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
+	"github.com/attestantio/go-eth2-client/api/v1/deneb"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
@@ -72,14 +73,14 @@ func (h *synthWrapper) getFeeRecipient(vIdx eth2p0.ValidatorIndex) bellatrix.Exe
 
 // ProposerDuties returns upstream proposer duties for the provided validator indexes or
 // upstream proposer duties and synthetic duties for all cluster validators if enabled.
-func (h *synthWrapper) ProposerDuties(ctx context.Context, opts *api.ProposerDutiesOpts) (*api.Response[[]*eth2v1.ProposerDuty], error) {
+func (h *synthWrapper) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error) {
 	// TODO(corver): Should we support fetching duties for other validators not in the cluster?
 	duties, err := h.synthProposerCache.Duties(ctx, h.Client, opts.Epoch)
 	if err != nil {
 		return nil, err
 	}
 
-	return &api.Response[[]*eth2v1.ProposerDuty]{Data: duties}, nil
+	return &eth2api.Response[[]*eth2v1.ProposerDuty]{Data: duties}, nil
 }
 
 func (h *synthWrapper) SubmitProposalPreparations(ctx context.Context, preparations []*eth2v1.ProposalPreparation) error {
@@ -88,13 +89,13 @@ func (h *synthWrapper) SubmitProposalPreparations(ctx context.Context, preparati
 	return h.Client.SubmitProposalPreparations(ctx, preparations)
 }
 
-// BeaconBlockProposal returns an unsigned beacon block, possibly marked as synthetic.
-func (h *synthWrapper) BeaconBlockProposal(ctx context.Context, opts *api.BeaconBlockProposalOpts) (*api.Response[*spec.VersionedBeaconBlock], error) {
+// Proposal returns an unsigned beacon block, possibly marked as synthetic.
+func (h *synthWrapper) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
 	vIdx, ok, err := h.synthProposerCache.SyntheticVIdx(ctx, h.Client, opts.Slot)
 	if err != nil {
 		return nil, err
 	} else if !ok {
-		resp, err := h.Client.BeaconBlockProposal(ctx, opts)
+		resp, err := h.Client.Proposal(ctx, opts)
 		if err != nil {
 			return nil, errors.Wrap(err, "propose beacon block")
 		}
@@ -107,16 +108,27 @@ func (h *synthWrapper) BeaconBlockProposal(ctx context.Context, opts *api.Beacon
 		return nil, err
 	}
 
-	return &api.Response[*spec.VersionedBeaconBlock]{Data: block}, nil
+	versionedProposal := &eth2api.VersionedProposal{
+		Version:   block.Version,
+		Phase0:    block.Phase0,
+		Altair:    block.Altair,
+		Bellatrix: block.Bellatrix,
+		Capella:   block.Capella,
+		Deneb: &deneb.BlockContents{
+			Block: block.Deneb,
+		},
+	}
+
+	return &eth2api.Response[*eth2api.VersionedProposal]{Data: versionedProposal}, nil
 }
 
-// BlindedBeaconBlockProposal returns an unsigned blinded beacon block, possibly marked as synthetic.
-func (h *synthWrapper) BlindedBeaconBlockProposal(ctx context.Context, opts *api.BlindedBeaconBlockProposalOpts) (*api.Response[*api.VersionedBlindedBeaconBlock], error) {
+// BlindedProposal returns an unsigned blinded beacon block, possibly marked as synthetic.
+func (h *synthWrapper) BlindedProposal(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error) {
 	vIdx, ok, err := h.synthProposerCache.SyntheticVIdx(ctx, h.Client, opts.Slot)
 	if err != nil {
 		return nil, err
 	} else if !ok {
-		resp, err := h.Client.BlindedBeaconBlockProposal(ctx, opts)
+		resp, err := h.Client.BlindedProposal(ctx, opts)
 		if err != nil {
 			return nil, errors.Wrap(err, "propose blinded beacon block")
 		}
@@ -134,7 +146,17 @@ func (h *synthWrapper) BlindedBeaconBlockProposal(ctx context.Context, opts *api
 		return nil, err
 	}
 
-	return &api.Response[*api.VersionedBlindedBeaconBlock]{Data: syncBlindedBlock}, nil
+	versionedBlindedProposal := &eth2api.VersionedBlindedProposal{
+		Version:   syncBlindedBlock.Version,
+		Bellatrix: syncBlindedBlock.Bellatrix,
+		Capella:   syncBlindedBlock.Capella,
+		Deneb: &deneb.BlindedBlockContents{
+			BlindedBlock:        syncBlindedBlock.Deneb,
+			BlindedBlobSidecars: nil,
+		},
+	}
+
+	return &eth2api.Response[*eth2api.VersionedBlindedProposal]{Data: versionedBlindedProposal}, nil
 }
 
 // syntheticBlock returns a synthetic beacon block to propose.
@@ -143,7 +165,7 @@ func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot, vId
 
 	// Work our way back from previous slot to find a block to base the synthetic block on.
 	for prev := slot - 1; prev > 0; prev-- {
-		opts := &api.SignedBeaconBlockOpts{
+		opts := &eth2api.SignedBeaconBlockOpts{
 			Block: fmt.Sprint(prev),
 		}
 		signed, err := h.Client.SignedBeaconBlock(ctx, opts)
@@ -167,7 +189,6 @@ func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot, vId
 	feeRecipient := h.getFeeRecipient(vIdx)
 
 	block := &spec.VersionedBeaconBlock{Version: signedBlock.Version}
-
 	switch signedBlock.Version {
 	case spec.DataVersionPhase0:
 		block.Phase0 = signedBlock.Phase0.Message
@@ -207,7 +228,7 @@ func fraction(transactions []bellatrix.Transaction) []bellatrix.Transaction {
 }
 
 // SubmitBlindedBeaconBlock submits a blinded beacon block or swallows it if marked as synthetic.
-func (h *synthWrapper) SubmitBlindedBeaconBlock(ctx context.Context, block *api.VersionedSignedBlindedBeaconBlock) error {
+func (h *synthWrapper) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
 	if IsSyntheticBlindedBlock(block) {
 		log.Debug(ctx, "Synthetic blinded beacon block swallowed")
 		return nil
@@ -235,7 +256,7 @@ func GetSyntheticGraffiti() [32]byte {
 }
 
 // IsSyntheticBlindedBlock returns true if the blinded block is a synthetic block.
-func IsSyntheticBlindedBlock(block *api.VersionedSignedBlindedBeaconBlock) bool {
+func IsSyntheticBlindedBlock(block *eth2api.VersionedSignedBlindedBeaconBlock) bool {
 	var graffiti [32]byte
 	switch block.Version {
 	case spec.DataVersionBellatrix:
@@ -307,7 +328,7 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 	}
 
 	// Get actual duties for all validators for the epoch.
-	opts := &api.ProposerDutiesOpts{
+	opts := &eth2api.ProposerDutiesOpts{
 		Epoch:   epoch,
 		Indices: vals.Indices(),
 	}
@@ -433,12 +454,12 @@ func getStandardHashFn() shuffle.HashFn {
 }
 
 // blindedBlock converts a normal block into a blinded block.
-func blindedBlock(block *spec.VersionedBeaconBlock) (*api.VersionedBlindedBeaconBlock, error) {
-	var resp *api.VersionedBlindedBeaconBlock
+func blindedBlock(block *spec.VersionedBeaconBlock) (*eth2api.VersionedBlindedBeaconBlock, error) {
+	var resp *eth2api.VersionedBlindedBeaconBlock
 	// Blinded blocks are only available from bellatrix.
 	switch block.Version {
 	case spec.DataVersionBellatrix:
-		resp = &api.VersionedBlindedBeaconBlock{
+		resp = &eth2api.VersionedBlindedBeaconBlock{
 			Version: block.Version,
 			Bellatrix: &eth2bellatrix.BlindedBeaconBlock{
 				Slot:          block.Bellatrix.Slot,
@@ -475,7 +496,7 @@ func blindedBlock(block *spec.VersionedBeaconBlock) (*api.VersionedBlindedBeacon
 			},
 		}
 	case spec.DataVersionCapella:
-		resp = &api.VersionedBlindedBeaconBlock{
+		resp = &eth2api.VersionedBlindedBeaconBlock{
 			Version: block.Version,
 			Capella: &eth2capella.BlindedBeaconBlock{
 				Slot:          block.Capella.Slot,

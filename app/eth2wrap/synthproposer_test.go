@@ -31,15 +31,17 @@ func TestSynthProposer(t *testing.T) {
 		done                       = make(chan struct{})
 		activeVals                 = 0
 	)
+
 	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(set), beaconmock.WithSlotsPerEpoch(slotsPerEpoch))
 	require.NoError(t, err)
 
-	bmock.SubmitBeaconBlockFunc = func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
-		require.Equal(t, realBlockSlot, block.Capella.Message.Slot)
+	bmock.SubmitProposalFunc = func(ctx context.Context, proposal *eth2api.VersionedSignedProposal) error {
+		require.Equal(t, realBlockSlot, proposal.Capella.Message.Slot)
 		close(done)
 
 		return nil
 	}
+
 	bmock.ProposerDutiesFunc = func(ctx context.Context, e eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 		require.Equal(t, int(epoch), int(e))
 
@@ -100,13 +102,12 @@ func TestSynthProposer(t *testing.T) {
 	for _, duty := range duties {
 		var graff [32]byte
 		copy(graff[:], "test")
-		opts1 := &eth2api.BeaconBlockProposalOpts{
+		opts1 := &eth2api.ProposalOpts{
 			Slot:         duty.Slot,
 			RandaoReveal: testutil.RandomEth2Signature(),
 			Graffiti:     graff,
 		}
-
-		resp, err := eth2Cl.BeaconBlockProposal(ctx, opts1)
+		resp, err := eth2Cl.Proposal(ctx, opts1)
 		require.NoError(t, err)
 		block := resp.Data
 
@@ -116,12 +117,14 @@ func TestSynthProposer(t *testing.T) {
 		} else {
 			require.Contains(t, string(block.Capella.Body.Graffiti[:]), "DO NOT SUBMIT")
 			require.Equal(t, feeRecipient, block.Capella.Body.ExecutionPayload.FeeRecipient)
+
+			continue
 		}
 		require.Equal(t, spec.DataVersionCapella, block.Version)
 
-		signed := testutil.RandomCapellaVersionedSignedBeaconBlock()
+		signed := testutil.RandomVersionedSignedProposal()
 		signed.Capella.Message = block.Capella
-		err = eth2Cl.SubmitBeaconBlock(ctx, signed)
+		err = eth2Cl.SubmitProposal(ctx, signed)
 		require.NoError(t, err)
 	}
 
@@ -129,12 +132,12 @@ func TestSynthProposer(t *testing.T) {
 	for _, duty := range duties {
 		var graff [32]byte
 		copy(graff[:], "test")
-		opts := &eth2api.BlindedBeaconBlockProposalOpts{
+		opts := &eth2api.BlindedProposalOpts{
 			Slot:         duty.Slot,
 			RandaoReveal: testutil.RandomEth2Signature(),
 			Graffiti:     graff,
 		}
-		resp, err := eth2Cl.BlindedBeaconBlockProposal(ctx, opts)
+		resp, err := eth2Cl.BlindedProposal(ctx, opts)
 		require.NoError(t, err)
 		block := resp.Data
 		if duty.Slot == realBlockSlot {
@@ -145,14 +148,14 @@ func TestSynthProposer(t *testing.T) {
 		}
 		require.Equal(t, spec.DataVersionCapella, block.Version)
 
-		signed := &eth2api.VersionedSignedBlindedBeaconBlock{
+		signed := &eth2api.VersionedSignedBlindedProposal{
 			Version: spec.DataVersionCapella,
 			Capella: &eth2capella.SignedBlindedBeaconBlock{
 				Message:   block.Capella,
 				Signature: testutil.RandomEth2Signature(),
 			},
 		}
-		err = eth2Cl.SubmitBlindedBeaconBlock(ctx, signed)
+		err = eth2Cl.SubmitBlindedProposal(ctx, signed)
 		require.NoError(t, err)
 	}
 

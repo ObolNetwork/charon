@@ -58,8 +58,8 @@ github.com/Microsoft/go-winio v0.6.1/go.mod h1:LRdKpFKfdobln8UmuiYcKPot9D2v6svN5
 github.com/ObolNetwork/kryptology v0.0.0-20231016091344-eed023b6cac8 h1:IXoKQKGzebwtIzKADtZyAjL3MIr0m3zQFxlSxxWIdCU=
 github.com/ObolNetwork/kryptology v0.0.0-20231016091344-eed023b6cac8/go.mod h1:qcn33Qgj0WVLH1nuXqPt8JHY+yZabhyKxI5dHRk0fbo=
 github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239/go.mod h1:2FmKhYUyUczH0OGQWaF5ceTx0UBShxjsH6f8oGKYe2c=
-github.com/attestantio/go-eth2-client v0.18.4-0.20231017132834-120f20218d42 h1:MyjRMJv6XdZJFfcybKOtRklJhtPa2l53/Wz84e+Gz9g=
-github.com/attestantio/go-eth2-client v0.18.4-0.20231017132834-120f20218d42/go.mod h1:mZve1kV9Ctj0I1HH9gdg+MnI8lZ+Cb2EktEtOYrBlsM=
+github.com/attestantio/go-eth2-client v0.18.4-0.20231019184701-66acc87a89a9 h1:OuepQiJCa1/bh70yr2g+Xna1AiinXkcjiAOKC/skulc=
+github.com/attestantio/go-eth2-client v0.18.4-0.20231019184701-66acc87a89a9/go.mod h1:mZve1kV9Ctj0I1HH9gdg+MnI8lZ+Cb2EktEtOYrBlsM=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/benbjohnson/clock v1.3.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/benbjohnson/clock v1.3.5 h1:VvXlSJBzZpA/zum6Sj74hxwYI2DIxRWuNIoXAzHZz5o=

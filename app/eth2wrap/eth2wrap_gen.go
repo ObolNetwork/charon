@@ -34,12 +34,11 @@ type Client interface {
 	eth2client.AttestationDataProvider
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
-	eth2client.BeaconBlockProposalProvider
 	eth2client.BeaconBlockRootProvider
 	eth2client.BeaconBlockSubmitter
 	eth2client.BeaconCommitteeSubscriptionsSubmitter
-	eth2client.BlindedBeaconBlockProposalProvider
 	eth2client.BlindedBeaconBlockSubmitter
+	eth2client.BlindedProposalProvider
 	eth2client.BlindedProposalSubmitter
 	eth2client.DepositContractProvider
 	eth2client.DomainProvider
@@ -50,6 +49,7 @@ type Client interface {
 	eth2client.NodeSyncingProvider
 	eth2client.NodeVersionProvider
 	eth2client.ProposalPreparationsSubmitter
+	eth2client.ProposalProvider
 	eth2client.ProposalSubmitter
 	eth2client.ProposerDutiesProvider
 	eth2client.SignedBeaconBlockProvider
@@ -367,14 +367,14 @@ func (m multi) SubmitSyncCommitteeContributions(ctx context.Context, contributio
 	return err
 }
 
-// BeaconBlockProposal fetches a beacon block for signing.
-func (m multi) BeaconBlockProposal(ctx context.Context, opts *api.BeaconBlockProposalOpts) (*api.Response[*spec.VersionedBeaconBlock], error) {
-	const label = "beacon_block_proposal"
+// Proposal fetches a proposal for signing.
+func (m multi) Proposal(ctx context.Context, opts *api.ProposalOpts) (*api.Response[*api.VersionedProposal], error) {
+	const label = "proposal"
 	defer latency(label)()
 
 	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (*api.Response[*spec.VersionedBeaconBlock], error) {
-			return cl.BeaconBlockProposal(ctx, opts)
+		func(ctx context.Context, cl Client) (*api.Response[*api.VersionedProposal], error) {
+			return cl.Proposal(ctx, opts)
 		},
 		nil, m.bestIdx,
 	)
@@ -469,14 +469,14 @@ func (m multi) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscript
 	return err
 }
 
-// BlindedBeaconBlockProposal fetches a blinded proposed beacon block for signing.
-func (m multi) BlindedBeaconBlockProposal(ctx context.Context, opts *api.BlindedBeaconBlockProposalOpts) (*api.Response[*api.VersionedBlindedBeaconBlock], error) {
-	const label = "blinded_beacon_block_proposal"
+// BlindedProposal fetches a blinded proposed beacon block for signing.
+func (m multi) BlindedProposal(ctx context.Context, opts *api.BlindedProposalOpts) (*api.Response[*api.VersionedBlindedProposal], error) {
+	const label = "blinded_proposal"
 	defer latency(label)()
 
 	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (*api.Response[*api.VersionedBlindedBeaconBlock], error) {
-			return cl.BlindedBeaconBlockProposal(ctx, opts)
+		func(ctx context.Context, cl Client) (*api.Response[*api.VersionedBlindedProposal], error) {
+			return cl.BlindedProposal(ctx, opts)
 		},
 		nil, m.bestIdx,
 	)
@@ -753,7 +753,7 @@ func (m multi) Domain(ctx context.Context, domainType phase0.DomainType, epoch p
 }
 
 // GenesisDomain returns the domain for the given domain type at genesis.
-// N.B. this is not always the same as the the domain at epoch 0.  It is possible
+// N.B. this is not always the same as the domain at epoch 0.  It is possible
 // for a chain's fork schedule to have multiple forks at genesis.  In this situation,
 // GenesisDomain() will return the first, and Domain() will return the last.
 // Note this endpoint is cached in go-eth2-client.
@@ -946,14 +946,14 @@ func (l *lazy) SubmitSyncCommitteeContributions(ctx context.Context, contributio
 	return cl.SubmitSyncCommitteeContributions(ctx, contributionAndProofs)
 }
 
-// BeaconBlockProposal fetches a beacon block for signing.
-func (l *lazy) BeaconBlockProposal(ctx context.Context, opts *api.BeaconBlockProposalOpts) (res0 *api.Response[*spec.VersionedBeaconBlock], err error) {
+// Proposal fetches a proposal for signing.
+func (l *lazy) Proposal(ctx context.Context, opts *api.ProposalOpts) (res0 *api.Response[*api.VersionedProposal], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
 
-	return cl.BeaconBlockProposal(ctx, opts)
+	return cl.Proposal(ctx, opts)
 }
 
 // BeaconBlockRoot fetches a block's root given a set of options.
@@ -998,14 +998,14 @@ func (l *lazy) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscript
 	return cl.SubmitBeaconCommitteeSubscriptions(ctx, subscriptions)
 }
 
-// BlindedBeaconBlockProposal fetches a blinded proposed beacon block for signing.
-func (l *lazy) BlindedBeaconBlockProposal(ctx context.Context, opts *api.BlindedBeaconBlockProposalOpts) (res0 *api.Response[*api.VersionedBlindedBeaconBlock], err error) {
+// BlindedProposal fetches a blinded proposed beacon block for signing.
+func (l *lazy) BlindedProposal(ctx context.Context, opts *api.BlindedProposalOpts) (res0 *api.Response[*api.VersionedBlindedProposal], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
 	}
 
-	return cl.BlindedBeaconBlockProposal(ctx, opts)
+	return cl.BlindedProposal(ctx, opts)
 }
 
 // SubmitBlindedBeaconBlock submits a beacon block.
@@ -1142,7 +1142,7 @@ func (l *lazy) Domain(ctx context.Context, domainType phase0.DomainType, epoch p
 }
 
 // GenesisDomain returns the domain for the given domain type at genesis.
-// N.B. this is not always the same as the the domain at epoch 0.  It is possible
+// N.B. this is not always the same as the domain at epoch 0.  It is possible
 // for a chain's fork schedule to have multiple forks at genesis.  In this situation,
 // GenesisDomain() will return the first, and Domain() will return the last.
 func (l *lazy) GenesisDomain(ctx context.Context, domainType phase0.DomainType) (res0 phase0.Domain, err error) {

@@ -116,15 +116,15 @@ type Mock struct {
 	AttesterDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
 	BlockAttestationsFunc                  func(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error)
 	NodePeerCountFunc                      func(ctx context.Context) (int, error)
-	BlindedBeaconBlockProposalFunc         func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error)
-	BlindedProposalFunc                    func(ctx context.Context, block *eth2api.VersionedSignedBlindedProposal) error
-	BeaconBlockProposalFunc                func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2spec.VersionedBeaconBlock, error)
+	ProposalFunc                           func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error)
+	BlindedProposalFunc                    func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.VersionedBlindedProposal, error)
 	SignedBeaconBlockFunc                  func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error)
 	ProposerDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
 	SubmitAttestationsFunc                 func(context.Context, []*eth2p0.Attestation) error
 	SubmitBeaconBlockFunc                  func(context.Context, *eth2spec.VersionedSignedBeaconBlock) error
-	SubmitProposalFunc                     func(ctx context.Context, block *eth2api.VersionedSignedProposal) error
-	SubmitBlindedBeaconBlockFunc           func(context.Context, *eth2api.VersionedSignedBlindedBeaconBlock) error
+	SubmitProposalFunc                     func(context.Context, *eth2api.VersionedSignedProposal) error
+	SubmitBlindedBeaconBlockFunc           func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error
+	SubmitBlindedProposalFunc              func(context.Context, *eth2api.VersionedSignedBlindedProposal) error
 	SubmitVoluntaryExitFunc                func(context.Context, *eth2p0.SignedVoluntaryExit) error
 	ValidatorsByPubKeyFunc                 func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
 	ValidatorsFunc                         func(context.Context, *eth2api.ValidatorsOpts) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
@@ -174,26 +174,26 @@ func (m Mock) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOp
 	return &eth2api.Response[[]*eth2v1.AttesterDuty]{Data: duties}, nil
 }
 
-func (m Mock) BeaconBlockProposal(ctx context.Context, opts *eth2api.BeaconBlockProposalOpts) (*eth2api.Response[*eth2spec.VersionedBeaconBlock], error) {
-	block, err := m.BeaconBlockProposalFunc(ctx, opts.Slot, opts.RandaoReveal, opts.Graffiti[:])
+func (m Mock) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
+	block, err := m.ProposalFunc(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	return &eth2api.Response[*eth2spec.VersionedBeaconBlock]{Data: block}, nil
+	return &eth2api.Response[*eth2api.VersionedProposal]{Data: block}, nil
 }
 
-func (m Mock) BlindedBeaconBlockProposal(ctx context.Context, opts *eth2api.BlindedBeaconBlockProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedBeaconBlock], error) {
-	block, err := m.BlindedBeaconBlockProposalFunc(ctx, opts.Slot, opts.RandaoReveal, opts.Graffiti[:])
+func (m Mock) BlindedProposal(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error) {
+	block, err := m.BlindedProposalFunc(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	return &eth2api.Response[*eth2api.VersionedBlindedBeaconBlock]{Data: block}, nil
+	return &eth2api.Response[*eth2api.VersionedBlindedProposal]{Data: block}, nil
 }
 
 func (m Mock) SubmitBlindedProposal(ctx context.Context, block *eth2api.VersionedSignedBlindedProposal) error {
-	return m.BlindedProposalFunc(ctx, block)
+	return m.SubmitBlindedProposalFunc(ctx, block)
 }
 
 func (m Mock) ForkSchedule(ctx context.Context) (*eth2api.Response[[]*eth2p0.Fork], error) {

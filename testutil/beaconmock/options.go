@@ -475,25 +475,25 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		HTTPMock:     httpMock,
 		httpServer:   httpServer,
 		headProducer: headProducer,
-		BeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2spec.VersionedBeaconBlock, error) {
-			block := &eth2spec.VersionedBeaconBlock{
+		ProposalFunc: func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error) {
+			block := &eth2api.VersionedProposal{
 				Version: eth2spec.DataVersionCapella,
 				Capella: testutil.RandomCapellaBeaconBlock(),
 			}
-			block.Capella.Slot = slot
-			block.Capella.Body.RANDAOReveal = randaoReveal
-			block.Capella.Body.Graffiti = array32(graffiti)
+			block.Capella.Slot = opts.Slot
+			block.Capella.Body.RANDAOReveal = opts.RandaoReveal
+			block.Capella.Body.Graffiti = opts.Graffiti
 
 			return block, nil
 		},
-		BlindedBeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error) {
-			block := &eth2api.VersionedBlindedBeaconBlock{
+		BlindedProposalFunc: func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.VersionedBlindedProposal, error) {
+			block := &eth2api.VersionedBlindedProposal{
 				Version: eth2spec.DataVersionCapella,
 				Capella: testutil.RandomCapellaBlindedBeaconBlock(),
 			}
-			block.Capella.Slot = slot
-			block.Capella.Body.RANDAOReveal = randaoReveal
-			block.Capella.Body.Graffiti = array32(graffiti)
+			block.Capella.Slot = opts.Slot
+			block.Capella.Body.RANDAOReveal = opts.RandaoReveal
+			block.Capella.Body.Graffiti = opts.Graffiti
 
 			return block, nil
 		},
@@ -539,6 +539,12 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			return nil
 		},
 		SubmitBeaconBlockFunc: func(context.Context, *eth2spec.VersionedSignedBeaconBlock) error {
+			return nil
+		},
+		SubmitProposalFunc: func(context.Context, *eth2api.VersionedSignedProposal) error {
+			return nil
+		},
+		SubmitBlindedProposalFunc: func(context.Context, *eth2api.VersionedSignedBlindedProposal) error {
 			return nil
 		},
 		SubmitBlindedBeaconBlockFunc: func(context.Context, *eth2api.VersionedSignedBlindedBeaconBlock) error {
@@ -612,13 +618,6 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			return nil, nil
 		},
 	}
-}
-
-func array32(slice []byte) [32]byte {
-	var resp [32]byte
-	copy(resp[:], slice)
-
-	return resp
 }
 
 func mustPKFromHex(pubkeyHex string) eth2p0.BLSPubKey {
