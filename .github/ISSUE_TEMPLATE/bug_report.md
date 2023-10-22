@@ -1,8 +1,12 @@
 ---
 name: "\U0001F41E Bug report"
 about: Report a bug or problem with running charon
-labels: Bug
+title: ''
+labels: ''
+assignees: ''
+
 ---
+
 <!--
 
 Hey there!

@@ -1,7 +1,10 @@
 ---
 name: "\U0001F680 Feature or Improvement Ticket"
 about: Create a new feature or suggest an improvement for charon
-labels: Enhancement
+title: ''
+labels: ''
+assignees: ''
+
 ---
 
 # 🎯 Problem to be solved
