@@ -6,6 +6,7 @@ import (
 	"context"
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -27,10 +28,10 @@ func TestCancelledQueries(t *testing.T) {
 	_, err = db.AwaitAggAttestation(ctx, slot, eth2p0.Root{})
 	require.ErrorContains(t, err, "shutdown")
 
-	_, err = db.AwaitBeaconBlock(ctx, slot)
+	_, err = db.AwaitProposal(ctx, &eth2api.ProposalOpts{Slot: slot})
 	require.ErrorContains(t, err, "shutdown")
 
-	_, err = db.AwaitBlindedBeaconBlock(ctx, slot)
+	_, err = db.AwaitBlindedProposal(ctx, &eth2api.BlindedProposalOpts{Slot: slot})
 	require.ErrorContains(t, err, "shutdown")
 
 	_, err = db.AwaitSyncContribution(ctx, slot, 0, eth2p0.Root{})

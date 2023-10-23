@@ -155,9 +155,7 @@ type Component struct {
 
 	pubKeyByAttFunc           func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error)
 	awaitAttFunc              func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
-	awaitBlockFunc            func(ctx context.Context, slot int64) (*eth2spec.VersionedBeaconBlock, error)
 	awaitProposalFunc         func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error)
-	awaitBlindedBlockFunc     func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error)
 	awaitBlindedProposalFunc  func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.VersionedBlindedProposal, error)
 	awaitSyncContributionFunc func(ctx context.Context, slot, subcommIdx int64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	awaitAggAttFunc           func(ctx context.Context, slot int64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)
@@ -166,22 +164,10 @@ type Component struct {
 	subs                      []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
-// RegisterAwaitBeaconBlock registers a function to query unsigned beacon block.
-// It supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitBeaconBlock(fn func(ctx context.Context, slot int64) (*eth2spec.VersionedBeaconBlock, error)) {
-	c.awaitBlockFunc = fn
-}
-
 // RegisterAwaitProposal registers a function to query unsigned beacon block proposals by providing necessary options.
 // It supports a single function, since it is an input of the component.
 func (c *Component) RegisterAwaitProposal(fn func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error)) {
 	c.awaitProposalFunc = fn
-}
-
-// RegisterAwaitBlindedBeaconBlock registers a function to query unsigned blinded beacon block.
-// It supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitBlindedBeaconBlock(fn func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error)) {
-	c.awaitBlindedBlockFunc = fn
 }
 
 // RegisterAwaitBlindedProposal registers a function to query unsigned blinded beacon block proposals by providing necessary options.

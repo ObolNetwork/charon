@@ -1,4 +1,4 @@
-FROM sigp/lighthouse:latest-amd64-unstable-dev
+FROM sigp/lighthouse:latest-arm64-unstable-dev
 
 RUN apt-get update && apt-get install -y curl jq wget
 

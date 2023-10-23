@@ -183,7 +183,7 @@ func (v VersionedProposal) Clone() (UnsignedData, error) {
 		return nil, errors.Wrap(err, "clone block")
 	}
 
-	return &resp, nil
+	return resp, nil
 }
 
 func (v VersionedProposal) MarshalJSON() ([]byte, error) {
