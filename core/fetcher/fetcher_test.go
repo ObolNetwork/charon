@@ -289,19 +289,19 @@ func TestFetchBlocks(t *testing.T) {
 			require.Equal(t, duty, resDuty)
 			require.Len(t, resDataSet, 2)
 
-			dutyDataA := resDataSet[pubkeysByIdx[vIdxA]].(*core.VersionedProposal)
+			dutyDataA := resDataSet[pubkeysByIdx[vIdxA]].(core.VersionedProposal)
 			slotA, err := dutyDataA.Slot()
 			require.NoError(t, err)
 			require.EqualValues(t, slot, slotA)
 			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Capella.Body.ExecutionPayload.FeeRecipient))
-			assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signatures()[0].ToETH2(), *dutyDataA)
+			assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signatures()[0].ToETH2(), dutyDataA)
 
-			dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(*core.VersionedProposal) // TODO(xenowits): Figure out why cast needs pointer
+			dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.VersionedProposal)
 			slotB, err := dutyDataB.Slot()
 			require.NoError(t, err)
 			require.EqualValues(t, slot, slotB)
 			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.Capella.Body.ExecutionPayload.FeeRecipient))
-			assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signatures()[0].ToETH2(), *dutyDataB)
+			assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signatures()[0].ToETH2(), dutyDataB)
 
 			return nil
 		})
