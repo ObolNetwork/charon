@@ -227,24 +227,24 @@ func fraction(transactions []bellatrix.Transaction) []bellatrix.Transaction {
 	return transactions[:len(transactions)/syntheticBlockFraction]
 }
 
-// SubmitBlindedBeaconBlock submits a blinded beacon block or swallows it if marked as synthetic.
-func (h *synthWrapper) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
-	if IsSyntheticBlindedBlock(block) {
-		log.Debug(ctx, "Synthetic blinded beacon block swallowed")
+// SubmitBlindedProposal submits a blinded beacon block proposal or swallows it if marked as synthetic.
+func (h *synthWrapper) SubmitBlindedProposal(ctx context.Context, proposal *eth2api.VersionedSignedBlindedProposal) error {
+	if IsSyntheticBlindedBlock(proposal) {
+		log.Debug(ctx, "Synthetic blinded beacon proposal swallowed")
 		return nil
 	}
 
-	return h.Client.SubmitBlindedBeaconBlock(ctx, block)
+	return h.Client.SubmitBlindedProposal(ctx, proposal)
 }
 
-// SubmitBeaconBlock submits a beacon block or swallows it if marked as synthetic.
-func (h *synthWrapper) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
-	if IsSyntheticBlock(block) {
+// SubmitProposal submits a beacon block or swallows it if marked as synthetic.
+func (h *synthWrapper) SubmitProposal(ctx context.Context, proposal *eth2api.VersionedSignedProposal) error {
+	if IsSyntheticBlock(proposal) {
 		log.Debug(ctx, "Synthetic beacon block swallowed")
 		return nil
 	}
 
-	return h.Client.SubmitBeaconBlock(ctx, block)
+	return h.Client.SubmitProposal(ctx, proposal)
 }
 
 // GetSyntheticGraffiti returns the graffiti used to mark synthetic blocks.
@@ -256,7 +256,7 @@ func GetSyntheticGraffiti() [32]byte {
 }
 
 // IsSyntheticBlindedBlock returns true if the blinded block is a synthetic block.
-func IsSyntheticBlindedBlock(block *eth2api.VersionedSignedBlindedBeaconBlock) bool {
+func IsSyntheticBlindedBlock(block *eth2api.VersionedSignedBlindedProposal) bool {
 	var graffiti [32]byte
 	switch block.Version {
 	case spec.DataVersionBellatrix:
@@ -271,7 +271,7 @@ func IsSyntheticBlindedBlock(block *eth2api.VersionedSignedBlindedBeaconBlock) b
 }
 
 // IsSyntheticBlock returns true if the block is a synthetic block.
-func IsSyntheticBlock(block *spec.VersionedSignedBeaconBlock) bool {
+func IsSyntheticBlock(block *eth2api.VersionedSignedProposal) bool {
 	var graffiti [32]byte
 	switch block.Version {
 	case spec.DataVersionPhase0:

@@ -97,10 +97,10 @@ func TestInclusion(t *testing.T) {
 	att3 := testutil.RandomAttestation()
 	att3Duty := core.NewAttesterDuty(int64(att3.Data.Slot))
 
-	block4 := testutil.RandomCapellaVersionedSignedBeaconBlock()
+	block4 := testutil.RandomCapellaVersionedSignedProposal()
 	block4Duty := core.NewProposerDuty(int64(block4.Capella.Message.Slot))
 
-	block5 := testutil.RandomCapellaVersionedSignedBlindedBeaconBlock()
+	block5 := testutil.RandomCapellaVersionedSignedBlindedProposal()
 	block5.Capella.Message.Body.Graffiti = eth2wrap.GetSyntheticGraffiti() // Ignored, not included or missed.
 	block5Duty := core.NewBuilderProposerDuty(int64(block5.Capella.Message.Slot))
 
@@ -112,7 +112,7 @@ func TestInclusion(t *testing.T) {
 	err = incl.Submitted(att3Duty, "", core.NewAttestation(att3), 0)
 	require.NoError(t, err)
 
-	coreBlock4, err := core.NewVersionedSignedBeaconBlock(block4)
+	coreBlock4, err := core.NewVersionedSignedProposal(block4)
 	require.NoError(t, err)
 	err = incl.Submitted(block4Duty, "", coreBlock4, 0)
 	require.NoError(t, err)

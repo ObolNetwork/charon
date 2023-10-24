@@ -358,47 +358,6 @@ func (c *Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*
 	return &eth2api.Response[*eth2api.VersionedProposal]{Data: proposal}, nil
 }
 
-func (c Component) SubmitBeaconBlock(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error { // TODO(xenowits): Replace with SubmitProposal() instead.
-	// Calculate slot epoch
-	slot, err := block.Slot()
-	if err != nil {
-		return err
-	}
-
-	pubkey, err := c.getProposerPubkey(ctx, core.NewProposerDuty(int64(slot)))
-	if err != nil {
-		return err
-	}
-
-	// Save Partially Signed Block to ParSigDB
-	duty := core.NewProposerDuty(int64(slot))
-	ctx = log.WithCtx(ctx, z.Any("duty", duty))
-
-	signedData, err := core.NewPartialVersionedSignedBeaconBlock(block, c.shareIdx)
-	if err != nil {
-		return err
-	}
-
-	// Verify block signature
-	err = c.verifyPartialSig(ctx, signedData, pubkey)
-	if err != nil {
-		return err
-	}
-
-	log.Debug(ctx, "Beacon block submitted by validator client", z.Str("block_version", block.Version.String()))
-
-	set := core.ParSignedDataSet{pubkey: signedData}
-	for _, sub := range c.subs {
-		// No need to clone since sub auto clones.
-		err = sub(ctx, duty, set)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func (c *Component) BlindedProposal(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error) {
 	// Get proposer pubkey (this is a blocking query).
 	pubkey, err := c.getProposerPubkey(ctx, core.NewBuilderProposerDuty(int64(opts.Slot)))
@@ -457,9 +416,50 @@ func (c *Component) BlindedProposal(ctx context.Context, opts *eth2api.BlindedPr
 	return &eth2api.Response[*eth2api.VersionedBlindedProposal]{Data: proposal}, nil
 }
 
-func (c Component) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
+func (c *Component) SubmitProposal(ctx context.Context, proposal *eth2api.VersionedSignedProposal) error {
 	// Calculate slot epoch
-	slot, err := block.Slot()
+	slot, err := slotFromVersionedSignedProposal(proposal)
+	if err != nil {
+		return err
+	}
+
+	pubkey, err := c.getProposerPubkey(ctx, core.NewProposerDuty(int64(slot)))
+	if err != nil {
+		return err
+	}
+
+	// Save Partially Signed Block to ParSigDB
+	duty := core.NewProposerDuty(int64(slot))
+	ctx = log.WithCtx(ctx, z.Any("duty", duty))
+
+	signedData, err := core.NewPartialVersionedSignedProposal(proposal, c.shareIdx)
+	if err != nil {
+		return err
+	}
+
+	// Verify proposal signature
+	err = c.verifyPartialSig(ctx, signedData, pubkey)
+	if err != nil {
+		return err
+	}
+
+	log.Debug(ctx, "Beacon proposal submitted by validator client", z.Str("block_version", proposal.Version.String()))
+
+	set := core.ParSignedDataSet{pubkey: signedData}
+	for _, sub := range c.subs {
+		// No need to clone since sub auto clones.
+		err = sub(ctx, duty, set)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *Component) SubmitBlindedProposal(ctx context.Context, proposal *eth2api.VersionedSignedBlindedProposal) error {
+	// Calculate slot epoch
+	slot, err := proposal.Slot()
 	if err != nil {
 		return err
 	}
@@ -473,7 +473,7 @@ func (c Component) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.
 	duty := core.NewBuilderProposerDuty(int64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	signedData, err := core.NewPartialVersionedSignedBlindedBeaconBlock(block, c.shareIdx)
+	signedData, err := core.NewPartialVersionedSignedBlindedProposal(proposal, c.shareIdx)
 	if err != nil {
 		return err
 	}
@@ -1203,4 +1203,41 @@ func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigR
 	}
 
 	return &resp, nil
+}
+
+// slotFromVersionedSignedProposal returns the slot from the provided eth2api.VersionedSignedProposal.
+// TODO(xenowits): Remove this function once this functionality is available in go-eth2-client.
+func slotFromVersionedSignedProposal(p *eth2api.VersionedSignedProposal) (eth2p0.Slot, error) {
+	switch p.Version {
+	case eth2spec.DataVersionPhase0:
+		if p.Phase0 == nil || p.Phase0.Message == nil {
+			return 0, errors.New("no phase0 block")
+		}
+	case eth2spec.DataVersionAltair:
+		if p.Altair == nil || p.Altair.Message == nil {
+			return 0, errors.New("no altair block")
+		}
+	case eth2spec.DataVersionBellatrix:
+		if p.Bellatrix == nil || p.Bellatrix.Message == nil {
+			return 0, errors.New("no bellatrix block")
+		}
+
+		return p.Bellatrix.Message.Slot, nil
+	case eth2spec.DataVersionCapella:
+		if p.Capella == nil || p.Capella.Message == nil {
+			return 0, errors.New("no capella block")
+		}
+
+		return p.Capella.Message.Slot, nil
+	case eth2spec.DataVersionDeneb:
+		if p.Deneb == nil || p.Deneb.SignedBlock == nil || p.Deneb.SignedBlock.Message == nil {
+			return 0, errors.New("no deneb block")
+		}
+
+		return p.Deneb.SignedBlock.Message.Slot, nil
+	default:
+		return 0, errors.New("unknown version")
+	}
+
+	return 0, nil
 }

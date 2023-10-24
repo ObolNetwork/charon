@@ -104,8 +104,8 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 					*e = (*e)[:4]
 				}
 			},
-			// Populate one of the versions of these Versioned*Block types.
-			func(e *core.VersionedSignedBlindedBeaconBlock, c fuzz.Continue) {
+			// Populate one of the versions of these Versioned*Proposal types.
+			func(e *core.VersionedSignedBlindedProposal, c fuzz.Continue) {
 				e.Version = blindedVersions[(c.Intn(len(blindedVersions)))]
 				version, err := eth2util.DataVersionFromETH2(e.Version)
 				require.NoError(t, err)
@@ -121,7 +121,7 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				val := core.VersionedSSZValueForT(t, e, version)
 				c.Fuzz(val)
 			},
-			func(e *core.VersionedSignedBeaconBlock, c fuzz.Continue) {
+			func(e *core.VersionedSignedProposal, c fuzz.Continue) {
 				e.Version = allVersions[(c.Intn(len(allVersions)))]
 				version, err := eth2util.DataVersionFromETH2(e.Version)
 				require.NoError(t, err)

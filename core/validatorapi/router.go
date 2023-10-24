@@ -59,10 +59,10 @@ type Handler interface {
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
 	eth2client.ProposalProvider
-	eth2client.BeaconBlockSubmitter
+	eth2client.ProposalSubmitter
 	eth2exp.BeaconCommitteeSelectionAggregator
 	eth2client.BlindedProposalProvider
-	eth2client.BlindedBeaconBlockSubmitter
+	eth2client.BlindedProposalSubmitter
 	eth2client.NodeVersionProvider
 	eth2client.ProposerDutiesProvider
 	eth2client.SyncCommitteeContributionProvider
@@ -128,9 +128,14 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client) (*mux.Rou
 			Handler: proposeBlock(h),
 		},
 		{
-			Name:    "submit_block",
+			Name:    "submit_proposal",
 			Path:    "/eth/v1/beacon/blocks",
-			Handler: submitBlock(h),
+			Handler: submitProposal(h),
+		},
+		{
+			Name:    "submit_proposal",
+			Path:    "/eth/v2/beacon/blocks",
+			Handler: submitProposal(h),
 		},
 		{
 			Name:    "propose_blinded_block",
@@ -140,6 +145,11 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client) (*mux.Rou
 		{
 			Name:    "submit_blinded_block",
 			Path:    "/eth/v1/beacon/blinded_blocks",
+			Handler: submitBlindedBlock(h),
+		},
+		{
+			Name:    "submit_blinded_block",
+			Path:    "/eth/v2/beacon/blinded_blocks",
 			Handler: submitBlindedBlock(h),
 		},
 		{
@@ -687,79 +697,79 @@ func proposeBlindedBlock(p eth2client.BlindedProposalProvider) handlerFunc {
 	}
 }
 
-func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
+func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		capellaBlock := new(capella.SignedBeaconBlock)
 		err := unmarshal(typ, body, capellaBlock)
 		if err == nil {
-			block := &eth2spec.VersionedSignedBeaconBlock{
+			block := &eth2api.VersionedSignedProposal{
 				Version: eth2spec.DataVersionCapella,
 				Capella: capellaBlock,
 			}
 
-			return nil, nil, p.SubmitBeaconBlock(ctx, block)
+			return nil, nil, p.SubmitProposal(ctx, block)
 		}
 
 		bellatrixBlock := new(bellatrix.SignedBeaconBlock)
 		err = unmarshal(typ, body, bellatrixBlock)
 		if err == nil {
-			block := &eth2spec.VersionedSignedBeaconBlock{
+			block := &eth2api.VersionedSignedProposal{
 				Version:   eth2spec.DataVersionBellatrix,
 				Bellatrix: bellatrixBlock,
 			}
 
-			return nil, nil, p.SubmitBeaconBlock(ctx, block)
+			return nil, nil, p.SubmitProposal(ctx, block)
 		}
 
 		altairBlock := new(altair.SignedBeaconBlock)
 		err = unmarshal(typ, body, altairBlock)
 		if err == nil {
-			block := &eth2spec.VersionedSignedBeaconBlock{
+			block := &eth2api.VersionedSignedProposal{
 				Version: eth2spec.DataVersionAltair,
 				Altair:  altairBlock,
 			}
 
-			return nil, nil, p.SubmitBeaconBlock(ctx, block)
+			return nil, nil, p.SubmitProposal(ctx, block)
 		}
 
 		phase0Block := new(eth2p0.SignedBeaconBlock)
 		err = unmarshal(typ, body, phase0Block)
 		if err == nil {
-			block := &eth2spec.VersionedSignedBeaconBlock{
+			block := &eth2api.VersionedSignedProposal{
 				Version: eth2spec.DataVersionPhase0,
 				Phase0:  phase0Block,
 			}
 
-			return nil, nil, p.SubmitBeaconBlock(ctx, block)
+			return nil, nil, p.SubmitProposal(ctx, block)
 		}
 
 		return nil, nil, errors.New("invalid submitted block", z.Hex("body", body))
 	}
 }
 
-func submitBlindedBlock(p eth2client.BlindedBeaconBlockSubmitter) handlerFunc {
+func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		// The blinded block maybe either bellatrix or capella.
 		capellaBlock := new(eth2capella.SignedBlindedBeaconBlock)
 		err := unmarshal(typ, body, capellaBlock)
 		if err == nil {
-			block := &eth2api.VersionedSignedBlindedBeaconBlock{
+			block := &eth2api.VersionedSignedBlindedProposal{
 				Version: eth2spec.DataVersionCapella,
 				Capella: capellaBlock,
 			}
 
-			return nil, nil, p.SubmitBlindedBeaconBlock(ctx, block)
+			return nil, nil, p.SubmitBlindedProposal(ctx, block)
 		}
 
 		bellatrixBlock := new(eth2bellatrix.SignedBlindedBeaconBlock)
 		err = unmarshal(typ, body, bellatrixBlock)
 		if err == nil {
-			block := &eth2api.VersionedSignedBlindedBeaconBlock{
+			block := &eth2api.VersionedSignedBlindedProposal{
 				Version:   eth2spec.DataVersionBellatrix,
 				Bellatrix: bellatrixBlock,
 			}
 
-			return nil, nil, p.SubmitBlindedBeaconBlock(ctx, block)
+			return nil, nil, p.SubmitBlindedProposal(ctx, block)
 		}
 
 		return nil, nil, errors.New("invalid block")

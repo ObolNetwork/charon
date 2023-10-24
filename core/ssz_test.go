@@ -52,9 +52,9 @@ func TestSSZ(t *testing.T) {
 	tests := []struct {
 		zero func() any
 	}{
-		{zero: func() any { return new(core.VersionedSignedBeaconBlock) }},
+		{zero: func() any { return new(core.VersionedSignedProposal) }},
 		{zero: func() any { return new(core.Attestation) }},
-		{zero: func() any { return new(core.VersionedSignedBlindedBeaconBlock) }},
+		{zero: func() any { return new(core.VersionedSignedBlindedProposal) }},
 		{zero: func() any { return new(core.SignedAggregateAndProof) }},
 		{zero: func() any { return new(core.SignedSyncMessage) }},
 		{zero: func() any { return new(core.SyncContributionAndProof) }},
@@ -183,11 +183,11 @@ func TestMarshalParSignedProto(t *testing.T) {
 		},
 		{
 			dutyType:  core.DutyProposer,
-			signedPtr: func() any { return new(core.VersionedSignedBeaconBlock) },
+			signedPtr: func() any { return new(core.VersionedSignedProposal) },
 		},
 		{
 			dutyType:  core.DutyBuilderProposer,
-			signedPtr: func() any { return new(core.VersionedSignedBlindedBeaconBlock) },
+			signedPtr: func() any { return new(core.VersionedSignedBlindedProposal) },
 		},
 		{
 			dutyType:  core.DutySyncContribution,

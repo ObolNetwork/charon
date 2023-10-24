@@ -1117,7 +1117,7 @@ func TestAnalyseParSigs(t *testing.T) {
 	var events []event
 
 	makeEvents := func(n int, pubkey string) {
-		data := testutil.RandomBellatrixCoreVersionedSignedBeaconBlock()
+		data := testutil.RandomBellatrixCoreVersionedSignedProposal()
 		offset := len(events)
 		for i := 0; i < n; i++ {
 			data, err := data.SetSignatures([]core.Signature{testutil.RandomCoreSignature()})

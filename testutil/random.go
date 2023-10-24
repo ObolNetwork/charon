@@ -274,9 +274,9 @@ func RandomCapellaCoreVersionedBeaconBlock() core.VersionedBeaconBlock {
 	}
 }
 
-func RandomBellatrixCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconBlock {
-	return core.VersionedSignedBeaconBlock{
-		VersionedSignedBeaconBlock: eth2spec.VersionedSignedBeaconBlock{
+func RandomBellatrixCoreVersionedSignedProposal() core.VersionedSignedProposal {
+	return core.VersionedSignedProposal{
+		VersionedSignedProposal: eth2api.VersionedSignedProposal{
 			Version: eth2spec.DataVersionBellatrix,
 			Bellatrix: &bellatrix.SignedBeaconBlock{
 				Message:   RandomBellatrixBeaconBlock(),
@@ -286,9 +286,9 @@ func RandomBellatrixCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconB
 	}
 }
 
-func RandomCapellaCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconBlock {
-	return core.VersionedSignedBeaconBlock{
-		VersionedSignedBeaconBlock: eth2spec.VersionedSignedBeaconBlock{
+func RandomCapellaCoreVersionedSignedProposal() core.VersionedSignedProposal {
+	return core.VersionedSignedProposal{
+		VersionedSignedProposal: eth2api.VersionedSignedProposal{
 			Version: eth2spec.DataVersionCapella,
 			Capella: &capella.SignedBeaconBlock{
 				Message:   RandomCapellaBeaconBlock(),
@@ -301,6 +301,17 @@ func RandomCapellaCoreVersionedSignedBeaconBlock() core.VersionedSignedBeaconBlo
 // RandomCapellaVersionedSignedBeaconBlock returns a random signed capella beacon block.
 func RandomCapellaVersionedSignedBeaconBlock() *eth2spec.VersionedSignedBeaconBlock {
 	return &eth2spec.VersionedSignedBeaconBlock{
+		Version: eth2spec.DataVersionCapella,
+		Capella: &capella.SignedBeaconBlock{
+			Message:   RandomCapellaBeaconBlock(),
+			Signature: RandomEth2Signature(),
+		},
+	}
+}
+
+// RandomCapellaVersionedSignedProposal returns a random signed capella beacon block proposal.
+func RandomCapellaVersionedSignedProposal() *eth2api.VersionedSignedProposal {
+	return &eth2api.VersionedSignedProposal{
 		Version: eth2spec.DataVersionCapella,
 		Capella: &capella.SignedBeaconBlock{
 			Message:   RandomCapellaBeaconBlock(),
@@ -405,9 +416,9 @@ func RandomCapellaVersionedBlindedBeaconBlock() core.VersionedBlindedBeaconBlock
 	}
 }
 
-func RandomBellatrixVersionedSignedBlindedBeaconBlock() core.VersionedSignedBlindedBeaconBlock {
-	return core.VersionedSignedBlindedBeaconBlock{
-		VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
+func RandomBellatrixVersionedSignedBlindedProposal() core.VersionedSignedBlindedProposal {
+	return core.VersionedSignedBlindedProposal{
+		VersionedSignedBlindedProposal: eth2api.VersionedSignedBlindedProposal{
 			Version: eth2spec.DataVersionBellatrix,
 			Bellatrix: &eth2bellatrix.SignedBlindedBeaconBlock{
 				Message:   RandomBellatrixBlindedBeaconBlock(),
@@ -417,9 +428,9 @@ func RandomBellatrixVersionedSignedBlindedBeaconBlock() core.VersionedSignedBlin
 	}
 }
 
-func RandomCapellaVersionedSignedBlindedBeaconBlock() core.VersionedSignedBlindedBeaconBlock {
-	return core.VersionedSignedBlindedBeaconBlock{
-		VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
+func RandomCapellaVersionedSignedBlindedProposal() core.VersionedSignedBlindedProposal {
+	return core.VersionedSignedBlindedProposal{
+		VersionedSignedBlindedProposal: eth2api.VersionedSignedBlindedProposal{
 			Version: eth2spec.DataVersionCapella,
 			Capella: &eth2capella.SignedBlindedBeaconBlock{
 				Message:   RandomCapellaBlindedBeaconBlock(),

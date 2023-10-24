@@ -319,14 +319,14 @@ func TestRawRouter(t *testing.T) {
 		testRawRouter(t, handler, callback)
 	})
 
-	t.Run("submit bellatrix ssz beacon block", func(t *testing.T) {
+	t.Run("submit bellatrix ssz proposal", func(t *testing.T) {
 		var done atomic.Bool
-		coreBlock := testutil.RandomBellatrixCoreVersionedSignedBeaconBlock()
-		block := &coreBlock.VersionedSignedBeaconBlock
+		coreBlock := testutil.RandomBellatrixCoreVersionedSignedProposal()
+		proposal := &coreBlock.VersionedSignedProposal
 
 		handler := testHandler{
-			SubmitBeaconBlockFunc: func(ctx context.Context, actual *eth2spec.VersionedSignedBeaconBlock) error {
-				require.Equal(t, block, actual)
+			SubmitProposalFunc: func(ctx context.Context, actual *eth2api.VersionedSignedProposal) error {
+				require.Equal(t, proposal, actual)
 				done.Store(true)
 
 				return nil
@@ -334,7 +334,7 @@ func TestRawRouter(t *testing.T) {
 		}
 
 		callback := func(ctx context.Context, baseURL string) {
-			b, err := ssz.MarshalSSZ(block.Bellatrix)
+			b, err := ssz.MarshalSSZ(proposal.Bellatrix)
 			require.NoError(t, err)
 
 			req, err := http.NewRequestWithContext(ctx, http.MethodPost,
@@ -353,10 +353,10 @@ func TestRawRouter(t *testing.T) {
 
 	t.Run("submit capella ssz beacon block", func(t *testing.T) {
 		var done atomic.Bool
-		block := testutil.RandomCapellaVersionedSignedBeaconBlock()
+		block := testutil.RandomCapellaVersionedSignedProposal()
 
 		handler := testHandler{
-			SubmitBeaconBlockFunc: func(ctx context.Context, actual *eth2spec.VersionedSignedBeaconBlock) error {
+			SubmitProposalFunc: func(ctx context.Context, actual *eth2api.VersionedSignedProposal) error {
 				require.Equal(t, block, actual)
 				done.Store(true)
 
@@ -838,7 +838,7 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("submit block phase0", func(t *testing.T) {
-		block1 := &eth2spec.VersionedSignedBeaconBlock{
+		block1 := &eth2api.VersionedSignedProposal{
 			Version: eth2spec.DataVersionPhase0,
 			Phase0: &eth2p0.SignedBeaconBlock{
 				Message:   testutil.RandomPhase0BeaconBlock(),
@@ -846,14 +846,14 @@ func TestRouter(t *testing.T) {
 			},
 		}
 		handler := testHandler{
-			SubmitBeaconBlockFunc: func(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
+			SubmitProposalFunc: func(ctx context.Context, block *eth2api.VersionedSignedProposal) error {
 				require.Equal(t, block, block1)
 				return nil
 			},
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			err := cl.SubmitBeaconBlock(ctx, block1)
+			err := cl.SubmitProposal(ctx, block1)
 			require.NoError(t, err)
 		}
 
@@ -861,7 +861,7 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("submit block altair", func(t *testing.T) {
-		block1 := &eth2spec.VersionedSignedBeaconBlock{
+		block1 := &eth2api.VersionedSignedProposal{
 			Version: eth2spec.DataVersionAltair,
 			Altair: &altair.SignedBeaconBlock{
 				Message:   testutil.RandomAltairBeaconBlock(),
@@ -869,14 +869,14 @@ func TestRouter(t *testing.T) {
 			},
 		}
 		handler := testHandler{
-			SubmitBeaconBlockFunc: func(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
+			SubmitProposalFunc: func(ctx context.Context, block *eth2api.VersionedSignedProposal) error {
 				require.Equal(t, block, block1)
 				return nil
 			},
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			err := cl.SubmitBeaconBlock(ctx, block1)
+			err := cl.SubmitProposal(ctx, block1)
 			require.NoError(t, err)
 		}
 
@@ -884,7 +884,7 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("submit block bellatrix", func(t *testing.T) {
-		block1 := &eth2spec.VersionedSignedBeaconBlock{
+		block1 := &eth2api.VersionedSignedProposal{
 			Version: eth2spec.DataVersionBellatrix,
 			Bellatrix: &bellatrix.SignedBeaconBlock{
 				Message:   testutil.RandomBellatrixBeaconBlock(),
@@ -892,14 +892,14 @@ func TestRouter(t *testing.T) {
 			},
 		}
 		handler := testHandler{
-			SubmitBeaconBlockFunc: func(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
+			SubmitProposalFunc: func(ctx context.Context, block *eth2api.VersionedSignedProposal) error {
 				require.Equal(t, block, block1)
 				return nil
 			},
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			err := cl.SubmitBeaconBlock(ctx, block1)
+			err := cl.SubmitProposal(ctx, block1)
 			require.NoError(t, err)
 		}
 
@@ -907,7 +907,7 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("submit block capella", func(t *testing.T) {
-		block1 := &eth2spec.VersionedSignedBeaconBlock{
+		block1 := &eth2api.VersionedSignedProposal{
 			Version: eth2spec.DataVersionCapella,
 			Capella: &capella.SignedBeaconBlock{
 				Message:   testutil.RandomCapellaBeaconBlock(),
@@ -915,14 +915,14 @@ func TestRouter(t *testing.T) {
 			},
 		}
 		handler := testHandler{
-			SubmitBeaconBlockFunc: func(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
+			SubmitProposalFunc: func(ctx context.Context, block *eth2api.VersionedSignedProposal) error {
 				require.Equal(t, block, block1)
 				return nil
 			},
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			err := cl.SubmitBeaconBlock(ctx, block1)
+			err := cl.SubmitProposal(ctx, block1)
 			require.NoError(t, err)
 		}
 
@@ -930,7 +930,7 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("submit blinded block bellatrix", func(t *testing.T) {
-		block1 := &eth2api.VersionedSignedBlindedBeaconBlock{
+		block1 := &eth2api.VersionedSignedBlindedProposal{
 			Version: eth2spec.DataVersionBellatrix,
 			Bellatrix: &eth2bellatrix.SignedBlindedBeaconBlock{
 				Message:   testutil.RandomBellatrixBlindedBeaconBlock(),
@@ -938,14 +938,14 @@ func TestRouter(t *testing.T) {
 			},
 		}
 		handler := testHandler{
-			SubmitBlindedBeaconBlockFunc: func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
+			SubmitBlindedProposalFunc: func(ctx context.Context, block *eth2api.VersionedSignedBlindedProposal) error {
 				require.Equal(t, block, block1)
 				return nil
 			},
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			err := cl.SubmitBlindedBeaconBlock(ctx, block1)
+			err := cl.SubmitBlindedProposal(ctx, block1)
 			require.NoError(t, err)
 		}
 
@@ -953,7 +953,7 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("submit blinded block capella", func(t *testing.T) {
-		block1 := &eth2api.VersionedSignedBlindedBeaconBlock{
+		block1 := &eth2api.VersionedSignedBlindedProposal{
 			Version: eth2spec.DataVersionCapella,
 			Capella: &eth2capella.SignedBlindedBeaconBlock{
 				Message:   testutil.RandomCapellaBlindedBeaconBlock(),
@@ -961,14 +961,14 @@ func TestRouter(t *testing.T) {
 			},
 		}
 		handler := testHandler{
-			SubmitBlindedBeaconBlockFunc: func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
+			SubmitBlindedProposalFunc: func(ctx context.Context, block *eth2api.VersionedSignedBlindedProposal) error {
 				require.Equal(t, block1, block)
 				return nil
 			},
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			err := cl.SubmitBlindedBeaconBlock(ctx, block1)
+			err := cl.SubmitBlindedProposal(ctx, block1)
 			require.NoError(t, err)
 		}
 
@@ -1262,9 +1262,9 @@ type testHandler struct {
 	AttestationDataFunc                    func(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error)
 	AttesterDutiesFunc                     func(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error)
 	ProposalFunc                           func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error)
-	SubmitBeaconBlockFunc                  func(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error
+	SubmitProposalFunc                     func(ctx context.Context, proposal *eth2api.VersionedSignedProposal) error
 	BlindedProposalFunc                    func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error)
-	SubmitBlindedBeaconBlockFunc           func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error
+	SubmitBlindedProposalFunc              func(ctx context.Context, proposal *eth2api.VersionedSignedBlindedProposal) error
 	ProposerDutiesFunc                     func(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error)
 	NodeVersionFunc                        func(ctx context.Context) (*eth2api.Response[string], error)
 	ValidatorsFunc                         func(ctx context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error)
@@ -1291,16 +1291,16 @@ func (h testHandler) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (
 	return h.ProposalFunc(ctx, opts)
 }
 
-func (h testHandler) SubmitBeaconBlock(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
-	return h.SubmitBeaconBlockFunc(ctx, block)
+func (h testHandler) SubmitProposal(ctx context.Context, proposal *eth2api.VersionedSignedProposal) error {
+	return h.SubmitProposalFunc(ctx, proposal)
 }
 
 func (h testHandler) BlindedProposal(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error) {
 	return h.BlindedProposalFunc(ctx, opts)
 }
 
-func (h testHandler) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
-	return h.SubmitBlindedBeaconBlockFunc(ctx, block)
+func (h testHandler) SubmitBlindedProposal(ctx context.Context, block *eth2api.VersionedSignedBlindedProposal) error {
+	return h.SubmitBlindedProposalFunc(ctx, block)
 }
 
 func (h testHandler) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) {
