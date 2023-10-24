@@ -11,7 +11,6 @@ import (
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
-	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -652,12 +651,6 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2wrap.Client,
 			return nil, err
 		}
 
-		// TODO(xenowits): Remove this condition when https://github.com/attestantio/go-eth2-client/pull/83 is merged.
-		// This is added to fix fuzz_tests which identified a bug in go-eth2-client.
-		possibleValidatorStates := 10
-		if int(val.Status) < 0 || int(val.Status) >= possibleValidatorStates {
-			val.Status = eth2v1.ValidatorStateUnknown
-		}
 		submitter(pubkey, val.Balance, val.Status.String())
 
 		if !val.Status.IsActive() {
