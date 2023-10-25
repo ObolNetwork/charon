@@ -122,11 +122,11 @@ func TestUnsignedDataToProto(t *testing.T) {
 		},
 		{
 			Type: core.DutyProposer,
-			Data: testutil.RandomBellatrixCoreVersionedBeaconBlock(),
+			Data: testutil.RandomBellatrixCoreVersionedProposal(),
 		},
 		{
 			Type: core.DutyBuilderProposer,
-			Data: testutil.RandomBellatrixVersionedBlindedBeaconBlock(),
+			Data: testutil.RandomBellatrixVersionedBlindedProposal(),
 		},
 		{
 			Type: core.DutyAggregator,

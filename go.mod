@@ -2,7 +2,7 @@ module github.com/obolnetwork/charon
 
 go 1.21
 
-replace github.com/attestantio/go-eth2-client => github.com/attestantio/go-eth2-client v0.18.4-0.20231021213351-4493595cb7d4
+replace github.com/attestantio/go-eth2-client => github.com/attestantio/go-eth2-client v0.18.4-0.20231025123730-6538fae87d60
 
 require (
 	github.com/attestantio/go-eth2-client v0.18.3

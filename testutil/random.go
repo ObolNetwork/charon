@@ -256,18 +256,18 @@ func RandomCapellaExecutionPayload() *capella.ExecutionPayload {
 	}
 }
 
-func RandomBellatrixCoreVersionedBeaconBlock() core.VersionedBeaconBlock {
-	return core.VersionedBeaconBlock{
-		VersionedBeaconBlock: eth2spec.VersionedBeaconBlock{
+func RandomBellatrixCoreVersionedProposal() core.VersionedProposal {
+	return core.VersionedProposal{
+		VersionedProposal: eth2api.VersionedProposal{
 			Version:   eth2spec.DataVersionBellatrix,
 			Bellatrix: RandomBellatrixBeaconBlock(),
 		},
 	}
 }
 
-func RandomCapellaCoreVersionedBeaconBlock() core.VersionedBeaconBlock {
-	return core.VersionedBeaconBlock{
-		VersionedBeaconBlock: eth2spec.VersionedBeaconBlock{
+func RandomCapellaCoreVersionedProposal() core.VersionedProposal {
+	return core.VersionedProposal{
+		VersionedProposal: eth2api.VersionedProposal{
 			Version: eth2spec.DataVersionCapella,
 			Capella: RandomCapellaBeaconBlock(),
 		},
@@ -398,18 +398,18 @@ func RandomCapellaBlindedBeaconBlockBody() *eth2capella.BlindedBeaconBlockBody {
 	}
 }
 
-func RandomBellatrixVersionedBlindedBeaconBlock() core.VersionedBlindedBeaconBlock {
-	return core.VersionedBlindedBeaconBlock{
-		VersionedBlindedBeaconBlock: eth2api.VersionedBlindedBeaconBlock{
+func RandomBellatrixVersionedBlindedProposal() core.VersionedBlindedProposal {
+	return core.VersionedBlindedProposal{
+		VersionedBlindedProposal: eth2api.VersionedBlindedProposal{
 			Version:   eth2spec.DataVersionBellatrix,
 			Bellatrix: RandomBellatrixBlindedBeaconBlock(),
 		},
 	}
 }
 
-func RandomCapellaVersionedBlindedBeaconBlock() core.VersionedBlindedBeaconBlock {
-	return core.VersionedBlindedBeaconBlock{
-		VersionedBlindedBeaconBlock: eth2api.VersionedBlindedBeaconBlock{
+func RandomCapellaVersionedBlindedProposal() core.VersionedBlindedProposal {
+	return core.VersionedBlindedProposal{
+		VersionedBlindedProposal: eth2api.VersionedBlindedProposal{
 			Version: eth2spec.DataVersionCapella,
 			Capella: RandomCapellaBlindedBeaconBlock(),
 		},

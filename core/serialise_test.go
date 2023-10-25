@@ -30,8 +30,8 @@ var coreTypeFuncs = []func() any{
 	func() any { return new(core.SyncCommitteeSelection) },
 	func() any { return new(core.AttestationData) },
 	func() any { return new(core.AggregatedAttestation) },
-	func() any { return new(core.VersionedBeaconBlock) },
-	func() any { return new(core.VersionedBlindedBeaconBlock) },
+	func() any { return new(core.VersionedProposal) },
+	func() any { return new(core.VersionedBlindedProposal) },
 	func() any { return new(core.SyncContribution) },
 }
 
