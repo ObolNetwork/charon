@@ -11,7 +11,6 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"go.opentelemetry.io/otel/trace"
@@ -418,7 +417,7 @@ func (c *Component) BlindedProposal(ctx context.Context, opts *eth2api.BlindedPr
 
 func (c *Component) SubmitProposal(ctx context.Context, proposal *eth2api.VersionedSignedProposal) error {
 	// Calculate slot epoch
-	slot, err := slotFromVersionedSignedProposal(proposal)
+	slot, err := proposal.Slot()
 	if err != nil {
 		return err
 	}
@@ -1203,41 +1202,4 @@ func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigR
 	}
 
 	return &resp, nil
-}
-
-// slotFromVersionedSignedProposal returns the slot from the provided eth2api.VersionedSignedProposal.
-// TODO(xenowits): Remove this function once this functionality is available in go-eth2-client.
-func slotFromVersionedSignedProposal(p *eth2api.VersionedSignedProposal) (eth2p0.Slot, error) {
-	switch p.Version {
-	case eth2spec.DataVersionPhase0:
-		if p.Phase0 == nil || p.Phase0.Message == nil {
-			return 0, errors.New("no phase0 block")
-		}
-	case eth2spec.DataVersionAltair:
-		if p.Altair == nil || p.Altair.Message == nil {
-			return 0, errors.New("no altair block")
-		}
-	case eth2spec.DataVersionBellatrix:
-		if p.Bellatrix == nil || p.Bellatrix.Message == nil {
-			return 0, errors.New("no bellatrix block")
-		}
-
-		return p.Bellatrix.Message.Slot, nil
-	case eth2spec.DataVersionCapella:
-		if p.Capella == nil || p.Capella.Message == nil {
-			return 0, errors.New("no capella block")
-		}
-
-		return p.Capella.Message.Slot, nil
-	case eth2spec.DataVersionDeneb:
-		if p.Deneb == nil || p.Deneb.SignedBlock == nil || p.Deneb.SignedBlock.Message == nil {
-			return 0, errors.New("no deneb block")
-		}
-
-		return p.Deneb.SignedBlock.Message.Slot, nil
-	default:
-		return 0, errors.New("unknown version")
-	}
-
-	return 0, nil
 }

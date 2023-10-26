@@ -174,9 +174,9 @@ type VersionedProposal struct {
 	eth2api.VersionedProposal
 }
 
-func (v VersionedProposal) Clone() (UnsignedData, error) {
+func (p VersionedProposal) Clone() (UnsignedData, error) {
 	var resp VersionedProposal
-	err := cloneJSONMarshaler(v, &resp)
+	err := cloneJSONMarshaler(p, &resp)
 	if err != nil {
 		return nil, errors.Wrap(err, "clone block")
 	}
@@ -184,20 +184,20 @@ func (v VersionedProposal) Clone() (UnsignedData, error) {
 	return resp, nil
 }
 
-func (v VersionedProposal) MarshalJSON() ([]byte, error) {
+func (p VersionedProposal) MarshalJSON() ([]byte, error) {
 	var marshaller json.Marshaler
-	switch v.Version {
+	switch p.Version {
 	// No block nil checks since `NewVersionedProposal` assumed.
 	case eth2spec.DataVersionPhase0:
-		marshaller = v.Phase0
+		marshaller = p.Phase0
 	case eth2spec.DataVersionAltair:
-		marshaller = v.Altair
+		marshaller = p.Altair
 	case eth2spec.DataVersionBellatrix:
-		marshaller = v.Bellatrix
+		marshaller = p.Bellatrix
 	case eth2spec.DataVersionCapella:
-		marshaller = v.Capella
+		marshaller = p.Capella
 	case eth2spec.DataVersionDeneb:
-		marshaller = v.Deneb
+		marshaller = p.Deneb
 	default:
 		return nil, errors.New("unknown version")
 	}
@@ -207,7 +207,7 @@ func (v VersionedProposal) MarshalJSON() ([]byte, error) {
 		return nil, errors.Wrap(err, "marshal block")
 	}
 
-	version, err := eth2util.DataVersionFromETH2(v.Version)
+	version, err := eth2util.DataVersionFromETH2(p.Version)
 	if err != nil {
 		return nil, errors.Wrap(err, "convert version")
 	}
@@ -223,7 +223,7 @@ func (v VersionedProposal) MarshalJSON() ([]byte, error) {
 	return resp, nil
 }
 
-func (v *VersionedProposal) UnmarshalJSON(input []byte) error {
+func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 	var raw versionedRawBlockJSON
 	if err := json.Unmarshal(input, &raw); err != nil {
 		return errors.Wrap(err, "unmarshal block")
@@ -265,7 +265,7 @@ func (v *VersionedProposal) UnmarshalJSON(input []byte) error {
 		return errors.New("unknown version")
 	}
 
-	*v = VersionedProposal{VersionedProposal: resp}
+	*p = VersionedProposal{VersionedProposal: resp}
 
 	return nil
 }

@@ -611,7 +611,7 @@ func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
 		{
 			name:   "none",
 			block:  &eth2api.VersionedSignedProposal{Version: eth2spec.DataVersion(6)},
-			errMsg: "unknown version",
+			errMsg: "unsupported version",
 		},
 		{
 			name: "no phase 0 sig",
