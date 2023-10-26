@@ -484,7 +484,7 @@ func TestComponent_SubmitProposal(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestComponent_SubmitBeaconBlockInvalidSignature(t *testing.T) {
+func TestComponent_SubmitProposalInvalidSignature(t *testing.T) {
 	ctx := context.Background()
 
 	// Create keys (just use normal keys, not split tbls)
@@ -552,7 +552,7 @@ func TestComponent_SubmitBeaconBlockInvalidSignature(t *testing.T) {
 	require.ErrorContains(t, err, "signature not verified")
 }
 
-func TestComponent_SubmitBeaconBlockInvalidBlock(t *testing.T) {
+func TestComponent_SubmitProposalInvalidBlock(t *testing.T) {
 	ctx := context.Background()
 	shareIdx := 1
 	// Create keys (just use normal keys, not split tbls)
@@ -729,7 +729,7 @@ func TestComponent_BlindedProposal(t *testing.T) {
 	require.Equal(t, block1, block2)
 }
 
-func TestComponent_SubmitBlindedBeaconBlock(t *testing.T) {
+func TestComponent_SubmitBlindedProposal(t *testing.T) {
 	ctx := context.Background()
 
 	// Create keys (just use normal keys, not split tbls)
@@ -807,7 +807,7 @@ func TestComponent_SubmitBlindedBeaconBlock(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestComponent_SubmitBlindedBeaconBlockInvalidSignature(t *testing.T) {
+func TestComponent_SubmitBlindedProposalInvalidSignature(t *testing.T) {
 	ctx := context.Background()
 
 	// Create keys (just use normal keys, not split tbls)
@@ -876,7 +876,7 @@ func TestComponent_SubmitBlindedBeaconBlockInvalidSignature(t *testing.T) {
 	require.ErrorContains(t, err, "signature not verified")
 }
 
-func TestComponent_SubmitBlindedBeaconBlockInvalidBlock(t *testing.T) {
+func TestComponent_SubmitBlindedProposalInvalidBlock(t *testing.T) {
 	ctx := context.Background()
 	shareIdx := 1
 	// Create keys (just use normal keys, not split tbls)

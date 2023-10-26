@@ -26,7 +26,6 @@ var (
 	_ UnsignedData = AggregatedAttestation{}
 	_ UnsignedData = VersionedProposal{}
 	_ UnsignedData = VersionedBlindedProposal{}
-	_ UnsignedData = VersionedBlindedProposal{}
 	_ UnsignedData = SyncContribution{}
 
 	// Some types also support SSZ marshalling and unmarshalling.

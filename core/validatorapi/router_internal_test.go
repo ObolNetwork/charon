@@ -353,7 +353,7 @@ func TestRawRouter(t *testing.T) {
 
 	t.Run("submit capella ssz beacon block", func(t *testing.T) {
 		var done atomic.Bool
-		block := testutil.RandomCapellaVersionedSignedProposal()
+		block := testutil.RandomVersionedSignedProposal()
 
 		handler := testHandler{
 			SubmitProposalFunc: func(ctx context.Context, actual *eth2api.VersionedSignedProposal) error {

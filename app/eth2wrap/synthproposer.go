@@ -14,7 +14,6 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
-	"github.com/attestantio/go-eth2-client/api/v1/deneb"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
@@ -89,7 +88,7 @@ func (h *synthWrapper) SubmitProposalPreparations(ctx context.Context, preparati
 	return h.Client.SubmitProposalPreparations(ctx, preparations)
 }
 
-// Proposal returns an unsigned beacon block, possibly marked as synthetic.
+// Proposal returns an unsigned beacon block proposal, possibly marked as synthetic.
 func (h *synthWrapper) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
 	vIdx, ok, err := h.synthProposerCache.SyntheticVIdx(ctx, h.Client, opts.Slot)
 	if err != nil {
@@ -97,32 +96,21 @@ func (h *synthWrapper) Proposal(ctx context.Context, opts *eth2api.ProposalOpts)
 	} else if !ok {
 		resp, err := h.Client.Proposal(ctx, opts)
 		if err != nil {
-			return nil, errors.Wrap(err, "propose beacon block")
+			return nil, errors.Wrap(err, "propose beacon proposal")
 		}
 
 		return resp, nil
 	}
 
-	block, err := h.syntheticBlock(ctx, opts.Slot, vIdx)
+	proposal, err := h.syntheticProposal(ctx, opts.Slot, vIdx)
 	if err != nil {
 		return nil, err
 	}
 
-	versionedProposal := &eth2api.VersionedProposal{
-		Version:   block.Version,
-		Phase0:    block.Phase0,
-		Altair:    block.Altair,
-		Bellatrix: block.Bellatrix,
-		Capella:   block.Capella,
-		Deneb: &deneb.BlockContents{
-			Block: block.Deneb,
-		},
-	}
-
-	return &eth2api.Response[*eth2api.VersionedProposal]{Data: versionedProposal}, nil
+	return &eth2api.Response[*eth2api.VersionedProposal]{Data: proposal}, nil
 }
 
-// BlindedProposal returns an unsigned blinded beacon block, possibly marked as synthetic.
+// BlindedProposal returns an unsigned blinded beacon block proposal, possibly marked as synthetic.
 func (h *synthWrapper) BlindedProposal(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error) {
 	vIdx, ok, err := h.synthProposerCache.SyntheticVIdx(ctx, h.Client, opts.Slot)
 	if err != nil {
@@ -136,34 +124,24 @@ func (h *synthWrapper) BlindedProposal(ctx context.Context, opts *eth2api.Blinde
 		return resp, nil
 	}
 
-	block, err := h.syntheticBlock(ctx, opts.Slot, vIdx)
+	proposal, err := h.syntheticProposal(ctx, opts.Slot, vIdx)
 	if err != nil {
 		return nil, err
 	}
 
-	syncBlindedBlock, err := blindedBlock(block)
+	synthBlindedProposal, err := blindedProposal(proposal)
 	if err != nil {
 		return nil, err
 	}
 
-	versionedBlindedProposal := &eth2api.VersionedBlindedProposal{
-		Version:   syncBlindedBlock.Version,
-		Bellatrix: syncBlindedBlock.Bellatrix,
-		Capella:   syncBlindedBlock.Capella,
-		Deneb: &deneb.BlindedBlockContents{
-			BlindedBlock:        syncBlindedBlock.Deneb,
-			BlindedBlobSidecars: nil,
-		},
-	}
-
-	return &eth2api.Response[*eth2api.VersionedBlindedProposal]{Data: versionedBlindedProposal}, nil
+	return &eth2api.Response[*eth2api.VersionedBlindedProposal]{Data: synthBlindedProposal}, nil
 }
 
-// syntheticBlock returns a synthetic beacon block to propose.
-func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot, vIdx eth2p0.ValidatorIndex) (*spec.VersionedBeaconBlock, error) {
+// syntheticProposal returns a synthetic unsigned beacon block to propose.
+func (h *synthWrapper) syntheticProposal(ctx context.Context, slot eth2p0.Slot, vIdx eth2p0.ValidatorIndex) (*eth2api.VersionedProposal, error) {
 	var signedBlock *spec.VersionedSignedBeaconBlock
 
-	// Work our way back from previous slot to find a block to base the synthetic block on.
+	// Work our way back from previous slot to find a proposal to base the synthetic proposal on.
 	for prev := slot - 1; prev > 0; prev-- {
 		opts := &eth2api.SignedBeaconBlockOpts{
 			Block: fmt.Sprint(prev),
@@ -171,7 +149,7 @@ func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot, vId
 		signed, err := h.Client.SignedBeaconBlock(ctx, opts)
 		if err != nil {
 			return nil, err
-		} else if signed == nil { // go-eth2-client returns nil if block is not found.
+		} else if signed == nil { // go-eth2-client returns nil if proposal is not found.
 			continue
 		}
 
@@ -181,44 +159,44 @@ func (h *synthWrapper) syntheticBlock(ctx context.Context, slot eth2p0.Slot, vId
 	}
 
 	if signedBlock == nil {
-		return nil, errors.New("no block found to base synthetic block on")
+		return nil, errors.New("no proposal found to base synthetic proposal on")
 	}
 
-	// Convert signed block into unsigned block with synthetic graffiti and correct slot.
+	// Convert signed proposal into unsigned proposal with synthetic graffiti and correct slot.
 
 	feeRecipient := h.getFeeRecipient(vIdx)
 
-	block := &spec.VersionedBeaconBlock{Version: signedBlock.Version}
+	proposal := &eth2api.VersionedProposal{Version: signedBlock.Version}
 	switch signedBlock.Version {
 	case spec.DataVersionPhase0:
-		block.Phase0 = signedBlock.Phase0.Message
-		block.Phase0.Body.Graffiti = GetSyntheticGraffiti()
-		block.Phase0.Slot = slot
-		block.Phase0.ProposerIndex = vIdx
+		proposal.Phase0 = signedBlock.Phase0.Message
+		proposal.Phase0.Body.Graffiti = GetSyntheticGraffiti()
+		proposal.Phase0.Slot = slot
+		proposal.Phase0.ProposerIndex = vIdx
 	case spec.DataVersionAltair:
-		block.Altair = signedBlock.Altair.Message
-		block.Altair.Body.Graffiti = GetSyntheticGraffiti()
-		block.Altair.Slot = slot
-		block.Altair.ProposerIndex = vIdx
+		proposal.Altair = signedBlock.Altair.Message
+		proposal.Altair.Body.Graffiti = GetSyntheticGraffiti()
+		proposal.Altair.Slot = slot
+		proposal.Altair.ProposerIndex = vIdx
 	case spec.DataVersionBellatrix:
-		block.Bellatrix = signedBlock.Bellatrix.Message
-		block.Bellatrix.Body.Graffiti = GetSyntheticGraffiti()
-		block.Bellatrix.Slot = slot
-		block.Bellatrix.ProposerIndex = vIdx
-		block.Bellatrix.Body.ExecutionPayload.FeeRecipient = feeRecipient
-		block.Bellatrix.Body.ExecutionPayload.Transactions = fraction(block.Bellatrix.Body.ExecutionPayload.Transactions)
+		proposal.Bellatrix = signedBlock.Bellatrix.Message
+		proposal.Bellatrix.Body.Graffiti = GetSyntheticGraffiti()
+		proposal.Bellatrix.Slot = slot
+		proposal.Bellatrix.ProposerIndex = vIdx
+		proposal.Bellatrix.Body.ExecutionPayload.FeeRecipient = feeRecipient
+		proposal.Bellatrix.Body.ExecutionPayload.Transactions = fraction(proposal.Bellatrix.Body.ExecutionPayload.Transactions)
 	case spec.DataVersionCapella:
-		block.Capella = signedBlock.Capella.Message
-		block.Capella.Body.Graffiti = GetSyntheticGraffiti()
-		block.Capella.Slot = slot
-		block.Capella.ProposerIndex = vIdx
-		block.Capella.Body.ExecutionPayload.FeeRecipient = feeRecipient
-		block.Capella.Body.ExecutionPayload.Transactions = fraction(block.Capella.Body.ExecutionPayload.Transactions)
+		proposal.Capella = signedBlock.Capella.Message
+		proposal.Capella.Body.Graffiti = GetSyntheticGraffiti()
+		proposal.Capella.Slot = slot
+		proposal.Capella.ProposerIndex = vIdx
+		proposal.Capella.Body.ExecutionPayload.FeeRecipient = feeRecipient
+		proposal.Capella.Body.ExecutionPayload.Transactions = fraction(proposal.Capella.Body.ExecutionPayload.Transactions)
 	default:
-		return nil, errors.New("unsupported block version")
+		return nil, errors.New("unsupported proposal version")
 	}
 
-	return block, nil
+	return proposal, nil
 }
 
 // fraction returns a fraction of the transactions in the block.
@@ -239,7 +217,7 @@ func (h *synthWrapper) SubmitBlindedProposal(ctx context.Context, proposal *eth2
 
 // SubmitProposal submits a beacon block or swallows it if marked as synthetic.
 func (h *synthWrapper) SubmitProposal(ctx context.Context, proposal *eth2api.VersionedSignedProposal) error {
-	if IsSyntheticBlock(proposal) {
+	if IsSyntheticProposal(proposal) {
 		log.Debug(ctx, "Synthetic beacon block swallowed")
 		return nil
 	}
@@ -270,8 +248,8 @@ func IsSyntheticBlindedBlock(block *eth2api.VersionedSignedBlindedProposal) bool
 	return graffiti == GetSyntheticGraffiti()
 }
 
-// IsSyntheticBlock returns true if the block is a synthetic block.
-func IsSyntheticBlock(block *eth2api.VersionedSignedProposal) bool {
+// IsSyntheticProposal returns true if the block is a synthetic block proposal.
+func IsSyntheticProposal(block *eth2api.VersionedSignedProposal) bool {
 	var graffiti [32]byte
 	switch block.Version {
 	case spec.DataVersionPhase0:
@@ -453,87 +431,87 @@ func getStandardHashFn() shuffle.HashFn {
 	return hashFn
 }
 
-// blindedBlock converts a normal block into a blinded block.
-func blindedBlock(block *spec.VersionedBeaconBlock) (*eth2api.VersionedBlindedBeaconBlock, error) {
-	var resp *eth2api.VersionedBlindedBeaconBlock
+// blindedProposal converts a normal block into a blinded block proposal.
+func blindedProposal(proposal *eth2api.VersionedProposal) (*eth2api.VersionedBlindedProposal, error) {
+	var resp *eth2api.VersionedBlindedProposal
 	// Blinded blocks are only available from bellatrix.
-	switch block.Version {
+	switch proposal.Version {
 	case spec.DataVersionBellatrix:
-		resp = &eth2api.VersionedBlindedBeaconBlock{
-			Version: block.Version,
+		resp = &eth2api.VersionedBlindedProposal{
+			Version: proposal.Version,
 			Bellatrix: &eth2bellatrix.BlindedBeaconBlock{
-				Slot:          block.Bellatrix.Slot,
-				ProposerIndex: block.Bellatrix.ProposerIndex,
-				ParentRoot:    block.Bellatrix.ParentRoot,
-				StateRoot:     block.Bellatrix.StateRoot,
+				Slot:          proposal.Bellatrix.Slot,
+				ProposerIndex: proposal.Bellatrix.ProposerIndex,
+				ParentRoot:    proposal.Bellatrix.ParentRoot,
+				StateRoot:     proposal.Bellatrix.StateRoot,
 				Body: &eth2bellatrix.BlindedBeaconBlockBody{
-					RANDAOReveal:      block.Bellatrix.Body.RANDAOReveal,
-					ETH1Data:          block.Bellatrix.Body.ETH1Data,
-					Graffiti:          block.Bellatrix.Body.Graffiti,
-					ProposerSlashings: block.Bellatrix.Body.ProposerSlashings,
-					AttesterSlashings: block.Bellatrix.Body.AttesterSlashings,
-					Attestations:      block.Bellatrix.Body.Attestations,
-					Deposits:          block.Bellatrix.Body.Deposits,
-					VoluntaryExits:    block.Bellatrix.Body.VoluntaryExits,
-					SyncAggregate:     block.Bellatrix.Body.SyncAggregate,
+					RANDAOReveal:      proposal.Bellatrix.Body.RANDAOReveal,
+					ETH1Data:          proposal.Bellatrix.Body.ETH1Data,
+					Graffiti:          proposal.Bellatrix.Body.Graffiti,
+					ProposerSlashings: proposal.Bellatrix.Body.ProposerSlashings,
+					AttesterSlashings: proposal.Bellatrix.Body.AttesterSlashings,
+					Attestations:      proposal.Bellatrix.Body.Attestations,
+					Deposits:          proposal.Bellatrix.Body.Deposits,
+					VoluntaryExits:    proposal.Bellatrix.Body.VoluntaryExits,
+					SyncAggregate:     proposal.Bellatrix.Body.SyncAggregate,
 					ExecutionPayloadHeader: &bellatrix.ExecutionPayloadHeader{
-						ParentHash:       block.Bellatrix.Body.ExecutionPayload.ParentHash,
-						FeeRecipient:     block.Bellatrix.Body.ExecutionPayload.FeeRecipient,
-						StateRoot:        block.Bellatrix.Body.ExecutionPayload.StateRoot,
-						ReceiptsRoot:     block.Bellatrix.Body.ExecutionPayload.ReceiptsRoot,
-						LogsBloom:        block.Bellatrix.Body.ExecutionPayload.LogsBloom,
-						PrevRandao:       block.Bellatrix.Body.ExecutionPayload.PrevRandao,
-						BlockNumber:      block.Bellatrix.Body.ExecutionPayload.BlockNumber,
-						GasLimit:         block.Bellatrix.Body.ExecutionPayload.GasLimit,
-						GasUsed:          block.Bellatrix.Body.ExecutionPayload.GasUsed,
-						Timestamp:        block.Bellatrix.Body.ExecutionPayload.Timestamp,
-						ExtraData:        block.Bellatrix.Body.ExecutionPayload.ExtraData,
-						BaseFeePerGas:    block.Bellatrix.Body.ExecutionPayload.BaseFeePerGas,
-						BlockHash:        block.Bellatrix.Body.ExecutionPayload.BlockHash,
+						ParentHash:       proposal.Bellatrix.Body.ExecutionPayload.ParentHash,
+						FeeRecipient:     proposal.Bellatrix.Body.ExecutionPayload.FeeRecipient,
+						StateRoot:        proposal.Bellatrix.Body.ExecutionPayload.StateRoot,
+						ReceiptsRoot:     proposal.Bellatrix.Body.ExecutionPayload.ReceiptsRoot,
+						LogsBloom:        proposal.Bellatrix.Body.ExecutionPayload.LogsBloom,
+						PrevRandao:       proposal.Bellatrix.Body.ExecutionPayload.PrevRandao,
+						BlockNumber:      proposal.Bellatrix.Body.ExecutionPayload.BlockNumber,
+						GasLimit:         proposal.Bellatrix.Body.ExecutionPayload.GasLimit,
+						GasUsed:          proposal.Bellatrix.Body.ExecutionPayload.GasUsed,
+						Timestamp:        proposal.Bellatrix.Body.ExecutionPayload.Timestamp,
+						ExtraData:        proposal.Bellatrix.Body.ExecutionPayload.ExtraData,
+						BaseFeePerGas:    proposal.Bellatrix.Body.ExecutionPayload.BaseFeePerGas,
+						BlockHash:        proposal.Bellatrix.Body.ExecutionPayload.BlockHash,
 						TransactionsRoot: eth2p0.Root{}, // Use empty root.
 					},
 				},
 			},
 		}
 	case spec.DataVersionCapella:
-		resp = &eth2api.VersionedBlindedBeaconBlock{
-			Version: block.Version,
+		resp = &eth2api.VersionedBlindedProposal{
+			Version: proposal.Version,
 			Capella: &eth2capella.BlindedBeaconBlock{
-				Slot:          block.Capella.Slot,
-				ProposerIndex: block.Capella.ProposerIndex,
-				ParentRoot:    block.Capella.ParentRoot,
-				StateRoot:     block.Capella.StateRoot,
+				Slot:          proposal.Capella.Slot,
+				ProposerIndex: proposal.Capella.ProposerIndex,
+				ParentRoot:    proposal.Capella.ParentRoot,
+				StateRoot:     proposal.Capella.StateRoot,
 				Body: &eth2capella.BlindedBeaconBlockBody{
-					RANDAOReveal:      block.Capella.Body.RANDAOReveal,
-					ETH1Data:          block.Capella.Body.ETH1Data,
-					Graffiti:          block.Capella.Body.Graffiti,
-					ProposerSlashings: block.Capella.Body.ProposerSlashings,
-					AttesterSlashings: block.Capella.Body.AttesterSlashings,
-					Attestations:      block.Capella.Body.Attestations,
-					Deposits:          block.Capella.Body.Deposits,
-					VoluntaryExits:    block.Capella.Body.VoluntaryExits,
-					SyncAggregate:     block.Capella.Body.SyncAggregate,
+					RANDAOReveal:      proposal.Capella.Body.RANDAOReveal,
+					ETH1Data:          proposal.Capella.Body.ETH1Data,
+					Graffiti:          proposal.Capella.Body.Graffiti,
+					ProposerSlashings: proposal.Capella.Body.ProposerSlashings,
+					AttesterSlashings: proposal.Capella.Body.AttesterSlashings,
+					Attestations:      proposal.Capella.Body.Attestations,
+					Deposits:          proposal.Capella.Body.Deposits,
+					VoluntaryExits:    proposal.Capella.Body.VoluntaryExits,
+					SyncAggregate:     proposal.Capella.Body.SyncAggregate,
 					ExecutionPayloadHeader: &capella.ExecutionPayloadHeader{
-						ParentHash:       block.Capella.Body.ExecutionPayload.ParentHash,
-						FeeRecipient:     block.Capella.Body.ExecutionPayload.FeeRecipient,
-						StateRoot:        block.Capella.Body.ExecutionPayload.StateRoot,
-						ReceiptsRoot:     block.Capella.Body.ExecutionPayload.ReceiptsRoot,
-						LogsBloom:        block.Capella.Body.ExecutionPayload.LogsBloom,
-						PrevRandao:       block.Capella.Body.ExecutionPayload.PrevRandao,
-						BlockNumber:      block.Capella.Body.ExecutionPayload.BlockNumber,
-						GasLimit:         block.Capella.Body.ExecutionPayload.GasLimit,
-						GasUsed:          block.Capella.Body.ExecutionPayload.GasUsed,
-						Timestamp:        block.Capella.Body.ExecutionPayload.Timestamp,
-						ExtraData:        block.Capella.Body.ExecutionPayload.ExtraData,
-						BaseFeePerGas:    block.Capella.Body.ExecutionPayload.BaseFeePerGas,
-						BlockHash:        block.Capella.Body.ExecutionPayload.BlockHash,
+						ParentHash:       proposal.Capella.Body.ExecutionPayload.ParentHash,
+						FeeRecipient:     proposal.Capella.Body.ExecutionPayload.FeeRecipient,
+						StateRoot:        proposal.Capella.Body.ExecutionPayload.StateRoot,
+						ReceiptsRoot:     proposal.Capella.Body.ExecutionPayload.ReceiptsRoot,
+						LogsBloom:        proposal.Capella.Body.ExecutionPayload.LogsBloom,
+						PrevRandao:       proposal.Capella.Body.ExecutionPayload.PrevRandao,
+						BlockNumber:      proposal.Capella.Body.ExecutionPayload.BlockNumber,
+						GasLimit:         proposal.Capella.Body.ExecutionPayload.GasLimit,
+						GasUsed:          proposal.Capella.Body.ExecutionPayload.GasUsed,
+						Timestamp:        proposal.Capella.Body.ExecutionPayload.Timestamp,
+						ExtraData:        proposal.Capella.Body.ExecutionPayload.ExtraData,
+						BaseFeePerGas:    proposal.Capella.Body.ExecutionPayload.BaseFeePerGas,
+						BlockHash:        proposal.Capella.Body.ExecutionPayload.BlockHash,
 						TransactionsRoot: eth2p0.Root{}, // Use empty root.
 					},
 				},
 			},
 		}
-	default:
-		return nil, errors.New("unsupported blinded block version")
+	default: // TODO(xenowits): Add a case for deneb blinded block
+		return nil, errors.New("unsupported blinded proposal version")
 	}
 
 	return resp, nil

@@ -159,7 +159,7 @@ func TestParSigExVerifier(t *testing.T) {
 	})
 
 	t.Run("Verify proposal", func(t *testing.T) {
-		proposal := testutil.RandomCapellaVersionedSignedProposal()
+		proposal := testutil.RandomVersionedSignedProposal()
 		proposal.Capella.Message.Slot = slot
 		sigRoot, err := versionedSignedProposalRoot(t, proposal)
 		require.NoError(t, err)

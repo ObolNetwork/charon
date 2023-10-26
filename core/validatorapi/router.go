@@ -128,12 +128,12 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client) (*mux.Rou
 			Handler: proposeBlock(h),
 		},
 		{
-			Name:    "submit_proposal",
+			Name:    "submit_proposal_v1",
 			Path:    "/eth/v1/beacon/blocks",
 			Handler: submitProposal(h),
 		},
 		{
-			Name:    "submit_proposal",
+			Name:    "submit_proposal_v2",
 			Path:    "/eth/v2/beacon/blocks",
 			Handler: submitProposal(h),
 		},
@@ -143,12 +143,12 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client) (*mux.Rou
 			Handler: proposeBlindedBlock(h),
 		},
 		{
-			Name:    "submit_blinded_block",
+			Name:    "submit_blinded_block_v1",
 			Path:    "/eth/v1/beacon/blinded_blocks",
 			Handler: submitBlindedBlock(h),
 		},
 		{
-			Name:    "submit_blinded_block",
+			Name:    "submit_blinded_block_v2",
 			Path:    "/eth/v2/beacon/blinded_blocks",
 			Handler: submitBlindedBlock(h),
 		},

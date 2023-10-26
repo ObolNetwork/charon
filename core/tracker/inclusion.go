@@ -105,7 +105,7 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 		if !ok {
 			return errors.New("invalid block")
 		}
-		if eth2wrap.IsSyntheticBlock(&proposal.VersionedSignedProposal) {
+		if eth2wrap.IsSyntheticProposal(&proposal.VersionedSignedProposal) {
 			// Report inclusion for synthetic blocks as it is already included on-chain.
 			i.trackerInclFunc(duty, pubkey, data, nil)
 

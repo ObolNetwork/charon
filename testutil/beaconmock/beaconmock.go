@@ -121,9 +121,7 @@ type Mock struct {
 	SignedBeaconBlockFunc                  func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error)
 	ProposerDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
 	SubmitAttestationsFunc                 func(context.Context, []*eth2p0.Attestation) error
-	SubmitBeaconBlockFunc                  func(context.Context, *eth2spec.VersionedSignedBeaconBlock) error
 	SubmitProposalFunc                     func(context.Context, *eth2api.VersionedSignedProposal) error
-	SubmitBlindedBeaconBlockFunc           func(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error
 	SubmitBlindedProposalFunc              func(context.Context, *eth2api.VersionedSignedBlindedProposal) error
 	SubmitVoluntaryExitFunc                func(context.Context, *eth2p0.SignedVoluntaryExit) error
 	ValidatorsByPubKeyFunc                 func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
@@ -281,14 +279,6 @@ func (m Mock) NodePeerCount(ctx context.Context) (int, error) {
 
 func (m Mock) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {
 	return m.SubmitAttestationsFunc(ctx, attestations)
-}
-
-func (m Mock) SubmitBeaconBlock(ctx context.Context, block *eth2spec.VersionedSignedBeaconBlock) error {
-	return m.SubmitBeaconBlockFunc(ctx, block)
-}
-
-func (m Mock) SubmitBlindedBeaconBlock(ctx context.Context, block *eth2api.VersionedSignedBlindedBeaconBlock) error {
-	return m.SubmitBlindedBeaconBlockFunc(ctx, block)
 }
 
 func (m Mock) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error {

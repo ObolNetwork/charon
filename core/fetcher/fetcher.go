@@ -310,7 +310,7 @@ func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot int64, defS
 		}
 		blindedProposal := eth2Resp.Data
 
-		verifyFeeRecipientBlindedBlock(ctx, blindedProposal, f.feeRecipientFunc(pubkey))
+		verifyFeeRecipientBlinded(ctx, blindedProposal, f.feeRecipientFunc(pubkey))
 
 		coreProposal, err := core.NewVersionedBlindedProposal(blindedProposal)
 		if err != nil {
@@ -404,13 +404,13 @@ func verifyFeeRecipient(ctx context.Context, proposal *eth2api.VersionedProposal
 	}
 
 	if actualAddr != "" && !strings.EqualFold(actualAddr, feeRecipientAddress) {
-		log.Warn(ctx, "Proposing proposal with unexpected fee recipient address", nil,
+		log.Warn(ctx, "Proposal with unexpected fee recipient address", nil,
 			z.Str("expected", feeRecipientAddress), z.Str("actual", actualAddr))
 	}
 }
 
-// verifyFeeRecipientBlindedBlock logs a warning when fee recipient is not correctly populated in the provided blinded beacon block.
-func verifyFeeRecipientBlindedBlock(ctx context.Context, proposal *eth2api.VersionedBlindedProposal, feeRecipientAddress string) {
+// verifyFeeRecipientBlinded logs a warning when fee recipient is not correctly populated in the provided blinded beacon block.
+func verifyFeeRecipientBlinded(ctx context.Context, proposal *eth2api.VersionedBlindedProposal, feeRecipientAddress string) {
 	// Note that fee-recipient is not available in forks earlier than bellatrix.
 	var actualAddr string
 
@@ -424,7 +424,7 @@ func verifyFeeRecipientBlindedBlock(ctx context.Context, proposal *eth2api.Versi
 	}
 
 	if actualAddr != "" && !strings.EqualFold(actualAddr, feeRecipientAddress) {
-		log.Warn(ctx, "Proposing proposal with unexpected fee recipient address", nil,
+		log.Warn(ctx, "Proposal with unexpected fee recipient address", nil,
 			z.Str("expected", feeRecipientAddress), z.Str("actual", actualAddr))
 	}
 }

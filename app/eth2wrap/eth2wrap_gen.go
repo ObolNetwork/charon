@@ -35,9 +35,7 @@ type Client interface {
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
 	eth2client.BeaconBlockRootProvider
-	eth2client.BeaconBlockSubmitter
 	eth2client.BeaconCommitteeSubscriptionsSubmitter
-	eth2client.BlindedBeaconBlockSubmitter
 	eth2client.BlindedProposalProvider
 	eth2client.BlindedProposalSubmitter
 	eth2client.DepositContractProvider
@@ -407,28 +405,6 @@ func (m multi) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRootOpt
 	return res0, err
 }
 
-// SubmitBeaconBlock submits a beacon block.
-//
-// Deprecated: this will not work from the deneb hard-fork onwards.  Use ProposalSubmitter.SubmitProposal() instead.
-func (m multi) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
-	const label = "submit_beacon_block"
-	defer latency(label)()
-
-	err := submit(ctx, m.clients,
-		func(ctx context.Context, cl Client) error {
-			return cl.SubmitBeaconBlock(ctx, block)
-		},
-		m.bestIdx,
-	)
-
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return err
-}
-
 // SubmitProposal submits a proposal.
 func (m multi) SubmitProposal(ctx context.Context, block *api.VersionedSignedProposal) error {
 	const label = "submit_proposal"
@@ -487,28 +463,6 @@ func (m multi) BlindedProposal(ctx context.Context, opts *api.BlindedProposalOpt
 	}
 
 	return res0, err
-}
-
-// SubmitBlindedBeaconBlock submits a beacon block.
-//
-// Deprecated: this will not work from the deneb hard-fork onwards.  Use BlindedProposalSubmitter.SubmitBlindedProposal() instead.
-func (m multi) SubmitBlindedBeaconBlock(ctx context.Context, block *api.VersionedSignedBlindedBeaconBlock) error {
-	const label = "submit_blinded_beacon_block"
-	defer latency(label)()
-
-	err := submit(ctx, m.clients,
-		func(ctx context.Context, cl Client) error {
-			return cl.SubmitBlindedBeaconBlock(ctx, block)
-		},
-		m.bestIdx,
-	)
-
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return err
 }
 
 // SubmitBlindedProposal submits a beacon block.
@@ -966,18 +920,6 @@ func (l *lazy) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRootOpt
 	return cl.BeaconBlockRoot(ctx, opts)
 }
 
-// SubmitBeaconBlock submits a beacon block.
-//
-// Deprecated: this will not work from the deneb hard-fork onwards.  Use ProposalSubmitter.SubmitProposal() instead.
-func (l *lazy) SubmitBeaconBlock(ctx context.Context, block *spec.VersionedSignedBeaconBlock) (err error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return err
-	}
-
-	return cl.SubmitBeaconBlock(ctx, block)
-}
-
 // SubmitProposal submits a proposal.
 func (l *lazy) SubmitProposal(ctx context.Context, block *api.VersionedSignedProposal) (err error) {
 	cl, err := l.getOrCreateClient(ctx)
@@ -1006,18 +948,6 @@ func (l *lazy) BlindedProposal(ctx context.Context, opts *api.BlindedProposalOpt
 	}
 
 	return cl.BlindedProposal(ctx, opts)
-}
-
-// SubmitBlindedBeaconBlock submits a beacon block.
-//
-// Deprecated: this will not work from the deneb hard-fork onwards.  Use BlindedProposalSubmitter.SubmitBlindedProposal() instead.
-func (l *lazy) SubmitBlindedBeaconBlock(ctx context.Context, block *api.VersionedSignedBlindedBeaconBlock) (err error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return err
-	}
-
-	return cl.SubmitBlindedBeaconBlock(ctx, block)
 }
 
 // SubmitBlindedProposal submits a beacon block.

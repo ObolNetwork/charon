@@ -309,17 +309,6 @@ func RandomCapellaVersionedSignedBeaconBlock() *eth2spec.VersionedSignedBeaconBl
 	}
 }
 
-// RandomCapellaVersionedSignedProposal returns a random signed capella beacon block proposal.
-func RandomCapellaVersionedSignedProposal() *eth2api.VersionedSignedProposal {
-	return &eth2api.VersionedSignedProposal{
-		Version: eth2spec.DataVersionCapella,
-		Capella: &capella.SignedBeaconBlock{
-			Message:   RandomCapellaBeaconBlock(),
-			Signature: RandomEth2Signature(),
-		},
-	}
-}
-
 // RandomVersionedSignedProposal returns a random versioned signed proposal containing capella beacon block.
 func RandomVersionedSignedProposal() *eth2api.VersionedSignedProposal {
 	return &eth2api.VersionedSignedProposal{

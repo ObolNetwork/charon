@@ -125,8 +125,8 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 		return err
 	}
 
-	// create signed beacon block
-	signedBlock := new(eth2spec.VersionedSignedBeaconBlock)
+	// Create signed beacon block proposal.
+	signedBlock := new(eth2api.VersionedSignedProposal)
 	signedBlock.Version = block.Version
 	switch block.Version {
 	case eth2spec.DataVersionPhase0:
@@ -149,11 +149,11 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 			Message:   block.Capella,
 			Signature: sig,
 		}
-	default:
+	default: // TODO(xenowits): Add a case for deneb block.
 		return errors.New("invalid block")
 	}
 
-	return eth2Cl.SubmitBeaconBlock(ctx, signedBlock)
+	return eth2Cl.SubmitProposal(ctx, signedBlock)
 }
 
 // ProposeBlindedBlock proposes blinded block for the given slot.
@@ -256,7 +256,7 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 	}
 
 	// create signed beacon block
-	signedBlock := new(eth2api.VersionedSignedBlindedBeaconBlock)
+	signedBlock := new(eth2api.VersionedSignedBlindedProposal)
 	signedBlock.Version = block.Version
 	switch block.Version {
 	case eth2spec.DataVersionBellatrix:
@@ -269,11 +269,11 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 			Message:   block.Capella,
 			Signature: sig,
 		}
-	default:
+	default: // TODO(xenowits): Add a case for deneb block.
 		return errors.New("invalid block")
 	}
 
-	return eth2Cl.SubmitBlindedBeaconBlock(ctx, signedBlock)
+	return eth2Cl.SubmitBlindedProposal(ctx, signedBlock)
 }
 
 // RegistrationsFromProposerConfig returns all enabled builder-API registrations from upstream proposer config.
