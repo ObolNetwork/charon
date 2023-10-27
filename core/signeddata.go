@@ -200,6 +200,7 @@ func NewPartialVersionedSignedProposal(proposal *eth2api.VersionedSignedProposal
 	}, nil
 }
 
+// VersionedSignedProposal is a signed versioned proposal and implements SignedData.
 type VersionedSignedProposal struct {
 	eth2api.VersionedSignedProposal
 }
@@ -460,6 +461,7 @@ func NewPartialVersionedSignedBlindedProposal(proposal *eth2api.VersionedSignedB
 	}, nil
 }
 
+// VersionedSignedBlindedProposal is a signed versioned blinded proposal and implements SignedData.
 type VersionedSignedBlindedProposal struct {
 	eth2api.VersionedSignedBlindedProposal
 }

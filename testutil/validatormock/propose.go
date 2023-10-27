@@ -12,10 +12,12 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
+	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
+	"github.com/attestantio/go-eth2-client/spec/deneb"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -97,7 +99,6 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 	proposalOpts := &eth2api.ProposalOpts{
 		Slot:         slot,
 		RandaoReveal: randao,
-		Graffiti:     [32]byte{},
 	}
 	eth2ProposalResp, err := eth2Cl.Proposal(ctx, proposalOpts)
 	if err != nil {
@@ -149,7 +150,39 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 			Message:   block.Capella,
 			Signature: sig,
 		}
-	default: // TODO(xenowits): Add a case for deneb block.
+	case eth2spec.DataVersionDeneb:
+		// Sign blob sidecars
+		var blobSidecars []*deneb.SignedBlobSidecar
+		for _, blob := range block.Deneb.BlobSidecars {
+			blobSigRoot, err := blob.HashTreeRoot()
+			if err != nil {
+				return err
+			}
+
+			blobSigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainBlobSidecar, epoch, blobSigRoot)
+			if err != nil {
+				return err
+			}
+
+			blobSig, err := signFunc(pubkey, blobSigData[:])
+			if err != nil {
+				return err
+			}
+
+			blobSidecars = append(blobSidecars, &deneb.SignedBlobSidecar{
+				Message:   blob,
+				Signature: blobSig,
+			})
+		}
+
+		signedBlock.Deneb = &eth2deneb.SignedBlockContents{
+			SignedBlock: &deneb.SignedBeaconBlock{
+				Message:   block.Deneb.Block,
+				Signature: sig,
+			},
+			SignedBlobSidecars: blobSidecars,
+		}
+	default:
 		return errors.New("invalid block")
 	}
 
@@ -225,7 +258,6 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 	proposalOpts := &eth2api.BlindedProposalOpts{
 		Slot:         slot,
 		RandaoReveal: randao,
-		Graffiti:     [32]byte{},
 	}
 	proposalResp, err := eth2Cl.BlindedProposal(ctx, proposalOpts)
 	if err != nil {
@@ -269,7 +301,39 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 			Message:   block.Capella,
 			Signature: sig,
 		}
-	default: // TODO(xenowits): Add a case for deneb block.
+	case eth2spec.DataVersionDeneb:
+		// Sign blinded blob sidecars
+		var blindedBlobSidecars []*eth2deneb.SignedBlindedBlobSidecar
+		for _, blob := range block.Deneb.BlindedBlobSidecars {
+			blobSigRoot, err := blob.HashTreeRoot()
+			if err != nil {
+				return err
+			}
+
+			blobSigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainBlobSidecar, epoch, blobSigRoot)
+			if err != nil {
+				return err
+			}
+
+			blobSig, err := signFunc(pubkey, blobSigData[:])
+			if err != nil {
+				return err
+			}
+
+			blindedBlobSidecars = append(blindedBlobSidecars, &eth2deneb.SignedBlindedBlobSidecar{
+				Message:   blob,
+				Signature: blobSig,
+			})
+		}
+
+		signedBlock.Deneb = &eth2deneb.SignedBlindedBlockContents{
+			SignedBlindedBlock: &eth2deneb.SignedBlindedBeaconBlock{
+				Message:   block.Deneb.BlindedBlock,
+				Signature: sig,
+			},
+			SignedBlindedBlobSidecars: blindedBlobSidecars,
+		}
+	default:
 		return errors.New("invalid block")
 	}
 

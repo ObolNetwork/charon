@@ -179,7 +179,7 @@ func TestRawRouter(t *testing.T) {
 			require.Empty(t, opts.Graffiti)
 			resp := testutil.RandomVersionedProposal()
 
-			return &eth2api.Response[*eth2api.VersionedProposal]{Data: resp}, nil
+			return wrapResponse(resp), nil
 		}
 
 		callback := func(ctx context.Context, baseURL string) {
@@ -300,7 +300,7 @@ func TestRawRouter(t *testing.T) {
 					}
 				}
 
-				return &eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator]{Data: res}, nil
+				return wrapResponse(res), nil
 			},
 		}
 
@@ -395,7 +395,7 @@ func TestRawRouter(t *testing.T) {
 				require.Equal(t, expectedSlot, opts.Slot)
 				require.Equal(t, randao, opts.RandaoReveal)
 
-				return &eth2api.Response[*eth2api.VersionedProposal]{Data: block}, nil
+				return wrapResponse(block), nil
 			},
 		}
 
@@ -428,7 +428,7 @@ func TestRawRouter(t *testing.T) {
 				require.Equal(t, expectedSlot, opts.Slot)
 				require.Equal(t, randao, opts.RandaoReveal)
 
-				return &eth2api.Response[*eth2api.VersionedBlindedProposal]{Data: block}, nil
+				return wrapResponse(block), nil
 			},
 		}
 
@@ -464,7 +464,7 @@ func TestRouter(t *testing.T) {
 					})
 				}
 
-				return &eth2api.Response[[]*eth2v1.AttesterDuty]{Data: res}, nil
+				return wrapResponse(res), nil
 			},
 		}
 
@@ -506,7 +506,7 @@ func TestRouter(t *testing.T) {
 					})
 				}
 
-				return &eth2api.Response[[]*eth2v1.ProposerDuty]{Data: res}, nil
+				return wrapResponse(res), nil
 			},
 		}
 
@@ -543,7 +543,7 @@ func TestRouter(t *testing.T) {
 					})
 				}
 
-				return &eth2api.Response[[]*eth2v1.SyncCommitteeDuty]{Data: res}, nil
+				return wrapResponse(res), nil
 			},
 		}
 
@@ -583,7 +583,7 @@ func TestRouter(t *testing.T) {
 					}
 				}
 
-				return &eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator]{Data: res}, nil
+				return wrapResponse(res), nil
 			},
 		}
 
@@ -628,7 +628,7 @@ func TestRouter(t *testing.T) {
 					}
 				}
 
-				return &eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator]{Data: res}, nil
+				return wrapResponse(res), nil
 			},
 		}
 
@@ -764,7 +764,7 @@ func TestRouter(t *testing.T) {
 				data.Slot = opts.Slot
 				data.Index = opts.CommitteeIndex
 
-				return &eth2api.Response[*eth2p0.AttestationData]{Data: data}, nil
+				return wrapResponse(data), nil
 			},
 		}
 
@@ -1024,7 +1024,7 @@ func TestRouter(t *testing.T) {
 				contrib.SubcommitteeIndex = opts.SubcommitteeIndex
 				contrib.BeaconBlockRoot = opts.BeaconBlockRoot
 
-				return &eth2api.Response[*altair.SyncCommitteeContribution]{Data: contrib}, nil
+				return wrapResponse(contrib), nil
 			},
 		}
 
@@ -1099,7 +1099,7 @@ func TestRouter(t *testing.T) {
 
 		handler := testHandler{
 			NodeVersionFunc: func(ctx context.Context) (*eth2api.Response[string], error) {
-				return &eth2api.Response[string]{Data: expectedVersion}, nil
+				return wrapResponse(expectedVersion), nil
 			},
 		}
 
@@ -1324,7 +1324,7 @@ func (h testHandler) NodeVersion(ctx context.Context) (*eth2api.Response[string]
 		return h.NodeVersionFunc(ctx)
 	}
 
-	return &eth2api.Response[string]{Data: "mock_version"}, nil
+	return wrapResponse("mock_version"), nil
 }
 
 func (h testHandler) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error {

@@ -86,43 +86,6 @@ func (p VersionedSignedProposal) DomainNames() []signing.DomainName {
 	}
 }
 
-// Slot returns the slot of the signed proposal.
-// TODO(xenowits): Add a PR to go-eth2-client to add Slot() to VersionedSignedProposal.
-func (p VersionedSignedProposal) Slot() (eth2p0.Slot, error) {
-	switch p.Version {
-	case eth2spec.DataVersionPhase0:
-		if p.Phase0 == nil || p.Phase0.Message == nil {
-			return 0, errors.New("no phase0 block")
-		}
-	case eth2spec.DataVersionAltair:
-		if p.Altair == nil || p.Altair.Message == nil {
-			return 0, errors.New("no altair block")
-		}
-	case eth2spec.DataVersionBellatrix:
-		if p.Bellatrix == nil || p.Bellatrix.Message == nil {
-			return 0, errors.New("no bellatrix block")
-		}
-
-		return p.Bellatrix.Message.Slot, nil
-	case eth2spec.DataVersionCapella:
-		if p.Capella == nil || p.Capella.Message == nil {
-			return 0, errors.New("no capella block")
-		}
-
-		return p.Capella.Message.Slot, nil
-	case eth2spec.DataVersionDeneb:
-		if p.Deneb == nil || p.Deneb.SignedBlock == nil || p.Deneb.SignedBlock.Message == nil {
-			return 0, errors.New("no deneb block")
-		}
-
-		return p.Deneb.SignedBlock.Message.Slot, nil
-	default:
-		return 0, errors.New("unknown version")
-	}
-
-	return 0, nil
-}
-
 func (p VersionedSignedProposal) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
 	slot, err := p.Slot()
 	if err != nil {

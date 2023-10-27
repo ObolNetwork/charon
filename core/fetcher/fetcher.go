@@ -127,21 +127,18 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, defSet core
 
 		eth2AttData, ok := dataByCommIdx[commIdx]
 		if !ok {
-			var (
-				err      error
-				eth2Resp *eth2api.Response[*eth2p0.AttestationData]
-			)
+			var err error
 			opts := &eth2api.AttestationDataOpts{
 				Slot:           eth2p0.Slot(uint64(slot)),
 				CommitteeIndex: commIdx,
 			}
-			eth2Resp, err = f.eth2Cl.AttestationData(ctx, opts)
+			eth2Resp, err := f.eth2Cl.AttestationData(ctx, opts)
 			if err != nil {
 				return nil, err
 			}
 
 			eth2AttData = eth2Resp.Data
-			if eth2Resp.Data == nil {
+			if eth2AttData == nil {
 				return nil, errors.New("attestation data cannot be nil")
 			}
 

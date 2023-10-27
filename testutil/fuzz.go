@@ -113,7 +113,9 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				val := core.VersionedSSZValueForT(t, e, version)
 				c.Fuzz(val)
 
-				maxBlobSidecars := 6 // Limit length of blob sidecars to 6
+				// Limit length of blob sidecars to 6
+				// See https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/beacon-chain.md#execution
+				maxBlobSidecars := 6
 				if e.Version == eth2spec.DataVersionDeneb && len(e.Deneb.SignedBlindedBlobSidecars) > maxBlobSidecars {
 					e.Deneb.SignedBlindedBlobSidecars = e.Deneb.SignedBlindedBlobSidecars[:maxBlobSidecars]
 				}
@@ -126,7 +128,9 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				val := core.VersionedSSZValueForT(t, e, version)
 				c.Fuzz(val)
 
-				maxBlobSidecars := 6 // Limit length of blob sidecars to 6
+				// Limit length of blob sidecars to 6
+				// See https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/beacon-chain.md#execution
+				maxBlobSidecars := 6
 				if e.Version == eth2spec.DataVersionDeneb && len(e.Deneb.BlindedBlobSidecars) > maxBlobSidecars {
 					e.Deneb.BlindedBlobSidecars = e.Deneb.BlindedBlobSidecars[:maxBlobSidecars]
 				}
@@ -139,7 +143,9 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				val := core.VersionedSSZValueForT(t, e, version)
 				c.Fuzz(val)
 
-				maxBlobSidecars := 6 // Limit length of blob sidecars to 6
+				// Limit length of blob sidecars to 6
+				// See https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/beacon-chain.md#execution
+				maxBlobSidecars := 6
 				if e.Version == eth2spec.DataVersionDeneb && len(e.Deneb.SignedBlobSidecars) > maxBlobSidecars {
 					e.Deneb.SignedBlobSidecars = e.Deneb.SignedBlobSidecars[:maxBlobSidecars]
 				}
@@ -152,7 +158,9 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				val := core.VersionedSSZValueForT(t, e, version)
 				c.Fuzz(val)
 
-				maxBlobSidecars := 6 // Limit length of blob sidecars to 6
+				// Limit length of blob sidecars to 6
+				// See https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/beacon-chain.md#execution
+				maxBlobSidecars := 6
 				if e.Version == eth2spec.DataVersionDeneb && len(e.Deneb.BlobSidecars) > maxBlobSidecars {
 					e.Deneb.BlobSidecars = e.Deneb.BlobSidecars[:maxBlobSidecars]
 				}

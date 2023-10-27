@@ -79,7 +79,7 @@ func (h *synthWrapper) ProposerDuties(ctx context.Context, opts *eth2api.Propose
 		return nil, err
 	}
 
-	return &eth2api.Response[[]*eth2v1.ProposerDuty]{Data: duties}, nil
+	return wrapResponse(duties), nil
 }
 
 func (h *synthWrapper) SubmitProposalPreparations(ctx context.Context, preparations []*eth2v1.ProposalPreparation) error {
@@ -107,7 +107,7 @@ func (h *synthWrapper) Proposal(ctx context.Context, opts *eth2api.ProposalOpts)
 		return nil, err
 	}
 
-	return &eth2api.Response[*eth2api.VersionedProposal]{Data: proposal}, nil
+	return wrapResponse(proposal), nil
 }
 
 // BlindedProposal returns an unsigned blinded beacon block proposal, possibly marked as synthetic.
@@ -134,7 +134,7 @@ func (h *synthWrapper) BlindedProposal(ctx context.Context, opts *eth2api.Blinde
 		return nil, err
 	}
 
-	return &eth2api.Response[*eth2api.VersionedBlindedProposal]{Data: synthBlindedProposal}, nil
+	return wrapResponse(synthBlindedProposal), nil
 }
 
 // syntheticProposal returns a synthetic unsigned beacon block to propose.
@@ -515,4 +515,9 @@ func blindedProposal(proposal *eth2api.VersionedProposal) (*eth2api.VersionedBli
 	}
 
 	return resp, nil
+}
+
+// wrapResponse wraps the provided data into an API Response and returns the response.
+func wrapResponse[T any](data T) *eth2api.Response[T] {
+	return &eth2api.Response[T]{Data: data}
 }

@@ -169,6 +169,7 @@ func NewVersionedProposal(proposal *eth2api.VersionedProposal) (VersionedProposa
 	return VersionedProposal{VersionedProposal: *proposal}, nil
 }
 
+// VersionedProposal wraps the eth2 versioned proposal and implements UnsignedData.
 type VersionedProposal struct {
 	eth2api.VersionedProposal
 }
@@ -291,6 +292,7 @@ func NewVersionedBlindedProposal(proposal *eth2api.VersionedBlindedProposal) (Ve
 	return VersionedBlindedProposal{VersionedBlindedProposal: *proposal}, nil
 }
 
+// VersionedBlindedProposal wraps the eth2 versioned blinded proposal and implements UnsignedData.
 type VersionedBlindedProposal struct {
 	eth2api.VersionedBlindedProposal
 }

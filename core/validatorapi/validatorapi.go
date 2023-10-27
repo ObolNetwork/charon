@@ -234,7 +234,7 @@ func (c Component) AttestationData(parent context.Context, opts *eth2api.Attesta
 		return nil, err
 	}
 
-	return &eth2api.Response[*eth2p0.AttestationData]{Data: att}, nil
+	return wrapResponse(att), nil
 }
 
 // SubmitAttestations implements the eth2client.AttestationsSubmitter for the router.
@@ -299,7 +299,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 	return nil
 }
 
-func (c *Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
+func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
 	// Get proposer pubkey (this is a blocking query).
 	pubkey, err := c.getProposerPubkey(ctx, core.NewProposerDuty(int64(opts.Slot)))
 	if err != nil {
@@ -354,10 +354,10 @@ func (c *Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*
 		return nil, err
 	}
 
-	return &eth2api.Response[*eth2api.VersionedProposal]{Data: proposal}, nil
+	return wrapResponse(proposal), nil
 }
 
-func (c *Component) BlindedProposal(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error) {
+func (c Component) BlindedProposal(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error) {
 	// Get proposer pubkey (this is a blocking query).
 	pubkey, err := c.getProposerPubkey(ctx, core.NewBuilderProposerDuty(int64(opts.Slot)))
 	if err != nil {
@@ -412,11 +412,10 @@ func (c *Component) BlindedProposal(ctx context.Context, opts *eth2api.BlindedPr
 		return nil, err
 	}
 
-	return &eth2api.Response[*eth2api.VersionedBlindedProposal]{Data: proposal}, nil
+	return wrapResponse(proposal), nil
 }
 
-func (c *Component) SubmitProposal(ctx context.Context, proposal *eth2api.VersionedSignedProposal) error {
-	// Calculate slot epoch
+func (c Component) SubmitProposal(ctx context.Context, proposal *eth2api.VersionedSignedProposal) error {
 	slot, err := proposal.Slot()
 	if err != nil {
 		return err
@@ -456,8 +455,7 @@ func (c *Component) SubmitProposal(ctx context.Context, proposal *eth2api.Versio
 	return nil
 }
 
-func (c *Component) SubmitBlindedProposal(ctx context.Context, proposal *eth2api.VersionedSignedBlindedProposal) error {
-	// Calculate slot epoch
+func (c Component) SubmitBlindedProposal(ctx context.Context, proposal *eth2api.VersionedSignedBlindedProposal) error {
 	slot, err := proposal.Slot()
 	if err != nil {
 		return err
@@ -682,7 +680,7 @@ func (c Component) AggregateAttestation(ctx context.Context, opts *eth2api.Aggre
 		return nil, err
 	}
 
-	return &eth2api.Response[*eth2p0.Attestation]{Data: aggAtt}, nil
+	return wrapResponse(aggAtt), nil
 }
 
 // SubmitAggregateAttestations receives partially signed aggregateAndProofs.
@@ -751,7 +749,7 @@ func (c Component) SyncCommitteeContribution(ctx context.Context, opts *eth2api.
 		return nil, err
 	}
 
-	return &eth2api.Response[*altair.SyncCommitteeContribution]{Data: contrib}, nil
+	return wrapResponse(contrib), nil
 }
 
 // SubmitSyncCommitteeMessages receives the partially signed altair.SyncCommitteeMessage.
@@ -933,7 +931,7 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 		duties[i].PubKey = pubshare
 	}
 
-	return &eth2api.Response[[]*eth2v1.ProposerDuty]{Data: duties}, nil
+	return wrapResponse(duties), nil
 }
 
 func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {
@@ -956,7 +954,7 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 		duties[i].PubKey = pubshare
 	}
 
-	return &eth2api.Response[[]*eth2v1.AttesterDuty]{Data: duties}, nil
+	return wrapResponse(duties), nil
 }
 
 // SyncCommitteeDuties obtains sync committee duties. If validatorIndices is nil it will return all duties for the given epoch.
@@ -980,7 +978,7 @@ func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCo
 		duties[i].PubKey = pubshare
 	}
 
-	return &eth2api.Response[[]*eth2v1.SyncCommitteeDuty]{Data: duties}, nil
+	return wrapResponse(duties), nil
 }
 
 func (c Component) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) {
@@ -995,7 +993,7 @@ func (c Component) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts)
 		return nil, err
 	}
 
-	return &eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator]{Data: convertedVals}, nil
+	return wrapResponse(convertedVals), nil
 }
 
 func (c Component) ValidatorsByPubKey(ctx context.Context, stateID string, pubshares []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
@@ -1029,7 +1027,7 @@ func (Component) NodeVersion(context.Context) (*eth2api.Response[string], error)
 	commitSHA, _ := version.GitCommit()
 	charonVersion := fmt.Sprintf("obolnetwork/charon/%v-%s/%s-%s", version.Version, commitSHA, runtime.GOARCH, runtime.GOOS)
 
-	return &eth2api.Response[string]{Data: charonVersion}, nil
+	return wrapResponse(charonVersion), nil
 }
 
 // convertValidators returns the validator map with root public keys replaced by public shares for all validators that are part of the cluster.
@@ -1202,4 +1200,9 @@ func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigR
 	}
 
 	return &resp, nil
+}
+
+// wrapResponse wraps the provided data into an API Response and returns the response.
+func wrapResponse[T any](data T) *eth2api.Response[T] {
+	return &eth2api.Response[T]{Data: data}
 }

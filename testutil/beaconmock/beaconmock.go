@@ -151,7 +151,7 @@ func (m Mock) AggregateAttestation(ctx context.Context, opts *eth2api.AggregateA
 		return nil, err
 	}
 
-	return &eth2api.Response[*eth2p0.Attestation]{Data: aggAtt}, nil
+	return wrapResponse(aggAtt), nil
 }
 
 func (m Mock) AttestationData(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error) {
@@ -160,7 +160,7 @@ func (m Mock) AttestationData(ctx context.Context, opts *eth2api.AttestationData
 		return nil, err
 	}
 
-	return &eth2api.Response[*eth2p0.AttestationData]{Data: attData}, nil
+	return wrapResponse(attData), nil
 }
 
 func (m Mock) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {
@@ -169,7 +169,7 @@ func (m Mock) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOp
 		return nil, err
 	}
 
-	return &eth2api.Response[[]*eth2v1.AttesterDuty]{Data: duties}, nil
+	return wrapResponse(duties), nil
 }
 
 func (m Mock) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
@@ -178,7 +178,7 @@ func (m Mock) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2ap
 		return nil, err
 	}
 
-	return &eth2api.Response[*eth2api.VersionedProposal]{Data: block}, nil
+	return wrapResponse(block), nil
 }
 
 func (m Mock) BlindedProposal(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error) {
@@ -187,7 +187,7 @@ func (m Mock) BlindedProposal(ctx context.Context, opts *eth2api.BlindedProposal
 		return nil, err
 	}
 
-	return &eth2api.Response[*eth2api.VersionedBlindedProposal]{Data: block}, nil
+	return wrapResponse(block), nil
 }
 
 func (m Mock) SubmitBlindedProposal(ctx context.Context, block *eth2api.VersionedSignedBlindedProposal) error {
@@ -200,7 +200,7 @@ func (m Mock) ForkSchedule(ctx context.Context) (*eth2api.Response[[]*eth2p0.For
 		return nil, err
 	}
 
-	return &eth2api.Response[[]*eth2p0.Fork]{Data: schedule}, nil
+	return wrapResponse(schedule), nil
 }
 
 func (m Mock) NodeSyncing(ctx context.Context) (*eth2api.Response[*eth2v1.SyncState], error) {
@@ -209,7 +209,7 @@ func (m Mock) NodeSyncing(ctx context.Context) (*eth2api.Response[*eth2v1.SyncSt
 		return nil, err
 	}
 
-	return &eth2api.Response[*eth2v1.SyncState]{Data: schedule}, nil
+	return wrapResponse(schedule), nil
 }
 
 func (m Mock) SubmitProposal(ctx context.Context, block *eth2api.VersionedSignedProposal) error {
@@ -222,7 +222,7 @@ func (m Mock) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDutiesOp
 		return nil, err
 	}
 
-	return &eth2api.Response[[]*eth2v1.ProposerDuty]{Data: duties}, nil
+	return wrapResponse(duties), nil
 }
 
 func (m Mock) SignedBeaconBlock(ctx context.Context, opts *eth2api.SignedBeaconBlockOpts) (*eth2api.Response[*eth2spec.VersionedSignedBeaconBlock], error) {
@@ -231,7 +231,7 @@ func (m Mock) SignedBeaconBlock(ctx context.Context, opts *eth2api.SignedBeaconB
 		return nil, err
 	}
 
-	return &eth2api.Response[*eth2spec.VersionedSignedBeaconBlock]{Data: block}, nil
+	return wrapResponse(block), nil
 }
 
 func (m Mock) SyncCommitteeContribution(ctx context.Context, opts *eth2api.SyncCommitteeContributionOpts) (*eth2api.Response[*altair.SyncCommitteeContribution], error) {
@@ -240,7 +240,7 @@ func (m Mock) SyncCommitteeContribution(ctx context.Context, opts *eth2api.SyncC
 		return nil, err
 	}
 
-	return &eth2api.Response[*altair.SyncCommitteeContribution]{Data: contrib}, nil
+	return wrapResponse(contrib), nil
 }
 
 func (m Mock) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCommitteeDutiesOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeDuty], error) {
@@ -249,7 +249,7 @@ func (m Mock) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCommitt
 		return nil, err
 	}
 
-	return &eth2api.Response[[]*eth2v1.SyncCommitteeDuty]{Data: duties}, nil
+	return wrapResponse(duties), nil
 }
 
 func (m Mock) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) {
@@ -258,7 +258,7 @@ func (m Mock) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts) (*et
 		return nil, err
 	}
 
-	return &eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator]{Data: vals}, nil
+	return wrapResponse(vals), nil
 }
 
 func (Mock) SetValidatorCache(func(context.Context) (eth2wrap.ActiveValidators, error)) {
@@ -354,4 +354,9 @@ func (m Mock) Close() error {
 	}
 
 	return nil
+}
+
+// wrapResponse wraps the provided data into an API Response and returns the response.
+func wrapResponse[T any](data T) *eth2api.Response[T] {
+	return &eth2api.Response[T]{Data: data}
 }
