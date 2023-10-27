@@ -154,8 +154,8 @@ type Component struct {
 
 	pubKeyByAttFunc           func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error)
 	awaitAttFunc              func(ctx context.Context, slot, commIdx int64) (*eth2p0.AttestationData, error)
-	awaitProposalFunc         func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error)
-	awaitBlindedProposalFunc  func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.VersionedBlindedProposal, error)
+	awaitProposalFunc         func(ctx context.Context, slot int64) (*eth2api.VersionedProposal, error)
+	awaitBlindedProposalFunc  func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedProposal, error)
 	awaitSyncContributionFunc func(ctx context.Context, slot, subcommIdx int64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	awaitAggAttFunc           func(ctx context.Context, slot int64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)
 	awaitAggSigDBFunc         func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
@@ -165,13 +165,13 @@ type Component struct {
 
 // RegisterAwaitProposal registers a function to query unsigned beacon block proposals by providing necessary options.
 // It supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitProposal(fn func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error)) {
+func (c *Component) RegisterAwaitProposal(fn func(ctx context.Context, slot int64) (*eth2api.VersionedProposal, error)) {
 	c.awaitProposalFunc = fn
 }
 
 // RegisterAwaitBlindedProposal registers a function to query unsigned blinded beacon block proposals by providing necessary options.
 // It supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitBlindedProposal(fn func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.VersionedBlindedProposal, error)) {
+func (c *Component) RegisterAwaitBlindedProposal(fn func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedProposal, error)) {
 	c.awaitBlindedProposalFunc = fn
 }
 
@@ -349,7 +349,7 @@ func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*e
 	//  - Once inserted, the query below will return.
 
 	// Query unsigned proposal (this is blocking).
-	proposal, err := c.awaitProposalFunc(ctx, opts)
+	proposal, err := c.awaitProposalFunc(ctx, int64(opts.Slot))
 	if err != nil {
 		return nil, err
 	}
@@ -407,7 +407,7 @@ func (c Component) BlindedProposal(ctx context.Context, opts *eth2api.BlindedPro
 	//  - Once inserted, the query below will return.
 
 	// Query unsigned block (this is blocking).
-	proposal, err := c.awaitBlindedProposalFunc(ctx, opts)
+	proposal, err := c.awaitBlindedProposalFunc(ctx, int64(opts.Slot))
 	if err != nil {
 		return nil, err
 	}

@@ -155,14 +155,14 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 }
 
 // AwaitProposal implements core.DutyDB, see its godoc.
-func (db *MemDB) AwaitProposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error) {
+func (db *MemDB) AwaitProposal(ctx context.Context, slot int64) (*eth2api.VersionedProposal, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
 	response := make(chan *eth2api.VersionedProposal, 1)
 
 	db.mu.Lock()
 	db.proQueries = append(db.proQueries, proQuery{
-		Key:      int64(opts.Slot),
+		Key:      slot,
 		Response: response,
 		Cancel:   cancel,
 	})
@@ -180,14 +180,14 @@ func (db *MemDB) AwaitProposal(ctx context.Context, opts *eth2api.ProposalOpts) 
 }
 
 // AwaitBlindedProposal implements core.DutyDB, see its godoc.
-func (db *MemDB) AwaitBlindedProposal(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.VersionedBlindedProposal, error) {
+func (db *MemDB) AwaitBlindedProposal(ctx context.Context, slot int64) (*eth2api.VersionedBlindedProposal, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
 	response := make(chan *eth2api.VersionedBlindedProposal, 1)
 
 	db.mu.Lock()
 	db.builderProQueries = append(db.builderProQueries, builderProQuery{
-		Key:      int64(opts.Slot),
+		Key:      slot,
 		Response: response,
 		Cancel:   cancel,
 	})

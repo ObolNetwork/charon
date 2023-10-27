@@ -24,7 +24,7 @@ func TestShutdown(t *testing.T) {
 
 	errChan := make(chan error, 1)
 	go func() {
-		_, err := db.AwaitProposal(context.Background(), &eth2api.ProposalOpts{Slot: 999})
+		_, err := db.AwaitProposal(context.Background(), 999)
 		errChan <- err
 	}()
 
@@ -139,7 +139,7 @@ func TestMemDBProposer(t *testing.T) {
 	for i := 0; i < queries; i++ {
 		awaitResponse[i] = make(chan response)
 		go func(slot int) {
-			block, err := db.AwaitProposal(ctx, &eth2api.ProposalOpts{Slot: eth2p0.Slot(slots[slot])})
+			block, err := db.AwaitProposal(ctx, slots[slot])
 			require.NoError(t, err)
 			awaitResponse[slot] <- response{block: block}
 		}(i)
@@ -387,7 +387,7 @@ func TestMemDBBuilderProposer(t *testing.T) {
 	for i := 0; i < queries; i++ {
 		awaitResponse[i] = make(chan response)
 		go func(slot int) {
-			block, err := db.AwaitBlindedProposal(ctx, &eth2api.BlindedProposalOpts{Slot: eth2p0.Slot(slots[slot])})
+			block, err := db.AwaitBlindedProposal(ctx, slots[slot])
 			require.NoError(t, err)
 			awaitResponse[slot] <- response{block: block}
 		}(i)

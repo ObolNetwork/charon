@@ -377,7 +377,7 @@ func TestComponent_Proposal(t *testing.T) {
 		return core.DutyDefinitionSet{pubkey: nil}, nil
 	})
 
-	component.RegisterAwaitProposal(func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error) {
+	component.RegisterAwaitProposal(func(ctx context.Context, slot int64) (*eth2api.VersionedProposal, error) {
 		return block1, nil
 	})
 
@@ -700,7 +700,7 @@ func TestComponent_BlindedProposal(t *testing.T) {
 		return core.DutyDefinitionSet{pubkey: nil}, nil
 	})
 
-	component.RegisterAwaitBlindedProposal(func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.VersionedBlindedProposal, error) {
+	component.RegisterAwaitBlindedProposal(func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedProposal, error) {
 		return block1, nil
 	})
 
