@@ -88,11 +88,11 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 	for valIdx := 0; valIdx < len(privkeys); valIdx++ {
 		pkSet := privkeys[valIdx]
 
-		if len(pkSet) != len(cluster.Operators) {
+		if len(pkSet) < int(cluster.Threshold) {
 			return errors.New(
-				"not all private key shares found for validator",
+				"insufficient private key shares found for validator",
 				z.Int("validator_index", valIdx),
-				z.Int("expected", len(cluster.Operators)),
+				z.Int("expected", int(cluster.Threshold)),
 				z.Int("actual", len(pkSet)),
 			)
 		}
