@@ -88,7 +88,7 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 	require.NoError(t, os.RemoveAll(filepath.Join(dir, "node1")))
 
 	err := combine.Combine(context.Background(), dir, od, false, false, combine.WithInsecureKeysForT(t))
-	require.Error(t, err)
+	require.ErrorContains(t, err, "insufficient private key shares found for validator")
 }
 
 func TestCombineAllManifest(t *testing.T) {
