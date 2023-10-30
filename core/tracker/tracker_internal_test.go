@@ -125,10 +125,10 @@ func TestTrackerFailedDuty(t *testing.T) {
 
 func TestAnalyseDutyFailed(t *testing.T) {
 	slot := 1
-	attDuty := core.NewAttesterDuty(int64(slot))
-	proposerDuty := core.NewProposerDuty(int64(slot))
-	randaoDuty := core.NewRandaoDuty(int64(slot))
-	syncMsgDuty := core.NewSyncMessageDuty(int64(slot))
+	attDuty := core.NewAttesterDuty(uint64(slot))
+	proposerDuty := core.NewProposerDuty(uint64(slot))
+	randaoDuty := core.NewRandaoDuty(uint64(slot))
+	syncMsgDuty := core.NewSyncMessageDuty(uint64(slot))
 
 	// Note the order of the events inserted by subtests below is important.
 	events := make(map[core.Duty][]event)
@@ -336,7 +336,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 	t.Run("Attester Duty Success", func(t *testing.T) {
 		var (
 			events  = make(map[core.Duty][]event)
-			attDuty = core.NewAttesterDuty(int64(1))
+			attDuty = core.NewAttesterDuty(uint64(1))
 		)
 
 		require.Equal(t, chainInclusion, lastStep(attDuty.Type))
@@ -355,7 +355,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 	t.Run("SyncContrib Duty Success", func(t *testing.T) {
 		var (
 			events          = make(map[core.Duty][]event)
-			syncContribDuty = core.NewSyncContributionDuty(int64(1))
+			syncContribDuty = core.NewSyncContributionDuty(uint64(1))
 		)
 
 		require.Equal(t, bcast, lastStep(syncContribDuty.Type))
@@ -681,7 +681,7 @@ func setupData(t *testing.T, slots []int, numVals int) ([]testDutyData, []core.P
 
 	var data []testDutyData
 	for _, slot := range slots {
-		duty := core.NewAttesterDuty(int64(slot))
+		duty := core.NewAttesterDuty(uint64(slot))
 
 		defset := make(core.DutyDefinitionSet)
 		unsignedset := make(core.UnsignedDataSet)

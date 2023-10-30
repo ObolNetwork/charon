@@ -107,7 +107,7 @@ func dutiesForSlot(slot metaSlot, types ...core.DutyType) map[scheduleTuple]stru
 				resp[scheduleTuple{
 					duty: core.Duty{
 						Type: dutyType,
-						Slot: int64(checkSlot.Slot),
+						Slot: checkSlot.Slot,
 					},
 					startTime: startTime,
 				}] = struct{}{}

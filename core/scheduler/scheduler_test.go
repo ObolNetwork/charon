@@ -52,7 +52,7 @@ func TestIntegration(t *testing.T) {
 		"0xb790b322e1cce41c48e3c344cf8d752bdc3cfd51e8eeef44a4bdaac081bc92b53b73e823a9878b5d7a532eb9d9dce1e3",
 	}
 
-	builderDisabled := func(int64) bool { return false }
+	builderDisabled := func(uint64) bool { return false }
 	s, err := scheduler.New(pubkeys, eth2Cl, builderDisabled)
 	require.NoError(t, err)
 
@@ -140,7 +140,8 @@ func TestSchedulerWait(t *testing.T) {
 				}, err
 			}
 
-			sched := scheduler.NewForT(t, clock, new(delayer).delay, nil, eth2Cl, false)
+			dd := new(delayer)
+			sched := scheduler.NewForT(t, clock, dd.delay, nil, eth2Cl, false)
 			sched.Stop() // Just run wait functions, then quit.
 			require.NoError(t, sched.Run())
 			require.EqualValues(t, test.WaitSecs, clock.Since(t0).Seconds())
@@ -285,7 +286,7 @@ func TestScheduler_GetDuty(t *testing.T) {
 	var (
 		ctx    = context.Background()
 		t0     time.Time
-		slot   = int64(1)
+		slot   = uint64(1)
 		valSet = beaconmock.ValidatorSetA
 	)
 
@@ -305,7 +306,8 @@ func TestScheduler_GetDuty(t *testing.T) {
 
 	// Construct scheduler.
 	clock := newTestClock(t0)
-	sched := scheduler.NewForT(t, clock, new(delayer).delay, pubkeys, eth2Cl, false)
+	dd := new(delayer)
+	sched := scheduler.NewForT(t, clock, dd.delay, pubkeys, eth2Cl, false)
 
 	_, err = sched.GetDutyDefinition(ctx, core.NewAttesterDuty(slot))
 	require.ErrorContains(t, err, "epoch not resolved yet")
@@ -388,7 +390,8 @@ func TestNoActive(t *testing.T) {
 
 	// Construct scheduler.
 	clock := newTestClock(t0)
-	sched := scheduler.NewForT(t, clock, new(delayer).delay, nil, eth2Cl, false)
+	dd := new(delayer)
+	sched := scheduler.NewForT(t, clock, dd.delay, nil, eth2Cl, false)
 
 	clock.CallbackAfter(t0.Add(slotDuration*2), func() {
 		_, err := sched.GetDutyDefinition(ctx, core.NewAttesterDuty(1))

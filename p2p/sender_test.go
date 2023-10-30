@@ -212,12 +212,6 @@ func testSend(t *testing.T, clientBasicProtoID, serverBasicProtoID, delimitedID 
 		return
 	}
 
-	t.Run("server error", func(t *testing.T) {
-		err := p2p.Send(ctx, client, clientBasicProtoID, server.ID(), &pbv1.Duty{Slot: -1}, clientOpt...)
-		require.NoError(t, err)
-		require.ErrorContains(t, <-serverErrChan, "negative slot")
-	})
-
 	t.Run("ok", func(t *testing.T) {
 		err := p2p.Send(ctx, client, clientBasicProtoID, server.ID(), &pbv1.Duty{Slot: 100}, clientOpt...)
 		require.NoError(t, err)

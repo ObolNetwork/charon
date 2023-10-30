@@ -53,20 +53,15 @@ func TestSendReceive(t *testing.T) {
 		},
 	)
 
-	sendReceive := func(slot int64) (*pbv1.Duty, error) {
+	sendReceive := func(slot uint64) (*pbv1.Duty, error) {
 		resp := new(pbv1.Duty)
 		err := p2p.SendReceive(ctx, client, server.ID(), &pbv1.Duty{Slot: slot}, resp, pID)
 
 		return resp, err
 	}
 
-	t.Run("server error", func(t *testing.T) {
-		_, err := sendReceive(-1)
-		require.ErrorContains(t, err, "read response: EOF")
-	})
-
 	t.Run("ok", func(t *testing.T) {
-		slot := int64(100)
+		slot := uint64(100)
 		resp, err := sendReceive(slot)
 		require.NoError(t, err)
 		require.Equal(t, slot, resp.Slot)

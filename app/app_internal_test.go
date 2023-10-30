@@ -16,7 +16,7 @@ import (
 func TestSlotFromTimestamp(t *testing.T) {
 	tests := []struct {
 		name      string
-		slot      int64
+		slot      uint64
 		network   string
 		timestamp time.Time
 	}{

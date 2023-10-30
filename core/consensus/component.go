@@ -743,7 +743,7 @@ func fmtStepPeers(step roundStep) string {
 
 // leader return the deterministic leader index.
 func leader(duty core.Duty, round int64, nodes int) int64 {
-	return ((duty.Slot) + int64(duty.Type) + round) % int64(nodes)
+	return (int64(duty.Slot) + int64(duty.Type) + round) % int64(nodes)
 }
 
 func valuesByHash(values []*anypb.Any) (map[[32]byte]*anypb.Any, error) {

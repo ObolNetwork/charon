@@ -108,9 +108,9 @@ func TestFetchAggregator(t *testing.T) {
 
 	attA := testutil.RandomAttestation()
 	attB := testutil.RandomAttestation()
-	attByCommIdx := map[int64]*eth2p0.Attestation{
-		int64(attA.Data.Index): attA,
-		int64(attB.Data.Index): attB,
+	attByCommIdx := map[uint64]*eth2p0.Attestation{
+		uint64(attA.Data.Index): attA,
+		uint64(attB.Data.Index): attB,
 	}
 
 	newDefSet := func(commLength uint64, sameCommitteeIndex bool) core.DutyDefinitionSet {
@@ -166,7 +166,7 @@ func TestFetchAggregator(t *testing.T) {
 		return signedCommSubByPubKey[key], nil
 	})
 
-	fetch.RegisterAwaitAttData(func(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error) {
+	fetch.RegisterAwaitAttData(func(ctx context.Context, slot uint64, commIdx uint64) (*eth2p0.AttestationData, error) {
 		return attByCommIdx[commIdx].Data, nil
 	})
 
@@ -179,7 +179,7 @@ func TestFetchAggregator(t *testing.T) {
 			aggregated, ok := aggAtt.(core.AggregatedAttestation)
 			require.True(t, ok)
 
-			att, ok := attByCommIdx[int64(aggregated.Attestation.Data.Index)]
+			att, ok := attByCommIdx[uint64(aggregated.Attestation.Data.Index)]
 			require.True(t, ok)
 			require.Equal(t, aggregated.Attestation, *att)
 		}

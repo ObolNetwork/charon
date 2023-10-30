@@ -50,7 +50,7 @@ func TestDeadliner(t *testing.T) {
 	// Wait till all the duties are added to the deadliner.
 	wg.Wait()
 
-	var maxSlot int64
+	var maxSlot uint64
 	for _, duty := range nonExpiredDuties {
 		if maxSlot < duty.Slot {
 			maxSlot = duty.Slot
