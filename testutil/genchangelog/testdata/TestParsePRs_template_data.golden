@@ -10,23 +10,73 @@
    "Issues": [
     {
      "Category": "feature",
-     "Title": "Issue#1464",
-     "Number": 1464,
-     "Label": "#1464",
+     "Title": "Issue#1582",
+     "Number": 1582,
+     "Label": "#1582",
      "PRs": [
       {
-       "Label": "#1570"
+       "Label": "#1598"
       }
      ]
     },
     {
      "Category": "feature",
-     "Title": "Issue#1254",
-     "Number": 1254,
-     "Label": "#1254",
+     "Title": "Issue#1490",
+     "Number": 1490,
+     "Label": "#1490",
      "PRs": [
       {
-       "Label": "#1468"
+       "Label": "#1615"
+      },
+      {
+       "Label": "#1532"
+      }
+     ]
+    },
+    {
+     "Category": "feature",
+     "Title": "Issue#1506",
+     "Number": 1506,
+     "Label": "#1506",
+     "PRs": [
+      {
+       "Label": "#1534"
+      },
+      {
+       "Label": "#1512"
+      }
+     ]
+    },
+    {
+     "Category": "feature",
+     "Title": "Issue#1509",
+     "Number": 1509,
+     "Label": "#1509",
+     "PRs": [
+      {
+       "Label": "#1511"
+      }
+     ]
+    },
+    {
+     "Category": "feature",
+     "Title": "Issue#1421",
+     "Number": 1421,
+     "Label": "#1421",
+     "PRs": [
+      {
+       "Label": "#1485"
+      }
+     ]
+    },
+    {
+     "Category": "feature",
+     "Title": "Issue#1446",
+     "Number": 1446,
+     "Label": "#1446",
+     "PRs": [
+      {
+       "Label": "#1473"
       }
      ]
     },
@@ -63,26 +113,70 @@
     },
     {
      "Category": "feature",
-     "Title": "Issue#1509",
-     "Number": 1509,
-     "Label": "#1509",
+     "Title": "Issue#1503",
+     "Number": 1503,
+     "Label": "#1503",
      "PRs": [
       {
-       "Label": "#1511"
+       "Label": "#1622"
       }
      ]
     },
     {
      "Category": "feature",
-     "Title": "Issue#1490",
-     "Number": 1490,
-     "Label": "#1490",
+     "Title": "Issue#1584",
+     "Number": 1584,
+     "Label": "#1584",
      "PRs": [
       {
-       "Label": "#1615"
+       "Label": "#1596"
+      }
+     ]
+    },
+    {
+     "Category": "feature",
+     "Title": "Issue#1488",
+     "Number": 1488,
+     "Label": "#1488",
+     "PRs": [
+      {
+       "Label": "#1520"
+      }
+     ]
+    },
+    {
+     "Category": "feature",
+     "Title": "Issue#1590",
+     "Number": 1590,
+     "Label": "#1590",
+     "PRs": [
+      {
+       "Label": "#1604"
+      }
+     ]
+    },
+    {
+     "Category": "feature",
+     "Title": "Issue#1521",
+     "Number": 1521,
+     "Label": "#1521",
+     "PRs": [
+      {
+       "Label": "#1536"
+      }
+     ]
+    },
+    {
+     "Category": "feature",
+     "Title": "Issue#947",
+     "Number": 947,
+     "Label": "#947",
+     "PRs": [
+      {
+       "Label": "#1601"
       },
       {
-       "Label": "#1532"
+       "Label": "#1586"
       }
      ]
     },
@@ -114,95 +208,12 @@
     },
     {
      "Category": "feature",
-     "Title": "Issue#1506",
-     "Number": 1506,
-     "Label": "#1506",
+     "Title": "Issue#712",
+     "Number": 712,
+     "Label": "#712",
      "PRs": [
       {
-       "Label": "#1534"
-      },
-      {
-       "Label": "#1512"
-      }
-     ]
-    },
-    {
-     "Category": "feature",
-     "Title": "Issue#1421",
-     "Number": 1421,
-     "Label": "#1421",
-     "PRs": [
-      {
-       "Label": "#1485"
-      }
-     ]
-    },
-    {
-     "Category": "feature",
-     "Title": "Issue#1503",
-     "Number": 1503,
-     "Label": "#1503",
-     "PRs": [
-      {
-       "Label": "#1622"
-      }
-     ]
-    },
-    {
-     "Category": "feature",
-     "Title": "Issue#1590",
-     "Number": 1590,
-     "Label": "#1590",
-     "PRs": [
-      {
-       "Label": "#1604"
-      }
-     ]
-    },
-    {
-     "Category": "feature",
-     "Title": "Issue#1582",
-     "Number": 1582,
-     "Label": "#1582",
-     "PRs": [
-      {
-       "Label": "#1598"
-      }
-     ]
-    },
-    {
-     "Category": "feature",
-     "Title": "Issue#947",
-     "Number": 947,
-     "Label": "#947",
-     "PRs": [
-      {
-       "Label": "#1601"
-      },
-      {
-       "Label": "#1586"
-      }
-     ]
-    },
-    {
-     "Category": "feature",
-     "Title": "Issue#1584",
-     "Number": 1584,
-     "Label": "#1584",
-     "PRs": [
-      {
-       "Label": "#1596"
-      }
-     ]
-    },
-    {
-     "Category": "feature",
-     "Title": "Issue#1446",
-     "Number": 1446,
-     "Label": "#1446",
-     "PRs": [
-      {
-       "Label": "#1473"
+       "Label": "#1496"
       }
      ]
     },
@@ -222,34 +233,23 @@
     },
     {
      "Category": "feature",
-     "Title": "Issue#1521",
-     "Number": 1521,
-     "Label": "#1521",
+     "Title": "Issue#1464",
+     "Number": 1464,
+     "Label": "#1464",
      "PRs": [
       {
-       "Label": "#1536"
+       "Label": "#1570"
       }
      ]
     },
     {
      "Category": "feature",
-     "Title": "Issue#1488",
-     "Number": 1488,
-     "Label": "#1488",
+     "Title": "Issue#1254",
+     "Number": 1254,
+     "Label": "#1254",
      "PRs": [
       {
-       "Label": "#1520"
-      }
-     ]
-    },
-    {
-     "Category": "feature",
-     "Title": "Issue#712",
-     "Number": 712,
-     "Label": "#712",
-     "PRs": [
-      {
-       "Label": "#1496"
+       "Label": "#1468"
       }
      ]
     }
@@ -261,12 +261,34 @@
    "Issues": [
     {
      "Category": "bug",
+     "Title": "Issue#1493",
+     "Number": 1493,
+     "Label": "#1493",
+     "PRs": [
+      {
+       "Label": "#1505"
+      }
+     ]
+    },
+    {
+     "Category": "bug",
      "Title": "Issue#1527",
      "Number": 1527,
      "Label": "#1527",
      "PRs": [
       {
        "Label": "#1528"
+      }
+     ]
+    },
+    {
+     "Category": "bug",
+     "Title": "Issue#1445",
+     "Number": 1445,
+     "Label": "#1445",
+     "PRs": [
+      {
+       "Label": "#1474"
       }
      ]
     },
@@ -286,12 +308,12 @@
     },
     {
      "Category": "bug",
-     "Title": "Issue#1493",
-     "Number": 1493,
-     "Label": "#1493",
+     "Title": "Issue#978",
+     "Number": 978,
+     "Label": "#978",
      "PRs": [
       {
-       "Label": "#1505"
+       "Label": "#1595"
       }
      ]
     },
@@ -320,28 +342,6 @@
        "Label": "#1548"
       }
      ]
-    },
-    {
-     "Category": "bug",
-     "Title": "Issue#1445",
-     "Number": 1445,
-     "Label": "#1445",
-     "PRs": [
-      {
-       "Label": "#1474"
-      }
-     ]
-    },
-    {
-     "Category": "bug",
-     "Title": "Issue#978",
-     "Number": 978,
-     "Label": "#978",
-     "PRs": [
-      {
-       "Label": "#1595"
-      }
-     ]
     }
    ]
   },
@@ -362,45 +362,23 @@
     },
     {
      "Category": "refactor",
-     "Title": "Issue#1587",
-     "Number": 1587,
-     "Label": "#1587",
-     "PRs": [
-      {
-       "Label": "#1600"
-      }
-     ]
-    },
-    {
-     "Category": "refactor",
-     "Title": "Issue#1475",
-     "Number": 1475,
-     "Label": "#1475",
-     "PRs": [
-      {
-       "Label": "#1495"
-      }
-     ]
-    },
-    {
-     "Category": "refactor",
-     "Title": "Issue#1606",
-     "Number": 1606,
-     "Label": "#1606",
-     "PRs": [
-      {
-       "Label": "#1607"
-      }
-     ]
-    },
-    {
-     "Category": "refactor",
      "Title": "Issue#139",
      "Number": 139,
      "Label": "#139",
      "PRs": [
       {
        "Label": "#1489"
+      }
+     ]
+    },
+    {
+     "Category": "refactor",
+     "Title": "Issue#1591",
+     "Number": 1591,
+     "Label": "#1591",
+     "PRs": [
+      {
+       "Label": "#1602"
       }
      ]
     },
@@ -417,12 +395,34 @@
     },
     {
      "Category": "refactor",
-     "Title": "Issue#1591",
-     "Number": 1591,
-     "Label": "#1591",
+     "Title": "Issue#1475",
+     "Number": 1475,
+     "Label": "#1475",
      "PRs": [
       {
-       "Label": "#1602"
+       "Label": "#1495"
+      }
+     ]
+    },
+    {
+     "Category": "refactor",
+     "Title": "Issue#1587",
+     "Number": 1587,
+     "Label": "#1587",
+     "PRs": [
+      {
+       "Label": "#1600"
+      }
+     ]
+    },
+    {
+     "Category": "refactor",
+     "Title": "Issue#1606",
+     "Number": 1606,
+     "Label": "#1606",
+     "PRs": [
+      {
+       "Label": "#1607"
       }
      ]
     }
@@ -461,6 +461,224 @@
      ]
     }
    ]
+  }
+ ],
+ "ExtraPRs": [
+  {
+   "Title": "core/consensus: fix nil map panic (#1469)",
+   "Number": 1469,
+   "Category": "bug",
+   "Issue": 0
+  },
+  {
+   "Title": "readme: mark attestation duty as completed for vouch (#1476)",
+   "Number": 1476,
+   "Category": "docs",
+   "Issue": 0
+  },
+  {
+   "Title": "app/eth2wrap: fix block attestation request (#1480)",
+   "Number": 1480,
+   "Category": "bug",
+   "Issue": 0
+  },
+  {
+   "Title": "app/eth2wrap: handle block attestations 404 (#1482)",
+   "Number": 1482,
+   "Category": "bug",
+   "Issue": 0
+  },
+  {
+   "Title": "app/errors: add sentinel error without stacktrace (#1483)",
+   "Number": 1483,
+   "Category": "misc",
+   "Issue": 0
+  },
+  {
+   "Title": "core/validatorapi: improve query param handling and errors (#1498)",
+   "Number": 1498,
+   "Category": "misc",
+   "Issue": 0
+  },
+  {
+   "Title": "testutil/trackpr: automate assigning pr to author (#1507)",
+   "Number": 1507,
+   "Category": "misc",
+   "Issue": 0
+  },
+  {
+   "Title": "app: fix flapping InfoSync test (#1508)",
+   "Number": 1508,
+   "Category": "test",
+   "Issue": 0
+  },
+  {
+   "Title": "docs: add declartions section to go guidelines (#1513)",
+   "Number": 1513,
+   "Category": "docs",
+   "Issue": 0
+  },
+  {
+   "Title": "core/consensus: add QBFT decided round gauge (#1514)",
+   "Number": 1514,
+   "Category": "misc",
+   "Issue": 0
+  },
+  {
+   "Title": "p2p: add option to disable port reuse (#1529)",
+   "Number": 1529,
+   "Category": "feature",
+   "Issue": 0
+  },
+  {
+   "Title": "app: fix failing teku exits (#1530)",
+   "Number": 1530,
+   "Category": "test",
+   "Issue": 0
+  },
+  {
+   "Title": "core/priority: fix flapping test (#1535)",
+   "Number": 1535,
+   "Category": "test",
+   "Issue": 0
+  },
+  {
+   "Title": "cmd: redact address flag passwords (#1541)",
+   "Number": 1541,
+   "Category": "bug",
+   "Issue": 0
+  },
+  {
+   "Title": "p2p: instrument network throughput (#1545)",
+   "Number": 1545,
+   "Category": "feature",
+   "Issue": 0
+  },
+  {
+   "Title": "app: increase sniffed message buffer (#1546)",
+   "Number": 1546,
+   "Category": "refactor",
+   "Issue": 0
+  },
+  {
+   "Title": "workflows: upload artefacts always (#1547)",
+   "Number": 1547,
+   "Category": "test",
+   "Issue": 0
+  },
+  {
+   "Title": "app: increase sniffed buffer even more (#1549)",
+   "Number": 1549,
+   "Category": "test",
+   "Issue": 0
+  },
+  {
+   "Title": "app/eth2wrap: decrease synth block sizes (#1550)",
+   "Number": 1550,
+   "Category": "refactor",
+   "Issue": 0
+  },
+  {
+   "Title": "dkg/sync: add disconnect log to server (#1551)",
+   "Number": 1551,
+   "Category": "misc",
+   "Issue": 0
+  },
+  {
+   "Title": "core/consensus: improve logging (#1557)",
+   "Number": 1557,
+   "Category": "refactor",
+   "Issue": 0
+  },
+  {
+   "Title": "cmd: require name in create cluster (#1559)",
+   "Number": 1559,
+   "Category": "refactor",
+   "Issue": 0
+  },
+  {
+   "Title": "p2p: add duration labels to receive errors (#1560)",
+   "Number": 1560,
+   "Category": "misc",
+   "Issue": 0
+  },
+  {
+   "Title": "app/log: increase loki batch send timeout to 10s (#1563)",
+   "Number": 1563,
+   "Category": "misc",
+   "Issue": 0
+  },
+  {
+   "Title": "cmd/bootnode: refactor metrics (#1564)",
+   "Number": 1564,
+   "Category": "refactor",
+   "Issue": 0
+  },
+  {
+   "Title": "app/bootnode: fix missing cluster hash in metrics (#1568)",
+   "Number": 1568,
+   "Category": "bug",
+   "Issue": 0
+  },
+  {
+   "Title": "app: revert VC health statuses (#1571)",
+   "Number": 1571,
+   "Category": "bug",
+   "Issue": 0
+  },
+  {
+   "Title": "testutil/validatormock: fix getSubcommittees bug (#1579)",
+   "Number": 1579,
+   "Category": "bug",
+   "Issue": 0
+  },
+  {
+   "Title": "core/aggsigdb: fix flapping test (#1605)",
+   "Number": 1605,
+   "Category": "test",
+   "Issue": 0
+  },
+  {
+   "Title": "app/eth2wrap: instrument custom endpoint latency (#1614)",
+   "Number": 1614,
+   "Category": "misc",
+   "Issue": 0
+  },
+  {
+   "Title": "core/scheduler: trim duties after 3 epochs (#1616)",
+   "Number": 1616,
+   "Category": "bug",
+   "Issue": 0
+  },
+  {
+   "Title": "dkg: fix error handling in TestSyncFlow (#1618)",
+   "Number": 1618,
+   "Category": "test",
+   "Issue": 0
+  },
+  {
+   "Title": "core/scheduler: fix flapping test (#1619)",
+   "Number": 1619,
+   "Category": "test",
+   "Issue": 0
+  },
+  {
+   "Title": "cmd: update default relay address (#1636)",
+   "Number": 1636,
+   "Category": "refactor",
+   "Issue": 0
+  },
+  {
+   "Title": "cmd: re-add previous relay address for backwards compatibility (#1639)",
+   "Number": 1639,
+   "Category": "refactor",
+   "Issue": 0
+  },
+  {
+   "Title": "app/version: bump to v0.13 (#1641)",
+   "Number": 1641,
+   "Category": "misc",
+   "Issue": 0
   }
  ]
 }
