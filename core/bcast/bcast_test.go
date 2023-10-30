@@ -31,8 +31,8 @@ type test struct {
 func TestBroadcast(t *testing.T) {
 	testFuncs := []func(*testing.T, *beaconmock.Mock) test{
 		attData,                   // Attestation
-		beaconBlockData,           // BeaconBlock
-		blindedBeaconBlockData,    // BlindedBeaconBlock
+		proposalData,              // BeaconBlock
+		blindedProposalData,       // BlindedBeaconBlock
 		validatorRegistrationData, // ValidatorRegistration
 		validatorExitData,         // ValidatorExit
 		aggregateAttestationData,  // AggregateAttestation
@@ -102,12 +102,12 @@ func attData(t *testing.T, mock *beaconmock.Mock) test {
 	}
 }
 
-func beaconBlockData(t *testing.T, mock *beaconmock.Mock) test {
+func proposalData(t *testing.T, mock *beaconmock.Mock) test {
 	t.Helper()
 
 	asserted := make(chan struct{})
 
-	block1 := eth2spec.VersionedSignedBeaconBlock{
+	proposal1 := eth2api.VersionedSignedProposal{
 		Version: eth2spec.DataVersionPhase0,
 		Phase0: &eth2p0.SignedBeaconBlock{
 			Message:   testutil.RandomPhase0BeaconBlock(),
@@ -115,17 +115,17 @@ func beaconBlockData(t *testing.T, mock *beaconmock.Mock) test {
 		},
 	}
 
-	aggData := core.VersionedSignedBeaconBlock{VersionedSignedBeaconBlock: block1}
+	aggData := core.VersionedSignedProposal{VersionedSignedProposal: proposal1}
 
-	mock.SubmitBeaconBlockFunc = func(ctx context.Context, block2 *eth2spec.VersionedSignedBeaconBlock) error {
-		require.Equal(t, block1, *block2)
+	mock.SubmitProposalFunc = func(ctx context.Context, proposal2 *eth2api.VersionedSignedProposal) error {
+		require.Equal(t, proposal1, *proposal2)
 		close(asserted)
 
 		return nil
 	}
 
 	return test{
-		name:     "Broadcast Beacon Block",
+		name:     "Broadcast Beacon Block Proposal",
 		aggData:  aggData,
 		duty:     core.DutyProposer,
 		bcastCnt: 1,
@@ -133,12 +133,12 @@ func beaconBlockData(t *testing.T, mock *beaconmock.Mock) test {
 	}
 }
 
-func blindedBeaconBlockData(t *testing.T, mock *beaconmock.Mock) test {
+func blindedProposalData(t *testing.T, mock *beaconmock.Mock) test {
 	t.Helper()
 
 	asserted := make(chan struct{})
 
-	block1 := eth2api.VersionedSignedBlindedBeaconBlock{
+	proposal1 := eth2api.VersionedSignedBlindedProposal{
 		Version: eth2spec.DataVersionBellatrix,
 		Capella: &eth2capella.SignedBlindedBeaconBlock{
 			Message:   testutil.RandomCapellaBlindedBeaconBlock(),
@@ -146,17 +146,17 @@ func blindedBeaconBlockData(t *testing.T, mock *beaconmock.Mock) test {
 		},
 	}
 
-	aggData := core.VersionedSignedBlindedBeaconBlock{VersionedSignedBlindedBeaconBlock: block1}
+	aggData := core.VersionedSignedBlindedProposal{VersionedSignedBlindedProposal: proposal1}
 
-	mock.SubmitBlindedBeaconBlockFunc = func(ctx context.Context, block2 *eth2api.VersionedSignedBlindedBeaconBlock) error {
-		require.Equal(t, block1, *block2)
+	mock.SubmitBlindedProposalFunc = func(ctx context.Context, proposal2 *eth2api.VersionedSignedBlindedProposal) error {
+		require.Equal(t, proposal1, *proposal2)
 		close(asserted)
 
 		return nil
 	}
 
 	return test{
-		name:     "Broadcast Blinded Beacon Block",
+		name:     "Broadcast Blinded Beacon Block Proposal",
 		aggData:  aggData,
 		duty:     core.DutyBuilderProposer,
 		bcastCnt: 1,

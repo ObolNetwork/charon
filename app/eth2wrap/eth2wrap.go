@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2http "github.com/attestantio/go-eth2-client/http"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -329,12 +330,12 @@ func incError(endpoint string) {
 // wrapError returns the error as a wrapped structured error.
 func wrapError(ctx context.Context, err error, label string, fields ...z.Field) error {
 	// Decompose go-eth2-client http errors
-	if e2err := new(eth2http.Error); errors.As(err, e2err) {
+	if apiErr := new(eth2api.Error); errors.As(err, apiErr) {
 		err = errors.New("nok http response",
-			z.Int("status_code", e2err.StatusCode),
-			z.Str("endpoint", e2err.Endpoint),
-			z.Str("method", e2err.Method),
-			z.Str("data", string(e2err.Data)),
+			z.Int("status_code", apiErr.StatusCode),
+			z.Str("endpoint", apiErr.Endpoint),
+			z.Str("method", apiErr.Method),
+			z.Str("data", string(apiErr.Data)),
 		)
 	}
 

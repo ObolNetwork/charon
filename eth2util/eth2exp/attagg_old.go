@@ -16,10 +16,11 @@ import (
 // IsAttAggregator returns true if the validator is the attestation aggregator for the given committee.
 // Refer: https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/validator.md#aggregation-selection
 func IsAttAggregator(ctx context.Context, specProvider eth2client.SpecProvider, commLen uint64, slotSig eth2p0.BLSSignature) (bool, error) {
-	spec, err := specProvider.Spec(ctx)
+	resp, err := specProvider.Spec(ctx)
 	if err != nil {
 		return false, errors.Wrap(err, "get eth2 spec")
 	}
+	spec := resp.Data
 
 	aggsPerComm, ok := spec["TARGET_AGGREGATORS_PER_COMMITTEE"].(uint64)
 	if !ok {
@@ -37,10 +38,11 @@ func IsAttAggregator(ctx context.Context, specProvider eth2client.SpecProvider, 
 // IsSyncCommAggregator returns true if the validator is the aggregator for the provided sync subcommittee.
 // Refer: https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#aggregation-selection
 func IsSyncCommAggregator(ctx context.Context, specProvider eth2client.SpecProvider, sig eth2p0.BLSSignature) (bool, error) {
-	spec, err := specProvider.Spec(ctx)
+	resp, err := specProvider.Spec(ctx)
 	if err != nil {
 		return false, errors.Wrap(err, "get eth2 spec")
 	}
+	spec := resp.Data
 
 	commSize, ok := spec["SYNC_COMMITTEE_SIZE"].(uint64)
 	if !ok {

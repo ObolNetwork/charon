@@ -73,12 +73,12 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 			return err
 		}
 
-		block, ok := aggData.(core.VersionedSignedBeaconBlock)
+		block, ok := aggData.(core.VersionedSignedProposal)
 		if !ok {
-			return errors.New("invalid block")
+			return errors.New("invalid proposal")
 		}
 
-		err = b.eth2Cl.SubmitBeaconBlock(ctx, &block.VersionedSignedBeaconBlock)
+		err = b.eth2Cl.SubmitProposal(ctx, &block.VersionedSignedProposal)
 		if err == nil {
 			log.Info(ctx, "Successfully submitted block proposal to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)),
@@ -94,12 +94,12 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 			return err
 		}
 
-		block, ok := aggData.(core.VersionedSignedBlindedBeaconBlock)
+		block, ok := aggData.(core.VersionedSignedBlindedProposal)
 		if !ok {
-			return errors.New("invalid block")
+			return errors.New("invalid blinded proposal")
 		}
 
-		err = b.eth2Cl.SubmitBlindedBeaconBlock(ctx, &block.VersionedSignedBlindedBeaconBlock)
+		err = b.eth2Cl.SubmitBlindedProposal(ctx, &block.VersionedSignedBlindedProposal)
 		if err == nil {
 			log.Info(ctx, "Successfully submitted blinded block proposal to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)),

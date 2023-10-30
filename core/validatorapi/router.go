@@ -58,11 +58,11 @@ type Handler interface {
 	eth2client.AttestationDataProvider
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
-	eth2client.BeaconBlockProposalProvider
-	eth2client.BeaconBlockSubmitter
+	eth2client.ProposalProvider
+	eth2client.ProposalSubmitter
 	eth2exp.BeaconCommitteeSelectionAggregator
-	eth2client.BlindedBeaconBlockProposalProvider
-	eth2client.BlindedBeaconBlockSubmitter
+	eth2client.BlindedProposalProvider
+	eth2client.BlindedProposalSubmitter
 	eth2client.NodeVersionProvider
 	eth2client.ProposerDutiesProvider
 	eth2client.SyncCommitteeContributionProvider
@@ -128,9 +128,14 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client) (*mux.Rou
 			Handler: proposeBlock(h),
 		},
 		{
-			Name:    "submit_block",
+			Name:    "submit_proposal_v1",
 			Path:    "/eth/v1/beacon/blocks",
-			Handler: submitBlock(h),
+			Handler: submitProposal(h),
+		},
+		{
+			Name:    "submit_proposal_v2",
+			Path:    "/eth/v2/beacon/blocks",
+			Handler: submitProposal(h),
 		},
 		{
 			Name:    "propose_blinded_block",
@@ -138,8 +143,13 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client) (*mux.Rou
 			Handler: proposeBlindedBlock(h),
 		},
 		{
-			Name:    "submit_blinded_block",
+			Name:    "submit_blinded_block_v1",
 			Path:    "/eth/v1/beacon/blinded_blocks",
+			Handler: submitBlindedBlock(h),
+		},
+		{
+			Name:    "submit_blinded_block_v2",
+			Path:    "/eth/v2/beacon/blinded_blocks",
 			Handler: submitBlindedBlock(h),
 		},
 		{
@@ -364,10 +374,15 @@ func attestationData(p eth2client.AttestationDataProvider) handlerFunc {
 			return nil, nil, err
 		}
 
-		data, err := p.AttestationData(ctx, eth2p0.Slot(slot), eth2p0.CommitteeIndex(commIdx))
+		opts := &eth2api.AttestationDataOpts{
+			Slot:           eth2p0.Slot(slot),
+			CommitteeIndex: eth2p0.CommitteeIndex(commIdx),
+		}
+		eth2Resp, err := p.AttestationData(ctx, opts)
 		if err != nil {
 			return nil, nil, err
 		}
+		data := eth2Resp.Data
 
 		return struct {
 			Data *eth2p0.AttestationData `json:"data"`
@@ -400,10 +415,17 @@ func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
 
 		// Note the ProposerDutiesProvider interface adds some sugar to the official eth2spec.
 		// ValidatorIndices aren't provided over the wire.
-		data, err := p.ProposerDuties(ctx, eth2p0.Epoch(epoch), nil)
+		opts := &eth2api.ProposerDutiesOpts{
+			Epoch:   eth2p0.Epoch(epoch),
+			Indices: nil,
+		}
+		eth2Resp, err := p.ProposerDuties(ctx, opts)
 		if err != nil {
 			return nil, nil, err
-		} else if len(data) == 0 { // Return empty json array instead of null
+		}
+
+		data := eth2Resp.Data
+		if len(data) == 0 { // Return empty json array instead of null
 			data = []*eth2v1.ProposerDuty{}
 		}
 
@@ -428,10 +450,17 @@ func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 			return nil, nil, err
 		}
 
-		data, err := p.AttesterDuties(ctx, eth2p0.Epoch(epoch), req)
+		opts := &eth2api.AttesterDutiesOpts{
+			Epoch:   eth2p0.Epoch(epoch),
+			Indices: req,
+		}
+		eth2Resp, err := p.AttesterDuties(ctx, opts)
 		if err != nil {
 			return nil, nil, err
-		} else if len(data) == 0 { // Return empty json array instead of null
+		}
+
+		data := eth2Resp.Data
+		if len(data) == 0 { // Return empty json array instead of null
 			data = []*eth2v1.AttesterDuty{}
 		}
 
@@ -456,10 +485,17 @@ func syncCommitteeDuties(p eth2client.SyncCommitteeDutiesProvider) handlerFunc {
 			return nil, nil, err
 		}
 
-		data, err := p.SyncCommitteeDuties(ctx, eth2p0.Epoch(epoch), req)
+		opts := &eth2api.SyncCommitteeDutiesOpts{
+			Epoch:   eth2p0.Epoch(epoch),
+			Indices: req,
+		}
+		eth2Resp, err := p.SyncCommitteeDuties(ctx, opts)
 		if err != nil {
 			return nil, nil, err
-		} else if len(data) == 0 { // Return empty json array instead of null
+		}
+
+		data := eth2Resp.Data
+		if len(data) == 0 { // Return empty json array instead of null
 			data = []*eth2v1.SyncCommitteeDuty{}
 		}
 
@@ -486,10 +522,16 @@ func syncCommitteeContribution(s eth2client.SyncCommitteeContributionProvider) h
 			return nil, nil, err
 		}
 
-		contribution, err := s.SyncCommitteeContribution(ctx, eth2p0.Slot(slot), subcommIdx, beaconBlockRoot)
+		opts := &eth2api.SyncCommitteeContributionOpts{
+			Slot:              eth2p0.Slot(slot),
+			SubcommitteeIndex: subcommIdx,
+			BeaconBlockRoot:   beaconBlockRoot,
+		}
+		eth2Resp, err := s.SyncCommitteeContribution(ctx, opts)
 		if err != nil {
 			return nil, nil, err
 		}
+		contribution := eth2Resp.Data
 
 		return syncCommitteeContributionResponse{Data: contribution}, nil, nil
 	}
@@ -509,7 +551,7 @@ func submitContributionAndProofs(s eth2client.SyncCommitteeContributionsSubmitte
 }
 
 // proposeBlock receives the randao from the validator and returns the unsigned BeaconBlock.
-func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
+func proposeBlock(p eth2client.ProposalProvider) handlerFunc {
 	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		slot, err := uintParam(params, "slot")
 		if err != nil {
@@ -526,10 +568,18 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 			return nil, nil, err
 		}
 
-		block, err := p.BeaconBlockProposal(ctx, eth2p0.Slot(slot), randao, graffiti)
+		var graff [32]byte
+		copy(graff[:], graffiti)
+		opts := &eth2api.ProposalOpts{
+			Slot:         eth2p0.Slot(slot),
+			RandaoReveal: randao,
+			Graffiti:     graff,
+		}
+		eth2Resp, err := p.Proposal(ctx, opts)
 		if err != nil {
 			return nil, nil, err
 		}
+		block := eth2Resp.Data
 
 		resHeaders := make(http.Header)
 		resHeaders.Add("Eth-Consensus-Version", block.Version.String())
@@ -587,7 +637,7 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 }
 
 // proposeBlindedBlock receives the randao from the validator and returns the unsigned BlindedBeaconBlock.
-func proposeBlindedBlock(p eth2client.BlindedBeaconBlockProposalProvider) handlerFunc {
+func proposeBlindedBlock(p eth2client.BlindedProposalProvider) handlerFunc {
 	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		slot, err := uintParam(params, "slot")
 		if err != nil {
@@ -599,10 +649,16 @@ func proposeBlindedBlock(p eth2client.BlindedBeaconBlockProposalProvider) handle
 			return nil, nil, err
 		}
 
-		block, err := p.BlindedBeaconBlockProposal(ctx, eth2p0.Slot(slot), randao, nil)
+		opts := &eth2api.BlindedProposalOpts{
+			Slot:         eth2p0.Slot(slot),
+			RandaoReveal: randao,
+			Graffiti:     [32]byte{},
+		}
+		eth2Resp, err := p.BlindedProposal(ctx, opts)
 		if err != nil {
 			return nil, nil, err
 		}
+		block := eth2Resp.Data
 
 		resHeaders := make(http.Header)
 		resHeaders.Add("Eth-Consensus-Version", block.Version.String())
@@ -641,79 +697,79 @@ func proposeBlindedBlock(p eth2client.BlindedBeaconBlockProposalProvider) handle
 	}
 }
 
-func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
+func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		capellaBlock := new(capella.SignedBeaconBlock)
 		err := unmarshal(typ, body, capellaBlock)
 		if err == nil {
-			block := &eth2spec.VersionedSignedBeaconBlock{
+			block := &eth2api.VersionedSignedProposal{
 				Version: eth2spec.DataVersionCapella,
 				Capella: capellaBlock,
 			}
 
-			return nil, nil, p.SubmitBeaconBlock(ctx, block)
+			return nil, nil, p.SubmitProposal(ctx, block)
 		}
 
 		bellatrixBlock := new(bellatrix.SignedBeaconBlock)
 		err = unmarshal(typ, body, bellatrixBlock)
 		if err == nil {
-			block := &eth2spec.VersionedSignedBeaconBlock{
+			block := &eth2api.VersionedSignedProposal{
 				Version:   eth2spec.DataVersionBellatrix,
 				Bellatrix: bellatrixBlock,
 			}
 
-			return nil, nil, p.SubmitBeaconBlock(ctx, block)
+			return nil, nil, p.SubmitProposal(ctx, block)
 		}
 
 		altairBlock := new(altair.SignedBeaconBlock)
 		err = unmarshal(typ, body, altairBlock)
 		if err == nil {
-			block := &eth2spec.VersionedSignedBeaconBlock{
+			block := &eth2api.VersionedSignedProposal{
 				Version: eth2spec.DataVersionAltair,
 				Altair:  altairBlock,
 			}
 
-			return nil, nil, p.SubmitBeaconBlock(ctx, block)
+			return nil, nil, p.SubmitProposal(ctx, block)
 		}
 
 		phase0Block := new(eth2p0.SignedBeaconBlock)
 		err = unmarshal(typ, body, phase0Block)
 		if err == nil {
-			block := &eth2spec.VersionedSignedBeaconBlock{
+			block := &eth2api.VersionedSignedProposal{
 				Version: eth2spec.DataVersionPhase0,
 				Phase0:  phase0Block,
 			}
 
-			return nil, nil, p.SubmitBeaconBlock(ctx, block)
+			return nil, nil, p.SubmitProposal(ctx, block)
 		}
 
 		return nil, nil, errors.New("invalid submitted block", z.Hex("body", body))
 	}
 }
 
-func submitBlindedBlock(p eth2client.BlindedBeaconBlockSubmitter) handlerFunc {
+func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		// The blinded block maybe either bellatrix or capella.
 		capellaBlock := new(eth2capella.SignedBlindedBeaconBlock)
 		err := unmarshal(typ, body, capellaBlock)
 		if err == nil {
-			block := &eth2api.VersionedSignedBlindedBeaconBlock{
+			block := &eth2api.VersionedSignedBlindedProposal{
 				Version: eth2spec.DataVersionCapella,
 				Capella: capellaBlock,
 			}
 
-			return nil, nil, p.SubmitBlindedBeaconBlock(ctx, block)
+			return nil, nil, p.SubmitBlindedProposal(ctx, block)
 		}
 
 		bellatrixBlock := new(eth2bellatrix.SignedBlindedBeaconBlock)
 		err = unmarshal(typ, body, bellatrixBlock)
 		if err == nil {
-			block := &eth2api.VersionedSignedBlindedBeaconBlock{
+			block := &eth2api.VersionedSignedBlindedProposal{
 				Version:   eth2spec.DataVersionBellatrix,
 				Bellatrix: bellatrixBlock,
 			}
 
-			return nil, nil, p.SubmitBlindedBeaconBlock(ctx, block)
+			return nil, nil, p.SubmitBlindedProposal(ctx, block)
 		}
 
 		return nil, nil, errors.New("invalid block")
@@ -809,10 +865,15 @@ func aggregateAttestation(p eth2client.AggregateAttestationProvider) handlerFunc
 			return nil, nil, err
 		}
 
-		data, err := p.AggregateAttestation(ctx, eth2p0.Slot(slot), attDataRoot)
+		opts := &eth2api.AggregateAttestationOpts{
+			Slot:                eth2p0.Slot(slot),
+			AttestationDataRoot: attDataRoot,
+		}
+		eth2Resp, err := p.AggregateAttestation(ctx, opts)
 		if err != nil {
 			return nil, nil, err
 		}
+		data := eth2Resp.Data
 
 		return struct {
 			Data *eth2p0.Attestation `json:"data"`
@@ -867,10 +928,11 @@ func submitProposalPreparations() handlerFunc {
 // nodeVersion returns the version of the node.
 func nodeVersion(p eth2client.NodeVersionProvider) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
-		version, err := p.NodeVersion(ctx)
+		eth2Resp, err := p.NodeVersion(ctx)
 		if err != nil {
 			return nil, nil, err
 		}
+		version := eth2Resp.Data
 
 		return nodeVersionResponse{
 			Data: struct {
@@ -1191,10 +1253,15 @@ func getValidatorsByID(ctx context.Context, p eth2client.ValidatorsProvider, sta
 			pubkeys = append(pubkeys, eth2Pubkey)
 		}
 
-		vals, err := p.ValidatorsByPubKey(ctx, stateID, pubkeys)
+		opts := &eth2api.ValidatorsOpts{
+			State:   stateID,
+			PubKeys: pubkeys,
+		}
+		eth2Resp, err := p.Validators(ctx, opts)
 		if err != nil {
 			return nil, err
 		}
+		vals := eth2Resp.Data
 
 		return flatten(vals), nil
 	}
@@ -1208,10 +1275,15 @@ func getValidatorsByID(ctx context.Context, p eth2client.ValidatorsProvider, sta
 		vIdxs = append(vIdxs, eth2p0.ValidatorIndex(vIdx))
 	}
 
-	vals, err := p.Validators(ctx, stateID, vIdxs)
+	opts := &eth2api.ValidatorsOpts{
+		State:   stateID,
+		Indices: vIdxs,
+	}
+	eth2Resp, err := p.Validators(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
+	vals := eth2Resp.Data
 
 	return flatten(vals), nil
 }

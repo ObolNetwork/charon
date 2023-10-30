@@ -5,6 +5,7 @@ package core
 import (
 	"context"
 
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -16,10 +17,10 @@ import (
 )
 
 var (
-	_ Eth2SignedData = VersionedSignedBeaconBlock{}
+	_ Eth2SignedData = VersionedSignedProposal{}
 	_ Eth2SignedData = Attestation{}
 	_ Eth2SignedData = SignedVoluntaryExit{}
-	_ Eth2SignedData = VersionedSignedBlindedBeaconBlock{}
+	_ Eth2SignedData = VersionedSignedBlindedProposal{}
 	_ Eth2SignedData = VersionedSignedValidatorRegistration{}
 	_ Eth2SignedData = SignedRandao{}
 	_ Eth2SignedData = BeaconCommitteeSelection{}
@@ -60,14 +61,33 @@ func VerifyEth2SignedData(ctx context.Context, eth2Cl eth2wrap.Client, data Eth2
 	return nil
 }
 
-// Implement Eth2SignedData for VersionedSignedBeaconBlock.
+// Implement Eth2SignedData for VersionedSignedProposal.
 
-func (VersionedSignedBeaconBlock) DomainNames() []signing.DomainName {
-	return []signing.DomainName{signing.DomainBeaconProposer}
+func (p VersionedSignedProposal) DomainNames() []signing.DomainName {
+	switch p.Version {
+	case eth2spec.DataVersionPhase0:
+		return []signing.DomainName{signing.DomainBeaconProposer}
+	case eth2spec.DataVersionAltair:
+		return []signing.DomainName{signing.DomainBeaconProposer}
+	case eth2spec.DataVersionBellatrix:
+		return []signing.DomainName{signing.DomainBeaconProposer}
+	case eth2spec.DataVersionCapella:
+		return []signing.DomainName{signing.DomainBeaconProposer}
+	case eth2spec.DataVersionDeneb:
+		var domains []signing.DomainName
+		domains = append(domains, signing.DomainBeaconProposer) // Deneb beacon block
+		for range p.Deneb.SignedBlobSidecars {
+			domains = append(domains, signing.DomainBlobSidecar) // Deneb blob sidecar
+		}
+
+		return domains
+	default:
+		return []signing.DomainName{signing.DomainBeaconProposer}
+	}
 }
 
-func (b VersionedSignedBeaconBlock) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
-	slot, err := b.VersionedSignedBeaconBlock.Slot()
+func (p VersionedSignedProposal) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	slot, err := p.Slot()
 	if err != nil {
 		return 0, err
 	}
@@ -75,14 +95,29 @@ func (b VersionedSignedBeaconBlock) Epoch(ctx context.Context, eth2Cl eth2wrap.C
 	return eth2util.EpochFromSlot(ctx, eth2Cl, slot)
 }
 
-// Implement Eth2SignedData for VersionedSignedBlindedBeaconBlock.
+// Implement Eth2SignedData for VersionedSignedBlindedProposal.
 
-func (VersionedSignedBlindedBeaconBlock) DomainNames() []signing.DomainName {
-	return []signing.DomainName{signing.DomainBeaconProposer}
+func (p VersionedSignedBlindedProposal) DomainNames() []signing.DomainName {
+	switch p.Version {
+	case eth2spec.DataVersionBellatrix:
+		return []signing.DomainName{signing.DomainBeaconProposer}
+	case eth2spec.DataVersionCapella:
+		return []signing.DomainName{signing.DomainBeaconProposer}
+	case eth2spec.DataVersionDeneb:
+		var domains []signing.DomainName
+		domains = append(domains, signing.DomainBeaconProposer) // Deneb beacon block
+		for range p.Deneb.SignedBlindedBlobSidecars {
+			domains = append(domains, signing.DomainBlobSidecar) // Deneb blob sidecar
+		}
+
+		return domains
+	default:
+		return []signing.DomainName{signing.DomainBeaconProposer}
+	}
 }
 
-func (b VersionedSignedBlindedBeaconBlock) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
-	slot, err := b.VersionedSignedBlindedBeaconBlock.Slot()
+func (p VersionedSignedBlindedProposal) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	slot, err := p.VersionedSignedBlindedProposal.Slot()
 	if err != nil {
 		return 0, err
 	}

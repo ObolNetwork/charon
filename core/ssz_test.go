@@ -52,16 +52,16 @@ func TestSSZ(t *testing.T) {
 	tests := []struct {
 		zero func() any
 	}{
-		{zero: func() any { return new(core.VersionedSignedBeaconBlock) }},
+		{zero: func() any { return new(core.VersionedSignedProposal) }},
 		{zero: func() any { return new(core.Attestation) }},
-		{zero: func() any { return new(core.VersionedSignedBlindedBeaconBlock) }},
+		{zero: func() any { return new(core.VersionedSignedBlindedProposal) }},
 		{zero: func() any { return new(core.SignedAggregateAndProof) }},
 		{zero: func() any { return new(core.SignedSyncMessage) }},
 		{zero: func() any { return new(core.SyncContributionAndProof) }},
 		{zero: func() any { return new(core.SignedSyncContributionAndProof) }},
 		{zero: func() any { return new(core.AggregatedAttestation) }},
-		{zero: func() any { return new(core.VersionedBeaconBlock) }},
-		{zero: func() any { return new(core.VersionedBlindedBeaconBlock) }},
+		{zero: func() any { return new(core.VersionedProposal) }},
+		{zero: func() any { return new(core.VersionedBlindedProposal) }},
 		{zero: func() any { return new(core.SyncContribution) }},
 	}
 
@@ -105,11 +105,11 @@ func TestMarshalUnsignedProto(t *testing.T) {
 		},
 		{
 			dutyType:    core.DutyProposer,
-			unsignedPtr: func() any { return new(core.VersionedBeaconBlock) },
+			unsignedPtr: func() any { return new(core.VersionedProposal) },
 		},
 		{
 			dutyType:    core.DutyBuilderProposer,
-			unsignedPtr: func() any { return new(core.VersionedBlindedBeaconBlock) },
+			unsignedPtr: func() any { return new(core.VersionedBlindedProposal) },
 		},
 		{
 			dutyType:    core.DutySyncContribution,
@@ -183,11 +183,11 @@ func TestMarshalParSignedProto(t *testing.T) {
 		},
 		{
 			dutyType:  core.DutyProposer,
-			signedPtr: func() any { return new(core.VersionedSignedBeaconBlock) },
+			signedPtr: func() any { return new(core.VersionedSignedProposal) },
 		},
 		{
 			dutyType:  core.DutyBuilderProposer,
-			signedPtr: func() any { return new(core.VersionedSignedBlindedBeaconBlock) },
+			signedPtr: func() any { return new(core.VersionedSignedBlindedProposal) },
 		},
 		{
 			dutyType:  core.DutySyncContribution,

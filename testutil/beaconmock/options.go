@@ -160,9 +160,9 @@ func WithValidatorSet(set ValidatorSet) Option {
 			return resp, nil
 		}
 
-		mock.ValidatorsFunc = func(ctx context.Context, stateID string, indexes []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+		mock.ValidatorsFunc = func(ctx context.Context, opts *eth2api.ValidatorsOpts) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 			resp := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
-			if len(indexes) == 0 {
+			if len(opts.Indices) == 0 {
 				for idx, val := range set {
 					resp[idx] = cloneValidator(val)
 				}
@@ -170,7 +170,7 @@ func WithValidatorSet(set ValidatorSet) Option {
 				return resp, nil
 			}
 
-			for _, index := range indexes {
+			for _, index := range opts.Indices {
 				val, ok := set[index]
 				if ok {
 					resp[index] = cloneValidator(val)
@@ -273,10 +273,15 @@ func WithDeterministicAttesterDuties(factor int) Option {
 
 	return func(mock *Mock) {
 		mock.AttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
-			vals, err := mock.Validators(ctx, "", indices)
+			opts := &eth2api.ValidatorsOpts{
+				State:   "",
+				Indices: indices,
+			}
+			eth2Resp, err := mock.Validators(ctx, opts)
 			if err != nil {
 				return nil, err
 			}
+			vals := eth2Resp.Data
 
 			slotsPerEpoch, err := mock.SlotsPerEpoch(ctx)
 			if err != nil {
@@ -397,10 +402,15 @@ func WithDeterministicSyncCommDuties(n, k int) Option {
 				return nil, nil
 			}
 
-			vals, err := mock.Validators(ctx, "", indices)
+			opts := &eth2api.ValidatorsOpts{
+				State:   "",
+				Indices: indices,
+			}
+			eth2Resp, err := mock.Validators(ctx, opts)
 			if err != nil {
 				return nil, err
 			}
+			vals := eth2Resp.Data
 
 			var resp []*eth2v1.SyncCommitteeDuty
 			for i, index := range indices {
@@ -465,25 +475,25 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		HTTPMock:     httpMock,
 		httpServer:   httpServer,
 		headProducer: headProducer,
-		BeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2spec.VersionedBeaconBlock, error) {
-			block := &eth2spec.VersionedBeaconBlock{
+		ProposalFunc: func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error) {
+			block := &eth2api.VersionedProposal{
 				Version: eth2spec.DataVersionCapella,
 				Capella: testutil.RandomCapellaBeaconBlock(),
 			}
-			block.Capella.Slot = slot
-			block.Capella.Body.RANDAOReveal = randaoReveal
-			block.Capella.Body.Graffiti = array32(graffiti)
+			block.Capella.Slot = opts.Slot
+			block.Capella.Body.RANDAOReveal = opts.RandaoReveal
+			block.Capella.Body.Graffiti = opts.Graffiti
 
 			return block, nil
 		},
-		BlindedBeaconBlockProposalFunc: func(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature, graffiti []byte) (*eth2api.VersionedBlindedBeaconBlock, error) {
-			block := &eth2api.VersionedBlindedBeaconBlock{
+		BlindedProposalFunc: func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.VersionedBlindedProposal, error) {
+			block := &eth2api.VersionedBlindedProposal{
 				Version: eth2spec.DataVersionCapella,
 				Capella: testutil.RandomCapellaBlindedBeaconBlock(),
 			}
-			block.Capella.Slot = slot
-			block.Capella.Body.RANDAOReveal = randaoReveal
-			block.Capella.Body.Graffiti = array32(graffiti)
+			block.Capella.Slot = opts.Slot
+			block.Capella.Body.RANDAOReveal = opts.RandaoReveal
+			block.Capella.Body.Graffiti = opts.Graffiti
 
 			return block, nil
 		},
@@ -519,7 +529,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		ActiveValidatorsFunc: func(ctx context.Context) (eth2wrap.ActiveValidators, error) {
 			return nil, nil
 		},
-		ValidatorsFunc: func(context.Context, string, []eth2p0.ValidatorIndex) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+		ValidatorsFunc: func(context.Context, *eth2api.ValidatorsOpts) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 			return nil, nil
 		},
 		ValidatorsByPubKeyFunc: func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
@@ -528,10 +538,10 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SubmitAttestationsFunc: func(context.Context, []*eth2p0.Attestation) error {
 			return nil
 		},
-		SubmitBeaconBlockFunc: func(context.Context, *eth2spec.VersionedSignedBeaconBlock) error {
+		SubmitProposalFunc: func(context.Context, *eth2api.VersionedSignedProposal) error {
 			return nil
 		},
-		SubmitBlindedBeaconBlockFunc: func(context.Context, *eth2api.VersionedSignedBlindedBeaconBlock) error {
+		SubmitBlindedProposalFunc: func(context.Context, *eth2api.VersionedSignedBlindedProposal) error {
 			return nil
 		},
 		SubmitVoluntaryExitFunc: func(context.Context, *eth2p0.SignedVoluntaryExit) error {
@@ -541,7 +551,12 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			return httpMock.GenesisTime(ctx)
 		},
 		NodeSyncingFunc: func(ctx context.Context) (*eth2v1.SyncState, error) {
-			return httpMock.NodeSyncing(ctx)
+			resp, err := httpMock.NodeSyncing(ctx)
+			if err != nil {
+				return nil, err
+			}
+
+			return resp.Data, nil
 		},
 		SubmitValidatorRegistrationsFunc: func(context.Context, []*eth2api.VersionedSignedValidatorRegistration) error {
 			return nil
@@ -586,19 +601,17 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			return nil
 		},
 		ForkScheduleFunc: func(ctx context.Context) ([]*eth2p0.Fork, error) {
-			return httpMock.ForkSchedule(ctx)
+			eth2Resp, err := httpMock.ForkSchedule(ctx)
+			if err != nil {
+				return nil, err
+			}
+
+			return eth2Resp.Data, nil
 		},
 		ProposerConfigFunc: func(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
 			return nil, nil
 		},
 	}
-}
-
-func array32(slice []byte) [32]byte {
-	var resp [32]byte
-	copy(resp[:], slice)
-
-	return resp
 }
 
 func mustPKFromHex(pubkeyHex string) eth2p0.BLSPubKey {

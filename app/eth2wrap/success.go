@@ -3,16 +3,17 @@
 package eth2wrap
 
 import (
+	"github.com/attestantio/go-eth2-client/api"
 	apiv1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
 )
 
-// isSyncStateOk returns tue if the sync state is not syncing.
-func isSyncStateOk(s *apiv1.SyncState) bool {
-	return !s.IsSyncing
+// isSyncStateOk returns true if the sync state is not syncing.
+func isSyncStateOk(resp *api.Response[*apiv1.SyncState]) bool {
+	return !resp.Data.IsSyncing
 }
 
 // isAggregateAttestationOk returns true if the aggregate attestation is not nil (which can happen if the subscription wasn't successful).
-func isAggregateAttestationOk(att *phase0.Attestation) bool {
-	return att != nil
+func isAggregateAttestationOk(resp *api.Response[*phase0.Attestation]) bool {
+	return resp.Data != nil
 }

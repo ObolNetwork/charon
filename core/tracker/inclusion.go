@@ -101,22 +101,22 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 			return errors.Wrap(err, "hash aggregate")
 		}
 	} else if duty.Type == core.DutyProposer {
-		block, ok := data.(core.VersionedSignedBeaconBlock)
+		proposal, ok := data.(core.VersionedSignedProposal)
 		if !ok {
 			return errors.New("invalid block")
 		}
-		if eth2wrap.IsSyntheticBlock(&block.VersionedSignedBeaconBlock) {
+		if eth2wrap.IsSyntheticProposal(&proposal.VersionedSignedProposal) {
 			// Report inclusion for synthetic blocks as it is already included on-chain.
 			i.trackerInclFunc(duty, pubkey, data, nil)
 
 			return nil
 		}
 	} else if duty.Type == core.DutyBuilderProposer {
-		block, ok := data.(core.VersionedSignedBlindedBeaconBlock)
+		block, ok := data.(core.VersionedSignedBlindedProposal)
 		if !ok {
 			return errors.New("invalid blinded block")
 		}
-		if eth2wrap.IsSyntheticBlindedBlock(&block.VersionedSignedBlindedBeaconBlock) {
+		if eth2wrap.IsSyntheticBlindedBlock(&block.VersionedSignedBlindedProposal) {
 			// Report inclusion for synthetic blinded blocks as it is already included on-chain.
 			i.trackerInclFunc(duty, pubkey, data, nil)
 

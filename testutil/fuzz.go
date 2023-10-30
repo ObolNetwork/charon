@@ -61,7 +61,7 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 					*e = (*e)[:2]
 				}
 			},
-			// eth2p0.AttesterSlashings has max
+			// eth2p0.ProposerSlashings has max
 			func(e *[]*eth2p0.ProposerSlashing, c fuzz.Continue) {
 				c.FuzzNoCustom(e)
 				if len(*e) > 16 {
@@ -104,38 +104,66 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 					*e = (*e)[:4]
 				}
 			},
-			// Populate one of the versions of these Versioned*Block types.
-			func(e *core.VersionedSignedBlindedBeaconBlock, c fuzz.Continue) {
+			// Populate one of the versions of these Versioned*Proposal types.
+			func(e *core.VersionedSignedBlindedProposal, c fuzz.Continue) {
 				e.Version = blindedVersions[(c.Intn(len(blindedVersions)))]
 				version, err := eth2util.DataVersionFromETH2(e.Version)
 				require.NoError(t, err)
 
 				val := core.VersionedSSZValueForT(t, e, version)
 				c.Fuzz(val)
+
+				// Limit length of blob sidecars to 6
+				// See https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/beacon-chain.md#execution
+				maxBlobSidecars := 6
+				if e.Version == eth2spec.DataVersionDeneb && len(e.Deneb.SignedBlindedBlobSidecars) > maxBlobSidecars {
+					e.Deneb.SignedBlindedBlobSidecars = e.Deneb.SignedBlindedBlobSidecars[:maxBlobSidecars]
+				}
 			},
-			func(e *core.VersionedBlindedBeaconBlock, c fuzz.Continue) {
+			func(e *core.VersionedBlindedProposal, c fuzz.Continue) {
 				e.Version = blindedVersions[(c.Intn(len(blindedVersions)))]
 				version, err := eth2util.DataVersionFromETH2(e.Version)
 				require.NoError(t, err)
 
 				val := core.VersionedSSZValueForT(t, e, version)
 				c.Fuzz(val)
+
+				// Limit length of blob sidecars to 6
+				// See https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/beacon-chain.md#execution
+				maxBlobSidecars := 6
+				if e.Version == eth2spec.DataVersionDeneb && len(e.Deneb.BlindedBlobSidecars) > maxBlobSidecars {
+					e.Deneb.BlindedBlobSidecars = e.Deneb.BlindedBlobSidecars[:maxBlobSidecars]
+				}
 			},
-			func(e *core.VersionedSignedBeaconBlock, c fuzz.Continue) {
+			func(e *core.VersionedSignedProposal, c fuzz.Continue) {
 				e.Version = allVersions[(c.Intn(len(allVersions)))]
 				version, err := eth2util.DataVersionFromETH2(e.Version)
 				require.NoError(t, err)
 
 				val := core.VersionedSSZValueForT(t, e, version)
 				c.Fuzz(val)
+
+				// Limit length of blob sidecars to 6
+				// See https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/beacon-chain.md#execution
+				maxBlobSidecars := 6
+				if e.Version == eth2spec.DataVersionDeneb && len(e.Deneb.SignedBlobSidecars) > maxBlobSidecars {
+					e.Deneb.SignedBlobSidecars = e.Deneb.SignedBlobSidecars[:maxBlobSidecars]
+				}
 			},
-			func(e *core.VersionedBeaconBlock, c fuzz.Continue) {
+			func(e *core.VersionedProposal, c fuzz.Continue) {
 				e.Version = allVersions[(c.Intn(len(allVersions)))]
 				version, err := eth2util.DataVersionFromETH2(e.Version)
 				require.NoError(t, err)
 
 				val := core.VersionedSSZValueForT(t, e, version)
 				c.Fuzz(val)
+
+				// Limit length of blob sidecars to 6
+				// See https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/beacon-chain.md#execution
+				maxBlobSidecars := 6
+				if e.Version == eth2spec.DataVersionDeneb && len(e.Deneb.BlobSidecars) > maxBlobSidecars {
+					e.Deneb.BlobSidecars = e.Deneb.BlobSidecars[:maxBlobSidecars]
+				}
 			},
 		)
 }

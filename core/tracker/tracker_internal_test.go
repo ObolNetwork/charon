@@ -9,8 +9,8 @@ import (
 	"reflect"
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -760,7 +760,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				dutyAtt: {event{
 					duty: dutyAtt,
 					step: fetcher,
-					stepErr: errors.Wrap(eth2http.Error{
+					stepErr: errors.Wrap(eth2api.Error{
 						Method:     http.MethodGet,
 						Endpoint:   "/eth/v1/validator/attestation_data",
 						StatusCode: 404,
@@ -770,7 +770,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			},
 			reason: reasonFetcherBN,
 			failed: true,
-			err: errors.Wrap(eth2http.Error{
+			err: errors.Wrap(eth2api.Error{
 				Method:     http.MethodGet,
 				Endpoint:   "/eth/v1/validator/attestation_data",
 				StatusCode: 404,
@@ -1117,7 +1117,7 @@ func TestAnalyseParSigs(t *testing.T) {
 	var events []event
 
 	makeEvents := func(n int, pubkey string) {
-		data := testutil.RandomBellatrixCoreVersionedSignedBeaconBlock()
+		data := testutil.RandomBellatrixCoreVersionedSignedProposal()
 		offset := len(events)
 		for i := 0; i < n; i++ {
 			data, err := data.SetSignatures([]core.Signature{testutil.RandomCoreSignature()})

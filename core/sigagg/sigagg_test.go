@@ -326,11 +326,11 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		block *eth2spec.VersionedSignedBeaconBlock
+		block *eth2api.VersionedSignedProposal
 	}{
 		{
 			name: "phase0 block",
-			block: &eth2spec.VersionedSignedBeaconBlock{
+			block: &eth2api.VersionedSignedProposal{
 				Version: eth2spec.DataVersionPhase0,
 				Phase0: &eth2p0.SignedBeaconBlock{
 					Message:   testutil.RandomPhase0BeaconBlock(),
@@ -340,7 +340,7 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 		},
 		{
 			name: "altair block",
-			block: &eth2spec.VersionedSignedBeaconBlock{
+			block: &eth2api.VersionedSignedProposal{
 				Version: eth2spec.DataVersionAltair,
 				Altair: &altair.SignedBeaconBlock{
 					Message:   testutil.RandomAltairBeaconBlock(),
@@ -350,7 +350,7 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 		},
 		{
 			name: "bellatrix block",
-			block: &eth2spec.VersionedSignedBeaconBlock{
+			block: &eth2api.VersionedSignedProposal{
 				Version: eth2spec.DataVersionBellatrix,
 				Bellatrix: &bellatrix.SignedBeaconBlock{
 					Message:   testutil.RandomBellatrixBeaconBlock(),
@@ -360,7 +360,7 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 		},
 		{
 			name: "capella block",
-			block: &eth2spec.VersionedSignedBeaconBlock{
+			block: &eth2api.VersionedSignedProposal{
 				Version: eth2spec.DataVersionCapella,
 				Capella: &capella.SignedBeaconBlock{
 					Message:   testutil.RandomCapellaBeaconBlock(),
@@ -372,7 +372,7 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			block, err := core.NewVersionedSignedBeaconBlock(test.block)
+			block, err := core.NewVersionedSignedProposal(test.block)
 			require.NoError(t, err)
 
 			msgRoots, err := block.MessageRoots()
@@ -515,11 +515,11 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		block *eth2api.VersionedSignedBlindedBeaconBlock
+		block *eth2api.VersionedSignedBlindedProposal
 	}{
 		{
 			name: "bellatrix block",
-			block: &eth2api.VersionedSignedBlindedBeaconBlock{
+			block: &eth2api.VersionedSignedBlindedProposal{
 				Version: eth2spec.DataVersionBellatrix,
 				Bellatrix: &eth2bellatrix.SignedBlindedBeaconBlock{
 					Message:   testutil.RandomBellatrixBlindedBeaconBlock(),
@@ -529,7 +529,7 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 		},
 		{
 			name: "capella block",
-			block: &eth2api.VersionedSignedBlindedBeaconBlock{
+			block: &eth2api.VersionedSignedBlindedProposal{
 				Version: eth2spec.DataVersionCapella,
 				Capella: &eth2capella.SignedBlindedBeaconBlock{
 					Message:   testutil.RandomCapellaBlindedBeaconBlock(),
@@ -541,7 +541,7 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			block, err := core.NewVersionedSignedBlindedBeaconBlock(test.block)
+			block, err := core.NewVersionedSignedBlindedProposal(test.block)
 			require.NoError(t, err)
 
 			msgRoots, err := block.MessageRoots()
@@ -565,7 +565,7 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 				sig, err := tbls.Sign(secret, msg[:])
 				require.NoError(t, err)
 
-				block, err := core.NewVersionedSignedBlindedBeaconBlock(test.block)
+				block, err := core.NewVersionedSignedBlindedProposal(test.block)
 				require.NoError(t, err)
 
 				sigCore := tblsconv.SigToCore(sig)

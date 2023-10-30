@@ -25,9 +25,9 @@ func TestSignedDataSetSignature(t *testing.T) {
 		data core.SignedData
 	}{
 		{
-			name: "versioned signed beacon block",
-			data: core.VersionedSignedBeaconBlock{
-				VersionedSignedBeaconBlock: eth2spec.VersionedSignedBeaconBlock{
+			name: "versioned signed proposal",
+			data: core.VersionedSignedProposal{
+				VersionedSignedProposal: eth2api.VersionedSignedProposal{
 					Version: eth2spec.DataVersionBellatrix,
 					Bellatrix: &bellatrix.SignedBeaconBlock{
 						Message:   testutil.RandomBellatrixBeaconBlock(),
@@ -37,9 +37,9 @@ func TestSignedDataSetSignature(t *testing.T) {
 			},
 		},
 		{
-			name: "versioned signed blinded beacon block bellatrix",
-			data: core.VersionedSignedBlindedBeaconBlock{
-				VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
+			name: "versioned signed blinded proposal bellatrix",
+			data: core.VersionedSignedBlindedProposal{
+				VersionedSignedBlindedProposal: eth2api.VersionedSignedBlindedProposal{
 					Version: eth2spec.DataVersionBellatrix,
 					Bellatrix: &eth2bellatrix.SignedBlindedBeaconBlock{
 						Message:   testutil.RandomBellatrixBlindedBeaconBlock(),
@@ -49,9 +49,9 @@ func TestSignedDataSetSignature(t *testing.T) {
 			},
 		},
 		{
-			name: "versioned signed blinded beacon block capella",
-			data: core.VersionedSignedBlindedBeaconBlock{
-				VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
+			name: "versioned signed blinded proposal capella",
+			data: core.VersionedSignedBlindedProposal{
+				VersionedSignedBlindedProposal: eth2api.VersionedSignedBlindedProposal{
 					Version: eth2spec.DataVersionCapella,
 					Capella: &eth2capella.SignedBlindedBeaconBlock{
 						Message:   testutil.RandomCapellaBlindedBeaconBlock(),

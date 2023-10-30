@@ -12,7 +12,6 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
-	"github.com/attestantio/go-eth2-client/spec/deneb"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
 	"github.com/stretchr/testify/require"
@@ -28,49 +27,49 @@ type sszType interface {
 	ssz.Unmarshaler
 }
 
-// ======================= VersionedSignedBeaconBlock =======================
+// ======================= VersionedSignedProposal =======================
 
-// MarshalSSZ ssz marshals the VersionedSignedBeaconBlock object.
-func (b VersionedSignedBeaconBlock) MarshalSSZ() ([]byte, error) {
-	resp, err := ssz.MarshalSSZ(b)
+// MarshalSSZ ssz marshals the VersionedSignedProposal object.
+func (p VersionedSignedProposal) MarshalSSZ() ([]byte, error) {
+	resp, err := ssz.MarshalSSZ(p)
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal VersionedSignedBeaconBlock")
+		return nil, errors.Wrap(err, "marshal VersionedSignedProposal")
 	}
 
 	return resp, nil
 }
 
-// MarshalSSZTo ssz marshals the VersionedSignedBeaconBlock object to a target array.
-func (b VersionedSignedBeaconBlock) MarshalSSZTo(buf []byte) ([]byte, error) {
-	version, err := eth2util.DataVersionFromETH2(b.Version)
+// MarshalSSZTo ssz marshals the VersionedSignedProposal object to a target array.
+func (p VersionedSignedProposal) MarshalSSZTo(buf []byte) ([]byte, error) {
+	version, err := eth2util.DataVersionFromETH2(p.Version)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid version")
 	}
 
-	return marshalSSZVersionedTo(buf, version, b.sszValFromVersion)
+	return marshalSSZVersionedTo(buf, version, p.sszValFromVersion)
 }
 
-// UnmarshalSSZ ssz unmarshals the VersionedSignedBeaconBlock object.
-func (b *VersionedSignedBeaconBlock) UnmarshalSSZ(buf []byte) error {
-	version, err := unmarshalSSZVersioned(buf, b.sszValFromVersion)
+// UnmarshalSSZ ssz unmarshals the VersionedSignedProposal object.
+func (p *VersionedSignedProposal) UnmarshalSSZ(buf []byte) error {
+	version, err := unmarshalSSZVersioned(buf, p.sszValFromVersion)
 	if err != nil {
-		return errors.Wrap(err, "unmarshal VersionedSignedBeaconBlock")
+		return errors.Wrap(err, "unmarshal VersionedSignedProposal")
 	}
 
-	b.Version = version.ToETH2()
+	p.Version = version.ToETH2()
 
 	return nil
 }
 
-// SizeSSZ returns the ssz encoded size in bytes for the VersionedSignedBeaconBlock object.
-func (b VersionedSignedBeaconBlock) SizeSSZ() int {
-	version, err := eth2util.DataVersionFromETH2(b.Version)
+// SizeSSZ returns the ssz encoded size in bytes for the VersionedSignedProposal object.
+func (p VersionedSignedProposal) SizeSSZ() int {
+	version, err := eth2util.DataVersionFromETH2(p.Version)
 	if err != nil {
 		// SSZMarshaller interface doesn't return an error, so we can't either.
 		return 0
 	}
 
-	val, err := b.sszValFromVersion(version)
+	val, err := p.sszValFromVersion(version)
 	if err != nil {
 		// SSZMarshaller interface doesn't return an error, so we can't either.
 		return 0
@@ -79,49 +78,49 @@ func (b VersionedSignedBeaconBlock) SizeSSZ() int {
 	return sizeSSZVersioned(val)
 }
 
-// sszValFromVersion returns the internal value of the VersionedSignedBeaconBlock object for a given version.
-func (b *VersionedSignedBeaconBlock) sszValFromVersion(version eth2util.DataVersion) (sszType, error) {
+// sszValFromVersion returns the internal value of the VersionedSignedProposal object for a given version.
+func (p *VersionedSignedProposal) sszValFromVersion(version eth2util.DataVersion) (sszType, error) {
 	switch version {
 	case eth2util.DataVersionPhase0:
-		if b.Phase0 == nil {
-			b.Phase0 = new(eth2p0.SignedBeaconBlock)
+		if p.Phase0 == nil {
+			p.Phase0 = new(eth2p0.SignedBeaconBlock)
 		}
 
-		return b.Phase0, nil
+		return p.Phase0, nil
 	case eth2util.DataVersionAltair:
-		if b.Altair == nil {
-			b.Altair = new(altair.SignedBeaconBlock)
+		if p.Altair == nil {
+			p.Altair = new(altair.SignedBeaconBlock)
 		}
 
-		return b.Altair, nil
+		return p.Altair, nil
 	case eth2util.DataVersionBellatrix:
-		if b.Bellatrix == nil {
-			b.Bellatrix = new(bellatrix.SignedBeaconBlock)
+		if p.Bellatrix == nil {
+			p.Bellatrix = new(bellatrix.SignedBeaconBlock)
 		}
 
-		return b.Bellatrix, nil
+		return p.Bellatrix, nil
 	case eth2util.DataVersionCapella:
-		if b.Capella == nil {
-			b.Capella = new(capella.SignedBeaconBlock)
+		if p.Capella == nil {
+			p.Capella = new(capella.SignedBeaconBlock)
 		}
 
-		return b.Capella, nil
+		return p.Capella, nil
 	case eth2util.DataVersionDeneb:
-		if b.Deneb == nil {
-			b.Deneb = new(deneb.SignedBeaconBlock)
+		if p.Deneb == nil {
+			p.Deneb = new(eth2deneb.SignedBlockContents)
 		}
 
-		return b.Deneb, nil
+		return p.Deneb, nil
 	default:
 		return nil, errors.New("invalid version")
 	}
 }
 
-// ================== VersionedSignedBeaconBlock ===================
+// ================== VersionedProposal ===================
 
-// MarshalSSZ ssz marshals the VersionedBeaconBlock object.
-func (b VersionedBeaconBlock) MarshalSSZ() ([]byte, error) {
-	resp, err := ssz.MarshalSSZ(b)
+// MarshalSSZ ssz marshals the VersionedProposal object.
+func (p VersionedProposal) MarshalSSZ() ([]byte, error) {
+	resp, err := ssz.MarshalSSZ(p)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal VersionedBeaconBlock")
 	}
@@ -129,37 +128,37 @@ func (b VersionedBeaconBlock) MarshalSSZ() ([]byte, error) {
 	return resp, nil
 }
 
-// MarshalSSZTo ssz marshals the VersionedBeaconBlock object to a target array.
-func (b VersionedBeaconBlock) MarshalSSZTo(buf []byte) ([]byte, error) {
-	version, err := eth2util.DataVersionFromETH2(b.Version)
+// MarshalSSZTo ssz marshals the VersionedProposal object to a target array.
+func (p VersionedProposal) MarshalSSZTo(buf []byte) ([]byte, error) {
+	version, err := eth2util.DataVersionFromETH2(p.Version)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid version")
 	}
 
-	return marshalSSZVersionedTo(buf, version, b.sszValFromVersion)
+	return marshalSSZVersionedTo(buf, version, p.sszValFromVersion)
 }
 
-// UnmarshalSSZ ssz unmarshals the VersionedBeaconBlock object.
-func (b *VersionedBeaconBlock) UnmarshalSSZ(buf []byte) error {
-	version, err := unmarshalSSZVersioned(buf, b.sszValFromVersion)
+// UnmarshalSSZ ssz unmarshalls the VersionedProposal object.
+func (p *VersionedProposal) UnmarshalSSZ(buf []byte) error {
+	version, err := unmarshalSSZVersioned(buf, p.sszValFromVersion)
 	if err != nil {
-		return errors.Wrap(err, "unmarshal VersionedSignedBeaconBlock")
+		return errors.Wrap(err, "unmarshal VersionedProposal")
 	}
 
-	b.Version = version.ToETH2()
+	p.Version = version.ToETH2()
 
 	return nil
 }
 
-// SizeSSZ returns the ssz encoded size in bytes for the VersionedBeaconBlock object.
-func (b VersionedBeaconBlock) SizeSSZ() int {
-	version, err := eth2util.DataVersionFromETH2(b.Version)
+// SizeSSZ returns the ssz encoded size in bytes for the VersionedProposal object.
+func (p VersionedProposal) SizeSSZ() int {
+	version, err := eth2util.DataVersionFromETH2(p.Version)
 	if err != nil {
 		// SSZMarshaller interface doesn't return an error, so we can't either.
 		return 0
 	}
 
-	val, err := b.sszValFromVersion(version)
+	val, err := p.sszValFromVersion(version)
 	if err != nil {
 		// SSZMarshaller interface doesn't return an error, so we can't either.
 		return 0
@@ -169,86 +168,86 @@ func (b VersionedBeaconBlock) SizeSSZ() int {
 }
 
 // sszValFromVersion returns the internal value of the VersionedBeaconBlock object for a given version.
-func (b *VersionedBeaconBlock) sszValFromVersion(version eth2util.DataVersion) (sszType, error) {
+func (p *VersionedProposal) sszValFromVersion(version eth2util.DataVersion) (sszType, error) {
 	switch version {
 	case eth2util.DataVersionPhase0:
-		if b.Phase0 == nil {
-			b.Phase0 = new(eth2p0.BeaconBlock)
+		if p.Phase0 == nil {
+			p.Phase0 = new(eth2p0.BeaconBlock)
 		}
 
-		return b.Phase0, nil
+		return p.Phase0, nil
 	case eth2util.DataVersionAltair:
-		if b.Altair == nil {
-			b.Altair = new(altair.BeaconBlock)
+		if p.Altair == nil {
+			p.Altair = new(altair.BeaconBlock)
 		}
 
-		return b.Altair, nil
+		return p.Altair, nil
 	case eth2util.DataVersionBellatrix:
-		if b.Bellatrix == nil {
-			b.Bellatrix = new(bellatrix.BeaconBlock)
+		if p.Bellatrix == nil {
+			p.Bellatrix = new(bellatrix.BeaconBlock)
 		}
 
-		return b.Bellatrix, nil
+		return p.Bellatrix, nil
 	case eth2util.DataVersionCapella:
-		if b.Capella == nil {
-			b.Capella = new(capella.BeaconBlock)
+		if p.Capella == nil {
+			p.Capella = new(capella.BeaconBlock)
 		}
 
-		return b.Capella, nil
+		return p.Capella, nil
 	case eth2util.DataVersionDeneb:
-		if b.Deneb == nil {
-			b.Deneb = new(deneb.BeaconBlock)
+		if p.Deneb == nil {
+			p.Deneb = new(eth2deneb.BlockContents)
 		}
 
-		return b.Deneb, nil
+		return p.Deneb, nil
 	default:
 		return nil, errors.New("invalid version")
 	}
 }
 
-// ================== VersionedSignedBlindedBeaconBlock ===================
+// ================== VersionedSignedBlindedProposal ===================
 
-// MarshalSSZ ssz marshals the VersionedSignedBlindedBeaconBlock object.
-func (b VersionedSignedBlindedBeaconBlock) MarshalSSZ() ([]byte, error) {
-	resp, err := ssz.MarshalSSZ(b)
+// MarshalSSZ ssz marshals the VersionedSignedBlindedProposal object.
+func (p VersionedSignedBlindedProposal) MarshalSSZ() ([]byte, error) {
+	resp, err := ssz.MarshalSSZ(p)
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal VersionedSignedBlindedBeaconBlock")
+		return nil, errors.Wrap(err, "marshal VersionedSignedBlindedProposal")
 	}
 
 	return resp, nil
 }
 
-// MarshalSSZTo ssz marshals the VersionedSignedBlindedBeaconBlock object to a target array.
-func (b VersionedSignedBlindedBeaconBlock) MarshalSSZTo(buf []byte) ([]byte, error) {
-	version, err := eth2util.DataVersionFromETH2(b.Version)
+// MarshalSSZTo ssz marshals the VersionedSignedBlindedProposal object to a target array.
+func (p VersionedSignedBlindedProposal) MarshalSSZTo(buf []byte) ([]byte, error) {
+	version, err := eth2util.DataVersionFromETH2(p.Version)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid version")
 	}
 
-	return marshalSSZVersionedTo(buf, version, b.sszValFromVersion)
+	return marshalSSZVersionedTo(buf, version, p.sszValFromVersion)
 }
 
-// UnmarshalSSZ ssz unmarshals the VersionedSignedBlindedBeaconBlock object.
-func (b *VersionedSignedBlindedBeaconBlock) UnmarshalSSZ(buf []byte) error {
-	version, err := unmarshalSSZVersioned(buf, b.sszValFromVersion)
+// UnmarshalSSZ ssz unmarshalls the VersionedSignedBlindedProposal object.
+func (p *VersionedSignedBlindedProposal) UnmarshalSSZ(buf []byte) error {
+	version, err := unmarshalSSZVersioned(buf, p.sszValFromVersion)
 	if err != nil {
-		return errors.Wrap(err, "unmarshal VersionedSignedBlindedBeaconBlock")
+		return errors.Wrap(err, "unmarshal VersionedSignedBlindedProposal")
 	}
 
-	b.Version = version.ToETH2()
+	p.Version = version.ToETH2()
 
 	return nil
 }
 
-// SizeSSZ returns the ssz encoded size in bytes for the VersionedSignedBlindedBeaconBlock object.
-func (b VersionedSignedBlindedBeaconBlock) SizeSSZ() int {
-	version, err := eth2util.DataVersionFromETH2(b.Version)
+// SizeSSZ returns the ssz encoded size in bytes for the VersionedSignedBlindedProposal object.
+func (p VersionedSignedBlindedProposal) SizeSSZ() int {
+	version, err := eth2util.DataVersionFromETH2(p.Version)
 	if err != nil {
 		// SSZMarshaller interface doesn't return an error, so we can't either.
 		return 0
 	}
 
-	val, err := b.sszValFromVersion(version)
+	val, err := p.sszValFromVersion(version)
 	if err != nil {
 		// SSZMarshaller interface doesn't return an error, so we can't either.
 		return 0
@@ -258,36 +257,36 @@ func (b VersionedSignedBlindedBeaconBlock) SizeSSZ() int {
 }
 
 // sszValFromVersion returns the internal value of the VersionedSignedBlindedBeaconBlock object for a given version.
-func (b *VersionedSignedBlindedBeaconBlock) sszValFromVersion(version eth2util.DataVersion) (sszType, error) {
+func (p *VersionedSignedBlindedProposal) sszValFromVersion(version eth2util.DataVersion) (sszType, error) {
 	switch version {
 	case eth2util.DataVersionBellatrix:
-		if b.Bellatrix == nil {
-			b.Bellatrix = new(eth2bellatrix.SignedBlindedBeaconBlock)
+		if p.Bellatrix == nil {
+			p.Bellatrix = new(eth2bellatrix.SignedBlindedBeaconBlock)
 		}
 
-		return b.Bellatrix, nil
+		return p.Bellatrix, nil
 	case eth2util.DataVersionCapella:
-		if b.Capella == nil {
-			b.Capella = new(eth2capella.SignedBlindedBeaconBlock)
+		if p.Capella == nil {
+			p.Capella = new(eth2capella.SignedBlindedBeaconBlock)
 		}
 
-		return b.Capella, nil
+		return p.Capella, nil
 	case eth2util.DataVersionDeneb:
-		if b.Deneb == nil {
-			b.Deneb = new(eth2deneb.SignedBlindedBeaconBlock)
+		if p.Deneb == nil {
+			p.Deneb = new(eth2deneb.SignedBlindedBlockContents)
 		}
 
-		return b.Deneb, nil
+		return p.Deneb, nil
 	default:
 		return nil, errors.New("invalid version")
 	}
 }
 
-// ================== VersionedBlindedBeaconBlock ===================
+// ================== VersionedBlindedProposal ===================
 
-// MarshalSSZ ssz marshals the VersionedBlindedBeaconBlock object.
-func (b VersionedBlindedBeaconBlock) MarshalSSZ() ([]byte, error) {
-	resp, err := ssz.MarshalSSZ(b)
+// MarshalSSZ ssz marshals the VersionedBlindedProposal object.
+func (p VersionedBlindedProposal) MarshalSSZ() ([]byte, error) {
+	resp, err := ssz.MarshalSSZ(p)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal VersionedSignedBlindedBeaconBlock")
 	}
@@ -295,37 +294,37 @@ func (b VersionedBlindedBeaconBlock) MarshalSSZ() ([]byte, error) {
 	return resp, nil
 }
 
-// MarshalSSZTo ssz marshals the VersionedBlindedBeaconBlock object to a target array.
-func (b VersionedBlindedBeaconBlock) MarshalSSZTo(buf []byte) ([]byte, error) {
-	version, err := eth2util.DataVersionFromETH2(b.Version)
+// MarshalSSZTo ssz marshals the VersionedBlindedProposal object to a target array.
+func (p VersionedBlindedProposal) MarshalSSZTo(buf []byte) ([]byte, error) {
+	version, err := eth2util.DataVersionFromETH2(p.Version)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid version")
 	}
 
-	return marshalSSZVersionedTo(buf, version, b.sszValFromVersion)
+	return marshalSSZVersionedTo(buf, version, p.sszValFromVersion)
 }
 
-// UnmarshalSSZ ssz unmarshals the VersionedBlindedBeaconBlock object.
-func (b *VersionedBlindedBeaconBlock) UnmarshalSSZ(buf []byte) error {
-	version, err := unmarshalSSZVersioned(buf, b.sszValFromVersion)
+// UnmarshalSSZ ssz unmarshals the VersionedBlindedProposal object.
+func (p *VersionedBlindedProposal) UnmarshalSSZ(buf []byte) error {
+	version, err := unmarshalSSZVersioned(buf, p.sszValFromVersion)
 	if err != nil {
 		return errors.Wrap(err, "unmarshal VersionedSignedBeaconBlock")
 	}
 
-	b.Version = version.ToETH2()
+	p.Version = version.ToETH2()
 
 	return nil
 }
 
-// SizeSSZ returns the ssz encoded size in bytes for the VersionedBlindedBeaconBlock object.
-func (b VersionedBlindedBeaconBlock) SizeSSZ() int {
-	version, err := eth2util.DataVersionFromETH2(b.Version)
+// SizeSSZ returns the ssz encoded size in bytes for the VersionedBlindedProposal object.
+func (p VersionedBlindedProposal) SizeSSZ() int {
+	version, err := eth2util.DataVersionFromETH2(p.Version)
 	if err != nil {
 		// SSZMarshaller interface doesn't return an error, so we can't either.
 		return 0
 	}
 
-	val, err := b.sszValFromVersion(version)
+	val, err := p.sszValFromVersion(version)
 	if err != nil {
 		// SSZMarshaller interface doesn't return an error, so we can't either.
 		return 0
@@ -334,27 +333,27 @@ func (b VersionedBlindedBeaconBlock) SizeSSZ() int {
 	return sizeSSZVersioned(val)
 }
 
-// sszValFromVersion returns the internal value of the VersionedBlindedBeaconBlock object for a given version.
-func (b *VersionedBlindedBeaconBlock) sszValFromVersion(version eth2util.DataVersion) (sszType, error) {
+// sszValFromVersion returns the internal value of the VersionedBlindedProposal object for a given version.
+func (p *VersionedBlindedProposal) sszValFromVersion(version eth2util.DataVersion) (sszType, error) {
 	switch version {
 	case eth2util.DataVersionBellatrix:
-		if b.Bellatrix == nil {
-			b.Bellatrix = new(eth2bellatrix.BlindedBeaconBlock)
+		if p.Bellatrix == nil {
+			p.Bellatrix = new(eth2bellatrix.BlindedBeaconBlock)
 		}
 
-		return b.Bellatrix, nil
+		return p.Bellatrix, nil
 	case eth2util.DataVersionCapella:
-		if b.Capella == nil {
-			b.Capella = new(eth2capella.BlindedBeaconBlock)
+		if p.Capella == nil {
+			p.Capella = new(eth2capella.BlindedBeaconBlock)
 		}
 
-		return b.Capella, nil
+		return p.Capella, nil
 	case eth2util.DataVersionDeneb:
-		if b.Deneb == nil {
-			b.Deneb = new(eth2deneb.BlindedBeaconBlock)
+		if p.Deneb == nil {
+			p.Deneb = new(eth2deneb.BlindedBlockContents)
 		}
 
-		return b.Deneb, nil
+		return p.Deneb, nil
 	default:
 		return nil, errors.New("invalid version")
 	}

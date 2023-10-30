@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
-	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
@@ -22,8 +21,8 @@ func NewMemDB(deadliner core.Deadliner) *MemDB {
 		attDuties:         make(map[attKey]*eth2p0.AttestationData),
 		attPubKeys:        make(map[pkKey]core.PubKey),
 		attKeysBySlot:     make(map[int64][]pkKey),
-		builderProDuties:  make(map[int64]*eth2api.VersionedBlindedBeaconBlock),
-		proDuties:         make(map[int64]*eth2spec.VersionedBeaconBlock),
+		builderProDuties:  make(map[int64]*eth2api.VersionedBlindedProposal),
+		proDuties:         make(map[int64]*eth2api.VersionedProposal),
 		aggDuties:         make(map[aggKey]core.AggregatedAttestation),
 		aggKeysBySlot:     make(map[int64][]aggKey),
 		contribDuties:     make(map[contribKey]*altair.SyncCommitteeContribution),
@@ -45,11 +44,11 @@ type MemDB struct {
 	attQueries    []attQuery
 
 	// DutyBuilderProposer
-	builderProDuties  map[int64]*eth2api.VersionedBlindedBeaconBlock
+	builderProDuties  map[int64]*eth2api.VersionedBlindedProposal
 	builderProQueries []builderProQuery
 
 	// DutyProposer
-	proDuties  map[int64]*eth2spec.VersionedBeaconBlock
+	proDuties  map[int64]*eth2api.VersionedProposal
 	proQueries []proQuery
 
 	// DutyAggregator
@@ -88,7 +87,7 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 			return errors.New("unexpected proposer data set length", z.Int("n", len(unsignedSet)))
 		}
 		for _, unsignedData := range unsignedSet {
-			err := db.storeBeaconBlockUnsafe(unsignedData)
+			err := db.storeProposalUnsafe(unsignedData)
 			if err != nil {
 				return err
 			}
@@ -155,11 +154,11 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 	return nil
 }
 
-// AwaitBeaconBlock implements core.DutyDB, see its godoc.
-func (db *MemDB) AwaitBeaconBlock(ctx context.Context, slot int64) (*eth2spec.VersionedBeaconBlock, error) {
+// AwaitProposal implements core.DutyDB, see its godoc.
+func (db *MemDB) AwaitProposal(ctx context.Context, slot int64) (*eth2api.VersionedProposal, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
-	response := make(chan *eth2spec.VersionedBeaconBlock, 1)
+	response := make(chan *eth2api.VersionedProposal, 1)
 
 	db.mu.Lock()
 	db.proQueries = append(db.proQueries, proQuery{
@@ -180,11 +179,11 @@ func (db *MemDB) AwaitBeaconBlock(ctx context.Context, slot int64) (*eth2spec.Ve
 	}
 }
 
-// AwaitBlindedBeaconBlock implements core.DutyDB, see its godoc.
-func (db *MemDB) AwaitBlindedBeaconBlock(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error) {
+// AwaitBlindedProposal implements core.DutyDB, see its godoc.
+func (db *MemDB) AwaitBlindedProposal(ctx context.Context, slot int64) (*eth2api.VersionedBlindedProposal, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
-	response := make(chan *eth2api.VersionedBlindedBeaconBlock, 1)
+	response := make(chan *eth2api.VersionedBlindedProposal, 1)
 
 	db.mu.Lock()
 	db.builderProQueries = append(db.builderProQueries, builderProQuery{
@@ -452,19 +451,19 @@ func (db *MemDB) storeSyncContributionUnsafe(unsignedData core.UnsignedData) err
 	return nil
 }
 
-// storeBeaconBlockUnsafe stores the unsigned BeaconBlock. It is unsafe since it assumes the lock is held.
-func (db *MemDB) storeBeaconBlockUnsafe(unsignedData core.UnsignedData) error {
+// storeProposalUnsafe stores the unsigned Proposal. It is unsafe since it assumes the lock is held.
+func (db *MemDB) storeProposalUnsafe(unsignedData core.UnsignedData) error {
 	cloned, err := unsignedData.Clone() // Clone before storing.
 	if err != nil {
 		return err
 	}
 
-	block, ok := cloned.(core.VersionedBeaconBlock)
+	proposal, ok := cloned.(core.VersionedProposal)
 	if !ok {
-		return errors.New("invalid unsigned block")
+		return errors.New("invalid versioned proposal")
 	}
 
-	slot, err := block.Slot()
+	slot, err := proposal.Slot()
 	if err != nil {
 		return err
 	}
@@ -472,19 +471,19 @@ func (db *MemDB) storeBeaconBlockUnsafe(unsignedData core.UnsignedData) error {
 	if existing, ok := db.proDuties[int64(slot)]; ok {
 		existingRoot, err := existing.Root()
 		if err != nil {
-			return errors.Wrap(err, "block root")
+			return errors.Wrap(err, "proposal root")
 		}
 
-		providedRoot, err := block.Root()
+		providedRoot, err := proposal.Root()
 		if err != nil {
-			return errors.Wrap(err, "block root")
+			return errors.Wrap(err, "proposal root")
 		}
 
 		if existingRoot != providedRoot {
 			return errors.New("clashing blocks")
 		}
 	} else {
-		db.proDuties[int64(slot)] = &block.VersionedBeaconBlock
+		db.proDuties[int64(slot)] = &proposal.VersionedProposal
 	}
 
 	return nil
@@ -497,7 +496,7 @@ func (db *MemDB) storeBlindedBeaconBlockUnsafe(unsignedData core.UnsignedData) e
 		return err
 	}
 
-	block, ok := cloned.(core.VersionedBlindedBeaconBlock)
+	block, ok := cloned.(core.VersionedBlindedProposal)
 	if !ok {
 		return errors.New("invalid unsigned blinded block")
 	}
@@ -522,7 +521,7 @@ func (db *MemDB) storeBlindedBeaconBlockUnsafe(unsignedData core.UnsignedData) e
 			return errors.New("clashing blinded blocks")
 		}
 	} else {
-		db.builderProDuties[int64(slot)] = &block.VersionedBlindedBeaconBlock
+		db.builderProDuties[int64(slot)] = &block.VersionedBlindedProposal
 	}
 
 	return nil
@@ -699,7 +698,7 @@ type attQuery struct {
 // proQuery is a waiting proQuery with a response channel.
 type proQuery struct {
 	Key      int64
-	Response chan<- *eth2spec.VersionedBeaconBlock
+	Response chan<- *eth2api.VersionedProposal
 	Cancel   <-chan struct{}
 }
 
@@ -713,7 +712,7 @@ type aggQuery struct {
 // builderProQuery is a waiting builderProQuery with a response channel.
 type builderProQuery struct {
 	Key      int64
-	Response chan<- *eth2api.VersionedBlindedBeaconBlock
+	Response chan<- *eth2api.VersionedBlindedProposal
 	Cancel   <-chan struct{}
 }
 

@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -156,29 +158,29 @@ func TestParSigExVerifier(t *testing.T) {
 		require.NoError(t, verifyFunc(ctx, core.NewAttesterDuty(slot), pubkey, data))
 	})
 
-	t.Run("Verify block", func(t *testing.T) {
-		block := testutil.RandomCapellaVersionedSignedBeaconBlock()
-		block.Capella.Message.Slot = slot
-		sigRoot, err := block.Root()
+	t.Run("Verify proposal", func(t *testing.T) {
+		proposal := testutil.RandomVersionedSignedProposal()
+		proposal.Capella.Message.Slot = slot
+		sigRoot, err := versionedSignedProposalRoot(t, proposal)
 		require.NoError(t, err)
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainBeaconProposer, epoch, sigRoot)
 		require.NoError(t, err)
-		block.Capella.Signature = sign(sigData[:])
-		data, err := core.NewPartialVersionedSignedBeaconBlock(block, shareIdx)
+		proposal.Capella.Signature = sign(sigData[:])
+		data, err := core.NewPartialVersionedSignedProposal(proposal, shareIdx)
 		require.NoError(t, err)
 
 		require.NoError(t, verifyFunc(ctx, core.NewProposerDuty(slot), pubkey, data))
 	})
 
-	t.Run("Verify blinded block", func(t *testing.T) {
-		blindedBlock := testutil.RandomCapellaVersionedSignedBlindedBeaconBlock()
+	t.Run("Verify blinded proposal", func(t *testing.T) {
+		blindedBlock := testutil.RandomCapellaVersionedSignedBlindedProposal()
 		blindedBlock.Capella.Message.Slot = slot
 		sigRoot, err := blindedBlock.Root()
 		require.NoError(t, err)
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainBeaconProposer, epoch, sigRoot)
 		require.NoError(t, err)
 		blindedBlock.Capella.Signature = sign(sigData[:])
-		data, err := core.NewPartialVersionedSignedBlindedBeaconBlock(&blindedBlock.VersionedSignedBlindedBeaconBlock, shareIdx)
+		data, err := core.NewPartialVersionedSignedBlindedProposal(&blindedBlock.VersionedSignedBlindedProposal, shareIdx)
 		require.NoError(t, err)
 
 		require.NoError(t, verifyFunc(ctx, core.NewBuilderProposerDuty(slot), pubkey, data))
@@ -311,4 +313,25 @@ func TestParSigExVerifier(t *testing.T) {
 
 		require.NoError(t, verifyFunc(ctx, core.NewPrepareSyncContributionDuty(slot), pubkey, parSigData))
 	})
+}
+
+func versionedSignedProposalRoot(t *testing.T, p *eth2api.VersionedSignedProposal) (eth2p0.Root, error) {
+	t.Helper()
+
+	switch p.Version {
+	case eth2spec.DataVersionPhase0:
+		return p.Phase0.Message.HashTreeRoot()
+	case eth2spec.DataVersionAltair:
+		return p.Altair.Message.HashTreeRoot()
+	case eth2spec.DataVersionBellatrix:
+		return p.Bellatrix.Message.HashTreeRoot()
+	case eth2spec.DataVersionCapella:
+		return p.Capella.Message.HashTreeRoot()
+	case eth2spec.DataVersionDeneb:
+		return p.Deneb.SignedBlock.Message.HashTreeRoot()
+	default:
+		require.Equal(t, 0, 1)
+	}
+
+	return eth2p0.Root{}, nil
 }
