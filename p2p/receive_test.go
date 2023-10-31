@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/p2p"
@@ -21,11 +20,10 @@ import (
 
 func TestSendReceive(t *testing.T) {
 	var (
-		pID         = protocol.ID("delimited")
-		errNegative = errors.New("negative slot")
-		ctx         = context.Background()
-		server      = testutil.CreateHost(t, testutil.AvailableAddr(t))
-		client      = testutil.CreateHost(t, testutil.AvailableAddr(t))
+		pID    = protocol.ID("delimited")
+		ctx    = context.Background()
+		server = testutil.CreateHost(t, testutil.AvailableAddr(t))
+		client = testutil.CreateHost(t, testutil.AvailableAddr(t))
 	)
 
 	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
@@ -43,9 +41,7 @@ func TestSendReceive(t *testing.T) {
 			duty, ok := req.(*pbv1.Duty)
 			require.True(t, ok)
 
-			if duty.Slot < 0 {
-				return nil, false, errNegative
-			} else if duty.Slot%2 == 0 {
+			if duty.Slot%2 == 0 {
 				return duty, true, nil
 			} else {
 				return nil, false, nil

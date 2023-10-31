@@ -129,7 +129,7 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot uint64, defSet cor
 		if !ok {
 			var err error
 			opts := &eth2api.AttestationDataOpts{
-				Slot:           eth2p0.Slot(uint64(slot)),
+				Slot:           eth2p0.Slot(slot),
 				CommitteeIndex: commIdx,
 			}
 			eth2Resp, err := f.eth2Cl.AttestationData(ctx, opts)
@@ -252,7 +252,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 		copy(graffiti[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
 
 		opts := &eth2api.ProposalOpts{
-			Slot:         eth2p0.Slot(uint64(slot)),
+			Slot:         eth2p0.Slot(slot),
 			RandaoReveal: randao,
 			Graffiti:     graffiti,
 		}
@@ -297,7 +297,7 @@ func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot uint64, def
 		copy(graffiti[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
 
 		opts := &eth2api.BlindedProposalOpts{
-			Slot:         eth2p0.Slot(uint64(slot)),
+			Slot:         eth2p0.Slot(slot),
 			RandaoReveal: randao,
 			Graffiti:     graffiti,
 		}

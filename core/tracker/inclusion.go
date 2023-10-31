@@ -377,7 +377,7 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 			return
 		case <-ticker.C:
 			slot := uint64(time.Since(a.genesis)/a.slotDuration) - InclCheckLag
-			if checkedSlot == slot || slot < 0 {
+			if checkedSlot == slot {
 				continue
 			}
 

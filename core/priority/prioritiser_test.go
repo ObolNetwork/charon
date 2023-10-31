@@ -106,7 +106,7 @@ func TestPrioritiser(t *testing.T) {
 type testConsensus struct {
 	t        *testing.T
 	mu       sync.Mutex
-	proposed map[int64]*pbv1.PriorityResult
+	proposed map[uint64]*pbv1.PriorityResult
 	subs     []func(ctx context.Context, duty core.Duty, result *pbv1.PriorityResult) error
 }
 
@@ -130,7 +130,7 @@ func (t *testConsensus) ProposePriority(ctx context.Context, duty core.Duty, res
 	}
 
 	if t.proposed == nil {
-		t.proposed = make(map[int64]*pbv1.PriorityResult)
+		t.proposed = make(map[uint64]*pbv1.PriorityResult)
 	}
 	t.proposed[duty.Slot] = result
 
@@ -151,7 +151,7 @@ func mustAny(pb proto.Message) *anypb.Any {
 }
 
 func prioToAny(prio int) *anypb.Any {
-	return mustAny(&pbv1.Duty{Slot: int64(prio)})
+	return mustAny(&pbv1.Duty{Slot: uint64(prio)})
 }
 
 func requireAnyDuty(t *testing.T, anyOf []core.Duty, actual core.Duty) {

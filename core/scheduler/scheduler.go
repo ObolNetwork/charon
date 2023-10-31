@@ -339,7 +339,7 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 			z.U64("slot", uint64(attDuty.Slot)),
 			z.U64("vidx", uint64(attDuty.ValidatorIndex)),
 			z.Any("pubkey", pubkey),
-			z.U64("epoch", uint64(slot.Epoch())),
+			z.U64("epoch", slot.Epoch()),
 		)
 
 		// Schedule aggregation duty as well.
@@ -412,7 +412,7 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 			z.U64("slot", uint64(proDuty.Slot)),
 			z.U64("vidx", uint64(proDuty.ValidatorIndex)),
 			z.Any("pubkey", pubkey),
-			z.U64("epoch", uint64(slot.Epoch())),
+			z.U64("epoch", slot.Epoch()),
 		)
 	}
 
@@ -467,7 +467,7 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 		log.Info(ctx, "Resolved sync committee duty",
 			z.U64("vidx", uint64(vIdx)),
 			z.Any("pubkey", pubkey),
-			z.U64("epoch", uint64(slot.Epoch())),
+			z.U64("epoch", slot.Epoch()),
 		)
 	}
 

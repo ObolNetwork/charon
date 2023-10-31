@@ -65,7 +65,7 @@ func NewDutyGater(ctx context.Context, eth2Cl eth2wrap.Client, opts ...func(*dut
 		currentSlot := o.nowFunc().Sub(genesisTime) / slotDuration
 		currentEpoch := uint64(currentSlot) / slotsPerEpoch
 
-		dutyEpoch := uint64(duty.Slot) / slotsPerEpoch
+		dutyEpoch := duty.Slot / slotsPerEpoch
 
 		return dutyEpoch <= currentEpoch+uint64(o.allowedFutureEpochs)
 	}, nil
