@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
+	"math"
 	"strings"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -29,7 +30,7 @@ func StartDutyTrace(ctx context.Context, duty Duty, spanName string, opts ...tra
 	ctx, outerSpan = tracer.Start(tracer.RootedCtx(ctx, traceID), fmt.Sprintf("core/duty.%s", strings.Title(duty.Type.String())))
 	ctx, innerSpan = tracer.Start(ctx, spanName, opts...)
 
-	outerSpan.SetAttributes(attribute.Int64("slot", int64(duty.Slot)))
+	outerSpan.SetAttributes(attribute.Int64("slot", safeInt64(duty.Slot)))
 
 	return ctx, withEndSpan{
 		Span:    innerSpan,
@@ -132,4 +133,14 @@ func WithTracing() WireOption {
 			return clone.BroadcasterBroadcast(ctx, duty, set)
 		}
 	}
+}
+
+// safeInt64 converts the provided uint64 value to an int64 integer.
+// It panics if the provided value can't fit in an int64.
+func safeInt64(value uint64) int64 {
+	if value <= math.MaxInt64 {
+		return int64(value)
+	}
+
+	panic("integer overflow")
 }
