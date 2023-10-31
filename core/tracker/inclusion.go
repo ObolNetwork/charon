@@ -19,9 +19,12 @@ import (
 
 const (
 	// InclCheckLag is the number of slots to lag before checking inclusion.
-	// We wait for 4 slots to mitigate against reorgs as it should cover almost all reorg scenarios.
-	// Reorgs of more than 4 slots are very rare in ethereum PoS.
-	InclCheckLag = 4
+	// We wait for 6 slots to mitigate against reorgs as it should cover almost all reorg scenarios.
+	// Reorgs of more than 6 slots are very rare in ethereum PoS.
+	// The inclusion checker should begin checking for the inclusion of duties after the duty deadline is reached,
+	// i.e., after 5 slots.
+	InclCheckLag = 6
+
 	// InclMissedLag is the number of slots after which we assume the duty was not included and we
 	// delete cached submissions.
 	InclMissedLag = 32
@@ -193,6 +196,17 @@ func (i *inclusionCore) CheckBlock(ctx context.Context, block block) {
 			if sub.Duty.Slot != block.Slot {
 				continue
 			}
+
+			msg := "Broadcasted block included on-chain"
+			if sub.Duty.Type == core.DutyBuilderProposer {
+				msg = "Broadcasted blinded block included on-chain"
+			}
+
+			log.Info(ctx, msg,
+				z.I64("block_slot", block.Slot),
+				z.Any("pubkey", sub.Pubkey),
+				z.Any("broadcast_delay", sub.Delay),
+			)
 
 			// Just report block inclusions to tracker and trim
 			i.trackerInclFunc(sub.Duty, sub.Pubkey, sub.Data, nil)
