@@ -22,19 +22,19 @@ func TestUnsignedDataClone(t *testing.T) {
 		},
 		{
 			name: "versioned beacon block bellatrix",
-			data: testutil.RandomBellatrixCoreVersionedBeaconBlock(),
+			data: testutil.RandomBellatrixCoreVersionedProposal(),
 		},
 		{
 			name: "versioned blinded beacon block bellatrix",
-			data: testutil.RandomBellatrixVersionedBlindedBeaconBlock(),
+			data: testutil.RandomBellatrixVersionedBlindedProposal(),
 		},
 		{
 			name: "versioned beacon block capella",
-			data: testutil.RandomCapellaCoreVersionedBeaconBlock(),
+			data: testutil.RandomCapellaCoreVersionedProposal(),
 		},
 		{
 			name: "versioned blinded beacon block capella",
-			data: testutil.RandomCapellaVersionedBlindedBeaconBlock(),
+			data: testutil.RandomCapellaVersionedBlindedProposal(),
 		},
 		{
 			name: "aggregated attestation",

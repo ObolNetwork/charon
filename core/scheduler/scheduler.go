@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -115,7 +116,9 @@ func (s *Scheduler) Run() error {
 
 			instrumentSlot(slot)
 
-			go s.emitCoreSlot(ctx, slot)
+			// emitCoreSlot doesn't need to be called inside a goroutine
+			// as it calls subscribers in their separate goroutines.
+			s.emitCoreSlot(ctx, slot)
 
 			s.scheduleSlot(ctx, slot)
 		}
@@ -281,10 +284,15 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot core.Slot) error {
 
 // resolveAttDuties resolves attester duties for the given validators.
 func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals validators) error {
-	attDuties, err := s.eth2Cl.AttesterDuties(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
+	opts := &eth2api.AttesterDutiesOpts{
+		Epoch:   eth2p0.Epoch(slot.Epoch()),
+		Indices: vals.Indexes(),
+	}
+	eth2Resp, err := s.eth2Cl.AttesterDuties(ctx, opts)
 	if err != nil {
 		return err
 	}
+	attDuties := eth2Resp.Data
 
 	// Check if any of the attester duties returned are nil.
 	for _, duty := range attDuties {
@@ -355,10 +363,15 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 
 // resolveProposerDuties resolves proposer duties for the given validators.
 func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals validators) error {
-	proDuties, err := s.eth2Cl.ProposerDuties(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
+	opts := &eth2api.ProposerDutiesOpts{
+		Epoch:   eth2p0.Epoch(slot.Epoch()),
+		Indices: vals.Indexes(),
+	}
+	eth2Resp, err := s.eth2Cl.ProposerDuties(ctx, opts)
 	if err != nil {
 		return err
 	}
+	proDuties := eth2Resp.Data
 
 	// Check if any of the proposer duties returned are nil.
 	for _, duty := range proDuties {
@@ -408,10 +421,15 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 
 // resolveSyncCommDuties resolves sync committee duties for the validators in the given slot's epoch, caching the results.
 func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, vals validators) error {
-	duties, err := s.eth2Cl.SyncCommitteeDuties(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
+	opts := &eth2api.SyncCommitteeDutiesOpts{
+		Epoch:   eth2p0.Epoch(slot.Epoch()),
+		Indices: vals.Indexes(),
+	}
+	eth2Resp, err := s.eth2Cl.SyncCommitteeDuties(ctx, opts)
 	if err != nil {
 		return err
 	}
+	duties := eth2Resp.Data
 
 	// Check if any of the sync committee duties returned are nil.
 	for _, duty := range duties {
@@ -612,10 +630,15 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2wrap.Client,
 		e2pks = append(e2pks, e2pk)
 	}
 
-	vals, err := eth2Cl.ValidatorsByPubKey(ctx, "head", e2pks)
+	opts := &eth2api.ValidatorsOpts{
+		State:   "head",
+		PubKeys: e2pks,
+	}
+	eth2Resp, err := eth2Cl.Validators(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
+	vals := eth2Resp.Data
 
 	var resp []validator
 	for index, val := range vals {
@@ -671,13 +694,14 @@ func waitChainStart(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork
 // waitBeaconSync blocks until the beacon node is synced.
 func waitBeaconSync(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
 	for ctx.Err() == nil {
-		state, err := eth2Cl.NodeSyncing(ctx)
+		eth2Resp, err := eth2Cl.NodeSyncing(ctx)
 		if err != nil {
 			log.Error(ctx, "Failure getting sync state", err)
 			clock.Sleep(time.Second * 5) // TODO(corver): Improve backoff
 
 			continue
 		}
+		state := eth2Resp.Data
 
 		if state.IsSyncing {
 			log.Info(ctx, "Waiting for beacon node to sync",

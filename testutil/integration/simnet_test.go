@@ -323,13 +323,16 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 				SimnetKeys:         []tbls.PrivateKey{args.SimnetKeys[i]},
 				LcastTransportFunc: lcastTransportFunc,
 				ParSigExFunc:       parSigExFunc,
-				BroadcastCallback: func(_ context.Context, duty core.Duty, key core.PubKey, data core.SignedData) error {
-					select {
-					case <-ctx.Done():
-						return ctx.Err()
-					case results <- simResult{Duty: duty, Pubkey: key, Data: data, PeerIdx: peerIdx}:
-						return nil
+				BroadcastCallback: func(_ context.Context, duty core.Duty, set core.SignedDataSet) error {
+					for key, data := range set {
+						select {
+						case <-ctx.Done():
+							return ctx.Err()
+						case results <- simResult{Duty: duty, Pubkey: key, Data: data, PeerIdx: peerIdx}:
+						}
 					}
+
+					return nil
 				},
 				SimnetBMockOpts: append([]beaconmock.Option{
 					beaconmock.WithSlotsPerEpoch(1),
@@ -368,7 +371,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 				actual, err := res.Data.MarshalJSON()
 				require.NoError(t, err)
 				require.Equal(t, expect, actual)
-				require.Equal(t, datas[res.Duty].Signature(), res.Data.Signature())
+				require.Equal(t, datas[res.Duty].Signatures(), res.Data.Signatures())
 			}
 
 			// Assert we get results for all types from all peers.
@@ -470,7 +473,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 		fmt.Sprintf("--name=%s", name),
 		fmt.Sprintf("--volume=%s:/keys", tempDir),
 		"--user=root", // Root required to read volume files in GitHub actions.
-		"consensys/teku:develop",
+		"consensys/teku:23.9.0",
 	}
 	dockerArgs = append(dockerArgs, tekuArgs...)
 	t.Logf("docker args: %v", dockerArgs)

@@ -1,5 +1,23 @@
 [
  {
+  "Title": "app/version: bump to v0.13 (#1641)",
+  "Number": 1641,
+  "Category": "misc",
+  "Issue": 0
+ },
+ {
+  "Title": "cmd: re-add previous relay address for backwards compatibility (#1639)",
+  "Number": 1639,
+  "Category": "refactor",
+  "Issue": 0
+ },
+ {
+  "Title": "cmd: update default relay address (#1636)",
+  "Number": 1636,
+  "Category": "refactor",
+  "Issue": 0
+ },
+ {
   "Title": "cmd: add `keymanager-address` flag to create cluster command (#1622)",
   "Number": 1622,
   "Category": "feature",
@@ -18,10 +36,34 @@
   "Issue": 1608
  },
  {
+  "Title": "dkg: fix error handling in TestSyncFlow (#1618)",
+  "Number": 1618,
+  "Category": "test",
+  "Issue": 0
+ },
+ {
   "Title": "cmd: add `--definition-file` flag to create cluster command (#1615)",
   "Number": 1615,
   "Category": "feature",
   "Issue": 1490
+ },
+ {
+  "Title": "core/scheduler: fix flapping test (#1619)",
+  "Number": 1619,
+  "Category": "test",
+  "Issue": 0
+ },
+ {
+  "Title": "core/scheduler: trim duties after 3 epochs (#1616)",
+  "Number": 1616,
+  "Category": "bug",
+  "Issue": 0
+ },
+ {
+  "Title": "app/eth2wrap: instrument custom endpoint latency (#1614)",
+  "Number": 1614,
+  "Category": "misc",
+  "Issue": 0
  },
  {
   "Title": "cmd: rebrand bootnode to relay (#1610)",
@@ -46,6 +88,12 @@
   "Number": 1604,
   "Category": "feature",
   "Issue": 1590
+ },
+ {
+  "Title": "core/aggsigdb: fix flapping test (#1605)",
+  "Number": 1605,
+  "Category": "test",
+  "Issue": 0
  },
  {
   "Title": "core/aggsigdb: delete expired duties and queries (#1598)",
@@ -108,6 +156,12 @@
   "Issue": 1494
  },
  {
+  "Title": "testutil/validatormock: fix getSubcommittees bug (#1579)",
+  "Number": 1579,
+  "Category": "bug",
+  "Issue": 0
+ },
+ {
   "Title": "core: add support for capella blocks (#1570)",
   "Number": 1570,
   "Category": "feature",
@@ -126,10 +180,22 @@
   "Issue": 1540
  },
  {
+  "Title": "app: revert VC health statuses (#1571)",
+  "Number": 1571,
+  "Category": "bug",
+  "Issue": 0
+ },
+ {
   "Title": "testutil/promrated: implement rated fetching and reporting (#1569)",
   "Number": 1569,
   "Category": "misc",
   "Issue": 1540
+ },
+ {
+  "Title": "app/bootnode: fix missing cluster hash in metrics (#1568)",
+  "Number": 1568,
+  "Category": "bug",
+  "Issue": 0
  },
  {
   "Title": "app/monitoringapi: detect all validators queried by VC (#1566)",
@@ -144,10 +210,46 @@
   "Issue": 1540
  },
  {
+  "Title": "cmd/bootnode: refactor metrics (#1564)",
+  "Number": 1564,
+  "Category": "refactor",
+  "Issue": 0
+ },
+ {
+  "Title": "app/log: increase loki batch send timeout to 10s (#1563)",
+  "Number": 1563,
+  "Category": "misc",
+  "Issue": 0
+ },
+ {
   "Title": "testutil/promrated: add health listener and monitoring endpoint (#1553)",
   "Number": 1553,
   "Category": "misc",
   "Issue": 1540
+ },
+ {
+  "Title": "p2p: add duration labels to receive errors (#1560)",
+  "Number": 1560,
+  "Category": "misc",
+  "Issue": 0
+ },
+ {
+  "Title": "cmd: require name in create cluster (#1559)",
+  "Number": 1559,
+  "Category": "refactor",
+  "Issue": 0
+ },
+ {
+  "Title": "core/consensus: improve logging (#1557)",
+  "Number": 1557,
+  "Category": "refactor",
+  "Issue": 0
+ },
+ {
+  "Title": "dkg/sync: add disconnect log to server (#1551)",
+  "Number": 1551,
+  "Category": "misc",
+  "Issue": 0
  },
  {
   "Title": "core/consensus: fix wire compatibility (#1556)",
@@ -162,10 +264,40 @@
   "Issue": 1555
  },
  {
+  "Title": "app/eth2wrap: decrease synth block sizes (#1550)",
+  "Number": 1550,
+  "Category": "refactor",
+  "Issue": 0
+ },
+ {
   "Title": "testutil/promrated: add initial basic looping and read in config (#1548)",
   "Number": 1548,
   "Category": "misc",
   "Issue": 1540
+ },
+ {
+  "Title": "app: increase sniffed buffer even more (#1549)",
+  "Number": 1549,
+  "Category": "test",
+  "Issue": 0
+ },
+ {
+  "Title": "workflows: upload artefacts always (#1547)",
+  "Number": 1547,
+  "Category": "test",
+  "Issue": 0
+ },
+ {
+  "Title": "app: increase sniffed message buffer (#1546)",
+  "Number": 1546,
+  "Category": "refactor",
+  "Issue": 0
+ },
+ {
+  "Title": "p2p: instrument network throughput (#1545)",
+  "Number": 1545,
+  "Category": "feature",
+  "Issue": 0
  },
  {
   "Title": "app/eth2wrap: use correct fee recipient in synthetic blocks (#1544)",
@@ -180,6 +312,12 @@
   "Issue": 1247
  },
  {
+  "Title": "cmd: redact address flag passwords (#1541)",
+  "Number": 1541,
+  "Category": "bug",
+  "Issue": 0
+ },
+ {
   "Title": "app/eth2wrap: use validators at head for synthetic blocks (#1539)",
   "Number": 1539,
   "Category": "refactor",
@@ -190,6 +328,12 @@
   "Number": 1536,
   "Category": "feature",
   "Issue": 1521
+ },
+ {
+  "Title": "core/priority: fix flapping test (#1535)",
+  "Number": 1535,
+  "Category": "test",
+  "Issue": 0
  },
  {
   "Title": "app/eth2wrap: query previous block for synthetic proposals (#1533)",
@@ -222,10 +366,28 @@
   "Issue": 1527
  },
  {
+  "Title": "p2p: add option to disable port reuse (#1529)",
+  "Number": 1529,
+  "Category": "feature",
+  "Issue": 0
+ },
+ {
+  "Title": "app: fix failing teku exits (#1530)",
+  "Number": 1530,
+  "Category": "test",
+  "Issue": 0
+ },
+ {
   "Title": "cluster: add partial definition verification (#1520)",
   "Number": 1520,
   "Category": "feature",
   "Issue": 1488
+ },
+ {
+  "Title": "core/consensus: add QBFT decided round gauge (#1514)",
+  "Number": 1514,
+  "Category": "misc",
+  "Issue": 0
  },
  {
   "Title": "cmd/bootnode: move bootnode to own package (#1512)",
@@ -234,16 +396,40 @@
   "Issue": 1506
  },
  {
+  "Title": "docs: add declartions section to go guidelines (#1513)",
+  "Number": 1513,
+  "Category": "docs",
+  "Issue": 0
+ },
+ {
   "Title": "app: wire synthetic block proposals (#1499)",
   "Number": 1499,
   "Category": "feature",
   "Issue": 1486
  },
  {
+  "Title": "testutil/trackpr: automate assigning pr to author (#1507)",
+  "Number": 1507,
+  "Category": "misc",
+  "Issue": 0
+ },
+ {
   "Title": "core/qbft: include round when deduping (#1505)",
   "Number": 1505,
   "Category": "bug",
   "Issue": 1493
+ },
+ {
+  "Title": "core/validatorapi: improve query param handling and errors (#1498)",
+  "Number": 1498,
+  "Category": "misc",
+  "Issue": 0
+ },
+ {
+  "Title": "app: fix flapping InfoSync test (#1508)",
+  "Number": 1508,
+  "Category": "test",
+  "Issue": 0
  },
  {
   "Title": "log/loki: lazy loading of cluster labels (#1511)",
@@ -282,10 +468,28 @@
   "Issue": 1421
  },
  {
+  "Title": "app/errors: add sentinel error without stacktrace (#1483)",
+  "Number": 1483,
+  "Category": "misc",
+  "Issue": 0
+ },
+ {
   "Title": "github: update workflows to go1.19.3 (#1481)",
   "Number": 1481,
   "Category": "misc",
   "Issue": 1366
+ },
+ {
+  "Title": "app/eth2wrap: handle block attestations 404 (#1482)",
+  "Number": 1482,
+  "Category": "bug",
+  "Issue": 0
+ },
+ {
+  "Title": "app/eth2wrap: fix block attestation request (#1480)",
+  "Number": 1480,
+  "Category": "bug",
+  "Issue": 0
  },
  {
   "Title": "app/peerinfo: fix clock offset calculation (#1474)",
@@ -300,6 +504,12 @@
   "Issue": 1446
  },
  {
+  "Title": "readme: mark attestation duty as completed for vouch (#1476)",
+  "Number": 1476,
+  "Category": "docs",
+  "Issue": 0
+ },
+ {
   "Title": "core/tracker: implement inclusion delay tracker (#1468)",
   "Number": 1468,
   "Category": "feature",
@@ -310,5 +520,11 @@
   "Number": 1466,
   "Category": "test",
   "Issue": 992
+ },
+ {
+  "Title": "core/consensus: fix nil map panic (#1469)",
+  "Number": 1469,
+  "Category": "bug",
+  "Issue": 0
  }
 ]

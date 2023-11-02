@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"testing"
 
@@ -84,9 +85,10 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 	}
 
 	require.NoError(t, os.RemoveAll(filepath.Join(dir, "node0")))
+	require.NoError(t, os.RemoveAll(filepath.Join(dir, "node1")))
 
 	err := combine.Combine(context.Background(), dir, od, false, false, combine.WithInsecureKeysForT(t))
-	require.Error(t, err)
+	require.ErrorContains(t, err, "insufficient private key shares found for validator")
 }
 
 func TestCombineAllManifest(t *testing.T) {
@@ -187,10 +189,8 @@ func writeManifest(
 	legacy, err := manifest.NewLegacyLockForT(t, modifyLockFile(valIdx, lock))
 	require.NoError(t, err)
 
-	cluster, err := manifest.Materialise(&manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{legacy}})
-	require.NoError(t, err)
-
-	data, err := proto.Marshal(cluster)
+	dag := &manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{legacy}}
+	data, err := proto.Marshal(dag)
 	require.NoError(t, err)
 
 	require.NoError(t, os.WriteFile(filepath.Join(path, "cluster-manifest.pb"), data, 0o755))
@@ -251,7 +251,7 @@ func combineTest(
 	}
 
 	dir := t.TempDir()
-	od := t.TempDir()
+	od := path.Join(dir, "validator_keys")
 
 	// flatten secrets, each validator slice is unpacked in a flat structure
 	var rawSecrets []tbls.PrivateKey

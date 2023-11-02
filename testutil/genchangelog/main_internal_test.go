@@ -60,6 +60,11 @@ func TestPRFromLog(t *testing.T) {
 				Body:    "Body\n\ncategory: feature\nticket: none",
 				Subject: "(#266)",
 			},
+			out: pullRequest{
+				Title:    "(#266)",
+				Number:   266,
+				Category: "feature",
+			},
 		},
 		{
 			in: log{

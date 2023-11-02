@@ -58,11 +58,11 @@ type Handler interface {
 	eth2client.AttestationDataProvider
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
-	eth2client.BeaconBlockProposalProvider
-	eth2client.BeaconBlockSubmitter
+	eth2client.ProposalProvider
+	eth2client.ProposalSubmitter
 	eth2exp.BeaconCommitteeSelectionAggregator
-	eth2client.BlindedBeaconBlockProposalProvider
-	eth2client.BlindedBeaconBlockSubmitter
+	eth2client.BlindedProposalProvider
+	eth2client.BlindedProposalSubmitter
 	eth2client.NodeVersionProvider
 	eth2client.ProposerDutiesProvider
 	eth2client.SyncCommitteeContributionProvider
@@ -80,7 +80,7 @@ type Handler interface {
 // NewRouter returns a new validator http server router. The http router
 // translates http requests related to the distributed validator to the Handler.
 // All other requests are reverse-proxied to the beacon-node address.
-func NewRouter(h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
+func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
 	// Register subset of distributed validator related endpoints.
 	endpoints := []struct {
 		Name    string
@@ -128,9 +128,14 @@ func NewRouter(h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
 			Handler: proposeBlock(h),
 		},
 		{
-			Name:    "submit_block",
+			Name:    "submit_proposal_v1",
 			Path:    "/eth/v1/beacon/blocks",
-			Handler: submitBlock(h),
+			Handler: submitProposal(h),
+		},
+		{
+			Name:    "submit_proposal_v2",
+			Path:    "/eth/v2/beacon/blocks",
+			Handler: submitProposal(h),
 		},
 		{
 			Name:    "propose_blinded_block",
@@ -138,8 +143,13 @@ func NewRouter(h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
 			Handler: proposeBlindedBlock(h),
 		},
 		{
-			Name:    "submit_blinded_block",
+			Name:    "submit_blinded_block_v1",
 			Path:    "/eth/v1/beacon/blinded_blocks",
+			Handler: submitBlindedBlock(h),
+		},
+		{
+			Name:    "submit_blinded_block_v2",
+			Path:    "/eth/v2/beacon/blinded_blocks",
 			Handler: submitBlindedBlock(h),
 		},
 		{
@@ -215,7 +225,7 @@ func NewRouter(h Handler, eth2Cl eth2wrap.Client) (*mux.Router, error) {
 	}
 
 	// Everything else is proxied
-	r.PathPrefix("/").Handler(proxyHandler(eth2Cl))
+	r.PathPrefix("/").Handler(proxyHandler(ctx, eth2Cl))
 
 	return r, nil
 }
@@ -236,7 +246,7 @@ func (a apiError) Error() string {
 
 // handlerFunc is a convenient handler function providing a context, parsed path parameters,
 // the request body, and returning the response struct or an error.
-type handlerFunc func(ctx context.Context, params map[string]string, query url.Values, typ contentType, body []byte) (res interface{}, headers http.Header, err error)
+type handlerFunc func(ctx context.Context, params map[string]string, query url.Values, typ contentType, body []byte) (res any, headers http.Header, err error)
 
 // wrap adapts the handler function returning a standard http handler.
 // It does tracing, metrics and response and error writing.
@@ -283,7 +293,7 @@ func wrap(endpoint string, handler handlerFunc) http.Handler {
 }
 
 // writeResponse writes the 200 OK response and json response body.
-func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, response interface{}, headers http.Header) {
+func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, response any, headers http.Header) {
 	if response == nil {
 		return
 	}
@@ -315,7 +325,7 @@ func wrapTrace(endpoint string, handler http.HandlerFunc) http.Handler {
 
 // getValidator returns a handler function for the get validators by pubkey or index endpoint.
 func getValidators(p eth2client.ValidatorsProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (interface{}, http.Header, error) {
+	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		stateID := params["state_id"]
 
 		resp, err := getValidatorsByID(ctx, p, stateID, getValidatorIDs(query)...)
@@ -331,7 +341,7 @@ func getValidators(p eth2client.ValidatorsProvider) handlerFunc {
 
 // getValidator returns a handler function for the get validators by pubkey or index endpoint.
 func getValidator(p eth2client.ValidatorsProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, _ url.Values, _ contentType, _ []byte) (interface{}, http.Header, error) {
+	return func(ctx context.Context, params map[string]string, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		stateID := params["state_id"]
 		id := params["validator_id"]
 
@@ -353,7 +363,7 @@ func getValidator(p eth2client.ValidatorsProvider) handlerFunc {
 
 // attestationData returns a handler function for the attestation data endpoint.
 func attestationData(p eth2client.AttestationDataProvider) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, query url.Values, _ contentType, _ []byte) (interface{}, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		slot, err := uintQuery(query, "slot")
 		if err != nil {
 			return nil, nil, err
@@ -364,10 +374,15 @@ func attestationData(p eth2client.AttestationDataProvider) handlerFunc {
 			return nil, nil, err
 		}
 
-		data, err := p.AttestationData(ctx, eth2p0.Slot(slot), eth2p0.CommitteeIndex(commIdx))
+		opts := &eth2api.AttestationDataOpts{
+			Slot:           eth2p0.Slot(slot),
+			CommitteeIndex: eth2p0.CommitteeIndex(commIdx),
+		}
+		eth2Resp, err := p.AttestationData(ctx, opts)
 		if err != nil {
 			return nil, nil, err
 		}
+		data := eth2Resp.Data
 
 		return struct {
 			Data *eth2p0.AttestationData `json:"data"`
@@ -379,7 +394,7 @@ func attestationData(p eth2client.AttestationDataProvider) handlerFunc {
 
 // submitAttestations returns a handler function for the attestation submitter endpoint.
 func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (interface{}, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		var atts []*eth2p0.Attestation
 		err := unmarshal(typ, body, &atts)
 		if err != nil {
@@ -392,7 +407,7 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 
 // proposerDuties returns a handler function for the proposer duty endpoint.
 func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, _ url.Values, _ contentType, _ []byte) (interface{}, http.Header, error) {
+	return func(ctx context.Context, params map[string]string, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		epoch, err := uintParam(params, "epoch")
 		if err != nil {
 			return nil, nil, err
@@ -400,10 +415,17 @@ func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
 
 		// Note the ProposerDutiesProvider interface adds some sugar to the official eth2spec.
 		// ValidatorIndices aren't provided over the wire.
-		data, err := p.ProposerDuties(ctx, eth2p0.Epoch(epoch), nil)
+		opts := &eth2api.ProposerDutiesOpts{
+			Epoch:   eth2p0.Epoch(epoch),
+			Indices: nil,
+		}
+		eth2Resp, err := p.ProposerDuties(ctx, opts)
 		if err != nil {
 			return nil, nil, err
-		} else if len(data) == 0 { // Return empty json array instead of null
+		}
+
+		data := eth2Resp.Data
+		if len(data) == 0 { // Return empty json array instead of null
 			data = []*eth2v1.ProposerDuty{}
 		}
 
@@ -417,7 +439,7 @@ func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
 
 // attesterDuties returns a handler function for the attester duty endpoint.
 func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, _ url.Values, typ contentType, body []byte) (interface{}, http.Header, error) {
+	return func(ctx context.Context, params map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		epoch, err := uintParam(params, "epoch")
 		if err != nil {
 			return nil, nil, err
@@ -428,10 +450,17 @@ func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 			return nil, nil, err
 		}
 
-		data, err := p.AttesterDuties(ctx, eth2p0.Epoch(epoch), req)
+		opts := &eth2api.AttesterDutiesOpts{
+			Epoch:   eth2p0.Epoch(epoch),
+			Indices: req,
+		}
+		eth2Resp, err := p.AttesterDuties(ctx, opts)
 		if err != nil {
 			return nil, nil, err
-		} else if len(data) == 0 { // Return empty json array instead of null
+		}
+
+		data := eth2Resp.Data
+		if len(data) == 0 { // Return empty json array instead of null
 			data = []*eth2v1.AttesterDuty{}
 		}
 
@@ -445,7 +474,7 @@ func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 
 // syncCommitteeDuties returns a handler function for the sync committee duty endpoint.
 func syncCommitteeDuties(p eth2client.SyncCommitteeDutiesProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, _ url.Values, typ contentType, body []byte) (interface{}, http.Header, error) {
+	return func(ctx context.Context, params map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		epoch, err := uintParam(params, "epoch")
 		if err != nil {
 			return nil, nil, err
@@ -456,10 +485,17 @@ func syncCommitteeDuties(p eth2client.SyncCommitteeDutiesProvider) handlerFunc {
 			return nil, nil, err
 		}
 
-		data, err := p.SyncCommitteeDuties(ctx, eth2p0.Epoch(epoch), req)
+		opts := &eth2api.SyncCommitteeDutiesOpts{
+			Epoch:   eth2p0.Epoch(epoch),
+			Indices: req,
+		}
+		eth2Resp, err := p.SyncCommitteeDuties(ctx, opts)
 		if err != nil {
 			return nil, nil, err
-		} else if len(data) == 0 { // Return empty json array instead of null
+		}
+
+		data := eth2Resp.Data
+		if len(data) == 0 { // Return empty json array instead of null
 			data = []*eth2v1.SyncCommitteeDuty{}
 		}
 
@@ -469,7 +505,7 @@ func syncCommitteeDuties(p eth2client.SyncCommitteeDutiesProvider) handlerFunc {
 
 // syncCommitteeContribution returns a handler function for get sync committee contribution endpoint.
 func syncCommitteeContribution(s eth2client.SyncCommitteeContributionProvider) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, query url.Values, _ contentType, _ []byte) (interface{}, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		slot, err := uintQuery(query, "slot")
 		if err != nil {
 			return nil, nil, err
@@ -486,10 +522,16 @@ func syncCommitteeContribution(s eth2client.SyncCommitteeContributionProvider) h
 			return nil, nil, err
 		}
 
-		contribution, err := s.SyncCommitteeContribution(ctx, eth2p0.Slot(slot), subcommIdx, beaconBlockRoot)
+		opts := &eth2api.SyncCommitteeContributionOpts{
+			Slot:              eth2p0.Slot(slot),
+			SubcommitteeIndex: subcommIdx,
+			BeaconBlockRoot:   beaconBlockRoot,
+		}
+		eth2Resp, err := s.SyncCommitteeContribution(ctx, opts)
 		if err != nil {
 			return nil, nil, err
 		}
+		contribution := eth2Resp.Data
 
 		return syncCommitteeContributionResponse{Data: contribution}, nil, nil
 	}
@@ -497,7 +539,7 @@ func syncCommitteeContribution(s eth2client.SyncCommitteeContributionProvider) h
 
 // submitContributionAndProofs returns a handler function for sync committee contributions submitter endpoint.
 func submitContributionAndProofs(s eth2client.SyncCommitteeContributionsSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (interface{}, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		var contributionAndProofs []*altair.SignedContributionAndProof
 		err := unmarshal(typ, body, &contributionAndProofs)
 		if err != nil {
@@ -509,8 +551,8 @@ func submitContributionAndProofs(s eth2client.SyncCommitteeContributionsSubmitte
 }
 
 // proposeBlock receives the randao from the validator and returns the unsigned BeaconBlock.
-func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (interface{}, http.Header, error) {
+func proposeBlock(p eth2client.ProposalProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		slot, err := uintParam(params, "slot")
 		if err != nil {
 			return nil, nil, err
@@ -526,10 +568,18 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 			return nil, nil, err
 		}
 
-		block, err := p.BeaconBlockProposal(ctx, eth2p0.Slot(slot), randao, graffiti)
+		var graff [32]byte
+		copy(graff[:], graffiti)
+		opts := &eth2api.ProposalOpts{
+			Slot:         eth2p0.Slot(slot),
+			RandaoReveal: randao,
+			Graffiti:     graff,
+		}
+		eth2Resp, err := p.Proposal(ctx, opts)
 		if err != nil {
 			return nil, nil, err
 		}
+		block := eth2Resp.Data
 
 		resHeaders := make(http.Header)
 		resHeaders.Add("Eth-Consensus-Version", block.Version.String())
@@ -587,8 +637,8 @@ func proposeBlock(p eth2client.BeaconBlockProposalProvider) handlerFunc {
 }
 
 // proposeBlindedBlock receives the randao from the validator and returns the unsigned BlindedBeaconBlock.
-func proposeBlindedBlock(p eth2client.BlindedBeaconBlockProposalProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (interface{}, http.Header, error) {
+func proposeBlindedBlock(p eth2client.BlindedProposalProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		slot, err := uintParam(params, "slot")
 		if err != nil {
 			return nil, nil, err
@@ -599,10 +649,16 @@ func proposeBlindedBlock(p eth2client.BlindedBeaconBlockProposalProvider) handle
 			return nil, nil, err
 		}
 
-		block, err := p.BlindedBeaconBlockProposal(ctx, eth2p0.Slot(slot), randao, nil)
+		opts := &eth2api.BlindedProposalOpts{
+			Slot:         eth2p0.Slot(slot),
+			RandaoReveal: randao,
+			Graffiti:     [32]byte{},
+		}
+		eth2Resp, err := p.BlindedProposal(ctx, opts)
 		if err != nil {
 			return nil, nil, err
 		}
+		block := eth2Resp.Data
 
 		resHeaders := make(http.Header)
 		resHeaders.Add("Eth-Consensus-Version", block.Version.String())
@@ -641,79 +697,79 @@ func proposeBlindedBlock(p eth2client.BlindedBeaconBlockProposalProvider) handle
 	}
 }
 
-func submitBlock(p eth2client.BeaconBlockSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (interface{}, http.Header, error) {
+func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		capellaBlock := new(capella.SignedBeaconBlock)
 		err := unmarshal(typ, body, capellaBlock)
 		if err == nil {
-			block := &eth2spec.VersionedSignedBeaconBlock{
+			block := &eth2api.VersionedSignedProposal{
 				Version: eth2spec.DataVersionCapella,
 				Capella: capellaBlock,
 			}
 
-			return nil, nil, p.SubmitBeaconBlock(ctx, block)
+			return nil, nil, p.SubmitProposal(ctx, block)
 		}
 
 		bellatrixBlock := new(bellatrix.SignedBeaconBlock)
 		err = unmarshal(typ, body, bellatrixBlock)
 		if err == nil {
-			block := &eth2spec.VersionedSignedBeaconBlock{
+			block := &eth2api.VersionedSignedProposal{
 				Version:   eth2spec.DataVersionBellatrix,
 				Bellatrix: bellatrixBlock,
 			}
 
-			return nil, nil, p.SubmitBeaconBlock(ctx, block)
+			return nil, nil, p.SubmitProposal(ctx, block)
 		}
 
 		altairBlock := new(altair.SignedBeaconBlock)
 		err = unmarshal(typ, body, altairBlock)
 		if err == nil {
-			block := &eth2spec.VersionedSignedBeaconBlock{
+			block := &eth2api.VersionedSignedProposal{
 				Version: eth2spec.DataVersionAltair,
 				Altair:  altairBlock,
 			}
 
-			return nil, nil, p.SubmitBeaconBlock(ctx, block)
+			return nil, nil, p.SubmitProposal(ctx, block)
 		}
 
 		phase0Block := new(eth2p0.SignedBeaconBlock)
 		err = unmarshal(typ, body, phase0Block)
 		if err == nil {
-			block := &eth2spec.VersionedSignedBeaconBlock{
+			block := &eth2api.VersionedSignedProposal{
 				Version: eth2spec.DataVersionPhase0,
 				Phase0:  phase0Block,
 			}
 
-			return nil, nil, p.SubmitBeaconBlock(ctx, block)
+			return nil, nil, p.SubmitProposal(ctx, block)
 		}
 
 		return nil, nil, errors.New("invalid submitted block", z.Hex("body", body))
 	}
 }
 
-func submitBlindedBlock(p eth2client.BlindedBeaconBlockSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (interface{}, http.Header, error) {
+func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		// The blinded block maybe either bellatrix or capella.
 		capellaBlock := new(eth2capella.SignedBlindedBeaconBlock)
 		err := unmarshal(typ, body, capellaBlock)
 		if err == nil {
-			block := &eth2api.VersionedSignedBlindedBeaconBlock{
+			block := &eth2api.VersionedSignedBlindedProposal{
 				Version: eth2spec.DataVersionCapella,
 				Capella: capellaBlock,
 			}
 
-			return nil, nil, p.SubmitBlindedBeaconBlock(ctx, block)
+			return nil, nil, p.SubmitBlindedProposal(ctx, block)
 		}
 
 		bellatrixBlock := new(eth2bellatrix.SignedBlindedBeaconBlock)
 		err = unmarshal(typ, body, bellatrixBlock)
 		if err == nil {
-			block := &eth2api.VersionedSignedBlindedBeaconBlock{
+			block := &eth2api.VersionedSignedBlindedProposal{
 				Version:   eth2spec.DataVersionBellatrix,
 				Bellatrix: bellatrixBlock,
 			}
 
-			return nil, nil, p.SubmitBlindedBeaconBlock(ctx, block)
+			return nil, nil, p.SubmitBlindedProposal(ctx, block)
 		}
 
 		return nil, nil, errors.New("invalid block")
@@ -722,7 +778,7 @@ func submitBlindedBlock(p eth2client.BlindedBeaconBlockSubmitter) handlerFunc {
 
 // submitValidatorRegistrations returns a handler function for the validator (builder) registration submitter endpoint.
 func submitValidatorRegistrations(r eth2client.ValidatorRegistrationsSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (interface{}, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		var unversioned []*eth2v1.SignedValidatorRegistration
 		if err := unmarshal(typ, body, &unversioned); err != nil {
 			return nil, nil, errors.Wrap(err, "unmarshal signed builder registration")
@@ -742,7 +798,7 @@ func submitValidatorRegistrations(r eth2client.ValidatorRegistrationsSubmitter) 
 
 // aggregateBeaconCommitteeSelections receives partial beacon committee selections and returns aggregated selections.
 func aggregateBeaconCommitteeSelections(a eth2exp.BeaconCommitteeSelectionAggregator) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (res interface{}, headers http.Header, err error) {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (res any, headers http.Header, err error) {
 		var selections []*eth2exp.BeaconCommitteeSelection
 		if err := unmarshal(typ, body, &selections); err != nil {
 			return nil, nil, errors.Wrap(err, "unmarshal beacon committee selections")
@@ -759,7 +815,7 @@ func aggregateBeaconCommitteeSelections(a eth2exp.BeaconCommitteeSelectionAggreg
 
 // aggregateSyncCommitteeSelections receives partial sync committee selections and returns aggregated selections.
 func aggregateSyncCommitteeSelections(a eth2exp.SyncCommitteeSelectionAggregator) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (res interface{}, headers http.Header, err error) {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (res any, headers http.Header, err error) {
 		var selections []*eth2exp.SyncCommitteeSelection
 		if err := unmarshal(typ, body, &selections); err != nil {
 			return nil, nil, errors.Wrap(err, "unmarshal sync committee selections")
@@ -776,7 +832,7 @@ func aggregateSyncCommitteeSelections(a eth2exp.SyncCommitteeSelectionAggregator
 
 // submitExit returns a handler function for the exit submitter endpoint.
 func submitExit(p eth2client.VoluntaryExitSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (interface{}, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		exit := new(eth2p0.SignedVoluntaryExit)
 		if err := unmarshal(typ, body, exit); err != nil {
 			return nil, nil, errors.Wrap(err, "unmarshal signed voluntary exit")
@@ -787,7 +843,7 @@ func submitExit(p eth2client.VoluntaryExitSubmitter) handlerFunc {
 }
 
 func proposerConfig(p eth2exp.ProposerConfigProvider) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, _ contentType, _ []byte) (interface{}, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		resp, err := p.ProposerConfig(ctx)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "proposer config")
@@ -798,7 +854,7 @@ func proposerConfig(p eth2exp.ProposerConfigProvider) handlerFunc {
 }
 
 func aggregateAttestation(p eth2client.AggregateAttestationProvider) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, query url.Values, _ contentType, _ []byte) (interface{}, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		slot, err := uintQuery(query, "slot")
 		if err != nil {
 			return nil, nil, err
@@ -809,10 +865,15 @@ func aggregateAttestation(p eth2client.AggregateAttestationProvider) handlerFunc
 			return nil, nil, err
 		}
 
-		data, err := p.AggregateAttestation(ctx, eth2p0.Slot(slot), attDataRoot)
+		opts := &eth2api.AggregateAttestationOpts{
+			Slot:                eth2p0.Slot(slot),
+			AttestationDataRoot: attDataRoot,
+		}
+		eth2Resp, err := p.AggregateAttestation(ctx, opts)
 		if err != nil {
 			return nil, nil, err
 		}
+		data := eth2Resp.Data
 
 		return struct {
 			Data *eth2p0.Attestation `json:"data"`
@@ -823,7 +884,7 @@ func aggregateAttestation(p eth2client.AggregateAttestationProvider) handlerFunc
 }
 
 func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (interface{}, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		var aggs []*eth2p0.SignedAggregateAndProof
 		err := unmarshal(typ, body, &aggs)
 		if err != nil {
@@ -840,7 +901,7 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 }
 
 func submitSyncCommitteeMessages(s eth2client.SyncCommitteeMessagesSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (interface{}, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		var msgs []*altair.SyncCommitteeMessage
 		err := unmarshal(typ, body, &msgs)
 		if err != nil {
@@ -859,18 +920,19 @@ func submitSyncCommitteeMessages(s eth2client.SyncCommitteeMessagesSubmitter) ha
 // submitProposalPreparations swallows fee-recipient-address from validator client as it should be
 // configured by charon from cluster-lock.json and VC need not be configured with correct fee-recipient-address.
 func submitProposalPreparations() handlerFunc {
-	return func(context.Context, map[string]string, url.Values, contentType, []byte) (interface{}, http.Header, error) {
+	return func(context.Context, map[string]string, url.Values, contentType, []byte) (any, http.Header, error) {
 		return nil, nil, nil
 	}
 }
 
 // nodeVersion returns the version of the node.
 func nodeVersion(p eth2client.NodeVersionProvider) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, _ contentType, _ []byte) (interface{}, http.Header, error) {
-		version, err := p.NodeVersion(ctx)
+	return func(ctx context.Context, _ map[string]string, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+		eth2Resp, err := p.NodeVersion(ctx)
 		if err != nil {
 			return nil, nil, err
 		}
+		version := eth2Resp.Data
 
 		return nodeVersionResponse{
 			Data: struct {
@@ -880,11 +942,17 @@ func nodeVersion(p eth2client.NodeVersionProvider) handlerFunc {
 	}
 }
 
+// addressProvider provides the address of the active beacon node.
+type addressProvider interface {
+	Address() string
+}
+
 // proxyHandler returns a reverse proxy handler.
-func proxyHandler(eth2Cl eth2wrap.Client) http.HandlerFunc {
+// Proxied requests use the provided context, so are cancelled when the context is cancelled.
+func proxyHandler(ctx context.Context, addrProvider addressProvider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Get active beacon node address.
-		targetURL, err := getBeaconNodeAddress(r.Context(), eth2Cl)
+		targetURL, err := getBeaconNodeAddress(addrProvider)
 		if err != nil {
 			ctx := log.WithTopic(r.Context(), "vapi")
 			log.Error(ctx, "Proxy target beacon node address", err)
@@ -894,7 +962,6 @@ func proxyHandler(eth2Cl eth2wrap.Client) http.HandlerFunc {
 		}
 		// Get address for active beacon node
 		proxy := httputil.NewSingleHostReverseProxy(targetURL)
-
 		// Extend default proxy director with basic auth and host header.
 		defaultDirector := proxy.Director
 		proxy.Director = func(req *http.Request) {
@@ -907,31 +974,18 @@ func proxyHandler(eth2Cl eth2wrap.Client) http.HandlerFunc {
 		}
 		proxy.ErrorLog = stdlog.New(io.Discard, "", 0)
 
+		// Use provided context for proxied requests, so long running
+		// requests are cancelled when this context is cancelled (soft shutdown).
+		clonedReq := r.Clone(ctx)
+
 		defer observeAPILatency("proxy")()
-		proxy.ServeHTTP(proxyResponseWriter{w.(writeFlusher)}, r)
+		proxy.ServeHTTP(proxyResponseWriter{w.(writeFlusher)}, clonedReq)
 	}
 }
 
 // getBeaconNodeAddress returns an active beacon node proxy target address.
-func getBeaconNodeAddress(ctx context.Context, eth2Cl eth2wrap.Client) (*url.URL, error) {
-	addr := eth2Cl.Address()
-	if addr == "none" {
-		// Trigger refresh of inactive clients to hopefully resolve any active clients.
-		syncProvider, ok := eth2Cl.(eth2client.NodeSyncingProvider)
-		if !ok {
-			return nil, errors.New("invalid eth2 client")
-		}
-		_, err := syncProvider.NodeSyncing(ctx)
-		if err != nil {
-			return nil, errors.New("no active beacon nodes") // Not wrapping since error will be confusing.
-		}
-
-		addr = eth2Cl.Address()
-		if addr == "none" {
-			return nil, errors.New("no active beacon nodes")
-		}
-	}
-
+func getBeaconNodeAddress(addrProvider addressProvider) (*url.URL, error) {
+	addr := addrProvider.Address()
 	targetURL, err := url.Parse(addr)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid beacon node address", z.Str("address", addr))
@@ -999,7 +1053,7 @@ func writeError(ctx context.Context, w http.ResponseWriter, endpoint string, err
 
 // unmarshal parses body with the appropriate unmarshaler based on the contentType and stores the result
 // in the value pointed to by v.
-func unmarshal(typ contentType, body []byte, v interface{}) error {
+func unmarshal(typ contentType, body []byte, v any) error {
 	if len(body) == 0 {
 		return apiError{
 			StatusCode: http.StatusBadRequest,
@@ -1199,10 +1253,15 @@ func getValidatorsByID(ctx context.Context, p eth2client.ValidatorsProvider, sta
 			pubkeys = append(pubkeys, eth2Pubkey)
 		}
 
-		vals, err := p.ValidatorsByPubKey(ctx, stateID, pubkeys)
+		opts := &eth2api.ValidatorsOpts{
+			State:   stateID,
+			PubKeys: pubkeys,
+		}
+		eth2Resp, err := p.Validators(ctx, opts)
 		if err != nil {
 			return nil, err
 		}
+		vals := eth2Resp.Data
 
 		return flatten(vals), nil
 	}
@@ -1216,10 +1275,15 @@ func getValidatorsByID(ctx context.Context, p eth2client.ValidatorsProvider, sta
 		vIdxs = append(vIdxs, eth2p0.ValidatorIndex(vIdx))
 	}
 
-	vals, err := p.Validators(ctx, stateID, vIdxs)
+	opts := &eth2api.ValidatorsOpts{
+		State:   stateID,
+		Indices: vIdxs,
+	}
+	eth2Resp, err := p.Validators(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
+	vals := eth2Resp.Data
 
 	return flatten(vals), nil
 }

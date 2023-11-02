@@ -12,6 +12,7 @@ import (
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/eth2util/registration"
@@ -132,6 +133,18 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 
 	lock.SignatureAggregate, err = aggSign(dvShares, lock.LockHash)
 	require.NoError(t, err)
+
+	for _, p2pKey := range p2pKeys {
+		nodeSig, err := k1util.Sign(p2pKey, lock.LockHash)
+		require.NoError(t, err)
+
+		lock.NodeSignatures = append(lock.NodeSignatures, nodeSig)
+	}
+
+	// Clear node signatures if before v1.7
+	if isAnyVersion(lock.Version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6) {
+		lock.NodeSignatures = nil
+	}
 
 	return lock, p2pKeys, dvShares
 }

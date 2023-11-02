@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,21 +18,50 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
+//go:generate go test . -run=TestSSZSerialisation -update
+
+func TestSSZSerialisation(t *testing.T) {
+	for _, typFunc := range coreTypeFuncs {
+		any1, any2 := typFunc(), typFunc()
+
+		name := fmt.Sprintf("%T", any1)
+		name = strings.TrimPrefix(name, "*core.")
+		name += ".ssz"
+
+		if _, ok := any1.(ssz.Marshaler); !ok {
+			t.Logf("Skipping non SSZ type: %v", name)
+			continue
+		}
+
+		t.Run(name, func(t *testing.T) {
+			testutil.NewEth2Fuzzer(t, 1).Fuzz(any1)
+
+			b, err := ssz.MarshalSSZ(any1.(ssz.Marshaler))
+			testutil.RequireNoError(t, err)
+			testutil.RequireGoldenBytes(t, b)
+
+			err = any2.(ssz.Unmarshaler).UnmarshalSSZ(b)
+			testutil.RequireNoError(t, err)
+			require.Equal(t, any1, any2)
+		})
+	}
+}
+
 // TestSSZ tests SSZ marshalling and unmarshalling.
 func TestSSZ(t *testing.T) {
 	tests := []struct {
 		zero func() any
 	}{
-		{zero: func() any { return new(core.VersionedSignedBeaconBlock) }},
+		{zero: func() any { return new(core.VersionedSignedProposal) }},
 		{zero: func() any { return new(core.Attestation) }},
-		{zero: func() any { return new(core.VersionedSignedBlindedBeaconBlock) }},
+		{zero: func() any { return new(core.VersionedSignedBlindedProposal) }},
 		{zero: func() any { return new(core.SignedAggregateAndProof) }},
 		{zero: func() any { return new(core.SignedSyncMessage) }},
 		{zero: func() any { return new(core.SyncContributionAndProof) }},
 		{zero: func() any { return new(core.SignedSyncContributionAndProof) }},
 		{zero: func() any { return new(core.AggregatedAttestation) }},
-		{zero: func() any { return new(core.VersionedBeaconBlock) }},
-		{zero: func() any { return new(core.VersionedBlindedBeaconBlock) }},
+		{zero: func() any { return new(core.VersionedProposal) }},
+		{zero: func() any { return new(core.VersionedBlindedProposal) }},
 		{zero: func() any { return new(core.SyncContribution) }},
 	}
 
@@ -75,11 +105,11 @@ func TestMarshalUnsignedProto(t *testing.T) {
 		},
 		{
 			dutyType:    core.DutyProposer,
-			unsignedPtr: func() any { return new(core.VersionedBeaconBlock) },
+			unsignedPtr: func() any { return new(core.VersionedProposal) },
 		},
 		{
 			dutyType:    core.DutyBuilderProposer,
-			unsignedPtr: func() any { return new(core.VersionedBlindedBeaconBlock) },
+			unsignedPtr: func() any { return new(core.VersionedBlindedProposal) },
 		},
 		{
 			dutyType:    core.DutySyncContribution,
@@ -153,11 +183,11 @@ func TestMarshalParSignedProto(t *testing.T) {
 		},
 		{
 			dutyType:  core.DutyProposer,
-			signedPtr: func() any { return new(core.VersionedSignedBeaconBlock) },
+			signedPtr: func() any { return new(core.VersionedSignedProposal) },
 		},
 		{
 			dutyType:  core.DutyBuilderProposer,
-			signedPtr: func() any { return new(core.VersionedSignedBlindedBeaconBlock) },
+			signedPtr: func() any { return new(core.VersionedSignedBlindedProposal) },
 		},
 		{
 			dutyType:  core.DutySyncContribution,

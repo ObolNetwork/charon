@@ -6,7 +6,6 @@ import (
 	"context"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -15,19 +14,25 @@ import (
 )
 
 func TestDutyExpiration(t *testing.T) {
+	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
 
 	deadliner := newTestDeadliner()
 	db := NewMemDB(deadliner)
 
-	go db.Run(ctx)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		db.Run(ctx)
+	}()
 
 	slot := int64(99)
 	duty := core.NewAttesterDuty(slot)
 	pubkey := testutil.RandomCorePubKey(t)
 	sig := testutil.RandomCoreSignature()
 
-	err := db.Store(ctx, duty, pubkey, sig)
+	err := db.Store(ctx, duty, core.SignedDataSet{pubkey: sig})
 	require.NoError(t, err)
 
 	resp, err := db.Await(ctx, duty, pubkey)
@@ -39,12 +44,10 @@ func TestDutyExpiration(t *testing.T) {
 	// Why?
 	// aggsigdb relies on channels and a single executing goroutine to synchronize access to its internal data structure
 	// and while this is cool and useful, it makes our life hard in this test.
-	// So what I'm doing here is to explicitly cancel the context, which will close the goroutine spawned for
-	// db.Run(), then I'll wait a few millisecond to allow the dust to settle.
-	// After that, we can proceed with the test data condition checks.
-	// Ugly, but it works. I'll have to rewrite this package at some point.
+	// So what I'm doing here is to explicitly cancel the context
+	// And wait till go routine is closed
 	cancel()
-	time.Sleep(50 * time.Millisecond)
+	wg.Wait()
 
 	require.Empty(t, db.data)
 	require.Empty(t, db.keysByDuty)
@@ -94,7 +97,7 @@ func TestCancelledQuery(t *testing.T) {
 	wg.Wait()
 
 	// Store something and ensure no blocked queries
-	err := db.Store(ctx, duty, pubkey, sig)
+	err := db.Store(ctx, duty, core.SignedDataSet{pubkey: sig})
 	require.NoError(t, err)
 	require.Equal(t, 0, <-queryCount)
 }

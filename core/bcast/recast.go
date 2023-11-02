@@ -44,11 +44,11 @@ type Recaster struct {
 	mu             sync.Mutex
 	tuples         map[core.PubKey]recastTuple
 	activeValsFunc func(context.Context) (map[eth2p0.BLSPubKey]struct{}, error)
-	subs           []func(context.Context, core.Duty, core.PubKey, core.SignedData) error
+	subs           []func(context.Context, core.Duty, core.SignedDataSet) error
 }
 
 // Subscribe subscribes to rebroadcasted duties.
-func (r *Recaster) Subscribe(sub func(context.Context, core.Duty, core.PubKey, core.SignedData) error) {
+func (r *Recaster) Subscribe(sub func(context.Context, core.Duty, core.SignedDataSet) error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -56,13 +56,26 @@ func (r *Recaster) Subscribe(sub func(context.Context, core.Duty, core.PubKey, c
 }
 
 // Store stores aggregate signed duty registrations for rebroadcasting.
-func (r *Recaster) Store(_ context.Context, duty core.Duty,
-	pubkey core.PubKey, aggData core.SignedData,
+func (r *Recaster) Store(ctx context.Context, duty core.Duty,
+	set core.SignedDataSet,
 ) error {
 	if duty.Type != core.DutyBuilderRegistration {
 		return nil
 	}
 
+	for pubkey, aggData := range set {
+		if err := r.store(ctx, duty, pubkey, aggData); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// store stores aggregate signed duty registrations for rebroadcasting.
+func (r *Recaster) store(_ context.Context, duty core.Duty,
+	pubkey core.PubKey, aggData core.SignedData,
+) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -96,27 +109,20 @@ func (r *Recaster) SlotTicked(ctx context.Context, slot core.Slot) error {
 	}
 	ctx = log.WithTopic(ctx, "bcast")
 
-	// Copy locked things before doing IO.
-	var (
-		clonedTuples = make(map[core.PubKey]recastTuple)
-		clonedSubs   []func(context.Context, core.Duty, core.PubKey, core.SignedData) error
-	)
-
-	r.mu.Lock()
-	clonedSubs = append(clonedSubs, r.subs...)
-	for k, v := range r.tuples {
-		clonedTuples[k] = v
-	}
-	r.mu.Unlock()
-
 	activeVals, err := r.activeValsFunc(ctx)
 	if err != nil {
 		return errors.Wrap(err, "get active validator")
 	}
 
-	for pubkey, tuple := range clonedTuples {
-		ctx := log.WithCtx(ctx, z.Any("duty", tuple.duty))
+	// Copy locked things before doing IO.
+	var (
+		clonedSets = make(map[core.Duty]map[core.PubKey]core.SignedData)
+		clonedSubs []func(context.Context, core.Duty, core.SignedDataSet) error
+	)
 
+	r.mu.Lock()
+	clonedSubs = append(clonedSubs, r.subs...)
+	for pubkey, tuple := range r.tuples {
 		ethPk, err := pubkey.ToETH2()
 		if err != nil {
 			log.Error(ctx, "Can't convert pubkey to eth2 format", err)
@@ -127,13 +133,25 @@ func (r *Recaster) SlotTicked(ctx context.Context, slot core.Slot) error {
 			continue
 		}
 
+		set, ok := clonedSets[tuple.duty]
+		if !ok {
+			set = make(core.SignedDataSet)
+			clonedSets[tuple.duty] = set
+		}
+		set[pubkey] = tuple.aggData
+	}
+	r.mu.Unlock()
+
+	for duty, set := range clonedSets {
+		dutyCtx := log.WithCtx(ctx, z.Any("duty", duty))
+
 		for _, sub := range clonedSubs {
-			err := sub(ctx, tuple.duty, pubkey, tuple.aggData)
+			err := sub(dutyCtx, duty, set)
 			if err != nil {
-				log.Error(ctx, "Rebroadcast duty error (will retry next epoch)", err)
-				incRegCounter(tuple, recastErrors)
+				log.Error(dutyCtx, "Rebroadcast duty error (will retry next epoch)", err)
+				incRegCounter(duty, recastErrors)
 			}
-			incRegCounter(tuple, recastTotal)
+			incRegCounter(duty, recastTotal)
 		}
 	}
 
@@ -141,13 +159,13 @@ func (r *Recaster) SlotTicked(ctx context.Context, slot core.Slot) error {
 }
 
 // incRegCounter increments the registration counter if applicable.
-func incRegCounter(tuple recastTuple, counterVec *prometheus.CounterVec) {
-	if tuple.duty.Type != core.DutyBuilderRegistration {
+func incRegCounter(duty core.Duty, counterVec *prometheus.CounterVec) {
+	if duty.Type != core.DutyBuilderRegistration {
 		return
 	}
 
 	source := regSourcePregen
-	if tuple.duty.Slot > 0 {
+	if duty.Slot > 0 {
 		source = regSourceDownstream
 	}
 

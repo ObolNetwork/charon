@@ -32,7 +32,7 @@ const (
 	insecureCost = 4
 
 	// loadStoreWorkers is the amount of workers to use when loading/storing keys concurrently.
-	loadStoreWorkers = 64
+	loadStoreWorkers = 10
 )
 
 type confirmInsecure struct{}
@@ -52,11 +52,17 @@ func StoreKeysInsecure(secrets []tbls.PrivateKey, dir string, _ confirmInsecure)
 
 // StoreKeys stores the secrets in dir/keystore-%d.json EIP 2335 Keystore files
 // with new random passwords stored in dir/Keystore-%d.txt.
+//
+// Note it doesn't ensure the folder dir exists.
 func StoreKeys(secrets []tbls.PrivateKey, dir string) error {
 	return storeKeysInternal(secrets, dir, "keystore-%d.json")
 }
 
 func storeKeysInternal(secrets []tbls.PrivateKey, dir string, filenameFmt string, opts ...keystorev4.Option) error {
+	if err := checkDir(dir); err != nil {
+		return err
+	}
+
 	type data struct {
 		index  int
 		secret tbls.PrivateKey
@@ -91,7 +97,7 @@ func storeKeysInternal(secrets []tbls.PrivateKey, dir string, filenameFmt string
 				return nil, errors.Wrap(err, "store password", z.Str("filename", filename))
 			}
 
-			return nil, nil
+			return nil, nil //nolint:nilnil
 		},
 		forkjoin.WithWorkers(loadStoreWorkers),
 	)
@@ -117,12 +123,12 @@ func storeKeysInternal(secrets []tbls.PrivateKey, dir string, filenameFmt string
 
 // Keystore json file representation as a Go struct.
 type Keystore struct {
-	Crypto      map[string]interface{} `json:"crypto"`
-	Description string                 `json:"description"`
-	Pubkey      string                 `json:"pubkey"`
-	Path        string                 `json:"path"`
-	ID          string                 `json:"uuid"`
-	Version     uint                   `json:"version"`
+	Crypto      map[string]any `json:"crypto"`
+	Description string         `json:"description"`
+	Pubkey      string         `json:"pubkey"`
+	Path        string         `json:"path"`
+	ID          string         `json:"uuid"`
+	Version     uint           `json:"version"`
 }
 
 // Encrypt returns the secret as an encrypted Keystore using pbkdf2 cipher.
@@ -205,4 +211,17 @@ func randomHex32() (string, error) {
 	}
 
 	return hex.EncodeToString(b), nil
+}
+
+// checkDir checks if dir exists and is a directory.
+func checkDir(dir string) error {
+	if info, err := os.Stat(dir); os.IsNotExist(err) {
+		return errors.Wrap(err, "keystore dir does not exist", z.Str("dir", dir))
+	} else if err != nil {
+		return errors.Wrap(err, "check keystore dir", z.Str("dir", dir))
+	} else if !info.IsDir() {
+		return errors.New("keystore dir is not a directory", z.Str("dir", dir))
+	}
+
+	return nil
 }

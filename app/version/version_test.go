@@ -64,6 +64,16 @@ func TestSemVerCompare(t *testing.T) {
 	}
 }
 
+func TestIsPrerelease(t *testing.T) {
+	preRelease, err := version.Parse("v0.17.1-rc1")
+	require.NoError(t, err)
+	require.True(t, preRelease.PreRelease())
+
+	release, err := version.Parse("v0.17.1")
+	require.NoError(t, err)
+	require.False(t, release.PreRelease())
+}
+
 func TestCurrentInSupported(t *testing.T) {
 	require.Equal(t, 0, version.Compare(version.Version, version.Supported()[0]))
 }

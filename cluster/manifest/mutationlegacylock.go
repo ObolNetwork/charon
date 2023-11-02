@@ -15,6 +15,17 @@ import (
 	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 )
 
+// NewDAGFromLockForT returns a cluster DAG from the provided lock for use in tests.
+func NewDAGFromLockForT(_ *testing.T, lock cluster.Lock) (*manifestpb.SignedMutationList, error) {
+	signed, err := NewLegacyLockForT(nil, lock)
+	if err != nil {
+		return nil, err
+	}
+
+	return &manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{signed}}, nil
+}
+
+// NewClusterFromLockForT returns a cluster manifest from the provided lock for use in tests.
 func NewClusterFromLockForT(_ *testing.T, lock cluster.Lock) (*manifestpb.Cluster, error) {
 	signed, err := NewLegacyLockForT(nil, lock)
 	if err != nil {

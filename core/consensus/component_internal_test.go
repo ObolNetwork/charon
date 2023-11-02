@@ -372,6 +372,7 @@ func TestComponent_handle(t *testing.T) {
 			var tc Component
 			tc.deadliner = testDeadliner{}
 			tc.mutable.instances = make(map[core.Duty]instanceIO)
+			tc.gaterFunc = func(core.Duty) bool { return true }
 
 			msg := &pbv1.ConsensusMsg{
 				Msg: randomMsg(t),
@@ -448,22 +449,27 @@ func TestComponentHandle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, _, err := new(Component).handle(ctx, "", tt.msg)
+			c := &Component{
+				gaterFunc: func(core.Duty) bool { return true },
+			}
+
+			_, _, err := c.handle(ctx, "", tt.msg)
 			require.ErrorContains(t, err, tt.errorMsg)
 		})
 	}
 }
 
-func TestInstanceIO_ShouldRun(t *testing.T) {
-	t.Run("ShouldRun for new instance", func(t *testing.T) {
+func TestInstanceIO_MaybeStart(t *testing.T) {
+	t.Run("MaybeStart for new instance", func(t *testing.T) {
 		inst1 := newInstanceIO()
-		require.True(t, inst1.ShouldRun())
-		require.False(t, inst1.ShouldRun())
+		require.True(t, inst1.MaybeStart())
+		require.False(t, inst1.MaybeStart())
 	})
 
-	t.Run("ShouldRun after handle", func(t *testing.T) {
+	t.Run("MaybeStart after handle", func(t *testing.T) {
 		var c Component
 		c.deadliner = testDeadliner{}
+		c.gaterFunc = func(core.Duty) bool { return true }
 		c.mutable.instances = make(map[core.Duty]instanceIO)
 
 		// Generate a p2p private key.
@@ -483,8 +489,8 @@ func TestInstanceIO_ShouldRun(t *testing.T) {
 
 		inst, ok := c.mutable.instances[duty]
 		require.True(t, ok)
-		require.True(t, inst.ShouldRun())
-		require.False(t, inst.ShouldRun())
+		require.True(t, inst.MaybeStart())
+		require.False(t, inst.MaybeStart())
 	})
 
 	t.Run("Call Propose after handle", func(t *testing.T) {
@@ -492,6 +498,7 @@ func TestInstanceIO_ShouldRun(t *testing.T) {
 
 		var c Component
 		c.deadliner = testDeadliner{}
+		c.gaterFunc = func(core.Duty) bool { return true }
 		c.mutable.instances = make(map[core.Duty]instanceIO)
 		c.timerFunc = getTimerFunc()
 
@@ -512,14 +519,14 @@ func TestInstanceIO_ShouldRun(t *testing.T) {
 
 		pubkey := testutil.RandomCorePubKey(t)
 
-		// Propose should internally mark instance as running by calling inst.ShouldRun().
+		// Propose should internally mark instance as running by calling inst.MaybeStart().
 		err = c.Propose(ctx, duty, core.UnsignedDataSet{pubkey: testutil.RandomCoreAttestationData(t)})
 		require.Error(t, err) // It should return an error as no peers are specified.
 
-		// Check if ShouldRun is called before.
+		// Check if MaybeStart is called before.
 		inst, ok := c.mutable.instances[duty]
 		require.True(t, ok)
-		require.False(t, inst.ShouldRun())
+		require.False(t, inst.MaybeStart())
 	})
 }
 

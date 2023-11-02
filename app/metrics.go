@@ -75,7 +75,7 @@ var (
 		Help:      "Gauge set to the peer count of the upstream beacon node",
 	})
 
-	beaconNodeVersionGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	beaconNodeVersionGauge = promauto.NewResetGaugeVec(prometheus.GaugeOpts{
 		Namespace: "app",
 		Subsystem: "beacon_node",
 		Name:      "version",

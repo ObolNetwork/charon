@@ -21,6 +21,7 @@ type Config struct {
 	PromEndpoint   string
 	PromAuth       string
 	MonitoringAddr string
+	Networks       []string
 }
 
 // Run blocks running the promrated program until the context is canceled or a fatal error occurs.
@@ -41,7 +42,7 @@ func Run(ctx context.Context, config Config) error {
 		serverErr <- serveMonitoring(config.MonitoringAddr, promRegistry)
 	}()
 
-	ticker := time.NewTicker(1 * time.Hour)
+	ticker := time.NewTicker(12 * time.Hour)
 	defer ticker.Stop()
 
 	onStartup := make(chan struct{}, 1)
@@ -70,8 +71,6 @@ func reportMetrics(ctx context.Context, config Config) {
 		return
 	}
 
-	networks := make(map[string]bool)
-
 	for _, validator := range validators {
 		log.Info(ctx, "Fetched validator from prometheus",
 			z.Str("pubkey", validator.PubKey),
@@ -79,30 +78,30 @@ func reportMetrics(ctx context.Context, config Config) {
 			z.Str("cluster_network", validator.ClusterNetwork),
 		)
 
-		networks[validator.ClusterNetwork] = true
+		if contains(config.Networks, validator.ClusterNetwork) {
+			stats, err := getValidatorStatistics(ctx, config.RatedEndpoint, config.RatedAuth, validator)
+			if err != nil {
+				log.Error(ctx, "Getting validator statistics", err, z.Str("pubkey", validator.PubKey))
+				continue
+			}
 
-		stats, err := getValidatorStatistics(ctx, config.RatedEndpoint, config.RatedAuth, validator)
-		if err != nil {
-			log.Error(ctx, "Getting validator statistics", err, z.Str("validator", validator.PubKey))
-			continue
+			clusterLabels := prometheus.Labels{
+				"pubkey_full":     validator.PubKey,
+				"cluster_name":    validator.ClusterName,
+				"cluster_hash":    validator.ClusterHash,
+				"cluster_network": validator.ClusterNetwork,
+			}
+
+			uptime.With(clusterLabels).Set(stats.Uptime)
+			correctness.With(clusterLabels).Set(stats.AvgCorrectness)
+			inclusionDelay.With(clusterLabels).Set(stats.AvgInclusionDelay)
+			attester.With(clusterLabels).Set(stats.AttesterEffectiveness)
+			proposer.With(clusterLabels).Set(stats.ProposerEffectiveness)
+			effectiveness.With(clusterLabels).Set(stats.ValidatorEffectiveness)
 		}
-
-		clusterLabels := prometheus.Labels{
-			"pubkey_full":     validator.PubKey,
-			"cluster_name":    validator.ClusterName,
-			"cluster_hash":    validator.ClusterHash,
-			"cluster_network": validator.ClusterNetwork,
-		}
-
-		uptime.With(clusterLabels).Set(stats.Uptime)
-		correctness.With(clusterLabels).Set(stats.AvgCorrectness)
-		inclusionDelay.With(clusterLabels).Set(stats.AvgInclusionDelay)
-		attester.With(clusterLabels).Set(stats.AttesterEffectiveness)
-		proposer.With(clusterLabels).Set(stats.ProposerEffectiveness)
-		effectiveness.With(clusterLabels).Set(stats.ValidatorEffectiveness)
 	}
 
-	for network := range networks {
+	for _, network := range config.Networks {
 		networkLabels := prometheus.Labels{
 			"cluster_network": network,
 		}
@@ -118,4 +117,17 @@ func reportMetrics(ctx context.Context, config Config) {
 		networkInclusionDelay.With(networkLabels).Set(stats.AvgInclusionDelay)
 		networkEffectiveness.With(networkLabels).Set(stats.ValidatorEffectiveness)
 	}
+}
+
+// contains checks if array contains a string s.
+func contains(arr []string, s string) bool {
+	result := false
+	for _, x := range arr {
+		if x == s {
+			result = true
+			break
+		}
+	}
+
+	return result
 }

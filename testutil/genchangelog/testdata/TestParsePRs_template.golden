@@ -1,46 +1,48 @@
 # v0.13.0 - 1970-01-01
 
+![Obol Logo](https://obol.tech/obolnetwork.png)
+
 This release introduces general fixes and improvements including progress on great new features.
 
 **Full Changelog**: [v0.12.0..v0.13.0](https://github.com/obolnetwork/charon/compare/v0.12.0..v0.13.0)
 
 ## Feature
-- Issue#1464 #1464 (#1570)
-- Issue#1254 #1254 (#1468)
+- Issue#1582 #1582 (#1598)
+- Issue#1490 #1490 (#1615,#1532)
+- Issue#1506 #1506 (#1534,#1512)
+- Issue#1509 #1509 (#1511)
+- Issue#1421 #1421 (#1485)
+- Issue#1446 #1446 (#1473)
 - Issue#1501 #1501 (#1609,#1599,#1597,#1566)
 - Issue#1247 #1247 (#1526)
-- Issue#1509 #1509 (#1511)
-- Issue#1490 #1490 (#1615,#1532)
-- Issue#1486 #1486 (#1544,#1539,#1533,#1499,#1497,#1487)
-- Issue#1506 #1506 (#1534,#1512)
-- Issue#1421 #1421 (#1485)
 - Issue#1503 #1503 (#1622)
-- Issue#1590 #1590 (#1604)
-- Issue#1582 #1582 (#1598)
-- Issue#947 #947 (#1601,#1586)
 - Issue#1584 #1584 (#1596)
-- Issue#1446 #1446 (#1473)
-- Issue#1608 #1608 (#1627,#1624)
-- Issue#1521 #1521 (#1536)
 - Issue#1488 #1488 (#1520)
+- Issue#1590 #1590 (#1604)
+- Issue#1521 #1521 (#1536)
+- Issue#947 #947 (#1601,#1586)
+- Issue#1486 #1486 (#1544,#1539,#1533,#1499,#1497,#1487)
 - Issue#712 #712 (#1496)
+- Issue#1608 #1608 (#1627,#1624)
+- Issue#1464 #1464 (#1570)
+- Issue#1254 #1254 (#1468)
 
 ## Bug
-- Issue#1527 #1527 (#1528)
-- Issue#1555 #1555 (#1556,#1554)
 - Issue#1493 #1493 (#1505)
-- Issue#1540 #1540 (#1575,#1574,#1569,#1562,#1553,#1548)
+- Issue#1527 #1527 (#1528)
 - Issue#1445 #1445 (#1474)
+- Issue#1555 #1555 (#1556,#1554)
 - Issue#978 #978 (#1595)
+- Issue#1540 #1540 (#1575,#1574,#1569,#1562,#1553,#1548)
 
 ## Refactor
 - Issue#1524 #1524 (#1610)
-- Issue#1587 #1587 (#1600)
-- Issue#1475 #1475 (#1495)
-- Issue#1606 #1606 (#1607)
 - Issue#139 #139 (#1489)
-- Issue#1494 #1494 (#1592)
 - Issue#1591 #1591 (#1602)
+- Issue#1494 #1494 (#1592)
+- Issue#1475 #1475 (#1495)
+- Issue#1587 #1587 (#1600)
+- Issue#1606 #1606 (#1607)
 
 ## Test
 - Issue#992 #992 (#1466)
@@ -48,3 +50,77 @@ This release introduces general fixes and improvements including progress on gre
 ## Misc
 - Issue#1366 #1366 (#1481)
 
+
+## What's Changed
+
+- [core/consensus: fix nil map panic (#1469)](https://github.com/ObolNetwork/charon/pull/1469)
+
+- [readme: mark attestation duty as completed for vouch (#1476)](https://github.com/ObolNetwork/charon/pull/1476)
+
+- [app/eth2wrap: fix block attestation request (#1480)](https://github.com/ObolNetwork/charon/pull/1480)
+
+- [app/eth2wrap: handle block attestations 404 (#1482)](https://github.com/ObolNetwork/charon/pull/1482)
+
+- [app/errors: add sentinel error without stacktrace (#1483)](https://github.com/ObolNetwork/charon/pull/1483)
+
+- [core/validatorapi: improve query param handling and errors (#1498)](https://github.com/ObolNetwork/charon/pull/1498)
+
+- [testutil/trackpr: automate assigning pr to author (#1507)](https://github.com/ObolNetwork/charon/pull/1507)
+
+- [app: fix flapping InfoSync test (#1508)](https://github.com/ObolNetwork/charon/pull/1508)
+
+- [docs: add declartions section to go guidelines (#1513)](https://github.com/ObolNetwork/charon/pull/1513)
+
+- [core/consensus: add QBFT decided round gauge (#1514)](https://github.com/ObolNetwork/charon/pull/1514)
+
+- [p2p: add option to disable port reuse (#1529)](https://github.com/ObolNetwork/charon/pull/1529)
+
+- [app: fix failing teku exits (#1530)](https://github.com/ObolNetwork/charon/pull/1530)
+
+- [core/priority: fix flapping test (#1535)](https://github.com/ObolNetwork/charon/pull/1535)
+
+- [cmd: redact address flag passwords (#1541)](https://github.com/ObolNetwork/charon/pull/1541)
+
+- [p2p: instrument network throughput (#1545)](https://github.com/ObolNetwork/charon/pull/1545)
+
+- [app: increase sniffed message buffer (#1546)](https://github.com/ObolNetwork/charon/pull/1546)
+
+- [workflows: upload artefacts always (#1547)](https://github.com/ObolNetwork/charon/pull/1547)
+
+- [app: increase sniffed buffer even more (#1549)](https://github.com/ObolNetwork/charon/pull/1549)
+
+- [app/eth2wrap: decrease synth block sizes (#1550)](https://github.com/ObolNetwork/charon/pull/1550)
+
+- [dkg/sync: add disconnect log to server (#1551)](https://github.com/ObolNetwork/charon/pull/1551)
+
+- [core/consensus: improve logging (#1557)](https://github.com/ObolNetwork/charon/pull/1557)
+
+- [cmd: require name in create cluster (#1559)](https://github.com/ObolNetwork/charon/pull/1559)
+
+- [p2p: add duration labels to receive errors (#1560)](https://github.com/ObolNetwork/charon/pull/1560)
+
+- [app/log: increase loki batch send timeout to 10s (#1563)](https://github.com/ObolNetwork/charon/pull/1563)
+
+- [cmd/bootnode: refactor metrics (#1564)](https://github.com/ObolNetwork/charon/pull/1564)
+
+- [app/bootnode: fix missing cluster hash in metrics (#1568)](https://github.com/ObolNetwork/charon/pull/1568)
+
+- [app: revert VC health statuses (#1571)](https://github.com/ObolNetwork/charon/pull/1571)
+
+- [testutil/validatormock: fix getSubcommittees bug (#1579)](https://github.com/ObolNetwork/charon/pull/1579)
+
+- [core/aggsigdb: fix flapping test (#1605)](https://github.com/ObolNetwork/charon/pull/1605)
+
+- [app/eth2wrap: instrument custom endpoint latency (#1614)](https://github.com/ObolNetwork/charon/pull/1614)
+
+- [core/scheduler: trim duties after 3 epochs (#1616)](https://github.com/ObolNetwork/charon/pull/1616)
+
+- [dkg: fix error handling in TestSyncFlow (#1618)](https://github.com/ObolNetwork/charon/pull/1618)
+
+- [core/scheduler: fix flapping test (#1619)](https://github.com/ObolNetwork/charon/pull/1619)
+
+- [cmd: update default relay address (#1636)](https://github.com/ObolNetwork/charon/pull/1636)
+
+- [cmd: re-add previous relay address for backwards compatibility (#1639)](https://github.com/ObolNetwork/charon/pull/1639)
+
+- [app/version: bump to v0.13 (#1641)](https://github.com/ObolNetwork/charon/pull/1641)

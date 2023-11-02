@@ -128,10 +128,17 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, defSet core
 		eth2AttData, ok := dataByCommIdx[commIdx]
 		if !ok {
 			var err error
-			eth2AttData, err = f.eth2Cl.AttestationData(ctx, eth2p0.Slot(uint64(slot)), commIdx)
+			opts := &eth2api.AttestationDataOpts{
+				Slot:           eth2p0.Slot(uint64(slot)),
+				CommitteeIndex: commIdx,
+			}
+			eth2Resp, err := f.eth2Cl.AttestationData(ctx, opts)
 			if err != nil {
 				return nil, err
-			} else if eth2AttData == nil {
+			}
+
+			eth2AttData = eth2Resp.Data
+			if eth2AttData == nil {
 				return nil, errors.New("attestation data cannot be nil")
 			}
 
@@ -201,10 +208,17 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet co
 		}
 
 		// Query BN for aggregate attestation.
-		aggAtt, err = f.eth2Cl.AggregateAttestation(ctx, eth2p0.Slot(slot), dataRoot)
+		opts := &eth2api.AggregateAttestationOpts{
+			Slot:                eth2p0.Slot(slot),
+			AttestationDataRoot: dataRoot,
+		}
+		eth2Resp, err := f.eth2Cl.AggregateAttestation(ctx, opts)
 		if err != nil {
 			return core.UnsignedDataSet{}, err
-		} else if aggAtt == nil {
+		}
+
+		aggAtt = eth2Resp.Data
+		if aggAtt == nil {
 			// Some beacon nodes return nil if the root is not found, return retryable error.
 			// This could happen if the beacon node didn't subscribe to the correct subnet.
 			return core.UnsignedDataSet{}, errors.New("aggregate attestation not found by root (retryable)", z.Hex("root", dataRoot[:]))
@@ -230,26 +244,33 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, defSet core
 			return nil, err
 		}
 
-		randao := randaoData.Signature().ToETH2()
+		randao := randaoData.Signatures()[0].ToETH2()
 
 		// TODO(dhruv): replace hardcoded graffiti with the one from cluster-lock.json
 		var graffiti [32]byte
 		commitSHA, _ := version.GitCommit()
 		copy(graffiti[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
-		block, err := f.eth2Cl.BeaconBlockProposal(ctx, eth2p0.Slot(uint64(slot)), randao, graffiti[:])
+
+		opts := &eth2api.ProposalOpts{
+			Slot:         eth2p0.Slot(uint64(slot)),
+			RandaoReveal: randao,
+			Graffiti:     graffiti,
+		}
+		eth2Resp, err := f.eth2Cl.Proposal(ctx, opts)
 		if err != nil {
 			return nil, err
 		}
+		proposal := eth2Resp.Data
 
-		// Ensure fee recipient is correctly populated in block.
-		verifyFeeRecipient(ctx, block, f.feeRecipientFunc(pubkey))
+		// Ensure fee recipient is correctly populated in proposal.
+		verifyFeeRecipient(ctx, proposal, f.feeRecipientFunc(pubkey))
 
-		coreBlock, err := core.NewVersionedBeaconBlock(block)
+		coreProposal, err := core.NewVersionedProposal(proposal)
 		if err != nil {
-			return nil, errors.Wrap(err, "new block")
+			return nil, errors.Wrap(err, "new proposal")
 		}
 
-		resp[pubkey] = coreBlock
+		resp[pubkey] = coreProposal
 	}
 
 	return resp, nil
@@ -268,25 +289,32 @@ func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot int64, defS
 			return nil, err
 		}
 
-		randao := randaoData.Signature().ToETH2()
+		randao := randaoData.Signatures()[0].ToETH2()
 
 		// TODO(dhruv): replace hardcoded graffiti with the one from cluster-lock.json
 		var graffiti [32]byte
 		commitSHA, _ := version.GitCommit()
 		copy(graffiti[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
-		block, err := f.eth2Cl.BlindedBeaconBlockProposal(ctx, eth2p0.Slot(uint64(slot)), randao, graffiti[:])
+
+		opts := &eth2api.BlindedProposalOpts{
+			Slot:         eth2p0.Slot(uint64(slot)),
+			RandaoReveal: randao,
+			Graffiti:     graffiti,
+		}
+		eth2Resp, err := f.eth2Cl.BlindedProposal(ctx, opts)
 		if err != nil {
 			return nil, err
 		}
+		blindedProposal := eth2Resp.Data
 
-		verifyFeeRecipientBlindedBlock(ctx, block, f.feeRecipientFunc(pubkey))
+		verifyFeeRecipientBlinded(ctx, blindedProposal, f.feeRecipientFunc(pubkey))
 
-		coreBlock, err := core.NewVersionedBlindedBeaconBlock(block)
+		coreProposal, err := core.NewVersionedBlindedProposal(blindedProposal)
 		if err != nil {
 			return nil, errors.Wrap(err, "new block")
 		}
 
-		resp[pubkey] = coreBlock
+		resp[pubkey] = coreProposal
 	}
 
 	return resp, nil
@@ -332,10 +360,18 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot int64, defSet 
 		blockRoot := msg.BeaconBlockRoot
 
 		// Query BN for sync committee contribution.
-		contribution, err := f.eth2Cl.SyncCommitteeContribution(ctx, eth2p0.Slot(slot), subcommIdx, blockRoot)
+		opts := &eth2api.SyncCommitteeContributionOpts{
+			Slot:              eth2p0.Slot(slot),
+			SubcommitteeIndex: subcommIdx,
+			BeaconBlockRoot:   blockRoot,
+		}
+		eth2Resp, err := f.eth2Cl.SyncCommitteeContribution(ctx, opts)
 		if err != nil {
 			return core.UnsignedDataSet{}, err
-		} else if contribution == nil {
+		}
+
+		contribution := eth2Resp.Data
+		if contribution == nil {
 			// Some beacon nodes return nil if the beacon block root is not found for the subcommittee, return retryable error.
 			// This could happen if the beacon node didn't subscribe to the correct subnet.
 			return core.UnsignedDataSet{}, errors.New("sync committee contribution not found by root (retryable)", z.U64("subcommidx", subcommIdx), z.Hex("root", blockRoot[:]))
@@ -351,41 +387,41 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot int64, defSet 
 }
 
 // verifyFeeRecipient logs a warning when fee recipient is not correctly populated in the block.
-func verifyFeeRecipient(ctx context.Context, block *eth2spec.VersionedBeaconBlock, feeRecipientAddress string) {
+func verifyFeeRecipient(ctx context.Context, proposal *eth2api.VersionedProposal, feeRecipientAddress string) {
 	// Note that fee-recipient is not available in forks earlier than bellatrix.
 	var actualAddr string
 
-	switch block.Version {
+	switch proposal.Version {
 	case eth2spec.DataVersionBellatrix:
-		actualAddr = fmt.Sprintf("%#x", block.Bellatrix.Body.ExecutionPayload.FeeRecipient)
+		actualAddr = fmt.Sprintf("%#x", proposal.Bellatrix.Body.ExecutionPayload.FeeRecipient)
 	case eth2spec.DataVersionCapella:
-		actualAddr = fmt.Sprintf("%#x", block.Capella.Body.ExecutionPayload.FeeRecipient)
+		actualAddr = fmt.Sprintf("%#x", proposal.Capella.Body.ExecutionPayload.FeeRecipient)
 	default:
 		return
 	}
 
 	if actualAddr != "" && !strings.EqualFold(actualAddr, feeRecipientAddress) {
-		log.Warn(ctx, "Proposing block with unexpected fee recipient address", nil,
+		log.Warn(ctx, "Proposal with unexpected fee recipient address", nil,
 			z.Str("expected", feeRecipientAddress), z.Str("actual", actualAddr))
 	}
 }
 
-// verifyFeeRecipientBlindedBlock logs a warning when fee recipient is not correctly populated in the provided blinded beacon block.
-func verifyFeeRecipientBlindedBlock(ctx context.Context, block *eth2api.VersionedBlindedBeaconBlock, feeRecipientAddress string) {
+// verifyFeeRecipientBlinded logs a warning when fee recipient is not correctly populated in the provided blinded beacon block.
+func verifyFeeRecipientBlinded(ctx context.Context, proposal *eth2api.VersionedBlindedProposal, feeRecipientAddress string) {
 	// Note that fee-recipient is not available in forks earlier than bellatrix.
 	var actualAddr string
 
-	switch block.Version {
+	switch proposal.Version {
 	case eth2spec.DataVersionBellatrix:
-		actualAddr = fmt.Sprintf("%#x", block.Bellatrix.Body.ExecutionPayloadHeader.FeeRecipient)
+		actualAddr = fmt.Sprintf("%#x", proposal.Bellatrix.Body.ExecutionPayloadHeader.FeeRecipient)
 	case eth2spec.DataVersionCapella:
-		actualAddr = fmt.Sprintf("%#x", block.Capella.Body.ExecutionPayloadHeader.FeeRecipient)
+		actualAddr = fmt.Sprintf("%#x", proposal.Capella.Body.ExecutionPayloadHeader.FeeRecipient)
 	default:
 		return
 	}
 
 	if actualAddr != "" && !strings.EqualFold(actualAddr, feeRecipientAddress) {
-		log.Warn(ctx, "Proposing block with unexpected fee recipient address", nil,
+		log.Warn(ctx, "Proposal with unexpected fee recipient address", nil,
 			z.Str("expected", feeRecipientAddress), z.Str("actual", actualAddr))
 	}
 }

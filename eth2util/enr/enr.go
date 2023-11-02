@@ -219,7 +219,7 @@ func verify(pubkey *k1.PublicKey, signature, rawExclSig []byte) error {
 	h.Write(rawExclSig)
 	digest := h.Sum(nil)
 
-	if ok, err := k1util.Verify(pubkey, digest, signature); err != nil {
+	if ok, err := k1util.Verify64(pubkey, digest, signature); err != nil {
 		return err
 	} else if !ok {
 		return errors.New("invalid enr signature")

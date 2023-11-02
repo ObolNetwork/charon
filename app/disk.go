@@ -34,7 +34,7 @@ func loadClusterManifest(ctx context.Context, conf Config) (*manifestpb.Cluster,
 		return nil
 	}
 
-	cluster, err := manifest.Load(conf.ManifestFile, conf.LockFile, verifyLock)
+	cluster, err := manifest.LoadCluster(conf.ManifestFile, conf.LockFile, verifyLock)
 	if err != nil {
 		return nil, errors.Wrap(err, "load cluster manifest")
 	}

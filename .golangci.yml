@@ -1,6 +1,6 @@
 run:
   timeout: 5m
-  go: "1.20.6"
+  go: "1.21.3"
 linters-settings:
   cyclop:
     max-complexity: 15
@@ -8,6 +8,16 @@ linters-settings:
   dupl:
     # tokens count to trigger issue, 150 by default
     threshold: 400
+  depguard:
+    rules:
+      main:
+        deny:
+          - pkg: "github.com/pkg/errors"
+            desc: Prefer ./app/errors
+          - pkg: "github.com/golang/protobuf"
+            desc: Prefer google.golang.org/protobuf
+          - pkg: "github.com/gogo/protobuf/proto"
+            desc: Prefer google.golang.org/protobuf
   exhaustive:
     default-signifies-exhaustive: true
   forbidigo:
@@ -74,6 +84,8 @@ linters-settings:
         disabled: true
       - name: cognitive-complexity
         disabled: true
+      - name: comment-spacings
+        disabled: true # Doesn't support latest go spec comments
       # Some configured revive rules
       - name: unhandled-error
         arguments:
@@ -87,7 +99,7 @@ linters-settings:
          - "github.com/gogo/protobuf/proto" # Prefer google.golang.org/protobuf
          - "github.com/prometheus/client_golang/prometheus/promauto" # Prefer ./app/promauto
   staticcheck:
-    go: "1.20.6"
+    go: "1.21.3"
     checks:
      - "all"
      - "-SA1019" # Ignoring since github.com/drand/kyber/sign/bls uses Proof Of Possession as does Ethereum.

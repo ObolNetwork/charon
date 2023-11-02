@@ -25,9 +25,9 @@ func TestSignedDataSetSignature(t *testing.T) {
 		data core.SignedData
 	}{
 		{
-			name: "versioned signed beacon block",
-			data: core.VersionedSignedBeaconBlock{
-				VersionedSignedBeaconBlock: eth2spec.VersionedSignedBeaconBlock{
+			name: "versioned signed proposal",
+			data: core.VersionedSignedProposal{
+				VersionedSignedProposal: eth2api.VersionedSignedProposal{
 					Version: eth2spec.DataVersionBellatrix,
 					Bellatrix: &bellatrix.SignedBeaconBlock{
 						Message:   testutil.RandomBellatrixBeaconBlock(),
@@ -37,9 +37,9 @@ func TestSignedDataSetSignature(t *testing.T) {
 			},
 		},
 		{
-			name: "versioned signed blinded beacon block bellatrix",
-			data: core.VersionedSignedBlindedBeaconBlock{
-				VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
+			name: "versioned signed blinded proposal bellatrix",
+			data: core.VersionedSignedBlindedProposal{
+				VersionedSignedBlindedProposal: eth2api.VersionedSignedBlindedProposal{
 					Version: eth2spec.DataVersionBellatrix,
 					Bellatrix: &eth2bellatrix.SignedBlindedBeaconBlock{
 						Message:   testutil.RandomBellatrixBlindedBeaconBlock(),
@@ -49,9 +49,9 @@ func TestSignedDataSetSignature(t *testing.T) {
 			},
 		},
 		{
-			name: "versioned signed blinded beacon block capella",
-			data: core.VersionedSignedBlindedBeaconBlock{
-				VersionedSignedBlindedBeaconBlock: eth2api.VersionedSignedBlindedBeaconBlock{
+			name: "versioned signed blinded proposal capella",
+			data: core.VersionedSignedBlindedProposal{
+				VersionedSignedBlindedProposal: eth2api.VersionedSignedBlindedProposal{
 					Version: eth2spec.DataVersionCapella,
 					Capella: &eth2capella.SignedBlindedBeaconBlock{
 						Message:   testutil.RandomCapellaBlindedBeaconBlock(),
@@ -100,14 +100,14 @@ func TestSignedDataSetSignature(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			clone, err := test.data.SetSignature(testutil.RandomCoreSignature())
+			clone, err := test.data.SetSignatures([]core.Signature{testutil.RandomCoreSignature()})
 			require.NoError(t, err)
-			require.NotEqual(t, clone.Signature(), test.data.Signature())
-			require.NotEmpty(t, clone.Signature())
+			require.NotEqual(t, clone.Signatures(), test.data.Signatures())
+			require.NotEmpty(t, clone.Signatures())
 
-			msgRoot, err := test.data.MessageRoot()
+			msgRoot, err := test.data.MessageRoots()
 			require.NoError(t, err)
-			cloneRoot, err := test.data.MessageRoot()
+			cloneRoot, err := test.data.MessageRoots()
 			require.NoError(t, err)
 			require.Equal(t, msgRoot, cloneRoot)
 		})

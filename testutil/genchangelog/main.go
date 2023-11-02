@@ -4,11 +4,10 @@
 // It requires the following:
 //   - Each commit is a squash merged GitHub PR.
 //   - The commit subject contains the PR number '(#123)'.
-//   - Each commit contains a 'category: foo' line in the body.
-//   - Each commit is linked to a Github Issue via a 'ticket: #321' line in the body.
-//   - Only PRs with supported categories linked to Issues will be included in the changelog.
 //
-//nolint:forbidigo,gosec
+// PRs that don't have a linked ticket or category will be placed in the "What's changed" section of the changelog.
+//
+//nolint:forbidigo
 package main
 
 import (
@@ -23,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -31,6 +31,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	applog "github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 )
 
@@ -83,6 +84,7 @@ type tplData struct {
 	RangeText  string
 	RangeLink  string
 	Categories []tplCategory
+	ExtraPRs   []pullRequest
 }
 
 // tplCategory is a category section in the changelog.
@@ -131,7 +133,7 @@ func run(gitRange string, output string, token string) error {
 			return err
 		}
 
-		gitRange = fmt.Sprintf("%s..%s", tags[1], tags[0])
+		gitRange = fmt.Sprintf("%s..%s", tags[0], tags[1])
 		fmt.Printf("Flag --range empty, defaulting to %s\n", gitRange)
 	}
 
@@ -230,8 +232,16 @@ func execTemplate(data tplData) ([]byte, error) {
 
 // tplDataFromPRs builds the template data from the provides PRs, git range, issue title func.
 func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (string, string, error)) (tplData, error) {
+	var noIssuePRs []pullRequest
 	issues := make(map[int]tplIssue)
+
 	for _, pr := range prs {
+		if pr.Issue == 0 {
+			// zero-indexed element from issues represents all the PRs with no issue associated
+			noIssuePRs = append(noIssuePRs, pr)
+			continue
+		}
+
 		issue := issues[pr.Issue]
 		issue.Number = pr.Issue
 		issue.Label = fmt.Sprintf("#%d", pr.Issue)
@@ -239,6 +249,17 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (str
 		issue.PRs = append(issue.PRs, tplPR{Label: fmt.Sprintf("#%d", pr.Number)})
 		issues[pr.Issue] = issue
 	}
+
+	// order PRs with no issue by their number, ascending
+	slices.SortFunc(noIssuePRs, func(a, b pullRequest) int {
+		if a.Number < b.Number {
+			return -1
+		} else if a.Number > b.Number {
+			return 1
+		} else {
+			return 0
+		}
+	})
 
 	cats := make(map[string]tplCategory)
 	for _, issue := range issues {
@@ -282,6 +303,7 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (str
 		RangeText:  gitRange,
 		RangeLink:  fmt.Sprintf("https://github.com/obolnetwork/charon/compare/%s", gitRange),
 		Categories: catSlice,
+		ExtraPRs:   noIssuePRs,
 	}, nil
 }
 
@@ -350,28 +372,26 @@ func prFromLog(l log) (pullRequest, bool) {
 		return pullRequest{}, false
 	}
 
-	var (
-		category string
-		issue    int
-		number   int
-	)
+	var ok bool
 
-	number, ok := getNumber(l.Subject)
+	pr := pullRequest{
+		Title: l.Subject,
+	}
+
+	pr.Number, ok = getNumber(l.Subject)
 	if !ok {
 		fmt.Printf("Failed parsing PR number from git subject (%v): %s\n", l.Commit, l.Subject)
 		return pullRequest{}, false
 	}
 
-	category, ok = getFirstMatch(categoryRegex, l.Body)
+	pr.Category, ok = getFirstMatch(categoryRegex, l.Body)
 	if !ok {
-		fmt.Printf("Failed parsing category from git body (%v): %s\n", l.Commit, l.Subject)
+		return pr, true
+	} else if skippedCategories[pr.Category] {
+		fmt.Printf("Skipping PR with '%s' category (%v): %s\n", pr.Category, l.Commit, l.Subject)
 		return pullRequest{}, false
-	} else if skippedCategories[category] {
-		fmt.Printf("Skipping PR with '%s' category (%v): %s\n", category, l.Commit, l.Subject)
-		return pullRequest{}, false
-	} else if categoryOrder[category] == 0 {
-		fmt.Printf("Unsupported category %s (%v): %s\n", category, l.Commit, l.Subject)
-		return pullRequest{}, false
+	} else if categoryOrder[pr.Category] == 0 {
+		return pr, true
 	}
 
 	ticket, ok := getFirstMatch(ticketRegex, l.Body)
@@ -379,22 +399,16 @@ func prFromLog(l log) (pullRequest, bool) {
 		fmt.Printf("Failed parsing ticket from git body (%v): %s\n", l.Commit, l.Subject)
 		return pullRequest{}, false
 	} else if strings.Contains(ticket, "none") {
-		fmt.Printf("Skipping PR with 'none' ticket (%s): %s\n", l.Commit, l.Subject)
-		return pullRequest{}, false
+		return pr, true
 	} else {
-		issue, ok = getNumber(ticket)
+		pr.Issue, ok = getNumber(ticket)
 		if !ok {
 			fmt.Printf("Failed parsing issue number from ticket (%v): %s \n", l.Commit, ticket)
 			return pullRequest{}, false
 		}
 	}
 
-	return pullRequest{
-		Number:   number,
-		Title:    l.Subject,
-		Category: category,
-		Issue:    issue,
-	}, true
+	return pr, true
 }
 
 // getNumber returns a github issue number from the string.
@@ -424,23 +438,36 @@ func getFirstMatch(r *regexp.Regexp, s string) (string, bool) {
 
 // getLatestTags returns the latest N git tags.
 func getLatestTags(n int) ([]string, error) {
-	out, err := exec.Command("git", "fetch", "--tags").CombinedOutput()
+	out, err := exec.Command("git", "fetch", "--tags", "-f").CombinedOutput()
 	if err != nil {
 		return nil, errors.Wrap(err, "git fetch", z.Str("out", string(out)))
 	}
 
-	out, err = exec.Command("git", "rev-list", "--tags", "--max-count="+fmt.Sprint(n)).CombinedOutput()
+	out, err = exec.Command("git", "tag", "--sort=v:refname").CombinedOutput()
 	if err != nil {
-		return nil, errors.Wrap(err, "git rev-list", z.Str("out", string(out)))
+		return nil, errors.Wrap(err, "git tag", z.Str("out", string(out)))
 	}
 
-	args := []string{"describe", "--tags", "--abbrev=0"}
-	args = append(args, strings.Fields(string(out))...)
+	var tags []string
 
-	out, err = exec.Command("git", args...).CombinedOutput()
-	if err != nil {
-		return nil, errors.Wrap(err, "git describe", z.Str("out", string(out)))
+	// filter out rc releases
+	for _, tag := range strings.Fields(string(out)) {
+		versionInfo, err := version.Parse(tag)
+		if err != nil {
+			return nil, errors.Wrap(err, "can't parse tag version")
+		}
+
+		if versionInfo.PreRelease() {
+			continue
+		}
+
+		tags = append(tags, tag)
 	}
 
-	return strings.Fields(string(out)), nil
+	if len(tags) < n {
+		return nil, errors.New("not enough tags", z.Int("expected", n), z.Int("available", len(tags)))
+	}
+
+	// return the latest N tags
+	return tags[len(tags)-n:], nil
 }

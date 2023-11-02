@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
@@ -42,10 +43,10 @@ func TestValidatorCache(t *testing.T) {
 
 	// Configure it to return the set of validators if queried.
 	var queried int
-	eth2Cl.ValidatorsByPubKeyFunc = func(ctx context.Context, stateID string, keys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+	eth2Cl.ValidatorsFunc = func(ctx context.Context, opts *eth2api.ValidatorsOpts) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 		queried++
-		require.Equal(t, "head", stateID)
-		require.Equal(t, pubkeys, keys)
+		require.Equal(t, "head", opts.State)
+		require.Equal(t, pubkeys, opts.PubKeys)
 
 		return set, nil
 	}

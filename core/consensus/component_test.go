@@ -114,7 +114,9 @@ func testComponent(t *testing.T, threshold, nodes int) {
 			sniffed <- len(msgs.Msgs)
 		}
 
-		c, err := consensus.New(hosts[i], new(p2p.Sender), peers, p2pkeys[i], testDeadliner{}, sniffer)
+		gaterFunc := func(core.Duty) bool { return true }
+
+		c, err := consensus.New(hosts[i], new(p2p.Sender), peers, p2pkeys[i], testDeadliner{}, gaterFunc, sniffer)
 		require.NoError(t, err)
 		c.Subscribe(func(_ context.Context, _ core.Duty, set core.UnsignedDataSet) error {
 			results <- set

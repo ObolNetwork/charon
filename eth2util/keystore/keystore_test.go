@@ -296,3 +296,11 @@ func storeNewKeyForT(t *testing.T, target string) tbls.PrivateKey {
 
 	return secret
 }
+
+func TestCheckDir(t *testing.T) {
+	err := keystore.StoreKeys(nil, "foo")
+	require.ErrorContains(t, err, "not exist")
+
+	err = keystore.StoreKeys(nil, "testdata/keystore-scrypt.json")
+	require.ErrorContains(t, err, "not a directory")
+}

@@ -9,8 +9,8 @@ import (
 	"reflect"
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -104,8 +104,8 @@ func TestTrackerFailedDuty(t *testing.T) {
 				tr.ParSigDBStoredInternal(td.duty, td.parSignedDataSet, nil)
 				tr.ParSigDBStoredExternal(td.duty, td.parSignedDataSet, nil)
 				for _, pubkey := range pubkeys {
-					tr.SigAggAggregated(td.duty, pubkey, nil, nil)
-					tr.BroadcasterBroadcast(td.duty, pubkey, nil, nil)
+					tr.SigAggAggregated(td.duty, map[core.PubKey][]core.ParSignedData{pubkey: nil}, nil)
+					tr.BroadcasterBroadcast(td.duty, core.SignedDataSet{pubkey: nil}, nil)
 					if lastStep(td.duty.Type) == chainInclusion {
 						tr.InclusionChecked(td.duty, pubkey, nil, nil)
 					}
@@ -487,8 +487,8 @@ func TestTrackerParticipation(t *testing.T) {
 				tr.ParSigDBStoredExternal(td.duty, data, nil)
 			}
 			for _, pk := range pubkeys {
-				tr.SigAggAggregated(td.duty, pk, nil, nil)
-				tr.BroadcasterBroadcast(td.duty, pk, nil, nil)
+				tr.SigAggAggregated(td.duty, map[core.PubKey][]core.ParSignedData{pk: nil}, nil)
+				tr.BroadcasterBroadcast(td.duty, core.SignedDataSet{pk: nil}, nil)
 				if lastStep(td.duty.Type) == chainInclusion {
 					tr.InclusionChecked(td.duty, pk, nil, nil)
 				}
@@ -726,7 +726,7 @@ func TestFromSlot(t *testing.T) {
 		close(done)
 	}()
 
-	tr.SigAggAggregated(core.NewAggregatorDuty(thisSlot), "", nil, nil)
+	tr.SigAggAggregated(core.NewAggregatorDuty(thisSlot), map[core.PubKey][]core.ParSignedData{"": nil}, nil)
 	tr.ParSigDBStoredInternal(core.NewProposerDuty(thisSlot), nil, nil)
 	tr.FetcherFetched(core.NewAggregatorDuty(thisSlot), nil, nil)
 
@@ -760,7 +760,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 				dutyAtt: {event{
 					duty: dutyAtt,
 					step: fetcher,
-					stepErr: errors.Wrap(eth2http.Error{
+					stepErr: errors.Wrap(eth2api.Error{
 						Method:     http.MethodGet,
 						Endpoint:   "/eth/v1/validator/attestation_data",
 						StatusCode: 404,
@@ -770,7 +770,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			},
 			reason: reasonFetcherBN,
 			failed: true,
-			err: errors.Wrap(eth2http.Error{
+			err: errors.Wrap(eth2api.Error{
 				Method:     http.MethodGet,
 				Endpoint:   "/eth/v1/validator/attestation_data",
 				StatusCode: 404,
@@ -1117,10 +1117,10 @@ func TestAnalyseParSigs(t *testing.T) {
 	var events []event
 
 	makeEvents := func(n int, pubkey string) {
-		data := testutil.RandomBellatrixCoreVersionedSignedBeaconBlock()
+		data := testutil.RandomBellatrixCoreVersionedSignedProposal()
 		offset := len(events)
 		for i := 0; i < n; i++ {
-			data, err := data.SetSignature(testutil.RandomCoreSignature())
+			data, err := data.SetSignatures([]core.Signature{testutil.RandomCoreSignature()})
 			require.NoError(t, err)
 			events = append(events, event{
 				pubkey: core.PubKey(pubkey),

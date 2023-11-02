@@ -6,6 +6,7 @@ import (
 	"context"
 	"sync"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prysmaticlabs/go-bitfield"
@@ -83,6 +84,8 @@ func (a *SlotAttester) Prepare(ctx context.Context) error {
 		return err
 	}
 	a.setPrepareDuties(vals, duties)
+
+	log.Debug(ctx, "Set attester duties", z.Any("slot", a.slot))
 
 	selections, err := prepareAggregators(ctx, a.eth2Cl, a.signFunc, vals, duties, a.slot)
 	if err != nil {
@@ -192,10 +195,15 @@ func prepareAttesters(ctx context.Context, eth2Cl eth2wrap.Client, vals eth2wrap
 		return nil, err
 	}
 
-	epochDuties, err := eth2Cl.AttesterDuties(ctx, epoch, vals.Indices())
+	opts := &eth2api.AttesterDutiesOpts{
+		Epoch:   epoch,
+		Indices: vals.Indices(),
+	}
+	eth2Resp, err := eth2Cl.AttesterDuties(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
+	epochDuties := eth2Resp.Data
 
 	var duties attDuties
 	for _, duty := range epochDuties {
@@ -297,10 +305,15 @@ func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot
 		datas attDatas
 	)
 	for commIdx, duties := range dutyByComm {
-		data, err := eth2Cl.AttestationData(ctx, slot, commIdx)
+		opts := &eth2api.AttestationDataOpts{
+			Slot:           slot,
+			CommitteeIndex: commIdx,
+		}
+		eth2Resp, err := eth2Cl.AttestationData(ctx, opts)
 		if err != nil {
 			return nil, err
 		}
+		data := eth2Resp.Data
 		datas = append(datas, data)
 
 		root, err := data.HashTreeRoot()
@@ -429,7 +442,16 @@ func getAggregateAttestation(ctx context.Context, eth2Cl eth2wrap.Client, datas 
 			return nil, errors.Wrap(err, "hash attestation data")
 		}
 
-		return eth2Cl.AggregateAttestation(ctx, data.Slot, root)
+		opts := &eth2api.AggregateAttestationOpts{
+			Slot:                data.Slot,
+			AttestationDataRoot: root,
+		}
+		eth2Resp, err := eth2Cl.AggregateAttestation(ctx, opts)
+		if err != nil {
+			return nil, err
+		}
+
+		return eth2Resp.Data, nil
 	}
 
 	return nil, errors.New("missing attestation data for committee index")

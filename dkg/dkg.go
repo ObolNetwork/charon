@@ -65,6 +65,7 @@ type TestConfig struct {
 	StoreKeysFunc    func(secrets []tbls.PrivateKey, dir string) error
 	TCPNodeCallback  func(host.Host)
 	ShutdownCallback func()
+	SyncOpts         []func(*sync.Client)
 }
 
 // HasTestConfig returns true if any of the test config fields are set.
@@ -104,6 +105,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 	def, err := loadDefinition(ctx, conf)
 	if err != nil {
 		return err
+	}
+
+	// This DKG only supports a few specific config versions.
+	if def.Version != "v1.6.0" && def.Version != "v1.7.0" {
+		return errors.New("only v1.6.0 and v1.7.0 cluster definition version supported")
 	}
 
 	if err := validateKeymanagerFlags(conf.KeymanagerAddr, conf.KeymanagerAuthToken); err != nil {
@@ -178,7 +184,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.Wrap(err, "get peer IDs")
 	}
 
-	ex := newExchanger(tcpNode, nodeIdx.PeerIdx, peerIds, def.NumValidators)
+	ex := newExchanger(tcpNode, nodeIdx.PeerIdx, peerIds, def.NumValidators, []sigType{
+		sigLock,
+		sigDepositData,
+		sigValidatorRegistration,
+	})
 
 	// Register Frost libp2p handlers
 	peerMap := make(map[peer.ID]cluster.NodeIdx)
@@ -203,7 +213,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	// Improve UX of "context cancelled" errors when sync fails.
 	ctx = errors.WithCtxErr(ctx, "p2p connection failed, please retry DKG")
 
-	stopSync, err := startSyncProtocol(ctx, tcpNode, key, def.DefinitionHash, peerIds, cancel, conf.TestConfig.SyncCallback)
+	nextStepSync, stopSync, err := startSyncProtocol(ctx, tcpNode, key, def.DefinitionHash, peerIds, cancel, conf.TestConfig)
 	if err != nil {
 		return err
 	}
@@ -233,6 +243,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.New("unsupported dkg algorithm")
 	}
 
+	// DKG was step 1, advance to step 2
+	if err := nextStepSync(ctx); err != nil {
+		return err
+	}
+
 	// Sign, exchange and aggregate Deposit Data
 	depositDatas, err := signAndAggDepositData(ctx, ex, shares, def.WithdrawalAddresses(), network, nodeIdx)
 	if err != nil {
@@ -240,6 +255,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	log.Debug(ctx, "Aggregated deposit data signatures")
+	// Deposit data was step 2, advance to step 3
+	if err := nextStepSync(ctx); err != nil {
+		return err
+	}
 
 	// Sign, exchange and aggregate builder validator registration signatures.
 	valRegs, err := signAndAggValidatorRegistrations(
@@ -256,10 +275,20 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	log.Debug(ctx, "Aggregated builder validator registration signatures")
+	// Pre-regs was step 3, advance to step 4
+	if err := nextStepSync(ctx); err != nil {
+		return err
+	}
 
 	// Sign, exchange and aggregate Lock Hash signatures
 	lock, err := signAndAggLockHash(ctx, shares, def, nodeIdx, ex, depositDatas, valRegs)
 	if err != nil {
+		return err
+	}
+
+	log.Debug(ctx, "Aggregated lock hash signatures")
+	// Lock hash aggregate was step 4, advance to step 5
+	if err := nextStepSync(ctx); err != nil {
 		return err
 	}
 
@@ -269,15 +298,20 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.Wrap(err, "k1 lock hash signature exchange")
 	}
 
+	if !cluster.SupportNodeSignatures(lock.Version) {
+		lock.NodeSignatures = nil
+	}
+
+	log.Debug(ctx, "Exchanged node signatures")
+	// Node signatures was step 5, advance to step 6
+	if err := nextStepSync(ctx); err != nil {
+		return err
+	}
+
 	if !conf.NoVerify {
 		if err := lock.VerifySignatures(); err != nil {
 			return errors.Wrap(err, "invalid lock file")
 		}
-	}
-	log.Debug(ctx, "Aggregated lock hash signatures")
-
-	if err = stopSync(ctx); err != nil {
-		return errors.Wrap(err, "sync shutdown") // Consider increasing --shutdown-delay if this occurs often.
 	}
 
 	// Write keystores, deposit data and cluster lock files after exchange of partial signatures in order
@@ -295,8 +329,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 		log.Debug(ctx, "Saved keyshares to disk")
 	}
 
+	// dashboardURL is the Launchpad dashboard url for a given lock file.
+	// If empty, either conf.Publish wasn't specified or there was a processing error in publishing
+	// the generated lock file.
+	var dashboardURL string
+
 	if conf.Publish {
-		if err = writeLockToAPI(ctx, conf.PublishAddr, lock); err != nil {
+		if dashboardURL, err = writeLockToAPI(ctx, conf.PublishAddr, lock); err != nil {
 			log.Warn(ctx, "Couldn't publish lock file to Obol API", err)
 		}
 	}
@@ -311,7 +350,15 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	log.Debug(ctx, "Saved deposit data file to disk")
 
-	// TODO(corver): Improve graceful shutdown, see https://github.com/ObolNetwork/charon/issues/887
+	// Signature verification and disk key write was step 6, advance to step 7
+	if err := nextStepSync(ctx); err != nil {
+		return err
+	}
+
+	if err = stopSync(ctx); err != nil {
+		return errors.Wrap(err, "sync shutdown") // Consider increasing --shutdown-delay if this occurs often.
+	}
+
 	if conf.TestConfig.ShutdownCallback != nil {
 		conf.TestConfig.ShutdownCallback()
 	}
@@ -319,6 +366,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 	time.Sleep(conf.ShutdownDelay)
 
 	log.Info(ctx, "Successfully completed DKG ceremony 🎉")
+
+	if dashboardURL != "" {
+		log.Info(ctx, fmt.Sprintf("You can find your newly-created cluster dashboard here: %s", dashboardURL))
+	}
 
 	return nil
 }
@@ -371,17 +422,17 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, conf Config, peers []p2p.
 	}, nil
 }
 
-// startSyncProtocol sets up a sync protocol server and clients for each peer and returns a shutdown function
+// startSyncProtocol sets up a sync protocol server and clients for each peer and returns a step sync and shutdown functions
 // when all peers are connected.
 func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKey, defHash []byte,
-	peerIDs []peer.ID, onFailure func(), testCallback func(connected int, id peer.ID),
-) (func(context.Context) error, error) {
+	peerIDs []peer.ID, onFailure func(), testConfig TestConfig,
+) (func(context.Context) error, func(context.Context) error, error) {
 	// Sign definition hash with charon-enr-private-key
 	// Note: libp2p signing does another hash of the defHash.
 
 	hashSig, err := ((*libp2pcrypto.Secp256k1PrivateKey)(key)).Sign(defHash)
 	if err != nil {
-		return nil, errors.Wrap(err, "sign definition hash")
+		return nil, nil, errors.Wrap(err, "sign definition hash")
 	}
 
 	// DKG compatibility is minor version dependent.
@@ -397,7 +448,8 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 		}
 
 		ctx := log.WithCtx(ctx, z.Str("peer", p2p.PeerName(pID)))
-		client := sync.NewClient(tcpNode, pID, hashSig, minorVersion)
+
+		client := sync.NewClient(tcpNode, pID, hashSig, minorVersion, testConfig.SyncOpts...)
 		clients = append(clients, client)
 
 		go func() {
@@ -413,11 +465,11 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 	for {
 		// Return if there is a context error.
 		if ctx.Err() != nil {
-			return nil, ctx.Err()
+			return nil, nil, ctx.Err()
 		}
 
 		if err := server.Err(); err != nil {
-			return nil, errors.Wrap(err, "sync server error")
+			return nil, nil, errors.Wrap(err, "sync server error")
 		}
 
 		var connectedCount int
@@ -427,8 +479,8 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 			}
 		}
 
-		if testCallback != nil {
-			testCallback(connectedCount, tcpNode.ID())
+		if testConfig.SyncCallback != nil {
+			testConfig.SyncCallback(connectedCount, tcpNode.ID())
 		}
 
 		// Break if all clients are connected
@@ -447,11 +499,33 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 
 	err = server.AwaitAllConnected(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+
+	var step int
+	stepSyncFunc := func(ctx context.Context) error {
+		// Start next step ourselves by incrementing our step client side
+		step++
+		for _, client := range clients {
+			client.SetStep(step)
+		}
+
+		log.Debug(ctx, "Waiting for peers to start next step", z.Int("step", step))
+
+		if err := server.AwaitAllAtStep(ctx, step); err != nil {
+			return errors.Wrap(err, "sync step", z.Int("step", step))
+		}
+
+		return nil
+	}
+
+	// All peer start on step 0, so advance to step 1.
+	if err := stepSyncFunc(ctx); err != nil {
+		return nil, nil, err
 	}
 
 	// Shutdown function stops all clients and server
-	return func(ctx context.Context) error {
+	shutdownFunc := func(ctx context.Context) error {
 		for _, client := range clients {
 			err := client.Shutdown(ctx)
 			if err != nil {
@@ -460,7 +534,9 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 		}
 
 		return server.AwaitAllShutdown(ctx)
-	}, nil
+	}
+
+	return stepSyncFunc, shutdownFunc, nil
 }
 
 // signAndAggLockHash returns cluster lock file with aggregated signature after signing, exchange and aggregation of partial signatures.
@@ -470,6 +546,12 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 	vals, err := createDistValidators(shares, depositDatas, valRegs)
 	if err != nil {
 		return cluster.Lock{}, err
+	}
+
+	if !cluster.SupportPregenRegistrations(def.Version) {
+		for i := range vals {
+			vals[i].BuilderRegistration = cluster.BuilderRegistration{}
+		}
 	}
 
 	lock := cluster.Lock{
@@ -568,7 +650,7 @@ func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares map[core.P
 		pk := pk
 		psigs := psigs
 		for _, s := range psigs {
-			sig, err := tblsconv.SignatureFromBytes(s.Signature())
+			sig, err := tblsconv.SignatureFromBytes(s.Signatures()[0])
 			if err != nil {
 				return tbls.Signature{}, nil, errors.Wrap(err, "signature from bytes")
 			}
@@ -751,7 +833,7 @@ func aggDepositData(data map[core.PubKey][]core.ParSignedData, shares []share,
 
 		psigs := make(map[int]tbls.Signature)
 		for _, s := range psigsData {
-			sig, err := tblsconv.SignatureFromBytes(s.Signature())
+			sig, err := tblsconv.SignatureFromBytes(s.Signatures()[0])
 			if err != nil {
 				return nil, errors.Wrap(err, "signature from core")
 			}
@@ -838,7 +920,7 @@ func aggValidatorRegistrations(
 
 		psigs := make(map[int]tbls.Signature)
 		for _, s := range psigsData {
-			sig, err := tblsconv.SignatureFromBytes(s.Signature())
+			sig, err := tblsconv.SignatureFromBytes(s.Signatures()[0])
 			if err != nil {
 				return nil, errors.Wrap(err, "signature from core")
 			}
@@ -951,17 +1033,20 @@ func createDistValidators(shares []share, depositDatas []eth2p0.DepositData, val
 	return dvs, nil
 }
 
-// writeLockToAPI posts the lock file to obol-api.
-func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) error {
-	cl := obolapi.New(publishAddr)
+// writeLockToAPI posts the lock file to obol-api and returns the Launchpad dashboard URL.
+func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) (string, error) {
+	cl, err := obolapi.New(publishAddr)
+	if err != nil {
+		return "", err
+	}
 
 	if err := cl.PublishLock(ctx, lock); err != nil {
-		return err
+		return "", err
 	}
 
 	log.Debug(ctx, "Published lock file to api")
 
-	return nil
+	return cl.LaunchpadURLForLock(lock), nil
 }
 
 // validateKeymanagerFlags returns an error if one keymanager flag is present but the other is not.
@@ -1018,7 +1103,7 @@ func builderRegistrationFromETH2(reg core.VersionedSignedValidatorRegistration) 
 			Timestamp:    timestamp,
 			PubKey:       pubKey[:],
 		},
-		Signature: reg.Signature(),
+		Signature: reg.Signatures()[0],
 	}, nil
 }
 

@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	eth2http "github.com/attestantio/go-eth2-client/http"
+	eth2api "github.com/attestantio/go-eth2-client/api"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -293,7 +293,7 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootC
 func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event, fetchErr error) (bool, step, reason, error) {
 	reason := reasonFetcherError
 	// Check for beacon api errors.
-	var eth2Error eth2http.Error
+	var eth2Error eth2api.Error
 	if errors.As(fetchErr, &eth2Error) {
 		reason = reasonFetcherBN
 	} else if !errors.Is(fetchErr, context.Canceled) && !errors.Is(fetchErr, context.DeadlineExceeded) {
@@ -439,7 +439,7 @@ func extractParSigs(ctx context.Context, events []event) parsigsByMsg {
 		}
 		dedup[key] = true
 
-		root, err := e.parSig.MessageRoot()
+		root, err := core.HashMessageRoots(e.parSig.SignedData)
 		if err != nil {
 			log.Warn(ctx, "Parsig message root", err)
 			continue // Just log and ignore as this is highly unlikely and non-critical code.
@@ -767,44 +767,50 @@ func (t *Tracker) ParSigDBStoredExternal(duty core.Duty, set core.ParSignedDataS
 }
 
 // SigAggAggregated implements core.Tracker interface.
-func (t *Tracker) SigAggAggregated(duty core.Duty, pubkey core.PubKey, _ []core.ParSignedData, stepErr error) {
-	select {
-	case <-t.quit:
-		return
-	case t.input <- event{
-		duty:    duty,
-		step:    sigAgg,
-		pubkey:  pubkey,
-		stepErr: stepErr,
-	}:
+func (t *Tracker) SigAggAggregated(duty core.Duty, set map[core.PubKey][]core.ParSignedData, stepErr error) {
+	for pubkey := range set {
+		select {
+		case <-t.quit:
+			return
+		case t.input <- event{
+			duty:    duty,
+			step:    sigAgg,
+			pubkey:  pubkey,
+			stepErr: stepErr,
+		}:
+		}
 	}
 }
 
 // AggSigDBStored implements core.Tracker interface.
-func (t *Tracker) AggSigDBStored(duty core.Duty, pubkey core.PubKey, _ core.SignedData, stepErr error) {
-	select {
-	case <-t.quit:
-		return
-	case t.input <- event{
-		duty:    duty,
-		step:    aggSigDB,
-		pubkey:  pubkey,
-		stepErr: stepErr,
-	}:
+func (t *Tracker) AggSigDBStored(duty core.Duty, set core.SignedDataSet, stepErr error) {
+	for pubkey := range set {
+		select {
+		case <-t.quit:
+			return
+		case t.input <- event{
+			duty:    duty,
+			step:    aggSigDB,
+			pubkey:  pubkey,
+			stepErr: stepErr,
+		}:
+		}
 	}
 }
 
 // BroadcasterBroadcast implements core.Tracker interface.
-func (t *Tracker) BroadcasterBroadcast(duty core.Duty, pubkey core.PubKey, _ core.SignedData, stepErr error) {
-	select {
-	case <-t.quit:
-		return
-	case t.input <- event{
-		duty:    duty,
-		step:    bcast,
-		pubkey:  pubkey,
-		stepErr: stepErr,
-	}:
+func (t *Tracker) BroadcasterBroadcast(duty core.Duty, set core.SignedDataSet, stepErr error) {
+	for pubkey := range set {
+		select {
+		case <-t.quit:
+			return
+		case t.input <- event{
+			duty:    duty,
+			step:    bcast,
+			pubkey:  pubkey,
+			stepErr: stepErr,
+		}:
+		}
 	}
 }
 

@@ -20,27 +20,28 @@ import (
 	"github.com/obolnetwork/charon/tbls"
 )
 
-const (
-	protocolID1 = "/charon/parsigex/1.0.0"
-	protocolID2 = "/charon/parsigex/2.0.0"
-)
+const protocolID2 = "/charon/parsigex/2.0.0"
 
 // Protocols returns the supported protocols of this package in order of precedence.
 func Protocols() []protocol.ID {
-	return []protocol.ID{protocolID2, protocolID1}
+	return []protocol.ID{protocolID2}
 }
 
-func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []peer.ID, verifyFunc func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error) *ParSigEx {
+func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []peer.ID,
+	verifyFunc func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error,
+	gaterFunc core.DutyGaterFunc,
+) *ParSigEx {
 	parSigEx := &ParSigEx{
 		tcpNode:    tcpNode,
 		sendFunc:   sendFunc,
 		peerIdx:    peerIdx,
 		peers:      peers,
 		verifyFunc: verifyFunc,
+		gaterFunc:  gaterFunc,
 	}
 
 	newReq := func() proto.Message { return new(pbv1.ParSigExMsg) }
-	p2p.RegisterHandler("parsigex", tcpNode, protocolID1, newReq, parSigEx.handle, p2p.WithDelimitedProtocol(protocolID2))
+	p2p.RegisterHandler("parsigex", tcpNode, protocolID2, newReq, parSigEx.handle)
 
 	return parSigEx
 }
@@ -53,6 +54,7 @@ type ParSigEx struct {
 	peerIdx    int
 	peers      []peer.ID
 	verifyFunc func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error
+	gaterFunc  core.DutyGaterFunc
 	subs       []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
@@ -68,6 +70,10 @@ func (m *ParSigEx) handle(ctx context.Context, _ peer.ID, req proto.Message) (pr
 
 	duty := core.DutyFromProto(pb.Duty)
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
+
+	if !m.gaterFunc(duty) {
+		return nil, false, errors.New("invalid duty")
+	}
 
 	set, err := core.ParSignedDataSetFromProto(duty.Type, pb.DataSet)
 	if err != nil {
@@ -104,11 +110,6 @@ func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSi
 		return err
 	}
 
-	// TODO: remove this from prod once we know what's going on
-	if _, err = core.ParSignedDataSetFromProto(duty.Type, pb); err != nil {
-		log.Warn(ctx, "ParSignedDataSet which was just marshaled can't be unmarshaled back", err)
-	}
-
 	msg := pbv1.ParSigExMsg{
 		Duty:    core.DutyToProto(duty),
 		DataSet: pb,
@@ -120,7 +121,7 @@ func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSi
 			continue
 		}
 
-		if err := m.sendFunc(ctx, m.tcpNode, protocolID1, p, &msg, p2p.WithDelimitedProtocol(protocolID2)); err != nil {
+		if err := m.sendFunc(ctx, m.tcpNode, protocolID2, p, &msg); err != nil {
 			return err
 		}
 	}

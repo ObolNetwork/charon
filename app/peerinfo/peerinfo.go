@@ -6,7 +6,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"sync"
+	"regexp"
 	"testing"
 	"time"
 
@@ -25,15 +25,15 @@ import (
 )
 
 const (
-	period = time.Minute
-
-	protocolID1 protocol.ID = "/charon/peerinfo/1.0.0"
+	period                  = time.Minute
 	protocolID2 protocol.ID = "/charon/peerinfo/2.0.0"
 )
 
+var gitHashMatch = regexp.MustCompile("^[0-9a-f]{7}$")
+
 // Protocols returns the supported protocols of this package in order of precedence.
 func Protocols() []protocol.ID {
-	return []protocol.ID{protocolID2, protocolID1}
+	return []protocol.ID{protocolID2}
 }
 
 type (
@@ -82,7 +82,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, loc
 	startTime := timestamppb.New(nowFunc())
 
 	// Register a simple handler that returns our info and ignores the request.
-	registerHandler("peerinfo", tcpNode, protocolID1,
+	registerHandler("peerinfo", tcpNode, protocolID2,
 		func() proto.Message { return new(pbv1.PeerInfo) },
 		func(context.Context, peer.ID, proto.Message) (proto.Message, bool, error) {
 			return &pbv1.PeerInfo{
@@ -93,7 +93,6 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, loc
 				StartedAt:     startTime,
 			}, true, nil
 		},
-		p2p.WithDelimitedProtocol(protocolID2),
 	)
 
 	// Create log filters
@@ -173,8 +172,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			}
 
 			resp := new(pbv1.PeerInfo)
-			err := p.sendFunc(ctx, p.tcpNode, peerID, req, resp, protocolID1,
-				p2p.WithSendReceiveRTT(rttCallback), p2p.WithDelimitedProtocol(protocolID2))
+			err := p.sendFunc(ctx, p.tcpNode, peerID, req, resp, protocolID2, p2p.WithSendReceiveRTT(rttCallback))
 			if err != nil {
 				return // Logging handled by send func.
 			} else if resp.SentAt == nil || resp.StartedAt == nil {
@@ -182,12 +180,17 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 				return
 			}
 
+			name := p2p.PeerName(peerID)
+
+			// Validator git hash with regex.
+			if !gitHashMatch.MatchString(resp.GitHash) {
+				log.Warn(ctx, "Invalid peer git hash", nil, z.Str("peer", name))
+				return
+			}
+
 			expectedSentAt := time.Now().Add(-rtt / 2)
 			actualSentAt := resp.SentAt.AsTime()
 			clockOffset := actualSentAt.Sub(expectedSentAt)
-			p.metricSubmitter(peerID, clockOffset, resp.CharonVersion, resp.GitHash, resp.StartedAt.AsTime())
-
-			name := p2p.PeerName(peerID)
 
 			if err := supportedPeerVersion(resp.CharonVersion, version.Supported()); err != nil {
 				peerCompatibleGauge.WithLabelValues(name).Set(0) // Set to false
@@ -199,9 +202,14 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 					z.Any("supported_versions", version.Supported()),
 					p.versionFilters[peerID],
 				)
-			} else {
-				peerCompatibleGauge.WithLabelValues(name).Set(1) // Set to false
+
+				return
 			}
+
+			// Set peer compatibility to true.
+			peerCompatibleGauge.WithLabelValues(name).Set(1)
+
+			p.metricSubmitter(peerID, clockOffset, resp.CharonVersion, resp.GitHash, resp.StartedAt.AsTime())
 
 			// Log unexpected lock hash
 			if !bytes.Equal(resp.LockHash, p.lockHash) {
@@ -241,13 +249,6 @@ func supportedPeerVersion(peerVersion string, supported []version.SemVer) error 
 
 // newMetricsSubmitter returns a prometheus metric submitter.
 func newMetricsSubmitter() metricSubmitter {
-	var (
-		mu sync.Mutex
-		// TODO(corver): Refactor to use ResetGauge.
-		prevVersions  = make(map[string]string)
-		prevGitHashes = make(map[string]string)
-	)
-
 	return func(peerID peer.ID, clockOffset time.Duration, version string, gitHash string,
 		startTime time.Time,
 	) {
@@ -274,20 +275,9 @@ func newMetricsSubmitter() metricSubmitter {
 		}
 		// TODO(corver): Validate version and githash with regex
 
+		peerVersion.Reset(peerName)
 		peerVersion.WithLabelValues(peerName, version).Set(1)
+		peerGitHash.Reset(peerName)
 		peerGitHash.WithLabelValues(peerName, gitHash).Set(1)
-
-		// Clear previous metrics if changed
-		mu.Lock()
-		defer mu.Unlock()
-
-		if prev, ok := prevVersions[peerName]; ok && version != prev {
-			peerVersion.WithLabelValues(peerName, prev).Set(0)
-		}
-		if prev, ok := prevGitHashes[peerName]; ok && gitHash != prev {
-			peerGitHash.WithLabelValues(peerName, prev).Set(0)
-		}
-		prevVersions[peerName] = version
-		prevGitHashes[peerName] = gitHash
 	}
 }

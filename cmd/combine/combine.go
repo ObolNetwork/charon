@@ -88,11 +88,11 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 	for valIdx := 0; valIdx < len(privkeys); valIdx++ {
 		pkSet := privkeys[valIdx]
 
-		if len(pkSet) != len(cluster.Operators) {
+		if len(pkSet) < int(cluster.Threshold) {
 			return errors.New(
-				"not all private key shares found for validator",
+				"insufficient private key shares found for validator",
 				z.Int("validator_index", valIdx),
-				z.Int("expected", len(cluster.Operators)),
+				z.Int("expected", int(cluster.Threshold)),
 				z.Int("actual", len(pkSet)),
 			)
 		}
@@ -127,6 +127,10 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 		}
 
 		combinedKeys = append(combinedKeys, secret)
+	}
+
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return errors.Wrap(err, "ensure output directory exists", z.Str("output_dir", outputDir))
 	}
 
 	ksPath := filepath.Join(outputDir, "keystore-0.json")
@@ -222,7 +226,7 @@ func loadManifest(ctx context.Context, dir string, noverify bool) (*manifestpb.C
 		lockFile := filepath.Join(dir, sd.Name(), "cluster-lock.json")
 		manifestFile := filepath.Join(dir, sd.Name(), "cluster-manifest.pb")
 
-		cl, err := manifest.Load(manifestFile, lockFile, func(lock cluster.Lock) error {
+		cl, err := manifest.LoadCluster(manifestFile, lockFile, func(lock cluster.Lock) error {
 			return verifyLock(ctx, lock, noverify)
 		})
 		if err != nil {

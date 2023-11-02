@@ -29,7 +29,7 @@ func NewMemDB(threshold int, deadliner core.Deadliner) *MemDB {
 type MemDB struct {
 	mu           sync.Mutex
 	internalSubs []func(context.Context, core.Duty, core.ParSignedDataSet) error
-	threshSubs   []func(context.Context, core.Duty, core.PubKey, []core.ParSignedData) error
+	threshSubs   []func(context.Context, core.Duty, map[core.PubKey][]core.ParSignedData) error
 
 	entries    map[key][]core.ParSignedData
 	keysByDuty map[core.Duty][]key
@@ -47,7 +47,7 @@ func (db *MemDB) SubscribeInternal(fn func(context.Context, core.Duty, core.ParS
 
 // SubscribeThreshold registers a callback when *threshold*
 // partially signed duty is reached for a DV.
-func (db *MemDB) SubscribeThreshold(fn func(context.Context, core.Duty, core.PubKey, []core.ParSignedData) error) {
+func (db *MemDB) SubscribeThreshold(fn func(context.Context, core.Duty, map[core.PubKey][]core.ParSignedData) error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 	db.threshSubs = append(db.threshSubs, fn)
@@ -80,6 +80,8 @@ func (db *MemDB) StoreInternal(ctx context.Context, duty core.Duty, signedSet co
 func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet core.ParSignedDataSet) error {
 	_ = db.deadliner.Add(duty) // TODO(corver): Distinguish between no deadline supported vs already expired.
 
+	output := make(map[core.PubKey][]core.ParSignedData)
+
 	for pubkey, sig := range signedSet {
 		sigs, ok, err := db.store(key{Duty: duty, PubKey: pubkey}, sig)
 		if err != nil {
@@ -102,21 +104,18 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 			continue
 		}
 
-		// Call the threshSubs (which includes SigAgg component)
-		for _, sub := range db.threshSubs {
-			// Clone before calling each subscriber.
-			var clones []core.ParSignedData
-			for _, psig := range psigs {
-				clone, err := psig.Clone()
-				if err != nil {
-					return err
-				}
-				clones = append(clones, clone)
-			}
+		output[pubkey] = psigs
+	}
 
-			if err := sub(ctx, duty, pubkey, clones); err != nil {
-				return err
-			}
+	if len(output) == 0 {
+		return nil
+	}
+
+	// Call the threshSubs (which includes SigAgg component)
+	for _, sub := range db.threshSubs {
+		// Clone before calling each subscriber.
+		if err := sub(ctx, duty, clone(output)); err != nil {
+			return err
 		}
 	}
 
@@ -177,6 +176,24 @@ func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, b
 	return append([]core.ParSignedData(nil), db.entries[k]...), true, nil
 }
 
+// clone returns a deep copy of the provided map.
+func clone(output map[core.PubKey][]core.ParSignedData) map[core.PubKey][]core.ParSignedData {
+	clone := make(map[core.PubKey][]core.ParSignedData)
+	for pubkey, sigs := range output {
+		var clones []core.ParSignedData
+		for _, sig := range sigs {
+			clone, err := sig.Clone()
+			if err != nil {
+				panic(err)
+			}
+			clones = append(clones, clone)
+		}
+		clone[pubkey] = clones
+	}
+
+	return clone
+}
+
 // getThresholdMatching returns true and threshold number of partial signed data with identical data or false.
 func getThresholdMatching(typ core.DutyType, sigs []core.ParSignedData, threshold int) ([]core.ParSignedData, bool, error) {
 	if len(sigs) < threshold {
@@ -187,14 +204,14 @@ func getThresholdMatching(typ core.DutyType, sigs []core.ParSignedData, threshol
 		return sigs, len(sigs) == threshold, nil
 	}
 
-	sigsByMsgRoot := make(map[[32]byte][]core.ParSignedData)
+	sigsByMsgRoot := make(map[[32]byte][]core.ParSignedData) // map[Root][]ParSignedData
 	for _, sig := range sigs {
-		root, err := sig.MessageRoot()
+		combinedRoot, err := core.HashMessageRoots(sig.SignedData)
 		if err != nil {
-			return nil, false, errors.Wrap(err, "message root")
+			return nil, false, err
 		}
 
-		sigsByMsgRoot[root] = append(sigsByMsgRoot[root], sig)
+		sigsByMsgRoot[combinedRoot] = append(sigsByMsgRoot[combinedRoot], sig)
 	}
 
 	// Return true if we have "threshold" number of signatures.

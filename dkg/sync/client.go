@@ -21,9 +21,16 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
+// WithPeriod sets the period between pings.
+func WithPeriod(period time.Duration) func(*Client) {
+	return func(c *Client) {
+		c.period = period
+	}
+}
+
 // NewClient returns a new Client instance.
-func NewClient(tcpNode host.Host, peer peer.ID, hashSig []byte, version version.SemVer) *Client {
-	return &Client{
+func NewClient(tcpNode host.Host, peer peer.ID, hashSig []byte, version version.SemVer, opts ...func(*Client)) *Client {
+	c := &Client{
 		tcpNode:   tcpNode,
 		peer:      peer,
 		hashSig:   hashSig,
@@ -31,7 +38,14 @@ func NewClient(tcpNode host.Host, peer peer.ID, hashSig []byte, version version.
 		done:      make(chan struct{}),
 		reconnect: true,
 		version:   version,
+		period:    250 * time.Millisecond,
 	}
+
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	return c
 }
 
 // Client is the client side of the sync protocol. It retries establishing a connection to a sync server,
@@ -42,6 +56,7 @@ type Client struct {
 	mu        sync.Mutex
 	connected bool
 	reconnect bool
+	step      int
 	shutdown  chan struct{}
 	done      chan struct{}
 
@@ -50,6 +65,7 @@ type Client struct {
 	version version.SemVer
 	tcpNode host.Host
 	peer    peer.ID
+	period  time.Duration
 }
 
 // Run blocks while running the client-side sync protocol. It tries to reconnect if relay connection is dropped or
@@ -85,6 +101,22 @@ func (c *Client) Run(ctx context.Context) error {
 
 		return nil
 	}
+}
+
+// SetStep sets the current step.
+func (c *Client) SetStep(step int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.step = step
+}
+
+// getStep returns the current step.
+func (c *Client) getStep() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.step
 }
 
 // IsConnected returns if client is connected to the server or not.
@@ -126,7 +158,7 @@ func (c *Client) clearConnected() {
 
 // sendMsgs sends period sync protocol messages on the stream until error or shutdown.
 func (c *Client) sendMsgs(ctx context.Context, stream network.Stream) (relayBroke bool, connBroke bool, err error) {
-	timer := time.NewTicker(time.Second)
+	timer := time.NewTicker(c.period)
 	defer timer.Stop()
 
 	first := make(chan struct{}, 1)
@@ -167,6 +199,7 @@ func (c *Client) sendMsg(stream network.Stream, shutdown bool) (*pb.MsgSyncRespo
 		HashSignature: c.hashSig,
 		Shutdown:      shutdown,
 		Version:       c.version.String(),
+		Step:          int64(c.getStep()),
 	}
 
 	if err := writeSizedProto(stream, msg); err != nil {

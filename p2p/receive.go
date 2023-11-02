@@ -53,9 +53,8 @@ func RegisterHandler(logTopic string, tcpNode host.Host, pID protocol.ID,
 		t0 := time.Now()
 		name := PeerName(s.Conn().RemotePeer())
 
-		timeout := time.Second * 5
-		_ = s.SetReadDeadline(time.Now().Add(timeout))
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		_ = s.SetReadDeadline(time.Now().Add(o.receiveTimeout))
+		ctx, cancel := context.WithTimeout(context.Background(), o.receiveTimeout)
 		ctx = log.WithTopic(ctx, logTopic)
 		ctx = log.WithCtx(ctx,
 			z.Str("peer", name),

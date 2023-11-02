@@ -15,11 +15,11 @@ import (
 )
 
 var coreTypeFuncs = []func() any{
-	func() any { return new(core.VersionedSignedBeaconBlock) },
+	func() any { return new(core.VersionedSignedProposal) },
 	func() any { return new(core.Attestation) },
 	func() any { return new(core.Signature) },
 	func() any { return new(core.SignedVoluntaryExit) },
-	func() any { return new(core.VersionedSignedBlindedBeaconBlock) },
+	func() any { return new(core.VersionedSignedBlindedProposal) },
 
 	func() any { return new(core.SignedRandao) },
 	func() any { return new(core.BeaconCommitteeSelection) },
@@ -30,8 +30,8 @@ var coreTypeFuncs = []func() any{
 	func() any { return new(core.SyncCommitteeSelection) },
 	func() any { return new(core.AttestationData) },
 	func() any { return new(core.AggregatedAttestation) },
-	func() any { return new(core.VersionedBeaconBlock) },
-	func() any { return new(core.VersionedBlindedBeaconBlock) },
+	func() any { return new(core.VersionedProposal) },
+	func() any { return new(core.VersionedBlindedProposal) },
 	func() any { return new(core.SyncContribution) },
 }
 

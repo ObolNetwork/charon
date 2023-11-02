@@ -88,7 +88,6 @@ type Config struct {
 	SyntheticBlockProposals bool
 	BuilderAPI              bool
 	SimnetBMockFuzz         bool
-	CharonP2PFuzz           bool
 
 	TestConfig TestConfig
 }
@@ -110,13 +109,16 @@ type TestConfig struct {
 	// SimnetBMockOpts defines additional simnet beacon mock options.
 	SimnetBMockOpts []beaconmock.Option
 	// BroadcastCallback is called when a duty is completed and sent to the broadcast component.
-	BroadcastCallback func(context.Context, core.Duty, core.PubKey, core.SignedData) error
+	BroadcastCallback func(context.Context, core.Duty, core.SignedDataSet) error
 	// PrioritiseCallback is called with priority protocol results.
 	PrioritiseCallback func(context.Context, core.Duty, []priority.TopicResult) error
 	// TCPNodeCallback provides test logic access to the libp2p host.
 	TCPNodeCallback func(host.Host)
 	// LibP2POpts provide test specific libp2p options.
 	LibP2POpts []libp2p.Option
+	// P2PFuzz enables peer to peer fuzzing of charon nodes in a cluster.
+	// If enabled, this node will send fuzzed data over p2p to its peers in the cluster.
+	P2PFuzz bool
 }
 
 // Run is the entrypoint for running a charon DVC instance.
@@ -220,6 +222,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 	peerIDs, err := manifest.ClusterPeerIDs(cluster)
 	if err != nil {
 		return err
+	}
+
+	// Enable p2p fuzzing if --p2p-fuzz is set.
+	if conf.TestConfig.P2PFuzz {
+		p2p.SetFuzzerDefaultsUnsafe()
 	}
 
 	sender := new(p2p.Sender)
@@ -414,6 +421,11 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	})
 
+	gaterFunc, err := core.NewDutyGater(ctx, eth2Cl)
+	if err != nil {
+		return err
+	}
+
 	fetch, err := fetcher.New(eth2Cl, feeRecipientFunc)
 	if err != nil {
 		return err
@@ -427,7 +439,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	if err := wireVAPIRouter(life, conf.ValidatorAPIAddr, eth2Cl, vapi, vapiCalls); err != nil {
+	if err := wireVAPIRouter(ctx, life, conf.ValidatorAPIAddr, eth2Cl, vapi, vapiCalls); err != nil {
 		return err
 	}
 
@@ -442,7 +454,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 			return err
 		}
 
-		parSigEx = parsigex.NewParSigEx(tcpNode, sender.SendAsync, nodeIdx.PeerIdx, peerIDs, verifyFunc)
+		parSigEx = parsigex.NewParSigEx(tcpNode, sender.SendAsync, nodeIdx.PeerIdx, peerIDs, verifyFunc, gaterFunc)
 	}
 
 	sigAgg, err := sigagg.New(int(cluster.Threshold), sigagg.NewVerifier(eth2Cl))
@@ -460,7 +472,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	retryer := retry.New[core.Duty](deadlineFunc)
 
 	cons, startCons, err := newConsensus(conf, cluster, tcpNode, p2pKey, sender,
-		nodeIdx, deadlinerFunc("consensus"), qbftSniffer)
+		nodeIdx, deadlinerFunc("consensus"), gaterFunc, qbftSniffer)
 	if err != nil {
 		return err
 	}
@@ -493,7 +505,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 	core.Wire(sched, fetch, cons, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
 
-	err = wireValidatorMock(conf, pubshares, sched)
+	err = wireValidatorMock(ctx, conf, eth2Cl, pubshares, sched)
 	if err != nil {
 		return err
 	}
@@ -570,7 +582,7 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 // This is not done in core.Wire since recaster isn't really part of the official core workflow (yet).
 func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Scheduler, sigAgg core.SigAgg,
 	broadcaster core.Broadcaster, validators []*manifestpb.Validator, builderAPI bool,
-	callback func(context.Context, core.Duty, core.PubKey, core.SignedData) error,
+	callback func(context.Context, core.Duty, core.SignedDataSet) error,
 ) error {
 	recaster, err := bcast.NewRecaster(func(ctx context.Context) (map[eth2p0.BLSPubKey]struct{}, error) {
 		valList, err := eth2Cl.ActiveValidators(ctx)
@@ -628,7 +640,7 @@ func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Schedu
 			return errors.Wrap(err, "calculate slot from timestamp")
 		}
 
-		if err = recaster.Store(ctx, core.NewBuilderRegistrationDuty(slot), pubkey, signedData); err != nil {
+		if err = recaster.Store(ctx, core.NewBuilderRegistrationDuty(slot), core.SignedDataSet{pubkey: signedData}); err != nil {
 			return errors.Wrap(err, "recaster store registration")
 		}
 	}
@@ -797,10 +809,12 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 	}
 
 	// Check BN chain/network.
-	schedule, err := eth2Cl.ForkSchedule(ctx)
+	eth2Resp, err := eth2Cl.ForkSchedule(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "fetch fork schedule")
 	}
+	schedule := eth2Resp.Data
+
 	var ok bool
 	for _, fork := range schedule {
 		if bytes.Equal(fork.CurrentVersion[:], forkVersion) {
@@ -831,7 +845,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 
 // newConsensus returns a new consensus component and its start lifecycle hook.
 func newConsensus(conf Config, cluster *manifestpb.Cluster, tcpNode host.Host, p2pKey *k1.PrivateKey,
-	sender *p2p.Sender, nodeIdx cluster.NodeIdx, deadliner core.Deadliner,
+	sender *p2p.Sender, nodeIdx cluster.NodeIdx, deadliner core.Deadliner, gaterFunc core.DutyGaterFunc,
 	qbftSniffer func(*pbv1.SniffedConsensusInstance),
 ) (core.Consensus, lifecycle.IHookFunc, error) {
 	peers, err := manifest.ClusterPeers(cluster)
@@ -844,7 +858,7 @@ func newConsensus(conf Config, cluster *manifestpb.Cluster, tcpNode host.Host, p
 	}
 
 	if featureset.Enabled(featureset.QBFTConsensus) {
-		comp, err := consensus.New(tcpNode, sender, peers, p2pKey, deadliner, qbftSniffer)
+		comp, err := consensus.New(tcpNode, sender, peers, p2pKey, deadliner, gaterFunc, qbftSniffer)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -889,10 +903,10 @@ func createMockValidators(pubkeys []eth2p0.BLSPubKey) beaconmock.ValidatorSet {
 }
 
 // wireVAPIRouter constructs the validator API router and registers it with the life cycle manager.
-func wireVAPIRouter(life *lifecycle.Manager, vapiAddr string, eth2Cl eth2wrap.Client,
+func wireVAPIRouter(ctx context.Context, life *lifecycle.Manager, vapiAddr string, eth2Cl eth2wrap.Client,
 	handler validatorapi.Handler, vapiCalls func(),
 ) error {
-	vrouter, err := validatorapi.NewRouter(handler, eth2Cl)
+	vrouter, err := validatorapi.NewRouter(ctx, handler, eth2Cl)
 	if err != nil {
 		return errors.Wrap(err, "new monitoring server")
 	}

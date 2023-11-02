@@ -119,7 +119,7 @@ func (c *Component) newPeerK1Verifier() func(string, *anypb.Any, [][]byte) error
 				return errors.New("invalid signature length, expect 65 bytes [R || S || V] format")
 			}
 
-			if ok, err := k1util.Verify(pubkey, hash, sig[:64]); err != nil {
+			if ok, err := k1util.Verify65(pubkey, hash, sig); err != nil {
 				return errors.Wrap(err, "verify failed")
 			} else if !ok {
 				return errors.New("invalid signature")

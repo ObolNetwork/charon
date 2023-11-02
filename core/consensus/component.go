@@ -28,13 +28,12 @@ import (
 
 const (
 	recvBuffer  = 100 // Allow buffering some initial messages when this node is late to start an instance.
-	protocolID1 = "/charon/consensus/qbft/1.0.0"
 	protocolID2 = "/charon/consensus/qbft/2.0.0"
 )
 
 // Protocols returns the supported protocols of this package in order of precedence.
 func Protocols() []protocol.ID {
-	return []protocol.ID{protocolID2, protocolID1}
+	return []protocol.ID{protocolID2}
 }
 
 type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) error
@@ -155,7 +154,7 @@ type instanceIO struct {
 
 // MarkParticipated marks the instance as participated.
 // It returns an error if the instance was already marked as participated.
-func (io *instanceIO) MarkParticipated() error {
+func (io instanceIO) MarkParticipated() error {
 	select {
 	case <-io.participated:
 		return errors.New("already participated")
@@ -168,7 +167,7 @@ func (io *instanceIO) MarkParticipated() error {
 
 // MarkProposed marks the instance as proposed.
 // It returns an error if the instance was already marked as proposed.
-func (io *instanceIO) MarkProposed() error {
+func (io instanceIO) MarkProposed() error {
 	select {
 	case <-io.proposed:
 		return errors.New("already proposed")
@@ -179,10 +178,9 @@ func (io *instanceIO) MarkProposed() error {
 	return nil
 }
 
-// ShouldRun checks the current status of the instance.
-// If the instance is not already running, it returns true and marks the instance as running.
-// It returns false if the instance is already running.
-func (io *instanceIO) ShouldRun() bool {
+// MaybeStart returns true if the instance wasn't running and has been started by this call,
+// otherwise it returns false if the instance was started in the past and is either running now or has completed.
+func (io instanceIO) MaybeStart() bool {
 	select {
 	case <-io.running:
 		return false
@@ -195,7 +193,7 @@ func (io *instanceIO) ShouldRun() bool {
 
 // New returns a new consensus QBFT component.
 func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey,
-	deadliner core.Deadliner, snifferFunc func(*pbv1.SniffedConsensusInstance),
+	deadliner core.Deadliner, gaterFunc core.DutyGaterFunc, snifferFunc func(*pbv1.SniffedConsensusInstance),
 ) (*Component, error) {
 	// Extract peer pubkeys.
 	keys := make(map[int64]*k1.PublicKey)
@@ -220,6 +218,7 @@ func New(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.Pri
 		pubkeys:     keys,
 		deadliner:   deadliner,
 		snifferFunc: snifferFunc,
+		gaterFunc:   gaterFunc,
 		dropFilter:  log.Filter(),
 		timerFunc:   getTimerFunc(),
 	}
@@ -240,6 +239,7 @@ type Component struct {
 	subs        []subscriber
 	deadliner   core.Deadliner
 	snifferFunc func(*pbv1.SniffedConsensusInstance)
+	gaterFunc   core.DutyGaterFunc
 	dropFilter  z.Field // Filter buffer overflow errors (possible DDoS)
 	timerFunc   timerFunc
 
@@ -288,9 +288,9 @@ func (c *Component) SubscribePriority(fn func(ctx context.Context, duty core.Dut
 
 // Start registers the libp2p receive handler and starts a goroutine that cleans state. This should only be called once.
 func (c *Component) Start(ctx context.Context) {
-	p2p.RegisterHandler("qbft", c.tcpNode, protocolID1,
+	p2p.RegisterHandler("qbft", c.tcpNode, protocolID2,
 		func() proto.Message { return new(pbv1.ConsensusMsg) },
-		c.handle, p2p.WithDelimitedProtocol(protocolID2))
+		c.handle)
 
 	go func() {
 		for {
@@ -367,7 +367,7 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 		}
 	}()
 
-	if !inst.ShouldRun() { // Participate was already called, instance is running.
+	if !inst.MaybeStart() { // Participate was already called, instance is running.
 		return <-inst.errCh
 	}
 
@@ -392,7 +392,7 @@ func (c *Component) Participate(ctx context.Context, duty core.Duty) error {
 		return errors.Wrap(err, "participate consensus", z.Any("duty", duty))
 	}
 
-	if !inst.ShouldRun() {
+	if !inst.MaybeStart() {
 		return nil // Instance already running.
 	}
 
@@ -494,6 +494,10 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 
 	duty := core.DutyFromProto(pbMsg.Msg.Duty)
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
+
+	if !c.gaterFunc(duty) {
+		return nil, false, errors.New("invalid duty", z.Any("duty", duty))
+	}
 
 	for _, justification := range pbMsg.Justification {
 		if err := verifyMsg(justification, c.pubkeys); err != nil {

@@ -20,22 +20,22 @@ import (
 // Lock extends the cluster config Definition with bls threshold public keys and checksums.
 type Lock struct {
 	// Definition is embedded and extended by Lock.
-	Definition `json:"cluster_definition" ssz:"Composite" lock_hash:"0"`
+	Definition `json:"cluster_definition" lock_hash:"0" ssz:"Composite"`
 
 	// Validators are the distributed validators (n*32ETH) managed by the cluster.
-	Validators []DistValidator `json:"distributed_validators" ssz:"Composite[65536]" lock_hash:"1"`
+	Validators []DistValidator `json:"distributed_validators" lock_hash:"1" ssz:"Composite[65536]"`
 
 	// LockHash uniquely identifies a cluster lock.
-	LockHash []byte `json:"lock_hash" ssz:"Bytes32" lock_hash:"-"`
+	LockHash []byte `json:"lock_hash" lock_hash:"-" ssz:"Bytes32"`
 
 	// SignatureAggregate is the bls aggregate signature of the lock hash signed by
 	// all the private key shares of all the distributed validators.
 	// It acts as an attestation by all the distributed validators
 	// of the charon cluster they are part of.
-	SignatureAggregate []byte `json:"signature_aggregate" ssz:"Bytes96" lock_hash:"-"`
+	SignatureAggregate []byte `json:"signature_aggregate" lock_hash:"-" ssz:"Bytes96"`
 
 	// NodeSignatures contains a signature of the lock hash for each operator defined in the Definition.
-	NodeSignatures [][]byte `json:"node_signatures" ssz:"Composite" lock_hash:"-"`
+	NodeSignatures [][]byte `json:"node_signatures" lock_hash:"-" ssz:"Composite"`
 }
 
 func (l Lock) MarshalJSON() ([]byte, error) {
@@ -182,44 +182,66 @@ func (l Lock) VerifySignatures() error {
 
 	err = l.verifyBuilderRegistrations()
 	if err != nil {
-		return errors.Wrap(err, "verify pre-generate builder registrations")
+		return errors.Wrap(err, "verify pre-generated builder registrations")
 	}
 
-	if len(l.NodeSignatures) != 0 {
-		// Ensure the K1 lock hash signature verify
-		for idx := 0; idx < len(l.Operators); idx++ {
-			record, err := enr.Parse(l.Operators[idx].ENR)
-			if err != nil {
-				return errors.Wrap(err, "operator ENR")
-			}
+	return l.verifyNodeSignatures()
+}
 
-			sig := l.NodeSignatures[idx]
-			verified, err := k1util.Verify(record.PubKey, l.LockHash, sig[:len(sig)-1])
-			if err != nil {
-				return errors.Wrap(err, "operator node signature check")
-			}
+// verifyNodeSignatures returns true an error if the node signatures field is not correctly
+// populated or otherwise invalid.
+func (l Lock) verifyNodeSignatures() error {
+	if isAnyVersion(l.Version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6) {
+		if len(l.NodeSignatures) > 0 {
+			return errors.New("unexpected node signatures")
+		}
 
-			if !verified {
-				return errors.New(
-					"operator k1 lock hash signature verification failed",
-					z.Int("operator_index", idx),
-				)
-			}
+		return nil
+	}
+
+	// Ensure correct count of node signatures.
+	if len(l.NodeSignatures) != len(l.Operators) {
+		return errors.New("invalid node signature count")
+	}
+
+	// Verify the node signatures
+	for idx := 0; idx < len(l.Operators); idx++ {
+		record, err := enr.Parse(l.Operators[idx].ENR)
+		if err != nil {
+			return errors.Wrap(err, "operator ENR")
+		}
+
+		verified, err := k1util.Verify65(record.PubKey, l.LockHash, l.NodeSignatures[idx])
+		if err != nil {
+			return errors.Wrap(err, "node signature check")
+		} else if !verified {
+			return errors.New("node signature verification failed",
+				z.Int("peer_index", idx),
+			)
 		}
 	}
 
 	return nil
 }
 
-// verifyBuilderRegistrations returns an error if populated builder registrations from json are invalid.
+// verifyBuilderRegistrations returns an error if the populated builder registrations are invalid.
 func (l Lock) verifyBuilderRegistrations() error {
 	feeRecipientAddrs := l.FeeRecipientAddresses()
 	for i, val := range l.Validators {
-		// Check if the current cluster state supports pre-generate validator registrations.
-		if len(val.BuilderRegistration.Signature) == 0 ||
+		noRegistration := len(val.BuilderRegistration.Signature) == 0 ||
 			len(val.BuilderRegistration.Message.FeeRecipient) == 0 ||
-			len(val.BuilderRegistration.Message.PubKey) == 0 {
+			len(val.BuilderRegistration.Message.PubKey) == 0
+
+		if isAnyVersion(l.Version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6) {
+			if !noRegistration {
+				return errors.New("unexpected validator registration")
+			}
+
 			continue
+		}
+
+		if noRegistration {
+			return errors.New("missing validator registration", z.Int("i", i))
 		}
 
 		regMsg, err := registration.NewMessage(eth2p0.BLSPubKey(val.PubKey), feeRecipientAddrs[i], uint64(val.BuilderRegistration.Message.GasLimit), val.BuilderRegistration.Message.Timestamp)

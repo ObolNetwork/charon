@@ -62,15 +62,15 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (ParSignedDa
 		}
 		signedData = a
 	case DutyProposer:
-		var b VersionedSignedBeaconBlock
+		var b VersionedSignedProposal
 		if err := unmarshal(data.Data, &b); err != nil {
-			return ParSignedData{}, errors.Wrap(err, "unmarshal block")
+			return ParSignedData{}, errors.Wrap(err, "unmarshal proposal")
 		}
 		signedData = b
 	case DutyBuilderProposer:
-		var b VersionedSignedBlindedBeaconBlock
+		var b VersionedSignedBlindedProposal
 		if err := unmarshal(data.Data, &b); err != nil {
-			return ParSignedData{}, errors.Wrap(err, "unmarshal blinded block")
+			return ParSignedData{}, errors.Wrap(err, "unmarshal blinded proposal")
 		}
 		signedData = b
 	case DutyBuilderRegistration:
@@ -144,10 +144,16 @@ func ParSignedDataToProto(data ParSignedData) (*pbv1.ParSignedData, error) {
 		return nil, errors.Wrap(err, "marshal share signed data")
 	}
 
+	var sigs [][]byte
+	for _, sig := range data.Signatures() {
+		sigs = append(sigs, sig)
+	}
+
 	return &pbv1.ParSignedData{
-		Data:      d,
-		Signature: data.Signature(),
-		ShareIdx:  int32(data.ShareIdx),
+		Data:       d,
+		Signature:  sigs[0], // TODO(xenowits): Remove this when v0.19.0 is released.
+		Signatures: sigs,
+		ShareIdx:   int32(data.ShareIdx),
 	}, nil
 }
 
@@ -251,15 +257,13 @@ func unmarshal(data []byte, v any) error {
 			return nil
 		} else if !bytes.HasPrefix(bytes.TrimSpace(data), []byte("{")) {
 			// No json prefix, so no point attempting json unmarshalling.
-			// TODO: remove "data" log before v0.17.0
-			return errors.Wrap(err, "unmarshal ssz", z.Hex("data", data))
+			return errors.Wrap(err, "unmarshal ssz")
 		}
 	}
 
 	// Else try json
 	if err := json.Unmarshal(data, v); err != nil {
-		// TODO: remove "data" log before v0.17.0
-		return errors.Wrap(err, "unmarshal json", z.Hex("data", data))
+		return errors.Wrap(err, "unmarshal json")
 	}
 
 	return nil

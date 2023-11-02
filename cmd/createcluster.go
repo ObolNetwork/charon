@@ -106,7 +106,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.IntVar(&config.Threshold, "threshold", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
 	flags.StringSliceVar(&config.FeeRecipientAddrs, "fee-recipient-addresses", nil, "Comma separated list of Ethereum addresses of the fee recipient for each validator. Either provide a single fee recipient address or fee recipient addresses for each validator.")
 	flags.StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
-	flags.StringVar(&config.Network, "network", "", "Ethereum network to create validators for. Options: mainnet, goerli, gnosis, sepolia.")
+	flags.StringVar(&config.Network, "network", "", "Ethereum network to create validators for. Options: mainnet, goerli, gnosis, sepolia, holesky.")
 	flags.IntVar(&config.NumDVs, "num-validators", 0, "The number of distributed validators needed in the cluster.")
 	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Does not re-create deposit data for this key.")
 	flags.StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-existing-keys.")
@@ -132,20 +132,21 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 
 	var secrets []tbls.PrivateKey
 
+	// If we're splitting keys, read them from SplitKeysDir and set conf.NumDVs to the amount of
+	// secrets we read.
+	// If SplitKeys wasn't set, we wouldn't have reached this part of code because validateCreateConfig()
+	// would've already errored.
 	if conf.SplitKeys {
 		secrets, err = getKeys(conf.SplitKeysDir)
 		if err != nil {
 			return err
 		}
 
+		// Needed if --split-existing-keys is called without a definition file.
 		conf.NumDVs = len(secrets)
-	} else {
-		secrets, err = generateKeys(conf.NumDVs)
-		if err != nil {
-			return err
-		}
 	}
 
+	// Get a cluster definition, either from a definition file or from the config.
 	var def cluster.Definition
 	if conf.DefFile != "" { // Load definition from DefFile
 		def, err = loadDefinition(ctx, conf.DefFile)
@@ -159,15 +160,16 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		}
 	}
 
-	if def.NumValidators != conf.NumDVs {
-		errTmpl := "provided cluster definition doesn't contain the same amount of validators"
-
-		err := errors.New(errTmpl + " as specified in --num-validators")
-		if conf.SplitKeys {
-			err = errors.New(errTmpl + " contained in --split-keys-dir")
+	if len(secrets) == 0 {
+		// this is the case in which split-keys is undefined and user passed validator amount on CLI
+		secrets, err = generateKeys(def.NumValidators)
+		if err != nil {
+			return err
 		}
+	}
 
-		return err
+	if len(secrets) != def.NumValidators {
+		return errors.New("amount of keys read from disk differs from cluster definition", z.Int("disk", len(secrets)), z.Int("definition", def.NumValidators))
 	}
 
 	numNodes := len(def.Operators)
@@ -189,8 +191,8 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return errors.Wrap(err, "mkdir")
 	}
 
-	// Create operators
-	ops, opsKeys, err := getOperators(numNodes, conf.ClusterDir)
+	// Create operators and their enr node keys
+	ops, nodeKeys, err := getOperators(numNodes, conf.ClusterDir)
 	if err != nil {
 		return err
 	}
@@ -246,21 +248,23 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
-	var opsLockSigs [][]byte
-	for _, opKey := range opsKeys {
-		sig, err := k1util.Sign(opKey, lock.LockHash)
+	for _, opKey := range nodeKeys {
+		nodeSig, err := k1util.Sign(opKey, lock.LockHash)
 		if err != nil {
 			return err
 		}
 
-		opsLockSigs = append(opsLockSigs, sig)
+		lock.NodeSignatures = append(lock.NodeSignatures, nodeSig)
 	}
 
-	lock.NodeSignatures = opsLockSigs
+	// dashboardURL is the Launchpad dashboard url for a given lock file.
+	// If empty, either conf.Publish wasn't specified or there was a processing error in publishing
+	// the generated lock file.
+	var dashboardURL string
 
 	// Write cluster-lock file
 	if conf.Publish {
-		if err = writeLockToAPI(ctx, conf.PublishAddr, lock); err != nil {
+		if dashboardURL, err = writeLockToAPI(ctx, conf.PublishAddr, lock); err != nil {
 			log.Warn(ctx, "Couldn't publish lock file to Obol API", err)
 		}
 	}
@@ -273,12 +277,20 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		writeWarning(w)
 	}
 
-	return writeOutput(w, conf.SplitKeys, conf.ClusterDir, numNodes, keysToDisk)
+	if err := writeOutput(w, conf.SplitKeys, conf.ClusterDir, numNodes, keysToDisk); err != nil {
+		return err
+	}
+
+	if dashboardURL != "" {
+		log.Info(ctx, fmt.Sprintf("You can find your newly-created cluster dashboard here: %s", dashboardURL))
+	}
+
+	return nil
 }
 
 // validateCreateConfig returns an error if any of the provided config parameters are invalid.
 func validateCreateConfig(conf clusterConfig) error {
-	if conf.NumNodes == 0 {
+	if conf.NumNodes == 0 && conf.DefFile == "" { // if there's a definition file, infer this value from it later
 		return errors.New("missing --nodes flag")
 	}
 
@@ -300,7 +312,7 @@ func validateCreateConfig(conf clusterConfig) error {
 			return errors.New("can't specify --num-validators with --split-existing-keys. Please fix configuration flags")
 		}
 	} else {
-		if conf.NumDVs == 0 {
+		if conf.NumDVs == 0 && conf.DefFile == "" { // if there's a definition file, infer this value from it later
 			return errors.New("missing --num-validators flag")
 		}
 	}
@@ -944,17 +956,20 @@ func randomHex64() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// writeLockToAPI posts the lock file to obol-api.
-func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) error {
-	cl := obolapi.New(publishAddr)
+// writeLockToAPI posts the lock file to obol-api and returns the Launchpad dashboard URL.
+func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) (string, error) {
+	cl, err := obolapi.New(publishAddr)
+	if err != nil {
+		return "", err
+	}
 
 	if err := cl.PublishLock(ctx, lock); err != nil {
-		return err
+		return "", err
 	}
 
 	log.Info(ctx, "Published lock file", z.Str("addr", publishAddr))
 
-	return nil
+	return cl.LaunchpadURLForLock(lock), nil
 }
 
 // validateAddresses checks if we have sufficient addresses. It also fills addresses slices if only one is provided.
@@ -1012,6 +1027,6 @@ func builderRegistrationFromETH2(reg core.VersionedSignedValidatorRegistration) 
 			Timestamp:    timestamp,
 			PubKey:       pubKey[:],
 		},
-		Signature: reg.Signature(),
+		Signature: reg.Signatures()[0],
 	}, nil
 }

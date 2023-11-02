@@ -12,10 +12,12 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
+	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
+	"github.com/attestantio/go-eth2-client/spec/deneb"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -49,67 +51,83 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 		indexes = append(indexes, index)
 	}
 
-	duties, err := eth2Cl.ProposerDuties(ctx, epoch, indexes)
+	opts := &eth2api.ProposerDutiesOpts{
+		Epoch:   epoch,
+		Indices: indexes,
+	}
+	eth2Resp, err := eth2Cl.ProposerDuties(ctx, opts)
+	if err != nil {
+		return err
+	}
+	duties := eth2Resp.Data
+
+	var slotProposer *eth2v1.ProposerDuty
+	for _, duty := range duties {
+		if duty.Slot == slot {
+			slotProposer = duty
+			break
+		}
+	}
+
+	if slotProposer == nil {
+		return nil
+	}
+
+	var (
+		pubkey eth2p0.BLSPubKey
+		block  *eth2api.VersionedProposal
+	)
+	pubkey = slotProposer.PubKey
+
+	// Create randao reveal to propose block
+	randaoSigRoot, err := eth2util.SignedEpoch{Epoch: epoch}.HashTreeRoot()
 	if err != nil {
 		return err
 	}
 
-	var pubkey eth2p0.BLSPubKey
-	var block *eth2spec.VersionedBeaconBlock
-	for _, duty := range duties {
-		if duty.Slot != slot {
-			continue
-		}
-		pubkey = duty.PubKey
-
-		// create randao reveal to propose block
-		sigRoot, err := eth2util.SignedEpoch{Epoch: epoch}.HashTreeRoot()
-		if err != nil {
-			return err
-		}
-
-		sigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainRandao, epoch, sigRoot)
-		if err != nil {
-			return err
-		}
-
-		randao, err := signFunc(duty.PubKey, sigData[:])
-		if err != nil {
-			return err
-		}
-
-		// Get Unsigned beacon block with given randao and slot
-		block, err = eth2Cl.BeaconBlockProposal(ctx, slot, randao, nil)
-		if err != nil {
-			return errors.Wrap(err, "vmock beacon block proposal")
-		}
-
-		// since there would be only one proposer duty per slot
-		break
+	randaoSigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainRandao, epoch, randaoSigRoot)
+	if err != nil {
+		return err
 	}
+
+	randao, err := signFunc(slotProposer.PubKey, randaoSigData[:])
+	if err != nil {
+		return err
+	}
+
+	// Get Unsigned beacon block with given randao and slot
+	proposalOpts := &eth2api.ProposalOpts{
+		Slot:         slot,
+		RandaoReveal: randao,
+	}
+	eth2ProposalResp, err := eth2Cl.Proposal(ctx, proposalOpts)
+	if err != nil {
+		return errors.Wrap(err, "vmock beacon block proposal")
+	}
+	block = eth2ProposalResp.Data
 
 	if block == nil {
 		return errors.New("block not found")
 	}
 
 	// Sign beacon block
-	sigRoot, err := block.Root()
+	blockSigRoot, err := block.Root()
 	if err != nil {
 		return err
 	}
 
-	sigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainBeaconProposer, epoch, sigRoot)
+	blockSigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainBeaconProposer, epoch, blockSigRoot)
 	if err != nil {
 		return err
 	}
 
-	sig, err := signFunc(pubkey, sigData[:])
+	sig, err := signFunc(pubkey, blockSigData[:])
 	if err != nil {
 		return err
 	}
 
-	// create signed beacon block
-	signedBlock := new(eth2spec.VersionedSignedBeaconBlock)
+	// Create signed beacon block proposal.
+	signedBlock := new(eth2api.VersionedSignedProposal)
 	signedBlock.Version = block.Version
 	switch block.Version {
 	case eth2spec.DataVersionPhase0:
@@ -132,11 +150,43 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 			Message:   block.Capella,
 			Signature: sig,
 		}
+	case eth2spec.DataVersionDeneb:
+		// Sign blob sidecars
+		var blobSidecars []*deneb.SignedBlobSidecar
+		for _, blob := range block.Deneb.BlobSidecars {
+			blobSigRoot, err := blob.HashTreeRoot()
+			if err != nil {
+				return err
+			}
+
+			blobSigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainBlobSidecar, epoch, blobSigRoot)
+			if err != nil {
+				return err
+			}
+
+			blobSig, err := signFunc(pubkey, blobSigData[:])
+			if err != nil {
+				return err
+			}
+
+			blobSidecars = append(blobSidecars, &deneb.SignedBlobSidecar{
+				Message:   blob,
+				Signature: blobSig,
+			})
+		}
+
+		signedBlock.Deneb = &eth2deneb.SignedBlockContents{
+			SignedBlock: &deneb.SignedBeaconBlock{
+				Message:   block.Deneb.Block,
+				Signature: sig,
+			},
+			SignedBlobSidecars: blobSidecars,
+		}
 	default:
 		return errors.New("invalid block")
 	}
 
-	return eth2Cl.SubmitBeaconBlock(ctx, signedBlock)
+	return eth2Cl.SubmitProposal(ctx, signedBlock)
 }
 
 // ProposeBlindedBlock proposes blinded block for the given slot.
@@ -160,69 +210,85 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 		indexes = append(indexes, index)
 	}
 
-	duties, err := eth2Cl.ProposerDuties(ctx, epoch, indexes)
+	opts := &eth2api.ProposerDutiesOpts{
+		Epoch:   epoch,
+		Indices: indexes,
+	}
+	eth2Resp, err := eth2Cl.ProposerDuties(ctx, opts)
+	if err != nil {
+		return err
+	}
+	duties := eth2Resp.Data
+
+	var slotProposer *eth2v1.ProposerDuty
+	for _, duty := range duties {
+		if duty.Slot == slot {
+			slotProposer = duty
+			break
+		}
+	}
+
+	if slotProposer == nil {
+		return nil
+	}
+
+	var (
+		pubkey eth2p0.BLSPubKey
+		block  *eth2api.VersionedBlindedProposal
+	)
+	pubkey = slotProposer.PubKey
+
+	// Create randao reveal to propose block
+	randaoSigRoot, err := eth2util.SignedEpoch{Epoch: epoch}.HashTreeRoot()
 	if err != nil {
 		return err
 	}
 
-	var pubkey eth2p0.BLSPubKey
-	var block *eth2api.VersionedBlindedBeaconBlock
-	for _, duty := range duties {
-		if duty.Slot != slot {
-			continue
-		}
-		pubkey = duty.PubKey
-
-		// create randao reveal to propose block
-		sigRoot, err := eth2util.SignedEpoch{Epoch: epoch}.HashTreeRoot()
-		if err != nil {
-			return err
-		}
-
-		sigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainRandao, epoch, sigRoot)
-		if err != nil {
-			return err
-		}
-
-		randao, err := signFunc(duty.PubKey, sigData[:])
-		if err != nil {
-			return err
-		}
-
-		// Get Unsigned beacon block with given randao and slot
-		block, err = eth2Cl.BlindedBeaconBlockProposal(ctx, slot, randao, nil)
-		if err != nil {
-			return errors.Wrap(err, "vmock blinded beacon block proposal")
-		}
-
-		// since there would be only one proposer duty per slot
-		break
+	randaoSigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainRandao, epoch, randaoSigRoot)
+	if err != nil {
+		return err
 	}
+
+	randao, err := signFunc(slotProposer.PubKey, randaoSigData[:])
+	if err != nil {
+		return err
+	}
+
+	// Get Unsigned beacon block with given randao and slot
+	proposalOpts := &eth2api.BlindedProposalOpts{
+		Slot:         slot,
+		RandaoReveal: randao,
+	}
+	proposalResp, err := eth2Cl.BlindedProposal(ctx, proposalOpts)
+	if err != nil {
+		return errors.Wrap(err, "vmock blinded beacon block proposal")
+	}
+	block = proposalResp.Data
 
 	if block == nil {
 		return errors.New("block not found")
 	}
 
 	// Sign beacon block
-	sigRoot, err := block.Root()
+	blockSigRoot, err := block.Root()
 	if err != nil {
 		return err
 	}
 
 	// TODO(corver): Create a function similar to `signing.Verify`
 	//  called `signing.UnsignedRoot(ctx, eth2Cl, core.UnsignedData)`
-	sigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainBeaconProposer, epoch, sigRoot)
+	blockSigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainBeaconProposer, epoch, blockSigRoot)
 	if err != nil {
 		return err
 	}
 
-	sig, err := signFunc(pubkey, sigData[:])
+	sig, err := signFunc(pubkey, blockSigData[:])
 	if err != nil {
 		return err
 	}
 
 	// create signed beacon block
-	signedBlock := new(eth2api.VersionedSignedBlindedBeaconBlock)
+	signedBlock := new(eth2api.VersionedSignedBlindedProposal)
 	signedBlock.Version = block.Version
 	switch block.Version {
 	case eth2spec.DataVersionBellatrix:
@@ -235,11 +301,43 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 			Message:   block.Capella,
 			Signature: sig,
 		}
+	case eth2spec.DataVersionDeneb:
+		// Sign blinded blob sidecars
+		var blindedBlobSidecars []*eth2deneb.SignedBlindedBlobSidecar
+		for _, blob := range block.Deneb.BlindedBlobSidecars {
+			blobSigRoot, err := blob.HashTreeRoot()
+			if err != nil {
+				return err
+			}
+
+			blobSigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainBlobSidecar, epoch, blobSigRoot)
+			if err != nil {
+				return err
+			}
+
+			blobSig, err := signFunc(pubkey, blobSigData[:])
+			if err != nil {
+				return err
+			}
+
+			blindedBlobSidecars = append(blindedBlobSidecars, &eth2deneb.SignedBlindedBlobSidecar{
+				Message:   blob,
+				Signature: blobSig,
+			})
+		}
+
+		signedBlock.Deneb = &eth2deneb.SignedBlindedBlockContents{
+			SignedBlindedBlock: &eth2deneb.SignedBlindedBeaconBlock{
+				Message:   block.Deneb.BlindedBlock,
+				Signature: sig,
+			},
+			SignedBlindedBlobSidecars: blindedBlobSidecars,
+		}
 	default:
 		return errors.New("invalid block")
 	}
 
-	return eth2Cl.SubmitBlindedBeaconBlock(ctx, signedBlock)
+	return eth2Cl.SubmitBlindedProposal(ctx, signedBlock)
 }
 
 // RegistrationsFromProposerConfig returns all enabled builder-API registrations from upstream proposer config.

@@ -132,9 +132,9 @@ func (n *nodeSigBcast) broadcastCallback(ctx context.Context, _ peer.ID, _ strin
 		return errors.Wrap(err, "lock hash wait")
 	}
 
-	verified, err := k1util.Verify(peerPubk, lockHash, sig[:len(sig)-1])
+	verified, err := k1util.Verify65(peerPubk, lockHash, sig)
 	if err != nil {
-		return errors.Wrap(err, "verify signature")
+		return errors.Wrap(err, "verify node signature")
 	} else if !verified {
 		return errors.New("invalid node signature")
 	}

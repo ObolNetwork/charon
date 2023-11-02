@@ -24,7 +24,7 @@ func TestShutdown(t *testing.T) {
 
 	errChan := make(chan error, 1)
 	go func() {
-		_, err := db.AwaitBeaconBlock(context.Background(), 999)
+		_, err := db.AwaitProposal(context.Background(), 999)
 		errChan <- err
 	}()
 
@@ -133,33 +133,33 @@ func TestMemDBProposer(t *testing.T) {
 	slots := [queries]int64{123, 456, 789}
 
 	type response struct {
-		block *eth2spec.VersionedBeaconBlock
+		block *eth2api.VersionedProposal
 	}
 	var awaitResponse [queries]chan response
 	for i := 0; i < queries; i++ {
 		awaitResponse[i] = make(chan response)
 		go func(slot int) {
-			block, err := db.AwaitBeaconBlock(ctx, slots[slot])
+			block, err := db.AwaitProposal(ctx, slots[slot])
 			require.NoError(t, err)
 			awaitResponse[slot] <- response{block: block}
 		}(i)
 	}
 
-	blocks := make([]*eth2spec.VersionedBeaconBlock, queries)
+	proposals := make([]*eth2api.VersionedProposal, queries)
 	pubkeysByIdx := make(map[eth2p0.ValidatorIndex]core.PubKey)
 	for i := 0; i < queries; i++ {
-		blocks[i] = &eth2spec.VersionedBeaconBlock{
-			Version: eth2spec.DataVersionPhase0,
-			Phase0:  testutil.RandomPhase0BeaconBlock(),
+		proposals[i] = &eth2api.VersionedProposal{
+			Version:   eth2spec.DataVersionBellatrix,
+			Bellatrix: testutil.RandomBellatrixBeaconBlock(),
 		}
-		blocks[i].Phase0.Slot = eth2p0.Slot(slots[i])
-		blocks[i].Phase0.ProposerIndex = eth2p0.ValidatorIndex(i)
+		proposals[i].Bellatrix.Slot = eth2p0.Slot(slots[i])
+		proposals[i].Bellatrix.ProposerIndex = eth2p0.ValidatorIndex(i)
 		pubkeysByIdx[eth2p0.ValidatorIndex(i)] = testutil.RandomCorePubKey(t)
 	}
 
 	// Store the Blocks
 	for i := 0; i < queries; i++ {
-		unsigned, err := core.NewVersionedBeaconBlock(blocks[i])
+		unsigned, err := core.NewVersionedProposal(proposals[i])
 		require.NoError(t, err)
 
 		duty := core.Duty{Slot: slots[i], Type: core.DutyProposer}
@@ -172,7 +172,7 @@ func TestMemDBProposer(t *testing.T) {
 	// Get and assert the proQuery responses
 	for i := 0; i < queries; i++ {
 		actualData := <-awaitResponse[i]
-		require.Equal(t, blocks[i], actualData.block)
+		require.Equal(t, proposals[i], actualData.block)
 	}
 }
 
@@ -301,23 +301,23 @@ func TestMemDBClashingBlocks(t *testing.T) {
 	db := dutydb.NewMemDB(new(testDeadliner))
 
 	const slot = 123
-	block1 := &eth2spec.VersionedBeaconBlock{
-		Version: eth2spec.DataVersionPhase0,
-		Phase0:  testutil.RandomPhase0BeaconBlock(),
+	block1 := &eth2api.VersionedProposal{
+		Version:   eth2spec.DataVersionBellatrix,
+		Bellatrix: testutil.RandomBellatrixBeaconBlock(),
 	}
-	block1.Phase0.Slot = eth2p0.Slot(slot)
-	block2 := &eth2spec.VersionedBeaconBlock{
-		Version: eth2spec.DataVersionPhase0,
-		Phase0:  testutil.RandomPhase0BeaconBlock(),
+	block1.Bellatrix.Slot = eth2p0.Slot(slot)
+	block2 := &eth2api.VersionedProposal{
+		Version:   eth2spec.DataVersionBellatrix,
+		Bellatrix: testutil.RandomBellatrixBeaconBlock(),
 	}
-	block2.Phase0.Slot = eth2p0.Slot(slot)
+	block2.Bellatrix.Slot = eth2p0.Slot(slot)
 	pubkey := testutil.RandomCorePubKey(t)
 
 	// Encode the Blocks
-	unsigned1, err := core.NewVersionedBeaconBlock(block1)
+	unsigned1, err := core.NewVersionedProposal(block1)
 	require.NoError(t, err)
 
-	unsigned2, err := core.NewVersionedBeaconBlock(block2)
+	unsigned2, err := core.NewVersionedProposal(block2)
 	require.NoError(t, err)
 
 	// Store the Blocks
@@ -339,15 +339,15 @@ func TestMemDBClashProposer(t *testing.T) {
 
 	const slot = 123
 
-	block := &eth2spec.VersionedBeaconBlock{
-		Version: eth2spec.DataVersionPhase0,
-		Phase0:  testutil.RandomPhase0BeaconBlock(),
+	block := &eth2api.VersionedProposal{
+		Version:   eth2spec.DataVersionBellatrix,
+		Bellatrix: testutil.RandomBellatrixBeaconBlock(),
 	}
-	block.Phase0.Slot = eth2p0.Slot(slot)
+	block.Bellatrix.Slot = eth2p0.Slot(slot)
 	pubkey := testutil.RandomCorePubKey(t)
 
 	// Encode the block
-	unsigned, err := core.NewVersionedBeaconBlock(block)
+	unsigned, err := core.NewVersionedProposal(block)
 	require.NoError(t, err)
 
 	// Store the Blocks
@@ -364,8 +364,8 @@ func TestMemDBClashProposer(t *testing.T) {
 	require.NoError(t, err)
 
 	// Store a different block for the same slot
-	block.Phase0.ProposerIndex++
-	unsignedB, err := core.NewVersionedBeaconBlock(block)
+	block.Bellatrix.ProposerIndex++
+	unsignedB, err := core.NewVersionedProposal(block)
 	require.NoError(t, err)
 	err = db.Store(ctx, duty, core.UnsignedDataSet{
 		pubkey: unsignedB,
@@ -381,22 +381,22 @@ func TestMemDBBuilderProposer(t *testing.T) {
 	slots := [queries]int64{123, 456, 789}
 
 	type response struct {
-		block *eth2api.VersionedBlindedBeaconBlock
+		block *eth2api.VersionedBlindedProposal
 	}
 	var awaitResponse [queries]chan response
 	for i := 0; i < queries; i++ {
 		awaitResponse[i] = make(chan response)
 		go func(slot int) {
-			block, err := db.AwaitBlindedBeaconBlock(ctx, slots[slot])
+			block, err := db.AwaitBlindedProposal(ctx, slots[slot])
 			require.NoError(t, err)
 			awaitResponse[slot] <- response{block: block}
 		}(i)
 	}
 
-	blocks := make([]*eth2api.VersionedBlindedBeaconBlock, queries)
+	blocks := make([]*eth2api.VersionedBlindedProposal, queries)
 	pubkeysByIdx := make(map[eth2p0.ValidatorIndex]core.PubKey)
 	for i := 0; i < queries; i++ {
-		blocks[i] = &eth2api.VersionedBlindedBeaconBlock{
+		blocks[i] = &eth2api.VersionedBlindedProposal{
 			Version:   eth2spec.DataVersionBellatrix,
 			Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(),
 		}
@@ -407,7 +407,7 @@ func TestMemDBBuilderProposer(t *testing.T) {
 
 	// Store the Blocks
 	for i := 0; i < queries; i++ {
-		unsigned, err := core.NewVersionedBlindedBeaconBlock(blocks[i])
+		unsigned, err := core.NewVersionedBlindedProposal(blocks[i])
 		require.NoError(t, err)
 
 		duty := core.Duty{Slot: slots[i], Type: core.DutyBuilderProposer}
@@ -429,12 +429,12 @@ func TestMemDBClashingBlindedBlocks(t *testing.T) {
 	db := dutydb.NewMemDB(new(testDeadliner))
 
 	const slot = 123
-	block1 := &eth2api.VersionedBlindedBeaconBlock{
+	block1 := &eth2api.VersionedBlindedProposal{
 		Version:   eth2spec.DataVersionBellatrix,
 		Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(),
 	}
 	block1.Bellatrix.Slot = eth2p0.Slot(slot)
-	block2 := &eth2api.VersionedBlindedBeaconBlock{
+	block2 := &eth2api.VersionedBlindedProposal{
 		Version:   eth2spec.DataVersionBellatrix,
 		Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(),
 	}
@@ -442,10 +442,10 @@ func TestMemDBClashingBlindedBlocks(t *testing.T) {
 	pubkey := testutil.RandomCorePubKey(t)
 
 	// Encode the Blocks
-	unsigned1, err := core.NewVersionedBlindedBeaconBlock(block1)
+	unsigned1, err := core.NewVersionedBlindedProposal(block1)
 	require.NoError(t, err)
 
-	unsigned2, err := core.NewVersionedBlindedBeaconBlock(block2)
+	unsigned2, err := core.NewVersionedBlindedProposal(block2)
 	require.NoError(t, err)
 
 	// Store the Blocks
@@ -467,7 +467,7 @@ func TestMemDBClashBuilderProposer(t *testing.T) {
 
 	const slot = 123
 
-	block := &eth2api.VersionedBlindedBeaconBlock{
+	block := &eth2api.VersionedBlindedProposal{
 		Version:   eth2spec.DataVersionBellatrix,
 		Bellatrix: testutil.RandomBellatrixBlindedBeaconBlock(),
 	}
@@ -475,7 +475,7 @@ func TestMemDBClashBuilderProposer(t *testing.T) {
 	pubkey := testutil.RandomCorePubKey(t)
 
 	// Encode the block
-	unsigned, err := core.NewVersionedBlindedBeaconBlock(block)
+	unsigned, err := core.NewVersionedBlindedProposal(block)
 	require.NoError(t, err)
 
 	// Store the Blocks
@@ -493,7 +493,7 @@ func TestMemDBClashBuilderProposer(t *testing.T) {
 
 	// Store a different block for the same slot
 	block.Bellatrix.ProposerIndex++
-	unsignedB, err := core.NewVersionedBlindedBeaconBlock(block)
+	unsignedB, err := core.NewVersionedBlindedProposal(block)
 	require.NoError(t, err)
 	err = db.Store(ctx, duty, core.UnsignedDataSet{
 		pubkey: unsignedB,
@@ -523,9 +523,11 @@ func TestDutyExpiry(t *testing.T) {
 	// Expire attestation
 	deadliner.expire()
 
+	versionedProposal := core.VersionedProposal{VersionedProposal: *testutil.RandomVersionedProposal()}
+
 	// Store another duty which deletes expired duties
 	err = db.Store(ctx, core.NewProposerDuty(slot+1), core.UnsignedDataSet{
-		testutil.RandomCorePubKey(t): testutil.RandomBellatrixCoreVersionedBeaconBlock(),
+		testutil.RandomCorePubKey(t): versionedProposal,
 	})
 	require.NoError(t, err)
 

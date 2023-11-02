@@ -4,7 +4,6 @@ package eth2wrap_test
 
 import (
 	"context"
-	"math/rand"
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -32,15 +31,17 @@ func TestSynthProposer(t *testing.T) {
 		done                       = make(chan struct{})
 		activeVals                 = 0
 	)
+
 	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(set), beaconmock.WithSlotsPerEpoch(slotsPerEpoch))
 	require.NoError(t, err)
 
-	bmock.SubmitBeaconBlockFunc = func(ctx context.Context, block *spec.VersionedSignedBeaconBlock) error {
-		require.Equal(t, realBlockSlot, block.Capella.Message.Slot)
+	bmock.SubmitProposalFunc = func(ctx context.Context, proposal *eth2api.VersionedSignedProposal) error {
+		require.Equal(t, realBlockSlot, proposal.Capella.Message.Slot)
 		close(done)
 
 		return nil
 	}
+
 	bmock.ProposerDutiesFunc = func(ctx context.Context, e eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 		require.Equal(t, int(epoch), int(e))
 
@@ -59,11 +60,13 @@ func TestSynthProposer(t *testing.T) {
 	}
 	signedBeaconBlock := bmock.SignedBeaconBlock
 	bmock.SignedBeaconBlockFunc = func(ctx context.Context, blockID string) (*spec.VersionedSignedBeaconBlock, error) {
-		if rand.Float32() < 0.3 { // Fail to find 2/3 of blocks.
-			return nil, nil //nolint:nilnil // go-eth2-client returns nilnil if block not found.
+		opts := &eth2api.SignedBeaconBlockOpts{Block: blockID}
+		resp, err := signedBeaconBlock(ctx, opts)
+		if err != nil {
+			return nil, err
 		}
 
-		return signedBeaconBlock(ctx, blockID)
+		return resp.Data, nil
 	}
 
 	eth2Cl := eth2wrap.WithSyntheticDuties(bmock)
@@ -78,40 +81,65 @@ func TestSynthProposer(t *testing.T) {
 	require.NoError(t, eth2Cl.SubmitProposalPreparations(ctx, preps))
 
 	// Get synthetic duties
-	duties, err := eth2Cl.ProposerDuties(ctx, epoch, nil)
+	opts := &eth2api.ProposerDutiesOpts{
+		Epoch:   epoch,
+		Indices: nil,
+	}
+	resp1, err := eth2Cl.ProposerDuties(ctx, opts)
 	require.NoError(t, err)
+	duties := resp1.Data
 	require.Len(t, duties, len(set))
 	require.Equal(t, 1, activeVals)
 
 	// Get synthetic duties again
-	duties2, err := eth2Cl.ProposerDuties(ctx, epoch, nil)
+	resp2, err := eth2Cl.ProposerDuties(ctx, opts)
 	require.NoError(t, err)
+	duties2 := resp2.Data
 	require.Equal(t, duties, duties2) // Identical
 	require.Equal(t, 1, activeVals)   // Cached
 
 	// Submit blocks
 	for _, duty := range duties {
-		block, err := eth2Cl.BeaconBlockProposal(ctx, duty.Slot, testutil.RandomEth2Signature(), []byte("test"))
+		var graff [32]byte
+		copy(graff[:], "test")
+		opts1 := &eth2api.ProposalOpts{
+			Slot:         duty.Slot,
+			RandaoReveal: testutil.RandomEth2Signature(),
+			Graffiti:     graff,
+		}
+		resp, err := eth2Cl.Proposal(ctx, opts1)
 		require.NoError(t, err)
+		block := resp.Data
+
 		if duty.Slot == realBlockSlot {
 			require.NotContains(t, string(block.Capella.Body.Graffiti[:]), "DO NOT SUBMIT")
 			require.NotEqual(t, feeRecipient, block.Capella.Body.ExecutionPayload.FeeRecipient)
 		} else {
 			require.Contains(t, string(block.Capella.Body.Graffiti[:]), "DO NOT SUBMIT")
 			require.Equal(t, feeRecipient, block.Capella.Body.ExecutionPayload.FeeRecipient)
+
+			continue
 		}
 		require.Equal(t, spec.DataVersionCapella, block.Version)
 
-		signed := testutil.RandomCapellaVersionedSignedBeaconBlock()
+		signed := testutil.RandomVersionedSignedProposal()
 		signed.Capella.Message = block.Capella
-		err = eth2Cl.SubmitBeaconBlock(ctx, signed)
+		err = eth2Cl.SubmitProposal(ctx, signed)
 		require.NoError(t, err)
 	}
 
 	// Submit blinded blocks
 	for _, duty := range duties {
-		block, err := eth2Cl.BlindedBeaconBlockProposal(ctx, duty.Slot, testutil.RandomEth2Signature(), []byte("test"))
+		var graff [32]byte
+		copy(graff[:], "test")
+		opts := &eth2api.BlindedProposalOpts{
+			Slot:         duty.Slot,
+			RandaoReveal: testutil.RandomEth2Signature(),
+			Graffiti:     graff,
+		}
+		resp, err := eth2Cl.BlindedProposal(ctx, opts)
 		require.NoError(t, err)
+		block := resp.Data
 		if duty.Slot == realBlockSlot {
 			require.NotContains(t, string(block.Capella.Body.Graffiti[:]), "DO NOT SUBMIT")
 			require.NotEqual(t, feeRecipient, block.Capella.Body.ExecutionPayloadHeader.FeeRecipient)
@@ -120,14 +148,14 @@ func TestSynthProposer(t *testing.T) {
 		}
 		require.Equal(t, spec.DataVersionCapella, block.Version)
 
-		signed := &eth2api.VersionedSignedBlindedBeaconBlock{
+		signed := &eth2api.VersionedSignedBlindedProposal{
 			Version: spec.DataVersionCapella,
 			Capella: &eth2capella.SignedBlindedBeaconBlock{
 				Message:   block.Capella,
 				Signature: testutil.RandomEth2Signature(),
 			},
 		}
-		err = eth2Cl.SubmitBlindedBeaconBlock(ctx, signed)
+		err = eth2Cl.SubmitBlindedProposal(ctx, signed)
 		require.NoError(t, err)
 	}
 

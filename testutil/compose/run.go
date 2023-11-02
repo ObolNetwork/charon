@@ -41,10 +41,16 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 		nodes = append(nodes, n)
 	}
 
+	charonCmd := cmdRun
+	if conf.P2PFuzz {
+		nodes[0].EnvVars = append(nodes[0].EnvVars, kv{"p2p-fuzz", fmt.Sprintf(`"%v"`, conf.P2PFuzz)})
+		charonCmd = cmdUnsafeRun
+	}
+
 	data := TmplData{
 		ComposeDir:      dir,
 		CharonImageTag:  conf.ImageTag,
-		CharonCommand:   cmdRun,
+		CharonCommand:   charonCmd,
 		Nodes:           nodes,
 		Relay:           true,
 		Monitoring:      conf.Monitoring,
@@ -54,7 +60,7 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 	}
 
 	log.Info(ctx, "Created docker-compose.yml")
-	log.Info(ctx, "Run the cluster with: docker-compose up")
+	log.Info(ctx, "Run the cluster with: docker compose up")
 
 	if err := WriteDockerCompose(dir, data); err != nil {
 		return TmplData{}, err

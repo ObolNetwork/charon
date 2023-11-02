@@ -121,7 +121,7 @@ func TestSmoke(t *testing.T) {
 				node0 := data.Nodes[0]
 				for i := 0; i < len(node0.EnvVars); i++ {
 					if strings.HasPrefix(node0.EnvVars[i].Key, "p2p") {
-						data.Nodes[0].EnvVars[i].Key = "unset" // Zero p2p flags to it cannot communicate
+						data.Nodes[0].EnvVars[i].Key = node0.EnvVars[i].Key + "-unset" // Zero p2p flags to it cannot communicate
 					}
 				}
 			},
@@ -136,7 +136,7 @@ func TestSmoke(t *testing.T) {
 				node0 := data.Nodes[0]
 				for i := 0; i < len(node0.EnvVars); i++ {
 					if strings.HasPrefix(node0.EnvVars[i].Key, "p2p") {
-						data.Nodes[0].EnvVars[i].Key = "unset" // Zero p2p flags to it cannot communicate
+						data.Nodes[0].EnvVars[i].Key = node0.EnvVars[i].Key + "-unset" // Zero p2p flags to it cannot communicate
 					}
 				}
 			},

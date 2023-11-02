@@ -19,9 +19,12 @@ import (
 
 const (
 	// InclCheckLag is the number of slots to lag before checking inclusion.
-	// We wait for 4 slots to mitigate against reorgs as it should cover almost all reorg scenarios.
-	// Reorgs of more than 4 slots are very rare in ethereum PoS.
-	InclCheckLag = 4
+	// We wait for 6 slots to mitigate against reorgs as it should cover almost all reorg scenarios.
+	// Reorgs of more than 6 slots are very rare in ethereum PoS.
+	// The inclusion checker should begin checking for the inclusion of duties after the duty deadline is reached,
+	// i.e., after 5 slots.
+	InclCheckLag = 6
+
 	// InclMissedLag is the number of slots after which we assume the duty was not included and we
 	// delete cached submissions.
 	InclMissedLag = 32
@@ -101,22 +104,22 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 			return errors.Wrap(err, "hash aggregate")
 		}
 	} else if duty.Type == core.DutyProposer {
-		block, ok := data.(core.VersionedSignedBeaconBlock)
+		proposal, ok := data.(core.VersionedSignedProposal)
 		if !ok {
 			return errors.New("invalid block")
 		}
-		if eth2wrap.IsSyntheticBlock(&block.VersionedSignedBeaconBlock) {
+		if eth2wrap.IsSyntheticProposal(&proposal.VersionedSignedProposal) {
 			// Report inclusion for synthetic blocks as it is already included on-chain.
 			i.trackerInclFunc(duty, pubkey, data, nil)
 
 			return nil
 		}
 	} else if duty.Type == core.DutyBuilderProposer {
-		block, ok := data.(core.VersionedSignedBlindedBeaconBlock)
+		block, ok := data.(core.VersionedSignedBlindedProposal)
 		if !ok {
 			return errors.New("invalid blinded block")
 		}
-		if eth2wrap.IsSyntheticBlindedBlock(&block.VersionedSignedBlindedBeaconBlock) {
+		if eth2wrap.IsSyntheticBlindedBlock(&block.VersionedSignedBlindedProposal) {
 			// Report inclusion for synthetic blinded blocks as it is already included on-chain.
 			i.trackerInclFunc(duty, pubkey, data, nil)
 
@@ -193,6 +196,17 @@ func (i *inclusionCore) CheckBlock(ctx context.Context, block block) {
 			if sub.Duty.Slot != block.Slot {
 				continue
 			}
+
+			msg := "Broadcasted block included on-chain"
+			if sub.Duty.Type == core.DutyBuilderProposer {
+				msg = "Broadcasted blinded block included on-chain"
+			}
+
+			log.Info(ctx, msg,
+				z.I64("block_slot", block.Slot),
+				z.Any("pubkey", sub.Pubkey),
+				z.Any("broadcast_delay", sub.Delay),
+			)
 
 			// Just report block inclusions to tracker and trim
 			i.trackerInclFunc(sub.Duty, sub.Pubkey, sub.Data, nil)
@@ -337,9 +351,16 @@ type InclusionChecker struct {
 }
 
 // Submitted is called when a duty has been submitted.
-func (a *InclusionChecker) Submitted(duty core.Duty, pubkey core.PubKey, data core.SignedData) error {
+func (a *InclusionChecker) Submitted(duty core.Duty, set core.SignedDataSet) error {
 	slotStart := a.genesis.Add(a.slotDuration * time.Duration(duty.Slot))
-	return a.core.Submitted(duty, pubkey, data, time.Since(slotStart))
+
+	for key, data := range set {
+		if err := a.core.Submitted(duty, key, data, time.Since(slotStart)); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (a *InclusionChecker) Run(ctx context.Context) {

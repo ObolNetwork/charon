@@ -4,7 +4,6 @@ package p2p
 
 import (
 	"context"
-	"io"
 	"sync"
 	"time"
 
@@ -21,9 +20,16 @@ import (
 )
 
 const (
-	senderHysteresis = 3
-	senderBuffer     = senderHysteresis + 1
-	maxMsgSize       = 128 << 20 // 128MB
+	senderHysteresis   = 3
+	senderBuffer       = senderHysteresis + 1
+	maxMsgSize         = 128 << 20 // 128MB
+	defaultRcvTimeout  = time.Second * 5
+	defaultSendTimeout = defaultRcvTimeout + 2*time.Second // Allow for up to 1s hop latency (2s RTT)
+)
+
+var (
+	defaultWriterFunc = func(s network.Stream) pbio.Writer { return pbio.NewDelimitedWriter(s) }
+	defaultReaderFunc = func(s network.Stream) pbio.Reader { return pbio.NewDelimitedReader(s, maxMsgSize) }
 )
 
 // SendFunc is an abstract function responsible for sending libp2p messages.
@@ -147,6 +153,22 @@ type sendRecvOpts struct {
 	writersByProtocol map[protocol.ID]func(network.Stream) pbio.Writer
 	readersByProtocol map[protocol.ID]func(network.Stream) pbio.Reader
 	rttCallback       func(time.Duration)
+	receiveTimeout    time.Duration
+	sendTimeout       time.Duration
+}
+
+// WithReceiveTimeout returns an option for SendReceive that sets a timeout for handling incoming messages.
+func WithReceiveTimeout(timeout time.Duration) func(*sendRecvOpts) {
+	return func(opts *sendRecvOpts) {
+		opts.receiveTimeout = timeout
+	}
+}
+
+// WithSendTimeout returns an option for SendReceive that sets a timeout for sending messages.
+func WithSendTimeout(timeout time.Duration) func(*sendRecvOpts) {
+	return func(opts *sendRecvOpts) {
+		opts.sendTimeout = timeout
+	}
 }
 
 // WithSendReceiveRTT returns an option for SendReceive that sets a callback for the RTT.
@@ -165,17 +187,33 @@ func WithDelimitedProtocol(pID protocol.ID) func(*sendRecvOpts) {
 	}
 }
 
+// SetFuzzerDefaultsUnsafe sets default reader and writer functions to fuzzed versions of the same if p2p fuzz is enabled.
+//
+// The fuzzReaderWriter is responsible for creating a customized reader and writer for each network stream
+// associated with a specific protocol. The reader and writer implement the pbio.Reader and pbio.Writer interfaces respectively
+// respectively, from the "pbio" package.
+func SetFuzzerDefaultsUnsafe() {
+	defaultWriterFunc = func(s network.Stream) pbio.Writer {
+		return fuzzReaderWriter{w: pbio.NewDelimitedWriter(s)}
+	}
+	defaultReaderFunc = func(s network.Stream) pbio.Reader {
+		return fuzzReaderWriter{}
+	}
+}
+
 // defaultSendRecvOpts returns the default sendRecvOpts, it uses the legacy writers and noop rtt callback.
 func defaultSendRecvOpts(pID protocol.ID) sendRecvOpts {
 	return sendRecvOpts{
 		protocols: []protocol.ID{pID},
 		writersByProtocol: map[protocol.ID]func(s network.Stream) pbio.Writer{
-			pID: func(s network.Stream) pbio.Writer { return legacyReadWriter{s} },
+			pID: defaultWriterFunc,
 		},
 		readersByProtocol: map[protocol.ID]func(s network.Stream) pbio.Reader{
-			pID: func(s network.Stream) pbio.Reader { return legacyReadWriter{s} },
+			pID: defaultReaderFunc,
 		},
-		rttCallback: func(time.Duration) {},
+		rttCallback:    func(time.Duration) {},
+		receiveTimeout: defaultRcvTimeout,
+		sendTimeout:    defaultSendTimeout,
 	}
 }
 
@@ -200,6 +238,9 @@ func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
 	if err != nil {
 		return errors.Wrap(err, "new stream", z.Any("protocols", o.protocols))
 	}
+	if err := s.SetDeadline(time.Now().Add(o.sendTimeout)); err != nil {
+		return errors.Wrap(err, "set deadline")
+	}
 
 	writeFunc, ok := o.writersByProtocol[s.Protocol()]
 	if !ok {
@@ -222,17 +263,8 @@ func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
 		return errors.Wrap(err, "close write", z.Any("protocol", s.Protocol()))
 	}
 
-	zeroResp := proto.Clone(resp)
-
 	if err = reader.ReadMsg(resp); err != nil {
 		return errors.Wrap(err, "read response", z.Any("protocol", s.Protocol()))
-	}
-
-	// TODO(corver): Remove this once we only use length-delimited protocols.
-	//  This was added since legacy stream delimited readers couldn't distinguish between
-	//  no response and a zero response.
-	if proto.Equal(resp, zeroResp) {
-		return errors.New("no or zero response received", z.Any("protocol", s.Protocol()))
 	}
 
 	if err = s.Close(); err != nil {
@@ -257,6 +289,9 @@ func Send(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID pe
 	if err != nil {
 		return errors.Wrap(err, "tcpNode stream")
 	}
+	if err := s.SetDeadline(time.Now().Add(o.sendTimeout)); err != nil {
+		return errors.Wrap(err, "set deadline")
+	}
 
 	writeFunc, ok := o.writersByProtocol[s.Protocol()]
 	if !ok {
@@ -269,38 +304,6 @@ func Send(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID pe
 
 	if err := s.Close(); err != nil {
 		return errors.Wrap(err, "close stream", z.Any("protocol", s.Protocol()))
-	}
-
-	return nil
-}
-
-// legacyReadWriter implements pbio.Reader and pbio.Writer without length delimited encoding.
-type legacyReadWriter struct {
-	stream network.Stream
-}
-
-// WriteMsg writes a protobuf message to the stream.
-func (w legacyReadWriter) WriteMsg(m proto.Message) error {
-	b, err := proto.Marshal(m)
-	if err != nil {
-		return errors.Wrap(err, "marshal proto")
-	}
-
-	_, err = w.stream.Write(b)
-
-	return err
-}
-
-// ReadMsg reads a single protobuf message from the whole stream.
-// The stream must be closed after the message was sent.
-func (w legacyReadWriter) ReadMsg(m proto.Message) error {
-	b, err := io.ReadAll(w.stream)
-	if err != nil {
-		return errors.Wrap(err, "read proto")
-	}
-
-	if err = proto.Unmarshal(b, m); err != nil {
-		return errors.Wrap(err, "unmarshal proto")
 	}
 
 	return nil
