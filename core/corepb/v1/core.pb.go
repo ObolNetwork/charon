@@ -25,7 +25,7 @@ type Duty struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Slot uint64 `protobuf:"varint,1,opt,name=slot,proto3" json:"slot,omitempty"` // int64
+	Slot uint64 `protobuf:"varint,1,opt,name=slot,proto3" json:"slot,omitempty"` // uint64
 	Type int32  `protobuf:"varint,2,opt,name=type,proto3" json:"type,omitempty"` // core.DutyType
 }
 

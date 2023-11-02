@@ -5,7 +5,7 @@ package core.corepb.v1;
 option go_package = "github.com/obolnetwork/charon/core/corepb/v1";
 
 message Duty {    // core.Duty
-  uint64 slot = 1; // int64
+  uint64 slot = 1; // uint64
   int32 type = 2; // core.DutyType
 }
 
