@@ -14,7 +14,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
-	"github.com/attestantio/go-eth2-client/spec"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -139,7 +139,7 @@ func (h *synthWrapper) BlindedProposal(ctx context.Context, opts *eth2api.Blinde
 
 // syntheticProposal returns a synthetic unsigned beacon block to propose.
 func (h *synthWrapper) syntheticProposal(ctx context.Context, slot eth2p0.Slot, vIdx eth2p0.ValidatorIndex) (*eth2api.VersionedProposal, error) {
-	var signedBlock *spec.VersionedSignedBeaconBlock
+	var signedBlock *eth2spec.VersionedSignedBeaconBlock
 
 	// Work our way back from previous slot to find a proposal to base the synthetic proposal on.
 	for prev := slot - 1; prev > 0; prev-- {
@@ -168,24 +168,24 @@ func (h *synthWrapper) syntheticProposal(ctx context.Context, slot eth2p0.Slot, 
 
 	proposal := &eth2api.VersionedProposal{Version: signedBlock.Version}
 	switch signedBlock.Version {
-	case spec.DataVersionPhase0:
+	case eth2spec.DataVersionPhase0:
 		proposal.Phase0 = signedBlock.Phase0.Message
 		proposal.Phase0.Body.Graffiti = GetSyntheticGraffiti()
 		proposal.Phase0.Slot = slot
 		proposal.Phase0.ProposerIndex = vIdx
-	case spec.DataVersionAltair:
+	case eth2spec.DataVersionAltair:
 		proposal.Altair = signedBlock.Altair.Message
 		proposal.Altair.Body.Graffiti = GetSyntheticGraffiti()
 		proposal.Altair.Slot = slot
 		proposal.Altair.ProposerIndex = vIdx
-	case spec.DataVersionBellatrix:
+	case eth2spec.DataVersionBellatrix:
 		proposal.Bellatrix = signedBlock.Bellatrix.Message
 		proposal.Bellatrix.Body.Graffiti = GetSyntheticGraffiti()
 		proposal.Bellatrix.Slot = slot
 		proposal.Bellatrix.ProposerIndex = vIdx
 		proposal.Bellatrix.Body.ExecutionPayload.FeeRecipient = feeRecipient
 		proposal.Bellatrix.Body.ExecutionPayload.Transactions = fraction(proposal.Bellatrix.Body.ExecutionPayload.Transactions)
-	case spec.DataVersionCapella:
+	case eth2spec.DataVersionCapella:
 		proposal.Capella = signedBlock.Capella.Message
 		proposal.Capella.Body.Graffiti = GetSyntheticGraffiti()
 		proposal.Capella.Slot = slot
@@ -237,9 +237,9 @@ func GetSyntheticGraffiti() [32]byte {
 func IsSyntheticBlindedBlock(block *eth2api.VersionedSignedBlindedProposal) bool {
 	var graffiti [32]byte
 	switch block.Version {
-	case spec.DataVersionBellatrix:
+	case eth2spec.DataVersionBellatrix:
 		graffiti = block.Bellatrix.Message.Body.Graffiti
-	case spec.DataVersionCapella:
+	case eth2spec.DataVersionCapella:
 		graffiti = block.Capella.Message.Body.Graffiti
 	default:
 		return false
@@ -252,13 +252,13 @@ func IsSyntheticBlindedBlock(block *eth2api.VersionedSignedBlindedProposal) bool
 func IsSyntheticProposal(block *eth2api.VersionedSignedProposal) bool {
 	var graffiti [32]byte
 	switch block.Version {
-	case spec.DataVersionPhase0:
+	case eth2spec.DataVersionPhase0:
 		graffiti = block.Phase0.Message.Body.Graffiti
-	case spec.DataVersionAltair:
+	case eth2spec.DataVersionAltair:
 		graffiti = block.Altair.Message.Body.Graffiti
-	case spec.DataVersionBellatrix:
+	case eth2spec.DataVersionBellatrix:
 		graffiti = block.Bellatrix.Message.Body.Graffiti
-	case spec.DataVersionCapella:
+	case eth2spec.DataVersionCapella:
 		graffiti = block.Capella.Message.Body.Graffiti
 	default:
 		return false
@@ -436,7 +436,7 @@ func blindedProposal(proposal *eth2api.VersionedProposal) (*eth2api.VersionedBli
 	var resp *eth2api.VersionedBlindedProposal
 	// Blinded blocks are only available from bellatrix.
 	switch proposal.Version {
-	case spec.DataVersionBellatrix:
+	case eth2spec.DataVersionBellatrix:
 		resp = &eth2api.VersionedBlindedProposal{
 			Version: proposal.Version,
 			Bellatrix: &eth2bellatrix.BlindedBeaconBlock{
@@ -473,7 +473,7 @@ func blindedProposal(proposal *eth2api.VersionedProposal) (*eth2api.VersionedBli
 				},
 			},
 		}
-	case spec.DataVersionCapella:
+	case eth2spec.DataVersionCapella:
 		resp = &eth2api.VersionedBlindedProposal{
 			Version: proposal.Version,
 			Capella: &eth2capella.BlindedBeaconBlock{
