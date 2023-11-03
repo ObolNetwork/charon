@@ -189,6 +189,24 @@ func TestCreateCluster(t *testing.T) {
 				return data
 			},
 		},
+		{
+			Name: "test with fee recipient and withdrawal addresses",
+			Config: clusterConfig{
+				Name:      "test_cluster",
+				NumNodes:  3,
+				Threshold: 4,
+				NumDVs:    5,
+				Network:   "goerli",
+			},
+			Prep: func(t *testing.T, config clusterConfig) clusterConfig {
+				t.Helper()
+
+				config.FeeRecipientAddrs = []string{testutil.RandomChecksummedETHAddress(t, 1)}
+				config.WithdrawalAddrs = []string{testutil.RandomChecksummedETHAddress(t, 2)}
+
+				return config
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
@@ -203,13 +221,13 @@ func TestCreateCluster(t *testing.T) {
 
 				test.Config.DefFile = srv.URL
 			}
-			if test.Prep != nil {
-				test.Config = test.Prep(t, test.Config)
-			}
-
 			test.Config.InsecureKeys = true
 			test.Config.WithdrawalAddrs = []string{zeroAddress}
 			test.Config.FeeRecipientAddrs = []string{zeroAddress}
+
+			if test.Prep != nil {
+				test.Config = test.Prep(t, test.Config)
+			}
 
 			testCreateCluster(t, test.Config, def, test.expectedErr)
 		})
@@ -413,9 +431,9 @@ func TestSplitKeys(t *testing.T) {
 	}{
 		{
 			name:         "split keys from local definition",
-			numSplitKeys: 1,
+			numSplitKeys: 2,
 			conf: clusterConfig{
-				DefFile:    "../cluster/examples/cluster-definition-002.json",
+				DefFile:    "../cluster/examples/cluster-definition-004.json",
 				ClusterDir: t.TempDir(),
 				NumNodes:   4,
 				Network:    defaultNetwork,
