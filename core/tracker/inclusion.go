@@ -203,7 +203,7 @@ func (i *inclusionCore) CheckBlock(ctx context.Context, block block) {
 			}
 
 			log.Info(ctx, msg,
-				z.I64("block_slot", block.Slot),
+				z.U64("block_slot", block.Slot),
 				z.Any("pubkey", sub.Pubkey),
 				z.Any("broadcast_delay", sub.Delay),
 			)
