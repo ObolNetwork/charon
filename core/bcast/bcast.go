@@ -35,7 +35,7 @@ func New(ctx context.Context, eth2Cl eth2wrap.Client) (Broadcaster, error) {
 
 type Broadcaster struct {
 	eth2Cl    eth2wrap.Client
-	delayFunc func(slot int64) time.Duration
+	delayFunc func(slot uint64) time.Duration
 }
 
 // Broadcast broadcasts the aggregated signed duty data object to the beacon-node.
@@ -283,7 +283,7 @@ func setToAttestations(set core.SignedDataSet) ([]*eth2p0.Attestation, error) {
 }
 
 // newDelayFunc returns a function that calculates the delay since the start of a slot.
-func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot int64) time.Duration, error) {
+func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64) time.Duration, error) {
 	genesis, err := eth2Cl.GenesisTime(ctx)
 	if err != nil {
 		return nil, err
@@ -294,7 +294,7 @@ func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot int64)
 		return nil, err
 	}
 
-	return func(slot int64) time.Duration {
+	return func(slot uint64) time.Duration {
 		slotStart := genesis.Add(slotDuration * time.Duration(slot))
 		return time.Since(slotStart)
 	}, nil

@@ -61,7 +61,7 @@ func TestQBFTDebugger(t *testing.T) {
 func randomQBFTMessage() *pbv1.QBFTMsg {
 	return &pbv1.QBFTMsg{
 		Type:          rand.Int63(),
-		Duty:          &pbv1.Duty{Slot: rand.Int63()},
+		Duty:          &pbv1.Duty{Slot: rand.Uint64()},
 		PeerIdx:       rand.Int63(),
 		Round:         rand.Int63(),
 		PreparedRound: rand.Int63(),

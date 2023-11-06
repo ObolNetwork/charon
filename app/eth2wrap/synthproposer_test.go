@@ -9,7 +9,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
-	"github.com/attestantio/go-eth2-client/spec"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
@@ -59,7 +59,7 @@ func TestSynthProposer(t *testing.T) {
 		return cached(ctx)
 	}
 	signedBeaconBlock := bmock.SignedBeaconBlock
-	bmock.SignedBeaconBlockFunc = func(ctx context.Context, blockID string) (*spec.VersionedSignedBeaconBlock, error) {
+	bmock.SignedBeaconBlockFunc = func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error) {
 		opts := &eth2api.SignedBeaconBlockOpts{Block: blockID}
 		resp, err := signedBeaconBlock(ctx, opts)
 		if err != nil {
@@ -120,7 +120,7 @@ func TestSynthProposer(t *testing.T) {
 
 			continue
 		}
-		require.Equal(t, spec.DataVersionCapella, block.Version)
+		require.Equal(t, eth2spec.DataVersionCapella, block.Version)
 
 		signed := testutil.RandomVersionedSignedProposal()
 		signed.Capella.Message = block.Capella
@@ -146,10 +146,10 @@ func TestSynthProposer(t *testing.T) {
 		} else {
 			require.Equal(t, feeRecipient, block.Capella.Body.ExecutionPayloadHeader.FeeRecipient)
 		}
-		require.Equal(t, spec.DataVersionCapella, block.Version)
+		require.Equal(t, eth2spec.DataVersionCapella, block.Version)
 
 		signed := &eth2api.VersionedSignedBlindedProposal{
-			Version: spec.DataVersionCapella,
+			Version: eth2spec.DataVersionCapella,
 			Capella: &eth2capella.SignedBlindedBeaconBlock{
 				Message:   block.Capella,
 				Signature: testutil.RandomEth2Signature(),

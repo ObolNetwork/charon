@@ -196,7 +196,7 @@ func testRoundTimers(t *testing.T, timers []roundTimerFunc, itersPerConfig int) 
 			//	fmt.Printf("undedicded config=%#v\n", config)
 			//	fmt.Printf("results=%#v\n", results)
 			//	fmt.Println(buf.String())
-			//}
+			// }
 			return Named[[]result]{name, results}, nil
 		},
 		allConfigs,
@@ -396,7 +396,7 @@ func testStrategySimulator(t *testing.T, conf ssConfig, syncer zapcore.WriteSync
 
 		log.Debug(ctx, "Starting peer")
 
-		err := qbft.Run(ctx, def, transports[p.Idx], core.Duty{Slot: int64(conf.seed)}, p.Idx, valCh)
+		err := qbft.Run(ctx, def, transports[p.Idx], core.Duty{Slot: uint64(conf.seed)}, p.Idx, valCh)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			return res, err
 		}

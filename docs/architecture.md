@@ -107,7 +107,7 @@ A duty therefore has a slot and a type and is defined as:
 // Duty is the unit of work of the core workflow.
 type Duty struct {
   // Slot is the Ethereum consensus slot of the duty.
-  Slot int64
+  Slot uint64
   // Type is the type of duty.
   Type DutyType
 }

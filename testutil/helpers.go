@@ -13,10 +13,10 @@ import (
 )
 
 // BuilderFalse is a core.BuilderEnabled function that always returns false.
-var BuilderFalse = func(slot int64) bool { return false }
+var BuilderFalse = func(slot uint64) bool { return false }
 
 // BuilderTrue is a core.BuilderEnabled function that always returns true.
-var BuilderTrue = func(slot int64) bool { return true }
+var BuilderTrue = func(slot uint64) bool { return true }
 
 // NewTCPNodeCallback returns a callback that can be used to connect a TCP node to all other TCP nodes.
 func NewTCPNodeCallback(t *testing.T, protocols ...protocol.ID) func(host host.Host) {

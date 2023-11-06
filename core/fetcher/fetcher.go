@@ -34,7 +34,7 @@ type Fetcher struct {
 	feeRecipientFunc func(core.PubKey) string
 	subs             []func(context.Context, core.Duty, core.UnsignedDataSet) error
 	aggSigDBFunc     func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
-	awaitAttDataFunc func(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error)
+	awaitAttDataFunc func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 }
 
 // Subscribe registers a callback for fetched duties.
@@ -106,12 +106,12 @@ func (f *Fetcher) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubK
 
 // RegisterAwaitAttData registers a function to get attestation data from DutyDB.
 // Note: This is not thread safe and should only be called *before* Fetch.
-func (f *Fetcher) RegisterAwaitAttData(fn func(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error)) {
+func (f *Fetcher) RegisterAwaitAttData(fn func(ctx context.Context, slot uint64, commIdx uint64) (*eth2p0.AttestationData, error)) {
 	f.awaitAttDataFunc = fn
 }
 
 // fetchAttesterData returns the fetched attestation data set for committees and validators in the arg set.
-func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, defSet core.DutyDefinitionSet,
+func (f *Fetcher) fetchAttesterData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet,
 ) (core.UnsignedDataSet, error) {
 	// We may have multiple validators in the same committee, use the same attestation data in that case.
 	dataByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2p0.AttestationData)
@@ -129,7 +129,7 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, defSet core
 		if !ok {
 			var err error
 			opts := &eth2api.AttestationDataOpts{
-				Slot:           eth2p0.Slot(uint64(slot)),
+				Slot:           eth2p0.Slot(slot),
 				CommitteeIndex: commIdx,
 			}
 			eth2Resp, err := f.eth2Cl.AttestationData(ctx, opts)
@@ -155,7 +155,7 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot int64, defSet core
 }
 
 // fetchAggregatorData fetches the attestation aggregation data.
-func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
+func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
 	// We may have multiple aggregators in the same committee, use the same aggregated attestation in that case.
 	aggAttByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2p0.Attestation)
 
@@ -197,7 +197,7 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet co
 		}
 
 		// Query DutyDB for Attestation data to get attestation data root.
-		attData, err := f.awaitAttDataFunc(ctx, slot, int64(attDef.CommitteeIndex))
+		attData, err := f.awaitAttDataFunc(ctx, slot, uint64(attDef.CommitteeIndex))
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		}
@@ -234,7 +234,7 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot int64, defSet co
 	return resp, nil
 }
 
-func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
+func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
 	resp := make(core.UnsignedDataSet)
 	for pubkey := range defSet {
 		// Fetch previously aggregated randao reveal from AggSigDB
@@ -252,7 +252,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, defSet core
 		copy(graffiti[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
 
 		opts := &eth2api.ProposalOpts{
-			Slot:         eth2p0.Slot(uint64(slot)),
+			Slot:         eth2p0.Slot(slot),
 			RandaoReveal: randao,
 			Graffiti:     graffiti,
 		}
@@ -276,7 +276,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot int64, defSet core
 	return resp, nil
 }
 
-func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot int64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
+func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
 	resp := make(core.UnsignedDataSet)
 	for pubkey := range defSet {
 		// Fetch previously aggregated randao reveal from AggSigDB
@@ -297,7 +297,7 @@ func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot int64, defS
 		copy(graffiti[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
 
 		opts := &eth2api.BlindedProposalOpts{
-			Slot:         eth2p0.Slot(uint64(slot)),
+			Slot:         eth2p0.Slot(slot),
 			RandaoReveal: randao,
 			Graffiti:     graffiti,
 		}
@@ -321,7 +321,7 @@ func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot int64, defS
 }
 
 // fetchContributionData fetches the sync committee contribution data.
-func (f *Fetcher) fetchContributionData(ctx context.Context, slot int64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
+func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
 	resp := make(core.UnsignedDataSet)
 	for pubkey := range defSet {
 		// Query AggSigDB for DutyPrepareSyncContribution to get sync committee selection.

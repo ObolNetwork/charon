@@ -13,7 +13,7 @@ import (
 
 func TestIsLeader(t *testing.T) {
 	tests := []struct {
-		Slot          int64
+		Slot          uint64
 		DutyType      core.DutyType
 		Leader, Total int
 	}{

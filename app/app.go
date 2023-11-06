@@ -682,7 +682,7 @@ func newTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(
 
 // calculateTrackerDelay returns the slot to start tracking from. This mitigates noisy failed duties on
 // startup due to downstream VC startup delays.
-func calculateTrackerDelay(ctx context.Context, cl eth2wrap.Client, now time.Time) (int64, error) {
+func calculateTrackerDelay(ctx context.Context, cl eth2wrap.Client, now time.Time) (uint64, error) {
 	const maxDelayTime = time.Second * 10 // We want to delay at most 10 seconds
 	const minDelaySlots = 2               // But we do not want to delay less than 2 slots
 
@@ -695,9 +695,9 @@ func calculateTrackerDelay(ctx context.Context, cl eth2wrap.Client, now time.Tim
 		return 0, err
 	}
 
-	currentSlot := int64(now.Sub(genesisTime) / slotDuration)
+	currentSlot := uint64(now.Sub(genesisTime) / slotDuration)
 
-	maxDelayTimeSlot := currentSlot + int64(maxDelayTime/slotDuration) + 1
+	maxDelayTimeSlot := currentSlot + uint64(maxDelayTime/slotDuration) + 1
 	minDelaySlot := currentSlot + minDelaySlots
 
 	if maxDelayTimeSlot < minDelaySlot {
@@ -1056,7 +1056,7 @@ func hex7(input []byte) string {
 }
 
 // slotFromTimestamp returns slot from the provided timestamp.
-func slotFromTimestamp(ctx context.Context, eth2Cl eth2wrap.Client, timestamp time.Time) (int64, error) {
+func slotFromTimestamp(ctx context.Context, eth2Cl eth2wrap.Client, timestamp time.Time) (uint64, error) {
 	genesis, err := eth2Cl.GenesisTime(ctx)
 	if err != nil {
 		return 0, err
@@ -1071,5 +1071,5 @@ func slotFromTimestamp(ctx context.Context, eth2Cl eth2wrap.Client, timestamp ti
 
 	delta := timestamp.Sub(genesis)
 
-	return int64(delta / slotDuration), nil
+	return uint64(delta / slotDuration), nil
 }

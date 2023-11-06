@@ -116,7 +116,7 @@ func randomMsg(t *testing.T) *pbv1.QBFTMsg {
 
 	return &pbv1.QBFTMsg{
 		Type:          msgType,
-		Duty:          core.DutyToProto(core.Duty{Type: core.DutyType(rand.Int()), Slot: rand.Int63()}),
+		Duty:          core.DutyToProto(core.Duty{Type: core.DutyType(rand.Int()), Slot: rand.Uint64()}),
 		PeerIdx:       rand.Int63(),
 		Round:         rand.Int63(),
 		PreparedRound: rand.Int63(),

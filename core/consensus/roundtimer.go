@@ -32,7 +32,7 @@ func getTimerFunc() timerFunc {
 		}
 
 		return func(duty core.Duty) roundTimer {
-			random := rand.New(rand.NewSource(int64(duty.Type) + duty.Slot)) //nolint:gosec // Required for consistent pseudo-randomness.
+			random := rand.New(rand.NewSource(int64(uint64(duty.Type) + duty.Slot))) //nolint:gosec // Required for consistent pseudo-randomness.
 			return abTimers[random.Intn(len(abTimers))]()
 		}
 	}

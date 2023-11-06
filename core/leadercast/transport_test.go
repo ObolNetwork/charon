@@ -57,7 +57,7 @@ func TestMemTransport(t *testing.T) {
 	// propose attestation for each slot
 	var expected []core.UnsignedDataSet
 	for i := 0; i < slots; i++ {
-		duty := core.Duty{Slot: int64(i)}
+		duty := core.Duty{Slot: uint64(i)}
 		data := core.UnsignedDataSet{}
 		for j := 0; j < n; j++ {
 			unsignedData := core.AttestationData{
@@ -173,7 +173,7 @@ func TestP2PTransport(t *testing.T) {
 	// propose attestation for each slot
 	var expected []core.UnsignedDataSet
 	for i := 0; i < slots; i++ {
-		duty := core.NewAttesterDuty(int64(i))
+		duty := core.NewAttesterDuty(uint64(i))
 		data := core.UnsignedDataSet{}
 		for j := 0; j < n; j++ {
 			unsignedData := core.AttestationData{

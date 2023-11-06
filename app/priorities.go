@@ -41,7 +41,7 @@ func (c *mutableConfig) getInfoSync() (*infosync.Component, bool) {
 }
 
 // BuilderAPI returns true if the cluster supports the builder API for the provided slot.
-func (c *mutableConfig) BuilderAPI(_ int64) bool {
+func (c *mutableConfig) BuilderAPI(_ uint64) bool {
 	// TODO(corver): Dynamic BuilderAPI config disabled since VCs do not support it.
 	return c.conf.BuilderAPI
 }

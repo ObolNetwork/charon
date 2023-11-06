@@ -47,7 +47,7 @@ type submission struct {
 
 // block is a simplified block with its attestations.
 type block struct {
-	Slot                   int64
+	Slot                   uint64
 	AttestationsByDataRoot map[eth2p0.Root]*eth2p0.Attestation
 }
 
@@ -144,7 +144,7 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 
 // Trim removes all duties that are older than the specified slot.
 // It also calls the missedFunc for any duties that have not been included.
-func (i *inclusionCore) Trim(ctx context.Context, slot int64) {
+func (i *inclusionCore) Trim(ctx context.Context, slot uint64) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
@@ -203,7 +203,7 @@ func (i *inclusionCore) CheckBlock(ctx context.Context, block block) {
 			}
 
 			log.Info(ctx, msg,
-				z.I64("block_slot", block.Slot),
+				z.U64("block_slot", block.Slot),
 				z.Any("pubkey", sub.Pubkey),
 				z.Any("broadcast_delay", sub.Delay),
 			)
@@ -268,7 +268,7 @@ func reportMissed(ctx context.Context, sub submission) {
 
 		log.Warn(ctx, msg, nil,
 			z.Any("pubkey", sub.Pubkey),
-			z.I64("attestation_slot", sub.Duty.Slot),
+			z.U64("attestation_slot", sub.Duty.Slot),
 			z.Any("broadcast_delay", sub.Delay),
 		)
 	case core.DutyProposer, core.DutyBuilderProposer:
@@ -279,7 +279,7 @@ func reportMissed(ctx context.Context, sub submission) {
 
 		log.Warn(ctx, msg, nil,
 			z.Any("pubkey", sub.Pubkey),
-			z.I64("block_slot", sub.Duty.Slot),
+			z.U64("block_slot", sub.Duty.Slot),
 			z.Any("broadcast_delay", sub.Delay),
 		)
 	default:
@@ -291,7 +291,7 @@ func reportMissed(ctx context.Context, sub submission) {
 func reportAttInclusion(ctx context.Context, sub submission, block block) {
 	att := block.AttestationsByDataRoot[sub.AttDataRoot]
 	aggIndices := att.AggregationBits.BitIndices()
-	attSlot := int64(att.Data.Slot)
+	attSlot := uint64(att.Data.Slot)
 	blockSlot := block.Slot
 	inclDelay := block.Slot - attSlot
 
@@ -301,10 +301,10 @@ func reportAttInclusion(ctx context.Context, sub submission, block block) {
 	}
 
 	log.Info(ctx, msg,
-		z.I64("block_slot", blockSlot),
-		z.I64("attestation_slot", attSlot),
+		z.U64("block_slot", blockSlot),
+		z.U64("attestation_slot", attSlot),
 		z.Any("pubkey", sub.Pubkey),
-		z.I64("inclusion_delay", inclDelay),
+		z.U64("inclusion_delay", inclDelay),
 		z.Any("broadcast_delay", sub.Delay),
 		z.Int("aggregate_len", len(aggIndices)),
 		z.Bool("aggregated", len(aggIndices) > 1),
@@ -369,20 +369,20 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	var checkedSlot int64
+	var checkedSlot uint64
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			slot := int64(time.Since(a.genesis)/a.slotDuration) - InclCheckLag
-			if checkedSlot == slot || slot < 0 {
+			slot := uint64(time.Since(a.genesis)/a.slotDuration) - InclCheckLag
+			if checkedSlot == slot {
 				continue
 			}
 
 			if err := a.checkBlock(ctx, slot); err != nil {
-				log.Warn(ctx, "Failed to check inclusion", err, z.I64("slot", slot))
+				log.Warn(ctx, "Failed to check inclusion", err, z.U64("slot", slot))
 				continue
 			}
 
@@ -392,7 +392,7 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 	}
 }
 
-func (a *InclusionChecker) checkBlock(ctx context.Context, slot int64) error {
+func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64) error {
 	atts, err := a.eth2Cl.BlockAttestations(ctx, fmt.Sprint(slot))
 	if err != nil {
 		return err

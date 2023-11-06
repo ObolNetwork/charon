@@ -86,7 +86,7 @@ type Component struct {
 
 // Protocols returns the latest cluster wide supported protocols before the slot.
 // It returns the local protocols if no results before the slot are available.
-func (c *Component) Protocols(slot int64) []protocol.ID {
+func (c *Component) Protocols(slot uint64) []protocol.ID {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -105,7 +105,7 @@ func (c *Component) Protocols(slot int64) []protocol.ID {
 
 // Proposals returns the latest cluster wide supported proposal types before the slot.
 // It returns the default "full" proposal type if no results before the slot are available.
-func (c *Component) Proposals(slot int64) []core.ProposalType {
+func (c *Component) Proposals(slot uint64) []core.ProposalType {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -140,7 +140,7 @@ func (c *Component) addResult(result result) {
 	}
 }
 
-func (c *Component) Trigger(ctx context.Context, slot int64) error {
+func (c *Component) Trigger(ctx context.Context, slot uint64) error {
 	return c.prioritiser.Prioritise(ctx, core.NewInfoSyncDuty(slot),
 		priority.TopicProposal{
 			Topic:      topicVersion,
@@ -188,7 +188,7 @@ func proposalsToStrings(proposals []core.ProposalType) []string {
 
 // result is a cluster-wide agreed-upon infosync result.
 type result struct {
-	slot      int64
+	slot      uint64
 	versions  []string
 	protocols []protocol.ID
 	proposals []core.ProposalType

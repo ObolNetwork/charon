@@ -131,7 +131,7 @@ func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int, sig
 // signatures of the group according to public key of each DV.
 func (e *exchanger) exchange(ctx context.Context, sigType sigType, set core.ParSignedDataSet) (map[core.PubKey][]core.ParSignedData, error) {
 	// Start the process by storing current peer's ParSignedDataSet
-	duty := core.NewSignatureDuty(int64(sigType))
+	duty := core.NewSignatureDuty(uint64(sigType))
 	err := e.sigdb.StoreInternal(ctx, duty, set)
 	if err != nil {
 		return nil, err
