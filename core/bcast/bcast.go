@@ -110,6 +110,14 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 		return err
 
 	case core.DutyBuilderRegistration:
+		slot, err := firstSlotInCurrentEpoch(ctx, b.eth2Cl)
+		if err != nil {
+			return errors.Wrap(err, "calculate first slot in epoch")
+		}
+
+		// Use first slot in current epoch for accurate delay calculations while submitting builder registrations.
+		// This is because builder registrations are submitted in first slot of every epoch.
+		duty.Slot = slot
 		registrations, err := setToRegistrations(set)
 		if err != nil {
 			return err
@@ -298,4 +306,28 @@ func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64
 		slotStart := genesis.Add(slotDuration * time.Duration(slot))
 		return time.Since(slotStart)
 	}, nil
+}
+
+// firstSlotInCurrentEpoch calculates first slot number of the current ongoing epoch.
+func firstSlotInCurrentEpoch(ctx context.Context, eth2Cl eth2wrap.Client) (int64, error) {
+	genesis, err := eth2Cl.Genesis(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "fetch genesis")
+	}
+
+	slotDuration, err := eth2Cl.SlotDuration(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "fetch slot duration")
+	}
+
+	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "fetch slots per epoch")
+	}
+
+	chainAge := time.Since(genesis.Data.GenesisTime)
+	currentSlot := chainAge / slotDuration
+	currentEpoch := uint64(currentSlot) / slotsPerEpoch
+
+	return int64(currentEpoch * slotsPerEpoch), nil
 }
