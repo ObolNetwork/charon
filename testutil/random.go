@@ -785,6 +785,19 @@ func RandomETHAddress() string {
 	return fmt.Sprintf("%#x", RandomBytes32()[:20])
 }
 
+func RandomChecksummedETHAddress(t *testing.T, seed int) string {
+	t.Helper()
+
+	// Generate a new random private key
+	privatekey := GenerateInsecureK1Key(t, seed)
+
+	// Get the corresponding public key
+	publicKey := privatekey.PubKey()
+
+	// Derive the Ethereum address from the public key
+	return eth2util.PublicKeyToAddress(publicKey)
+}
+
 func RandomBytes96() []byte {
 	var resp [96]byte
 	_, _ = rand.Read(resp[:])
