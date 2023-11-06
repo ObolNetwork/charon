@@ -10,7 +10,7 @@ require (
 	github.com/ferranbt/fastssz v0.1.3
 	github.com/golang/snappy v0.0.4
 	github.com/google/gofuzz v1.2.0
-	github.com/gorilla/mux v1.8.0
+	github.com/gorilla/mux v1.8.1
 	github.com/herumi/bls-eth-go-binary v1.32.1
 	github.com/ipfs/go-log/v2 v2.5.1
 	github.com/jonboulle/clockwork v0.4.0
