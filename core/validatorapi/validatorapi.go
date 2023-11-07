@@ -982,6 +982,20 @@ func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCo
 }
 
 func (c Component) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) {
+	if len(opts.PubKeys) != 0 {
+		var pubkeys []eth2p0.BLSPubKey
+		for _, pubshare := range opts.PubKeys {
+			pubkey, err := c.getPubKeyFunc(pubshare)
+			if err != nil {
+				return nil, err
+			}
+
+			pubkeys = append(pubkeys, pubkey)
+		}
+
+		opts.PubKeys = pubkeys
+	}
+
 	eth2Resp, err := c.eth2Cl.Validators(ctx, opts)
 	if err != nil {
 		return nil, err
@@ -994,32 +1008,6 @@ func (c Component) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts)
 	}
 
 	return wrapResponse(convertedVals), nil
-}
-
-func (c Component) ValidatorsByPubKey(ctx context.Context, stateID string, pubshares []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
-	// Map from public shares to public keys before querying the beacon node.
-	var pubkeys []eth2p0.BLSPubKey
-	for _, pubshare := range pubshares {
-		pubkey, err := c.getPubKeyFunc(pubshare)
-		if err != nil {
-			return nil, err
-		}
-
-		pubkeys = append(pubkeys, pubkey)
-	}
-
-	opts := &eth2api.ValidatorsOpts{
-		State:   stateID,
-		PubKeys: pubkeys,
-	}
-	eth2Resp, err := c.eth2Cl.Validators(ctx, opts)
-	if err != nil {
-		return nil, err
-	}
-	valMap := eth2Resp.Data
-
-	// Then convert back.
-	return c.convertValidators(valMap, len(pubkeys) == 0)
 }
 
 // NodeVersion returns the current version of charon.
