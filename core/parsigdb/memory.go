@@ -206,12 +206,12 @@ func getThresholdMatching(typ core.DutyType, sigs []core.ParSignedData, threshol
 
 	sigsByMsgRoot := make(map[[32]byte][]core.ParSignedData) // map[Root][]ParSignedData
 	for _, sig := range sigs {
-		combinedRoot, err := core.HashMessageRoots(sig.SignedData)
+		root, err := sig.MessageRoot()
 		if err != nil {
 			return nil, false, err
 		}
 
-		sigsByMsgRoot[combinedRoot] = append(sigsByMsgRoot[combinedRoot], sig)
+		sigsByMsgRoot[root] = append(sigsByMsgRoot[root], sig)
 	}
 
 	// Return true if we have "threshold" number of signatures.

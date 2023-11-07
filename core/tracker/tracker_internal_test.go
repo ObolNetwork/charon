@@ -1120,7 +1120,7 @@ func TestAnalyseParSigs(t *testing.T) {
 		data := testutil.RandomBellatrixCoreVersionedSignedProposal()
 		offset := len(events)
 		for i := 0; i < n; i++ {
-			data, err := data.SetSignatures([]core.Signature{testutil.RandomCoreSignature()})
+			data, err := data.SetSignature(testutil.RandomCoreSignature())
 			require.NoError(t, err)
 			events = append(events, event{
 				pubkey: core.PubKey(pubkey),
