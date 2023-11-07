@@ -371,7 +371,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 				actual, err := res.Data.MarshalJSON()
 				require.NoError(t, err)
 				require.Equal(t, expect, actual)
-				require.Equal(t, datas[res.Duty].Signatures(), res.Data.Signatures())
+				require.Equal(t, datas[res.Duty].Signature(), res.Data.Signature())
 			}
 
 			// Assert we get results for all types from all peers.
