@@ -244,7 +244,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 			return nil, err
 		}
 
-		randao := randaoData.Signatures()[0].ToETH2()
+		randao := randaoData.Signature().ToETH2()
 
 		// TODO(dhruv): replace hardcoded graffiti with the one from cluster-lock.json
 		var graffiti [32]byte
@@ -289,7 +289,7 @@ func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot uint64, def
 			return nil, err
 		}
 
-		randao := randaoData.Signatures()[0].ToETH2()
+		randao := randaoData.Signature().ToETH2()
 
 		// TODO(dhruv): replace hardcoded graffiti with the one from cluster-lock.json
 		var graffiti [32]byte

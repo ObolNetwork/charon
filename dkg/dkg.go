@@ -650,7 +650,7 @@ func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares map[core.P
 		pk := pk
 		psigs := psigs
 		for _, s := range psigs {
-			sig, err := tblsconv.SignatureFromBytes(s.Signatures()[0])
+			sig, err := tblsconv.SignatureFromBytes(s.Signature())
 			if err != nil {
 				return tbls.Signature{}, nil, errors.Wrap(err, "signature from bytes")
 			}
@@ -833,7 +833,7 @@ func aggDepositData(data map[core.PubKey][]core.ParSignedData, shares []share,
 
 		psigs := make(map[int]tbls.Signature)
 		for _, s := range psigsData {
-			sig, err := tblsconv.SignatureFromBytes(s.Signatures()[0])
+			sig, err := tblsconv.SignatureFromBytes(s.Signature())
 			if err != nil {
 				return nil, errors.Wrap(err, "signature from core")
 			}
@@ -920,7 +920,7 @@ func aggValidatorRegistrations(
 
 		psigs := make(map[int]tbls.Signature)
 		for _, s := range psigsData {
-			sig, err := tblsconv.SignatureFromBytes(s.Signatures()[0])
+			sig, err := tblsconv.SignatureFromBytes(s.Signature())
 			if err != nil {
 				return nil, errors.Wrap(err, "signature from core")
 			}
@@ -1103,7 +1103,7 @@ func builderRegistrationFromETH2(reg core.VersionedSignedValidatorRegistration) 
 			Timestamp:    timestamp,
 			PubKey:       pubKey[:],
 		},
-		Signature: reg.Signatures()[0],
+		Signature: reg.Signature(),
 	}, nil
 }
 
