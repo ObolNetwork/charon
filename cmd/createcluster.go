@@ -1027,6 +1027,6 @@ func builderRegistrationFromETH2(reg core.VersionedSignedValidatorRegistration) 
 			Timestamp:    timestamp,
 			PubKey:       pubKey[:],
 		},
-		Signature: reg.Signatures()[0],
+		Signature: reg.Signature(),
 	}, nil
 }

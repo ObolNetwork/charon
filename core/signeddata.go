@@ -20,7 +20,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
-	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
@@ -58,33 +57,6 @@ var (
 	_ ssz.Unmarshaler = new(SignedSyncContributionAndProof)
 )
 
-// HashMessageRoots hashes together the message roots of the provided SignedData and returns the final hash.
-// It provides a unique fingerprint/digest of the SignedData instance.
-func HashMessageRoots(data SignedData) ([32]byte, error) {
-	roots, err := data.MessageRoots()
-	if err != nil {
-		return [32]byte{}, errors.Wrap(err, "message roots")
-	}
-
-	hh := ssz.DefaultHasherPool.Get()
-	defer ssz.DefaultHasherPool.Put(hh)
-
-	indx := hh.Index()
-
-	for _, root := range roots {
-		hh.PutBytes(root[:])
-	}
-
-	hh.Merkleize(indx)
-
-	resp, err := hh.HashRoot()
-	if err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash root")
-	}
-
-	return resp, nil
-}
-
 // SigFromETH2 returns a new signature from eth2 phase0 BLSSignature.
 func SigFromETH2(sig eth2p0.BLSSignature) Signature {
 	s := make(Signature, sigLen)
@@ -104,8 +76,8 @@ func NewPartialSignature(sig Signature, shareIdx int) ParSignedData {
 // Signature is a BLS12-381 Signature. It implements SignedData.
 type Signature []byte
 
-func (Signature) MessageRoots() ([][32]byte, error) {
-	return [][32]byte{}, errors.New("signed message root not supported by signature type")
+func (Signature) MessageRoot() ([32]byte, error) {
+	return [32]byte{}, errors.New("signed message root not supported by signature type")
 }
 
 func (s Signature) Clone() (SignedData, error) {
@@ -121,12 +93,12 @@ func (s Signature) clone() Signature {
 	return resp
 }
 
-func (s Signature) Signatures() []Signature {
-	return []Signature{s}
+func (s Signature) Signature() Signature {
+	return s
 }
 
-func (Signature) SetSignatures(sigs []Signature) (SignedData, error) {
-	return sigs[0], nil
+func (Signature) SetSignature(sig Signature) (SignedData, error) {
+	return sig, nil
 }
 
 func (s Signature) MarshalJSON() ([]byte, error) {
@@ -205,63 +177,42 @@ type VersionedSignedProposal struct {
 	eth2api.VersionedSignedProposal
 }
 
-func (p VersionedSignedProposal) Signatures() []Signature {
+func (p VersionedSignedProposal) Signature() Signature {
 	switch p.Version {
 	// No block nil checks since `NewVersionedSignedBeaconBlock` assumed.
 	case eth2spec.DataVersionPhase0:
-		return []Signature{SigFromETH2(p.Phase0.Signature)}
+		return SigFromETH2(p.Phase0.Signature)
 	case eth2spec.DataVersionAltair:
-		return []Signature{SigFromETH2(p.Altair.Signature)}
+		return SigFromETH2(p.Altair.Signature)
 	case eth2spec.DataVersionBellatrix:
-		return []Signature{SigFromETH2(p.Bellatrix.Signature)}
+		return SigFromETH2(p.Bellatrix.Signature)
 	case eth2spec.DataVersionCapella:
-		return []Signature{SigFromETH2(p.Capella.Signature)}
+		return SigFromETH2(p.Capella.Signature)
 	case eth2spec.DataVersionDeneb:
-		// Deneb's signatures consist of block sig and blob sidecar sigs.
-		var sigs []Signature
-		sigs = append(sigs, SigFromETH2(p.Deneb.SignedBlock.Signature))
-		for _, blobSig := range p.Deneb.SignedBlobSidecars {
-			sigs = append(sigs, SigFromETH2(blobSig.Signature))
-		}
-
-		return sigs
+		return SigFromETH2(p.Deneb.SignedBlock.Signature)
 	default:
 		panic("unknown version") // Note this is avoided by using `NewVersionedSignedProposal`.
 	}
 }
 
-func (p VersionedSignedProposal) SetSignatures(sigs []Signature) (SignedData, error) {
+func (p VersionedSignedProposal) SetSignature(sig Signature) (SignedData, error) {
 	resp, err := p.clone()
 	if err != nil {
 		return nil, err
 	}
 
-	if len(sigs) == 0 {
-		return nil, errors.Wrap(err, "zero signatures")
-	}
-
 	switch resp.Version {
 	// No block nil checks since `NewVersionedSignedProposal` assumed.
 	case eth2spec.DataVersionPhase0:
-		resp.Phase0.Signature = sigs[0].ToETH2()
+		resp.Phase0.Signature = sig.ToETH2()
 	case eth2spec.DataVersionAltair:
-		resp.Altair.Signature = sigs[0].ToETH2()
+		resp.Altair.Signature = sig.ToETH2()
 	case eth2spec.DataVersionBellatrix:
-		resp.Bellatrix.Signature = sigs[0].ToETH2()
+		resp.Bellatrix.Signature = sig.ToETH2()
 	case eth2spec.DataVersionCapella:
-		resp.Capella.Signature = sigs[0].ToETH2()
+		resp.Capella.Signature = sig.ToETH2()
 	case eth2spec.DataVersionDeneb:
-		sigsRequired := 1 + len(resp.Deneb.SignedBlobSidecars)
-		if len(sigs) != sigsRequired {
-			return nil, errors.New("not enough signatures", z.Int("required", sigsRequired), z.Int("got", len(sigs)))
-		}
-
-		// Set signature of beacon block
-		resp.Deneb.SignedBlock.Signature = sigs[0].ToETH2()
-		// Set signatures of each blob sidecar
-		for i := 1; i < len(sigs); i++ {
-			resp.Deneb.SignedBlobSidecars[i-1].Signature = sigs[i].ToETH2()
-		}
+		resp.Deneb.SignedBlock.Signature = sig.ToETH2()
 	default:
 		return nil, errors.New("unknown type")
 	}
@@ -269,56 +220,19 @@ func (p VersionedSignedProposal) SetSignatures(sigs []Signature) (SignedData, er
 	return resp, nil
 }
 
-func (p VersionedSignedProposal) MessageRoots() ([][32]byte, error) {
+func (p VersionedSignedProposal) MessageRoot() ([32]byte, error) {
 	switch p.Version {
 	// No block nil checks since `NewVersionedSignedProposal` assumed.
 	case eth2spec.DataVersionPhase0:
-		root, err := p.Phase0.Message.HashTreeRoot()
-		if err != nil {
-			return nil, errors.Wrap(err, "hash phase0 block")
-		}
-
-		return [][32]byte{root}, nil
+		return p.Phase0.Message.HashTreeRoot()
 	case eth2spec.DataVersionAltair:
-		root, err := p.Altair.Message.HashTreeRoot()
-		if err != nil {
-			return nil, errors.Wrap(err, "hash altair block")
-		}
-
-		return [][32]byte{root}, nil
+		return p.Altair.Message.HashTreeRoot()
 	case eth2spec.DataVersionBellatrix:
-		root, err := p.Bellatrix.Message.HashTreeRoot()
-		if err != nil {
-			return nil, errors.Wrap(err, "hash bellatrix block")
-		}
-
-		return [][32]byte{root}, nil
+		return p.Bellatrix.Message.HashTreeRoot()
 	case eth2spec.DataVersionCapella:
-		root, err := p.Capella.Message.HashTreeRoot()
-		if err != nil {
-			return nil, errors.Wrap(err, "hash capella block")
-		}
-
-		return [][32]byte{root}, nil
+		return p.Capella.Message.HashTreeRoot()
 	case eth2spec.DataVersionDeneb:
-		var roots [][32]byte
-		// Append root of deneb beacon block
-		root, err := p.Deneb.SignedBlock.Message.HashTreeRoot()
-		if err != nil {
-			return nil, errors.Wrap(err, "hash deneb block")
-		}
-		roots = append(roots, root)
-
-		// Append roots of deneb blob sidecars
-		for _, blob := range p.Deneb.SignedBlobSidecars {
-			blobRoot, err := blob.Message.HashTreeRoot()
-			if err != nil {
-				return nil, errors.Wrap(err, "hash deneb blob sidecar")
-			}
-			roots = append(roots, blobRoot)
-		}
-
-		return roots, nil
+		return p.Deneb.SignedBlock.Message.HashTreeRoot()
 	default:
 		panic("unknown version") // Note this is avoided by using `NewVersionedSignedProposal`.
 	}
@@ -466,55 +380,34 @@ type VersionedSignedBlindedProposal struct {
 	eth2api.VersionedSignedBlindedProposal
 }
 
-func (p VersionedSignedBlindedProposal) Signatures() []Signature {
+func (p VersionedSignedBlindedProposal) Signature() Signature {
 	switch p.Version {
 	// No block nil checks since `NewVersionedSignedBlindedBeaconBlock` assumed.
 	case eth2spec.DataVersionBellatrix:
-		return []Signature{SigFromETH2(p.Bellatrix.Signature)}
+		return SigFromETH2(p.Bellatrix.Signature)
 	case eth2spec.DataVersionCapella:
-		return []Signature{SigFromETH2(p.Capella.Signature)}
+		return SigFromETH2(p.Capella.Signature)
 	case eth2spec.DataVersionDeneb:
-		// Deneb's signatures consist of block sig and blob sidecar sigs.
-		var sigs []Signature
-		sigs = append(sigs, SigFromETH2(p.Deneb.SignedBlindedBlock.Signature))
-		for _, blobSig := range p.Deneb.SignedBlindedBlobSidecars {
-			sigs = append(sigs, SigFromETH2(blobSig.Signature))
-		}
-
-		return sigs
+		return SigFromETH2(p.Deneb.SignedBlindedBlock.Signature)
 	default:
 		panic("unknown version") // Note this is avoided by using `NewVersionedSignedBlindedProposal`.
 	}
 }
 
-func (p VersionedSignedBlindedProposal) SetSignatures(sigs []Signature) (SignedData, error) {
+func (p VersionedSignedBlindedProposal) SetSignature(sig Signature) (SignedData, error) {
 	resp, err := p.clone()
 	if err != nil {
 		return nil, err
 	}
 
-	if len(sigs) == 0 {
-		return nil, errors.Wrap(err, "zero signatures")
-	}
-
 	switch resp.Version {
 	// No block nil checks since `NewVersionedSignedBlindedBeaconBlock` assumed.
 	case eth2spec.DataVersionBellatrix:
-		resp.Bellatrix.Signature = sigs[0].ToETH2()
+		resp.Bellatrix.Signature = sig.ToETH2()
 	case eth2spec.DataVersionCapella:
-		resp.Capella.Signature = sigs[0].ToETH2()
+		resp.Capella.Signature = sig.ToETH2()
 	case eth2spec.DataVersionDeneb:
-		sigsRequired := 1 + len(resp.Deneb.SignedBlindedBlobSidecars)
-		if len(sigs) != sigsRequired {
-			return nil, errors.New("not enough signatures", z.Int("required", sigsRequired), z.Int("got", len(sigs)))
-		}
-
-		// Set signature of beacon block
-		resp.Deneb.SignedBlindedBlock.Signature = sigs[0].ToETH2()
-		// Set signatures of each blob sidecar
-		for i := 1; i < len(sigs); i++ {
-			resp.Deneb.SignedBlindedBlobSidecars[i-1].Signature = sigs[i].ToETH2()
-		}
+		resp.Deneb.SignedBlindedBlock.Signature = sig.ToETH2()
 	default:
 		return nil, errors.New("unknown type")
 	}
@@ -522,42 +415,15 @@ func (p VersionedSignedBlindedProposal) SetSignatures(sigs []Signature) (SignedD
 	return resp, nil
 }
 
-func (p VersionedSignedBlindedProposal) MessageRoots() ([][32]byte, error) {
+func (p VersionedSignedBlindedProposal) MessageRoot() ([32]byte, error) {
 	switch p.Version {
 	// No block nil checks since `NewVersionedSignedBlindedBeaconBlock` assumed.
 	case eth2spec.DataVersionBellatrix:
-		root, err := p.Bellatrix.Message.HashTreeRoot()
-		if err != nil {
-			return nil, errors.Wrap(err, "hash message root")
-		}
-
-		return [][32]byte{root}, nil
+		return p.Bellatrix.Message.HashTreeRoot()
 	case eth2spec.DataVersionCapella:
-		root, err := p.Capella.Message.HashTreeRoot()
-		if err != nil {
-			return nil, errors.Wrap(err, "hash message root")
-		}
-
-		return [][32]byte{root}, nil
+		return p.Capella.Message.HashTreeRoot()
 	case eth2spec.DataVersionDeneb:
-		var roots [][32]byte
-		// Append root of deneb blinded beacon block
-		root, err := p.Deneb.SignedBlindedBlock.Message.HashTreeRoot()
-		if err != nil {
-			return nil, errors.Wrap(err, "hash deneb blinded block")
-		}
-		roots = append(roots, root)
-
-		// Append roots of deneb blinded blob sidecars
-		for _, blob := range p.Deneb.SignedBlindedBlobSidecars {
-			blobRoot, err := blob.Message.HashTreeRoot()
-			if err != nil {
-				return nil, errors.Wrap(err, "hash deneb blinded blob sidecar")
-			}
-			roots = append(roots, blobRoot)
-		}
-
-		return roots, nil
+		return p.Deneb.SignedBlindedBlock.Message.HashTreeRoot()
 	default:
 		panic("unknown version") // Note this is avoided by using `NewVersionedSignedBlindedProposal`.
 	}
@@ -673,13 +539,8 @@ type Attestation struct {
 	eth2p0.Attestation
 }
 
-func (a Attestation) MessageRoots() ([][32]byte, error) {
-	root, err := a.Data.HashTreeRoot()
-	if err != nil {
-		return nil, errors.Wrap(err, "hash attestation")
-	}
-
-	return [][32]byte{root}, nil
+func (a Attestation) MessageRoot() ([32]byte, error) {
+	return a.Data.HashTreeRoot()
 }
 
 func (a Attestation) Clone() (SignedData, error) {
@@ -699,21 +560,17 @@ func (a Attestation) clone() (Attestation, error) {
 	return resp, nil
 }
 
-func (a Attestation) Signatures() []Signature {
-	return []Signature{SigFromETH2(a.Attestation.Signature)}
+func (a Attestation) Signature() Signature {
+	return SigFromETH2(a.Attestation.Signature)
 }
 
-func (a Attestation) SetSignatures(sigs []Signature) (SignedData, error) {
+func (a Attestation) SetSignature(sig Signature) (SignedData, error) {
 	resp, err := a.clone()
 	if err != nil {
 		return nil, err
 	}
 
-	if len(sigs) == 0 {
-		return nil, errors.New("zero signatures")
-	}
-
-	resp.Attestation.Signature = sigs[0].ToETH2()
+	resp.Attestation.Signature = sig.ToETH2()
 
 	return resp, nil
 }
@@ -759,13 +616,8 @@ type SignedVoluntaryExit struct {
 	eth2p0.SignedVoluntaryExit
 }
 
-func (e SignedVoluntaryExit) MessageRoots() ([][32]byte, error) {
-	root, err := e.Message.HashTreeRoot()
-	if err != nil {
-		return nil, errors.Wrap(err, "hash signed voluntary exit")
-	}
-
-	return [][32]byte{root}, nil
+func (e SignedVoluntaryExit) MessageRoot() ([32]byte, error) {
+	return e.Message.HashTreeRoot()
 }
 
 func (e SignedVoluntaryExit) Clone() (SignedData, error) {
@@ -784,21 +636,17 @@ func (e SignedVoluntaryExit) clone() (SignedVoluntaryExit, error) {
 	return resp, nil
 }
 
-func (e SignedVoluntaryExit) Signatures() []Signature {
-	return []Signature{SigFromETH2(e.SignedVoluntaryExit.Signature)}
+func (e SignedVoluntaryExit) Signature() Signature {
+	return SigFromETH2(e.SignedVoluntaryExit.Signature)
 }
 
-func (e SignedVoluntaryExit) SetSignatures(sigs []Signature) (SignedData, error) {
+func (e SignedVoluntaryExit) SetSignature(sig Signature) (SignedData, error) {
 	resp, err := e.clone()
 	if err != nil {
 		return nil, err
 	}
 
-	if len(sigs) == 0 {
-		return nil, errors.New("zero signatures")
-	}
-
-	resp.SignedVoluntaryExit.Signature = sigs[0].ToETH2()
+	resp.SignedVoluntaryExit.Signature = sig.ToETH2()
 
 	return resp, nil
 }
@@ -849,15 +697,10 @@ type VersionedSignedValidatorRegistration struct {
 	eth2api.VersionedSignedValidatorRegistration
 }
 
-func (r VersionedSignedValidatorRegistration) MessageRoots() ([][32]byte, error) {
+func (r VersionedSignedValidatorRegistration) MessageRoot() ([32]byte, error) {
 	switch r.Version {
 	case eth2spec.BuilderVersionV1:
-		root, err := r.V1.Message.HashTreeRoot()
-		if err != nil {
-			return nil, err
-		}
-
-		return [][32]byte{root}, nil
+		return r.V1.Message.HashTreeRoot()
 	default:
 		panic("unknown version")
 	}
@@ -880,28 +723,24 @@ func (r VersionedSignedValidatorRegistration) clone() (VersionedSignedValidatorR
 	return resp, nil
 }
 
-func (r VersionedSignedValidatorRegistration) Signatures() []Signature {
+func (r VersionedSignedValidatorRegistration) Signature() Signature {
 	switch r.Version {
 	case eth2spec.BuilderVersionV1:
-		return []Signature{SigFromETH2(r.V1.Signature)}
+		return SigFromETH2(r.V1.Signature)
 	default:
 		panic("unknown version")
 	}
 }
 
-func (r VersionedSignedValidatorRegistration) SetSignatures(sigs []Signature) (SignedData, error) {
+func (r VersionedSignedValidatorRegistration) SetSignature(sig Signature) (SignedData, error) {
 	resp, err := r.clone()
 	if err != nil {
 		return nil, err
 	}
 
-	if len(sigs) == 0 {
-		return nil, errors.New("zero signatures")
-	}
-
 	switch resp.Version {
 	case eth2spec.BuilderVersionV1:
-		resp.V1.Signature = sigs[0].ToETH2()
+		resp.V1.Signature = sig.ToETH2()
 	default:
 		return nil, errors.New("unknown type")
 	}
@@ -988,30 +827,21 @@ type SignedRandao struct {
 	eth2util.SignedEpoch
 }
 
-func (s SignedRandao) MessageRoots() ([][32]byte, error) {
-	msgRoot, err := s.SignedEpoch.HashTreeRoot()
-	if err != nil {
-		return nil, err
-	}
-
-	return [][32]byte{msgRoot}, nil
+func (s SignedRandao) MessageRoot() ([32]byte, error) {
+	return s.SignedEpoch.HashTreeRoot()
 }
 
-func (s SignedRandao) Signatures() []Signature {
-	return []Signature{SigFromETH2(s.SignedEpoch.Signature)}
+func (s SignedRandao) Signature() Signature {
+	return SigFromETH2(s.SignedEpoch.Signature)
 }
 
-func (s SignedRandao) SetSignatures(sigs []Signature) (SignedData, error) {
+func (s SignedRandao) SetSignature(sig Signature) (SignedData, error) {
 	resp, err := s.clone()
 	if err != nil {
 		return nil, err
 	}
 
-	if len(sigs) == 0 {
-		return nil, errors.New("zero signatures")
-	}
-
-	resp.SignedEpoch.Signature = sigs[0].ToETH2()
+	resp.SignedEpoch.Signature = sig.ToETH2()
 
 	return resp, nil
 }
@@ -1058,30 +888,21 @@ type BeaconCommitteeSelection struct {
 	eth2exp.BeaconCommitteeSelection
 }
 
-func (s BeaconCommitteeSelection) MessageRoots() ([][32]byte, error) {
-	msgRoot, err := eth2util.SlotHashRoot(s.Slot)
-	if err != nil {
-		return nil, err
-	}
-
-	return [][32]byte{msgRoot}, nil
+func (s BeaconCommitteeSelection) MessageRoot() ([32]byte, error) {
+	return eth2util.SlotHashRoot(s.Slot)
 }
 
-func (s BeaconCommitteeSelection) Signatures() []Signature {
-	return []Signature{SigFromETH2(s.SelectionProof)}
+func (s BeaconCommitteeSelection) Signature() Signature {
+	return SigFromETH2(s.SelectionProof)
 }
 
-func (s BeaconCommitteeSelection) SetSignatures(sigs []Signature) (SignedData, error) {
+func (s BeaconCommitteeSelection) SetSignature(sig Signature) (SignedData, error) {
 	resp, err := s.clone()
 	if err != nil {
 		return nil, err
 	}
 
-	if len(sigs) > 1 {
-		return nil, errors.New("signatures exceed 1")
-	}
-
-	resp.SelectionProof = sigs[0].ToETH2()
+	resp.SelectionProof = sig.ToETH2()
 
 	return resp, nil
 }
@@ -1130,31 +951,26 @@ type SyncCommitteeSelection struct {
 
 // MessageRoots returns the signing roots for the provided SyncCommitteeSelection.
 // Refer https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#syncaggregatorselectiondata
-func (s SyncCommitteeSelection) MessageRoots() ([][32]byte, error) {
+func (s SyncCommitteeSelection) MessageRoot() ([32]byte, error) {
 	data := altair.SyncAggregatorSelectionData{
 		Slot:              s.Slot,
 		SubcommitteeIndex: uint64(s.SubcommitteeIndex),
 	}
 
-	msgRoot, err := data.HashTreeRoot()
-	if err != nil {
-		return nil, err
-	}
-
-	return [][32]byte{msgRoot}, nil
+	return data.HashTreeRoot()
 }
 
-func (s SyncCommitteeSelection) Signatures() []Signature {
-	return []Signature{SigFromETH2(s.SelectionProof)}
+func (s SyncCommitteeSelection) Signature() Signature {
+	return SigFromETH2(s.SelectionProof)
 }
 
-func (s SyncCommitteeSelection) SetSignatures(signatures []Signature) (SignedData, error) {
+func (s SyncCommitteeSelection) SetSignature(sig Signature) (SignedData, error) {
 	resp, err := s.clone()
 	if err != nil {
 		return nil, err
 	}
 
-	resp.SelectionProof = signatures[0].ToETH2()
+	resp.SelectionProof = sig.ToETH2()
 
 	return resp, nil
 }
@@ -1199,30 +1015,21 @@ type SignedAggregateAndProof struct {
 	eth2p0.SignedAggregateAndProof
 }
 
-func (s SignedAggregateAndProof) MessageRoots() ([][32]byte, error) {
-	root, err := s.Message.HashTreeRoot()
-	if err != nil {
-		return nil, err
-	}
-
-	return [][32]byte{root}, nil
+func (s SignedAggregateAndProof) MessageRoot() ([32]byte, error) {
+	return s.Message.HashTreeRoot()
 }
 
-func (s SignedAggregateAndProof) Signatures() []Signature {
-	return []Signature{SigFromETH2(s.SignedAggregateAndProof.Signature)}
+func (s SignedAggregateAndProof) Signature() Signature {
+	return SigFromETH2(s.SignedAggregateAndProof.Signature)
 }
 
-func (s SignedAggregateAndProof) SetSignatures(sigs []Signature) (SignedData, error) {
+func (s SignedAggregateAndProof) SetSignature(sig Signature) (SignedData, error) {
 	resp, err := s.clone()
 	if err != nil {
 		return nil, err
 	}
 
-	if len(sigs) > 1 {
-		return nil, errors.New("signatures exceed 1")
-	}
-
-	resp.SignedAggregateAndProof.Signature = sigs[0].ToETH2()
+	resp.SignedAggregateAndProof.Signature = sig.ToETH2()
 
 	return resp, nil
 }
@@ -1285,25 +1092,21 @@ type SignedSyncMessage struct {
 	altair.SyncCommitteeMessage
 }
 
-func (s SignedSyncMessage) MessageRoots() ([][32]byte, error) {
-	return [][32]byte{s.BeaconBlockRoot}, nil
+func (s SignedSyncMessage) MessageRoot() ([32]byte, error) {
+	return s.BeaconBlockRoot, nil
 }
 
-func (s SignedSyncMessage) Signatures() []Signature {
-	return []Signature{SigFromETH2(s.SyncCommitteeMessage.Signature)}
+func (s SignedSyncMessage) Signature() Signature {
+	return SigFromETH2(s.SyncCommitteeMessage.Signature)
 }
 
-func (s SignedSyncMessage) SetSignatures(sigs []Signature) (SignedData, error) {
+func (s SignedSyncMessage) SetSignature(sig Signature) (SignedData, error) {
 	resp, err := s.clone()
 	if err != nil {
 		return nil, err
 	}
 
-	if len(sigs) > 1 {
-		return nil, errors.New("signatures exceed 1")
-	}
-
-	resp.SyncCommitteeMessage.Signature = sigs[0].ToETH2()
+	resp.SyncCommitteeMessage.Signature = sig.ToETH2()
 
 	return resp, nil
 }
@@ -1368,35 +1171,26 @@ type SyncContributionAndProof struct {
 
 // MessageRoots returns the signing roots for the provided SyncContributionAndProof.
 // Refer: https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#aggregation-selection.
-func (s SyncContributionAndProof) MessageRoots() ([][32]byte, error) {
+func (s SyncContributionAndProof) MessageRoot() ([32]byte, error) {
 	data := altair.SyncAggregatorSelectionData{
 		Slot:              s.ContributionAndProof.Contribution.Slot,
 		SubcommitteeIndex: s.ContributionAndProof.Contribution.SubcommitteeIndex,
 	}
 
-	root, err := data.HashTreeRoot()
-	if err != nil {
-		return nil, errors.Wrap(err, "hash sync contribution and proof")
-	}
-
-	return [][32]byte{root}, nil
+	return data.HashTreeRoot()
 }
 
-func (s SyncContributionAndProof) Signatures() []Signature {
-	return []Signature{SigFromETH2(s.ContributionAndProof.SelectionProof)}
+func (s SyncContributionAndProof) Signature() Signature {
+	return SigFromETH2(s.ContributionAndProof.SelectionProof)
 }
 
-func (s SyncContributionAndProof) SetSignatures(sigs []Signature) (SignedData, error) {
+func (s SyncContributionAndProof) SetSignature(sig Signature) (SignedData, error) {
 	resp, err := s.clone()
 	if err != nil {
 		return nil, err
 	}
 
-	if len(sigs) == 0 {
-		return nil, errors.New("zero signatures")
-	}
-
-	resp.SelectionProof = sigs[0].ToETH2()
+	resp.SelectionProof = sig.ToETH2()
 
 	return resp, nil
 }
@@ -1423,8 +1217,8 @@ func (s *SyncContributionAndProof) UnmarshalJSON(input []byte) error {
 	return s.ContributionAndProof.UnmarshalJSON(input)
 }
 
-func (SyncContributionAndProof) DomainNames() []signing.DomainName {
-	return []signing.DomainName{signing.DomainSyncCommitteeSelectionProof}
+func (SyncContributionAndProof) DomainName() signing.DomainName {
+	return signing.DomainSyncCommitteeSelectionProof
 }
 
 func (s SyncContributionAndProof) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
@@ -1469,30 +1263,21 @@ type SignedSyncContributionAndProof struct {
 
 // MessageRoots returns the signing roots for the provided SignedSyncContributionAndProof.
 // Refer get_contribution_and_proof_signature from https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#broadcast-sync-committee-contribution.
-func (s SignedSyncContributionAndProof) MessageRoots() ([][32]byte, error) {
-	msgRoot, err := s.Message.HashTreeRoot()
-	if err != nil {
-		return nil, err
-	}
-
-	return [][32]byte{msgRoot}, nil
+func (s SignedSyncContributionAndProof) MessageRoot() ([32]byte, error) {
+	return s.Message.HashTreeRoot()
 }
 
-func (s SignedSyncContributionAndProof) Signatures() []Signature {
-	return []Signature{SigFromETH2(s.SignedContributionAndProof.Signature)}
+func (s SignedSyncContributionAndProof) Signature() Signature {
+	return SigFromETH2(s.SignedContributionAndProof.Signature)
 }
 
-func (s SignedSyncContributionAndProof) SetSignatures(sigs []Signature) (SignedData, error) {
+func (s SignedSyncContributionAndProof) SetSignature(sig Signature) (SignedData, error) {
 	resp, err := s.clone()
 	if err != nil {
 		return nil, err
 	}
 
-	if len(sigs) == 0 {
-		return nil, errors.New("zero signatures")
-	}
-
-	resp.SignedContributionAndProof.Signature = sigs[0].ToETH2()
+	resp.SignedContributionAndProof.Signature = sig.ToETH2()
 
 	return resp, err
 }
