@@ -224,7 +224,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
-	valRegs, err := createValidatorRegistrations(def.WithdrawalAddresses(), secrets, def.ForkVersion)
+	valRegs, err := createValidatorRegistrations(def.FeeRecipientAddresses(), secrets, def.ForkVersion)
 	if err != nil {
 		return err
 	}
