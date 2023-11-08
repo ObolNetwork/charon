@@ -144,13 +144,10 @@ func ParSignedDataToProto(data ParSignedData) (*pbv1.ParSignedData, error) {
 		return nil, errors.Wrap(err, "marshal share signed data")
 	}
 
-	sigs := [][]byte{data.Signature()}
-
 	return &pbv1.ParSignedData{
-		Data:       d,
-		Signature:  data.Signature(),
-		Signatures: sigs, // TODO(xenowits): Remove this when v0.19.0 is released.
-		ShareIdx:   int32(data.ShareIdx),
+		Data:      d,
+		Signature: data.Signature(),
+		ShareIdx:  int32(data.ShareIdx),
 	}, nil
 }
 
