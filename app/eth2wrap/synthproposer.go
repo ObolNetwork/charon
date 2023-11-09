@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
+	"net/http"
 	"sync"
 
 	eth2client "github.com/attestantio/go-eth2-client"
@@ -141,16 +142,20 @@ func (h *synthWrapper) BlindedProposal(ctx context.Context, opts *eth2api.Blinde
 func (h *synthWrapper) syntheticProposal(ctx context.Context, slot eth2p0.Slot, vIdx eth2p0.ValidatorIndex) (*eth2api.VersionedProposal, error) {
 	var signedBlock *eth2spec.VersionedSignedBeaconBlock
 
-	// Work our way back from previous slot to find a proposal to base the synthetic proposal on.
+	// Work our way back from previous slot to find a block to base the synthetic proposal on.
 	for prev := slot - 1; prev > 0; prev-- {
 		opts := &eth2api.SignedBeaconBlockOpts{
 			Block: fmt.Sprint(prev),
 		}
 		signed, err := h.Client.SignedBeaconBlock(ctx, opts)
 		if err != nil {
+			if apiErr := new(eth2api.Error); errors.As(err, apiErr) {
+				if apiErr.StatusCode == http.StatusNotFound {
+					continue
+				}
+			}
+
 			return nil, err
-		} else if signed == nil { // go-eth2-client returns nil if proposal is not found.
-			continue
 		}
 
 		signedBlock = signed.Data
