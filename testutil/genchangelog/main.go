@@ -335,16 +335,17 @@ func parsePRs(gitRange string) ([]pullRequest, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "git log")
 	}
-	out := strings.TrimSuffix(string(b), "†") // Trim last log separator
-	out = "[" + out + "]"                     // Wrap logs in json array
-	out = strings.ReplaceAll(out, "†\n", `,`) // Replace log separator with comma
-	out = strings.ReplaceAll(out, "\r", ``)   // Drop carriage returns if any
-	out = strings.ReplaceAll(out, "\n", `\n`) // Escape new lines
-	out = strings.ReplaceAll(out, "\t", `\t`) // Escape tabs
-	out = strings.ReplaceAll(out, `\"`, `‰`)  // Hide already escaped quotes
-	out = strings.ReplaceAll(out, `"`, `\"`)  // Escape double quotes
-	out = strings.ReplaceAll(out, `‰`, `\"`)  // Unhide already escaped quotes
-	out = strings.ReplaceAll(out, `…`, `"`)   // Replace field separator
+	out := strings.TrimSuffix(string(b), "†")       // Trim last log separator
+	out = "[" + out + "]"                           // Wrap logs in json array
+	out = strings.ReplaceAll(out, "†\n", `,`)       // Replace log separator with comma
+	out = strings.ReplaceAll(out, "\r", ``)         // Drop carriage returns if any
+	out = strings.ReplaceAll(out, "\n", `\n`)       // Escape new lines
+	out = strings.ReplaceAll(out, "\t", `\t`)       // Escape tabs
+	out = strings.ReplaceAll(out, `\"`, `‰`)        // Hide already escaped quotes
+	out = strings.ReplaceAll(out, `"`, `\"`)        // Escape double quotes
+	out = strings.ReplaceAll(out, `‰`, `\"`)        // Unhide already escaped quotes
+	out = strings.ReplaceAll(out, `…`, `"`)         // Replace field separator
+	out = strings.ReplaceAll(out, "`\\`", "`\\\\`") // Edge case in which backticks are used in issue/PR names
 
 	var logs []log
 	if err := json.Unmarshal([]byte(out), &logs); err != nil {
@@ -448,10 +449,11 @@ func getLatestTags(n int) ([]string, error) {
 		return nil, errors.Wrap(err, "git tag", z.Str("out", string(out)))
 	}
 
+	rawTags := strings.Fields(string(out))
 	var tags []string
 
 	// filter out rc releases
-	for _, tag := range strings.Fields(string(out)) {
+	for _, tag := range rawTags {
 		versionInfo, err := version.Parse(tag)
 		if err != nil {
 			return nil, errors.Wrap(err, "can't parse tag version")
@@ -464,10 +466,33 @@ func getLatestTags(n int) ([]string, error) {
 		tags = append(tags, tag)
 	}
 
+	ret := tags[len(tags)-n:]
+
+	latestTag, err := version.Parse(rawTags[len(rawTags)-1])
+	if err != nil {
+		return nil, errors.Wrap(err, "can't parse latest raw tag version")
+	}
+
+	filteredLatestTag, err := version.Parse(ret[len(ret)-1])
+	if err != nil {
+		return nil, errors.Wrap(err, "can't parse latest filtered tag version")
+	}
+
+	// We only do this check in a pre-release: edge case in which
+	// we released e.g. v0.18.0-rc1, and we want diff between that and last stable release e.g v0.17.2.
+	if latestTag.PreRelease() {
+		if version.Compare(latestTag, filteredLatestTag) == 1 {
+			newRet := ret[1:]
+
+			newRet = append(newRet, latestTag.String())
+			ret = newRet
+		}
+	}
+
 	if len(tags) < n {
 		return nil, errors.New("not enough tags", z.Int("expected", n), z.Int("available", len(tags)))
 	}
 
 	// return the latest N tags
-	return tags[len(tags)-n:], nil
+	return ret, nil
 }
