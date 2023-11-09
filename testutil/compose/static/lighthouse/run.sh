@@ -23,5 +23,5 @@ done
 echo "Starting lighthouse validator client for ${NODE}"
 exec lighthouse validator \
   --testnet-dir "/tmp/testnet" \
-  --beacon-node "http://${NODE}:3600" \
+  --beacon-nodes "http://${NODE}:3600" \
   --suggested-fee-recipient "0x0000000000000000000000000000000000000000"
