@@ -478,8 +478,8 @@ func getLatestTags(n int) ([]string, error) {
 		return nil, errors.Wrap(err, "can't parse latest filtered tag version")
 	}
 
-	// we only do this check in a pre-release: edge case in which
-	// we released e.g. v0.18.0-rc1, and we want diff between that and last release.
+	// We only do this check in a pre-release: edge case in which
+	// we released e.g. v0.18.0-rc1, and we want diff between that and last stable release e.g v0.17.2.
 	if latestTag.PreRelease() {
 		if version.Compare(latestTag, filteredLatestTag) == 1 {
 			newRet := ret[1:]
