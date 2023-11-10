@@ -98,7 +98,7 @@ func TestSmoke(t *testing.T) {
 			},
 			RunTmplFunc: func(data *compose.TmplData) {
 				// Node 0 is local build
-				pegImageTag(data.Nodes, 1, version.Version.String()) // Node 1 is previous commit on this branch (v0.X-dev/rc) Note this will fail for first commit on new branch version.
+				pegImageTag(data.Nodes, 1, nth(version.Supported()[1:], 0)+"-dev") // Node 1 is previous commit on this branch (v0.X-dev/rc) Note this will fail for first commit on new branch version.
 				pegImageTag(data.Nodes, 2, nth(version.Supported()[1:], 1)+"-rc")
 				pegImageTag(data.Nodes, 3, nth(version.Supported()[1:], 2)+"-rc")
 			},
