@@ -29,7 +29,6 @@ func Supported() []SemVer {
 		{major: 0, minor: 19},
 		{major: 0, minor: 18},
 		{major: 0, minor: 17},
-		{major: 0, minor: 16},
 	}
 }
 
