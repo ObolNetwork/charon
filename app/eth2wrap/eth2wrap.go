@@ -330,7 +330,7 @@ func incError(endpoint string) {
 // wrapError returns the error as a wrapped structured error.
 func wrapError(ctx context.Context, err error, label string, fields ...z.Field) error {
 	// Decompose go-eth2-client http errors
-	if apiErr := new(eth2api.Error); errors.As(err, apiErr) {
+	if apiErr := new(eth2api.Error); errors.As(err, &apiErr) {
 		err = errors.New("nok http response",
 			z.Int("status_code", apiErr.StatusCode),
 			z.Str("endpoint", apiErr.Endpoint),
