@@ -5,6 +5,7 @@ package eth2wrap_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -15,7 +16,9 @@ import (
 	"testing"
 	"time"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -216,6 +219,27 @@ func TestErrors(t *testing.T) {
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "beacon api genesis_time: network operation error: :")
+	})
+
+	t.Run("eth2api error", func(t *testing.T) {
+		bmock, err := beaconmock.New()
+		require.NoError(t, err)
+		bmock.SignedBeaconBlockFunc = func(_ context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error) {
+			return nil, &eth2api.Error{
+				Method:     http.MethodGet,
+				Endpoint:   fmt.Sprintf("/eth/v2/beacon/blocks/%s", blockID),
+				StatusCode: http.StatusNotFound,
+				Data:       []byte(fmt.Sprintf(`{"code":404,"message":"NOT_FOUND: beacon block at slot %s","stacktraces":[]}`, blockID)),
+			}
+		}
+
+		eth2Cl, err := eth2wrap.Instrument(bmock)
+		require.NoError(t, err)
+
+		_, err = eth2Cl.SignedBeaconBlock(ctx, &eth2api.SignedBeaconBlockOpts{Block: "123"})
+		log.Error(ctx, "See this error log for fields", err)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "nok http response")
 	})
 }
 

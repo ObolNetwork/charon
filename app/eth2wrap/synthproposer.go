@@ -20,9 +20,11 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	shuffle "github.com/protolambda/eth2-shuffle"
+	"go.uber.org/zap"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 const (
@@ -149,10 +151,8 @@ func (h *synthWrapper) syntheticProposal(ctx context.Context, slot eth2p0.Slot, 
 		}
 		signed, err := h.Client.SignedBeaconBlock(ctx, opts)
 		if err != nil {
-			if apiErr := new(eth2api.Error); errors.As(err, apiErr) { // Continue if block is not found in the given slot.
-				if apiErr.StatusCode == http.StatusNotFound {
-					continue
-				}
+			if fieldExists(err, zap.Int("status_code", http.StatusNotFound)) {
+				continue
 			}
 
 			return nil, err
@@ -202,6 +202,34 @@ func (h *synthWrapper) syntheticProposal(ctx context.Context, slot eth2p0.Slot, 
 	}
 
 	return proposal, nil
+}
+
+// fieldExists checks if the given field exists as part of the given error.
+func fieldExists(err error, field zap.Field) bool {
+	type structErr interface {
+		Fields() []z.Field
+	}
+
+	sterr, ok := err.(structErr) //nolint:errorlint
+	if !ok {
+		return false
+	}
+
+	zfs := sterr.Fields()
+	var zapFs []zap.Field
+	for _, field := range zfs {
+		field(func(zp zap.Field) {
+			zapFs = append(zapFs, zp)
+		})
+	}
+
+	for _, zaps := range zapFs {
+		if zaps.Equals(field) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // fraction returns a fraction of the transactions in the block.
