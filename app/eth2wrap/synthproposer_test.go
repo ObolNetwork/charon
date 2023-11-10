@@ -4,6 +4,8 @@ package eth2wrap_test
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -160,4 +162,93 @@ func TestSynthProposer(t *testing.T) {
 	}
 
 	<-done
+}
+
+func TestSynthProposerBlockNotFound(t *testing.T) {
+	ctx := context.Background()
+
+	var (
+		set                        = beaconmock.ValidatorSetA
+		feeRecipient               = bellatrix.ExecutionAddress{0x00, 0x01, 0x02}
+		slotsPerEpoch              = 3
+		epoch         eth2p0.Epoch = 1
+		realBlockSlot              = eth2p0.Slot(slotsPerEpoch) * eth2p0.Slot(epoch)
+		activeVals                 = 0
+		timesCalled   int
+	)
+
+	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(set), beaconmock.WithSlotsPerEpoch(slotsPerEpoch))
+	require.NoError(t, err)
+
+	bmock.ProposerDutiesFunc = func(ctx context.Context, e eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+		require.Equal(t, int(epoch), int(e))
+
+		return []*eth2v1.ProposerDuty{ // First validator is the proposer for first slot in the epoch.
+			{
+				PubKey:         set[1].Validator.PublicKey,
+				Slot:           realBlockSlot,
+				ValidatorIndex: set[1].Index,
+			},
+		}, nil
+	}
+	cached := bmock.ActiveValidatorsFunc
+	bmock.ActiveValidatorsFunc = func(ctx context.Context) (eth2wrap.ActiveValidators, error) {
+		activeVals++
+		return cached(ctx)
+	}
+
+	// Return eth2api Error when SignedBeaconBlock is requested.
+	bmock.SignedBeaconBlockFunc = func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error) {
+		timesCalled++
+
+		return nil, &eth2api.Error{
+			Method:     http.MethodGet,
+			Endpoint:   fmt.Sprintf("/eth/v2/beacon/blocks/%s", blockID),
+			StatusCode: http.StatusNotFound,
+			Data:       []byte(fmt.Sprintf(`{"code":404,"message":"NOT_FOUND: beacon block at slot %s","stacktraces":[]}`, blockID)),
+		}
+	}
+
+	// Wrap beacon mock with multi eth2 client implementation which returns wrapped error.
+	eth2Cl, err := eth2wrap.Instrument(bmock)
+	require.NoError(t, err)
+
+	eth2Cl = eth2wrap.WithSyntheticDuties(eth2Cl)
+
+	var preps []*eth2v1.ProposalPreparation
+	for vIdx := range set {
+		preps = append(preps, &eth2v1.ProposalPreparation{
+			ValidatorIndex: vIdx,
+			FeeRecipient:   feeRecipient,
+		})
+	}
+	require.NoError(t, eth2Cl.SubmitProposalPreparations(ctx, preps))
+
+	// Get synthetic duties
+	opts := &eth2api.ProposerDutiesOpts{
+		Epoch:   epoch,
+		Indices: nil,
+	}
+	resp1, err := eth2Cl.ProposerDuties(ctx, opts)
+	require.NoError(t, err)
+	duties := resp1.Data
+	require.Len(t, duties, len(set))
+	require.Equal(t, 1, activeVals)
+
+	// Submit blocks
+	for _, duty := range duties {
+		timesCalled = 0
+		var graff [32]byte
+		copy(graff[:], "test")
+		opts1 := &eth2api.ProposalOpts{
+			Slot:         duty.Slot,
+			RandaoReveal: testutil.RandomEth2Signature(),
+			Graffiti:     graff,
+		}
+		_, err = eth2Cl.Proposal(ctx, opts1)
+		require.ErrorContains(t, err, "no proposal found to base synthetic proposal on")
+
+		// SignedBeaconBlock will be called for previous slots starting from duty.Slot-1 upto slot 0 (exclusive).
+		require.Equal(t, timesCalled, int(duty.Slot)-1)
+	}
 }
