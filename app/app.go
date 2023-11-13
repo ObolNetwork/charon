@@ -652,9 +652,14 @@ func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Schedu
 func newTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(duty core.Duty) (time.Time, bool),
 	peers []p2p.Peer, eth2Cl eth2wrap.Client,
 ) (core.Tracker, error) {
-	slotDuration, err := eth2Cl.SlotDuration(ctx)
+	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return nil, err
+	}
+
+	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
+	if !ok {
+		return nil, errors.Wrap(err, "fetch slot duration")
 	}
 
 	// Add InclMissedLag slots and InclCheckLag delay to analyser to capture missed inclusion errors.
@@ -690,9 +695,15 @@ func calculateTrackerDelay(ctx context.Context, cl eth2wrap.Client, now time.Tim
 	if err != nil {
 		return 0, err
 	}
-	slotDuration, err := cl.SlotDuration(ctx)
+
+	eth2Resp, err := cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return 0, err
+	}
+
+	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
+	if !ok {
+		return 0, errors.New("fetch slot duration")
 	}
 
 	currentSlot := uint64(now.Sub(genesisTime) / slotDuration)
@@ -1064,9 +1075,14 @@ func slotFromTimestamp(ctx context.Context, eth2Cl eth2wrap.Client, timestamp ti
 		return 0, errors.New("registration timestamp before genesis")
 	}
 
-	slotDuration, err := eth2Cl.SlotDuration(ctx)
+	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return 0, err
+	}
+
+	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
+	if !ok {
+		return 0, errors.New("fetch slot duration")
 	}
 
 	delta := timestamp.Sub(genesis)

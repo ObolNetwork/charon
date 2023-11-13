@@ -7,8 +7,10 @@ import (
 	"testing"
 	"time"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
@@ -197,9 +199,14 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(Duty
 		return nil, err
 	}
 
-	duration, err := eth2Cl.SlotDuration(ctx)
+	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return nil, err
+	}
+
+	duration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
+	if !ok {
+		return nil, errors.New("fetch slot duration")
 	}
 
 	return func(duty Duty) (time.Time, bool) {

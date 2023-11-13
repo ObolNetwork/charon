@@ -1047,9 +1047,14 @@ func (c Component) slotFromTimestamp(ctx context.Context, timestamp time.Time) (
 		return 0, errors.New("registration timestamp before genesis")
 	}
 
-	slotDuration, err := c.eth2Cl.SlotDuration(ctx)
+	eth2Resp, err := c.eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return 0, err
+	}
+
+	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
+	if !ok {
+		return 0, errors.New("fetch slot duration")
 	}
 
 	delta := timestamp.Sub(genesis)
@@ -1152,9 +1157,14 @@ func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigR
 		},
 	}
 
-	slotDuration, err := c.eth2Cl.SlotDuration(ctx)
+	eth2Resp, err := c.eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return nil, err
+	}
+
+	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
+	if !ok {
+		return nil, errors.New("fetch slot duration")
 	}
 
 	timestamp, err := c.eth2Cl.GenesisTime(ctx)

@@ -217,8 +217,11 @@ func TestSchedulerDuties(t *testing.T) {
 
 			// Only test scheduler output for first N slots, so Stop scheduler (and slotTicker) after that.
 			const stopAfter = 3
-			slotDuration, err := eth2Cl.SlotDuration(context.Background())
+			eth2Resp, err := eth2Cl.Spec(context.Background(), &eth2api.SpecOpts{})
 			require.NoError(t, err)
+
+			slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
+			require.True(t, ok)
 			clock.CallbackAfter(t0.Add(time.Duration(stopAfter)*slotDuration), func() {
 				time.Sleep(time.Hour) // Do not let the slot ticker tick anymore.
 			})
@@ -322,8 +325,11 @@ func TestScheduler_GetDuty(t *testing.T) {
 	_, err = sched.GetDutyDefinition(ctx, core.NewBuilderProposerDuty(slot))
 	require.ErrorContains(t, err, "builder-api not enabled")
 
-	slotDuration, err := eth2Cl.SlotDuration(ctx)
+	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)
+
+	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
+	require.True(t, ok)
 
 	clock.CallbackAfter(t0.Add(slotDuration).Add(time.Second), func() {
 		res, err := sched.GetDutyDefinition(ctx, core.NewAttesterDuty(slot))

@@ -297,9 +297,14 @@ func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64
 		return nil, err
 	}
 
-	slotDuration, err := eth2Cl.SlotDuration(ctx)
+	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return nil, err
+	}
+
+	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
+	if !ok {
+		return nil, errors.New("fetch slot duration")
 	}
 
 	return func(slot uint64) time.Duration {
@@ -321,8 +326,15 @@ func firstSlotInCurrentEpoch(ctx context.Context, eth2Cl eth2wrap.Client) (uint6
 	}
 	spec := eth2Resp.Data
 
-	slotDuration := spec["SECONDS_PER_SLOT"].(time.Duration)
-	slotsPerEpoch := spec["SLOTS_PER_EPOCH"].(uint64)
+	slotDuration, ok := spec["SECONDS_PER_SLOT"].(time.Duration)
+	if !ok {
+		return 0, errors.New("fetch slot duration")
+	}
+
+	slotsPerEpoch, ok := spec["SLOTS_PER_EPOCH"].(uint64)
+	if !ok {
+		return 0, errors.New("fetch slots per epoch")
+	}
 
 	chainAge := time.Since(genesis.Data.GenesisTime)
 	currentSlot := chainAge / slotDuration

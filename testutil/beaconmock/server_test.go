@@ -83,7 +83,11 @@ func TestSlotsDurationOverride(t *testing.T) {
 	eth2Cl, err := beaconmock.New(beaconmock.WithSlotDuration(expect))
 	require.NoError(t, err)
 
-	actual, err := eth2Cl.SlotDuration(ctx)
+	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
+	require.NoError(t, err)
+
+	actual, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
+	require.True(t, ok)
 	require.NoError(t, err)
 	require.EqualValues(t, expect, actual)
 

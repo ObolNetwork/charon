@@ -254,7 +254,7 @@ func TestCtxCancel(t *testing.T) {
 
 		cancel() // Cancel context before calling method.
 
-		_, err = eth2Cl.SlotDuration(ctx)
+		_, err = eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 		require.ErrorIs(t, err, context.Canceled)
 	}
 }
@@ -311,8 +311,11 @@ func TestOneError(t *testing.T) {
 	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, addresses...)
 	require.NoError(t, err)
 
-	_, err = eth2Cl.SlotDuration(ctx)
-	testutil.RequireNoError(t, err)
+	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
+	require.NoError(t, err)
+
+	_, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
+	require.True(t, ok)
 
 	require.Equal(t, bmock.Address(), eth2Cl.Address())
 }
@@ -339,8 +342,11 @@ func TestOneTimeout(t *testing.T) {
 	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Minute, addresses...)
 	require.NoError(t, err)
 
-	_, err = eth2Cl.SlotDuration(ctx)
-	testutil.RequireNoError(t, err)
+	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
+	require.NoError(t, err)
+
+	_, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
+	require.True(t, ok)
 
 	require.Equal(t, bmock.Address(), eth2Cl.Address())
 }
@@ -349,7 +355,7 @@ func TestOneTimeout(t *testing.T) {
 func TestOnlyTimeout(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// Start an timeout server.
+	// Start a timeout server.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		<-ctx.Done()
 	}))
@@ -361,7 +367,7 @@ func TestOnlyTimeout(t *testing.T) {
 
 	// Start goroutine that is blocking trying to create the client.
 	go func() {
-		_, _ = eth2Cl.SlotDuration(ctx)
+		_, _ = eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 		if ctx.Err() != nil {
 			return
 		}
@@ -373,7 +379,7 @@ func TestOnlyTimeout(t *testing.T) {
 		t.Helper()
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
-		_, err := eth2Cl.SlotDuration(ctx)
+		_, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 		assert.Error(t, err)
 	}
 

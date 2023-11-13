@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
+
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 )
 
@@ -47,14 +50,19 @@ func NewDutyGater(ctx context.Context, eth2Cl eth2wrap.Client, opts ...func(*dut
 		return nil, err
 	}
 
-	slotDuration, err := eth2Cl.SlotDuration(ctx)
+	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return nil, err
 	}
 
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return nil, err
+	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
+	if !ok {
+		return nil, errors.New("fetch slot duration")
+	}
+
+	slotsPerEpoch, ok := eth2Resp.Data["SLOTS_PER_EPOCH"].(uint64)
+	if !ok {
+		return nil, errors.New("fetch slots per epoch")
 	}
 
 	return func(duty Duty) bool {
