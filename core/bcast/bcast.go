@@ -310,20 +310,19 @@ func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64
 
 // firstSlotInCurrentEpoch calculates first slot number of the current ongoing epoch.
 func firstSlotInCurrentEpoch(ctx context.Context, eth2Cl eth2wrap.Client) (uint64, error) {
-	genesis, err := eth2Cl.Genesis(ctx)
+	genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
 	if err != nil {
 		return 0, errors.Wrap(err, "fetch genesis")
 	}
 
-	slotDuration, err := eth2Cl.SlotDuration(ctx)
+	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
-		return 0, errors.Wrap(err, "fetch slot duration")
+		return 0, err
 	}
+	spec := eth2Resp.Data
 
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return 0, errors.Wrap(err, "fetch slots per epoch")
-	}
+	slotDuration := spec["SECONDS_PER_SLOT"].(time.Duration)
+	slotsPerEpoch := spec["SLOTS_PER_EPOCH"].(uint64)
 
 	chainAge := time.Since(genesis.Data.GenesisTime)
 	currentSlot := chainAge / slotDuration

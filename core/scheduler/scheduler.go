@@ -694,7 +694,7 @@ func waitChainStart(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork
 // waitBeaconSync blocks until the beacon node is synced.
 func waitBeaconSync(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
 	for ctx.Err() == nil {
-		eth2Resp, err := eth2Cl.NodeSyncing(ctx)
+		eth2Resp, err := eth2Cl.NodeSyncing(ctx, &eth2api.NodeSyncingOpts{})
 		if err != nil {
 			log.Error(ctx, "Failure getting sync state", err)
 			clock.Sleep(time.Second * 5) // TODO(corver): Improve backoff

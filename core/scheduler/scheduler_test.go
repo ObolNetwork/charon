@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
@@ -128,7 +129,7 @@ func TestSchedulerWait(t *testing.T) {
 				return t0.Add(test.GenesisAfter), err
 			}
 
-			eth2Cl.NodeSyncingFunc = func(context.Context) (*eth2v1.SyncState, error) {
+			eth2Cl.NodeSyncingFunc = func(context.Context, *eth2api.NodeSyncingOpts) (*eth2v1.SyncState, error) {
 				var err error
 				if test.SyncedErrs > 0 {
 					err = errors.New("mock error")

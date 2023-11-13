@@ -586,27 +586,27 @@ func TestComponent_SubmitProposalInvalidBlock(t *testing.T) {
 		{
 			name:   "no phase 0 block",
 			block:  &eth2api.VersionedSignedProposal{Version: eth2spec.DataVersionPhase0},
-			errMsg: "no phase0 block",
+			errMsg: "data missing",
 		},
 		{
 			name:   "no altair block",
 			block:  &eth2api.VersionedSignedProposal{Version: eth2spec.DataVersionAltair},
-			errMsg: "no altair block",
+			errMsg: "data missing",
 		},
 		{
 			name:   "no bellatrix block",
 			block:  &eth2api.VersionedSignedProposal{Version: eth2spec.DataVersionBellatrix},
-			errMsg: "no bellatrix block",
+			errMsg: "data missing",
 		},
 		{
 			name:   "no capella block",
 			block:  &eth2api.VersionedSignedProposal{Version: eth2spec.DataVersionCapella},
-			errMsg: "no capella block",
+			errMsg: "data missing",
 		},
 		{
 			name:   "no deneb block",
 			block:  &eth2api.VersionedSignedProposal{Version: eth2spec.DataVersionDeneb},
-			errMsg: "no deneb block",
+			errMsg: "data missing",
 		},
 		{
 			name:   "none",
@@ -909,12 +909,12 @@ func TestComponent_SubmitBlindedProposalInvalidBlock(t *testing.T) {
 		{
 			name:   "no bellatrix block",
 			block:  &eth2api.VersionedSignedBlindedProposal{Version: eth2spec.DataVersionBellatrix},
-			errMsg: "no bellatrix block",
+			errMsg: "data missing",
 		},
 		{
 			name:   "no deneb block",
 			block:  &eth2api.VersionedSignedBlindedProposal{Version: eth2spec.DataVersionDeneb},
-			errMsg: "no deneb block",
+			errMsg: "data missing",
 		},
 		{
 			name:   "none",

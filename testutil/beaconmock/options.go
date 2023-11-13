@@ -550,8 +550,8 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		GenesisTimeFunc: func(ctx context.Context) (time.Time, error) {
 			return httpMock.GenesisTime(ctx)
 		},
-		NodeSyncingFunc: func(ctx context.Context) (*eth2v1.SyncState, error) {
-			resp, err := httpMock.NodeSyncing(ctx)
+		NodeSyncingFunc: func(ctx context.Context, opts *eth2api.NodeSyncingOpts) (*eth2v1.SyncState, error) {
+			resp, err := httpMock.NodeSyncing(ctx, opts)
 			if err != nil {
 				return nil, err
 			}
@@ -600,8 +600,8 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SubmitSyncCommitteeContributionsFunc: func(context.Context, []*altair.SignedContributionAndProof) error {
 			return nil
 		},
-		ForkScheduleFunc: func(ctx context.Context) ([]*eth2p0.Fork, error) {
-			eth2Resp, err := httpMock.ForkSchedule(ctx)
+		ForkScheduleFunc: func(ctx context.Context, opts *eth2api.ForkScheduleOpts) ([]*eth2p0.Fork, error) {
+			eth2Resp, err := httpMock.ForkSchedule(ctx, opts)
 			if err != nil {
 				return nil, err
 			}

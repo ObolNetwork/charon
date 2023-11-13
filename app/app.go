@@ -809,7 +809,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 	}
 
 	// Check BN chain/network.
-	eth2Resp, err := eth2Cl.ForkSchedule(ctx)
+	eth2Resp, err := eth2Cl.ForkSchedule(ctx, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "fetch fork schedule")
 	}

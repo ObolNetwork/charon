@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/testutil/beaconmock"
@@ -18,15 +19,15 @@ func TestStatic(t *testing.T) {
 	eth2Cl, err := beaconmock.New()
 	require.NoError(t, err)
 
-	genesisResp, err := eth2Cl.Genesis(ctx)
+	genesisResp, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
 	require.NoError(t, err)
 	require.Equal(t, "2022-03-01 00:00:00 +0000 UTC", genesisResp.Data.GenesisTime.UTC().String())
 
-	configResp, err := eth2Cl.Spec(ctx)
+	configResp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)
 	require.Equal(t, uint64(36660), configResp.Data["ALTAIR_FORK_EPOCH"])
 
-	contractResp, err := eth2Cl.DepositContract(ctx)
+	contractResp, err := eth2Cl.DepositContract(ctx, &eth2api.DepositContractOpts{})
 	require.NoError(t, err)
 	require.Equal(t, uint64(5), contractResp.Data.ChainID)
 
@@ -34,11 +35,11 @@ func TestStatic(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(16), slotsPerEpoch)
 
-	stateResp, err := eth2Cl.NodeSyncing(ctx)
+	stateResp, err := eth2Cl.NodeSyncing(ctx, &eth2api.NodeSyncingOpts{})
 	require.NoError(t, err)
 	require.False(t, stateResp.Data.IsSyncing)
 
-	versionResp, err := eth2Cl.NodeVersion(ctx)
+	versionResp, err := eth2Cl.NodeVersion(ctx, &eth2api.NodeVersionOpts{})
 	require.NoError(t, err)
 	require.Equal(t, "charon/static_beacon_mock", versionResp.Data)
 }
@@ -50,7 +51,7 @@ func TestGenesisTimeOverride(t *testing.T) {
 	eth2Cl, err := beaconmock.New(beaconmock.WithGenesisTime(t0))
 	require.NoError(t, err)
 
-	genesisResp, err := eth2Cl.Genesis(ctx)
+	genesisResp, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
 	require.NoError(t, err)
 	require.Equal(t, t0, genesisResp.Data.GenesisTime)
 
@@ -70,7 +71,7 @@ func TestSlotsPerEpochOverride(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, expect, actual)
 
-	specResp, err := eth2Cl.Spec(ctx)
+	specResp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)
 	require.EqualValues(t, expect, specResp.Data["SLOTS_PER_EPOCH"])
 }
@@ -86,7 +87,7 @@ func TestSlotsDurationOverride(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, expect, actual)
 
-	specResp, err := eth2Cl.Spec(ctx)
+	specResp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)
 	require.EqualValues(t, expect, specResp.Data["SECONDS_PER_SLOT"])
 }
@@ -105,7 +106,7 @@ func TestEndpointOverride(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	fsResp, err := bmock.ForkSchedule(ctx)
+	fsResp, err := bmock.ForkSchedule(ctx, &eth2api.ForkScheduleOpts{})
 	require.NoError(t, err)
 	require.Len(t, fsResp.Data, 1)
 	require.EqualValues(t, [4]byte{}, fsResp.Data[0].CurrentVersion)
@@ -117,7 +118,7 @@ func TestDefaultOverrides(t *testing.T) {
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 
-	resp, err := bmock.Spec(ctx)
+	resp, err := bmock.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)
 	spec := resp.Data
 

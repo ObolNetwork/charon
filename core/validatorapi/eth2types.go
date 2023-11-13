@@ -104,8 +104,8 @@ type proposeBlindedBlockResponseCapella struct {
 }
 
 type proposeBlindedBlockResponseDeneb struct {
-	Version string                          `json:"version"`
-	Data    *eth2deneb.BlindedBlockContents `json:"data"`
+	Version string                        `json:"version"`
+	Data    *eth2deneb.BlindedBeaconBlock `json:"data"`
 }
 
 type proposeBlockResponseCapella struct {

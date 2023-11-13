@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/jonboulle/clockwork"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -103,12 +104,12 @@ func TestStartChecker(t *testing.T) {
 			bmock, err := beaconmock.New()
 			require.NoError(t, err)
 
-			bmock.NodeSyncingFunc = func(ctx context.Context) (*eth2v1.SyncState, error) {
+			bmock.NodeSyncingFunc = func(ctx context.Context, opts *eth2api.NodeSyncingOpts) (*eth2v1.SyncState, error) {
 				return &eth2v1.SyncState{IsSyncing: tt.isSyncing}, nil
 			}
 
 			if tt.bnFarBehind {
-				bmock.NodeSyncingFunc = func(ctx context.Context) (*eth2v1.SyncState, error) {
+				bmock.NodeSyncingFunc = func(ctx context.Context, opts *eth2api.NodeSyncingOpts) (*eth2v1.SyncState, error) {
 					return &eth2v1.SyncState{IsSyncing: tt.isSyncing, SyncDistance: bnFarBehindSlots + 10}, nil // 320+10=330 slots behind head
 				}
 			}
