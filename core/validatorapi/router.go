@@ -928,7 +928,7 @@ func submitProposalPreparations() handlerFunc {
 // nodeVersion returns the version of the node.
 func nodeVersion(p eth2client.NodeVersionProvider) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
-		eth2Resp, err := p.NodeVersion(ctx, nil)
+		eth2Resp, err := p.NodeVersion(ctx, &eth2api.NodeVersionOpts{})
 		if err != nil {
 			return nil, nil, err
 		}
