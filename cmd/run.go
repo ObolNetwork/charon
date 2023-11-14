@@ -104,6 +104,7 @@ func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
 	flags.StringVar(&config.Format, "log-format", "console", "Log format; console, logfmt or json")
 	flags.StringVar(&config.Level, "log-level", "info", "Log level; debug, info, warn or error")
 	flags.StringVar(&config.Color, "log-color", "auto", "Log color; auto, force, disable.")
+	flags.StringVar(&config.LogOutputPath, "log-output-path", "", "Path in which to write on-disk logs.")
 }
 
 func bindP2PFlags(cmd *cobra.Command, config *p2p.Config) {
