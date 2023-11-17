@@ -20,6 +20,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
@@ -154,8 +155,13 @@ func writeLock(datadir string, lock cluster.Lock) error {
 
 // writeDepositData writes deposit data file to disk.
 func writeDepositData(depositDatas []eth2p0.DepositData, network string, dataDir string) error {
+	forkVersion, err := eth2util.NetworkToForkVersion(network)
+	if err != nil {
+		return errors.Wrap(err, "network to fork version")
+	}
+
 	// Serialize the deposit data into bytes
-	bytes, err := deposit.MarshalDepositData(depositDatas, network)
+	bytes, err := deposit.MarshalDepositData(depositDatas, network, forkVersion)
 	if err != nil {
 		return err
 	}

@@ -141,3 +141,13 @@ func ForkVersionToGenesisTime(forkVersion []byte) (time.Time, error) {
 
 	return time.Time{}, errors.New("invalid network name")
 }
+
+func NetworkFromString(name string) (Network, error) {
+	for _, network := range supportedNetworks {
+		if name == network.Name {
+			return network, nil
+		}
+	}
+
+	return Network{}, errors.New("invalid network name")
+}

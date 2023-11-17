@@ -47,12 +47,7 @@ func NewMessage(pubkey eth2p0.BLSPubKey, withdrawalAddr string) (eth2p0.DepositM
 }
 
 // MarshalDepositData serializes a list of deposit data into a single file.
-func MarshalDepositData(depositDatas []eth2p0.DepositData, network string) ([]byte, error) {
-	forkVersion, err := eth2util.NetworkToForkVersion(network)
-	if err != nil {
-		return nil, err
-	}
-
+func MarshalDepositData(depositDatas []eth2p0.DepositData, network string, forkVersion string) ([]byte, error) {
 	var ddList []depositDataJSON
 	for _, depositData := range depositDatas {
 		msg := eth2p0.DepositMessage{
@@ -65,8 +60,13 @@ func MarshalDepositData(depositDatas []eth2p0.DepositData, network string) ([]by
 			return nil, err
 		}
 
+		fvb, err := hex.DecodeString(strings.TrimPrefix(forkVersion, "0x"))
+		if err != nil {
+			return nil, errors.Wrap(err, "decode fork version hex")
+		}
+
 		// Verify deposit data signature
-		sigData, err := GetMessageSigningRoot(msg, network)
+		sigData, err := GetMessageSigningRoot(msg, fvb)
 		if err != nil {
 			return nil, err
 		}
@@ -128,19 +128,14 @@ func getDepositDomain(forkVersion eth2p0.Version) (eth2p0.Domain, error) {
 }
 
 // GetMessageSigningRoot returns the deposit message signing root created by the provided parameters.
-func GetMessageSigningRoot(msg eth2p0.DepositMessage, network string) ([32]byte, error) {
+func GetMessageSigningRoot(msg eth2p0.DepositMessage, forkVersionBytes []byte) ([32]byte, error) {
 	msgRoot, err := msg.HashTreeRoot()
 	if err != nil {
 		return [32]byte{}, errors.Wrap(err, "deposit message root")
 	}
 
-	fv, err := eth2util.NetworkToForkVersionBytes(network)
-	if err != nil {
-		return [32]byte{}, err
-	}
-
 	var forkVersion eth2p0.Version
-	copy(forkVersion[:], fv)
+	copy(forkVersion[:], forkVersionBytes)
 
 	domain, err := getDepositDomain(forkVersion)
 	if err != nil {

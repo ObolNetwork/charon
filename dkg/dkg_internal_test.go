@@ -3,6 +3,8 @@
 package dkg
 
 import (
+	"encoding/hex"
+	"strings"
 	"testing"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -138,7 +140,11 @@ func TestValidSignatures(t *testing.T) {
 
 	msg, err := deposit.NewMessage(eth2Pubkey, withdrawalAddr)
 	require.NoError(t, err)
-	sigRoot, err := deposit.GetMessageSigningRoot(msg, network)
+
+	fvb, err := hex.DecodeString(strings.TrimPrefix(eth2util.Goerli.GenesisForkVersionHex, "0x"))
+	require.NoError(t, err)
+
+	sigRoot, err := deposit.GetMessageSigningRoot(msg, fvb)
 	require.NoError(t, err)
 
 	_, err = aggDepositData(
