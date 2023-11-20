@@ -8,6 +8,7 @@ import (
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
@@ -35,14 +36,20 @@ func wireValidatorMock(ctx context.Context, conf Config, eth2Cl eth2wrap.Client,
 		return err
 	}
 
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return err
 	}
+	spec := eth2Resp.Data
 
-	slotDuration, err := eth2Cl.SlotDuration(ctx)
-	if err != nil {
-		return err
+	slotDuration, ok := spec["SECONDS_PER_SLOT"].(time.Duration)
+	if !ok {
+		return errors.New("fetch slot duration")
+	}
+
+	slotsPerEpoch, ok := spec["SLOTS_PER_EPOCH"].(uint64)
+	if !ok {
+		return errors.New("fetch slots per epoch")
 	}
 
 	vmock := validatormock.New(ctx, newVMockEth2Provider(conf, pubshares), signer, pubshares, genesisTime, slotDuration,

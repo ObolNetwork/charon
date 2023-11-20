@@ -205,7 +205,7 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 // beaconNodeSyncing returns true if the beacon node is still syncing. It also returns the sync distance, ie, the distance
 // between the node's highest synced slot and the head slot.
 func beaconNodeSyncing(ctx context.Context, eth2Cl eth2client.NodeSyncingProvider) (bool, eth2p0.Slot, error) {
-	eth2Resp, err := eth2Cl.NodeSyncing(ctx)
+	eth2Resp, err := eth2Cl.NodeSyncing(ctx, nil)
 	if err != nil {
 		return false, 0, err
 	}
@@ -218,7 +218,7 @@ func beaconNodeVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, clock 
 	nodeVersionTicker := clock.NewTicker(10 * time.Minute)
 
 	setNodeVersion := func() {
-		eth2Resp, err := eth2Cl.NodeVersion(ctx)
+		eth2Resp, err := eth2Cl.NodeVersion(ctx, nil)
 		if err != nil {
 			log.Error(ctx, "Failed to get beacon node version", err)
 			return

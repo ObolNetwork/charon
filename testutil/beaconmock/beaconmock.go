@@ -127,7 +127,7 @@ type Mock struct {
 	ValidatorsByPubKeyFunc                 func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
 	ValidatorsFunc                         func(context.Context, *eth2api.ValidatorsOpts) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
 	GenesisTimeFunc                        func(context.Context) (time.Time, error)
-	NodeSyncingFunc                        func(context.Context) (*eth2v1.SyncState, error)
+	NodeSyncingFunc                        func(context.Context, *eth2api.NodeSyncingOpts) (*eth2v1.SyncState, error)
 	SubmitValidatorRegistrationsFunc       func(context.Context, []*eth2api.VersionedSignedValidatorRegistration) error
 	SlotsPerEpochFunc                      func(context.Context) (uint64, error)
 	AggregateBeaconCommitteeSelectionsFunc func(context.Context, []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error)
@@ -141,7 +141,7 @@ type Mock struct {
 	SyncCommitteeContributionFunc          func(ctx context.Context, slot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	SubmitSyncCommitteeSubscriptionsFunc   func(ctx context.Context, subscriptions []*eth2v1.SyncCommitteeSubscription) error
 	SubmitProposalPreparationsFunc         func(ctx context.Context, preparations []*eth2v1.ProposalPreparation) error
-	ForkScheduleFunc                       func(context.Context) ([]*eth2p0.Fork, error)
+	ForkScheduleFunc                       func(context.Context, *eth2api.ForkScheduleOpts) ([]*eth2p0.Fork, error)
 	ProposerConfigFunc                     func(context.Context) (*eth2exp.ProposerConfigResponse, error)
 }
 
@@ -194,8 +194,8 @@ func (m Mock) SubmitBlindedProposal(ctx context.Context, block *eth2api.Versione
 	return m.SubmitBlindedProposalFunc(ctx, block)
 }
 
-func (m Mock) ForkSchedule(ctx context.Context) (*eth2api.Response[[]*eth2p0.Fork], error) {
-	schedule, err := m.ForkScheduleFunc(ctx)
+func (m Mock) ForkSchedule(ctx context.Context, opts *eth2api.ForkScheduleOpts) (*eth2api.Response[[]*eth2p0.Fork], error) {
+	schedule, err := m.ForkScheduleFunc(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -203,8 +203,8 @@ func (m Mock) ForkSchedule(ctx context.Context) (*eth2api.Response[[]*eth2p0.For
 	return wrapResponse(schedule), nil
 }
 
-func (m Mock) NodeSyncing(ctx context.Context) (*eth2api.Response[*eth2v1.SyncState], error) {
-	schedule, err := m.NodeSyncingFunc(ctx)
+func (m Mock) NodeSyncing(ctx context.Context, opts *eth2api.NodeSyncingOpts) (*eth2api.Response[*eth2v1.SyncState], error) {
+	schedule, err := m.NodeSyncingFunc(ctx, opts)
 	if err != nil {
 		return nil, err
 	}

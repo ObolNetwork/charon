@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 
 	eth2client "github.com/attestantio/go-eth2-client"
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -16,7 +17,7 @@ import (
 // IsAttAggregator returns true if the validator is the attestation aggregator for the given committee.
 // Refer: https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/validator.md#aggregation-selection
 func IsAttAggregator(ctx context.Context, specProvider eth2client.SpecProvider, commLen uint64, slotSig eth2p0.BLSSignature) (bool, error) {
-	resp, err := specProvider.Spec(ctx)
+	resp, err := specProvider.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return false, errors.Wrap(err, "get eth2 spec")
 	}
@@ -38,7 +39,7 @@ func IsAttAggregator(ctx context.Context, specProvider eth2client.SpecProvider, 
 // IsSyncCommAggregator returns true if the validator is the aggregator for the provided sync subcommittee.
 // Refer: https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#aggregation-selection
 func IsSyncCommAggregator(ctx context.Context, specProvider eth2client.SpecProvider, sig eth2p0.BLSSignature) (bool, error) {
-	resp, err := specProvider.Spec(ctx)
+	resp, err := specProvider.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return false, errors.Wrap(err, "get eth2 spec")
 	}

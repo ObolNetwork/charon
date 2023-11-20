@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
@@ -85,7 +86,7 @@ func TestConstantApplicationBuilder(t *testing.T) {
 		t.Helper()
 		eth2Cl, err := beaconmock.New()
 		require.NoError(t, err)
-		eth2Cl.ForkScheduleFunc = func(ctx context.Context) ([]*eth2p0.Fork, error) {
+		eth2Cl.ForkScheduleFunc = func(ctx context.Context, opts *eth2api.ForkScheduleOpts) ([]*eth2p0.Fork, error) {
 			return forkSchedule[0:i], nil
 		}
 
