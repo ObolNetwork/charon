@@ -50,7 +50,6 @@ import (
 	"github.com/obolnetwork/charon/core/dutydb"
 	"github.com/obolnetwork/charon/core/fetcher"
 	"github.com/obolnetwork/charon/core/infosync"
-	"github.com/obolnetwork/charon/core/leadercast"
 	"github.com/obolnetwork/charon/core/parsigdb"
 	"github.com/obolnetwork/charon/core/parsigex"
 	"github.com/obolnetwork/charon/core/priority"
@@ -102,8 +101,6 @@ type TestConfig struct {
 	P2PKey *k1.PrivateKey
 	// ParSigExFunc provides an in-memory partial signature exchange.
 	ParSigExFunc func() core.ParSigEx
-	// LcastTransportFunc provides an in-memory leader cast transport.
-	LcastTransportFunc func() leadercast.Transport
 	// SimnetKeys provides private key shares for the simnet validatormock signer.
 	SimnetKeys []tbls.PrivateKey
 	// SimnetBMockOpts defines additional simnet beacon mock options.
@@ -471,8 +468,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	retryer := retry.New[core.Duty](deadlineFunc)
 
-	cons, startCons, err := newConsensus(conf, cluster, tcpNode, p2pKey, sender,
-		nodeIdx, deadlinerFunc("consensus"), gaterFunc, qbftSniffer)
+	cons, startCons, err := newConsensus(cluster, tcpNode, p2pKey, sender,
+		deadlinerFunc("consensus"), gaterFunc, qbftSniffer)
 	if err != nil {
 		return err
 	}
@@ -855,39 +852,21 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 }
 
 // newConsensus returns a new consensus component and its start lifecycle hook.
-func newConsensus(conf Config, cluster *manifestpb.Cluster, tcpNode host.Host, p2pKey *k1.PrivateKey,
-	sender *p2p.Sender, nodeIdx cluster.NodeIdx, deadliner core.Deadliner, gaterFunc core.DutyGaterFunc,
+func newConsensus(cluster *manifestpb.Cluster, tcpNode host.Host, p2pKey *k1.PrivateKey,
+	sender *p2p.Sender, deadliner core.Deadliner, gaterFunc core.DutyGaterFunc,
 	qbftSniffer func(*pbv1.SniffedConsensusInstance),
 ) (core.Consensus, lifecycle.IHookFunc, error) {
 	peers, err := manifest.ClusterPeers(cluster)
 	if err != nil {
 		return nil, nil, err
 	}
-	peerIDs, err := manifest.ClusterPeerIDs(cluster)
+
+	comp, err := consensus.New(tcpNode, sender, peers, p2pKey, deadliner, gaterFunc, qbftSniffer)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if featureset.Enabled(featureset.QBFTConsensus) {
-		comp, err := consensus.New(tcpNode, sender, peers, p2pKey, deadliner, gaterFunc, qbftSniffer)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return comp, lifecycle.HookFuncCtx(comp.Start), nil
-	}
-
-	var lcastTransport leadercast.Transport
-	if conf.TestConfig.LcastTransportFunc != nil {
-		lcastTransport = conf.TestConfig.LcastTransportFunc()
-	} else {
-		// TODO(corver): Either deprecate leadercast or refactor it to use p2p.Sender (and protobufs).
-		lcastTransport = leadercast.NewP2PTransport(tcpNode, nodeIdx.PeerIdx, peerIDs)
-	}
-
-	lcast := leadercast.New(lcastTransport, nodeIdx.PeerIdx, len(peerIDs))
-
-	return lcast, lifecycle.HookFuncCtx(lcast.Run), nil
+	return comp, lifecycle.HookFuncCtx(comp.Start), nil
 }
 
 // createMockValidators creates mock validators identified by their public shares.
