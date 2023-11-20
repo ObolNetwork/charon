@@ -31,7 +31,7 @@ import (
 func TestPingCluster(t *testing.T) {
 	skipIfDisabled(t)
 
-	// Nodes bind to random locahost ports,
+	// Nodes bind to random localhost ports,
 	// use relay,
 	// then upgrade to direct connections.
 	t.Run("relay_discovery_local", func(t *testing.T) {
@@ -40,7 +40,7 @@ func TestPingCluster(t *testing.T) {
 		})
 	})
 
-	// Nodes bind to random locahost ports,
+	// Nodes bind to random localhost ports,
 	// use relay, filters external dns multiaddrs only,
 	// then upgrade to direct connections.
 	t.Run("relay_discovery_externalhost", func(t *testing.T) {
@@ -51,7 +51,7 @@ func TestPingCluster(t *testing.T) {
 		})
 	})
 
-	// Nodes bind to random locahost ports,
+	// Nodes bind to random localhost ports,
 	// use relay, includes incorrect external IP, but should include local address,
 	// then upgrade to direct connections.
 	t.Run("relay_incorrect_externalhost", func(t *testing.T) {
