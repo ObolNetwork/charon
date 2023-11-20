@@ -161,7 +161,7 @@ func TestSyncState(t *testing.T) {
 	eth2Cl, err := eth2wrap.Instrument(cl1, cl2)
 	require.NoError(t, err)
 
-	resp, err := eth2Cl.NodeSyncing(context.Background(), nil)
+	resp, err := eth2Cl.NodeSyncing(context.Background(), opts)
 	require.NoError(t, err)
 	require.False(t, resp.Data.IsSyncing)
 }
