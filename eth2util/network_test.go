@@ -23,12 +23,12 @@ func TestForkVersionToChainID(t *testing.T) {
 
 	chainID, err := eth2util.ForkVersionToChainID(gnosisForkVersion)
 	require.NoError(t, err)
-	require.Equal(t, chainID, int64(100))
+	require.Equal(t, chainID, uint64(100))
 
 	chainID, err = eth2util.ForkVersionToChainID(invalidForkVersion)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "invalid fork version")
-	require.Equal(t, chainID, int64(0))
+	require.Equal(t, chainID, uint64(0))
 }
 
 func TestForkVersionToNetwork(t *testing.T) {

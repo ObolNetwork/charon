@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -154,6 +155,15 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
+	eth2Cl, err := newETH2Client(ctx, conf, life, cluster, cluster.ForkVersion)
+	if err != nil {
+		return err
+	}
+
+	if err = eth2util.InitNetwork(ctx, eth2Cl); err != nil {
+		return errors.Wrap(err, "initialise network config")
+	}
+
 	network, err := eth2util.ForkVersionToNetwork(cluster.ForkVersion)
 	if err != nil {
 		network = "unknown"
@@ -210,11 +220,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	initStartupMetrics(p2p.PeerName(tcpNode.ID()), int(cluster.Threshold), len(cluster.Operators), len(cluster.Validators), network)
-
-	eth2Cl, err := newETH2Client(ctx, conf, life, cluster, cluster.ForkVersion)
-	if err != nil {
-		return err
-	}
 
 	peerIDs, err := manifest.ClusterPeerIDs(cluster)
 	if err != nil {
@@ -831,20 +836,10 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 		}
 	}
 	if !ok {
-		lockNetwork, err := eth2util.ForkVersionToNetwork(forkVersion)
-		if err != nil {
-			return nil, errors.New("cannot parse lock file fork version")
-		}
-
-		bnNetwork, err := eth2util.ForkVersionToNetwork(schedule[0].CurrentVersion[:])
-		if err != nil {
-			return nil, errors.New("cannot parse network current fork version")
-		}
-
 		return nil, errors.New(
 			"mismatch between lock file fork version and beacon node fork schedule. Ensure the beacon node is on the correct network",
-			z.Str("beacon_node", bnNetwork),
-			z.Str("lock_file", lockNetwork),
+			z.Str("beacon_node", fmt.Sprintf("%#x", schedule[0].CurrentVersion[:])),
+			z.Str("lock_file", fmt.Sprintf("%#x", forkVersion)),
 		)
 	}
 
