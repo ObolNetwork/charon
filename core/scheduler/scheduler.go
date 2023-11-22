@@ -560,14 +560,20 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.
 		return nil, err
 	}
 
-	slotDuration, err := eth2Cl.SlotDuration(ctx)
+	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return nil, err
 	}
+	spec := eth2Resp.Data
 
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return nil, err
+	slotDuration, ok := spec["SECONDS_PER_SLOT"].(time.Duration)
+	if !ok {
+		return nil, errors.New("fetch slot duration")
+	}
+
+	slotsPerEpoch, ok := spec["SLOTS_PER_EPOCH"].(uint64)
+	if !ok {
+		return nil, errors.New("fetch slots per epoch")
 	}
 
 	currentSlot := func() core.Slot {
@@ -694,7 +700,7 @@ func waitChainStart(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork
 // waitBeaconSync blocks until the beacon node is synced.
 func waitBeaconSync(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
 	for ctx.Err() == nil {
-		eth2Resp, err := eth2Cl.NodeSyncing(ctx)
+		eth2Resp, err := eth2Cl.NodeSyncing(ctx, &eth2api.NodeSyncingOpts{})
 		if err != nil {
 			log.Error(ctx, "Failure getting sync state", err)
 			clock.Sleep(time.Second * 5) // TODO(corver): Improve backoff

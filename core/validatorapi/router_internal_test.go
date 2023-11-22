@@ -1098,13 +1098,13 @@ func TestRouter(t *testing.T) {
 		expectedVersion := "obolnetwork/charon/v0.25.0-eth123b/darwin-arm64"
 
 		handler := testHandler{
-			NodeVersionFunc: func(ctx context.Context) (*eth2api.Response[string], error) {
+			NodeVersionFunc: func(ctx context.Context, opts *eth2api.NodeVersionOpts) (*eth2api.Response[string], error) {
 				return wrapResponse(expectedVersion), nil
 			},
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			eth2Resp, err := cl.NodeVersion(ctx)
+			eth2Resp, err := cl.NodeVersion(ctx, &eth2api.NodeVersionOpts{})
 			require.NoError(t, err)
 			actualVersion := eth2Resp.Data
 			require.Equal(t, expectedVersion, actualVersion)
@@ -1266,7 +1266,7 @@ type testHandler struct {
 	BlindedProposalFunc                    func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error)
 	SubmitBlindedProposalFunc              func(ctx context.Context, proposal *eth2api.VersionedSignedBlindedProposal) error
 	ProposerDutiesFunc                     func(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error)
-	NodeVersionFunc                        func(ctx context.Context) (*eth2api.Response[string], error)
+	NodeVersionFunc                        func(ctx context.Context, opts *eth2api.NodeVersionOpts) (*eth2api.Response[string], error)
 	ValidatorsFunc                         func(ctx context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error)
 	BeaconStateFunc                        func(ctx context.Context, stateId string) (*eth2spec.VersionedBeaconState, error)
 	ValidatorsByPubKeyFunc                 func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
@@ -1319,9 +1319,9 @@ func (h testHandler) ProposerDuties(ctx context.Context, opts *eth2api.ProposerD
 	return h.ProposerDutiesFunc(ctx, opts)
 }
 
-func (h testHandler) NodeVersion(ctx context.Context) (*eth2api.Response[string], error) {
+func (h testHandler) NodeVersion(ctx context.Context, opts *eth2api.NodeVersionOpts) (*eth2api.Response[string], error) {
 	if h.NodeVersionFunc != nil {
-		return h.NodeVersionFunc(ctx)
+		return h.NodeVersionFunc(ctx, opts)
 	}
 
 	return wrapResponse("mock_version"), nil
@@ -1369,7 +1369,7 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/eth/v1/beacon/genesis", func(w http.ResponseWriter, r *http.Request) {
-		res, err := mock.Genesis(ctx)
+		res, err := mock.Genesis(ctx, &eth2api.GenesisOpts{})
 		require.NoError(t, err)
 		writeResponse(ctx, w, "", res.Data, nil)
 	})
@@ -1380,12 +1380,12 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 		writeResponse(ctx, w, "", nest(res, "data"), nil)
 	})
 	mux.HandleFunc("/eth/v1/config/deposit_contract", func(w http.ResponseWriter, r *http.Request) {
-		res, err := mock.DepositContract(ctx)
+		res, err := mock.DepositContract(ctx, &eth2api.DepositContractOpts{})
 		require.NoError(t, err)
 		writeResponse(ctx, w, "", res.Data, nil)
 	})
 	mux.HandleFunc("/eth/v1/config/fork_schedule", func(w http.ResponseWriter, r *http.Request) {
-		res, err := mock.ForkSchedule(ctx)
+		res, err := mock.ForkSchedule(ctx, &eth2api.ForkScheduleOpts{})
 		require.NoError(t, err)
 		writeResponse(ctx, w, "", nest(res.Data, "data"), nil)
 	})
