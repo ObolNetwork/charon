@@ -1,0 +1,27 @@
+name: go tests
+on:
+  pull_request:
+    paths:
+      - '**.go'
+jobs:
+  unit_tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '1.21.4'
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - run: go test -coverprofile=coverage.out -covermode=atomic -timeout=5m -race ./...
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.out
