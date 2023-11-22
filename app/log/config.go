@@ -31,6 +31,10 @@ const (
 	padLength         = 40
 	keyStack          = "stacktrace"
 	keyTopic          = "topic"
+
+	// maxOnDiskBackupAmt is the max amount of backups to keep on disk, before
+	// the oldest gets deleted.
+	maxOnDiskBackupAmt = 10
 )
 
 const (
@@ -68,7 +72,7 @@ var (
 	lokiLabels map[string]string
 
 	padding         = strings.Repeat(" ", padLength)
-	registerZapSink = sync.Once{}
+	registerZapSink sync.Once
 )
 
 // getLokiLabels returns the global loki logger labels and whether they are populated.
@@ -164,11 +168,9 @@ func InitLogger(config Config) error {
 		registerError = zap.RegisterSink("lumberjack", func(u *url.URL) (zap.Sink, error) {
 			return lumberjackSink{
 				Logger: &lumberjack.Logger{
-					Filename: u.Path,
-
-					MaxBackups: 10,
-
-					Compress: true,
+					Filename:   u.Path,
+					MaxBackups: maxOnDiskBackupAmt,
+					Compress:   true,
 				},
 			}, nil
 		})
