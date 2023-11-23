@@ -129,7 +129,7 @@ type Mock struct {
 	GenesisTimeFunc                        func(context.Context) (time.Time, error)
 	NodeSyncingFunc                        func(context.Context, *eth2api.NodeSyncingOpts) (*eth2v1.SyncState, error)
 	SubmitValidatorRegistrationsFunc       func(context.Context, []*eth2api.VersionedSignedValidatorRegistration) error
-	SlotsPerEpochFunc                      func(context.Context) (uint64, error)
+	SpecFunc                               func(context.Context, *eth2api.SpecOpts) (map[string]any, error)
 	AggregateBeaconCommitteeSelectionsFunc func(context.Context, []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error)
 	AggregateSyncCommitteeSelectionsFunc   func(context.Context, []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error)
 	SubmitBeaconCommitteeSubscriptionsFunc func(ctx context.Context, subscriptions []*eth2v1.BeaconCommitteeSubscription) error
@@ -329,8 +329,8 @@ func (m Mock) SubmitProposalPreparations(ctx context.Context, preparations []*et
 	return m.SubmitProposalPreparationsFunc(ctx, preparations)
 }
 
-func (m Mock) SlotsPerEpoch(ctx context.Context) (uint64, error) {
-	return m.SlotsPerEpochFunc(ctx)
+func (m Mock) Spec(ctx context.Context, opts *eth2api.SpecOpts) (map[string]any, error) {
+	return m.SpecFunc(ctx, opts)
 }
 
 func (m Mock) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {

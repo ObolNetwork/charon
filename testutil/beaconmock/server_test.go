@@ -31,8 +31,10 @@ func TestStatic(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(5), contractResp.Data.ChainID)
 
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	spec, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)
+	slotsPerEpoch, ok := spec.Data["SLOTS_PER_EPOCH"].(uint64)
+	require.True(t, ok)
 	require.Equal(t, uint64(16), slotsPerEpoch)
 
 	stateResp, err := eth2Cl.NodeSyncing(ctx, &eth2api.NodeSyncingOpts{})
@@ -67,8 +69,11 @@ func TestSlotsPerEpochOverride(t *testing.T) {
 	eth2Cl, err := beaconmock.New(beaconmock.WithSlotsPerEpoch(expect))
 	require.NoError(t, err)
 
-	actual, err := eth2Cl.SlotsPerEpoch(ctx)
+	spec, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)
+	actual, ok := spec.Data["SLOTS_PER_EPOCH"].(uint64)
+	require.True(t, ok)
+
 	require.EqualValues(t, expect, actual)
 
 	specResp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
@@ -129,8 +134,10 @@ func TestDefaultOverrides(t *testing.T) {
 	require.Equal(t, "charon-simnet", spec["CONFIG_NAME"])
 	require.EqualValues(t, 16, spec["SLOTS_PER_EPOCH"])
 
-	slotsPerEpoch, err := bmock.SlotsPerEpoch(ctx)
+	spec1, err := bmock.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)
+	slotsPerEpoch, ok := spec1.Data["SLOTS_PER_EPOCH"].(uint64)
+	require.True(t, ok)
 	require.EqualValues(t, 16, slotsPerEpoch)
 
 	genesis, err := bmock.GenesisTime(ctx)

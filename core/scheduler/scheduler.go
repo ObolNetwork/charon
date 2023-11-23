@@ -147,9 +147,14 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 		return nil, errors.New("builder-api enabled, but duty proposer requested")
 	}
 
-	slotsPerEpoch, err := s.eth2Cl.SlotsPerEpoch(ctx)
+	spec, err := s.eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return nil, err
+	}
+
+	slotsPerEpoch, ok := spec.Data["SLOTS_PER_EPOCH"].(uint64)
+	if !ok {
+		return nil, errors.New("fetch slots per epoch")
 	}
 
 	epoch := duty.Slot / slotsPerEpoch

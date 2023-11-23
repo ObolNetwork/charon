@@ -41,7 +41,6 @@ type HTTPMock interface {
 	eth2client.NodeSyncingProvider
 	eth2client.NodeVersionProvider
 	eth2client.SlotDurationProvider
-	eth2client.SlotsPerEpochProvider
 	eth2client.SpecProvider
 	eth2client.SyncCommitteeSubscriptionsSubmitter
 }

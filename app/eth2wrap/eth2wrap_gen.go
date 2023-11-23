@@ -52,7 +52,6 @@ type Client interface {
 	eth2client.ProposerDutiesProvider
 	eth2client.SignedBeaconBlockProvider
 	eth2client.SlotDurationProvider
-	eth2client.SlotsPerEpochProvider
 	eth2client.SpecProvider
 	eth2client.SyncCommitteeContributionProvider
 	eth2client.SyncCommitteeContributionsSubmitter
@@ -74,28 +73,6 @@ func (m multi) SlotDuration(ctx context.Context) (time.Duration, error) {
 	res0, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) (time.Duration, error) {
 			return cl.SlotDuration(ctx)
-		},
-		nil, m.bestIdx,
-	)
-
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return res0, err
-}
-
-// SlotsPerEpoch provides the slots per epoch of the chain.
-//
-// Deprecated: use Spec()
-// Note this endpoint is cached in go-eth2-client.
-func (m multi) SlotsPerEpoch(ctx context.Context) (uint64, error) {
-	const label = "slots_per_epoch"
-
-	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (uint64, error) {
-			return cl.SlotsPerEpoch(ctx)
 		},
 		nil, m.bestIdx,
 	)
@@ -763,18 +740,6 @@ func (l *lazy) SlotDuration(ctx context.Context) (res0 time.Duration, err error)
 	}
 
 	return cl.SlotDuration(ctx)
-}
-
-// SlotsPerEpoch provides the slots per epoch of the chain.
-//
-// Deprecated: use Spec()
-func (l *lazy) SlotsPerEpoch(ctx context.Context) (res0 uint64, err error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return res0, err
-	}
-
-	return cl.SlotsPerEpoch(ctx)
 }
 
 // SignedBeaconBlock fetches a signed beacon block given a block ID.

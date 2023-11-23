@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -75,14 +76,16 @@ func TestAttest(t *testing.T) {
 			}
 
 			// Get first slot in epoch 1
-			slotsPerEpoch, err := beaconMock.SlotsPerEpoch(ctx)
+			spec, err := beaconMock.Spec(ctx, &eth2api.SpecOpts{})
 			require.NoError(t, err)
+			slotsPerEpoch, ok := spec.Data["SLOTS_PER_EPOCH"].(uint64)
+			require.True(t, ok)
 
 			attester := validatormock.NewSlotAttester(beaconMock, eth2p0.Slot(slotsPerEpoch), signFunc, valSet.PublicKeys())
 
 			require.NoError(t, attester.Prepare(ctx))
 			require.NoError(t, attester.Attest(ctx))
-			ok, err := attester.Aggregate(ctx)
+			ok, err = attester.Aggregate(ctx)
 			require.NoError(t, err)
 			require.Equal(t, test.ExpectAggregations > 0, ok)
 
@@ -128,8 +131,10 @@ func TestProposeBlock(t *testing.T) {
 		return sig, nil
 	}
 
-	slotsPerEpoch, err := beaconMock.SlotsPerEpoch(ctx)
+	spec, err := beaconMock.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)
+	slotsPerEpoch, ok := spec.Data["SLOTS_PER_EPOCH"].(uint64)
+	require.True(t, ok)
 
 	block := testutil.RandomPhase0BeaconBlock()
 	block.Slot = eth2p0.Slot(slotsPerEpoch)
@@ -176,8 +181,10 @@ func TestProposeBlindedBlock(t *testing.T) {
 		return sig, nil
 	}
 
-	slotsPerEpoch, err := beaconMock.SlotsPerEpoch(ctx)
+	spec, err := beaconMock.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)
+	slotsPerEpoch, ok := spec.Data["SLOTS_PER_EPOCH"].(uint64)
+	require.True(t, ok)
 
 	block := testutil.RandomBellatrixBlindedBeaconBlock()
 	block.Slot = eth2p0.Slot(slotsPerEpoch)

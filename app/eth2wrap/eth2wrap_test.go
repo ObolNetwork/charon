@@ -35,42 +35,48 @@ func TestMulti(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		handle func(cl1Resp, cl2Resp chan uint64, ctxCancel context.CancelFunc)
+		handle func(cl1Resp, cl2Resp chan map[string]any, ctxCancel context.CancelFunc)
 		expErr error
 		expRes uint64
 	}{
 		{
 			name: "cl1 only",
-			handle: func(cl1Resp, _ chan uint64, _ context.CancelFunc) {
-				cl1Resp <- 99
+			handle: func(cl1Resp, _ chan map[string]any, _ context.CancelFunc) {
+				m := make(map[string]any)
+				m["SLOTS_PER_EPOCH"] = 99
+				cl1Resp <- m
 			},
 			expRes: 99,
 		},
 		{
 			name: "cl2 only",
-			handle: func(_, cl2Resp chan uint64, _ context.CancelFunc) {
-				cl2Resp <- 99
+			handle: func(_, cl2Resp chan map[string]any, _ context.CancelFunc) {
+				m := make(map[string]any)
+				m["SLOTS_PER_EPOCH"] = 99
+				cl2Resp <- m
 			},
 			expRes: 99,
 		},
 		{
 			name: "ctx cancel",
-			handle: func(_, _ chan uint64, ctxCancel context.CancelFunc) {
+			handle: func(_, _ chan map[string]any, ctxCancel context.CancelFunc) {
 				ctxCancel()
 			},
 			expErr: context.Canceled,
 		},
 		{
 			name: "cl1 error, cl2 ok",
-			handle: func(cl1, cl2 chan uint64, _ context.CancelFunc) {
+			handle: func(cl1, cl2 chan map[string]any, _ context.CancelFunc) {
 				close(cl1)
-				cl2 <- 99
+				m := make(map[string]any)
+				m["SLOTS_PER_EPOCH"] = 99
+				cl2 <- m
 			},
 			expRes: 99,
 		},
 		{
 			name: "all error",
-			handle: func(cl1, cl2 chan uint64, _ context.CancelFunc) {
+			handle: func(cl1, cl2 chan map[string]any, _ context.CancelFunc) {
 				close(cl1)
 				close(cl2)
 			},
@@ -78,7 +84,7 @@ func TestMulti(t *testing.T) {
 		},
 		{
 			name: "cl1 error, ctx cancel",
-			handle: func(cl1, _ chan uint64, cancel context.CancelFunc) {
+			handle: func(cl1, _ chan map[string]any, cancel context.CancelFunc) {
 				close(cl1)
 				cancel()
 			},
@@ -86,11 +92,15 @@ func TestMulti(t *testing.T) {
 		},
 		{
 			name: "cl2 before cl1",
-			handle: func(cl1, cl2 chan uint64, cancel context.CancelFunc) {
-				cl2 <- 99
+			handle: func(cl1, cl2 chan map[string]any, cancel context.CancelFunc) {
+				m1 := make(map[string]any)
+				m1["SLOTS_PER_EPOCH"] = 99
+				cl2 <- m1
 
 				time.Sleep(time.Millisecond)
-				cl1 <- 98 // This might flap?
+				m2 := make(map[string]any)
+				m2["SLOTS_PER_EPOCH"] = 99
+				cl1 <- m2 // This might flap?
 			},
 			expRes: 99,
 		},
@@ -105,28 +115,28 @@ func TestMulti(t *testing.T) {
 			cl2, err := beaconmock.New()
 			require.NoError(t, err)
 
-			cl1Resp := make(chan uint64)
-			cl2Resp := make(chan uint64)
+			cl1Resp := make(chan map[string]any)
+			cl2Resp := make(chan map[string]any)
 
-			cl1.SlotsPerEpochFunc = func(ctx context.Context) (uint64, error) {
+			cl1.SpecFunc = func(ctx context.Context, opts *eth2api.SpecOpts) (map[string]any, error) {
 				select {
 				case <-ctx.Done():
-					return 0, ctx.Err()
+					return nil, ctx.Err()
 				case resp, ok := <-cl1Resp:
 					if !ok {
-						return 0, closedErr
+						return nil, closedErr
 					}
 
 					return resp, nil
 				}
 			}
-			cl2.SlotsPerEpochFunc = func(ctx context.Context) (uint64, error) {
+			cl2.SpecFunc = func(ctx context.Context, opts *eth2api.SpecOpts) (map[string]any, error) {
 				select {
 				case <-ctx.Done():
-					return 0, ctx.Err()
+					return nil, ctx.Err()
 				case resp, ok := <-cl2Resp:
 					if !ok {
-						return 0, closedErr
+						return nil, closedErr
 					}
 
 					return resp, nil
@@ -138,9 +148,14 @@ func TestMulti(t *testing.T) {
 
 			go test.handle(cl1Resp, cl2Resp, cancel)
 
-			resp, err := eth2Cl.SlotsPerEpoch(ctx)
+			spec, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
+			require.NoError(t, err)
+			fmt.Println(spec.Data)
+
+			slotsPerEpoch, ok := spec.Data["SLOTS_PER_EPOCH"].(uint64)
+			require.True(t, ok)
 			require.ErrorIs(t, err, test.expErr)
-			require.Equal(t, test.expRes, resp)
+			require.Equal(t, test.expRes, slotsPerEpoch)
 		})
 	}
 }
@@ -172,7 +187,7 @@ func TestErrors(t *testing.T) {
 		cl, err := eth2wrap.NewMultiHTTP(time.Hour, "localhost:22222")
 		require.NoError(t, err)
 
-		_, err = cl.SlotsPerEpoch(ctx)
+		_, err = cl.Spec(ctx, &eth2api.SpecOpts{})
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "beacon api new eth2 client: network operation error: dial: connect: connection refused")
@@ -187,7 +202,7 @@ func TestErrors(t *testing.T) {
 		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, srv.URL)
 		require.NoError(t, err)
 
-		_, err = cl.SlotsPerEpoch(ctx)
+		_, err = cl.Spec(ctx, &eth2api.SpecOpts{})
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "beacon api new eth2 client: http request timeout: context deadline exceeded")
@@ -200,10 +215,10 @@ func TestErrors(t *testing.T) {
 		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, srv.URL)
 		require.NoError(t, err)
 
-		_, err = cl.SlotsPerEpoch(ctx)
+		_, err = cl.Spec(ctx, &eth2api.SpecOpts{})
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "beacon api slots_per_epoch: context canceled")
+		require.ErrorContains(t, err, "beacon api spec: context canceled")
 	})
 
 	t.Run("zero net op error", func(t *testing.T) {

@@ -355,8 +355,10 @@ func TestScheduler_GetDuty(t *testing.T) {
 		}
 	})
 
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	spec, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)
+	slotsPerEpoch, ok := spec.Data["SLOTS_PER_EPOCH"].(uint64)
+	require.True(t, ok)
 
 	// Expire all duties
 	const trimEpochOffset = 3

@@ -283,9 +283,13 @@ func WithDeterministicAttesterDuties(factor int) Option {
 			}
 			vals := eth2Resp.Data
 
-			slotsPerEpoch, err := mock.SlotsPerEpoch(ctx)
+			spec, err := mock.Spec(ctx, &eth2api.SpecOpts{})
 			if err != nil {
 				return nil, err
+			}
+			slotsPerEpoch, ok := spec.Data["SLOTS_PER_EPOCH"].(uint64)
+			if !ok {
+				return nil, errors.New("fetch slots per epoch")
 			}
 
 			sort.Slice(indices, func(i, j int) bool {
@@ -333,9 +337,13 @@ func WithDeterministicProposerDuties(factor int) Option {
 				return valIdxs[i] < valIdxs[j]
 			})
 
-			slotsPerEpoch, err := mock.SlotsPerEpoch(ctx)
+			spec, err := mock.Spec(ctx, &eth2api.SpecOpts{})
 			if err != nil {
 				return nil, err
+			}
+			slotsPerEpoch, ok := spec.Data["SLOTS_PER_EPOCH"].(uint64)
+			if !ok {
+				return nil, errors.New("fetch slots per epoch")
 			}
 
 			slotsAssigned := make(map[int]bool)
@@ -567,8 +575,13 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SubmitAggregateAttestationsFunc: func(context.Context, []*eth2p0.SignedAggregateAndProof) error {
 			return nil
 		},
-		SlotsPerEpochFunc: func(ctx context.Context) (uint64, error) {
-			return httpMock.SlotsPerEpoch(ctx)
+		SpecFunc: func(ctx context.Context, opts *eth2api.SpecOpts) (map[string]any, error) {
+			eth2Resp, err := httpMock.Spec(ctx, opts)
+			if err != nil {
+				return nil, err
+			}
+
+			return eth2Resp.Data, nil
 		},
 		SubmitProposalPreparationsFunc: func(context.Context, []*eth2v1.ProposalPreparation) error {
 			return nil

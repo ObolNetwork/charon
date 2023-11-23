@@ -118,8 +118,10 @@ func TestParSigExVerifier(t *testing.T) {
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 
-	slotsPerEpoch, err := bmock.SlotsPerEpoch(ctx)
+	spec, err := bmock.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)
+	slotsPerEpoch, ok := spec.Data["SLOTS_PER_EPOCH"].(uint64)
+	require.True(t, ok)
 
 	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
 

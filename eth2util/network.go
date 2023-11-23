@@ -55,7 +55,7 @@ var (
 		ChainID:               17000,
 		Name:                  "holesky",
 		GenesisForkVersionHex: "0x01017000",
-		GenesisTimestamp:      1696000704,
+		GenesisTimestamp:      1695902400,
 	}
 )
 

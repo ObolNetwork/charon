@@ -181,8 +181,10 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	epochSlot, err := bmock.SlotsPerEpoch(ctx)
+	spec, err := bmock.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)
+	epochSlot, ok := spec.Data["SLOTS_PER_EPOCH"].(uint64)
+	require.True(t, ok)
 
 	// Construct the validator api component
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
@@ -343,8 +345,10 @@ func TestComponent_Proposal(t *testing.T) {
 		vIdx = 1
 	)
 
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(context.Background())
+	spec, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)
+	slotsPerEpoch, ok := spec.Data["SLOTS_PER_EPOCH"].(uint64)
+	require.True(t, ok)
 
 	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
 
@@ -666,8 +670,10 @@ func TestComponent_BlindedProposal(t *testing.T) {
 		vIdx = 1
 	)
 
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(context.Background())
+	spec, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)
+	slotsPerEpoch, ok := spec.Data["SLOTS_PER_EPOCH"].(uint64)
+	require.True(t, ok)
 
 	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
 

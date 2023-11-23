@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	eth2client "github.com/attestantio/go-eth2-client"
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"golang.org/x/crypto/sha3"
@@ -18,10 +19,15 @@ import (
 )
 
 // EpochFromSlot returns epoch calculated from given slot.
-func EpochFromSlot(ctx context.Context, eth2Cl eth2client.SlotsPerEpochProvider, slot eth2p0.Slot) (eth2p0.Epoch, error) {
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+func EpochFromSlot(ctx context.Context, eth2Cl eth2client.SpecProvider, slot eth2p0.Slot) (eth2p0.Epoch, error) {
+	spec, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
-		return 0, errors.Wrap(err, "getting slots per epoch")
+		return 0, err
+	}
+
+	slotsPerEpoch, ok := spec.Data["SLOTS_PER_EPOCH"].(uint64)
+	if !ok {
+		return 0, errors.New("fetch slots per epoch")
 	}
 
 	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil

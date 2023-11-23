@@ -40,9 +40,14 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 		return err
 	}
 
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	spec, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return err
+	}
+
+	slotsPerEpoch, ok := spec.Data["SLOTS_PER_EPOCH"].(uint64)
+	if !ok {
+		return errors.New("fetch slots per epoch")
 	}
 	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
 
@@ -175,9 +180,14 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 		return err
 	}
 
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	spec, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return err
+	}
+
+	slotsPerEpoch, ok := spec.Data["SLOTS_PER_EPOCH"].(uint64)
+	if !ok {
+		return errors.New("fetch slots per epoch")
 	}
 
 	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)

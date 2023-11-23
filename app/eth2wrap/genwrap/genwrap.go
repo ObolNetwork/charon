@@ -117,7 +117,6 @@ type Client interface {
 		"ProposerDutiesProvider":                true,
 		"ProposalPreparationsSubmitter":         false,
 		"SlotDurationProvider":                  false,
-		"SlotsPerEpochProvider":                 false,
 		"SpecProvider":                          false,
 		"SignedBeaconBlockProvider":             true,
 		"SyncCommitteeDutiesProvider":           true,
