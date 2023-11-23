@@ -3,26 +3,16 @@
 package eth2util
 
 import (
-	"context"
 	"encoding/hex"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
-	eth2api "github.com/attestantio/go-eth2-client/api"
-
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/eth2wrap"
-	"github.com/obolnetwork/charon/app/z"
 )
 
 const Prater = "prater"
-
-var (
-	initMu         sync.Mutex
-	defaultNetwork *Network
-)
 
 // Network contains information about an Ethereum network.
 type Network struct {
@@ -71,103 +61,60 @@ var (
 	}
 )
 
-var supportedNetworks = []Network{
-	Mainnet, Goerli, Gnosis, Sepolia, Holesky,
-}
-
-// InitNetwork initialises the network configuration by querying beacon node.
-func InitNetwork(ctx context.Context, eth2Cl eth2wrap.Client) error {
-	specData, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
-	if err != nil {
-		return errors.Wrap(err, "get network spec")
+var (
+	networksMu        sync.Mutex
+	supportedNetworks = []Network{
+		Mainnet, Goerli, Gnosis, Sepolia, Holesky,
 	}
+)
 
-	networkName, ok := specData.Data["CONFIG_NAME"].(string)
-	if !ok {
-		return errors.New("invalid network name", z.Any("network", networkName))
-	}
+func AddNetwork(network Network) {
+	networksMu.Lock()
+	defer networksMu.Unlock()
 
-	if networkName == Prater {
-		networkName = "goerli"
-	}
-
-	depositData, err := eth2Cl.DepositContract(ctx, &eth2api.DepositContractOpts{})
-	if err != nil {
-		return errors.Wrap(err, "get deposit contract data")
-	}
-
-	chainID := depositData.Data.ChainID
-
-	genesisData, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
-	if err != nil {
-		return errors.Wrap(err, "get genesis data")
-	}
-
-	initMu.Lock()
-	defer initMu.Unlock()
-
-	defaultNetwork = &Network{
-		ChainID:               chainID,
-		Name:                  networkName,
-		GenesisForkVersionHex: fmt.Sprintf("%#x", genesisData.Data.GenesisForkVersion[:]),
-		GenesisTimestamp:      genesisData.Data.GenesisTime.Unix(),
-	}
-
-	return nil
+	supportedNetworks = append(supportedNetworks, network)
 }
 
 // ForkVersionToChainID returns the chainID corresponding to the provided fork version.
 func ForkVersionToChainID(forkVersion []byte) (uint64, error) {
+	networksMu.Lock()
+	defer networksMu.Unlock()
+
 	for _, network := range supportedNetworks {
 		if fmt.Sprintf("%#x", forkVersion) == network.GenesisForkVersionHex {
 			return network.ChainID, nil
 		}
 	}
 
-	initMu.Lock()
-	defer initMu.Unlock()
-
-	if defaultNetwork == nil || fmt.Sprintf("%#x", forkVersion) != defaultNetwork.GenesisForkVersionHex {
-		return 0, errors.New("invalid fork version")
-	}
-
-	return defaultNetwork.ChainID, nil
+	return 0, errors.New("invalid fork version")
 }
 
 // ForkVersionToNetwork returns the network name corresponding to the provided fork version.
 func ForkVersionToNetwork(forkVersion []byte) (string, error) {
+	networksMu.Lock()
+	defer networksMu.Unlock()
+
 	for _, network := range supportedNetworks {
 		if fmt.Sprintf("%#x", forkVersion) == network.GenesisForkVersionHex {
 			return network.Name, nil
 		}
 	}
 
-	initMu.Lock()
-	defer initMu.Unlock()
-
-	if defaultNetwork == nil || fmt.Sprintf("%#x", forkVersion) != defaultNetwork.GenesisForkVersionHex {
-		return "", errors.New("invalid fork version")
-	}
-
-	return defaultNetwork.Name, nil
+	return "", errors.New("invalid fork version")
 }
 
 // NetworkToForkVersion returns the fork version in hex (0x prefixed) corresponding to the network name.
 func NetworkToForkVersion(name string) (string, error) {
+	networksMu.Lock()
+	defer networksMu.Unlock()
+
 	for _, network := range supportedNetworks {
 		if name == network.Name {
 			return network.GenesisForkVersionHex, nil
 		}
 	}
 
-	initMu.Lock()
-	defer initMu.Unlock()
-
-	if defaultNetwork == nil || name != defaultNetwork.Name {
-		return "", errors.New("invalid network name")
-	}
-
-	return defaultNetwork.GenesisForkVersionHex, nil
+	return "", errors.New("invalid network name")
 }
 
 // NetworkToForkVersionBytes returns the fork version bytes corresponding to the network name.
@@ -187,6 +134,9 @@ func NetworkToForkVersionBytes(name string) ([]byte, error) {
 
 // ValidNetwork returns true if the provided network name is a valid one.
 func ValidNetwork(name string) bool {
+	networksMu.Lock()
+	defer networksMu.Unlock()
+
 	for _, network := range supportedNetworks {
 		if name == network.Name {
 			return true
@@ -197,40 +147,35 @@ func ValidNetwork(name string) bool {
 }
 
 func NetworkToGenesisTime(name string) (time.Time, error) {
+	networksMu.Lock()
+	defer networksMu.Unlock()
+
 	for _, network := range supportedNetworks {
 		if name == network.Name {
 			return time.Unix(network.GenesisTimestamp, 0), nil
 		}
 	}
 
-	initMu.Lock()
-	defer initMu.Unlock()
-
-	if defaultNetwork == nil || name != defaultNetwork.Name {
-		return time.Time{}, errors.New("invalid network name")
-	}
-
-	return time.Unix(defaultNetwork.GenesisTimestamp, 0), nil
+	return time.Time{}, errors.New("invalid network name")
 }
 
 func ForkVersionToGenesisTime(forkVersion []byte) (time.Time, error) {
+	networksMu.Lock()
+	defer networksMu.Unlock()
+
 	for _, network := range supportedNetworks {
 		if fmt.Sprintf("%#x", forkVersion) == network.GenesisForkVersionHex {
 			return time.Unix(network.GenesisTimestamp, 0), nil
 		}
 	}
 
-	initMu.Lock()
-	defer initMu.Unlock()
-
-	if defaultNetwork == nil || fmt.Sprintf("%#x", forkVersion) != defaultNetwork.GenesisForkVersionHex {
-		return time.Time{}, errors.New("invalid fork version")
-	}
-
-	return time.Unix(defaultNetwork.GenesisTimestamp, 0), nil
+	return time.Time{}, errors.New("invalid fork version")
 }
 
 func NetworkFromString(name string) (Network, error) {
+	networksMu.Lock()
+	defer networksMu.Unlock()
+
 	for _, network := range supportedNetworks {
 		if name == network.Name {
 			return network, nil

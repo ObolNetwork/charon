@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -88,6 +87,7 @@ type Config struct {
 	SyntheticBlockProposals bool
 	BuilderAPI              bool
 	SimnetBMockFuzz         bool
+	TestnetConfig           eth2util.Network
 
 	TestConfig TestConfig
 }
@@ -146,6 +146,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 		life.RegisterStop(lifecycle.StopPrivkeyLock, lifecycle.HookFuncMin(lockSvc.Close))
 	}
 
+	if conf.TestnetConfig.Name != "" &&
+		conf.TestnetConfig.GenesisForkVersionHex != "" &&
+		conf.TestnetConfig.GenesisTimestamp != 0 &&
+		conf.TestnetConfig.ChainID != 0 {
+		eth2util.AddNetwork(conf.TestnetConfig)
+	}
+
 	if err := wireTracing(life, conf); err != nil {
 		return err
 	}
@@ -153,15 +160,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 	cluster, err := loadClusterManifest(ctx, conf)
 	if err != nil {
 		return err
-	}
-
-	eth2Cl, err := newETH2Client(ctx, conf, life, cluster, cluster.ForkVersion)
-	if err != nil {
-		return err
-	}
-
-	if err = eth2util.InitNetwork(ctx, eth2Cl); err != nil {
-		return errors.Wrap(err, "initialise network config")
 	}
 
 	network, err := eth2util.ForkVersionToNetwork(cluster.ForkVersion)
@@ -176,6 +174,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 		if err != nil {
 			return errors.Wrap(err, "load priv key")
 		}
+	}
+
+	eth2Cl, err := newETH2Client(ctx, conf, life, cluster, cluster.ForkVersion)
+	if err != nil {
+		return err
 	}
 
 	peers, err := manifest.ClusterPeers(cluster)
@@ -836,10 +839,20 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 		}
 	}
 	if !ok {
+		lockNetwork, err := eth2util.ForkVersionToNetwork(forkVersion)
+		if err != nil {
+			return nil, errors.New("cannot parse lock file fork version")
+		}
+
+		bnNetwork, err := eth2util.ForkVersionToNetwork(schedule[0].CurrentVersion[:])
+		if err != nil {
+			return nil, errors.New("cannot parse network current fork version")
+		}
+
 		return nil, errors.New(
 			"mismatch between lock file fork version and beacon node fork schedule. Ensure the beacon node is on the correct network",
-			z.Str("beacon_node", fmt.Sprintf("%#x", schedule[0].CurrentVersion[:])),
-			z.Str("lock_file", fmt.Sprintf("%#x", forkVersion)),
+			z.Str("beacon_node", bnNetwork),
+			z.Str("lock_file", lockNetwork),
 		)
 	}
 
