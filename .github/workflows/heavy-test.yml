@@ -23,6 +23,7 @@ jobs:
       - run: go test -v -timeout=10m -race github.com/obolnetwork/charon/testutil/integration -integration
 
   compose_tests:
+    needs: integration_tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -50,6 +51,7 @@ jobs:
           retention-days: 3
 
   fuzz_tests:
+    needs: [integration_tests, compose_tests]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
