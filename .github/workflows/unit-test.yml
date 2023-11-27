@@ -1,8 +1,7 @@
 name: go tests
 on:
   pull_request:
-    paths:
-      - '**.go'
+
 jobs:
   unit_tests:
     runs-on: ubuntu-latest
