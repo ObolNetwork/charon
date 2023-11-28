@@ -5,6 +5,7 @@ package log
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -18,6 +19,7 @@ import (
 	"go.uber.org/zap/buffer"
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/term"
+	"gopkg.in/natefinch/lumberjack.v2"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log/loki"
@@ -29,6 +31,10 @@ const (
 	padLength         = 40
 	keyStack          = "stacktrace"
 	keyTopic          = "topic"
+
+	// maxOnDiskBackupAmt is the max amount of backups to keep on disk, before
+	// the oldest gets deleted.
+	maxOnDiskBackupAmt = 10
 )
 
 const (
@@ -46,6 +52,16 @@ type zapLogger interface {
 	Core() zapcore.Core
 }
 
+// lumberjackSink implements zap.Sink.
+type lumberjackSink struct {
+	*lumberjack.Logger
+}
+
+// Sync implements zap.Sink.
+func (lumberjackSink) Sync() error {
+	return nil
+}
+
 var (
 	initMu sync.RWMutex
 	// logger is the global logger.
@@ -55,7 +71,8 @@ var (
 	// lokiLabels are the global loki logger labels.
 	lokiLabels map[string]string
 
-	padding = strings.Repeat(" ", padLength)
+	padding         = strings.Repeat(" ", padLength)
+	registerZapSink sync.Once
 )
 
 // getLokiLabels returns the global loki logger labels and whether they are populated.
@@ -94,6 +111,7 @@ type Config struct {
 	Color         string   // disable, force or auto
 	LokiAddresses []string // URLs for loki logging spout
 	LokiService   string   // Value of the service label pushed with loki logs.
+	LogOutputPath string   // Path in which zap will write on-disk logs.
 }
 
 // ZapLevel returns the zapcore level.
@@ -145,6 +163,23 @@ func InitLogger(config Config) error {
 		return err
 	}
 
+	var registerError error
+	registerZapSink.Do(func() {
+		registerError = zap.RegisterSink("lumberjack", func(u *url.URL) (zap.Sink, error) {
+			return lumberjackSink{
+				Logger: &lumberjack.Logger{
+					Filename:   u.Path,
+					MaxBackups: maxOnDiskBackupAmt,
+					Compress:   true,
+				},
+			}, nil
+		})
+	})
+
+	if registerError != nil {
+		return errors.Wrap(err, "zap register sink lumberjack")
+	}
+
 	writer, _, err := zap.Open("stderr")
 	if err != nil {
 		return errors.Wrap(err, "open writer")
@@ -156,7 +191,20 @@ func InitLogger(config Config) error {
 	}
 
 	if config.Format == "console" {
-		logger = newConsoleLogger(level, color, writer)
+		cores := []zapcore.Core{
+			newConsoleLogger(level, color, writer),
+		}
+
+		if config.LogOutputPath != "" {
+			fileWriter, _, err := zap.Open(fmt.Sprintf("lumberjack:%s", config.LogOutputPath))
+			if err != nil {
+				return errors.Wrap(err, "open file writer")
+			}
+
+			cores = append(cores, newFileLogger(fileWriter))
+		}
+
+		logger = zap.New(zapcore.NewTee(cores...))
 	} else {
 		logger, err = newStructuredLogger(config.Format, level, color, writer, callerSkip)
 		if err != nil {
@@ -208,7 +256,7 @@ func WithClock(clock clockwork.Clock) func(config *zapcore.EncoderConfig) {
 
 // NewConsoleForT returns a console logger for testing purposes.
 func NewConsoleForT(_ *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) *zap.Logger {
-	return newConsoleLogger(zapcore.DebugLevel, true, ws, opts...)
+	return zap.New(newConsoleLogger(zapcore.DebugLevel, true, ws, opts...))
 }
 
 // InitConsoleForT initialises a global console logger for testing purposes.
@@ -287,7 +335,7 @@ func newStructuredLogger(format string, level zapcore.Level, color bool, ws zapc
 // newDefaultLogger returns an opinionated console logger writing to stderr.
 func newDefaultLogger() *zap.Logger {
 	writer, _, _ := zap.Open("stderr")
-	return newConsoleLogger(zapcore.DebugLevel, true, writer)
+	return zap.New(newConsoleLogger(zapcore.DebugLevel, true, writer))
 }
 
 // newConsoleEncoder returns a zap encoder that generates console logs.
@@ -312,13 +360,20 @@ func newConsoleEncoder(timestamp, color, stacktrace bool, opts ...func(*zapcore.
 }
 
 // newConsoleLogger returns an opinionated console logger.
-func newConsoleLogger(level zapcore.Level, color bool, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) *zap.Logger {
-	return zap.New(
-		zapcore.NewCore(
-			newConsoleEncoder(true, color, true, opts...),
-			ws,
-			zap.NewAtomicLevelAt(level),
-		),
+func newConsoleLogger(level zapcore.Level, color bool, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) zapcore.Core {
+	return zapcore.NewCore(
+		newConsoleEncoder(true, color, true, opts...),
+		ws,
+		zap.NewAtomicLevelAt(level),
+	)
+}
+
+// newFileLogger returns an opinionated console logger, optimized for on-disk logging..
+func newFileLogger(ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) zapcore.Core {
+	return zapcore.NewCore(
+		newConsoleEncoder(true, false, true, opts...),
+		ws,
+		zap.NewAtomicLevelAt(zap.DebugLevel),
 	)
 }
 
