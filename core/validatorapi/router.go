@@ -25,6 +25,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
+	deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -699,8 +700,19 @@ func proposeBlindedBlock(p eth2client.BlindedProposalProvider) handlerFunc {
 
 func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		denebBlock := new(deneb.SignedBlockContents)
+		err := unmarshal(typ, body, denebBlock)
+		if err == nil {
+			block := &eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionDeneb,
+				Deneb:   denebBlock,
+			}
+
+			return nil, nil, p.SubmitProposal(ctx, block)
+		}
+
 		capellaBlock := new(capella.SignedBeaconBlock)
-		err := unmarshal(typ, body, capellaBlock)
+		err = unmarshal(typ, body, capellaBlock)
 		if err == nil {
 			block := &eth2api.VersionedSignedProposal{
 				Version: eth2spec.DataVersionCapella,
@@ -749,9 +761,20 @@ func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 
 func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
-		// The blinded block maybe either bellatrix or capella.
+		// The blinded block maybe either bellatrix, capella or deneb.
+		denebBlock := new(deneb.SignedBlindedBlockContents)
+		err := unmarshal(typ, body, denebBlock)
+		if err == nil {
+			block := &eth2api.VersionedSignedBlindedProposal{
+				Version: eth2spec.DataVersionDeneb,
+				Deneb:   denebBlock,
+			}
+
+			return nil, nil, p.SubmitBlindedProposal(ctx, block)
+		}
+
 		capellaBlock := new(eth2capella.SignedBlindedBeaconBlock)
-		err := unmarshal(typ, body, capellaBlock)
+		err = unmarshal(typ, body, capellaBlock)
 		if err == nil {
 			block := &eth2api.VersionedSignedBlindedProposal{
 				Version: eth2spec.DataVersionCapella,

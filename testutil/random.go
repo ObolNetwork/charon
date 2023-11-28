@@ -21,6 +21,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
+	deneb2 "github.com/attestantio/go-eth2-client/spec/deneb"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p"
@@ -306,6 +307,16 @@ func RandomCapellaVersionedSignedBeaconBlock() *eth2spec.VersionedSignedBeaconBl
 			Message:   RandomCapellaBeaconBlock(),
 			Signature: RandomEth2Signature(),
 		},
+	}
+}
+
+func RandomDenebBeaconBlock() *deneb2.BeaconBlock {
+	return &deneb2.BeaconBlock{
+		Slot:          0,
+		ProposerIndex: 0,
+		ParentRoot:    eth2p0.Root{},
+		StateRoot:     eth2p0.Root{},
+		Body:          nil,
 	}
 }
 
