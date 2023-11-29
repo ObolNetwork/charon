@@ -16,7 +16,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -217,22 +216,22 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		}
 	}
 
-	networkConfig, err := getNetworkConfig(conf)
+	network, err := eth2util.ForkVersionToNetwork(def.ForkVersion)
 	if err != nil {
 		return err
 	}
 
-	depositDatas, err := createDepositDatas(def.WithdrawalAddresses(), networkConfig.GenesisForkVersionHex, secrets)
+	depositDatas, err := createDepositDatas(def.WithdrawalAddresses(), network, secrets)
 	if err != nil {
 		return err
 	}
 
 	// Write deposit-data file
-	if err = writeDepositData(depositDatas, networkConfig, conf.ClusterDir, numNodes); err != nil {
+	if err = writeDepositData(depositDatas, network, conf.ClusterDir, numNodes); err != nil {
 		return err
 	}
 
-	valRegs, err := createValidatorRegistrations(def.FeeRecipientAddresses(), secrets, def.ForkVersion, time.Unix(networkConfig.GenesisTimestamp, 0))
+	valRegs, err := createValidatorRegistrations(def.FeeRecipientAddresses(), secrets, def.ForkVersion)
 	if err != nil {
 		return err
 	}
@@ -347,7 +346,7 @@ func detectNodeDirs(clusterDir string, nodeAmount int) error {
 }
 
 // signDepositDatas returns Distributed Validator pubkeys and deposit data signatures corresponding to each pubkey.
-func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, forkVersion string) ([]eth2p0.DepositData, error) {
+func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, network string) ([]eth2p0.DepositData, error) {
 	if len(secrets) != len(withdrawalAddresses) {
 		return nil, errors.New("insufficient withdrawal addresses")
 	}
@@ -369,12 +368,7 @@ func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, f
 			return nil, err
 		}
 
-		fvb, err := hex.DecodeString(strings.TrimPrefix(forkVersion, "0x"))
-		if err != nil {
-			return nil, errors.Wrap(err, "decode fork version hex")
-		}
-
-		sigRoot, err := deposit.GetMessageSigningRoot(msg, fvb)
+		sigRoot, err := deposit.GetMessageSigningRoot(msg, network)
 		if err != nil {
 			return nil, err
 		}
@@ -396,7 +390,7 @@ func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, f
 }
 
 // signValidatorRegistrations returns a slice of validator registrations for each private key in secrets.
-func signValidatorRegistrations(secrets []tbls.PrivateKey, feeAddresses []string, forkVersion []byte, genesisTime time.Time) ([]core.VersionedSignedValidatorRegistration, error) {
+func signValidatorRegistrations(secrets []tbls.PrivateKey, feeAddresses []string, forkVersion []byte) ([]core.VersionedSignedValidatorRegistration, error) {
 	if len(secrets) != len(feeAddresses) {
 		return nil, errors.New("insufficient fee addresses")
 	}
@@ -413,11 +407,16 @@ func signValidatorRegistrations(secrets []tbls.PrivateKey, feeAddresses []string
 			return nil, errors.Wrap(err, "secret to pubkey")
 		}
 
+		timestamp, err := eth2util.ForkVersionToGenesisTime(forkVersion)
+		if err != nil {
+			return nil, err
+		}
+
 		unsignedReg, err := registration.NewMessage(
 			eth2p0.BLSPubKey(pk),
 			feeAddress,
 			registration.DefaultGasLimit,
-			genesisTime,
+			timestamp,
 		)
 		if err != nil {
 			return nil, errors.Wrap(err, "registration creation")
@@ -524,18 +523,18 @@ func generateKeys(numDVs int) ([]tbls.PrivateKey, error) {
 }
 
 // createDepositDatas creates a slice of deposit datas using the provided parameters and returns it.
-func createDepositDatas(withdrawalAddresses []string, forkVersion string, secrets []tbls.PrivateKey) ([]eth2p0.DepositData, error) {
+func createDepositDatas(withdrawalAddresses []string, network string, secrets []tbls.PrivateKey) ([]eth2p0.DepositData, error) {
 	if len(secrets) != len(withdrawalAddresses) {
 		return nil, errors.New("insufficient withdrawal addresses")
 	}
 
-	return signDepositDatas(secrets, withdrawalAddresses, forkVersion)
+	return signDepositDatas(secrets, withdrawalAddresses, network)
 }
 
 // writeDepositData writes deposit data to disk for the DVs for all peers in a cluster.
-func writeDepositData(depositDatas []eth2p0.DepositData, network eth2util.Network, clusterDir string, numNodes int) error {
+func writeDepositData(depositDatas []eth2p0.DepositData, network string, clusterDir string, numNodes int) error {
 	// Serialize the deposit data into bytes
-	bytes, err := deposit.MarshalDepositData(depositDatas, network.Name, network.GenesisForkVersionHex)
+	bytes, err := deposit.MarshalDepositData(depositDatas, network)
 	if err != nil {
 		return err
 	}
@@ -552,12 +551,12 @@ func writeDepositData(depositDatas []eth2p0.DepositData, network eth2util.Networ
 }
 
 // createValidatorRegistrations creates a slice of builder validator registrations using the provided parameters and returns it.
-func createValidatorRegistrations(feeAddresses []string, secrets []tbls.PrivateKey, forkVersion []byte, genesisTime time.Time) ([]core.VersionedSignedValidatorRegistration, error) {
+func createValidatorRegistrations(feeAddresses []string, secrets []tbls.PrivateKey, forkVersion []byte) ([]core.VersionedSignedValidatorRegistration, error) {
 	if len(feeAddresses) != len(secrets) {
 		return nil, errors.New("insufficient fee addresses")
 	}
 
-	return signValidatorRegistrations(secrets, feeAddresses, forkVersion, genesisTime)
+	return signValidatorRegistrations(secrets, feeAddresses, forkVersion)
 }
 
 // writeLock creates a cluster lock and writes it to disk for all peers.
@@ -1056,8 +1055,11 @@ func getNetworkConfig(conf clusterConfig) (eth2util.Network, error) {
 		conf.testnetConfig.ChainID != 0 &&
 		conf.testnetConfig.GenesisTimestamp != 0 &&
 		conf.testnetConfig.GenesisForkVersionHex != "" {
+		// Add testnet config to supported networks.
+		eth2util.AddTestNetwork(conf.testnetConfig)
+
 		return conf.testnetConfig, nil
 	}
 
-	return eth2util.Network{}, errors.New("missing --network flag")
+	return eth2util.Network{}, errors.New("missing --network flag or testnet config flags")
 }

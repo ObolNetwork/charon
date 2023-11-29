@@ -249,7 +249,7 @@ func writeDepositDatas(ctx context.Context, clusterDir string, numOps int, secre
 			return errors.Wrap(err, "new deposit message")
 		}
 
-		sigRoot, err := deposit.GetMessageSigningRoot(depositMsg, forkVersion)
+		sigRoot, err := deposit.GetMessageSigningRoot(depositMsg, network)
 		if err != nil {
 			return errors.Wrap(err, "get deposit message root")
 		}
@@ -268,7 +268,7 @@ func writeDepositDatas(ctx context.Context, clusterDir string, numOps int, secre
 	}
 
 	// Serialize the deposit data into bytes
-	bytes, err := deposit.MarshalDepositData(depositDatas, network, fmt.Sprintf("%#x", forkVersion))
+	bytes, err := deposit.MarshalDepositData(depositDatas, network)
 	if err != nil {
 		return err
 	}

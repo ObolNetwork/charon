@@ -62,24 +62,20 @@ var (
 )
 
 var (
-	networksMu        sync.Mutex
+	addNetworkOnce    sync.Once
 	supportedNetworks = []Network{
 		Mainnet, Goerli, Gnosis, Sepolia, Holesky,
 	}
 )
 
-func AddNetwork(network Network) {
-	networksMu.Lock()
-	defer networksMu.Unlock()
-
-	supportedNetworks = append(supportedNetworks, network)
+func AddTestNetwork(network Network) {
+	addNetworkOnce.Do(func() {
+		supportedNetworks = append(supportedNetworks, network)
+	})
 }
 
 // ForkVersionToChainID returns the chainID corresponding to the provided fork version.
 func ForkVersionToChainID(forkVersion []byte) (uint64, error) {
-	networksMu.Lock()
-	defer networksMu.Unlock()
-
 	for _, network := range supportedNetworks {
 		if fmt.Sprintf("%#x", forkVersion) == network.GenesisForkVersionHex {
 			return network.ChainID, nil
@@ -91,9 +87,6 @@ func ForkVersionToChainID(forkVersion []byte) (uint64, error) {
 
 // ForkVersionToNetwork returns the network name corresponding to the provided fork version.
 func ForkVersionToNetwork(forkVersion []byte) (string, error) {
-	networksMu.Lock()
-	defer networksMu.Unlock()
-
 	for _, network := range supportedNetworks {
 		if fmt.Sprintf("%#x", forkVersion) == network.GenesisForkVersionHex {
 			return network.Name, nil
@@ -105,9 +98,6 @@ func ForkVersionToNetwork(forkVersion []byte) (string, error) {
 
 // NetworkToForkVersion returns the fork version in hex (0x prefixed) corresponding to the network name.
 func NetworkToForkVersion(name string) (string, error) {
-	networksMu.Lock()
-	defer networksMu.Unlock()
-
 	for _, network := range supportedNetworks {
 		if name == network.Name {
 			return network.GenesisForkVersionHex, nil
@@ -134,9 +124,6 @@ func NetworkToForkVersionBytes(name string) ([]byte, error) {
 
 // ValidNetwork returns true if the provided network name is a valid one.
 func ValidNetwork(name string) bool {
-	networksMu.Lock()
-	defer networksMu.Unlock()
-
 	for _, network := range supportedNetworks {
 		if name == network.Name {
 			return true
@@ -147,9 +134,6 @@ func ValidNetwork(name string) bool {
 }
 
 func NetworkToGenesisTime(name string) (time.Time, error) {
-	networksMu.Lock()
-	defer networksMu.Unlock()
-
 	for _, network := range supportedNetworks {
 		if name == network.Name {
 			return time.Unix(network.GenesisTimestamp, 0), nil
@@ -160,9 +144,6 @@ func NetworkToGenesisTime(name string) (time.Time, error) {
 }
 
 func ForkVersionToGenesisTime(forkVersion []byte) (time.Time, error) {
-	networksMu.Lock()
-	defer networksMu.Unlock()
-
 	for _, network := range supportedNetworks {
 		if fmt.Sprintf("%#x", forkVersion) == network.GenesisForkVersionHex {
 			return time.Unix(network.GenesisTimestamp, 0), nil
@@ -173,9 +154,6 @@ func ForkVersionToGenesisTime(forkVersion []byte) (time.Time, error) {
 }
 
 func NetworkFromString(name string) (Network, error) {
-	networksMu.Lock()
-	defer networksMu.Unlock()
-
 	for _, network := range supportedNetworks {
 		if name == network.Name {
 			return network, nil

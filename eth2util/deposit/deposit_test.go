@@ -4,7 +4,6 @@ package deposit_test
 
 import (
 	"encoding/hex"
-	"strings"
 	"testing"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -34,9 +33,8 @@ func TestMarshalDepositData(t *testing.T) {
 	}
 
 	var (
-		datas       []eth2p0.DepositData
-		network     = eth2util.Goerli.Name
-		forkVersion = eth2util.Goerli.GenesisForkVersionHex
+		datas   []eth2p0.DepositData
+		network = eth2util.Goerli.Name
 	)
 	for i := 0; i < len(privKeys); i++ {
 		sk, pk := GetKeys(t, privKeys[i])
@@ -44,10 +42,7 @@ func TestMarshalDepositData(t *testing.T) {
 		msg, err := deposit.NewMessage(pk, withdrawalAddrs[i])
 		require.NoError(t, err)
 
-		fvb, err := hex.DecodeString(strings.TrimPrefix(forkVersion, "0x"))
-		require.NoError(t, err)
-
-		sigRoot, err := deposit.GetMessageSigningRoot(msg, fvb)
+		sigRoot, err := deposit.GetMessageSigningRoot(msg, network)
 		require.NoError(t, err)
 
 		sig, err := tbls.Sign(sk, sigRoot[:])
@@ -61,7 +56,7 @@ func TestMarshalDepositData(t *testing.T) {
 		})
 	}
 
-	actual, err := deposit.MarshalDepositData(datas, network, forkVersion)
+	actual, err := deposit.MarshalDepositData(datas, network)
 	require.NoError(t, err)
 
 	testutil.RequireGoldenBytes(t, actual)

@@ -150,7 +150,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		conf.TestnetConfig.GenesisForkVersionHex != "" &&
 		conf.TestnetConfig.GenesisTimestamp != 0 &&
 		conf.TestnetConfig.ChainID != 0 {
-		eth2util.AddNetwork(conf.TestnetConfig)
+		eth2util.AddTestNetwork(conf.TestnetConfig)
 	}
 
 	if err := wireTracing(life, conf); err != nil {

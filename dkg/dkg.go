@@ -720,12 +720,7 @@ func signDepositMsgs(shares []share, shareIdx int, withdrawalAddresses []string,
 			return nil, nil, err
 		}
 
-		forkVersion, err := eth2util.NetworkToForkVersionBytes(network)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		sigRoot, err := deposit.GetMessageSigningRoot(msg, forkVersion)
+		sigRoot, err := deposit.GetMessageSigningRoot(msg, network)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -821,12 +816,7 @@ func aggDepositData(data map[core.PubKey][]core.ParSignedData, shares []share,
 			return nil, errors.New("deposit message not found")
 		}
 
-		forkVersion, err := eth2util.NetworkToForkVersionBytes(network)
-		if err != nil {
-			return nil, err
-		}
-
-		sigRoot, err := deposit.GetMessageSigningRoot(msg, forkVersion)
+		sigRoot, err := deposit.GetMessageSigningRoot(msg, network)
 		if err != nil {
 			return nil, err
 		}
