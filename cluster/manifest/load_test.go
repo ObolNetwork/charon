@@ -56,7 +56,7 @@ func TestLoadManifest(t *testing.T) {
 	}{
 		{
 			name:     "no file",
-			errorMsg: "no file found",
+			errorMsg: "couldn't load cluster dag from either manifest or legacy lock file",
 		},
 		{
 			name:         "only manifest",
