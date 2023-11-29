@@ -127,6 +127,11 @@ func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
 func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) error {
 	var err error
 
+	// Map prater to goerli to ensure backwards compatibility with older cluster definitions and cluster locks.
+	if conf.Network == eth2util.Prater {
+		conf.Network = eth2util.Goerli.Name
+	}
+
 	if err = validateCreateConfig(conf); err != nil {
 		return err
 	}
@@ -302,12 +307,11 @@ func validateCreateConfig(conf clusterConfig) error {
 	}
 
 	// Check for valid network configuration.
-	_, err := getNetworkConfig(conf)
-	if err != nil {
+	if err := validateNetworkConfig(conf); err != nil {
 		return errors.Wrap(err, "get network config")
 	}
 
-	if err = detectNodeDirs(conf.ClusterDir, conf.NumNodes); err != nil {
+	if err := detectNodeDirs(conf.ClusterDir, conf.NumNodes); err != nil {
 		return err
 	}
 
@@ -756,9 +760,16 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 		return cluster.Definition{}, err
 	}
 
-	networkConfig, err := getNetworkConfig(conf)
-	if err != nil {
-		return cluster.Definition{}, err
+	var forkVersion string
+	if conf.Network != "" {
+		forkVersion, err = eth2util.NetworkToForkVersion(conf.Network)
+		if err != nil {
+			return cluster.Definition{}, err
+		}
+	} else if conf.testnetConfig.GenesisForkVersionHex != "" {
+		forkVersion = conf.testnetConfig.GenesisForkVersionHex
+	} else {
+		return cluster.Definition{}, errors.New("network not specified, missing --network or --testnet-fork-version")
 	}
 
 	var ops []cluster.Operator
@@ -768,7 +779,7 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 	threshold := safeThreshold(ctx, conf.NumNodes, conf.Threshold)
 
 	def, err := cluster.NewDefinition(conf.Name, conf.NumDVs, threshold, feeRecipientAddrs,
-		withdrawalAddrs, networkConfig.GenesisForkVersionHex, cluster.Creator{}, ops, rand.Reader)
+		withdrawalAddrs, forkVersion, cluster.Creator{}, ops, rand.Reader)
 	if err != nil {
 		return cluster.Definition{}, err
 	}
@@ -1040,14 +1051,18 @@ func builderRegistrationFromETH2(reg core.VersionedSignedValidatorRegistration) 
 	}, nil
 }
 
-// getNetworkConfig returns the required network configuration from cluster configuration.
-func getNetworkConfig(conf clusterConfig) (eth2util.Network, error) {
+// validateNetworkConfig returns an error if the network configuration is invalid in the given cluster configuration.
+func validateNetworkConfig(conf clusterConfig) error {
 	if conf.Network != "" {
 		if conf.Network == eth2util.Prater {
 			conf.Network = eth2util.Goerli.Name
 		}
 
-		return eth2util.NetworkFromString(conf.Network)
+		if eth2util.ValidNetwork(conf.Network) {
+			return nil
+		}
+
+		return errors.New("invalid network specified", z.Str("network", conf.Network))
 	}
 
 	// Check if custom testnet configuration is provided.
@@ -1058,8 +1073,8 @@ func getNetworkConfig(conf clusterConfig) (eth2util.Network, error) {
 		// Add testnet config to supported networks.
 		eth2util.AddTestNetwork(conf.testnetConfig)
 
-		return conf.testnetConfig, nil
+		return nil
 	}
 
-	return eth2util.Network{}, errors.New("missing --network flag or testnet config flags")
+	return errors.New("missing --network flag or testnet config flags")
 }

@@ -815,7 +815,6 @@ func aggDepositData(data map[core.PubKey][]core.ParSignedData, shares []share,
 		if !ok {
 			return nil, errors.New("deposit message not found")
 		}
-
 		sigRoot, err := deposit.GetMessageSigningRoot(msg, network)
 		if err != nil {
 			return nil, err

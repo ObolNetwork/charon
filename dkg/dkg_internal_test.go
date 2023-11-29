@@ -138,7 +138,6 @@ func TestValidSignatures(t *testing.T) {
 
 	msg, err := deposit.NewMessage(eth2Pubkey, withdrawalAddr)
 	require.NoError(t, err)
-
 	sigRoot, err := deposit.GetMessageSigningRoot(msg, network)
 	require.NoError(t, err)
 

@@ -68,6 +68,7 @@ var (
 	}
 )
 
+// AddTestNetwork adds given network to list of supported networks.
 func AddTestNetwork(network Network) {
 	addNetworkOnce.Do(func() {
 		supportedNetworks = append(supportedNetworks, network)
