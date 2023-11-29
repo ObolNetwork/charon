@@ -176,11 +176,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	}
 
-	eth2Cl, err := newETH2Client(ctx, conf, life, cluster, cluster.ForkVersion)
-	if err != nil {
-		return err
-	}
-
 	peers, err := manifest.ClusterPeers(cluster)
 	if err != nil {
 		return err
@@ -223,6 +218,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	initStartupMetrics(p2p.PeerName(tcpNode.ID()), int(cluster.Threshold), len(cluster.Operators), len(cluster.Validators), network)
+
+	eth2Cl, err := newETH2Client(ctx, conf, life, cluster, cluster.ForkVersion)
+	if err != nil {
+		return err
+	}
 
 	peerIDs, err := manifest.ClusterPeerIDs(cluster)
 	if err != nil {
