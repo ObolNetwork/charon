@@ -60,9 +60,13 @@ func LoadDAG(manifestFile, legacyLockFile string, lockCallback func(cluster.Lock
 	case errLegacy == nil:
 		// Legacy cluster lock loaded successfully
 		return dagLegacy, nil
+	case errors.Is(errLegacy, os.ErrNotExist) && errors.Is(errManifest, os.ErrNotExist):
+		return nil, errors.New("no file found", z.Str("lock-file", legacyLockFile), z.Str("manifest-file", manifestFile))
+	case !errors.Is(errLegacy, os.ErrNotExist):
+		// Return legacy lock error as it exists but failed to load.
+		return nil, errors.Wrap(errLegacy, "couldn't load cluster from legacy lock file")
 	default:
-		// None of the files were loaded successfully, so return an error
-		return nil, errors.New("couldn't load cluster dag from either manifest or legacy lock file", z.Err(errManifest), z.Err(errLegacy))
+		return nil, errors.Wrap(errManifest, "couldn't load cluster from manifest file")
 	}
 }
 
