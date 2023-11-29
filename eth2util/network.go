@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -61,18 +60,14 @@ var (
 	}
 )
 
-var (
-	addNetworkOnce    sync.Once
-	supportedNetworks = []Network{
-		Mainnet, Goerli, Gnosis, Sepolia, Holesky,
-	}
-)
+var supportedNetworks = []Network{
+	Mainnet, Goerli, Gnosis, Sepolia, Holesky,
+}
 
 // AddTestNetwork adds given network to list of supported networks.
+// Note: This function should only be called once.
 func AddTestNetwork(network Network) {
-	addNetworkOnce.Do(func() {
-		supportedNetworks = append(supportedNetworks, network)
-	})
+	supportedNetworks = append(supportedNetworks, network)
 }
 
 // ForkVersionToChainID returns the chainID corresponding to the provided fork version.
