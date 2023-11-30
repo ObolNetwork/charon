@@ -301,12 +301,12 @@ func RandomCapellaCoreVersionedSignedProposal() core.VersionedSignedProposal {
 	}
 }
 
-// RandomCapellaVersionedSignedBeaconBlock returns a random signed capella beacon block.
-func RandomCapellaVersionedSignedBeaconBlock() *eth2spec.VersionedSignedBeaconBlock {
+// RandomDenebVersionedSignedBeaconBlock returns a random signed deneb beacon block.
+func RandomDenebVersionedSignedBeaconBlock() *eth2spec.VersionedSignedBeaconBlock {
 	return &eth2spec.VersionedSignedBeaconBlock{
-		Version: eth2spec.DataVersionCapella,
-		Capella: &capella.SignedBeaconBlock{
-			Message:   RandomCapellaBeaconBlock(),
+		Version: eth2spec.DataVersionDeneb,
+		Deneb: &deneb.SignedBeaconBlock{
+			Message:   RandomDenebBeaconBlock(),
 			Signature: RandomEth2Signature(),
 		},
 	}
@@ -315,10 +315,14 @@ func RandomCapellaVersionedSignedBeaconBlock() *eth2spec.VersionedSignedBeaconBl
 // RandomVersionedSignedProposal returns a random versioned signed proposal containing capella beacon block.
 func RandomVersionedSignedProposal() *eth2api.VersionedSignedProposal {
 	return &eth2api.VersionedSignedProposal{
-		Version: eth2spec.DataVersionCapella,
-		Capella: &capella.SignedBeaconBlock{
-			Message:   RandomCapellaBeaconBlock(),
-			Signature: RandomEth2Signature(),
+		Version: eth2spec.DataVersionDeneb,
+		Deneb: &eth2deneb.SignedBlockContents{
+			SignedBlock: &deneb.SignedBeaconBlock{
+				Message:   RandomDenebBeaconBlock(),
+				Signature: RandomEth2Signature(),
+			},
+			KZGProofs: []deneb.KZGProof{},
+			Blobs:     []deneb.Blob{},
 		},
 	}
 }
@@ -326,8 +330,12 @@ func RandomVersionedSignedProposal() *eth2api.VersionedSignedProposal {
 // RandomVersionedProposal returns a random versioned proposal containing capella beacon block.
 func RandomVersionedProposal() *eth2api.VersionedProposal {
 	return &eth2api.VersionedProposal{
-		Version: eth2spec.DataVersionCapella,
-		Capella: RandomCapellaBeaconBlock(),
+		Version: eth2spec.DataVersionDeneb,
+		Deneb: &eth2deneb.BlockContents{
+			Block:     RandomDenebBeaconBlock(),
+			KZGProofs: []deneb.KZGProof{},
+			Blobs:     []deneb.Blob{},
+		},
 	}
 }
 

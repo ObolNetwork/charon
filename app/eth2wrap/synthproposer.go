@@ -200,6 +200,7 @@ func (h *synthWrapper) syntheticProposal(ctx context.Context, slot eth2p0.Slot, 
 		proposal.Capella.Body.ExecutionPayload.FeeRecipient = feeRecipient
 		proposal.Capella.Body.ExecutionPayload.Transactions = fraction(proposal.Capella.Body.ExecutionPayload.Transactions)
 	case eth2spec.DataVersionDeneb:
+		proposal.Deneb = &eth2deneb.BlockContents{}
 		proposal.Deneb.Block = signedBlock.Deneb.Message
 		proposal.Deneb.Block.Body.Graffiti = GetSyntheticGraffiti()
 		proposal.Deneb.Block.Slot = slot

@@ -14,8 +14,10 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/deneb"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/prysmaticlabs/go-bitfield"
@@ -477,28 +479,32 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		headProducer: headProducer,
 		ProposalFunc: func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error) {
 			block := &eth2api.VersionedProposal{
-				Version: eth2spec.DataVersionCapella,
-				Capella: testutil.RandomCapellaBeaconBlock(),
+				Version: eth2spec.DataVersionDeneb,
+				Deneb: &eth2deneb.BlockContents{
+					Block:     testutil.RandomDenebBeaconBlock(),
+					KZGProofs: []deneb.KZGProof{},
+					Blobs:     []deneb.Blob{},
+				},
 			}
-			block.Capella.Slot = opts.Slot
-			block.Capella.Body.RANDAOReveal = opts.RandaoReveal
-			block.Capella.Body.Graffiti = opts.Graffiti
+			block.Deneb.Block.Slot = opts.Slot
+			block.Deneb.Block.Body.RANDAOReveal = opts.RandaoReveal
+			block.Deneb.Block.Body.Graffiti = opts.Graffiti
 
 			return block, nil
 		},
 		BlindedProposalFunc: func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.VersionedBlindedProposal, error) {
 			block := &eth2api.VersionedBlindedProposal{
-				Version: eth2spec.DataVersionCapella,
-				Capella: testutil.RandomCapellaBlindedBeaconBlock(),
+				Version: eth2spec.DataVersionDeneb,
+				Deneb:   testutil.RandomDenebBlindedBeaconBlock(),
 			}
-			block.Capella.Slot = opts.Slot
-			block.Capella.Body.RANDAOReveal = opts.RandaoReveal
-			block.Capella.Body.Graffiti = opts.Graffiti
+			block.Deneb.Slot = opts.Slot
+			block.Deneb.Body.RANDAOReveal = opts.RandaoReveal
+			block.Deneb.Body.Graffiti = opts.Graffiti
 
 			return block, nil
 		},
 		SignedBeaconBlockFunc: func(_ context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error) {
-			return testutil.RandomCapellaVersionedSignedBeaconBlock(), nil // Note the slot is probably wrong.
+			return testutil.RandomDenebVersionedSignedBeaconBlock(), nil // Note the slot is probably wrong.
 		},
 		ProposerDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 			return []*eth2v1.ProposerDuty{}, nil
