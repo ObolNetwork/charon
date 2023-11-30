@@ -301,6 +301,22 @@ func RandomCapellaCoreVersionedSignedProposal() core.VersionedSignedProposal {
 	}
 }
 
+func RandomDenebCoreVersionedSignedProposal() core.VersionedSignedProposal {
+	return core.VersionedSignedProposal{
+		VersionedSignedProposal: eth2api.VersionedSignedProposal{
+			Version: eth2spec.DataVersionDeneb,
+			Deneb: &eth2deneb.SignedBlockContents{
+				SignedBlock: &deneb.SignedBeaconBlock{
+					Message:   RandomDenebBeaconBlock(),
+					Signature: RandomEth2Signature(),
+				},
+				KZGProofs: []deneb.KZGProof{},
+				Blobs:     []deneb.Blob{},
+			},
+		},
+	}
+}
+
 // RandomDenebVersionedSignedBeaconBlock returns a random signed deneb beacon block.
 func RandomDenebVersionedSignedBeaconBlock() *eth2spec.VersionedSignedBeaconBlock {
 	return &eth2spec.VersionedSignedBeaconBlock{
@@ -729,8 +745,8 @@ func RandomDenebExecutionPayload() *deneb.ExecutionPayload {
 		ExtraData:     RandomBytes32(),
 		BaseFeePerGas: baseFeePerGas,
 		BlockHash:     RandomArray32(),
-		Transactions:  nil,
-		Withdrawals:   nil,
+		Transactions:  []bellatrix.Transaction{},
+		Withdrawals:   []*capella.Withdrawal{},
 	}
 }
 

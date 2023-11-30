@@ -353,11 +353,12 @@ func TestRawRouter(t *testing.T) {
 
 	t.Run("submit capella ssz beacon block", func(t *testing.T) {
 		var done atomic.Bool
-		block := testutil.RandomVersionedSignedProposal()
+		coreBlock := testutil.RandomCapellaCoreVersionedSignedProposal()
+		proposal := &coreBlock.VersionedSignedProposal
 
 		handler := testHandler{
 			SubmitProposalFunc: func(ctx context.Context, actual *eth2api.VersionedSignedProposal) error {
-				require.Equal(t, block, actual)
+				require.Equal(t, proposal, actual)
 				done.Store(true)
 
 				return nil
@@ -365,11 +366,43 @@ func TestRawRouter(t *testing.T) {
 		}
 
 		callback := func(ctx context.Context, baseURL string) {
-			b, err := ssz.MarshalSSZ(block.Capella)
+			b, err := ssz.MarshalSSZ(proposal.Capella)
 			require.NoError(t, err)
 
 			req, err := http.NewRequestWithContext(ctx, http.MethodPost,
 				baseURL+"/eth/v1/beacon/blocks", bytes.NewReader(b))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/octet-stream")
+
+			resp, err := new(http.Client).Do(req)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+		}
+
+		testRawRouter(t, handler, callback)
+		require.True(t, done.Load())
+	})
+
+	t.Run("submit deneb ssz beacon block", func(t *testing.T) {
+		var done atomic.Bool
+		coreBlock := testutil.RandomDenebCoreVersionedSignedProposal()
+		proposal := &coreBlock.VersionedSignedProposal
+
+		handler := testHandler{
+			SubmitProposalFunc: func(ctx context.Context, actual *eth2api.VersionedSignedProposal) error {
+				require.Equal(t, proposal, actual)
+				done.Store(true)
+
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			b, err := ssz.MarshalSSZ(proposal.Deneb)
+			require.NoError(t, err)
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+				baseURL+"/eth/v2/beacon/blocks", bytes.NewReader(b))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/octet-stream")
 
