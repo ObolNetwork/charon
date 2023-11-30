@@ -1054,10 +1054,6 @@ func builderRegistrationFromETH2(reg core.VersionedSignedValidatorRegistration) 
 // validateNetworkConfig returns an error if the network configuration is invalid in the given cluster configuration.
 func validateNetworkConfig(conf clusterConfig) error {
 	if conf.Network != "" {
-		if conf.Network == eth2util.Prater {
-			conf.Network = eth2util.Goerli.Name
-		}
-
 		if eth2util.ValidNetwork(conf.Network) {
 			return nil
 		}
@@ -1066,10 +1062,7 @@ func validateNetworkConfig(conf clusterConfig) error {
 	}
 
 	// Check if custom testnet configuration is provided.
-	if conf.testnetConfig.Name != "" &&
-		conf.testnetConfig.ChainID != 0 &&
-		conf.testnetConfig.GenesisTimestamp != 0 &&
-		conf.testnetConfig.GenesisForkVersionHex != "" {
+	if conf.testnetConfig.IsNonZero() {
 		// Add testnet config to supported networks.
 		eth2util.AddTestNetwork(conf.testnetConfig)
 

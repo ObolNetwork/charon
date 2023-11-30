@@ -146,10 +146,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		life.RegisterStop(lifecycle.StopPrivkeyLock, lifecycle.HookFuncMin(lockSvc.Close))
 	}
 
-	if conf.TestnetConfig.Name != "" &&
-		conf.TestnetConfig.GenesisForkVersionHex != "" &&
-		conf.TestnetConfig.GenesisTimestamp != 0 &&
-		conf.TestnetConfig.ChainID != 0 {
+	if conf.TestnetConfig.IsNonZero() {
 		eth2util.AddTestNetwork(conf.TestnetConfig)
 	}
 

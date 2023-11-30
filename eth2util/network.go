@@ -25,6 +25,11 @@ type Network struct {
 	GenesisTimestamp int64
 }
 
+// IsNonZero checks if each field in this struct is not equal to its zero value.
+func (n *Network) IsNonZero() bool {
+	return n.Name != "" && n.ChainID != 0 && n.GenesisTimestamp != 0 && n.GenesisForkVersionHex != ""
+}
+
 // Pre-defined network configurations.
 var (
 	Mainnet = Network{
