@@ -170,6 +170,10 @@ Flags:
       --simnet-validator-keys-dir string   The directory containing the simnet validator key shares. (default ".charon/validator_keys")
       --simnet-validator-mock              Enables an internal mock validator client when running a simnet. Requires simnet-beacon-mock.
       --synthetic-block-proposals          Enables additional synthetic block proposal duties. Used for testing of rare duties.
+      --testnet-chain-id uint              Chain ID of the custom test network.
+      --testnet-fork-version string        Genesis fork version in hex of the custom test network.
+      --testnet-genesis-timestamp int      Genesis timestamp of the custom test network.
+      --testnet-name string                Name of the custom test network.
       --validator-api-address string       Listening address (ip and port) for validator-facing traffic proxying the beacon-node API. (default "127.0.0.1:3600")
 
 ````

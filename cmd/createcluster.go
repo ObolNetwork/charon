@@ -75,6 +75,8 @@ type clusterConfig struct {
 
 	PublishAddr string
 	Publish     bool
+
+	testnetConfig eth2util.Network
 }
 
 func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig) error) *cobra.Command {
@@ -112,6 +114,10 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-existing-keys.")
 	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech", "The URL to publish the lock file to.")
 	flags.BoolVar(&config.Publish, "publish", false, "Publish lock file to obol-api.")
+	flags.StringVar(&config.testnetConfig.Name, "testnet-name", "", "Name of the custom test network.")
+	flags.StringVar(&config.testnetConfig.GenesisForkVersionHex, "testnet-fork-version", "", "Genesis fork version of the custom test network (in hex).")
+	flags.Uint64Var(&config.testnetConfig.ChainID, "testnet-chain-id", 0, "Chain ID of the custom test network.")
+	flags.Int64Var(&config.testnetConfig.GenesisTimestamp, "testnet-genesis-timestamp", 0, "Genesis timestamp of the custom test network.")
 }
 
 func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
@@ -121,13 +127,13 @@ func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
 func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) error {
 	var err error
 
-	if err = validateCreateConfig(conf); err != nil {
-		return err
-	}
-
 	// Map prater to goerli to ensure backwards compatibility with older cluster definitions and cluster locks.
 	if conf.Network == eth2util.Prater {
 		conf.Network = eth2util.Goerli.Name
+	}
+
+	if err = validateCreateConfig(conf); err != nil {
+		return err
 	}
 
 	var secrets []tbls.PrivateKey
@@ -153,6 +159,18 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		if err != nil {
 			return err
 		}
+
+		// Validate the provided definition.
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		if err != nil {
+			return err
+		}
+
+		network, err := eth2util.ForkVersionToNetwork(def.ForkVersion)
+		if err != nil {
+			return err
+		}
+		conf.Network = network
 	} else { // Create new definition from cluster config
 		def, err = newDefFromConfig(ctx, conf)
 		if err != nil {
@@ -173,12 +191,6 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	numNodes := len(def.Operators)
-
-	// Validate definition
-	err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
-	if err != nil {
-		return err
-	}
 
 	// Generate threshold bls key shares
 	pubkeys, shareSets, err := getTSSShares(secrets, def.Threshold, numNodes)
@@ -294,8 +306,9 @@ func validateCreateConfig(conf clusterConfig) error {
 		return errors.New("missing --nodes flag")
 	}
 
-	if len(strings.TrimSpace(conf.Network)) == 0 {
-		return errors.New("missing --network flag")
+	// Check for valid network configuration.
+	if err := validateNetworkConfig(conf); err != nil {
+		return errors.Wrap(err, "get network config")
 	}
 
 	if err := detectNodeDirs(conf.ClusterDir, conf.NumNodes); err != nil {
@@ -747,9 +760,16 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 		return cluster.Definition{}, err
 	}
 
-	forkVersion, err := eth2util.NetworkToForkVersion(conf.Network)
-	if err != nil {
-		return cluster.Definition{}, err
+	var forkVersion string
+	if conf.Network != "" {
+		forkVersion, err = eth2util.NetworkToForkVersion(conf.Network)
+		if err != nil {
+			return cluster.Definition{}, err
+		}
+	} else if conf.testnetConfig.GenesisForkVersionHex != "" {
+		forkVersion = conf.testnetConfig.GenesisForkVersionHex
+	} else {
+		return cluster.Definition{}, errors.New("network not specified, missing --network or --testnet-fork-version")
 	}
 
 	var ops []cluster.Operator
@@ -1029,4 +1049,25 @@ func builderRegistrationFromETH2(reg core.VersionedSignedValidatorRegistration) 
 		},
 		Signature: reg.Signature(),
 	}, nil
+}
+
+// validateNetworkConfig returns an error if the network configuration is invalid in the given cluster configuration.
+func validateNetworkConfig(conf clusterConfig) error {
+	if conf.Network != "" {
+		if eth2util.ValidNetwork(conf.Network) {
+			return nil
+		}
+
+		return errors.New("invalid network specified", z.Str("network", conf.Network))
+	}
+
+	// Check if custom testnet configuration is provided.
+	if conf.testnetConfig.IsNonZero() {
+		// Add testnet config to supported networks.
+		eth2util.AddTestNetwork(conf.testnetConfig)
+
+		return nil
+	}
+
+	return errors.New("missing --network flag or testnet config flags")
 }

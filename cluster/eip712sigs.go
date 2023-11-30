@@ -80,7 +80,7 @@ func digestEIP712(typ eip712Type, def Definition, operator Operator) ([]byte, er
 		Domain: eip712.Domain{
 			Name:    "Obol",
 			Version: "1",
-			ChainID: uint64(chainID),
+			ChainID: chainID,
 		},
 		Type: eip712.Type{
 			Name: typ.PrimaryType,
