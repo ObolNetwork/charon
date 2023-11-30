@@ -160,12 +160,12 @@ func TestParSigExVerifier(t *testing.T) {
 
 	t.Run("Verify proposal", func(t *testing.T) {
 		proposal := testutil.RandomVersionedSignedProposal()
-		proposal.Capella.Message.Slot = slot
+		proposal.Deneb.SignedBlock.Message.Slot = slot
 		sigRoot, err := versionedSignedProposalRoot(t, proposal)
 		require.NoError(t, err)
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainBeaconProposer, epoch, sigRoot)
 		require.NoError(t, err)
-		proposal.Capella.Signature = sign(sigData[:])
+		proposal.Deneb.SignedBlock.Signature = sign(sigData[:])
 		data, err := core.NewPartialVersionedSignedProposal(proposal, shareIdx)
 		require.NoError(t, err)
 
@@ -173,13 +173,15 @@ func TestParSigExVerifier(t *testing.T) {
 	})
 
 	t.Run("Verify blinded proposal", func(t *testing.T) {
-		blindedBlock := testutil.RandomCapellaVersionedSignedBlindedProposal()
-		blindedBlock.Capella.Message.Slot = slot
+		blindedBlock := testutil.RandomDenebVersionedSignedBlindedProposal()
+		blindedBlock.Deneb.SignedBlindedBlock.Message.Slot = slot
 		sigRoot, err := blindedBlock.Root()
 		require.NoError(t, err)
+
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainBeaconProposer, epoch, sigRoot)
 		require.NoError(t, err)
-		blindedBlock.Capella.Signature = sign(sigData[:])
+
+		blindedBlock.Deneb.SignedBlindedBlock.Signature = sign(sigData[:])
 		data, err := core.NewPartialVersionedSignedBlindedProposal(&blindedBlock.VersionedSignedBlindedProposal, shareIdx)
 		require.NoError(t, err)
 

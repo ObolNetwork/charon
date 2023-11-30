@@ -456,6 +456,21 @@ func RandomCapellaVersionedSignedBlindedProposal() core.VersionedSignedBlindedPr
 	}
 }
 
+func RandomDenebVersionedSignedBlindedProposal() core.VersionedSignedBlindedProposal {
+	return core.VersionedSignedBlindedProposal{
+		VersionedSignedBlindedProposal: eth2api.VersionedSignedBlindedProposal{
+			Version: eth2spec.DataVersionDeneb,
+			Deneb: &eth2deneb.SignedBlindedBlockContents{
+				SignedBlindedBlock: &eth2deneb.SignedBlindedBeaconBlock{
+					Message:   RandomDenebBlindedBeaconBlock(),
+					Signature: RandomEth2Signature(),
+				},
+				SignedBlindedBlobSidecars: []*eth2deneb.SignedBlindedBlobSidecar{},
+			},
+		},
+	}
+}
+
 func RandomDenebBeaconBlock() *deneb.BeaconBlock {
 	return &deneb.BeaconBlock{
 		Slot:          RandomSlot(),

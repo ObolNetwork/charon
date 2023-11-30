@@ -48,12 +48,20 @@ func TestParSignedDataSetProto(t *testing.T) {
 			Data: testutil.RandomCapellaCoreVersionedSignedProposal(),
 		},
 		{
+			Type: core.DutyProposer,
+			Data: testutil.RandomDenebCoreVersionedSignedProposal(),
+		},
+		{
 			Type: core.DutyBuilderProposer,
 			Data: testutil.RandomBellatrixVersionedSignedBlindedProposal(),
 		},
 		{
 			Type: core.DutyBuilderProposer,
 			Data: testutil.RandomCapellaVersionedSignedBlindedProposal(),
+		},
+		{
+			Type: core.DutyBuilderProposer,
+			Data: testutil.RandomDenebVersionedSignedBlindedProposal(),
 		},
 		{
 			Type: core.DutyBuilderRegistration,
