@@ -396,6 +396,8 @@ func verifyFeeRecipient(ctx context.Context, proposal *eth2api.VersionedProposal
 		actualAddr = fmt.Sprintf("%#x", proposal.Bellatrix.Body.ExecutionPayload.FeeRecipient)
 	case eth2spec.DataVersionCapella:
 		actualAddr = fmt.Sprintf("%#x", proposal.Capella.Body.ExecutionPayload.FeeRecipient)
+	case eth2spec.DataVersionDeneb:
+		actualAddr = fmt.Sprintf("%#x", proposal.Deneb.Block.Body.ExecutionPayload.FeeRecipient)
 	default:
 		return
 	}
@@ -416,6 +418,8 @@ func verifyFeeRecipientBlinded(ctx context.Context, proposal *eth2api.VersionedB
 		actualAddr = fmt.Sprintf("%#x", proposal.Bellatrix.Body.ExecutionPayloadHeader.FeeRecipient)
 	case eth2spec.DataVersionCapella:
 		actualAddr = fmt.Sprintf("%#x", proposal.Capella.Body.ExecutionPayloadHeader.FeeRecipient)
+	case eth2spec.DataVersionDeneb:
+		actualAddr = fmt.Sprintf("%#x", proposal.Deneb.Body.ExecutionPayloadHeader.FeeRecipient)
 	default:
 		return
 	}

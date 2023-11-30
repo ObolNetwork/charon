@@ -13,6 +13,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
+	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -942,6 +943,22 @@ func TestComponent_SubmitBlindedProposalInvalidBlock(t *testing.T) {
 				},
 			},
 			errMsg: "no signature found",
+		},
+		{
+			name: "no deneb sig",
+			block: &eth2api.VersionedSignedBlindedProposal{
+				Version: eth2spec.DataVersionDeneb,
+				Deneb: &eth2deneb.SignedBlindedBlockContents{
+					SignedBlindedBlock: &eth2deneb.SignedBlindedBeaconBlock{
+						Message: &eth2deneb.BlindedBeaconBlock{
+							Slot: eth2p0.Slot(123),
+							Body: testutil.RandomDenebBlindedBeaconBlockBody(),
+						},
+						Signature: eth2p0.BLSSignature{},
+					},
+					SignedBlindedBlobSidecars: nil,
+				},
+			},
 		},
 	}
 
