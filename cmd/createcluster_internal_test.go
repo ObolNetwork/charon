@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
@@ -205,6 +206,21 @@ func TestCreateCluster(t *testing.T) {
 				config.WithdrawalAddrs = []string{testutil.RandomChecksummedETHAddress(t, 2)}
 
 				return config
+			},
+		},
+		{
+			Name: "custom testnet flags",
+			Config: clusterConfig{
+				Name:      "testnet",
+				NumNodes:  4,
+				Threshold: 3,
+				NumDVs:    3,
+				testnetConfig: eth2util.Network{
+					ChainID:               243,
+					Name:                  "obolnetwork",
+					GenesisForkVersionHex: "0x00000101",
+					GenesisTimestamp:      time.Now().Unix(),
+				},
 			},
 		},
 	}

@@ -6,9 +6,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 const Prater = "prater"
@@ -16,7 +18,7 @@ const Prater = "prater"
 // Network contains information about an Ethereum network.
 type Network struct {
 	// ChainID represents chainID of the network.
-	ChainID int64
+	ChainID uint64
 	// Name represents name of the network.
 	Name string
 	// GenesisForkVersionHex represents fork version of the network in hex.
@@ -25,6 +27,12 @@ type Network struct {
 	GenesisTimestamp int64
 }
 
+// IsNonZero checks if each field in this struct is not equal to its zero value.
+func (n Network) IsNonZero() bool {
+	return n.Name != "" && n.ChainID != 0 && n.GenesisTimestamp != 0 && n.GenesisForkVersionHex != ""
+}
+
+// Pre-defined network configurations.
 var (
 	Mainnet = Network{
 		ChainID:               1,
@@ -59,41 +67,77 @@ var (
 	}
 )
 
-var supportedNetworks = []Network{
-	Mainnet, Goerli, Gnosis, Sepolia, Holesky,
+var (
+	networksMu        sync.Mutex
+	supportedNetworks = []Network{
+		Mainnet, Goerli, Gnosis, Sepolia, Holesky,
+	}
+)
+
+// AddTestNetwork adds given network to list of supported networks.
+func AddTestNetwork(network Network) {
+	networksMu.Lock()
+	defer networksMu.Unlock()
+
+	supportedNetworks = append(supportedNetworks, network)
 }
 
-// ForkVersionToChainID returns the chainID corresponding to the provided fork version.
-func ForkVersionToChainID(forkVersion []byte) (int64, error) {
+// networkFromName returns network from the given network name from list of supported networks.
+func networkFromName(name string) (Network, error) {
+	networksMu.Lock()
+	defer networksMu.Unlock()
+
 	for _, network := range supportedNetworks {
-		if fmt.Sprintf("%#x", forkVersion) == network.GenesisForkVersionHex {
-			return network.ChainID, nil
+		if name == network.Name {
+			return network, nil
 		}
 	}
 
-	return 0, errors.New("invalid fork version")
+	return Network{}, errors.New("invalid network name", z.Str("network", name))
+}
+
+// networkFromForkVersion returns network from the given fork version from the list of supported networks.
+func networkFromForkVersion(forkVersion string) (Network, error) {
+	networksMu.Lock()
+	defer networksMu.Unlock()
+
+	for _, network := range supportedNetworks {
+		if forkVersion == network.GenesisForkVersionHex {
+			return network, nil
+		}
+	}
+
+	return Network{}, errors.New("invalid fork version", z.Str("fork_version", forkVersion))
+}
+
+// ForkVersionToChainID returns the chainID corresponding to the provided fork version.
+func ForkVersionToChainID(forkVersion []byte) (uint64, error) {
+	network, err := networkFromForkVersion(fmt.Sprintf("%#x", forkVersion))
+	if err != nil {
+		return 0, err
+	}
+
+	return network.ChainID, nil
 }
 
 // ForkVersionToNetwork returns the network name corresponding to the provided fork version.
 func ForkVersionToNetwork(forkVersion []byte) (string, error) {
-	for _, network := range supportedNetworks {
-		if fmt.Sprintf("%#x", forkVersion) == network.GenesisForkVersionHex {
-			return network.Name, nil
-		}
+	network, err := networkFromForkVersion(fmt.Sprintf("%#x", forkVersion))
+	if err != nil {
+		return "", err
 	}
 
-	return "", errors.New("invalid fork version")
+	return network.Name, nil
 }
 
 // NetworkToForkVersion returns the fork version in hex (0x prefixed) corresponding to the network name.
 func NetworkToForkVersion(name string) (string, error) {
-	for _, network := range supportedNetworks {
-		if name == network.Name {
-			return network.GenesisForkVersionHex, nil
-		}
+	network, err := networkFromName(name)
+	if err != nil {
+		return "", err
 	}
 
-	return "", errors.New("invalid network name")
+	return network.GenesisForkVersionHex, nil
 }
 
 // NetworkToForkVersionBytes returns the fork version bytes corresponding to the network name.
@@ -113,31 +157,24 @@ func NetworkToForkVersionBytes(name string) ([]byte, error) {
 
 // ValidNetwork returns true if the provided network name is a valid one.
 func ValidNetwork(name string) bool {
-	for _, network := range supportedNetworks {
-		if name == network.Name {
-			return true
-		}
-	}
-
-	return false
+	_, err := networkFromName(name)
+	return err == nil
 }
 
 func NetworkToGenesisTime(name string) (time.Time, error) {
-	for _, network := range supportedNetworks {
-		if name == network.Name {
-			return time.Unix(network.GenesisTimestamp, 0), nil
-		}
+	network, err := networkFromName(name)
+	if err != nil {
+		return time.Time{}, err
 	}
 
-	return time.Time{}, errors.New("invalid network name")
+	return time.Unix(network.GenesisTimestamp, 0), nil
 }
 
 func ForkVersionToGenesisTime(forkVersion []byte) (time.Time, error) {
-	for _, network := range supportedNetworks {
-		if fmt.Sprintf("%#x", forkVersion) == network.GenesisForkVersionHex {
-			return time.Unix(network.GenesisTimestamp, 0), nil
-		}
+	network, err := networkFromForkVersion(fmt.Sprintf("%#x", forkVersion))
+	if err != nil {
+		return time.Time{}, err
 	}
 
-	return time.Time{}, errors.New("invalid network name")
+	return time.Unix(network.GenesisTimestamp, 0), nil
 }

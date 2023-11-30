@@ -87,6 +87,7 @@ type Config struct {
 	SyntheticBlockProposals bool
 	BuilderAPI              bool
 	SimnetBMockFuzz         bool
+	TestnetConfig           eth2util.Network
 
 	TestConfig TestConfig
 }
@@ -143,6 +144,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPrivkeyLock, lifecycle.HookFuncErr(lockSvc.Run))
 		life.RegisterStop(lifecycle.StopPrivkeyLock, lifecycle.HookFuncMin(lockSvc.Close))
+	}
+
+	if conf.TestnetConfig.IsNonZero() {
+		eth2util.AddTestNetwork(conf.TestnetConfig)
 	}
 
 	if err := wireTracing(life, conf); err != nil {

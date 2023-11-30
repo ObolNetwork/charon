@@ -18,7 +18,7 @@ func TestCreatorHash(t *testing.T) {
 		Domain: eip712.Domain{
 			Name:    "Obol",
 			Version: "1",
-			ChainID: uint64(eth2util.Sepolia.ChainID),
+			ChainID: eth2util.Sepolia.ChainID,
 		},
 		Type: eip712.Type{
 			Name: "CreatorConfigHash",
