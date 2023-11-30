@@ -752,7 +752,6 @@ func RandomDenebExecutionPayload() *deneb.ExecutionPayload {
 
 	return &deneb.ExecutionPayload{
 		ParentHash:    RandomArray32(),
-		FeeRecipient:  RandomExecutionAddress(),
 		StateRoot:     RandomArray32(),
 		ReceiptsRoot:  RandomArray32(),
 		LogsBloom:     [256]byte{},
@@ -772,7 +771,6 @@ func RandomDenebExecutionPayloadHeader() *deneb.ExecutionPayloadHeader {
 
 	return &deneb.ExecutionPayloadHeader{
 		ParentHash:       RandomArray32(),
-		FeeRecipient:     RandomExecutionAddress(),
 		StateRoot:        RandomArray32(),
 		ReceiptsRoot:     RandomArray32(),
 		PrevRandao:       RandomArray32(),
