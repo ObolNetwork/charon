@@ -28,8 +28,6 @@ import (
 func TestInfoSync(t *testing.T) {
 	skipIfDisabled(t)
 
-	featureset.EnableForT(t, featureset.Priority)
-
 	ctx, cancel := context.WithCancel(context.Background())
 
 	const n = 3
