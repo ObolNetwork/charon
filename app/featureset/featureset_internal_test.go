@@ -11,7 +11,8 @@ import (
 func TestAllFeatureStatus(t *testing.T) {
 	// Add all features to this test
 	features := []Feature{
-		QBFTConsensus,
+		MockAlpha,
+		QBFTTimersABTest,
 	}
 
 	for _, feature := range features {

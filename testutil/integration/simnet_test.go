@@ -92,7 +92,7 @@ func TestSimnetDuties(t *testing.T) {
 		{
 			name:          "builder proposer with teku",
 			scheduledType: core.DutyProposer,
-			duties:        []core.DutyType{core.DutyBuilderProposer, core.DutyRandao},
+			duties:        []core.DutyType{core.DutyBuilderProposer, core.DutyRandao, core.DutyBuilderRegistration},
 			builderAPI:    true,
 			vcType:        vcTeku,
 		},
@@ -169,10 +169,6 @@ func TestSimnetDuties(t *testing.T) {
 			} else {
 				// Enable for all epochs
 				args.BMockOpts = append(args.BMockOpts, beaconmock.WithDeterministicSyncCommDuties(2, 2))
-			}
-
-			if !test.pregenRegistration {
-				featureset.DisableForT(t, featureset.PreGenRegistrations)
 			}
 
 			expect := newSimnetExpect(args.N, test.duties...)
