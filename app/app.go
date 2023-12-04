@@ -534,10 +534,6 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 	sched core.Scheduler, p2pKey *k1.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
 	mutableConf *mutableConfig,
 ) error {
-	if !featureset.Enabled(featureset.Priority) {
-		return nil
-	}
-
 	cons, ok := coreCons.(*consensus.Component)
 	if !ok {
 		// Priority protocol not supported for leader cast.
@@ -612,7 +608,7 @@ func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Schedu
 		recaster.Subscribe(callback)
 	}
 
-	if !builderAPI || !featureset.Enabled(featureset.PreGenRegistrations) {
+	if !builderAPI {
 		return nil
 	}
 
