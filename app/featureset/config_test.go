@@ -31,7 +31,7 @@ func TestConfig(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.True(t, featureset.Enabled(featureset.QBFTConsensus))
+	require.True(t, featureset.Enabled(featureset.MockAlpha))
 }
 
 func TestEnableForT(t *testing.T) {
@@ -45,10 +45,4 @@ func TestEnableForT(t *testing.T) {
 
 	featureset.DisableForT(t, testFeature)
 	require.False(t, featureset.Enabled(testFeature))
-}
-
-func TestQBFT(t *testing.T) {
-	setup(t)
-
-	require.True(t, featureset.Enabled(featureset.QBFTConsensus))
 }
