@@ -1230,12 +1230,6 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 }
 
 func TestGetExecutionOptimisticFromMetadata(t *testing.T) {
-	t.Run("metadata is nil", func(t *testing.T) {
-		_, err := getExecutionOptimisticFromMetadata(nil)
-
-		require.ErrorContains(t, err, "metadata is nil")
-	})
-
 	t.Run("missing execution_optimistic", func(t *testing.T) {
 		metadata := map[string]any{}
 
@@ -1267,12 +1261,6 @@ func TestGetExecutionOptimisticFromMetadata(t *testing.T) {
 }
 
 func TestGetDependentRootFromMetadata(t *testing.T) {
-	t.Run("metadata is nil", func(t *testing.T) {
-		_, err := getDependentRootFromMetadata(nil)
-
-		require.ErrorContains(t, err, "metadata is nil")
-	})
-
 	t.Run("missing dependent_root", func(t *testing.T) {
 		metadata := map[string]any{}
 

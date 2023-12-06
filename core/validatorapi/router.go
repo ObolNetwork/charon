@@ -1323,9 +1323,10 @@ func getCtxDuration(ctx context.Context) z.Field {
 
 // getExecutionOptimisticFromMetadata returns execution_optimistic value from metadata,
 // or error if it is missing or has a wrong type.
+// Default value `false` is returned in case metadata is nil.
 func getExecutionOptimisticFromMetadata(metadata map[string]any) (bool, error) {
 	if metadata == nil {
-		return false, errors.New("metadata is nil")
+		return false, nil
 	}
 
 	if v, has := metadata["execution_optimistic"]; has {
@@ -1341,9 +1342,10 @@ func getExecutionOptimisticFromMetadata(metadata map[string]any) (bool, error) {
 
 // getDependentRootFromMetadata returns dependent_root value from metadata,
 // or error if it is missing, has a wrong type or a malformed value.
+// Default value `0x00..` is returned in case metadata is nil.
 func getDependentRootFromMetadata(metadata map[string]any) (root, error) {
 	if metadata == nil {
-		return root{}, errors.New("metadata is nil")
+		return root{}, nil
 	}
 
 	if v, has := metadata["dependent_root"]; has {

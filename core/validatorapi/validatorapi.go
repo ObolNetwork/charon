@@ -931,7 +931,7 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 		duties[i].PubKey = pubshare
 	}
 
-	return wrapResponse(duties), nil
+	return wrapResponseWithMetadata(duties, eth2Resp.Metadata), nil
 }
 
 func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {
@@ -954,7 +954,7 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 		duties[i].PubKey = pubshare
 	}
 
-	return wrapResponse(duties), nil
+	return wrapResponseWithMetadata(duties, eth2Resp.Metadata), nil
 }
 
 // SyncCommitteeDuties obtains sync committee duties. If validatorIndices is nil it will return all duties for the given epoch.
