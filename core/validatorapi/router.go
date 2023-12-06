@@ -7,7 +7,6 @@ package validatorapi
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -1224,14 +1223,6 @@ func (w proxyResponseWriter) WriteHeader(statusCode int) {
 
 	incAPIErrors("proxy", statusCode)
 	w.writeFlusher.WriteHeader(statusCode)
-}
-
-// stubRoot return a stub dependent root for an epoch.
-func stubRoot(epoch uint64) root {
-	var r eth2p0.Root
-	binary.PutUvarint(r[:], epoch)
-
-	return root(r)
 }
 
 // getValidatorIDs returns validator IDs as "id" query parameters (supporting csv values).
