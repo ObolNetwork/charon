@@ -25,6 +25,7 @@ package beaconmock
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"net/http"
 	"time"
@@ -169,7 +170,7 @@ func (m Mock) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOp
 		return nil, err
 	}
 
-	return wrapResponse(duties), nil
+	return wrapResponseWithMetadata(duties, opts.Epoch), nil
 }
 
 func (m Mock) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
@@ -222,7 +223,7 @@ func (m Mock) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDutiesOp
 		return nil, err
 	}
 
-	return wrapResponse(duties), nil
+	return wrapResponseWithMetadata(duties, opts.Epoch), nil
 }
 
 func (m Mock) SignedBeaconBlock(ctx context.Context, opts *eth2api.SignedBeaconBlockOpts) (*eth2api.Response[*eth2spec.VersionedSignedBeaconBlock], error) {
@@ -359,4 +360,18 @@ func (m Mock) Close() error {
 // wrapResponse wraps the provided data into an API Response and returns the response.
 func wrapResponse[T any](data T) *eth2api.Response[T] {
 	return &eth2api.Response[T]{Data: data}
+}
+
+// wrapResponseWithMetadata wraps the provided data, adds metadata into an API Response and returns the response.
+func wrapResponseWithMetadata[T any](data T, epoch eth2p0.Epoch) *eth2api.Response[T] {
+	var dependentRoot eth2p0.Root
+	binary.PutUvarint(dependentRoot[:], uint64(epoch))
+
+	return &eth2api.Response[T]{
+		Data: data,
+		Metadata: map[string]any{
+			"execution_optimistic": false,
+			"dependent_root":       dependentRoot.String(),
+		},
+	}
 }
