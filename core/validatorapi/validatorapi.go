@@ -1204,3 +1204,8 @@ func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigR
 func wrapResponse[T any](data T) *eth2api.Response[T] {
 	return &eth2api.Response[T]{Data: data}
 }
+
+// wrapResponseWithMetadata wraps the provided data and metadata into an API Response and returns the response.
+func wrapResponseWithMetadata[T any](data T, metadata map[string]any) *eth2api.Response[T] {
+	return &eth2api.Response[T]{Data: data, Metadata: metadata}
+}
