@@ -7,7 +7,6 @@ package validatorapi
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -429,9 +428,19 @@ func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
 			data = []*eth2v1.ProposerDuty{}
 		}
 
+		executionOptimistic, err := getExecutionOptimisticFromMetadata(eth2Resp.Metadata)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to decode ProposerDuties response metadata")
+		}
+
+		dependentRoot, err := getDependentRootFromMetadata(eth2Resp.Metadata)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to decode ProposerDuties response metadata")
+		}
+
 		return proposerDutiesResponse{
-			ExecutionOptimistic: false,           // TODO(dhruv): Fill this properly
-			DependentRoot:       stubRoot(epoch), // TODO(corver): Fill this properly
+			ExecutionOptimistic: executionOptimistic,
+			DependentRoot:       dependentRoot,
 			Data:                data,
 		}, nil, nil
 	}
@@ -464,9 +473,19 @@ func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 			data = []*eth2v1.AttesterDuty{}
 		}
 
+		executionOptimistic, err := getExecutionOptimisticFromMetadata(eth2Resp.Metadata)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to decode AttesterDuties response metadata")
+		}
+
+		dependentRoot, err := getDependentRootFromMetadata(eth2Resp.Metadata)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to decode AttesterDuties response metadata")
+		}
+
 		return attesterDutiesResponse{
-			ExecutionOptimistic: false,           // TODO(dhruv): Fill this properly
-			DependentRoot:       stubRoot(epoch), // TODO(corver): Fill this properly
+			ExecutionOptimistic: executionOptimistic,
+			DependentRoot:       dependentRoot,
 			Data:                data,
 		}, nil, nil
 	}
@@ -1206,14 +1225,6 @@ func (w proxyResponseWriter) WriteHeader(statusCode int) {
 	w.writeFlusher.WriteHeader(statusCode)
 }
 
-// stubRoot return a stub dependent root for an epoch.
-func stubRoot(epoch uint64) root {
-	var r eth2p0.Root
-	binary.PutUvarint(r[:], epoch)
-
-	return root(r)
-}
-
 // getValidatorIDs returns validator IDs as "id" query parameters (supporting csv values).
 func getValidatorIDs(query url.Values) []string {
 	var resp []string
@@ -1308,4 +1319,50 @@ func getCtxDuration(ctx context.Context) z.Field {
 	}
 
 	return z.Str("duration", time.Since(t0).String())
+}
+
+// getExecutionOptimisticFromMetadata returns execution_optimistic value from metadata,
+// or error if it is missing or has a wrong type.
+// Default value `false` is returned in case metadata is nil.
+func getExecutionOptimisticFromMetadata(metadata map[string]any) (bool, error) {
+	if metadata == nil {
+		return false, nil
+	}
+
+	if v, has := metadata["execution_optimistic"]; has {
+		if b, ok := v.(bool); ok {
+			return b, nil
+		}
+
+		return false, errors.New("metadata has malformed execution_optimistic value", z.Any("execution_optimistic", v))
+	}
+
+	return false, errors.New("metadata has missing execution_optimistic value")
+}
+
+// getDependentRootFromMetadata returns dependent_root value from metadata,
+// or error if it is missing, has a wrong type or a malformed value.
+// Default value `0x00..` is returned in case metadata is nil.
+func getDependentRootFromMetadata(metadata map[string]any) (root, error) {
+	if metadata == nil {
+		return root{}, nil
+	}
+
+	if v, has := metadata["dependent_root"]; has {
+		if s, ok := v.(string); ok {
+			bytes, err := hex.DecodeString(strings.TrimPrefix(s, "0x"))
+			if err == nil {
+				var dependentRoot root
+				copy(dependentRoot[:], bytes)
+
+				return dependentRoot, nil
+			}
+
+			return root{}, errors.Wrap(err, "metadata has malformed dependent_root value", z.Str("dependent_root", s))
+		}
+
+		return root{}, errors.New("metadata has non-string dependent_root value", z.Any("dependent_root", v))
+	}
+
+	return root{}, errors.New("metadata has missing dependent_root value")
 }

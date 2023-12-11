@@ -169,7 +169,7 @@ func (m Mock) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOp
 		return nil, err
 	}
 
-	return wrapResponse(duties), nil
+	return wrapResponseWithMetadata(duties), nil
 }
 
 func (m Mock) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
@@ -222,7 +222,7 @@ func (m Mock) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDutiesOp
 		return nil, err
 	}
 
-	return wrapResponse(duties), nil
+	return wrapResponseWithMetadata(duties), nil
 }
 
 func (m Mock) SignedBeaconBlock(ctx context.Context, opts *eth2api.SignedBeaconBlockOpts) (*eth2api.Response[*eth2spec.VersionedSignedBeaconBlock], error) {
@@ -359,4 +359,15 @@ func (m Mock) Close() error {
 // wrapResponse wraps the provided data into an API Response and returns the response.
 func wrapResponse[T any](data T) *eth2api.Response[T] {
 	return &eth2api.Response[T]{Data: data}
+}
+
+// wrapResponseWithMetadata wraps the provided data, adds metadata into an API Response and returns the response.
+func wrapResponseWithMetadata[T any](data T) *eth2api.Response[T] {
+	return &eth2api.Response[T]{
+		Data: data,
+		Metadata: map[string]any{
+			"execution_optimistic": false,
+			"dependent_root":       eth2p0.Root{}.String(),
+		},
+	}
 }
