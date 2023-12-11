@@ -931,7 +931,7 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 		duties[i].PubKey = pubshare
 	}
 
-	return wrapResponse(duties), nil
+	return wrapResponseWithMetadata(duties, eth2Resp.Metadata), nil
 }
 
 func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {
@@ -954,7 +954,7 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 		duties[i].PubKey = pubshare
 	}
 
-	return wrapResponse(duties), nil
+	return wrapResponseWithMetadata(duties, eth2Resp.Metadata), nil
 }
 
 // SyncCommitteeDuties obtains sync committee duties. If validatorIndices is nil it will return all duties for the given epoch.
@@ -1203,4 +1203,9 @@ func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigR
 // wrapResponse wraps the provided data into an API Response and returns the response.
 func wrapResponse[T any](data T) *eth2api.Response[T] {
 	return &eth2api.Response[T]{Data: data}
+}
+
+// wrapResponseWithMetadata wraps the provided data and metadata into an API Response and returns the response.
+func wrapResponseWithMetadata[T any](data T, metadata map[string]any) *eth2api.Response[T] {
+	return &eth2api.Response[T]{Data: data, Metadata: metadata}
 }
