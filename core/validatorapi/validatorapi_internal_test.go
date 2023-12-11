@@ -73,3 +73,23 @@ func TestMismatchKeysFunc(t *testing.T) {
 		require.ErrorContains(t, err, "unknown public key")
 	})
 }
+
+func TestWrapResponse(t *testing.T) {
+	resp := wrapResponse(123)
+
+	require.NotNil(t, resp)
+	require.Equal(t, 123, resp.Data)
+	require.Nil(t, resp.Metadata)
+}
+
+func TestWrapResponseWithMetadata(t *testing.T) {
+	metadata := map[string]any{
+		"foo": 123,
+	}
+
+	resp := wrapResponseWithMetadata(123, metadata)
+
+	require.NotNil(t, resp)
+	require.Equal(t, 123, resp.Data)
+	require.Equal(t, metadata, resp.Metadata)
+}
