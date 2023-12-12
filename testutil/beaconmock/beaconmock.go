@@ -367,7 +367,7 @@ func wrapResponseWithMetadata[T any](data T) *eth2api.Response[T] {
 		Data: data,
 		Metadata: map[string]any{
 			"execution_optimistic": false,
-			"dependent_root":       eth2p0.Root{}.String(),
+			"dependent_root":       eth2p0.Root{},
 		},
 	}
 }
