@@ -5,6 +5,7 @@ package validatorapi
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -484,9 +485,12 @@ func TestRawRouter(t *testing.T) {
 
 //nolint:maintidx // This function is a test of tests, so analysed as "complex".
 func TestRouter(t *testing.T) {
+	var dependentRoot eth2p0.Root
+	_, _ = rand.Read(dependentRoot[:])
+
 	metadata := map[string]any{
 		"execution_optimistic": true,
-		"dependent_root":       "0xc01a8003a974cea31fd9e91c7d2cec8120ea3cc71edcbb836b6fbede6c289a69",
+		"dependent_root":       dependentRoot,
 	}
 
 	t.Run("attesterduty", func(t *testing.T) {
@@ -530,7 +534,7 @@ func TestRouter(t *testing.T) {
 			metadata := resp.Metadata
 			require.Len(t, metadata, 2)
 			require.Equal(t, true, metadata["execution_optimistic"])
-			require.Equal(t, "0xc01a8003a974cea31fd9e91c7d2cec8120ea3cc71edcbb836b6fbede6c289a69", metadata["dependent_root"].(eth2p0.Root).String())
+			require.Equal(t, dependentRoot, metadata["dependent_root"].(eth2p0.Root))
 		}
 
 		testRouter(t, handler, callback)
@@ -573,7 +577,7 @@ func TestRouter(t *testing.T) {
 			metadata := resp.Metadata
 			require.Len(t, metadata, 2)
 			require.Equal(t, true, metadata["execution_optimistic"])
-			require.Equal(t, "0xc01a8003a974cea31fd9e91c7d2cec8120ea3cc71edcbb836b6fbede6c289a69", metadata["dependent_root"].(eth2p0.Root).String())
+			require.Equal(t, dependentRoot, metadata["dependent_root"].(eth2p0.Root))
 		}
 
 		testRouter(t, handler, callback)
@@ -1304,33 +1308,26 @@ func TestGetDependentRootFromMetadata(t *testing.T) {
 
 	t.Run("wrong type", func(t *testing.T) {
 		metadata := map[string]any{
-			"dependent_root": 123, // not a string
+			"dependent_root": 123,
 		}
 
 		_, err := getDependentRootFromMetadata(metadata)
 
-		require.ErrorContains(t, err, "metadata has non-string dependent_root value")
-	})
-
-	t.Run("malformed value", func(t *testing.T) {
-		metadata := map[string]any{
-			"dependent_root": "not-a-hex",
-		}
-
-		_, err := getDependentRootFromMetadata(metadata)
-
-		require.ErrorContains(t, err, "metadata has malformed dependent_root value")
+		require.ErrorContains(t, err, "metadata has wrong dependent_root type")
 	})
 
 	t.Run("valid value", func(t *testing.T) {
+		var r eth2p0.Root
+		_, _ = rand.Read(r[:])
+
 		metadata := map[string]any{
-			"dependent_root": "0xc01a8003a974cea31fd9e91c7d2cec8120ea3cc71edcbb836b6fbede6c289a69",
+			"dependent_root": r,
 		}
 
 		dependentRoot, err := getDependentRootFromMetadata(metadata)
 
 		require.NoError(t, err)
-		require.Equal(t, "0xc01a8003a974cea31fd9e91c7d2cec8120ea3cc71edcbb836b6fbede6c289a69", eth2p0.Root(dependentRoot).String())
+		require.Equal(t, r, eth2p0.Root(dependentRoot))
 	})
 }
 

@@ -1372,19 +1372,11 @@ func getDependentRootFromMetadata(metadata map[string]any) (root, error) {
 	}
 
 	if v, has := metadata["dependent_root"]; has {
-		if s, ok := v.(string); ok {
-			bytes, err := hex.DecodeString(strings.TrimPrefix(s, "0x"))
-			if err == nil {
-				var dependentRoot root
-				copy(dependentRoot[:], bytes)
-
-				return dependentRoot, nil
-			}
-
-			return root{}, errors.Wrap(err, "metadata has malformed dependent_root value", z.Str("dependent_root", s))
+		if r, ok := v.(eth2p0.Root); ok {
+			return root(r), nil
 		}
 
-		return root{}, errors.New("metadata has non-string dependent_root value", z.Any("dependent_root", v))
+		return root{}, errors.New("metadata has wrong dependent_root type", z.Any("dependent_root", v))
 	}
 
 	return root{}, errors.New("metadata has missing dependent_root value")
