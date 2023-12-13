@@ -28,7 +28,7 @@ A distributed key generation ceremony involves `Operators` and their `Charon cli
 
 This cluster-definition file is created with the help of the [Distributed Validator Launchpad](https://docs.obol.tech/docs/dvk/distributed_validator_launchpad). The creation process involves a number of steps.
 
-- A `leader` Operator, that wishes to co-ordinate the creation of a new Distributed Validator Cluster navigates to the launch pad and selects "Create new Cluster"
+- A `leader` Operator, that wishes to coordinate the creation of a new Distributed Validator Cluster navigates to the launch pad and selects "Create new Cluster"
 - The `leader` uses the user interface to configure all of the important details about the cluster including:
   - The `withdrawal address` for the created validators
   - The `feeRecipient` for block proposals if it differs from the withdrawal address
