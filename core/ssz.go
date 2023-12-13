@@ -273,7 +273,7 @@ func (p *VersionedSignedBlindedProposal) sszValFromVersion(version eth2util.Data
 		return p.Capella, nil
 	case eth2util.DataVersionDeneb:
 		if p.Deneb == nil {
-			p.Deneb = new(eth2deneb.SignedBlindedBlockContents)
+			p.Deneb = new(eth2deneb.SignedBlindedBeaconBlock)
 		}
 
 		return p.Deneb, nil

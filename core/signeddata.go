@@ -388,7 +388,7 @@ func (p VersionedSignedBlindedProposal) Signature() Signature {
 	case eth2spec.DataVersionCapella:
 		return SigFromETH2(p.Capella.Signature)
 	case eth2spec.DataVersionDeneb:
-		return SigFromETH2(p.Deneb.SignedBlindedBlock.Signature)
+		return SigFromETH2(p.Deneb.Signature)
 	default:
 		panic("unknown version") // Note this is avoided by using `NewVersionedSignedBlindedProposal`.
 	}
@@ -407,7 +407,7 @@ func (p VersionedSignedBlindedProposal) SetSignature(sig Signature) (SignedData,
 	case eth2spec.DataVersionCapella:
 		resp.Capella.Signature = sig.ToETH2()
 	case eth2spec.DataVersionDeneb:
-		resp.Deneb.SignedBlindedBlock.Signature = sig.ToETH2()
+		resp.Deneb.Signature = sig.ToETH2()
 	default:
 		return nil, errors.New("unknown type")
 	}
@@ -423,7 +423,7 @@ func (p VersionedSignedBlindedProposal) MessageRoot() ([32]byte, error) {
 	case eth2spec.DataVersionCapella:
 		return p.Capella.Message.HashTreeRoot()
 	case eth2spec.DataVersionDeneb:
-		return p.Deneb.SignedBlindedBlock.Message.HashTreeRoot()
+		return p.Deneb.Message.HashTreeRoot()
 	default:
 		panic("unknown version") // Note this is avoided by using `NewVersionedSignedBlindedProposal`.
 	}
@@ -501,7 +501,7 @@ func (p *VersionedSignedBlindedProposal) UnmarshalJSON(input []byte) error {
 		}
 		resp.Capella = block
 	case eth2spec.DataVersionDeneb:
-		block := new(eth2deneb.SignedBlindedBlockContents)
+		block := new(eth2deneb.SignedBlindedBeaconBlock)
 		if err := json.Unmarshal(raw.Block, &block); err != nil {
 			return errors.Wrap(err, "unmarshal deneb")
 		}

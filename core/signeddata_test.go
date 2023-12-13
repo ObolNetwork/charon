@@ -66,12 +66,9 @@ func TestSignedDataSetSignature(t *testing.T) {
 			data: core.VersionedSignedBlindedProposal{
 				VersionedSignedBlindedProposal: eth2api.VersionedSignedBlindedProposal{
 					Version: eth2spec.DataVersionDeneb,
-					Deneb: &eth2deneb.SignedBlindedBlockContents{
-						SignedBlindedBlock: &eth2deneb.SignedBlindedBeaconBlock{
-							Message:   testutil.RandomDenebBlindedBeaconBlock(),
-							Signature: testutil.RandomEth2Signature(),
-						},
-						SignedBlindedBlobSidecars: []*eth2deneb.SignedBlindedBlobSidecar{},
+					Deneb: &eth2deneb.SignedBlindedBeaconBlock{
+						Message:   testutil.RandomDenebBlindedBeaconBlock(),
+						Signature: testutil.RandomEth2Signature(),
 					},
 				},
 			},

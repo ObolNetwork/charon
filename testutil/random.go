@@ -490,12 +490,9 @@ func RandomDenebVersionedSignedBlindedProposal() core.VersionedSignedBlindedProp
 	return core.VersionedSignedBlindedProposal{
 		VersionedSignedBlindedProposal: eth2api.VersionedSignedBlindedProposal{
 			Version: eth2spec.DataVersionDeneb,
-			Deneb: &eth2deneb.SignedBlindedBlockContents{
-				SignedBlindedBlock: &eth2deneb.SignedBlindedBeaconBlock{
-					Message:   RandomDenebBlindedBeaconBlock(),
-					Signature: RandomEth2Signature(),
-				},
-				SignedBlindedBlobSidecars: []*eth2deneb.SignedBlindedBlobSidecar{},
+			Deneb: &eth2deneb.SignedBlindedBeaconBlock{
+				Message:   RandomDenebBlindedBeaconBlock(),
+				Signature: RandomEth2Signature(),
 			},
 		},
 	}

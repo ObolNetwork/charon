@@ -285,7 +285,7 @@ func IsSyntheticBlindedBlock(block *eth2api.VersionedSignedBlindedProposal) bool
 	case eth2spec.DataVersionCapella:
 		graffiti = block.Capella.Message.Body.Graffiti
 	case eth2spec.DataVersionDeneb:
-		graffiti = block.Deneb.SignedBlindedBlock.Message.Body.Graffiti
+		graffiti = block.Deneb.Message.Body.Graffiti
 	default:
 		return false
 	}

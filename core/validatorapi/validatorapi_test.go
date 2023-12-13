@@ -948,15 +948,12 @@ func TestComponent_SubmitBlindedProposalInvalidBlock(t *testing.T) {
 			name: "no deneb sig",
 			block: &eth2api.VersionedSignedBlindedProposal{
 				Version: eth2spec.DataVersionDeneb,
-				Deneb: &eth2deneb.SignedBlindedBlockContents{
-					SignedBlindedBlock: &eth2deneb.SignedBlindedBeaconBlock{
-						Message: &eth2deneb.BlindedBeaconBlock{
-							Slot: eth2p0.Slot(123),
-							Body: testutil.RandomDenebBlindedBeaconBlockBody(),
-						},
-						Signature: eth2p0.BLSSignature{},
+				Deneb: &eth2deneb.SignedBlindedBeaconBlock{
+					Message: &eth2deneb.BlindedBeaconBlock{
+						Slot: eth2p0.Slot(123),
+						Body: testutil.RandomDenebBlindedBeaconBlockBody(),
 					},
-					SignedBlindedBlobSidecars: nil,
+					Signature: eth2p0.BLSSignature{},
 				},
 			},
 		},
