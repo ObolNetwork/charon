@@ -10,7 +10,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	"github.com/attestantio/go-eth2-client/api/v1/deneb"
+	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -38,7 +38,7 @@ func TestSynthProposer(t *testing.T) {
 	require.NoError(t, err)
 
 	bmock.SubmitProposalFunc = func(ctx context.Context, proposal *eth2api.VersionedSignedProposal) error {
-		require.Equal(t, realBlockSlot, proposal.Deneb.SignedBlock.Message.Slot)
+		require.Equal(t, realBlockSlot, proposal.Capella.Message.Slot)
 		close(done)
 
 		return nil
@@ -114,18 +114,18 @@ func TestSynthProposer(t *testing.T) {
 		block := resp.Data
 
 		if duty.Slot == realBlockSlot {
-			require.NotContains(t, string(block.Deneb.Block.Body.Graffiti[:]), "DO NOT SUBMIT")
-			require.NotEqual(t, feeRecipient, block.Deneb.Block.Body.ExecutionPayload.FeeRecipient)
+			require.NotContains(t, string(block.Capella.Body.Graffiti[:]), "DO NOT SUBMIT")
+			require.NotEqual(t, feeRecipient, block.Capella.Body.ExecutionPayload.FeeRecipient)
 		} else {
-			require.Contains(t, string(block.Deneb.Block.Body.Graffiti[:]), "DO NOT SUBMIT")
-			require.Equal(t, feeRecipient, block.Deneb.Block.Body.ExecutionPayload.FeeRecipient)
+			require.Contains(t, string(block.Capella.Body.Graffiti[:]), "DO NOT SUBMIT")
+			require.Equal(t, feeRecipient, block.Capella.Body.ExecutionPayload.FeeRecipient)
 
 			continue
 		}
-		require.Equal(t, eth2spec.DataVersionDeneb, block.Version)
-		signed := testutil.RandomVersionedSignedProposal()
-		signed.Deneb.SignedBlock.Message = block.Deneb.Block
+		require.Equal(t, eth2spec.DataVersionCapella, block.Version)
 
+		signed := testutil.RandomCapellaVersionedSignedProposal()
+		signed.Capella.Message = block.Capella
 		err = eth2Cl.SubmitProposal(ctx, signed)
 		require.NoError(t, err)
 	}
@@ -143,21 +143,18 @@ func TestSynthProposer(t *testing.T) {
 		require.NoError(t, err)
 		block := resp.Data
 		if duty.Slot == realBlockSlot {
-			require.NotContains(t, string(block.Deneb.Body.Graffiti[:]), "DO NOT SUBMIT")
-			require.NotEqual(t, feeRecipient, block.Deneb.Body.ExecutionPayloadHeader.FeeRecipient)
+			require.NotContains(t, string(block.Capella.Body.Graffiti[:]), "DO NOT SUBMIT")
+			require.NotEqual(t, feeRecipient, block.Capella.Body.ExecutionPayloadHeader.FeeRecipient)
 		} else {
-			require.Equal(t, feeRecipient, block.Deneb.Body.ExecutionPayloadHeader.FeeRecipient)
+			require.Equal(t, feeRecipient, block.Capella.Body.ExecutionPayloadHeader.FeeRecipient)
 		}
-		require.Equal(t, eth2spec.DataVersionDeneb, block.Version)
+		require.Equal(t, eth2spec.DataVersionCapella, block.Version)
 
 		signed := &eth2api.VersionedSignedBlindedProposal{
-			Version: eth2spec.DataVersionDeneb,
-			Deneb: &deneb.SignedBlindedBlockContents{
-				SignedBlindedBlock: &deneb.SignedBlindedBeaconBlock{
-					Message:   block.Deneb,
-					Signature: testutil.RandomEth2Signature(),
-				},
-				SignedBlindedBlobSidecars: nil,
+			Version: eth2spec.DataVersionCapella,
+			Capella: &eth2capella.SignedBlindedBeaconBlock{
+				Message:   block.Capella,
+				Signature: testutil.RandomEth2Signature(),
 			},
 		}
 		err = eth2Cl.SubmitBlindedProposal(ctx, signed)

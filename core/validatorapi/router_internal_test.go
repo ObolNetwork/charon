@@ -178,7 +178,7 @@ func TestRawRouter(t *testing.T) {
 		handler := testHandler{}
 		handler.ProposalFunc = func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
 			require.Empty(t, opts.Graffiti)
-			resp := testutil.RandomVersionedProposal()
+			resp := testutil.RandomDenebVersionedProposal()
 
 			return wrapResponse(resp), nil
 		}

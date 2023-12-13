@@ -523,7 +523,7 @@ func TestDutyExpiry(t *testing.T) {
 	// Expire attestation
 	deadliner.expire()
 
-	versionedProposal := core.VersionedProposal{VersionedProposal: *testutil.RandomVersionedProposal()}
+	versionedProposal := core.VersionedProposal{VersionedProposal: *testutil.RandomDenebVersionedProposal()}
 
 	// Store another duty which deletes expired duties
 	err = db.Store(ctx, core.NewProposerDuty(slot+1), core.UnsignedDataSet{

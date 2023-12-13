@@ -97,7 +97,7 @@ func TestInclusion(t *testing.T) {
 	att3 := testutil.RandomAttestation()
 	att3Duty := core.NewAttesterDuty(uint64(att3.Data.Slot))
 
-	block4 := testutil.RandomVersionedSignedProposal()
+	block4 := testutil.RandomDenebVersionedSignedProposal()
 	block4Duty := core.NewProposerDuty(uint64(block4.Deneb.SignedBlock.Message.Slot))
 
 	block5 := testutil.RandomDenebVersionedSignedBlindedProposal()

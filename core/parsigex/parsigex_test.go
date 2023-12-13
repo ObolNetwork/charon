@@ -159,7 +159,7 @@ func TestParSigExVerifier(t *testing.T) {
 	})
 
 	t.Run("Verify proposal", func(t *testing.T) {
-		proposal := testutil.RandomVersionedSignedProposal()
+		proposal := testutil.RandomDenebVersionedSignedProposal()
 		proposal.Deneb.SignedBlock.Message.Slot = slot
 		sigRoot, err := versionedSignedProposalRoot(t, proposal)
 		require.NoError(t, err)
