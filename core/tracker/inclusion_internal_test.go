@@ -101,8 +101,8 @@ func TestInclusion(t *testing.T) {
 	block4Duty := core.NewProposerDuty(uint64(block4.Deneb.SignedBlock.Message.Slot))
 
 	block5 := testutil.RandomDenebVersionedSignedBlindedProposal()
-	block5.Deneb.SignedBlindedBlock.Message.Body.Graffiti = eth2wrap.GetSyntheticGraffiti() // Ignored, not included or missed.
-	block5Duty := core.NewBuilderProposerDuty(uint64(block5.Deneb.SignedBlindedBlock.Message.Slot))
+	block5.Deneb.Message.Body.Graffiti = eth2wrap.GetSyntheticGraffiti() // Ignored, not included or missed.
+	block5Duty := core.NewBuilderProposerDuty(uint64(block5.Deneb.Message.Slot))
 
 	// Submit all duties
 	err := incl.Submitted(att1Duty, "", core.NewAttestation(att1), 0)
