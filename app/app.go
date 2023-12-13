@@ -485,7 +485,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	recaster, err := wireRecaster(ctx, eth2Cl, sched, sigAgg, broadcaster, cluster.Validators,
+	recaster, err := wireRecaster(ctx, eth2Cl, cluster.Validators,
 		conf.BuilderAPI, conf.TestConfig.BroadcastCallback)
 	if err != nil {
 		return errors.Wrap(err, "wire recaster")
@@ -579,8 +579,7 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 
 // wireRecaster wires the rebroadcaster component to scheduler, sigAgg and broadcaster.
 // This is not done in core.Wire since recaster isn't really part of the official core workflow (yet).
-func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Scheduler, sigAgg core.SigAgg,
-	broadcaster core.Broadcaster, validators []*manifestpb.Validator, builderAPI bool,
+func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, validators []*manifestpb.Validator, builderAPI bool,
 	callback func(context.Context, core.Duty, core.SignedDataSet) error,
 ) (core.Recaster, error) {
 	recaster, err := bcast.NewRecaster(func(ctx context.Context) (map[eth2p0.BLSPubKey]struct{}, error) {
