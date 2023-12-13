@@ -124,7 +124,7 @@ func TestSynthProposer(t *testing.T) {
 		}
 		require.Equal(t, eth2spec.DataVersionCapella, block.Version)
 
-		signed := testutil.RandomVersionedSignedProposal()
+		signed := testutil.RandomCapellaVersionedSignedProposal()
 		signed.Capella.Message = block.Capella
 		err = eth2Cl.SubmitProposal(ctx, signed)
 		require.NoError(t, err)

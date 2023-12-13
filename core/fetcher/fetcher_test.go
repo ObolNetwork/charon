@@ -566,6 +566,8 @@ func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block core.Versioned
 		require.EqualValues(t, randao, block.Bellatrix.Body.RANDAOReveal)
 	case eth2spec.DataVersionCapella:
 		require.EqualValues(t, randao, block.Capella.Body.RANDAOReveal)
+	case eth2spec.DataVersionDeneb:
+		require.EqualValues(t, randao, block.Deneb.Block.Body.RANDAOReveal)
 	default:
 		require.Fail(t, "invalid block")
 	}
@@ -579,6 +581,8 @@ func assertRandaoBlindedBlock(t *testing.T, randao eth2p0.BLSSignature, block co
 		require.EqualValues(t, randao, block.Bellatrix.Body.RANDAOReveal)
 	case eth2spec.DataVersionCapella:
 		require.EqualValues(t, randao, block.Capella.Body.RANDAOReveal)
+	case eth2spec.DataVersionDeneb:
+		require.EqualValues(t, randao, block.Deneb.Body.RANDAOReveal)
 	default:
 		require.Fail(t, "invalid block")
 	}

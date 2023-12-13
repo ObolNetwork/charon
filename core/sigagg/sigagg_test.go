@@ -10,10 +10,12 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
+	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
+	"github.com/attestantio/go-eth2-client/spec/deneb"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -365,6 +367,20 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 				Capella: &capella.SignedBeaconBlock{
 					Message:   testutil.RandomCapellaBeaconBlock(),
 					Signature: testutil.RandomEth2Signature(),
+				},
+			},
+		},
+		{
+			name: "deneb proposal",
+			proposal: &eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionDeneb,
+				Deneb: &eth2deneb.SignedBlockContents{
+					SignedBlock: &deneb.SignedBeaconBlock{
+						Message:   testutil.RandomDenebBeaconBlock(),
+						Signature: testutil.RandomEth2Signature(),
+					},
+					KZGProofs: []deneb.KZGProof{},
+					Blobs:     []deneb.Blob{},
 				},
 			},
 		},

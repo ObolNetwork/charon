@@ -39,6 +39,10 @@ func TestVerifyEth2SignedData(t *testing.T) {
 			data: testutil.RandomCapellaVersionedSignedBlindedProposal(),
 		},
 		{
+			name: "verify blinded beacon block deneb",
+			data: testutil.RandomDenebVersionedSignedBlindedProposal(),
+		},
+		{
 			name: "verify randao",
 			data: testutil.RandomCoreSignedRandao(),
 		},
