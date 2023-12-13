@@ -19,7 +19,7 @@ maintain system performance.
 
 ### Failure Reason: `chain_inclusion`
   - *Summary*: duty not included on-chain
-  - *Details*: Reason `chain_inclusion` indicates that even though charon broadcasted the duty successfully, it wasn`t included in the beacon chain. This is expected for up to 20% of attestations. It may however indicate problematic charon broadcast delays or beacon node network problems.
+  - *Details*: Reason `chain_inclusion` indicates that even though charon broadcasted the duty successfully, it wasn't included in the beacon chain. This is expected for up to 20% of attestations. It may however indicate problematic charon broadcast delays or beacon node network problems.
 
 ### Failure Reason: `consensus`
   - *Summary*: consensus algorithm didn`t complete
