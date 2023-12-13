@@ -279,11 +279,9 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 			Signature: sig,
 		}
 	case eth2spec.DataVersionDeneb:
-		signedBlock.Deneb = &eth2deneb.SignedBlindedBlockContents{
-			SignedBlindedBlock: &eth2deneb.SignedBlindedBeaconBlock{
-				Message:   block.Deneb,
-				Signature: sig,
-			},
+		signedBlock.Deneb = &eth2deneb.SignedBlindedBeaconBlock{
+			Message:   block.Deneb,
+			Signature: sig,
 		}
 	default:
 		return errors.New("invalid block")

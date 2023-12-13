@@ -781,7 +781,7 @@ func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		// The blinded block maybe either bellatrix, capella or deneb.
-		denebBlock := new(deneb.SignedBlindedBlockContents)
+		denebBlock := new(deneb.SignedBlindedBeaconBlock)
 		err := unmarshal(typ, body, denebBlock)
 		if err == nil {
 			block := &eth2api.VersionedSignedBlindedProposal{
