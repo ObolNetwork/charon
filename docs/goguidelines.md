@@ -51,7 +51,7 @@ checker := newReadyChecker(foo, bar)
 // Use the checker instance
 for checker.IsReady() { ... }
 ```
-Reasoning: The startReadyChecker contains all state and logic in one function and the resulting isReady function cannot be misused. The checker instance introduces a new type with fields that are accesible and can therefore be misused, it is also at risk of being extended with more logic and coupling.
+Reasoning: The startReadyChecker contains all state and logic in one function and the resulting isReady function cannot be misused. The checker instance introduces a new type with fields that are accessible and can therefore be misused, it is also at risk of being extended with more logic and coupling.
 
 ### Prefer functions returning functions over new types with methods #2
 ```go
