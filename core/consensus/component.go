@@ -18,6 +18,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -382,8 +383,8 @@ func (c *Component) Participate(ctx context.Context, duty core.Duty) error {
 		return nil // No eager consensus for potential no-op aggregation duties.
 	}
 
-	if !c.timerFunc(duty).Type().Eager() {
-		return nil // Not an eager start timer, wait for Propose to start.
+	if featureset.Enabled(featureset.ConsensusParticipate) {
+		return nil // Wait for Propose to start.
 	}
 
 	inst := c.getInstanceIO(duty)

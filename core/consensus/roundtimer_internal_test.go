@@ -113,10 +113,10 @@ func TestDoubleEagerLinearRoundTimer(t *testing.T) {
 }
 
 func TestGetTimerFunc(t *testing.T) {
-	featureset.EnableForT(t, featureset.QBFTTimersABTest)
+	featureset.EnableForT(t, featureset.EagerDoubleLinear)
 
 	timerFunc := getTimerFunc()
-	require.Equal(t, timerIncreasing, timerFunc(core.NewAttesterDuty(0)).Type())
-	require.Equal(t, timerIncreasing, timerFunc(core.NewAttesterDuty(1)).Type())
+	require.Equal(t, timerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(0)).Type())
+	require.Equal(t, timerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(1)).Type())
 	require.Equal(t, timerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(2)).Type())
 }

@@ -12,7 +12,8 @@ func TestAllFeatureStatus(t *testing.T) {
 	// Add all features to this test
 	features := []Feature{
 		MockAlpha,
-		QBFTTimersABTest,
+		EagerDoubleLinear,
+		ConsensusParticipate,
 	}
 
 	for _, feature := range features {
