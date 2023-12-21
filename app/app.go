@@ -848,31 +848,13 @@ func newConsensus(conf Config, cluster *manifestpb.Cluster, tcpNode host.Host, p
 	if err != nil {
 		return nil, nil, err
 	}
-	peerIDs, err := manifest.ClusterPeerIDs(cluster)
+
+	comp, err := consensus.New(tcpNode, sender, peers, p2pKey, deadliner, gaterFunc, qbftSniffer)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if featureset.Enabled(featureset.QBFTConsensus) {
-		comp, err := consensus.New(tcpNode, sender, peers, p2pKey, deadliner, gaterFunc, qbftSniffer)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return comp, lifecycle.HookFuncCtx(comp.Start), nil
-	}
-
-	var lcastTransport leadercast.Transport
-	if conf.TestConfig.LcastTransportFunc != nil {
-		lcastTransport = conf.TestConfig.LcastTransportFunc()
-	} else {
-		// TODO(corver): Either deprecate leadercast or refactor it to use p2p.Sender (and protobufs).
-		lcastTransport = leadercast.NewP2PTransport(tcpNode, nodeIdx.PeerIdx, peerIDs)
-	}
-
-	lcast := leadercast.New(lcastTransport, nodeIdx.PeerIdx, len(peerIDs))
-
-	return lcast, lifecycle.HookFuncCtx(lcast.Run), nil
+	return comp, lifecycle.HookFuncCtx(comp.Start), nil
 }
 
 // createMockValidators creates mock validators identified by their public shares.
