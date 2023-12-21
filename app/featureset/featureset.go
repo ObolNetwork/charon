@@ -28,16 +28,20 @@ const (
 	// MockAlpha is a mock feature in alpha status for testing.
 	MockAlpha Feature = "mock_alpha"
 
-	// QBFTTimersABTest enables a round-robin mixed timer selection for A/B testing
-	// the affects of different round timers.
-	QBFTTimersABTest Feature = "qbft_timers_ab_test"
+	// EagerDoubleLinear enables Eager Double Linear round timer for consensus rounds.
+	EagerDoubleLinear Feature = "eager_double_linear"
+
+	// ConsensusParticipate enables consensus participate feature in order to participate in an ongoing consensus
+	// round while still waiting for an unsigned data from beacon node.
+	ConsensusParticipate Feature = "consensus_participate"
 )
 
 var (
 	// state defines the current rollout status of each feature.
 	state = map[Feature]status{
-		MockAlpha:        statusAlpha,
-		QBFTTimersABTest: statusAlpha,
+		MockAlpha:            statusAlpha,
+		EagerDoubleLinear:    statusAlpha,
+		ConsensusParticipate: statusAlpha,
 		// Add all features and there status here.
 	}
 
