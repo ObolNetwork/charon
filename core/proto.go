@@ -5,6 +5,7 @@ package core
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	ssz "github.com/ferranbt/fastssz"
@@ -44,10 +45,15 @@ func DutyFromProto(duty *pbv1.Duty) Duty {
 }
 
 // ParSignedDataFromProto returns the data from a protobuf.
-func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (ParSignedData, error) {
-	// TODO(corver): This can panic due to json unmarshalling unexpected data.
-	//  For now, it is a good way to catch compatibility issues. But we should
-	//  recover panics and return an error before launching mainnet.
+func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (odata ParSignedData, oerr error) {
+	defer func() {
+		// This is to respect the technical possibility of unmarshalling to panic.
+		// However, our protobuf generated types do not have custom marshallers that may panic.
+		if r := recover(); r != nil {
+			rowStr := fmt.Sprintf("%v", r)
+			oerr = errors.Wrap(errors.New(rowStr), "panic recovered")
+		}
+	}()
 
 	if err := protonil.Check(data); err != nil {
 		return ParSignedData{}, errors.Wrap(err, "invalid partial signed proto")
