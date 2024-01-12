@@ -212,7 +212,7 @@ func UnsignedDataSetFromProto(typ DutyType, set *pbv1.UnsignedDataSet) (Unsigned
 	resp := make(UnsignedDataSet)
 	for pubkey, data := range set.Set {
 		var err error
-		resp[PubKey(pubkey)], err = UnmarshalUnsignedData(typ, data)
+		resp[PubKey(pubkey)], err = unmarshalUnsignedData(typ, data)
 		if err != nil {
 			return nil, err
 		}
