@@ -595,6 +595,7 @@ func proposeBlock(p eth2client.ProposalProvider) handlerFunc {
 			RandaoReveal: randao,
 			Graffiti:     graff,
 		}
+
 		eth2Resp, err := p.Proposal(ctx, opts)
 		if err != nil {
 			return nil, nil, err
