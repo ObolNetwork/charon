@@ -23,7 +23,7 @@ instead of opening a public issue or PR on GitHub.
     - Open a GitHub issue if everything else checks out 🤓
 - Are you thinking of a small change that just makes sense? Feel free to submit a PR.
 - If you're envisioning a larger feature or are just looking for a discussion,
-  let's chat in the [Obol Discord](https://discord.gg/n6ebKsX46w/) under `#dev-community`.
+  let's chat in the [Obol Discord](https://discord.com/invite/n6ebKsX46w)under `#dev-community`.
     - A quick sync before coding avoids conflicting work and makes large PRs much more likely to be accepted.
     - 👀 The Discord channel is currently _invite-only_ to prevent spam. Please ping a team member to get access.
 
