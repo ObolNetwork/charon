@@ -635,7 +635,7 @@ func (c Component) AggregateBeaconCommitteeSelections(ctx context.Context, selec
 	for _, selection := range selections {
 		eth2Pubkey, ok := vals[selection.ValidatorIndex]
 		if !ok {
-			return nil, errors.Wrap(err, "validator not found")
+			return nil, errors.New("validator not found", z.Any("provided", selection.ValidatorIndex), z.Any("expected", vals.Indices()))
 		}
 
 		pubkey, err := core.PubKeyFromBytes(eth2Pubkey[:])
