@@ -6,6 +6,7 @@ package keymanager
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -20,17 +21,19 @@ import (
 )
 
 // New returns a new Client.
-func New(baseURL, authToken string) Client {
+func New(baseURL, authToken string, allowInsecureHTTPS bool) Client {
 	return Client{
-		baseURL:   baseURL,
-		authToken: authToken,
+		baseURL:            baseURL,
+		authToken:          authToken,
+		allowInsecureHTTPS: allowInsecureHTTPS,
 	}
 }
 
 // Client is the REST client for keymanager API requests.
 type Client struct {
-	baseURL   string // Base keymanager URL
-	authToken string // Authentication token
+	baseURL            string // Base keymanager URL
+	authToken          string // Authentication token
+	allowInsecureHTTPS bool   // Allows insecure HTTPS connections
 }
 
 // ImportKeystores pushes the keystores and passwords to keymanager.
@@ -41,22 +44,31 @@ func (c Client) ImportKeystores(ctx context.Context, keystores []keystore.Keysto
 			z.Int("keystores", len(keystores)), z.Int("passwords", len(passwords)))
 	}
 
-	addr, err := url.JoinPath(c.baseURL, "/eth/v1/keystores")
+	baseURL, err := url.Parse(c.baseURL)
 	if err != nil {
 		return errors.Wrap(err, "invalid base url", z.Str("base_url", c.baseURL))
 	}
+	if baseURL.Scheme != "https" {
+		return errors.New("base url must use https scheme", z.Str("base_url", c.baseURL))
+	}
+
+	keystoresURL := baseURL.JoinPath("/eth/v1/keystores")
 
 	req, err := newReq(keystores, passwords)
 	if err != nil {
 		return err
 	}
 
-	err = postKeys(ctx, addr, c.authToken, req)
-	if err != nil {
-		return err
-	}
+	{ // #nosec G402
+		transport := &http.Transport{
+			TLSClientConfig: &tls.Config{
+				// allowInsecureHTTPS is always false, but some tests
+				InsecureSkipVerify: c.allowInsecureHTTPS,
+			},
+		}
 
-	return nil
+		return postKeys(ctx, keystoresURL.String(), c.authToken, req, transport)
+	}
 }
 
 // VerifyConnection returns an error if the provided keymanager address is not reachable.
@@ -87,7 +99,7 @@ type keymanagerReq struct {
 }
 
 // postKeys pushes the secrets to the provided keymanager address. The HTTP request timeout is calculated based on the amount of keystores being pushed. For each keystore, the timeout is incremented by 2 seconds.
-func postKeys(ctx context.Context, addr, authToken string, reqBody keymanagerReq) error {
+func postKeys(ctx context.Context, addr, authToken string, reqBody keymanagerReq, transport *http.Transport) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(2*len(reqBody.Keystores))*time.Second)
 	defer cancel()
 
@@ -103,7 +115,10 @@ func postKeys(ctx context.Context, addr, authToken string, reqBody keymanagerReq
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authToken))
 
-	resp, err := new(http.Client).Do(req)
+	client := &http.Client{
+		Transport: transport,
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return errors.Wrap(err, "post validator keys to keymanager")
 	}

@@ -33,7 +33,7 @@ import (
 
 func TestCreateCluster(t *testing.T) {
 	defPath := "../cluster/examples/cluster-definition-004.json"
-	def, err := loadDefinition(context.Background(), defPath)
+	def, err := loadDefinition(context.Background(), defPath, false)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -228,7 +228,7 @@ func TestCreateCluster(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			if test.defFileProvider != nil {
 				// Serve definition over network
-				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					_, err := w.Write(test.defFileProvider())
 					require.NoError(t, err)
 				}))
@@ -240,6 +240,7 @@ func TestCreateCluster(t *testing.T) {
 			test.Config.InsecureKeys = true
 			test.Config.WithdrawalAddrs = []string{zeroAddress}
 			test.Config.FeeRecipientAddrs = []string{zeroAddress}
+			test.Config.AllowInsecureHTTPS = true
 
 			if test.Prep != nil {
 				test.Config = test.Prep(t, test.Config)
@@ -360,7 +361,7 @@ func TestValidateDef(t *testing.T) {
 	require.NoError(t, err)
 
 	defPath := "../cluster/examples/cluster-definition-002.json"
-	remoteDef, err := loadDefinition(context.Background(), defPath)
+	remoteDef, err := loadDefinition(context.Background(), defPath, false)
 	require.NoError(t, err)
 
 	t.Run("zero address", func(t *testing.T) {
@@ -580,7 +581,7 @@ func TestKeymanager(t *testing.T) {
 	var addrs, authTokens []string
 	var servers []*httptest.Server
 	for i := 0; i < minNodes; i++ {
-		srv := httptest.NewServer(newKeymanagerHandler(ctx, t, i, results))
+		srv := httptest.NewTLSServer(newKeymanagerHandler(ctx, t, i, results))
 		servers = append(servers, srv)
 		addrs = append(addrs, srv.URL)
 		authTokens = append(authTokens, testAuthToken)
@@ -600,6 +601,7 @@ func TestKeymanager(t *testing.T) {
 		NumNodes:             minNodes,
 		KeymanagerAddrs:      addrs,
 		KeymanagerAuthTokens: authTokens,
+		AllowInsecureHTTPS:   true,
 		Network:              eth2util.Goerli.Name,
 		WithdrawalAddrs:      []string{zeroAddress},
 		FeeRecipientAddrs:    []string{zeroAddress},

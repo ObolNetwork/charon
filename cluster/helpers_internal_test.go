@@ -109,7 +109,7 @@ func TestFetchDefinition(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := FetchDefinition(context.Background(), tt.url)
+			got, err := FetchDefinition(context.Background(), tt.url, false)
 			if tt.wantErr {
 				require.Error(t, err)
 				return

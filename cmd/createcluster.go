@@ -53,10 +53,11 @@ const (
 )
 
 type clusterConfig struct {
-	Name       string
-	ClusterDir string
-	DefFile    string
-	Clean      bool
+	Name               string
+	ClusterDir         string
+	DefFile            string
+	Clean              bool
+	AllowInsecureHTTPS bool // false by default by design, do not bind a flag
 
 	KeymanagerAddrs      []string
 	KeymanagerAuthTokens []string
@@ -155,7 +156,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	// Get a cluster definition, either from a definition file or from the config.
 	var def cluster.Definition
 	if conf.DefFile != "" { // Load definition from DefFile
-		def, err = loadDefinition(ctx, conf.DefFile)
+		def, err = loadDefinition(ctx, conf.DefFile, conf.AllowInsecureHTTPS)
 		if err != nil {
 			return err
 		}
@@ -662,7 +663,7 @@ func writeKeysToKeymanager(ctx context.Context, conf clusterConfig, numNodes int
 	// Ping all keymanager addresses to check if they are accessible to avoid partial writes
 	var clients []keymanager.Client
 	for i := 0; i < numNodes; i++ {
-		cl := keymanager.New(conf.KeymanagerAddrs[i], conf.KeymanagerAuthTokens[i])
+		cl := keymanager.New(conf.KeymanagerAddrs[i], conf.KeymanagerAuthTokens[i], conf.AllowInsecureHTTPS)
 		if err := cl.VerifyConnection(ctx); err != nil {
 			return err
 		}
@@ -903,13 +904,13 @@ func aggSign(secrets [][]tbls.PrivateKey, message []byte) ([]byte, error) {
 
 // loadDefinition returns the cluster definition from disk or an HTTP URL. It also verifies signatures
 // and hashes before returning the definition.
-func loadDefinition(ctx context.Context, defFile string) (cluster.Definition, error) {
+func loadDefinition(ctx context.Context, defFile string, allowInsecureHTTPS bool) (cluster.Definition, error) {
 	var def cluster.Definition
 
 	// Fetch definition from network if URI is provided
 	if validURI(defFile) {
 		var err error
-		def, err = cluster.FetchDefinition(ctx, defFile)
+		def, err = cluster.FetchDefinition(ctx, defFile, allowInsecureHTTPS)
 		if err != nil {
 			return cluster.Definition{}, errors.Wrap(err, "read definition")
 		}

@@ -37,7 +37,7 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 	var def cluster.Definition
 	if validURI(conf.DefFile) {
 		var err error
-		def, err = cluster.FetchDefinition(ctx, conf.DefFile)
+		def, err = cluster.FetchDefinition(ctx, conf.DefFile, conf.AllowInsecureHTTPS)
 		if err != nil {
 			return cluster.Definition{}, errors.Wrap(err, "read definition")
 		}
@@ -85,7 +85,7 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 }
 
 // writeKeysToKeymanager writes validator private keyshares for the node to the provided keymanager address.
-func writeKeysToKeymanager(ctx context.Context, keymanagerURL, authToken string, shares []share) error {
+func writeKeysToKeymanager(ctx context.Context, client keymanager.Client, shares []share) error {
 	var (
 		keystores []keystore.Keystore
 		passwords []string
@@ -106,13 +106,7 @@ func writeKeysToKeymanager(ctx context.Context, keymanagerURL, authToken string,
 		keystores = append(keystores, store)
 	}
 
-	cl := keymanager.New(keymanagerURL, authToken)
-	err := cl.ImportKeystores(ctx, keystores, passwords)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return client.ImportKeystores(ctx, keystores, passwords)
 }
 
 // writeKeysToDisk writes validator private keyshares for the node to disk.

@@ -4,6 +4,7 @@ package cluster
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -24,7 +25,7 @@ import (
 )
 
 // FetchDefinition fetches cluster definition file from a remote URI.
-func FetchDefinition(ctx context.Context, url string) (Definition, error) {
+func FetchDefinition(ctx context.Context, url string, allowInsecureHTTPS bool) (Definition, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
@@ -33,7 +34,17 @@ func FetchDefinition(ctx context.Context, url string) (Definition, error) {
 		return Definition{}, errors.Wrap(err, "create http request")
 	}
 
-	resp, err := new(http.Client).Do(req)
+	client := func() *http.Client { // #nosec G402
+		return &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					// allowInsecureHTTPS is always false, but some tests
+					InsecureSkipVerify: allowInsecureHTTPS,
+				},
+			},
+		}
+	}()
+	resp, err := client.Do(req)
 	if err != nil {
 		return Definition{}, errors.Wrap(err, "fetch file")
 	}

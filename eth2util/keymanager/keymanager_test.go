@@ -53,7 +53,7 @@ func TestImportKeystores(t *testing.T) {
 
 	t.Run("2xx response", func(t *testing.T) {
 		var receivedSecrets []string
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			require.Equal(t, r.URL.Path, "/eth/v1/keystores")
 
 			bearerAuthToken := strings.Split(r.Header.Get("Authorization"), " ")
@@ -84,7 +84,9 @@ func TestImportKeystores(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		cl := keymanager.New(srv.URL, testAuthToken)
+		srv.Certificate()
+
+		cl := keymanager.New(srv.URL, testAuthToken, true)
 		err := cl.ImportKeystores(ctx, keystores, passwords)
 		require.NoError(t, err)
 
@@ -98,21 +100,33 @@ func TestImportKeystores(t *testing.T) {
 	})
 
 	t.Run("4xx response", func(t *testing.T) {
+		srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, r.URL.Path, "/eth/v1/keystores")
+			w.WriteHeader(http.StatusForbidden)
+		}))
+		defer srv.Close()
+
+		cl := keymanager.New(srv.URL, testAuthToken, true)
+		err := cl.ImportKeystores(ctx, keystores, passwords)
+		require.ErrorContains(t, err, "failed posting keys")
+	})
+
+	t.Run("mismatching lengths", func(t *testing.T) {
+		cl := keymanager.New("", testAuthToken, false)
+		err := cl.ImportKeystores(ctx, keystores, []string{})
+		require.ErrorContains(t, err, "lengths of keystores and passwords don't match")
+	})
+
+	t.Run("must use https", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			require.Equal(t, r.URL.Path, "/eth/v1/keystores")
 			w.WriteHeader(http.StatusForbidden)
 		}))
 		defer srv.Close()
 
-		cl := keymanager.New(srv.URL, testAuthToken)
+		cl := keymanager.New(srv.URL, testAuthToken, false)
 		err := cl.ImportKeystores(ctx, keystores, passwords)
-		require.ErrorContains(t, err, "failed posting keys")
-	})
-
-	t.Run("mismatching lengths", func(t *testing.T) {
-		cl := keymanager.New("", testAuthToken)
-		err := cl.ImportKeystores(ctx, keystores, []string{})
-		require.ErrorContains(t, err, "lengths of keystores and passwords don't match")
+		require.ErrorContains(t, err, "base url must use https scheme")
 	})
 }
 
@@ -123,18 +137,18 @@ func TestVerifyConnection(t *testing.T) {
 		srv := httptest.NewServer(nil)
 		defer srv.Close()
 
-		cl := keymanager.New(srv.URL, testAuthToken)
+		cl := keymanager.New(srv.URL, testAuthToken, false)
 		require.NoError(t, cl.VerifyConnection(ctx))
 	})
 
 	t.Run("cannot ping address", func(t *testing.T) {
-		cl := keymanager.New("1.1.1.1", testAuthToken)
+		cl := keymanager.New("1.1.1.1", testAuthToken, false)
 		require.Error(t, cl.VerifyConnection(ctx))
 		require.ErrorContains(t, cl.VerifyConnection(ctx), "cannot ping address")
 	})
 
 	t.Run("invalid address", func(t *testing.T) {
-		cl := keymanager.New("1.1.0:34", testAuthToken)
+		cl := keymanager.New("1.1.0:34", testAuthToken, false)
 		require.Error(t, cl.VerifyConnection(ctx))
 		require.ErrorContains(t, cl.VerifyConnection(ctx), "parse address")
 	})

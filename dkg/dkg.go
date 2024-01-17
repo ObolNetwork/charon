@@ -39,12 +39,13 @@ import (
 )
 
 type Config struct {
-	DefFile       string
-	NoVerify      bool
-	DataDir       string
-	P2P           p2p.Config
-	Log           log.Config
-	ShutdownDelay time.Duration
+	DefFile            string
+	NoVerify           bool
+	DataDir            string
+	P2P                p2p.Config
+	Log                log.Config
+	ShutdownDelay      time.Duration
+	AllowInsecureHTTPS bool
 
 	KeymanagerAddr      string
 	KeymanagerAuthToken string
@@ -118,7 +119,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	// Check if keymanager address is reachable.
 	if conf.KeymanagerAddr != "" {
-		cl := keymanager.New(conf.KeymanagerAddr, conf.KeymanagerAuthToken)
+		cl := keymanager.New(conf.KeymanagerAddr, conf.KeymanagerAuthToken, conf.AllowInsecureHTTPS)
 		if err = cl.VerifyConnection(ctx); err != nil {
 			return errors.Wrap(err, "verify keymanager address")
 		}
@@ -307,7 +308,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 	// to prevent partial data writes in case of peer connection lost
 
 	if conf.KeymanagerAddr != "" { // Save to keymanager
-		if err = writeKeysToKeymanager(ctx, conf.KeymanagerAddr, conf.KeymanagerAuthToken, shares); err != nil {
+		client := keymanager.New(conf.KeymanagerAddr, conf.KeymanagerAuthToken, conf.AllowInsecureHTTPS)
+		if err = writeKeysToKeymanager(ctx, client, shares); err != nil {
 			return err
 		}
 		log.Debug(ctx, "Imported keyshares to keymanager", z.Str("keymanager_address", conf.KeymanagerAddr))
