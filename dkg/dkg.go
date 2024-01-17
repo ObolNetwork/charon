@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"net/url"
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -112,7 +113,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.New("only v1.6.0 and v1.7.0 cluster definition version supported")
 	}
 
-	if err := validateKeymanagerFlags(conf.KeymanagerAddr, conf.KeymanagerAuthToken); err != nil {
+	if err := validateKeymanagerFlags(ctx, conf.KeymanagerAddr, conf.KeymanagerAuthToken); err != nil {
 		return err
 	}
 
@@ -1039,12 +1040,21 @@ func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) 
 }
 
 // validateKeymanagerFlags returns an error if one keymanager flag is present but the other is not.
-func validateKeymanagerFlags(addr, authToken string) error {
+func validateKeymanagerFlags(ctx context.Context, addr, authToken string) error {
 	if addr != "" && authToken == "" {
 		return errors.New("--keymanager-address provided but --keymanager-auth-token absent. Please fix configuration flags")
 	}
 	if addr == "" && authToken != "" {
 		return errors.New("--keymanager-auth-token provided but --keymanager-address absent. Please fix configuration flags")
+	}
+
+	keymanagerURL, err := url.Parse(addr)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse keymanager addr", z.Str("addr", addr))
+	}
+
+	if keymanagerURL.Scheme != "https" {
+		log.Warn(ctx, "Keymanager URL does not use https protocol", nil, z.Str("addr", addr))
 	}
 
 	return nil

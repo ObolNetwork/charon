@@ -132,7 +132,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		conf.Network = eth2util.Goerli.Name
 	}
 
-	if err = validateCreateConfig(conf); err != nil {
+	if err = validateCreateConfig(ctx, conf); err != nil {
 		return err
 	}
 
@@ -301,7 +301,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 }
 
 // validateCreateConfig returns an error if any of the provided config parameters are invalid.
-func validateCreateConfig(conf clusterConfig) error {
+func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 	if conf.NumNodes == 0 && conf.DefFile == "" { // if there's a definition file, infer this value from it later
 		return errors.New("missing --nodes flag")
 	}
@@ -318,6 +318,17 @@ func validateCreateConfig(conf clusterConfig) error {
 	// Ensure sufficient auth tokens are provided for the keymanager addresses
 	if len(conf.KeymanagerAddrs) != len(conf.KeymanagerAuthTokens) {
 		return errors.New("number of --keymanager-addresses do not match --keymanager-auth-tokens. Please fix configuration flags")
+	}
+
+	for _, addr := range conf.KeymanagerAddrs {
+		keymanagerURL, err := url.Parse(addr)
+		if err != nil {
+			return errors.Wrap(err, "failed to parse keymanager addr", z.Str("addr", addr))
+		}
+
+		if keymanagerURL.Scheme != "https" {
+			log.Warn(ctx, "Keymanager URL does not use https protocol", nil, z.Str("addr", addr))
+		}
 	}
 
 	if conf.SplitKeys {
