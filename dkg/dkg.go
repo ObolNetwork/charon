@@ -1047,6 +1047,12 @@ func validateKeymanagerFlags(addr, authToken string) error {
 		return errors.New("--keymanager-auth-token provided but --keymanager-address absent. Please fix configuration flags")
 	}
 
+	if addr != "" {
+		if err := keymanager.VerifyKeymanagerAddr(addr); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

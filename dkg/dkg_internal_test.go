@@ -179,6 +179,12 @@ func TestValidateKeymanagerFlags(t *testing.T) {
 			authToken: "keymanager-auth-token",
 			errMsg:    "--keymanager-auth-token provided but --keymanager-address absent. Please fix configuration flags",
 		},
+		{
+			name:      "Address must use https scheme",
+			addr:      "http://keymanager@example.com",
+			authToken: "keymanager-auth-token",
+			errMsg:    "keymanager address must use https scheme",
+		},
 	}
 
 	for _, tt := range tests {

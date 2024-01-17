@@ -850,6 +850,12 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 		return errors.New("insufficient no of keymanager addresses", z.Int("expected", len(def.Operators)), z.Int("got", len(keymanagerAddrs)))
 	}
 
+	for _, addr := range keymanagerAddrs {
+		if err := keymanager.VerifyKeymanagerAddr(addr); err != nil {
+			return err
+		}
+	}
+
 	network, err := eth2util.ForkVersionToNetwork(def.ForkVersion)
 	if err != nil {
 		return err

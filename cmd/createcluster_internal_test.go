@@ -394,6 +394,19 @@ func TestValidateDef(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("keymanager address must use https scheme", func(t *testing.T) {
+		conf := conf
+		conf.KeymanagerAddrs = []string{
+			"https://foo.bar",
+			"https://foo.bar",
+			"https://foo.bar",
+			"http://not.https",
+		}
+
+		err = validateDef(ctx, true, conf.KeymanagerAddrs, definition)
+		require.ErrorContains(t, err, "keymanager address must use https scheme")
+	})
+
 	t.Run("insecure keys", func(t *testing.T) {
 		conf := conf
 		err = validateDef(ctx, true, conf.KeymanagerAddrs, definition) // Validate with insecure keys set to true
