@@ -478,8 +478,9 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 			break
 		}
 
-		// Sleep for 100ms to let clients connect with each other.
-		time.Sleep(time.Millisecond * 100)
+		// Sleep for 250ms to let clients connect with each other.
+		// Must be at least two times greater than the sync messages period specified in client.go NewClient().
+		time.Sleep(time.Millisecond * 250)
 	}
 
 	// Disable reconnecting clients to other peer's server once all clients are connected.
