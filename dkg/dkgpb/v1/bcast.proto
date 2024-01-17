@@ -8,7 +8,7 @@ option go_package = "github.com/obolnetwork/charon/dkg/dkgpb/v1";
 
 message BCastSigRequest {
   string id   = 1;
-  bytes  hash = 2;
+  google.protobuf.Any message = 3;
 }
 
 message BCastSigResponse {

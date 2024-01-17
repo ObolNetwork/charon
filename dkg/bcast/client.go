@@ -60,8 +60,8 @@ func (c *client) Broadcast(ctx context.Context, msgID string, msg proto.Message)
 	// Send hash to all peers to sign.
 
 	sigReq := &pb.BCastSigRequest{
-		Id:   msgID,
-		Hash: hash,
+		Id:      msgID,
+		Message: anyMsg,
 	}
 
 	fork, join, cancel := forkjoin.New(ctx, func(ctx context.Context, pID peer.ID) (*pb.BCastSigResponse, error) {
@@ -79,7 +79,7 @@ func (c *client) Broadcast(ctx context.Context, msgID string, msg proto.Message)
 	for i, pID := range c.peers {
 		if c.tcpNode.ID() == pID {
 			// Sign self locally.
-			sig, err := c.signFunc(msgID, sigReq.Hash)
+			sig, err := c.signFunc(msgID, hash)
 			if err != nil {
 				return errors.Wrap(err, "sign hash")
 			}

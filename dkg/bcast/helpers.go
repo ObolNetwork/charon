@@ -25,6 +25,9 @@ type hashFunc func(*anypb.Any) ([]byte, error)
 // Callback is a function that is called when a reliably-broadcast message was successfully received.
 type Callback func(ctx context.Context, peerID peer.ID, msgID string, msg proto.Message) error
 
+// CheckMessage is a function that ensures that msg is of the type that a given message ID should handle.
+type CheckMessage func(ctx context.Context, peerID peer.ID, msgAny *anypb.Any) error
+
 // signFunc is a function that signs a hash.
 type signFunc func(msgID string, hash []byte) ([]byte, error)
 

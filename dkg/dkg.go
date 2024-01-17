@@ -203,7 +203,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 	caster := bcast.New(tcpNode, peerIds, key)
 
 	// register bcast callbacks for frostp2p
-	tp := newFrostP2P(tcpNode, peerMap, caster, def.Threshold, def.NumValidators)
+	tp, err := newFrostP2P(tcpNode, peerMap, caster, def.Threshold, def.NumValidators)
+	if err != nil {
+		return errors.Wrap(err, "frost error")
+	}
 
 	// register bcast callbacks for lock hash k1 signature handler
 	nodeSigCaster := newNodeSigBcast(peers, nodeIdx, caster)
