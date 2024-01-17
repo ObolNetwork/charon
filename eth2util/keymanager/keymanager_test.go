@@ -84,8 +84,6 @@ func TestImportKeystores(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		srv.Certificate()
-
 		cl := keymanager.New(srv.URL, testAuthToken, true)
 		err := cl.ImportKeystores(ctx, keystores, passwords)
 		require.NoError(t, err)
