@@ -38,7 +38,7 @@ func NewClient(tcpNode host.Host, peer peer.ID, hashSig []byte, version version.
 		done:      make(chan struct{}),
 		reconnect: true,
 		version:   version,
-		period:    100 * time.Millisecond, // must be at least two times lower than the sync timeout (dkg.go, startSyncProtocol)
+		period:    100 * time.Millisecond, // Must be at least two times lower than the sync timeout (dkg.go, startSyncProtocol)
 	}
 
 	for _, opt := range opts {
