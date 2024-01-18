@@ -176,11 +176,10 @@ func (s *Server) updateStep(pID peer.ID, step int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	currentPeerStep, hasCurrentPeerStep := s.steps[pID]
 	if hasCurrentPeerStep && step < currentPeerStep {
 		return errors.New("peer reported step is behind the last known step", z.Int("peer_step", step), z.Int("last_step", currentPeerStep))
 	}
-	
+
 	if hasCurrentPeerStep && step > currentPeerStep+1 {
 		return errors.New("peer reported step is ahead the last known step", z.Int("peer_step", step), z.Int("last_step", currentPeerStep))
 	}
@@ -188,7 +187,6 @@ func (s *Server) updateStep(pID peer.ID, step int) error {
 	if step < 0 || step > 1 {
 		return errors.New("peer reported abnormal initial step, expected 0 or 1", z.Int("peer_step", step))
 	}
-
 	s.steps[pID] = step
 
 	return nil
