@@ -85,6 +85,7 @@ func newCheckMsg(messageID string) (bcast.CheckMessage, error) {
 	for _, mID := range frostMessageIDs() {
 		if mID == messageID {
 			found = true
+			break
 		}
 	}
 
