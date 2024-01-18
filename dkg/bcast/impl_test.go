@@ -67,12 +67,12 @@ func TestBCast(t *testing.T) {
 	// Create broadcasters
 	for i := 0; i < n; i++ {
 		i := i
-		callback := func(ctx context.Context, peerID peer.ID, msgID string, msg proto.Message) error {
+		callback := func(_ context.Context, peerID peer.ID, msgID string, msg proto.Message) error {
 			results <- result{Source: peerID, MsgID: msgID, Msg: msg, Target: peers[i]}
 			return nil
 		}
 
-		checkMessage := func(ctx context.Context, peerID peer.ID, msgAny *anypb.Any) error {
+		checkMessage := func(_ context.Context, _ peer.ID, msgAny *anypb.Any) error {
 			var ts timestamppb.Timestamp
 			err := msgAny.UnmarshalTo(&ts)
 			if err != nil {
