@@ -272,6 +272,7 @@ func provide[O any](ctx context.Context, clients []Client,
 			if bestSelector != nil {
 				bestSelector.Increment(res.Input.Address())
 			}
+
 			return res.Output, nil
 		} else {
 			nokResp = res
