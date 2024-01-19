@@ -155,8 +155,6 @@ Flags:
       --manifest-file string               The path to the cluster manifest file. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence. (default ".charon/cluster-manifest.pb")
       --monitoring-address string          Listening address (ip and port) for the monitoring API (prometheus, pprof). (default "127.0.0.1:3620")
       --no-verify                          Disables cluster definition and lock file verification.
-      --p2p-allowlist string               Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.
-      --p2p-denylist string                Comma-separated list of CIDR subnets for disallowing certain peer connections. Example: 192.168.0.0/16 would disallow connections to peers on your local network. The default is to accept all connections.
       --p2p-disable-reuseport              Disables TCP port reuse for outgoing libp2p connections.
       --p2p-external-hostname string       The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.
       --p2p-external-ip string             The IP address advertised by libp2p. This may be used to advertise an external IP.
