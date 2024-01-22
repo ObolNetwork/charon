@@ -113,13 +113,13 @@ func (s *server) handleSigRequest(ctx context.Context, pID peer.ID, m proto.Mess
 		return nil, false, errors.New("unknown message id", z.Str("message_id", req.Id))
 	}
 
+	if err := fn.checkMessage(ctx, pID, req.Message); err != nil {
+		return nil, false, errors.Wrap(err, "signature request message check")
+	}
+
 	reqMessageHash, err := s.hashFunc(req.Message)
 	if err != nil {
 		return nil, false, errors.Wrap(err, "hash any")
-	}
-
-	if err := fn.checkMessage(ctx, pID, req.Message); err != nil {
-		return nil, false, errors.Wrap(err, "signature request message check")
 	}
 
 	// Only sign once per peer and message ID.
