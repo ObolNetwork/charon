@@ -18,11 +18,12 @@ import (
 )
 
 // newServer creates a new reliable-broadcast server.
-func newServer(tcpNode host.Host, signFunc signFunc, verifyFunc verifyFunc) *server {
+func newServer(tcpNode host.Host, signFunc signFunc, hashFunc hashFunc, verifyFunc verifyFunc) *server {
 	s := &server{
-		callbacks:  map[string]Callback{},
+		msgIDFuncs: map[string]messageIDFuncs{},
 		signFunc:   signFunc,
 		verifyFunc: verifyFunc,
+		hashFunc:   hashFunc,
 		dedup:      make(map[dedupKey][]byte),
 	}
 
@@ -48,11 +49,17 @@ type dedupKey struct {
 	MsgID  string
 }
 
+type messageIDFuncs struct {
+	callback     Callback
+	checkMessage CheckMessage
+}
+
 // server is a reliable-broadcast server.
 type server struct {
-	callbacksMutex sync.Mutex
-	callbacks      map[string]Callback
+	msgIDFuncsMutex sync.Mutex
+	msgIDFuncs      map[string]messageIDFuncs
 
+	hashFunc   hashFunc
 	signFunc   signFunc
 	verifyFunc verifyFunc
 
@@ -60,20 +67,23 @@ type server struct {
 	dedup map[dedupKey][]byte // map[dedupKey]hash
 }
 
-func (s *server) getCallback(msgID string) (Callback, bool) {
-	s.callbacksMutex.Lock()
-	defer s.callbacksMutex.Unlock()
+func (s *server) getMessageIDFunc(msgID string) (messageIDFuncs, bool) {
+	s.msgIDFuncsMutex.Lock()
+	defer s.msgIDFuncsMutex.Unlock()
 
-	fn, found := s.callbacks[msgID]
+	fn, found := s.msgIDFuncs[msgID]
 
 	return fn, found
 }
 
-func (s *server) registerCallback(msgID string, cb Callback) {
-	s.callbacksMutex.Lock()
-	defer s.callbacksMutex.Unlock()
+func (s *server) registerMessageIDFuncs(msgID string, cb Callback, cm CheckMessage) {
+	s.msgIDFuncsMutex.Lock()
+	defer s.msgIDFuncsMutex.Unlock()
 
-	s.callbacks[msgID] = cb
+	s.msgIDFuncs[msgID] = messageIDFuncs{
+		callback:     cb,
+		checkMessage: cm,
+	}
 }
 
 func (s *server) dedupHash(pID peer.ID, msgID string, hash []byte) error {
@@ -92,18 +102,32 @@ func (s *server) dedupHash(pID peer.ID, msgID string, hash []byte) error {
 	return nil
 }
 
-func (s *server) handleSigRequest(_ context.Context, pID peer.ID, m proto.Message) (proto.Message, bool, error) {
+func (s *server) handleSigRequest(ctx context.Context, pID peer.ID, m proto.Message) (proto.Message, bool, error) {
 	req, ok := m.(*pb.BCastSigRequest)
 	if !ok {
 		return nil, false, errors.New("invalid message type")
 	}
 
+	fn, found := s.getMessageIDFunc(req.Id)
+	if !found {
+		return nil, false, errors.New("unknown message id", z.Str("message_id", req.Id))
+	}
+
+	if err := fn.checkMessage(ctx, pID, req.Message); err != nil {
+		return nil, false, errors.Wrap(err, "signature request message check")
+	}
+
+	reqMessageHash, err := s.hashFunc(req.Message)
+	if err != nil {
+		return nil, false, errors.Wrap(err, "hash any")
+	}
+
 	// Only sign once per peer and message ID.
-	if err := s.dedupHash(pID, req.Id, req.Hash); err != nil {
+	if err := s.dedupHash(pID, req.Id, reqMessageHash); err != nil {
 		return nil, false, errors.Wrap(err, "dedup")
 	}
 
-	sig, err := s.signFunc(req.Id, req.Hash)
+	sig, err := s.signFunc(req.Id, reqMessageHash)
 	if err != nil {
 		return nil, false, errors.Wrap(err, "sign hash")
 	}
@@ -126,12 +150,12 @@ func (s *server) handleMessage(ctx context.Context, pID peer.ID, m proto.Message
 		return nil, false, errors.Wrap(err, "unmarshal any")
 	}
 
-	fn, found := s.getCallback(msg.Id)
+	fn, found := s.getMessageIDFunc(msg.Id)
 	if !found {
 		return nil, false, errors.New("unknown message id", z.Str("message_id", msg.Id))
 	}
 
-	if err := fn(ctx, pID, msg.Id, inner); err != nil {
+	if err := fn.callback(ctx, pID, msg.Id, inner); err != nil {
 		return nil, false, errors.Wrap(err, "callback")
 	}
 

@@ -12,8 +12,10 @@ import (
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/dkg/bcast"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -65,15 +67,25 @@ func TestBCast(t *testing.T) {
 	// Create broadcasters
 	for i := 0; i < n; i++ {
 		i := i
-		callback := func(ctx context.Context, peerID peer.ID, msgID string, msg proto.Message) error {
+		callback := func(_ context.Context, peerID peer.ID, msgID string, msg proto.Message) error {
 			results <- result{Source: peerID, MsgID: msgID, Msg: msg, Target: peers[i]}
+			return nil
+		}
+
+		checkMessage := func(_ context.Context, _ peer.ID, msgAny *anypb.Any) error {
+			var ts timestamppb.Timestamp
+			err := msgAny.UnmarshalTo(&ts)
+			if err != nil {
+				return errors.Wrap(err, "anypb error")
+			}
+
 			return nil
 		}
 
 		bcastFunc := bcast.New(tcpNodes[i], peers, secrets[i])
 
-		bcastFunc.RegisterCallback(msgID1, callback)
-		bcastFunc.RegisterCallback(msgID2, callback)
+		bcastFunc.RegisterMessageIDFuncs(msgID1, callback, checkMessage)
+		bcastFunc.RegisterMessageIDFuncs(msgID2, callback, checkMessage)
 
 		bcasts = append(bcasts, bcastFunc.Broadcast)
 	}
