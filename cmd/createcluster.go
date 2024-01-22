@@ -406,7 +406,7 @@ func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, n
 }
 
 // signValidatorRegistrations returns a slice of validator registrations for each private key in secrets.
-func signValidatorRegistrations(secrets []tbls.PrivateKey, feeAddresses []string, forkVersion []byte, useNowTimestamp bool) ([]core.VersionedSignedValidatorRegistration, error) {
+func signValidatorRegistrations(secrets []tbls.PrivateKey, feeAddresses []string, forkVersion []byte, useCurrentTimestamp bool) ([]core.VersionedSignedValidatorRegistration, error) {
 	if len(secrets) != len(feeAddresses) {
 		return nil, errors.New("insufficient fee addresses")
 	}
@@ -424,7 +424,7 @@ func signValidatorRegistrations(secrets []tbls.PrivateKey, feeAddresses []string
 		}
 
 		var timestamp time.Time
-		if useNowTimestamp {
+		if useCurrentTimestamp {
 			// Used in --split-existing-keys mode
 			timestamp = time.Now().UTC()
 		} else {
@@ -573,12 +573,12 @@ func writeDepositData(depositDatas []eth2p0.DepositData, network string, cluster
 }
 
 // createValidatorRegistrations creates a slice of builder validator registrations using the provided parameters and returns it.
-func createValidatorRegistrations(feeAddresses []string, secrets []tbls.PrivateKey, forkVersion []byte, useNowTimestamp bool) ([]core.VersionedSignedValidatorRegistration, error) {
+func createValidatorRegistrations(feeAddresses []string, secrets []tbls.PrivateKey, forkVersion []byte, useCurrentTimestamp bool) ([]core.VersionedSignedValidatorRegistration, error) {
 	if len(feeAddresses) != len(secrets) {
 		return nil, errors.New("insufficient fee addresses")
 	}
 
-	return signValidatorRegistrations(secrets, feeAddresses, forkVersion, useNowTimestamp)
+	return signValidatorRegistrations(secrets, feeAddresses, forkVersion, useCurrentTimestamp)
 }
 
 // writeLock creates a cluster lock and writes it to disk for all peers.
