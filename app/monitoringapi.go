@@ -44,7 +44,7 @@ var (
 
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
 // It serves prometheus metrics, pprof profiling and the runtime enr.
-func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string,
+func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, promAddr, debugAddr string,
 	tcpNode host.Host, eth2Cl eth2wrap.Client,
 	peerIDs []peer.ID, registry *prometheus.Registry, qbftDebug http.Handler,
 	pubkeys []core.PubKey, seenPubkeys <-chan core.PubKey, vapiCalls <-chan struct{},
@@ -76,18 +76,8 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 		writeResponse(w, http.StatusOK, "ok")
 	})
 
-	// Serve sniffed qbft instances messages in gzipped protobuf format.
-	mux.Handle("/debug/qbft", qbftDebug)
-
-	// Copied from net/http/pprof/pprof.go
-	mux.HandleFunc("/debug/pprof/", pprof.Index)
-	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-
 	server := &http.Server{
-		Addr:              addr,
+		Addr:              promAddr,
 		Handler:           mux,
 		ReadHeaderTimeout: time.Second,
 	}
@@ -98,6 +88,29 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 		NumPeers:      len(peerIDs),
 		QuorumPeers:   cluster.Threshold(len(peerIDs)),
 	}, registry)
+
+	if debugAddr != "" {
+		debugMux := http.NewServeMux()
+
+		// Serve sniffed qbft instances messages in gzipped protobuf format.
+		debugMux.Handle("/debug/qbft", qbftDebug)
+
+		// Copied from net/http/pprof/pprof.go
+		debugMux.HandleFunc("/debug/pprof/", pprof.Index)
+		debugMux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		debugMux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		debugMux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		debugMux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+		debugServer := &http.Server{
+			Addr:              debugAddr,
+			Handler:           debugMux,
+			ReadHeaderTimeout: time.Second,
+		}
+
+		life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartDebugAPI, httpServeHook(debugServer.ListenAndServe))
+		life.RegisterStop(lifecycle.StopDebugAPI, lifecycle.HookFunc(debugServer.Shutdown))
+	}
 
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartMonitoringAPI, httpServeHook(server.ListenAndServe))
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartMonitoringAPI, lifecycle.HookFuncCtx(checker.Run))
