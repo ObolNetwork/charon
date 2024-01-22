@@ -108,7 +108,8 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, promAddr, d
 			ReadHeaderTimeout: time.Second,
 		}
 
-		life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartMonitoringAPI, httpServeHook(debugServer.ListenAndServe))
+		life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartDebugAPI, httpServeHook(debugServer.ListenAndServe))
+		life.RegisterStop(lifecycle.StopDebugAPI, lifecycle.HookFunc(debugServer.Shutdown))
 	}
 
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartMonitoringAPI, httpServeHook(server.ListenAndServe))

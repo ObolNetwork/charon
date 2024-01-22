@@ -15,21 +15,22 @@ func _() {
 	_ = x[StartAggSigDB-2]
 	_ = x[StartRelay-3]
 	_ = x[StartMonitoringAPI-4]
-	_ = x[StartValidatorAPI-5]
-	_ = x[StartP2PPing-6]
-	_ = x[StartP2PRouters-7]
-	_ = x[StartForceDirectConns-8]
-	_ = x[StartP2PConsensus-9]
-	_ = x[StartSimulator-10]
-	_ = x[StartScheduler-11]
-	_ = x[StartP2PEventCollector-12]
-	_ = x[StartPeerInfo-13]
-	_ = x[StartParSigDB-14]
+	_ = x[StartDebugAPI-5]
+	_ = x[StartValidatorAPI-6]
+	_ = x[StartP2PPing-7]
+	_ = x[StartP2PRouters-8]
+	_ = x[StartForceDirectConns-9]
+	_ = x[StartP2PConsensus-10]
+	_ = x[StartSimulator-11]
+	_ = x[StartScheduler-12]
+	_ = x[StartP2PEventCollector-13]
+	_ = x[StartPeerInfo-14]
+	_ = x[StartParSigDB-15]
 }
 
-const _OrderStart_name = "TrackerPrivkeyLockAggSigDBRelayMonitoringAPIValidatorAPIP2PPingP2PRoutersForceDirectConnsP2PConsensusSimulatorSchedulerP2PEventCollectorPeerInfoParSigDB"
+const _OrderStart_name = "TrackerPrivkeyLockAggSigDBRelayMonitoringAPIDebugAPIValidatorAPIP2PPingP2PRoutersForceDirectConnsP2PConsensusSimulatorSchedulerP2PEventCollectorPeerInfoParSigDB"
 
-var _OrderStart_index = [...]uint8{0, 7, 18, 26, 31, 44, 56, 63, 73, 89, 101, 110, 119, 136, 144, 152}
+var _OrderStart_index = [...]uint8{0, 7, 18, 26, 31, 44, 52, 64, 71, 81, 97, 109, 118, 127, 144, 152, 160}
 
 func (i OrderStart) String() string {
 	if i < 0 || i >= OrderStart(len(_OrderStart_index)-1) {

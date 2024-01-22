@@ -18,6 +18,7 @@ const (
 	StartAggSigDB
 	StartRelay
 	StartMonitoringAPI
+	StartDebugAPI
 	StartValidatorAPI
 	StartP2PPing
 	StartP2PRouters
@@ -42,5 +43,6 @@ const (
 	StopP2PPeerDB
 	StopP2PTCPNode
 	StopP2PUDPNode
+	StopDebugAPI
 	StopMonitoringAPI
 )
