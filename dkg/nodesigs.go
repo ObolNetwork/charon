@@ -10,10 +10,12 @@ import (
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/dkg/bcast"
 	dkgpb "github.com/obolnetwork/charon/dkg/dkgpb/v1"
@@ -56,7 +58,7 @@ func newNodeSigBcast(
 	}
 
 	for _, k1Sig := range nodeSigMsgIDs() {
-		bcastComp.RegisterCallback(k1Sig, ret.broadcastCallback)
+		bcastComp.RegisterMessageIDFuncs(k1Sig, ret.broadcastCallback, ret.checkMessage)
 	}
 
 	return ret
@@ -140,6 +142,17 @@ func (n *nodeSigBcast) broadcastCallback(ctx context.Context, _ peer.ID, _ strin
 	}
 
 	n.setSig(sig, msgPeerIdx)
+
+	return nil
+}
+
+// checkMessage is the default bcast.CheckMessage for nodeSigBcast.
+func (*nodeSigBcast) checkMessage(_ context.Context, peerID peer.ID, msgAny *anypb.Any) error {
+	var msg dkgpb.MsgNodeSig
+	err := msgAny.UnmarshalTo(&msg)
+	if err != nil {
+		return errors.Wrap(err, "node signature request malformed", z.Str("peer_id", peerID.String()))
+	}
 
 	return nil
 }
