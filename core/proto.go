@@ -45,7 +45,7 @@ func DutyFromProto(duty *pbv1.Duty) Duty {
 }
 
 // ParSignedDataFromProto returns the data from a protobuf.
-func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (odata ParSignedData, oerr error) {
+func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (_ ParSignedData, oerr error) {
 	defer func() {
 		// This is to respect the technical possibility of unmarshalling to panic.
 		// However, our protobuf generated types do not have custom marshallers that may panic.

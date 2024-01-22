@@ -855,8 +855,6 @@ func TestRouter(t *testing.T) {
 			}
 			res, err := cl.Proposal(ctx, opts)
 			require.Error(t, err)
-			// TODO(xenowits): Fix this test prior to merging. Debug why res is nil.
-			// require.ErrorContains(t, err, "not implemented")
 			require.Nil(t, res)
 		}
 
@@ -882,7 +880,6 @@ func TestRouter(t *testing.T) {
 			}
 			res, err := cl.BlindedProposal(ctx, opts)
 			require.Error(t, err)
-			// TODO(xenowits): Fix this test prior to merging. Debug why res is nil.
 			require.Nil(t, res)
 		}
 
