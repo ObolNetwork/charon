@@ -75,7 +75,7 @@ func (m multi) SlotDuration(ctx context.Context) (time.Duration, error) {
 		func(ctx context.Context, cl Client) (time.Duration, error) {
 			return cl.SlotDuration(ctx)
 		},
-		nil, m.bestIdx,
+		nil, m.selector,
 	)
 
 	if err != nil {
@@ -97,7 +97,7 @@ func (m multi) SlotsPerEpoch(ctx context.Context) (uint64, error) {
 		func(ctx context.Context, cl Client) (uint64, error) {
 			return cl.SlotsPerEpoch(ctx)
 		},
-		nil, m.bestIdx,
+		nil, m.selector,
 	)
 
 	if err != nil {
@@ -117,7 +117,7 @@ func (m multi) SignedBeaconBlock(ctx context.Context, opts *api.SignedBeaconBloc
 		func(ctx context.Context, cl Client) (*api.Response[*spec.VersionedSignedBeaconBlock], error) {
 			return cl.SignedBeaconBlock(ctx, opts)
 		},
-		nil, m.bestIdx,
+		nil, m.selector,
 	)
 
 	if err != nil {
@@ -137,7 +137,7 @@ func (m multi) AggregateAttestation(ctx context.Context, opts *api.AggregateAtte
 		func(ctx context.Context, cl Client) (*api.Response[*phase0.Attestation], error) {
 			return cl.AggregateAttestation(ctx, opts)
 		},
-		isAggregateAttestationOk, m.bestIdx,
+		isAggregateAttestationOk, m.selector,
 	)
 
 	if err != nil {
@@ -157,7 +157,7 @@ func (m multi) SubmitAggregateAttestations(ctx context.Context, aggregateAndProo
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitAggregateAttestations(ctx, aggregateAndProofs)
 		},
-		m.bestIdx,
+		m.selector,
 	)
 
 	if err != nil {
@@ -177,7 +177,7 @@ func (m multi) AttestationData(ctx context.Context, opts *api.AttestationDataOpt
 		func(ctx context.Context, cl Client) (*api.Response[*phase0.AttestationData], error) {
 			return cl.AttestationData(ctx, opts)
 		},
-		nil, m.bestIdx,
+		nil, m.selector,
 	)
 
 	if err != nil {
@@ -197,7 +197,7 @@ func (m multi) SubmitAttestations(ctx context.Context, attestations []*phase0.At
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitAttestations(ctx, attestations)
 		},
-		m.bestIdx,
+		m.selector,
 	)
 
 	if err != nil {
@@ -217,7 +217,7 @@ func (m multi) AttesterDuties(ctx context.Context, opts *api.AttesterDutiesOpts)
 		func(ctx context.Context, cl Client) (*api.Response[[]*apiv1.AttesterDuty], error) {
 			return cl.AttesterDuties(ctx, opts)
 		},
-		nil, m.bestIdx,
+		nil, m.selector,
 	)
 
 	if err != nil {
@@ -237,7 +237,7 @@ func (m multi) DepositContract(ctx context.Context, opts *api.DepositContractOpt
 		func(ctx context.Context, cl Client) (*api.Response[*apiv1.DepositContract], error) {
 			return cl.DepositContract(ctx, opts)
 		},
-		nil, m.bestIdx,
+		nil, m.selector,
 	)
 
 	if err != nil {
@@ -258,7 +258,7 @@ func (m multi) SyncCommitteeDuties(ctx context.Context, opts *api.SyncCommitteeD
 		func(ctx context.Context, cl Client) (*api.Response[[]*apiv1.SyncCommitteeDuty], error) {
 			return cl.SyncCommitteeDuties(ctx, opts)
 		},
-		nil, m.bestIdx,
+		nil, m.selector,
 	)
 
 	if err != nil {
@@ -278,7 +278,7 @@ func (m multi) SubmitSyncCommitteeMessages(ctx context.Context, messages []*alta
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitSyncCommitteeMessages(ctx, messages)
 		},
-		m.bestIdx,
+		m.selector,
 	)
 
 	if err != nil {
@@ -298,7 +298,7 @@ func (m multi) SubmitSyncCommitteeSubscriptions(ctx context.Context, subscriptio
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitSyncCommitteeSubscriptions(ctx, subscriptions)
 		},
-		m.bestIdx,
+		m.selector,
 	)
 
 	if err != nil {
@@ -318,7 +318,7 @@ func (m multi) SyncCommitteeContribution(ctx context.Context, opts *api.SyncComm
 		func(ctx context.Context, cl Client) (*api.Response[*altair.SyncCommitteeContribution], error) {
 			return cl.SyncCommitteeContribution(ctx, opts)
 		},
-		nil, m.bestIdx,
+		nil, m.selector,
 	)
 
 	if err != nil {
@@ -338,7 +338,7 @@ func (m multi) SubmitSyncCommitteeContributions(ctx context.Context, contributio
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitSyncCommitteeContributions(ctx, contributionAndProofs)
 		},
-		m.bestIdx,
+		m.selector,
 	)
 
 	if err != nil {
@@ -358,7 +358,7 @@ func (m multi) Proposal(ctx context.Context, opts *api.ProposalOpts) (*api.Respo
 		func(ctx context.Context, cl Client) (*api.Response[*api.VersionedProposal], error) {
 			return cl.Proposal(ctx, opts)
 		},
-		nil, m.bestIdx,
+		nil, m.selector,
 	)
 
 	if err != nil {
@@ -378,7 +378,7 @@ func (m multi) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRootOpt
 		func(ctx context.Context, cl Client) (*api.Response[*phase0.Root], error) {
 			return cl.BeaconBlockRoot(ctx, opts)
 		},
-		nil, m.bestIdx,
+		nil, m.selector,
 	)
 
 	if err != nil {
@@ -398,7 +398,7 @@ func (m multi) SubmitProposal(ctx context.Context, block *api.VersionedSignedPro
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitProposal(ctx, block)
 		},
-		m.bestIdx,
+		m.selector,
 	)
 
 	if err != nil {
@@ -418,7 +418,7 @@ func (m multi) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscript
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitBeaconCommitteeSubscriptions(ctx, subscriptions)
 		},
-		m.bestIdx,
+		m.selector,
 	)
 
 	if err != nil {
@@ -438,7 +438,7 @@ func (m multi) BlindedProposal(ctx context.Context, opts *api.BlindedProposalOpt
 		func(ctx context.Context, cl Client) (*api.Response[*api.VersionedBlindedProposal], error) {
 			return cl.BlindedProposal(ctx, opts)
 		},
-		nil, m.bestIdx,
+		nil, m.selector,
 	)
 
 	if err != nil {
@@ -458,7 +458,7 @@ func (m multi) SubmitBlindedProposal(ctx context.Context, block *api.VersionedSi
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitBlindedProposal(ctx, block)
 		},
-		m.bestIdx,
+		m.selector,
 	)
 
 	if err != nil {
@@ -478,7 +478,7 @@ func (m multi) SubmitValidatorRegistrations(ctx context.Context, registrations [
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitValidatorRegistrations(ctx, registrations)
 		},
-		m.bestIdx,
+		m.selector,
 	)
 
 	if err != nil {
@@ -498,7 +498,7 @@ func (m multi) Fork(ctx context.Context, opts *api.ForkOpts) (*api.Response[*pha
 		func(ctx context.Context, cl Client) (*api.Response[*phase0.Fork], error) {
 			return cl.Fork(ctx, opts)
 		},
-		nil, m.bestIdx,
+		nil, m.selector,
 	)
 
 	if err != nil {
@@ -518,7 +518,7 @@ func (m multi) ForkSchedule(ctx context.Context, opts *api.ForkScheduleOpts) (*a
 		func(ctx context.Context, cl Client) (*api.Response[[]*phase0.Fork], error) {
 			return cl.ForkSchedule(ctx, opts)
 		},
-		nil, m.bestIdx,
+		nil, m.selector,
 	)
 
 	if err != nil {
@@ -538,7 +538,7 @@ func (m multi) Genesis(ctx context.Context, opts *api.GenesisOpts) (*api.Respons
 		func(ctx context.Context, cl Client) (*api.Response[*apiv1.Genesis], error) {
 			return cl.Genesis(ctx, opts)
 		},
-		nil, m.bestIdx,
+		nil, m.selector,
 	)
 
 	if err != nil {
@@ -558,7 +558,7 @@ func (m multi) NodeSyncing(ctx context.Context, opts *api.NodeSyncingOpts) (*api
 		func(ctx context.Context, cl Client) (*api.Response[*apiv1.SyncState], error) {
 			return cl.NodeSyncing(ctx, opts)
 		},
-		isSyncStateOk, m.bestIdx,
+		isSyncStateOk, m.selector,
 	)
 
 	if err != nil {
@@ -578,7 +578,7 @@ func (m multi) NodeVersion(ctx context.Context, opts *api.NodeVersionOpts) (*api
 		func(ctx context.Context, cl Client) (*api.Response[string], error) {
 			return cl.NodeVersion(ctx, opts)
 		},
-		nil, m.bestIdx,
+		nil, m.selector,
 	)
 
 	if err != nil {
@@ -599,7 +599,7 @@ func (m multi) SubmitProposalPreparations(ctx context.Context, preparations []*a
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitProposalPreparations(ctx, preparations)
 		},
-		m.bestIdx,
+		m.selector,
 	)
 
 	if err != nil {
@@ -619,7 +619,7 @@ func (m multi) ProposerDuties(ctx context.Context, opts *api.ProposerDutiesOpts)
 		func(ctx context.Context, cl Client) (*api.Response[[]*apiv1.ProposerDuty], error) {
 			return cl.ProposerDuties(ctx, opts)
 		},
-		nil, m.bestIdx,
+		nil, m.selector,
 	)
 
 	if err != nil {
@@ -639,7 +639,7 @@ func (m multi) Spec(ctx context.Context, opts *api.SpecOpts) (*api.Response[map[
 		func(ctx context.Context, cl Client) (*api.Response[map[string]any], error) {
 			return cl.Spec(ctx, opts)
 		},
-		nil, m.bestIdx,
+		nil, m.selector,
 	)
 
 	if err != nil {
@@ -659,7 +659,7 @@ func (m multi) Validators(ctx context.Context, opts *api.ValidatorsOpts) (*api.R
 		func(ctx context.Context, cl Client) (*api.Response[map[phase0.ValidatorIndex]*apiv1.Validator], error) {
 			return cl.Validators(ctx, opts)
 		},
-		nil, m.bestIdx,
+		nil, m.selector,
 	)
 
 	if err != nil {
@@ -679,7 +679,7 @@ func (m multi) SubmitVoluntaryExit(ctx context.Context, voluntaryExit *phase0.Si
 		func(ctx context.Context, cl Client) error {
 			return cl.SubmitVoluntaryExit(ctx, voluntaryExit)
 		},
-		m.bestIdx,
+		m.selector,
 	)
 
 	if err != nil {
@@ -699,7 +699,7 @@ func (m multi) Domain(ctx context.Context, domainType phase0.DomainType, epoch p
 		func(ctx context.Context, cl Client) (phase0.Domain, error) {
 			return cl.Domain(ctx, domainType, epoch)
 		},
-		nil, m.bestIdx,
+		nil, m.selector,
 	)
 
 	if err != nil {
@@ -722,7 +722,7 @@ func (m multi) GenesisDomain(ctx context.Context, domainType phase0.DomainType) 
 		func(ctx context.Context, cl Client) (phase0.Domain, error) {
 			return cl.GenesisDomain(ctx, domainType)
 		},
-		nil, m.bestIdx,
+		nil, m.selector,
 	)
 
 	if err != nil {
@@ -742,7 +742,7 @@ func (m multi) GenesisTime(ctx context.Context) (time.Time, error) {
 		func(ctx context.Context, cl Client) (time.Time, error) {
 			return cl.GenesisTime(ctx)
 		},
-		nil, m.bestIdx,
+		nil, m.selector,
 	)
 
 	if err != nil {
