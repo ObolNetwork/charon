@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -240,7 +241,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
-	valRegs, err := createValidatorRegistrations(def.FeeRecipientAddresses(), secrets, def.ForkVersion)
+	valRegs, err := createValidatorRegistrations(def.FeeRecipientAddresses(), secrets, def.ForkVersion, conf.SplitKeys)
 	if err != nil {
 		return err
 	}
@@ -408,7 +409,7 @@ func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, n
 }
 
 // signValidatorRegistrations returns a slice of validator registrations for each private key in secrets.
-func signValidatorRegistrations(secrets []tbls.PrivateKey, feeAddresses []string, forkVersion []byte) ([]core.VersionedSignedValidatorRegistration, error) {
+func signValidatorRegistrations(secrets []tbls.PrivateKey, feeAddresses []string, forkVersion []byte, useCurrentTimestamp bool) ([]core.VersionedSignedValidatorRegistration, error) {
 	if len(secrets) != len(feeAddresses) {
 		return nil, errors.New("insufficient fee addresses")
 	}
@@ -425,9 +426,15 @@ func signValidatorRegistrations(secrets []tbls.PrivateKey, feeAddresses []string
 			return nil, errors.Wrap(err, "secret to pubkey")
 		}
 
-		timestamp, err := eth2util.ForkVersionToGenesisTime(forkVersion)
-		if err != nil {
-			return nil, err
+		var timestamp time.Time
+		if useCurrentTimestamp {
+			// Used in --split-existing-keys mode
+			timestamp = time.Now().UTC()
+		} else {
+			timestamp, err = eth2util.ForkVersionToGenesisTime(forkVersion)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		unsignedReg, err := registration.NewMessage(
@@ -569,12 +576,12 @@ func writeDepositData(depositDatas []eth2p0.DepositData, network string, cluster
 }
 
 // createValidatorRegistrations creates a slice of builder validator registrations using the provided parameters and returns it.
-func createValidatorRegistrations(feeAddresses []string, secrets []tbls.PrivateKey, forkVersion []byte) ([]core.VersionedSignedValidatorRegistration, error) {
+func createValidatorRegistrations(feeAddresses []string, secrets []tbls.PrivateKey, forkVersion []byte, useCurrentTimestamp bool) ([]core.VersionedSignedValidatorRegistration, error) {
 	if len(feeAddresses) != len(secrets) {
 		return nil, errors.New("insufficient fee addresses")
 	}
 
-	return signValidatorRegistrations(secrets, feeAddresses, forkVersion)
+	return signValidatorRegistrations(secrets, feeAddresses, forkVersion, useCurrentTimestamp)
 }
 
 // writeLock creates a cluster lock and writes it to disk for all peers.
