@@ -318,6 +318,7 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 		}
 
 		previousVersions := []string{"v1.0.0", "v1.1.0", "v1.2.0", "v1.3.0", "v1.4.0", "v1.5.0"}
+		nowUTC := time.Now().UTC()
 		for _, val := range lock.Validators {
 			if isAnyVersion(lock.Version, previousVersions...) {
 				break
@@ -329,6 +330,13 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 
 			if isAnyVersion(lock.Version, "v1.7.0") {
 				require.NotEmpty(t, val.BuilderRegistration)
+			}
+
+			if conf.SplitKeys {
+				// For SplitKeys mode, builder registration timestamp must be close to Now().
+				// This assumes the test does not execute longer than five minutes.
+				// We just need to make sure the message timestamp is not a genesis time.
+				require.Less(t, nowUTC.Sub(val.BuilderRegistration.Message.Timestamp), 5*time.Minute, "likely a genesis timestamp")
 			}
 		}
 
