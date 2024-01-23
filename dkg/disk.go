@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
@@ -34,8 +35,14 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 
 	// Fetch definition from URI or disk
 
+	parsedURL, err := url.ParseRequestURI(conf.DefFile)
+
 	var def cluster.Definition
-	if validURI(conf.DefFile) {
+	if err == nil {
+		if strings.HasPrefix(parsedURL.Scheme, "https") {
+			log.Warn(ctx, "Definition file URL does not use https protocol", nil, z.Str("addr", conf.DefFile))
+		}
+
 		var err error
 		def, err = cluster.FetchDefinition(ctx, conf.DefFile)
 		if err != nil {
@@ -245,13 +252,6 @@ func checkWrites(dataDir string) error {
 	}
 
 	return nil
-}
-
-// validURI returns true if the input string is a valid HTTP/HTTPS URI.
-func validURI(str string) bool {
-	u, err := url.Parse(str)
-
-	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
 
 // randomHex64 returns a random 64 character hex string. It uses crypto/rand.
