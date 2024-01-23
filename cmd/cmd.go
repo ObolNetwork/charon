@@ -166,12 +166,12 @@ func printFlags(ctx context.Context, flags *pflag.FlagSet) {
 func flagsToLogFields(flags *pflag.FlagSet) []z.Field {
 	var fields []z.Field
 	flags.VisitAll(func(flag *pflag.Flag) {
-		val := redact(flag.Name, flag.Value.String())
+		val := Redact(flag.Name, flag.Value.String())
 
 		if sliceVal, ok := flag.Value.(pflag.SliceValue); ok {
 			var vals []string
 			for _, s := range sliceVal.GetSlice() {
-				vals = append(vals, redact(flag.Name, s))
+				vals = append(vals, Redact(flag.Name, s))
 			}
 			val = "[" + strings.Join(vals, ",") + "]"
 		}
@@ -182,9 +182,9 @@ func flagsToLogFields(flags *pflag.FlagSet) []z.Field {
 	return fields
 }
 
-// redact returns a redacted version of the given flag value. It currently supports redacting
+// Redact returns a redacted version of the given flag value. It currently supports redacting
 // passwords in valid URLs provided in ".*address.*" flags and redacting auth tokens.
-func redact(flag, val string) string {
+func Redact(flag, val string) string {
 	if strings.Contains(flag, "auth-token") {
 		return "xxxxx"
 	}

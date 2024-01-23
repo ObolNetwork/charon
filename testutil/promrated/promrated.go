@@ -13,6 +13,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cmd"
 )
 
 type Config struct {
@@ -27,8 +28,7 @@ type Config struct {
 // Run blocks running the promrated program until the context is canceled or a fatal error occurs.
 func Run(ctx context.Context, config Config) error {
 	log.Info(ctx, "Promrated started",
-		z.Str("rated_endpoint", config.RatedEndpoint), // TODO(corver): This may contain a password
-		z.Str("prom_auth", config.PromAuth),           // TODO(corver): This may contain a password
+		z.Str("rated_endpoint", cmd.Redact("address", config.RatedEndpoint)),
 		z.Str("monitoring_addr", config.MonitoringAddr),
 	)
 
