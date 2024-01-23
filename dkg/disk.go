@@ -38,7 +38,7 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 	parsedURL, err := url.ParseRequestURI(conf.DefFile)
 
 	var def cluster.Definition
-	if err == nil {
+	if err == nil && parsedURL.Host != "" {
 		if strings.HasPrefix(parsedURL.Scheme, "https") {
 			log.Warn(ctx, "Definition file URL does not use https protocol", nil, z.Str("addr", conf.DefFile))
 		}
