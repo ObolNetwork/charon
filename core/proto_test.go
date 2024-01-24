@@ -48,12 +48,20 @@ func TestParSignedDataSetProto(t *testing.T) {
 			Data: testutil.RandomCapellaCoreVersionedSignedProposal(),
 		},
 		{
+			Type: core.DutyProposer,
+			Data: testutil.RandomDenebCoreVersionedSignedProposal(),
+		},
+		{
 			Type: core.DutyBuilderProposer,
 			Data: testutil.RandomBellatrixVersionedSignedBlindedProposal(),
 		},
 		{
 			Type: core.DutyBuilderProposer,
 			Data: testutil.RandomCapellaVersionedSignedBlindedProposal(),
+		},
+		{
+			Type: core.DutyBuilderProposer,
+			Data: testutil.RandomDenebVersionedSignedBlindedProposal(),
 		},
 		{
 			Type: core.DutyBuilderRegistration,
@@ -195,9 +203,9 @@ func TestParSignedData(t *testing.T) {
 func TestSetSignature(t *testing.T) {
 	for typ, signedData := range randomSignedData(t) {
 		t.Run(typ.String(), func(t *testing.T) {
-			signedData2, err := signedData.SetSignatures([]core.Signature{testutil.RandomCoreSignature()})
+			signedData2, err := signedData.SetSignature(testutil.RandomCoreSignature())
 			require.NoError(t, err)
-			require.NotEqual(t, signedData.Signatures(), signedData2.Signatures()) // Asset original not modified
+			require.NotEqual(t, signedData.Signature(), signedData2.Signature()) // Asset original not modified
 		})
 	}
 }

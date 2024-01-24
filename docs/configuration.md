@@ -139,6 +139,7 @@ Usage:
 Flags:
       --beacon-node-endpoints strings      Comma separated list of one or more beacon node endpoint URLs.
       --builder-api                        Enables the builder api. Will only produce builder blocks. Builder API must also be enabled on the validator client. Beacon node must be connected to a builder-relay to access the builder network.
+      --debug-address string               Listening address (ip and port) for the pprof and QBFT debug API. It is not enabled by default.
       --feature-set string                 Minimum feature set to enable by default: alpha, beta, or stable. Warning: modify at own risk. (default "stable")
       --feature-set-disable strings        Comma-separated list of features to disable, overriding the default minimum feature set.
       --feature-set-enable strings         Comma-separated list of features to enable, overriding the default minimum feature set.
@@ -149,17 +150,16 @@ Flags:
       --log-color string                   Log color; auto, force, disable. (default "auto")
       --log-format string                  Log format; console, logfmt or json (default "console")
       --log-level string                   Log level; debug, info, warn or error (default "info")
+      --log-output-path string             Path in which to write on-disk logs.
       --loki-addresses strings             Enables sending of logfmt structured logs to these Loki log aggregation server addresses. This is in addition to normal stderr logs.
       --loki-service string                Service label sent with logs to Loki. (default "charon")
       --manifest-file string               The path to the cluster manifest file. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence. (default ".charon/cluster-manifest.pb")
-      --monitoring-address string          Listening address (ip and port) for the monitoring API (prometheus, pprof). (default "127.0.0.1:3620")
+      --monitoring-address string          Listening address (ip and port) for the monitoring API (prometheus). (default "127.0.0.1:3620")
       --no-verify                          Disables cluster definition and lock file verification.
-      --p2p-allowlist string               Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.
-      --p2p-denylist string                Comma-separated list of CIDR subnets for disallowing certain peer connections. Example: 192.168.0.0/16 would disallow connections to peers on your local network. The default is to accept all connections.
       --p2p-disable-reuseport              Disables TCP port reuse for outgoing libp2p connections.
       --p2p-external-hostname string       The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.
       --p2p-external-ip string             The IP address advertised by libp2p. This may be used to advertise an external IP.
-      --p2p-relays strings                 Comma-separated list of libp2p relay URLs or multiaddrs. (default [https://0.relay.obol.tech])
+      --p2p-relays strings                 Comma-separated list of libp2p relay URLs or multiaddrs. (default [https://0.relay.obol.tech,https://1.relay.obol.tech])
       --p2p-tcp-address strings            Comma-separated list of listening TCP addresses (ip and port) for libP2P traffic. Empty default doesn't bind to local port therefore only supports outgoing connections.
       --private-key-file string            The path to the charon enr private key file. (default ".charon/charon-enr-private-key")
       --private-key-file-lock              Enables private key locking to prevent multiple instances using the same key.
@@ -169,6 +169,10 @@ Flags:
       --simnet-validator-keys-dir string   The directory containing the simnet validator key shares. (default ".charon/validator_keys")
       --simnet-validator-mock              Enables an internal mock validator client when running a simnet. Requires simnet-beacon-mock.
       --synthetic-block-proposals          Enables additional synthetic block proposal duties. Used for testing of rare duties.
+      --testnet-chain-id uint              Chain ID of the custom test network.
+      --testnet-fork-version string        Genesis fork version in hex of the custom test network.
+      --testnet-genesis-timestamp int      Genesis timestamp of the custom test network.
+      --testnet-name string                Name of the custom test network.
       --validator-api-address string       Listening address (ip and port) for validator-facing traffic proxying the beacon-node API. (default "127.0.0.1:3600")
 
 ````

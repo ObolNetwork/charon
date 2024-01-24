@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
@@ -52,7 +53,7 @@ func TestIntegration(t *testing.T) {
 		"0xb790b322e1cce41c48e3c344cf8d752bdc3cfd51e8eeef44a4bdaac081bc92b53b73e823a9878b5d7a532eb9d9dce1e3",
 	}
 
-	builderDisabled := func(int64) bool { return false }
+	builderDisabled := func(uint64) bool { return false }
 	s, err := scheduler.New(pubkeys, eth2Cl, builderDisabled)
 	require.NoError(t, err)
 
@@ -128,7 +129,7 @@ func TestSchedulerWait(t *testing.T) {
 				return t0.Add(test.GenesisAfter), err
 			}
 
-			eth2Cl.NodeSyncingFunc = func(context.Context) (*eth2v1.SyncState, error) {
+			eth2Cl.NodeSyncingFunc = func(context.Context, *eth2api.NodeSyncingOpts) (*eth2v1.SyncState, error) {
 				var err error
 				if test.SyncedErrs > 0 {
 					err = errors.New("mock error")
@@ -140,7 +141,8 @@ func TestSchedulerWait(t *testing.T) {
 				}, err
 			}
 
-			sched := scheduler.NewForT(t, clock, new(delayer).delay, nil, eth2Cl, false)
+			dd := new(delayer)
+			sched := scheduler.NewForT(t, clock, dd.delay, nil, eth2Cl, false)
 			sched.Stop() // Just run wait functions, then quit.
 			require.NoError(t, sched.Run())
 			require.EqualValues(t, test.WaitSecs, clock.Since(t0).Seconds())
@@ -215,8 +217,11 @@ func TestSchedulerDuties(t *testing.T) {
 
 			// Only test scheduler output for first N slots, so Stop scheduler (and slotTicker) after that.
 			const stopAfter = 3
-			slotDuration, err := eth2Cl.SlotDuration(context.Background())
+			eth2Resp, err := eth2Cl.Spec(context.Background(), &eth2api.SpecOpts{})
 			require.NoError(t, err)
+
+			slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
+			require.True(t, ok)
 			clock.CallbackAfter(t0.Add(time.Duration(stopAfter)*slotDuration), func() {
 				time.Sleep(time.Hour) // Do not let the slot ticker tick anymore.
 			})
@@ -285,7 +290,7 @@ func TestScheduler_GetDuty(t *testing.T) {
 	var (
 		ctx    = context.Background()
 		t0     time.Time
-		slot   = int64(1)
+		slot   = uint64(1)
 		valSet = beaconmock.ValidatorSetA
 	)
 
@@ -305,7 +310,8 @@ func TestScheduler_GetDuty(t *testing.T) {
 
 	// Construct scheduler.
 	clock := newTestClock(t0)
-	sched := scheduler.NewForT(t, clock, new(delayer).delay, pubkeys, eth2Cl, false)
+	dd := new(delayer)
+	sched := scheduler.NewForT(t, clock, dd.delay, pubkeys, eth2Cl, false)
 
 	_, err = sched.GetDutyDefinition(ctx, core.NewAttesterDuty(slot))
 	require.ErrorContains(t, err, "epoch not resolved yet")
@@ -319,8 +325,11 @@ func TestScheduler_GetDuty(t *testing.T) {
 	_, err = sched.GetDutyDefinition(ctx, core.NewBuilderProposerDuty(slot))
 	require.ErrorContains(t, err, "builder-api not enabled")
 
-	slotDuration, err := eth2Cl.SlotDuration(ctx)
+	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)
+
+	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
+	require.True(t, ok)
 
 	clock.CallbackAfter(t0.Add(slotDuration).Add(time.Second), func() {
 		res, err := sched.GetDutyDefinition(ctx, core.NewAttesterDuty(slot))
@@ -388,7 +397,8 @@ func TestNoActive(t *testing.T) {
 
 	// Construct scheduler.
 	clock := newTestClock(t0)
-	sched := scheduler.NewForT(t, clock, new(delayer).delay, nil, eth2Cl, false)
+	dd := new(delayer)
+	sched := scheduler.NewForT(t, clock, dd.delay, nil, eth2Cl, false)
 
 	clock.CallbackAfter(t0.Add(slotDuration*2), func() {
 		_, err := sched.GetDutyDefinition(ctx, core.NewAttesterDuty(1))

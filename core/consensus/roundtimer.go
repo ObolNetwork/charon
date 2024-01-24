@@ -3,7 +3,6 @@
 package consensus
 
 import (
-	"math/rand"
 	"strings"
 	"sync"
 	"time"
@@ -25,15 +24,9 @@ type timerFunc func(core.Duty) roundTimer
 
 // getTimerFunc returns a timer function based on the enabled features.
 func getTimerFunc() timerFunc {
-	if featureset.Enabled(featureset.QBFTTimersABTest) {
-		abTimers := []func() roundTimer{
-			newIncreasingRoundTimer,
-			newDoubleEagerLinearRoundTimer,
-		}
-
+	if featureset.Enabled(featureset.EagerDoubleLinear) {
 		return func(duty core.Duty) roundTimer {
-			random := rand.New(rand.NewSource(int64(duty.Type) + duty.Slot)) //nolint:gosec // Required for consistent pseudo-randomness.
-			return abTimers[random.Intn(len(abTimers))]()
+			return newDoubleEagerLinearRoundTimer()
 		}
 	}
 

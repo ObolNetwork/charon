@@ -47,12 +47,6 @@ func TestUnmarshallingSignedEpoch(t *testing.T) {
 	testutil.RequireNoError(t, err)
 	require.Equal(t, string(b), string(b2))
 
-	type legacySig [96]byte
-	sigB, err := json.Marshal(legacySig(sig))
-	require.NoError(t, err)
-	oldTmpl := `{"epoch": %d,"signature": %s}`
-	b = []byte(fmt.Sprintf(oldTmpl, epoch, sigB))
-
 	var e2 eth2util.SignedEpoch
 	err = e2.UnmarshalJSON(b)
 	testutil.RequireNoError(t, err)

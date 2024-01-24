@@ -68,7 +68,7 @@ type Client interface {
 			func(ctx context.Context, cl Client) ({{.ResultTypes}}){
 				return cl.{{.Name}}({{.ParamNames}})
 			},
-			{{.SuccessFunc}} m.bestIdx,
+			{{.SuccessFunc}} m.selector,
 		)
 
 		if err != nil {

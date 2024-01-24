@@ -80,7 +80,7 @@ func AllDutyTypes() []DutyType {
 // Duty is the unit of work of the core workflow.
 type Duty struct {
 	// Slot is the Ethereum consensus layer slot.
-	Slot int64
+	Slot uint64
 	// Type is the duty type performed in the slot.
 	Type DutyType
 }
@@ -109,7 +109,7 @@ const (
 //	core.Duty{Slot: slot, Type: core.DutyAttester}
 //	vs
 //	core.NewAttesterDuty(slot)
-func NewAttesterDuty(slot int64) Duty {
+func NewAttesterDuty(slot uint64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutyAttester,
@@ -122,7 +122,7 @@ func NewAttesterDuty(slot int64) Duty {
 //	core.Duty{Slot: slot, Type: core.DutyRandao}
 //	vs
 //	core.NewRandaoDuty(slot)
-func NewRandaoDuty(slot int64) Duty {
+func NewRandaoDuty(slot uint64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutyRandao,
@@ -135,7 +135,7 @@ func NewRandaoDuty(slot int64) Duty {
 //	core.Duty{Slot: slot, Type: core.DutyProposer}
 //	vs
 //	core.NewProposerDuty(slot)
-func NewProposerDuty(slot int64) Duty {
+func NewProposerDuty(slot uint64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutyProposer,
@@ -148,7 +148,7 @@ func NewProposerDuty(slot int64) Duty {
 //	core.Duty{Slot: slot, Type: core.DutyExit}
 //	vs
 //	core.NewVoluntaryExit(slot)
-func NewVoluntaryExit(slot int64) Duty {
+func NewVoluntaryExit(slot uint64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutyExit,
@@ -161,7 +161,7 @@ func NewVoluntaryExit(slot int64) Duty {
 //	core.Duty{Slot: slot, Type: core.DutyBuilderProposer}
 //	vs
 //	core.NewBuilderProposerDuty(slot)
-func NewBuilderProposerDuty(slot int64) Duty {
+func NewBuilderProposerDuty(slot uint64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutyBuilderProposer,
@@ -174,7 +174,7 @@ func NewBuilderProposerDuty(slot int64) Duty {
 //	core.Duty{Slot: slot, Type: core.DutyBuilderRegistration}
 //	vs
 //	core.NewBuilderRegistrationDuty(slot)
-func NewBuilderRegistrationDuty(slot int64) Duty {
+func NewBuilderRegistrationDuty(slot uint64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutyBuilderRegistration,
@@ -187,7 +187,7 @@ func NewBuilderRegistrationDuty(slot int64) Duty {
 //	core.Duty{Slot: slot, Type: core.DutySignature}
 //	vs
 //	core.NewSignatureDuty(slot)
-func NewSignatureDuty(slot int64) Duty {
+func NewSignatureDuty(slot uint64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutySignature,
@@ -200,7 +200,7 @@ func NewSignatureDuty(slot int64) Duty {
 //	core.Duty{Slot: slot, Type: core.DutyPrepareAggregator}
 //	vs
 //	core.NewPrepareAggregatorDuty(slot)
-func NewPrepareAggregatorDuty(slot int64) Duty {
+func NewPrepareAggregatorDuty(slot uint64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutyPrepareAggregator,
@@ -213,7 +213,7 @@ func NewPrepareAggregatorDuty(slot int64) Duty {
 //	core.Duty{Slot: slot, Type: core.DutyAggregator}
 //	vs
 //	core.NewAggregatorDuty(slot)
-func NewAggregatorDuty(slot int64) Duty {
+func NewAggregatorDuty(slot uint64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutyAggregator,
@@ -226,7 +226,7 @@ func NewAggregatorDuty(slot int64) Duty {
 //	core.Duty{Slot: slot, Type: core.DutySyncMessage}
 //	vs
 //	core.NewSyncMessageDuty(slot)
-func NewSyncMessageDuty(slot int64) Duty {
+func NewSyncMessageDuty(slot uint64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutySyncMessage,
@@ -239,7 +239,7 @@ func NewSyncMessageDuty(slot int64) Duty {
 //	core.Duty{Slot: slot, Type: core.DutyPrepareSyncContribution}
 //	vs
 //	core.NewPrepareSyncContributionDuty(slot)
-func NewPrepareSyncContributionDuty(slot int64) Duty {
+func NewPrepareSyncContributionDuty(slot uint64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutyPrepareSyncContribution,
@@ -252,7 +252,7 @@ func NewPrepareSyncContributionDuty(slot int64) Duty {
 //	core.Duty{Slot: slot, Type: core.DutySyncContribution}
 //	vs
 //	core.NewSyncContributionDuty(slot)
-func NewSyncContributionDuty(slot int64) Duty {
+func NewSyncContributionDuty(slot uint64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutySyncContribution,
@@ -261,7 +261,7 @@ func NewSyncContributionDuty(slot int64) Duty {
 
 // NewInfoSyncDuty returns a new info sync duty. It is a convenience function that is
 // slightly more readable and concise than the struct literal equivalent.
-func NewInfoSyncDuty(slot int64) Duty {
+func NewInfoSyncDuty(slot uint64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutyInfoSync,
@@ -385,12 +385,12 @@ func (s UnsignedDataSet) Clone() (UnsignedDataSet, error) {
 
 // SignedData is a signed duty data.
 type SignedData interface {
-	// Signatures returns the signed duty data's signatures.
-	Signatures() []Signature
-	// SetSignatures returns a copy of signed duty data with the signatures replaced.
-	SetSignatures([]Signature) (SignedData, error)
-	// MessageRoots returns the message roots for the unsigned data corresponding to each signature.
-	MessageRoots() ([][32]byte, error)
+	// Signature returns the signed duty data's signature.
+	Signature() Signature
+	// SetSignature returns a copy of signed duty data with the signature replaced.
+	SetSignature(Signature) (SignedData, error)
+	// MessageRoot returns the message root for the unsigned data.
+	MessageRoot() ([32]byte, error)
 	// Clone returns a cloned copy of the SignedData. For an immutable core workflow architecture,
 	// remember to clone data when it leaves the current scope (sharing, storing, returning, etc).
 	Clone() (SignedData, error)
@@ -401,8 +401,8 @@ type SignedData interface {
 // Eth2SignedData wraps SignedData and adds eth2 BLS signature specific methods.
 type Eth2SignedData interface {
 	SignedData
-	// DomainNames returns domain names associated with underlying signature types of the signed data.
-	DomainNames() []signing.DomainName
+	// DomainName returns domain name associated with the signed data.
+	DomainName() signing.DomainName
 	// Epoch returns eth2p0.Epoch associated with underlying type.
 	Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error)
 }
@@ -467,10 +467,10 @@ func (s SignedDataSet) Clone() (SignedDataSet, error) {
 
 // Slot is a beacon chain slot including chain metadata to infer epoch and next slot.
 type Slot struct {
-	Slot          int64
+	Slot          uint64
 	Time          time.Time
 	SlotDuration  time.Duration
-	SlotsPerEpoch int64
+	SlotsPerEpoch uint64
 }
 
 // Next returns the next slot.
@@ -484,7 +484,7 @@ func (s Slot) Next() Slot {
 }
 
 // Epoch returns the epoch of the slot.
-func (s Slot) Epoch() int64 {
+func (s Slot) Epoch() uint64 {
 	return s.Slot / s.SlotsPerEpoch
 }
 

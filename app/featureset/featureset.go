@@ -25,38 +25,23 @@ const (
 type Feature string
 
 const (
-	// QBFTConsensus introduces qbft consensus, see https://github.com/ObolNetwork/charon/issues/445.
-	QBFTConsensus Feature = "qbft_consensus"
-	// Priority enables the infosync component using the priority protocol.
-	Priority Feature = "priority"
 	// MockAlpha is a mock feature in alpha status for testing.
 	MockAlpha Feature = "mock_alpha"
 
-	// RelayDiscovery enables relay peer discovery and disables discv5:
-	//   - If a direct connection to a peer is not possible then try to connect to it via all the provided bootnodes/relays.
-	//   - Direct connections are either not possible since no addresses are known or the addresses do not work.
-	//   - When connected via relay, libp2p's identify protocol detects the remote peer's addresses.
-	//   - Those are added to the peer store so libp2p will try to use them.
-	RelayDiscovery Feature = "relay_discovery"
+	// EagerDoubleLinear enables Eager Double Linear round timer for consensus rounds.
+	EagerDoubleLinear Feature = "eager_double_linear"
 
-	// QBFTTimersABTest enables a round-robin mixed timer selection for A/B testing
-	// the affects of different round timers.
-	QBFTTimersABTest Feature = "qbft_timers_ab_test"
-
-	// PreGenRegistrations enables broadcasting of pre-generated registrations if present in the lock file
-	// and --builder-api=true.
-	PreGenRegistrations Feature = "pre_gen_registrations"
+	// ConsensusParticipate enables consensus participate feature in order to participate in an ongoing consensus
+	// round while still waiting for an unsigned data from beacon node.
+	ConsensusParticipate Feature = "consensus_participate"
 )
 
 var (
 	// state defines the current rollout status of each feature.
 	state = map[Feature]status{
-		QBFTConsensus:       statusStable,
-		Priority:            statusStable,
-		MockAlpha:           statusAlpha,
-		RelayDiscovery:      statusStable,
-		QBFTTimersABTest:    statusAlpha,
-		PreGenRegistrations: statusStable,
+		MockAlpha:            statusAlpha,
+		EagerDoubleLinear:    statusAlpha,
+		ConsensusParticipate: statusAlpha,
 		// Add all features and there status here.
 	}
 

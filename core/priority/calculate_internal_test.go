@@ -36,7 +36,7 @@ func TestCalculateResults(t *testing.T) {
 		Priorities [][]string
 		Result     []string
 		Scores     []int64
-		Slot       int64 // Defaults to test index if not provided.
+		Slot       uint64 // Defaults to test index if not provided.
 	}{
 		{
 			Name:       "1*v1",
@@ -155,7 +155,7 @@ func TestCalculateResults(t *testing.T) {
 			var msgs []*pbv1.PriorityMsg
 			for j, prioritySet := range test.Priorities {
 				if test.Slot == 0 {
-					test.Slot = int64(i)
+					test.Slot = uint64(i)
 				}
 				msgs = append(msgs, &pbv1.PriorityMsg{
 					Topics: []*pbv1.PriorityTopicProposal{

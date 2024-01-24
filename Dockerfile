@@ -1,5 +1,5 @@
 # Container for building Go binary.
-FROM golang:1.21.3-bullseye AS builder
+FROM golang:1.21.5-bookworm AS builder
 # Install dependencies
 RUN apt-get update && apt-get install -y build-essential git
 # Prep and copy source
@@ -17,7 +17,7 @@ RUN \
 RUN echo "Built charon version=$(./charon version)"
 
 # Copy final binary into light stage.
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates wget
 ARG GITHUB_SHA=local
 ENV GITHUB_SHA=${GITHUB_SHA}

@@ -9,6 +9,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
+	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -61,6 +62,18 @@ func TestSignedDataSetSignature(t *testing.T) {
 			},
 		},
 		{
+			name: "versioned signed blinded proposal deneb",
+			data: core.VersionedSignedBlindedProposal{
+				VersionedSignedBlindedProposal: eth2api.VersionedSignedBlindedProposal{
+					Version: eth2spec.DataVersionDeneb,
+					Deneb: &eth2deneb.SignedBlindedBeaconBlock{
+						Message:   testutil.RandomDenebBlindedBeaconBlock(),
+						Signature: testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
 			name: "signed beacon committee selection",
 			data: testutil.RandomCoreBeaconCommitteeSelection(),
 		},
@@ -100,14 +113,14 @@ func TestSignedDataSetSignature(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			clone, err := test.data.SetSignatures([]core.Signature{testutil.RandomCoreSignature()})
+			clone, err := test.data.SetSignature(testutil.RandomCoreSignature())
 			require.NoError(t, err)
-			require.NotEqual(t, clone.Signatures(), test.data.Signatures())
-			require.NotEmpty(t, clone.Signatures())
+			require.NotEqual(t, clone.Signature(), test.data.Signature())
+			require.NotEmpty(t, clone.Signature())
 
-			msgRoot, err := test.data.MessageRoots()
+			msgRoot, err := test.data.MessageRoot()
 			require.NoError(t, err)
-			cloneRoot, err := test.data.MessageRoots()
+			cloneRoot, err := test.data.MessageRoot()
 			require.NoError(t, err)
 			require.Equal(t, msgRoot, cloneRoot)
 		})

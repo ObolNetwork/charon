@@ -35,7 +35,7 @@ func New(ctx context.Context, eth2Cl eth2wrap.Client) (Broadcaster, error) {
 
 type Broadcaster struct {
 	eth2Cl    eth2wrap.Client
-	delayFunc func(slot int64) time.Duration
+	delayFunc func(slot uint64) time.Duration
 }
 
 // Broadcast broadcasts the aggregated signed duty data object to the beacon-node.
@@ -110,6 +110,14 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 		return err
 
 	case core.DutyBuilderRegistration:
+		slot, err := firstSlotInCurrentEpoch(ctx, b.eth2Cl)
+		if err != nil {
+			return errors.Wrap(err, "calculate first slot in epoch")
+		}
+
+		// Use first slot in current epoch for accurate delay calculations while submitting builder registrations.
+		// This is because builder registrations are submitted in first slot of every epoch.
+		duty.Slot = slot
 		registrations, err := setToRegistrations(set)
 		if err != nil {
 			return err
@@ -283,19 +291,54 @@ func setToAttestations(set core.SignedDataSet) ([]*eth2p0.Attestation, error) {
 }
 
 // newDelayFunc returns a function that calculates the delay since the start of a slot.
-func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot int64) time.Duration, error) {
+func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64) time.Duration, error) {
 	genesis, err := eth2Cl.GenesisTime(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	slotDuration, err := eth2Cl.SlotDuration(ctx)
+	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return nil, err
 	}
 
-	return func(slot int64) time.Duration {
+	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
+	if !ok {
+		return nil, errors.New("fetch slot duration")
+	}
+
+	return func(slot uint64) time.Duration {
 		slotStart := genesis.Add(slotDuration * time.Duration(slot))
 		return time.Since(slotStart)
 	}, nil
+}
+
+// firstSlotInCurrentEpoch calculates first slot number of the current ongoing epoch.
+func firstSlotInCurrentEpoch(ctx context.Context, eth2Cl eth2wrap.Client) (uint64, error) {
+	genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
+	if err != nil {
+		return 0, errors.Wrap(err, "fetch genesis")
+	}
+
+	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
+	if err != nil {
+		return 0, err
+	}
+	spec := eth2Resp.Data
+
+	slotDuration, ok := spec["SECONDS_PER_SLOT"].(time.Duration)
+	if !ok {
+		return 0, errors.New("fetch slot duration")
+	}
+
+	slotsPerEpoch, ok := spec["SLOTS_PER_EPOCH"].(uint64)
+	if !ok {
+		return 0, errors.New("fetch slots per epoch")
+	}
+
+	chainAge := time.Since(genesis.Data.GenesisTime)
+	currentSlot := chainAge / slotDuration
+	currentEpoch := uint64(currentSlot) / slotsPerEpoch
+
+	return currentEpoch * slotsPerEpoch, nil
 }

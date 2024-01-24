@@ -57,10 +57,6 @@ func TestDKG(t *testing.T) {
 		publish    bool
 	}{
 		{
-			name:    "keycast",
-			dkgAlgo: "keycast",
-		},
-		{
 			name:    "frost_v16",
 			version: "v1.6.0",
 			dkgAlgo: "frost",

@@ -25,7 +25,6 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/core/leadercast"
 	"github.com/obolnetwork/charon/core/parsigex"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
@@ -92,7 +91,7 @@ func TestSimnetDuties(t *testing.T) {
 		{
 			name:          "builder proposer with teku",
 			scheduledType: core.DutyProposer,
-			duties:        []core.DutyType{core.DutyBuilderProposer, core.DutyRandao},
+			duties:        []core.DutyType{core.DutyBuilderProposer, core.DutyRandao, core.DutyBuilderRegistration},
 			builderAPI:    true,
 			vcType:        vcTeku,
 		},
@@ -169,10 +168,6 @@ func TestSimnetDuties(t *testing.T) {
 			} else {
 				// Enable for all epochs
 				args.BMockOpts = append(args.BMockOpts, beaconmock.WithDeterministicSyncCommDuties(2, 2))
-			}
-
-			if !test.pregenRegistration {
-				featureset.DisableForT(t, featureset.PreGenRegistrations)
 			}
 
 			expect := newSimnetExpect(args.N, test.duties...)
@@ -291,11 +286,9 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 
+	relayAddr := startRelay(ctx, t)
+	// TODO(corver): Add support for in-memory transport to QBFT.
 	parSigExFunc := parsigex.NewMemExFunc(args.N)
-	lcastTransportFunc := leadercast.NewMemTransportFunc(ctx)
-	featureConf := featureset.DefaultConfig()
-	featureConf.Disabled = []string{string(featureset.QBFTConsensus)} // TODO(corver): Add support for in-memory transport to QBFT.
-
 	type simResult struct {
 		PeerIdx int
 		Duty    core.Duty
@@ -311,18 +304,19 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 		peerIdx := i
 		conf := app.Config{
 			Log:              log.DefaultConfig(),
-			Feature:          featureConf,
+			Feature:          featureset.DefaultConfig(),
 			SimnetBMock:      true,
 			SimnetVMock:      args.VMocks,
 			MonitoringAddr:   testutil.AvailableAddr(t).String(), // Random monitoring address
 			ValidatorAPIAddr: args.VAPIAddrs[i],
 			TestConfig: app.TestConfig{
-				Lock:               &args.Lock,
-				P2PKey:             args.P2PKeys[i],
-				TestPingConfig:     p2p.TestPingConfig{Disable: true},
-				SimnetKeys:         []tbls.PrivateKey{args.SimnetKeys[i]},
-				LcastTransportFunc: lcastTransportFunc,
-				ParSigExFunc:       parSigExFunc,
+				Lock:   &args.Lock,
+				P2PKey: args.P2PKeys[i],
+				TestPingConfig: p2p.TestPingConfig{
+					MaxBackoff: time.Second,
+				},
+				SimnetKeys:   []tbls.PrivateKey{args.SimnetKeys[i]},
+				ParSigExFunc: parSigExFunc,
 				BroadcastCallback: func(_ context.Context, duty core.Duty, set core.SignedDataSet) error {
 					for key, data := range set {
 						select {
@@ -338,7 +332,10 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 					beaconmock.WithSlotsPerEpoch(1),
 				}, args.BMockOpts...),
 			},
-			P2P:                     p2p.Config{},
+			P2P: p2p.Config{
+				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
+				Relays:   []string{relayAddr},
+			},
 			BuilderAPI:              args.BuilderAPI,
 			SyntheticBlockProposals: args.SyntheticProposals,
 		}
@@ -371,7 +368,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 				actual, err := res.Data.MarshalJSON()
 				require.NoError(t, err)
 				require.Equal(t, expect, actual)
-				require.Equal(t, datas[res.Duty].Signatures(), res.Data.Signatures())
+				require.Equal(t, datas[res.Duty].Signature(), res.Data.Signature())
 			}
 
 			// Assert we get results for all types from all peers.
@@ -473,7 +470,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 		fmt.Sprintf("--name=%s", name),
 		fmt.Sprintf("--volume=%s:/keys", tempDir),
 		"--user=root", // Root required to read volume files in GitHub actions.
-		"consensys/teku:23.9.0",
+		"consensys/teku:23.11.0",
 	}
 	dockerArgs = append(dockerArgs, tekuArgs...)
 	t.Logf("docker args: %v", dockerArgs)

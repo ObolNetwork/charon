@@ -15,7 +15,7 @@ import (
 )
 
 // version a string since it is overwritten at build-time with the git tag for official releases.
-var version = "v0.18-dev"
+var version = "v0.20-dev"
 
 // Version is the branch version of the codebase.
 //   - Main branch: v0.X-dev
@@ -26,9 +26,8 @@ var Version, _ = Parse(version) // Error is caught in tests.
 func Supported() []SemVer {
 	return []SemVer{
 		// Current minor version always goes first.
-		{major: 0, minor: 18},
-		{major: 0, minor: 17},
-		{major: 0, minor: 16},
+		{major: 0, minor: 20},
+		{major: 0, minor: 19},
 	}
 }
 
@@ -92,7 +91,7 @@ func (v SemVer) String() string {
 		return fmt.Sprintf("v%d.%d.%d", v.major, v.minor, v.patch)
 	}
 
-	return fmt.Sprintf("v%d.%d-%s", v.major, v.minor, v.preRelease)
+	return fmt.Sprintf("v%d.%d.%d-%s", v.major, v.minor, v.patch, v.preRelease)
 }
 
 // PreRelease returns true if v represents a tag for a pre-release.

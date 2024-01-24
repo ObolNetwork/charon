@@ -50,7 +50,6 @@ import (
 	"github.com/obolnetwork/charon/core/dutydb"
 	"github.com/obolnetwork/charon/core/fetcher"
 	"github.com/obolnetwork/charon/core/infosync"
-	"github.com/obolnetwork/charon/core/leadercast"
 	"github.com/obolnetwork/charon/core/parsigdb"
 	"github.com/obolnetwork/charon/core/parsigex"
 	"github.com/obolnetwork/charon/core/priority"
@@ -77,6 +76,7 @@ type Config struct {
 	PrivKeyFile             string
 	PrivKeyLocking          bool
 	MonitoringAddr          string
+	DebugAddr               string
 	ValidatorAPIAddr        string
 	BeaconNodeAddrs         []string
 	JaegerAddr              string
@@ -88,6 +88,7 @@ type Config struct {
 	SyntheticBlockProposals bool
 	BuilderAPI              bool
 	SimnetBMockFuzz         bool
+	TestnetConfig           eth2util.Network
 
 	TestConfig TestConfig
 }
@@ -102,8 +103,6 @@ type TestConfig struct {
 	P2PKey *k1.PrivateKey
 	// ParSigExFunc provides an in-memory partial signature exchange.
 	ParSigExFunc func() core.ParSigEx
-	// LcastTransportFunc provides an in-memory leader cast transport.
-	LcastTransportFunc func() leadercast.Transport
 	// SimnetKeys provides private key shares for the simnet validatormock signer.
 	SimnetKeys []tbls.PrivateKey
 	// SimnetBMockOpts defines additional simnet beacon mock options.
@@ -146,6 +145,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPrivkeyLock, lifecycle.HookFuncErr(lockSvc.Run))
 		life.RegisterStop(lifecycle.StopPrivkeyLock, lifecycle.HookFuncMin(lockSvc.Close))
+	}
+
+	if conf.TestnetConfig.IsNonZero() {
+		eth2util.AddTestNetwork(conf.TestnetConfig)
 	}
 
 	if err := wireTracing(life, conf); err != nil {
@@ -257,7 +260,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, tcpNode, eth2Cl, peerIDs,
+	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, conf.DebugAddr, tcpNode, eth2Cl, peerIDs,
 		promRegistry, qbftDebug, pubkeys, seenPubkeys, vapiCalls)
 
 	err = wireCoreWorkflow(ctx, life, conf, cluster, nodeIdx, tcpNode, p2pKey, eth2Cl,
@@ -471,8 +474,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	retryer := retry.New[core.Duty](deadlineFunc)
 
-	cons, startCons, err := newConsensus(conf, cluster, tcpNode, p2pKey, sender,
-		nodeIdx, deadlinerFunc("consensus"), gaterFunc, qbftSniffer)
+	cons, startCons, err := newConsensus(cluster, tcpNode, p2pKey, sender,
+		deadlinerFunc("consensus"), gaterFunc, qbftSniffer)
 	if err != nil {
 		return err
 	}
@@ -483,8 +486,9 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	if err = wireRecaster(ctx, eth2Cl, sched, sigAgg, broadcaster, cluster.Validators,
-		conf.BuilderAPI, conf.TestConfig.BroadcastCallback); err != nil {
+	recaster, err := newRecaster(ctx, eth2Cl, cluster.Validators,
+		conf.BuilderAPI, conf.TestConfig.BroadcastCallback)
+	if err != nil {
 		return errors.Wrap(err, "wire recaster")
 	}
 
@@ -503,7 +507,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		core.WithTracking(track, inclusion),
 		core.WithAsyncRetry(retryer),
 	}
-	core.Wire(sched, fetch, cons, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
+	core.Wire(sched, fetch, cons, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, recaster, opts...)
 
 	err = wireValidatorMock(ctx, conf, eth2Cl, pubshares, sched)
 	if err != nil {
@@ -532,10 +536,6 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 	sched core.Scheduler, p2pKey *k1.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
 	mutableConf *mutableConfig,
 ) error {
-	if !featureset.Enabled(featureset.Priority) {
-		return nil
-	}
-
 	cons, ok := coreCons.(*consensus.Component)
 	if !ok {
 		// Priority protocol not supported for leader cast.
@@ -578,12 +578,11 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 	return nil
 }
 
-// wireRecaster wires the rebroadcaster component to scheduler, sigAgg and broadcaster.
-// This is not done in core.Wire since recaster isn't really part of the official core workflow (yet).
-func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Scheduler, sigAgg core.SigAgg,
-	broadcaster core.Broadcaster, validators []*manifestpb.Validator, builderAPI bool,
+// newRecaster returns the rebroadcaster component with pre-generate registration stored in its memory.
+// The wiring of recaster is done in core.Wire to support tracking of re-broadcasted duties.
+func newRecaster(ctx context.Context, eth2Cl eth2wrap.Client, validators []*manifestpb.Validator, builderAPI bool,
 	callback func(context.Context, core.Duty, core.SignedDataSet) error,
-) error {
+) (core.Recaster, error) {
 	recaster, err := bcast.NewRecaster(func(ctx context.Context) (map[eth2p0.BLSPubKey]struct{}, error) {
 		valList, err := eth2Cl.ActiveValidators(ctx)
 		if err != nil {
@@ -599,19 +598,15 @@ func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Schedu
 		return ret, nil
 	})
 	if err != nil {
-		return errors.Wrap(err, "recaster init")
+		return nil, errors.Wrap(err, "recaster init")
 	}
-
-	sched.SubscribeSlots(recaster.SlotTicked)
-	sigAgg.Subscribe(recaster.Store)
-	recaster.Subscribe(broadcaster.Broadcast)
 
 	if callback != nil {
 		recaster.Subscribe(callback)
 	}
 
-	if !builderAPI || !featureset.Enabled(featureset.PreGenRegistrations) {
-		return nil
+	if !builderAPI {
+		return recaster, nil
 	}
 
 	for _, val := range validators {
@@ -622,39 +617,44 @@ func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Schedu
 
 		reg := new(eth2api.VersionedSignedValidatorRegistration)
 		if err := json.Unmarshal(val.BuilderRegistrationJson, reg); err != nil {
-			return errors.Wrap(err, "unmarshal validator registration")
+			return nil, errors.Wrap(err, "unmarshal validator registration")
 		}
 
 		pubkey, err := core.PubKeyFromBytes(val.PublicKey)
 		if err != nil {
-			return errors.Wrap(err, "core pubkey from bytes")
+			return nil, errors.Wrap(err, "core pubkey from bytes")
 		}
 
 		signedData, err := core.NewVersionedSignedValidatorRegistration(reg)
 		if err != nil {
-			return errors.Wrap(err, "new versioned signed validator registration")
+			return nil, errors.Wrap(err, "new versioned signed validator registration")
 		}
 
 		slot, err := slotFromTimestamp(ctx, eth2Cl, reg.V1.Message.Timestamp)
 		if err != nil {
-			return errors.Wrap(err, "calculate slot from timestamp")
+			return nil, errors.Wrap(err, "calculate slot from timestamp")
 		}
 
 		if err = recaster.Store(ctx, core.NewBuilderRegistrationDuty(slot), core.SignedDataSet{pubkey: signedData}); err != nil {
-			return errors.Wrap(err, "recaster store registration")
+			return nil, errors.Wrap(err, "recaster store registration")
 		}
 	}
 
-	return nil
+	return recaster, nil
 }
 
 // newTracker creates and starts a new tracker instance.
 func newTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(duty core.Duty) (time.Time, bool),
 	peers []p2p.Peer, eth2Cl eth2wrap.Client,
 ) (core.Tracker, error) {
-	slotDuration, err := eth2Cl.SlotDuration(ctx)
+	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return nil, err
+	}
+
+	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
+	if !ok {
+		return nil, errors.Wrap(err, "fetch slot duration")
 	}
 
 	// Add InclMissedLag slots and InclCheckLag delay to analyser to capture missed inclusion errors.
@@ -682,7 +682,7 @@ func newTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(
 
 // calculateTrackerDelay returns the slot to start tracking from. This mitigates noisy failed duties on
 // startup due to downstream VC startup delays.
-func calculateTrackerDelay(ctx context.Context, cl eth2wrap.Client, now time.Time) (int64, error) {
+func calculateTrackerDelay(ctx context.Context, cl eth2wrap.Client, now time.Time) (uint64, error) {
 	const maxDelayTime = time.Second * 10 // We want to delay at most 10 seconds
 	const minDelaySlots = 2               // But we do not want to delay less than 2 slots
 
@@ -690,14 +690,20 @@ func calculateTrackerDelay(ctx context.Context, cl eth2wrap.Client, now time.Tim
 	if err != nil {
 		return 0, err
 	}
-	slotDuration, err := cl.SlotDuration(ctx)
+
+	eth2Resp, err := cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return 0, err
 	}
 
-	currentSlot := int64(now.Sub(genesisTime) / slotDuration)
+	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
+	if !ok {
+		return 0, errors.New("fetch slot duration")
+	}
 
-	maxDelayTimeSlot := currentSlot + int64(maxDelayTime/slotDuration) + 1
+	currentSlot := uint64(now.Sub(genesisTime) / slotDuration)
+
+	maxDelayTimeSlot := currentSlot + uint64(maxDelayTime/slotDuration) + 1
 	minDelaySlot := currentSlot + minDelaySlots
 
 	if maxDelayTimeSlot < minDelaySlot {
@@ -809,7 +815,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 	}
 
 	// Check BN chain/network.
-	eth2Resp, err := eth2Cl.ForkSchedule(ctx)
+	eth2Resp, err := eth2Cl.ForkSchedule(ctx, &eth2api.ForkScheduleOpts{})
 	if err != nil {
 		return nil, errors.Wrap(err, "fetch fork schedule")
 	}
@@ -844,39 +850,21 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 }
 
 // newConsensus returns a new consensus component and its start lifecycle hook.
-func newConsensus(conf Config, cluster *manifestpb.Cluster, tcpNode host.Host, p2pKey *k1.PrivateKey,
-	sender *p2p.Sender, nodeIdx cluster.NodeIdx, deadliner core.Deadliner, gaterFunc core.DutyGaterFunc,
+func newConsensus(cluster *manifestpb.Cluster, tcpNode host.Host, p2pKey *k1.PrivateKey,
+	sender *p2p.Sender, deadliner core.Deadliner, gaterFunc core.DutyGaterFunc,
 	qbftSniffer func(*pbv1.SniffedConsensusInstance),
 ) (core.Consensus, lifecycle.IHookFunc, error) {
 	peers, err := manifest.ClusterPeers(cluster)
 	if err != nil {
 		return nil, nil, err
 	}
-	peerIDs, err := manifest.ClusterPeerIDs(cluster)
+
+	comp, err := consensus.New(tcpNode, sender, peers, p2pKey, deadliner, gaterFunc, qbftSniffer)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if featureset.Enabled(featureset.QBFTConsensus) {
-		comp, err := consensus.New(tcpNode, sender, peers, p2pKey, deadliner, gaterFunc, qbftSniffer)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return comp, lifecycle.HookFuncCtx(comp.Start), nil
-	}
-
-	var lcastTransport leadercast.Transport
-	if conf.TestConfig.LcastTransportFunc != nil {
-		lcastTransport = conf.TestConfig.LcastTransportFunc()
-	} else {
-		// TODO(corver): Either deprecate leadercast or refactor it to use p2p.Sender (and protobufs).
-		lcastTransport = leadercast.NewP2PTransport(tcpNode, nodeIdx.PeerIdx, peerIDs)
-	}
-
-	lcast := leadercast.New(lcastTransport, nodeIdx.PeerIdx, len(peerIDs))
-
-	return lcast, lifecycle.HookFuncCtx(lcast.Run), nil
+	return comp, lifecycle.HookFuncCtx(comp.Start), nil
 }
 
 // createMockValidators creates mock validators identified by their public shares.
@@ -1056,7 +1044,7 @@ func hex7(input []byte) string {
 }
 
 // slotFromTimestamp returns slot from the provided timestamp.
-func slotFromTimestamp(ctx context.Context, eth2Cl eth2wrap.Client, timestamp time.Time) (int64, error) {
+func slotFromTimestamp(ctx context.Context, eth2Cl eth2wrap.Client, timestamp time.Time) (uint64, error) {
 	genesis, err := eth2Cl.GenesisTime(ctx)
 	if err != nil {
 		return 0, err
@@ -1064,12 +1052,17 @@ func slotFromTimestamp(ctx context.Context, eth2Cl eth2wrap.Client, timestamp ti
 		return 0, errors.New("registration timestamp before genesis")
 	}
 
-	slotDuration, err := eth2Cl.SlotDuration(ctx)
+	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return 0, err
 	}
 
+	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
+	if !ok {
+		return 0, errors.New("fetch slot duration")
+	}
+
 	delta := timestamp.Sub(genesis)
 
-	return int64(delta / slotDuration), nil
+	return uint64(delta / slotDuration), nil
 }

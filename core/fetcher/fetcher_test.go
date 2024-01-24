@@ -108,9 +108,9 @@ func TestFetchAggregator(t *testing.T) {
 
 	attA := testutil.RandomAttestation()
 	attB := testutil.RandomAttestation()
-	attByCommIdx := map[int64]*eth2p0.Attestation{
-		int64(attA.Data.Index): attA,
-		int64(attB.Data.Index): attB,
+	attByCommIdx := map[uint64]*eth2p0.Attestation{
+		uint64(attA.Data.Index): attA,
+		uint64(attB.Data.Index): attB,
 	}
 
 	newDefSet := func(commLength uint64, sameCommitteeIndex bool) core.DutyDefinitionSet {
@@ -166,7 +166,7 @@ func TestFetchAggregator(t *testing.T) {
 		return signedCommSubByPubKey[key], nil
 	})
 
-	fetch.RegisterAwaitAttData(func(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error) {
+	fetch.RegisterAwaitAttData(func(ctx context.Context, slot uint64, commIdx uint64) (*eth2p0.AttestationData, error) {
 		return attByCommIdx[commIdx].Data, nil
 	})
 
@@ -179,7 +179,7 @@ func TestFetchAggregator(t *testing.T) {
 			aggregated, ok := aggAtt.(core.AggregatedAttestation)
 			require.True(t, ok)
 
-			att, ok := attByCommIdx[int64(aggregated.Attestation.Data.Index)]
+			att, ok := attByCommIdx[uint64(aggregated.Attestation.Data.Index)]
 			require.True(t, ok)
 			require.Equal(t, aggregated.Attestation, *att)
 		}
@@ -294,14 +294,14 @@ func TestFetchBlocks(t *testing.T) {
 			require.NoError(t, err)
 			require.EqualValues(t, slot, slotA)
 			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Capella.Body.ExecutionPayload.FeeRecipient))
-			assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signatures()[0].ToETH2(), dutyDataA)
+			assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
 
 			dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.VersionedProposal)
 			slotB, err := dutyDataB.Slot()
 			require.NoError(t, err)
 			require.EqualValues(t, slot, slotB)
 			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.Capella.Body.ExecutionPayload.FeeRecipient))
-			assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signatures()[0].ToETH2(), dutyDataB)
+			assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature().ToETH2(), dutyDataB)
 
 			return nil
 		})
@@ -330,14 +330,14 @@ func TestFetchBlocks(t *testing.T) {
 			require.NoError(t, err)
 			require.EqualValues(t, slot, slotA)
 			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Capella.Body.ExecutionPayloadHeader.FeeRecipient))
-			assertRandaoBlindedBlock(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signatures()[0].ToETH2(), dutyDataA)
+			assertRandaoBlindedBlock(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
 
 			dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.VersionedBlindedProposal)
 			slotB, err := dutyDataB.Slot()
 			require.NoError(t, err)
 			require.EqualValues(t, slot, slotB)
 			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.Capella.Body.ExecutionPayloadHeader.FeeRecipient))
-			assertRandaoBlindedBlock(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signatures()[0].ToETH2(), dutyDataB)
+			assertRandaoBlindedBlock(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature().ToETH2(), dutyDataB)
 
 			return nil
 		})
@@ -566,6 +566,8 @@ func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block core.Versioned
 		require.EqualValues(t, randao, block.Bellatrix.Body.RANDAOReveal)
 	case eth2spec.DataVersionCapella:
 		require.EqualValues(t, randao, block.Capella.Body.RANDAOReveal)
+	case eth2spec.DataVersionDeneb:
+		require.EqualValues(t, randao, block.Deneb.Block.Body.RANDAOReveal)
 	default:
 		require.Fail(t, "invalid block")
 	}
@@ -579,6 +581,8 @@ func assertRandaoBlindedBlock(t *testing.T, randao eth2p0.BLSSignature, block co
 		require.EqualValues(t, randao, block.Bellatrix.Body.RANDAOReveal)
 	case eth2spec.DataVersionCapella:
 		require.EqualValues(t, randao, block.Capella.Body.RANDAOReveal)
+	case eth2spec.DataVersionDeneb:
+		require.EqualValues(t, randao, block.Deneb.Body.RANDAOReveal)
 	default:
 		require.Fail(t, "invalid block")
 	}

@@ -27,7 +27,7 @@ func TestDutyExpiration(t *testing.T) {
 		db.Run(ctx)
 	}()
 
-	slot := int64(99)
+	slot := uint64(99)
 	duty := core.NewAttesterDuty(slot)
 	pubkey := testutil.RandomCorePubKey(t)
 	sig := testutil.RandomCoreSignature()
@@ -66,7 +66,7 @@ func TestCancelledQuery(t *testing.T) {
 
 	go db.Run(ctx)
 
-	slot := int64(99)
+	slot := uint64(99)
 	duty := core.NewAttesterDuty(slot)
 	pubkey := testutil.RandomCorePubKey(t)
 	sig := testutil.RandomCoreSignature()

@@ -3,6 +3,7 @@
 package dkg
 
 import (
+	"context"
 	"testing"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -179,13 +180,19 @@ func TestValidateKeymanagerFlags(t *testing.T) {
 			authToken: "keymanager-auth-token",
 			errMsg:    "--keymanager-auth-token provided but --keymanager-address absent. Please fix configuration flags",
 		},
+		{
+			name:      "Malformed address provided",
+			addr:      "https://keymanager@example.com:-80",
+			authToken: "keymanager-auth-token",
+			errMsg:    "failed to parse keymanager addr",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateKeymanagerFlags(tt.addr, tt.authToken)
+			err := validateKeymanagerFlags(context.Background(), tt.addr, tt.authToken)
 			if tt.errMsg != "" {
-				require.Equal(t, err.Error(), tt.errMsg)
+				require.ErrorContains(t, err, tt.errMsg)
 			}
 		})
 	}

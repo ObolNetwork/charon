@@ -5,7 +5,7 @@ package core.corepb.v1;
 option go_package = "github.com/obolnetwork/charon/core/corepb/v1";
 
 message Duty {    // core.Duty
-  int64 slot = 1; // int64
+  uint64 slot = 1; // uint64
   int32 type = 2; // core.DutyType
 }
 
@@ -21,5 +21,4 @@ message ParSignedData { // core.ParSignedData
   bytes data = 1;       // []byte
   bytes signature = 2;  // core.Signature
   int32 share_idx = 3;  // int
-  repeated bytes signatures = 4; // []core.Signature
 }

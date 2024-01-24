@@ -44,6 +44,7 @@ func newRunCmd(runFunc func(context.Context, app.Config) error, unsafe bool) *co
 
 	bindPrivKeyFlag(cmd, &conf.PrivKeyFile, &conf.PrivKeyLocking)
 	bindRunFlags(cmd, &conf)
+	bindDebugMonitoringFlags(cmd, &conf.MonitoringAddr, &conf.DebugAddr, "127.0.0.1:3620")
 	bindNoVerifyFlag(cmd.Flags(), &conf.NoVerify)
 	bindP2PFlags(cmd, &conf.P2P)
 	bindLogFlags(cmd.Flags(), &conf.Log)
@@ -70,7 +71,6 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().StringVar(&config.ManifestFile, "manifest-file", ".charon/cluster-manifest.pb", "The path to the cluster manifest file. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
 	cmd.Flags().StringSliceVar(&config.BeaconNodeAddrs, "beacon-node-endpoints", nil, "Comma separated list of one or more beacon node endpoint URLs.")
 	cmd.Flags().StringVar(&config.ValidatorAPIAddr, "validator-api-address", "127.0.0.1:3600", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API.")
-	cmd.Flags().StringVar(&config.MonitoringAddr, "monitoring-address", "127.0.0.1:3620", "Listening address (ip and port) for the monitoring API (prometheus, pprof).")
 	cmd.Flags().StringVar(&config.JaegerAddr, "jaeger-address", "", "Listening address for jaeger tracing.")
 	cmd.Flags().StringVar(&config.JaegerService, "jaeger-service", "charon", "Service name used for jaeger tracing.")
 	cmd.Flags().BoolVar(&config.SimnetBMock, "simnet-beacon-mock", false, "Enables an internal mock beacon node for running a simnet.")
@@ -80,6 +80,10 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().BoolVar(&config.SyntheticBlockProposals, "synthetic-block-proposals", false, "Enables additional synthetic block proposal duties. Used for testing of rare duties.")
 	cmd.Flags().DurationVar(&config.SimnetSlotDuration, "simnet-slot-duration", time.Second, "Configures slot duration in simnet beacon mock.")
 	cmd.Flags().BoolVar(&config.SimnetBMockFuzz, "simnet-beacon-mock-fuzz", false, "Configures simnet beaconmock to return fuzzed responses.")
+	cmd.Flags().StringVar(&config.TestnetConfig.Name, "testnet-name", "", "Name of the custom test network.")
+	cmd.Flags().StringVar(&config.TestnetConfig.GenesisForkVersionHex, "testnet-fork-version", "", "Genesis fork version in hex of the custom test network.")
+	cmd.Flags().Uint64Var(&config.TestnetConfig.ChainID, "testnet-chain-id", 0, "Chain ID of the custom test network.")
+	cmd.Flags().Int64Var(&config.TestnetConfig.GenesisTimestamp, "testnet-genesis-timestamp", 0, "Genesis timestamp of the custom test network.")
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error {
 		if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {
@@ -104,15 +108,14 @@ func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
 	flags.StringVar(&config.Format, "log-format", "console", "Log format; console, logfmt or json")
 	flags.StringVar(&config.Level, "log-level", "info", "Log level; debug, info, warn or error")
 	flags.StringVar(&config.Color, "log-color", "auto", "Log color; auto, force, disable.")
+	flags.StringVar(&config.LogOutputPath, "log-output-path", "", "Path in which to write on-disk logs.")
 }
 
 func bindP2PFlags(cmd *cobra.Command, config *p2p.Config) {
-	cmd.Flags().StringSliceVar(&config.Relays, "p2p-relays", []string{"https://0.relay.obol.tech"}, "Comma-separated list of libp2p relay URLs or multiaddrs.")
+	cmd.Flags().StringSliceVar(&config.Relays, "p2p-relays", []string{"https://0.relay.obol.tech", "https://1.relay.obol.tech"}, "Comma-separated list of libp2p relay URLs or multiaddrs.")
 	cmd.Flags().StringVar(&config.ExternalIP, "p2p-external-ip", "", "The IP address advertised by libp2p. This may be used to advertise an external IP.")
 	cmd.Flags().StringVar(&config.ExternalHost, "p2p-external-hostname", "", "The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.")
 	cmd.Flags().StringSliceVar(&config.TCPAddrs, "p2p-tcp-address", nil, "Comma-separated list of listening TCP addresses (ip and port) for libP2P traffic. Empty default doesn't bind to local port therefore only supports outgoing connections.")
-	cmd.Flags().StringVar(&config.Allowlist, "p2p-allowlist", "", "Comma-separated list of CIDR subnets for allowing only certain peer connections. Example: 192.168.0.0/16 would permit connections to peers on your local network only. The default is to accept all connections.")
-	cmd.Flags().StringVar(&config.Denylist, "p2p-denylist", "", "Comma-separated list of CIDR subnets for disallowing certain peer connections. Example: 192.168.0.0/16 would disallow connections to peers on your local network. The default is to accept all connections.")
 	cmd.Flags().BoolVar(&config.DisableReuseport, "p2p-disable-reuseport", false, "Disables TCP port reuse for outgoing libp2p connections.")
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error {

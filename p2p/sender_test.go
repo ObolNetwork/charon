@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/p2p"
@@ -144,10 +143,9 @@ func testSend(t *testing.T, clientBasicProtoID, serverBasicProtoID, delimitedID 
 	t.Helper()
 
 	var (
-		errNegative = errors.New("negative slot")
-		ctx         = context.Background()
-		server      = testutil.CreateHost(t, testutil.AvailableAddr(t))
-		client      = testutil.CreateHost(t, testutil.AvailableAddr(t))
+		ctx    = context.Background()
+		server = testutil.CreateHost(t, testutil.AvailableAddr(t))
+		client = testutil.CreateHost(t, testutil.AvailableAddr(t))
 	)
 
 	var serverOpt []p2p.SendRecvOption
@@ -174,17 +172,11 @@ func testSend(t *testing.T, clientBasicProtoID, serverBasicProtoID, delimitedID 
 			log.Info(ctx, "See protocol logging field")
 
 			require.Equal(t, client.ID(), peerID)
-			duty, ok := req.(*pbv1.Duty)
-			require.True(t, ok)
 
 			var err error
 			defer func() {
 				serverErrChan <- err
 			}()
-
-			if duty.Slot < 0 {
-				err = errNegative
-			}
 
 			return nil, false, err
 		},
@@ -211,12 +203,6 @@ func testSend(t *testing.T, clientBasicProtoID, serverBasicProtoID, delimitedID 
 
 		return
 	}
-
-	t.Run("server error", func(t *testing.T) {
-		err := p2p.Send(ctx, client, clientBasicProtoID, server.ID(), &pbv1.Duty{Slot: -1}, clientOpt...)
-		require.NoError(t, err)
-		require.ErrorContains(t, <-serverErrChan, "negative slot")
-	})
 
 	t.Run("ok", func(t *testing.T) {
 		err := p2p.Send(ctx, client, clientBasicProtoID, server.ID(), &pbv1.Duty{Slot: 100}, clientOpt...)

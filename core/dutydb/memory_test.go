@@ -116,11 +116,11 @@ func TestMemDB(t *testing.T) {
 	}
 
 	// Assert that two pubkeys can be resolved.
-	pkA, err := db.PubKeyByAttestation(ctx, int64(attData.Slot), int64(attData.Index), valCommIdxA)
+	pkA, err := db.PubKeyByAttestation(ctx, uint64(attData.Slot), uint64(attData.Index), valCommIdxA)
 	require.NoError(t, err)
 	require.Equal(t, pubkeysByIdx[vIdxA], pkA)
 
-	pkB, err := db.PubKeyByAttestation(ctx, int64(attData.Slot), int64(attData.Index), valCommIdxB)
+	pkB, err := db.PubKeyByAttestation(ctx, uint64(attData.Slot), uint64(attData.Index), valCommIdxB)
 	require.NoError(t, err)
 	require.Equal(t, pubkeysByIdx[vIdxB], pkB)
 }
@@ -130,7 +130,7 @@ func TestMemDBProposer(t *testing.T) {
 	db := dutydb.NewMemDB(new(testDeadliner))
 
 	const queries = 3
-	slots := [queries]int64{123, 456, 789}
+	slots := [queries]uint64{123, 456, 789}
 
 	type response struct {
 		block *eth2api.VersionedProposal
@@ -187,7 +187,7 @@ func TestMemDBAggregator(t *testing.T) {
 		set := core.UnsignedDataSet{
 			testutil.RandomCorePubKey(t): core.NewAggregatedAttestation(agg),
 		}
-		slot := int64(agg.Data.Slot)
+		slot := uint64(agg.Data.Slot)
 		go func() {
 			err := db.Store(ctx, core.NewAggregatorDuty(slot), set)
 			require.NoError(t, err)
@@ -215,7 +215,7 @@ func TestMemDBSyncContribution(t *testing.T) {
 			}
 
 			var (
-				slot            = int64(contrib.Slot)
+				slot            = uint64(contrib.Slot)
 				subcommIdx      = contrib.SubcommitteeIndex
 				beaconBlockRoot = contrib.BeaconBlockRoot
 			)
@@ -225,7 +225,7 @@ func TestMemDBSyncContribution(t *testing.T) {
 				require.NoError(t, err)
 			}()
 
-			resp, err := db.AwaitSyncContribution(ctx, slot, int64(subcommIdx), beaconBlockRoot)
+			resp, err := db.AwaitSyncContribution(ctx, slot, subcommIdx, beaconBlockRoot)
 			require.NoError(t, err)
 			require.Equal(t, contrib, resp)
 		}
@@ -378,7 +378,7 @@ func TestMemDBBuilderProposer(t *testing.T) {
 	db := dutydb.NewMemDB(new(testDeadliner))
 
 	const queries = 3
-	slots := [queries]int64{123, 456, 789}
+	slots := [queries]uint64{123, 456, 789}
 
 	type response struct {
 		block *eth2api.VersionedBlindedProposal
@@ -507,7 +507,7 @@ func TestDutyExpiry(t *testing.T) {
 	db := dutydb.NewMemDB(deadliner)
 
 	// Add attestation data
-	const slot = int64(123)
+	const slot = uint64(123)
 	att1 := testutil.RandomCoreAttestationData(t)
 	att1.Duty.Slot = eth2p0.Slot(slot)
 	err := db.Store(ctx, core.NewAttesterDuty(slot), core.UnsignedDataSet{
@@ -516,14 +516,14 @@ func TestDutyExpiry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Ensure it exists
-	pk, err := db.PubKeyByAttestation(ctx, int64(att1.Data.Slot), int64(att1.Data.Index), int64(att1.Duty.ValidatorCommitteeIndex))
+	pk, err := db.PubKeyByAttestation(ctx, uint64(att1.Data.Slot), uint64(att1.Data.Index), att1.Duty.ValidatorCommitteeIndex)
 	require.NoError(t, err)
 	require.NotEmpty(t, pk)
 
 	// Expire attestation
 	deadliner.expire()
 
-	versionedProposal := core.VersionedProposal{VersionedProposal: *testutil.RandomVersionedProposal()}
+	versionedProposal := core.VersionedProposal{VersionedProposal: *testutil.RandomDenebVersionedProposal()}
 
 	// Store another duty which deletes expired duties
 	err = db.Store(ctx, core.NewProposerDuty(slot+1), core.UnsignedDataSet{
@@ -532,7 +532,7 @@ func TestDutyExpiry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Pubkey not found.
-	_, err = db.PubKeyByAttestation(ctx, int64(att1.Data.Slot), int64(att1.Data.Index), int64(att1.Duty.ValidatorCommitteeIndex))
+	_, err = db.PubKeyByAttestation(ctx, uint64(att1.Data.Slot), uint64(att1.Data.Index), att1.Duty.ValidatorCommitteeIndex)
 	require.Error(t, err)
 }
 

@@ -93,7 +93,7 @@ type Tracker struct {
 	// deleter triggers duty deletion after all associated analysis are done.
 	deleter core.Deadliner
 	// fromSlot indicates the slot to start tracking events from.
-	fromSlot int64
+	fromSlot uint64
 	quit     chan struct{}
 
 	// parSigReporter instruments partial signature data inconsistencies.
@@ -107,7 +107,7 @@ type Tracker struct {
 }
 
 // New returns a new Tracker. The deleter deadliner must return well after analyser deadliner since duties of the same slot are often analysed together.
-func New(analyser core.Deadliner, deleter core.Deadliner, peers []p2p.Peer, fromSlot int64) *Tracker {
+func New(analyser core.Deadliner, deleter core.Deadliner, peers []p2p.Peer, fromSlot uint64) *Tracker {
 	t := &Tracker{
 		input:                 make(chan event),
 		events:                make(map[core.Duty][]event),
@@ -439,7 +439,7 @@ func extractParSigs(ctx context.Context, events []event) parsigsByMsg {
 		}
 		dedup[key] = true
 
-		root, err := core.HashMessageRoots(e.parSig.SignedData)
+		root, err := e.parSig.MessageRoot()
 		if err != nil {
 			log.Warn(ctx, "Parsig message root", err)
 			continue // Just log and ignore as this is highly unlikely and non-critical code.

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"net/url"
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -112,7 +113,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.New("only v1.6.0 and v1.7.0 cluster definition version supported")
 	}
 
-	if err := validateKeymanagerFlags(conf.KeymanagerAddr, conf.KeymanagerAuthToken); err != nil {
+	if err := validateKeymanagerFlags(ctx, conf.KeymanagerAddr, conf.KeymanagerAuthToken); err != nil {
 		return err
 	}
 
@@ -203,7 +204,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 	caster := bcast.New(tcpNode, peerIds, key)
 
 	// register bcast callbacks for frostp2p
-	tp := newFrostP2P(tcpNode, peerMap, caster, def.Threshold, def.NumValidators)
+	tp, err := newFrostP2P(tcpNode, peerMap, caster, def.Threshold, def.NumValidators)
+	if err != nil {
+		return errors.Wrap(err, "frost error")
+	}
 
 	// register bcast callbacks for lock hash k1 signature handler
 	nodeSigCaster := newNodeSigBcast(peers, nodeIdx, caster)
@@ -222,17 +226,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	var shares []share
 	switch def.DKGAlgorithm {
-	case "keycast":
-		tp := keycastP2P{
-			tcpNode:   tcpNode,
-			peers:     peers,
-			clusterID: defHash,
-		}
-
-		shares, err = runKeyCast(ctx, def, tp, nodeIdx.PeerIdx)
-		if err != nil {
-			return err
-		}
 	case "default", "frost":
 		shares, err = runFrostParallel(ctx, tp, uint32(def.NumValidators), uint32(len(peerMap)),
 			uint32(def.Threshold), uint32(nodeIdx.ShareIdx), defHash)
@@ -488,8 +481,9 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 			break
 		}
 
-		// Sleep for 100ms to let clients connect with each other.
-		time.Sleep(time.Millisecond * 100)
+		// Sleep for 250ms to let clients connect with each other.
+		// Must be at least two times greater than the sync messages period specified in client.go NewClient().
+		time.Sleep(time.Millisecond * 250)
 	}
 
 	// Disable reconnecting clients to other peer's server once all clients are connected.
@@ -650,7 +644,7 @@ func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares map[core.P
 		pk := pk
 		psigs := psigs
 		for _, s := range psigs {
-			sig, err := tblsconv.SignatureFromBytes(s.Signatures()[0])
+			sig, err := tblsconv.SignatureFromBytes(s.Signature())
 			if err != nil {
 				return tbls.Signature{}, nil, errors.Wrap(err, "signature from bytes")
 			}
@@ -833,7 +827,7 @@ func aggDepositData(data map[core.PubKey][]core.ParSignedData, shares []share,
 
 		psigs := make(map[int]tbls.Signature)
 		for _, s := range psigsData {
-			sig, err := tblsconv.SignatureFromBytes(s.Signatures()[0])
+			sig, err := tblsconv.SignatureFromBytes(s.Signature())
 			if err != nil {
 				return nil, errors.Wrap(err, "signature from core")
 			}
@@ -920,7 +914,7 @@ func aggValidatorRegistrations(
 
 		psigs := make(map[int]tbls.Signature)
 		for _, s := range psigsData {
-			sig, err := tblsconv.SignatureFromBytes(s.Signatures()[0])
+			sig, err := tblsconv.SignatureFromBytes(s.Signature())
 			if err != nil {
 				return nil, errors.Wrap(err, "signature from core")
 			}
@@ -1050,12 +1044,21 @@ func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) 
 }
 
 // validateKeymanagerFlags returns an error if one keymanager flag is present but the other is not.
-func validateKeymanagerFlags(addr, authToken string) error {
+func validateKeymanagerFlags(ctx context.Context, addr, authToken string) error {
 	if addr != "" && authToken == "" {
 		return errors.New("--keymanager-address provided but --keymanager-auth-token absent. Please fix configuration flags")
 	}
 	if addr == "" && authToken != "" {
 		return errors.New("--keymanager-auth-token provided but --keymanager-address absent. Please fix configuration flags")
+	}
+
+	keymanagerURL, err := url.Parse(addr)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse keymanager addr", z.Str("addr", addr))
+	}
+
+	if keymanagerURL.Scheme != "https" {
+		log.Warn(ctx, "Keymanager URL does not use https protocol", nil, z.Str("addr", addr))
 	}
 
 	return nil
@@ -1103,7 +1106,7 @@ func builderRegistrationFromETH2(reg core.VersionedSignedValidatorRegistration) 
 			Timestamp:    timestamp,
 			PubKey:       pubKey[:],
 		},
-		Signature: reg.Signatures()[0],
+		Signature: reg.Signature(),
 	}, nil
 }
 

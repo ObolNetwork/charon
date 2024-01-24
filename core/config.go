@@ -3,4 +3,4 @@
 package core
 
 // BuilderEnabled determines whether the builderAPI is enabled for the provided slot.
-type BuilderEnabled func(slot int64) bool
+type BuilderEnabled func(slot uint64) bool

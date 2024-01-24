@@ -18,6 +18,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -374,16 +375,17 @@ func (c *Component) propose(ctx context.Context, duty core.Duty, value proto.Mes
 	return c.runInstance(ctx, duty)
 }
 
-// Participate runs a new a consensus instance if an eager timer is defined and Propose not already called.
+// Participate runs a new a consensus instance to participate while still waiting for
+// unsigned data from beacon node and Propose not already called.
 // Note Propose must still be called for this peer to propose a value when leading a round.
 // Note this errors if called multiple times for the same duty.
 func (c *Component) Participate(ctx context.Context, duty core.Duty) error {
 	if duty.Type == core.DutyAggregator || duty.Type == core.DutySyncContribution {
-		return nil // No eager consensus for potential no-op aggregation duties.
+		return nil // No consensus participate for potential no-op aggregation duties.
 	}
 
-	if !c.timerFunc(duty).Type().Eager() {
-		return nil // Not an eager start timer, wait for Propose to start.
+	if !featureset.Enabled(featureset.ConsensusParticipate) {
+		return nil // Wait for Propose to start.
 	}
 
 	inst := c.getInstanceIO(duty)
@@ -743,7 +745,7 @@ func fmtStepPeers(step roundStep) string {
 
 // leader return the deterministic leader index.
 func leader(duty core.Duty, round int64, nodes int) int64 {
-	return ((duty.Slot) + int64(duty.Type) + round) % int64(nodes)
+	return (int64(duty.Slot) + int64(duty.Type) + round) % int64(nodes)
 }
 
 func valuesByHash(values []*anypb.Any) (map[[32]byte]*anypb.Any, error) {

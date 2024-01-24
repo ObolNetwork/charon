@@ -13,6 +13,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
+	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -87,13 +88,13 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 
 	atts := []*eth2p0.Attestation{attA, attB}
 
-	component.RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error) {
+	component.RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valCommIdx uint64) (core.PubKey, error) {
 		return pubkeysByIdx[eth2p0.ValidatorIndex(valCommIdx)], nil
 	})
 
 	component.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 		require.Equal(t, core.DutyAttester, duty.Type)
-		require.Equal(t, int64(slot), duty.Slot)
+		require.Equal(t, uint64(slot), duty.Slot)
 
 		parSignedDataA := set[pubkeysByIdx[vIdxA]]
 		actAttA, ok := parSignedDataA.SignedData.(core.Attestation)
@@ -188,7 +189,7 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
 	require.NoError(t, err)
 
-	vapi.RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error) {
+	vapi.RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valCommIdx uint64) (core.PubKey, error) {
 		require.EqualValues(t, slot, epochSlot)
 		require.EqualValues(t, commIdx, vIdx)
 		require.EqualValues(t, valCommIdx, 0)
@@ -295,7 +296,7 @@ func TestSignAndVerify(t *testing.T) {
 	// Setup validatorapi component.
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
 	require.NoError(t, err)
-	vapi.RegisterPubKeyByAttestation(func(context.Context, int64, int64, int64) (core.PubKey, error) {
+	vapi.RegisterPubKeyByAttestation(func(context.Context, uint64, uint64, uint64) (core.PubKey, error) {
 		return core.PubKeyFromBytes(pubkey[:])
 	})
 
@@ -377,7 +378,7 @@ func TestComponent_Proposal(t *testing.T) {
 		return core.DutyDefinitionSet{pubkey: nil}, nil
 	})
 
-	component.RegisterAwaitProposal(func(ctx context.Context, slot int64) (*eth2api.VersionedProposal, error) {
+	component.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
 		return block1, nil
 	})
 
@@ -586,27 +587,27 @@ func TestComponent_SubmitProposalInvalidBlock(t *testing.T) {
 		{
 			name:   "no phase 0 block",
 			block:  &eth2api.VersionedSignedProposal{Version: eth2spec.DataVersionPhase0},
-			errMsg: "no phase0 block",
+			errMsg: "data missing",
 		},
 		{
 			name:   "no altair block",
 			block:  &eth2api.VersionedSignedProposal{Version: eth2spec.DataVersionAltair},
-			errMsg: "no altair block",
+			errMsg: "data missing",
 		},
 		{
 			name:   "no bellatrix block",
 			block:  &eth2api.VersionedSignedProposal{Version: eth2spec.DataVersionBellatrix},
-			errMsg: "no bellatrix block",
+			errMsg: "data missing",
 		},
 		{
 			name:   "no capella block",
 			block:  &eth2api.VersionedSignedProposal{Version: eth2spec.DataVersionCapella},
-			errMsg: "no capella block",
+			errMsg: "data missing",
 		},
 		{
 			name:   "no deneb block",
 			block:  &eth2api.VersionedSignedProposal{Version: eth2spec.DataVersionDeneb},
-			errMsg: "no deneb block",
+			errMsg: "data missing",
 		},
 		{
 			name:   "none",
@@ -700,11 +701,11 @@ func TestComponent_BlindedProposal(t *testing.T) {
 		return core.DutyDefinitionSet{pubkey: nil}, nil
 	})
 
-	component.RegisterAwaitBlindedProposal(func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedProposal, error) {
+	component.RegisterAwaitBlindedProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedBlindedProposal, error) {
 		return block1, nil
 	})
 
-	// component.RegisterAwaitBlindedBeaconBlock(func(ctx context.Context, slot int64) (*eth2api.VersionedBlindedBeaconBlock, error) {
+	// component.RegisterAwaitBlindedBeaconBlock(func(ctx context.Context, slot uint64) (*eth2api.VersionedBlindedBeaconBlock, error) {
 	// 	return block1, nil
 	// })
 
@@ -909,12 +910,12 @@ func TestComponent_SubmitBlindedProposalInvalidBlock(t *testing.T) {
 		{
 			name:   "no bellatrix block",
 			block:  &eth2api.VersionedSignedBlindedProposal{Version: eth2spec.DataVersionBellatrix},
-			errMsg: "no bellatrix block",
+			errMsg: "data missing",
 		},
 		{
 			name:   "no deneb block",
 			block:  &eth2api.VersionedSignedBlindedProposal{Version: eth2spec.DataVersionDeneb},
-			errMsg: "no deneb block",
+			errMsg: "data missing",
 		},
 		{
 			name:   "none",
@@ -942,6 +943,19 @@ func TestComponent_SubmitBlindedProposalInvalidBlock(t *testing.T) {
 				},
 			},
 			errMsg: "no signature found",
+		},
+		{
+			name: "no deneb sig",
+			block: &eth2api.VersionedSignedBlindedProposal{
+				Version: eth2spec.DataVersionDeneb,
+				Deneb: &eth2deneb.SignedBlindedBeaconBlock{
+					Message: &eth2deneb.BlindedBeaconBlock{
+						Slot: eth2p0.Slot(123),
+						Body: testutil.RandomDenebBlindedBeaconBlockBody(),
+					},
+					Signature: eth2p0.BLSSignature{},
+				},
+			},
 		},
 	}
 
@@ -1449,7 +1463,7 @@ func TestComponent_SubmitAggregateAttestations(t *testing.T) {
 	require.NoError(t, err)
 
 	vapi.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-		require.Equal(t, core.NewAggregatorDuty(int64(slot)), duty)
+		require.Equal(t, core.NewAggregatorDuty(uint64(slot)), duty)
 
 		pk, err := core.PubKeyFromBytes(pubkey[:])
 		require.NoError(t, err)
@@ -1539,7 +1553,7 @@ func TestComponent_SubmitSyncCommitteeMessages(t *testing.T) {
 	require.NoError(t, err)
 
 	vapi.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-		require.Equal(t, core.NewSyncMessageDuty(int64(msg.Slot)), duty)
+		require.Equal(t, core.NewSyncMessageDuty(uint64(msg.Slot)), duty)
 
 		pk, err := core.PubKeyFromBytes(pubkey[:])
 		require.NoError(t, err)
@@ -1564,7 +1578,7 @@ func TestComponent_SubmitSyncCommitteeContributions(t *testing.T) {
 		ctx          = context.Background()
 		contrib      = testutil.RandomSignedSyncContributionAndProof()
 		pubkey       = beaconmock.ValidatorSetA[vIdx].Validator.PublicKey
-		expectedDuty = core.NewSyncContributionDuty(int64(contrib.Message.Contribution.Slot))
+		expectedDuty = core.NewSyncContributionDuty(uint64(contrib.Message.Contribution.Slot))
 	)
 
 	contrib.Message.AggregatorIndex = vIdx

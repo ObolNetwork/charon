@@ -7,7 +7,6 @@ package validatorapi
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -25,6 +24,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
+	deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -429,9 +429,19 @@ func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
 			data = []*eth2v1.ProposerDuty{}
 		}
 
+		executionOptimistic, err := getExecutionOptimisticFromMetadata(eth2Resp.Metadata)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to decode ProposerDuties response metadata")
+		}
+
+		dependentRoot, err := getDependentRootFromMetadata(eth2Resp.Metadata)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to decode ProposerDuties response metadata")
+		}
+
 		return proposerDutiesResponse{
-			ExecutionOptimistic: false,           // TODO(dhruv): Fill this properly
-			DependentRoot:       stubRoot(epoch), // TODO(corver): Fill this properly
+			ExecutionOptimistic: executionOptimistic,
+			DependentRoot:       dependentRoot,
 			Data:                data,
 		}, nil, nil
 	}
@@ -464,9 +474,19 @@ func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 			data = []*eth2v1.AttesterDuty{}
 		}
 
+		executionOptimistic, err := getExecutionOptimisticFromMetadata(eth2Resp.Metadata)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to decode AttesterDuties response metadata")
+		}
+
+		dependentRoot, err := getDependentRootFromMetadata(eth2Resp.Metadata)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to decode AttesterDuties response metadata")
+		}
+
 		return attesterDutiesResponse{
-			ExecutionOptimistic: false,           // TODO(dhruv): Fill this properly
-			DependentRoot:       stubRoot(epoch), // TODO(corver): Fill this properly
+			ExecutionOptimistic: executionOptimistic,
+			DependentRoot:       dependentRoot,
 			Data:                data,
 		}, nil, nil
 	}
@@ -575,6 +595,7 @@ func proposeBlock(p eth2client.ProposalProvider) handlerFunc {
 			RandaoReveal: randao,
 			Graffiti:     graff,
 		}
+
 		eth2Resp, err := p.Proposal(ctx, opts)
 		if err != nil {
 			return nil, nil, err
@@ -699,8 +720,19 @@ func proposeBlindedBlock(p eth2client.BlindedProposalProvider) handlerFunc {
 
 func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		denebBlock := new(deneb.SignedBlockContents)
+		err := unmarshal(typ, body, denebBlock)
+		if err == nil {
+			block := &eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionDeneb,
+				Deneb:   denebBlock,
+			}
+
+			return nil, nil, p.SubmitProposal(ctx, block)
+		}
+
 		capellaBlock := new(capella.SignedBeaconBlock)
-		err := unmarshal(typ, body, capellaBlock)
+		err = unmarshal(typ, body, capellaBlock)
 		if err == nil {
 			block := &eth2api.VersionedSignedProposal{
 				Version: eth2spec.DataVersionCapella,
@@ -749,9 +781,20 @@ func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 
 func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
-		// The blinded block maybe either bellatrix or capella.
+		// The blinded block maybe either bellatrix, capella or deneb.
+		denebBlock := new(deneb.SignedBlindedBeaconBlock)
+		err := unmarshal(typ, body, denebBlock)
+		if err == nil {
+			block := &eth2api.VersionedSignedBlindedProposal{
+				Version: eth2spec.DataVersionDeneb,
+				Deneb:   denebBlock,
+			}
+
+			return nil, nil, p.SubmitBlindedProposal(ctx, block)
+		}
+
 		capellaBlock := new(eth2capella.SignedBlindedBeaconBlock)
-		err := unmarshal(typ, body, capellaBlock)
+		err = unmarshal(typ, body, capellaBlock)
 		if err == nil {
 			block := &eth2api.VersionedSignedBlindedProposal{
 				Version: eth2spec.DataVersionCapella,
@@ -928,7 +971,7 @@ func submitProposalPreparations() handlerFunc {
 // nodeVersion returns the version of the node.
 func nodeVersion(p eth2client.NodeVersionProvider) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
-		eth2Resp, err := p.NodeVersion(ctx)
+		eth2Resp, err := p.NodeVersion(ctx, &eth2api.NodeVersionOpts{})
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1206,14 +1249,6 @@ func (w proxyResponseWriter) WriteHeader(statusCode int) {
 	w.writeFlusher.WriteHeader(statusCode)
 }
 
-// stubRoot return a stub dependent root for an epoch.
-func stubRoot(epoch uint64) root {
-	var r eth2p0.Root
-	binary.PutUvarint(r[:], epoch)
-
-	return root(r)
-}
-
 // getValidatorIDs returns validator IDs as "id" query parameters (supporting csv values).
 func getValidatorIDs(query url.Values) []string {
 	var resp []string
@@ -1308,4 +1343,42 @@ func getCtxDuration(ctx context.Context) z.Field {
 	}
 
 	return z.Str("duration", time.Since(t0).String())
+}
+
+// getExecutionOptimisticFromMetadata returns execution_optimistic value from metadata,
+// or error if it is missing or has a wrong type.
+// Default value `false` is returned in case metadata is nil.
+func getExecutionOptimisticFromMetadata(metadata map[string]any) (bool, error) {
+	if metadata == nil {
+		return false, nil
+	}
+
+	if v, has := metadata["execution_optimistic"]; has {
+		if b, ok := v.(bool); ok {
+			return b, nil
+		}
+
+		return false, errors.New("metadata has malformed execution_optimistic value", z.Any("execution_optimistic", v))
+	}
+
+	return false, errors.New("metadata has missing execution_optimistic value")
+}
+
+// getDependentRootFromMetadata returns dependent_root value from metadata,
+// or error if it is missing, has a wrong type or a malformed value.
+// Default value `0x00..` is returned in case metadata is nil.
+func getDependentRootFromMetadata(metadata map[string]any) (root, error) {
+	if metadata == nil {
+		return root{}, nil
+	}
+
+	if v, has := metadata["dependent_root"]; has {
+		if r, ok := v.(eth2p0.Root); ok {
+			return root(r), nil
+		}
+
+		return root{}, errors.New("metadata has wrong dependent_root type", z.Any("dependent_root", v))
+	}
+
+	return root{}, errors.New("metadata has missing dependent_root value")
 }

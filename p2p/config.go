@@ -20,10 +20,6 @@ type Config struct {
 	ExternalHost string
 	// TCPAddrs defines the lib-p2p tcp listen addresses.
 	TCPAddrs []string
-	// Allowlist defines csv CIDR blocks for lib-p2p allowed connections.
-	Allowlist string
-	// Allowlist defines csv CIDR blocks for lib-p2p denied connections.
-	Denylist string
 	// DisableReuseport disables TCP port reuse for libp2p.
 	DisableReuseport bool
 }

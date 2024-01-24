@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
@@ -189,6 +190,39 @@ func TestCreateCluster(t *testing.T) {
 				return data
 			},
 		},
+		{
+			Name: "test with fee recipient and withdrawal addresses",
+			Config: clusterConfig{
+				Name:      "test_cluster",
+				NumNodes:  3,
+				Threshold: 4,
+				NumDVs:    5,
+				Network:   "goerli",
+			},
+			Prep: func(t *testing.T, config clusterConfig) clusterConfig {
+				t.Helper()
+
+				config.FeeRecipientAddrs = []string{testutil.RandomChecksummedETHAddress(t, 1)}
+				config.WithdrawalAddrs = []string{testutil.RandomChecksummedETHAddress(t, 2)}
+
+				return config
+			},
+		},
+		{
+			Name: "custom testnet flags",
+			Config: clusterConfig{
+				Name:      "testnet",
+				NumNodes:  4,
+				Threshold: 3,
+				NumDVs:    3,
+				testnetConfig: eth2util.Network{
+					ChainID:               243,
+					Name:                  "obolnetwork",
+					GenesisForkVersionHex: "0x00000101",
+					GenesisTimestamp:      time.Now().Unix(),
+				},
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
@@ -203,13 +237,13 @@ func TestCreateCluster(t *testing.T) {
 
 				test.Config.DefFile = srv.URL
 			}
-			if test.Prep != nil {
-				test.Config = test.Prep(t, test.Config)
-			}
-
 			test.Config.InsecureKeys = true
 			test.Config.WithdrawalAddrs = []string{zeroAddress}
 			test.Config.FeeRecipientAddrs = []string{zeroAddress}
+
+			if test.Prep != nil {
+				test.Config = test.Prep(t, test.Config)
+			}
 
 			testCreateCluster(t, test.Config, def, test.expectedErr)
 		})
@@ -284,6 +318,7 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 		}
 
 		previousVersions := []string{"v1.0.0", "v1.1.0", "v1.2.0", "v1.3.0", "v1.4.0", "v1.5.0"}
+		nowUTC := time.Now().UTC()
 		for _, val := range lock.Validators {
 			if isAnyVersion(lock.Version, previousVersions...) {
 				break
@@ -295,6 +330,13 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 
 			if isAnyVersion(lock.Version, "v1.7.0") {
 				require.NotEmpty(t, val.BuilderRegistration)
+			}
+
+			if conf.SplitKeys {
+				// For SplitKeys mode, builder registration timestamp must be close to Now().
+				// This assumes the test does not execute longer than five minutes.
+				// We just need to make sure the message timestamp is not a genesis time.
+				require.Less(t, nowUTC.Sub(val.BuilderRegistration.Message.Timestamp), 5*time.Minute, "likely a genesis timestamp")
 			}
 		}
 
@@ -413,9 +455,9 @@ func TestSplitKeys(t *testing.T) {
 	}{
 		{
 			name:         "split keys from local definition",
-			numSplitKeys: 1,
+			numSplitKeys: 2,
 			conf: clusterConfig{
-				DefFile:    "../cluster/examples/cluster-definition-002.json",
+				DefFile:    "../cluster/examples/cluster-definition-004.json",
 				ClusterDir: t.TempDir(),
 				NumNodes:   4,
 				Network:    defaultNetwork,

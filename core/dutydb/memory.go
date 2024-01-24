@@ -20,13 +20,13 @@ func NewMemDB(deadliner core.Deadliner) *MemDB {
 	return &MemDB{
 		attDuties:         make(map[attKey]*eth2p0.AttestationData),
 		attPubKeys:        make(map[pkKey]core.PubKey),
-		attKeysBySlot:     make(map[int64][]pkKey),
-		builderProDuties:  make(map[int64]*eth2api.VersionedBlindedProposal),
-		proDuties:         make(map[int64]*eth2api.VersionedProposal),
+		attKeysBySlot:     make(map[uint64][]pkKey),
+		builderProDuties:  make(map[uint64]*eth2api.VersionedBlindedProposal),
+		proDuties:         make(map[uint64]*eth2api.VersionedProposal),
 		aggDuties:         make(map[aggKey]core.AggregatedAttestation),
-		aggKeysBySlot:     make(map[int64][]aggKey),
+		aggKeysBySlot:     make(map[uint64][]aggKey),
 		contribDuties:     make(map[contribKey]*altair.SyncCommitteeContribution),
-		contribKeysBySlot: make(map[int64][]contribKey),
+		contribKeysBySlot: make(map[uint64][]contribKey),
 		shutdown:          make(chan struct{}),
 		deadliner:         deadliner,
 	}
@@ -40,25 +40,25 @@ type MemDB struct {
 	// DutyAttester
 	attDuties     map[attKey]*eth2p0.AttestationData
 	attPubKeys    map[pkKey]core.PubKey
-	attKeysBySlot map[int64][]pkKey
+	attKeysBySlot map[uint64][]pkKey
 	attQueries    []attQuery
 
 	// DutyBuilderProposer
-	builderProDuties  map[int64]*eth2api.VersionedBlindedProposal
+	builderProDuties  map[uint64]*eth2api.VersionedBlindedProposal
 	builderProQueries []builderProQuery
 
 	// DutyProposer
-	proDuties  map[int64]*eth2api.VersionedProposal
+	proDuties  map[uint64]*eth2api.VersionedProposal
 	proQueries []proQuery
 
 	// DutyAggregator
 	aggDuties     map[aggKey]core.AggregatedAttestation
-	aggKeysBySlot map[int64][]aggKey
+	aggKeysBySlot map[uint64][]aggKey
 	aggQueries    []aggQuery
 
 	// DutySyncContribution
 	contribDuties     map[contribKey]*altair.SyncCommitteeContribution
-	contribKeysBySlot map[int64][]contribKey
+	contribKeysBySlot map[uint64][]contribKey
 	contribQueries    []contribQuery
 
 	shutdown  chan struct{}
@@ -127,8 +127,8 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 			if err != nil {
 				return err
 			}
-			db.resolveContribQueriesUnsafe()
 		}
+		db.resolveContribQueriesUnsafe()
 	default:
 		return errors.New("unsupported duty type", z.Str("type", duty.Type.String()))
 	}
@@ -155,7 +155,7 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 }
 
 // AwaitProposal implements core.DutyDB, see its godoc.
-func (db *MemDB) AwaitProposal(ctx context.Context, slot int64) (*eth2api.VersionedProposal, error) {
+func (db *MemDB) AwaitProposal(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
 	response := make(chan *eth2api.VersionedProposal, 1)
@@ -180,7 +180,7 @@ func (db *MemDB) AwaitProposal(ctx context.Context, slot int64) (*eth2api.Versio
 }
 
 // AwaitBlindedProposal implements core.DutyDB, see its godoc.
-func (db *MemDB) AwaitBlindedProposal(ctx context.Context, slot int64) (*eth2api.VersionedBlindedProposal, error) {
+func (db *MemDB) AwaitBlindedProposal(ctx context.Context, slot uint64) (*eth2api.VersionedBlindedProposal, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
 	response := make(chan *eth2api.VersionedBlindedProposal, 1)
@@ -205,7 +205,7 @@ func (db *MemDB) AwaitBlindedProposal(ctx context.Context, slot int64) (*eth2api
 }
 
 // AwaitAttestation implements core.DutyDB, see its godoc.
-func (db *MemDB) AwaitAttestation(ctx context.Context, slot int64, commIdx int64) (*eth2p0.AttestationData, error) {
+func (db *MemDB) AwaitAttestation(ctx context.Context, slot uint64, commIdx uint64) (*eth2p0.AttestationData, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
 	response := make(chan *eth2p0.AttestationData, 1) // Instance of one so resolving never blocks
@@ -234,7 +234,7 @@ func (db *MemDB) AwaitAttestation(ctx context.Context, slot int64, commIdx int64
 
 // AwaitAggAttestation blocks and returns the aggregated attestation for the slot
 // and attestation when available.
-func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot int64, attestationRoot eth2p0.Root,
+func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot uint64, attestationRoot eth2p0.Root,
 ) (*eth2p0.Attestation, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
@@ -274,7 +274,7 @@ func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot int64, attestatio
 
 // AwaitSyncContribution blocks and returns the sync committee contribution data for the slot and
 // the subcommittee and the beacon block root when available.
-func (db *MemDB) AwaitSyncContribution(ctx context.Context, slot, subcommIdx int64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
+func (db *MemDB) AwaitSyncContribution(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
 	response := make(chan *altair.SyncCommitteeContribution, 1) // Instance of one so resolving never blocks
@@ -303,7 +303,7 @@ func (db *MemDB) AwaitSyncContribution(ctx context.Context, slot, subcommIdx int
 }
 
 // PubKeyByAttestation implements core.DutyDB, see its godoc.
-func (db *MemDB) PubKeyByAttestation(_ context.Context, slot, commIdx, valCommIdx int64) (core.PubKey, error) {
+func (db *MemDB) PubKeyByAttestation(_ context.Context, slot, commIdx, valCommIdx uint64) (core.PubKey, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
@@ -335,9 +335,9 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 
 	// Store key and value for PubKeyByAttestation
 	pKey := pkKey{
-		Slot:       int64(attData.Data.Slot),
-		CommIdx:    int64(attData.Data.Index),
-		ValCommIdx: int64(attData.Duty.ValidatorCommitteeIndex),
+		Slot:       uint64(attData.Data.Slot),
+		CommIdx:    uint64(attData.Data.Index),
+		ValCommIdx: attData.Duty.ValidatorCommitteeIndex,
 	}
 	if value, ok := db.attPubKeys[pKey]; ok {
 		if value != pubkey {
@@ -345,13 +345,13 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 		}
 	} else {
 		db.attPubKeys[pKey] = pubkey
-		db.attKeysBySlot[int64(attData.Duty.Slot)] = append(db.attKeysBySlot[int64(attData.Duty.Slot)], pKey)
+		db.attKeysBySlot[uint64(attData.Duty.Slot)] = append(db.attKeysBySlot[uint64(attData.Duty.Slot)], pKey)
 	}
 
 	// Store key and value for AwaitAttestation
 	aKey := attKey{
-		Slot:    int64(attData.Data.Slot),
-		CommIdx: int64(attData.Data.Index),
+		Slot:    uint64(attData.Data.Slot),
+		CommIdx: uint64(attData.Data.Index),
 	}
 
 	if value, ok := db.attDuties[aKey]; ok {
@@ -382,7 +382,7 @@ func (db *MemDB) storeAggAttestationUnsafe(unsignedData core.UnsignedData) error
 		return errors.Wrap(err, "hash aggregated attestation root")
 	}
 
-	slot := int64(aggAtt.Attestation.Data.Slot)
+	slot := uint64(aggAtt.Attestation.Data.Slot)
 
 	// Store key and value for PubKeyByAttestation
 	key := aggKey{
@@ -429,8 +429,8 @@ func (db *MemDB) storeSyncContributionUnsafe(unsignedData core.UnsignedData) err
 	}
 
 	key := contribKey{
-		Slot:       int64(contrib.Slot),
-		SubcommIdx: int64(contrib.SubcommitteeIndex),
+		Slot:       uint64(contrib.Slot),
+		SubcommIdx: contrib.SubcommitteeIndex,
 		Root:       contrib.BeaconBlockRoot,
 	}
 
@@ -445,7 +445,7 @@ func (db *MemDB) storeSyncContributionUnsafe(unsignedData core.UnsignedData) err
 		}
 	} else {
 		db.contribDuties[key] = &contrib.SyncCommitteeContribution
-		db.contribKeysBySlot[int64(contrib.Slot)] = append(db.contribKeysBySlot[int64(contrib.Slot)], key)
+		db.contribKeysBySlot[uint64(contrib.Slot)] = append(db.contribKeysBySlot[uint64(contrib.Slot)], key)
 	}
 
 	return nil
@@ -468,7 +468,7 @@ func (db *MemDB) storeProposalUnsafe(unsignedData core.UnsignedData) error {
 		return err
 	}
 
-	if existing, ok := db.proDuties[int64(slot)]; ok {
+	if existing, ok := db.proDuties[uint64(slot)]; ok {
 		existingRoot, err := existing.Root()
 		if err != nil {
 			return errors.Wrap(err, "proposal root")
@@ -483,7 +483,7 @@ func (db *MemDB) storeProposalUnsafe(unsignedData core.UnsignedData) error {
 			return errors.New("clashing blocks")
 		}
 	} else {
-		db.proDuties[int64(slot)] = &proposal.VersionedProposal
+		db.proDuties[uint64(slot)] = &proposal.VersionedProposal
 	}
 
 	return nil
@@ -506,7 +506,7 @@ func (db *MemDB) storeBlindedBeaconBlockUnsafe(unsignedData core.UnsignedData) e
 		return err
 	}
 
-	if existing, ok := db.builderProDuties[int64(slot)]; ok {
+	if existing, ok := db.builderProDuties[uint64(slot)]; ok {
 		existingRoot, err := existing.Root()
 		if err != nil {
 			return errors.Wrap(err, "blinded block root")
@@ -521,7 +521,7 @@ func (db *MemDB) storeBlindedBeaconBlockUnsafe(unsignedData core.UnsignedData) e
 			return errors.New("clashing blinded blocks")
 		}
 	} else {
-		db.builderProDuties[int64(slot)] = &block.VersionedBlindedProposal
+		db.builderProDuties[uint64(slot)] = &block.VersionedBlindedProposal
 	}
 
 	return nil
@@ -664,27 +664,27 @@ func (db *MemDB) deleteDutyUnsafe(duty core.Duty) error {
 
 // attKey is the key to lookup an attester value in the DB.
 type attKey struct {
-	Slot    int64
-	CommIdx int64
+	Slot    uint64
+	CommIdx uint64
 }
 
 // pkKey is the key to lookup pubkeys by attestation in the DB.
 type pkKey struct {
-	Slot       int64
-	CommIdx    int64
-	ValCommIdx int64
+	Slot       uint64
+	CommIdx    uint64
+	ValCommIdx uint64
 }
 
 // aggKey is the key to lookup an aggregated attestation by root in the DB.
 type aggKey struct {
-	Slot int64
+	Slot uint64
 	Root eth2p0.Root
 }
 
 // contribKey is the key to look up sync contribution by root and subcommittee index in the DB.
 type contribKey struct {
-	Slot       int64
-	SubcommIdx int64
+	Slot       uint64
+	SubcommIdx uint64
 	Root       eth2p0.Root
 }
 
@@ -697,7 +697,7 @@ type attQuery struct {
 
 // proQuery is a waiting proQuery with a response channel.
 type proQuery struct {
-	Key      int64
+	Key      uint64
 	Response chan<- *eth2api.VersionedProposal
 	Cancel   <-chan struct{}
 }
@@ -711,7 +711,7 @@ type aggQuery struct {
 
 // builderProQuery is a waiting builderProQuery with a response channel.
 type builderProQuery struct {
-	Key      int64
+	Key      uint64
 	Response chan<- *eth2api.VersionedBlindedProposal
 	Cancel   <-chan struct{}
 }

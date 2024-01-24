@@ -17,12 +17,15 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
+	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
+	"github.com/attestantio/go-eth2-client/spec/deneb"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/holiman/uint256"
 	"github.com/libp2p/go-libp2p"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -298,6 +301,22 @@ func RandomCapellaCoreVersionedSignedProposal() core.VersionedSignedProposal {
 	}
 }
 
+func RandomDenebCoreVersionedSignedProposal() core.VersionedSignedProposal {
+	return core.VersionedSignedProposal{
+		VersionedSignedProposal: eth2api.VersionedSignedProposal{
+			Version: eth2spec.DataVersionDeneb,
+			Deneb: &eth2deneb.SignedBlockContents{
+				SignedBlock: &deneb.SignedBeaconBlock{
+					Message:   RandomDenebBeaconBlock(),
+					Signature: RandomEth2Signature(),
+				},
+				KZGProofs: []deneb.KZGProof{},
+				Blobs:     []deneb.Blob{},
+			},
+		},
+	}
+}
+
 // RandomCapellaVersionedSignedBeaconBlock returns a random signed capella beacon block.
 func RandomCapellaVersionedSignedBeaconBlock() *eth2spec.VersionedSignedBeaconBlock {
 	return &eth2spec.VersionedSignedBeaconBlock{
@@ -309,8 +328,19 @@ func RandomCapellaVersionedSignedBeaconBlock() *eth2spec.VersionedSignedBeaconBl
 	}
 }
 
-// RandomVersionedSignedProposal returns a random versioned signed proposal containing capella beacon block.
-func RandomVersionedSignedProposal() *eth2api.VersionedSignedProposal {
+// RandomDenebVersionedSignedBeaconBlock returns a random signed deneb beacon block.
+func RandomDenebVersionedSignedBeaconBlock() *eth2spec.VersionedSignedBeaconBlock {
+	return &eth2spec.VersionedSignedBeaconBlock{
+		Version: eth2spec.DataVersionDeneb,
+		Deneb: &deneb.SignedBeaconBlock{
+			Message:   RandomDenebBeaconBlock(),
+			Signature: RandomEth2Signature(),
+		},
+	}
+}
+
+// RandomCapellaVersionedSignedProposal returns a random versioned signed proposal containing capella beacon block.
+func RandomCapellaVersionedSignedProposal() *eth2api.VersionedSignedProposal {
 	return &eth2api.VersionedSignedProposal{
 		Version: eth2spec.DataVersionCapella,
 		Capella: &capella.SignedBeaconBlock{
@@ -320,11 +350,38 @@ func RandomVersionedSignedProposal() *eth2api.VersionedSignedProposal {
 	}
 }
 
-// RandomVersionedProposal returns a random versioned proposal containing capella beacon block.
-func RandomVersionedProposal() *eth2api.VersionedProposal {
+// RandomDenebVersionedSignedProposal returns a random versioned signed proposal containing deneb beacon block.
+func RandomDenebVersionedSignedProposal() *eth2api.VersionedSignedProposal {
+	return &eth2api.VersionedSignedProposal{
+		Version: eth2spec.DataVersionDeneb,
+		Deneb: &eth2deneb.SignedBlockContents{
+			SignedBlock: &deneb.SignedBeaconBlock{
+				Message:   RandomDenebBeaconBlock(),
+				Signature: RandomEth2Signature(),
+			},
+			KZGProofs: []deneb.KZGProof{},
+			Blobs:     []deneb.Blob{},
+		},
+	}
+}
+
+// RandomCapellaVersionedProposal returns a random versioned proposal containing capella beacon block.
+func RandomCapellaVersionedProposal() *eth2api.VersionedProposal {
 	return &eth2api.VersionedProposal{
 		Version: eth2spec.DataVersionCapella,
 		Capella: RandomCapellaBeaconBlock(),
+	}
+}
+
+// RandomDenebVersionedProposal returns a random versioned proposal containing deneb beacon block.
+func RandomDenebVersionedProposal() *eth2api.VersionedProposal {
+	return &eth2api.VersionedProposal{
+		Version: eth2spec.DataVersionDeneb,
+		Deneb: &eth2deneb.BlockContents{
+			Block:     RandomDenebBeaconBlock(),
+			KZGProofs: []deneb.KZGProof{},
+			Blobs:     []deneb.Blob{},
+		},
 	}
 }
 
@@ -426,6 +483,80 @@ func RandomCapellaVersionedSignedBlindedProposal() core.VersionedSignedBlindedPr
 				Signature: RandomEth2Signature(),
 			},
 		},
+	}
+}
+
+func RandomDenebVersionedSignedBlindedProposal() core.VersionedSignedBlindedProposal {
+	return core.VersionedSignedBlindedProposal{
+		VersionedSignedBlindedProposal: eth2api.VersionedSignedBlindedProposal{
+			Version: eth2spec.DataVersionDeneb,
+			Deneb: &eth2deneb.SignedBlindedBeaconBlock{
+				Message:   RandomDenebBlindedBeaconBlock(),
+				Signature: RandomEth2Signature(),
+			},
+		},
+	}
+}
+
+func RandomDenebBeaconBlock() *deneb.BeaconBlock {
+	return &deneb.BeaconBlock{
+		Slot:          RandomSlot(),
+		ProposerIndex: RandomVIdx(),
+		ParentRoot:    RandomRoot(),
+		StateRoot:     RandomRoot(),
+		Body:          RandomDenebBeaconBlockBody(),
+	}
+}
+
+func RandomDenebBlindedBeaconBlock() *eth2deneb.BlindedBeaconBlock {
+	return &eth2deneb.BlindedBeaconBlock{
+		Slot:          RandomSlot(),
+		ProposerIndex: RandomVIdx(),
+		ParentRoot:    RandomRoot(),
+		StateRoot:     RandomRoot(),
+		Body:          RandomDenebBlindedBeaconBlockBody(),
+	}
+}
+
+func RandomDenebBeaconBlockBody() *deneb.BeaconBlockBody {
+	return &deneb.BeaconBlockBody{
+		RANDAOReveal: RandomEth2Signature(),
+		ETH1Data: &eth2p0.ETH1Data{
+			DepositRoot:  RandomRoot(),
+			DepositCount: 0,
+			BlockHash:    RandomBytes32(),
+		},
+		Graffiti:              RandomArray32(),
+		ProposerSlashings:     []*eth2p0.ProposerSlashing{},
+		AttesterSlashings:     []*eth2p0.AttesterSlashing{},
+		Attestations:          []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
+		Deposits:              []*eth2p0.Deposit{},
+		VoluntaryExits:        []*eth2p0.SignedVoluntaryExit{},
+		SyncAggregate:         RandomSyncAggregate(),
+		ExecutionPayload:      RandomDenebExecutionPayload(),
+		BLSToExecutionChanges: []*capella.SignedBLSToExecutionChange{},
+		BlobKZGCommitments:    []deneb.KZGCommitment{},
+	}
+}
+
+func RandomDenebBlindedBeaconBlockBody() *eth2deneb.BlindedBeaconBlockBody {
+	return &eth2deneb.BlindedBeaconBlockBody{
+		RANDAOReveal: RandomEth2Signature(),
+		ETH1Data: &eth2p0.ETH1Data{
+			DepositRoot:  RandomRoot(),
+			DepositCount: 0,
+			BlockHash:    RandomBytes32(),
+		},
+		Graffiti:               RandomArray32(),
+		ProposerSlashings:      []*eth2p0.ProposerSlashing{},
+		AttesterSlashings:      []*eth2p0.AttesterSlashing{},
+		Attestations:           []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
+		Deposits:               []*eth2p0.Deposit{},
+		VoluntaryExits:         []*eth2p0.SignedVoluntaryExit{},
+		SyncAggregate:          RandomSyncAggregate(),
+		ExecutionPayloadHeader: RandomDenebExecutionPayloadHeader(),
+		BLSToExecutionChanges:  []*capella.SignedBLSToExecutionChange{},
+		BlobKZGCommitments:     []deneb.KZGCommitment{},
 	}
 }
 
@@ -641,6 +772,43 @@ func RandomCapellaExecutionPayloadHeader() *capella.ExecutionPayloadHeader {
 	}
 }
 
+func RandomDenebExecutionPayload() *deneb.ExecutionPayload {
+	baseFeePerGas := new(uint256.Int)
+	randBytes := RandomArray32()
+	baseFeePerGas.SetBytes32(randBytes[:])
+
+	return &deneb.ExecutionPayload{
+		ParentHash:    RandomArray32(),
+		StateRoot:     RandomArray32(),
+		ReceiptsRoot:  RandomArray32(),
+		LogsBloom:     [256]byte{},
+		PrevRandao:    [32]byte{},
+		ExtraData:     RandomBytes32(),
+		BaseFeePerGas: baseFeePerGas,
+		BlockHash:     RandomArray32(),
+		Transactions:  []bellatrix.Transaction{},
+		Withdrawals:   []*capella.Withdrawal{},
+	}
+}
+
+func RandomDenebExecutionPayloadHeader() *deneb.ExecutionPayloadHeader {
+	baseFeePerGas := new(uint256.Int)
+	randBytes := RandomArray32()
+	baseFeePerGas.SetBytes32(randBytes[:])
+
+	return &deneb.ExecutionPayloadHeader{
+		ParentHash:       RandomArray32(),
+		StateRoot:        RandomArray32(),
+		ReceiptsRoot:     RandomArray32(),
+		PrevRandao:       RandomArray32(),
+		BaseFeePerGas:    baseFeePerGas,
+		ExtraData:        RandomBytes32(),
+		BlockHash:        RandomArray32(),
+		TransactionsRoot: RandomRoot(),
+		WithdrawalsRoot:  RandomRoot(),
+	}
+}
+
 func RandomAttestationDuty(t *testing.T) *eth2v1.AttesterDuty {
 	t.Helper()
 	return &eth2v1.AttesterDuty{
@@ -783,6 +951,19 @@ func RandomGwei() eth2p0.Gwei {
 
 func RandomETHAddress() string {
 	return fmt.Sprintf("%#x", RandomBytes32()[:20])
+}
+
+func RandomChecksummedETHAddress(t *testing.T, seed int) string {
+	t.Helper()
+
+	// Generate a new random private key
+	privatekey := GenerateInsecureK1Key(t, seed)
+
+	// Get the corresponding public key
+	publicKey := privatekey.PubKey()
+
+	// Derive the Ethereum address from the public key
+	return eth2util.PublicKeyToAddress(publicKey)
 }
 
 func RandomBytes96() []byte {

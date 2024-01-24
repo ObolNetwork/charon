@@ -33,7 +33,7 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys [
 ) *Scheduler {
 	t.Helper()
 
-	s, err := New(pubkeys, eth2Cl, func(int64) bool { return builderAPI })
+	s, err := New(pubkeys, eth2Cl, func(uint64) bool { return builderAPI })
 	require.NoError(t, err)
 
 	s.clock = clock
@@ -49,7 +49,7 @@ func New(pubkeys []core.PubKey, eth2Cl eth2wrap.Client, builderEnabled core.Buil
 		pubkeys:       pubkeys,
 		quit:          make(chan struct{}),
 		duties:        make(map[core.Duty]core.DutyDefinitionSet),
-		dutiesByEpoch: make(map[int64][]core.Duty),
+		dutiesByEpoch: make(map[uint64][]core.Duty),
 		clock:         clockwork.NewRealClock(),
 		delayFunc: func(_ core.Duty, deadline time.Time) <-chan time.Time {
 			return time.After(time.Until(deadline))
@@ -67,9 +67,9 @@ type Scheduler struct {
 	clock           clockwork.Clock
 	delayFunc       delayFunc
 	metricSubmitter metricSubmitter
-	resolvedEpoch   int64
+	resolvedEpoch   uint64
 	duties          map[core.Duty]core.DutyDefinitionSet
-	dutiesByEpoch   map[int64][]core.Duty
+	dutiesByEpoch   map[uint64][]core.Duty
 	dutiesMutex     sync.Mutex
 	dutySubs        []func(context.Context, core.Duty, core.DutyDefinitionSet) error
 	slotSubs        []func(context.Context, core.Slot) error
@@ -112,7 +112,7 @@ func (s *Scheduler) Run() error {
 		case <-s.quit:
 			return nil
 		case slot := <-slotTicker:
-			log.Debug(ctx, "Slot ticked", z.I64("slot", slot.Slot)) // Not adding slot to context since duty will be added that also contains slot.
+			log.Debug(ctx, "Slot ticked", z.U64("slot", slot.Slot)) // Not adding slot to context since duty will be added that also contains slot.
 
 			instrumentSlot(slot)
 
@@ -132,7 +132,7 @@ func (s *Scheduler) emitCoreSlot(ctx context.Context, slot core.Slot) {
 		go func(sub func(context.Context, core.Slot) error) {
 			err := sub(ctx, slot)
 			if err != nil {
-				log.Error(ctx, "Emit scheduled slot event", err, z.I64("slot", slot.Slot))
+				log.Error(ctx, "Emit scheduled slot event", err, z.U64("slot", slot.Slot))
 			}
 		}(sub)
 	}
@@ -152,20 +152,20 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 		return nil, err
 	}
 
-	epoch := duty.Slot / int64(slotsPerEpoch)
+	epoch := duty.Slot / slotsPerEpoch
 	if !s.isEpochResolved(epoch) {
 		return nil, errors.New("epoch not resolved yet",
-			z.Str("duty", duty.String()), z.I64("epoch", epoch))
+			z.Str("duty", duty.String()), z.U64("epoch", epoch))
 	}
 	if s.isEpochTrimmed(epoch) {
 		return nil, errors.New("epoch already trimmed",
-			z.Str("duty", duty.String()), z.I64("epoch", epoch))
+			z.Str("duty", duty.String()), z.U64("epoch", epoch))
 	}
 
 	defSet, ok := s.getDutyDefinitionSet(duty)
 	if !ok {
 		return nil, errors.Wrap(core.ErrNotFound, "duty not present for resolved epoch",
-			z.Any("duty", duty), z.I64("epoch", epoch))
+			z.Any("duty", duty), z.U64("epoch", epoch))
 	}
 
 	return defSet.Clone() // Clone before returning.
@@ -176,7 +176,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 	if s.getResolvedEpoch() != slot.Epoch() {
 		err := s.resolveDuties(ctx, slot)
 		if err != nil {
-			log.Warn(ctx, "Resolving duties error (retrying next slot)", err, z.I64("slot", slot.Slot))
+			log.Warn(ctx, "Resolving duties error (retrying next slot)", err, z.U64("slot", slot.Slot))
 		}
 	}
 
@@ -211,7 +211,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 				}
 
 				if err := sub(dutyCtx, duty, clone); err != nil {
-					log.Error(dutyCtx, "Trigger duty subscriber error", err, z.I64("slot", slot.Slot))
+					log.Error(dutyCtx, "Trigger duty subscriber error", err, z.U64("slot", slot.Slot))
 				}
 			}
 		}()
@@ -220,7 +220,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 	if slot.LastInEpoch() {
 		err := s.resolveDuties(ctx, slot.Next())
 		if err != nil {
-			log.Warn(ctx, "Resolving duties error (retrying next slot)", err, z.I64("slot", slot.Slot))
+			log.Warn(ctx, "Resolving duties error (retrying next slot)", err, z.U64("slot", slot.Slot))
 		}
 	}
 }
@@ -247,7 +247,7 @@ func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayF
 
 // resolveDuties resolves the duties for the slot's epoch, caching the results.
 func (s *Scheduler) resolveDuties(ctx context.Context, slot core.Slot) error {
-	vals, err := resolveActiveValidators(ctx, s.eth2Cl, s.pubkeys, s.metricSubmitter)
+	vals, err := resolveActiveValidators(ctx, s.eth2Cl, s.pubkeys, s.metricSubmitter, slot.Epoch())
 	if err != nil {
 		return err
 	}
@@ -255,7 +255,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot core.Slot) error {
 	activeValsGauge.Set(float64(len(vals)))
 
 	if len(vals) == 0 {
-		log.Info(ctx, "No active validators for slot", z.I64("slot", slot.Slot))
+		log.Info(ctx, "No active validators for slot", z.U64("slot", slot.Slot))
 		s.setResolvedEpoch(slot.Epoch())
 
 		return nil
@@ -319,11 +319,11 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 			continue
 		}
 
-		duty := core.NewAttesterDuty(int64(attDuty.Slot))
+		duty := core.NewAttesterDuty(uint64(attDuty.Slot))
 
 		pubkey, ok := vals.PubKeyFromIndex(attDuty.ValidatorIndex)
 		if !ok {
-			log.Warn(ctx, "Ignoring unexpected attester duty", nil, z.U64("vidx", uint64(attDuty.ValidatorIndex)), z.I64("slot", slot.Slot))
+			log.Warn(ctx, "Ignoring unexpected attester duty", nil, z.U64("vidx", uint64(attDuty.ValidatorIndex)), z.U64("slot", slot.Slot))
 			continue
 		}
 
@@ -339,11 +339,11 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 			z.U64("slot", uint64(attDuty.Slot)),
 			z.U64("vidx", uint64(attDuty.ValidatorIndex)),
 			z.Any("pubkey", pubkey),
-			z.U64("epoch", uint64(slot.Epoch())),
+			z.U64("epoch", slot.Epoch()),
 		)
 
 		// Schedule aggregation duty as well.
-		aggDuty := core.NewAggregatorDuty(int64(attDuty.Slot))
+		aggDuty := core.NewAggregatorDuty(uint64(attDuty.Slot))
 
 		if !s.setDutyDefinition(aggDuty, slot.Epoch(), pubkey, core.NewAttesterDefinition(attDuty)) {
 			continue
@@ -352,8 +352,8 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 
 	if len(remaining) > 0 {
 		log.Warn(ctx, "Missing attester duties", nil,
-			z.I64("slot", slot.Slot),
-			z.U64("epoch", uint64(slot.Epoch())),
+			z.U64("slot", slot.Slot),
+			z.U64("epoch", slot.Epoch()),
 			z.Any("validator_indexes", remaining),
 		)
 	}
@@ -388,15 +388,15 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 
 		var duty core.Duty
 
-		if s.builderEnabled(int64(proDuty.Slot)) {
-			duty = core.Duty{Slot: int64(proDuty.Slot), Type: core.DutyBuilderProposer}
+		if s.builderEnabled(uint64(proDuty.Slot)) {
+			duty = core.Duty{Slot: uint64(proDuty.Slot), Type: core.DutyBuilderProposer}
 		} else {
-			duty = core.Duty{Slot: int64(proDuty.Slot), Type: core.DutyProposer}
+			duty = core.Duty{Slot: uint64(proDuty.Slot), Type: core.DutyProposer}
 		}
 
 		pubkey, ok := vals.PubKeyFromIndex(proDuty.ValidatorIndex)
 		if !ok {
-			log.Warn(ctx, "Ignoring unexpected proposer duty", nil, z.U64("vidx", uint64(proDuty.ValidatorIndex)), z.I64("slot", slot.Slot))
+			log.Warn(ctx, "Ignoring unexpected proposer duty", nil, z.U64("vidx", uint64(proDuty.ValidatorIndex)), z.U64("slot", slot.Slot))
 			continue
 		}
 
@@ -412,7 +412,7 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 			z.U64("slot", uint64(proDuty.Slot)),
 			z.U64("vidx", uint64(proDuty.ValidatorIndex)),
 			z.Any("pubkey", pubkey),
-			z.U64("epoch", uint64(slot.Epoch())),
+			z.U64("epoch", slot.Epoch()),
 		)
 	}
 
@@ -442,7 +442,7 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 		vIdx := syncCommDuty.ValidatorIndex
 		pubkey, ok := vals.PubKeyFromIndex(vIdx)
 		if !ok {
-			log.Warn(ctx, "Ignoring unexpected sync committee duty", nil, z.U64("vidx", uint64(vIdx)), z.I64("slot", slot.Slot))
+			log.Warn(ctx, "Ignoring unexpected sync committee duty", nil, z.U64("vidx", uint64(vIdx)), z.U64("slot", slot.Slot))
 			continue
 		}
 
@@ -467,7 +467,7 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 		log.Info(ctx, "Resolved sync committee duty",
 			z.U64("vidx", uint64(vIdx)),
 			z.Any("pubkey", pubkey),
-			z.U64("epoch", uint64(slot.Epoch())),
+			z.U64("epoch", slot.Epoch()),
 		)
 	}
 
@@ -484,7 +484,7 @@ func (s *Scheduler) getDutyDefinitionSet(duty core.Duty) (core.DutyDefinitionSet
 }
 
 // setDutyDefinition returns true if the duty definition for the pubkey was set, false if it was already set.
-func (s *Scheduler) setDutyDefinition(duty core.Duty, epoch int64, pubkey core.PubKey, set core.DutyDefinition) bool {
+func (s *Scheduler) setDutyDefinition(duty core.Duty, epoch uint64, pubkey core.PubKey, set core.DutyDefinition) bool {
 	s.dutiesMutex.Lock()
 	defer s.dutiesMutex.Unlock()
 
@@ -503,22 +503,22 @@ func (s *Scheduler) setDutyDefinition(duty core.Duty, epoch int64, pubkey core.P
 	return true
 }
 
-func (s *Scheduler) getResolvedEpoch() int64 {
+func (s *Scheduler) getResolvedEpoch() uint64 {
 	s.dutiesMutex.Lock()
 	defer s.dutiesMutex.Unlock()
 
 	return s.resolvedEpoch
 }
 
-func (s *Scheduler) setResolvedEpoch(epoch int64) {
+func (s *Scheduler) setResolvedEpoch(epoch uint64) {
 	s.dutiesMutex.Lock()
 	defer s.dutiesMutex.Unlock()
 
 	s.resolvedEpoch = epoch
 }
 
-// isEpochResolved returns true if the.
-func (s *Scheduler) isEpochResolved(epoch int64) bool {
+// isEpochResolved returns true if the epoch is resolved.
+func (s *Scheduler) isEpochResolved(epoch uint64) bool {
 	if s.getResolvedEpoch() == math.MaxInt64 {
 		return false
 	}
@@ -527,7 +527,7 @@ func (s *Scheduler) isEpochResolved(epoch int64) bool {
 }
 
 // isEpochTrimmed returns true if the epoch's duties have been trimmed.
-func (s *Scheduler) isEpochTrimmed(epoch int64) bool {
+func (s *Scheduler) isEpochTrimmed(epoch uint64) bool {
 	if s.getResolvedEpoch() == math.MaxInt64 {
 		return false
 	}
@@ -536,7 +536,7 @@ func (s *Scheduler) isEpochTrimmed(epoch int64) bool {
 }
 
 // trimDuties deletes all duties for the provided epoch.
-func (s *Scheduler) trimDuties(epoch int64) {
+func (s *Scheduler) trimDuties(epoch uint64) {
 	s.dutiesMutex.Lock()
 	defer s.dutiesMutex.Unlock()
 
@@ -560,14 +560,20 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.
 		return nil, err
 	}
 
-	slotDuration, err := eth2Cl.SlotDuration(ctx)
+	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return nil, err
 	}
+	spec := eth2Resp.Data
 
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return nil, err
+	slotDuration, ok := spec["SECONDS_PER_SLOT"].(time.Duration)
+	if !ok {
+		return nil, errors.New("fetch slot duration")
+	}
+
+	slotsPerEpoch, ok := spec["SLOTS_PER_EPOCH"].(uint64)
+	if !ok {
+		return nil, errors.New("fetch slots per epoch")
 	}
 
 	currentSlot := func() core.Slot {
@@ -576,9 +582,9 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.
 		startTime := genesis.Add(time.Duration(slot) * slotDuration)
 
 		return core.Slot{
-			Slot:          slot,
+			Slot:          uint64(slot),
 			Time:          startTime,
-			SlotsPerEpoch: int64(slotsPerEpoch),
+			SlotsPerEpoch: slotsPerEpoch,
 			SlotDuration:  slotDuration,
 		}
 	}
@@ -597,7 +603,7 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.
 			// to pause-the-world events (i.e. resources are already constrained).
 			if clock.Now().After(slot.Next().Time) {
 				actual := currentSlot()
-				log.Warn(ctx, "Slot(s) skipped", nil, z.I64("actual_slot", actual.Slot), z.I64("expect_slot", slot.Slot))
+				log.Warn(ctx, "Slot(s) skipped", nil, z.U64("actual_slot", actual.Slot), z.U64("expect_slot", slot.Slot))
 				skipCounter.Inc()
 
 				slot = actual
@@ -618,7 +624,7 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.
 
 // resolveActiveValidators returns the active validators (including their validator index) for the slot.
 func resolveActiveValidators(ctx context.Context, eth2Cl eth2wrap.Client,
-	pubkeys []core.PubKey, submitter metricSubmitter,
+	pubkeys []core.PubKey, submitter metricSubmitter, epoch uint64,
 ) (validators, error) {
 	var e2pks []eth2p0.BLSPubKey
 	for _, pubkey := range pubkeys {
@@ -653,7 +659,9 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2wrap.Client,
 
 		submitter(pubkey, val.Balance, val.Status.String())
 
-		if !val.Status.IsActive() {
+		// Check for active validators for the given epoch.
+		// The activation epoch needs to be checked in cases where this function is called before the epoch starts.
+		if !val.Status.IsActive() && val.Validator.ActivationEpoch != eth2p0.Epoch(epoch) {
 			continue
 		}
 
@@ -694,7 +702,7 @@ func waitChainStart(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork
 // waitBeaconSync blocks until the beacon node is synced.
 func waitBeaconSync(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
 	for ctx.Err() == nil {
-		eth2Resp, err := eth2Cl.NodeSyncing(ctx)
+		eth2Resp, err := eth2Cl.NodeSyncing(ctx, &eth2api.NodeSyncingOpts{})
 		if err != nil {
 			log.Error(ctx, "Failure getting sync state", err)
 			clock.Sleep(time.Second * 5) // TODO(corver): Improve backoff

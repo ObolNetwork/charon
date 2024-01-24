@@ -20,10 +20,10 @@ import (
 //go:generate go install golang.org/x/tools/cmd/stringer
 
 //go:generate echo Installing tools: protobuf
-//go:generate go install github.com/bufbuild/buf/cmd/buf
-//go:generate go install github.com/bufbuild/buf/cmd/protoc-gen-buf-breaking
-//go:generate go install github.com/bufbuild/buf/cmd/protoc-gen-buf-lint
-//go:generate go install google.golang.org/protobuf/cmd/protoc-gen-go
+//go:generate go install github.com/bufbuild/buf/cmd/buf@latest
+//go:generate go install github.com/bufbuild/buf/cmd/protoc-gen-buf-breaking@latest
+//go:generate go install github.com/bufbuild/buf/cmd/protoc-gen-buf-lint@latest
+//go:generate go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 
 //go:generate echo Installing tools: compose
 //go:generate go install github.com/obolnetwork/charon/testutil/compose/compose

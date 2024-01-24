@@ -32,7 +32,6 @@ charon/             # project root
 │  │                # core workflow component implementations
 │  ├─ scheduler/    # scheduler
 │  ├─ fetcher/      # fetcher
-│  ├─ leadercast/   # consensus implementation (will add qbft later)
 │  ├─ dutydb/       # dutydb
 │  ├─ validatorapi/ # validatorapi
 │  ├─ parsigdb/     # parsigdb

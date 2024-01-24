@@ -67,7 +67,7 @@ func TestDuplicateAttData(t *testing.T) {
 		close(done)
 	}
 
-	err = incl.checkBlock(ctx, int64(attData.Slot))
+	err = incl.checkBlock(ctx, uint64(attData.Slot))
 	require.NoError(t, err)
 
 	<-done
@@ -89,20 +89,20 @@ func TestInclusion(t *testing.T) {
 
 	// Create some duties
 	att1 := testutil.RandomAttestation()
-	att1Duty := core.NewAttesterDuty(int64(att1.Data.Slot))
+	att1Duty := core.NewAttesterDuty(uint64(att1.Data.Slot))
 
 	agg2 := testutil.RandomSignedAggregateAndProof()
-	agg2Duty := core.NewAggregatorDuty(int64(agg2.Message.Aggregate.Data.Slot))
+	agg2Duty := core.NewAggregatorDuty(uint64(agg2.Message.Aggregate.Data.Slot))
 
 	att3 := testutil.RandomAttestation()
-	att3Duty := core.NewAttesterDuty(int64(att3.Data.Slot))
+	att3Duty := core.NewAttesterDuty(uint64(att3.Data.Slot))
 
-	block4 := testutil.RandomVersionedSignedProposal()
-	block4Duty := core.NewProposerDuty(int64(block4.Capella.Message.Slot))
+	block4 := testutil.RandomDenebVersionedSignedProposal()
+	block4Duty := core.NewProposerDuty(uint64(block4.Deneb.SignedBlock.Message.Slot))
 
-	block5 := testutil.RandomCapellaVersionedSignedBlindedProposal()
-	block5.Capella.Message.Body.Graffiti = eth2wrap.GetSyntheticGraffiti() // Ignored, not included or missed.
-	block5Duty := core.NewBuilderProposerDuty(int64(block5.Capella.Message.Slot))
+	block5 := testutil.RandomDenebVersionedSignedBlindedProposal()
+	block5.Deneb.Message.Body.Graffiti = eth2wrap.GetSyntheticGraffiti() // Ignored, not included or missed.
+	block5Duty := core.NewBuilderProposerDuty(uint64(block5.Deneb.Message.Slot))
 
 	// Submit all duties
 	err := incl.Submitted(att1Duty, "", core.NewAttestation(att1), 0)

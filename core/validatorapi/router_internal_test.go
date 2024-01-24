@@ -5,6 +5,7 @@ package validatorapi
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -177,7 +178,7 @@ func TestRawRouter(t *testing.T) {
 		handler := testHandler{}
 		handler.ProposalFunc = func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
 			require.Empty(t, opts.Graffiti)
-			resp := testutil.RandomVersionedProposal()
+			resp := testutil.RandomDenebVersionedProposal()
 
 			return wrapResponse(resp), nil
 		}
@@ -353,11 +354,12 @@ func TestRawRouter(t *testing.T) {
 
 	t.Run("submit capella ssz beacon block", func(t *testing.T) {
 		var done atomic.Bool
-		block := testutil.RandomVersionedSignedProposal()
+		coreBlock := testutil.RandomCapellaCoreVersionedSignedProposal()
+		proposal := &coreBlock.VersionedSignedProposal
 
 		handler := testHandler{
 			SubmitProposalFunc: func(ctx context.Context, actual *eth2api.VersionedSignedProposal) error {
-				require.Equal(t, block, actual)
+				require.Equal(t, proposal, actual)
 				done.Store(true)
 
 				return nil
@@ -365,11 +367,43 @@ func TestRawRouter(t *testing.T) {
 		}
 
 		callback := func(ctx context.Context, baseURL string) {
-			b, err := ssz.MarshalSSZ(block.Capella)
+			b, err := ssz.MarshalSSZ(proposal.Capella)
 			require.NoError(t, err)
 
 			req, err := http.NewRequestWithContext(ctx, http.MethodPost,
 				baseURL+"/eth/v1/beacon/blocks", bytes.NewReader(b))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/octet-stream")
+
+			resp, err := new(http.Client).Do(req)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+		}
+
+		testRawRouter(t, handler, callback)
+		require.True(t, done.Load())
+	})
+
+	t.Run("submit deneb ssz beacon block", func(t *testing.T) {
+		var done atomic.Bool
+		coreBlock := testutil.RandomDenebCoreVersionedSignedProposal()
+		proposal := &coreBlock.VersionedSignedProposal
+
+		handler := testHandler{
+			SubmitProposalFunc: func(ctx context.Context, actual *eth2api.VersionedSignedProposal) error {
+				require.Equal(t, proposal, actual)
+				done.Store(true)
+
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			b, err := ssz.MarshalSSZ(proposal.Deneb)
+			require.NoError(t, err)
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+				baseURL+"/eth/v2/beacon/blocks", bytes.NewReader(b))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/octet-stream")
 
@@ -451,6 +485,14 @@ func TestRawRouter(t *testing.T) {
 
 //nolint:maintidx // This function is a test of tests, so analysed as "complex".
 func TestRouter(t *testing.T) {
+	var dependentRoot eth2p0.Root
+	_, _ = rand.Read(dependentRoot[:])
+
+	metadata := map[string]any{
+		"execution_optimistic": true,
+		"dependent_root":       dependentRoot,
+	}
+
 	t.Run("attesterduty", func(t *testing.T) {
 		handler := testHandler{
 			AttesterDutiesFunc: func(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {
@@ -464,7 +506,7 @@ func TestRouter(t *testing.T) {
 					})
 				}
 
-				return wrapResponse(res), nil
+				return wrapResponseWithMetadata(res, metadata), nil
 			},
 		}
 
@@ -488,6 +530,11 @@ func TestRouter(t *testing.T) {
 			require.Equal(t, int(res[0].ValidatorIndex), index0)
 			require.Equal(t, int(res[1].Slot), slotEpoch*slotsPerEpoch)
 			require.Equal(t, int(res[1].ValidatorIndex), index1)
+
+			metadata := resp.Metadata
+			require.Len(t, metadata, 2)
+			require.Equal(t, true, metadata["execution_optimistic"])
+			require.Equal(t, dependentRoot, metadata["dependent_root"].(eth2p0.Root))
 		}
 
 		testRouter(t, handler, callback)
@@ -506,7 +553,7 @@ func TestRouter(t *testing.T) {
 					})
 				}
 
-				return wrapResponse(res), nil
+				return wrapResponseWithMetadata(res, metadata), nil
 			},
 		}
 
@@ -526,6 +573,11 @@ func TestRouter(t *testing.T) {
 			require.Len(t, res, 1)
 			require.Equal(t, int(res[0].Slot), epoch*slotsPerEpoch+validator)
 			require.Equal(t, int(res[0].ValidatorIndex), validator)
+
+			metadata := resp.Metadata
+			require.Len(t, metadata, 2)
+			require.Equal(t, true, metadata["execution_optimistic"])
+			require.Equal(t, dependentRoot, metadata["dependent_root"].(eth2p0.Root))
 		}
 
 		testRouter(t, handler, callback)
@@ -700,7 +752,7 @@ func TestRouter(t *testing.T) {
 	t.Run("empty attester duties", func(t *testing.T) {
 		handler := testHandler{
 			AttesterDutiesFunc: func(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {
-				return &eth2api.Response[[]*eth2v1.AttesterDuty]{}, nil
+				return &eth2api.Response[[]*eth2v1.AttesterDuty]{Metadata: metadata}, nil
 			},
 		}
 
@@ -740,7 +792,7 @@ func TestRouter(t *testing.T) {
 	t.Run("empty proposer duties", func(t *testing.T) {
 		handler := testHandler{
 			ProposerDutiesFunc: func(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error) {
-				return &eth2api.Response[[]*eth2v1.ProposerDuty]{}, nil
+				return &eth2api.Response[[]*eth2v1.ProposerDuty]{Metadata: metadata}, nil
 			},
 		}
 
@@ -803,8 +855,6 @@ func TestRouter(t *testing.T) {
 			}
 			res, err := cl.Proposal(ctx, opts)
 			require.Error(t, err)
-			// TODO(xenowits): Fix this test prior to merging. Debug why res is nil.
-			// require.ErrorContains(t, err, "not implemented")
 			require.Nil(t, res)
 		}
 
@@ -830,7 +880,6 @@ func TestRouter(t *testing.T) {
 			}
 			res, err := cl.BlindedProposal(ctx, opts)
 			require.Error(t, err)
-			// TODO(xenowits): Fix this test prior to merging. Debug why res is nil.
 			require.Nil(t, res)
 		}
 
@@ -1098,13 +1147,13 @@ func TestRouter(t *testing.T) {
 		expectedVersion := "obolnetwork/charon/v0.25.0-eth123b/darwin-arm64"
 
 		handler := testHandler{
-			NodeVersionFunc: func(ctx context.Context) (*eth2api.Response[string], error) {
+			NodeVersionFunc: func(ctx context.Context, opts *eth2api.NodeVersionOpts) (*eth2api.Response[string], error) {
 				return wrapResponse(expectedVersion), nil
 			},
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			eth2Resp, err := cl.NodeVersion(ctx)
+			eth2Resp, err := cl.NodeVersion(ctx, &eth2api.NodeVersionOpts{})
 			require.NoError(t, err)
 			actualVersion := eth2Resp.Data
 			require.Equal(t, expectedVersion, actualVersion)
@@ -1214,6 +1263,71 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestGetExecutionOptimisticFromMetadata(t *testing.T) {
+	t.Run("missing execution_optimistic", func(t *testing.T) {
+		metadata := map[string]any{}
+
+		_, err := getExecutionOptimisticFromMetadata(metadata)
+
+		require.ErrorContains(t, err, "metadata has missing execution_optimistic value")
+	})
+
+	t.Run("wrong type", func(t *testing.T) {
+		metadata := map[string]any{
+			"execution_optimistic": "not-a-bool",
+		}
+
+		_, err := getExecutionOptimisticFromMetadata(metadata)
+
+		require.ErrorContains(t, err, "metadata has malformed execution_optimistic value")
+	})
+
+	t.Run("valid value", func(t *testing.T) {
+		metadata := map[string]any{
+			"execution_optimistic": true,
+		}
+
+		executionOptimistic, err := getExecutionOptimisticFromMetadata(metadata)
+
+		require.NoError(t, err)
+		require.True(t, executionOptimistic)
+	})
+}
+
+func TestGetDependentRootFromMetadata(t *testing.T) {
+	t.Run("missing dependent_root", func(t *testing.T) {
+		metadata := map[string]any{}
+
+		_, err := getDependentRootFromMetadata(metadata)
+
+		require.ErrorContains(t, err, "metadata has missing dependent_root value")
+	})
+
+	t.Run("wrong type", func(t *testing.T) {
+		metadata := map[string]any{
+			"dependent_root": 123,
+		}
+
+		_, err := getDependentRootFromMetadata(metadata)
+
+		require.ErrorContains(t, err, "metadata has wrong dependent_root type")
+	})
+
+	t.Run("valid value", func(t *testing.T) {
+		var r eth2p0.Root
+		_, _ = rand.Read(r[:])
+
+		metadata := map[string]any{
+			"dependent_root": r,
+		}
+
+		dependentRoot, err := getDependentRootFromMetadata(metadata)
+
+		require.NoError(t, err)
+		require.Equal(t, r, eth2p0.Root(dependentRoot))
+	})
+}
+
 // testRouter is a helper function to test router endpoints with an eth2http client. The outer test
 // provides the mocked test handler and a callback that does the client side test.
 func testRouter(t *testing.T, handler testHandler, callback func(context.Context, *eth2http.Service)) {
@@ -1266,7 +1380,7 @@ type testHandler struct {
 	BlindedProposalFunc                    func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error)
 	SubmitBlindedProposalFunc              func(ctx context.Context, proposal *eth2api.VersionedSignedBlindedProposal) error
 	ProposerDutiesFunc                     func(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error)
-	NodeVersionFunc                        func(ctx context.Context) (*eth2api.Response[string], error)
+	NodeVersionFunc                        func(ctx context.Context, opts *eth2api.NodeVersionOpts) (*eth2api.Response[string], error)
 	ValidatorsFunc                         func(ctx context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error)
 	BeaconStateFunc                        func(ctx context.Context, stateId string) (*eth2spec.VersionedBeaconState, error)
 	ValidatorsByPubKeyFunc                 func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
@@ -1319,9 +1433,9 @@ func (h testHandler) ProposerDuties(ctx context.Context, opts *eth2api.ProposerD
 	return h.ProposerDutiesFunc(ctx, opts)
 }
 
-func (h testHandler) NodeVersion(ctx context.Context) (*eth2api.Response[string], error) {
+func (h testHandler) NodeVersion(ctx context.Context, opts *eth2api.NodeVersionOpts) (*eth2api.Response[string], error) {
 	if h.NodeVersionFunc != nil {
-		return h.NodeVersionFunc(ctx)
+		return h.NodeVersionFunc(ctx, opts)
 	}
 
 	return wrapResponse("mock_version"), nil
@@ -1369,7 +1483,7 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/eth/v1/beacon/genesis", func(w http.ResponseWriter, r *http.Request) {
-		res, err := mock.Genesis(ctx)
+		res, err := mock.Genesis(ctx, &eth2api.GenesisOpts{})
 		require.NoError(t, err)
 		writeResponse(ctx, w, "", res.Data, nil)
 	})
@@ -1380,12 +1494,12 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 		writeResponse(ctx, w, "", nest(res, "data"), nil)
 	})
 	mux.HandleFunc("/eth/v1/config/deposit_contract", func(w http.ResponseWriter, r *http.Request) {
-		res, err := mock.DepositContract(ctx)
+		res, err := mock.DepositContract(ctx, &eth2api.DepositContractOpts{})
 		require.NoError(t, err)
 		writeResponse(ctx, w, "", res.Data, nil)
 	})
 	mux.HandleFunc("/eth/v1/config/fork_schedule", func(w http.ResponseWriter, r *http.Request) {
-		res, err := mock.ForkSchedule(ctx)
+		res, err := mock.ForkSchedule(ctx, &eth2api.ForkScheduleOpts{})
 		require.NoError(t, err)
 		writeResponse(ctx, w, "", nest(res.Data, "data"), nil)
 	})

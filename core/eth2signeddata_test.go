@@ -39,6 +39,10 @@ func TestVerifyEth2SignedData(t *testing.T) {
 			data: testutil.RandomCapellaVersionedSignedBlindedProposal(),
 		},
 		{
+			name: "verify blinded beacon block deneb",
+			data: testutil.RandomDenebVersionedSignedBlindedProposal(),
+		},
+		{
 			name: "verify randao",
 			data: testutil.RandomCoreSignedRandao(),
 		},
@@ -92,12 +96,8 @@ func TestVerifyEth2SignedData(t *testing.T) {
 			epoch, err := test.data.Epoch(context.Background(), bmock)
 			require.NoError(t, err)
 
-			roots, err := test.data.MessageRoots()
+			root, err := test.data.MessageRoot()
 			require.NoError(t, err)
-
-			domainNames := test.data.DomainNames()
-
-			require.Equal(t, len(roots), len(domainNames))
 
 			// Generate private key to sign data
 			secret, err := tbls.GenerateSecretKey()
@@ -106,16 +106,12 @@ func TestVerifyEth2SignedData(t *testing.T) {
 			pubkey, err := tbls.SecretToPublicKey(secret)
 			require.NoError(t, err)
 
-			var sigs []core.Signature
-			for i := 0; i < len(roots); i++ {
-				sigData, err := signing.GetDataRoot(context.Background(), bmock, domainNames[i], epoch, roots[i])
-				require.NoError(t, err)
+			sigData, err := signing.GetDataRoot(context.Background(), bmock, test.data.DomainName(), epoch, root)
+			require.NoError(t, err)
 
-				sig := sign(t, secret, sigData[:])
-				sigs = append(sigs, sig)
-			}
+			sig := sign(t, secret, sigData[:])
 
-			s, err := test.data.SetSignatures(sigs)
+			s, err := test.data.SetSignature(sig)
 			require.NoError(t, err)
 
 			eth2Signed, ok := s.(core.Eth2SignedData)

@@ -29,6 +29,9 @@ func NewRelays(ctx context.Context, relayAddrs []string, lockHashHex string,
 	var resp []*MutablePeer
 	for _, relayAddr := range relayAddrs {
 		if strings.HasPrefix(relayAddr, "http") {
+			if !strings.HasPrefix(relayAddr, "https") {
+				log.Warn(ctx, "Relay URL does not use https protocol", nil, z.Str("addr", relayAddr))
+			}
 			mutable := new(MutablePeer)
 			go resolveRelay(ctx, relayAddr, lockHashHex, mutable.Set)
 			resp = append(resp, mutable)

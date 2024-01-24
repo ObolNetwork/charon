@@ -107,7 +107,7 @@ func dutiesForSlot(slot metaSlot, types ...core.DutyType) map[scheduleTuple]stru
 				resp[scheduleTuple{
 					duty: core.Duty{
 						Type: dutyType,
-						Slot: int64(checkSlot.Slot),
+						Slot: checkSlot.Slot,
 					},
 					startTime: startTime,
 				}] = struct{}{}
@@ -152,7 +152,7 @@ func (m *Component) SlotTicked(ctx context.Context, slot core.Slot) error {
 		return nil
 	}
 
-	return m.scheduleSlot(ctx, metaSlot{Slot: uint64(slot.Slot), meta: m.meta})
+	return m.scheduleSlot(ctx, metaSlot{Slot: slot.Slot, meta: m.meta})
 }
 
 // delayOnStartup returns true if we need to omit performing duties in the upcoming slot.
@@ -235,13 +235,13 @@ func (m *Component) runDuty(ctx context.Context, duty core.Duty) error {
 	}
 
 	metaSlot := metaSlot{
-		Slot: uint64(duty.Slot),
+		Slot: duty.Slot,
 		meta: m.meta,
 	}
 
 	epoch := metaSlot.Epoch().Epoch
 
-	attester := m.slotAttester(uint64(duty.Slot))
+	attester := m.slotAttester(duty.Slot)
 	syncComm := m.syncCommMember(epoch)
 
 	eth2Slot := eth2p0.Slot(duty.Slot)

@@ -12,7 +12,7 @@
 
 ## Overview
 
-To make a distributed validator with no fault-tolerance (i.e. all nodes need to be online to sign every message), due to the BLS signature scheme used by Proof of Stake Ethereum, each key share could be chosen by operators independently. However, to create a distributed validator that can stay online despite a subset of its nodes going offline, the key shares need to be generated together. (4 randomly chosen points on a graph don't all neccessarily sit on the same order three curve.) To do this in a secure manner with no one party being trusted to distribute the keys requires what is known as a distributed key generation ceremony.
+To make a distributed validator with no fault-tolerance (i.e. all nodes need to be online to sign every message), due to the BLS signature scheme used by Proof of Stake Ethereum, each key share could be chosen by operators independently. However, to create a distributed validator that can stay online despite a subset of its nodes going offline, the key shares need to be generated together. (4 randomly chosen points on a graph don't all necessarily sit on the same order three curve.) To do this in a secure manner with no one party being trusted to distribute the keys requires what is known as a distributed key generation ceremony.
 
 The charon client has the responsibility of securely completing a distributed key generation ceremony with its counterparty nodes. The ceremony configuration is outlined in a [cluster configuration](https://docs.obol.tech/docs/dv/distributed-validator-cluster-manifest).
 
@@ -28,8 +28,8 @@ A distributed key generation ceremony involves `Operators` and their `Charon cli
 
 This cluster-definition file is created with the help of the [Distributed Validator Launchpad](https://docs.obol.tech/docs/dvk/distributed_validator_launchpad). The creation process involves a number of steps.
 
-- A `leader` Operator, that wishes to co-ordinate the creation of a new Distributed Validator Cluster navigates to the launch pad and selects "Create new Cluster"
-- The `leader` uses the user interface to configure all of the important details about the cluster including:
+- A `leader` Operator, that wishes to coordinate the creation of a new Distributed Validator Cluster navigates to the launch pad and selects "Create new Cluster"
+- The `leader` uses the user interface to configure all the important details about the cluster including:
   - The `withdrawal address` for the created validators
   - The `feeRecipient` for block proposals if it differs from the withdrawal address
   - The number of distributed validators to create

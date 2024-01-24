@@ -10,6 +10,7 @@ import (
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -43,7 +44,7 @@ var (
 
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
 // It serves prometheus metrics, pprof profiling and the runtime enr.
-func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string,
+func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, promAddr, debugAddr string,
 	tcpNode host.Host, eth2Cl eth2wrap.Client,
 	peerIDs []peer.ID, registry *prometheus.Registry, qbftDebug http.Handler,
 	pubkeys []core.PubKey, seenPubkeys <-chan core.PubKey, vapiCalls <-chan struct{},
@@ -75,18 +76,8 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 		writeResponse(w, http.StatusOK, "ok")
 	})
 
-	// Serve sniffed qbft instances messages in gzipped protobuf format.
-	mux.Handle("/debug/qbft", qbftDebug)
-
-	// Copied from net/http/pprof/pprof.go
-	mux.HandleFunc("/debug/pprof/", pprof.Index)
-	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-
 	server := &http.Server{
-		Addr:              addr,
+		Addr:              promAddr,
 		Handler:           mux,
 		ReadHeaderTimeout: time.Second,
 	}
@@ -97,6 +88,29 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, addr string
 		NumPeers:      len(peerIDs),
 		QuorumPeers:   cluster.Threshold(len(peerIDs)),
 	}, registry)
+
+	if debugAddr != "" {
+		debugMux := http.NewServeMux()
+
+		// Serve sniffed qbft instances messages in gzipped protobuf format.
+		debugMux.Handle("/debug/qbft", qbftDebug)
+
+		// Copied from net/http/pprof/pprof.go
+		debugMux.HandleFunc("/debug/pprof/", pprof.Index)
+		debugMux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		debugMux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		debugMux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		debugMux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+		debugServer := &http.Server{
+			Addr:              debugAddr,
+			Handler:           debugMux,
+			ReadHeaderTimeout: time.Second,
+		}
+
+		life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartDebugAPI, httpServeHook(debugServer.ListenAndServe))
+		life.RegisterStop(lifecycle.StopDebugAPI, lifecycle.HookFunc(debugServer.Shutdown))
+	}
 
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartMonitoringAPI, httpServeHook(server.ListenAndServe))
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartMonitoringAPI, lifecycle.HookFuncCtx(checker.Run))
@@ -205,7 +219,7 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 // beaconNodeSyncing returns true if the beacon node is still syncing. It also returns the sync distance, ie, the distance
 // between the node's highest synced slot and the head slot.
 func beaconNodeSyncing(ctx context.Context, eth2Cl eth2client.NodeSyncingProvider) (bool, eth2p0.Slot, error) {
-	eth2Resp, err := eth2Cl.NodeSyncing(ctx)
+	eth2Resp, err := eth2Cl.NodeSyncing(ctx, &eth2api.NodeSyncingOpts{})
 	if err != nil {
 		return false, 0, err
 	}
@@ -218,7 +232,7 @@ func beaconNodeVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, clock 
 	nodeVersionTicker := clock.NewTicker(10 * time.Minute)
 
 	setNodeVersion := func() {
-		eth2Resp, err := eth2Cl.NodeVersion(ctx)
+		eth2Resp, err := eth2Cl.NodeVersion(ctx, &eth2api.NodeVersionOpts{})
 		if err != nil {
 			log.Error(ctx, "Failed to get beacon node version", err)
 			return
