@@ -34,6 +34,7 @@ func newRelayCmd(runFunc func(context.Context, relay.Config) error) *cobra.Comma
 
 	bindDataDirFlag(cmd.Flags(), &config.DataDir)
 	bindRelayFlag(cmd, &config)
+	bindDebugMonitoringFlags(cmd, &config.MonitoringAddr, &config.DebugAddr, "")
 	bindP2PFlags(cmd, &config.P2PConfig)
 	bindLogFlags(cmd.Flags(), &config.LogConfig)
 	bindLokiFlags(cmd.Flags(), &config.LogConfig)
@@ -43,7 +44,6 @@ func newRelayCmd(runFunc func(context.Context, relay.Config) error) *cobra.Comma
 
 func bindRelayFlag(cmd *cobra.Command, config *relay.Config) {
 	cmd.Flags().StringVar(&config.HTTPAddr, "http-address", "127.0.0.1:3640", "Listening address (ip and port) for the relay http server serving runtime ENR.")
-	cmd.Flags().StringVar(&config.MonitoringAddr, "monitoring-address", "127.0.0.1:3620", "Listening address (ip and port) for the prometheus and pprof monitoring http server.")
 	cmd.Flags().BoolVar(&config.AutoP2PKey, "auto-p2pkey", true, "Automatically create a p2pkey (secp256k1 private key used for p2p authentication and ENR) if none found in data directory.")
 	cmd.Flags().StringVar(&config.RelayLogLevel, "p2p-relay-loglevel", "", "Libp2p circuit relay log level. E.g., debug, info, warn, error.")
 
