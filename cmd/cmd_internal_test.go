@@ -243,7 +243,7 @@ func TestRedact(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := Redact(tt.flag, tt.value)
+			got := redact(tt.flag, tt.value)
 			require.Equal(t, tt.expected, got)
 		})
 	}

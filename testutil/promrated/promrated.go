@@ -6,6 +6,7 @@ package promrated
 
 import (
 	"context"
+	"net/url"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -13,7 +14,6 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/cmd"
 )
 
 type Config struct {
@@ -28,7 +28,7 @@ type Config struct {
 // Run blocks running the promrated program until the context is canceled or a fatal error occurs.
 func Run(ctx context.Context, config Config) error {
 	log.Info(ctx, "Promrated started",
-		z.Str("rated_endpoint", cmd.Redact("address", config.RatedEndpoint)),
+		z.Str("rated_endpoint", redactURL(config.RatedEndpoint)),
 		z.Str("monitoring_addr", config.MonitoringAddr),
 	)
 
@@ -130,4 +130,14 @@ func contains(arr []string, s string) bool {
 	}
 
 	return result
+}
+
+// redactURL returns a redacted version of the given URL.
+func redactURL(val string) string {
+	u, err := url.Parse(val)
+	if err != nil {
+		return val
+	}
+
+	return u.Redacted()
 }
