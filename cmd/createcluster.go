@@ -69,6 +69,8 @@ type clusterConfig struct {
 	Network           string
 	NumDVs            int
 
+	DepositAmounts []int
+
 	SplitKeys    bool
 	SplitKeysDir string
 
@@ -86,7 +88,7 @@ func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig)
 	cmd := &cobra.Command{
 		Use:   "cluster",
 		Short: "Create private keys and configuration files needed to run a distributed validator cluster locally",
-		Long: "Creates a local charon cluster configuration including validator keys, charon p2p keys, cluster-lock.json and a deposit-data.json. " +
+		Long: "Creates a local charon cluster configuration including validator keys, charon p2p keys, cluster-lock.json and deposit-data.json file(s). " +
 			"See flags for supported features.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFunc(cmd.Context(), cmd.OutOrStdout(), conf)
@@ -119,6 +121,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.testnetConfig.GenesisForkVersionHex, "testnet-fork-version", "", "Genesis fork version of the custom test network (in hex).")
 	flags.Uint64Var(&config.testnetConfig.ChainID, "testnet-chain-id", 0, "Chain ID of the custom test network.")
 	flags.Int64Var(&config.testnetConfig.GenesisTimestamp, "testnet-genesis-timestamp", 0, "Genesis timestamp of the custom test network.")
+	flags.IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts in gwei. Values must sum up to 32ETH.")
 }
 
 func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
@@ -319,6 +322,16 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 	// Ensure sufficient auth tokens are provided for the keymanager addresses
 	if len(conf.KeymanagerAddrs) != len(conf.KeymanagerAuthTokens) {
 		return errors.New("number of --keymanager-addresses do not match --keymanager-auth-tokens. Please fix configuration flags")
+	}
+
+	if len(conf.DepositAmounts) > 0 {
+		amounts := cluster.DepositAmountsFromIntSlice(conf.DepositAmounts)
+
+		if err := cluster.VerifyDepositAmounts(amounts); err != nil {
+			return err
+		}
+
+		log.Warn(ctx, "Partial deposits feature is under development. The --deposit-amount flag has no effect yet.", nil)
 	}
 
 	for _, addr := range conf.KeymanagerAddrs {
