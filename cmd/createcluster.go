@@ -331,7 +331,7 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 			return err
 		}
 
-		log.Warn(ctx, "Partial deposits feature is under development. The --deposit-amount flag has no effect yet.", nil)
+		log.Warn(ctx, "Partial deposits feature is under development. The --deposit-amounts flag has no effect yet.", nil)
 	}
 
 	for _, addr := range conf.KeymanagerAddrs {

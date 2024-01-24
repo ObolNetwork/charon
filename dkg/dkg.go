@@ -122,7 +122,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 			return err
 		}
 
-		log.Warn(ctx, "Partial deposits feature is under development. The --deposit-amount flag has no effect yet.", nil)
+		log.Warn(ctx, "Partial deposits feature is under development. The --deposit-amounts flag has no effect yet.", nil)
 	}
 
 	if err := validateKeymanagerFlags(ctx, conf.KeymanagerAddr, conf.KeymanagerAuthToken); err != nil {
