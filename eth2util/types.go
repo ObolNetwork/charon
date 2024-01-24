@@ -4,7 +4,6 @@ package eth2util
 
 import (
 	"encoding/json"
-	"strings"
 
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -268,31 +267,15 @@ func (s SignedEpoch) MarshalJSON() ([]byte, error) {
 	return b, nil
 }
 
-// UnmarshalJSON unmarshalls both legacy []byte as well as 0xhex signatures.
-// Remove support for legacy []byte in v0.19.
+// UnmarshalJSON unmarshalls 0xhex signatures.
 func (s *SignedEpoch) UnmarshalJSON(b []byte) error {
-	var resp legacySignedEpochJSON
+	var resp signedEpochJSON
 	if err := json.Unmarshal(b, &resp); err != nil {
 		return errors.Wrap(err, "unmarshal signed epoch")
 	}
+
 	s.Epoch = resp.Epoch
-
-	if strings.HasPrefix(string(resp.Signature), "\"0x") {
-		if err := json.Unmarshal(resp.Signature, &s.Signature); err != nil {
-			return errors.Wrap(err, "unmarshal signed epoch signature")
-		}
-
-		return nil
-	}
-
-	var sig []byte
-	if err := json.Unmarshal(resp.Signature, &sig); err != nil {
-		return errors.Wrap(err, "unmarshal legacy signed epoch signature")
-	} else if len(sig) != 96 {
-		return errors.New("invalid legacy signed epoch signature length")
-	}
-
-	s.Signature = eth2p0.BLSSignature(sig)
+	s.Signature = resp.Signature
 
 	return nil
 }
@@ -301,12 +284,4 @@ func (s *SignedEpoch) UnmarshalJSON(b []byte) error {
 type signedEpochJSON struct {
 	Epoch     eth2p0.Epoch        `json:"epoch"`
 	Signature eth2p0.BLSSignature `json:"signature"`
-}
-
-// legacySignedEpochJSON supports both legacy []byte and 0xhex signatures
-//
-// TODO(corver): Remove in v0.19.
-type legacySignedEpochJSON struct {
-	Epoch     eth2p0.Epoch    `json:"epoch"`
-	Signature json.RawMessage `json:"signature"`
 }
