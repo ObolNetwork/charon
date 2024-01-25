@@ -121,7 +121,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.testnetConfig.GenesisForkVersionHex, "testnet-fork-version", "", "Genesis fork version of the custom test network (in hex).")
 	flags.Uint64Var(&config.testnetConfig.ChainID, "testnet-chain-id", 0, "Chain ID of the custom test network.")
 	flags.Int64Var(&config.testnetConfig.GenesisTimestamp, "testnet-genesis-timestamp", 0, "Genesis timestamp of the custom test network.")
-	flags.IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts in gwei. Values must sum up to 32ETH.")
+	flags.IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts in gwei. Values must sum up to exactly 32ETH.")
 }
 
 func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
@@ -325,7 +325,7 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 	}
 
 	if len(conf.DepositAmounts) > 0 {
-		amounts := cluster.DepositAmountsFromIntSlice(conf.DepositAmounts)
+		amounts := cluster.IntsToGweis(conf.DepositAmounts)
 
 		if err := cluster.VerifyDepositAmounts(amounts); err != nil {
 			return err

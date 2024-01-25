@@ -50,7 +50,7 @@ type Config struct {
 	KeymanagerAddr      string
 	KeymanagerAuthToken string
 
-	DepositAmounts []int
+	DepositAmounts []int // List of partial deposit amounts in gwei
 
 	PublishAddr string
 	Publish     bool
@@ -116,7 +116,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	if len(conf.DepositAmounts) > 0 {
-		amounts := cluster.DepositAmountsFromIntSlice(conf.DepositAmounts)
+		amounts := cluster.IntsToGweis(conf.DepositAmounts)
 
 		if err := cluster.VerifyDepositAmounts(amounts); err != nil {
 			return err

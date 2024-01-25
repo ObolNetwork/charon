@@ -72,5 +72,5 @@ func bindShutdownDelayFlag(flags *pflag.FlagSet, shutdownDelay *time.Duration) {
 }
 
 func bindPartialDepositsFlag(flags *pflag.FlagSet, depositAmounts *[]int) {
-	flags.IntSliceVar(depositAmounts, "deposit-amounts", nil, "List of partial deposit amounts in gwei. Values must sum up to 32ETH.")
+	flags.IntSliceVar(depositAmounts, "deposit-amounts", nil, "List of partial deposit amounts in gwei. Values must sum up to exactly 32ETH.")
 }

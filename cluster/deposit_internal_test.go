@@ -72,13 +72,13 @@ func TestVerifyDepositAmounts(t *testing.T) {
 
 func TestConvertIntAmountsToGwei(t *testing.T) {
 	t.Run("nil slice", func(t *testing.T) {
-		slice := DepositAmountsFromIntSlice(nil)
+		slice := IntsToGweis(nil)
 
 		require.Nil(t, slice)
 	})
 
 	t.Run("values", func(t *testing.T) {
-		slice := DepositAmountsFromIntSlice([]int{
+		slice := IntsToGweis([]int{
 			1000000000,
 			5000000000,
 		})

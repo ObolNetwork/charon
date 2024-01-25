@@ -9,6 +9,11 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
+const (
+	minSingleDepositAmountGwei = 1000000000
+	maxTotalDepositAmountGwei  = 32000000000
+)
+
 // DepositData defines the deposit data to activate a validator.
 // https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/beacon-chain.md#depositdata
 type DepositData struct {
@@ -59,14 +64,12 @@ func VerifyDepositAmounts(amounts []eth2p0.Gwei) error {
 		return nil
 	}
 
-	const minSingleDepositAmountGwei = 1000000000
-	const maxTotalDepositAmountGwei = 32000000000
-
 	var sum eth2p0.Gwei
 	for _, amount := range amounts {
 		if amount < minSingleDepositAmountGwei {
 			return errors.New("each partial deposit amount must be greater than 1ETH", z.U64("amount", uint64(amount)))
 		}
+
 		sum += amount
 	}
 
@@ -77,16 +80,16 @@ func VerifyDepositAmounts(amounts []eth2p0.Gwei) error {
 	return nil
 }
 
-// DepositAmountsFromIntSlice converts amounts from []int to []eth2p0.Gwei.
+// IntsToGweis converts amounts from []int to []eth2p0.Gwei.
 // For verification, please see VerifyDepositAmounts().
-func DepositAmountsFromIntSlice(amounts []int) []eth2p0.Gwei {
+func IntsToGweis(amounts []int) []eth2p0.Gwei {
 	if amounts == nil {
 		return nil
 	}
 
-	gweiAmounts := make([]eth2p0.Gwei, len(amounts))
-	for i, amount := range amounts {
-		gweiAmounts[i] = eth2p0.Gwei(amount)
+	var gweiAmounts []eth2p0.Gwei
+	for _, amount := range amounts {
+		gweiAmounts = append(gweiAmounts, eth2p0.Gwei(amount))
 	}
 
 	return gweiAmounts
