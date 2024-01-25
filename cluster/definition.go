@@ -476,7 +476,7 @@ func marshalDefinitionV1x0or1(def Definition) ([]byte, error) {
 		DefinitionHash:      def.DefinitionHash,
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal definition")
+		return nil, errors.Wrap(err, "marshal definition v1.0")
 	}
 
 	return resp, nil
@@ -504,7 +504,7 @@ func marshalDefinitionV1x2or3(def Definition) ([]byte, error) {
 		DefinitionHash:      def.DefinitionHash,
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal definition")
+		return nil, errors.Wrap(err, "marshal definition v1.1")
 	}
 
 	return resp, nil
@@ -536,7 +536,7 @@ func marshalDefinitionV1x4(def Definition) ([]byte, error) {
 		},
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal definition")
+		return nil, errors.Wrap(err, "marshal definition v1.4")
 	}
 
 	return resp, nil
@@ -562,7 +562,7 @@ func marshalDefinitionV1x5to7(def Definition) ([]byte, error) {
 		},
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal definition")
+		return nil, errors.Wrap(err, "marshal definition v1.5")
 	}
 
 	return resp, nil

@@ -612,6 +612,21 @@ func getValidatorHashFunc(version string) (func(DistValidator, ssz.HashWalker, s
 	}
 }
 
+func hashValidatorPubsharesField(v DistValidator, hh ssz.HashWalker) error {
+	subIndx := hh.Index()
+	num := uint64(len(v.PubShares))
+
+	for _, pubshare := range v.PubShares {
+		if err := putBytesN(hh, pubshare, sszLenPubKey); err != nil {
+			return err
+		}
+	}
+
+	hh.MerkleizeWithMixin(subIndx, num, sszMaxOperators)
+
+	return nil
+}
+
 // hashValidatorV1x3Or4 hashes the distributed validator v1.3 or v1.4.
 func hashValidatorV1x3Or4(v DistValidator, hh ssz.HashWalker, _ string) error {
 	indx := hh.Index()
@@ -620,13 +635,8 @@ func hashValidatorV1x3Or4(v DistValidator, hh ssz.HashWalker, _ string) error {
 	hh.PutBytes(v.PubKey)
 
 	// Field (1) 'Pubshares' CompositeList[256]
-	{
-		subIndx := hh.Index()
-		num := uint64(len(v.PubShares))
-		for _, pubshare := range v.PubShares {
-			hh.PutBytes(pubshare) // Bytes48
-		}
-		hh.MerkleizeWithMixin(subIndx, num, sszMaxOperators)
+	if err := hashValidatorPubsharesField(v, hh); err != nil {
+		return err
 	}
 
 	// Field (2) 'FeeRecipientAddress' Bytes20
@@ -647,16 +657,8 @@ func hashValidatorV1x5to7(v DistValidator, hh ssz.HashWalker, version string) er
 	}
 
 	// Field (1) 'Pubshares' CompositeList[256]
-	{
-		subIndx := hh.Index()
-		num := uint64(len(v.PubShares))
-		for _, pubshare := range v.PubShares {
-			// Bytes48
-			if err := putBytesN(hh, pubshare, sszLenPubKey); err != nil {
-				return err
-			}
-		}
-		hh.MerkleizeWithMixin(subIndx, num, sszMaxOperators)
+	if err := hashValidatorPubsharesField(v, hh); err != nil {
+		return err
 	}
 
 	depositHashFunc, err := getDepositDataHashFunc(version)
@@ -694,16 +696,8 @@ func hashValidatorV1x8OrLater(v DistValidator, hh ssz.HashWalker, version string
 	}
 
 	// Field (1) 'Pubshares' CompositeList[256]
-	{
-		subIndx := hh.Index()
-		num := uint64(len(v.PubShares))
-		for _, pubshare := range v.PubShares {
-			// Bytes48
-			if err := putBytesN(hh, pubshare, sszLenPubKey); err != nil {
-				return err
-			}
-		}
-		hh.MerkleizeWithMixin(subIndx, num, sszMaxOperators)
+	if err := hashValidatorPubsharesField(v, hh); err != nil {
+		return err
 	}
 
 	depositHashFunc, err := getDepositDataHashFunc(version)
