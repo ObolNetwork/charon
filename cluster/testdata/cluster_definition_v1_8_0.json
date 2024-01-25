@@ -35,7 +35,10 @@
  ],
  "dkg_algorithm": "default",
  "fork_version": "0x90000069",
- "deposit_amounts": null,
- "config_hash": "0x36116580c77d75c3df7d5c9c06dc3422ef8eb7ba2e065823a61f847df135d1b8",
- "definition_hash": "0x342309f54224c39baa84eb893cf18de74694e9c3bf101da8a5e96e75bf907310"
+ "deposit_amounts": [
+  "16000000000",
+  "16000000000"
+ ],
+ "config_hash": "0x94aae31a7485b7b3c1a96495be5e318fdf7475baad68f2786500ab13afba064b",
+ "definition_hash": "0x79ebdbe3161dd6148cf359e63efbb6606eb5dd2a6cf0972233cc7830d6795a73"
 }
