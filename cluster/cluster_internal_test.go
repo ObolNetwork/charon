@@ -266,10 +266,12 @@ func TestSupportEIP712Sigs(t *testing.T) {
 }
 
 func RandomDepositData() DepositData {
+	amount := rand.Intn(31000000000) + 1000000000
+
 	return DepositData{
 		PubKey:                testutil.RandomBytes48(),
 		WithdrawalCredentials: testutil.RandomBytes32(),
-		Amount:                rand.Int(),
+		Amount:                amount,
 		Signature:             testutil.RandomBytes96(),
 	}
 }

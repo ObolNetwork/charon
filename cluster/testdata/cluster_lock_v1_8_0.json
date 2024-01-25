@@ -20,7 +20,7 @@
    }
   ],
   "uuid": "0194FDC2-FA2F-FCC0-41D3-FF12045B73C8",
-  "version": "v1.7.0",
+  "version": "v1.8.0",
   "timestamp": "2022-07-19T18:19:58+02:00",
   "num_validators": 2,
   "threshold": 3,
@@ -36,8 +36,9 @@
   ],
   "dkg_algorithm": "default",
   "fork_version": "0x90000069",
-  "config_hash": "0xeb86aba2945a8af0ea59bbaa2e12c7a90a928c72627391500f81bee4b8d0945a",
-  "definition_hash": "0x1c078f73f3e7c2aed482480a3d522f6269f376b466faf40afd65c0c0a857cdd5"
+  "deposit_amounts": null,
+  "config_hash": "0x36116580c77d75c3df7d5c9c06dc3422ef8eb7ba2e065823a61f847df135d1b8",
+  "definition_hash": "0x342309f54224c39baa84eb893cf18de74694e9c3bf101da8a5e96e75bf907310"
  },
  "distributed_validators": [
   {
@@ -86,7 +87,7 @@
   }
  ],
  "signature_aggregate": "0x9347800979d1830356f2a54c3deab2a4b4475d63afbe8fb56987c77f5818526f",
- "lock_hash": "0x898038766e2322b749fea8025590738148635f7eb4d124542d6913cb57a451cd",
+ "lock_hash": "0x31b4485b22eb56dd719d7db1e682315be5e66c367b347e74b87a8492d21dced1",
  "node_signatures": [
   "0xb38b19f53784c19e9beac03c875a27db029de37ae37a42318813487685929359",
   "0xca8c5eb94e152dc1af42ea3d1676c1bdd19ab8e2925c6daee4de5ef9f9dcf08d"

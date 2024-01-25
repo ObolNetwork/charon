@@ -28,3 +28,21 @@ func TestDepositJSON(t *testing.T) {
 
 	require.Equal(t, b1, b2)
 }
+
+func TestDepositArrayJSON(t *testing.T) {
+	dd := []DepositData{
+		RandomDepositData(),
+		RandomDepositData(),
+		RandomDepositData(),
+	}
+
+	json := depositDataArrayToJSON(dd)
+	dd2 := depositDataArrayFromJSON(json)
+
+	require.Equal(t, dd, dd2)
+
+	t.Run("nil", func(t *testing.T) {
+		require.Nil(t, depositDataArrayToJSON(nil))
+		require.Nil(t, depositDataArrayFromJSON(nil))
+	})
+}

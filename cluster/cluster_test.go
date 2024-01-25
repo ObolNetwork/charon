@@ -21,6 +21,7 @@ import (
 //go:generate go test . -v -update -clean
 
 const (
+	v1_8 = "v1.8.0"
 	v1_7 = "v1.7.0"
 	v1_6 = "v1.6.0"
 	v1_5 = "v1.5.0"
