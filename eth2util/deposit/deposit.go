@@ -19,11 +19,14 @@ import (
 )
 
 var (
+	// Minimum allowed deposit amount (1ETH).
+	MinValidatorAmount = eth2p0.Gwei(1000000000)
+
+	// Maximum allowed deposit amount (32ETH).
+	MaxValidatorAmount = eth2p0.Gwei(32000000000)
+
 	// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/validator.md#eth1_address_withdrawal_prefix
 	eth1AddressWithdrawalPrefix = []byte{0x01}
-
-	// the amount of ether in gwei required to activate a validator.
-	validatorAmt = eth2p0.Gwei(32000000000)
 
 	// DOMAIN_DEPOSIT. See spec: https://benjaminion.xyz/eth2-annotated-spec/phase0/beacon-chain/#domain-types
 	depositDomainType = eth2p0.DomainType([4]byte{0x03, 0x00, 0x00, 0x00})
@@ -33,16 +36,22 @@ var (
 )
 
 // NewMessage returns a deposit message created using the provided parameters.
-func NewMessage(pubkey eth2p0.BLSPubKey, withdrawalAddr string) (eth2p0.DepositMessage, error) {
+func NewMessage(pubkey eth2p0.BLSPubKey, withdrawalAddr string, amount eth2p0.Gwei) (eth2p0.DepositMessage, error) {
 	creds, err := withdrawalCredsFromAddr(withdrawalAddr)
 	if err != nil {
 		return eth2p0.DepositMessage{}, err
+	}
+	if amount < MinValidatorAmount {
+		return eth2p0.DepositMessage{}, errors.New("deposit message minimum amount must be >= 1ETH", z.U64("amount", uint64(amount)))
+	}
+	if amount > MaxValidatorAmount {
+		return eth2p0.DepositMessage{}, errors.New("deposit message maximum amount must <= 32ETH", z.U64("amount", uint64(amount)))
 	}
 
 	return eth2p0.DepositMessage{
 		PublicKey:             pubkey,
 		WithdrawalCredentials: creds[:],
-		Amount:                validatorAmt,
+		Amount:                amount,
 	}, nil
 }
 
@@ -87,7 +96,7 @@ func MarshalDepositData(depositDatas []eth2p0.DepositData, network string) ([]by
 		ddList = append(ddList, depositDataJSON{
 			PubKey:                fmt.Sprintf("%x", depositData.PublicKey),
 			WithdrawalCredentials: fmt.Sprintf("%x", depositData.WithdrawalCredentials),
-			Amount:                uint64(validatorAmt),
+			Amount:                uint64(depositData.Amount),
 			Signature:             fmt.Sprintf("%x", depositData.Signature),
 			DepositMessageRoot:    fmt.Sprintf("%x", msgRoot),
 			DepositDataRoot:       fmt.Sprintf("%x", dataRoot),

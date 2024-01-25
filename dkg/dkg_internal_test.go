@@ -137,7 +137,7 @@ func TestValidSignatures(t *testing.T) {
 	withdrawalAddr := testutil.RandomETHAddress()
 	network := eth2util.Goerli.Name
 
-	msg, err := deposit.NewMessage(eth2Pubkey, withdrawalAddr)
+	msg, err := deposit.NewMessage(eth2Pubkey, withdrawalAddr, deposit.MaxValidatorAmount)
 	require.NoError(t, err)
 	sigRoot, err := deposit.GetMessageSigningRoot(msg, network)
 	require.NoError(t, err)

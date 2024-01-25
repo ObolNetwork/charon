@@ -379,7 +379,7 @@ func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, n
 			return nil, errors.Wrap(err, "secret to pubkey")
 		}
 
-		msg, err := deposit.NewMessage(eth2p0.BLSPubKey(pk), withdrawalAddr)
+		msg, err := deposit.NewMessage(eth2p0.BLSPubKey(pk), withdrawalAddr, deposit.MaxValidatorAmount)
 		if err != nil {
 			return nil, err
 		}
