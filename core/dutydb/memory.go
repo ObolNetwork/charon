@@ -127,8 +127,8 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 			if err != nil {
 				return err
 			}
-			db.resolveContribQueriesUnsafe()
 		}
+		db.resolveContribQueriesUnsafe()
 	default:
 		return errors.New("unsupported duty type", z.Str("type", duty.Type.String()))
 	}

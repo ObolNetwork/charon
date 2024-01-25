@@ -420,9 +420,8 @@ func (s *SyncContribution) UnmarshalSSZ(b []byte) error {
 	return s.SyncCommitteeContribution.UnmarshalSSZ(b)
 }
 
-// UnmarshalUnsignedData returns an instantiated unsigned data based on the duty type.
-// TODO(corver): Unexport once leadercast is removed or uses protobufs.
-func UnmarshalUnsignedData(typ DutyType, data []byte) (UnsignedData, error) {
+// unmarshalUnsignedData returns an instantiated unsigned data based on the duty type.
+func unmarshalUnsignedData(typ DutyType, data []byte) (UnsignedData, error) {
 	switch typ {
 	case DutyAttester:
 		var resp AttestationData

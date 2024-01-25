@@ -30,13 +30,13 @@ type Component struct {
 	broadcastFunc BroadcastFunc
 }
 
-// RegisterCallback adds a callback for msgID.
-func (c *Component) RegisterCallback(msgID string, callback Callback) {
+// RegisterMessageIDFuncs adds a callback and a check message function for msgID.
+func (c *Component) RegisterMessageIDFuncs(msgID string, callback Callback, checkMessage CheckMessage) {
 	c.allowedMsgIDsMutex.Lock()
 	defer c.allowedMsgIDsMutex.Unlock()
 
 	c.allowedMsgIDs[msgID] = struct{}{}
-	c.srv.registerCallback(msgID, callback)
+	c.srv.registerMessageIDFuncs(msgID, callback, checkMessage)
 }
 
 // msgIDAllowed returns true if msgID is an allowed message id.
@@ -68,7 +68,7 @@ func New(tcpNode host.Host, peers []peer.ID, secret *k1.PrivateKey) *Component {
 	cl := newClient(tcpNode, peers, p2p.SendReceive, p2p.Send, hashAny, signFunc, verifyFunc)
 
 	c.broadcastFunc = cl.Broadcast
-	c.srv = newServer(tcpNode, signFunc, verifyFunc)
+	c.srv = newServer(tcpNode, signFunc, hashAny, verifyFunc)
 
 	return &c
 }

@@ -57,7 +57,7 @@ type Server struct {
 	allCount int // Excluding self
 
 	// Mutable state
-	mu        sync.Mutex
+	mu        sync.RWMutex
 	shutdown  map[peer.ID]struct{}
 	connected map[peer.ID]struct{}
 	steps     map[peer.ID]int
@@ -95,8 +95,8 @@ func (s *Server) setErr(err error) {
 
 // Err returns the shared error state for the server.
 func (s *Server) Err() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	return s.err
 }
@@ -144,8 +144,8 @@ func (s *Server) AwaitAllAtStep(ctx context.Context, step int) error {
 
 // isConnected returns the shared connected state for the peer.
 func (s *Server) isConnected(pID peer.ID) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	_, ok := s.connected[pID]
 
@@ -170,26 +170,43 @@ func (s *Server) setShutdown(pID peer.ID) {
 	s.shutdown[pID] = struct{}{}
 }
 
-// setStep sets the peer's reported step.
-func (s *Server) setStep(pID peer.ID, step int) {
+// updateStep updates the peer's step from the reported value.
+// Returns error if the reported step is not the same or monotonically increased.
+func (s *Server) updateStep(pID peer.ID, step int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	currentPeerStep, hasCurrentPeerStep := s.steps[pID]
+
+	if hasCurrentPeerStep && step < currentPeerStep {
+		return errors.New("peer reported step is behind the last known step", z.Int("peer_step", step), z.Int("last_step", currentPeerStep))
+	}
+
+	if hasCurrentPeerStep && step > currentPeerStep+1 {
+		return errors.New("peer reported step is ahead the last known step", z.Int("peer_step", step), z.Int("last_step", currentPeerStep))
+	}
+
+	if !hasCurrentPeerStep && (step < 0 || step > 1) {
+		return errors.New("peer reported abnormal initial step, expected 0 or 1", z.Int("peer_step", step))
+	}
+
 	s.steps[pID] = step
+
+	return nil
 }
 
 // isAllConnected returns if all expected peers are connected.
 func (s *Server) isAllConnected() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	return len(s.connected) == s.allCount
 }
 
 // isAllShutdown returns if all expected peers are shutdown.
 func (s *Server) isAllShutdown() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	return len(s.shutdown) == s.allCount
 }
@@ -199,8 +216,8 @@ func (s *Server) isAllShutdown() bool {
 // so one peer will always increment first putting it ahead of the others. At least we know all peers
 // are or were at the given step.
 func (s *Server) isAllAtStep(step int) (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	if len(s.steps) != s.allCount {
 		return false, nil
@@ -262,7 +279,9 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 			log.Info(ctx, fmt.Sprintf("Connected to peer %d of %d", count, s.allCount))
 		}
 
-		s.setStep(pID, int(msg.Step))
+		if err := s.updateStep(pID, int(msg.Step)); err != nil {
+			return err
+		}
 
 		// Write response message
 		if err := writeSizedProto(stream, resp); err != nil {

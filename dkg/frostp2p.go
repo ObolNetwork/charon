@@ -14,6 +14,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -37,7 +38,7 @@ func frostMessageIDs() []string {
 
 // newFrostP2P returns a p2p frost transport implementation.
 // It registers bcast handlers on bcastComp.
-func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, bcastComp *bcast.Component, threshold, numVals int) *frostP2P {
+func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, bcastComp *bcast.Component, threshold, numVals int) (*frostP2P, error) {
 	var (
 		round1CastsRecv = make(chan *pb.FrostRound1Casts, len(peers))
 		round1P2PRecv   = make(chan *pb.FrostRound1P2P, len(peers))
@@ -60,7 +61,12 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, bcastComp
 	bcastCallback := newBcastCallback(peers, round1CastsRecv, round2CastsRecv, threshold, numVals)
 
 	for _, frostMsgID := range frostMessageIDs() {
-		bcastComp.RegisterCallback(frostMsgID, bcastCallback)
+		checkMsg, err := newCheckMsg(frostMsgID)
+		if err != nil {
+			return nil, err
+		}
+
+		bcastComp.RegisterMessageIDFuncs(frostMsgID, bcastCallback, checkMsg)
 	}
 
 	return &frostP2P{
@@ -70,7 +76,46 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, bcastComp
 		round1CastsRecv: round1CastsRecv,
 		round1P2PRecv:   round1P2PRecv,
 		round2CastsRecv: round2CastsRecv,
+	}, nil
+}
+
+// newCheckMsg returns a bcast.CheckMessage function for round 1 and 2.
+func newCheckMsg(messageID string) (bcast.CheckMessage, error) {
+	found := false
+	for _, mID := range frostMessageIDs() {
+		if mID == messageID {
+			found = true
+			break
+		}
 	}
+
+	if !found {
+		return nil, errors.New("frost message id unsupported", z.Str("message_id", messageID))
+	}
+
+	return func(ctx context.Context, peerID peer.ID, msgAny *anypb.Any) error {
+		targetFn := func(messageID string) proto.Message {
+			switch messageID {
+			case round1CastID:
+				r := pb.FrostRound1Casts{}
+				return &r
+			case round2CastID:
+				r := pb.FrostRound2Casts{}
+				return &r
+			default:
+				return nil // Note: impossible due to the above check, but needed because compilers.
+			}
+		}
+
+		target := targetFn(messageID)
+
+		err := msgAny.UnmarshalTo(target)
+		if err != nil {
+			return errors.Wrap(err, "frost check message fail")
+		}
+
+		return nil
+	}, nil
 }
 
 // newBcastCallback returns a callback for broadcast in round 1 and round 2 of frost protocol.

@@ -76,6 +76,7 @@ type Config struct {
 	PrivKeyFile             string
 	PrivKeyLocking          bool
 	MonitoringAddr          string
+	DebugAddr               string
 	ValidatorAPIAddr        string
 	BeaconNodeAddrs         []string
 	JaegerAddr              string
@@ -259,7 +260,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, tcpNode, eth2Cl, peerIDs,
+	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, conf.DebugAddr, tcpNode, eth2Cl, peerIDs,
 		promRegistry, qbftDebug, pubkeys, seenPubkeys, vapiCalls)
 
 	err = wireCoreWorkflow(ctx, life, conf, cluster, nodeIdx, tcpNode, p2pKey, eth2Cl,
