@@ -662,11 +662,13 @@ func getValidators(
 		vals = append(vals, cluster.DistValidator{
 			PubKey:    dv[:],
 			PubShares: pubshares,
-			DepositData: cluster.DepositData{
-				PubKey:                depositDatas[depositIdx].PublicKey[:],
-				WithdrawalCredentials: depositDatas[depositIdx].WithdrawalCredentials,
-				Amount:                int(depositDatas[depositIdx].Amount),
-				Signature:             depositDatas[depositIdx].Signature[:],
+			PartialDepositData: []cluster.DepositData{
+				{
+					PubKey:                depositDatas[depositIdx].PublicKey[:],
+					WithdrawalCredentials: depositDatas[depositIdx].WithdrawalCredentials,
+					Amount:                int(depositDatas[depositIdx].Amount),
+					Signature:             depositDatas[depositIdx].Signature[:],
+				},
 			},
 			BuilderRegistration: clusterReg,
 		})

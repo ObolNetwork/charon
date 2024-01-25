@@ -23,14 +23,11 @@ type DistValidator struct {
 	// It can be used to verify a partial signature created by any node in the cluster.
 	PubShares [][]byte `json:"public_shares,omitempty" lock_hash:"1" ssz:"CompositeList[256],Bytes48"`
 
-	// DepositData is the validator deposit data.
-	DepositData DepositData `json:"deposit_data,omitempty" lock_hash:"2" ssz:"Composite"`
-
 	// BuilderRegistration is the pre-generated signed validator builder registration.
-	BuilderRegistration BuilderRegistration `json:"builder_registration,omitempty" lock_hash:"3" ssz:"Composite"`
+	BuilderRegistration BuilderRegistration `json:"builder_registration,omitempty" lock_hash:"2" ssz:"Composite"`
 
 	// PartialDepositData is the list of partial deposit data.
-	PartialDepositData []DepositData `json:"partial_deposit_data,omitempty" lock_hash:"4" ssz:"Composite[256]"`
+	PartialDepositData []DepositData `json:"partial_deposit_data,omitempty" lock_hash:"3" ssz:"Composite[256]"`
 }
 
 // PublicKey returns the validator BLS group public key.
@@ -155,9 +152,8 @@ func distValidatorsFromV1x2to5(distValidators []distValidatorJSONv1x2to5) []Dist
 			shares = append(shares, share)
 		}
 		resp = append(resp, DistValidator{
-			PubKey:      dv.PubKey,
-			PubShares:   shares,
-			DepositData: DepositData{},
+			PubKey:    dv.PubKey,
+			PubShares: shares,
 		})
 	}
 
@@ -189,9 +185,11 @@ func distValidatorsFromV1x6(distValidators []distValidatorJSONv1x6) []DistValida
 			shares = append(shares, share)
 		}
 		resp = append(resp, DistValidator{
-			PubKey:      dv.PubKey,
-			PubShares:   shares,
-			DepositData: depositDataFromJSON(dv.DepositData),
+			PubKey:    dv.PubKey,
+			PubShares: shares,
+			PartialDepositData: []DepositData{
+				depositDataFromJSON(dv.DepositData),
+			},
 		})
 	}
 
@@ -209,7 +207,7 @@ func distValidatorsToV1x6(distValidators []DistValidator) []distValidatorJSONv1x
 		resp = append(resp, distValidatorJSONv1x6{
 			PubKey:      dv.PubKey,
 			PubShares:   shares,
-			DepositData: depositDataToJSON(dv.DepositData),
+			DepositData: depositDataToJSON(firstDepositDataOrDefault(dv.PartialDepositData)),
 		})
 	}
 
@@ -227,7 +225,7 @@ func distValidatorsToV1x7(distValidators []DistValidator) []distValidatorJSONv1x
 		resp = append(resp, distValidatorJSONv1x7{
 			PubKey:              dv.PubKey,
 			PubShares:           shares,
-			DepositData:         depositDataToJSON(dv.DepositData),
+			DepositData:         depositDataToJSON(firstDepositDataOrDefault(dv.PartialDepositData)),
 			BuilderRegistration: registrationToJSON(dv.BuilderRegistration),
 		})
 	}
@@ -246,7 +244,6 @@ func distValidatorsToV1x8OrLater(distValidators []DistValidator) []distValidator
 		resp = append(resp, distValidatorJSONv1x8{
 			PubKey:              dv.PubKey,
 			PubShares:           shares,
-			DepositData:         depositDataToJSON(dv.DepositData),
 			BuilderRegistration: registrationToJSON(dv.BuilderRegistration),
 			PartialDepositData:  depositDataArrayToJSON(dv.PartialDepositData),
 		})
@@ -273,9 +270,11 @@ func distValidatorsFromV1x7(distValidators []distValidatorJSONv1x7) []DistValida
 		}
 
 		resp = append(resp, DistValidator{
-			PubKey:              dv.PubKey,
-			PubShares:           shares,
-			DepositData:         depositDataFromJSON(dv.DepositData),
+			PubKey:    dv.PubKey,
+			PubShares: shares,
+			PartialDepositData: []DepositData{
+				depositDataFromJSON(dv.DepositData),
+			},
 			BuilderRegistration: registrationFromJSON(dv.BuilderRegistration),
 		})
 	}
@@ -294,7 +293,6 @@ func distValidatorsFromV1x8OrLater(distValidators []distValidatorJSONv1x8) []Dis
 		resp = append(resp, DistValidator{
 			PubKey:              dv.PubKey,
 			PubShares:           shares,
-			DepositData:         depositDataFromJSON(dv.DepositData),
 			BuilderRegistration: registrationFromJSON(dv.BuilderRegistration),
 			PartialDepositData:  depositDataArrayFromJSON(dv.PartialDepositData),
 		})

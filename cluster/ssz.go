@@ -667,8 +667,10 @@ func hashValidatorV1x5to7(v DistValidator, hh ssz.HashWalker, version string) er
 	}
 
 	// Field (2) 'DepositData' Composite
-	if err := depositHashFunc(v.DepositData, hh); err != nil {
-		return err
+	if len(v.PartialDepositData) > 0 {
+		if err := depositHashFunc(v.PartialDepositData[0], hh); err != nil {
+			return err
+		}
 	}
 
 	regHashFunc, err := getRegistrationHashFunc(version)
@@ -705,22 +707,17 @@ func hashValidatorV1x8OrLater(v DistValidator, hh ssz.HashWalker, version string
 		return err
 	}
 
-	// Field (2) 'DepositData' Composite
-	if err := depositHashFunc(v.DepositData, hh); err != nil {
-		return err
-	}
-
 	regHashFunc, err := getRegistrationHashFunc(version)
 	if err != nil {
 		return err
 	}
 
-	// Field (3) 'BuilderRegistration' Composite
+	// Field (2) 'BuilderRegistration' Composite
 	if err := regHashFunc(v.BuilderRegistration, hh); err != nil {
 		return err
 	}
 
-	// Field (4) 'PartialDepositData' Composite[256]
+	// Field (3) 'PartialDepositData' Composite[256]
 	{
 		pddIndx := hh.Index()
 		num := uint64(len(v.PartialDepositData))

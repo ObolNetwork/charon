@@ -26,6 +26,16 @@ type depositDataJSON struct {
 	Signature             ethHex `json:"signature"`
 }
 
+// firstDepositDataOrDefault returns the first DepositData element or a default instance.
+// For backward compatibility with versions prior to v1.8.
+func firstDepositDataOrDefault(dd []DepositData) DepositData {
+	if len(dd) == 0 {
+		return DepositData{}
+	}
+
+	return dd[0]
+}
+
 // depositDataToJSON converts DepositData to depositDataJSON.
 func depositDataToJSON(d DepositData) depositDataJSON {
 	return depositDataJSON{

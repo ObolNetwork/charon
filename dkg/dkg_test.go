@@ -325,8 +325,9 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 
 		for j, val := range lock.Validators {
 			// Assert Deposit Data
-			require.EqualValues(t, val.PubKey, val.DepositData.PubKey)
-			require.EqualValues(t, 32_000_000_000, val.DepositData.Amount)
+			require.Len(t, val.PartialDepositData, 1)
+			require.EqualValues(t, val.PubKey, val.PartialDepositData[0].PubKey)
+			require.EqualValues(t, 32_000_000_000, val.PartialDepositData[0].Amount)
 
 			if !cluster.SupportPregenRegistrations(lock.Version) {
 				require.Empty(t, val.BuilderRegistration.Signature)
