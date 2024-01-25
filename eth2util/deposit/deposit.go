@@ -41,9 +41,11 @@ func NewMessage(pubkey eth2p0.BLSPubKey, withdrawalAddr string, amount eth2p0.Gw
 	if err != nil {
 		return eth2p0.DepositMessage{}, err
 	}
+
 	if amount < MinValidatorAmount {
 		return eth2p0.DepositMessage{}, errors.New("deposit message minimum amount must be >= 1ETH", z.U64("amount", uint64(amount)))
 	}
+
 	if amount > MaxValidatorAmount {
 		return eth2p0.DepositMessage{}, errors.New("deposit message maximum amount must <= 32ETH", z.U64("amount", uint64(amount)))
 	}
