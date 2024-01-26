@@ -192,6 +192,7 @@ func TestEncode(t *testing.T) {
 			if isAnyVersion(version, v1_8) {
 				for i := range lock.Validators {
 					dd := cluster.RandomDepositData()
+					dd.PubKey = lock.Validators[i].PubKey
 					lock.Validators[i].PartialDepositData = append(lock.Validators[i].PartialDepositData, dd)
 				}
 			}
