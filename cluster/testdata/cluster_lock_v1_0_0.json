@@ -38,13 +38,13 @@
    ]
   },
   {
-   "distributed_public_key": "0x9a4f091e9a83fdeae0ec55eb233a9b5394cb3c7856b546d313c8a3b4c1c0e05447f4ba370eb36dbcfdec90b302dcdc3b",
+   "distributed_public_key": "0xf2468928d5a23b9ca740f80c9382d9c6034ad2960c796503e1ce221725f50caf1fbfe831b10b7bf5b15c47a53dbf8e7d",
    "public_shares": [
-    "nvUi4qbx7Qr+wfjiD6q+32sWLnF9OnSKWGd6DFY0j4khomaxHQ8zTGL+UrpTrxl3",
-    "nLKUi2Vw/6C3c5Y8EwrXl93q/k460ptRJSEPDvHDFAkPB8eab1ccJG8+msC3QT7x"
+    "yvyeE4ZHpLRO1LzpZO1H90qllEaM7TI8t28NP6xHbJ+wP8kij7roj9WAZjoEVLaD",
+    "EiB/CjtYTGIxZJK0l1O11QJ84VpPClglDY+1Dnfyv08BUuXUlDWAf51Ll75vt3lw"
    ]
   }
  ],
  "signature_aggregate": "hWUMMOwpo3A5NL9Qoo2hApdd7ad+dYV56j3+QTar91I=",
- "lock_hash": "d+LsvrrptWEEB03QJTZux7k26fBQ1I1qYgwuIRttmPo="
+ "lock_hash": "++vMuMSUqQAUik4Hy1MWD08J4Q/RCqAqszs42ErGZSU="
 }

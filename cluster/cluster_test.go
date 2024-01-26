@@ -146,6 +146,7 @@ func TestEncode(t *testing.T) {
 							testutil.RandomBytes48(),
 							testutil.RandomBytes48(),
 						},
+						PartialDepositData:  []cluster.DepositData{cluster.RandomDepositData()},
 						BuilderRegistration: cluster.RandomRegistration(t, eth2util.Sepolia.Name),
 					}, {
 						PubKey: testutil.RandomBytes48(),
@@ -153,6 +154,7 @@ func TestEncode(t *testing.T) {
 							testutil.RandomBytes48(),
 							testutil.RandomBytes48(),
 						},
+						PartialDepositData:  []cluster.DepositData{cluster.RandomDepositData()},
 						BuilderRegistration: cluster.RandomRegistration(t, eth2util.Sepolia.Name),
 					},
 				},
@@ -184,14 +186,6 @@ func TestEncode(t *testing.T) {
 				}
 
 				lock.NodeSignatures = nil
-			}
-
-			// Lock version prior to v1.8.0 don't support multiple PartialDepositData.
-			if isAnyVersion(version, v1_6, v1_7) {
-				for i := range lock.Validators {
-					dd := cluster.RandomDepositData()
-					lock.Validators[i].PartialDepositData = []cluster.DepositData{dd}
-				}
 			}
 
 			// Lock version v1.8.0 supports multiple PartialDepositData.
