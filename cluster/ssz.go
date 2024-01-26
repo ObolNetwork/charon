@@ -667,10 +667,13 @@ func hashValidatorV1x5to7(v DistValidator, hh ssz.HashWalker, version string) er
 	}
 
 	// Field (2) 'DepositData' Composite
+	var dd DepositData
 	if len(v.PartialDepositData) > 0 {
-		if err := depositHashFunc(v.PartialDepositData[0], hh); err != nil {
-			return err
-		}
+		dd = v.PartialDepositData[0]
+	}
+
+	if err := depositHashFunc(dd, hh); err != nil {
+		return err
 	}
 
 	regHashFunc, err := getRegistrationHashFunc(version)
@@ -712,12 +715,7 @@ func hashValidatorV1x8OrLater(v DistValidator, hh ssz.HashWalker, version string
 		return err
 	}
 
-	// Field (2) 'BuilderRegistration' Composite
-	if err := regHashFunc(v.BuilderRegistration, hh); err != nil {
-		return err
-	}
-
-	// Field (3) 'PartialDepositData' Composite[256]
+	// Field (2) 'PartialDepositData' Composite[256]
 	{
 		pddIndx := hh.Index()
 		num := uint64(len(v.PartialDepositData))
@@ -729,6 +727,11 @@ func hashValidatorV1x8OrLater(v DistValidator, hh ssz.HashWalker, version string
 			hh.Merkleize(ddIndx)
 		}
 		hh.MerkleizeWithMixin(pddIndx, num, sszMaxDepositAmounts)
+	}
+
+	// Field (3) 'BuilderRegistration' Composite
+	if err := regHashFunc(v.BuilderRegistration, hh); err != nil {
+		return err
 	}
 
 	hh.Merkleize(indx)

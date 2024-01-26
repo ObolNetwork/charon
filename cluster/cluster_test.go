@@ -147,10 +147,6 @@ func TestEncode(t *testing.T) {
 							testutil.RandomBytes48(),
 						},
 						BuilderRegistration: cluster.RandomRegistration(t, eth2util.Sepolia.Name),
-						PartialDepositData: []cluster.DepositData{
-							cluster.RandomDepositData(),
-							cluster.RandomDepositData(),
-						},
 					}, {
 						PubKey: testutil.RandomBytes48(),
 						PubShares: [][]byte{
@@ -158,10 +154,6 @@ func TestEncode(t *testing.T) {
 							testutil.RandomBytes48(),
 						},
 						BuilderRegistration: cluster.RandomRegistration(t, eth2util.Sepolia.Name),
-						PartialDepositData: []cluster.DepositData{
-							cluster.RandomDepositData(),
-							cluster.RandomDepositData(),
-						},
 					},
 				},
 				NodeSignatures: [][]byte{
@@ -195,11 +187,18 @@ func TestEncode(t *testing.T) {
 			}
 
 			// Lock version prior to v1.8.0 don't support multiple PartialDepositData.
-			if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6, v1_7) {
+			if isAnyVersion(version, v1_6, v1_7) {
 				for i := range lock.Validators {
-					if len(lock.Validators[i].PartialDepositData) > 1 {
-						lock.Validators[i].PartialDepositData = []cluster.DepositData{lock.Validators[i].PartialDepositData[0]}
-					}
+					dd := cluster.RandomDepositData()
+					lock.Validators[i].PartialDepositData = []cluster.DepositData{dd}
+				}
+			}
+
+			// Lock version v1.8.0 supports multiple PartialDepositData.
+			if isAnyVersion(version, v1_8) {
+				for i := range lock.Validators {
+					dd := cluster.RandomDepositData()
+					lock.Validators[i].PartialDepositData = append(lock.Validators[i].PartialDepositData, dd)
 				}
 			}
 

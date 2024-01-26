@@ -23,11 +23,11 @@ type DistValidator struct {
 	// It can be used to verify a partial signature created by any node in the cluster.
 	PubShares [][]byte `json:"public_shares,omitempty" lock_hash:"1" ssz:"CompositeList[256],Bytes48"`
 
-	// BuilderRegistration is the pre-generated signed validator builder registration.
-	BuilderRegistration BuilderRegistration `json:"builder_registration,omitempty" lock_hash:"2" ssz:"Composite"`
-
 	// PartialDepositData is the list of partial deposit data.
-	PartialDepositData []DepositData `json:"partial_deposit_data,omitempty" lock_hash:"3" ssz:"Composite[256]"`
+	PartialDepositData []DepositData `json:"partial_deposit_data,omitempty" lock_hash:"2" ssz:"Composite[256]"`
+
+	// BuilderRegistration is the pre-generated signed validator builder registration.
+	BuilderRegistration BuilderRegistration `json:"builder_registration,omitempty" lock_hash:"3" ssz:"Composite"`
 }
 
 // PublicKey returns the validator BLS group public key.

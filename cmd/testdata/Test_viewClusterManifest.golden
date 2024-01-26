@@ -1,8 +1,8 @@
 {
  "dkg_algorithm": "default",
  "fork_version": "0x00001020",
- "initial_mutation_hash": "0x0ad9b466387890540ab5b469a1494d736b2d7bca45ef43f1d976a256ad0f896b",
- "latest_mutation_hash": "0x0ad9b466387890540ab5b469a1494d736b2d7bca45ef43f1d976a256ad0f896b",
+ "initial_mutation_hash": "0x6ed14a6e2679c2b47b26c2f92061c4d8c7466d3726d623d7746172ea598e4536",
+ "latest_mutation_hash": "0x6ed14a6e2679c2b47b26c2f92061c4d8c7466d3726d623d7746172ea598e4536",
  "name": "test cluster",
  "operators": [
   {
