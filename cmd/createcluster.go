@@ -322,7 +322,7 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 	}
 
 	for _, addr := range conf.KeymanagerAddrs {
-		keymanagerURL, err := url.Parse(addr)
+		keymanagerURL, err := url.ParseRequestURI(addr)
 		if err != nil {
 			return errors.Wrap(err, "failed to parse keymanager addr", z.Str("addr", addr))
 		}
@@ -964,7 +964,7 @@ func loadDefinition(ctx context.Context, defFile string) (cluster.Definition, er
 
 // validURI returns true if the input string is a valid HTTP/HTTPS URI.
 func validURI(str string) bool {
-	u, err := url.Parse(str)
+	u, err := url.ParseRequestURI(str)
 
 	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }

@@ -192,7 +192,7 @@ func verifyBody(body string) error {
 			}
 
 			if strings.HasPrefix(ticket, "https://") {
-				if u, err := url.Parse(ticket); err != nil || u.Path == "" {
+				if u, err := url.ParseRequestURI(ticket); err != nil || u.Path == "" {
 					return errors.New("ticket tag invalid url")
 				}
 				// URL is fine

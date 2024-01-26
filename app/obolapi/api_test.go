@@ -9,13 +9,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 // TestLockPublish tests.
@@ -84,8 +84,7 @@ func TestLaunchpadDashURL(t *testing.T) {
 
 		require.NotEmpty(t, result)
 
-		parsedRes, err := url.ParseRequestURI(result)
-		require.NoError(t, err)
+		parsedRes := testutil.MustParseRequestURI(t, result)
 
 		require.Equal(t, "safe.today", parsedRes.Host)
 		require.Equal(

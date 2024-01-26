@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestHeadProducer(t *testing.T) {
@@ -25,8 +25,7 @@ func TestHeadProducer(t *testing.T) {
 
 	defer bmock.Close()
 
-	base, err := url.Parse(bmock.Address())
-	require.NoError(t, err)
+	base := testutil.MustParseURL(t, bmock.Address())
 
 	unsupportedTopicErr := errors.New("unknown topic requested")
 
@@ -61,9 +60,8 @@ func TestHeadProducer(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			endpoint, err := url.Parse(fmt.Sprintf("eth/v1/events?topics=%s", strings.Join(test.topics, "&topics=")))
-			require.NoError(t, err)
-
+			rawURL := fmt.Sprintf("eth/v1/events?topics=%s", strings.Join(test.topics, "&topics="))
+			endpoint := testutil.MustParseURL(t, rawURL)
 			addr := base.ResolveReference(endpoint).String()
 
 			requiredTopics := make(map[string]bool)

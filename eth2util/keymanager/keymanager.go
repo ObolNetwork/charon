@@ -41,7 +41,7 @@ func (c Client) ImportKeystores(ctx context.Context, keystores []keystore.Keysto
 			z.Int("keystores", len(keystores)), z.Int("passwords", len(passwords)))
 	}
 
-	keymanagerURL, err := url.Parse(c.baseURL)
+	keymanagerURL, err := url.ParseRequestURI(c.baseURL)
 	if err != nil {
 		return errors.Wrap(err, "parse address", z.Str("addr", c.baseURL))
 	}
