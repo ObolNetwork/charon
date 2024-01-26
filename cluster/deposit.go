@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	minSingleDepositAmountGwei = 1000000000 // 1ETH
+	minSingleDepositAmountGwei = 1000000000  // 1ETH
 	maxTotalDepositAmountGwei  = 32000000000 // 32ETH
 )
 
