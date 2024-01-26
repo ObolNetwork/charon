@@ -44,15 +44,18 @@ func TestWithSendTimeout(t *testing.T) {
 	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), time.Hour)
 
 	protocolID := protocol.ID("testprotocol")
+	sendTimeout := time.Millisecond
 	p2p.RegisterHandler("test", server, protocolID, func() proto.Message { return new(pbv1.Duty) },
 		func(ctx context.Context, peerID peer.ID, req proto.Message) (proto.Message, bool, error) {
+			// The delay must be much greater than the send timeout to trigger the deadline error.
+			time.Sleep(10 * sendTimeout)
 			return nil, false, nil
 		})
 
 	err := p2p.SendReceive(context.Background(), client, server.ID(),
-		new(pbv1.Duty), new(pbv1.Duty), protocolID, p2p.WithSendTimeout(0))
+		new(pbv1.Duty), new(pbv1.Duty), protocolID, p2p.WithSendTimeout(sendTimeout))
 	require.Error(t, err)
-	require.ErrorContains(t, err, "deadline")
+	require.ErrorContains(t, err, "deadline reached")
 }
 
 func TestSend(t *testing.T) {
