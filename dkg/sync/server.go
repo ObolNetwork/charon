@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Package sync provides Client and Server APIs that ensures robust network connectivity between all peers in the DKG.
 // It supports cluster_definition verification, soft shutdown and reconnect on connection loss.

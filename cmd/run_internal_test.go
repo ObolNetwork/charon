@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cmd
 
@@ -11,6 +11,7 @@ import (
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/p2p"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestBindPrivKeyFlag(t *testing.T) {
@@ -57,11 +58,7 @@ func TestBindPrivKeyFlag(t *testing.T) {
 			if test.WantErr {
 				require.Error(t, root.Execute())
 			} else {
-				require.NoError(t, os.Mkdir(".charon", 0o755))
-				defer func() {
-					require.NoError(t, os.RemoveAll(".charon"))
-				}()
-
+				_ = testutil.CreateTempCharonDir(t)
 				_, err := p2p.NewSavedPrivKey(".charon/charon-enr-private-key")
 				require.NoError(t, err)
 				require.NoError(t, root.Execute())
