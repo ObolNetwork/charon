@@ -145,9 +145,10 @@ func TestExistingClusterDefinition(t *testing.T) {
 	enrArg := fmt.Sprintf("--operator-enrs=%s", strings.Join(enrs, ","))
 	feeRecipientArg := fmt.Sprintf("--fee-recipient-addresses=%s", validEthAddr)
 	withdrawalArg := fmt.Sprintf("--withdrawal-addresses=%s", validEthAddr)
+	outputDirArg := fmt.Sprintf("--output-dir=%s", charonDir)
 
 	cmd := newCreateCmd(newCreateDKGCmd(runCreateDKG))
-	cmd.SetArgs([]string{"dkg", enrArg, feeRecipientArg, withdrawalArg})
+	cmd.SetArgs([]string{"dkg", enrArg, feeRecipientArg, withdrawalArg, outputDirArg})
 
 	require.EqualError(t, cmd.Execute(), "existing cluster-definition.json found. Try again after deleting it")
 }
