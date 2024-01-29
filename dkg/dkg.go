@@ -50,8 +50,6 @@ type Config struct {
 	KeymanagerAddr      string
 	KeymanagerAuthToken string
 
-	DepositAmounts []int // List of partial deposit amounts in gwei
-
 	PublishAddr string
 	Publish     bool
 
@@ -113,16 +111,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 	// This DKG only supports a few specific config versions.
 	if def.Version != "v1.6.0" && def.Version != "v1.7.0" {
 		return errors.New("only v1.6.0 and v1.7.0 cluster definition version supported")
-	}
-
-	if len(conf.DepositAmounts) > 0 {
-		amounts := deposit.IntsToGweis(conf.DepositAmounts)
-
-		if err := deposit.VerifyDepositAmounts(amounts); err != nil {
-			return err
-		}
-
-		log.Warn(ctx, "Partial deposits feature is under development. The --deposit-amounts flag has no effect yet.", nil)
 	}
 
 	if err := validateKeymanagerFlags(ctx, conf.KeymanagerAddr, conf.KeymanagerAuthToken); err != nil {

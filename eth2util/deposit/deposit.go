@@ -21,6 +21,7 @@ import (
 const (
 	minSingleDepositAmountGwei = 1000000000  // 1ETH
 	maxTotalDepositAmountGwei  = 32000000000 // 32ETH
+	oneEthInGwei               = 1000000000  // 1ETH in Gwei
 )
 
 var (
@@ -195,6 +196,7 @@ type depositDataJSON struct {
 // VerifyDepositAmounts verifies various conditions about partial deposits rules.
 func VerifyDepositAmounts(amounts []eth2p0.Gwei) error {
 	if len(amounts) == 0 {
+		// If no partial amounts specified, the implementation shall default to 32ETH.
 		return nil
 	}
 
@@ -214,16 +216,17 @@ func VerifyDepositAmounts(amounts []eth2p0.Gwei) error {
 	return nil
 }
 
-// IntsToGweis converts amounts from []int to []eth2p0.Gwei.
+// EthsToGweis converts amounts from []int (ETH) to []eth2p0.Gwei.
 // For verification, please see VerifyDepositAmounts().
-func IntsToGweis(amounts []int) []eth2p0.Gwei {
-	if amounts == nil {
+func EthsToGweis(ethAmounts []int) []eth2p0.Gwei {
+	if ethAmounts == nil {
 		return nil
 	}
 
 	var gweiAmounts []eth2p0.Gwei
-	for _, amount := range amounts {
-		gweiAmounts = append(gweiAmounts, eth2p0.Gwei(amount))
+	for _, ethAmount := range ethAmounts {
+		gwei := eth2p0.Gwei(oneEthInGwei * ethAmount)
+		gweiAmounts = append(gweiAmounts, gwei)
 	}
 
 	return gweiAmounts

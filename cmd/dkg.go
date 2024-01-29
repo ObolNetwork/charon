@@ -44,7 +44,6 @@ this command at the same time.`,
 	bindLogFlags(cmd.Flags(), &config.Log)
 	bindPublishFlags(cmd.Flags(), &config)
 	bindShutdownDelayFlag(cmd.Flags(), &config.ShutdownDelay)
-	bindPartialDepositsFlag(cmd.Flags(), &config.DepositAmounts)
 
 	return cmd
 }
@@ -69,8 +68,4 @@ func bindPublishFlags(flags *pflag.FlagSet, config *dkg.Config) {
 
 func bindShutdownDelayFlag(flags *pflag.FlagSet, shutdownDelay *time.Duration) {
 	flags.DurationVar(shutdownDelay, "shutdown-delay", time.Second, "Graceful shutdown delay.")
-}
-
-func bindPartialDepositsFlag(flags *pflag.FlagSet, depositAmounts *[]int) {
-	flags.IntSliceVar(depositAmounts, "deposit-amounts", nil, "List of partial deposit amounts in gwei. Values must sum up to exactly 32ETH.")
 }

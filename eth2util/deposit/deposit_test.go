@@ -122,18 +122,15 @@ func TestVerifyDepositAmounts(t *testing.T) {
 	})
 }
 
-func TestIntsToGweis(t *testing.T) {
+func TestEthsToGweis(t *testing.T) {
 	t.Run("nil slice", func(t *testing.T) {
-		slice := deposit.IntsToGweis(nil)
+		slice := deposit.EthsToGweis(nil)
 
 		require.Nil(t, slice)
 	})
 
 	t.Run("values", func(t *testing.T) {
-		slice := deposit.IntsToGweis([]int{
-			1000000000,
-			5000000000,
-		})
+		slice := deposit.EthsToGweis([]int{1, 5})
 
 		require.Equal(t, []eth2p0.Gwei{
 			eth2p0.Gwei(1000000000),
