@@ -140,7 +140,7 @@ type Definition struct {
 	ValidatorAddresses []ValidatorAddresses `config_hash:"10" definition_hash:"10" json:"validators" ssz:"CompositeList[65536]"`
 
 	// DepositAmounts specifies partial deposit amounts that sum up to 32ETH.
-	DepositAmounts []eth2p0.Gwei `definition_hash:"11" deposit_amounts:"11" json:"deposit_amounts" ssz:"uint64[256]"`
+	DepositAmounts []eth2p0.Gwei `config_hash:"11" definition_hash:"11" json:"deposit_amounts" ssz:"uint64[256]"`
 
 	// ConfigHash uniquely identifies a cluster definition excluding operator ENRs and signatures.
 	ConfigHash []byte `json:"config_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"12"`
@@ -476,7 +476,7 @@ func marshalDefinitionV1x0or1(def Definition) ([]byte, error) {
 		DefinitionHash:      def.DefinitionHash,
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal definition v1.0")
+		return nil, errors.Wrap(err, "marshal definition", z.Str("version", def.Version))
 	}
 
 	return resp, nil
@@ -504,7 +504,7 @@ func marshalDefinitionV1x2or3(def Definition) ([]byte, error) {
 		DefinitionHash:      def.DefinitionHash,
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal definition v1.1")
+		return nil, errors.Wrap(err, "marshal definition", z.Str("version", def.Version))
 	}
 
 	return resp, nil
@@ -536,7 +536,7 @@ func marshalDefinitionV1x4(def Definition) ([]byte, error) {
 		},
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal definition v1.4")
+		return nil, errors.Wrap(err, "marshal definition", z.Str("version", def.Version))
 	}
 
 	return resp, nil
@@ -562,7 +562,7 @@ func marshalDefinitionV1x5to7(def Definition) ([]byte, error) {
 		},
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal definition v1.5")
+		return nil, errors.Wrap(err, "marshal definition", z.Str("version", def.Version))
 	}
 
 	return resp, nil
@@ -589,7 +589,7 @@ func marshalDefinitionV1x8(def Definition) ([]byte, error) {
 		DepositAmounts: def.DepositAmounts,
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal definition v1.8")
+		return nil, errors.Wrap(err, "marshal definition", z.Str("version", def.Version))
 	}
 
 	return resp, nil

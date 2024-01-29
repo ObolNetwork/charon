@@ -325,7 +325,7 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 			}
 
 			if isAnyVersion(lock.Version, "v1.6.0", "v1.7.0") {
-				require.NotEmpty(t, val.PartialDepositData)
+				require.Len(t, val.PartialDepositData, 1)
 			}
 
 			if isAnyVersion(lock.Version, "v1.7.0") {

@@ -115,7 +115,6 @@ type distValidatorJSONv1x7 struct {
 type distValidatorJSONv1x8 struct {
 	PubKey              ethHex                  `json:"distributed_public_key"`
 	PubShares           []ethHex                `json:"public_shares,omitempty"`
-	DepositData         depositDataJSON         `json:"deposit_data,omitempty"`
 	BuilderRegistration builderRegistrationJSON `json:"builder_registration,omitempty"`
 	PartialDepositData  []depositDataJSON       `json:"partial_deposit_data,omitempty"`
 }

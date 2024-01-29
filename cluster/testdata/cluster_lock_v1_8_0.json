@@ -50,12 +50,6 @@
     "0x975deda77e758579ea3dfe4136abf752b3b8271d03e944b3c9db366b75045f8efd69d22ae5411947cb553d7694267aef",
     "0x4ebcea406b32d6108bd68584f57e37caac6e33feaa3263a399437024ba9c9b14678a274f01a910ae295f6efbfe5f5abf"
    ],
-   "deposit_data": {
-    "pubkey": "",
-    "withdrawal_credentials": "",
-    "amount": "0",
-    "signature": ""
-   },
    "builder_registration": {
     "message": {
      "fee_recipient": "0x89b79bf504cfb57c7601232d589baccea9d6e263",
@@ -86,12 +80,6 @@
     "0x4b89cb5165ce64002cbd9c2887aa113df2468928d5a23b9ca740f80c9382d9c6034ad2960c796503e1ce221725f50caf",
     "0x1fbfe831b10b7bf5b15c47a53dbf8e7dcafc9e138647a4b44ed4bce964ed47f74aa594468ced323cb76f0d3fac476c9f"
    ],
-   "deposit_data": {
-    "pubkey": "",
-    "withdrawal_credentials": "",
-    "amount": "0",
-    "signature": ""
-   },
    "builder_registration": {
     "message": {
      "fee_recipient": "0x72e6415a761f03abaa40abc9448fddeb2191d945",
