@@ -126,7 +126,7 @@ func resolveRelay(ctx context.Context, rawURL, lockHashHex string, callback func
 //
 // It retries until the context is cancelled.
 func queryRelayAddrs(ctx context.Context, relayURL string, backoff func(), lockHashHex string) ([]ma.Multiaddr, error) {
-	parsedURL, err := url.Parse(relayURL)
+	parsedURL, err := url.ParseRequestURI(relayURL)
 	if err != nil {
 		return nil, errors.Wrap(err, "parse relay url")
 	} else if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {

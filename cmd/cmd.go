@@ -193,7 +193,7 @@ func redact(flag, val string) string {
 		return val
 	}
 
-	u, err := url.Parse(val)
+	u, err := url.ParseRequestURI(val)
 	if err != nil {
 		return val
 	}

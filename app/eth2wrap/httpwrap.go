@@ -209,7 +209,7 @@ func httpPost(ctx context.Context, base string, endpoint string, body io.Reader,
 		return nil, errors.Wrap(err, "invalid address")
 	}
 
-	url, err := url.Parse(addr)
+	url, err := url.ParseRequestURI(addr)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid endpoint")
 	}
@@ -247,7 +247,7 @@ func httpGet(ctx context.Context, base string, endpoint string, timeout time.Dur
 		return nil, 0, errors.Wrap(err, "invalid address")
 	}
 
-	u, err := url.Parse(addr)
+	u, err := url.ParseRequestURI(addr)
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "invalid endpoint")
 	}

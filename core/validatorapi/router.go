@@ -1029,7 +1029,7 @@ func proxyHandler(ctx context.Context, addrProvider addressProvider) http.Handle
 // getBeaconNodeAddress returns an active beacon node proxy target address.
 func getBeaconNodeAddress(addrProvider addressProvider) (*url.URL, error) {
 	addr := addrProvider.Address()
-	targetURL, err := url.Parse(addr)
+	targetURL, err := url.ParseRequestURI(addr)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid beacon node address", z.Str("address", addr))
 	}
