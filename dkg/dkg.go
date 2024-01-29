@@ -1014,11 +1014,13 @@ func createDistValidators(shares []share, depositDatas []eth2p0.DepositData, val
 		dvs = append(dvs, cluster.DistValidator{
 			PubKey:    msg.PubKey,
 			PubShares: msg.PubShares,
-			DepositData: cluster.DepositData{
-				PubKey:                depositDatas[ddIdx].PublicKey[:],
-				WithdrawalCredentials: depositDatas[ddIdx].WithdrawalCredentials,
-				Amount:                int(depositDatas[ddIdx].Amount),
-				Signature:             depositDatas[ddIdx].Signature[:],
+			PartialDepositData: []cluster.DepositData{
+				{
+					PubKey:                depositDatas[ddIdx].PublicKey[:],
+					WithdrawalCredentials: depositDatas[ddIdx].WithdrawalCredentials,
+					Amount:                int(depositDatas[ddIdx].Amount),
+					Signature:             depositDatas[ddIdx].Signature[:],
+				},
 			},
 			BuilderRegistration: reg,
 		})
