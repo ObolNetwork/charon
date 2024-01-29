@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cmd
 
@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 const validEthAddr = "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359" // Taken from https://eips.ethereum.org/EIPS/eip-55
@@ -133,13 +134,9 @@ func TestRequireOperatorENRFlag(t *testing.T) {
 }
 
 func TestExistingClusterDefinition(t *testing.T) {
-	outDir := ".charon"
+	charonDir := testutil.CreateTempCharonDir(t)
 	b := []byte("sample definition")
-	require.NoError(t, os.Mkdir(".charon", 0o755))
-	require.NoError(t, os.WriteFile(path.Join(outDir, "cluster-definition.json"), b, 0o600))
-	defer func() {
-		require.NoError(t, os.RemoveAll(outDir))
-	}()
+	require.NoError(t, os.WriteFile(path.Join(charonDir, "cluster-definition.json"), b, 0o600))
 
 	var enrs []string
 	for i := 0; i < minNodes; i++ {

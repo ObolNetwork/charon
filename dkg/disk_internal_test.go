@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package dkg
 
@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path"
 	"path/filepath"
 	"testing"
 
@@ -15,10 +16,12 @@ import (
 )
 
 func TestLoadDefinition(t *testing.T) {
+	tmp := t.TempDir()
+
 	// Valid definition
 	lock, _, _ := cluster.NewForT(t, 1, 2, 3, 0)
 	validDef := lock.Definition
-	validFile := "valid-cluster-definition.json"
+	validFile := path.Join(tmp, "valid-cluster-definition.json")
 	b, err := json.MarshalIndent(validDef, "", " ")
 	require.NoError(t, err)
 	err = os.WriteFile(validFile, b, 0o666)
@@ -26,12 +29,12 @@ func TestLoadDefinition(t *testing.T) {
 
 	// Invalid definition
 	invalidDef := cluster.Definition{}
-	invalidFile := "invalid-cluster-definition.json"
+	invalidFile := path.Join(tmp, "invalid-cluster-definition.json")
 	err = os.WriteFile(invalidFile, []byte{1, 2, 3}, 0o666)
 	require.NoError(t, err)
 
 	// Invalid definition without definition_hash and config_hash
-	invalidFile2 := "invalid-cluster-definition2.json"
+	invalidFile2 := path.Join(tmp, "invalid-cluster-definition2.json")
 	var rawJSONString map[string]any
 	require.NoError(t, json.Unmarshal(b, &rawJSONString))
 

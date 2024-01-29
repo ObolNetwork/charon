@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Package loki provides a simple best-effort loki log ingestion client supporting batch sends.
 // It is heavily based on https://github.com/grafana/loki/tree/main/clients/pkg/promtail/client.

@@ -12,7 +12,7 @@ repos:
       - id: no-commit-to-branch # Protect specific branches (default: main/master) from direct checkins
 
   - repo: https://github.com/ObolNetwork/go-pre-commit-hooks
-    rev: v0.0.2
+    rev: v0.0.3
     hooks:
       - id: check-go-version
         args: [ -v=go1.21 ] # Only check minor version locally

@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Package eip712 provides a minimal EIP-712 implementation supporting only a few
 // primitive types and fixed set of domain fields. See https://eips.ethereum.org/EIPS/eip-712.
