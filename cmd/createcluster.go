@@ -325,9 +325,9 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 	}
 
 	if len(conf.DepositAmounts) > 0 {
-		amounts := cluster.IntsToGweis(conf.DepositAmounts)
+		amounts := deposit.IntsToGweis(conf.DepositAmounts)
 
-		if err := cluster.VerifyDepositAmounts(amounts); err != nil {
+		if err := deposit.VerifyDepositAmounts(amounts); err != nil {
 			return err
 		}
 
