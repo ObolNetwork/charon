@@ -53,6 +53,26 @@ func TestCreateCluster(t *testing.T) {
 			},
 		},
 		{
+			Name: "two partial deposits",
+			Config: clusterConfig{
+				NumNodes:       4,
+				Threshold:      3,
+				NumDVs:         1,
+				Network:        eth2util.Goerli.Name,
+				DepositAmounts: []int{31, 1},
+			},
+		},
+		{
+			Name: "four partial deposits",
+			Config: clusterConfig{
+				NumNodes:       4,
+				Threshold:      3,
+				NumDVs:         1,
+				Network:        eth2util.Goerli.Name,
+				DepositAmounts: []int{8, 8, 8, 8},
+			},
+		},
+		{
 			Name: "splitkeys",
 			Config: clusterConfig{
 				NumNodes:  4,

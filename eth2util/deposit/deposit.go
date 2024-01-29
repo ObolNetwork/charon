@@ -18,6 +18,12 @@ import (
 	"github.com/obolnetwork/charon/tbls"
 )
 
+const (
+	minSingleDepositAmountGwei = 1000000000  // 1ETH
+	maxTotalDepositAmountGwei  = 32000000000 // 32ETH
+	oneEthInGwei               = 1000000000  // 1ETH in Gwei
+)
+
 var (
 	// Minimum allowed deposit amount (1ETH).
 	MinValidatorAmount = eth2p0.Gwei(1000000000)
@@ -196,4 +202,43 @@ type depositDataJSON struct {
 	ForkVersion           string `json:"fork_version"`
 	NetworkName           string `json:"network_name"`
 	DepositCliVersion     string `json:"deposit_cli_version"`
+}
+
+// VerifyDepositAmounts verifies various conditions about partial deposits rules.
+func VerifyDepositAmounts(amounts []eth2p0.Gwei) error {
+	if len(amounts) == 0 {
+		// If no partial amounts specified, the implementation shall default to 32ETH.
+		return nil
+	}
+
+	var sum eth2p0.Gwei
+	for _, amount := range amounts {
+		if amount < minSingleDepositAmountGwei {
+			return errors.New("each partial deposit amount must be greater than 1ETH", z.U64("amount", uint64(amount)))
+		}
+
+		sum += amount
+	}
+
+	if sum > eth2p0.Gwei(maxTotalDepositAmountGwei) {
+		return errors.New("sum of partial deposit amounts must sum up to 32ETH", z.U64("sum", uint64(sum)))
+	}
+
+	return nil
+}
+
+// EthsToGweis converts amounts from []int (ETH) to []eth2p0.Gwei.
+// For verification, please see VerifyDepositAmounts().
+func EthsToGweis(ethAmounts []int) []eth2p0.Gwei {
+	if ethAmounts == nil {
+		return nil
+	}
+
+	var gweiAmounts []eth2p0.Gwei
+	for _, ethAmount := range ethAmounts {
+		gwei := eth2p0.Gwei(oneEthInGwei * ethAmount)
+		gweiAmounts = append(gweiAmounts, gwei)
+	}
+
+	return gweiAmounts
 }

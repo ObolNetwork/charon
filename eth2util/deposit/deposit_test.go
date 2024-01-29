@@ -105,3 +105,61 @@ func GetKeys(t *testing.T, privKey string) (tbls.PrivateKey, eth2p0.BLSPubKey) {
 
 	return sk, pubkey
 }
+
+func TestVerifyDepositAmounts(t *testing.T) {
+	t.Run("empty slice", func(t *testing.T) {
+		err := deposit.VerifyDepositAmounts(nil)
+
+		require.NoError(t, err)
+	})
+
+	t.Run("valid amounts", func(t *testing.T) {
+		amounts := []eth2p0.Gwei{
+			eth2p0.Gwei(16000000000),
+			eth2p0.Gwei(16000000000),
+		}
+
+		err := deposit.VerifyDepositAmounts(amounts)
+
+		require.NoError(t, err)
+	})
+
+	t.Run("each amount is greater than 1ETH", func(t *testing.T) {
+		amounts := []eth2p0.Gwei{
+			eth2p0.Gwei(500000000),   // 0.5ETH
+			eth2p0.Gwei(31500000000), // 31.5ETH
+		}
+
+		err := deposit.VerifyDepositAmounts(amounts)
+
+		require.ErrorContains(t, err, "each partial deposit amount must be greater than 1ETH")
+	})
+
+	t.Run("total sum is 32ETH", func(t *testing.T) {
+		amounts := []eth2p0.Gwei{
+			eth2p0.Gwei(1000000000),
+			eth2p0.Gwei(32000000000),
+		}
+
+		err := deposit.VerifyDepositAmounts(amounts)
+
+		require.ErrorContains(t, err, "sum of partial deposit amounts must sum up to 32ETH")
+	})
+}
+
+func TestEthsToGweis(t *testing.T) {
+	t.Run("nil slice", func(t *testing.T) {
+		slice := deposit.EthsToGweis(nil)
+
+		require.Nil(t, slice)
+	})
+
+	t.Run("values", func(t *testing.T) {
+		slice := deposit.EthsToGweis([]int{1, 5})
+
+		require.Equal(t, []eth2p0.Gwei{
+			eth2p0.Gwei(1000000000),
+			eth2p0.Gwei(5000000000),
+		}, slice)
+	})
+}
