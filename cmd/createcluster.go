@@ -886,7 +886,7 @@ func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int,
 	_, _ = sb.WriteString(fmt.Sprintf("├─ node[0-%d]/\t\t\tDirectory for each node\n", numNodes-1))
 	_, _ = sb.WriteString("│  ├─ charon-enr-private-key\tCharon networking private key for node authentication\n")
 	_, _ = sb.WriteString("│  ├─ cluster-lock.json\t\tCluster lock defines the cluster lock file which is signed by all nodes\n")
-	_, _ = sb.WriteString("│  ├─ deposit-data-*.json\t\tDeposit data files are used to activate a Distributed Validator on DV Launchpad\n")
+	_, _ = sb.WriteString("│  ├─ deposit-data-*.json\tDeposit data files are used to activate a Distributed Validator on DV Launchpad\n")
 	if keysToDisk {
 		_, _ = sb.WriteString("│  ├─ validator_keys\t\tValidator keystores and password\n")
 		_, _ = sb.WriteString("│  │  ├─ keystore-*.json\tValidator private share key for duty signing\n")
