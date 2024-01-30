@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cluster_test
 
@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
@@ -21,6 +22,7 @@ import (
 //go:generate go test . -v -update -clean
 
 const (
+	v1_8 = "v1.8.0"
 	v1_7 = "v1.7.0"
 	v1_6 = "v1.6.0"
 	v1_5 = "v1.5.0"
@@ -47,6 +49,10 @@ func TestEncode(t *testing.T) {
 				func(d *cluster.Definition) {
 					d.Version = version
 					d.Timestamp = "2022-07-19T18:19:58+02:00" // Make deterministic
+					d.DepositAmounts = []eth2p0.Gwei{
+						eth2p0.Gwei(16000000000),
+						eth2p0.Gwei(16000000000),
+					}
 				},
 			}
 			// Definition version prior to v1.5 don't support multiple validator addresses.
@@ -104,6 +110,11 @@ func TestEncode(t *testing.T) {
 				definition.Creator = cluster.Creator{}
 			}
 
+			// Definition version prior to v1.8.0 don't support DepositAmounts.
+			if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6, v1_7) {
+				definition.DepositAmounts = nil
+			}
+
 			t.Run("definition_json_"+vStr, func(t *testing.T) {
 				testutil.RequireGoldenJSON(t, definition,
 					testutil.WithFilename("cluster_definition_"+vStr+".json"))
@@ -135,7 +146,7 @@ func TestEncode(t *testing.T) {
 							testutil.RandomBytes48(),
 							testutil.RandomBytes48(),
 						},
-						DepositData:         cluster.RandomDepositData(),
+						PartialDepositData:  []cluster.DepositData{cluster.RandomDepositData()},
 						BuilderRegistration: cluster.RandomRegistration(t, eth2util.Sepolia.Name),
 					}, {
 						PubKey: testutil.RandomBytes48(),
@@ -143,7 +154,7 @@ func TestEncode(t *testing.T) {
 							testutil.RandomBytes48(),
 							testutil.RandomBytes48(),
 						},
-						DepositData:         cluster.RandomDepositData(),
+						PartialDepositData:  []cluster.DepositData{cluster.RandomDepositData()},
 						BuilderRegistration: cluster.RandomRegistration(t, eth2util.Sepolia.Name),
 					},
 				},
@@ -155,14 +166,16 @@ func TestEncode(t *testing.T) {
 
 			// Make sure all the pubkeys are same.
 			for i := range lock.Validators {
-				lock.Validators[i].DepositData.PubKey = lock.Validators[i].PubKey
+				for j := range lock.Validators[i].PartialDepositData {
+					lock.Validators[i].PartialDepositData[j].PubKey = lock.Validators[i].PubKey
+				}
 				lock.Validators[i].BuilderRegistration.Message.PubKey = lock.Validators[i].PubKey
 			}
 
 			// Lock version prior to v1.6.0 don't support DepositData.
 			if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5) {
 				for i := range lock.Validators {
-					lock.Validators[i].DepositData = cluster.DepositData{}
+					lock.Validators[i].PartialDepositData = nil
 				}
 			}
 
@@ -173,6 +186,15 @@ func TestEncode(t *testing.T) {
 				}
 
 				lock.NodeSignatures = nil
+			}
+
+			// Lock version v1.8.0 supports multiple PartialDepositData.
+			if isAnyVersion(version, v1_8) {
+				for i := range lock.Validators {
+					dd := cluster.RandomDepositData()
+					dd.PubKey = lock.Validators[i].PubKey
+					lock.Validators[i].PartialDepositData = append(lock.Validators[i].PartialDepositData, dd)
+				}
 			}
 
 			t.Run("lock_json_"+vStr, func(t *testing.T) {

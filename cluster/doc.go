@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Package cluster provides the cluster configuration API. It defines the `Definition` type that is
 // the output of the Launchpad and `charon create dkg` commands.

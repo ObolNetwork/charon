@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Package app provides the top app-level abstraction and entrypoint for a charon DVC instance.
 // The sub-packages also provide app-level functionality.

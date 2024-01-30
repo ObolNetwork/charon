@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cmd
 
@@ -69,6 +69,8 @@ type clusterConfig struct {
 	Network           string
 	NumDVs            int
 
+	DepositAmounts []int // Amounts specified in ETH (integers).
+
 	SplitKeys    bool
 	SplitKeysDir string
 
@@ -86,7 +88,7 @@ func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig)
 	cmd := &cobra.Command{
 		Use:   "cluster",
 		Short: "Create private keys and configuration files needed to run a distributed validator cluster locally",
-		Long: "Creates a local charon cluster configuration including validator keys, charon p2p keys, cluster-lock.json and a deposit-data.json. " +
+		Long: "Creates a local charon cluster configuration including validator keys, charon p2p keys, cluster-lock.json and deposit-data.json file(s). " +
 			"See flags for supported features.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFunc(cmd.Context(), cmd.OutOrStdout(), conf)
@@ -119,6 +121,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.testnetConfig.GenesisForkVersionHex, "testnet-fork-version", "", "Genesis fork version of the custom test network (in hex).")
 	flags.Uint64Var(&config.testnetConfig.ChainID, "testnet-chain-id", 0, "Chain ID of the custom test network.")
 	flags.Int64Var(&config.testnetConfig.GenesisTimestamp, "testnet-genesis-timestamp", 0, "Genesis timestamp of the custom test network.")
+	flags.IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to exactly 32ETH.")
 }
 
 func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
@@ -321,8 +324,18 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 		return errors.New("number of --keymanager-addresses do not match --keymanager-auth-tokens. Please fix configuration flags")
 	}
 
+	if len(conf.DepositAmounts) > 0 {
+		amounts := deposit.EthsToGweis(conf.DepositAmounts)
+
+		if err := deposit.VerifyDepositAmounts(amounts); err != nil {
+			return err
+		}
+
+		log.Warn(ctx, "Partial deposits feature is under development. The --deposit-amounts flag has no effect yet.", nil)
+	}
+
 	for _, addr := range conf.KeymanagerAddrs {
-		keymanagerURL, err := url.Parse(addr)
+		keymanagerURL, err := url.ParseRequestURI(addr)
 		if err != nil {
 			return errors.Wrap(err, "failed to parse keymanager addr", z.Str("addr", addr))
 		}
@@ -379,7 +392,7 @@ func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, n
 			return nil, errors.Wrap(err, "secret to pubkey")
 		}
 
-		msg, err := deposit.NewMessage(eth2p0.BLSPubKey(pk), withdrawalAddr)
+		msg, err := deposit.NewMessage(eth2p0.BLSPubKey(pk), withdrawalAddr, deposit.MaxValidatorAmount)
 		if err != nil {
 			return nil, err
 		}
@@ -662,11 +675,13 @@ func getValidators(
 		vals = append(vals, cluster.DistValidator{
 			PubKey:    dv[:],
 			PubShares: pubshares,
-			DepositData: cluster.DepositData{
-				PubKey:                depositDatas[depositIdx].PublicKey[:],
-				WithdrawalCredentials: depositDatas[depositIdx].WithdrawalCredentials,
-				Amount:                int(depositDatas[depositIdx].Amount),
-				Signature:             depositDatas[depositIdx].Signature[:],
+			PartialDepositData: []cluster.DepositData{
+				{
+					PubKey:                depositDatas[depositIdx].PublicKey[:],
+					WithdrawalCredentials: depositDatas[depositIdx].WithdrawalCredentials,
+					Amount:                int(depositDatas[depositIdx].Amount),
+					Signature:             depositDatas[depositIdx].Signature[:],
+				},
 			},
 			BuilderRegistration: clusterReg,
 		})
@@ -964,7 +979,7 @@ func loadDefinition(ctx context.Context, defFile string) (cluster.Definition, er
 
 // validURI returns true if the input string is a valid HTTP/HTTPS URI.
 func validURI(str string) bool {
-	u, err := url.Parse(str)
+	u, err := url.ParseRequestURI(str)
 
 	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }

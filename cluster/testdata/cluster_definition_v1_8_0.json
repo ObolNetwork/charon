@@ -1,0 +1,44 @@
+{
+ "name": "test definition",
+ "creator": {
+  "address": "0x6325253fec738dd7a9e28bf921119c160f070244",
+  "config_signature": "0x0bf5059875921e668a5bdf2c7fc4844592d2572bcd0668d2d6c52f5054e2d0836bf84c7174cb7476364cc3dbd968b0f7172ed85794bb358b0c3b525da1786f9f1c"
+ },
+ "operators": [
+  {
+   "address": "0x094279db1944ebd7a19d0f7bbacbe0255aa5b7d4",
+   "enr": "enr://b0223beea5f4f74391f445d15afd4294040374f6924b98cbf8713f8d962d7c8d",
+   "config_signature": "0x019192c24224e2cafccae3a61fb586b14323a6bc8f9e7df1d929333ff993933bea6f5b3af6de0374366c4719e43a1b067d89bc7f01f1f573981659a44ff17a4c1c",
+   "enr_signature": "0x15a3b539eb1e5849c6077dbb5722f5717a289a266f97647981998ebea89c0b4b373970115e82ed6f4125c8fa7311e4d7defa922daae7786667f7e936cd4f24ab1c"
+  },
+  {
+   "address": "0xdf866baa56038367ad6145de1ee8f4a8b0993ebd",
+   "enr": "enr://e56a156a8de563afa467d49dec6a40e9a1d007f033c2823061bdd0eaa59f8e4d",
+   "config_signature": "0xa6430105220d0b29688b734b8ea0f3ca9936e8461f10d77c96ea80a7a665f606f6a63b7f3dfd2567c18979e4d60f26686d9bf2fb26c901ff354cde1607ee294b1b",
+   "enr_signature": "0xf32b7c7822ba64f84ab43ca0c6e6b91c1fd3be8990434179d3af4491a369012db92d184fc39d1734ff5716428953bb6865fcf92b0c3a17c9028be9914eb7649c1c"
+  }
+ ],
+ "uuid": "0194FDC2-FA2F-FCC0-41D3-FF12045B73C8",
+ "version": "v1.8.0",
+ "timestamp": "2022-07-19T18:19:58+02:00",
+ "num_validators": 2,
+ "threshold": 3,
+ "validators": [
+  {
+   "fee_recipient_address": "0x52fdfc072182654f163f5f0f9a621d729566c74d",
+   "withdrawal_address": "0x81855ad8681d0d86d1e91e00167939cb6694d2c4"
+  },
+  {
+   "fee_recipient_address": "0xeb9d18a44784045d87f3c67cf22746e995af5a25",
+   "withdrawal_address": "0x5fb90badb37c5821b6d95526a41a9504680b4e7c"
+  }
+ ],
+ "dkg_algorithm": "default",
+ "fork_version": "0x90000069",
+ "deposit_amounts": [
+  "16000000000",
+  "16000000000"
+ ],
+ "config_hash": "0x94aae31a7485b7b3c1a96495be5e318fdf7475baad68f2786500ab13afba064b",
+ "definition_hash": "0x79ebdbe3161dd6148cf359e63efbb6606eb5dd2a6cf0972233cc7830d6795a73"
+}

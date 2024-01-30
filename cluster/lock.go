@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cluster
 
@@ -53,7 +53,9 @@ func (l Lock) MarshalJSON() ([]byte, error) {
 	case isAnyVersion(l.Version, v1_6):
 		return marshalLockV1x6(l, lockHash)
 	case isAnyVersion(l.Version, v1_7):
-		return marshalLockV1x7OrLater(l, lockHash)
+		return marshalLockV1x7(l, lockHash)
+	case isAnyVersion(l.Version, v1_8):
+		return marshalLockV1x8OrLater(l, lockHash)
 	default:
 		return nil, errors.New("unsupported version")
 	}
@@ -96,7 +98,12 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 			return err
 		}
 	case isAnyVersion(version.Definition.Version, v1_7):
-		lock, err = unmarshalLockV1x7OrLater(data)
+		lock, err = unmarshalLockV1x7(data)
+		if err != nil {
+			return err
+		}
+	case isAnyVersion(version.Definition.Version, v1_8):
+		lock, err = unmarshalLockV1x8OrLater(data)
 		if err != nil {
 			return err
 		}
@@ -315,16 +322,31 @@ func marshalLockV1x6(lock Lock, lockHash [32]byte) ([]byte, error) {
 	return resp, nil
 }
 
-func marshalLockV1x7OrLater(lock Lock, lockHash [32]byte) ([]byte, error) {
+func marshalLockV1x7(lock Lock, lockHash [32]byte) ([]byte, error) {
 	resp, err := json.Marshal(lockJSONv1x7{
 		Definition:         lock.Definition,
-		Validators:         distValidatorsToV1x7OrLater(lock.Validators),
+		Validators:         distValidatorsToV1x7(lock.Validators),
 		SignatureAggregate: lock.SignatureAggregate,
 		LockHash:           lockHash[:],
 		NodeSignatures:     byteSliceArrayToEthHex(lock.NodeSignatures),
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal definition v1_7")
+	}
+
+	return resp, nil
+}
+
+func marshalLockV1x8OrLater(lock Lock, lockHash [32]byte) ([]byte, error) {
+	resp, err := json.Marshal(lockJSONv1x8{
+		Definition:         lock.Definition,
+		Validators:         distValidatorsToV1x8OrLater(lock.Validators),
+		SignatureAggregate: lock.SignatureAggregate,
+		LockHash:           lockHash[:],
+		NodeSignatures:     byteSliceArrayToEthHex(lock.NodeSignatures),
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal definition v1_8")
 	}
 
 	return resp, nil
@@ -390,7 +412,7 @@ func unmarshalLockV1x6(data []byte) (lock Lock, err error) {
 	return lock, nil
 }
 
-func unmarshalLockV1x7OrLater(data []byte) (lock Lock, err error) {
+func unmarshalLockV1x7(data []byte) (lock Lock, err error) {
 	var lockJSON lockJSONv1x7
 	if err := json.Unmarshal(data, &lockJSON); err != nil {
 		return Lock{}, errors.Wrap(err, "unmarshal definition")
@@ -403,7 +425,29 @@ func unmarshalLockV1x7OrLater(data []byte) (lock Lock, err error) {
 
 	lock = Lock{
 		Definition:         lockJSON.Definition,
-		Validators:         distValidatorsFromV1x7OrLater(lockJSON.Validators),
+		Validators:         distValidatorsFromV1x7(lockJSON.Validators),
+		SignatureAggregate: lockJSON.SignatureAggregate,
+		LockHash:           lockJSON.LockHash,
+		NodeSignatures:     nodeSignatures,
+	}
+
+	return lock, nil
+}
+
+func unmarshalLockV1x8OrLater(data []byte) (lock Lock, err error) {
+	var lockJSON lockJSONv1x8
+	if err := json.Unmarshal(data, &lockJSON); err != nil {
+		return Lock{}, errors.Wrap(err, "unmarshal definition")
+	}
+
+	var nodeSignatures [][]byte
+	for _, ns := range lockJSON.NodeSignatures {
+		nodeSignatures = append(nodeSignatures, ns)
+	}
+
+	lock = Lock{
+		Definition:         lockJSON.Definition,
+		Validators:         distValidatorsFromV1x8OrLater(lockJSON.Validators),
 		SignatureAggregate: lockJSON.SignatureAggregate,
 		LockHash:           lockJSON.LockHash,
 		NodeSignatures:     nodeSignatures,
@@ -428,7 +472,7 @@ type lockJSONv1x2to5 struct {
 	LockHash           ethHex                     `json:"lock_hash"`
 }
 
-// lockJSONv1x6 is the json formatter of Lock for versions v1.6.0.
+// lockJSONv1x6 is the json formatter of Lock for version v1.6.0.
 type lockJSONv1x6 struct {
 	Definition         Definition              `json:"cluster_definition"`
 	Validators         []distValidatorJSONv1x6 `json:"distributed_validators"`
@@ -436,10 +480,19 @@ type lockJSONv1x6 struct {
 	LockHash           ethHex                  `json:"lock_hash"`
 }
 
-// lockJSONv1x7 is the json formatter of Lock for versions v1.7.0 or later.
+// lockJSONv1x7 is the json formatter of Lock for version v1.7.0.
 type lockJSONv1x7 struct {
 	Definition         Definition              `json:"cluster_definition"`
 	Validators         []distValidatorJSONv1x7 `json:"distributed_validators"`
+	SignatureAggregate ethHex                  `json:"signature_aggregate"`
+	LockHash           ethHex                  `json:"lock_hash"`
+	NodeSignatures     []ethHex                `json:"node_signatures"`
+}
+
+// lockJSONv1x8 is the json formatter of Lock for versions v1.8.0 or later.
+type lockJSONv1x8 struct {
+	Definition         Definition              `json:"cluster_definition"`
+	Validators         []distValidatorJSONv1x8 `json:"distributed_validators"`
 	SignatureAggregate ethHex                  `json:"signature_aggregate"`
 	LockHash           ethHex                  `json:"lock_hash"`
 	NodeSignatures     []ethHex                `json:"node_signatures"`

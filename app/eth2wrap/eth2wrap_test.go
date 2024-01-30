@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package eth2wrap_test
 
@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
-	"net/url"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -402,8 +401,7 @@ func TestLazy(t *testing.T) {
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 
-	target, err := url.Parse(bmock.Address())
-	require.NoError(t, err)
+	target := testutil.MustParseURL(t, bmock.Address())
 
 	// Start two proxys that we can enable/disable.
 	var enabled1, enabled2 atomic.Bool

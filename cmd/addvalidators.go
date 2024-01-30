@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cmd
 
@@ -244,7 +244,7 @@ func writeDepositDatas(ctx context.Context, clusterDir string, numOps int, secre
 
 	var depositDatas []eth2p0.DepositData
 	for i, val := range vals {
-		depositMsg, err := deposit.NewMessage(eth2p0.BLSPubKey(val.PublicKey), val.WithdrawalAddress)
+		depositMsg, err := deposit.NewMessage(eth2p0.BLSPubKey(val.PublicKey), val.WithdrawalAddress, deposit.MaxValidatorAmount)
 		if err != nil {
 			return errors.Wrap(err, "new deposit message")
 		}

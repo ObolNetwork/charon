@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package dkg
 
@@ -720,7 +720,7 @@ func signDepositMsgs(shares []share, shareIdx int, withdrawalAddresses []string,
 			return nil, nil, err
 		}
 
-		msg, err := deposit.NewMessage(pubkey, withdrawalHex)
+		msg, err := deposit.NewMessage(pubkey, withdrawalHex, deposit.MaxValidatorAmount)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1014,11 +1014,13 @@ func createDistValidators(shares []share, depositDatas []eth2p0.DepositData, val
 		dvs = append(dvs, cluster.DistValidator{
 			PubKey:    msg.PubKey,
 			PubShares: msg.PubShares,
-			DepositData: cluster.DepositData{
-				PubKey:                depositDatas[ddIdx].PublicKey[:],
-				WithdrawalCredentials: depositDatas[ddIdx].WithdrawalCredentials,
-				Amount:                int(depositDatas[ddIdx].Amount),
-				Signature:             depositDatas[ddIdx].Signature[:],
+			PartialDepositData: []cluster.DepositData{
+				{
+					PubKey:                depositDatas[ddIdx].PublicKey[:],
+					WithdrawalCredentials: depositDatas[ddIdx].WithdrawalCredentials,
+					Amount:                int(depositDatas[ddIdx].Amount),
+					Signature:             depositDatas[ddIdx].Signature[:],
+				},
 			},
 			BuilderRegistration: reg,
 		})

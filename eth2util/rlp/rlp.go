@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Package rlp implements the simple byte slice and lists of byte slices encoding/decoding using
 // recursive length prefix encoding scheme as per spec

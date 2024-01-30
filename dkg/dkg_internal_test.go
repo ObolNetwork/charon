@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package dkg
 
@@ -137,7 +137,7 @@ func TestValidSignatures(t *testing.T) {
 	withdrawalAddr := testutil.RandomETHAddress()
 	network := eth2util.Goerli.Name
 
-	msg, err := deposit.NewMessage(eth2Pubkey, withdrawalAddr)
+	msg, err := deposit.NewMessage(eth2Pubkey, withdrawalAddr, deposit.MaxValidatorAmount)
 	require.NoError(t, err)
 	sigRoot, err := deposit.GetMessageSigningRoot(msg, network)
 	require.NoError(t, err)

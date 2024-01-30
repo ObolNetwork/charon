@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Package cmd implements Charon's command-line interface.
 package cmd
@@ -193,7 +193,7 @@ func redact(flag, val string) string {
 		return val
 	}
 
-	u, err := url.Parse(val)
+	u, err := url.ParseRequestURI(val)
 	if err != nil {
 		return val
 	}

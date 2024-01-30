@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cluster
 
@@ -27,4 +27,22 @@ func TestDepositJSON(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, b1, b2)
+}
+
+func TestDepositArrayJSON(t *testing.T) {
+	dd := []DepositData{
+		RandomDepositData(),
+		RandomDepositData(),
+		RandomDepositData(),
+	}
+
+	json := depositDataArrayToJSON(dd)
+	dd2 := depositDataArrayFromJSON(json)
+
+	require.Equal(t, dd, dd2)
+
+	t.Run("nil", func(t *testing.T) {
+		require.Nil(t, depositDataArrayToJSON(nil))
+		require.Nil(t, depositDataArrayFromJSON(nil))
+	})
 }

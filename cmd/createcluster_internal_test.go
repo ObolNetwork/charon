@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cmd
 
@@ -50,6 +50,26 @@ func TestCreateCluster(t *testing.T) {
 				Threshold: 3,
 				NumDVs:    1,
 				Network:   eth2util.Goerli.Name,
+			},
+		},
+		{
+			Name: "two partial deposits",
+			Config: clusterConfig{
+				NumNodes:       4,
+				Threshold:      3,
+				NumDVs:         1,
+				Network:        eth2util.Goerli.Name,
+				DepositAmounts: []int{31, 1},
+			},
+		},
+		{
+			Name: "four partial deposits",
+			Config: clusterConfig{
+				NumNodes:       4,
+				Threshold:      3,
+				NumDVs:         1,
+				Network:        eth2util.Goerli.Name,
+				DepositAmounts: []int{8, 8, 8, 8},
 			},
 		},
 		{
@@ -325,7 +345,7 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 			}
 
 			if isAnyVersion(lock.Version, "v1.6.0", "v1.7.0") {
-				require.NotEmpty(t, val.DepositData)
+				require.Len(t, val.PartialDepositData, 1)
 			}
 
 			if isAnyVersion(lock.Version, "v1.7.0") {

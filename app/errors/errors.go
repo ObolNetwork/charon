@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Package errors provides errors with structured fields and stack traces.
 // It is a drop-in replacement for stdlib errors and should be used as such throughout the app.

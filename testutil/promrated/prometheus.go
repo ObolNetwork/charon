@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package promrated
 
@@ -54,7 +54,7 @@ func serveMonitoring(addr string, registry *prometheus.Registry) error {
 func getValidators(ctx context.Context, promEndpoint string, promAuth string) ([]validator, error) {
 	client := new(http.Client)
 
-	url, err := url.Parse(promEndpoint)
+	url, err := url.ParseRequestURI(promEndpoint)
 	if err != nil {
 		return nil, errors.Wrap(err, "parse prometheus endpoint")
 	}

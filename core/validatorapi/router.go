@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Package validatorapi defines validator facing API that serves the subset of
 // endpoints related to distributed validation and reverse-proxies the rest to the
@@ -1029,7 +1029,7 @@ func proxyHandler(ctx context.Context, addrProvider addressProvider) http.Handle
 // getBeaconNodeAddress returns an active beacon node proxy target address.
 func getBeaconNodeAddress(addrProvider addressProvider) (*url.URL, error) {
 	addr := addrProvider.Address()
-	targetURL, err := url.Parse(addr)
+	targetURL, err := url.ParseRequestURI(addr)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid beacon node address", z.Str("address", addr))
 	}

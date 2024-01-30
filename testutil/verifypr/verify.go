@@ -1,4 +1,4 @@
-// Copyright © 2022-2023 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Command verifypr provides a tool to verify charon PRs against the template defined in docs/contibuting.md.
 //
@@ -192,7 +192,7 @@ func verifyBody(body string) error {
 			}
 
 			if strings.HasPrefix(ticket, "https://") {
-				if u, err := url.Parse(ticket); err != nil || u.Path == "" {
+				if u, err := url.ParseRequestURI(ticket); err != nil || u.Path == "" {
 					return errors.New("ticket tag invalid url")
 				}
 				// URL is fine
