@@ -156,21 +156,12 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		conf.NumDVs = len(secrets)
 	}
 
-	if len(conf.DepositAmounts) == 0 {
-		// If partial deposit amounts were not specified, default to single amount of 32ETH.
-		conf.DepositAmounts = []int{int(deposit.MaxDepositAmount / deposit.OneEthInGwei)}
-	}
-
 	// Get a cluster definition, either from a definition file or from the config.
 	var def cluster.Definition
 	if conf.DefFile != "" { // Load definition from DefFile
 		def, err = loadDefinition(ctx, conf.DefFile)
 		if err != nil {
 			return err
-		}
-
-		if len(def.DepositAmounts) == 0 {
-			def.DepositAmounts = deposit.EthsToGweis(conf.DepositAmounts)
 		}
 
 		// Validate the provided definition.
@@ -239,7 +230,13 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
-	depositDatas, err := createDepositDatas(def.WithdrawalAddresses(), network, secrets, def.DepositAmounts)
+	depositAmounts := deposit.EthsToGweis(conf.DepositAmounts)
+	if len(depositAmounts) == 0 {
+		// If partial deposit amounts were not specified, default to single amount of 32ETH.
+		depositAmounts = []eth2p0.Gwei{deposit.MaxDepositAmount}
+	}
+
+	depositDatas, err := createDepositDatas(def.WithdrawalAddresses(), network, secrets, depositAmounts)
 	if err != nil {
 		return err
 	}
@@ -302,8 +299,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		writeWarning(w)
 	}
 
-	partialDeposits := len(def.DepositAmounts) > 1
-	if err := writeOutput(w, conf.SplitKeys, conf.ClusterDir, numNodes, keysToDisk, partialDeposits); err != nil {
+	if err := writeOutput(w, conf.SplitKeys, conf.ClusterDir, numNodes, keysToDisk); err != nil {
 		return err
 	}
 
@@ -595,11 +591,12 @@ func writeDepositData(depositDatas [][]eth2p0.DepositData, network string, clust
 			return err
 		}
 
-		filename := "deposit-data.json"
-		if len(depositDatas) > 1 {
-			eth := uint(depositDatas[i][0].Amount / deposit.OneEthInGwei)
-			filename = fmt.Sprintf("deposit-data-%d-%deth.json", i, eth)
+		if len(depositDatas[i]) == 0 {
+			return errors.New("empty deposit data at index", z.Int("index", i))
 		}
+
+		eth := uint(depositDatas[i][0].Amount / deposit.OneEthInGwei)
+		filename := fmt.Sprintf("deposit-data-%d-%deth.json", i, eth)
 
 		for n := 0; n < numNodes; n++ {
 			depositPath := path.Join(nodeDir(clusterDir, n), filename)
@@ -691,6 +688,8 @@ func getValidators(
 
 		// The loop over partial amounts to collect PartialDepositData
 		for i := range depositDatas {
+			before := len(partialDepositData)
+
 			for j, dd := range depositDatas[i] {
 				if [48]byte(dd.PublicKey) != dv {
 					continue
@@ -703,6 +702,10 @@ func getValidators(
 				})
 
 				break
+			}
+
+			if len(partialDepositData) == before {
+				return nil, errors.New("deposit data not found for dv", z.Str("dv", hex.EncodeToString(dv[:])))
 			}
 		}
 
@@ -869,7 +872,7 @@ func newPeer(clusterDir string, peerIdx int) (enr.Record, *k1.PrivateKey, error)
 }
 
 // writeOutput writes the cluster generation output.
-func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int, keysToDisk, partialDeposits bool) error {
+func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int, keysToDisk bool) error {
 	absClusterDir, err := filepath.Abs(clusterDir)
 	if err != nil {
 		return errors.Wrap(err, "absolute path retrieval")
@@ -883,11 +886,7 @@ func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int,
 	_, _ = sb.WriteString(fmt.Sprintf("├─ node[0-%d]/\t\t\tDirectory for each node\n", numNodes-1))
 	_, _ = sb.WriteString("│  ├─ charon-enr-private-key\tCharon networking private key for node authentication\n")
 	_, _ = sb.WriteString("│  ├─ cluster-lock.json\t\tCluster lock defines the cluster lock file which is signed by all nodes\n")
-	if partialDeposits {
-		_, _ = sb.WriteString("│  ├─ deposit-data-*.json\t\tDeposit data files are used to activate a Distributed Validator on DV Launchpad\n")
-	} else {
-		_, _ = sb.WriteString("│  ├─ deposit-data.json\t\tDeposit data file is used to activate a Distributed Validator on DV Launchpad\n")
-	}
+	_, _ = sb.WriteString("│  ├─ deposit-data-*.json\t\tDeposit data files are used to activate a Distributed Validator on DV Launchpad\n")
 	if keysToDisk {
 		_, _ = sb.WriteString("│  ├─ validator_keys\t\tValidator keystores and password\n")
 		_, _ = sb.WriteString("│  │  ├─ keystore-*.json\tValidator private share key for duty signing\n")
