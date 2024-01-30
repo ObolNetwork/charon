@@ -736,7 +736,7 @@ func unmarshalDefinitionV1x8(data []byte) (def Definition, err error) {
 	}
 
 	if err := deposit.VerifyDepositAmounts(def.DepositAmounts); err != nil {
-		return Definition{}, errors.Wrap(err, "deposit amounts validation failed")
+		return Definition{}, errors.Wrap(err, "invalid deposit amounts")
 	}
 
 	return Definition{
