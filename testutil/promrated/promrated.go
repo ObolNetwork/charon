@@ -88,7 +88,7 @@ func reportMetrics(ctx context.Context, config Config) {
 
 			stats, err = getNodeOperatorStatistics(ctx, config.RatedEndpoint, config.RatedAuth, nodeOperator, network)
 			if err != nil {
-				log.Error(ctx, "Getting node operator statistics", err, z.Str("network", network), z.Str("node_operator", "Lido"))
+				log.Error(ctx, "Getting node operator statistics", err, z.Str("network", network), z.Str("node_operator", nodeOperator))
 				continue
 			}
 
