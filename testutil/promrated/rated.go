@@ -53,14 +53,18 @@ func getNodeOperatorStatistics(ctx context.Context, ratedEndpoint string, ratedA
 		return networkEffectivenessData{}, errors.Wrap(err, "parse rated endpoint")
 	}
 
-	url.Path = fmt.Sprintf("/v0/eth/operators/%s/effectiveness?idType=nodeOperator", operator)
+	url.Path = fmt.Sprintf("/v0/eth/operators/%s/effectiveness", operator)
+
+	query := url.Query()
+	query.Add("size", "1")
+	url.RawQuery = query.Encode()
 
 	body, err := queryRatedAPI(ctx, url, ratedAuth, network)
 	if err != nil {
 		return networkEffectivenessData{}, err
 	}
 
-	return parseNetworkMetrics(body)
+	return parseNodeOperatorMetrics(body)
 }
 
 // queryRatedAPI queries rated url and returns effectiveness data.
@@ -128,6 +132,23 @@ func parseNetworkMetrics(body []byte) (networkEffectivenessData, error) {
 	}
 
 	return result[0], nil
+}
+
+func parseNodeOperatorMetrics(body []byte) (networkEffectivenessData, error) {
+	var result struct {
+		Data []networkEffectivenessData `json:"data"`
+	}
+
+	err := json.Unmarshal(body, &result)
+	if err != nil {
+		return networkEffectivenessData{}, errors.Wrap(err, "deserializing json")
+	}
+
+	if len(result.Data) != 1 {
+		return networkEffectivenessData{}, errors.New("unexpected data response from rated network")
+	}
+
+	return result.Data[0], nil
 }
 
 func extractBody(res *http.Response) ([]byte, error) {

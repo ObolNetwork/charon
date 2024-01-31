@@ -31,7 +31,7 @@ func TestGetNetworkStatistics(t *testing.T) {
 
 func TestGetNodeOperatorStatistics(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/v0/eth/operators/Lido/effectiveness?idType=nodeOperator", r.URL.Path)
+		require.Equal(t, "/v0/eth/operators/Lido/effectiveness", r.URL.Path)
 
 		require.Equal(t, "Bearer auth", r.Header.Get("Authorization"))
 		require.Equal(t, "prater", r.Header.Get("X-Rated-Network"))
@@ -57,13 +57,15 @@ const ratedNetworkFixture = `
 ]`
 
 const ratedNodeOperatorFixture = `
-[
-    {
-        "avgUptime": 0.352353432111,
-        "avgInclusionDelay": 1.0147019732112206,
-        "avgCorrectness": 0.3452333554125,
-        "avgValidatorEffectiveness": 45.6838307968488,
-        "avgProposerEffectiveness": 54.68383072342342,
-        "avgAttesterEffectiveness": 21.2343240993498
-    }
-]`
+{
+	"data": [
+    	{
+			"avgUptime": 0.352353432111,
+			"avgInclusionDelay": 1.0147019732112206,
+			"avgCorrectness": 0.3452333554125,
+			"avgValidatorEffectiveness": 45.6838307968488,
+			"avgProposerEffectiveness": 54.68383072342342,
+			"avgAttesterEffectiveness": 21.2343240993498
+    	}
+	]
+}`
