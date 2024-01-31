@@ -378,13 +378,13 @@ func detectNodeDirs(clusterDir string, nodeAmount int) error {
 	return nil
 }
 
-// signDepositDatas returns array of []DepositData for each partial amount.
+// signDepositDatas returns a list of DepositData for each partial deposit amount.
 func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, network string, depositAmounts []eth2p0.Gwei) ([][]eth2p0.DepositData, error) {
 	if len(secrets) != len(withdrawalAddresses) {
 		return nil, errors.New("insufficient withdrawal addresses")
 	}
 	if len(depositAmounts) == 0 {
-		return nil, errors.New("deposit amounts must not be empty")
+		return nil, errors.New("empty deposit amounts")
 	}
 
 	var dd [][]eth2p0.DepositData
@@ -575,7 +575,7 @@ func createDepositDatas(withdrawalAddresses []string, network string, secrets []
 		return nil, errors.New("insufficient withdrawal addresses")
 	}
 	if len(depositAmounts) == 0 {
-		return nil, errors.New("deposit amounts must not be empty")
+		return nil, errors.New("empty deposit amounts")
 	}
 
 	return signDepositDatas(secrets, withdrawalAddresses, network, depositAmounts)
