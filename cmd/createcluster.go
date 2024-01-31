@@ -391,8 +391,16 @@ func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, n
 		return nil, errors.New("empty deposit amounts")
 	}
 
+	usedAmounts := make(map[eth2p0.Gwei]struct{})
+
 	var dd [][]eth2p0.DepositData
 	for _, depositAmount := range depositAmounts {
+		if _, used := usedAmounts[depositAmount]; used {
+			continue
+		}
+
+		usedAmounts[depositAmount] = struct{}{}
+
 		var datas []eth2p0.DepositData
 		for i, secret := range secrets {
 			withdrawalAddr, err := eth2util.ChecksumAddress(withdrawalAddresses[i])
@@ -587,7 +595,7 @@ func createDepositDatas(withdrawalAddresses []string, network string, secrets []
 
 // writeDepositData writes deposit data to disk for the DVs for all peers in a cluster.
 func writeDepositData(depositDatas [][]eth2p0.DepositData, network string, clusterDir string, numNodes int) error {
-	// The loop across partial amounts
+	// The loop across partial amounts (amounts will be unique)
 	for i := range depositDatas {
 		// Serialize the deposit data into bytes
 		bytes, err := deposit.MarshalDepositData(depositDatas[i], network)
@@ -600,7 +608,7 @@ func writeDepositData(depositDatas [][]eth2p0.DepositData, network string, clust
 		}
 
 		eth := uint(depositDatas[i][0].Amount / deposit.OneEthInGwei)
-		filename := fmt.Sprintf("deposit-data-%d-%deth.json", i, eth)
+		filename := fmt.Sprintf("deposit-data-%deth.json", eth)
 
 		for n := 0; n < numNodes; n++ {
 			depositPath := path.Join(nodeDir(clusterDir, n), filename)
