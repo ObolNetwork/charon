@@ -40,6 +40,18 @@ var (
 		Help:      "Effectiveness of the network.",
 	}, networkLabels)
 
+	networkProposerEffectiveness = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "promrated",
+		Name:      "network_proposer_effectiveness",
+		Help:      "Proposer Effectiveness of the network.",
+	}, networkLabels)
+
+	networkAttesterEffectiveness = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "promrated",
+		Name:      "network_attester_effectiveness",
+		Help:      "Attester Effectiveness of the network.",
+	}, networkLabels)
+
 	ratedErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "promrated",
 		Name:      "api_error_total",

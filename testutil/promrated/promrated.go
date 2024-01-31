@@ -102,6 +102,8 @@ func setMetrics(labels prometheus.Labels, stats networkEffectivenessData) {
 	networkCorrectness.With(labels).Set(stats.AvgCorrectness)
 	networkInclusionDelay.With(labels).Set(stats.AvgInclusionDelay)
 	networkEffectiveness.With(labels).Set(stats.ValidatorEffectiveness)
+	networkProposerEffectiveness.With(labels).Set(stats.ProposerEffectiveness)
+	networkAttesterEffectiveness.With(labels).Set(stats.AttesterEffectiveness)
 }
 
 // redactURL returns a redacted version of the given URL.
