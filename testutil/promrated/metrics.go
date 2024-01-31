@@ -8,8 +8,13 @@ import (
 	"github.com/obolnetwork/charon/app/promauto"
 )
 
+const (
+	clusterNetworkLabel = "cluster_network"
+	nodeOperatorLabel   = "node_operator"
+)
+
 var (
-	networkLabels = []string{"cluster_network", "node_operator"}
+	networkLabels = []string{clusterNetworkLabel, nodeOperatorLabel}
 
 	networkUptime = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "promrated",

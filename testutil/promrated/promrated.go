@@ -68,8 +68,8 @@ func Run(ctx context.Context, config Config) error {
 func reportMetrics(ctx context.Context, config Config) {
 	for _, network := range config.Networks {
 		networkLabels := prometheus.Labels{
-			"cluster_network": network,
-			"node_operator":   "all",
+			clusterNetworkLabel: network,
+			nodeOperatorLabel:   "all",
 		}
 
 		stats, err := getNetworkStatistics(ctx, config.RatedEndpoint, config.RatedAuth, network)
@@ -82,8 +82,8 @@ func reportMetrics(ctx context.Context, config Config) {
 
 		for _, nodeOperator := range config.NodeOperators {
 			nodeOperatorLabels := prometheus.Labels{
-				"cluster_network": network,
-				"node_operator":   nodeOperator,
+				clusterNetworkLabel: network,
+				nodeOperatorLabel:   nodeOperator,
 			}
 
 			stats, err = getNodeOperatorStatistics(ctx, config.RatedEndpoint, config.RatedAuth, nodeOperator, network)
