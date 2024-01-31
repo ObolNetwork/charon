@@ -156,6 +156,8 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		conf.NumDVs = len(secrets)
 	}
 
+	var depositAmounts []eth2p0.Gwei
+
 	// Get a cluster definition, either from a definition file or from the config.
 	var def cluster.Definition
 	if conf.DefFile != "" { // Load definition from DefFile
@@ -175,11 +177,19 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 			return err
 		}
 		conf.Network = network
+		depositAmounts = def.DepositAmounts
 	} else { // Create new definition from cluster config
 		def, err = newDefFromConfig(ctx, conf)
 		if err != nil {
 			return err
 		}
+
+		depositAmounts = deposit.EthsToGweis(conf.DepositAmounts)
+	}
+
+	if len(depositAmounts) == 0 {
+		// If partial deposit amounts were not specified, default to single amount of 32ETH.
+		depositAmounts = []eth2p0.Gwei{deposit.MaxDepositAmount}
 	}
 
 	if len(secrets) == 0 {
@@ -228,12 +238,6 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	network, err := eth2util.ForkVersionToNetwork(def.ForkVersion)
 	if err != nil {
 		return err
-	}
-
-	depositAmounts := deposit.EthsToGweis(conf.DepositAmounts)
-	if len(depositAmounts) == 0 {
-		// If partial deposit amounts were not specified, default to single amount of 32ETH.
-		depositAmounts = []eth2p0.Gwei{deposit.MaxDepositAmount}
 	}
 
 	depositDatas, err := createDepositDatas(def.WithdrawalAddresses(), network, secrets, depositAmounts)
@@ -645,6 +649,14 @@ func getValidators(
 	depositDatas [][]eth2p0.DepositData,
 	valRegs []core.VersionedSignedValidatorRegistration,
 ) ([]cluster.DistValidator, error) {
+	depositDatasMap := make(map[tbls.PublicKey][]eth2p0.DepositData, len(dvsPubkeys))
+	for amountIndex := range depositDatas {
+		for ddIndex := range depositDatas[amountIndex] {
+			dd := depositDatas[amountIndex][ddIndex]
+			depositDatasMap[tbls.PublicKey(dd.PublicKey)] = append(depositDatasMap[tbls.PublicKey(dd.PublicKey)], dd)
+		}
+	}
+
 	var vals []cluster.DistValidator
 	for idx, dv := range dvsPubkeys {
 		dv := dv
@@ -686,31 +698,18 @@ func getValidators(
 
 		var partialDepositData []cluster.DepositData
 
-		// The loop over partial amounts to collect PartialDepositData
-		for i := range depositDatas {
-			before := len(partialDepositData)
-
-			for j, dd := range depositDatas[i] {
-				if [48]byte(dd.PublicKey) != dv {
-					continue
-				}
-				partialDepositData = append(partialDepositData, cluster.DepositData{
-					PubKey:                depositDatas[i][j].PublicKey[:],
-					WithdrawalCredentials: depositDatas[i][j].WithdrawalCredentials,
-					Amount:                int(depositDatas[i][j].Amount),
-					Signature:             depositDatas[i][j].Signature[:],
-				})
-
-				break
-			}
-
-			if len(partialDepositData) == before {
-				return nil, errors.New("deposit data not found for dv", z.Str("dv", hex.EncodeToString(dv[:])))
-			}
+		depositDatasList, ok := depositDatasMap[dv]
+		if !ok {
+			return nil, errors.New("deposit data not found for dv", z.Str("dv", hex.EncodeToString(dv[:])))
 		}
 
-		if len(partialDepositData) == 0 {
-			return nil, errors.New("failed to collect partial deposit amounts for dv", z.Str("dv", hex.EncodeToString(dv[:])))
+		for _, dd := range depositDatasList {
+			partialDepositData = append(partialDepositData, cluster.DepositData{
+				PubKey:                dd.PublicKey[:],
+				WithdrawalCredentials: dd.WithdrawalCredentials,
+				Amount:                int(dd.Amount),
+				Signature:             dd.Signature[:],
+			})
 		}
 
 		vals = append(vals, cluster.DistValidator{
