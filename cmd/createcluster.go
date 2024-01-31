@@ -14,6 +14,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -607,8 +608,9 @@ func writeDepositData(depositDatas [][]eth2p0.DepositData, network string, clust
 			return errors.New("empty deposit data at index", z.Int("index", i))
 		}
 
-		eth := uint(depositDatas[i][0].Amount / deposit.OneEthInGwei)
-		filename := fmt.Sprintf("deposit-data-%deth.json", eth)
+		eth := float64(depositDatas[i][0].Amount) / float64(deposit.OneEthInGwei)
+		ethStr := strconv.FormatFloat(eth, 'f', -1, 64)
+		filename := fmt.Sprintf("deposit-data-%seth.json", ethStr)
 
 		for n := 0; n < numNodes; n++ {
 			depositPath := path.Join(nodeDir(clusterDir, n), filename)
