@@ -5,6 +5,7 @@ package cluster
 import "testing"
 
 const (
+	// TODO: bump version to 1.8 when ready.
 	currentVersion = v1_7
 	dkgAlgo        = "default"
 

@@ -21,7 +21,7 @@ import (
 func TestNewMessage(t *testing.T) {
 	const privKey = "01477d4bfbbcebe1fef8d4d6f624ecbb6e3178558bb1b0d6286c816c66842a6d"
 	const addr = "0x321dcb529f3945bc94fecea9d3bc5caf35253b94"
-	amount := deposit.MaxValidatorAmount
+	amount := deposit.MaxDepositAmount
 	_, pubKey := GetKeys(t, privKey)
 
 	msg, err := deposit.NewMessage(pubKey, addr, amount)
@@ -31,13 +31,13 @@ func TestNewMessage(t *testing.T) {
 	require.Equal(t, amount, msg.Amount)
 
 	t.Run("amount below minimum", func(t *testing.T) {
-		_, err := deposit.NewMessage(pubKey, addr, deposit.MinValidatorAmount-1)
+		_, err := deposit.NewMessage(pubKey, addr, deposit.MinDepositAmount-1)
 
 		require.ErrorContains(t, err, "deposit message minimum amount must be >= 1ETH")
 	})
 
 	t.Run("amount above maximum", func(t *testing.T) {
-		_, err := deposit.NewMessage(pubKey, addr, deposit.MaxValidatorAmount+1)
+		_, err := deposit.NewMessage(pubKey, addr, deposit.MaxDepositAmount+1)
 
 		require.ErrorContains(t, err, "deposit message maximum amount must <= 32ETH")
 	})
@@ -64,7 +64,7 @@ func TestMarshalDepositData(t *testing.T) {
 	for i := 0; i < len(privKeys); i++ {
 		sk, pk := GetKeys(t, privKeys[i])
 
-		msg, err := deposit.NewMessage(pk, withdrawalAddrs[i], deposit.MaxValidatorAmount)
+		msg, err := deposit.NewMessage(pk, withdrawalAddrs[i], deposit.MaxDepositAmount)
 		require.NoError(t, err)
 
 		sigRoot, err := deposit.GetMessageSigningRoot(msg, network)

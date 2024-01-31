@@ -5,7 +5,7 @@ charon/
 ├─ node[0-2]/			Directory for each node
 │  ├─ charon-enr-private-key	Charon networking private key for node authentication
 │  ├─ cluster-lock.json		Cluster lock defines the cluster lock file which is signed by all nodes
-│  ├─ deposit-data.json		Deposit data file is used to activate a Distributed Validator on DV Launchpad
+│  ├─ deposit-data-*.json	Deposit data files are used to activate a Distributed Validator on the DV Launchpad
 │  ├─ validator_keys		Validator keystores and password
 │  │  ├─ keystore-*.json	Validator private share key for duty signing
 │  │  ├─ keystore-*.txt		Keystore password files for keystore-*.json

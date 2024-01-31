@@ -41,6 +41,10 @@ The schema of the `cluster-definition.json` is defined as:
   ],
   "dkg_algorithm": "foo_dkg_v1" ,               // DKG algorithm for key generation
   "fork_version": "0x00112233",                 // Chain/network identifier
+  "deposit_amounts": [                          // Partial deposit amounts in gwei (must sum up to 32ETH)
+    "16000000000",
+    "16000000000"
+  ],
   "config_hash": "0xabcfde...acbfed",           // Hash of the initial configuration fields excluding operator ENRs and signatures
   "definition_hash": "0xabcdef...abcedef"       // Final hash of all fields (after all operators have added ENRs and signatures)
 }
@@ -63,9 +67,13 @@ The `cluster-lock.json` has the following schema:
     {
       "distributed_public_key":  "0x123..abfc",             // DV root pubkey
       "public_shares": ["0x123..abfc", "0x123..abfc"],      // The public share of each operator (length of num_operators)
-      "deposit_data": {...},                                // Deposit data to activate this validator
+      "partial_deposit_data": [...],                        // Deposit datas to activate this validator (corresponds to deposit_amounts)
       "builder_registration": {...}                         // Pre-generated signed builder registration for the validator
     }
+  ],
+  "deposit_amounts": [                                      // Partial deposit amounts in gwei (must sum up to 32ETH)
+    "16000000000",
+    "16000000000"
   ],
   "lock_hash": "0xabcdef...abcedef",                        // Hash of the cluster definition and distributed validators. Uniquely identifies a cluster lock.
   "signature_aggregate": "0xabcdef...abcedef",               // BLS aggregate signature of the lock hash signed by all the key shares of all the distributed validators. Proves that the key shares exist and attested to being part of this cluster.
@@ -79,7 +87,11 @@ on how the an individual `distributed_validator` looks like.
 ### Cluster Config Change Log
 
 The following is the historical change log of the cluster config:
-- `v1.7.0` **default**:
+- `v1.8.0` **default**:
+  - Added the `deposit_amounts` list to cluster lock which contains partial deposit amounts in gwei.
+  - When not specified, the single value of 32ETH will be used. All partial amounts must sum up to 32ETH.
+  - `distributed_validator` structure replaced `deposit_data` with `partial_deposit_data` respectively.
+- `v1.7.0`:
   - Added the `builder_registration` structure to `distributed_validators` list in cluster lock.
   - This enables distributed validators to submit pre-generated validator registrations that enables MEV-blocks.
   - Added the `node_signatures` list to cluster lock which contains signatures of the lock hash signed by each individual node.

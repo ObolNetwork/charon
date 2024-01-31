@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
@@ -49,10 +48,6 @@ func TestEncode(t *testing.T) {
 				func(d *cluster.Definition) {
 					d.Version = version
 					d.Timestamp = "2022-07-19T18:19:58+02:00" // Make deterministic
-					d.DepositAmounts = []eth2p0.Gwei{
-						eth2p0.Gwei(16000000000),
-						eth2p0.Gwei(16000000000),
-					}
 				},
 			}
 			// Definition version prior to v1.5 don't support multiple validator addresses.
@@ -91,6 +86,7 @@ func TestEncode(t *testing.T) {
 						ENRSignature:    testutil.RandomSecp256k1Signature(),
 					},
 				},
+				[]int{16, 16},
 				rand.New(rand.NewSource(0)),
 				opts...,
 			)

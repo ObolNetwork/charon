@@ -249,7 +249,7 @@ func randomDefinition(t *testing.T, cr Creator, op0, op1 Operator, opts ...func(
 	}
 
 	definition, err := NewDefinition("test definition", numVals, threshold,
-		feeRecipientAddrs, withdrawalAddrs, eth2util.Sepolia.GenesisForkVersionHex, cr, []Operator{op0, op1},
+		feeRecipientAddrs, withdrawalAddrs, eth2util.Sepolia.GenesisForkVersionHex, cr, []Operator{op0, op1}, nil,
 		rand.New(rand.NewSource(1)), opts...)
 	require.NoError(t, err)
 
