@@ -42,7 +42,7 @@ func bindPromratedFlag(flags *pflag.FlagSet, config *promrated.Config) {
 	flags.StringVar(&config.RatedEndpoint, "rated-endpoint", "https://api.rated.network", "Rated API endpoint to poll for validator metrics.")
 	flags.StringVar(&config.RatedAuth, "rated-auth-token", "token", "[REQUIRED] Token for Rated API.")
 	flags.StringVar(&config.MonitoringAddr, "monitoring-address", "127.0.0.1:9100", "Listening address (ip and port) for the prometheus monitoring http server.")
-	flags.StringVar(&config.PromEndpoint, "prom-endpoint", "https://vm.monitoring.gcp.obol.tech/query", "Endpoint for VMetrics Prometheus API.")
 	flags.StringVar(&config.PromAuth, "prom-auth-token", "token", "[REQUIRED] Token for VMetrics Promtetheus API.")
 	flags.StringSliceVar(&config.Networks, "networks", nil, "Comma separated list of one or networks to monitor.")
+	flags.StringSliceVar(&config.Networks, "node-operators", nil, "Comma separated list of one or node operators to monitor.")
 }

@@ -1,8 +1,0 @@
-{
- "uptime": 0.9955555555555555,
- "avgCorrectness": 0.9300595238095238,
- "avgInclusionDelay": 1.4330357142857142,
- "attesterEffectiveness": 64.61289950386524,
- "proposerEffectiveness": 0,
- "validatorEffectiveness": 64.61289950386524
-}

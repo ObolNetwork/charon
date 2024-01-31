@@ -1,6 +1,8 @@
 {
  "avgUptime": 0.9964608763093223,
- "avgCorrectness": 0.9914412918384125,
+ "avgCorrectness": 0.982182918384125,
  "avgInclusionDelay": 1.0147019732112206,
- "avgValidatorEffectiveness": 97.6838307968488
+ "avgValidatorEffectiveness": 45.6838307968488,
+ "avgProposerEffectiveness": 12.68383072342342,
+ "avgAttesterEffectiveness": 67.2343240993498
 }
