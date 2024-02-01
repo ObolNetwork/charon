@@ -320,69 +320,69 @@ func TestRawRouter(t *testing.T) {
 		testRawRouter(t, handler, callback)
 	})
 
-	simpleValidatorsFunc := func(_ context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) { //nolint:golint,unparam
-		res := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
-		for _, index := range opts.Indices {
-			res[index] = &eth2v1.Validator{
-				Index:  index,
-				Status: eth2v1.ValidatorStateActiveOngoing,
-				Validator: &eth2p0.Validator{
-					PublicKey:             testutil.RandomEth2PubKey(t),
-					WithdrawalCredentials: []byte("12345678901234567890123456789012"),
-				},
+	t.Run("get validators with post", func(t *testing.T) {
+		simpleValidatorsFunc := func(_ context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) { //nolint:golint,unparam
+			res := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+			for _, index := range opts.Indices {
+				res[index] = &eth2v1.Validator{
+					Index:  index,
+					Status: eth2v1.ValidatorStateActiveOngoing,
+					Validator: &eth2p0.Validator{
+						PublicKey:             testutil.RandomEth2PubKey(t),
+						WithdrawalCredentials: []byte("12345678901234567890123456789012"),
+					},
+				}
 			}
+
+			return wrapResponse(res), nil
 		}
 
-		return wrapResponse(res), nil
-	}
-
-	t.Run("get validators using post with query ids", func(t *testing.T) {
-		handler := testHandler{ValidatorsFunc: simpleValidatorsFunc}
-
-		callback := func(ctx context.Context, baseURL string) {
-			res, err := http.Post(baseURL+"/eth/v1/beacon/states/head/validators?id=12,35", "application/json", bytes.NewReader([]byte{}))
-			require.NoError(t, err)
+		assertResults := func(t *testing.T, res *http.Response) {
+			t.Helper()
 
 			resp := struct {
 				Data []*eth2v1.Validator `json:"data"`
 			}{}
-			err = json.NewDecoder(res.Body).Decode(&resp)
+			err := json.NewDecoder(res.Body).Decode(&resp)
 			require.NoError(t, err)
 			require.Len(t, resp.Data, 2)
 			require.EqualValues(t, uint64(12), resp.Data[0].Index)
 			require.EqualValues(t, uint64(35), resp.Data[1].Index)
 		}
 
-		testRawRouter(t, handler, callback)
-	})
+		t.Run("via query ids", func(t *testing.T) {
+			handler := testHandler{ValidatorsFunc: simpleValidatorsFunc}
 
-	t.Run("get validators using post with body ids", func(t *testing.T) {
-		handler := testHandler{ValidatorsFunc: simpleValidatorsFunc}
-
-		callback := func(ctx context.Context, baseURL string) {
-			b := struct {
-				IDs []string `json:"ids"`
-			}{
-				IDs: []string{"12", "35"},
+			callback := func(ctx context.Context, baseURL string) {
+				res, err := http.Post(baseURL+"/eth/v1/beacon/states/head/validators?id=12,35", "application/json", bytes.NewReader([]byte{}))
+				require.NoError(t, err)
+				assertResults(t, res)
 			}
 
-			bb, err := json.Marshal(b)
-			require.NoError(t, err)
+			testRawRouter(t, handler, callback)
+		})
 
-			res, err := http.Post(baseURL+"/eth/v1/beacon/states/head/validators", "application/json", bytes.NewReader(bb))
-			require.NoError(t, err)
+		t.Run("via post body", func(t *testing.T) {
+			handler := testHandler{ValidatorsFunc: simpleValidatorsFunc}
 
-			resp := struct {
-				Data []*eth2v1.Validator `json:"data"`
-			}{}
-			err = json.NewDecoder(res.Body).Decode(&resp)
-			require.NoError(t, err)
-			require.Len(t, resp.Data, 2)
-			require.EqualValues(t, uint64(12), resp.Data[0].Index)
-			require.EqualValues(t, uint64(35), resp.Data[1].Index)
-		}
+			callback := func(ctx context.Context, baseURL string) {
+				b := struct {
+					IDs []string `json:"ids"`
+				}{
+					IDs: []string{"12", "35"},
+				}
 
-		testRawRouter(t, handler, callback)
+				bb, err := json.Marshal(b)
+				require.NoError(t, err)
+
+				res, err := http.Post(baseURL+"/eth/v1/beacon/states/head/validators", "application/json", bytes.NewReader(bb))
+				require.NoError(t, err)
+				assertResults(t, res)
+			}
+
+			testRawRouter(t, handler, callback)
+		})
+
 	})
 
 	t.Run("submit bellatrix ssz proposal", func(t *testing.T) {
