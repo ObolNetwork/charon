@@ -19,12 +19,12 @@ import (
 )
 
 type networkEffectivenessData struct {
-	AvgUptime              float64 `json:"avgUptime"`
-	AvgCorrectness         float64 `json:"avgCorrectness"`
-	AvgInclusionDelay      float64 `json:"avgInclusionDelay"`
-	ValidatorEffectiveness float64 `json:"avgValidatorEffectiveness"`
-	ProposerEffectiveness  float64 `json:"avgProposerEffectiveness"`
-	AttesterEffectiveness  float64 `json:"avgAttesterEffectiveness"`
+	AvgUptime                 float64 `json:"avgUptime"`
+	AvgCorrectness            float64 `json:"avgCorrectness"`
+	AvgInclusionDelay         float64 `json:"avgInclusionDelay"`
+	AvgValidatorEffectiveness float64 `json:"avgValidatorEffectiveness"`
+	AvgProposerEffectiveness  float64 `json:"avgProposerEffectiveness"`
+	AvgAttesterEffectiveness  float64 `json:"avgAttesterEffectiveness"`
 }
 
 // getNetworkStatistics queries rated for the network and returns the network 1d average
@@ -134,6 +134,7 @@ func parseNetworkMetrics(body []byte) (networkEffectivenessData, error) {
 	return result[0], nil
 }
 
+// parseNodeOperatorMetrics reads the operator rated response and returns the effectiveness data.
 func parseNodeOperatorMetrics(body []byte) (networkEffectivenessData, error) {
 	var result struct {
 		Data []networkEffectivenessData `json:"data"`

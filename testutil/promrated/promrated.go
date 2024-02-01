@@ -43,6 +43,7 @@ func Run(ctx context.Context, config Config) error {
 		serverErr <- serveMonitoring(config.MonitoringAddr, promRegistry)
 	}()
 
+	// Metrics are produced daily so can preserve Rated CUs
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
 
@@ -101,9 +102,9 @@ func setMetrics(labels prometheus.Labels, stats networkEffectivenessData) {
 	networkUptime.With(labels).Set(stats.AvgUptime)
 	networkCorrectness.With(labels).Set(stats.AvgCorrectness)
 	networkInclusionDelay.With(labels).Set(stats.AvgInclusionDelay)
-	networkEffectiveness.With(labels).Set(stats.ValidatorEffectiveness)
-	networkProposerEffectiveness.With(labels).Set(stats.ProposerEffectiveness)
-	networkAttesterEffectiveness.With(labels).Set(stats.AttesterEffectiveness)
+	networkEffectiveness.With(labels).Set(stats.AvgValidatorEffectiveness)
+	networkProposerEffectiveness.With(labels).Set(stats.AvgProposerEffectiveness)
+	networkAttesterEffectiveness.With(labels).Set(stats.AvgAttesterEffectiveness)
 }
 
 // redactURL returns a redacted version of the given URL.

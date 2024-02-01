@@ -14,6 +14,8 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
+//go:generate go test . -update -clean
+
 func TestGetNetworkStatistics(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v0/eth/network/stats", r.URL.Path)
