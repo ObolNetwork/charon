@@ -18,43 +18,13 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-type validatorEffectivenessData struct {
-	Uptime                 float64 `json:"uptime"`
-	AvgCorrectness         float64 `json:"avgCorrectness"`
-	AvgInclusionDelay      float64 `json:"avgInclusionDelay"`
-	AttesterEffectiveness  float64 `json:"attesterEffectiveness"`
-	ProposerEffectiveness  float64 `json:"proposerEffectiveness"`
-	ValidatorEffectiveness float64 `json:"validatorEffectiveness"`
-}
-
 type networkEffectivenessData struct {
-	AvgUptime              float64 `json:"avgUptime"`
-	AvgCorrectness         float64 `json:"avgCorrectness"`
-	AvgInclusionDelay      float64 `json:"avgInclusionDelay"`
-	ValidatorEffectiveness float64 `json:"avgValidatorEffectiveness"`
-}
-
-// getValidatorStatistics queries rated for a pubkey and returns rated data about the pubkey
-// See https://api.rated.network/docs#/default/get_effectiveness_v0_eth_validators__validator_index_or_pubkey__effectiveness_get
-func getValidatorStatistics(ctx context.Context, ratedEndpoint string, ratedAuth string, validator validator) (validatorEffectivenessData, error) {
-	url, err := url.Parse(ratedEndpoint)
-	if err != nil {
-		return validatorEffectivenessData{}, errors.Wrap(err, "parse rated endpoint")
-	}
-
-	url.Path = fmt.Sprintf("/v0/eth/validators/%s/effectiveness", validator.PubKey)
-
-	// Adding size=1 will get only the latest day of data
-	query := url.Query()
-	query.Add("size", "1")
-	url.RawQuery = query.Encode()
-
-	body, err := queryRatedAPI(ctx, url, ratedAuth, validator.ClusterNetwork)
-	if err != nil {
-		return validatorEffectivenessData{}, err
-	}
-
-	return parseValidatorMetrics(body)
+	AvgUptime                 float64 `json:"avgUptime"`
+	AvgCorrectness            float64 `json:"avgCorrectness"`
+	AvgInclusionDelay         float64 `json:"avgInclusionDelay"`
+	AvgValidatorEffectiveness float64 `json:"avgValidatorEffectiveness"`
+	AvgProposerEffectiveness  float64 `json:"avgProposerEffectiveness"`
+	AvgAttesterEffectiveness  float64 `json:"avgAttesterEffectiveness"`
 }
 
 // getNetworkStatistics queries rated for the network and returns the network 1d average
@@ -73,6 +43,28 @@ func getNetworkStatistics(ctx context.Context, ratedEndpoint string, ratedAuth s
 	}
 
 	return parseNetworkMetrics(body)
+}
+
+// getNodeOperatorStatistics queries rated for the node operator and returns the 1d average
+// See https://api.rated.network/docs#/Operators/get_effectiveness_v0_eth_operators__operator_id__effectiveness_get
+func getNodeOperatorStatistics(ctx context.Context, ratedEndpoint string, ratedAuth string, operator string, network string) (networkEffectivenessData, error) {
+	url, err := url.Parse(ratedEndpoint)
+	if err != nil {
+		return networkEffectivenessData{}, errors.Wrap(err, "parse rated endpoint")
+	}
+
+	url.Path = fmt.Sprintf("/v0/eth/operators/%s/effectiveness", operator)
+
+	query := url.Query()
+	query.Add("size", "1")
+	url.RawQuery = query.Encode()
+
+	body, err := queryRatedAPI(ctx, url, ratedAuth, network)
+	if err != nil {
+		return networkEffectivenessData{}, err
+	}
+
+	return parseNodeOperatorMetrics(body)
 }
 
 // queryRatedAPI queries rated url and returns effectiveness data.
@@ -126,24 +118,6 @@ func queryRatedAPI(ctx context.Context, url *url.URL, ratedAuth string, network 
 	return nil, errors.New("max retries exceeded fetching validator data", z.Int("max", maxRetries))
 }
 
-// parseValidatorMetrics reads the validator rated response and returns the validator effectiveness data.
-func parseValidatorMetrics(body []byte) (validatorEffectivenessData, error) {
-	var result struct {
-		Data []validatorEffectivenessData `json:"data"`
-	}
-
-	err := json.Unmarshal(body, &result)
-	if err != nil {
-		return validatorEffectivenessData{}, errors.Wrap(err, "deserializing json")
-	}
-
-	if len(result.Data) != 1 {
-		return validatorEffectivenessData{}, errors.New("unexpected data response from rated network")
-	}
-
-	return result.Data[0], nil
-}
-
 // parseNetworkMetrics reads the network rated response and returns the network effectiveness data.
 func parseNetworkMetrics(body []byte) (networkEffectivenessData, error) {
 	var result []networkEffectivenessData
@@ -158,6 +132,24 @@ func parseNetworkMetrics(body []byte) (networkEffectivenessData, error) {
 	}
 
 	return result[0], nil
+}
+
+// parseNodeOperatorMetrics reads the operator rated response and returns the effectiveness data.
+func parseNodeOperatorMetrics(body []byte) (networkEffectivenessData, error) {
+	var result struct {
+		Data []networkEffectivenessData `json:"data"`
+	}
+
+	err := json.Unmarshal(body, &result)
+	if err != nil {
+		return networkEffectivenessData{}, errors.Wrap(err, "deserializing json")
+	}
+
+	if len(result.Data) != 1 {
+		return networkEffectivenessData{}, errors.New("unexpected data response from rated network")
+	}
+
+	return result.Data[0], nil
 }
 
 func extractBody(res *http.Response) ([]byte, error) {
