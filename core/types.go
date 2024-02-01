@@ -39,9 +39,10 @@ const (
 	DutyPrepareSyncContribution DutyType = 11
 	DutySyncContribution        DutyType = 12
 	DutyInfoSync                DutyType = 13
+	DutyGenericSignature        DutyType = 14
 	// Only ever append new types here...
 
-	dutySentinel DutyType = 14 // Must always be last
+	dutySentinel DutyType = 15 // Must always be last
 )
 
 func (d DutyType) Valid() bool {
@@ -64,6 +65,7 @@ func (d DutyType) String() string {
 		DutyPrepareSyncContribution: "prepare_sync_contribution",
 		DutySyncContribution:        "sync_contribution",
 		DutyInfoSync:                "info_sync",
+		DutyGenericSignature:        "generic_signature",
 	}[d]
 }
 
@@ -89,7 +91,7 @@ func (d Duty) String() string {
 	return fmt.Sprintf("%d/%s", d.Slot, d.Type)
 }
 
-// ProposalType defines a tyoe of block proposal process.
+// ProposalType defines a type of block proposal process.
 type ProposalType string
 
 const (
