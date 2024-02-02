@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -45,7 +46,9 @@ func TestLockPublish(t *testing.T) {
 			},
 		}
 
-		lock, _, _ := cluster.NewForT(t, 3, 3, 4, 0, opts...)
+		seed := 0
+		random := rand.New(rand.NewSource(int64(seed)))
+		lock, _, _ := cluster.NewForT(t, 3, 3, 4, seed, random, opts...)
 
 		cl, err := obolapi.New(srv.URL)
 		require.NoError(t, err)

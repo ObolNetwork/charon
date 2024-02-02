@@ -22,8 +22,8 @@ import (
 //go:generate go test . -update -clean
 
 func TestHashProto(t *testing.T) {
-	rand.Seed(0)
-	set := testutil.RandomUnsignedDataSet(t)
+	r := rand.New(rand.NewSource(0))
+	set := testutil.RandomUnsignedDataSetSeed(t, r)
 	testutil.RequireGoldenJSON(t, set)
 
 	setPB, err := core.UnsignedDataSetToProto(set)

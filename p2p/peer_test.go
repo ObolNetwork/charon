@@ -4,6 +4,7 @@ package p2p_test
 
 import (
 	"context"
+	"math/rand"
 	"testing"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -36,7 +37,9 @@ func TestNewHost(t *testing.T) {
 }
 
 func TestVerifyP2PKey(t *testing.T) {
-	lock, keys, _ := cluster.NewForT(t, 1, 3, 4, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, keys, _ := cluster.NewForT(t, 1, 3, 4, seed, random)
 
 	peers, err := lock.Peers()
 	require.NoError(t, err)
@@ -51,7 +54,9 @@ func TestVerifyP2PKey(t *testing.T) {
 }
 
 func TestPeerIDKey(t *testing.T) {
-	lock, keys, _ := cluster.NewForT(t, 1, 3, 4, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, keys, _ := cluster.NewForT(t, 1, 3, 4, seed, random)
 
 	peers, err := lock.Peers()
 	require.NoError(t, err)

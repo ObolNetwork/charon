@@ -37,7 +37,7 @@ func TestEncode(t *testing.T) {
 	for _, version := range cluster.SupportedVersionsForT(t) {
 		t.Run(version, func(t *testing.T) {
 			vStr := strings.ReplaceAll(version, ".", "_")
-			rand.Seed(1)
+			r := rand.New(rand.NewSource(1))
 
 			const (
 				numVals   = 2
@@ -52,13 +52,13 @@ func TestEncode(t *testing.T) {
 			}
 			// Definition version prior to v1.5 don't support multiple validator addresses.
 			if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4) {
-				opts = append(opts, cluster.WithLegacyVAddrs(testutil.RandomETHAddress(), testutil.RandomETHAddress()))
+				opts = append(opts, cluster.WithLegacyVAddrs(testutil.RandomETHAddressSeed(r), testutil.RandomETHAddressSeed(r)))
 			}
 
 			var feeRecipientAddrs, withdrawalAddrs []string
 			for i := 0; i < numVals; i++ {
-				feeRecipientAddrs = append(feeRecipientAddrs, testutil.RandomETHAddress())
-				withdrawalAddrs = append(withdrawalAddrs, testutil.RandomETHAddress())
+				feeRecipientAddrs = append(feeRecipientAddrs, testutil.RandomETHAddressSeed(r))
+				withdrawalAddrs = append(withdrawalAddrs, testutil.RandomETHAddressSeed(r))
 			}
 
 			definition, err := cluster.NewDefinition(
@@ -69,21 +69,21 @@ func TestEncode(t *testing.T) {
 				withdrawalAddrs,
 				eth2util.Sepolia.GenesisForkVersionHex,
 				cluster.Creator{
-					Address:         testutil.RandomETHAddress(),
-					ConfigSignature: testutil.RandomSecp256k1Signature(),
+					Address:         testutil.RandomETHAddressSeed(r),
+					ConfigSignature: testutil.RandomSecp256k1SignatureSeed(r),
 				},
 				[]cluster.Operator{
 					{
-						Address:         testutil.RandomETHAddress(),
-						ENR:             fmt.Sprintf("enr://%x", testutil.RandomBytes32()),
-						ConfigSignature: testutil.RandomSecp256k1Signature(),
-						ENRSignature:    testutil.RandomSecp256k1Signature(),
+						Address:         testutil.RandomETHAddressSeed(r),
+						ENR:             fmt.Sprintf("enr://%x", testutil.RandomBytes32Seed(r)),
+						ConfigSignature: testutil.RandomSecp256k1SignatureSeed(r),
+						ENRSignature:    testutil.RandomSecp256k1SignatureSeed(r),
 					},
 					{
-						Address:         testutil.RandomETHAddress(),
-						ENR:             fmt.Sprintf("enr://%x", testutil.RandomBytes32()),
-						ConfigSignature: testutil.RandomSecp256k1Signature(),
-						ENRSignature:    testutil.RandomSecp256k1Signature(),
+						Address:         testutil.RandomETHAddressSeed(r),
+						ENR:             fmt.Sprintf("enr://%x", testutil.RandomBytes32Seed(r)),
+						ConfigSignature: testutil.RandomSecp256k1SignatureSeed(r),
+						ENRSignature:    testutil.RandomSecp256k1SignatureSeed(r),
 					},
 				},
 				[]int{16, 16},
@@ -134,29 +134,29 @@ func TestEncode(t *testing.T) {
 
 			lock := cluster.Lock{
 				Definition:         definition,
-				SignatureAggregate: testutil.RandomBytes32(),
+				SignatureAggregate: testutil.RandomBytes32Seed(r),
 				Validators: []cluster.DistValidator{
 					{
-						PubKey: testutil.RandomBytes48(),
+						PubKey: testutil.RandomBytes48Seed(r),
 						PubShares: [][]byte{
-							testutil.RandomBytes48(),
-							testutil.RandomBytes48(),
+							testutil.RandomBytes48Seed(r),
+							testutil.RandomBytes48Seed(r),
 						},
-						PartialDepositData:  []cluster.DepositData{cluster.RandomDepositData()},
-						BuilderRegistration: cluster.RandomRegistration(t, eth2util.Sepolia.Name),
+						PartialDepositData:  []cluster.DepositData{cluster.RandomDepositDataSeed(r)},
+						BuilderRegistration: cluster.RandomRegistrationSeed(t, eth2util.Sepolia.Name, r),
 					}, {
-						PubKey: testutil.RandomBytes48(),
+						PubKey: testutil.RandomBytes48Seed(r),
 						PubShares: [][]byte{
-							testutil.RandomBytes48(),
-							testutil.RandomBytes48(),
+							testutil.RandomBytes48Seed(r),
+							testutil.RandomBytes48Seed(r),
 						},
-						PartialDepositData:  []cluster.DepositData{cluster.RandomDepositData()},
-						BuilderRegistration: cluster.RandomRegistration(t, eth2util.Sepolia.Name),
+						PartialDepositData:  []cluster.DepositData{cluster.RandomDepositDataSeed(r)},
+						BuilderRegistration: cluster.RandomRegistrationSeed(t, eth2util.Sepolia.Name, r),
 					},
 				},
 				NodeSignatures: [][]byte{
-					testutil.RandomBytes32(),
-					testutil.RandomBytes32(),
+					testutil.RandomBytes32Seed(r),
+					testutil.RandomBytes32Seed(r),
 				},
 			}
 
@@ -187,7 +187,7 @@ func TestEncode(t *testing.T) {
 			// Lock version v1.8.0 supports multiple PartialDepositData.
 			if isAnyVersion(version, v1_8) {
 				for i := range lock.Validators {
-					dd := cluster.RandomDepositData()
+					dd := cluster.RandomDepositDataSeed(r)
 					dd.PubKey = lock.Validators[i].PubKey
 					lock.Validators[i].PartialDepositData = append(lock.Validators[i].PartialDepositData, dd)
 				}
@@ -265,7 +265,9 @@ func TestExamples(t *testing.T) {
 }
 
 func TestDefinitionPeers(t *testing.T) {
-	lock, _, _ := cluster.NewForT(t, 2, 3, 4, 5)
+	seed := 5
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, _ := cluster.NewForT(t, 2, 3, 4, seed, random)
 	peers, err := lock.Peers()
 	require.NoError(t, err)
 
