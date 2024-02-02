@@ -43,7 +43,6 @@ import (
 
 func deterministicPubkeySeed(t *testing.T, r *rand.Rand) tbls.PublicKey {
 	t.Helper()
-
 	random := rand.New(rand.NewSource(r.Int63()))
 
 	var key tbls.PublicKey
@@ -1045,7 +1044,6 @@ func RandomBytes32() []byte {
 func RandomBytes32Seed(r *rand.Rand) []byte {
 	var resp [32]byte
 	_, _ = r.Read(resp[:])
-	fmt.Printf("%v", resp)
 
 	return resp[:]
 }
