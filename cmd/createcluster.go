@@ -321,6 +321,15 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 		return errors.New("missing --nodes flag")
 	}
 
+	if conf.DefFile != "" {
+		def, err := loadDefinition(ctx, conf.DefFile)
+		if err != nil {
+			return err
+		}
+
+		conf.NumNodes = len(def.Operators)
+	}
+
 	// Check for valid network configuration.
 	if err := validateNetworkConfig(conf); err != nil {
 		return errors.Wrap(err, "get network config")

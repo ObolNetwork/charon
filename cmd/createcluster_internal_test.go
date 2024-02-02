@@ -730,6 +730,41 @@ func TestPublish(t *testing.T) {
 	})
 }
 
+func TestValidateCreateConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	defFilePath := path.Join(tmpDir, "cluster-definition.json")
+
+	lock, _, _ := cluster.NewForT(t, 2, 3, 4, 5)
+
+	defBytes, err := lock.Definition.MarshalJSON()
+	require.NoError(t, err)
+
+	err = os.WriteFile(defFilePath, defBytes, 0o777)
+	require.NoError(t, err)
+
+	conf := clusterConfig{}
+	conf.ClusterDir = tmpDir
+	conf.DefFile = defFilePath
+	conf.Network = "sepolia"
+
+	t.Run("ok", func(t *testing.T) {
+		err = validateCreateConfig(context.Background(), conf)
+		require.NoError(t, err)
+	})
+
+	t.Run("not ok", func(t *testing.T) {
+		node := nodeDir(tmpDir, 0)
+		err := os.Mkdir(node, 0o777)
+		require.NoError(t, err)
+
+		err = os.WriteFile(path.Join(node, "cluster-lock.json"), []byte{}, 0o666)
+		require.NoError(t, err)
+
+		err = validateCreateConfig(context.Background(), conf)
+		require.ErrorContains(t, err, "existing node directory found, please delete it before running this command")
+	})
+}
+
 // mockKeymanagerReq is a mock keymanager request for use in tests.
 type mockKeymanagerReq struct {
 	Keystores []string `json:"keystores"`
