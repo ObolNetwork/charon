@@ -5,6 +5,7 @@ package testutil
 
 import (
 	"crypto/ecdsa"
+	crand "crypto/rand"
 	"fmt"
 	"math"
 	"math/rand"
@@ -729,7 +730,7 @@ func RandomSyncCommitteeDuty(t *testing.T) *eth2v1.SyncCommitteeDuty {
 
 func RandomSyncAggregate() *altair.SyncAggregate {
 	var syncSSZ [160]byte
-	_, _ = rand.Read(syncSSZ[:])
+	_, _ = crand.Read(syncSSZ[:])
 	sync := new(altair.SyncAggregate)
 	err := sync.UnmarshalSSZ(syncSSZ[:])
 	if err != nil {
@@ -921,7 +922,7 @@ func RandomRootSeed(r *rand.Rand) eth2p0.Root {
 
 func RandomEth2Signature() eth2p0.BLSSignature {
 	var resp eth2p0.BLSSignature
-	_, _ = rand.Read(resp[:])
+	_, _ = crand.Read(resp[:])
 
 	return resp
 }
@@ -935,7 +936,7 @@ func RandomEth2SignatureWithSeed(seed int64) eth2p0.BLSSignature {
 
 func RandomCoreSignature() core.Signature {
 	resp := make(core.Signature, 96)
-	_, _ = rand.Read(resp)
+	_, _ = crand.Read(resp)
 
 	return resp
 }
@@ -1107,7 +1108,7 @@ func RandomSecp256k1SignatureSeed(r *rand.Rand) []byte {
 
 func RandomExecutionAddress() bellatrix.ExecutionAddress {
 	var resp [20]byte
-	_, _ = rand.Read(resp[:])
+	_, _ = crand.Read(resp[:])
 
 	return resp
 }
