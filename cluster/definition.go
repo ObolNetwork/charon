@@ -13,6 +13,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
 )
@@ -55,7 +56,7 @@ func WithLegacyVAddrs(feeRecipientAddress, withdrawalAddress string) func(*Defin
 // NewDefinition returns a new definition populated with the latest version, timestamp and UUID.
 // The hashes are also populated accordingly. Note that the hashes need to be recalculated when any field is modified.
 func NewDefinition(name string, numVals int, threshold int, feeRecipientAddresses []string, withdrawalAddresses []string,
-	forkVersionHex string, creator Creator, operators []Operator, random io.Reader, opts ...func(*Definition),
+	forkVersionHex string, creator Creator, operators []Operator, depositAmounts []int, random io.Reader, opts ...func(*Definition),
 ) (Definition, error) {
 	if len(feeRecipientAddresses) != numVals {
 		return Definition{}, errors.New("insufficient fee-recipient addresses")
@@ -66,15 +67,16 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddresse
 	}
 
 	def := Definition{
-		Version:       currentVersion,
-		Name:          name,
-		UUID:          uuid(random),
-		Timestamp:     time.Now().Format(time.RFC3339),
-		NumValidators: numVals,
-		Threshold:     threshold,
-		DKGAlgorithm:  dkgAlgo,
-		Operators:     operators,
-		Creator:       creator,
+		Version:        currentVersion,
+		Name:           name,
+		UUID:           uuid(random),
+		Timestamp:      time.Now().Format(time.RFC3339),
+		NumValidators:  numVals,
+		Threshold:      threshold,
+		DKGAlgorithm:   dkgAlgo,
+		Operators:      operators,
+		Creator:        creator,
+		DepositAmounts: deposit.EthsToGweis(depositAmounts),
 	}
 
 	for i := 0; i < numVals; i++ {
@@ -731,6 +733,10 @@ func unmarshalDefinitionV1x8(data []byte) (def Definition, err error) {
 
 	if len(defJSON.ValidatorAddresses) != defJSON.NumValidators {
 		return Definition{}, errors.New("num_validators not matching validators length")
+	}
+
+	if err := deposit.VerifyDepositAmounts(def.DepositAmounts); err != nil {
+		return Definition{}, errors.Wrap(err, "invalid deposit amounts")
 	}
 
 	return Definition{

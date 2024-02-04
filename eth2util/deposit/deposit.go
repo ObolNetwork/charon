@@ -19,17 +19,16 @@ import (
 )
 
 const (
-	minSingleDepositAmountGwei = 1000000000  // 1ETH
-	maxTotalDepositAmountGwei  = 32000000000 // 32ETH
-	oneEthInGwei               = 1000000000  // 1ETH in Gwei
+	// 1 ETH in Gwei.
+	OneEthInGwei = 1000000000
 )
 
 var (
 	// Minimum allowed deposit amount (1ETH).
-	MinValidatorAmount = eth2p0.Gwei(1000000000)
+	MinDepositAmount = eth2p0.Gwei(1000000000)
 
 	// Maximum allowed deposit amount (32ETH).
-	MaxValidatorAmount = eth2p0.Gwei(32000000000)
+	MaxDepositAmount = eth2p0.Gwei(32000000000)
 
 	// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/validator.md#eth1_address_withdrawal_prefix
 	eth1AddressWithdrawalPrefix = []byte{0x01}
@@ -48,11 +47,11 @@ func NewMessage(pubkey eth2p0.BLSPubKey, withdrawalAddr string, amount eth2p0.Gw
 		return eth2p0.DepositMessage{}, err
 	}
 
-	if amount < MinValidatorAmount {
+	if amount < MinDepositAmount {
 		return eth2p0.DepositMessage{}, errors.New("deposit message minimum amount must be >= 1ETH", z.U64("amount", uint64(amount)))
 	}
 
-	if amount > MaxValidatorAmount {
+	if amount > MaxDepositAmount {
 		return eth2p0.DepositMessage{}, errors.New("deposit message maximum amount must <= 32ETH", z.U64("amount", uint64(amount)))
 	}
 
@@ -213,14 +212,14 @@ func VerifyDepositAmounts(amounts []eth2p0.Gwei) error {
 
 	var sum eth2p0.Gwei
 	for _, amount := range amounts {
-		if amount < minSingleDepositAmountGwei {
+		if amount < MinDepositAmount {
 			return errors.New("each partial deposit amount must be greater than 1ETH", z.U64("amount", uint64(amount)))
 		}
 
 		sum += amount
 	}
 
-	if sum > eth2p0.Gwei(maxTotalDepositAmountGwei) {
+	if sum > MaxDepositAmount {
 		return errors.New("sum of partial deposit amounts must sum up to 32ETH", z.U64("sum", uint64(sum)))
 	}
 
@@ -236,7 +235,7 @@ func EthsToGweis(ethAmounts []int) []eth2p0.Gwei {
 
 	var gweiAmounts []eth2p0.Gwei
 	for _, ethAmount := range ethAmounts {
-		gwei := eth2p0.Gwei(oneEthInGwei * ethAmount)
+		gwei := eth2p0.Gwei(OneEthInGwei * ethAmount)
 		gweiAmounts = append(gweiAmounts, gwei)
 	}
 

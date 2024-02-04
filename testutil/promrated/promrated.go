@@ -19,16 +19,17 @@ import (
 type Config struct {
 	RatedEndpoint  string
 	RatedAuth      string
-	PromEndpoint   string
 	PromAuth       string
 	MonitoringAddr string
 	Networks       []string
+	NodeOperators  []string
 }
 
 // Run blocks running the promrated program until the context is canceled or a fatal error occurs.
 func Run(ctx context.Context, config Config) error {
 	log.Info(ctx, "Promrated started",
 		z.Str("rated_endpoint", redactURL(config.RatedEndpoint)),
+		z.Str("prom_auth", config.PromAuth),
 		z.Str("monitoring_addr", config.MonitoringAddr),
 	)
 
@@ -42,7 +43,8 @@ func Run(ctx context.Context, config Config) error {
 		serverErr <- serveMonitoring(config.MonitoringAddr, promRegistry)
 	}()
 
-	ticker := time.NewTicker(12 * time.Hour)
+	// Metrics are produced daily so can preserve Rated CUs
+	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
 
 	onStartup := make(chan struct{}, 1)
@@ -65,45 +67,10 @@ func Run(ctx context.Context, config Config) error {
 
 // report the validator effectiveness metrics for prometheus.
 func reportMetrics(ctx context.Context, config Config) {
-	validators, err := getValidators(ctx, config.PromEndpoint, config.PromAuth)
-	if err != nil {
-		log.Error(ctx, "Failed fetching validators from prometheus", err)
-		return
-	}
-
-	for _, validator := range validators {
-		log.Info(ctx, "Fetched validator from prometheus",
-			z.Str("pubkey", validator.PubKey),
-			z.Str("cluster_name", validator.ClusterName),
-			z.Str("cluster_network", validator.ClusterNetwork),
-		)
-
-		if contains(config.Networks, validator.ClusterNetwork) {
-			stats, err := getValidatorStatistics(ctx, config.RatedEndpoint, config.RatedAuth, validator)
-			if err != nil {
-				log.Error(ctx, "Getting validator statistics", err, z.Str("pubkey", validator.PubKey))
-				continue
-			}
-
-			clusterLabels := prometheus.Labels{
-				"pubkey_full":     validator.PubKey,
-				"cluster_name":    validator.ClusterName,
-				"cluster_hash":    validator.ClusterHash,
-				"cluster_network": validator.ClusterNetwork,
-			}
-
-			uptime.With(clusterLabels).Set(stats.Uptime)
-			correctness.With(clusterLabels).Set(stats.AvgCorrectness)
-			inclusionDelay.With(clusterLabels).Set(stats.AvgInclusionDelay)
-			attester.With(clusterLabels).Set(stats.AttesterEffectiveness)
-			proposer.With(clusterLabels).Set(stats.ProposerEffectiveness)
-			effectiveness.With(clusterLabels).Set(stats.ValidatorEffectiveness)
-		}
-	}
-
 	for _, network := range config.Networks {
 		networkLabels := prometheus.Labels{
-			"cluster_network": network,
+			clusterNetworkLabel: network,
+			nodeOperatorLabel:   "all",
 		}
 
 		stats, err := getNetworkStatistics(ctx, config.RatedEndpoint, config.RatedAuth, network)
@@ -112,24 +79,32 @@ func reportMetrics(ctx context.Context, config Config) {
 			continue
 		}
 
-		networkUptime.With(networkLabels).Set(stats.AvgUptime)
-		networkCorrectness.With(networkLabels).Set(stats.AvgCorrectness)
-		networkInclusionDelay.With(networkLabels).Set(stats.AvgInclusionDelay)
-		networkEffectiveness.With(networkLabels).Set(stats.ValidatorEffectiveness)
+		setMetrics(networkLabels, stats)
+
+		for _, nodeOperator := range config.NodeOperators {
+			nodeOperatorLabels := prometheus.Labels{
+				clusterNetworkLabel: network,
+				nodeOperatorLabel:   nodeOperator,
+			}
+
+			stats, err = getNodeOperatorStatistics(ctx, config.RatedEndpoint, config.RatedAuth, nodeOperator, network)
+			if err != nil {
+				log.Error(ctx, "Getting node operator statistics", err, z.Str("network", network), z.Str("node_operator", nodeOperator))
+				continue
+			}
+
+			setMetrics(nodeOperatorLabels, stats)
+		}
 	}
 }
 
-// contains checks if array contains a string s.
-func contains(arr []string, s string) bool {
-	result := false
-	for _, x := range arr {
-		if x == s {
-			result = true
-			break
-		}
-	}
-
-	return result
+func setMetrics(labels prometheus.Labels, stats networkEffectivenessData) {
+	networkUptime.With(labels).Set(stats.AvgUptime)
+	networkCorrectness.With(labels).Set(stats.AvgCorrectness)
+	networkInclusionDelay.With(labels).Set(stats.AvgInclusionDelay)
+	networkEffectiveness.With(labels).Set(stats.AvgValidatorEffectiveness)
+	networkProposerEffectiveness.With(labels).Set(stats.AvgProposerEffectiveness)
+	networkAttesterEffectiveness.With(labels).Set(stats.AvgAttesterEffectiveness)
 }
 
 // redactURL returns a redacted version of the given URL.

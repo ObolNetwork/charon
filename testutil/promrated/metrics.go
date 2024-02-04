@@ -8,45 +8,13 @@ import (
 	"github.com/obolnetwork/charon/app/promauto"
 )
 
+const (
+	clusterNetworkLabel = "cluster_network"
+	nodeOperatorLabel   = "node_operator"
+)
+
 var (
-	validatorLabels = []string{"pubkey_full", "cluster_name", "cluster_hash", "cluster_network"}
-	networkLabels   = []string{"cluster_network"}
-
-	uptime = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "promrated",
-		Name:      "validator_uptime",
-		Help:      "Uptime of a validation key.",
-	}, validatorLabels)
-
-	correctness = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "promrated",
-		Name:      "validator_correctness",
-		Help:      "Average correctness of a validation key.",
-	}, validatorLabels)
-
-	inclusionDelay = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "promrated",
-		Name:      "validator_inclusion_delay",
-		Help:      "Average inclusion delay of a validation key.",
-	}, validatorLabels)
-
-	attester = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "promrated",
-		Name:      "validator_attester_effectiveness",
-		Help:      "Attester effectiveness of a validation key.",
-	}, validatorLabels)
-
-	proposer = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "promrated",
-		Name:      "validator_proposer_effectiveness",
-		Help:      "Proposer effectiveness of a validation key.",
-	}, validatorLabels)
-
-	effectiveness = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "promrated",
-		Name:      "validator_effectiveness",
-		Help:      "Effectiveness of a validation key.",
-	}, validatorLabels)
+	networkLabels = []string{clusterNetworkLabel, nodeOperatorLabel}
 
 	networkUptime = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "promrated",
@@ -70,6 +38,18 @@ var (
 		Namespace: "promrated",
 		Name:      "network_effectiveness",
 		Help:      "Effectiveness of the network.",
+	}, networkLabels)
+
+	networkProposerEffectiveness = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "promrated",
+		Name:      "network_proposer_effectiveness",
+		Help:      "Proposer Effectiveness of the network.",
+	}, networkLabels)
+
+	networkAttesterEffectiveness = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "promrated",
+		Name:      "network_attester_effectiveness",
+		Help:      "Attester Effectiveness of the network.",
 	}, networkLabels)
 
 	ratedErrors = promauto.NewCounterVec(prometheus.CounterOpts{

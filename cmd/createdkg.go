@@ -124,7 +124,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	def, err := cluster.NewDefinition(
 		conf.Name, conf.NumValidators, conf.Threshold,
 		conf.FeeRecipientAddrs, conf.WithdrawalAddrs,
-		forkVersion, cluster.Creator{}, operators, crand.Reader,
+		forkVersion, cluster.Creator{}, operators, nil, crand.Reader,
 		func(d *cluster.Definition) {
 			d.DKGAlgorithm = conf.DKGAlgo
 		})
