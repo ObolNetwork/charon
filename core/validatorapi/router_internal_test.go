@@ -323,6 +323,10 @@ func TestRawRouter(t *testing.T) {
 	t.Run("get validators with post", func(t *testing.T) {
 		simpleValidatorsFunc := func(_ context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) { //nolint:golint,unparam
 			res := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+			if len(opts.Indices) == 0 {
+				opts.Indices = []eth2p0.ValidatorIndex{12, 35}
+			}
+
 			for _, index := range opts.Indices {
 				res[index] = &eth2v1.Validator{
 					Index:  index,
@@ -346,8 +350,8 @@ func TestRawRouter(t *testing.T) {
 			err := json.NewDecoder(res.Body).Decode(&resp)
 			require.NoError(t, err)
 			require.Len(t, resp.Data, 2)
-			require.EqualValues(t, uint64(12), resp.Data[0].Index)
-			require.EqualValues(t, uint64(35), resp.Data[1].Index)
+			require.EqualValues(t, eth2p0.ValidatorIndex(12), resp.Data[0].Index)
+			require.EqualValues(t, eth2p0.ValidatorIndex(35), resp.Data[1].Index)
 		}
 
 		t.Run("via query ids", func(t *testing.T) {
@@ -383,6 +387,17 @@ func TestRawRouter(t *testing.T) {
 			testRawRouter(t, handler, callback)
 		})
 
+		t.Run("empty parameters", func(t *testing.T) {
+			handler := testHandler{ValidatorsFunc: simpleValidatorsFunc}
+
+			callback := func(ctx context.Context, baseURL string) {
+				res, err := http.Post(baseURL+"/eth/v1/beacon/states/head/validators", "application/json", bytes.NewReader([]byte{}))
+				require.NoError(t, err)
+				assertResults(t, res)
+			}
+
+			testRawRouter(t, handler, callback)
+		})
 	})
 
 	t.Run("submit bellatrix ssz proposal", func(t *testing.T) {

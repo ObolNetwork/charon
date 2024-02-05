@@ -331,7 +331,7 @@ func getValidators(p eth2client.ValidatorsProvider) handlerFunc {
 		// TODO: support 'status' param when go-eth2-client supports it
 		// https://github.com/ObolNetwork/charon/issues/2846
 		ids := getValidatorIDs(query)
-		if len(ids) == 0 {
+		if len(ids) == 0 && len(body) > 0 {
 			postIDs, err := getValidatorIDsFromJSON(body)
 			if err != nil {
 				return nil, nil, errors.Wrap(err, "getting validator ids from request body")
