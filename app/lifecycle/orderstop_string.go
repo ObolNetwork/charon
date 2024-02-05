@@ -16,17 +16,18 @@ func _() {
 	_ = x[StopDutyDB-3]
 	_ = x[StopBeaconMock-4]
 	_ = x[StopValidatorAPI-5]
-	_ = x[StopTracing-6]
-	_ = x[StopP2PPeerDB-7]
-	_ = x[StopP2PTCPNode-8]
-	_ = x[StopP2PUDPNode-9]
-	_ = x[StopDebugAPI-10]
-	_ = x[StopMonitoringAPI-11]
+	_ = x[StopGenericSignature-6]
+	_ = x[StopTracing-7]
+	_ = x[StopP2PPeerDB-8]
+	_ = x[StopP2PTCPNode-9]
+	_ = x[StopP2PUDPNode-10]
+	_ = x[StopDebugAPI-11]
+	_ = x[StopMonitoringAPI-12]
 }
 
-const _OrderStop_name = "SchedulerPrivkeyLockRetryerDutyDBBeaconMockValidatorAPITracingP2PPeerDBP2PTCPNodeP2PUDPNodeDebugAPIMonitoringAPI"
+const _OrderStop_name = "SchedulerPrivkeyLockRetryerDutyDBBeaconMockValidatorAPIGenericSignatureTracingP2PPeerDBP2PTCPNodeP2PUDPNodeDebugAPIMonitoringAPI"
 
-var _OrderStop_index = [...]uint8{0, 9, 20, 27, 33, 43, 55, 62, 71, 81, 91, 99, 112}
+var _OrderStop_index = [...]uint8{0, 9, 20, 27, 33, 43, 55, 71, 78, 87, 97, 107, 115, 128}
 
 func (i OrderStop) String() string {
 	if i < 0 || i >= OrderStop(len(_OrderStop_index)-1) {

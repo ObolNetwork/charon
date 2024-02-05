@@ -133,6 +133,12 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (_ ParSigned
 			return ParSignedData{}, errors.Wrap(err, "unmarshal sync contribution and proof")
 		}
 		signedData = s
+	case DutyGenericSignature:
+		var gs GenericSignatureData
+		if err := unmarshal(data.Data, &gs); err != nil {
+			return ParSignedData{}, errors.Wrap(err, "unmarshal generic signature data")
+		}
+		signedData = gs
 	default:
 		return ParSignedData{}, errors.New("unsupported duty type")
 	}

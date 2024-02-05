@@ -198,6 +198,9 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 		}
 
 		return err
+	case core.DutyGenericSignature:
+		// Generic signature is a Charon-internal feature, don't broadcast
+		return nil
 	default:
 		return errors.New("unsupported duty type")
 	}

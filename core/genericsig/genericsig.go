@@ -1,21 +1,30 @@
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+
 package genericsig
 
 import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"net/http"
 	"strings"
 	"sync"
+
+	"github.com/gorilla/mux"
+
+	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/core"
+)
+
+const (
+	PushSigRoute  = "/genericsig/push"
+	FetchSigRoute = "/genericsig/{validator_pubkey}/{hash}"
 )
 
 func hexStrToBytes(s string) ([]byte, error) {
-	if strings.HasPrefix(s, "0x") {
+	if !strings.HasPrefix(s, "0x") {
 		return nil, errors.New("string doesn't begin with 0x")
 	}
 
@@ -29,65 +38,12 @@ func hexStrToBytes(s string) ([]byte, error) {
 	return sb, nil
 }
 
-type genericSignatureJSON struct {
-	Hash            string `json:"hash"`
-	Signature       string `json:"signature"`
-	ValidatorPubkey string `json:"validator_pubkey"`
-}
-
-type genericSignature struct {
-	Hash            []byte         `json:"hash"`
-	Signature       tbls.Signature `json:"signature"`
-	ValidatorPubkey tbls.PublicKey `json:"validator_pubkey"`
-}
-
-func (g *genericSignature) UnmarshalJSON(bytes []byte) error {
-	var gj genericSignatureJSON
-
-	if err := json.Unmarshal(bytes, &gj); err != nil {
-		return err
-	}
-
-	// TODO(gsora): add size checks maybe?
-
-	hashBytes, err := hexStrToBytes(gj.Hash)
-	if err != nil {
-		return err
-	}
-
-	rawSigBytes, err := hexStrToBytes(gj.Signature)
-	if err != nil {
-		return err
-	}
-
-	sigBytes, err := tblsconv.SignatureFromBytes(rawSigBytes)
-	if err != nil {
-		return errors.Wrap(err, "bad signature")
-	}
-
-	rawPubkeyBytes, err := hexStrToBytes(gj.ValidatorPubkey)
-	if err != nil {
-		return err
-	}
-
-	pubkeyBytes, err := tblsconv.PubkeyFromBytes(rawPubkeyBytes)
-	if err != nil {
-		return errors.Wrap(err, "bad validator pubkey")
-	}
-
-	g.Hash = hashBytes
-	g.Signature = sigBytes
-	g.ValidatorPubkey = pubkeyBytes
-
-	return nil
-}
-
 type fullSignatureJSON struct {
 	Signature string `json:"signature"`
 }
 
 type fullSignature struct {
-	Signature tbls.Signature `json:"signature"`
+	Signature core.Signature `json:"signature"`
 }
 
 func (f fullSignature) MarshalJSON() ([]byte, error) {
@@ -99,34 +55,102 @@ func (f fullSignature) MarshalJSON() ([]byte, error) {
 }
 
 type GenericSignature struct {
-	store      map[tbls.PublicKey]map[string]tbls.Signature
+	store      map[core.PubKey]map[[32]byte]core.Signature
 	storeMutex sync.RWMutex
+	shareIdx   int
+
+	currSlot      core.Slot
+	currSlotMutex sync.RWMutex
 
 	parsigDBStoreInternal func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
-func (gs *GenericSignature) storeFullSignatures(ctx context.Context, duty core.Duty, data core.SignedDataSet) error {
+func New(shareIdx int, pdbStore func(context.Context, core.Duty, core.ParSignedDataSet) error) GenericSignature {
+	return GenericSignature{
+		store:                 make(map[core.PubKey]map[[32]byte]core.Signature),
+		storeMutex:            sync.RWMutex{},
+		shareIdx:              shareIdx,
+		parsigDBStoreInternal: pdbStore,
+	}
+}
+
+func (gs *GenericSignature) Slot(_ context.Context, slot core.Slot) error {
+	gs.currSlotMutex.Lock()
+	defer gs.currSlotMutex.Unlock()
+
+	gs.currSlot = slot
+
+	return nil
+}
+
+func (gs *GenericSignature) StoreFullSignatures(ctx context.Context, duty core.Duty, data core.SignedDataSet) error {
 	if duty.Type != core.DutyGenericSignature {
-		return errors.New(
-			"wrong duty type",
-			z.Str("expected", core.DutyGenericSignature.String()),
-			z.Str("got", duty.String()),
-		)
+		// Ignore everything besides DutyGenericSignature
+		return nil
 	}
 
 	gs.storeMutex.Lock()
 	defer gs.storeMutex.Unlock()
 
 	for pubKey, content := range data {
-		gs.
+		gsData, ok := content.(core.GenericSignatureData)
+		if !ok {
+			log.Warn(ctx, "data is not of GenericSignatureData type", nil, z.Any("data", content))
+			continue
+		}
+
+		pkMap, ok := gs.store[pubKey]
+		if !ok {
+			gs.store[pubKey] = make(map[[32]byte]core.Signature)
+			pkMap = gs.store[pubKey]
+		}
+
+		pkMap[gsData.Hash] = gsData.Sig
+	}
+
+	return nil
+}
+
+func (gs *GenericSignature) StorePartialSignature(rw http.ResponseWriter, r *http.Request) {
+	var data core.GenericSignatureData
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		hErr(rw, err, http.StatusBadRequest)
+		return
+	}
+
+	if data.ValidatorPubkey == "" {
+		hErr(rw, errors.New("validator pubkey is empty"), http.StatusBadGateway)
+		return
+	}
+
+	if data.Hash == [32]byte{} {
+		hErr(rw, errors.New("hash is empty"), http.StatusBadGateway)
+		return
+	}
+
+	if len(data.Sig) == 0 {
+		hErr(rw, errors.New("signature is empty"), http.StatusBadGateway)
+		return
+	}
+
+	ctx := r.Context()
+
+	if err := gs.parsigDBStoreInternal(ctx, core.Duty{
+		Slot: gs.getSlot().Slot,
+		Type: core.DutyGenericSignature,
+	}, core.ParSignedDataSet{
+		data.ValidatorPubkey: core.ParSignedData{
+			SignedData: data,
+			ShareIdx:   gs.shareIdx,
+		},
+	}); err != nil {
+		log.Error(ctx, "can't push partial generic signature to parsigdb", err)
+		hErr(rw, err, http.StatusInternalServerError)
+		return
 	}
 }
 
-func (gs *GenericSignature) storePartialSignature(rw http.ResponseWriter, r *http.Request) {
-	// TODO(gsora): get the genericSignature object from r, and send it to parsigDB
-}
-
-func (gs *GenericSignature) getFullSignature(rw http.ResponseWriter, r *http.Request) {
+func (gs *GenericSignature) GetFullSignature(rw http.ResponseWriter, r *http.Request) {
 	gs.storeMutex.RLock()
 	defer gs.storeMutex.RUnlock()
 
@@ -134,4 +158,91 @@ func (gs *GenericSignature) getFullSignature(rw http.ResponseWriter, r *http.Req
 	// check k1Sig(validator pubkey+hash) comes from the configured Charon identity key
 	// check that there's data for gs.store[validator pubkey][hash]
 	// if yes, return a fullSignature object with that inside
+	// Keep in mind this thing is executed from within gorilla/mux
+
+	vars := mux.Vars(r)
+
+	valPubkey := vars["validator_pubkey"]
+	hash := vars["hash"]
+
+	rawValPubkeyBytes, err := hexStrToBytes(valPubkey)
+	if err != nil {
+		hErr(rw, errors.Wrap(err, "malformed validator pubkey"), http.StatusBadRequest)
+		return
+	}
+
+	valPubkeyBytes, err := core.PubKeyFromBytes(rawValPubkeyBytes)
+	if err != nil {
+		hErr(rw, errors.Wrap(err, "malformed validator pubkey"), http.StatusBadRequest)
+		return
+	}
+
+	rawHashBytes, err := hexStrToBytes(hash)
+	if err != nil {
+		hErr(rw, errors.Wrap(err, "malformed hash"), http.StatusBadRequest)
+		return
+	}
+
+	if len(rawHashBytes) != 32 {
+		hErr(rw, errors.New("hash length is not 32"), http.StatusBadRequest)
+		return
+	}
+
+	hashBytes := [32]byte(rawHashBytes)
+
+	gs.storeMutex.RLock()
+	defer gs.storeMutex.RUnlock()
+
+	found, ok := gs.store[valPubkeyBytes][hashBytes]
+	if !ok {
+		rw.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	if err := json.NewEncoder(rw).Encode(fullSignature{Signature: found}); err != nil {
+		hErr(rw, errors.Wrap(err, "can't encode signature"), http.StatusInternalServerError)
+		return
+	}
+}
+
+// getSlot returns the current slot, plus two whole epochs in advance
+// Why: deadliner will have this expire enough time in the future to allow for aggregation and download
+// of the aggregated signature.
+func (gs *GenericSignature) getSlot() core.Slot {
+	gs.currSlotMutex.RLock()
+	defer gs.currSlotMutex.RUnlock()
+
+	slot := gs.currSlot
+
+	slot.Slot += slot.SlotsPerEpoch * 2
+
+	return slot
+}
+
+type httpError struct {
+	Inner      error `json:"error"`
+	StatusCode int   `json:"-"`
+}
+
+func (h httpError) MarshalJSON() ([]byte, error) {
+	ret := struct {
+		Error      string `json:"error"`
+		StatusCode string `json:"status_code"`
+	}{
+		Error:      h.Inner.Error(),
+		StatusCode: http.StatusText(h.StatusCode),
+	}
+
+	return json.Marshal(ret)
+}
+
+func hErr(rw http.ResponseWriter, err error, statusCode int) {
+	e := httpError{
+		Inner:      err,
+		StatusCode: statusCode,
+	}
+
+	if err := json.NewEncoder(rw).Encode(e); err != nil {
+		panic(errors.New("can't encode http error", z.Err(err)))
+	}
 }
