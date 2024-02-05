@@ -137,6 +137,16 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		conf.Network = eth2util.Goerli.Name
 	}
 
+	var def cluster.Definition
+	if conf.DefFile != "" { // Load definition from DefFile
+		def, err = loadDefinition(ctx, conf.DefFile)
+		if err != nil {
+			return err
+		}
+
+		conf.NumNodes = len(def.Operators)
+	}
+
 	if err = validateCreateConfig(ctx, conf); err != nil {
 		return err
 	}
@@ -160,13 +170,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	var depositAmounts []eth2p0.Gwei
 
 	// Get a cluster definition, either from a definition file or from the config.
-	var def cluster.Definition
-	if conf.DefFile != "" { // Load definition from DefFile
-		def, err = loadDefinition(ctx, conf.DefFile)
-		if err != nil {
-			return err
-		}
-
+	if conf.DefFile != "" {
 		// Validate the provided definition.
 		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
 		if err != nil {
@@ -321,20 +325,10 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 		return errors.New("missing --nodes flag")
 	}
 
-	if conf.DefFile != "" {
-		def, err := loadDefinition(ctx, conf.DefFile)
-		if err != nil {
-			return err
-		}
-
-		conf.NumNodes = len(def.Operators)
-	}
-
 	// Check for valid network configuration.
 	if err := validateNetworkConfig(conf); err != nil {
 		return errors.Wrap(err, "get network config")
 	}
-
 	if err := detectNodeDirs(conf.ClusterDir, conf.NumNodes); err != nil {
 		return err
 	}
