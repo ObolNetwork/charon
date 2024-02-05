@@ -30,6 +30,9 @@ jobs:
           # Tag "git short sha" on all git events
           type=sha,prefix=
 
+          # Tag "next" on git-push-to-main-branch events
+          type=raw,value=next,event=branch,enable={{is_default_branch}}
+
           # Tag "latest" on git-tag events
           type=raw,value=latest,event=tag
 
