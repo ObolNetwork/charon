@@ -74,9 +74,11 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 			opt(&def)
 		}
 
-		networkName, _ := eth2util.ForkVersionToNetwork(def.ForkVersion)
-		if networkName == "" {
-			networkName = eth2util.Goerli.Name
+		networkName := eth2util.Goerli.Name
+
+		if len(def.ForkVersion) != 0 {
+			networkName, err = eth2util.ForkVersionToNetwork(def.ForkVersion)
+			require.NoError(t, err)
 		}
 
 		reg := getSignedRegistration(t, rootSecret, feeRecipientAddr, networkName)
