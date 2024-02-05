@@ -58,6 +58,7 @@ func NewSeedRand() *rand.Rand {
 
 // RandomCorePubKey returns a random core workflow pubkey.
 func RandomCorePubKey(t *testing.T) core.PubKey {
+	t.Helper()
 	return RandomCorePubKeySeed(t, NewSeedRand())
 }
 
@@ -72,6 +73,7 @@ func RandomCorePubKeySeed(t *testing.T, r *rand.Rand) core.PubKey {
 
 // RandomEth2PubKey returns a random eth2 phase0 bls pubkey.
 func RandomEth2PubKey(t *testing.T) eth2p0.BLSPubKey {
+	t.Helper()
 	return RandomEth2PubKeySeed(t, NewSeedRand())
 }
 
@@ -827,6 +829,7 @@ func RandomDenebExecutionPayloadHeader() *deneb.ExecutionPayloadHeader {
 }
 
 func RandomAttestationDuty(t *testing.T) *eth2v1.AttesterDuty {
+	t.Helper()
 	return RandomAttestationDutySeed(t, NewSeedRand())
 }
 

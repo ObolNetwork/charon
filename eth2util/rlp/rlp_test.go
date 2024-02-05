@@ -185,7 +185,8 @@ func TestLengths(t *testing.T) {
 	for _, length := range []int{0, 1, 55, 56, 1023, 1024} {
 		t.Run(fmt.Sprint(length), func(t *testing.T) {
 			buf := make([]byte, length)
-			rand.Read(buf)
+			_, err := rand.Read(buf)
+			require.NoError(t, err)
 
 			encoded := rlp.EncodeBytes(buf)
 
