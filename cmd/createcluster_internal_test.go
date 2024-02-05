@@ -739,7 +739,7 @@ func TestValidateCreateConfig(t *testing.T) {
 	defBytes, err := lock.Definition.MarshalJSON()
 	require.NoError(t, err)
 
-	err = os.WriteFile(defFilePath, defBytes, 0o777)
+	err = os.WriteFile(defFilePath, defBytes, 0o666)
 	require.NoError(t, err)
 
 	conf := clusterConfig{}
@@ -752,7 +752,7 @@ func TestValidateCreateConfig(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("not ok", func(t *testing.T) {
+	t.Run("existing directory found", func(t *testing.T) {
 		node := nodeDir(tmpDir, 0)
 		err := os.Mkdir(node, 0o777)
 		require.NoError(t, err)
