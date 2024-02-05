@@ -5,6 +5,7 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -72,7 +73,9 @@ func TestVerifySig(t *testing.T) {
 }
 
 func TestFetchDefinition(t *testing.T) {
-	lock, _, _ := NewForT(t, 1, 2, 3, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, _ := NewForT(t, 1, 2, 3, seed, random)
 	validDef := lock.Definition
 	invalidDef := Definition{}
 

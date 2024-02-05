@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
 	"path"
 	"path/filepath"
@@ -35,7 +36,9 @@ func TestCombineNoLockfile(t *testing.T) {
 }
 
 func TestCombineCannotLoadKeystore(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, shares := cluster.NewForT(t, 2, 3, 4, seed, random)
 
 	for _, share := range shares {
 		share := share
@@ -92,7 +95,9 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 }
 
 func TestCombineAllManifest(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 100, 3, 4, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, shares := cluster.NewForT(t, 100, 3, 4, seed, random)
 	combineTest(t, lock, shares, false, false, noLockModif, []manifestChoice{
 		ManifestOnly,
 		ManifestOnly,
@@ -102,7 +107,9 @@ func TestCombineAllManifest(t *testing.T) {
 }
 
 func TestCombineBothManifestAndLockForAll(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 100, 3, 4, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, shares := cluster.NewForT(t, 100, 3, 4, seed, random)
 	combineTest(t, lock, shares, false, false, noLockModif, []manifestChoice{
 		Both,
 		Both,
@@ -112,7 +119,9 @@ func TestCombineBothManifestAndLockForAll(t *testing.T) {
 }
 
 func TestCombineBothManifestAndLockForSome(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 100, 3, 4, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, shares := cluster.NewForT(t, 100, 3, 4, seed, random)
 	combineTest(t, lock, shares, false, false, noLockModif, []manifestChoice{
 		ManifestOnly,
 		Both,
@@ -123,22 +132,30 @@ func TestCombineBothManifestAndLockForSome(t *testing.T) {
 
 // This test exists because of https://github.com/ObolNetwork/charon/issues/2151.
 func TestCombineLotsOfVals(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 100, 3, 4, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, shares := cluster.NewForT(t, 100, 3, 4, seed, random)
 	combineTest(t, lock, shares, false, false, noLockModif, nil)
 }
 
 func TestCombine(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, shares := cluster.NewForT(t, 2, 3, 4, seed, random)
 	combineTest(t, lock, shares, false, false, noLockModif, nil)
 }
 
 func TestCombineNoVerifyGoodLock(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, shares := cluster.NewForT(t, 2, 3, 4, seed, random)
 	combineTest(t, lock, shares, true, false, noLockModif, nil)
 }
 
 func TestCombineNoVerifyBadLock(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, shares := cluster.NewForT(t, 2, 3, 4, seed, random)
 	combineTest(t, lock, shares, true, false, func(valIndex int, src cluster.Lock) cluster.Lock {
 		if valIndex == 1 {
 			src.Name = "booohooo"
@@ -149,7 +166,9 @@ func TestCombineNoVerifyBadLock(t *testing.T) {
 }
 
 func TestCombineBadLock(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, shares := cluster.NewForT(t, 2, 3, 4, seed, random)
 	combineTest(t, lock, shares, false, true, func(valIndex int, src cluster.Lock) cluster.Lock {
 		if valIndex == 1 {
 			src.Name = "booohooo"
@@ -160,7 +179,9 @@ func TestCombineBadLock(t *testing.T) {
 }
 
 func TestCombineNoVerifyDifferentValidatorData(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, shares := cluster.NewForT(t, 2, 3, 4, seed, random)
 	combineTest(t, lock, shares, true, true, func(valIndex int, src cluster.Lock) cluster.Lock {
 		if valIndex == 1 {
 			src.Validators[valIndex].PubKey = bytes.Repeat([]byte{42}, 48)
@@ -327,7 +348,9 @@ func combineTest(
 }
 
 func TestCombineTwiceWithoutForceFails(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, shares := cluster.NewForT(t, 2, 3, 4, seed, random)
 
 	// calculate expected public keys and secrets
 	type expected struct {

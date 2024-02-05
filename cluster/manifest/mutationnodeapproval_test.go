@@ -3,6 +3,7 @@
 package manifest_test
 
 import (
+	"math/rand"
 	"testing"
 	"time"
 
@@ -36,9 +37,11 @@ func setIncrementingTime(t *testing.T) {
 func TestNodeApprovals(t *testing.T) {
 	setIncrementingTime(t)
 
-	lock, secrets, _ := cluster.NewForT(t, 1, 3, 4, 1)
+	seed := 1
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, secrets, _ := cluster.NewForT(t, 1, 3, 4, seed, random)
 
-	parent := testutil.RandomBytes32()
+	parent := testutil.RandomBytes32Seed(random)
 
 	var approvals []*manifestpb.SignedMutation
 	for _, secret := range secrets {

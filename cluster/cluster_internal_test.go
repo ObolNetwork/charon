@@ -266,10 +266,14 @@ func TestSupportEIP712Sigs(t *testing.T) {
 }
 
 func RandomDepositData() DepositData {
+	return RandomDepositDataSeed(testutil.NewSeedRand())
+}
+
+func RandomDepositDataSeed(r *rand.Rand) DepositData {
 	return DepositData{
-		PubKey:                testutil.RandomBytes48(),
-		WithdrawalCredentials: testutil.RandomBytes32(),
-		Amount:                rand.Int(),
-		Signature:             testutil.RandomBytes96(),
+		PubKey:                testutil.RandomBytes48Seed(r),
+		WithdrawalCredentials: testutil.RandomBytes32Seed(r),
+		Amount:                r.Int(),
+		Signature:             testutil.RandomBytes96Seed(r),
 	}
 }

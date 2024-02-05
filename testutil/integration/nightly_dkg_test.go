@@ -240,7 +240,9 @@ func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, w
 func testDef(t *testing.T, threshold, numNodes, numVals int) (cluster.Definition, []*k1.PrivateKey) {
 	t.Helper()
 
-	lock, p2pKeys, _ := cluster.NewForT(t, numVals, threshold, numNodes, 1)
+	seed := 1
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, p2pKeys, _ := cluster.NewForT(t, numVals, threshold, numNodes, seed, random)
 
 	return lock.Definition, p2pKeys
 }
