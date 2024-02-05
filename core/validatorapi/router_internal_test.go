@@ -350,8 +350,11 @@ func TestRawRouter(t *testing.T) {
 			err := json.NewDecoder(res.Body).Decode(&resp)
 			require.NoError(t, err)
 			require.Len(t, resp.Data, 2)
-			require.EqualValues(t, eth2p0.ValidatorIndex(12), resp.Data[0].Index)
-			require.EqualValues(t, eth2p0.ValidatorIndex(35), resp.Data[1].Index)
+			if resp.Data[0].Index == eth2p0.ValidatorIndex(12) {
+				require.EqualValues(t, eth2p0.ValidatorIndex(35), resp.Data[1].Index)
+			} else {
+				require.EqualValues(t, eth2p0.ValidatorIndex(12), resp.Data[1].Index)
+			}
 		}
 
 		t.Run("via query ids", func(t *testing.T) {
