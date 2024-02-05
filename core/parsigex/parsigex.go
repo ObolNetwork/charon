@@ -18,9 +18,12 @@ import (
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 const protocolID2 = "/charon/parsigex/2.0.0"
+
+type verifyFunc func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error
 
 // Protocols returns the supported protocols of this package in order of precedence.
 func Protocols() []protocol.ID {
@@ -28,16 +31,18 @@ func Protocols() []protocol.ID {
 }
 
 func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []peer.ID,
-	verifyFunc func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error,
+	verifyFunc verifyFunc,
+	genericVerifyFunc verifyFunc,
 	gaterFunc core.DutyGaterFunc,
 ) *ParSigEx {
 	parSigEx := &ParSigEx{
-		tcpNode:    tcpNode,
-		sendFunc:   sendFunc,
-		peerIdx:    peerIdx,
-		peers:      peers,
-		verifyFunc: verifyFunc,
-		gaterFunc:  gaterFunc,
+		tcpNode:           tcpNode,
+		sendFunc:          sendFunc,
+		peerIdx:           peerIdx,
+		peers:             peers,
+		verifyFunc:        verifyFunc,
+		genericVerifyFunc: genericVerifyFunc,
+		gaterFunc:         gaterFunc,
 	}
 
 	newReq := func() proto.Message { return new(pbv1.ParSigExMsg) }
@@ -49,13 +54,14 @@ func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []
 // ParSigEx exchanges partially signed duty data sets.
 // It ensures that all partial signatures are persisted by all peers.
 type ParSigEx struct {
-	tcpNode    host.Host
-	sendFunc   p2p.SendFunc
-	peerIdx    int
-	peers      []peer.ID
-	verifyFunc func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error
-	gaterFunc  core.DutyGaterFunc
-	subs       []func(context.Context, core.Duty, core.ParSignedDataSet) error
+	tcpNode           host.Host
+	sendFunc          p2p.SendFunc
+	peerIdx           int
+	peers             []peer.ID
+	verifyFunc        verifyFunc
+	genericVerifyFunc verifyFunc
+	gaterFunc         core.DutyGaterFunc
+	subs              []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
 func (m *ParSigEx) handle(ctx context.Context, _ peer.ID, req proto.Message) (proto.Message, bool, error) {
@@ -85,9 +91,27 @@ func (m *ParSigEx) handle(ctx context.Context, _ peer.ID, req proto.Message) (pr
 
 	// Verify partial signature
 	for pubkey, data := range set {
-		if err = m.verifyFunc(ctx, duty, pubkey, data); err != nil {
+		var verifyFunc verifyFunc
+
+		switch duty.Type {
+		case core.DutyGenericSignature:
+			verifyFunc = m.genericVerifyFunc
+		default:
+			verifyFunc = m.verifyFunc
+		}
+
+		if err := verifyFunc(ctx, duty, pubkey, data); err != nil {
 			return nil, false, errors.Wrap(err, "invalid partial signature")
 		}
+
+		// if duty.Type == core.DutyGenericSignature {
+		//	log.Info(ctx, "RECEIVED GENERIC SIGNATURE", z.Int("from", data.ShareIdx))
+		//	continue // TODO(gsora): figure out how to solve this?
+		//}
+		//
+		//if err = m.verifyFunc(ctx, duty, pubkey, data); err != nil {
+		//	return nil, false, errors.Wrap(err, "invalid partial signature")
+		//}
 	}
 
 	for _, sub := range m.subs {
@@ -160,4 +184,34 @@ func NewEth2Verifier(eth2Cl eth2wrap.Client, pubSharesByKey map[core.PubKey]map[
 
 		return nil
 	}, nil
+}
+
+func NewGenericVerifier(pubSharesByKey map[core.PubKey]map[int]tbls.PublicKey) func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error {
+	return func(ctx context.Context, duty core.Duty, key core.PubKey, data core.ParSignedData) error {
+		gData, ok := data.SignedData.(core.GenericSignatureData)
+		if !ok {
+			return errors.New("data is not of generic signature data type")
+		}
+
+		pubshares, ok := pubSharesByKey[key]
+		if !ok {
+			return errors.New("unknown pubkey, not part of cluster lock")
+		}
+
+		pubshare, ok := pubshares[data.ShareIdx]
+		if !ok {
+			return errors.New("invalid shareIdx")
+		}
+
+		tblsSig, err := tblsconv.SigFromCore(gData.Sig)
+		if err != nil {
+			return errors.Wrap(err, "signature from core")
+		}
+
+		var d []byte
+
+		d = append(d, gData.Hash[:]...)
+
+		return tbls.Verify(pubshare, d, tblsSig)
+	}
 }

@@ -131,6 +131,7 @@ func (db *MemDB) Trim(ctx context.Context) {
 			return
 		case duty := <-db.deadliner.C(): // This buffered channel is small, so we need dedicated goroutine to service it.
 			db.mu.Lock()
+			log.Debug(ctx, "trimming parsigdb", z.Str("duty", duty.String()))
 			for _, key := range db.keysByDuty[duty] {
 				delete(db.entries, key)
 			}

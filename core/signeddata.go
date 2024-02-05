@@ -4,7 +4,9 @@ package core
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
+	"strings"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -1320,6 +1322,101 @@ func (s *SignedSyncContributionAndProof) UnmarshalSSZ(b []byte) error {
 	return s.SignedContributionAndProof.UnmarshalSSZ(b)
 }
 
+type genericSignatureJSON struct {
+	Hash            string `json:"hash"`
+	Signature       string `json:"signature"`
+	ValidatorPubkey string `json:"validator_pubkey"`
+}
+
+type GenericSignatureData struct {
+	Hash            [32]byte  `json:"hash"`
+	Sig             Signature `json:"signature"`
+	ValidatorPubkey PubKey    `json:"validator_pubkey"`
+}
+
+func (g *GenericSignatureData) clone() (GenericSignatureData, error) {
+	var resp GenericSignatureData
+	err := cloneJSONMarshaler(g, &resp)
+	if err != nil {
+		return GenericSignatureData{}, errors.Wrap(err, "clone GenericSignatureData")
+	}
+
+	return resp, nil
+}
+
+func (g GenericSignatureData) Signature() Signature {
+	return g.Sig
+}
+
+func (g GenericSignatureData) SetSignature(signature Signature) (SignedData, error) {
+	resp, err := g.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	resp.Sig = signature
+
+	return resp, nil
+}
+
+func (g GenericSignatureData) MessageRoot() ([32]byte, error) {
+	return g.Hash, nil
+}
+
+func (g GenericSignatureData) Clone() (SignedData, error) {
+	return g.clone()
+}
+
+func (g GenericSignatureData) MarshalJSON() ([]byte, error) {
+	var gj genericSignatureJSON
+
+	gj.Signature = "0x" + hex.EncodeToString(g.Sig[:])
+	gj.Hash = "0x" + hex.EncodeToString(g.Hash[:])
+	gj.ValidatorPubkey = string(g.ValidatorPubkey)
+
+	return json.Marshal(gj)
+}
+
+func (g *GenericSignatureData) UnmarshalJSON(bytes []byte) error {
+	var gj genericSignatureJSON
+
+	if err := json.Unmarshal(bytes, &gj); err != nil {
+		return err
+	}
+
+	// TODO(gsora): add size checks maybe?
+
+	hashBytes, err := hexStrToBytes(gj.Hash)
+	if err != nil {
+		return err
+	}
+
+	if len(hashBytes) > 32 {
+		return errors.New("hash length can't be greater than 32 bytes")
+	}
+
+	rawSigBytes, err := hexStrToBytes(gj.Signature)
+	if err != nil {
+		return err
+	}
+
+	rawPubkeyBytes, err := hexStrToBytes(gj.ValidatorPubkey)
+	if err != nil {
+		return err
+	}
+
+	pubkeyBytes, err := PubKeyFromBytes(rawPubkeyBytes)
+	if err != nil {
+		return errors.Wrap(err, "bad validator pubkey")
+	}
+
+	g.Hash = [32]byte(hashBytes)
+	g.Sig = rawSigBytes
+	g.ValidatorPubkey = pubkeyBytes
+
+	return nil
+}
+
 // cloneJSONMarshaler clones the marshaler by serialising to-from json
 // since eth2 types contain pointers. The result is stored in the value pointed to by v.
 func cloneJSONMarshaler(data json.Marshaler, v any) error {
@@ -1333,4 +1430,20 @@ func cloneJSONMarshaler(data json.Marshaler, v any) error {
 	}
 
 	return nil
+}
+
+// hexStrToBytes converts hex string s, 0x prefixed, to bytes.
+func hexStrToBytes(s string) ([]byte, error) {
+	if !strings.HasPrefix(s, "0x") {
+		return nil, errors.New("string doesn't begin with 0x")
+	}
+
+	s = s[2:]
+
+	sb, err := hex.DecodeString(s)
+	if err != nil {
+		return nil, errors.Wrap(err, "hex decode")
+	}
+
+	return sb, nil
 }

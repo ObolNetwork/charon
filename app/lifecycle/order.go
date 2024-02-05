@@ -20,6 +20,7 @@ const (
 	StartMonitoringAPI
 	StartDebugAPI
 	StartValidatorAPI
+	StartGenericSignature
 	StartP2PPing
 	StartP2PRouters
 	StartForceDirectConns
@@ -39,6 +40,7 @@ const (
 	StopDutyDB
 	StopBeaconMock // Close this before validator API, since it can hold long-lived connections.
 	StopValidatorAPI
+	StopGenericSignature
 	StopTracing // Low level services...
 	StopP2PPeerDB
 	StopP2PTCPNode

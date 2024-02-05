@@ -215,11 +215,15 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(Duty
 			return time.Time{}, false
 		}
 
+		// 12 * 42 = 504 seconds
+		// delta = 12 * 5 = 60 seconds
+		// delta < lateMin = 60s < 30s => false
 		start := genesis.Add(duration * time.Duration(duty.Slot))
 		delta := duration * time.Duration(lateFactor)
 		if delta < lateMin {
 			delta = lateMin
 		}
+
 		end := start.Add(delta)
 
 		return end, true

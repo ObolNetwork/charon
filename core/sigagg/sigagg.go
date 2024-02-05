@@ -19,8 +19,10 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
+type verifyFunc func(ctx context.Context, pubkey core.PubKey, data core.SignedData) error
+
 // New returns a new aggregator instance.
-func New(threshold int, verifyFunc func(context.Context, core.PubKey, core.SignedData) error) (*Aggregator, error) {
+func New(threshold int, verifyFunc verifyFunc) (*Aggregator, error) {
 	if threshold <= 0 {
 		return nil, errors.New("invalid threshold", z.Int("threshold", threshold))
 	}
@@ -54,7 +56,7 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, set map[core
 
 	output := make(core.SignedDataSet)
 	for pubkey, parSigs := range set {
-		signed, err := a.aggregate(ctx, pubkey, parSigs)
+		signed, err := a.aggregate(ctx, duty, pubkey, parSigs)
 		if err != nil {
 			return errors.Wrap(err, "threshold aggregate", z.Any("pubkey", pubkey))
 		}
@@ -81,7 +83,7 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, set map[core
 }
 
 // aggregate threshold aggregates the partial signed data for a provided DV.
-func (a *Aggregator) aggregate(ctx context.Context, pubkey core.PubKey, parSigs []core.ParSignedData) (core.SignedData, error) {
+func (a *Aggregator) aggregate(ctx context.Context, duty core.Duty, pubkey core.PubKey, parSigs []core.ParSignedData) (core.SignedData, error) {
 	if len(parSigs) < a.threshold {
 		return nil, errors.New("require threshold signatures")
 	}
@@ -114,7 +116,16 @@ func (a *Aggregator) aggregate(ctx context.Context, pubkey core.PubKey, parSigs 
 		return nil, err
 	}
 
-	if err := a.verifyFunc(ctx, pubkey, aggSig); err != nil {
+	var verifyFunc verifyFunc
+
+	switch duty.Type {
+	case core.DutyGenericSignature:
+		verifyFunc = NewGenericVerifier()
+	default:
+		verifyFunc = a.verifyFunc
+	}
+
+	if err := verifyFunc(ctx, pubkey, aggSig); err != nil {
 		return nil, err
 	}
 
@@ -140,5 +151,31 @@ func NewVerifier(eth2Cl eth2wrap.Client) func(context.Context, core.PubKey, core
 		}
 
 		return nil
+	}
+}
+
+// NewGenericVerifier.
+func NewGenericVerifier() func(context.Context, core.PubKey, core.SignedData) error {
+	return func(ctx context.Context, key core.PubKey, data core.SignedData) error {
+		gData, ok := data.(core.GenericSignatureData)
+		if !ok {
+			return errors.New("data is not of generic signature data type")
+		}
+
+		tblsPubkey, err := tblsconv.PubkeyFromCore(key)
+		if err != nil {
+			return errors.Wrap(err, "pubkey from core")
+		}
+
+		tblsSig, err := tblsconv.SigFromCore(gData.Sig)
+		if err != nil {
+			return errors.Wrap(err, "signature from core")
+		}
+
+		var d []byte
+
+		d = append(d, gData.Hash[:]...)
+
+		return tbls.Verify(tblsPubkey, d, tblsSig)
 	}
 }

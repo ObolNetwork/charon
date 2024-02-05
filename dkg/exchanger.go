@@ -110,7 +110,7 @@ func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int, sig
 	ex := &exchanger{
 		// threshold is len(peers) to wait until we get all the partial sigs from all the peers per DV
 		sigdb:    parsigdb.NewMemDB(len(peers), noopDeadliner{}),
-		sigex:    parsigex.NewParSigEx(tcpNode, p2p.Send, peerIdx, peers, noopVerifier, dutyGaterFunc),
+		sigex:    parsigex.NewParSigEx(tcpNode, p2p.Send, peerIdx, peers, noopVerifier, noopVerifier, dutyGaterFunc),
 		sigTypes: st,
 		sigData: dataByPubkey{
 			store:   sigTypeStore{},

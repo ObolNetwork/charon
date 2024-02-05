@@ -19,6 +19,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/gorilla/mux"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -49,6 +50,7 @@ import (
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/core/dutydb"
 	"github.com/obolnetwork/charon/core/fetcher"
+	"github.com/obolnetwork/charon/core/genericsig"
 	"github.com/obolnetwork/charon/core/infosync"
 	"github.com/obolnetwork/charon/core/parsigdb"
 	"github.com/obolnetwork/charon/core/parsigex"
@@ -442,11 +444,21 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	if err := wireVAPIRouter(ctx, life, conf.ValidatorAPIAddr, eth2Cl, vapi, vapiCalls); err != nil {
+	parSigDB := parsigdb.NewMemDB(int(cluster.Threshold), deadlinerFunc("parsigdb"))
+
+	aggSigDB := aggsigdb.NewMemDB(deadlinerFunc("aggsigdb"))
+
+	genericSig := genericsig.New(nodeIdx.ShareIdx, parSigDB.StoreInternal)
+
+	sched.SubscribeSlots(genericSig.Slot)
+
+	if err := wireGenericSig(ctx, life, &genericSig); err != nil {
 		return err
 	}
 
-	parSigDB := parsigdb.NewMemDB(int(cluster.Threshold), deadlinerFunc("parsigdb"))
+	if err := wireVAPIRouter(ctx, life, conf.ValidatorAPIAddr, eth2Cl, vapi, vapiCalls); err != nil {
+		return err
+	}
 
 	var parSigEx core.ParSigEx
 	if conf.TestConfig.ParSigExFunc != nil {
@@ -457,7 +469,15 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 			return err
 		}
 
-		parSigEx = parsigex.NewParSigEx(tcpNode, sender.SendAsync, nodeIdx.PeerIdx, peerIDs, verifyFunc, gaterFunc)
+		parSigEx = parsigex.NewParSigEx(
+			tcpNode,
+			sender.SendAsync,
+			nodeIdx.PeerIdx,
+			peerIDs,
+			verifyFunc,
+			parsigex.NewGenericVerifier(allPubSharesByKey),
+			gaterFunc,
+		)
 	}
 
 	sigAgg, err := sigagg.New(int(cluster.Threshold), sigagg.NewVerifier(eth2Cl))
@@ -465,7 +485,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	aggSigDB := aggsigdb.NewMemDB(deadlinerFunc("aggsigdb"))
+	sigAgg.Subscribe(genericSig.StoreFullSignatures)
 
 	broadcaster, err := bcast.New(ctx, eth2Cl)
 	if err != nil {
@@ -910,6 +930,24 @@ func wireVAPIRouter(ctx context.Context, life *lifecycle.Manager, vapiAddr strin
 
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartValidatorAPI, httpServeHook(server.ListenAndServe))
 	life.RegisterStop(lifecycle.StopValidatorAPI, lifecycle.HookFunc(server.Shutdown))
+
+	return nil
+}
+
+func wireGenericSig(_ context.Context, life *lifecycle.Manager, gs *genericsig.GenericSignature) error {
+	r := mux.NewRouter()
+
+	r.HandleFunc(genericsig.PushSigRoute, gs.StorePartialSignature).Methods(http.MethodPost)
+	r.HandleFunc(genericsig.FetchSigRoute, gs.GetFullSignature).Methods(http.MethodGet)
+
+	server := &http.Server{
+		Addr:              "0.0.0.0:3650", // TODO(gsora): move this to a CLI param, disable if addr is 0
+		Handler:           r,
+		ReadHeaderTimeout: time.Second,
+	}
+
+	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartGenericSignature, httpServeHook(server.ListenAndServe))
+	life.RegisterStop(lifecycle.StopGenericSignature, lifecycle.HookFunc(server.Shutdown))
 
 	return nil
 }
