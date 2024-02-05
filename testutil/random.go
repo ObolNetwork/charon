@@ -1203,6 +1203,7 @@ func RandomENR(t *testing.T, seed int) (*k1.PrivateKey, enr.Record) {
 }
 
 func RandomCoreAttestationData(t *testing.T) core.AttestationData {
+	t.Helper()
 	return RandomCoreAttestationDataSeed(t, NewSeedRand())
 }
 
@@ -1219,6 +1220,7 @@ func RandomCoreAttestationDataSeed(t *testing.T, r *rand.Rand) core.AttestationD
 }
 
 func RandomUnsignedDataSet(t *testing.T) core.UnsignedDataSet {
+	t.Helper()
 	return RandomUnsignedDataSetSeed(t, NewSeedRand())
 }
 

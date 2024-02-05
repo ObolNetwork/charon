@@ -186,6 +186,7 @@ func getSignedRegistration(t *testing.T, secret tbls.PrivateKey, feeRecipientAdd
 
 // RandomRegistration returns a random builder registration.
 func RandomRegistration(t *testing.T, network string) BuilderRegistration {
+	t.Helper()
 	return RandomRegistrationSeed(t, network, testutil.NewSeedRand())
 }
 
