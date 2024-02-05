@@ -323,12 +323,24 @@ func wrapTrace(endpoint string, handler http.HandlerFunc) http.Handler {
 	return otelhttp.NewHandler(handler, "core/validatorapi."+endpoint)
 }
 
-// getValidator returns a handler function for the get validators by pubkey or index endpoint.
+// getValidators returns a handler function for the get validators by pubkey or index endpoint.
 func getValidators(p eth2client.ValidatorsProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, body []byte) (any, http.Header, error) {
 		stateID := params["state_id"]
 
-		resp, err := getValidatorsByID(ctx, p, stateID, getValidatorIDs(query)...)
+		// TODO: support 'status' param when go-eth2-client supports it
+		// https://github.com/ObolNetwork/charon/issues/2846
+		ids := getValidatorIDs(query)
+		if len(ids) == 0 && len(body) > 0 {
+			postIDs, err := getValidatorIDsFromJSON(body)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "getting validator ids from request body")
+			}
+
+			ids = postIDs
+		}
+
+		resp, err := getValidatorsByID(ctx, p, stateID, ids...)
 		if err != nil {
 			return nil, nil, err
 		} else if len(resp) == 0 {
@@ -1248,16 +1260,34 @@ func (w proxyResponseWriter) WriteHeader(statusCode int) {
 	w.writeFlusher.WriteHeader(statusCode)
 }
 
-// getValidatorIDs returns validator IDs as "id" query parameters (supporting csv values).
+// getValidatorIDs returns validator IDs as "id" array query parameters.
 func getValidatorIDs(query url.Values) []string {
+	return getQueryArrayParameter(query, "id")
+}
+
+// getQueryArrayParameter returns all array values passed as query parameter (supporting csv values).
+func getQueryArrayParameter(query url.Values, param string) []string {
 	var resp []string
-	for _, csv := range query["id"] {
+	for _, csv := range query[param] {
 		for _, id := range strings.Split(csv, ",") {
 			resp = append(resp, strings.TrimSpace(id))
 		}
 	}
 
 	return resp
+}
+
+// getValidatorIDsFromJSON returns validator IDs as "id" field of json payload.
+func getValidatorIDsFromJSON(b []byte) ([]string, error) {
+	requestBody := struct {
+		IDs []string `json:"ids"`
+	}{}
+
+	if err := json.Unmarshal(b, &requestBody); err != nil {
+		return nil, errors.Wrap(err, "failed to parse request body")
+	}
+
+	return requestBody.IDs, nil
 }
 
 // getValidatorsByID returns the validators with ids being either pubkeys or validator indexes.
