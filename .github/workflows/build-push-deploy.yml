@@ -30,8 +30,8 @@ jobs:
           # Tag "git short sha" on all git events
           type=sha,prefix=
 
-          # Tag "latest" on git-push-to-main-branch events
-          type=raw,value=latest,event=branch,enable={{is_default_branch}}
+          # Tag "latest" on git-tag events
+          type=raw,value=latest,event=tag
 
           # Tag "$APP_VERSION" on git-push-to-branch events
           type=raw,value=${{ env.APP_VERSION }},event=branch
