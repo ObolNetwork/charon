@@ -9,14 +9,17 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/obolnetwork/charon/cmd/combine"
+	"github.com/obolnetwork/charon/eth2util"
 )
 
-func newCombineCmd(runFunc func(ctx context.Context, clusterDir, outputDir string, force, noverify bool) error) *cobra.Command {
+func newCombineCmd(runFunc func(ctx context.Context, clusterDir, outputDir string, force, noverify bool, testnetConfig eth2util.Network) error) *cobra.Command {
 	var (
 		clusterDir string
 		outputDir  string
 		force      bool
 		noverify   bool
+
+		testnetConfig eth2util.Network
 	)
 
 	cmd := &cobra.Command{
@@ -31,6 +34,7 @@ func newCombineCmd(runFunc func(ctx context.Context, clusterDir, outputDir strin
 				outputDir,
 				force,
 				noverify,
+				testnetConfig,
 			)
 		},
 	}
@@ -40,6 +44,7 @@ func newCombineCmd(runFunc func(ctx context.Context, clusterDir, outputDir strin
 		&clusterDir,
 		&outputDir,
 		&force,
+		&testnetConfig,
 	)
 
 	bindNoVerifyFlag(cmd.Flags(), &noverify)
@@ -47,12 +52,16 @@ func newCombineCmd(runFunc func(ctx context.Context, clusterDir, outputDir strin
 	return cmd
 }
 
-func newCombineFunc(ctx context.Context, clusterDir, outputDir string, force, noverify bool) error {
-	return combine.Combine(ctx, clusterDir, outputDir, force, noverify)
+func newCombineFunc(ctx context.Context, clusterDir, outputDir string, force, noverify bool, testnetConfig eth2util.Network) error {
+	return combine.Combine(ctx, clusterDir, outputDir, force, noverify, testnetConfig)
 }
 
-func bindCombineFlags(flags *pflag.FlagSet, clusterDir, outputDir *string, force *bool) {
+func bindCombineFlags(flags *pflag.FlagSet, clusterDir, outputDir *string, force *bool, config *eth2util.Network) {
 	flags.StringVar(clusterDir, "cluster-dir", ".charon/cluster", `Parent directory containing a number of .charon subdirectories from the required threshold of nodes in the cluster.`)
 	flags.StringVar(outputDir, "output-dir", "./validator_keys", "Directory to output the combined private keys to.")
 	flags.BoolVar(force, "force", false, "Overwrites private keys with the same name if present.")
+	flags.StringVar(&config.Name, "testnet-name", "", "Name of the custom test network.")
+	flags.StringVar(&config.GenesisForkVersionHex, "testnet-fork-version", "", "Genesis fork version of the custom test network (in hex).")
+	flags.Uint64Var(&config.ChainID, "testnet-chain-id", 0, "Chain ID of the custom test network.")
+	flags.Int64Var(&config.GenesisTimestamp, "testnet-genesis-timestamp", 0, "Genesis timestamp of the custom test network.")
 }

@@ -65,7 +65,21 @@ func NewForT(t *testing.T, dv, k, n, seed int, random *rand.Rand, opts ...func(*
 		}
 
 		feeRecipientAddr := testutil.RandomETHAddressSeed(random)
-		reg := getSignedRegistration(t, rootSecret, feeRecipientAddr, eth2util.Goerli.Name)
+
+		// get the forkHash to retrieve the network name
+		var def Definition
+		for _, opt := range opts {
+			opt(&def)
+		}
+
+		networkName := eth2util.Goerli.Name
+
+		if len(def.ForkVersion) != 0 {
+			networkName, err = eth2util.ForkVersionToNetwork(def.ForkVersion)
+			require.NoError(t, err)
+		}
+
+		reg := getSignedRegistration(t, rootSecret, feeRecipientAddr, networkName)
 
 		vals = append(vals, DistValidator{
 			PubKey:              rootPublic[:],
