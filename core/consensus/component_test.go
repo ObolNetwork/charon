@@ -5,6 +5,7 @@ package consensus_test
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"testing"
 
 	"github.com/libp2p/go-libp2p"
@@ -65,7 +66,9 @@ func TestComponent(t *testing.T) {
 // Note it only instantiates the minimum amount of peers, ie threshold.
 func testComponent(t *testing.T, threshold, nodes int) {
 	t.Helper()
-	lock, p2pkeys, _ := cluster.NewForT(t, 1, threshold, nodes, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, p2pkeys, _ := cluster.NewForT(t, 1, threshold, nodes, seed, random)
 
 	var (
 		peers       []p2p.Peer

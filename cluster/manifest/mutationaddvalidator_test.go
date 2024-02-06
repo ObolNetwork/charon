@@ -5,6 +5,7 @@ package manifest_test
 import (
 	"encoding/hex"
 	"encoding/json"
+	"math/rand"
 	"os"
 	"testing"
 
@@ -68,8 +69,9 @@ func TestAddValidators(t *testing.T) {
 	setIncrementingTime(t)
 
 	nodes := 4
-	lock, secrets, _ := cluster.NewForT(t, 3, 3, nodes, 1)
-
+	seed := 1
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, secrets, _ := cluster.NewForT(t, 3, 3, nodes, seed, random)
 	// Convert validators into manifest.Validator
 	var vals []*manifestpb.Validator
 	for i, validator := range lock.Validators {
@@ -78,8 +80,7 @@ func TestAddValidators(t *testing.T) {
 
 		vals = append(vals, val)
 	}
-
-	genVals, err := manifest.NewGenValidators(testutil.RandomBytes32(), vals)
+	genVals, err := manifest.NewGenValidators(testutil.RandomBytes32Seed(random), vals)
 	require.NoError(t, err)
 	genHash, err := manifest.Hash(genVals)
 	testutil.RequireNoError(t, err)
