@@ -37,6 +37,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `cluster_validators` | Gauge | Number of validators in the cluster lock |  |
 | `core_bcast_broadcast_delay_seconds` | Histogram | Duty broadcast delay from start of slot in seconds by type | `duty` |
 | `core_bcast_broadcast_total` | Counter | The total count of successfully broadcast duties by type | `duty` |
+| `core_bcast_recast_errors_rate` | Gauge | The rate (percent) of failed recasted registrations by source; `pregen` vs `downstream` | `source` |
 | `core_bcast_recast_errors_total` | Counter | The total count of failed recasted registrations by source; `pregen` vs `downstream` | `source` |
 | `core_bcast_recast_registration_total` | Counter | The total number of unique validator registration stored in recaster per pubkey | `pubkey` |
 | `core_bcast_recast_total` | Counter | The total count of recasted registrations by source; `pregen` vs `downstream` | `source` |
