@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -142,6 +141,8 @@ func (r *Recaster) SlotTicked(ctx context.Context, slot core.Slot) error {
 	}
 	r.mu.Unlock()
 
+	var pregenRate, downstreamRate rate
+
 	for duty, set := range clonedSets {
 		dutyCtx := log.WithCtx(ctx, z.Any("duty", duty))
 
@@ -149,25 +150,44 @@ func (r *Recaster) SlotTicked(ctx context.Context, slot core.Slot) error {
 			err := sub(dutyCtx, duty, set)
 			if err != nil {
 				log.Error(dutyCtx, "Rebroadcast duty error (will retry next epoch)", err)
-				incRegCounter(duty, recastErrors)
+				updateRecastErrors(duty, &pregenRate, &downstreamRate)
 			}
-			incRegCounter(duty, recastTotal)
+			updateRecastTotal(duty, &pregenRate, &downstreamRate)
 		}
 	}
+
+	recastErrorsRate.WithLabelValues(regSourcePregen).Set(pregenRate.getRate())
+	recastErrorsRate.WithLabelValues(regSourceDownstream).Set(downstreamRate.getRate())
 
 	return nil
 }
 
-// incRegCounter increments the registration counter if applicable.
-func incRegCounter(duty core.Duty, counterVec *prometheus.CounterVec) {
+// updateRecastTotal() increments recastTotal counter, sets pregenRate or downstreamRate gagues.
+func updateRecastTotal(duty core.Duty, pregenRate, downstreamRate *rate) {
 	if duty.Type != core.DutyBuilderRegistration {
 		return
 	}
 
-	source := regSourcePregen
 	if duty.Slot > 0 {
-		source = regSourceDownstream
+		recastTotal.WithLabelValues(regSourceDownstream).Inc()
+		downstreamRate.incrementTotal()
+	} else {
+		recastTotal.WithLabelValues(regSourcePregen).Inc()
+		pregenRate.incrementTotal()
+	}
+}
+
+// updateRecastErrors() increments recastErrors counter, sets pregenRate or downstreamRate gagues.
+func updateRecastErrors(duty core.Duty, pregenRate, downstreamRate *rate) {
+	if duty.Type != core.DutyBuilderRegistration {
+		return
 	}
 
-	counterVec.WithLabelValues(source).Inc()
+	if duty.Slot > 0 {
+		recastErrors.WithLabelValues(regSourceDownstream).Inc()
+		downstreamRate.incrementCount()
+	} else {
+		recastErrors.WithLabelValues(regSourcePregen).Inc()
+		pregenRate.incrementCount()
+	}
 }

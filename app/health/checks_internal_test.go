@@ -330,6 +330,59 @@ func TestWarnLogsCheck(t *testing.T) {
 	})
 }
 
+func TestHighRegistrationFailuresRateCheck(t *testing.T) {
+	m := Metadata{}
+	checkName := "high_registration_failures_rate"
+	metricName := "core_bcast_recast_errors_rate"
+	pregenLabel := genLabels("source", "pregen")
+	downsteamLabel := genLabels("source", "downstream")
+
+	t.Run("no data", func(t *testing.T) {
+		testCheck(t, m, checkName, false, nil)
+	})
+
+	t.Run("pregen below threshold", func(t *testing.T) {
+		testCheck(t, m, checkName, false,
+			genFam(metricName,
+				genGauge(pregenLabel, 0, 10, 69), // Not exceeding 70%
+			),
+		)
+	})
+
+	t.Run("downstream below threshold", func(t *testing.T) {
+		testCheck(t, m, checkName, false,
+			genFam(metricName,
+				genGauge(downsteamLabel, 0, 10, 69), // Not exceeding 70%
+			),
+		)
+	})
+
+	t.Run("pregen above threshold", func(t *testing.T) {
+		testCheck(t, m, checkName, true,
+			genFam(metricName,
+				genGauge(pregenLabel, 0, 10, 71), // Exceeding 70%
+			),
+		)
+	})
+
+	t.Run("downstream above threshold", func(t *testing.T) {
+		testCheck(t, m, checkName, true,
+			genFam(metricName,
+				genGauge(downsteamLabel, 0, 10, 71), // Exceeding 70%
+			),
+		)
+	})
+
+	t.Run("both above threshold", func(t *testing.T) {
+		testCheck(t, m, checkName, true,
+			genFam(metricName,
+				genGauge(pregenLabel, 0, 75, 80),
+				genGauge(downsteamLabel, 0, 90, 95),
+			),
+		)
+	})
+}
+
 func testCheck(t *testing.T, m Metadata, checkName string, expect bool, metrics []*pb.MetricFamily) {
 	t.Helper()
 

@@ -123,6 +123,19 @@ var checks = []check{
 			return increase > 0, nil
 		},
 	},
+	{
+		Name:        "high_registration_failures_rate",
+		Description: "High rate of failed registrations. Please check the logs for more details.",
+		Severity:    severityWarning,
+		Func: func(q query, m Metadata) (bool, error) {
+			max, err := q("core_bcast_recast_errors_rate", sumLabels(), gaugeMax)
+			if err != nil {
+				return false, err
+			}
+
+			return max >= 70, nil // Warning is triggering upon reaching 70% threshold
+		},
+	},
 }
 
 // l is a concise convenience function to create a label pair.

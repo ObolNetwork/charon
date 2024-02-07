@@ -47,6 +47,13 @@ var (
 		Name:      "recast_errors_total",
 		Help:      "The total count of failed recasted registrations by source; 'pregen' vs 'downstream'",
 	}, []string{"source"})
+
+	recastErrorsRate = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "core",
+		Subsystem: "bcast",
+		Name:      "recast_errors_rate",
+		Help:      "The rate (percent) of failed recasted registrations by source; 'pregen' vs 'downstream'",
+	}, []string{"source"})
 )
 
 // instrumentDuty increments the duty counter.
