@@ -50,6 +50,11 @@ func (r *errorsRate) incrementErrors(duty core.Duty) {
 
 // updateMetrics() updates metrics if a rate reached the threshold.
 func (r *errorsRate) updateMetrics() {
+	recastTotal.WithLabelValues(regSourcePregen).Add(float64(r.pregenState.total))
+	recastErrors.WithLabelValues(regSourcePregen).Add(float64(r.pregenState.errors))
+	recastTotal.WithLabelValues(regSourceDownstream).Add(float64(r.downstreamState.total))
+	recastErrors.WithLabelValues(regSourceDownstream).Add(float64(r.downstreamState.errors))
+
 	currentPregenRate := calculateRate(r.pregenState)
 	currentDownstreamRate := calculateRate(r.downstreamState)
 
@@ -66,8 +71,12 @@ func (r *errorsRate) updateMetrics() {
 		recastErrorsRate.WithLabelValues(regSourceDownstream).Set(0)
 	}
 
-	r.pregenState.prevRate = currentPregenRate
-	r.downstreamState.prevRate = currentDownstreamRate
+	r.pregenState = rateState{
+		prevRate: currentPregenRate,
+	}
+	r.downstreamState = rateState{
+		prevRate: currentDownstreamRate,
+	}
 }
 
 // calculateRate() returns the calculated rate in percent for given values.

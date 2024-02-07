@@ -90,13 +90,33 @@ func TestErrorsRate_UpdateMetrics(t *testing.T) {
 		tracker.updateMetrics()
 
 		expectedMetric := `
-# HELP core_bcast_recast_errors_rate The rate (percent) of failed recasted registrations by source; 'pregen' vs 'downstream'
-# TYPE core_bcast_recast_errors_rate gauge
-core_bcast_recast_errors_rate{source="downstream"} 80
-core_bcast_recast_errors_rate{source="pregen"} 80
+		# HELP core_bcast_recast_errors_rate The rate (percent) of failed recasted registrations by source; 'pregen' vs 'downstream'
+		# TYPE core_bcast_recast_errors_rate gauge
+		core_bcast_recast_errors_rate{source="downstream"} 80
+		core_bcast_recast_errors_rate{source="pregen"} 80
 		`
 
 		err := promtest.CollectAndCompare(recastErrorsRate, bytes.NewReader([]byte(expectedMetric)), "core_bcast_recast_errors_rate")
+		require.NoError(t, err)
+
+		expectedMetric = `
+		# HELP core_bcast_recast_total The total count of recasted registrations by source; 'pregen' vs 'downstream'
+		# TYPE core_bcast_recast_total counter
+		core_bcast_recast_total{source="downstream"} 2000
+		core_bcast_recast_total{source="pregen"} 2000
+				`
+
+		err = promtest.CollectAndCompare(recastTotal, bytes.NewReader([]byte(expectedMetric)), "core_bcast_recast_total")
+		require.NoError(t, err)
+
+		expectedMetric = `
+		# HELP core_bcast_recast_errors_total The total count of failed recasted registrations by source; 'pregen' vs 'downstream'
+		# TYPE core_bcast_recast_errors_total counter
+		core_bcast_recast_errors_total{source="downstream"} 1600
+		core_bcast_recast_errors_total{source="pregen"} 1600
+				`
+
+		err = promtest.CollectAndCompare(recastErrors, bytes.NewReader([]byte(expectedMetric)), "core_bcast_recast_errors_total")
 		require.NoError(t, err)
 	})
 }
