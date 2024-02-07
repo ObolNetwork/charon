@@ -44,6 +44,7 @@ type Recaster struct {
 	tuples         map[core.PubKey]recastTuple
 	activeValsFunc func(context.Context) (map[eth2p0.BLSPubKey]struct{}, error)
 	subs           []func(context.Context, core.Duty, core.SignedDataSet) error
+	errRateTracker errorsRate
 }
 
 // Subscribe subscribes to rebroadcasted duties.
@@ -141,8 +142,6 @@ func (r *Recaster) SlotTicked(ctx context.Context, slot core.Slot) error {
 	}
 	r.mu.Unlock()
 
-	var pregenRate, downstreamRate rate
-
 	for duty, set := range clonedSets {
 		dutyCtx := log.WithCtx(ctx, z.Any("duty", duty))
 
@@ -150,44 +149,13 @@ func (r *Recaster) SlotTicked(ctx context.Context, slot core.Slot) error {
 			err := sub(dutyCtx, duty, set)
 			if err != nil {
 				log.Error(dutyCtx, "Rebroadcast duty error (will retry next epoch)", err)
-				updateRecastErrors(duty, &pregenRate, &downstreamRate)
+				r.errRateTracker.incrementErrors(duty)
 			}
-			updateRecastTotal(duty, &pregenRate, &downstreamRate)
+			r.errRateTracker.incrementTotal(duty)
 		}
 	}
 
-	recastErrorsRate.WithLabelValues(regSourcePregen).Set(pregenRate.getRate())
-	recastErrorsRate.WithLabelValues(regSourceDownstream).Set(downstreamRate.getRate())
+	r.errRateTracker.updateMetrics()
 
 	return nil
-}
-
-// updateRecastTotal() increments recastTotal counter, sets pregenRate or downstreamRate gagues.
-func updateRecastTotal(duty core.Duty, pregenRate, downstreamRate *rate) {
-	if duty.Type != core.DutyBuilderRegistration {
-		return
-	}
-
-	if duty.Slot > 0 {
-		recastTotal.WithLabelValues(regSourceDownstream).Inc()
-		downstreamRate.incrementTotal()
-	} else {
-		recastTotal.WithLabelValues(regSourcePregen).Inc()
-		pregenRate.incrementTotal()
-	}
-}
-
-// updateRecastErrors() increments recastErrors counter, sets pregenRate or downstreamRate gagues.
-func updateRecastErrors(duty core.Duty, pregenRate, downstreamRate *rate) {
-	if duty.Type != core.DutyBuilderRegistration {
-		return
-	}
-
-	if duty.Slot > 0 {
-		recastErrors.WithLabelValues(regSourceDownstream).Inc()
-		downstreamRate.incrementCount()
-	} else {
-		recastErrors.WithLabelValues(regSourcePregen).Inc()
-		pregenRate.incrementCount()
-	}
 }

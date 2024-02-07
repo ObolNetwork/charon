@@ -4,6 +4,8 @@ package health
 
 import (
 	pb "github.com/prometheus/client_model/go"
+
+	"github.com/obolnetwork/charon/core/bcast"
 )
 
 // severity is the severity of a health check.
@@ -133,7 +135,7 @@ var checks = []check{
 				return false, err
 			}
 
-			return max >= 70, nil // Warning is triggering upon reaching 70% threshold
+			return max >= bcast.RegistrationErrorsRateThreshold, nil // Warning is triggering upon reaching the given threshold
 		},
 	},
 }
