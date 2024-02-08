@@ -127,7 +127,7 @@ var checks = []check{
 	},
 	{
 		Name:        "high_registration_failures_rate",
-		Description: "High rate of failed registrations. Please check the logs for more details.",
+		Description: "High rate of failed validator registrations. Please check the logs for more details.",
 		Severity:    severityWarning,
 		Func: func(q query, m Metadata) (bool, error) {
 			max, err := q("core_bcast_recast_errors_rate", sumLabels(), gaugeMax)
