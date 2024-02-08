@@ -590,9 +590,11 @@ func TestRouter(t *testing.T) {
 		server := httptest.NewServer(r)
 		defer server.Close()
 
+		endpointURL := fmt.Sprintf("%s/eth/v1/node/version", server.URL)
+
 		// node_version is a GET-only endpoint, we expect it to fail
 		resp, err := http.Post(
-			fmt.Sprintf("%s/eth/v1/node/version", server.URL),
+			endpointURL,
 			"application/json",
 			bytes.NewReader([]byte("{}")),
 		)
@@ -604,6 +606,25 @@ func TestRouter(t *testing.T) {
 			http.StatusNotFound,
 			resp.StatusCode,
 		)
+
+		// use the right http method and expect a response, and status code 200
+		resp, err = http.Get(endpointURL)
+		require.NoError(t, err)
+
+		require.Equal(
+			t,
+			http.StatusOK,
+			resp.StatusCode,
+		)
+
+		data, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		defer func() {
+			_ = resp.Body.Close()
+		}()
+
+		require.NotEmpty(t, data)
 	})
 
 	t.Run("attesterduty", func(t *testing.T) {
