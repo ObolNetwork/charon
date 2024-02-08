@@ -135,7 +135,7 @@ var checks = []check{
 				return false, err
 			}
 
-			return max >= bcast.RegistrationErrorsRateThreshold, nil // Warning is triggering upon reaching the given threshold
+			return max >= float64(bcast.RegistrationErrorsRateThreshold), nil
 		},
 	},
 }

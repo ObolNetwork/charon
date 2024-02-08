@@ -28,8 +28,8 @@ func TestErrorsRate_IncrementTotal(t *testing.T) {
 		Type: core.DutyAggregator, // Shall be ignored
 	})
 
-	require.Equal(t, 1, tracker.pregenState.total)
-	require.Equal(t, 1, tracker.downstreamState.total)
+	require.EqualValues(t, 1, tracker.pregenState.total.Load())
+	require.EqualValues(t, 1, tracker.downstreamState.total.Load())
 }
 
 func TestErrorsRate_IncrementErrors(t *testing.T) {
@@ -48,24 +48,19 @@ func TestErrorsRate_IncrementErrors(t *testing.T) {
 		Type: core.DutyAggregator, // Shall be ignored
 	})
 
-	require.Equal(t, 1, tracker.pregenState.errors)
-	require.Equal(t, 1, tracker.downstreamState.errors)
+	require.EqualValues(t, 1, tracker.pregenState.errors.Load())
+	require.EqualValues(t, 1, tracker.downstreamState.errors.Load())
 }
 
 func TestErrorsRate_UpdateMetrics(t *testing.T) {
 	t.Run("low previous rate", func(t *testing.T) {
-		tracker := errorsRate{
-			pregenState: rateState{
-				total:    1000,
-				errors:   800,
-				prevRate: 10,
-			},
-			downstreamState: rateState{
-				total:    1000,
-				errors:   800,
-				prevRate: 10,
-			},
-		}
+		tracker := errorsRate{}
+		tracker.pregenState.total.Store(1000)
+		tracker.pregenState.errors.Store(800)
+		tracker.pregenState.prevRate.Store(10)
+		tracker.downstreamState.total.Store(1000)
+		tracker.downstreamState.errors.Store(800)
+		tracker.downstreamState.prevRate.Store(10)
 
 		tracker.updateMetrics() // Metric must not be populated
 
@@ -74,18 +69,13 @@ func TestErrorsRate_UpdateMetrics(t *testing.T) {
 	})
 
 	t.Run("high previous rate", func(t *testing.T) {
-		tracker := errorsRate{
-			pregenState: rateState{
-				total:    1000,
-				errors:   800,
-				prevRate: 71,
-			},
-			downstreamState: rateState{
-				total:    1000,
-				errors:   800,
-				prevRate: 90,
-			},
-		}
+		tracker := errorsRate{}
+		tracker.pregenState.total.Store(1000)
+		tracker.pregenState.errors.Store(800)
+		tracker.pregenState.prevRate.Store(71)
+		tracker.downstreamState.total.Store(1000)
+		tracker.downstreamState.errors.Store(800)
+		tracker.downstreamState.prevRate.Store(90)
 
 		tracker.updateMetrics()
 
