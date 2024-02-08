@@ -137,6 +137,12 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client) (*mux.Rou
 			Methods: []string{http.MethodGet},
 		},
 		{
+			Name:    "propose_block_v3",
+			Path:    "/eth/v3/validator/blocks/{slot}",
+			Handler: proposeBlockV3(),
+			Methods: []string{http.MethodGet},
+		},
+		{
 			Name:    "submit_proposal_v1",
 			Path:    "/eth/v1/beacon/blocks",
 			Handler: submitProposal(h),
@@ -351,6 +357,17 @@ func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, 
 // wrapTrace wraps the passed handler in a OpenTelemetry tracing span.
 func wrapTrace(endpoint string, handler http.HandlerFunc) http.Handler {
 	return otelhttp.NewHandler(handler, "core/validatorapi."+endpoint)
+}
+
+// proposeBlockV3 returns a handler function which receives the randao from the validator and returns an unsigned
+// BeaconBlock or BlindedBeaconBlock.
+func proposeBlockV3() handlerFunc {
+	return func(context.Context, map[string]string, url.Values, contentType, []byte) (res any, headers http.Header, err error) {
+		return nil, nil, apiError{
+			StatusCode: 404,
+			Message:    "endpoint not supported",
+		}
+	}
 }
 
 // getValidators returns a handler function for the get validators by pubkey or index endpoint.
