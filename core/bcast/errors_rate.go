@@ -86,9 +86,10 @@ func (r *errorsRate) updateMetrics() {
 
 // calculateRate() returns the calculated rate in percent for given values.
 func calculateRate(state *rateState) int32 {
-	if state.total.Load() == 0 {
+	total := state.total.Load()
+	if total == 0 {
 		return 0
 	}
 
-	return state.errors.Load() * 100 / state.total.Load()
+	return state.errors.Load() * 100 / total
 }
