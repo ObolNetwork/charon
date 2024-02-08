@@ -140,6 +140,7 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client) (*mux.Rou
 			Name:    "propose_block_v3",
 			Path:    "/eth/v3/validator/blocks/{slot}",
 			Handler: proposeBlockV3(),
+			Methods: []string{http.MethodGet},
 		},
 		{
 			Name:    "submit_proposal_v1",
