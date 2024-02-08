@@ -86,142 +86,172 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client) (*mux.Rou
 		Name    string
 		Path    string
 		Handler handlerFunc
+		Methods []string
 	}{
 		{
 			Name:    "attester_duties",
 			Path:    "/eth/v1/validator/duties/attester/{epoch}",
 			Handler: attesterDuties(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "proposer_duties",
 			Path:    "/eth/v1/validator/duties/proposer/{epoch}",
 			Handler: proposerDuties(h),
+			Methods: []string{http.MethodGet},
 		},
 		{
 			Name:    "sync_committee_duties",
 			Path:    "/eth/v1/validator/duties/sync/{epoch}",
 			Handler: syncCommitteeDuties(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "attestation_data",
 			Path:    "/eth/v1/validator/attestation_data",
 			Handler: attestationData(h),
+			Methods: []string{http.MethodGet},
 		},
 		{
 			Name:    "submit_attestations",
 			Path:    "/eth/v1/beacon/pool/attestations",
 			Handler: submitAttestations(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "get_validators",
 			Path:    "/eth/v1/beacon/states/{state_id}/validators",
 			Handler: getValidators(h),
+			Methods: []string{http.MethodPost, http.MethodGet},
 		},
 		{
 			Name:    "get_validator",
 			Path:    "/eth/v1/beacon/states/{state_id}/validators/{validator_id}",
 			Handler: getValidator(h),
+			Methods: []string{http.MethodGet},
 		},
 		{
 			Name:    "propose_block",
 			Path:    "/eth/v2/validator/blocks/{slot}",
 			Handler: proposeBlock(h),
+			Methods: []string{http.MethodGet},
 		},
 		{
 			Name:    "submit_proposal_v1",
 			Path:    "/eth/v1/beacon/blocks",
 			Handler: submitProposal(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "submit_proposal_v2",
 			Path:    "/eth/v2/beacon/blocks",
 			Handler: submitProposal(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "propose_blinded_block",
 			Path:    "/eth/v1/validator/blinded_blocks/{slot}",
 			Handler: proposeBlindedBlock(h),
+			Methods: []string{http.MethodGet},
 		},
 		{
 			Name:    "submit_blinded_block_v1",
 			Path:    "/eth/v1/beacon/blinded_blocks",
 			Handler: submitBlindedBlock(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "submit_blinded_block_v2",
 			Path:    "/eth/v2/beacon/blinded_blocks",
 			Handler: submitBlindedBlock(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "submit_validator_registration",
 			Path:    "/eth/v1/validator/register_validator",
 			Handler: submitValidatorRegistrations(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "submit_voluntary_exit",
 			Path:    "/eth/v1/beacon/pool/voluntary_exits",
 			Handler: submitExit(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "teku_proposer_config",
 			Path:    "/teku_proposer_config",
 			Handler: proposerConfig(h),
+			Methods: []string{http.MethodGet},
 		},
 		{
 			Name:    "proposer_config",
 			Path:    "/proposer_config",
 			Handler: proposerConfig(h),
+			Methods: []string{http.MethodGet},
 		},
 		{
 			Name:    "aggregate_beacon_committee_selections",
 			Path:    "/eth/v1/validator/beacon_committee_selections",
 			Handler: aggregateBeaconCommitteeSelections(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "aggregate_attestation",
 			Path:    "/eth/v1/validator/aggregate_attestation",
 			Handler: aggregateAttestation(h),
+			Methods: []string{http.MethodGet},
 		},
 		{
 			Name:    "submit_aggregate_and_proofs",
 			Path:    "/eth/v1/validator/aggregate_and_proofs",
 			Handler: submitAggregateAttestations(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "submit_sync_committee_messages",
 			Path:    "/eth/v1/beacon/pool/sync_committees",
 			Handler: submitSyncCommitteeMessages(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "sync_committee_contribution",
 			Path:    "/eth/v1/validator/sync_committee_contribution",
 			Handler: syncCommitteeContribution(h),
+			Methods: []string{http.MethodGet},
 		},
 		{
 			Name:    "submit_contribution_and_proofs",
 			Path:    "/eth/v1/validator/contribution_and_proofs",
 			Handler: submitContributionAndProofs(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "submit_proposal_preparations",
 			Path:    "/eth/v1/validator/prepare_beacon_proposer",
 			Handler: submitProposalPreparations(),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "aggregate_sync_committee_selections",
 			Path:    "/eth/v1/validator/sync_committee_selections",
 			Handler: aggregateSyncCommitteeSelections(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "node_version",
 			Path:    "/eth/v1/node/version",
 			Handler: nodeVersion(h),
+			Methods: []string{http.MethodGet},
 		},
 	}
 
 	r := mux.NewRouter()
 	for _, e := range endpoints {
-		r.Handle(e.Path, wrap(e.Name, e.Handler))
+		handler := r.Handle(e.Path, wrap(e.Name, e.Handler))
+		if len(e.Methods) != 0 {
+			handler.Methods(e.Methods...)
+		}
 	}
 
 	// Everything else is proxied
