@@ -12,8 +12,8 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-func TestErrorsRate_IncrementTotal(t *testing.T) {
-	var tracker errorsRate
+func TestBuilderRegistrationErrorsRate_IncrementTotal(t *testing.T) {
+	var tracker builderRegistrationErrorsRate
 
 	tracker.incrementTotal(core.Duty{
 		Slot: 0, // Pregen
@@ -32,8 +32,8 @@ func TestErrorsRate_IncrementTotal(t *testing.T) {
 	require.EqualValues(t, 1, tracker.downstreamState.total.Load())
 }
 
-func TestErrorsRate_IncrementErrors(t *testing.T) {
-	var tracker errorsRate
+func TestBuilderRegistrationErrorsRate_IncrementErrors(t *testing.T) {
+	var tracker builderRegistrationErrorsRate
 
 	tracker.incrementErrors(core.Duty{
 		Slot: 0, // Pregen
@@ -52,9 +52,9 @@ func TestErrorsRate_IncrementErrors(t *testing.T) {
 	require.EqualValues(t, 1, tracker.downstreamState.errors.Load())
 }
 
-func TestErrorsRate_UpdateMetrics(t *testing.T) {
+func TestBuilderRegistrationErrorsRate_UpdateMetrics(t *testing.T) {
 	t.Run("low previous rate", func(t *testing.T) {
-		tracker := errorsRate{}
+		tracker := builderRegistrationErrorsRate{}
 		tracker.pregenState.total.Store(1000)
 		tracker.pregenState.errors.Store(800)
 		tracker.pregenState.prevRate.Store(10)
@@ -69,7 +69,7 @@ func TestErrorsRate_UpdateMetrics(t *testing.T) {
 	})
 
 	t.Run("high previous rate", func(t *testing.T) {
-		tracker := errorsRate{}
+		tracker := builderRegistrationErrorsRate{}
 		tracker.pregenState.total.Store(1000)
 		tracker.pregenState.errors.Store(800)
 		tracker.pregenState.prevRate.Store(71)

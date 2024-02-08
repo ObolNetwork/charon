@@ -9,12 +9,12 @@ import (
 )
 
 const (
-	// RegistrationErrorsRateThreshold defines the threshold for registration errors rate.
-	RegistrationErrorsRateThreshold int32 = 70
+	// BuilderRegistrationErrorsRateThreshold defines the threshold for registration errors rate.
+	BuilderRegistrationErrorsRateThreshold int32 = 70
 )
 
-// errorsRate object tracks registration errors rate within the last two epochs and updates metrics.
-type errorsRate struct {
+// builderRegistrationErrorsRate object tracks registration errors rate within the last two epochs and updates metrics.
+type builderRegistrationErrorsRate struct {
 	pregenState     rateState
 	downstreamState rateState
 }
@@ -27,7 +27,7 @@ type rateState struct {
 }
 
 // incrementTotal() increments the total counters.
-func (r *errorsRate) incrementTotal(duty core.Duty) {
+func (r *builderRegistrationErrorsRate) incrementTotal(duty core.Duty) {
 	if duty.Type != core.DutyBuilderRegistration {
 		return
 	}
@@ -40,7 +40,7 @@ func (r *errorsRate) incrementTotal(duty core.Duty) {
 }
 
 // incrementErrors() increments the error counters.
-func (r *errorsRate) incrementErrors(duty core.Duty) {
+func (r *builderRegistrationErrorsRate) incrementErrors(duty core.Duty) {
 	if duty.Type != core.DutyBuilderRegistration {
 		return
 	}
@@ -53,7 +53,7 @@ func (r *errorsRate) incrementErrors(duty core.Duty) {
 }
 
 // updateMetrics() updates metrics if a rate reached the threshold.
-func (r *errorsRate) updateMetrics() {
+func (r *builderRegistrationErrorsRate) updateMetrics() {
 	recastTotal.WithLabelValues(regSourcePregen).Add(float64(r.pregenState.total.Load()))
 	recastErrors.WithLabelValues(regSourcePregen).Add(float64(r.pregenState.errors.Load()))
 	recastTotal.WithLabelValues(regSourceDownstream).Add(float64(r.downstreamState.total.Load()))
@@ -63,13 +63,13 @@ func (r *errorsRate) updateMetrics() {
 	currentDownstreamRate := calculateRate(&r.downstreamState)
 
 	// We want to be tolerant of the request failing in a single epoch, and warn when it happens for two consecutive epochs.
-	if r.pregenState.prevRate.Load() >= RegistrationErrorsRateThreshold && currentPregenRate >= RegistrationErrorsRateThreshold {
+	if r.pregenState.prevRate.Load() >= BuilderRegistrationErrorsRateThreshold && currentPregenRate >= BuilderRegistrationErrorsRateThreshold {
 		recastErrorsRate.WithLabelValues(regSourcePregen).Set(float64(currentPregenRate))
 	} else {
 		recastErrorsRate.WithLabelValues(regSourcePregen).Set(0)
 	}
 
-	if r.downstreamState.prevRate.Load() >= RegistrationErrorsRateThreshold && currentDownstreamRate >= RegistrationErrorsRateThreshold {
+	if r.downstreamState.prevRate.Load() >= BuilderRegistrationErrorsRateThreshold && currentDownstreamRate >= BuilderRegistrationErrorsRateThreshold {
 		recastErrorsRate.WithLabelValues(regSourceDownstream).Set(float64(currentDownstreamRate))
 	} else {
 		recastErrorsRate.WithLabelValues(regSourceDownstream).Set(0)

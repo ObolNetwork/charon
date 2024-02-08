@@ -44,7 +44,7 @@ type Recaster struct {
 	tuples         map[core.PubKey]recastTuple
 	activeValsFunc func(context.Context) (map[eth2p0.BLSPubKey]struct{}, error)
 	subs           []func(context.Context, core.Duty, core.SignedDataSet) error
-	errRateTracker errorsRate
+	errRateTracker builderRegistrationErrorsRate
 }
 
 // Subscribe subscribes to rebroadcasted duties.

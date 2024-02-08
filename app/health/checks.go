@@ -135,7 +135,7 @@ var checks = []check{
 				return false, err
 			}
 
-			return max >= float64(bcast.RegistrationErrorsRateThreshold), nil
+			return max >= float64(bcast.BuilderRegistrationErrorsRateThreshold), nil
 		},
 	},
 }
