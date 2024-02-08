@@ -750,7 +750,7 @@ func proposeBlindedBlock(p eth2client.BlindedProposalProvider) handlerFunc {
 			}
 
 			return proposeBlindedBlockResponseBellatrix{
-				Version: "BELLATRIX",
+				Version: eth2spec.DataVersionBellatrix.String(),
 				Data:    block.Bellatrix,
 			}, resHeaders, nil
 		case eth2spec.DataVersionCapella:
@@ -759,7 +759,7 @@ func proposeBlindedBlock(p eth2client.BlindedProposalProvider) handlerFunc {
 			}
 
 			return proposeBlindedBlockResponseCapella{
-				Version: "CAPELLA",
+				Version: eth2spec.DataVersionCapella.String(),
 				Data:    block.Capella,
 			}, resHeaders, nil
 		case eth2spec.DataVersionDeneb:
@@ -768,7 +768,7 @@ func proposeBlindedBlock(p eth2client.BlindedProposalProvider) handlerFunc {
 			}
 
 			return proposeBlindedBlockResponseDeneb{
-				Version: "DENEB",
+				Version: eth2spec.DataVersionDeneb.String(),
 				Data:    block.Deneb,
 			}, resHeaders, nil
 		default:
