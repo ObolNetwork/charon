@@ -25,7 +25,7 @@ import (
 // It also returns the peer p2p keys and BLS secret shares. If the seed is zero a random cluster on available loopback
 // ports is generated, else a deterministic cluster is generated.
 // Note this is not defined in testutil since it is tightly coupled with the cluster package.
-func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock, []*k1.PrivateKey, [][]tbls.PrivateKey) {
+func NewForT(t *testing.T, dv, k, n, seed int, random *rand.Rand, opts ...func(*Definition)) (Lock, []*k1.PrivateKey, [][]tbls.PrivateKey) {
 	t.Helper()
 
 	var (
@@ -35,22 +35,20 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 		dvShares [][]tbls.PrivateKey
 	)
 
-	random := io.Reader(rand.New(rand.NewSource(int64(seed)))) //nolint:gosec // Explicit use of weak random generator for determinism.
+	randomReader := io.Reader(rand.New(rand.NewSource(int64(seed)))) //nolint:gosec // Explicit use of weak random generator for determinism.
 	if seed == 0 {
-		random = crand.Reader
-	} else {
-		rand.Seed(int64(seed))
+		randomReader = crand.Reader
 	}
 
 	var feeRecipientAddrs, withdrawalAddrs []string
 	for i := 0; i < dv; i++ {
-		rootSecret, err := tbls.GenerateInsecureKey(t, random)
+		rootSecret, err := tbls.GenerateInsecureKey(t, randomReader)
 		require.NoError(t, err)
 
 		rootPublic, err := tbls.SecretToPublicKey(rootSecret)
 		require.NoError(t, err)
 
-		shares, err := tbls.ThresholdSplitInsecure(t, rootSecret, uint(n), uint(k), random)
+		shares, err := tbls.ThresholdSplitInsecure(t, rootSecret, uint(n), uint(k), randomReader)
 		require.NoError(t, err)
 
 		var pubshares [][]byte
@@ -66,8 +64,22 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 			privshares = append(privshares, sharePrivkey)
 		}
 
-		feeRecipientAddr := testutil.RandomETHAddress()
-		reg := getSignedRegistration(t, rootSecret, feeRecipientAddr, eth2util.Goerli.Name)
+		feeRecipientAddr := testutil.RandomETHAddressSeed(random)
+
+		// get the forkHash to retrieve the network name
+		var def Definition
+		for _, opt := range opts {
+			opt(&def)
+		}
+
+		networkName := eth2util.Goerli.Name
+
+		if len(def.ForkVersion) != 0 {
+			networkName, err = eth2util.ForkVersionToNetwork(def.ForkVersion)
+			require.NoError(t, err)
+		}
+
+		reg := getSignedRegistration(t, rootSecret, feeRecipientAddr, networkName)
 
 		vals = append(vals, DistValidator{
 			PubKey:              rootPublic[:],
@@ -76,7 +88,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 		})
 		dvShares = append(dvShares, privshares)
 		feeRecipientAddrs = append(feeRecipientAddrs, feeRecipientAddr)
-		withdrawalAddrs = append(withdrawalAddrs, testutil.RandomETHAddress())
+		withdrawalAddrs = append(withdrawalAddrs, testutil.RandomETHAddressSeed(random))
 	}
 
 	for i := 0; i < n; i++ {
@@ -104,7 +116,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, opts ...func(*Definition)) (Lock,
 
 	def, err := NewDefinition("test cluster", dv, k,
 		feeRecipientAddrs, withdrawalAddrs,
-		eth2util.Goerli.GenesisForkVersionHex, creator, ops, nil, random, opts...)
+		eth2util.Goerli.GenesisForkVersionHex, creator, ops, nil, randomReader, opts...)
 	require.NoError(t, err)
 
 	// Definition version prior to v1.3.0 don't support EIP712 signatures.
@@ -189,17 +201,22 @@ func getSignedRegistration(t *testing.T, secret tbls.PrivateKey, feeRecipientAdd
 // RandomRegistration returns a random builder registration.
 func RandomRegistration(t *testing.T, network string) BuilderRegistration {
 	t.Helper()
+	return RandomRegistrationSeed(t, network, testutil.NewSeedRand())
+}
+
+func RandomRegistrationSeed(t *testing.T, network string, r *rand.Rand) BuilderRegistration {
+	t.Helper()
 
 	timestamp, err := eth2util.NetworkToGenesisTime(network)
 	require.NoError(t, err)
 
 	return BuilderRegistration{
 		Message: Registration{
-			FeeRecipient: testutil.RandomBytes32()[:20],
+			FeeRecipient: testutil.RandomBytes32Seed(r)[:20],
 			GasLimit:     30000000,
 			Timestamp:    timestamp,
-			PubKey:       testutil.RandomBytes48(),
+			PubKey:       testutil.RandomBytes48Seed(r),
 		},
-		Signature: testutil.RandomBytes96(),
+		Signature: testutil.RandomBytes96Seed(r),
 	}
 }

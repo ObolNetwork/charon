@@ -86,142 +86,178 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client) (*mux.Rou
 		Name    string
 		Path    string
 		Handler handlerFunc
+		Methods []string
 	}{
 		{
 			Name:    "attester_duties",
 			Path:    "/eth/v1/validator/duties/attester/{epoch}",
 			Handler: attesterDuties(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "proposer_duties",
 			Path:    "/eth/v1/validator/duties/proposer/{epoch}",
 			Handler: proposerDuties(h),
+			Methods: []string{http.MethodGet},
 		},
 		{
 			Name:    "sync_committee_duties",
 			Path:    "/eth/v1/validator/duties/sync/{epoch}",
 			Handler: syncCommitteeDuties(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "attestation_data",
 			Path:    "/eth/v1/validator/attestation_data",
 			Handler: attestationData(h),
+			Methods: []string{http.MethodGet},
 		},
 		{
 			Name:    "submit_attestations",
 			Path:    "/eth/v1/beacon/pool/attestations",
 			Handler: submitAttestations(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "get_validators",
 			Path:    "/eth/v1/beacon/states/{state_id}/validators",
 			Handler: getValidators(h),
+			Methods: []string{http.MethodPost, http.MethodGet},
 		},
 		{
 			Name:    "get_validator",
 			Path:    "/eth/v1/beacon/states/{state_id}/validators/{validator_id}",
 			Handler: getValidator(h),
+			Methods: []string{http.MethodGet},
 		},
 		{
 			Name:    "propose_block",
 			Path:    "/eth/v2/validator/blocks/{slot}",
 			Handler: proposeBlock(h),
+			Methods: []string{http.MethodGet},
+		},
+		{
+			Name:    "propose_block_v3",
+			Path:    "/eth/v3/validator/blocks/{slot}",
+			Handler: proposeBlockV3(),
+			Methods: []string{http.MethodGet},
 		},
 		{
 			Name:    "submit_proposal_v1",
 			Path:    "/eth/v1/beacon/blocks",
 			Handler: submitProposal(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "submit_proposal_v2",
 			Path:    "/eth/v2/beacon/blocks",
 			Handler: submitProposal(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "propose_blinded_block",
 			Path:    "/eth/v1/validator/blinded_blocks/{slot}",
 			Handler: proposeBlindedBlock(h),
+			Methods: []string{http.MethodGet},
 		},
 		{
 			Name:    "submit_blinded_block_v1",
 			Path:    "/eth/v1/beacon/blinded_blocks",
 			Handler: submitBlindedBlock(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "submit_blinded_block_v2",
 			Path:    "/eth/v2/beacon/blinded_blocks",
 			Handler: submitBlindedBlock(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "submit_validator_registration",
 			Path:    "/eth/v1/validator/register_validator",
 			Handler: submitValidatorRegistrations(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "submit_voluntary_exit",
 			Path:    "/eth/v1/beacon/pool/voluntary_exits",
 			Handler: submitExit(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "teku_proposer_config",
 			Path:    "/teku_proposer_config",
 			Handler: proposerConfig(h),
+			Methods: []string{http.MethodGet},
 		},
 		{
 			Name:    "proposer_config",
 			Path:    "/proposer_config",
 			Handler: proposerConfig(h),
+			Methods: []string{http.MethodGet},
 		},
 		{
 			Name:    "aggregate_beacon_committee_selections",
 			Path:    "/eth/v1/validator/beacon_committee_selections",
 			Handler: aggregateBeaconCommitteeSelections(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "aggregate_attestation",
 			Path:    "/eth/v1/validator/aggregate_attestation",
 			Handler: aggregateAttestation(h),
+			Methods: []string{http.MethodGet},
 		},
 		{
 			Name:    "submit_aggregate_and_proofs",
 			Path:    "/eth/v1/validator/aggregate_and_proofs",
 			Handler: submitAggregateAttestations(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "submit_sync_committee_messages",
 			Path:    "/eth/v1/beacon/pool/sync_committees",
 			Handler: submitSyncCommitteeMessages(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "sync_committee_contribution",
 			Path:    "/eth/v1/validator/sync_committee_contribution",
 			Handler: syncCommitteeContribution(h),
+			Methods: []string{http.MethodGet},
 		},
 		{
 			Name:    "submit_contribution_and_proofs",
 			Path:    "/eth/v1/validator/contribution_and_proofs",
 			Handler: submitContributionAndProofs(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "submit_proposal_preparations",
 			Path:    "/eth/v1/validator/prepare_beacon_proposer",
 			Handler: submitProposalPreparations(),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "aggregate_sync_committee_selections",
 			Path:    "/eth/v1/validator/sync_committee_selections",
 			Handler: aggregateSyncCommitteeSelections(h),
+			Methods: []string{http.MethodPost},
 		},
 		{
 			Name:    "node_version",
 			Path:    "/eth/v1/node/version",
 			Handler: nodeVersion(h),
+			Methods: []string{http.MethodGet},
 		},
 	}
 
 	r := mux.NewRouter()
 	for _, e := range endpoints {
-		r.Handle(e.Path, wrap(e.Name, e.Handler))
+		handler := r.Handle(e.Path, wrap(e.Name, e.Handler))
+		if len(e.Methods) != 0 {
+			handler.Methods(e.Methods...)
+		}
 	}
 
 	// Everything else is proxied
@@ -323,12 +359,35 @@ func wrapTrace(endpoint string, handler http.HandlerFunc) http.Handler {
 	return otelhttp.NewHandler(handler, "core/validatorapi."+endpoint)
 }
 
-// getValidator returns a handler function for the get validators by pubkey or index endpoint.
+// proposeBlockV3 returns a handler function which receives the randao from the validator and returns an unsigned
+// BeaconBlock or BlindedBeaconBlock.
+func proposeBlockV3() handlerFunc {
+	return func(context.Context, map[string]string, url.Values, contentType, []byte) (res any, headers http.Header, err error) {
+		return nil, nil, apiError{
+			StatusCode: 404,
+			Message:    "endpoint not supported",
+		}
+	}
+}
+
+// getValidators returns a handler function for the get validators by pubkey or index endpoint.
 func getValidators(p eth2client.ValidatorsProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, body []byte) (any, http.Header, error) {
 		stateID := params["state_id"]
 
-		resp, err := getValidatorsByID(ctx, p, stateID, getValidatorIDs(query)...)
+		// TODO: support 'status' param when go-eth2-client supports it
+		// https://github.com/ObolNetwork/charon/issues/2846
+		ids := getValidatorIDs(query)
+		if len(ids) == 0 && len(body) > 0 {
+			postIDs, err := getValidatorIDsFromJSON(body)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "getting validator ids from request body")
+			}
+
+			ids = postIDs
+		}
+
+		resp, err := getValidatorsByID(ctx, p, stateID, ids...)
 		if err != nil {
 			return nil, nil, err
 		} else if len(resp) == 0 {
@@ -691,7 +750,7 @@ func proposeBlindedBlock(p eth2client.BlindedProposalProvider) handlerFunc {
 			}
 
 			return proposeBlindedBlockResponseBellatrix{
-				Version: "BELLATRIX",
+				Version: eth2spec.DataVersionBellatrix.String(),
 				Data:    block.Bellatrix,
 			}, resHeaders, nil
 		case eth2spec.DataVersionCapella:
@@ -700,7 +759,7 @@ func proposeBlindedBlock(p eth2client.BlindedProposalProvider) handlerFunc {
 			}
 
 			return proposeBlindedBlockResponseCapella{
-				Version: "CAPELLA",
+				Version: eth2spec.DataVersionCapella.String(),
 				Data:    block.Capella,
 			}, resHeaders, nil
 		case eth2spec.DataVersionDeneb:
@@ -709,7 +768,7 @@ func proposeBlindedBlock(p eth2client.BlindedProposalProvider) handlerFunc {
 			}
 
 			return proposeBlindedBlockResponseDeneb{
-				Version: "DENEB",
+				Version: eth2spec.DataVersionDeneb.String(),
 				Data:    block.Deneb,
 			}, resHeaders, nil
 		default:
@@ -1249,16 +1308,34 @@ func (w proxyResponseWriter) WriteHeader(statusCode int) {
 	w.writeFlusher.WriteHeader(statusCode)
 }
 
-// getValidatorIDs returns validator IDs as "id" query parameters (supporting csv values).
+// getValidatorIDs returns validator IDs as "id" array query parameters.
 func getValidatorIDs(query url.Values) []string {
+	return getQueryArrayParameter(query, "id")
+}
+
+// getQueryArrayParameter returns all array values passed as query parameter (supporting csv values).
+func getQueryArrayParameter(query url.Values, param string) []string {
 	var resp []string
-	for _, csv := range query["id"] {
+	for _, csv := range query[param] {
 		for _, id := range strings.Split(csv, ",") {
 			resp = append(resp, strings.TrimSpace(id))
 		}
 	}
 
 	return resp
+}
+
+// getValidatorIDsFromJSON returns validator IDs as "id" field of json payload.
+func getValidatorIDsFromJSON(b []byte) ([]string, error) {
+	requestBody := struct {
+		IDs []string `json:"ids"`
+	}{}
+
+	if err := json.Unmarshal(b, &requestBody); err != nil {
+		return nil, errors.Wrap(err, "failed to parse request body")
+	}
+
+	return requestBody.IDs, nil
 }
 
 // getValidatorsByID returns the validators with ids being either pubkeys or validator indexes.

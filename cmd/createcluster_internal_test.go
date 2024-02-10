@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -563,7 +564,9 @@ func TestMultipleAddresses(t *testing.T) {
 	})
 
 	t.Run("insufficient addresses from remote URL", func(t *testing.T) {
-		lock, _, _ := cluster.NewForT(t, 2, 3, 4, 1, func(d *cluster.Definition) {
+		seed := 1
+		random := rand.New(rand.NewSource(int64(seed)))
+		lock, _, _ := cluster.NewForT(t, 2, 3, 4, seed, random, func(d *cluster.Definition) {
 			d.ValidatorAddresses = []cluster.ValidatorAddresses{}
 		})
 

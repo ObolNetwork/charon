@@ -121,7 +121,7 @@ func TestRawRouter(t *testing.T) {
 		handler := testHandler{}
 
 		callback := func(ctx context.Context, baseURL string) {
-			res, err := http.Get(baseURL + "/eth/v1/validator/duties/attester/not_a_number")
+			res, err := http.Post(baseURL+"/eth/v1/validator/duties/attester/not_a_number", "application/json", bytes.NewReader([]byte("{}")))
 			require.NoError(t, err)
 
 			var errRes errorResponse
@@ -140,7 +140,7 @@ func TestRawRouter(t *testing.T) {
 		handler := testHandler{}
 
 		callback := func(ctx context.Context, baseURL string) {
-			res, err := http.Post(baseURL+"/eth/v2/validator/blocks/123", "", nil)
+			res, err := http.Get(baseURL + "/eth/v2/validator/blocks/123")
 			require.NoError(t, err)
 
 			var errRes errorResponse
@@ -159,7 +159,7 @@ func TestRawRouter(t *testing.T) {
 		handler := testHandler{}
 
 		callback := func(ctx context.Context, baseURL string) {
-			res, err := http.Post(baseURL+"/eth/v2/validator/blocks/123?randao_reveal=0x0000", "", nil)
+			res, err := http.Get(baseURL + "/eth/v2/validator/blocks/123?randao_reveal=0x0000")
 			require.NoError(t, err)
 
 			var errRes errorResponse
@@ -185,7 +185,7 @@ func TestRawRouter(t *testing.T) {
 
 		callback := func(ctx context.Context, baseURL string) {
 			randao := testutil.RandomEth2Signature().String()
-			res, err := http.Post(baseURL+"/eth/v2/validator/blocks/123?randao_reveal="+randao, "", nil)
+			res, err := http.Get(baseURL + "/eth/v2/validator/blocks/123?randao_reveal=" + randao)
 			require.NoError(t, err)
 
 			var okResp struct{ Data json.RawMessage }
@@ -201,7 +201,7 @@ func TestRawRouter(t *testing.T) {
 		handler := testHandler{}
 
 		callback := func(ctx context.Context, baseURL string) {
-			res, err := http.Get(baseURL + "/eth/v1/validator/duties/attester/1")
+			res, err := http.Post(baseURL+"/eth/v1/validator/duties/attester/1", "application/json", bytes.NewReader([]byte("")))
 			require.NoError(t, err)
 
 			var errRes errorResponse
@@ -318,6 +318,89 @@ func TestRawRouter(t *testing.T) {
 		}
 
 		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("get validators with post", func(t *testing.T) {
+		simpleValidatorsFunc := func(_ context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) { //nolint:golint,unparam
+			res := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+			if len(opts.Indices) == 0 {
+				opts.Indices = []eth2p0.ValidatorIndex{12, 35}
+			}
+
+			for _, index := range opts.Indices {
+				res[index] = &eth2v1.Validator{
+					Index:  index,
+					Status: eth2v1.ValidatorStateActiveOngoing,
+					Validator: &eth2p0.Validator{
+						PublicKey:             testutil.RandomEth2PubKey(t),
+						WithdrawalCredentials: []byte("12345678901234567890123456789012"),
+					},
+				}
+			}
+
+			return wrapResponse(res), nil
+		}
+
+		assertResults := func(t *testing.T, res *http.Response) {
+			t.Helper()
+
+			resp := struct {
+				Data []*eth2v1.Validator `json:"data"`
+			}{}
+			err := json.NewDecoder(res.Body).Decode(&resp)
+			require.NoError(t, err)
+			require.Len(t, resp.Data, 2)
+			if resp.Data[0].Index == eth2p0.ValidatorIndex(12) {
+				require.EqualValues(t, eth2p0.ValidatorIndex(35), resp.Data[1].Index)
+			} else {
+				require.EqualValues(t, eth2p0.ValidatorIndex(12), resp.Data[1].Index)
+			}
+		}
+
+		t.Run("via query ids", func(t *testing.T) {
+			handler := testHandler{ValidatorsFunc: simpleValidatorsFunc}
+
+			callback := func(ctx context.Context, baseURL string) {
+				res, err := http.Post(baseURL+"/eth/v1/beacon/states/head/validators?id=12,35", "application/json", bytes.NewReader([]byte{}))
+				require.NoError(t, err)
+				assertResults(t, res)
+			}
+
+			testRawRouter(t, handler, callback)
+		})
+
+		t.Run("via post body", func(t *testing.T) {
+			handler := testHandler{ValidatorsFunc: simpleValidatorsFunc}
+
+			callback := func(ctx context.Context, baseURL string) {
+				b := struct {
+					IDs []string `json:"ids"`
+				}{
+					IDs: []string{"12", "35"},
+				}
+
+				bb, err := json.Marshal(b)
+				require.NoError(t, err)
+
+				res, err := http.Post(baseURL+"/eth/v1/beacon/states/head/validators", "application/json", bytes.NewReader(bb))
+				require.NoError(t, err)
+				assertResults(t, res)
+			}
+
+			testRawRouter(t, handler, callback)
+		})
+
+		t.Run("empty parameters", func(t *testing.T) {
+			handler := testHandler{ValidatorsFunc: simpleValidatorsFunc}
+
+			callback := func(ctx context.Context, baseURL string) {
+				res, err := http.Post(baseURL+"/eth/v1/beacon/states/head/validators", "application/json", bytes.NewReader([]byte{}))
+				require.NoError(t, err)
+				assertResults(t, res)
+			}
+
+			testRawRouter(t, handler, callback)
+		})
 	})
 
 	t.Run("submit bellatrix ssz proposal", func(t *testing.T) {
@@ -492,6 +575,57 @@ func TestRouter(t *testing.T) {
 		"execution_optimistic": true,
 		"dependent_root":       dependentRoot,
 	}
+
+	t.Run("wrong http method", func(t *testing.T) {
+		ctx := context.Background()
+
+		h := testHandler{}
+
+		proxy := httptest.NewServer(h.newBeaconHandler(t))
+		defer proxy.Close()
+
+		r, err := NewRouter(ctx, h, testBeaconAddr{addr: proxy.URL})
+		require.NoError(t, err)
+
+		server := httptest.NewServer(r)
+		defer server.Close()
+
+		endpointURL := fmt.Sprintf("%s/eth/v1/node/version", server.URL)
+
+		// node_version is a GET-only endpoint, we expect it to fail
+		resp, err := http.Post(
+			endpointURL,
+			"application/json",
+			bytes.NewReader([]byte("{}")),
+		)
+
+		require.NoError(t, err)
+
+		require.Equal(
+			t,
+			http.StatusNotFound,
+			resp.StatusCode,
+		)
+
+		// use the right http method and expect a response, and status code 200
+		resp, err = http.Get(endpointURL)
+		require.NoError(t, err)
+
+		require.Equal(
+			t,
+			http.StatusOK,
+			resp.StatusCode,
+		)
+
+		data, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		defer func() {
+			_ = resp.Body.Close()
+		}()
+
+		require.NotEmpty(t, data)
+	})
 
 	t.Run("attesterduty", func(t *testing.T) {
 		handler := testHandler{

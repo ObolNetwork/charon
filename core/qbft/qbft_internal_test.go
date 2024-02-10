@@ -42,12 +42,12 @@ func TestQBFT(t *testing.T) {
 		})
 	})
 
-	t.Run("prepare round 2, decide round 23", func(t *testing.T) {
+	t.Run("prepare round 2, decide round 3", func(t *testing.T) {
 		testQBFT(t, test{
 			Instance:     0,
 			CommitsAfter: 2,
 			ValueDelay: map[int64]time.Duration{
-				1: time.Second,
+				1: 2 * time.Second,
 			},
 			DecideRound: 3,
 			PreparedVal: 2,
@@ -433,14 +433,14 @@ func testQBFT(t *testing.T, test test) {
 			for _, commit := range qCommit {
 				// Ensure that all results are the same
 				for _, previous := range results {
-					require.EqualValues(t, previous.Value(), commit.Value())
+					require.EqualValues(t, previous.Value(), commit.Value(), "commit values")
 				}
 				if !test.RandomRound {
-					require.EqualValues(t, test.DecideRound, commit.Round())
+					require.EqualValues(t, test.DecideRound, commit.Round(), "wrong decide round")
 					if test.PreparedVal != 0 { // Check prepared value if set
-						require.EqualValues(t, test.PreparedVal, commit.Value())
+						require.EqualValues(t, test.PreparedVal, commit.Value(), "wrong prepared value")
 					} else { // Otherwise check that leader value was used.
-						require.True(t, isLeader(test.Instance, commit.Round(), commit.Value()))
+						require.True(t, isLeader(test.Instance, commit.Round(), commit.Value()), "not leader")
 					}
 				}
 				results[commit.Source()] = commit

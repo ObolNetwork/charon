@@ -3,8 +3,8 @@
 package k1util_test
 
 import (
+	"crypto/rand"
 	"encoding/hex"
-	"math/rand"
 	"os"
 	"path"
 	"testing"

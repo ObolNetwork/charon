@@ -5,6 +5,7 @@ package testutil
 
 import (
 	"crypto/ecdsa"
+	crand "crypto/rand"
 	"fmt"
 	"math"
 	"math/rand"
@@ -40,9 +41,9 @@ import (
 	"github.com/obolnetwork/charon/tbls"
 )
 
-func deterministicPubkey(t *testing.T) tbls.PublicKey {
+func deterministicPubkeySeed(t *testing.T, r *rand.Rand) tbls.PublicKey {
 	t.Helper()
-	random := rand.New(rand.NewSource(rand.Int63()))
+	random := rand.New(rand.NewSource(r.Int63()))
 
 	var key tbls.PublicKey
 	_, err := random.Read(key[:])
@@ -51,10 +52,19 @@ func deterministicPubkey(t *testing.T) tbls.PublicKey {
 	return key
 }
 
+func NewSeedRand() *rand.Rand {
+	return rand.New(rand.NewSource(rand.Int63()))
+}
+
 // RandomCorePubKey returns a random core workflow pubkey.
 func RandomCorePubKey(t *testing.T) core.PubKey {
 	t.Helper()
-	pubkey := deterministicPubkey(t)
+	return RandomCorePubKeySeed(t, NewSeedRand())
+}
+
+func RandomCorePubKeySeed(t *testing.T, r *rand.Rand) core.PubKey {
+	t.Helper()
+	pubkey := deterministicPubkeySeed(t, r)
 	resp, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
 
@@ -64,7 +74,12 @@ func RandomCorePubKey(t *testing.T) core.PubKey {
 // RandomEth2PubKey returns a random eth2 phase0 bls pubkey.
 func RandomEth2PubKey(t *testing.T) eth2p0.BLSPubKey {
 	t.Helper()
-	pubkey := deterministicPubkey(t)
+	return RandomEth2PubKeySeed(t, NewSeedRand())
+}
+
+func RandomEth2PubKeySeed(t *testing.T, r *rand.Rand) eth2p0.BLSPubKey {
+	t.Helper()
+	pubkey := deterministicPubkeySeed(t, r)
 
 	return eth2p0.BLSPubKey(pubkey)
 }
@@ -118,12 +133,16 @@ func RandomAggregateAttestation() *eth2p0.Attestation {
 }
 
 func RandomAttestationData() *eth2p0.AttestationData {
+	return RandomAttestationDataSeed(NewSeedRand())
+}
+
+func RandomAttestationDataSeed(r *rand.Rand) *eth2p0.AttestationData {
 	return &eth2p0.AttestationData{
-		Slot:            RandomSlot(),
-		Index:           RandomCommIdx(),
-		BeaconBlockRoot: RandomRoot(),
-		Source:          RandomCheckpoint(),
-		Target:          RandomCheckpoint(),
+		Slot:            RandomSlotSeed(r),
+		Index:           RandomCommIdxSeed(r),
+		BeaconBlockRoot: RandomRootSeed(r),
+		Source:          RandomCheckpointSeed(r),
+		Target:          RandomCheckpointSeed(r),
 	}
 }
 
@@ -712,7 +731,7 @@ func RandomSyncCommitteeDuty(t *testing.T) *eth2v1.SyncCommitteeDuty {
 
 func RandomSyncAggregate() *altair.SyncAggregate {
 	var syncSSZ [160]byte
-	_, _ = rand.Read(syncSSZ[:])
+	_, _ = crand.Read(syncSSZ[:])
 	sync := new(altair.SyncAggregate)
 	err := sync.UnmarshalSSZ(syncSSZ[:])
 	if err != nil {
@@ -811,14 +830,19 @@ func RandomDenebExecutionPayloadHeader() *deneb.ExecutionPayloadHeader {
 
 func RandomAttestationDuty(t *testing.T) *eth2v1.AttesterDuty {
 	t.Helper()
+	return RandomAttestationDutySeed(t, NewSeedRand())
+}
+
+func RandomAttestationDutySeed(t *testing.T, r *rand.Rand) *eth2v1.AttesterDuty {
+	t.Helper()
 	return &eth2v1.AttesterDuty{
-		PubKey:                  RandomEth2PubKey(t),
-		Slot:                    RandomSlot(),
-		ValidatorIndex:          RandomVIdx(),
-		CommitteeIndex:          RandomCommIdx(),
+		PubKey:                  RandomEth2PubKeySeed(t, r),
+		Slot:                    RandomSlotSeed(r),
+		ValidatorIndex:          RandomVIdxSeed(r),
+		CommitteeIndex:          RandomCommIdxSeed(r),
 		CommitteeLength:         256,
 		CommitteesAtSlot:        256,
-		ValidatorCommitteeIndex: uint64(rand.Intn(256)),
+		ValidatorCommitteeIndex: uint64(r.Intn(256)),
 	}
 }
 
@@ -888,15 +912,19 @@ func RandomHistoricalSummary() *capella.HistoricalSummary {
 }
 
 func RandomRoot() eth2p0.Root {
+	return RandomRootSeed(NewSeedRand())
+}
+
+func RandomRootSeed(r *rand.Rand) eth2p0.Root {
 	var resp eth2p0.Root
-	_, _ = rand.Read(resp[:])
+	_, _ = r.Read(resp[:])
 
 	return resp
 }
 
 func RandomEth2Signature() eth2p0.BLSSignature {
 	var resp eth2p0.BLSSignature
-	_, _ = rand.Read(resp[:])
+	_, _ = crand.Read(resp[:])
 
 	return resp
 }
@@ -910,35 +938,55 @@ func RandomEth2SignatureWithSeed(seed int64) eth2p0.BLSSignature {
 
 func RandomCoreSignature() core.Signature {
 	resp := make(core.Signature, 96)
-	_, _ = rand.Read(resp)
+	_, _ = crand.Read(resp)
 
 	return resp
 }
 
 func RandomCheckpoint() *eth2p0.Checkpoint {
+	return RandomCheckpointSeed(NewSeedRand())
+}
+
+func RandomCheckpointSeed(r *rand.Rand) *eth2p0.Checkpoint {
 	var resp eth2p0.Root
-	_, _ = rand.Read(resp[:])
+	_, _ = r.Read(resp[:])
 
 	return &eth2p0.Checkpoint{
-		Epoch: RandomEpoch(),
-		Root:  RandomRoot(),
+		Epoch: RandomEpochSeed(r),
+		Root:  RandomRootSeed(r),
 	}
 }
 
 func RandomEpoch() eth2p0.Epoch {
-	return eth2p0.Epoch(rand.Int63n(int64(math.Pow(2, 53))))
+	return RandomEpochSeed(NewSeedRand())
+}
+
+func RandomEpochSeed(r *rand.Rand) eth2p0.Epoch {
+	return eth2p0.Epoch(r.Int63n(int64(math.Pow(2, 53))))
 }
 
 func RandomSlot() eth2p0.Slot {
-	return eth2p0.Slot(rand.Int63n(int64(math.Pow(2, 53))))
+	return RandomSlotSeed(NewSeedRand())
+}
+
+func RandomSlotSeed(r *rand.Rand) eth2p0.Slot {
+	return eth2p0.Slot(r.Int63n(int64(math.Pow(2, 53))))
 }
 
 func RandomCommIdx() eth2p0.CommitteeIndex {
-	return eth2p0.CommitteeIndex(rand.Int63n(int64(math.Pow(2, 53))))
+	return RandomCommIdxSeed(NewSeedRand())
+}
+
+func RandomCommIdxSeed(r *rand.Rand) eth2p0.CommitteeIndex {
+	return eth2p0.CommitteeIndex(r.Int63n(int64(math.Pow(2, 53))))
 }
 
 func RandomVIdx() eth2p0.ValidatorIndex {
-	return eth2p0.ValidatorIndex(rand.Int63n(int64(math.Pow(2, 53))))
+	return RandomVIdxSeed(NewSeedRand())
+}
+
+func RandomVIdxSeed(r *rand.Rand) eth2p0.ValidatorIndex {
+	return eth2p0.ValidatorIndex(r.Int63n(int64(math.Pow(2, 53))))
 }
 
 func RandomWithdrawalIdx() capella.WithdrawalIndex {
@@ -950,7 +998,11 @@ func RandomGwei() eth2p0.Gwei {
 }
 
 func RandomETHAddress() string {
-	return fmt.Sprintf("%#x", RandomBytes32()[:20])
+	return RandomETHAddressSeed(NewSeedRand())
+}
+
+func RandomETHAddressSeed(r *rand.Rand) string {
+	return fmt.Sprintf("%#x", RandomBytes32Seed(r)[:20])
 }
 
 func RandomChecksummedETHAddress(t *testing.T, seed int) string {
@@ -967,29 +1019,45 @@ func RandomChecksummedETHAddress(t *testing.T, seed int) string {
 }
 
 func RandomBytes96() []byte {
+	return RandomBytes96Seed(NewSeedRand())
+}
+
+func RandomBytes96Seed(r *rand.Rand) []byte {
 	var resp [96]byte
-	_, _ = rand.Read(resp[:])
+	_, _ = r.Read(resp[:])
 
 	return resp[:]
 }
 
 func RandomBytes48() []byte {
+	return RandomBytes48Seed(NewSeedRand())
+}
+
+func RandomBytes48Seed(r *rand.Rand) []byte {
 	var resp [48]byte
-	_, _ = rand.Read(resp[:])
+	_, _ = r.Read(resp[:])
 
 	return resp[:]
 }
 
 func RandomBytes32() []byte {
+	return RandomBytes32Seed(NewSeedRand())
+}
+
+func RandomBytes32Seed(r *rand.Rand) []byte {
 	var resp [32]byte
-	_, _ = rand.Read(resp[:])
+	_, _ = r.Read(resp[:])
 
 	return resp[:]
 }
 
 func RandomArray32() [32]byte {
+	return RandomArray32Seed(NewSeedRand())
+}
+
+func RandomArray32Seed(r *rand.Rand) [32]byte {
 	var resp [32]byte
-	_, _ = rand.Read(resp[:])
+	_, _ = r.Read(resp[:])
 
 	return resp
 }
@@ -1024,8 +1092,12 @@ func RandomBitVec4() bitfield.Bitvector4 {
 
 // RandomSecp256k1Signature returns a random byte slice of length 65 with the last byte set to 0, 1, 27 or 28.
 func RandomSecp256k1Signature() []byte {
+	return RandomSecp256k1SignatureSeed(NewSeedRand())
+}
+
+func RandomSecp256k1SignatureSeed(r *rand.Rand) []byte {
 	var resp [65]byte
-	_, _ = rand.Read(resp[:])
+	_, _ = r.Read(resp[:])
 
 	r1 := resp[0] % 2        // 0 or 1
 	r2 := 27 * (resp[1] % 2) // 0 or 27
@@ -1037,7 +1109,7 @@ func RandomSecp256k1Signature() []byte {
 
 func RandomExecutionAddress() bellatrix.ExecutionAddress {
 	var resp [20]byte
-	_, _ = rand.Read(resp[:])
+	_, _ = crand.Read(resp[:])
 
 	return resp
 }
@@ -1132,9 +1204,14 @@ func RandomENR(t *testing.T, seed int) (*k1.PrivateKey, enr.Record) {
 
 func RandomCoreAttestationData(t *testing.T) core.AttestationData {
 	t.Helper()
+	return RandomCoreAttestationDataSeed(t, NewSeedRand())
+}
 
-	duty := RandomAttestationDuty(t)
-	data := RandomAttestationData()
+func RandomCoreAttestationDataSeed(t *testing.T, r *rand.Rand) core.AttestationData {
+	t.Helper()
+
+	duty := RandomAttestationDutySeed(t, r)
+	data := RandomAttestationDataSeed(r)
 
 	return core.AttestationData{
 		Data: *data,
@@ -1144,9 +1221,14 @@ func RandomCoreAttestationData(t *testing.T) core.AttestationData {
 
 func RandomUnsignedDataSet(t *testing.T) core.UnsignedDataSet {
 	t.Helper()
+	return RandomUnsignedDataSetSeed(t, NewSeedRand())
+}
+
+func RandomUnsignedDataSetSeed(t *testing.T, r *rand.Rand) core.UnsignedDataSet {
+	t.Helper()
 
 	return core.UnsignedDataSet{
-		RandomCorePubKey(t): RandomCoreAttestationData(t),
+		RandomCorePubKeySeed(t, r): RandomCoreAttestationDataSeed(t, r),
 	}
 }
 

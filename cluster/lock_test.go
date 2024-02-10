@@ -3,6 +3,7 @@
 package cluster_test
 
 import (
+	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -11,7 +12,9 @@ import (
 )
 
 func TestVerifyLock(t *testing.T) {
-	lock, _, _ := cluster.NewForT(t, 3, 3, 4, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, _ := cluster.NewForT(t, 3, 3, 4, seed, random)
 	require.NoError(t, lock.Definition.VerifySignatures())
 	require.NoError(t, lock.VerifySignatures())
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/manifest"
 	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -26,13 +27,19 @@ import (
 // Note all nodes directories must be preset and all validator private key shares must be present.
 //
 // Combine will create a new directory named after "outputDir", which will contain Keystore files.
-func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bool, opts ...func(*options)) error {
+func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bool, testnetConfig eth2util.Network, opts ...func(*options)) error {
 	o := options{
 		keyStoreFunc: keystore.StoreKeys,
 	}
 
 	for _, opt := range opts {
 		opt(&o)
+	}
+
+	// Check if custom testnet configuration is provided.
+	if testnetConfig.IsNonZero() {
+		// Add testnet config to supported networks.
+		eth2util.AddTestNetwork(testnetConfig)
 	}
 
 	if !filepath.IsAbs(outputDir) {

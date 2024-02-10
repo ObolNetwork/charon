@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
 	"path"
 	"path/filepath"
@@ -19,6 +20,7 @@ import (
 	"github.com/obolnetwork/charon/cluster/manifest"
 	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 	"github.com/obolnetwork/charon/cmd/combine"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
 )
@@ -30,12 +32,14 @@ func noLockModif(_ int, l cluster.Lock) cluster.Lock {
 func TestCombineNoLockfile(t *testing.T) {
 	td := t.TempDir()
 	od := t.TempDir()
-	err := combine.Combine(context.Background(), td, od, false, false)
+	err := combine.Combine(context.Background(), td, od, false, false, eth2util.Network{})
 	require.ErrorContains(t, err, "no manifest file found")
 }
 
 func TestCombineCannotLoadKeystore(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, shares := cluster.NewForT(t, 2, 3, 4, seed, random)
 
 	for _, share := range shares {
 		share := share
@@ -87,87 +91,124 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 	require.NoError(t, os.RemoveAll(filepath.Join(dir, "node0")))
 	require.NoError(t, os.RemoveAll(filepath.Join(dir, "node1")))
 
-	err := combine.Combine(context.Background(), dir, od, false, false, combine.WithInsecureKeysForT(t))
+	err := combine.Combine(context.Background(), dir, od, false, false, eth2util.Network{}, combine.WithInsecureKeysForT(t))
 	require.ErrorContains(t, err, "insufficient private key shares found for validator")
 }
 
 func TestCombineAllManifest(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 100, 3, 4, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, shares := cluster.NewForT(t, 100, 3, 4, seed, random)
 	combineTest(t, lock, shares, false, false, noLockModif, []manifestChoice{
 		ManifestOnly,
 		ManifestOnly,
 		ManifestOnly,
 		ManifestOnly,
+	}, eth2util.Network{})
+}
+
+func TestCombineCustomNetworkFork(t *testing.T) {
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+
+	customNetwork := eth2util.Network{
+		GenesisForkVersionHex: "0xcafebabe",
+		Name:                  "cafebabe",
+		ChainID:               0xcafebabe,
+		GenesisTimestamp:      0xcafebabe,
+	}
+
+	eth2util.AddTestNetwork(customNetwork)
+
+	lock, _, shares := cluster.NewForT(t, 100, 3, 4, seed, random, func(definition *cluster.Definition) {
+		definition.ForkVersion = []byte{0xca, 0xfe, 0xba, 0xbe}
 	})
+	combineTest(t, lock, shares, false, false, noLockModif, nil, customNetwork)
 }
 
 func TestCombineBothManifestAndLockForAll(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 100, 3, 4, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, shares := cluster.NewForT(t, 100, 3, 4, seed, random)
 	combineTest(t, lock, shares, false, false, noLockModif, []manifestChoice{
 		Both,
 		Both,
 		Both,
 		Both,
-	})
+	}, eth2util.Network{})
 }
 
 func TestCombineBothManifestAndLockForSome(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 100, 3, 4, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, shares := cluster.NewForT(t, 100, 3, 4, seed, random)
 	combineTest(t, lock, shares, false, false, noLockModif, []manifestChoice{
 		ManifestOnly,
 		Both,
 		Both,
 		LockOnly,
-	})
+	}, eth2util.Network{})
 }
 
 // This test exists because of https://github.com/ObolNetwork/charon/issues/2151.
 func TestCombineLotsOfVals(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 100, 3, 4, 0)
-	combineTest(t, lock, shares, false, false, noLockModif, nil)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, shares := cluster.NewForT(t, 100, 3, 4, seed, random)
+	combineTest(t, lock, shares, false, false, noLockModif, nil, eth2util.Network{})
 }
 
 func TestCombine(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
-	combineTest(t, lock, shares, false, false, noLockModif, nil)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, shares := cluster.NewForT(t, 2, 3, 4, seed, random)
+	combineTest(t, lock, shares, false, false, noLockModif, nil, eth2util.Network{})
 }
 
 func TestCombineNoVerifyGoodLock(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
-	combineTest(t, lock, shares, true, false, noLockModif, nil)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, shares := cluster.NewForT(t, 2, 3, 4, seed, random)
+	combineTest(t, lock, shares, true, false, noLockModif, nil, eth2util.Network{})
 }
 
 func TestCombineNoVerifyBadLock(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, shares := cluster.NewForT(t, 2, 3, 4, seed, random)
 	combineTest(t, lock, shares, true, false, func(valIndex int, src cluster.Lock) cluster.Lock {
 		if valIndex == 1 {
 			src.Name = "booohooo"
 		}
 
 		return src
-	}, nil)
+	}, nil, eth2util.Network{})
 }
 
 func TestCombineBadLock(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, shares := cluster.NewForT(t, 2, 3, 4, seed, random)
 	combineTest(t, lock, shares, false, true, func(valIndex int, src cluster.Lock) cluster.Lock {
 		if valIndex == 1 {
 			src.Name = "booohooo"
 		}
 
 		return src
-	}, nil)
+	}, nil, eth2util.Network{})
 }
 
 func TestCombineNoVerifyDifferentValidatorData(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, shares := cluster.NewForT(t, 2, 3, 4, seed, random)
 	combineTest(t, lock, shares, true, true, func(valIndex int, src cluster.Lock) cluster.Lock {
 		if valIndex == 1 {
 			src.Validators[valIndex].PubKey = bytes.Repeat([]byte{42}, 48)
 		}
 
 		return src
-	}, nil)
+	}, nil, eth2util.Network{})
 }
 
 type manifestChoice int
@@ -218,6 +259,7 @@ func combineTest(
 	wantErr bool,
 	modifyLockFile func(valIndex int, src cluster.Lock) cluster.Lock,
 	manifestOrLock []manifestChoice,
+	testnetConfig eth2util.Network,
 ) {
 	t.Helper()
 
@@ -299,7 +341,7 @@ func combineTest(
 		}
 	}
 
-	err := combine.Combine(context.Background(), dir, od, true, noVerify, combine.WithInsecureKeysForT(t))
+	err := combine.Combine(context.Background(), dir, od, true, noVerify, testnetConfig, combine.WithInsecureKeysForT(t))
 	if wantErr {
 		require.Error(t, err)
 		return
@@ -327,7 +369,9 @@ func combineTest(
 }
 
 func TestCombineTwiceWithoutForceFails(t *testing.T) {
-	lock, _, shares := cluster.NewForT(t, 2, 3, 4, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, shares := cluster.NewForT(t, 2, 3, 4, seed, random)
 
 	// calculate expected public keys and secrets
 	type expected struct {
@@ -395,10 +439,10 @@ func TestCombineTwiceWithoutForceFails(t *testing.T) {
 		require.NoError(t, json.NewEncoder(lf).Encode(lock))
 	}
 
-	err := combine.Combine(context.Background(), dir, od, false, false, combine.WithInsecureKeysForT(t))
+	err := combine.Combine(context.Background(), dir, od, false, false, eth2util.Network{}, combine.WithInsecureKeysForT(t))
 	require.NoError(t, err)
 
-	err = combine.Combine(context.Background(), dir, od, false, false, combine.WithInsecureKeysForT(t))
+	err = combine.Combine(context.Background(), dir, od, false, false, eth2util.Network{}, combine.WithInsecureKeysForT(t))
 	require.Error(t, err)
 
 	keyFiles, err := keystore.LoadFilesUnordered(od)

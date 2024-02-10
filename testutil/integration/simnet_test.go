@@ -5,6 +5,7 @@ package integration_test
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/exec"
@@ -199,7 +200,9 @@ func newSimnetArgs(t *testing.T) simnetArgs {
 		n      = 3
 		numDVs = 1
 	)
-	lock, p2pKeys, secretShares := cluster.NewForT(t, numDVs, n, n, 99)
+	seed := 99
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, p2pKeys, secretShares := cluster.NewForT(t, numDVs, n, n, seed, random)
 
 	secrets := secretShares[0]
 

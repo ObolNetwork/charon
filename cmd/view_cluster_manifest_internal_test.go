@@ -5,6 +5,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"testing"
@@ -21,7 +22,9 @@ import (
 //go:generate go test . -run=Test_viewClusterManifest -update
 
 func Test_viewClusterManifest(t *testing.T) {
-	lock, _, _ := cluster.NewForT(t, 1, 4, 4, 1, func(definition *cluster.Definition) {
+	seed := 1
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, _ := cluster.NewForT(t, 1, 4, 4, seed, random, func(definition *cluster.Definition) {
 		definition.Timestamp = "2022-07-19T18:19:58+02:00" // Make deterministic
 	})
 

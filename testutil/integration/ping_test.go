@@ -5,6 +5,7 @@ package integration_test
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net"
 	"regexp"
 	"testing"
@@ -79,7 +80,9 @@ func pingCluster(t *testing.T, test pingTest) {
 
 	const n = 3
 
-	lock, p2pKeys, _ := cluster.NewForT(t, 1, n, n, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, p2pKeys, _ := cluster.NewForT(t, 1, n, n, seed, random)
 	asserter := &pingAsserter{
 		asserter: asserter{
 			Timeout: time.Second * 10,

@@ -115,7 +115,9 @@ func testLoadLegacy(t *testing.T, version string) {
 		opts = append(opts, cluster.WithLegacyVAddrs(testutil.RandomETHAddress(), testutil.RandomETHAddress()))
 	}
 
-	lock, _, _ := cluster.NewForT(t, rand.Intn(10), k, n, 0, opts...)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, _ := cluster.NewForT(t, rand.Intn(10), k, n, seed, random, opts...)
 
 	b, err := json.MarshalIndent(lock, "", "  ")
 	require.NoError(t, err)

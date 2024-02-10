@@ -5,6 +5,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"path"
 	"path/filepath"
@@ -116,7 +117,9 @@ func TestRunAddValidators(t *testing.T) {
 	}
 
 	t.Run("add validators once", func(t *testing.T) {
-		lock, p2pKeys, _ := cluster.NewForT(t, valCount, n, n, 0)
+		seed := 0
+		random := rand.New(rand.NewSource(int64(seed)))
+		lock, p2pKeys, _ := cluster.NewForT(t, valCount, n, n, seed, random)
 
 		tmp := t.TempDir()
 		for _, dirname := range nodeDirnames {
@@ -150,7 +153,9 @@ func TestRunAddValidators(t *testing.T) {
 	})
 
 	t.Run("add validators twice", func(t *testing.T) {
-		lock, p2pKeys, _ := cluster.NewForT(t, valCount, n, n, 0)
+		seed := 0
+		random := rand.New(rand.NewSource(int64(seed)))
+		lock, p2pKeys, _ := cluster.NewForT(t, valCount, n, n, seed, random)
 
 		tmp := t.TempDir()
 		for _, dirname := range nodeDirnames {

@@ -30,9 +30,9 @@ func TestSenderAddResult(t *testing.T) {
 
 	assertFailing := func(t *testing.T, expect bool) {
 		t.Helper()
-		var state peerState
+		state := &peerState{}
 		if val, ok := sender.states.Load(peerID); ok {
-			state = val.(peerState)
+			state = val.(*peerState)
 		}
 		require.Equal(t, expect, state.failing)
 	}
@@ -63,6 +63,32 @@ func TestSenderAddResult(t *testing.T) {
 	// INFO P2P sending failing {"peer": "better-week"}
 	// INFO P2P sending recovered {"peer": "better-week"}
 	// INFO P2P sending failing {"peer": "better-week"}
+}
+
+func TestAddResult(t *testing.T) {
+	// This test is designed to trigger a race condition on Sender.addResult().
+	// It will never fail if:
+	//  - it's not executed with `-race`
+	//  - it's executed with `-race` and there's no race condition in Sender.addResult().
+
+	ctx := context.Background()
+
+	sender := new(Sender)
+
+	var wg sync.WaitGroup
+
+	concurrencyFactor := 1000
+
+	wg.Add(concurrencyFactor)
+
+	for i := 0; i < concurrencyFactor; i++ {
+		go func() {
+			sender.addResult(ctx, "test", nil)
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
 }
 
 func TestSenderRetry(t *testing.T) {

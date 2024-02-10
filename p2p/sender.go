@@ -45,9 +45,45 @@ var (
 	_ SendFunc = new(Sender).SendAsync
 )
 
+// errorBuffer holds a slice of errors, and mutexes access to it with a sync.RWMutex.
+type errorBuffer struct {
+	store []error
+	m     sync.RWMutex
+}
+
+// add adds err to the buffer.
+func (eb *errorBuffer) add(err error) {
+	eb.m.Lock()
+	defer eb.m.Unlock()
+	eb.store = append(eb.store, err)
+}
+
+// get gets idx from the buffer.
+func (eb *errorBuffer) get(idx int) error {
+	eb.m.RLock()
+	defer eb.m.RUnlock()
+
+	return eb.store[idx]
+}
+
+// len returns the length of the buffer.
+func (eb *errorBuffer) len() int {
+	eb.m.RLock()
+	defer eb.m.RUnlock()
+
+	return len(eb.store)
+}
+
+// trim trims the buffer by the given amount.
+func (eb *errorBuffer) trim(by int) {
+	eb.m.Lock()
+	defer eb.m.Unlock()
+	eb.store = eb.store[len(eb.store)-by:]
+}
+
 type peerState struct {
 	failing bool
-	buffer  []error
+	buffer  errorBuffer
 }
 
 // Sender provides an API for sending libp2p messages, both synchronous and asynchronous.
@@ -59,14 +95,14 @@ type Sender struct {
 
 // addResult adds the result of sending a p2p message to the internal state and possibly logs a status change.
 func (s *Sender) addResult(ctx context.Context, peerID peer.ID, err error) {
-	var state peerState
+	state := &peerState{}
 	if val, ok := s.states.Load(peerID); ok {
-		state = val.(peerState)
+		state = val.(*peerState)
 	}
 
-	state.buffer = append(state.buffer, err)
-	if len(state.buffer) > senderBuffer { // Trim buffer
-		state.buffer = state.buffer[len(state.buffer)-senderBuffer:]
+	state.buffer.add(err)
+	if state.buffer.len() > senderBuffer { // Trim buffer
+		state.buffer.trim(senderBuffer)
 	}
 
 	failure := err != nil
@@ -74,11 +110,11 @@ func (s *Sender) addResult(ctx context.Context, peerID peer.ID, err error) {
 
 	if success && state.failing {
 		// See if we have senderHysteresis successes i.o.t. change state to success.
-		full := len(state.buffer) == senderBuffer
-		oldestFailure := state.buffer[0] != nil
+		full := state.buffer.len() == senderBuffer
+		oldestFailure := state.buffer.get(0) != nil
 		othersSuccess := true
-		for i := 1; i < len(state.buffer); i++ {
-			if state.buffer[i] != nil {
+		for i := 1; i < state.buffer.len(); i++ {
+			if state.buffer.get(i) != nil {
 				othersSuccess = false
 				break
 			}
@@ -88,7 +124,7 @@ func (s *Sender) addResult(ctx context.Context, peerID peer.ID, err error) {
 			state.failing = false
 			log.Info(ctx, "P2P sending recovered", z.Str("peer", PeerName(peerID)))
 		}
-	} else if failure && (len(state.buffer) == 1 || !state.failing) {
+	} else if failure && (state.buffer.len() == 1 || !state.failing) {
 		// First attempt failed or state changed to failing
 
 		if _, ok := dialErrMsgs(err); !ok { // Only log non-dial errors
@@ -98,7 +134,7 @@ func (s *Sender) addResult(ctx context.Context, peerID peer.ID, err error) {
 		state.failing = true
 	}
 
-	s.states.Store(peerID, state) // Note there is a race if two results for the same peer is added at the same time, but this isn't critical.
+	s.states.Store(peerID, state)
 }
 
 // SendAsync returns nil and sends a libp2p message asynchronously.

@@ -5,6 +5,7 @@ package dkg
 import (
 	"context"
 	"encoding/json"
+	"math/rand"
 	"os"
 	"path"
 	"path/filepath"
@@ -19,7 +20,9 @@ func TestLoadDefinition(t *testing.T) {
 	tmp := t.TempDir()
 
 	// Valid definition
-	lock, _, _ := cluster.NewForT(t, 1, 2, 3, 0)
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, _ := cluster.NewForT(t, 1, 2, 3, seed, random)
 	validDef := lock.Definition
 	validFile := path.Join(tmp, "valid-cluster-definition.json")
 	b, err := json.MarshalIndent(validDef, "", " ")

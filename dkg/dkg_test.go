@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -86,7 +87,9 @@ func TestDKG(t *testing.T) {
 				opts = append(opts, cluster.WithVersion(test.version))
 			}
 
-			lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, 1, opts...)
+			seed := 1
+			random := rand.New(rand.NewSource(int64(seed)))
+			lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, seed, random, opts...)
 			dir := t.TempDir()
 
 			testDKG(t, lock.Definition, dir, keys, test.keymanager, test.publish)
@@ -431,7 +434,9 @@ func TestSyncFlow(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			version := cluster.WithVersion("v1.7.0") // TODO(corver): remove this once v1.7 released.
-			lock, keys, _ := cluster.NewForT(t, test.vals, test.nodes, test.nodes, 0, version)
+			seed := 0
+			random := rand.New(rand.NewSource(int64(seed)))
+			lock, keys, _ := cluster.NewForT(t, test.vals, test.nodes, test.nodes, seed, random, version)
 
 			pIDs, err := lock.PeerIDs()
 			require.NoError(t, err)
