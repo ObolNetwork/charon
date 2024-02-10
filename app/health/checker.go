@@ -19,8 +19,7 @@ const (
 	// scrapePeriod is the period between scrapes.
 	scrapePeriod = 30 * time.Second
 	// maxScrapes is the maximum number of scrapes to keep.
-	// The total duration (scrapePeriod*maxScrapes) must exceed single epoch duration.
-	maxScrapes = 20
+	maxScrapes = 10
 )
 
 // NewChecker returns a new health checker.
