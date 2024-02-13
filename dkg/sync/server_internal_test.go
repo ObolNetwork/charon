@@ -54,7 +54,7 @@ func TestUpdateStep(t *testing.T) {
 		err = server.updateStep("ahead", 1)
 		require.NoError(t, err)
 
-		err = server.updateStep("ahead", 3)
+		err = server.updateStep("ahead", 4)
 		require.ErrorContains(t, err, "peer reported step is ahead the last known step")
 	})
 }
