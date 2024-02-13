@@ -162,6 +162,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	// Run dkg for each node
 	var eg errgroup.Group
 	for i := 0; i < len(def.Operators); i++ {
+		i := i
 		conf := conf
 		conf.DataDir = path.Join(dir, fmt.Sprintf("node%d", i))
 		conf.P2P.TCPAddrs = []string{testutil.AvailableAddr(t).String()}
@@ -171,7 +172,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 		require.NoError(t, err)
 
 		eg.Go(func() error {
-			err := dkg.Run(ctx, conf)
+			err := dkg.Run(peerCtx(ctx, i), conf)
 			if err != nil {
 				cancel()
 			}
@@ -185,14 +186,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	}
 
 	// Wait until complete
-
-	runChan := make(chan error, 1)
-	go func() {
-		runChan <- eg.Wait()
-	}()
-
-	err := <-runChan
-	cancel()
+	err := eg.Wait()
 	testutil.SkipIfBindErr(t, err)
 	testutil.RequireNoError(t, err)
 
