@@ -486,9 +486,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	recaster, err := newRecaster(ctx, eth2Cl, cluster.Validators,
-		conf.BuilderAPI, conf.TestConfig.BroadcastCallback)
-	if err != nil {
+	if err = wireRecaster(ctx, eth2Cl, sched, sigAgg, broadcaster, cluster.Validators,
+		conf.BuilderAPI, conf.TestConfig.BroadcastCallback); err != nil {
 		return errors.Wrap(err, "wire recaster")
 	}
 
@@ -507,7 +506,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		core.WithTracking(track, inclusion),
 		core.WithAsyncRetry(retryer),
 	}
-	core.Wire(sched, fetch, cons, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, recaster, opts...)
+	core.Wire(sched, fetch, cons, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
 
 	err = wireValidatorMock(ctx, conf, eth2Cl, pubshares, sched)
 	if err != nil {
@@ -578,11 +577,12 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 	return nil
 }
 
-// newRecaster returns the rebroadcaster component with pre-generate registration stored in its memory.
-// The wiring of recaster is done in core.Wire to support tracking of re-broadcasted duties.
-func newRecaster(ctx context.Context, eth2Cl eth2wrap.Client, validators []*manifestpb.Validator, builderAPI bool,
+// wireRecaster wires the rebroadcaster component to scheduler, sigAgg and broadcaster.
+// This is not done in core.Wire since recaster isn't really part of the official core workflow (yet).
+func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Scheduler, sigAgg core.SigAgg,
+	broadcaster core.Broadcaster, validators []*manifestpb.Validator, builderAPI bool,
 	callback func(context.Context, core.Duty, core.SignedDataSet) error,
-) (core.Recaster, error) {
+) error {
 	recaster, err := bcast.NewRecaster(func(ctx context.Context) (map[eth2p0.BLSPubKey]struct{}, error) {
 		valList, err := eth2Cl.ActiveValidators(ctx)
 		if err != nil {
@@ -598,15 +598,19 @@ func newRecaster(ctx context.Context, eth2Cl eth2wrap.Client, validators []*mani
 		return ret, nil
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "recaster init")
+		return errors.Wrap(err, "recaster init")
 	}
+
+	sched.SubscribeSlots(recaster.SlotTicked)
+	sigAgg.Subscribe(recaster.Store)
+	recaster.Subscribe(broadcaster.Broadcast)
 
 	if callback != nil {
 		recaster.Subscribe(callback)
 	}
 
 	if !builderAPI {
-		return recaster, nil
+		return nil
 	}
 
 	for _, val := range validators {
@@ -617,30 +621,30 @@ func newRecaster(ctx context.Context, eth2Cl eth2wrap.Client, validators []*mani
 
 		reg := new(eth2api.VersionedSignedValidatorRegistration)
 		if err := json.Unmarshal(val.BuilderRegistrationJson, reg); err != nil {
-			return nil, errors.Wrap(err, "unmarshal validator registration")
+			return errors.Wrap(err, "unmarshal validator registration")
 		}
 
 		pubkey, err := core.PubKeyFromBytes(val.PublicKey)
 		if err != nil {
-			return nil, errors.Wrap(err, "core pubkey from bytes")
+			return errors.Wrap(err, "core pubkey from bytes")
 		}
 
 		signedData, err := core.NewVersionedSignedValidatorRegistration(reg)
 		if err != nil {
-			return nil, errors.Wrap(err, "new versioned signed validator registration")
+			return errors.Wrap(err, "new versioned signed validator registration")
 		}
 
 		slot, err := slotFromTimestamp(ctx, eth2Cl, reg.V1.Message.Timestamp)
 		if err != nil {
-			return nil, errors.Wrap(err, "calculate slot from timestamp")
+			return errors.Wrap(err, "calculate slot from timestamp")
 		}
 
 		if err = recaster.Store(ctx, core.NewBuilderRegistrationDuty(slot), core.SignedDataSet{pubkey: signedData}); err != nil {
-			return nil, errors.Wrap(err, "recaster store registration")
+			return errors.Wrap(err, "recaster store registration")
 		}
 	}
 
-	return recaster, nil
+	return nil
 }
 
 // newTracker creates and starts a new tracker instance.
