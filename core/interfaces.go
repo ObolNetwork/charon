@@ -162,18 +162,6 @@ type Broadcaster interface {
 	Broadcast(context.Context, Duty, SignedDataSet) error
 }
 
-// Recaster rebroadcasts aggregated signed duty set periodically to the beacon node.
-type Recaster interface {
-	// SlotTicked is called when new slots tick.
-	SlotTicked(context.Context, Slot) error
-
-	// Store stores aggregate signed duty for rebroadcasting.
-	Store(context.Context, Duty, SignedDataSet) error
-
-	// Subscribe subscribes to rebroadcasted duties.
-	Subscribe(func(context.Context, Duty, SignedDataSet) error)
-}
-
 // InclusionChecker checks whether submitted duties have been included on-chain.
 // TODO(corver): Merge this with tracker below as a compose multi tracker.
 type InclusionChecker interface {
@@ -254,9 +242,6 @@ type wireFuncs struct {
 	AggSigDBStore                     func(context.Context, Duty, SignedDataSet) error
 	AggSigDBAwait                     func(context.Context, Duty, PubKey) (SignedData, error)
 	BroadcasterBroadcast              func(context.Context, Duty, SignedDataSet) error
-	RecasterSlotTicked                func(context.Context, Slot) error
-	RecasterSubscribe                 func(func(context.Context, Duty, SignedDataSet) error)
-	RecasterStore                     func(context.Context, Duty, SignedDataSet) error
 }
 
 // WireOption defines a functional option to configure wiring.
@@ -273,7 +258,6 @@ func Wire(sched Scheduler,
 	sigAgg SigAgg,
 	aggSigDB AggSigDB,
 	bcast Broadcaster,
-	recast Recaster,
 	opts ...WireOption,
 ) {
 	w := wireFuncs{
@@ -314,9 +298,6 @@ func Wire(sched Scheduler,
 		AggSigDBStore:                     aggSigDB.Store,
 		AggSigDBAwait:                     aggSigDB.Await,
 		BroadcasterBroadcast:              bcast.Broadcast,
-		RecasterSubscribe:                 recast.Subscribe,
-		RecasterSlotTicked:                recast.SlotTicked,
-		RecasterStore:                     recast.Store,
 	}
 
 	for _, opt := range opts {
@@ -345,7 +326,4 @@ func Wire(sched Scheduler,
 	w.ParSigDBSubscribeThreshold(w.SigAggAggregate)
 	w.SigAggSubscribe(w.AggSigDBStore)
 	w.SigAggSubscribe(w.BroadcasterBroadcast)
-	w.SchedulerSubscribeSlots(w.RecasterSlotTicked)
-	w.SigAggSubscribe(w.RecasterStore)
-	w.RecasterSubscribe(w.BroadcasterBroadcast)
 }
