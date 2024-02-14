@@ -1568,13 +1568,13 @@ func testRawRouter(t *testing.T, handler testHandler, callback func(context.Cont
 }
 
 // testRawRouterEX is a helper function same as testRawRouter() but accepts GetBuilderAPIFlagFunc.
-func testRawRouterEx(t *testing.T, handler testHandler, callback func(context.Context, string), builderEnabledFunc GetBuilderAPIFlagFunc) {
+func testRawRouterEx(t *testing.T, handler testHandler, callback func(context.Context, string), isBuilderEnabled IsBuilderEnabledFunc) {
 	t.Helper()
 
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
-	r, err := NewRouter(context.Background(), handler, testBeaconAddr{addr: proxy.URL}, builderEnabledFunc)
+	r, err := NewRouter(context.Background(), handler, testBeaconAddr{addr: proxy.URL}, isBuilderEnabled)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)

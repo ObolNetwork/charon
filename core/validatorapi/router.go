@@ -80,13 +80,13 @@ type Handler interface {
 	// Above sorted alphabetically.
 }
 
-// GetBuilderAPIFlagFunc returns flag indicating whether builder API is enabled for given slot.
-type GetBuilderAPIFlagFunc func(slot uint64) bool
+// IsBuilderEnabledFunc returns flag indicating whether builder API is enabled for given slot.
+type IsBuilderEnabledFunc func(slot uint64) bool
 
 // NewRouter returns a new validator http server router. The http router
 // translates http requests related to the distributed validator to the Handler.
 // All other requests are reverse-proxied to the beacon-node address.
-func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, getBuilderAPI GetBuilderAPIFlagFunc) (*mux.Router, error) {
+func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, isBuilderEnabled IsBuilderEnabledFunc) (*mux.Router, error) {
 	// Register subset of distributed validator related endpoints.
 	endpoints := []struct {
 		Name    string
@@ -145,7 +145,7 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, getBuilde
 		{
 			Name:    "propose_block_v3",
 			Path:    "/eth/v3/validator/blocks/{slot}",
-			Handler: proposeBlockV3(h, getBuilderAPI),
+			Handler: proposeBlockV3(h, isBuilderEnabled),
 			Methods: []string{http.MethodGet},
 		},
 		{
@@ -631,7 +631,7 @@ type proposeBlockV3Provider interface {
 }
 
 // proposeBlockV3 returns a handler function returning an unsigned BeaconBlock or BlindedBeaconBlock.
-func proposeBlockV3(p proposeBlockV3Provider, getBuilderAPI GetBuilderAPIFlagFunc) handlerFunc {
+func proposeBlockV3(p proposeBlockV3Provider, getBuilderAPI IsBuilderEnabledFunc) handlerFunc {
 	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		// TODO: skip_randao_verification and builder_boost_factor are ignored yet.
 		slot, randao, graffiti, err := getProposeBlockParams(params, query)
