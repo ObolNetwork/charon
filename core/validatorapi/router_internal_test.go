@@ -84,7 +84,8 @@ func TestRouterIntegration(t *testing.T) {
 		t.Skip("Skipping integration test since BEACON_URL not found")
 	}
 
-	r, err := NewRouter(context.Background(), Handler(nil), testBeaconAddr{addr: beaconURL})
+	builderAPIEnabled := func(_ uint64) bool { return true }
+	r, err := NewRouter(context.Background(), Handler(nil), testBeaconAddr{addr: beaconURL}, builderAPIEnabled)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -521,7 +522,7 @@ func TestRawRouter(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify response header.
-			require.Equal(t, block.Version.String(), res.Header.Get("Eth-Consensus-Version"))
+			require.Equal(t, block.Version.String(), res.Header.Get(VersionHeader))
 
 			var blockRes proposeBlockResponseCapella
 			err = json.NewDecoder(res.Body).Decode(&blockRes)
@@ -554,7 +555,7 @@ func TestRawRouter(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify response header.
-			require.Equal(t, block.Version.String(), res.Header.Get("Eth-Consensus-Version"))
+			require.Equal(t, block.Version.String(), res.Header.Get(VersionHeader))
 
 			var blockRes proposeBlindedBlockResponseCapella
 			err = json.NewDecoder(res.Body).Decode(&blockRes)
@@ -563,6 +564,78 @@ func TestRawRouter(t *testing.T) {
 		}
 
 		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("get response header for block proposal v3", func(t *testing.T) {
+		blindedBlock := &eth2api.VersionedBlindedProposal{
+			Version: eth2spec.DataVersionCapella,
+			Capella: testutil.RandomCapellaBlindedBeaconBlock(),
+		}
+		blindedExpectedSlot, err := blindedBlock.Slot()
+		require.NoError(t, err)
+		blindedRandao := blindedBlock.Capella.Body.RANDAOReveal
+
+		block := &eth2api.VersionedProposal{
+			Version: eth2spec.DataVersionCapella,
+			Capella: testutil.RandomCapellaBeaconBlock(),
+		}
+		expectedSlot, err := block.Slot()
+		require.NoError(t, err)
+		randao := block.Capella.Body.RANDAOReveal
+
+		handler := testHandler{
+			BlindedProposalFunc: func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error) {
+				require.Equal(t, blindedExpectedSlot, opts.Slot)
+				require.Equal(t, blindedRandao, opts.RandaoReveal)
+
+				return wrapResponse(blindedBlock), nil
+			},
+			ProposalFunc: func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
+				require.Equal(t, expectedSlot, opts.Slot)
+				require.Equal(t, randao, opts.RandaoReveal)
+
+				return wrapResponse(block), nil
+			},
+		}
+
+		mustGetRequest := func(baseURL string, expectedSlot eth2p0.Slot, expectedRandao eth2p0.BLSSignature) *http.Response {
+			res, err := http.Get(baseURL + fmt.Sprintf("/eth/v3/validator/blocks/%d?randao_reveal=%#x", expectedSlot, expectedRandao))
+			require.NoError(t, err)
+
+			return res
+		}
+
+		blindedCallback := func(ctx context.Context, baseURL string) {
+			res := mustGetRequest(baseURL, blindedExpectedSlot, blindedRandao)
+
+			// Verify response header.
+			require.Equal(t, blindedBlock.Version.String(), res.Header.Get(VersionHeader))
+			require.Equal(t, "true", res.Header.Get(ExecutionPayloadBlindedHeader))
+
+			var blockRes proposeBlindedBlockResponseCapella
+			err = json.NewDecoder(res.Body).Decode(&blockRes)
+			require.NoError(t, err)
+			require.EqualValues(t, blindedBlock.Capella, blockRes.Data)
+		}
+
+		// BuilderAPI is disabled, we expect to get the blinded block
+		testRawRouterEx(t, handler, blindedCallback, func(_ uint64) bool { return false })
+
+		callback := func(ctx context.Context, baseURL string) {
+			res := mustGetRequest(baseURL, expectedSlot, randao)
+
+			// Verify response header.
+			require.Equal(t, block.Version.String(), res.Header.Get(VersionHeader))
+			require.Equal(t, "false", res.Header.Get(ExecutionPayloadBlindedHeader))
+
+			var blockRes proposeBlockResponseCapella
+			err = json.NewDecoder(res.Body).Decode(&blockRes)
+			require.NoError(t, err)
+			require.EqualValues(t, block.Capella, blockRes.Data)
+		}
+
+		// BuilderAPI is enabled, we expect to get the full block
+		testRawRouterEx(t, handler, callback, func(_ uint64) bool { return true })
 	})
 }
 
@@ -584,7 +657,8 @@ func TestRouter(t *testing.T) {
 		proxy := httptest.NewServer(h.newBeaconHandler(t))
 		defer proxy.Close()
 
-		r, err := NewRouter(ctx, h, testBeaconAddr{addr: proxy.URL})
+		builderAPIEnabled := func(_ uint64) bool { return true }
+		r, err := NewRouter(ctx, h, testBeaconAddr{addr: proxy.URL}, builderAPIEnabled)
 		require.NoError(t, err)
 
 		server := httptest.NewServer(r)
@@ -1317,7 +1391,8 @@ func TestBeaconCommitteeSelections(t *testing.T) {
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
-	r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL})
+	builderAPIEnabled := func(_ uint64) bool { return true }
+	r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL}, builderAPIEnabled)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -1379,7 +1454,8 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
-	r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL})
+	builderAPIEnabled := func(_ uint64) bool { return true }
+	r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL}, builderAPIEnabled)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -1471,7 +1547,8 @@ func testRouter(t *testing.T, handler testHandler, callback func(context.Context
 
 	ctx := context.Background()
 
-	r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL})
+	builderAPIEnabled := func(_ uint64) bool { return true }
+	r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL}, builderAPIEnabled)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -1485,12 +1562,19 @@ func testRouter(t *testing.T, handler testHandler, callback func(context.Context
 
 // testRawRouter is a helper function to test router endpoints with a raw http client. The outer test
 // provides the mocked test handler and a callback that does the client side test.
+// The router is configured with BuilderAPI always enabled.
 func testRawRouter(t *testing.T, handler testHandler, callback func(context.Context, string)) {
+	testRawRouterEx(t, handler, callback, func(_ uint64) bool { return true })
+}
+
+// testRawRouterEX is a helper function same as testRawRouter() but accepts GetBuilderAPIFlagFunc.
+func testRawRouterEx(t *testing.T, handler testHandler, callback func(context.Context, string), builderEnabledFunc GetBuilderAPIFlagFunc) {
 	t.Helper()
+
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
-	r, err := NewRouter(context.Background(), handler, testBeaconAddr{addr: proxy.URL})
+	r, err := NewRouter(context.Background(), handler, testBeaconAddr{addr: proxy.URL}, builderEnabledFunc)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -1639,7 +1723,7 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 	})
 	mux.HandleFunc("/eth/v2/debug/beacon/states/head", func(w http.ResponseWriter, r *http.Request) {
 		res := testutil.RandomBeaconState(t)
-		w.Header().Add("Eth-Consensus-Version", res.Version.String())
+		w.Header().Add(VersionHeader, res.Version.String())
 
 		writeResponse(ctx, w, "", nest(res.Capella, "data"), nil)
 	})

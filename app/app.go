@@ -442,7 +442,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	if err := wireVAPIRouter(ctx, life, conf.ValidatorAPIAddr, eth2Cl, vapi, vapiCalls); err != nil {
+	if err := wireVAPIRouter(ctx, life, conf.ValidatorAPIAddr, eth2Cl, vapi, vapiCalls, mutableConf); err != nil {
 		return err
 	}
 
@@ -896,9 +896,11 @@ func createMockValidators(pubkeys []eth2p0.BLSPubKey) beaconmock.ValidatorSet {
 
 // wireVAPIRouter constructs the validator API router and registers it with the life cycle manager.
 func wireVAPIRouter(ctx context.Context, life *lifecycle.Manager, vapiAddr string, eth2Cl eth2wrap.Client,
-	handler validatorapi.Handler, vapiCalls func(),
+	handler validatorapi.Handler, vapiCalls func(), mutableConf *mutableConfig,
 ) error {
-	vrouter, err := validatorapi.NewRouter(ctx, handler, eth2Cl)
+	vrouter, err := validatorapi.NewRouter(ctx, handler, eth2Cl, func(slot uint64) bool {
+		return mutableConf.BuilderAPI(slot)
+	})
 	if err != nil {
 		return errors.Wrap(err, "new monitoring server")
 	}
