@@ -1564,6 +1564,8 @@ func testRouter(t *testing.T, handler testHandler, callback func(context.Context
 // provides the mocked test handler and a callback that does the client side test.
 // The router is configured with BuilderAPI always enabled.
 func testRawRouter(t *testing.T, handler testHandler, callback func(context.Context, string)) {
+	t.Helper()
+
 	testRawRouterEx(t, handler, callback, func(_ uint64) bool { return true })
 }
 
