@@ -7,7 +7,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path"
 	"sort"
+	"strconv"
 	"strings"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -219,7 +222,7 @@ func VerifyDepositAmounts(amounts []eth2p0.Gwei) error {
 		sum += amount
 	}
 
-	if sum > MaxDepositAmount {
+	if sum != MaxDepositAmount {
 		return errors.New("sum of partial deposit amounts must sum up to 32ETH", z.U64("sum", uint64(sum)))
 	}
 
@@ -240,4 +243,37 @@ func EthsToGweis(ethAmounts []int) []eth2p0.Gwei {
 	}
 
 	return gweiAmounts
+}
+
+// WriteDepositDataFiles writes deposit-data-*eth.json files for each distinct amount.
+func WriteDepositDataFiles(depositDatas [][]eth2p0.DepositData, network string, clusterDir string, numNodes int) error {
+	// The loop across partial amounts (amounts will be unique)
+	for i := range depositDatas {
+		// Serialize the deposit data into bytes
+		bytes, err := MarshalDepositData(depositDatas[i], network)
+		if err != nil {
+			return err
+		}
+
+		if len(depositDatas[i]) == 0 {
+			return errors.New("empty deposit data at index", z.Int("index", i))
+		}
+
+		eth := float64(depositDatas[i][0].Amount) / float64(OneEthInGwei)
+		ethStr := strconv.FormatFloat(eth, 'f', -1, 64)
+		filename := fmt.Sprintf("deposit-data-%seth.json", ethStr)
+
+		for n := 0; n < numNodes; n++ {
+			nodeDir := fmt.Sprintf("%s/node%d", clusterDir, n)
+			depositPath := path.Join(nodeDir, filename)
+
+			//nolint:gosec // File needs to be read-only for everybody
+			err = os.WriteFile(depositPath, bytes, 0o444)
+			if err != nil {
+				return errors.Wrap(err, "write deposit data")
+			}
+		}
+	}
+
+	return nil
 }

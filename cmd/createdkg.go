@@ -17,6 +17,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/enr"
 )
 
@@ -29,6 +30,7 @@ type createDKGConfig struct {
 	WithdrawalAddrs   []string
 	Network           string
 	DKGAlgo           string
+	DepositAmounts    []int // Amounts specified in ETH (integers).
 	OperatorENRs      []string
 }
 
@@ -61,6 +63,7 @@ func bindCreateDKGFlags(cmd *cobra.Command, config *createDKGConfig) {
 	cmd.Flags().StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
 	cmd.Flags().StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, goerli, gnosis, sepolia, holesky.")
 	cmd.Flags().StringVar(&config.DKGAlgo, "dkg-algorithm", "default", "DKG algorithm to use; default, frost")
+	cmd.Flags().IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to exactly 32ETH.")
 	cmd.Flags().StringSliceVar(&config.OperatorENRs, operatorENRs, nil, "[REQUIRED] Comma-separated list of each operator's Charon ENR address.")
 
 	mustMarkFlagRequired(cmd, operatorENRs)
@@ -79,7 +82,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		conf.Network = eth2util.Goerli.Name
 	}
 
-	if err = validateDKGConfig(conf.Threshold, len(conf.OperatorENRs), conf.Network); err != nil {
+	if err = validateDKGConfig(conf.Threshold, len(conf.OperatorENRs), conf.Network, conf.DepositAmounts); err != nil {
 		return err
 	}
 
@@ -124,7 +127,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	def, err := cluster.NewDefinition(
 		conf.Name, conf.NumValidators, conf.Threshold,
 		conf.FeeRecipientAddrs, conf.WithdrawalAddrs,
-		forkVersion, cluster.Creator{}, operators, nil, crand.Reader,
+		forkVersion, cluster.Creator{}, operators, conf.DepositAmounts, crand.Reader,
 		func(d *cluster.Definition) {
 			d.DKGAlgorithm = conf.DKGAlgo
 		})
@@ -175,7 +178,7 @@ func validateWithdrawalAddrs(addrs []string, network string) error {
 }
 
 // validateDKGConfig returns an error if any of the provided config parameter is invalid.
-func validateDKGConfig(threshold, numOperators int, network string) error {
+func validateDKGConfig(threshold, numOperators int, network string, depositAmounts []int) error {
 	if threshold > numOperators {
 		return errors.New("threshold cannot be greater than length of operators",
 			z.Int("threshold", threshold), z.Int("operators", numOperators))
@@ -188,6 +191,14 @@ func validateDKGConfig(threshold, numOperators int, network string) error {
 
 	if !eth2util.ValidNetwork(network) {
 		return errors.New("unsupported network", z.Str("network", network))
+	}
+
+	if len(depositAmounts) > 0 {
+		amounts := deposit.EthsToGweis(depositAmounts)
+
+		if err := deposit.VerifyDepositAmounts(amounts); err != nil {
+			return err
+		}
 	}
 
 	return nil

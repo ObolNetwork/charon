@@ -64,7 +64,7 @@ No user input is required, charon does the work and outputs the following files 
 ./cluster-lock.json         # New lockfile based on cluster-definition.json with validator group public keys and public shares included with the initial cluster config
 ./charon/enr_private_key    # Created before the ceremony took place [Back this up]
 ./charon/validator_keys/    # Folder of key shares to be backed up and moved to validator client [Back this up]
-./charon/deposit_data       # JSON file of deposit data for the distributed validators
+./charon/deposit_data*      # JSON files of deposit data for the distributed validators
 ./charon/exit_data          # JSON file of exit data that ethdo can broadcast
 ```
 

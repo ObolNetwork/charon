@@ -14,7 +14,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -251,7 +250,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	// Write deposit-data file
-	if err = writeDepositData(depositDatas, network, conf.ClusterDir, numNodes); err != nil {
+	if err = deposit.WriteDepositDataFiles(depositDatas, network, conf.ClusterDir, numNodes); err != nil {
 		return err
 	}
 
@@ -595,36 +594,6 @@ func createDepositDatas(withdrawalAddresses []string, network string, secrets []
 	}
 
 	return signDepositDatas(secrets, withdrawalAddresses, network, depositAmounts)
-}
-
-// writeDepositData writes deposit data to disk for the DVs for all peers in a cluster.
-func writeDepositData(depositDatas [][]eth2p0.DepositData, network string, clusterDir string, numNodes int) error {
-	// The loop across partial amounts (amounts will be unique)
-	for i := range depositDatas {
-		// Serialize the deposit data into bytes
-		bytes, err := deposit.MarshalDepositData(depositDatas[i], network)
-		if err != nil {
-			return err
-		}
-
-		if len(depositDatas[i]) == 0 {
-			return errors.New("empty deposit data at index", z.Int("index", i))
-		}
-
-		eth := float64(depositDatas[i][0].Amount) / float64(deposit.OneEthInGwei)
-		ethStr := strconv.FormatFloat(eth, 'f', -1, 64)
-		filename := fmt.Sprintf("deposit-data-%seth.json", ethStr)
-
-		for n := 0; n < numNodes; n++ {
-			depositPath := path.Join(nodeDir(clusterDir, n), filename)
-			err = os.WriteFile(depositPath, bytes, 0o400) // read-only
-			if err != nil {
-				return errors.Wrap(err, "write deposit data")
-			}
-		}
-	}
-
-	return nil
 }
 
 // createValidatorRegistrations creates a slice of builder validator registrations using the provided parameters and returns it.

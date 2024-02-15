@@ -29,6 +29,7 @@ func TestCreateDkgValid(t *testing.T) {
 		WithdrawalAddrs:   []string{validEthAddr},
 		Network:           defaultNetwork,
 		DKGAlgo:           "default",
+		DepositAmounts:    []int{8, 16, 4, 4},
 		OperatorENRs: []string{
 			"enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u",
 			"enr:-JG4QPnqHa7FU3PBqGxpV5L0hjJrTUqv8Wl6_UTHt-rELeICWjvCfcVfwmax8xI_eJ0ntI3ly9fgxAsmABud6-yBQiuGAYGv0iYPgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMLLCMZ5Oqi_sdnBfdyhmysZMfFm78PgF7Y9jitTJPSroN0Y3CCPoODdWRwgj6E",
@@ -182,21 +183,26 @@ func TestValidateDKGConfig(t *testing.T) {
 	t.Run("invalid threshold", func(t *testing.T) {
 		threshold := 5
 		numOperators := 4
-		err := validateDKGConfig(threshold, numOperators, "")
+		err := validateDKGConfig(threshold, numOperators, "", nil)
 		require.ErrorContains(t, err, "threshold cannot be greater than length of operators")
 	})
 
 	t.Run("insufficient ENRs", func(t *testing.T) {
 		threshold := 1
 		numOperators := 2
-		err := validateDKGConfig(threshold, numOperators, "")
+		err := validateDKGConfig(threshold, numOperators, "", nil)
 		require.ErrorContains(t, err, "insufficient operator ENRs")
 	})
 
 	t.Run("invalid network", func(t *testing.T) {
 		threshold := 3
 		numOperators := 4
-		err := validateDKGConfig(threshold, numOperators, "cosmos")
+		err := validateDKGConfig(threshold, numOperators, "cosmos", nil)
 		require.ErrorContains(t, err, "unsupported network")
+	})
+
+	t.Run("wrong deposit amounts sum", func(t *testing.T) {
+		err := validateDKGConfig(3, 4, "goerli", []int{8, 16})
+		require.ErrorContains(t, err, "sum of partial deposit amounts must sum up to 32ETH")
 	})
 }
