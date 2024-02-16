@@ -166,6 +166,17 @@ func TestWriteDepositDataFile(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
+
+	t.Run("empty deposit datas", func(t *testing.T) {
+		err := deposit.WriteDepositDataFile([]eth2p0.DepositData{}, eth2util.Goerli.Name, dir)
+		require.ErrorContains(t, err, "empty deposit data")
+	})
+
+	t.Run("not equal amounts", func(t *testing.T) {
+		depositDatas[1].Amount /= 2
+		err := deposit.WriteDepositDataFile(depositDatas, eth2util.Goerli.Name, dir)
+		require.ErrorContains(t, err, "deposit datas has different amount")
+	})
 }
 
 func TestWriteClusterDepositDataFiles(t *testing.T) {
