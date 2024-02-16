@@ -249,8 +249,8 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
-	// Write deposit-data file
-	if err = deposit.WriteDepositDataFiles(depositDatas, network, conf.ClusterDir, numNodes); err != nil {
+	// Write deposit-data files
+	if err = deposit.WriteClusterDepositDataFiles(depositDatas, network, conf.ClusterDir, numNodes); err != nil {
 		return err
 	}
 

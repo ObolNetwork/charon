@@ -15,13 +15,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
@@ -159,26 +156,6 @@ func writeLock(datadir string, lock cluster.Lock) error {
 	return nil
 }
 
-// writeDepositData writes deposit data file to disk.
-func writeDepositData(depositDatas []eth2p0.DepositData, network string, dataDir string) error {
-	// Serialize the deposit data into bytes
-	bytes, err := deposit.MarshalDepositData(depositDatas, network)
-	if err != nil {
-		return err
-	}
-
-	// Write it to disk
-	depositPath := path.Join(dataDir, "deposit-data.json")
-
-	//nolint:gosec // File needs to be read-only for everybody
-	err = os.WriteFile(depositPath, bytes, 0o444)
-	if err != nil {
-		return errors.Wrap(err, "write deposit data")
-	}
-
-	return nil
-}
-
 func checkClearDataDir(dataDir string) error {
 	// if dataDir is a file, return error
 	info, err := os.Stat(dataDir)
@@ -199,7 +176,6 @@ func checkClearDataDir(dataDir string) error {
 	disallowedEntities := map[string]struct{}{
 		"validator_keys":    {},
 		"cluster-lock.json": {},
-		"deposit-data.json": {},
 	}
 
 	necessaryEntities := map[string]bool{
@@ -207,7 +183,9 @@ func checkClearDataDir(dataDir string) error {
 	}
 
 	for _, entity := range dirContent {
-		if _, ok := disallowedEntities[entity.Name()]; ok {
+		isDepositData := strings.HasPrefix(entity.Name(), "deposit-data")
+
+		if _, disallowed := disallowedEntities[entity.Name()]; disallowed || isDepositData {
 			return errors.New("data directory not clean, cannot continue", z.Str("disallowed_entity", entity.Name()), z.Str("data-dir", dataDir))
 		}
 

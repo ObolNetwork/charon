@@ -245,35 +245,60 @@ func EthsToGweis(ethAmounts []int) []eth2p0.Gwei {
 	return gweiAmounts
 }
 
-// WriteDepositDataFiles writes deposit-data-*eth.json files for each distinct amount.
-func WriteDepositDataFiles(depositDatas [][]eth2p0.DepositData, network string, clusterDir string, numNodes int) error {
-	// The loop across partial amounts (amounts will be unique)
-	for i := range depositDatas {
-		// Serialize the deposit data into bytes
-		bytes, err := MarshalDepositData(depositDatas[i], network)
-		if err != nil {
-			return err
-		}
-
-		if len(depositDatas[i]) == 0 {
-			return errors.New("empty deposit data at index", z.Int("index", i))
-		}
-
-		eth := float64(depositDatas[i][0].Amount) / float64(OneEthInGwei)
-		ethStr := strconv.FormatFloat(eth, 'f', -1, 64)
-		filename := fmt.Sprintf("deposit-data-%seth.json", ethStr)
-
+// WriteClusterDepositDataFiles writes deposit-data-*eth.json files for each distinct amount.
+func WriteClusterDepositDataFiles(depositDatas [][]eth2p0.DepositData, network string, clusterDir string, numNodes int) error {
+	// The loop across partial amounts (shall be unique)
+	for _, dd := range depositDatas {
 		for n := 0; n < numNodes; n++ {
-			nodeDir := fmt.Sprintf("%s/node%d", clusterDir, n)
-			depositPath := path.Join(nodeDir, filename)
-
-			//nolint:gosec // File needs to be read-only for everybody
-			err = os.WriteFile(depositPath, bytes, 0o444)
-			if err != nil {
-				return errors.Wrap(err, "write deposit data")
+			nodeDir := path.Join(clusterDir, fmt.Sprintf("node%d", n))
+			if err := WriteDepositDataFile(dd, network, nodeDir); err != nil {
+				return err
 			}
 		}
 	}
 
 	return nil
+}
+
+// WriteDepositDataFile writes deposit-data-*eth.json file for the provided depositDatas.
+// The amount will be reflected in the filename in ETH.
+// All depositDatas amounts shall have equal values.
+func WriteDepositDataFile(depositDatas []eth2p0.DepositData, network string, dataDir string) error {
+	if len(depositDatas) == 0 {
+		return errors.New("empty deposit data")
+	}
+
+	for i, dd := range depositDatas {
+		if i == 0 {
+			continue
+		}
+
+		if depositDatas[0].Amount != dd.Amount {
+			return errors.New("deposit datas has different amount", z.Int("index", i))
+		}
+	}
+
+	bytes, err := MarshalDepositData(depositDatas, network)
+	if err != nil {
+		return err
+	}
+
+	depositFilePath := GetDepositFilePath(dataDir, depositDatas[0].Amount)
+
+	//nolint:gosec // File needs to be read-only for everybody
+	err = os.WriteFile(depositFilePath, bytes, 0o444)
+	if err != nil {
+		return errors.Wrap(err, "write deposit data")
+	}
+
+	return nil
+}
+
+// GetDepositFilePath constructs and return deposit-data file path.
+func GetDepositFilePath(dataDir string, amount eth2p0.Gwei) string {
+	eth := float64(amount) / float64(OneEthInGwei)
+	ethStr := strconv.FormatFloat(eth, 'f', -1, 64)
+	filename := fmt.Sprintf("deposit-data-%seth.json", ethStr)
+
+	return path.Join(dataDir, filename)
 }
