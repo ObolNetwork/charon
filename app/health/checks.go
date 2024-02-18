@@ -123,6 +123,19 @@ var checks = []check{
 			return increase > 0, nil
 		},
 	},
+	{
+		Name:        "high_registration_failures_rate",
+		Description: "High rate of failed validator registrations. Please check the logs for more details.",
+		Severity:    severityWarning,
+		Func: func(q query, m Metadata) (bool, error) {
+			increase, err := q("core_bcast_recast_errors_total", sumLabels(), increase)
+			if err != nil {
+				return false, err
+			}
+
+			return increase > 0, nil
+		},
+	},
 }
 
 // l is a concise convenience function to create a label pair.

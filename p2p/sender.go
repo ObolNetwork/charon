@@ -5,6 +5,7 @@ package p2p
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/host"
@@ -42,7 +43,7 @@ type SendReceiveFunc func(ctx context.Context, tcpNode host.Host, peerID peer.ID
 
 var (
 	_ SendFunc = Send
-	_ SendFunc = new(Sender).SendAsync
+	_ SendFunc = (&Sender{}).SendAsync
 )
 
 // errorBuffer holds a slice of errors, and mutexes access to it with a sync.RWMutex.
@@ -82,7 +83,7 @@ func (eb *errorBuffer) trim(by int) {
 }
 
 type peerState struct {
-	failing bool
+	failing atomic.Bool
 	buffer  errorBuffer
 }
 
@@ -108,7 +109,7 @@ func (s *Sender) addResult(ctx context.Context, peerID peer.ID, err error) {
 	failure := err != nil
 	success := !failure
 
-	if success && state.failing {
+	if success && state.failing.Load() {
 		// See if we have senderHysteresis successes i.o.t. change state to success.
 		full := state.buffer.len() == senderBuffer
 		oldestFailure := state.buffer.get(0) != nil
@@ -121,17 +122,17 @@ func (s *Sender) addResult(ctx context.Context, peerID peer.ID, err error) {
 		}
 
 		if full && oldestFailure && othersSuccess {
-			state.failing = false
+			state.failing.Store(false)
 			log.Info(ctx, "P2P sending recovered", z.Str("peer", PeerName(peerID)))
 		}
-	} else if failure && (state.buffer.len() == 1 || !state.failing) {
+	} else if failure && (state.buffer.len() == 1 || !state.failing.Load()) {
 		// First attempt failed or state changed to failing
 
 		if _, ok := dialErrMsgs(err); !ok { // Only log non-dial errors
 			log.Warn(ctx, "P2P sending failing", err, z.Str("peer", PeerName(peerID)))
 		}
 
-		state.failing = true
+		state.failing.Store(true)
 	}
 
 	s.states.Store(peerID, state)
