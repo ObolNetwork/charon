@@ -75,16 +75,17 @@ func New(tcpNode host.Host, peers []peer.ID, version version.SemVer, lockHash []
 func NewForT(_ *testing.T, tcpNode host.Host, peers []peer.ID, version version.SemVer, lockHash []byte, gitHash string,
 	sendFunc p2p.SendReceiveFunc, registerHandler p2p.RegisterHandlerFunc,
 	tickerProvider tickerProvider, nowFunc nowFunc, metricSubmitter metricSubmitter,
+	mevEnabled bool,
 ) *PeerInfo {
 	return newInternal(tcpNode, peers, version, lockHash, gitHash, sendFunc, registerHandler,
-		tickerProvider, nowFunc, metricSubmitter, true)
+		tickerProvider, nowFunc, metricSubmitter, mevEnabled)
 }
 
 // newInternal returns a new instance for New or NewForT.
 func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, lockHash []byte, gitHash string,
 	sendFunc p2p.SendReceiveFunc, registerHandler p2p.RegisterHandlerFunc,
 	tickerProvider tickerProvider, nowFunc nowFunc, metricSubmitter metricSubmitter,
-	builderEnabled bool,
+	mevEnabled bool,
 ) *PeerInfo {
 	startTime := timestamppb.New(nowFunc())
 
@@ -98,7 +99,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, loc
 				GitHash:       gitHash,
 				SentAt:        timestamppb.New(nowFunc()),
 				StartedAt:     startTime,
-				MevEnabled:    builderEnabled,
+				MevEnabled:    mevEnabled,
 			}, true, nil
 		},
 	)
@@ -118,7 +119,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, loc
 		version:         version,
 		lockHash:        lockHash,
 		startTime:       startTime,
-		mevEnabled:      builderEnabled,
+		mevEnabled:      mevEnabled,
 		metricSubmitter: metricSubmitter,
 		tickerProvider:  tickerProvider,
 		nowFunc:         nowFunc,
