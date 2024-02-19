@@ -192,7 +192,7 @@ func TestCheckClearDataDir(t *testing.T) {
 			},
 		},
 		{
-			"dataDir contains deposit-data.json file",
+			"dataDir contains deposit-data-32eth.json file",
 			func(rootDir string, dataDir string) {
 				require.NoError(t,
 					os.Mkdir(filepath.Join(rootDir, dataDir), 0o755),
@@ -200,7 +200,7 @@ func TestCheckClearDataDir(t *testing.T) {
 
 				require.NoError(t,
 					os.WriteFile(
-						filepath.Join(rootDir, dataDir, "deposit-data.json"),
+						filepath.Join(rootDir, dataDir, "deposit-data-32eth.json"),
 						[]byte{1, 2, 3},
 						0o755,
 					),

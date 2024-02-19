@@ -338,10 +338,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	log.Debug(ctx, "Saved lock file to disk")
 
-	if err := writeDepositData(depositDatas, network, conf.DataDir); err != nil {
+	if err := deposit.WriteDepositDataFile(depositDatas, network, conf.DataDir); err != nil {
 		return err
 	}
-	log.Debug(ctx, "Saved deposit data file to disk")
+	log.Debug(ctx, "Saved deposit data file to disk", z.Str("filepath", deposit.GetDepositFilePath(conf.DataDir, depositDatas[0].Amount)))
 
 	// Signature verification and disk key write was step 6, advance to step 7
 	if err := nextStepSync(ctx); err != nil {

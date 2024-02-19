@@ -7,7 +7,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path"
 	"sort"
+	"strconv"
 	"strings"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -219,7 +222,7 @@ func VerifyDepositAmounts(amounts []eth2p0.Gwei) error {
 		sum += amount
 	}
 
-	if sum > MaxDepositAmount {
+	if sum != MaxDepositAmount {
 		return errors.New("sum of partial deposit amounts must sum up to 32ETH", z.U64("sum", uint64(sum)))
 	}
 
@@ -240,4 +243,62 @@ func EthsToGweis(ethAmounts []int) []eth2p0.Gwei {
 	}
 
 	return gweiAmounts
+}
+
+// WriteClusterDepositDataFiles writes deposit-data-*eth.json files for each distinct amount.
+func WriteClusterDepositDataFiles(depositDatas [][]eth2p0.DepositData, network string, clusterDir string, numNodes int) error {
+	// The loop across partial amounts (shall be unique)
+	for _, dd := range depositDatas {
+		for n := 0; n < numNodes; n++ {
+			nodeDir := path.Join(clusterDir, fmt.Sprintf("node%d", n))
+			if err := WriteDepositDataFile(dd, network, nodeDir); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// WriteDepositDataFile writes deposit-data-*eth.json file for the provided depositDatas.
+// The amount will be reflected in the filename in ETH.
+// All depositDatas amounts shall have equal values.
+func WriteDepositDataFile(depositDatas []eth2p0.DepositData, network string, dataDir string) error {
+	if len(depositDatas) == 0 {
+		return errors.New("empty deposit data")
+	}
+
+	for i, dd := range depositDatas {
+		if i == 0 {
+			continue
+		}
+
+		if depositDatas[0].Amount != dd.Amount {
+			return errors.New("deposit datas has different amount", z.Int("index", i))
+		}
+	}
+
+	bytes, err := MarshalDepositData(depositDatas, network)
+	if err != nil {
+		return err
+	}
+
+	depositFilePath := GetDepositFilePath(dataDir, depositDatas[0].Amount)
+
+	//nolint:gosec // File needs to be read-only for everybody
+	err = os.WriteFile(depositFilePath, bytes, 0o444)
+	if err != nil {
+		return errors.Wrap(err, "write deposit data")
+	}
+
+	return nil
+}
+
+// GetDepositFilePath constructs and return deposit-data file path.
+func GetDepositFilePath(dataDir string, amount eth2p0.Gwei) string {
+	eth := float64(amount) / float64(OneEthInGwei)
+	ethStr := strconv.FormatFloat(eth, 'f', -1, 64)
+	filename := fmt.Sprintf("deposit-data-%seth.json", ethStr)
+
+	return path.Join(dataDir, filename)
 }
