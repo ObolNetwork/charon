@@ -86,7 +86,7 @@ func TestPeerInfo(t *testing.T) {
 		tickProvider := func() (<-chan time.Time, func()) {
 			return nil, func() {}
 		}
-		metricSubmitter := func(peer.ID, time.Duration, string, string, time.Time) {
+		metricSubmitter := func(peer.ID, time.Duration, string, string, time.Time, bool) {
 			panic("unexpected metric submitted")
 		}
 
@@ -101,7 +101,7 @@ func TestPeerInfo(t *testing.T) {
 
 			var submittedMutex sync.Mutex
 			var submitted int
-			metricSubmitter = func(peerID peer.ID, clockOffset time.Duration, version, gitHash string, startTime time.Time) {
+			metricSubmitter = func(peerID peer.ID, clockOffset time.Duration, version, gitHash string, startTime time.Time, mevEnabled bool) {
 				for i, tcpNode := range tcpNodes {
 					if tcpNode.ID() != peerID {
 						continue
@@ -110,6 +110,7 @@ func TestPeerInfo(t *testing.T) {
 					require.Equal(t, node.Version.String(), version)
 					require.Equal(t, gitCommit, gitHash)
 					require.Equal(t, nowFunc(i)().Unix(), startTime.Unix())
+					require.True(t, mevEnabled)
 
 					submittedMutex.Lock()
 					submitted++

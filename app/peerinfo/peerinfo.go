@@ -39,7 +39,7 @@ func Protocols() []protocol.ID {
 type (
 	tickerProvider  func() (<-chan time.Time, func())
 	nowFunc         func() time.Time
-	metricSubmitter func(peerID peer.ID, clockOffset time.Duration, version, gitHash string, startTime time.Time)
+	metricSubmitter func(peerID peer.ID, clockOffset time.Duration, version, gitHash string, startTime time.Time, mevEnabled bool)
 )
 
 // New returns a new peer info protocol instance.
@@ -77,7 +77,7 @@ func NewForT(_ *testing.T, tcpNode host.Host, peers []peer.ID, version version.S
 	tickerProvider tickerProvider, nowFunc nowFunc, metricSubmitter metricSubmitter,
 ) *PeerInfo {
 	return newInternal(tcpNode, peers, version, lockHash, gitHash, sendFunc, registerHandler,
-		tickerProvider, nowFunc, metricSubmitter, false)
+		tickerProvider, nowFunc, metricSubmitter, true)
 }
 
 // newInternal returns a new instance for New or NewForT.
@@ -118,6 +118,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, loc
 		version:         version,
 		lockHash:        lockHash,
 		startTime:       startTime,
+		mevEnabled:      builderEnabled,
 		metricSubmitter: metricSubmitter,
 		tickerProvider:  tickerProvider,
 		nowFunc:         nowFunc,
@@ -134,6 +135,7 @@ type PeerInfo struct {
 	lockHash        []byte
 	gitHash         string
 	startTime       *timestamppb.Timestamp
+	mevEnabled      bool
 	tickerProvider  tickerProvider
 	metricSubmitter metricSubmitter
 	nowFunc         func() time.Time
@@ -171,6 +173,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			GitHash:       p.gitHash,
 			SentAt:        timestamppb.New(now),
 			StartedAt:     p.startTime,
+			MevEnabled:    p.mevEnabled,
 		}
 
 		go func(peerID peer.ID) {
@@ -217,7 +220,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			// Set peer compatibility to true.
 			peerCompatibleGauge.WithLabelValues(name).Set(1)
 
-			p.metricSubmitter(peerID, clockOffset, resp.CharonVersion, resp.GitHash, resp.StartedAt.AsTime())
+			p.metricSubmitter(peerID, clockOffset, resp.CharonVersion, resp.GitHash, resp.StartedAt.AsTime(), resp.MevEnabled)
 
 			// Log unexpected lock hash
 			if !bytes.Equal(resp.LockHash, p.lockHash) {
@@ -258,7 +261,7 @@ func supportedPeerVersion(peerVersion string, supported []version.SemVer) error 
 // newMetricsSubmitter returns a prometheus metric submitter.
 func newMetricsSubmitter() metricSubmitter {
 	return func(peerID peer.ID, clockOffset time.Duration, version string, gitHash string,
-		startTime time.Time,
+		startTime time.Time, mevEnabled bool,
 	) {
 		peerName := p2p.PeerName(peerID)
 
@@ -287,5 +290,11 @@ func newMetricsSubmitter() metricSubmitter {
 		peerVersion.WithLabelValues(peerName, version).Set(1)
 		peerGitHash.Reset(peerName)
 		peerGitHash.WithLabelValues(peerName, gitHash).Set(1)
+
+		if mevEnabled {
+			peerMevEnabledGauge.WithLabelValues(peerName).Set(1)
+		} else {
+			peerMevEnabledGauge.WithLabelValues(peerName).Set(0)
+		}
 	}
 }
