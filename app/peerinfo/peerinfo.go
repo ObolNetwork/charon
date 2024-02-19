@@ -232,6 +232,15 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 					p.lockHashFilters[peerID],
 				)
 			}
+
+			// MEV shall be enabled or disabled for both.
+			if resp.MevEnabled != p.mevEnabled {
+				log.Warn(ctx, "Mismatching peer MEV enabled flag", nil,
+					z.Str("peer", name),
+					z.Bool("peer_mev_enabled", resp.MevEnabled),
+					z.Bool("mev_enabled", p.mevEnabled),
+				)
+			}
 		}(peerID)
 	}
 }
