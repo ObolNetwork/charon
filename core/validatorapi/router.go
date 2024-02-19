@@ -48,8 +48,8 @@ type contentType string
 const (
 	contentTypeJSON               contentType = "application/json"
 	contentTypeSSZ                contentType = "application/octet-stream"
-	VersionHeader                             = "Eth-Consensus-Version"
-	ExecutionPayloadBlindedHeader             = "Eth-Execution-Payload-Blinded"
+	versionHeader                             = "Eth-Consensus-Version"
+	executionPayloadBlindedHeader             = "Eth-Execution-Payload-Blinded"
 )
 
 // Handler defines the request handler providing the business logic
@@ -653,9 +653,8 @@ func proposeBlockV3(p proposeBlockV3Provider, getBuilderAPI core.BuilderEnabled)
 				return nil, nil, err
 			}
 
-			block := eth2Resp.Data
-			version = block.Version.String()
-			proposedBlock, err = createProposeBlockResponse(block)
+			version = eth2Resp.Data.Version.String()
+			proposedBlock, err = createProposeBlockResponse(eth2Resp.Data)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -671,18 +670,17 @@ func proposeBlockV3(p proposeBlockV3Provider, getBuilderAPI core.BuilderEnabled)
 				return nil, nil, err
 			}
 
-			block := eth2Resp.Data
 			blinded = true
-			version = block.Version.String()
-			proposedBlock, err = createProposeBlindedBlockResponse(block)
+			version = eth2Resp.Data.Version.String()
+			proposedBlock, err = createProposeBlindedBlockResponse(eth2Resp.Data)
 			if err != nil {
 				return nil, nil, err
 			}
 		}
 
 		resHeaders := make(http.Header)
-		resHeaders.Add(VersionHeader, version)
-		resHeaders.Add(ExecutionPayloadBlindedHeader, strconv.FormatBool(blinded))
+		resHeaders.Add(versionHeader, version)
+		resHeaders.Add(executionPayloadBlindedHeader, strconv.FormatBool(blinded))
 
 		// TODO: Support "Eth-Execution-Payload-Value" & "Eth-Consensus-Block-Value" headers.
 
@@ -711,7 +709,7 @@ func proposeBlock(p eth2client.ProposalProvider) handlerFunc {
 		block := eth2Resp.Data
 
 		resHeaders := make(http.Header)
-		resHeaders.Add(VersionHeader, block.Version.String())
+		resHeaders.Add(versionHeader, block.Version.String())
 
 		proposedBlock, err := createProposeBlockResponse(block)
 
@@ -740,7 +738,7 @@ func proposeBlindedBlock(p eth2client.BlindedProposalProvider) handlerFunc {
 		block := eth2Resp.Data
 
 		resHeaders := make(http.Header)
-		resHeaders.Add(VersionHeader, block.Version.String())
+		resHeaders.Add(versionHeader, block.Version.String())
 
 		proposedBlindedBlock, err := createProposeBlindedBlockResponse(block)
 

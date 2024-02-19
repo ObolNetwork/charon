@@ -523,7 +523,7 @@ func TestRawRouter(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify response header.
-			require.Equal(t, block.Version.String(), res.Header.Get(VersionHeader))
+			require.Equal(t, block.Version.String(), res.Header.Get(versionHeader))
 
 			var blockRes proposeBlockResponseCapella
 			err = json.NewDecoder(res.Body).Decode(&blockRes)
@@ -556,7 +556,7 @@ func TestRawRouter(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify response header.
-			require.Equal(t, block.Version.String(), res.Header.Get(VersionHeader))
+			require.Equal(t, block.Version.String(), res.Header.Get(versionHeader))
 
 			var blockRes proposeBlindedBlockResponseCapella
 			err = json.NewDecoder(res.Body).Decode(&blockRes)
@@ -610,8 +610,8 @@ func TestRawRouter(t *testing.T) {
 			res := mustGetRequest(baseURL, blindedExpectedSlot, blindedRandao)
 
 			// Verify response header.
-			require.Equal(t, blindedBlock.Version.String(), res.Header.Get(VersionHeader))
-			require.Equal(t, "true", res.Header.Get(ExecutionPayloadBlindedHeader))
+			require.Equal(t, blindedBlock.Version.String(), res.Header.Get(versionHeader))
+			require.Equal(t, "true", res.Header.Get(executionPayloadBlindedHeader))
 
 			var blockRes proposeBlindedBlockResponseCapella
 			err = json.NewDecoder(res.Body).Decode(&blockRes)
@@ -626,8 +626,8 @@ func TestRawRouter(t *testing.T) {
 			res := mustGetRequest(baseURL, expectedSlot, randao)
 
 			// Verify response header.
-			require.Equal(t, block.Version.String(), res.Header.Get(VersionHeader))
-			require.Equal(t, "false", res.Header.Get(ExecutionPayloadBlindedHeader))
+			require.Equal(t, block.Version.String(), res.Header.Get(versionHeader))
+			require.Equal(t, "false", res.Header.Get(executionPayloadBlindedHeader))
 
 			var blockRes proposeBlockResponseCapella
 			err = json.NewDecoder(res.Body).Decode(&blockRes)
@@ -1726,7 +1726,7 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 	})
 	mux.HandleFunc("/eth/v2/debug/beacon/states/head", func(w http.ResponseWriter, r *http.Request) {
 		res := testutil.RandomBeaconState(t)
-		w.Header().Add(VersionHeader, res.Version.String())
+		w.Header().Add(versionHeader, res.Version.String())
 
 		writeResponse(ctx, w, "", nest(res.Capella, "data"), nil)
 	})
