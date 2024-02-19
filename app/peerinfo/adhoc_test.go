@@ -34,4 +34,5 @@ func TestDoOnce(t *testing.T) {
 	require.Equal(t, vers.String(), info.CharonVersion)
 	require.Equal(t, gitHash, info.GitHash)
 	require.Equal(t, lockHash, info.LockHash)
+	require.True(t, info.MevEnabled)
 }

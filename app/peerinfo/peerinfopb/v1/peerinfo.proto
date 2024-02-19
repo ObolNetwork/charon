@@ -12,6 +12,7 @@ message PeerInfo {
   optional google.protobuf.Timestamp    sent_at = 3;
   string                               git_hash = 4;
   optional google.protobuf.Timestamp started_at = 5;
+  bool                              mev_enabled = 6;
 
   // TODO(corver): Always populate timestamps when sending, then make them required after subsequent release.
 }

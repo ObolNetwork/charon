@@ -51,6 +51,7 @@ func New(tcpNode host.Host, peers []peer.ID, version version.SemVer, lockHash []
 	peerVersion.WithLabelValues(name, version.String()).Set(1)
 	peerGitHash.WithLabelValues(name, gitHash).Set(1)
 	peerStartGauge.WithLabelValues(name).Set(float64(time.Now().Unix()))
+
 	if builderEnabled {
 		peerMevEnabledGauge.WithLabelValues(name).Set(1)
 	} else {
@@ -67,7 +68,7 @@ func New(tcpNode host.Host, peers []peer.ID, version version.SemVer, lockHash []
 	}
 
 	return newInternal(tcpNode, peers, version, lockHash, gitHash, sendFunc, p2p.RegisterHandler,
-		tickerProvider, time.Now, newMetricsSubmitter())
+		tickerProvider, time.Now, newMetricsSubmitter(), builderEnabled)
 }
 
 // NewForT returns a new peer info protocol instance for testing only.
@@ -76,13 +77,14 @@ func NewForT(_ *testing.T, tcpNode host.Host, peers []peer.ID, version version.S
 	tickerProvider tickerProvider, nowFunc nowFunc, metricSubmitter metricSubmitter,
 ) *PeerInfo {
 	return newInternal(tcpNode, peers, version, lockHash, gitHash, sendFunc, registerHandler,
-		tickerProvider, nowFunc, metricSubmitter)
+		tickerProvider, nowFunc, metricSubmitter, false)
 }
 
 // newInternal returns a new instance for New or NewForT.
 func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, lockHash []byte, gitHash string,
 	sendFunc p2p.SendReceiveFunc, registerHandler p2p.RegisterHandlerFunc,
 	tickerProvider tickerProvider, nowFunc nowFunc, metricSubmitter metricSubmitter,
+	builderEnabled bool,
 ) *PeerInfo {
 	startTime := timestamppb.New(nowFunc())
 
@@ -96,6 +98,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, loc
 				GitHash:       gitHash,
 				SentAt:        timestamppb.New(nowFunc()),
 				StartedAt:     startTime,
+				MevEnabled:    builderEnabled,
 			}, true, nil
 		},
 	)
