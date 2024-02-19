@@ -46,11 +46,10 @@ import (
 type contentType string
 
 const (
-	contentTypeJSON contentType = "application/json"
-	contentTypeSSZ  contentType = "application/octet-stream"
-
-	VersionHeader                 = "Eth-Consensus-Version"
-	ExecutionPayloadBlindedHeader = "Eth-Execution-Payload-Blinded"
+	contentTypeJSON               contentType = "application/json"
+	contentTypeSSZ                contentType = "application/octet-stream"
+	VersionHeader                             = "Eth-Consensus-Version"
+	ExecutionPayloadBlindedHeader             = "Eth-Execution-Payload-Blinded"
 )
 
 // Handler defines the request handler providing the business logic
@@ -80,13 +79,10 @@ type Handler interface {
 	// Above sorted alphabetically.
 }
 
-// IsBuilderEnabledFunc returns flag indicating whether builder API is enabled for given slot.
-type IsBuilderEnabledFunc func(slot uint64) bool
-
 // NewRouter returns a new validator http server router. The http router
 // translates http requests related to the distributed validator to the Handler.
 // All other requests are reverse-proxied to the beacon-node address.
-func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, isBuilderEnabled IsBuilderEnabledFunc) (*mux.Router, error) {
+func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, isBuilderEnabled core.BuilderEnabled) (*mux.Router, error) {
 	// Register subset of distributed validator related endpoints.
 	endpoints := []struct {
 		Name    string
@@ -631,7 +627,7 @@ type proposeBlockV3Provider interface {
 }
 
 // proposeBlockV3 returns a handler function returning an unsigned BeaconBlock or BlindedBeaconBlock.
-func proposeBlockV3(p proposeBlockV3Provider, getBuilderAPI IsBuilderEnabledFunc) handlerFunc {
+func proposeBlockV3(p proposeBlockV3Provider, getBuilderAPI core.BuilderEnabled) handlerFunc {
 	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		// TODO: skip_randao_verification and builder_boost_factor are ignored yet.
 		slot, randao, graffiti, err := getProposeBlockParams(params, query)
@@ -645,7 +641,7 @@ func proposeBlockV3(p proposeBlockV3Provider, getBuilderAPI IsBuilderEnabledFunc
 			proposedBlock any
 		)
 
-		if getBuilderAPI(slot) {
+		if !getBuilderAPI(slot) {
 			opts := &eth2api.ProposalOpts{
 				Slot:         eth2p0.Slot(slot),
 				RandaoReveal: randao,
@@ -775,7 +771,7 @@ func getProposeBlockParams(params map[string]string, query url.Values) (uint64, 
 	return slot, randao, graffiti, err
 }
 
-// createProposeBlockResponse constructs proposeBlockResponse* object for given block.
+// createProposeBlockResponse constructs proposeBlockResponse object for given block.
 func createProposeBlockResponse(block *eth2api.VersionedProposal) (any, error) {
 	switch block.Version {
 	case eth2spec.DataVersionPhase0:
@@ -828,7 +824,7 @@ func createProposeBlockResponse(block *eth2api.VersionedProposal) (any, error) {
 	}
 }
 
-// createProposeBlindedBlockResponse constructs proposeBlindedBlockResponse* object for given block.
+// createProposeBlindedBlockResponse constructs proposeBlindedBlockResponse object for given block.
 func createProposeBlindedBlockResponse(block *eth2api.VersionedBlindedProposal) (any, error) {
 	switch block.Version {
 	case eth2spec.DataVersionBellatrix:

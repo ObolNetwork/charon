@@ -35,6 +35,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -619,7 +620,7 @@ func TestRawRouter(t *testing.T) {
 		}
 
 		// BuilderAPI is disabled, we expect to get the blinded block
-		testRawRouterEx(t, handler, blindedCallback, func(_ uint64) bool { return false })
+		testRawRouterEx(t, handler, blindedCallback, func(_ uint64) bool { return true })
 
 		callback := func(ctx context.Context, baseURL string) {
 			res := mustGetRequest(baseURL, expectedSlot, randao)
@@ -635,7 +636,7 @@ func TestRawRouter(t *testing.T) {
 		}
 
 		// BuilderAPI is enabled, we expect to get the full block
-		testRawRouterEx(t, handler, callback, func(_ uint64) bool { return true })
+		testRawRouterEx(t, handler, callback, func(_ uint64) bool { return false })
 	})
 }
 
@@ -1570,7 +1571,7 @@ func testRawRouter(t *testing.T, handler testHandler, callback func(context.Cont
 }
 
 // testRawRouterEX is a helper function same as testRawRouter() but accepts GetBuilderAPIFlagFunc.
-func testRawRouterEx(t *testing.T, handler testHandler, callback func(context.Context, string), isBuilderEnabled IsBuilderEnabledFunc) {
+func testRawRouterEx(t *testing.T, handler testHandler, callback func(context.Context, string), isBuilderEnabled core.BuilderEnabled) {
 	t.Helper()
 
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
