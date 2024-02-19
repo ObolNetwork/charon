@@ -44,13 +44,18 @@ type (
 
 // New returns a new peer info protocol instance.
 func New(tcpNode host.Host, peers []peer.ID, version version.SemVer, lockHash []byte, gitHash string,
-	sendFunc p2p.SendReceiveFunc,
+	sendFunc p2p.SendReceiveFunc, builderEnabled bool,
 ) *PeerInfo {
 	// Set own version and git hash and start time metrics.
 	name := p2p.PeerName(tcpNode.ID())
 	peerVersion.WithLabelValues(name, version.String()).Set(1)
 	peerGitHash.WithLabelValues(name, gitHash).Set(1)
 	peerStartGauge.WithLabelValues(name).Set(float64(time.Now().Unix()))
+	if builderEnabled {
+		peerMevEnabledGauge.WithLabelValues(name).Set(1)
+	} else {
+		peerMevEnabledGauge.WithLabelValues(name).Set(0)
+	}
 
 	for i, p := range peers {
 		peerIndexGauge.WithLabelValues(p2p.PeerName(p)).Set(float64(i))

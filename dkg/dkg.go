@@ -408,7 +408,7 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, conf Config, peers []p2p.
 
 	// Register peerinfo server handler for identification to relays (but do not run peerinfo client).
 	gitHash, _ := version.GitCommit()
-	_ = peerinfo.New(tcpNode, peerIDs, version.Version, defHash, gitHash, nil)
+	_ = peerinfo.New(tcpNode, peerIDs, version.Version, defHash, gitHash, nil, false)
 
 	return tcpNode, func() {
 		_ = tcpNode.Close()
