@@ -31,7 +31,7 @@ go install github.com/obolnetwork/charon/testutil/compose/compose
 
 # Alternatives:
 # go install ./...
-# cd testutil/compose/compose && go installl .
+# cd testutil/compose/compose && go install .
 # cd testutil/compose/compose && go build -o /tmp/compose/compose
 ```
 
