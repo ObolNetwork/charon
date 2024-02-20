@@ -24,7 +24,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 65,
+  "id": 2,
   "links": [
     {
       "asDropdown": false,
@@ -93,6 +93,7 @@
       },
       "id": 19,
       "options": {
+        "cellHeight": "sm",
         "footer": {
           "countRows": false,
           "fields": "",
@@ -104,7 +105,7 @@
         "frameIndex": 0,
         "showHeader": false
       },
-      "pluginVersion": "9.4.3",
+      "pluginVersion": "10.2.2",
       "targets": [
         {
           "datasource": {
@@ -242,9 +243,10 @@
           "titleSize": 15,
           "valueSize": 15
         },
-        "textMode": "auto"
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "9.4.3",
+      "pluginVersion": "10.2.2",
       "targets": [
         {
           "datasource": {
@@ -474,9 +476,10 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "9.4.3",
+      "pluginVersion": "10.2.2",
       "targets": [
         {
           "datasource": {
@@ -508,6 +511,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -523,6 +527,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 2,
             "pointSize": 5,
@@ -652,9 +657,10 @@
           "titleSize": 15,
           "valueSize": 15
         },
-        "textMode": "auto"
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "9.4.3",
+      "pluginVersion": "10.2.2",
       "targets": [
         {
           "datasource": {
@@ -987,6 +993,32 @@
                 "value": 30
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Builder API"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "index": 0,
+                        "text": " ❌"
+                      },
+                      "1": {
+                        "index": 1,
+                        "text": "✅"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
           }
         ]
       },
@@ -998,6 +1030,7 @@
       },
       "id": 54,
       "options": {
+        "cellHeight": "sm",
         "footer": {
           "countRows": false,
           "fields": "",
@@ -1015,7 +1048,7 @@
           }
         ]
       },
-      "pluginVersion": "9.4.3",
+      "pluginVersion": "10.2.2",
       "targets": [
         {
           "datasource": {
@@ -1271,6 +1304,25 @@
           "instant": true,
           "range": false,
           "refId": "R"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "max(app_peerinfo_builder_api_enabled{cluster_name=\"$cluster_name\",cluster_hash=\"$cluster_hash\",cluster_peer=\"$cluster_peer\"}) by (peer)",
+          "format": "table",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "S",
+          "useBackend": false
         }
       ],
       "title": "Peer Connectivity and Duty Participation",
@@ -1302,45 +1354,49 @@
               "Time 7": true,
               "Time 8": true,
               "Time 9": true,
+              "Value #C": true,
+              "Value #D": true,
+              "Value #E": true,
               "Value #F": false,
+              "Value #G": true,
               "Value #L": true,
-              "Value #M": true
+              "Value #M": true,
+              "Value #N": true,
+              "Value #P": true
             },
             "indexByName": {
-              "Time 1": 10,
-              "Time 10": 29,
-              "Time 11": 30,
-              "Time 12": 31,
-              "Time 13": 32,
-              "Time 14": 33,
-              "Time 15": 34,
-              "Time 16": 35,
-              "Time 17": 36,
-              "Time 2": 12,
-              "Time 3": 13,
-              "Time 4": 14,
-              "Time 5": 15,
-              "Time 6": 16,
-              "Time 7": 17,
-              "Time 8": 18,
-              "Time 9": 28,
+              "Time 1": 11,
+              "Time 10": 28,
+              "Time 11": 29,
+              "Time 12": 30,
+              "Time 13": 31,
+              "Time 14": 32,
+              "Time 15": 33,
+              "Time 16": 34,
+              "Time 2": 13,
+              "Time 3": 14,
+              "Time 4": 15,
+              "Time 5": 16,
+              "Time 6": 17,
+              "Time 7": 18,
+              "Time 8": 19,
+              "Time 9": 27,
               "Value #A": 3,
               "Value #B": 5,
-              "Value #C": 20,
-              "Value #D": 21,
-              "Value #E": 22,
+              "Value #C": 21,
+              "Value #D": 22,
+              "Value #E": 23,
               "Value #F": 2,
-              "Value #G": 23,
-              "Value #H": 24,
+              "Value #G": 24,
               "Value #J": 6,
               "Value #K": 4,
-              "Value #L": 11,
-              "Value #M": 19,
+              "Value #L": 12,
+              "Value #M": 20,
               "Value #N": 25,
-              "Value #O": 27,
               "Value #P": 26,
               "Value #Q": 9,
               "Value #R": 1,
+              "Value #S": 10,
               "git_hash": 8,
               "peer": 0,
               "version": 7
@@ -1363,6 +1419,7 @@
               "Value #P": "PrepareContrib",
               "Value #Q": "Uptime",
               "Value #R": "Index",
+              "Value #S": "Builder API",
               "git_hash": "GitCommit",
               "peer": "Peer",
               "version": "Version"
@@ -1384,6 +1441,11 @@
           },
           "custom": {
             "fillOpacity": 100,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
             "lineWidth": 0
           },
           "mappings": [],
@@ -1470,6 +1532,11 @@
           },
           "custom": {
             "fillOpacity": 100,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
             "lineWidth": 0
           },
           "links": [
@@ -1548,6 +1615,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -1561,6 +1629,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -1705,9 +1774,10 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "9.4.3",
+      "pluginVersion": "10.2.2",
       "targets": [
         {
           "datasource": {
@@ -1736,6 +1806,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -1749,6 +1820,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -1947,8 +2019,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2042,8 +2113,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2137,8 +2207,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2232,8 +2301,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2328,8 +2396,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2421,8 +2488,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2542,8 +2608,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2649,8 +2714,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2725,8 +2789,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "light-blue",
-                "value": null
+                "color": "light-blue"
               },
               {
                 "color": "red",
@@ -2908,7 +2971,6 @@
   "refresh": "30s",
   "revision": 1,
   "schemaVersion": 38,
-  "style": "dark",
   "tags": [
     "charon",
     "cluster-labels"
@@ -2917,10 +2979,9 @@
     "list": [
       {
         "current": {
-          "isNone": true,
           "selected": false,
-          "text": "None",
-          "value": ""
+          "text": "compose-4-1",
+          "value": "compose-4-1"
         },
         "datasource": {
           "type": "prometheus",
@@ -2947,8 +3008,8 @@
       {
         "current": {
           "selected": false,
-          "text": "ad1c2dd",
-          "value": "ad1c2dd"
+          "text": "1467820",
+          "value": "1467820"
         },
         "datasource": {
           "type": "prometheus",
@@ -2975,8 +3036,8 @@
       {
         "current": {
           "selected": false,
-          "text": "helpless-state",
-          "value": "helpless-state"
+          "text": "anxious-leaves",
+          "value": "anxious-leaves"
         },
         "datasource": {
           "type": "prometheus",
@@ -3003,8 +3064,8 @@
       {
         "current": {
           "selected": false,
-          "text": "node3",
-          "value": "node3"
+          "text": "node0",
+          "value": "node0"
         },
         "datasource": {
           "type": "prometheus",
