@@ -101,7 +101,7 @@ func TestPeerInfo(t *testing.T) {
 
 			var submittedMutex sync.Mutex
 			var submitted int
-			metricSubmitter = func(peerID peer.ID, clockOffset time.Duration, version, gitHash string, startTime time.Time, mevEnabled bool) {
+			metricSubmitter = func(peerID peer.ID, clockOffset time.Duration, version, gitHash string, startTime time.Time, builderEnabled bool) {
 				for i, tcpNode := range tcpNodes {
 					if tcpNode.ID() != peerID {
 						continue
@@ -110,7 +110,7 @@ func TestPeerInfo(t *testing.T) {
 					require.Equal(t, node.Version.String(), version)
 					require.Equal(t, gitCommit, gitHash)
 					require.Equal(t, nowFunc(i)().Unix(), startTime.Unix())
-					require.True(t, mevEnabled)
+					require.True(t, builderEnabled)
 
 					submittedMutex.Lock()
 					submitted++

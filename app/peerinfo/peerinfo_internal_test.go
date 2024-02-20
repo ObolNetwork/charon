@@ -65,7 +65,7 @@ func TestSupporterVersion(t *testing.T) {
 	}
 }
 
-func TestPeerMevEnabledGauge(t *testing.T) {
+func TestPeerBuilderAPIEnabledGauge(t *testing.T) {
 	server := testutil.CreateHost(t, testutil.AvailableAddr(t))
 	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
 
@@ -76,7 +76,7 @@ func TestPeerMevEnabledGauge(t *testing.T) {
 	tests := []struct {
 		name           string
 		builderEnabled bool
-		gaugeValue     int
+		expectedValue  int
 	}{
 		{"builder enabled", true, 1},
 		{"builder disabled", false, 0},
@@ -87,12 +87,12 @@ func TestPeerMevEnabledGauge(t *testing.T) {
 			_ = New(server, []peer.ID{server.ID(), client.ID()}, version.Version, lockHash, gitHash, nil, test.builderEnabled)
 
 			expectedMetric := fmt.Sprintf(`
-			# HELP app_peerinfo_mev_enabled Set to 1 if mev is enabled on this peer, else 0 if disabled.
-			# TYPE app_peerinfo_mev_enabled gauge
-			app_peerinfo_mev_enabled{ peer = "%s" } %d
-			`, peerName, test.gaugeValue)
+			# HELP app_peerinfo_builder_api_enabled Set to 1 if builder API is enabled on this peer, else 0 if disabled.
+			# TYPE app_peerinfo_builder_api_enabled gauge
+			app_peerinfo_builder_api_enabled{ peer = "%s" } %d
+			`, peerName, test.expectedValue)
 
-			if err := promtestutil.CollectAndCompare(peerMevEnabledGauge, strings.NewReader(expectedMetric), "app_peerinfo_mev_enabled"); err != nil {
+			if err := promtestutil.CollectAndCompare(peerBuilderAPIEnabledGauge, strings.NewReader(expectedMetric), "app_peerinfo_builder_api_enabled"); err != nil {
 				require.NoError(t, err, "failed to collect metric")
 			}
 		})

@@ -39,7 +39,7 @@ func Protocols() []protocol.ID {
 type (
 	tickerProvider  func() (<-chan time.Time, func())
 	nowFunc         func() time.Time
-	metricSubmitter func(peerID peer.ID, clockOffset time.Duration, version, gitHash string, startTime time.Time, mevEnabled bool)
+	metricSubmitter func(peerID peer.ID, clockOffset time.Duration, version, gitHash string, startTime time.Time, builderAPIEnabled bool)
 )
 
 // New returns a new peer info protocol instance.
@@ -53,9 +53,9 @@ func New(tcpNode host.Host, peers []peer.ID, version version.SemVer, lockHash []
 	peerStartGauge.WithLabelValues(name).Set(float64(time.Now().Unix()))
 
 	if builderEnabled {
-		peerMevEnabledGauge.WithLabelValues(name).Set(1)
+		peerBuilderAPIEnabledGauge.WithLabelValues(name).Set(1)
 	} else {
-		peerMevEnabledGauge.WithLabelValues(name).Set(0)
+		peerBuilderAPIEnabledGauge.WithLabelValues(name).Set(0)
 	}
 
 	for i, p := range peers {
@@ -75,17 +75,17 @@ func New(tcpNode host.Host, peers []peer.ID, version version.SemVer, lockHash []
 func NewForT(_ *testing.T, tcpNode host.Host, peers []peer.ID, version version.SemVer, lockHash []byte, gitHash string,
 	sendFunc p2p.SendReceiveFunc, registerHandler p2p.RegisterHandlerFunc,
 	tickerProvider tickerProvider, nowFunc nowFunc, metricSubmitter metricSubmitter,
-	mevEnabled bool,
+	builderAPIEnabled bool,
 ) *PeerInfo {
 	return newInternal(tcpNode, peers, version, lockHash, gitHash, sendFunc, registerHandler,
-		tickerProvider, nowFunc, metricSubmitter, mevEnabled)
+		tickerProvider, nowFunc, metricSubmitter, builderAPIEnabled)
 }
 
 // newInternal returns a new instance for New or NewForT.
 func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, lockHash []byte, gitHash string,
 	sendFunc p2p.SendReceiveFunc, registerHandler p2p.RegisterHandlerFunc,
 	tickerProvider tickerProvider, nowFunc nowFunc, metricSubmitter metricSubmitter,
-	mevEnabled bool,
+	builderAPIEnabled bool,
 ) *PeerInfo {
 	startTime := timestamppb.New(nowFunc())
 
@@ -94,12 +94,12 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, loc
 		func() proto.Message { return new(pbv1.PeerInfo) },
 		func(context.Context, peer.ID, proto.Message) (proto.Message, bool, error) {
 			return &pbv1.PeerInfo{
-				CharonVersion: version.String(),
-				LockHash:      lockHash,
-				GitHash:       gitHash,
-				SentAt:        timestamppb.New(nowFunc()),
-				StartedAt:     startTime,
-				MevEnabled:    mevEnabled,
+				CharonVersion:     version.String(),
+				LockHash:          lockHash,
+				GitHash:           gitHash,
+				SentAt:            timestamppb.New(nowFunc()),
+				StartedAt:         startTime,
+				BuilderApiEnabled: builderAPIEnabled,
 			}, true, nil
 		},
 	)
@@ -113,35 +113,35 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, loc
 	}
 
 	return &PeerInfo{
-		sendFunc:        sendFunc,
-		tcpNode:         tcpNode,
-		peers:           peers,
-		version:         version,
-		lockHash:        lockHash,
-		startTime:       startTime,
-		mevEnabled:      mevEnabled,
-		metricSubmitter: metricSubmitter,
-		tickerProvider:  tickerProvider,
-		nowFunc:         nowFunc,
-		lockHashFilters: lockHashFilters,
-		versionFilters:  versionFilters,
+		sendFunc:          sendFunc,
+		tcpNode:           tcpNode,
+		peers:             peers,
+		version:           version,
+		lockHash:          lockHash,
+		startTime:         startTime,
+		builderAPIEnabled: builderAPIEnabled,
+		metricSubmitter:   metricSubmitter,
+		tickerProvider:    tickerProvider,
+		nowFunc:           nowFunc,
+		lockHashFilters:   lockHashFilters,
+		versionFilters:    versionFilters,
 	}
 }
 
 type PeerInfo struct {
-	sendFunc        p2p.SendReceiveFunc
-	tcpNode         host.Host
-	peers           []peer.ID
-	version         version.SemVer
-	lockHash        []byte
-	gitHash         string
-	startTime       *timestamppb.Timestamp
-	mevEnabled      bool
-	tickerProvider  tickerProvider
-	metricSubmitter metricSubmitter
-	nowFunc         func() time.Time
-	lockHashFilters map[peer.ID]z.Field
-	versionFilters  map[peer.ID]z.Field
+	sendFunc          p2p.SendReceiveFunc
+	tcpNode           host.Host
+	peers             []peer.ID
+	version           version.SemVer
+	lockHash          []byte
+	gitHash           string
+	startTime         *timestamppb.Timestamp
+	builderAPIEnabled bool
+	tickerProvider    tickerProvider
+	metricSubmitter   metricSubmitter
+	nowFunc           func() time.Time
+	lockHashFilters   map[peer.ID]z.Field
+	versionFilters    map[peer.ID]z.Field
 }
 
 // Run runs the peer info protocol until the context is cancelled.
@@ -169,12 +169,12 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 		}
 
 		req := &pbv1.PeerInfo{
-			CharonVersion: p.version.String(),
-			LockHash:      p.lockHash,
-			GitHash:       p.gitHash,
-			SentAt:        timestamppb.New(now),
-			StartedAt:     p.startTime,
-			MevEnabled:    p.mevEnabled,
+			CharonVersion:     p.version.String(),
+			LockHash:          p.lockHash,
+			GitHash:           p.gitHash,
+			SentAt:            timestamppb.New(now),
+			StartedAt:         p.startTime,
+			BuilderApiEnabled: p.builderAPIEnabled,
 		}
 
 		go func(peerID peer.ID) {
@@ -221,7 +221,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			// Set peer compatibility to true.
 			peerCompatibleGauge.WithLabelValues(name).Set(1)
 
-			p.metricSubmitter(peerID, clockOffset, resp.CharonVersion, resp.GitHash, resp.StartedAt.AsTime(), resp.MevEnabled)
+			p.metricSubmitter(peerID, clockOffset, resp.CharonVersion, resp.GitHash, resp.StartedAt.AsTime(), resp.BuilderApiEnabled)
 
 			// Log unexpected lock hash
 			if !bytes.Equal(resp.LockHash, p.lockHash) {
@@ -234,12 +234,12 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 				)
 			}
 
-			// MEV shall be enabled or disabled for both.
-			if resp.MevEnabled != p.mevEnabled {
-				log.Warn(ctx, "Mismatching peer MEV enabled flag", nil,
+			// Builder API shall be either enabled or disabled for both.
+			if resp.BuilderApiEnabled != p.builderAPIEnabled {
+				log.Warn(ctx, "Mismatching peer builder API status", nil,
 					z.Str("peer", name),
-					z.Bool("peer_mev_enabled", resp.MevEnabled),
-					z.Bool("mev_enabled", p.mevEnabled),
+					z.Bool("peer_builder_api_enabled", resp.BuilderApiEnabled),
+					z.Bool("builder_api_enabled", p.builderAPIEnabled),
 				)
 			}
 		}(peerID)
@@ -271,7 +271,7 @@ func supportedPeerVersion(peerVersion string, supported []version.SemVer) error 
 // newMetricsSubmitter returns a prometheus metric submitter.
 func newMetricsSubmitter() metricSubmitter {
 	return func(peerID peer.ID, clockOffset time.Duration, version string, gitHash string,
-		startTime time.Time, mevEnabled bool,
+		startTime time.Time, builderAPIEnabled bool,
 	) {
 		peerName := p2p.PeerName(peerID)
 
@@ -301,10 +301,10 @@ func newMetricsSubmitter() metricSubmitter {
 		peerGitHash.Reset(peerName)
 		peerGitHash.WithLabelValues(peerName, gitHash).Set(1)
 
-		if mevEnabled {
-			peerMevEnabledGauge.WithLabelValues(peerName).Set(1)
+		if builderAPIEnabled {
+			peerBuilderAPIEnabledGauge.WithLabelValues(peerName).Set(1)
 		} else {
-			peerMevEnabledGauge.WithLabelValues(peerName).Set(0)
+			peerBuilderAPIEnabledGauge.WithLabelValues(peerName).Set(0)
 		}
 	}
 }

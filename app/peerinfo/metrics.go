@@ -54,10 +54,10 @@ var (
 		Help:      "Set to 1 if the peer's version is supported by (compatible with) the current version, else 0 if unsupported.",
 	}, []string{"peer"})
 
-	peerMevEnabledGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	peerBuilderAPIEnabledGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "app",
 		Subsystem: "peerinfo",
-		Name:      "mev_enabled",
-		Help:      "Set to 1 if mev is enabled on this peer, else 0 if disabled.",
+		Name:      "builder_api_enabled",
+		Help:      "Set to 1 if builder API is enabled on this peer, else 0 if disabled.",
 	}, []string{"peer"})
 )
