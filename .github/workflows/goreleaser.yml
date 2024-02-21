@@ -29,6 +29,9 @@ jobs:
         with:
           osx-version: "14.0"
 
+      - name: Add osxcross binaries to path
+        run: |
+          echo "/home/runner/work/_actions/Timmmm/setup-osxcross/main/osxcross/target/bin" >> $GITHUB_PATH
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:
