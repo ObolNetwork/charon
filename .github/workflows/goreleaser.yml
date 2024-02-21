@@ -22,7 +22,8 @@ jobs:
 
       - name: OSXCross for CGO Support
         run: |
-          git clone https://github.com/plentico/osxcross-target.git /osxcross/target
+          mkdir ../../osxcross
+          git clone https://github.com/plentico/osxcross-target.git ../../osxcross/target
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
