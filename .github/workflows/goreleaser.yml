@@ -23,10 +23,11 @@ jobs:
       - name: Set up aarch64 gcc
         run: |
           sudo apt install gcc make gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
-      - name: OSXCross for CGO Support
-        run: |
-          mkdir ../../osxcross
-          git clone https://github.com/plentico/osxcross-target.git ../../osxcross/target
+
+      - name: osxcross
+        uses: Timmmm/setup-osxcross@main
+        with:
+          osx-version: "14.2"
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5

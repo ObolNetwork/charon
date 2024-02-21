@@ -35,21 +35,21 @@ upx:
 #     - GOSUMDB=sum.golang.org
 
 builds:
-  - id: macos_m1
+  - id: macos_intel
     env:
       - CGO_ENABLED=1
-      - CC=/home/runner/work/osxcross/target/bin/o64-clang
-      - CXX=/home/runner/work/osxcross/target/bin/o64-clang++
+      - CC=o64-clang
+      - CXX=o64-clang++
     goos:
       - darwin
     goarch:
       - amd64
 
-  - id: macos_intel
+  - id: macos_m1
     env:
       - CGO_ENABLED=1
-      - CC=/home/runner/work/osxcross/target/bin/oa64-clang
-      - CXX=/home/runner/work/osxcross/target/bin/oa64-clang++
+      - CC=oa64-clang
+      - CXX=oa64-clang++
     goos:
       - darwin
     goarch:
