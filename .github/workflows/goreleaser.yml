@@ -27,7 +27,7 @@ jobs:
       - name: osxcross
         uses: Timmmm/setup-osxcross@main
         with:
-          osx-version: "14"
+          osx-version: "14.0"
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
