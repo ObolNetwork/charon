@@ -5,6 +5,9 @@
 # Feel free to remove those if you don't want/need to use them.
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj
+#
+# To test on macOS, one needs a Linux-compatible toolchain:
+#   https://github.com/messense/homebrew-macos-cross-toolchains
 
 version: 1
 
@@ -12,15 +15,64 @@ before:
   hooks:
     # You may remove this if you don't use go modules.
     - go mod tidy
-    # you may remove this if you don't need go generate
-    - go generate ./...
+upx:
+  - # Whether to enable it or not.
+    #
+    # Templates: allowed (since v1.21)
+    enabled: true
+    # compress: best
+
+# for reproducible builds, we need the replace directive to be removed
+# gomod:
+#   proxy: true
+
+#   # If proxy is true, use these environment variables when running `go mod`
+#   # commands (namely, `go mod tidy`).
+#   #
+#   # Default: `os.Environ()` merged with what you set the root `env` section.
+#   env:
+#     - GOPROXY=https://proxy.golang.org,direct
+#     - GOSUMDB=sum.golang.org
 
 builds:
-  - env:
+  - id: macos_m1
+    env:
       - CGO_ENABLED=1
+      - CC=/osxcross/target/bin/o64-clang
+      - CXX=/osxcross/target/bin/o64-clang++
+    goos:
+      - darwin
+    goarch:
+      - amd64
+
+  - id: macos_intel
+    env:
+      - "CGO_ENABLED=1"
+      - CC=/home/runner/work/osxcross/target/bin/oa64-clang
+      - CXX=/home/runner/work/osxcross/target/bin/oa64-clang++
+    goos:
+      - darwin
+    goarch:
+      - arm64
+
+  - id: linux_arm64
     goos:
       - linux
-      - darwin
+    goarch:
+      - arm64
+    env:
+      - CGO_ENABLED=1
+      - CC=aarch64-linux-gnu-gcc
+      - CXX=aarch64-linux-gnu-g++
+
+  - id: linux_amd64
+    goos:
+      - linux
+    goarch:
+      - amd64
+    env:
+      - CC=x86_64-linux-gnu-gcc
+      - CXX=x86_64-linux-gnu-g++
 
 archives:
   - format: tar.gz
