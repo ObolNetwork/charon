@@ -38,8 +38,8 @@ builds:
   - id: macos_intel
     env:
       - CGO_ENABLED=1
-      - CC=o64-clang
-      - CXX=o64-clang++
+      - CC={{.Env.OSXCROSS_FOLDER}}/target/bin/o64-clang
+      - CXX={{.Env.OSXCROSS_FOLDER}}/target/bin/o64-clang++
     goos:
       - darwin
     goarch:
@@ -48,8 +48,8 @@ builds:
   - id: macos_m1
     env:
       - CGO_ENABLED=1
-      - CC=oa64-clang
-      - CXX=oa64-clang++
+      - CC={{.Env.OSXCROSS_FOLDER}}/target/bin/oa64-clang
+      - CXX={{.Env.OSXCROSS_FOLDER}}/target/bin/oa64-clang++
     goos:
       - darwin
     goarch:
