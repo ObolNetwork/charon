@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"net/http/httputil"
 	"os"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -343,7 +344,7 @@ func TestRawRouter(t *testing.T) {
 			return wrapResponse(res), nil
 		}
 
-		assertResults := func(t *testing.T, res *http.Response) {
+		assertResults := func(t *testing.T, expected []uint64, res *http.Response) {
 			t.Helper()
 
 			resp := struct {
@@ -352,20 +353,35 @@ func TestRawRouter(t *testing.T) {
 			err := json.NewDecoder(res.Body).Decode(&resp)
 			require.NoError(t, err)
 			require.Len(t, resp.Data, 2)
-			if resp.Data[0].Index == eth2p0.ValidatorIndex(12) {
-				require.EqualValues(t, eth2p0.ValidatorIndex(35), resp.Data[1].Index)
-			} else {
-				require.EqualValues(t, eth2p0.ValidatorIndex(12), resp.Data[1].Index)
+
+			var indices []uint64
+			for _, vr := range resp.Data {
+				indices = append(indices, uint64(vr.Index))
 			}
+
+			require.ElementsMatch(t, expected, indices)
+		}
+
+		uintToStrArr := func(t *testing.T, data []uint64) []string {
+			t.Helper()
+			ret := make([]string, 0, len(data))
+
+			for _, d := range data {
+				ret = append(ret, strconv.FormatUint(d, 10))
+			}
+
+			return ret
 		}
 
 		t.Run("via query ids", func(t *testing.T) {
 			handler := testHandler{ValidatorsFunc: simpleValidatorsFunc}
 
+			values := []uint64{12, 35}
+
 			callback := func(ctx context.Context, baseURL string) {
-				res, err := http.Post(baseURL+"/eth/v1/beacon/states/head/validators?id=12,35", "application/json", bytes.NewReader([]byte{}))
+				res, err := http.Post(baseURL+"/eth/v1/beacon/states/head/validators?id="+strings.Join(uintToStrArr(t, values), ","), "application/json", bytes.NewReader([]byte{}))
 				require.NoError(t, err)
-				assertResults(t, res)
+				assertResults(t, values, res)
 			}
 
 			testRawRouter(t, handler, callback)
@@ -374,11 +390,13 @@ func TestRawRouter(t *testing.T) {
 		t.Run("via post body", func(t *testing.T) {
 			handler := testHandler{ValidatorsFunc: simpleValidatorsFunc}
 
+			values := []uint64{12, 35}
+
 			callback := func(ctx context.Context, baseURL string) {
 				b := struct {
 					IDs []string `json:"ids"`
 				}{
-					IDs: []string{"12", "35"},
+					IDs: uintToStrArr(t, values),
 				}
 
 				bb, err := json.Marshal(b)
@@ -386,7 +404,7 @@ func TestRawRouter(t *testing.T) {
 
 				res, err := http.Post(baseURL+"/eth/v1/beacon/states/head/validators", "application/json", bytes.NewReader(bb))
 				require.NoError(t, err)
-				assertResults(t, res)
+				assertResults(t, values, res)
 			}
 
 			testRawRouter(t, handler, callback)
@@ -398,7 +416,10 @@ func TestRawRouter(t *testing.T) {
 			callback := func(ctx context.Context, baseURL string) {
 				res, err := http.Post(baseURL+"/eth/v1/beacon/states/head/validators", "application/json", bytes.NewReader([]byte{}))
 				require.NoError(t, err)
-				assertResults(t, res)
+
+				// when no validator ids are specified, this function will return always the complete
+				// list of validators
+				assertResults(t, []uint64{12, 35}, res)
 			}
 
 			testRawRouter(t, handler, callback)
