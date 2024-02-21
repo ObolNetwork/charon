@@ -19,6 +19,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
@@ -83,6 +84,10 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 		if err != nil {
 			return cluster.Definition{}, err
 		}
+	}
+
+	if err := deposit.VerifyDepositAmounts(def.DepositAmounts); err != nil {
+		return cluster.Definition{}, err
 	}
 
 	return def, nil

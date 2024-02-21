@@ -4,6 +4,7 @@ package dkg
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"time"
 
@@ -27,10 +28,11 @@ type sigType int
 const (
 	// sigLock is responsible for lock hash signed partial signatures exchange and aggregation.
 	sigLock sigType = 101
-	// sigDepositData is responsible for deposit data signed partial signatures exchange and aggregation.
-	sigDepositData sigType = 102
 	// sigValidatorRegistration is responsible for the pre-generated validator registration exchange and aggregation.
-	sigValidatorRegistration sigType = 103
+	sigValidatorRegistration sigType = 102
+	// sigDepositData is responsible for deposit data signed partial signatures exchange and aggregation.
+	// For partial deposits, it increments the number for each unique partial amount, e.g. 104, 105, etc.
+	sigDepositData sigType = 103
 )
 
 // sigTypeStore is a shorthand for a map of sigType to map of core.PubKey to slice of core.ParSignedData.
@@ -81,10 +83,11 @@ func (stb *dataByPubkey) get(sigType sigType) (map[core.PubKey][]core.ParSignedD
 
 // exchanger is responsible for exchanging partial signatures between peers on libp2p.
 type exchanger struct {
-	sigex    *parsigex.ParSigEx
-	sigdb    *parsigdb.MemDB
-	sigTypes map[sigType]bool
-	sigData  dataByPubkey
+	sigex         *parsigex.ParSigEx
+	sigdb         *parsigdb.MemDB
+	sigTypes      map[sigType]bool
+	sigData       dataByPubkey
+	dutyGaterFunc func(duty core.Duty) bool
 }
 
 func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int, sigTypes []sigType) *exchanger {
@@ -104,6 +107,10 @@ func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int, sig
 			return false
 		}
 
+		if slices.Contains(sigTypes, sigDepositData) && duty.Slot >= uint64(sigDepositData) {
+			return true
+		}
+
 		return st[sigType(duty.Slot)]
 	}
 
@@ -117,6 +124,7 @@ func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int, sig
 			numVals: vals,
 			lock:    sync.Mutex{},
 		},
+		dutyGaterFunc: dutyGaterFunc,
 	}
 
 	// Wiring core workflow components
@@ -157,7 +165,7 @@ func (e *exchanger) exchange(ctx context.Context, sigType sigType, set core.ParS
 func (e *exchanger) pushPsigs(_ context.Context, duty core.Duty, set map[core.PubKey][]core.ParSignedData) error {
 	sigType := sigType(duty.Slot)
 
-	if !e.sigTypes[sigType] {
+	if !e.dutyGaterFunc(duty) {
 		return errors.New("unrecognized sigType", z.Int("sigType", int(sigType)))
 	}
 

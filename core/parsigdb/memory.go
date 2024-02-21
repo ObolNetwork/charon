@@ -151,12 +151,9 @@ func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, b
 			equal, err := parSignedDataEqual(s, value)
 			if err != nil {
 				return nil, false, err
-			} else if !equal {
-				return nil, false, errors.New("mismatching partial signed data",
-					z.Any("pubkey", k.PubKey), z.Int("share_idx", s.ShareIdx))
+			} else if equal {
+				return nil, false, nil
 			}
-
-			return nil, false, nil
 		}
 	}
 

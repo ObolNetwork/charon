@@ -31,6 +31,7 @@ import (
 	"github.com/obolnetwork/charon/dkg"
 	dkgsync "github.com/obolnetwork/charon/dkg/sync"
 	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/eth2util/registration"
 	"github.com/obolnetwork/charon/p2p"
@@ -51,12 +52,19 @@ func TestDKG(t *testing.T) {
 		}
 	}
 
+	withDepositAmounts := func(amounts []eth2p0.Gwei) func(*cluster.Definition) {
+		return func(d *cluster.Definition) {
+			d.DepositAmounts = amounts
+		}
+	}
+
 	tests := []struct {
-		name       string
-		dkgAlgo    string
-		version    string // Defaults to latest if empty
-		keymanager bool
-		publish    bool
+		name           string
+		dkgAlgo        string
+		version        string // Defaults to latest if empty
+		depositAmounts []eth2p0.Gwei
+		keymanager     bool
+		publish        bool
 	}{
 		{
 			name:    "frost_v16",
@@ -66,6 +74,15 @@ func TestDKG(t *testing.T) {
 		{
 			name:    "frost_latest",
 			dkgAlgo: "frost",
+		},
+		{
+			name:    "with_partial_deposits",
+			dkgAlgo: "frost",
+			depositAmounts: []eth2p0.Gwei{
+				8 * deposit.OneEthInGwei,
+				16 * deposit.OneEthInGwei,
+				8 * deposit.OneEthInGwei,
+			},
 		},
 		{
 			name:       "dkg with keymanager",
@@ -83,6 +100,7 @@ func TestDKG(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			opts := []func(*cluster.Definition){
 				withAlgo(test.dkgAlgo),
+				withDepositAmounts(test.depositAmounts),
 			}
 			if test.version != "" {
 				opts = append(opts, cluster.WithVersion(test.version))
@@ -321,9 +339,15 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 
 		for j, val := range lock.Validators {
 			// Assert Deposit Data
-			require.Len(t, val.PartialDepositData, 1)
-			require.EqualValues(t, val.PubKey, val.PartialDepositData[0].PubKey)
-			require.EqualValues(t, 32_000_000_000, val.PartialDepositData[0].Amount)
+			depositAmounts := deposit.DedupAmounts(def.DepositAmounts)
+			if len(depositAmounts) == 0 {
+				depositAmounts = []eth2p0.Gwei{deposit.MaxDepositAmount}
+			}
+			require.Len(t, val.PartialDepositData, len(depositAmounts))
+			for i, amount := range depositAmounts {
+				require.EqualValues(t, val.PubKey, val.PartialDepositData[i].PubKey)
+				require.EqualValues(t, amount, val.PartialDepositData[i].Amount)
+			}
 
 			if !cluster.SupportPregenRegistrations(lock.Version) {
 				require.Empty(t, val.BuilderRegistration.Signature)

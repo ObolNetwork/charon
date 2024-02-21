@@ -6,11 +6,11 @@ import "testing"
 
 const (
 	// TODO: bump version to 1.8 when ready.
-	currentVersion = v1_7
+	currentVersion = v1_8
 	dkgAlgo        = "default"
 
-	v1_8 = "v1.8.0"
-	v1_7 = "v1.7.0" // Default
+	v1_8 = "v1.8.0" // Default
+	v1_7 = "v1.7.0"
 	v1_6 = "v1.6.0"
 	v1_5 = "v1.5.0"
 	v1_4 = "v1.4.0"

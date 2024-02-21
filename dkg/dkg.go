@@ -242,7 +242,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	// Sign, exchange and aggregate Deposit Data
-	depositDatas, err := signAndAggDepositData(ctx, ex, shares, def.WithdrawalAddresses(), network, nodeIdx)
+	depositAmounts := def.DepositAmounts
+	if len(depositAmounts) == 0 {
+		depositAmounts = []eth2p0.Gwei{deposit.MaxDepositAmount}
+	} else {
+		depositAmounts = deposit.DedupAmounts(depositAmounts)
+	}
+	depositDatas, err := signAndAggDepositData(ctx, ex, shares, def.WithdrawalAddresses(), network, nodeIdx, depositAmounts)
 	if err != nil {
 		return err
 	}
@@ -338,10 +344,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 	log.Debug(ctx, "Saved lock file to disk")
 
-	if err := deposit.WriteDepositDataFile(depositDatas, network, conf.DataDir); err != nil {
-		return err
+	// The loop across partial amounts (shall be unique)
+	for _, dd := range depositDatas {
+		if err := deposit.WriteDepositDataFile(dd, network, conf.DataDir); err != nil {
+			return err
+		}
+		log.Debug(ctx, "Saved deposit data file to disk", z.Str("filepath", deposit.GetDepositFilePath(conf.DataDir, dd[0].Amount)))
 	}
-	log.Debug(ctx, "Saved deposit data file to disk", z.Str("filepath", deposit.GetDepositFilePath(conf.DataDir, depositDatas[0].Amount)))
 
 	// Signature verification and disk key write was step 6, advance to step 7
 	if err := nextStepSync(ctx); err != nil {
@@ -535,7 +544,7 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 
 // signAndAggLockHash returns cluster lock file with aggregated signature after signing, exchange and aggregation of partial signatures.
 func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definition,
-	nodeIdx cluster.NodeIdx, ex *exchanger, depositDatas []eth2p0.DepositData, valRegs []core.VersionedSignedValidatorRegistration,
+	nodeIdx cluster.NodeIdx, ex *exchanger, depositDatas [][]eth2p0.DepositData, valRegs []core.VersionedSignedValidatorRegistration,
 ) (cluster.Lock, error) {
 	vals, err := createDistValidators(shares, depositDatas, valRegs)
 	if err != nil {
@@ -593,20 +602,32 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 }
 
 // signAndAggDepositData returns the deposit datas for each DV after signing, exchange and aggregation of partial signatures.
-func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share, withdrawalAddresses []string,
-	network string, nodeIdx cluster.NodeIdx,
-) ([]eth2p0.DepositData, error) {
-	parSig, despositMsgs, err := signDepositMsgs(shares, nodeIdx.ShareIdx, withdrawalAddresses, network)
-	if err != nil {
-		return nil, err
+func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share,
+	withdrawalAddresses []string, network string,
+	nodeIdx cluster.NodeIdx, depositAmounts []eth2p0.Gwei,
+) ([][]eth2p0.DepositData, error) {
+	var depositDataForAmounts [][]eth2p0.DepositData
+
+	for i, amount := range depositAmounts {
+		parSig, despositMsgs, err := signDepositMsgs(shares, nodeIdx.ShareIdx, withdrawalAddresses, network, amount)
+		if err != nil {
+			return nil, err
+		}
+
+		peerSigs, err := ex.exchange(ctx, sigType(int(sigDepositData)+i), parSig)
+		if err != nil {
+			return nil, err
+		}
+
+		dd, err := aggDepositData(peerSigs, shares, despositMsgs, network)
+		if err != nil {
+			return nil, err
+		}
+
+		depositDataForAmounts = append(depositDataForAmounts, dd)
 	}
 
-	peerSigs, err := ex.exchange(ctx, sigDepositData, parSig)
-	if err != nil {
-		return nil, err
-	}
-
-	return aggDepositData(peerSigs, shares, despositMsgs, network)
+	return depositDataForAmounts, nil
 }
 
 // signAndAggValidatorRegistrations returns the pre-generated validator registrations objects after signing, exchange and aggregation of partial signatures.
@@ -702,7 +723,7 @@ func signLockHash(shareIdx int, shares []share, hash []byte) (core.ParSignedData
 }
 
 // signDepositMsgs returns a partially signed dataset containing signatures of the deposit message signing root.
-func signDepositMsgs(shares []share, shareIdx int, withdrawalAddresses []string, network string) (core.ParSignedDataSet, map[core.PubKey]eth2p0.DepositMessage, error) {
+func signDepositMsgs(shares []share, shareIdx int, withdrawalAddresses []string, network string, amount eth2p0.Gwei) (core.ParSignedDataSet, map[core.PubKey]eth2p0.DepositMessage, error) {
 	msgs := make(map[core.PubKey]eth2p0.DepositMessage)
 	set := make(core.ParSignedDataSet)
 	for i, share := range shares {
@@ -720,7 +741,7 @@ func signDepositMsgs(shares []share, shareIdx int, withdrawalAddresses []string,
 			return nil, nil, err
 		}
 
-		msg, err := deposit.NewMessage(pubkey, withdrawalHex, deposit.MaxDepositAmount)
+		msg, err := deposit.NewMessage(pubkey, withdrawalHex, amount)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -969,25 +990,21 @@ func aggValidatorRegistrations(
 
 // createDistValidators returns a slice of distributed validators from the provided
 // shares and deposit datas.
-func createDistValidators(shares []share, depositDatas []eth2p0.DepositData, valRegs []core.VersionedSignedValidatorRegistration) ([]cluster.DistValidator, error) {
+func createDistValidators(shares []share, depositDatas [][]eth2p0.DepositData, valRegs []core.VersionedSignedValidatorRegistration) ([]cluster.DistValidator, error) {
+	depositDatasMap := make(map[tbls.PublicKey][]eth2p0.DepositData, len(shares))
+	for amountIndex := range depositDatas {
+		for ddIndex := range depositDatas[amountIndex] {
+			dd := depositDatas[amountIndex][ddIndex]
+			depositDatasMap[tbls.PublicKey(dd.PublicKey)] = append(depositDatasMap[tbls.PublicKey(dd.PublicKey)], dd)
+		}
+	}
+
 	var dvs []cluster.DistValidator
+
 	for _, s := range shares {
 		msg := msgFromShare(s)
-
-		ddIdx := -1
-		for i, dd := range depositDatas {
-			if !bytes.Equal(msg.PubKey, dd.PublicKey[:]) {
-				continue
-			}
-			ddIdx = i
-
-			break
-		}
-		if ddIdx == -1 {
-			return nil, errors.New("deposit data not found")
-		}
-
 		regIdx := -1
+
 		for i, reg := range valRegs {
 			pubkey, err := reg.PubKey()
 			if err != nil {
@@ -1011,17 +1028,26 @@ func createDistValidators(shares []share, depositDatas []eth2p0.DepositData, val
 			return nil, err
 		}
 
+		var partialDepositData []cluster.DepositData
+
+		depositDatasList, ok := depositDatasMap[tbls.PublicKey(msg.PubKey)]
+		if !ok {
+			return nil, errors.New("deposit data not found for pubkey", z.Str("pubkey", hex.EncodeToString(msg.PubKey)))
+		}
+
+		for _, dd := range depositDatasList {
+			partialDepositData = append(partialDepositData, cluster.DepositData{
+				PubKey:                dd.PublicKey[:],
+				WithdrawalCredentials: dd.WithdrawalCredentials,
+				Amount:                int(dd.Amount),
+				Signature:             dd.Signature[:],
+			})
+		}
+
 		dvs = append(dvs, cluster.DistValidator{
-			PubKey:    msg.PubKey,
-			PubShares: msg.PubShares,
-			PartialDepositData: []cluster.DepositData{
-				{
-					PubKey:                depositDatas[ddIdx].PublicKey[:],
-					WithdrawalCredentials: depositDatas[ddIdx].WithdrawalCredentials,
-					Amount:                int(depositDatas[ddIdx].Amount),
-					Signature:             depositDatas[ddIdx].Signature[:],
-				},
-			},
+			PubKey:              msg.PubKey,
+			PubShares:           msg.PubShares,
+			PartialDepositData:  partialDepositData,
 			BuilderRegistration: reg,
 		})
 	}
