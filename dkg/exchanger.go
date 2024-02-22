@@ -126,7 +126,7 @@ func (e *exchanger) exchange(ctx context.Context, sigType sigType, set core.ParS
 }
 
 // pushPsigs is responsible for writing partial signature data to sigChan obtained from other peers.
-func (e *exchanger) pushPsigs(_ context.Context, duty core.Duty, set map[core.PubKey][]core.ParSignedData) error {
+func (e *exchanger) pushPsigs(ctx context.Context, duty core.Duty, set map[core.PubKey][]core.ParSignedData) error {
 	sigType := sigType(duty.Slot)
 
 	if !e.dutyGaterFunc(duty) {
@@ -156,7 +156,11 @@ func (e *exchanger) pushPsigs(_ context.Context, duty core.Duty, set map[core.Pu
 	}
 
 	e.sigData.lock.Unlock()
-	e.sigDatasChan <- ret
+	select {
+	case e.sigDatasChan <- ret:
+	case <-ctx.Done():
+		return errors.Wrap(ctx.Err(), "failed to feed collected sig data")
+	}
 
 	return nil
 }
