@@ -77,6 +77,7 @@ func TestDKG(t *testing.T) {
 		},
 		{
 			name:    "with_partial_deposits",
+			version: "v1.8.0",
 			dkgAlgo: "frost",
 			depositAmounts: []eth2p0.Gwei{
 				8 * deposit.OneEthInGwei,

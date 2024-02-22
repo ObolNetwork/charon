@@ -31,8 +31,9 @@ const (
 	// sigValidatorRegistration is responsible for the pre-generated validator registration exchange and aggregation.
 	sigValidatorRegistration sigType = 102
 	// sigDepositData is responsible for deposit data signed partial signatures exchange and aggregation.
-	// For partial deposits, it increments the number for each unique partial amount, e.g. 104, 105, etc.
-	sigDepositData sigType = 103
+	// For partial deposits, it increments the number for each unique partial amount, e.g. 201, 202, etc.
+	sigDepositData sigType = 200
+	// Do not add new values greater than sigDepositData.
 )
 
 // sigTypeStore is a shorthand for a map of sigType to map of core.PubKey to slice of core.ParSignedData.
