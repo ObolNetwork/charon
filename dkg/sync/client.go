@@ -179,7 +179,7 @@ func (c *Client) sendMsgs(ctx context.Context, stream network.Stream) (relayBrok
 		resp, err := c.sendMsg(stream, shutdown)
 		if isRelayError(err) {
 			return true, false, err // Reconnect on relay errors
-		} else if err != nil { // TODO(dhruv): differentiate between connection errors and other errors.
+		} else if err != nil {
 			return false, true, err
 		} else if shutdown {
 			return false, false, nil
