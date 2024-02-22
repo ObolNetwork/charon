@@ -182,7 +182,7 @@ func (s *Server) updateStep(pID peer.ID, step int) error {
 		return errors.New("peer reported step is behind the last known step", z.Int("peer_step", step), z.Int("last_step", currentPeerStep))
 	}
 
-	if hasCurrentPeerStep && step > currentPeerStep+1 {
+	if hasCurrentPeerStep && step > currentPeerStep+2 {
 		return errors.New("peer reported step is ahead the last known step", z.Int("peer_step", step), z.Int("last_step", currentPeerStep))
 	}
 

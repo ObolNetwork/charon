@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -111,8 +112,6 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	// Start relay.
 	relayAddr := startRelay(ctx, t)
 
-	shutdownSync := newShutdownSync(len(def.Operators))
-
 	// Setup config
 	conf := dkg.Config{
 		DataDir: dir,
@@ -125,8 +124,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 			StoreKeysFunc: func(secrets []tbls.PrivateKey, dir string) error {
 				return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
 			},
-			ShutdownCallback: shutdownSync,
-			SyncOpts:         []func(*dkgsync.Client){dkgsync.WithPeriod(time.Millisecond * 50)},
+			SyncOpts: []func(*dkgsync.Client){dkgsync.WithPeriod(time.Millisecond * 50)},
 		},
 	}
 
@@ -164,6 +162,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	// Run dkg for each node
 	var eg errgroup.Group
 	for i := 0; i < len(def.Operators); i++ {
+		i := i
 		conf := conf
 		conf.DataDir = path.Join(dir, fmt.Sprintf("node%d", i))
 		conf.P2P.TCPAddrs = []string{testutil.AvailableAddr(t).String()}
@@ -173,7 +172,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 		require.NoError(t, err)
 
 		eg.Go(func() error {
-			err := dkg.Run(ctx, conf)
+			err := dkg.Run(peerCtx(ctx, i), conf)
 			if err != nil {
 				cancel()
 			}
@@ -187,14 +186,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	}
 
 	// Wait until complete
-
-	runChan := make(chan error, 1)
-	go func() {
-		runChan <- eg.Wait()
-	}()
-
-	err := <-runChan
-	cancel()
+	err := eg.Wait()
 	testutil.SkipIfBindErr(t, err)
 	testutil.RequireNoError(t, err)
 
@@ -433,15 +425,12 @@ func TestSyncFlow(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			version := cluster.WithVersion("v1.7.0") // TODO(corver): remove this once v1.7 released.
 			seed := 0
 			random := rand.New(rand.NewSource(int64(seed)))
-			lock, keys, _ := cluster.NewForT(t, test.vals, test.nodes, test.nodes, seed, random, version)
+			lock, keys, _ := cluster.NewForT(t, test.vals, test.nodes, test.nodes, seed, random)
 
 			pIDs, err := lock.PeerIDs()
 			require.NoError(t, err)
-
-			shutdownSync := newShutdownSync(test.nodes)
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -462,9 +451,6 @@ func TestSyncFlow(t *testing.T) {
 			for _, idx := range test.connect {
 				log.Info(ctx, "Starting initial peer", z.Int("peer_index", idx))
 				configs[idx].TestConfig.SyncCallback = cTracker.Set
-				if !contains(test.disconnect, idx) {
-					configs[idx].TestConfig.ShutdownCallback = shutdownSync // Only synchronise shutdown for peers that are not disconnected.
-				}
 				stopDkgs[idx] = startNewDKG(t, peerCtx(ctx, idx), configs[idx], dkgErrChan)
 			}
 
@@ -489,9 +475,12 @@ func TestSyncFlow(t *testing.T) {
 			// Wait for remaining-initial peers to update connection counts.
 			expect = len(test.connect) - len(test.disconnect) - 1
 			for _, idx := range test.connect {
-				if contains(test.disconnect, idx) {
+				if slices.Contains(test.disconnect, idx) {
 					continue
 				}
+
+				configs[idx].TestConfig.SyncCallback = cTracker.Set
+
 				log.Info(ctx, "Waiting for remaining-initial peer count",
 					z.Int("peer_index", idx), z.Int("expect", expect))
 				cTracker.AwaitN(t, dkgErrChan, expect, idx)
@@ -500,7 +489,6 @@ func TestSyncFlow(t *testing.T) {
 			// Start other peers.
 			for _, idx := range test.reconnect {
 				log.Info(ctx, "Starting remaining peer", z.Int("peer_index", idx))
-				configs[idx].TestConfig.ShutdownCallback = shutdownSync
 				stopDkgs[idx] = startNewDKG(t, peerCtx(ctx, idx), configs[idx], dkgErrChan)
 			}
 
@@ -519,16 +507,6 @@ func TestSyncFlow(t *testing.T) {
 			verifyDKGResults(t, lock.Definition, dir)
 		})
 	}
-}
-
-func contains(arr []int, val int) bool {
-	for _, v := range arr {
-		if v == val {
-			return true
-		}
-	}
-
-	return false
 }
 
 func newConnTracker(peerIDs []peer.ID) *connTracker {
@@ -567,7 +545,7 @@ func (c *connTracker) AwaitN(t *testing.T, dkgErrChan chan error, n int, peerIdx
 			require.Fail(t, "timeout", "expected %d connections for peer %d, got %d", n, peerIdx, c.count(peerIdx))
 		case err := <-dkgErrChan:
 			testutil.SkipIfBindErr(t, err)
-			require.Failf(t, "DKG exitted", "err=%v", err)
+			require.Failf(t, "DKG exited", "err=%v", err)
 		case <-ticker.C:
 			if c.count(peerIdx) == n {
 				return
@@ -641,16 +619,4 @@ func startNewDKG(t *testing.T, parentCtx context.Context, config dkg.Config, dkg
 	}()
 
 	return cancel
-}
-
-// newShutdownSync returns a function that blocks until it is called n times thereby syncing the shutdown of n DKGs.
-// TODO(corver): Remove this once shutdown races have been fixed, https://github.com/ObolNetwork/charon/issues/887.
-func newShutdownSync(n int) func() {
-	var wg sync.WaitGroup
-	wg.Add(n)
-
-	return func() {
-		wg.Done()
-		wg.Wait()
-	}
 }
