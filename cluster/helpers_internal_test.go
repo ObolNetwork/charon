@@ -87,6 +87,8 @@ func TestFetchDefinition(t *testing.T) {
 		case "/invalidDef":
 			b, _ := invalidDef.MarshalJSON()
 			_, _ = w.Write(b)
+		case "/nonok":
+			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}))
 	defer server.Close()
@@ -106,6 +108,12 @@ func TestFetchDefinition(t *testing.T) {
 		{
 			name:    "Fetch invalid definition",
 			url:     fmt.Sprintf("%s/%s", server.URL, "invalidDef"),
+			want:    invalidDef,
+			wantErr: true,
+		},
+		{
+			name:    "HTTP status is not in the 200 range",
+			url:     fmt.Sprintf("%s/%s", server.URL, "nonok"),
 			want:    invalidDef,
 			wantErr: true,
 		},
