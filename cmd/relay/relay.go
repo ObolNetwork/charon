@@ -41,7 +41,7 @@ type Config struct {
 	MaxResPerPeer   int
 	MaxConns        int
 	FilterPrivAddrs bool
-	RelayLogLevel   string // TODO(corver): Rename to LibP2PLogLevel.
+	LibP2PLogLevel  string
 }
 
 // Run starts an Obol libp2p-tcp-relay and udp-discv5 bootnode.
