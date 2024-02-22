@@ -6,7 +6,7 @@ go-setup:
 	go mod tidy
 
 charon: go-setup
-	go build -ldflags="-X github.com/obolnetwork/charon/app/version.version=$(shell bash charon_version.sh)"
+	go build -trimpath -ldflags="-buildid= -s -w -X github.com/obolnetwork/charon/app/version.version=$(shell bash charon_version.sh)"
 
 clean:
 	$(RM) charon
