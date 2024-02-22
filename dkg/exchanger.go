@@ -6,7 +6,6 @@ import (
 	"context"
 	"slices"
 	"sync"
-	"time"
 
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -46,42 +45,6 @@ type dataByPubkey struct {
 	lock    sync.Mutex
 }
 
-// set sets data for the given sigType and core.PubKey.
-func (stb *dataByPubkey) set(pubKey core.PubKey, sigType sigType, data []core.ParSignedData) {
-	stb.lock.Lock()
-	defer stb.lock.Unlock()
-
-	_, ok := stb.store[sigType]
-	if !ok {
-		stb.store[sigType] = map[core.PubKey][]core.ParSignedData{}
-	}
-
-	stb.store[sigType][pubKey] = data
-}
-
-// get gets all the core.ParSignedData for a given core.PubKey.
-func (stb *dataByPubkey) get(sigType sigType) (map[core.PubKey][]core.ParSignedData, bool) {
-	stb.lock.Lock()
-	defer stb.lock.Unlock()
-
-	data, ok := stb.store[sigType]
-	if !ok {
-		return nil, ok
-	}
-
-	if len(data) != stb.numVals {
-		return nil, false
-	}
-
-	ret := make(map[core.PubKey][]core.ParSignedData)
-
-	for k, v := range data {
-		ret[k] = v
-	}
-
-	return ret, ok
-}
-
 // exchanger is responsible for exchanging partial signatures between peers on libp2p.
 type exchanger struct {
 	sigex         *parsigex.ParSigEx
@@ -89,6 +52,7 @@ type exchanger struct {
 	sigTypes      map[sigType]bool
 	sigData       dataByPubkey
 	dutyGaterFunc func(duty core.Duty) bool
+	sigDatasChan  chan map[core.PubKey][]core.ParSignedData
 }
 
 func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int, sigTypes []sigType) *exchanger {
@@ -126,6 +90,7 @@ func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int, sig
 			lock:    sync.Mutex{},
 		},
 		dutyGaterFunc: dutyGaterFunc,
+		sigDatasChan:  make(chan map[core.PubKey][]core.ParSignedData, 1),
 	}
 
 	// Wiring core workflow components
@@ -146,16 +111,14 @@ func (e *exchanger) exchange(ctx context.Context, sigType sigType, set core.ParS
 		return nil, err
 	}
 
-	tick := time.NewTicker(50 * time.Millisecond)
-	defer tick.Stop()
-
 	for {
 		select {
-		case <-tick.C:
-			// We are done when we have ParSignedData of all the DVs from all each peer
-			if data, ok := e.sigData.get(sigType); ok {
-				return data, nil
+		case sigDatas, ok := <-e.sigDatasChan:
+			if !ok {
+				return nil, errors.New("sigdata channel has been closed")
 			}
+			// We are done when we have ParSignedData of all the DVs from all each peer
+			return sigDatas, nil
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
@@ -170,9 +133,30 @@ func (e *exchanger) pushPsigs(_ context.Context, duty core.Duty, set map[core.Pu
 		return errors.New("unrecognized sigType", z.Int("sigType", int(sigType)))
 	}
 
+	e.sigData.lock.Lock()
+
 	for pk, psigs := range set {
-		e.sigData.set(pk, sigType, psigs)
+		_, ok := e.sigData.store[sigType]
+		if !ok {
+			e.sigData.store[sigType] = map[core.PubKey][]core.ParSignedData{}
+		}
+
+		e.sigData.store[sigType][pk] = psigs
 	}
+
+	data, ok := e.sigData.store[sigType]
+	if !ok || len(data) != e.sigData.numVals {
+		e.sigData.lock.Unlock()
+		return nil
+	}
+
+	ret := make(map[core.PubKey][]core.ParSignedData)
+	for k, v := range data {
+		ret[k] = v
+	}
+
+	e.sigData.lock.Unlock()
+	e.sigDatasChan <- ret
 
 	return nil
 }
