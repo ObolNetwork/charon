@@ -936,7 +936,6 @@ func wireTracing(life *lifecycle.Manager, conf Config) error {
 }
 
 // setFeeRecipient returns a slot subscriber for scheduler which calls prepare_beacon_proposer endpoint at start of each epoch.
-// TODO(dhruv): move this somewhere else once more use-cases like this becomes clear.
 func setFeeRecipient(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string) func(ctx context.Context, slot core.Slot) error {
 	onStartup := true
 	var osMutex sync.Mutex

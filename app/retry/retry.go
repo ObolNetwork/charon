@@ -244,7 +244,5 @@ func isTemporaryBeaconErr(err error) bool {
 		return true
 	}
 
-	// TODO(corver): Add more checks here.
-
 	return false
 }
