@@ -102,7 +102,6 @@ func writeKeysToKeymanager(ctx context.Context, keymanagerURL, authToken string,
 		}
 		passwords = append(passwords, password)
 
-		// TODO(gsora): needs to go away once we get rid of kryptology
 		store, err := keystore.Encrypt(s.SecretShare, password, rand.Reader)
 		if err != nil {
 			return err
