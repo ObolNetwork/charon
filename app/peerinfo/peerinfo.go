@@ -293,7 +293,7 @@ func newMetricsSubmitter() metricSubmitter {
 			gitHash = "unknown"
 		}
 
-		// Note: This can be probably enhanced by validating version and githash with regex
+		// NOTE: This can be probably enhanced by validating version and githash with regex
 
 		peerVersion.Reset(peerName)
 		peerVersion.WithLabelValues(peerName, version).Set(1)

@@ -15,7 +15,7 @@ type Field func(add func(zap.Field))
 
 // Err returns a wrapped zap error field. It will include an additional stack trace and fields
 // if the error is an internal structured error.
-// Note: This is only used when logging errors on other levels than Error since it has built-in support for errors.
+// NOTE: This is only used when logging errors on other levels than Error since it has built-in support for errors.
 func Err(err error) Field {
 	type structErr interface {
 		Fields() []Field
