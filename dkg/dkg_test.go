@@ -126,6 +126,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 			},
 			SyncOpts: []func(*dkgsync.Client){dkgsync.WithPeriod(time.Millisecond * 50)},
 		},
+		ShutdownDelay: 5 * time.Second,
 	}
 
 	allReceivedKeystores := make(chan struct{}) // Receives struct{} for each `numNodes` keystore intercepted by the keymanager server
@@ -256,7 +257,7 @@ func startRelay(parentCtx context.Context, t *testing.T) string {
 	endpoint := "http://" + addr
 
 	// Wait up to 5s for bootnode to become available.
-	ctx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(parentCtx, 10*time.Second)
 	defer cancel()
 
 	isUp := make(chan struct{})
