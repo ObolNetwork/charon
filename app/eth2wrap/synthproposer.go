@@ -78,7 +78,6 @@ func (h *synthWrapper) getFeeRecipient(vIdx eth2p0.ValidatorIndex) bellatrix.Exe
 // ProposerDuties returns upstream proposer duties for the provided validator indexes or
 // upstream proposer duties and synthetic duties for all cluster validators if enabled.
 func (h *synthWrapper) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error) {
-	// TODO(corver): Should we support fetching duties for other validators not in the cluster?
 	duties, err := h.synthProposerCache.Duties(ctx, h.Client, opts.Epoch)
 	if err != nil {
 		return nil, err

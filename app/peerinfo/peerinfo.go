@@ -225,8 +225,6 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 
 			// Log unexpected lock hash
 			if !bytes.Equal(resp.LockHash, p.lockHash) {
-				// TODO(corver): Think about escalating this error when we are clear
-				//  on how to handle lock file migrations.
 				log.Warn(ctx, "Mismatching peer lock hash", nil,
 					z.Str("peer", name),
 					z.Str("lock_hash", fmt.Sprintf("%#x", resp.LockHash)),
@@ -294,7 +292,8 @@ func newMetricsSubmitter() metricSubmitter {
 		if gitHash == "" {
 			gitHash = "unknown"
 		}
-		// TODO(corver): Validate version and githash with regex
+
+		// Note: This can be probably enhanced by validating version and githash with regex
 
 		peerVersion.Reset(peerName)
 		peerVersion.WithLabelValues(peerName, version).Set(1)

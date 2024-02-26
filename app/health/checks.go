@@ -40,7 +40,6 @@ type query func(name string, selector labelSelector, reducer seriesReducer) (flo
 // checks is a list of health checks.
 var checks = []check{
 	{
-		// TODO(corver): Change this to critical on any error once we aligned with only logging errors when human intervention is required.
 		Name:        "high_error_log_rate",
 		Description: "High rate of error logs. Please check the logs for more details.",
 		Severity:    severityWarning,
