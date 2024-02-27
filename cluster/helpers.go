@@ -37,6 +37,11 @@ func FetchDefinition(ctx context.Context, url string) (Definition, error) {
 	if err != nil {
 		return Definition{}, errors.Wrap(err, "fetch file")
 	}
+
+	if resp.StatusCode/100 != 2 {
+		return Definition{}, errors.New("http error", z.Int("status_code", resp.StatusCode))
+	}
+
 	defer resp.Body.Close()
 
 	buf, err := io.ReadAll(resp.Body)
