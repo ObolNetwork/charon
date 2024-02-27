@@ -394,16 +394,8 @@ func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, n
 		return nil, errors.New("empty deposit amounts")
 	}
 
-	usedAmounts := make(map[eth2p0.Gwei]struct{})
-
 	var dd [][]eth2p0.DepositData
 	for _, depositAmount := range depositAmounts {
-		if _, used := usedAmounts[depositAmount]; used {
-			continue
-		}
-
-		usedAmounts[depositAmount] = struct{}{}
-
 		var datas []eth2p0.DepositData
 		for i, secret := range secrets {
 			withdrawalAddr, err := eth2util.ChecksumAddress(withdrawalAddresses[i])
@@ -592,6 +584,7 @@ func createDepositDatas(withdrawalAddresses []string, network string, secrets []
 	if len(depositAmounts) == 0 {
 		return nil, errors.New("empty deposit amounts")
 	}
+	depositAmounts = deposit.DedupAmounts(depositAmounts)
 
 	return signDepositDatas(secrets, withdrawalAddresses, network, depositAmounts)
 }

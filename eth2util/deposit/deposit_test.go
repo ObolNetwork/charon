@@ -253,3 +253,11 @@ func mustGenerateDepositDatas(t *testing.T, amount eth2p0.Gwei) []eth2p0.Deposit
 
 	return datas
 }
+
+func TestDedupAmounts(t *testing.T) {
+	amounts := []eth2p0.Gwei{100, 500, 100, 0, 0, 300}
+
+	amounts = deposit.DedupAmounts(amounts)
+
+	require.EqualValues(t, []eth2p0.Gwei{0, 100, 300, 500}, amounts)
+}
