@@ -3,6 +3,8 @@
 package core
 
 import (
+	"encoding/json"
+
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -11,6 +13,7 @@ import (
 var (
 	_ DutyDefinition = AttesterDefinition{}
 	_ DutyDefinition = ProposerDefinition{}
+	_ DutyDefinition = UniversalProposerDefinition{}
 	_ DutyDefinition = SyncCommitteeDefinition{}
 )
 
@@ -62,6 +65,43 @@ func (d ProposerDefinition) Clone() (DutyDefinition, error) {
 
 func (d ProposerDefinition) MarshalJSON() ([]byte, error) {
 	return d.ProposerDuty.MarshalJSON()
+}
+
+// NewUniversalProposerDefinition is a convenience function that returns a new universal proposer definition.
+func NewUniversalProposerDefinition(duty *eth2v1.ProposerDuty, builderBoostFactor string) UniversalProposerDefinition {
+	return UniversalProposerDefinition{
+		ProposerDuty:       *duty,
+		BuilderBoostFactor: builderBoostFactor,
+	}
+}
+
+// UniversalProposerDefinition defines a universal proposer duty. It implements DutyDefinition.
+type UniversalProposerDefinition struct {
+	eth2v1.ProposerDuty
+	BuilderBoostFactor string
+}
+
+type rawUniversalProposerDefinition struct {
+	Duty               eth2v1.ProposerDuty `json:"duty"`
+	BuilderBoostFactor string              `json:"builder_boost_factor"`
+}
+
+func (d UniversalProposerDefinition) Clone() (DutyDefinition, error) {
+	duty := new(eth2v1.ProposerDuty)
+	err := cloneJSONMarshaler(&d.ProposerDuty, duty)
+	if err != nil {
+		return nil, errors.Wrap(err, "clone proposer definition")
+	}
+
+	return NewUniversalProposerDefinition(duty, d.BuilderBoostFactor), nil
+}
+
+func (d UniversalProposerDefinition) MarshalJSON() ([]byte, error) {
+	raw := rawUniversalProposerDefinition{
+		Duty:               d.ProposerDuty,
+		BuilderBoostFactor: d.BuilderBoostFactor,
+	}
+	return json.Marshal(raw)
 }
 
 // NewSyncCommitteeDefinition is a convenience function that returns a new SyncCommitteeDefinition.

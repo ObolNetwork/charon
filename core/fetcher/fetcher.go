@@ -327,16 +327,22 @@ func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot uint64, def
 
 func (f *Fetcher) fetchUniversalProposerData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
 	resp := make(core.UnsignedDataSet)
-	for pubkey := range defSet {
+	for pubkey, dutyDef := range defSet {
+		upDef, ok := dutyDef.(core.UniversalProposerDefinition)
+		if !ok {
+			return core.UnsignedDataSet{}, errors.New("invalid universal proposer definition")
+		}
+
 		randao, graffiti, err := f.getProposalOpts(ctx, slot, pubkey)
 		if err != nil {
 			return nil, err
 		}
 
 		opts := &eth2api.UniversalProposalOpts{
-			Slot:         eth2p0.Slot(slot),
-			RandaoReveal: randao,
-			Graffiti:     graffiti,
+			Slot:               eth2p0.Slot(slot),
+			RandaoReveal:       randao,
+			Graffiti:           graffiti,
+			BuilderBoostFactor: upDef.BuilderBoostFactor,
 		}
 		eth2Resp, err := f.eth2Cl.UniversalProposal(ctx, opts)
 		if err != nil {
