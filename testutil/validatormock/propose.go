@@ -252,8 +252,6 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 		return err
 	}
 
-	// TODO(corver): Create a function similar to `signing.Verify`
-	//  called `signing.UnsignedRoot(ctx, eth2Cl, core.UnsignedData)`
 	blockSigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainBeaconProposer, epoch, blockSigRoot)
 	if err != nil {
 		return err

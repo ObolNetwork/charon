@@ -290,7 +290,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	relayAddr := startRelay(ctx, t)
-	// TODO(corver): Add support for in-memory transport to QBFT.
+	// NOTE: We can add support for in-memory transport to QBFT.
 	parSigExFunc := parsigex.NewMemExFunc(args.N)
 	type simResult struct {
 		PeerIdx int

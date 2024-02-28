@@ -16,7 +16,7 @@ import (
 )
 
 // BeaconCommitteeSelectionAggregator is the interface for aggregating beacon committee selection proofs in a DVT cluster.
-// TODO(dhruv): Should be removed once it is supported by go-eth2-client.
+// NOTE: It should be removed once it is supported by go-eth2-client.
 type BeaconCommitteeSelectionAggregator interface {
 	// AggregateBeaconCommitteeSelections returns DVT aggregated beacon committee selection proofs.
 	// This would call a new BN API endpoint: POST /eth/v1/validator/beacon_committee_selections

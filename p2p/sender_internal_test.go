@@ -59,7 +59,6 @@ func TestSenderAddResult(t *testing.T) {
 	add(failure)
 	assertFailing(t, true) // Single failure changes state to failing.
 
-	// TODO(corver): Assert logs
 	// INFO P2P sending failing {"peer": "better-week"}
 	// INFO P2P sending recovered {"peer": "better-week"}
 	// INFO P2P sending failing {"peer": "better-week"}

@@ -84,7 +84,6 @@ func newHTTPServer(addr string, optionalHandlers map[string]http.HandlerFunc, ov
 		"/eth/v1/validator/prepare_beacon_proposer": func(w http.ResponseWriter, r *http.Request) {
 		},
 		"/eth/v1/events": func(w http.ResponseWriter, r *http.Request) {
-			// TODO(corver): Send keep alives
 			select {
 			case <-shutdown:
 			case <-r.Context().Done():
