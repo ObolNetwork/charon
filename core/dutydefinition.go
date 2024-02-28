@@ -102,7 +102,12 @@ func (d UniversalProposerDefinition) MarshalJSON() ([]byte, error) {
 		BuilderBoostFactor: d.BuilderBoostFactor,
 	}
 
-	return json.Marshal(raw)
+	bytes, err := json.Marshal(raw)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal universal proposer definition")
+	}
+
+	return bytes, nil
 }
 
 // NewSyncCommitteeDefinition is a convenience function that returns a new SyncCommitteeDefinition.
