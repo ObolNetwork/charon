@@ -202,5 +202,5 @@ require (
 // We're replacing kryptology with our own fork, which fixes dependencies' security vulnerabilities.
 replace github.com/coinbase/kryptology => github.com/ObolNetwork/kryptology v0.0.0-20231016091344-eed023b6cac8
 
-// We're replacing kryptology with our own fork, which adds UniversalProposel model for produceBlockV3 endpoint.
+// We're replacing go-eth2-client with our own fork, which adds UniversalProposel model for produceBlockV3 endpoint.
 replace github.com/attestantio/go-eth2-client v0.19.10 => github.com/obolNetwork/go-eth2-client v0.0.0-20240228100742-8eb0c82f8153
