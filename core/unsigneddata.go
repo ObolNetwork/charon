@@ -400,8 +400,8 @@ func (p VersionedUniversalProposal) Clone() (UnsignedData, error) {
 }
 
 func (p VersionedUniversalProposal) MarshalJSON() ([]byte, error) {
-	if p.Full != nil {
-		fp, err := NewVersionedProposal(p.Full)
+	if p.Proposal != nil {
+		fp, err := NewVersionedProposal(p.Proposal)
 		if err != nil {
 			return nil, err
 		}
@@ -409,8 +409,8 @@ func (p VersionedUniversalProposal) MarshalJSON() ([]byte, error) {
 		return fp.MarshalJSON()
 	}
 
-	if p.Blinded != nil {
-		bp, err := NewVersionedBlindedProposal(p.Blinded)
+	if p.BlindedProposal != nil {
+		bp, err := NewVersionedBlindedProposal(p.BlindedProposal)
 		if err != nil {
 			return nil, err
 		}
@@ -432,7 +432,7 @@ func (p *VersionedUniversalProposal) UnmarshalJSON(input []byte) error {
 			return err
 		}
 
-		p.Blinded = &eth2api.VersionedBlindedProposal{
+		p.BlindedProposal = &eth2api.VersionedBlindedProposal{
 			Version:   bp.Version,
 			Bellatrix: bp.Bellatrix,
 			Capella:   bp.Capella,
@@ -444,7 +444,7 @@ func (p *VersionedUniversalProposal) UnmarshalJSON(input []byte) error {
 			return err
 		}
 
-		p.Full = &eth2api.VersionedProposal{
+		p.Proposal = &eth2api.VersionedProposal{
 			Version:   fp.Version,
 			Phase0:    fp.Phase0,
 			Altair:    fp.Altair,

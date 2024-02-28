@@ -345,10 +345,10 @@ func (f *Fetcher) fetchUniversalProposerData(ctx context.Context, slot uint64, d
 		proposal := eth2Resp.Data
 
 		// Ensure fee recipient is correctly populated in proposal.
-		if proposal.Full != nil {
-			verifyFeeRecipient(ctx, proposal.Full, f.feeRecipientFunc(pubkey))
-		} else if proposal.Blinded != nil {
-			verifyFeeRecipientBlinded(ctx, proposal.Blinded, f.feeRecipientFunc(pubkey))
+		if proposal.Proposal != nil {
+			verifyFeeRecipient(ctx, proposal.Proposal, f.feeRecipientFunc(pubkey))
+		} else if proposal.BlindedProposal != nil {
+			verifyFeeRecipientBlinded(ctx, proposal.BlindedProposal, f.feeRecipientFunc(pubkey))
 		}
 
 		coreProposal, err := core.NewVersionedUniversalProposal(proposal)

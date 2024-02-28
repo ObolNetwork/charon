@@ -68,7 +68,7 @@ func versionedProposalToUniversal(t *testing.T, p core.VersionedProposal) core.V
 	t.Helper()
 
 	up, err := core.NewVersionedUniversalProposal(&api.VersionedUniversalProposal{
-		Full: &api.VersionedProposal{
+		Proposal: &api.VersionedProposal{
 			Version:   p.Version,
 			Phase0:    p.Phase0,
 			Altair:    p.Altair,
@@ -86,7 +86,7 @@ func versionedBlindedProposalToUniversal(t *testing.T, p core.VersionedBlindedPr
 	t.Helper()
 
 	up, err := core.NewVersionedUniversalProposal(&api.VersionedUniversalProposal{
-		Blinded: &api.VersionedBlindedProposal{
+		BlindedProposal: &api.VersionedBlindedProposal{
 			Version:   p.Version,
 			Bellatrix: p.Bellatrix,
 			Capella:   p.Capella,

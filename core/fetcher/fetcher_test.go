@@ -365,14 +365,14 @@ func TestFetchBlocks(t *testing.T) {
 			slotA, err := dutyDataA.Slot()
 			require.NoError(t, err)
 			require.EqualValues(t, slot, slotA)
-			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Full.Capella.Body.ExecutionPayload.FeeRecipient))
+			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Proposal.Capella.Body.ExecutionPayload.FeeRecipient))
 			assertRandaoUniversalProposal(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
 
 			dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.VersionedUniversalProposal)
 			slotB, err := dutyDataB.Slot()
 			require.NoError(t, err)
 			require.EqualValues(t, slot, slotB)
-			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.Full.Capella.Body.ExecutionPayload.FeeRecipient))
+			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.Proposal.Capella.Body.ExecutionPayload.FeeRecipient))
 			assertRandaoUniversalProposal(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature().ToETH2(), dutyDataB)
 
 			return nil
@@ -627,13 +627,13 @@ func assertRandaoBlindedBlock(t *testing.T, randao eth2p0.BLSSignature, block co
 func assertRandaoUniversalProposal(t *testing.T, randao eth2p0.BLSSignature, p core.VersionedUniversalProposal) {
 	t.Helper()
 
-	if p.Full != nil {
-		vp, err := core.NewVersionedProposal(p.Full)
+	if p.Proposal != nil {
+		vp, err := core.NewVersionedProposal(p.Proposal)
 		require.NoError(t, err)
 		assertRandao(t, randao, vp)
 	}
-	if p.Blinded != nil {
-		vp, err := core.NewVersionedBlindedProposal(p.Blinded)
+	if p.BlindedProposal != nil {
+		vp, err := core.NewVersionedBlindedProposal(p.BlindedProposal)
 		require.NoError(t, err)
 		assertRandaoBlindedBlock(t, randao, vp)
 	}
