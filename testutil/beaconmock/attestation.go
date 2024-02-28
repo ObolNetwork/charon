@@ -83,7 +83,7 @@ func (s *attestationStore) NewAttestationData(ctx context.Context, slot eth2p0.S
 }
 
 // newAttestationData returns a deterministic attestation data that should pass superficial validation.
-// TODO(corver): Maybe make this non-deterministic, to be more aligned with real world.
+// NOTE: This can be made more non-deterministic, to be more aligned with real world data.
 func newAttestationData(epoch eth2p0.Epoch, slot eth2p0.Slot, index eth2p0.CommitteeIndex) *eth2p0.AttestationData {
 	return &eth2p0.AttestationData{
 		Slot:            slot,

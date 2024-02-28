@@ -72,7 +72,6 @@ func (a *SlotAttester) Slot() eth2p0.Slot {
 // - Fetches attester attDuties for the slot (this could be cached at start of epoch).
 // - Prepares aggregation attDuties for slot attesters.
 // It panics if called more than once.
-// TODO(xenowits): Figure out why is this called twice sometimes (https://github.com/ObolNetwork/charon/issues/1389)).
 func (a *SlotAttester) Prepare(ctx context.Context) error {
 	vals, err := a.eth2Cl.ActiveValidators(ctx)
 	if err != nil {
