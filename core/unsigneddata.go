@@ -414,6 +414,7 @@ func (p VersionedUniversalProposal) MarshalJSON() ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		return bp.MarshalJSON()
 	}
 

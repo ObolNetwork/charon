@@ -5,7 +5,7 @@ package core_test
 import (
 	"testing"
 
-	"github.com/attestantio/go-eth2-client/api"
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
@@ -67,8 +67,8 @@ func TestUnsignedDataClone(t *testing.T) {
 func versionedProposalToUniversal(t *testing.T, p core.VersionedProposal) core.VersionedUniversalProposal {
 	t.Helper()
 
-	up, err := core.NewVersionedUniversalProposal(&api.VersionedUniversalProposal{
-		Proposal: &api.VersionedProposal{
+	up, err := core.NewVersionedUniversalProposal(&eth2api.VersionedUniversalProposal{
+		Proposal: &eth2api.VersionedProposal{
 			Version:   p.Version,
 			Phase0:    p.Phase0,
 			Altair:    p.Altair,
@@ -85,8 +85,8 @@ func versionedProposalToUniversal(t *testing.T, p core.VersionedProposal) core.V
 func versionedBlindedProposalToUniversal(t *testing.T, p core.VersionedBlindedProposal) core.VersionedUniversalProposal {
 	t.Helper()
 
-	up, err := core.NewVersionedUniversalProposal(&api.VersionedUniversalProposal{
-		BlindedProposal: &api.VersionedBlindedProposal{
+	up, err := core.NewVersionedUniversalProposal(&eth2api.VersionedUniversalProposal{
+		BlindedProposal: &eth2api.VersionedBlindedProposal{
 			Version:   p.Version,
 			Bellatrix: p.Bellatrix,
 			Capella:   p.Capella,

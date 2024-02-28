@@ -101,6 +101,7 @@ func (d UniversalProposerDefinition) MarshalJSON() ([]byte, error) {
 		Duty:               d.ProposerDuty,
 		BuilderBoostFactor: d.BuilderBoostFactor,
 	}
+
 	return json.Marshal(raw)
 }
 
