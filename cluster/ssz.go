@@ -138,7 +138,6 @@ func hashDefinitionLegacy(d Definition, hh ssz.HashWalker, configOnly bool) erro
 
 	// Field (10) 'timestamp' (optional for backwards compatibility)
 	if configOnly {
-		// TODO(corver): This is a bug, config_hash should use the same check as definitino hash below.
 		if d.Timestamp != "" {
 			hh.PutBytes([]byte(d.Timestamp))
 		}
