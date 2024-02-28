@@ -519,6 +519,7 @@ func (p *VersionedSignedBlindedProposal) UnmarshalJSON(input []byte) error {
 type versionedRawBlockJSON struct {
 	Version eth2util.DataVersion `json:"version"`
 	Block   json.RawMessage      `json:"block"`
+	Blinded bool                 `json:"blinded,omitempty"`
 }
 
 // NewAttestation is a convenience function that returns a new wrapped attestation.

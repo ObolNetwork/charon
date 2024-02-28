@@ -345,6 +345,42 @@ func TestFetchBlocks(t *testing.T) {
 		err = fetch.Fetch(ctx, duty, defSet)
 		require.NoError(t, err)
 	})
+
+	t.Run("fetch DutyUniversalProposer", func(t *testing.T) {
+		duty := core.NewUniversalProposerDuty(slot)
+		fetch, err := fetcher.New(bmock, func(core.PubKey) string {
+			return feeRecipientAddr
+		})
+		require.NoError(t, err)
+
+		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
+			return randaoByPubKey[key], nil
+		})
+
+		fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
+			require.Equal(t, duty, resDuty)
+			require.Len(t, resDataSet, 2)
+
+			dutyDataA := resDataSet[pubkeysByIdx[vIdxA]].(core.VersionedUniversalProposal)
+			slotA, err := dutyDataA.Slot()
+			require.NoError(t, err)
+			require.EqualValues(t, slot, slotA)
+			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Full.Capella.Body.ExecutionPayload.FeeRecipient))
+			assertRandaoUniversalProposal(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
+
+			dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.VersionedUniversalProposal)
+			slotB, err := dutyDataB.Slot()
+			require.NoError(t, err)
+			require.EqualValues(t, slot, slotB)
+			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.Full.Capella.Body.ExecutionPayload.FeeRecipient))
+			assertRandaoUniversalProposal(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature().ToETH2(), dutyDataB)
+
+			return nil
+		})
+
+		err = fetch.Fetch(ctx, duty, defSet)
+		require.NoError(t, err)
+	})
 }
 
 func TestFetchSyncContribution(t *testing.T) {
@@ -585,6 +621,21 @@ func assertRandaoBlindedBlock(t *testing.T, randao eth2p0.BLSSignature, block co
 		require.EqualValues(t, randao, block.Deneb.Body.RANDAOReveal)
 	default:
 		require.Fail(t, "invalid block")
+	}
+}
+
+func assertRandaoUniversalProposal(t *testing.T, randao eth2p0.BLSSignature, p core.VersionedUniversalProposal) {
+	t.Helper()
+
+	if p.Full != nil {
+		vp, err := core.NewVersionedProposal(p.Full)
+		require.NoError(t, err)
+		assertRandao(t, randao, vp)
+	}
+	if p.Blinded != nil {
+		vp, err := core.NewVersionedBlindedProposal(p.Blinded)
+		require.NoError(t, err)
+		assertRandaoBlindedBlock(t, randao, vp)
 	}
 }
 
