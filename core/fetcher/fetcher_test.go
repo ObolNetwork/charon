@@ -588,21 +588,6 @@ func assertRandaoBlindedBlock(t *testing.T, randao eth2p0.BLSSignature, block co
 	}
 }
 
-func assertRandaoUniversalProposal(t *testing.T, randao eth2p0.BLSSignature, p core.VersionedUniversalProposal) {
-	t.Helper()
-
-	if p.Proposal != nil {
-		vp, err := core.NewVersionedProposal(p.Proposal)
-		require.NoError(t, err)
-		assertRandao(t, randao, vp)
-	}
-	if p.BlindedProposal != nil {
-		vp, err := core.NewVersionedBlindedProposal(p.BlindedProposal)
-		require.NoError(t, err)
-		assertRandaoBlindedBlock(t, randao, vp)
-	}
-}
-
 // blsSigFromHex returns the BLS signature from the input hex signature.
 func blsSigFromHex(t *testing.T, sig string) eth2p0.BLSSignature {
 	t.Helper()
