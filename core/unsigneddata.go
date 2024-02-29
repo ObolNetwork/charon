@@ -335,7 +335,9 @@ func (p VersionedBlindedProposal) MarshalJSON() ([]byte, error) {
 	resp, err := json.Marshal(versionedRawBlockJSON{
 		Version: version,
 		Block:   block,
-		Blinded: true,
+		blindedJSON: blindedJSON{
+			Blinded: true,
+		},
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal wrapper")
@@ -422,12 +424,12 @@ func (p VersionedUniversalProposal) MarshalJSON() ([]byte, error) {
 }
 
 func (p *VersionedUniversalProposal) UnmarshalJSON(input []byte) error {
-	var raw versionedRawBlockJSON
-	if err := json.Unmarshal(input, &raw); err != nil {
-		return errors.Wrap(err, "unmarshal universal block")
+	var bjson blindedJSON
+	if err := json.Unmarshal(input, &bjson); err != nil {
+		return errors.Wrap(err, "unmarshal blinded flag")
 	}
 
-	if raw.Blinded {
+	if bjson.Blinded {
 		var bp VersionedBlindedProposal
 		if err := bp.UnmarshalJSON(input); err != nil {
 			return err

@@ -515,11 +515,16 @@ func (p *VersionedSignedBlindedProposal) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
+// blindedJSON is a helper type for JSON marshalling of blinded blocks.
+type blindedJSON struct {
+	Blinded bool `json:"blinded,omitempty"`
+}
+
 // versionedRawBlockJSON is a custom VersionedSignedBeaconBlock or VersionedSignedBlindedBeaconBlock serialiser.
 type versionedRawBlockJSON struct {
 	Version eth2util.DataVersion `json:"version"`
 	Block   json.RawMessage      `json:"block"`
-	Blinded bool                 `json:"blinded,omitempty"`
+	blindedJSON
 }
 
 // NewAttestation is a convenience function that returns a new wrapped attestation.
