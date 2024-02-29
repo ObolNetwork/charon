@@ -67,33 +67,19 @@ func TestUnsignedDataClone(t *testing.T) {
 func versionedProposalToUniversal(t *testing.T, p core.VersionedProposal) core.VersionedUniversalProposal {
 	t.Helper()
 
-	up, err := core.NewVersionedUniversalProposal(&eth2api.VersionedUniversalProposal{
-		Proposal: &eth2api.VersionedProposal{
-			Version:   p.Version,
-			Phase0:    p.Phase0,
-			Altair:    p.Altair,
-			Bellatrix: p.Bellatrix,
-			Capella:   p.Capella,
-			Deneb:     p.Deneb,
+	return core.VersionedUniversalProposal{
+		VersionedUniversalProposal: eth2api.VersionedUniversalProposal{
+			Proposal: &p.VersionedProposal,
 		},
-	})
-	require.NoError(t, err)
-
-	return up
+	}
 }
 
 func versionedBlindedProposalToUniversal(t *testing.T, p core.VersionedBlindedProposal) core.VersionedUniversalProposal {
 	t.Helper()
 
-	up, err := core.NewVersionedUniversalProposal(&eth2api.VersionedUniversalProposal{
-		BlindedProposal: &eth2api.VersionedBlindedProposal{
-			Version:   p.Version,
-			Bellatrix: p.Bellatrix,
-			Capella:   p.Capella,
-			Deneb:     p.Deneb,
+	return core.VersionedUniversalProposal{
+		VersionedUniversalProposal: eth2api.VersionedUniversalProposal{
+			BlindedProposal: &p.VersionedBlindedProposal,
 		},
-	})
-	require.NoError(t, err)
-
-	return up
+	}
 }

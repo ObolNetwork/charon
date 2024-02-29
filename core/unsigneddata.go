@@ -432,27 +432,13 @@ func (p *VersionedUniversalProposal) UnmarshalJSON(input []byte) error {
 		if err := bp.UnmarshalJSON(input); err != nil {
 			return err
 		}
-
-		p.BlindedProposal = &eth2api.VersionedBlindedProposal{
-			Version:   bp.Version,
-			Bellatrix: bp.Bellatrix,
-			Capella:   bp.Capella,
-			Deneb:     bp.Deneb,
-		}
+		p.BlindedProposal = &bp.VersionedBlindedProposal
 	} else {
 		var fp VersionedProposal
 		if err := fp.UnmarshalJSON(input); err != nil {
 			return err
 		}
-
-		p.Proposal = &eth2api.VersionedProposal{
-			Version:   fp.Version,
-			Phase0:    fp.Phase0,
-			Altair:    fp.Altair,
-			Bellatrix: fp.Bellatrix,
-			Capella:   fp.Capella,
-			Deneb:     fp.Deneb,
-		}
+		p.Proposal = &fp.VersionedProposal
 	}
 
 	return nil
