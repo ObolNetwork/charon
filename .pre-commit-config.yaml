@@ -42,7 +42,7 @@ repos:
   # Then run code validators (on the formatted code)
 
   - repo: https://github.com/golangci/golangci-lint # See .golangci.yml for config
-    rev: v1.54.2
+    rev: v1.56.2
     hooks:
       - id: golangci-lint
 
