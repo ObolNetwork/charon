@@ -67,3 +67,10 @@ func TestWithDutySpanCtx(t *testing.T) {
 	require.True(t, span2.SpanContext().IsValid())
 	require.True(t, span2.SpanContext().IsSampled())
 }
+
+func TestNewUniversalProposerDuty(t *testing.T) {
+	duty := core.NewUniversalProposerDuty(1)
+
+	require.Equal(t, core.DutyUniversalProposer, duty.Type)
+	require.Equal(t, uint64(1), duty.Slot)
+}
