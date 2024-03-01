@@ -176,6 +176,59 @@ func TestMemDBProposer(t *testing.T) {
 	}
 }
 
+func TestMemDBUniversalProposer(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB(new(testDeadliner))
+
+	const queries = 3
+	slots := [queries]uint64{123, 456, 789}
+
+	type response struct {
+		block *eth2api.VersionedUniversalProposal
+	}
+	var awaitResponse [queries]chan response
+	for i := 0; i < queries; i++ {
+		awaitResponse[i] = make(chan response)
+		go func(slot int) {
+			block, err := db.AwaitUniversalProposal(ctx, slots[slot])
+			require.NoError(t, err)
+			awaitResponse[slot] <- response{block: block}
+		}(i)
+	}
+
+	proposals := make([]*eth2api.VersionedUniversalProposal, queries)
+	pubkeysByIdx := make(map[eth2p0.ValidatorIndex]core.PubKey)
+	for i := 0; i < queries; i++ {
+		proposals[i] = &eth2api.VersionedUniversalProposal{
+			Proposal: &eth2api.VersionedProposal{
+				Version:   eth2spec.DataVersionBellatrix,
+				Bellatrix: testutil.RandomBellatrixBeaconBlock(),
+			},
+		}
+		proposals[i].Proposal.Bellatrix.Slot = eth2p0.Slot(slots[i])
+		proposals[i].Proposal.Bellatrix.ProposerIndex = eth2p0.ValidatorIndex(i)
+		pubkeysByIdx[eth2p0.ValidatorIndex(i)] = testutil.RandomCorePubKey(t)
+	}
+
+	// Store the Blocks
+	for i := 0; i < queries; i++ {
+		unsigned, err := core.NewVersionedUniversalProposal(proposals[i])
+		require.NoError(t, err)
+
+		duty := core.Duty{Slot: slots[i], Type: core.DutyUniversalProposer}
+		err = db.Store(ctx, duty, core.UnsignedDataSet{
+			pubkeysByIdx[eth2p0.ValidatorIndex(i)]: unsigned,
+		})
+		require.NoError(t, err)
+	}
+
+	// Get and assert the proQuery responses
+	for i := 0; i < queries; i++ {
+		actualData := <-awaitResponse[i]
+		require.Equal(t, proposals[i], actualData.block)
+	}
+}
+
 func TestMemDBAggregator(t *testing.T) {
 	ctx := context.Background()
 	db := dutydb.NewMemDB(new(testDeadliner))
@@ -333,6 +386,47 @@ func TestMemDBClashingBlocks(t *testing.T) {
 	require.ErrorContains(t, err, "clashing blocks")
 }
 
+func TestMemDBClashingUniversalBlocks(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB(new(testDeadliner))
+
+	const slot = 123
+	block1 := &eth2api.VersionedUniversalProposal{
+		Proposal: &eth2api.VersionedProposal{
+			Version:   eth2spec.DataVersionBellatrix,
+			Bellatrix: testutil.RandomBellatrixBeaconBlock(),
+		},
+	}
+	block1.Proposal.Bellatrix.Slot = eth2p0.Slot(slot)
+	block2 := &eth2api.VersionedUniversalProposal{
+		Proposal: &eth2api.VersionedProposal{
+			Version:   eth2spec.DataVersionBellatrix,
+			Bellatrix: testutil.RandomBellatrixBeaconBlock(),
+		},
+	}
+	block2.Proposal.Bellatrix.Slot = eth2p0.Slot(slot)
+	pubkey := testutil.RandomCorePubKey(t)
+
+	// Encode the Blocks
+	unsigned1, err := core.NewVersionedUniversalProposal(block1)
+	require.NoError(t, err)
+
+	unsigned2, err := core.NewVersionedUniversalProposal(block2)
+	require.NoError(t, err)
+
+	// Store the Blocks
+	duty := core.Duty{Slot: slot, Type: core.DutyUniversalProposer}
+	err = db.Store(ctx, duty, core.UnsignedDataSet{
+		pubkey: unsigned1,
+	})
+	require.NoError(t, err)
+
+	err = db.Store(ctx, duty, core.UnsignedDataSet{
+		pubkey: unsigned2,
+	})
+	require.ErrorContains(t, err, "clashing blocks")
+}
+
 func TestMemDBClashProposer(t *testing.T) {
 	ctx := context.Background()
 	db := dutydb.NewMemDB(new(testDeadliner))
@@ -366,6 +460,48 @@ func TestMemDBClashProposer(t *testing.T) {
 	// Store a different block for the same slot
 	block.Bellatrix.ProposerIndex++
 	unsignedB, err := core.NewVersionedProposal(block)
+	require.NoError(t, err)
+	err = db.Store(ctx, duty, core.UnsignedDataSet{
+		pubkey: unsignedB,
+	})
+	require.ErrorContains(t, err, "clashing blocks")
+}
+
+func TestMemDBClashUniversalProposer(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB(new(testDeadliner))
+
+	const slot = 123
+
+	block := &eth2api.VersionedUniversalProposal{
+		Proposal: &eth2api.VersionedProposal{
+			Version:   eth2spec.DataVersionBellatrix,
+			Bellatrix: testutil.RandomBellatrixBeaconBlock(),
+		},
+	}
+	block.Proposal.Bellatrix.Slot = eth2p0.Slot(slot)
+	pubkey := testutil.RandomCorePubKey(t)
+
+	// Encode the block
+	unsigned, err := core.NewVersionedUniversalProposal(block)
+	require.NoError(t, err)
+
+	// Store the Blocks
+	duty := core.Duty{Slot: slot, Type: core.DutyUniversalProposer}
+	err = db.Store(ctx, duty, core.UnsignedDataSet{
+		pubkey: unsigned,
+	})
+	require.NoError(t, err)
+
+	// Store same block from same validator to test idempotent inserts
+	err = db.Store(ctx, duty, core.UnsignedDataSet{
+		pubkey: unsigned,
+	})
+	require.NoError(t, err)
+
+	// Store a different block for the same slot
+	block.Proposal.Bellatrix.ProposerIndex++
+	unsignedB, err := core.NewVersionedUniversalProposal(block)
 	require.NoError(t, err)
 	err = db.Store(ctx, duty, core.UnsignedDataSet{
 		pubkey: unsignedB,

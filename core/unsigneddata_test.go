@@ -5,6 +5,7 @@ package core_test
 import (
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
@@ -37,6 +38,14 @@ func TestUnsignedDataClone(t *testing.T) {
 			data: testutil.RandomCapellaVersionedBlindedProposal(),
 		},
 		{
+			name: "versioned beacon block capella as universal proposal",
+			data: versionedProposalToUniversal(t, testutil.RandomCapellaCoreVersionedProposal()),
+		},
+		{
+			name: "versioned blinded beacon block capella as universal proposal",
+			data: versionedBlindedProposalToUniversal(t, testutil.RandomCapellaVersionedBlindedProposal()),
+		},
+		{
 			name: "aggregated attestation",
 			data: core.NewAggregatedAttestation(testutil.RandomAttestation()),
 		},
@@ -52,5 +61,25 @@ func TestUnsignedDataClone(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, test.data, clone)
 		})
+	}
+}
+
+func versionedProposalToUniversal(t *testing.T, p core.VersionedProposal) core.VersionedUniversalProposal {
+	t.Helper()
+
+	return core.VersionedUniversalProposal{
+		VersionedUniversalProposal: eth2api.VersionedUniversalProposal{
+			Proposal: &p.VersionedProposal,
+		},
+	}
+}
+
+func versionedBlindedProposalToUniversal(t *testing.T, p core.VersionedBlindedProposal) core.VersionedUniversalProposal {
+	t.Helper()
+
+	return core.VersionedUniversalProposal{
+		VersionedUniversalProposal: eth2api.VersionedUniversalProposal{
+			BlindedProposal: &p.VersionedBlindedProposal,
+		},
 	}
 }

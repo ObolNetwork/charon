@@ -33,6 +33,9 @@ func TestCancelledQueries(t *testing.T) {
 	_, err = db.AwaitBlindedProposal(ctx, slot)
 	require.ErrorContains(t, err, "shutdown")
 
+	_, err = db.AwaitUniversalProposal(ctx, slot)
+	require.ErrorContains(t, err, "shutdown")
+
 	_, err = db.AwaitSyncContribution(ctx, slot, 0, eth2p0.Root{})
 	require.ErrorContains(t, err, "shutdown")
 
@@ -42,6 +45,7 @@ func TestCancelledQueries(t *testing.T) {
 	require.NotEmpty(t, db.proQueries)
 	require.NotEmpty(t, db.aggQueries)
 	require.NotEmpty(t, db.builderProQueries)
+	require.NotEmpty(t, db.universalProQueries)
 
 	// Resolve queries
 	db.resolveAggQueriesUnsafe()
@@ -49,6 +53,7 @@ func TestCancelledQueries(t *testing.T) {
 	db.resolveContribQueriesUnsafe()
 	db.resolveProQueriesUnsafe()
 	db.resolveBuilderProQueriesUnsafe()
+	db.resolveUniversalProQueriesUnsafe()
 
 	// Ensure all queries are gone.
 	require.Empty(t, db.contribQueries)

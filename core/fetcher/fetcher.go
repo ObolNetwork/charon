@@ -51,20 +51,25 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 	)
 
 	switch duty.Type {
-	case core.DutyProposer:
-		unsignedSet, err = f.fetchProposerData(ctx, duty.Slot, defSet)
-		if err != nil {
-			return errors.Wrap(err, "fetch proposer data")
-		}
 	case core.DutyAttester:
 		unsignedSet, err = f.fetchAttesterData(ctx, duty.Slot, defSet)
 		if err != nil {
 			return errors.Wrap(err, "fetch attester data")
 		}
+	case core.DutyProposer:
+		unsignedSet, err = f.fetchProposerData(ctx, duty.Slot, defSet)
+		if err != nil {
+			return errors.Wrap(err, "fetch proposer data")
+		}
 	case core.DutyBuilderProposer:
 		unsignedSet, err = f.fetchBuilderProposerData(ctx, duty.Slot, defSet)
 		if err != nil {
 			return errors.Wrap(err, "fetch builder proposer data")
+		}
+	case core.DutyUniversalProposer:
+		unsignedSet, err = f.fetchUniversalProposerData(ctx, duty.Slot, defSet)
+		if err != nil {
+			return errors.Wrap(err, "fetch universal proposer data")
 		}
 	case core.DutyAggregator:
 		unsignedSet, err = f.fetchAggregatorData(ctx, duty.Slot, defSet)
@@ -234,22 +239,34 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 	return resp, nil
 }
 
+func (f *Fetcher) getProposalOpts(ctx context.Context, slot uint64, pubkey core.PubKey) (eth2p0.BLSSignature, [32]byte, error) {
+	// Fetch previously aggregated randao reveal from AggSigDB
+	dutyRandao := core.Duty{
+		Slot: slot,
+		Type: core.DutyRandao,
+	}
+	randaoData, err := f.aggSigDBFunc(ctx, dutyRandao, pubkey)
+	if err != nil {
+		return eth2p0.BLSSignature{}, [32]byte{}, err
+	}
+
+	randao := randaoData.Signature().ToETH2()
+
+	// TODO(dhruv): replace hardcoded graffiti with the one from cluster-lock.json
+	var graffiti [32]byte
+	commitSHA, _ := version.GitCommit()
+	copy(graffiti[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
+
+	return randao, graffiti, nil
+}
+
 func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
 	resp := make(core.UnsignedDataSet)
 	for pubkey := range defSet {
-		// Fetch previously aggregated randao reveal from AggSigDB
-		dutyRandao := core.NewRandaoDuty(slot)
-		randaoData, err := f.aggSigDBFunc(ctx, dutyRandao, pubkey)
+		randao, graffiti, err := f.getProposalOpts(ctx, slot, pubkey)
 		if err != nil {
 			return nil, err
 		}
-
-		randao := randaoData.Signature().ToETH2()
-
-		// TODO(dhruv): replace hardcoded graffiti with the one from cluster-lock.json
-		var graffiti [32]byte
-		commitSHA, _ := version.GitCommit()
-		copy(graffiti[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
 
 		opts := &eth2api.ProposalOpts{
 			Slot:         eth2p0.Slot(slot),
@@ -279,22 +296,10 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
 	resp := make(core.UnsignedDataSet)
 	for pubkey := range defSet {
-		// Fetch previously aggregated randao reveal from AggSigDB
-		dutyRandao := core.Duty{
-			Slot: slot,
-			Type: core.DutyRandao,
-		}
-		randaoData, err := f.aggSigDBFunc(ctx, dutyRandao, pubkey)
+		randao, graffiti, err := f.getProposalOpts(ctx, slot, pubkey)
 		if err != nil {
 			return nil, err
 		}
-
-		randao := randaoData.Signature().ToETH2()
-
-		// TODO(dhruv): replace hardcoded graffiti with the one from cluster-lock.json
-		var graffiti [32]byte
-		commitSHA, _ := version.GitCommit()
-		copy(graffiti[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
 
 		opts := &eth2api.BlindedProposalOpts{
 			Slot:         eth2p0.Slot(slot),
@@ -312,6 +317,44 @@ func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot uint64, def
 		coreProposal, err := core.NewVersionedBlindedProposal(blindedProposal)
 		if err != nil {
 			return nil, errors.Wrap(err, "new block")
+		}
+
+		resp[pubkey] = coreProposal
+	}
+
+	return resp, nil
+}
+
+func (f *Fetcher) fetchUniversalProposerData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
+	resp := make(core.UnsignedDataSet)
+	for pubkey := range defSet {
+		randao, graffiti, err := f.getProposalOpts(ctx, slot, pubkey)
+		if err != nil {
+			return nil, err
+		}
+
+		opts := &eth2api.UniversalProposalOpts{
+			Slot:               eth2p0.Slot(slot),
+			RandaoReveal:       randao,
+			Graffiti:           graffiti,
+			BuilderBoostFactor: "", // TODO: how to populate this?
+		}
+		eth2Resp, err := f.eth2Cl.UniversalProposal(ctx, opts)
+		if err != nil {
+			return nil, err
+		}
+		proposal := eth2Resp.Data
+
+		// Ensure fee recipient is correctly populated in proposal.
+		if proposal.Proposal != nil {
+			verifyFeeRecipient(ctx, proposal.Proposal, f.feeRecipientFunc(pubkey))
+		} else if proposal.BlindedProposal != nil {
+			verifyFeeRecipientBlinded(ctx, proposal.BlindedProposal, f.feeRecipientFunc(pubkey))
+		}
+
+		coreProposal, err := core.NewVersionedUniversalProposal(proposal)
+		if err != nil {
+			return nil, errors.Wrap(err, "new universal proposal")
 		}
 
 		resp[pubkey] = coreProposal

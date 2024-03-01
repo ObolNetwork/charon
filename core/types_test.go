@@ -28,9 +28,10 @@ func TestBackwardsCompatability(t *testing.T) {
 	require.EqualValues(t, 11, core.DutyPrepareSyncContribution)
 	require.EqualValues(t, 12, core.DutySyncContribution)
 	require.EqualValues(t, 13, core.DutyInfoSync)
+	require.EqualValues(t, 14, core.DutyUniversalProposer)
 	// Add more types here.
 
-	const sentinel = core.DutyType(14)
+	const sentinel = core.DutyType(15)
 	for i := core.DutyUnknown; i <= sentinel; i++ {
 		if i == core.DutyUnknown {
 			require.False(t, i.Valid())
@@ -65,4 +66,11 @@ func TestWithDutySpanCtx(t *testing.T) {
 
 	require.True(t, span2.SpanContext().IsValid())
 	require.True(t, span2.SpanContext().IsSampled())
+}
+
+func TestNewUniversalProposerDuty(t *testing.T) {
+	duty := core.NewUniversalProposerDuty(1)
+
+	require.Equal(t, core.DutyUniversalProposer, duty.Type)
+	require.Equal(t, uint64(1), duty.Slot)
 }

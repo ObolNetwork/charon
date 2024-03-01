@@ -26,6 +26,7 @@ var (
 	_ UnsignedData = AggregatedAttestation{}
 	_ UnsignedData = VersionedProposal{}
 	_ UnsignedData = VersionedBlindedProposal{}
+	_ UnsignedData = VersionedUniversalProposal{}
 	_ UnsignedData = SyncContribution{}
 
 	// Some types also support SSZ marshalling and unmarshalling.
@@ -334,6 +335,9 @@ func (p VersionedBlindedProposal) MarshalJSON() ([]byte, error) {
 	resp, err := json.Marshal(versionedRawBlockJSON{
 		Version: version,
 		Block:   block,
+		blindedJSON: blindedJSON{
+			Blinded: true,
+		},
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal wrapper")
@@ -373,6 +377,71 @@ func (p *VersionedBlindedProposal) UnmarshalJSON(input []byte) error {
 	}
 
 	*p = VersionedBlindedProposal{VersionedBlindedProposal: resp}
+
+	return nil
+}
+
+// NewVersionedUniversalProposal validates and returns a new wrapped VersionedUniversalProposal.
+func NewVersionedUniversalProposal(proposal *eth2api.VersionedUniversalProposal) (VersionedUniversalProposal, error) {
+	return VersionedUniversalProposal{VersionedUniversalProposal: *proposal}, nil
+}
+
+// VersionedUniversalProposal wraps the eth2 versioned proposal and implements UnsignedData.
+type VersionedUniversalProposal struct {
+	eth2api.VersionedUniversalProposal
+}
+
+func (p VersionedUniversalProposal) Clone() (UnsignedData, error) {
+	var resp VersionedUniversalProposal
+	err := cloneJSONMarshaler(p, &resp)
+	if err != nil {
+		return nil, errors.Wrap(err, "clone universal proposal")
+	}
+
+	return resp, nil
+}
+
+func (p VersionedUniversalProposal) MarshalJSON() ([]byte, error) {
+	if p.Proposal != nil {
+		fp, err := NewVersionedProposal(p.Proposal)
+		if err != nil {
+			return nil, err
+		}
+
+		return fp.MarshalJSON()
+	}
+
+	if p.BlindedProposal != nil {
+		bp, err := NewVersionedBlindedProposal(p.BlindedProposal)
+		if err != nil {
+			return nil, err
+		}
+
+		return bp.MarshalJSON()
+	}
+
+	return nil, errors.New("no full or blinded block")
+}
+
+func (p *VersionedUniversalProposal) UnmarshalJSON(input []byte) error {
+	var bjson blindedJSON
+	if err := json.Unmarshal(input, &bjson); err != nil {
+		return errors.Wrap(err, "unmarshal blinded flag")
+	}
+
+	if bjson.Blinded {
+		var bp VersionedBlindedProposal
+		if err := bp.UnmarshalJSON(input); err != nil {
+			return err
+		}
+		p.BlindedProposal = &bp.VersionedBlindedProposal
+	} else {
+		var fp VersionedProposal
+		if err := fp.UnmarshalJSON(input); err != nil {
+			return err
+		}
+		p.Proposal = &fp.VersionedProposal
+	}
 
 	return nil
 }

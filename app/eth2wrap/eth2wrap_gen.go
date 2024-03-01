@@ -59,6 +59,7 @@ type Client interface {
 	eth2client.SyncCommitteeDutiesProvider
 	eth2client.SyncCommitteeMessagesSubmitter
 	eth2client.SyncCommitteeSubscriptionsSubmitter
+	eth2client.UniversalProposalProvider
 	eth2client.ValidatorRegistrationsSubmitter
 	eth2client.ValidatorsProvider
 	eth2client.VoluntaryExitSubmitter
@@ -357,6 +358,26 @@ func (m multi) Proposal(ctx context.Context, opts *api.ProposalOpts) (*api.Respo
 	res0, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) (*api.Response[*api.VersionedProposal], error) {
 			return cl.Proposal(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
+// Proposal fetches a universal proposal for signing.
+func (m multi) UniversalProposal(ctx context.Context, opts *api.UniversalProposalOpts) (*api.Response[*api.VersionedUniversalProposal], error) {
+	const label = "universal_proposal"
+	defer latency(label)()
+
+	res0, err := provide(ctx, m.clients,
+		func(ctx context.Context, cl Client) (*api.Response[*api.VersionedUniversalProposal], error) {
+			return cl.UniversalProposal(ctx, opts)
 		},
 		nil, m.selector,
 	)
@@ -906,6 +927,16 @@ func (l *lazy) Proposal(ctx context.Context, opts *api.ProposalOpts) (res0 *api.
 	}
 
 	return cl.Proposal(ctx, opts)
+}
+
+// Proposal fetches a universal proposal for signing.
+func (l *lazy) UniversalProposal(ctx context.Context, opts *api.UniversalProposalOpts) (res0 *api.Response[*api.VersionedUniversalProposal], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.UniversalProposal(ctx, opts)
 }
 
 // BeaconBlockRoot fetches a block's root given a set of options.
