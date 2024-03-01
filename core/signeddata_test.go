@@ -38,6 +38,20 @@ func TestSignedDataSetSignature(t *testing.T) {
 			},
 		},
 		{
+			name: "versioned signed universal proposal",
+			data: core.VersionedSignedUniversalProposal{
+				VersionedSignedUniversalProposal: eth2api.VersionedSignedUniversalProposal{
+					Proposal: &eth2api.VersionedSignedProposal{
+						Version: eth2spec.DataVersionBellatrix,
+						Bellatrix: &bellatrix.SignedBeaconBlock{
+							Message:   testutil.RandomBellatrixBeaconBlock(),
+							Signature: testutil.RandomEth2Signature(),
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "versioned signed blinded proposal bellatrix",
 			data: core.VersionedSignedBlindedProposal{
 				VersionedSignedBlindedProposal: eth2api.VersionedSignedBlindedProposal{
@@ -69,6 +83,20 @@ func TestSignedDataSetSignature(t *testing.T) {
 					Deneb: &eth2deneb.SignedBlindedBeaconBlock{
 						Message:   testutil.RandomDenebBlindedBeaconBlock(),
 						Signature: testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "versioned signed universal proposal deneb",
+			data: core.VersionedSignedUniversalProposal{
+				VersionedSignedUniversalProposal: eth2api.VersionedSignedUniversalProposal{
+					BlindedProposal: &eth2api.VersionedSignedBlindedProposal{
+						Version: eth2spec.DataVersionDeneb,
+						Deneb: &eth2deneb.SignedBlindedBeaconBlock{
+							Message:   testutil.RandomDenebBlindedBeaconBlock(),
+							Signature: testutil.RandomEth2Signature(),
+						},
 					},
 				},
 			},
