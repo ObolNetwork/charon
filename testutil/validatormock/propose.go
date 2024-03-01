@@ -31,18 +31,17 @@ import (
 // SignFunc abstract signing done by the validator client.
 type SignFunc func(pubshare eth2p0.BLSPubKey, data []byte) (eth2p0.BLSSignature, error)
 
-// ProposeBlock proposes block for the given slot.
-func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
+func getRandao(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
 	slot eth2p0.Slot,
-) error {
+) (eth2p0.BLSSignature, eth2p0.BLSPubKey, eth2p0.Epoch, error) {
 	valMap, err := eth2Cl.ActiveValidators(ctx)
 	if err != nil {
-		return err
+		return eth2p0.BLSSignature{}, eth2p0.BLSPubKey{}, 0, err
 	}
 
 	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
 	if err != nil {
-		return err
+		return eth2p0.BLSSignature{}, eth2p0.BLSPubKey{}, 0, err
 	}
 	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
 
@@ -57,7 +56,7 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 	}
 	eth2Resp, err := eth2Cl.ProposerDuties(ctx, opts)
 	if err != nil {
-		return err
+		return eth2p0.BLSSignature{}, eth2p0.BLSPubKey{}, 0, err
 	}
 	duties := eth2Resp.Data
 
@@ -70,42 +69,48 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 	}
 
 	if slotProposer == nil {
-		return nil
+		return eth2p0.BLSSignature{}, eth2p0.BLSPubKey{}, 0, nil
 	}
-
-	var (
-		pubkey eth2p0.BLSPubKey
-		block  *eth2api.VersionedProposal
-	)
-	pubkey = slotProposer.PubKey
 
 	// Create randao reveal to propose block
 	randaoSigRoot, err := eth2util.SignedEpoch{Epoch: epoch}.HashTreeRoot()
 	if err != nil {
-		return err
+		return eth2p0.BLSSignature{}, eth2p0.BLSPubKey{}, 0, err
 	}
 
 	randaoSigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainRandao, epoch, randaoSigRoot)
 	if err != nil {
-		return err
+		return eth2p0.BLSSignature{}, eth2p0.BLSPubKey{}, 0, err
 	}
 
 	randao, err := signFunc(slotProposer.PubKey, randaoSigData[:])
+	if err != nil {
+		return eth2p0.BLSSignature{}, eth2p0.BLSPubKey{}, 0, err
+	}
+
+	return randao, slotProposer.PubKey, epoch, nil
+}
+
+// ProposeUniversalBlock proposes universal block for the given slot.
+func ProposeUniversalBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
+	slot eth2p0.Slot,
+) error {
+	randao, pubkey, epoch, err := getRandao(ctx, eth2Cl, signFunc, slot)
 	if err != nil {
 		return err
 	}
 
 	// Get Unsigned beacon block with given randao and slot
-	proposalOpts := &eth2api.ProposalOpts{
+	proposalOpts := &eth2api.UniversalProposalOpts{
 		Slot:         slot,
 		RandaoReveal: randao,
 	}
-	eth2ProposalResp, err := eth2Cl.Proposal(ctx, proposalOpts)
+	eth2ProposalResp, err := eth2Cl.UniversalProposal(ctx, proposalOpts)
 	if err != nil {
 		return errors.Wrap(err, "vmock beacon block proposal")
 	}
-	block = eth2ProposalResp.Data
 
+	block := eth2ProposalResp.Data
 	if block == nil {
 		return errors.New("block not found")
 	}
@@ -126,6 +131,62 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 		return err
 	}
 
+	if block.Proposal != nil {
+		return submitVersionedSignedProposal(ctx, sig, eth2Cl, block.Proposal)
+	}
+	if block.BlindedProposal != nil {
+		return submitVersionedSignedBlindedProposal(ctx, sig, eth2Cl, block.BlindedProposal)
+	}
+
+	return errors.New("invalid block")
+}
+
+// ProposeBlock proposes block for the given slot.
+func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
+	slot eth2p0.Slot,
+) error {
+	randao, pubkey, epoch, err := getRandao(ctx, eth2Cl, signFunc, slot)
+	if err != nil {
+		return err
+	}
+
+	// Get Unsigned beacon block with given randao and slot
+	proposalOpts := &eth2api.ProposalOpts{
+		Slot:         slot,
+		RandaoReveal: randao,
+	}
+	eth2ProposalResp, err := eth2Cl.Proposal(ctx, proposalOpts)
+	if err != nil {
+		return errors.Wrap(err, "vmock beacon block proposal")
+	}
+
+	block := eth2ProposalResp.Data
+	if block == nil {
+		return errors.New("block not found")
+	}
+
+	// Sign beacon block
+	blockSigRoot, err := block.Root()
+	if err != nil {
+		return err
+	}
+
+	blockSigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainBeaconProposer, epoch, blockSigRoot)
+	if err != nil {
+		return err
+	}
+
+	sig, err := signFunc(pubkey, blockSigData[:])
+	if err != nil {
+		return err
+	}
+
+	return submitVersionedSignedProposal(ctx, sig, eth2Cl, block)
+}
+
+func submitVersionedSignedProposal(ctx context.Context, sig eth2p0.BLSSignature,
+	eth2Cl eth2wrap.Client, block *eth2api.VersionedProposal,
+) error {
 	// Create signed beacon block proposal.
 	signedBlock := new(eth2api.VersionedSignedProposal)
 	signedBlock.Version = block.Version
@@ -170,63 +231,7 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
 	slot eth2p0.Slot,
 ) error {
-	valMap, err := eth2Cl.ActiveValidators(ctx)
-	if err != nil {
-		return err
-	}
-
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return err
-	}
-
-	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
-
-	var indexes []eth2p0.ValidatorIndex
-	for index := range valMap {
-		indexes = append(indexes, index)
-	}
-
-	opts := &eth2api.ProposerDutiesOpts{
-		Epoch:   epoch,
-		Indices: indexes,
-	}
-	eth2Resp, err := eth2Cl.ProposerDuties(ctx, opts)
-	if err != nil {
-		return err
-	}
-	duties := eth2Resp.Data
-
-	var slotProposer *eth2v1.ProposerDuty
-	for _, duty := range duties {
-		if duty.Slot == slot {
-			slotProposer = duty
-			break
-		}
-	}
-
-	if slotProposer == nil {
-		return nil
-	}
-
-	var (
-		pubkey eth2p0.BLSPubKey
-		block  *eth2api.VersionedBlindedProposal
-	)
-	pubkey = slotProposer.PubKey
-
-	// Create randao reveal to propose block
-	randaoSigRoot, err := eth2util.SignedEpoch{Epoch: epoch}.HashTreeRoot()
-	if err != nil {
-		return err
-	}
-
-	randaoSigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainRandao, epoch, randaoSigRoot)
-	if err != nil {
-		return err
-	}
-
-	randao, err := signFunc(slotProposer.PubKey, randaoSigData[:])
+	randao, pubkey, epoch, err := getRandao(ctx, eth2Cl, signFunc, slot)
 	if err != nil {
 		return err
 	}
@@ -240,8 +245,8 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 	if err != nil {
 		return errors.Wrap(err, "vmock blinded beacon block proposal")
 	}
-	block = proposalResp.Data
 
+	block := proposalResp.Data
 	if block == nil {
 		return errors.New("block not found")
 	}
@@ -262,6 +267,12 @@ func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 		return err
 	}
 
+	return submitVersionedSignedBlindedProposal(ctx, sig, eth2Cl, block)
+}
+
+func submitVersionedSignedBlindedProposal(ctx context.Context, sig eth2p0.BLSSignature,
+	eth2Cl eth2wrap.Client, block *eth2api.VersionedBlindedProposal,
+) error {
 	// create signed beacon block
 	signedBlock := new(eth2api.VersionedSignedBlindedProposal)
 	signedBlock.Version = block.Version
