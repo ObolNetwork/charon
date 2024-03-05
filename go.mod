@@ -3,7 +3,7 @@ module github.com/obolnetwork/charon
 go 1.21
 
 require (
-	github.com/attestantio/go-eth2-client v0.19.8
+	github.com/attestantio/go-eth2-client v0.19.7
 	github.com/bufbuild/buf v1.28.1
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0
