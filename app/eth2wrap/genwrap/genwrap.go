@@ -125,7 +125,6 @@ type Client interface {
 		"SyncCommitteeContributionsSubmitter":   true,
 		"SyncCommitteeMessagesSubmitter":        true,
 		"SyncCommitteeSubscriptionsSubmitter":   true,
-		"UniversalProposalProvider":             true,
 		"ValidatorsProvider":                    true,
 		"ValidatorRegistrationsSubmitter":       true,
 		"VoluntaryExitSubmitter":                true,

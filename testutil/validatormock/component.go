@@ -287,10 +287,6 @@ func (m *Component) runDuty(ctx context.Context, duty core.Duty) error {
 		if err = ProposeBlindedBlock(ctx, eth2Cl, m.signFunc, eth2Slot); err != nil {
 			return err
 		}
-	case core.DutyUniversalProposer:
-		if err = ProposeUniversalBlock(ctx, eth2Cl, m.signFunc, eth2Slot); err != nil {
-			return err
-		}
 	case core.DutyBuilderRegistration:
 		if !m.builderAPI {
 			return nil

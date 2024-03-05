@@ -136,13 +136,6 @@ func WithBeaconMockFuzzer() Option {
 			return block, nil
 		}
 
-		mock.UniversalProposalFunc = func(ctx context.Context, opts *eth2api.UniversalProposalOpts) (*eth2api.VersionedUniversalProposal, error) {
-			var block *eth2api.VersionedUniversalProposal
-			fuzz.New().Fuzz(&block)
-
-			return block, nil
-		}
-
 		mock.NodePeerCountFunc = func(context.Context) (int, error) {
 			var count int
 			fuzz.New().Fuzz(&count)
