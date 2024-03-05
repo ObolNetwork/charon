@@ -18,18 +18,17 @@ import (
 // NewMemDB returns a new in-memory dutyDB instance.
 func NewMemDB(deadliner core.Deadliner) *MemDB {
 	return &MemDB{
-		attDuties:          make(map[attKey]*eth2p0.AttestationData),
-		attPubKeys:         make(map[pkKey]core.PubKey),
-		attKeysBySlot:      make(map[uint64][]pkKey),
-		builderProDuties:   make(map[uint64]*eth2api.VersionedBlindedProposal),
-		proDuties:          make(map[uint64]*eth2api.VersionedProposal),
-		universalProDuties: make(map[uint64]*eth2api.VersionedUniversalProposal),
-		aggDuties:          make(map[aggKey]core.AggregatedAttestation),
-		aggKeysBySlot:      make(map[uint64][]aggKey),
-		contribDuties:      make(map[contribKey]*altair.SyncCommitteeContribution),
-		contribKeysBySlot:  make(map[uint64][]contribKey),
-		shutdown:           make(chan struct{}),
-		deadliner:          deadliner,
+		attDuties:         make(map[attKey]*eth2p0.AttestationData),
+		attPubKeys:        make(map[pkKey]core.PubKey),
+		attKeysBySlot:     make(map[uint64][]pkKey),
+		builderProDuties:  make(map[uint64]*eth2api.VersionedBlindedProposal),
+		proDuties:         make(map[uint64]*eth2api.VersionedProposal),
+		aggDuties:         make(map[aggKey]core.AggregatedAttestation),
+		aggKeysBySlot:     make(map[uint64][]aggKey),
+		contribDuties:     make(map[contribKey]*altair.SyncCommitteeContribution),
+		contribKeysBySlot: make(map[uint64][]contribKey),
+		shutdown:          make(chan struct{}),
+		deadliner:         deadliner,
 	}
 }
 
@@ -51,10 +50,6 @@ type MemDB struct {
 	// DutyProposer
 	proDuties  map[uint64]*eth2api.VersionedProposal
 	proQueries []proQuery
-
-	// DutyUniversalProposer
-	universalProDuties  map[uint64]*eth2api.VersionedUniversalProposal
-	universalProQueries []universalProQuery
 
 	// DutyAggregator
 	aggDuties     map[aggKey]core.AggregatedAttestation
@@ -110,18 +105,6 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 			}
 		}
 		db.resolveBuilderProQueriesUnsafe()
-	case core.DutyUniversalProposer:
-		// Sanity check max one universal proposer per slot
-		if len(unsignedSet) > 1 {
-			return errors.New("unexpected universal proposer data set length", z.Int("n", len(unsignedSet)))
-		}
-		for _, unsignedData := range unsignedSet {
-			err := db.storeUniversalProposalUnsafe(unsignedData)
-			if err != nil {
-				return err
-			}
-		}
-		db.resolveUniversalProQueriesUnsafe()
 	case core.DutyAttester:
 		for pubkey, unsignedData := range unsignedSet {
 			err := db.storeAttestationUnsafe(pubkey, unsignedData)
@@ -209,31 +192,6 @@ func (db *MemDB) AwaitBlindedProposal(ctx context.Context, slot uint64) (*eth2ap
 		Cancel:   cancel,
 	})
 	db.resolveBuilderProQueriesUnsafe()
-	db.mu.Unlock()
-
-	select {
-	case <-db.shutdown:
-		return nil, errors.New("dutydb shutdown")
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case block := <-response:
-		return block, nil
-	}
-}
-
-// AwaitUniversalProposal implements core.DutyDB, see its godoc.
-func (db *MemDB) AwaitUniversalProposal(ctx context.Context, slot uint64) (*eth2api.VersionedUniversalProposal, error) {
-	cancel := make(chan struct{})
-	defer close(cancel)
-	response := make(chan *eth2api.VersionedUniversalProposal, 1)
-
-	db.mu.Lock()
-	db.universalProQueries = append(db.universalProQueries, universalProQuery{
-		Key:      slot,
-		Response: response,
-		Cancel:   cancel,
-	})
-	db.resolveUniversalProQueriesUnsafe()
 	db.mu.Unlock()
 
 	select {
@@ -531,45 +489,6 @@ func (db *MemDB) storeProposalUnsafe(unsignedData core.UnsignedData) error {
 	return nil
 }
 
-// storeUniversalProposalUnsafe stores the unsigned UniversalProposal.
-// It is unsafe since it assumes the lock is held.
-func (db *MemDB) storeUniversalProposalUnsafe(unsignedData core.UnsignedData) error {
-	cloned, err := unsignedData.Clone() // Clone before storing.
-	if err != nil {
-		return err
-	}
-
-	proposal, ok := cloned.(core.VersionedUniversalProposal)
-	if !ok {
-		return errors.New("invalid versioned universal proposal")
-	}
-
-	slot, err := proposal.Slot()
-	if err != nil {
-		return err
-	}
-
-	if existing, ok := db.universalProDuties[uint64(slot)]; ok {
-		existingRoot, err := existing.Root()
-		if err != nil {
-			return errors.Wrap(err, "universal proposal root")
-		}
-
-		providedRoot, err := proposal.Root()
-		if err != nil {
-			return errors.Wrap(err, "universal proposal root")
-		}
-
-		if existingRoot != providedRoot {
-			return errors.New("clashing blocks")
-		}
-	} else {
-		db.universalProDuties[uint64(slot)] = &proposal.VersionedUniversalProposal
-	}
-
-	return nil
-}
-
 // storeBlindedBeaconBlockUnsafe stores the unsigned BlindedBeaconBlock. It is unsafe since it assumes the lock is held.
 func (db *MemDB) storeBlindedBeaconBlockUnsafe(unsignedData core.UnsignedData) error {
 	cloned, err := unsignedData.Clone() // Clone before storing.
@@ -650,27 +569,6 @@ func (db *MemDB) resolveProQueriesUnsafe() {
 	db.proQueries = unresolved
 }
 
-// resolveUniversalProQueriesUnsafe resolve any universalProQuery to a result if found.
-// It is unsafe since it assume that the lock is held.
-func (db *MemDB) resolveUniversalProQueriesUnsafe() {
-	var unresolved []universalProQuery
-	for _, query := range db.universalProQueries {
-		if cancelled(query.Cancel) {
-			continue // Drop cancelled queries.
-		}
-
-		value, ok := db.universalProDuties[query.Key]
-		if !ok {
-			unresolved = append(unresolved, query)
-			continue
-		}
-
-		query.Response <- value
-	}
-
-	db.universalProQueries = unresolved
-}
-
 // resolveAggQueriesUnsafe resolve any aggQuery to a result if found.
 // It is unsafe since it assume that the lock is held.
 func (db *MemDB) resolveAggQueriesUnsafe() {
@@ -741,8 +639,6 @@ func (db *MemDB) deleteDutyUnsafe(duty core.Duty) error {
 		delete(db.proDuties, duty.Slot)
 	case core.DutyBuilderProposer:
 		delete(db.builderProDuties, duty.Slot)
-	case core.DutyUniversalProposer:
-		delete(db.universalProDuties, duty.Slot)
 	case core.DutyAttester:
 		for _, key := range db.attKeysBySlot[duty.Slot] {
 			delete(db.attPubKeys, key)
@@ -803,13 +699,6 @@ type attQuery struct {
 type proQuery struct {
 	Key      uint64
 	Response chan<- *eth2api.VersionedProposal
-	Cancel   <-chan struct{}
-}
-
-// universalProQuery is a waiting universalProQuery with a response channel.
-type universalProQuery struct {
-	Key      uint64
-	Response chan<- *eth2api.VersionedUniversalProposal
 	Cancel   <-chan struct{}
 }
 

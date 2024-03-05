@@ -497,19 +497,6 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 
 			return block, nil
 		},
-		UniversalProposalFunc: func(ctx context.Context, opts *eth2api.UniversalProposalOpts) (*eth2api.VersionedUniversalProposal, error) {
-			block := &eth2api.VersionedUniversalProposal{
-				Proposal: &eth2api.VersionedProposal{
-					Version: eth2spec.DataVersionCapella,
-					Capella: testutil.RandomCapellaBeaconBlock(),
-				},
-			}
-			block.Proposal.Capella.Slot = opts.Slot
-			block.Proposal.Capella.Body.RANDAOReveal = opts.RandaoReveal
-			block.Proposal.Capella.Body.Graffiti = opts.Graffiti
-
-			return block, nil
-		},
 		SignedBeaconBlockFunc: func(_ context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error) {
 			return testutil.RandomCapellaVersionedSignedBeaconBlock(), nil // Note the slot is probably wrong.
 		},

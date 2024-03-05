@@ -27,7 +27,6 @@ import (
 
 var (
 	_ SignedData = VersionedSignedProposal{}
-	_ SignedData = VersionedSignedUniversalProposal{}
 	_ SignedData = Attestation{}
 	_ SignedData = Signature{}
 	_ SignedData = SignedVoluntaryExit{}
@@ -473,9 +472,6 @@ func (p VersionedSignedBlindedProposal) MarshalJSON() ([]byte, error) {
 	resp, err := json.Marshal(versionedRawBlockJSON{
 		Version: version,
 		Block:   block,
-		blindedJSON: blindedJSON{
-			Blinded: true,
-		},
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal wrapper")
@@ -519,206 +515,10 @@ func (p *VersionedSignedBlindedProposal) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
-// NewVersionedSignedUniversalProposal validates and returns a new VersionedSignedProposal.
-func NewVersionedSignedUniversalProposal(proposal *eth2api.VersionedSignedUniversalProposal) (VersionedSignedUniversalProposal, error) {
-	if proposal.Proposal != nil {
-		np, err := NewVersionedSignedProposal(proposal.Proposal)
-		if err != nil {
-			return VersionedSignedUniversalProposal{}, err
-		}
-
-		return VersionedSignedUniversalProposal{
-			VersionedSignedUniversalProposal: eth2api.VersionedSignedUniversalProposal{
-				Proposal: &np.VersionedSignedProposal,
-			},
-		}, nil
-	}
-	if proposal.BlindedProposal != nil {
-		bp, err := NewVersionedSignedBlindedProposal(proposal.BlindedProposal)
-		if err != nil {
-			return VersionedSignedUniversalProposal{}, err
-		}
-
-		return VersionedSignedUniversalProposal{
-			VersionedSignedUniversalProposal: eth2api.VersionedSignedUniversalProposal{
-				BlindedProposal: &bp.VersionedSignedBlindedProposal,
-			},
-		}, nil
-	}
-
-	return VersionedSignedUniversalProposal{}, errors.New("invalid proposal")
-}
-
-// NewPartialVersionedSignedUniversalProposal validates and returns a new partial VersionedSignedUniversalProposal.
-func NewPartialVersionedSignedUniversalProposal(proposal *eth2api.VersionedSignedUniversalProposal, shareIdx int) (ParSignedData, error) {
-	wrap, err := NewVersionedSignedUniversalProposal(proposal)
-	if err != nil {
-		return ParSignedData{}, err
-	}
-
-	return ParSignedData{
-		SignedData: wrap,
-		ShareIdx:   shareIdx,
-	}, nil
-}
-
-// VersionedSignedUniversalProposal is a signed versioned universal proposal and implements SignedData.
-type VersionedSignedUniversalProposal struct {
-	eth2api.VersionedSignedUniversalProposal
-}
-
-func (p VersionedSignedUniversalProposal) Signature() Signature {
-	if p.Proposal != nil {
-		np, err := NewVersionedSignedProposal(p.Proposal)
-		if err != nil {
-			panic("invalid proposal: " + err.Error())
-		}
-
-		return np.Signature()
-	}
-	if p.BlindedProposal != nil {
-		np, err := NewVersionedSignedBlindedProposal(p.BlindedProposal)
-		if err != nil {
-			panic("invalid blinded proposal: " + err.Error())
-		}
-
-		return np.Signature()
-	}
-
-	panic("invalid proposal")
-}
-
-func (p VersionedSignedUniversalProposal) SetSignature(sig Signature) (SignedData, error) {
-	resp, err := p.clone()
-	if err != nil {
-		return nil, err
-	}
-
-	if p.Proposal != nil {
-		np, err := NewVersionedSignedProposal(p.Proposal)
-		if err != nil {
-			return nil, err
-		}
-		sd, err := np.SetSignature(sig)
-		if err != nil {
-			return nil, err
-		}
-		vsp, ok := sd.(VersionedSignedProposal)
-		if !ok {
-			return nil, errors.New("invalid proposal")
-		}
-		resp.Proposal = &vsp.VersionedSignedProposal
-	}
-	if p.BlindedProposal != nil {
-		np, err := NewVersionedSignedBlindedProposal(p.BlindedProposal)
-		if err != nil {
-			return nil, err
-		}
-		sd, err := np.SetSignature(sig)
-		if err != nil {
-			return nil, err
-		}
-		vsbp, ok := sd.(VersionedSignedBlindedProposal)
-		if !ok {
-			return nil, errors.New("invalid blinded proposal")
-		}
-		resp.BlindedProposal = &vsbp.VersionedSignedBlindedProposal
-	}
-
-	return resp, nil
-}
-
-func (p VersionedSignedUniversalProposal) MessageRoot() ([32]byte, error) {
-	if p.Proposal != nil {
-		np, err := NewVersionedSignedProposal(p.Proposal)
-		if err != nil {
-			return [32]byte{}, err
-		}
-
-		return np.MessageRoot()
-	}
-	if p.BlindedProposal != nil {
-		np, err := NewVersionedSignedBlindedProposal(p.BlindedProposal)
-		if err != nil {
-			return [32]byte{}, err
-		}
-
-		return np.MessageRoot()
-	}
-
-	return [32]byte{}, errors.New("invalid proposal")
-}
-
-func (p VersionedSignedUniversalProposal) Clone() (SignedData, error) {
-	return p.clone()
-}
-
-// clone returns a copy of the VersionedSignedBlindedProposal.
-// It is similar to Clone that returns the SignedData interface.
-func (p VersionedSignedUniversalProposal) clone() (VersionedSignedUniversalProposal, error) {
-	var resp VersionedSignedUniversalProposal
-	err := cloneJSONMarshaler(p, &resp)
-	if err != nil {
-		return VersionedSignedUniversalProposal{}, errors.Wrap(err, "clone universal proposal")
-	}
-
-	return resp, nil
-}
-
-func (p VersionedSignedUniversalProposal) MarshalJSON() ([]byte, error) {
-	if p.Proposal != nil {
-		np, err := NewVersionedSignedProposal(p.Proposal)
-		if err != nil {
-			return nil, err
-		}
-
-		return np.MarshalJSON()
-	}
-	if p.BlindedProposal != nil {
-		bp, err := NewVersionedSignedBlindedProposal(p.BlindedProposal)
-		if err != nil {
-			return nil, err
-		}
-
-		return bp.MarshalJSON()
-	}
-
-	return nil, errors.New("invalid proposal")
-}
-
-func (p *VersionedSignedUniversalProposal) UnmarshalJSON(input []byte) error {
-	var bjson blindedJSON
-	if err := json.Unmarshal(input, &bjson); err != nil {
-		return errors.Wrap(err, "unmarshal blinded flag")
-	}
-
-	if bjson.Blinded {
-		var bp VersionedSignedBlindedProposal
-		if err := bp.UnmarshalJSON(input); err != nil {
-			return err
-		}
-		p.BlindedProposal = &bp.VersionedSignedBlindedProposal
-	} else {
-		var np VersionedSignedProposal
-		if err := np.UnmarshalJSON(input); err != nil {
-			return err
-		}
-		p.Proposal = &np.VersionedSignedProposal
-	}
-
-	return nil
-}
-
-// blindedJSON is a helper type for JSON marshalling of blinded blocks.
-type blindedJSON struct {
-	Blinded bool `json:"blinded,omitempty"`
-}
-
 // versionedRawBlockJSON is a custom VersionedSignedBeaconBlock or VersionedSignedBlindedBeaconBlock serialiser.
 type versionedRawBlockJSON struct {
 	Version eth2util.DataVersion `json:"version"`
 	Block   json.RawMessage      `json:"block"`
-	blindedJSON
 }
 
 // NewAttestation is a convenience function that returns a new wrapped attestation.
