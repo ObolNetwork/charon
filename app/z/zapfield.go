@@ -20,7 +20,7 @@ func Fields(err error) []Field {
 		Fields() []Field
 	}
 
-	serr, ok := err.(structErr)
+	serr, ok := err.(structErr) //nolint:errorlint
 	if !ok {
 		return []Field{}
 	}
