@@ -8,3 +8,6 @@ coverage:
       default:
         only_pulls: true # No patch status on single commits in main.
         informational: true
+ignore:
+  - "**/*_test.go"
+  - "testutil"
