@@ -991,11 +991,12 @@ func aggValidatorRegistrations(
 // createDistValidators returns a slice of distributed validators from the provided
 // shares and deposit datas.
 func createDistValidators(shares []share, depositDatas [][]eth2p0.DepositData, valRegs []core.VersionedSignedValidatorRegistration) ([]cluster.DistValidator, error) {
-	depositDatasMap := make(map[tbls.PublicKey][]eth2p0.DepositData, len(shares))
+	depositDatasMap := make(map[tbls.PublicKey][]eth2p0.DepositData)
 	for amountIndex := range depositDatas {
 		for ddIndex := range depositDatas[amountIndex] {
 			dd := depositDatas[amountIndex][ddIndex]
-			depositDatasMap[tbls.PublicKey(dd.PublicKey)] = append(depositDatasMap[tbls.PublicKey(dd.PublicKey)], dd)
+			pk := tbls.PublicKey(dd.PublicKey)
+			depositDatasMap[pk] = append(depositDatasMap[pk], dd)
 		}
 	}
 
@@ -1036,12 +1037,14 @@ func createDistValidators(shares []share, depositDatas [][]eth2p0.DepositData, v
 		}
 
 		for _, dd := range depositDatasList {
-			partialDepositData = append(partialDepositData, cluster.DepositData{
+			dd := dd
+			newDepositData := cluster.DepositData{
 				PubKey:                dd.PublicKey[:],
 				WithdrawalCredentials: dd.WithdrawalCredentials,
 				Amount:                int(dd.Amount),
 				Signature:             dd.Signature[:],
-			})
+			}
+			partialDepositData = append(partialDepositData, newDepositData)
 		}
 
 		dvs = append(dvs, cluster.DistValidator{

@@ -61,6 +61,11 @@ func TestEncode(t *testing.T) {
 				withdrawalAddrs = append(withdrawalAddrs, testutil.RandomETHAddressSeed(r))
 			}
 
+			var partialAmounts []int
+			if isAnyVersion(version, v1_8) {
+				partialAmounts = []int{16, 16}
+			}
+
 			definition, err := cluster.NewDefinition(
 				"test definition",
 				numVals,
@@ -86,7 +91,7 @@ func TestEncode(t *testing.T) {
 						ENRSignature:    testutil.RandomSecp256k1SignatureSeed(r),
 					},
 				},
-				[]int{16, 16},
+				partialAmounts,
 				rand.New(rand.NewSource(0)),
 				opts...,
 			)
