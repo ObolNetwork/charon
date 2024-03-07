@@ -48,6 +48,6 @@
   "dkg_algorithm": "default",
   "fork_version": "0x00001020",
   "deposit_amounts": null,
-  "config_hash": "0xb57273796ad1722863939b7bbf92cab4a1b05adcb0c57bb536d4604bb6fa17e5",
-  "definition_hash": "0x2e100b77548e5438f082e25e4eb99b137c975a7a91f0aabc426695e56bfd923f"
+  "config_hash": "0x4a94305c72f986ccf7336b4fbfc2b7295533f3f8459697554130637db444d38a",
+  "definition_hash": "0x33a5baad2ce565fd1e46fb7f216a1a408cb947ee1ab942b085878e07063036e2"
 }
