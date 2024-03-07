@@ -4,6 +4,7 @@ package dkg_test
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -145,7 +146,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 			},
 			SyncOpts: []func(*dkgsync.Client){dkgsync.WithPeriod(time.Millisecond * 50)},
 		},
-		ShutdownDelay: 5 * time.Second,
+		ShutdownDelay: 1 * time.Second,
 	}
 
 	allReceivedKeystores := make(chan struct{}) // Receives struct{} for each `numNodes` keystore intercepted by the keymanager server
@@ -338,53 +339,7 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 		require.NoError(t, lock.VerifySignatures())
 		locks = append(locks, lock)
 
-		for j, val := range lock.Validators {
-			// Assert Deposit Data
-			depositAmounts := deposit.DedupAmounts(def.DepositAmounts)
-			if len(depositAmounts) == 0 {
-				depositAmounts = []eth2p0.Gwei{deposit.MaxDepositAmount}
-			}
-			require.Len(t, val.PartialDepositData, len(depositAmounts))
-			for i, amount := range depositAmounts {
-				require.EqualValues(t, val.PubKey, val.PartialDepositData[i].PubKey)
-				require.EqualValues(t, amount, val.PartialDepositData[i].Amount)
-			}
-
-			if !cluster.SupportPregenRegistrations(lock.Version) {
-				require.Empty(t, val.BuilderRegistration.Signature)
-				continue
-			}
-
-			// Assert Builder Registration
-			require.EqualValues(t, val.PubKey, val.BuilderRegistration.Message.PubKey)
-			require.EqualValues(t, registration.DefaultGasLimit, val.BuilderRegistration.Message.GasLimit)
-			timestamp, err := eth2util.ForkVersionToGenesisTime(lock.ForkVersion)
-			require.NoError(t, err)
-			require.EqualValues(t, timestamp, val.BuilderRegistration.Message.Timestamp)
-
-			// Verify registration signatures
-			eth2Reg, err := registration.NewMessage(eth2p0.BLSPubKey(val.BuilderRegistration.Message.PubKey),
-				fmt.Sprintf("%#x", val.BuilderRegistration.Message.FeeRecipient),
-				uint64(val.BuilderRegistration.Message.GasLimit), val.BuilderRegistration.Message.Timestamp)
-			require.NoError(t, err)
-
-			sigRoot, err := registration.GetMessageSigningRoot(eth2Reg, eth2p0.Version(lock.ForkVersion))
-			require.NoError(t, err)
-
-			sig, err := tblsconv.SignatureFromBytes(val.BuilderRegistration.Signature)
-			require.NoError(t, err)
-
-			pubkey, err := tblsconv.PubkeyFromBytes(val.PubKey)
-			require.NoError(t, err)
-
-			err = tbls.Verify(pubkey, sigRoot[:], sig)
-			require.NoError(t, err)
-
-			require.EqualValues(t,
-				lock.ValidatorAddresses[j].FeeRecipientAddress,
-				fmt.Sprintf("%#x", val.BuilderRegistration.Message.FeeRecipient),
-			)
-		}
+		verifyDistValidators(t, lock, def)
 	}
 
 	// Ensure locks hashes are identical.
@@ -419,6 +374,65 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 		}
 		_, err := tbls.Aggregate(sigs)
 		require.NoError(t, err)
+	}
+}
+
+func verifyDistValidators(t *testing.T, lock cluster.Lock, def cluster.Definition) {
+	t.Helper()
+
+	for j, val := range lock.Validators {
+		// Assert Deposit Data
+		depositAmounts := deposit.DedupAmounts(def.DepositAmounts)
+		if len(depositAmounts) == 0 {
+			depositAmounts = []eth2p0.Gwei{deposit.MaxDepositAmount}
+		}
+		require.Len(t, val.PartialDepositData, len(depositAmounts))
+
+		// Assert Partial Deposit Data
+		uniqueSigs := make(map[string]struct{})
+		for i, amount := range depositAmounts {
+			pdd := val.PartialDepositData[i]
+			require.EqualValues(t, val.PubKey, pdd.PubKey)
+			require.EqualValues(t, amount, pdd.Amount)
+			uniqueSigs[hex.EncodeToString(pdd.Signature)] = struct{}{}
+		}
+		// Signatures must be unique for each deposit
+		require.Len(t, uniqueSigs, len(depositAmounts))
+
+		if !cluster.SupportPregenRegistrations(lock.Version) {
+			require.Empty(t, val.BuilderRegistration.Signature)
+			continue
+		}
+
+		// Assert Builder Registration
+		require.EqualValues(t, val.PubKey, val.BuilderRegistration.Message.PubKey)
+		require.EqualValues(t, registration.DefaultGasLimit, val.BuilderRegistration.Message.GasLimit)
+		timestamp, err := eth2util.ForkVersionToGenesisTime(lock.ForkVersion)
+		require.NoError(t, err)
+		require.EqualValues(t, timestamp, val.BuilderRegistration.Message.Timestamp)
+
+		// Verify registration signatures
+		eth2Reg, err := registration.NewMessage(eth2p0.BLSPubKey(val.BuilderRegistration.Message.PubKey),
+			fmt.Sprintf("%#x", val.BuilderRegistration.Message.FeeRecipient),
+			uint64(val.BuilderRegistration.Message.GasLimit), val.BuilderRegistration.Message.Timestamp)
+		require.NoError(t, err)
+
+		sigRoot, err := registration.GetMessageSigningRoot(eth2Reg, eth2p0.Version(lock.ForkVersion))
+		require.NoError(t, err)
+
+		sig, err := tblsconv.SignatureFromBytes(val.BuilderRegistration.Signature)
+		require.NoError(t, err)
+
+		pubkey, err := tblsconv.PubkeyFromBytes(val.PubKey)
+		require.NoError(t, err)
+
+		err = tbls.Verify(pubkey, sigRoot[:], sig)
+		require.NoError(t, err)
+
+		require.EqualValues(t,
+			lock.ValidatorAddresses[j].FeeRecipientAddress,
+			fmt.Sprintf("%#x", val.BuilderRegistration.Message.FeeRecipient),
+		)
 	}
 }
 

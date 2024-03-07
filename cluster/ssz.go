@@ -517,9 +517,7 @@ func hashDefinitionV1x8orLater(d Definition, hh ssz.HashWalker, configOnly bool)
 		amountsIdx := hh.Index()
 		num := uint64(len(d.DepositAmounts))
 		for _, amount := range d.DepositAmounts {
-			amountIdx := hh.Index()
 			hh.PutUint64(uint64(amount))
-			hh.Merkleize(amountIdx)
 		}
 		hh.MerkleizeWithMixin(amountsIdx, num, sszMaxDepositAmounts)
 	}

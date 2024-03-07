@@ -277,3 +277,8 @@ func RandomDepositDataSeed(r *rand.Rand) DepositData {
 		Signature:             testutil.RandomBytes96Seed(r),
 	}
 }
+
+func TestSupportPartialDeposits(t *testing.T) {
+	require.True(t, supportPartialDeposits(MinVersionForPartialDeposits))
+	require.False(t, supportPartialDeposits(v1_7))
+}

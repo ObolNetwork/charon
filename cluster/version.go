@@ -19,6 +19,8 @@ const (
 	v1_0 = "v1.0.0"
 
 	zeroNonce = 0
+
+	MinVersionForPartialDeposits = v1_8
 )
 
 var supportedVersions = map[string]bool{
