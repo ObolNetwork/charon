@@ -5,6 +5,7 @@ package aggsigdb
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"sync"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -19,12 +20,7 @@ type MemDBV2 struct {
 	data       sync.Map // map[memDBKey]core.SignedData
 	keysByDuty sync.Map // map[core.Duty][]memDBKey,  Key index by duty for fast deletion.
 	deadliner  core.Deadliner
-
-	// storeSig signals when a new Store has concluded for a given key.
-	// Await reads storeSig and observes for a given memDBKey, and will re-send keys that it wasn't
-	// looking for, to allow other Await calls to eventually return.
-	storeSig chan memDBKey
-	closed   chan struct{}
+	closed     chan struct{}
 }
 
 // NewMemDBV2 creates a basic memory based AggSigDB.
@@ -33,7 +29,6 @@ func NewMemDBV2(deadliner core.Deadliner) *MemDBV2 {
 		// data, keysByDuty are okay to use without explicit initialization
 		deadliner: deadliner,
 		closed:    make(chan struct{}),
-		storeSig:  make(chan memDBKey),
 	}
 }
 
@@ -76,10 +71,6 @@ func (m *MemDBV2) store(duty core.Duty, pubKey core.PubKey, data core.SignedData
 		m.keysByDuty.Store(duty, kbd)
 	}
 
-	go func() {
-		m.storeSig <- key
-	}()
-
 	return nil
 }
 
@@ -105,59 +96,27 @@ func (m *MemDBV2) Store(ctx context.Context, duty core.Duty, set core.SignedData
 }
 
 func (m *MemDBV2) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) (core.SignedData, error) {
-	key := memDBKey{duty, pubKey}
-
-	var (
-		maybeDataRaw any
-		ok           bool
-	)
-
-	select {
-	case <-m.closed:
-		return nil, ErrStopped
-	default:
-		maybeDataRaw, ok = m.data.Load(key)
-	}
-
-	if !ok {
-		found := false
-
-		for {
-			if found {
-				break
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-m.closed:
+			return nil, ErrStopped
+		default:
+			maybeDataRaw, ok := m.data.Load(memDBKey{duty, pubKey})
+			if !ok {
+				runtime.Gosched() // yield to runtime to avoid trashing
+				continue
 			}
 
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-m.closed:
-				return nil, ErrStopped
-			case storeSignal := <-m.storeSig:
-				if storeSignal != key {
-					// not for me, so re-enqueue the store signal in the pipe
-					go func() {
-						m.storeSig <- storeSignal
-					}()
-
-					continue
-				}
-
-				maybeDataRaw, ok = m.data.Load(key)
-				if !ok {
-					return nil, errors.New("got a store signal for key, but data wasn't there", z.Str("key", fmt.Sprintf("%+v", key)))
-				}
-
-				found = true
+			maybeData, ok := maybeDataRaw.(core.SignedData)
+			if !ok {
+				return nil, errors.New("data stored in aggsigdb not of core.SignedData type", z.Str("key", fmt.Sprintf("%+v", memDBKey{duty, pubKey})))
 			}
+
+			return maybeData.Clone()
 		}
 	}
-
-	maybeData, ok := maybeDataRaw.(core.SignedData)
-	if !ok {
-		return nil, errors.New("data stored in aggsigdb not of core.SignedData type", z.Str("key", fmt.Sprintf("%+v", key)))
-	}
-
-	return maybeData.Clone()
 }
 
 // Run blocks and runs the database process until the context is cancelled.
