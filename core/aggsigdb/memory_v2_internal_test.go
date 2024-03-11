@@ -35,21 +35,8 @@ func TestDutyExpirationV2(t *testing.T) {
 
 	deadliner.Expire()
 
-	var dataLen int
-	var keysByDutyLen int
-
-	db.data.Range(func(_, _ any) bool {
-		dataLen++
-		return true
-	})
-
-	db.keysByDuty.Range(func(_, _ any) bool {
-		keysByDutyLen++
-		return true
-	})
-
-	require.Zero(t, dataLen)
-	require.Zero(t, keysByDutyLen)
+	require.Zero(t, len(db.data))
+	require.Zero(t, len(db.keysByDuty))
 }
 
 func TestCancelledQueryV2(t *testing.T) {

@@ -9,16 +9,15 @@ import (
 	"sync"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 )
 
 // MemDBV2 is a basic memory implementation of core.AggSigDB.
 type MemDBV2 struct {
-	sync.Mutex
-	data       sync.Map // map[memDBKey]core.SignedData
-	keysByDuty sync.Map // map[core.Duty][]memDBKey,  Key index by duty for fast deletion.
+	sync.RWMutex
+	data       map[memDBKey]core.SignedData
+	keysByDuty map[core.Duty][]memDBKey // Key index by duty for fast deletion.
 	deadliner  core.Deadliner
 	closed     chan struct{}
 }
@@ -27,8 +26,10 @@ type MemDBV2 struct {
 func NewMemDBV2(deadliner core.Deadliner) *MemDBV2 {
 	return &MemDBV2{
 		// data, keysByDuty are okay to use without explicit initialization
-		deadliner: deadliner,
-		closed:    make(chan struct{}),
+		deadliner:  deadliner,
+		closed:     make(chan struct{}),
+		data:       map[memDBKey]core.SignedData{},
+		keysByDuty: map[core.Duty][]memDBKey{},
 	}
 }
 
@@ -42,7 +43,7 @@ func (m *MemDBV2) store(duty core.Duty, pubKey core.PubKey, data core.SignedData
 
 	key := memDBKey{duty, pubKey}
 
-	if rawExisting, ok := m.data.Load(key); ok {
+	if rawExisting, ok := m.data[key]; ok {
 		existing, ok := rawExisting.(core.SignedData)
 		if !ok {
 			return errors.New("data stored in aggsigdb not of core.SignedData type", z.Str("key", fmt.Sprintf("%+v", key)))
@@ -55,20 +56,8 @@ func (m *MemDBV2) store(duty core.Duty, pubKey core.PubKey, data core.SignedData
 			return errors.New("mismatching data")
 		}
 	} else {
-		m.data.Store(key, data)
-		rawKbd, _ := m.keysByDuty.Load(duty)
-
-		if rawKbd == nil {
-			rawKbd = []memDBKey{}
-		}
-
-		kbd, ok := rawKbd.([]memDBKey)
-		if !ok {
-			return errors.New("indexing key data stored in aggsigdb not of []memDBKey type", z.Str("duty", duty.String()))
-		}
-
-		kbd = append(kbd, key)
-		m.keysByDuty.Store(duty, kbd)
+		m.data[key] = data
+		m.keysByDuty[duty] = append(m.keysByDuty[duty], key)
 	}
 
 	return nil
@@ -96,26 +85,40 @@ func (m *MemDBV2) Store(ctx context.Context, duty core.Duty, set core.SignedData
 }
 
 func (m *MemDBV2) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) (core.SignedData, error) {
-	for {
+	errMustLoop := errors.New("still needs loop")
+
+	query := func() (core.SignedData, error) {
+		m.RLock()
+		defer m.RUnlock()
+
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-m.closed:
 			return nil, ErrStopped
 		default:
-			maybeDataRaw, ok := m.data.Load(memDBKey{duty, pubKey})
+			data, ok := m.data[memDBKey{duty, pubKey}]
 			if !ok {
-				runtime.Gosched() // yield to runtime to avoid trashing
-				continue
+				return nil, errMustLoop
 			}
 
-			maybeData, ok := maybeDataRaw.(core.SignedData)
-			if !ok {
-				return nil, errors.New("data stored in aggsigdb not of core.SignedData type", z.Str("key", fmt.Sprintf("%+v", memDBKey{duty, pubKey})))
-			}
-
-			return maybeData.Clone()
+			return data.Clone()
 		}
+	}
+
+	for {
+		data, err := query()
+		if err != nil {
+			if !errors.Is(err, errMustLoop) {
+				return nil, err
+			}
+
+			runtime.Gosched() // yield to runtime to avoid trashing
+
+			continue
+		}
+
+		return data, nil
 	}
 }
 
@@ -123,29 +126,27 @@ func (m *MemDBV2) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey)
 func (m *MemDBV2) Run(ctx context.Context) {
 	defer close(m.closed)
 
+	deadlineDel := func(duty core.Duty) {
+		// atomically delete deadlined keys
+		m.Lock()
+		defer m.Unlock()
+
+		keys, ok := m.keysByDuty[duty]
+		if !ok {
+			return
+		}
+
+		for _, key := range keys {
+			delete(m.data, key)
+		}
+
+		delete(m.keysByDuty, duty)
+	}
+
 	for {
 		select {
 		case duty := <-m.deadliner.C():
-			// atomically delete deadlined keys
-			m.Lock()
-
-			rawKeys, ok := m.keysByDuty.Load(duty)
-			if !ok {
-				continue
-			}
-
-			keys, ok := rawKeys.([]memDBKey)
-			if !ok {
-				log.Warn(ctx, "Indexing key data stored in aggsigdb not of []memDBKey type", nil, z.Str("duty", duty.String()))
-			}
-
-			for _, key := range keys {
-				m.data.Delete(key)
-			}
-
-			m.keysByDuty.Delete(duty)
-
-			m.Unlock()
+			deadlineDel(duty)
 		case <-ctx.Done():
 			return
 		}
