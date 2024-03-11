@@ -18,13 +18,13 @@ import (
 func Test_MemDB(t *testing.T) {
 	t.Run("MemDB", func(t *testing.T) {
 		testMemDB(t, func(deadliner core.Deadliner) core.AggSigDB {
-			return aggsigdb.NewMemDBV2(newNoopDeadliner())
+			return aggsigdb.NewMemDB(newNoopDeadliner())
 		})
 	})
 
 	t.Run("MemDBV2", func(t *testing.T) {
 		testMemDB(t, func(deadliner core.Deadliner) core.AggSigDB {
-			return aggsigdb.NewMemDB(newNoopDeadliner())
+			return aggsigdb.NewMemDBV2(newNoopDeadliner())
 		})
 	})
 }
