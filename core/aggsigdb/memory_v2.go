@@ -4,12 +4,10 @@ package aggsigdb
 
 import (
 	"context"
-	"fmt"
 	"runtime"
 	"sync"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 )
 
@@ -43,12 +41,7 @@ func (m *MemDBV2) store(duty core.Duty, pubKey core.PubKey, data core.SignedData
 
 	key := memDBKey{duty, pubKey}
 
-	if rawExisting, ok := m.data[key]; ok {
-		existing, ok := rawExisting.(core.SignedData)
-		if !ok {
-			return errors.New("data stored in aggsigdb not of core.SignedData type", z.Str("key", fmt.Sprintf("%+v", key)))
-		}
-
+	if existing, ok := m.data[key]; ok {
 		equal, err := dataEqual(existing, data)
 		if err != nil {
 			return err
