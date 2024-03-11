@@ -24,7 +24,7 @@ func newSubmitPartialExitCmd(runFunc func(context.Context, exitConfig) error) *c
 	var config exitConfig
 
 	cmd := &cobra.Command{
-		Use:   "submit-partial-exit",
+		Use:   "partial",
 		Short: "Submit partial exit message for a distributed validator.",
 		Long:  `Submit a partial exit message for a given distributed validator.`,
 		Args:  cobra.NoArgs,
@@ -78,7 +78,7 @@ func runSubmitPartialExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "could not match keyshares with their counterparty in cluster manifest")
 	}
 
-	validator := core.PubKey(config.ValidatorAddr)
+	validator := core.PubKey(config.ValidatorPubkey)
 
 	valEth2, err := validator.ToETH2()
 	if err != nil {
@@ -102,7 +102,7 @@ func runSubmitPartialExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "cannot create eth2 client for specified beacon node")
 	}
 
-	oAPI, err := obolapi.New(config.ObolAPIEndpoint)
+	oAPI, err := obolapi.New(config.PublishAddress)
 	if err != nil {
 		return errors.Wrap(err, "could not create obol api client")
 	}
@@ -143,7 +143,7 @@ func runSubmitPartialExit(ctx context.Context, config exitConfig) error {
 	}
 
 	exitBlob := obolapi.ExitBlob{
-		PublicKey:         config.ValidatorAddr,
+		PublicKey:         config.ValidatorPubkey,
 		SignedExitMessage: exitMsg,
 	}
 

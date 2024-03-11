@@ -25,8 +25,8 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 
 	cmd := &cobra.Command{
 		Use:   "broadcast",
-		Short: "Broadcast exit",
-		Long:  `Broadcasts a full exit message, aggregated with the available partial signatures retrieved from Obol API.`,
+		Short: "Submit partial exit message for a distributed validator.",
+		Long:  `Retrieves and broadcasts a fully signed validator exit message, aggregated with the available partial signatures retrieved from the publish-address.`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := log.InitLogger(config.Log); err != nil {
@@ -62,7 +62,7 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "could not load cluster data")
 	}
 
-	validator := core.PubKey(config.ValidatorAddr)
+	validator := core.PubKey(config.ValidatorPubkey)
 	if _, err := validator.Bytes(); err != nil {
 		return errors.Wrap(err, "cannot convert validator pubkey to bytes")
 	}
@@ -74,7 +74,7 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "cannot create eth2 client for specified beacon node")
 	}
 
-	oAPI, err := obolapi.New(config.ObolAPIEndpoint)
+	oAPI, err := obolapi.New(config.PublishAddress)
 	if err != nil {
 		return errors.Wrap(err, "could not create obol api client")
 	}
@@ -86,7 +86,7 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "could not load share index from cluster lock")
 	}
 
-	fullExit, err := oAPI.GetFullExit(ctx, config.ValidatorAddr, cl.GetInitialMutationHash(), shareIdx, identityKey)
+	fullExit, err := oAPI.GetFullExit(ctx, config.ValidatorPubkey, cl.GetInitialMutationHash(), shareIdx, identityKey)
 	if err != nil {
 		return errors.Wrap(err, "could not load full exit data from Obol API")
 	}

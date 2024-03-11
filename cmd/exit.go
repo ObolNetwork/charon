@@ -19,9 +19,9 @@ import (
 
 type exitConfig struct {
 	BeaconNodeURL   string
-	ValidatorAddr   string
+	ValidatorPubkey string
 	DataDir         string
-	ObolAPIEndpoint string
+	PublishAddress  string
 	ExitEpoch       uint64
 
 	PlaintextOutput bool
@@ -33,7 +33,7 @@ func newExitCmd(cmds ...*cobra.Command) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "exit",
 		Short: "Exit a distributed validator.",
-		Long:  "Exit a distributed validator through the Obol API.",
+		Long:  "Sign and broadcast distributed validator exit messages using a remote API.",
 	}
 
 	root.AddCommand(cmds...)
@@ -42,7 +42,7 @@ func newExitCmd(cmds ...*cobra.Command) *cobra.Command {
 }
 
 func bindGenericExitFlags(cmd *cobra.Command, config *exitConfig) {
-	cmd.Flags().StringVar(&config.ObolAPIEndpoint, "obol-api-endpoint", "https://api.obol.tech", "Endpoint of the Obol API instance.")
+	cmd.Flags().StringVar(&config.PublishAddress, "publish-address", "https://api.obol.tech", "Endpoint of the partial exits API instance.")
 	cmd.Flags().StringVar(&config.BeaconNodeURL, "beacon-node-url", "", "Beacon node URL.")
 	cmd.Flags().StringVar(&config.DataDir, "data-dir", ".charon", "The directory where charon will read lock file and partial validator keys.")
 
@@ -50,10 +50,12 @@ func bindGenericExitFlags(cmd *cobra.Command, config *exitConfig) {
 }
 
 func bindExitRelatedFlags(cmd *cobra.Command, config *exitConfig) {
-	cmd.Flags().StringVar(&config.ValidatorAddr, "validator-address", "", "Validator to exit, must be present in the cluster lock manifest.")
+	const vpk string = "validator-public-key"
+
+	cmd.Flags().StringVar(&config.ValidatorPubkey, vpk, "", "Public key of the validator to exit, must be present in the cluster lock manifest.")
 	cmd.Flags().Uint64Var(&config.ExitEpoch, "exit-epoch", 162304, "Exit epoch at which the validator will exit, must be the same across all the partial exits.")
 
-	mustMarkFlagRequired(cmd, "validator-address")
+	mustMarkFlagRequired(cmd, vpk)
 }
 
 func eth2Client(ctx context.Context, u string) (eth2wrap.Client, error) {

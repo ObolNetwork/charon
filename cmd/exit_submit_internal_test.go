@@ -13,26 +13,54 @@ import (
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/manifest"
+	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 	"github.com/obolnetwork/charon/testutil/obolapimock"
 )
 
-const badStr = "bad"
+//nolint:unparam // we mostly pass "4" for operatorAmt but we might change it later.
+func writeAllLockData(
+	t *testing.T,
+	root string,
+	operatorAmt int,
+	enrs []*k1.PrivateKey,
+	operatorShares [][]tbls.PrivateKey,
+	manifestBytes []byte,
+) {
+	t.Helper()
 
-func Test_runBcastFullExitCmd(t *testing.T) {
-	t.Parallel()
-	t.Run("main flow", Test_runBcastFullExitCmdFlow)
-	t.Run("config", Test_runBcastFullExitCmd_Config)
+	for opIdx := 0; opIdx < operatorAmt; opIdx++ {
+		opID := fmt.Sprintf("op%d", opIdx)
+		oDir := filepath.Join(root, opID)
+		keysDir := filepath.Join(oDir, "validator_keys")
+		manifestFile := filepath.Join(oDir, "cluster-manifest.pb")
+
+		require.NoError(t, os.MkdirAll(oDir, 0o755))
+		require.NoError(t, k1util.Save(enrs[opIdx], filepath.Join(oDir, "charon-enr-private-key")))
+
+		require.NoError(t, os.MkdirAll(keysDir, 0o755))
+
+		require.NoError(t, keystore.StoreKeysInsecure(operatorShares[opIdx], keysDir, keystore.ConfirmInsecureKeys))
+		require.NoError(t, os.WriteFile(manifestFile, manifestBytes, 0o755))
+	}
 }
 
-func Test_runBcastFullExitCmdFlow(t *testing.T) {
+func Test_runSubmitPartialExit(t *testing.T) {
+	t.Parallel()
+	t.Run("main flow", Test_runSubmitPartialExitFlow)
+	t.Run("config", Test_runSubmitPartialExit_Config)
+}
+
+func Test_runSubmitPartialExitFlow(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
@@ -85,10 +113,7 @@ func Test_runBcastFullExitCmdFlow(t *testing.T) {
 		}
 	}
 
-	beaconMock, err := beaconmock.New(
-		beaconmock.WithValidatorSet(validatorSet),
-		beaconmock.WithEndpoint("/eth/v1/beacon/pool/voluntary_exits", ""),
-	)
+	beaconMock, err := beaconmock.New(beaconmock.WithValidatorSet(validatorSet))
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, beaconMock.Close())
@@ -96,35 +121,24 @@ func Test_runBcastFullExitCmdFlow(t *testing.T) {
 
 	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
 
-	for idx := 0; idx < operatorAmt; idx++ {
-		config := exitConfig{
-			BeaconNodeURL:   beaconMock.Address(),
-			ValidatorAddr:   lock.Validators[0].PublicKeyHex(),
-			DataDir:         filepath.Join(root, fmt.Sprintf("op%d", idx)),
-			ObolAPIEndpoint: srv.URL,
-			ExitEpoch:       194048,
-		}
-
-		require.NoError(t, runSubmitPartialExit(ctx, config), "operator index: %v", idx)
-	}
-
 	config := exitConfig{
 		BeaconNodeURL:   beaconMock.Address(),
-		ValidatorAddr:   lock.Validators[0].PublicKeyHex(),
+		ValidatorPubkey: lock.Validators[0].PublicKeyHex(),
 		DataDir:         filepath.Join(root, fmt.Sprintf("op%d", 0)),
-		ObolAPIEndpoint: srv.URL,
+		PublishAddress:  srv.URL,
 		ExitEpoch:       194048,
 	}
 
-	require.NoError(t, runBcastFullExit(ctx, config))
+	require.NoError(t, runSubmitPartialExit(ctx, config))
 }
 
-func Test_runBcastFullExitCmd_Config(t *testing.T) {
+func Test_runSubmitPartialExit_Config(t *testing.T) {
 	t.Parallel()
 	type test struct {
 		name             string
 		noIdentity       bool
 		noManifest       bool
+		noKeystore       bool
 		badOAPIURL       bool
 		badBeaconNodeURL bool
 		badValidatorAddr bool
@@ -141,6 +155,11 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 			name:       "No manifest",
 			noManifest: true,
 			errData:    "could not load cluster data",
+		},
+		{
+			name:       "No keystore",
+			noKeystore: true,
+			errData:    "could not load keystore",
 		},
 		{
 			name:       "Bad Obol API URL",
@@ -168,6 +187,8 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 		switch {
 		case tc.noManifest:
 			require.NoError(t, os.RemoveAll(filepath.Join(oDir, "cluster-manifest.pb")))
+		case tc.noKeystore:
+			require.NoError(t, os.RemoveAll(filepath.Join(oDir, "validator_keys")))
 		case tc.noIdentity:
 			require.NoError(t, os.RemoveAll(filepath.Join(oDir, "charon-enr-private-key")))
 		}
@@ -239,13 +260,13 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 
 			config := exitConfig{
 				BeaconNodeURL:   bnURL,
-				ValidatorAddr:   valAddr,
+				ValidatorPubkey: valAddr,
 				DataDir:         filepath.Join(root, "op0"), // one operator is enough
-				ObolAPIEndpoint: oapiURL,
+				PublishAddress:  oapiURL,
 				ExitEpoch:       0,
 			}
 
-			require.ErrorContains(t, runBcastFullExit(ctx, config), test.errData)
+			require.ErrorContains(t, runSubmitPartialExit(ctx, config), test.errData)
 		})
 	}
 }
