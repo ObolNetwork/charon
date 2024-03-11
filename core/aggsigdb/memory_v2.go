@@ -16,6 +16,7 @@ import (
 
 // MemDBV2 is a basic memory implementation of core.AggSigDB.
 type MemDBV2 struct {
+	sync.Mutex
 	data       sync.Map // map[memDBKey]core.SignedData
 	keysByDuty sync.Map // map[core.Duty][]memDBKey,  Key index by duty for fast deletion.
 	deadliner  core.Deadliner
@@ -74,6 +75,9 @@ func (m *MemDBV2) store(duty core.Duty, pubKey core.PubKey, data core.SignedData
 }
 
 func (m *MemDBV2) Store(ctx context.Context, duty core.Duty, set core.SignedDataSet) error {
+	m.Lock()
+	defer m.Unlock()
+
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -122,6 +126,9 @@ func (m *MemDBV2) Run(ctx context.Context) {
 	for {
 		select {
 		case duty := <-m.deadliner.C():
+			// atomically delete deadlined keys
+			m.Lock()
+
 			rawKeys, ok := m.keysByDuty.Load(duty)
 			if !ok {
 				continue
@@ -137,6 +144,8 @@ func (m *MemDBV2) Run(ctx context.Context) {
 			}
 
 			m.keysByDuty.Delete(duty)
+
+			m.Unlock()
 		case <-ctx.Done():
 			return
 		}
