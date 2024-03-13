@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"strconv"
 	"strings"
 	"time"
 
@@ -61,23 +60,26 @@ func FetchDefinition(ctx context.Context, url string) (Definition, error) {
 }
 
 // CreateValidatorKeysDir creates a new directory for validator keys.
-// If default directory "validator_keys" exists, it will attempt to create
-// a directory having unique prefix.
+// If the directory "validator_keys" exists, it checks if the directory
+// is empty.
 func CreateValidatorKeysDir(parentDir string) (string, error) {
-	const defaultDirName = "validator_keys"
-
-	vkdir := path.Join(parentDir, defaultDirName)
-	for {
-		err := os.Mkdir(vkdir, os.ModePerm)
-		if err == nil {
-			return vkdir, nil
-		}
-		if !os.IsExist(err) {
-			return "", errors.Wrap(err, "mkdir", z.Str("path", vkdir))
-		}
-		prefix := strconv.FormatInt(time.Now().UnixMilli(), 10)
-		vkdir = path.Join(parentDir, fmt.Sprintf("%s_%s", prefix, defaultDirName))
+	vkdir := path.Join(parentDir, "validator_keys")
+	err := os.Mkdir(vkdir, os.ModePerm)
+	if err == nil {
+		return vkdir, nil
 	}
+	if !os.IsExist(err) {
+		return "", errors.Wrap(err, "mkdir", z.Str("path", vkdir))
+	}
+	files, err := os.ReadDir(vkdir)
+	if err != nil {
+		return "", errors.Wrap(err, "readdir", z.Str("path", vkdir))
+	}
+	if len(files) == 0 {
+		return vkdir, nil
+	}
+
+	return "", errors.New("directory not empty", z.Str("path", vkdir))
 }
 
 // uuid returns a random uuid.

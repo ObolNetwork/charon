@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path"
 	"strings"
 	"testing"
@@ -137,17 +138,21 @@ func TestCreateValidatorKeysDir(t *testing.T) {
 
 	// First attempt must succeed.
 	dir, err := CreateValidatorKeysDir(tmp)
-
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(dir, tmp))
 	require.True(t, strings.HasSuffix(dir, "validator_keys"))
 
-	// Second attempt shall add a unique prefix.
+	// Second attempt shall succeed as long as the dir is empty.
 	dir, err = CreateValidatorKeysDir(tmp)
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(dir, tmp))
 	require.True(t, strings.HasSuffix(dir, "validator_keys"))
-	require.NotEqual(t, "validator_keys", path.Base(dir))
+
+	// Create a file in the directory to make it non-empty.
+	err = os.WriteFile(path.Join(dir, "file"), []byte("data"), 0o644)
+	require.NoError(t, err)
+	_, err = CreateValidatorKeysDir(tmp)
+	require.ErrorContains(t, err, "directory not empty")
 
 	t.Run("mkdir error", func(t *testing.T) {
 		// Parent directory does not exist
