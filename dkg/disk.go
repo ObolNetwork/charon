@@ -130,10 +130,9 @@ func writeKeysToDisk(conf Config, shares []share) error {
 		secrets = append(secrets, s.SecretShare)
 	}
 
-	keysDir := path.Join(conf.DataDir, "/validator_keys")
-
-	if err := os.Mkdir(keysDir, os.ModePerm); err != nil {
-		return errors.Wrap(err, "mkdir /validator_keys")
+	keysDir, err := cluster.CreateValidatorKeysDir(conf.DataDir)
+	if err != nil {
+		return err
 	}
 
 	storeKeysFunc := keystore.StoreKeys

@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
+	"path"
 	"strings"
 	"testing"
 
@@ -129,4 +130,28 @@ func TestFetchDefinition(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestCreateValidatorKeysDir(t *testing.T) {
+	tmp := t.TempDir()
+
+	// First attempt must succeed.
+	dir, err := CreateValidatorKeysDir(tmp)
+
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(dir, tmp))
+	require.True(t, strings.HasSuffix(dir, "validator_keys"))
+
+	// Second attempt shall add a unique prefix.
+	dir, err = CreateValidatorKeysDir(tmp)
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(dir, tmp))
+	require.True(t, strings.HasSuffix(dir, "validator_keys"))
+	require.NotEqual(t, "validator_keys", path.Base(dir))
+
+	t.Run("mkdir error", func(t *testing.T) {
+		// Parent directory does not exist
+		_, err := CreateValidatorKeysDir(path.Join(tmp, "nonexistent"))
+		require.ErrorContains(t, err, "mkdir")
+	})
 }

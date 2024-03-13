@@ -758,9 +758,9 @@ func writeKeysToDisk(numNodes int, clusterDir string, insecureKeys bool, shareSe
 			secrets = append(secrets, shares[i])
 		}
 
-		keysDir := path.Join(nodeDir(clusterDir, i), "/validator_keys")
-		if err := os.MkdirAll(keysDir, 0o755); err != nil {
-			return errors.Wrap(err, "mkdir validator_keys")
+		keysDir, err := cluster.CreateValidatorKeysDir(nodeDir(clusterDir, i))
+		if err != nil {
+			return err
 		}
 
 		if insecureKeys {
