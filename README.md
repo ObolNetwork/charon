@@ -42,3 +42,15 @@ There is always the [charon godocs](https://pkg.go.dev/github.com/obolnetwork/ch
 ## Project Status
 
 See [dvt.obol.tech](https://dvt.obol.tech/) for the latest status of the Obol Network including which upstream consensus clients and which downstream validators are supported.
+
+## Version compatibility
+
+Considering (semver)[https://semver.org] as the project's versioning scheme, two given versions of Charon are:
+ - **compatible** if their `MAJOR` number is the same, `MINOR` and `PATCH` numbers differ
+ - **incompatible** if their `MAJOR` number differs
+
+There are several reasons to justify a new `MAJOR` release:
+ - a new Ethereum hardfork
+ - modifications to the internal P2P network or consensus mechanism requiring deep changes to the codebase
+
+The `charon dkg` subcommand **is excluded** from this node: all peers should use the same version of Charon for the DKG process.
