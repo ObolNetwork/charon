@@ -13,7 +13,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/core/qbft"
@@ -144,11 +143,6 @@ func (t *transport) ProcessReceives(ctx context.Context, outerBuffer chan msg) {
 		case <-ctx.Done():
 			return
 		case msg := <-outerBuffer:
-			if err := validateMsg(msg); err != nil {
-				log.Warn(ctx, "Dropping invalid message", err)
-				continue
-			}
-
 			t.setValues(msg)
 
 			select {
@@ -194,12 +188,6 @@ func createMsg(typ qbft.MsgType, duty core.Duty,
 	}
 
 	return newMsg(pbMsg, justMsgs, values)
-}
-
-// validateMsg returns an error if the message is invalid.
-func validateMsg(_ msg) error {
-	// TODO(corver): implement (incl signature verification).
-	return nil
 }
 
 // newSniffer returns a new sniffer.
