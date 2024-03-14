@@ -465,7 +465,12 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	aggSigDB := aggsigdb.NewMemDB(deadlinerFunc("aggsigdb"))
+	var aggSigDB core.AggSigDB
+	if featureset.Enabled(featureset.AggSigDBV2) {
+		aggSigDB = aggsigdb.NewMemDBV2(deadlinerFunc("aggsigdb"))
+	} else {
+		aggSigDB = aggsigdb.NewMemDB(deadlinerFunc("aggsigdb"))
+	}
 
 	broadcaster, err := bcast.New(ctx, eth2Cl)
 	if err != nil {
