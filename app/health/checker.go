@@ -20,6 +20,8 @@ const (
 	scrapePeriod = 30 * time.Second
 	// maxScrapes is the maximum number of scrapes to keep.
 	maxScrapes = 10
+	// lables cardinality threshold.
+	labelsCardinalityThreshold = 100
 )
 
 // NewChecker returns a new health checker.
@@ -89,6 +91,33 @@ func (c *Checker) scrape() error {
 	metrics, err := c.gatherer.Gather()
 	if err != nil {
 		return errors.Wrap(err, "gather metrics")
+	}
+
+	// Checking metrics with high cardinality.
+	var gatherAgain bool
+	for _, fams := range metrics {
+		if fams.GetName() == "app_health_metrics_high_cardinality" {
+			continue
+		}
+
+		var maxLabelsCount int
+		for _, fam := range fams.GetMetric() {
+			labelsCount := len(fam.GetLabel())
+			if labelsCount > maxLabelsCount {
+				maxLabelsCount = labelsCount
+			}
+		}
+		if maxLabelsCount > labelsCardinalityThreshold {
+			highCardinalityGauge.WithLabelValues(fams.GetName()).Set(float64(maxLabelsCount))
+			gatherAgain = true
+		}
+	}
+
+	if gatherAgain {
+		metrics, err = c.gatherer.Gather()
+		if err != nil {
+			return errors.Wrap(err, "gather metrics")
+		}
 	}
 
 	c.metrics = append(c.metrics, metrics)
