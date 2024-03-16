@@ -27,6 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: docker/setup-buildx-action@v2 # For compose to build images
+        with:
+          driver-opts: "image=moby/buildkit:v0.10.5" # avoid unknown/unknown arch in ghcr
       - uses: actions/setup-go@v4
         with:
           go-version: '1.22.1'
