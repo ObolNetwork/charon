@@ -14,3 +14,10 @@ var checkGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 	Name:      "checks",
 	Help:      "Application health checks by name and severity. Set to 1 for failing, 0 for ok.",
 }, []string{"severity", "name"})
+
+var highCardinalityGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	Namespace: "app",
+	Subsystem: "health",
+	Name:      "metrics_high_cardinality",
+	Help:      "Metrics with high cardinality by name.",
+}, []string{"name"})

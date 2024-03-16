@@ -135,6 +135,19 @@ var checks = []check{
 			return increase > 0, nil
 		},
 	},
+	{
+		Name:        "metrics_high_cardinality",
+		Description: "Metrics reached high cardinality threshold. Please check metrics reported by app_health_metrics_high_cardinality.",
+		Severity:    severityWarning,
+		Func: func(q query, _ Metadata) (bool, error) {
+			max, err := q("app_health_metrics_high_cardinality", sumLabels(), gaugeMax)
+			if err != nil {
+				return false, err
+			}
+
+			return max > 0, nil
+		},
+	},
 }
 
 // l is a concise convenience function to create a label pair.
