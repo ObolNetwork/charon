@@ -53,4 +53,4 @@ There are several reasons to justify a new `MAJOR` release:
  - a new Ethereum hardfork
  - modifications to the internal P2P network or consensus mechanism requiring deep changes to the codebase
 
-The `charon dkg` subcommand **is excluded** from this node: all peers should use the same version of Charon for the DKG process.
+The `charon dkg` subcommand **is more restrictive** than this general compatibility promise; all peers should use matching`MAJOR` and`MINOR` versions of Charon for the DKG process, patch versions may differ though it is recommended to use the latest patch of any version.
