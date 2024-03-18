@@ -49,8 +49,9 @@ Considering (semver)[https://semver.org] as the project's versioning scheme, two
  - **compatible** if their `MAJOR` number is the same, `MINOR` and `PATCH` numbers differ
  - **incompatible** if their `MAJOR` number differs
 
-There are several reasons to justify a new `MAJOR` release:
+There are several reasons to justify a new `MAJOR` release, for example:
  - a new Ethereum hardfork
+ - an old Ethereum hardfork is removed due to network inactivity
  - modifications to the internal P2P network or consensus mechanism requiring deep changes to the codebase
 
 The `charon dkg` subcommand **is more restrictive** than this general compatibility promise; all peers should use matching`MAJOR` and`MINOR` versions of Charon for the DKG process, patch versions may differ though it is recommended to use the latest patch of any version.
