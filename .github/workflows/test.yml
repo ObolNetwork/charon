@@ -48,6 +48,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Set up QEMU
+        id: qemu
+        uses: docker/setup-qemu-action@v2
       - uses: docker/setup-buildx-action@v2 # For compose to build images
         with:
           driver-opts: "image=moby/buildkit:v0.10.5" # avoid unknown/unknown arch in ghcr
