@@ -58,6 +58,7 @@ import (
 	"github.com/obolnetwork/charon/core/tracker"
 	"github.com/obolnetwork/charon/core/validatorapi"
 	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -194,11 +195,18 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.Wrap(err, "private key not matching cluster manifest file")
 	}
 
+	enrRec, err := enr.New(p2pKey)
+	if err != nil {
+		return errors.Wrap(err, "creating enr record from privkey")
+	}
+
 	log.Info(ctx, "Lock file loaded",
 		z.Str("peer_name", p2p.PeerName(tcpNode.ID())),
 		z.Int("peer_index", nodeIdx.PeerIdx),
-		z.Str("cluster_hash", lockHashHex),
 		z.Str("cluster_name", cluster.Name),
+		z.Str("cluster_hash", lockHashHex),
+		z.Str("cluster_hash_full", hex.EncodeToString(cluster.GetInitialMutationHash())),
+		z.Str("enr", enrRec.String()),
 		z.Int("peers", len(cluster.Operators)))
 
 	// Metric and logging labels.
