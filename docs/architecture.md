@@ -106,22 +106,27 @@ A duty therefore has a slot and a type and is defined as:
 ```go
 // Duty is the unit of work of the core workflow.
 type Duty struct {
-  // Slot is the Ethereum consensus slot of the duty.
-  Slot uint64
-  // Type is the type of duty.
-  Type DutyType
+	// Slot is the Ethereum consensus layer slot.
+	Slot uint64
+	// Type is the duty type performed in the slot.
+	Type DutyType
 }
 ```
-
-We define the following duty types:
 
 - `type DutyType int`:
 - `DutyProposer = 1`: Proposing a block
 - `DutyAttester = 2`: Creating an attestation
-- `DutyRandao = 3`: Creating a randao reveal signature required as input to DutyProposer
-- `DutyExit = 4`: Voluntary exit
+- `DutySignature = 3`: Signing duty data
+- `DutyExit = 4`: Exiting a validator
 - `DutyBuilderProposer = 5`: Proposing a blinded block received from the builder network
 - `DutyBuilderRegistration = 6`: Registering a validator to the builder network
+- `DutyRandao = 7`: Creating a randao reveal signature required as input to DutyProposer
+- `DutyPrepareAggregator = 8`: Preparing for aggregator ([beacon committee](https://eth2book.info/capella/part2/building_blocks/committees/), [sync committee](https://eth2book.info/capella/part2/building_blocks/sync_committees/)) duties
+- `DutyAggregator = 9`: [Aggregator](https://eth2book.info/capella/part2/building_blocks/aggregator/) (beacon committee, sync committee) duty
+- `DutySyncMessage = 10`: Sync message duty
+- `DutyPrepareSyncContribution = 11`: Prepare sync contribution duty
+- `DutySyncContribution = 12`: Sync contribution duty
+- `DutyInfoSync = 13`: Sending versions of peers in a cluster over wire
 
 > ℹ️ Duty is on a cluster level, not a DV level. A duty defines the “unit of work” for the whole cluster,
 > not just a single DV. This allows the workflow to aggregate and batch multiple DVs in some steps, specifically consensus.
