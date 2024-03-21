@@ -433,23 +433,32 @@ The validator api interface is defined as:
 // ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the
 // DutyDB and stores partial signed data in the ParSigDB.
 type ValidatorAPI interface {
-        // RegisterAwaitBeaconBlock registers a function to query a unsigned beacon block by slot.
-        RegisterAwaitBeaconBlock(func(context.Context, slot int) (beaconapi.BeaconBlock, error))
+	// RegisterAwaitProposal registers a function to query unsigned beacon block proposals by providing the slot.
+	RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error))
 
-        // RegisterAwaitBlindedBeaconBlock registers a function to query a unsigned blinded beacon block by slot.
-        RegisterAwaitBlindedBeaconBlock(func(context.Context, slot int) (beaconapi.BlindedBeaconBlock, error))
+	// RegisterAwaitBlindedProposal registers a function to query unsigned blinded beacon block proposals by providing the slot.
+	RegisterAwaitBlindedProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedBlindedProposal, error))
 
-        // RegisterGetDutyFunc registers a function to query duty data.
-        RegisterGetDutyFunc(func(ctx context.Context, duty Duty) (DutyDefinitionSet, error))
+	// RegisterAwaitAttestation registers a function to query attestation data.
+	RegisterAwaitAttestation(func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error))
 
-        // RegisterAwaitAttestation registers a function to query attestation data.
-        RegisterAwaitAttestation(func(context.Context, slot int, commIdx int) (*beaconapi.AttestationData, error))
+	// RegisterAwaitSyncContribution registers a function to query sync contribution data.
+	RegisterAwaitSyncContribution(func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error))
 
-        // RegisterPubKeyByAttestation registers a function to query validator by attestation.
-        RegisterPubKeyByAttestation(func(context.Context, slot int, commIdx int, valCommIdx int) (PubKey, error))
+	// RegisterPubKeyByAttestation registers a function to query validator by attestation.
+	RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valCommIdx uint64) (PubKey, error))
 
-        // RegisterParSigDB registers a function to store partially signed data sets.
-        RegisterParSigDB(func(context.Context, Duty, ParSignedDataSet) error)
+	// RegisterGetDutyDefinition registers a function to query duty definitions.
+	RegisterGetDutyDefinition(func(context.Context, Duty) (DutyDefinitionSet, error))
+
+	// RegisterAwaitAggAttestation registers a function to query aggregated attestation.
+	RegisterAwaitAggAttestation(fn func(ctx context.Context, slot uint64, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error))
+
+	// RegisterAwaitAggSigDB registers a function to query aggregated signed data from aggSigDB.
+	RegisterAwaitAggSigDB(func(context.Context, Duty, PubKey) (SignedData, error))
+
+	// Subscribe registers a function to store partially signed data sets.
+	Subscribe(func(context.Context, Duty, ParSignedDataSet) error)
 }
 ```
 
@@ -469,17 +478,6 @@ originate in the `scheduler`, since charon is in full control of the duties in t
 The overall core workflow remains the same, `scheduler` just schedules all the duties.
 
 > 🏗️ TODO: Figure out if signer should query DutyDB for slashing, or if DutyDB should push to signer.
-
-```go
-// Signer signs unsigned duty data sets via one or more remote signer instances.
-type Signer interface {
-    // Sign signs the unsigned duty data set.
-    Sign(context.Context, Duty, UnsignedDataSet) error
-
-    // RegisterParSigDB registers a function to store partially signed data sets.
-    RegisterParSigDB(func(context.Context, Duty, ParSignedDataSet) error))
-}
-```
 
 ### ParSigDB
 The partial signature database persists partial BLS threshold signatures received internally (from the local Charon node's VC(s))
