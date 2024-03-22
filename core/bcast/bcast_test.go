@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
-	"github.com/attestantio/go-eth2-client/api/v1/capella"
+	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -140,7 +140,7 @@ func blindedProposalData(t *testing.T, mock *beaconmock.Mock) test {
 
 	proposal1 := eth2api.VersionedSignedProposal{
 		Version: eth2spec.DataVersionPhase0,
-		CapellaBlinded: &capella.SignedBlindedBeaconBlock{
+		CapellaBlinded: &eth2capella.SignedBlindedBeaconBlock{
 			Message:   testutil.RandomCapellaBlindedBeaconBlock(),
 			Signature: testutil.RandomEth2Signature(),
 		},
