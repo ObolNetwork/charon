@@ -552,21 +552,6 @@ func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block core.Versioned
 	}
 }
 
-func assertRandaoBlindedBlock(t *testing.T, randao eth2p0.BLSSignature, block core.VersionedBlindedProposal) {
-	t.Helper()
-
-	switch block.Version {
-	case eth2spec.DataVersionBellatrix:
-		require.EqualValues(t, randao, block.Bellatrix.Body.RANDAOReveal)
-	case eth2spec.DataVersionCapella:
-		require.EqualValues(t, randao, block.Capella.Body.RANDAOReveal)
-	case eth2spec.DataVersionDeneb:
-		require.EqualValues(t, randao, block.Deneb.Body.RANDAOReveal)
-	default:
-		require.Fail(t, "invalid block")
-	}
-}
-
 // blsSigFromHex returns the BLS signature from the input hex signature.
 func blsSigFromHex(t *testing.T, sig string) eth2p0.BLSSignature {
 	t.Helper()

@@ -659,35 +659,6 @@ func proposeBlockV3(p eth2client.ProposalProvider, getBuilderAPI core.BuilderEna
 	}
 }
 
-// proposeBlock receives the randao from the validator and returns the unsigned BeaconBlock.
-func proposeBlock(p eth2client.ProposalProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
-		slot, randao, graffiti, err := getProposeBlockParams(params, query)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		opts := &eth2api.ProposalOpts{
-			Slot:         eth2p0.Slot(slot),
-			RandaoReveal: randao,
-			Graffiti:     graffiti,
-		}
-
-		eth2Resp, err := p.Proposal(ctx, opts)
-		if err != nil {
-			return nil, nil, err
-		}
-		block := eth2Resp.Data
-
-		resHeaders := make(http.Header)
-		resHeaders.Add(versionHeader, block.Version.String())
-
-		proposedBlock, err := createProposeBlockResponse(block)
-
-		return proposedBlock, resHeaders, err
-	}
-}
-
 // getProposeBlockParams returns slot, randao and graffiti from propose block request params.
 func getProposeBlockParams(params map[string]string, query url.Values) (uint64, eth2p0.BLSSignature, [32]byte, error) {
 	slot, err := uintParam(params, "slot")
