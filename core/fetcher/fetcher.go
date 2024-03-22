@@ -62,10 +62,7 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 			return errors.Wrap(err, "fetch attester data")
 		}
 	case core.DutyBuilderProposer:
-		unsignedSet, err = f.fetchBuilderProposerData(ctx, duty.Slot, defSet)
-		if err != nil {
-			return errors.Wrap(err, "fetch builder proposer data")
-		}
+		return errors.New("deprecated duty: DutyBuilderProposer")
 	case core.DutyAggregator:
 		unsignedSet, err = f.fetchAggregatorData(ctx, duty.Slot, defSet)
 		if err != nil {
@@ -268,50 +265,6 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 		coreProposal, err := core.NewVersionedProposal(proposal)
 		if err != nil {
 			return nil, errors.Wrap(err, "new proposal")
-		}
-
-		resp[pubkey] = coreProposal
-	}
-
-	return resp, nil
-}
-
-func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
-	resp := make(core.UnsignedDataSet)
-	for pubkey := range defSet {
-		// Fetch previously aggregated randao reveal from AggSigDB
-		dutyRandao := core.Duty{
-			Slot: slot,
-			Type: core.DutyRandao,
-		}
-		randaoData, err := f.aggSigDBFunc(ctx, dutyRandao, pubkey)
-		if err != nil {
-			return nil, err
-		}
-
-		randao := randaoData.Signature().ToETH2()
-
-		// TODO(dhruv): replace hardcoded graffiti with the one from cluster-lock.json
-		var graffiti [32]byte
-		commitSHA, _ := version.GitCommit()
-		copy(graffiti[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
-
-		opts := &eth2api.BlindedProposalOpts{
-			Slot:         eth2p0.Slot(slot),
-			RandaoReveal: randao,
-			Graffiti:     graffiti,
-		}
-		eth2Resp, err := f.eth2Cl.BlindedProposal(ctx, opts)
-		if err != nil {
-			return nil, err
-		}
-		blindedProposal := eth2Resp.Data
-
-		verifyFeeRecipientBlinded(ctx, blindedProposal, f.feeRecipientFunc(pubkey))
-
-		coreProposal, err := core.NewVersionedBlindedProposal(blindedProposal)
-		if err != nil {
-			return nil, errors.Wrap(err, "new block")
 		}
 
 		resp[pubkey] = coreProposal

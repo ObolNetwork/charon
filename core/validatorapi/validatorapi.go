@@ -415,8 +415,8 @@ func (c Component) BlindedProposal(ctx context.Context, opts *eth2api.BlindedPro
 	return wrapResponse(proposal), nil
 }
 
-func (c Component) SubmitProposal(ctx context.Context, proposal *eth2api.VersionedSignedProposal) error {
-	slot, err := proposal.Slot()
+func (c Component) SubmitProposal(ctx context.Context, opts *eth2api.SubmitProposalOpts) error {
+	slot, err := opts.Proposal.Slot()
 	if err != nil {
 		return err
 	}
@@ -430,7 +430,7 @@ func (c Component) SubmitProposal(ctx context.Context, proposal *eth2api.Version
 	duty := core.NewProposerDuty(uint64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	signedData, err := core.NewPartialVersionedSignedProposal(proposal, c.shareIdx)
+	signedData, err := core.NewPartialVersionedSignedProposal(opts.Proposal, c.shareIdx)
 	if err != nil {
 		return err
 	}
@@ -441,7 +441,7 @@ func (c Component) SubmitProposal(ctx context.Context, proposal *eth2api.Version
 		return err
 	}
 
-	log.Debug(ctx, "Beacon proposal submitted by validator client", z.Str("block_version", proposal.Version.String()))
+	log.Debug(ctx, "Beacon proposal submitted by validator client", z.Str("block_version", opts.Proposal.Version.String()))
 
 	set := core.ParSignedDataSet{pubkey: signedData}
 	for _, sub := range c.subs {
@@ -455,8 +455,8 @@ func (c Component) SubmitProposal(ctx context.Context, proposal *eth2api.Version
 	return nil
 }
 
-func (c Component) SubmitBlindedProposal(ctx context.Context, proposal *eth2api.VersionedSignedBlindedProposal) error {
-	slot, err := proposal.Slot()
+func (c Component) SubmitBlindedProposal(ctx context.Context, opts *eth2api.SubmitBlindedProposalOpts) error {
+	slot, err := opts.Proposal.Slot()
 	if err != nil {
 		return err
 	}
@@ -470,7 +470,7 @@ func (c Component) SubmitBlindedProposal(ctx context.Context, proposal *eth2api.
 	duty := core.NewBuilderProposerDuty(uint64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	signedData, err := core.NewPartialVersionedSignedBlindedProposal(proposal, c.shareIdx)
+	signedData, err := core.NewPartialVersionedSignedBlindedProposal(opts.Proposal, c.shareIdx)
 	if err != nil {
 		return err
 	}

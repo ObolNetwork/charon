@@ -321,29 +321,8 @@ func TestFetchBlocks(t *testing.T) {
 			return randaoByPubKey[key], nil
 		})
 
-		fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
-			require.Equal(t, duty, resDuty)
-			require.Len(t, resDataSet, 2)
-
-			dutyDataA := resDataSet[pubkeysByIdx[vIdxA]].(core.VersionedBlindedProposal)
-			slotA, err := dutyDataA.Slot()
-			require.NoError(t, err)
-			require.EqualValues(t, slot, slotA)
-			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Capella.Body.ExecutionPayloadHeader.FeeRecipient))
-			assertRandaoBlindedBlock(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
-
-			dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.VersionedBlindedProposal)
-			slotB, err := dutyDataB.Slot()
-			require.NoError(t, err)
-			require.EqualValues(t, slot, slotB)
-			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.Capella.Body.ExecutionPayloadHeader.FeeRecipient))
-			assertRandaoBlindedBlock(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature().ToETH2(), dutyDataB)
-
-			return nil
-		})
-
 		err = fetch.Fetch(ctx, duty, defSet)
-		require.NoError(t, err)
+		require.ErrorContains(t, err, "deprecated duty")
 	})
 }
 

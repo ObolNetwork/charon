@@ -36,7 +36,6 @@ type Client interface {
 	eth2client.AttesterDutiesProvider
 	eth2client.BeaconBlockRootProvider
 	eth2client.BeaconCommitteeSubscriptionsSubmitter
-	eth2client.BlindedProposalProvider
 	eth2client.BlindedProposalSubmitter
 	eth2client.DepositContractProvider
 	eth2client.DomainProvider
@@ -390,13 +389,13 @@ func (m multi) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRootOpt
 }
 
 // SubmitProposal submits a proposal.
-func (m multi) SubmitProposal(ctx context.Context, block *api.VersionedSignedProposal) error {
+func (m multi) SubmitProposal(ctx context.Context, opts *api.SubmitProposalOpts) error {
 	const label = "submit_proposal"
 	defer latency(label)()
 
 	err := submit(ctx, m.clients,
 		func(ctx context.Context, cl Client) error {
-			return cl.SubmitProposal(ctx, block)
+			return cl.SubmitProposal(ctx, opts)
 		},
 		m.selector,
 	)
@@ -429,34 +428,14 @@ func (m multi) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscript
 	return err
 }
 
-// BlindedProposal fetches a blinded proposed beacon block for signing.
-func (m multi) BlindedProposal(ctx context.Context, opts *api.BlindedProposalOpts) (*api.Response[*api.VersionedBlindedProposal], error) {
-	const label = "blinded_proposal"
-	defer latency(label)()
-
-	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (*api.Response[*api.VersionedBlindedProposal], error) {
-			return cl.BlindedProposal(ctx, opts)
-		},
-		nil, m.selector,
-	)
-
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return res0, err
-}
-
 // SubmitBlindedProposal submits a beacon block.
-func (m multi) SubmitBlindedProposal(ctx context.Context, block *api.VersionedSignedBlindedProposal) error {
+func (m multi) SubmitBlindedProposal(ctx context.Context, opts *api.SubmitBlindedProposalOpts) error {
 	const label = "submit_blinded_proposal"
 	defer latency(label)()
 
 	err := submit(ctx, m.clients,
 		func(ctx context.Context, cl Client) error {
-			return cl.SubmitBlindedProposal(ctx, block)
+			return cl.SubmitBlindedProposal(ctx, opts)
 		},
 		m.selector,
 	)
@@ -919,13 +898,13 @@ func (l *lazy) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRootOpt
 }
 
 // SubmitProposal submits a proposal.
-func (l *lazy) SubmitProposal(ctx context.Context, block *api.VersionedSignedProposal) (err error) {
+func (l *lazy) SubmitProposal(ctx context.Context, opts *api.SubmitProposalOpts) (err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return err
 	}
 
-	return cl.SubmitProposal(ctx, block)
+	return cl.SubmitProposal(ctx, opts)
 }
 
 // SubmitBeaconCommitteeSubscriptions subscribes to beacon committees.
@@ -938,24 +917,14 @@ func (l *lazy) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscript
 	return cl.SubmitBeaconCommitteeSubscriptions(ctx, subscriptions)
 }
 
-// BlindedProposal fetches a blinded proposed beacon block for signing.
-func (l *lazy) BlindedProposal(ctx context.Context, opts *api.BlindedProposalOpts) (res0 *api.Response[*api.VersionedBlindedProposal], err error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return res0, err
-	}
-
-	return cl.BlindedProposal(ctx, opts)
-}
-
 // SubmitBlindedProposal submits a beacon block.
-func (l *lazy) SubmitBlindedProposal(ctx context.Context, block *api.VersionedSignedBlindedProposal) (err error) {
+func (l *lazy) SubmitBlindedProposal(ctx context.Context, opts *api.SubmitBlindedProposalOpts) (err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return err
 	}
 
-	return cl.SubmitBlindedProposal(ctx, block)
+	return cl.SubmitBlindedProposal(ctx, opts)
 }
 
 // SubmitValidatorRegistrations submits a validator registration.

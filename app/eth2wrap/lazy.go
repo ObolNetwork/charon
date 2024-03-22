@@ -98,6 +98,24 @@ func (l *lazy) Address() string {
 	return cl.Address()
 }
 
+func (l *lazy) IsActive() bool {
+	cl, ok := l.getClient()
+	if !ok {
+		return false
+	}
+
+	return cl.IsActive()
+}
+
+func (l *lazy) IsSynced() bool {
+	cl, ok := l.getClient()
+	if !ok {
+		return false
+	}
+
+	return cl.IsSynced()
+}
+
 func (l *lazy) ActiveValidators(ctx context.Context) (ActiveValidators, error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {

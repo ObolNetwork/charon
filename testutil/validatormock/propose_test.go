@@ -191,6 +191,8 @@ func TestProposeBlindedBlock(t *testing.T) {
 		testResponse = append(testResponse, []byte(`}`)...)
 		require.NoError(t, err)
 
+		w.Header().Set("Eth-Execution-Payload-Blinded", "true")
+
 		_, _ = w.Write(testResponse)
 	}))
 	defer mockVAPI.Close()
@@ -201,7 +203,7 @@ func TestProposeBlindedBlock(t *testing.T) {
 	}
 
 	// Call propose block function
-	err = validatormock.ProposeBlindedBlock(ctx, provider, signFunc, eth2p0.Slot(slotsPerEpoch))
+	err = validatormock.ProposeBlock(ctx, provider, signFunc, eth2p0.Slot(slotsPerEpoch))
 	require.NoError(t, err)
 }
 

@@ -538,10 +538,10 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SubmitAttestationsFunc: func(context.Context, []*eth2p0.Attestation) error {
 			return nil
 		},
-		SubmitProposalFunc: func(context.Context, *eth2api.VersionedSignedProposal) error {
+		SubmitProposalFunc: func(context.Context, *eth2api.SubmitProposalOpts) error {
 			return nil
 		},
-		SubmitBlindedProposalFunc: func(context.Context, *eth2api.VersionedSignedBlindedProposal) error {
+		SubmitBlindedProposalFunc: func(context.Context, *eth2api.SubmitBlindedProposalOpts) error {
 			return nil
 		},
 		SubmitVoluntaryExitFunc: func(context.Context, *eth2p0.SignedVoluntaryExit) error {

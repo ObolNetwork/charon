@@ -126,7 +126,35 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 		return err
 	}
 
-	// Create signed beacon block proposal.
+	if block.Blinded {
+		signedBlock := new(eth2api.VersionedSignedBlindedProposal)
+		signedBlock.Version = block.Version
+		switch block.Version {
+		case eth2spec.DataVersionBellatrix:
+			signedBlock.Bellatrix = &eth2bellatrix.SignedBlindedBeaconBlock{
+				Message:   block.BellatrixBlinded,
+				Signature: sig,
+			}
+		case eth2spec.DataVersionCapella:
+			signedBlock.Capella = &eth2capella.SignedBlindedBeaconBlock{
+				Message:   block.CapellaBlinded,
+				Signature: sig,
+			}
+		case eth2spec.DataVersionDeneb:
+			signedBlock.Deneb = &eth2deneb.SignedBlindedBeaconBlock{
+				Message:   block.DenebBlinded,
+				Signature: sig,
+			}
+		default:
+			return errors.New("invalid blinded block")
+		}
+
+		return eth2Cl.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+			Proposal: signedBlock,
+		})
+	}
+
+	// Full block
 	signedBlock := new(eth2api.VersionedSignedProposal)
 	signedBlock.Version = block.Version
 	switch block.Version {
@@ -163,129 +191,7 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 		return errors.New("invalid block")
 	}
 
-	return eth2Cl.SubmitProposal(ctx, signedBlock)
-}
-
-// ProposeBlindedBlock proposes blinded block for the given slot.
-func ProposeBlindedBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
-	slot eth2p0.Slot,
-) error {
-	valMap, err := eth2Cl.ActiveValidators(ctx)
-	if err != nil {
-		return err
-	}
-
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	if err != nil {
-		return err
-	}
-
-	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
-
-	var indexes []eth2p0.ValidatorIndex
-	for index := range valMap {
-		indexes = append(indexes, index)
-	}
-
-	opts := &eth2api.ProposerDutiesOpts{
-		Epoch:   epoch,
-		Indices: indexes,
-	}
-	eth2Resp, err := eth2Cl.ProposerDuties(ctx, opts)
-	if err != nil {
-		return err
-	}
-	duties := eth2Resp.Data
-
-	var slotProposer *eth2v1.ProposerDuty
-	for _, duty := range duties {
-		if duty.Slot == slot {
-			slotProposer = duty
-			break
-		}
-	}
-
-	if slotProposer == nil {
-		return nil
-	}
-
-	var (
-		pubkey eth2p0.BLSPubKey
-		block  *eth2api.VersionedBlindedProposal
-	)
-	pubkey = slotProposer.PubKey
-
-	// Create randao reveal to propose block
-	randaoSigRoot, err := eth2util.SignedEpoch{Epoch: epoch}.HashTreeRoot()
-	if err != nil {
-		return err
-	}
-
-	randaoSigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainRandao, epoch, randaoSigRoot)
-	if err != nil {
-		return err
-	}
-
-	randao, err := signFunc(slotProposer.PubKey, randaoSigData[:])
-	if err != nil {
-		return err
-	}
-
-	// Get Unsigned beacon block with given randao and slot
-	proposalOpts := &eth2api.BlindedProposalOpts{
-		Slot:         slot,
-		RandaoReveal: randao,
-	}
-	proposalResp, err := eth2Cl.BlindedProposal(ctx, proposalOpts)
-	if err != nil {
-		return errors.Wrap(err, "vmock blinded beacon block proposal")
-	}
-	block = proposalResp.Data
-
-	if block == nil {
-		return errors.New("block not found")
-	}
-
-	// Sign beacon block
-	blockSigRoot, err := block.Root()
-	if err != nil {
-		return err
-	}
-
-	blockSigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainBeaconProposer, epoch, blockSigRoot)
-	if err != nil {
-		return err
-	}
-
-	sig, err := signFunc(pubkey, blockSigData[:])
-	if err != nil {
-		return err
-	}
-
-	// create signed beacon block
-	signedBlock := new(eth2api.VersionedSignedBlindedProposal)
-	signedBlock.Version = block.Version
-	switch block.Version {
-	case eth2spec.DataVersionBellatrix:
-		signedBlock.Bellatrix = &eth2bellatrix.SignedBlindedBeaconBlock{
-			Message:   block.Bellatrix,
-			Signature: sig,
-		}
-	case eth2spec.DataVersionCapella:
-		signedBlock.Capella = &eth2capella.SignedBlindedBeaconBlock{
-			Message:   block.Capella,
-			Signature: sig,
-		}
-	case eth2spec.DataVersionDeneb:
-		signedBlock.Deneb = &eth2deneb.SignedBlindedBeaconBlock{
-			Message:   block.Deneb,
-			Signature: sig,
-		}
-	default:
-		return errors.New("invalid block")
-	}
-
-	return eth2Cl.SubmitBlindedProposal(ctx, signedBlock)
+	return eth2Cl.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{Proposal: signedBlock})
 }
 
 // RegistrationsFromProposerConfig returns all enabled builder-API registrations from upstream proposer config.

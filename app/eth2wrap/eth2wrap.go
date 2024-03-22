@@ -80,6 +80,7 @@ func NewMultiHTTP(timeout time.Duration, addresses ...string) (Client, error) {
 				eth2http.WithLogLevel(zeroLogInfo),
 				eth2http.WithAddress(address),
 				eth2http.WithTimeout(timeout),
+				eth2http.WithAllowDelayedStart(true),
 			)
 			if err != nil {
 				return nil, wrapError(ctx, err, "new eth2 client", z.Str("address", address))
@@ -125,6 +126,26 @@ func (m multi) Address() string {
 	}
 
 	return address
+}
+
+func (m multi) IsActive() bool {
+	for _, cl := range m.clients {
+		if cl.IsActive() {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (m multi) IsSynced() bool {
+	for _, cl := range m.clients {
+		if cl.IsSynced() {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (m multi) SetValidatorCache(valCache func(context.Context) (ActiveValidators, error)) {

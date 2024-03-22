@@ -280,13 +280,7 @@ func (m *Component) runDuty(ctx context.Context, duty core.Duty) error {
 			return err
 		}
 	case core.DutyBuilderProposer:
-		if !m.builderAPI {
-			return nil
-		}
-
-		if err = ProposeBlindedBlock(ctx, eth2Cl, m.signFunc, eth2Slot); err != nil {
-			return err
-		}
+		return errors.New("deprecated duty: DutyBuilderProposer")
 	case core.DutyBuilderRegistration:
 		if !m.builderAPI {
 			return nil

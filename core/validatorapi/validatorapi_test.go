@@ -17,6 +17,7 @@ import (
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	"github.com/attestantio/go-eth2-client/spec/capella"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/stretchr/testify/require"
@@ -440,12 +441,12 @@ func TestComponent_SubmitProposal(t *testing.T) {
 
 	randao := eth2p0.BLSSignature(sig)
 	unsignedBlock := &eth2spec.VersionedBeaconBlock{
-		Version: eth2spec.DataVersionPhase0,
-		Phase0:  testutil.RandomPhase0BeaconBlock(),
+		Version: eth2spec.DataVersionCapella,
+		Capella: testutil.RandomCapellaBeaconBlock(),
 	}
-	unsignedBlock.Phase0.Body.RANDAOReveal = randao
-	unsignedBlock.Phase0.Slot = slot
-	unsignedBlock.Phase0.ProposerIndex = vIdx
+	unsignedBlock.Capella.Body.RANDAOReveal = randao
+	unsignedBlock.Capella.Slot = slot
+	unsignedBlock.Capella.ProposerIndex = vIdx
 
 	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
 		return core.DutyDefinitionSet{corePubKey: nil}, nil
@@ -465,9 +466,9 @@ func TestComponent_SubmitProposal(t *testing.T) {
 	require.NoError(t, err)
 
 	signedBlock := &eth2api.VersionedSignedProposal{
-		Version: eth2spec.DataVersionPhase0,
-		Phase0: &eth2p0.SignedBeaconBlock{
-			Message:   unsignedBlock.Phase0,
+		Version: eth2spec.DataVersionCapella,
+		Capella: &capella.SignedBeaconBlock{
+			Message:   unsignedBlock.Capella,
 			Signature: eth2p0.BLSSignature(s),
 		},
 	}
@@ -481,7 +482,9 @@ func TestComponent_SubmitProposal(t *testing.T) {
 		return nil
 	})
 
-	err = vapi.SubmitProposal(ctx, signedBlock)
+	err = vapi.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+		Proposal: signedBlock,
+	})
 	require.NoError(t, err)
 }
 
@@ -527,14 +530,14 @@ func TestComponent_SubmitProposalInvalidSignature(t *testing.T) {
 	s, err := tbls.Sign(secret, []byte("invalid msg"))
 	require.NoError(t, err)
 
-	unsignedBlock := testutil.RandomPhase0BeaconBlock()
+	unsignedBlock := testutil.RandomCapellaBeaconBlock()
 	unsignedBlock.Body.RANDAOReveal = eth2p0.BLSSignature(sig)
 	unsignedBlock.Slot = slot
 	unsignedBlock.ProposerIndex = vIdx
 
 	signedBlock := &eth2api.VersionedSignedProposal{
-		Version: eth2spec.DataVersionPhase0,
-		Phase0: &eth2p0.SignedBeaconBlock{
+		Version: eth2spec.DataVersionCapella,
+		Capella: &capella.SignedBeaconBlock{
 			Message:   unsignedBlock,
 			Signature: eth2p0.BLSSignature(s),
 		},
@@ -549,7 +552,9 @@ func TestComponent_SubmitProposalInvalidSignature(t *testing.T) {
 		return nil
 	})
 
-	err = vapi.SubmitProposal(ctx, signedBlock)
+	err = vapi.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+		Proposal: signedBlock,
+	})
 	require.ErrorContains(t, err, "signature not verified")
 }
 
@@ -584,16 +589,7 @@ func TestComponent_SubmitProposalInvalidBlock(t *testing.T) {
 		block  *eth2api.VersionedSignedProposal
 		errMsg string
 	}{
-		{
-			name:   "no phase 0 block",
-			block:  &eth2api.VersionedSignedProposal{Version: eth2spec.DataVersionPhase0},
-			errMsg: "data missing",
-		},
-		{
-			name:   "no altair block",
-			block:  &eth2api.VersionedSignedProposal{Version: eth2spec.DataVersionAltair},
-			errMsg: "data missing",
-		},
+		// phase0 and altair are not supported by attestantio
 		{
 			name:   "no bellatrix block",
 			block:  &eth2api.VersionedSignedProposal{Version: eth2spec.DataVersionBellatrix},
@@ -615,28 +611,6 @@ func TestComponent_SubmitProposalInvalidBlock(t *testing.T) {
 			errMsg: "unsupported version",
 		},
 		{
-			name: "no phase 0 sig",
-			block: &eth2api.VersionedSignedProposal{
-				Version: eth2spec.DataVersionPhase0,
-				Phase0: &eth2p0.SignedBeaconBlock{
-					Message:   &eth2p0.BeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomPhase0BeaconBlockBody()},
-					Signature: eth2p0.BLSSignature{},
-				},
-			},
-			errMsg: "no signature found",
-		},
-		{
-			name: "no altair sig",
-			block: &eth2api.VersionedSignedProposal{
-				Version: eth2spec.DataVersionAltair,
-				Altair: &altair.SignedBeaconBlock{
-					Message:   &altair.BeaconBlock{Slot: eth2p0.Slot(123), Body: testutil.RandomAltairBeaconBlockBody()},
-					Signature: eth2p0.BLSSignature{},
-				},
-			},
-			errMsg: "no signature found",
-		},
-		{
 			name: "no bellatrix sig",
 			block: &eth2api.VersionedSignedProposal{
 				Version: eth2spec.DataVersionBellatrix,
@@ -651,7 +625,9 @@ func TestComponent_SubmitProposalInvalidBlock(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err = vapi.SubmitProposal(ctx, test.block)
+			err = vapi.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+				Proposal: test.block,
+			})
 			require.ErrorContains(t, err, test.errMsg)
 		})
 	}
@@ -804,7 +780,9 @@ func TestComponent_SubmitBlindedProposal(t *testing.T) {
 		return nil
 	})
 
-	err = vapi.SubmitBlindedProposal(ctx, signedBlindedBlock)
+	err = vapi.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+		Proposal: signedBlindedBlock,
+	})
 	require.NoError(t, err)
 }
 
@@ -873,7 +851,9 @@ func TestComponent_SubmitBlindedProposalInvalidSignature(t *testing.T) {
 		return nil
 	})
 
-	err = vapi.SubmitBlindedProposal(ctx, signedBlindedBlock)
+	err = vapi.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+		Proposal: signedBlindedBlock,
+	})
 	require.ErrorContains(t, err, "signature not verified")
 }
 
@@ -961,7 +941,9 @@ func TestComponent_SubmitBlindedProposalInvalidBlock(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err = vapi.SubmitBlindedProposal(ctx, test.block)
+			err = vapi.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+				Proposal: test.block,
+			})
 			require.ErrorContains(t, err, test.errMsg)
 		})
 	}

@@ -167,6 +167,7 @@ func TestSyncState(t *testing.T) {
 
 func TestErrors(t *testing.T) {
 	ctx := context.Background()
+
 	t.Run("network dial error", func(t *testing.T) {
 		cl, err := eth2wrap.NewMultiHTTP(time.Hour, "localhost:22222")
 		require.NoError(t, err)
@@ -174,7 +175,7 @@ func TestErrors(t *testing.T) {
 		_, err = cl.SlotsPerEpoch(ctx)
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "beacon api new eth2 client: network operation error: dial: connect: connection refused")
+		require.ErrorContains(t, err, "beacon api slots_per_epoch: client is not active")
 	})
 
 	// Test http server that just hangs until request cancelled
@@ -189,7 +190,7 @@ func TestErrors(t *testing.T) {
 		_, err = cl.SlotsPerEpoch(ctx)
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "beacon api new eth2 client: http request timeout: context deadline exceeded")
+		require.ErrorContains(t, err, "beacon api slots_per_epoch: client is not active")
 	})
 
 	t.Run("caller cancelled", func(t *testing.T) {
@@ -226,7 +227,7 @@ func TestErrors(t *testing.T) {
 		bmock.SignedBeaconBlockFunc = func(_ context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error) {
 			return nil, &eth2api.Error{
 				Method:     http.MethodGet,
-				Endpoint:   fmt.Sprintf("/eth/v2/beacon/blocks/%s", blockID),
+				Endpoint:   "/eth/v3/beacon/blocks/%s" + blockID,
 				StatusCode: http.StatusNotFound,
 				Data:       []byte(fmt.Sprintf(`{"code":404,"message":"NOT_FOUND: beacon block at slot %s","stacktraces":[]}`, blockID)),
 			}
@@ -426,7 +427,6 @@ func TestLazy(t *testing.T) {
 	// Both proxies are disabled, so this should fail.
 	_, err = eth2Cl.NodeSyncing(ctx, nil)
 	require.Error(t, err)
-	require.Equal(t, "", eth2Cl.Address())
 
 	enabled1.Store(true)
 

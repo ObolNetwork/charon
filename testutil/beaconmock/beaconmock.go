@@ -98,6 +98,8 @@ func defaultHTTPMock() Mock {
 				Value:    fmt.Sprint(genesis.Unix()),
 			},
 		},
+		IsActiveFunc: func() bool { return true },
+		IsSyncedFunc: func() bool { return true },
 	}
 }
 
@@ -111,6 +113,8 @@ type Mock struct {
 	clock        clockwork.Clock
 	headProducer *headProducer
 
+	IsActiveFunc                           func() bool
+	IsSyncedFunc                           func() bool
 	ActiveValidatorsFunc                   func(ctx context.Context) (eth2wrap.ActiveValidators, error)
 	AttestationDataFunc                    func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
 	AttesterDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
@@ -121,8 +125,8 @@ type Mock struct {
 	SignedBeaconBlockFunc                  func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error)
 	ProposerDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
 	SubmitAttestationsFunc                 func(context.Context, []*eth2p0.Attestation) error
-	SubmitProposalFunc                     func(context.Context, *eth2api.VersionedSignedProposal) error
-	SubmitBlindedProposalFunc              func(context.Context, *eth2api.VersionedSignedBlindedProposal) error
+	SubmitProposalFunc                     func(context.Context, *eth2api.SubmitProposalOpts) error
+	SubmitBlindedProposalFunc              func(context.Context, *eth2api.SubmitBlindedProposalOpts) error
 	SubmitVoluntaryExitFunc                func(context.Context, *eth2p0.SignedVoluntaryExit) error
 	ValidatorsByPubKeyFunc                 func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
 	ValidatorsFunc                         func(context.Context, *eth2api.ValidatorsOpts) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
@@ -190,7 +194,7 @@ func (m Mock) BlindedProposal(ctx context.Context, opts *eth2api.BlindedProposal
 	return wrapResponse(block), nil
 }
 
-func (m Mock) SubmitBlindedProposal(ctx context.Context, block *eth2api.VersionedSignedBlindedProposal) error {
+func (m Mock) SubmitBlindedProposal(ctx context.Context, block *eth2api.SubmitBlindedProposalOpts) error {
 	return m.SubmitBlindedProposalFunc(ctx, block)
 }
 
@@ -212,7 +216,7 @@ func (m Mock) NodeSyncing(ctx context.Context, opts *eth2api.NodeSyncingOpts) (*
 	return wrapResponse(schedule), nil
 }
 
-func (m Mock) SubmitProposal(ctx context.Context, block *eth2api.VersionedSignedProposal) error {
+func (m Mock) SubmitProposal(ctx context.Context, block *eth2api.SubmitProposalOpts) error {
 	return m.SubmitProposalFunc(ctx, block)
 }
 
@@ -343,6 +347,14 @@ func (Mock) Name() string {
 
 func (m Mock) Address() string {
 	return "http://" + m.httpServer.Addr
+}
+
+func (m Mock) IsActive() bool {
+	return m.IsActiveFunc()
+}
+
+func (m Mock) IsSynced() bool {
+	return m.IsSyncedFunc()
 }
 
 func (m Mock) Close() error {
