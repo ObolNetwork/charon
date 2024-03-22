@@ -155,7 +155,6 @@ type Component struct {
 	pubKeyByAttFunc           func(ctx context.Context, slot, commIdx, valCommIdx uint64) (core.PubKey, error)
 	awaitAttFunc              func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 	awaitProposalFunc         func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
-	awaitBlindedProposalFunc  func(ctx context.Context, slot uint64) (*eth2api.VersionedBlindedProposal, error)
 	awaitSyncContributionFunc func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	awaitAggAttFunc           func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)
 	awaitAggSigDBFunc         func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
@@ -167,12 +166,6 @@ type Component struct {
 // It supports a single function, since it is an input of the component.
 func (c *Component) RegisterAwaitProposal(fn func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)) {
 	c.awaitProposalFunc = fn
-}
-
-// RegisterAwaitBlindedProposal registers a function to query unsigned blinded beacon block proposals by providing necessary options.
-// It supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitBlindedProposal(fn func(ctx context.Context, slot uint64) (*eth2api.VersionedBlindedProposal, error)) {
-	c.awaitBlindedProposalFunc = fn
 }
 
 // RegisterAwaitAttestation registers a function to query attestation data.
@@ -350,64 +343,6 @@ func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*e
 
 	// Query unsigned proposal (this is blocking).
 	proposal, err := c.awaitProposalFunc(ctx, uint64(opts.Slot))
-	if err != nil {
-		return nil, err
-	}
-
-	return wrapResponse(proposal), nil
-}
-
-func (c Component) BlindedProposal(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error) {
-	// Get proposer pubkey (this is a blocking query).
-	pubkey, err := c.getProposerPubkey(ctx, core.NewBuilderProposerDuty(uint64(opts.Slot)))
-	if err != nil {
-		return nil, err
-	}
-
-	epoch, err := eth2util.EpochFromSlot(ctx, c.eth2Cl, opts.Slot)
-	if err != nil {
-		return nil, err
-	}
-
-	sigEpoch := eth2util.SignedEpoch{
-		Epoch:     epoch,
-		Signature: opts.RandaoReveal,
-	}
-
-	duty := core.NewRandaoDuty(uint64(opts.Slot))
-	parSig := core.NewPartialSignedRandao(sigEpoch.Epoch, sigEpoch.Signature, c.shareIdx)
-
-	// Verify randao signature
-	err = c.verifyPartialSig(ctx, parSig, pubkey)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, sub := range c.subs {
-		// No need to clone since sub auto clones.
-		parsigSet := core.ParSignedDataSet{
-			pubkey: parSig,
-		}
-		err := sub(ctx, duty, parsigSet)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// In the background, the following needs to happen before the
-	// unsigned blinded beacon block will be returned below:
-	//  - Threshold number of VCs need to submit their partial randao reveals.
-	//  - These signatures will be exchanged and aggregated.
-	//  - The aggregated signature will be stored in AggSigDB.
-	//  - Scheduler (in the meantime) will schedule a DutyBuilderProposer (to create a unsigned blinded block).
-	//  - Fetcher will then block waiting for an aggregated randao reveal.
-	//  - Once it is found, Fetcher will fetch an unsigned blinded block from the beacon
-	//    node including the aggregated randao in the request.
-	//  - Consensus will agree upon the unsigned blinded block and insert the resulting block in the DutyDB.
-	//  - Once inserted, the query below will return.
-
-	// Query unsigned block (this is blocking).
-	proposal, err := c.awaitBlindedProposalFunc(ctx, uint64(opts.Slot))
 	if err != nil {
 		return nil, err
 	}

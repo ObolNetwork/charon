@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net/http"
 	"sort"
 	"strings"
@@ -476,24 +477,29 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		httpServer:   httpServer,
 		headProducer: headProducer,
 		ProposalFunc: func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error) {
-			block := &eth2api.VersionedProposal{
-				Version: eth2spec.DataVersionCapella,
-				Capella: testutil.RandomCapellaBeaconBlock(),
+			var block *eth2api.VersionedProposal
+			if opts.BuilderBoostFactor != nil && *opts.BuilderBoostFactor == 0 {
+				block = &eth2api.VersionedProposal{
+					Version: eth2spec.DataVersionCapella,
+					Capella: testutil.RandomCapellaBeaconBlock(),
+				}
+				block.Capella.Slot = opts.Slot
+				block.Capella.Body.RANDAOReveal = opts.RandaoReveal
+				block.Capella.Body.Graffiti = opts.Graffiti
+				block.ExecutionValue = big.NewInt(1)
+				block.ConsensusValue = big.NewInt(1)
+			} else {
+				block = &eth2api.VersionedProposal{
+					Version:        eth2spec.DataVersionCapella,
+					CapellaBlinded: testutil.RandomCapellaBlindedBeaconBlock(),
+				}
+				block.CapellaBlinded.Slot = opts.Slot
+				block.CapellaBlinded.Body.RANDAOReveal = opts.RandaoReveal
+				block.CapellaBlinded.Body.Graffiti = opts.Graffiti
+				block.ExecutionValue = big.NewInt(1)
+				block.ConsensusValue = big.NewInt(1)
+				block.Blinded = true
 			}
-			block.Capella.Slot = opts.Slot
-			block.Capella.Body.RANDAOReveal = opts.RandaoReveal
-			block.Capella.Body.Graffiti = opts.Graffiti
-
-			return block, nil
-		},
-		BlindedProposalFunc: func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.VersionedBlindedProposal, error) {
-			block := &eth2api.VersionedBlindedProposal{
-				Version: eth2spec.DataVersionCapella,
-				Capella: testutil.RandomCapellaBlindedBeaconBlock(),
-			}
-			block.Capella.Slot = opts.Slot
-			block.Capella.Body.RANDAOReveal = opts.RandaoReveal
-			block.Capella.Body.Graffiti = opts.Graffiti
 
 			return block, nil
 		},
