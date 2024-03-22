@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
+	"github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -31,6 +32,7 @@ func TestBroadcast(t *testing.T) {
 	testFuncs := []func(*testing.T, *beaconmock.Mock) test{
 		attData,                   // Attestation
 		proposalData,              // BeaconBlock
+		blindedProposalData,       // BlindedBlock
 		validatorRegistrationData, // ValidatorRegistration
 		validatorExitData,         // ValidatorExit
 		aggregateAttestationData,  // AggregateAttestation
@@ -124,6 +126,37 @@ func proposalData(t *testing.T, mock *beaconmock.Mock) test {
 
 	return test{
 		name:     "Broadcast Beacon Block Proposal",
+		aggData:  aggData,
+		duty:     core.DutyProposer,
+		bcastCnt: 1,
+		asserted: asserted,
+	}
+}
+
+func blindedProposalData(t *testing.T, mock *beaconmock.Mock) test {
+	t.Helper()
+
+	asserted := make(chan struct{})
+
+	proposal1 := eth2api.VersionedSignedProposal{
+		Version: eth2spec.DataVersionPhase0,
+		CapellaBlinded: &capella.SignedBlindedBeaconBlock{
+			Message:   testutil.RandomCapellaBlindedBeaconBlock(),
+			Signature: testutil.RandomEth2Signature(),
+		},
+	}
+
+	aggData := core.VersionedSignedProposal{VersionedSignedProposal: proposal1}
+
+	mock.SubmitProposalFunc = func(ctx context.Context, opts *eth2api.SubmitProposalOpts) error {
+		require.Equal(t, proposal1, *opts.Proposal)
+		close(asserted)
+
+		return nil
+	}
+
+	return test{
+		name:     "Broadcast Blinded Block Proposal",
 		aggData:  aggData,
 		duty:     core.DutyProposer,
 		bcastCnt: 1,
