@@ -62,9 +62,8 @@ func TestFetchAttester(t *testing.T) {
 	duty := core.NewAttesterDuty(slot)
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
-	fetch, err := fetcher.New(bmock, nil)
-	require.NoError(t, err)
 
+	fetch := mustCreateFetcher(t, bmock)
 	fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
 		require.Equal(t, duty, resDuty)
 		require.Len(t, resDataSet, 2)
@@ -157,9 +156,7 @@ func TestFetchAggregator(t *testing.T) {
 		return nil, errors.New("expected unknown root")
 	}
 
-	fetch, err := fetcher.New(bmock, nil)
-	require.NoError(t, err)
-
+	fetch := mustCreateFetcher(t, bmock)
 	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
 		require.Equal(t, core.NewPrepareAggregatorDuty(slot), duty)
 
@@ -276,10 +273,7 @@ func TestFetchBlocks(t *testing.T) {
 
 	t.Run("fetch DutyProposer", func(t *testing.T) {
 		duty := core.NewProposerDuty(slot)
-		fetch, err := fetcher.New(bmock, func(core.PubKey) string {
-			return feeRecipientAddr
-		})
-		require.NoError(t, err)
+		fetch := mustCreateFetcherWithAddress(t, bmock, feeRecipientAddr)
 
 		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
 			return randaoByPubKey[key], nil
@@ -312,10 +306,7 @@ func TestFetchBlocks(t *testing.T) {
 
 	t.Run("fetch DutyBuilderProposer", func(t *testing.T) {
 		duty := core.NewBuilderProposerDuty(slot)
-		fetch, err := fetcher.New(bmock, func(core.PubKey) string {
-			return feeRecipientAddr
-		})
-		require.NoError(t, err)
+		fetch := mustCreateFetcherWithAddress(t, bmock, feeRecipientAddr)
 
 		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
 			return randaoByPubKey[key], nil
@@ -389,7 +380,6 @@ func TestFetchSyncContribution(t *testing.T) {
 	}
 
 	t.Run("contribution aggregator", func(t *testing.T) {
-		// Construct beaconmock.
 		bmock, err := beaconmock.New()
 		require.NoError(t, err)
 
@@ -427,10 +417,7 @@ func TestFetchSyncContribution(t *testing.T) {
 			}, nil
 		}
 
-		// Construct fetcher component.
-		fetch, err := fetcher.New(bmock, nil)
-		require.NoError(t, err)
-
+		fetch := mustCreateFetcher(t, bmock)
 		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
 			if duty.Type == core.DutyPrepareSyncContribution {
 				require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
@@ -484,14 +471,10 @@ func TestFetchSyncContribution(t *testing.T) {
 	})
 
 	t.Run("not contribution aggregator", func(t *testing.T) {
-		// Construct beaconmock.
 		bmock, err := beaconmock.New()
 		require.NoError(t, err)
 
-		// Construct fetcher component.
-		fetch, err := fetcher.New(bmock, nil)
-		require.NoError(t, err)
-
+		fetch := mustCreateFetcher(t, bmock)
 		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
 			if duty.Type == core.DutyPrepareSyncContribution {
 				require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
@@ -514,14 +497,10 @@ func TestFetchSyncContribution(t *testing.T) {
 	})
 
 	t.Run("fetch contribution data error", func(t *testing.T) {
-		// Construct beaconmock.
 		bmock, err := beaconmock.New()
 		require.NoError(t, err)
 
-		// Construct fetcher component.
-		fetch, err := fetcher.New(bmock, nil)
-		require.NoError(t, err)
-
+		fetch := mustCreateFetcher(t, bmock)
 		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
 			return nil, errors.New("error")
 		})
@@ -531,6 +510,30 @@ func TestFetchSyncContribution(t *testing.T) {
 		require.ErrorContains(t, err, "fetch contribution data")
 		require.ErrorContains(t, err, "error")
 	})
+}
+
+func mustCreateFetcher(t *testing.T, bmock beaconmock.Mock) *fetcher.Fetcher {
+	t.Helper()
+
+	fetch, err := fetcher.New(bmock, nil, func(uint64) bool {
+		return true
+	})
+	require.NoError(t, err)
+
+	return fetch
+}
+
+func mustCreateFetcherWithAddress(t *testing.T, bmock beaconmock.Mock, addr string) *fetcher.Fetcher {
+	t.Helper()
+
+	fetch, err := fetcher.New(bmock, func(core.PubKey) string {
+		return addr
+	}, func(uint64) bool {
+		return true
+	})
+	require.NoError(t, err)
+
+	return fetch
 }
 
 func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block core.VersionedProposal) {

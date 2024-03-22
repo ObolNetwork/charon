@@ -611,7 +611,7 @@ func submitContributionAndProofs(s eth2client.SyncCommitteeContributionsSubmitte
 }
 
 // proposeBlockV3 returns a handler function returning an unsigned BeaconBlock or BlindedBeaconBlock.
-func proposeBlockV3(p eth2client.ProposalProvider, getBuilderAPI core.BuilderEnabled) handlerFunc {
+func proposeBlockV3(p eth2client.ProposalProvider, builderEnabled core.BuilderEnabled) handlerFunc {
 	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		slot, randao, graffiti, err := getProposeBlockParams(params, query)
 		if err != nil {
@@ -619,7 +619,7 @@ func proposeBlockV3(p eth2client.ProposalProvider, getBuilderAPI core.BuilderEna
 		}
 
 		var bbf uint64
-		if getBuilderAPI(slot) {
+		if builderEnabled(slot) {
 			// This gives maximum priority to builder blocks:
 			// https://ethereum.github.io/beacon-APIs/#/Validator/produceBlockV3
 			bbf = math.MaxUint64

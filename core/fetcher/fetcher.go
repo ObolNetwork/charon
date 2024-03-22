@@ -5,6 +5,7 @@ package fetcher
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -21,10 +22,11 @@ import (
 )
 
 // New returns a new fetcher instance.
-func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string) (*Fetcher, error) {
+func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, builderEnabled core.BuilderEnabled) (*Fetcher, error) {
 	return &Fetcher{
 		eth2Cl:           eth2Cl,
 		feeRecipientFunc: feeRecipientFunc,
+		builderEnabled:   builderEnabled,
 	}, nil
 }
 
@@ -35,6 +37,7 @@ type Fetcher struct {
 	subs             []func(context.Context, core.Duty, core.UnsignedDataSet) error
 	aggSigDBFunc     func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
 	awaitAttDataFunc func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
+	builderEnabled   core.BuilderEnabled
 }
 
 // Subscribe registers a callback for fetched duties.
@@ -248,10 +251,18 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 		commitSHA, _ := version.GitCommit()
 		copy(graffiti[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
 
+		var bbf uint64
+		if f.builderEnabled(slot) {
+			// This gives maximum priority to builder blocks:
+			// https://ethereum.github.io/beacon-APIs/#/Validator/produceBlockV3
+			bbf = math.MaxUint64
+		}
+
 		opts := &eth2api.ProposalOpts{
-			Slot:         eth2p0.Slot(slot),
-			RandaoReveal: randao,
-			Graffiti:     graffiti,
+			Slot:               eth2p0.Slot(slot),
+			RandaoReveal:       randao,
+			Graffiti:           graffiti,
+			BuilderBoostFactor: &bbf,
 		}
 		eth2Resp, err := f.eth2Cl.Proposal(ctx, opts)
 		if err != nil {
@@ -346,17 +357,29 @@ func verifyFeeRecipient(ctx context.Context, proposal *eth2api.VersionedProposal
 
 	switch proposal.Version {
 	case eth2spec.DataVersionBellatrix:
-		actualAddr = fmt.Sprintf("%#x", proposal.Bellatrix.Body.ExecutionPayload.FeeRecipient)
+		if proposal.Blinded {
+			actualAddr = fmt.Sprintf("%#x", proposal.BellatrixBlinded.Body.ExecutionPayloadHeader.FeeRecipient)
+		} else {
+			actualAddr = fmt.Sprintf("%#x", proposal.Bellatrix.Body.ExecutionPayload.FeeRecipient)
+		}
 	case eth2spec.DataVersionCapella:
-		actualAddr = fmt.Sprintf("%#x", proposal.Capella.Body.ExecutionPayload.FeeRecipient)
+		if proposal.Blinded {
+			actualAddr = fmt.Sprintf("%#x", proposal.CapellaBlinded.Body.ExecutionPayloadHeader.FeeRecipient)
+		} else {
+			actualAddr = fmt.Sprintf("%#x", proposal.Capella.Body.ExecutionPayload.FeeRecipient)
+		}
 	case eth2spec.DataVersionDeneb:
-		actualAddr = fmt.Sprintf("%#x", proposal.Deneb.Block.Body.ExecutionPayload.FeeRecipient)
+		if proposal.Blinded {
+			actualAddr = fmt.Sprintf("%#x", proposal.DenebBlinded.Body.ExecutionPayloadHeader.FeeRecipient)
+		} else {
+			actualAddr = fmt.Sprintf("%#x", proposal.Deneb.Block.Body.ExecutionPayload.FeeRecipient)
+		}
 	default:
 		return
 	}
 
 	if actualAddr != "" && !strings.EqualFold(actualAddr, feeRecipientAddress) {
-		log.Warn(ctx, "Proposal with unexpected fee recipient address", nil,
+		log.Error(ctx, "Proposal with unexpected fee recipient address", nil,
 			z.Str("expected", feeRecipientAddress), z.Str("actual", actualAddr))
 	}
 }
