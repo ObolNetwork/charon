@@ -995,8 +995,8 @@ func TestRouter(t *testing.T) {
 
 	t.Run("submit randao blinded block", func(t *testing.T) {
 		handler := testHandler{
-			BlindedProposalFunc: func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error) {
-				return &eth2api.Response[*eth2api.VersionedBlindedProposal]{}, errors.New("not implemented")
+			ProposalFunc: func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
+				return &eth2api.Response[*eth2api.VersionedProposal]{}, errors.New("not implemented")
 			},
 		}
 
@@ -1535,7 +1535,6 @@ type testHandler struct {
 	AttesterDutiesFunc                     func(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error)
 	ProposalFunc                           func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error)
 	SubmitProposalFunc                     func(ctx context.Context, proposal *eth2api.SubmitProposalOpts) error
-	BlindedProposalFunc                    func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error)
 	SubmitBlindedProposalFunc              func(ctx context.Context, proposal *eth2api.SubmitBlindedProposalOpts) error
 	ProposerDutiesFunc                     func(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error)
 	NodeVersionFunc                        func(ctx context.Context, opts *eth2api.NodeVersionOpts) (*eth2api.Response[string], error)
@@ -1565,10 +1564,6 @@ func (h testHandler) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (
 
 func (h testHandler) SubmitProposal(ctx context.Context, proposal *eth2api.SubmitProposalOpts) error {
 	return h.SubmitProposalFunc(ctx, proposal)
-}
-
-func (h testHandler) BlindedProposal(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error) {
-	return h.BlindedProposalFunc(ctx, opts)
 }
 
 func (h testHandler) SubmitBlindedProposal(ctx context.Context, block *eth2api.SubmitBlindedProposalOpts) error {
