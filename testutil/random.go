@@ -463,20 +463,22 @@ func RandomCapellaBlindedBeaconBlockBody() *eth2capella.BlindedBeaconBlockBody {
 	}
 }
 
-func RandomBellatrixVersionedBlindedProposal() core.VersionedBlindedProposal {
-	return core.VersionedBlindedProposal{
-		VersionedBlindedProposal: eth2api.VersionedBlindedProposal{
-			Version:   eth2spec.DataVersionBellatrix,
-			Bellatrix: RandomBellatrixBlindedBeaconBlock(),
+func RandomBellatrixVersionedBlindedProposal() core.VersionedProposal {
+	return core.VersionedProposal{
+		VersionedProposal: eth2api.VersionedProposal{
+			Version:          eth2spec.DataVersionBellatrix,
+			Blinded:          true,
+			BellatrixBlinded: RandomBellatrixBlindedBeaconBlock(),
 		},
 	}
 }
 
-func RandomCapellaVersionedBlindedProposal() core.VersionedBlindedProposal {
-	return core.VersionedBlindedProposal{
-		VersionedBlindedProposal: eth2api.VersionedBlindedProposal{
-			Version: eth2spec.DataVersionCapella,
-			Capella: RandomCapellaBlindedBeaconBlock(),
+func RandomCapellaVersionedBlindedProposal() core.VersionedProposal {
+	return core.VersionedProposal{
+		VersionedProposal: eth2api.VersionedProposal{
+			Version:        eth2spec.DataVersionCapella,
+			Blinded:        true,
+			CapellaBlinded: RandomCapellaBlindedBeaconBlock(),
 		},
 	}
 }

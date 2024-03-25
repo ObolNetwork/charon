@@ -133,10 +133,6 @@ func TestUnsignedDataToProto(t *testing.T) {
 			Data: testutil.RandomBellatrixCoreVersionedProposal(),
 		},
 		{
-			Type: core.DutyBuilderProposer,
-			Data: testutil.RandomBellatrixVersionedBlindedProposal(),
-		},
-		{
 			Type: core.DutyAggregator,
 			Data: core.NewAggregatedAttestation(testutil.RandomAttestation()),
 		},

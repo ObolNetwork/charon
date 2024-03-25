@@ -371,6 +371,7 @@ func TestOnlyTimeout(t *testing.T) {
 		if ctx.Err() != nil {
 			return
 		}
+		time.Sleep(time.Second)
 		require.Fail(t, "Expect this only to return after main ctx cancelled")
 	}()
 

@@ -44,6 +44,13 @@ func TestSynthProposer(t *testing.T) {
 		return nil
 	}
 
+	bmock.SubmitBlindedProposalFunc = func(ctx context.Context, opts *eth2api.SubmitBlindedProposalOpts) error {
+		require.Equal(t, realBlockSlot, opts.Proposal.Capella.Message.Slot)
+		close(done)
+
+		return nil
+	}
+
 	bmock.ProposerDutiesFunc = func(ctx context.Context, e eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 		require.Equal(t, int(epoch), int(e))
 
@@ -102,12 +109,14 @@ func TestSynthProposer(t *testing.T) {
 
 	// Submit blocks
 	for _, duty := range duties {
+		var bbf uint64 = 100
 		var graff [32]byte
 		copy(graff[:], "test")
 		opts1 := &eth2api.ProposalOpts{
-			Slot:         duty.Slot,
-			RandaoReveal: testutil.RandomEth2Signature(),
-			Graffiti:     graff,
+			Slot:               duty.Slot,
+			RandaoReveal:       testutil.RandomEth2Signature(),
+			Graffiti:           graff,
+			BuilderBoostFactor: &bbf,
 		}
 		resp, err := eth2Cl.Proposal(ctx, opts1)
 		require.NoError(t, err)
@@ -115,7 +124,7 @@ func TestSynthProposer(t *testing.T) {
 		if resp.Data.Blinded {
 			block := resp.Data
 			if duty.Slot == realBlockSlot {
-				require.NotContains(t, string(block.Capella.Body.Graffiti[:]), "DO NOT SUBMIT")
+				require.NotContains(t, string(block.CapellaBlinded.Body.Graffiti[:]), "DO NOT SUBMIT")
 				require.NotEqual(t, feeRecipient, block.CapellaBlinded.Body.ExecutionPayloadHeader.FeeRecipient)
 			} else {
 				require.Equal(t, feeRecipient, block.CapellaBlinded.Body.ExecutionPayloadHeader.FeeRecipient)

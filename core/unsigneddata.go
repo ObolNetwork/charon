@@ -25,19 +25,16 @@ var (
 	_ UnsignedData = AttestationData{}
 	_ UnsignedData = AggregatedAttestation{}
 	_ UnsignedData = VersionedProposal{}
-	_ UnsignedData = VersionedBlindedProposal{}
 	_ UnsignedData = SyncContribution{}
 
 	// Some types also support SSZ marshalling and unmarshalling.
 	_ ssz.Marshaler   = AttestationData{}
 	_ ssz.Marshaler   = AggregatedAttestation{}
 	_ ssz.Marshaler   = VersionedProposal{}
-	_ ssz.Marshaler   = VersionedBlindedProposal{}
 	_ ssz.Marshaler   = SyncContribution{}
 	_ ssz.Unmarshaler = new(AttestationData)
 	_ ssz.Unmarshaler = new(AggregatedAttestation)
 	_ ssz.Unmarshaler = new(VersionedProposal)
-	_ ssz.Unmarshaler = new(VersionedBlindedProposal)
 	_ ssz.Unmarshaler = new(SyncContribution)
 )
 
@@ -325,113 +322,6 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
-// NewVersionedBlindedProposal validates and returns a new wrapped VersionedBlindedProposal.
-func NewVersionedBlindedProposal(proposal *eth2api.VersionedBlindedProposal) (VersionedBlindedProposal, error) {
-	switch proposal.Version {
-	case eth2spec.DataVersionBellatrix:
-		if proposal.Bellatrix == nil {
-			return VersionedBlindedProposal{}, errors.New("no bellatrix blinded proposal")
-		}
-	case eth2spec.DataVersionCapella:
-		if proposal.Capella == nil {
-			return VersionedBlindedProposal{}, errors.New("no capella blinded proposal")
-		}
-	case eth2spec.DataVersionDeneb:
-		if proposal.Deneb == nil {
-			return VersionedBlindedProposal{}, errors.New("no deneb blinded proposal")
-		}
-	default:
-		return VersionedBlindedProposal{}, errors.New("unknown version")
-	}
-
-	return VersionedBlindedProposal{VersionedBlindedProposal: *proposal}, nil
-}
-
-// VersionedBlindedProposal wraps the eth2 versioned blinded proposal and implements UnsignedData.
-type VersionedBlindedProposal struct {
-	eth2api.VersionedBlindedProposal
-}
-
-func (p VersionedBlindedProposal) Clone() (UnsignedData, error) {
-	var resp VersionedBlindedProposal
-	err := cloneJSONMarshaler(p, &resp)
-	if err != nil {
-		return nil, errors.Wrap(err, "clone block")
-	}
-
-	return resp, nil
-}
-
-func (p VersionedBlindedProposal) MarshalJSON() ([]byte, error) {
-	var marshaller json.Marshaler
-	switch p.Version {
-	// No block nil checks since `NewVersionedSignedBlindedBeaconBlock` assumed.
-	case eth2spec.DataVersionBellatrix:
-		marshaller = p.Bellatrix
-	case eth2spec.DataVersionCapella:
-		marshaller = p.Capella
-	case eth2spec.DataVersionDeneb:
-		marshaller = p.Deneb
-	default:
-		return nil, errors.New("unknown version")
-	}
-
-	block, err := marshaller.MarshalJSON()
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal block")
-	}
-
-	version, err := eth2util.DataVersionFromETH2(p.Version)
-	if err != nil {
-		return nil, errors.Wrap(err, "convert version")
-	}
-
-	resp, err := json.Marshal(versionedRawBlockJSON{
-		Version: version,
-		Block:   block,
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal wrapper")
-	}
-
-	return resp, nil
-}
-
-func (p *VersionedBlindedProposal) UnmarshalJSON(input []byte) error {
-	var raw versionedRawBlockJSON
-	if err := json.Unmarshal(input, &raw); err != nil {
-		return errors.Wrap(err, "unmarshal block")
-	}
-
-	resp := eth2api.VersionedBlindedProposal{Version: raw.Version.ToETH2()}
-	switch resp.Version {
-	case eth2spec.DataVersionBellatrix:
-		block := new(eth2bellatrix.BlindedBeaconBlock)
-		if err := json.Unmarshal(raw.Block, &block); err != nil {
-			return errors.Wrap(err, "unmarshal bellatrix")
-		}
-		resp.Bellatrix = block
-	case eth2spec.DataVersionCapella:
-		block := new(eth2capella.BlindedBeaconBlock)
-		if err := json.Unmarshal(raw.Block, &block); err != nil {
-			return errors.Wrap(err, "unmarshal capella")
-		}
-		resp.Capella = block
-	case eth2spec.DataVersionDeneb:
-		block := new(eth2deneb.BlindedBeaconBlock)
-		if err := json.Unmarshal(raw.Block, &block); err != nil {
-			return errors.Wrap(err, "unmarshal deneb")
-		}
-		resp.Deneb = block
-	default:
-		return errors.New("unknown version")
-	}
-
-	*p = VersionedBlindedProposal{VersionedBlindedProposal: resp}
-
-	return nil
-}
-
 // NewSyncContribution returns a new SyncContribution.
 func NewSyncContribution(c *altair.SyncCommitteeContribution) SyncContribution {
 	return SyncContribution{SyncCommitteeContribution: *c}
@@ -489,13 +379,6 @@ func unmarshalUnsignedData(typ DutyType, data []byte) (UnsignedData, error) {
 		var resp VersionedProposal
 		if err := unmarshal(data, &resp); err != nil {
 			return nil, errors.Wrap(err, "unmarshal proposal")
-		}
-
-		return resp, nil
-	case DutyBuilderProposer:
-		var resp VersionedBlindedProposal
-		if err := unmarshal(data, &resp); err != nil {
-			return nil, errors.Wrap(err, "unmarshal blinded proposal")
 		}
 
 		return resp, nil

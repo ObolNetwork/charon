@@ -61,7 +61,6 @@ func TestSSZ(t *testing.T) {
 		{zero: func() any { return new(core.SignedSyncContributionAndProof) }},
 		{zero: func() any { return new(core.AggregatedAttestation) }},
 		{zero: func() any { return new(core.VersionedProposal) }},
-		{zero: func() any { return new(core.VersionedBlindedProposal) }},
 		{zero: func() any { return new(core.SyncContribution) }},
 	}
 
@@ -106,10 +105,6 @@ func TestMarshalUnsignedProto(t *testing.T) {
 		{
 			dutyType:    core.DutyProposer,
 			unsignedPtr: func() any { return new(core.VersionedProposal) },
-		},
-		{
-			dutyType:    core.DutyBuilderProposer,
-			unsignedPtr: func() any { return new(core.VersionedBlindedProposal) },
 		},
 		{
 			dutyType:    core.DutySyncContribution,
