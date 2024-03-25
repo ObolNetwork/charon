@@ -66,7 +66,7 @@ mux.Handle("/foo", server.handleFoo)
 ```
 Reasoning: The newFooHandler is completely decoupled from other handlers, except via explicit dependencies. The server struct will grow and grow and will attract shared state and coupling.
 
-### Prefer function local variables and anonumous mutation functions over fields and methods
+### Prefer function local variables and anonymous mutation functions over fields and methods
 ```go
 func foo() {
    var x,y,z int
