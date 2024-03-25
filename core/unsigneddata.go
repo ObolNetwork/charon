@@ -151,16 +151,25 @@ func NewVersionedProposal(proposal *eth2api.VersionedProposal) (VersionedProposa
 			return VersionedProposal{}, errors.New("no altair block")
 		}
 	case eth2spec.DataVersionBellatrix:
-		if proposal.Bellatrix == nil {
+		if proposal.Bellatrix == nil && !proposal.Blinded {
 			return VersionedProposal{}, errors.New("no bellatrix block")
 		}
+		if proposal.BellatrixBlinded == nil && proposal.Blinded {
+			return VersionedProposal{}, errors.New("no bellatrix blinded block")
+		}
 	case eth2spec.DataVersionCapella:
-		if proposal.Capella == nil {
+		if proposal.Capella == nil && !proposal.Blinded {
 			return VersionedProposal{}, errors.New("no capella block")
 		}
+		if proposal.CapellaBlinded == nil && proposal.Blinded {
+			return VersionedProposal{}, errors.New("no capella blinded block")
+		}
 	case eth2spec.DataVersionDeneb:
-		if proposal.Deneb == nil {
+		if proposal.Deneb == nil && !proposal.Blinded {
 			return VersionedProposal{}, errors.New("no deneb block")
+		}
+		if proposal.DenebBlinded == nil && proposal.Blinded {
+			return VersionedProposal{}, errors.New("no deneb blinded block")
 		}
 	default:
 		return VersionedProposal{}, errors.New("unknown version")
@@ -193,11 +202,23 @@ func (p VersionedProposal) MarshalJSON() ([]byte, error) {
 	case eth2spec.DataVersionAltair:
 		marshaller = p.Altair
 	case eth2spec.DataVersionBellatrix:
-		marshaller = p.Bellatrix
+		if p.Blinded {
+			marshaller = p.BellatrixBlinded
+		} else {
+			marshaller = p.Bellatrix
+		}
 	case eth2spec.DataVersionCapella:
-		marshaller = p.Capella
+		if p.Blinded {
+			marshaller = p.CapellaBlinded
+		} else {
+			marshaller = p.Capella
+		}
 	case eth2spec.DataVersionDeneb:
-		marshaller = p.Deneb
+		if p.Blinded {
+			marshaller = p.DenebBlinded
+		} else {
+			marshaller = p.Deneb
+		}
 	default:
 		return nil, errors.New("unknown version")
 	}
@@ -215,6 +236,7 @@ func (p VersionedProposal) MarshalJSON() ([]byte, error) {
 	resp, err := json.Marshal(versionedRawBlockJSON{
 		Version: version,
 		Block:   block,
+		Blinded: p.Blinded,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal wrapper")
@@ -229,38 +251,71 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 		return errors.Wrap(err, "unmarshal block")
 	}
 
-	resp := eth2api.VersionedProposal{Version: raw.Version.ToETH2()}
+	resp := eth2api.VersionedProposal{
+		Version: raw.Version.ToETH2(),
+		Blinded: raw.Blinded,
+	}
 	switch resp.Version {
 	case eth2spec.DataVersionPhase0:
+		if raw.Blinded {
+			return errors.New("phase0 block cannot be blinded")
+		}
 		block := new(eth2p0.BeaconBlock)
 		if err := json.Unmarshal(raw.Block, &block); err != nil {
 			return errors.Wrap(err, "unmarshal phase0")
 		}
 		resp.Phase0 = block
 	case eth2spec.DataVersionAltair:
+		if raw.Blinded {
+			return errors.New("altair block cannot be blinded")
+		}
 		block := new(altair.BeaconBlock)
 		if err := json.Unmarshal(raw.Block, &block); err != nil {
 			return errors.Wrap(err, "unmarshal altair")
 		}
 		resp.Altair = block
 	case eth2spec.DataVersionBellatrix:
-		block := new(bellatrix.BeaconBlock)
-		if err := json.Unmarshal(raw.Block, &block); err != nil {
-			return errors.Wrap(err, "unmarshal bellatrix")
+		if raw.Blinded {
+			block := new(eth2bellatrix.BlindedBeaconBlock)
+			if err := json.Unmarshal(raw.Block, &block); err != nil {
+				return errors.Wrap(err, "unmarshal bellatrix blinded")
+			}
+			resp.BellatrixBlinded = block
+		} else {
+			block := new(bellatrix.BeaconBlock)
+			if err := json.Unmarshal(raw.Block, &block); err != nil {
+				return errors.Wrap(err, "unmarshal bellatrix")
+			}
+			resp.Bellatrix = block
 		}
-		resp.Bellatrix = block
 	case eth2spec.DataVersionCapella:
-		block := new(capella.BeaconBlock)
-		if err := json.Unmarshal(raw.Block, &block); err != nil {
-			return errors.Wrap(err, "unmarshal capella")
+		if raw.Blinded {
+			block := new(eth2capella.BlindedBeaconBlock)
+			if err := json.Unmarshal(raw.Block, &block); err != nil {
+				return errors.Wrap(err, "unmarshal capella blinded")
+			}
+			resp.CapellaBlinded = block
+		} else {
+			block := new(capella.BeaconBlock)
+			if err := json.Unmarshal(raw.Block, &block); err != nil {
+				return errors.Wrap(err, "unmarshal capella")
+			}
+			resp.Capella = block
 		}
-		resp.Capella = block
 	case eth2spec.DataVersionDeneb:
-		block := new(eth2deneb.BlockContents)
-		if err := json.Unmarshal(raw.Block, &block); err != nil {
-			return errors.Wrap(err, "unmarshal deneb")
+		if raw.Blinded {
+			block := new(eth2deneb.BlindedBeaconBlock)
+			if err := json.Unmarshal(raw.Block, &block); err != nil {
+				return errors.Wrap(err, "unmarshal deneb blinded")
+			}
+			resp.DenebBlinded = block
+		} else {
+			block := new(eth2deneb.BlockContents)
+			if err := json.Unmarshal(raw.Block, &block); err != nil {
+				return errors.Wrap(err, "unmarshal deneb")
+			}
+			resp.Deneb = block
 		}
-		resp.Deneb = block
 	default:
 		return errors.New("unknown version")
 	}

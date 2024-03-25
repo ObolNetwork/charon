@@ -287,14 +287,22 @@ func TestFetchBlocks(t *testing.T) {
 			slotA, err := dutyDataA.Slot()
 			require.NoError(t, err)
 			require.EqualValues(t, slot, slotA)
-			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Capella.Body.ExecutionPayload.FeeRecipient))
+			if dutyDataA.Blinded {
+				require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.CapellaBlinded.Body.ExecutionPayloadHeader.FeeRecipient))
+			} else {
+				require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Capella.Body.ExecutionPayload.FeeRecipient))
+			}
 			assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
 
 			dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.VersionedProposal)
 			slotB, err := dutyDataB.Slot()
 			require.NoError(t, err)
 			require.EqualValues(t, slot, slotB)
-			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.Capella.Body.ExecutionPayload.FeeRecipient))
+			if dutyDataB.Blinded {
+				require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.CapellaBlinded.Body.ExecutionPayloadHeader.FeeRecipient))
+			} else {
+				require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.Capella.Body.ExecutionPayload.FeeRecipient))
+			}
 			assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature().ToETH2(), dutyDataB)
 
 			return nil
@@ -302,18 +310,6 @@ func TestFetchBlocks(t *testing.T) {
 
 		err = fetch.Fetch(ctx, duty, defSet)
 		require.NoError(t, err)
-	})
-
-	t.Run("fetch DutyBuilderProposer", func(t *testing.T) {
-		duty := core.NewBuilderProposerDuty(slot)
-		fetch := mustCreateFetcherWithAddress(t, bmock, feeRecipientAddr)
-
-		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
-			return randaoByPubKey[key], nil
-		})
-
-		err = fetch.Fetch(ctx, duty, defSet)
-		require.ErrorContains(t, err, "deprecated duty")
 	})
 }
 
@@ -545,11 +541,23 @@ func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block core.Versioned
 	case eth2spec.DataVersionAltair:
 		require.EqualValues(t, randao, block.Altair.Body.RANDAOReveal)
 	case eth2spec.DataVersionBellatrix:
-		require.EqualValues(t, randao, block.Bellatrix.Body.RANDAOReveal)
+		if block.Blinded {
+			require.EqualValues(t, randao, block.BellatrixBlinded.Body.RANDAOReveal)
+		} else {
+			require.EqualValues(t, randao, block.Bellatrix.Body.RANDAOReveal)
+		}
 	case eth2spec.DataVersionCapella:
-		require.EqualValues(t, randao, block.Capella.Body.RANDAOReveal)
+		if block.Blinded {
+			require.EqualValues(t, randao, block.CapellaBlinded.Body.RANDAOReveal)
+		} else {
+			require.EqualValues(t, randao, block.Capella.Body.RANDAOReveal)
+		}
 	case eth2spec.DataVersionDeneb:
-		require.EqualValues(t, randao, block.Deneb.Block.Body.RANDAOReveal)
+		if block.Blinded {
+			require.EqualValues(t, randao, block.DenebBlinded.Body.RANDAOReveal)
+		} else {
+			require.EqualValues(t, randao, block.Deneb.Block.Body.RANDAOReveal)
+		}
 	default:
 		require.Fail(t, "invalid block")
 	}

@@ -610,13 +610,6 @@ type aggQuery struct {
 	Cancel   <-chan struct{}
 }
 
-// builderProQuery is a waiting builderProQuery with a response channel.
-type builderProQuery struct {
-	Key      uint64
-	Response chan<- *eth2api.VersionedBlindedProposal
-	Cancel   <-chan struct{}
-}
-
 // contribQuery is a waiting contribQuery with a response channel.
 type contribQuery struct {
 	Key      contribKey
