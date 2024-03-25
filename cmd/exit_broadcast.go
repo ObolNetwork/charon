@@ -4,7 +4,6 @@ package cmd
 
 import (
 	"context"
-	"path/filepath"
 
 	libp2plog "github.com/ipfs/go-log/v2"
 	"github.com/spf13/cobra"
@@ -48,16 +47,12 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 }
 
 func runBcastFullExit(ctx context.Context, config exitConfig) error {
-	lockFilePath := filepath.Join(config.DataDir, "cluster-lock.json")
-	manifestFilePath := filepath.Join(config.DataDir, "cluster-manifest.pb")
-	identityKeyPath := filepath.Join(config.DataDir, "charon-enr-private-key")
-
-	identityKey, err := k1util.Load(identityKeyPath)
+	identityKey, err := k1util.Load(config.PrivateKeyPath)
 	if err != nil {
 		return errors.Wrap(err, "could not load identity key")
 	}
 
-	cl, err := loadClusterManifest(manifestFilePath, lockFilePath)
+	cl, err := loadClusterManifest("", config.LockFilePath)
 	if err != nil {
 		return errors.Wrap(err, "could not load cluster data")
 	}

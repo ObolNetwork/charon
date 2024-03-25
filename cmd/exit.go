@@ -18,11 +18,13 @@ import (
 )
 
 type exitConfig struct {
-	BeaconNodeURL   string
-	ValidatorPubkey string
-	DataDir         string
-	PublishAddress  string
-	ExitEpoch       uint64
+	BeaconNodeURL    string
+	ValidatorPubkey  string
+	PrivateKeyPath   string
+	ValidatorKeysDir string
+	LockFilePath     string
+	PublishAddress   string
+	ExitEpoch        uint64
 
 	PlaintextOutput bool
 
@@ -44,8 +46,9 @@ func newExitCmd(cmds ...*cobra.Command) *cobra.Command {
 func bindGenericExitFlags(cmd *cobra.Command, config *exitConfig) {
 	cmd.Flags().StringVar(&config.PublishAddress, "publish-address", "https://api.obol.tech", "Endpoint of the partial exits API instance.")
 	cmd.Flags().StringVar(&config.BeaconNodeURL, "beacon-node-url", "", "Beacon node URL.")
-	cmd.Flags().StringVar(&config.DataDir, "data-dir", ".charon", "The directory where charon will read lock file and partial validator keys.")
-
+	cmd.Flags().StringVar(&config.PrivateKeyPath, "private-key-file	", ".charon/charon-enr-private-key", "The path to the charon enr private key file. ")
+	cmd.Flags().StringVar(&config.LockFilePath, "lock-file", ".charon/cluster-lock.json", "The path to the cluster lock file defining the distributed validator cluster.")
+	cmd.Flags().StringVar(&config.ValidatorKeysDir, "validator-keys-dir", ".charon/validator_keys", "Path to the directory containing the validator private key share files and passwords.")
 	mustMarkFlagRequired(cmd, "beacon-node-url")
 }
 

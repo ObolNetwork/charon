@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"path/filepath"
@@ -12,10 +13,8 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/cluster/manifest"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
@@ -48,10 +47,7 @@ func Test_runListActiveVals(t *testing.T) {
 		}
 	}
 
-	dag, err := manifest.NewDAGFromLockForT(t, lock)
-	require.NoError(t, err)
-
-	mBytes, err := proto.Marshal(dag)
+	mBytes, err := json.Marshal(lock)
 	require.NoError(t, err)
 
 	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
@@ -76,10 +72,14 @@ func Test_runListActiveVals(t *testing.T) {
 		require.NoError(t, beaconMock.Close())
 	}()
 
+	baseDir := filepath.Join(root, fmt.Sprintf("op%d", 0))
+
 	config := exitConfig{
-		BeaconNodeURL:   beaconMock.Address(),
-		DataDir:         filepath.Join(root, fmt.Sprintf("op%d", 0)),
-		PlaintextOutput: true,
+		BeaconNodeURL:    beaconMock.Address(),
+		PrivateKeyPath:   filepath.Join(baseDir, "charon-enr-private-key"),
+		ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
+		LockFilePath:     filepath.Join(baseDir, "cluster-lock.json"),
+		PlaintextOutput:  true,
 	}
 
 	require.NoError(t, runListActiveValidatorsCmd(ctx, config))
@@ -112,10 +112,7 @@ func Test_listActiveVals(t *testing.T) {
 		}
 	}
 
-	dag, err := manifest.NewDAGFromLockForT(t, lock)
-	require.NoError(t, err)
-
-	mBytes, err := proto.Marshal(dag)
+	mBytes, err := json.Marshal(lock)
 	require.NoError(t, err)
 
 	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
@@ -141,10 +138,14 @@ func Test_listActiveVals(t *testing.T) {
 			require.NoError(t, beaconMock.Close())
 		}()
 
+		baseDir := filepath.Join(root, fmt.Sprintf("op%d", 0))
+
 		config := exitConfig{
-			BeaconNodeURL:   beaconMock.Address(),
-			DataDir:         filepath.Join(root, fmt.Sprintf("op%d", 0)),
-			PlaintextOutput: true,
+			BeaconNodeURL:    beaconMock.Address(),
+			PrivateKeyPath:   filepath.Join(baseDir, "charon-enr-private-key"),
+			ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
+			LockFilePath:     filepath.Join(baseDir, "cluster-lock.json"),
+			PlaintextOutput:  true,
 		}
 
 		vals, err := listActiveVals(ctx, config)
@@ -177,10 +178,14 @@ func Test_listActiveVals(t *testing.T) {
 			require.NoError(t, beaconMock.Close())
 		}()
 
+		baseDir := filepath.Join(root, fmt.Sprintf("op%d", 0))
+
 		config := exitConfig{
-			BeaconNodeURL:   beaconMock.Address(),
-			DataDir:         filepath.Join(root, fmt.Sprintf("op%d", 0)),
-			PlaintextOutput: true,
+			BeaconNodeURL:    beaconMock.Address(),
+			PrivateKeyPath:   filepath.Join(baseDir, "charon-enr-private-key"),
+			ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
+			LockFilePath:     filepath.Join(baseDir, "cluster-lock.json"),
+			PlaintextOutput:  true,
 		}
 
 		vals, err := listActiveVals(ctx, config)

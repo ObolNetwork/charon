@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net/http/httptest"
@@ -14,10 +15,8 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/cluster/manifest"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
@@ -60,10 +59,7 @@ func Test_runBcastFullExitCmdFlow(t *testing.T) {
 		}
 	}
 
-	dag, err := manifest.NewDAGFromLockForT(t, lock)
-	require.NoError(t, err)
-
-	mBytes, err := proto.Marshal(dag)
+	mBytes, err := json.Marshal(lock)
 	require.NoError(t, err)
 
 	handler, addLockFiles := obolapimock.MockServer(false)
@@ -97,23 +93,30 @@ func Test_runBcastFullExitCmdFlow(t *testing.T) {
 	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
 
 	for idx := 0; idx < operatorAmt; idx++ {
+		baseDir := filepath.Join(root, fmt.Sprintf("op%d", idx))
+
 		config := exitConfig{
-			BeaconNodeURL:   beaconMock.Address(),
-			ValidatorPubkey: lock.Validators[0].PublicKeyHex(),
-			DataDir:         filepath.Join(root, fmt.Sprintf("op%d", idx)),
-			PublishAddress:  srv.URL,
-			ExitEpoch:       194048,
+			BeaconNodeURL:    beaconMock.Address(),
+			ValidatorPubkey:  lock.Validators[0].PublicKeyHex(),
+			PrivateKeyPath:   filepath.Join(baseDir, "charon-enr-private-key"),
+			ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
+			LockFilePath:     filepath.Join(baseDir, "cluster-lock.json"),
+			PublishAddress:   srv.URL,
+			ExitEpoch:        194048,
 		}
 
 		require.NoError(t, runSubmitPartialExit(ctx, config), "operator index: %v", idx)
 	}
 
+	baseDir := filepath.Join(root, fmt.Sprintf("op%d", 0))
+
 	config := exitConfig{
-		BeaconNodeURL:   beaconMock.Address(),
-		ValidatorPubkey: lock.Validators[0].PublicKeyHex(),
-		DataDir:         filepath.Join(root, fmt.Sprintf("op%d", 0)),
-		PublishAddress:  srv.URL,
-		ExitEpoch:       194048,
+		BeaconNodeURL:    beaconMock.Address(),
+		ValidatorPubkey:  lock.Validators[0].PublicKeyHex(),
+		PrivateKeyPath:   filepath.Join(baseDir, "charon-enr-private-key"),
+		ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
+		LockFilePath:     filepath.Join(baseDir, "cluster-lock.json"), PublishAddress: srv.URL,
+		ExitEpoch: 194048,
 	}
 
 	require.NoError(t, runBcastFullExit(ctx, config))
@@ -124,7 +127,7 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 	type test struct {
 		name             string
 		noIdentity       bool
-		noManifest       bool
+		noLock           bool
 		badOAPIURL       bool
 		badBeaconNodeURL bool
 		badValidatorAddr bool
@@ -138,9 +141,9 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 			errData:    "could not load identity key",
 		},
 		{
-			name:       "No manifest",
-			noManifest: true,
-			errData:    "could not load cluster data",
+			name:    "No lock",
+			noLock:  true,
+			errData: "could not load cluster data",
 		},
 		{
 			name:       "Bad Obol API URL",
@@ -166,8 +169,8 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 		oDir := filepath.Join(root, opID)
 
 		switch {
-		case tc.noManifest:
-			require.NoError(t, os.RemoveAll(filepath.Join(oDir, "cluster-manifest.pb")))
+		case tc.noLock:
+			require.NoError(t, os.RemoveAll(filepath.Join(oDir, "cluster-lock.json")))
 		case tc.noIdentity:
 			require.NoError(t, os.RemoveAll(filepath.Join(oDir, "charon-enr-private-key")))
 		}
@@ -204,10 +207,7 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 				}
 			}
 
-			dag, err := manifest.NewDAGFromLockForT(t, lock)
-			require.NoError(t, err)
-
-			mBytes, err := proto.Marshal(dag)
+			mBytes, err := json.Marshal(lock)
 			require.NoError(t, err)
 
 			writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
@@ -237,12 +237,16 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 				valAddr = lock.Validators[0].PublicKeyHex()
 			}
 
+			baseDir := filepath.Join(root, "op0") // one operator is enough
+
 			config := exitConfig{
-				BeaconNodeURL:   bnURL,
-				ValidatorPubkey: valAddr,
-				DataDir:         filepath.Join(root, "op0"), // one operator is enough
-				PublishAddress:  oapiURL,
-				ExitEpoch:       0,
+				BeaconNodeURL:    bnURL,
+				ValidatorPubkey:  valAddr,
+				PrivateKeyPath:   filepath.Join(baseDir, "charon-enr-private-key"),
+				ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
+				LockFilePath:     filepath.Join(baseDir, "cluster-lock.json"),
+				PublishAddress:   oapiURL,
+				ExitEpoch:        0,
 			}
 
 			require.ErrorContains(t, runBcastFullExit(ctx, config), test.errData)

@@ -5,7 +5,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -66,10 +65,7 @@ func runListActiveValidatorsCmd(ctx context.Context, config exitConfig) error {
 }
 
 func listActiveVals(ctx context.Context, config exitConfig) ([]string, error) {
-	lockFilePath := filepath.Join(config.DataDir, "cluster-lock.json")
-	manifestFilePath := filepath.Join(config.DataDir, "cluster-manifest.pb")
-
-	cl, err := loadClusterManifest(manifestFilePath, lockFilePath)
+	cl, err := loadClusterManifest("", config.LockFilePath)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not load cluster data")
 	}
