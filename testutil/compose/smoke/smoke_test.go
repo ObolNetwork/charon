@@ -70,6 +70,7 @@ func TestSmoke(t *testing.T) {
 			Name: "dkg",
 			ConfigFunc: func(conf *compose.Config) {
 				conf.KeyGen = compose.KeyGenDKG
+				conf.VCs = []compose.VCType{compose.VCMock}
 			},
 		},
 		{

@@ -149,6 +149,9 @@ func TestGetDepositFilePath(t *testing.T) {
 
 	filepath = deposit.GetDepositFilePath(dir, deposit.MaxDepositAmount-1)
 	require.Equal(t, path.Join(dir, "deposit-data-31.999999999eth.json"), filepath)
+
+	filepath = deposit.GetDepositFilePath(dir, deposit.MaxDepositAmount)
+	require.Equal(t, path.Join(dir, "deposit-data.json"), filepath)
 }
 
 func TestWriteDepositDataFile(t *testing.T) {

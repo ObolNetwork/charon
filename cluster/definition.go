@@ -38,6 +38,13 @@ func WithVersion(version string) func(*Definition) {
 	}
 }
 
+// WithDKGAlgorithm returns an option to set a non-default DKG algorithm in a new definition.
+func WithDKGAlgorithm(algorithm string) func(*Definition) {
+	return func(d *Definition) {
+		d.DKGAlgorithm = algorithm
+	}
+}
+
 // WithLegacyVAddrs returns an option to set single feeRecipient address and withdrawal address to validator addresses.
 func WithLegacyVAddrs(feeRecipientAddress, withdrawalAddress string) func(*Definition) {
 	return func(d *Definition) {
@@ -94,6 +101,10 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddresse
 
 	for _, opt := range opts {
 		opt(&def)
+	}
+
+	if len(depositAmounts) > 1 && !supportPartialDeposits(def.Version) {
+		return Definition{}, errors.New("the version does not support partial deposits", z.Str("version", def.Version))
 	}
 
 	return def.SetDefinitionHashes()
@@ -764,6 +775,11 @@ func unmarshalDefinitionV1x8(data []byte) (def Definition, err error) {
 // Note that Definition versions prior to v1.3.0 don't support EIP712 signatures.
 func supportEIP712Sigs(version string) bool {
 	return !isAnyVersion(version, v1_0, v1_1, v1_2)
+}
+
+// supportPartialDeposits returns true if the provided definition version supports partial deposits.
+func supportPartialDeposits(version string) bool {
+	return isAnyVersion(version, v1_8)
 }
 
 func eip712SigsPresent(operators []Operator) bool {

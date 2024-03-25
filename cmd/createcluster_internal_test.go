@@ -18,12 +18,14 @@ import (
 	"testing"
 	"time"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -33,7 +35,7 @@ import (
 //go:generate go test . -run=TestCreateCluster -update
 
 func TestCreateCluster(t *testing.T) {
-	defPath := "../cluster/examples/cluster-definition-004.json"
+	defPath := "../cluster/examples/cluster-definition-005.json"
 	def, err := loadDefinition(context.Background(), defPath)
 	require.NoError(t, err)
 
@@ -321,8 +323,16 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 
 		// check that there are lock.Definition.NumValidators different public keys in the validator slice
 		vals := make(map[string]struct{})
+		amounts := deposit.DedupAmounts(deposit.EthsToGweis(conf.DepositAmounts))
+		if len(amounts) == 0 {
+			amounts = []eth2p0.Gwei{deposit.MaxDepositAmount}
+		}
 		for _, val := range lock.Validators {
 			vals[val.PublicKeyHex()] = struct{}{}
+			require.Len(t, val.PartialDepositData, len(amounts))
+			for i, pdd := range val.PartialDepositData {
+				require.EqualValues(t, amounts[i], pdd.Amount)
+			}
 		}
 
 		require.Equal(t, lock.Definition.NumValidators, len(vals))

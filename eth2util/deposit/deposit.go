@@ -315,9 +315,15 @@ func WriteDepositDataFile(depositDatas []eth2p0.DepositData, network string, dat
 
 // GetDepositFilePath constructs and return deposit-data file path.
 func GetDepositFilePath(dataDir string, amount eth2p0.Gwei) string {
-	eth := float64(amount) / float64(OneEthInGwei)
-	ethStr := strconv.FormatFloat(eth, 'f', -1, 64)
-	filename := fmt.Sprintf("deposit-data-%seth.json", ethStr)
+	var filename string
+	if amount == MaxDepositAmount {
+		// For backward compatibility, use the old filename.
+		filename = "deposit-data.json"
+	} else {
+		eth := float64(amount) / float64(OneEthInGwei)
+		ethStr := strconv.FormatFloat(eth, 'f', -1, 64)
+		filename = fmt.Sprintf("deposit-data-%seth.json", ethStr)
+	}
 
 	return path.Join(dataDir, filename)
 }
