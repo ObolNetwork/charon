@@ -39,7 +39,11 @@ func newListActiveValidatorsCmd(runFunc func(context.Context, exitConfig) error)
 
 	cmd.Flags().BoolVar(&config.PlaintextOutput, "plaintext", false, "Prints each active validator on a line, without any debugging or logging artifact. Useful for scripting.")
 
-	bindGenericExitFlags(cmd, &config)
+	bindExitFlags(cmd, &config, []exitCLIFlag{
+		{lockFilePath, false},
+		{beaconNodeURL, true},
+	})
+
 	bindLogFlags(cmd.Flags(), &config.Log)
 
 	return cmd

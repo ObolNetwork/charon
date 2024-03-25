@@ -4,6 +4,10 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 
 	libp2plog "github.com/ipfs/go-log/v2"
 	"github.com/spf13/cobra"
@@ -15,19 +19,17 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/keystore"
-	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
-func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra.Command {
+func newFetchExitCmd(runFunc func(context.Context, exitConfig) error) *cobra.Command {
 	var config exitConfig
 
 	cmd := &cobra.Command{
-		Use:   "broadcast",
-		Short: "Submit partial exit message for a distributed validator.",
-		Long:  `Retrieves and broadcasts a fully signed validator exit message, aggregated with the available partial signatures retrieved from the publish-address.`,
+		Use:   "fetch",
+		Short: "Fetch full exit from partial exit API instance.",
+		Long:  `Fetch a full exit message for a given validator from the partial exit API instance.`,
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			if err := log.InitLogger(config.Log); err != nil {
 				return err
 			}
@@ -43,10 +45,7 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 		{publishAddress, false},
 		{privateKeyPath, false},
 		{lockFilePath, false},
-		{validatorKeysDir, false},
-		{exitEpoch, false},
 		{validatorPubkey, true},
-		{beaconNodeURL, true},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
@@ -54,7 +53,20 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 	return cmd
 }
 
-func runBcastFullExit(ctx context.Context, config exitConfig) error {
+func runFetchExit(ctx context.Context, config exitConfig) error {
+	if _, err := os.Stat(config.FetchedExitPath); err != nil {
+		return errors.Wrap(err, "store exit path")
+	}
+
+	writeTestFile := filepath.Join(config.FetchedExitPath, ".write-test")
+	if err := os.WriteFile(writeTestFile, []byte{}, 0o755); err != nil { //nolint:gosec // write test file
+		return errors.Wrap(err, "can't write to destination directory")
+	}
+
+	if err := os.Remove(writeTestFile); err != nil {
+		return errors.Wrap(err, "can't delete write test file")
+	}
+
 	identityKey, err := k1util.Load(config.PrivateKeyPath)
 	if err != nil {
 		return errors.Wrap(err, "could not load identity key")
@@ -71,11 +83,6 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 	}
 
 	ctx = log.WithCtx(ctx, z.Str("validator", validator.String()))
-
-	eth2Cl, err := eth2Client(ctx, config.BeaconNodeURL)
-	if err != nil {
-		return errors.Wrap(err, "cannot create eth2 client for specified beacon node")
-	}
 
 	oAPI, err := obolapi.New(config.PublishAddress)
 	if err != nil {
@@ -94,40 +101,20 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "could not load full exit data from Obol API")
 	}
 
-	// parse validator public key
-	rawPkBytes, err := validator.Bytes()
+	fetchedExitFname := fmt.Sprintf("exit-%s.json", config.ValidatorPubkey)
+
+	fetchedExitPath := filepath.Join(config.FetchedExitPath, fetchedExitFname)
+
+	exitData, err := json.Marshal(fullExit.SignedExitMessage)
 	if err != nil {
-		return errors.Wrap(err, "could not serialize validator key bytes")
+		return errors.Wrap(err, "signed exit message marshal")
 	}
 
-	pubkey, err := tblsconv.PubkeyFromBytes(rawPkBytes)
-	if err != nil {
-		return errors.Wrap(err, "could not convert validator key bytes to BLS public key")
+	if err := os.WriteFile(fetchedExitPath, exitData, 0o600); err != nil {
+		return errors.Wrap(err, "store signed exit message")
 	}
 
-	// parse signature
-	signature, err := tblsconv.SignatureFromBytes(fullExit.SignedExitMessage.Signature[:])
-	if err != nil {
-		return errors.Wrap(err, "could not parse BLS signature from bytes")
-	}
-
-	exitRoot, err := sigDataForExit(
-		ctx,
-		*fullExit.SignedExitMessage.Message,
-		eth2Cl,
-		fullExit.SignedExitMessage.Message.Epoch,
-	)
-	if err != nil {
-		return errors.Wrap(err, "cannot calculate hash tree root for exit message for verification")
-	}
-
-	if err := tbls.Verify(pubkey, exitRoot[:], signature); err != nil {
-		return errors.Wrap(err, "exit message signature not verified")
-	}
-
-	if err := eth2Cl.SubmitVoluntaryExit(ctx, &fullExit.SignedExitMessage); err != nil {
-		return errors.Wrap(err, "could submit voluntary exit")
-	}
+	log.Info(ctx, "Stored signed exit message", z.Str("path", fetchedExitPath))
 
 	return nil
 }

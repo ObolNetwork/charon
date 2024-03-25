@@ -39,8 +39,16 @@ func newSubmitPartialExitCmd(runFunc func(context.Context, exitConfig) error) *c
 		},
 	}
 
-	bindGenericExitFlags(cmd, &config)
-	bindExitRelatedFlags(cmd, &config)
+	bindExitFlags(cmd, &config, []exitCLIFlag{
+		{publishAddress, false},
+		{privateKeyPath, false},
+		{lockFilePath, false},
+		{validatorKeysDir, false},
+		{exitEpoch, false},
+		{validatorPubkey, true},
+		{beaconNodeURL, true},
+	})
+
 	bindLogFlags(cmd.Flags(), &config.Log)
 
 	return cmd
