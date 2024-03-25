@@ -23,9 +23,9 @@ func newSubmitPartialExitCmd(runFunc func(context.Context, exitConfig) error) *c
 	var config exitConfig
 
 	cmd := &cobra.Command{
-		Use:   "partial",
-		Short: "Submit partial exit message for a distributed validator.",
-		Long:  `Submit a partial exit message for a given distributed validator.`,
+		Use:   "sign",
+		Short: "Sign partial exit message for a distributed validator.",
+		Long:  `Sign a partial exit message for a distributed validator and submit it to a remote API for aggregation.`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := log.InitLogger(config.Log); err != nil {
@@ -46,7 +46,7 @@ func newSubmitPartialExitCmd(runFunc func(context.Context, exitConfig) error) *c
 	return cmd
 }
 
-func runSubmitPartialExit(ctx context.Context, config exitConfig) error {
+func runSignPartialExit(ctx context.Context, config exitConfig) error {
 	identityKey, err := k1util.Load(config.PrivateKeyPath)
 	if err != nil {
 		return errors.Wrap(err, "could not load identity key")

@@ -50,7 +50,7 @@ func New() *cobra.Command {
 		),
 		newExitCmd(
 			newListActiveValidatorsCmd(runListActiveValidatorsCmd),
-			newSubmitPartialExitCmd(runSubmitPartialExit),
+			newSubmitPartialExitCmd(runSignPartialExit),
 			newBcastFullExitCmd(runBcastFullExit),
 		),
 		newUnsafeCmd(newRunCmd(app.Run, true)),

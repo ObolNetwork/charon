@@ -105,7 +105,7 @@ func Test_runBcastFullExitCmdFlow(t *testing.T) {
 			ExitEpoch:        194048,
 		}
 
-		require.NoError(t, runSubmitPartialExit(ctx, config), "operator index: %v", idx)
+		require.NoError(t, runSignPartialExit(ctx, config), "operator index: %v", idx)
 	}
 
 	baseDir := filepath.Join(root, fmt.Sprintf("op%d", 0))

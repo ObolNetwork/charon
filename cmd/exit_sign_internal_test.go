@@ -129,7 +129,7 @@ func Test_runSubmitPartialExitFlow(t *testing.T) {
 		ExitEpoch:        194048,
 	}
 
-	require.NoError(t, runSubmitPartialExit(ctx, config))
+	require.NoError(t, runSignPartialExit(ctx, config))
 }
 
 func Test_runSubmitPartialExit_Config(t *testing.T) {
@@ -267,7 +267,7 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 				ExitEpoch:        0,
 			}
 
-			require.ErrorContains(t, runSubmitPartialExit(ctx, config), test.errData)
+			require.ErrorContains(t, runSignPartialExit(ctx, config), test.errData)
 		})
 	}
 }
