@@ -331,10 +331,6 @@ type DutyDB interface {
         // for the slot when available. It also returns the DV public key.
         AwaitBeaconBlock(context.Context, slot int) (PubKey, beaconapi.BeaconBlock, error)
 
-        // AwaitBlindedBeaconBlock blocks and returns the proposed blinded beacon block
-        // for the slot when available. It also returns the DV public key.
-        AwaitBlindedBeaconBlock(context.Context, slot int) (PubKey, beaconapi.BlindedBeaconBlock, error)
-
         // AwaitAttestation blocks and returns the attestation data
         // for the slot and committee index when available.
         AwaitAttestation(context.Context, slot int, commIdx int) (*beaconapi.AttestationData, error)
@@ -388,19 +384,12 @@ The validator API provides the following beacon-node endpoints relating to dutie
   - The request arguments are: `slot` and `committee_index`
   - Query the `DutyDB` `AwaitAttester` with `slot` and `committee_index`
   - Serve response
-- `GET /eth/v2/validator/blocks/{slot}` Produce a new block, without signature.
-  - The request arguments are: `slot` and `randao_reveal`
+- `GET /eth/v3/validator/blocks/{slot}` Produce a new (full or blinded) block, without signature.
+  - The request arguments are: `slot`, `randao_reveal` and `builder_boost_factor`
   - Lookup `PubKey` by querying the `Scheduler` `AwaitProposer` with the slot in the request body.
   - Verify `randao_reveal` signature.
   - Construct a `DutyRandao` `ParSignedData` and submit it to `ParSigDB` for async aggregation and inclusion in block consensus.
   - Query the `DutyDB` `AwaitBeaconBlock` with the `slot`
-  - Serve response
-- `GET /eth/v1/validator/blinded_blocks/{slot}` Produce a new blinded block, without signature.
-  - The request arguments are: `slot` and `randao_reveal`
-  - Lookup `PubKey` by querying the `Scheduler` `AwaitBuilderProposer` with the slot in the request body.
-  - Verify `randao_reveal` signature.
-  - Construct a `DutyRandao` `ParSignedData` and submit it to `ParSigDB` for async aggregation and inclusion in block consensus.
-  - Query the `DutyDB` `AwaitBlindedBeaconBlock` with the `slot`
   - Serve response
 - `POST /eth/v1/beacon/pool/attestations` Submit Attestation objects to node
   - Construct a `ParSignedData` for each attestation object in request body.
@@ -436,9 +425,6 @@ type ValidatorAPI interface {
 	// RegisterAwaitProposal registers a function to query unsigned beacon block proposals by providing the slot.
 	RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error))
 
-	// RegisterAwaitBlindedProposal registers a function to query unsigned blinded beacon block proposals by providing the slot.
-	RegisterAwaitBlindedProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedBlindedProposal, error))
-
 	// RegisterAwaitAttestation registers a function to query attestation data.
 	RegisterAwaitAttestation(func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error))
 
@@ -468,7 +454,7 @@ which authorises charon to request adhoc signatures from a [remote signer instan
 In the _middleware_ architecture charon cannot initiate signatures itself and has to
 wait for the VC to submit signatures.
 
-Duties originating in the `scheduler` (`DutyAttester`, `DutyProposer`, `DutyBuilderProposer`) are not significantly affected by this change in architecture.
+Duties originating in the `scheduler` (`DutyAttester`, `DutyProposer`) are not significantly affected by this change in architecture.
 Instead of waiting for the `validatorapi` to submit signatures, these duties directly request
 signatures from the remote signer instance. The flow is otherwise unaffected.
 

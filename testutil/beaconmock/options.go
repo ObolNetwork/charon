@@ -478,7 +478,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		headProducer: headProducer,
 		ProposalFunc: func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error) {
 			var block *eth2api.VersionedProposal
-			if opts.BuilderBoostFactor != nil && *opts.BuilderBoostFactor == 0 {
+			if opts.BuilderBoostFactor == nil || *opts.BuilderBoostFactor == 0 {
 				block = &eth2api.VersionedProposal{
 					Version: eth2spec.DataVersionCapella,
 					Capella: testutil.RandomCapellaBeaconBlock(),
