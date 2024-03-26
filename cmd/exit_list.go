@@ -71,7 +71,7 @@ func runListActiveValidatorsCmd(ctx context.Context, config exitConfig) error {
 func listActiveVals(ctx context.Context, config exitConfig) ([]string, error) {
 	cl, err := loadClusterManifest("", config.LockFilePath)
 	if err != nil {
-		return nil, errors.Wrap(err, "could not load cluster data")
+		return nil, errors.Wrap(err, "could not load cluster-lock.json")
 	}
 
 	eth2Cl, err := eth2Client(ctx, config.BeaconNodeURL)

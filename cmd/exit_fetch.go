@@ -74,7 +74,7 @@ func runFetchExit(ctx context.Context, config exitConfig) error {
 
 	cl, err := loadClusterManifest("", config.LockFilePath)
 	if err != nil {
-		return errors.Wrap(err, "could not load cluster data")
+		return errors.Wrap(err, "could not load cluster-lock.json")
 	}
 
 	validator := core.PubKey(config.ValidatorPubkey)
@@ -93,7 +93,7 @@ func runFetchExit(ctx context.Context, config exitConfig) error {
 
 	shareIdx, err := keystore.ShareIdxForCluster(cl, *identityKey.PubKey())
 	if err != nil {
-		return errors.Wrap(err, "could not load share index from cluster lock")
+		return errors.Wrap(err, "could not determine operator index from cluster lock for supplied identity key")
 	}
 
 	fullExit, err := oAPI.GetFullExit(ctx, config.ValidatorPubkey, cl.GetInitialMutationHash(), shareIdx, identityKey)

@@ -69,7 +69,7 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 
 	cl, err := loadClusterManifest("", config.LockFilePath)
 	if err != nil {
-		return errors.Wrap(err, "could not load cluster data")
+		return errors.Wrap(err, "could not load cluster-lock.json")
 	}
 
 	validator := core.PubKey(config.ValidatorPubkey)
@@ -131,7 +131,7 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 	}
 
 	if err := eth2Cl.SubmitVoluntaryExit(ctx, &fullExit); err != nil {
-		return errors.Wrap(err, "could submit voluntary exit")
+		return errors.Wrap(err, "could not submit voluntary exit")
 	}
 
 	return nil
@@ -146,7 +146,7 @@ func exitFromObolAPI(ctx context.Context, validatorPubkey, publishAddr string, c
 
 	shareIdx, err := keystore.ShareIdxForCluster(cl, *identityKey.PubKey())
 	if err != nil {
-		return eth2p0.SignedVoluntaryExit{}, errors.Wrap(err, "could not load share index from cluster lock")
+		return eth2p0.SignedVoluntaryExit{}, errors.Wrap(err, "could not determine operator index from cluster lock for supplied identity key")
 	}
 
 	fullExit, err := oAPI.GetFullExit(ctx, validatorPubkey, cl.GetInitialMutationHash(), shareIdx, identityKey)

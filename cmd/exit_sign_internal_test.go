@@ -152,9 +152,9 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 			errData:    "could not load identity key",
 		},
 		{
-			name:    "No manifest",
+			name:    "No cluster lock",
 			noLock:  true,
-			errData: "could not load cluster data",
+			errData: "could not load cluster-lock.json",
 		},
 		{
 			name:       "No keystore",

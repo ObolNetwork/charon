@@ -171,7 +171,7 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 		{
 			name:    "No lock",
 			noLock:  true,
-			errData: "could not load cluster data",
+			errData: "could not load cluster-lock.json",
 		},
 		{
 			name:       "Bad Obol API URL",

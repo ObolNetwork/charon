@@ -62,7 +62,7 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 
 	cl, err := loadClusterManifest("", config.LockFilePath)
 	if err != nil {
-		return errors.Wrap(err, "could not load cluster data")
+		return errors.Wrap(err, "could not load cluster-lock.json")
 	}
 
 	rawValKeys, err := keystore.LoadFilesUnordered(config.ValidatorKeysDir)
@@ -91,12 +91,12 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 
 	shareIdx, err := keystore.ShareIdxForCluster(cl, *identityKey.PubKey())
 	if err != nil {
-		return errors.Wrap(err, "could not load share index from cluster lock")
+		return errors.Wrap(err, "could not determine operator index from cluster lock for supplied identity key")
 	}
 
 	ourShare, ok := shares[validator]
 	if !ok {
-		return errors.New("validator not present in cluster manifest", z.Str("validator", validator.String()))
+		return errors.New("validator not present in cluster lock", z.Str("validator", validator.String()))
 	}
 
 	eth2Cl, err := eth2Client(ctx, config.BeaconNodeURL)
