@@ -263,21 +263,21 @@ func (p VersionedSignedProposal) MessageRoot() ([32]byte, error) {
 	case eth2spec.DataVersionBellatrix:
 		if p.Blinded {
 			return p.BellatrixBlinded.Message.HashTreeRoot()
-		} else {
-			return p.Bellatrix.Message.HashTreeRoot()
 		}
+
+		return p.Bellatrix.Message.HashTreeRoot()
 	case eth2spec.DataVersionCapella:
 		if p.Blinded {
 			return p.CapellaBlinded.Message.HashTreeRoot()
-		} else {
-			return p.Capella.Message.HashTreeRoot()
 		}
+
+		return p.Capella.Message.HashTreeRoot()
 	case eth2spec.DataVersionDeneb:
 		if p.Blinded {
 			return p.DenebBlinded.Message.HashTreeRoot()
-		} else {
-			return p.Deneb.SignedBlock.Message.HashTreeRoot()
 		}
+
+		return p.Deneb.SignedBlock.Message.HashTreeRoot()
 	default:
 		panic("unknown version") // Note this is avoided by using `NewVersionedSignedProposal`.
 	}
