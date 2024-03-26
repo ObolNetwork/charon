@@ -137,3 +137,36 @@ func TestMarshalSubscription(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, selection2, selection)
 }
+
+func TestNewPartialSignature(t *testing.T) {
+	sig := testutil.RandomCoreSignature()
+
+	partialSig := core.NewPartialSignature(sig, 3)
+
+	require.Equal(t, sig, partialSig.Signature())
+	require.Equal(t, 3, partialSig.ShareIdx)
+}
+
+func TestSignature(t *testing.T) {
+	sig1 := testutil.RandomCoreSignature()
+
+	sig2, err := sig1.Clone()
+	require.NoError(t, err)
+	require.Equal(t, sig1, sig2)
+
+	_, err = sig1.MessageRoot()
+	require.ErrorContains(t, err, "signed message root not supported by signature type")
+	require.Equal(t, sig1, sig1.Signature())
+
+	blssig1 := sig1.ToETH2()
+	blssig2 := sig2.Signature().ToETH2()
+	require.Equal(t, blssig1, blssig2)
+
+	js, err := sig1.MarshalJSON()
+	require.NoError(t, err)
+
+	sig3 := &core.Signature{}
+	err = sig3.UnmarshalJSON(js)
+	require.NoError(t, err)
+	require.Equal(t, sig1, *sig3)
+}
