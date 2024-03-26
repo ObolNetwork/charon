@@ -368,10 +368,10 @@ func TestOnlyTimeout(t *testing.T) {
 	// Start goroutine that is blocking trying to create the client.
 	go func() {
 		_, _ = eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
+		time.Sleep(time.Second)
 		if ctx.Err() != nil {
 			return
 		}
-		time.Sleep(time.Second)
 		require.Fail(t, "Expect this only to return after main ctx cancelled")
 	}()
 
