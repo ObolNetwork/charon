@@ -104,7 +104,6 @@ func TestValidateConfigAddValidators(t *testing.T) {
 	}
 }
 
-// TODO(xenowits): Add more extensive tests, this is just a very simple unit test.
 func TestRunAddValidators(t *testing.T) {
 	const (
 		n        = 3

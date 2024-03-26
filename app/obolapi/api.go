@@ -51,7 +51,6 @@ func (c Client) url() *url.URL {
 
 // PublishLock posts the lockfile to obol-api. It has a 30s timeout.
 func (c Client) PublishLock(ctx context.Context, lock cluster.Lock) error {
-	// TODO(xenowits): Reduce the timeout once the obol-api is optimised for publishing large lock files.
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 

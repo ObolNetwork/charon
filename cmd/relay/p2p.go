@@ -30,11 +30,11 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 		return nil, errors.New("p2p TCP addresses required")
 	}
 
-	if config.RelayLogLevel != "" {
-		if err := libp2plog.SetLogLevel("relay", config.RelayLogLevel); err != nil {
+	if config.LibP2PLogLevel != "" {
+		if err := libp2plog.SetLogLevel("relay", config.LibP2PLogLevel); err != nil {
 			return nil, errors.Wrap(err, "set relay log level")
 		}
-		if err := libp2plog.SetLogLevel("rcmgr", config.RelayLogLevel); err != nil {
+		if err := libp2plog.SetLogLevel("rcmgr", config.LibP2PLogLevel); err != nil {
 			return nil, errors.Wrap(err, "set rcmgr log level")
 		}
 	}

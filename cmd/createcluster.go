@@ -394,16 +394,8 @@ func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, n
 		return nil, errors.New("empty deposit amounts")
 	}
 
-	usedAmounts := make(map[eth2p0.Gwei]struct{})
-
 	var dd [][]eth2p0.DepositData
 	for _, depositAmount := range depositAmounts {
-		if _, used := usedAmounts[depositAmount]; used {
-			continue
-		}
-
-		usedAmounts[depositAmount] = struct{}{}
-
 		var datas []eth2p0.DepositData
 		for i, secret := range secrets {
 			withdrawalAddr, err := eth2util.ChecksumAddress(withdrawalAddresses[i])
@@ -592,6 +584,7 @@ func createDepositDatas(withdrawalAddresses []string, network string, secrets []
 	if len(depositAmounts) == 0 {
 		return nil, errors.New("empty deposit amounts")
 	}
+	depositAmounts = deposit.DedupAmounts(depositAmounts)
 
 	return signDepositDatas(secrets, withdrawalAddresses, network, depositAmounts)
 }
@@ -635,7 +628,8 @@ func getValidators(
 	for amountIndex := range depositDatas {
 		for ddIndex := range depositDatas[amountIndex] {
 			dd := depositDatas[amountIndex][ddIndex]
-			depositDatasMap[tbls.PublicKey(dd.PublicKey)] = append(depositDatasMap[tbls.PublicKey(dd.PublicKey)], dd)
+			pk := tbls.PublicKey(dd.PublicKey)
+			depositDatasMap[pk] = append(depositDatasMap[pk], dd)
 		}
 	}
 
@@ -686,6 +680,7 @@ func getValidators(
 		}
 
 		for _, dd := range depositDatasList {
+			dd := dd
 			partialDepositData = append(partialDepositData, cluster.DepositData{
 				PubKey:                dd.PublicKey[:],
 				WithdrawalCredentials: dd.WithdrawalCredentials,
@@ -763,9 +758,9 @@ func writeKeysToDisk(numNodes int, clusterDir string, insecureKeys bool, shareSe
 			secrets = append(secrets, shares[i])
 		}
 
-		keysDir := path.Join(nodeDir(clusterDir, i), "/validator_keys")
-		if err := os.MkdirAll(keysDir, 0o755); err != nil {
-			return errors.Wrap(err, "mkdir validator_keys")
+		keysDir, err := cluster.CreateValidatorKeysDir(nodeDir(clusterDir, i))
+		if err != nil {
+			return err
 		}
 
 		if insecureKeys {
@@ -826,8 +821,12 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 	}
 	threshold := safeThreshold(ctx, conf.NumNodes, conf.Threshold)
 
+	var opts []func(*cluster.Definition)
+	if len(conf.DepositAmounts) > 0 {
+		opts = append(opts, cluster.WithVersion(cluster.MinVersionForPartialDeposits))
+	}
 	def, err := cluster.NewDefinition(conf.Name, conf.NumDVs, threshold, feeRecipientAddrs,
-		withdrawalAddrs, forkVersion, cluster.Creator{}, ops, conf.DepositAmounts, rand.Reader)
+		withdrawalAddrs, forkVersion, cluster.Creator{}, ops, conf.DepositAmounts, rand.Reader, opts...)
 	if err != nil {
 		return cluster.Definition{}, err
 	}

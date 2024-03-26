@@ -376,6 +376,25 @@ func TestHighRegistrationFailuresRateCheck(t *testing.T) {
 	})
 }
 
+func TestMetricsHighCardinalityCheck(t *testing.T) {
+	m := Metadata{}
+	checkName := "metrics_high_cardinality"
+	metricName := "app_health_metrics_high_cardinality"
+
+	t.Run("no data", func(t *testing.T) {
+		testCheck(t, m, checkName, false, nil)
+	})
+
+	t.Run("high cardinality", func(t *testing.T) {
+		testCheck(t, m, checkName, true,
+			genFam(metricName,
+				genGauge(genLabels("name", "metric1"), 1, 1, 1),
+				genGauge(genLabels("name", "metric2"), 3, 5, 0),
+			),
+		)
+	})
+}
+
 func testCheck(t *testing.T, m Metadata, checkName string, expect bool, metrics []*pb.MetricFamily) {
 	t.Helper()
 

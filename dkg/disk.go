@@ -19,6 +19,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
@@ -85,6 +86,10 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 		}
 	}
 
+	if err := deposit.VerifyDepositAmounts(def.DepositAmounts); err != nil {
+		return cluster.Definition{}, err
+	}
+
 	return def, nil
 }
 
@@ -102,7 +107,6 @@ func writeKeysToKeymanager(ctx context.Context, keymanagerURL, authToken string,
 		}
 		passwords = append(passwords, password)
 
-		// TODO(gsora): needs to go away once we get rid of kryptology
 		store, err := keystore.Encrypt(s.SecretShare, password, rand.Reader)
 		if err != nil {
 			return err
@@ -126,10 +130,9 @@ func writeKeysToDisk(conf Config, shares []share) error {
 		secrets = append(secrets, s.SecretShare)
 	}
 
-	keysDir := path.Join(conf.DataDir, "/validator_keys")
-
-	if err := os.Mkdir(keysDir, os.ModePerm); err != nil {
-		return errors.Wrap(err, "mkdir /validator_keys")
+	keysDir, err := cluster.CreateValidatorKeysDir(conf.DataDir)
+	if err != nil {
+		return err
 	}
 
 	storeKeysFunc := keystore.StoreKeys

@@ -129,7 +129,7 @@ func newTraceProvider(exp sdktrace.SpanExporter, service string) *sdktrace.Trace
 	)
 
 	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.AlwaysSample()), // TODO(corver): Reconsider 100% sampling.
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
 		sdktrace.WithBatcher(exp),
 		sdktrace.WithResource(r),
 	)

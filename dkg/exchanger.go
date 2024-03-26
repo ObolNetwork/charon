@@ -4,8 +4,8 @@ package dkg
 
 import (
 	"context"
+	"slices"
 	"sync"
-	"time"
 
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -27,10 +27,12 @@ type sigType int
 const (
 	// sigLock is responsible for lock hash signed partial signatures exchange and aggregation.
 	sigLock sigType = 101
-	// sigDepositData is responsible for deposit data signed partial signatures exchange and aggregation.
-	sigDepositData sigType = 102
 	// sigValidatorRegistration is responsible for the pre-generated validator registration exchange and aggregation.
-	sigValidatorRegistration sigType = 103
+	sigValidatorRegistration sigType = 102
+	// sigDepositData is responsible for deposit data signed partial signatures exchange and aggregation.
+	// For partial deposits, it increments the number for each unique partial amount, e.g. 201, 202, etc.
+	sigDepositData sigType = 200
+	// Do not add new values greater than sigDepositData.
 )
 
 // sigTypeStore is a shorthand for a map of sigType to map of core.PubKey to slice of core.ParSignedData.
@@ -43,48 +45,14 @@ type dataByPubkey struct {
 	lock    sync.Mutex
 }
 
-// set sets data for the given sigType and core.PubKey.
-func (stb *dataByPubkey) set(pubKey core.PubKey, sigType sigType, data []core.ParSignedData) {
-	stb.lock.Lock()
-	defer stb.lock.Unlock()
-
-	_, ok := stb.store[sigType]
-	if !ok {
-		stb.store[sigType] = map[core.PubKey][]core.ParSignedData{}
-	}
-
-	stb.store[sigType][pubKey] = data
-}
-
-// get gets all the core.ParSignedData for a given core.PubKey.
-func (stb *dataByPubkey) get(sigType sigType) (map[core.PubKey][]core.ParSignedData, bool) {
-	stb.lock.Lock()
-	defer stb.lock.Unlock()
-
-	data, ok := stb.store[sigType]
-	if !ok {
-		return nil, ok
-	}
-
-	if len(data) != stb.numVals {
-		return nil, false
-	}
-
-	ret := make(map[core.PubKey][]core.ParSignedData)
-
-	for k, v := range data {
-		ret[k] = v
-	}
-
-	return ret, ok
-}
-
 // exchanger is responsible for exchanging partial signatures between peers on libp2p.
 type exchanger struct {
-	sigex    *parsigex.ParSigEx
-	sigdb    *parsigdb.MemDB
-	sigTypes map[sigType]bool
-	sigData  dataByPubkey
+	sigex         *parsigex.ParSigEx
+	sigdb         *parsigdb.MemDB
+	sigTypes      map[sigType]bool
+	sigData       dataByPubkey
+	dutyGaterFunc func(duty core.Duty) bool
+	sigDatasChan  chan map[core.PubKey][]core.ParSignedData
 }
 
 func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int, sigTypes []sigType) *exchanger {
@@ -104,6 +72,10 @@ func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int, sig
 			return false
 		}
 
+		if slices.Contains(sigTypes, sigDepositData) && duty.Slot >= uint64(sigDepositData) {
+			return true
+		}
+
 		return st[sigType(duty.Slot)]
 	}
 
@@ -117,6 +89,8 @@ func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int, sig
 			numVals: vals,
 			lock:    sync.Mutex{},
 		},
+		dutyGaterFunc: dutyGaterFunc,
+		sigDatasChan:  make(chan map[core.PubKey][]core.ParSignedData, 1),
 	}
 
 	// Wiring core workflow components
@@ -137,16 +111,14 @@ func (e *exchanger) exchange(ctx context.Context, sigType sigType, set core.ParS
 		return nil, err
 	}
 
-	tick := time.NewTicker(50 * time.Millisecond)
-	defer tick.Stop()
-
 	for {
 		select {
-		case <-tick.C:
-			// We are done when we have ParSignedData of all the DVs from all each peer
-			if data, ok := e.sigData.get(sigType); ok {
-				return data, nil
+		case sigDatas, ok := <-e.sigDatasChan:
+			if !ok {
+				return nil, errors.New("sigdata channel has been closed")
 			}
+			// We are done when we have ParSignedData of all the DVs from all each peer
+			return sigDatas, nil
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
@@ -154,15 +126,40 @@ func (e *exchanger) exchange(ctx context.Context, sigType sigType, set core.ParS
 }
 
 // pushPsigs is responsible for writing partial signature data to sigChan obtained from other peers.
-func (e *exchanger) pushPsigs(_ context.Context, duty core.Duty, set map[core.PubKey][]core.ParSignedData) error {
+func (e *exchanger) pushPsigs(ctx context.Context, duty core.Duty, set map[core.PubKey][]core.ParSignedData) error {
 	sigType := sigType(duty.Slot)
 
-	if !e.sigTypes[sigType] {
+	if !e.dutyGaterFunc(duty) {
 		return errors.New("unrecognized sigType", z.Int("sigType", int(sigType)))
 	}
 
+	e.sigData.lock.Lock()
+
 	for pk, psigs := range set {
-		e.sigData.set(pk, sigType, psigs)
+		_, ok := e.sigData.store[sigType]
+		if !ok {
+			e.sigData.store[sigType] = map[core.PubKey][]core.ParSignedData{}
+		}
+
+		e.sigData.store[sigType][pk] = psigs
+	}
+
+	data, ok := e.sigData.store[sigType]
+	if !ok || len(data) != e.sigData.numVals {
+		e.sigData.lock.Unlock()
+		return nil
+	}
+
+	ret := make(map[core.PubKey][]core.ParSignedData)
+	for k, v := range data {
+		ret[k] = v
+	}
+
+	e.sigData.lock.Unlock()
+	select {
+	case e.sigDatasChan <- ret:
+	case <-ctx.Done():
+		return errors.Wrap(ctx.Err(), "failed to feed collected sig data")
 	}
 
 	return nil

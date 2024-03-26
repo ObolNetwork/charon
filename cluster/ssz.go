@@ -138,7 +138,6 @@ func hashDefinitionLegacy(d Definition, hh ssz.HashWalker, configOnly bool) erro
 
 	// Field (10) 'timestamp' (optional for backwards compatibility)
 	if configOnly {
-		// TODO(corver): This is a bug, config_hash should use the same check as definitino hash below.
 		if d.Timestamp != "" {
 			hh.PutBytes([]byte(d.Timestamp))
 		}
@@ -515,14 +514,15 @@ func hashDefinitionV1x8orLater(d Definition, hh ssz.HashWalker, configOnly bool)
 
 	// Field (11) 'DepositAmounts' uint64[256]
 	{
-		amountsIdx := hh.Index()
-		num := uint64(len(d.DepositAmounts))
-		for _, amount := range d.DepositAmounts {
-			amountIdx := hh.Index()
-			hh.PutUint64(uint64(amount))
-			hh.Merkleize(amountIdx)
+		hasher, ok := hh.(*ssz.Hasher)
+		if !ok {
+			return errors.New("invalid hasher type")
 		}
-		hh.MerkleizeWithMixin(amountsIdx, num, sszMaxDepositAmounts)
+		var amounts64 []uint64
+		for _, amount := range d.DepositAmounts {
+			amounts64 = append(amounts64, uint64(amount))
+		}
+		hasher.PutUint64Array(amounts64, sszMaxDepositAmounts)
 	}
 
 	if !configOnly {

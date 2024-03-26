@@ -14,5 +14,5 @@ message PeerInfo {
   optional google.protobuf.Timestamp started_at = 5;
   bool                      builder_api_enabled = 6;
 
-  // TODO(corver): Always populate timestamps when sending, then make them required after subsequent release.
+  // NOTE: Always populate timestamps when sending, then make them required after subsequent release.
 }

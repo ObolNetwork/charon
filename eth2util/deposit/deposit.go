@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -245,6 +246,24 @@ func EthsToGweis(ethAmounts []int) []eth2p0.Gwei {
 	return gweiAmounts
 }
 
+// DedupAmounts returns duplicated amounts in ascending order.
+func DedupAmounts(amounts []eth2p0.Gwei) []eth2p0.Gwei {
+	var result []eth2p0.Gwei
+	used := make(map[eth2p0.Gwei]struct{})
+
+	for _, amount := range amounts {
+		if _, amountUsed := used[amount]; amountUsed {
+			continue
+		}
+		used[amount] = struct{}{}
+		result = append(result, amount)
+	}
+
+	slices.Sort(result)
+
+	return result
+}
+
 // WriteClusterDepositDataFiles writes deposit-data-*eth.json files for each distinct amount.
 func WriteClusterDepositDataFiles(depositDatas [][]eth2p0.DepositData, network string, clusterDir string, numNodes int) error {
 	// The loop across partial amounts (shall be unique)
@@ -296,9 +315,15 @@ func WriteDepositDataFile(depositDatas []eth2p0.DepositData, network string, dat
 
 // GetDepositFilePath constructs and return deposit-data file path.
 func GetDepositFilePath(dataDir string, amount eth2p0.Gwei) string {
-	eth := float64(amount) / float64(OneEthInGwei)
-	ethStr := strconv.FormatFloat(eth, 'f', -1, 64)
-	filename := fmt.Sprintf("deposit-data-%seth.json", ethStr)
+	var filename string
+	if amount == MaxDepositAmount {
+		// For backward compatibility, use the old filename.
+		filename = "deposit-data.json"
+	} else {
+		eth := float64(amount) / float64(OneEthInGwei)
+		ethStr := strconv.FormatFloat(eth, 'f', -1, 64)
+		filename = fmt.Sprintf("deposit-data-%seth.json", ethStr)
+	}
 
 	return path.Join(dataDir, filename)
 }

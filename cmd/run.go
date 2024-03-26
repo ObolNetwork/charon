@@ -32,6 +32,7 @@ func newRunCmd(runFunc func(context.Context, app.Config) error, unsafe bool) *co
 			}
 			libp2plog.SetPrimaryCore(log.LoggerCore()) // Set libp2p logger to use charon logger
 
+			printLicense(cmd.Context())
 			printFlags(cmd.Context(), cmd.Flags())
 
 			return runFunc(cmd.Context(), conf)
@@ -94,7 +95,6 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	})
 }
 
-// TODO(dhruv): add more test only flags to this function.
 func bindUnsafeRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().BoolVar(&config.TestConfig.P2PFuzz, "p2p-fuzz", false, "Configures charon to send fuzzed data via p2p network to its peers.")
 }

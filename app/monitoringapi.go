@@ -48,6 +48,7 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, promAddr, d
 	tcpNode host.Host, eth2Cl eth2wrap.Client,
 	peerIDs []peer.ID, registry *prometheus.Registry, qbftDebug http.Handler,
 	pubkeys []core.PubKey, seenPubkeys <-chan core.PubKey, vapiCalls <-chan struct{},
+	numValidators int,
 ) {
 	beaconNodeVersionMetric(ctx, eth2Cl, clockwork.NewRealClock())
 
@@ -87,7 +88,7 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, promAddr, d
 		NumValidators: len(pubkeys),
 		NumPeers:      len(peerIDs),
 		QuorumPeers:   cluster.Threshold(len(peerIDs)),
-	}, registry)
+	}, registry, numValidators)
 
 	if debugAddr != "" {
 		debugMux := http.NewServeMux()

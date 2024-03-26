@@ -131,8 +131,6 @@ func SignK1(m *manifestpb.Mutation, secret *k1.PrivateKey) (*manifestpb.SignedMu
 }
 
 // verifyK1SignedMutation verifies that the signed mutation is signed by a k1 key.
-//
-// TODO(corver): Figure out no-verify case.
 func verifyK1SignedMutation(signed *manifestpb.SignedMutation) error {
 	pubkey, err := k1.ParsePubKey(signed.Signer)
 	if err != nil {

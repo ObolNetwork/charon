@@ -369,6 +369,15 @@ func combineTest(
 }
 
 func TestCombineTwiceWithoutForceFails(t *testing.T) {
+	runTwice(t, false, require.Error)
+}
+
+func TestCombineTwiceWithForceSucceedes(t *testing.T) {
+	runTwice(t, true, require.NoError)
+}
+
+func runTwice(t *testing.T, force bool, processErr require.ErrorAssertionFunc) {
+	t.Helper()
 	seed := 0
 	random := rand.New(rand.NewSource(int64(seed)))
 	lock, _, shares := cluster.NewForT(t, 2, 3, 4, seed, random)
@@ -442,8 +451,8 @@ func TestCombineTwiceWithoutForceFails(t *testing.T) {
 	err := combine.Combine(context.Background(), dir, od, false, false, eth2util.Network{}, combine.WithInsecureKeysForT(t))
 	require.NoError(t, err)
 
-	err = combine.Combine(context.Background(), dir, od, false, false, eth2util.Network{}, combine.WithInsecureKeysForT(t))
-	require.Error(t, err)
+	err = combine.Combine(context.Background(), dir, od, force, false, eth2util.Network{}, combine.WithInsecureKeysForT(t))
+	processErr(t, err)
 
 	keyFiles, err := keystore.LoadFilesUnordered(od)
 	require.NoError(t, err)

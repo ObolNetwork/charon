@@ -40,7 +40,6 @@ type query func(name string, selector labelSelector, reducer seriesReducer) (flo
 // checks is a list of health checks.
 var checks = []check{
 	{
-		// TODO(corver): Change this to critical on any error once we aligned with only logging errors when human intervention is required.
 		Name:        "high_error_log_rate",
 		Description: "High rate of error logs. Please check the logs for more details.",
 		Severity:    severityWarning,
@@ -134,6 +133,19 @@ var checks = []check{
 			}
 
 			return increase > 0, nil
+		},
+	},
+	{
+		Name:        "metrics_high_cardinality",
+		Description: "Metrics reached high cardinality threshold. Please check metrics reported by app_health_metrics_high_cardinality.",
+		Severity:    severityWarning,
+		Func: func(q query, _ Metadata) (bool, error) {
+			max, err := q("app_health_metrics_high_cardinality", sumLabels(), gaugeMax)
+			if err != nil {
+				return false, err
+			}
+
+			return max > 0, nil
 		},
 	},
 }

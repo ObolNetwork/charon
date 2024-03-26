@@ -6,6 +6,7 @@ package z
 
 import (
 	"fmt"
+	"slices"
 
 	"go.uber.org/zap"
 )
@@ -13,9 +14,41 @@ import (
 // Field wraps one or more zap fields.
 type Field func(add func(zap.Field))
 
+// Fields returns the fields of an internal structured error.
+func Fields(err error) []Field {
+	type structErr interface {
+		Fields() []Field
+	}
+
+	serr, ok := err.(structErr) //nolint:errorlint
+	if !ok {
+		return []Field{}
+	}
+
+	return serr.Fields()
+}
+
+// ContainsField returns true if the error contains the given field.
+func ContainsField(err error, field Field) bool {
+	fields := Fields(err)
+	var targetField zap.Field
+	field(func(zapField zap.Field) {
+		targetField = zapField
+	})
+
+	return slices.ContainsFunc(fields, func(f Field) bool {
+		var sourceField zap.Field
+		f(func(zapField zap.Field) {
+			sourceField = zapField
+		})
+
+		return targetField.Equals(sourceField)
+	})
+}
+
 // Err returns a wrapped zap error field. It will include an additional stack trace and fields
 // if the error is an internal structured error.
-// Note: This is only used when logging errors on other levels than Error since it has built-in support for errors.
+// NOTE: This is only used when logging errors on other levels than Error since it has built-in support for errors.
 func Err(err error) Field {
 	type structErr interface {
 		Fields() []Field

@@ -77,7 +77,6 @@ func mustMarkFlagRequired(cmd *cobra.Command, flag string) {
 
 func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	// Map prater to goerli to ensure backwards compatibility with older cluster definitions.
-	// TODO(xenowits): Remove the mapping later.
 	if conf.Network == eth2util.Prater {
 		conf.Network = eth2util.Goerli.Name
 	}
@@ -124,13 +123,16 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		return err
 	}
 
+	var opts []func(*cluster.Definition)
+	opts = append(opts, cluster.WithDKGAlgorithm(conf.DKGAlgo))
+	if len(conf.DepositAmounts) > 0 {
+		opts = append(opts, cluster.WithVersion(cluster.MinVersionForPartialDeposits))
+	}
 	def, err := cluster.NewDefinition(
 		conf.Name, conf.NumValidators, conf.Threshold,
 		conf.FeeRecipientAddrs, conf.WithdrawalAddrs,
 		forkVersion, cluster.Creator{}, operators, conf.DepositAmounts, crand.Reader,
-		func(d *cluster.Definition) {
-			d.DKGAlgorithm = conf.DKGAlgo
-		})
+		opts...)
 	if err != nil {
 		return err
 	}

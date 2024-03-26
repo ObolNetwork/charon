@@ -20,29 +20,34 @@ const (
 	scrapePeriod = 30 * time.Second
 	// maxScrapes is the maximum number of scrapes to keep.
 	maxScrapes = 10
+	// labelsCardinalityThreshold is the threshold for single validator;
+	// for N validators, the threshold is N * labelsCardinalityThreshold.
+	labelsCardinalityThreshold = 100
 )
 
 // NewChecker returns a new health checker.
-func NewChecker(metadata Metadata, gatherer prometheus.Gatherer) *Checker {
+func NewChecker(metadata Metadata, gatherer prometheus.Gatherer, numValidators int) *Checker {
 	return &Checker{
-		metadata:     metadata,
-		checks:       checks,
-		gatherer:     gatherer,
-		scrapePeriod: scrapePeriod,
-		maxScrapes:   maxScrapes,
-		logFilter:    log.Filter(),
+		metadata:      metadata,
+		checks:        checks,
+		gatherer:      gatherer,
+		scrapePeriod:  scrapePeriod,
+		maxScrapes:    maxScrapes,
+		logFilter:     log.Filter(),
+		numValidators: numValidators,
 	}
 }
 
 // Checker is a health checker.
 type Checker struct {
-	metadata     Metadata
-	checks       []check
-	metrics      [][]*pb.MetricFamily
-	gatherer     prometheus.Gatherer
-	scrapePeriod time.Duration
-	maxScrapes   int
-	logFilter    z.Field
+	metadata      Metadata
+	checks        []check
+	metrics       [][]*pb.MetricFamily
+	gatherer      prometheus.Gatherer
+	scrapePeriod  time.Duration
+	maxScrapes    int
+	logFilter     z.Field
+	numValidators int
 }
 
 // Run runs the health checker until the context is canceled.
@@ -89,6 +94,33 @@ func (c *Checker) scrape() error {
 	metrics, err := c.gatherer.Gather()
 	if err != nil {
 		return errors.Wrap(err, "gather metrics")
+	}
+
+	// Checking metrics with high cardinality.
+	var gatherAgain bool
+	for _, fams := range metrics {
+		if fams.GetName() == "app_health_metrics_high_cardinality" {
+			continue
+		}
+
+		var maxLabelsCount int
+		for _, fam := range fams.GetMetric() {
+			labelsCount := len(fam.GetLabel())
+			if labelsCount > maxLabelsCount {
+				maxLabelsCount = labelsCount
+			}
+		}
+		if maxLabelsCount > labelsCardinalityThreshold*c.numValidators {
+			highCardinalityGauge.WithLabelValues(fams.GetName()).Set(float64(maxLabelsCount))
+			gatherAgain = true
+		}
+	}
+
+	if gatherAgain {
+		metrics, err = c.gatherer.Gather()
+		if err != nil {
+			return errors.Wrap(err, "gather metrics")
+		}
 	}
 
 	c.metrics = append(c.metrics, metrics)

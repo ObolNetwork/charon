@@ -58,6 +58,7 @@ import (
 	"github.com/obolnetwork/charon/core/tracker"
 	"github.com/obolnetwork/charon/core/validatorapi"
 	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -194,11 +195,18 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.Wrap(err, "private key not matching cluster manifest file")
 	}
 
+	enrRec, err := enr.New(p2pKey)
+	if err != nil {
+		return errors.Wrap(err, "creating enr record from privkey")
+	}
+
 	log.Info(ctx, "Lock file loaded",
 		z.Str("peer_name", p2p.PeerName(tcpNode.ID())),
 		z.Int("peer_index", nodeIdx.PeerIdx),
-		z.Str("cluster_hash", lockHashHex),
 		z.Str("cluster_name", cluster.Name),
+		z.Str("cluster_hash", lockHashHex),
+		z.Str("cluster_hash_full", hex.EncodeToString(cluster.GetInitialMutationHash())),
+		z.Str("enr", enrRec.String()),
 		z.Int("peers", len(cluster.Operators)))
 
 	// Metric and logging labels.
@@ -261,7 +269,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, conf.DebugAddr, tcpNode, eth2Cl, peerIDs,
-		promRegistry, qbftDebug, pubkeys, seenPubkeys, vapiCalls)
+		promRegistry, qbftDebug, pubkeys, seenPubkeys, vapiCalls, len(cluster.GetValidators()))
 
 	err = wireCoreWorkflow(ctx, life, conf, cluster, nodeIdx, tcpNode, p2pKey, eth2Cl,
 		peerIDs, sender, qbftDebug.AddInstance, seenPubkeysFunc, vapiCallsFunc)
@@ -465,7 +473,12 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	aggSigDB := aggsigdb.NewMemDB(deadlinerFunc("aggsigdb"))
+	var aggSigDB core.AggSigDB
+	if featureset.Enabled(featureset.AggSigDBV2) {
+		aggSigDB = aggsigdb.NewMemDBV2(deadlinerFunc("aggsigdb"))
+	} else {
+		aggSigDB = aggsigdb.NewMemDB(deadlinerFunc("aggsigdb"))
+	}
 
 	broadcaster, err := bcast.New(ctx, eth2Cl)
 	if err != nil {
@@ -936,7 +949,6 @@ func wireTracing(life *lifecycle.Manager, conf Config) error {
 }
 
 // setFeeRecipient returns a slot subscriber for scheduler which calls prepare_beacon_proposer endpoint at start of each epoch.
-// TODO(dhruv): move this somewhere else once more use-cases like this becomes clear.
 func setFeeRecipient(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string) func(ctx context.Context, slot core.Slot) error {
 	onStartup := true
 	var osMutex sync.Mutex

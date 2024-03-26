@@ -149,6 +149,9 @@ func TestGetDepositFilePath(t *testing.T) {
 
 	filepath = deposit.GetDepositFilePath(dir, deposit.MaxDepositAmount-1)
 	require.Equal(t, path.Join(dir, "deposit-data-31.999999999eth.json"), filepath)
+
+	filepath = deposit.GetDepositFilePath(dir, deposit.MaxDepositAmount)
+	require.Equal(t, path.Join(dir, "deposit-data.json"), filepath)
 }
 
 func TestWriteDepositDataFile(t *testing.T) {
@@ -252,4 +255,12 @@ func mustGenerateDepositDatas(t *testing.T, amount eth2p0.Gwei) []eth2p0.Deposit
 	}
 
 	return datas
+}
+
+func TestDedupAmounts(t *testing.T) {
+	amounts := []eth2p0.Gwei{100, 500, 100, 0, 0, 300}
+
+	amounts = deposit.DedupAmounts(amounts)
+
+	require.EqualValues(t, []eth2p0.Gwei{0, 100, 300, 500}, amounts)
 }

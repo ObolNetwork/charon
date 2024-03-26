@@ -194,7 +194,6 @@ func newPingLogger(tcpNode host.Host, p peer.ID) func(context.Context, ping.Resu
 			prevResolvedMsgs = msgs
 		}
 
-		// TODO(corver): Reconsider this logging format
 		opts := []z.Field{z.Str("peer", PeerName(p))}
 		for addr, msg := range msgs {
 			opts = append(opts, z.Str(addr, msg))

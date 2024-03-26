@@ -4,6 +4,7 @@ package dkg_test
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -11,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -30,6 +32,7 @@ import (
 	"github.com/obolnetwork/charon/dkg"
 	dkgsync "github.com/obolnetwork/charon/dkg/sync"
 	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/eth2util/registration"
 	"github.com/obolnetwork/charon/p2p"
@@ -50,12 +53,19 @@ func TestDKG(t *testing.T) {
 		}
 	}
 
+	withDepositAmounts := func(amounts []eth2p0.Gwei) func(*cluster.Definition) {
+		return func(d *cluster.Definition) {
+			d.DepositAmounts = amounts
+		}
+	}
+
 	tests := []struct {
-		name       string
-		dkgAlgo    string
-		version    string // Defaults to latest if empty
-		keymanager bool
-		publish    bool
+		name           string
+		dkgAlgo        string
+		version        string // Defaults to latest if empty
+		depositAmounts []eth2p0.Gwei
+		keymanager     bool
+		publish        bool
 	}{
 		{
 			name:    "frost_v16",
@@ -65,6 +75,16 @@ func TestDKG(t *testing.T) {
 		{
 			name:    "frost_latest",
 			dkgAlgo: "frost",
+		},
+		{
+			name:    "with_partial_deposits",
+			version: "v1.8.0",
+			dkgAlgo: "frost",
+			depositAmounts: []eth2p0.Gwei{
+				8 * deposit.OneEthInGwei,
+				16 * deposit.OneEthInGwei,
+				8 * deposit.OneEthInGwei,
+			},
 		},
 		{
 			name:       "dkg with keymanager",
@@ -82,6 +102,7 @@ func TestDKG(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			opts := []func(*cluster.Definition){
 				withAlgo(test.dkgAlgo),
+				withDepositAmounts(test.depositAmounts),
 			}
 			if test.version != "" {
 				opts = append(opts, cluster.WithVersion(test.version))
@@ -111,8 +132,6 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	// Start relay.
 	relayAddr := startRelay(ctx, t)
 
-	shutdownSync := newShutdownSync(len(def.Operators))
-
 	// Setup config
 	conf := dkg.Config{
 		DataDir: dir,
@@ -125,9 +144,9 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 			StoreKeysFunc: func(secrets []tbls.PrivateKey, dir string) error {
 				return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
 			},
-			ShutdownCallback: shutdownSync,
-			SyncOpts:         []func(*dkgsync.Client){dkgsync.WithPeriod(time.Millisecond * 50)},
+			SyncOpts: []func(*dkgsync.Client){dkgsync.WithPeriod(time.Millisecond * 50)},
 		},
+		ShutdownDelay: 1 * time.Second,
 	}
 
 	allReceivedKeystores := make(chan struct{}) // Receives struct{} for each `numNodes` keystore intercepted by the keymanager server
@@ -164,6 +183,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	// Run dkg for each node
 	var eg errgroup.Group
 	for i := 0; i < len(def.Operators); i++ {
+		i := i
 		conf := conf
 		conf.DataDir = path.Join(dir, fmt.Sprintf("node%d", i))
 		conf.P2P.TCPAddrs = []string{testutil.AvailableAddr(t).String()}
@@ -173,7 +193,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 		require.NoError(t, err)
 
 		eg.Go(func() error {
-			err := dkg.Run(ctx, conf)
+			err := dkg.Run(peerCtx(ctx, i), conf)
 			if err != nil {
 				cancel()
 			}
@@ -187,14 +207,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	}
 
 	// Wait until complete
-
-	runChan := make(chan error, 1)
-	go func() {
-		runChan <- eg.Wait()
-	}()
-
-	err := <-runChan
-	cancel()
+	err := eg.Wait()
 	testutil.SkipIfBindErr(t, err)
 	testutil.RequireNoError(t, err)
 
@@ -264,7 +277,7 @@ func startRelay(parentCtx context.Context, t *testing.T) string {
 	endpoint := "http://" + addr
 
 	// Wait up to 5s for bootnode to become available.
-	ctx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(parentCtx, 10*time.Second)
 	defer cancel()
 
 	isUp := make(chan struct{})
@@ -326,47 +339,7 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 		require.NoError(t, lock.VerifySignatures())
 		locks = append(locks, lock)
 
-		for j, val := range lock.Validators {
-			// Assert Deposit Data
-			require.Len(t, val.PartialDepositData, 1)
-			require.EqualValues(t, val.PubKey, val.PartialDepositData[0].PubKey)
-			require.EqualValues(t, 32_000_000_000, val.PartialDepositData[0].Amount)
-
-			if !cluster.SupportPregenRegistrations(lock.Version) {
-				require.Empty(t, val.BuilderRegistration.Signature)
-				continue
-			}
-
-			// Assert Builder Registration
-			require.EqualValues(t, val.PubKey, val.BuilderRegistration.Message.PubKey)
-			require.EqualValues(t, registration.DefaultGasLimit, val.BuilderRegistration.Message.GasLimit)
-			timestamp, err := eth2util.ForkVersionToGenesisTime(lock.ForkVersion)
-			require.NoError(t, err)
-			require.EqualValues(t, timestamp, val.BuilderRegistration.Message.Timestamp)
-
-			// Verify registration signatures
-			eth2Reg, err := registration.NewMessage(eth2p0.BLSPubKey(val.BuilderRegistration.Message.PubKey),
-				fmt.Sprintf("%#x", val.BuilderRegistration.Message.FeeRecipient),
-				uint64(val.BuilderRegistration.Message.GasLimit), val.BuilderRegistration.Message.Timestamp)
-			require.NoError(t, err)
-
-			sigRoot, err := registration.GetMessageSigningRoot(eth2Reg, eth2p0.Version(lock.ForkVersion))
-			require.NoError(t, err)
-
-			sig, err := tblsconv.SignatureFromBytes(val.BuilderRegistration.Signature)
-			require.NoError(t, err)
-
-			pubkey, err := tblsconv.PubkeyFromBytes(val.PubKey)
-			require.NoError(t, err)
-
-			err = tbls.Verify(pubkey, sigRoot[:], sig)
-			require.NoError(t, err)
-
-			require.EqualValues(t,
-				lock.ValidatorAddresses[j].FeeRecipientAddress,
-				fmt.Sprintf("%#x", val.BuilderRegistration.Message.FeeRecipient),
-			)
-		}
+		verifyDistValidators(t, lock, def)
 	}
 
 	// Ensure locks hashes are identical.
@@ -404,6 +377,65 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 	}
 }
 
+func verifyDistValidators(t *testing.T, lock cluster.Lock, def cluster.Definition) {
+	t.Helper()
+
+	for j, val := range lock.Validators {
+		// Assert Deposit Data
+		depositAmounts := deposit.DedupAmounts(def.DepositAmounts)
+		if len(depositAmounts) == 0 {
+			depositAmounts = []eth2p0.Gwei{deposit.MaxDepositAmount}
+		}
+		require.Len(t, val.PartialDepositData, len(depositAmounts))
+
+		// Assert Partial Deposit Data
+		uniqueSigs := make(map[string]struct{})
+		for i, amount := range depositAmounts {
+			pdd := val.PartialDepositData[i]
+			require.EqualValues(t, val.PubKey, pdd.PubKey)
+			require.EqualValues(t, amount, pdd.Amount)
+			uniqueSigs[hex.EncodeToString(pdd.Signature)] = struct{}{}
+		}
+		// Signatures must be unique for each deposit
+		require.Len(t, uniqueSigs, len(depositAmounts))
+
+		if !cluster.SupportPregenRegistrations(lock.Version) {
+			require.Empty(t, val.BuilderRegistration.Signature)
+			continue
+		}
+
+		// Assert Builder Registration
+		require.EqualValues(t, val.PubKey, val.BuilderRegistration.Message.PubKey)
+		require.EqualValues(t, registration.DefaultGasLimit, val.BuilderRegistration.Message.GasLimit)
+		timestamp, err := eth2util.ForkVersionToGenesisTime(lock.ForkVersion)
+		require.NoError(t, err)
+		require.EqualValues(t, timestamp, val.BuilderRegistration.Message.Timestamp)
+
+		// Verify registration signatures
+		eth2Reg, err := registration.NewMessage(eth2p0.BLSPubKey(val.BuilderRegistration.Message.PubKey),
+			fmt.Sprintf("%#x", val.BuilderRegistration.Message.FeeRecipient),
+			uint64(val.BuilderRegistration.Message.GasLimit), val.BuilderRegistration.Message.Timestamp)
+		require.NoError(t, err)
+
+		sigRoot, err := registration.GetMessageSigningRoot(eth2Reg, eth2p0.Version(lock.ForkVersion))
+		require.NoError(t, err)
+
+		sig, err := tblsconv.SignatureFromBytes(val.BuilderRegistration.Signature)
+		require.NoError(t, err)
+
+		pubkey, err := tblsconv.PubkeyFromBytes(val.PubKey)
+		require.NoError(t, err)
+
+		err = tbls.Verify(pubkey, sigRoot[:], sig)
+		require.NoError(t, err)
+
+		require.EqualValues(t,
+			lock.ValidatorAddresses[j].FeeRecipientAddress,
+			fmt.Sprintf("%#x", val.BuilderRegistration.Message.FeeRecipient),
+		)
+	}
+}
+
 func TestSyncFlow(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -433,15 +465,12 @@ func TestSyncFlow(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			version := cluster.WithVersion("v1.7.0") // TODO(corver): remove this once v1.7 released.
 			seed := 0
 			random := rand.New(rand.NewSource(int64(seed)))
-			lock, keys, _ := cluster.NewForT(t, test.vals, test.nodes, test.nodes, seed, random, version)
+			lock, keys, _ := cluster.NewForT(t, test.vals, test.nodes, test.nodes, seed, random)
 
 			pIDs, err := lock.PeerIDs()
 			require.NoError(t, err)
-
-			shutdownSync := newShutdownSync(test.nodes)
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -462,9 +491,6 @@ func TestSyncFlow(t *testing.T) {
 			for _, idx := range test.connect {
 				log.Info(ctx, "Starting initial peer", z.Int("peer_index", idx))
 				configs[idx].TestConfig.SyncCallback = cTracker.Set
-				if !contains(test.disconnect, idx) {
-					configs[idx].TestConfig.ShutdownCallback = shutdownSync // Only synchronise shutdown for peers that are not disconnected.
-				}
 				stopDkgs[idx] = startNewDKG(t, peerCtx(ctx, idx), configs[idx], dkgErrChan)
 			}
 
@@ -489,9 +515,12 @@ func TestSyncFlow(t *testing.T) {
 			// Wait for remaining-initial peers to update connection counts.
 			expect = len(test.connect) - len(test.disconnect) - 1
 			for _, idx := range test.connect {
-				if contains(test.disconnect, idx) {
+				if slices.Contains(test.disconnect, idx) {
 					continue
 				}
+
+				configs[idx].TestConfig.SyncCallback = cTracker.Set
+
 				log.Info(ctx, "Waiting for remaining-initial peer count",
 					z.Int("peer_index", idx), z.Int("expect", expect))
 				cTracker.AwaitN(t, dkgErrChan, expect, idx)
@@ -500,7 +529,6 @@ func TestSyncFlow(t *testing.T) {
 			// Start other peers.
 			for _, idx := range test.reconnect {
 				log.Info(ctx, "Starting remaining peer", z.Int("peer_index", idx))
-				configs[idx].TestConfig.ShutdownCallback = shutdownSync
 				stopDkgs[idx] = startNewDKG(t, peerCtx(ctx, idx), configs[idx], dkgErrChan)
 			}
 
@@ -519,16 +547,6 @@ func TestSyncFlow(t *testing.T) {
 			verifyDKGResults(t, lock.Definition, dir)
 		})
 	}
-}
-
-func contains(arr []int, val int) bool {
-	for _, v := range arr {
-		if v == val {
-			return true
-		}
-	}
-
-	return false
 }
 
 func newConnTracker(peerIDs []peer.ID) *connTracker {
@@ -567,7 +585,7 @@ func (c *connTracker) AwaitN(t *testing.T, dkgErrChan chan error, n int, peerIdx
 			require.Fail(t, "timeout", "expected %d connections for peer %d, got %d", n, peerIdx, c.count(peerIdx))
 		case err := <-dkgErrChan:
 			testutil.SkipIfBindErr(t, err)
-			require.Failf(t, "DKG exitted", "err=%v", err)
+			require.Failf(t, "DKG exited", "err=%v", err)
 		case <-ticker.C:
 			if c.count(peerIdx) == n {
 				return
@@ -641,16 +659,4 @@ func startNewDKG(t *testing.T, parentCtx context.Context, config dkg.Config, dkg
 	}()
 
 	return cancel
-}
-
-// newShutdownSync returns a function that blocks until it is called n times thereby syncing the shutdown of n DKGs.
-// TODO(corver): Remove this once shutdown races have been fixed, https://github.com/ObolNetwork/charon/issues/887.
-func newShutdownSync(n int) func() {
-	var wg sync.WaitGroup
-	wg.Add(n)
-
-	return func() {
-		wg.Done()
-		wg.Wait()
-	}
 }

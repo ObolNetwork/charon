@@ -70,6 +70,7 @@ func TestSmoke(t *testing.T) {
 			Name: "dkg",
 			ConfigFunc: func(conf *compose.Config) {
 				conf.KeyGen = compose.KeyGenDKG
+				conf.VCs = []compose.VCType{compose.VCMock}
 			},
 		},
 		{
@@ -90,7 +91,8 @@ func TestSmoke(t *testing.T) {
 			PrintYML: true,
 			ConfigFunc: func(conf *compose.Config) {
 				conf.KeyGen = compose.KeyGenDKG
-				conf.VCs = []compose.VCType{compose.VCMock} // TODO(dhruv): add external VCs when supported versions include minimal preset.
+				// NOTE: Add external VCs when supported versions include minimal preset.
+				conf.VCs = []compose.VCType{compose.VCMock}
 			},
 			DefineTmplFunc: func(data *compose.TmplData) {
 				// Use oldest supported version for cluster lock
@@ -104,7 +106,7 @@ func TestSmoke(t *testing.T) {
 			},
 		},
 		{
-			Name: "teku_versions", // TODO(corver): Do the same for lighthouse.
+			Name: "teku_versions",
 			ConfigFunc: func(conf *compose.Config) {
 				conf.VCs = []compose.VCType{compose.VCTeku}
 			},

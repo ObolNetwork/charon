@@ -460,7 +460,7 @@ func formatZapStack(zapStack string) string {
 
 	for _, line := range strings.Split(zapStack, "\n") {
 		if strings.HasPrefix(line, "\t") {
-			const sep = "charon/" // TODO(corver): This only works if source built in a folder named 'charon'.
+			const sep = "charon/" // Note that this only works if source built in a folder named 'charon'.
 			i := strings.LastIndex(line, sep)
 			if i < 0 {
 				// Skip non-charon lines

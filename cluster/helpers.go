@@ -10,6 +10,8 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -37,6 +39,11 @@ func FetchDefinition(ctx context.Context, url string) (Definition, error) {
 	if err != nil {
 		return Definition{}, errors.Wrap(err, "fetch file")
 	}
+
+	if resp.StatusCode/100 != 2 {
+		return Definition{}, errors.New("http error", z.Int("status_code", resp.StatusCode))
+	}
+
 	defer resp.Body.Close()
 
 	buf, err := io.ReadAll(resp.Body)
@@ -50,6 +57,29 @@ func FetchDefinition(ctx context.Context, url string) (Definition, error) {
 	}
 
 	return res, nil
+}
+
+// CreateValidatorKeysDir creates a new directory for validator keys.
+// If the directory "validator_keys" exists, it checks if the directory
+// is empty.
+func CreateValidatorKeysDir(parentDir string) (string, error) {
+	vkdir := path.Join(parentDir, "validator_keys")
+	err := os.Mkdir(vkdir, os.ModePerm)
+	if err == nil {
+		return vkdir, nil
+	}
+	if !os.IsExist(err) {
+		return "", errors.Wrap(err, "mkdir", z.Str("path", vkdir))
+	}
+	files, err := os.ReadDir(vkdir)
+	if err != nil {
+		return "", errors.Wrap(err, "readdir", z.Str("path", vkdir))
+	}
+	if len(files) == 0 {
+		return vkdir, nil
+	}
+
+	return "", errors.New("directory not empty", z.Str("path", vkdir))
 }
 
 // uuid returns a random uuid.

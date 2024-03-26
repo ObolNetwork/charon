@@ -5,7 +5,6 @@ package cluster
 import "testing"
 
 const (
-	// TODO: bump version to 1.8 when ready.
 	currentVersion = v1_7
 	dkgAlgo        = "default"
 
@@ -20,6 +19,8 @@ const (
 	v1_0 = "v1.0.0"
 
 	zeroNonce = 0
+
+	MinVersionForPartialDeposits = v1_8
 )
 
 var supportedVersions = map[string]bool{
