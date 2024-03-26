@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/manifest"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
@@ -27,12 +28,19 @@ const badStr = "bad"
 
 func Test_runBcastFullExitCmd(t *testing.T) {
 	t.Parallel()
-	t.Run("main flow", Test_runBcastFullExitCmdFlow)
+	t.Run("main flow from api", func(t *testing.T) {
+		t.Parallel()
+		testRunBcastFullExitCmdFlow(t, false)
+	})
+	t.Run("main flow from file", func(t *testing.T) {
+		t.Parallel()
+		testRunBcastFullExitCmdFlow(t, true)
+	})
 	t.Run("config", Test_runBcastFullExitCmd_Config)
 }
 
-func Test_runBcastFullExitCmdFlow(t *testing.T) {
-	t.Parallel()
+func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool) {
+	t.Helper()
 	ctx := context.Background()
 
 	valAmt := 100
@@ -58,6 +66,11 @@ func Test_runBcastFullExitCmdFlow(t *testing.T) {
 			operatorShares[opIdx] = append(operatorShares[opIdx], share[opIdx])
 		}
 	}
+
+	dag, err := manifest.NewDAGFromLockForT(t, lock)
+	require.NoError(t, err)
+	cl, err := manifest.Materialise(dag)
+	require.NoError(t, err)
 
 	mBytes, err := json.Marshal(lock)
 	require.NoError(t, err)
@@ -115,8 +128,22 @@ func Test_runBcastFullExitCmdFlow(t *testing.T) {
 		ValidatorPubkey:  lock.Validators[0].PublicKeyHex(),
 		PrivateKeyPath:   filepath.Join(baseDir, "charon-enr-private-key"),
 		ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
-		LockFilePath:     filepath.Join(baseDir, "cluster-lock.json"), PublishAddress: srv.URL,
-		ExitEpoch: 194048,
+		LockFilePath:     filepath.Join(baseDir, "cluster-lock.json"),
+		PublishAddress:   srv.URL,
+		ExitEpoch:        194048,
+	}
+
+	if fromFile {
+		exit, err := exitFromObolAPI(ctx, lock.Validators[0].PublicKeyHex(), srv.URL, cl, enrs[0])
+		require.NoError(t, err)
+
+		exitBytes, err := json.Marshal(exit)
+		require.NoError(t, err)
+
+		exitPath := filepath.Join(baseDir, "exit.json")
+		require.NoError(t, os.WriteFile(exitPath, exitBytes, 0o755))
+
+		config.ExitFromFilePath = exitPath
 	}
 
 	require.NoError(t, runBcastFullExit(ctx, config))
@@ -125,13 +152,14 @@ func Test_runBcastFullExitCmdFlow(t *testing.T) {
 func Test_runBcastFullExitCmd_Config(t *testing.T) {
 	t.Parallel()
 	type test struct {
-		name             string
-		noIdentity       bool
-		noLock           bool
-		badOAPIURL       bool
-		badBeaconNodeURL bool
-		badValidatorAddr bool
-		errData          string
+		name                string
+		noIdentity          bool
+		noLock              bool
+		badOAPIURL          bool
+		badBeaconNodeURL    bool
+		badValidatorAddr    bool
+		badExistingExitPath bool
+		errData             string
 	}
 
 	tests := []test{
@@ -159,6 +187,11 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 			name:             "Bad validator address",
 			badValidatorAddr: true,
 			errData:          "cannot convert validator pubkey to bytes",
+		},
+		{
+			name:                "Bad existing exit file",
+			badExistingExitPath: true,
+			errData:             "invalid signed exit message",
 		},
 	}
 
@@ -247,6 +280,12 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 				LockFilePath:     filepath.Join(baseDir, "cluster-lock.json"),
 				PublishAddress:   oapiURL,
 				ExitEpoch:        0,
+			}
+
+			if test.badExistingExitPath {
+				path := filepath.Join(baseDir, "exit.json")
+				require.NoError(t, os.WriteFile(path, []byte("bad"), 0o755))
+				config.ExitFromFilePath = path
 			}
 
 			require.ErrorContains(t, runBcastFullExit(ctx, config), test.errData)

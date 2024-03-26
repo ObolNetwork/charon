@@ -27,6 +27,7 @@ type exitConfig struct {
 	ExitEpoch        uint64
 	FetchedExitPath  string
 	PlaintextOutput  bool
+	ExitFromFilePath string
 	Log              log.Config
 }
 
@@ -52,6 +53,7 @@ const (
 	validatorKeysDir
 	validatorPubkey
 	exitEpoch
+	exitFromFile
 )
 
 func (ef exitFlag) String() string {
@@ -70,6 +72,8 @@ func (ef exitFlag) String() string {
 		return "validator-public-key"
 	case exitEpoch:
 		return "exit-epoch"
+	case exitFromFile:
+		return "exit-from-file"
 	default:
 		return "unknown"
 	}
@@ -86,19 +90,21 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 
 		switch flag {
 		case publishAddress:
-			cmd.Flags().StringVar(&config.PublishAddress, "publish-address", "https://api.obol.tech", "Endpoint of the partial exits API instance.")
+			cmd.Flags().StringVar(&config.PublishAddress, publishAddress.String(), "https://api.obol.tech", "Endpoint of the partial exits API instance.")
 		case beaconNodeURL:
-			cmd.Flags().StringVar(&config.BeaconNodeURL, "beacon-node-url", "", "Beacon node URL.")
+			cmd.Flags().StringVar(&config.BeaconNodeURL, beaconNodeURL.String(), "", "Beacon node URL.")
 		case privateKeyPath:
-			cmd.Flags().StringVar(&config.PrivateKeyPath, "private-key-file	", ".charon/charon-enr-private-key", "The path to the charon enr private key file. ")
+			cmd.Flags().StringVar(&config.PrivateKeyPath, privateKeyPath.String(), ".charon/charon-enr-private-key", "The path to the charon enr private key file. ")
 		case lockFilePath:
-			cmd.Flags().StringVar(&config.LockFilePath, "lock-file", ".charon/cluster-lock.json", "The path to the cluster lock file defining the distributed validator cluster.")
+			cmd.Flags().StringVar(&config.LockFilePath, lockFilePath.String(), ".charon/cluster-lock.json", "The path to the cluster lock file defining the distributed validator cluster.")
 		case validatorKeysDir:
-			cmd.Flags().StringVar(&config.ValidatorKeysDir, "validator-keys-dir", ".charon/validator_keys", "Path to the directory containing the validator private key share files and passwords.")
+			cmd.Flags().StringVar(&config.ValidatorKeysDir, validatorKeysDir.String(), ".charon/validator_keys", "Path to the directory containing the validator private key share files and passwords.")
 		case validatorPubkey:
-			cmd.Flags().StringVar(&config.ValidatorPubkey, "validator-public-key", "", "Public key of the validator to exit, must be present in the cluster lock manifest.")
+			cmd.Flags().StringVar(&config.ValidatorPubkey, validatorPubkey.String(), "", "Public key of the validator to exit, must be present in the cluster lock manifest.")
 		case exitEpoch:
-			cmd.Flags().Uint64Var(&config.ExitEpoch, "exit-epoch", 162304, "Exit epoch at which the validator will exit, must be the same across all the partial exits.")
+			cmd.Flags().Uint64Var(&config.ExitEpoch, exitEpoch.String(), 162304, "Exit epoch at which the validator will exit, must be the same across all the partial exits.")
+		case exitFromFile:
+			cmd.Flags().StringVar(&config.ExitFromFilePath, exitFromFile.String(), "", "Retrieves signed exit message from a pre-prepared file instead of --publish-address.")
 		}
 
 		if f.required {

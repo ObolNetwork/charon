@@ -4,7 +4,12 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
+	"os"
+	"strings"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	libp2plog "github.com/ipfs/go-log/v2"
 	"github.com/spf13/cobra"
 
@@ -13,6 +18,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
+	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
@@ -47,6 +53,7 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 		{exitEpoch, false},
 		{validatorPubkey, true},
 		{beaconNodeURL, true},
+		{exitFromFile, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
@@ -77,21 +84,19 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "cannot create eth2 client for specified beacon node")
 	}
 
-	oAPI, err := obolapi.New(config.PublishAddress)
-	if err != nil {
-		return errors.Wrap(err, "could not create obol api client")
+	var fullExit eth2p0.SignedVoluntaryExit
+	maybeExitFilePath := strings.TrimSpace(config.ExitFromFilePath)
+
+	if len(maybeExitFilePath) != 0 {
+		log.Info(ctx, "Retrieving full exit message from path", z.Str("path", maybeExitFilePath))
+		fullExit, err = exitFromPath(maybeExitFilePath)
+	} else {
+		log.Info(ctx, "Retrieving full exit message from publish address")
+		fullExit, err = exitFromObolAPI(ctx, config.ValidatorPubkey, config.PublishAddress, cl, identityKey)
 	}
 
-	log.Info(ctx, "Retrieving full exit message")
-
-	shareIdx, err := keystore.ShareIdxForCluster(cl, *identityKey.PubKey())
 	if err != nil {
-		return errors.Wrap(err, "could not load share index from cluster lock")
-	}
-
-	fullExit, err := oAPI.GetFullExit(ctx, config.ValidatorPubkey, cl.GetInitialMutationHash(), shareIdx, identityKey)
-	if err != nil {
-		return errors.Wrap(err, "could not load full exit data from Obol API")
+		return err
 	}
 
 	// parse validator public key
@@ -106,16 +111,16 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 	}
 
 	// parse signature
-	signature, err := tblsconv.SignatureFromBytes(fullExit.SignedExitMessage.Signature[:])
+	signature, err := tblsconv.SignatureFromBytes(fullExit.Signature[:])
 	if err != nil {
 		return errors.Wrap(err, "could not parse BLS signature from bytes")
 	}
 
 	exitRoot, err := sigDataForExit(
 		ctx,
-		*fullExit.SignedExitMessage.Message,
+		*fullExit.Message,
 		eth2Cl,
-		fullExit.SignedExitMessage.Message.Epoch,
+		fullExit.Message.Epoch,
 	)
 	if err != nil {
 		return errors.Wrap(err, "cannot calculate hash tree root for exit message for verification")
@@ -125,9 +130,45 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "exit message signature not verified")
 	}
 
-	if err := eth2Cl.SubmitVoluntaryExit(ctx, &fullExit.SignedExitMessage); err != nil {
+	if err := eth2Cl.SubmitVoluntaryExit(ctx, &fullExit); err != nil {
 		return errors.Wrap(err, "could submit voluntary exit")
 	}
 
 	return nil
+}
+
+// exitFromObolAPI fetches an eth2p0.SignedVoluntaryExit message from publishAddr for the given validatorPubkey.
+func exitFromObolAPI(ctx context.Context, validatorPubkey, publishAddr string, cl *manifestpb.Cluster, identityKey *k1.PrivateKey) (eth2p0.SignedVoluntaryExit, error) {
+	oAPI, err := obolapi.New(publishAddr)
+	if err != nil {
+		return eth2p0.SignedVoluntaryExit{}, errors.Wrap(err, "could not create obol api client")
+	}
+
+	shareIdx, err := keystore.ShareIdxForCluster(cl, *identityKey.PubKey())
+	if err != nil {
+		return eth2p0.SignedVoluntaryExit{}, errors.Wrap(err, "could not load share index from cluster lock")
+	}
+
+	fullExit, err := oAPI.GetFullExit(ctx, validatorPubkey, cl.GetInitialMutationHash(), shareIdx, identityKey)
+	if err != nil {
+		return eth2p0.SignedVoluntaryExit{}, errors.Wrap(err, "could not load full exit data from Obol API")
+	}
+
+	return fullExit.SignedExitMessage, nil
+}
+
+// exitFromPath loads an eth2p0.SignedVoluntaryExit from path.
+func exitFromPath(path string) (eth2p0.SignedVoluntaryExit, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return eth2p0.SignedVoluntaryExit{}, errors.Wrap(err, "can't open signed exit message from path")
+	}
+
+	var exit eth2p0.SignedVoluntaryExit
+
+	if err := json.NewDecoder(f).Decode(&exit); err != nil {
+		return eth2p0.SignedVoluntaryExit{}, errors.Wrap(err, "invalid signed exit message")
+	}
+
+	return exit, nil
 }
