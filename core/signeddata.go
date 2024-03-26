@@ -196,21 +196,21 @@ func (p VersionedSignedProposal) Signature() Signature {
 	case eth2spec.DataVersionBellatrix:
 		if p.Blinded {
 			return SigFromETH2(p.BellatrixBlinded.Signature)
-		} else {
-			return SigFromETH2(p.Bellatrix.Signature)
 		}
+
+		return SigFromETH2(p.Bellatrix.Signature)
 	case eth2spec.DataVersionCapella:
 		if p.Blinded {
 			return SigFromETH2(p.CapellaBlinded.Signature)
-		} else {
-			return SigFromETH2(p.Capella.Signature)
 		}
+
+		return SigFromETH2(p.Capella.Signature)
 	case eth2spec.DataVersionDeneb:
 		if p.Blinded {
 			return SigFromETH2(p.DenebBlinded.Signature)
-		} else {
-			return SigFromETH2(p.Deneb.SignedBlock.Signature)
 		}
+
+		return SigFromETH2(p.Deneb.SignedBlock.Signature)
 	default:
 		panic("unknown version") // Note this is avoided by using `NewVersionedSignedProposal`.
 	}
