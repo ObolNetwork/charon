@@ -181,10 +181,6 @@ func TestMarshalParSignedProto(t *testing.T) {
 			signedPtr: func() any { return new(core.VersionedSignedProposal) },
 		},
 		{
-			dutyType:  core.DutyBuilderProposer,
-			signedPtr: func() any { return new(core.VersionedSignedBlindedProposal) },
-		},
-		{
 			dutyType:  core.DutySyncContribution,
 			signedPtr: func() any { return new(core.SignedSyncContributionAndProof) },
 		},

@@ -118,7 +118,7 @@ type Duty struct {
 - `DutyAttester = 2`: Creating an attestation
 - `DutySignature = 3`: Signing duty data
 - `DutyExit = 4`: Exiting a validator
-- `DutyBuilderProposer = 5`: Proposing a blinded block received from the builder network
+- `DutyBuilderProposer = 5`: Proposing a blinded block received from the builder network (deprecated)
 - `DutyBuilderRegistration = 6`: Registering a validator to the builder network
 - `DutyRandao = 7`: Creating a randao reveal signature required as input to DutyProposer
 - `DutyPrepareAggregator = 8`: Preparing for aggregator ([beacon committee](https://eth2book.info/capella/part2/building_blocks/committees/), [sync committee](https://eth2book.info/capella/part2/building_blocks/sync_committees/)) duties

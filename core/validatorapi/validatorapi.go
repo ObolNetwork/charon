@@ -396,13 +396,13 @@ func (c Component) SubmitBlindedProposal(ctx context.Context, opts *eth2api.Subm
 		return err
 	}
 
-	pubkey, err := c.getProposerPubkey(ctx, core.NewBuilderProposerDuty(uint64(slot)))
+	pubkey, err := c.getProposerPubkey(ctx, core.NewProposerDuty(uint64(slot)))
 	if err != nil {
 		return err
 	}
 
 	// Save Partially Signed Blinded Block to ParSigDB
-	duty := core.NewBuilderProposerDuty(uint64(slot))
+	duty := core.NewProposerDuty(uint64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
 	signedData, err := core.NewPartialVersionedSignedBlindedProposal(opts.Proposal, c.shareIdx)

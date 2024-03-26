@@ -185,7 +185,7 @@ func TestParSigExVerifier(t *testing.T) {
 		data, err := core.NewPartialVersionedSignedBlindedProposal(&blindedBlock.VersionedSignedBlindedProposal, shareIdx)
 		require.NoError(t, err)
 
-		require.NoError(t, verifyFunc(ctx, core.NewBuilderProposerDuty(slot), pubkey, data))
+		require.NoError(t, verifyFunc(ctx, core.NewProposerDuty(slot), pubkey, data))
 	})
 
 	t.Run("Verify Randao", func(t *testing.T) {

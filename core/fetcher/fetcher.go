@@ -65,7 +65,7 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 			return errors.Wrap(err, "fetch attester data")
 		}
 	case core.DutyBuilderProposer:
-		return errors.New("deprecated duty: DutyBuilderProposer")
+		return core.ErrDeprecatedDutyBuilderProposer
 	case core.DutyAggregator:
 		unsignedSet, err = f.fetchAggregatorData(ctx, duty.Slot, defSet)
 		if err != nil {

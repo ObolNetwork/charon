@@ -91,7 +91,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 		return err
 
 	case core.DutyBuilderProposer:
-		return errors.New("deprecated duty: DutyBuilderProposer")
+		return core.ErrDeprecatedDutyBuilderProposer
 
 	case core.DutyBuilderRegistration:
 		slot, err := firstSlotInCurrentEpoch(ctx, b.eth2Cl)

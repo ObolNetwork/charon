@@ -89,7 +89,7 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 		}
 		db.resolveProQueriesUnsafe()
 	case core.DutyBuilderProposer:
-		return errors.New("deprecated duty: DutyBuilderProposer")
+		return core.ErrDeprecatedDutyBuilderProposer
 	case core.DutyAttester:
 		for pubkey, unsignedData := range unsignedSet {
 			err := db.storeAttestationUnsafe(pubkey, unsignedData)
@@ -539,7 +539,7 @@ func (db *MemDB) deleteDutyUnsafe(duty core.Duty) error {
 	case core.DutyProposer:
 		delete(db.proDuties, duty.Slot)
 	case core.DutyBuilderProposer:
-		return errors.New("deprecated duty: DutyBuilderProposer")
+		return core.ErrDeprecatedDutyBuilderProposer
 	case core.DutyAttester:
 		for _, key := range db.attKeysBySlot[duty.Slot] {
 			delete(db.attPubKeys, key)

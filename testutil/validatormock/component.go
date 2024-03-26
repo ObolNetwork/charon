@@ -276,7 +276,7 @@ func (m *Component) runDuty(ctx context.Context, duty core.Duty) error {
 			return err
 		}
 	case core.DutyBuilderProposer:
-		return errors.New("deprecated duty: DutyBuilderProposer")
+		return core.ErrDeprecatedDutyBuilderProposer
 	case core.DutyBuilderRegistration:
 		if !m.builderAPI {
 			return nil
