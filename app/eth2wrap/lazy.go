@@ -12,6 +12,18 @@ import (
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
+//go:generate mockery --name=Client --output=mocks --outpkg=mocks --case=underscore
+
+// NewLazyForT creates a new lazy client for testing.
+func NewLazyForT(client Client) Client {
+	return &lazy{
+		provider: func(context.Context) (Client, error) {
+			return client, nil
+		},
+		client: client,
+	}
+}
+
 // newLazy creates a new lazy client.
 func newLazy(provider func(context.Context) (Client, error)) *lazy {
 	return &lazy{

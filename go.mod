@@ -11,7 +11,7 @@ require (
 	github.com/golang/snappy v0.0.4
 	github.com/google/gofuzz v1.2.0
 	github.com/gorilla/mux v1.8.1
-	github.com/herumi/bls-eth-go-binary v1.34.1
+	github.com/herumi/bls-eth-go-binary v1.33.0
 	github.com/holiman/uint256 v1.2.4
 	github.com/ipfs/go-log/v2 v2.5.1
 	github.com/jonboulle/clockwork v0.4.0
@@ -172,6 +172,7 @@ require (
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/vbatts/tar-split v0.11.5 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.22.0 // indirect
