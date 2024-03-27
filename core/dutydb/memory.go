@@ -4,6 +4,7 @@ package dutydb
 
 import (
 	"context"
+	"math/big"
 	"sync"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -160,6 +161,9 @@ func (db *MemDB) AwaitProposal(ctx context.Context, slot uint64) (*eth2api.Versi
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case block := <-response:
+		// TODO: need to change ssz serialization to persist these
+		block.ConsensusValue = big.NewInt(1)
+		block.ExecutionValue = big.NewInt(1)
 		return block, nil
 	}
 }
