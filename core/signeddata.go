@@ -5,7 +5,6 @@ package core
 import (
 	"context"
 	"encoding/json"
-	"math/big"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -341,11 +340,9 @@ func (p VersionedSignedProposal) MarshalJSON() ([]byte, error) {
 	}
 
 	resp, err := json.Marshal(versionedRawBlockJSON{
-		Version:        version,
-		Block:          proposal,
-		Blinded:        p.Blinded,
-		ConsensusValue: p.ConsensusValue,
-		ExecutionValue: p.ExecutionValue,
+		Version: version,
+		Block:   proposal,
+		Blinded: p.Blinded,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal wrapper")
@@ -420,8 +417,6 @@ func (p *VersionedSignedProposal) UnmarshalJSON(input []byte) error {
 		return errors.New("unknown version")
 	}
 
-	resp.ConsensusValue = raw.ConsensusValue
-	resp.ExecutionValue = raw.ExecutionValue
 	resp.Blinded = raw.Blinded
 
 	p.VersionedSignedProposal = resp
@@ -610,11 +605,9 @@ func (p *VersionedSignedBlindedProposal) UnmarshalJSON(input []byte) error {
 
 // versionedRawBlockJSON is a custom VersionedSignedBeaconBlock or VersionedSignedBlindedBeaconBlock serialiser.
 type versionedRawBlockJSON struct {
-	Version        eth2util.DataVersion `json:"version"`
-	Block          json.RawMessage      `json:"block"`
-	Blinded        bool                 `json:"blinded,omitempty"`
-	ConsensusValue *big.Int             `json:"consensus_value,omitempty"`
-	ExecutionValue *big.Int             `json:"execution_value,omitempty"`
+	Version eth2util.DataVersion `json:"version"`
+	Block   json.RawMessage      `json:"block"`
+	Blinded bool                 `json:"blinded,omitempty"`
 }
 
 // NewAttestation is a convenience function that returns a new wrapped attestation.

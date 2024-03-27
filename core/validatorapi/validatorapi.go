@@ -5,6 +5,7 @@ package validatorapi
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"runtime"
 	"testing"
 	"time"
@@ -346,6 +347,12 @@ func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*e
 	if err != nil {
 		return nil, err
 	}
+
+	// We do not persist this v3-specific data in the pipeline,
+	// but to comply with the API, we need to return non-nil values,
+	// and these should be unified across all nodes.
+	proposal.ConsensusValue = big.NewInt(1)
+	proposal.ExecutionValue = big.NewInt(1)
 
 	return wrapResponse(proposal), nil
 }

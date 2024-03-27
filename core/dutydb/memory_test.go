@@ -4,7 +4,6 @@ package dutydb_test
 
 import (
 	"context"
-	"math/big"
 	"runtime"
 	"sync"
 	"testing"
@@ -150,10 +149,8 @@ func TestMemDBProposer(t *testing.T) {
 	pubkeysByIdx := make(map[eth2p0.ValidatorIndex]core.PubKey)
 	for i := 0; i < queries; i++ {
 		proposals[i] = &eth2api.VersionedProposal{
-			Version:        eth2spec.DataVersionBellatrix,
-			Bellatrix:      testutil.RandomBellatrixBeaconBlock(),
-			ConsensusValue: big.NewInt(1),
-			ExecutionValue: big.NewInt(1),
+			Version:   eth2spec.DataVersionBellatrix,
+			Bellatrix: testutil.RandomBellatrixBeaconBlock(),
 		}
 		proposals[i].Bellatrix.Slot = eth2p0.Slot(slots[i])
 		proposals[i].Bellatrix.ProposerIndex = eth2p0.ValidatorIndex(i)

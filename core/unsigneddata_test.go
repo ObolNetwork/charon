@@ -3,7 +3,6 @@
 package core_test
 
 import (
-	"math/big"
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -150,9 +149,8 @@ func TestVersionedProposal(t *testing.T) {
 		{
 			name: "bellatrix",
 			proposal: eth2api.VersionedProposal{
-				Version:        eth2spec.DataVersionBellatrix,
-				Bellatrix:      testutil.RandomBellatrixBeaconBlock(),
-				ConsensusValue: big.NewInt(1),
+				Version:   eth2spec.DataVersionBellatrix,
+				Bellatrix: testutil.RandomBellatrixBeaconBlock(),
 			},
 		},
 		{
@@ -161,7 +159,6 @@ func TestVersionedProposal(t *testing.T) {
 				Version:          eth2spec.DataVersionBellatrix,
 				BellatrixBlinded: testutil.RandomBellatrixBlindedBeaconBlock(),
 				Blinded:          true,
-				ExecutionValue:   big.NewInt(1),
 			},
 		},
 		{
@@ -189,11 +186,9 @@ func TestVersionedProposal(t *testing.T) {
 		{
 			name: "deneb blinded",
 			proposal: eth2api.VersionedProposal{
-				Version:        eth2spec.DataVersionDeneb,
-				DenebBlinded:   testutil.RandomDenebBlindedBeaconBlock(),
-				Blinded:        true,
-				ConsensusValue: big.NewInt(4),
-				ExecutionValue: big.NewInt(5),
+				Version:      eth2spec.DataVersionDeneb,
+				DenebBlinded: testutil.RandomDenebBlindedBeaconBlock(),
+				Blinded:      true,
 			},
 		},
 	}

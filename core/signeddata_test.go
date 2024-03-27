@@ -4,7 +4,6 @@ package core_test
 
 import (
 	"encoding/json"
-	"math/big"
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -290,7 +289,6 @@ func TestVersionedSignedProposal(t *testing.T) {
 					Message:   testutil.RandomBellatrixBeaconBlock(),
 					Signature: testutil.RandomEth2Signature(),
 				},
-				ConsensusValue: big.NewInt(1),
 			},
 		},
 		{
@@ -301,8 +299,7 @@ func TestVersionedSignedProposal(t *testing.T) {
 					Message:   testutil.RandomBellatrixBlindedBeaconBlock(),
 					Signature: testutil.RandomEth2Signature(),
 				},
-				Blinded:        true,
-				ExecutionValue: big.NewInt(1),
+				Blinded: true,
 			},
 		},
 		{
@@ -341,9 +338,7 @@ func TestVersionedSignedProposal(t *testing.T) {
 					Message:   testutil.RandomDenebBlindedBeaconBlock(),
 					Signature: testutil.RandomEth2Signature(),
 				},
-				Blinded:        true,
-				ConsensusValue: big.NewInt(4),
-				ExecutionValue: big.NewInt(5),
+				Blinded: true,
 			},
 		},
 	}
