@@ -164,6 +164,7 @@ func (db *MemDB) AwaitProposal(ctx context.Context, slot uint64) (*eth2api.Versi
 		// TODO: need to change ssz serialization to persist these
 		block.ConsensusValue = big.NewInt(1)
 		block.ExecutionValue = big.NewInt(1)
+
 		return block, nil
 	}
 }
