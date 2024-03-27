@@ -249,7 +249,7 @@ func TestMarshalParSignedProto(t *testing.T) {
 	}
 }
 
-func TestV3ProposalSSZSerialisation(t *testing.T) {
+func TestV3SignedProposalSSZSerialisation(t *testing.T) {
 	type testCase struct {
 		name     string
 		proposal eth2api.VersionedSignedProposal
@@ -347,6 +347,91 @@ func TestV3ProposalSSZSerialisation(t *testing.T) {
 			require.NoError(t, err)
 
 			p2 := new(core.VersionedSignedProposal)
+			p2.Blinded = p.Blinded
+			err = p2.UnmarshalSSZ(b)
+			require.NoError(t, err)
+			require.Equal(t, p, *p2)
+		})
+	}
+}
+
+func TestV3ProposalSSZSerialisation(t *testing.T) {
+	type testCase struct {
+		name     string
+		proposal eth2api.VersionedProposal
+	}
+
+	tests := []testCase{
+		{
+			name: "phase0",
+			proposal: eth2api.VersionedProposal{
+				Version: eth2spec.DataVersionPhase0,
+				Phase0:  testutil.RandomPhase0BeaconBlock(),
+			},
+		},
+		{
+			name: "altair",
+			proposal: eth2api.VersionedProposal{
+				Version: eth2spec.DataVersionAltair,
+				Altair:  testutil.RandomAltairBeaconBlock(),
+			},
+		},
+		{
+			name: "bellatrix",
+			proposal: eth2api.VersionedProposal{
+				Version:   eth2spec.DataVersionBellatrix,
+				Bellatrix: testutil.RandomBellatrixBeaconBlock(),
+			},
+		},
+		{
+			name: "bellatrix blinded",
+			proposal: eth2api.VersionedProposal{
+				Version:          eth2spec.DataVersionBellatrix,
+				BellatrixBlinded: testutil.RandomBellatrixBlindedBeaconBlock(),
+				Blinded:          true,
+			},
+		},
+		{
+			name: "capella",
+			proposal: eth2api.VersionedProposal{
+				Version: eth2spec.DataVersionCapella,
+				Capella: testutil.RandomCapellaBeaconBlock(),
+			},
+		},
+		{
+			name: "capella blinded",
+			proposal: eth2api.VersionedProposal{
+				Version:        eth2spec.DataVersionCapella,
+				CapellaBlinded: testutil.RandomCapellaBlindedBeaconBlock(),
+				Blinded:        true,
+			},
+		},
+		{
+			name: "deneb",
+			proposal: eth2api.VersionedProposal{
+				Version: eth2spec.DataVersionDeneb,
+				Deneb:   testutil.RandomDenebVersionedProposal().Deneb,
+			},
+		},
+		{
+			name: "deneb blinded",
+			proposal: eth2api.VersionedProposal{
+				Version:      eth2spec.DataVersionDeneb,
+				DenebBlinded: testutil.RandomDenebBlindedBeaconBlock(),
+				Blinded:      true,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p, err := core.NewVersionedProposal(&test.proposal)
+			require.NoError(t, err)
+
+			b, err := ssz.MarshalSSZ(p)
+			require.NoError(t, err)
+
+			p2 := new(core.VersionedProposal)
 			p2.Blinded = p.Blinded
 			err = p2.UnmarshalSSZ(b)
 			require.NoError(t, err)
