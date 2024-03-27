@@ -4,6 +4,7 @@ package core_test
 
 import (
 	"encoding/json"
+	"math/big"
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -13,6 +14,7 @@ import (
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	"github.com/attestantio/go-eth2-client/spec/capella"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -162,6 +164,10 @@ func TestSignature(t *testing.T) {
 	blssig2 := sig2.Signature().ToETH2()
 	require.Equal(t, blssig1, blssig2)
 
+	ss, err := sig1.SetSignature(sig2.Signature())
+	require.NoError(t, err)
+	require.Equal(t, sig2, ss)
+
 	js, err := sig1.MarshalJSON()
 	require.NoError(t, err)
 
@@ -169,4 +175,309 @@ func TestSignature(t *testing.T) {
 	err = sig3.UnmarshalJSON(js)
 	require.NoError(t, err)
 	require.Equal(t, sig1, *sig3)
+}
+
+func TestNewVersionedSignedProposal(t *testing.T) {
+	type testCase struct {
+		error   string
+		version eth2spec.DataVersion
+		blinded bool
+	}
+
+	tests := []testCase{
+		{
+			error:   "unknown version",
+			version: eth2spec.DataVersion(999),
+		},
+		{
+			error:   "no phase0 proposal",
+			version: eth2spec.DataVersionPhase0,
+		},
+		{
+			error:   "no altair proposal",
+			version: eth2spec.DataVersionAltair,
+		},
+		{
+			error:   "no bellatrix proposal",
+			version: eth2spec.DataVersionBellatrix,
+		},
+		{
+			error:   "no capella proposal",
+			version: eth2spec.DataVersionCapella,
+		},
+		{
+			error:   "no deneb proposal",
+			version: eth2spec.DataVersionDeneb,
+		},
+		{
+			error:   "no bellatrix blinded proposal",
+			version: eth2spec.DataVersionBellatrix,
+			blinded: true,
+		},
+		{
+			error:   "no capella blinded proposal",
+			version: eth2spec.DataVersionCapella,
+			blinded: true,
+		},
+		{
+			error:   "no deneb blinded proposal",
+			version: eth2spec.DataVersionDeneb,
+			blinded: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.error, func(t *testing.T) {
+			_, err := core.NewVersionedSignedProposal(&eth2api.VersionedSignedProposal{
+				Version: test.version,
+				Blinded: test.blinded,
+			})
+			require.ErrorContains(t, err, test.error)
+		})
+	}
+
+	t.Run("happy path", func(t *testing.T) {
+		proposal := testutil.RandomBellatrixCoreVersionedSignedProposal()
+
+		p, err := core.NewVersionedSignedProposal(&proposal.VersionedSignedProposal)
+		require.NoError(t, err)
+		require.Equal(t, proposal, p)
+	})
+}
+
+func TestNewPartialVersionedSignedProposal(t *testing.T) {
+	proposal := testutil.RandomBellatrixCoreVersionedSignedProposal()
+
+	psd, err := core.NewPartialVersionedSignedProposal(&proposal.VersionedSignedProposal, 3)
+
+	require.NoError(t, err)
+	require.NotNil(t, psd.SignedData)
+	require.Equal(t, 3, psd.ShareIdx)
+}
+
+func TestVersionedSignedProposal(t *testing.T) {
+	type testCase struct {
+		name     string
+		proposal eth2api.VersionedSignedProposal
+	}
+
+	tests := []testCase{
+		{
+			name: "phase0",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionPhase0,
+				Phase0: &eth2p0.SignedBeaconBlock{
+					Message:   testutil.RandomPhase0BeaconBlock(),
+					Signature: testutil.RandomEth2Signature(),
+				},
+			},
+		},
+		{
+			name: "altair",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionAltair,
+				Altair: &altair.SignedBeaconBlock{
+					Message:   testutil.RandomAltairBeaconBlock(),
+					Signature: testutil.RandomEth2Signature(),
+				},
+			},
+		},
+		{
+			name: "bellatrix",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionBellatrix,
+				Bellatrix: &bellatrix.SignedBeaconBlock{
+					Message:   testutil.RandomBellatrixBeaconBlock(),
+					Signature: testutil.RandomEth2Signature(),
+				},
+				ConsensusValue: big.NewInt(1),
+			},
+		},
+		{
+			name: "bellatrix blinded",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionBellatrix,
+				BellatrixBlinded: &eth2bellatrix.SignedBlindedBeaconBlock{
+					Message:   testutil.RandomBellatrixBlindedBeaconBlock(),
+					Signature: testutil.RandomEth2Signature(),
+				},
+				Blinded:        true,
+				ExecutionValue: big.NewInt(1),
+			},
+		},
+		{
+			name: "capella",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionCapella,
+				Capella: &capella.SignedBeaconBlock{
+					Message:   testutil.RandomCapellaBeaconBlock(),
+					Signature: testutil.RandomEth2Signature(),
+				},
+			},
+		},
+		{
+			name: "capella blinded",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionCapella,
+				CapellaBlinded: &eth2capella.SignedBlindedBeaconBlock{
+					Message:   testutil.RandomCapellaBlindedBeaconBlock(),
+					Signature: testutil.RandomEth2Signature(),
+				},
+				Blinded: true,
+			},
+		},
+		{
+			name: "deneb",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionDeneb,
+				Deneb:   testutil.RandomDenebVersionedSignedProposal().Deneb,
+			},
+		},
+		{
+			name: "deneb blinded",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionDeneb,
+				DenebBlinded: &eth2deneb.SignedBlindedBeaconBlock{
+					Message:   testutil.RandomDenebBlindedBeaconBlock(),
+					Signature: testutil.RandomEth2Signature(),
+				},
+				Blinded:        true,
+				ConsensusValue: big.NewInt(4),
+				ExecutionValue: big.NewInt(5),
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p, err := core.NewVersionedSignedProposal(&test.proposal)
+			require.NoError(t, err)
+
+			msgRoot, err := p.MessageRoot()
+			require.NoError(t, err)
+			require.NotEmpty(t, msgRoot)
+
+			_, err = p.SetSignature(testutil.RandomCoreSignature())
+			require.NoError(t, err)
+
+			clone, err := p.Clone()
+			require.NoError(t, err)
+			require.Equal(t, p, clone)
+
+			js, err := p.MarshalJSON()
+			require.NoError(t, err)
+
+			p2 := &core.VersionedSignedProposal{}
+			err = p2.UnmarshalJSON(js)
+			require.NoError(t, err)
+			require.Equal(t, p, *p2)
+		})
+	}
+}
+
+func TestNewVersionedSignedBlindedProposal(t *testing.T) {
+	type testCase struct {
+		error    string
+		proposal *eth2api.VersionedSignedBlindedProposal
+	}
+
+	tests := []testCase{
+		{
+			error: "unknown version",
+			proposal: &eth2api.VersionedSignedBlindedProposal{
+				Version: eth2spec.DataVersion(999),
+			},
+		},
+		{
+			error: "no bellatrix block",
+			proposal: &eth2api.VersionedSignedBlindedProposal{
+				Version: eth2spec.DataVersionBellatrix,
+			},
+		},
+		{
+			error: "no capella block",
+			proposal: &eth2api.VersionedSignedBlindedProposal{
+				Version: eth2spec.DataVersionCapella,
+			},
+		},
+		{
+			error: "no deneb block",
+			proposal: &eth2api.VersionedSignedBlindedProposal{
+				Version: eth2spec.DataVersionDeneb,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.error, func(t *testing.T) {
+			_, err := core.NewVersionedSignedBlindedProposal(test.proposal)
+			require.ErrorContains(t, err, test.error)
+		})
+	}
+
+	t.Run("happy path", func(t *testing.T) {
+		proposal := testutil.RandomBellatrixVersionedSignedBlindedProposal()
+
+		p, err := core.NewVersionedSignedBlindedProposal(&proposal.VersionedSignedBlindedProposal)
+		require.NoError(t, err)
+		require.Equal(t, proposal, p)
+	})
+}
+
+func TestNewPartialVersionedSignedBlindedProposal(t *testing.T) {
+	proposal := testutil.RandomBellatrixVersionedSignedBlindedProposal()
+
+	psd, err := core.NewPartialVersionedSignedBlindedProposal(&proposal.VersionedSignedBlindedProposal, 3)
+
+	require.NoError(t, err)
+	require.NotNil(t, psd.SignedData)
+	require.Equal(t, 3, psd.ShareIdx)
+}
+
+func TestVersionedSignedBlindedProposal(t *testing.T) {
+	type testCase struct {
+		name     string
+		proposal eth2api.VersionedSignedBlindedProposal
+	}
+
+	tests := []testCase{
+		{
+			name:     "bellatrix",
+			proposal: testutil.RandomBellatrixVersionedSignedBlindedProposal().VersionedSignedBlindedProposal,
+		},
+		{
+			name:     "capella",
+			proposal: testutil.RandomCapellaVersionedSignedBlindedProposal().VersionedSignedBlindedProposal,
+		},
+		{
+			name:     "deneb",
+			proposal: testutil.RandomDenebVersionedSignedBlindedProposal().VersionedSignedBlindedProposal,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p, err := core.NewVersionedSignedBlindedProposal(&test.proposal)
+			require.NoError(t, err)
+
+			msgRoot, err := p.MessageRoot()
+			require.NoError(t, err)
+			require.NotEmpty(t, msgRoot)
+
+			_, err = p.SetSignature(testutil.RandomCoreSignature())
+			require.NoError(t, err)
+
+			clone, err := p.Clone()
+			require.NoError(t, err)
+			require.Equal(t, p, clone)
+
+			js, err := p.MarshalJSON()
+			require.NoError(t, err)
+
+			p2 := &core.VersionedSignedBlindedProposal{}
+			err = p2.UnmarshalJSON(js)
+			require.NoError(t, err)
+			require.Equal(t, p, *p2)
+		})
+	}
 }

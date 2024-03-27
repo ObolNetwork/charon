@@ -231,9 +231,11 @@ func (p VersionedProposal) MarshalJSON() ([]byte, error) {
 	}
 
 	resp, err := json.Marshal(versionedRawBlockJSON{
-		Version: version,
-		Block:   block,
-		Blinded: p.Blinded,
+		Version:        version,
+		Block:          block,
+		Blinded:        p.Blinded,
+		ConsensusValue: p.ConsensusValue,
+		ExecutionValue: p.ExecutionValue,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal wrapper")
@@ -249,9 +251,12 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 	}
 
 	resp := eth2api.VersionedProposal{
-		Version: raw.Version.ToETH2(),
-		Blinded: raw.Blinded,
+		Version:        raw.Version.ToETH2(),
+		Blinded:        raw.Blinded,
+		ConsensusValue: raw.ConsensusValue,
+		ExecutionValue: raw.ExecutionValue,
 	}
+
 	switch resp.Version {
 	case eth2spec.DataVersionPhase0:
 		if raw.Blinded {
