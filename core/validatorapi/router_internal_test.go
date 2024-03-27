@@ -1522,6 +1522,75 @@ func TestCreateProposeBlindedBlockResponse(t *testing.T) {
 	})
 }
 
+func TestCreateProposeBlockResponse(t *testing.T) {
+	p := &eth2api.VersionedProposal{
+		Version: eth2spec.DataVersionUnknown,
+	}
+
+	_, err := createProposeBlockResponse(p)
+	require.ErrorContains(t, err, "invalid block")
+
+	t.Run("phase0", func(t *testing.T) {
+		p = &eth2api.VersionedProposal{
+			Version: eth2spec.DataVersionPhase0,
+			Phase0:  testutil.RandomPhase0BeaconBlock(),
+		}
+
+		pp, err := createProposeBlockResponse(p)
+		require.NoError(t, err)
+		require.Equal(t, p.Version.String(), pp.(proposeBlockResponsePhase0).Version)
+		require.Equal(t, p.Phase0, pp.(proposeBlockResponsePhase0).Data)
+	})
+
+	t.Run("altair", func(t *testing.T) {
+		p = &eth2api.VersionedProposal{
+			Version: eth2spec.DataVersionAltair,
+			Altair:  testutil.RandomAltairBeaconBlock(),
+		}
+
+		pp, err := createProposeBlockResponse(p)
+		require.NoError(t, err)
+		require.Equal(t, p.Version.String(), pp.(proposeBlockResponseAltair).Version)
+		require.Equal(t, p.Altair, pp.(proposeBlockResponseAltair).Data)
+	})
+
+	t.Run("bellatrix", func(t *testing.T) {
+		p = &eth2api.VersionedProposal{
+			Version:   eth2spec.DataVersionBellatrix,
+			Bellatrix: testutil.RandomBellatrixBeaconBlock(),
+		}
+
+		pp, err := createProposeBlockResponse(p)
+		require.NoError(t, err)
+		require.Equal(t, p.Version.String(), pp.(proposeBlockResponseBellatrix).Version)
+		require.Equal(t, p.Bellatrix, pp.(proposeBlockResponseBellatrix).Data)
+	})
+
+	t.Run("capella", func(t *testing.T) {
+		p := &eth2api.VersionedProposal{
+			Version: eth2spec.DataVersionCapella,
+			Capella: testutil.RandomCapellaBeaconBlock(),
+		}
+
+		pp, err := createProposeBlockResponse(p)
+		require.NoError(t, err)
+		require.Equal(t, p.Version.String(), pp.(proposeBlockResponseCapella).Version)
+		require.Equal(t, p.Capella, pp.(proposeBlockResponseCapella).Data)
+	})
+
+	t.Run("deneb", func(t *testing.T) {
+		p := &eth2api.VersionedProposal{
+			Version: eth2spec.DataVersionDeneb,
+			Deneb:   testutil.RandomDenebVersionedProposal().Deneb,
+		}
+
+		pp, err := createProposeBlockResponse(p)
+		require.NoError(t, err)
+		require.Equal(t, p.Version.String(), pp.(proposeBlockResponseDeneb).Version)
+		require.Equal(t, p.Deneb, pp.(proposeBlockResponseDeneb).Data)
+	})
+}
+
 // testRouter is a helper function to test router endpoints with an eth2http client. The outer test
 // provides the mocked test handler and a callback that does the client side test.
 func testRouter(t *testing.T, handler testHandler, callback func(context.Context, *eth2http.Service)) {
