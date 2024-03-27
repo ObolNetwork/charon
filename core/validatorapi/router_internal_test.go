@@ -1476,6 +1476,52 @@ func TestGetDependentRootFromMetadata(t *testing.T) {
 	})
 }
 
+func TestCreateProposeBlindedBlockResponse(t *testing.T) {
+	p := &eth2api.VersionedProposal{
+		Version: eth2spec.DataVersionPhase0,
+		Phase0:  testutil.RandomPhase0BeaconBlock(),
+	}
+
+	_, err := createProposeBlindedBlockResponse(p)
+	require.ErrorContains(t, err, "invalid blinded block")
+
+	t.Run("bellatrix", func(t *testing.T) {
+		p = &eth2api.VersionedProposal{
+			Version:          eth2spec.DataVersionBellatrix,
+			BellatrixBlinded: testutil.RandomBellatrixBlindedBeaconBlock(),
+		}
+
+		pp, err := createProposeBlindedBlockResponse(p)
+		require.NoError(t, err)
+		require.Equal(t, p.Version.String(), pp.(proposeBlindedBlockResponseBellatrix).Version)
+		require.Equal(t, p.BellatrixBlinded, pp.(proposeBlindedBlockResponseBellatrix).Data)
+	})
+
+	t.Run("capella", func(t *testing.T) {
+		p := &eth2api.VersionedProposal{
+			Version:        eth2spec.DataVersionCapella,
+			CapellaBlinded: testutil.RandomCapellaBlindedBeaconBlock(),
+		}
+
+		pp, err := createProposeBlindedBlockResponse(p)
+		require.NoError(t, err)
+		require.Equal(t, p.Version.String(), pp.(proposeBlindedBlockResponseCapella).Version)
+		require.Equal(t, p.CapellaBlinded, pp.(proposeBlindedBlockResponseCapella).Data)
+	})
+
+	t.Run("deneb", func(t *testing.T) {
+		p := &eth2api.VersionedProposal{
+			Version:      eth2spec.DataVersionDeneb,
+			DenebBlinded: testutil.RandomDenebBlindedBeaconBlock(),
+		}
+
+		pp, err := createProposeBlindedBlockResponse(p)
+		require.NoError(t, err)
+		require.Equal(t, p.Version.String(), pp.(proposeBlindedBlockResponseDeneb).Version)
+		require.Equal(t, p.DenebBlinded, pp.(proposeBlindedBlockResponseDeneb).Data)
+	})
+}
+
 // testRouter is a helper function to test router endpoints with an eth2http client. The outer test
 // provides the mocked test handler and a callback that does the client side test.
 func testRouter(t *testing.T, handler testHandler, callback func(context.Context, *eth2http.Service)) {

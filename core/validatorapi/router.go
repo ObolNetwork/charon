@@ -739,8 +739,8 @@ func createProposeBlockResponse(block *eth2api.VersionedProposal) (any, error) {
 func createProposeBlindedBlockResponse(block *eth2api.VersionedProposal) (any, error) {
 	switch block.Version {
 	case eth2spec.DataVersionBellatrix:
-		if block.Bellatrix == nil {
-			return nil, errors.New("no bellatrix block")
+		if block.BellatrixBlinded == nil {
+			return nil, errors.New("no bellatrix blinded block")
 		}
 
 		return proposeBlindedBlockResponseBellatrix{
@@ -748,8 +748,8 @@ func createProposeBlindedBlockResponse(block *eth2api.VersionedProposal) (any, e
 			Data:    block.BellatrixBlinded,
 		}, nil
 	case eth2spec.DataVersionCapella:
-		if block.Capella == nil {
-			return nil, errors.New("no capella block")
+		if block.CapellaBlinded == nil {
+			return nil, errors.New("no capella blinded block")
 		}
 
 		return proposeBlindedBlockResponseCapella{
@@ -757,8 +757,8 @@ func createProposeBlindedBlockResponse(block *eth2api.VersionedProposal) (any, e
 			Data:    block.CapellaBlinded,
 		}, nil
 	case eth2spec.DataVersionDeneb:
-		if block.Deneb == nil {
-			return nil, errors.New("no deneb block")
+		if block.DenebBlinded == nil {
+			return nil, errors.New("no deneb blinded block")
 		}
 
 		return proposeBlindedBlockResponseDeneb{
