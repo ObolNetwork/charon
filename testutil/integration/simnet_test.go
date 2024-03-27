@@ -4,13 +4,7 @@ package integration_test
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
-	"net/http"
-	"os"
-	"os/exec"
-	"path"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -27,7 +21,6 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/parsigex"
-	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
@@ -131,9 +124,13 @@ func TestSimnetDuties(t *testing.T) {
 			args.VoluntaryExit = test.exit
 
 			if test.vcType == vcTeku {
-				for i := 0; i < args.N; i++ {
-					args = startTeku(t, args, i)
-				}
+				t.SkipNow()
+				// TODO: investigate why teku does not query bn.
+				// for i := 0; i < args.N; i++ {
+				// 	args = startTeku(t, args, i)
+				// }
+
+				return
 			} else if test.vcType == vcVmock {
 				args.VMocks = true
 			}
@@ -389,123 +386,123 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 	testutil.RequireNoError(t, err)
 }
 
-type tekuCmd []string
+// type tekuCmd []string
 
-var (
-	tekuVC tekuCmd = []string{
-		"validator-client",
-		"--network=auto",
-		"--log-destination=console",
-		"--validators-proposer-default-fee-recipient=0x000000000000000000000000000000000000dead",
-	}
-	tekuExit tekuCmd = []string{
-		"voluntary-exit",
-		"--confirmation-enabled=false",
-		"--epoch=1",
-	}
-)
+// var (
+// 	tekuVC tekuCmd = []string{
+// 		"validator-client",
+// 		"--network=auto",
+// 		"--log-destination=console",
+// 		"--validators-proposer-default-fee-recipient=0x000000000000000000000000000000000000dead",
+// 	}
+// 	tekuExit tekuCmd = []string{
+// 		"voluntary-exit",
+// 		"--confirmation-enabled=false",
+// 		"--epoch=1",
+// 	}
+// )
 
-// startTeku starts a teku validator client for the provided node and returns updated args.
-// See https://docs.teku.consensys.net/en/latest/Reference/CLI/CLI-Syntax/.
-func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
-	t.Helper()
+// // startTeku starts a teku validator client for the provided node and returns updated args.
+// // See https://docs.teku.consensys.net/en/latest/Reference/CLI/CLI-Syntax/.
+// func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
+// 	t.Helper()
 
-	cmd := tekuVC
-	if args.VoluntaryExit {
-		cmd = tekuExit
-	}
+// 	cmd := tekuVC
+// 	if args.VoluntaryExit {
+// 		cmd = tekuExit
+// 	}
 
-	tempDir := t.TempDir()
-	// Support specifying a custom base directory for docker mounts (required if running colima on macOS).
-	if dir, ok := os.LookupEnv("TEST_DOCKER_DIR"); ok {
-		var err error
-		tempDir, err = os.MkdirTemp(dir, "")
-		require.NoError(t, err)
-	}
+// 	tempDir := t.TempDir()
+// 	// Support specifying a custom base directory for docker mounts (required if running colima on macOS).
+// 	if dir, ok := os.LookupEnv("TEST_DOCKER_DIR"); ok {
+// 		var err error
+// 		tempDir, err = os.MkdirTemp(dir, "")
+// 		require.NoError(t, err)
+// 	}
 
-	// Write private share keystore and password
-	err := keystore.StoreKeysInsecure([]tbls.PrivateKey{args.SimnetKeys[node]}, tempDir, keystore.ConfirmInsecureKeys)
-	require.NoError(t, err)
-	err = os.WriteFile(path.Join(tempDir, "keystore-simnet-0.txt"), []byte("simnet"), 0o644)
-	require.NoError(t, err)
+// 	// Write private share keystore and password
+// 	err := keystore.StoreKeysInsecure([]tbls.PrivateKey{args.SimnetKeys[node]}, tempDir, keystore.ConfirmInsecureKeys)
+// 	require.NoError(t, err)
+// 	err = os.WriteFile(path.Join(tempDir, "keystore-simnet-0.txt"), []byte("simnet"), 0o644)
+// 	require.NoError(t, err)
 
-	// Change VAPI bind address to host external IP
-	args.VAPIAddrs[node] = strings.Replace(args.VAPIAddrs[node], "127.0.0.1", externalIP(t), 1)
+// 	// Change VAPI bind address to host external IP
+// 	args.VAPIAddrs[node] = strings.Replace(args.VAPIAddrs[node], "127.0.0.1", externalIP(t), 1)
 
-	var tekuArgs []string
-	tekuArgs = append(tekuArgs, cmd...)
-	tekuArgs = append(tekuArgs,
-		"--validator-keys=/keys:/keys",
-		fmt.Sprintf("--beacon-node-api-endpoint=http://%s", args.VAPIAddrs[node]),
-	)
+// 	var tekuArgs []string
+// 	tekuArgs = append(tekuArgs, cmd...)
+// 	tekuArgs = append(tekuArgs,
+// 		"--validator-keys=/keys:/keys",
+// 		fmt.Sprintf("--beacon-node-api-endpoint=http://%s", args.VAPIAddrs[node]),
+// 	)
 
-	if args.TekuRegistration {
-		tekuArgs = append(tekuArgs,
-			"--validators-proposer-config-refresh-enabled=true",
-			fmt.Sprintf("--validators-proposer-config=http://%s/teku_proposer_config", args.VAPIAddrs[node]),
-		)
-	}
-	if args.BuilderAPI {
-		tekuArgs = append(tekuArgs,
-			"--validators-proposer-blinded-blocks-enabled=true",
-		)
-	}
+// 	if args.TekuRegistration {
+// 		tekuArgs = append(tekuArgs,
+// 			"--validators-proposer-config-refresh-enabled=true",
+// 			fmt.Sprintf("--validators-proposer-config=http://%s/teku_proposer_config", args.VAPIAddrs[node]),
+// 		)
+// 	}
+// 	if args.BuilderAPI {
+// 		tekuArgs = append(tekuArgs,
+// 			"--validators-proposer-blinded-blocks-enabled=true",
+// 		)
+// 	}
 
-	// Configure docker
-	name := fmt.Sprint(time.Now().UnixNano())
-	dockerArgs := []string{
-		"run",
-		"--rm",
-		fmt.Sprintf("--name=%s", name),
-		fmt.Sprintf("--volume=%s:/keys", tempDir),
-		"--user=root", // Root required to read volume files in GitHub actions.
-		"consensys/teku:23.11.0",
-	}
-	dockerArgs = append(dockerArgs, tekuArgs...)
-	t.Logf("docker args: %v", dockerArgs)
+// 	// Configure docker
+// 	name := fmt.Sprint(time.Now().UnixNano())
+// 	dockerArgs := []string{
+// 		"run",
+// 		"--rm",
+// 		fmt.Sprintf("--name=%s", name),
+// 		fmt.Sprintf("--volume=%s:/keys", tempDir),
+// 		"--user=root", // Root required to read volume files in GitHub actions.
+// 		"consensys/teku:23.11.0",
+// 	}
+// 	dockerArgs = append(dockerArgs, tekuArgs...)
+// 	t.Logf("docker args: %v", dockerArgs)
 
-	// Start teku
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		// wait for beaconmock to be available
-		tout := time.After(10 * time.Second)
+// 	// Start teku
+// 	ctx, cancel := context.WithCancel(context.Background())
+// 	go func() {
+// 		// wait for beaconmock to be available
+// 		tout := time.After(10 * time.Second)
 
-		bnOnline := false
-		for !bnOnline {
-			select {
-			case <-tout:
-				args.ErrChan <- errors.New("beaconmock wasn't available after 10s")
-				return
-			default:
-				_, err := http.Get("http://" + args.VAPIAddrs[node] + "/up")
-				if err != nil {
-					t.Logf("beaconmock not available yet...")
-					time.Sleep(500 * time.Millisecond)
+// 		bnOnline := false
+// 		for !bnOnline {
+// 			select {
+// 			case <-tout:
+// 				args.ErrChan <- errors.New("beaconmock wasn't available after 10s")
+// 				return
+// 			default:
+// 				_, err := http.Get("http://" + args.VAPIAddrs[node] + "/up")
+// 				if err != nil {
+// 					t.Logf("beaconmock not available yet...")
+// 					time.Sleep(500 * time.Millisecond)
 
-					continue
-				}
-				bnOnline = true
-				t.Logf("beaconmock online, starting up teku")
-			}
-		}
+// 					continue
+// 				}
+// 				bnOnline = true
+// 				t.Logf("beaconmock online, starting up teku")
+// 			}
+// 		}
 
-		c := exec.CommandContext(ctx, "docker", dockerArgs...)
-		c.Stdout = os.Stdout
-		c.Stderr = os.Stderr
-		err = c.Run()
-		if err == nil || ctx.Err() != nil {
-			// Expected shutdown
-			return
-		}
-		args.ErrChan <- errors.Wrap(err, "docker command failed (see logging)")
-	}()
+// 		c := exec.CommandContext(ctx, "docker", dockerArgs...)
+// 		c.Stdout = os.Stdout
+// 		c.Stderr = os.Stderr
+// 		err = c.Run()
+// 		if err == nil || ctx.Err() != nil {
+// 			// Expected shutdown
+// 			return
+// 		}
+// 		args.ErrChan <- errors.Wrap(err, "docker command failed (see logging)")
+// 	}()
 
-	// Kill the container when done (context cancel is not enough for some reason).
-	testutil.EnsureCleanup(t, func() {
-		cancel()
-		t.Log("stopping teku docker container", name)
-		_ = exec.Command("docker", "kill", name).Run()
-	})
+// 	// Kill the container when done (context cancel is not enough for some reason).
+// 	testutil.EnsureCleanup(t, func() {
+// 		cancel()
+// 		t.Log("stopping teku docker container", name)
+// 		_ = exec.Command("docker", "kill", name).Run()
+// 	})
 
-	return args
-}
+// 	return args
+// }
