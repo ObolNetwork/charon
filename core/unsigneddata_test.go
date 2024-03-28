@@ -3,6 +3,7 @@
 package core_test
 
 import (
+	"fmt"
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -129,9 +130,17 @@ func TestVersionedProposal(t *testing.T) {
 	type testCase struct {
 		name     string
 		proposal eth2api.VersionedProposal
+		err      string
 	}
 
 	tests := []testCase{
+		{
+			name: "unknown version",
+			proposal: eth2api.VersionedProposal{
+				Version: eth2spec.DataVersionUnknown,
+			},
+			err: "unknown version",
+		},
 		{
 			name: "phase0",
 			proposal: eth2api.VersionedProposal{
@@ -140,11 +149,29 @@ func TestVersionedProposal(t *testing.T) {
 			},
 		},
 		{
+			name: "phase0 blinded error",
+			proposal: eth2api.VersionedProposal{
+				Version: eth2spec.DataVersionPhase0,
+				Phase0:  testutil.RandomPhase0BeaconBlock(),
+				Blinded: true,
+			},
+			err: "phase0 block cannot be blinded",
+		},
+		{
 			name: "altair",
 			proposal: eth2api.VersionedProposal{
 				Version: eth2spec.DataVersionAltair,
 				Altair:  testutil.RandomAltairBeaconBlock(),
 			},
+		},
+		{
+			name: "altair blinded error",
+			proposal: eth2api.VersionedProposal{
+				Version: eth2spec.DataVersionAltair,
+				Altair:  testutil.RandomAltairBeaconBlock(),
+				Blinded: true,
+			},
+			err: "altair block cannot be blinded",
 		},
 		{
 			name: "bellatrix",
@@ -196,19 +223,37 @@ func TestVersionedProposal(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			p, err := core.NewVersionedProposal(&test.proposal)
-			require.NoError(t, err)
+			if err != nil {
+				require.ErrorContains(t, err, test.err)
+
+				return
+			}
 
 			clone, err := p.Clone()
-			require.NoError(t, err)
-			require.Equal(t, p, clone)
+			if test.err != "" {
+				require.ErrorContains(t, err, test.err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, p, clone)
 
-			js, err := p.MarshalJSON()
-			require.NoError(t, err)
+				js, err := p.MarshalJSON()
+				require.NoError(t, err)
 
-			p2 := &core.VersionedProposal{}
-			err = p2.UnmarshalJSON(js)
-			require.NoError(t, err)
-			require.Equal(t, p, *p2)
+				p2 := &core.VersionedProposal{}
+				err = p2.UnmarshalJSON(js)
+				require.NoError(t, err)
+				require.Equal(t, p, *p2)
+
+				// Malformed data
+				err = p2.UnmarshalJSON([]byte("malformed"))
+				require.ErrorContains(t, err, "unmarshal block")
+
+				if test.proposal.Version != eth2spec.DataVersionUnknown {
+					js := fmt.Sprintf(`{"version":%d,"block":123}`, test.proposal.Version-1)
+					err = p2.UnmarshalJSON([]byte(js))
+					require.ErrorContains(t, err, "unmarshal "+test.proposal.Version.String())
+				}
+			}
 		})
 	}
 }
