@@ -4,6 +4,7 @@ package core_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -20,6 +21,9 @@ import (
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil"
 )
+
+// To satisfy linter.
+const unmarshalPrefix = "unmarshal "
 
 func TestSignedDataSetSignature(t *testing.T) {
 	tests := []struct {
@@ -366,6 +370,16 @@ func TestVersionedSignedProposal(t *testing.T) {
 			err = p2.UnmarshalJSON(js)
 			require.NoError(t, err)
 			require.Equal(t, p, *p2)
+
+			// Malformed data
+			err = p2.UnmarshalJSON([]byte("malformed"))
+			require.ErrorContains(t, err, "unmarshal block")
+
+			if test.proposal.Version != eth2spec.DataVersionUnknown {
+				js := fmt.Sprintf(`{"version":%d,"blinded":%v,"block":123}`, test.proposal.Version-1, test.proposal.Blinded)
+				err = p2.UnmarshalJSON([]byte(js))
+				require.ErrorContains(t, err, unmarshalPrefix+test.proposal.Version.String())
+			}
 		})
 	}
 }
@@ -473,6 +487,16 @@ func TestVersionedSignedBlindedProposal(t *testing.T) {
 			err = p2.UnmarshalJSON(js)
 			require.NoError(t, err)
 			require.Equal(t, p, *p2)
+
+			// Malformed data
+			err = p2.UnmarshalJSON([]byte("malformed"))
+			require.ErrorContains(t, err, "unmarshal block")
+
+			if test.proposal.Version != eth2spec.DataVersionUnknown {
+				js := fmt.Sprintf(`{"version":%d,"blinded":true,"block":123}`, test.proposal.Version-1)
+				err = p2.UnmarshalJSON([]byte(js))
+				require.ErrorContains(t, err, unmarshalPrefix+test.proposal.Version.String())
+			}
 		})
 	}
 }

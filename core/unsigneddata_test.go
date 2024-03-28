@@ -249,7 +249,7 @@ func TestVersionedProposal(t *testing.T) {
 				require.ErrorContains(t, err, "unmarshal block")
 
 				if test.proposal.Version != eth2spec.DataVersionUnknown {
-					js := fmt.Sprintf(`{"version":%d,"block":123}`, test.proposal.Version-1)
+					js := fmt.Sprintf(`{"version":%d,"blinded":%v,"block":123}`, test.proposal.Version-1, test.proposal.Blinded)
 					err = p2.UnmarshalJSON([]byte(js))
 					require.ErrorContains(t, err, "unmarshal "+test.proposal.Version.String())
 				}
