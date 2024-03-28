@@ -141,10 +141,8 @@ func (s *Scheduler) emitCoreSlot(ctx context.Context, slot core.Slot) {
 // GetDutyDefinition returns the definition for a duty or core.ErrNotFound if no definitions exist for a resolved epoch
 // or another error.
 func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
-	if duty.Type == core.DutyBuilderProposer && !s.builderEnabled(duty.Slot) {
-		return nil, errors.New("builder-api not enabled, but duty builder proposer requested")
-	} else if duty.Type == core.DutyProposer && s.builderEnabled(duty.Slot) {
-		return nil, errors.New("builder-api enabled, but duty proposer requested")
+	if duty.Type == core.DutyBuilderProposer {
+		return nil, core.ErrDeprecatedDutyBuilderProposer
 	}
 
 	slotsPerEpoch, err := s.eth2Cl.SlotsPerEpoch(ctx)
@@ -386,13 +384,7 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 			continue
 		}
 
-		var duty core.Duty
-
-		if s.builderEnabled(uint64(proDuty.Slot)) {
-			duty = core.Duty{Slot: uint64(proDuty.Slot), Type: core.DutyBuilderProposer}
-		} else {
-			duty = core.Duty{Slot: uint64(proDuty.Slot), Type: core.DutyProposer}
-		}
+		duty := core.NewProposerDuty(uint64(proDuty.Slot))
 
 		pubkey, ok := vals.PubKeyFromIndex(proDuty.ValidatorIndex)
 		if !ok {

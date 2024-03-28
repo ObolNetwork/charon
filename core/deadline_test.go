@@ -98,7 +98,6 @@ func setupData(t *testing.T) ([]core.Duty, []core.Duty, []core.Duty, func(core.D
 	nonExpiredDuties := []core.Duty{
 		core.NewProposerDuty(1),
 		core.NewAttesterDuty(2),
-		core.NewBuilderProposerDuty(3),
 	}
 
 	voluntaryExits := []core.Duty{

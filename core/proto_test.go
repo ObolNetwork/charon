@@ -52,18 +52,6 @@ func TestParSignedDataSetProto(t *testing.T) {
 			Data: testutil.RandomDenebCoreVersionedSignedProposal(),
 		},
 		{
-			Type: core.DutyBuilderProposer,
-			Data: testutil.RandomBellatrixVersionedSignedBlindedProposal(),
-		},
-		{
-			Type: core.DutyBuilderProposer,
-			Data: testutil.RandomCapellaVersionedSignedBlindedProposal(),
-		},
-		{
-			Type: core.DutyBuilderProposer,
-			Data: testutil.RandomDenebVersionedSignedBlindedProposal(),
-		},
-		{
 			Type: core.DutyBuilderRegistration,
 			Data: testutil.RandomCoreVersionedSignedValidatorRegistration(t),
 		},
@@ -131,10 +119,6 @@ func TestUnsignedDataToProto(t *testing.T) {
 		{
 			Type: core.DutyProposer,
 			Data: testutil.RandomBellatrixCoreVersionedProposal(),
-		},
-		{
-			Type: core.DutyBuilderProposer,
-			Data: testutil.RandomBellatrixVersionedBlindedProposal(),
 		},
 		{
 			Type: core.DutyAggregator,

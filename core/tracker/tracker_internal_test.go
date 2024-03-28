@@ -522,7 +522,6 @@ func TestUnexpectedParticipation(t *testing.T) {
 		core.NewRandaoDuty(slot),
 		core.NewProposerDuty(slot),
 		core.NewAttesterDuty(slot),
-		core.NewBuilderProposerDuty(slot),
 	}
 
 	for _, d := range duties {

@@ -32,7 +32,7 @@ func TestBroadcast(t *testing.T) {
 	testFuncs := []func(*testing.T, *beaconmock.Mock) test{
 		attData,                   // Attestation
 		proposalData,              // BeaconBlock
-		blindedProposalData,       // BlindedBeaconBlock
+		blindedProposalData,       // BlindedBlock
 		validatorRegistrationData, // ValidatorRegistration
 		validatorExitData,         // ValidatorExit
 		aggregateAttestationData,  // AggregateAttestation
@@ -117,8 +117,8 @@ func proposalData(t *testing.T, mock *beaconmock.Mock) test {
 
 	aggData := core.VersionedSignedProposal{VersionedSignedProposal: proposal1}
 
-	mock.SubmitProposalFunc = func(ctx context.Context, proposal2 *eth2api.VersionedSignedProposal) error {
-		require.Equal(t, proposal1, *proposal2)
+	mock.SubmitProposalFunc = func(ctx context.Context, opts *eth2api.SubmitProposalOpts) error {
+		require.Equal(t, proposal1, *opts.Proposal)
 		close(asserted)
 
 		return nil
@@ -138,27 +138,27 @@ func blindedProposalData(t *testing.T, mock *beaconmock.Mock) test {
 
 	asserted := make(chan struct{})
 
-	proposal1 := eth2api.VersionedSignedBlindedProposal{
-		Version: eth2spec.DataVersionBellatrix,
-		Capella: &eth2capella.SignedBlindedBeaconBlock{
+	proposal1 := eth2api.VersionedSignedProposal{
+		Version: eth2spec.DataVersionPhase0,
+		CapellaBlinded: &eth2capella.SignedBlindedBeaconBlock{
 			Message:   testutil.RandomCapellaBlindedBeaconBlock(),
 			Signature: testutil.RandomEth2Signature(),
 		},
 	}
 
-	aggData := core.VersionedSignedBlindedProposal{VersionedSignedBlindedProposal: proposal1}
+	aggData := core.VersionedSignedProposal{VersionedSignedProposal: proposal1}
 
-	mock.SubmitBlindedProposalFunc = func(ctx context.Context, proposal2 *eth2api.VersionedSignedBlindedProposal) error {
-		require.Equal(t, proposal1, *proposal2)
+	mock.SubmitProposalFunc = func(ctx context.Context, opts *eth2api.SubmitProposalOpts) error {
+		require.Equal(t, proposal1, *opts.Proposal)
 		close(asserted)
 
 		return nil
 	}
 
 	return test{
-		name:     "Broadcast Blinded Beacon Block Proposal",
+		name:     "Broadcast Blinded Block Proposal",
 		aggData:  aggData,
-		duty:     core.DutyBuilderProposer,
+		duty:     core.DutyProposer,
 		bcastCnt: 1,
 		asserted: asserted,
 	}

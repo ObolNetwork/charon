@@ -322,8 +322,11 @@ func TestScheduler_GetDuty(t *testing.T) {
 	_, err = sched.GetDutyDefinition(ctx, core.NewSyncContributionDuty(slot))
 	require.ErrorContains(t, err, "epoch not resolved yet")
 
-	_, err = sched.GetDutyDefinition(ctx, core.NewBuilderProposerDuty(slot))
-	require.ErrorContains(t, err, "builder-api not enabled")
+	_, err = sched.GetDutyDefinition(ctx, core.Duty{
+		Slot: slot,
+		Type: core.DutyBuilderProposer,
+	})
+	require.ErrorIs(t, err, core.ErrDeprecatedDutyBuilderProposer)
 
 	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)

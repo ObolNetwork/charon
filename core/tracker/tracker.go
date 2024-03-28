@@ -301,7 +301,7 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event, fetch
 	}
 
 	// Proposer duties depend on randao duty, so check if that was why it failed.
-	if duty.Type == core.DutyProposer || duty.Type == core.DutyBuilderProposer {
+	if duty.Type == core.DutyProposer {
 		return analyseFetcherFailedProposer(duty, allEvents, fetchErr)
 	}
 

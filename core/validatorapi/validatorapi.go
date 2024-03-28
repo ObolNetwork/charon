@@ -5,6 +5,7 @@ package validatorapi
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"runtime"
 	"testing"
 	"time"
@@ -155,7 +156,6 @@ type Component struct {
 	pubKeyByAttFunc           func(ctx context.Context, slot, commIdx, valCommIdx uint64) (core.PubKey, error)
 	awaitAttFunc              func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 	awaitProposalFunc         func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
-	awaitBlindedProposalFunc  func(ctx context.Context, slot uint64) (*eth2api.VersionedBlindedProposal, error)
 	awaitSyncContributionFunc func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	awaitAggAttFunc           func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)
 	awaitAggSigDBFunc         func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
@@ -167,12 +167,6 @@ type Component struct {
 // It supports a single function, since it is an input of the component.
 func (c *Component) RegisterAwaitProposal(fn func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)) {
 	c.awaitProposalFunc = fn
-}
-
-// RegisterAwaitBlindedProposal registers a function to query unsigned blinded beacon block proposals by providing necessary options.
-// It supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitBlindedProposal(fn func(ctx context.Context, slot uint64) (*eth2api.VersionedBlindedProposal, error)) {
-	c.awaitBlindedProposalFunc = fn
 }
 
 // RegisterAwaitAttestation registers a function to query attestation data.
@@ -354,69 +348,17 @@ func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*e
 		return nil, err
 	}
 
-	return wrapResponse(proposal), nil
-}
-
-func (c Component) BlindedProposal(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error) {
-	// Get proposer pubkey (this is a blocking query).
-	pubkey, err := c.getProposerPubkey(ctx, core.NewBuilderProposerDuty(uint64(opts.Slot)))
-	if err != nil {
-		return nil, err
-	}
-
-	epoch, err := eth2util.EpochFromSlot(ctx, c.eth2Cl, opts.Slot)
-	if err != nil {
-		return nil, err
-	}
-
-	sigEpoch := eth2util.SignedEpoch{
-		Epoch:     epoch,
-		Signature: opts.RandaoReveal,
-	}
-
-	duty := core.NewRandaoDuty(uint64(opts.Slot))
-	parSig := core.NewPartialSignedRandao(sigEpoch.Epoch, sigEpoch.Signature, c.shareIdx)
-
-	// Verify randao signature
-	err = c.verifyPartialSig(ctx, parSig, pubkey)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, sub := range c.subs {
-		// No need to clone since sub auto clones.
-		parsigSet := core.ParSignedDataSet{
-			pubkey: parSig,
-		}
-		err := sub(ctx, duty, parsigSet)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// In the background, the following needs to happen before the
-	// unsigned blinded beacon block will be returned below:
-	//  - Threshold number of VCs need to submit their partial randao reveals.
-	//  - These signatures will be exchanged and aggregated.
-	//  - The aggregated signature will be stored in AggSigDB.
-	//  - Scheduler (in the meantime) will schedule a DutyBuilderProposer (to create a unsigned blinded block).
-	//  - Fetcher will then block waiting for an aggregated randao reveal.
-	//  - Once it is found, Fetcher will fetch an unsigned blinded block from the beacon
-	//    node including the aggregated randao in the request.
-	//  - Consensus will agree upon the unsigned blinded block and insert the resulting block in the DutyDB.
-	//  - Once inserted, the query below will return.
-
-	// Query unsigned block (this is blocking).
-	proposal, err := c.awaitBlindedProposalFunc(ctx, uint64(opts.Slot))
-	if err != nil {
-		return nil, err
-	}
+	// We do not persist this v3-specific data in the pipeline,
+	// but to comply with the API, we need to return non-nil values,
+	// and these should be unified across all nodes.
+	proposal.ConsensusValue = big.NewInt(1)
+	proposal.ExecutionValue = big.NewInt(1)
 
 	return wrapResponse(proposal), nil
 }
 
-func (c Component) SubmitProposal(ctx context.Context, proposal *eth2api.VersionedSignedProposal) error {
-	slot, err := proposal.Slot()
+func (c Component) SubmitProposal(ctx context.Context, opts *eth2api.SubmitProposalOpts) error {
+	slot, err := opts.Proposal.Slot()
 	if err != nil {
 		return err
 	}
@@ -430,7 +372,7 @@ func (c Component) SubmitProposal(ctx context.Context, proposal *eth2api.Version
 	duty := core.NewProposerDuty(uint64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	signedData, err := core.NewPartialVersionedSignedProposal(proposal, c.shareIdx)
+	signedData, err := core.NewPartialVersionedSignedProposal(opts.Proposal, c.shareIdx)
 	if err != nil {
 		return err
 	}
@@ -441,7 +383,7 @@ func (c Component) SubmitProposal(ctx context.Context, proposal *eth2api.Version
 		return err
 	}
 
-	log.Debug(ctx, "Beacon proposal submitted by validator client", z.Str("block_version", proposal.Version.String()))
+	log.Debug(ctx, "Beacon proposal submitted by validator client", z.Str("block_version", opts.Proposal.Version.String()))
 
 	set := core.ParSignedDataSet{pubkey: signedData}
 	for _, sub := range c.subs {
@@ -455,22 +397,22 @@ func (c Component) SubmitProposal(ctx context.Context, proposal *eth2api.Version
 	return nil
 }
 
-func (c Component) SubmitBlindedProposal(ctx context.Context, proposal *eth2api.VersionedSignedBlindedProposal) error {
-	slot, err := proposal.Slot()
+func (c Component) SubmitBlindedProposal(ctx context.Context, opts *eth2api.SubmitBlindedProposalOpts) error {
+	slot, err := opts.Proposal.Slot()
 	if err != nil {
 		return err
 	}
 
-	pubkey, err := c.getProposerPubkey(ctx, core.NewBuilderProposerDuty(uint64(slot)))
+	pubkey, err := c.getProposerPubkey(ctx, core.NewProposerDuty(uint64(slot)))
 	if err != nil {
 		return err
 	}
 
 	// Save Partially Signed Blinded Block to ParSigDB
-	duty := core.NewBuilderProposerDuty(uint64(slot))
+	duty := core.NewProposerDuty(uint64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	signedData, err := core.NewPartialVersionedSignedBlindedProposal(proposal, c.shareIdx)
+	signedData, err := core.NewPartialVersionedSignedBlindedProposal(opts.Proposal, c.shareIdx)
 	if err != nil {
 		return err
 	}

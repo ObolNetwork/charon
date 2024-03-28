@@ -25,19 +25,16 @@ var (
 	_ UnsignedData = AttestationData{}
 	_ UnsignedData = AggregatedAttestation{}
 	_ UnsignedData = VersionedProposal{}
-	_ UnsignedData = VersionedBlindedProposal{}
 	_ UnsignedData = SyncContribution{}
 
 	// Some types also support SSZ marshalling and unmarshalling.
 	_ ssz.Marshaler   = AttestationData{}
 	_ ssz.Marshaler   = AggregatedAttestation{}
 	_ ssz.Marshaler   = VersionedProposal{}
-	_ ssz.Marshaler   = VersionedBlindedProposal{}
 	_ ssz.Marshaler   = SyncContribution{}
 	_ ssz.Unmarshaler = new(AttestationData)
 	_ ssz.Unmarshaler = new(AggregatedAttestation)
 	_ ssz.Unmarshaler = new(VersionedProposal)
-	_ ssz.Unmarshaler = new(VersionedBlindedProposal)
 	_ ssz.Unmarshaler = new(SyncContribution)
 )
 
@@ -151,16 +148,25 @@ func NewVersionedProposal(proposal *eth2api.VersionedProposal) (VersionedProposa
 			return VersionedProposal{}, errors.New("no altair block")
 		}
 	case eth2spec.DataVersionBellatrix:
-		if proposal.Bellatrix == nil {
+		if proposal.Bellatrix == nil && !proposal.Blinded {
 			return VersionedProposal{}, errors.New("no bellatrix block")
 		}
+		if proposal.BellatrixBlinded == nil && proposal.Blinded {
+			return VersionedProposal{}, errors.New("no bellatrix blinded block")
+		}
 	case eth2spec.DataVersionCapella:
-		if proposal.Capella == nil {
+		if proposal.Capella == nil && !proposal.Blinded {
 			return VersionedProposal{}, errors.New("no capella block")
 		}
+		if proposal.CapellaBlinded == nil && proposal.Blinded {
+			return VersionedProposal{}, errors.New("no capella blinded block")
+		}
 	case eth2spec.DataVersionDeneb:
-		if proposal.Deneb == nil {
+		if proposal.Deneb == nil && !proposal.Blinded {
 			return VersionedProposal{}, errors.New("no deneb block")
+		}
+		if proposal.DenebBlinded == nil && proposal.Blinded {
+			return VersionedProposal{}, errors.New("no deneb blinded block")
 		}
 	default:
 		return VersionedProposal{}, errors.New("unknown version")
@@ -193,11 +199,23 @@ func (p VersionedProposal) MarshalJSON() ([]byte, error) {
 	case eth2spec.DataVersionAltair:
 		marshaller = p.Altair
 	case eth2spec.DataVersionBellatrix:
-		marshaller = p.Bellatrix
+		if p.Blinded {
+			marshaller = p.BellatrixBlinded
+		} else {
+			marshaller = p.Bellatrix
+		}
 	case eth2spec.DataVersionCapella:
-		marshaller = p.Capella
+		if p.Blinded {
+			marshaller = p.CapellaBlinded
+		} else {
+			marshaller = p.Capella
+		}
 	case eth2spec.DataVersionDeneb:
-		marshaller = p.Deneb
+		if p.Blinded {
+			marshaller = p.DenebBlinded
+		} else {
+			marshaller = p.Deneb
+		}
 	default:
 		return nil, errors.New("unknown version")
 	}
@@ -215,6 +233,7 @@ func (p VersionedProposal) MarshalJSON() ([]byte, error) {
 	resp, err := json.Marshal(versionedRawBlockJSON{
 		Version: version,
 		Block:   block,
+		Blinded: p.Blinded,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal wrapper")
@@ -229,150 +248,77 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 		return errors.Wrap(err, "unmarshal block")
 	}
 
-	resp := eth2api.VersionedProposal{Version: raw.Version.ToETH2()}
+	resp := eth2api.VersionedProposal{
+		Version: raw.Version.ToETH2(),
+		Blinded: raw.Blinded,
+	}
+
 	switch resp.Version {
 	case eth2spec.DataVersionPhase0:
+		if raw.Blinded {
+			return errors.New("phase0 block cannot be blinded")
+		}
 		block := new(eth2p0.BeaconBlock)
 		if err := json.Unmarshal(raw.Block, &block); err != nil {
 			return errors.Wrap(err, "unmarshal phase0")
 		}
 		resp.Phase0 = block
 	case eth2spec.DataVersionAltair:
+		if raw.Blinded {
+			return errors.New("altair block cannot be blinded")
+		}
 		block := new(altair.BeaconBlock)
 		if err := json.Unmarshal(raw.Block, &block); err != nil {
 			return errors.Wrap(err, "unmarshal altair")
 		}
 		resp.Altair = block
 	case eth2spec.DataVersionBellatrix:
-		block := new(bellatrix.BeaconBlock)
-		if err := json.Unmarshal(raw.Block, &block); err != nil {
-			return errors.Wrap(err, "unmarshal bellatrix")
+		if raw.Blinded {
+			block := new(eth2bellatrix.BlindedBeaconBlock)
+			if err := json.Unmarshal(raw.Block, &block); err != nil {
+				return errors.Wrap(err, "unmarshal bellatrix blinded")
+			}
+			resp.BellatrixBlinded = block
+		} else {
+			block := new(bellatrix.BeaconBlock)
+			if err := json.Unmarshal(raw.Block, &block); err != nil {
+				return errors.Wrap(err, "unmarshal bellatrix")
+			}
+			resp.Bellatrix = block
 		}
-		resp.Bellatrix = block
 	case eth2spec.DataVersionCapella:
-		block := new(capella.BeaconBlock)
-		if err := json.Unmarshal(raw.Block, &block); err != nil {
-			return errors.Wrap(err, "unmarshal capella")
+		if raw.Blinded {
+			block := new(eth2capella.BlindedBeaconBlock)
+			if err := json.Unmarshal(raw.Block, &block); err != nil {
+				return errors.Wrap(err, "unmarshal capella blinded")
+			}
+			resp.CapellaBlinded = block
+		} else {
+			block := new(capella.BeaconBlock)
+			if err := json.Unmarshal(raw.Block, &block); err != nil {
+				return errors.Wrap(err, "unmarshal capella")
+			}
+			resp.Capella = block
 		}
-		resp.Capella = block
 	case eth2spec.DataVersionDeneb:
-		block := new(eth2deneb.BlockContents)
-		if err := json.Unmarshal(raw.Block, &block); err != nil {
-			return errors.Wrap(err, "unmarshal deneb")
+		if raw.Blinded {
+			block := new(eth2deneb.BlindedBeaconBlock)
+			if err := json.Unmarshal(raw.Block, &block); err != nil {
+				return errors.Wrap(err, "unmarshal deneb blinded")
+			}
+			resp.DenebBlinded = block
+		} else {
+			block := new(eth2deneb.BlockContents)
+			if err := json.Unmarshal(raw.Block, &block); err != nil {
+				return errors.Wrap(err, "unmarshal deneb")
+			}
+			resp.Deneb = block
 		}
-		resp.Deneb = block
 	default:
 		return errors.New("unknown version")
 	}
 
 	*p = VersionedProposal{VersionedProposal: resp}
-
-	return nil
-}
-
-// NewVersionedBlindedProposal validates and returns a new wrapped VersionedBlindedProposal.
-func NewVersionedBlindedProposal(proposal *eth2api.VersionedBlindedProposal) (VersionedBlindedProposal, error) {
-	switch proposal.Version {
-	case eth2spec.DataVersionBellatrix:
-		if proposal.Bellatrix == nil {
-			return VersionedBlindedProposal{}, errors.New("no bellatrix blinded proposal")
-		}
-	case eth2spec.DataVersionCapella:
-		if proposal.Capella == nil {
-			return VersionedBlindedProposal{}, errors.New("no capella blinded proposal")
-		}
-	case eth2spec.DataVersionDeneb:
-		if proposal.Deneb == nil {
-			return VersionedBlindedProposal{}, errors.New("no deneb blinded proposal")
-		}
-	default:
-		return VersionedBlindedProposal{}, errors.New("unknown version")
-	}
-
-	return VersionedBlindedProposal{VersionedBlindedProposal: *proposal}, nil
-}
-
-// VersionedBlindedProposal wraps the eth2 versioned blinded proposal and implements UnsignedData.
-type VersionedBlindedProposal struct {
-	eth2api.VersionedBlindedProposal
-}
-
-func (p VersionedBlindedProposal) Clone() (UnsignedData, error) {
-	var resp VersionedBlindedProposal
-	err := cloneJSONMarshaler(p, &resp)
-	if err != nil {
-		return nil, errors.Wrap(err, "clone block")
-	}
-
-	return resp, nil
-}
-
-func (p VersionedBlindedProposal) MarshalJSON() ([]byte, error) {
-	var marshaller json.Marshaler
-	switch p.Version {
-	// No block nil checks since `NewVersionedSignedBlindedBeaconBlock` assumed.
-	case eth2spec.DataVersionBellatrix:
-		marshaller = p.Bellatrix
-	case eth2spec.DataVersionCapella:
-		marshaller = p.Capella
-	case eth2spec.DataVersionDeneb:
-		marshaller = p.Deneb
-	default:
-		return nil, errors.New("unknown version")
-	}
-
-	block, err := marshaller.MarshalJSON()
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal block")
-	}
-
-	version, err := eth2util.DataVersionFromETH2(p.Version)
-	if err != nil {
-		return nil, errors.Wrap(err, "convert version")
-	}
-
-	resp, err := json.Marshal(versionedRawBlockJSON{
-		Version: version,
-		Block:   block,
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal wrapper")
-	}
-
-	return resp, nil
-}
-
-func (p *VersionedBlindedProposal) UnmarshalJSON(input []byte) error {
-	var raw versionedRawBlockJSON
-	if err := json.Unmarshal(input, &raw); err != nil {
-		return errors.Wrap(err, "unmarshal block")
-	}
-
-	resp := eth2api.VersionedBlindedProposal{Version: raw.Version.ToETH2()}
-	switch resp.Version {
-	case eth2spec.DataVersionBellatrix:
-		block := new(eth2bellatrix.BlindedBeaconBlock)
-		if err := json.Unmarshal(raw.Block, &block); err != nil {
-			return errors.Wrap(err, "unmarshal bellatrix")
-		}
-		resp.Bellatrix = block
-	case eth2spec.DataVersionCapella:
-		block := new(eth2capella.BlindedBeaconBlock)
-		if err := json.Unmarshal(raw.Block, &block); err != nil {
-			return errors.Wrap(err, "unmarshal capella")
-		}
-		resp.Capella = block
-	case eth2spec.DataVersionDeneb:
-		block := new(eth2deneb.BlindedBeaconBlock)
-		if err := json.Unmarshal(raw.Block, &block); err != nil {
-			return errors.Wrap(err, "unmarshal deneb")
-		}
-		resp.Deneb = block
-	default:
-		return errors.New("unknown version")
-	}
-
-	*p = VersionedBlindedProposal{VersionedBlindedProposal: resp}
 
 	return nil
 }
@@ -434,13 +380,6 @@ func unmarshalUnsignedData(typ DutyType, data []byte) (UnsignedData, error) {
 		var resp VersionedProposal
 		if err := unmarshal(data, &resp); err != nil {
 			return nil, errors.Wrap(err, "unmarshal proposal")
-		}
-
-		return resp, nil
-	case DutyBuilderProposer:
-		var resp VersionedBlindedProposal
-		if err := unmarshal(data, &resp); err != nil {
-			return nil, errors.Wrap(err, "unmarshal blinded proposal")
 		}
 
 		return resp, nil

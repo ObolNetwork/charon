@@ -21,7 +21,6 @@ func NewMemDB(deadliner core.Deadliner) *MemDB {
 		attDuties:         make(map[attKey]*eth2p0.AttestationData),
 		attPubKeys:        make(map[pkKey]core.PubKey),
 		attKeysBySlot:     make(map[uint64][]pkKey),
-		builderProDuties:  make(map[uint64]*eth2api.VersionedBlindedProposal),
 		proDuties:         make(map[uint64]*eth2api.VersionedProposal),
 		aggDuties:         make(map[aggKey]core.AggregatedAttestation),
 		aggKeysBySlot:     make(map[uint64][]aggKey),
@@ -42,10 +41,6 @@ type MemDB struct {
 	attPubKeys    map[pkKey]core.PubKey
 	attKeysBySlot map[uint64][]pkKey
 	attQueries    []attQuery
-
-	// DutyBuilderProposer
-	builderProDuties  map[uint64]*eth2api.VersionedBlindedProposal
-	builderProQueries []builderProQuery
 
 	// DutyProposer
 	proDuties  map[uint64]*eth2api.VersionedProposal
@@ -94,17 +89,7 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 		}
 		db.resolveProQueriesUnsafe()
 	case core.DutyBuilderProposer:
-		// Sanity check max one builder proposer per slot
-		if len(unsignedSet) > 1 {
-			return errors.New("unexpected builder proposer data set length", z.Int("n", len(unsignedSet)))
-		}
-		for _, unsignedData := range unsignedSet {
-			err := db.storeBlindedBeaconBlockUnsafe(unsignedData)
-			if err != nil {
-				return err
-			}
-		}
-		db.resolveBuilderProQueriesUnsafe()
+		return core.ErrDeprecatedDutyBuilderProposer
 	case core.DutyAttester:
 		for pubkey, unsignedData := range unsignedSet {
 			err := db.storeAttestationUnsafe(pubkey, unsignedData)
@@ -167,31 +152,6 @@ func (db *MemDB) AwaitProposal(ctx context.Context, slot uint64) (*eth2api.Versi
 		Cancel:   cancel,
 	})
 	db.resolveProQueriesUnsafe()
-	db.mu.Unlock()
-
-	select {
-	case <-db.shutdown:
-		return nil, errors.New("dutydb shutdown")
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case block := <-response:
-		return block, nil
-	}
-}
-
-// AwaitBlindedProposal implements core.DutyDB, see its godoc.
-func (db *MemDB) AwaitBlindedProposal(ctx context.Context, slot uint64) (*eth2api.VersionedBlindedProposal, error) {
-	cancel := make(chan struct{})
-	defer close(cancel)
-	response := make(chan *eth2api.VersionedBlindedProposal, 1)
-
-	db.mu.Lock()
-	db.builderProQueries = append(db.builderProQueries, builderProQuery{
-		Key:      slot,
-		Response: response,
-		Cancel:   cancel,
-	})
-	db.resolveBuilderProQueriesUnsafe()
 	db.mu.Unlock()
 
 	select {
@@ -489,44 +449,6 @@ func (db *MemDB) storeProposalUnsafe(unsignedData core.UnsignedData) error {
 	return nil
 }
 
-// storeBlindedBeaconBlockUnsafe stores the unsigned BlindedBeaconBlock. It is unsafe since it assumes the lock is held.
-func (db *MemDB) storeBlindedBeaconBlockUnsafe(unsignedData core.UnsignedData) error {
-	cloned, err := unsignedData.Clone() // Clone before storing.
-	if err != nil {
-		return err
-	}
-
-	block, ok := cloned.(core.VersionedBlindedProposal)
-	if !ok {
-		return errors.New("invalid unsigned blinded block")
-	}
-
-	slot, err := block.Slot()
-	if err != nil {
-		return err
-	}
-
-	if existing, ok := db.builderProDuties[uint64(slot)]; ok {
-		existingRoot, err := existing.Root()
-		if err != nil {
-			return errors.Wrap(err, "blinded block root")
-		}
-
-		providedRoot, err := block.Root()
-		if err != nil {
-			return errors.Wrap(err, "blinded block root")
-		}
-
-		if existingRoot != providedRoot {
-			return errors.New("clashing blinded blocks")
-		}
-	} else {
-		db.builderProDuties[uint64(slot)] = &block.VersionedBlindedProposal
-	}
-
-	return nil
-}
-
 // resolveAttQueriesUnsafe resolve any attQuery to a result if found.
 // It is unsafe since it assume that the lock is held.
 func (db *MemDB) resolveAttQueriesUnsafe() {
@@ -590,27 +512,6 @@ func (db *MemDB) resolveAggQueriesUnsafe() {
 	db.aggQueries = unresolved
 }
 
-// resolveBuilderProQueriesUnsafe resolve any builderProQuery to a result if found.
-// It is unsafe since it assume that the lock is held.
-func (db *MemDB) resolveBuilderProQueriesUnsafe() {
-	var unresolved []builderProQuery
-	for _, query := range db.builderProQueries {
-		if cancelled(query.Cancel) {
-			continue // Drop cancelled queries.
-		}
-
-		value, ok := db.builderProDuties[query.Key]
-		if !ok {
-			unresolved = append(unresolved, query)
-			continue
-		}
-
-		query.Response <- value
-	}
-
-	db.builderProQueries = unresolved
-}
-
 // resolveContribQueriesUnsafe resolves any contribQuery to a result if found.
 // It is unsafe since it assumes that the lock is held.
 func (db *MemDB) resolveContribQueriesUnsafe() {
@@ -638,7 +539,7 @@ func (db *MemDB) deleteDutyUnsafe(duty core.Duty) error {
 	case core.DutyProposer:
 		delete(db.proDuties, duty.Slot)
 	case core.DutyBuilderProposer:
-		delete(db.builderProDuties, duty.Slot)
+		return core.ErrDeprecatedDutyBuilderProposer
 	case core.DutyAttester:
 		for _, key := range db.attKeysBySlot[duty.Slot] {
 			delete(db.attPubKeys, key)
@@ -706,13 +607,6 @@ type proQuery struct {
 type aggQuery struct {
 	Key      aggKey
 	Response chan<- core.AggregatedAttestation
-	Cancel   <-chan struct{}
-}
-
-// builderProQuery is a waiting builderProQuery with a response channel.
-type builderProQuery struct {
-	Key      uint64
-	Response chan<- *eth2api.VersionedBlindedProposal
 	Cancel   <-chan struct{}
 }
 

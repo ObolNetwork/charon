@@ -437,7 +437,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	fetch, err := fetcher.New(eth2Cl, feeRecipientFunc)
+	fetch, err := fetcher.New(eth2Cl, feeRecipientFunc, mutableConf.BuilderAPI)
 	if err != nil {
 		return err
 	}

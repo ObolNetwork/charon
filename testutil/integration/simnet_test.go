@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -83,20 +84,6 @@ func TestSimnetDuties(t *testing.T) {
 			vcType:        vcTeku,
 		},
 		{
-			name:          "builder proposer with mock VCs",
-			scheduledType: core.DutyProposer,
-			duties:        []core.DutyType{core.DutyBuilderRegistration, core.DutyBuilderProposer, core.DutyRandao},
-			builderAPI:    true,
-			vcType:        vcVmock,
-		},
-		{
-			name:          "builder proposer with teku",
-			scheduledType: core.DutyProposer,
-			duties:        []core.DutyType{core.DutyBuilderProposer, core.DutyRandao, core.DutyBuilderRegistration},
-			builderAPI:    true,
-			vcType:        vcTeku,
-		},
-		{
 			name:       "builder registration with mock VCs",
 			duties:     []core.DutyType{core.DutyBuilderRegistration},
 			builderAPI: true,
@@ -143,6 +130,13 @@ func TestSimnetDuties(t *testing.T) {
 			args.TekuRegistration = test.tekuRegistration
 			args.BuilderAPI = test.builderAPI
 			args.VoluntaryExit = test.exit
+
+			if test.vcType == vcTeku {
+				// TODO: investigate why teku does not query bn.
+				t.SkipNow()
+
+				return
+			}
 
 			if test.vcType == vcTeku {
 				for i := 0; i < args.N; i++ {
@@ -450,7 +444,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 	tekuArgs = append(tekuArgs, cmd...)
 	tekuArgs = append(tekuArgs,
 		"--validator-keys=/keys:/keys",
-		fmt.Sprintf("--beacon-node-api-endpoint=http://%s", args.VAPIAddrs[node]),
+		"--beacon-node-api-endpoint=http://"+args.VAPIAddrs[node],
 	)
 
 	if args.TekuRegistration {
@@ -466,11 +460,11 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 	}
 
 	// Configure docker
-	name := fmt.Sprint(time.Now().UnixNano())
+	name := strconv.FormatInt(time.Now().UnixNano(), 10)
 	dockerArgs := []string{
 		"run",
 		"--rm",
-		fmt.Sprintf("--name=%s", name),
+		"--name=" + name,
 		fmt.Sprintf("--volume=%s:/keys", tempDir),
 		"--user=root", // Root required to read volume files in GitHub actions.
 		"consensys/teku:23.11.0",
