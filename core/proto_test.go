@@ -184,6 +184,26 @@ func TestParSignedData(t *testing.T) {
 	}
 }
 
+func TestParSignedDataFromProtoErrors(t *testing.T) {
+	parSig1 := core.ParSignedData{
+		SignedData: core.Attestation{Attestation: *testutil.RandomAttestation()},
+		ShareIdx:   rand.Intn(100),
+	}
+
+	// We need valid protobuf message to test this
+	pb1, err := core.ParSignedDataToProto(parSig1)
+	require.NoError(t, err)
+
+	_, err = core.ParSignedDataFromProto(core.DutyUnknown, pb1)
+	require.ErrorContains(t, err, "unsupported duty type")
+
+	_, err = core.ParSignedDataFromProto(core.DutyProposer, pb1)
+	require.ErrorContains(t, err, "unknown data version")
+
+	_, err = core.ParSignedDataFromProto(core.DutyBuilderProposer, pb1)
+	require.ErrorIs(t, err, core.ErrDeprecatedDutyBuilderProposer)
+}
+
 func TestSetSignature(t *testing.T) {
 	for typ, signedData := range randomSignedData(t) {
 		t.Run(typ.String(), func(t *testing.T) {

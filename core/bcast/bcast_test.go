@@ -72,6 +72,29 @@ func TestBroadcast(t *testing.T) {
 	}
 }
 
+func TestBroadcastOtherDuties(t *testing.T) {
+	mock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	bcaster, err := bcast.New(context.Background(), mock)
+	require.NoError(t, err)
+
+	err = bcaster.Broadcast(context.Background(), core.Duty{Type: core.DutyBuilderProposer}, nil)
+	require.ErrorIs(t, err, core.ErrDeprecatedDutyBuilderProposer)
+
+	err = bcaster.Broadcast(context.Background(), core.Duty{Type: core.DutyRandao}, nil)
+	require.NoError(t, err)
+
+	err = bcaster.Broadcast(context.Background(), core.Duty{Type: core.DutyPrepareAggregator}, nil)
+	require.NoError(t, err)
+
+	err = bcaster.Broadcast(context.Background(), core.Duty{Type: core.DutyPrepareSyncContribution}, nil)
+	require.NoError(t, err)
+
+	err = bcaster.Broadcast(context.Background(), core.Duty{Type: core.DutyUnknown}, nil)
+	require.ErrorContains(t, err, "unsupported duty type")
+}
+
 func attData(t *testing.T, mock *beaconmock.Mock) test {
 	t.Helper()
 

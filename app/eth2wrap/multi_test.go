@@ -4,6 +4,7 @@ package eth2wrap_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -64,6 +65,11 @@ func TestMulti_NodePeerCount(t *testing.T) {
 	c, err := m.NodePeerCount(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, 5, c)
+
+	expectedErr := errors.New("boo")
+	client.On("NodePeerCount", mock.Anything).Return(0, expectedErr).Once()
+	_, err = m.NodePeerCount(context.Background())
+	require.ErrorIs(t, err, expectedErr)
 }
 
 func TestMulti_BlockAttestations(t *testing.T) {
@@ -79,6 +85,11 @@ func TestMulti_BlockAttestations(t *testing.T) {
 	atts2, err := m.BlockAttestations(ctx, "state")
 	require.NoError(t, err)
 	require.Equal(t, atts, atts2)
+
+	expectedErr := errors.New("boo")
+	client.On("BlockAttestations", mock.Anything, "state").Return(nil, expectedErr).Once()
+	_, err = m.BlockAttestations(ctx, "state")
+	require.ErrorIs(t, err, expectedErr)
 }
 
 func TestMulti_AggregateSyncCommitteeSelections(t *testing.T) {
@@ -95,6 +106,11 @@ func TestMulti_AggregateSyncCommitteeSelections(t *testing.T) {
 	selections2, err := m.AggregateSyncCommitteeSelections(ctx, partsel)
 	require.NoError(t, err)
 	require.Equal(t, selections, selections2)
+
+	expectedErr := errors.New("boo")
+	client.On("AggregateSyncCommitteeSelections", mock.Anything, partsel).Return(nil, expectedErr).Once()
+	_, err = m.AggregateSyncCommitteeSelections(ctx, partsel)
+	require.ErrorIs(t, err, expectedErr)
 }
 
 func TestMulti_AggregateBeaconCommitteeSelections(t *testing.T) {
@@ -111,6 +127,11 @@ func TestMulti_AggregateBeaconCommitteeSelections(t *testing.T) {
 	selections2, err := m.AggregateBeaconCommitteeSelections(ctx, partsel)
 	require.NoError(t, err)
 	require.Equal(t, selections, selections2)
+
+	expectedErr := errors.New("boo")
+	client.On("AggregateBeaconCommitteeSelections", mock.Anything, partsel).Return(nil, expectedErr).Once()
+	_, err = m.AggregateBeaconCommitteeSelections(ctx, partsel)
+	require.ErrorIs(t, err, expectedErr)
 }
 
 func TestMulti_ProposerConfig(t *testing.T) {
@@ -126,6 +147,11 @@ func TestMulti_ProposerConfig(t *testing.T) {
 	resp2, err := m.ProposerConfig(ctx)
 	require.NoError(t, err)
 	require.Equal(t, resp, resp2)
+
+	expectedErr := errors.New("boo")
+	client.On("ProposerConfig", mock.Anything).Return(nil, expectedErr).Once()
+	_, err = m.ProposerConfig(ctx)
+	require.ErrorIs(t, err, expectedErr)
 }
 
 func TestMulti_ActiveValidators(t *testing.T) {
@@ -140,6 +166,11 @@ func TestMulti_ActiveValidators(t *testing.T) {
 	vals2, err := m.ActiveValidators(ctx)
 	require.NoError(t, err)
 	require.Equal(t, vals, vals2)
+
+	expectedErr := errors.New("boo")
+	client.On("ActiveValidators", mock.Anything).Return(nil, expectedErr).Once()
+	_, err = m.ActiveValidators(ctx)
+	require.ErrorIs(t, err, expectedErr)
 }
 
 func TestMulti_SetValidatorCache(t *testing.T) {

@@ -132,6 +132,23 @@ type Duty struct {
 > not just a single DV. This allows the workflow to aggregate and batch multiple DVs in some steps, specifically consensus.
 > Which is critical for clusters with a large number of DVs.
 
+### DutyBuilderProposer deprecation
+The new version of Beacon API spec introduced [produceBlockV3](https://ethereum.github.io/beacon-APIs/#/Validator/produceBlockV3) endpoint,
+which is now fully supported by Charon (since v1).
+
+Previously, `DutyProposer` and `DutyBuilderProposer` served full and blinded blocks respectively.
+Now, `DutyProposer` serves both full and blinded blocks. To this end, the serialization logic incorporated `Blinded` flag,
+which is used across many components to determine the corresponding block type.
+The deprecated `DutyBuilderProposer` definition is kept in the codebase for testing period and will be removed in the future.
+Every component hitting `DutyBuilderProposer`, must return `ErrDeprecatedDutyBuilderProposer` error.
+
+The new v3 endpoint specification added a few new parameters and this is how Charon handles them:
+* `builder_boost_factor`: Charon overrides VC's value in according with Builder API flag: when the flag is `true`, Charon sets `builder_boost_factor` to `math.MaxUint64`, otherwise to `0`. To guarantee consistency, all Charon nodes in a cluster shall have the same Builder API flag.
+* `Eth-Execution-Payload-Value` and `Eth-Consensus-Block-Value` are always set to `1`, since these are required parameters. Charon does not propagate BN's values to VC to avoid potential inconsistencies caused by different BN providers.
+
+> ℹ️ The change in serialization (both json and ssz) introduced *a breaking change* in the internal protocol.
+Therefore, Charon v1.x will not work together with Charon v0.x. See *Version compatibility* section of `README.md` for more details.
+
 ### Scheduler
 
 The scheduler is the initiator of a duty in the core workflow. It resolves the which DVs in the cluster are active and

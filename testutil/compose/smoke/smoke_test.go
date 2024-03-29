@@ -85,7 +85,7 @@ func TestSmoke(t *testing.T) {
 			},
 			Timeout: time.Minute * 2,
 		},
-		// TODO: Because of breaking change (v3) we cannot execute this so far?
+		// TODO: https://github.com/ObolNetwork/charon/issues/3004
 		// {
 		// 	Name:     "run_version_matrix_with_dkg",
 		// 	PrintYML: true,

@@ -125,6 +125,30 @@ func TestMemDB(t *testing.T) {
 	require.Equal(t, pubkeysByIdx[vIdxB], pkB)
 }
 
+func TestMemDBStoreUnsupported(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB(new(testDeadliner))
+
+	unsupported := []core.DutyType{
+		core.DutyUnknown,
+		core.DutySignature,
+		core.DutyExit,
+		core.DutyBuilderRegistration,
+		core.DutyRandao,
+		core.DutyPrepareAggregator,
+		core.DutySyncMessage,
+		core.DutyPrepareSyncContribution,
+		core.DutyInfoSync,
+	}
+	for _, dutyType := range unsupported {
+		err := db.Store(ctx, core.Duty{Type: dutyType}, nil)
+		require.ErrorContains(t, err, "unsupported duty type")
+	}
+
+	err := db.Store(ctx, core.Duty{Type: core.DutyBuilderProposer}, nil)
+	require.ErrorIs(t, err, core.ErrDeprecatedDutyBuilderProposer)
+}
+
 func TestMemDBProposer(t *testing.T) {
 	ctx := context.Background()
 	db := dutydb.NewMemDB(new(testDeadliner))
