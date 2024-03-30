@@ -45,6 +45,11 @@ func New() *cobra.Command {
 		),
 		newCombineCmd(newCombineFunc),
 		newAlphaCmd(
+			newTestCmd(
+				newTestPeersCmd(runTestPeers),
+				newTestBeaconCmd(runTestBeacon),
+				newTestValidatorCmd(runTestValidator),
+			),
 			newAddValidatorsCmd(runAddValidatorsSolo),
 			newViewClusterManifestCmd(runViewClusterManifest),
 		),
