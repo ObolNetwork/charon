@@ -4,13 +4,14 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"io"
 	"sort"
 	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/maps"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 type testBeaconConfig struct {
@@ -91,12 +92,18 @@ outer:
 	res.ExecutionTime = Duration{time.Since(startTime)}
 	res.Score = calculateScore(res.TestsExecuted)
 
-	if cfg.OutputFile != "" {
-		writeResultToFile(res, cfg.testConfig)
+	if !cfg.Quiet {
+		err = writeResultToWriter(res, w)
+		if err != nil {
+			return err
+		}
 	}
 
-	if !cfg.Quiet {
-		writeResultToWriter(res, w)
+	if cfg.OutputFile != "" {
+		err = writeResultToFile(res, cfg.testConfig)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -108,8 +115,8 @@ func runAllBeacon(_ context.Context, queuedTests []testCaseName, allTests map[te
 	}
 }
 
-func beaconPing(config *testBeaconConfig) testResult {
-	//TODO(kalo): implement real ping
+func beaconPing(_ *testBeaconConfig) testResult {
+	// TODO(kalo): implement real ping
 	return testResult{
 		Verdict: testVerdictFail,
 		Error:   errors.New("not implemented").Error(),

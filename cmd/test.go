@@ -10,8 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/obolnetwork/charon/app/errors"
 	"github.com/spf13/cobra"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 type testConfig struct {
@@ -47,14 +48,19 @@ type Duration struct {
 }
 
 func (d Duration) MarshalJSON() ([]byte, error) {
-	return json.Marshal(d.String())
+	res, err := json.Marshal(d.String())
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal json duration")
+	}
+
+	return res, nil
 }
 
 func (d *Duration) UnmarshalJSON(b []byte) error {
-	var v interface{}
+	var v any
 	err := json.Unmarshal(b, &v)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "unmarshal json duration")
 	}
 	switch value := v.(type) {
 	case float64:
@@ -63,8 +69,9 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 	case string:
 		d.Duration, err = time.ParseDuration(value)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "parse string time to duration")
 		}
+
 		return nil
 	default:
 		return errors.New("invalid duration")
@@ -115,7 +122,7 @@ type testCategoryResult struct {
 	Score         categoryScore         `json:"score"`
 }
 
-func writeResultToFile(res testCategoryResult, cfg testConfig) {
+func writeResultToFile(res testCategoryResult, cfg testConfig) error {
 	var data []byte
 	switch cfg.OutputFormat {
 	case "json":
@@ -126,13 +133,20 @@ func writeResultToFile(res testCategoryResult, cfg testConfig) {
 		}
 		data = jsonData
 	default:
-		fmt.Printf("output format %v not supported\n", cfg.OutputFormat)
+		return errors.New("output format not supported")
 	}
-	os.WriteFile(cfg.OutputFile, data, 0644)
+	//nolint:gosec // File needs to be read-only for everybody
+	err := os.WriteFile(cfg.OutputFile, data, 0o444)
+	if err != nil {
+		return errors.Wrap(err, "write test result")
+	}
+
+	return nil
 }
 
-func writeResultToWriter(res testCategoryResult, w io.Writer) {
+func writeResultToWriter(res testCategoryResult, w io.Writer) error {
 	var lines []string
+
 	switch res.CategoryName {
 	case "peers":
 		lines = append(lines, "  ____                                                      ")
@@ -166,26 +180,26 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) {
 
 	switch res.Score {
 	case categoryScoreA:
-		lines[0] = lines[0] + "          "
-		lines[1] = lines[1] + "    /\\    "
-		lines[2] = lines[2] + "   /  \\   "
-		lines[3] = lines[3] + "  / /\\ \\  "
-		lines[4] = lines[4] + " / ____ \\ "
-		lines[5] = lines[5] + "/_/    \\_\\"
+		lines[0] += "          "
+		lines[1] += "    /\\    "
+		lines[2] += "   /  \\   "
+		lines[3] += "  / /\\ \\  "
+		lines[4] += " / ____ \\ "
+		lines[5] += "/_/    \\_\\"
 	case categoryScoreB:
-		lines[0] = lines[0] + " ____     "
-		lines[1] = lines[1] + "|  _ \\    "
-		lines[2] = lines[2] + "| |_) |   "
-		lines[3] = lines[3] + "|  _ <    "
-		lines[4] = lines[4] + "| |_) |   "
-		lines[5] = lines[5] + "|____/    "
+		lines[0] += " ____     "
+		lines[1] += "|  _ \\    "
+		lines[2] += "| |_) |   "
+		lines[3] += "|  _ <    "
+		lines[4] += "| |_) |   "
+		lines[5] += "|____/    "
 	case categoryScoreC:
-		lines[0] = lines[0] + "   ____     "
-		lines[1] = lines[1] + " / ____|   "
-		lines[2] = lines[2] + "| |       "
-		lines[3] = lines[3] + "| |       "
-		lines[4] = lines[4] + "| |____   "
-		lines[5] = lines[5] + " \\_____|  "
+		lines[0] += "   ____     "
+		lines[1] += " / ____|   "
+		lines[2] += "| |       "
+		lines[3] += "| |       "
+		lines[4] += "| |____   "
+		lines[5] += " \\_____|  "
 	}
 
 	lines = append(lines, "")
@@ -193,19 +207,19 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) {
 	suggestions := []string{}
 	for name, singleTestRes := range res.TestsExecuted {
 		testOutput := ""
-		testOutput = testOutput + fmt.Sprintf("%-60s", name)
+		testOutput += fmt.Sprintf("%-60s", name)
 		if singleTestRes.Measurement != "" {
 			testOutput = strings.TrimSuffix(testOutput, strings.Repeat(" ", len(singleTestRes.Measurement)+1))
 			testOutput = testOutput + singleTestRes.Measurement + " "
 		}
-		testOutput = testOutput + string(singleTestRes.Verdict)
+		testOutput += string(singleTestRes.Verdict)
 
 		if singleTestRes.Suggestion != "" {
 			suggestions = append(suggestions, singleTestRes.Suggestion)
 		}
 
 		if singleTestRes.Error != "" {
-			testOutput = testOutput + " - " + singleTestRes.Error
+			testOutput += " - " + singleTestRes.Error
 		}
 		lines = append(lines, testOutput)
 	}
@@ -221,26 +235,31 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) {
 
 	lines = append(lines, "")
 	for _, l := range lines {
-		w.Write([]byte(l + "\n"))
+		_, err := w.Write([]byte(l + "\n"))
+		if err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
 func calculateScore(results map[string]testResult) categoryScore {
 	// TODO(kalo): calculate score more elaborately (potentially use weights)
-	belowAvg := 0
+	avg := 0
 	for _, t := range results {
 		if t.Verdict == testVerdictNotOk || t.Verdict == testVerdictBad || t.Verdict == testVerdictFail || t.Verdict == testVerdictTimeout {
 			return categoryScoreC
 		}
 		if t.Verdict == testVerdictGood {
-			belowAvg += 1
+			avg++
 		}
 		if t.Verdict == testVerdictAvg {
-			belowAvg -= 1
+			avg--
 		}
 	}
 
-	if belowAvg < 0 {
+	if avg < 0 {
 		return categoryScoreB
 	}
 
@@ -258,11 +277,12 @@ func filterTests(supportedTestCases []testCaseName, cfg testConfig) ([]testCaseN
 			if stc.name == tc {
 				filteredTests = append(filteredTests, stc)
 				added = true
+
 				continue
 			}
 		}
 		if !added {
-			return nil, fmt.Errorf("test case %v not supported", tc)
+			return nil, errors.New("test case not supported")
 		}
 	}
 
