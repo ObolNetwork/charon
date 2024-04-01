@@ -43,39 +43,12 @@ func bindTestFlags(cmd *cobra.Command, config *testConfig) {
 	cmd.Flags().BoolVar(&config.Quiet, "quiet", false, "Do not print test results to stdout.")
 }
 
-type Duration struct {
-	time.Duration
-}
-
-func (d Duration) MarshalJSON() ([]byte, error) {
-	res, err := json.Marshal(d.String())
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal json duration")
+func mustOutputToFileOnQuiet(cmd *cobra.Command) error {
+	if cmd.Flag("quiet").Changed && !cmd.Flag("output-file").Changed {
+		return errors.New("on --quiet, an --output-file is required")
 	}
 
-	return res, nil
-}
-
-func (d *Duration) UnmarshalJSON(b []byte) error {
-	var v any
-	err := json.Unmarshal(b, &v)
-	if err != nil {
-		return errors.Wrap(err, "unmarshal json duration")
-	}
-	switch value := v.(type) {
-	case float64:
-		d.Duration = time.Duration(value)
-		return nil
-	case string:
-		d.Duration, err = time.ParseDuration(value)
-		if err != nil {
-			return errors.Wrap(err, "parse string time to duration")
-		}
-
-		return nil
-	default:
-		return errors.New("invalid duration")
-	}
+	return nil
 }
 
 type testVerdict string
@@ -107,7 +80,7 @@ type testResult struct {
 	Verdict     testVerdict `json:"verdict"`
 	Measurement string      `json:"measurement"`
 	Suggestion  string      `json:"suggestion"`
-	Error       string      `json:"error"`
+	Error       string      `json:"error,omitempty"`
 }
 
 type testCaseName struct {
@@ -226,7 +199,7 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) error {
 
 	if len(suggestions) != 0 {
 		lines = append(lines, "")
-		lines = append(lines, "IMPROVEMENT SUGGESTIONS")
+		lines = append(lines, "SUGGESTED IMPROVEMENTS")
 		lines = append(lines, suggestions...)
 	}
 
@@ -248,14 +221,15 @@ func calculateScore(results map[string]testResult) categoryScore {
 	// TODO(kalo): calculate score more elaborately (potentially use weights)
 	avg := 0
 	for _, t := range results {
-		if t.Verdict == testVerdictNotOk || t.Verdict == testVerdictBad || t.Verdict == testVerdictFail || t.Verdict == testVerdictTimeout {
+		switch t.Verdict {
+		case testVerdictNotOk, testVerdictBad, testVerdictFail, testVerdictTimeout:
 			return categoryScoreC
-		}
-		if t.Verdict == testVerdictGood {
+		case testVerdictGood:
 			avg++
-		}
-		if t.Verdict == testVerdictAvg {
+		case testVerdictAvg:
 			avg--
+		case testVerdictOk:
+			continue
 		}
 	}
 

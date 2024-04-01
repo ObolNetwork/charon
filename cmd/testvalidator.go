@@ -25,9 +25,12 @@ func newTestValidatorCmd(runFunc func(context.Context, io.Writer, testValidatorC
 	cmd := &cobra.Command{
 		Use:   "validator",
 		Short: "Run multiple tests towards validator client",
-		Long:  `Run multiple tests towards validator client. Verify if the current setup is suitable for mainnet cluster.`,
+		Long:  `Run multiple tests towards validator client. Verify that Charon can efficiently interact with other Charon peer nodes.`,
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		PreRunE: func(cmd *cobra.Command, _ []string) error {
+			return mustOutputToFileOnQuiet(cmd)
+		},
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runFunc(cmd.Context(), cmd.OutOrStdout(), config)
 		},
 	}
@@ -42,8 +45,8 @@ func bindTestValidatorFlags(cmd *cobra.Command, config *testValidatorConfig) {
 	cmd.Flags().StringVar(&config.APIAddress, "api-address", "127.0.0.1:3600", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API.")
 }
 
-func supportedValidatorTestCases() map[testCaseName]func(*testValidatorConfig) testResult {
-	return map[testCaseName]func(*testValidatorConfig) testResult{
+func supportedValidatorTestCases() map[testCaseName]func(context.Context, *testValidatorConfig) testResult {
+	return map[testCaseName]func(context.Context, *testValidatorConfig) testResult{
 		{name: "ping", order: 1}: validatorPing,
 	}
 }
@@ -64,7 +67,7 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 	if parentCtx == nil {
 		parentCtx = context.Background()
 	}
-	ctx, cancel := context.WithTimeout(parentCtx, cfg.Timeout)
+	timeoutCtx, cancel := context.WithTimeout(parentCtx, cfg.Timeout)
 	defer cancel()
 
 	ch := make(chan testResult)
@@ -75,15 +78,25 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 
 	startTime := time.Now()
 	// run all validator tests, pushing each finished test until all are finished or timeout occurs
-	go runAllValidator(ctx, queuedTests, testCases, cfg, ch)
+	go runAllValidator(timeoutCtx, queuedTests, testCases, cfg, ch)
+
+	testCounter := 0
 outer:
-	for _, qt := range queuedTests {
+	for {
+		var name string
 		select {
-		case <-ctx.Done():
-			res.TestsExecuted[qt.name] = testResult{Verdict: testVerdictTimeout}
+		case <-timeoutCtx.Done():
+			name = queuedTests[testCounter].name
+			res.TestsExecuted[name] = testResult{Verdict: testVerdictTimeout}
 			break outer
-		case result := <-ch:
-			res.TestsExecuted[qt.name] = result
+		case result, ok := <-ch:
+			if ok {
+				name = queuedTests[testCounter].name
+				testCounter++
+				res.TestsExecuted[name] = result
+			} else {
+				break outer
+			}
 		}
 	}
 
@@ -107,16 +120,27 @@ outer:
 	return nil
 }
 
-func runAllValidator(_ context.Context, queuedTests []testCaseName, allTests map[testCaseName]func(*testValidatorConfig) testResult, cfg testValidatorConfig, ch chan testResult) {
+func runAllValidator(ctx context.Context, queuedTests []testCaseName, allTests map[testCaseName]func(context.Context, *testValidatorConfig) testResult, cfg testValidatorConfig, ch chan testResult) {
+	defer close(ch)
 	for _, t := range queuedTests {
-		ch <- allTests[t](&cfg)
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			ch <- allTests[t](ctx, &cfg)
+		}
 	}
 }
 
-func validatorPing(_ *testValidatorConfig) testResult {
+func validatorPing(ctx context.Context, _ *testValidatorConfig) testResult {
 	// TODO(kalo): implement real ping
-	return testResult{
-		Verdict: testVerdictFail,
-		Error:   errors.New("not implemented").Error(),
+	select {
+	case <-ctx.Done():
+		return testResult{Verdict: testVerdictTimeout}
+	default:
+		return testResult{
+			Verdict: testVerdictFail,
+			Error:   errors.New("not implemented").Error(),
+		}
 	}
 }

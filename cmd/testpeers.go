@@ -25,9 +25,12 @@ func newTestPeersCmd(runFunc func(context.Context, io.Writer, testPeersConfig) e
 	cmd := &cobra.Command{
 		Use:   "peers",
 		Short: "Run multiple tests towards peer nodes",
-		Long:  `Run multiple tests towards peer nodes. Verify if the current setup is suitable for mainnet cluster.`,
+		Long:  `Run multiple tests towards peer nodes. Verify that Charon can efficiently interact with Validator Client.`,
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		PreRunE: func(cmd *cobra.Command, _ []string) error {
+			return mustOutputToFileOnQuiet(cmd)
+		},
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runFunc(cmd.Context(), cmd.OutOrStdout(), config)
 		},
 	}
@@ -44,8 +47,8 @@ func bindTestPeersFlags(cmd *cobra.Command, config *testPeersConfig) {
 	mustMarkFlagRequired(cmd, enrs)
 }
 
-func supportedPeersTestCases() map[testCaseName]func(*testPeersConfig) testResult {
-	return map[testCaseName]func(*testPeersConfig) testResult{
+func supportedPeersTestCases() map[testCaseName]func(context.Context, *testPeersConfig) testResult {
+	return map[testCaseName]func(context.Context, *testPeersConfig) testResult{
 		{name: "ping", order: 1}: peersPing,
 	}
 }
@@ -66,7 +69,7 @@ func runTestPeers(ctx context.Context, w io.Writer, cfg testPeersConfig) (err er
 	if parentCtx == nil {
 		parentCtx = context.Background()
 	}
-	ctx, cancel := context.WithTimeout(parentCtx, cfg.Timeout)
+	timeoutCtx, cancel := context.WithTimeout(parentCtx, cfg.Timeout)
 	defer cancel()
 
 	ch := make(chan testResult)
@@ -77,15 +80,25 @@ func runTestPeers(ctx context.Context, w io.Writer, cfg testPeersConfig) (err er
 
 	startTime := time.Now()
 	// run all peers tests, pushing each finished test until all are finished or timeout occurs
-	go runAllPeers(ctx, queuedTests, testCases, cfg, ch)
+	go runAllPeers(timeoutCtx, queuedTests, testCases, cfg, ch)
+
+	testCounter := 0
 outer:
-	for _, qt := range queuedTests {
+	for {
+		var name string
 		select {
-		case <-ctx.Done():
-			res.TestsExecuted[qt.name] = testResult{Verdict: testVerdictTimeout}
+		case <-timeoutCtx.Done():
+			name = queuedTests[testCounter].name
+			res.TestsExecuted[name] = testResult{Verdict: testVerdictTimeout}
 			break outer
-		case result := <-ch:
-			res.TestsExecuted[qt.name] = result
+		case result, ok := <-ch:
+			if ok {
+				name = queuedTests[testCounter].name
+				testCounter++
+				res.TestsExecuted[name] = result
+			} else {
+				break outer
+			}
 		}
 	}
 
@@ -109,16 +122,27 @@ outer:
 	return nil
 }
 
-func runAllPeers(_ context.Context, queuedTests []testCaseName, allTests map[testCaseName]func(*testPeersConfig) testResult, cfg testPeersConfig, ch chan testResult) {
+func runAllPeers(ctx context.Context, queuedTests []testCaseName, allTests map[testCaseName]func(context.Context, *testPeersConfig) testResult, cfg testPeersConfig, ch chan testResult) {
+	defer close(ch)
 	for _, t := range queuedTests {
-		ch <- allTests[t](&cfg)
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			ch <- allTests[t](ctx, &cfg)
+		}
 	}
 }
 
-func peersPing(_ *testPeersConfig) testResult {
+func peersPing(ctx context.Context, _ *testPeersConfig) testResult {
 	// TODO(kalo): implement real ping
-	return testResult{
-		Verdict: testVerdictFail,
-		Error:   errors.New("not implemented").Error(),
+	select {
+	case <-ctx.Done():
+		return testResult{Verdict: testVerdictTimeout}
+	default:
+		return testResult{
+			Verdict: testVerdictFail,
+			Error:   errors.New("not implemented").Error(),
+		}
 	}
 }
