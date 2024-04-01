@@ -90,15 +90,15 @@ outer:
 		case <-timeoutCtx.Done():
 			name = queuedTests[testCounter].name
 			res.TestsExecuted[name] = testResult{Verdict: testVerdictTimeout}
+
 			break outer
 		case result, ok := <-ch:
-			if ok {
-				name = queuedTests[testCounter].name
-				testCounter++
-				res.TestsExecuted[name] = result
-			} else {
-				break outer
+			if !ok {
+				break
 			}
+			name = queuedTests[testCounter].name
+			testCounter++
+			res.TestsExecuted[name] = result
 		}
 	}
 
