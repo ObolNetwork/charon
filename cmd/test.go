@@ -3,24 +3,23 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
 
 type testConfig struct {
-	OutputFormat string
-	OutputFile   string
-	Quiet        bool
-	TestCases    []string
-	Timeout      time.Duration
+	OutputToml string
+	Quiet      bool
+	TestCases  []string
+	Timeout    time.Duration
 }
 
 func newTestCmd(cmds ...*cobra.Command) *cobra.Command {
@@ -36,16 +35,15 @@ func newTestCmd(cmds ...*cobra.Command) *cobra.Command {
 }
 
 func bindTestFlags(cmd *cobra.Command, config *testConfig) {
-	cmd.Flags().StringVar(&config.OutputFile, "output-file", "", "File path to which output can be written.")
-	cmd.Flags().StringVar(&config.OutputFormat, "output-format", "json", "File format to which output is written. Flag --output-file is required.")
+	cmd.Flags().StringVar(&config.OutputToml, "output-toml", "", "File path to which output can be written in TOML format.")
 	cmd.Flags().StringSliceVar(&config.TestCases, "test-cases", nil, "List of comma separated names of tests to be exeucted.")
 	cmd.Flags().DurationVar(&config.Timeout, "timeout", 24*time.Hour, "Execution timeout for all tests.")
 	cmd.Flags().BoolVar(&config.Quiet, "quiet", false, "Do not print test results to stdout.")
 }
 
 func mustOutputToFileOnQuiet(cmd *cobra.Command) error {
-	if cmd.Flag("quiet").Changed && !cmd.Flag("output-file").Changed {
-		return errors.New("on --quiet, an --output-file is required")
+	if cmd.Flag("quiet").Changed && !cmd.Flag("output-toml").Changed {
+		return errors.New("on --quiet, an --output-toml is required")
 	}
 
 	return nil
@@ -95,23 +93,15 @@ type testCategoryResult struct {
 	Score         categoryScore         `json:"score"`
 }
 
-func writeResultToFile(res testCategoryResult, cfg testConfig) error {
-	var data []byte
-	switch cfg.OutputFormat {
-	case "json":
-		jsonData, err := json.Marshal(res)
-		if err != nil {
-			data = []byte(err.Error())
-			break
-		}
-		data = jsonData
-	default:
-		return errors.New("output format not supported")
-	}
-	//nolint:gosec // File needs to be read-only for everybody
-	err := os.WriteFile(cfg.OutputFile, data, 0o444)
+func writeResultToFile(res testCategoryResult, path string) error {
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o444)
 	if err != nil {
-		return errors.Wrap(err, "write test result")
+		return errors.Wrap(err, "create/open file")
+	}
+	defer f.Close()
+	err = toml.NewEncoder(f).Encode(res)
+	if err != nil {
+		return errors.Wrap(err, "encode testCategoryResult to TOML")
 	}
 
 	return nil

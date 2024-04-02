@@ -92,7 +92,7 @@ outer:
 			break outer
 		case result, ok := <-ch:
 			if !ok {
-				break
+				break outer
 			}
 			name = queuedTests[testCounter].name
 			testCounter++
@@ -110,8 +110,8 @@ outer:
 		}
 	}
 
-	if cfg.OutputFile != "" {
-		err = writeResultToFile(res, cfg.testConfig)
+	if cfg.OutputToml != "" {
+		err = writeResultToFile(res, cfg.OutputToml)
 		if err != nil {
 			return err
 		}

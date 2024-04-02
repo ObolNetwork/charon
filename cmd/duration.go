@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"strconv"
 	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -41,5 +42,28 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 		return nil
 	default:
 		return errors.New("invalid duration")
+	}
+}
+
+func (d Duration) MarshalText() ([]byte, error) {
+	return []byte(d.String()), nil
+}
+
+func (d *Duration) UnmarshalText(b []byte) error {
+	strTime := string(b)
+	intTime, err := strconv.ParseInt(strTime, 10, 64)
+	switch {
+	case err == nil:
+		d.Duration = time.Duration(intTime)
+		return nil
+	case errors.Is(err, strconv.ErrSyntax):
+		d.Duration, err = time.ParseDuration(strTime)
+		if err != nil {
+			return errors.Wrap(err, "parse string time to duration")
+		}
+
+		return nil
+	default:
+		return errors.Wrap(err, "invalid duration")
 	}
 }
