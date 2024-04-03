@@ -27,7 +27,7 @@ func newFetchExitCmd(runFunc func(context.Context, exitConfig) error) *cobra.Com
 	cmd := &cobra.Command{
 		Use:   "fetch",
 		Short: "Fetch a signed exit message from the remote API",
-		Long:  `Fetch a full exit message for a given validator from the partial exit API instance.`,
+		Long:  `Fetches a fully signed exit message for a given validator from the remote API.`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if err := log.InitLogger(config.Log); err != nil {
