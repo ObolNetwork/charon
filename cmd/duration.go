@@ -32,17 +32,16 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 	switch value := v.(type) {
 	case float64:
 		d.Duration = time.Duration(value)
-		return nil
 	case string:
 		d.Duration, err = time.ParseDuration(value)
 		if err != nil {
 			return errors.Wrap(err, "parse string time to duration")
 		}
-
-		return nil
 	default:
-		return errors.New("invalid duration")
+		return errors.New("invalid json duration")
 	}
+
+	return nil
 }
 
 func (d Duration) MarshalText() ([]byte, error) {
@@ -55,15 +54,14 @@ func (d *Duration) UnmarshalText(b []byte) error {
 	switch {
 	case err == nil:
 		d.Duration = time.Duration(intTime)
-		return nil
 	case errors.Is(err, strconv.ErrSyntax):
 		d.Duration, err = time.ParseDuration(strTime)
 		if err != nil {
 			return errors.Wrap(err, "parse string time to duration")
 		}
-
-		return nil
 	default:
-		return errors.Wrap(err, "invalid duration")
+		return errors.Wrap(err, "invalid text duration")
 	}
+
+	return nil
 }
