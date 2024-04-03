@@ -104,7 +104,7 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 		case exitEpoch:
 			cmd.Flags().Uint64Var(&config.ExitEpoch, exitEpoch.String(), 162304, "Exit epoch at which the validator will exit, must be the same across all the partial exits.")
 		case exitFromFile:
-			cmd.Flags().StringVar(&config.ExitFromFilePath, exitFromFile.String(), "", "Retrieves signed exit message from a pre-prepared file instead of --publish-address.")
+			cmd.Flags().StringVar(&config.ExitFromFilePath, exitFromFile.String(), "", "Retrieves a signed exit message from a pre-prepared file instead of --publish-address.")
 		}
 
 		if f.required {
