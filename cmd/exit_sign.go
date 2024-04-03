@@ -77,7 +77,7 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 
 	shares, err := keystore.KeysharesToValidatorPubkey(cl, valKeys)
 	if err != nil {
-		return errors.Wrap(err, "could not match keyshares with their counterparty in cluster manifest")
+		return errors.Wrap(err, "could not match local validator key shares with their counterparty in cluster lock")
 	}
 
 	validator := core.PubKey(config.ValidatorPubkey)
