@@ -24,7 +24,7 @@ func newCombineCmd(runFunc func(ctx context.Context, clusterDir, outputDir strin
 
 	cmd := &cobra.Command{
 		Use:   "combine",
-		Short: "Combines the private key shares of a distributed validator cluster into a set of standard validator private keys.",
+		Short: "Combine the private key shares of a distributed validator cluster into a set of standard validator private keys",
 		Long:  "Combines the private key shares from a threshold of operators in a distributed validator cluster into a set of validator private keys that can be imported into a standard Ethereum validator client.\n\nWarning: running the resulting private keys in a validator alongside the original distributed validator cluster *will* result in slashing.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {

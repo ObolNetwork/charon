@@ -59,12 +59,12 @@ func bindDefDirFlag(flags *pflag.FlagSet, dataDir *string) {
 }
 
 func bindDataDirFlag(flags *pflag.FlagSet, dataDir *string) {
-	flags.StringVar(dataDir, "data-dir", ".charon", "The directory where charon will store all its internal data")
+	flags.StringVar(dataDir, "data-dir", ".charon", "The directory where charon will store all its internal data.")
 }
 
 func bindPublishFlags(flags *pflag.FlagSet, config *dkg.Config) {
-	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech", "The URL to publish the lock file to.")
-	flags.BoolVar(&config.Publish, "publish", false, "Publish lock file to obol-api.")
+	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech", "The URL to publish the cluster to.")
+	flags.BoolVar(&config.Publish, "publish", false, "Publish the created cluster to a remote API.")
 }
 
 func bindShutdownDelayFlag(flags *pflag.FlagSet, shutdownDelay *time.Duration) {
