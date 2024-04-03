@@ -30,7 +30,7 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 
 	cmd := &cobra.Command{
 		Use:   "broadcast",
-		Short: "Submit partial exit message for a distributed validator.",
+		Short: "Submit partial exit message for a distributed validator",
 		Long:  `Retrieves and broadcasts a fully signed validator exit message, aggregated with the available partial signatures retrieved from the publish-address.`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
