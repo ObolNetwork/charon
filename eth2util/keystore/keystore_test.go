@@ -3,7 +3,9 @@
 package keystore_test
 
 import (
+	"bytes"
 	"fmt"
+	"math/rand"
 	"os"
 	"path"
 	"path/filepath"
@@ -13,8 +15,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/manifest"
+	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestStoreLoad(t *testing.T) {
@@ -303,4 +310,99 @@ func TestCheckDir(t *testing.T) {
 
 	err = keystore.StoreKeys(nil, "testdata/keystore-scrypt.json")
 	require.ErrorContains(t, err, "not a directory")
+}
+
+func TestKeyshareToValidatorPubkey(t *testing.T) {
+	valAmt := 4
+	sharesAmt := 10
+
+	privateShares := make([]tbls.PrivateKey, valAmt)
+
+	cl := &manifestpb.Cluster{}
+
+	for valIdx := 0; valIdx < valAmt; valIdx++ {
+		valPubk, err := tblsconv.PubkeyFromCore(testutil.RandomCorePubKey(t))
+		require.NoError(t, err)
+
+		validator := &manifestpb.Validator{
+			PublicKey: valPubk[:],
+		}
+
+		randomShareSelected := false
+		for shareIdx := 0; shareIdx < sharesAmt; shareIdx++ {
+			sharePriv, err := tbls.GenerateSecretKey()
+			require.NoError(t, err)
+
+			sharePub, err := tbls.SecretToPublicKey(sharePriv)
+			require.NoError(t, err)
+
+			if testutil.RandomBool() && !randomShareSelected {
+				privateShares[valIdx] = sharePriv
+				randomShareSelected = true
+			}
+
+			validator.PubShares = append(validator.PubShares, sharePub[:])
+		}
+
+		rand.Shuffle(len(validator.PubShares), func(i, j int) {
+			validator.PubShares[i], validator.PubShares[j] = validator.PubShares[j], validator.PubShares[i]
+		})
+
+		cl.Validators = append(cl.Validators, validator)
+	}
+
+	ret, err := keystore.KeysharesToValidatorPubkey(cl, privateShares)
+	require.NoError(t, err)
+
+	require.Len(t, ret, 4)
+
+	for valPubKey, sharePrivKey := range ret {
+		valFound := false
+		sharePrivKeyFound := false
+
+		for _, val := range cl.Validators {
+			if string(valPubKey) == fmt.Sprintf("0x%x", val.PublicKey) {
+				valFound = true
+				break
+			}
+		}
+
+		for _, share := range privateShares {
+			if bytes.Equal(share[:], sharePrivKey.Share[:]) {
+				sharePrivKeyFound = true
+				break
+			}
+		}
+
+		require.True(t, valFound, "validator pubkey not found")
+		require.True(t, sharePrivKeyFound, "share priv key not found")
+	}
+}
+
+func TestShareIdxForCluster(t *testing.T) {
+	valAmt := 100
+	operatorAmt := 4
+
+	random := rand.New(rand.NewSource(int64(0)))
+
+	lock, enrs, _ := cluster.NewForT(
+		t,
+		valAmt,
+		operatorAmt,
+		operatorAmt,
+		0,
+		random,
+	)
+
+	dag, err := manifest.NewDAGFromLockForT(t, lock)
+	require.NoError(t, err)
+
+	cl, err := manifest.Materialise(dag)
+	require.NoError(t, err)
+
+	pubkey := enrs[0].PubKey()
+
+	res, err := keystore.ShareIdxForCluster(cl, *pubkey)
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), res)
 }

@@ -17,11 +17,16 @@ import (
 	"strings"
 	"testing"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/libp2p/go-libp2p/core/crypto"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/forkjoin"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster/manifest"
+	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -34,6 +39,16 @@ const (
 	// loadStoreWorkers is the amount of workers to use when loading/storing keys concurrently.
 	loadStoreWorkers = 10
 )
+
+// IndexedKeyShare represents a share in the context of a Charon cluster,
+// alongside its index.
+type IndexedKeyShare struct {
+	Share tbls.PrivateKey
+	Index int
+}
+
+// ValidatorShares maps each ValidatorPubkey to the associated KeyShare.
+type ValidatorShares map[core.PubKey]IndexedKeyShare
 
 type confirmInsecure struct{}
 
@@ -224,4 +239,87 @@ func checkDir(dir string) error {
 	}
 
 	return nil
+}
+
+// KeysharesToValidatorPubkey maps each share in cl to the associated validator private key.
+// It returns an error if a keyshare does not appear in cl, or if there's a validator public key associated to no
+// keyshare.
+func KeysharesToValidatorPubkey(cl *manifestpb.Cluster, shares []tbls.PrivateKey) (ValidatorShares, error) {
+	ret := make(map[core.PubKey]IndexedKeyShare)
+
+	var pubShares []tbls.PublicKey
+
+	for _, share := range shares {
+		ps, err := tbls.SecretToPublicKey(share)
+		if err != nil {
+			return nil, errors.Wrap(err, "private share to public share")
+		}
+
+		pubShares = append(pubShares, ps)
+	}
+
+	// this is sadly a O(n^2) search
+	for _, validator := range cl.Validators {
+		valHex := fmt.Sprintf("0x%x", validator.PublicKey)
+
+		valPubShares := make(map[tbls.PublicKey]struct{})
+		for _, valShare := range validator.PubShares {
+			valPubShares[tbls.PublicKey(valShare)] = struct{}{}
+		}
+
+		found := false
+		for shareIdx, share := range pubShares {
+			if _, ok := valPubShares[share]; !ok {
+				continue
+			}
+
+			ret[core.PubKey(valHex)] = IndexedKeyShare{
+				Share: shares[shareIdx],
+				Index: shareIdx + 1,
+			}
+			found = true
+
+			break
+		}
+
+		if !found {
+			return nil, errors.New("public key share from provided private key share not found in provided lock")
+		}
+	}
+
+	if len(ret) != len(cl.Validators) {
+		return nil, errors.New("amount of key shares don't match amount of validator public keys")
+	}
+
+	return ret, nil
+}
+
+// ShareIdxForCluster returns the share index for the Charon cluster's ENR identity key, given a *manifestpb.Cluster.
+func ShareIdxForCluster(cl *manifestpb.Cluster, identityKey k1.PublicKey) (uint64, error) {
+	pids, err := manifest.ClusterPeerIDs(cl)
+	if err != nil {
+		return 0, errors.Wrap(err, "cluster peer ids")
+	}
+
+	k := crypto.Secp256k1PublicKey(identityKey)
+
+	shareIdx := -1
+	for _, pid := range pids {
+		if !pid.MatchesPublicKey(&k) {
+			continue
+		}
+
+		nIdx, err := manifest.ClusterNodeIdx(cl, pid)
+		if err != nil {
+			return 0, errors.Wrap(err, "cluster node idx")
+		}
+
+		shareIdx = nIdx.ShareIdx
+	}
+
+	if shareIdx == -1 {
+		return 0, errors.New("node index for loaded enr not found in cluster lock")
+	}
+
+	return uint64(shareIdx), nil
 }

@@ -48,6 +48,12 @@ func New() *cobra.Command {
 			newAddValidatorsCmd(runAddValidatorsSolo),
 			newViewClusterManifestCmd(runViewClusterManifest),
 		),
+		newExitCmd(
+			newListActiveValidatorsCmd(runListActiveValidatorsCmd),
+			newSubmitPartialExitCmd(runSignPartialExit),
+			newBcastFullExitCmd(runBcastFullExit),
+			newFetchExitCmd(runFetchExit),
+		),
 		newUnsafeCmd(newRunCmd(app.Run, true)),
 	)
 }
