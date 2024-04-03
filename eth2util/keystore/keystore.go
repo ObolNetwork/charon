@@ -283,7 +283,7 @@ func KeysharesToValidatorPubkey(cl *manifestpb.Cluster, shares []tbls.PrivateKey
 		}
 
 		if !found {
-			return nil, errors.New("share from provided private key shares slice not found in provided manifest")
+			return nil, errors.New("public key share from provided private key share not found in provided lock")
 		}
 	}
 
