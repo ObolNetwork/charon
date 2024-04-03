@@ -89,7 +89,7 @@ outer:
 		select {
 		case <-timeoutCtx.Done():
 			name = queuedTests[testCounter].name
-			res.TestsExecuted[name] = testResult{Verdict: testVerdictTimeout}
+			res.TestsExecuted[name] = testResult{Verdict: testVerdictFail}
 
 			break outer
 		case result, ok := <-ch:
@@ -138,7 +138,7 @@ func peersPing(ctx context.Context, _ *testPeersConfig) testResult {
 	// TODO(kalo): implement real ping
 	select {
 	case <-ctx.Done():
-		return testResult{Verdict: testVerdictTimeout}
+		return testResult{Verdict: testVerdictFail}
 	default:
 		return testResult{
 			Verdict: testVerdictFail,

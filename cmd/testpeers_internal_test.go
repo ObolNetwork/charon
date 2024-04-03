@@ -55,7 +55,7 @@ func TestPeersTest(t *testing.T) {
 			},
 			expected: testCategoryResult{
 				TestsExecuted: map[string]testResult{
-					"ping": {Verdict: testVerdictTimeout, Measurement: "", Suggestion: "", Error: ""},
+					"ping": {Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: ""},
 				},
 			},
 			expectedErr: "",

@@ -147,6 +147,7 @@ linters:
     - gochecknoglobals
     - gocognit
     - gocyclo
+    - godot
     - godox
     - goerr113
     - golint

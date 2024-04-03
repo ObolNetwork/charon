@@ -53,17 +53,15 @@ type testVerdict string
 
 const (
 	// boolean tests
-	testVerdictNotOk testVerdict = "NotOK"
-	testVerdictOk    testVerdict = "OK"
+	testVerdictOk testVerdict = "OK"
 
 	// measurement tests
 	testVerdictGood testVerdict = "Good"
 	testVerdictAvg  testVerdict = "Avg"
 	testVerdictBad  testVerdict = "Bad"
 
-	// errored tests
-	testVerdictFail    testVerdict = "Fail"
-	testVerdictTimeout testVerdict = "Timeout"
+	// failed tests
+	testVerdictFail testVerdict = "Fail"
 )
 
 type categoryScore string
@@ -212,7 +210,7 @@ func calculateScore(results map[string]testResult) categoryScore {
 	avg := 0
 	for _, t := range results {
 		switch t.Verdict {
-		case testVerdictNotOk, testVerdictBad, testVerdictFail, testVerdictTimeout:
+		case testVerdictBad, testVerdictFail:
 			return categoryScoreC
 		case testVerdictGood:
 			avg++
