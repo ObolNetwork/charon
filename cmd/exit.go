@@ -90,7 +90,7 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 
 		switch flag {
 		case publishAddress:
-			cmd.Flags().StringVar(&config.PublishAddress, publishAddress.String(), "https://api.obol.tech", "Endpoint of the partial exits API instance.")
+			cmd.Flags().StringVar(&config.PublishAddress, publishAddress.String(), "https://api.obol.tech", "The URL of the remote API.")
 		case beaconNodeURL:
 			cmd.Flags().StringVar(&config.BeaconNodeURL, beaconNodeURL.String(), "", "Beacon node URL.")
 		case privateKeyPath:
