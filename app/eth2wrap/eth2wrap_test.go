@@ -368,12 +368,14 @@ func TestOnlyTimeout(t *testing.T) {
 	// Start goroutine that is blocking trying to create the client.
 	go func() {
 		_, _ = eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
-		time.Sleep(time.Second)
 		if ctx.Err() != nil {
 			return
 		}
 		require.Fail(t, "Expect this only to return after main ctx cancelled")
 	}()
+
+	// Allow the above goroutine to block on the .Spec() call.
+	time.Sleep(10 * time.Millisecond)
 
 	// testCtxCancel tests that no concurrent calls block if the user cancels the context.
 	testCtxCancel := func(t *testing.T, timeout time.Duration) {

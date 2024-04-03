@@ -188,7 +188,16 @@ func (i *inclusionCore) CheckBlock(ctx context.Context, block block) {
 				continue
 			}
 
+			proposal, ok := sub.Data.(core.VersionedSignedProposal)
+			if !ok {
+				log.Error(ctx, "Submission data has wrong type", nil, z.Str("type", fmt.Sprintf("%T", sub.Data)))
+				continue
+			}
+
 			msg := "Broadcasted block included on-chain"
+			if proposal.Blinded {
+				msg = "Broadcasted blinded block included on-chain"
+			}
 
 			log.Info(ctx, msg,
 				z.U64("block_slot", block.Slot),
@@ -260,13 +269,21 @@ func reportMissed(ctx context.Context, sub submission) {
 			z.Any("broadcast_delay", sub.Delay),
 		)
 	case core.DutyProposer:
-		msg := "Broadcasted block never included on-chain"
+		proposal, ok := sub.Data.(core.VersionedSignedProposal)
+		if !ok {
+			log.Error(ctx, "Submission data has wrong type", nil, z.Str("type", fmt.Sprintf("%T", sub.Data)))
+		} else {
+			msg := "Broadcasted block never included on-chain"
+			if proposal.Blinded {
+				msg = "Broadcasted blinded block never included on-chain"
+			}
 
-		log.Warn(ctx, msg, nil,
-			z.Any("pubkey", sub.Pubkey),
-			z.U64("block_slot", sub.Duty.Slot),
-			z.Any("broadcast_delay", sub.Delay),
-		)
+			log.Warn(ctx, msg, nil,
+				z.Any("pubkey", sub.Pubkey),
+				z.U64("block_slot", sub.Duty.Slot),
+				z.Any("broadcast_delay", sub.Delay),
+			)
+		}
 	default:
 		panic("bug: unexpected type") // Sanity check, this should never happen
 	}

@@ -78,6 +78,13 @@ func TestSimnetDuties(t *testing.T) {
 			vcType:        vcVmock,
 		},
 		{
+			name:          "proposer with mock VCs with builder API",
+			scheduledType: core.DutyProposer,
+			duties:        []core.DutyType{core.DutyBuilderRegistration, core.DutyProposer, core.DutyRandao},
+			vcType:        vcVmock,
+			builderAPI:    true,
+		},
+		{
 			name:          "proposer with teku",
 			scheduledType: core.DutyProposer,
 			duties:        []core.DutyType{core.DutyProposer, core.DutyRandao},
