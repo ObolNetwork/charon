@@ -83,18 +83,17 @@ func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (err 
 	go runAllBeacon(timeoutCtx, queuedTests, testCases, cfg, ch)
 
 	testCounter := 0
-outer:
-	for {
+	finished := false
+	for !finished {
 		var name string
 		select {
 		case <-timeoutCtx.Done():
 			name = queuedTests[testCounter].name
 			res.TestsExecuted[name] = testResult{Verdict: testVerdictFail}
-
-			break outer
 		case result, ok := <-ch:
 			if !ok {
-				break outer
+				finished = true
+				break
 			}
 			name = queuedTests[testCounter].name
 			testCounter++
