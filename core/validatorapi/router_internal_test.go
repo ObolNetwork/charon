@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -525,8 +526,10 @@ func TestRawRouter(t *testing.T) {
 
 	t.Run("get response header for block proposal v3", func(t *testing.T) {
 		block := &eth2api.VersionedProposal{
-			Version: eth2spec.DataVersionCapella,
-			Capella: testutil.RandomCapellaBeaconBlock(),
+			Version:        eth2spec.DataVersionCapella,
+			Capella:        testutil.RandomCapellaBeaconBlock(),
+			ExecutionValue: big.NewInt(123),
+			ConsensusValue: big.NewInt(456),
 		}
 		expectedSlot, err := block.Slot()
 		require.NoError(t, err)
@@ -554,11 +557,15 @@ func TestRawRouter(t *testing.T) {
 			// Verify response header.
 			require.Equal(t, block.Version.String(), res.Header.Get(versionHeader))
 			require.Equal(t, "false", res.Header.Get(executionPayloadBlindedHeader))
+			require.Equal(t, block.ExecutionValue.String(), res.Header.Get(executionPayloadValueHeader))
+			require.Equal(t, block.ConsensusValue.String(), res.Header.Get(consensusBlockValueHeader))
 
-			var blockRes proposeBlockResponseCapella
+			var blockRes proposeBlockV3Response
 			err = json.NewDecoder(res.Body).Decode(&blockRes)
 			require.NoError(t, err)
-			require.EqualValues(t, block.Capella, blockRes.Data)
+			require.Equal(t, block.Blinded, blockRes.ExecutionPayloadBlinded)
+			require.Equal(t, block.ExecutionValue.String(), blockRes.ExecutionPayloadValue)
+			require.Equal(t, block.ConsensusValue.String(), blockRes.ConsensusBlockValue)
 		}
 
 		// BuilderAPI is disabled, we expect to get the blinded block
@@ -1506,24 +1513,31 @@ func TestCreateProposeBlindedBlockResponse(t *testing.T) {
 	p := &eth2api.VersionedProposal{
 		Version: eth2spec.DataVersionPhase0,
 		Phase0:  testutil.RandomPhase0BeaconBlock(),
+		Blinded: true,
 	}
 
-	_, err := createProposeBlindedBlockResponse(p)
+	_, err := createProposeBlockResponse(p)
 	require.ErrorContains(t, err, "invalid blinded block")
 
 	t.Run("bellatrix", func(t *testing.T) {
 		p = &eth2api.VersionedProposal{
 			Version:          eth2spec.DataVersionBellatrix,
 			BellatrixBlinded: testutil.RandomBellatrixBlindedBeaconBlock(),
+			Blinded:          true,
+			ConsensusValue:   big.NewInt(123),
+			ExecutionValue:   big.NewInt(456),
 		}
 
-		pp, err := createProposeBlindedBlockResponse(p)
+		pp, err := createProposeBlockResponse(p)
 		require.NoError(t, err)
-		require.Equal(t, p.Version.String(), pp.(proposeBlindedBlockResponseBellatrix).Version)
-		require.Equal(t, p.BellatrixBlinded, pp.(proposeBlindedBlockResponseBellatrix).Data)
+		require.Equal(t, p.Version.String(), pp.(proposeBlockV3Response).Version)
+		require.Equal(t, p.BellatrixBlinded, pp.(proposeBlockV3Response).Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.(proposeBlockV3Response).ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.(proposeBlockV3Response).ExecutionPayloadValue)
 
-		_, err = createProposeBlindedBlockResponse(&eth2api.VersionedProposal{
+		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
 			Version: eth2spec.DataVersionBellatrix,
+			Blinded: true,
 		})
 		require.ErrorContains(t, err, "no bellatrix blinded block")
 	})
@@ -1532,32 +1546,44 @@ func TestCreateProposeBlindedBlockResponse(t *testing.T) {
 		p := &eth2api.VersionedProposal{
 			Version:        eth2spec.DataVersionCapella,
 			CapellaBlinded: testutil.RandomCapellaBlindedBeaconBlock(),
+			Blinded:        true,
+			ConsensusValue: big.NewInt(123),
+			ExecutionValue: big.NewInt(456),
 		}
 
-		pp, err := createProposeBlindedBlockResponse(p)
+		pp, err := createProposeBlockResponse(p)
 		require.NoError(t, err)
-		require.Equal(t, p.Version.String(), pp.(proposeBlindedBlockResponseCapella).Version)
-		require.Equal(t, p.CapellaBlinded, pp.(proposeBlindedBlockResponseCapella).Data)
+		require.Equal(t, p.Version.String(), pp.(proposeBlockV3Response).Version)
+		require.Equal(t, p.CapellaBlinded, pp.(proposeBlockV3Response).Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.(proposeBlockV3Response).ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.(proposeBlockV3Response).ExecutionPayloadValue)
 
-		_, err = createProposeBlindedBlockResponse(&eth2api.VersionedProposal{
+		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
 			Version: eth2spec.DataVersionCapella,
+			Blinded: true,
 		})
 		require.ErrorContains(t, err, "no capella blinded block")
 	})
 
 	t.Run("deneb", func(t *testing.T) {
 		p := &eth2api.VersionedProposal{
-			Version:      eth2spec.DataVersionDeneb,
-			DenebBlinded: testutil.RandomDenebBlindedBeaconBlock(),
+			Version:        eth2spec.DataVersionDeneb,
+			DenebBlinded:   testutil.RandomDenebBlindedBeaconBlock(),
+			Blinded:        true,
+			ConsensusValue: big.NewInt(123),
+			ExecutionValue: big.NewInt(456),
 		}
 
-		pp, err := createProposeBlindedBlockResponse(p)
+		pp, err := createProposeBlockResponse(p)
 		require.NoError(t, err)
-		require.Equal(t, p.Version.String(), pp.(proposeBlindedBlockResponseDeneb).Version)
-		require.Equal(t, p.DenebBlinded, pp.(proposeBlindedBlockResponseDeneb).Data)
+		require.Equal(t, p.Version.String(), pp.(proposeBlockV3Response).Version)
+		require.Equal(t, p.DenebBlinded, pp.(proposeBlockV3Response).Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.(proposeBlockV3Response).ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.(proposeBlockV3Response).ExecutionPayloadValue)
 
-		_, err = createProposeBlindedBlockResponse(&eth2api.VersionedProposal{
+		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
 			Version: eth2spec.DataVersionDeneb,
+			Blinded: true,
 		})
 		require.ErrorContains(t, err, "no deneb blinded block")
 	})
@@ -1573,14 +1599,18 @@ func TestCreateProposeBlockResponse(t *testing.T) {
 
 	t.Run("phase0", func(t *testing.T) {
 		p = &eth2api.VersionedProposal{
-			Version: eth2spec.DataVersionPhase0,
-			Phase0:  testutil.RandomPhase0BeaconBlock(),
+			Version:        eth2spec.DataVersionPhase0,
+			Phase0:         testutil.RandomPhase0BeaconBlock(),
+			ConsensusValue: big.NewInt(123),
+			ExecutionValue: big.NewInt(456),
 		}
 
 		pp, err := createProposeBlockResponse(p)
 		require.NoError(t, err)
-		require.Equal(t, p.Version.String(), pp.(proposeBlockResponsePhase0).Version)
-		require.Equal(t, p.Phase0, pp.(proposeBlockResponsePhase0).Data)
+		require.Equal(t, p.Version.String(), pp.(proposeBlockV3Response).Version)
+		require.Equal(t, p.Phase0, pp.(proposeBlockV3Response).Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.(proposeBlockV3Response).ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.(proposeBlockV3Response).ExecutionPayloadValue)
 
 		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
 			Version: eth2spec.DataVersionPhase0,
@@ -1590,14 +1620,18 @@ func TestCreateProposeBlockResponse(t *testing.T) {
 
 	t.Run("altair", func(t *testing.T) {
 		p = &eth2api.VersionedProposal{
-			Version: eth2spec.DataVersionAltair,
-			Altair:  testutil.RandomAltairBeaconBlock(),
+			Version:        eth2spec.DataVersionAltair,
+			Altair:         testutil.RandomAltairBeaconBlock(),
+			ConsensusValue: big.NewInt(123),
+			ExecutionValue: big.NewInt(456),
 		}
 
 		pp, err := createProposeBlockResponse(p)
 		require.NoError(t, err)
-		require.Equal(t, p.Version.String(), pp.(proposeBlockResponseAltair).Version)
-		require.Equal(t, p.Altair, pp.(proposeBlockResponseAltair).Data)
+		require.Equal(t, p.Version.String(), pp.(proposeBlockV3Response).Version)
+		require.Equal(t, p.Altair, pp.(proposeBlockV3Response).Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.(proposeBlockV3Response).ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.(proposeBlockV3Response).ExecutionPayloadValue)
 
 		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
 			Version: eth2spec.DataVersionAltair,
@@ -1607,14 +1641,18 @@ func TestCreateProposeBlockResponse(t *testing.T) {
 
 	t.Run("bellatrix", func(t *testing.T) {
 		p = &eth2api.VersionedProposal{
-			Version:   eth2spec.DataVersionBellatrix,
-			Bellatrix: testutil.RandomBellatrixBeaconBlock(),
+			Version:        eth2spec.DataVersionBellatrix,
+			Bellatrix:      testutil.RandomBellatrixBeaconBlock(),
+			ConsensusValue: big.NewInt(123),
+			ExecutionValue: big.NewInt(456),
 		}
 
 		pp, err := createProposeBlockResponse(p)
 		require.NoError(t, err)
-		require.Equal(t, p.Version.String(), pp.(proposeBlockResponseBellatrix).Version)
-		require.Equal(t, p.Bellatrix, pp.(proposeBlockResponseBellatrix).Data)
+		require.Equal(t, p.Version.String(), pp.(proposeBlockV3Response).Version)
+		require.Equal(t, p.Bellatrix, pp.(proposeBlockV3Response).Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.(proposeBlockV3Response).ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.(proposeBlockV3Response).ExecutionPayloadValue)
 
 		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
 			Version: eth2spec.DataVersionBellatrix,
@@ -1624,14 +1662,18 @@ func TestCreateProposeBlockResponse(t *testing.T) {
 
 	t.Run("capella", func(t *testing.T) {
 		p := &eth2api.VersionedProposal{
-			Version: eth2spec.DataVersionCapella,
-			Capella: testutil.RandomCapellaBeaconBlock(),
+			Version:        eth2spec.DataVersionCapella,
+			Capella:        testutil.RandomCapellaBeaconBlock(),
+			ConsensusValue: big.NewInt(123),
+			ExecutionValue: big.NewInt(456),
 		}
 
 		pp, err := createProposeBlockResponse(p)
 		require.NoError(t, err)
-		require.Equal(t, p.Version.String(), pp.(proposeBlockResponseCapella).Version)
-		require.Equal(t, p.Capella, pp.(proposeBlockResponseCapella).Data)
+		require.Equal(t, p.Version.String(), pp.(proposeBlockV3Response).Version)
+		require.Equal(t, p.Capella, pp.(proposeBlockV3Response).Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.(proposeBlockV3Response).ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.(proposeBlockV3Response).ExecutionPayloadValue)
 
 		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
 			Version: eth2spec.DataVersionCapella,
@@ -1641,14 +1683,16 @@ func TestCreateProposeBlockResponse(t *testing.T) {
 
 	t.Run("deneb", func(t *testing.T) {
 		p := &eth2api.VersionedProposal{
-			Version: eth2spec.DataVersionDeneb,
-			Deneb:   testutil.RandomDenebVersionedProposal().Deneb,
+			Version:        eth2spec.DataVersionDeneb,
+			Deneb:          testutil.RandomDenebVersionedProposal().Deneb,
+			ConsensusValue: big.NewInt(123),
+			ExecutionValue: big.NewInt(456),
 		}
 
 		pp, err := createProposeBlockResponse(p)
 		require.NoError(t, err)
-		require.Equal(t, p.Version.String(), pp.(proposeBlockResponseDeneb).Version)
-		require.Equal(t, p.Deneb, pp.(proposeBlockResponseDeneb).Data)
+		require.Equal(t, p.Version.String(), pp.(proposeBlockV3Response).Version)
+		require.Equal(t, p.Deneb, pp.(proposeBlockV3Response).Data)
 
 		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
 			Version: eth2spec.DataVersionDeneb,

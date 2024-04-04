@@ -139,13 +139,6 @@ func TestSimnetDuties(t *testing.T) {
 			args.VoluntaryExit = test.exit
 
 			if test.vcType == vcTeku {
-				// TODO: investigate why teku does not query bn.
-				t.SkipNow()
-
-				return
-			}
-
-			if test.vcType == vcTeku {
 				for i := 0; i < args.N; i++ {
 					args = startTeku(t, args, i)
 				}
@@ -411,6 +404,8 @@ var (
 		"validator-client",
 		"--network=auto",
 		"--log-destination=console",
+		"--Xblock-v3-enabled=true",
+		"--validators-external-signer-slashing-protection-enabled=true",
 		"--validators-proposer-default-fee-recipient=0x000000000000000000000000000000000000dead",
 	}
 	tekuExit tekuCmd = []string{
@@ -474,7 +469,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 		"--name=" + name,
 		fmt.Sprintf("--volume=%s:/keys", tempDir),
 		"--user=root", // Root required to read volume files in GitHub actions.
-		"consensys/teku:23.11.0",
+		"consensys/teku:24.3.1",
 	}
 	dockerArgs = append(dockerArgs, tekuArgs...)
 	t.Logf("docker args: %v", dockerArgs)

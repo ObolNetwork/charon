@@ -639,12 +639,7 @@ func proposeBlockV3(p eth2client.ProposalProvider, builderEnabled core.BuilderEn
 
 		proposal := eth2Resp.Data
 
-		var proposedBlock any
-		if eth2Resp.Data.Blinded {
-			proposedBlock, err = createProposeBlindedBlockResponse(proposal)
-		} else {
-			proposedBlock, err = createProposeBlockResponse(proposal)
-		}
+		proposedBlock, err := createProposeBlockResponse(proposal)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -682,92 +677,88 @@ func getProposeBlockParams(params map[string]string, query url.Values) (uint64, 
 	return slot, randao, graffiti, err
 }
 
-// createProposeBlockResponse constructs proposeBlockResponse object for given block.
-func createProposeBlockResponse(block *eth2api.VersionedProposal) (any, error) {
-	switch block.Version {
+// createProposeBlockResponse constructs proposeBlockV3Response object for given block.
+func createProposeBlockResponse(proposal *eth2api.VersionedProposal) (any, error) {
+	var (
+		version   string
+		blockData any
+	)
+
+	switch proposal.Version {
 	case eth2spec.DataVersionPhase0:
-		if block.Phase0 == nil {
+		if proposal.Blinded {
+			return 0, errors.New("invalid blinded block")
+		}
+		if proposal.Phase0 == nil {
 			return 0, errors.New("no phase0 block")
 		}
 
-		return proposeBlockResponsePhase0{
-			Version: eth2spec.DataVersionPhase0.String(),
-			Data:    block.Phase0,
-		}, nil
+		version = eth2spec.DataVersionPhase0.String()
+		blockData = proposal.Phase0
 	case eth2spec.DataVersionAltair:
-		if block.Altair == nil {
+		if proposal.Blinded {
+			return 0, errors.New("invalid blinded block")
+		}
+		if proposal.Altair == nil {
 			return 0, errors.New("no altair block")
 		}
 
-		return proposeBlockResponseAltair{
-			Version: eth2spec.DataVersionAltair.String(),
-			Data:    block.Altair,
-		}, nil
+		version = eth2spec.DataVersionAltair.String()
+		blockData = proposal.Altair
 	case eth2spec.DataVersionBellatrix:
-		if block.Bellatrix == nil {
-			return 0, errors.New("no bellatrix block")
+		version = eth2spec.DataVersionBellatrix.String()
+		if proposal.Blinded {
+			if proposal.BellatrixBlinded == nil {
+				return 0, errors.New("no bellatrix blinded block")
+			}
+			blockData = proposal.BellatrixBlinded
+		} else {
+			if proposal.Bellatrix == nil {
+				return 0, errors.New("no bellatrix block")
+			}
+			blockData = proposal.Bellatrix
 		}
-
-		return proposeBlockResponseBellatrix{
-			Version: eth2spec.DataVersionBellatrix.String(),
-			Data:    block.Bellatrix,
-		}, nil
 	case eth2spec.DataVersionCapella:
-		if block.Capella == nil {
-			return 0, errors.New("no capella block")
+		version = eth2spec.DataVersionCapella.String()
+		if proposal.Blinded {
+			if proposal.CapellaBlinded == nil {
+				return 0, errors.New("no capella blinded block")
+			}
+			blockData = proposal.CapellaBlinded
+		} else {
+			if proposal.Capella == nil {
+				return 0, errors.New("no capella block")
+			}
+			blockData = proposal.Capella
 		}
-
-		return proposeBlockResponseCapella{
-			Version: eth2spec.DataVersionCapella.String(),
-			Data:    block.Capella,
-		}, nil
 	case eth2spec.DataVersionDeneb:
-		if block.Deneb == nil {
-			return 0, errors.New("no deneb block")
+		version = eth2spec.DataVersionDeneb.String()
+		if proposal.Blinded {
+			if proposal.DenebBlinded == nil {
+				return 0, errors.New("no deneb blinded block")
+			}
+			blockData = proposal.DenebBlinded
+		} else {
+			if proposal.Deneb == nil {
+				return 0, errors.New("no deneb block")
+			}
+			blockData = proposal.Deneb
+		}
+	default:
+		if proposal.Blinded {
+			return 0, errors.New("invalid blinded block")
 		}
 
-		return proposeBlockResponseDeneb{
-			Version: eth2spec.DataVersionDeneb.String(),
-			Data:    block.Deneb,
-		}, nil
-	default:
 		return 0, errors.New("invalid block")
 	}
-}
 
-// createProposeBlindedBlockResponse constructs proposeBlindedBlockResponse object for given block.
-func createProposeBlindedBlockResponse(block *eth2api.VersionedProposal) (any, error) {
-	switch block.Version {
-	case eth2spec.DataVersionBellatrix:
-		if block.BellatrixBlinded == nil {
-			return nil, errors.New("no bellatrix blinded block")
-		}
-
-		return proposeBlindedBlockResponseBellatrix{
-			Version: eth2spec.DataVersionBellatrix.String(),
-			Data:    block.BellatrixBlinded,
-		}, nil
-	case eth2spec.DataVersionCapella:
-		if block.CapellaBlinded == nil {
-			return nil, errors.New("no capella blinded block")
-		}
-
-		return proposeBlindedBlockResponseCapella{
-			Version: eth2spec.DataVersionCapella.String(),
-			Data:    block.CapellaBlinded,
-		}, nil
-	case eth2spec.DataVersionDeneb:
-		if block.DenebBlinded == nil {
-			return nil, errors.New("no deneb blinded block")
-		}
-
-		return proposeBlindedBlockResponseDeneb{
-			Version: eth2spec.DataVersionDeneb.String(),
-			Data:    block.DenebBlinded,
-		}, nil
-	default:
-		return nil, errors.New("invalid blinded block")
-	}
+	return proposeBlockV3Response{
+		Version:                 version,
+		Data:                    blockData,
+		ExecutionPayloadBlinded: proposal.Blinded,
+		ExecutionPayloadValue:   proposal.ExecutionValue.String(),
+		ConsensusBlockValue:     proposal.ConsensusValue.String(),
+	}, nil
 }
 
 func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {

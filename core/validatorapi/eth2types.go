@@ -9,12 +9,7 @@ import (
 	"strconv"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
-	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
-	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	"github.com/attestantio/go-eth2-client/spec/altair"
-	"github.com/attestantio/go-eth2-client/spec/bellatrix"
-	"github.com/attestantio/go-eth2-client/spec/capella"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -78,52 +73,24 @@ type proposerDutiesResponse struct {
 	ExecutionOptimistic bool                   `json:"execution_optimistic"`
 }
 
-type proposeBlockResponsePhase0 struct {
-	Version string              `json:"version"`
-	Data    *eth2p0.BeaconBlock `json:"data"`
-}
-
-type proposeBlockResponseAltair struct {
-	Version string              `json:"version"`
-	Data    *altair.BeaconBlock `json:"data"`
-}
-
-type proposeBlockResponseBellatrix struct {
-	Version string                 `json:"version"`
-	Data    *bellatrix.BeaconBlock `json:"data"`
-}
-
-type proposeBlindedBlockResponseBellatrix struct {
-	Version string                            `json:"version"`
-	Data    *eth2bellatrix.BlindedBeaconBlock `json:"data"`
-}
-
-type proposeBlindedBlockResponseCapella struct {
-	Version string                          `json:"version"`
-	Data    *eth2capella.BlindedBeaconBlock `json:"data"`
-}
-
-type proposeBlindedBlockResponseDeneb struct {
-	Version string                        `json:"version"`
-	Data    *eth2deneb.BlindedBeaconBlock `json:"data"`
-}
-
-type proposeBlockResponseCapella struct {
-	Version string               `json:"version"`
-	Data    *capella.BeaconBlock `json:"data"`
-}
-
-type proposeBlockResponseDeneb struct {
-	Version string                   `json:"version"`
-	Data    *eth2deneb.BlockContents `json:"data"`
+type proposeBlockV3Response struct {
+	ExecutionPayloadBlinded bool   `json:"execution_payload_blinded"`
+	ExecutionPayloadValue   string `json:"execution_payload_value"`
+	ConsensusBlockValue     string `json:"consensus_block_value"`
+	Version                 string `json:"version"`
+	Data                    any    `json:"data"`
 }
 
 type validatorsResponse struct {
-	Data []v1Validator `json:"data"`
+	ExecutionOptimistic bool          `json:"execution_optimistic"`
+	Finalized           bool          `json:"finalized"`
+	Data                []v1Validator `json:"data"`
 }
 
 type validatorResponse struct {
-	Data v1Validator `json:"data"`
+	ExecutionOptimistic bool        `json:"execution_optimistic"`
+	Finalized           bool        `json:"finalized"`
+	Data                v1Validator `json:"data"`
 }
 
 type aggregateBeaconCommitteeSelectionsJSON struct {
@@ -157,7 +124,8 @@ func (v v1Validator) MarshalJSON() ([]byte, error) {
 // syncCommitteeDutiesResponse defines the response to the getSyncCommitteeDuties endpoint.
 // See: https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getSyncCommitteeDuties.
 type syncCommitteeDutiesResponse struct {
-	Data []*eth2v1.SyncCommitteeDuty `json:"data"`
+	ExecutionOptimistic bool                        `json:"execution_optimistic"`
+	Data                []*eth2v1.SyncCommitteeDuty `json:"data"`
 }
 
 // syncCommitteeContributionResponse defines the response to the syncCommitteeContribution endpoint.
