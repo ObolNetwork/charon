@@ -1530,10 +1530,11 @@ func TestCreateProposeBlindedBlockResponse(t *testing.T) {
 
 		pp, err := createProposeBlockResponse(p)
 		require.NoError(t, err)
-		require.Equal(t, p.Version.String(), pp.(proposeBlockV3Response).Version)
-		require.Equal(t, p.BellatrixBlinded, pp.(proposeBlockV3Response).Data)
-		require.Equal(t, p.ConsensusValue.String(), pp.(proposeBlockV3Response).ConsensusBlockValue)
-		require.Equal(t, p.ExecutionValue.String(), pp.(proposeBlockV3Response).ExecutionPayloadValue)
+		require.NotNil(t, pp)
+		require.Equal(t, p.Version.String(), pp.Version)
+		require.Equal(t, p.BellatrixBlinded, pp.Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.ExecutionPayloadValue)
 
 		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
 			Version: eth2spec.DataVersionBellatrix,
@@ -1553,10 +1554,11 @@ func TestCreateProposeBlindedBlockResponse(t *testing.T) {
 
 		pp, err := createProposeBlockResponse(p)
 		require.NoError(t, err)
-		require.Equal(t, p.Version.String(), pp.(proposeBlockV3Response).Version)
-		require.Equal(t, p.CapellaBlinded, pp.(proposeBlockV3Response).Data)
-		require.Equal(t, p.ConsensusValue.String(), pp.(proposeBlockV3Response).ConsensusBlockValue)
-		require.Equal(t, p.ExecutionValue.String(), pp.(proposeBlockV3Response).ExecutionPayloadValue)
+		require.NotNil(t, pp)
+		require.Equal(t, p.Version.String(), pp.Version)
+		require.Equal(t, p.CapellaBlinded, pp.Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.ExecutionPayloadValue)
 
 		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
 			Version: eth2spec.DataVersionCapella,
@@ -1576,10 +1578,11 @@ func TestCreateProposeBlindedBlockResponse(t *testing.T) {
 
 		pp, err := createProposeBlockResponse(p)
 		require.NoError(t, err)
-		require.Equal(t, p.Version.String(), pp.(proposeBlockV3Response).Version)
-		require.Equal(t, p.DenebBlinded, pp.(proposeBlockV3Response).Data)
-		require.Equal(t, p.ConsensusValue.String(), pp.(proposeBlockV3Response).ConsensusBlockValue)
-		require.Equal(t, p.ExecutionValue.String(), pp.(proposeBlockV3Response).ExecutionPayloadValue)
+		require.NotNil(t, pp)
+		require.Equal(t, p.Version.String(), pp.Version)
+		require.Equal(t, p.DenebBlinded, pp.Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.ExecutionPayloadValue)
 
 		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
 			Version: eth2spec.DataVersionDeneb,
@@ -1607,10 +1610,11 @@ func TestCreateProposeBlockResponse(t *testing.T) {
 
 		pp, err := createProposeBlockResponse(p)
 		require.NoError(t, err)
-		require.Equal(t, p.Version.String(), pp.(proposeBlockV3Response).Version)
-		require.Equal(t, p.Phase0, pp.(proposeBlockV3Response).Data)
-		require.Equal(t, p.ConsensusValue.String(), pp.(proposeBlockV3Response).ConsensusBlockValue)
-		require.Equal(t, p.ExecutionValue.String(), pp.(proposeBlockV3Response).ExecutionPayloadValue)
+		require.NotNil(t, pp)
+		require.Equal(t, p.Version.String(), pp.Version)
+		require.Equal(t, p.Phase0, pp.Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.ExecutionPayloadValue)
 
 		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
 			Version: eth2spec.DataVersionPhase0,
@@ -1628,10 +1632,11 @@ func TestCreateProposeBlockResponse(t *testing.T) {
 
 		pp, err := createProposeBlockResponse(p)
 		require.NoError(t, err)
-		require.Equal(t, p.Version.String(), pp.(proposeBlockV3Response).Version)
-		require.Equal(t, p.Altair, pp.(proposeBlockV3Response).Data)
-		require.Equal(t, p.ConsensusValue.String(), pp.(proposeBlockV3Response).ConsensusBlockValue)
-		require.Equal(t, p.ExecutionValue.String(), pp.(proposeBlockV3Response).ExecutionPayloadValue)
+		require.NotNil(t, pp)
+		require.Equal(t, p.Version.String(), pp.Version)
+		require.Equal(t, p.Altair, pp.Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.ExecutionPayloadValue)
 
 		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
 			Version: eth2spec.DataVersionAltair,
@@ -1649,10 +1654,11 @@ func TestCreateProposeBlockResponse(t *testing.T) {
 
 		pp, err := createProposeBlockResponse(p)
 		require.NoError(t, err)
-		require.Equal(t, p.Version.String(), pp.(proposeBlockV3Response).Version)
-		require.Equal(t, p.Bellatrix, pp.(proposeBlockV3Response).Data)
-		require.Equal(t, p.ConsensusValue.String(), pp.(proposeBlockV3Response).ConsensusBlockValue)
-		require.Equal(t, p.ExecutionValue.String(), pp.(proposeBlockV3Response).ExecutionPayloadValue)
+		require.NotNil(t, pp)
+		require.Equal(t, p.Version.String(), pp.Version)
+		require.Equal(t, p.Bellatrix, pp.Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.ExecutionPayloadValue)
 
 		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
 			Version: eth2spec.DataVersionBellatrix,
@@ -1670,10 +1676,11 @@ func TestCreateProposeBlockResponse(t *testing.T) {
 
 		pp, err := createProposeBlockResponse(p)
 		require.NoError(t, err)
-		require.Equal(t, p.Version.String(), pp.(proposeBlockV3Response).Version)
-		require.Equal(t, p.Capella, pp.(proposeBlockV3Response).Data)
-		require.Equal(t, p.ConsensusValue.String(), pp.(proposeBlockV3Response).ConsensusBlockValue)
-		require.Equal(t, p.ExecutionValue.String(), pp.(proposeBlockV3Response).ExecutionPayloadValue)
+		require.NotNil(t, pp)
+		require.Equal(t, p.Version.String(), pp.Version)
+		require.Equal(t, p.Capella, pp.Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.ExecutionPayloadValue)
 
 		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
 			Version: eth2spec.DataVersionCapella,
@@ -1691,8 +1698,9 @@ func TestCreateProposeBlockResponse(t *testing.T) {
 
 		pp, err := createProposeBlockResponse(p)
 		require.NoError(t, err)
-		require.Equal(t, p.Version.String(), pp.(proposeBlockV3Response).Version)
-		require.Equal(t, p.Deneb, pp.(proposeBlockV3Response).Data)
+		require.NotNil(t, pp)
+		require.Equal(t, p.Version.String(), pp.Version)
+		require.Equal(t, p.Deneb, pp.Data)
 
 		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
 			Version: eth2spec.DataVersionDeneb,
