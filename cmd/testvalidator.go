@@ -81,18 +81,18 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 	go runAllValidator(timeoutCtx, queuedTests, testCases, cfg, ch)
 
 	testCounter := 0
-outer:
-	for {
+	finished := false
+	for !finished {
 		var name string
 		select {
 		case <-timeoutCtx.Done():
 			name = queuedTests[testCounter].name
 			res.TestsExecuted[name] = testResult{Verdict: testVerdictFail}
-
-			break outer
+			finished = true
 		case result, ok := <-ch:
 			if !ok {
-				break outer
+				finished = true
+				break
 			}
 			name = queuedTests[testCounter].name
 			testCounter++
