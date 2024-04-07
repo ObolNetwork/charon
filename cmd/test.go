@@ -91,6 +91,15 @@ type testCategoryResult struct {
 	Score         categoryScore         `json:"score"`
 }
 
+func appendScore(cat []string, score []string) []string {
+	var res []string
+	for i, l := range cat {
+		res = append(res, l+score[i])
+	}
+
+	return res
+}
+
 func writeResultToFile(res testCategoryResult, path string) error {
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o444)
 	if err != nil {
@@ -110,57 +119,22 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) error {
 
 	switch res.CategoryName {
 	case "peers":
-		lines = append(lines, "  ____                                                      ")
-		lines = append(lines, " |  __ \\                                                    ")
-		lines = append(lines, " | |__) |___   ___  _ __  ___                               ")
-		lines = append(lines, " |  ___// _ \\ / _ \\| '__|/ __|                              ")
-		lines = append(lines, " | |   |  __/|  __/| |   \\__ \\                              ")
-		lines = append(lines, " |_|    \\___| \\___||_|   |___/                              ")
+		lines = append(lines, peersASCII()...)
 	case "beacon":
-		lines = append(lines, "  ____                                                      ")
-		lines = append(lines, " |  _ \\                                                     ")
-		lines = append(lines, " | |_) |  ___   __ _   ___  ___   _ __                      ")
-		lines = append(lines, " |  _ <  / _ \\ / _` | / __|/ _ \\ | '_ \\                     ")
-		lines = append(lines, " | |_) ||  __/| (_| || (__| (_) || | | |                    ")
-		lines = append(lines, " |____/  \\___| \\__,_| \\___|\\___/ |_| |_|                    ")
+		lines = append(lines, beaconASCII()...)
 	case "validator":
-		lines = append(lines, " __      __     _  _      _         _                       ")
-		lines = append(lines, " \\ \\    / /    | |(_)    | |       | |                      ")
-		lines = append(lines, "  \\ \\  / /__ _ | | _   __| |  __ _ | |_  ___   _ __         ")
-		lines = append(lines, "   \\ \\/ // _` || || | / _` | / _` || __|/ _ \\ | '__|        ")
-		lines = append(lines, "    \\  /| (_| || || || (_| || (_| || |_| (_) || |           ")
-		lines = append(lines, "     \\/  \\__,_||_||_| \\__,_| \\__,_| \\__|\\___/ |_|           ")
+		lines = append(lines, validatorASCII()...)
 	default:
-		lines = append(lines, "                                                            ")
-		lines = append(lines, "                                                            ")
-		lines = append(lines, "                                                            ")
-		lines = append(lines, "                                                            ")
-		lines = append(lines, "                                                            ")
-		lines = append(lines, "                                                            ")
+		lines = append(lines, categoryDefaultASCII()...)
 	}
 
 	switch res.Score {
 	case categoryScoreA:
-		lines[0] += "          "
-		lines[1] += "    /\\    "
-		lines[2] += "   /  \\   "
-		lines[3] += "  / /\\ \\  "
-		lines[4] += " / ____ \\ "
-		lines[5] += "/_/    \\_\\"
+		lines = appendScore(lines, scoreAASCII())
 	case categoryScoreB:
-		lines[0] += " ____     "
-		lines[1] += "|  _ \\    "
-		lines[2] += "| |_) |   "
-		lines[3] += "|  _ <    "
-		lines[4] += "| |_) |   "
-		lines[5] += "|____/    "
+		lines = appendScore(lines, scoreBASCII())
 	case categoryScoreC:
-		lines[0] += "   ____     "
-		lines[1] += " / ____|   "
-		lines[2] += "| |       "
-		lines[3] += "| |       "
-		lines[4] += "| |____   "
-		lines[5] += " \\_____|  "
+		lines = appendScore(lines, scoreCASCII())
 	}
 
 	lines = append(lines, "")
