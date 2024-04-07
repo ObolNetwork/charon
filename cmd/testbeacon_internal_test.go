@@ -7,12 +7,9 @@ import (
 	"context"
 	"io"
 	"os"
-	"slices"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/pelletier/go-toml/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,13 +31,14 @@ func TestBeaconTest(t *testing.T) {
 					OutputToml: "",
 					Quiet:      false,
 					TestCases:  nil,
-					Timeout:    24 * time.Hour,
+					Timeout:    time.Minute,
 				},
-				Endpoints: []string{},
+				Endpoints: []string{"beacon-endpoint-1", "beacon-endpoint-2"},
 			},
 			expected: testCategoryResult{
-				TestsExecuted: map[string]testResult{
-					"ping": {Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "not implemented"},
+				Targets: map[string][]testResult{
+					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
+					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
 				},
 			},
 			expectedErr: "",
@@ -54,11 +52,12 @@ func TestBeaconTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    time.Nanosecond,
 				},
-				Endpoints: []string{},
+				Endpoints: []string{"beacon-endpoint-1", "beacon-endpoint-2"},
 			},
 			expected: testCategoryResult{
-				TestsExecuted: map[string]testResult{
-					"ping": {Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: ""},
+				Targets: map[string][]testResult{
+					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout"}},
+					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout"}},
 				},
 			},
 			expectedErr: "",
@@ -70,13 +69,14 @@ func TestBeaconTest(t *testing.T) {
 					OutputToml: "",
 					Quiet:      true,
 					TestCases:  nil,
-					Timeout:    24 * time.Hour,
+					Timeout:    time.Minute,
 				},
-				Endpoints: []string{},
+				Endpoints: []string{"beacon-endpoint-1", "beacon-endpoint-2"},
 			},
 			expected: testCategoryResult{
-				TestsExecuted: map[string]testResult{
-					"ping": {Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "not implemented"},
+				Targets: map[string][]testResult{
+					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
+					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
 				},
 			},
 			expectedErr: "",
@@ -88,9 +88,9 @@ func TestBeaconTest(t *testing.T) {
 					OutputToml: "",
 					Quiet:      false,
 					TestCases:  []string{"notSupportedTest"},
-					Timeout:    24 * time.Hour,
+					Timeout:    time.Minute,
 				},
-				Endpoints: []string{},
+				Endpoints: []string{"beacon-endpoint-1", "beacon-endpoint-2"},
 			},
 			expected:    testCategoryResult{},
 			expectedErr: "test case not supported",
@@ -102,13 +102,14 @@ func TestBeaconTest(t *testing.T) {
 					OutputToml: "",
 					Quiet:      false,
 					TestCases:  []string{"ping"},
-					Timeout:    24 * time.Hour,
+					Timeout:    time.Minute,
 				},
-				Endpoints: []string{},
+				Endpoints: []string{"beacon-endpoint-1", "beacon-endpoint-2"},
 			},
 			expected: testCategoryResult{
-				TestsExecuted: map[string]testResult{
-					"ping": {Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "not implemented"},
+				Targets: map[string][]testResult{
+					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
+					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
 				},
 			},
 			expectedErr: "",
@@ -121,14 +122,15 @@ func TestBeaconTest(t *testing.T) {
 					OutputToml: "./write-to-file-test.toml.tmp",
 					Quiet:      false,
 					TestCases:  nil,
-					Timeout:    24 * time.Hour,
+					Timeout:    time.Minute,
 				},
-				Endpoints: []string{},
+				Endpoints: []string{"beacon-endpoint-1", "beacon-endpoint-2"},
 			},
 			expected: testCategoryResult{
 				CategoryName: "beacon",
-				TestsExecuted: map[string]testResult{
-					"ping": {Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "not implemented"},
+				Targets: map[string][]testResult{
+					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
+					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
 				},
 				Score: categoryScoreC,
 			},
@@ -160,7 +162,7 @@ func TestBeaconTest(t *testing.T) {
 			if test.config.Quiet {
 				require.Empty(t, buf.String())
 			} else {
-				testWriteOut(t, test.expected.TestsExecuted, buf)
+				testWriteOut(t, test.expected, buf)
 			}
 
 			if test.config.OutputToml != "" {
@@ -204,42 +206,5 @@ func TestBeaconTestFlags(t *testing.T) {
 				require.NoError(t, err)
 			}
 		})
-	}
-}
-
-func testWriteOut(t *testing.T, expectedTests map[string]testResult, buf bytes.Buffer) {
-	t.Helper()
-	bufTests := strings.Split(buf.String(), "\n")
-	bufTests = slices.Delete(bufTests, 0, 8)
-	bufTests = slices.Delete(bufTests, len(bufTests)-4, len(bufTests))
-
-	require.Equal(t, len(bufTests), len(expectedTests))
-
-	for _, bt := range bufTests {
-		name, res, exist := strings.Cut(bt, " ")
-		require.True(t, exist)
-		require.Contains(t, res, expectedTests[name].Verdict)
-		require.Contains(t, res, expectedTests[name].Measurement)
-		require.Contains(t, res, expectedTests[name].Suggestion)
-		require.Contains(t, res, expectedTests[name].Error)
-	}
-}
-
-func testWriteFile(t *testing.T, expectedRes testCategoryResult, path string) {
-	t.Helper()
-	file, err := os.ReadFile(path)
-	require.NoError(t, err)
-	var res testCategoryResult
-	err = toml.Unmarshal(file, &res)
-	require.NoError(t, err)
-
-	require.Equal(t, expectedRes.CategoryName, res.CategoryName)
-	require.Equal(t, expectedRes.Score, res.Score)
-	require.Equal(t, len(expectedRes.TestsExecuted), len(res.TestsExecuted))
-	for testName, testRes := range res.TestsExecuted {
-		require.Equal(t, expectedRes.TestsExecuted[testName].Verdict, testRes.Verdict)
-		require.Equal(t, expectedRes.TestsExecuted[testName].Measurement, testRes.Measurement)
-		require.Equal(t, expectedRes.TestsExecuted[testName].Suggestion, testRes.Suggestion)
-		require.Equal(t, expectedRes.TestsExecuted[testName].Error, testRes.Error)
 	}
 }

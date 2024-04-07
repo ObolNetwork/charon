@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -73,10 +74,11 @@ const (
 )
 
 type testResult struct {
-	Verdict     testVerdict `json:"verdict"`
-	Measurement string      `json:"measurement"`
-	Suggestion  string      `json:"suggestion"`
-	Error       string      `json:"error,omitempty"`
+	Name        string
+	Verdict     testVerdict
+	Measurement string
+	Suggestion  string
+	Error       string
 }
 
 type testCaseName struct {
@@ -85,10 +87,10 @@ type testCaseName struct {
 }
 
 type testCategoryResult struct {
-	CategoryName  string                `json:"category_name"`
-	TestsExecuted map[string]testResult `json:"tests_executed"`
-	ExecutionTime Duration              `json:"execution_time"`
-	Score         categoryScore         `json:"score"`
+	CategoryName  string
+	Targets       map[string][]testResult
+	ExecutionTime Duration
+	Score         categoryScore
 }
 
 func appendScore(cat []string, score []string) []string {
@@ -140,25 +142,30 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) error {
 	lines = append(lines, "")
 	lines = append(lines, fmt.Sprintf("%-60s%s", "TEST NAME", "RESULT"))
 	suggestions := []string{}
-	for name, singleTestRes := range res.TestsExecuted {
-		testOutput := ""
-		testOutput += fmt.Sprintf("%-60s", name)
-		if singleTestRes.Measurement != "" {
-			testOutput = strings.TrimSuffix(testOutput, strings.Repeat(" ", len(singleTestRes.Measurement)+1))
-			testOutput = testOutput + singleTestRes.Measurement + " "
+	for target, testResults := range res.Targets {
+		if target != "" && len(testResults) > 0 {
+			lines = append(lines, "")
+			lines = append(lines, target)
 		}
-		testOutput += string(singleTestRes.Verdict)
+		for _, singleTestRes := range testResults {
+			testOutput := ""
+			testOutput += fmt.Sprintf("%-60s", singleTestRes.Name)
+			if singleTestRes.Measurement != "" {
+				testOutput = strings.TrimSuffix(testOutput, strings.Repeat(" ", len(singleTestRes.Measurement)+1))
+				testOutput = testOutput + singleTestRes.Measurement + " "
+			}
+			testOutput += string(singleTestRes.Verdict)
 
-		if singleTestRes.Suggestion != "" {
-			suggestions = append(suggestions, singleTestRes.Suggestion)
-		}
+			if singleTestRes.Suggestion != "" {
+				suggestions = append(suggestions, singleTestRes.Suggestion)
+			}
 
-		if singleTestRes.Error != "" {
-			testOutput += " - " + singleTestRes.Error
+			if singleTestRes.Error != "" {
+				testOutput += " - " + singleTestRes.Error
+			}
+			lines = append(lines, testOutput)
 		}
-		lines = append(lines, testOutput)
 	}
-
 	if len(suggestions) != 0 {
 		lines = append(lines, "")
 		lines = append(lines, "SUGGESTED IMPROVEMENTS")
@@ -179,7 +186,7 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) error {
 	return nil
 }
 
-func calculateScore(results map[string]testResult) categoryScore {
+func calculateScore(results []testResult) categoryScore {
 	// TODO(kalo): calculate score more elaborately (potentially use weights)
 	avg := 0
 	for _, t := range results {
@@ -202,25 +209,25 @@ func calculateScore(results map[string]testResult) categoryScore {
 	return categoryScoreA
 }
 
-func filterTests(supportedTestCases []testCaseName, cfg testConfig) ([]testCaseName, error) {
+func filterTests(supportedTestCases []testCaseName, cfg testConfig) []testCaseName {
 	if cfg.TestCases == nil {
-		return supportedTestCases, nil
+		return supportedTestCases
 	}
 	var filteredTests []testCaseName
 	for _, tc := range cfg.TestCases {
-		added := false
 		for _, stc := range supportedTestCases {
 			if stc.name == tc {
 				filteredTests = append(filteredTests, stc)
-				added = true
-
 				continue
 			}
 		}
-		if !added {
-			return nil, errors.New("test case not supported")
-		}
 	}
 
-	return filteredTests, nil
+	return filteredTests
+}
+
+func sortTests(tests []testCaseName) {
+	sort.Slice(tests, func(i, j int) bool {
+		return tests[i].order < tests[j].order
+	})
 }

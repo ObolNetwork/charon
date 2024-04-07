@@ -30,13 +30,13 @@ func TestValidatorTest(t *testing.T) {
 					OutputToml: "",
 					Quiet:      false,
 					TestCases:  nil,
-					Timeout:    24 * time.Hour,
+					Timeout:    time.Minute,
 				},
-				APIAddress: "",
+				APIAddress: "validator-api-address",
 			},
 			expected: testCategoryResult{
-				TestsExecuted: map[string]testResult{
-					"ping": {Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "not implemented"},
+				Targets: map[string][]testResult{
+					"validator-api-address": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
 				},
 			},
 			expectedErr: "",
@@ -50,11 +50,11 @@ func TestValidatorTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    time.Nanosecond,
 				},
-				APIAddress: "",
+				APIAddress: "validator-api-address",
 			},
 			expected: testCategoryResult{
-				TestsExecuted: map[string]testResult{
-					"ping": {Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: ""},
+				Targets: map[string][]testResult{
+					"validator-api-address": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout"}},
 				},
 			},
 			expectedErr: "",
@@ -66,13 +66,13 @@ func TestValidatorTest(t *testing.T) {
 					OutputToml: "",
 					Quiet:      true,
 					TestCases:  nil,
-					Timeout:    24 * time.Hour,
+					Timeout:    time.Minute,
 				},
-				APIAddress: "",
+				APIAddress: "validator-api-address",
 			},
 			expected: testCategoryResult{
-				TestsExecuted: map[string]testResult{
-					"ping": {Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "not implemented"},
+				Targets: map[string][]testResult{
+					"validator-api-address": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
 				},
 			},
 			expectedErr: "",
@@ -84,9 +84,9 @@ func TestValidatorTest(t *testing.T) {
 					OutputToml: "",
 					Quiet:      false,
 					TestCases:  []string{"notSupportedTest"},
-					Timeout:    24 * time.Hour,
+					Timeout:    time.Minute,
 				},
-				APIAddress: "",
+				APIAddress: "validator-api-address",
 			},
 			expected:    testCategoryResult{},
 			expectedErr: "test case not supported",
@@ -98,13 +98,13 @@ func TestValidatorTest(t *testing.T) {
 					OutputToml: "",
 					Quiet:      false,
 					TestCases:  []string{"ping"},
-					Timeout:    24 * time.Hour,
+					Timeout:    time.Minute,
 				},
-				APIAddress: "",
+				APIAddress: "validator-api-address",
 			},
 			expected: testCategoryResult{
-				TestsExecuted: map[string]testResult{
-					"ping": {Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "not implemented"},
+				Targets: map[string][]testResult{
+					"validator-api-address": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
 				},
 			},
 			expectedErr: "",
@@ -117,14 +117,14 @@ func TestValidatorTest(t *testing.T) {
 					OutputToml: "./write-to-file-test.toml.tmp",
 					Quiet:      false,
 					TestCases:  nil,
-					Timeout:    24 * time.Hour,
+					Timeout:    time.Minute,
 				},
-				APIAddress: "",
+				APIAddress: "validator-api-address",
 			},
 			expected: testCategoryResult{
 				CategoryName: "validator",
-				TestsExecuted: map[string]testResult{
-					"ping": {Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "not implemented"},
+				Targets: map[string][]testResult{
+					"validator-api-address": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
 				},
 				Score: categoryScoreC,
 			},
@@ -156,7 +156,7 @@ func TestValidatorTest(t *testing.T) {
 			if test.config.Quiet {
 				require.Empty(t, buf.String())
 			} else {
-				testWriteOut(t, test.expected.TestsExecuted, buf)
+				testWriteOut(t, test.expected, buf)
 			}
 
 			if test.config.OutputToml != "" {
@@ -174,12 +174,12 @@ func TestValidatorTestFlags(t *testing.T) {
 	}{
 		{
 			name:        "default scenario",
-			args:        []string{"validator", "--api-address=\"test.endpoint\""},
+			args:        []string{"validator", "--validator-api-address=\"test.endpoint\""},
 			expectedErr: "",
 		},
 		{
 			name:        "no output toml on quiet",
-			args:        []string{"validator", "--api-address=\"test.endpoint\"", "--quiet"},
+			args:        []string{"validator", "--validator-api-address=\"test.endpoint\"", "--quiet"},
 			expectedErr: "on --quiet, an --output-toml is required",
 		},
 	}

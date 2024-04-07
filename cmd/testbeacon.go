@@ -47,20 +47,19 @@ func bindTestBeaconFlags(cmd *cobra.Command, config *testBeaconConfig) {
 	mustMarkFlagRequired(cmd, endpoints)
 }
 
-func supportedBeaconTestCases() map[testCaseName]func(context.Context, *testBeaconConfig) testResult {
-	return map[testCaseName]func(context.Context, *testBeaconConfig) testResult{
+func supportedBeaconTestCases() map[testCaseName]func(context.Context, *testBeaconConfig, string) testResult {
+	return map[testCaseName]func(context.Context, *testBeaconConfig, string) testResult{
 		{name: "ping", order: 1}: beaconPing,
 	}
 }
 
 func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (err error) {
 	testCases := supportedBeaconTestCases()
-	supportedTestCases := maps.Keys(testCases)
-
-	queuedTests, err := filterTests(supportedTestCases, cfg.testConfig)
-	if err != nil {
-		return err
+	queuedTests := filterTests(maps.Keys(testCases), cfg.testConfig)
+	if len(queuedTests) == 0 {
+		return errors.New("test case not supported")
 	}
+	sortTests(queuedTests)
 	sort.Slice(queuedTests, func(i, j int) bool {
 		return queuedTests[i].order < queuedTests[j].order
 	})
@@ -72,37 +71,41 @@ func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (err 
 	timeoutCtx, cancel := context.WithTimeout(parentCtx, cfg.Timeout)
 	defer cancel()
 
-	ch := make(chan testResult)
-	res := testCategoryResult{
-		TestsExecuted: make(map[string]testResult),
-		CategoryName:  "beacon",
-	}
-
+	ch := make(chan map[string][]testResult)
+	testResults := make(map[string][]testResult)
 	startTime := time.Now()
-	// run all beacon tests, pushing each finished test until all are finished or timeout occurs
-	go runAllBeacon(timeoutCtx, queuedTests, testCases, cfg, ch)
-
-	testCounter := 0
 	finished := false
+	// run all beacon tests, pushing each finished test until all are finished or timeout occurs
+	go testAllBeacons(timeoutCtx, queuedTests, testCases, cfg, ch)
+
 	for !finished {
-		var name string
 		select {
-		case <-timeoutCtx.Done():
-			name = queuedTests[testCounter].name
-			res.TestsExecuted[name] = testResult{Verdict: testVerdictFail}
+		case <-ctx.Done():
+			finished = true
 		case result, ok := <-ch:
 			if !ok {
 				finished = true
-				break
 			}
-			name = queuedTests[testCounter].name
-			testCounter++
-			res.TestsExecuted[name] = result
+			maps.Copy(testResults, result)
+		}
+	}
+	execTime := Duration{time.Since(startTime)}
+
+	// use highest score as score of all
+	var score categoryScore
+	for _, t := range testResults {
+		targetScore := calculateScore(t)
+		if score == "" || score > targetScore {
+			score = targetScore
 		}
 	}
 
-	res.ExecutionTime = Duration{time.Since(startTime)}
-	res.Score = calculateScore(res.TestsExecuted)
+	res := testCategoryResult{
+		CategoryName:  "beacon",
+		Targets:       testResults,
+		ExecutionTime: execTime,
+		Score:         score,
+	}
 
 	if !cfg.Quiet {
 		err = writeResultToWriter(res, w)
@@ -121,19 +124,75 @@ func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (err 
 	return nil
 }
 
-func runAllBeacon(ctx context.Context, queuedTests []testCaseName, allTests map[testCaseName]func(context.Context, *testBeaconConfig) testResult, cfg testBeaconConfig, ch chan testResult) {
+func testAllBeacons(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testBeaconConfig, string) testResult, cfg testBeaconConfig, resCh chan map[string][]testResult) {
+	defer close(resCh)
+	// run all beacon tests, pushing each finished test until all are finished or timeout occurs
+	res := make(map[string][]testResult)
+	chs := []chan map[string][]testResult{}
+	for _, enr := range cfg.Endpoints {
+		ch := make(chan map[string][]testResult)
+		chs = append(chs, ch)
+		go testSingleBeacon(ctx, queuedTestCases, allTestCases, cfg, enr, ch)
+	}
+
+	for _, ch := range chs {
+		for {
+			// we are checking for context done inside the go routine
+			result, ok := <-ch
+			if !ok {
+				break
+			}
+			maps.Copy(res, result)
+		}
+	}
+
+	resCh <- res
+}
+
+func testSingleBeacon(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testBeaconConfig, string) testResult, cfg testBeaconConfig, target string, resCh chan map[string][]testResult) {
+	defer close(resCh)
+	ch := make(chan testResult)
+	res := []testResult{}
+	// run all beacon tests, pushing each finished test until all are finished or timeout occurs
+	go runBeaconTest(ctx, queuedTestCases, allTestCases, cfg, target, ch)
+
+	testCounter := 0
+	finished := false
+	for !finished {
+		var name string
+		select {
+		case <-ctx.Done():
+			name = queuedTestCases[testCounter].name
+			res = append(res, testResult{Name: name, Verdict: testVerdictFail, Error: "timeout"})
+			finished = true
+		case result, ok := <-ch:
+			if !ok {
+				finished = true
+				break
+			}
+			name = queuedTestCases[testCounter].name
+			testCounter++
+			result.Name = name
+			res = append(res, result)
+		}
+	}
+
+	resCh <- map[string][]testResult{target: res}
+}
+
+func runBeaconTest(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testBeaconConfig, string) testResult, cfg testBeaconConfig, target string, ch chan testResult) {
 	defer close(ch)
-	for _, t := range queuedTests {
+	for _, t := range queuedTestCases {
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			ch <- allTests[t](ctx, &cfg)
+			ch <- allTestCases[t](ctx, &cfg, target)
 		}
 	}
 }
 
-func beaconPing(ctx context.Context, _ *testBeaconConfig) testResult {
+func beaconPing(ctx context.Context, _ *testBeaconConfig, _ string) testResult {
 	// TODO(kalo): implement real ping
 	select {
 	case <-ctx.Done():
@@ -141,7 +200,7 @@ func beaconPing(ctx context.Context, _ *testBeaconConfig) testResult {
 	default:
 		return testResult{
 			Verdict: testVerdictFail,
-			Error:   errors.New("not implemented").Error(),
+			Error:   errors.New("ping not implemented").Error(),
 		}
 	}
 }

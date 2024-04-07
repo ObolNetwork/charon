@@ -6,11 +6,16 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"math/rand"
 	"os"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/pelletier/go-toml/v2"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 )
 
 //go:generate go test . -run=TestPeersTest -update
@@ -31,14 +36,33 @@ func TestPeersTest(t *testing.T) {
 					OutputToml: "",
 					Quiet:      false,
 					TestCases:  nil,
-					Timeout:    24 * time.Hour,
+					Timeout:    time.Minute,
 				},
-				ENRs: []string{},
+				ENRs: []string{"enr:-1", "enr:-2", "enr:-3"},
 			},
 			expected: testCategoryResult{
-				TestsExecuted: map[string]testResult{
-					"ping": {Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "not implemented"},
+				CategoryName: "peers",
+				Targets: map[string][]testResult{
+					"self": {
+						{Name: "natOpen", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "natOpen not implemented"},
+					},
+					"enr:-1": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "10ms", Suggestion: "", Error: "pingMeasure not implemented"},
+						{Name: "pingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "pingLoad not implemented"},
+					},
+					"enr:-2": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "10ms", Suggestion: "", Error: "pingMeasure not implemented"},
+						{Name: "pingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "pingLoad not implemented"},
+					},
+					"enr:-3": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "10ms", Suggestion: "", Error: "pingMeasure not implemented"},
+						{Name: "pingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "pingLoad not implemented"},
+					},
 				},
+				Score: categoryScoreC,
 			},
 			expectedErr: "",
 		},
@@ -49,14 +73,30 @@ func TestPeersTest(t *testing.T) {
 					OutputToml: "",
 					Quiet:      false,
 					TestCases:  nil,
-					Timeout:    time.Nanosecond,
+					Timeout:    100 * time.Millisecond,
 				},
-				ENRs: []string{},
+				ENRs: []string{"enr:-1", "enr:-2", "enr:-3"},
 			},
 			expected: testCategoryResult{
-				TestsExecuted: map[string]testResult{
-					"ping": {Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: ""},
+				CategoryName: "peers",
+				Targets: map[string][]testResult{
+					"self": {
+						{Name: "natOpen", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "natOpen not implemented"},
+					},
+					"enr:-1": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout"},
+					},
+					"enr:-2": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout"},
+					},
+					"enr:-3": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout"},
+					},
 				},
+				Score: categoryScoreC,
 			},
 			expectedErr: "",
 		},
@@ -69,12 +109,31 @@ func TestPeersTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    24 * time.Hour,
 				},
-				ENRs: []string{},
+				ENRs: []string{"enr:-1", "enr:-2", "enr:-3"},
 			},
 			expected: testCategoryResult{
-				TestsExecuted: map[string]testResult{
-					"ping": {Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "not implemented"},
+				CategoryName: "peers",
+				Targets: map[string][]testResult{
+					"self": {
+						{Name: "natOpen", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "natOpen not implemented"},
+					},
+					"enr:-1": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "10ms", Suggestion: "", Error: "pingMeasure not implemented"},
+						{Name: "pingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "pingLoad not implemented"},
+					},
+					"enr:-2": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "10ms", Suggestion: "", Error: "pingMeasure not implemented"},
+						{Name: "pingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "pingLoad not implemented"},
+					},
+					"enr:-3": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "10ms", Suggestion: "", Error: "pingMeasure not implemented"},
+						{Name: "pingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "pingLoad not implemented"},
+					},
 				},
+				Score: categoryScoreC,
 			},
 			expectedErr: "",
 		},
@@ -87,7 +146,7 @@ func TestPeersTest(t *testing.T) {
 					TestCases:  []string{"notSupportedTest"},
 					Timeout:    24 * time.Hour,
 				},
-				ENRs: []string{},
+				ENRs: []string{"enr:-1", "enr:-2", "enr:-3"},
 			},
 			expected:    testCategoryResult{},
 			expectedErr: "test case not supported",
@@ -101,12 +160,22 @@ func TestPeersTest(t *testing.T) {
 					TestCases:  []string{"ping"},
 					Timeout:    24 * time.Hour,
 				},
-				ENRs: []string{},
+				ENRs: []string{"enr:-1", "enr:-2", "enr:-3"},
 			},
 			expected: testCategoryResult{
-				TestsExecuted: map[string]testResult{
-					"ping": {Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "not implemented"},
+				CategoryName: "peers",
+				Targets: map[string][]testResult{
+					"enr:-1": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
+					},
+					"enr:-2": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
+					},
+					"enr:-3": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
+					},
 				},
+				Score: categoryScoreC,
 			},
 			expectedErr: "",
 		},
@@ -117,14 +186,31 @@ func TestPeersTest(t *testing.T) {
 					OutputToml: "./write-to-file-test.toml.tmp",
 					Quiet:      false,
 					TestCases:  nil,
-					Timeout:    24 * time.Hour,
+					Timeout:    time.Duration(rand.Int31n(222)) * time.Hour,
 				},
-				ENRs: []string{},
+				ENRs: []string{"enr:-1", "enr:-2", "enr:-3"},
 			},
 			expected: testCategoryResult{
 				CategoryName: "peers",
-				TestsExecuted: map[string]testResult{
-					"ping": {Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "not implemented"},
+				Targets: map[string][]testResult{
+					"self": {
+						{Name: "natOpen", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "natOpen not implemented"},
+					},
+					"enr:-1": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "10ms", Suggestion: "", Error: "pingMeasure not implemented"},
+						{Name: "pingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "pingLoad not implemented"},
+					},
+					"enr:-2": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "10ms", Suggestion: "", Error: "pingMeasure not implemented"},
+						{Name: "pingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "pingLoad not implemented"},
+					},
+					"enr:-3": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "10ms", Suggestion: "", Error: "pingMeasure not implemented"},
+						{Name: "pingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "pingLoad not implemented"},
+					},
 				},
 				Score: categoryScoreC,
 			},
@@ -156,7 +242,7 @@ func TestPeersTest(t *testing.T) {
 			if test.config.Quiet {
 				require.Empty(t, buf.String())
 			} else {
-				testWriteOut(t, test.expected.TestsExecuted, buf)
+				testWriteOut(t, test.expected, buf)
 			}
 
 			if test.config.OutputToml != "" {
@@ -200,5 +286,55 @@ func TestPeersTestFlags(t *testing.T) {
 				require.NoError(t, err)
 			}
 		})
+	}
+}
+
+func testWriteOut(t *testing.T, expectedRes testCategoryResult, buf bytes.Buffer) {
+	t.Helper()
+	bufTests := strings.Split(buf.String(), "\n")
+	bufTests = slices.Delete(bufTests, 0, 8)
+	bufTests = slices.Delete(bufTests, len(bufTests)-4, len(bufTests))
+
+	nTargets := len(maps.Keys(expectedRes.Targets))
+	require.Len(t, bufTests, len(slices.Concat(maps.Values(expectedRes.Targets)...))+nTargets*2)
+
+	for i := 0; i < nTargets; i++ {
+		bufTests = bufTests[1:]
+		target := strings.Trim(bufTests[0], " ")
+		bufTests = bufTests[1:]
+		for _, test := range expectedRes.Targets[target] {
+			name, res, exist := strings.Cut(bufTests[0], " ")
+			require.True(t, exist)
+			require.Equal(t, name, test.Name)
+			require.Contains(t, res, test.Verdict)
+			require.Contains(t, res, test.Measurement)
+			require.Contains(t, res, test.Suggestion)
+			require.Contains(t, res, test.Error)
+			bufTests = bufTests[1:]
+		}
+	}
+
+	require.Empty(t, bufTests)
+}
+
+func testWriteFile(t *testing.T, expectedRes testCategoryResult, path string) {
+	t.Helper()
+	file, err := os.ReadFile(path)
+	require.NoError(t, err)
+	var res testCategoryResult
+	err = toml.Unmarshal(file, &res)
+	require.NoError(t, err)
+
+	require.Equal(t, expectedRes.CategoryName, res.CategoryName)
+	require.Equal(t, expectedRes.Score, res.Score)
+	require.Equal(t, len(expectedRes.Targets), len(res.Targets))
+	for targetName, testResults := range res.Targets {
+		for idx, testRes := range testResults {
+			require.Equal(t, expectedRes.Targets[targetName][idx].Verdict, testRes.Verdict)
+			require.Equal(t, expectedRes.Targets[targetName][idx].Verdict, testRes.Verdict)
+			require.Equal(t, expectedRes.Targets[targetName][idx].Measurement, testRes.Measurement)
+			require.Equal(t, expectedRes.Targets[targetName][idx].Suggestion, testRes.Suggestion)
+			require.Equal(t, expectedRes.Targets[targetName][idx].Error, testRes.Error)
+		}
 	}
 }

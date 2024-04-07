@@ -42,7 +42,7 @@ func newTestValidatorCmd(runFunc func(context.Context, io.Writer, testValidatorC
 }
 
 func bindTestValidatorFlags(cmd *cobra.Command, config *testValidatorConfig) {
-	cmd.Flags().StringVar(&config.APIAddress, "api-address", "127.0.0.1:3600", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API.")
+	cmd.Flags().StringVar(&config.APIAddress, "validator-api-address", "127.0.0.1:3600", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API.")
 }
 
 func supportedValidatorTestCases() map[testCaseName]func(context.Context, *testValidatorConfig) testResult {
@@ -53,12 +53,11 @@ func supportedValidatorTestCases() map[testCaseName]func(context.Context, *testV
 
 func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig) (err error) {
 	testCases := supportedValidatorTestCases()
-	supportedTestCases := maps.Keys(testCases)
-
-	queuedTests, err := filterTests(supportedTestCases, cfg.testConfig)
-	if err != nil {
-		return err
+	queuedTests := filterTests(maps.Keys(testCases), cfg.testConfig)
+	if len(queuedTests) == 0 {
+		return errors.New("test case not supported")
 	}
+	sortTests(queuedTests)
 	sort.Slice(queuedTests, func(i, j int) bool {
 		return queuedTests[i].order < queuedTests[j].order
 	})
@@ -70,38 +69,42 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 	timeoutCtx, cancel := context.WithTimeout(parentCtx, cfg.Timeout)
 	defer cancel()
 
-	ch := make(chan testResult)
-	res := testCategoryResult{
-		TestsExecuted: make(map[string]testResult),
-		CategoryName:  "validator",
-	}
-
+	ch := make(chan map[string][]testResult)
+	testResults := make(map[string][]testResult)
 	startTime := time.Now()
-	// run all validator tests, pushing each finished test until all are finished or timeout occurs
-	go runAllValidator(timeoutCtx, queuedTests, testCases, cfg, ch)
-
-	testCounter := 0
 	finished := false
+
+	// run all validator tests, pushing each finished test until all are finished or timeout occurs
+	go testSingleValidator(timeoutCtx, queuedTests, testCases, cfg, ch)
+
 	for !finished {
-		var name string
 		select {
-		case <-timeoutCtx.Done():
-			name = queuedTests[testCounter].name
-			res.TestsExecuted[name] = testResult{Verdict: testVerdictFail}
+		case <-ctx.Done():
 			finished = true
 		case result, ok := <-ch:
 			if !ok {
 				finished = true
-				break
 			}
-			name = queuedTests[testCounter].name
-			testCounter++
-			res.TestsExecuted[name] = result
+			maps.Copy(testResults, result)
+		}
+	}
+	execTime := Duration{time.Since(startTime)}
+
+	// use highest score as score of all
+	var score categoryScore
+	for _, t := range testResults {
+		targetScore := calculateScore(t)
+		if score == "" || score > targetScore {
+			score = targetScore
 		}
 	}
 
-	res.ExecutionTime = Duration{time.Since(startTime)}
-	res.Score = calculateScore(res.TestsExecuted)
+	res := testCategoryResult{
+		CategoryName:  "validator",
+		Targets:       testResults,
+		ExecutionTime: execTime,
+		Score:         score,
+	}
 
 	if !cfg.Quiet {
 		err = writeResultToWriter(res, w)
@@ -120,7 +123,38 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 	return nil
 }
 
-func runAllValidator(ctx context.Context, queuedTests []testCaseName, allTests map[testCaseName]func(context.Context, *testValidatorConfig) testResult, cfg testValidatorConfig, ch chan testResult) {
+func testSingleValidator(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testValidatorConfig) testResult, cfg testValidatorConfig, resCh chan map[string][]testResult) {
+	defer close(resCh)
+	ch := make(chan testResult)
+	res := []testResult{}
+	// run all validator tests, pushing each finished test until all are finished or timeout occurs
+	go testValidator(ctx, queuedTestCases, allTestCases, cfg, ch)
+
+	testCounter := 0
+	finished := false
+	for !finished {
+		var name string
+		select {
+		case <-ctx.Done():
+			name = queuedTestCases[testCounter].name
+			res = append(res, testResult{Name: name, Verdict: testVerdictFail, Error: "timeout"})
+			finished = true
+		case result, ok := <-ch:
+			if !ok {
+				finished = true
+				break
+			}
+			name = queuedTestCases[testCounter].name
+			testCounter++
+			result.Name = name
+			res = append(res, result)
+		}
+	}
+
+	resCh <- map[string][]testResult{cfg.APIAddress: res}
+}
+
+func testValidator(ctx context.Context, queuedTests []testCaseName, allTests map[testCaseName]func(context.Context, *testValidatorConfig) testResult, cfg testValidatorConfig, ch chan testResult) {
 	defer close(ch)
 	for _, t := range queuedTests {
 		select {
@@ -140,7 +174,7 @@ func validatorPing(ctx context.Context, _ *testValidatorConfig) testResult {
 	default:
 		return testResult{
 			Verdict: testVerdictFail,
-			Error:   errors.New("not implemented").Error(),
+			Error:   errors.New("ping not implemented").Error(),
 		}
 	}
 }
