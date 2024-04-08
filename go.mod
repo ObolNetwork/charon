@@ -20,7 +20,7 @@ require (
 	github.com/libp2p/go-msgio v0.3.0
 	github.com/multiformats/go-multiaddr v0.12.3
 	github.com/prometheus/client_golang v1.19.0
-	github.com/prometheus/client_model v0.6.0
+	github.com/prometheus/client_model v0.6.1
 	github.com/protolambda/eth2-shuffle v1.1.0
 	github.com/prysmaticlabs/go-bitfield v0.0.0-20210809151128-385d8c5e3fb7
 	github.com/r3labs/sse/v2 v2.10.0
