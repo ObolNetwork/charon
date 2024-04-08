@@ -74,7 +74,7 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 	startTime := time.Now()
 	finished := false
 
-	// run all validator tests, pushing each finished test until all are finished or timeout occurs
+	// run test suite for a single validator client
 	go testSingleValidator(timeoutCtx, queuedTests, testCases, cfg, ch)
 
 	for !finished {
@@ -127,7 +127,7 @@ func testSingleValidator(ctx context.Context, queuedTestCases []testCaseName, al
 	defer close(resCh)
 	ch := make(chan testResult)
 	res := []testResult{}
-	// run all validator tests, pushing each finished test until all are finished or timeout occurs
+	// run all validator tests for a validator client, pushing each completed test to the channel until all are complete or timeout occurs
 	go testValidator(ctx, queuedTestCases, allTestCases, cfg, ch)
 
 	testCounter := 0

@@ -75,7 +75,7 @@ func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (err 
 	testResults := make(map[string][]testResult)
 	startTime := time.Now()
 	finished := false
-	// run all beacon tests, pushing each finished test until all are finished or timeout occurs
+	// run test suite for all beacon nodes
 	go testAllBeacons(timeoutCtx, queuedTests, testCases, cfg, ch)
 
 	for !finished {
@@ -126,7 +126,7 @@ func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (err 
 
 func testAllBeacons(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testBeaconConfig, string) testResult, cfg testBeaconConfig, resCh chan map[string][]testResult) {
 	defer close(resCh)
-	// run all beacon tests, pushing each finished test until all are finished or timeout occurs
+	// run tests for all beacon nodes
 	res := make(map[string][]testResult)
 	chs := []chan map[string][]testResult{}
 	for _, enr := range cfg.Endpoints {
@@ -137,7 +137,7 @@ func testAllBeacons(ctx context.Context, queuedTestCases []testCaseName, allTest
 
 	for _, ch := range chs {
 		for {
-			// we are checking for context done inside the go routine
+			// we are checking for context done (timeout) inside the go routine
 			result, ok := <-ch
 			if !ok {
 				break
@@ -153,7 +153,7 @@ func testSingleBeacon(ctx context.Context, queuedTestCases []testCaseName, allTe
 	defer close(resCh)
 	ch := make(chan testResult)
 	res := []testResult{}
-	// run all beacon tests, pushing each finished test until all are finished or timeout occurs
+	// run all beacon tests for a beacon node, pushing each completed test to the channel until all are complete or timeout occurs
 	go runBeaconTest(ctx, queuedTestCases, allTestCases, cfg, target, ch)
 
 	testCounter := 0

@@ -87,6 +87,7 @@ func runTestPeers(ctx context.Context, w io.Writer, cfg testPeersConfig) (err er
 	var peersFinished, selfFinished bool
 
 	startTime := time.Now()
+	// run test suite for all peers and separate test suite for testing self
 	go testAllPeers(timeoutCtx, queuedTestsPeer, peerTestCases, cfg, peersCh)
 	go testSelf(timeoutCtx, queuedTestsSelf, selfTestCases, cfg, selfCh)
 
@@ -146,7 +147,7 @@ func runTestPeers(ctx context.Context, w io.Writer, cfg testPeersConfig) (err er
 
 func testAllPeers(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testPeersConfig, string) testResult, cfg testPeersConfig, resCh chan map[string][]testResult) {
 	defer close(resCh)
-	// run all peers tests, pushing each finished test until all are finished or timeout occurs
+	// run tests for all peer nodes
 	res := make(map[string][]testResult)
 	chs := []chan map[string][]testResult{}
 	for _, enr := range cfg.ENRs {
@@ -157,7 +158,7 @@ func testAllPeers(ctx context.Context, queuedTestCases []testCaseName, allTestCa
 
 	for _, ch := range chs {
 		for {
-			// we are checking for context done inside the go routine
+			// we are checking for context done (timeout) inside the go routine
 			result, ok := <-ch
 			if !ok {
 				break
@@ -173,7 +174,7 @@ func testSinglePeer(ctx context.Context, queuedTestCases []testCaseName, allTest
 	defer close(resCh)
 	ch := make(chan testResult)
 	res := []testResult{}
-	// run all peers tests, pushing each finished test until all are finished or timeout occurs
+	// run all peers tests for a peer, pushing each completed test to the channel until all are complete or timeout occurs
 	go runPeerTest(ctx, queuedTestCases, allTestCases, cfg, target, ch)
 
 	testCounter := 0
