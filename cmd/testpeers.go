@@ -16,7 +16,8 @@ import (
 
 type testPeersConfig struct {
 	testConfig
-	ENRs []string
+	ENRs      []string
+	P2PRelays []string
 }
 
 func newTestPeersCmd(runFunc func(context.Context, io.Writer, testPeersConfig) error) *cobra.Command {
@@ -44,6 +45,7 @@ func newTestPeersCmd(runFunc func(context.Context, io.Writer, testPeersConfig) e
 func bindTestPeersFlags(cmd *cobra.Command, config *testPeersConfig) {
 	const enrs = "enrs"
 	cmd.Flags().StringSliceVar(&config.ENRs, "enrs", nil, "[REQUIRED] Comma-separated list of each peer ENR address.")
+	cmd.Flags().StringSliceVar(&config.P2PRelays, "p2p-relays", []string{"https://0.relay.obol.tech,https://2.relay.obol.tech"}, "Comma-separated list of each peer P2P relay address.")
 	mustMarkFlagRequired(cmd, enrs)
 }
 
