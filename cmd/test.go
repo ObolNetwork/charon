@@ -38,7 +38,7 @@ func newTestCmd(cmds ...*cobra.Command) *cobra.Command {
 func bindTestFlags(cmd *cobra.Command, config *testConfig) {
 	cmd.Flags().StringVar(&config.OutputToml, "output-toml", "", "File path to which output can be written in TOML format.")
 	cmd.Flags().StringSliceVar(&config.TestCases, "test-cases", nil, "List of comma separated names of tests to be exeucted.")
-	cmd.Flags().DurationVar(&config.Timeout, "timeout", 24*time.Hour, "Execution timeout for all tests.")
+	cmd.Flags().DurationVar(&config.Timeout, "timeout", 5*time.Minute, "Execution timeout for all tests.")
 	cmd.Flags().BoolVar(&config.Quiet, "quiet", false, "Do not print test results to stdout.")
 }
 
