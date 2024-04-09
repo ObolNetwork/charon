@@ -21,6 +21,7 @@ import (
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
+	"github.com/obolnetwork/charon/testutil/obolapimock"
 )
 
 const exitEpoch = eth2p0.Epoch(162304)
@@ -28,7 +29,7 @@ const exitEpoch = eth2p0.Epoch(162304)
 func TestAPIFlow(t *testing.T) {
 	kn := 4
 
-	handler, addLockFiles := MockServer(false)
+	handler, addLockFiles := obolapimock.MockServer(false)
 	srv := httptest.NewServer(handler)
 
 	defer srv.Close()
@@ -119,7 +120,7 @@ func TestAPIFlow(t *testing.T) {
 func TestAPIFlowMissingSig(t *testing.T) {
 	kn := 4
 
-	handler, addLockFiles := MockServer(true)
+	handler, addLockFiles := obolapimock.MockServer(true)
 	srv := httptest.NewServer(handler)
 
 	defer srv.Close()

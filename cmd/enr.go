@@ -26,8 +26,8 @@ func newEnrCmd(runFunc func(io.Writer, string, bool) error) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "enr",
-		Short: "Prints a new ENR for this node",
-		Long:  `Prints a newly generated Ethereum Node Record (ENR) from this node's charon-enr-private-key`,
+		Short: "Print the ENR that identifies this client",
+		Long:  `Prints an Ethereum Node Record (ENR) from this client's charon-enr-private-key. This serves as a public key that identifies this client to its peers.`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFunc(cmd.OutOrStdout(), dataDir, verbose)

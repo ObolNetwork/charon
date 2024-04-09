@@ -35,11 +35,6 @@ func dialErrMsgs(err error) (map[string]string, bool) {
 		return nil, false
 	}
 
-	// We do not expect cause to be populated.
-	if dErr.Cause != nil {
-		return nil, false
-	}
-
 	resp := make(map[string]string)
 	for _, trErr := range dErr.DialErrors {
 		resp[NamedAddr(trErr.Address)] = trErr.Cause.Error()
