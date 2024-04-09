@@ -35,15 +35,16 @@ const (
 	// round while still waiting for an unsigned data from beacon node.
 	ConsensusParticipate Feature = "consensus_participate"
 
+	// AggSigDBV2 enables a newer, simpler implementation of `aggsigdb`.
 	AggSigDBV2 Feature = "aggsigdb_v2"
 )
 
 var (
 	// state defines the current rollout status of each feature.
 	state = map[Feature]status{
+		EagerDoubleLinear:    statusStable,
+		ConsensusParticipate: statusStable,
 		MockAlpha:            statusAlpha,
-		EagerDoubleLinear:    statusAlpha,
-		ConsensusParticipate: statusAlpha,
 		AggSigDBV2:           statusAlpha,
 		// Add all features and there status here.
 	}
