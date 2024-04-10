@@ -66,6 +66,8 @@ builds:
       - CXX=aarch64-linux-gnu-g++
 
   - id: linux_amd64
+    env:
+      - CGO_ENABLED=1
     goos:
       - linux
     goarch:
