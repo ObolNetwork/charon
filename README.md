@@ -45,7 +45,7 @@ See [dvt.obol.tech](https://dvt.obol.tech/) for the latest status of the Obol Ne
 
 ## Version compatibility
 
-Considering (semver)[https://semver.org] as the project's versioning scheme, two given versions of Charon are:
+Considering [semver](https://semver.org) as the project's versioning scheme, two given versions of Charon are:
  - **compatible** if their `MAJOR` number is the same, `MINOR` and `PATCH` numbers differ
  - **incompatible** if their `MAJOR` number differs
 
