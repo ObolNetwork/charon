@@ -233,51 +233,51 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootC
 		return analyseFetcherFailed(duty, allEvents, failedErr)
 	case consensus:
 		if failedErr != nil {
-			reason = reasonConsensus
+			reason = reasonNoConsensus
 		}
 	case dutyDB:
 		if failedErr != nil {
-			reason = reasonDutyDB
+			reason = reasonBugDutyDBError
 		} else {
 			failedStep = validatorAPI
-			reason = reasonValidatorAPI
+			reason = reasonNoLocalVCSignature
 		}
 	case parSigDBInternal:
-		reason = reasonParSigDBInternal
+		reason = reasonBugParSigDBInternal
 	case parSigEx:
 		if failedErr == nil {
-			reason = reasonParSigExReceive
+			reason = reasonNoPeerSignatures
 		}
 	case parSigDBExternal:
 		if failedErr != nil {
-			return true, parSigDBExternal, reasonParSigDBExternal, failedErr
+			return true, parSigDBExternal, reasonBugParSigDBExternal, failedErr
 		}
 
 		if msgRootConsistent {
-			reason = reasonParSigDBInsufficient
+			reason = reasonInsufficientPeerSignatures
 		} else {
-			reason = reasonParSigDBInconsistent
+			reason = reasonBugParSigDBInconsistent
 			if expectInconsistentParSigs(duty.Type) {
 				reason = reasonParSigDBInconsistentSync
 			}
 		}
 	case sigAgg:
 		if failedErr != nil {
-			reason = reasonSigAgg
+			reason = reasonBugSigAgg
 		}
 	case aggSigDB:
-		reason = reasonAggSigDB
+		reason = reasonBugAggregationError
 	case bcast:
 		if failedErr == nil {
 			failedErr = errors.New("bug: missing chain inclusion event")
 		} else {
-			reason = reasonBcast
+			reason = reasonBroadcastBNError
 		}
 	case chainInclusion:
 		if failedErr == nil {
 			failedErr = errors.New("bug: missing chain inclusion error")
 		} else {
-			reason = reasonChainIncl
+			reason = reasonNotIncludedOnChain
 		}
 	case zero:
 		failedErr = errors.New("no events for duty") // This should never happen.
@@ -291,13 +291,13 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootC
 // analyseFetcherFailed returns whether the duty that got stuck in fetcher actually failed
 // and the reason which might actually be due a pre-requisite duty that failed.
 func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event, fetchErr error) (bool, step, reason, error) {
-	reason := reasonFetcherError
+	reason := reasonBugFetchError
 	// Check for beacon api errors.
 	var eth2Error eth2api.Error
 	if errors.As(fetchErr, &eth2Error) {
-		reason = reasonFetcherBN
+		reason = reasonFetchBNError
 	} else if !errors.Is(fetchErr, context.Canceled) && !errors.Is(fetchErr, context.DeadlineExceeded) {
-		reason = reasonFetcherError
+		reason = reasonBugFetchError
 	}
 
 	// Proposer duties depend on randao duty, so check if that was why it failed.
@@ -321,7 +321,7 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event, fetch
 // analyseFetcherFailed returns the reason behind why proposer duty failed which might actually
 // be due to randao duty failed.
 func analyseFetcherFailedProposer(duty core.Duty, allEvents map[core.Duty][]event, fetchErr error) (bool, step, reason, error) {
-	reason := reasonFetcherError
+	reason := reasonBugFetchError
 
 	// Proposer duties will fail if core.DutyRandao fails.
 	// Ignoring error as it will be handled in DutyRandao analysis.
@@ -329,13 +329,13 @@ func analyseFetcherFailedProposer(duty core.Duty, allEvents map[core.Duty][]even
 	if randaoFailed {
 		switch randaoStep {
 		case parSigEx:
-			reason = reasonFetcherProposerNoExternalRandaos
+			reason = reasonProposerNoExternalRandaos
 		case parSigDBExternal:
-			reason = reasonFetcherProposerFewRandaos
+			reason = reasonProposerInsufficientRandaos
 		case zero:
-			reason = reasonFetcherProposerZeroRandaos
+			reason = reasonProposerZeroRandaos
 		default:
-			reason = reasonFetcherProposerFailedRandao
+			reason = reasonFailedProposerRandao
 		}
 	}
 
@@ -345,7 +345,7 @@ func analyseFetcherFailedProposer(duty core.Duty, allEvents map[core.Duty][]even
 // analyseFetcherFailedAggregator returns the reason behind why aggregator duty failed which might actually
 // be due to prepare aggregator duty or attester duty failed.
 func analyseFetcherFailedAggregator(duty core.Duty, allEvents map[core.Duty][]event, fetchErr error) (bool, step, reason, error) {
-	failedReason := reasonFetcherError
+	failedReason := reasonBugFetchError
 
 	// No aggregators present for this slot.
 	if fetchErr == nil {
@@ -358,13 +358,13 @@ func analyseFetcherFailedAggregator(duty core.Duty, allEvents map[core.Duty][]ev
 	if prepAggFailed {
 		switch prepAggStep {
 		case parSigEx:
-			failedReason = reasonFetcherAggregatorNoExternalPrepares
+			failedReason = reasonNoAggregatorSelections
 		case parSigDBExternal:
-			failedReason = reasonFetcherAggregatorFewPrepares
+			failedReason = reasonInsufficientAggregatorSelections
 		case zero:
-			failedReason = reasonFetcherAggregatorZeroPrepares
+			failedReason = reasonZeroAggregatorSelections
 		default:
-			failedReason = reasonFetcherAggregatorFailedPrepare
+			failedReason = reasonFailedAggregatorSelection
 		}
 
 		return true, fetcher, failedReason, fetchErr
@@ -374,7 +374,7 @@ func analyseFetcherFailedAggregator(duty core.Duty, allEvents map[core.Duty][]ev
 	// Ignoring error as it will be handled in DutyAttester analysis.
 	attFailed, attStep, _ := dutyFailedStep(allEvents[core.NewAttesterDuty(duty.Slot)])
 	if attFailed && attStep <= dutyDB {
-		failedReason = reasonFetcherAggregatorNoAttData
+		failedReason = reasonMissingAggregatorAttestation
 	}
 
 	return true, fetcher, failedReason, fetchErr
@@ -383,7 +383,7 @@ func analyseFetcherFailedAggregator(duty core.Duty, allEvents map[core.Duty][]ev
 // analyseFetcherFailedSyncContribution returns the reason behind why sync contribution duty failed which might actually
 // be due to prepare sync contribution duty or sync message duty failed.
 func analyseFetcherFailedSyncContribution(duty core.Duty, allEvents map[core.Duty][]event, fetchErr error) (bool, step, reason, error) {
-	failReason := reasonFetcherError
+	failReason := reasonBugFetchError
 
 	// No sync committee aggregators present for this slot.
 	if fetchErr == nil {
@@ -396,13 +396,13 @@ func analyseFetcherFailedSyncContribution(duty core.Duty, allEvents map[core.Dut
 	if prepSyncConFailed {
 		switch prepSyncConStep {
 		case parSigEx:
-			failReason = reasonFetcherSyncContributionNoExternalPrepares
+			failReason = reasonSyncContributionNoExternalPrepares
 		case parSigDBExternal:
-			failReason = reasonFetcherSyncContributionFewPrepares
+			failReason = reasonSyncContributionFewPrepares
 		case zero:
-			failReason = reasonFetcherSyncContributionZeroPrepares
+			failReason = reasonSyncContributionZeroPrepares
 		default:
-			failReason = reasonFetcherSyncContributionFailedPrepare
+			failReason = reasonSyncContributionFailedPrepare
 		}
 
 		return true, fetcher, failReason, fetchErr
@@ -412,7 +412,7 @@ func analyseFetcherFailedSyncContribution(duty core.Duty, allEvents map[core.Dut
 	// Ignoring error as it will be handled in DutySyncMessage analysis.
 	syncMsgFailed, syncMsgStep, _ := dutyFailedStep(allEvents[core.NewSyncMessageDuty(duty.Slot)])
 	if syncMsgFailed && syncMsgStep <= aggSigDB {
-		failReason = reasonFetcherSyncContributionNoSyncMsg
+		failReason = reasonSyncContributionNoSyncMsg
 	}
 
 	return true, fetcher, failReason, fetchErr
@@ -511,7 +511,7 @@ func newUnsupportedIgnorer() func(ctx context.Context, duty core.Duty, failed bo
 			return false
 		}
 
-		if !aggregationSupported && duty.Type == core.DutyAggregator && step == fetcher && reason == reasonFetcherAggregatorZeroPrepares {
+		if !aggregationSupported && duty.Type == core.DutyAggregator && step == fetcher && reason == reasonZeroAggregatorSelections {
 			if !loggedNoAggregator {
 				log.Warn(ctx, "Ignoring attestation aggregation failures since VCs do not seem to support beacon committee selection aggregation", nil)
 			}
@@ -520,7 +520,7 @@ func newUnsupportedIgnorer() func(ctx context.Context, duty core.Duty, failed bo
 			return true
 		}
 
-		if !contributionSupported && duty.Type == core.DutySyncContribution && step == fetcher && reason == reasonFetcherSyncContributionZeroPrepares {
+		if !contributionSupported && duty.Type == core.DutySyncContribution && step == fetcher && reason == reasonSyncContributionZeroPrepares {
 			if !loggedNoContribution {
 				log.Warn(ctx, "Ignoring sync contribution failures since VCs do not seem to support sync committee selection aggregation", nil)
 			}
