@@ -51,6 +51,8 @@ type Client interface {
     ActiveValidatorsProvider
     SetValidatorCache(func(context.Context) (ActiveValidators, error))
 
+	SetForkVersion(forkVersion [4]byte)
+
     {{range .Providers}} eth2client.{{.}}
     {{end -}}
 }
@@ -128,6 +130,7 @@ type Client interface {
 		"ValidatorsProvider":                    true,
 		"ValidatorRegistrationsSubmitter":       true,
 		"VoluntaryExitSubmitter":                true,
+		"SetForkVersion":                        true,
 	}
 
 	// addImport indicates which types need hardcoded imports.

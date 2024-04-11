@@ -133,6 +133,12 @@ func (m multi) SetValidatorCache(valCache func(context.Context) (ActiveValidator
 	}
 }
 
+func (m multi) SetForkVersion(forkVersion [4]byte) {
+	for _, c := range m.clients {
+		c.SetForkVersion(forkVersion)
+	}
+}
+
 func (m multi) ActiveValidators(ctx context.Context) (ActiveValidators, error) {
 	const label = "active_validators"
 	// No latency since this is a cached endpoint.

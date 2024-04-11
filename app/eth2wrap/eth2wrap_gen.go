@@ -29,6 +29,8 @@ type Client interface {
 	ActiveValidatorsProvider
 	SetValidatorCache(func(context.Context) (ActiveValidators, error))
 
+	SetForkVersion(forkVersion [4]byte)
+
 	eth2client.AggregateAttestationProvider
 	eth2client.AggregateAttestationsSubmitter
 	eth2client.AttestationDataProvider

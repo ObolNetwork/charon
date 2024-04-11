@@ -80,6 +80,15 @@ func (l *lazy) getOrCreateClient(ctx context.Context) (Client, error) {
 	return cl, err
 }
 
+func (l *lazy) SetForkVersion(forkVersion [4]byte) {
+	cl, ok := l.getClient()
+	if !ok {
+		return
+	}
+
+	cl.SetForkVersion(forkVersion)
+}
+
 func (l *lazy) Name() string {
 	cl, ok := l.getClient()
 	if !ok {
