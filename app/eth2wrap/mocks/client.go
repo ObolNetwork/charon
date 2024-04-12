@@ -728,6 +728,11 @@ func (_m *Client) ProposerDuties(ctx context.Context, opts *api.ProposerDutiesOp
 	return r0, r1
 }
 
+// SetForkVersion provides a mock function with given fields: forkVersion
+func (_m *Client) SetForkVersion(forkVersion [4]byte) {
+	_m.Called(forkVersion)
+}
+
 // SetValidatorCache provides a mock function with given fields: _a0
 func (_m *Client) SetValidatorCache(_a0 func(context.Context) (eth2wrap.ActiveValidators, error)) {
 	_m.Called(_a0)

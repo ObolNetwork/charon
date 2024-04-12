@@ -103,6 +103,13 @@ func defaultHTTPMock() Mock {
 	}
 }
 
+// WithForkVersion sets the fork version provided in the Mock instance.
+func WithForkVersion(forkVersion [4]byte) Option {
+	return func(mock *Mock) {
+		mock.forkVersion = forkVersion
+	}
+}
+
 // Mock provides a mock beacon client and implements eth2wrap.Client.
 // Create a new instance with default behaviour via New and then override any function.
 type Mock struct {
@@ -112,6 +119,7 @@ type Mock struct {
 	overrides    []staticOverride
 	clock        clockwork.Clock
 	headProducer *headProducer
+	forkVersion  [4]byte
 
 	IsActiveFunc                           func() bool
 	IsSyncedFunc                           func() bool
@@ -329,6 +337,10 @@ func (m Mock) SlotsPerEpoch(ctx context.Context) (uint64, error) {
 
 func (m Mock) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
 	return m.ProposerConfigFunc(ctx)
+}
+
+func (Mock) SetForkVersion([4]byte) {
+	// This function is a no-op, since we mock the fork version at beaconmock initialization.
 }
 
 func (Mock) Name() string {

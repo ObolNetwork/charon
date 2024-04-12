@@ -34,6 +34,12 @@ type multi struct {
 	selector *bestSelector
 }
 
+func (m multi) SetForkVersion(forkVersion [4]byte) {
+	for _, cl := range m.clients {
+		cl.SetForkVersion(forkVersion)
+	}
+}
+
 func (multi) Name() string {
 	return "eth2wrap.multi"
 }
