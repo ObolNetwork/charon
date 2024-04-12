@@ -764,7 +764,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 
 	if conf.SimnetBMockFuzz {
 		log.Info(ctx, "Beaconmock fuzz configured!")
-		bmock, err := beaconmock.New(beaconmock.WithBeaconMockFuzzer())
+		bmock, err := beaconmock.New(beaconmock.WithBeaconMockFuzzer(), beaconmock.WithForkVersion([4]byte(forkVersion)))
 		if err != nil {
 			return nil, err
 		}
@@ -825,6 +825,8 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 	if err != nil {
 		return nil, errors.Wrap(err, "new eth2 http client")
 	}
+
+	eth2Cl.SetForkVersion([4]byte(forkVersion))
 
 	if conf.SyntheticBlockProposals {
 		log.Info(ctx, "Synthetic block proposals enabled")
