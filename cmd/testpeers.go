@@ -325,6 +325,7 @@ func runTestPeers(ctx context.Context, w io.Writer, cfg testPeersConfig) (err er
 	case <-done:
 		log.Info(ctx, "Forcefully stopping TCP node")
 	}
+
 	return nil
 }
 
