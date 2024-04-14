@@ -574,8 +574,8 @@ func natOpenTest(ctx context.Context, _ *testPeersConfig) testResult {
 		return testResult{Verdict: testVerdictFail}
 	default:
 		return testResult{
-			Verdict: testVerdictOk,
-			// Error:   errors.New("natOpen not implemented").Error(),
+			Verdict: testVerdictFail,
+			Error:   errors.New("natOpen not implemented").Error(),
 		}
 	}
 }
