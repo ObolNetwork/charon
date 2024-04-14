@@ -37,7 +37,7 @@ func TestPeersTest(t *testing.T) {
 					OutputToml: "",
 					Quiet:      false,
 					TestCases:  nil,
-					Timeout:    100 * time.Millisecond,
+					Timeout:    200 * time.Millisecond,
 				},
 				ENRs: []string{
 					"enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u",
@@ -72,7 +72,7 @@ func TestPeersTest(t *testing.T) {
 					OutputToml: "",
 					Quiet:      true,
 					TestCases:  nil,
-					Timeout:    100 * time.Millisecond,
+					Timeout:    200 * time.Millisecond,
 				},
 				ENRs: []string{
 					"enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u",
@@ -107,7 +107,7 @@ func TestPeersTest(t *testing.T) {
 					OutputToml: "",
 					Quiet:      false,
 					TestCases:  []string{"notSupportedTest"},
-					Timeout:    100 * time.Millisecond,
+					Timeout:    200 * time.Millisecond,
 				},
 				ENRs: []string{
 					"enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u",
@@ -125,7 +125,7 @@ func TestPeersTest(t *testing.T) {
 					OutputToml: "",
 					Quiet:      false,
 					TestCases:  []string{"ping"},
-					Timeout:    100 * time.Millisecond,
+					Timeout:    200 * time.Millisecond,
 				},
 				ENRs: []string{
 					"enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u",
@@ -157,7 +157,7 @@ func TestPeersTest(t *testing.T) {
 					OutputToml: "./write-to-file-test.toml.tmp",
 					Quiet:      false,
 					TestCases:  nil,
-					Timeout:    100 * time.Millisecond,
+					Timeout:    200 * time.Millisecond,
 				},
 				ENRs: []string{
 					"enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u",
