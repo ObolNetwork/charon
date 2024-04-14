@@ -10,10 +10,13 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
+
+	"github.com/obolnetwork/charon/p2p"
 )
 
 //go:generate go test . -run=TestPeersTest -update
@@ -27,204 +30,178 @@ func TestPeersTest(t *testing.T) {
 		expectedErr string
 		cleanup     func(*testing.T, string)
 	}{
-		// {
-		// 	name: "default scenario",
-		// 	config: testPeersConfig{
-		// 		testConfig: testConfig{
-		// 			OutputToml: "",
-		// 			Quiet:      false,
-		// 			TestCases:  nil,
-		// 			Timeout:    time.Minute,
-		// 		},
-		// 		ENRs: []string{"enr:-1", "enr:-2", "enr:-3"},
-		// 	},
-		// 	expected: testCategoryResult{
-		// 		CategoryName: "peers",
-		// 		Targets: map[string][]testResult{
-		// 			"self": {
-		// 				{Name: "natOpen", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "natOpen not implemented"},
-		// 			},
-		// 			"enr:-1": {
-		// 				{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
-		// 				{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "10ms", Suggestion: "", Error: "pingMeasure not implemented"},
-		// 				{Name: "pingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "pingLoad not implemented"},
-		// 			},
-		// 			"enr:-2": {
-		// 				{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
-		// 				{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "10ms", Suggestion: "", Error: "pingMeasure not implemented"},
-		// 				{Name: "pingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "pingLoad not implemented"},
-		// 			},
-		// 			"enr:-3": {
-		// 				{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
-		// 				{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "10ms", Suggestion: "", Error: "pingMeasure not implemented"},
-		// 				{Name: "pingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "pingLoad not implemented"},
-		// 			},
-		// 		},
-		// 		Score: categoryScoreC,
-		// 	},
-		// 	expectedErr: "",
-		// },
-		// {
-		// 	name: "timeout",
-		// 	config: testPeersConfig{
-		// 		testConfig: testConfig{
-		// 			OutputToml: "",
-		// 			Quiet:      false,
-		// 			TestCases:  nil,
-		// 			Timeout:    100 * time.Millisecond,
-		// 		},
-		// 		ENRs: []string{"enr:-1", "enr:-2", "enr:-3"},
-		// 	},
-		// 	expected: testCategoryResult{
-		// 		CategoryName: "peers",
-		// 		Targets: map[string][]testResult{
-		// 			"self": {
-		// 				{Name: "natOpen", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "natOpen not implemented"},
-		// 			},
-		// 			"enr:-1": {
-		// 				{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
-		// 				{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout"},
-		// 			},
-		// 			"enr:-2": {
-		// 				{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
-		// 				{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout"},
-		// 			},
-		// 			"enr:-3": {
-		// 				{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
-		// 				{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout"},
-		// 			},
-		// 		},
-		// 		Score: categoryScoreC,
-		// 	},
-		// 	expectedErr: "",
-		// },
-		// {
-		// 	name: "quiet",
-		// 	config: testPeersConfig{
-		// 		testConfig: testConfig{
-		// 			OutputToml: "",
-		// 			Quiet:      true,
-		// 			TestCases:  nil,
-		// 			Timeout:    24 * time.Hour,
-		// 		},
-		// 		ENRs: []string{"enr:-1", "enr:-2", "enr:-3"},
-		// 	},
-		// 	expected: testCategoryResult{
-		// 		CategoryName: "peers",
-		// 		Targets: map[string][]testResult{
-		// 			"self": {
-		// 				{Name: "natOpen", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "natOpen not implemented"},
-		// 			},
-		// 			"enr:-1": {
-		// 				{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
-		// 				{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "10ms", Suggestion: "", Error: "pingMeasure not implemented"},
-		// 				{Name: "pingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "pingLoad not implemented"},
-		// 			},
-		// 			"enr:-2": {
-		// 				{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
-		// 				{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "10ms", Suggestion: "", Error: "pingMeasure not implemented"},
-		// 				{Name: "pingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "pingLoad not implemented"},
-		// 			},
-		// 			"enr:-3": {
-		// 				{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
-		// 				{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "10ms", Suggestion: "", Error: "pingMeasure not implemented"},
-		// 				{Name: "pingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "pingLoad not implemented"},
-		// 			},
-		// 		},
-		// 		Score: categoryScoreC,
-		// 	},
-		// 	expectedErr: "",
-		// },
-		// {
-		// 	name: "unsupported test",
-		// 	config: testPeersConfig{
-		// 		testConfig: testConfig{
-		// 			OutputToml: "",
-		// 			Quiet:      false,
-		// 			TestCases:  []string{"notSupportedTest"},
-		// 			Timeout:    24 * time.Hour,
-		// 		},
-		// 		ENRs: []string{"enr:-1", "enr:-2", "enr:-3"},
-		// 	},
-		// 	expected:    testCategoryResult{},
-		// 	expectedErr: "test case not supported",
-		// },
-		// {
-		// 	name: "custom test cases",
-		// 	config: testPeersConfig{
-		// 		testConfig: testConfig{
-		// 			OutputToml: "",
-		// 			Quiet:      false,
-		// 			TestCases:  []string{"ping"},
-		// 			Timeout:    24 * time.Hour,
-		// 		},
-		// 		ENRs: []string{"enr:-1", "enr:-2", "enr:-3"},
-		// 	},
-		// 	expected: testCategoryResult{
-		// 		CategoryName: "peers",
-		// 		Targets: map[string][]testResult{
-		// 			"enr:-1": {
-		// 				{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
-		// 			},
-		// 			"enr:-2": {
-		// 				{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
-		// 			},
-		// 			"enr:-3": {
-		// 				{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
-		// 			},
-		// 		},
-		// 		Score: categoryScoreC,
-		// 	},
-		// 	expectedErr: "",
-		// },
-		// {
-		// 	name: "write to file",
-		// 	config: testPeersConfig{
-		// 		testConfig: testConfig{
-		// 			OutputToml: "./write-to-file-test.toml.tmp",
-		// 			Quiet:      false,
-		// 			TestCases:  nil,
-		// 			Timeout:    time.Duration(rand.Int31n(222)) * time.Hour,
-		// 		},
-		// 		ENRs: []string{"enr:-1", "enr:-2", "enr:-3"},
-		// 	},
-		// 	expected: testCategoryResult{
-		// 		CategoryName: "peers",
-		// 		Targets: map[string][]testResult{
-		// 			"self": {
-		// 				{Name: "natOpen", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "natOpen not implemented"},
-		// 			},
-		// 			"enr:-1": {
-		// 				{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
-		// 				{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "10ms", Suggestion: "", Error: "pingMeasure not implemented"},
-		// 				{Name: "pingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "pingLoad not implemented"},
-		// 			},
-		// 			"enr:-2": {
-		// 				{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
-		// 				{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "10ms", Suggestion: "", Error: "pingMeasure not implemented"},
-		// 				{Name: "pingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "pingLoad not implemented"},
-		// 			},
-		// 			"enr:-3": {
-		// 				{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"},
-		// 				{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "10ms", Suggestion: "", Error: "pingMeasure not implemented"},
-		// 				{Name: "pingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "pingLoad not implemented"},
-		// 			},
-		// 		},
-		// 		Score: categoryScoreC,
-		// 	},
-		// 	expectedErr: "",
-		// 	cleanup: func(t *testing.T, p string) {
-		// 		t.Helper()
-		// 		err := os.Remove(p)
-		// 		require.NoError(t, err)
-		// 	},
-		// },
+		{
+			name: "default scenario",
+			config: testPeersConfig{
+				testConfig: testConfig{
+					OutputToml: "",
+					Quiet:      false,
+					TestCases:  nil,
+					Timeout:    100 * time.Millisecond,
+				},
+				ENRs: []string{
+					"enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u",
+					"enr:-JG4QPnqHa7FU3PBqGxpV5L0hjJrTUqv8Wl6_UTHt-rELeICWjvCfcVfwmax8xI_eJ0ntI3ly9fgxAsmABud6-yBQiuGAYGv0iYPgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMLLCMZ5Oqi_sdnBfdyhmysZMfFm78PgF7Y9jitTJPSroN0Y3CCPoODdWRwgj6E",
+					"enr:-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
+				},
+			},
+			expected: testCategoryResult{
+				CategoryName: "peers",
+				Targets: map[string][]testResult{
+					"self": {
+						{Name: "natOpen", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "natOpen not implemented"},
+					},
+					"enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+					},
+					"enr:-JG4QPnqHa7FU3PBqGxpV5L0hjJrTUqv8Wl6_UTHt-rELeICWjvCfcVfwmax8xI_eJ0ntI3ly9fgxAsmABud6-yBQiuGAYGv0iYPgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMLLCMZ5Oqi_sdnBfdyhmysZMfFm78PgF7Y9jitTJPSroN0Y3CCPoODdWRwgj6E": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+					},
+					"enr:-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+					},
+				},
+				Score: categoryScoreC,
+			},
+			expectedErr: "",
+		},
+		{
+			name: "quiet",
+			config: testPeersConfig{
+				testConfig: testConfig{
+					OutputToml: "",
+					Quiet:      true,
+					TestCases:  nil,
+					Timeout:    100 * time.Millisecond,
+				},
+				ENRs: []string{
+					"enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u",
+					"enr:-JG4QPnqHa7FU3PBqGxpV5L0hjJrTUqv8Wl6_UTHt-rELeICWjvCfcVfwmax8xI_eJ0ntI3ly9fgxAsmABud6-yBQiuGAYGv0iYPgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMLLCMZ5Oqi_sdnBfdyhmysZMfFm78PgF7Y9jitTJPSroN0Y3CCPoODdWRwgj6E",
+					"enr:-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
+				},
+			},
+			expected: testCategoryResult{
+				CategoryName: "peers",
+				Targets: map[string][]testResult{
+					"self": {
+						{Name: "natOpen", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "natOpen not implemented"},
+					},
+					"enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+					},
+					"enr:-JG4QPnqHa7FU3PBqGxpV5L0hjJrTUqv8Wl6_UTHt-rELeICWjvCfcVfwmax8xI_eJ0ntI3ly9fgxAsmABud6-yBQiuGAYGv0iYPgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMLLCMZ5Oqi_sdnBfdyhmysZMfFm78PgF7Y9jitTJPSroN0Y3CCPoODdWRwgj6E": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+					},
+					"enr:-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+					},
+				},
+				Score: categoryScoreC,
+			},
+			expectedErr: "",
+		},
+		{
+			name: "unsupported test",
+			config: testPeersConfig{
+				testConfig: testConfig{
+					OutputToml: "",
+					Quiet:      false,
+					TestCases:  []string{"notSupportedTest"},
+					Timeout:    100 * time.Millisecond,
+				},
+				ENRs: []string{
+					"enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u",
+					"enr:-JG4QPnqHa7FU3PBqGxpV5L0hjJrTUqv8Wl6_UTHt-rELeICWjvCfcVfwmax8xI_eJ0ntI3ly9fgxAsmABud6-yBQiuGAYGv0iYPgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMLLCMZ5Oqi_sdnBfdyhmysZMfFm78PgF7Y9jitTJPSroN0Y3CCPoODdWRwgj6E",
+					"enr:-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
+				},
+			},
+			expected:    testCategoryResult{},
+			expectedErr: "test case not supported",
+		},
+		{
+			name: "custom test cases",
+			config: testPeersConfig{
+				testConfig: testConfig{
+					OutputToml: "",
+					Quiet:      false,
+					TestCases:  []string{"ping"},
+					Timeout:    100 * time.Millisecond,
+				},
+				ENRs: []string{
+					"enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u",
+					"enr:-JG4QPnqHa7FU3PBqGxpV5L0hjJrTUqv8Wl6_UTHt-rELeICWjvCfcVfwmax8xI_eJ0ntI3ly9fgxAsmABud6-yBQiuGAYGv0iYPgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMLLCMZ5Oqi_sdnBfdyhmysZMfFm78PgF7Y9jitTJPSroN0Y3CCPoODdWRwgj6E",
+					"enr:-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
+				},
+			},
+			expected: testCategoryResult{
+				CategoryName: "peers",
+				Targets: map[string][]testResult{
+					"enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+					},
+					"enr:-JG4QPnqHa7FU3PBqGxpV5L0hjJrTUqv8Wl6_UTHt-rELeICWjvCfcVfwmax8xI_eJ0ntI3ly9fgxAsmABud6-yBQiuGAYGv0iYPgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMLLCMZ5Oqi_sdnBfdyhmysZMfFm78PgF7Y9jitTJPSroN0Y3CCPoODdWRwgj6E": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+					},
+					"enr:-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+					},
+				},
+				Score: categoryScoreC,
+			},
+			expectedErr: "",
+		},
+		{
+			name: "write to file",
+			config: testPeersConfig{
+				testConfig: testConfig{
+					OutputToml: "./write-to-file-test.toml.tmp",
+					Quiet:      false,
+					TestCases:  nil,
+					Timeout:    100 * time.Millisecond,
+				},
+				ENRs: []string{
+					"enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u",
+					"enr:-JG4QPnqHa7FU3PBqGxpV5L0hjJrTUqv8Wl6_UTHt-rELeICWjvCfcVfwmax8xI_eJ0ntI3ly9fgxAsmABud6-yBQiuGAYGv0iYPgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMLLCMZ5Oqi_sdnBfdyhmysZMfFm78PgF7Y9jitTJPSroN0Y3CCPoODdWRwgj6E",
+					"enr:-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
+				},
+			},
+			expected: testCategoryResult{
+				CategoryName: "peers",
+				Targets: map[string][]testResult{
+					"self": {
+						{Name: "natOpen", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "natOpen not implemented"},
+					},
+					"enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+					},
+					"enr:-JG4QPnqHa7FU3PBqGxpV5L0hjJrTUqv8Wl6_UTHt-rELeICWjvCfcVfwmax8xI_eJ0ntI3ly9fgxAsmABud6-yBQiuGAYGv0iYPgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMLLCMZ5Oqi_sdnBfdyhmysZMfFm78PgF7Y9jitTJPSroN0Y3CCPoODdWRwgj6E": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+					},
+					"enr:-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+					},
+				},
+				Score: categoryScoreC,
+			},
+			expectedErr: "",
+			cleanup: func(t *testing.T, p string) {
+				t.Helper()
+				err := os.Remove(p)
+				require.NoError(t, err)
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			temp := t.TempDir()
+			_, err := p2p.NewSavedPrivKey(temp)
+			require.NoError(t, err)
+			cfg := test.config
+			cfg.DataDir = temp
+
 			var buf bytes.Buffer
 			ctx := context.Background()
-			err := runTestPeers(ctx, &buf, test.config)
+			err = runTestPeers(ctx, &buf, cfg)
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
 				return
