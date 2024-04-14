@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"math"
 	"math/big"
 	"os"
 	"os/signal"
@@ -33,10 +34,11 @@ import (
 
 type testPeersConfig struct {
 	testConfig
-	ENRs      []string
-	P2P       p2p.Config
-	DataDir   string
-	KeepAlive time.Duration
+	ENRs             []string
+	P2P              p2p.Config
+	DataDir          string
+	KeepAlive        time.Duration
+	LoadTestDuration time.Duration
 }
 
 const timeoutInterruptedErr = "timeout/interrupted"
@@ -67,8 +69,9 @@ func newTestPeersCmd(runFunc func(context.Context, io.Writer, testPeersConfig) e
 
 func bindTestPeersFlags(cmd *cobra.Command, config *testPeersConfig) {
 	const enrs = "enrs"
-	cmd.Flags().StringSliceVar(&config.ENRs, "enrs", nil, "[REQUIRED] Comma-separated list of each peer ENR address.")
+	cmd.Flags().StringSliceVar(&config.ENRs, enrs, nil, "[REQUIRED] Comma-separated list of each peer ENR address.")
 	cmd.Flags().DurationVar(&config.KeepAlive, "keep-alive", 30*time.Minute, "Time to keep TCP node alive after test completion, so connection is open for other peers to test on their end.")
+	cmd.Flags().DurationVar(&config.LoadTestDuration, "load-test-duration", 30*time.Second, "Time to keep running the load tests in seconds. For each second a new continuous ping instance is spawned.")
 	mustMarkFlagRequired(cmd, enrs)
 }
 
@@ -443,19 +446,17 @@ func runSelfTest(ctx context.Context, queuedTestCases []testCaseName, allTestCas
 func peerPingTest(ctx context.Context, _ *testPeersConfig, tcpNode host.Host, peer p2p.Peer) testResult {
 	tr := testResult{Name: "Ping"}
 
-	// TODO(kalo): tick once before starting, currently we wait for 3 seconds before start, no reason to do so
-	// https://github.com/golang/go/issues/17601
-	tick := time.NewTicker(3 * time.Second)
-	defer tick.Stop()
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
 
-	for {
+	for ; true; <-ticker.C {
 		select {
 		case <-ctx.Done():
 			tr.Verdict = testVerdictFail
 			tr.Error = timeoutInterruptedErr
 
 			return tr
-		case <-tick.C:
+		default:
 			result, err := pingPeerOnce(ctx, tcpNode, peer)
 			if err != nil {
 				tr.Verdict = testVerdictFail
@@ -487,6 +488,11 @@ func peerPingTest(ctx context.Context, _ *testPeersConfig, tcpNode host.Host, pe
 			return tr
 		}
 	}
+
+	tr.Verdict = testVerdictFail
+	tr.Error = errors.New("no ticker").Error()
+
+	return tr
 }
 
 func peerPingMeasureTest(ctx context.Context, _ *testPeersConfig, tcpNode host.Host, peer p2p.Peer) testResult {
@@ -520,23 +526,24 @@ func peerPingMeasureTest(ctx context.Context, _ *testPeersConfig, tcpNode host.H
 	return tr
 }
 
-func peerPingLoadTest(ctx context.Context, _ *testPeersConfig, tcpNode host.Host, peer p2p.Peer) testResult {
+func peerPingLoadTest(ctx context.Context, cfg *testPeersConfig, tcpNode host.Host, peer p2p.Peer) testResult {
 	const thresholdAvg = 200 * time.Millisecond
 	const thresholdBad = 500 * time.Millisecond
 	tr := testResult{Name: "PingLoad"}
 
-	resCh := make(chan ping.Result, 10000)
-	// defer close(resCh)
+	s := int(cfg.LoadTestDuration.Seconds())
+	resCh := make(chan ping.Result, math.MaxInt16)
 	pingCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
 
-	for i := 0; i < 30; i++ {
+	for i := 0; i < s; i++ {
 		select {
 		case <-ctx.Done():
-			i = 9
-		default:
+			i = s
+		case <-ticker.C:
 			go pingPeerContinuously(pingCtx, tcpNode, peer, resCh)
-			time.Sleep(time.Second)
 		}
 	}
 	cancel()
