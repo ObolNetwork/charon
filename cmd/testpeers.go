@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -44,7 +45,7 @@ type testPeersConfig struct {
 	LoadTestDuration time.Duration
 }
 
-const timeoutInterruptedErr = "timeout/interrupted"
+var errTimeoutInterrupted = errors.New("timeout/interrupted")
 
 func newTestPeersCmd(runFunc func(context.Context, io.Writer, testPeersConfig) error) *cobra.Command {
 	var config testPeersConfig
@@ -139,14 +140,9 @@ func startTCPNode(ctx context.Context, cfg testPeersConfig) (host.Host, func(), 
 	allENRs = append(allENRs, r.String())
 	slices.Sort(allENRs)
 	allENRsString := strings.Join(allENRs, ",")
-	h := sha256.New()
-	_, err = h.Write([]byte(allENRsString))
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "calculate sha256")
-	}
-	allENRsHash := h.Sum(nil)
+	allENRsHash := sha256.Sum256([]byte(allENRsString))
 
-	return setupP2P(ctx, key, cfg.P2P, peers, allENRsHash)
+	return setupP2P(ctx, key, cfg.P2P, peers, allENRsHash[:])
 }
 
 func setupP2P(ctx context.Context, key *k1.PrivateKey, cfg p2p.Config, peers []p2p.Peer, enrsHash []byte) (host.Host, func(), error) {
@@ -188,14 +184,17 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, cfg p2p.Config, peers []p
 	_ = peerinfo.New(tcpNode, peerIDs, version.Version, enrsHash, gitHash, nil, false)
 
 	return tcpNode, func() {
-		_ = tcpNode.Close()
+		err := tcpNode.Close()
+		if err != nil && !errors.Is(err, context.Canceled) {
+			log.Error(ctx, "Close TCP node", err)
+		}
 	}, nil
 }
 
 func pingPeerOnce(ctx context.Context, tcpNode host.Host, peer p2p.Peer) (ping.Result, error) {
 	select {
 	case <-ctx.Done():
-		return ping.Result{}, errors.New("context done")
+		return ping.Result{}, ctx.Err()
 	default:
 		pingSvc := ping.NewPingService(tcpNode)
 		pingCtx, cancel := context.WithCancel(ctx)
@@ -204,7 +203,7 @@ func pingPeerOnce(ctx context.Context, tcpNode host.Host, peer p2p.Peer) (ping.R
 			pingChan := pingSvc.Ping(pingCtx, peer.ID)
 			select {
 			case <-pingCtx.Done():
-				return ping.Result{}, errors.New("context done")
+				return ping.Result{}, ctx.Err()
 			case result := <-pingChan:
 				return result, nil
 			}
@@ -330,15 +329,15 @@ func runTestPeers(ctx context.Context, w io.Writer, cfg testPeersConfig) error {
 		}
 	}
 
-	done := make(chan os.Signal, 1)
-	signal.Notify(done, os.Interrupt)
+	notifyCtx, cancelNotifyCtx := signal.NotifyContext(parentCtx, os.Interrupt, syscall.SIGTERM)
+	defer cancelNotifyCtx()
 	log.Info(ctx, "Keeping TCP node alive for peers until keep-alive time is reached...")
-	keepAliveCtx, cancel := context.WithTimeout(parentCtx, cfg.KeepAlive)
-	defer cancel()
+	keepAliveCtx, cancelKeepAliveCtx := context.WithTimeout(parentCtx, cfg.KeepAlive)
+	defer cancelKeepAliveCtx()
 	select {
 	case <-keepAliveCtx.Done():
 		log.Info(ctx, "Keep-alive time reached or interrupted")
-	case <-done:
+	case <-notifyCtx.Done():
 		log.Info(ctx, "Forcefully stopping TCP node")
 	}
 
@@ -389,7 +388,7 @@ func testSinglePeer(ctx context.Context, queuedTestCases []testCaseName, allTest
 		select {
 		case <-ctx.Done():
 			name = queuedTestCases[testCounter].name
-			res = append(res, testResult{Name: name, Verdict: testVerdictFail, Error: timeoutInterruptedErr})
+			res = append(res, testResult{Name: name, Verdict: testVerdictFail, Error: errTimeoutInterrupted.Error()})
 			finished = true
 		case result, ok := <-ch:
 			if !ok {
@@ -471,7 +470,7 @@ func peerPingTest(ctx context.Context, _ *testPeersConfig, tcpNode host.Host, pe
 		select {
 		case <-ctx.Done():
 			tr.Verdict = testVerdictFail
-			tr.Error = timeoutInterruptedErr
+			tr.Error = errTimeoutInterrupted.Error()
 
 			return tr
 		default:
@@ -487,7 +486,7 @@ func peerPingTest(ctx context.Context, _ *testPeersConfig, tcpNode host.Host, pe
 				switch {
 				case errors.Is(result.Error, context.DeadlineExceeded):
 					tr.Verdict = testVerdictFail
-					tr.Error = timeoutInterruptedErr
+					tr.Error = errTimeoutInterrupted.Error()
 
 					return tr
 				case p2p.IsRelayError(result.Error):
