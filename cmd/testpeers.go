@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"math"
 	"math/big"
@@ -21,6 +22,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"golang.org/x/exp/maps"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -36,6 +38,7 @@ type testPeersConfig struct {
 	testConfig
 	ENRs             []string
 	P2P              p2p.Config
+	Log              log.Config
 	DataDir          string
 	KeepAlive        time.Duration
 	LoadTestDuration time.Duration
@@ -63,6 +66,7 @@ func newTestPeersCmd(runFunc func(context.Context, io.Writer, testPeersConfig) e
 	bindTestPeersFlags(cmd, &config)
 	bindP2PFlags(cmd, &config.P2P)
 	bindDataDirFlag(cmd.Flags(), &config.DataDir)
+	bindTestLogFlags(cmd.Flags(), &config.Log)
 
 	return cmd
 }
@@ -73,6 +77,13 @@ func bindTestPeersFlags(cmd *cobra.Command, config *testPeersConfig) {
 	cmd.Flags().DurationVar(&config.KeepAlive, "keep-alive", 30*time.Minute, "Time to keep TCP node alive after test completion, so connection is open for other peers to test on their end.")
 	cmd.Flags().DurationVar(&config.LoadTestDuration, "load-test-duration", 30*time.Second, "Time to keep running the load tests in seconds. For each second a new continuous ping instance is spawned.")
 	mustMarkFlagRequired(cmd, enrs)
+}
+
+func bindTestLogFlags(flags *pflag.FlagSet, config *log.Config) {
+	flags.StringVar(&config.Format, "log-format", "console", "Log format; console, logfmt or json")
+	flags.StringVar(&config.Level, "log-level", "info", "Log level; debug, info, warn or error")
+	flags.StringVar(&config.Color, "log-color", "auto", "Log color; auto, force, disable.")
+	flags.StringVar(&config.LogOutputPath, "log-output-path", "", "Path in which to write on-disk logs.")
 }
 
 func supportedPeerTestCases() map[testCaseName]func(context.Context, *testPeersConfig, host.Host, p2p.Peer) testResult {
@@ -119,6 +130,8 @@ func startTCPNode(ctx context.Context, cfg testPeersConfig) (host.Host, func(), 
 	if err != nil {
 		return nil, nil, err
 	}
+
+	log.Info(ctx, "Self p2p name resolved", z.Any("name", mePeer.Name))
 
 	peers = append(peers, mePeer)
 
@@ -225,7 +238,12 @@ func pingPeerContinuously(ctx context.Context, tcpNode host.Host, peer p2p.Peer,
 	}
 }
 
-func runTestPeers(ctx context.Context, w io.Writer, cfg testPeersConfig) (err error) {
+func runTestPeers(ctx context.Context, w io.Writer, cfg testPeersConfig) error {
+	err := log.InitLogger(cfg.Log)
+	if err != nil {
+		return err
+	}
+
 	peerTestCases := supportedPeerTestCases()
 	queuedTestsPeer := filterTests(maps.Keys(peerTestCases), cfg.testConfig)
 	sortTests(queuedTestsPeer)
@@ -387,7 +405,8 @@ func testSinglePeer(ctx context.Context, queuedTestCases []testCaseName, allTest
 		}
 	}
 
-	resCh <- map[string][]testResult{target: res}
+	nameENR := fmt.Sprintf("%v - %v", peerTarget.Name, target)
+	resCh <- map[string][]testResult{nameENR: res}
 }
 
 func runPeerTest(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testPeersConfig, host.Host, p2p.Peer) testResult, cfg testPeersConfig, tcpNode host.Host, target p2p.Peer, ch chan testResult) {
@@ -528,6 +547,10 @@ func peerPingMeasureTest(ctx context.Context, _ *testPeersConfig, tcpNode host.H
 }
 
 func peerPingLoadTest(ctx context.Context, cfg *testPeersConfig, tcpNode host.Host, peer p2p.Peer) testResult {
+	log.Info(ctx, "Running ping load tests...",
+		z.Any("duration", cfg.LoadTestDuration),
+		z.Any("target", peer.Name),
+	)
 	const thresholdAvg = 200 * time.Millisecond
 	const thresholdBad = 500 * time.Millisecond
 	tr := testResult{Name: "PingLoad"}
