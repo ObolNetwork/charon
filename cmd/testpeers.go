@@ -279,7 +279,6 @@ func runTestPeers(ctx context.Context, w io.Writer, cfg testPeersConfig) error {
 	go testAllPeers(timeoutCtx, queuedTestsPeer, peerTestCases, cfg, tcpNode, peersCh)
 	go testSelf(timeoutCtx, queuedTestsSelf, selfTestCases, cfg, selfCh)
 
-	interrupted := false
 	for !peersFinished || !selfFinished {
 		select {
 		case result, ok := <-selfCh:
@@ -294,6 +293,9 @@ func runTestPeers(ctx context.Context, w io.Writer, cfg testPeersConfig) error {
 				break
 			}
 			maps.Copy(testResults, result)
+		case <-ctx.Done():
+			selfFinished = true
+			peersFinished = true
 		}
 	}
 	execTime := Duration{time.Since(startTime)}
@@ -326,10 +328,6 @@ func runTestPeers(ctx context.Context, w io.Writer, cfg testPeersConfig) error {
 		if err != nil {
 			return err
 		}
-	}
-
-	if interrupted {
-		return nil
 	}
 
 	done := make(chan os.Signal, 1)
