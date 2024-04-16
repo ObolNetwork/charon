@@ -262,6 +262,6 @@ func TestRelayMetricsExported(t *testing.T) {
 	}
 
 	require.Eventually(t, func() bool {
-		return strings.Contains(fetchMetrics(), "relay_p2p_int_status")
+		return strings.Contains(fetchMetrics(), "libp2p_relaysvc_")
 	}, 10*time.Second, time.Second, "waiting for relay service to start")
 }

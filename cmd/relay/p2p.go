@@ -65,7 +65,8 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 	relayResources.MaxReservations = config.MaxConns
 	relayResources.MaxCircuits = config.MaxResPerPeer
 
-	mt := NewMetricsTracer(promRegistry)
+	// This enables relay metrics: https://github.com/libp2p/go-libp2p/blob/master/p2p/protocol/circuitv2/relay/metrics.go
+	mt := relay.NewMetricsTracer(relay.WithRegisterer(promRegistry))
 	relayService, err := relay.New(tcpNode, relay.WithResources(relayResources), relay.WithMetricsTracer(mt))
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new relay service")
