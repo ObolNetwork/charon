@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -223,4 +224,45 @@ func testServeAddrs(t *testing.T, p2pConfig p2p.Config, path string, asserter fu
 	})
 
 	require.NoError(t, eg.Wait())
+}
+
+func TestRelayMetricsExported(t *testing.T) {
+	temp := t.TempDir()
+
+	config := Config{
+		DataDir:        temp,
+		LogConfig:      log.DefaultConfig(),
+		P2PConfig:      p2p.Config{TCPAddrs: []string{testutil.AvailableAddr(t).String()}},
+		HTTPAddr:       testutil.AvailableAddr(t).String(),
+		MonitoringAddr: testutil.AvailableAddr(t).String(),
+	}
+
+	_, err := p2p.NewSavedPrivKey(temp)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		err := Run(ctx, config)
+		testutil.SkipIfBindErr(t, err)
+		assert.NoError(t, err)
+	}()
+
+	fetchMetrics := func() string {
+		resp, err := http.Get(fmt.Sprintf("http://%s/metrics", config.MonitoringAddr))
+		if err == nil {
+			body, err := io.ReadAll(resp.Body)
+			if err == nil {
+				return string(body)
+			}
+		}
+
+		return ""
+	}
+
+	require.Eventually(t, func() bool {
+		return strings.Contains(fetchMetrics(), "libp2p_relaysvc_")
+	}, 10*time.Second, time.Second, "waiting for relay service to start")
+
+	cancel()
 }

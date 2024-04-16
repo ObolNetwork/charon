@@ -22,7 +22,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util/enr"
@@ -72,19 +71,12 @@ func Run(ctx context.Context, config Config) error {
 	bwTuples := make(chan bwTuple)
 	counter := newBandwidthCounter(ctx, bwTuples)
 
-	tcpNode, err := startP2P(ctx, config, key, counter)
+	tcpNode, promRegistry, err := startP2P(ctx, config, key, counter)
 	if err != nil {
 		return err
 	}
 
 	go monitorConnections(ctx, tcpNode, bwTuples)
-
-	labels := map[string]string{"relay_peer": p2p.PeerName(tcpNode.ID())}
-	log.SetLokiLabels(labels)
-	promRegistry, err := promauto.NewRegistry(labels)
-	if err != nil {
-		return err
-	}
 
 	// Start serving HTTP: ENR and monitoring.
 	serverErr := make(chan error, 3) // Buffer for 3 servers.
