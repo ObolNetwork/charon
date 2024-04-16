@@ -30,6 +30,7 @@ import (
 	"github.com/libp2p/go-libp2p"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/stretchr/testify/require"
@@ -1180,6 +1181,7 @@ func CreateHostWithIdentity(t *testing.T, addr *net.TCPAddr, secret *k1.PrivateK
 	opts2 := []libp2p.Option{
 		libp2p.Identity((*p2pcrypto.Secp256k1PrivateKey)(secret)),
 		libp2p.ListenAddrs(addrs),
+		libp2p.Transport(tcp.NewTCPTransport, tcp.DisableReuseport()),
 	}
 	opts2 = append(opts2, opts...)
 
