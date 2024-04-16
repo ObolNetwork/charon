@@ -3,17 +3,21 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 )
 
 type testConfig struct {
@@ -73,12 +77,24 @@ const (
 	categoryScoreC categoryScore = "C"
 )
 
+type testResultError struct{ error }
+
 type testResult struct {
 	Name        string
 	Verdict     testVerdict
 	Measurement string
 	Suggestion  string
-	Error       string
+	Error       testResultError
+}
+
+func (s *testResultError) UnmarshalText(data []byte) error {
+	s.error = errors.New(string(data))
+	return nil
+}
+
+// MarshalText implements encoding.TextMarshaler
+func (s testResultError) MarshalText() ([]byte, error) {
+	return []byte(s.Error()), nil
 }
 
 type testCaseName struct {
@@ -160,8 +176,8 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) error {
 				suggestions = append(suggestions, singleTestRes.Suggestion)
 			}
 
-			if singleTestRes.Error != "" {
-				testOutput += " - " + singleTestRes.Error
+			if singleTestRes.Error.error != nil {
+				testOutput += " - " + singleTestRes.Error.Error()
 			}
 			lines = append(lines, testOutput)
 		}
@@ -230,4 +246,17 @@ func sortTests(tests []testCaseName) {
 	sort.Slice(tests, func(i, j int) bool {
 		return tests[i].order < tests[j].order
 	})
+}
+
+func blockAndWait(ctx context.Context, awaitTime time.Duration) {
+	notifyCtx, cancelNotifyCtx := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer cancelNotifyCtx()
+	keepAliveCtx, cancelKeepAliveCtx := context.WithTimeout(ctx, awaitTime)
+	defer cancelKeepAliveCtx()
+	select {
+	case <-keepAliveCtx.Done():
+		log.Info(ctx, "Await time reached or interrupted")
+	case <-notifyCtx.Done():
+		log.Info(ctx, "Forcefully stopped")
+	}
 }

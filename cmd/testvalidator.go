@@ -137,7 +137,7 @@ func testSingleValidator(ctx context.Context, queuedTestCases []testCaseName, al
 		select {
 		case <-ctx.Done():
 			name = queuedTestCases[testCounter].name
-			res = append(res, testResult{Name: name, Verdict: testVerdictFail, Error: "timeout"})
+			res = append(res, testResult{Name: name, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
 			finished = true
 		case result, ok := <-ch:
 			if !ok {
@@ -174,7 +174,7 @@ func validatorPing(ctx context.Context, _ *testValidatorConfig) testResult {
 	default:
 		return testResult{
 			Verdict: testVerdictFail,
-			Error:   errors.New("ping not implemented").Error(),
+			Error:   errNotImplemented,
 		}
 	}
 }

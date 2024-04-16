@@ -51,16 +51,16 @@ func TestPeersTest(t *testing.T) {
 				CategoryName: "peers",
 				Targets: map[string][]testResult{
 					"self": {
-						{Name: "natOpen", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "natOpen not implemented"},
+						{Name: "natOpen", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented},
 					},
 					"frantic-colony - enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u": {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 					"comfortable-pond - enr:-JG4QPnqHa7FU3PBqGxpV5L0hjJrTUqv8Wl6_UTHt-rELeICWjvCfcVfwmax8xI_eJ0ntI3ly9fgxAsmABud6-yBQiuGAYGv0iYPgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMLLCMZ5Oqi_sdnBfdyhmysZMfFm78PgF7Y9jitTJPSroN0Y3CCPoODdWRwgj6E": {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 					"open-mother - enr:-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u": {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
 				Score: categoryScoreC,
@@ -87,16 +87,16 @@ func TestPeersTest(t *testing.T) {
 				CategoryName: "peers",
 				Targets: map[string][]testResult{
 					"self": {
-						{Name: "natOpen", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "natOpen not implemented"},
+						{Name: "natOpen", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented},
 					},
 					"frantic-colony - enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u": {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 					"comfortable-pond - enr:-JG4QPnqHa7FU3PBqGxpV5L0hjJrTUqv8Wl6_UTHt-rELeICWjvCfcVfwmax8xI_eJ0ntI3ly9fgxAsmABud6-yBQiuGAYGv0iYPgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMLLCMZ5Oqi_sdnBfdyhmysZMfFm78PgF7Y9jitTJPSroN0Y3CCPoODdWRwgj6E": {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 					"open-mother - enr:-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u": {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
 				Score: categoryScoreC,
@@ -142,13 +142,13 @@ func TestPeersTest(t *testing.T) {
 				CategoryName: "peers",
 				Targets: map[string][]testResult{
 					"frantic-colony - enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u": {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 					"comfortable-pond - enr:-JG4QPnqHa7FU3PBqGxpV5L0hjJrTUqv8Wl6_UTHt-rELeICWjvCfcVfwmax8xI_eJ0ntI3ly9fgxAsmABud6-yBQiuGAYGv0iYPgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMLLCMZ5Oqi_sdnBfdyhmysZMfFm78PgF7Y9jitTJPSroN0Y3CCPoODdWRwgj6E": {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 					"open-mother - enr:-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u": {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
 				Score: categoryScoreC,
@@ -175,16 +175,16 @@ func TestPeersTest(t *testing.T) {
 				CategoryName: "peers",
 				Targets: map[string][]testResult{
 					"self": {
-						{Name: "natOpen", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "natOpen not implemented"},
+						{Name: "natOpen", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented},
 					},
 					"frantic-colony - enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u": {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 					"comfortable-pond - enr:-JG4QPnqHa7FU3PBqGxpV5L0hjJrTUqv8Wl6_UTHt-rELeICWjvCfcVfwmax8xI_eJ0ntI3ly9fgxAsmABud6-yBQiuGAYGv0iYPgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMLLCMZ5Oqi_sdnBfdyhmysZMfFm78PgF7Y9jitTJPSroN0Y3CCPoODdWRwgj6E": {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 					"open-mother - enr:-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u": {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout/interrupted"},
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
 				Score: categoryScoreC,
@@ -290,7 +290,9 @@ func testWriteOut(t *testing.T, expectedRes testCategoryResult, buf bytes.Buffer
 			require.Contains(t, res, test.Verdict)
 			require.Contains(t, res, test.Measurement)
 			require.Contains(t, res, test.Suggestion)
-			require.Contains(t, res, test.Error)
+			if test.Error.error != nil {
+				require.Contains(t, res, test.Error.Error())
+			}
 			bufTests = bufTests[1:]
 		}
 	}
@@ -315,7 +317,9 @@ func testWriteFile(t *testing.T, expectedRes testCategoryResult, path string) {
 			require.Equal(t, expectedRes.Targets[targetName][idx].Verdict, testRes.Verdict)
 			require.Equal(t, expectedRes.Targets[targetName][idx].Measurement, testRes.Measurement)
 			require.Equal(t, expectedRes.Targets[targetName][idx].Suggestion, testRes.Suggestion)
-			require.Equal(t, expectedRes.Targets[targetName][idx].Error, testRes.Error)
+			if expectedRes.Targets[targetName][idx].Error.error != nil {
+				require.ErrorContains(t, expectedRes.Targets[targetName][idx].Error.error, testRes.Error.error.Error())
+			}
 		}
 	}
 }

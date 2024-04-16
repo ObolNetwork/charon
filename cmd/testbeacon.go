@@ -163,7 +163,7 @@ func testSingleBeacon(ctx context.Context, queuedTestCases []testCaseName, allTe
 		select {
 		case <-ctx.Done():
 			name = queuedTestCases[testCounter].name
-			res = append(res, testResult{Name: name, Verdict: testVerdictFail, Error: "timeout"})
+			res = append(res, testResult{Name: name, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
 			finished = true
 		case result, ok := <-ch:
 			if !ok {
@@ -200,7 +200,7 @@ func beaconPing(ctx context.Context, _ *testBeaconConfig, _ string) testResult {
 	default:
 		return testResult{
 			Verdict: testVerdictFail,
-			Error:   errors.New("ping not implemented").Error(),
+			Error:   errNotImplemented,
 		}
 	}
 }

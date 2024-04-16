@@ -37,8 +37,8 @@ func TestBeaconTest(t *testing.T) {
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
-					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
-					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
+					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
+					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
 				},
 			},
 			expectedErr: "",
@@ -56,8 +56,8 @@ func TestBeaconTest(t *testing.T) {
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
-					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout"}},
-					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout"}},
+					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted}},
+					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted}},
 				},
 			},
 			expectedErr: "",
@@ -75,8 +75,8 @@ func TestBeaconTest(t *testing.T) {
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
-					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
-					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
+					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
+					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
 				},
 			},
 			expectedErr: "",
@@ -108,8 +108,8 @@ func TestBeaconTest(t *testing.T) {
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
-					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
-					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
+					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
+					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
 				},
 			},
 			expectedErr: "",
@@ -129,8 +129,8 @@ func TestBeaconTest(t *testing.T) {
 			expected: testCategoryResult{
 				CategoryName: "beacon",
 				Targets: map[string][]testResult{
-					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
-					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
+					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
+					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
 				},
 				Score: categoryScoreC,
 			},

@@ -4,18 +4,14 @@ package cmd
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"math"
-	"math/big"
-	"os"
-	"os/signal"
+	"math/rand"
 	"slices"
 	"strings"
-	"syscall"
 	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -45,7 +41,18 @@ type testPeersConfig struct {
 	LoadTestDuration time.Duration
 }
 
-var errTimeoutInterrupted = errors.New("timeout/interrupted")
+var (
+	errTimeoutInterrupted = testResultError{errors.New("timeout/interrupted")}
+	errNotImplemented     = testResultError{errors.New("not implemented")}
+	errNoTicker           = testResultError{errors.New("no ticker")}
+)
+
+const (
+	thresholdMeasureAvg = 200 * time.Millisecond
+	thresholdMeasureBad = 500 * time.Millisecond
+	thresholdLoadAvg    = 200 * time.Millisecond
+	thresholdLoadBad    = 500 * time.Millisecond
+)
 
 func newTestPeersCmd(runFunc func(context.Context, io.Writer, testPeersConfig) error) *cobra.Command {
 	var config testPeersConfig
@@ -228,11 +235,8 @@ func pingPeerContinuously(ctx context.Context, tcpNode host.Host, peer p2p.Peer,
 				return
 			}
 			resCh <- r
-			nBig, err := rand.Int(rand.Reader, big.NewInt(100))
-			if err != nil {
-				return
-			}
-			time.Sleep(time.Duration(nBig.Int64()) * time.Millisecond)
+			awaitTime := rand.Intn(100) //nolint:gosec // weak generator is not an issue here
+			time.Sleep(time.Duration(awaitTime) * time.Millisecond)
 		}
 	}
 }
@@ -279,6 +283,7 @@ func runTestPeers(ctx context.Context, w io.Writer, cfg testPeersConfig) error {
 	go testSelf(timeoutCtx, queuedTestsSelf, selfTestCases, cfg, selfCh)
 
 	for !peersFinished || !selfFinished {
+		// no ctx.Done() fallback, as both channels check for it and we expect intermediate result by them
 		select {
 		case result, ok := <-selfCh:
 			if !ok {
@@ -292,9 +297,6 @@ func runTestPeers(ctx context.Context, w io.Writer, cfg testPeersConfig) error {
 				break
 			}
 			maps.Copy(testResults, result)
-		case <-ctx.Done():
-			selfFinished = true
-			peersFinished = true
 		}
 	}
 	execTime := Duration{time.Since(startTime)}
@@ -329,17 +331,8 @@ func runTestPeers(ctx context.Context, w io.Writer, cfg testPeersConfig) error {
 		}
 	}
 
-	notifyCtx, cancelNotifyCtx := signal.NotifyContext(parentCtx, os.Interrupt, syscall.SIGTERM)
-	defer cancelNotifyCtx()
 	log.Info(ctx, "Keeping TCP node alive for peers until keep-alive time is reached...")
-	keepAliveCtx, cancelKeepAliveCtx := context.WithTimeout(parentCtx, cfg.KeepAlive)
-	defer cancelKeepAliveCtx()
-	select {
-	case <-keepAliveCtx.Done():
-		log.Info(ctx, "Keep-alive time reached or interrupted")
-	case <-notifyCtx.Done():
-		log.Info(ctx, "Forcefully stopping TCP node")
-	}
+	blockAndWait(ctx, cfg.KeepAlive)
 
 	return nil
 }
@@ -388,7 +381,7 @@ func testSinglePeer(ctx context.Context, queuedTestCases []testCaseName, allTest
 		select {
 		case <-ctx.Done():
 			name = queuedTestCases[testCounter].name
-			res = append(res, testResult{Name: name, Verdict: testVerdictFail, Error: errTimeoutInterrupted.Error()})
+			res = append(res, testResult{Name: name, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
 			finished = true
 		case result, ok := <-ch:
 			if !ok {
@@ -470,14 +463,14 @@ func peerPingTest(ctx context.Context, _ *testPeersConfig, tcpNode host.Host, pe
 		select {
 		case <-ctx.Done():
 			tr.Verdict = testVerdictFail
-			tr.Error = errTimeoutInterrupted.Error()
+			tr.Error = errTimeoutInterrupted
 
 			return tr
 		default:
 			result, err := pingPeerOnce(ctx, tcpNode, peer)
 			if err != nil {
 				tr.Verdict = testVerdictFail
-				tr.Error = err.Error()
+				tr.Error = testResultError{err}
 
 				return tr
 			}
@@ -486,12 +479,12 @@ func peerPingTest(ctx context.Context, _ *testPeersConfig, tcpNode host.Host, pe
 				switch {
 				case errors.Is(result.Error, context.DeadlineExceeded):
 					tr.Verdict = testVerdictFail
-					tr.Error = errTimeoutInterrupted.Error()
+					tr.Error = errTimeoutInterrupted
 
 					return tr
 				case p2p.IsRelayError(result.Error):
 					tr.Verdict = testVerdictFail
-					tr.Error = result.Error.Error()
+					tr.Error = testResultError{result.Error}
 
 					return tr
 				default:
@@ -507,33 +500,31 @@ func peerPingTest(ctx context.Context, _ *testPeersConfig, tcpNode host.Host, pe
 	}
 
 	tr.Verdict = testVerdictFail
-	tr.Error = errors.New("no ticker").Error()
+	tr.Error = errNoTicker
 
 	return tr
 }
 
 func peerPingMeasureTest(ctx context.Context, _ *testPeersConfig, tcpNode host.Host, peer p2p.Peer) testResult {
-	const thresholdAvg = 200 * time.Millisecond
-	const thresholdBad = 500 * time.Millisecond
 	tr := testResult{Name: "PingMeasure"}
 
 	result, err := pingPeerOnce(ctx, tcpNode, peer)
 	if err != nil {
 		tr.Verdict = testVerdictFail
-		tr.Error = err.Error()
+		tr.Error = testResultError{err}
 
 		return tr
 	}
 	if result.Error != nil {
 		tr.Verdict = testVerdictFail
-		tr.Error = result.Error.Error()
+		tr.Error = testResultError{result.Error}
 
 		return tr
 	}
 
-	if result.RTT > thresholdBad {
+	if result.RTT > thresholdMeasureBad {
 		tr.Verdict = testVerdictBad
-	} else if result.RTT > thresholdAvg {
+	} else if result.RTT > thresholdMeasureAvg {
 		tr.Verdict = testVerdictAvg
 	} else {
 		tr.Verdict = testVerdictGood
@@ -548,23 +539,24 @@ func peerPingLoadTest(ctx context.Context, cfg *testPeersConfig, tcpNode host.Ho
 		z.Any("duration", cfg.LoadTestDuration),
 		z.Any("target", peer.Name),
 	)
-	const thresholdAvg = 200 * time.Millisecond
-	const thresholdBad = 500 * time.Millisecond
 	tr := testResult{Name: "PingLoad"}
 
-	s := int(cfg.LoadTestDuration.Seconds())
+	deadlineC := time.After(cfg.LoadTestDuration)
 	resCh := make(chan ping.Result, math.MaxInt16)
 	pingCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	for i := 0; i < s; i++ {
+	finished := false
+	for !finished {
 		select {
 		case <-ctx.Done():
-			i = s
+			finished = true
 		case <-ticker.C:
 			go pingPeerContinuously(pingCtx, tcpNode, peer, resCh)
+		case <-deadlineC:
+			finished = true
 		}
 	}
 	cancel()
@@ -576,9 +568,9 @@ func peerPingLoadTest(ctx context.Context, cfg *testPeersConfig, tcpNode host.Ho
 		}
 	}
 
-	if highest > thresholdBad {
+	if highest > thresholdLoadBad {
 		tr.Verdict = testVerdictBad
-	} else if highest > thresholdAvg {
+	} else if highest > thresholdLoadAvg {
 		tr.Verdict = testVerdictAvg
 	} else {
 		tr.Verdict = testVerdictGood
@@ -596,7 +588,7 @@ func natOpenTest(ctx context.Context, _ *testPeersConfig) testResult {
 	default:
 		return testResult{
 			Verdict: testVerdictFail,
-			Error:   errors.New("natOpen not implemented").Error(),
+			Error:   errNotImplemented,
 		}
 	}
 }
