@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -251,8 +252,7 @@ func TestRelayMetricsExported(t *testing.T) {
 	fetchMetrics := func() string {
 		resp, err := http.Get(fmt.Sprintf("http://%s/metrics", config.MonitoringAddr))
 		if err == nil {
-			var body []byte
-			body, err = io.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
 			if err == nil {
 				return string(body)
 			}
@@ -264,7 +264,7 @@ func TestRelayMetricsExported(t *testing.T) {
 	require.Eventually(t, func() bool {
 		m := fetchMetrics()
 
-		return assert.Contains(t, m, "libp2p_relaysvc_")
+		return strings.Contains(m, "libp2p_relaysvc_")
 	}, 10*time.Second, time.Second, "waiting for relay service to start")
 
 	cancel()
