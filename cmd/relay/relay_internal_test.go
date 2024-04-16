@@ -241,7 +241,6 @@ func TestRelayMetricsExported(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	go func() {
 		err := Run(ctx, config)
@@ -264,4 +263,6 @@ func TestRelayMetricsExported(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return strings.Contains(fetchMetrics(), "libp2p_relaysvc_")
 	}, 10*time.Second, time.Second, "waiting for relay service to start")
+
+	cancel()
 }
