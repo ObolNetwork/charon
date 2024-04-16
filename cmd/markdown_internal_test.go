@@ -91,6 +91,9 @@ All metrics contain the following labels, so they are omitted from the table bel
 The 'cluster_*' labels uniquely identify a specific node's metrics which is required
 when storing metrics from multiple nodes or clusters in one Prometheus instance.
 
+Several 'relay_p2p' metrics having 'int_' prefix are produced by libp2p relay implementation.
+[These](https://github.com/libp2p/go-libp2p/pull/2154) are not mentioned in this doc.
+
 | Name | Type | Help | Labels |
 |---|---|---|---|
 {{ range . }}| '{{ .FQName }}' | {{ .Type }} | {{ .Help }} | '{{ Join .Labels ", " }}' |

@@ -48,6 +48,96 @@ var (
 		Name:      "ping_latency",
 		Help:      "Ping latency by peer and cluster",
 	}, []string{"peer", "peer_cluster"})
+
+	// Relay metrics produced by libp2p.
+	// These are prefixed with "int_" to avoid conflicts with other metrics.
+
+	intStatus = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: "relay",
+			Subsystem: "p2p",
+			Name:      "int_status",
+			Help:      "Relay Status",
+		},
+	)
+
+	intReservationsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "relay",
+			Subsystem: "p2p",
+			Name:      "int_reservations_total",
+			Help:      "Relay Reservation Request",
+		},
+		[]string{"type"},
+	)
+
+	intReservationRequestResponseStatusTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "relay",
+			Subsystem: "p2p",
+			Name:      "int_reservation_request_response_status_total",
+			Help:      "Relay Reservation Request Response Status",
+		},
+		[]string{"status"},
+	)
+
+	intReservationRejectionsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "relay",
+			Subsystem: "p2p",
+			Name:      "int_reservation_rejections_total",
+			Help:      "Relay Reservation Rejected Reason",
+		},
+		[]string{"reason"},
+	)
+
+	intConnectionsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "relay",
+			Subsystem: "p2p",
+			Name:      "int_connections_total",
+			Help:      "Relay Connection Total",
+		},
+		[]string{"type"},
+	)
+
+	intConnectionRequestResponseStatusTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "relay",
+			Subsystem: "p2p",
+			Name:      "int_connection_request_response_status_total",
+			Help:      "Relay Connection Request Status",
+		},
+		[]string{"status"},
+	)
+
+	intConnectionRejectionsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "relay",
+			Subsystem: "p2p",
+			Name:      "int_connection_rejections_total",
+			Help:      "Relay Connection Rejected Reason",
+		},
+		[]string{"reason"},
+	)
+
+	intConnectionDurationSeconds = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: "relay",
+			Subsystem: "p2p",
+			Name:      "int_connection_duration_seconds",
+			Help:      "Relay Connection Duration",
+		},
+	)
+
+	intDataTransferredBytesTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: "relay",
+			Subsystem: "p2p",
+			Name:      "int_data_transferred_bytes_total",
+			Help:      "Bytes Transferred Total",
+		},
+	)
 )
 
 // newBandwidthCounter returns a new bandwidth counter that stops counting when the context is cancelled.
