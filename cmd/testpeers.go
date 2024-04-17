@@ -41,11 +41,7 @@ type testPeersConfig struct {
 	LoadTestDuration time.Duration
 }
 
-var (
-	errTimeoutInterrupted = testResultError{errors.New("timeout/interrupted")}
-	errNotImplemented     = testResultError{errors.New("not implemented")}
-	errNoTicker           = testResultError{errors.New("no ticker")}
-)
+type testCasePeer func(context.Context, *testPeersConfig, host.Host, p2p.Peer) testResult
 
 const (
 	thresholdMeasureAvg = 200 * time.Millisecond
@@ -94,8 +90,8 @@ func bindTestLogFlags(flags *pflag.FlagSet, config *log.Config) {
 	flags.StringVar(&config.LogOutputPath, "log-output-path", "", "Path in which to write on-disk logs.")
 }
 
-func supportedPeerTestCases() map[testCaseName]func(context.Context, *testPeersConfig, host.Host, p2p.Peer) testResult {
-	return map[testCaseName]func(context.Context, *testPeersConfig, host.Host, p2p.Peer) testResult{
+func supportedPeerTestCases() map[testCaseName]testCasePeer {
+	return map[testCaseName]testCasePeer{
 		{name: "ping", order: 1}:        peerPingTest,
 		{name: "pingMeasure", order: 2}: peerPingMeasureTest,
 		{name: "pingLoad", order: 3}:    peerPingLoadTest,
@@ -337,7 +333,7 @@ func runTestPeers(ctx context.Context, w io.Writer, cfg testPeersConfig) error {
 	return nil
 }
 
-func testAllPeers(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testPeersConfig, host.Host, p2p.Peer) testResult, cfg testPeersConfig, tcpNode host.Host, resCh chan map[string][]testResult) {
+func testAllPeers(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCasePeer, cfg testPeersConfig, tcpNode host.Host, resCh chan map[string][]testResult) {
 	defer close(resCh)
 	// run tests for all peer nodes
 	res := make(map[string][]testResult)
@@ -359,7 +355,7 @@ func testAllPeers(ctx context.Context, queuedTestCases []testCaseName, allTestCa
 	resCh <- res
 }
 
-func testSinglePeer(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testPeersConfig, host.Host, p2p.Peer) testResult, cfg testPeersConfig, tcpNode host.Host, target string, resCh chan map[string][]testResult) {
+func testSinglePeer(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCasePeer, cfg testPeersConfig, tcpNode host.Host, target string, resCh chan map[string][]testResult) {
 	defer close(resCh)
 	ch := make(chan testResult)
 	res := []testResult{}
@@ -399,7 +395,7 @@ func testSinglePeer(ctx context.Context, queuedTestCases []testCaseName, allTest
 	resCh <- map[string][]testResult{nameENR: res}
 }
 
-func runPeerTest(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testPeersConfig, host.Host, p2p.Peer) testResult, cfg testPeersConfig, tcpNode host.Host, target p2p.Peer, ch chan testResult) {
+func runPeerTest(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCasePeer, cfg testPeersConfig, tcpNode host.Host, target p2p.Peer, ch chan testResult) {
 	defer close(ch)
 	for _, t := range queuedTestCases {
 		select {
@@ -456,7 +452,7 @@ func runSelfTest(ctx context.Context, queuedTestCases []testCaseName, allTestCas
 func peerPingTest(ctx context.Context, _ *testPeersConfig, tcpNode host.Host, peer p2p.Peer) testResult {
 	tr := testResult{Name: "Ping"}
 
-	ticker := time.NewTicker(3 * time.Second)
+	ticker := time.NewTicker(1)
 	defer ticker.Stop()
 
 	for ; true; <-ticker.C {
@@ -467,6 +463,7 @@ func peerPingTest(ctx context.Context, _ *testPeersConfig, tcpNode host.Host, pe
 
 			return tr
 		default:
+			ticker.Reset(3 * time.Second)
 			result, err := pingPeerOnce(ctx, tcpNode, peer)
 			if err != nil {
 				tr.Verdict = testVerdictFail

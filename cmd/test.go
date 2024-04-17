@@ -20,6 +20,12 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 )
 
+var (
+	errTimeoutInterrupted = testResultError{errors.New("timeout/interrupted")}
+	errNotImplemented     = testResultError{errors.New("not implemented")}
+	errNoTicker           = testResultError{errors.New("no ticker")}
+)
+
 type testConfig struct {
 	OutputToml string
 	Quiet      bool
@@ -77,6 +83,7 @@ const (
 	categoryScoreC categoryScore = "C"
 )
 
+// toml fails on marshaling errors to string, so we wrap the errors and add custom marshal
 type testResultError struct{ error }
 
 type testResult struct {
