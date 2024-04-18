@@ -21,6 +21,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"golang.org/x/exp/maps"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -262,10 +263,8 @@ func runTestPeers(ctx context.Context, w io.Writer, cfg testPeersConfig) error {
 	timeoutCtx, cancel := context.WithTimeout(parentCtx, cfg.Timeout)
 	defer cancel()
 
-	selfCh := make(chan map[string][]testResult)
-	peersCh := make(chan map[string][]testResult)
+	testResultsChan := make(chan map[string][]testResult)
 	testResults := make(map[string][]testResult)
-	var peersFinished, selfFinished bool
 
 	tcpNode, shutdown, err := startTCPNode(ctx, cfg)
 	if err != nil {
@@ -273,29 +272,29 @@ func runTestPeers(ctx context.Context, w io.Writer, cfg testPeersConfig) error {
 	}
 	defer shutdown()
 
-	startTime := time.Now()
-	// run test suite for all peers and separate test suite for testing self
-	go testAllPeers(timeoutCtx, queuedTestsPeer, peerTestCases, cfg, tcpNode, peersCh)
-	go testSelf(timeoutCtx, queuedTestsSelf, selfTestCases, cfg, selfCh)
+	g, _ := errgroup.WithContext(timeoutCtx)
 
-	for !peersFinished || !selfFinished {
-		// no ctx.Done() fallback, as both channels check for it and we expect intermediate result by them
-		select {
-		case result, ok := <-selfCh:
-			if !ok {
-				selfFinished = true
-				break
-			}
-			maps.Copy(testResults, result)
-		case result, ok := <-peersCh:
-			if !ok {
-				peersFinished = true
-				break
-			}
-			maps.Copy(testResults, result)
+	startTime := time.Now()
+	g.Go(func() error {
+		return testAllPeers(timeoutCtx, queuedTestsPeer, peerTestCases, cfg, tcpNode, testResultsChan)
+	})
+	g.Go(func() error { return testSelf(timeoutCtx, queuedTestsSelf, selfTestCases, cfg, testResultsChan) })
+
+	done := make(chan bool, 1)
+	go func() {
+		for r := range testResultsChan {
+			maps.Copy(testResults, r)
 		}
+		done <- true
+	}()
+
+	err = g.Wait()
+	if err != nil {
+		return errors.Wrap(err, "peers test errgroup")
 	}
 	execTime := Duration{time.Since(startTime)}
+	close(testResultsChan)
+	<-done
 
 	// use lowest score as score of all
 	var score categoryScore
@@ -333,8 +332,7 @@ func runTestPeers(ctx context.Context, w io.Writer, cfg testPeersConfig) error {
 	return nil
 }
 
-func testAllPeers(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCasePeer, cfg testPeersConfig, tcpNode host.Host, resCh chan map[string][]testResult) {
-	defer close(resCh)
+func testAllPeers(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCasePeer, cfg testPeersConfig, tcpNode host.Host, resCh chan map[string][]testResult) error {
 	// run tests for all peer nodes
 	res := make(map[string][]testResult)
 	chs := []chan map[string][]testResult{}
@@ -353,6 +351,8 @@ func testAllPeers(ctx context.Context, queuedTestCases []testCaseName, allTestCa
 	}
 
 	resCh <- res
+
+	return nil
 }
 
 func testSinglePeer(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCasePeer, cfg testPeersConfig, tcpNode host.Host, target string, resCh chan map[string][]testResult) {
@@ -407,8 +407,7 @@ func runPeerTest(ctx context.Context, queuedTestCases []testCaseName, allTestCas
 	}
 }
 
-func testSelf(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testPeersConfig) testResult, cfg testPeersConfig, resCh chan map[string][]testResult) {
-	defer close(resCh)
+func testSelf(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testPeersConfig) testResult, cfg testPeersConfig, resCh chan map[string][]testResult) error {
 	ch := make(chan testResult)
 	res := []testResult{}
 	go runSelfTest(ctx, queuedTestCases, allTestCases, cfg, ch)
@@ -435,6 +434,8 @@ func testSelf(ctx context.Context, queuedTestCases []testCaseName, allTestCases 
 	}
 
 	resCh <- map[string][]testResult{"self": res}
+
+	return nil
 }
 
 func runSelfTest(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testPeersConfig) testResult, cfg testPeersConfig, ch chan testResult) {
