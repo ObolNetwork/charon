@@ -5,7 +5,6 @@ package cmd
 import (
 	"context"
 	"io"
-	"sort"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -58,9 +57,6 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 		return errors.New("test case not supported")
 	}
 	sortTests(queuedTests)
-	sort.Slice(queuedTests, func(i, j int) bool {
-		return queuedTests[i].order < queuedTests[j].order
-	})
 
 	parentCtx := ctx
 	if parentCtx == nil {
@@ -69,25 +65,17 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 	timeoutCtx, cancel := context.WithTimeout(parentCtx, cfg.Timeout)
 	defer cancel()
 
-	ch := make(chan map[string][]testResult)
+	resultsCh := make(chan map[string][]testResult)
 	testResults := make(map[string][]testResult)
 	startTime := time.Now()
-	finished := false
 
 	// run test suite for a single validator client
-	go testSingleValidator(timeoutCtx, queuedTests, testCases, cfg, ch)
+	go testSingleValidator(timeoutCtx, queuedTests, testCases, cfg, resultsCh)
 
-	for !finished {
-		select {
-		case <-ctx.Done():
-			finished = true
-		case result, ok := <-ch:
-			if !ok {
-				finished = true
-			}
-			maps.Copy(testResults, result)
-		}
+	for result := range resultsCh {
+		maps.Copy(testResults, result)
 	}
+
 	execTime := Duration{time.Since(startTime)}
 
 	// use highest score as score of all

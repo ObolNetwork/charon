@@ -25,8 +25,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/peerinfo"
-	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
@@ -105,61 +103,61 @@ func supportedSelfTestCases() map[testCaseName]func(context.Context, *testPeersC
 	}
 }
 
-func startTCPNode(ctx context.Context, cfg testPeersConfig) (host.Host, func(), error) {
-	var peers []p2p.Peer
-	for i, e := range cfg.ENRs {
-		record, err := enr.Parse(e)
+func startTCPNode(ctx context.Context, conf testPeersConfig) (host.Host, func(), error) {
+	var p2pPeers []p2p.Peer
+	for i, enrString := range conf.ENRs {
+		enrRecord, err := enr.Parse(enrString)
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "decode enr", z.Str("enr", e))
+			return nil, nil, errors.Wrap(err, "decode enr", z.Str("enr", enrString))
 		}
 
-		p, err := p2p.NewPeerFromENR(record, i)
+		p2pPeer, err := p2p.NewPeerFromENR(enrRecord, i)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		peers = append(peers, p)
+		p2pPeers = append(p2pPeers, p2pPeer)
 	}
 
-	key, err := p2p.LoadPrivKey(cfg.DataDir)
+	p2pPrivKey, err := p2p.LoadPrivKey(conf.DataDir)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	r, err := enr.New(key)
+	meENR, err := enr.New(p2pPrivKey)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	mePeer, err := p2p.NewPeerFromENR(r, len(cfg.ENRs))
+	mePeer, err := p2p.NewPeerFromENR(meENR, len(conf.ENRs))
 	if err != nil {
 		return nil, nil, err
 	}
 
 	log.Info(ctx, "Self p2p name resolved", z.Any("name", mePeer.Name))
 
-	peers = append(peers, mePeer)
+	p2pPeers = append(p2pPeers, mePeer)
 
-	allENRs := cfg.ENRs
-	allENRs = append(allENRs, r.String())
+	allENRs := conf.ENRs
+	allENRs = append(allENRs, meENR.String())
 	slices.Sort(allENRs)
 	allENRsString := strings.Join(allENRs, ",")
 	allENRsHash := sha256.Sum256([]byte(allENRsString))
 
-	return setupP2P(ctx, key, cfg.P2P, peers, allENRsHash[:])
+	return setupP2P(ctx, p2pPrivKey, conf.P2P, p2pPeers, allENRsHash[:])
 }
 
-func setupP2P(ctx context.Context, key *k1.PrivateKey, cfg p2p.Config, peers []p2p.Peer, enrsHash []byte) (host.Host, func(), error) {
+func setupP2P(ctx context.Context, privKey *k1.PrivateKey, conf p2p.Config, peers []p2p.Peer, enrsHash []byte) (host.Host, func(), error) {
 	var peerIDs []peer.ID
-	for _, p := range peers {
-		peerIDs = append(peerIDs, p.ID)
+	for _, peer := range peers {
+		peerIDs = append(peerIDs, peer.ID)
 	}
 
-	if err := p2p.VerifyP2PKey(peers, key); err != nil {
+	if err := p2p.VerifyP2PKey(peers, privKey); err != nil {
 		return nil, nil, err
 	}
 
-	relays, err := p2p.NewRelays(ctx, cfg.Relays, hex.EncodeToString(enrsHash))
+	relays, err := p2p.NewRelays(ctx, conf.Relays, hex.EncodeToString(enrsHash))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -169,7 +167,7 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, cfg p2p.Config, peers []p
 		return nil, nil, err
 	}
 
-	tcpNode, err := p2p.NewTCPNode(ctx, cfg, key, connGater, false)
+	tcpNode, err := p2p.NewTCPNode(ctx, conf, privKey, connGater, false)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -183,10 +181,6 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, cfg p2p.Config, peers []p
 
 	go p2p.NewRelayRouter(tcpNode, peerIDs, relays)(ctx)
 
-	// Register peerinfo server handler for identification to relays (but do not run peerinfo client).
-	gitHash, _ := version.GitCommit()
-	_ = peerinfo.New(tcpNode, peerIDs, version.Version, enrsHash, gitHash, nil, false)
-
 	return tcpNode, func() {
 		err := tcpNode.Close()
 		if err != nil && !errors.Is(err, context.Canceled) {
@@ -196,36 +190,23 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, cfg p2p.Config, peers []p
 }
 
 func pingPeerOnce(ctx context.Context, tcpNode host.Host, peer p2p.Peer) (ping.Result, error) {
-	select {
-	case <-ctx.Done():
-		return ping.Result{}, ctx.Err()
-	default:
-		pingSvc := ping.NewPingService(tcpNode)
-		pingCtx, cancel := context.WithCancel(ctx)
-		defer cancel()
-		for {
-			pingChan := pingSvc.Ping(pingCtx, peer.ID)
-			select {
-			case <-pingCtx.Done():
-				return ping.Result{}, ctx.Err()
-			case result := <-pingChan:
-				return result, nil
-			}
-		}
+	pingSvc := ping.NewPingService(tcpNode)
+	pingCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	pingChan := pingSvc.Ping(pingCtx, peer.ID)
+	result, ok := <-pingChan
+	if !ok {
+		return ping.Result{}, errors.New("ping channel closed")
 	}
+
+	return result, nil
 }
 
 func pingPeerContinuously(ctx context.Context, tcpNode host.Host, peer p2p.Peer, resCh chan ping.Result) {
 	for {
 		select {
 		case <-ctx.Done():
-			select {
-			case <-resCh:
-				return
-			default:
-				close(resCh)
-				return
-			}
+			return
 		default:
 			r, err := pingPeerOnce(ctx, tcpNode, peer)
 			if err != nil {
@@ -238,63 +219,62 @@ func pingPeerContinuously(ctx context.Context, tcpNode host.Host, peer p2p.Peer,
 	}
 }
 
-func runTestPeers(ctx context.Context, w io.Writer, cfg testPeersConfig) error {
-	err := log.InitLogger(cfg.Log)
+func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) error {
+	err := log.InitLogger(conf.Log)
 	if err != nil {
 		return err
 	}
 
 	peerTestCases := supportedPeerTestCases()
-	queuedTestsPeer := filterTests(maps.Keys(peerTestCases), cfg.testConfig)
+	queuedTestsPeer := filterTests(maps.Keys(peerTestCases), conf.testConfig)
 	sortTests(queuedTestsPeer)
 
 	selfTestCases := supportedSelfTestCases()
-	queuedTestsSelf := filterTests(maps.Keys(selfTestCases), cfg.testConfig)
+	queuedTestsSelf := filterTests(maps.Keys(selfTestCases), conf.testConfig)
 	sortTests(queuedTestsSelf)
 
 	if len(queuedTestsPeer) == 0 && len(queuedTestsSelf) == 0 {
 		return errors.New("test case not supported")
 	}
 
-	parentCtx := ctx
-	if parentCtx == nil {
-		parentCtx = context.Background()
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	timeoutCtx, cancel := context.WithTimeout(parentCtx, cfg.Timeout)
+	timeoutCtx, cancel := context.WithTimeout(ctx, conf.Timeout)
 	defer cancel()
 
 	testResultsChan := make(chan map[string][]testResult)
 	testResults := make(map[string][]testResult)
 
-	tcpNode, shutdown, err := startTCPNode(ctx, cfg)
+	tcpNode, shutdown, err := startTCPNode(ctx, conf)
 	if err != nil {
 		return err
 	}
 	defer shutdown()
 
-	g, _ := errgroup.WithContext(timeoutCtx)
+	group, _ := errgroup.WithContext(timeoutCtx)
+	doneReading := make(chan bool)
 
 	startTime := time.Now()
-	g.Go(func() error {
-		return testAllPeers(timeoutCtx, queuedTestsPeer, peerTestCases, cfg, tcpNode, testResultsChan)
+	group.Go(func() error {
+		return testAllPeers(timeoutCtx, queuedTestsPeer, peerTestCases, conf, tcpNode, testResultsChan)
 	})
-	g.Go(func() error { return testSelf(timeoutCtx, queuedTestsSelf, selfTestCases, cfg, testResultsChan) })
+	group.Go(func() error { return testSelf(timeoutCtx, queuedTestsSelf, selfTestCases, conf, testResultsChan) })
 
-	done := make(chan bool, 1)
 	go func() {
-		for r := range testResultsChan {
-			maps.Copy(testResults, r)
+		for result := range testResultsChan {
+			maps.Copy(testResults, result)
 		}
-		done <- true
+		doneReading <- true
 	}()
 
-	err = g.Wait()
+	err = group.Wait()
+	execTime := Duration{time.Since(startTime)}
 	if err != nil {
 		return errors.Wrap(err, "peers test errgroup")
 	}
-	execTime := Duration{time.Since(startTime)}
 	close(testResultsChan)
-	<-done
+	<-doneReading
 
 	// use lowest score as score of all
 	var score categoryScore
@@ -312,146 +292,157 @@ func runTestPeers(ctx context.Context, w io.Writer, cfg testPeersConfig) error {
 		Score:         score,
 	}
 
-	if !cfg.Quiet {
+	if !conf.Quiet {
 		err = writeResultToWriter(res, w)
 		if err != nil {
 			return err
 		}
 	}
 
-	if cfg.OutputToml != "" {
-		err = writeResultToFile(res, cfg.OutputToml)
+	if conf.OutputToml != "" {
+		err = writeResultToFile(res, conf.OutputToml)
 		if err != nil {
 			return err
 		}
 	}
 
 	log.Info(ctx, "Keeping TCP node alive for peers until keep-alive time is reached...")
-	blockAndWait(ctx, cfg.KeepAlive)
+	blockAndWait(ctx, conf.KeepAlive)
 
 	return nil
 }
 
-func testAllPeers(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCasePeer, cfg testPeersConfig, tcpNode host.Host, resCh chan map[string][]testResult) error {
+func testAllPeers(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCasePeer, conf testPeersConfig, tcpNode host.Host, allPeersResCh chan map[string][]testResult) error {
 	// run tests for all peer nodes
-	res := make(map[string][]testResult)
-	chs := []chan map[string][]testResult{}
-	for _, enr := range cfg.ENRs {
-		ch := make(chan map[string][]testResult)
-		chs = append(chs, ch)
-		go testSinglePeer(ctx, queuedTestCases, allTestCases, cfg, tcpNode, enr, ch)
+	allPeersRes := make(map[string][]testResult)
+	singlePeerResCh := make(chan map[string][]testResult)
+	group, _ := errgroup.WithContext(ctx)
+
+	for _, enr := range conf.ENRs {
+		currENR := enr // TODO: can be removed after go1.22 version bump
+		group.Go(func() error {
+			return testSinglePeer(ctx, queuedTestCases, allTestCases, conf, tcpNode, currENR, singlePeerResCh)
+		})
 	}
 
-	for _, ch := range chs {
-		result, ok := <-ch
-		if !ok {
-			break
+	doneReading := make(chan bool)
+	go func() {
+		for singlePeerRes := range singlePeerResCh {
+			maps.Copy(allPeersRes, singlePeerRes)
 		}
-		maps.Copy(res, result)
-	}
+		doneReading <- true
+	}()
 
-	resCh <- res
+	err := group.Wait()
+	if err != nil {
+		return errors.Wrap(err, "peers test errgroup")
+	}
+	close(singlePeerResCh)
+	<-doneReading
+
+	allPeersResCh <- allPeersRes
 
 	return nil
 }
 
-func testSinglePeer(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCasePeer, cfg testPeersConfig, tcpNode host.Host, target string, resCh chan map[string][]testResult) {
-	defer close(resCh)
-	ch := make(chan testResult)
-	res := []testResult{}
+func testSinglePeer(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCasePeer, conf testPeersConfig, tcpNode host.Host, target string, allTestResCh chan map[string][]testResult) error {
+	singleTestResCh := make(chan testResult)
+	allTestRes := []testResult{}
 	enrTarget, err := enr.Parse(target)
 	if err != nil {
-		return
+		return err
 	}
 	peerTarget, err := p2p.NewPeerFromENR(enrTarget, 0)
 	if err != nil {
-		return
+		return err
 	}
 
 	// run all peers tests for a peer, pushing each completed test to the channel until all are complete or timeout occurs
-	go runPeerTest(ctx, queuedTestCases, allTestCases, cfg, tcpNode, peerTarget, ch)
+	go runPeerTest(ctx, queuedTestCases, allTestCases, conf, tcpNode, peerTarget, singleTestResCh)
 	testCounter := 0
 	finished := false
 	for !finished {
-		var name string
+		var testName string
 		select {
 		case <-ctx.Done():
-			name = queuedTestCases[testCounter].name
-			res = append(res, testResult{Name: name, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
+			testName = queuedTestCases[testCounter].name
+			allTestRes = append(allTestRes, testResult{Name: testName, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
 			finished = true
-		case result, ok := <-ch:
+		case result, ok := <-singleTestResCh:
 			if !ok {
 				finished = true
 				continue
 			}
-			name = queuedTestCases[testCounter].name
+			testName = queuedTestCases[testCounter].name
 			testCounter++
-			result.Name = name
-			res = append(res, result)
+			result.Name = testName
+			allTestRes = append(allTestRes, result)
 		}
 	}
 
 	nameENR := fmt.Sprintf("%v - %v", peerTarget.Name, target)
-	resCh <- map[string][]testResult{nameENR: res}
-}
-
-func runPeerTest(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCasePeer, cfg testPeersConfig, tcpNode host.Host, target p2p.Peer, ch chan testResult) {
-	defer close(ch)
-	for _, t := range queuedTestCases {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			ch <- allTestCases[t](ctx, &cfg, tcpNode, target)
-		}
-	}
-}
-
-func testSelf(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testPeersConfig) testResult, cfg testPeersConfig, resCh chan map[string][]testResult) error {
-	ch := make(chan testResult)
-	res := []testResult{}
-	go runSelfTest(ctx, queuedTestCases, allTestCases, cfg, ch)
-
-	testCounter := 0
-	finished := false
-	for !finished {
-		var name string
-		select {
-		case <-ctx.Done():
-			name = queuedTestCases[testCounter].name
-			res = append(res, testResult{Name: name, Verdict: testVerdictFail})
-			finished = true
-		case result, ok := <-ch:
-			if !ok {
-				finished = true
-				continue
-			}
-			name = queuedTestCases[testCounter].name
-			testCounter++
-			result.Name = name
-			res = append(res, result)
-		}
-	}
-
-	resCh <- map[string][]testResult{"self": res}
+	allTestResCh <- map[string][]testResult{nameENR: allTestRes}
 
 	return nil
 }
 
-func runSelfTest(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testPeersConfig) testResult, cfg testPeersConfig, ch chan testResult) {
+func runPeerTest(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCasePeer, conf testPeersConfig, tcpNode host.Host, target p2p.Peer, testResCh chan testResult) {
+	defer close(testResCh)
+	for _, t := range queuedTestCases {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			testResCh <- allTestCases[t](ctx, &conf, tcpNode, target)
+		}
+	}
+}
+
+func testSelf(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testPeersConfig) testResult, conf testPeersConfig, allTestResCh chan map[string][]testResult) error {
+	singleTestResCh := make(chan testResult)
+	allTestRes := []testResult{}
+	go runSelfTest(ctx, queuedTestCases, allTestCases, conf, singleTestResCh)
+
+	testCounter := 0
+	finished := false
+	for !finished {
+		var testName string
+		select {
+		case <-ctx.Done():
+			testName = queuedTestCases[testCounter].name
+			allTestRes = append(allTestRes, testResult{Name: testName, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
+			finished = true
+		case result, ok := <-singleTestResCh:
+			if !ok {
+				finished = true
+				continue
+			}
+			testName = queuedTestCases[testCounter].name
+			testCounter++
+			result.Name = testName
+			allTestRes = append(allTestRes, result)
+		}
+	}
+
+	allTestResCh <- map[string][]testResult{"self": allTestRes}
+
+	return nil
+}
+
+func runSelfTest(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testPeersConfig) testResult, conf testPeersConfig, ch chan testResult) {
 	defer close(ch)
 	for _, t := range queuedTestCases {
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			ch <- allTestCases[t](ctx, &cfg)
+			ch <- allTestCases[t](ctx, &conf)
 		}
 	}
 }
 
 func peerPingTest(ctx context.Context, _ *testPeersConfig, tcpNode host.Host, peer p2p.Peer) testResult {
-	tr := testResult{Name: "Ping"}
+	testRes := testResult{Name: "Ping"}
 
 	ticker := time.NewTicker(1)
 	defer ticker.Stop()
@@ -459,88 +450,88 @@ func peerPingTest(ctx context.Context, _ *testPeersConfig, tcpNode host.Host, pe
 	for ; true; <-ticker.C {
 		select {
 		case <-ctx.Done():
-			tr.Verdict = testVerdictFail
-			tr.Error = errTimeoutInterrupted
+			testRes.Verdict = testVerdictFail
+			testRes.Error = errTimeoutInterrupted
 
-			return tr
+			return testRes
 		default:
 			ticker.Reset(3 * time.Second)
 			result, err := pingPeerOnce(ctx, tcpNode, peer)
 			if err != nil {
-				tr.Verdict = testVerdictFail
-				tr.Error = testResultError{err}
+				testRes.Verdict = testVerdictFail
+				testRes.Error = testResultError{err}
 
-				return tr
+				return testRes
 			}
 
 			if result.Error != nil {
 				switch {
 				case errors.Is(result.Error, context.DeadlineExceeded):
-					tr.Verdict = testVerdictFail
-					tr.Error = errTimeoutInterrupted
+					testRes.Verdict = testVerdictFail
+					testRes.Error = errTimeoutInterrupted
 
-					return tr
+					return testRes
 				case p2p.IsRelayError(result.Error):
-					tr.Verdict = testVerdictFail
-					tr.Error = testResultError{result.Error}
+					testRes.Verdict = testVerdictFail
+					testRes.Error = testResultError{result.Error}
 
-					return tr
+					return testRes
 				default:
 					log.Warn(ctx, "Ping to peer failed, retrying in 3 sec...", nil, z.Str("peer_name", peer.Name))
 					continue
 				}
 			}
 
-			tr.Verdict = testVerdictOk
+			testRes.Verdict = testVerdictOk
 
-			return tr
+			return testRes
 		}
 	}
 
-	tr.Verdict = testVerdictFail
-	tr.Error = errNoTicker
+	testRes.Verdict = testVerdictFail
+	testRes.Error = errNoTicker
 
-	return tr
+	return testRes
 }
 
 func peerPingMeasureTest(ctx context.Context, _ *testPeersConfig, tcpNode host.Host, peer p2p.Peer) testResult {
-	tr := testResult{Name: "PingMeasure"}
+	testRes := testResult{Name: "PingMeasure"}
 
 	result, err := pingPeerOnce(ctx, tcpNode, peer)
 	if err != nil {
-		tr.Verdict = testVerdictFail
-		tr.Error = testResultError{err}
+		testRes.Verdict = testVerdictFail
+		testRes.Error = testResultError{err}
 
-		return tr
+		return testRes
 	}
 	if result.Error != nil {
-		tr.Verdict = testVerdictFail
-		tr.Error = testResultError{result.Error}
+		testRes.Verdict = testVerdictFail
+		testRes.Error = testResultError{result.Error}
 
-		return tr
+		return testRes
 	}
 
 	if result.RTT > thresholdMeasureBad {
-		tr.Verdict = testVerdictBad
+		testRes.Verdict = testVerdictBad
 	} else if result.RTT > thresholdMeasureAvg {
-		tr.Verdict = testVerdictAvg
+		testRes.Verdict = testVerdictAvg
 	} else {
-		tr.Verdict = testVerdictGood
+		testRes.Verdict = testVerdictGood
 	}
-	tr.Measurement = Duration{result.RTT}.String()
+	testRes.Measurement = Duration{result.RTT}.String()
 
-	return tr
+	return testRes
 }
 
-func peerPingLoadTest(ctx context.Context, cfg *testPeersConfig, tcpNode host.Host, peer p2p.Peer) testResult {
+func peerPingLoadTest(ctx context.Context, conf *testPeersConfig, tcpNode host.Host, peer p2p.Peer) testResult {
 	log.Info(ctx, "Running ping load tests...",
-		z.Any("duration", cfg.LoadTestDuration),
+		z.Any("duration", conf.LoadTestDuration),
 		z.Any("target", peer.Name),
 	)
-	tr := testResult{Name: "PingLoad"}
+	testRes := testResult{Name: "PingLoad"}
 
-	deadlineC := time.After(cfg.LoadTestDuration)
-	resCh := make(chan ping.Result, math.MaxInt16)
+	deadlineC := time.After(conf.LoadTestDuration)
+	testResCh := make(chan ping.Result, math.MaxInt16)
 	pingCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	ticker := time.NewTicker(time.Second)
@@ -549,33 +540,33 @@ func peerPingLoadTest(ctx context.Context, cfg *testPeersConfig, tcpNode host.Ho
 	finished := false
 	for !finished {
 		select {
+		case <-ticker.C:
+			go pingPeerContinuously(pingCtx, tcpNode, peer, testResCh)
 		case <-ctx.Done():
 			finished = true
-		case <-ticker.C:
-			go pingPeerContinuously(pingCtx, tcpNode, peer, resCh)
 		case <-deadlineC:
 			finished = true
 		}
 	}
 	cancel()
+	close(testResCh)
 
-	highest := time.Duration(0)
-	for val := range resCh {
-		if val.RTT > highest {
-			highest = val.RTT
+	highestRTT := time.Duration(0)
+	for val := range testResCh {
+		if val.RTT > highestRTT {
+			highestRTT = val.RTT
 		}
 	}
-
-	if highest > thresholdLoadBad {
-		tr.Verdict = testVerdictBad
-	} else if highest > thresholdLoadAvg {
-		tr.Verdict = testVerdictAvg
+	if highestRTT > thresholdLoadBad {
+		testRes.Verdict = testVerdictBad
+	} else if highestRTT > thresholdLoadAvg {
+		testRes.Verdict = testVerdictAvg
 	} else {
-		tr.Verdict = testVerdictGood
+		testRes.Verdict = testVerdictGood
 	}
-	tr.Measurement = Duration{highest}.String()
+	testRes.Measurement = Duration{highestRTT}.String()
 
-	return tr
+	return testRes
 }
 
 func natOpenTest(ctx context.Context, _ *testPeersConfig) testResult {
