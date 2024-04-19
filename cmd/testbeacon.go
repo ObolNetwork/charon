@@ -5,7 +5,6 @@ package cmd
 import (
 	"context"
 	"io"
-	"sort"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -60,9 +59,6 @@ func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (err 
 		return errors.New("test case not supported")
 	}
 	sortTests(queuedTests)
-	sort.Slice(queuedTests, func(i, j int) bool {
-		return queuedTests[i].order < queuedTests[j].order
-	})
 
 	parentCtx := ctx
 	if parentCtx == nil {
@@ -71,24 +67,17 @@ func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (err 
 	timeoutCtx, cancel := context.WithTimeout(parentCtx, cfg.Timeout)
 	defer cancel()
 
-	ch := make(chan map[string][]testResult)
+	resultsCh := make(chan map[string][]testResult)
 	testResults := make(map[string][]testResult)
 	startTime := time.Now()
-	finished := false
-	// run test suite for all beacon nodes
-	go testAllBeacons(timeoutCtx, queuedTests, testCases, cfg, ch)
 
-	for !finished {
-		select {
-		case <-ctx.Done():
-			finished = true
-		case result, ok := <-ch:
-			if !ok {
-				finished = true
-			}
-			maps.Copy(testResults, result)
-		}
+	// run test suite for all beacon nodes
+	go testAllBeacons(timeoutCtx, queuedTests, testCases, cfg, resultsCh)
+
+	for result := range resultsCh {
+		maps.Copy(testResults, result)
 	}
+
 	execTime := Duration{time.Since(startTime)}
 
 	// use highest score as score of all
@@ -163,7 +152,7 @@ func testSingleBeacon(ctx context.Context, queuedTestCases []testCaseName, allTe
 		select {
 		case <-ctx.Done():
 			name = queuedTestCases[testCounter].name
-			res = append(res, testResult{Name: name, Verdict: testVerdictFail, Error: "timeout"})
+			res = append(res, testResult{Name: name, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
 			finished = true
 		case result, ok := <-ch:
 			if !ok {
@@ -200,7 +189,7 @@ func beaconPing(ctx context.Context, _ *testBeaconConfig, _ string) testResult {
 	default:
 		return testResult{
 			Verdict: testVerdictFail,
-			Error:   errors.New("ping not implemented").Error(),
+			Error:   errNotImplemented,
 		}
 	}
 }
