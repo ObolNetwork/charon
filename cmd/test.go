@@ -87,11 +87,12 @@ const (
 type testResultError struct{ error }
 
 type testResult struct {
-	Name        string
-	Verdict     testVerdict
-	Measurement string
-	Suggestion  string
-	Error       testResultError
+	Name         string
+	Verdict      testVerdict
+	Measurement  string
+	Suggestion   string
+	Error        testResultError
+	IsCompatible bool
 }
 
 func (s *testResultError) UnmarshalText(data []byte) error {
@@ -214,12 +215,18 @@ func calculateScore(results []testResult) categoryScore {
 	avg := 0
 	for _, t := range results {
 		switch t.Verdict {
-		case testVerdictBad, testVerdictFail:
+		case testVerdictBad:
 			return categoryScoreC
 		case testVerdictGood:
 			avg++
 		case testVerdictAvg:
 			avg--
+		case testVerdictFail:
+			if !t.IsCompatible {
+				return categoryScoreC
+			}
+
+			continue
 		case testVerdictOk:
 			continue
 		}
