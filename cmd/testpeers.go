@@ -10,6 +10,7 @@ import (
 	"io"
 	"math"
 	"math/rand"
+	"net"
 	"slices"
 	"strings"
 	"time"
@@ -99,7 +100,7 @@ func supportedPeerTestCases() map[testCaseName]testCasePeer {
 
 func supportedSelfTestCases() map[testCaseName]func(context.Context, *testPeersConfig) testResult {
 	return map[testCaseName]func(context.Context, *testPeersConfig) testResult{
-		{name: "natOpen", order: 1}: natOpenTest,
+		{name: "libp2pTCPPortOpenTest", order: 1}: libp2pTCPPortOpenTest,
 	}
 }
 
@@ -569,15 +570,41 @@ func peerPingLoadTest(ctx context.Context, conf *testPeersConfig, tcpNode host.H
 	return testRes
 }
 
-func natOpenTest(ctx context.Context, _ *testPeersConfig) testResult {
-	// TODO(kalo): implement real port check
-	select {
-	case <-ctx.Done():
-		return testResult{Verdict: testVerdictFail}
-	default:
-		return testResult{
-			Verdict: testVerdictFail,
-			Error:   errNotImplemented,
-		}
+func dialTCPIP(address string, timeout time.Duration) error {
+	conn, err := net.DialTimeout("tcp", address, timeout)
+	if err != nil {
+		return errors.Wrap(err, "net dial")
 	}
+	if conn == nil {
+		return errors.New("could not establish connection to address", z.Str("address", address))
+	}
+	err = conn.Close()
+	if err != nil {
+		return errors.Wrap(err, "close conn")
+	}
+
+	return nil
+}
+
+func libp2pTCPPortOpenTest(ctx context.Context, cfg *testPeersConfig) testResult {
+	testRes := testResult{Name: "Libp2pTCPPortOpen"}
+
+	group, _ := errgroup.WithContext(ctx)
+
+	for _, addr := range cfg.P2P.TCPAddrs {
+		addrVal := addr
+		group.Go(func() error { return dialTCPIP(addrVal, time.Second) })
+	}
+
+	err := group.Wait()
+	if err != nil {
+		testRes.Verdict = testVerdictFail
+		testRes.Error = testResultError{err}
+
+		return testRes
+	}
+
+	testRes.Verdict = testVerdictOk
+
+	return testRes
 }
