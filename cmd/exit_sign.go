@@ -47,6 +47,7 @@ func newSubmitPartialExitCmd(runFunc func(context.Context, exitConfig) error) *c
 		{exitEpoch, false},
 		{validatorPubkey, true},
 		{beaconNodeURL, true},
+		{beaconNodeTimeout, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
@@ -99,7 +100,7 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 		return errors.New("validator not present in cluster lock", z.Str("validator", validator.String()))
 	}
 
-	eth2Cl, err := eth2Client(ctx, config.BeaconNodeURL)
+	eth2Cl, err := eth2Client(ctx, config.BeaconNodeURL, config.BeaconNodeTimeout)
 	if err != nil {
 		return errors.Wrap(err, "cannot create eth2 client for specified beacon node")
 	}

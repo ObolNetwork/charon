@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"path/filepath"
 	"testing"
+	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -75,11 +76,12 @@ func Test_runListActiveVals(t *testing.T) {
 	baseDir := filepath.Join(root, fmt.Sprintf("op%d", 0))
 
 	config := exitConfig{
-		BeaconNodeURL:    beaconMock.Address(),
-		PrivateKeyPath:   filepath.Join(baseDir, "charon-enr-private-key"),
-		ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
-		LockFilePath:     filepath.Join(baseDir, "cluster-lock.json"),
-		PlaintextOutput:  true,
+		BeaconNodeURL:     beaconMock.Address(),
+		PrivateKeyPath:    filepath.Join(baseDir, "charon-enr-private-key"),
+		ValidatorKeysDir:  filepath.Join(baseDir, "validator_keys"),
+		LockFilePath:      filepath.Join(baseDir, "cluster-lock.json"),
+		PlaintextOutput:   true,
+		BeaconNodeTimeout: 30 * time.Second,
 	}
 
 	require.NoError(t, runListActiveValidatorsCmd(ctx, config))
@@ -141,11 +143,12 @@ func Test_listActiveVals(t *testing.T) {
 		baseDir := filepath.Join(root, fmt.Sprintf("op%d", 0))
 
 		config := exitConfig{
-			BeaconNodeURL:    beaconMock.Address(),
-			PrivateKeyPath:   filepath.Join(baseDir, "charon-enr-private-key"),
-			ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
-			LockFilePath:     filepath.Join(baseDir, "cluster-lock.json"),
-			PlaintextOutput:  true,
+			BeaconNodeURL:     beaconMock.Address(),
+			PrivateKeyPath:    filepath.Join(baseDir, "charon-enr-private-key"),
+			ValidatorKeysDir:  filepath.Join(baseDir, "validator_keys"),
+			LockFilePath:      filepath.Join(baseDir, "cluster-lock.json"),
+			PlaintextOutput:   true,
+			BeaconNodeTimeout: 30 * time.Second,
 		}
 
 		vals, err := listActiveVals(ctx, config)
@@ -181,11 +184,12 @@ func Test_listActiveVals(t *testing.T) {
 		baseDir := filepath.Join(root, fmt.Sprintf("op%d", 0))
 
 		config := exitConfig{
-			BeaconNodeURL:    beaconMock.Address(),
-			PrivateKeyPath:   filepath.Join(baseDir, "charon-enr-private-key"),
-			ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
-			LockFilePath:     filepath.Join(baseDir, "cluster-lock.json"),
-			PlaintextOutput:  true,
+			BeaconNodeURL:     beaconMock.Address(),
+			PrivateKeyPath:    filepath.Join(baseDir, "charon-enr-private-key"),
+			ValidatorKeysDir:  filepath.Join(baseDir, "validator_keys"),
+			LockFilePath:      filepath.Join(baseDir, "cluster-lock.json"),
+			PlaintextOutput:   true,
+			BeaconNodeTimeout: 30 * time.Second,
 		}
 
 		vals, err := listActiveVals(ctx, config)
