@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -109,13 +110,14 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool) {
 		baseDir := filepath.Join(root, fmt.Sprintf("op%d", idx))
 
 		config := exitConfig{
-			BeaconNodeURL:    beaconMock.Address(),
-			ValidatorPubkey:  lock.Validators[0].PublicKeyHex(),
-			PrivateKeyPath:   filepath.Join(baseDir, "charon-enr-private-key"),
-			ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
-			LockFilePath:     filepath.Join(baseDir, "cluster-lock.json"),
-			PublishAddress:   srv.URL,
-			ExitEpoch:        194048,
+			BeaconNodeURL:     beaconMock.Address(),
+			ValidatorPubkey:   lock.Validators[0].PublicKeyHex(),
+			PrivateKeyPath:    filepath.Join(baseDir, "charon-enr-private-key"),
+			ValidatorKeysDir:  filepath.Join(baseDir, "validator_keys"),
+			LockFilePath:      filepath.Join(baseDir, "cluster-lock.json"),
+			PublishAddress:    srv.URL,
+			ExitEpoch:         194048,
+			BeaconNodeTimeout: 30 * time.Second,
 		}
 
 		require.NoError(t, runSignPartialExit(ctx, config), "operator index: %v", idx)
@@ -124,13 +126,14 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool) {
 	baseDir := filepath.Join(root, fmt.Sprintf("op%d", 0))
 
 	config := exitConfig{
-		BeaconNodeURL:    beaconMock.Address(),
-		ValidatorPubkey:  lock.Validators[0].PublicKeyHex(),
-		PrivateKeyPath:   filepath.Join(baseDir, "charon-enr-private-key"),
-		ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
-		LockFilePath:     filepath.Join(baseDir, "cluster-lock.json"),
-		PublishAddress:   srv.URL,
-		ExitEpoch:        194048,
+		BeaconNodeURL:     beaconMock.Address(),
+		ValidatorPubkey:   lock.Validators[0].PublicKeyHex(),
+		PrivateKeyPath:    filepath.Join(baseDir, "charon-enr-private-key"),
+		ValidatorKeysDir:  filepath.Join(baseDir, "validator_keys"),
+		LockFilePath:      filepath.Join(baseDir, "cluster-lock.json"),
+		PublishAddress:    srv.URL,
+		ExitEpoch:         194048,
+		BeaconNodeTimeout: 30 * time.Second,
 	}
 
 	if fromFile {
@@ -273,13 +276,14 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 			baseDir := filepath.Join(root, "op0") // one operator is enough
 
 			config := exitConfig{
-				BeaconNodeURL:    bnURL,
-				ValidatorPubkey:  valAddr,
-				PrivateKeyPath:   filepath.Join(baseDir, "charon-enr-private-key"),
-				ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
-				LockFilePath:     filepath.Join(baseDir, "cluster-lock.json"),
-				PublishAddress:   oapiURL,
-				ExitEpoch:        0,
+				BeaconNodeURL:     bnURL,
+				ValidatorPubkey:   valAddr,
+				PrivateKeyPath:    filepath.Join(baseDir, "charon-enr-private-key"),
+				ValidatorKeysDir:  filepath.Join(baseDir, "validator_keys"),
+				LockFilePath:      filepath.Join(baseDir, "cluster-lock.json"),
+				PublishAddress:    oapiURL,
+				ExitEpoch:         0,
+				BeaconNodeTimeout: 30 * time.Second,
 			}
 
 			if test.badExistingExitPath {

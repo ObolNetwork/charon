@@ -18,17 +18,18 @@ import (
 )
 
 type exitConfig struct {
-	BeaconNodeURL    string
-	ValidatorPubkey  string
-	PrivateKeyPath   string
-	ValidatorKeysDir string
-	LockFilePath     string
-	PublishAddress   string
-	ExitEpoch        uint64
-	FetchedExitPath  string
-	PlaintextOutput  bool
-	ExitFromFilePath string
-	Log              log.Config
+	BeaconNodeURL     string
+	ValidatorPubkey   string
+	PrivateKeyPath    string
+	ValidatorKeysDir  string
+	LockFilePath      string
+	PublishAddress    string
+	ExitEpoch         uint64
+	FetchedExitPath   string
+	PlaintextOutput   bool
+	BeaconNodeTimeout time.Duration
+	ExitFromFilePath  string
+	Log               log.Config
 }
 
 func newExitCmd(cmds ...*cobra.Command) *cobra.Command {
@@ -54,6 +55,7 @@ const (
 	validatorPubkey
 	exitEpoch
 	exitFromFile
+	beaconNodeTimeout
 )
 
 func (ef exitFlag) String() string {
@@ -74,6 +76,8 @@ func (ef exitFlag) String() string {
 		return "exit-epoch"
 	case exitFromFile:
 		return "exit-from-file"
+	case beaconNodeTimeout:
+		return "beacon-node-timeout"
 	default:
 		return "unknown"
 	}
@@ -105,6 +109,8 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 			cmd.Flags().Uint64Var(&config.ExitEpoch, exitEpoch.String(), 162304, "Exit epoch at which the validator will exit, must be the same across all the partial exits.")
 		case exitFromFile:
 			cmd.Flags().StringVar(&config.ExitFromFilePath, exitFromFile.String(), "", "Retrieves a signed exit message from a pre-prepared file instead of --publish-address.")
+		case beaconNodeTimeout:
+			cmd.Flags().DurationVar(&config.BeaconNodeTimeout, beaconNodeTimeout.String(), 30*time.Second, "Timeout for beacon node HTTP calls.")
 		}
 
 		if f.required {
@@ -113,9 +119,10 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 	}
 }
 
-func eth2Client(ctx context.Context, u string) (eth2wrap.Client, error) {
+func eth2Client(ctx context.Context, u string, timeout time.Duration) (eth2wrap.Client, error) {
 	bnHTTPClient, err := eth2http.New(ctx,
 		eth2http.WithAddress(u),
+		eth2http.WithTimeout(timeout),
 		eth2http.WithLogLevel(1), // zerolog.InfoLevel
 	)
 	if err != nil {
@@ -124,7 +131,7 @@ func eth2Client(ctx context.Context, u string) (eth2wrap.Client, error) {
 
 	bnClient := bnHTTPClient.(*eth2http.Service)
 
-	return eth2wrap.AdaptEth2HTTP(bnClient, 10*time.Second), nil
+	return eth2wrap.AdaptEth2HTTP(bnClient, timeout), nil
 }
 
 // signExit signs a voluntary exit message for valIdx with the given keyShare.

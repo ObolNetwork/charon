@@ -42,6 +42,7 @@ func newListActiveValidatorsCmd(runFunc func(context.Context, exitConfig) error)
 	bindExitFlags(cmd, &config, []exitCLIFlag{
 		{lockFilePath, false},
 		{beaconNodeURL, true},
+		{beaconNodeTimeout, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
@@ -74,7 +75,7 @@ func listActiveVals(ctx context.Context, config exitConfig) ([]string, error) {
 		return nil, errors.Wrap(err, "could not load cluster-lock.json")
 	}
 
-	eth2Cl, err := eth2Client(ctx, config.BeaconNodeURL)
+	eth2Cl, err := eth2Client(ctx, config.BeaconNodeURL, config.BeaconNodeTimeout)
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot create eth2 client for specified beacon node")
 	}
