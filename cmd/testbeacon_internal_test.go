@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 //go:generate go test . -run=TestBeaconTest -update
@@ -33,12 +35,22 @@ func TestBeaconTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    time.Minute,
 				},
-				Endpoints: []string{"beacon-endpoint-1", "beacon-endpoint-2"},
+				Endpoints: []string{"http://localhost:8080", "http://localhost:8081"},
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
-					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
-					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
+					"http://localhost:8080": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`dial tcp 127.0.0.1:8080: connect: connection refused`)}},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`dial tcp 127.0.0.1:8080: connect: connection refused`)}},
+						{Name: "isSynced", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`Get "http://localhost:8080/eth/v1/node/syncing": dial tcp 127.0.0.1:8080: connect: connection refused`)}},
+						{Name: "peerCount", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`Get "http://localhost:8080/eth/v1/node/peers?state=connected": dial tcp 127.0.0.1:8080: connect: connection refused`)}},
+					},
+					"http://localhost:8081": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`dial tcp 127.0.0.1:8081: connect: connection refused`)}},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`dial tcp 127.0.0.1:8081: connect: connection refused`)}},
+						{Name: "isSynced", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`Get "http://localhost:8081/eth/v1/node/syncing": dial tcp 127.0.0.1:8081: connect: connection refused`)}},
+						{Name: "peerCount", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`Get "http://localhost:8081/eth/v1/node/peers?state=connected": dial tcp 127.0.0.1:8081: connect: connection refused`)}},
+					},
 				},
 			},
 			expectedErr: "",
@@ -52,12 +64,16 @@ func TestBeaconTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    time.Nanosecond,
 				},
-				Endpoints: []string{"beacon-endpoint-1", "beacon-endpoint-2"},
+				Endpoints: []string{"http://localhost:8080", "http://localhost:8081"},
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
-					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted}},
-					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted}},
+					"http://localhost:8080": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+					},
+					"http://localhost:8081": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+					},
 				},
 			},
 			expectedErr: "",
@@ -71,12 +87,22 @@ func TestBeaconTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    time.Minute,
 				},
-				Endpoints: []string{"beacon-endpoint-1", "beacon-endpoint-2"},
+				Endpoints: []string{"http://localhost:8080", "http://localhost:8081"},
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
-					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
-					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
+					"http://localhost:8080": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`dial tcp 127.0.0.1:8080: connect: connection refused`)}},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`dial tcp 127.0.0.1:8080: connect: connection refused`)}},
+						{Name: "isSynced", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`Get "http://localhost:8080/eth/v1/node/syncing": dial tcp 127.0.0.1:8080: connect: connection refused`)}},
+						{Name: "peerCount", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`Get "http://localhost:8080/eth/v1/node/peers?state=connected": dial tcp 127.0.0.1:8080: connect: connection refused`)}},
+					},
+					"http://localhost:8081": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`dial tcp 127.0.0.1:8081: connect: connection refused`)}},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`dial tcp 127.0.0.1:8081: connect: connection refused`)}},
+						{Name: "isSynced", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`Get "http://localhost:8081/eth/v1/node/syncing": dial tcp 127.0.0.1:8081: connect: connection refused`)}},
+						{Name: "peerCount", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`Get "http://localhost:8081/eth/v1/node/peers?state=connected": dial tcp 127.0.0.1:8081: connect: connection refused`)}},
+					},
 				},
 			},
 			expectedErr: "",
@@ -90,7 +116,7 @@ func TestBeaconTest(t *testing.T) {
 					TestCases:  []string{"notSupportedTest"},
 					Timeout:    time.Minute,
 				},
-				Endpoints: []string{"beacon-endpoint-1", "beacon-endpoint-2"},
+				Endpoints: []string{"http://localhost:8080", "http://localhost:8081"},
 			},
 			expected:    testCategoryResult{},
 			expectedErr: "test case not supported",
@@ -104,17 +130,20 @@ func TestBeaconTest(t *testing.T) {
 					TestCases:  []string{"ping"},
 					Timeout:    time.Minute,
 				},
-				Endpoints: []string{"beacon-endpoint-1", "beacon-endpoint-2"},
+				Endpoints: []string{"http://localhost:8080", "http://localhost:8081"},
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
-					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
-					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
+					"http://localhost:8080": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`dial tcp 127.0.0.1:8080: connect: connection refused`)}},
+					},
+					"http://localhost:8081": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`dial tcp 127.0.0.1:8081: connect: connection refused`)}},
+					},
 				},
 			},
 			expectedErr: "",
 		},
-
 		{
 			name: "write to file",
 			config: testBeaconConfig{
@@ -124,15 +153,25 @@ func TestBeaconTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    time.Minute,
 				},
-				Endpoints: []string{"beacon-endpoint-1", "beacon-endpoint-2"},
+				Endpoints: []string{"http://localhost:8080", "http://localhost:8081"},
 			},
 			expected: testCategoryResult{
-				CategoryName: "beacon",
 				Targets: map[string][]testResult{
-					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
-					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
+					"http://localhost:8080": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`dial tcp 127.0.0.1:8080: connect: connection refused`)}},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`dial tcp 127.0.0.1:8080: connect: connection refused`)}},
+						{Name: "isSynced", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`Get "http://localhost:8080/eth/v1/node/syncing": dial tcp 127.0.0.1:8080: connect: connection refused`)}},
+						{Name: "peerCount", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`Get "http://localhost:8080/eth/v1/node/peers?state=connected": dial tcp 127.0.0.1:8080: connect: connection refused`)}},
+					},
+					"http://localhost:8081": {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`dial tcp 127.0.0.1:8081: connect: connection refused`)}},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`dial tcp 127.0.0.1:8081: connect: connection refused`)}},
+						{Name: "isSynced", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`Get "http://localhost:8081/eth/v1/node/syncing": dial tcp 127.0.0.1:8081: connect: connection refused`)}},
+						{Name: "peerCount", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(`Get "http://localhost:8081/eth/v1/node/peers?state=connected": dial tcp 127.0.0.1:8081: connect: connection refused`)}},
+					},
 				},
-				Score: categoryScoreC,
+				Score:        categoryScoreC,
+				CategoryName: "beacon",
 			},
 			expectedErr: "",
 			cleanup: func(t *testing.T, p string) {

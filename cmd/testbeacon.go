@@ -4,19 +4,30 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptrace"
+	"strconv"
 	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/maps"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 type testBeaconConfig struct {
 	testConfig
 	Endpoints []string
 }
+
+const (
+	thresholdBeaconPeersAvg = 20
+	thresholdBeaconPeersBad = 5
+)
 
 func newTestBeaconCmd(runFunc func(context.Context, io.Writer, testBeaconConfig) error) *cobra.Command {
 	var config testBeaconConfig
@@ -48,7 +59,10 @@ func bindTestBeaconFlags(cmd *cobra.Command, config *testBeaconConfig) {
 
 func supportedBeaconTestCases() map[testCaseName]func(context.Context, *testBeaconConfig, string) testResult {
 	return map[testCaseName]func(context.Context, *testBeaconConfig, string) testResult{
-		{name: "ping", order: 1}: beaconPing,
+		{name: "ping", order: 1}:        beaconPingTest,
+		{name: "pingMeasure", order: 2}: beaconPingMeasureTest,
+		{name: "isSynced", order: 3}:    beaconIsSyncedTest,
+		{name: "peerCount", order: 4}:   beaconPeerCountTest,
 	}
 }
 
@@ -181,15 +195,219 @@ func runBeaconTest(ctx context.Context, queuedTestCases []testCaseName, allTestC
 	}
 }
 
-func beaconPing(ctx context.Context, _ *testBeaconConfig, _ string) testResult {
-	// TODO(kalo): implement real ping
-	select {
-	case <-ctx.Done():
-		return testResult{Verdict: testVerdictFail}
-	default:
-		return testResult{
-			Verdict: testVerdictFail,
-			Error:   errNotImplemented,
-		}
+func beaconPingTest(ctx context.Context, _ *testBeaconConfig, target string) testResult {
+	testRes := testResult{Name: "Ping"}
+
+	client := http.Client{}
+	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/health", target)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
+	if err != nil {
+		testRes.Verdict = testVerdictFail
+		testRes.Error = testResultError{err}
+
+		return testRes
 	}
+	resp, err := client.Do(req)
+	if err != nil {
+		testRes.Verdict = testVerdictFail
+		testRes.Error = testResultError{err}
+
+		return testRes
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode > 399 {
+		testRes.Verdict = testVerdictFail
+		testRes.Error = testResultError{errors.New("status code %v", z.Int("status_code", resp.StatusCode))}
+
+		return testRes
+	}
+
+	testRes.Verdict = testVerdictOk
+
+	return testRes
+}
+
+func beaconPingMeasureTest(ctx context.Context, _ *testBeaconConfig, target string) testResult {
+	testRes := testResult{Name: "PingMeasure"}
+
+	var start time.Time
+	var firstByte time.Duration
+
+	trace := &httptrace.ClientTrace{
+		GotFirstResponseByte: func() {
+			firstByte = time.Since(start)
+		},
+	}
+
+	start = time.Now()
+	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/health", target)
+	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), http.MethodGet, targetEndpoint, nil)
+	if err != nil {
+		testRes.Verdict = testVerdictFail
+		testRes.Error = testResultError{err}
+
+		return testRes
+	}
+
+	resp, err := http.DefaultTransport.RoundTrip(req)
+	if err != nil {
+		testRes.Verdict = testVerdictFail
+		testRes.Error = testResultError{err}
+
+		return testRes
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode > 399 {
+		testRes.Verdict = testVerdictFail
+		testRes.Error = testResultError{errors.New("status code %v", z.Int("status_code", resp.StatusCode))}
+
+		return testRes
+	}
+
+	if firstByte > thresholdMeasureBad {
+		testRes.Verdict = testVerdictBad
+	} else if firstByte > thresholdMeasureAvg {
+		testRes.Verdict = testVerdictAvg
+	} else {
+		testRes.Verdict = testVerdictGood
+	}
+	testRes.Measurement = Duration{firstByte}.String()
+
+	return testRes
+}
+
+func beaconIsSyncedTest(ctx context.Context, _ *testBeaconConfig, target string) testResult {
+	testRes := testResult{Name: "isSynced"}
+
+	type isSyncedResponseData struct {
+		HeadSlot     string `json:"head_slot"`
+		SyncDistance string `json:"sync_distance"`
+		IsSyncing    bool   `json:"is_syncing"`
+		IsOptimistic bool   `json:"is_optimistic"`
+		ElOffline    bool   `json:"el_offline"`
+	}
+
+	type isSyncedResponse struct {
+		Data isSyncedResponseData `json:"data"`
+	}
+
+	client := http.Client{}
+	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/syncing", target)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
+	if err != nil {
+		testRes.Verdict = testVerdictFail
+		testRes.Error = testResultError{err}
+
+		return testRes
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		testRes.Verdict = testVerdictFail
+		testRes.Error = testResultError{err}
+
+		return testRes
+	}
+
+	if resp.StatusCode > 399 {
+		testRes.Verdict = testVerdictFail
+		testRes.Error = testResultError{errors.New("status code %v", z.Int("status_code", resp.StatusCode))}
+
+		return testRes
+	}
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		testRes.Verdict = testVerdictFail
+		testRes.Error = testResultError{err}
+
+		return testRes
+	}
+	defer resp.Body.Close()
+
+	var respUnmarshaled isSyncedResponse
+	err = json.Unmarshal(b, &respUnmarshaled)
+	if err != nil {
+		testRes.Verdict = testVerdictFail
+		testRes.Error = testResultError{err}
+
+		return testRes
+	}
+
+	if respUnmarshaled.Data.IsSyncing {
+		testRes.Verdict = testVerdictFail
+
+		return testRes
+	}
+
+	testRes.Verdict = testVerdictOk
+
+	return testRes
+}
+
+func beaconPeerCountTest(ctx context.Context, _ *testBeaconConfig, target string) testResult {
+	testRes := testResult{Name: "peerCount"}
+
+	type peerCountResponseMeta struct {
+		Count int `json:"count"`
+	}
+
+	type peerCountResponse struct {
+		Meta peerCountResponseMeta `json:"meta"`
+	}
+
+	client := http.Client{}
+	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/peers?state=connected", target)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
+	if err != nil {
+		testRes.Verdict = testVerdictFail
+		testRes.Error = testResultError{err}
+
+		return testRes
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		testRes.Verdict = testVerdictFail
+		testRes.Error = testResultError{err}
+
+		return testRes
+	}
+
+	if resp.StatusCode > 399 {
+		testRes.Verdict = testVerdictFail
+		testRes.Error = testResultError{errors.New("status code %v", z.Int("status_code", resp.StatusCode))}
+
+		return testRes
+	}
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		testRes.Verdict = testVerdictFail
+		testRes.Error = testResultError{err}
+
+		return testRes
+	}
+	defer resp.Body.Close()
+
+	var respUnmarshaled peerCountResponse
+	err = json.Unmarshal(b, &respUnmarshaled)
+	if err != nil {
+		testRes.Verdict = testVerdictFail
+		testRes.Error = testResultError{err}
+
+		return testRes
+	}
+
+	testRes.Measurement = strconv.Itoa(respUnmarshaled.Meta.Count)
+
+	if respUnmarshaled.Meta.Count < thresholdBeaconPeersBad {
+		testRes.Verdict = testVerdictBad
+	} else if respUnmarshaled.Meta.Count < thresholdBeaconPeersAvg {
+		testRes.Verdict = testVerdictAvg
+	} else {
+		testRes.Verdict = testVerdictGood
+	}
+
+	return testRes
 }
