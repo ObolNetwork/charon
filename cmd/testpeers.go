@@ -576,9 +576,6 @@ func dialTCPIP(ctx context.Context, address string) error {
 	if err != nil {
 		return errors.Wrap(err, "net dial")
 	}
-	if conn == nil {
-		return errors.New("could not establish connection to address", z.Str("address", address))
-	}
 	err = conn.Close()
 	if err != nil {
 		return errors.Wrap(err, "close conn")
