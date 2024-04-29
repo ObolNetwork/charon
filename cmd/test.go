@@ -92,7 +92,7 @@ type testResult struct {
 	Measurement  string
 	Suggestion   string
 	Error        testResultError
-	IsCompatible bool
+	IsAcceptable bool
 }
 
 func (s *testResultError) UnmarshalText(data []byte) error {
@@ -225,7 +225,7 @@ func calculateScore(results []testResult) categoryScore {
 		case testVerdictAvg:
 			avg--
 		case testVerdictFail:
-			if !t.IsCompatible {
+			if !t.IsAcceptable {
 				return categoryScoreC
 			}
 
