@@ -76,11 +76,6 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool) {
 	mBytes, err := json.Marshal(lock)
 	require.NoError(t, err)
 
-	handler, addLockFiles := obolapimock.MockServer(false)
-	srv := httptest.NewServer(handler)
-	addLockFiles(lock)
-	defer srv.Close()
-
 	validatorSet := beaconmock.ValidatorSet{}
 
 	for idx, v := range lock.Validators {
@@ -103,6 +98,16 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool) {
 	defer func() {
 		require.NoError(t, beaconMock.Close())
 	}()
+
+	eth2Cl, err := eth2Client(ctx, beaconMock.Address(), 10*time.Second)
+	require.NoError(t, err)
+
+	eth2Cl.SetForkVersion([4]byte(lock.ForkVersion))
+
+	handler, addLockFiles := obolapimock.MockServer(false, eth2Cl)
+	srv := httptest.NewServer(handler)
+	addLockFiles(lock)
+	defer srv.Close()
 
 	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
 

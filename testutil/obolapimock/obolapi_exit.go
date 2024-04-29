@@ -11,17 +11,20 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/gorilla/mux"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util/enr"
+	"github.com/obolnetwork/charon/eth2util/signing"
+	"github.com/obolnetwork/charon/tbls"
 )
 
 const (
@@ -74,6 +77,9 @@ type testServer struct {
 
 	// drop one partial signature when returning the full set
 	dropOnePsig bool
+
+	// Beacon node client, needed to verify exits.
+	beacon eth2wrap.Client
 }
 
 // addLockFiles adds a set of lock files to ts.
@@ -128,17 +134,32 @@ func (ts *testServer) HandlePartialExit(writer http.ResponseWriter, request *htt
 
 	for _, exit := range data.PartialExits {
 		exit := exit
-		valFound := false
+		var valPubkey []byte
+		var partialPubkey []byte
 
 		for _, lockVal := range lock.Validators {
-			if strings.EqualFold(exit.PublicKey, lockVal.PublicKeyHex()) {
-				valFound = true
+			valHex := lockVal.PublicKeyHex()
+			if strings.EqualFold(exit.PublicKey, valHex) {
+				valPubkey = lockVal.PubKey
+				partialPubkey = lockVal.PubShares[data.ShareIdx-1]
+
 				break
 			}
 		}
 
-		if !valFound {
+		if len(valPubkey) == 0 {
 			continue
+		}
+
+		exitSigData, err := sigDataForExit(request.Context(), *exit.SignedExitMessage.Message, ts.beacon, exit.SignedExitMessage.Message.Epoch)
+		if err != nil {
+			writeErr(writer, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		if err := tbls.Verify(tbls.PublicKey(partialPubkey), exitSigData[:], tbls.Signature(exit.SignedExitMessage.Signature)); err != nil {
+			writeErr(writer, http.StatusBadRequest, err.Error())
+			return
 		}
 
 		// check that the last partial exit's data is the same as the new one
@@ -294,12 +315,13 @@ func cleanTmpl(tmpl string) string {
 
 // MockServer returns a obol API mock test server.
 // It returns a http.Handler to be served over HTTP, and a function to add cluster lock files to its database.
-func MockServer(dropOnePsig bool) (http.Handler, func(lock cluster.Lock)) {
+func MockServer(dropOnePsig bool, beacon eth2wrap.Client) (http.Handler, func(lock cluster.Lock)) {
 	ts := testServer{
 		lock:         sync.Mutex{},
 		partialExits: map[string][]exitBlob{},
 		lockFiles:    map[string]cluster.Lock{},
 		dropOnePsig:  dropOnePsig,
+		beacon:       beacon,
 	}
 
 	router := mux.NewRouter()
@@ -311,30 +333,6 @@ func MockServer(dropOnePsig bool) (http.Handler, func(lock cluster.Lock)) {
 	router.HandleFunc(partialExitTmpl, ts.HandlePartialExit).Methods(http.MethodPost)
 
 	return router, ts.addLockFiles
-}
-
-// Run runs obol api mock on the provided bind port.
-func Run(_ context.Context, bind string, locks []cluster.Lock, dropOnePsig bool) error {
-	ms, addLock := MockServer(dropOnePsig)
-
-	for _, lock := range locks {
-		addLock(lock)
-	}
-
-	srv := http.Server{
-		ReadTimeout:       1 * time.Second,
-		WriteTimeout:      1 * time.Second,
-		IdleTimeout:       30 * time.Second,
-		ReadHeaderTimeout: 2 * time.Second,
-		Handler:           ms,
-		Addr:              bind,
-	}
-
-	if err := srv.ListenAndServe(); err != nil {
-		return errors.Wrap(err, "obol api mock error")
-	}
-
-	return nil
 }
 
 func authMiddleware(next http.Handler) http.Handler {
@@ -378,4 +376,24 @@ func from0x(data string, length int) ([]byte, error) {
 	}
 
 	return b, nil
+}
+
+// sigDataForExit returns the hash tree root for the given exit message, at the given exit epoch.
+func sigDataForExit(ctx context.Context, exit eth2p0.VoluntaryExit, eth2Cl eth2wrap.Client, exitEpoch eth2p0.Epoch) ([32]byte, error) {
+	sigRoot, err := exit.HashTreeRoot()
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "exit hash tree root")
+	}
+
+	domain, err := signing.GetDomain(ctx, eth2Cl, signing.DomainExit, exitEpoch)
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "get domain")
+	}
+
+	sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "signing data hash tree root")
+	}
+
+	return sigData, nil
 }

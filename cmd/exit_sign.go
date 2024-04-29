@@ -105,6 +105,8 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "cannot create eth2 client for specified beacon node")
 	}
 
+	eth2Cl.SetForkVersion([4]byte(cl.GetForkVersion()))
+
 	oAPI, err := obolapi.New(config.PublishAddress)
 	if err != nil {
 		return errors.Wrap(err, "could not create obol api client")
