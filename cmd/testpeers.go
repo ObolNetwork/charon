@@ -570,8 +570,9 @@ func peerPingLoadTest(ctx context.Context, conf *testPeersConfig, tcpNode host.H
 	return testRes
 }
 
-func dialTCPIP(address string, timeout time.Duration) error {
-	conn, err := net.DialTimeout("tcp", address, timeout)
+func dialTCPIP(ctx context.Context, address string) error {
+	d := net.Dialer{Timeout: time.Second}
+	conn, err := d.DialContext(ctx, "tcp", address)
 	if err != nil {
 		return errors.Wrap(err, "net dial")
 	}
@@ -593,7 +594,7 @@ func libp2pTCPPortOpenTest(ctx context.Context, cfg *testPeersConfig) testResult
 
 	for _, addr := range cfg.P2P.TCPAddrs {
 		addrVal := addr
-		group.Go(func() error { return dialTCPIP(addrVal, time.Second) })
+		group.Go(func() error { return dialTCPIP(ctx, addrVal) })
 	}
 
 	err := group.Wait()
