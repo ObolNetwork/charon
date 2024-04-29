@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -134,21 +135,22 @@ func (ts *testServer) HandlePartialExit(writer http.ResponseWriter, request *htt
 
 	for _, exit := range data.PartialExits {
 		exit := exit
-		var valPubkey []byte
+		var validatorFound bool
 		var partialPubkey []byte
 
 		for _, lockVal := range lock.Validators {
 			valHex := lockVal.PublicKeyHex()
 			if strings.EqualFold(exit.PublicKey, valHex) {
-				valPubkey = lockVal.PubKey
 				partialPubkey = lockVal.PubShares[data.ShareIdx-1]
+				validatorFound = true
 
 				break
 			}
 		}
 
-		if len(valPubkey) == 0 {
-			continue
+		if !validatorFound {
+			writeErr(writer, http.StatusBadRequest, fmt.Sprintf("could not find validator %s in lock file", exit.PublicKey))
+			return
 		}
 
 		exitSigData, err := sigDataForExit(request.Context(), *exit.SignedExitMessage.Message, ts.beacon, exit.SignedExitMessage.Message.Epoch)
