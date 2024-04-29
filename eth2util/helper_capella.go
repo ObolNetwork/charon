@@ -75,7 +75,7 @@ func (e forkDataType) HashTreeRootWith(hh ssz.HashWalker) error {
 func ComputeDomain(forkHash string, domainType eth2p0.DomainType, genesisValidatorRoot eth2p0.Root) (eth2p0.Domain, error) {
 	_, err := hex.DecodeString(strings.TrimPrefix(forkHash, "0x"))
 	if err != nil {
-		return eth2p0.Domain{}, errors.Wrap(err, "invalid fork hash")
+		return eth2p0.Domain{}, errors.Wrap(err, "malformed fork hash")
 	}
 
 	cfork, err := CapellaFork(forkHash)
