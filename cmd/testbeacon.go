@@ -202,25 +202,16 @@ func beaconPingTest(ctx context.Context, _ *testBeaconConfig, target string) tes
 	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/health", target)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
 	if err != nil {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{err}
-
-		return testRes
+		return failedTestResult(testRes, err)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{err}
-
-		return testRes
+		return failedTestResult(testRes, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode > 399 {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{errors.New("status code %v", z.Int("status_code", resp.StatusCode))}
-
-		return testRes
+		return failedTestResult(testRes, errors.New("status code %v", z.Int("status_code", resp.StatusCode)))
 	}
 
 	testRes.Verdict = testVerdictOk
@@ -244,26 +235,17 @@ func beaconPingMeasureTest(ctx context.Context, _ *testBeaconConfig, target stri
 	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/health", target)
 	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), http.MethodGet, targetEndpoint, nil)
 	if err != nil {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{err}
-
-		return testRes
+		return failedTestResult(testRes, err)
 	}
 
 	resp, err := http.DefaultTransport.RoundTrip(req)
 	if err != nil {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{err}
-
-		return testRes
+		return failedTestResult(testRes, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode > 399 {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{errors.New("status code %v", z.Int("status_code", resp.StatusCode))}
-
-		return testRes
+		return failedTestResult(testRes, errors.New("status code %v", z.Int("status_code", resp.StatusCode)))
 	}
 
 	if firstByte > thresholdMeasureBad {
@@ -297,47 +279,31 @@ func beaconIsSyncedTest(ctx context.Context, _ *testBeaconConfig, target string)
 	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/syncing", target)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
 	if err != nil {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{err}
-
-		return testRes
+		return failedTestResult(testRes, err)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{err}
-
-		return testRes
+		return failedTestResult(testRes, err)
 	}
 
 	if resp.StatusCode > 399 {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{errors.New("status code %v", z.Int("status_code", resp.StatusCode))}
-
-		return testRes
+		return failedTestResult(testRes, errors.New("status code %v", z.Int("status_code", resp.StatusCode)))
 	}
 
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{err}
-
-		return testRes
+		return failedTestResult(testRes, err)
 	}
 	defer resp.Body.Close()
 
 	var respUnmarshaled isSyncedResponse
 	err = json.Unmarshal(b, &respUnmarshaled)
 	if err != nil {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{err}
-
-		return testRes
+		return failedTestResult(testRes, err)
 	}
 
 	if respUnmarshaled.Data.IsSyncing {
 		testRes.Verdict = testVerdictFail
-
 		return testRes
 	}
 
@@ -361,42 +327,27 @@ func beaconPeerCountTest(ctx context.Context, _ *testBeaconConfig, target string
 	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/peers?state=connected", target)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
 	if err != nil {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{err}
-
-		return testRes
+		return failedTestResult(testRes, err)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{err}
-
-		return testRes
+		return failedTestResult(testRes, err)
 	}
 
 	if resp.StatusCode > 399 {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{errors.New("status code %v", z.Int("status_code", resp.StatusCode))}
-
-		return testRes
+		return failedTestResult(testRes, errors.New("status code %v", z.Int("status_code", resp.StatusCode)))
 	}
 
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{err}
-
-		return testRes
+		return failedTestResult(testRes, err)
 	}
 	defer resp.Body.Close()
 
 	var respUnmarshaled peerCountResponse
 	err = json.Unmarshal(b, &respUnmarshaled)
 	if err != nil {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{err}
-
-		return testRes
+		return failedTestResult(testRes, err)
 	}
 
 	testRes.Measurement = strconv.Itoa(respUnmarshaled.Meta.Count)
