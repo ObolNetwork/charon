@@ -92,25 +92,33 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 	for _, f := range flags {
 		flag := f.flag
 
+		maybeRequired := func(s string) string {
+			if f.required {
+				return s + " [REQUIRED]"
+			}
+
+			return s
+		}
+
 		switch flag {
 		case publishAddress:
-			cmd.Flags().StringVar(&config.PublishAddress, publishAddress.String(), "https://api.obol.tech", "The URL of the remote API.")
+			cmd.Flags().StringVar(&config.PublishAddress, publishAddress.String(), "https://api.obol.tech", maybeRequired("The URL of the remote API."))
 		case beaconNodeURL:
-			cmd.Flags().StringVar(&config.BeaconNodeURL, beaconNodeURL.String(), "", "Beacon node URL.")
+			cmd.Flags().StringVar(&config.BeaconNodeURL, beaconNodeURL.String(), "", maybeRequired("Beacon node URL."))
 		case privateKeyPath:
-			cmd.Flags().StringVar(&config.PrivateKeyPath, privateKeyPath.String(), ".charon/charon-enr-private-key", "The path to the charon enr private key file. ")
+			cmd.Flags().StringVar(&config.PrivateKeyPath, privateKeyPath.String(), ".charon/charon-enr-private-key", maybeRequired("The path to the charon enr private key file. "))
 		case lockFilePath:
-			cmd.Flags().StringVar(&config.LockFilePath, lockFilePath.String(), ".charon/cluster-lock.json", "The path to the cluster lock file defining the distributed validator cluster.")
+			cmd.Flags().StringVar(&config.LockFilePath, lockFilePath.String(), ".charon/cluster-lock.json", maybeRequired("The path to the cluster lock file defining the distributed validator cluster."))
 		case validatorKeysDir:
-			cmd.Flags().StringVar(&config.ValidatorKeysDir, validatorKeysDir.String(), ".charon/validator_keys", "Path to the directory containing the validator private key share files and passwords.")
+			cmd.Flags().StringVar(&config.ValidatorKeysDir, validatorKeysDir.String(), ".charon/validator_keys", maybeRequired("Path to the directory containing the validator private key share files and passwords."))
 		case validatorPubkey:
-			cmd.Flags().StringVar(&config.ValidatorPubkey, validatorPubkey.String(), "", "Public key of the validator to exit, must be present in the cluster lock manifest.")
+			cmd.Flags().StringVar(&config.ValidatorPubkey, validatorPubkey.String(), "", maybeRequired("Public key of the validator to exit, must be present in the cluster lock manifest."))
 		case exitEpoch:
-			cmd.Flags().Uint64Var(&config.ExitEpoch, exitEpoch.String(), 162304, "Exit epoch at which the validator will exit, must be the same across all the partial exits.")
+			cmd.Flags().Uint64Var(&config.ExitEpoch, exitEpoch.String(), 162304, maybeRequired("Exit epoch at which the validator will exit, must be the same across all the partial exits."))
 		case exitFromFile:
-			cmd.Flags().StringVar(&config.ExitFromFilePath, exitFromFile.String(), "", "Retrieves a signed exit message from a pre-prepared file instead of --publish-address.")
+			cmd.Flags().StringVar(&config.ExitFromFilePath, exitFromFile.String(), "", maybeRequired("Retrieves a signed exit message from a pre-prepared file instead of --publish-address."))
 		case beaconNodeTimeout:
-			cmd.Flags().DurationVar(&config.BeaconNodeTimeout, beaconNodeTimeout.String(), 30*time.Second, "Timeout for beacon node HTTP calls.")
+			cmd.Flags().DurationVar(&config.BeaconNodeTimeout, beaconNodeTimeout.String(), 30*time.Second, maybeRequired("Timeout for beacon node HTTP calls."))
 		}
 
 		if f.required {
