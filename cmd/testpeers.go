@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"math"
 	"math/rand"
 	"slices"
 	"strings"
@@ -203,15 +202,16 @@ func pingPeerOnce(ctx context.Context, tcpNode host.Host, peer p2p.Peer) (ping.R
 }
 
 func pingPeerContinuously(ctx context.Context, tcpNode host.Host, peer p2p.Peer, resCh chan ping.Result) {
+	defer close(resCh)
 	for {
-		r, err := pingPeerOnce(ctx, tcpNode, peer)
-		if err != nil {
-			return
-		}
 		select {
 		case <-ctx.Done():
 			return
 		default:
+			r, err := pingPeerOnce(ctx, tcpNode, peer)
+			if err != nil {
+				return
+			}
 			resCh <- r
 			awaitTime := rand.Intn(100) //nolint:gosec // weak generator is not an issue here
 			time.Sleep(time.Duration(awaitTime) * time.Millisecond)
@@ -531,7 +531,7 @@ func peerPingLoadTest(ctx context.Context, conf *testPeersConfig, tcpNode host.H
 	testRes := testResult{Name: "PingLoad"}
 
 	deadlineC := time.After(conf.LoadTestDuration)
-	testResCh := make(chan ping.Result, math.MaxInt16)
+	testResChs := []chan ping.Result{}
 	pingCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	ticker := time.NewTicker(time.Second)
@@ -541,6 +541,8 @@ func peerPingLoadTest(ctx context.Context, conf *testPeersConfig, tcpNode host.H
 	for !finished {
 		select {
 		case <-ticker.C:
+			testResCh := make(chan ping.Result)
+			testResChs = append(testResChs, testResCh)
 			go pingPeerContinuously(pingCtx, tcpNode, peer, testResCh)
 		case <-ctx.Done():
 			finished = true
@@ -549,12 +551,13 @@ func peerPingLoadTest(ctx context.Context, conf *testPeersConfig, tcpNode host.H
 		}
 	}
 	cancel()
-	close(testResCh)
 
 	highestRTT := time.Duration(0)
-	for val := range testResCh {
-		if val.RTT > highestRTT {
-			highestRTT = val.RTT
+	for _, ch := range testResChs {
+		for val := range ch {
+			if val.RTT > highestRTT {
+				highestRTT = val.RTT
+			}
 		}
 	}
 	if highestRTT > thresholdLoadBad {
