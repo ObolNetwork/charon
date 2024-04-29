@@ -8,9 +8,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"math"
 	"math/rand"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -201,21 +203,31 @@ func pingPeerOnce(ctx context.Context, tcpNode host.Host, peer p2p.Peer) (ping.R
 	return result, nil
 }
 
-func pingPeerContinuously(ctx context.Context, tcpNode host.Host, peer p2p.Peer, resCh chan ping.Result) {
-	defer close(resCh)
+func pingPeerContinuously(ctx context.Context, tcpNode host.Host, peer p2p.Peer, resCh chan<- ping.Result) {
 	for {
+		r, err := pingPeerOnce(ctx, tcpNode, peer)
+		if err != nil {
+			return
+		}
+
 		select {
 		case <-ctx.Done():
 			return
-		default:
-			r, err := pingPeerOnce(ctx, tcpNode, peer)
-			if err != nil {
-				return
-			}
-			resCh <- r
+		case resCh <- r:
 			awaitTime := rand.Intn(100) //nolint:gosec // weak generator is not an issue here
-			time.Sleep(time.Duration(awaitTime) * time.Millisecond)
+			sleepWithContext(ctx, time.Duration(awaitTime)*time.Millisecond)
 		}
+	}
+}
+
+func sleepWithContext(ctx context.Context, d time.Duration) {
+	timer := time.NewTimer(d)
+	select {
+	case <-ctx.Done():
+		if !timer.Stop() {
+			<-timer.C
+		}
+	case <-timer.C:
 	}
 }
 
@@ -530,34 +542,31 @@ func peerPingLoadTest(ctx context.Context, conf *testPeersConfig, tcpNode host.H
 	)
 	testRes := testResult{Name: "PingLoad"}
 
-	deadlineC := time.After(conf.LoadTestDuration)
-	testResChs := []chan ping.Result{}
-	pingCtx, cancel := context.WithCancel(ctx)
+	testResCh := make(chan ping.Result, math.MaxInt16)
+	pingCtx, cancel := context.WithTimeout(ctx, conf.LoadTestDuration)
 	defer cancel()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	finished := false
-	for !finished {
+	var wg sync.WaitGroup
+	for pingCtx.Err() == nil {
 		select {
 		case <-ticker.C:
-			testResCh := make(chan ping.Result)
-			testResChs = append(testResChs, testResCh)
-			go pingPeerContinuously(pingCtx, tcpNode, peer, testResCh)
-		case <-ctx.Done():
-			finished = true
-		case <-deadlineC:
-			finished = true
+			wg.Add(1)
+			go func() {
+				pingPeerContinuously(pingCtx, tcpNode, peer, testResCh)
+				wg.Done()
+			}()
+		case <-pingCtx.Done():
 		}
 	}
-	cancel()
+	wg.Wait()
+	close(testResCh)
 
 	highestRTT := time.Duration(0)
-	for _, ch := range testResChs {
-		for val := range ch {
-			if val.RTT > highestRTT {
-				highestRTT = val.RTT
-			}
+	for val := range testResCh {
+		if val.RTT > highestRTT {
+			highestRTT = val.RTT
 		}
 	}
 	if highestRTT > thresholdLoadBad {
