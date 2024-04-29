@@ -204,14 +204,14 @@ func pingPeerOnce(ctx context.Context, tcpNode host.Host, peer p2p.Peer) (ping.R
 
 func pingPeerContinuously(ctx context.Context, tcpNode host.Host, peer p2p.Peer, resCh chan ping.Result) {
 	for {
+		r, err := pingPeerOnce(ctx, tcpNode, peer)
+		if err != nil {
+			return
+		}
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			r, err := pingPeerOnce(ctx, tcpNode, peer)
-			if err != nil {
-				return
-			}
 			resCh <- r
 			awaitTime := rand.Intn(100) //nolint:gosec // weak generator is not an issue here
 			time.Sleep(time.Duration(awaitTime) * time.Millisecond)
