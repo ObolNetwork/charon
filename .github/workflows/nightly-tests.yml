@@ -6,7 +6,7 @@ on:
 
 jobs:
   nightly_test:
-    runs-on: ubuntu-latest
+    runs-on: charon-ci
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4

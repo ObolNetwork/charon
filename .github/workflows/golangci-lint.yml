@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   golangci:
-    runs-on: ubuntu-latest
+    runs-on: charon-ci
     steps:
       # Config options can be found in README here: https://github.com/golangci/golangci-lint-action
       - uses: actions/setup-go@v4
