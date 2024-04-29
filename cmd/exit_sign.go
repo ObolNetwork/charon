@@ -68,7 +68,7 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 
 	rawValKeys, err := keystore.LoadFilesUnordered(config.ValidatorKeysDir)
 	if err != nil {
-		return errors.Wrap(err, "could not load keystore")
+		return errors.Wrap(err, "could not load keystore, check if path exists", z.Str("path", config.ValidatorKeysDir))
 	}
 
 	valKeys, err := rawValKeys.SequencedKeys()
