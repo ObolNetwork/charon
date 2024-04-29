@@ -105,6 +105,7 @@ func (s testResultError) MarshalText() ([]byte, error) {
 	if s.error == nil {
 		return []byte{}, nil
 	}
+
 	return []byte(s.Error()), nil
 }
 
