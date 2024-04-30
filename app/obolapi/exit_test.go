@@ -29,11 +29,6 @@ const exitEpoch = eth2p0.Epoch(162304)
 func TestAPIFlow(t *testing.T) {
 	kn := 4
 
-	handler, addLockFiles := obolapimock.MockServer(false)
-	srv := httptest.NewServer(handler)
-
-	defer srv.Close()
-
 	beaconMock, err := beaconmock.New()
 	require.NoError(t, err)
 	defer func() {
@@ -41,6 +36,11 @@ func TestAPIFlow(t *testing.T) {
 	}()
 
 	mockEth2Cl := eth2Client(t, context.Background(), beaconMock.Address())
+
+	handler, addLockFiles := obolapimock.MockServer(false, mockEth2Cl)
+	srv := httptest.NewServer(handler)
+
+	defer srv.Close()
 
 	random := rand.New(rand.NewSource(int64(0)))
 
@@ -120,11 +120,6 @@ func TestAPIFlow(t *testing.T) {
 func TestAPIFlowMissingSig(t *testing.T) {
 	kn := 4
 
-	handler, addLockFiles := obolapimock.MockServer(true)
-	srv := httptest.NewServer(handler)
-
-	defer srv.Close()
-
 	beaconMock, err := beaconmock.New()
 	require.NoError(t, err)
 	defer func() {
@@ -132,6 +127,11 @@ func TestAPIFlowMissingSig(t *testing.T) {
 	}()
 
 	mockEth2Cl := eth2Client(t, context.Background(), beaconMock.Address())
+
+	handler, addLockFiles := obolapimock.MockServer(true, mockEth2Cl)
+	srv := httptest.NewServer(handler)
+
+	defer srv.Close()
 
 	random := rand.New(rand.NewSource(int64(0)))
 
