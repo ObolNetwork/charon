@@ -6,7 +6,7 @@ on:
       - main*
 jobs:
   unit_tests:
-    runs-on: ubuntu-latest
+    runs-on: charon-ci
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
@@ -28,7 +28,10 @@ jobs:
           files: coverage.out
 
   integration_tests:
-    runs-on: ubuntu-latest
+    runs-on: charon-ci
+    if: ${{ always() }} # makes this step always execute, even if unit_tests fails
+    needs:
+      - unit_tests
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
@@ -45,7 +48,11 @@ jobs:
       - run: go test -v -timeout=10m -race github.com/obolnetwork/charon/testutil/integration -integration
 
   compose_tests:
-    runs-on: ubuntu-latest
+    runs-on: charon-ci
+    if: ${{ always() }} # makes this step always execute, even if unit_tests or integration_tests fails
+    needs:
+      - unit_tests
+      - integration_tests
     steps:
       - uses: actions/checkout@v3
       - name: Set up QEMU
