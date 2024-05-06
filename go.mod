@@ -3,7 +3,7 @@ module github.com/obolnetwork/charon
 go 1.21
 
 require (
-	github.com/attestantio/go-eth2-client v0.19.10
+	github.com/attestantio/go-eth2-client v0.21.1
 	github.com/bufbuild/buf v1.31.0
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0
@@ -171,6 +171,7 @@ require (
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/vbatts/tar-split v0.11.5 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.22.0 // indirect

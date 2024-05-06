@@ -118,7 +118,7 @@ type Duty struct {
 - `DutyAttester = 2`: Creating an attestation
 - `DutySignature = 3`: Signing duty data
 - `DutyExit = 4`: Exiting a validator
-- `DutyBuilderProposer = 5`: Proposing a blinded block received from the builder network
+- `DutyBuilderProposer = 5`: Proposing a blinded block received from the builder network (deprecated)
 - `DutyBuilderRegistration = 6`: Registering a validator to the builder network
 - `DutyRandao = 7`: Creating a randao reveal signature required as input to DutyProposer
 - `DutyPrepareAggregator = 8`: Preparing for aggregator ([beacon committee](https://eth2book.info/capella/part2/building_blocks/committees/), [sync committee](https://eth2book.info/capella/part2/building_blocks/sync_committees/)) duties
@@ -131,6 +131,23 @@ type Duty struct {
 > ℹ️ Duty is on a cluster level, not a DV level. A duty defines the “unit of work” for the whole cluster,
 > not just a single DV. This allows the workflow to aggregate and batch multiple DVs in some steps, specifically consensus.
 > Which is critical for clusters with a large number of DVs.
+
+### DutyBuilderProposer deprecation
+The new version of Beacon API spec introduced [produceBlockV3](https://ethereum.github.io/beacon-APIs/#/Validator/produceBlockV3) endpoint,
+which is now fully supported by Charon (since v1).
+
+Previously, `DutyProposer` and `DutyBuilderProposer` served full and blinded blocks respectively.
+Now, `DutyProposer` serves both full and blinded blocks. To this end, the serialization logic incorporated `Blinded` flag,
+which is used across many components to determine the corresponding block type.
+The deprecated `DutyBuilderProposer` definition is kept in the codebase for testing period and will be removed in the future.
+Every component hitting `DutyBuilderProposer`, must return `ErrDeprecatedDutyBuilderProposer` error.
+
+The new v3 endpoint specification added a few new parameters and this is how Charon handles them:
+* `builder_boost_factor`: Charon overrides VC's value in according with Builder API flag: when the flag is `true`, Charon sets `builder_boost_factor` to `math.MaxUint64`, otherwise to `0`. To guarantee consistency, all Charon nodes in a cluster shall have the same Builder API flag.
+* `Eth-Execution-Payload-Value` and `Eth-Consensus-Block-Value` are always set to `1`, since these are required parameters. Charon does not propagate BN's values to VC to avoid potential inconsistencies caused by different BN providers.
+
+> ℹ️ The change in serialization (both json and ssz) introduced *a breaking change* in the internal protocol.
+Therefore, Charon v1.x will not work together with Charon v0.x. See *Version compatibility* section of `README.md` for more details.
 
 ### Scheduler
 
@@ -331,10 +348,6 @@ type DutyDB interface {
         // for the slot when available. It also returns the DV public key.
         AwaitBeaconBlock(context.Context, slot int) (PubKey, beaconapi.BeaconBlock, error)
 
-        // AwaitBlindedBeaconBlock blocks and returns the proposed blinded beacon block
-        // for the slot when available. It also returns the DV public key.
-        AwaitBlindedBeaconBlock(context.Context, slot int) (PubKey, beaconapi.BlindedBeaconBlock, error)
-
         // AwaitAttestation blocks and returns the attestation data
         // for the slot and committee index when available.
         AwaitAttestation(context.Context, slot int, commIdx int) (*beaconapi.AttestationData, error)
@@ -388,19 +401,12 @@ The validator API provides the following beacon-node endpoints relating to dutie
   - The request arguments are: `slot` and `committee_index`
   - Query the `DutyDB` `AwaitAttester` with `slot` and `committee_index`
   - Serve response
-- `GET /eth/v2/validator/blocks/{slot}` Produce a new block, without signature.
-  - The request arguments are: `slot` and `randao_reveal`
+- `GET /eth/v3/validator/blocks/{slot}` Produce a new (full or blinded) block, without signature.
+  - The request arguments are: `slot`, `randao_reveal` and `builder_boost_factor`
   - Lookup `PubKey` by querying the `Scheduler` `AwaitProposer` with the slot in the request body.
   - Verify `randao_reveal` signature.
   - Construct a `DutyRandao` `ParSignedData` and submit it to `ParSigDB` for async aggregation and inclusion in block consensus.
   - Query the `DutyDB` `AwaitBeaconBlock` with the `slot`
-  - Serve response
-- `GET /eth/v1/validator/blinded_blocks/{slot}` Produce a new blinded block, without signature.
-  - The request arguments are: `slot` and `randao_reveal`
-  - Lookup `PubKey` by querying the `Scheduler` `AwaitBuilderProposer` with the slot in the request body.
-  - Verify `randao_reveal` signature.
-  - Construct a `DutyRandao` `ParSignedData` and submit it to `ParSigDB` for async aggregation and inclusion in block consensus.
-  - Query the `DutyDB` `AwaitBlindedBeaconBlock` with the `slot`
   - Serve response
 - `POST /eth/v1/beacon/pool/attestations` Submit Attestation objects to node
   - Construct a `ParSignedData` for each attestation object in request body.
@@ -436,9 +442,6 @@ type ValidatorAPI interface {
 	// RegisterAwaitProposal registers a function to query unsigned beacon block proposals by providing the slot.
 	RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error))
 
-	// RegisterAwaitBlindedProposal registers a function to query unsigned blinded beacon block proposals by providing the slot.
-	RegisterAwaitBlindedProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedBlindedProposal, error))
-
 	// RegisterAwaitAttestation registers a function to query attestation data.
 	RegisterAwaitAttestation(func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error))
 
@@ -468,7 +471,7 @@ which authorises charon to request adhoc signatures from a [remote signer instan
 In the _middleware_ architecture charon cannot initiate signatures itself and has to
 wait for the VC to submit signatures.
 
-Duties originating in the `scheduler` (`DutyAttester`, `DutyProposer`, `DutyBuilderProposer`) are not significantly affected by this change in architecture.
+Duties originating in the `scheduler` (`DutyAttester`, `DutyProposer`) are not significantly affected by this change in architecture.
 Instead of waiting for the `validatorapi` to submit signatures, these duties directly request
 signatures from the remote signer instance. The flow is otherwise unaffected.
 

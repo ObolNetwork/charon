@@ -10,4 +10,5 @@ coverage:
         informational: true
 ignore:
   - "**/*_test.go"
+  - "**/mocks/*.go"
   - "testutil"

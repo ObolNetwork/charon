@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -24,6 +25,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
+	"github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2mock "github.com/attestantio/go-eth2-client/mock"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
@@ -143,7 +145,7 @@ func TestRawRouter(t *testing.T) {
 		handler := testHandler{}
 
 		callback := func(ctx context.Context, baseURL string) {
-			res, err := http.Get(baseURL + "/eth/v2/validator/blocks/123")
+			res, err := http.Get(baseURL + "/eth/v3/validator/blocks/123")
 			require.NoError(t, err)
 
 			var errRes errorResponse
@@ -162,7 +164,7 @@ func TestRawRouter(t *testing.T) {
 		handler := testHandler{}
 
 		callback := func(ctx context.Context, baseURL string) {
-			res, err := http.Get(baseURL + "/eth/v2/validator/blocks/123?randao_reveal=0x0000")
+			res, err := http.Get(baseURL + "/eth/v3/validator/blocks/123?randao_reveal=0x0000")
 			require.NoError(t, err)
 
 			var errRes errorResponse
@@ -188,7 +190,7 @@ func TestRawRouter(t *testing.T) {
 
 		callback := func(ctx context.Context, baseURL string) {
 			randao := testutil.RandomEth2Signature().String()
-			res, err := http.Get(baseURL + "/eth/v2/validator/blocks/123?randao_reveal=" + randao)
+			res, err := http.Get(baseURL + "/eth/v3/validator/blocks/123?randao_reveal=" + randao)
 			require.NoError(t, err)
 
 			var okResp struct{ Data json.RawMessage }
@@ -432,8 +434,8 @@ func TestRawRouter(t *testing.T) {
 		proposal := &coreBlock.VersionedSignedProposal
 
 		handler := testHandler{
-			SubmitProposalFunc: func(ctx context.Context, actual *eth2api.VersionedSignedProposal) error {
-				require.Equal(t, proposal, actual)
+			SubmitProposalFunc: func(ctx context.Context, actual *eth2api.SubmitProposalOpts) error {
+				require.Equal(t, proposal, actual.Proposal)
 				done.Store(true)
 
 				return nil
@@ -464,8 +466,8 @@ func TestRawRouter(t *testing.T) {
 		proposal := &coreBlock.VersionedSignedProposal
 
 		handler := testHandler{
-			SubmitProposalFunc: func(ctx context.Context, actual *eth2api.VersionedSignedProposal) error {
-				require.Equal(t, proposal, actual)
+			SubmitProposalFunc: func(ctx context.Context, actual *eth2api.SubmitProposalOpts) error {
+				require.Equal(t, proposal, actual.Proposal)
 				done.Store(true)
 
 				return nil
@@ -496,8 +498,8 @@ func TestRawRouter(t *testing.T) {
 		proposal := &coreBlock.VersionedSignedProposal
 
 		handler := testHandler{
-			SubmitProposalFunc: func(ctx context.Context, actual *eth2api.VersionedSignedProposal) error {
-				require.Equal(t, proposal, actual)
+			SubmitProposalFunc: func(ctx context.Context, actual *eth2api.SubmitProposalOpts) error {
+				require.Equal(t, proposal, actual.Proposal)
 				done.Store(true)
 
 				return nil
@@ -522,96 +524,18 @@ func TestRawRouter(t *testing.T) {
 		require.True(t, done.Load())
 	})
 
-	t.Run("get response header for beacon block proposal", func(t *testing.T) {
-		block := &eth2api.VersionedProposal{
-			Version: eth2spec.DataVersionCapella,
-			Capella: testutil.RandomCapellaBeaconBlock(),
-		}
-		expectedSlot, err := block.Slot()
-		require.NoError(t, err)
-		randao := block.Capella.Body.RANDAOReveal
-		handler := testHandler{
-			ProposalFunc: func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
-				require.Equal(t, expectedSlot, opts.Slot)
-				require.Equal(t, randao, opts.RandaoReveal)
-
-				return wrapResponse(block), nil
-			},
-		}
-
-		callback := func(ctx context.Context, baseURL string) {
-			res, err := http.Get(baseURL + fmt.Sprintf("/eth/v2/validator/blocks/%d?randao_reveal=%#x", expectedSlot, randao))
-			require.NoError(t, err)
-
-			// Verify response header.
-			require.Equal(t, block.Version.String(), res.Header.Get(versionHeader))
-
-			var blockRes proposeBlockResponseCapella
-			err = json.NewDecoder(res.Body).Decode(&blockRes)
-			require.NoError(t, err)
-			require.EqualValues(t, block.Capella, blockRes.Data)
-		}
-
-		testRawRouter(t, handler, callback)
-	})
-
-	t.Run("get response header for blinded block proposal", func(t *testing.T) {
-		block := &eth2api.VersionedBlindedProposal{
-			Version: eth2spec.DataVersionCapella,
-			Capella: testutil.RandomCapellaBlindedBeaconBlock(),
-		}
-		expectedSlot, err := block.Slot()
-		require.NoError(t, err)
-		randao := block.Capella.Body.RANDAOReveal
-		handler := testHandler{
-			BlindedProposalFunc: func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error) {
-				require.Equal(t, expectedSlot, opts.Slot)
-				require.Equal(t, randao, opts.RandaoReveal)
-
-				return wrapResponse(block), nil
-			},
-		}
-
-		callback := func(ctx context.Context, baseURL string) {
-			res, err := http.Get(baseURL + fmt.Sprintf("/eth/v1/validator/blinded_blocks/%d?randao_reveal=%#x", expectedSlot, randao))
-			require.NoError(t, err)
-
-			// Verify response header.
-			require.Equal(t, block.Version.String(), res.Header.Get(versionHeader))
-
-			var blockRes proposeBlindedBlockResponseCapella
-			err = json.NewDecoder(res.Body).Decode(&blockRes)
-			require.NoError(t, err)
-			require.EqualValues(t, block.Capella, blockRes.Data)
-		}
-
-		testRawRouter(t, handler, callback)
-	})
-
 	t.Run("get response header for block proposal v3", func(t *testing.T) {
-		blindedBlock := &eth2api.VersionedBlindedProposal{
-			Version: eth2spec.DataVersionCapella,
-			Capella: testutil.RandomCapellaBlindedBeaconBlock(),
-		}
-		blindedExpectedSlot, err := blindedBlock.Slot()
-		require.NoError(t, err)
-		blindedRandao := blindedBlock.Capella.Body.RANDAOReveal
-
 		block := &eth2api.VersionedProposal{
-			Version: eth2spec.DataVersionCapella,
-			Capella: testutil.RandomCapellaBeaconBlock(),
+			Version:        eth2spec.DataVersionCapella,
+			Capella:        testutil.RandomCapellaBeaconBlock(),
+			ExecutionValue: big.NewInt(123),
+			ConsensusValue: big.NewInt(456),
 		}
 		expectedSlot, err := block.Slot()
 		require.NoError(t, err)
 		randao := block.Capella.Body.RANDAOReveal
 
 		handler := testHandler{
-			BlindedProposalFunc: func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error) {
-				require.Equal(t, blindedExpectedSlot, opts.Slot)
-				require.Equal(t, blindedRandao, opts.RandaoReveal)
-
-				return wrapResponse(blindedBlock), nil
-			},
 			ProposalFunc: func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
 				require.Equal(t, expectedSlot, opts.Slot)
 				require.Equal(t, randao, opts.RandaoReveal)
@@ -627,37 +551,25 @@ func TestRawRouter(t *testing.T) {
 			return res
 		}
 
-		blindedCallback := func(ctx context.Context, baseURL string) {
-			res := mustGetRequest(baseURL, blindedExpectedSlot, blindedRandao)
-
-			// Verify response header.
-			require.Equal(t, blindedBlock.Version.String(), res.Header.Get(versionHeader))
-			require.Equal(t, "true", res.Header.Get(executionPayloadBlindedHeader))
-
-			var blockRes proposeBlindedBlockResponseCapella
-			err = json.NewDecoder(res.Body).Decode(&blockRes)
-			require.NoError(t, err)
-			require.EqualValues(t, blindedBlock.Capella, blockRes.Data)
-		}
-
-		// BuilderAPI is disabled, we expect to get the blinded block
-		testRawRouterEx(t, handler, blindedCallback, func(_ uint64) bool { return true })
-
 		callback := func(ctx context.Context, baseURL string) {
 			res := mustGetRequest(baseURL, expectedSlot, randao)
 
 			// Verify response header.
 			require.Equal(t, block.Version.String(), res.Header.Get(versionHeader))
 			require.Equal(t, "false", res.Header.Get(executionPayloadBlindedHeader))
+			require.Equal(t, block.ExecutionValue.String(), res.Header.Get(executionPayloadValueHeader))
+			require.Equal(t, block.ConsensusValue.String(), res.Header.Get(consensusBlockValueHeader))
 
-			var blockRes proposeBlockResponseCapella
+			var blockRes proposeBlockV3Response
 			err = json.NewDecoder(res.Body).Decode(&blockRes)
 			require.NoError(t, err)
-			require.EqualValues(t, block.Capella, blockRes.Data)
+			require.Equal(t, block.Blinded, blockRes.ExecutionPayloadBlinded)
+			require.Equal(t, block.ExecutionValue.String(), blockRes.ExecutionPayloadValue)
+			require.Equal(t, block.ConsensusValue.String(), blockRes.ConsensusBlockValue)
 		}
 
-		// BuilderAPI is enabled, we expect to get the full block
-		testRawRouterEx(t, handler, callback, func(_ uint64) bool { return false })
+		// BuilderAPI is disabled, we expect to get the blinded block
+		testRawRouterEx(t, handler, callback, func(_ uint64) bool { return true })
 	})
 }
 
@@ -1093,8 +1005,8 @@ func TestRouter(t *testing.T) {
 
 	t.Run("submit randao blinded block", func(t *testing.T) {
 		handler := testHandler{
-			BlindedProposalFunc: func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error) {
-				return &eth2api.Response[*eth2api.VersionedBlindedProposal]{}, errors.New("not implemented")
+			ProposalFunc: func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
+				return &eth2api.Response[*eth2api.VersionedProposal]{}, errors.New("not implemented")
 			},
 		}
 
@@ -1125,14 +1037,16 @@ func TestRouter(t *testing.T) {
 			},
 		}
 		handler := testHandler{
-			SubmitProposalFunc: func(ctx context.Context, block *eth2api.VersionedSignedProposal) error {
-				require.Equal(t, block, block1)
+			SubmitProposalFunc: func(ctx context.Context, block *eth2api.SubmitProposalOpts) error {
+				require.Equal(t, block.Proposal, block1)
 				return nil
 			},
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			err := cl.SubmitProposal(ctx, block1)
+			err := cl.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+				Proposal: block1,
+			})
 			require.NoError(t, err)
 		}
 
@@ -1148,14 +1062,16 @@ func TestRouter(t *testing.T) {
 			},
 		}
 		handler := testHandler{
-			SubmitProposalFunc: func(ctx context.Context, block *eth2api.VersionedSignedProposal) error {
-				require.Equal(t, block, block1)
+			SubmitProposalFunc: func(ctx context.Context, block *eth2api.SubmitProposalOpts) error {
+				require.Equal(t, block.Proposal, block1)
 				return nil
 			},
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			err := cl.SubmitProposal(ctx, block1)
+			err := cl.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+				Proposal: block1,
+			})
 			require.NoError(t, err)
 		}
 
@@ -1171,14 +1087,16 @@ func TestRouter(t *testing.T) {
 			},
 		}
 		handler := testHandler{
-			SubmitProposalFunc: func(ctx context.Context, block *eth2api.VersionedSignedProposal) error {
-				require.Equal(t, block, block1)
+			SubmitProposalFunc: func(ctx context.Context, block *eth2api.SubmitProposalOpts) error {
+				require.Equal(t, block.Proposal, block1)
 				return nil
 			},
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			err := cl.SubmitProposal(ctx, block1)
+			err := cl.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+				Proposal: block1,
+			})
 			require.NoError(t, err)
 		}
 
@@ -1194,14 +1112,16 @@ func TestRouter(t *testing.T) {
 			},
 		}
 		handler := testHandler{
-			SubmitProposalFunc: func(ctx context.Context, block *eth2api.VersionedSignedProposal) error {
-				require.Equal(t, block, block1)
+			SubmitProposalFunc: func(ctx context.Context, block *eth2api.SubmitProposalOpts) error {
+				require.Equal(t, block.Proposal, block1)
 				return nil
 			},
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			err := cl.SubmitProposal(ctx, block1)
+			err := cl.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+				Proposal: block1,
+			})
 			require.NoError(t, err)
 		}
 
@@ -1217,14 +1137,16 @@ func TestRouter(t *testing.T) {
 			},
 		}
 		handler := testHandler{
-			SubmitBlindedProposalFunc: func(ctx context.Context, block *eth2api.VersionedSignedBlindedProposal) error {
-				require.Equal(t, block, block1)
+			SubmitBlindedProposalFunc: func(ctx context.Context, block *eth2api.SubmitBlindedProposalOpts) error {
+				require.Equal(t, block.Proposal, block1)
 				return nil
 			},
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			err := cl.SubmitBlindedProposal(ctx, block1)
+			err := cl.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+				Proposal: block1,
+			})
 			require.NoError(t, err)
 		}
 
@@ -1240,14 +1162,41 @@ func TestRouter(t *testing.T) {
 			},
 		}
 		handler := testHandler{
-			SubmitBlindedProposalFunc: func(ctx context.Context, block *eth2api.VersionedSignedBlindedProposal) error {
-				require.Equal(t, block1, block)
+			SubmitBlindedProposalFunc: func(ctx context.Context, block *eth2api.SubmitBlindedProposalOpts) error {
+				require.Equal(t, block1, block.Proposal)
 				return nil
 			},
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			err := cl.SubmitBlindedProposal(ctx, block1)
+			err := cl.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+				Proposal: block1,
+			})
+			require.NoError(t, err)
+		}
+
+		testRouter(t, handler, callback)
+	})
+
+	t.Run("submit blinded block deneb", func(t *testing.T) {
+		block1 := &eth2api.VersionedSignedBlindedProposal{
+			Version: eth2spec.DataVersionDeneb,
+			Deneb: &deneb.SignedBlindedBeaconBlock{
+				Message:   testutil.RandomDenebBlindedBeaconBlock(),
+				Signature: testutil.RandomEth2Signature(),
+			},
+		}
+		handler := testHandler{
+			SubmitBlindedProposalFunc: func(ctx context.Context, block *eth2api.SubmitBlindedProposalOpts) error {
+				require.Equal(t, block1, block.Proposal)
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			err := cl.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+				Proposal: block1,
+			})
 			require.NoError(t, err)
 		}
 
@@ -1560,6 +1509,206 @@ func TestGetDependentRootFromMetadata(t *testing.T) {
 	})
 }
 
+func TestCreateProposeBlindedBlockResponse(t *testing.T) {
+	p := &eth2api.VersionedProposal{
+		Version: eth2spec.DataVersionPhase0,
+		Phase0:  testutil.RandomPhase0BeaconBlock(),
+		Blinded: true,
+	}
+
+	_, err := createProposeBlockResponse(p)
+	require.ErrorContains(t, err, "invalid blinded block")
+
+	t.Run("bellatrix", func(t *testing.T) {
+		p = &eth2api.VersionedProposal{
+			Version:          eth2spec.DataVersionBellatrix,
+			BellatrixBlinded: testutil.RandomBellatrixBlindedBeaconBlock(),
+			Blinded:          true,
+			ConsensusValue:   big.NewInt(123),
+			ExecutionValue:   big.NewInt(456),
+		}
+
+		pp, err := createProposeBlockResponse(p)
+		require.NoError(t, err)
+		require.NotNil(t, pp)
+		require.Equal(t, p.Version.String(), pp.Version)
+		require.Equal(t, p.BellatrixBlinded, pp.Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.ExecutionPayloadValue)
+
+		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
+			Version: eth2spec.DataVersionBellatrix,
+			Blinded: true,
+		})
+		require.ErrorContains(t, err, "no bellatrix blinded block")
+	})
+
+	t.Run("capella", func(t *testing.T) {
+		p := &eth2api.VersionedProposal{
+			Version:        eth2spec.DataVersionCapella,
+			CapellaBlinded: testutil.RandomCapellaBlindedBeaconBlock(),
+			Blinded:        true,
+			ConsensusValue: big.NewInt(123),
+			ExecutionValue: big.NewInt(456),
+		}
+
+		pp, err := createProposeBlockResponse(p)
+		require.NoError(t, err)
+		require.NotNil(t, pp)
+		require.Equal(t, p.Version.String(), pp.Version)
+		require.Equal(t, p.CapellaBlinded, pp.Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.ExecutionPayloadValue)
+
+		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
+			Version: eth2spec.DataVersionCapella,
+			Blinded: true,
+		})
+		require.ErrorContains(t, err, "no capella blinded block")
+	})
+
+	t.Run("deneb", func(t *testing.T) {
+		p := &eth2api.VersionedProposal{
+			Version:        eth2spec.DataVersionDeneb,
+			DenebBlinded:   testutil.RandomDenebBlindedBeaconBlock(),
+			Blinded:        true,
+			ConsensusValue: big.NewInt(123),
+			ExecutionValue: big.NewInt(456),
+		}
+
+		pp, err := createProposeBlockResponse(p)
+		require.NoError(t, err)
+		require.NotNil(t, pp)
+		require.Equal(t, p.Version.String(), pp.Version)
+		require.Equal(t, p.DenebBlinded, pp.Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.ExecutionPayloadValue)
+
+		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
+			Version: eth2spec.DataVersionDeneb,
+			Blinded: true,
+		})
+		require.ErrorContains(t, err, "no deneb blinded block")
+	})
+}
+
+func TestCreateProposeBlockResponse(t *testing.T) {
+	p := &eth2api.VersionedProposal{
+		Version: eth2spec.DataVersionUnknown,
+	}
+
+	_, err := createProposeBlockResponse(p)
+	require.ErrorContains(t, err, "invalid block")
+
+	t.Run("phase0", func(t *testing.T) {
+		p = &eth2api.VersionedProposal{
+			Version:        eth2spec.DataVersionPhase0,
+			Phase0:         testutil.RandomPhase0BeaconBlock(),
+			ConsensusValue: big.NewInt(123),
+			ExecutionValue: big.NewInt(456),
+		}
+
+		pp, err := createProposeBlockResponse(p)
+		require.NoError(t, err)
+		require.NotNil(t, pp)
+		require.Equal(t, p.Version.String(), pp.Version)
+		require.Equal(t, p.Phase0, pp.Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.ExecutionPayloadValue)
+
+		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
+			Version: eth2spec.DataVersionPhase0,
+		})
+		require.ErrorContains(t, err, "no phase0 block")
+	})
+
+	t.Run("altair", func(t *testing.T) {
+		p = &eth2api.VersionedProposal{
+			Version:        eth2spec.DataVersionAltair,
+			Altair:         testutil.RandomAltairBeaconBlock(),
+			ConsensusValue: big.NewInt(123),
+			ExecutionValue: big.NewInt(456),
+		}
+
+		pp, err := createProposeBlockResponse(p)
+		require.NoError(t, err)
+		require.NotNil(t, pp)
+		require.Equal(t, p.Version.String(), pp.Version)
+		require.Equal(t, p.Altair, pp.Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.ExecutionPayloadValue)
+
+		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
+			Version: eth2spec.DataVersionAltair,
+		})
+		require.ErrorContains(t, err, "no altair block")
+	})
+
+	t.Run("bellatrix", func(t *testing.T) {
+		p = &eth2api.VersionedProposal{
+			Version:        eth2spec.DataVersionBellatrix,
+			Bellatrix:      testutil.RandomBellatrixBeaconBlock(),
+			ConsensusValue: big.NewInt(123),
+			ExecutionValue: big.NewInt(456),
+		}
+
+		pp, err := createProposeBlockResponse(p)
+		require.NoError(t, err)
+		require.NotNil(t, pp)
+		require.Equal(t, p.Version.String(), pp.Version)
+		require.Equal(t, p.Bellatrix, pp.Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.ExecutionPayloadValue)
+
+		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
+			Version: eth2spec.DataVersionBellatrix,
+		})
+		require.ErrorContains(t, err, "no bellatrix block")
+	})
+
+	t.Run("capella", func(t *testing.T) {
+		p := &eth2api.VersionedProposal{
+			Version:        eth2spec.DataVersionCapella,
+			Capella:        testutil.RandomCapellaBeaconBlock(),
+			ConsensusValue: big.NewInt(123),
+			ExecutionValue: big.NewInt(456),
+		}
+
+		pp, err := createProposeBlockResponse(p)
+		require.NoError(t, err)
+		require.NotNil(t, pp)
+		require.Equal(t, p.Version.String(), pp.Version)
+		require.Equal(t, p.Capella, pp.Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.ExecutionPayloadValue)
+
+		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
+			Version: eth2spec.DataVersionCapella,
+		})
+		require.ErrorContains(t, err, "no capella block")
+	})
+
+	t.Run("deneb", func(t *testing.T) {
+		p := &eth2api.VersionedProposal{
+			Version:        eth2spec.DataVersionDeneb,
+			Deneb:          testutil.RandomDenebVersionedProposal().Deneb,
+			ConsensusValue: big.NewInt(123),
+			ExecutionValue: big.NewInt(456),
+		}
+
+		pp, err := createProposeBlockResponse(p)
+		require.NoError(t, err)
+		require.NotNil(t, pp)
+		require.Equal(t, p.Version.String(), pp.Version)
+		require.Equal(t, p.Deneb, pp.Data)
+
+		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
+			Version: eth2spec.DataVersionDeneb,
+		})
+		require.ErrorContains(t, err, "no deneb block")
+	})
+}
+
 // testRouter is a helper function to test router endpoints with an eth2http client. The outer test
 // provides the mocked test handler and a callback that does the client side test.
 func testRouter(t *testing.T, handler testHandler, callback func(context.Context, *eth2http.Service)) {
@@ -1618,9 +1767,8 @@ type testHandler struct {
 	AttestationDataFunc                    func(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error)
 	AttesterDutiesFunc                     func(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error)
 	ProposalFunc                           func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error)
-	SubmitProposalFunc                     func(ctx context.Context, proposal *eth2api.VersionedSignedProposal) error
-	BlindedProposalFunc                    func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error)
-	SubmitBlindedProposalFunc              func(ctx context.Context, proposal *eth2api.VersionedSignedBlindedProposal) error
+	SubmitProposalFunc                     func(ctx context.Context, proposal *eth2api.SubmitProposalOpts) error
+	SubmitBlindedProposalFunc              func(ctx context.Context, proposal *eth2api.SubmitBlindedProposalOpts) error
 	ProposerDutiesFunc                     func(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error)
 	NodeVersionFunc                        func(ctx context.Context, opts *eth2api.NodeVersionOpts) (*eth2api.Response[string], error)
 	ValidatorsFunc                         func(ctx context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error)
@@ -1647,15 +1795,11 @@ func (h testHandler) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (
 	return h.ProposalFunc(ctx, opts)
 }
 
-func (h testHandler) SubmitProposal(ctx context.Context, proposal *eth2api.VersionedSignedProposal) error {
+func (h testHandler) SubmitProposal(ctx context.Context, proposal *eth2api.SubmitProposalOpts) error {
 	return h.SubmitProposalFunc(ctx, proposal)
 }
 
-func (h testHandler) BlindedProposal(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.Response[*eth2api.VersionedBlindedProposal], error) {
-	return h.BlindedProposalFunc(ctx, opts)
-}
-
-func (h testHandler) SubmitBlindedProposal(ctx context.Context, block *eth2api.VersionedSignedBlindedProposal) error {
+func (h testHandler) SubmitBlindedProposal(ctx context.Context, block *eth2api.SubmitBlindedProposalOpts) error {
 	return h.SubmitBlindedProposalFunc(ctx, block)
 }
 
@@ -1750,6 +1894,9 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 		w.Header().Add(versionHeader, res.Version.String())
 
 		writeResponse(ctx, w, "", nest(res.Capella, "data"), nil)
+	})
+	mux.HandleFunc("/eth/v1/node/syncing", func(w http.ResponseWriter, r *http.Request) {
+		writeResponse(ctx, w, "", nest(map[string]any{"is_syncing": false, "head_slot": "1", "sync_distance": "1"}, "data"), nil)
 	})
 
 	if h.ProxyHandler != nil {

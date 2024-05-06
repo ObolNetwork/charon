@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	stdlog "log"
+	"math"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -50,6 +51,8 @@ const (
 	contentTypeSSZ                contentType = "application/octet-stream"
 	versionHeader                             = "Eth-Consensus-Version"
 	executionPayloadBlindedHeader             = "Eth-Execution-Payload-Blinded"
+	executionPayloadValueHeader               = "Eth-Execution-Payload-Value"
+	consensusBlockValueHeader                 = "Eth-Consensus-Block-Value"
 )
 
 // Handler defines the request handler providing the business logic
@@ -63,7 +66,6 @@ type Handler interface {
 	eth2client.ProposalProvider
 	eth2client.ProposalSubmitter
 	eth2exp.BeaconCommitteeSelectionAggregator
-	eth2client.BlindedProposalProvider
 	eth2client.BlindedProposalSubmitter
 	eth2client.NodeVersionProvider
 	eth2client.ProposerDutiesProvider
@@ -133,12 +135,6 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, isBuilder
 			Methods: []string{http.MethodGet},
 		},
 		{
-			Name:    "propose_block",
-			Path:    "/eth/v2/validator/blocks/{slot}",
-			Handler: proposeBlock(h),
-			Methods: []string{http.MethodGet},
-		},
-		{
 			Name:    "propose_block_v3",
 			Path:    "/eth/v3/validator/blocks/{slot}",
 			Handler: proposeBlockV3(h, isBuilderEnabled),
@@ -155,12 +151,6 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, isBuilder
 			Path:    "/eth/v2/beacon/blocks",
 			Handler: submitProposal(h),
 			Methods: []string{http.MethodPost},
-		},
-		{
-			Name:    "propose_blinded_block",
-			Path:    "/eth/v1/validator/blinded_blocks/{slot}",
-			Handler: proposeBlindedBlock(h),
-			Methods: []string{http.MethodGet},
 		},
 		{
 			Name:    "submit_blinded_block_v1",
@@ -620,129 +610,47 @@ func submitContributionAndProofs(s eth2client.SyncCommitteeContributionsSubmitte
 	}
 }
 
-// proposeBlockV3Provider combines ProposalProvider & BlindedProposalProvider interfaces.
-type proposeBlockV3Provider interface {
-	eth2client.ProposalProvider
-	eth2client.BlindedProposalProvider
-}
-
 // proposeBlockV3 returns a handler function returning an unsigned BeaconBlock or BlindedBeaconBlock.
-func proposeBlockV3(p proposeBlockV3Provider, getBuilderAPI core.BuilderEnabled) handlerFunc {
+func proposeBlockV3(p eth2client.ProposalProvider, builderEnabled core.BuilderEnabled) handlerFunc {
 	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
-		// TODO: skip_randao_verification and builder_boost_factor are ignored yet.
 		slot, randao, graffiti, err := getProposeBlockParams(params, query)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		var (
-			blinded       bool
-			version       string
-			proposedBlock any
-		)
-
-		if !getBuilderAPI(slot) {
-			opts := &eth2api.ProposalOpts{
-				Slot:         eth2p0.Slot(slot),
-				RandaoReveal: randao,
-				Graffiti:     graffiti,
-			}
-
-			eth2Resp, err := p.Proposal(ctx, opts)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			version = eth2Resp.Data.Version.String()
-			proposedBlock, err = createProposeBlockResponse(eth2Resp.Data)
-			if err != nil {
-				return nil, nil, err
-			}
-		} else {
-			opts := &eth2api.BlindedProposalOpts{
-				Slot:         eth2p0.Slot(slot),
-				RandaoReveal: randao,
-				Graffiti:     graffiti,
-			}
-
-			eth2Resp, err := p.BlindedProposal(ctx, opts)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			blinded = true
-			version = eth2Resp.Data.Version.String()
-			proposedBlock, err = createProposeBlindedBlockResponse(eth2Resp.Data)
-			if err != nil {
-				return nil, nil, err
-			}
-		}
-
-		resHeaders := make(http.Header)
-		resHeaders.Add(versionHeader, version)
-		resHeaders.Add(executionPayloadBlindedHeader, strconv.FormatBool(blinded))
-
-		// TODO: Support "Eth-Execution-Payload-Value" & "Eth-Consensus-Block-Value" headers.
-
-		return proposedBlock, resHeaders, nil
-	}
-}
-
-// proposeBlock receives the randao from the validator and returns the unsigned BeaconBlock.
-func proposeBlock(p eth2client.ProposalProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
-		slot, randao, graffiti, err := getProposeBlockParams(params, query)
-		if err != nil {
-			return nil, nil, err
+		var bbf uint64
+		if builderEnabled(slot) {
+			// This gives maximum priority to builder blocks:
+			// https://ethereum.github.io/beacon-APIs/#/Validator/produceBlockV3
+			bbf = math.MaxUint64
 		}
 
 		opts := &eth2api.ProposalOpts{
-			Slot:         eth2p0.Slot(slot),
-			RandaoReveal: randao,
-			Graffiti:     graffiti,
+			Slot:               eth2p0.Slot(slot),
+			RandaoReveal:       randao,
+			Graffiti:           graffiti,
+			BuilderBoostFactor: &bbf,
 		}
 
 		eth2Resp, err := p.Proposal(ctx, opts)
 		if err != nil {
 			return nil, nil, err
 		}
-		block := eth2Resp.Data
 
-		resHeaders := make(http.Header)
-		resHeaders.Add(versionHeader, block.Version.String())
+		proposal := eth2Resp.Data
 
-		proposedBlock, err := createProposeBlockResponse(block)
-
-		return proposedBlock, resHeaders, err
-	}
-}
-
-// proposeBlindedBlock receives the randao from the validator and returns the unsigned BlindedBeaconBlock.
-func proposeBlindedBlock(p eth2client.BlindedProposalProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
-		slot, randao, graffiti, err := getProposeBlockParams(params, query)
+		proposedBlock, err := createProposeBlockResponse(proposal)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		opts := &eth2api.BlindedProposalOpts{
-			Slot:         eth2p0.Slot(slot),
-			RandaoReveal: randao,
-			Graffiti:     graffiti,
-		}
-
-		eth2Resp, err := p.BlindedProposal(ctx, opts)
-		if err != nil {
-			return nil, nil, err
-		}
-		block := eth2Resp.Data
-
 		resHeaders := make(http.Header)
-		resHeaders.Add(versionHeader, block.Version.String())
+		resHeaders.Add(versionHeader, proposal.Version.String())
+		resHeaders.Add(executionPayloadBlindedHeader, strconv.FormatBool(proposal.Blinded))
+		resHeaders.Add(executionPayloadValueHeader, proposal.ExecutionValue.String())
+		resHeaders.Add(consensusBlockValueHeader, proposal.ConsensusValue.String())
 
-		proposedBlindedBlock, err := createProposeBlindedBlockResponse(block)
-
-		return proposedBlindedBlock, resHeaders, err
+		return proposedBlock, resHeaders, nil
 	}
 }
 
@@ -769,92 +677,88 @@ func getProposeBlockParams(params map[string]string, query url.Values) (uint64, 
 	return slot, randao, graffiti, err
 }
 
-// createProposeBlockResponse constructs proposeBlockResponse object for given block.
-func createProposeBlockResponse(block *eth2api.VersionedProposal) (any, error) {
-	switch block.Version {
+// createProposeBlockResponse constructs proposeBlockV3Response object for given block.
+func createProposeBlockResponse(proposal *eth2api.VersionedProposal) (*proposeBlockV3Response, error) {
+	var (
+		version   string
+		blockData any
+	)
+
+	switch proposal.Version {
 	case eth2spec.DataVersionPhase0:
-		if block.Phase0 == nil {
-			return 0, errors.New("no phase0 block")
+		if proposal.Blinded {
+			return nil, errors.New("invalid blinded block")
+		}
+		if proposal.Phase0 == nil {
+			return nil, errors.New("no phase0 block")
 		}
 
-		return proposeBlockResponsePhase0{
-			Version: eth2spec.DataVersionPhase0.String(),
-			Data:    block.Phase0,
-		}, nil
+		version = eth2spec.DataVersionPhase0.String()
+		blockData = proposal.Phase0
 	case eth2spec.DataVersionAltair:
-		if block.Altair == nil {
-			return 0, errors.New("no altair block")
+		if proposal.Blinded {
+			return nil, errors.New("invalid blinded block")
+		}
+		if proposal.Altair == nil {
+			return nil, errors.New("no altair block")
 		}
 
-		return proposeBlockResponseAltair{
-			Version: eth2spec.DataVersionAltair.String(),
-			Data:    block.Altair,
-		}, nil
+		version = eth2spec.DataVersionAltair.String()
+		blockData = proposal.Altair
 	case eth2spec.DataVersionBellatrix:
-		if block.Bellatrix == nil {
-			return 0, errors.New("no bellatrix block")
+		version = eth2spec.DataVersionBellatrix.String()
+		if proposal.Blinded {
+			if proposal.BellatrixBlinded == nil {
+				return nil, errors.New("no bellatrix blinded block")
+			}
+			blockData = proposal.BellatrixBlinded
+		} else {
+			if proposal.Bellatrix == nil {
+				return nil, errors.New("no bellatrix block")
+			}
+			blockData = proposal.Bellatrix
 		}
-
-		return proposeBlockResponseBellatrix{
-			Version: eth2spec.DataVersionBellatrix.String(),
-			Data:    block.Bellatrix,
-		}, nil
 	case eth2spec.DataVersionCapella:
-		if block.Capella == nil {
-			return 0, errors.New("no capella block")
+		version = eth2spec.DataVersionCapella.String()
+		if proposal.Blinded {
+			if proposal.CapellaBlinded == nil {
+				return nil, errors.New("no capella blinded block")
+			}
+			blockData = proposal.CapellaBlinded
+		} else {
+			if proposal.Capella == nil {
+				return nil, errors.New("no capella block")
+			}
+			blockData = proposal.Capella
 		}
-
-		return proposeBlockResponseCapella{
-			Version: eth2spec.DataVersionCapella.String(),
-			Data:    block.Capella,
-		}, nil
 	case eth2spec.DataVersionDeneb:
-		if block.Deneb == nil {
-			return 0, errors.New("no deneb block")
+		version = eth2spec.DataVersionDeneb.String()
+		if proposal.Blinded {
+			if proposal.DenebBlinded == nil {
+				return nil, errors.New("no deneb blinded block")
+			}
+			blockData = proposal.DenebBlinded
+		} else {
+			if proposal.Deneb == nil {
+				return nil, errors.New("no deneb block")
+			}
+			blockData = proposal.Deneb
 		}
-
-		return proposeBlockResponseDeneb{
-			Version: eth2spec.DataVersionDeneb.String(),
-			Data:    block.Deneb,
-		}, nil
 	default:
-		return 0, errors.New("invalid block")
-	}
-}
-
-// createProposeBlindedBlockResponse constructs proposeBlindedBlockResponse object for given block.
-func createProposeBlindedBlockResponse(block *eth2api.VersionedBlindedProposal) (any, error) {
-	switch block.Version {
-	case eth2spec.DataVersionBellatrix:
-		if block.Bellatrix == nil {
-			return nil, errors.New("no bellatrix block")
+		if proposal.Blinded {
+			return nil, errors.New("invalid blinded block")
 		}
 
-		return proposeBlindedBlockResponseBellatrix{
-			Version: eth2spec.DataVersionBellatrix.String(),
-			Data:    block.Bellatrix,
-		}, nil
-	case eth2spec.DataVersionCapella:
-		if block.Capella == nil {
-			return nil, errors.New("no capella block")
-		}
-
-		return proposeBlindedBlockResponseCapella{
-			Version: eth2spec.DataVersionCapella.String(),
-			Data:    block.Capella,
-		}, nil
-	case eth2spec.DataVersionDeneb:
-		if block.Deneb == nil {
-			return nil, errors.New("no deneb block")
-		}
-
-		return proposeBlindedBlockResponseDeneb{
-			Version: eth2spec.DataVersionDeneb.String(),
-			Data:    block.Deneb,
-		}, nil
-	default:
 		return nil, errors.New("invalid block")
 	}
+
+	return &proposeBlockV3Response{
+		Version:                 version,
+		Data:                    blockData,
+		ExecutionPayloadBlinded: proposal.Blinded,
+		ExecutionPayloadValue:   proposal.ExecutionValue.String(),
+		ConsensusBlockValue:     proposal.ConsensusValue.String(),
+	}, nil
 }
 
 func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
@@ -867,7 +771,9 @@ func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 				Deneb:   denebBlock,
 			}
 
-			return nil, nil, p.SubmitProposal(ctx, block)
+			return nil, nil, p.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+				Proposal: block,
+			})
 		}
 
 		capellaBlock := new(capella.SignedBeaconBlock)
@@ -878,7 +784,9 @@ func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 				Capella: capellaBlock,
 			}
 
-			return nil, nil, p.SubmitProposal(ctx, block)
+			return nil, nil, p.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+				Proposal: block,
+			})
 		}
 
 		bellatrixBlock := new(bellatrix.SignedBeaconBlock)
@@ -889,7 +797,9 @@ func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 				Bellatrix: bellatrixBlock,
 			}
 
-			return nil, nil, p.SubmitProposal(ctx, block)
+			return nil, nil, p.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+				Proposal: block,
+			})
 		}
 
 		altairBlock := new(altair.SignedBeaconBlock)
@@ -900,7 +810,9 @@ func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 				Altair:  altairBlock,
 			}
 
-			return nil, nil, p.SubmitProposal(ctx, block)
+			return nil, nil, p.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+				Proposal: block,
+			})
 		}
 
 		phase0Block := new(eth2p0.SignedBeaconBlock)
@@ -911,7 +823,9 @@ func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 				Phase0:  phase0Block,
 			}
 
-			return nil, nil, p.SubmitProposal(ctx, block)
+			return nil, nil, p.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+				Proposal: block,
+			})
 		}
 
 		return nil, nil, errors.New("invalid submitted block", z.Hex("body", body))
@@ -929,7 +843,9 @@ func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
 				Deneb:   denebBlock,
 			}
 
-			return nil, nil, p.SubmitBlindedProposal(ctx, block)
+			return nil, nil, p.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+				Proposal: block,
+			})
 		}
 
 		capellaBlock := new(eth2capella.SignedBlindedBeaconBlock)
@@ -940,7 +856,9 @@ func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
 				Capella: capellaBlock,
 			}
 
-			return nil, nil, p.SubmitBlindedProposal(ctx, block)
+			return nil, nil, p.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+				Proposal: block,
+			})
 		}
 
 		bellatrixBlock := new(eth2bellatrix.SignedBlindedBeaconBlock)
@@ -951,7 +869,9 @@ func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
 				Bellatrix: bellatrixBlock,
 			}
 
-			return nil, nil, p.SubmitBlindedProposal(ctx, block)
+			return nil, nil, p.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+				Proposal: block,
+			})
 		}
 
 		return nil, nil, errors.New("invalid block")

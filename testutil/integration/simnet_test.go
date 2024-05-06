@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -77,23 +78,16 @@ func TestSimnetDuties(t *testing.T) {
 			vcType:        vcVmock,
 		},
 		{
+			name:          "proposer with mock VCs with builder API",
+			scheduledType: core.DutyProposer,
+			duties:        []core.DutyType{core.DutyBuilderRegistration, core.DutyProposer, core.DutyRandao},
+			vcType:        vcVmock,
+			builderAPI:    true,
+		},
+		{
 			name:          "proposer with teku",
 			scheduledType: core.DutyProposer,
 			duties:        []core.DutyType{core.DutyProposer, core.DutyRandao},
-			vcType:        vcTeku,
-		},
-		{
-			name:          "builder proposer with mock VCs",
-			scheduledType: core.DutyProposer,
-			duties:        []core.DutyType{core.DutyBuilderRegistration, core.DutyBuilderProposer, core.DutyRandao},
-			builderAPI:    true,
-			vcType:        vcVmock,
-		},
-		{
-			name:          "builder proposer with teku",
-			scheduledType: core.DutyProposer,
-			duties:        []core.DutyType{core.DutyBuilderProposer, core.DutyRandao, core.DutyBuilderRegistration},
-			builderAPI:    true,
 			vcType:        vcTeku,
 		},
 		{
@@ -410,6 +404,8 @@ var (
 		"validator-client",
 		"--network=auto",
 		"--log-destination=console",
+		"--Xblock-v3-enabled=true",
+		"--validators-external-signer-slashing-protection-enabled=true",
 		"--validators-proposer-default-fee-recipient=0x000000000000000000000000000000000000dead",
 	}
 	tekuExit tekuCmd = []string{
@@ -450,7 +446,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 	tekuArgs = append(tekuArgs, cmd...)
 	tekuArgs = append(tekuArgs,
 		"--validator-keys=/keys:/keys",
-		fmt.Sprintf("--beacon-node-api-endpoint=http://%s", args.VAPIAddrs[node]),
+		"--beacon-node-api-endpoint=http://"+args.VAPIAddrs[node],
 	)
 
 	if args.TekuRegistration {
@@ -466,14 +462,14 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 	}
 
 	// Configure docker
-	name := fmt.Sprint(time.Now().UnixNano())
+	name := strconv.FormatInt(time.Now().UnixNano(), 10)
 	dockerArgs := []string{
 		"run",
 		"--rm",
-		fmt.Sprintf("--name=%s", name),
+		"--name=" + name,
 		fmt.Sprintf("--volume=%s:/keys", tempDir),
 		"--user=root", // Root required to read volume files in GitHub actions.
-		"consensys/teku:23.11.0",
+		"consensys/teku:24.3.1",
 	}
 	dockerArgs = append(dockerArgs, tekuArgs...)
 	t.Logf("docker args: %v", dockerArgs)

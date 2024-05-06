@@ -12,7 +12,6 @@ import (
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
-	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
@@ -330,26 +329,9 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 		name     string
 		proposal *eth2api.VersionedSignedProposal
 	}{
-		{
-			name: "phase0 proposal",
-			proposal: &eth2api.VersionedSignedProposal{
-				Version: eth2spec.DataVersionPhase0,
-				Phase0: &eth2p0.SignedBeaconBlock{
-					Message:   testutil.RandomPhase0BeaconBlock(),
-					Signature: testutil.RandomEth2Signature(),
-				},
-			},
-		},
-		{
-			name: "altair proposal",
-			proposal: &eth2api.VersionedSignedProposal{
-				Version: eth2spec.DataVersionAltair,
-				Altair: &altair.SignedBeaconBlock{
-					Message:   testutil.RandomAltairBeaconBlock(),
-					Signature: testutil.RandomEth2Signature(),
-				},
-			},
-		},
+		// phase0 and altair cannot be tested
+		// In according with Jim:
+		// "Proposals are only relevant from bellatrix onwards, where we had execution payloads."
 		{
 			name: "bellatrix proposal",
 			proposal: &eth2api.VersionedSignedProposal{

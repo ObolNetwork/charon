@@ -37,8 +37,15 @@ func TestSynthProposer(t *testing.T) {
 	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(set), beaconmock.WithSlotsPerEpoch(slotsPerEpoch))
 	require.NoError(t, err)
 
-	bmock.SubmitProposalFunc = func(ctx context.Context, proposal *eth2api.VersionedSignedProposal) error {
-		require.Equal(t, realBlockSlot, proposal.Capella.Message.Slot)
+	bmock.SubmitProposalFunc = func(ctx context.Context, opts *eth2api.SubmitProposalOpts) error {
+		require.Equal(t, realBlockSlot, opts.Proposal.Capella.Message.Slot)
+		close(done)
+
+		return nil
+	}
+
+	bmock.SubmitBlindedProposalFunc = func(ctx context.Context, opts *eth2api.SubmitBlindedProposalOpts) error {
+		require.Equal(t, realBlockSlot, opts.Proposal.Capella.Message.Slot)
 		close(done)
 
 		return nil
@@ -102,62 +109,59 @@ func TestSynthProposer(t *testing.T) {
 
 	// Submit blocks
 	for _, duty := range duties {
+		var bbf uint64 = 100
 		var graff [32]byte
 		copy(graff[:], "test")
 		opts1 := &eth2api.ProposalOpts{
-			Slot:         duty.Slot,
-			RandaoReveal: testutil.RandomEth2Signature(),
-			Graffiti:     graff,
+			Slot:               duty.Slot,
+			RandaoReveal:       testutil.RandomEth2Signature(),
+			Graffiti:           graff,
+			BuilderBoostFactor: &bbf,
 		}
 		resp, err := eth2Cl.Proposal(ctx, opts1)
 		require.NoError(t, err)
-		block := resp.Data
 
-		if duty.Slot == realBlockSlot {
-			require.NotContains(t, string(block.Capella.Body.Graffiti[:]), "DO NOT SUBMIT")
-			require.NotEqual(t, feeRecipient, block.Capella.Body.ExecutionPayload.FeeRecipient)
+		if resp.Data.Blinded {
+			block := resp.Data
+			if duty.Slot == realBlockSlot {
+				require.NotContains(t, string(block.CapellaBlinded.Body.Graffiti[:]), "DO NOT SUBMIT")
+				require.NotEqual(t, feeRecipient, block.CapellaBlinded.Body.ExecutionPayloadHeader.FeeRecipient)
+			} else {
+				require.Equal(t, feeRecipient, block.CapellaBlinded.Body.ExecutionPayloadHeader.FeeRecipient)
+			}
+			require.Equal(t, eth2spec.DataVersionCapella, block.Version)
+
+			signed := &eth2api.VersionedSignedBlindedProposal{
+				Version: eth2spec.DataVersionCapella,
+				Capella: &eth2capella.SignedBlindedBeaconBlock{
+					Message:   block.CapellaBlinded,
+					Signature: testutil.RandomEth2Signature(),
+				},
+			}
+			err = eth2Cl.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+				Proposal: signed,
+			})
+			require.NoError(t, err)
 		} else {
-			require.Contains(t, string(block.Capella.Body.Graffiti[:]), "DO NOT SUBMIT")
-			require.Equal(t, feeRecipient, block.Capella.Body.ExecutionPayload.FeeRecipient)
+			block := resp.Data
 
-			continue
-		}
-		require.Equal(t, eth2spec.DataVersionCapella, block.Version)
+			if duty.Slot == realBlockSlot {
+				require.NotContains(t, string(block.Capella.Body.Graffiti[:]), "DO NOT SUBMIT")
+				require.NotEqual(t, feeRecipient, block.Capella.Body.ExecutionPayload.FeeRecipient)
+			} else {
+				require.Contains(t, string(block.Capella.Body.Graffiti[:]), "DO NOT SUBMIT")
+				require.Equal(t, feeRecipient, block.Capella.Body.ExecutionPayload.FeeRecipient)
 
-		signed := testutil.RandomCapellaVersionedSignedProposal()
-		signed.Capella.Message = block.Capella
-		err = eth2Cl.SubmitProposal(ctx, signed)
-		require.NoError(t, err)
-	}
+				continue
+			}
+			require.Equal(t, eth2spec.DataVersionCapella, block.Version)
 
-	// Submit blinded blocks
-	for _, duty := range duties {
-		var graff [32]byte
-		copy(graff[:], "test")
-		opts := &eth2api.BlindedProposalOpts{
-			Slot:         duty.Slot,
-			RandaoReveal: testutil.RandomEth2Signature(),
-			Graffiti:     graff,
+			signed := testutil.RandomCapellaVersionedSignedProposal()
+			signed.Capella.Message = block.Capella
+			err = eth2Cl.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+				Proposal: signed,
+			})
 		}
-		resp, err := eth2Cl.BlindedProposal(ctx, opts)
-		require.NoError(t, err)
-		block := resp.Data
-		if duty.Slot == realBlockSlot {
-			require.NotContains(t, string(block.Capella.Body.Graffiti[:]), "DO NOT SUBMIT")
-			require.NotEqual(t, feeRecipient, block.Capella.Body.ExecutionPayloadHeader.FeeRecipient)
-		} else {
-			require.Equal(t, feeRecipient, block.Capella.Body.ExecutionPayloadHeader.FeeRecipient)
-		}
-		require.Equal(t, eth2spec.DataVersionCapella, block.Version)
-
-		signed := &eth2api.VersionedSignedBlindedProposal{
-			Version: eth2spec.DataVersionCapella,
-			Capella: &eth2capella.SignedBlindedBeaconBlock{
-				Message:   block.Capella,
-				Signature: testutil.RandomEth2Signature(),
-			},
-		}
-		err = eth2Cl.SubmitBlindedProposal(ctx, signed)
 		require.NoError(t, err)
 	}
 

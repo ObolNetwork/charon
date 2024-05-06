@@ -30,9 +30,6 @@ func TestCancelledQueries(t *testing.T) {
 	_, err = db.AwaitProposal(ctx, slot)
 	require.ErrorContains(t, err, "shutdown")
 
-	_, err = db.AwaitBlindedProposal(ctx, slot)
-	require.ErrorContains(t, err, "shutdown")
-
 	_, err = db.AwaitSyncContribution(ctx, slot, 0, eth2p0.Root{})
 	require.ErrorContains(t, err, "shutdown")
 
@@ -41,21 +38,18 @@ func TestCancelledQueries(t *testing.T) {
 	require.NotEmpty(t, db.attQueries)
 	require.NotEmpty(t, db.proQueries)
 	require.NotEmpty(t, db.aggQueries)
-	require.NotEmpty(t, db.builderProQueries)
 
 	// Resolve queries
 	db.resolveAggQueriesUnsafe()
 	db.resolveAttQueriesUnsafe()
 	db.resolveContribQueriesUnsafe()
 	db.resolveProQueriesUnsafe()
-	db.resolveBuilderProQueriesUnsafe()
 
 	// Ensure all queries are gone.
 	require.Empty(t, db.contribQueries)
 	require.Empty(t, db.attQueries)
 	require.Empty(t, db.proQueries)
 	require.Empty(t, db.aggQueries)
-	require.Empty(t, db.builderProQueries)
 }
 
 type noopDeadliner struct{}

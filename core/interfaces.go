@@ -47,10 +47,6 @@ type DutyDB interface {
 	// for the slot when available.
 	AwaitProposal(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
 
-	// AwaitBlindedProposal blocks and returns the proposed blinded beacon block
-	// for the slot when available.
-	AwaitBlindedProposal(ctx context.Context, slot uint64) (*eth2api.VersionedBlindedProposal, error)
-
 	// AwaitAttestation blocks and returns the attestation data
 	// for the slot and committee index when available.
 	AwaitAttestation(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
@@ -85,9 +81,6 @@ type Consensus interface {
 type ValidatorAPI interface {
 	// RegisterAwaitProposal registers a function to query unsigned beacon block proposals by providing the slot.
 	RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error))
-
-	// RegisterAwaitBlindedProposal registers a function to query unsigned blinded beacon block proposals by providing the slot.
-	RegisterAwaitBlindedProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedBlindedProposal, error))
 
 	// RegisterAwaitAttestation registers a function to query attestation data.
 	RegisterAwaitAttestation(func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error))
@@ -220,7 +213,6 @@ type wireFuncs struct {
 	ConsensusSubscribe                func(func(context.Context, Duty, UnsignedDataSet) error)
 	DutyDBStore                       func(context.Context, Duty, UnsignedDataSet) error
 	DutyDBAwaitProposal               func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
-	DutyDBAwaitBlindedProposal        func(ctx context.Context, slot uint64) (*eth2api.VersionedBlindedProposal, error)
 	DutyDBAwaitAttestation            func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 	DutyDBPubKeyByAttestation         func(ctx context.Context, slot, commIdx, valCommIdx uint64) (PubKey, error)
 	DutyDBAwaitAggAttestation         func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)
@@ -228,7 +220,6 @@ type wireFuncs struct {
 	VAPIRegisterAwaitAttestation      func(func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error))
 	VAPIRegisterAwaitSyncContribution func(func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error))
 	VAPIRegisterAwaitProposal         func(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error))
-	VAPIRegisterAwaitBlindedProposal  func(func(ctx context.Context, slot uint64) (*eth2api.VersionedBlindedProposal, error))
 	VAPIRegisterGetDutyDefinition     func(func(context.Context, Duty) (DutyDefinitionSet, error))
 	VAPIRegisterPubKeyByAttestation   func(func(ctx context.Context, slot, commIdx, valCommIdx uint64) (PubKey, error))
 	VAPIRegisterAwaitAggAttestation   func(func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error))
@@ -277,12 +268,10 @@ func Wire(sched Scheduler,
 		DutyDBStore:                       dutyDB.Store,
 		DutyDBAwaitAttestation:            dutyDB.AwaitAttestation,
 		DutyDBAwaitProposal:               dutyDB.AwaitProposal,
-		DutyDBAwaitBlindedProposal:        dutyDB.AwaitBlindedProposal,
 		DutyDBPubKeyByAttestation:         dutyDB.PubKeyByAttestation,
 		DutyDBAwaitAggAttestation:         dutyDB.AwaitAggAttestation,
 		DutyDBAwaitSyncContribution:       dutyDB.AwaitSyncContribution,
 		VAPIRegisterAwaitProposal:         vapi.RegisterAwaitProposal,
-		VAPIRegisterAwaitBlindedProposal:  vapi.RegisterAwaitBlindedProposal,
 		VAPIRegisterAwaitAttestation:      vapi.RegisterAwaitAttestation,
 		VAPIRegisterAwaitSyncContribution: vapi.RegisterAwaitSyncContribution,
 		VAPIRegisterGetDutyDefinition:     vapi.RegisterGetDutyDefinition,
@@ -316,7 +305,6 @@ func Wire(sched Scheduler,
 	w.FetcherRegisterAwaitAttData(w.DutyDBAwaitAttestation)
 	w.ConsensusSubscribe(w.DutyDBStore)
 	w.VAPIRegisterAwaitProposal(w.DutyDBAwaitProposal)
-	w.VAPIRegisterAwaitBlindedProposal(w.DutyDBAwaitBlindedProposal)
 	w.VAPIRegisterAwaitAttestation(w.DutyDBAwaitAttestation)
 	w.VAPIRegisterAwaitSyncContribution(w.DutyDBAwaitSyncContribution)
 	w.VAPIRegisterGetDutyDefinition(w.SchedulerGetDutyDefinition)

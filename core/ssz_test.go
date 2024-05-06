@@ -10,6 +10,15 @@ import (
 	"testing"
 	"time"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
+	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
+	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	"github.com/attestantio/go-eth2-client/spec/capella"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -61,7 +70,6 @@ func TestSSZ(t *testing.T) {
 		{zero: func() any { return new(core.SignedSyncContributionAndProof) }},
 		{zero: func() any { return new(core.AggregatedAttestation) }},
 		{zero: func() any { return new(core.VersionedProposal) }},
-		{zero: func() any { return new(core.VersionedBlindedProposal) }},
 		{zero: func() any { return new(core.SyncContribution) }},
 	}
 
@@ -106,10 +114,6 @@ func TestMarshalUnsignedProto(t *testing.T) {
 		{
 			dutyType:    core.DutyProposer,
 			unsignedPtr: func() any { return new(core.VersionedProposal) },
-		},
-		{
-			dutyType:    core.DutyBuilderProposer,
-			unsignedPtr: func() any { return new(core.VersionedBlindedProposal) },
 		},
 		{
 			dutyType:    core.DutySyncContribution,
@@ -186,10 +190,6 @@ func TestMarshalParSignedProto(t *testing.T) {
 			signedPtr: func() any { return new(core.VersionedSignedProposal) },
 		},
 		{
-			dutyType:  core.DutyBuilderProposer,
-			signedPtr: func() any { return new(core.VersionedSignedBlindedProposal) },
-		},
-		{
 			dutyType:  core.DutySyncContribution,
 			signedPtr: func() any { return new(core.SignedSyncContributionAndProof) },
 		},
@@ -246,5 +246,196 @@ func TestMarshalParSignedProto(t *testing.T) {
 		jsonSize := jsonSizes[typ]
 		sszSize := sszSizes[typ]
 		t.Logf("%s: ssz (%d) vs json (%d) == %.2f%%", typ, sszSize, jsonSize, 100*float64(sszSize)/float64(jsonSize))
+	}
+}
+
+func TestV3SignedProposalSSZSerialisation(t *testing.T) {
+	type testCase struct {
+		name     string
+		proposal eth2api.VersionedSignedProposal
+	}
+
+	tests := []testCase{
+		{
+			name: "phase0",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionPhase0,
+				Phase0: &eth2p0.SignedBeaconBlock{
+					Message:   testutil.RandomPhase0BeaconBlock(),
+					Signature: testutil.RandomEth2Signature(),
+				},
+			},
+		},
+		{
+			name: "altair",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionAltair,
+				Altair: &altair.SignedBeaconBlock{
+					Message:   testutil.RandomAltairBeaconBlock(),
+					Signature: testutil.RandomEth2Signature(),
+				},
+			},
+		},
+		{
+			name: "bellatrix",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionBellatrix,
+				Bellatrix: &bellatrix.SignedBeaconBlock{
+					Message:   testutil.RandomBellatrixBeaconBlock(),
+					Signature: testutil.RandomEth2Signature(),
+				},
+			},
+		},
+		{
+			name: "bellatrix blinded",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionBellatrix,
+				BellatrixBlinded: &eth2bellatrix.SignedBlindedBeaconBlock{
+					Message:   testutil.RandomBellatrixBlindedBeaconBlock(),
+					Signature: testutil.RandomEth2Signature(),
+				},
+				Blinded: true,
+			},
+		},
+		{
+			name: "capella",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionCapella,
+				Capella: &capella.SignedBeaconBlock{
+					Message:   testutil.RandomCapellaBeaconBlock(),
+					Signature: testutil.RandomEth2Signature(),
+				},
+			},
+		},
+		{
+			name: "capella blinded",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionCapella,
+				CapellaBlinded: &eth2capella.SignedBlindedBeaconBlock{
+					Message:   testutil.RandomCapellaBlindedBeaconBlock(),
+					Signature: testutil.RandomEth2Signature(),
+				},
+				Blinded: true,
+			},
+		},
+		{
+			name: "deneb",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionDeneb,
+				Deneb:   testutil.RandomDenebVersionedSignedProposal().Deneb,
+			},
+		},
+		{
+			name: "deneb blinded",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionDeneb,
+				DenebBlinded: &eth2deneb.SignedBlindedBeaconBlock{
+					Message:   testutil.RandomDenebBlindedBeaconBlock(),
+					Signature: testutil.RandomEth2Signature(),
+				},
+				Blinded: true,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p, err := core.NewVersionedSignedProposal(&test.proposal)
+			require.NoError(t, err)
+
+			b, err := ssz.MarshalSSZ(p)
+			require.NoError(t, err)
+
+			p2 := new(core.VersionedSignedProposal)
+			p2.Blinded = p.Blinded
+			err = p2.UnmarshalSSZ(b)
+			require.NoError(t, err)
+			require.Equal(t, p, *p2)
+		})
+	}
+}
+
+func TestV3ProposalSSZSerialisation(t *testing.T) {
+	type testCase struct {
+		name     string
+		proposal eth2api.VersionedProposal
+	}
+
+	tests := []testCase{
+		{
+			name: "phase0",
+			proposal: eth2api.VersionedProposal{
+				Version: eth2spec.DataVersionPhase0,
+				Phase0:  testutil.RandomPhase0BeaconBlock(),
+			},
+		},
+		{
+			name: "altair",
+			proposal: eth2api.VersionedProposal{
+				Version: eth2spec.DataVersionAltair,
+				Altair:  testutil.RandomAltairBeaconBlock(),
+			},
+		},
+		{
+			name: "bellatrix",
+			proposal: eth2api.VersionedProposal{
+				Version:   eth2spec.DataVersionBellatrix,
+				Bellatrix: testutil.RandomBellatrixBeaconBlock(),
+			},
+		},
+		{
+			name: "bellatrix blinded",
+			proposal: eth2api.VersionedProposal{
+				Version:          eth2spec.DataVersionBellatrix,
+				BellatrixBlinded: testutil.RandomBellatrixBlindedBeaconBlock(),
+				Blinded:          true,
+			},
+		},
+		{
+			name: "capella",
+			proposal: eth2api.VersionedProposal{
+				Version: eth2spec.DataVersionCapella,
+				Capella: testutil.RandomCapellaBeaconBlock(),
+			},
+		},
+		{
+			name: "capella blinded",
+			proposal: eth2api.VersionedProposal{
+				Version:        eth2spec.DataVersionCapella,
+				CapellaBlinded: testutil.RandomCapellaBlindedBeaconBlock(),
+				Blinded:        true,
+			},
+		},
+		{
+			name: "deneb",
+			proposal: eth2api.VersionedProposal{
+				Version: eth2spec.DataVersionDeneb,
+				Deneb:   testutil.RandomDenebVersionedProposal().Deneb,
+			},
+		},
+		{
+			name: "deneb blinded",
+			proposal: eth2api.VersionedProposal{
+				Version:      eth2spec.DataVersionDeneb,
+				DenebBlinded: testutil.RandomDenebBlindedBeaconBlock(),
+				Blinded:      true,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			p, err := core.NewVersionedProposal(&test.proposal)
+			require.NoError(t, err)
+
+			b, err := ssz.MarshalSSZ(p)
+			require.NoError(t, err)
+
+			p2 := new(core.VersionedProposal)
+			p2.Blinded = p.Blinded
+			err = p2.UnmarshalSSZ(b)
+			require.NoError(t, err)
+			require.Equal(t, p, *p2)
+		})
 	}
 }

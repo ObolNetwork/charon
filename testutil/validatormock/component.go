@@ -272,21 +272,11 @@ func (m *Component) runDuty(ctx context.Context, duty core.Duty) error {
 			return err
 		}
 	case core.DutyProposer:
-		if m.builderAPI {
-			return nil
-		}
-
 		if err = ProposeBlock(ctx, eth2Cl, m.signFunc, eth2Slot); err != nil {
 			return err
 		}
 	case core.DutyBuilderProposer:
-		if !m.builderAPI {
-			return nil
-		}
-
-		if err = ProposeBlindedBlock(ctx, eth2Cl, m.signFunc, eth2Slot); err != nil {
-			return err
-		}
+		return core.ErrDeprecatedDutyBuilderProposer
 	case core.DutyBuilderRegistration:
 		if !m.builderAPI {
 			return nil
@@ -450,7 +440,6 @@ var dutyStartTimeFuncsByDuty = map[core.DutyType][]dutyStartTimeFunc{
 	core.DutyAttester:                {fraction(1, 3)}, // 1/3 slot duration
 	core.DutyAggregator:              {fraction(2, 3)}, // 2/3 slot duration
 	core.DutyProposer:                {slotStartTime},
-	core.DutyBuilderProposer:         {slotStartTime},
 	core.DutyBuilderRegistration:     {startOfCurrentEpoch},
 	core.DutyPrepareSyncContribution: {slotStartTime},
 	core.DutySyncMessage:             {fraction(1, 3)},

@@ -62,9 +62,8 @@ func TestFetchAttester(t *testing.T) {
 	duty := core.NewAttesterDuty(slot)
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
-	fetch, err := fetcher.New(bmock, nil)
-	require.NoError(t, err)
 
+	fetch := mustCreateFetcher(t, bmock)
 	fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
 		require.Equal(t, duty, resDuty)
 		require.Len(t, resDataSet, 2)
@@ -157,9 +156,7 @@ func TestFetchAggregator(t *testing.T) {
 		return nil, errors.New("expected unknown root")
 	}
 
-	fetch, err := fetcher.New(bmock, nil)
-	require.NoError(t, err)
-
+	fetch := mustCreateFetcher(t, bmock)
 	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
 		require.Equal(t, core.NewPrepareAggregatorDuty(slot), duty)
 
@@ -276,10 +273,7 @@ func TestFetchBlocks(t *testing.T) {
 
 	t.Run("fetch DutyProposer", func(t *testing.T) {
 		duty := core.NewProposerDuty(slot)
-		fetch, err := fetcher.New(bmock, func(core.PubKey) string {
-			return feeRecipientAddr
-		})
-		require.NoError(t, err)
+		fetch := mustCreateFetcherWithAddress(t, bmock, feeRecipientAddr)
 
 		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
 			return randaoByPubKey[key], nil
@@ -293,51 +287,23 @@ func TestFetchBlocks(t *testing.T) {
 			slotA, err := dutyDataA.Slot()
 			require.NoError(t, err)
 			require.EqualValues(t, slot, slotA)
-			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Capella.Body.ExecutionPayload.FeeRecipient))
+			if dutyDataA.Blinded {
+				require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.CapellaBlinded.Body.ExecutionPayloadHeader.FeeRecipient))
+			} else {
+				require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Capella.Body.ExecutionPayload.FeeRecipient))
+			}
 			assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
 
 			dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.VersionedProposal)
 			slotB, err := dutyDataB.Slot()
 			require.NoError(t, err)
 			require.EqualValues(t, slot, slotB)
-			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.Capella.Body.ExecutionPayload.FeeRecipient))
+			if dutyDataB.Blinded {
+				require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.CapellaBlinded.Body.ExecutionPayloadHeader.FeeRecipient))
+			} else {
+				require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.Capella.Body.ExecutionPayload.FeeRecipient))
+			}
 			assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature().ToETH2(), dutyDataB)
-
-			return nil
-		})
-
-		err = fetch.Fetch(ctx, duty, defSet)
-		require.NoError(t, err)
-	})
-
-	t.Run("fetch DutyBuilderProposer", func(t *testing.T) {
-		duty := core.NewBuilderProposerDuty(slot)
-		fetch, err := fetcher.New(bmock, func(core.PubKey) string {
-			return feeRecipientAddr
-		})
-		require.NoError(t, err)
-
-		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
-			return randaoByPubKey[key], nil
-		})
-
-		fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
-			require.Equal(t, duty, resDuty)
-			require.Len(t, resDataSet, 2)
-
-			dutyDataA := resDataSet[pubkeysByIdx[vIdxA]].(core.VersionedBlindedProposal)
-			slotA, err := dutyDataA.Slot()
-			require.NoError(t, err)
-			require.EqualValues(t, slot, slotA)
-			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Capella.Body.ExecutionPayloadHeader.FeeRecipient))
-			assertRandaoBlindedBlock(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
-
-			dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.VersionedBlindedProposal)
-			slotB, err := dutyDataB.Slot()
-			require.NoError(t, err)
-			require.EqualValues(t, slot, slotB)
-			require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.Capella.Body.ExecutionPayloadHeader.FeeRecipient))
-			assertRandaoBlindedBlock(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature().ToETH2(), dutyDataB)
 
 			return nil
 		})
@@ -410,7 +376,6 @@ func TestFetchSyncContribution(t *testing.T) {
 	}
 
 	t.Run("contribution aggregator", func(t *testing.T) {
-		// Construct beaconmock.
 		bmock, err := beaconmock.New()
 		require.NoError(t, err)
 
@@ -448,10 +413,7 @@ func TestFetchSyncContribution(t *testing.T) {
 			}, nil
 		}
 
-		// Construct fetcher component.
-		fetch, err := fetcher.New(bmock, nil)
-		require.NoError(t, err)
-
+		fetch := mustCreateFetcher(t, bmock)
 		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
 			if duty.Type == core.DutyPrepareSyncContribution {
 				require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
@@ -505,14 +467,10 @@ func TestFetchSyncContribution(t *testing.T) {
 	})
 
 	t.Run("not contribution aggregator", func(t *testing.T) {
-		// Construct beaconmock.
 		bmock, err := beaconmock.New()
 		require.NoError(t, err)
 
-		// Construct fetcher component.
-		fetch, err := fetcher.New(bmock, nil)
-		require.NoError(t, err)
-
+		fetch := mustCreateFetcher(t, bmock)
 		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
 			if duty.Type == core.DutyPrepareSyncContribution {
 				require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
@@ -535,14 +493,10 @@ func TestFetchSyncContribution(t *testing.T) {
 	})
 
 	t.Run("fetch contribution data error", func(t *testing.T) {
-		// Construct beaconmock.
 		bmock, err := beaconmock.New()
 		require.NoError(t, err)
 
-		// Construct fetcher component.
-		fetch, err := fetcher.New(bmock, nil)
-		require.NoError(t, err)
-
+		fetch := mustCreateFetcher(t, bmock)
 		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
 			return nil, errors.New("error")
 		})
@@ -554,6 +508,30 @@ func TestFetchSyncContribution(t *testing.T) {
 	})
 }
 
+func mustCreateFetcher(t *testing.T, bmock beaconmock.Mock) *fetcher.Fetcher {
+	t.Helper()
+
+	fetch, err := fetcher.New(bmock, nil, func(uint64) bool {
+		return true
+	})
+	require.NoError(t, err)
+
+	return fetch
+}
+
+func mustCreateFetcherWithAddress(t *testing.T, bmock beaconmock.Mock, addr string) *fetcher.Fetcher {
+	t.Helper()
+
+	fetch, err := fetcher.New(bmock, func(core.PubKey) string {
+		return addr
+	}, func(uint64) bool {
+		return true
+	})
+	require.NoError(t, err)
+
+	return fetch
+}
+
 func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block core.VersionedProposal) {
 	t.Helper()
 
@@ -563,26 +541,23 @@ func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block core.Versioned
 	case eth2spec.DataVersionAltair:
 		require.EqualValues(t, randao, block.Altair.Body.RANDAOReveal)
 	case eth2spec.DataVersionBellatrix:
-		require.EqualValues(t, randao, block.Bellatrix.Body.RANDAOReveal)
+		if block.Blinded {
+			require.EqualValues(t, randao, block.BellatrixBlinded.Body.RANDAOReveal)
+		} else {
+			require.EqualValues(t, randao, block.Bellatrix.Body.RANDAOReveal)
+		}
 	case eth2spec.DataVersionCapella:
-		require.EqualValues(t, randao, block.Capella.Body.RANDAOReveal)
+		if block.Blinded {
+			require.EqualValues(t, randao, block.CapellaBlinded.Body.RANDAOReveal)
+		} else {
+			require.EqualValues(t, randao, block.Capella.Body.RANDAOReveal)
+		}
 	case eth2spec.DataVersionDeneb:
-		require.EqualValues(t, randao, block.Deneb.Block.Body.RANDAOReveal)
-	default:
-		require.Fail(t, "invalid block")
-	}
-}
-
-func assertRandaoBlindedBlock(t *testing.T, randao eth2p0.BLSSignature, block core.VersionedBlindedProposal) {
-	t.Helper()
-
-	switch block.Version {
-	case eth2spec.DataVersionBellatrix:
-		require.EqualValues(t, randao, block.Bellatrix.Body.RANDAOReveal)
-	case eth2spec.DataVersionCapella:
-		require.EqualValues(t, randao, block.Capella.Body.RANDAOReveal)
-	case eth2spec.DataVersionDeneb:
-		require.EqualValues(t, randao, block.Deneb.Body.RANDAOReveal)
+		if block.Blinded {
+			require.EqualValues(t, randao, block.DenebBlinded.Body.RANDAOReveal)
+		} else {
+			require.EqualValues(t, randao, block.Deneb.Block.Body.RANDAOReveal)
+		}
 	default:
 		require.Fail(t, "invalid block")
 	}

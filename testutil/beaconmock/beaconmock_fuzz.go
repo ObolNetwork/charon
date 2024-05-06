@@ -129,13 +129,6 @@ func WithBeaconMockFuzzer() Option {
 			return vals, nil
 		}
 
-		mock.BlindedProposalFunc = func(ctx context.Context, opts *eth2api.BlindedProposalOpts) (*eth2api.VersionedBlindedProposal, error) {
-			var block *eth2api.VersionedBlindedProposal
-			fuzz.New().Fuzz(&block)
-
-			return block, nil
-		}
-
 		mock.NodePeerCountFunc = func(context.Context) (int, error) {
 			var count int
 			fuzz.New().Fuzz(&count)

@@ -16,8 +16,13 @@ import (
 	"github.com/obolnetwork/charon/eth2util/signing"
 )
 
-// ErrNotFound is returned by a component when a resource is not found.
-var ErrNotFound = errors.NewSentinel("not found")
+var (
+	// ErrNotFound is returned by a component when a resource is not found.
+	ErrNotFound = errors.NewSentinel("not found")
+
+	// ErrDeprecatedDutyBuilderProposer is returned when attempting to use the deprecated DutyBuilderProposer.
+	ErrDeprecatedDutyBuilderProposer = errors.NewSentinel("deprecated duty DutyBuilderProposer")
+)
 
 // DutyType enumerates the different types of duties.
 type DutyType int
@@ -30,7 +35,7 @@ const (
 	DutyAttester                DutyType = 2
 	DutySignature               DutyType = 3
 	DutyExit                    DutyType = 4
-	DutyBuilderProposer         DutyType = 5
+	DutyBuilderProposer         DutyType = 5 // Deprecated due to v3 block proposal
 	DutyBuilderRegistration     DutyType = 6
 	DutyRandao                  DutyType = 7
 	DutyPrepareAggregator       DutyType = 8
@@ -152,19 +157,6 @@ func NewVoluntaryExit(slot uint64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutyExit,
-	}
-}
-
-// NewBuilderProposerDuty returns a new builder proposer duty. It is a convenience function that is
-// slightly more readable and concise than the struct literal equivalent:
-//
-//	core.Duty{Slot: slot, Type: core.DutyBuilderProposer}
-//	vs
-//	core.NewBuilderProposerDuty(slot)
-func NewBuilderProposerDuty(slot uint64) Duty {
-	return Duty{
-		Slot: slot,
-		Type: DutyBuilderProposer,
 	}
 }
 

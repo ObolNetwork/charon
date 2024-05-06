@@ -74,11 +74,7 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (_ ParSigned
 		}
 		signedData = b
 	case DutyBuilderProposer:
-		var b VersionedSignedBlindedProposal
-		if err := unmarshal(data.Data, &b); err != nil {
-			return ParSignedData{}, errors.Wrap(err, "unmarshal blinded proposal")
-		}
-		signedData = b
+		return ParSignedData{}, ErrDeprecatedDutyBuilderProposer
 	case DutyBuilderRegistration:
 		var r VersionedSignedValidatorRegistration
 		if err := unmarshal(data.Data, &r); err != nil {

@@ -5,6 +5,7 @@ package fetcher
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -21,10 +22,11 @@ import (
 )
 
 // New returns a new fetcher instance.
-func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string) (*Fetcher, error) {
+func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, builderEnabled core.BuilderEnabled) (*Fetcher, error) {
 	return &Fetcher{
 		eth2Cl:           eth2Cl,
 		feeRecipientFunc: feeRecipientFunc,
+		builderEnabled:   builderEnabled,
 	}, nil
 }
 
@@ -35,6 +37,7 @@ type Fetcher struct {
 	subs             []func(context.Context, core.Duty, core.UnsignedDataSet) error
 	aggSigDBFunc     func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
 	awaitAttDataFunc func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
+	builderEnabled   core.BuilderEnabled
 }
 
 // Subscribe registers a callback for fetched duties.
@@ -62,10 +65,7 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 			return errors.Wrap(err, "fetch attester data")
 		}
 	case core.DutyBuilderProposer:
-		unsignedSet, err = f.fetchBuilderProposerData(ctx, duty.Slot, defSet)
-		if err != nil {
-			return errors.Wrap(err, "fetch builder proposer data")
-		}
+		return core.ErrDeprecatedDutyBuilderProposer
 	case core.DutyAggregator:
 		unsignedSet, err = f.fetchAggregatorData(ctx, duty.Slot, defSet)
 		if err != nil {
@@ -251,10 +251,18 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 		commitSHA, _ := version.GitCommit()
 		copy(graffiti[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
 
+		var bbf uint64
+		if f.builderEnabled(slot) {
+			// This gives maximum priority to builder blocks:
+			// https://ethereum.github.io/beacon-APIs/#/Validator/produceBlockV3
+			bbf = math.MaxUint64
+		}
+
 		opts := &eth2api.ProposalOpts{
-			Slot:         eth2p0.Slot(slot),
-			RandaoReveal: randao,
-			Graffiti:     graffiti,
+			Slot:               eth2p0.Slot(slot),
+			RandaoReveal:       randao,
+			Graffiti:           graffiti,
+			BuilderBoostFactor: &bbf,
 		}
 		eth2Resp, err := f.eth2Cl.Proposal(ctx, opts)
 		if err != nil {
@@ -268,50 +276,6 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 		coreProposal, err := core.NewVersionedProposal(proposal)
 		if err != nil {
 			return nil, errors.Wrap(err, "new proposal")
-		}
-
-		resp[pubkey] = coreProposal
-	}
-
-	return resp, nil
-}
-
-func (f *Fetcher) fetchBuilderProposerData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
-	resp := make(core.UnsignedDataSet)
-	for pubkey := range defSet {
-		// Fetch previously aggregated randao reveal from AggSigDB
-		dutyRandao := core.Duty{
-			Slot: slot,
-			Type: core.DutyRandao,
-		}
-		randaoData, err := f.aggSigDBFunc(ctx, dutyRandao, pubkey)
-		if err != nil {
-			return nil, err
-		}
-
-		randao := randaoData.Signature().ToETH2()
-
-		// TODO(dhruv): replace hardcoded graffiti with the one from cluster-lock.json
-		var graffiti [32]byte
-		commitSHA, _ := version.GitCommit()
-		copy(graffiti[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
-
-		opts := &eth2api.BlindedProposalOpts{
-			Slot:         eth2p0.Slot(slot),
-			RandaoReveal: randao,
-			Graffiti:     graffiti,
-		}
-		eth2Resp, err := f.eth2Cl.BlindedProposal(ctx, opts)
-		if err != nil {
-			return nil, err
-		}
-		blindedProposal := eth2Resp.Data
-
-		verifyFeeRecipientBlinded(ctx, blindedProposal, f.feeRecipientFunc(pubkey))
-
-		coreProposal, err := core.NewVersionedBlindedProposal(blindedProposal)
-		if err != nil {
-			return nil, errors.Wrap(err, "new block")
 		}
 
 		resp[pubkey] = coreProposal
@@ -393,33 +357,23 @@ func verifyFeeRecipient(ctx context.Context, proposal *eth2api.VersionedProposal
 
 	switch proposal.Version {
 	case eth2spec.DataVersionBellatrix:
-		actualAddr = fmt.Sprintf("%#x", proposal.Bellatrix.Body.ExecutionPayload.FeeRecipient)
+		if proposal.Blinded {
+			actualAddr = fmt.Sprintf("%#x", proposal.BellatrixBlinded.Body.ExecutionPayloadHeader.FeeRecipient)
+		} else {
+			actualAddr = fmt.Sprintf("%#x", proposal.Bellatrix.Body.ExecutionPayload.FeeRecipient)
+		}
 	case eth2spec.DataVersionCapella:
-		actualAddr = fmt.Sprintf("%#x", proposal.Capella.Body.ExecutionPayload.FeeRecipient)
+		if proposal.Blinded {
+			actualAddr = fmt.Sprintf("%#x", proposal.CapellaBlinded.Body.ExecutionPayloadHeader.FeeRecipient)
+		} else {
+			actualAddr = fmt.Sprintf("%#x", proposal.Capella.Body.ExecutionPayload.FeeRecipient)
+		}
 	case eth2spec.DataVersionDeneb:
-		actualAddr = fmt.Sprintf("%#x", proposal.Deneb.Block.Body.ExecutionPayload.FeeRecipient)
-	default:
-		return
-	}
-
-	if actualAddr != "" && !strings.EqualFold(actualAddr, feeRecipientAddress) {
-		log.Warn(ctx, "Proposal with unexpected fee recipient address", nil,
-			z.Str("expected", feeRecipientAddress), z.Str("actual", actualAddr))
-	}
-}
-
-// verifyFeeRecipientBlinded logs a warning when fee recipient is not correctly populated in the provided blinded beacon block.
-func verifyFeeRecipientBlinded(ctx context.Context, proposal *eth2api.VersionedBlindedProposal, feeRecipientAddress string) {
-	// Note that fee-recipient is not available in forks earlier than bellatrix.
-	var actualAddr string
-
-	switch proposal.Version {
-	case eth2spec.DataVersionBellatrix:
-		actualAddr = fmt.Sprintf("%#x", proposal.Bellatrix.Body.ExecutionPayloadHeader.FeeRecipient)
-	case eth2spec.DataVersionCapella:
-		actualAddr = fmt.Sprintf("%#x", proposal.Capella.Body.ExecutionPayloadHeader.FeeRecipient)
-	case eth2spec.DataVersionDeneb:
-		actualAddr = fmt.Sprintf("%#x", proposal.Deneb.Body.ExecutionPayloadHeader.FeeRecipient)
+		if proposal.Blinded {
+			actualAddr = fmt.Sprintf("%#x", proposal.DenebBlinded.Body.ExecutionPayloadHeader.FeeRecipient)
+		} else {
+			actualAddr = fmt.Sprintf("%#x", proposal.Deneb.Block.Body.ExecutionPayload.FeeRecipient)
+		}
 	default:
 		return
 	}

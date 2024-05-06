@@ -20,7 +20,6 @@ import (
 	"github.com/obolnetwork/charon/app/forkjoin"
 	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 //go:generate go run genwrap/genwrap.go
@@ -80,6 +79,7 @@ func NewMultiHTTP(timeout time.Duration, addresses ...string) (Client, error) {
 				eth2http.WithLogLevel(zeroLogInfo),
 				eth2http.WithAddress(address),
 				eth2http.WithTimeout(timeout),
+				eth2http.WithAllowDelayedStart(true),
 			)
 			if err != nil {
 				return nil, wrapError(ctx, err, "new eth2 client", z.Str("address", address))
@@ -96,155 +96,6 @@ func NewMultiHTTP(timeout time.Duration, addresses ...string) (Client, error) {
 	}
 
 	return Instrument(clients...)
-}
-
-func newMulti(clients []Client) Client {
-	return multi{
-		clients:  clients,
-		selector: newBestSelector(bestPeriod),
-	}
-}
-
-// multi implements Client by wrapping multiple clients, calling them in parallel
-// and returning the first successful response.
-// It also adds prometheus metrics and error wrapping.
-// It also implements a best client selector.
-type multi struct {
-	clients  []Client
-	selector *bestSelector
-}
-
-func (multi) Name() string {
-	return "eth2wrap.multi"
-}
-
-func (m multi) Address() string {
-	address, ok := m.selector.BestAddress()
-	if !ok {
-		return m.clients[0].Address()
-	}
-
-	return address
-}
-
-func (m multi) SetValidatorCache(valCache func(context.Context) (ActiveValidators, error)) {
-	for _, cl := range m.clients {
-		cl.SetValidatorCache(valCache)
-	}
-}
-
-func (m multi) SetForkVersion(forkVersion [4]byte) {
-	for _, c := range m.clients {
-		c.SetForkVersion(forkVersion)
-	}
-}
-
-func (m multi) ActiveValidators(ctx context.Context) (ActiveValidators, error) {
-	const label = "active_validators"
-	// No latency since this is a cached endpoint.
-
-	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (ActiveValidators, error) {
-			return cl.ActiveValidators(ctx)
-		},
-		nil, nil,
-	)
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return res0, err
-}
-
-func (m multi) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
-	const label = "proposer_config"
-	defer latency(label)()
-
-	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (*eth2exp.ProposerConfigResponse, error) {
-			return cl.ProposerConfig(ctx)
-		},
-		nil, m.selector,
-	)
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return res0, err
-}
-
-func (m multi) AggregateBeaconCommitteeSelections(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
-	const label = "aggregate_beacon_committee_selections"
-	defer latency(label)()
-
-	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) ([]*eth2exp.BeaconCommitteeSelection, error) {
-			return cl.AggregateBeaconCommitteeSelections(ctx, selections)
-		},
-		nil, m.selector,
-	)
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return res0, err
-}
-
-func (m multi) AggregateSyncCommitteeSelections(ctx context.Context, selections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
-	const label = "aggregate_sync_committee_selections"
-	defer latency(label)()
-
-	res, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) ([]*eth2exp.SyncCommitteeSelection, error) {
-			return cl.AggregateSyncCommitteeSelections(ctx, selections)
-		},
-		nil, m.selector,
-	)
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return res, err
-}
-
-func (m multi) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
-	const label = "block_attestations"
-	defer latency(label)()
-
-	res, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) ([]*eth2p0.Attestation, error) {
-			return cl.BlockAttestations(ctx, stateID)
-		},
-		nil, m.selector,
-	)
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return res, err
-}
-
-func (m multi) NodePeerCount(ctx context.Context) (int, error) {
-	const label = "node_peer_count"
-	defer latency(label)()
-
-	res, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (int, error) {
-			return cl.NodePeerCount(ctx)
-		},
-		nil, m.selector,
-	)
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return res, err
 }
 
 // provide calls the work function with each client in parallel, returning the
