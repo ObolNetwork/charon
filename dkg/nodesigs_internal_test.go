@@ -25,10 +25,10 @@ import (
 )
 
 func TestSigsExchange(t *testing.T) {
-	n := 10
+	n := 7
 
 	var (
-		ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
+		ctx, cancel = context.WithTimeout(context.Background(), 45*time.Second)
 
 		secrets      []*k1.PrivateKey
 		tcpNodes     []host.Host

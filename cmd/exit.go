@@ -18,17 +18,18 @@ import (
 )
 
 type exitConfig struct {
-	BeaconNodeURL    string
-	ValidatorPubkey  string
-	PrivateKeyPath   string
-	ValidatorKeysDir string
-	LockFilePath     string
-	PublishAddress   string
-	ExitEpoch        uint64
-	FetchedExitPath  string
-	PlaintextOutput  bool
-	ExitFromFilePath string
-	Log              log.Config
+	BeaconNodeURL     string
+	ValidatorPubkey   string
+	PrivateKeyPath    string
+	ValidatorKeysDir  string
+	LockFilePath      string
+	PublishAddress    string
+	ExitEpoch         uint64
+	FetchedExitPath   string
+	PlaintextOutput   bool
+	BeaconNodeTimeout time.Duration
+	ExitFromFilePath  string
+	Log               log.Config
 }
 
 func newExitCmd(cmds ...*cobra.Command) *cobra.Command {
@@ -54,6 +55,7 @@ const (
 	validatorPubkey
 	exitEpoch
 	exitFromFile
+	beaconNodeTimeout
 )
 
 func (ef exitFlag) String() string {
@@ -74,6 +76,8 @@ func (ef exitFlag) String() string {
 		return "exit-epoch"
 	case exitFromFile:
 		return "exit-from-file"
+	case beaconNodeTimeout:
+		return "beacon-node-timeout"
 	default:
 		return "unknown"
 	}
@@ -88,23 +92,33 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 	for _, f := range flags {
 		flag := f.flag
 
+		maybeRequired := func(s string) string {
+			if f.required {
+				return s + " [REQUIRED]"
+			}
+
+			return s
+		}
+
 		switch flag {
 		case publishAddress:
-			cmd.Flags().StringVar(&config.PublishAddress, publishAddress.String(), "https://api.obol.tech", "The URL of the remote API.")
+			cmd.Flags().StringVar(&config.PublishAddress, publishAddress.String(), "https://api.obol.tech", maybeRequired("The URL of the remote API."))
 		case beaconNodeURL:
-			cmd.Flags().StringVar(&config.BeaconNodeURL, beaconNodeURL.String(), "", "Beacon node URL.")
+			cmd.Flags().StringVar(&config.BeaconNodeURL, beaconNodeURL.String(), "", maybeRequired("Beacon node URL."))
 		case privateKeyPath:
-			cmd.Flags().StringVar(&config.PrivateKeyPath, privateKeyPath.String(), ".charon/charon-enr-private-key", "The path to the charon enr private key file. ")
+			cmd.Flags().StringVar(&config.PrivateKeyPath, privateKeyPath.String(), ".charon/charon-enr-private-key", maybeRequired("The path to the charon enr private key file. "))
 		case lockFilePath:
-			cmd.Flags().StringVar(&config.LockFilePath, lockFilePath.String(), ".charon/cluster-lock.json", "The path to the cluster lock file defining the distributed validator cluster.")
+			cmd.Flags().StringVar(&config.LockFilePath, lockFilePath.String(), ".charon/cluster-lock.json", maybeRequired("The path to the cluster lock file defining the distributed validator cluster."))
 		case validatorKeysDir:
-			cmd.Flags().StringVar(&config.ValidatorKeysDir, validatorKeysDir.String(), ".charon/validator_keys", "Path to the directory containing the validator private key share files and passwords.")
+			cmd.Flags().StringVar(&config.ValidatorKeysDir, validatorKeysDir.String(), ".charon/validator_keys", maybeRequired("Path to the directory containing the validator private key share files and passwords."))
 		case validatorPubkey:
-			cmd.Flags().StringVar(&config.ValidatorPubkey, validatorPubkey.String(), "", "Public key of the validator to exit, must be present in the cluster lock manifest.")
+			cmd.Flags().StringVar(&config.ValidatorPubkey, validatorPubkey.String(), "", maybeRequired("Public key of the validator to exit, must be present in the cluster lock manifest."))
 		case exitEpoch:
-			cmd.Flags().Uint64Var(&config.ExitEpoch, exitEpoch.String(), 162304, "Exit epoch at which the validator will exit, must be the same across all the partial exits.")
+			cmd.Flags().Uint64Var(&config.ExitEpoch, exitEpoch.String(), 162304, maybeRequired("Exit epoch at which the validator will exit, must be the same across all the partial exits."))
 		case exitFromFile:
-			cmd.Flags().StringVar(&config.ExitFromFilePath, exitFromFile.String(), "", "Retrieves a signed exit message from a pre-prepared file instead of --publish-address.")
+			cmd.Flags().StringVar(&config.ExitFromFilePath, exitFromFile.String(), "", maybeRequired("Retrieves a signed exit message from a pre-prepared file instead of --publish-address."))
+		case beaconNodeTimeout:
+			cmd.Flags().DurationVar(&config.BeaconNodeTimeout, beaconNodeTimeout.String(), 30*time.Second, maybeRequired("Timeout for beacon node HTTP calls."))
 		}
 
 		if f.required {
@@ -113,9 +127,10 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 	}
 }
 
-func eth2Client(ctx context.Context, u string) (eth2wrap.Client, error) {
+func eth2Client(ctx context.Context, u string, timeout time.Duration) (eth2wrap.Client, error) {
 	bnHTTPClient, err := eth2http.New(ctx,
 		eth2http.WithAddress(u),
+		eth2http.WithTimeout(timeout),
 		eth2http.WithLogLevel(1), // zerolog.InfoLevel
 	)
 	if err != nil {
@@ -124,7 +139,7 @@ func eth2Client(ctx context.Context, u string) (eth2wrap.Client, error) {
 
 	bnClient := bnHTTPClient.(*eth2http.Service)
 
-	return eth2wrap.AdaptEth2HTTP(bnClient, 10*time.Second), nil
+	return eth2wrap.AdaptEth2HTTP(bnClient, timeout), nil
 }
 
 // signExit signs a voluntary exit message for valIdx with the given keyShare.

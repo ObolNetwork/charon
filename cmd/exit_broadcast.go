@@ -31,7 +31,7 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 	cmd := &cobra.Command{
 		Use:   "broadcast",
 		Short: "Submit partial exit message for a distributed validator",
-		Long:  `Retrieves and broadcasts a fully signed validator exit message, aggregated with the available partial signatures retrieved from the publish-address.`,
+		Long:  `Retrieves and broadcasts to the configured beacon node a fully signed validator exit message, aggregated with the available partial signatures retrieved from the publish-address. Can also read a signed exit message from disk, in order to be broadcasted to the configured beacon node.`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := log.InitLogger(config.Log); err != nil {
@@ -54,6 +54,7 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 		{validatorPubkey, true},
 		{beaconNodeURL, true},
 		{exitFromFile, false},
+		{beaconNodeTimeout, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
@@ -79,10 +80,12 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 
 	ctx = log.WithCtx(ctx, z.Str("validator", validator.String()))
 
-	eth2Cl, err := eth2Client(ctx, config.BeaconNodeURL)
+	eth2Cl, err := eth2Client(ctx, config.BeaconNodeURL, config.BeaconNodeTimeout)
 	if err != nil {
 		return errors.Wrap(err, "cannot create eth2 client for specified beacon node")
 	}
+
+	eth2Cl.SetForkVersion([4]byte(cl.GetForkVersion()))
 
 	var fullExit eth2p0.SignedVoluntaryExit
 	maybeExitFilePath := strings.TrimSpace(config.ExitFromFilePath)

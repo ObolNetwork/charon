@@ -47,6 +47,7 @@ func newSubmitPartialExitCmd(runFunc func(context.Context, exitConfig) error) *c
 		{exitEpoch, false},
 		{validatorPubkey, true},
 		{beaconNodeURL, true},
+		{beaconNodeTimeout, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
@@ -67,7 +68,7 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 
 	rawValKeys, err := keystore.LoadFilesUnordered(config.ValidatorKeysDir)
 	if err != nil {
-		return errors.Wrap(err, "could not load keystore")
+		return errors.Wrap(err, "could not load keystore, check if path exists", z.Str("path", config.ValidatorKeysDir))
 	}
 
 	valKeys, err := rawValKeys.SequencedKeys()
@@ -99,10 +100,12 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 		return errors.New("validator not present in cluster lock", z.Str("validator", validator.String()))
 	}
 
-	eth2Cl, err := eth2Client(ctx, config.BeaconNodeURL)
+	eth2Cl, err := eth2Client(ctx, config.BeaconNodeURL, config.BeaconNodeTimeout)
 	if err != nil {
 		return errors.Wrap(err, "cannot create eth2 client for specified beacon node")
 	}
+
+	eth2Cl.SetForkVersion([4]byte(cl.GetForkVersion()))
 
 	oAPI, err := obolapi.New(config.PublishAddress)
 	if err != nil {

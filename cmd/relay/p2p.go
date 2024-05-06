@@ -16,36 +16,45 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
 	ma "github.com/multiformats/go-multiaddr"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/peerinfo"
+	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/p2p"
 )
 
 // startP2P returns a started libp2p host or an error.
-func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter metrics.Reporter) (host.Host, error) {
+func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter metrics.Reporter) (host.Host, *prometheus.Registry, error) {
 	if len(config.P2PConfig.TCPAddrs) == 0 {
-		return nil, errors.New("p2p TCP addresses required")
+		return nil, nil, errors.New("p2p TCP addresses required")
 	}
 
 	if config.LibP2PLogLevel != "" {
 		if err := libp2plog.SetLogLevel("relay", config.LibP2PLogLevel); err != nil {
-			return nil, errors.Wrap(err, "set relay log level")
+			return nil, nil, errors.Wrap(err, "set relay log level")
 		}
 		if err := libp2plog.SetLogLevel("rcmgr", config.LibP2PLogLevel); err != nil {
-			return nil, errors.Wrap(err, "set rcmgr log level")
+			return nil, nil, errors.Wrap(err, "set rcmgr log level")
 		}
 	}
 
 	tcpNode, err := p2p.NewTCPNode(ctx, config.P2PConfig, key, p2p.NewOpenGater(), config.FilterPrivAddrs,
 		libp2p.ResourceManager(new(network.NullResourceManager)), libp2p.BandwidthReporter(reporter))
 	if err != nil {
-		return nil, errors.Wrap(err, "new tcp node")
+		return nil, nil, errors.Wrap(err, "new tcp node")
 	}
 
 	p2p.RegisterConnectionLogger(ctx, tcpNode, nil)
+
+	labels := map[string]string{"relay_peer": p2p.PeerName(tcpNode.ID())}
+	log.SetLokiLabels(labels)
+	promRegistry, err := promauto.NewRegistry(labels)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "create prometheus registry")
+	}
 
 	relayResources := relay.DefaultResources()
 	relayResources.Limit.Data = 32 * (1 << 20) // 32MB
@@ -56,9 +65,11 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 	relayResources.MaxReservations = config.MaxConns
 	relayResources.MaxCircuits = config.MaxResPerPeer
 
-	relayService, err := relay.New(tcpNode, relay.WithResources(relayResources))
+	// This enables relay metrics: https://github.com/libp2p/go-libp2p/blob/master/p2p/protocol/circuitv2/relay/metrics.go
+	mt := relay.NewMetricsTracer(relay.WithRegisterer(promRegistry))
+	relayService, err := relay.New(tcpNode, relay.WithResources(relayResources), relay.WithMetricsTracer(mt))
 	if err != nil {
-		return nil, errors.Wrap(err, "new relay service")
+		return nil, nil, errors.Wrap(err, "new relay service")
 	}
 
 	go func() {
@@ -67,7 +78,7 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 		_ = relayService.Close()
 	}()
 
-	return tcpNode, nil
+	return tcpNode, promRegistry, nil
 }
 
 const unknownCluster = "unknown"

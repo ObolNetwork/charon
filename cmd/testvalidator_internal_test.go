@@ -36,7 +36,7 @@ func TestValidatorTest(t *testing.T) {
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
-					"validator-api-address": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
+					"validator-api-address": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
 				},
 			},
 			expectedErr: "",
@@ -54,7 +54,7 @@ func TestValidatorTest(t *testing.T) {
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
-					"validator-api-address": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "timeout"}},
+					"validator-api-address": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted}},
 				},
 			},
 			expectedErr: "",
@@ -72,7 +72,7 @@ func TestValidatorTest(t *testing.T) {
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
-					"validator-api-address": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
+					"validator-api-address": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
 				},
 			},
 			expectedErr: "",
@@ -104,7 +104,7 @@ func TestValidatorTest(t *testing.T) {
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
-					"validator-api-address": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
+					"validator-api-address": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
 				},
 			},
 			expectedErr: "",
@@ -124,7 +124,7 @@ func TestValidatorTest(t *testing.T) {
 			expected: testCategoryResult{
 				CategoryName: "validator",
 				Targets: map[string][]testResult{
-					"validator-api-address": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: "ping not implemented"}},
+					"validator-api-address": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
 				},
 				Score: categoryScoreC,
 			},

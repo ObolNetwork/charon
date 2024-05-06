@@ -73,17 +73,22 @@ func (e forkDataType) HashTreeRootWith(hh ssz.HashWalker) error {
 
 // ComputeDomain computes the domain for a given domainType, genesisValidatorRoot at the specified fork hash.
 func ComputeDomain(forkHash string, domainType eth2p0.DomainType, genesisValidatorRoot eth2p0.Root) (eth2p0.Domain, error) {
-	fb, err := hex.DecodeString(strings.TrimPrefix(forkHash, "0x"))
+	_, err := hex.DecodeString(strings.TrimPrefix(forkHash, "0x"))
 	if err != nil {
-		return eth2p0.Domain{}, errors.Wrap(err, "fork hash hex")
+		return eth2p0.Domain{}, errors.Wrap(err, "malformed fork hash")
 	}
 
-	_, err = CapellaFork(forkHash)
+	cfork, err := CapellaFork(forkHash)
 	if err != nil {
 		return eth2p0.Domain{}, errors.Wrap(err, "invalid fork hash")
 	}
 
-	rawFdt := forkDataType{GenesisValidatorsRoot: genesisValidatorRoot, CurrentVersion: [4]byte(fb)}
+	cforkHex, err := hex.DecodeString(strings.TrimPrefix(cfork, "0x"))
+	if err != nil {
+		return eth2p0.Domain{}, errors.Wrap(err, "capella fork hash hex")
+	}
+
+	rawFdt := forkDataType{GenesisValidatorsRoot: genesisValidatorRoot, CurrentVersion: [4]byte(cforkHex)}
 	fdt, err := rawFdt.HashTreeRoot()
 	if err != nil {
 		return eth2p0.Domain{}, errors.Wrap(err, "fork data type hash tree root")
