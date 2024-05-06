@@ -647,12 +647,12 @@ func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Schedu
 			return errors.Wrap(err, "new versioned signed validator registration")
 		}
 
-		slot, err := slotFromTimestamp(ctx, eth2Cl, reg.V1.Message.Timestamp)
+		slot, err := validatorapi.SlotFromTimestamp(ctx, eth2Cl, reg.V1.Message.Timestamp)
 		if err != nil {
 			return errors.Wrap(err, "calculate slot from timestamp")
 		}
 
-		if err = recaster.Store(ctx, core.NewBuilderRegistrationDuty(slot), core.SignedDataSet{pubkey: signedData}); err != nil {
+		if err = recaster.Store(ctx, core.NewBuilderRegistrationDuty(uint64(slot)), core.SignedDataSet{pubkey: signedData}); err != nil {
 			return errors.Wrap(err, "recaster store registration")
 		}
 	}
@@ -1061,28 +1061,4 @@ func hex7(input []byte) string {
 	}
 
 	return resp[:7]
-}
-
-// slotFromTimestamp returns slot from the provided timestamp.
-func slotFromTimestamp(ctx context.Context, eth2Cl eth2wrap.Client, timestamp time.Time) (uint64, error) {
-	genesis, err := eth2Cl.GenesisTime(ctx)
-	if err != nil {
-		return 0, err
-	} else if timestamp.Before(genesis) {
-		return 0, errors.New("registration timestamp before genesis")
-	}
-
-	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
-	if err != nil {
-		return 0, err
-	}
-
-	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
-	if !ok {
-		return 0, errors.New("fetch slot duration")
-	}
-
-	delta := timestamp.Sub(genesis)
-
-	return uint64(delta / slotDuration), nil
 }

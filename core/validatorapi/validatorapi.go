@@ -34,6 +34,42 @@ const (
 	zeroAddress = "0x0000000000000000000000000000000000000000"
 )
 
+// SlotFromTimestamp returns the Ethereum slot associated to a timestamp, given the genesis configuration fetched
+// from client.
+func SlotFromTimestamp(ctx context.Context, client eth2wrap.Client, timestamp time.Time) (eth2p0.Slot, error) {
+	genesis, err := client.GenesisTime(ctx)
+	if err != nil {
+		return 0, err
+	} else if timestamp.Before(genesis) {
+		// if timestamp is in the past (can happen in testing scenarios, there's no strict form of checking on it),  fall back on current timestamp.
+		nextTimestamp := time.Now()
+
+		log.Info(
+			ctx,
+			"timestamp before genesis, defaulting to current timestamp",
+			z.I64("genesis_timestamp", genesis.Unix()),
+			z.I64("overridden_timestamp", timestamp.Unix()),
+			z.I64("new_timestamp", nextTimestamp.Unix()),
+		)
+
+		timestamp = nextTimestamp
+	}
+
+	eth2Resp, err := client.Spec(ctx, &eth2api.SpecOpts{})
+	if err != nil {
+		return 0, err
+	}
+
+	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
+	if !ok {
+		return 0, errors.New("fetch slot duration")
+	}
+
+	delta := timestamp.Sub(genesis)
+
+	return eth2p0.Slot(delta / slotDuration), nil
+}
+
 // NewComponentInsecure returns a new instance of the validator API core workflow component
 // that does not perform signature verification.
 func NewComponentInsecure(_ *testing.T, eth2Cl eth2wrap.Client, shareIdx int) (*Component, error) {
@@ -461,7 +497,7 @@ func (c Component) submitRegistration(ctx context.Context, registration *eth2api
 	if err != nil {
 		return err
 	}
-	slot, err := c.slotFromTimestamp(ctx, timestamp)
+	slot, err := SlotFromTimestamp(ctx, c.eth2Cl, timestamp)
 	if err != nil {
 		return err
 	}
@@ -499,7 +535,7 @@ func (c Component) SubmitValidatorRegistrations(ctx context.Context, registratio
 		return nil // Nothing to do
 	}
 
-	slot, err := c.slotFromTimestamp(ctx, time.Now())
+	slot, err := SlotFromTimestamp(ctx, c.eth2Cl, time.Now())
 	if err != nil {
 		return err
 	}
@@ -981,29 +1017,6 @@ func (c Component) convertValidators(vals map[eth2p0.ValidatorIndex]*eth2v1.Vali
 	return resp, nil
 }
 
-func (c Component) slotFromTimestamp(ctx context.Context, timestamp time.Time) (eth2p0.Slot, error) {
-	genesis, err := c.eth2Cl.GenesisTime(ctx)
-	if err != nil {
-		return 0, err
-	} else if timestamp.Before(genesis) {
-		return 0, errors.New("registration timestamp before genesis")
-	}
-
-	eth2Resp, err := c.eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
-	if err != nil {
-		return 0, err
-	}
-
-	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
-	if !ok {
-		return 0, errors.New("fetch slot duration")
-	}
-
-	delta := timestamp.Sub(genesis)
-
-	return eth2p0.Slot(delta / slotDuration), nil
-}
-
 func (c Component) getProposerPubkey(ctx context.Context, duty core.Duty) (core.PubKey, error) {
 	// Get proposer pubkey (this is a blocking query).
 	defSet, err := c.dutyDefFunc(ctx, duty)
@@ -1115,7 +1128,7 @@ func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigR
 	}
 	timestamp = timestamp.Add(slotDuration) // Use slot 1 for timestamp to override pre-generated registrations.
 
-	slot, err := c.slotFromTimestamp(ctx, time.Now())
+	slot, err := SlotFromTimestamp(ctx, c.eth2Cl, time.Now())
 	if err != nil {
 		return nil, err
 	}
