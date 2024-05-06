@@ -42,7 +42,17 @@ func SlotFromTimestamp(ctx context.Context, client eth2wrap.Client, timestamp ti
 		return 0, err
 	} else if timestamp.Before(genesis) {
 		// if timestamp is in the past (can happen in testing scenarios, there's no strict form of checking on it),  fall back on current timestamp.
-		timestamp = time.Now()
+		nextTimestamp := time.Now()
+
+		log.Info(
+			ctx,
+			"timestamp before genesis, defaulting to current timestamp",
+			z.I64("genesis_timestamp", genesis.Unix()),
+			z.I64("overridden_timestamp", timestamp.Unix()),
+			z.I64("new_timestamp", nextTimestamp.Unix()),
+		)
+
+		timestamp = nextTimestamp
 	}
 
 	eth2Resp, err := client.Spec(ctx, &eth2api.SpecOpts{})
