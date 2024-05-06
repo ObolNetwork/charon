@@ -8,6 +8,7 @@ import (
 	"sort"
 	"sync"
 	"testing"
+	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -1842,4 +1843,101 @@ func sign(t *testing.T, eth2Cl eth2wrap.Client, secret tbls.PrivateKey, domain s
 	require.NoError(t, err)
 
 	return eth2p0.BLSSignature(sig)
+}
+
+func TestSlotFromTimestamp(t *testing.T) {
+	tests := []struct {
+		name      string
+		network   string
+		timestamp time.Time
+		genesis   time.Time
+		want      eth2p0.Slot
+		wantErr   bool
+	}{
+		{
+			name:      "goerli_slot0",
+			want:      0,
+			network:   "goerli",
+			timestamp: time.Unix(1616508000, 0).UTC(),
+			wantErr:   false,
+		},
+		{
+			name:      "goerli_slot1",
+			want:      1,
+			network:   "goerli",
+			timestamp: time.Unix(1616508000, 0).UTC().Add(time.Second * 12),
+			wantErr:   false,
+		},
+		{
+			name:      "sepolia_slot0",
+			want:      0,
+			network:   "sepolia",
+			timestamp: time.Unix(1655733600, 0).UTC(),
+			wantErr:   false,
+		},
+		{
+			name:      "sepolia_slot1",
+			want:      1,
+			network:   "sepolia",
+			timestamp: time.Unix(1655733600, 0).UTC().Add(time.Second * 12),
+			wantErr:   false,
+		},
+		{
+			name:      "gnosis_slot0",
+			want:      0,
+			network:   "gnosis",
+			timestamp: time.Unix(1638993340, 0).UTC(),
+			wantErr:   false,
+		},
+		{
+			name:      "gnosis_slot1",
+			want:      1,
+			network:   "gnosis",
+			timestamp: time.Unix(1638993340, 0).UTC().Add(time.Second * 12),
+			wantErr:   false,
+		},
+		{
+			name:      "mainnet_slot0",
+			want:      0,
+			network:   "mainnet",
+			timestamp: time.Unix(1606824023, 0).UTC(),
+			wantErr:   false,
+		},
+		{
+			name:      "mainnet_slot1",
+			want:      1,
+			network:   "mainnet",
+			timestamp: time.Unix(1606824023, 0).UTC().Add(time.Second * 12),
+			wantErr:   false,
+		},
+		{
+			name:      "timestamp before genesis",
+			want:      0,
+			network:   "mainnet",
+			timestamp: time.Unix(1606824023, 0).UTC().Add(time.Second * -12),
+			wantErr:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			genesis, err := eth2util.NetworkToGenesisTime(tt.network)
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			eth2Cl, err := beaconmock.New(beaconmock.WithGenesisTime(genesis))
+			require.NoError(t, err)
+
+			got, err := validatorapi.SlotFromTimestamp(ctx, eth2Cl, tt.timestamp)
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Equal(t, 0, got)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.GreaterOrEqual(t, got, tt.want)
+		})
+	}
 }
