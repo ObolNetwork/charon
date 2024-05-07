@@ -576,6 +576,7 @@ func dialLibp2pTCPIP(ctx context.Context, address string) error {
 	if err != nil {
 		return errors.Wrap(err, "net dial")
 	}
+	defer conn.Close()
 	buf := new(strings.Builder)
 	_, err = io.Copy(buf, conn)
 	if err != nil {
