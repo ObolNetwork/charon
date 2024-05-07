@@ -162,11 +162,11 @@ func testAllBeacons(ctx context.Context, queuedTestCases []testCaseName, allTest
 }
 
 func testSingleBeacon(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCaseBeacon, cfg testBeaconConfig, target string, resCh chan map[string][]testResult) error {
-	singkeTestResCh := make(chan testResult)
+	singleTestResCh := make(chan testResult)
 	allTestRes := []testResult{}
 
 	// run all beacon tests for a beacon node, pushing each completed test to the channel until all are complete or timeout occurs
-	go runBeaconTest(ctx, queuedTestCases, allTestCases, cfg, target, singkeTestResCh)
+	go runBeaconTest(ctx, queuedTestCases, allTestCases, cfg, target, singleTestResCh)
 	testCounter := 0
 	finished := false
 	for !finished {
@@ -176,7 +176,7 @@ func testSingleBeacon(ctx context.Context, queuedTestCases []testCaseName, allTe
 			testName = queuedTestCases[testCounter].name
 			allTestRes = append(allTestRes, testResult{Name: testName, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
 			finished = true
-		case result, ok := <-singkeTestResCh:
+		case result, ok := <-singleTestResCh:
 			if !ok {
 				finished = true
 				break
