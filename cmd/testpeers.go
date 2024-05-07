@@ -570,12 +570,21 @@ func peerPingLoadTest(ctx context.Context, conf *testPeersConfig, tcpNode host.H
 	return testRes
 }
 
-func dialTCPIP(ctx context.Context, address string) error {
+func dialLibp2pTCPIP(ctx context.Context, address string) error {
 	d := net.Dialer{Timeout: time.Second}
 	conn, err := d.DialContext(ctx, "tcp", address)
 	if err != nil {
 		return errors.Wrap(err, "net dial")
 	}
+	buf := new(strings.Builder)
+	_, err = io.Copy(buf, conn)
+	if err != nil {
+		return errors.Wrap(err, "io copy")
+	}
+	if !strings.Contains(buf.String(), "/multistream/1.0.0") {
+		return errors.New("multistream not found", z.Any("found", buf.String()), z.Any("address", address))
+	}
+
 	err = conn.Close()
 	if err != nil {
 		return errors.Wrap(err, "close conn")
@@ -591,7 +600,7 @@ func libp2pTCPPortOpenTest(ctx context.Context, cfg *testPeersConfig) testResult
 
 	for _, addr := range cfg.P2P.TCPAddrs {
 		addrVal := addr
-		group.Go(func() error { return dialTCPIP(ctx, addrVal) })
+		group.Go(func() error { return dialLibp2pTCPIP(ctx, addrVal) })
 	}
 
 	err := group.Wait()
