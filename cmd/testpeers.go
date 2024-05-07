@@ -18,6 +18,7 @@ import (
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	"github.com/spf13/cobra"
@@ -96,6 +97,7 @@ func supportedPeerTestCases() map[testCaseName]testCasePeer {
 		{name: "ping", order: 1}:        peerPingTest,
 		{name: "pingMeasure", order: 2}: peerPingMeasureTest,
 		{name: "pingLoad", order: 3}:    peerPingLoadTest,
+		{name: "directConn", order: 4}:  peerDirectConnTest,
 	}
 }
 
@@ -604,6 +606,29 @@ func dialLibp2pTCPIP(ctx context.Context, address string) error {
 	}
 
 	return nil
+}
+
+func peerDirectConnTest(ctx context.Context, _ *testPeersConfig, tcpNode host.Host, p2pPeer p2p.Peer) testResult {
+	testRes := testResult{Name: "DirectConn"}
+
+	err := tcpNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p2pPeer.ID})
+	if err != nil {
+		testRes.Verdict = testVerdictFail
+		testRes.Error = testResultError{err}
+
+		return testRes
+	}
+	conns := tcpNode.Network().ConnsToPeer(p2pPeer.ID)
+	if len(conns) != 2 {
+		testRes.Verdict = testVerdictFail
+		testRes.Error = testResultError{errors.New("expected 2 connections to peer (relay and direct)", z.Int("connections", len(conns)))}
+
+		return testRes
+	}
+
+	testRes.Verdict = testVerdictOk
+
+	return testRes
 }
 
 func libp2pTCPPortOpenTest(ctx context.Context, cfg *testPeersConfig) testResult {
