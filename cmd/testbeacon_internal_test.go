@@ -252,7 +252,7 @@ func StartHealthyMockedBeaconNode(t *testing.T) *httptest.Server {
 		switch r.URL.Path {
 		case "/eth/v1/node/health":
 		case "/eth/v1/node/syncing":
-			_, err := w.Write([]byte(`{"data":{"is_syncing":false}}`))
+			_, err := w.Write([]byte(`{"data":{"head_slot":"0","sync_distance":"0","is_optimistic":false,"is_syncing":false}}`))
 			require.NoError(t, err)
 		case "/eth/v1/node/peers":
 			_, err := w.Write([]byte(`{"meta":{"count":500}}`))

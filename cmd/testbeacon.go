@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
@@ -273,16 +274,8 @@ func beaconPingMeasureTest(ctx context.Context, _ *testBeaconConfig, target stri
 func beaconIsSyncedTest(ctx context.Context, _ *testBeaconConfig, target string) testResult {
 	testRes := testResult{Name: "isSynced"}
 
-	type isSyncedResponseData struct {
-		HeadSlot     string `json:"head_slot"`
-		SyncDistance string `json:"sync_distance"`
-		IsSyncing    bool   `json:"is_syncing"`
-		IsOptimistic bool   `json:"is_optimistic"`
-		ElOffline    bool   `json:"el_offline"`
-	}
-
 	type isSyncedResponse struct {
-		Data isSyncedResponseData `json:"data"`
+		Data eth2v1.SyncState `json:"data"`
 	}
 
 	client := http.Client{}
