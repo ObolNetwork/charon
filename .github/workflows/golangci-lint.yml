@@ -16,7 +16,7 @@ jobs:
       # Config options can be found in README here: https://github.com/golangci/golangci-lint-action
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.22.2'
+          go-version: '1.22.3'
       - uses: actions/checkout@v3
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3
