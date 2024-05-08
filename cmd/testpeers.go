@@ -578,7 +578,7 @@ func dialLibp2pTCPIP(ctx context.Context, address string) error {
 	}
 	defer conn.Close()
 	buf := new(strings.Builder)
-	_, err = io.Copy(buf, conn)
+	_, err = io.CopyN(buf, conn, 19)
 	if err != nil {
 		return errors.Wrap(err, "io copy")
 	}
