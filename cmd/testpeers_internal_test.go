@@ -51,7 +51,7 @@ func TestPeersTest(t *testing.T) {
 				CategoryName: "peers",
 				Targets: map[string][]testResult{
 					"self": {
-						{Name: "natOpen", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented},
+						{Name: "libp2pTCPPortOpenTest", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{nil}},
 					},
 					"frantic-colony - enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
@@ -87,7 +87,7 @@ func TestPeersTest(t *testing.T) {
 				CategoryName: "peers",
 				Targets: map[string][]testResult{
 					"self": {
-						{Name: "natOpen", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented},
+						{Name: "libp2pTCPPortOpenTest", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{nil}},
 					},
 					"frantic-colony - enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
@@ -175,7 +175,7 @@ func TestPeersTest(t *testing.T) {
 				CategoryName: "peers",
 				Targets: map[string][]testResult{
 					"self": {
-						{Name: "natOpen", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented},
+						{Name: "libp2pTCPPortOpenTest", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{nil}},
 					},
 					"frantic-colony - enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},

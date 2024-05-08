@@ -87,11 +87,12 @@ const (
 type testResultError struct{ error }
 
 type testResult struct {
-	Name        string
-	Verdict     testVerdict
-	Measurement string
-	Suggestion  string
-	Error       testResultError
+	Name         string
+	Verdict      testVerdict
+	Measurement  string
+	Suggestion   string
+	Error        testResultError
+	IsAcceptable bool
 }
 
 func failedTestResult(testRes testResult, err error) testResult {
@@ -108,6 +109,10 @@ func (s *testResultError) UnmarshalText(data []byte) error {
 
 // MarshalText implements encoding.TextMarshaler
 func (s testResultError) MarshalText() ([]byte, error) {
+	if s.error == nil {
+		return []byte{}, nil
+	}
+
 	return []byte(s.Error()), nil
 }
 
@@ -221,12 +226,18 @@ func calculateScore(results []testResult) categoryScore {
 	avg := 0
 	for _, t := range results {
 		switch t.Verdict {
-		case testVerdictBad, testVerdictFail:
+		case testVerdictBad:
 			return categoryScoreC
 		case testVerdictGood:
 			avg++
 		case testVerdictAvg:
 			avg--
+		case testVerdictFail:
+			if !t.IsAcceptable {
+				return categoryScoreC
+			}
+
+			continue
 		case testVerdictOk:
 			continue
 		}

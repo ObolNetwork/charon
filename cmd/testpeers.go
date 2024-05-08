@@ -10,6 +10,7 @@ import (
 	"io"
 	"math"
 	"math/rand"
+	"net"
 	"slices"
 	"strings"
 	"sync"
@@ -100,7 +101,7 @@ func supportedPeerTestCases() map[testCaseName]testCasePeer {
 
 func supportedSelfTestCases() map[testCaseName]func(context.Context, *testPeersConfig) testResult {
 	return map[testCaseName]func(context.Context, *testPeersConfig) testResult{
-		{name: "natOpen", order: 1}: natOpenTest,
+		{name: "libp2pTCPPortOpenTest", order: 1}: libp2pTCPPortOpenTest,
 	}
 }
 
@@ -581,15 +582,49 @@ func peerPingLoadTest(ctx context.Context, conf *testPeersConfig, tcpNode host.H
 	return testRes
 }
 
-func natOpenTest(ctx context.Context, _ *testPeersConfig) testResult {
-	// TODO(kalo): implement real port check
-	select {
-	case <-ctx.Done():
-		return testResult{Verdict: testVerdictFail}
-	default:
-		return testResult{
-			Verdict: testVerdictFail,
-			Error:   errNotImplemented,
-		}
+func dialLibp2pTCPIP(ctx context.Context, address string) error {
+	d := net.Dialer{Timeout: time.Second}
+	conn, err := d.DialContext(ctx, "tcp", address)
+	if err != nil {
+		return errors.Wrap(err, "net dial")
 	}
+	defer conn.Close()
+	buf := new(strings.Builder)
+	_, err = io.CopyN(buf, conn, 19)
+	if err != nil {
+		return errors.Wrap(err, "io copy")
+	}
+	if !strings.Contains(buf.String(), "/multistream/1.0.0") {
+		return errors.New("multistream not found", z.Any("found", buf.String()), z.Any("address", address))
+	}
+
+	err = conn.Close()
+	if err != nil {
+		return errors.Wrap(err, "close conn")
+	}
+
+	return nil
+}
+
+func libp2pTCPPortOpenTest(ctx context.Context, cfg *testPeersConfig) testResult {
+	testRes := testResult{Name: "Libp2pTCPPortOpen"}
+
+	group, _ := errgroup.WithContext(ctx)
+
+	for _, addr := range cfg.P2P.TCPAddrs {
+		addrVal := addr
+		group.Go(func() error { return dialLibp2pTCPIP(ctx, addrVal) })
+	}
+
+	err := group.Wait()
+	if err != nil {
+		testRes.Verdict = testVerdictFail
+		testRes.Error = testResultError{err}
+
+		return testRes
+	}
+
+	testRes.Verdict = testVerdictOk
+
+	return testRes
 }
