@@ -318,7 +318,7 @@ func testWriteFile(t *testing.T, expectedRes testCategoryResult, path string) {
 			require.Equal(t, expectedRes.Targets[targetName][idx].Measurement, testRes.Measurement)
 			require.Equal(t, expectedRes.Targets[targetName][idx].Suggestion, testRes.Suggestion)
 			if expectedRes.Targets[targetName][idx].Error.error != nil {
-				require.ErrorContains(t, expectedRes.Targets[targetName][idx].Error.error, testRes.Error.error.Error())
+				require.ErrorContains(t, testRes.Error.error, expectedRes.Targets[targetName][idx].Error.error.Error())
 			}
 		}
 	}
