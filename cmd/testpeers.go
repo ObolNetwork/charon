@@ -465,32 +465,20 @@ func peerPingTest(ctx context.Context, _ *testPeersConfig, tcpNode host.Host, pe
 	for ; true; <-ticker.C {
 		select {
 		case <-ctx.Done():
-			testRes.Verdict = testVerdictFail
-			testRes.Error = errTimeoutInterrupted
-
-			return testRes
+			return failedTestResult(testRes, errTimeoutInterrupted)
 		default:
 			ticker.Reset(3 * time.Second)
 			result, err := pingPeerOnce(ctx, tcpNode, peer)
 			if err != nil {
-				testRes.Verdict = testVerdictFail
-				testRes.Error = testResultError{err}
-
-				return testRes
+				return failedTestResult(testRes, err)
 			}
 
 			if result.Error != nil {
 				switch {
 				case errors.Is(result.Error, context.DeadlineExceeded):
-					testRes.Verdict = testVerdictFail
-					testRes.Error = errTimeoutInterrupted
-
-					return testRes
+					return failedTestResult(testRes, errTimeoutInterrupted)
 				case p2p.IsRelayError(result.Error):
-					testRes.Verdict = testVerdictFail
-					testRes.Error = testResultError{result.Error}
-
-					return testRes
+					return failedTestResult(testRes, result.Error)
 				default:
 					log.Warn(ctx, "Ping to peer failed, retrying in 3 sec...", nil, z.Str("peer_name", peer.Name))
 					continue
@@ -514,16 +502,10 @@ func peerPingMeasureTest(ctx context.Context, _ *testPeersConfig, tcpNode host.H
 
 	result, err := pingPeerOnce(ctx, tcpNode, peer)
 	if err != nil {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{err}
-
-		return testRes
+		return failedTestResult(testRes, err)
 	}
 	if result.Error != nil {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{result.Error}
-
-		return testRes
+		return failedTestResult(testRes, result.Error)
 	}
 
 	if result.RTT > thresholdMeasureBad {
@@ -613,17 +595,11 @@ func peerDirectConnTest(ctx context.Context, _ *testPeersConfig, tcpNode host.Ho
 
 	err := tcpNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p2pPeer.ID})
 	if err != nil {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{err}
-
-		return testRes
+		return failedTestResult(testRes, err)
 	}
 	conns := tcpNode.Network().ConnsToPeer(p2pPeer.ID)
 	if len(conns) != 2 {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{errors.New("expected 2 connections to peer (relay and direct)", z.Int("connections", len(conns)))}
-
-		return testRes
+		return failedTestResult(testRes, errors.New("expected 2 connections to peer (relay and direct)", z.Int("connections", len(conns))))
 	}
 
 	testRes.Verdict = testVerdictOk
@@ -643,10 +619,7 @@ func libp2pTCPPortOpenTest(ctx context.Context, cfg *testPeersConfig) testResult
 
 	err := group.Wait()
 	if err != nil {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{err}
-
-		return testRes
+		return failedTestResult(testRes, err)
 	}
 
 	testRes.Verdict = testVerdictOk
