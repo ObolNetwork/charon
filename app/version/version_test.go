@@ -85,5 +85,5 @@ func TestSupportedAreminors(t *testing.T) {
 }
 
 func TestMultiSupported(t *testing.T) {
-	require.True(t, len(version.Supported()) > 1)
+	require.GreaterOrEqual(t, len(version.Supported()), 1)
 }

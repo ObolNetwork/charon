@@ -15,7 +15,7 @@ import (
 )
 
 // version a string since it is overwritten at build-time with the git tag for official releases.
-var version = "v0.20-dev"
+var version = "v1.0-dev"
 
 // Version is the branch version of the codebase.
 //   - Main branch: v0.X-dev
@@ -25,9 +25,7 @@ var Version, _ = Parse(version) // Error is caught in tests.
 // Supported returns the supported minor versions in order of precedence.
 func Supported() []SemVer {
 	return []SemVer{
-		// Current minor version always goes first.
-		{major: 0, minor: 20},
-		{major: 0, minor: 19},
+		{major: 1, minor: 0},
 	}
 }
 
