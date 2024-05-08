@@ -5,18 +5,31 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 //go:generate go test . -run=TestBeaconTest -update
 
-//nolint:dupl // code is marked as duplicate currently, as we are testing the same test skeleton, ignore for now
 func TestBeaconTest(t *testing.T) {
+	port1 := testutil.GetFreePort(t)
+	endpoint1 := fmt.Sprintf("http://localhost:%v", port1)
+	port2 := testutil.GetFreePort(t)
+	endpoint2 := fmt.Sprintf("http://localhost:%v", port2)
+
+	mockedBeaconNode := StartHealthyMockedBeaconNode(t)
+	defer mockedBeaconNode.Close()
+
 	tests := []struct {
 		name        string
 		config      testBeaconConfig
@@ -33,12 +46,45 @@ func TestBeaconTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    time.Minute,
 				},
-				Endpoints: []string{"beacon-endpoint-1", "beacon-endpoint-2"},
+				Endpoints: []string{mockedBeaconNode.URL},
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
-					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
-					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
+					mockedBeaconNode.URL: {
+						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "isSynced", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "peerCount", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+					},
+				},
+			},
+			expectedErr: "",
+		},
+		{
+			name: "connection refused",
+			config: testBeaconConfig{
+				testConfig: testConfig{
+					OutputToml: "",
+					Quiet:      false,
+					TestCases:  nil,
+					Timeout:    time.Minute,
+				},
+				Endpoints: []string{endpoint1, endpoint2},
+			},
+			expected: testCategoryResult{
+				Targets: map[string][]testResult{
+					endpoint1: {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "isSynced", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "peerCount", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+					},
+					endpoint2: {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "isSynced", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "peerCount", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+					},
 				},
 			},
 			expectedErr: "",
@@ -52,12 +98,16 @@ func TestBeaconTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    time.Nanosecond,
 				},
-				Endpoints: []string{"beacon-endpoint-1", "beacon-endpoint-2"},
+				Endpoints: []string{endpoint1, endpoint2},
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
-					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted}},
-					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted}},
+					endpoint1: {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+					},
+					endpoint2: {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+					},
 				},
 			},
 			expectedErr: "",
@@ -71,12 +121,22 @@ func TestBeaconTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    time.Minute,
 				},
-				Endpoints: []string{"beacon-endpoint-1", "beacon-endpoint-2"},
+				Endpoints: []string{endpoint1, endpoint2},
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
-					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
-					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
+					endpoint1: {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "isSynced", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "peerCount", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+					},
+					endpoint2: {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "isSynced", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "peerCount", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+					},
 				},
 			},
 			expectedErr: "",
@@ -90,7 +150,7 @@ func TestBeaconTest(t *testing.T) {
 					TestCases:  []string{"notSupportedTest"},
 					Timeout:    time.Minute,
 				},
-				Endpoints: []string{"beacon-endpoint-1", "beacon-endpoint-2"},
+				Endpoints: []string{endpoint1, endpoint2},
 			},
 			expected:    testCategoryResult{},
 			expectedErr: "test case not supported",
@@ -104,17 +164,20 @@ func TestBeaconTest(t *testing.T) {
 					TestCases:  []string{"ping"},
 					Timeout:    time.Minute,
 				},
-				Endpoints: []string{"beacon-endpoint-1", "beacon-endpoint-2"},
+				Endpoints: []string{endpoint1, endpoint2},
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
-					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
-					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
+					endpoint1: {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+					},
+					endpoint2: {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+					},
 				},
 			},
 			expectedErr: "",
 		},
-
 		{
 			name: "write to file",
 			config: testBeaconConfig{
@@ -124,15 +187,25 @@ func TestBeaconTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    time.Minute,
 				},
-				Endpoints: []string{"beacon-endpoint-1", "beacon-endpoint-2"},
+				Endpoints: []string{endpoint1, endpoint2},
 			},
 			expected: testCategoryResult{
-				CategoryName: "beacon",
 				Targets: map[string][]testResult{
-					"beacon-endpoint-1": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
-					"beacon-endpoint-2": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
+					endpoint1: {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "isSynced", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "peerCount", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+					},
+					endpoint2: {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "isSynced", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "peerCount", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+					},
 				},
-				Score: categoryScoreC,
+				Score:        categoryScoreC,
+				CategoryName: "beacon",
 			},
 			expectedErr: "",
 			cleanup: func(t *testing.T, p string) {
@@ -170,6 +243,23 @@ func TestBeaconTest(t *testing.T) {
 			}
 		})
 	}
+}
+
+func StartHealthyMockedBeaconNode(t *testing.T) *httptest.Server {
+	t.Helper()
+
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/eth/v1/node/health":
+		case "/eth/v1/node/syncing":
+			_, err := w.Write([]byte(`{"data":{"head_slot":"0","sync_distance":"0","is_optimistic":false,"is_syncing":false}}`))
+			require.NoError(t, err)
+		case "/eth/v1/node/peers":
+			_, err := w.Write([]byte(`{"meta":{"count":500}}`))
+			require.NoError(t, err)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
 }
 
 func TestBeaconTestFlags(t *testing.T) {

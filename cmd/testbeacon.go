@@ -4,19 +4,34 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptrace"
+	"strconv"
 	"time"
 
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/maps"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 type testBeaconConfig struct {
 	testConfig
 	Endpoints []string
 }
+
+type testCaseBeacon func(context.Context, *testBeaconConfig, string) testResult
+
+const (
+	thresholdBeaconPeersAvg = 20
+	thresholdBeaconPeersBad = 5
+)
 
 func newTestBeaconCmd(runFunc func(context.Context, io.Writer, testBeaconConfig) error) *cobra.Command {
 	var config testBeaconConfig
@@ -46,9 +61,12 @@ func bindTestBeaconFlags(cmd *cobra.Command, config *testBeaconConfig) {
 	mustMarkFlagRequired(cmd, endpoints)
 }
 
-func supportedBeaconTestCases() map[testCaseName]func(context.Context, *testBeaconConfig, string) testResult {
-	return map[testCaseName]func(context.Context, *testBeaconConfig, string) testResult{
-		{name: "ping", order: 1}: beaconPing,
+func supportedBeaconTestCases() map[testCaseName]testCaseBeacon {
+	return map[testCaseName]testCaseBeacon{
+		{name: "ping", order: 1}:        beaconPingTest,
+		{name: "pingMeasure", order: 2}: beaconPingMeasureTest,
+		{name: "isSynced", order: 3}:    beaconIsSyncedTest,
+		{name: "peerCount", order: 4}:   beaconPeerCountTest,
 	}
 }
 
@@ -60,21 +78,20 @@ func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (err 
 	}
 	sortTests(queuedTests)
 
-	parentCtx := ctx
-	if parentCtx == nil {
-		parentCtx = context.Background()
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	timeoutCtx, cancel := context.WithTimeout(parentCtx, cfg.Timeout)
+	timeoutCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
 	defer cancel()
 
-	resultsCh := make(chan map[string][]testResult)
+	testResultsChan := make(chan map[string][]testResult)
 	testResults := make(map[string][]testResult)
 	startTime := time.Now()
 
 	// run test suite for all beacon nodes
-	go testAllBeacons(timeoutCtx, queuedTests, testCases, cfg, resultsCh)
+	go testAllBeacons(timeoutCtx, queuedTests, testCases, cfg, testResultsChan)
 
-	for result := range resultsCh {
+	for result := range testResultsChan {
 		maps.Copy(testResults, result)
 	}
 
@@ -113,63 +130,71 @@ func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (err 
 	return nil
 }
 
-func testAllBeacons(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testBeaconConfig, string) testResult, cfg testBeaconConfig, resCh chan map[string][]testResult) {
-	defer close(resCh)
+func testAllBeacons(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCaseBeacon, conf testBeaconConfig, allBeaconsResCh chan map[string][]testResult) {
+	defer close(allBeaconsResCh)
 	// run tests for all beacon nodes
-	res := make(map[string][]testResult)
-	chs := []chan map[string][]testResult{}
-	for _, enr := range cfg.Endpoints {
-		ch := make(chan map[string][]testResult)
-		chs = append(chs, ch)
-		go testSingleBeacon(ctx, queuedTestCases, allTestCases, cfg, enr, ch)
+	allBeaconsRes := make(map[string][]testResult)
+	singleBeaconResCh := make(chan map[string][]testResult)
+	group, _ := errgroup.WithContext(ctx)
+
+	for _, endpoint := range conf.Endpoints {
+		currEndpoint := endpoint // TODO: can be removed after go1.22 version bump
+		group.Go(func() error {
+			return testSingleBeacon(ctx, queuedTestCases, allTestCases, conf, currEndpoint, singleBeaconResCh)
+		})
 	}
 
-	for _, ch := range chs {
-		for {
-			// we are checking for context done (timeout) inside the go routine
-			result, ok := <-ch
-			if !ok {
-				break
-			}
-			maps.Copy(res, result)
+	doneReading := make(chan bool)
+	go func() {
+		for singlePeerRes := range singleBeaconResCh {
+			maps.Copy(allBeaconsRes, singlePeerRes)
 		}
-	}
+		doneReading <- true
+	}()
 
-	resCh <- res
+	err := group.Wait()
+	if err != nil {
+		return
+	}
+	close(singleBeaconResCh)
+	<-doneReading
+
+	allBeaconsResCh <- allBeaconsRes
 }
 
-func testSingleBeacon(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testBeaconConfig, string) testResult, cfg testBeaconConfig, target string, resCh chan map[string][]testResult) {
-	defer close(resCh)
-	ch := make(chan testResult)
-	res := []testResult{}
-	// run all beacon tests for a beacon node, pushing each completed test to the channel until all are complete or timeout occurs
-	go runBeaconTest(ctx, queuedTestCases, allTestCases, cfg, target, ch)
+func testSingleBeacon(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCaseBeacon, cfg testBeaconConfig, target string, resCh chan map[string][]testResult) error {
+	singleTestResCh := make(chan testResult)
+	allTestRes := []testResult{}
 
+	// run all beacon tests for a beacon node, pushing each completed test to the channel until all are complete or timeout occurs
+	go runBeaconTest(ctx, queuedTestCases, allTestCases, cfg, target, singleTestResCh)
 	testCounter := 0
 	finished := false
 	for !finished {
-		var name string
+		var testName string
 		select {
 		case <-ctx.Done():
-			name = queuedTestCases[testCounter].name
-			res = append(res, testResult{Name: name, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
+			testName = queuedTestCases[testCounter].name
+			allTestRes = append(allTestRes, testResult{Name: testName, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
 			finished = true
-		case result, ok := <-ch:
+		case result, ok := <-singleTestResCh:
 			if !ok {
 				finished = true
 				break
 			}
-			name = queuedTestCases[testCounter].name
+			testName = queuedTestCases[testCounter].name
 			testCounter++
-			result.Name = name
-			res = append(res, result)
+			result.Name = testName
+			allTestRes = append(allTestRes, result)
 		}
 	}
 
-	resCh <- map[string][]testResult{target: res}
+	resCh <- map[string][]testResult{target: allTestRes}
+
+	return nil
 }
 
-func runBeaconTest(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testBeaconConfig, string) testResult, cfg testBeaconConfig, target string, ch chan testResult) {
+func runBeaconTest(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCaseBeacon, cfg testBeaconConfig, target string, ch chan testResult) {
 	defer close(ch)
 	for _, t := range queuedTestCases {
 		select {
@@ -181,15 +206,162 @@ func runBeaconTest(ctx context.Context, queuedTestCases []testCaseName, allTestC
 	}
 }
 
-func beaconPing(ctx context.Context, _ *testBeaconConfig, _ string) testResult {
-	// TODO(kalo): implement real ping
-	select {
-	case <-ctx.Done():
-		return testResult{Verdict: testVerdictFail}
-	default:
-		return testResult{
-			Verdict: testVerdictFail,
-			Error:   errNotImplemented,
-		}
+func beaconPingTest(ctx context.Context, _ *testBeaconConfig, target string) testResult {
+	testRes := testResult{Name: "Ping"}
+
+	client := http.Client{}
+	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/health", target)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
+	if err != nil {
+		return failedTestResult(testRes, err)
 	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode > 399 {
+		return failedTestResult(testRes, errors.New("status code %v", z.Int("status_code", resp.StatusCode)))
+	}
+
+	testRes.Verdict = testVerdictOk
+
+	return testRes
+}
+
+func beaconPingMeasureTest(ctx context.Context, _ *testBeaconConfig, target string) testResult {
+	testRes := testResult{Name: "PingMeasure"}
+
+	var start time.Time
+	var firstByte time.Duration
+
+	trace := &httptrace.ClientTrace{
+		GotFirstResponseByte: func() {
+			firstByte = time.Since(start)
+		},
+	}
+
+	start = time.Now()
+	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/health", target)
+	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), http.MethodGet, targetEndpoint, nil)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+
+	resp, err := http.DefaultTransport.RoundTrip(req)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode > 399 {
+		return failedTestResult(testRes, errors.New("status code %v", z.Int("status_code", resp.StatusCode)))
+	}
+
+	if firstByte > thresholdMeasureBad {
+		testRes.Verdict = testVerdictBad
+	} else if firstByte > thresholdMeasureAvg {
+		testRes.Verdict = testVerdictAvg
+	} else {
+		testRes.Verdict = testVerdictGood
+	}
+	testRes.Measurement = Duration{firstByte}.String()
+
+	return testRes
+}
+
+func beaconIsSyncedTest(ctx context.Context, _ *testBeaconConfig, target string) testResult {
+	testRes := testResult{Name: "isSynced"}
+
+	type isSyncedResponse struct {
+		Data eth2v1.SyncState `json:"data"`
+	}
+
+	client := http.Client{}
+	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/syncing", target)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+
+	if resp.StatusCode > 399 {
+		return failedTestResult(testRes, errors.New("status code %v", z.Int("status_code", resp.StatusCode)))
+	}
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+	defer resp.Body.Close()
+
+	var respUnmarshaled isSyncedResponse
+	err = json.Unmarshal(b, &respUnmarshaled)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+
+	if respUnmarshaled.Data.IsSyncing {
+		testRes.Verdict = testVerdictFail
+		return testRes
+	}
+
+	testRes.Verdict = testVerdictOk
+
+	return testRes
+}
+
+func beaconPeerCountTest(ctx context.Context, _ *testBeaconConfig, target string) testResult {
+	testRes := testResult{Name: "peerCount"}
+
+	type peerCountResponseMeta struct {
+		Count int `json:"count"`
+	}
+
+	type peerCountResponse struct {
+		Meta peerCountResponseMeta `json:"meta"`
+	}
+
+	client := http.Client{}
+	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/peers?state=connected", target)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+
+	if resp.StatusCode > 399 {
+		return failedTestResult(testRes, errors.New("status code %v", z.Int("status_code", resp.StatusCode)))
+	}
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+	defer resp.Body.Close()
+
+	var respUnmarshaled peerCountResponse
+	err = json.Unmarshal(b, &respUnmarshaled)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+
+	testRes.Measurement = strconv.Itoa(respUnmarshaled.Meta.Count)
+
+	if respUnmarshaled.Meta.Count < thresholdBeaconPeersBad {
+		testRes.Verdict = testVerdictBad
+	} else if respUnmarshaled.Meta.Count < thresholdBeaconPeersAvg {
+		testRes.Verdict = testVerdictAvg
+	} else {
+		testRes.Verdict = testVerdictGood
+	}
+
+	return testRes
 }

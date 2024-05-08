@@ -94,6 +94,13 @@ type testResult struct {
 	Error       testResultError
 }
 
+func failedTestResult(testRes testResult, err error) testResult {
+	testRes.Verdict = testVerdictFail
+	testRes.Error = testResultError{err}
+
+	return testRes
+}
+
 func (s *testResultError) UnmarshalText(data []byte) error {
 	s.error = errors.New(string(data))
 	return nil
