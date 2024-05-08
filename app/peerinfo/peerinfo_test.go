@@ -23,6 +23,12 @@ func TestPeerInfo(t *testing.T) {
 	now := time.Now()
 	const gitCommit = "1234567"
 
+	// when a major release happens, charon will only be compatible with a single version
+	versions := version.Supported()
+	if len(versions) < 2 {
+		versions = append(versions, versions...)
+	}
+
 	nodes := []struct {
 		Version  version.SemVer
 		LockHash []byte
@@ -30,15 +36,15 @@ func TestPeerInfo(t *testing.T) {
 		Ignore   bool
 	}{
 		{
-			Version:  version.Supported()[0],
+			Version:  versions[0],
 			LockHash: []byte("abcdef"),
 		},
 		{
-			Version:  version.Supported()[0],
+			Version:  versions[0],
 			LockHash: []byte("abcdef"),
 		},
 		{
-			Version:  version.Supported()[1],
+			Version:  versions[1],
 			LockHash: []byte("000000"),
 			Offset:   time.Minute,
 		},
