@@ -547,6 +547,7 @@ func peerPingLoadTest(ctx context.Context, conf *testPeersConfig, tcpNode host.H
 	}
 	wg.Wait()
 	close(testResCh)
+	log.Info(ctx, "Ping load tests finished", z.Any("target", peer.Name))
 
 	highestRTT := time.Duration(0)
 	for val := range testResCh {
@@ -593,12 +594,27 @@ func dialLibp2pTCPIP(ctx context.Context, address string) error {
 func peerDirectConnTest(ctx context.Context, _ *testPeersConfig, tcpNode host.Host, p2pPeer p2p.Peer) testResult {
 	testRes := testResult{Name: "DirectConn"}
 
-	err := tcpNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p2pPeer.ID})
+	timeout := Duration{5 * time.Minute}
+
+	log.Info(ctx, "Trying to establish direct connection...",
+		z.Any("timeout", timeout),
+		z.Any("target", p2pPeer.Name))
+
+	var err error
+	for i := 0; i < int(timeout.Seconds()); i++ {
+		err = tcpNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p2pPeer.ID})
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Second)
+	}
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
+	log.Info(ctx, "Direct connection established", z.Any("target", p2pPeer.Name))
+
 	conns := tcpNode.Network().ConnsToPeer(p2pPeer.ID)
-	if len(conns) != 2 {
+	if len(conns) < 2 {
 		return failedTestResult(testRes, errors.New("expected 2 connections to peer (relay and direct)", z.Int("connections", len(conns))))
 	}
 
