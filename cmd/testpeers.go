@@ -35,12 +35,13 @@ import (
 
 type testPeersConfig struct {
 	testConfig
-	ENRs             []string
-	P2P              p2p.Config
-	Log              log.Config
-	DataDir          string
-	KeepAlive        time.Duration
-	LoadTestDuration time.Duration
+	ENRs                    []string
+	P2P                     p2p.Config
+	Log                     log.Config
+	DataDir                 string
+	KeepAlive               time.Duration
+	LoadTestDuration        time.Duration
+	DirectConnectionTimeout time.Duration
 }
 
 type testCasePeer func(context.Context, *testPeersConfig, host.Host, p2p.Peer) testResult
@@ -82,6 +83,7 @@ func bindTestPeersFlags(cmd *cobra.Command, config *testPeersConfig) {
 	cmd.Flags().StringSliceVar(&config.ENRs, enrs, nil, "[REQUIRED] Comma-separated list of each peer ENR address.")
 	cmd.Flags().DurationVar(&config.KeepAlive, "keep-alive", 30*time.Minute, "Time to keep TCP node alive after test completion, so connection is open for other peers to test on their end.")
 	cmd.Flags().DurationVar(&config.LoadTestDuration, "load-test-duration", 30*time.Second, "Time to keep running the load tests in seconds. For each second a new continuous ping instance is spawned.")
+	cmd.Flags().DurationVar(&config.DirectConnectionTimeout, "direct-connection-timeout", 2*time.Minute, "Time to keep trying to establish direct connection to peer.")
 	mustMarkFlagRequired(cmd, enrs)
 }
 
@@ -591,17 +593,15 @@ func dialLibp2pTCPIP(ctx context.Context, address string) error {
 	return nil
 }
 
-func peerDirectConnTest(ctx context.Context, _ *testPeersConfig, tcpNode host.Host, p2pPeer p2p.Peer) testResult {
+func peerDirectConnTest(ctx context.Context, conf *testPeersConfig, tcpNode host.Host, p2pPeer p2p.Peer) testResult {
 	testRes := testResult{Name: "DirectConn"}
 
-	timeout := Duration{5 * time.Minute}
-
 	log.Info(ctx, "Trying to establish direct connection...",
-		z.Any("timeout", timeout),
+		z.Any("timeout", conf.DirectConnectionTimeout),
 		z.Any("target", p2pPeer.Name))
 
 	var err error
-	for i := 0; i < int(timeout.Seconds()); i++ {
+	for i := 0; i < int(conf.DirectConnectionTimeout); i++ {
 		err = tcpNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p2pPeer.ID})
 		if err == nil {
 			break
