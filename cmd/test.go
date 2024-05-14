@@ -22,7 +22,6 @@ import (
 
 var (
 	errTimeoutInterrupted = testResultError{errors.New("timeout/interrupted")}
-	errNotImplemented     = testResultError{errors.New("not implemented")}
 	errNoTicker           = testResultError{errors.New("no ticker")}
 )
 
