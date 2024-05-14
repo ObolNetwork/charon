@@ -103,7 +103,12 @@ func failedTestResult(testRes testResult, err error) testResult {
 }
 
 func (s *testResultError) UnmarshalText(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+
 	s.error = errors.New(string(data))
+
 	return nil
 }
 

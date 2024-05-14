@@ -314,12 +314,14 @@ func testWriteFile(t *testing.T, expectedRes testCategoryResult, path string) {
 	for targetName, testResults := range res.Targets {
 		for idx, testRes := range testResults {
 			require.Equal(t, expectedRes.Targets[targetName][idx].Verdict, testRes.Verdict)
-			require.Equal(t, expectedRes.Targets[targetName][idx].Verdict, testRes.Verdict)
-			require.Equal(t, expectedRes.Targets[targetName][idx].Measurement, testRes.Measurement)
-			require.Equal(t, expectedRes.Targets[targetName][idx].Suggestion, testRes.Suggestion)
+			require.Equal(t, expectedRes.Targets[targetName][idx].IsAcceptable, testRes.IsAcceptable)
 			if expectedRes.Targets[targetName][idx].Error.error != nil {
 				require.ErrorContains(t, testRes.Error.error, expectedRes.Targets[targetName][idx].Error.error.Error())
+			} else {
+				require.NoError(t, testRes.Error.error)
 			}
+			require.Equal(t, expectedRes.Targets[targetName][idx].Name, testRes.Name)
+			require.Equal(t, expectedRes.Targets[targetName][idx].Suggestion, testRes.Suggestion)
 		}
 	}
 }

@@ -5,17 +5,32 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
+	"net"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 //go:generate go test . -run=TestValidatorTest -update
 
 func TestValidatorTest(t *testing.T) {
+	port := testutil.GetFreePort(t)
+	readyChan := make(chan bool)
+	go func() {
+		err := StartHealthyValidatorClient(t, port, readyChan)
+		assert.NoError(t, err)
+	}()
+	<-readyChan
+	validatorAPIAddress := fmt.Sprintf("127.0.0.1:%v", port)
+
 	tests := []struct {
 		name        string
 		config      testValidatorConfig
@@ -32,12 +47,18 @@ func TestValidatorTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    time.Minute,
 				},
-				APIAddress: "validator-api-address",
+				APIAddress: validatorAPIAddress,
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
-					"validator-api-address": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
+					validatorAPIAddress: {
+						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "pingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+					},
 				},
+				Score:        categoryScoreA,
+				CategoryName: "validator",
 			},
 			expectedErr: "",
 		},
@@ -48,14 +69,18 @@ func TestValidatorTest(t *testing.T) {
 					OutputToml: "",
 					Quiet:      false,
 					TestCases:  nil,
-					Timeout:    time.Nanosecond,
+					Timeout:    100 * time.Nanosecond,
 				},
-				APIAddress: "validator-api-address",
+				APIAddress: validatorAPIAddress,
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
-					"validator-api-address": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted}},
+					validatorAPIAddress: {
+						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+					},
 				},
+				Score:        categoryScoreC,
+				CategoryName: "validator",
 			},
 			expectedErr: "",
 		},
@@ -68,12 +93,18 @@ func TestValidatorTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    time.Minute,
 				},
-				APIAddress: "validator-api-address",
+				APIAddress: validatorAPIAddress,
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
-					"validator-api-address": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
+					validatorAPIAddress: {
+						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "pingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+					},
 				},
+				Score:        categoryScoreA,
+				CategoryName: "validator",
 			},
 			expectedErr: "",
 		},
@@ -86,9 +117,12 @@ func TestValidatorTest(t *testing.T) {
 					TestCases:  []string{"notSupportedTest"},
 					Timeout:    time.Minute,
 				},
-				APIAddress: "validator-api-address",
+				APIAddress: validatorAPIAddress,
 			},
-			expected:    testCategoryResult{},
+			expected: testCategoryResult{
+				Score:        categoryScoreC,
+				CategoryName: "validator",
+			},
 			expectedErr: "test case not supported",
 		},
 		{
@@ -100,16 +134,19 @@ func TestValidatorTest(t *testing.T) {
 					TestCases:  []string{"ping"},
 					Timeout:    time.Minute,
 				},
-				APIAddress: "validator-api-address",
+				APIAddress: validatorAPIAddress,
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
-					"validator-api-address": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
+					validatorAPIAddress: {
+						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+					},
 				},
+				Score:        categoryScoreA,
+				CategoryName: "validator",
 			},
 			expectedErr: "",
 		},
-
 		{
 			name: "write to file",
 			config: testValidatorConfig{
@@ -119,14 +156,18 @@ func TestValidatorTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    time.Minute,
 				},
-				APIAddress: "validator-api-address",
+				APIAddress: validatorAPIAddress,
 			},
 			expected: testCategoryResult{
-				CategoryName: "validator",
 				Targets: map[string][]testResult{
-					"validator-api-address": {{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errNotImplemented}},
+					validatorAPIAddress: {
+						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "pingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+					},
 				},
-				Score: categoryScoreC,
+				Score:        categoryScoreA,
+				CategoryName: "validator",
 			},
 			expectedErr: "",
 			cleanup: func(t *testing.T, p string) {
@@ -163,6 +204,25 @@ func TestValidatorTest(t *testing.T) {
 				testWriteFile(t, test.expected, test.config.OutputToml)
 			}
 		})
+	}
+}
+
+func StartHealthyValidatorClient(t *testing.T, port int, ready chan bool) error {
+	t.Helper()
+	defer close(ready)
+
+	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%v", port))
+	if err != nil {
+		return errors.Wrap(err, "net listen")
+	}
+	defer listener.Close()
+
+	ready <- true
+	for {
+		_, err := listener.Accept()
+		if err != nil {
+			return errors.Wrap(err, "listener accept")
+		}
 	}
 }
 
