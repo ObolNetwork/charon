@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -58,8 +59,9 @@ func TestPeersTest(t *testing.T) {
 					"enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw",
 					"enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0",
 				},
-				Log:              log.DefaultConfig(),
-				LoadTestDuration: 2 * time.Second,
+				Log:                     log.DefaultConfig(),
+				LoadTestDuration:        2 * time.Second,
+				DirectConnectionTimeout: time.Second,
 				P2P: p2p.Config{
 					TCPAddrs: []string{freeTCPAddr.String()},
 				},
@@ -74,16 +76,19 @@ func TestPeersTest(t *testing.T) {
 						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "directConn", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 					"anxious-pencil - enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw": {
 						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "directConn", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 					"important-pen - enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0": {
 						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "directConn", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score: categoryScoreC,
@@ -97,6 +102,8 @@ func TestPeersTest(t *testing.T) {
 				// start local relay, so direct connection can be established
 				relayAddr := startRelay(ctx, t)
 				newConfig.P2P.Relays = []string{relayAddr}
+				freeTCPAddr := testutil.AvailableAddr(t)
+				newConfig.P2P.TCPAddrs = []string{fmt.Sprintf("127.0.0.1:%v", freeTCPAddr.Port)}
 
 				// start peers
 				enr1 := startPeer(t, newConfig, &peer1PrivKey)
@@ -370,10 +377,14 @@ func testWriteFile(t *testing.T, expectedRes testCategoryResult, path string) {
 func startPeer(t *testing.T, conf testPeersConfig, peerPrivKey *k1.PrivateKey) enr.Record {
 	t.Helper()
 	ctx := context.Background()
-	relays, err := p2p.NewRelays(ctx, conf.P2P.Relays, "test1")
+	peerConf := conf
+	freeTCPAddr := testutil.AvailableAddr(t)
+	peerConf.P2P.TCPAddrs = []string{fmt.Sprintf("127.0.0.1:%v", freeTCPAddr.Port)}
+
+	relays, err := p2p.NewRelays(ctx, peerConf.P2P.Relays, "test")
 	require.NoError(t, err)
 
-	hostPrivKey, err := p2p.LoadPrivKey(conf.DataDir)
+	hostPrivKey, err := p2p.LoadPrivKey(peerConf.DataDir)
 	require.NoError(t, err)
 	hostENR, err := enr.New(hostPrivKey)
 	require.NoError(t, err)
@@ -383,7 +394,7 @@ func startPeer(t *testing.T, conf testPeersConfig, peerPrivKey *k1.PrivateKey) e
 	connGater, err := p2p.NewConnGater([]peer.ID{hostAsPeer.ID}, relays)
 	require.NoError(t, err)
 
-	peerTCPNode, err := p2p.NewTCPNode(ctx, conf.P2P, peerPrivKey, connGater, false)
+	peerTCPNode, err := p2p.NewTCPNode(ctx, peerConf.P2P, peerPrivKey, connGater, false)
 	require.NoError(t, err)
 
 	for _, relay := range relays {
