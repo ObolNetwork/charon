@@ -18,6 +18,7 @@ import (
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	"github.com/spf13/cobra"
@@ -34,12 +35,13 @@ import (
 
 type testPeersConfig struct {
 	testConfig
-	ENRs             []string
-	P2P              p2p.Config
-	Log              log.Config
-	DataDir          string
-	KeepAlive        time.Duration
-	LoadTestDuration time.Duration
+	ENRs                    []string
+	P2P                     p2p.Config
+	Log                     log.Config
+	DataDir                 string
+	KeepAlive               time.Duration
+	LoadTestDuration        time.Duration
+	DirectConnectionTimeout time.Duration
 }
 
 type testCasePeer func(context.Context, *testPeersConfig, host.Host, p2p.Peer) testResult
@@ -81,6 +83,7 @@ func bindTestPeersFlags(cmd *cobra.Command, config *testPeersConfig) {
 	cmd.Flags().StringSliceVar(&config.ENRs, enrs, nil, "[REQUIRED] Comma-separated list of each peer ENR address.")
 	cmd.Flags().DurationVar(&config.KeepAlive, "keep-alive", 30*time.Minute, "Time to keep TCP node alive after test completion, so connection is open for other peers to test on their end.")
 	cmd.Flags().DurationVar(&config.LoadTestDuration, "load-test-duration", 30*time.Second, "Time to keep running the load tests in seconds. For each second a new continuous ping instance is spawned.")
+	cmd.Flags().DurationVar(&config.DirectConnectionTimeout, "direct-connection-timeout", 2*time.Minute, "Time to keep trying to establish direct connection to peer.")
 	mustMarkFlagRequired(cmd, enrs)
 }
 
@@ -96,6 +99,7 @@ func supportedPeerTestCases() map[testCaseName]testCasePeer {
 		{name: "ping", order: 1}:        peerPingTest,
 		{name: "pingMeasure", order: 2}: peerPingMeasureTest,
 		{name: "pingLoad", order: 3}:    peerPingLoadTest,
+		{name: "directConn", order: 4}:  peerDirectConnTest,
 	}
 }
 
@@ -463,32 +467,20 @@ func peerPingTest(ctx context.Context, _ *testPeersConfig, tcpNode host.Host, pe
 	for ; true; <-ticker.C {
 		select {
 		case <-ctx.Done():
-			testRes.Verdict = testVerdictFail
-			testRes.Error = errTimeoutInterrupted
-
-			return testRes
+			return failedTestResult(testRes, errTimeoutInterrupted)
 		default:
 			ticker.Reset(3 * time.Second)
 			result, err := pingPeerOnce(ctx, tcpNode, peer)
 			if err != nil {
-				testRes.Verdict = testVerdictFail
-				testRes.Error = testResultError{err}
-
-				return testRes
+				return failedTestResult(testRes, err)
 			}
 
 			if result.Error != nil {
 				switch {
 				case errors.Is(result.Error, context.DeadlineExceeded):
-					testRes.Verdict = testVerdictFail
-					testRes.Error = errTimeoutInterrupted
-
-					return testRes
+					return failedTestResult(testRes, errTimeoutInterrupted)
 				case p2p.IsRelayError(result.Error):
-					testRes.Verdict = testVerdictFail
-					testRes.Error = testResultError{result.Error}
-
-					return testRes
+					return failedTestResult(testRes, result.Error)
 				default:
 					log.Warn(ctx, "Ping to peer failed, retrying in 3 sec...", nil, z.Str("peer_name", peer.Name))
 					continue
@@ -512,16 +504,10 @@ func peerPingMeasureTest(ctx context.Context, _ *testPeersConfig, tcpNode host.H
 
 	result, err := pingPeerOnce(ctx, tcpNode, peer)
 	if err != nil {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{err}
-
-		return testRes
+		return failedTestResult(testRes, err)
 	}
 	if result.Error != nil {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{result.Error}
-
-		return testRes
+		return failedTestResult(testRes, result.Error)
 	}
 
 	if result.RTT > thresholdMeasureBad {
@@ -563,6 +549,7 @@ func peerPingLoadTest(ctx context.Context, conf *testPeersConfig, tcpNode host.H
 	}
 	wg.Wait()
 	close(testResCh)
+	log.Info(ctx, "Ping load tests finished", z.Any("target", peer.Name))
 
 	highestRTT := time.Duration(0)
 	for val := range testResCh {
@@ -606,6 +593,36 @@ func dialLibp2pTCPIP(ctx context.Context, address string) error {
 	return nil
 }
 
+func peerDirectConnTest(ctx context.Context, conf *testPeersConfig, tcpNode host.Host, p2pPeer p2p.Peer) testResult {
+	testRes := testResult{Name: "DirectConn"}
+
+	log.Info(ctx, "Trying to establish direct connection...",
+		z.Any("timeout", conf.DirectConnectionTimeout),
+		z.Any("target", p2pPeer.Name))
+
+	var err error
+	for i := 0; i < int(conf.DirectConnectionTimeout); i++ {
+		err = tcpNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p2pPeer.ID})
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+	log.Info(ctx, "Direct connection established", z.Any("target", p2pPeer.Name))
+
+	conns := tcpNode.Network().ConnsToPeer(p2pPeer.ID)
+	if len(conns) < 2 {
+		return failedTestResult(testRes, errors.New("expected 2 connections to peer (relay and direct)", z.Int("connections", len(conns))))
+	}
+
+	testRes.Verdict = testVerdictOk
+
+	return testRes
+}
+
 func libp2pTCPPortOpenTest(ctx context.Context, cfg *testPeersConfig) testResult {
 	testRes := testResult{Name: "Libp2pTCPPortOpen"}
 
@@ -618,10 +635,7 @@ func libp2pTCPPortOpenTest(ctx context.Context, cfg *testPeersConfig) testResult
 
 	err := group.Wait()
 	if err != nil {
-		testRes.Verdict = testVerdictFail
-		testRes.Error = testResultError{err}
-
-		return testRes
+		return failedTestResult(testRes, err)
 	}
 
 	testRes.Verdict = testVerdictOk
