@@ -237,11 +237,6 @@ func sleepWithContext(ctx context.Context, d time.Duration) {
 }
 
 func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) error {
-	err := log.InitLogger(conf.Log)
-	if err != nil {
-		return err
-	}
-
 	peerTestCases := supportedPeerTestCases()
 	queuedTestsPeer := filterTests(maps.Keys(peerTestCases), conf.testConfig)
 	sortTests(queuedTestsPeer)
