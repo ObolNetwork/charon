@@ -12,6 +12,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/cobra"
@@ -190,7 +191,7 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) error {
 			testOutput := ""
 			testOutput += fmt.Sprintf("%-60s", singleTestRes.Name)
 			if singleTestRes.Measurement != "" {
-				testOutput = strings.TrimSuffix(testOutput, strings.Repeat(" ", len(singleTestRes.Measurement)+1))
+				testOutput = strings.TrimSuffix(testOutput, strings.Repeat(" ", utf8.RuneCountInString(singleTestRes.Measurement)+1))
 				testOutput = testOutput + singleTestRes.Measurement + " "
 			}
 			testOutput += string(singleTestRes.Verdict)
