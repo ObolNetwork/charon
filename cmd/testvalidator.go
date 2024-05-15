@@ -68,9 +68,6 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 	}
 	sortTests(queuedTests)
 
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	timeoutCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
 	defer cancel()
 
