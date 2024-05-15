@@ -5,17 +5,24 @@ package cmd
 import (
 	"context"
 	"io"
+	"math"
+	"math/rand"
+	"net"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/maps"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 type testValidatorConfig struct {
 	testConfig
-	APIAddress string
+	APIAddress       string
+	LoadTestDuration time.Duration
 }
 
 func newTestValidatorCmd(runFunc func(context.Context, io.Writer, testValidatorConfig) error) *cobra.Command {
@@ -24,7 +31,7 @@ func newTestValidatorCmd(runFunc func(context.Context, io.Writer, testValidatorC
 	cmd := &cobra.Command{
 		Use:   "validator",
 		Short: "Run multiple tests towards validator client",
-		Long:  `Run multiple tests towards validator client. Verify that Charon can efficiently interact with other Charon peer nodes.`,
+		Long:  `Run multiple tests towards validator client. Verify that Charon can efficiently interact with its validator client.`,
 		Args:  cobra.NoArgs,
 		PreRunE: func(cmd *cobra.Command, _ []string) error {
 			return mustOutputToFileOnQuiet(cmd)
@@ -42,11 +49,14 @@ func newTestValidatorCmd(runFunc func(context.Context, io.Writer, testValidatorC
 
 func bindTestValidatorFlags(cmd *cobra.Command, config *testValidatorConfig) {
 	cmd.Flags().StringVar(&config.APIAddress, "validator-api-address", "127.0.0.1:3600", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API.")
+	cmd.Flags().DurationVar(&config.LoadTestDuration, "load-test-duration", 5*time.Second, "Time to keep running the load tests in seconds. For each second a new continuous ping instance is spawned.")
 }
 
 func supportedValidatorTestCases() map[testCaseName]func(context.Context, *testValidatorConfig) testResult {
 	return map[testCaseName]func(context.Context, *testValidatorConfig) testResult{
-		{name: "ping", order: 1}: validatorPing,
+		{name: "ping", order: 1}:        validatorPingTest,
+		{name: "pingMeasure", order: 2}: validatorPingMeasureTest,
+		{name: "pingLoad", order: 3}:    validatorPingLoadTest,
 	}
 }
 
@@ -58,21 +68,20 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 	}
 	sortTests(queuedTests)
 
-	parentCtx := ctx
-	if parentCtx == nil {
-		parentCtx = context.Background()
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	timeoutCtx, cancel := context.WithTimeout(parentCtx, cfg.Timeout)
+	timeoutCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
 	defer cancel()
 
-	resultsCh := make(chan map[string][]testResult)
+	testResultsChan := make(chan map[string][]testResult)
 	testResults := make(map[string][]testResult)
 	startTime := time.Now()
 
 	// run test suite for a single validator client
-	go testSingleValidator(timeoutCtx, queuedTests, testCases, cfg, resultsCh)
+	go testSingleValidator(timeoutCtx, queuedTests, testCases, cfg, testResultsChan)
 
-	for result := range resultsCh {
+	for result := range testResultsChan {
 		maps.Copy(testResults, result)
 	}
 
@@ -113,33 +122,33 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 
 func testSingleValidator(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testValidatorConfig) testResult, cfg testValidatorConfig, resCh chan map[string][]testResult) {
 	defer close(resCh)
-	ch := make(chan testResult)
-	res := []testResult{}
+	singleTestResCh := make(chan testResult)
+	allTestRes := []testResult{}
 	// run all validator tests for a validator client, pushing each completed test to the channel until all are complete or timeout occurs
-	go testValidator(ctx, queuedTestCases, allTestCases, cfg, ch)
+	go testValidator(ctx, queuedTestCases, allTestCases, cfg, singleTestResCh)
 
 	testCounter := 0
 	finished := false
 	for !finished {
-		var name string
+		var testName string
 		select {
 		case <-ctx.Done():
-			name = queuedTestCases[testCounter].name
-			res = append(res, testResult{Name: name, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
+			testName = queuedTestCases[testCounter].name
+			allTestRes = append(allTestRes, testResult{Name: testName, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
 			finished = true
-		case result, ok := <-ch:
+		case result, ok := <-singleTestResCh:
 			if !ok {
 				finished = true
 				break
 			}
-			name = queuedTestCases[testCounter].name
+			testName = queuedTestCases[testCounter].name
 			testCounter++
-			result.Name = name
-			res = append(res, result)
+			result.Name = testName
+			allTestRes = append(allTestRes, result)
 		}
 	}
 
-	resCh <- map[string][]testResult{cfg.APIAddress: res}
+	resCh <- map[string][]testResult{cfg.APIAddress: allTestRes}
 }
 
 func testValidator(ctx context.Context, queuedTests []testCaseName, allTests map[testCaseName]func(context.Context, *testValidatorConfig) testResult, cfg testValidatorConfig, ch chan testResult) {
@@ -154,15 +163,110 @@ func testValidator(ctx context.Context, queuedTests []testCaseName, allTests map
 	}
 }
 
-func validatorPing(ctx context.Context, _ *testValidatorConfig) testResult {
-	// TODO(kalo): implement real ping
-	select {
-	case <-ctx.Done():
-		return testResult{Verdict: testVerdictFail}
-	default:
-		return testResult{
-			Verdict: testVerdictFail,
-			Error:   errNotImplemented,
+func validatorPingTest(ctx context.Context, conf *testValidatorConfig) testResult {
+	testRes := testResult{Name: "Ping"}
+
+	d := net.Dialer{Timeout: time.Second}
+	conn, err := d.DialContext(ctx, "tcp", conf.APIAddress)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+	defer conn.Close()
+
+	testRes.Verdict = testVerdictOk
+
+	return testRes
+}
+
+func validatorPingMeasureTest(ctx context.Context, conf *testValidatorConfig) testResult {
+	testRes := testResult{Name: "PingMeasure"}
+
+	d := net.Dialer{Timeout: time.Second}
+	before := time.Now()
+	conn, err := d.DialContext(ctx, "tcp", conf.APIAddress)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+	defer conn.Close()
+	rtt := time.Since(before)
+
+	if rtt > thresholdMeasureBad {
+		testRes.Verdict = testVerdictBad
+	} else if rtt > thresholdMeasureAvg {
+		testRes.Verdict = testVerdictAvg
+	} else {
+		testRes.Verdict = testVerdictGood
+	}
+	testRes.Measurement = Duration{rtt}.String()
+
+	return testRes
+}
+
+func pingValidatorContinuously(ctx context.Context, address string, resCh chan<- time.Duration) {
+	d := net.Dialer{Timeout: time.Second}
+	for {
+		before := time.Now()
+		conn, err := d.DialContext(ctx, "tcp", address)
+		if err != nil {
+			return
+		}
+		rtt := time.Since(before)
+		err = conn.Close()
+		if err != nil {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case resCh <- rtt:
+			awaitTime := rand.Intn(100) //nolint:gosec // weak generator is not an issue here
+			sleepWithContext(ctx, time.Duration(awaitTime)*time.Millisecond)
 		}
 	}
+}
+
+func validatorPingLoadTest(ctx context.Context, conf *testValidatorConfig) testResult {
+	log.Info(ctx, "Running validator load tests...",
+		z.Any("duration", conf.LoadTestDuration),
+		z.Any("target", conf.APIAddress),
+	)
+	testRes := testResult{Name: "ValidatorLoad"}
+
+	testResCh := make(chan time.Duration, math.MaxInt16)
+	pingCtx, cancel := context.WithTimeout(ctx, conf.LoadTestDuration)
+	defer cancel()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	var wg sync.WaitGroup
+	for pingCtx.Err() == nil {
+		select {
+		case <-ticker.C:
+			wg.Add(1)
+			go func() {
+				pingValidatorContinuously(pingCtx, conf.APIAddress, testResCh)
+				wg.Done()
+			}()
+		case <-pingCtx.Done():
+		}
+	}
+	wg.Wait()
+	close(testResCh)
+
+	highestRTT := time.Duration(0)
+	for rtt := range testResCh {
+		if rtt > highestRTT {
+			highestRTT = rtt
+		}
+	}
+	if highestRTT > thresholdLoadBad {
+		testRes.Verdict = testVerdictBad
+	} else if highestRTT > thresholdLoadAvg {
+		testRes.Verdict = testVerdictAvg
+	} else {
+		testRes.Verdict = testVerdictGood
+	}
+	testRes.Measurement = Duration{highestRTT}.String()
+
+	return testRes
 }
