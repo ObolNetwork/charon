@@ -205,7 +205,7 @@ func TestBeaconTest(t *testing.T) {
 					},
 				},
 				Score:        categoryScoreC,
-				CategoryName: "beacon",
+				CategoryName: beaconTestCategory,
 			},
 			expectedErr: "",
 			cleanup: func(t *testing.T, p string) {

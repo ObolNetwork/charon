@@ -298,7 +298,7 @@ func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) error 
 	}
 
 	res := testCategoryResult{
-		CategoryName:  "peers",
+		CategoryName:  peersTestCategory,
 		Targets:       testResults,
 		ExecutionTime: execTime,
 		Score:         score,
