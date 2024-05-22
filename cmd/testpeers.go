@@ -249,9 +249,6 @@ func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) error 
 		return errors.New("test case not supported")
 	}
 
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	timeoutCtx, cancel := context.WithTimeout(ctx, conf.Timeout)
 	defer cancel()
 

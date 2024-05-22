@@ -78,9 +78,6 @@ func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (err 
 	}
 	sortTests(queuedTests)
 
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	timeoutCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
 	defer cancel()
 
