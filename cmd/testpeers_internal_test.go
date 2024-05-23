@@ -67,7 +67,7 @@ func TestPeersTest(t *testing.T) {
 				},
 			},
 			expected: testCategoryResult{
-				CategoryName: "peers",
+				CategoryName: peersTestCategory,
 				Targets: map[string][]testResult{
 					"self": {
 						{Name: "libp2pTCPPortOpenTest", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
@@ -131,7 +131,7 @@ func TestPeersTest(t *testing.T) {
 				Log: log.DefaultConfig(),
 			},
 			expected: testCategoryResult{
-				CategoryName: "peers",
+				CategoryName: peersTestCategory,
 				Targets: map[string][]testResult{
 					"self": {
 						{Name: "libp2pTCPPortOpenTest", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
@@ -186,7 +186,7 @@ func TestPeersTest(t *testing.T) {
 				Log: log.DefaultConfig(),
 			},
 			expected: testCategoryResult{
-				CategoryName: "peers",
+				CategoryName: peersTestCategory,
 				Targets: map[string][]testResult{
 					"inexpensive-farm - enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
@@ -219,7 +219,7 @@ func TestPeersTest(t *testing.T) {
 				Log: log.DefaultConfig(),
 			},
 			expected: testCategoryResult{
-				CategoryName: "peers",
+				CategoryName: peersTestCategory,
 				Targets: map[string][]testResult{
 					"self": {
 						{Name: "libp2pTCPPortOpenTest", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},

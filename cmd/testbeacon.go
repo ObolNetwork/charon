@@ -104,7 +104,7 @@ func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (err 
 	}
 
 	res := testCategoryResult{
-		CategoryName:  "beacon",
+		CategoryName:  beaconTestCategory,
 		Targets:       testResults,
 		ExecutionTime: execTime,
 		Score:         score,

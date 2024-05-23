@@ -94,7 +94,7 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 	}
 
 	res := testCategoryResult{
-		CategoryName:  "validator",
+		CategoryName:  validatorTestCategory,
 		Targets:       testResults,
 		ExecutionTime: execTime,
 		Score:         score,
