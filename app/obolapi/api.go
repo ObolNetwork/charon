@@ -19,23 +19,43 @@ import (
 const (
 	// launchpadReturnPathFmt is the URL path format string at which one can find details for a given cluster lock hash.
 	launchpadReturnPathFmt = "/lock/0x%X/launchpad"
+
+	// defaultTimeout is the default HTTP request timeout if not specified
+	defaultTimeout = 10 * time.Second
 )
 
 // New returns a new Client.
-func New(urlStr string) (Client, error) {
+func New(urlStr string, options ...func(*Client)) (Client, error) {
 	_, err := url.ParseRequestURI(urlStr) // check that urlStr is valid
 	if err != nil {
 		return Client{}, errors.Wrap(err, "could not parse Obol API URL")
 	}
 
-	return Client{
+	// always set a default timeout, even if no options are provided
+	options = append([]func(*Client){WithTimeout(defaultTimeout)}, options...)
+
+	cl := Client{
 		baseURL: urlStr,
-	}, nil
+	}
+
+	for _, opt := range options {
+		opt(&cl)
+	}
+
+	return cl, nil
 }
 
 // Client is the REST client for obol-api requests.
 type Client struct {
-	baseURL string // Base obol-api URL
+	baseURL    string        // Base obol-api URL
+	reqTimeout time.Duration // Timeout to use for HTTP requests
+}
+
+// WithTimeout sets the HTTP request timeout for all Client calls to the provided value.
+func WithTimeout(timeout time.Duration) func(*Client) {
+	return func(client *Client) {
+		client.reqTimeout = timeout
+	}
 }
 
 // url returns a *url.URL from the baseURL stored in c.
@@ -49,11 +69,9 @@ func (c Client) url() *url.URL {
 	return baseURL
 }
 
-// PublishLock posts the lockfile to obol-api. It has a 30s timeout.
+// PublishLock posts the lockfile to obol-api.
+// It respects the timeout specified in the Client instance.
 func (c Client) PublishLock(ctx context.Context, lock cluster.Lock) error {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
 	addr := c.url()
 	addr.Path = "lock"
 
@@ -61,6 +79,9 @@ func (c Client) PublishLock(ctx context.Context, lock cluster.Lock) error {
 	if err != nil {
 		return errors.Wrap(err, "marshal lock")
 	}
+
+	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
+	defer cancel()
 
 	err = httpPost(ctx, addr, b)
 	if err != nil {

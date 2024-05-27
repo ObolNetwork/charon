@@ -50,8 +50,9 @@ type Config struct {
 	KeymanagerAddr      string
 	KeymanagerAuthToken string
 
-	PublishAddr string
-	Publish     bool
+	PublishAddr    string
+	PublishTimeout time.Duration
+	Publish        bool
 
 	TestConfig TestConfig
 }
@@ -334,7 +335,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	var dashboardURL string
 
 	if conf.Publish {
-		if dashboardURL, err = writeLockToAPI(ctx, conf.PublishAddr, lock); err != nil {
+		if dashboardURL, err = writeLockToAPI(ctx, conf.PublishAddr, lock, conf.PublishTimeout); err != nil {
 			log.Warn(ctx, "Couldn't publish lock file to Obol API", err)
 		}
 	}
@@ -1059,8 +1060,8 @@ func createDistValidators(shares []share, depositDatas [][]eth2p0.DepositData, v
 }
 
 // writeLockToAPI posts the lock file to obol-api and returns the Launchpad dashboard URL.
-func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) (string, error) {
-	cl, err := obolapi.New(publishAddr)
+func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock, timeout time.Duration) (string, error) {
+	cl, err := obolapi.New(publishAddr, obolapi.WithTimeout(timeout))
 	if err != nil {
 		return "", err
 	}

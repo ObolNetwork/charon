@@ -134,6 +134,7 @@ func Test_runSubmitPartialExitFlow(t *testing.T) {
 		PublishAddress:    srv.URL,
 		ExitEpoch:         194048,
 		BeaconNodeTimeout: 30 * time.Second,
+		PublishTimeout:    10 * time.Second,
 	}
 
 	require.NoError(t, runSignPartialExit(ctx, config))
@@ -273,6 +274,7 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 				PublishAddress:    oapiURL,
 				ExitEpoch:         0,
 				BeaconNodeTimeout: 30 * time.Second,
+				PublishTimeout:    10 * time.Second,
 			}
 
 			require.ErrorContains(t, runSignPartialExit(ctx, config), test.errData)
