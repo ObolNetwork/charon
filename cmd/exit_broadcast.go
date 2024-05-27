@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"strings"
+	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -95,7 +96,7 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 		fullExit, err = exitFromPath(maybeExitFilePath)
 	} else {
 		log.Info(ctx, "Retrieving full exit message from publish address")
-		fullExit, err = exitFromObolAPI(ctx, config.ValidatorPubkey, config.PublishAddress, cl, identityKey)
+		fullExit, err = exitFromObolAPI(ctx, config.ValidatorPubkey, config.PublishAddress, config.PublishTimeout, cl, identityKey)
 	}
 
 	if err != nil {
@@ -141,8 +142,8 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 }
 
 // exitFromObolAPI fetches an eth2p0.SignedVoluntaryExit message from publishAddr for the given validatorPubkey.
-func exitFromObolAPI(ctx context.Context, validatorPubkey, publishAddr string, cl *manifestpb.Cluster, identityKey *k1.PrivateKey) (eth2p0.SignedVoluntaryExit, error) {
-	oAPI, err := obolapi.New(publishAddr)
+func exitFromObolAPI(ctx context.Context, validatorPubkey, publishAddr string, publishTimeout time.Duration, cl *manifestpb.Cluster, identityKey *k1.PrivateKey) (eth2p0.SignedVoluntaryExit, error) {
+	oAPI, err := obolapi.New(publishAddr, obolapi.WithTimeout(publishTimeout))
 	if err != nil {
 		return eth2p0.SignedVoluntaryExit{}, errors.Wrap(err, "could not create obol api client")
 	}

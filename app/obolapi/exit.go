@@ -63,6 +63,7 @@ func fullExitURL(valPubkey, lockHash string, shareIndex uint64) string {
 }
 
 // PostPartialExit POSTs the set of msg's to the Obol API, for a given lock hash.
+// It respects the timeout specified in the Client instance.
 func (c Client) PostPartialExit(ctx context.Context, lockHash []byte, shareIndex uint64, identityKey *k1.PrivateKey, exitBlobs ...ExitBlob) error {
 	lockHashStr := "0x" + hex.EncodeToString(lockHash)
 
@@ -103,6 +104,9 @@ func (c Client) PostPartialExit(ctx context.Context, lockHash []byte, shareIndex
 		return errors.Wrap(err, "json marshal error")
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
+	defer cancel()
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(data))
 	if err != nil {
 		return errors.Wrap(err, "http new post request")
@@ -127,6 +131,7 @@ func (c Client) PostPartialExit(ctx context.Context, lockHash []byte, shareIndex
 }
 
 // GetFullExit gets the full exit message for a given validator public key, lock hash and share index.
+// It respects the timeout specified in the Client instance.
 func (c Client) GetFullExit(ctx context.Context, valPubkey string, lockHash []byte, shareIndex uint64, identityKey *k1.PrivateKey) (ExitBlob, error) {
 	valPubkeyBytes, err := from0x(valPubkey, 48) // public key is 48 bytes long
 	if err != nil {
@@ -141,6 +146,9 @@ func (c Client) GetFullExit(ctx context.Context, valPubkey string, lockHash []by
 	}
 
 	u.Path = path
+
+	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
+	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
