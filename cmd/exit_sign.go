@@ -107,7 +107,7 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 
 	eth2Cl.SetForkVersion([4]byte(cl.GetForkVersion()))
 
-	oAPI, err := obolapi.New(config.PublishAddress)
+	oAPI, err := obolapi.New(config.PublishAddress, obolapi.WithTimeout(config.PublishTimeout))
 	if err != nil {
 		return errors.Wrap(err, "could not create obol api client")
 	}

@@ -123,6 +123,7 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool) {
 			PublishAddress:    srv.URL,
 			ExitEpoch:         194048,
 			BeaconNodeTimeout: 30 * time.Second,
+			PublishTimeout:    10 * time.Second,
 		}
 
 		require.NoError(t, runSignPartialExit(ctx, config), "operator index: %v", idx)
@@ -139,10 +140,11 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool) {
 		PublishAddress:    srv.URL,
 		ExitEpoch:         194048,
 		BeaconNodeTimeout: 30 * time.Second,
+		PublishTimeout:    10 * time.Second,
 	}
 
 	if fromFile {
-		exit, err := exitFromObolAPI(ctx, lock.Validators[0].PublicKeyHex(), srv.URL, cl, enrs[0])
+		exit, err := exitFromObolAPI(ctx, lock.Validators[0].PublicKeyHex(), srv.URL, 10*time.Second, cl, enrs[0])
 		require.NoError(t, err)
 
 		exitBytes, err := json.Marshal(exit)
@@ -289,6 +291,7 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 				PublishAddress:    oapiURL,
 				ExitEpoch:         0,
 				BeaconNodeTimeout: 30 * time.Second,
+				PublishTimeout:    10 * time.Second,
 			}
 
 			if test.badExistingExitPath {

@@ -107,6 +107,7 @@ func Test_runFetchExitFullFlow(t *testing.T) {
 			PublishAddress:    srv.URL,
 			ExitEpoch:         194048,
 			BeaconNodeTimeout: 30 * time.Second,
+			PublishTimeout:    10 * time.Second,
 		}
 
 		require.NoError(t, runSignPartialExit(ctx, config), "operator index: %v", idx)
@@ -120,6 +121,7 @@ func Test_runFetchExitFullFlow(t *testing.T) {
 		LockFilePath:    filepath.Join(baseDir, "cluster-lock.json"),
 		PublishAddress:  srv.URL,
 		FetchedExitPath: root,
+		PublishTimeout:  10 * time.Second,
 	}
 
 	require.NoError(t, runFetchExit(ctx, config))
