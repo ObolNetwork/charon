@@ -46,6 +46,7 @@ func newFetchExitCmd(runFunc func(context.Context, exitConfig) error) *cobra.Com
 		{privateKeyPath, false},
 		{lockFilePath, false},
 		{validatorPubkey, true},
+		{fetchedExitPath, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)

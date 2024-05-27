@@ -57,6 +57,7 @@ const (
 	exitEpoch
 	exitFromFile
 	beaconNodeTimeout
+	fetchedExitPath
 	publishTimeout
 )
 
@@ -80,6 +81,8 @@ func (ef exitFlag) String() string {
 		return "exit-from-file"
 	case beaconNodeTimeout:
 		return "beacon-node-timeout"
+	case fetchedExitPath:
+		return "fetched-exit-path"
 	case publishTimeout:
 		return "publish-timeout"
 	default:
@@ -123,6 +126,8 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 			cmd.Flags().StringVar(&config.ExitFromFilePath, exitFromFile.String(), "", maybeRequired("Retrieves a signed exit message from a pre-prepared file instead of --publish-address."))
 		case beaconNodeTimeout:
 			cmd.Flags().DurationVar(&config.BeaconNodeTimeout, beaconNodeTimeout.String(), 30*time.Second, maybeRequired("Timeout for beacon node HTTP calls."))
+		case fetchedExitPath:
+			cmd.Flags().StringVar(&config.FetchedExitPath, fetchedExitPath.String(), "./", maybeRequired("Path to store fetched signed exit messages."))
 		case publishTimeout:
 			cmd.Flags().DurationVar(&config.PublishTimeout, publishTimeout.String(), 30*time.Second, "Timeout for publishing a signed exit to the publish-address API.")
 		}
