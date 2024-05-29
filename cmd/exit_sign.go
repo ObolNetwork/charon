@@ -4,6 +4,8 @@ package cmd
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -45,12 +47,25 @@ func newSubmitPartialExitCmd(runFunc func(context.Context, exitConfig) error) *c
 		{lockFilePath, false},
 		{validatorKeysDir, false},
 		{exitEpoch, false},
-		{validatorPubkey, true},
-		{beaconNodeURL, true},
+		{validatorPubkey, false},
+		{validatorIndex, false},
+		{beaconNodeEndpoints, true},
 		{beaconNodeTimeout, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
+
+	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
+		valIdxPresent := cmd.Flags().Lookup(validatorIndex.String()).Changed
+		if strings.TrimSpace(config.ValidatorPubkey) == "" && !valIdxPresent {
+			//nolint:revive // we use our own version of the errors package.
+			return errors.New(fmt.Sprintf("%s or %s must be specified.", validatorIndex.String(), validatorPubkey.String()))
+		}
+
+		config.ValidatorIndexPresent = valIdxPresent
+
+		return nil
+	})
 
 	return cmd
 }
@@ -84,11 +99,15 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 	validator := core.PubKey(config.ValidatorPubkey)
 
 	valEth2, err := validator.ToETH2()
-	if err != nil {
+	if err != nil && !config.ValidatorIndexPresent {
 		return errors.Wrap(err, "cannot convert validator pubkey to bytes")
 	}
 
-	ctx = log.WithCtx(ctx, z.Str("validator", validator.String()))
+	if config.ValidatorIndexPresent {
+		ctx = log.WithCtx(ctx, z.U64("validator_index", config.ValidatorIndex))
+	} else {
+		ctx = log.WithCtx(ctx, z.Str("validator", validator.String()))
+	}
 
 	shareIdx, err := keystore.ShareIdxForCluster(cl, *identityKey.PubKey())
 	if err != nil {
@@ -96,11 +115,11 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 	}
 
 	ourShare, ok := shares[validator]
-	if !ok {
+	if !ok && !config.ValidatorIndexPresent {
 		return errors.New("validator not present in cluster lock", z.Str("validator", validator.String()))
 	}
 
-	eth2Cl, err := eth2Client(ctx, config.BeaconNodeURL, config.BeaconNodeTimeout)
+	eth2Cl, err := eth2Client(ctx, config.BeaconNodeEndpoints, config.BeaconNodeTimeout)
 	if err != nil {
 		return errors.Wrap(err, "cannot create eth2 client for specified beacon node")
 	}
@@ -114,25 +133,43 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 
 	log.Info(ctx, "Signing exit message for validator")
 
-	rawValData, err := eth2Cl.Validators(ctx, &eth2api.ValidatorsOpts{
-		PubKeys: []eth2p0.BLSPubKey{
-			valEth2,
-		},
+	var valIndex eth2p0.ValidatorIndex
+	var valIndexFound bool
+
+	valAPICallOpts := &eth2api.ValidatorsOpts{
 		State: "head",
-	})
+	}
+
+	if config.ValidatorIndexPresent {
+		valAPICallOpts.Indices = []eth2p0.ValidatorIndex{
+			eth2p0.ValidatorIndex(config.ValidatorIndex),
+		}
+	} else {
+		valAPICallOpts.PubKeys = []eth2p0.BLSPubKey{
+			valEth2,
+		}
+	}
+
+	rawValData, err := eth2Cl.Validators(ctx, valAPICallOpts)
 	if err != nil {
-		return errors.Wrap(err, "cannot fetch validator index")
+		return errors.Wrap(err, "cannot fetch validator")
 	}
 
 	valData := rawValData.Data
 
-	var valIndex eth2p0.ValidatorIndex
-	var valIndexFound bool
-
 	for _, val := range valData {
-		if val.Validator.PublicKey == valEth2 {
+		if val.Validator.PublicKey == valEth2 || val.Index == eth2p0.ValidatorIndex(config.ValidatorIndex) {
 			valIndex = val.Index
 			valIndexFound = true
+
+			// re-initialize state variable after looking up all the necessary details, since user only provided a validator index
+			if config.ValidatorIndexPresent {
+				valEth2 = val.Validator.PublicKey
+				ourShare, ok = shares[core.PubKeyFrom48Bytes(valEth2)]
+				if !ok && !config.ValidatorIndexPresent {
+					return errors.New("validator not present in cluster lock", z.U64("validator_index", config.ValidatorIndex), z.Str("validator", validator.String()))
+				}
+			}
 
 			break
 		}
@@ -148,7 +185,7 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 	}
 
 	exitBlob := obolapi.ExitBlob{
-		PublicKey:         config.ValidatorPubkey,
+		PublicKey:         valEth2.String(),
 		SignedExitMessage: exitMsg,
 	}
 

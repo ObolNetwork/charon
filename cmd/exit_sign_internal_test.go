@@ -56,11 +56,17 @@ func writeAllLockData(
 
 func Test_runSubmitPartialExit(t *testing.T) {
 	t.Parallel()
-	t.Run("main flow", Test_runSubmitPartialExitFlow)
+	t.Run("main flow with pubkey", func(t *testing.T) {
+		runSubmitPartialExitFlowTest(t, false)
+	})
+	t.Run("main flow with validator index", func(t *testing.T) {
+		runSubmitPartialExitFlowTest(t, true)
+	})
 	t.Run("config", Test_runSubmitPartialExit_Config)
 }
 
-func Test_runSubmitPartialExitFlow(t *testing.T) {
+func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool) {
+	t.Helper()
 	t.Parallel()
 	ctx := context.Background()
 
@@ -111,7 +117,7 @@ func Test_runSubmitPartialExitFlow(t *testing.T) {
 		require.NoError(t, beaconMock.Close())
 	}()
 
-	eth2Cl, err := eth2Client(ctx, beaconMock.Address(), 10*time.Second)
+	eth2Cl, err := eth2Client(ctx, []string{beaconMock.Address()}, 10*time.Second)
 	require.NoError(t, err)
 
 	eth2Cl.SetForkVersion([4]byte(lock.ForkVersion))
@@ -126,15 +132,21 @@ func Test_runSubmitPartialExitFlow(t *testing.T) {
 	baseDir := filepath.Join(root, fmt.Sprintf("op%d", 0))
 
 	config := exitConfig{
-		BeaconNodeURL:     beaconMock.Address(),
-		ValidatorPubkey:   lock.Validators[0].PublicKeyHex(),
-		PrivateKeyPath:    filepath.Join(baseDir, "charon-enr-private-key"),
-		ValidatorKeysDir:  filepath.Join(baseDir, "validator_keys"),
-		LockFilePath:      filepath.Join(baseDir, "cluster-lock.json"),
-		PublishAddress:    srv.URL,
-		ExitEpoch:         194048,
-		BeaconNodeTimeout: 30 * time.Second,
-		PublishTimeout:    10 * time.Second,
+		BeaconNodeEndpoints: []string{beaconMock.Address()},
+		PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
+		ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
+		LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
+		PublishAddress:      srv.URL,
+		ExitEpoch:           194048,
+		BeaconNodeTimeout:   30 * time.Second,
+		PublishTimeout:      10 * time.Second,
+	}
+
+	if useValIdx {
+		config.ValidatorIndex = 0
+		config.ValidatorIndexPresent = true
+	} else {
+		config.ValidatorPubkey = lock.Validators[0].PublicKeyHex()
 	}
 
 	require.NoError(t, runSignPartialExit(ctx, config))
@@ -143,14 +155,14 @@ func Test_runSubmitPartialExitFlow(t *testing.T) {
 func Test_runSubmitPartialExit_Config(t *testing.T) {
 	t.Parallel()
 	type test struct {
-		name             string
-		noIdentity       bool
-		noLock           bool
-		noKeystore       bool
-		badOAPIURL       bool
-		badBeaconNodeURL bool
-		badValidatorAddr bool
-		errData          string
+		name                   string
+		noIdentity             bool
+		noLock                 bool
+		noKeystore             bool
+		badOAPIURL             bool
+		badBeaconNodeEndpoints bool
+		badValidatorAddr       bool
+		errData                string
 	}
 
 	tests := []test{
@@ -175,9 +187,9 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 			errData:    "could not create obol api client",
 		},
 		{
-			name:             "Bad beacon node URL",
-			badBeaconNodeURL: true,
-			errData:          "cannot create eth2 client for specified beacon node",
+			name:                   "Bad beacon node URL",
+			badBeaconNodeEndpoints: true,
+			errData:                "cannot create eth2 client for specified beacon node",
 		},
 		{
 			name:             "Bad validator address",
@@ -244,7 +256,7 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 
 			bnURL := badStr
 
-			if !test.badBeaconNodeURL {
+			if !test.badBeaconNodeEndpoints {
 				beaconMock, err := beaconmock.New()
 				require.NoError(t, err)
 				defer func() {
@@ -266,15 +278,15 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 			baseDir := filepath.Join(root, fmt.Sprintf("op%d", 0))
 
 			config := exitConfig{
-				BeaconNodeURL:     bnURL,
-				ValidatorPubkey:   valAddr,
-				PrivateKeyPath:    filepath.Join(baseDir, "charon-enr-private-key"),
-				ValidatorKeysDir:  filepath.Join(baseDir, "validator_keys"),
-				LockFilePath:      filepath.Join(baseDir, "cluster-lock.json"),
-				PublishAddress:    oapiURL,
-				ExitEpoch:         0,
-				BeaconNodeTimeout: 30 * time.Second,
-				PublishTimeout:    10 * time.Second,
+				BeaconNodeEndpoints: []string{bnURL},
+				ValidatorPubkey:     valAddr,
+				PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
+				ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
+				LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
+				PublishAddress:      oapiURL,
+				ExitEpoch:           0,
+				BeaconNodeTimeout:   30 * time.Second,
+				PublishTimeout:      10 * time.Second,
 			}
 
 			require.ErrorContains(t, runSignPartialExit(ctx, config), test.errData)
