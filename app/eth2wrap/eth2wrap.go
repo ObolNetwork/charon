@@ -80,10 +80,7 @@ func NewMultiHTTP(timeout time.Duration, addresses ...string) (Client, error) {
 			eth2http.WithAddress(address),
 			eth2http.WithTimeout(timeout),
 			eth2http.WithAllowDelayedStart(true),
-		}
-
-		if featureset.Enabled(featureset.JSONRequests) {
-			parameters = append(parameters, eth2http.WithEnforceJSON(true))
+			eth2http.WithEnforceJSON(featureset.Enabled(featureset.JSONRequests)),
 		}
 
 		cl := newLazy(func(ctx context.Context) (Client, error) {
