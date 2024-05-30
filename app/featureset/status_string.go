@@ -10,19 +10,30 @@ func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
+	_ = x[enable-9223372036854775807]
+	_ = x[disable-0]
 	_ = x[statusAlpha-1]
 	_ = x[statusBeta-2]
 	_ = x[statusStable-3]
+	_ = x[statusSentinel-4]
 }
 
-const _status_name = "AlphaBetaStable"
+const (
+	_status_name_0 = "disableAlphaBetaStableSentinel"
+	_status_name_1 = "enable"
+)
 
-var _status_index = [...]uint8{0, 5, 9, 15}
+var (
+	_status_index_0 = [...]uint8{0, 7, 12, 16, 22, 30}
+)
 
 func (i status) String() string {
-	i -= 1
-	if i < 0 || i >= status(len(_status_index)-1) {
-		return "status(" + strconv.FormatInt(int64(i+1), 10) + ")"
+	switch {
+	case 0 <= i && i <= 4:
+		return _status_name_0[_status_index_0[i]:_status_index_0[i+1]]
+	case i == 9223372036854775807:
+		return _status_name_1
+	default:
+		return "status(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _status_name[_status_index[i]:_status_index[i+1]]
 }

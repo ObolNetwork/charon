@@ -17,6 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/forkjoin"
 	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/z"
@@ -74,13 +75,16 @@ func NewMultiHTTP(timeout time.Duration, addresses ...string) (Client, error) {
 	for _, address := range addresses {
 		address := address // Capture range variable.
 
+		parameters := []eth2http.Parameter{
+			eth2http.WithLogLevel(zeroLogInfo),
+			eth2http.WithAddress(address),
+			eth2http.WithTimeout(timeout),
+			eth2http.WithAllowDelayedStart(true),
+			eth2http.WithEnforceJSON(featureset.Enabled(featureset.JSONRequests)),
+		}
+
 		cl := newLazy(func(ctx context.Context) (Client, error) {
-			eth2Svc, err := eth2http.New(ctx,
-				eth2http.WithLogLevel(zeroLogInfo),
-				eth2http.WithAddress(address),
-				eth2http.WithTimeout(timeout),
-				eth2http.WithAllowDelayedStart(true),
-			)
+			eth2Svc, err := eth2http.New(ctx, parameters...)
 			if err != nil {
 				return nil, wrapError(ctx, err, "new eth2 client", z.Str("address", address))
 			}
