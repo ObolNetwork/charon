@@ -22,6 +22,7 @@ type exitConfig struct {
 	ValidatorPubkey       string
 	ValidatorIndex        uint64
 	ValidatorIndexPresent bool
+	ExpertMode            bool
 	PrivateKeyPath        string
 	ValidatorKeysDir      string
 	LockFilePath          string
@@ -124,7 +125,7 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 		case validatorKeysDir:
 			cmd.Flags().StringVar(&config.ValidatorKeysDir, validatorKeysDir.String(), ".charon/validator_keys", maybeRequired("Path to the directory containing the validator private key share files and passwords."))
 		case validatorPubkey:
-			cmd.Flags().StringVar(&config.ValidatorPubkey, validatorPubkey.String(), "", maybeRequired("Public key of the validator to exit, must be present in the cluster lock manifest. If --validator-index is also provided, that flag takes precedence."))
+			cmd.Flags().StringVar(&config.ValidatorPubkey, validatorPubkey.String(), "", maybeRequired("Public key of the validator to exit, must be present in the cluster lock manifest. If --validator-index is also provided, validator liveliness won't be checked on the beacon chain."))
 		case exitEpoch:
 			cmd.Flags().Uint64Var(&config.ExitEpoch, exitEpoch.String(), 162304, maybeRequired("Exit epoch at which the validator will exit, must be the same across all the partial exits."))
 		case exitFromFile:
@@ -136,7 +137,7 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 		case publishTimeout:
 			cmd.Flags().DurationVar(&config.PublishTimeout, publishTimeout.String(), 30*time.Second, "Timeout for publishing a signed exit to the publish-address API.")
 		case validatorIndex:
-			cmd.Flags().Uint64Var(&config.ValidatorIndex, validatorIndex.String(), 0, "Validator index of the validator to exit, the associated public key must be present in the cluster lock manifest. If --validator-pubkey is also provided, this flag takes precedence.")
+			cmd.Flags().Uint64Var(&config.ValidatorIndex, validatorIndex.String(), 0, "Validator index of the validator to exit, the associated public key must be present in the cluster lock manifest. If --validator-pubkey is also provided, validator liveliness won't be checked on the beacon chain.")
 		}
 
 		if f.required {

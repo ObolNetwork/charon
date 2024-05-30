@@ -19,6 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/k1util"
+	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
@@ -56,19 +58,81 @@ func writeAllLockData(
 
 func Test_runSubmitPartialExit(t *testing.T) {
 	t.Parallel()
+
+	t.Run("main flow with bad pubkey", func(t *testing.T) {
+		runSubmitPartialExitFlowTest(
+			t,
+			false,
+			false,
+			"test",
+			0,
+			"cannot convert validator pubkey to bytes",
+		)
+	})
+
+	t.Run("main flow with pubkey not found in cluster lock", func(t *testing.T) {
+		runSubmitPartialExitFlowTest(
+			t,
+			false,
+			false,
+			testutil.RandomEth2PubKey(t).String(),
+			0,
+			"validator not present in cluster lock",
+		)
+	})
+
+	t.Run("main flow with validator index set not found in cluster lock", func(t *testing.T) {
+		runSubmitPartialExitFlowTest(
+			t,
+			true,
+			false,
+			"",
+			9999,
+			"validator index not found in beacon node response",
+		)
+	})
+
+	t.Run("main flow with expert mode with bad pubkey", func(t *testing.T) {
+		runSubmitPartialExitFlowTest(
+			t,
+			true,
+			true,
+			"test",
+			9999,
+			"cannot convert validator pubkey to bytes",
+		)
+	})
+
+	t.Run("main flow with expert mode with pubkey not found in cluster lock", func(t *testing.T) {
+		runSubmitPartialExitFlowTest(
+			t,
+			true,
+			true,
+			testutil.RandomEth2PubKey(t).String(),
+			9999,
+			"validator not present in cluster lock",
+		)
+	})
+
 	t.Run("main flow with pubkey", func(t *testing.T) {
-		runSubmitPartialExitFlowTest(t, false)
+		runSubmitPartialExitFlowTest(t, false, false, "", 0, "")
 	})
 	t.Run("main flow with validator index", func(t *testing.T) {
-		runSubmitPartialExitFlowTest(t, true)
+		runSubmitPartialExitFlowTest(t, true, false, "", 0, "")
 	})
+	t.Run("main flow with expert mode", func(t *testing.T) {
+		runSubmitPartialExitFlowTest(t, true, true, "", 0, "")
+	})
+
 	t.Run("config", Test_runSubmitPartialExit_Config)
 }
 
-func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool) {
+func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, expertMode bool, valPubkey string, valIndex uint64, errString string) {
 	t.Helper()
 	t.Parallel()
 	ctx := context.Background()
+
+	ctx = log.WithCtx(ctx, z.Str("test_case", t.Name()))
 
 	valAmt := 100
 	operatorAmt := 4
@@ -142,11 +206,34 @@ func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool) {
 		PublishTimeout:      10 * time.Second,
 	}
 
-	if useValIdx {
-		config.ValidatorIndex = 0
+	index := uint64(0)
+	pubkey := lock.Validators[0].PublicKeyHex()
+
+	if valIndex != 0 {
+		index = valIndex
+	}
+
+	if valPubkey != "" {
+		pubkey = valPubkey
+	}
+
+	if expertMode {
+		config.ValidatorIndex = index
 		config.ValidatorIndexPresent = true
+		config.ValidatorPubkey = pubkey
+		config.ExpertMode = true
 	} else {
-		config.ValidatorPubkey = lock.Validators[0].PublicKeyHex()
+		if useValIdx {
+			config.ValidatorIndex = index
+			config.ValidatorIndexPresent = true
+		} else {
+			config.ValidatorPubkey = pubkey
+		}
+	}
+
+	if errString != "" {
+		require.ErrorContains(t, runSignPartialExit(ctx, config), errString)
+		return
 	}
 
 	require.NoError(t, runSignPartialExit(ctx, config))
