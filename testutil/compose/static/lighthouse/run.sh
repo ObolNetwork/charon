@@ -10,6 +10,7 @@ rm -rf /tmp/testnet || true
 mkdir /tmp/testnet/
 curl "http://${NODE}:3600/eth/v1/config/spec" | jq -r .data | yq -P > /tmp/testnet/config.yaml
 echo "0" > /tmp/testnet/deploy_block.txt
+echo "0" > /tmp/testnet/deposit_contract_block.txt
 
 for f in /compose/"${NODE}"/validator_keys/keystore-*.json; do
   echo "Importing key ${f}"
