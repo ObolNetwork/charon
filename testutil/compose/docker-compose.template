@@ -1,3 +1,5 @@
+version: "3.8"
+
 x-node-base: &node-base
   image: obolnetwork/charon:{{.CharonImageTag}}
   {{if .CharonEntrypoint }}entrypoint: {{.CharonEntrypoint}}
