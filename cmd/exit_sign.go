@@ -61,7 +61,7 @@ func newSubmitPartialExitCmd(runFunc func(context.Context, exitConfig) error) *c
 
 		if strings.TrimSpace(config.ValidatorPubkey) == "" && !valIdxPresent {
 			//nolint:revive // we use our own version of the errors package.
-			return errors.New(fmt.Sprintf("%s or %s must be specified.", validatorIndex.String(), validatorPubkey.String()))
+			return errors.New(fmt.Sprintf("either %s or %s must be specified at least.", validatorIndex.String(), validatorPubkey.String()))
 		}
 
 		config.ValidatorIndexPresent = valIdxPresent
