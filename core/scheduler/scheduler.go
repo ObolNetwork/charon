@@ -628,18 +628,13 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2wrap.Client,
 		e2pks = append(e2pks, e2pk)
 	}
 
-	opts := &eth2api.ValidatorsOpts{
-		State:   "head",
-		PubKeys: e2pks,
-	}
-	eth2Resp, err := eth2Cl.Validators(ctx, opts)
+	eth2Resp, err := eth2Cl.CompleteValidators(ctx)
 	if err != nil {
 		return nil, err
 	}
-	vals := eth2Resp.Data
 
 	var resp []validator
-	for index, val := range vals {
+	for index, val := range eth2Resp {
 		if val == nil || val.Validator == nil {
 			return nil, errors.New("validator data cannot be nil")
 		}

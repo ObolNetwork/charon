@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -14,6 +15,9 @@ import (
 
 // ActiveValidators is a map of active validator indices to pubkeys.
 type ActiveValidators map[eth2p0.ValidatorIndex]eth2p0.BLSPubKey
+
+// CompleteValidators represents the complete response of the beacon node validators endpoint.
+type CompleteValidators map[eth2p0.ValidatorIndex]*eth2v1.Validator
 
 // Pubkeys returns a list of active validator pubkeys.
 func (m ActiveValidators) Pubkeys() []eth2p0.BLSPubKey {
@@ -35,10 +39,11 @@ func (m ActiveValidators) Indices() []eth2p0.ValidatorIndex {
 	return indices
 }
 
-// ActiveValidatorsProvider is the interface for providing current epoch's cached active validator
+// CachedValidatorsProvider is the interface for providing current epoch's cached active validator
 // identity information.
-type ActiveValidatorsProvider interface {
+type CachedValidatorsProvider interface {
 	ActiveValidators(context.Context) (ActiveValidators, error)
+	CompleteValidators(ctx context.Context) (CompleteValidators, error)
 }
 
 // NewValidatorCache creates a new validator cache.
@@ -54,8 +59,9 @@ type ValidatorCache struct {
 	eth2Cl  Client
 	pubkeys []eth2p0.BLSPubKey
 
-	mu     sync.RWMutex
-	active ActiveValidators
+	mu       sync.RWMutex
+	active   ActiveValidators
+	complete CompleteValidators
 }
 
 // Trim trims the cache.
@@ -65,28 +71,40 @@ func (c *ValidatorCache) Trim() {
 	defer c.mu.Unlock()
 
 	c.active = nil
+	c.complete = nil
 }
 
-// cached returns the cached validators and true if they are available.
-func (c *ValidatorCache) cached() (ActiveValidators, bool) {
+// activeCached returns the cached active validators and true if they are available.
+func (c *ValidatorCache) activeCached() (ActiveValidators, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	return c.active, c.active != nil
 }
 
-// Get returns the cached active validators, or fetches them if not available populating the cache.
-func (c *ValidatorCache) Get(ctx context.Context) (ActiveValidators, error) {
-	if cached, ok := c.cached(); ok {
-		return cached, nil
+// cached returns the cached complete validators and true if they are available.
+func (c *ValidatorCache) cached() (CompleteValidators, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.complete, c.complete != nil
+}
+
+// Get returns the cached active validators, cached complete Validators response, or fetches them if not available populating the cache.
+func (c *ValidatorCache) Get(ctx context.Context) (ActiveValidators, CompleteValidators, error) {
+	completeCached, completeOk := c.cached()
+	activeCached, activeOk := c.activeCached()
+
+	if completeOk && activeOk {
+		return activeCached, completeCached, nil
 	}
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	// Check again in case another goroutine updated the cache while we were waiting for the lock.
-	if c.active != nil {
-		return c.active, nil
+	if c.active != nil && c.complete != nil {
+		return c.active, c.complete, nil
 	}
 
 	opts := &eth2api.ValidatorsOpts{
@@ -95,14 +113,14 @@ func (c *ValidatorCache) Get(ctx context.Context) (ActiveValidators, error) {
 	}
 	eth2Resp, err := c.eth2Cl.Validators(ctx, opts)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	vals := eth2Resp.Data
 
 	resp := make(ActiveValidators)
 	for _, val := range vals {
 		if val == nil || val.Validator == nil {
-			return nil, errors.New("validator data cannot be nil")
+			return nil, nil, errors.New("validator data cannot be nil")
 		}
 
 		if !val.Status.IsActive() {
@@ -113,6 +131,7 @@ func (c *ValidatorCache) Get(ctx context.Context) (ActiveValidators, error) {
 	}
 
 	c.active = resp
+	c.complete = eth2Resp.Data
 
-	return resp, nil
+	return resp, eth2Resp.Data, nil
 }

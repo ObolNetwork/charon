@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/attestantio/go-eth2-client/api"
+	apiv1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
@@ -67,7 +69,7 @@ type httpAdapter struct {
 	address     string
 	timeout     time.Duration
 	valCacheMu  sync.RWMutex
-	valCache    func(context.Context) (ActiveValidators, error)
+	valCache    func(context.Context) (ActiveValidators, CompleteValidators, error)
 	forkVersion [4]byte
 }
 
@@ -75,7 +77,7 @@ func (h *httpAdapter) SetForkVersion(forkVersion [4]byte) {
 	h.forkVersion = forkVersion
 }
 
-func (h *httpAdapter) SetValidatorCache(valCache func(context.Context) (ActiveValidators, error)) {
+func (h *httpAdapter) SetValidatorCache(valCache func(context.Context) (ActiveValidators, CompleteValidators, error)) {
 	h.valCacheMu.Lock()
 	h.valCache = valCache
 	h.valCacheMu.Unlock()
@@ -89,7 +91,48 @@ func (h *httpAdapter) ActiveValidators(ctx context.Context) (ActiveValidators, e
 		return nil, errors.New("no active validator cache")
 	}
 
-	return h.valCache(ctx)
+	active, _, err := h.valCache(ctx)
+
+	return active, err
+}
+
+func (h *httpAdapter) CompleteValidators(ctx context.Context) (CompleteValidators, error) {
+	h.valCacheMu.RLock()
+	defer h.valCacheMu.RUnlock()
+
+	if h.valCache == nil {
+		return nil, errors.New("no active validator cache")
+	}
+
+	_, complete, err := h.valCache(ctx)
+
+	return complete, err
+}
+
+// Validators returns the validators as requested in opts.
+// If the amount of validators requested is greater than 200, exponentially increase the timeout: on crowded testnets
+// this HTTP call takes a long time.
+func (h *httpAdapter) Validators(ctx context.Context, opts *api.ValidatorsOpts) (
+	*api.Response[map[eth2p0.ValidatorIndex]*apiv1.Validator],
+	error,
+) {
+	var cancel func()
+	reqCtx := ctx
+
+	maxValAmt := max(len(opts.PubKeys), len(opts.Indices))
+
+	if maxValAmt > 200 {
+		reqTimeout := time.Duration(50*maxValAmt) * time.Millisecond
+		reqCtx, cancel = context.WithTimeout(reqCtx, reqTimeout)
+	}
+
+	defer func() {
+		if cancel != nil {
+			cancel()
+		}
+	}()
+
+	return h.Service.Validators(reqCtx, opts)
 }
 
 // AggregateBeaconCommitteeSelections implements eth2exp.BeaconCommitteeSelectionAggregator.

@@ -73,7 +73,7 @@ func (m multi) IsSynced() bool {
 	return false
 }
 
-func (m multi) SetValidatorCache(valCache func(context.Context) (ActiveValidators, error)) {
+func (m multi) SetValidatorCache(valCache func(context.Context) (ActiveValidators, CompleteValidators, error)) {
 	for _, cl := range m.clients {
 		cl.SetValidatorCache(valCache)
 	}
@@ -86,6 +86,24 @@ func (m multi) ActiveValidators(ctx context.Context) (ActiveValidators, error) {
 	res0, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) (ActiveValidators, error) {
 			return cl.ActiveValidators(ctx)
+		},
+		nil, nil,
+	)
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
+func (m multi) CompleteValidators(ctx context.Context) (CompleteValidators, error) {
+	const label = "complete_validators"
+	// No latency since this is a cached endpoint.
+
+	res0, err := provide(ctx, m.clients,
+		func(ctx context.Context, cl Client) (CompleteValidators, error) {
+			return cl.CompleteValidators(ctx)
 		},
 		nil, nil,
 	)

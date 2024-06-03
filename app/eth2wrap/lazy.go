@@ -38,7 +38,7 @@ type lazy struct {
 
 	clientMu sync.RWMutex
 	client   Client
-	valCache func(context.Context) (ActiveValidators, error)
+	valCache func(context.Context) (ActiveValidators, CompleteValidators, error)
 }
 
 // getClient returns the client and true if it is available.
@@ -146,7 +146,16 @@ func (l *lazy) ActiveValidators(ctx context.Context) (ActiveValidators, error) {
 	return cl.ActiveValidators(ctx)
 }
 
-func (l *lazy) SetValidatorCache(valCache func(context.Context) (ActiveValidators, error)) {
+func (l *lazy) CompleteValidators(ctx context.Context) (CompleteValidators, error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return cl.CompleteValidators(ctx)
+}
+
+func (l *lazy) SetValidatorCache(valCache func(context.Context) (ActiveValidators, CompleteValidators, error)) {
 	l.clientMu.Lock()
 	l.valCache = valCache
 	l.clientMu.Unlock()

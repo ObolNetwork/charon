@@ -960,27 +960,66 @@ func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCo
 }
 
 func (c Component) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) {
-	if len(opts.PubKeys) != 0 {
-		var pubkeys []eth2p0.BLSPubKey
-		for _, pubshare := range opts.PubKeys {
-			pubkey, err := c.getPubKeyFunc(pubshare)
-			if err != nil {
-				return nil, err
-			}
-
-			pubkeys = append(pubkeys, pubkey)
+	if len(opts.PubKeys) == 0 && len(opts.Indices) == 0 {
+		// fetch all validators
+		eth2Resp, err := c.eth2Cl.Validators(ctx, opts)
+		if err != nil {
+			return nil, err
 		}
 
-		opts.PubKeys = pubkeys
+		convertedVals, err := c.convertValidators(eth2Resp.Data, len(opts.Indices) == 0)
+		if err != nil {
+			return nil, err
+		}
+
+		return wrapResponse(convertedVals), nil
 	}
 
-	eth2Resp, err := c.eth2Cl.Validators(ctx, opts)
+	var pubkeys []eth2p0.BLSPubKey
+	for _, pubshare := range opts.PubKeys {
+		pubkey, err := c.getPubKeyFunc(pubshare)
+		if err != nil {
+			return nil, err
+		}
+
+		pubkeys = append(pubkeys, pubkey)
+	}
+
+	opts.PubKeys = pubkeys
+
+	cachedValidators, err := c.eth2Cl.CompleteValidators(ctx)
 	if err != nil {
 		return nil, err
 	}
-	vals := eth2Resp.Data
 
-	convertedVals, err := c.convertValidators(vals, len(opts.Indices) == 0)
+	cvMap := make(map[eth2p0.BLSPubKey]struct{})
+	for _, cpubkey := range cachedValidators {
+		cvMap[cpubkey.Validator.PublicKey] = struct{}{}
+	}
+
+	var nonCachedPubkeys []eth2p0.BLSPubKey
+	for _, ncVal := range opts.PubKeys {
+		if _, ok := cvMap[ncVal]; !ok {
+			nonCachedPubkeys = append(nonCachedPubkeys, ncVal)
+		}
+	}
+
+	if len(nonCachedPubkeys) != 0 {
+		log.Debug(ctx, "Validators HTTP request for non-cached validators", z.Int("validators_amount", len(nonCachedPubkeys)))
+
+		opts.PubKeys = nonCachedPubkeys
+		eth2Resp, err := c.eth2Cl.Validators(ctx, opts)
+		if err != nil {
+			return nil, errors.Wrap(err, "fetching non-cached validators from BN")
+		}
+		for idx, val := range eth2Resp.Data {
+			cachedValidators[idx] = val
+		}
+	} else {
+		log.Debug(ctx, "All validators requested were cached", z.Int("amount_requested", len(opts.PubKeys)))
+	}
+
+	convertedVals, err := c.convertValidators(cachedValidators, len(opts.Indices) == 0)
 	if err != nil {
 		return nil, err
 	}
