@@ -301,6 +301,12 @@ func wrap(endpoint string, handler handlerFunc) http.Handler {
 
 			return
 		}
+		vcContentType.WithLabelValues(endpoint, string(typ)).Inc()
+
+		userAgent := r.Header.Get("User-Agent")
+		if userAgent != "" {
+			vcUserAgentGauge.WithLabelValues(userAgent).Set(1)
+		}
 
 		body, err := io.ReadAll(r.Body)
 		if err != nil {

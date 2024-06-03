@@ -25,6 +25,20 @@ var (
 		Name:      "request_error_total",
 		Help:      "The total number of validatorapi request errors",
 	}, []string{"endpoint", "status_code"})
+
+	vcContentType = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "validatorapi",
+		Name:      "request_total",
+		Help:      "The total number of requests per content-type and endpoint",
+	}, []string{"endpoint", "content_type"})
+
+	vcUserAgentGauge = promauto.NewResetGaugeVec(prometheus.GaugeOpts{
+		Namespace: "core",
+		Subsystem: "validatorapi",
+		Name:      "vc_user_agent",
+		Help:      "Gauge with label set to user agent string of requests made by VC",
+	}, []string{"user_agent"})
 )
 
 func incAPIErrors(endpoint string, statusCode int) {

@@ -69,6 +69,8 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_tracker_unexpected_events_total` | Counter | Total number of unexpected events by peer | `peer` |
 | `core_validatorapi_request_error_total` | Counter | The total number of validatorapi request errors | `endpoint, status_code` |
 | `core_validatorapi_request_latency_seconds` | Histogram | The validatorapi request latencies in seconds by endpoint | `endpoint` |
+| `core_validatorapi_request_total` | Counter | The total number of requests per content-type and endpoint | `endpoint, content_type` |
+| `core_validatorapi_vc_user_agent` | Gauge | Gauge with label set to user agent string of requests made by VC | `user_agent` |
 | `p2p_peer_connection_total` | Counter | Total number of libp2p connections per peer. | `peer` |
 | `p2p_peer_connection_types` | Gauge | Current number of libp2p connections by peer and type (`direct` or `relay`). Note that peers may have multiple connections. | `peer, type` |
 | `p2p_peer_network_receive_bytes_total` | Counter | Total number of network bytes received from the peer by protocol. | `peer, protocol` |
