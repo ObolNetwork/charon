@@ -135,8 +135,8 @@ func TestLazy_ActiveValidators(t *testing.T) {
 }
 
 func TestLazy_SetValidatorCache(t *testing.T) {
-	valCache := func(context.Context) (eth2wrap.ActiveValidators, error) {
-		return nil, nil
+	valCache := func(context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error) {
+		return nil, nil, nil
 	}
 
 	client := mocks.NewClient(t)

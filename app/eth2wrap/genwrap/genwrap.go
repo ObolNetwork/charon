@@ -48,8 +48,8 @@ type Client interface {
     BlockAttestationsProvider
     NodePeerCountProvider
 
-    ActiveValidatorsProvider
-    SetValidatorCache(func(context.Context) (ActiveValidators, error))
+    CachedValidatorsProvider
+    SetValidatorCache(func(context.Context) (ActiveValidators, CompleteValidators, error))
 
 	SetForkVersion(forkVersion [4]byte)
 

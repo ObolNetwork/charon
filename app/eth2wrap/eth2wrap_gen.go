@@ -9,7 +9,7 @@ import (
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
-	api "github.com/attestantio/go-eth2-client/api"
+	"github.com/attestantio/go-eth2-client/api"
 	apiv1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
@@ -26,8 +26,8 @@ type Client interface {
 	BlockAttestationsProvider
 	NodePeerCountProvider
 
-	ActiveValidatorsProvider
-	SetValidatorCache(func(context.Context) (ActiveValidators, error))
+	CachedValidatorsProvider
+	SetValidatorCache(func(context.Context) (ActiveValidators, CompleteValidators, error))
 
 	SetForkVersion(forkVersion [4]byte)
 

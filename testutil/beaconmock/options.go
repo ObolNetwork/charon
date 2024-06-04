@@ -184,14 +184,16 @@ func WithValidatorSet(set ValidatorSet) Option {
 		}
 
 		activeVals := make(eth2wrap.ActiveValidators)
+		completeVals := make(eth2wrap.CompleteValidators)
 		for _, val := range set {
 			if val.Status.IsActive() {
 				activeVals[val.Index] = val.Validator.PublicKey
+				completeVals[val.Index] = val
 			}
 		}
 
-		mock.ActiveValidatorsFunc = func(ctx context.Context) (eth2wrap.ActiveValidators, error) {
-			return activeVals, nil
+		mock.CachedValidatorsFunc = func(_ context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error) {
+			return activeVals, completeVals, nil
 		}
 
 		type getValidatorsResponse struct {
@@ -553,8 +555,8 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 				Data:            attData,
 			}, nil
 		},
-		ActiveValidatorsFunc: func(ctx context.Context) (eth2wrap.ActiveValidators, error) {
-			return nil, nil
+		CachedValidatorsFunc: func(_ context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error) {
+			return nil, nil, nil
 		},
 		ValidatorsFunc: func(context.Context, *eth2api.ValidatorsOpts) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 			return nil, nil
