@@ -83,7 +83,7 @@ func Test_runFetchExitFullFlow(t *testing.T) {
 		require.NoError(t, beaconMock.Close())
 	}()
 
-	eth2Cl, err := eth2Client(ctx, beaconMock.Address(), 10*time.Second)
+	eth2Cl, err := eth2Client(ctx, []string{beaconMock.Address()}, 10*time.Second)
 	require.NoError(t, err)
 
 	eth2Cl.SetForkVersion([4]byte(lock.ForkVersion))
@@ -99,15 +99,15 @@ func Test_runFetchExitFullFlow(t *testing.T) {
 		baseDir := filepath.Join(root, fmt.Sprintf("op%d", idx))
 
 		config := exitConfig{
-			BeaconNodeURL:     beaconMock.Address(),
-			ValidatorPubkey:   lock.Validators[0].PublicKeyHex(),
-			PrivateKeyPath:    filepath.Join(baseDir, "charon-enr-private-key"),
-			ValidatorKeysDir:  filepath.Join(baseDir, "validator_keys"),
-			LockFilePath:      filepath.Join(baseDir, "cluster-lock.json"),
-			PublishAddress:    srv.URL,
-			ExitEpoch:         194048,
-			BeaconNodeTimeout: 30 * time.Second,
-			PublishTimeout:    10 * time.Second,
+			BeaconNodeEndpoints: []string{beaconMock.Address()},
+			ValidatorPubkey:     lock.Validators[0].PublicKeyHex(),
+			PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
+			ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
+			LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
+			PublishAddress:      srv.URL,
+			ExitEpoch:           194048,
+			BeaconNodeTimeout:   30 * time.Second,
+			PublishTimeout:      10 * time.Second,
 		}
 
 		require.NoError(t, runSignPartialExit(ctx, config), "operator index: %v", idx)

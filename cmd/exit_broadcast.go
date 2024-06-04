@@ -53,7 +53,7 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 		{validatorKeysDir, false},
 		{exitEpoch, false},
 		{validatorPubkey, true},
-		{beaconNodeURL, true},
+		{beaconNodeEndpoints, true},
 		{exitFromFile, false},
 		{beaconNodeTimeout, false},
 	})
@@ -81,7 +81,7 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 
 	ctx = log.WithCtx(ctx, z.Str("validator", validator.String()))
 
-	eth2Cl, err := eth2Client(ctx, config.BeaconNodeURL, config.BeaconNodeTimeout)
+	eth2Cl, err := eth2Client(ctx, config.BeaconNodeEndpoints, config.BeaconNodeTimeout)
 	if err != nil {
 		return errors.Wrap(err, "cannot create eth2 client for specified beacon node")
 	}
