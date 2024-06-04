@@ -1038,19 +1038,27 @@ func (Component) NodeVersion(context.Context, *eth2api.NodeVersionOpts) (*eth2ap
 // convertValidators returns the validator map with root public keys replaced by public shares for all validators that are part of the cluster.
 func (c Component) convertValidators(vals map[eth2p0.ValidatorIndex]*eth2v1.Validator, ignoreNotFound bool) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 	resp := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
-	for vIdx, val := range vals {
-		if val == nil || val.Validator == nil {
+	for vIdx, rawVal := range vals {
+		if rawVal == nil || rawVal.Validator == nil {
 			return nil, errors.New("validator data cannot be nil")
 		}
 
-		pubshare, ok := c.getPubShareFunc(val.Validator.PublicKey)
+		innerVal := *rawVal.Validator
+
+		pubshare, ok := c.getPubShareFunc(innerVal.PublicKey)
 		if !ok && !ignoreNotFound {
 			return nil, errors.New("pubshare not found")
 		} else if ok {
-			val.Validator.PublicKey = pubshare
+			innerVal.PublicKey = pubshare
 		}
 
-		resp[vIdx] = val
+		var val eth2v1.Validator
+		val.Index = rawVal.Index
+		val.Status = rawVal.Status
+		val.Balance = rawVal.Balance
+		val.Validator = &innerVal
+
+		resp[vIdx] = &val
 	}
 
 	return resp, nil
