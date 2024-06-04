@@ -975,6 +975,12 @@ func (c Component) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts)
 		return wrapResponse(convertedVals), nil
 	}
 
+	cachedValidators, err := c.eth2Cl.CompleteValidators(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "can't fetch complete validators cache")
+	}
+
+	// Match pubshares to the associated full validator public key
 	var pubkeys []eth2p0.BLSPubKey
 	for _, pubshare := range opts.PubKeys {
 		pubkey, err := c.getPubKeyFunc(pubshare)
@@ -985,29 +991,26 @@ func (c Component) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts)
 		pubkeys = append(pubkeys, pubkey)
 	}
 
-	opts.PubKeys = pubkeys
+	var nonCachedPubkeys []eth2p0.BLSPubKey
 
-	cachedValidators, err := c.eth2Cl.CompleteValidators(ctx)
-	if err != nil {
-		return nil, err
-	}
-
+	// Index cached validators by their pubkey for quicker lookup
 	cvMap := make(map[eth2p0.BLSPubKey]struct{})
 	for _, cpubkey := range cachedValidators {
 		cvMap[cpubkey.Validator.PublicKey] = struct{}{}
 	}
 
-	var nonCachedPubkeys []eth2p0.BLSPubKey
-	for _, ncVal := range opts.PubKeys {
+	// Check if any of the pubkeys passed as argument are already cached
+	for _, ncVal := range pubkeys {
 		if _, ok := cvMap[ncVal]; !ok {
 			nonCachedPubkeys = append(nonCachedPubkeys, ncVal)
 		}
 	}
 
 	if len(nonCachedPubkeys) != 0 {
-		log.Debug(ctx, "Validators HTTP request for non-cached validators", z.Int("validators_amount", len(nonCachedPubkeys)))
+		log.Debug(ctx, "Validators HTTP request for non-cached validators", z.Int("pubkeys_amount", len(nonCachedPubkeys)))
 
 		opts.PubKeys = nonCachedPubkeys
+
 		eth2Resp, err := c.eth2Cl.Validators(ctx, opts)
 		if err != nil {
 			return nil, errors.Wrap(err, "fetching non-cached validators from BN")
