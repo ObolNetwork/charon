@@ -99,13 +99,10 @@ func (c *ValidatorCache) Get(ctx context.Context) (ActiveValidators, CompleteVal
 		return activeCached, completeCached, nil
 	}
 
+	// This code is only ever invoked by scheduler's slot ticking method.
+	// It's fine locking this way.
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
-	// Check again in case another goroutine updated the cache while we were waiting for the lock.
-	if c.active != nil && c.complete != nil {
-		return c.active, c.complete, nil
-	}
 
 	opts := &eth2api.ValidatorsOpts{
 		State:   "head",
