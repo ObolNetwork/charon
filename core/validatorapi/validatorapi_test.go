@@ -22,6 +22,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
@@ -1574,6 +1575,90 @@ func TestComponent_SubmitSyncCommitteeContributionsVerify(t *testing.T) {
 	err = vapi.SubmitSyncCommitteeContributions(ctx, []*altair.SignedContributionAndProof{signedContribAndProof})
 	require.NoError(t, err)
 	<-done
+}
+
+func TestComponent_ValidatorCache(t *testing.T) {
+	baseValSet := testutil.RandomValidatorSet(t, 10)
+
+	var (
+		allPubSharesByKey = make(map[core.PubKey]map[int]tbls.PublicKey)
+		keyByPubshare     = make(map[tbls.PublicKey]core.PubKey)
+
+		complete  = make(eth2wrap.CompleteValidators)
+		pubshares []eth2p0.BLSPubKey
+		singleVal eth2v1.Validator
+	)
+
+	for idx, val := range baseValSet {
+		complete[idx] = val
+	}
+
+	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(baseValSet))
+	require.NoError(t, err)
+
+	bmock.CachedValidatorsFunc = func(ctx context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error) {
+		cc := make(eth2wrap.CompleteValidators)
+		maps.Copy(cc, complete)
+
+		return nil, cc, nil
+	}
+
+	var valEndpointInvocations int
+	bmock.ValidatorsFunc = func(ctx context.Context, opts *eth2api.ValidatorsOpts) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+		valEndpointInvocations += len(opts.PubKeys) + len(opts.Indices)
+		return baseValSet, nil
+	}
+
+	i := 4
+	for _, val := range baseValSet {
+		i--
+
+		pubshare, err := tblsconv.PubkeyFromCore(testutil.RandomCorePubKey(t))
+		require.NoError(t, err)
+
+		pubshares = append(pubshares, eth2p0.BLSPubKey(pubshare))
+
+		corePubkey := core.PubKeyFrom48Bytes(val.Validator.PublicKey)
+		allPubSharesByKey[corePubkey] = make(map[int]tbls.PublicKey)
+		allPubSharesByKey[core.PubKeyFrom48Bytes(val.Validator.PublicKey)][1] = pubshare
+		keyByPubshare[pubshare] = corePubkey
+
+		if i == 0 {
+			singleVal = *val
+			break
+		}
+	}
+
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, 1, nil, testutil.BuilderFalse, nil)
+	require.NoError(t, err)
+
+	// request validators that are completely cached
+	_, err = vapi.Validators(context.Background(), &eth2api.ValidatorsOpts{
+		State:   "head",
+		PubKeys: pubshares,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 0, valEndpointInvocations)
+
+	// request validators that are not cached at all by removing singleVal from the cache
+	delete(complete, singleVal.Index)
+
+	share := allPubSharesByKey[core.PubKeyFrom48Bytes(singleVal.Validator.PublicKey)][1]
+
+	_, err = vapi.Validators(context.Background(), &eth2api.ValidatorsOpts{
+		State:   "head",
+		PubKeys: []eth2p0.BLSPubKey{eth2p0.BLSPubKey(share)},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, valEndpointInvocations)
+
+	// request half-half validators
+	_, err = vapi.Validators(context.Background(), &eth2api.ValidatorsOpts{
+		State:   "head",
+		PubKeys: pubshares,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, valEndpointInvocations)
 }
 
 func TestComponent_GetAllValidators(t *testing.T) {

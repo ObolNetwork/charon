@@ -62,8 +62,8 @@ func TestSynthProposer(t *testing.T) {
 			},
 		}, nil
 	}
-	cached := bmock.ActiveValidatorsFunc
-	bmock.ActiveValidatorsFunc = func(ctx context.Context) (eth2wrap.ActiveValidators, error) {
+	cached := bmock.CachedValidatorsFunc
+	bmock.CachedValidatorsFunc = func(ctx context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error) {
 		activeVals++
 		return cached(ctx)
 	}
@@ -195,8 +195,8 @@ func TestSynthProposerBlockNotFound(t *testing.T) {
 			},
 		}, nil
 	}
-	cached := bmock.ActiveValidatorsFunc
-	bmock.ActiveValidatorsFunc = func(ctx context.Context) (eth2wrap.ActiveValidators, error) {
+	cached := bmock.CachedValidatorsFunc
+	bmock.CachedValidatorsFunc = func(ctx context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error) {
 		activeVals++
 		return cached(ctx)
 	}

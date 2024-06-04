@@ -19,9 +19,10 @@ import (
 
 func TestValidatorCache(t *testing.T) {
 	var (
-		expected = make(eth2wrap.ActiveValidators)
-		set      = make(beaconmock.ValidatorSet)
-		pubkeys  []eth2p0.BLSPubKey
+		expected         = make(eth2wrap.ActiveValidators)
+		completeExpected = make(eth2wrap.CompleteValidators)
+		set              = make(beaconmock.ValidatorSet)
+		pubkeys          []eth2p0.BLSPubKey
 	)
 
 	// Create a set of validators, half active, half random state.
@@ -34,6 +35,7 @@ func TestValidatorCache(t *testing.T) {
 			expected[val.Index] = val.Validator.PublicKey
 		}
 		set[val.Index] = val
+		completeExpected[val.Index] = val
 		pubkeys = append(pubkeys, val.Validator.PublicKey)
 	}
 
@@ -56,29 +58,33 @@ func TestValidatorCache(t *testing.T) {
 	ctx := context.Background()
 
 	// Check cache is populated.
-	actual, err := valCache.Get(ctx)
+	actual, complete, err := valCache.Get(ctx)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 	require.Equal(t, 1, queried)
+	require.Equal(t, completeExpected, complete)
 
 	// Check cache is used.
-	actual, err = valCache.Get(ctx)
+	actual, complete, err = valCache.Get(ctx)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 	require.Equal(t, 1, queried)
+	require.Equal(t, completeExpected, complete)
 
 	// Trim cache.
 	valCache.Trim()
 
 	// Check cache is populated again.
-	actual, err = valCache.Get(ctx)
+	actual, complete, err = valCache.Get(ctx)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 	require.Equal(t, 2, queried)
+	require.Equal(t, completeExpected, complete)
 
 	// Check cache is used again.
-	actual, err = valCache.Get(ctx)
+	actual, complete, err = valCache.Get(ctx)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 	require.Equal(t, 2, queried)
+	require.Equal(t, completeExpected, complete)
 }
