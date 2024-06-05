@@ -960,27 +960,69 @@ func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCo
 }
 
 func (c Component) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) {
-	if len(opts.PubKeys) != 0 {
-		var pubkeys []eth2p0.BLSPubKey
-		for _, pubshare := range opts.PubKeys {
-			pubkey, err := c.getPubKeyFunc(pubshare)
-			if err != nil {
-				return nil, err
-			}
-
-			pubkeys = append(pubkeys, pubkey)
+	if len(opts.PubKeys) == 0 && len(opts.Indices) == 0 {
+		// fetch all validators
+		eth2Resp, err := c.eth2Cl.Validators(ctx, opts)
+		if err != nil {
+			return nil, err
 		}
 
-		opts.PubKeys = pubkeys
+		convertedVals, err := c.convertValidators(eth2Resp.Data, len(opts.Indices) == 0)
+		if err != nil {
+			return nil, err
+		}
+
+		return wrapResponse(convertedVals), nil
 	}
 
-	eth2Resp, err := c.eth2Cl.Validators(ctx, opts)
+	cachedValidators, err := c.eth2Cl.CompleteValidators(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "can't fetch complete validators cache")
 	}
-	vals := eth2Resp.Data
 
-	convertedVals, err := c.convertValidators(vals, len(opts.Indices) == 0)
+	// Match pubshares to the associated full validator public key
+	var pubkeys []eth2p0.BLSPubKey
+	for _, pubshare := range opts.PubKeys {
+		pubkey, err := c.getPubKeyFunc(pubshare)
+		if err != nil {
+			return nil, err
+		}
+
+		pubkeys = append(pubkeys, pubkey)
+	}
+
+	var nonCachedPubkeys []eth2p0.BLSPubKey
+
+	// Index cached validators by their pubkey for quicker lookup
+	cvMap := make(map[eth2p0.BLSPubKey]struct{})
+	for _, cpubkey := range cachedValidators {
+		cvMap[cpubkey.Validator.PublicKey] = struct{}{}
+	}
+
+	// Check if any of the pubkeys passed as argument are already cached
+	for _, ncVal := range pubkeys {
+		if _, ok := cvMap[ncVal]; !ok {
+			nonCachedPubkeys = append(nonCachedPubkeys, ncVal)
+		}
+	}
+
+	if len(nonCachedPubkeys) != 0 {
+		log.Debug(ctx, "Validators HTTP request for non-cached validators", z.Int("pubkeys_amount", len(nonCachedPubkeys)))
+
+		opts.PubKeys = nonCachedPubkeys
+
+		eth2Resp, err := c.eth2Cl.Validators(ctx, opts)
+		if err != nil {
+			return nil, errors.Wrap(err, "fetching non-cached validators from BN")
+		}
+		for idx, val := range eth2Resp.Data {
+			cachedValidators[idx] = val
+		}
+	} else {
+		log.Debug(ctx, "All validators requested were cached", z.Int("amount_requested", len(opts.PubKeys)))
+	}
+
+	convertedVals, err := c.convertValidators(cachedValidators, len(opts.Indices) == 0)
 	if err != nil {
 		return nil, err
 	}
@@ -999,19 +1041,27 @@ func (Component) NodeVersion(context.Context, *eth2api.NodeVersionOpts) (*eth2ap
 // convertValidators returns the validator map with root public keys replaced by public shares for all validators that are part of the cluster.
 func (c Component) convertValidators(vals map[eth2p0.ValidatorIndex]*eth2v1.Validator, ignoreNotFound bool) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 	resp := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
-	for vIdx, val := range vals {
-		if val == nil || val.Validator == nil {
+	for vIdx, rawVal := range vals {
+		if rawVal == nil || rawVal.Validator == nil {
 			return nil, errors.New("validator data cannot be nil")
 		}
 
-		pubshare, ok := c.getPubShareFunc(val.Validator.PublicKey)
+		innerVal := *rawVal.Validator
+
+		pubshare, ok := c.getPubShareFunc(innerVal.PublicKey)
 		if !ok && !ignoreNotFound {
 			return nil, errors.New("pubshare not found")
 		} else if ok {
-			val.Validator.PublicKey = pubshare
+			innerVal.PublicKey = pubshare
 		}
 
-		resp[vIdx] = val
+		var val eth2v1.Validator
+		val.Index = rawVal.Index
+		val.Status = rawVal.Status
+		val.Balance = rawVal.Balance
+		val.Validator = &innerVal
+
+		resp[vIdx] = &val
 	}
 
 	return resp, nil

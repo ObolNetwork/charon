@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"strings"
+	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -52,7 +53,7 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 		{validatorKeysDir, false},
 		{exitEpoch, false},
 		{validatorPubkey, true},
-		{beaconNodeURL, true},
+		{beaconNodeEndpoints, true},
 		{exitFromFile, false},
 		{beaconNodeTimeout, false},
 	})
@@ -80,7 +81,7 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 
 	ctx = log.WithCtx(ctx, z.Str("validator", validator.String()))
 
-	eth2Cl, err := eth2Client(ctx, config.BeaconNodeURL, config.BeaconNodeTimeout)
+	eth2Cl, err := eth2Client(ctx, config.BeaconNodeEndpoints, config.BeaconNodeTimeout)
 	if err != nil {
 		return errors.Wrap(err, "cannot create eth2 client for specified beacon node")
 	}
@@ -95,7 +96,7 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 		fullExit, err = exitFromPath(maybeExitFilePath)
 	} else {
 		log.Info(ctx, "Retrieving full exit message from publish address")
-		fullExit, err = exitFromObolAPI(ctx, config.ValidatorPubkey, config.PublishAddress, cl, identityKey)
+		fullExit, err = exitFromObolAPI(ctx, config.ValidatorPubkey, config.PublishAddress, config.PublishTimeout, cl, identityKey)
 	}
 
 	if err != nil {
@@ -141,8 +142,8 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 }
 
 // exitFromObolAPI fetches an eth2p0.SignedVoluntaryExit message from publishAddr for the given validatorPubkey.
-func exitFromObolAPI(ctx context.Context, validatorPubkey, publishAddr string, cl *manifestpb.Cluster, identityKey *k1.PrivateKey) (eth2p0.SignedVoluntaryExit, error) {
-	oAPI, err := obolapi.New(publishAddr)
+func exitFromObolAPI(ctx context.Context, validatorPubkey, publishAddr string, publishTimeout time.Duration, cl *manifestpb.Cluster, identityKey *k1.PrivateKey) (eth2p0.SignedVoluntaryExit, error) {
+	oAPI, err := obolapi.New(publishAddr, obolapi.WithTimeout(publishTimeout))
 	if err != nil {
 		return eth2p0.SignedVoluntaryExit{}, errors.Wrap(err, "could not create obol api client")
 	}

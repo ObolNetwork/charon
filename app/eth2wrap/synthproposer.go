@@ -36,7 +36,7 @@ const (
 )
 
 type synthProposerEth2Provider interface {
-	ActiveValidatorsProvider
+	CachedValidatorsProvider
 	eth2client.SlotsPerEpochProvider
 	eth2client.ProposerDutiesProvider
 }

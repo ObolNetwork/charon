@@ -146,7 +146,8 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 			},
 			SyncOpts: []func(*dkgsync.Client){dkgsync.WithPeriod(time.Millisecond * 50)},
 		},
-		ShutdownDelay: 1 * time.Second,
+		ShutdownDelay:  1 * time.Second,
+		PublishTimeout: 30 * time.Second,
 	}
 
 	allReceivedKeystores := make(chan struct{}) // Receives struct{} for each `numNodes` keystore intercepted by the keymanager server

@@ -427,7 +427,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 			return nil
 		}
 		valCache.Trim()
-		_, err := valCache.Get(ctx)
+		_, _, err := valCache.Get(ctx)
 
 		return err
 	})

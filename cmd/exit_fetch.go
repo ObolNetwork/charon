@@ -46,6 +46,7 @@ func newFetchExitCmd(runFunc func(context.Context, exitConfig) error) *cobra.Com
 		{privateKeyPath, false},
 		{lockFilePath, false},
 		{validatorPubkey, true},
+		{fetchedExitPath, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
@@ -84,7 +85,7 @@ func runFetchExit(ctx context.Context, config exitConfig) error {
 
 	ctx = log.WithCtx(ctx, z.Str("validator", validator.String()))
 
-	oAPI, err := obolapi.New(config.PublishAddress)
+	oAPI, err := obolapi.New(config.PublishAddress, obolapi.WithTimeout(config.PublishTimeout))
 	if err != nil {
 		return errors.Wrap(err, "could not create obol api client")
 	}

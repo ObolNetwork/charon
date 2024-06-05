@@ -123,7 +123,7 @@ type Mock struct {
 
 	IsActiveFunc                           func() bool
 	IsSyncedFunc                           func() bool
-	ActiveValidatorsFunc                   func(ctx context.Context) (eth2wrap.ActiveValidators, error)
+	CachedValidatorsFunc                   func(ctx context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error)
 	AttestationDataFunc                    func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
 	AttesterDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
 	BlockAttestationsFunc                  func(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error)
@@ -263,12 +263,18 @@ func (m Mock) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts) (*et
 	return wrapResponse(vals), nil
 }
 
-func (Mock) SetValidatorCache(func(context.Context) (eth2wrap.ActiveValidators, error)) {
+func (Mock) SetValidatorCache(func(context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error)) {
 	// Ignore this, only rely on WithValidator functional option.
 }
 
 func (m Mock) ActiveValidators(ctx context.Context) (eth2wrap.ActiveValidators, error) {
-	return m.ActiveValidatorsFunc(ctx)
+	active, _, err := m.CachedValidatorsFunc(ctx)
+	return active, err
+}
+
+func (m Mock) CompleteValidators(ctx context.Context) (eth2wrap.CompleteValidators, error) {
+	_, complete, err := m.CachedValidatorsFunc(ctx)
+	return complete, err
 }
 
 func (m Mock) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {

@@ -37,6 +37,9 @@ const (
 
 	// AggSigDBV2 enables a newer, simpler implementation of `aggsigdb`.
 	AggSigDBV2 Feature = "aggsigdb_v2"
+
+	// JSONRequests enables JSON requests for eth2 client.
+	JSONRequests Feature = "json_requests"
 )
 
 var (
@@ -46,6 +49,7 @@ var (
 		ConsensusParticipate: statusStable,
 		MockAlpha:            statusAlpha,
 		AggSigDBV2:           statusAlpha,
+		JSONRequests:         statusAlpha,
 		// Add all features and there status here.
 	}
 
