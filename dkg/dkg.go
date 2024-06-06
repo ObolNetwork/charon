@@ -1089,7 +1089,7 @@ func validateKeymanagerFlags(ctx context.Context, addr, authToken string) error 
 		return errors.Wrap(err, "failed to parse keymanager addr", z.Str("addr", addr))
 	}
 
-	if keymanagerURL.Scheme != "https" {
+	if keymanagerURL.Scheme == "http" {
 		log.Warn(ctx, "Keymanager URL does not use https protocol", nil, z.Str("addr", addr))
 	}
 
