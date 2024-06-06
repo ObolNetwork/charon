@@ -991,23 +991,30 @@ func (c Component) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts)
 		pubkeys = append(pubkeys, pubkey)
 	}
 
-	var nonCachedPubkeys []eth2p0.BLSPubKey
+	var (
+		nonCachedPubkeys []eth2p0.BLSPubKey
+		ret              = make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+	)
 
 	// Index cached validators by their pubkey for quicker lookup
-	cvMap := make(map[eth2p0.BLSPubKey]struct{})
-	for _, cpubkey := range cachedValidators {
-		cvMap[cpubkey.Validator.PublicKey] = struct{}{}
+	cvMap := make(map[eth2p0.BLSPubKey]eth2p0.ValidatorIndex)
+	for vIdx, cpubkey := range cachedValidators {
+		cvMap[cpubkey.Validator.PublicKey] = vIdx
 	}
 
 	// Check if any of the pubkeys passed as argument are already cached
 	for _, ncVal := range pubkeys {
-		if _, ok := cvMap[ncVal]; !ok {
+		vIdx, ok := cvMap[ncVal]
+		if !ok {
 			nonCachedPubkeys = append(nonCachedPubkeys, ncVal)
+			continue
 		}
+
+		ret[vIdx] = cachedValidators[vIdx]
 	}
 
-	if len(nonCachedPubkeys) != 0 {
-		log.Debug(ctx, "Validators HTTP request for non-cached validators", z.Int("pubkeys_amount", len(nonCachedPubkeys)))
+	if len(nonCachedPubkeys) != 0 || len(opts.Indices) > 0 {
+		log.Debug(ctx, "Requesting validators to upstream beacon node", z.Int("non_cached_pubkeys_amount", len(nonCachedPubkeys)), z.Int("indices", len(opts.Indices)))
 
 		opts.PubKeys = nonCachedPubkeys
 
@@ -1016,13 +1023,13 @@ func (c Component) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts)
 			return nil, errors.Wrap(err, "fetching non-cached validators from BN")
 		}
 		for idx, val := range eth2Resp.Data {
-			cachedValidators[idx] = val
+			ret[idx] = val
 		}
 	} else {
 		log.Debug(ctx, "All validators requested were cached", z.Int("amount_requested", len(opts.PubKeys)))
 	}
 
-	convertedVals, err := c.convertValidators(cachedValidators, len(opts.Indices) == 0)
+	convertedVals, err := c.convertValidators(ret, len(opts.Indices) == 0)
 	if err != nil {
 		return nil, err
 	}
