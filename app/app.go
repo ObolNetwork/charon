@@ -422,14 +422,43 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	// Setup validator cache, refreshing it every epoch.
 	valCache := eth2wrap.NewValidatorCache(eth2Cl, eth2Pubkeys)
 	eth2Cl.SetValidatorCache(valCache.Get)
+
+	firstValCacheRefresh := true
+	var fvcrLock sync.RWMutex
+
+	shouldUpdateCache := func(slot core.Slot, lock *sync.RWMutex) bool {
+		lock.RLock()
+		defer lock.RUnlock()
+
+		if !slot.FirstInEpoch() && !firstValCacheRefresh {
+			return false
+		}
+
+		return true
+	}
+
 	sched.SubscribeSlots(func(ctx context.Context, slot core.Slot) error {
-		if !slot.FirstInEpoch() {
+		if !shouldUpdateCache(slot, &fvcrLock) {
 			return nil
 		}
+
+		fvcrLock.Lock()
+		defer fvcrLock.Unlock()
+
+		ctx = log.WithCtx(ctx, z.Bool("first_refresh", firstValCacheRefresh))
+
+		log.Debug(ctx, "Refreshing validator cache")
+
 		valCache.Trim()
 		_, _, err := valCache.Get(ctx)
+		if err != nil {
+			log.Error(ctx, "Cannot refresh validator cache", err)
+			return err
+		}
 
-		return err
+		firstValCacheRefresh = false
+
+		return nil
 	})
 
 	gaterFunc, err := core.NewDutyGater(ctx, eth2Cl)

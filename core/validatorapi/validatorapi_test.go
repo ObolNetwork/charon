@@ -1583,6 +1583,7 @@ func TestComponent_ValidatorCache(t *testing.T) {
 	var (
 		allPubSharesByKey = make(map[core.PubKey]map[int]tbls.PublicKey)
 		keyByPubshare     = make(map[tbls.PublicKey]core.PubKey)
+		valByPubkey       = make(map[eth2p0.BLSPubKey]*eth2v1.Validator)
 
 		complete  = make(eth2wrap.CompleteValidators)
 		pubshares []eth2p0.BLSPubKey
@@ -1591,6 +1592,7 @@ func TestComponent_ValidatorCache(t *testing.T) {
 
 	for idx, val := range baseValSet {
 		complete[idx] = val
+		valByPubkey[val.Validator.PublicKey] = val
 	}
 
 	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(baseValSet))
@@ -1606,7 +1608,16 @@ func TestComponent_ValidatorCache(t *testing.T) {
 	var valEndpointInvocations int
 	bmock.ValidatorsFunc = func(ctx context.Context, opts *eth2api.ValidatorsOpts) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 		valEndpointInvocations += len(opts.PubKeys) + len(opts.Indices)
-		return baseValSet, nil
+
+		ret := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+
+		for _, pk := range opts.PubKeys {
+			if val, ok := valByPubkey[pk]; ok {
+				ret[val.Index] = val
+			}
+		}
+
+		return ret, nil
 	}
 
 	i := 4
@@ -1633,32 +1644,35 @@ func TestComponent_ValidatorCache(t *testing.T) {
 	require.NoError(t, err)
 
 	// request validators that are completely cached
-	_, err = vapi.Validators(context.Background(), &eth2api.ValidatorsOpts{
+	ret, err := vapi.Validators(context.Background(), &eth2api.ValidatorsOpts{
 		State:   "head",
 		PubKeys: pubshares,
 	})
 	require.NoError(t, err)
 	require.Equal(t, 0, valEndpointInvocations)
+	require.Len(t, ret.Data, len(pubshares))
 
 	// request validators that are not cached at all by removing singleVal from the cache
 	delete(complete, singleVal.Index)
 
 	share := allPubSharesByKey[core.PubKeyFrom48Bytes(singleVal.Validator.PublicKey)][1]
 
-	_, err = vapi.Validators(context.Background(), &eth2api.ValidatorsOpts{
+	ret, err = vapi.Validators(context.Background(), &eth2api.ValidatorsOpts{
 		State:   "head",
 		PubKeys: []eth2p0.BLSPubKey{eth2p0.BLSPubKey(share)},
 	})
 	require.NoError(t, err)
 	require.Equal(t, 1, valEndpointInvocations)
+	require.Len(t, ret.Data, 1)
 
 	// request half-half validators
-	_, err = vapi.Validators(context.Background(), &eth2api.ValidatorsOpts{
+	ret, err = vapi.Validators(context.Background(), &eth2api.ValidatorsOpts{
 		State:   "head",
 		PubKeys: pubshares,
 	})
 	require.NoError(t, err)
 	require.Equal(t, 2, valEndpointInvocations)
+	require.Len(t, ret.Data, len(pubshares))
 }
 
 func TestComponent_GetAllValidators(t *testing.T) {
