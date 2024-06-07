@@ -56,6 +56,7 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 		{beaconNodeEndpoints, true},
 		{exitFromFile, false},
 		{beaconNodeTimeout, false},
+		{publishTimeout, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
