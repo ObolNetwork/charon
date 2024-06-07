@@ -51,6 +51,7 @@ func newSubmitPartialExitCmd(runFunc func(context.Context, exitConfig) error) *c
 		{validatorIndex, false},
 		{beaconNodeEndpoints, true},
 		{beaconNodeTimeout, false},
+		{publishTimeout, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
