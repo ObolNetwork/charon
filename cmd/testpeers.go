@@ -47,10 +47,6 @@ type testPeersConfig struct {
 type testCasePeer func(context.Context, *testPeersConfig, host.Host, p2p.Peer) testResult
 
 const (
-	thresholdMeasureAvg      = 50 * time.Millisecond
-	thresholdMeasureBad      = 240 * time.Millisecond
-	thresholdLoadAvg         = 50 * time.Millisecond
-	thresholdLoadBad         = 240 * time.Millisecond
 	thresholdPeersMeasureAvg = 50 * time.Millisecond
 	thresholdPeersMeasureBad = 240 * time.Millisecond
 	thresholdPeersLoadAvg    = 50 * time.Millisecond

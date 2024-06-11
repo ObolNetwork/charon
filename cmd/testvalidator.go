@@ -25,6 +25,13 @@ type testValidatorConfig struct {
 	LoadTestDuration time.Duration
 }
 
+const (
+	thresholdValidatorMeasureAvg = 50 * time.Millisecond
+	thresholdValidatorMeasureBad = 240 * time.Millisecond
+	thresholdValidatorLoadAvg    = 50 * time.Millisecond
+	thresholdValidatorLoadBad    = 240 * time.Millisecond
+)
+
 func newTestValidatorCmd(runFunc func(context.Context, io.Writer, testValidatorConfig) error) *cobra.Command {
 	var config testValidatorConfig
 
@@ -187,9 +194,9 @@ func validatorPingMeasureTest(ctx context.Context, conf *testValidatorConfig) te
 	defer conn.Close()
 	rtt := time.Since(before)
 
-	if rtt > thresholdMeasureBad {
+	if rtt > thresholdValidatorMeasureBad {
 		testRes.Verdict = testVerdictBad
-	} else if rtt > thresholdMeasureAvg {
+	} else if rtt > thresholdValidatorMeasureAvg {
 		testRes.Verdict = testVerdictAvg
 	} else {
 		testRes.Verdict = testVerdictGood
@@ -256,9 +263,9 @@ func validatorPingLoadTest(ctx context.Context, conf *testValidatorConfig) testR
 			highestRTT = rtt
 		}
 	}
-	if highestRTT > thresholdLoadBad {
+	if highestRTT > thresholdValidatorLoadBad {
 		testRes.Verdict = testVerdictBad
-	} else if highestRTT > thresholdLoadAvg {
+	} else if highestRTT > thresholdValidatorLoadAvg {
 		testRes.Verdict = testVerdictAvg
 	} else {
 		testRes.Verdict = testVerdictGood
