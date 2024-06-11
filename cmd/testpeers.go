@@ -45,10 +45,14 @@ type testPeersConfig struct {
 type testCasePeer func(context.Context, *testPeersConfig, host.Host, p2p.Peer) testResult
 
 const (
-	thresholdMeasureAvg = 200 * time.Millisecond
-	thresholdMeasureBad = 500 * time.Millisecond
-	thresholdLoadAvg    = 200 * time.Millisecond
-	thresholdLoadBad    = 500 * time.Millisecond
+	thresholdMeasureAvg      = 50 * time.Millisecond
+	thresholdMeasureBad      = 240 * time.Millisecond
+	thresholdLoadAvg         = 50 * time.Millisecond
+	thresholdLoadBad         = 240 * time.Millisecond
+	thresholdPeersMeasureAvg = 50 * time.Millisecond
+	thresholdPeersMeasureBad = 240 * time.Millisecond
+	thresholdPeersLoadAvg    = 50 * time.Millisecond
+	thresholdPeersLoadBad    = 240 * time.Millisecond
 )
 
 func newTestPeersCmd(runFunc func(context.Context, io.Writer, testPeersConfig) error) *cobra.Command {
@@ -524,9 +528,9 @@ func peerPingMeasureTest(ctx context.Context, _ *testPeersConfig, tcpNode host.H
 		return testRes
 	}
 
-	if result.RTT > thresholdMeasureBad {
+	if result.RTT > thresholdPeersMeasureBad {
 		testRes.Verdict = testVerdictBad
-	} else if result.RTT > thresholdMeasureAvg {
+	} else if result.RTT > thresholdPeersMeasureAvg {
 		testRes.Verdict = testVerdictAvg
 	} else {
 		testRes.Verdict = testVerdictGood
@@ -570,9 +574,9 @@ func peerPingLoadTest(ctx context.Context, conf *testPeersConfig, tcpNode host.H
 			highestRTT = val.RTT
 		}
 	}
-	if highestRTT > thresholdLoadBad {
+	if highestRTT > thresholdPeersLoadBad {
 		testRes.Verdict = testVerdictBad
-	} else if highestRTT > thresholdLoadAvg {
+	} else if highestRTT > thresholdPeersLoadAvg {
 		testRes.Verdict = testVerdictAvg
 	} else {
 		testRes.Verdict = testVerdictGood
