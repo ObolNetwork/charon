@@ -850,12 +850,10 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 		return nil, errors.New("beacon node endpoints empty")
 	}
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(eth2ClientTimeout, conf.BeaconNodeAddrs...)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(eth2ClientTimeout, [4]byte(forkVersion), conf.BeaconNodeAddrs...)
 	if err != nil {
 		return nil, errors.Wrap(err, "new eth2 http client")
 	}
-
-	eth2Cl.SetForkVersion([4]byte(forkVersion))
 
 	if conf.SyntheticBlockProposals {
 		log.Info(ctx, "Synthetic block proposals enabled")

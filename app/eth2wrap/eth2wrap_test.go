@@ -4,6 +4,7 @@ package eth2wrap_test
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -25,6 +26,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -169,7 +171,7 @@ func TestErrors(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("network dial error", func(t *testing.T) {
-		cl, err := eth2wrap.NewMultiHTTP(time.Hour, "localhost:22222")
+		cl, err := eth2wrap.NewMultiHTTP(time.Hour, [4]byte{}, "localhost:22222")
 		require.NoError(t, err)
 
 		_, err = cl.SlotsPerEpoch(ctx)
@@ -184,7 +186,7 @@ func TestErrors(t *testing.T) {
 	}))
 
 	t.Run("http timeout", func(t *testing.T) {
-		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, srv.URL)
+		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, [4]byte{}, srv.URL)
 		require.NoError(t, err)
 
 		_, err = cl.SlotsPerEpoch(ctx)
@@ -197,7 +199,7 @@ func TestErrors(t *testing.T) {
 		ctx, cancel := context.WithCancel(ctx)
 		cancel()
 
-		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, srv.URL)
+		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, [4]byte{}, srv.URL)
 		require.NoError(t, err)
 
 		_, err = cl.SlotsPerEpoch(ctx)
@@ -249,7 +251,7 @@ func TestCtxCancel(t *testing.T) {
 
 		bmock, err := beaconmock.New()
 		require.NoError(t, err)
-		eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, bmock.Address())
+		eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte{}, bmock.Address())
 		require.NoError(t, err)
 
 		cancel() // Cancel context before calling method.
@@ -308,7 +310,7 @@ func TestOneError(t *testing.T) {
 		bmock.Address(), // Valid
 	}
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, addresses...)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte{}, addresses...)
 	require.NoError(t, err)
 
 	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
@@ -339,7 +341,7 @@ func TestOneTimeout(t *testing.T) {
 		bmock.Address(), // Valid
 	}
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Minute, addresses...)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Minute, [4]byte{}, addresses...)
 	require.NoError(t, err)
 
 	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
@@ -362,7 +364,7 @@ func TestOnlyTimeout(t *testing.T) {
 	defer srv.Close()
 	defer cancel() // Cancel the context before stopping the server.
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Minute, srv.URL)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Minute, [4]byte{}, srv.URL)
 	require.NoError(t, err)
 
 	// Start goroutine that is blocking trying to create the client.
@@ -424,7 +426,7 @@ func TestLazy(t *testing.T) {
 		httputil.NewSingleHostReverseProxy(target).ServeHTTP(w, r)
 	}))
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, srv1.URL, srv2.URL)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte{}, srv1.URL, srv2.URL)
 	require.NoError(t, err)
 
 	// Both proxies are disabled, so this should fail.
@@ -448,4 +450,72 @@ func TestLazy(t *testing.T) {
 	}
 
 	require.Equal(t, srv2.URL, eth2Cl.Address())
+}
+
+func TestLazyDomain(t *testing.T) {
+	tests := []struct {
+		name   string
+		in     string
+		expErr string
+		expRes string
+	}{
+		{
+			name:   "mainnet fork",
+			in:     eth2util.Mainnet.GenesisForkVersionHex[2:],
+			expRes: "040000008c6ebbceb21209e6af5ab7db4a3027998c412c0eb0e15fbc1ee75617",
+		},
+		{
+			name:   "goerli fork",
+			in:     eth2util.Goerli.GenesisForkVersionHex[2:],
+			expRes: "04000000628941ef21d1fe8c7134720add10bb91e3b02c007e0046d2472c6695",
+		},
+		{
+			name:   "gnosis fork",
+			in:     eth2util.Gnosis.GenesisForkVersionHex[2:],
+			expRes: "04000000398beb768264920602d7d79f88da05cac0550ae4108753fd846408b5",
+		},
+		{
+			name:   "sepolia fork",
+			in:     eth2util.Sepolia.GenesisForkVersionHex[2:],
+			expRes: "040000007191d9b3c210dbffc7810b6ccb436c1b3897b6772452924b20f6f5f2",
+		},
+		{
+			name:   "holesky fork",
+			in:     eth2util.Holesky.GenesisForkVersionHex[2:],
+			expRes: "040000002b3e2c2d17a0d820f3099580a72d1bc743b17616ff7851f32aa303ad",
+		},
+		{
+			name:   "unknown fork",
+			in:     "00000001",
+			expErr: "beacon api domain: get domain: compute domain: invalid fork hash: no capella fork for specified fork",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			bmock, err := beaconmock.New()
+			require.NoError(t, err)
+
+			target := testutil.MustParseURL(t, bmock.Address())
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				httputil.NewSingleHostReverseProxy(target).ServeHTTP(w, r)
+			}))
+
+			forkVersionHex, err := hex.DecodeString(test.in)
+			require.NoError(t, err)
+			eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte(forkVersionHex), srv.URL)
+			require.NoError(t, err)
+
+			voluntaryExitDomain := eth2p0.DomainType{0x04, 0x00, 0x00, 0x00}
+			f, err := eth2Cl.Domain(ctx, voluntaryExitDomain, testutil.RandomEpoch())
+
+			if test.expErr != "" {
+				require.ErrorContains(t, err, test.expErr)
+			} else {
+				require.Equal(t, test.expRes, hex.EncodeToString(f[:]))
+			}
+		})
+	}
 }

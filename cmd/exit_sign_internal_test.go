@@ -181,10 +181,8 @@ func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, expertMode bool,
 		require.NoError(t, beaconMock.Close())
 	}()
 
-	eth2Cl, err := eth2Client(ctx, []string{beaconMock.Address()}, 10*time.Second)
+	eth2Cl, err := eth2Client(ctx, []string{beaconMock.Address()}, 10*time.Second, [4]byte(lock.ForkVersion))
 	require.NoError(t, err)
-
-	eth2Cl.SetForkVersion([4]byte(lock.ForkVersion))
 
 	handler, addLockFiles := obolapimock.MockServer(false, eth2Cl)
 	srv := httptest.NewServer(handler)

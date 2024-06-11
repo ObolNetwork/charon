@@ -146,8 +146,8 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 	}
 }
 
-func eth2Client(ctx context.Context, u []string, timeout time.Duration) (eth2wrap.Client, error) {
-	cl, err := eth2wrap.NewMultiHTTP(timeout, u...)
+func eth2Client(ctx context.Context, u []string, timeout time.Duration, forkVersion [4]byte) (eth2wrap.Client, error) {
+	cl, err := eth2wrap.NewMultiHTTP(timeout, forkVersion, u...)
 	if err != nil {
 		return nil, err
 	}
