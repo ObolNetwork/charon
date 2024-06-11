@@ -29,8 +29,10 @@ type testBeaconConfig struct {
 type testCaseBeacon func(context.Context, *testBeaconConfig, string) testResult
 
 const (
-	thresholdBeaconPeersAvg = 20
-	thresholdBeaconPeersBad = 5
+	thresholdBeaconMeasureAvg = 40 * time.Millisecond
+	thresholdBeaconMeasureBad = 100 * time.Millisecond
+	thresholdBeaconPeersAvg   = 50
+	thresholdBeaconPeersBad   = 20
 )
 
 func newTestBeaconCmd(runFunc func(context.Context, io.Writer, testBeaconConfig) error) *cobra.Command {
@@ -256,9 +258,9 @@ func beaconPingMeasureTest(ctx context.Context, _ *testBeaconConfig, target stri
 		return failedTestResult(testRes, errors.New("status code %v", z.Int("status_code", resp.StatusCode)))
 	}
 
-	if firstByte > thresholdMeasureBad {
+	if firstByte > thresholdBeaconMeasureBad {
 		testRes.Verdict = testVerdictBad
-	} else if firstByte > thresholdMeasureAvg {
+	} else if firstByte > thresholdBeaconMeasureAvg {
 		testRes.Verdict = testVerdictAvg
 	} else {
 		testRes.Verdict = testVerdictGood
