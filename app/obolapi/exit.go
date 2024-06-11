@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"sort"
@@ -124,7 +125,13 @@ func (c Client) PostPartialExit(ctx context.Context, lockHash []byte, shareIndex
 	}()
 
 	if resp.StatusCode != http.StatusCreated {
-		return errors.New("http error", z.Int("status_code", resp.StatusCode))
+		errMsg := "http error"
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return errors.New(errMsg, z.Int("status_code", resp.StatusCode))
+		}
+
+		return errors.New(errMsg, z.Int("status_code", resp.StatusCode), z.Str("body", string(bodyBytes)))
 	}
 
 	return nil
