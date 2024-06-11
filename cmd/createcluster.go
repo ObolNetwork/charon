@@ -351,7 +351,7 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 			return errors.Wrap(err, "failed to parse keymanager addr", z.Str("addr", addr))
 		}
 
-		if keymanagerURL.Scheme != "https" {
+		if keymanagerURL.Scheme == httpScheme {
 			log.Warn(ctx, "Keymanager URL does not use https protocol", nil, z.Str("addr", addr))
 		}
 	}
@@ -1001,7 +1001,7 @@ func loadDefinition(ctx context.Context, defFile string) (cluster.Definition, er
 func validURI(str string) bool {
 	u, err := url.ParseRequestURI(str)
 
-	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
+	return err == nil && (u.Scheme == httpScheme || u.Scheme == httpsScheme) && u.Host != ""
 }
 
 // safeThreshold logs a warning when a non-standard threshold is provided.

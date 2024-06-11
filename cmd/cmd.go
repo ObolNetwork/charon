@@ -27,7 +27,9 @@ const (
 	defaultConfigFilename = "charon"
 
 	// The environment variable prefix of all environment variables bound to our command line flags.
-	envPrefix = "charon"
+	envPrefix   = "charon"
+	httpScheme  = "http"
+	httpsScheme = "https"
 )
 
 // New returns a new root cobra command that handles our command line tool.
