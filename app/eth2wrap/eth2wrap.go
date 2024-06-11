@@ -70,7 +70,7 @@ func WithSyntheticDuties(cl Client) Client {
 }
 
 // NewMultiHTTP returns a new instrumented multi eth2 http client.
-func NewMultiHTTP(timeout time.Duration, addresses ...string) (Client, error) {
+func NewMultiHTTP(timeout time.Duration, forkVersion [4]byte, addresses ...string) (Client, error) {
 	var clients []Client
 	for _, address := range addresses {
 		address := address // Capture range variable.
@@ -93,7 +93,10 @@ func NewMultiHTTP(timeout time.Duration, addresses ...string) (Client, error) {
 				return nil, errors.New("invalid eth2 http service")
 			}
 
-			return AdaptEth2HTTP(eth2Http, timeout), nil
+			adaptedCl := AdaptEth2HTTP(eth2Http, timeout)
+			adaptedCl.SetForkVersion(forkVersion)
+
+			return adaptedCl, nil
 		})
 
 		clients = append(clients, cl)

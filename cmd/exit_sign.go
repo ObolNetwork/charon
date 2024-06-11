@@ -154,12 +154,10 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 		}
 	}
 
-	eth2Cl, err := eth2Client(ctx, config.BeaconNodeEndpoints, config.BeaconNodeTimeout)
+	eth2Cl, err := eth2Client(ctx, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.GetForkVersion()))
 	if err != nil {
 		return errors.Wrap(err, "cannot create eth2 client for specified beacon node")
 	}
-
-	eth2Cl.SetForkVersion([4]byte(cl.GetForkVersion()))
 
 	if !config.ExpertMode {
 		rawValData, err := eth2Cl.Validators(ctx, valAPICallOpts)

@@ -75,7 +75,7 @@ func listActiveVals(ctx context.Context, config exitConfig) ([]string, error) {
 		return nil, errors.Wrap(err, "could not load cluster-lock.json")
 	}
 
-	eth2Cl, err := eth2Client(ctx, config.BeaconNodeEndpoints, config.BeaconNodeTimeout)
+	eth2Cl, err := eth2Client(ctx, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte{}) // fine to avoid initializing a fork version, we're just querying the BN
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot create eth2 client for specified beacon node")
 	}
