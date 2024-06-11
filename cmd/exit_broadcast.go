@@ -82,12 +82,10 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 
 	ctx = log.WithCtx(ctx, z.Str("validator", validator.String()))
 
-	eth2Cl, err := eth2Client(ctx, config.BeaconNodeEndpoints, config.BeaconNodeTimeout)
+	eth2Cl, err := eth2Client(ctx, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.GetForkVersion()))
 	if err != nil {
 		return errors.Wrap(err, "cannot create eth2 client for specified beacon node")
 	}
-
-	eth2Cl.SetForkVersion([4]byte(cl.GetForkVersion()))
 
 	var fullExit eth2p0.SignedVoluntaryExit
 	maybeExitFilePath := strings.TrimSpace(config.ExitFromFilePath)
