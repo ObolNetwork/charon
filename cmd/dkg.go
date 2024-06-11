@@ -46,6 +46,8 @@ this command at the same time.`,
 	bindPublishFlags(cmd.Flags(), &config)
 	bindShutdownDelayFlag(cmd.Flags(), &config.ShutdownDelay)
 
+	cmd.Flags().DurationVar(&config.Timeout, "timeout", 1*time.Minute, "Timeout for the DKG process, should be increased if DKG times out.")
+
 	return cmd
 }
 
