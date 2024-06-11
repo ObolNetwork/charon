@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -89,7 +90,7 @@ func TestExchanger(t *testing.T) {
 	}
 
 	for i := 0; i < nodes; i++ {
-		ex := newExchanger(hosts[i], i, peers, dvs, expectedSigTypes)
+		ex := newExchanger(hosts[i], i, peers, dvs, expectedSigTypes, 8*time.Second)
 		exchangers = append(exchangers, ex)
 	}
 
