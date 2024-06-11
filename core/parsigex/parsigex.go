@@ -29,7 +29,7 @@ func Protocols() []protocol.ID {
 
 func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []peer.ID,
 	verifyFunc func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error,
-	gaterFunc core.DutyGaterFunc,
+	gaterFunc core.DutyGaterFunc, p2pOpts ...p2p.SendRecvOption,
 ) *ParSigEx {
 	parSigEx := &ParSigEx{
 		tcpNode:    tcpNode,
@@ -41,7 +41,14 @@ func NewParSigEx(tcpNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []
 	}
 
 	newReq := func() proto.Message { return new(pbv1.ParSigExMsg) }
-	p2p.RegisterHandler("parsigex", tcpNode, protocolID2, newReq, parSigEx.handle)
+	p2p.RegisterHandler(
+		"parsigex",
+		tcpNode,
+		protocolID2,
+		newReq,
+		parSigEx.handle,
+		p2pOpts...,
+	)
 
 	return parSigEx
 }

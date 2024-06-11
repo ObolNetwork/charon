@@ -92,6 +92,7 @@ func TestLongWaitDKG(t *testing.T) {
 		TestConfig: dkg.TestConfig{
 			Def: &def,
 		},
+		Timeout: 10 * time.Minute,
 	}
 
 	windowTicker := time.NewTicker(window)
@@ -291,6 +292,7 @@ func TestDKGWithHighValidatorsAmt(t *testing.T) {
 		TestConfig: dkg.TestConfig{
 			Def: &def,
 		},
+		Timeout: 10 * time.Minute,
 	}
 
 	dir := t.TempDir()

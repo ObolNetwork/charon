@@ -46,6 +46,7 @@ type Config struct {
 	P2P           p2p.Config
 	Log           log.Config
 	ShutdownDelay time.Duration
+	Timeout       time.Duration
 
 	KeymanagerAddr      string
 	KeymanagerAuthToken string
@@ -190,7 +191,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		sigLock,
 		sigDepositData,
 		sigValidatorRegistration,
-	})
+	}, conf.Timeout)
 
 	// Register Frost libp2p handlers
 	peerMap := make(map[peer.ID]cluster.NodeIdx)
