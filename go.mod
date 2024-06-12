@@ -43,7 +43,7 @@ require (
 	golang.org/x/crypto v0.23.0
 	golang.org/x/exp v0.0.0-20240525044651-4c93da0ed11d
 	golang.org/x/sync v0.7.0
-	golang.org/x/term v0.20.0
+	golang.org/x/term v0.21.0
 	golang.org/x/time v0.5.0
 	golang.org/x/tools v0.21.0
 	google.golang.org/protobuf v1.34.2
@@ -186,7 +186,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/mod v0.17.0 // indirect
 	golang.org/x/net v0.25.0 // indirect
-	golang.org/x/sys v0.20.0 // indirect
+	golang.org/x/sys v0.21.0 // indirect
 	golang.org/x/text v0.15.0 // indirect
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240521202816-d264139d666e // indirect
