@@ -25,6 +25,8 @@ type Network struct {
 	GenesisForkVersionHex string
 	// GenesisTimestamp represents genesis timestamp of the network in unix format
 	GenesisTimestamp int64
+	// CapellaHardFork represents capella fork version, used for computing domains for signatures
+	CapellaHardFork string
 }
 
 // IsNonZero checks if each field in this struct is not equal to its zero value.
@@ -39,24 +41,28 @@ var (
 		Name:                  "mainnet",
 		GenesisForkVersionHex: "0x00000000",
 		GenesisTimestamp:      1606824023,
+		CapellaHardFork:       "0x03000000",
 	}
 	Goerli = Network{
 		ChainID:               5,
 		Name:                  "goerli",
 		GenesisForkVersionHex: "0x00001020",
 		GenesisTimestamp:      1616508000,
+		CapellaHardFork:       "0x03001020",
 	}
 	Gnosis = Network{
 		ChainID:               100,
 		Name:                  "gnosis",
 		GenesisForkVersionHex: "0x00000064",
 		GenesisTimestamp:      1638993340,
+		CapellaHardFork:       "0x03000064",
 	}
 	Sepolia = Network{
 		ChainID:               11155111,
 		Name:                  "sepolia",
 		GenesisForkVersionHex: "0x90000069",
 		GenesisTimestamp:      1655733600,
+		CapellaHardFork:       "0x90000072",
 	}
 	// Holesky metadata taken from https://github.com/eth-clients/holesky#metadata.
 	Holesky = Network{
@@ -64,6 +70,7 @@ var (
 		Name:                  "holesky",
 		GenesisForkVersionHex: "0x01017000",
 		GenesisTimestamp:      1696000704,
+		CapellaHardFork:       "0x04017000",
 	}
 )
 
