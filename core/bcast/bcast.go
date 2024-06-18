@@ -6,6 +6,7 @@ package bcast
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -75,7 +76,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 
 		block, ok := aggData.(core.VersionedSignedProposal)
 		if !ok {
-			return errors.New("invalid proposal")
+			return errors.New("invalid proposal", z.Str("data", fmt.Sprintf("%+v", aggData)))
 		}
 
 		err = b.eth2Cl.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
