@@ -235,19 +235,32 @@ func IsSyntheticBlindedBlock(block *eth2api.VersionedSignedBlindedProposal) bool
 // IsSyntheticProposal returns true if the block is a synthetic block proposal.
 func IsSyntheticProposal(block *eth2api.VersionedSignedProposal) bool {
 	var graffiti [32]byte
-	switch block.Version {
-	case eth2spec.DataVersionPhase0:
-		graffiti = block.Phase0.Message.Body.Graffiti
-	case eth2spec.DataVersionAltair:
-		graffiti = block.Altair.Message.Body.Graffiti
-	case eth2spec.DataVersionBellatrix:
-		graffiti = block.Bellatrix.Message.Body.Graffiti
-	case eth2spec.DataVersionCapella:
-		graffiti = block.Capella.Message.Body.Graffiti
-	case eth2spec.DataVersionDeneb:
-		graffiti = block.Deneb.SignedBlock.Message.Body.Graffiti
-	default:
-		return false
+	if block.Blinded {
+		switch block.Version {
+		case eth2spec.DataVersionBellatrix:
+			graffiti = block.BellatrixBlinded.Message.Body.Graffiti
+		case eth2spec.DataVersionCapella:
+			graffiti = block.CapellaBlinded.Message.Body.Graffiti
+		case eth2spec.DataVersionDeneb:
+			graffiti = block.DenebBlinded.Message.Body.Graffiti
+		default:
+			return false
+		}
+	} else {
+		switch block.Version {
+		case eth2spec.DataVersionPhase0:
+			graffiti = block.Phase0.Message.Body.Graffiti
+		case eth2spec.DataVersionAltair:
+			graffiti = block.Altair.Message.Body.Graffiti
+		case eth2spec.DataVersionBellatrix:
+			graffiti = block.Bellatrix.Message.Body.Graffiti
+		case eth2spec.DataVersionCapella:
+			graffiti = block.Capella.Message.Body.Graffiti
+		case eth2spec.DataVersionDeneb:
+			graffiti = block.Deneb.SignedBlock.Message.Body.Graffiti
+		default:
+			return false
+		}
 	}
 
 	return graffiti == GetSyntheticGraffiti()
