@@ -188,6 +188,8 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 		if !valIndexFound {
 			return errors.New("validator index not found in beacon node response")
 		}
+	} else {
+		valIndex = eth2p0.ValidatorIndex(config.ValidatorIndex)
 	}
 
 	exitMsg, err := signExit(ctx, eth2Cl, valIndex, ourShare.Share, eth2p0.Epoch(config.ExitEpoch))
