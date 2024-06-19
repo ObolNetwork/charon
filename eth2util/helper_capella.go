@@ -15,23 +15,19 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-var capellaForkMap = map[string]string{
-	"0x00000000": "0x03000000",
-	"0x00001020": "0x03001020",
-	"0x00000064": "0x03000064",
-	"0x90000069": "0x90000072",
-	"0x01017000": "0x04017000",
-}
-
 // CapellaFork maps generic fork hashes to their specific Capella hardfork
 // values.
 func CapellaFork(forkHash string) (string, error) {
-	d, ok := capellaForkMap[forkHash]
-	if !ok {
-		return "", errors.New("no capella fork for specified fork")
+	networksMu.Lock()
+	defer networksMu.Unlock()
+
+	for _, n := range supportedNetworks {
+		if n.GenesisForkVersionHex == forkHash {
+			return n.CapellaHardFork, nil
+		}
 	}
 
-	return d, nil
+	return "", errors.New("no capella fork for specified fork")
 }
 
 type forkDataType struct {
