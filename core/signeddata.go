@@ -357,10 +357,7 @@ func (p *VersionedSignedProposal) UnmarshalJSON(input []byte) error {
 		return errors.Wrap(err, "unmarshal block")
 	}
 
-	resp := eth2api.VersionedSignedProposal{
-		Version: raw.Version.ToETH2(),
-		Blinded: raw.Blinded,
-	}
+	resp := eth2api.VersionedSignedProposal{Version: raw.Version.ToETH2()}
 	switch resp.Version {
 	case eth2spec.DataVersionPhase0:
 		block := new(eth2p0.SignedBeaconBlock)
@@ -419,6 +416,8 @@ func (p *VersionedSignedProposal) UnmarshalJSON(input []byte) error {
 	default:
 		return errors.New("unknown version")
 	}
+
+	resp.Blinded = raw.Blinded
 
 	p.VersionedSignedProposal = resp
 
