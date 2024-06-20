@@ -12,7 +12,6 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"go.opentelemetry.io/otel/trace"
@@ -449,24 +448,7 @@ func (c Component) SubmitBlindedProposal(ctx context.Context, opts *eth2api.Subm
 	duty := core.NewProposerDuty(uint64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	// Translate old blinded block request to new VersionedSignedProposal universal type.
-
-	signedBlock := new(eth2api.VersionedSignedProposal)
-	signedBlock.Version = opts.Proposal.Version
-	signedBlock.Blinded = true
-
-	switch signedBlock.Version {
-	case eth2spec.DataVersionBellatrix:
-		signedBlock.BellatrixBlinded = opts.Proposal.Bellatrix
-	case eth2spec.DataVersionCapella:
-		signedBlock.CapellaBlinded = opts.Proposal.Capella
-	case eth2spec.DataVersionDeneb:
-		signedBlock.DenebBlinded = opts.Proposal.Deneb
-	default:
-		return errors.New("invalid blinded block")
-	}
-
-	signedData, err := core.NewPartialVersionedSignedProposal(signedBlock, c.shareIdx)
+	signedData, err := core.NewPartialVersionedSignedBlindedProposal(opts.Proposal, c.shareIdx)
 	if err != nil {
 		return err
 	}

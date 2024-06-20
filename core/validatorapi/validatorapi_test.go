@@ -692,10 +692,9 @@ func TestComponent_SubmitBlindedProposal(t *testing.T) {
 	s, err := tbls.Sign(secret, sigData[:])
 	require.NoError(t, err)
 
-	signedBlindedBlock := &eth2api.VersionedSignedProposal{
+	signedBlindedBlock := &eth2api.VersionedSignedBlindedProposal{
 		Version: eth2spec.DataVersionCapella,
-		Blinded: true,
-		CapellaBlinded: &eth2capella.SignedBlindedBeaconBlock{
+		Capella: &eth2capella.SignedBlindedBeaconBlock{
 			Message:   unsignedBlindedBlock,
 			Signature: eth2p0.BLSSignature(s),
 		},
@@ -703,14 +702,14 @@ func TestComponent_SubmitBlindedProposal(t *testing.T) {
 
 	// Register subscriber
 	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-		block, ok := set[corePubKey].SignedData.(core.VersionedSignedProposal)
+		block, ok := set[corePubKey].SignedData.(core.VersionedSignedBlindedProposal)
 		require.True(t, ok)
-		require.Equal(t, *signedBlindedBlock, block.VersionedSignedProposal)
+		require.Equal(t, *signedBlindedBlock, block.VersionedSignedBlindedProposal)
 
 		return nil
 	})
 
-	err = vapi.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+	err = vapi.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
 		Proposal: signedBlindedBlock,
 	})
 	require.NoError(t, err)

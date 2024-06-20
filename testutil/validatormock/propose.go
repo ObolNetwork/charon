@@ -126,64 +126,69 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 		return err
 	}
 
-	signedBlock := new(eth2api.VersionedSignedProposal)
-	signedBlock.Version = block.Version
-
 	if block.Blinded {
+		signedBlock := new(eth2api.VersionedSignedBlindedProposal)
+		signedBlock.Version = block.Version
 		switch block.Version {
 		case eth2spec.DataVersionBellatrix:
-			signedBlock.BellatrixBlinded = &eth2bellatrix.SignedBlindedBeaconBlock{
+			signedBlock.Bellatrix = &eth2bellatrix.SignedBlindedBeaconBlock{
 				Message:   block.BellatrixBlinded,
 				Signature: sig,
 			}
 		case eth2spec.DataVersionCapella:
-			signedBlock.CapellaBlinded = &eth2capella.SignedBlindedBeaconBlock{
+			signedBlock.Capella = &eth2capella.SignedBlindedBeaconBlock{
 				Message:   block.CapellaBlinded,
 				Signature: sig,
 			}
 		case eth2spec.DataVersionDeneb:
-			signedBlock.DenebBlinded = &eth2deneb.SignedBlindedBeaconBlock{
+			signedBlock.Deneb = &eth2deneb.SignedBlindedBeaconBlock{
 				Message:   block.DenebBlinded,
 				Signature: sig,
 			}
 		default:
 			return errors.New("invalid blinded block")
 		}
-	} else {
-		// Full block
-		switch block.Version {
-		case eth2spec.DataVersionPhase0:
-			signedBlock.Phase0 = &eth2p0.SignedBeaconBlock{
-				Message:   block.Phase0,
-				Signature: sig,
-			}
-		case eth2spec.DataVersionAltair:
-			signedBlock.Altair = &altair.SignedBeaconBlock{
-				Message:   block.Altair,
-				Signature: sig,
-			}
-		case eth2spec.DataVersionBellatrix:
-			signedBlock.Bellatrix = &bellatrix.SignedBeaconBlock{
-				Message:   block.Bellatrix,
-				Signature: sig,
-			}
-		case eth2spec.DataVersionCapella:
-			signedBlock.Capella = &capella.SignedBeaconBlock{
-				Message:   block.Capella,
-				Signature: sig,
-			}
-		case eth2spec.DataVersionDeneb:
-			signedBlock.Deneb = &eth2deneb.SignedBlockContents{
-				SignedBlock: &deneb.SignedBeaconBlock{
-					Message:   block.Deneb.Block,
-					Signature: sig,
-				},
-				KZGProofs: block.Deneb.KZGProofs,
-				Blobs:     block.Deneb.Blobs,
-			}
-		default:
-			return errors.New("invalid block")
+
+		return eth2Cl.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+			Proposal: signedBlock,
+		})
+	}
+
+	// Full block
+	signedBlock := new(eth2api.VersionedSignedProposal)
+	signedBlock.Version = block.Version
+	switch block.Version {
+	case eth2spec.DataVersionPhase0:
+		signedBlock.Phase0 = &eth2p0.SignedBeaconBlock{
+			Message:   block.Phase0,
+			Signature: sig,
 		}
+	case eth2spec.DataVersionAltair:
+		signedBlock.Altair = &altair.SignedBeaconBlock{
+			Message:   block.Altair,
+			Signature: sig,
+		}
+	case eth2spec.DataVersionBellatrix:
+		signedBlock.Bellatrix = &bellatrix.SignedBeaconBlock{
+			Message:   block.Bellatrix,
+			Signature: sig,
+		}
+	case eth2spec.DataVersionCapella:
+		signedBlock.Capella = &capella.SignedBeaconBlock{
+			Message:   block.Capella,
+			Signature: sig,
+		}
+	case eth2spec.DataVersionDeneb:
+		signedBlock.Deneb = &eth2deneb.SignedBlockContents{
+			SignedBlock: &deneb.SignedBeaconBlock{
+				Message:   block.Deneb.Block,
+				Signature: sig,
+			},
+			KZGProofs: block.Deneb.KZGProofs,
+			Blobs:     block.Deneb.Blobs,
+		}
+	default:
+		return errors.New("invalid block")
 	}
 
 	return eth2Cl.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{Proposal: signedBlock})
