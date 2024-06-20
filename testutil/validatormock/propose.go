@@ -128,7 +128,6 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 
 	signedBlock := new(eth2api.VersionedSignedProposal)
 	signedBlock.Version = block.Version
-	signedBlock.Blinded = block.Blinded
 
 	if block.Blinded {
 		switch block.Version {
