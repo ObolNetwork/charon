@@ -73,18 +73,39 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 			return err
 		}
 
-		block, ok := aggData.(core.VersionedSignedProposal)
+		var (
+			block        core.VersionedSignedProposal
+			blindedBlock core.VersionedSignedBlindedProposal
+
+			blinded bool
+			ok      bool
+		)
+
+		block, ok = aggData.(core.VersionedSignedProposal)
 		if !ok {
-			return errors.New("invalid proposal")
+			// check if it's a blinded proposal
+			blindedBlock, blinded = aggData.(core.VersionedSignedBlindedProposal)
+			if !blinded {
+				return errors.New("invalid proposal")
+			}
 		}
 
-		err = b.eth2Cl.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
-			Proposal: &block.VersionedSignedProposal,
-		})
+		switch blinded {
+		case true:
+			err = b.eth2Cl.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+				Proposal: &blindedBlock.VersionedSignedBlindedProposal,
+			})
+		default:
+			err = b.eth2Cl.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+				Proposal: &block.VersionedSignedProposal,
+			})
+		}
+
 		if err == nil {
 			log.Info(ctx, "Successfully submitted block proposal to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)),
 				z.Any("pubkey", pubkey),
+				z.Bool("blinded", blinded),
 			)
 		}
 
