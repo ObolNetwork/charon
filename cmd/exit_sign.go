@@ -148,6 +148,7 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 		valAPICallOpts.Indices = []eth2p0.ValidatorIndex{
 			eth2p0.ValidatorIndex(config.ValidatorIndex),
 		}
+		valIndex = eth2p0.ValidatorIndex(config.ValidatorIndex)
 	} else {
 		valAPICallOpts.PubKeys = []eth2p0.BLSPubKey{
 			valEth2,
