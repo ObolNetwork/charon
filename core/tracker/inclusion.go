@@ -136,7 +136,6 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 				return nil
 			}
 		}
-
 	} else if duty.Type == core.DutyBuilderProposer {
 		return core.ErrDeprecatedDutyBuilderProposer
 	}
