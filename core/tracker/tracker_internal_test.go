@@ -13,6 +13,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -1333,4 +1334,13 @@ func TestSubmittedProposals(t *testing.T) {
 
 	err = ic.Submitted(core.NewProposerDuty(42), testutil.RandomCorePubKey(t), testutil.RandomDenebVersionedSignedBlindedProposal(), 1*time.Millisecond)
 	require.NoError(t, err)
+
+	require.NotPanics(t, func() {
+		err = ic.Submitted(core.NewProposerDuty(42), testutil.RandomCorePubKey(t), core.VersionedSignedBlindedProposal{
+			VersionedSignedBlindedProposal: eth2api.VersionedSignedBlindedProposal{
+				Version: eth2spec.DataVersionDeneb,
+			},
+		}, 1*time.Millisecond)
+		require.ErrorContains(t, err, "could not determine if proposal was synthetic or not")
+	})
 }
