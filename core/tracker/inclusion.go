@@ -104,15 +104,37 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 			return errors.Wrap(err, "hash aggregate")
 		}
 	} else if duty.Type == core.DutyProposer {
-		proposal, ok := data.(core.VersionedSignedProposal)
-		if !ok {
-			return errors.New("invalid block")
-		}
-		if eth2wrap.IsSyntheticProposal(&proposal.VersionedSignedProposal) {
-			// Report inclusion for synthetic blocks as it is already included on-chain.
-			i.trackerInclFunc(duty, pubkey, data, nil)
+		var (
+			block        core.VersionedSignedProposal
+			blindedBlock core.VersionedSignedBlindedProposal
 
-			return nil
+			blinded bool
+			ok      bool
+		)
+
+		block, ok = data.(core.VersionedSignedProposal)
+		if !ok {
+			blindedBlock, blinded = data.(core.VersionedSignedBlindedProposal)
+			if !blinded {
+				return errors.New("invalid block")
+			}
+		}
+
+		switch blinded {
+		case true:
+			if eth2wrap.IsSyntheticBlindedBlock(&blindedBlock.VersionedSignedBlindedProposal) {
+				// Report inclusion for synthetic blocks as it is already included on-chain.
+				i.trackerInclFunc(duty, pubkey, data, nil)
+
+				return nil
+			}
+		default:
+			if eth2wrap.IsSyntheticProposal(&block.VersionedSignedProposal) {
+				// Report inclusion for synthetic blocks as it is already included on-chain.
+				i.trackerInclFunc(duty, pubkey, data, nil)
+
+				return nil
+			}
 		}
 	} else if duty.Type == core.DutyBuilderProposer {
 		return core.ErrDeprecatedDutyBuilderProposer
