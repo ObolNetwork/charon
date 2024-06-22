@@ -76,14 +76,13 @@ type inclusionCore struct {
 
 // Submitted is called when a duty is submitted to the beacon node.
 // It adds the duty to the list of submitted duties.
-func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.SignedData, delay time.Duration) error {
+func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.SignedData, delay time.Duration) (err error) {
 	if !inclSupported[duty.Type] {
 		return nil
 	}
 
 	var (
 		attRoot eth2p0.Root
-		err     error
 	)
 	if duty.Type == core.DutyAttester {
 		att, ok := data.(core.Attestation)
@@ -120,6 +119,20 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 			}
 		}
 
+		defer func() {
+			if r := recover(); r != nil {
+				proposal := fmt.Sprintf("%+v", block)
+				if blinded {
+					proposal = fmt.Sprintf("%+v", blindedBlock)
+				}
+
+				err = errors.New("could not determine if proposal was synthetic or not",
+					z.Str("proposal", proposal),
+					z.Bool("blinded", blinded),
+				)
+			}
+		}()
+
 		switch blinded {
 		case true:
 			if eth2wrap.IsSyntheticBlindedBlock(&blindedBlock.VersionedSignedBlindedProposal) {
@@ -152,7 +165,7 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 		Delay:       delay,
 	}
 
-	return nil
+	return err
 }
 
 // Trim removes all duties that are older than the specified slot.
