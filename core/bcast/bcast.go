@@ -85,7 +85,9 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 
 		switch block.Blinded {
 		case true:
-			blinded, err := block.ToBlinded()
+			var blinded eth2api.VersionedSignedBlindedProposal
+
+			blinded, err = block.ToBlinded()
 			if err != nil {
 				return errors.Wrap(err, "cannot broadcast, expected blinded proposal")
 			}
