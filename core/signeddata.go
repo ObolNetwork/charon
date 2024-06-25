@@ -178,7 +178,7 @@ func NewPartialVersionedSignedProposal(proposal *eth2api.VersionedSignedProposal
 	}, nil
 }
 
-func NewVersionedSignedBlindedProposal(bp *eth2api.VersionedSignedBlindedProposal) (VersionedSignedProposal, error) {
+func NewVersionedSignedProposalFromBlindedProposal(bp *eth2api.VersionedSignedBlindedProposal) (VersionedSignedProposal, error) {
 	wrap, err := NewVersionedSignedProposal(&eth2api.VersionedSignedProposal{
 		Version:          bp.Version,
 		Blinded:          true,
