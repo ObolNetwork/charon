@@ -702,9 +702,12 @@ func TestComponent_SubmitBlindedProposal(t *testing.T) {
 
 	// Register subscriber
 	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-		block, ok := set[corePubKey].SignedData.(core.VersionedSignedBlindedProposal)
+		block, ok := set[corePubKey].SignedData.(core.VersionedSignedProposal)
 		require.True(t, ok)
-		require.Equal(t, *signedBlindedBlock, block.VersionedSignedBlindedProposal)
+
+		blindedBlock, err := block.ToBlinded()
+		require.NoError(t, err)
+		require.Equal(t, *signedBlindedBlock, blindedBlock)
 
 		return nil
 	})
@@ -773,9 +776,13 @@ func TestComponent_SubmitBlindedProposalInvalidSignature(t *testing.T) {
 
 	// Register subscriber
 	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-		block, ok := set[corePubKey].SignedData.(core.VersionedSignedBlindedProposal)
+		block, ok := set[corePubKey].SignedData.(core.VersionedSignedProposal)
 		require.True(t, ok)
 		require.Equal(t, signedBlindedBlock, block)
+
+		blindedBlock, err := block.ToBlinded()
+		require.NoError(t, err)
+		require.Equal(t, signedBlindedBlock, blindedBlock)
 
 		return nil
 	})
