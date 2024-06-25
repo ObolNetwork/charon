@@ -104,38 +104,32 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 		}
 	} else if duty.Type == core.DutyProposer {
 		var (
-			block        core.VersionedSignedProposal
-			blindedBlock core.VersionedSignedBlindedProposal
-
-			blinded bool
-			ok      bool
+			block core.VersionedSignedProposal
+			ok    bool
 		)
 
 		block, ok = data.(core.VersionedSignedProposal)
 		if !ok {
-			blindedBlock, blinded = data.(core.VersionedSignedBlindedProposal)
-			if !blinded {
-				return errors.New("invalid block")
-			}
+			return errors.New("invalid block")
 		}
 
 		defer func() {
 			if r := recover(); r != nil {
-				proposal := fmt.Sprintf("%+v", block)
-				if blinded {
-					proposal = fmt.Sprintf("%+v", blindedBlock)
-				}
-
 				err = errors.New("could not determine if proposal was synthetic or not",
-					z.Str("proposal", proposal),
-					z.Bool("blinded", blinded),
+					z.Str("proposal", fmt.Sprintf("%+v", block)),
+					z.Bool("blinded", block.Blinded),
 				)
 			}
 		}()
 
-		switch blinded {
+		switch block.Blinded {
 		case true:
-			if eth2wrap.IsSyntheticBlindedBlock(&blindedBlock.VersionedSignedBlindedProposal) {
+			blinded, err := block.ToBlinded()
+			if err != nil {
+				return errors.Wrap(err, "cannot broadcast, expected blinded proposal")
+			}
+
+			if eth2wrap.IsSyntheticBlindedBlock(&blinded) {
 				// Report inclusion for synthetic blocks as it is already included on-chain.
 				i.trackerInclFunc(duty, pubkey, data, nil)
 

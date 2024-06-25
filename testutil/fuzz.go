@@ -26,11 +26,11 @@ import (
 func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 	t.Helper()
 
-	blindedVersions := []eth2spec.DataVersion{
-		eth2spec.DataVersionBellatrix,
-		eth2spec.DataVersionCapella,
-		eth2spec.DataVersionDeneb,
-	}
+	// blindedVersions := []eth2spec.DataVersion{
+	//	eth2spec.DataVersionBellatrix,
+	//	eth2spec.DataVersionCapella,
+	//	eth2spec.DataVersionDeneb,
+	//}
 
 	allVersions := []eth2spec.DataVersion{
 		eth2spec.DataVersionPhase0,
@@ -105,21 +105,22 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				}
 			},
 			// Populate one of the versions of these Versioned*Proposal types.
-			func(e *core.VersionedSignedBlindedProposal, c fuzz.Continue) {
-				e.Version = blindedVersions[(c.Intn(len(blindedVersions)))]
-				version, err := eth2util.DataVersionFromETH2(e.Version)
-				require.NoError(t, err)
-
-				val := core.VersionedSSZValueForT(t, e, version, true)
-				c.Fuzz(val)
-
-				// Limit length of blob KZG commitments to 6
-				// See https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/beacon-chain.md#execution
-				maxBlobCommitments := 4096
-				if e.Version == eth2spec.DataVersionDeneb && len(e.Deneb.Message.Body.BlobKZGCommitments) > maxBlobCommitments {
-					e.Deneb.Message.Body.BlobKZGCommitments = e.Deneb.Message.Body.BlobKZGCommitments[:maxBlobCommitments]
-				}
-			},
+			// TODO(): port the blinded fuzzing in VersionedSignedProposal
+			// func(e *core.VersionedSignedBlindedProposal, c fuzz.Continue) {
+			//	e.Version = blindedVersions[(c.Intn(len(blindedVersions)))]
+			//	version, err := eth2util.DataVersionFromETH2(e.Version)
+			//	require.NoError(t, err)
+			//
+			//	val := core.VersionedSSZValueForT(t, e, version, true)
+			//	c.Fuzz(val)
+			//
+			//	// Limit length of blob KZG commitments to 6
+			//	// See https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/beacon-chain.md#execution
+			//	maxBlobCommitments := 4096
+			//	if e.Version == eth2spec.DataVersionDeneb && len(e.Deneb.Message.Body.BlobKZGCommitments) > maxBlobCommitments {
+			//		e.Deneb.Message.Body.BlobKZGCommitments = e.Deneb.Message.Body.BlobKZGCommitments[:maxBlobCommitments]
+			//	}
+			// },
 			func(e *core.VersionedSignedProposal, c fuzz.Continue) {
 				e.Version = allVersions[(c.Intn(len(allVersions)))]
 				version, err := eth2util.DataVersionFromETH2(e.Version)
