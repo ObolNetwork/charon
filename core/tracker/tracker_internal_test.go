@@ -7,10 +7,13 @@ import (
 	"math/rand"
 	"net/http"
 	"reflect"
+	"sync"
 	"testing"
+	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -1111,12 +1114,26 @@ func TestIsParSigEventExpected(t *testing.T) {
 }
 
 func TestAnalyseParSigs(t *testing.T) {
+	t.Run("full block", func(t *testing.T) {
+		analyseParSigs(t, func() core.SignedData {
+			return testutil.RandomDenebCoreVersionedSignedProposal()
+		})
+	})
+
+	t.Run("blinded block", func(t *testing.T) {
+		analyseParSigs(t, func() core.SignedData {
+			return testutil.RandomDenebVersionedSignedBlindedProposal()
+		})
+	})
+}
+
+func analyseParSigs(t *testing.T, dataGen func() core.SignedData) {
+	t.Helper()
 	require.Empty(t, extractParSigs(context.Background(), nil))
 
 	var events []event
 
-	makeEvents := func(n int, pubkey string) {
-		data := testutil.RandomBellatrixCoreVersionedSignedProposal()
+	makeEvents := func(n int, pubkey string, data core.SignedData) {
 		offset := len(events)
 		for i := 0; i < n; i++ {
 			data, err := data.SetSignature(testutil.RandomCoreSignature())
@@ -1137,7 +1154,8 @@ func TestAnalyseParSigs(t *testing.T) {
 		6: "b",
 	}
 	for n, pubkey := range expect {
-		makeEvents(n, pubkey)
+		data := dataGen()
+		makeEvents(n, pubkey, data)
 	}
 
 	allParSigMsgs := extractParSigs(context.Background(), events)
@@ -1303,4 +1321,26 @@ func TestIgnoreUnsupported(t *testing.T) {
 
 func randomStep() step {
 	return step(rand.Intn(int(sentinel)))
+}
+
+func TestSubmittedProposals(t *testing.T) {
+	ic := inclusionCore{
+		mu:          sync.Mutex{},
+		submissions: make(map[subkey]submission),
+	}
+
+	err := ic.Submitted(core.NewProposerDuty(42), testutil.RandomCorePubKey(t), testutil.RandomDenebCoreVersionedSignedProposal(), 1*time.Millisecond)
+	require.NoError(t, err)
+
+	err = ic.Submitted(core.NewProposerDuty(42), testutil.RandomCorePubKey(t), testutil.RandomDenebVersionedSignedBlindedProposal(), 1*time.Millisecond)
+	require.NoError(t, err)
+
+	require.NotPanics(t, func() {
+		err = ic.Submitted(core.NewProposerDuty(42), testutil.RandomCorePubKey(t), core.VersionedSignedBlindedProposal{
+			VersionedSignedBlindedProposal: eth2api.VersionedSignedBlindedProposal{
+				Version: eth2spec.DataVersionDeneb,
+			},
+		}, 1*time.Millisecond)
+		require.ErrorContains(t, err, "could not determine if proposal was synthetic or not")
+	})
 }
