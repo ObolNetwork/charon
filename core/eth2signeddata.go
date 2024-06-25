@@ -17,7 +17,6 @@ var (
 	_ Eth2SignedData = VersionedSignedProposal{}
 	_ Eth2SignedData = Attestation{}
 	_ Eth2SignedData = SignedVoluntaryExit{}
-	_ Eth2SignedData = VersionedSignedBlindedProposal{}
 	_ Eth2SignedData = VersionedSignedValidatorRegistration{}
 	_ Eth2SignedData = SignedRandao{}
 	_ Eth2SignedData = BeaconCommitteeSelection{}
@@ -50,21 +49,6 @@ func (VersionedSignedProposal) DomainName() signing.DomainName {
 
 func (p VersionedSignedProposal) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
 	slot, err := p.Slot()
-	if err != nil {
-		return 0, err
-	}
-
-	return eth2util.EpochFromSlot(ctx, eth2Cl, slot)
-}
-
-// Implement Eth2SignedData for VersionedSignedBlindedProposal.
-
-func (VersionedSignedBlindedProposal) DomainName() signing.DomainName {
-	return signing.DomainBeaconProposer
-}
-
-func (p VersionedSignedBlindedProposal) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
-	slot, err := p.VersionedSignedBlindedProposal.Slot()
 	if err != nil {
 		return 0, err
 	}

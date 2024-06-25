@@ -174,15 +174,17 @@ func TestParSigExVerifier(t *testing.T) {
 
 	t.Run("Verify blinded proposal", func(t *testing.T) {
 		blindedBlock := testutil.RandomDenebVersionedSignedBlindedProposal()
-		blindedBlock.Deneb.Message.Slot = slot
-		sigRoot, err := blindedBlock.Root()
+		blindedBlock.DenebBlinded.Message.Slot = slot
+		sigRoot, err := blindedBlock.DenebBlinded.Message.HashTreeRoot()
 		require.NoError(t, err)
 
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainBeaconProposer, epoch, sigRoot)
 		require.NoError(t, err)
 
-		blindedBlock.Deneb.Signature = sign(sigData[:])
-		data, err := core.NewPartialVersionedSignedBlindedProposal(&blindedBlock.VersionedSignedBlindedProposal, shareIdx)
+		blindedBlock.DenebBlinded.Signature = sign(sigData[:])
+		eth2apiBlinded, err := blindedBlock.ToBlinded()
+		require.NoError(t, err)
+		data, err := core.NewPartialVersionedSignedBlindedProposal(&eth2apiBlinded, shareIdx)
 		require.NoError(t, err)
 
 		require.NoError(t, verifyFunc(ctx, core.NewProposerDuty(slot), pubkey, data))

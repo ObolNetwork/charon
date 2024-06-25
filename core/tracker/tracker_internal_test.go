@@ -1336,8 +1336,18 @@ func TestSubmittedProposals(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NotPanics(t, func() {
-		err = ic.Submitted(core.NewProposerDuty(42), testutil.RandomCorePubKey(t), core.VersionedSignedBlindedProposal{
-			VersionedSignedBlindedProposal: eth2api.VersionedSignedBlindedProposal{
+		// Not blinded
+		err = ic.Submitted(core.NewProposerDuty(42), testutil.RandomCorePubKey(t), core.VersionedSignedProposal{
+			VersionedSignedProposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionDeneb,
+			},
+		}, 1*time.Millisecond)
+		require.ErrorContains(t, err, "could not determine if proposal was synthetic or not")
+
+		// Blinded
+		err = ic.Submitted(core.NewProposerDuty(42), testutil.RandomCorePubKey(t), core.VersionedSignedProposal{
+			VersionedSignedProposal: eth2api.VersionedSignedProposal{
+				Blinded: true,
 				Version: eth2spec.DataVersionDeneb,
 			},
 		}, 1*time.Millisecond)

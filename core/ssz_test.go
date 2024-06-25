@@ -63,7 +63,6 @@ func TestSSZ(t *testing.T) {
 	}{
 		{zero: func() any { return new(core.VersionedSignedProposal) }},
 		{zero: func() any { return new(core.Attestation) }},
-		{zero: func() any { return new(core.VersionedSignedBlindedProposal) }},
 		{zero: func() any { return new(core.SignedAggregateAndProof) }},
 		{zero: func() any { return new(core.SignedSyncMessage) }},
 		{zero: func() any { return new(core.SyncContributionAndProof) }},
