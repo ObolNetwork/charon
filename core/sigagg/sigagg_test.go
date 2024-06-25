@@ -490,7 +490,7 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			block, err := core.NewVersionedSignedBlindedProposal(test.block)
+			block, err := core.NewVersionedSignedProposalFromBlindedProposal(test.block)
 			require.NoError(t, err)
 
 			msgRoot, err := block.MessageRoot()
@@ -514,7 +514,7 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 				sig, err := tbls.Sign(secret, msg[:])
 				require.NoError(t, err)
 
-				block, err := core.NewVersionedSignedBlindedProposal(test.block)
+				block, err := core.NewVersionedSignedProposalFromBlindedProposal(test.block)
 				require.NoError(t, err)
 
 				sigCore := tblsconv.SigToCore(sig)
