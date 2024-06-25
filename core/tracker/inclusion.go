@@ -126,7 +126,7 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 		case true:
 			blinded, err := block.ToBlinded()
 			if err != nil {
-				return errors.Wrap(err, "cannot broadcast, expected blinded proposal")
+				return errors.Wrap(err, "expected blinded proposal")
 			}
 
 			if eth2wrap.IsSyntheticBlindedBlock(&blinded) {
