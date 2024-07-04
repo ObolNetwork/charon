@@ -65,8 +65,6 @@ import (
 	"github.com/obolnetwork/charon/testutil/beaconmock" // Allow testutil
 )
 
-const eth2ClientTimeout = time.Second * 2
-
 type Config struct {
 	P2P                     p2p.Config
 	Log                     log.Config
@@ -80,6 +78,8 @@ type Config struct {
 	DebugAddr               string
 	ValidatorAPIAddr        string
 	BeaconNodeAddrs         []string
+	BeaconNodeTimeout       time.Duration
+	BeaconNodeSubmitTimeout time.Duration
 	JaegerAddr              string
 	JaegerService           string
 	SimnetBMock             bool
@@ -225,7 +225,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	initStartupMetrics(p2p.PeerName(tcpNode.ID()), int(cluster.Threshold), len(cluster.Operators), len(cluster.Validators), network)
 
-	eth2Cl, err := newETH2Client(ctx, conf, life, cluster, cluster.ForkVersion)
+	eth2Cl, subEth2Cl, err := newETH2Client(ctx, conf, life, cluster, cluster.GetForkVersion(), conf.BeaconNodeTimeout, conf.BeaconNodeSubmitTimeout)
 	if err != nil {
 		return err
 	}
@@ -271,7 +271,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, conf.DebugAddr, tcpNode, eth2Cl, peerIDs,
 		promRegistry, qbftDebug, pubkeys, seenPubkeys, vapiCalls, len(cluster.GetValidators()))
 
-	err = wireCoreWorkflow(ctx, life, conf, cluster, nodeIdx, tcpNode, p2pKey, eth2Cl,
+	err = wireCoreWorkflow(ctx, life, conf, cluster, nodeIdx, tcpNode, p2pKey, eth2Cl, subEth2Cl,
 		peerIDs, sender, qbftDebug.AddInstance, seenPubkeysFunc, vapiCallsFunc)
 	if err != nil {
 		return err
@@ -343,7 +343,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 // wireCoreWorkflow wires the core workflow components.
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	cluster *manifestpb.Cluster, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *k1.PrivateKey,
-	eth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
+	eth2Cl, submissionEth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
 	qbftSniffer func(*pbv1.SniffedConsensusInstance), seenPubkeys func(core.PubKey),
 	vapiCalls func(),
 ) error {
@@ -509,7 +509,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		aggSigDB = aggsigdb.NewMemDB(deadlinerFunc("aggsigdb"))
 	}
 
-	broadcaster, err := bcast.New(ctx, eth2Cl)
+	broadcaster, err := bcast.New(ctx, submissionEth2Cl)
 	if err != nil {
 		return err
 	}
@@ -776,14 +776,12 @@ func eth2PubKeys(cluster *manifestpb.Cluster) ([]eth2p0.BLSPubKey, error) {
 	return pubkeys, nil
 }
 
-// newETH2Client returns a new eth2client; it is either a beaconmock for
+// newETH2Client returns a new eth2client for the configured timeouts; it is either a beaconmock for
 // simnet or a multi http client to a real beacon node.
-func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
-	cluster *manifestpb.Cluster, forkVersion []byte,
-) (eth2wrap.Client, error) {
+func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cluster *manifestpb.Cluster, forkVersion []byte, bnTimeout time.Duration, submissionBnTimeout time.Duration) (eth2wrap.Client, eth2wrap.Client, error) {
 	pubkeys, err := eth2PubKeys(cluster)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Default to 1s slot duration if not set.
@@ -795,23 +793,23 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 		log.Info(ctx, "Beaconmock fuzz configured!")
 		bmock, err := beaconmock.New(beaconmock.WithBeaconMockFuzzer(), beaconmock.WithForkVersion([4]byte(forkVersion)))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		wrap, err := eth2wrap.Instrument(bmock)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		life.RegisterStop(lifecycle.StopBeaconMock, lifecycle.HookFuncErr(bmock.Close))
 
-		return wrap, nil
+		return wrap, nil, nil
 	}
 
 	if conf.SimnetBMock { // Configure the beacon mock.
 		genesisTime, err := eth2util.ForkVersionToGenesisTime(forkVersion)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		const dutyFactor = 100 // Duty factor spreads duties deterministically in an epoch.
@@ -828,12 +826,12 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 		opts = append(opts, conf.TestConfig.SimnetBMockOpts...)
 		bmock, err := beaconmock.New(opts...)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		wrap, err := eth2wrap.Instrument(bmock)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		if conf.SyntheticBlockProposals {
@@ -843,20 +841,38 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager,
 
 		life.RegisterStop(lifecycle.StopBeaconMock, lifecycle.HookFuncErr(bmock.Close))
 
-		return wrap, nil
+		return wrap, wrap, nil
 	}
 
 	if len(conf.BeaconNodeAddrs) == 0 {
-		return nil, errors.New("beacon node endpoints empty")
-	}
-
-	eth2Cl, err := eth2wrap.NewMultiHTTP(eth2ClientTimeout, [4]byte(forkVersion), conf.BeaconNodeAddrs...)
-	if err != nil {
-		return nil, errors.Wrap(err, "new eth2 http client")
+		return nil, nil, errors.New("beacon node endpoints empty")
 	}
 
 	if conf.SyntheticBlockProposals {
 		log.Info(ctx, "Synthetic block proposals enabled")
+	}
+
+	eth2Cl, err := configureEth2Client(ctx, forkVersion, conf.BeaconNodeAddrs, bnTimeout, conf.SyntheticBlockProposals)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "new eth2 http client")
+	}
+
+	submissionEth2Cl, err := configureEth2Client(ctx, forkVersion, conf.BeaconNodeAddrs, submissionBnTimeout, conf.SyntheticBlockProposals)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "new submission eth2 http client")
+	}
+
+	return eth2Cl, submissionEth2Cl, nil
+}
+
+// configureEth2Client configures a beacon node client with the provided settings.
+func configureEth2Client(ctx context.Context, forkVersion []byte, addrs []string, timeout time.Duration, syntheticBlockProposals bool) (eth2wrap.Client, error) {
+	eth2Cl, err := eth2wrap.NewMultiHTTP(timeout, [4]byte(forkVersion), addrs...)
+	if err != nil {
+		return nil, errors.Wrap(err, "new eth2 http client")
+	}
+
+	if syntheticBlockProposals {
 		eth2Cl = eth2wrap.WithSyntheticDuties(eth2Cl)
 	}
 
