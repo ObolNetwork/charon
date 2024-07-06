@@ -197,7 +197,7 @@ Multiple `DutyDefinition`s are combined into a single `DutyDefinitionSet` that i
 type DutyDefinitionSet map[PubKey]DutyDefinition
 ```
 
-Note the `DutyRandao`, `DutyExit` & `DutyBuilderRegistration` isn’t scheduled by the scheduler, since they are initiated directly by VC.
+Note the `DutyRandao`, `DutyExit` & `DutyBuilderRegistration` aren’t scheduled by the scheduler, since they are initiated directly by VC.
 
 > ℹ️ The core workflow follows the immutable architecture approach, with immutable self-contained values flowing between components.
 > Values can be thought of as events or messages and components can be thought of as actors consuming and generating events.
@@ -249,7 +249,7 @@ type UnsignedDataSet map[PubKey]UnsignedData
 ```
 `DutyProposer` is however unique per slot, so its `UnsignedDataSet` will only ever contain a single entry.
 
-The unsigned duty data returned by a beacon node for a given slot is however not deterministic. It changes over and time and
+The unsigned duty data returned by a beacon node for a given slot is however not deterministic. It changes over time and
 from beacon node to beacon node. This means that different charon nodes will fetch different input data.
 This is a problem since signing different data for the same duty results in slashing.
 
@@ -279,7 +279,7 @@ This is achieved by playing a consensus game between all nodes in the cluster. T
 
 Consensus is similar to how some blockchains decide on what blocks define the chain. Popular protocols for consensus are raft, qbft, tendermint. Charon uses qbft for consensus.
 
-The consensus requirements in DVT differs from blockchains in a few key aspects:
+The consensus requirements in DVT differ from blockchains in a few key aspects:
 - Blockchains play consecutive consensus games that depend-on and follow-on the previous consensus game. Thereby creating a block “chain”.
 - DVT plays single isolated consensus games.
 - Blockchains play consensus games on blocks containing transactions.
@@ -428,7 +428,7 @@ an aggregated randao reveal signature. Partial randao reveal signatures are subm
 unsigned beacon block is requested. `getDutyFunc` returns the duty data corresponding to the duty provided and can be obtained directly from the `Scheduler`.
 
 Note that the VC is configured with one or more private key shares (output of the DKG).
-The VC infers its public keys from those private shares, but those public keys does not exist on the beacon chain.
+The VC infers its public keys from those private shares, but those public keys do not exist on the beacon chain.
 The validatorapi therefore needs to intercept and map all endpoints containing the validator public key and map
 the public share (what the VC thinks as its public key) to and from the DV root public key.
 
