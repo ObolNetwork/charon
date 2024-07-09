@@ -426,6 +426,30 @@ func TestRawRouter(t *testing.T) {
 
 			testRawRouter(t, handler, callback)
 		})
+
+		t.Run("propose_block returns 404", func(t *testing.T) {
+			handler := testHandler{}
+
+			callback := func(ctx context.Context, baseURL string) {
+				res, err := http.Post(baseURL+"/eth/v2/validator/blocks/123", "application/json", bytes.NewReader([]byte{}))
+				require.NoError(t, err)
+				require.Equal(t, http.StatusNotFound, res.StatusCode)
+			}
+
+			testRawRouter(t, handler, callback)
+		})
+
+		t.Run("propose_blinded_block returns 404", func(t *testing.T) {
+			handler := testHandler{}
+
+			callback := func(ctx context.Context, baseURL string) {
+				res, err := http.Post(baseURL+"/eth/v1/validator/blinded_blocks/123", "application/json", bytes.NewReader([]byte{}))
+				require.NoError(t, err)
+				require.Equal(t, http.StatusNotFound, res.StatusCode)
+			}
+
+			testRawRouter(t, handler, callback)
+		})
 	})
 
 	t.Run("submit bellatrix ssz proposal", func(t *testing.T) {
