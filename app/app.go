@@ -36,6 +36,7 @@ import (
 	"github.com/obolnetwork/charon/app/privkeylock"
 	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/retry"
+	"github.com/obolnetwork/charon/app/stacksnipe"
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
@@ -90,6 +91,7 @@ type Config struct {
 	BuilderAPI              bool
 	SimnetBMockFuzz         bool
 	TestnetConfig           eth2util.Network
+	ProcDirectory           string
 
 	TestConfig TestConfig
 }
@@ -147,6 +149,9 @@ func Run(ctx context.Context, conf Config) (err error) {
 		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPrivkeyLock, lifecycle.HookFuncErr(lockSvc.Run))
 		life.RegisterStop(lifecycle.StopPrivkeyLock, lifecycle.HookFuncMin(lockSvc.Close))
 	}
+
+	stackSniper := stacksnipe.New(conf.ProcDirectory, stackComponents)
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartStackSnipe, lifecycle.HookFuncCtx(stackSniper.Run))
 
 	if conf.TestnetConfig.IsNonZero() {
 		eth2util.AddTestNetwork(conf.TestnetConfig)

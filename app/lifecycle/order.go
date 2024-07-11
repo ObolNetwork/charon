@@ -29,6 +29,7 @@ const (
 	StartP2PEventCollector
 	StartPeerInfo
 	StartParSigDB
+	StartStackSnipe
 )
 
 // Global ordering of stop hooks; follows dependency tree from root to leaves.
