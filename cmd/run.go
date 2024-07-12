@@ -19,6 +19,9 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
+// eth2ClientTimeout is the default timeout for charon <> beacon node API interactions.
+const eth2ClientTimeout = time.Second * 2
+
 func newRunCmd(runFunc func(context.Context, app.Config) error, unsafe bool) *cobra.Command {
 	var conf app.Config
 
@@ -71,6 +74,8 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().StringVar(&config.LockFile, "lock-file", ".charon/cluster-lock.json", "The path to the cluster lock file defining the distributed validator cluster. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
 	cmd.Flags().StringVar(&config.ManifestFile, "manifest-file", ".charon/cluster-manifest.pb", "The path to the cluster manifest file. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
 	cmd.Flags().StringSliceVar(&config.BeaconNodeAddrs, "beacon-node-endpoints", nil, "Comma separated list of one or more beacon node endpoint URLs.")
+	cmd.Flags().DurationVar(&config.BeaconNodeTimeout, "beacon-node-timeout", eth2ClientTimeout, "Timeout for the HTTP requests Charon makes to the configured beacon nodes.")
+	cmd.Flags().DurationVar(&config.BeaconNodeSubmitTimeout, "beacon-node-submit-timeout", eth2ClientTimeout, "Timeout for the submission-related HTTP requests Charon makes to the configured beacon nodes.")
 	cmd.Flags().StringVar(&config.ValidatorAPIAddr, "validator-api-address", "127.0.0.1:3600", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API.")
 	cmd.Flags().StringVar(&config.JaegerAddr, "jaeger-address", "", "Listening address for jaeger tracing.")
 	cmd.Flags().StringVar(&config.JaegerService, "jaeger-service", "charon", "Service name used for jaeger tracing.")

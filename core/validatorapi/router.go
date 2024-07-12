@@ -135,6 +135,18 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, isBuilder
 			Methods: []string{http.MethodGet},
 		},
 		{
+			Name:    "propose_block",
+			Path:    "/eth/v2/validator/blocks/{slot}",
+			Handler: respond404(),
+			Methods: []string{http.MethodGet},
+		},
+		{
+			Name:    "propose_blinded_block",
+			Path:    "/eth/v1/validator/blinded_blocks/{slot}",
+			Handler: respond404(),
+			Methods: []string{http.MethodGet},
+		},
+		{
 			Name:    "propose_block_v3",
 			Path:    "/eth/v3/validator/blocks/{slot}",
 			Handler: proposeBlockV3(h, isBuilderEnabled),
@@ -613,6 +625,16 @@ func submitContributionAndProofs(s eth2client.SyncCommitteeContributionsSubmitte
 		}
 
 		return nil, nil, s.SubmitSyncCommitteeContributions(ctx, contributionAndProofs)
+	}
+}
+
+// respond404 returns a handler function always returning http.StatusNotFound
+func respond404() handlerFunc {
+	return func(_ context.Context, _ map[string]string, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+		return nil, nil, apiError{
+			StatusCode: http.StatusNotFound,
+			Message:    "NotFound",
+		}
 	}
 }
 
