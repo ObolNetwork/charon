@@ -2,6 +2,8 @@
 
 package cmd
 
+// generator used - https://patorjk.com/software/taag/#p=display&f=Big
+
 func peersASCII() []string {
 	return []string{
 		"  ____                                                      ",
@@ -32,6 +34,17 @@ func validatorASCII() []string {
 		"   \\ \\/ // _` || || | / _` | / _` || __|/ _ \\ | '__|        ",
 		"    \\  /| (_| || || || (_| || (_| || |_| (_) || |           ",
 		"     \\/  \\__,_||_||_| \\__,_| \\__,_| \\__|\\___/ |_|           ",
+	}
+}
+
+func mevASCII() []string {
+	return []string{
+		"__  __ ________      __",
+		"|  \\/  |  ____\\ \\    / /",
+		"| \\  / | |__   \\ \\  / / ",
+		"| |\\/| |  __|   \\ \\/ /  ",
+		"| |  | | |____   \\  /   ",
+		"|_|  |_|______|   \\/    ",
 	}
 }
 
