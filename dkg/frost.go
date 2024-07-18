@@ -178,7 +178,6 @@ func getRound2Inputs(
 		if key.ValIdx != vIdx {
 			continue
 		}
-		cast := cast // Copy loop variable
 		castMap[key.SourceID] = &cast
 	}
 
@@ -187,7 +186,6 @@ func getRound2Inputs(
 		if key.ValIdx != vIdx {
 			continue
 		}
-		share := share // Copy loop variable
 		shareMap[key.SourceID] = &share
 	}
 

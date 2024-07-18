@@ -31,7 +31,6 @@ func calculateResult(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.PriorityR
 	proposalsByTopic := make(map[[32]byte][]*pbv1.PriorityTopicProposal)
 	for _, msg := range sortInput(msgs) {
 		for _, topic := range msg.Topics {
-			topic := topic // Copy iteration value since it is a pointer
 			topicHash, err := hashProto(topic.Topic)
 			if err != nil {
 				return nil, err
@@ -52,7 +51,6 @@ func calculateResult(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.PriorityR
 		)
 		for _, proposal := range proposals {
 			for order, prio := range proposal.Priorities {
-				prio := prio // Copy iteration value since it is a pointer
 				priority, err := hashProto(prio)
 				if err != nil {
 					return nil, err
@@ -107,7 +105,6 @@ func orderTopicResults(values []*pbv1.PriorityTopicResult) ([]*pbv1.PriorityTopi
 
 	var tuples []tuple
 	for _, value := range values {
-		value := value // Copy iteration value since it is a pointer
 		hash, err := hashProto(value.Topic)
 		if err != nil {
 			return nil, err

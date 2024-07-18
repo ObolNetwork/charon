@@ -179,7 +179,6 @@ func shareIdxByPubkeys(cluster *manifestpb.Cluster, secrets []tbls.PrivateKey, v
 	pubkMap := make(map[tbls.PublicKey]int)
 
 	for peerIdx := 0; peerIdx < len(cluster.Validators[valIndex].PubShares); peerIdx++ {
-		peerIdx := peerIdx
 		pubShareRaw := cluster.Validators[valIndex].GetPubShares()[peerIdx]
 
 		pubShare, err := tblsconv.PubkeyFromBytes(pubShareRaw)
@@ -194,8 +193,6 @@ func shareIdxByPubkeys(cluster *manifestpb.Cluster, secrets []tbls.PrivateKey, v
 	resp := make(map[int]tbls.PrivateKey)
 
 	for _, secret := range secrets {
-		secret := secret
-
 		pubkey, err := tbls.SecretToPublicKey(secret)
 		if err != nil {
 			return nil, errors.Wrap(err, "pubkey from share")

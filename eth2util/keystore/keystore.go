@@ -120,8 +120,6 @@ func storeKeysInternal(secrets []tbls.PrivateKey, dir string, filenameFmt string
 	defer cancel()
 
 	for i, secret := range secrets {
-		i := i
-		secret := secret
 		d := data{
 			index:  i,
 			secret: secret,

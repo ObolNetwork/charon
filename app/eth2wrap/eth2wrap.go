@@ -73,8 +73,6 @@ func WithSyntheticDuties(cl Client) Client {
 func NewMultiHTTP(timeout time.Duration, forkVersion [4]byte, addresses ...string) (Client, error) {
 	var clients []Client
 	for _, address := range addresses {
-		address := address // Capture range variable.
-
 		parameters := []eth2http.Parameter{
 			eth2http.WithLogLevel(zeroLogInfo),
 			eth2http.WithAddress(address),

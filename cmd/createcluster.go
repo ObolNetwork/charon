@@ -635,7 +635,6 @@ func getValidators(
 
 	var vals []cluster.DistValidator
 	for idx, dv := range dvsPubkeys {
-		dv := dv
 		privShares := dvPrivShares[idx]
 		var pubshares [][]byte
 		for _, ps := range privShares {
@@ -680,7 +679,6 @@ func getValidators(
 		}
 
 		for _, dd := range depositDatasList {
-			dd := dd
 			partialDepositData = append(partialDepositData, cluster.DepositData{
 				PubKey:                dd.PublicKey[:],
 				WithdrawalCredentials: dd.WithdrawalCredentials,

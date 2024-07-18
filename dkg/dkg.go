@@ -411,7 +411,6 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, conf Config, peers []p2p.
 	p2p.RegisterConnectionLogger(ctx, tcpNode, peerIDs)
 
 	for _, relay := range relays {
-		relay := relay
 		go p2p.NewRelayReserver(tcpNode, relay)(ctx)
 	}
 
@@ -664,8 +663,6 @@ func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares map[core.P
 	)
 
 	for pk, psigs := range data {
-		pk := pk
-		psigs := psigs
 		for _, s := range psigs {
 			sig, err := tblsconv.SignatureFromBytes(s.Signature())
 			if err != nil {
@@ -836,9 +833,6 @@ func aggDepositData(data map[core.PubKey][]core.ParSignedData, shares []share,
 	var resp []eth2p0.DepositData
 
 	for pk, psigsData := range data {
-		pk := pk
-		psigsData := psigsData
-
 		msg, ok := msgs[pk]
 		if !ok {
 			return nil, errors.New("deposit message not found")
@@ -923,9 +917,6 @@ func aggValidatorRegistrations(
 	var resp []core.VersionedSignedValidatorRegistration
 
 	for pk, psigsData := range data {
-		pk := pk
-		psigsData := psigsData
-
 		msg, ok := msgs[pk]
 		if !ok {
 			return nil, errors.New("validator registration not found")
@@ -1039,7 +1030,6 @@ func createDistValidators(shares []share, depositDatas [][]eth2p0.DepositData, v
 		}
 
 		for _, dd := range depositDatasList {
-			dd := dd
 			newDepositData := cluster.DepositData{
 				PubKey:                dd.PublicKey[:],
 				WithdrawalCredentials: dd.WithdrawalCredentials,

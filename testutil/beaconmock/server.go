@@ -118,9 +118,6 @@ func newHTTPServer(addr string, optionalHandlers map[string]http.HandlerFunc, ov
 
 	// Configure above endpoints.
 	for path, handler := range endpoints {
-		// Copy iteration variables.
-		path := path
-		handler := handler
 		r.Handle(path, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := log.WithTopic(r.Context(), "bmock")
 			ctx = log.WithCtx(ctx, z.Str("path", path))

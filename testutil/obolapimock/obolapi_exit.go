@@ -134,7 +134,6 @@ func (ts *testServer) HandlePartialExit(writer http.ResponseWriter, request *htt
 	}
 
 	for _, exit := range data.PartialExits {
-		exit := exit
 		var validatorFound bool
 		var partialPubkey []byte
 

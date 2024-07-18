@@ -181,7 +181,6 @@ func setupP2P(ctx context.Context, privKey *k1.PrivateKey, conf p2p.Config, peer
 	p2p.RegisterConnectionLogger(ctx, tcpNode, peerIDs)
 
 	for _, relay := range relays {
-		relay := relay
 		go p2p.NewRelayReserver(tcpNode, relay)(ctx)
 	}
 

@@ -185,8 +185,6 @@ func (Herumi) RecoverSecret(shares map[int]PrivateKey, _, _ uint) (PrivateKey, e
 	)
 
 	for idx, key := range shares {
-		// do a local copy, we're dealing with references here
-		key := key
 		var kpk bls.SecretKey
 		if err := kpk.Deserialize(key[:]); err != nil {
 			return PrivateKey{}, errors.Wrap(
@@ -248,8 +246,6 @@ func (Herumi) ThresholdAggregate(partialSignaturesByIndex map[int]Signature) (Si
 	)
 
 	for idx, rawSignature := range partialSignaturesByIndex {
-		// do a local copy, we're dealing with references here
-		rawSignature := rawSignature
 		var signature bls.Sign
 		if err := signature.Deserialize(rawSignature[:]); err != nil {
 			return Signature{}, errors.Wrap(
