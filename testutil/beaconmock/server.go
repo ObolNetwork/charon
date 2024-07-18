@@ -60,30 +60,30 @@ func newHTTPServer(addr string, optionalHandlers map[string]http.HandlerFunc, ov
 	shutdown := make(chan struct{})
 
 	endpoints := map[string]http.HandlerFunc{
-		"/up": func(w http.ResponseWriter, r *http.Request) {
+		"/up": func(http.ResponseWriter, *http.Request) {
 			// Can be used to test if server is up.
 		},
-		"/eth/v1/validator/sync_committee_subscriptions": func(w http.ResponseWriter, r *http.Request) {
+		"/eth/v1/validator/sync_committee_subscriptions": func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		},
-		"/eth/v1/validator/aggregate_attestation": func(w http.ResponseWriter, r *http.Request) {
+		"/eth/v1/validator/aggregate_attestation": func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			_, _ = w.Write([]byte(`{"code": 403,"message": "Beacon node was not assigned to aggregate on that subnet."}`))
 		},
-		"/eth/v1/validator/beacon_committee_subscriptions": func(w http.ResponseWriter, r *http.Request) {
+		"/eth/v1/validator/beacon_committee_subscriptions": func(http.ResponseWriter, *http.Request) {
 		},
-		"/eth/v1/node/version": func(w http.ResponseWriter, r *http.Request) {
+		"/eth/v1/node/version": func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = w.Write([]byte(`{"data": {"version": "charon/static_beacon_mock"}}`))
 		},
-		"/eth/v1/node/syncing": func(w http.ResponseWriter, r *http.Request) {
+		"/eth/v1/node/syncing": func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = w.Write([]byte(`{"data": {"head_slot": "1","sync_distance": "0","is_syncing": false}}`))
 		},
-		"/eth/v1/beacon/headers/head": func(w http.ResponseWriter, r *http.Request) {
+		"/eth/v1/beacon/headers/head": func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = w.Write([]byte(`{"data": {"header": {"message": {"slot": "1"}}}}`))
 		},
-		"/eth/v1/validator/prepare_beacon_proposer": func(w http.ResponseWriter, r *http.Request) {
+		"/eth/v1/validator/prepare_beacon_proposer": func(http.ResponseWriter, *http.Request) {
 		},
-		"/eth/v1/events": func(w http.ResponseWriter, r *http.Request) {
+		"/eth/v1/events": func(_ http.ResponseWriter, r *http.Request) {
 			select {
 			case <-shutdown:
 			case <-r.Context().Done():

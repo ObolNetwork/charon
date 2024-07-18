@@ -233,7 +233,7 @@ func SetFuzzerDefaultsUnsafe() {
 	defaultWriterFunc = func(s network.Stream) pbio.Writer {
 		return fuzzReaderWriter{w: pbio.NewDelimitedWriter(s)}
 	}
-	defaultReaderFunc = func(s network.Stream) pbio.Reader {
+	defaultReaderFunc = func(network.Stream) pbio.Reader {
 		return fuzzReaderWriter{}
 	}
 }

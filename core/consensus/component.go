@@ -91,8 +91,8 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer roundTimer,
 		},
 
 		// LogRoundChange logs round changes at debug level.
-		LogRoundChange: func(ctx context.Context, duty core.Duty, process,
-			round, newRound int64, uponRule qbft.UponRule, msgs []qbft.Msg[core.Duty, [32]byte],
+		LogRoundChange: func(ctx context.Context, duty core.Duty, process, round, newRound int64, //nolint:revive // keep process variable name for clarity
+			uponRule qbft.UponRule, msgs []qbft.Msg[core.Duty, [32]byte],
 		) {
 			fields := []z.Field{
 				z.Any("rule", uponRule),

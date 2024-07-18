@@ -94,7 +94,7 @@ func WithBeaconMockFuzzer() Option {
 			return duties, nil
 		}
 
-		mock.ProposerDutiesFunc = func(_ context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+		mock.ProposerDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 			var duties []*eth2v1.ProposerDuty
 			fuzz.New().Fuzz(&duties)
 
@@ -115,7 +115,7 @@ func WithBeaconMockFuzzer() Option {
 			return block, nil
 		}
 
-		mock.AggregateAttestationFunc = func(ctx context.Context, slot eth2p0.Slot, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error) {
+		mock.AggregateAttestationFunc = func(context.Context, eth2p0.Slot, eth2p0.Root) (*eth2p0.Attestation, error) {
 			var att *eth2p0.Attestation
 			fuzz.New().Fuzz(&att)
 

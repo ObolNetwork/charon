@@ -139,7 +139,7 @@ var ValidatorSetA = ValidatorSet{
 // WithValidatorSet configures the mock with the provided validator set.
 func WithValidatorSet(set ValidatorSet) Option {
 	return func(mock *Mock) {
-		mock.ValidatorsByPubKeyFunc = func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+		mock.ValidatorsByPubKeyFunc = func(ctx context.Context, _ string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 			resp := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
 			if len(pubkeys) == 0 {
 				for idx, val := range set {
@@ -499,7 +499,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		HTTPMock:     httpMock,
 		httpServer:   httpServer,
 		headProducer: headProducer,
-		ProposalFunc: func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error) {
+		ProposalFunc: func(_ context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error) {
 			var block *eth2api.VersionedProposal
 			if opts.BuilderBoostFactor == nil || *opts.BuilderBoostFactor == 0 {
 				block = &eth2api.VersionedProposal{
@@ -526,7 +526,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 
 			return block, nil
 		},
-		SignedBeaconBlockFunc: func(_ context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error) {
+		SignedBeaconBlockFunc: func(context.Context, string) (*eth2spec.VersionedSignedBeaconBlock, error) {
 			return testutil.RandomCapellaVersionedSignedBeaconBlock(), nil // Note the slot is probably wrong.
 		},
 		ProposerDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
@@ -535,16 +535,16 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		AttesterDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 			return []*eth2v1.AttesterDuty{}, nil
 		},
-		BlockAttestationsFunc: func(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
+		BlockAttestationsFunc: func(context.Context, string) ([]*eth2p0.Attestation, error) {
 			return []*eth2p0.Attestation{}, nil
 		},
-		NodePeerCountFunc: func(ctx context.Context) (int, error) {
+		NodePeerCountFunc: func(context.Context) (int, error) {
 			return 80, nil
 		},
 		AttestationDataFunc: func(ctx context.Context, slot eth2p0.Slot, index eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
 			return attStore.NewAttestationData(ctx, slot, index)
 		},
-		AggregateAttestationFunc: func(ctx context.Context, slot eth2p0.Slot, root eth2p0.Root) (*eth2p0.Attestation, error) {
+		AggregateAttestationFunc: func(_ context.Context, _ eth2p0.Slot, root eth2p0.Root) (*eth2p0.Attestation, error) {
 			attData, err := attStore.AttestationDataByRoot(root)
 			if err != nil {
 				return nil, err
@@ -555,7 +555,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 				Data:            attData,
 			}, nil
 		},
-		CachedValidatorsFunc: func(_ context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error) {
+		CachedValidatorsFunc: func(context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error) {
 			return nil, nil, nil
 		},
 		ValidatorsFunc: func(context.Context, *eth2api.ValidatorsOpts) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
@@ -590,7 +590,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SubmitValidatorRegistrationsFunc: func(context.Context, []*eth2api.VersionedSignedValidatorRegistration) error {
 			return nil
 		},
-		AggregateBeaconCommitteeSelectionsFunc: func(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
+		AggregateBeaconCommitteeSelectionsFunc: func(_ context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
 			return selections, nil
 		},
 		SubmitAggregateAttestationsFunc: func(context.Context, []*eth2p0.SignedAggregateAndProof) error {
@@ -605,7 +605,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SyncCommitteeDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
 			return []*eth2v1.SyncCommitteeDuty{}, nil
 		},
-		AggregateSyncCommitteeSelectionsFunc: func(ctx context.Context, selections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
+		AggregateSyncCommitteeSelectionsFunc: func(_ context.Context, selections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
 			return selections, nil
 		},
 		SubmitSyncCommitteeMessagesFunc: func(context.Context, []*altair.SyncCommitteeMessage) error {
@@ -614,7 +614,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SubmitSyncCommitteeSubscriptionsFunc: func(context.Context, []*eth2v1.SyncCommitteeSubscription) error {
 			return nil
 		},
-		SyncCommitteeContributionFunc: func(ctx context.Context, slot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
+		SyncCommitteeContributionFunc: func(_ context.Context, slot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
 			aggBits := bitfield.NewBitvector128()
 			aggBits.SetBitAt(uint64(slot%128), true)
 
@@ -637,7 +637,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 
 			return eth2Resp.Data, nil
 		},
-		ProposerConfigFunc: func(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
+		ProposerConfigFunc: func(context.Context) (*eth2exp.ProposerConfigResponse, error) {
 			return nil, nil
 		},
 	}

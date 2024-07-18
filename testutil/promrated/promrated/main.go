@@ -28,7 +28,7 @@ func newRootCmd(runFunc func(context.Context, promrated.Config) error) *cobra.Co
 		Short: "Starts a promrated server",
 		Long:  `Starts a promrated server that polls rated and makes metrics available to prometheus`,
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			return runFunc(cmd.Context(), config)
 		},
 	}

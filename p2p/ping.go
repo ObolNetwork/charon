@@ -34,7 +34,7 @@ type TestPingConfig struct {
 // and collects metrics.
 func NewPingService(h host.Host, peers []peer.ID, conf TestPingConfig) lifecycle.HookFuncCtx {
 	if conf.Disable {
-		return func(ctx context.Context) {}
+		return func(context.Context) {}
 	}
 
 	maxBackoff := time.Second * 30 // Sweet spot between not spamming, but snappy recovery.

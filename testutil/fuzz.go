@@ -77,7 +77,7 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				e.BlockHash = blockHash[:]
 			},
 			// Just zero BeaconBlockBody.Deposits to pass validation.
-			func(e *[]*eth2p0.Deposit, c fuzz.Continue) {
+			func(e *[]*eth2p0.Deposit, _ fuzz.Continue) {
 				*e = []*eth2p0.Deposit{}
 			},
 			// SyncAggregate.SyncCommitteeBits must have 64 bits

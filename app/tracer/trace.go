@@ -87,7 +87,7 @@ func WithStdOut(w io.Writer) func(*options) {
 // if the address is not empty, else the default noop tracer is retained.
 func WithJaegerOrNoop(jaegerAddr string) func(*options) {
 	if jaegerAddr == "" {
-		return func(o *options) {}
+		return func(*options) {}
 	}
 
 	return WithJaeger(jaegerAddr)

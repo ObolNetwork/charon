@@ -192,7 +192,7 @@ func errFields(err error) z.Field {
 	// is used and this avoids exporting the structured error type.
 	ferr, ok := err.(structErr) //nolint:errorlint
 	if !ok {
-		return func(add func(zap.Field)) {}
+		return func(func(zap.Field)) {}
 	}
 
 	return func(add func(zap.Field)) {

@@ -69,7 +69,7 @@ var checks = []check{
 		Name:        "beacon_node_syncing",
 		Description: "Beacon Node in syncing state.",
 		Severity:    severityCritical,
-		Func: func(q query, m Metadata) (bool, error) {
+		Func: func(q query, _ Metadata) (bool, error) {
 			max, err := q("app_monitoring_beacon_node_syncing", noLabels, gaugeMax)
 			if err != nil {
 				return false, err
@@ -97,7 +97,7 @@ var checks = []check{
 		Name:        "pending_validators",
 		Description: "Pending validators detected. Activate them to start validating.",
 		Severity:    severityInfo,
-		Func: func(q query, m Metadata) (bool, error) {
+		Func: func(q query, _ Metadata) (bool, error) {
 			max, err := q("core_scheduler_validator_status",
 				countLabels(l("status", "pending")),
 				gaugeMax)
@@ -112,7 +112,7 @@ var checks = []check{
 		Name:        "proposal_failures",
 		Description: "Proposal failures detected. See <link to troubleshoot proposal failures>.",
 		Severity:    severityWarning,
-		Func: func(q query, m Metadata) (bool, error) {
+		Func: func(q query, _ Metadata) (bool, error) {
 			increase, err := q("core_tracker_failed_duties_total",
 				sumLabels(l("duty", ".*proposal")), increase)
 			if err != nil {

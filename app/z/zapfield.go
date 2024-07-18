@@ -138,4 +138,4 @@ func Any(key string, val any) Field {
 }
 
 // Skip is a noop wrapped zap field similar to zap.Skip.
-var Skip = func(add func(zap.Field)) {}
+var Skip = func(func(zap.Field)) {}
