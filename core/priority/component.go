@@ -151,7 +151,10 @@ func (c *Component) Prioritise(ctx context.Context, duty core.Duty, proposals ..
 
 // signMsg returns a copy of the proto message with a populated signature signed by the provided private key.
 func signMsg(msg *pbv1.PriorityMsg, privkey *k1.PrivateKey) (*pbv1.PriorityMsg, error) {
-	clone := proto.Clone(msg).(*pbv1.PriorityMsg)
+	clone, ok := proto.Clone(msg).(*pbv1.PriorityMsg)
+	if !ok {
+		return nil, errors.New("type assert priority msg")
+	}
 	clone.Signature = nil
 
 	hash, err := hashProto(clone)
@@ -173,7 +176,10 @@ func verifyMsgSig(msg *pbv1.PriorityMsg, pubkey *k1.PublicKey) (bool, error) {
 		return false, errors.New("empty signature")
 	}
 
-	clone := proto.Clone(msg).(*pbv1.PriorityMsg)
+	clone, ok := proto.Clone(msg).(*pbv1.PriorityMsg)
+	if !ok {
+		return false, errors.New("type assert priority msg")
+	}
 	clone.Signature = nil
 	hash, err := hashProto(clone)
 	if err != nil {

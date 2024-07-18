@@ -70,7 +70,7 @@ func newRootCmd(cmds ...*cobra.Command) *cobra.Command {
 		Use:   "charon",
 		Short: "Charon - Proof of Stake Ethereum Distributed Validator Client",
 		Long:  `Charon enables the operation of Ethereum validators in a fault tolerant manner by splitting the validating keys across a group of trusted parties using threshold cryptography.`,
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			return initializeConfig(cmd)
 		},
 	}

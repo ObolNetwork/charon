@@ -93,7 +93,7 @@ func newCheckMsg(messageID string) (bcast.CheckMessage, error) {
 		return nil, errors.New("frost message id unsupported", z.Str("message_id", messageID))
 	}
 
-	return func(ctx context.Context, peerID peer.ID, msgAny *anypb.Any) error {
+	return func(_ context.Context, _ peer.ID, msgAny *anypb.Any) error {
 		targetFn := func(messageID string) proto.Message {
 			switch messageID {
 			case round1CastID:

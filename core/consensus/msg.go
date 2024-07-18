@@ -152,7 +152,10 @@ func verifyMsgSig(msg *pbv1.QBFTMsg, pubkey *k1.PublicKey) (bool, error) {
 		return false, errors.New("empty signature")
 	}
 
-	clone := proto.Clone(msg).(*pbv1.QBFTMsg)
+	clone, ok := proto.Clone(msg).(*pbv1.QBFTMsg)
+	if !ok {
+		return false, errors.New("type assert qbft msg")
+	}
 	clone.Signature = nil
 	hash, err := hashProto(clone)
 	if err != nil {
@@ -169,7 +172,10 @@ func verifyMsgSig(msg *pbv1.QBFTMsg, pubkey *k1.PublicKey) (bool, error) {
 
 // signMsg returns a copy of the proto message with a populated signature signed by the provided private key.
 func signMsg(msg *pbv1.QBFTMsg, privkey *k1.PrivateKey) (*pbv1.QBFTMsg, error) {
-	clone := proto.Clone(msg).(*pbv1.QBFTMsg)
+	clone, ok := proto.Clone(msg).(*pbv1.QBFTMsg)
+	if !ok {
+		return nil, errors.New("type assert qbft msg")
+	}
 	clone.Signature = nil
 
 	hash, err := hashProto(clone)

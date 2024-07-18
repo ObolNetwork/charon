@@ -58,7 +58,7 @@ type exchanger struct {
 
 func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int, sigTypes []sigType, timeout time.Duration) *exchanger {
 	// Partial signature roots not known yet, so skip verification in parsigex, rather verify before we aggregate.
-	noopVerifier := func(ctx context.Context, duty core.Duty, key core.PubKey, data core.ParSignedData) error {
+	noopVerifier := func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error {
 		return nil
 	}
 

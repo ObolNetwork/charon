@@ -69,7 +69,7 @@ func newAddValidatorsCmd(runFunc func(context.Context, addValidatorsConfig) erro
 		Short: "Creates and adds new validators to a solo distributed validator cluster",
 		Long:  `Creates and adds new validators to a distributed validator cluster. It generates keys for the new validators and also generates a new cluster manifest file with the legacy_lock and add_validators mutations. It is executed by a solo operator cluster.`,
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			if err := log.InitLogger(config.Log); err != nil {
 				return err
 			}

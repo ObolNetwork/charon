@@ -85,7 +85,7 @@ func storeKeysInternal(secrets []tbls.PrivateKey, dir string, filenameFmt string
 
 	fork, join, cancel := forkjoin.New(
 		context.Background(),
-		func(ctx context.Context, d data) (any, error) {
+		func(_ context.Context, d data) (any, error) {
 			filename := path.Join(dir, fmt.Sprintf(filenameFmt, d.index))
 
 			password, err := randomHex32()

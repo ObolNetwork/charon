@@ -139,9 +139,9 @@ func Compare(a, b SemVer) int {
 		return 0
 	} else if a.patch < b.patch {
 		return -1
-	} else {
-		return 1
 	}
+
+	return 1
 }
 
 var semverRegex = regexp.MustCompile(`^v(\d+)\.(\d+)(?:\.(\d+))?(?:-(.+))?$`)

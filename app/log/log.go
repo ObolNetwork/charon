@@ -51,13 +51,16 @@ func WithLogger(ctx context.Context, logger zapLogger) context.Context {
 }
 
 func fieldsFromCtx(ctx context.Context) []z.Field {
-	resp, _ := ctx.Value(ctxKey{}).([]z.Field)
+	resp, ok := ctx.Value(ctxKey{}).([]z.Field)
+	if !ok {
+		return []z.Field{}
+	}
 	return resp
 }
 
 func metricsTopicFromCtx(ctx context.Context) string {
-	resp, _ := ctx.Value(topicKey{}).(string)
-	if resp == "" {
+	resp, ok := ctx.Value(topicKey{}).(string)
+	if resp == "" || !ok {
 		return "unknown"
 	}
 

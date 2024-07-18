@@ -89,7 +89,7 @@ func newHTTPServer(addr string, optionalHandlers map[string]http.HandlerFunc, ov
 			case <-r.Context().Done():
 			}
 		},
-		"/eth/v2/beacon/blocks/{block_id}": func(w http.ResponseWriter, r *http.Request) {
+		"/eth/v2/beacon/blocks/{block_id}": func(w http.ResponseWriter, _ *http.Request) {
 			type signedBlockResponseJSON struct {
 				Version *eth2spec.DataVersion        `json:"version"`
 				Data    *bellatrix.SignedBeaconBlock `json:"data"`
@@ -206,7 +206,12 @@ func newHTTPMock(optionalHandlers map[string]http.HandlerFunc, overrides ...stat
 		return nil, nil, errors.Wrap(err, "new http client")
 	}
 
-	return cl.(HTTPMock), srv, nil
+	httpMock, ok := cl.(HTTPMock)
+	if !ok {
+		return nil, nil, errors.New("type assert http mock")
+	}
+
+	return httpMock, srv, nil
 }
 
 // overrideResponse overrides the key in the raw response. If key is empty, it overrides the whole response.

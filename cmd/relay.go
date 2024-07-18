@@ -20,7 +20,7 @@ func newRelayCmd(runFunc func(context.Context, relay.Config) error) *cobra.Comma
 		Short: "Start a libp2p relay server",
 		Long:  "Starts a libp2p circuit relay that charon clients can use to discover and connect to their peers.",
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			if err := log.InitLogger(config.LogConfig); err != nil {
 				return err
 			}

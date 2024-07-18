@@ -32,7 +32,8 @@ func TestSenderAddResult(t *testing.T) {
 		t.Helper()
 		state := &peerState{}
 		if val, ok := sender.states.Load(peerID); ok {
-			state = val.(*peerState)
+			state, ok = val.(*peerState)
+			require.True(t, ok)
 		}
 		require.Equal(t, expect, state.failing.Load())
 	}

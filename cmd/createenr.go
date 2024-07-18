@@ -22,7 +22,7 @@ func newCreateEnrCmd(runFunc func(io.Writer, string) error) *cobra.Command {
 		Use:   "enr",
 		Short: "Create an Ethereum Node Record (ENR) private key to identify this charon client",
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			return runFunc(cmd.OutOrStdout(), dataDir)
 		},
 	}

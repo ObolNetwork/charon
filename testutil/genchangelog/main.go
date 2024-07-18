@@ -256,9 +256,9 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (str
 			return -1
 		} else if a.Number > b.Number {
 			return 1
-		} else {
-			return 0
 		}
+
+		return 0
 	})
 
 	cats := make(map[string]tplCategory)
@@ -401,12 +401,12 @@ func prFromLog(l log) (pullRequest, bool) {
 		return pullRequest{}, false
 	} else if strings.Contains(ticket, "none") {
 		return pr, true
-	} else {
-		pr.Issue, ok = getNumber(ticket)
-		if !ok {
-			fmt.Printf("Failed parsing issue number from ticket (%v): %s \n", l.Commit, ticket)
-			return pullRequest{}, false
-		}
+	}
+
+	pr.Issue, ok = getNumber(ticket)
+	if !ok {
+		fmt.Printf("Failed parsing issue number from ticket (%v): %s \n", l.Commit, ticket)
+		return pullRequest{}, false
 	}
 
 	return pr, true

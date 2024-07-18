@@ -25,7 +25,7 @@ func newListActiveValidatorsCmd(runFunc func(context.Context, exitConfig) error)
 		Short: "List all active validators",
 		Long:  `Returns a list of all the DV in the specified cluster whose status is ACTIVE_ONGOING, i.e. can be exited.`,
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			if err := log.InitLogger(config.Log); err != nil {
 				return err
 			}

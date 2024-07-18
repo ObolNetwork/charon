@@ -25,7 +25,7 @@ func newVersionCmd(runFunc func(io.Writer, versionConfig)) *cobra.Command {
 		Use:   "version",
 		Short: "Print version and exit",
 		Long:  "Output version info",
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: func(cmd *cobra.Command, args []string) { //nolint:revive // keep args variable name for clarity
 			runFunc(cmd.OutOrStdout(), conf)
 		},
 	}

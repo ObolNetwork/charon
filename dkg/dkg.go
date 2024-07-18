@@ -182,12 +182,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.Wrap(err, "private key not matching definition file")
 	}
 
-	peerIds, err := def.PeerIDs()
+	peerIDs, err := def.PeerIDs()
 	if err != nil {
 		return errors.Wrap(err, "get peer IDs")
 	}
 
-	ex := newExchanger(tcpNode, nodeIdx.PeerIdx, peerIds, def.NumValidators, []sigType{
+	ex := newExchanger(tcpNode, nodeIdx.PeerIdx, peerIDs, def.NumValidators, []sigType{
 		sigLock,
 		sigDepositData,
 		sigValidatorRegistration,
@@ -203,7 +203,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		peerMap[p.ID] = nodeIdx
 	}
 
-	caster := bcast.New(tcpNode, peerIds, key)
+	caster := bcast.New(tcpNode, peerIDs, key)
 
 	// register bcast callbacks for frostp2p
 	tp, err := newFrostP2P(tcpNode, peerMap, caster, def.Threshold, def.NumValidators)
@@ -219,7 +219,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	// Improve UX of "context cancelled" errors when sync fails.
 	ctx = errors.WithCtxErr(ctx, "p2p connection failed, please retry DKG")
 
-	nextStepSync, stopSync, err := startSyncProtocol(ctx, tcpNode, key, def.DefinitionHash, peerIds, cancel, conf.TestConfig)
+	nextStepSync, stopSync, err := startSyncProtocol(ctx, tcpNode, key, def.DefinitionHash, peerIDs, cancel, conf.TestConfig)
 	if err != nil {
 		return err
 	}

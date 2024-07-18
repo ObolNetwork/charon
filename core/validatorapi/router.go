@@ -25,7 +25,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
-	deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
+	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -791,7 +791,7 @@ func createProposeBlockResponse(proposal *eth2api.VersionedProposal) (*proposeBl
 
 func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
-		denebBlock := new(deneb.SignedBlockContents)
+		denebBlock := new(eth2deneb.SignedBlockContents)
 		err := unmarshal(typ, body, denebBlock)
 		if err == nil {
 			block := &eth2api.VersionedSignedProposal{
@@ -863,7 +863,7 @@ func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		// The blinded block maybe either bellatrix, capella or deneb.
-		denebBlock := new(deneb.SignedBlindedBeaconBlock)
+		denebBlock := new(eth2deneb.SignedBlindedBeaconBlock)
 		err := unmarshal(typ, body, denebBlock)
 		if err == nil {
 			block := &eth2api.VersionedSignedBlindedProposal{

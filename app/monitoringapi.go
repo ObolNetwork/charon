@@ -67,7 +67,7 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, promAddr, d
 	readyErrFunc := startReadyChecker(ctx, tcpNode, eth2Cl, peerIDs, clockwork.NewRealClock(),
 		pubkeys, seenPubkeys, vapiCalls)
 
-	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, _ *http.Request) {
 		readyErr := readyErrFunc()
 		if readyErr != nil {
 			writeResponse(w, http.StatusInternalServerError, readyErr.Error())
@@ -173,6 +173,7 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 				}
 
 				syncing, syncDistance, err := beaconNodeSyncing(ctx, eth2Cl)
+				//nolint:revive // skip max-control-nesting for monitoring
 				if err != nil {
 					err = errReadyBeaconNodeDown
 					readyzGauge.Set(readyzBeaconNodeDown)

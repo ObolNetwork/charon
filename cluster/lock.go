@@ -123,7 +123,7 @@ func (l Lock) SetLockHash() (Lock, error) {
 		return Lock{}, err
 	}
 
-	l.LockHash = lockHash[:]
+	l.LockHash = lockHash[:] //nolint: revive // okay to assign to by-value receiver as we return the struct
 
 	return l, nil
 }

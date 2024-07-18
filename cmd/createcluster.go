@@ -90,7 +90,7 @@ func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig)
 		Short: "Create private keys and configuration files needed to run a distributed validator cluster locally",
 		Long: "Creates a local charon cluster configuration including validator keys, charon p2p keys, cluster-lock.json and deposit-data.json file(s). " +
 			"See flags for supported features.",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			return runFunc(cmd.Context(), cmd.OutOrStdout(), conf)
 		},
 	}

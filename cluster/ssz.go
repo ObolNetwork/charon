@@ -37,9 +37,9 @@ func getDefinitionHashFunc(version string) (func(Definition, ssz.HashWalker, boo
 		return hashDefinitionV1x5to7, nil
 	} else if isAnyVersion(version, v1_8) {
 		return hashDefinitionV1x8orLater, nil
-	} else {
-		return nil, errors.New("unknown version", z.Str("version", version))
 	}
+
+	return nil, errors.New("unknown version", z.Str("version", version))
 }
 
 // hashDefinition returns a config or definition hash. The config hash excludes operator ENRs and signatures
@@ -607,9 +607,9 @@ func getValidatorHashFunc(version string) (func(DistValidator, ssz.HashWalker, s
 		return hashValidatorV1x5to7, nil
 	} else if isAnyVersion(version, v1_8) {
 		return hashValidatorV1x8OrLater, nil
-	} else {
-		return nil, errors.New("unknown version", z.Str("version", version))
 	}
+
+	return nil, errors.New("unknown version", z.Str("version", version))
 }
 
 func hashValidatorPubsharesField(v DistValidator, hh ssz.HashWalker) error {
@@ -799,9 +799,9 @@ func getDepositDataHashFunc(version string) (func(DepositData, ssz.HashWalker) e
 		return hashDepositDataV1x6, nil
 	} else if isAnyVersion(version, v1_7, v1_8) {
 		return hashDepositDataV1x7OrLater, nil
-	} else {
-		return nil, errors.New("unknown version", z.Str("version", version))
 	}
+
+	return nil, errors.New("unknown version", z.Str("version", version))
 }
 
 // getRegistrationHashFunc returns the function to hash a BuilderRegistration based on the provided version.
@@ -811,9 +811,9 @@ func getRegistrationHashFunc(version string) (func(BuilderRegistration, ssz.Hash
 		return func(BuilderRegistration, ssz.HashWalker) error { return nil }, nil
 	} else if isAnyVersion(version, v1_7, v1_8) {
 		return hashBuilderRegistration, nil
-	} else {
-		return nil, errors.New("unknown version", z.Str("version", version))
 	}
+
+	return nil, errors.New("unknown version", z.Str("version", version))
 }
 
 // hashDepositDataV1x6 hashes the deposit data for version v1.6.0.
