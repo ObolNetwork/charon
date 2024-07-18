@@ -27,7 +27,7 @@ func TestBeaconTest(t *testing.T) {
 	port2 := testutil.GetFreePort(t)
 	endpoint2 := fmt.Sprintf("http://localhost:%v", port2)
 
-	mockedBeaconNode := StartHealthyMockedBeaconNode(t)
+	mockedBeaconNode := startHealthyMockedBeaconNode(t)
 	defer mockedBeaconNode.Close()
 
 	tests := []struct {
@@ -245,7 +245,7 @@ func TestBeaconTest(t *testing.T) {
 	}
 }
 
-func StartHealthyMockedBeaconNode(t *testing.T) *httptest.Server {
+func startHealthyMockedBeaconNode(t *testing.T) *httptest.Server {
 	t.Helper()
 
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
