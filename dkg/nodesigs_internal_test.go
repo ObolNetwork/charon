@@ -67,7 +67,6 @@ func TestSigsExchange(t *testing.T) {
 	}
 
 	for i := 0; i < n; i++ {
-		i := i
 		component := bcast.New(tcpNodes[i], peers, secrets[i])
 		nsigs = append(nsigs, newNodeSigBcast(
 			clusterPeers,
@@ -80,7 +79,6 @@ func TestSigsExchange(t *testing.T) {
 
 	var eg errgroup.Group
 	for i := 0; i < n; i++ {
-		i := i
 		eg.Go(func() error {
 			res, err := nsigs[i].exchange(
 				ctx,

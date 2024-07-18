@@ -28,7 +28,6 @@ func TestMemEx(t *testing.T) {
 
 	var exes []core.ParSigEx
 	for i := 0; i < n; i++ {
-		i := i
 		ex := memExFunc()
 		ex.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 			require.NotEqual(t, i, set[pubkey].ShareIdx, "received from self")

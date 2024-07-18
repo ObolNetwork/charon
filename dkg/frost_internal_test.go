@@ -27,7 +27,6 @@ func TestFrostDKG(t *testing.T) {
 
 	var eg errgroup.Group
 	for i := 0; i < nodes; i++ {
-		i := i // Copy loop variable.
 		eg.Go(func() error {
 			shares, err := runFrostParallel(ctx, tp, vals, nodes, nodes, uint32(i+1), "test context")
 			if err != nil {

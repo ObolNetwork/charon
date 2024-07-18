@@ -94,7 +94,6 @@ func pingCluster(t *testing.T, test pingTest) {
 	var eg errgroup.Group
 
 	for i := 0; i < n; i++ {
-		i := i
 		conf := app.Config{
 			Log:              log.DefaultConfig(),
 			Feature:          featureset.DefaultConfig(),

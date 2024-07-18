@@ -298,7 +298,6 @@ func TestDKGWithHighValidatorsAmt(t *testing.T) {
 	dir := t.TempDir()
 
 	for idx := 0; idx < numNodes; idx++ {
-		idx := idx
 		eg.Go(func() error {
 			conf := dkgConf
 			conf.DataDir = path.Join(dir, fmt.Sprintf("node%d", idx))

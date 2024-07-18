@@ -400,7 +400,6 @@ func startPeer(t *testing.T, conf testPeersConfig, peerPrivKey *k1.PrivateKey) e
 	require.NoError(t, err)
 
 	for _, relay := range relays {
-		relay := relay
 		go p2p.NewRelayReserver(peerTCPNode, relay)(ctx)
 	}
 

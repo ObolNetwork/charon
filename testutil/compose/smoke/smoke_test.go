@@ -171,7 +171,6 @@ func TestSmoke(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test // Copy iterator for async usage
 		t.Run(test.Name, func(t *testing.T) {
 			dir, err := os.MkdirTemp("", "")
 			require.NoError(t, err)
