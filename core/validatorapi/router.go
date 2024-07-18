@@ -299,6 +299,8 @@ func wrap(endpoint string, handler handlerFunc) http.Handler {
 		ctx = log.WithCtx(ctx, z.Str("vapi_endpoint", endpoint))
 		ctx = withCtxDuration(ctx)
 
+		log.Debug(ctx, "Raw http request", z.Str("endpoint", r.URL.String()))
+
 		var typ contentType
 		contentHeader := r.Header.Get("Content-Type")
 		if contentHeader == "" || strings.Contains(contentHeader, string(contentTypeJSON)) {
@@ -1081,6 +1083,8 @@ type addressProvider interface {
 // Proxied requests use the provided context, so are cancelled when the context is cancelled.
 func proxyHandler(ctx context.Context, addrProvider addressProvider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Debug(r.Context(), "Proxying HTTP call", z.Str("endpoint", r.URL.String()))
+
 		// Get active beacon node address.
 		targetURL, err := getBeaconNodeAddress(addrProvider)
 		if err != nil {
