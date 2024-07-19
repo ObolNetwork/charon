@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -244,7 +245,7 @@ func WithGenesisTime(t0 time.Time) Option {
 		mock.overrides = append(mock.overrides, staticOverride{
 			Endpoint: "/eth/v1/beacon/genesis",
 			Key:      "genesis_time",
-			Value:    fmt.Sprint(t0.Unix()),
+			Value:    strconv.FormatInt(t0.Unix(), 10),
 		})
 	}
 }
@@ -266,7 +267,7 @@ func WithSlotDuration(duration time.Duration) Option {
 		mock.overrides = append(mock.overrides, staticOverride{
 			Endpoint: "/eth/v1/config/spec",
 			Key:      "SECONDS_PER_SLOT",
-			Value:    fmt.Sprint(int(duration.Seconds())),
+			Value:    strconv.Itoa(int(duration.Seconds())),
 		})
 	}
 }
@@ -277,7 +278,7 @@ func WithSlotsPerEpoch(slotsPerEpoch int) Option {
 		mock.overrides = append(mock.overrides, staticOverride{
 			Endpoint: "/eth/v1/config/spec",
 			Key:      "SLOTS_PER_EPOCH",
-			Value:    fmt.Sprint(slotsPerEpoch),
+			Value:    strconv.Itoa(slotsPerEpoch),
 		})
 	}
 }
@@ -456,7 +457,7 @@ func WithDeterministicSyncCommDuties(n, k int) Option {
 		mock.overrides = append(mock.overrides, staticOverride{
 			Endpoint: "/eth/v1/config/spec",
 			Key:      "EPOCHS_PER_SYNC_COMMITTEE_PERIOD",
-			Value:    fmt.Sprint(n),
+			Value:    strconv.Itoa(n),
 		})
 	}
 }
@@ -467,7 +468,7 @@ func WithSyncCommitteeSize(size int) Option {
 		mock.overrides = append(mock.overrides, staticOverride{
 			Endpoint: "/eth/v1/config/spec",
 			Key:      "SYNC_COMMITTEE_SIZE",
-			Value:    fmt.Sprint(size),
+			Value:    strconv.Itoa(size),
 		})
 	}
 }
@@ -478,7 +479,7 @@ func WithSyncCommitteeSubnetCount(count int) Option {
 		mock.overrides = append(mock.overrides, staticOverride{
 			Endpoint: "/eth/v1/config/spec",
 			Key:      "SYNC_COMMITTEE_SUBNET_COUNT",
-			Value:    fmt.Sprint(count),
+			Value:    strconv.Itoa(count),
 		})
 	}
 }

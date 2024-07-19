@@ -130,7 +130,7 @@ func Run(ctx context.Context, config Config) error {
 	)
 	if config.HTTPAddr != "" {
 		log.Info(ctx, "Runtime multiaddrs available via http",
-			z.Str("url", fmt.Sprintf("http://%s", config.HTTPAddr)),
+			z.Str("url", "http://"+config.HTTPAddr),
 		)
 	} else {
 		log.Info(ctx, "Runtime multiaddrs not available via http, since http-address flag is not set")

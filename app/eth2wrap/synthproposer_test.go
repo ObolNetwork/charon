@@ -207,7 +207,7 @@ func TestSynthProposerBlockNotFound(t *testing.T) {
 
 		return nil, &eth2api.Error{
 			Method:     http.MethodGet,
-			Endpoint:   fmt.Sprintf("/eth/v2/beacon/blocks/%s", blockID),
+			Endpoint:   "/eth/v2/beacon/blocks/" + blockID,
 			StatusCode: http.StatusNotFound,
 			Data:       []byte(fmt.Sprintf(`{"code":404,"message":"NOT_FOUND: beacon block at slot %s","stacktraces":[]}`, blockID)),
 		}

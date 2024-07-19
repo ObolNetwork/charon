@@ -4,10 +4,10 @@ package validatormock_test
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 
@@ -41,7 +41,7 @@ func TestAttest(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		t.Run(fmt.Sprint(test.DutyFactor), func(t *testing.T) {
+		t.Run(strconv.Itoa(test.DutyFactor), func(t *testing.T) {
 			ctx := context.Background()
 			clock := clockwork.NewFakeClockAt(time.Date(2022, 0o3, 20, 0o1, 0, 0, 0, time.UTC))
 

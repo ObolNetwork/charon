@@ -312,7 +312,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	if dashboardURL != "" {
-		log.Info(ctx, fmt.Sprintf("You can find your newly-created cluster dashboard here: %s", dashboardURL))
+		log.Info(ctx, "You can find your newly-created cluster dashboard here: "+dashboardURL)
 	}
 
 	return nil

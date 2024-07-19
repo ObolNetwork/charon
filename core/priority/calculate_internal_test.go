@@ -3,8 +3,8 @@
 package priority
 
 import (
-	"fmt"
 	"math/rand"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -167,7 +167,7 @@ func TestCalculateResults(t *testing.T) {
 							Topic: toAny("ignored"),
 						},
 					},
-					PeerId: fmt.Sprint(j),
+					PeerId: strconv.Itoa(j),
 					Duty:   &pbv1.Duty{Slot: test.Slot},
 				})
 			}

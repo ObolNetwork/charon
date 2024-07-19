@@ -4,7 +4,6 @@ package beaconmock
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -60,7 +59,7 @@ func TestHeadProducer(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			rawURL := fmt.Sprintf("eth/v1/events?topics=%s", strings.Join(test.topics, "&topics="))
+			rawURL := "eth/v1/events?topics=" + strings.Join(test.topics, "&topics=")
 			endpoint := testutil.MustParseURL(t, rawURL)
 			addr := base.ResolveReference(endpoint).String()
 

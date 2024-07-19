@@ -5,7 +5,6 @@ package smoke_test
 import (
 	"context"
 	"flag"
-	"fmt"
 	"os"
 	"path"
 	"strings"
@@ -202,7 +201,7 @@ func TestSmoke(t *testing.T) {
 			}
 
 			if *logDir != "" {
-				autoConfig.LogFile = path.Join(*logDir, fmt.Sprintf("%s.log", test.Name))
+				autoConfig.LogFile = path.Join(*logDir, test.Name+".log")
 			}
 
 			err = compose.Auto(context.Background(), autoConfig)

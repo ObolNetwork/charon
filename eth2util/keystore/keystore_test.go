@@ -76,11 +76,11 @@ func TestStoreLoadNonCharonNames(t *testing.T) {
 	// rename according to filenames slice
 	for idx := range len(filenames) {
 		oldPath := filepath.Join(dir, fmt.Sprintf("keystore-insecure-%d.json", idx))
-		newPath := filepath.Join(dir, fmt.Sprintf("%s.json", filenames[idx]))
+		newPath := filepath.Join(dir, filenames[idx]+".json")
 		require.NoError(t, os.Rename(oldPath, newPath))
 
 		oldPath = filepath.Join(dir, fmt.Sprintf("keystore-insecure-%d.txt", idx))
-		newPath = filepath.Join(dir, fmt.Sprintf("%s.txt", filenames[idx]))
+		newPath = filepath.Join(dir, filenames[idx]+".txt")
 		require.NoError(t, os.Rename(oldPath, newPath))
 	}
 
@@ -175,11 +175,11 @@ func TestStoreLoadSequentialNonCharonNames(t *testing.T) {
 	// rename according to filenames slice
 	for idx := range len(filenames) {
 		oldPath := filepath.Join(dir, fmt.Sprintf("keystore-insecure-%d.json", idx))
-		newPath := filepath.Join(dir, fmt.Sprintf("%s.json", filenames[idx]))
+		newPath := filepath.Join(dir, filenames[idx]+".json")
 		require.NoError(t, os.Rename(oldPath, newPath))
 
 		oldPath = filepath.Join(dir, fmt.Sprintf("keystore-insecure-%d.txt", idx))
-		newPath = filepath.Join(dir, fmt.Sprintf("%s.txt", filenames[idx]))
+		newPath = filepath.Join(dir, filenames[idx]+".txt")
 		require.NoError(t, os.Rename(oldPath, newPath))
 	}
 

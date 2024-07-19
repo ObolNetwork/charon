@@ -4,7 +4,6 @@ package rlp_test
 
 import (
 	"crypto/rand"
-	"fmt"
 	"strconv"
 	"testing"
 
@@ -184,7 +183,7 @@ func TestBytes(t *testing.T) {
 
 func TestLengths(t *testing.T) {
 	for _, length := range []int{0, 1, 55, 56, 1023, 1024} {
-		t.Run(fmt.Sprint(length), func(t *testing.T) {
+		t.Run(strconv.Itoa(length), func(t *testing.T) {
 			buf := make([]byte, length)
 			_, err := rand.Read(buf)
 			require.NoError(t, err)

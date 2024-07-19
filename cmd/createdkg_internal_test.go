@@ -4,7 +4,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path"
 	"strings"
@@ -143,10 +142,10 @@ func TestExistingClusterDefinition(t *testing.T) {
 	for range minNodes {
 		enrs = append(enrs, "enr:-JG4QG472ZVvl8ySSnUK9uNVDrP_hjkUrUqIxUC75aayzmDVQedXkjbqc7QKyOOS71VmlqnYzri_taV8ZesFYaoQSIOGAYHtv1WsgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u")
 	}
-	enrArg := fmt.Sprintf("--operator-enrs=%s", strings.Join(enrs, ","))
-	feeRecipientArg := fmt.Sprintf("--fee-recipient-addresses=%s", validEthAddr)
-	withdrawalArg := fmt.Sprintf("--withdrawal-addresses=%s", validEthAddr)
-	outputDirArg := fmt.Sprintf("--output-dir=%s", charonDir)
+	enrArg := "--operator-enrs=" + strings.Join(enrs, ",")
+	feeRecipientArg := "--fee-recipient-addresses=" + validEthAddr
+	withdrawalArg := "--withdrawal-addresses=" + validEthAddr
+	outputDirArg := "--output-dir=" + charonDir
 
 	cmd := newCreateCmd(newCreateDKGCmd(runCreateDKG))
 	cmd.SetArgs([]string{"dkg", enrArg, feeRecipientArg, withdrawalArg, outputDirArg})

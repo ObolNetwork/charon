@@ -372,7 +372,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	log.Info(ctx, "Successfully completed DKG ceremony 🎉")
 
 	if dashboardURL != "" {
-		log.Info(ctx, fmt.Sprintf("You can find your newly-created cluster dashboard here: %s", dashboardURL))
+		log.Info(ctx, "You can find your newly-created cluster dashboard here: "+dashboardURL)
 	}
 
 	return nil

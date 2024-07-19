@@ -622,7 +622,7 @@ func TestRouter(t *testing.T) {
 		server := httptest.NewServer(r)
 		defer server.Close()
 
-		endpointURL := fmt.Sprintf("%s/eth/v1/node/version", server.URL)
+		endpointURL := server.URL + "/eth/v1/node/version"
 
 		// node_version is a GET-only endpoint, we expect it to fail
 		resp, err := http.Post(
@@ -1899,7 +1899,7 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 	})
 	mux.HandleFunc("/eth/v1/config/spec", func(w http.ResponseWriter, r *http.Request) {
 		res := map[string]any{
-			"SLOTS_PER_EPOCH": fmt.Sprint(slotsPerEpoch),
+			"SLOTS_PER_EPOCH": strconv.Itoa(slotsPerEpoch),
 		}
 		writeResponse(ctx, w, "", nest(res, "data"), nil)
 	})

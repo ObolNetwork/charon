@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -127,9 +128,9 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 
 		n := TmplNode{EnvVars: []kv{
 			{"name", "compose"},
-			{"num_validators", fmt.Sprint(conf.NumValidators)},
+			{"num_validators", strconv.Itoa(conf.NumValidators)},
 			{"operator_enrs", strings.Join(enrs, ",")},
-			{"threshold", fmt.Sprint(conf.Threshold)},
+			{"threshold", strconv.Itoa(conf.Threshold)},
 			{"withdrawal_addresses", zeroAddress},
 			{"fee-recipient_addresses", zeroAddress},
 			{"dkg_algorithm", "frost"},

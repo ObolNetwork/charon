@@ -196,7 +196,7 @@ func InitLogger(config Config) error {
 		}
 
 		if config.LogOutputPath != "" {
-			fileWriter, _, err := zap.Open(fmt.Sprintf("lumberjack:%s", config.LogOutputPath))
+			fileWriter, _, err := zap.Open("lumberjack:" + config.LogOutputPath)
 			if err != nil {
 				return errors.Wrap(err, "open file writer")
 			}

@@ -308,7 +308,7 @@ func wrap(endpoint string, handler handlerFunc) http.Handler {
 		} else {
 			writeError(ctx, w, endpoint, apiError{
 				StatusCode: http.StatusUnsupportedMediaType,
-				Message:    fmt.Sprintf("unsupported media type %s", contentHeader),
+				Message:    "unsupported media type " + contentHeader,
 			})
 
 			return
@@ -1234,7 +1234,7 @@ func uintParam(params map[string]string, name string) (uint64, error) {
 	if !ok {
 		return 0, apiError{
 			StatusCode: http.StatusBadRequest,
-			Message:    fmt.Sprintf("missing path parameter %s", name),
+			Message:    "missing path parameter " + name,
 		}
 	}
 
@@ -1255,7 +1255,7 @@ func uintQuery(query url.Values, name string) (uint64, error) {
 	if !query.Has(name) {
 		return 0, apiError{
 			StatusCode: http.StatusBadRequest,
-			Message:    fmt.Sprintf("missing query parameter %s", name),
+			Message:    "missing query parameter " + name,
 		}
 	}
 
@@ -1281,7 +1281,7 @@ func hexQueryFixed(query url.Values, name string, target []byte) error {
 	} else if !ok {
 		return apiError{
 			StatusCode: http.StatusBadRequest,
-			Message:    fmt.Sprintf("missing 0x-hex query parameter %s", name),
+			Message:    "missing 0x-hex query parameter " + name,
 		}
 	} else if len(resp) != len(target) {
 		return apiError{

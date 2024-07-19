@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strconv"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -34,12 +35,12 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 		// Only single node to call charon create cluster generate keys
 		n := TmplNode{EnvVars: []kv{
 			{"name", fmt.Sprintf("compose-%d-%d", conf.NumNodes, conf.NumValidators)},
-			{"threshold", fmt.Sprint(conf.Threshold)},
-			{"nodes", fmt.Sprint(conf.NumNodes)},
+			{"threshold", strconv.Itoa(conf.Threshold)},
+			{"nodes", strconv.Itoa(conf.NumNodes)},
 			{"cluster-dir", "/compose"},
 			{"split-existing-keys", fmt.Sprintf(`"%v"`, conf.SplitKeysDir != "")},
 			{"split-keys-dir", splitKeysDir},
-			{"num-validators", fmt.Sprint(conf.NumValidators)},
+			{"num-validators", strconv.Itoa(conf.NumValidators)},
 			{"insecure-keys", fmt.Sprintf(`"%v"`, conf.InsecureKeys)},
 			{"withdrawal-addresses", zeroAddress},
 			{"fee-recipient-addresses", zeroAddress},

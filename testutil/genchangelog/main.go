@@ -301,7 +301,7 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (str
 		Tag:        tag,
 		Date:       time.Now().Format("2006-01-02"),
 		RangeText:  gitRange,
-		RangeLink:  fmt.Sprintf("https://github.com/obolnetwork/charon/compare/%s", gitRange),
+		RangeLink:  "https://github.com/obolnetwork/charon/compare/" + gitRange,
 		Categories: catSlice,
 		ExtraPRs:   noIssuePRs,
 	}, nil
