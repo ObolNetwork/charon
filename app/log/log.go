@@ -55,6 +55,7 @@ func fieldsFromCtx(ctx context.Context) []z.Field {
 	if !ok {
 		return []z.Field{}
 	}
+
 	return resp
 }
 
