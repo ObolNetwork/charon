@@ -164,6 +164,7 @@ linters:
     - lll # Think about adding this (max line length)
     - maintidx
     - maligned
+    - mnd
     - musttag
     - nestif
     - nonamedreturns
