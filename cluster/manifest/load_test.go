@@ -3,8 +3,8 @@
 package manifest_test
 
 import (
+	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"math/rand"
 	"os"
 	"path"
@@ -158,6 +158,6 @@ func testLoadLegacy(t *testing.T, version string) {
 func TestLoadModifiedLegacyLock(t *testing.T) {
 	cluster, err := manifest.LoadCluster("", "testdata/lock3.json", nil)
 	require.NoError(t, err)
-	hashHex := fmt.Sprintf("%x", cluster.InitialMutationHash)
+	hashHex := hex.EncodeToString(cluster.GetInitialMutationHash())
 	require.Equal(t, "4073fe542", hashHex[:9])
 }

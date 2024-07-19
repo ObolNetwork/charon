@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strconv"
 	"testing"
 	"time"
 
@@ -122,7 +123,7 @@ func (a *priorityAsserter) Callback(t *testing.T, i int) func(ctx context.Contex
 			}
 		}
 
-		a.callbacks.Store(fmt.Sprint(i), true)
+		a.callbacks.Store(strconv.Itoa(i), true)
 
 		return nil
 	}

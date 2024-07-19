@@ -5,6 +5,7 @@ package rlp_test
 import (
 	"crypto/rand"
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -102,7 +103,7 @@ func TestBytesList(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		t.Run(fmt.Sprint(i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			encoded := rlp.EncodeBytesList(test.input)
 			if len(test.output) == 0 {
 				require.Empty(t, encoded)
@@ -162,7 +163,7 @@ func TestBytes(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		t.Run(fmt.Sprint(i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			encoded := rlp.EncodeBytes(test.input)
 			if len(test.output) == 0 {
 				require.Empty(t, encoded)

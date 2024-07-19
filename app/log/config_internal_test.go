@@ -4,10 +4,10 @@ package log
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/golang/snappy"
@@ -32,7 +32,7 @@ testing.tRunner
 	}
 
 	for i, test := range tests {
-		t.Run(fmt.Sprint(i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			actual := formatZapStack(test.Input)
 			require.Equal(t, test.Output, actual)
 		})

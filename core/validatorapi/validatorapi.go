@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"runtime"
+	"strconv"
 	"testing"
 	"time"
 
@@ -1202,7 +1203,7 @@ func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigR
 				Enabled:  c.builderEnabled(uint64(slot)),
 				GasLimit: gasLimit,
 				Overrides: map[string]string{
-					"timestamp":  fmt.Sprint(timestamp.Unix()),
+					"timestamp":  strconv.FormatInt(timestamp.Unix(), 10),
 					"public_key": string(pubkey),
 				},
 			},

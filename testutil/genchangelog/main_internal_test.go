@@ -5,6 +5,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -73,7 +74,7 @@ func TestPRFromLog(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		t.Run(fmt.Sprint(i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			actual, ok := prFromLog(test.in)
 			if test.out.Title == "" {
 				require.False(t, ok)

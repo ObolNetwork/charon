@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -1289,7 +1290,7 @@ func TestComponent_TekuProposerConfig(t *testing.T) {
 					Enabled:  true,
 					GasLimit: 30000000,
 					Overrides: map[string]string{
-						"timestamp":  fmt.Sprint(genesis.Add(slotDuration).Unix()),
+						"timestamp":  strconv.FormatInt(genesis.Add(slotDuration).Unix(), 10),
 						"public_key": string(pk),
 					},
 				},

@@ -3,7 +3,6 @@
 package tbls
 
 import (
-	"fmt"
 	"io"
 	"strconv"
 	"sync"
@@ -108,7 +107,7 @@ func (Herumi) ThresholdSplitInsecure(t *testing.T, secret PrivateKey, total uint
 	for i := 1; i <= int(total); i++ {
 		var blsID bls.ID
 
-		err := blsID.SetDecString(fmt.Sprintf("%d", i))
+		err := blsID.SetDecString(strconv.Itoa(i))
 		if err != nil {
 			return nil, errors.Wrap(
 				err,
@@ -154,7 +153,7 @@ func (Herumi) ThresholdSplit(secret PrivateKey, total uint, threshold uint) (map
 	for i := 1; i <= int(total); i++ {
 		var blsID bls.ID
 
-		err := blsID.SetDecString(fmt.Sprintf("%d", i))
+		err := blsID.SetDecString(strconv.Itoa(i))
 		if err != nil {
 			return nil, errors.Wrap(
 				err,

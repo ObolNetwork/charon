@@ -4,7 +4,6 @@ package core
 
 import (
 	"context"
-	"fmt"
 	"hash/fnv"
 	"strconv"
 	"strings"
@@ -27,7 +26,7 @@ func StartDutyTrace(ctx context.Context, duty Duty, spanName string, opts ...tra
 	copy(traceID[:], h.Sum(nil))
 
 	var outerSpan, innerSpan trace.Span
-	ctx, outerSpan = tracer.Start(tracer.RootedCtx(ctx, traceID), fmt.Sprintf("core/duty.%s", strings.Title(duty.Type.String())))
+	ctx, outerSpan = tracer.Start(tracer.RootedCtx(ctx, traceID), "core/duty."+strings.Title(duty.Type.String()))
 	ctx, innerSpan = tracer.Start(ctx, spanName, opts...)
 
 	slotStr := strconv.FormatUint(duty.Slot, 10)

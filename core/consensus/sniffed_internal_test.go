@@ -7,9 +7,9 @@ import (
 	"compress/gzip"
 	"context"
 	"flag"
-	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -41,7 +41,7 @@ func TestSniffedFile(t *testing.T) {
 	)
 
 	for i, instance := range instances.Instances {
-		t.Run(fmt.Sprint(i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			if len(instance.Msgs) == 0 {
 				log.Error(ctx, "No messages in instance", nil, z.Int("i", i))
 				return

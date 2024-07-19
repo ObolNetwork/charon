@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/libp2p/go-libp2p"
@@ -28,7 +29,7 @@ func TestInterceptSecured(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		t.Run(fmt.Sprint(i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			c, err := p2p.NewConnGater([]peer.ID{test.config}, nil)
 			require.NoError(t, err)
 

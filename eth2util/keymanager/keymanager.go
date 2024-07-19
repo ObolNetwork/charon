@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -98,7 +97,7 @@ func postKeys(ctx context.Context, addr, authToken string, reqBody keymanagerReq
 		return errors.Wrap(err, "new post request", z.Str("url", addr))
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authToken))
+	req.Header.Set("Authorization", "Bearer "+authToken)
 
 	resp, err := new(http.Client).Do(req)
 	if err != nil {

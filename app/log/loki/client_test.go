@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -60,11 +61,11 @@ func TestLoki(t *testing.T) {
 	go cl.Run()
 
 	for i := range n {
-		cl.Add(fmt.Sprint(i))
+		cl.Add(strconv.Itoa(i))
 	}
 
 	for i := range n {
-		require.Equal(t, fmt.Sprint(i), <-received)
+		require.Equal(t, strconv.Itoa(i), <-received)
 	}
 
 	cl.Stop(context.Background())

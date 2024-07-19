@@ -4,6 +4,7 @@ package keystore_test
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"math/rand"
 	"os"
@@ -201,7 +202,7 @@ func TestLoadScrypt(t *testing.T) {
 
 	require.Len(t, keyfiles, 1)
 
-	require.Equal(t, "10b16fc552aa607fa1399027f7b86ab789077e470b5653b338693dc2dde02468", fmt.Sprintf("%x", keyfiles[0].PrivateKey))
+	require.Equal(t, "10b16fc552aa607fa1399027f7b86ab789077e470b5653b338693dc2dde02468", hex.EncodeToString(keyfiles[0].PrivateKey[:]))
 }
 
 func TestSequencedKeys(t *testing.T) {
