@@ -143,6 +143,7 @@ linters:
     - cyclop
     - exhaustivestruct
     - exhaustruct
+    - exportloopref # It is not an issue for go versions >=1.22
     - funlen
     - forcetypeassert
     - gci
