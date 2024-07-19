@@ -152,7 +152,7 @@ func BenchmarkRecoverVerify(b *testing.B) {
 	b.StartTimer()
 
 	b.Run("recover", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			recovered, err := k1util.Recover(
 				digest,
 				sig)
@@ -162,7 +162,7 @@ func BenchmarkRecoverVerify(b *testing.B) {
 	})
 
 	b.Run("verify", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			ok, err := k1util.Verify64(
 				key.PubKey(),
 				digest,

@@ -125,7 +125,7 @@ func TestStartChecker(t *testing.T) {
 				hostsInfo []peer.AddrInfo
 			)
 
-			for i := 0; i < tt.numPeers; i++ {
+			for range tt.numPeers {
 				h := testutil.CreateHost(t, testutil.AvailableAddr(t))
 				info := peer.AddrInfo{
 					ID:    h.ID(),

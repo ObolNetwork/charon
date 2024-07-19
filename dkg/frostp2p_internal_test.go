@@ -30,7 +30,7 @@ func TestBcastCallback(t *testing.T) {
 
 	// Create libp2p peers
 	peerMap := make(map[peer.ID]cluster.NodeIdx)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		secret, err := k1.GeneratePrivateKey()
 		require.NoError(t, err)
 
@@ -189,7 +189,7 @@ func TestP2PCallback(t *testing.T) {
 
 	// Create libp2p peers
 	peerMap := make(map[peer.ID]cluster.NodeIdx)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		secret, err := k1.GeneratePrivateKey()
 		require.NoError(t, err)
 

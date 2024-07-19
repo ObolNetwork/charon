@@ -51,7 +51,7 @@ func RequireProtosEqual[P proto.Message](t *testing.T, a, b []P) {
 			"expected: %s\nactual: %v", len(a), len(b))
 	}
 
-	for i := 0; i < len(a); i++ {
+	for i := range len(a) {
 		RequireProtoEqual(t, a[i], b[i])
 	}
 }

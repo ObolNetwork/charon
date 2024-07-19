@@ -23,7 +23,7 @@ func TestQBFTDebugger(t *testing.T) {
 		debug     = new(qbftDebugger)
 	)
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		instance := &pbv1.SniffedConsensusInstance{
 			Msgs: []*pbv1.SniffedConsensusMsg{
 				{

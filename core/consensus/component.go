@@ -655,7 +655,7 @@ func groupRoundMessages(msgs []qbft.Msg[core.Duty, [32]byte], peers int, round i
 	// checkPeers returns two slices of peer indexes, one with peers
 	// present with the message type and one with messing peers.
 	checkPeers := func(typ qbft.MsgType) (present []int, missing []int) {
-		for i := 0; i < peers; i++ {
+		for i := range peers {
 			var included bool
 			for _, msg := range msgs {
 				if msg.Type() == typ && msg.Source() == int64(i) {
@@ -728,7 +728,7 @@ func timeoutReason(steps []roundStep, round int64, quorum int) string {
 // fmtStepPeers returns a string representing the present and missing peers.
 func fmtStepPeers(step roundStep) string {
 	var resp []string
-	for i := 0; i < step.Peers; i++ {
+	for range step.Peers {
 		resp = append(resp, "_")
 	}
 

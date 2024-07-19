@@ -86,7 +86,7 @@ func TestGetThresholdMatching(t *testing.T) {
 			for name, provider := range providers {
 				t.Run(name, func(t *testing.T) {
 					var datas []core.ParSignedData
-					for i := 0; i < len(test.input); i++ {
+					for i := range len(test.input) {
 						datas = append(datas, provider(i))
 					}
 
@@ -132,7 +132,7 @@ func TestMemDBThreshold(t *testing.T) {
 	att := testutil.RandomAttestation()
 
 	enqueueN := func() {
-		for i := 0; i < n; i++ {
+		for i := range n {
 			err := db.StoreExternal(context.Background(), core.NewAttesterDuty(123), core.ParSignedDataSet{
 				pubkey: core.NewPartialAttestation(att, i+1),
 			})

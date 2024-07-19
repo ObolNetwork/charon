@@ -92,7 +92,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 
 	var combinedKeys []tbls.PrivateKey
 
-	for valIdx := 0; valIdx < len(privkeys); valIdx++ {
+	for valIdx := range len(privkeys) {
 		pkSet := privkeys[valIdx]
 
 		if len(pkSet) < int(cluster.Threshold) {
@@ -178,7 +178,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 func shareIdxByPubkeys(cluster *manifestpb.Cluster, secrets []tbls.PrivateKey, valIndex int) (map[int]tbls.PrivateKey, error) {
 	pubkMap := make(map[tbls.PublicKey]int)
 
-	for peerIdx := 0; peerIdx < len(cluster.Validators[valIndex].PubShares); peerIdx++ {
+	for peerIdx := range len(cluster.GetValidators()[valIndex].GetPubShares()) {
 		pubShareRaw := cluster.Validators[valIndex].GetPubShares()[peerIdx]
 
 		pubShare, err := tblsconv.PubkeyFromBytes(pubShareRaw)

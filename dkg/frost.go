@@ -95,7 +95,7 @@ func newFrostParticipants(numValidators, numNodes, threshold, shareIdx uint32, d
 	}
 
 	resp := make(map[uint32]*frost.DkgParticipant)
-	for vIdx := uint32(0); vIdx < numValidators; vIdx++ {
+	for vIdx := range numValidators {
 		p, err := frost.NewDkgParticipant(
 			shareIdx,
 			threshold,

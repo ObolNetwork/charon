@@ -62,7 +62,7 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool) {
 
 	operatorShares := make([][]tbls.PrivateKey, operatorAmt)
 
-	for opIdx := 0; opIdx < operatorAmt; opIdx++ {
+	for opIdx := range operatorAmt {
 		for _, share := range keyShares {
 			operatorShares[opIdx] = append(operatorShares[opIdx], share[opIdx])
 		}
@@ -109,7 +109,7 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool) {
 
 	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
 
-	for idx := 0; idx < operatorAmt; idx++ {
+	for idx := range operatorAmt {
 		baseDir := filepath.Join(root, fmt.Sprintf("op%d", idx))
 
 		config := exitConfig{
@@ -241,7 +241,7 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 
 			operatorShares := make([][]tbls.PrivateKey, operatorAmt)
 
-			for opIdx := 0; opIdx < operatorAmt; opIdx++ {
+			for opIdx := range operatorAmt {
 				for _, share := range keyShares {
 					operatorShares[opIdx] = append(operatorShares[opIdx], share[opIdx])
 				}
@@ -252,7 +252,7 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 
 			writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
 
-			for opIdx := 0; opIdx < operatorAmt; opIdx++ {
+			for opIdx := range operatorAmt {
 				del(t, test, root, opIdx)
 			}
 

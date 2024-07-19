@@ -140,7 +140,7 @@ func TestExistingClusterDefinition(t *testing.T) {
 	require.NoError(t, os.WriteFile(path.Join(charonDir, "cluster-definition.json"), b, 0o600))
 
 	var enrs []string
-	for i := 0; i < minNodes; i++ {
+	for range minNodes {
 		enrs = append(enrs, "enr:-JG4QG472ZVvl8ySSnUK9uNVDrP_hjkUrUqIxUC75aayzmDVQedXkjbqc7QKyOOS71VmlqnYzri_taV8ZesFYaoQSIOGAYHtv1WsgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u")
 	}
 	enrArg := fmt.Sprintf("--operator-enrs=%s", strings.Join(enrs, ","))

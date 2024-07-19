@@ -57,7 +57,7 @@ func FuzzEncodeBytesList(f *testing.F) {
 	d := merge(prefix, data)
 
 	// Add a few different lengths of byte slices
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		f.Add(i, d, d, d, d, d, d, d, d, d, d)
 	}
 

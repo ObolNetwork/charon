@@ -186,7 +186,7 @@ func TestWriteClusterDepositDataFiles(t *testing.T) {
 	const numNodes = 4
 	dir := t.TempDir()
 
-	for n := 0; n < numNodes; n++ {
+	for n := range numNodes {
 		err := os.MkdirAll(path.Join(dir, fmt.Sprintf("node%d", n)), 0o755)
 		require.NoError(t, err)
 	}
@@ -202,7 +202,7 @@ func TestWriteClusterDepositDataFiles(t *testing.T) {
 		expected, err := deposit.MarshalDepositData(depositDatas[i], eth2util.Goerli.Name)
 		require.NoError(t, err)
 
-		for n := 0; n < numNodes; n++ {
+		for n := range numNodes {
 			nodeDir := path.Join(dir, fmt.Sprintf("node%d", n))
 			filepath := deposit.GetDepositFilePath(nodeDir, depositDatas[i][0].Amount)
 			actual, err := os.ReadFile(filepath)
@@ -234,7 +234,7 @@ func mustGenerateDepositDatas(t *testing.T, amount eth2p0.Gwei) []eth2p0.Deposit
 		network = eth2util.Goerli.Name
 	)
 
-	for i := 0; i < len(privKeys); i++ {
+	for i := range len(privKeys) {
 		sk, pk := GetKeys(t, privKeys[i])
 
 		msg, err := deposit.NewMessage(pk, withdrawalAddrs[i], amount)

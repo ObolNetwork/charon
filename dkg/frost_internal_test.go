@@ -26,7 +26,7 @@ func TestFrostDKG(t *testing.T) {
 	tp := &frostMemTransport{nodes: nodes}
 
 	var eg errgroup.Group
-	for i := 0; i < nodes; i++ {
+	for i := range nodes {
 		eg.Go(func() error {
 			shares, err := runFrostParallel(ctx, tp, vals, nodes, nodes, uint32(i+1), "test context")
 			if err != nil {

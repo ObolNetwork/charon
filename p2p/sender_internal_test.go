@@ -81,7 +81,7 @@ func TestAddResult(t *testing.T) {
 
 	wg.Add(concurrencyFactor)
 
-	for i := 0; i < concurrencyFactor; i++ {
+	for range concurrencyFactor {
 		go func() {
 			sender.addResult(ctx, "test", nil)
 			wg.Done()

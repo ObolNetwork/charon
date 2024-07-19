@@ -338,7 +338,7 @@ func (Herumi) VerifyAggregate(publicShares []PublicKey, signature Signature, dat
 // provided random number generator. This is useful for testing.
 func generateInsecureSecret(t *testing.T, random io.Reader) (bls.SecretKey, error) {
 	t.Helper()
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		b := make([]byte, 32)
 		_, err := random.Read(b)
 		require.NoError(t, err)

@@ -83,7 +83,7 @@ func queryRatedAPI(ctx context.Context, url *url.URL, ratedAuth string, network 
 	client := new(http.Client)
 	backoff := expbackoff.New(ctx)
 
-	for r := 0; r <= maxRetries; r++ {
+	for r := range maxRetries + 1 {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url.String(), nil)
 		if err != nil {
 			return nil, errors.Wrap(err, "new rated request")

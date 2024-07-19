@@ -75,7 +75,7 @@ func Check(msg proto.Message) error {
 		// Check elements of list fields.
 		if field.IsList() {
 			list := rMsg.Get(field).List()
-			for i := 0; i < list.Len(); i++ {
+			for i := range list.Len() {
 				elem, ok := valueToMsg(list.Get(i))
 				if !ok {
 					// Not a message element type.

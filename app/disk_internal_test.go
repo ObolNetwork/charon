@@ -55,7 +55,7 @@ func TestCalculateTrackerDelay(t *testing.T) {
 
 func TestSetFeeRecipient(t *testing.T) {
 	set := beaconmock.ValidatorSetA
-	for i := 0; i < len(set); i++ {
+	for i := range len(set) {
 		clone, err := set.Clone()
 		require.NoError(t, err)
 

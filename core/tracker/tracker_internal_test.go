@@ -404,7 +404,7 @@ func TestTrackerParticipation(t *testing.T) {
 	// Assuming a DV with 4 nodes.
 	numPeers := 4
 	var peers []p2p.Peer
-	for i := 0; i < numPeers; i++ {
+	for i := range numPeers {
 		peers = append(peers, p2p.Peer{Index: i})
 	}
 
@@ -675,7 +675,7 @@ func setupData(t *testing.T, slots []int, numVals int) ([]testDutyData, []core.P
 
 	var pubkeys []core.PubKey
 	pubkeysByIdx := make(map[eth2p0.ValidatorIndex]core.PubKey)
-	for i := 0; i < numVals; i++ {
+	for i := range numVals {
 		pubkey := testutil.RandomCorePubKey(t)
 		pubkeysByIdx[eth2p0.ValidatorIndex(i)] = pubkey
 		pubkeys = append(pubkeys, pubkey)
@@ -688,7 +688,7 @@ func setupData(t *testing.T, slots []int, numVals int) ([]testDutyData, []core.P
 		defset := make(core.DutyDefinitionSet)
 		unsignedset := make(core.UnsignedDataSet)
 		parsignedset := make(core.ParSignedDataSet)
-		for i := 0; i < numVals; i++ {
+		for i := range numVals {
 			defset[pubkeysByIdx[eth2p0.ValidatorIndex(i)]] = core.NewAttesterDefinition(&eth2v1.AttesterDuty{
 				Slot:             eth2p0.Slot(slot),
 				ValidatorIndex:   eth2p0.ValidatorIndex(i),
@@ -1135,7 +1135,7 @@ func analyseParSigs(t *testing.T, dataGen func() core.SignedData) {
 
 	makeEvents := func(n int, pubkey string, data core.SignedData) {
 		offset := len(events)
-		for i := 0; i < n; i++ {
+		for i := range n {
 			data, err := data.SetSignature(testutil.RandomCoreSignature())
 			require.NoError(t, err)
 			events = append(events, event{
@@ -1175,7 +1175,7 @@ func TestDutyFailedMultipleEvents(t *testing.T) {
 	testErr := errors.New("test error")
 	var events []event
 	for step := fetcher; step < sentinel; step++ {
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			events = append(events, event{step: step, duty: duty, stepErr: testErr})
 		}
 	}

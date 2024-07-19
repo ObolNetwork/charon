@@ -307,7 +307,7 @@ var keyGenFunc = func() (*k1.PrivateKey, error) {
 // newP2PKeys returns a slice of newly generated secp256k1 private keys.
 func newP2PKeys(n int) ([]*k1.PrivateKey, error) {
 	var resp []*k1.PrivateKey
-	for i := 0; i < n; i++ {
+	for range n {
 		key, err := keyGenFunc()
 		if err != nil {
 			return nil, errors.Wrap(err, "new key")

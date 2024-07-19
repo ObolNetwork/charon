@@ -212,7 +212,7 @@ func (l Lock) verifyNodeSignatures() error {
 	}
 
 	// Verify the node signatures
-	for idx := 0; idx < len(l.Operators); idx++ {
+	for idx := range len(l.Operators) {
 		record, err := enr.Parse(l.Operators[idx].ENR)
 		if err != nil {
 			return errors.Wrap(err, "operator ENR")

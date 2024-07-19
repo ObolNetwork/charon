@@ -109,7 +109,7 @@ func RandomValidatorSet(t *testing.T, vals int) map[eth2p0.ValidatorIndex]*eth2v
 	t.Helper()
 
 	resp := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
-	for i := 0; i < vals; i++ {
+	for range vals {
 		val := RandomValidator(t)
 		resp[val.Index] = val
 	}
@@ -706,7 +706,7 @@ func RandomSyncCommittee(t *testing.T) *altair.SyncCommittee {
 	t.Helper()
 
 	var pubkeys []eth2p0.BLSPubKey
-	for i := 0; i < 512; i++ {
+	for range 512 {
 		pubkeys = append(pubkeys, RandomEth2PubKey(t))
 	}
 
@@ -1071,7 +1071,7 @@ func RandomArray32Seed(r *rand.Rand) [32]byte {
 func RandomBitList(length int) bitfield.Bitlist {
 	size := 256
 	resp := bitfield.NewBitlist(uint64(size))
-	for i := 0; i < length; i++ {
+	for range length {
 		resp.SetBitAt(uint64(rand.Intn(size)), true)
 	}
 
@@ -1272,7 +1272,7 @@ func RandomDepositMsg(t *testing.T) eth2p0.DepositMessage {
 type constReader byte
 
 func (c constReader) Read(buf []byte) (int, error) {
-	for i := 0; i < len(buf); i++ {
+	for i := range len(buf) {
 		buf[i] = byte(c)
 	}
 

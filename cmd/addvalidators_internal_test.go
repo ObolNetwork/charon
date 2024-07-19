@@ -111,7 +111,7 @@ func TestRunAddValidators(t *testing.T) {
 	)
 
 	var nodeDirnames []string
-	for i := 0; i < n; i++ {
+	for i := range n {
 		nodeDirnames = append(nodeDirnames, fmt.Sprintf("node%d", i))
 	}
 
@@ -192,7 +192,7 @@ func TestRunAddValidators(t *testing.T) {
 		// Delete existing deposit data file in each node directory since the deposit file names are same
 		// when add validators command is run twice consecutively. This is because the test finishes in
 		// milliseconds and filenames are named YYYYMMDDHHMMSS which doesn't account for milliseconds.
-		for i := 0; i < n; i++ {
+		for i := range n {
 			entries, err := os.ReadDir(nodeDir(tmp, i))
 			require.NoError(t, err)
 			for _, e := range entries {
@@ -235,7 +235,7 @@ func TestValidateP2PKeysOrder(t *testing.T) {
 			ops     []*manifestpb.Operator
 		)
 
-		for i := 0; i < n; i++ {
+		for i := range n {
 			key, enrStr := testutil.RandomENR(t, seed+i)
 			p2pKeys = append(p2pKeys, key)
 			ops = append(ops, &manifestpb.Operator{Enr: enrStr.String()})
@@ -257,7 +257,7 @@ func TestValidateP2PKeysOrder(t *testing.T) {
 			ops     []*manifestpb.Operator
 		)
 
-		for i := 0; i < n; i++ {
+		for i := range n {
 			key, enrStr := testutil.RandomENR(t, seed+i)
 			p2pKeys = append(p2pKeys, key)
 			ops = append(ops, &manifestpb.Operator{Enr: enrStr.String()})

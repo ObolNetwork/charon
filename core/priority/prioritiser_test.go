@@ -41,7 +41,7 @@ func TestPrioritiser(t *testing.T) {
 	)
 
 	// Create libp2p tcp nodes.
-	for i := 0; i < n; i++ {
+	for range n {
 		tcpNode := testutil.CreateHost(t, testutil.AvailableAddr(t))
 		for _, other := range tcpNodes {
 			tcpNode.Peerstore().AddAddrs(other.ID(), other.Addrs(), peerstore.PermanentAddrTTL)
@@ -54,12 +54,12 @@ func TestPrioritiser(t *testing.T) {
 	}
 
 	// Create prioritisers
-	for i := 0; i < n; i++ {
+	for i := range n {
 		tcpNode := tcpNodes[i]
 
 		// Propose 0:[0], 1:[0,1], 2:[0,1,2] - expect [0]
 		var priorities []*anypb.Any
-		for j := 0; j <= i; j++ {
+		for j := range i + 1 {
 			priorities = append(priorities, prioToAny(j))
 		}
 
@@ -91,7 +91,7 @@ func TestPrioritiser(t *testing.T) {
 		}
 	}
 
-	for i := 0; i < n*len(duties); i++ {
+	for range n * len(duties) {
 		res := <-results
 		require.Len(t, res, 1)
 		require.EqualValues(t, n*1000, res[0].Score)

@@ -268,7 +268,7 @@ func TestSchedulerDuties(t *testing.T) {
 
 			// Add deadlines to results
 			deadlines := delayer.get()
-			for i := 0; i < len(results); i++ {
+			for i := range len(results) {
 				results[i].Time = deadlines[results[i].Duty].UTC().Format("04:05.000")
 			}
 			// Make result order deterministic

@@ -15,7 +15,7 @@ import (
 
 func TestBackwardsENR(t *testing.T) {
 	random := rand.New(rand.NewSource(time.Now().Unix()))
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		k, err := ecdsa.GenerateKey(k1.S256(), random)
 		require.NoError(t, err)
 

@@ -116,7 +116,7 @@ func TestShutdown(t *testing.T) {
 	done := make(chan struct{})
 
 	// Start 3 long-running functions
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		go retryer.DoAsync(ctx, core.NewProposerDuty(999999), "test", "test", func(ctx context.Context) error {
 			waiting <- struct{}{}
 			<-stop
@@ -127,7 +127,7 @@ func TestShutdown(t *testing.T) {
 	}
 
 	// Wait for functions to block
-	for i := 0; i < n; i++ {
+	for range n {
 		<-waiting
 	}
 

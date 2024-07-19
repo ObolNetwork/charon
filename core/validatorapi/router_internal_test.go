@@ -712,7 +712,7 @@ func TestRouter(t *testing.T) {
 			ProposerDutiesFunc: func(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error) {
 				// Returns ordered total number of duties for the epoch
 				var res []*eth2v1.ProposerDuty
-				for i := 0; i < total; i++ {
+				for i := range total {
 					res = append(res, &eth2v1.ProposerDuty{
 						ValidatorIndex: eth2p0.ValidatorIndex(i),
 						Slot:           eth2p0.Slot(int(opts.Epoch)*slotsPerEpoch + i),

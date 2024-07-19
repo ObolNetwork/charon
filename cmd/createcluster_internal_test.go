@@ -342,7 +342,7 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 			require.Equal(t, def.ConfigHash, lock.ConfigHash)
 			require.Equal(t, def.Creator, lock.Creator)
 
-			for i := 0; i < len(def.Operators); i++ {
+			for i := range len(def.Operators) {
 				// ENRs should be populated
 				require.NotEqual(t, lock.Operators[i].ENR, "")
 			}
@@ -390,7 +390,7 @@ func TestValidateDef(t *testing.T) {
 		Network:   "goerli",
 	}
 
-	for i := 0; i < conf.NumDVs; i++ {
+	for range conf.NumDVs {
 		conf.FeeRecipientAddrs = append(conf.FeeRecipientAddrs, testutil.RandomETHAddress())
 		conf.WithdrawalAddrs = append(conf.WithdrawalAddrs, zeroAddress)
 	}
@@ -511,7 +511,7 @@ func TestSplitKeys(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var keys []tbls.PrivateKey
-			for i := 0; i < test.numSplitKeys; i++ {
+			for range test.numSplitKeys {
 				secret, err := tbls.GenerateSecretKey()
 				require.NoError(t, err)
 
@@ -620,7 +620,7 @@ func TestKeymanager(t *testing.T) {
 
 	var addrs, authTokens []string
 	var servers []*httptest.Server
-	for i := 0; i < minNodes; i++ {
+	for i := range minNodes {
 		srv := httptest.NewServer(newKeymanagerHandler(ctx, t, i, results))
 		servers = append(servers, srv)
 		addrs = append(addrs, srv.URL)

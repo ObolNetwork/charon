@@ -77,7 +77,7 @@ func newVMockEth2Provider(conf Config, pubshares []eth2p0.BLSPubKey) func() (eth
 
 		// Try three times to reduce test startup issues.
 		var err error
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			var eth2Svc eth2client.Service
 			eth2Svc, err = eth2http.New(context.Background(),
 				eth2http.WithLogLevel(1),

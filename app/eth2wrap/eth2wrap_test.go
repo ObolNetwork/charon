@@ -246,7 +246,7 @@ func TestErrors(t *testing.T) {
 }
 
 func TestCtxCancel(t *testing.T) {
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		bmock, err := beaconmock.New()
@@ -392,7 +392,7 @@ func TestOnlyTimeout(t *testing.T) {
 	const n = 10
 	var wg sync.WaitGroup
 	wg.Add(n)
-	for i := 0; i < n; i++ {
+	for range n {
 		go func() {
 			testCtxCancel(t, time.Millisecond*10)
 			wg.Done()
@@ -444,7 +444,7 @@ func TestLazy(t *testing.T) {
 	enabled2.Store(true)
 
 	// Proxy2 is enabled, so this should succeed.
-	for i := 0; i < 5; i++ { // Do multiple request to make Proxy2 the "best".
+	for range 5 { // Do multiple request to make Proxy2 the "best".
 		_, err = eth2Cl.NodeSyncing(ctx, &eth2api.NodeSyncingOpts{})
 		require.NoError(t, err)
 	}

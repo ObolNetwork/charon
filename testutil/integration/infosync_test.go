@@ -44,7 +44,7 @@ func TestInfoSync(t *testing.T) {
 	tcpNodeCallback := testutil.NewTCPNodeCallback(t, priority.Protocols()...)
 
 	var eg errgroup.Group
-	for i := 0; i < n; i++ {
+	for i := range n {
 		conf := app.Config{
 			Log:              log.DefaultConfig(),
 			Feature:          featureset.DefaultConfig(),

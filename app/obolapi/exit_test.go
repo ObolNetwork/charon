@@ -72,7 +72,7 @@ func TestAPIFlow(t *testing.T) {
 	sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()
 	require.NoError(t, err)
 
-	for idx := 0; idx < len(shares); idx++ {
+	for idx := range len(shares) {
 		var exits []obolapi.ExitBlob
 
 		for _, shareSet := range shares[idx] {
@@ -163,7 +163,7 @@ func TestAPIFlowMissingSig(t *testing.T) {
 	sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()
 	require.NoError(t, err)
 
-	for idx := 0; idx < len(shares); idx++ {
+	for idx := range len(shares) {
 		var exits []obolapi.ExitBlob
 
 		for _, shareSet := range shares[idx] {

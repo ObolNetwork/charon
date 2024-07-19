@@ -268,7 +268,7 @@ func DedupAmounts(amounts []eth2p0.Gwei) []eth2p0.Gwei {
 func WriteClusterDepositDataFiles(depositDatas [][]eth2p0.DepositData, network string, clusterDir string, numNodes int) error {
 	// The loop across partial amounts (shall be unique)
 	for _, dd := range depositDatas {
-		for n := 0; n < numNodes; n++ {
+		for n := range numNodes {
 			nodeDir := path.Join(clusterDir, fmt.Sprintf("node%d", n))
 			if err := WriteDepositDataFile(dd, network, nodeDir); err != nil {
 				return err

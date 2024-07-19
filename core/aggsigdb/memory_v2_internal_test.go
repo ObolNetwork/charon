@@ -61,7 +61,7 @@ func TestCancelledQueryV2(t *testing.T) {
 	awaitAmt := 2
 
 	errStore := make([]error, awaitAmt)
-	for idx := 0; idx < awaitAmt; idx++ {
+	for idx := range awaitAmt {
 		go func() {
 			_, err := db.Await(qctx, duty, pubkey)
 			errStore[idx] = err

@@ -65,7 +65,7 @@ func TestMemDB(t *testing.T) {
 
 	// Kick of some queries, it should return when the data is populated.
 	awaitResponse := make(chan *eth2p0.AttestationData)
-	for i := 0; i < queries; i++ {
+	for range queries {
 		go func() {
 			data, err := db.AwaitAttestation(ctx, slot, commIdx)
 			require.NoError(t, err)
@@ -110,7 +110,7 @@ func TestMemDB(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get and assert the attQuery responses.
-	for i := 0; i < queries; i++ {
+	for range queries {
 		actual := <-awaitResponse
 		require.Equal(t, attData.String(), actual.String())
 	}
@@ -160,7 +160,7 @@ func TestMemDBProposer(t *testing.T) {
 		block *eth2api.VersionedProposal
 	}
 	var awaitResponse [queries]chan response
-	for i := 0; i < queries; i++ {
+	for i := range queries {
 		awaitResponse[i] = make(chan response)
 		go func(slot int) {
 			block, err := db.AwaitProposal(ctx, slots[slot])
@@ -171,7 +171,7 @@ func TestMemDBProposer(t *testing.T) {
 
 	proposals := make([]*eth2api.VersionedProposal, queries)
 	pubkeysByIdx := make(map[eth2p0.ValidatorIndex]core.PubKey)
-	for i := 0; i < queries; i++ {
+	for i := range queries {
 		proposals[i] = &eth2api.VersionedProposal{
 			Version:   eth2spec.DataVersionBellatrix,
 			Bellatrix: testutil.RandomBellatrixBeaconBlock(),
@@ -182,7 +182,7 @@ func TestMemDBProposer(t *testing.T) {
 	}
 
 	// Store the Blocks
-	for i := 0; i < queries; i++ {
+	for i := range queries {
 		unsigned, err := core.NewVersionedProposal(proposals[i])
 		require.NoError(t, err)
 
@@ -194,7 +194,7 @@ func TestMemDBProposer(t *testing.T) {
 	}
 
 	// Get and assert the proQuery responses
-	for i := 0; i < queries; i++ {
+	for i := range queries {
 		actualData := <-awaitResponse[i]
 		require.Equal(t, proposals[i], actualData.block)
 	}
@@ -206,7 +206,7 @@ func TestMemDBAggregator(t *testing.T) {
 
 	const queries = 3
 
-	for i := 0; i < queries; i++ {
+	for range queries {
 		agg := testutil.RandomAttestation()
 		set := core.UnsignedDataSet{
 			testutil.RandomCorePubKey(t): core.NewAggregatedAttestation(agg),
@@ -232,7 +232,7 @@ func TestMemDBSyncContribution(t *testing.T) {
 
 		const queries = 3
 
-		for i := 0; i < queries; i++ {
+		for range queries {
 			contrib := testutil.RandomSyncCommitteeContribution()
 			set := core.UnsignedDataSet{
 				testutil.RandomCorePubKey(t): core.NewSyncContribution(contrib),

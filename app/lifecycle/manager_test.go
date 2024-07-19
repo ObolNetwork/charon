@@ -107,7 +107,7 @@ func TestManager(t *testing.T) {
 
 			// Wait for the hooks to be called.
 			var calls []string
-			for i := 0; i < len(test.Hooks); i++ {
+			for i := range len(test.Hooks) {
 				if i == starts {
 					// Cancel application context after the starts hooks.
 					cancel()

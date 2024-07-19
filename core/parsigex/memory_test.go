@@ -27,7 +27,7 @@ func TestMemEx(t *testing.T) {
 	var received []tuple
 
 	var exes []core.ParSigEx
-	for i := 0; i < n; i++ {
+	for i := range n {
 		ex := memExFunc()
 		ex.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 			require.NotEqual(t, i, set[pubkey].ShareIdx, "received from self")
@@ -42,7 +42,7 @@ func TestMemEx(t *testing.T) {
 		exes = append(exes, ex)
 	}
 
-	for i := 0; i < n; i++ {
+	for i := range n {
 		set := make(core.ParSignedDataSet)
 		set[pubkey] = core.ParSignedData{
 			SignedData: nil,

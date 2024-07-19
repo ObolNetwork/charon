@@ -896,7 +896,7 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 	duties := eth2Resp.Data
 
 	// Replace root public keys with public shares
-	for i := 0; i < len(duties); i++ {
+	for i := range len(duties) {
 		if duties[i] == nil {
 			return nil, errors.New("proposer duty cannot be nil")
 		}
@@ -920,7 +920,7 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 	duties := eth2Resp.Data
 
 	// Replace root public keys with public shares.
-	for i := 0; i < len(duties); i++ {
+	for i := range len(duties) {
 		if duties[i] == nil {
 			return nil, errors.New("attester duty cannot be nil")
 		}
@@ -944,7 +944,7 @@ func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCo
 	duties := eth2Resp.Data
 
 	// Replace root public keys with public shares.
-	for i := 0; i < len(duties); i++ {
+	for i := range len(duties) {
 		if duties[i] == nil {
 			return nil, errors.New("sync committee duty cannot be nil")
 		}

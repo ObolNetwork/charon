@@ -49,7 +49,7 @@ func TestInvalidSignatures(t *testing.T) {
 
 	getSigs := func(msg []byte) []core.ParSignedData {
 		var sigs []core.ParSignedData
-		for i := 0; i < n-1; i++ {
+		for i := range n - 1 {
 			sig, err := tbls.Sign(secretShares[i+1], msg)
 			require.NoError(t, err)
 
@@ -117,7 +117,7 @@ func TestValidSignatures(t *testing.T) {
 
 	getSigs := func(msg []byte) []core.ParSignedData {
 		var sigs []core.ParSignedData
-		for i := 0; i < n-1; i++ {
+		for i := range n - 1 {
 			pk := secretShares[i+1]
 			sig, err := tbls.Sign(pk, msg)
 			require.NoError(t, err)

@@ -61,7 +61,7 @@ func TestDeadliner(t *testing.T) {
 	clock.Advance(time.Duration(maxSlot) * time.Second)
 
 	var actualDuties []core.Duty
-	for i := 0; i < len(nonExpiredDuties); i++ {
+	for range len(nonExpiredDuties) {
 		actualDuties = append(actualDuties, <-deadliner.C())
 	}
 

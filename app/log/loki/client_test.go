@@ -59,11 +59,11 @@ func TestLoki(t *testing.T) {
 
 	go cl.Run()
 
-	for i := 0; i < n; i++ {
+	for i := range n {
 		cl.Add(fmt.Sprint(i))
 	}
 
-	for i := 0; i < n; i++ {
+	for i := range n {
 		require.Equal(t, fmt.Sprint(i), <-received)
 	}
 
@@ -124,7 +124,7 @@ func TestLongLines(t *testing.T) {
 
 	cl.Add(normal)
 
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		cl.Add(huge)
 	}
 

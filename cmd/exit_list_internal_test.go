@@ -42,7 +42,7 @@ func Test_runListActiveVals(t *testing.T) {
 
 	operatorShares := make([][]tbls.PrivateKey, operatorAmt)
 
-	for opIdx := 0; opIdx < operatorAmt; opIdx++ {
+	for opIdx := range operatorAmt {
 		for _, share := range keyShares {
 			operatorShares[opIdx] = append(operatorShares[opIdx], share[opIdx])
 		}
@@ -108,7 +108,7 @@ func Test_listActiveVals(t *testing.T) {
 
 	operatorShares := make([][]tbls.PrivateKey, operatorAmt)
 
-	for opIdx := 0; opIdx < operatorAmt; opIdx++ {
+	for opIdx := range operatorAmt {
 		for _, share := range keyShares {
 			operatorShares[opIdx] = append(operatorShares[opIdx], share[opIdx])
 		}

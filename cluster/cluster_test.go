@@ -56,7 +56,7 @@ func TestEncode(t *testing.T) {
 			}
 
 			var feeRecipientAddrs, withdrawalAddrs []string
-			for i := 0; i < numVals; i++ {
+			for range numVals {
 				feeRecipientAddrs = append(feeRecipientAddrs, testutil.RandomETHAddressSeed(r))
 				withdrawalAddrs = append(withdrawalAddrs, testutil.RandomETHAddressSeed(r))
 			}

@@ -62,9 +62,9 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 	secrets := make([][]tbls.PrivateKey, len(lock.Definition.Operators))
 
 	// populate key sets
-	for enrIdx := 0; enrIdx < len(lock.Definition.Operators); enrIdx++ {
+	for enrIdx := range len(lock.Definition.Operators) {
 		keyIdx := enrIdx
-		for dvIdx := 0; dvIdx < lock.NumValidators; dvIdx++ {
+		for range lock.NumValidators {
 			secrets[enrIdx] = append(secrets[enrIdx], rawSecrets[keyIdx])
 			keyIdx += len(lock.Definition.Operators)
 		}
@@ -300,9 +300,9 @@ func combineTest(
 	secrets := make([][]tbls.PrivateKey, len(lock.Definition.Operators))
 
 	// populate key sets
-	for enrIdx := 0; enrIdx < len(lock.Definition.Operators); enrIdx++ {
+	for enrIdx := range len(lock.Definition.Operators) {
 		keyIdx := enrIdx
-		for dvIdx := 0; dvIdx < lock.NumValidators; dvIdx++ {
+		for range lock.NumValidators {
 			secrets[enrIdx] = append(secrets[enrIdx], rawSecrets[keyIdx])
 			keyIdx += len(lock.Definition.Operators)
 		}
@@ -415,9 +415,9 @@ func runTwice(t *testing.T, force bool, processErr require.ErrorAssertionFunc) {
 	secrets := make([][]tbls.PrivateKey, len(lock.Definition.Operators))
 
 	// populate key sets
-	for enrIdx := 0; enrIdx < len(lock.Definition.Operators); enrIdx++ {
+	for enrIdx := range len(lock.Definition.Operators) {
 		keyIdx := enrIdx
-		for dvIdx := 0; dvIdx < lock.NumValidators; dvIdx++ {
+		for range lock.NumValidators {
 			secrets[enrIdx] = append(secrets[enrIdx], rawSecrets[keyIdx])
 			keyIdx += len(lock.Definition.Operators)
 		}

@@ -137,7 +137,7 @@ func (ts *TestSuite) Test_VerifyAggregate() {
 
 	var keys []key
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		secret, err := tbls.GenerateSecretKey()
 		require.NoError(ts.T(), err)
 		require.NotEmpty(ts.T(), secret)
@@ -187,7 +187,7 @@ func runBenchmark(b *testing.B, impl tbls.Implementation) {
 
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		// NOTE: we can't run suite.Run() here because testify doesn't allow us to pass testing.B in place of
 		// testing.T.
 		// So we're manually listing all the interface's methods here.

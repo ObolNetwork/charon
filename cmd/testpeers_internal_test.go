@@ -329,7 +329,7 @@ func testWriteOut(t *testing.T, expectedRes testCategoryResult, buf bytes.Buffer
 	nTargets := len(maps.Keys(expectedRes.Targets))
 	require.Len(t, bufTests, len(slices.Concat(maps.Values(expectedRes.Targets)...))+nTargets*2)
 
-	for i := 0; i < nTargets; i++ {
+	for range nTargets {
 		bufTests = bufTests[1:]
 		target := strings.Trim(bufTests[0], " ")
 		bufTests = bufTests[1:]

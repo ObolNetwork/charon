@@ -124,7 +124,7 @@ func TestLongWaitDKG(t *testing.T) {
 
 		if currIdx == numNodes-1 {
 			// Notify all nodes that everyone has started.
-			for i := 0; i < numNodes; i++ {
+			for range numNodes {
 				allNodesStarted <- struct{}{}
 			}
 
@@ -133,7 +133,7 @@ func TestLongWaitDKG(t *testing.T) {
 
 		// Notify already running nodes that a new window has started.
 		// Note that currIdx+1 nodes are running by now.
-		for i := 0; i <= currIdx; i++ {
+		for range currIdx + 1 {
 			newWindowStarted <- struct{}{}
 		}
 
@@ -297,7 +297,7 @@ func TestDKGWithHighValidatorsAmt(t *testing.T) {
 
 	dir := t.TempDir()
 
-	for idx := 0; idx < numNodes; idx++ {
+	for idx := range numNodes {
 		eg.Go(func() error {
 			conf := dkgConf
 			conf.DataDir = path.Join(dir, fmt.Sprintf("node%d", idx))

@@ -84,7 +84,7 @@ func TestForkJoin(t *testing.T) {
 			defer cancel()
 
 			var allOutput []int
-			for i := 0; i < n; i++ {
+			for i := range n {
 				fork(i)
 				allOutput = append(allOutput, i)
 			}

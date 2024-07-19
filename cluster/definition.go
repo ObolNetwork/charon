@@ -49,7 +49,7 @@ func WithDKGAlgorithm(algorithm string) func(*Definition) {
 func WithLegacyVAddrs(feeRecipientAddress, withdrawalAddress string) func(*Definition) {
 	return func(d *Definition) {
 		var vAddrs []ValidatorAddresses
-		for i := 0; i < d.NumValidators; i++ {
+		for range d.NumValidators {
 			vAddrs = append(vAddrs, ValidatorAddresses{
 				FeeRecipientAddress: feeRecipientAddress,
 				WithdrawalAddress:   withdrawalAddress,
@@ -86,7 +86,7 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddresse
 		DepositAmounts: deposit.EthsToGweis(depositAmounts),
 	}
 
-	for i := 0; i < numVals; i++ {
+	for i := range numVals {
 		def.ValidatorAddresses = append(def.ValidatorAddresses, ValidatorAddresses{
 			FeeRecipientAddress: feeRecipientAddresses[i],
 			WithdrawalAddress:   withdrawalAddresses[i],
@@ -938,7 +938,7 @@ func validatorAddressesFromJSON(vaddrs []validatorAddressesJSON) []ValidatorAddr
 // repeatVAddrs returns a slice of n identical ValidatorAddresses.
 func repeatVAddrs(addr ValidatorAddresses, n int) []ValidatorAddresses {
 	var resp []ValidatorAddresses
-	for i := 0; i < n; i++ {
+	for range n {
 		resp = append(resp, addr)
 	}
 

@@ -41,7 +41,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, random *rand.Rand, opts ...func(*
 	}
 
 	var feeRecipientAddrs, withdrawalAddrs []string
-	for i := 0; i < dv; i++ {
+	for range dv {
 		rootSecret, err := tbls.GenerateInsecureKey(t, randomReader)
 		require.NoError(t, err)
 
@@ -53,7 +53,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, random *rand.Rand, opts ...func(*
 
 		var pubshares [][]byte
 		var privshares []tbls.PrivateKey
-		for i := 0; i < n; i++ {
+		for i := range n {
 			sharePrivkey := shares[i+1] // Share indexes are 1-indexed.
 
 			sharePub, err := tbls.SecretToPublicKey(sharePrivkey)
@@ -91,7 +91,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, random *rand.Rand, opts ...func(*
 		withdrawalAddrs = append(withdrawalAddrs, testutil.RandomETHAddressSeed(random))
 	}
 
-	for i := 0; i < n; i++ {
+	for i := range n {
 		// Generate ENR
 		p2pKey := testutil.GenerateInsecureK1Key(t, seed+i)
 
@@ -121,7 +121,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, random *rand.Rand, opts ...func(*
 
 	// Definition version prior to v1.3.0 don't support EIP712 signatures.
 	if supportEIP712Sigs(def.Version) {
-		for i := 0; i < n; i++ {
+		for i := range n {
 			def.Operators[i], err = signOperator(p2pKeys[i], def, def.Operators[i])
 			require.NoError(t, err)
 		}

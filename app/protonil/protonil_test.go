@@ -156,7 +156,7 @@ func TestFuzz(t *testing.T) {
 
 func BenchmarkCheck(b *testing.B) {
 	fuzzer := fuzz.New()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		b.StopTimer()
 		m1 := new(v1.M1)
 		fuzzer.Fuzz(m1)

@@ -23,7 +23,7 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 		nodes []TmplNode
 		vcs   []TmplVC
 	)
-	for i := 0; i < conf.NumNodes; i++ {
+	for i := range conf.NumNodes {
 		typ := conf.VCs[i%len(conf.VCs)]
 		vc, err := getVC(typ, i, conf.NumValidators, conf.InsecureKeys, conf.BuilderAPI)
 		if err != nil {
@@ -101,7 +101,7 @@ func getVC(typ VCType, nodeIdx int, numVals int, insecure, builderAPI bool) (Tmp
 	resp := vcByType[typ]
 	if typ == VCTeku {
 		var keys []string
-		for i := 0; i < numVals; i++ {
+		for i := range numVals {
 			if insecure {
 				keys = append(keys, fmt.Sprintf("/compose/node%d/validator_keys/keystore-insecure-%d.json:/compose/node%d/validator_keys/keystore-insecure-%d.txt", nodeIdx, i, nodeIdx, i))
 			} else {

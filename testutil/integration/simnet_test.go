@@ -139,7 +139,7 @@ func TestSimnetDuties(t *testing.T) {
 			args.VoluntaryExit = test.exit
 
 			if test.vcType == vcTeku {
-				for i := 0; i < args.N; i++ {
+				for i := range args.N {
 					args = startTeku(t, args, i)
 				}
 			} else if test.vcType == vcVmock {
@@ -201,7 +201,7 @@ func newSimnetArgs(t *testing.T) simnetArgs {
 	secrets := secretShares[0]
 
 	var vapiAddrs []string
-	for i := 0; i < n; i++ {
+	for range n {
 		vapiAddrs = append(vapiAddrs, testutil.AvailableAddr(t).String())
 	}
 
@@ -297,7 +297,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 		eg      errgroup.Group
 		results = make(chan simResult)
 	)
-	for i := 0; i < args.N; i++ {
+	for i := range args.N {
 		peerIdx := i
 		conf := app.Config{
 			Log:              log.DefaultConfig(),

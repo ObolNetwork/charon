@@ -275,7 +275,7 @@ func writeDepositDatas(ctx context.Context, clusterDir string, numOps int, secre
 
 	currTime := time.Now().Format("20060102150405")
 	filename := fmt.Sprintf("deposit-data-%s.json", currTime) // Ex: "deposit-data-20060102150405.json"
-	for i := 0; i < numOps; i++ {
+	for i := range numOps {
 		depositPath := filepath.Join(nodeDir(clusterDir, i), filename)
 		//nolint:gosec // File needs to be read-only for everybody
 		err = os.WriteFile(depositPath, bytes, 0o444)
@@ -300,7 +300,7 @@ func writeNewKeystores(clusterDir string, numOps, firstKeystoreIdx int, shareSet
 		}
 	}
 
-	for i := 0; i < numOps; i++ {
+	for i := range numOps {
 		var secrets []tbls.PrivateKey // All partial keys for node<i>
 		for _, shares := range shareSets {
 			secrets = append(secrets, shares[i])
@@ -392,7 +392,7 @@ func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsCon
 		shareSets [][]tbls.PrivateKey
 	)
 
-	for i := 0; i < conf.NumVals; i++ {
+	for i := range conf.NumVals {
 		// Generate private/public keypair
 		secret, err := tbls.GenerateSecretKey()
 		if err != nil {
@@ -491,7 +491,7 @@ func getP2PKeys(clusterDir string, numOps int, testConfig addValidatorTestConfig
 	}
 
 	var p2pKeys []*k1.PrivateKey
-	for i := 0; i < numOps; i++ {
+	for i := range numOps {
 		dir := path.Join(clusterDir, fmt.Sprintf("node%d", i))
 		enrKeyFile := path.Join(dir, "charon-enr-private-key")
 		p2pKey, err := k1util.Load(enrKeyFile)
@@ -533,7 +533,7 @@ func validateP2PKeysOrder(p2pKeys []*k1.PrivateKey, ops []*manifestpb.Operator) 
 // repeatAddr repeats the same address for all the validators.
 func repeatAddr(addr string, numVals int) []string {
 	var addrs []string
-	for i := 0; i < numVals; i++ {
+	for range numVals {
 		addrs = append(addrs, addr)
 	}
 

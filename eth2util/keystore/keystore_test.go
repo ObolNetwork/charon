@@ -28,7 +28,7 @@ func TestStoreLoad(t *testing.T) {
 	dir := t.TempDir()
 
 	var secrets []tbls.PrivateKey
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		secret, err := tbls.GenerateSecretKey()
 		require.NoError(t, err)
 
@@ -61,7 +61,7 @@ func TestStoreLoadNonCharonNames(t *testing.T) {
 
 	expect := make(map[tbls.PrivateKey]bool)
 	var secrets []tbls.PrivateKey
-	for i := 0; i < len(filenames); i++ {
+	for range len(filenames) {
 		secret, err := tbls.GenerateSecretKey()
 		require.NoError(t, err)
 
@@ -73,7 +73,7 @@ func TestStoreLoadNonCharonNames(t *testing.T) {
 	require.NoError(t, err)
 
 	// rename according to filenames slice
-	for idx := 0; idx < len(filenames); idx++ {
+	for idx := range len(filenames) {
 		oldPath := filepath.Join(dir, fmt.Sprintf("keystore-insecure-%d.json", idx))
 		newPath := filepath.Join(dir, fmt.Sprintf("%s.json", filenames[idx]))
 		require.NoError(t, os.Rename(oldPath, newPath))
@@ -97,7 +97,7 @@ func TestStoreLoadKeysAll(t *testing.T) {
 	dir := t.TempDir()
 
 	var secrets []tbls.PrivateKey
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		secret, err := tbls.GenerateSecretKey()
 		require.NoError(t, err)
 
@@ -120,7 +120,7 @@ func TestStoreLoadKeysAllNonSequentialIdx(t *testing.T) {
 	dir := t.TempDir()
 
 	var secrets []tbls.PrivateKey
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		secret, err := tbls.GenerateSecretKey()
 		require.NoError(t, err)
 
@@ -161,7 +161,7 @@ func TestStoreLoadSequentialNonCharonNames(t *testing.T) {
 
 	var secrets []tbls.PrivateKey
 
-	for i := 0; i < len(filenames); i++ {
+	for range len(filenames) {
 		secret, err := tbls.GenerateSecretKey()
 		require.NoError(t, err)
 
@@ -172,7 +172,7 @@ func TestStoreLoadSequentialNonCharonNames(t *testing.T) {
 	require.NoError(t, err)
 
 	// rename according to filenames slice
-	for idx := 0; idx < len(filenames); idx++ {
+	for idx := range len(filenames) {
 		oldPath := filepath.Join(dir, fmt.Sprintf("keystore-insecure-%d.json", idx))
 		newPath := filepath.Join(dir, fmt.Sprintf("%s.json", filenames[idx]))
 		require.NoError(t, os.Rename(oldPath, newPath))
@@ -320,7 +320,7 @@ func TestKeyshareToValidatorPubkey(t *testing.T) {
 
 	cl := &manifestpb.Cluster{}
 
-	for valIdx := 0; valIdx < valAmt; valIdx++ {
+	for valIdx := range valAmt {
 		valPubk, err := tblsconv.PubkeyFromCore(testutil.RandomCorePubKey(t))
 		require.NoError(t, err)
 
@@ -329,7 +329,7 @@ func TestKeyshareToValidatorPubkey(t *testing.T) {
 		}
 
 		randomShareSelected := false
-		for shareIdx := 0; shareIdx < sharesAmt; shareIdx++ {
+		for range sharesAmt {
 			sharePriv, err := tbls.GenerateSecretKey()
 			require.NoError(t, err)
 

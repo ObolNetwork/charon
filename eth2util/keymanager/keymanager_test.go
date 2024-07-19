@@ -31,7 +31,7 @@ func TestImportKeystores(t *testing.T) {
 		secrets    []tbls.PrivateKey
 	)
 
-	for i := 0; i < numSecrets; i++ {
+	for range numSecrets {
 		secret, err := tbls.GenerateSecretKey()
 		require.NoError(t, err)
 		secrets = append(secrets, secret)
@@ -71,7 +71,7 @@ func TestImportKeystores(t *testing.T) {
 			require.Equal(t, len(req.Keystores), len(req.Passwords))
 			require.Equal(t, len(req.Keystores), numSecrets)
 
-			for i := 0; i < numSecrets; i++ {
+			for i := range numSecrets {
 				var ks noopKeystore
 				require.NoError(t, json.Unmarshal([]byte(req.Keystores[i]), &ks))
 				secret, err := decrypt(t, ks, req.Passwords[i])

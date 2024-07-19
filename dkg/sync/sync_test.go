@@ -23,7 +23,7 @@ import (
 
 func TestSyncProtocol(t *testing.T) {
 	versions := make(map[int]version.SemVer)
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		versions[i] = version.Version
 	}
 
@@ -74,7 +74,7 @@ func testCluster(t *testing.T, n int, versions map[int]version.SemVer, expectErr
 		clients  []*sync.Client
 		keys     []libp2pcrypto.PrivKey
 	)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		tcpNode, key := newTCPNode(t, int64(i))
 		tcpNodes = append(tcpNodes, tcpNode)
 		keys = append(keys, key)
@@ -83,8 +83,8 @@ func testCluster(t *testing.T, n int, versions map[int]version.SemVer, expectErr
 		servers = append(servers, server)
 	}
 
-	for i := 0; i < n; i++ {
-		for j := 0; j < n; j++ {
+	for i := range n {
+		for j := range n {
 			if i == j {
 				continue
 			}
@@ -132,7 +132,7 @@ func testCluster(t *testing.T, n int, versions map[int]version.SemVer, expectErr
 		return
 	}
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		assertAllAtStep(ctx, t, servers, i)
 
 		for _, client := range clients {
