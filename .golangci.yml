@@ -25,7 +25,8 @@ linters-settings:
       - 'fmt\.Print.*(# Avoid debug logging)?'
       - 'fmt\.Errorf.*(# Prefer app/errors.Wrap)?'
   gci:
-    local-prefixes: github.com/obolnetwork/charon
+    sections:
+      - prefix(github.com/obolnetwork/charon)
   gocritic:
     disabled-checks:
       - ifElseChain
@@ -101,7 +102,6 @@ linters-settings:
          - "github.com/gogo/protobuf/proto" # Prefer google.golang.org/protobuf
          - "github.com/prometheus/client_golang/prometheus/promauto" # Prefer ./app/promauto
   staticcheck:
-    go: "1.22.5"
     checks:
      - "all"
      - "-SA1019" # Ignoring since github.com/drand/kyber/sign/bls uses Proof Of Possession as does Ethereum.
@@ -119,6 +119,8 @@ linters-settings:
 
 issues:
   fix: true
+  max-same-issues: 0
+  max-issues-per-linter: 0
   exclude-rules:
     - path: '(.+)_test\.go'
       linters:
@@ -146,7 +148,6 @@ linters:
     - containedctx
     - contextcheck
     - cyclop
-    - exhaustivestruct
     - exhaustruct
     - exportloopref # It is not an issue for go versions >=1.22
     - funlen
@@ -158,29 +159,30 @@ linters:
     - godot
     - godox
     - goerr113
-    - golint
     - gomnd
     - gomoddirectives
-    - ifshort
     - inamedparam
     - interfacebloat
-    - interfacer
     - ireturn
     - lll # Think about adding this (max line length)
     - maintidx
-    - maligned
     - mnd
     - musttag
     - nestif
     - nonamedreturns
     - paralleltest
     - prealloc
-    - scopelint
     - tagliatelle
     - varnamelen
     - wsl
     # Deprecated
+    - deadcode
+    - exhaustivestruct
+    - golint
+    - ifshort
+    - interfacer
+    - maligned
     - nosnakecase
     - structcheck
+    - scopelint
     - varcheck
-    - deadcode
