@@ -106,7 +106,7 @@ func queryRatedAPI(ctx context.Context, url *url.URL, ratedAuth string, network 
 			backoff()
 
 			continue
-		} else if res.StatusCode/100 != 2 {
+		} else if res.StatusCode/100 != 2 { //nolint:usestdlibvars // we should not replace 100 with http.StatusContinue, it makes it less readable
 			incRatedErrors(res.StatusCode)
 
 			return nil, errors.New("not ok http response", z.Str("body", string(body)))

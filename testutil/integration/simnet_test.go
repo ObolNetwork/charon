@@ -390,6 +390,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 				cancel()
 				close(routineResCh)
 				close(errCh)
+
 				return
 			}
 		}
