@@ -55,7 +55,7 @@ func TestGenValidators(t *testing.T) {
 		cluster, err := manifest.Transform(new(manifestpb.Cluster), signed)
 		require.NoError(t, err)
 
-		testutil.RequireProtosEqual(t, vals, cluster.Validators)
+		testutil.RequireProtosEqual(t, vals, cluster.GetValidators())
 	})
 
 	t.Run("proto", func(t *testing.T) {
@@ -122,6 +122,6 @@ func TestAddValidators(t *testing.T) {
 		cluster, err = manifest.Transform(cluster, addVals)
 		require.NoError(t, err)
 
-		testutil.RequireProtosEqual(t, vals, cluster.Validators)
+		testutil.RequireProtosEqual(t, vals, cluster.GetValidators())
 	})
 }

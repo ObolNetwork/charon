@@ -30,7 +30,6 @@ import (
 
 //go:generate go test . -run=TestPeersTest -update
 
-//nolint:dupl // code is marked as duplicate currently, as we are testing the same test skeleton, ignore for now
 func TestPeersTest(t *testing.T) {
 	peer1PrivKey := base64ToPrivKey(t, "GCc1IKup3kKVxSd9iSu8iX5hc37coxAXasYpGFd/cwo=")
 	peer2PrivKey := base64ToPrivKey(t, "9PhpdrWEDJugHgoXhpbk2KqR4Gj5QZP/YNxNeJ3Q2+A=")

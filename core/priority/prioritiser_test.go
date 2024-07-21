@@ -68,14 +68,14 @@ func TestPrioritiser(t *testing.T) {
 			consensus, msgValidator, time.Hour, deadliner)
 
 		prio.Subscribe(func(_ context.Context, duty core.Duty, result *pbv1.PriorityResult) error {
-			require.Len(t, result.Topics, 1)
+			require.Len(t, result.GetTopics(), 1)
 
-			resTopic, err := result.Topics[0].Topic.UnmarshalNew()
+			resTopic, err := result.GetTopics()[0].GetTopic().UnmarshalNew()
 			require.NoError(t, err)
 
 			requireAnyDuty(t, duties, duty)
 			requireProtoEqual(t, topic, resTopic)
-			results <- result.Topics[0].Priorities
+			results <- result.GetTopics()[0].GetPriorities()
 
 			return nil
 		})
@@ -91,14 +91,13 @@ func TestPrioritiser(t *testing.T) {
 				errCh <- err
 			}()
 		}
-
 	}
 
 	for range n * len(duties) {
 		res := <-results
 		require.Len(t, res, 1)
-		require.EqualValues(t, n*1000, res[0].Score)
-		requireProtoEqual(t, prioToAny(0), res[0].Priority)
+		require.EqualValues(t, n*1000, res[0].GetScore())
+		requireProtoEqual(t, prioToAny(0), res[0].GetPriority())
 	}
 
 	cancel()
@@ -123,8 +122,8 @@ func (t *testConsensus) ProposePriority(ctx context.Context, duty core.Duty, res
 	defer t.mu.Unlock()
 
 	if t.proposed[duty.Slot] != nil {
-		prev := mustResultsToText(t.proposed[duty.Slot].Topics)
-		this := mustResultsToText(result.Topics)
+		prev := mustResultsToText(t.proposed[duty.Slot].GetTopics())
+		this := mustResultsToText(result.GetTopics())
 		require.Equal(t.t, prev, this)
 
 		return nil

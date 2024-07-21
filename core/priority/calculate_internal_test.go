@@ -179,27 +179,27 @@ func TestCalculateResults(t *testing.T) {
 
 			result, err := calculateResult(msgs, Q)
 			require.NoError(t, err)
-			require.Len(t, result.Topics, 2)
+			require.Len(t, result.GetTopics(), 2)
 
 			var topicResult *pbv1.PriorityTopicResult
-			for _, result := range result.Topics {
-				if proto.Equal(result.Topic, topic) {
+			for _, result := range result.GetTopics() {
+				if proto.Equal(result.GetTopic(), topic) {
 					topicResult = result
 				}
 			}
 			if len(test.Result) > 0 {
 				var actualResult []string
 				var actualScores []int64
-				for _, prio := range topicResult.Priorities {
-					actualResult = append(actualResult, fromAny(prio.Priority))
-					actualScores = append(actualScores, prio.Score)
+				for _, prio := range topicResult.GetPriorities() {
+					actualResult = append(actualResult, fromAny(prio.GetPriority()))
+					actualScores = append(actualScores, prio.GetScore())
 				}
 				require.Equal(t, test.Result, actualResult)
 				if len(test.Scores) != 0 {
 					require.Equal(t, test.Scores, actualScores)
 				}
 			} else {
-				require.Empty(t, result.Topics[0].Priorities)
+				require.Empty(t, result.GetTopics()[0].GetPriorities())
 			}
 		})
 	}
@@ -237,5 +237,5 @@ func fromAny(a *anypb.Any) string {
 		panic(err)
 	}
 
-	return string(pb.(*pbv1.ParSignedData).Data)
+	return string(pb.(*pbv1.ParSignedData).GetData())
 }

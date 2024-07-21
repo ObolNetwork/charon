@@ -195,7 +195,7 @@ func getPeerInfo(ctx context.Context, tcpNode host.Host, pID peer.ID, name strin
 		return unknownCluster, true, nil
 	}
 
-	clusterHash := hex7(info.LockHash)
+	clusterHash := hex7(info.GetLockHash())
 	peerPingLatency.WithLabelValues(name, clusterHash).Observe(rtt.Seconds() / 2)
 
 	return clusterHash, true, nil

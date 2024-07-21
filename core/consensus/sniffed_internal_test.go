@@ -36,23 +36,23 @@ func TestSniffedFile(t *testing.T) {
 	instances := parseSniffedFile(t, *sniffedFile)
 
 	log.Info(ctx, "Parsed sniffed file",
-		z.Int("instances", len(instances.Instances)),
-		z.Str("git_hash", instances.GitHash),
+		z.Int("instances", len(instances.GetInstances())),
+		z.Str("git_hash", instances.GetGitHash()),
 	)
 
-	for i, instance := range instances.Instances {
+	for i, instance := range instances.GetInstances() {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			if len(instance.Msgs) == 0 {
+			if len(instance.GetMsgs()) == 0 {
 				log.Error(ctx, "No messages in instance", nil, z.Int("i", i))
 				return
 			}
 
-			duty := core.DutyFromProto(instance.Msgs[0].Msg.Msg.Duty)
+			duty := core.DutyFromProto(instance.GetMsgs()[0].GetMsg().GetMsg().GetDuty())
 			ctx := log.WithCtx(ctx, z.Any("duty", duty))
 
 			log.Info(ctx, "Simulating sniffed consensus",
-				z.Int("nodes", int(instance.Nodes)),
-				z.Int("msgs", len(instance.Msgs)),
+				z.Int("nodes", int(instance.GetNodes())),
+				z.Int("msgs", len(instance.GetMsgs())),
 				z.Int("i", i))
 
 			testSniffedInstance(ctx, t, instance)
@@ -68,7 +68,7 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 
 	var expectDecided bool
 
-	def := newDefinition(int(instance.Nodes), func() []subscriber {
+	def := newDefinition(int(instance.GetNodes()), func() []subscriber {
 		return []subscriber{func(ctx context.Context, duty core.Duty, value proto.Message) error {
 			log.Info(ctx, "Consensus decided", z.Any("value", value))
 			expectDecided = true
@@ -78,20 +78,20 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 		}}
 	}, newIncreasingRoundTimer(), func(qcommit []qbft.Msg[core.Duty, [32]byte]) {})
 
-	recvBuffer := make(chan qbft.Msg[core.Duty, [32]byte], len(instance.Msgs))
+	recvBuffer := make(chan qbft.Msg[core.Duty, [32]byte], len(instance.GetMsgs()))
 
 	var duty core.Duty
-	for _, msg := range instance.Msgs {
-		if qbft.MsgType(msg.Msg.Msg.Type) == qbft.MsgDecided {
+	for _, msg := range instance.GetMsgs() {
+		if qbft.MsgType(msg.GetMsg().GetMsg().GetType()) == qbft.MsgDecided {
 			expectDecided = true
 		}
 
-		duty = core.DutyFromProto(msg.Msg.Msg.Duty)
+		duty = core.DutyFromProto(msg.GetMsg().GetMsg().GetDuty())
 
-		values, err := valuesByHash(msg.Msg.Values)
+		values, err := valuesByHash(msg.GetMsg().GetValues())
 		require.NoError(t, err)
 
-		m, err := newMsg(msg.Msg.Msg, msg.Msg.Justification, values)
+		m, err := newMsg(msg.GetMsg().GetMsg(), msg.GetMsg().GetJustification(), values)
 		require.NoError(t, err)
 		recvBuffer <- m
 	}
@@ -108,7 +108,7 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 	}
 
 	// Run the algo, blocking until the context is cancelled.
-	err := qbft.Run[core.Duty, [32]byte](ctx, def, qt, duty, instance.PeerIdx, qbft.InputValue([32]byte{1}))
+	err := qbft.Run[core.Duty, [32]byte](ctx, def, qt, duty, instance.GetPeerIdx(), qbft.InputValue([32]byte{1}))
 	if expectDecided {
 		require.ErrorIs(t, err, context.Canceled)
 	} else {

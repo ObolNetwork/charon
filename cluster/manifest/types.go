@@ -12,14 +12,14 @@ import (
 
 func Hash(signed *manifestpb.SignedMutation) ([]byte, error) {
 	// Return legacy lock hash if this is a legacy lock mutation.
-	if signed.Mutation.Type == string(TypeLegacyLock) {
+	if signed.GetMutation().GetType() == string(TypeLegacyLock) {
 		legacyLock := new(manifestpb.LegacyLock)
-		if err := signed.Mutation.Data.UnmarshalTo(legacyLock); err != nil {
+		if err := signed.GetMutation().GetData().UnmarshalTo(legacyLock); err != nil {
 			return nil, errors.Wrap(err, "mutation data to legacy lock")
 		}
 
 		var lock cluster.Lock
-		if err := json.Unmarshal(legacyLock.Json, &lock); err != nil {
+		if err := json.Unmarshal(legacyLock.GetJson(), &lock); err != nil {
 			return nil, errors.Wrap(err, "unmarshal lock")
 		}
 
@@ -40,7 +40,7 @@ func Transform(cluster *manifestpb.Cluster, signed *manifestpb.SignedMutation) (
 		return nil, errors.New("nil cluster")
 	}
 
-	typ := MutationType(signed.Mutation.Type)
+	typ := MutationType(signed.GetMutation().GetType())
 
 	if !typ.Valid() {
 		return cluster, errors.New("invalid mutation type")

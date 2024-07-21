@@ -80,7 +80,7 @@ func NewLegacyLockForT(_ *testing.T, lock cluster.Lock) (*manifestpb.SignedMutat
 
 // verifyLegacyLock verifies that the signed mutation is a valid legacy lock.
 func verifyLegacyLock(signed *manifestpb.SignedMutation) error {
-	if MutationType(signed.Mutation.Type) != TypeLegacyLock {
+	if MutationType(signed.GetMutation().GetType()) != TypeLegacyLock {
 		return errors.New("invalid mutation type")
 	}
 
@@ -89,12 +89,12 @@ func verifyLegacyLock(signed *manifestpb.SignedMutation) error {
 	}
 
 	legacyLock := new(manifestpb.LegacyLock)
-	if err := signed.Mutation.Data.UnmarshalTo(legacyLock); err != nil {
+	if err := signed.GetMutation().GetData().UnmarshalTo(legacyLock); err != nil {
 		return errors.New("mutation data to legacy lock")
 	}
 
 	var lock cluster.Lock
-	if err := json.Unmarshal(legacyLock.Json, &lock); err != nil {
+	if err := json.Unmarshal(legacyLock.GetJson(), &lock); err != nil {
 		return errors.Wrap(err, "unmarshal lock")
 	}
 	// return lock.VerifySignatures()
@@ -113,12 +113,12 @@ func transformLegacyLock(input *manifestpb.Cluster, signed *manifestpb.SignedMut
 	}
 
 	legacyLock := new(manifestpb.LegacyLock)
-	if err := signed.Mutation.Data.UnmarshalTo(legacyLock); err != nil {
+	if err := signed.GetMutation().GetData().UnmarshalTo(legacyLock); err != nil {
 		return nil, errors.New("mutation data to legacy lock")
 	}
 
 	var lock cluster.Lock
-	if err := json.Unmarshal(legacyLock.Json, &lock); err != nil {
+	if err := json.Unmarshal(legacyLock.GetJson(), &lock); err != nil {
 		return nil, errors.Wrap(err, "unmarshal lock")
 	}
 

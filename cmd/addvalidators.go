@@ -105,23 +105,23 @@ func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err er
 		return errors.Wrap(err, "materialise cluster dag")
 	}
 
-	nextKeystoreIdx := len(cluster.Validators)
+	nextKeystoreIdx := len(cluster.GetValidators())
 
 	log.Info(ctx, "Cluster manifest loaded",
-		z.Str("cluster_name", cluster.Name),
-		z.Str("cluster_hash", hex7(cluster.InitialMutationHash)),
-		z.Int("num_validators", len(cluster.Validators)))
+		z.Str("cluster_name", cluster.GetName()),
+		z.Str("cluster_hash", hex7(cluster.GetInitialMutationHash())),
+		z.Int("num_validators", len(cluster.GetValidators())))
 
 	if err = validateConf(conf); err != nil {
 		return errors.Wrap(err, "validate config")
 	}
 
-	p2pKeys, err := getP2PKeys(conf.ClusterDir, len(cluster.Operators), conf.TestConfig)
+	p2pKeys, err := getP2PKeys(conf.ClusterDir, len(cluster.GetOperators()), conf.TestConfig)
 	if err != nil {
 		return errors.Wrap(err, "load p2p keys")
 	}
 
-	if err := validateP2PKeysOrder(p2pKeys, cluster.Operators); err != nil {
+	if err := validateP2PKeysOrder(p2pKeys, cluster.GetOperators()); err != nil {
 		return err
 	}
 
@@ -131,13 +131,13 @@ func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err er
 		conf.WithdrawalAddrs = repeatAddr(conf.WithdrawalAddrs[0], conf.NumVals)
 	}
 
-	vals, secrets, shareSets, err := genNewVals(len(cluster.Operators), int(cluster.Threshold), cluster.ForkVersion, conf)
+	vals, secrets, shareSets, err := genNewVals(len(cluster.GetOperators()), int(cluster.GetThreshold()), cluster.GetForkVersion(), conf)
 	if err != nil {
 		return err
 	}
 
 	// Perform a `gen_validators/v0.0.1` mutation using the newly created validators.
-	genVals, err := manifest.NewGenValidators(cluster.LatestMutationHash, vals)
+	genVals, err := manifest.NewGenValidators(cluster.GetLatestMutationHash(), vals)
 	if err != nil {
 		return errors.Wrap(err, "generate validators")
 	}
@@ -179,18 +179,18 @@ func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err er
 		return errors.Wrap(err, "transform cluster manifest")
 	}
 
-	err = writeNewKeystores(conf.ClusterDir, len(cluster.Operators), nextKeystoreIdx, shareSets)
+	err = writeNewKeystores(conf.ClusterDir, len(cluster.GetOperators()), nextKeystoreIdx, shareSets)
 	if err != nil {
 		return err
 	}
 
-	err = writeDepositDatas(ctx, conf.ClusterDir, len(cluster.Operators), secrets, vals, cluster.ForkVersion)
+	err = writeDepositDatas(ctx, conf.ClusterDir, len(cluster.GetOperators()), secrets, vals, cluster.GetForkVersion())
 	if err != nil {
 		return err
 	}
 
 	// Save cluster manifests to disk
-	err = writeCluster(conf.ClusterDir, len(cluster.Operators), rawDAG)
+	err = writeCluster(conf.ClusterDir, len(cluster.GetOperators()), rawDAG)
 	if err != nil {
 		return err
 	}
@@ -244,7 +244,7 @@ func writeDepositDatas(ctx context.Context, clusterDir string, numOps int, secre
 
 	var depositDatas []eth2p0.DepositData
 	for i, val := range vals {
-		depositMsg, err := deposit.NewMessage(eth2p0.BLSPubKey(val.PublicKey), val.WithdrawalAddress, deposit.MaxDepositAmount)
+		depositMsg, err := deposit.NewMessage(eth2p0.BLSPubKey(val.GetPublicKey()), val.GetWithdrawalAddress(), deposit.MaxDepositAmount)
 		if err != nil {
 			return errors.Wrap(err, "new deposit message")
 		}
@@ -509,7 +509,7 @@ func getP2PKeys(clusterDir string, numOps int, testConfig addValidatorTestConfig
 func validateP2PKeysOrder(p2pKeys []*k1.PrivateKey, ops []*manifestpb.Operator) error {
 	var enrs []string
 	for _, enrStr := range ops {
-		enrs = append(enrs, enrStr.Enr)
+		enrs = append(enrs, enrStr.GetEnr())
 	}
 
 	if len(p2pKeys) != len(enrs) {
@@ -553,7 +553,7 @@ func hex7(input []byte) string {
 // printPubkeys prints pubkeys of the newly added validators.
 func printPubkeys(ctx context.Context, vals []*manifestpb.Validator) {
 	for _, val := range vals {
-		pk, err := shortPubkey(val.PublicKey)
+		pk, err := shortPubkey(val.GetPublicKey())
 		if err != nil {
 			log.Error(ctx, "Cannot log validator public key", err)
 			continue

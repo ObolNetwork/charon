@@ -42,8 +42,8 @@ func NewNodeApprovalsComposite(approvals []*manifestpb.SignedMutation) (*manifes
 	var parent []byte
 	for i, approval := range approvals {
 		if i == 0 {
-			parent = approval.Mutation.Parent
-		} else if !bytes.Equal(parent, approval.Mutation.Parent) {
+			parent = approval.GetMutation().GetParent()
+		} else if !bytes.Equal(parent, approval.GetMutation().GetParent()) {
 			return nil, errors.New("mismatching node approvals parent")
 		}
 
@@ -71,12 +71,12 @@ func NewNodeApprovalsComposite(approvals []*manifestpb.SignedMutation) (*manifes
 
 // verifyNodeApproval returns an error if the input signed mutation is not valid.
 func verifyNodeApproval(signed *manifestpb.SignedMutation) error {
-	if MutationType(signed.Mutation.Type) != TypeNodeApproval {
+	if MutationType(signed.GetMutation().GetType()) != TypeNodeApproval {
 		return errors.New("invalid mutation type")
 	}
 
 	timestamp := new(timestamppb.Timestamp)
-	if err := signed.Mutation.Data.UnmarshalTo(timestamp); err != nil {
+	if err := signed.GetMutation().GetData().UnmarshalTo(timestamp); err != nil {
 		return errors.Wrap(err, "invalid node approval timestamp data")
 	}
 
@@ -85,12 +85,12 @@ func verifyNodeApproval(signed *manifestpb.SignedMutation) error {
 
 // transformNodeApprovals transforms the cluster manifest with the node approvals.
 func transformNodeApprovals(c *manifestpb.Cluster, signed *manifestpb.SignedMutation) (*manifestpb.Cluster, error) {
-	if MutationType(signed.Mutation.Type) != TypeNodeApprovals {
+	if MutationType(signed.GetMutation().GetType()) != TypeNodeApprovals {
 		return c, errors.New("invalid mutation type")
 	}
 
 	list := new(manifestpb.SignedMutationList)
-	if err := signed.Mutation.Data.UnmarshalTo(list); err != nil {
+	if err := signed.GetMutation().GetData().UnmarshalTo(list); err != nil {
 		return c, errors.New("invalid node approval data")
 	}
 
@@ -99,15 +99,15 @@ func transformNodeApprovals(c *manifestpb.Cluster, signed *manifestpb.SignedMuta
 		return c, errors.Wrap(err, "get peers")
 	}
 
-	if len(peers) != len(list.Mutations) {
+	if len(peers) != len(list.GetMutations()) {
 		return c, errors.New("invalid number of node approvals")
 	}
 
 	var parent []byte
-	for i, approval := range list.Mutations {
+	for i, approval := range list.GetMutations() {
 		if i == 0 {
-			parent = approval.Mutation.Parent
-		} else if !bytes.Equal(parent, approval.Mutation.Parent) {
+			parent = approval.GetMutation().GetParent()
+		} else if !bytes.Equal(parent, approval.GetMutation().GetParent()) {
 			return c, errors.New("mismatching node approvals parent")
 		}
 
@@ -116,7 +116,7 @@ func transformNodeApprovals(c *manifestpb.Cluster, signed *manifestpb.SignedMuta
 			return c, errors.Wrap(err, "get peer public key")
 		}
 
-		if !bytes.Equal(pubkey.SerializeCompressed(), approval.Signer) {
+		if !bytes.Equal(pubkey.SerializeCompressed(), approval.GetSigner()) {
 			return c, errors.New("invalid node approval signer")
 		}
 

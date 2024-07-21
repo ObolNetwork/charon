@@ -490,23 +490,23 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 		return nil, false, errors.New("invalid consensus message")
 	}
 
-	if err := verifyMsg(pbMsg.Msg, c.pubkeys); err != nil {
+	if err := verifyMsg(pbMsg.GetMsg(), c.pubkeys); err != nil {
 		return nil, false, err
 	}
 
-	duty := core.DutyFromProto(pbMsg.Msg.Duty)
+	duty := core.DutyFromProto(pbMsg.GetMsg().GetDuty())
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
 	if !c.gaterFunc(duty) {
 		return nil, false, errors.New("invalid duty", z.Any("duty", duty))
 	}
 
-	for _, justification := range pbMsg.Justification {
+	for _, justification := range pbMsg.GetJustification() {
 		if err := verifyMsg(justification, c.pubkeys); err != nil {
 			return nil, false, errors.Wrap(err, "invalid justification")
 		}
 
-		justDuty := core.DutyFromProto(justification.Duty)
+		justDuty := core.DutyFromProto(justification.GetDuty())
 		if justDuty != duty {
 			return nil, false, errors.New(
 				"qbft justification duty differs from message duty",
@@ -516,12 +516,12 @@ func (c *Component) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 		}
 	}
 
-	values, err := valuesByHash(pbMsg.Values)
+	values, err := valuesByHash(pbMsg.GetValues())
 	if err != nil {
 		return nil, false, err
 	}
 
-	msg, err := newMsg(pbMsg.Msg, pbMsg.Justification, values)
+	msg, err := newMsg(pbMsg.GetMsg(), pbMsg.GetJustification(), values)
 	if err != nil {
 		return nil, false, err
 	}
@@ -600,28 +600,28 @@ func (c *Component) getPeerIdx() (int64, error) {
 }
 
 func verifyMsg(msg *pbv1.QBFTMsg, pubkeys map[int64]*k1.PublicKey) error {
-	if msg == nil || msg.Duty == nil {
+	if msg == nil || msg.GetDuty() == nil {
 		return errors.New("invalid consensus message")
 	}
 
-	if typ := qbft.MsgType(msg.Type); !typ.Valid() {
+	if typ := qbft.MsgType(msg.GetType()); !typ.Valid() {
 		return errors.New("invalid consensus message type", z.Int("type", int(typ)))
 	}
 
-	if typ := core.DutyType(msg.Duty.Type); !typ.Valid() {
+	if typ := core.DutyType(msg.GetDuty().GetType()); !typ.Valid() {
 		return errors.New("invalid consensus message duty type", z.Int("type", int(typ)))
 	}
 
-	if msg.Round <= 0 {
-		return errors.New("invalid consensus message round", z.I64("round", msg.Round))
+	if msg.GetRound() <= 0 {
+		return errors.New("invalid consensus message round", z.I64("round", msg.GetRound()))
 	}
-	if msg.PreparedRound < 0 {
+	if msg.GetPreparedRound() < 0 {
 		return errors.New("invalid consensus message prepared round")
 	}
 
-	msgPubkey, exists := pubkeys[msg.PeerIdx]
+	msgPubkey, exists := pubkeys[msg.GetPeerIdx()]
 	if !exists {
-		return errors.New("invalid peer index", z.I64("index", msg.PeerIdx))
+		return errors.New("invalid peer index", z.I64("index", msg.GetPeerIdx()))
 	}
 
 	if ok, err := verifyMsgSig(msg, msgPubkey); err != nil {

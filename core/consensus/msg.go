@@ -27,14 +27,14 @@ func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]b
 		preparedValueHash [32]byte
 	)
 
-	if hash, ok := toHash32(pbMsg.ValueHash); ok {
+	if hash, ok := toHash32(pbMsg.GetValueHash()); ok {
 		valueHash = hash
 		if _, ok := values[valueHash]; !ok {
 			return msg{}, errors.New("value hash not found in values")
 		}
 	}
 
-	if hash, ok := toHash32(pbMsg.PreparedValueHash); ok {
+	if hash, ok := toHash32(pbMsg.GetPreparedValueHash()); ok {
 		preparedValueHash = hash
 		if _, ok := values[preparedValueHash]; !ok {
 			return msg{}, errors.New("prepared value hash not found in values")
@@ -73,19 +73,19 @@ type msg struct {
 }
 
 func (m msg) Type() qbft.MsgType {
-	return qbft.MsgType(m.msg.Type)
+	return qbft.MsgType(m.msg.GetType())
 }
 
 func (m msg) Instance() core.Duty {
-	return core.DutyFromProto(m.msg.Duty)
+	return core.DutyFromProto(m.msg.GetDuty())
 }
 
 func (m msg) Source() int64 {
-	return m.msg.PeerIdx
+	return m.msg.GetPeerIdx()
 }
 
 func (m msg) Round() int64 {
-	return m.msg.Round
+	return m.msg.GetRound()
 }
 
 func (m msg) Value() [32]byte {
@@ -93,7 +93,7 @@ func (m msg) Value() [32]byte {
 }
 
 func (m msg) PreparedRound() int64 {
-	return m.msg.PreparedRound
+	return m.msg.GetPreparedRound()
 }
 
 func (m msg) PreparedValue() [32]byte {
@@ -162,7 +162,7 @@ func verifyMsgSig(msg *pbv1.QBFTMsg, pubkey *k1.PublicKey) (bool, error) {
 		return false, err
 	}
 
-	recovered, err := k1util.Recover(hash[:], msg.Signature)
+	recovered, err := k1util.Recover(hash[:], msg.GetSignature())
 	if err != nil {
 		return false, errors.Wrap(err, "recover pubkey")
 	}

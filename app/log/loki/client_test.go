@@ -33,11 +33,11 @@ func TestLoki(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, r.Body.Close())
 		req := decode(t, b)
-		require.Len(t, req.Streams, 1)
-		require.Contains(t, req.Streams[0].Labels, fmt.Sprintf(`service="%s"`, serviceLabel))
-		require.Contains(t, req.Streams[0].Labels, fmt.Sprintf(`%s="%s"`, otherLabelKey, otherLabelValue))
-		for _, entry := range req.Streams[0].Entries {
-			received <- entry.Line
+		require.Len(t, req.GetStreams(), 1)
+		require.Contains(t, req.GetStreams()[0].GetLabels(), fmt.Sprintf(`service="%s"`, serviceLabel))
+		require.Contains(t, req.GetStreams()[0].GetLabels(), fmt.Sprintf(`%s="%s"`, otherLabelKey, otherLabelValue))
+		for _, entry := range req.GetStreams()[0].GetEntries() {
+			received <- entry.GetLine()
 		}
 	}))
 
@@ -104,13 +104,13 @@ func TestLongLines(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, r.Body.Close())
 		req := decode(t, b)
-		require.Len(t, req.Streams, 1)
-		require.Contains(t, req.Streams[0].Labels, fmt.Sprintf(`service="%s"`, serviceLabel))
-		for _, entry := range req.Streams[0].Entries {
+		require.Len(t, req.GetStreams(), 1)
+		require.Contains(t, req.GetStreams()[0].GetLabels(), fmt.Sprintf(`service="%s"`, serviceLabel))
+		for _, entry := range req.GetStreams()[0].GetEntries() {
 			go func(entry string) {
 				entriesChan <- entry
 				close(entriesChan)
-			}(entry.Line)
+			}(entry.GetLine())
 		}
 	}))
 

@@ -76,8 +76,8 @@ func New(tcpNode host.Host, peers []peer.ID, secret *k1.PrivateKey) *Component {
 // hashAny is a function that hashes a any-wrapped protobuf message.
 func hashAny(anyPB *anypb.Any) ([]byte, error) {
 	h := sha256.New()
-	_, _ = h.Write([]byte(anyPB.TypeUrl))
-	_, _ = h.Write(anyPB.Value)
+	_, _ = h.Write([]byte(anyPB.GetTypeUrl()))
+	_, _ = h.Write(anyPB.GetValue())
 
 	return h.Sum(nil), nil
 }

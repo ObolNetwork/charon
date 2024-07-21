@@ -194,7 +194,7 @@ func errFields(err error) z.Field {
 
 	// Using cast instead of errors.As since no other wrapping library
 	// is used and this avoids exporting the structured error type.
-	ferr, ok := err.(structErr) //nolint:errorlint
+	ferr, ok := err.(structErr)
 	if !ok {
 		return func(func(zap.Field)) {}
 	}

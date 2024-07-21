@@ -95,11 +95,11 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 	for valIdx := range len(privkeys) {
 		pkSet := privkeys[valIdx]
 
-		if len(pkSet) < int(cluster.Threshold) {
+		if len(pkSet) < int(cluster.GetThreshold()) {
 			return errors.New(
 				"insufficient private key shares found for validator",
 				z.Int("validator_index", valIdx),
-				z.Int("expected", int(cluster.Threshold)),
+				z.Int("expected", int(cluster.GetThreshold())),
 				z.Int("actual", len(pkSet)),
 			)
 		}
@@ -110,15 +110,15 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 			return err
 		}
 
-		secret, err := tbls.RecoverSecret(shares, uint(len(cluster.Operators)), uint(cluster.Threshold))
+		secret, err := tbls.RecoverSecret(shares, uint(len(cluster.GetOperators())), uint(cluster.GetThreshold()))
 		if err != nil {
 			return errors.Wrap(err, "cannot recover private key share", z.Int("validator_index", valIdx))
 		}
 
 		// require that the generated secret pubkey matches what's in the lockfile for the valIdx validator
-		val := cluster.Validators[valIdx]
+		val := cluster.GetValidators()[valIdx]
 
-		valPk, err := tblsconv.PubkeyFromBytes(val.PublicKey)
+		valPk, err := tblsconv.PubkeyFromBytes(val.GetPublicKey())
 		if err != nil {
 			return errors.Wrap(err, "public key for validator from manifest", z.Int("validator_index", valIdx))
 		}
@@ -179,7 +179,7 @@ func shareIdxByPubkeys(cluster *manifestpb.Cluster, secrets []tbls.PrivateKey, v
 	pubkMap := make(map[tbls.PublicKey]int)
 
 	for peerIdx := range len(cluster.GetValidators()[valIndex].GetPubShares()) {
-		pubShareRaw := cluster.Validators[valIndex].GetPubShares()[peerIdx]
+		pubShareRaw := cluster.GetValidators()[valIndex].GetPubShares()[peerIdx]
 
 		pubShare, err := tblsconv.PubkeyFromBytes(pubShareRaw)
 		if err != nil {
@@ -265,7 +265,7 @@ func loadManifest(ctx context.Context, dir string, noverify bool) (*manifestpb.C
 		}
 
 		if !noverify {
-			if lastCluster != nil && !bytes.Equal(lastCluster.LatestMutationHash, cl.LatestMutationHash) {
+			if lastCluster != nil && !bytes.Equal(lastCluster.GetLatestMutationHash(), cl.GetLatestMutationHash()) {
 				return nil, nil, errors.New("mismatching last mutation hash")
 			}
 		}

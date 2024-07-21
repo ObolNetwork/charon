@@ -82,8 +82,8 @@ func listActiveVals(ctx context.Context, config exitConfig) ([]string, error) {
 
 	var allVals []eth2p0.BLSPubKey
 
-	for _, v := range cl.Validators {
-		allVals = append(allVals, eth2p0.BLSPubKey(v.PublicKey))
+	for _, v := range cl.GetValidators() {
+		allVals = append(allVals, eth2p0.BLSPubKey(v.GetPublicKey()))
 	}
 
 	valData, err := eth2Cl.Validators(ctx, &eth2api.ValidatorsOpts{

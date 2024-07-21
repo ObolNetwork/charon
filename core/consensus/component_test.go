@@ -114,7 +114,7 @@ func testComponent(t *testing.T, threshold, nodes int) {
 		}
 
 		sniffer := func(msgs *pbv1.SniffedConsensusInstance) {
-			sniffed <- len(msgs.Msgs)
+			sniffed <- len(msgs.GetMsgs())
 		}
 
 		gaterFunc := func(core.Duty) bool { return true }

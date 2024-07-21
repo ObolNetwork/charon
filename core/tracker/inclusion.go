@@ -82,9 +82,7 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 		return nil
 	}
 
-	var (
-		attRoot eth2p0.Root
-	)
+	var attRoot eth2p0.Root
 	if duty.Type == core.DutyAttester {
 		att, ok := data.(core.Attestation)
 		if !ok {

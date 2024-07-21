@@ -147,8 +147,8 @@ func TestRunAddValidators(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Len(t, cluster.GetValidators(), valCount+1)
-		require.Equal(t, cluster.Validators[1].FeeRecipientAddress, feeRecipientAddr)
-		require.Equal(t, cluster.Validators[1].WithdrawalAddress, feeRecipientAddr)
+		require.Equal(t, cluster.GetValidators()[1].GetFeeRecipientAddress(), feeRecipientAddr)
+		require.Equal(t, cluster.GetValidators()[1].GetWithdrawalAddress(), feeRecipientAddr)
 	})
 
 	t.Run("add validators twice", func(t *testing.T) {
@@ -183,7 +183,7 @@ func TestRunAddValidators(t *testing.T) {
 
 		cluster, err := manifest.Materialise(rawDAG)
 		require.NoError(t, err)
-		require.Equal(t, cluster.InitialMutationHash, lock.LockHash)
+		require.Equal(t, cluster.GetInitialMutationHash(), lock.LockHash)
 
 		// Run the second add validators command using cluster manifest output from the first run
 		conf.TestConfig.Lock = nil
@@ -211,7 +211,7 @@ func TestRunAddValidators(t *testing.T) {
 		// The cluster manifest should contain three validators now since the
 		// original cluster already had one validator, and we added two more.
 		require.Len(t, cluster.GetValidators(), valCount+2)
-		require.Equal(t, cluster.InitialMutationHash, lock.LockHash)
+		require.Equal(t, cluster.GetInitialMutationHash(), lock.LockHash)
 
 		entries, err := os.ReadDir(path.Join(tmp, "node0"))
 		require.NoError(t, err)

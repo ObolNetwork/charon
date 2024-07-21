@@ -183,11 +183,11 @@ func (c *Client) sendMsgs(ctx context.Context, stream network.Stream) (relayBrok
 			return false, true, err
 		} else if shutdown {
 			return false, false, nil
-		} else if resp.Error != "" {
-			return false, false, errors.New("peer responded with error: " + resp.Error)
+		} else if resp.GetError() != "" {
+			return false, false, errors.New("peer responded with error: " + resp.GetError())
 		}
 
-		rtt := time.Since(resp.SyncTimestamp.AsTime())
+		rtt := time.Since(resp.GetSyncTimestamp().AsTime())
 		c.tcpNode.Peerstore().RecordLatency(c.peer, rtt)
 	}
 }

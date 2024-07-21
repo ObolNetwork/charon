@@ -61,11 +61,11 @@ func assertVecLen(t *testing.T, registry *prometheus.Registry, name string, l in
 	require.NoError(t, err)
 
 	for _, metricFam := range metrics {
-		if *metricFam.Name != name {
+		if metricFam.GetName() != name {
 			continue
 		}
 
-		require.Len(t, metricFam.Metric, l)
+		require.Len(t, metricFam.GetMetric(), l)
 
 		return
 	}

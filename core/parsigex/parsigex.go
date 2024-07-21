@@ -71,18 +71,18 @@ func (m *ParSigEx) handle(ctx context.Context, _ peer.ID, req proto.Message) (pr
 		return nil, false, errors.New("invalid request type")
 	}
 
-	if pb == nil || pb.Duty == nil || pb.DataSet == nil {
+	if pb == nil || pb.GetDuty() == nil || pb.GetDataSet() == nil {
 		return nil, false, errors.New("invalid parsigex msg fields", z.Any("msg", pb))
 	}
 
-	duty := core.DutyFromProto(pb.Duty)
+	duty := core.DutyFromProto(pb.GetDuty())
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
 	if !m.gaterFunc(duty) {
 		return nil, false, errors.New("invalid duty")
 	}
 
-	set, err := core.ParSignedDataSetFromProto(duty.Type, pb.DataSet)
+	set, err := core.ParSignedDataSetFromProto(duty.Type, pb.GetDataSet())
 	if err != nil {
 		return nil, false, errors.Wrap(err, "convert parsigex proto")
 	}

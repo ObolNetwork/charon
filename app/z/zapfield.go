@@ -20,7 +20,7 @@ func Fields(err error) []Field {
 		Fields() []Field
 	}
 
-	serr, ok := err.(structErr) //nolint:errorlint
+	serr, ok := err.(structErr)
 	if !ok {
 		return []Field{}
 	}
@@ -57,7 +57,7 @@ func Err(err error) Field {
 
 	// Using cast instead of errors.As since no other wrapping library
 	// is used and this avoids exporting the structured error type.
-	serr, ok := err.(structErr) //nolint:errorlint
+	serr, ok := err.(structErr)
 	if ok {
 		return func(add func(zap.Field)) {
 			add(zap.Error(err))
