@@ -350,12 +350,16 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 		expectSig       core.Signature
 		actualSig       core.Signature
 		expectPublicKey string
-		actualPublicKey string
+		actualPublicKey core.PubKey
 	}
 	errCh := make(chan error)
 	routineResCh := make(chan routineResult)
 	go func() {
 		datas := make(map[core.Duty]core.SignedData)
+		defer func() {
+			close(routineResCh)
+			close(errCh)
+		}()
 		for {
 			var res simResult
 			select {
@@ -378,7 +382,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 					expectSig:       datas[res.Duty].Signature(),
 					actualSig:       res.Data.Signature(),
 					expectPublicKey: args.Lock.Validators[0].PublicKeyHex(),
-					actualPublicKey: res.Pubkey.String(),
+					actualPublicKey: res.Pubkey,
 				}
 				routineResCh <- routineRes
 			}
@@ -388,13 +392,24 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 
 			if expect.Done(t) {
 				cancel()
-				close(routineResCh)
-				close(errCh)
-
 				return
 			}
 		}
 	}()
+
+	finishLoop := true
+	for finishLoop {
+		select {
+		case err := <-errCh:
+			require.NoError(t, err)
+		case res := <-routineResCh:
+			require.Equal(t, res.expect, res.actual)
+			require.Equal(t, res.expectSig, res.actualSig)
+			require.EqualValues(t, res.expectPublicKey, res.actualPublicKey)
+		case <-ctx.Done():
+			finishLoop = false
+		}
+	}
 
 	// Wire err channel (for docker errors)
 	eg.Go(func() error {
@@ -413,15 +428,6 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 	err := eg.Wait()
 	testutil.SkipIfBindErr(t, err)
 	testutil.RequireNoError(t, err)
-
-	for err := range errCh {
-		require.NoError(t, err)
-	}
-	for res := range routineResCh {
-		require.Equal(t, res.expect, res.actual)
-		require.Equal(t, res.expectSig, res.actualSig)
-		require.Equal(t, res.expectPublicKey, res.actualPublicKey)
-	}
 }
 
 type tekuCmd []string
