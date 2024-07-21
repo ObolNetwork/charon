@@ -96,6 +96,7 @@ func TestExchanger(t *testing.T) {
 
 	type respStruct struct {
 		data    map[core.PubKey][]core.ParSignedData
+		err     error
 		sigType sigType
 	}
 
@@ -110,10 +111,10 @@ func TestExchanger(t *testing.T) {
 			defer wg.Done()
 
 			data, err := exchangers[node].exchange(ctx, sigDepositData, dataToBeSent[node])
-			require.NoError(t, err)
 
 			respChan <- respStruct{
 				data:    data,
+				err:     err,
 				sigType: sigDepositData,
 			}
 		}(i)
@@ -121,10 +122,10 @@ func TestExchanger(t *testing.T) {
 			defer wg.Done()
 
 			data, err := exchangers[node].exchange(ctx, sigValidatorRegistration, dataToBeSent[node])
-			require.NoError(t, err)
 
 			respChan <- respStruct{
 				data:    data,
+				err:     err,
 				sigType: sigValidatorRegistration,
 			}
 		}(i)
@@ -136,10 +137,10 @@ func TestExchanger(t *testing.T) {
 			defer wg.Done()
 
 			data, err := exchangers[node].exchange(ctx, sigLock, dataToBeSent[node])
-			require.NoError(t, err)
 
 			respChan <- respStruct{
 				data:    data,
+				err:     err,
 				sigType: sigLock,
 			}
 		}(i)
@@ -152,6 +153,7 @@ func TestExchanger(t *testing.T) {
 
 	actual := make(sigTypeStore)
 	for res := range respChan {
+		require.NoError(t, res.err)
 		actual[res.sigType] = res.data
 	}
 

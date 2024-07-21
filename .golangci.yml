@@ -111,6 +111,11 @@ linters-settings:
     ignoreSigs:
       - github.com/obolnetwork/charon/
       - github.com/attestantio/go-eth2-client
+  testifylint:
+    disable:
+      - expected-actual
+    go-require:
+      ignore-http-handlers: true
 
 issues:
   fix: true

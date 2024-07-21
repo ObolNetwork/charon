@@ -83,6 +83,7 @@ func testCluster(t *testing.T, n int, versions map[int]version.SemVer, expectErr
 		servers = append(servers, server)
 	}
 
+	errCh := make(chan error, 1)
 	for i := range n {
 		for j := range n {
 			if i == j {
@@ -103,11 +104,7 @@ func testCluster(t *testing.T, n int, versions map[int]version.SemVer, expectErr
 			ctx := log.WithTopic(ctx, fmt.Sprintf("client%d_%d", i, j))
 			go func() {
 				err := client.Run(ctx)
-				if expectErr != "" {
-					require.ErrorContains(t, err, expectErr)
-					return
-				}
-				require.NoError(t, err)
+				errCh <- err
 			}()
 		}
 	}
@@ -150,6 +147,13 @@ func testCluster(t *testing.T, n int, versions map[int]version.SemVer, expectErr
 		err := client.Shutdown(ctx)
 		require.NoError(t, err)
 	}
+
+	err := <-errCh
+	if expectErr != "" {
+		require.ErrorContains(t, err, expectErr)
+		return
+	}
+	require.NoError(t, err)
 
 	t.Log("server.AwaitAllShutdown")
 	for _, server := range servers {

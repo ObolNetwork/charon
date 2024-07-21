@@ -8,7 +8,6 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/obolnetwork/charon/tbls"
@@ -32,99 +31,99 @@ func (ts *TestSuite) SetupTest() {
 
 func (ts *TestSuite) Test_GenerateSecretKey() {
 	secret, err := tbls.GenerateSecretKey()
-	require.NoError(ts.T(), err)
-	require.NotEmpty(ts.T(), secret)
+	ts.Require().NoError(err)
+	ts.Require().NotEmpty(secret)
 }
 
 func (ts *TestSuite) Test_SecretToPublicKey() {
 	secret, err := tbls.GenerateSecretKey()
-	require.NoError(ts.T(), err)
-	require.NotEmpty(ts.T(), secret)
+	ts.Require().NoError(err)
+	ts.Require().NotEmpty(secret)
 
 	pubk, err := tbls.SecretToPublicKey(secret)
-	require.NoError(ts.T(), err)
-	require.NotEmpty(ts.T(), pubk)
+	ts.Require().NoError(err)
+	ts.Require().NotEmpty(pubk)
 }
 
 func (ts *TestSuite) Test_ThresholdSplit() {
 	secret, err := tbls.GenerateSecretKey()
-	require.NoError(ts.T(), err)
-	require.NotEmpty(ts.T(), secret)
+	ts.Require().NoError(err)
+	ts.Require().NotEmpty(secret)
 
 	shares, err := tbls.ThresholdSplit(secret, 5, 3)
-	require.NoError(ts.T(), err)
-	require.NotEmpty(ts.T(), shares)
+	ts.Require().NoError(err)
+	ts.Require().NotEmpty(shares)
 }
 
 func (ts *TestSuite) Test_RecoverSecret() {
 	secret, err := tbls.GenerateSecretKey()
-	require.NoError(ts.T(), err)
-	require.NotEmpty(ts.T(), secret)
+	ts.Require().NoError(err)
+	ts.Require().NotEmpty(secret)
 
 	shares, err := tbls.ThresholdSplit(secret, 5, 3)
-	require.NoError(ts.T(), err)
+	ts.Require().NoError(err)
 
 	recovered, err := tbls.RecoverSecret(shares, 5, 3)
-	require.NoError(ts.T(), err)
+	ts.Require().NoError(err)
 
-	require.ElementsMatch(ts.T(), secret, recovered)
+	ts.Require().ElementsMatch(secret, recovered)
 }
 
 func (ts *TestSuite) Test_ThresholdAggregate() {
 	data := []byte("hello obol!")
 
 	secret, err := tbls.GenerateSecretKey()
-	require.NoError(ts.T(), err)
-	require.NotEmpty(ts.T(), secret)
+	ts.Require().NoError(err)
+	ts.Require().NotEmpty(secret)
 
 	totalOGSig, err := tbls.Sign(secret, data)
-	require.NoError(ts.T(), err)
+	ts.Require().NoError(err)
 
 	shares, err := tbls.ThresholdSplit(secret, 5, 3)
-	require.NoError(ts.T(), err)
+	ts.Require().NoError(err)
 
 	signatures := map[int]tbls.Signature{}
 
 	for idx, key := range shares {
 		signature, err := tbls.Sign(key, data)
-		require.NoError(ts.T(), err)
+		ts.Require().NoError(err)
 		signatures[idx] = signature
 	}
 
 	totalSig, err := tbls.ThresholdAggregate(signatures)
-	require.NoError(ts.T(), err)
+	ts.Require().NoError(err)
 
-	require.Equal(ts.T(), totalOGSig, totalSig)
+	ts.Require().Equal(totalOGSig, totalSig)
 }
 
 func (ts *TestSuite) Test_Verify() {
 	data := []byte("hello obol!")
 
 	secret, err := tbls.GenerateSecretKey()
-	require.NoError(ts.T(), err)
-	require.NotEmpty(ts.T(), secret)
+	ts.Require().NoError(err)
+	ts.Require().NotEmpty(secret)
 
 	signature, err := tbls.Sign(secret, data)
-	require.NoError(ts.T(), err)
-	require.NotEmpty(ts.T(), signature)
+	ts.Require().NoError(err)
+	ts.Require().NotEmpty(signature)
 
 	pubkey, err := tbls.SecretToPublicKey(secret)
-	require.NoError(ts.T(), err)
-	require.NotEmpty(ts.T(), pubkey)
+	ts.Require().NoError(err)
+	ts.Require().NotEmpty(pubkey)
 
-	require.NoError(ts.T(), tbls.Verify(pubkey, data, signature))
+	ts.Require().NoError(tbls.Verify(pubkey, data, signature))
 }
 
 func (ts *TestSuite) Test_Sign() {
 	data := []byte("hello obol!")
 
 	secret, err := tbls.GenerateSecretKey()
-	require.NoError(ts.T(), err)
-	require.NotEmpty(ts.T(), secret)
+	ts.Require().NoError(err)
+	ts.Require().NotEmpty(secret)
 
 	signature, err := tbls.Sign(secret, data)
-	require.NoError(ts.T(), err)
-	require.NotEmpty(ts.T(), signature)
+	ts.Require().NoError(err)
+	ts.Require().NotEmpty(signature)
 }
 
 func (ts *TestSuite) Test_VerifyAggregate() {
@@ -139,11 +138,11 @@ func (ts *TestSuite) Test_VerifyAggregate() {
 
 	for range 10 {
 		secret, err := tbls.GenerateSecretKey()
-		require.NoError(ts.T(), err)
-		require.NotEmpty(ts.T(), secret)
+		ts.Require().NoError(err)
+		ts.Require().NotEmpty(secret)
 
 		pubkey, err := tbls.SecretToPublicKey(secret)
-		require.NoError(ts.T(), err)
+		ts.Require().NoError(err)
 
 		keys = append(keys, key{
 			pub:  pubkey,
@@ -156,15 +155,15 @@ func (ts *TestSuite) Test_VerifyAggregate() {
 
 	for _, key := range keys {
 		s, err := tbls.Sign(key.priv, data)
-		require.NoError(ts.T(), err)
+		ts.Require().NoError(err)
 		signs = append(signs, s)
 		pshares = append(pshares, key.pub)
 	}
 
 	sig, err := tbls.Aggregate(signs)
-	require.NoError(ts.T(), err)
+	ts.Require().NoError(err)
 
-	require.NoError(ts.T(), tbls.VerifyAggregate(pshares, sig, data))
+	ts.Require().NoError(tbls.VerifyAggregate(pshares, sig, data))
 }
 
 func runSuite(t *testing.T, i tbls.Implementation) {

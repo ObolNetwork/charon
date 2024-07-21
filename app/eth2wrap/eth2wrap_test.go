@@ -373,7 +373,7 @@ func TestOnlyTimeout(t *testing.T) {
 		if ctx.Err() != nil {
 			return
 		}
-		require.Fail(t, "Expect this only to return after main ctx cancelled")
+		require.Fail(t, "Expect this only to return after main ctx cancelled") //nolint:testifylint // TODO: find a way to do that outside of go routine
 	}()
 
 	// Allow the above goroutine to block on the .Spec() call.

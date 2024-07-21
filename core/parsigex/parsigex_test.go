@@ -95,13 +95,20 @@ func TestParSigEx(t *testing.T) {
 		parsigexs = append(parsigexs, sigex)
 	}
 
+	errCh := make(chan error, n)
 	for i := range n {
 		wg.Add(1)
 		go func(node int) {
 			defer wg.Done()
 			// broadcast partially signed data
-			require.NoError(t, parsigexs[node].Broadcast(context.Background(), duty, data))
+			err := parsigexs[node].Broadcast(context.Background(), duty, data)
+			errCh <- err
 		}(i)
+	}
+
+	for range n {
+		err := <-errCh
+		require.NoError(t, err)
 	}
 
 	wg.Wait()

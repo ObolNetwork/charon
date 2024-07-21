@@ -67,11 +67,10 @@ func TestProxyShutdown(t *testing.T) {
 	proxy := httptest.NewServer(proxyHandler(ctx, addr(target.URL)))
 
 	// Make a request to the proxy server, this will block until the proxy is shutdown.
-	done := make(chan struct{})
+	errCh := make(chan error, 1)
 	go func() {
 		_, err := http.Get(proxy.URL)
-		require.NoError(t, err)
-		close(done)
+		errCh <- err
 	}()
 
 	// Wait for the target server is serving the request.
@@ -79,7 +78,8 @@ func TestProxyShutdown(t *testing.T) {
 	// Shutdown the proxy server.
 	cancel()
 	// Wait for the request to complete.
-	<-done
+	err := <-errCh
+	require.NoError(t, err)
 }
 
 func TestRouterIntegration(t *testing.T) {
@@ -887,7 +887,7 @@ func TestRouter(t *testing.T) {
 			}
 			resp, err := cl.Validators(ctx, opts)
 			require.NoError(t, err)
-			require.Len(t, resp.Data, 0)
+			require.Empty(t, resp.Data)
 		}
 
 		testRouter(t, handler, callback)
@@ -909,7 +909,7 @@ func TestRouter(t *testing.T) {
 			res := resp.Data
 
 			// Two validators are expected as the testutil.RandomBeaconState(t) returns two validators.
-			require.Equal(t, 2, len(res))
+			require.Len(t, res, 2)
 		}
 
 		testRouter(t, handler, callback)
@@ -929,7 +929,7 @@ func TestRouter(t *testing.T) {
 			}
 			resp, err := cl.AttesterDuties(ctx, opts)
 			require.NoError(t, err)
-			require.Len(t, resp.Data, 0)
+			require.Empty(t, resp.Data)
 		}
 
 		testRouter(t, handler, callback)
@@ -949,7 +949,7 @@ func TestRouter(t *testing.T) {
 			}
 			res, err := cl.SyncCommitteeDuties(ctx, opts)
 			require.NoError(t, err)
-			require.Len(t, res.Data, 0)
+			require.Empty(t, res.Data)
 		}
 
 		testRouter(t, handler, callback)
@@ -969,7 +969,7 @@ func TestRouter(t *testing.T) {
 			}
 			res, err := cl.ProposerDuties(ctx, opts)
 			require.NoError(t, err)
-			require.Len(t, res.Data, 0)
+			require.Empty(t, res.Data)
 		}
 
 		testRouter(t, handler, callback)

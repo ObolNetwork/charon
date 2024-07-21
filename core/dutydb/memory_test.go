@@ -65,10 +65,11 @@ func TestMemDB(t *testing.T) {
 
 	// Kick of some queries, it should return when the data is populated.
 	awaitResponse := make(chan *eth2p0.AttestationData)
+	errCh := make(chan error, queries)
 	for range queries {
 		go func() {
 			data, err := db.AwaitAttestation(ctx, slot, commIdx)
-			require.NoError(t, err)
+			errCh <- err
 			awaitResponse <- data
 		}()
 	}
@@ -113,6 +114,11 @@ func TestMemDB(t *testing.T) {
 	for range queries {
 		actual := <-awaitResponse
 		require.Equal(t, attData.String(), actual.String())
+	}
+
+	for range queries {
+		err := <-errCh
+		require.NoError(t, err)
 	}
 
 	// Assert that two pubkeys can be resolved.
@@ -160,11 +166,13 @@ func TestMemDBProposer(t *testing.T) {
 		block *eth2api.VersionedProposal
 	}
 	var awaitResponse [queries]chan response
+
+	errCh := make(chan error, queries)
 	for i := range queries {
 		awaitResponse[i] = make(chan response)
 		go func(slot int) {
 			block, err := db.AwaitProposal(ctx, slots[slot])
-			require.NoError(t, err)
+			errCh <- err
 			awaitResponse[slot] <- response{block: block}
 		}(i)
 	}
@@ -193,6 +201,11 @@ func TestMemDBProposer(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	for range queries {
+		err := <-errCh
+		require.NoError(t, err)
+	}
+
 	// Get and assert the proQuery responses
 	for i := range queries {
 		actualData := <-awaitResponse[i]
@@ -212,12 +225,16 @@ func TestMemDBAggregator(t *testing.T) {
 			testutil.RandomCorePubKey(t): core.NewAggregatedAttestation(agg),
 		}
 		slot := uint64(agg.Data.Slot)
+
+		errCh := make(chan error, 1)
 		go func() {
 			err := db.Store(ctx, core.NewAggregatorDuty(slot), set)
-			require.NoError(t, err)
+			errCh <- err
 		}()
 
 		root, err := agg.Data.HashTreeRoot()
+		require.NoError(t, err)
+		err = <-errCh
 		require.NoError(t, err)
 		resp, err := db.AwaitAggAttestation(ctx, slot, root)
 		require.NoError(t, err)
@@ -244,11 +261,14 @@ func TestMemDBSyncContribution(t *testing.T) {
 				beaconBlockRoot = contrib.BeaconBlockRoot
 			)
 
+			errCh := make(chan error, 1)
 			go func() {
 				err := db.Store(ctx, core.NewSyncContributionDuty(slot), set)
-				require.NoError(t, err)
+				errCh <- err
 			}()
 
+			err := <-errCh
+			require.NoError(t, err)
 			resp, err := db.AwaitSyncContribution(ctx, slot, subcommIdx, beaconBlockRoot)
 			require.NoError(t, err)
 			require.Equal(t, contrib, resp)

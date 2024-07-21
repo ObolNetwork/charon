@@ -38,6 +38,7 @@ func TestPrioritiser(t *testing.T) {
 		deadliner    = core.NewDeadliner(ctx, "", func(core.Duty) (time.Time, bool) {
 			return time.Now().Add(time.Hour), true
 		})
+		errCh = make(chan error, len(duties))
 	)
 
 	// Create libp2p tcp nodes.
@@ -86,9 +87,11 @@ func TestPrioritiser(t *testing.T) {
 				PeerId: tcpNode.ID().String(),
 			}
 			go func() {
-				require.ErrorIs(t, prio.Prioritise(ctx, msg), context.Canceled)
+				err := prio.Prioritise(ctx, msg)
+				errCh <- err
 			}()
 		}
+
 	}
 
 	for range n * len(duties) {
@@ -99,6 +102,11 @@ func TestPrioritiser(t *testing.T) {
 	}
 
 	cancel()
+
+	for range duties {
+		err := <-errCh
+		require.ErrorIs(t, err, context.Canceled)
+	}
 }
 
 // testConsensus is a mock consensus implementation that "decides" on the first proposal.

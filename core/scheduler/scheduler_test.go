@@ -145,7 +145,7 @@ func TestSchedulerWait(t *testing.T) {
 			sched := scheduler.NewForT(t, clock, dd.delay, nil, eth2Cl, false)
 			sched.Stop() // Just run wait functions, then quit.
 			require.NoError(t, sched.Run())
-			require.EqualValues(t, test.WaitSecs, clock.Since(t0).Seconds())
+			require.Equal(t, test.WaitSecs, int(clock.Since(t0).Seconds()))
 		})
 	}
 }

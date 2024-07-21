@@ -335,7 +335,7 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 			}
 		}
 
-		require.Equal(t, lock.Definition.NumValidators, len(vals))
+		require.Len(t, vals, lock.Definition.NumValidators)
 
 		if conf.DefFile != "" {
 			// Config hash and creator should remain the same
@@ -782,7 +782,7 @@ func newKeymanagerHandler(ctx context.Context, t *testing.T, id int, results cha
 		require.NoError(t, json.Unmarshal(data, &req))
 
 		require.Equal(t, len(req.Keystores), len(req.Passwords))
-		require.Equal(t, len(req.Keystores), 1) // Since we split only 1 key
+		require.Len(t, req.Keystores, 1) // Since we split only 1 key
 
 		var ks keystore.Keystore
 		require.NoError(t, json.Unmarshal([]byte(req.Keystores[0]), &ks))

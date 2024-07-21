@@ -146,7 +146,7 @@ func TestRunAddValidators(t *testing.T) {
 		cluster, err := manifest.LoadCluster(manifestFile, "", nil)
 		require.NoError(t, err)
 
-		require.Equal(t, valCount+1, len(cluster.Validators))
+		require.Len(t, cluster.GetValidators(), valCount+1)
 		require.Equal(t, cluster.Validators[1].FeeRecipientAddress, feeRecipientAddr)
 		require.Equal(t, cluster.Validators[1].WithdrawalAddress, feeRecipientAddr)
 	})
@@ -210,12 +210,12 @@ func TestRunAddValidators(t *testing.T) {
 
 		// The cluster manifest should contain three validators now since the
 		// original cluster already had one validator, and we added two more.
-		require.Equal(t, valCount+2, len(cluster.Validators))
+		require.Len(t, cluster.GetValidators(), valCount+2)
 		require.Equal(t, cluster.InitialMutationHash, lock.LockHash)
 
 		entries, err := os.ReadDir(path.Join(tmp, "node0"))
 		require.NoError(t, err)
-		require.Equal(t, 3, len(entries))
+		require.Len(t, entries, 3)
 
 		require.True(t, strings.Contains(entries[0].Name(), "cluster-manifest"))
 		require.True(t, strings.Contains(entries[1].Name(), "deposit-data"))

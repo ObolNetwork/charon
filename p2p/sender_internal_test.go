@@ -102,7 +102,7 @@ func TestSenderRetry(t *testing.T) {
 
 	h = new(testHost)
 	err = sender.SendAsync(ctx, h, "", "", nil)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Eventually(t, func() bool {
 		return h.Count() == 2
 	}, time.Second, time.Millisecond)

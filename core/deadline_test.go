@@ -43,12 +43,21 @@ func TestDeadliner(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
 	// Add our duties to the deadliner.
-	addDuties(t, wg, expiredDuties, false, deadliner)
-	addDuties(t, wg, nonExpiredDuties, true, deadliner)
-	addDuties(t, wg, voluntaryExits, true, deadliner)
+	expectedFalseCh := make(chan bool, len(expiredDuties))
+	expectedTrueCh := make(chan bool, len(nonExpiredDuties)+len(voluntaryExits))
+	addDuties(t, wg, expiredDuties, expectedFalseCh, deadliner)
+	addDuties(t, wg, nonExpiredDuties, expectedTrueCh, deadliner)
+	addDuties(t, wg, voluntaryExits, expectedTrueCh, deadliner)
 
 	// Wait till all the duties are added to the deadliner.
 	wg.Wait()
+
+	for range len(expiredDuties) {
+		require.False(t, <-expectedFalseCh)
+	}
+	for range len(nonExpiredDuties) + len(voluntaryExits) {
+		require.True(t, <-expectedTrueCh)
+	}
 
 	var maxSlot uint64
 	for _, duty := range nonExpiredDuties {
@@ -73,16 +82,17 @@ func TestDeadliner(t *testing.T) {
 }
 
 // sendDuties runs a goroutine which adds the duties to the deadliner channel.
-func addDuties(t *testing.T, wg *sync.WaitGroup, duties []core.Duty, expected bool, deadliner core.Deadliner) {
+func addDuties(t *testing.T, wg *sync.WaitGroup, duties []core.Duty, expCh chan bool, deadliner core.Deadliner) {
 	t.Helper()
 
 	wg.Add(1)
-	go func(duties []core.Duty, expected bool) {
+	go func(duties []core.Duty, expCh chan bool) {
 		defer wg.Done()
 		for _, duty := range duties {
-			require.Equal(t, deadliner.Add(duty), expected)
+			res := deadliner.Add(duty)
+			expCh <- res
 		}
-	}(duties, expected)
+	}(duties, expCh)
 }
 
 // setupData sets up the duties to send to deadliner.

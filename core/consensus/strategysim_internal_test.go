@@ -69,7 +69,7 @@ func TestSimulatorOnce(t *testing.T) {
 		timeout:        simTimeout,
 	}, syncer)
 
-	require.Equal(t, 4, len(results))
+	require.Len(t, results, 4)
 	require.False(t, isUndecided(results))
 }
 

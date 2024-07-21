@@ -344,6 +344,16 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 	}
 
 	// Assert results
+	type routineResult struct {
+		expect          []byte
+		actual          []byte
+		expectSig       core.Signature
+		actualSig       core.Signature
+		expectPublicKey string
+		actualPublicKey string
+	}
+	errCh := make(chan error)
+	routineResCh := make(chan routineResult)
 	go func() {
 		datas := make(map[core.Duty]core.SignedData)
 		for {
@@ -354,18 +364,23 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 			case res = <-results:
 			}
 
-			require.EqualValues(t, args.Lock.Validators[0].PublicKeyHex(), res.Pubkey)
-
 			// Assert the data and signature from all nodes are the same per duty.
 			if _, ok := datas[res.Duty]; !ok {
 				datas[res.Duty] = res.Data
 			} else {
 				expect, err := datas[res.Duty].MarshalJSON()
-				require.NoError(t, err)
+				errCh <- err
 				actual, err := res.Data.MarshalJSON()
-				require.NoError(t, err)
-				require.Equal(t, expect, actual)
-				require.Equal(t, datas[res.Duty].Signature(), res.Data.Signature())
+				errCh <- err
+				routineRes := routineResult{
+					expect:          expect,
+					actual:          actual,
+					expectSig:       datas[res.Duty].Signature(),
+					actualSig:       res.Data.Signature(),
+					expectPublicKey: args.Lock.Validators[0].PublicKeyHex(),
+					actualPublicKey: res.Pubkey.String(),
+				}
+				routineResCh <- routineRes
 			}
 
 			// Assert we get results for all types from all peers.
@@ -373,6 +388,8 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 
 			if expect.Done(t) {
 				cancel()
+				close(routineResCh)
+				close(errCh)
 				return
 			}
 		}
@@ -395,6 +412,15 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 	err := eg.Wait()
 	testutil.SkipIfBindErr(t, err)
 	testutil.RequireNoError(t, err)
+
+	for err := range errCh {
+		require.NoError(t, err)
+	}
+	for res := range routineResCh {
+		require.Equal(t, res.expect, res.actual)
+		require.Equal(t, res.expectSig, res.actualSig)
+		require.Equal(t, res.expectPublicKey, res.actualPublicKey)
+	}
 }
 
 type tekuCmd []string

@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/testutil"
@@ -27,7 +26,7 @@ func TestGetNetworkStatistics(t *testing.T) {
 	defer ts.Close()
 
 	vals, err := getNetworkStatistics(context.Background(), ts.URL, "auth", "goerli")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	testutil.RequireGoldenJSON(t, vals)
 }
 
@@ -42,7 +41,7 @@ func TestGetNodeOperatorStatistics(t *testing.T) {
 	defer ts.Close()
 
 	vals, err := getNodeOperatorStatistics(context.Background(), ts.URL, "auth", "Lido", "goerli")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	testutil.RequireGoldenJSON(t, vals)
 }
 

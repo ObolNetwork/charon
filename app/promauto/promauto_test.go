@@ -28,7 +28,7 @@ func TestWrapRegisterer(t *testing.T) {
 	require.NoError(t, err)
 	metrics, err := registry.Gather()
 	require.NoError(t, err)
-	require.True(t, len(metrics) > 1)
+	require.Greater(t, len(metrics), 1)
 
 	var foundTest bool
 	for _, metricFam := range metrics {

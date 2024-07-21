@@ -451,7 +451,7 @@ func testCheck(t *testing.T, m Metadata, checkName string, expect bool, metrics 
 
 func genFam(name string, metrics ...[]*pb.Metric) []*pb.MetricFamily {
 	typ := pb.MetricType_COUNTER
-	if metrics[0][0].Gauge != nil {
+	if metrics[0][0].GetGauge() != nil {
 		typ = pb.MetricType_GAUGE
 	}
 

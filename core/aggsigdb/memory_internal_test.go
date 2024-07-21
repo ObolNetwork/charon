@@ -77,9 +77,10 @@ func TestCancelledQuery(t *testing.T) {
 	var wg sync.WaitGroup
 
 	wg.Add(1)
+	errCh := make(chan error, 2)
 	go func() {
 		_, err := db.Await(qctx, duty, pubkey)
-		require.ErrorIs(t, err, context.Canceled)
+		errCh <- err
 		wg.Done()
 	}()
 	require.Equal(t, 1, <-queryCount)
@@ -87,7 +88,7 @@ func TestCancelledQuery(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		_, err := db.Await(qctx, duty, pubkey)
-		require.ErrorIs(t, err, context.Canceled)
+		errCh <- err
 		wg.Done()
 	}()
 	require.Equal(t, 2, <-queryCount)
@@ -96,8 +97,13 @@ func TestCancelledQuery(t *testing.T) {
 	qcancel()
 	wg.Wait()
 
+	err := <-errCh
+	require.ErrorIs(t, err, context.Canceled)
+	err = <-errCh
+	require.ErrorIs(t, err, context.Canceled)
+
 	// Store something and ensure no blocked queries
-	err := db.Store(ctx, duty, core.SignedDataSet{pubkey: sig})
+	err = db.Store(ctx, duty, core.SignedDataSet{pubkey: sig})
 	require.NoError(t, err)
 	require.Equal(t, 0, <-queryCount)
 }
