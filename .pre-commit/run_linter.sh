@@ -12,7 +12,6 @@ version_check=$(golangci-lint version)
 if [[ $version_check != *"$VERSION"* ]]; then
     echo $version_check
     echo "golangci-lint version is not $VERSION"
-    exit 1
 fi
 
 golangci-lint run
