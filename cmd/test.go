@@ -328,3 +328,14 @@ func blockAndWait(ctx context.Context, awaitTime time.Duration) {
 		log.Info(ctx, "Forcefully stopped")
 	}
 }
+
+func sleepWithContext(ctx context.Context, d time.Duration) {
+	timer := time.NewTimer(d)
+	select {
+	case <-ctx.Done():
+		if !timer.Stop() {
+			<-timer.C
+		}
+	case <-timer.C:
+	}
+}
