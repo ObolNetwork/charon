@@ -64,7 +64,7 @@ Note: PRs can only be merged by obol-bulldozer bot. It is author's responsibilit
 > TL;DR: Introduce change in small increments
 
 - Please see the [Branching and Release Model](branching.md) for more details about how we do branching and releases.
-- Multiple PRs per issue is encouraged.
+- Multiple PRs per issue are encouraged.
 - This ensures small PRs that are easy to review, merge and test.
 - The issue can be closed once all PRs are completed.
 - Keeping track of completed and planned PRs via a checklist in the issue is a great idea.
