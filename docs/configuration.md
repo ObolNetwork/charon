@@ -82,7 +82,7 @@ The `cluster-lock.json` has the following schema:
 ```
 
 `charon run` just requires a `cluster-lock.json` file to configure the cluster. See the [cluster.DepositData](../cluster/deposit.go) and [cluster.BuilderRegistration](../cluster/registration.go) Go structs for more details
-on how the an individual `distributed_validator` looks like.
+on how an individual `distributed_validator` looks like.
 
 ### Cluster Config Change Log
 
@@ -93,7 +93,7 @@ The following is the historical change log of the cluster config:
   - `distributed_validator` structure replaced `deposit_data` with `partial_deposit_data` respectively.
 - `v1.7.0`:
   - Added the `builder_registration` structure to `distributed_validators` list in cluster lock.
-  - This enables distributed validators to submit pre-generated validator registrations that enables MEV-blocks.
+  - This enables distributed validators to submit pre-generated validator registrations that enable MEV-blocks.
   - Added the `node_signatures` list to cluster lock which contains signatures of the lock hash signed by each individual node.
 - `v1.6.0`:
   - Add `deposit_data` structure to `distributed_validators` list in cluster lock.

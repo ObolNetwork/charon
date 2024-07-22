@@ -93,18 +93,18 @@ Reasoning: Function local variables cannot be leaked and misuse is much harder t
 
 ## Style
 We follow [go fumpt](https://pkg.go.dev/mvdan.cc/gofumpt) , `go vet` and [golangci-lint](https://golangci-lint.run/) for automated formatting and vetting and linting,
-but there are still some style related aspects that are not enforced be these tools.
+but there are still some style related aspects that are not enforced by these tools.
 Please try to inform your decisions by the following style for improved consistency.
 
 > Note that style isn’t an exact science #CodeAsCraft
 
 ### New lines:
-  - Please use new lines to structure and group code for improved readability. Think about how prose and poetry uses paragraphs and layout to convey information. #CleanCodeReadsAsProse
+  - Please use new lines to structure and group code for improved readability. Think about how prose and poetry use paragraphs and layout to convey information. #CleanCodeReadsAsProse
   - Prefer new lines between blocks of related code. Functions often have multiple steps, so maybe put a new line and a comment before each step.
   - Think about new lines after indented blocks.
 
 ### Comments/godocs:
-  - The “Practical Go” articles above has great info on how to comment.
+  - The “Practical Go” articles above have great info on how to comment.
   - Avoid inline comments that are pretty much identical to the actual code. Uncle Bob imagines comments as old-school flashing web1 html instead of soothing background grey. Keep them to a minimum aiming for very high signal to noise.
   - Write long comments as proper sentences: Start with a capital, end with a full stop, grammatically correct.
 
@@ -127,7 +127,7 @@ Please try to inform your decisions by the following style for improved consiste
   - The name of the game when it comes to logging is maximize **Signal to Noise** ratio.
     - Many projects have the problem of too much logging.
     - If logs are too much and one can only search for specific logs, then identifying unexpected behaviour becomes very hard.
-    - Our aim is that humans should be able follow ALL logs (up to debug level) of a node with 1 validator.
+    - Our aim is that humans should be able to follow ALL logs (up to debug level) of a node with 1 validator.
   - Keep logging as simple and concise as possible (ask ChatGPT to help you with this).
   - Focus on glanceability and readability, users should be able to scan logs and quickly identify unexpected behaviour.
   - Stick to similar patterns for similar scenarios and packages.
