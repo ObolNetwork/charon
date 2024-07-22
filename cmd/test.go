@@ -106,6 +106,9 @@ const (
 
 	// failed tests
 	testVerdictFail testVerdict = "Fail"
+
+	// skipped tests
+	testVerdictSkipped testVerdict = "Skip"
 )
 
 type categoryScore string
@@ -278,7 +281,7 @@ func calculateScore(results []testResult) categoryScore {
 			}
 
 			continue
-		case testVerdictOk:
+		case testVerdictOk, testVerdictSkipped:
 			continue
 		}
 	}

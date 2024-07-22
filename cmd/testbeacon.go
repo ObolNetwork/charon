@@ -7,9 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
+	"math/rand"
 	"net/http"
 	"net/http/httptrace"
 	"strconv"
+	"sync"
 	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -18,12 +21,15 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
 
 type testBeaconConfig struct {
 	testConfig
-	Endpoints []string
+	Endpoints        []string
+	EnableLoadTest   bool
+	LoadTestDuration time.Duration
 }
 
 type testCaseBeacon func(context.Context, *testBeaconConfig, string) testResult
@@ -31,6 +37,8 @@ type testCaseBeacon func(context.Context, *testBeaconConfig, string) testResult
 const (
 	thresholdBeaconMeasureAvg = 40 * time.Millisecond
 	thresholdBeaconMeasureBad = 100 * time.Millisecond
+	thresholdBeaconLoadAvg    = 40 * time.Millisecond
+	thresholdBeaconLoadBad    = 100 * time.Millisecond
 	thresholdBeaconPeersAvg   = 50
 	thresholdBeaconPeersBad   = 20
 )
@@ -61,6 +69,8 @@ func bindTestBeaconFlags(cmd *cobra.Command, config *testBeaconConfig) {
 	const endpoints = "endpoints"
 	cmd.Flags().StringSliceVar(&config.Endpoints, endpoints, nil, "[REQUIRED] Comma separated list of one or more beacon node endpoint URLs.")
 	mustMarkFlagRequired(cmd, endpoints)
+	cmd.Flags().BoolVar(&config.EnableLoadTest, "enable-load-test", false, "Enable load test, not advisable when testing towards external beacon nodes.")
+	cmd.Flags().DurationVar(&config.LoadTestDuration, "load-test-duration", 5*time.Second, "Time to keep running the load tests in seconds. For each second a new continuous ping instance is spawned.")
 }
 
 func supportedBeaconTestCases() map[testCaseName]testCaseBeacon {
@@ -69,6 +79,7 @@ func supportedBeaconTestCases() map[testCaseName]testCaseBeacon {
 		{name: "pingMeasure", order: 2}: beaconPingMeasureTest,
 		{name: "isSynced", order: 3}:    beaconIsSyncedTest,
 		{name: "peerCount", order: 4}:   beaconPeerCountTest,
+		{name: "pingLoad", order: 5}:    beaconPingLoadTest,
 	}
 }
 
@@ -229,9 +240,7 @@ func beaconPingTest(ctx context.Context, _ *testBeaconConfig, target string) tes
 	return testRes
 }
 
-func beaconPingMeasureTest(ctx context.Context, _ *testBeaconConfig, target string) testResult {
-	testRes := testResult{Name: "PingMeasure"}
-
+func beaconPingOnce(ctx context.Context, target string) (time.Duration, error) {
 	var start time.Time
 	var firstByte time.Duration
 
@@ -245,27 +254,105 @@ func beaconPingMeasureTest(ctx context.Context, _ *testBeaconConfig, target stri
 	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/health", target)
 	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), http.MethodGet, targetEndpoint, nil)
 	if err != nil {
-		return failedTestResult(testRes, err)
+		return 0, errors.Wrap(err, "create new request with trace and context")
 	}
 
 	resp, err := http.DefaultTransport.RoundTrip(req)
 	if err != nil {
-		return failedTestResult(testRes, err)
+		return 0, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode > 399 {
-		return failedTestResult(testRes, errors.New("status code %v", z.Int("status_code", resp.StatusCode)))
+		return 0, errors.New("status code %v", z.Int("status_code", resp.StatusCode))
 	}
 
-	if firstByte > thresholdBeaconMeasureBad {
+	return firstByte, nil
+}
+
+func beaconPingMeasureTest(ctx context.Context, _ *testBeaconConfig, target string) testResult {
+	testRes := testResult{Name: "PingMeasure"}
+
+	rtt, err := beaconPingOnce(ctx, target)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+
+	if rtt > thresholdBeaconMeasureBad {
 		testRes.Verdict = testVerdictBad
-	} else if firstByte > thresholdBeaconMeasureAvg {
+	} else if rtt > thresholdBeaconMeasureAvg {
 		testRes.Verdict = testVerdictAvg
 	} else {
 		testRes.Verdict = testVerdictGood
 	}
-	testRes.Measurement = Duration{firstByte}.String()
+	testRes.Measurement = Duration{rtt}.String()
+
+	return testRes
+}
+
+func pingBeaconContinuously(ctx context.Context, target string, resCh chan<- time.Duration) {
+	for {
+		rtt, err := beaconPingOnce(ctx, target)
+		if err != nil {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case resCh <- rtt:
+			awaitTime := rand.Intn(100) //nolint:gosec // weak generator is not an issue here
+			sleepWithContext(ctx, time.Duration(awaitTime)*time.Millisecond)
+		}
+	}
+}
+
+func beaconPingLoadTest(ctx context.Context, conf *testBeaconConfig, target string) testResult {
+	testRes := testResult{Name: "BeaconLoad"}
+	if !conf.EnableLoadTest {
+		testRes.Verdict = testVerdictSkipped
+		return testRes
+	}
+	log.Info(ctx, "Running ping load tests...",
+		z.Any("duration", conf.LoadTestDuration),
+		z.Any("target", target),
+	)
+
+	testResCh := make(chan time.Duration, math.MaxInt16)
+	pingCtx, cancel := context.WithTimeout(ctx, conf.LoadTestDuration)
+	defer cancel()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	var wg sync.WaitGroup
+	for pingCtx.Err() == nil {
+		select {
+		case <-ticker.C:
+			wg.Add(1)
+			go func() {
+				pingBeaconContinuously(pingCtx, target, testResCh)
+				wg.Done()
+			}()
+		case <-pingCtx.Done():
+		}
+	}
+	wg.Wait()
+	close(testResCh)
+	log.Info(ctx, "Ping load tests finished", z.Any("target", target))
+
+	highestRTT := time.Duration(0)
+	for rtt := range testResCh {
+		if rtt > highestRTT {
+			highestRTT = rtt
+		}
+	}
+	if highestRTT > thresholdBeaconLoadBad {
+		testRes.Verdict = testVerdictBad
+	} else if highestRTT > thresholdBeaconLoadAvg {
+		testRes.Verdict = testVerdictAvg
+	} else {
+		testRes.Verdict = testVerdictGood
+	}
+	testRes.Measurement = Duration{highestRTT}.String()
 
 	return testRes
 }
