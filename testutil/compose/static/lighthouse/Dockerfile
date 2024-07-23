@@ -1,4 +1,4 @@
-FROM sigp/lighthouse:latest-${TARGETARCH}-unstable-dev
+FROM sigp/lighthouse:v5.2.1
 
 ENV YQ_VERSION=v4.42.1
 
