@@ -16,7 +16,6 @@ for f in /compose/"${NODE}"/validator_keys/keystore-*.json; do
   echo "Importing key ${f}"
   cat "$(echo "${f}" | sed 's/json/txt/')" | lighthouse account validator import \
     --testnet-dir "/tmp/testnet" \
-    --stdin-inputs \
     --keystore "${f}"
 done
 
