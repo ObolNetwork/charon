@@ -4,7 +4,7 @@ go 1.22
 
 require (
 	github.com/attestantio/go-eth2-client v0.21.7
-	github.com/bufbuild/buf v1.34.0
+	github.com/bufbuild/buf v1.35.0
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0
 	github.com/ferranbt/fastssz v0.1.3
@@ -92,7 +92,7 @@ require (
 	github.com/flynn/noise v1.1.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
-	github.com/go-chi/chi/v5 v5.0.13 // indirect
+	github.com/go-chi/chi/v5 v5.0.14 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
@@ -103,7 +103,7 @@ require (
 	github.com/google/cel-go v0.20.1 // indirect
 	github.com/google/go-containerregistry v0.19.2 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
-	github.com/google/pprof v0.0.0-20240618054019-d3b898a103f8 // indirect
+	github.com/google/pprof v0.0.0-20240622144329-c177fd99eaa9 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.20.0 // indirect
