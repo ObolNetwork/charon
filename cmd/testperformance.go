@@ -4,11 +4,15 @@ package cmd
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -26,9 +30,11 @@ type testPerformanceConfig struct {
 }
 
 const (
-	diskWriteLoops  = 5
-	diskWriteMBsAvg = 1000
-	diskWriteMBsBad = 500
+	diskWriteLoops        = 5
+	diskWriteMBsAvg       = 1000
+	diskWriteMBsBad       = 500
+	availableMemoryMBsAvg = 4000
+	availableMemoryMBsBad = 2000
 )
 
 func newTestPerformanceCmd(runFunc func(context.Context, io.Writer, testPerformanceConfig) error) *cobra.Command {
@@ -59,7 +65,9 @@ func bindTestPerformanceFlags(cmd *cobra.Command, config *testPerformanceConfig)
 
 func supportedPerformanceTestCases() map[testCaseName]func(context.Context, *testPerformanceConfig) testResult {
 	return map[testCaseName]func(context.Context, *testPerformanceConfig) testResult{
-		{name: "diskWrite", order: 1}: performanceDiskWriteTest,
+		{name: "diskWrite", order: 1}:       performanceDiskWriteTest,
+		{name: "availableMemory", order: 2}: performanceAvailableMemoryTest,
+		{name: "totalMemory", order: 3}:     performanceTotalMemoryTest,
 	}
 }
 
@@ -258,4 +266,197 @@ func writeFile(fSize float64) (float64, error) {
 	actulMBWritten := float64(written) / 1024 / 1024
 
 	return actulMBWritten / since.Seconds(), nil
+}
+
+func availableMemoryLinux(context.Context) (int64, error) {
+	file, err := os.Open("/proc/meminfo")
+	if err != nil {
+		return 0, errors.Wrap(err, "open /proc/meminfo")
+	}
+	scanner := bufio.NewScanner(file)
+	if scanner.Err() != nil {
+		return 0, errors.Wrap(err, "new scanner")
+	}
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.Contains(line, "MemAvailable") {
+			continue
+		}
+		splitText := strings.Split(line, ": ")
+		kbs := strings.Trim(strings.Split(splitText[1], "kB")[0], " ")
+		kbsInt, err := strconv.ParseInt(kbs, 10, 64)
+		if err != nil {
+			return 0, errors.Wrap(err, "parse MemAvailable int")
+		}
+
+		return kbsInt * 1024, nil
+	}
+
+	return 0, errors.New("memAvailable not found in /proc/meminfo")
+}
+
+func availableMemoryMacos(ctx context.Context) (int64, error) {
+	pageSizeBytes, err := exec.CommandContext(ctx, "pagesize").Output()
+	if err != nil {
+		return 0, errors.Wrap(err, "run pagesize")
+	}
+	memorySizePerPage, err := strconv.ParseInt(strings.TrimSuffix(string(pageSizeBytes), "\n"), 10, 64)
+	if err != nil {
+		return 0, errors.Wrap(err, "parse memorySizePerPage int")
+	}
+
+	out, err := exec.CommandContext(ctx, "vm_stat").Output()
+	if err != nil {
+		return 0, errors.Wrap(err, "run vm_stat")
+	}
+	outBuf := bytes.NewBuffer(out)
+	scanner := bufio.NewScanner(outBuf)
+	if scanner.Err() != nil {
+		return 0, errors.Wrap(err, "new scanner")
+	}
+
+	var pagesFree, pagesInactive, pagesSpeculative int64
+	for scanner.Scan() {
+		line := scanner.Text()
+		splitText := strings.Split(line, ": ")
+
+		var bytes int64
+		var err error
+		switch {
+		case strings.Contains(splitText[0], "Pages free"):
+			bytes, err = strconv.ParseInt(strings.Trim(strings.Split(splitText[1], ".")[0], " "), 10, 64)
+			if err != nil {
+				return 0, errors.Wrap(err, "parse Pages free int")
+			}
+			pagesFree = bytes
+		case strings.Contains(splitText[0], "Pages inactive"):
+			bytes, err = strconv.ParseInt(strings.Trim(strings.Split(splitText[1], ".")[0], " "), 10, 64)
+			if err != nil {
+				return 0, errors.Wrap(err, "parse Pages inactive int")
+			}
+			pagesInactive = bytes
+		case strings.Contains(splitText[0], "Pages speculative"):
+			bytes, err = strconv.ParseInt(strings.Trim(strings.Split(splitText[1], ".")[0], " "), 10, 64)
+			if err != nil {
+				return 0, errors.Wrap(err, "parse Pages speculative int")
+			}
+			pagesSpeculative = bytes
+		}
+	}
+
+	return ((pagesFree + pagesInactive + pagesSpeculative) * memorySizePerPage), nil
+}
+
+func performanceAvailableMemoryTest(ctx context.Context, _ *testPerformanceConfig) testResult {
+	testRes := testResult{Name: "AvailableMemory"}
+
+	var availableMemory int64
+	var err error
+	os := runtime.GOOS
+	switch os {
+	case "linux":
+		availableMemory, err = availableMemoryLinux(ctx)
+		if err != nil {
+			return failedTestResult(testRes, err)
+		}
+	case "darwin":
+		availableMemory, err = availableMemoryMacos(ctx)
+		if err != nil {
+			return failedTestResult(testRes, err)
+		}
+	default:
+		return failedTestResult(testRes, errors.New("unknown OS "+os))
+	}
+
+	availableMemoryMB := availableMemory / 1024 / 1024
+
+	if availableMemoryMB < availableMemoryMBsBad {
+		testRes.Verdict = testVerdictBad
+	} else if availableMemoryMB < availableMemoryMBsAvg {
+		testRes.Verdict = testVerdictAvg
+	} else {
+		testRes.Verdict = testVerdictGood
+	}
+	testRes.Measurement = strconv.Itoa(int(availableMemoryMB)) + "MB"
+
+	return testRes
+}
+
+func totalMemoryLinux(context.Context) (int64, error) {
+	file, err := os.Open("/proc/meminfo")
+	if err != nil {
+		return 0, errors.Wrap(err, "open /proc/meminfo")
+	}
+	scanner := bufio.NewScanner(file)
+	if scanner.Err() != nil {
+		return 0, errors.Wrap(err, "new scanner")
+	}
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.Contains(line, "MemTotal") {
+			continue
+		}
+		splitText := strings.Split(line, ": ")
+		kbs := strings.Trim(strings.Split(splitText[1], "kB")[0], " ")
+		kbsInt, err := strconv.ParseInt(kbs, 10, 64)
+		if err != nil {
+			return 0, errors.Wrap(err, "parse MemAvailable int")
+		}
+
+		return kbsInt * 1024, nil
+	}
+
+	return 0, errors.New("memAvailable not found in /proc/meminfo")
+}
+
+func totalMemoryMacos(ctx context.Context) (int64, error) {
+	out, err := exec.CommandContext(ctx, "sysctl", "hw.memsize").Output()
+	if err != nil {
+		return 0, errors.Wrap(err, "run sysctl hw.memsize")
+	}
+
+	memSize := strings.TrimSuffix(strings.Split(string(out), ": ")[1], "\n")
+	memSizeInt, err := strconv.ParseInt(memSize, 10, 64)
+	if err != nil {
+		return 0, errors.Wrap(err, "parse memSize int")
+	}
+
+	return memSizeInt, nil
+}
+
+func performanceTotalMemoryTest(ctx context.Context, _ *testPerformanceConfig) testResult {
+	testRes := testResult{Name: "TotalMemory"}
+
+	var availableMemory int64
+	var err error
+	os := runtime.GOOS
+	switch os {
+	case "linux":
+		availableMemory, err = totalMemoryLinux(ctx)
+		if err != nil {
+			return failedTestResult(testRes, err)
+		}
+	case "darwin":
+		availableMemory, err = totalMemoryMacos(ctx)
+		if err != nil {
+			return failedTestResult(testRes, err)
+		}
+	default:
+		return failedTestResult(testRes, errors.New("unknown OS "+os))
+	}
+
+	availableMemoryMB := availableMemory / 1024 / 1024
+
+	if availableMemoryMB < availableMemoryMBsBad {
+		testRes.Verdict = testVerdictBad
+	} else if availableMemoryMB < availableMemoryMBsAvg {
+		testRes.Verdict = testVerdictAvg
+	} else {
+		testRes.Verdict = testVerdictGood
+	}
+	testRes.Measurement = strconv.Itoa(int(availableMemoryMB)) + "MB"
+
+	return testRes
 }
