@@ -29,10 +29,11 @@ var (
 )
 
 const (
-	peersTestCategory     = "peers"
-	beaconTestCategory    = "beacon"
-	validatorTestCategory = "validator"
-	mevTestCategory       = "mev"
+	peersTestCategory       = "peers"
+	beaconTestCategory      = "beacon"
+	validatorTestCategory   = "validator"
+	mevTestCategory         = "mev"
+	performanceTestCategory = "performance"
 )
 
 type testConfig struct {
@@ -73,6 +74,8 @@ func listTestCases(cmd *cobra.Command) []string {
 		testCaseNames = maps.Keys(supportedValidatorTestCases())
 	case mevTestCategory:
 		testCaseNames = maps.Keys(supportedMEVTestCases())
+	case performanceTestCategory:
+		testCaseNames = maps.Keys(supportedPerformanceTestCases())
 	default:
 		log.Warn(cmd.Context(), "Unknown command for listing test cases", nil, z.Str("name", cmd.Name()))
 	}
@@ -204,6 +207,8 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) error {
 		lines = append(lines, validatorASCII()...)
 	case mevTestCategory:
 		lines = append(lines, mevASCII()...)
+	case performanceTestCategory:
+		lines = append(lines, performanceASCII()...)
 	default:
 		lines = append(lines, categoryDefaultASCII()...)
 	}
@@ -218,7 +223,7 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) error {
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, fmt.Sprintf("%-60s%s", "TEST NAME", "RESULT"))
+	lines = append(lines, fmt.Sprintf("%-64s%s", "TEST NAME", "RESULT"))
 	suggestions := []string{}
 	for target, testResults := range res.Targets {
 		if target != "" && len(testResults) > 0 {
@@ -227,7 +232,7 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) error {
 		}
 		for _, singleTestRes := range testResults {
 			testOutput := ""
-			testOutput += fmt.Sprintf("%-60s", singleTestRes.Name)
+			testOutput += fmt.Sprintf("%-64s", singleTestRes.Name)
 			if singleTestRes.Measurement != "" {
 				testOutput = strings.TrimSuffix(testOutput, strings.Repeat(" ", utf8.RuneCountInString(singleTestRes.Measurement)+1))
 				testOutput = testOutput + singleTestRes.Measurement + " "
