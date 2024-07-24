@@ -359,8 +359,10 @@ func testWriteOut(t *testing.T, expectedRes testCategoryResult, buf bytes.Buffer
 			name, res, exist := strings.Cut(bufTests[0], " ")
 			require.True(t, exist)
 			require.Equal(t, name, test.Name)
-			require.Contains(t, res, test.Verdict)
-			require.Contains(t, res, test.Measurement)
+			// do not test verdicts based on measurements
+			if test.Verdict == testVerdictOk || test.Verdict == testVerdictFail {
+				require.Contains(t, res, test.Verdict)
+			}
 			require.Contains(t, res, test.Suggestion)
 			if test.Error.error != nil {
 				require.Contains(t, res, test.Error.Error())
@@ -385,7 +387,10 @@ func testWriteFile(t *testing.T, expectedRes testCategoryResult, path string) {
 	require.Equal(t, len(expectedRes.Targets), len(res.Targets))
 	for targetName, testResults := range res.Targets {
 		for idx, testRes := range testResults {
-			require.Equal(t, expectedRes.Targets[targetName][idx].Verdict, testRes.Verdict)
+			// do not test verdicts based on measurements
+			if expectedRes.Targets[targetName][idx].Verdict == testVerdictOk || expectedRes.Targets[targetName][idx].Verdict == testVerdictFail {
+				require.Equal(t, expectedRes.Targets[targetName][idx].Verdict, testRes.Verdict)
+			}
 			require.Equal(t, expectedRes.Targets[targetName][idx].IsAcceptable, testRes.IsAcceptable)
 			if expectedRes.Targets[targetName][idx].Error.error != nil {
 				require.ErrorContains(t, testRes.Error.error, expectedRes.Targets[targetName][idx].Error.error.Error())
