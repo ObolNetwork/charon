@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 
@@ -217,12 +216,11 @@ func performanceDiskWriteTest(ctx context.Context, conf *testPerformanceConfig) 
 
 func writeFile(fSize float64) (float64, error) {
 	fSize *= 1024 * 1024 * 1024 // size in GB
-	ex, err := os.Executable()
+	ex, err := os.UserHomeDir()
 	if err != nil {
 		return 0, errors.Wrap(err, "os executable write file")
 	}
-	exPath := filepath.Dir(ex)
-	fName := exPath + `/diskio`
+	fName := ex + `/diskio`
 	defer os.Remove(fName)
 	f, err := os.Create(fName)
 	if err != nil {
