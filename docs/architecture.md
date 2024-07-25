@@ -48,7 +48,7 @@ This document describes the Charon middleware architecture both from cluster lev
 
 ## Charon Node Core Workflow
 
-Charon core business logic is modelled as a workflow, with a duty being performed in a slot as the “unit of work”.
+Charon core business logic is modeled as a workflow, with a duty being performed in a slot as the “unit of work”.
 ```
 Core Workflow
 

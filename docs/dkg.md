@@ -53,7 +53,7 @@ This cluster-definition file is created with the help of the [Distributed Valida
 
 ## Carrying out the DKG ceremony
 
-Once participant has their cluster-definition file prepared, they will pass the file to charon's `dkg` command. Charon will read the ENRs in the cluster-definition, confirm that its ENR is present, and then will reach out to bootnodes that are deployed to find the other ENRs on the network. (Fresh ENRs just have a public key and an IP address of 0.0.0.0 until they are loaded into a live charon client, which will update the IP address and increment the ENRs nonce and resign with the clients private key. If an ENR with a higher nonce is seen be a charon client, they will update the IP address of that ENR in their address book.)
+Once participant has their cluster-definition file prepared, they will pass the file to charon's `dkg` command. Charon will read the ENRs in the cluster-definition, confirm that its ENR is present, and then will reach out to bootnodes that are deployed to find the other ENRs on the network. (Fresh ENRs just have a public key and an IP address of 0.0.0.0 until they are loaded into a live charon client, which will update the IP address and increment the ENRs nonce and resign with the clients private key. If an ENR with a higher nonce is seen to be a charon client, they will update the IP address of that ENR in their address book.)
 
 Once all clients in the cluster can establish a connection with one another and they each complete a handshake (confirm everyone has a matching `cluster_definition_hash`), the ceremony begins.
 

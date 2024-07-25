@@ -20,7 +20,7 @@ We follow [Trunk Based Development](https://trunkbaseddevelopment.com/) as a bra
 ## Controlled introduction of change:
 
 - Since a feature cannot be added as a single big merge of a big feature branch, tools and patterns are required that allow gradual controlled introduction of increment changes without breaking.
-- New code can be added as “dead code”. So not integrated into the actual program yet. Once it is properly complete, it can be integrated in a single PR.
+- New code can be added as “dead code”. So, it has not been integrated into the actual program yet. Once it is properly complete, it can be integrated in a single PR.
 - Some features should however not be enabled straight into prod/mainnet, but should be rolled-out slowly being first tested in `alpha` (internal devnet only), then `beta` (internal and external testnet), and then only `stable` (enabled everywhere). This can be achieved by simple [feature switches](https://trunkbaseddevelopment.com/feature-flags/) (if statements) that enable features based on their `feature_set` status.
 - Another powerful pattern to gradually introduce change is [branching by abstraction](https://trunkbaseddevelopment.com/branch-by-abstraction/). This basically introduces an abstraction layer at the point where a new feature has to replace an old feature (like an interface). Using dependency injection, the new feature can be integrated during testing/staging while the old feature is still being used in production.
 - Note that both feature switches and/or abstraction layers used to roll out a feature should be removed once released to prod/main-net.
