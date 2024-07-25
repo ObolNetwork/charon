@@ -230,7 +230,7 @@ func pingValidatorContinuously(ctx context.Context, address string, resCh chan<-
 }
 
 func validatorPingLoadTest(ctx context.Context, conf *testValidatorConfig) testResult {
-	log.Info(ctx, "Running validator load tests...",
+	log.Info(ctx, "Running ping load tests...",
 		z.Any("duration", conf.LoadTestDuration),
 		z.Any("target", conf.APIAddress),
 	)
@@ -256,6 +256,7 @@ func validatorPingLoadTest(ctx context.Context, conf *testValidatorConfig) testR
 	}
 	wg.Wait()
 	close(testResCh)
+	log.Info(ctx, "Ping load tests finished", z.Any("target", conf.APIAddress))
 
 	highestRTT := time.Duration(0)
 	for rtt := range testResCh {

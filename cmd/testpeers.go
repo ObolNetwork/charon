@@ -237,17 +237,6 @@ func pingPeerContinuously(ctx context.Context, tcpNode host.Host, peer p2p.Peer,
 	}
 }
 
-func sleepWithContext(ctx context.Context, d time.Duration) {
-	timer := time.NewTimer(d)
-	select {
-	case <-ctx.Done():
-		if !timer.Stop() {
-			<-timer.C
-		}
-	case <-timer.C:
-	}
-}
-
 func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) error {
 	relayTestCases := supportedRelayTestCases()
 	queuedTestsRelay := filterTests(maps.Keys(relayTestCases), conf.testConfig)

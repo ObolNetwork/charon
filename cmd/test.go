@@ -106,6 +106,9 @@ const (
 
 	// failed tests
 	testVerdictFail testVerdict = "Fail"
+
+	// skipped tests
+	testVerdictSkipped testVerdict = "Skip"
 )
 
 type categoryScore string
@@ -278,7 +281,7 @@ func calculateScore(results []testResult) categoryScore {
 			}
 
 			continue
-		case testVerdictOk:
+		case testVerdictOk, testVerdictSkipped:
 			continue
 		}
 	}
@@ -323,5 +326,16 @@ func blockAndWait(ctx context.Context, awaitTime time.Duration) {
 		log.Info(ctx, "Await time reached or interrupted")
 	case <-notifyCtx.Done():
 		log.Info(ctx, "Forcefully stopped")
+	}
+}
+
+func sleepWithContext(ctx context.Context, d time.Duration) {
+	timer := time.NewTimer(d)
+	select {
+	case <-ctx.Done():
+		if !timer.Stop() {
+			<-timer.C
+		}
+	case <-timer.C:
 	}
 }
