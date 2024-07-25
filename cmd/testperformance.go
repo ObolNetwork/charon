@@ -11,10 +11,12 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/showwin/speedtest-go/speedtest"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/maps"
 	"golang.org/x/sys/unix"
@@ -26,17 +28,25 @@ import (
 
 type testPerformanceConfig struct {
 	testConfig
-	DiskWriteMB int
+	DiskWriteMB                int
+	InternetTestServersOnly    []string
+	InternetTestServersExclude []string
 }
 
 const (
-	diskWriteLoops        = 5
-	diskWriteMBsAvg       = 1000
-	diskWriteMBsBad       = 500
-	availableMemoryMBsAvg = 4000
-	availableMemoryMBsBad = 2000
-	totalMemoryMBsAvg     = 8000
-	totalMemoryMBsBad     = 4000
+	diskWriteLoops               = 5
+	diskWriteMBsAvg              = 1000
+	diskWriteMBsBad              = 500
+	availableMemoryMBsAvg        = 4000
+	availableMemoryMBsBad        = 2000
+	totalMemoryMBsAvg            = 8000
+	totalMemoryMBsBad            = 4000
+	internetLatencyAvg           = 20 * time.Millisecond
+	internetLatencyBad           = 50 * time.Millisecond
+	internetDownloadSpeedMbpsAvg = 50
+	internetDownloadSpeedMbpsBad = 15
+	internetUploadSpeedMbpsAvg   = 50
+	internetUploadSpeedMbpsBad   = 15
 )
 
 func newTestPerformanceCmd(runFunc func(context.Context, io.Writer, testPerformanceConfig) error) *cobra.Command {
@@ -63,13 +73,18 @@ func newTestPerformanceCmd(runFunc func(context.Context, io.Writer, testPerforma
 
 func bindTestPerformanceFlags(cmd *cobra.Command, config *testPerformanceConfig) {
 	cmd.Flags().IntVar(&config.DiskWriteMB, "disk-write-mb", 4096, "Size of file to be created that is used for write speed test")
+	cmd.Flags().StringSliceVar(&config.InternetTestServersOnly, "internet-test-servers-only", []string{}, "List of server names to be included for the tests, the best performing one is chosen.")
+	cmd.Flags().StringSliceVar(&config.InternetTestServersExclude, "internet-test-servers-exclude", []string{}, "List of server names to be excluded from the tests.")
 }
 
 func supportedPerformanceTestCases() map[testCaseName]func(context.Context, *testPerformanceConfig) testResult {
 	return map[testCaseName]func(context.Context, *testPerformanceConfig) testResult{
-		{name: "diskWrite", order: 1}:       performanceDiskWriteTest,
-		{name: "availableMemory", order: 2}: performanceAvailableMemoryTest,
-		{name: "totalMemory", order: 3}:     performanceTotalMemoryTest,
+		{name: "diskWrite", order: 1}:             performanceDiskWriteTest,
+		{name: "availableMemory", order: 2}:       performanceAvailableMemoryTest,
+		{name: "totalMemory", order: 3}:           performanceTotalMemoryTest,
+		{name: "internetLatency", order: 4}:       performanceInternetLatencyTest,
+		{name: "internetDownloadSpeed", order: 5}: performanceInternetDownloadSpeedTest,
+		{name: "internetUploadSpeed", order: 6}:   performanceInternetUploadSpeedTest,
 	}
 }
 
@@ -459,6 +474,141 @@ func performanceTotalMemoryTest(ctx context.Context, _ *testPerformanceConfig) t
 		testRes.Verdict = testVerdictGood
 	}
 	testRes.Measurement = strconv.Itoa(int(totalMemoryMB)) + "MB"
+
+	return testRes
+}
+
+func fetchOoklaServer(_ context.Context, conf *testPerformanceConfig) (speedtest.Server, error) {
+	speedtestClient := speedtest.New()
+
+	serverList, err := speedtestClient.FetchServers()
+	if err != nil {
+		return speedtest.Server{}, errors.Wrap(err, "fetch Ookla servers")
+	}
+
+	var targets speedtest.Servers
+
+	if len(conf.InternetTestServersOnly) != 0 {
+		for _, server := range serverList {
+			if slices.Contains(conf.InternetTestServersOnly, server.Name) {
+				targets = append(targets, server)
+			}
+		}
+	}
+
+	if len(conf.InternetTestServersExclude) != 0 {
+		var targets speedtest.Servers
+		for _, server := range serverList {
+			if !slices.Contains(conf.InternetTestServersExclude, server.Name) {
+				targets = append(targets, server)
+			}
+		}
+	}
+
+	if targets == nil {
+		targets = serverList
+	}
+
+	servers, err := targets.FindServer([]int{})
+	if err != nil {
+		return speedtest.Server{}, errors.Wrap(err, "find Ookla server")
+	}
+
+	return *servers[0], nil
+}
+
+func performanceInternetLatencyTest(ctx context.Context, conf *testPerformanceConfig) testResult {
+	testRes := testResult{Name: "InternetLatency"}
+
+	server, err := fetchOoklaServer(ctx, conf)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+
+	log.Info(ctx, "Testing internet latency...",
+		z.Any("server_name", server.Name),
+		z.Any("server_country", server.Country),
+		z.Any("server_distance_km", server.Distance),
+		z.Any("server_id", server.ID),
+	)
+	err = server.PingTestContext(ctx, nil)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+	latency := server.Latency
+
+	if latency > internetLatencyBad {
+		testRes.Verdict = testVerdictBad
+	} else if latency > internetLatencyAvg {
+		testRes.Verdict = testVerdictAvg
+	} else {
+		testRes.Verdict = testVerdictGood
+	}
+	testRes.Measurement = latency.Round(time.Microsecond).String()
+
+	return testRes
+}
+
+func performanceInternetDownloadSpeedTest(ctx context.Context, conf *testPerformanceConfig) testResult {
+	testRes := testResult{Name: "InternetDownloadSpeed"}
+
+	server, err := fetchOoklaServer(ctx, conf)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+
+	log.Info(ctx, "Testing internet download speed...",
+		z.Any("server_name", server.Name),
+		z.Any("server_country", server.Country),
+		z.Any("server_distance_km", server.Distance),
+		z.Any("server_id", server.ID),
+	)
+	err = server.DownloadTestContext(ctx)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+	downloadSpeed := server.DLSpeed.Mbps()
+
+	if downloadSpeed < internetDownloadSpeedMbpsBad {
+		testRes.Verdict = testVerdictBad
+	} else if downloadSpeed < internetDownloadSpeedMbpsAvg {
+		testRes.Verdict = testVerdictAvg
+	} else {
+		testRes.Verdict = testVerdictGood
+	}
+	testRes.Measurement = strconv.FormatFloat(downloadSpeed, 'f', 2, 64) + "MB/s"
+
+	return testRes
+}
+
+func performanceInternetUploadSpeedTest(ctx context.Context, conf *testPerformanceConfig) testResult {
+	testRes := testResult{Name: "InternetUploadSpeed"}
+
+	server, err := fetchOoklaServer(ctx, conf)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+
+	log.Info(ctx, "Testing internet upload speed...",
+		z.Any("server_name", server.Name),
+		z.Any("server_country", server.Country),
+		z.Any("server_distance_km", server.Distance),
+		z.Any("server_id", server.ID),
+	)
+	err = server.UploadTestContext(ctx)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+	uploadSpeed := server.ULSpeed.Mbps()
+
+	if uploadSpeed < internetUploadSpeedMbpsBad {
+		testRes.Verdict = testVerdictBad
+	} else if uploadSpeed < internetUploadSpeedMbpsAvg {
+		testRes.Verdict = testVerdictAvg
+	} else {
+		testRes.Verdict = testVerdictGood
+	}
+	testRes.Measurement = strconv.FormatFloat(uploadSpeed, 'f', 2, 64) + "MB/s"
 
 	return testRes
 }
