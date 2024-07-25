@@ -105,6 +105,13 @@ var (
 		Name:      "network",
 		Help:      "Constant gauge with label set to the current network (chain)",
 	}, []string{"network"})
+
+	validatorStackParamsGauge = promauto.NewResetGaugeVec(prometheus.GaugeOpts{
+		Namespace: "app",
+		Subsystem: "validator_stack",
+		Name:      "params",
+		Help:      "Parameters for each component of the validator stack in which this Charon instance is deployed into",
+	}, []string{"component", "cli_parameters"})
 )
 
 func initStartupMetrics(peerName string, threshold, numOperators, numValidators int, network string) {

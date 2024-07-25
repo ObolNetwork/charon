@@ -279,6 +279,16 @@ func quorumPeersConnected(peerIDs []peer.ID, tcpNode host.Host) bool {
 	return count >= cluster.Threshold(len(peerIDs))-1
 }
 
+// stackComponents writes Ethereum validator stack components names and CLI params to the defined Prometheus metric.
+// It assumes that names and cliParams have the same size.
+func stackComponents(names []string, cliParams []string) {
+	validatorStackParamsGauge.Reset()
+
+	for i := 0; i < len(names); i++ {
+		validatorStackParamsGauge.WithLabelValues(names[i], cliParams[i]).Set(1)
+	}
+}
+
 func writeResponse(w http.ResponseWriter, status int, msg string) {
 	w.WriteHeader(status)
 	_, _ = w.Write([]byte(msg))
