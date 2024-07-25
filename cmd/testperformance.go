@@ -35,6 +35,8 @@ const (
 	diskWriteMBsBad       = 500
 	availableMemoryMBsAvg = 4000
 	availableMemoryMBsBad = 2000
+	totalMemoryMBsAvg     = 8000
+	totalMemoryMBsBad     = 4000
 )
 
 func newTestPerformanceCmd(runFunc func(context.Context, io.Writer, testPerformanceConfig) error) *cobra.Command {
@@ -402,13 +404,13 @@ func totalMemoryLinux(context.Context) (int64, error) {
 		kbs := strings.Trim(strings.Split(splitText[1], "kB")[0], " ")
 		kbsInt, err := strconv.ParseInt(kbs, 10, 64)
 		if err != nil {
-			return 0, errors.Wrap(err, "parse MemAvailable int")
+			return 0, errors.Wrap(err, "parse MemTotal int")
 		}
 
 		return kbsInt * 1024, nil
 	}
 
-	return 0, errors.New("memAvailable not found in /proc/meminfo")
+	return 0, errors.New("memTotal not found in /proc/meminfo")
 }
 
 func totalMemoryMacos(ctx context.Context) (int64, error) {
@@ -429,17 +431,17 @@ func totalMemoryMacos(ctx context.Context) (int64, error) {
 func performanceTotalMemoryTest(ctx context.Context, _ *testPerformanceConfig) testResult {
 	testRes := testResult{Name: "TotalMemory"}
 
-	var availableMemory int64
+	var totalMemory int64
 	var err error
 	os := runtime.GOOS
 	switch os {
 	case "linux":
-		availableMemory, err = totalMemoryLinux(ctx)
+		totalMemory, err = totalMemoryLinux(ctx)
 		if err != nil {
 			return failedTestResult(testRes, err)
 		}
 	case "darwin":
-		availableMemory, err = totalMemoryMacos(ctx)
+		totalMemory, err = totalMemoryMacos(ctx)
 		if err != nil {
 			return failedTestResult(testRes, err)
 		}
@@ -447,16 +449,16 @@ func performanceTotalMemoryTest(ctx context.Context, _ *testPerformanceConfig) t
 		return failedTestResult(testRes, errors.New("unknown OS "+os))
 	}
 
-	availableMemoryMB := availableMemory / 1024 / 1024
+	totalMemoryMB := totalMemory / 1024 / 1024
 
-	if availableMemoryMB < availableMemoryMBsBad {
+	if totalMemoryMB < totalMemoryMBsBad {
 		testRes.Verdict = testVerdictBad
-	} else if availableMemoryMB < availableMemoryMBsAvg {
+	} else if totalMemoryMB < totalMemoryMBsAvg {
 		testRes.Verdict = testVerdictAvg
 	} else {
 		testRes.Verdict = testVerdictGood
 	}
-	testRes.Measurement = strconv.Itoa(int(availableMemoryMB)) + "MB"
+	testRes.Measurement = strconv.Itoa(int(totalMemoryMB)) + "MB"
 
 	return testRes
 }
