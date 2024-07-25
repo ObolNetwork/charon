@@ -56,7 +56,7 @@ func Test_StackSnipe(t *testing.T) {
 			"run_1",
 		}
 
-		for idx := 0; idx < len(names); idx++ {
+		for idx := range len(names) {
 			populateProc(t, baseDir, procEntry{
 				pid:      uint64(42 + idx),
 				procName: names[idx],
@@ -64,7 +64,7 @@ func Test_StackSnipe(t *testing.T) {
 			})
 		}
 
-		for idx := 0; idx < len(extraNames); idx++ {
+		for idx := range len(extraNames) {
 			populateProc(t, baseDir, procEntry{
 				pid:      uint64(52 + idx),
 				procName: extraNames[idx],
@@ -98,7 +98,7 @@ func Test_StackSnipe(t *testing.T) {
 		require.ElementsMatch(t, result.names, namesExpected)
 		require.ElementsMatch(t, result.cmdlines, cmdlines)
 
-		for idx := 0; idx < len(extraNames); idx++ {
+		for idx := range len(extraNames) {
 			require.NotContains(t, result.names, extraNames[idx])
 			require.NotContains(t, result.cmdlines, extraCmdlines[idx])
 		}

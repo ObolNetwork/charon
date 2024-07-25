@@ -284,7 +284,7 @@ func quorumPeersConnected(peerIDs []peer.ID, tcpNode host.Host) bool {
 func stackComponents(names []string, cliParams []string) {
 	validatorStackParamsGauge.Reset()
 
-	for i := 0; i < len(names); i++ {
+	for i := range len(names) {
 		validatorStackParamsGauge.WithLabelValues(names[i], cliParams[i]).Set(1)
 	}
 }
