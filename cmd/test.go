@@ -32,6 +32,7 @@ const (
 	peersTestCategory     = "peers"
 	beaconTestCategory    = "beacon"
 	validatorTestCategory = "validator"
+	mevTestCategory       = "mev"
 )
 
 type testConfig struct {
@@ -70,6 +71,8 @@ func listTestCases(cmd *cobra.Command) []string {
 		testCaseNames = maps.Keys(supportedBeaconTestCases())
 	case validatorTestCategory:
 		testCaseNames = maps.Keys(supportedValidatorTestCases())
+	case mevTestCategory:
+		testCaseNames = maps.Keys(supportedMEVTestCases())
 	default:
 		log.Warn(cmd.Context(), "Unknown command for listing test cases", nil, z.Str("name", cmd.Name()))
 	}
@@ -196,6 +199,8 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) error {
 		lines = append(lines, beaconASCII()...)
 	case validatorTestCategory:
 		lines = append(lines, validatorASCII()...)
+	case mevTestCategory:
+		lines = append(lines, mevASCII()...)
 	default:
 		lines = append(lines, categoryDefaultASCII()...)
 	}
