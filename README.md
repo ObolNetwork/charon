@@ -41,7 +41,7 @@ There is always the [charon godocs](https://pkg.go.dev/github.com/obolnetwork/ch
 
 ## Project Status
 
-See [dvt.obol.tech](https://dvt.obol.tech/) for the latest status of the Obol Network including which upstream consensus clients and which downstream validators are supported.
+A table detailing Charon compatibility with upstream consensus clients and downstream validators can be found [in the changelog](https://github.com/ObolNetwork/charon/releases) of each release, in the **Compatibility Matrix** section.
 
 ## Version compatibility
 
