@@ -1,4 +1,4 @@
-FROM chainsafe/lodestar:v1.8.0
+FROM chainsafe/lodestar:v1.20.2
 
 RUN apk update && apk add curl jq wget
 
