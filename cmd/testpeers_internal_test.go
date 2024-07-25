@@ -35,6 +35,8 @@ func TestPeersTest(t *testing.T) {
 	peer2PrivKey := base64ToPrivKey(t, "9PhpdrWEDJugHgoXhpbk2KqR4Gj5QZP/YNxNeJ3Q2+A=")
 	peer3PrivKey := base64ToPrivKey(t, "GpicOFPB/c/ZKIy1/fOt/4BmEekhFuyxa/SGcjrNe9o=")
 	freeTCPAddr := testutil.AvailableAddr(t)
+	// start local relay
+	relayAddr := startRelay(context.Background(), t)
 
 	tests := []struct {
 		name        string
@@ -63,6 +65,7 @@ func TestPeersTest(t *testing.T) {
 				DirectConnectionTimeout: time.Second,
 				P2P: p2p.Config{
 					TCPAddrs: []string{freeTCPAddr.String()},
+					Relays:   []string{relayAddr},
 				},
 			},
 			expected: testCategoryResult{
@@ -71,19 +74,23 @@ func TestPeersTest(t *testing.T) {
 					"self": {
 						{Name: "libp2pTCPPortOpenTest", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
-					"inexpensive-farm - enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o": {
+					fmt.Sprintf("relay %v", relayAddr): {
+						{Name: "pingRelay", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "pingMeasureRelay", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+					},
+					"peer inexpensive-farm enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o": {
 						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "directConn", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
-					"anxious-pencil - enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw": {
+					"peer anxious-pencil enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw": {
 						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "directConn", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
-					"important-pen - enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0": {
+					"peer important-pen enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0": {
 						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
@@ -95,19 +102,13 @@ func TestPeersTest(t *testing.T) {
 			expectedErr: "",
 			prepare: func(t *testing.T, conf testPeersConfig) testPeersConfig {
 				t.Helper()
-				ctx := context.Background()
-				newConfig := conf
-
-				// start local relay, so direct connection can be established
-				relayAddr := startRelay(ctx, t)
-				newConfig.P2P.Relays = []string{relayAddr}
-				freeTCPAddr := testutil.AvailableAddr(t)
-				newConfig.P2P.TCPAddrs = []string{fmt.Sprintf("127.0.0.1:%v", freeTCPAddr.Port)}
 
 				// start peers
-				enr1 := startPeer(t, newConfig, &peer1PrivKey)
-				enr2 := startPeer(t, newConfig, &peer2PrivKey)
-				enr3 := startPeer(t, newConfig, &peer3PrivKey)
+				enr1 := startPeer(t, conf, &peer1PrivKey)
+				enr2 := startPeer(t, conf, &peer2PrivKey)
+				enr3 := startPeer(t, conf, &peer3PrivKey)
+
+				newConfig := conf
 				newConfig.ENRs = []string{enr1.String(), enr2.String(), enr3.String()}
 
 				return newConfig
@@ -127,6 +128,10 @@ func TestPeersTest(t *testing.T) {
 					"enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw",
 					"enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0",
 				},
+				P2P: p2p.Config{
+					TCPAddrs: []string{freeTCPAddr.String()},
+					Relays:   []string{relayAddr},
+				},
 				Log: log.DefaultConfig(),
 			},
 			expected: testCategoryResult{
@@ -135,13 +140,17 @@ func TestPeersTest(t *testing.T) {
 					"self": {
 						{Name: "libp2pTCPPortOpenTest", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
-					"inexpensive-farm - enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o": {
+					fmt.Sprintf("relay %v", relayAddr): {
+						{Name: "pingRelay", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "pingMeasureRelay", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+					},
+					"peer inexpensive-farm enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
-					"anxious-pencil - enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw": {
+					"peer anxious-pencil enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
-					"important-pen - enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0": {
+					"peer important-pen enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
@@ -163,6 +172,10 @@ func TestPeersTest(t *testing.T) {
 					"enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw",
 					"enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0",
 				},
+				P2P: p2p.Config{
+					TCPAddrs: []string{freeTCPAddr.String()},
+					Relays:   []string{relayAddr},
+				},
 				Log: log.DefaultConfig(),
 			},
 			expected:    testCategoryResult{},
@@ -182,18 +195,22 @@ func TestPeersTest(t *testing.T) {
 					"enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw",
 					"enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0",
 				},
+				P2P: p2p.Config{
+					TCPAddrs: []string{freeTCPAddr.String()},
+					Relays:   []string{relayAddr},
+				},
 				Log: log.DefaultConfig(),
 			},
 			expected: testCategoryResult{
 				CategoryName: peersTestCategory,
 				Targets: map[string][]testResult{
-					"inexpensive-farm - enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o": {
+					"peer inexpensive-farm enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
-					"anxious-pencil - enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw": {
+					"peer anxious-pencil enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
-					"important-pen - enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0": {
+					"peer important-pen enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
@@ -207,13 +224,16 @@ func TestPeersTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputToml: "./write-to-file-test.toml.tmp",
 					Quiet:      false,
-					TestCases:  nil,
-					Timeout:    200 * time.Millisecond,
+					Timeout:    100 * time.Millisecond,
 				},
 				ENRs: []string{
 					"enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o",
 					"enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw",
 					"enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0",
+				},
+				P2P: p2p.Config{
+					TCPAddrs: []string{freeTCPAddr.String()},
+					Relays:   []string{relayAddr},
 				},
 				Log: log.DefaultConfig(),
 			},
@@ -221,15 +241,18 @@ func TestPeersTest(t *testing.T) {
 				CategoryName: peersTestCategory,
 				Targets: map[string][]testResult{
 					"self": {
-						{Name: "libp2pTCPPortOpenTest", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "libp2pTCPPortOpenTest", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
-					"inexpensive-farm - enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o": {
+					fmt.Sprintf("relay %v", relayAddr): {
+						{Name: "pingRelay", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+					},
+					"peer inexpensive-farm enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
-					"anxious-pencil - enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw": {
+					"peer anxious-pencil enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
-					"important-pen - enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0": {
+					"peer important-pen enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
