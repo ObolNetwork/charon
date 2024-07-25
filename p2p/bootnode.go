@@ -153,7 +153,7 @@ func queryRelayAddrs(ctx context.Context, relayURL string, backoff func(), lockH
 		if err != nil {
 			log.Warn(ctx, "Failure querying relay addresses (will try again)", err)
 			continue
-		} else if resp.StatusCode/100 != 2 {
+		} else if resp.StatusCode/100 != 2 { //nolint:usestdlibvars // we should not replace 100 with http.StatusContinue, it makes it less readable
 			log.Warn(ctx, "Non-200 response querying relay addresses (will try again)", nil, z.Int("status_code", resp.StatusCode))
 			continue
 		}

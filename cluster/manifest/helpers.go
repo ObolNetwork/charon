@@ -39,14 +39,14 @@ func SetNowFuncForT(t *testing.T, f func() *timestamppb.Timestamp) {
 
 // hashSignedMutation returns the hash of a signed mutation.
 func hashSignedMutation(signed *manifestpb.SignedMutation) ([]byte, error) {
-	if signed.Mutation == nil {
+	if signed.GetMutation() == nil {
 		return nil, errors.New("invalid signed mutation")
 	}
 
 	h := sha256.New()
 
 	// Field 0: Mutation
-	b, err := hashMutation(signed.Mutation)
+	b, err := hashMutation(signed.GetMutation())
 	if err != nil {
 		return nil, errors.Wrap(err, "hash mutation")
 	}
@@ -56,12 +56,12 @@ func hashSignedMutation(signed *manifestpb.SignedMutation) ([]byte, error) {
 	}
 
 	// Field 1: Signer
-	if _, err := h.Write(signed.Signer); err != nil {
+	if _, err := h.Write(signed.GetSigner()); err != nil {
 		return nil, errors.Wrap(err, "hash signer")
 	}
 
 	// Field 2: Signature
-	if _, err := h.Write(signed.Signature); err != nil {
+	if _, err := h.Write(signed.GetSignature()); err != nil {
 		return nil, errors.Wrap(err, "hash signature")
 	}
 
@@ -70,28 +70,28 @@ func hashSignedMutation(signed *manifestpb.SignedMutation) ([]byte, error) {
 
 // hashMutation returns the hash of a mutation.
 func hashMutation(m *manifestpb.Mutation) ([]byte, error) {
-	if m.Data == nil {
+	if m.GetData() == nil {
 		return nil, errors.New("invalid mutation")
 	}
 
 	h := sha256.New()
 
 	// Field 0: Parent
-	if _, err := h.Write(m.Parent); err != nil {
+	if _, err := h.Write(m.GetParent()); err != nil {
 		return nil, errors.Wrap(err, "hash parent")
 	}
 
 	// Field 1: Type
-	if _, err := h.Write([]byte(m.Type)); err != nil {
+	if _, err := h.Write([]byte(m.GetType())); err != nil {
 		return nil, errors.Wrap(err, "hash type")
 	}
 
 	// Field 2: Data
-	if _, err := h.Write([]byte(m.Data.TypeUrl)); err != nil {
+	if _, err := h.Write([]byte(m.GetData().GetTypeUrl())); err != nil {
 		return nil, errors.Wrap(err, "hash data type url")
 	}
 
-	if _, err := h.Write(m.Data.Value); err != nil {
+	if _, err := h.Write(m.GetData().GetValue()); err != nil {
 		return nil, errors.Wrap(err, "hash data value")
 	}
 
@@ -100,11 +100,11 @@ func hashMutation(m *manifestpb.Mutation) ([]byte, error) {
 
 // verifyEmptySig verifies that the signed mutation isn't signed.
 func verifyEmptySig(signed *manifestpb.SignedMutation) error {
-	if len(signed.Signature) != 0 {
+	if len(signed.GetSignature()) != 0 {
 		return errors.New("non-empty signature")
 	}
 
-	if len(signed.Signer) != 0 {
+	if len(signed.GetSigner()) != 0 {
 		return errors.New("non-empty signer")
 	}
 
@@ -132,17 +132,17 @@ func SignK1(m *manifestpb.Mutation, secret *k1.PrivateKey) (*manifestpb.SignedMu
 
 // verifyK1SignedMutation verifies that the signed mutation is signed by a k1 key.
 func verifyK1SignedMutation(signed *manifestpb.SignedMutation) error {
-	pubkey, err := k1.ParsePubKey(signed.Signer)
+	pubkey, err := k1.ParsePubKey(signed.GetSigner())
 	if err != nil {
 		return errors.Wrap(err, "parse signer pubkey")
 	}
 
-	hash, err := hashMutation(signed.Mutation)
+	hash, err := hashMutation(signed.GetMutation())
 	if err != nil {
 		return errors.Wrap(err, "hash mutation")
 	}
 
-	if ok, err := k1util.Verify65(pubkey, hash, signed.Signature); err != nil {
+	if ok, err := k1util.Verify65(pubkey, hash, signed.GetSignature()); err != nil {
 		return errors.Wrap(err, "verify signature")
 	} else if !ok {
 		return errors.New("invalid mutation signature")

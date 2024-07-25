@@ -181,7 +181,6 @@ func setupP2P(ctx context.Context, privKey *k1.PrivateKey, conf p2p.Config, peer
 	p2p.RegisterConnectionLogger(ctx, tcpNode, peerIDs)
 
 	for _, relay := range relays {
-		relay := relay
 		go p2p.NewRelayReserver(tcpNode, relay)(ctx)
 	}
 
@@ -593,7 +592,7 @@ func peerDirectConnTest(ctx context.Context, conf *testPeersConfig, tcpNode host
 		z.Any("target", p2pPeer.Name))
 
 	var err error
-	for i := 0; i < int(conf.DirectConnectionTimeout); i++ {
+	for range int(conf.DirectConnectionTimeout) {
 		err = tcpNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p2pPeer.ID})
 		if err == nil {
 			break

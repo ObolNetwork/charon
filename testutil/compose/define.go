@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -127,9 +128,9 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 
 		n := TmplNode{EnvVars: []kv{
 			{"name", "compose"},
-			{"num_validators", fmt.Sprint(conf.NumValidators)},
+			{"num_validators", strconv.Itoa(conf.NumValidators)},
 			{"operator_enrs", strings.Join(enrs, ",")},
-			{"threshold", fmt.Sprint(conf.Threshold)},
+			{"threshold", strconv.Itoa(conf.Threshold)},
 			{"withdrawal_addresses", zeroAddress},
 			{"fee-recipient_addresses", zeroAddress},
 			{"dkg_algorithm", "frost"},
@@ -307,7 +308,7 @@ var keyGenFunc = func() (*k1.PrivateKey, error) {
 // newP2PKeys returns a slice of newly generated secp256k1 private keys.
 func newP2PKeys(n int) ([]*k1.PrivateKey, error) {
 	var resp []*k1.PrivateKey
-	for i := 0; i < n; i++ {
+	for range n {
 		key, err := keyGenFunc()
 		if err != nil {
 			return nil, errors.Wrap(err, "new key")

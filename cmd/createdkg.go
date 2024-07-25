@@ -42,7 +42,7 @@ func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobr
 		Short: "Create the configuration for a new Distributed Key Generation ceremony using charon dkg",
 		Long:  `Create a cluster definition file that will be used by all participants of a DKG.`,
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			return runFunc(cmd.Context(), config)
 		},
 	}

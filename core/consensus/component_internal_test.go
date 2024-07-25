@@ -155,7 +155,7 @@ func TestComponent_handle(t *testing.T) {
 				}
 
 				// Sign the base message
-				msgHash, err := hashProto(base.Msg)
+				msgHash, err := hashProto(base.GetMsg())
 				require.NoError(t, err)
 
 				sign, err := k1util.Sign(p2pKey, msgHash[:])
@@ -175,7 +175,7 @@ func TestComponent_handle(t *testing.T) {
 				}
 
 				// Sign the justification
-				justHash, err := hashProto(base.Justification[0])
+				justHash, err := hashProto(base.GetJustification()[0])
 				require.NoError(t, err)
 
 				justSign, err := k1util.Sign(p2pKey, justHash[:])
@@ -202,7 +202,7 @@ func TestComponent_handle(t *testing.T) {
 				}
 
 				// Sign the base message
-				msgHash, err := hashProto(base.Msg)
+				msgHash, err := hashProto(base.GetMsg())
 				require.NoError(t, err)
 
 				sign, err := k1util.Sign(p2pKey, msgHash[:])
@@ -241,7 +241,7 @@ func TestComponent_handle(t *testing.T) {
 				}
 
 				// Sign the base message
-				msgHash, err := hashProto(base.Msg)
+				msgHash, err := hashProto(base.GetMsg())
 				require.NoError(t, err)
 
 				sign, err := k1util.Sign(p2pKey, msgHash[:])
@@ -284,7 +284,7 @@ func TestComponent_handle(t *testing.T) {
 				}
 
 				// Sign the base message
-				msgHash, err := hashProto(base.Msg)
+				msgHash, err := hashProto(base.GetMsg())
 				require.NoError(t, err)
 
 				sign, err := k1util.Sign(p2pKey, msgHash[:])
@@ -304,7 +304,7 @@ func TestComponent_handle(t *testing.T) {
 				}
 
 				// Sign the justification
-				justHash, err := hashProto(base.Justification[0])
+				justHash, err := hashProto(base.GetJustification()[0])
 				require.NoError(t, err)
 
 				justSign, err := k1util.Sign(p2pKey, justHash[:])
@@ -331,7 +331,7 @@ func TestComponent_handle(t *testing.T) {
 				}
 
 				// Sign the base message
-				msgHash, err := hashProto(base.Msg)
+				msgHash, err := hashProto(base.GetMsg())
 				require.NoError(t, err)
 
 				sign, err := k1util.Sign(p2pKey, msgHash[:])
@@ -351,7 +351,7 @@ func TestComponent_handle(t *testing.T) {
 				}
 
 				// Sign the justification
-				justHash, err := hashProto(base.Justification[0])
+				justHash, err := hashProto(base.GetJustification()[0])
 				require.NoError(t, err)
 
 				justSign, err := k1util.Sign(p2pKey, justHash[:])
@@ -554,7 +554,7 @@ func signConsensusMsg(t *testing.T, msg *pbv1.ConsensusMsg, privKey *k1.PrivateK
 	}
 
 	// Sign the base message
-	msgHash, err := hashProto(msg.Msg)
+	msgHash, err := hashProto(msg.GetMsg())
 	require.NoError(t, err)
 
 	sign, err := k1util.Sign(privKey, msgHash[:])
@@ -574,7 +574,7 @@ func signConsensusMsg(t *testing.T, msg *pbv1.ConsensusMsg, privKey *k1.PrivateK
 	}
 
 	// Sign the justification
-	justHash, err := hashProto(msg.Justification[0])
+	justHash, err := hashProto(msg.GetJustification()[0])
 	require.NoError(t, err)
 
 	justSign, err := k1util.Sign(privKey, justHash[:])

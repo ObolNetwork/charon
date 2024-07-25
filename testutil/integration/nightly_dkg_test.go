@@ -124,7 +124,7 @@ func TestLongWaitDKG(t *testing.T) {
 
 		if currIdx == numNodes-1 {
 			// Notify all nodes that everyone has started.
-			for i := 0; i < numNodes; i++ {
+			for range numNodes {
 				allNodesStarted <- struct{}{}
 			}
 
@@ -133,7 +133,7 @@ func TestLongWaitDKG(t *testing.T) {
 
 		// Notify already running nodes that a new window has started.
 		// Note that currIdx+1 nodes are running by now.
-		for i := 0; i <= currIdx; i++ {
+		for range currIdx + 1 {
 			newWindowStarted <- struct{}{}
 		}
 
@@ -167,14 +167,17 @@ func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, w
 		ctx, cancelFunc = context.WithCancel(parentCtx)
 		log.Debug(ctx, "Starting DKG node", z.Int("node", nodeIdx), z.Bool("first_time", firstTime))
 
+		errCh := make(chan error, 1)
 		go func(ctx context.Context) {
 			// Ensure DKGs don't save their artifacts in the same node directory since the current DKG would error
 			// as it would find an existing private key lock file previously created by earlier DKGs.
 			conf := dkgConf
 			conf.DataDir = t.TempDir()
 			err := dkg.Run(ctx, conf)
-			require.ErrorContains(t, err, ctxCanceledErr)
+			errCh <- err
 		}(ctx)
+		err := <-errCh
+		require.ErrorContains(t, err, ctxCanceledErr)
 	}
 
 	for {
@@ -297,8 +300,7 @@ func TestDKGWithHighValidatorsAmt(t *testing.T) {
 
 	dir := t.TempDir()
 
-	for idx := 0; idx < numNodes; idx++ {
-		idx := idx
+	for idx := range numNodes {
 		eg.Go(func() error {
 			conf := dkgConf
 			conf.DataDir = path.Join(dir, fmt.Sprintf("node%d", idx))

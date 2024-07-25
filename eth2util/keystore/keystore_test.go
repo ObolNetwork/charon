@@ -4,6 +4,7 @@ package keystore_test
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"math/rand"
 	"os"
@@ -28,7 +29,7 @@ func TestStoreLoad(t *testing.T) {
 	dir := t.TempDir()
 
 	var secrets []tbls.PrivateKey
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		secret, err := tbls.GenerateSecretKey()
 		require.NoError(t, err)
 
@@ -61,7 +62,7 @@ func TestStoreLoadNonCharonNames(t *testing.T) {
 
 	expect := make(map[tbls.PrivateKey]bool)
 	var secrets []tbls.PrivateKey
-	for i := 0; i < len(filenames); i++ {
+	for range len(filenames) {
 		secret, err := tbls.GenerateSecretKey()
 		require.NoError(t, err)
 
@@ -73,13 +74,13 @@ func TestStoreLoadNonCharonNames(t *testing.T) {
 	require.NoError(t, err)
 
 	// rename according to filenames slice
-	for idx := 0; idx < len(filenames); idx++ {
+	for idx := range len(filenames) {
 		oldPath := filepath.Join(dir, fmt.Sprintf("keystore-insecure-%d.json", idx))
-		newPath := filepath.Join(dir, fmt.Sprintf("%s.json", filenames[idx]))
+		newPath := filepath.Join(dir, filenames[idx]+".json")
 		require.NoError(t, os.Rename(oldPath, newPath))
 
 		oldPath = filepath.Join(dir, fmt.Sprintf("keystore-insecure-%d.txt", idx))
-		newPath = filepath.Join(dir, fmt.Sprintf("%s.txt", filenames[idx]))
+		newPath = filepath.Join(dir, filenames[idx]+".txt")
 		require.NoError(t, os.Rename(oldPath, newPath))
 	}
 
@@ -97,7 +98,7 @@ func TestStoreLoadKeysAll(t *testing.T) {
 	dir := t.TempDir()
 
 	var secrets []tbls.PrivateKey
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		secret, err := tbls.GenerateSecretKey()
 		require.NoError(t, err)
 
@@ -120,7 +121,7 @@ func TestStoreLoadKeysAllNonSequentialIdx(t *testing.T) {
 	dir := t.TempDir()
 
 	var secrets []tbls.PrivateKey
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		secret, err := tbls.GenerateSecretKey()
 		require.NoError(t, err)
 
@@ -161,7 +162,7 @@ func TestStoreLoadSequentialNonCharonNames(t *testing.T) {
 
 	var secrets []tbls.PrivateKey
 
-	for i := 0; i < len(filenames); i++ {
+	for range len(filenames) {
 		secret, err := tbls.GenerateSecretKey()
 		require.NoError(t, err)
 
@@ -172,13 +173,13 @@ func TestStoreLoadSequentialNonCharonNames(t *testing.T) {
 	require.NoError(t, err)
 
 	// rename according to filenames slice
-	for idx := 0; idx < len(filenames); idx++ {
+	for idx := range len(filenames) {
 		oldPath := filepath.Join(dir, fmt.Sprintf("keystore-insecure-%d.json", idx))
-		newPath := filepath.Join(dir, fmt.Sprintf("%s.json", filenames[idx]))
+		newPath := filepath.Join(dir, filenames[idx]+".json")
 		require.NoError(t, os.Rename(oldPath, newPath))
 
 		oldPath = filepath.Join(dir, fmt.Sprintf("keystore-insecure-%d.txt", idx))
-		newPath = filepath.Join(dir, fmt.Sprintf("%s.txt", filenames[idx]))
+		newPath = filepath.Join(dir, filenames[idx]+".txt")
 		require.NoError(t, os.Rename(oldPath, newPath))
 	}
 
@@ -201,7 +202,7 @@ func TestLoadScrypt(t *testing.T) {
 
 	require.Len(t, keyfiles, 1)
 
-	require.Equal(t, "10b16fc552aa607fa1399027f7b86ab789077e470b5653b338693dc2dde02468", fmt.Sprintf("%x", keyfiles[0].PrivateKey))
+	require.Equal(t, "10b16fc552aa607fa1399027f7b86ab789077e470b5653b338693dc2dde02468", hex.EncodeToString(keyfiles[0].PrivateKey[:]))
 }
 
 func TestSequencedKeys(t *testing.T) {
@@ -320,7 +321,7 @@ func TestKeyshareToValidatorPubkey(t *testing.T) {
 
 	cl := &manifestpb.Cluster{}
 
-	for valIdx := 0; valIdx < valAmt; valIdx++ {
+	for valIdx := range valAmt {
 		valPubk, err := tblsconv.PubkeyFromCore(testutil.RandomCorePubKey(t))
 		require.NoError(t, err)
 
@@ -329,7 +330,7 @@ func TestKeyshareToValidatorPubkey(t *testing.T) {
 		}
 
 		randomShareSelected := false
-		for shareIdx := 0; shareIdx < sharesAmt; shareIdx++ {
+		for range sharesAmt {
 			sharePriv, err := tbls.GenerateSecretKey()
 			require.NoError(t, err)
 
@@ -344,8 +345,8 @@ func TestKeyshareToValidatorPubkey(t *testing.T) {
 			validator.PubShares = append(validator.PubShares, sharePub[:])
 		}
 
-		rand.Shuffle(len(validator.PubShares), func(i, j int) {
-			validator.PubShares[i], validator.PubShares[j] = validator.PubShares[j], validator.PubShares[i]
+		rand.Shuffle(len(validator.GetPubShares()), func(i, j int) {
+			validator.PubShares[i], validator.PubShares[j] = validator.GetPubShares()[j], validator.GetPubShares()[i]
 		})
 
 		cl.Validators = append(cl.Validators, validator)
@@ -360,8 +361,8 @@ func TestKeyshareToValidatorPubkey(t *testing.T) {
 		valFound := false
 		sharePrivKeyFound := false
 
-		for _, val := range cl.Validators {
-			if string(valPubKey) == fmt.Sprintf("0x%x", val.PublicKey) {
+		for _, val := range cl.GetValidators() {
+			if string(valPubKey) == fmt.Sprintf("0x%x", val.GetPublicKey()) {
 				valFound = true
 				break
 			}

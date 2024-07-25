@@ -182,12 +182,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.Wrap(err, "private key not matching definition file")
 	}
 
-	peerIds, err := def.PeerIDs()
+	peerIDs, err := def.PeerIDs()
 	if err != nil {
 		return errors.Wrap(err, "get peer IDs")
 	}
 
-	ex := newExchanger(tcpNode, nodeIdx.PeerIdx, peerIds, def.NumValidators, []sigType{
+	ex := newExchanger(tcpNode, nodeIdx.PeerIdx, peerIDs, def.NumValidators, []sigType{
 		sigLock,
 		sigDepositData,
 		sigValidatorRegistration,
@@ -203,7 +203,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		peerMap[p.ID] = nodeIdx
 	}
 
-	caster := bcast.New(tcpNode, peerIds, key)
+	caster := bcast.New(tcpNode, peerIDs, key)
 
 	// register bcast callbacks for frostp2p
 	tp, err := newFrostP2P(tcpNode, peerMap, caster, def.Threshold, def.NumValidators)
@@ -219,7 +219,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	// Improve UX of "context cancelled" errors when sync fails.
 	ctx = errors.WithCtxErr(ctx, "p2p connection failed, please retry DKG")
 
-	nextStepSync, stopSync, err := startSyncProtocol(ctx, tcpNode, key, def.DefinitionHash, peerIds, cancel, conf.TestConfig)
+	nextStepSync, stopSync, err := startSyncProtocol(ctx, tcpNode, key, def.DefinitionHash, peerIDs, cancel, conf.TestConfig)
 	if err != nil {
 		return err
 	}
@@ -372,7 +372,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	log.Info(ctx, "Successfully completed DKG ceremony 🎉")
 
 	if dashboardURL != "" {
-		log.Info(ctx, fmt.Sprintf("You can find your newly-created cluster dashboard here: %s", dashboardURL))
+		log.Info(ctx, "You can find your newly-created cluster dashboard here: "+dashboardURL)
 	}
 
 	return nil
@@ -411,7 +411,6 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, conf Config, peers []p2p.
 	p2p.RegisterConnectionLogger(ctx, tcpNode, peerIDs)
 
 	for _, relay := range relays {
-		relay := relay
 		go p2p.NewRelayReserver(tcpNode, relay)(ctx)
 	}
 
@@ -664,8 +663,6 @@ func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares map[core.P
 	)
 
 	for pk, psigs := range data {
-		pk := pk
-		psigs := psigs
 		for _, s := range psigs {
 			sig, err := tblsconv.SignatureFromBytes(s.Signature())
 			if err != nil {
@@ -836,9 +833,6 @@ func aggDepositData(data map[core.PubKey][]core.ParSignedData, shares []share,
 	var resp []eth2p0.DepositData
 
 	for pk, psigsData := range data {
-		pk := pk
-		psigsData := psigsData
-
 		msg, ok := msgs[pk]
 		if !ok {
 			return nil, errors.New("deposit message not found")
@@ -923,9 +917,6 @@ func aggValidatorRegistrations(
 	var resp []core.VersionedSignedValidatorRegistration
 
 	for pk, psigsData := range data {
-		pk := pk
-		psigsData := psigsData
-
 		msg, ok := msgs[pk]
 		if !ok {
 			return nil, errors.New("validator registration not found")
@@ -1039,7 +1030,6 @@ func createDistValidators(shares []share, depositDatas [][]eth2p0.DepositData, v
 		}
 
 		for _, dd := range depositDatasList {
-			dd := dd
 			newDepositData := cluster.DepositData{
 				PubKey:                dd.PublicKey[:],
 				WithdrawalCredentials: dd.WithdrawalCredentials,

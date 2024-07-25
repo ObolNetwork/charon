@@ -715,7 +715,6 @@ func (t *Tracker) DutyDBStored(duty core.Duty, set core.UnsignedDataSet, stepErr
 // ParSigDBStoredInternal implements core.Tracker interface.
 func (t *Tracker) ParSigDBStoredInternal(duty core.Duty, set core.ParSignedDataSet, stepErr error) {
 	for pubkey, parSig := range set {
-		parSig := parSig
 		select {
 		case <-t.quit:
 			return
@@ -733,7 +732,6 @@ func (t *Tracker) ParSigDBStoredInternal(duty core.Duty, set core.ParSignedDataS
 // ParSigExBroadcasted implements core.Tracker interface.
 func (t *Tracker) ParSigExBroadcasted(duty core.Duty, set core.ParSignedDataSet, stepErr error) {
 	for pubkey, parSig := range set {
-		parSig := parSig
 		select {
 		case <-t.quit:
 			return
@@ -751,7 +749,6 @@ func (t *Tracker) ParSigExBroadcasted(duty core.Duty, set core.ParSignedDataSet,
 // ParSigDBStoredExternal implements core.Tracker interface.
 func (t *Tracker) ParSigDBStoredExternal(duty core.Duty, set core.ParSignedDataSet, stepErr error) {
 	for pubkey, parSig := range set {
-		parSig := parSig
 		select {
 		case <-t.quit:
 			return

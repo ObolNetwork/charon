@@ -111,7 +111,7 @@ func TestRunAddValidators(t *testing.T) {
 	)
 
 	var nodeDirnames []string
-	for i := 0; i < n; i++ {
+	for i := range n {
 		nodeDirnames = append(nodeDirnames, fmt.Sprintf("node%d", i))
 	}
 
@@ -146,9 +146,9 @@ func TestRunAddValidators(t *testing.T) {
 		cluster, err := manifest.LoadCluster(manifestFile, "", nil)
 		require.NoError(t, err)
 
-		require.Equal(t, valCount+1, len(cluster.Validators))
-		require.Equal(t, cluster.Validators[1].FeeRecipientAddress, feeRecipientAddr)
-		require.Equal(t, cluster.Validators[1].WithdrawalAddress, feeRecipientAddr)
+		require.Len(t, cluster.GetValidators(), valCount+1)
+		require.Equal(t, cluster.GetValidators()[1].GetFeeRecipientAddress(), feeRecipientAddr)
+		require.Equal(t, cluster.GetValidators()[1].GetWithdrawalAddress(), feeRecipientAddr)
 	})
 
 	t.Run("add validators twice", func(t *testing.T) {
@@ -183,7 +183,7 @@ func TestRunAddValidators(t *testing.T) {
 
 		cluster, err := manifest.Materialise(rawDAG)
 		require.NoError(t, err)
-		require.Equal(t, cluster.InitialMutationHash, lock.LockHash)
+		require.Equal(t, cluster.GetInitialMutationHash(), lock.LockHash)
 
 		// Run the second add validators command using cluster manifest output from the first run
 		conf.TestConfig.Lock = nil
@@ -192,7 +192,7 @@ func TestRunAddValidators(t *testing.T) {
 		// Delete existing deposit data file in each node directory since the deposit file names are same
 		// when add validators command is run twice consecutively. This is because the test finishes in
 		// milliseconds and filenames are named YYYYMMDDHHMMSS which doesn't account for milliseconds.
-		for i := 0; i < n; i++ {
+		for i := range n {
 			entries, err := os.ReadDir(nodeDir(tmp, i))
 			require.NoError(t, err)
 			for _, e := range entries {
@@ -210,12 +210,12 @@ func TestRunAddValidators(t *testing.T) {
 
 		// The cluster manifest should contain three validators now since the
 		// original cluster already had one validator, and we added two more.
-		require.Equal(t, valCount+2, len(cluster.Validators))
-		require.Equal(t, cluster.InitialMutationHash, lock.LockHash)
+		require.Len(t, cluster.GetValidators(), valCount+2)
+		require.Equal(t, cluster.GetInitialMutationHash(), lock.LockHash)
 
 		entries, err := os.ReadDir(path.Join(tmp, "node0"))
 		require.NoError(t, err)
-		require.Equal(t, 3, len(entries))
+		require.Len(t, entries, 3)
 
 		require.True(t, strings.Contains(entries[0].Name(), "cluster-manifest"))
 		require.True(t, strings.Contains(entries[1].Name(), "deposit-data"))
@@ -235,7 +235,7 @@ func TestValidateP2PKeysOrder(t *testing.T) {
 			ops     []*manifestpb.Operator
 		)
 
-		for i := 0; i < n; i++ {
+		for i := range n {
 			key, enrStr := testutil.RandomENR(t, seed+i)
 			p2pKeys = append(p2pKeys, key)
 			ops = append(ops, &manifestpb.Operator{Enr: enrStr.String()})
@@ -257,7 +257,7 @@ func TestValidateP2PKeysOrder(t *testing.T) {
 			ops     []*manifestpb.Operator
 		)
 
-		for i := 0; i < n; i++ {
+		for i := range n {
 			key, enrStr := testutil.RandomENR(t, seed+i)
 			p2pKeys = append(p2pKeys, key)
 			ops = append(ops, &manifestpb.Operator{Enr: enrStr.String()})

@@ -40,7 +40,7 @@ func writeAllLockData(
 ) {
 	t.Helper()
 
-	for opIdx := 0; opIdx < operatorAmt; opIdx++ {
+	for opIdx := range operatorAmt {
 		opID := fmt.Sprintf("op%d", opIdx)
 		oDir := filepath.Join(root, opID)
 		keysDir := filepath.Join(oDir, "validator_keys")
@@ -152,7 +152,7 @@ func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, expertMode bool,
 
 	operatorShares := make([][]tbls.PrivateKey, operatorAmt)
 
-	for opIdx := 0; opIdx < operatorAmt; opIdx++ {
+	for opIdx := range operatorAmt {
 		for _, share := range keyShares {
 			operatorShares[opIdx] = append(operatorShares[opIdx], share[opIdx])
 		}
@@ -300,7 +300,6 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -324,7 +323,7 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 
 			operatorShares := make([][]tbls.PrivateKey, operatorAmt)
 
-			for opIdx := 0; opIdx < operatorAmt; opIdx++ {
+			for opIdx := range operatorAmt {
 				for _, share := range keyShares {
 					operatorShares[opIdx] = append(operatorShares[opIdx], share[opIdx])
 				}
@@ -335,7 +334,7 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 
 			writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
 
-			for opIdx := 0; opIdx < operatorAmt; opIdx++ {
+			for opIdx := range operatorAmt {
 				del(t, test, root, opIdx)
 			}
 

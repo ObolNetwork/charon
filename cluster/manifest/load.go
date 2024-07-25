@@ -115,12 +115,12 @@ func loadDAGFromLegacyLock(filename string, lockCallback func(cluster.Lock) erro
 
 // clusterHashesMatch returns an error if the cluster hashes of the provided DAGs don't match.
 func clusterHashesMatch(dagManifest, dagLegacy *manifestpb.SignedMutationList) error {
-	hashManifest, err := Hash(dagManifest.Mutations[0])
+	hashManifest, err := Hash(dagManifest.GetMutations()[0])
 	if err != nil {
 		return errors.Wrap(err, "materialise dag")
 	}
 
-	hashLegacy, err := Hash(dagLegacy.Mutations[0])
+	hashLegacy, err := Hash(dagLegacy.GetMutations()[0])
 	if err != nil {
 		return errors.Wrap(err, "materialise dag")
 	}

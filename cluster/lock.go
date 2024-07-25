@@ -123,7 +123,7 @@ func (l Lock) SetLockHash() (Lock, error) {
 		return Lock{}, err
 	}
 
-	l.LockHash = lockHash[:]
+	l.LockHash = lockHash[:] //nolint: revive // okay to assign to by-value receiver as we return the struct
 
 	return l, nil
 }
@@ -212,7 +212,7 @@ func (l Lock) verifyNodeSignatures() error {
 	}
 
 	// Verify the node signatures
-	for idx := 0; idx < len(l.Operators); idx++ {
+	for idx := range len(l.Operators) {
 		record, err := enr.Parse(l.Operators[idx].ENR)
 		if err != nil {
 			return errors.Wrap(err, "operator ENR")

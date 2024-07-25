@@ -37,7 +37,7 @@ func newBatch(entries ...*pbv1.Entry) *batch {
 
 // Add an entry to the batch.
 func (b *batch) Add(entry *pbv1.Entry) {
-	b.bytes += len(entry.Line)
+	b.bytes += len(entry.GetLine())
 	b.entries = append(b.entries, entry)
 }
 

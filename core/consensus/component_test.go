@@ -83,7 +83,7 @@ func testComponent(t *testing.T, threshold, nodes int) {
 	defer cancel()
 
 	// Create hosts and enrs (ony for threshold).
-	for i := 0; i < threshold; i++ {
+	for i := range threshold {
 		addr := testutil.AvailableAddr(t)
 		mAddr, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", addr.IP, addr.Port))
 		require.NoError(t, err)
@@ -105,8 +105,8 @@ func testComponent(t *testing.T, threshold, nodes int) {
 	}
 
 	// Connect each host with its peers
-	for i := 0; i < threshold; i++ {
-		for j := 0; j < threshold; j++ {
+	for i := range threshold {
+		for j := range threshold {
 			if i == j {
 				continue
 			}
@@ -114,7 +114,7 @@ func testComponent(t *testing.T, threshold, nodes int) {
 		}
 
 		sniffer := func(msgs *pbv1.SniffedConsensusInstance) {
-			sniffed <- len(msgs.Msgs)
+			sniffed <- len(msgs.GetMsgs())
 		}
 
 		gaterFunc := func(core.Duty) bool { return true }
@@ -168,7 +168,7 @@ func testComponent(t *testing.T, threshold, nodes int) {
 
 	cancel()
 
-	for i := 0; i < threshold; i++ {
+	for range threshold {
 		require.NotZero(t, <-sniffed)
 	}
 }

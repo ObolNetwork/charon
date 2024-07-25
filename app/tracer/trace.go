@@ -25,7 +25,7 @@ var tracer = trace.NewNoopTracerProvider().Tracer("")
 // Start creates a span and a context.Context containing the newly-created span from the global tracer.
 // See go.opentelemetry.io/otel/trace#Start for more details.
 func Start(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-	return tracer.Start(ctx, spanName, opts...)
+	return tracer.Start(ctx, spanName, opts...) //nolint:spancheck // we defer end span outside of this function
 }
 
 // RootedCtx returns a copy of the parent context containing a tracing span context
@@ -87,7 +87,7 @@ func WithStdOut(w io.Writer) func(*options) {
 // if the address is not empty, else the default noop tracer is retained.
 func WithJaegerOrNoop(jaegerAddr string) func(*options) {
 	if jaegerAddr == "" {
-		return func(o *options) {}
+		return func(*options) {}
 	}
 
 	return WithJaeger(jaegerAddr)

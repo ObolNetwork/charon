@@ -9,7 +9,7 @@ import (
 
 // Materialise transforms a raw DAG and returns the resulting cluster manifest.
 func Materialise(rawDAG *manifestpb.SignedMutationList) (*manifestpb.Cluster, error) {
-	if rawDAG == nil || len(rawDAG.Mutations) == 0 {
+	if rawDAG == nil || len(rawDAG.GetMutations()) == 0 {
 		return nil, errors.New("empty raw DAG")
 	}
 
@@ -17,7 +17,7 @@ func Materialise(rawDAG *manifestpb.SignedMutationList) (*manifestpb.Cluster, er
 		cluster = new(manifestpb.Cluster)
 		err     error
 	)
-	for _, signed := range rawDAG.Mutations {
+	for _, signed := range rawDAG.GetMutations() {
 		cluster, err = Transform(cluster, signed)
 		if err != nil {
 			return nil, err
@@ -25,13 +25,13 @@ func Materialise(rawDAG *manifestpb.SignedMutationList) (*manifestpb.Cluster, er
 	}
 
 	// InitialMutationHash is the hash of the first mutation.
-	cluster.InitialMutationHash, err = Hash(rawDAG.Mutations[0])
+	cluster.InitialMutationHash, err = Hash(rawDAG.GetMutations()[0])
 	if err != nil {
 		return nil, errors.Wrap(err, "calculate initial hash")
 	}
 
 	// LatestMutationHash is the hash of the last mutation.
-	cluster.LatestMutationHash, err = Hash(rawDAG.Mutations[len(rawDAG.Mutations)-1])
+	cluster.LatestMutationHash, err = Hash(rawDAG.GetMutations()[len(rawDAG.GetMutations())-1])
 	if err != nil {
 		return nil, errors.Wrap(err, "calculate latest hash")
 	}

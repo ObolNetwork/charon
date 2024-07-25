@@ -30,7 +30,6 @@ import (
 
 //go:generate go test . -run=TestPeersTest -update
 
-//nolint:dupl // code is marked as duplicate currently, as we are testing the same test skeleton, ignore for now
 func TestPeersTest(t *testing.T) {
 	peer1PrivKey := base64ToPrivKey(t, "GCc1IKup3kKVxSd9iSu8iX5hc37coxAXasYpGFd/cwo=")
 	peer2PrivKey := base64ToPrivKey(t, "9PhpdrWEDJugHgoXhpbk2KqR4Gj5QZP/YNxNeJ3Q2+A=")
@@ -329,7 +328,7 @@ func testWriteOut(t *testing.T, expectedRes testCategoryResult, buf bytes.Buffer
 	nTargets := len(maps.Keys(expectedRes.Targets))
 	require.Len(t, bufTests, len(slices.Concat(maps.Values(expectedRes.Targets)...))+nTargets*2)
 
-	for i := 0; i < nTargets; i++ {
+	for range nTargets {
 		bufTests = bufTests[1:]
 		target := strings.Trim(bufTests[0], " ")
 		bufTests = bufTests[1:]
@@ -400,7 +399,6 @@ func startPeer(t *testing.T, conf testPeersConfig, peerPrivKey *k1.PrivateKey) e
 	require.NoError(t, err)
 
 	for _, relay := range relays {
-		relay := relay
 		go p2p.NewRelayReserver(peerTCPNode, relay)(ctx)
 	}
 

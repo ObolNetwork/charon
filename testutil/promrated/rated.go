@@ -83,13 +83,13 @@ func queryRatedAPI(ctx context.Context, url *url.URL, ratedAuth string, network 
 	client := new(http.Client)
 	backoff := expbackoff.New(ctx)
 
-	for r := 0; r <= maxRetries; r++ {
+	for r := range maxRetries + 1 {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url.String(), nil)
 		if err != nil {
 			return nil, errors.Wrap(err, "new rated request")
 		}
 
-		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", ratedAuth))
+		req.Header.Add("Authorization", "Bearer "+ratedAuth)
 		req.Header.Add("X-Rated-Network", clusterNetwork)
 		res, err := client.Do(req)
 		if err != nil {
@@ -106,7 +106,7 @@ func queryRatedAPI(ctx context.Context, url *url.URL, ratedAuth string, network 
 			backoff()
 
 			continue
-		} else if res.StatusCode/100 != 2 {
+		} else if res.StatusCode/100 != 2 { //nolint:usestdlibvars // we should not replace 100 with http.StatusContinue, it makes it less readable
 			incRatedErrors(res.StatusCode)
 
 			return nil, errors.New("not ok http response", z.Str("body", string(body)))

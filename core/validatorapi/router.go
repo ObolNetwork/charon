@@ -25,7 +25,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
-	deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
+	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -308,7 +308,7 @@ func wrap(endpoint string, handler handlerFunc) http.Handler {
 		} else {
 			writeError(ctx, w, endpoint, apiError{
 				StatusCode: http.StatusUnsupportedMediaType,
-				Message:    fmt.Sprintf("unsupported media type %s", contentHeader),
+				Message:    "unsupported media type " + contentHeader,
 			})
 
 			return
@@ -791,7 +791,7 @@ func createProposeBlockResponse(proposal *eth2api.VersionedProposal) (*proposeBl
 
 func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
-		denebBlock := new(deneb.SignedBlockContents)
+		denebBlock := new(eth2deneb.SignedBlockContents)
 		err := unmarshal(typ, body, denebBlock)
 		if err == nil {
 			block := &eth2api.VersionedSignedProposal{
@@ -863,7 +863,7 @@ func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		// The blinded block maybe either bellatrix, capella or deneb.
-		denebBlock := new(deneb.SignedBlindedBeaconBlock)
+		denebBlock := new(eth2deneb.SignedBlindedBeaconBlock)
 		err := unmarshal(typ, body, denebBlock)
 		if err == nil {
 			block := &eth2api.VersionedSignedBlindedProposal{
@@ -1144,6 +1144,7 @@ func writeError(ctx context.Context, w http.ResponseWriter, endpoint string, err
 		}
 	}
 
+	//nolint:usestdlibvars // we should not replace 100 with http.StatusContinue, it makes it less readable
 	if aerr.StatusCode/100 == 4 {
 		// 4xx status codes are client errors (not server), so log as debug only.
 		log.Debug(ctx, "Validator api 4xx response",
@@ -1234,7 +1235,7 @@ func uintParam(params map[string]string, name string) (uint64, error) {
 	if !ok {
 		return 0, apiError{
 			StatusCode: http.StatusBadRequest,
-			Message:    fmt.Sprintf("missing path parameter %s", name),
+			Message:    "missing path parameter " + name,
 		}
 	}
 
@@ -1255,7 +1256,7 @@ func uintQuery(query url.Values, name string) (uint64, error) {
 	if !query.Has(name) {
 		return 0, apiError{
 			StatusCode: http.StatusBadRequest,
-			Message:    fmt.Sprintf("missing query parameter %s", name),
+			Message:    "missing query parameter " + name,
 		}
 	}
 
@@ -1281,7 +1282,7 @@ func hexQueryFixed(query url.Values, name string, target []byte) error {
 	} else if !ok {
 		return apiError{
 			StatusCode: http.StatusBadRequest,
-			Message:    fmt.Sprintf("missing 0x-hex query parameter %s", name),
+			Message:    "missing 0x-hex query parameter " + name,
 		}
 	} else if len(resp) != len(target) {
 		return apiError{

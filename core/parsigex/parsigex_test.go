@@ -50,7 +50,7 @@ func TestParSigEx(t *testing.T) {
 	)
 
 	// create hosts
-	for i := 0; i < n; i++ {
+	for range n {
 		h := testutil.CreateHost(t, testutil.AvailableAddr(t))
 		info := peer.AddrInfo{
 			ID:    h.ID(),
@@ -62,8 +62,8 @@ func TestParSigEx(t *testing.T) {
 	}
 
 	// connect each host with its peers
-	for i := 0; i < n; i++ {
-		for k := 0; k < n; k++ {
+	for i := range n {
+		for k := range n {
 			if i == k {
 				continue
 			}
@@ -81,7 +81,7 @@ func TestParSigEx(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// create ParSigEx components for each host
-	for i := 0; i < n; i++ {
+	for i := range n {
 		wg.Add(n - 1)
 		sigex := parsigex.NewParSigEx(hosts[i], p2p.Send, i, peers, verifyFunc, gaterFunc)
 		sigex.Subscribe(func(_ context.Context, d core.Duty, set core.ParSignedDataSet) error {
@@ -95,13 +95,20 @@ func TestParSigEx(t *testing.T) {
 		parsigexs = append(parsigexs, sigex)
 	}
 
-	for i := 0; i < n; i++ {
+	errCh := make(chan error, n)
+	for i := range n {
 		wg.Add(1)
 		go func(node int) {
 			defer wg.Done()
 			// broadcast partially signed data
-			require.NoError(t, parsigexs[node].Broadcast(context.Background(), duty, data))
+			err := parsigexs[node].Broadcast(context.Background(), duty, data)
+			errCh <- err
 		}(i)
+	}
+
+	for range n {
+		err := <-errCh
+		require.NoError(t, err)
 	}
 
 	wg.Wait()

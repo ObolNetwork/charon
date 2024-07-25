@@ -25,7 +25,7 @@ func newListActiveValidatorsCmd(runFunc func(context.Context, exitConfig) error)
 		Short: "List all active validators",
 		Long:  `Returns a list of all the DV in the specified cluster whose status is ACTIVE_ONGOING, i.e. can be exited.`,
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			if err := log.InitLogger(config.Log); err != nil {
 				return err
 			}
@@ -82,8 +82,8 @@ func listActiveVals(ctx context.Context, config exitConfig) ([]string, error) {
 
 	var allVals []eth2p0.BLSPubKey
 
-	for _, v := range cl.Validators {
-		allVals = append(allVals, eth2p0.BLSPubKey(v.PublicKey))
+	for _, v := range cl.GetValidators() {
+		allVals = append(allVals, eth2p0.BLSPubKey(v.GetPublicKey()))
 	}
 
 	valData, err := eth2Cl.Validators(ctx, &eth2api.ValidatorsOpts{

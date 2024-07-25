@@ -48,7 +48,7 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 			return nil, err
 		}
 
-		for idx := 0; idx < len(res); idx++ {
+		for idx := range len(res) {
 			res[idx].PubKey = testutil.RandomEth2PubKey(t)
 		}
 
@@ -61,7 +61,7 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 			return nil, err
 		}
 
-		for idx := 0; idx < len(res); idx++ {
+		for idx := range len(res) {
 			res[idx].PubKey = testutil.RandomEth2PubKey(t)
 		}
 
@@ -74,7 +74,7 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 			return nil, err
 		}
 
-		for idx := 0; idx < len(res); idx++ {
+		for idx := range len(res) {
 			res[idx].PubKey = testutil.RandomEth2PubKey(t)
 		}
 

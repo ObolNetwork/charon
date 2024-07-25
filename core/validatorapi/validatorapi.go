@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"runtime"
+	"strconv"
 	"testing"
 	"time"
 
@@ -896,7 +897,7 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 	duties := eth2Resp.Data
 
 	// Replace root public keys with public shares
-	for i := 0; i < len(duties); i++ {
+	for i := range len(duties) {
 		if duties[i] == nil {
 			return nil, errors.New("proposer duty cannot be nil")
 		}
@@ -920,7 +921,7 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 	duties := eth2Resp.Data
 
 	// Replace root public keys with public shares.
-	for i := 0; i < len(duties); i++ {
+	for i := range len(duties) {
 		if duties[i] == nil {
 			return nil, errors.New("attester duty cannot be nil")
 		}
@@ -944,7 +945,7 @@ func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCo
 	duties := eth2Resp.Data
 
 	// Replace root public keys with public shares.
-	for i := 0; i < len(duties); i++ {
+	for i := range len(duties) {
 		if duties[i] == nil {
 			return nil, errors.New("sync committee duty cannot be nil")
 		}
@@ -1202,7 +1203,7 @@ func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigR
 				Enabled:  c.builderEnabled(uint64(slot)),
 				GasLimit: gasLimit,
 				Overrides: map[string]string{
-					"timestamp":  fmt.Sprint(timestamp.Unix()),
+					"timestamp":  strconv.FormatInt(timestamp.Unix(), 10),
 					"public_key": string(pubkey),
 				},
 			},

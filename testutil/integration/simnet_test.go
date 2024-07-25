@@ -139,7 +139,7 @@ func TestSimnetDuties(t *testing.T) {
 			args.VoluntaryExit = test.exit
 
 			if test.vcType == vcTeku {
-				for i := 0; i < args.N; i++ {
+				for i := range args.N {
 					args = startTeku(t, args, i)
 				}
 			} else if test.vcType == vcVmock {
@@ -201,7 +201,7 @@ func newSimnetArgs(t *testing.T) simnetArgs {
 	secrets := secretShares[0]
 
 	var vapiAddrs []string
-	for i := 0; i < n; i++ {
+	for range n {
 		vapiAddrs = append(vapiAddrs, testutil.AvailableAddr(t).String())
 	}
 
@@ -297,7 +297,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 		eg      errgroup.Group
 		results = make(chan simResult)
 	)
-	for i := 0; i < args.N; i++ {
+	for i := range args.N {
 		peerIdx := i
 		conf := app.Config{
 			Log:              log.DefaultConfig(),
@@ -344,8 +344,22 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 	}
 
 	// Assert results
+	type routineResult struct {
+		expect          []byte
+		actual          []byte
+		expectSig       core.Signature
+		actualSig       core.Signature
+		expectPublicKey string
+		actualPublicKey core.PubKey
+	}
+	errCh := make(chan error)
+	routineResCh := make(chan routineResult)
 	go func() {
 		datas := make(map[core.Duty]core.SignedData)
+		defer func() {
+			close(routineResCh)
+			close(errCh)
+		}()
 		for {
 			var res simResult
 			select {
@@ -354,18 +368,23 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 			case res = <-results:
 			}
 
-			require.EqualValues(t, args.Lock.Validators[0].PublicKeyHex(), res.Pubkey)
-
 			// Assert the data and signature from all nodes are the same per duty.
 			if _, ok := datas[res.Duty]; !ok {
 				datas[res.Duty] = res.Data
 			} else {
 				expect, err := datas[res.Duty].MarshalJSON()
-				require.NoError(t, err)
+				errCh <- err
 				actual, err := res.Data.MarshalJSON()
-				require.NoError(t, err)
-				require.Equal(t, expect, actual)
-				require.Equal(t, datas[res.Duty].Signature(), res.Data.Signature())
+				errCh <- err
+				routineRes := routineResult{
+					expect:          expect,
+					actual:          actual,
+					expectSig:       datas[res.Duty].Signature(),
+					actualSig:       res.Data.Signature(),
+					expectPublicKey: args.Lock.Validators[0].PublicKeyHex(),
+					actualPublicKey: res.Pubkey,
+				}
+				routineResCh <- routineRes
 			}
 
 			// Assert we get results for all types from all peers.
@@ -377,6 +396,20 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 			}
 		}
 	}()
+
+	finishLoop := true
+	for finishLoop {
+		select {
+		case err := <-errCh:
+			require.NoError(t, err)
+		case res := <-routineResCh:
+			require.Equal(t, res.expect, res.actual)
+			require.Equal(t, res.expectSig, res.actualSig)
+			require.EqualValues(t, res.expectPublicKey, res.actualPublicKey)
+		case <-ctx.Done():
+			finishLoop = false
+		}
+	}
 
 	// Wire err channel (for docker errors)
 	eg.Go(func() error {

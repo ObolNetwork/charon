@@ -29,7 +29,7 @@ func newRunCmd(runFunc func(context.Context, app.Config) error, unsafe bool) *co
 		Use:   "run",
 		Short: "Run the charon middleware client",
 		Long:  "Starts the long-running Charon middleware process to perform distributed validator duties.",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			if err := log.InitLogger(conf.Log); err != nil {
 				return err
 			}
@@ -92,7 +92,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().Int64Var(&config.TestnetConfig.GenesisTimestamp, "testnet-genesis-timestamp", 0, "Genesis timestamp of the custom test network.")
 	cmd.Flags().StringVar(&config.TestnetConfig.CapellaHardFork, "testnet-capella-hard-fork", "", "Capella hard fork version of the custom test network.")
 
-	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error {
+	wrapPreRunE(cmd, func(*cobra.Command, []string) error {
 		if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {
 			return errors.New("either flag 'beacon-node-endpoints' or flag 'simnet-beacon-mock=true' must be specified")
 		}
@@ -124,7 +124,7 @@ func bindP2PFlags(cmd *cobra.Command, config *p2p.Config) {
 	cmd.Flags().StringSliceVar(&config.TCPAddrs, "p2p-tcp-address", nil, "Comma-separated list of listening TCP addresses (ip and port) for libP2P traffic. Empty default doesn't bind to local port therefore only supports outgoing connections.")
 	cmd.Flags().BoolVar(&config.DisableReuseport, "p2p-disable-reuseport", false, "Disables TCP port reuse for outgoing libp2p connections.")
 
-	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error {
+	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 		for _, relay := range config.Relays {
 			u, err := url.Parse(relay)
 			if err != nil {

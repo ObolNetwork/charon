@@ -41,7 +41,7 @@ func TestSendReceive(t *testing.T) {
 			duty, ok := req.(*pbv1.Duty)
 			require.True(t, ok)
 
-			if duty.Slot%2 == 0 {
+			if duty.GetSlot()%2 == 0 {
 				return duty, true, nil
 			} else {
 				return nil, false, nil
@@ -60,7 +60,7 @@ func TestSendReceive(t *testing.T) {
 		slot := uint64(100)
 		resp, err := sendReceive(slot)
 		require.NoError(t, err)
-		require.Equal(t, slot, resp.Slot)
+		require.Equal(t, slot, resp.GetSlot())
 	})
 
 	t.Run("empty response", func(t *testing.T) {

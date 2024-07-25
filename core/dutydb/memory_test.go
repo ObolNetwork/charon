@@ -65,10 +65,11 @@ func TestMemDB(t *testing.T) {
 
 	// Kick of some queries, it should return when the data is populated.
 	awaitResponse := make(chan *eth2p0.AttestationData)
-	for i := 0; i < queries; i++ {
+	errCh := make(chan error, queries)
+	for range queries {
 		go func() {
 			data, err := db.AwaitAttestation(ctx, slot, commIdx)
-			require.NoError(t, err)
+			errCh <- err
 			awaitResponse <- data
 		}()
 	}
@@ -110,9 +111,14 @@ func TestMemDB(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get and assert the attQuery responses.
-	for i := 0; i < queries; i++ {
+	for range queries {
 		actual := <-awaitResponse
 		require.Equal(t, attData.String(), actual.String())
+	}
+
+	for range queries {
+		err := <-errCh
+		require.NoError(t, err)
 	}
 
 	// Assert that two pubkeys can be resolved.
@@ -160,18 +166,20 @@ func TestMemDBProposer(t *testing.T) {
 		block *eth2api.VersionedProposal
 	}
 	var awaitResponse [queries]chan response
-	for i := 0; i < queries; i++ {
+
+	errCh := make(chan error, queries)
+	for i := range queries {
 		awaitResponse[i] = make(chan response)
 		go func(slot int) {
 			block, err := db.AwaitProposal(ctx, slots[slot])
-			require.NoError(t, err)
+			errCh <- err
 			awaitResponse[slot] <- response{block: block}
 		}(i)
 	}
 
 	proposals := make([]*eth2api.VersionedProposal, queries)
 	pubkeysByIdx := make(map[eth2p0.ValidatorIndex]core.PubKey)
-	for i := 0; i < queries; i++ {
+	for i := range queries {
 		proposals[i] = &eth2api.VersionedProposal{
 			Version:   eth2spec.DataVersionBellatrix,
 			Bellatrix: testutil.RandomBellatrixBeaconBlock(),
@@ -182,7 +190,7 @@ func TestMemDBProposer(t *testing.T) {
 	}
 
 	// Store the Blocks
-	for i := 0; i < queries; i++ {
+	for i := range queries {
 		unsigned, err := core.NewVersionedProposal(proposals[i])
 		require.NoError(t, err)
 
@@ -193,8 +201,13 @@ func TestMemDBProposer(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	for range queries {
+		err := <-errCh
+		require.NoError(t, err)
+	}
+
 	// Get and assert the proQuery responses
-	for i := 0; i < queries; i++ {
+	for i := range queries {
 		actualData := <-awaitResponse[i]
 		require.Equal(t, proposals[i], actualData.block)
 	}
@@ -206,18 +219,22 @@ func TestMemDBAggregator(t *testing.T) {
 
 	const queries = 3
 
-	for i := 0; i < queries; i++ {
+	for range queries {
 		agg := testutil.RandomAttestation()
 		set := core.UnsignedDataSet{
 			testutil.RandomCorePubKey(t): core.NewAggregatedAttestation(agg),
 		}
 		slot := uint64(agg.Data.Slot)
+
+		errCh := make(chan error, 1)
 		go func() {
 			err := db.Store(ctx, core.NewAggregatorDuty(slot), set)
-			require.NoError(t, err)
+			errCh <- err
 		}()
 
 		root, err := agg.Data.HashTreeRoot()
+		require.NoError(t, err)
+		err = <-errCh
 		require.NoError(t, err)
 		resp, err := db.AwaitAggAttestation(ctx, slot, root)
 		require.NoError(t, err)
@@ -232,7 +249,7 @@ func TestMemDBSyncContribution(t *testing.T) {
 
 		const queries = 3
 
-		for i := 0; i < queries; i++ {
+		for range queries {
 			contrib := testutil.RandomSyncCommitteeContribution()
 			set := core.UnsignedDataSet{
 				testutil.RandomCorePubKey(t): core.NewSyncContribution(contrib),
@@ -244,11 +261,14 @@ func TestMemDBSyncContribution(t *testing.T) {
 				beaconBlockRoot = contrib.BeaconBlockRoot
 			)
 
+			errCh := make(chan error, 1)
 			go func() {
 				err := db.Store(ctx, core.NewSyncContributionDuty(slot), set)
-				require.NoError(t, err)
+				errCh <- err
 			}()
 
+			err := <-errCh
+			require.NoError(t, err)
 			resp, err := db.AwaitSyncContribution(ctx, slot, subcommIdx, beaconBlockRoot)
 			require.NoError(t, err)
 			require.Equal(t, contrib, resp)

@@ -201,7 +201,7 @@ func (m *Component) scheduleSlot(ctx context.Context, slot metaSlot) error {
 func (m *Component) manageEpochState(ctx context.Context, epoch metaEpoch) error {
 	// Delete attesters and sync committee members for all epochs in epochWindow in past including the current epoch.
 	e := epoch
-	for i := 0; i < epochWindow; i++ {
+	for range epochWindow {
 		// Delete attesters.
 		m.deleteAttesters(e)
 
@@ -212,7 +212,7 @@ func (m *Component) manageEpochState(ctx context.Context, epoch metaEpoch) error
 	}
 
 	// Start attesters for this up to lookAhead epoch if not present (idempotent).
-	for i := 0; i < epochWindow; i++ {
+	for range epochWindow {
 		if err := m.startAttesters(epoch); err != nil {
 			return err
 		}

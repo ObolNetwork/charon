@@ -5,7 +5,6 @@ package fuzz_test
 import (
 	"context"
 	"flag"
-	"fmt"
 	"os"
 	"path"
 	"testing"
@@ -77,7 +76,7 @@ func TestFuzzers(t *testing.T) {
 			}
 
 			if *logDir != "" {
-				autoConfig.LogFile = path.Join(*logDir, fmt.Sprintf("%s.log", test.name))
+				autoConfig.LogFile = path.Join(*logDir, test.name+".log")
 			}
 
 			err = compose.Auto(context.Background(), autoConfig)

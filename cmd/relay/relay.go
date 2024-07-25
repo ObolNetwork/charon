@@ -130,7 +130,7 @@ func Run(ctx context.Context, config Config) error {
 	)
 	if config.HTTPAddr != "" {
 		log.Info(ctx, "Runtime multiaddrs available via http",
-			z.Str("url", fmt.Sprintf("http://%s", config.HTTPAddr)),
+			z.Str("url", "http://"+config.HTTPAddr),
 		)
 	} else {
 		log.Info(ctx, "Runtime multiaddrs not available via http, since http-address flag is not set")
@@ -193,7 +193,7 @@ func newENRHandler(ctx context.Context, tcpNode host.Host, p2pKey *k1.PrivateKey
 		return extHostIP, len(extHostIP) != 0
 	}
 
-	return func(ctx context.Context) ([]byte, error) {
+	return func(context.Context) ([]byte, error) {
 		// Use libp2p configured and detected addresses.
 		addrs := tcpNode.Addrs()
 		if len(addrs) == 0 {
@@ -239,7 +239,7 @@ func newENRHandler(ctx context.Context, tcpNode host.Host, p2pKey *k1.PrivateKey
 
 // newMultiaddrHandler returns a handler that returns the nodes multiaddrs (as json array).
 func newMultiaddrHandler(tcpNode host.Host) func(ctx context.Context) ([]byte, error) {
-	return func(ctx context.Context) ([]byte, error) {
+	return func(context.Context) ([]byte, error) {
 		p2pAddr, err := ma.NewMultiaddr(fmt.Sprintf("/p2p/%s", tcpNode.ID()))
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to create p2p multiaddr")

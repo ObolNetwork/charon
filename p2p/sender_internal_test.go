@@ -32,7 +32,8 @@ func TestSenderAddResult(t *testing.T) {
 		t.Helper()
 		state := &peerState{}
 		if val, ok := sender.states.Load(peerID); ok {
-			state = val.(*peerState)
+			state, ok = val.(*peerState)
+			require.True(t, ok)
 		}
 		require.Equal(t, expect, state.failing.Load())
 	}
@@ -80,7 +81,7 @@ func TestAddResult(t *testing.T) {
 
 	wg.Add(concurrencyFactor)
 
-	for i := 0; i < concurrencyFactor; i++ {
+	for range concurrencyFactor {
 		go func() {
 			sender.addResult(ctx, "test", nil)
 			wg.Done()
@@ -101,7 +102,7 @@ func TestSenderRetry(t *testing.T) {
 
 	h = new(testHost)
 	err = sender.SendAsync(ctx, h, "", "", nil)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Eventually(t, func() bool {
 		return h.Count() == 2
 	}, time.Second, time.Millisecond)

@@ -25,8 +25,8 @@ package beaconmock
 
 import (
 	"context"
-	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -95,7 +95,7 @@ func defaultHTTPMock() Mock {
 			{
 				Endpoint: "/eth/v1/beacon/genesis",
 				Key:      "genesis_time",
-				Value:    fmt.Sprint(genesis.Unix()),
+				Value:    strconv.FormatInt(genesis.Unix(), 10),
 			},
 		},
 		IsActiveFunc: func() bool { return true },

@@ -25,7 +25,7 @@ func newViewClusterManifestCmd(runFunc func(io.Writer, string) error) *cobra.Com
 		Short: "Shows cluster manifest contents",
 		Long:  `Opens and shows the specified cluster manifest by printing its content in JSON form.`,
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			return runFunc(cmd.OutOrStdout(), manifestFilePath)
 		},
 	}

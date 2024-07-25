@@ -184,7 +184,7 @@ func New[I, O any](rootCtx context.Context, work Work[I, O], opts ...Option) (Fo
 		}()
 	}
 
-	for i := 0; i < options.workers; i++ { // Start workers
+	for range options.workers { // Start workers
 		go func() {
 			for in := range input { // Process all inputs (channel closed on Join)
 				if workCtx.Err() != nil { // Skip work if failed fast

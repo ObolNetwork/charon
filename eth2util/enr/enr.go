@@ -242,7 +242,7 @@ func toBigEndian(i int) []byte {
 // fromBigEndian returns the integer encoded as big endian byte slice.
 func fromBigEndian(b []byte) int {
 	var x uint64
-	for i := 0; i < len(b); i++ {
+	for i := range len(b) {
 		x = x<<8 | uint64(b[i])
 	}
 

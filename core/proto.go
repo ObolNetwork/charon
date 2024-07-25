@@ -39,8 +39,8 @@ func DutyToProto(duty Duty) *pbv1.Duty {
 // DutyFromProto returns the duty from a protobuf.
 func DutyFromProto(duty *pbv1.Duty) Duty {
 	return Duty{
-		Slot: duty.Slot,
-		Type: DutyType(duty.Type),
+		Slot: duty.GetSlot(),
+		Type: DutyType(duty.GetType()),
 	}
 }
 
@@ -63,13 +63,13 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (_ ParSigned
 	switch typ {
 	case DutyAttester:
 		var a Attestation
-		if err := unmarshal(data.Data, &a); err != nil {
+		if err := unmarshal(data.GetData(), &a); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal attestation")
 		}
 		signedData = a
 	case DutyProposer:
 		var b VersionedSignedProposal
-		if err := unmarshal(data.Data, &b); err != nil {
+		if err := unmarshal(data.GetData(), &b); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal proposal")
 		}
 		signedData = b
@@ -77,55 +77,55 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (_ ParSigned
 		return ParSignedData{}, ErrDeprecatedDutyBuilderProposer
 	case DutyBuilderRegistration:
 		var r VersionedSignedValidatorRegistration
-		if err := unmarshal(data.Data, &r); err != nil {
+		if err := unmarshal(data.GetData(), &r); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal validator (builder) registration")
 		}
 		signedData = r
 	case DutyExit:
 		var e SignedVoluntaryExit
-		if err := unmarshal(data.Data, &e); err != nil {
+		if err := unmarshal(data.GetData(), &e); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal exit")
 		}
 		signedData = e
 	case DutyRandao:
 		var s SignedRandao
-		if err := unmarshal(data.Data, &s); err != nil {
+		if err := unmarshal(data.GetData(), &s); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal signed randao")
 		}
 		signedData = s
 	case DutySignature:
 		var s Signature
-		if err := unmarshal(data.Data, &s); err != nil {
+		if err := unmarshal(data.GetData(), &s); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal signature")
 		}
 		signedData = s
 	case DutyPrepareAggregator:
 		var s BeaconCommitteeSelection
-		if err := unmarshal(data.Data, &s); err != nil {
+		if err := unmarshal(data.GetData(), &s); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal beacon committee subscription")
 		}
 		signedData = s
 	case DutyAggregator:
 		var s SignedAggregateAndProof
-		if err := unmarshal(data.Data, &s); err != nil {
+		if err := unmarshal(data.GetData(), &s); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal signed aggregate and proof")
 		}
 		signedData = s
 	case DutySyncMessage:
 		var s SignedSyncMessage
-		if err := unmarshal(data.Data, &s); err != nil {
+		if err := unmarshal(data.GetData(), &s); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal signed sync message")
 		}
 		signedData = s
 	case DutyPrepareSyncContribution:
 		var s SyncCommitteeSelection
-		if err := unmarshal(data.Data, &s); err != nil {
+		if err := unmarshal(data.GetData(), &s); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal sync committee selection")
 		}
 		signedData = s
 	case DutySyncContribution:
 		var s SignedSyncContributionAndProof
-		if err := unmarshal(data.Data, &s); err != nil {
+		if err := unmarshal(data.GetData(), &s); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal sync contribution and proof")
 		}
 		signedData = s
@@ -135,7 +135,7 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (_ ParSigned
 
 	return ParSignedData{
 		SignedData: signedData,
-		ShareIdx:   int(data.ShareIdx),
+		ShareIdx:   int(data.GetShareIdx()),
 	}, nil
 }
 
@@ -171,7 +171,7 @@ func ParSignedDataSetToProto(set ParSignedDataSet) (*pbv1.ParSignedDataSet, erro
 
 // ParSignedDataSetFromProto returns the set from a protobuf.
 func ParSignedDataSetFromProto(typ DutyType, set *pbv1.ParSignedDataSet) (ParSignedDataSet, error) {
-	if set == nil || len(set.Set) == 0 {
+	if set == nil || len(set.GetSet()) == 0 {
 		return nil, errors.New("invalid partial signed data set proto fields", z.Any("set", set))
 	}
 
@@ -179,7 +179,7 @@ func ParSignedDataSetFromProto(typ DutyType, set *pbv1.ParSignedDataSet) (ParSig
 		resp = make(ParSignedDataSet)
 		err  error
 	)
-	for pubkey, data := range set.Set {
+	for pubkey, data := range set.GetSet() {
 		resp[PubKey(pubkey)], err = ParSignedDataFromProto(typ, data)
 		if err != nil {
 			return nil, err
@@ -207,12 +207,12 @@ func UnsignedDataSetToProto(set UnsignedDataSet) (*pbv1.UnsignedDataSet, error) 
 
 // UnsignedDataSetFromProto returns the set from a protobuf.
 func UnsignedDataSetFromProto(typ DutyType, set *pbv1.UnsignedDataSet) (UnsignedDataSet, error) {
-	if set == nil || len(set.Set) == 0 {
+	if set == nil || len(set.GetSet()) == 0 {
 		return nil, errors.New("invalid unsigned data set fields", z.Any("set", set))
 	}
 
 	resp := make(UnsignedDataSet)
-	for pubkey, data := range set.Set {
+	for pubkey, data := range set.GetSet() {
 		var err error
 		resp[PubKey(pubkey)], err = unmarshalUnsignedData(typ, data)
 		if err != nil {

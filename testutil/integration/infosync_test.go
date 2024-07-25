@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strconv"
 	"testing"
 	"time"
 
@@ -44,8 +45,7 @@ func TestInfoSync(t *testing.T) {
 	tcpNodeCallback := testutil.NewTCPNodeCallback(t, priority.Protocols()...)
 
 	var eg errgroup.Group
-	for i := 0; i < n; i++ {
-		i := i // Copy iteration variable
+	for i := range n {
 		conf := app.Config{
 			Log:              log.DefaultConfig(),
 			Feature:          featureset.DefaultConfig(),
@@ -123,7 +123,7 @@ func (a *priorityAsserter) Callback(t *testing.T, i int) func(ctx context.Contex
 			}
 		}
 
-		a.callbacks.Store(fmt.Sprint(i), true)
+		a.callbacks.Store(strconv.Itoa(i), true)
 
 		return nil
 	}

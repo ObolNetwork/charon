@@ -73,8 +73,6 @@ func WithSyntheticDuties(cl Client) Client {
 func NewMultiHTTP(timeout time.Duration, forkVersion [4]byte, addresses ...string) (Client, error) {
 	var clients []Client
 	for _, address := range addresses {
-		address := address // Capture range variable.
-
 		parameters := []eth2http.Parameter{
 			eth2http.WithLogLevel(zeroLogInfo),
 			eth2http.WithAddress(address),
@@ -138,10 +136,10 @@ func provide[O any](ctx context.Context, clients []Client,
 			}
 
 			return res.Output, nil
-		} else {
-			nokResp = res
-			hasNokResp = true
 		}
+
+		nokResp = res
+		hasNokResp = true
 	}
 
 	if ctx.Err() != nil {

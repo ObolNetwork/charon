@@ -96,7 +96,6 @@ func TestStartChecker(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -126,7 +125,7 @@ func TestStartChecker(t *testing.T) {
 				hostsInfo []peer.AddrInfo
 			)
 
-			for i := 0; i < tt.numPeers; i++ {
+			for range tt.numPeers {
 				h := testutil.CreateHost(t, testutil.AvailableAddr(t))
 				info := peer.AddrInfo{
 					ID:    h.ID(),

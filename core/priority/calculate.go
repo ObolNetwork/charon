@@ -30,9 +30,8 @@ func calculateResult(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.PriorityR
 	// Group all priority sets by topic
 	proposalsByTopic := make(map[[32]byte][]*pbv1.PriorityTopicProposal)
 	for _, msg := range sortInput(msgs) {
-		for _, topic := range msg.Topics {
-			topic := topic // Copy iteration value since it is a pointer
-			topicHash, err := hashProto(topic.Topic)
+		for _, topic := range msg.GetTopics() {
+			topicHash, err := hashProto(topic.GetTopic())
 			if err != nil {
 				return nil, err
 			}
@@ -51,8 +50,7 @@ func calculateResult(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.PriorityR
 			allPriorities [][32]byte
 		)
 		for _, proposal := range proposals {
-			for order, prio := range proposal.Priorities {
-				prio := prio // Copy iteration value since it is a pointer
+			for order, prio := range proposal.GetPriorities() {
 				priority, err := hashProto(prio)
 				if err != nil {
 					return nil, err
@@ -72,7 +70,7 @@ func calculateResult(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.PriorityR
 
 		// Extract scores with min required count.
 		minScore := (minRequired - 1) * countWeight
-		result := &pbv1.PriorityTopicResult{Topic: proposals[0].Topic}
+		result := &pbv1.PriorityTopicResult{Topic: proposals[0].GetTopic()}
 		for _, priority := range allPriorities {
 			score := scores[priority]
 			if score <= minScore {
@@ -107,8 +105,7 @@ func orderTopicResults(values []*pbv1.PriorityTopicResult) ([]*pbv1.PriorityTopi
 
 	var tuples []tuple
 	for _, value := range values {
-		value := value // Copy iteration value since it is a pointer
-		hash, err := hashProto(value.Topic)
+		hash, err := hashProto(value.GetTopic())
 		if err != nil {
 			return nil, err
 		}
@@ -135,7 +132,7 @@ func orderTopicResults(values []*pbv1.PriorityTopicResult) ([]*pbv1.PriorityTopi
 func sortInput(msgs []*pbv1.PriorityMsg) []*pbv1.PriorityMsg {
 	resp := append([]*pbv1.PriorityMsg(nil), msgs...) // Copy to not mutate input param.
 	sort.Slice(resp, func(i, j int) bool {
-		return resp[i].PeerId < resp[j].PeerId
+		return resp[i].GetPeerId() < resp[j].GetPeerId()
 	})
 
 	return resp
@@ -158,27 +155,27 @@ func validateMsgs(msgs []*pbv1.PriorityMsg) error {
 	)
 	for _, msg := range msgs {
 		if duty == nil {
-			duty = msg.Duty
-		} else if !proto.Equal(duty, msg.Duty) {
+			duty = msg.GetDuty()
+		} else if !proto.Equal(duty, msg.GetDuty()) {
 			return errors.New("mismatching duties")
 		}
-		if dedupPeers(msg.PeerId) {
+		if dedupPeers(msg.GetPeerId()) {
 			return errors.New("duplicate peer")
 		}
 		dedupTopics := newDeduper[[32]byte]() // Peers may not provide duplicate topics.
-		for _, topic := range msg.Topics {
-			topicHash, err := hashProto(topic.Topic)
+		for _, topic := range msg.GetTopics() {
+			topicHash, err := hashProto(topic.GetTopic())
 			if err != nil {
 				return err
 			}
 			if dedupTopics(topicHash) {
 				return errors.New("duplicate topic")
-			} else if len(topic.Priorities) >= maxPriorities {
+			} else if len(topic.GetPriorities()) >= maxPriorities {
 				return errors.New("max priority reached")
 			}
 
 			dedupPriority := newDeduper[[32]byte]() // Topics may not include duplicates priority.
-			for _, priority := range topic.Priorities {
+			for _, priority := range topic.GetPriorities() {
 				prioHash, err := hashProto(priority)
 				if err != nil {
 					return err

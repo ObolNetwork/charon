@@ -60,36 +60,36 @@ func newHTTPServer(addr string, optionalHandlers map[string]http.HandlerFunc, ov
 	shutdown := make(chan struct{})
 
 	endpoints := map[string]http.HandlerFunc{
-		"/up": func(w http.ResponseWriter, r *http.Request) {
+		"/up": func(http.ResponseWriter, *http.Request) {
 			// Can be used to test if server is up.
 		},
-		"/eth/v1/validator/sync_committee_subscriptions": func(w http.ResponseWriter, r *http.Request) {
+		"/eth/v1/validator/sync_committee_subscriptions": func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		},
-		"/eth/v1/validator/aggregate_attestation": func(w http.ResponseWriter, r *http.Request) {
+		"/eth/v1/validator/aggregate_attestation": func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			_, _ = w.Write([]byte(`{"code": 403,"message": "Beacon node was not assigned to aggregate on that subnet."}`))
 		},
-		"/eth/v1/validator/beacon_committee_subscriptions": func(w http.ResponseWriter, r *http.Request) {
+		"/eth/v1/validator/beacon_committee_subscriptions": func(http.ResponseWriter, *http.Request) {
 		},
-		"/eth/v1/node/version": func(w http.ResponseWriter, r *http.Request) {
+		"/eth/v1/node/version": func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = w.Write([]byte(`{"data": {"version": "charon/static_beacon_mock"}}`))
 		},
-		"/eth/v1/node/syncing": func(w http.ResponseWriter, r *http.Request) {
+		"/eth/v1/node/syncing": func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = w.Write([]byte(`{"data": {"head_slot": "1","sync_distance": "0","is_syncing": false}}`))
 		},
-		"/eth/v1/beacon/headers/head": func(w http.ResponseWriter, r *http.Request) {
+		"/eth/v1/beacon/headers/head": func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = w.Write([]byte(`{"data": {"header": {"message": {"slot": "1"}}}}`))
 		},
-		"/eth/v1/validator/prepare_beacon_proposer": func(w http.ResponseWriter, r *http.Request) {
+		"/eth/v1/validator/prepare_beacon_proposer": func(http.ResponseWriter, *http.Request) {
 		},
-		"/eth/v1/events": func(w http.ResponseWriter, r *http.Request) {
+		"/eth/v1/events": func(_ http.ResponseWriter, r *http.Request) {
 			select {
 			case <-shutdown:
 			case <-r.Context().Done():
 			}
 		},
-		"/eth/v2/beacon/blocks/{block_id}": func(w http.ResponseWriter, r *http.Request) {
+		"/eth/v2/beacon/blocks/{block_id}": func(w http.ResponseWriter, _ *http.Request) {
 			type signedBlockResponseJSON struct {
 				Version *eth2spec.DataVersion        `json:"version"`
 				Data    *bellatrix.SignedBeaconBlock `json:"data"`
@@ -118,9 +118,6 @@ func newHTTPServer(addr string, optionalHandlers map[string]http.HandlerFunc, ov
 
 	// Configure above endpoints.
 	for path, handler := range endpoints {
-		// Copy iteration variables.
-		path := path
-		handler := handler
 		r.Handle(path, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := log.WithTopic(r.Context(), "bmock")
 			ctx = log.WithCtx(ctx, z.Str("path", path))
@@ -209,7 +206,12 @@ func newHTTPMock(optionalHandlers map[string]http.HandlerFunc, overrides ...stat
 		return nil, nil, errors.Wrap(err, "new http client")
 	}
 
-	return cl.(HTTPMock), srv, nil
+	httpMock, ok := cl.(HTTPMock)
+	if !ok {
+		return nil, nil, errors.New("type assert http mock")
+	}
+
+	return httpMock, srv, nil
 }
 
 // overrideResponse overrides the key in the raw response. If key is empty, it overrides the whole response.

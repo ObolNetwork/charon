@@ -26,7 +26,7 @@ func TestValidatorCache(t *testing.T) {
 	)
 
 	// Create a set of validators, half active, half random state.
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		val := testutil.RandomValidator(t)
 		if rand.Intn(2) == 0 {
 			val.Status = eth2v1.ValidatorState(rand.Intn(10))

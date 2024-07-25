@@ -55,7 +55,7 @@ func TestSigAgg(t *testing.T) {
 			parsigs []core.ParSignedData
 			att     = testutil.RandomAttestation()
 		)
-		for i := 0; i < peers; i++ {
+		for range peers {
 			parsig := core.NewPartialAttestation(att, 0) // All partial sig with the same shareIdx (0)
 			parsigs = append(parsigs, parsig)
 		}

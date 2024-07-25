@@ -90,7 +90,7 @@ func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig)
 		Short: "Create private keys and configuration files needed to run a distributed validator cluster locally",
 		Long: "Creates a local charon cluster configuration including validator keys, charon p2p keys, cluster-lock.json and deposit-data.json file(s). " +
 			"See flags for supported features.",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			return runFunc(cmd.Context(), cmd.OutOrStdout(), conf)
 		},
 	}
@@ -312,7 +312,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	if dashboardURL != "" {
-		log.Info(ctx, fmt.Sprintf("You can find your newly-created cluster dashboard here: %s", dashboardURL))
+		log.Info(ctx, "You can find your newly-created cluster dashboard here: "+dashboardURL)
 	}
 
 	return nil
@@ -371,7 +371,7 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 
 // detectNodeDirs returns error if there's a `nodeX`-style directory in clusterDir.
 func detectNodeDirs(clusterDir string, nodeAmount int) error {
-	for idx := 0; idx < nodeAmount; idx++ {
+	for idx := range nodeAmount {
 		absPath, err := filepath.Abs(nodeDir(clusterDir, idx))
 		if err != nil {
 			return errors.Wrap(err, "absolute path retrieval")
@@ -564,7 +564,7 @@ func getKeys(splitKeysDir string) ([]tbls.PrivateKey, error) {
 // generateKeys generates numDVs amount of tbls.PrivateKeys.
 func generateKeys(numDVs int) ([]tbls.PrivateKey, error) {
 	var secrets []tbls.PrivateKey
-	for i := 0; i < numDVs; i++ {
+	for range numDVs {
 		secret, err := tbls.GenerateSecretKey()
 		if err != nil {
 			return nil, err
@@ -605,7 +605,7 @@ func writeLock(lock cluster.Lock, clusterDir string, numNodes int) error {
 		return errors.Wrap(err, "marshal cluster lock")
 	}
 
-	for i := 0; i < numNodes; i++ {
+	for i := range numNodes {
 		lockPath := path.Join(nodeDir(clusterDir, i), "cluster-lock.json")
 		err = os.WriteFile(lockPath, b, 0o400) // read-only
 		if err != nil {
@@ -635,7 +635,6 @@ func getValidators(
 
 	var vals []cluster.DistValidator
 	for idx, dv := range dvsPubkeys {
-		dv := dv
 		privShares := dvPrivShares[idx]
 		var pubshares [][]byte
 		for _, ps := range privShares {
@@ -680,7 +679,6 @@ func getValidators(
 		}
 
 		for _, dd := range depositDatasList {
-			dd := dd
 			partialDepositData = append(partialDepositData, cluster.DepositData{
 				PubKey:                dd.PublicKey[:],
 				WithdrawalCredentials: dd.WithdrawalCredentials,
@@ -704,7 +702,7 @@ func getValidators(
 func writeKeysToKeymanager(ctx context.Context, conf clusterConfig, numNodes int, shareSets [][]tbls.PrivateKey) error {
 	// Ping all keymanager addresses to check if they are accessible to avoid partial writes
 	var clients []keymanager.Client
-	for i := 0; i < numNodes; i++ {
+	for i := range numNodes {
 		cl := keymanager.New(conf.KeymanagerAddrs[i], conf.KeymanagerAuthTokens[i])
 		if err := cl.VerifyConnection(ctx); err != nil {
 			return err
@@ -712,7 +710,7 @@ func writeKeysToKeymanager(ctx context.Context, conf clusterConfig, numNodes int
 		clients = append(clients, cl)
 	}
 
-	for i := 0; i < numNodes; i++ {
+	for i := range numNodes {
 		var (
 			keystores []keystore.Keystore
 			passwords []string
@@ -752,7 +750,7 @@ func writeKeysToKeymanager(ctx context.Context, conf clusterConfig, numNodes int
 
 // writeKeysToDisk writes validator keyshares to disk. It assumes that the directory for each node already exists.
 func writeKeysToDisk(numNodes int, clusterDir string, insecureKeys bool, shareSets [][]tbls.PrivateKey) error {
-	for i := 0; i < numNodes; i++ {
+	for i := range numNodes {
 		var secrets []tbls.PrivateKey
 		for _, shares := range shareSets {
 			secrets = append(secrets, shares[i])
@@ -783,7 +781,7 @@ func getOperators(n int, clusterDir string) ([]cluster.Operator, []*k1.PrivateKe
 	var ops []cluster.Operator
 	var keys []*k1.PrivateKey
 
-	for i := 0; i < n; i++ {
+	for i := range n {
 		record, identityKey, err := newPeer(clusterDir, i)
 		if err != nil {
 			return nil, nil, err
@@ -816,7 +814,7 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 	}
 
 	var ops []cluster.Operator
-	for i := 0; i < conf.NumNodes; i++ {
+	for range conf.NumNodes {
 		ops = append(ops, cluster.Operator{})
 	}
 	threshold := safeThreshold(ctx, conf.NumNodes, conf.Threshold)

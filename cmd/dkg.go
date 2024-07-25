@@ -24,7 +24,7 @@ func newDKGCmd(runFunc func(context.Context, dkg.Config) error) *cobra.Command {
 distributed validator key shares and a final cluster lock configuration. Note that all other cluster operators should run
 this command at the same time.`,
 		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			if err := log.InitLogger(config.Log); err != nil {
 				return err
 			}

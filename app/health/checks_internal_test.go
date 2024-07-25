@@ -419,7 +419,7 @@ func testCheck(t *testing.T, m Metadata, checkName string, expect bool, metrics 
 	}
 
 	multiFams := make([][]*pb.MetricFamily, max)
-	for i := 0; i < max; i++ {
+	for i := range max {
 		var fam []*pb.MetricFamily
 		if i < len(metrics) {
 			fam = append(fam, metrics[i])
@@ -451,7 +451,7 @@ func testCheck(t *testing.T, m Metadata, checkName string, expect bool, metrics 
 
 func genFam(name string, metrics ...[]*pb.Metric) []*pb.MetricFamily {
 	typ := pb.MetricType_COUNTER
-	if metrics[0][0].Gauge != nil {
+	if metrics[0][0].GetGauge() != nil {
 		typ = pb.MetricType_GAUGE
 	}
 

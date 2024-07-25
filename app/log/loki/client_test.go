@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -32,11 +33,11 @@ func TestLoki(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, r.Body.Close())
 		req := decode(t, b)
-		require.Len(t, req.Streams, 1)
-		require.Contains(t, req.Streams[0].Labels, fmt.Sprintf(`service="%s"`, serviceLabel))
-		require.Contains(t, req.Streams[0].Labels, fmt.Sprintf(`%s="%s"`, otherLabelKey, otherLabelValue))
-		for _, entry := range req.Streams[0].Entries {
-			received <- entry.Line
+		require.Len(t, req.GetStreams(), 1)
+		require.Contains(t, req.GetStreams()[0].GetLabels(), fmt.Sprintf(`service="%s"`, serviceLabel))
+		require.Contains(t, req.GetStreams()[0].GetLabels(), fmt.Sprintf(`%s="%s"`, otherLabelKey, otherLabelValue))
+		for _, entry := range req.GetStreams()[0].GetEntries() {
+			received <- entry.GetLine()
 		}
 	}))
 
@@ -59,12 +60,12 @@ func TestLoki(t *testing.T) {
 
 	go cl.Run()
 
-	for i := 0; i < n; i++ {
-		cl.Add(fmt.Sprint(i))
+	for i := range n {
+		cl.Add(strconv.Itoa(i))
 	}
 
-	for i := 0; i < n; i++ {
-		require.Equal(t, fmt.Sprint(i), <-received)
+	for i := range n {
+		require.Equal(t, strconv.Itoa(i), <-received)
 	}
 
 	cl.Stop(context.Background())
@@ -103,13 +104,13 @@ func TestLongLines(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, r.Body.Close())
 		req := decode(t, b)
-		require.Len(t, req.Streams, 1)
-		require.Contains(t, req.Streams[0].Labels, fmt.Sprintf(`service="%s"`, serviceLabel))
-		for _, entry := range req.Streams[0].Entries {
+		require.Len(t, req.GetStreams(), 1)
+		require.Contains(t, req.GetStreams()[0].GetLabels(), fmt.Sprintf(`service="%s"`, serviceLabel))
+		for _, entry := range req.GetStreams()[0].GetEntries() {
 			go func(entry string) {
 				entriesChan <- entry
 				close(entriesChan)
-			}(entry.Line)
+			}(entry.GetLine())
 		}
 	}))
 
@@ -124,7 +125,7 @@ func TestLongLines(t *testing.T) {
 
 	cl.Add(normal)
 
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		cl.Add(huge)
 	}
 

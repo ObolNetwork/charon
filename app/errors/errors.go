@@ -5,7 +5,6 @@
 package errors
 
 import (
-	//nolint:revive
 	stderrors "errors"
 	"fmt"
 

@@ -98,7 +98,11 @@ type Sender struct {
 func (s *Sender) addResult(ctx context.Context, peerID peer.ID, err error) {
 	state := &peerState{}
 	if val, ok := s.states.Load(peerID); ok {
-		state = val.(*peerState)
+		state, ok = val.(*peerState)
+		if !ok {
+			log.Warn(ctx, "Type assertion peer state failing", err, z.Str("peer", PeerName(peerID)))
+			return
+		}
 	}
 
 	state.buffer.add(err)
@@ -233,7 +237,7 @@ func SetFuzzerDefaultsUnsafe() {
 	defaultWriterFunc = func(s network.Stream) pbio.Writer {
 		return fuzzReaderWriter{w: pbio.NewDelimitedWriter(s)}
 	}
-	defaultReaderFunc = func(s network.Stream) pbio.Reader {
+	defaultReaderFunc = func(network.Stream) pbio.Reader {
 		return fuzzReaderWriter{}
 	}
 }

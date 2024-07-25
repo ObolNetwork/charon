@@ -96,7 +96,7 @@ func (c *Component) Start(ctx context.Context) {
 func (c *Component) Subscribe(fn func(context.Context, core.Duty, []TopicResult) error) {
 	c.prioritiser.Subscribe(func(ctx context.Context, duty core.Duty, result *pbv1.PriorityResult) error {
 		var results []TopicResult
-		for _, topic := range result.Topics {
+		for _, topic := range result.GetTopics() {
 			result, err := topicResultFromProto(topic)
 			if err != nil {
 				return err
@@ -141,7 +141,7 @@ func (c *Component) Prioritise(ctx context.Context, duty core.Duty, proposals ..
 
 	err = c.prioritiser.Prioritise(ctx, msg)
 	if ctx.Err() != nil {
-		return nil //nolint:nilerr // Context expiry is expected behaviour, return nil.
+		return nil
 	} else if err != nil {
 		return errors.Wrap(err, "prioritise", z.Any("duty", duty))
 	}
@@ -151,7 +151,10 @@ func (c *Component) Prioritise(ctx context.Context, duty core.Duty, proposals ..
 
 // signMsg returns a copy of the proto message with a populated signature signed by the provided private key.
 func signMsg(msg *pbv1.PriorityMsg, privkey *k1.PrivateKey) (*pbv1.PriorityMsg, error) {
-	clone := proto.Clone(msg).(*pbv1.PriorityMsg)
+	clone, ok := proto.Clone(msg).(*pbv1.PriorityMsg)
+	if !ok {
+		return nil, errors.New("type assert priority msg")
+	}
 	clone.Signature = nil
 
 	hash, err := hashProto(clone)
@@ -173,14 +176,17 @@ func verifyMsgSig(msg *pbv1.PriorityMsg, pubkey *k1.PublicKey) (bool, error) {
 		return false, errors.New("empty signature")
 	}
 
-	clone := proto.Clone(msg).(*pbv1.PriorityMsg)
+	clone, ok := proto.Clone(msg).(*pbv1.PriorityMsg)
+	if !ok {
+		return false, errors.New("type assert priority msg")
+	}
 	clone.Signature = nil
 	hash, err := hashProto(clone)
 	if err != nil {
 		return false, err
 	}
 
-	actual, err := k1util.Recover(hash[:], msg.Signature)
+	actual, err := k1util.Recover(hash[:], msg.GetSignature())
 	if err != nil {
 		return false, errors.Wrap(err, "sig to pub")
 	}
@@ -205,11 +211,11 @@ func newMsgVerifier(peers []peer.ID) (func(msg *pbv1.PriorityMsg) error, error) 
 	}
 
 	return func(msg *pbv1.PriorityMsg) error {
-		if msg == nil || msg.Duty == nil {
+		if msg == nil || msg.GetDuty() == nil {
 			return errors.New("invalid priority msg proto fields", z.Any("msg", msg))
 		}
 
-		key, ok := keys[msg.PeerId]
+		key, ok := keys[msg.GetPeerId()]
 		if !ok {
 			return errors.New("unknown peer id")
 		}
@@ -255,7 +261,7 @@ func topicResultFromProto(p *pbv1.PriorityTopicResult) (TopicResult, error) {
 	}
 
 	topicVal := new(structpb.Value)
-	if err := p.Topic.UnmarshalTo(topicVal); err != nil {
+	if err := p.GetTopic().UnmarshalTo(topicVal); err != nil {
 		return TopicResult{}, errors.Wrap(err, "anypb topic")
 	}
 
@@ -265,9 +271,9 @@ func topicResultFromProto(p *pbv1.PriorityTopicResult) (TopicResult, error) {
 	}
 
 	var priorities []ScoredPriority
-	for _, scored := range p.Priorities {
+	for _, scored := range p.GetPriorities() {
 		prioVal := new(structpb.Value)
-		if err := scored.Priority.UnmarshalTo(prioVal); err != nil {
+		if err := scored.GetPriority().UnmarshalTo(prioVal); err != nil {
 			return TopicResult{}, errors.Wrap(err, "anypb priority")
 		}
 
@@ -278,7 +284,7 @@ func topicResultFromProto(p *pbv1.PriorityTopicResult) (TopicResult, error) {
 
 		priorities = append(priorities, ScoredPriority{
 			Priority: prio,
-			Score:    int(scored.Score),
+			Score:    int(scored.GetScore()),
 		})
 	}
 

@@ -196,7 +196,7 @@ func InitLogger(config Config) error {
 		}
 
 		if config.LogOutputPath != "" {
-			fileWriter, _, err := zap.Open(fmt.Sprintf("lumberjack:%s", config.LogOutputPath))
+			fileWriter, _, err := zap.Open("lumberjack:" + config.LogOutputPath)
 			if err != nil {
 				return errors.Wrap(err, "open file writer")
 			}
@@ -248,7 +248,7 @@ func InitLogger(config Config) error {
 // WithClock returns a function that uses the provided clock to encode log timestamps.
 func WithClock(clock clockwork.Clock) func(config *zapcore.EncoderConfig) {
 	return func(config *zapcore.EncoderConfig) {
-		config.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
+		config.EncodeTime = func(_ time.Time, enc zapcore.PrimitiveArrayEncoder) {
 			enc.AppendString(clock.Now().Format("15:04:05.000"))
 		}
 	}

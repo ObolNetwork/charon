@@ -77,14 +77,14 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				e.BlockHash = blockHash[:]
 			},
 			// Just zero BeaconBlockBody.Deposits to pass validation.
-			func(e *[]*eth2p0.Deposit, c fuzz.Continue) {
+			func(e *[]*eth2p0.Deposit, _ fuzz.Continue) {
 				*e = []*eth2p0.Deposit{}
 			},
 			// SyncAggregate.SyncCommitteeBits must have 64 bits
 			func(e *altair.SyncAggregate, c fuzz.Continue) {
 				c.FuzzNoCustom(e)
 				bits := bitfield.NewBitvector512()
-				for i := 0; i < 64; i++ {
+				for i := range 64 {
 					bits.SetBitAt(uint64(i), true)
 				}
 				e.SyncCommitteeBits = bits
@@ -92,7 +92,7 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 			func(e *altair.SyncCommitteeContribution, c fuzz.Continue) {
 				c.FuzzNoCustom(e)
 				bits := bitfield.NewBitvector128()
-				for i := 0; i < 16; i++ {
+				for i := range 16 {
 					bits.SetBitAt(uint64(i), true)
 				}
 				e.AggregationBits = bits

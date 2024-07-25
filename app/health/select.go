@@ -18,13 +18,13 @@ func maxLabel(metricsFam *pb.MetricFamily) *pb.Metric { //nolint: unused // This
 		max  float64
 		resp *pb.Metric
 	)
-	for _, metric := range metricsFam.Metric {
+	for _, metric := range metricsFam.GetMetric() {
 		var val float64
 		switch metricsFam.GetType() {
 		case pb.MetricType_COUNTER:
-			val = metric.Counter.GetValue()
+			val = metric.GetCounter().GetValue()
 		case pb.MetricType_GAUGE:
-			val = metric.Gauge.GetValue()
+			val = metric.GetGauge().GetValue()
 		default:
 			panic("invalid metric type for simple value labelSelector")
 		}
@@ -40,14 +40,15 @@ func maxLabel(metricsFam *pb.MetricFamily) *pb.Metric { //nolint: unused // This
 
 // countNonZeroLabels counts the number of metrics that have a non-zero value.
 func countNonZeroLabels(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
+	timestamp := metricsFam.GetMetric()[0].GetTimestampMs()
 	gauge := &pb.Metric{
 		Gauge:       new(pb.Gauge),
-		TimestampMs: metricsFam.Metric[0].TimestampMs,
+		TimestampMs: &timestamp,
 	}
 
-	for _, metric := range metricsFam.Metric {
-		if metric.Gauge.GetValue() != 0 || metric.Counter.GetValue() != 0 {
-			incremented := gauge.Gauge.GetValue() + 1
+	for _, metric := range metricsFam.GetMetric() {
+		if metric.GetGauge().GetValue() != 0 || metric.GetCounter().GetValue() != 0 {
+			incremented := gauge.GetGauge().GetValue() + 1
 			gauge.Gauge.Value = &incremented
 		}
 	}
@@ -57,24 +58,25 @@ func countNonZeroLabels(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
 
 // noLabels return the only metric in the family, or an error if there is not exactly one metric.
 func noLabels(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
-	if len(metricsFam.Metric) != 1 {
+	if len(metricsFam.GetMetric()) != 1 {
 		return nil, errors.New("expected exactly one metric")
 	}
 
-	return metricsFam.Metric[0], nil
+	return metricsFam.GetMetric()[0], nil
 }
 
 // countLabels returns a selector that counts the number of metrics that match all of the label pairs.
 func countLabels(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
 	return func(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
+		timestamp := metricsFam.GetMetric()[0].GetTimestampMs()
 		count := &pb.Metric{
 			Gauge:       new(pb.Gauge),
-			TimestampMs: metricsFam.Metric[0].TimestampMs,
+			TimestampMs: &timestamp,
 		}
-		for _, metric := range metricsFam.Metric {
-			if labelsContain(metric.Label, labels) {
-				value := metric.Gauge.GetValue() + metric.Counter.GetValue()
-				sum := count.Gauge.GetValue() + value
+		for _, metric := range metricsFam.GetMetric() {
+			if labelsContain(metric.GetLabel(), labels) {
+				value := metric.GetGauge().GetValue() + metric.GetCounter().GetValue()
+				sum := count.GetGauge().GetValue() + value
 				count.Gauge.Value = &sum
 			}
 		}
@@ -90,14 +92,15 @@ func sumLabels(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb.M
 			return nil, errors.New("bug: unsupported metric type")
 		}
 
+		timestamp := metricsFam.GetMetric()[0].GetTimestampMs()
 		sum := &pb.Metric{
 			Gauge:       new(pb.Gauge),
-			TimestampMs: metricsFam.Metric[0].TimestampMs,
+			TimestampMs: &timestamp,
 		}
-		for _, metric := range metricsFam.Metric {
-			if labelsContain(metric.Label, labels) {
-				value := metric.Gauge.GetValue() + metric.Counter.GetValue()
-				summed := sum.Gauge.GetValue() + value
+		for _, metric := range metricsFam.GetMetric() {
+			if labelsContain(metric.GetLabel(), labels) {
+				value := metric.GetGauge().GetValue() + metric.GetCounter().GetValue()
+				summed := sum.GetGauge().GetValue() + value
 				sum.Gauge.Value = &summed
 			}
 		}
@@ -110,8 +113,8 @@ func sumLabels(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb.M
 func selectLabel(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb.Metric, error) { //nolint: unused // This is used in the future.
 	return func(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
 		var found *pb.Metric
-		for _, metric := range metricsFam.Metric {
-			if labelsContain(metric.Label, labels) {
+		for _, metric := range metricsFam.GetMetric() {
+			if labelsContain(metric.GetLabel(), labels) {
 				if found != nil {
 					return nil, errors.New("multiple metrics matching label selector")
 				}

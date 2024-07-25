@@ -28,28 +28,28 @@ func TestWrapRegisterer(t *testing.T) {
 	require.NoError(t, err)
 	metrics, err := registry.Gather()
 	require.NoError(t, err)
-	require.True(t, len(metrics) > 1)
+	require.Greater(t, len(metrics), 1)
 
 	var foundTest bool
 	for _, metricFam := range metrics {
 		// All metrics contain own and registered labels.
-		for _, metric := range metricFam.Metric {
+		for _, metric := range metricFam.GetMetric() {
 			notFound := make(prometheus.Labels)
 			for k, v := range labels {
 				notFound[k] = v
 			}
-			for _, label := range metric.Label {
-				v, ok := notFound[*label.Name]
+			for _, label := range metric.GetLabel() {
+				v, ok := notFound[label.GetName()]
 				if !ok {
 					continue
 				}
-				require.Equal(t, v, *label.Value)
-				delete(notFound, *label.Name)
+				require.Equal(t, v, label.GetValue())
+				delete(notFound, label.GetName())
 			}
 
 			require.Empty(t, notFound)
 		}
-		if *metricFam.Name == "test" {
+		if metricFam.GetName() == "test" {
 			foundTest = true
 		}
 	}

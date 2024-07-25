@@ -41,7 +41,7 @@ func TestSigsExchange(t *testing.T) {
 	defer cancel()
 
 	// Create secretes and libp2p nodes
-	for i := 0; i < n; i++ {
+	for i := range n {
 		secret, err := k1.GeneratePrivateKey()
 		require.NoError(t, err)
 		secrets = append(secrets, secret)
@@ -60,14 +60,13 @@ func TestSigsExchange(t *testing.T) {
 	}
 
 	// Connect peers
-	for i := 0; i < n; i++ {
-		for j := 0; j < n; j++ {
+	for i := range n {
+		for j := range n {
 			tcpNodes[i].Peerstore().AddAddrs(tcpNodes[j].ID(), tcpNodes[j].Addrs(), peerstore.PermanentAddrTTL)
 		}
 	}
 
-	for i := 0; i < n; i++ {
-		i := i
+	for i := range n {
 		component := bcast.New(tcpNodes[i], peers, secrets[i])
 		nsigs = append(nsigs, newNodeSigBcast(
 			clusterPeers,
@@ -79,8 +78,7 @@ func TestSigsExchange(t *testing.T) {
 	results = make([][][]byte, n)
 
 	var eg errgroup.Group
-	for i := 0; i < n; i++ {
-		i := i
+	for i := range n {
 		eg.Go(func() error {
 			res, err := nsigs[i].exchange(
 				ctx,
@@ -118,7 +116,7 @@ func TestSigsCallbacks(t *testing.T) {
 	)
 
 	// Create secretes and libp2p nodes
-	for i := 0; i < n; i++ {
+	for i := range n {
 		secret, err := k1.GeneratePrivateKey()
 		require.NoError(t, err)
 		secrets = append(secrets, secret)
@@ -137,8 +135,8 @@ func TestSigsCallbacks(t *testing.T) {
 	}
 
 	// Connect peers
-	for i := 0; i < n; i++ {
-		for j := 0; j < n; j++ {
+	for i := range n {
+		for j := range n {
 			tcpNodes[i].Peerstore().AddAddrs(tcpNodes[j].ID(), tcpNodes[j].Addrs(), peerstore.PermanentAddrTTL)
 		}
 	}

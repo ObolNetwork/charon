@@ -69,7 +69,7 @@ func TestSimulatorOnce(t *testing.T) {
 		timeout:        simTimeout,
 	}, syncer)
 
-	require.Equal(t, 4, len(results))
+	require.Len(t, results, 4)
 	require.False(t, isUndecided(results))
 }
 
@@ -181,7 +181,7 @@ func testRoundTimers(t *testing.T, timers []roundTimerFunc, itersPerConfig int) 
 		}
 	}
 
-	for i := 0; i < len(allConfigs); i++ {
+	for i := range len(allConfigs) {
 		allConfigs[i].index = i
 	}
 
@@ -451,7 +451,7 @@ func cancelAfter(cancel context.CancelFunc, n int) context.CancelFunc {
 }
 
 func gosched() {
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		time.Sleep(time.Microsecond)
 		runtime.Gosched()
 	}
@@ -757,7 +757,7 @@ func randomConfigs(names []string, peers int, n int, timer func(clockwork.Clock)
 	peerLatencies := randomPeerLatencies(peers, n, latencies, random)
 
 	var res []ssConfig
-	for i := 0; i < n; i++ {
+	for i := range n {
 		res = append(res, ssConfig{
 			names:          append([]string(nil), names...),
 			seed:           i,
@@ -774,9 +774,9 @@ func randomConfigs(names []string, peers int, n int, timer func(clockwork.Clock)
 
 func randomPeerLatencies(peers int, n int, selectFrom []time.Duration, random *rand.Rand) []map[int64]time.Duration {
 	var resp []map[int64]time.Duration
-	for i := 0; i < n; i++ {
+	for range n {
 		m := make(map[int64]time.Duration)
-		for i := 0; i < peers; i++ {
+		for i := range peers {
 			m[int64(i)] = selectFrom[random.Intn(len(selectFrom))]
 		}
 		resp = append(resp, m)
@@ -804,7 +804,7 @@ var (
 // proposalLatencyPercentiles.
 func normalStartLatencies(peers int, random *rand.Rand) map[int64]time.Duration {
 	resp := make(map[int64]time.Duration, peers)
-	for i := 0; i < peers; i++ {
+	for i := range peers {
 		resp[int64(i)] = normalDuration(proposalMean, proposalStdDev, random)
 	}
 
@@ -833,7 +833,7 @@ func disableRandomNodes(configs []ssConfig, n int) []ssConfig {
 	random := rand.New(rand.NewSource(0))
 	for _, config := range configs {
 		size := len(config.latencyPerPeer)
-		for i := 0; i < n; i++ {
+		for range n {
 			config.startByPeer[int64(random.Intn(size))] = disabled
 		}
 	}

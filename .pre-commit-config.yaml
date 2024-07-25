@@ -41,13 +41,13 @@ repos:
 
   # Then run code validators (on the formatted code)
 
-  - repo: https://github.com/golangci/golangci-lint # See .golangci.yml for config
-    rev: v1.56.2
-    hooks:
-      - id: golangci-lint
-
   - repo: local
     hooks:
+      - id: golangci-lint
+        name: golangci-lint
+        language: script
+        entry: .pre-commit/run_linter.sh
+        types: [ file, go ]
       - id: run-go-tests
         name: run-go-tests
         language: script

@@ -153,7 +153,7 @@ func TestInclusion(t *testing.T) {
 }
 
 func addRandomBits(list bitfield.Bitlist) {
-	for i := 0; i < rand.Intn(4); i++ {
+	for range rand.Intn(4) {
 		list.SetBitAt(uint64(rand.Intn(int(list.Len()))), true)
 	}
 }

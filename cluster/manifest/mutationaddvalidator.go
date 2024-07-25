@@ -43,10 +43,10 @@ func verifyGenValidators(vals []*manifestpb.Validator) error {
 	}
 
 	for _, validator := range vals {
-		if _, err := from0xHex(validator.FeeRecipientAddress, 20); err != nil {
+		if _, err := from0xHex(validator.GetFeeRecipientAddress(), 20); err != nil {
 			return errors.Wrap(err, "validate fee recipient address")
 		}
-		if _, err := from0xHex(validator.WithdrawalAddress, 20); err != nil {
+		if _, err := from0xHex(validator.GetWithdrawalAddress(), 20); err != nil {
 			return errors.Wrap(err, "validate withdrawal address")
 		}
 	}
@@ -59,27 +59,27 @@ func transformGenValidators(c *manifestpb.Cluster, signed *manifestpb.SignedMuta
 		return c, errors.Wrap(err, "verify empty sig")
 	}
 
-	if MutationType(signed.Mutation.Type) != TypeGenValidators {
+	if MutationType(signed.GetMutation().GetType()) != TypeGenValidators {
 		return c, errors.New("invalid mutation type")
 	}
 
 	vals := new(manifestpb.ValidatorList)
-	if err := signed.Mutation.Data.UnmarshalTo(vals); err != nil {
+	if err := signed.GetMutation().GetData().UnmarshalTo(vals); err != nil {
 		return c, errors.Wrap(err, "unmarshal validators")
 	}
 
-	c.Validators = append(c.Validators, vals.Validators...)
+	c.Validators = append(c.Validators, vals.GetValidators()...)
 
 	return c, nil
 }
 
 // NewAddValidators creates a new composite add validators mutation from the provided gen validators and node approvals.
 func NewAddValidators(genValidators, nodeApprovals *manifestpb.SignedMutation) (*manifestpb.SignedMutation, error) {
-	if MutationType(genValidators.Mutation.Type) != TypeGenValidators {
+	if MutationType(genValidators.GetMutation().GetType()) != TypeGenValidators {
 		return nil, errors.New("invalid gen validators mutation type")
 	}
 
-	if MutationType(nodeApprovals.Mutation.Type) != TypeNodeApprovals {
+	if MutationType(nodeApprovals.GetMutation().GetType()) != TypeNodeApprovals {
 		return nil, errors.New("invalid node approvals mutation type")
 	}
 
@@ -92,7 +92,7 @@ func NewAddValidators(genValidators, nodeApprovals *manifestpb.SignedMutation) (
 
 	return &manifestpb.SignedMutation{
 		Mutation: &manifestpb.Mutation{
-			Parent: genValidators.Mutation.Parent,
+			Parent: genValidators.GetMutation().GetParent(),
 			Type:   string(TypeAddValidators),
 			Data:   dataAny,
 		},
@@ -105,28 +105,28 @@ func transformAddValidators(c *manifestpb.Cluster, signed *manifestpb.SignedMuta
 		return c, errors.Wrap(err, "verify empty sig")
 	}
 
-	if MutationType(signed.Mutation.Type) != TypeAddValidators {
+	if MutationType(signed.GetMutation().GetType()) != TypeAddValidators {
 		return c, errors.New("invalid mutation type")
 	}
 
 	list := new(manifestpb.SignedMutationList)
-	if err := signed.Mutation.Data.UnmarshalTo(list); err != nil {
+	if err := signed.GetMutation().GetData().UnmarshalTo(list); err != nil {
 		return c, errors.Wrap(err, "unmarshal signed mutation list")
-	} else if len(list.Mutations) != 2 {
+	} else if len(list.GetMutations()) != 2 {
 		return c, errors.New("invalid mutation list length")
 	}
 
-	genValidators := list.Mutations[0]
-	nodeApprovals := list.Mutations[1]
+	genValidators := list.GetMutations()[0]
+	nodeApprovals := list.GetMutations()[1]
 
-	if MutationType(genValidators.Mutation.Type) != TypeGenValidators {
+	if MutationType(genValidators.GetMutation().GetType()) != TypeGenValidators {
 		return c, errors.New("invalid gen validators mutation type")
 	}
-	if !bytes.Equal(signed.Mutation.Parent, genValidators.Mutation.Parent) {
+	if !bytes.Equal(signed.GetMutation().GetParent(), genValidators.GetMutation().GetParent()) {
 		return c, errors.New("invalid gen validators parent")
 	}
 
-	if MutationType(nodeApprovals.Mutation.Type) != TypeNodeApprovals {
+	if MutationType(nodeApprovals.GetMutation().GetType()) != TypeNodeApprovals {
 		return c, errors.New("invalid node approvals mutation type")
 	}
 
@@ -134,7 +134,7 @@ func transformAddValidators(c *manifestpb.Cluster, signed *manifestpb.SignedMuta
 	if err != nil {
 		return c, errors.Wrap(err, "hash gen validators")
 	}
-	if !bytes.Equal(genHash, nodeApprovals.Mutation.Parent) {
+	if !bytes.Equal(genHash, nodeApprovals.GetMutation().GetParent()) {
 		return c, errors.New("invalid node approvals parent")
 	}
 

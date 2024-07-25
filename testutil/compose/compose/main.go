@@ -88,7 +88,7 @@ func newAutoCmd() *cobra.Command {
 		Use:   "auto",
 		Short: "Convenience function that runs `compose define && compose lock && compose run`",
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			err := compose.Auto(cmd.Context(), conf)
 			if err != nil {
 				log.Error(cmd.Context(), "auto command fatal error", err)
@@ -112,7 +112,7 @@ func newBuildLocalCmd() *cobra.Command {
 		Use:   "build-local",
 		Short: "Builds the obolnetwork/charon:local docker container from the local source code. Note this requires the CHARON_REPO env var.",
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			return compose.BuildLocal(cmd.Context())
 		},
 	}

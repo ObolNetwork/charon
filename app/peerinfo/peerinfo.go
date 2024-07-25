@@ -187,7 +187,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			err := p.sendFunc(ctx, p.tcpNode, peerID, req, resp, protocolID2, p2p.WithSendReceiveRTT(rttCallback))
 			if err != nil {
 				return // Logging handled by send func.
-			} else if resp.SentAt == nil || resp.StartedAt == nil {
+			} else if resp.GetSentAt() == nil || resp.GetStartedAt() == nil {
 				log.Error(ctx, "Invalid peerinfo response", err, z.Str("peer", p2p.PeerName(peerID)))
 				return
 			}
@@ -195,22 +195,22 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			name := p2p.PeerName(peerID)
 
 			// Validator git hash with regex.
-			if !gitHashMatch.MatchString(resp.GitHash) {
+			if !gitHashMatch.MatchString(resp.GetGitHash()) {
 				log.Warn(ctx, "Invalid peer git hash", nil, z.Str("peer", name))
 				return
 			}
 
 			expectedSentAt := time.Now().Add(-rtt / 2)
-			actualSentAt := resp.SentAt.AsTime()
+			actualSentAt := resp.GetSentAt().AsTime()
 			clockOffset := actualSentAt.Sub(expectedSentAt)
 
-			if err := supportedPeerVersion(resp.CharonVersion, version.Supported()); err != nil {
+			if err := supportedPeerVersion(resp.GetCharonVersion(), version.Supported()); err != nil {
 				peerCompatibleGauge.WithLabelValues(name).Set(0) // Set to false
 
 				// Log as error since user action required
 				log.Error(ctx, "Invalid peer version", err,
 					z.Str("peer", name),
-					z.Str("peer_version", resp.CharonVersion),
+					z.Str("peer_version", resp.GetCharonVersion()),
 					z.Any("supported_versions", version.Supported()),
 					p.versionFilters[peerID],
 				)
@@ -221,22 +221,22 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			// Set peer compatibility to true.
 			peerCompatibleGauge.WithLabelValues(name).Set(1)
 
-			p.metricSubmitter(peerID, clockOffset, resp.CharonVersion, resp.GitHash, resp.StartedAt.AsTime(), resp.BuilderApiEnabled)
+			p.metricSubmitter(peerID, clockOffset, resp.GetCharonVersion(), resp.GetGitHash(), resp.GetStartedAt().AsTime(), resp.GetBuilderApiEnabled())
 
 			// Log unexpected lock hash
-			if !bytes.Equal(resp.LockHash, p.lockHash) {
+			if !bytes.Equal(resp.GetLockHash(), p.lockHash) {
 				log.Warn(ctx, "Mismatching peer lock hash", nil,
 					z.Str("peer", name),
-					z.Str("lock_hash", fmt.Sprintf("%#x", resp.LockHash)),
+					z.Str("lock_hash", fmt.Sprintf("%#x", resp.GetLockHash())),
 					p.lockHashFilters[peerID],
 				)
 			}
 
 			// Builder API shall be either enabled or disabled for both.
-			if resp.BuilderApiEnabled != p.builderAPIEnabled {
+			if resp.GetBuilderApiEnabled() != p.builderAPIEnabled {
 				log.Warn(ctx, "Mismatching peer builder API status", nil,
 					z.Str("peer", name),
-					z.Bool("peer_builder_api_enabled", resp.BuilderApiEnabled),
+					z.Bool("peer_builder_api_enabled", resp.GetBuilderApiEnabled()),
 					z.Bool("builder_api_enabled", p.builderAPIEnabled),
 				)
 			}

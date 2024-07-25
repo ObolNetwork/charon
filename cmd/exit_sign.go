@@ -29,7 +29,7 @@ func newSubmitPartialExitCmd(runFunc func(context.Context, exitConfig) error) *c
 		Short: "Sign partial exit message for a distributed validator",
 		Long:  `Sign a partial exit message for a distributed validator and submit it to a remote API for aggregation.`,
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			if err := log.InitLogger(config.Log); err != nil {
 				return err
 			}

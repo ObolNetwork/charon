@@ -268,7 +268,7 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 
 		// Prep response
 		resp := &pb.MsgSyncResponse{
-			SyncTimestamp: msg.Timestamp,
+			SyncTimestamp: msg.GetTimestamp(),
 		}
 
 		if err := s.validReq(pubkey, msg); err != nil {
@@ -279,7 +279,7 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 			log.Info(ctx, fmt.Sprintf("Connected to peer %d of %d", count, s.allCount))
 		}
 
-		if err := s.updateStep(pID, int(msg.Step)); err != nil {
+		if err := s.updateStep(pID, int(msg.GetStep())); err != nil {
 			return err
 		}
 
@@ -288,7 +288,7 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 			return err
 		}
 
-		if msg.Shutdown {
+		if msg.GetShutdown() {
 			s.setShutdown(pID)
 			return nil
 		}
@@ -298,16 +298,16 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 // validReq returns an error message and false if the request version or definition hash are invalid.
 // Else it returns true or an error.
 func (s *Server) validReq(pubkey crypto.PubKey, msg *pb.MsgSync) error {
-	msgVersion, err := version.Parse(msg.Version)
+	msgVersion, err := version.Parse(msg.GetVersion())
 	if err != nil {
 		return errors.Wrap(err, "parse peer version")
 	}
 
 	if version.Compare(msgVersion, s.version) != 0 {
-		return fmt.Errorf("mismatching charon version; expect=%s, got=%s", s.version, msg.Version) //nolint: wrapcheck,forbidigo // Use stdlib errors when sending over the wire.
+		return fmt.Errorf("mismatching charon version; expect=%s, got=%s", s.version, msg.GetVersion()) //nolint: wrapcheck,forbidigo // Use stdlib errors when sending over the wire.
 	}
 
-	ok, err := pubkey.Verify(s.defHash, msg.HashSignature)
+	ok, err := pubkey.Verify(s.defHash, msg.GetHashSignature())
 	if err != nil { // Note: libp2p verify does another hash of defHash.
 		return errors.Wrap(err, "error verifying definition hash signature")
 	} else if !ok {

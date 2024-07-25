@@ -85,7 +85,7 @@ func storeKeysInternal(secrets []tbls.PrivateKey, dir string, filenameFmt string
 
 	fork, join, cancel := forkjoin.New(
 		context.Background(),
-		func(ctx context.Context, d data) (any, error) {
+		func(_ context.Context, d data) (any, error) {
 			filename := path.Join(dir, fmt.Sprintf(filenameFmt, d.index))
 
 			password, err := randomHex32()
@@ -120,8 +120,6 @@ func storeKeysInternal(secrets []tbls.PrivateKey, dir string, filenameFmt string
 	defer cancel()
 
 	for i, secret := range secrets {
-		i := i
-		secret := secret
 		d := data{
 			index:  i,
 			secret: secret,
@@ -259,11 +257,11 @@ func KeysharesToValidatorPubkey(cl *manifestpb.Cluster, shares []tbls.PrivateKey
 	}
 
 	// this is sadly a O(n^2) search
-	for _, validator := range cl.Validators {
-		valHex := fmt.Sprintf("0x%x", validator.PublicKey)
+	for _, validator := range cl.GetValidators() {
+		valHex := fmt.Sprintf("0x%x", validator.GetPublicKey())
 
 		valPubShares := make(map[tbls.PublicKey]struct{})
-		for _, valShare := range validator.PubShares {
+		for _, valShare := range validator.GetPubShares() {
 			valPubShares[tbls.PublicKey(valShare)] = struct{}{}
 		}
 
@@ -287,7 +285,7 @@ func KeysharesToValidatorPubkey(cl *manifestpb.Cluster, shares []tbls.PrivateKey
 		}
 	}
 
-	if len(ret) != len(cl.Validators) {
+	if len(ret) != len(cl.GetValidators()) {
 		return nil, errors.New("amount of key shares don't match amount of validator public keys")
 	}
 

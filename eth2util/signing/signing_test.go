@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -58,8 +57,8 @@ func TestVerifyRegistrationReference(t *testing.T) {
 
 	sigEth2 := eth2p0.BLSSignature(sig)
 	require.Equal(t,
-		fmt.Sprintf("%x", registration.Signature),
-		fmt.Sprintf("%x", sigEth2),
+		hex.EncodeToString(registration.Signature[:]),
+		hex.EncodeToString(sigEth2[:]),
 	)
 
 	pubkey, err := tbls.SecretToPublicKey(secretShare)
@@ -104,7 +103,7 @@ func TestConstantApplicationBuilder(t *testing.T) {
 		0xfa, 0xf7, 0x1b, 0x89, 0xce, 0x5c, 0x5c, 0x38,
 	}
 
-	for i := 0; i < len(forkSchedule); i++ {
+	for i := range len(forkSchedule) {
 		domain := getDomain(t, i)
 		require.Equal(t, expect, domain, "domain for fork schedule %d", i)
 	}

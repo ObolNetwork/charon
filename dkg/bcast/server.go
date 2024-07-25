@@ -108,31 +108,31 @@ func (s *server) handleSigRequest(ctx context.Context, pID peer.ID, m proto.Mess
 		return nil, false, errors.New("invalid message type")
 	}
 
-	fn, found := s.getMessageIDFunc(req.Id)
+	fn, found := s.getMessageIDFunc(req.GetId())
 	if !found {
-		return nil, false, errors.New("unknown message id", z.Str("message_id", req.Id))
+		return nil, false, errors.New("unknown message id", z.Str("message_id", req.GetId()))
 	}
 
-	if err := fn.checkMessage(ctx, pID, req.Message); err != nil {
+	if err := fn.checkMessage(ctx, pID, req.GetMessage()); err != nil {
 		return nil, false, errors.Wrap(err, "signature request message check")
 	}
 
-	reqMessageHash, err := s.hashFunc(req.Message)
+	reqMessageHash, err := s.hashFunc(req.GetMessage())
 	if err != nil {
 		return nil, false, errors.Wrap(err, "hash any")
 	}
 
 	// Only sign once per peer and message ID.
-	if err := s.dedupHash(pID, req.Id, reqMessageHash); err != nil {
+	if err := s.dedupHash(pID, req.GetId(), reqMessageHash); err != nil {
 		return nil, false, errors.Wrap(err, "dedup")
 	}
 
-	sig, err := s.signFunc(req.Id, reqMessageHash)
+	sig, err := s.signFunc(req.GetId(), reqMessageHash)
 	if err != nil {
 		return nil, false, errors.Wrap(err, "sign hash")
 	}
 
-	return &pb.BCastSigResponse{Id: req.Id, Signature: sig}, true, nil
+	return &pb.BCastSigResponse{Id: req.GetId(), Signature: sig}, true, nil
 }
 
 func (s *server) handleMessage(ctx context.Context, pID peer.ID, m proto.Message) (proto.Message, bool, error) {
@@ -141,21 +141,21 @@ func (s *server) handleMessage(ctx context.Context, pID peer.ID, m proto.Message
 		return nil, false, errors.New("invalid message type")
 	}
 
-	if err := s.verifyFunc(msg.Id, msg.Message, msg.Signatures); err != nil {
+	if err := s.verifyFunc(msg.GetId(), msg.GetMessage(), msg.GetSignatures()); err != nil {
 		return nil, false, errors.Wrap(err, "verify signatures")
 	}
 
-	inner, err := msg.Message.UnmarshalNew()
+	inner, err := msg.GetMessage().UnmarshalNew()
 	if err != nil {
 		return nil, false, errors.Wrap(err, "unmarshal any")
 	}
 
-	fn, found := s.getMessageIDFunc(msg.Id)
+	fn, found := s.getMessageIDFunc(msg.GetId())
 	if !found {
-		return nil, false, errors.New("unknown message id", z.Str("message_id", msg.Id))
+		return nil, false, errors.New("unknown message id", z.Str("message_id", msg.GetId()))
 	}
 
-	if err := fn.callback(ctx, pID, msg.Id, inner); err != nil {
+	if err := fn.callback(ctx, pID, msg.GetId(), inner); err != nil {
 		return nil, false, errors.Wrap(err, "callback")
 	}
 

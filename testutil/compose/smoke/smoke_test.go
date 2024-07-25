@@ -5,7 +5,6 @@ package smoke_test
 import (
 	"context"
 	"flag"
-	"fmt"
 	"os"
 	"path"
 	"strings"
@@ -121,7 +120,7 @@ func TestSmoke(t *testing.T) {
 			Name: "1_of_4_down",
 			RunTmplFunc: func(data *compose.TmplData) {
 				node0 := data.Nodes[0]
-				for i := 0; i < len(node0.EnvVars); i++ {
+				for i := range len(node0.EnvVars) {
 					if strings.HasPrefix(node0.EnvVars[i].Key, "p2p") {
 						data.Nodes[0].EnvVars[i].Key = node0.EnvVars[i].Key + "-unset" // Zero p2p flags to it cannot communicate
 					}
@@ -136,7 +135,7 @@ func TestSmoke(t *testing.T) {
 			},
 			RunTmplFunc: func(data *compose.TmplData) {
 				node0 := data.Nodes[0]
-				for i := 0; i < len(node0.EnvVars); i++ {
+				for i := range len(node0.EnvVars) {
 					if strings.HasPrefix(node0.EnvVars[i].Key, "p2p") {
 						data.Nodes[0].EnvVars[i].Key = node0.EnvVars[i].Key + "-unset" // Zero p2p flags to it cannot communicate
 					}
@@ -171,7 +170,6 @@ func TestSmoke(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test // Copy iterator for async usage
 		t.Run(test.Name, func(t *testing.T) {
 			dir, err := os.MkdirTemp("", "")
 			require.NoError(t, err)
@@ -203,7 +201,7 @@ func TestSmoke(t *testing.T) {
 			}
 
 			if *logDir != "" {
-				autoConfig.LogFile = path.Join(*logDir, fmt.Sprintf("%s.log", test.Name))
+				autoConfig.LogFile = path.Join(*logDir, test.Name+".log")
 			}
 
 			err = compose.Auto(context.Background(), autoConfig)

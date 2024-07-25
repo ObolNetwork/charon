@@ -145,7 +145,7 @@ func TestSchedulerWait(t *testing.T) {
 			sched := scheduler.NewForT(t, clock, dd.delay, nil, eth2Cl, false)
 			sched.Stop() // Just run wait functions, then quit.
 			require.NoError(t, sched.Run())
-			require.EqualValues(t, test.WaitSecs, clock.Since(t0).Seconds())
+			require.Equal(t, test.WaitSecs, int(clock.Since(t0).Seconds()))
 		})
 	}
 }
@@ -268,7 +268,7 @@ func TestSchedulerDuties(t *testing.T) {
 
 			// Add deadlines to results
 			deadlines := delayer.get()
-			for i := 0; i < len(results); i++ {
+			for i := range len(results) {
 				results[i].Time = deadlines[results[i].Duty].UTC().Format("04:05.000")
 			}
 			// Make result order deterministic

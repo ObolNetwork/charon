@@ -20,7 +20,7 @@ func newRelayCmd(runFunc func(context.Context, relay.Config) error) *cobra.Comma
 		Short: "Start a libp2p relay server",
 		Long:  "Starts a libp2p circuit relay that charon clients can use to discover and connect to their peers.",
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			if err := log.InitLogger(config.LogConfig); err != nil {
 				return err
 			}
@@ -55,7 +55,7 @@ func bindRelayFlag(cmd *cobra.Command, config *relay.Config) {
 	var advertisePriv bool
 	cmd.Flags().BoolVar(&advertisePriv, "p2p-advertise-private-addresses", false, "Enable advertising of libp2p auto-detected private addresses. This doesn't affect manually provided p2p-external-ip/hostname.")
 
-	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error {
+	wrapPreRunE(cmd, func(*cobra.Command, []string) error {
 		// Invert p2p-advertise-private-addresses flag boolean:
 		// -- Do not ADVERTISE private addresses by default in the binary.
 		// -- Do not FILTER private addresses in unit tests.

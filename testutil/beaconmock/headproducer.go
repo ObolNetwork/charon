@@ -204,7 +204,7 @@ func (p *headProducer) handleGetBlockRoot(w http.ResponseWriter, r *http.Request
 		w.WriteHeader(http.StatusBadRequest)
 		resp, err := json.Marshal(errorMsgJSON{
 			Code:    500,
-			Message: fmt.Sprintf("Invalid block ID: %s", blockID),
+			Message: "Invalid block ID: " + blockID,
 		})
 		if err != nil {
 			panic(err) // This should never happen and this is test code sorry ;)

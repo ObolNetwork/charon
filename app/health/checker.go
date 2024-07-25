@@ -140,7 +140,7 @@ func newQueryFunc(metrics [][]*pb.MetricFamily) func(string, labelSelector, seri
 			for _, fam := range fams {
 				if fam.GetName() != name {
 					continue
-				} else if len(fam.Metric) == 0 {
+				} else if len(fam.GetMetric()) == 0 {
 					continue
 				}
 				selected, err := selector(fam)

@@ -93,7 +93,7 @@ func newCheckMsg(messageID string) (bcast.CheckMessage, error) {
 		return nil, errors.New("frost message id unsupported", z.Str("message_id", messageID))
 	}
 
-	return func(ctx context.Context, peerID peer.ID, msgAny *anypb.Any) error {
+	return func(_ context.Context, _ peer.ID, msgAny *anypb.Any) error {
 		targetFn := func(messageID string) proto.Message {
 			switch messageID {
 			case round1CastID:
@@ -143,18 +143,18 @@ func newBcastCallback(peers map[peer.ID]cluster.NodeIdx, round1CastsRecv chan *p
 				return errors.New("invalid round 1 casts message")
 			}
 
-			for _, cast := range msg.Casts {
-				if int(cast.Key.SourceId) != peers[pID].ShareIdx {
+			for _, cast := range msg.GetCasts() {
+				if int(cast.GetKey().GetSourceId()) != peers[pID].ShareIdx {
 					return errors.New("invalid round 1 cast source ID")
-				} else if cast.Key.TargetId != 0 {
+				} else if cast.GetKey().GetTargetId() != 0 {
 					return errors.New("invalid round 1 cast target ID")
-				} else if int(cast.Key.ValIdx) < 0 || int(cast.Key.ValIdx) >= numVals {
+				} else if int(cast.GetKey().GetValIdx()) < 0 || int(cast.GetKey().GetValIdx()) >= numVals {
 					return errors.New("invalid round 1 cast validator index")
 				}
 
-				if len(cast.Commitments) != threshold {
+				if len(cast.GetCommitments()) != threshold {
 					return errors.New("invalid amount of commitments in round 1",
-						z.Int("received", len(cast.Commitments)),
+						z.Int("received", len(cast.GetCommitments())),
 						z.Int("expected", threshold),
 					)
 				}
@@ -176,12 +176,12 @@ func newBcastCallback(peers map[peer.ID]cluster.NodeIdx, round1CastsRecv chan *p
 				return errors.New("invalid round 2 casts message")
 			}
 
-			for _, cast := range msg.Casts {
-				if int(cast.Key.SourceId) != peers[pID].ShareIdx {
+			for _, cast := range msg.GetCasts() {
+				if int(cast.GetKey().GetSourceId()) != peers[pID].ShareIdx {
 					return errors.New("invalid round 2 cast source ID")
-				} else if cast.Key.TargetId != 0 {
+				} else if cast.GetKey().GetTargetId() != 0 {
 					return errors.New("invalid round 2 cast target ID")
-				} else if int(cast.Key.ValIdx) < 0 || int(cast.Key.ValIdx) >= numVals {
+				} else if int(cast.GetKey().GetValIdx()) < 0 || int(cast.GetKey().GetValIdx()) >= numVals {
 					return errors.New("invalid round 2 cast validator index")
 				}
 			}
@@ -211,12 +211,12 @@ func newP2PCallback(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, round1
 			return nil, false, errors.New("invalid round 1 p2p message")
 		}
 
-		for _, share := range msg.Shares {
-			if int(share.Key.SourceId) != peers[pID].ShareIdx {
+		for _, share := range msg.GetShares() {
+			if int(share.GetKey().GetSourceId()) != peers[pID].ShareIdx {
 				return nil, false, errors.New("invalid round 1 p2p source ID")
-			} else if int(share.Key.TargetId) != peers[tcpNode.ID()].ShareIdx {
+			} else if int(share.GetKey().GetTargetId()) != peers[tcpNode.ID()].ShareIdx {
 				return nil, false, errors.New("invalid round 1 p2p target ID")
-			} else if int(share.Key.ValIdx) < 0 || int(share.Key.ValIdx) >= numVals {
+			} else if int(share.GetKey().GetValIdx()) < 0 || int(share.GetKey().GetValIdx()) >= numVals {
 				return nil, false, errors.New("invalid round 1 p2p validator index")
 			}
 		}
@@ -353,7 +353,7 @@ func makeRound1Response(casts []*pb.FrostRound1Casts, p2ps []*pb.FrostRound1P2P)
 		p2pMap  = make(map[msgKey]sharing.ShamirShare)
 	)
 	for _, msg := range casts {
-		for _, castPB := range msg.Casts {
+		for _, castPB := range msg.GetCasts() {
 			key, cast, err := round1CastFromProto(castPB)
 			if err != nil {
 				return nil, nil, err
@@ -364,7 +364,7 @@ func makeRound1Response(casts []*pb.FrostRound1Casts, p2ps []*pb.FrostRound1P2P)
 	}
 
 	for _, msg := range p2ps {
-		for _, sharePB := range msg.Shares {
+		for _, sharePB := range msg.GetShares() {
 			key, share, err := shamirShareFromProto(sharePB)
 			if err != nil {
 				return nil, nil, err
@@ -381,7 +381,7 @@ func makeRound1Response(casts []*pb.FrostRound1Casts, p2ps []*pb.FrostRound1P2P)
 func makeRound2Response(msgs []*pb.FrostRound2Casts) (map[msgKey]frost.Round2Bcast, error) {
 	castMap := make(map[msgKey]frost.Round2Bcast)
 	for _, msg := range msgs {
-		for _, castPB := range msg.Casts {
+		for _, castPB := range msg.GetCasts() {
 			key, cast, err := round2CastFromProto(castPB)
 			if err != nil {
 				return nil, err
@@ -406,14 +406,14 @@ func shamirShareFromProto(shamir *pb.FrostRound1ShamirShare) (msgKey, sharing.Sh
 		return msgKey{}, sharing.ShamirShare{}, errors.New("round 1 shamir share proto cannot be nil")
 	}
 
-	protoKey, err := keyFromProto(shamir.Key)
+	protoKey, err := keyFromProto(shamir.GetKey())
 	if err != nil {
 		return msgKey{}, sharing.ShamirShare{}, err
 	}
 
 	return protoKey, sharing.ShamirShare{
-		Id:    shamir.Id,
-		Value: shamir.Value,
+		Id:    shamir.GetId(),
+		Value: shamir.GetValue(),
 	}, nil
 }
 
@@ -436,17 +436,17 @@ func round1CastFromProto(cast *pb.FrostRound1Cast) (msgKey, frost.Round1Bcast, e
 		return msgKey{}, frost.Round1Bcast{}, errors.New("round 1 cast cannot be nil")
 	}
 
-	wi, err := curve.Scalar.SetBytes(cast.Wi)
+	wi, err := curve.Scalar.SetBytes(cast.GetWi())
 	if err != nil {
 		return msgKey{}, frost.Round1Bcast{}, errors.Wrap(err, "decode wi scalar")
 	}
-	ci, err := curve.Scalar.SetBytes(cast.Ci)
+	ci, err := curve.Scalar.SetBytes(cast.GetCi())
 	if err != nil {
 		return msgKey{}, frost.Round1Bcast{}, errors.Wrap(err, "decode c1 scalar")
 	}
 
 	var comms []curves.Point
-	for _, comm := range cast.Commitments {
+	for _, comm := range cast.GetCommitments() {
 		c, err := curve.Point.FromAffineCompressed(comm)
 		if err != nil {
 			return msgKey{}, frost.Round1Bcast{}, errors.Wrap(err, "decode commitment")
@@ -455,7 +455,7 @@ func round1CastFromProto(cast *pb.FrostRound1Cast) (msgKey, frost.Round1Bcast, e
 		comms = append(comms, c)
 	}
 
-	key, err := keyFromProto(cast.Key)
+	key, err := keyFromProto(cast.GetKey())
 	if err != nil {
 		return msgKey{}, frost.Round1Bcast{}, err
 	}
@@ -480,16 +480,16 @@ func round2CastFromProto(cast *pb.FrostRound2Cast) (msgKey, frost.Round2Bcast, e
 		return msgKey{}, frost.Round2Bcast{}, errors.New("round 2 cast cannot be nil")
 	}
 
-	verificationKey, err := curve.Point.FromAffineCompressed(cast.VerificationKey)
+	verificationKey, err := curve.Point.FromAffineCompressed(cast.GetVerificationKey())
 	if err != nil {
 		return msgKey{}, frost.Round2Bcast{}, errors.Wrap(err, "decode verification key scalar")
 	}
-	vkShare, err := curve.Point.FromAffineCompressed(cast.VkShare)
+	vkShare, err := curve.Point.FromAffineCompressed(cast.GetVkShare())
 	if err != nil {
 		return msgKey{}, frost.Round2Bcast{}, errors.Wrap(err, "decode c1 scalar")
 	}
 
-	key, err := keyFromProto(cast.Key)
+	key, err := keyFromProto(cast.GetKey())
 	if err != nil {
 		return msgKey{}, frost.Round2Bcast{}, err
 	}
@@ -514,9 +514,9 @@ func keyFromProto(key *pb.FrostMsgKey) (msgKey, error) {
 	}
 
 	return msgKey{
-		ValIdx:   key.ValIdx,
-		SourceID: key.SourceId,
-		TargetID: key.TargetId,
+		ValIdx:   key.GetValIdx(),
+		SourceID: key.GetSourceId(),
+		TargetID: key.GetTargetId(),
 	}, nil
 }
 

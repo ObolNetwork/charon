@@ -4,7 +4,7 @@ package rlp_test
 
 import (
 	"crypto/rand"
-	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -57,7 +57,7 @@ func FuzzEncodeBytesList(f *testing.F) {
 	d := merge(prefix, data)
 
 	// Add a few different lengths of byte slices
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		f.Add(i, d, d, d, d, d, d, d, d, d, d)
 	}
 
@@ -102,7 +102,7 @@ func TestBytesList(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		t.Run(fmt.Sprint(i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			encoded := rlp.EncodeBytesList(test.input)
 			if len(test.output) == 0 {
 				require.Empty(t, encoded)
@@ -162,7 +162,7 @@ func TestBytes(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		t.Run(fmt.Sprint(i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			encoded := rlp.EncodeBytes(test.input)
 			if len(test.output) == 0 {
 				require.Empty(t, encoded)
@@ -183,7 +183,7 @@ func TestBytes(t *testing.T) {
 
 func TestLengths(t *testing.T) {
 	for _, length := range []int{0, 1, 55, 56, 1023, 1024} {
-		t.Run(fmt.Sprint(length), func(t *testing.T) {
+		t.Run(strconv.Itoa(length), func(t *testing.T) {
 			buf := make([]byte, length)
 			_, err := rand.Read(buf)
 			require.NoError(t, err)

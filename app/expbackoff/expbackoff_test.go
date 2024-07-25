@@ -85,7 +85,7 @@ func TestConfigs(t *testing.T) {
 			})
 
 			var resps []string
-			for i := 0; i < len(test.backoffs); i++ {
+			for i := range len(test.backoffs) {
 				resp := expbackoff.Backoff(test.config, i)
 				resps = append(resps, resp.Truncate(time.Millisecond*10).String())
 			}

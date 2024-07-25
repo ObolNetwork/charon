@@ -29,15 +29,15 @@ func TestExchanger(t *testing.T) {
 
 	// Create pubkeys for each DV
 	pubkeys := make([]core.PubKey, dvs)
-	for i := 0; i < dvs; i++ {
+	for i := range dvs {
 		pubkeys[i] = testutil.RandomCorePubKey(t)
 	}
 
 	// Expected data is what is desired at the end of exchange
 	expectedData := make(map[core.PubKey][]core.ParSignedData)
-	for i := 0; i < dvs; i++ {
+	for i := range dvs {
 		set := make([]core.ParSignedData, nodes)
-		for j := 0; j < nodes; j++ {
+		for j := range nodes {
 			set[j] = core.NewPartialSignature(testutil.RandomCoreSignature(), j+1)
 		}
 		expectedData[pubkeys[i]] = set
@@ -68,7 +68,7 @@ func TestExchanger(t *testing.T) {
 	)
 
 	// Create hosts
-	for i := 0; i < nodes; i++ {
+	for range nodes {
 		h := testutil.CreateHost(t, testutil.AvailableAddr(t))
 		info := peer.AddrInfo{
 			ID:    h.ID(),
@@ -80,8 +80,8 @@ func TestExchanger(t *testing.T) {
 	}
 
 	// Connect each host with its peers
-	for i := 0; i < nodes; i++ {
-		for j := 0; j < nodes; j++ {
+	for i := range nodes {
+		for j := range nodes {
 			if i == j {
 				continue
 			}
@@ -89,13 +89,14 @@ func TestExchanger(t *testing.T) {
 		}
 	}
 
-	for i := 0; i < nodes; i++ {
+	for i := range nodes {
 		ex := newExchanger(hosts[i], i, peers, dvs, expectedSigTypes, 8*time.Second)
 		exchangers = append(exchangers, ex)
 	}
 
 	type respStruct struct {
 		data    map[core.PubKey][]core.ParSignedData
+		err     error
 		sigType sigType
 	}
 
@@ -104,16 +105,16 @@ func TestExchanger(t *testing.T) {
 
 	// send multiple (supported) messages at the same time, showing that exchanger can exchange messages of various
 	// sigTypes concurrently
-	for i := 0; i < nodes; i++ {
+	for i := range nodes {
 		wg.Add(2)
 		go func(node int) {
 			defer wg.Done()
 
 			data, err := exchangers[node].exchange(ctx, sigDepositData, dataToBeSent[node])
-			require.NoError(t, err)
 
 			respChan <- respStruct{
 				data:    data,
+				err:     err,
 				sigType: sigDepositData,
 			}
 		}(i)
@@ -121,25 +122,25 @@ func TestExchanger(t *testing.T) {
 			defer wg.Done()
 
 			data, err := exchangers[node].exchange(ctx, sigValidatorRegistration, dataToBeSent[node])
-			require.NoError(t, err)
 
 			respChan <- respStruct{
 				data:    data,
+				err:     err,
 				sigType: sigValidatorRegistration,
 			}
 		}(i)
 	}
 
-	for i := 0; i < nodes; i++ {
+	for i := range nodes {
 		wg.Add(1)
 		go func(node int) {
 			defer wg.Done()
 
 			data, err := exchangers[node].exchange(ctx, sigLock, dataToBeSent[node])
-			require.NoError(t, err)
 
 			respChan <- respStruct{
 				data:    data,
+				err:     err,
 				sigType: sigLock,
 			}
 		}(i)
@@ -152,6 +153,7 @@ func TestExchanger(t *testing.T) {
 
 	actual := make(sigTypeStore)
 	for res := range respChan {
+		require.NoError(t, res.err)
 		actual[res.sigType] = res.data
 	}
 

@@ -31,8 +31,8 @@ func TestDoOnce(t *testing.T) {
 	info, _, ok, err := peerinfo.DoOnce(context.Background(), client, server.ID())
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.Equal(t, vers.String(), info.CharonVersion)
-	require.Equal(t, gitHash, info.GitHash)
-	require.Equal(t, lockHash, info.LockHash)
-	require.True(t, info.BuilderApiEnabled)
+	require.Equal(t, vers.String(), info.GetCharonVersion())
+	require.Equal(t, gitHash, info.GetGitHash())
+	require.Equal(t, lockHash, info.GetLockHash())
+	require.True(t, info.GetBuilderApiEnabled())
 }

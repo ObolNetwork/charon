@@ -81,7 +81,7 @@ func LoadFilesUnordered(dir string) (KeyFiles, error) {
 		return nil, errors.New("no keys found")
 	}
 
-	workFunc := func(ctx context.Context, filename string) (KeyFile, error) {
+	workFunc := func(_ context.Context, filename string) (KeyFile, error) {
 		b, err := os.ReadFile(filename)
 		if err != nil {
 			return KeyFile{}, errors.Wrap(err, "read file", z.Str("filename", filename))

@@ -67,7 +67,7 @@ func writeCluster(clusterDir string, numOps int, dag *manifestpb.SignedMutationL
 	}
 
 	// Write cluster manifest to node directories on disk
-	for i := 0; i < numOps; i++ {
+	for i := range numOps {
 		dir := path.Join(clusterDir, fmt.Sprintf("node%d", i))
 		filename := path.Join(dir, "cluster-manifest.pb")
 		//nolint:gosec // File needs to be read-write since the cluster manifest is modified by mutations.

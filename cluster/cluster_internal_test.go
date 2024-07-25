@@ -243,7 +243,7 @@ func randomDefinition(t *testing.T, cr Creator, op0, op1 Operator, opts ...func(
 	)
 
 	var feeRecipientAddrs, withdrawalAddrs []string
-	for i := 0; i < numVals; i++ {
+	for range numVals {
 		feeRecipientAddrs = append(feeRecipientAddrs, testutil.RandomETHAddress())
 		withdrawalAddrs = append(withdrawalAddrs, testutil.RandomETHAddress())
 	}

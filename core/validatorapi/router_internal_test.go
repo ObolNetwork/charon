@@ -67,11 +67,10 @@ func TestProxyShutdown(t *testing.T) {
 	proxy := httptest.NewServer(proxyHandler(ctx, addr(target.URL)))
 
 	// Make a request to the proxy server, this will block until the proxy is shutdown.
-	done := make(chan struct{})
+	errCh := make(chan error, 1)
 	go func() {
 		_, err := http.Get(proxy.URL)
-		require.NoError(t, err)
-		close(done)
+		errCh <- err
 	}()
 
 	// Wait for the target server is serving the request.
@@ -79,7 +78,8 @@ func TestProxyShutdown(t *testing.T) {
 	// Shutdown the proxy server.
 	cancel()
 	// Wait for the request to complete.
-	<-done
+	err := <-errCh
+	require.NoError(t, err)
 }
 
 func TestRouterIntegration(t *testing.T) {
@@ -622,7 +622,7 @@ func TestRouter(t *testing.T) {
 		server := httptest.NewServer(r)
 		defer server.Close()
 
-		endpointURL := fmt.Sprintf("%s/eth/v1/node/version", server.URL)
+		endpointURL := server.URL + "/eth/v1/node/version"
 
 		// node_version is a GET-only endpoint, we expect it to fail
 		resp, err := http.Post(
@@ -712,7 +712,7 @@ func TestRouter(t *testing.T) {
 			ProposerDutiesFunc: func(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error) {
 				// Returns ordered total number of duties for the epoch
 				var res []*eth2v1.ProposerDuty
-				for i := 0; i < total; i++ {
+				for i := range total {
 					res = append(res, &eth2v1.ProposerDuty{
 						ValidatorIndex: eth2p0.ValidatorIndex(i),
 						Slot:           eth2p0.Slot(int(opts.Epoch)*slotsPerEpoch + i),
@@ -887,7 +887,7 @@ func TestRouter(t *testing.T) {
 			}
 			resp, err := cl.Validators(ctx, opts)
 			require.NoError(t, err)
-			require.Len(t, resp.Data, 0)
+			require.Empty(t, resp.Data)
 		}
 
 		testRouter(t, handler, callback)
@@ -909,7 +909,7 @@ func TestRouter(t *testing.T) {
 			res := resp.Data
 
 			// Two validators are expected as the testutil.RandomBeaconState(t) returns two validators.
-			require.Equal(t, 2, len(res))
+			require.Len(t, res, 2)
 		}
 
 		testRouter(t, handler, callback)
@@ -929,7 +929,7 @@ func TestRouter(t *testing.T) {
 			}
 			resp, err := cl.AttesterDuties(ctx, opts)
 			require.NoError(t, err)
-			require.Len(t, resp.Data, 0)
+			require.Empty(t, resp.Data)
 		}
 
 		testRouter(t, handler, callback)
@@ -949,7 +949,7 @@ func TestRouter(t *testing.T) {
 			}
 			res, err := cl.SyncCommitteeDuties(ctx, opts)
 			require.NoError(t, err)
-			require.Len(t, res.Data, 0)
+			require.Empty(t, res.Data)
 		}
 
 		testRouter(t, handler, callback)
@@ -969,7 +969,7 @@ func TestRouter(t *testing.T) {
 			}
 			res, err := cl.ProposerDuties(ctx, opts)
 			require.NoError(t, err)
-			require.Len(t, res.Data, 0)
+			require.Empty(t, res.Data)
 		}
 
 		testRouter(t, handler, callback)
@@ -1899,7 +1899,7 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 	})
 	mux.HandleFunc("/eth/v1/config/spec", func(w http.ResponseWriter, r *http.Request) {
 		res := map[string]any{
-			"SLOTS_PER_EPOCH": fmt.Sprint(slotsPerEpoch),
+			"SLOTS_PER_EPOCH": strconv.Itoa(slotsPerEpoch),
 		}
 		writeResponse(ctx, w, "", nest(res, "data"), nil)
 	})

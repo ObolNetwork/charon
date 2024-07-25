@@ -102,7 +102,7 @@ func (c *client) Broadcast(ctx context.Context, msgID string, msg proto.Message)
 		var found bool
 		for i, pID := range c.peers {
 			if resp.Input == pID {
-				sigs[i] = resp.Output.Signature
+				sigs[i] = resp.Output.GetSignature()
 				found = true
 
 				break

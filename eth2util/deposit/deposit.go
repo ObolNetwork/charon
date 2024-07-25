@@ -105,12 +105,12 @@ func MarshalDepositData(depositDatas []eth2p0.DepositData, network string) ([]by
 		}
 
 		ddList = append(ddList, depositDataJSON{
-			PubKey:                fmt.Sprintf("%x", depositData.PublicKey),
-			WithdrawalCredentials: fmt.Sprintf("%x", depositData.WithdrawalCredentials),
+			PubKey:                hex.EncodeToString(depositData.PublicKey[:]),
+			WithdrawalCredentials: hex.EncodeToString(depositData.WithdrawalCredentials),
 			Amount:                uint64(depositData.Amount),
-			Signature:             fmt.Sprintf("%x", depositData.Signature),
-			DepositMessageRoot:    fmt.Sprintf("%x", msgRoot),
-			DepositDataRoot:       fmt.Sprintf("%x", dataRoot),
+			Signature:             hex.EncodeToString(depositData.Signature[:]),
+			DepositMessageRoot:    hex.EncodeToString(msgRoot[:]),
+			DepositDataRoot:       hex.EncodeToString(dataRoot[:]),
 			ForkVersion:           strings.TrimPrefix(forkVersion, "0x"),
 			NetworkName:           network,
 			DepositCliVersion:     depositCliVersion,
@@ -268,7 +268,7 @@ func DedupAmounts(amounts []eth2p0.Gwei) []eth2p0.Gwei {
 func WriteClusterDepositDataFiles(depositDatas [][]eth2p0.DepositData, network string, clusterDir string, numNodes int) error {
 	// The loop across partial amounts (shall be unique)
 	for _, dd := range depositDatas {
-		for n := 0; n < numNodes; n++ {
+		for n := range numNodes {
 			nodeDir := path.Join(clusterDir, fmt.Sprintf("node%d", n))
 			if err := WriteDepositDataFile(dd, network, nodeDir); err != nil {
 				return err

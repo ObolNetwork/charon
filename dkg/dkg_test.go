@@ -184,8 +184,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 
 	// Run dkg for each node
 	var eg errgroup.Group
-	for i := 0; i < len(def.Operators); i++ {
-		i := i
+	for i := range len(def.Operators) {
 		conf := conf
 		conf.DataDir = path.Join(dir, fmt.Sprintf("node%d", i))
 		conf.P2P.TCPAddrs = []string{testutil.AvailableAddr(t).String()}
@@ -214,7 +213,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	testutil.RequireNoError(t, err)
 
 	// check that the privkey lock file has been deleted in all nodes at the end of dkg
-	for i := 0; i < len(def.Operators); i++ {
+	for i := range len(def.Operators) {
 		lockPath := path.Join(dir, fmt.Sprintf("node%d", i), "charon-enr-private-key.lock")
 
 		_, openErr := os.Open(lockPath)
@@ -320,7 +319,7 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 		secretShares = make([][]tbls.PrivateKey, def.NumValidators)
 		locks        []cluster.Lock
 	)
-	for i := 0; i < len(def.Operators); i++ {
+	for i := range len(def.Operators) {
 		dataDir := path.Join(dir, fmt.Sprintf("node%d", i))
 		keyFiles, err := keystore.LoadFilesUnordered(path.Join(dataDir, "/validator_keys"))
 		require.NoError(t, err)
@@ -355,9 +354,9 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 	}
 
 	// 	Ensure keystores can generate valid tbls aggregate signature.
-	for i := 0; i < def.NumValidators; i++ {
+	for i := range def.NumValidators {
 		var sigs []tbls.Signature
-		for j := 0; j < len(def.Operators); j++ {
+		for j := range len(def.Operators) {
 			msg := []byte("data")
 			sig, err := tbls.Sign(secretShares[i][j], msg)
 			require.NoError(t, err)
@@ -619,7 +618,7 @@ func getConfigs(t *testing.T, def cluster.Definition, keys []*k1.PrivateKey, dir
 	tcpNodeCallback := testutil.NewTCPNodeCallback(t, dkgsync.Protocols()...)
 
 	var configs []dkg.Config
-	for i := 0; i < len(def.Operators); i++ {
+	for i := range len(def.Operators) {
 		conf := dkg.Config{
 			DataDir: path.Join(dir, fmt.Sprintf("node%d", i)),
 			P2P: p2p.Config{

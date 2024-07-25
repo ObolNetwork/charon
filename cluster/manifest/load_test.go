@@ -3,8 +3,8 @@
 package manifest_test
 
 import (
+	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"math/rand"
 	"os"
 	"path"
@@ -89,7 +89,7 @@ func TestLoadManifest(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			require.Equal(t, 1, len(dag.Mutations)) // The only mutation is the `legacy_lock` mutation
+			require.Len(t, dag.GetMutations(), 1) // The only mutation is the `legacy_lock` mutation
 
 			clusterFromDAG, err := manifest.Materialise(dag)
 			require.NoError(t, err)
@@ -130,25 +130,25 @@ func testLoadLegacy(t *testing.T, version string) {
 	cluster, err := manifest.LoadCluster("", file, nil)
 	require.NoError(t, err)
 
-	require.Equal(t, lock.LockHash, cluster.InitialMutationHash)
-	require.Equal(t, lock.LockHash, cluster.LatestMutationHash)
-	require.Equal(t, lock.Name, cluster.Name)
-	require.EqualValues(t, lock.Threshold, cluster.Threshold)
-	require.Equal(t, lock.DKGAlgorithm, cluster.DkgAlgorithm)
-	require.Equal(t, lock.ForkVersion, cluster.ForkVersion)
-	require.Equal(t, len(lock.Validators), len(cluster.Validators))
-	require.Equal(t, len(lock.Operators), len(cluster.Operators))
+	require.Equal(t, lock.LockHash, cluster.GetInitialMutationHash())
+	require.Equal(t, lock.LockHash, cluster.GetLatestMutationHash())
+	require.Equal(t, lock.Name, cluster.GetName())
+	require.EqualValues(t, lock.Threshold, cluster.GetThreshold())
+	require.Equal(t, lock.DKGAlgorithm, cluster.GetDkgAlgorithm())
+	require.Equal(t, lock.ForkVersion, cluster.GetForkVersion())
+	require.Equal(t, len(lock.Validators), len(cluster.GetValidators()))
+	require.Equal(t, len(lock.Operators), len(cluster.GetOperators()))
 
-	for i, validator := range cluster.Validators {
-		require.Equal(t, lock.Validators[i].PubKey, validator.PublicKey)
-		require.Equal(t, lock.Validators[i].PubShares, validator.PubShares)
-		require.Equal(t, lock.ValidatorAddresses[i].FeeRecipientAddress, validator.FeeRecipientAddress)
-		require.Equal(t, lock.ValidatorAddresses[i].WithdrawalAddress, validator.WithdrawalAddress)
+	for i, validator := range cluster.GetValidators() {
+		require.Equal(t, lock.Validators[i].PubKey, validator.GetPublicKey())
+		require.Equal(t, lock.Validators[i].PubShares, validator.GetPubShares())
+		require.Equal(t, lock.ValidatorAddresses[i].FeeRecipientAddress, validator.GetFeeRecipientAddress())
+		require.Equal(t, lock.ValidatorAddresses[i].WithdrawalAddress, validator.GetWithdrawalAddress())
 	}
 
-	for i, operator := range cluster.Operators {
-		require.Equal(t, lock.Operators[i].Address, operator.Address)
-		require.Equal(t, lock.Operators[i].ENR, operator.Enr)
+	for i, operator := range cluster.GetOperators() {
+		require.Equal(t, lock.Operators[i].Address, operator.GetAddress())
+		require.Equal(t, lock.Operators[i].ENR, operator.GetEnr())
 	}
 }
 
@@ -158,6 +158,6 @@ func testLoadLegacy(t *testing.T, version string) {
 func TestLoadModifiedLegacyLock(t *testing.T) {
 	cluster, err := manifest.LoadCluster("", "testdata/lock3.json", nil)
 	require.NoError(t, err)
-	hashHex := fmt.Sprintf("%x", cluster.InitialMutationHash)
+	hashHex := hex.EncodeToString(cluster.GetInitialMutationHash())
 	require.Equal(t, "4073fe542", hashHex[:9])
 }

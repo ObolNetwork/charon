@@ -3,7 +3,7 @@
 package eip712_test
 
 import (
-	"fmt"
+	"encoding/hex"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -34,5 +34,5 @@ func TestCreatorHash(t *testing.T) {
 
 	resp, err := eip712.HashTypedData(data)
 	require.NoError(t, err)
-	require.Equal(t, "7c8fe012e2f872ca7ec870164184f57b921166f80565ff74af7bee5796f973e4", fmt.Sprintf("%x", resp))
+	require.Equal(t, "7c8fe012e2f872ca7ec870164184f57b921166f80565ff74af7bee5796f973e4", hex.EncodeToString(resp))
 }

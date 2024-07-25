@@ -17,21 +17,21 @@ import (
 
 // ClusterPeers returns the cluster operators as a slice of p2p peers.
 func ClusterPeers(c *manifestpb.Cluster) ([]p2p.Peer, error) {
-	if c == nil || len(c.Operators) == 0 {
+	if c == nil || len(c.GetOperators()) == 0 {
 		return nil, errors.New("invalid cluster")
 	}
 
 	var resp []p2p.Peer
 	dedup := make(map[string]bool)
-	for i, operator := range c.Operators {
-		if dedup[operator.Enr] {
-			return nil, errors.New("cluster contains duplicate peer enrs", z.Str("enr", operator.Enr))
+	for i, operator := range c.GetOperators() {
+		if dedup[operator.GetEnr()] {
+			return nil, errors.New("cluster contains duplicate peer enrs", z.Str("enr", operator.GetEnr()))
 		}
-		dedup[operator.Enr] = true
+		dedup[operator.GetEnr()] = true
 
-		record, err := enr.Parse(operator.Enr)
+		record, err := enr.Parse(operator.GetEnr())
 		if err != nil {
-			return nil, errors.Wrap(err, "decode enr", z.Str("enr", operator.Enr))
+			return nil, errors.Wrap(err, "decode enr", z.Str("enr", operator.GetEnr()))
 		}
 
 		p, err := p2p.NewPeerFromENR(record, i)
@@ -82,15 +82,15 @@ func ClusterNodeIdx(c *manifestpb.Cluster, pID peer.ID) (cluster.NodeIdx, error)
 
 // ValidatorPublicKey returns the validator BLS group public key.
 func ValidatorPublicKey(v *manifestpb.Validator) (tbls.PublicKey, error) {
-	return tblsconv.PubkeyFromBytes(v.PublicKey)
+	return tblsconv.PubkeyFromBytes(v.GetPublicKey())
 }
 
 // ValidatorPublicKeyHex returns the validator hex group public key.
 func ValidatorPublicKeyHex(v *manifestpb.Validator) string {
-	return to0xHex(v.PublicKey)
+	return to0xHex(v.GetPublicKey())
 }
 
 // ValidatorPublicShare returns the validator's peerIdx'th BLS public share.
 func ValidatorPublicShare(v *manifestpb.Validator, peerIdx int) (tbls.PublicKey, error) {
-	return tblsconv.PubkeyFromBytes(v.PubShares[peerIdx])
+	return tblsconv.PubkeyFromBytes(v.GetPubShares()[peerIdx])
 }

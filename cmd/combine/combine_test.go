@@ -42,11 +42,8 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 	lock, _, shares := cluster.NewForT(t, 2, 3, 4, seed, random)
 
 	for _, share := range shares {
-		share := share
-
 		sm := make(map[int]tbls.PrivateKey)
 		for idx, shareObj := range share {
-			shareObj := shareObj
 			sm[idx+1] = shareObj
 		}
 	}
@@ -65,9 +62,9 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 	secrets := make([][]tbls.PrivateKey, len(lock.Definition.Operators))
 
 	// populate key sets
-	for enrIdx := 0; enrIdx < len(lock.Definition.Operators); enrIdx++ {
+	for enrIdx := range len(lock.Definition.Operators) {
 		keyIdx := enrIdx
-		for dvIdx := 0; dvIdx < lock.NumValidators; dvIdx++ {
+		for range lock.NumValidators {
 			secrets[enrIdx] = append(secrets[enrIdx], rawSecrets[keyIdx])
 			keyIdx += len(lock.Definition.Operators)
 		}
@@ -272,11 +269,8 @@ func combineTest(
 	var expectedData []expected
 
 	for _, share := range shares {
-		share := share
-
 		sm := make(map[int]tbls.PrivateKey)
 		for idx, shareObj := range share {
-			shareObj := shareObj
 			sm[idx+1] = shareObj
 		}
 
@@ -306,16 +300,15 @@ func combineTest(
 	secrets := make([][]tbls.PrivateKey, len(lock.Definition.Operators))
 
 	// populate key sets
-	for enrIdx := 0; enrIdx < len(lock.Definition.Operators); enrIdx++ {
+	for enrIdx := range len(lock.Definition.Operators) {
 		keyIdx := enrIdx
-		for dvIdx := 0; dvIdx < lock.NumValidators; dvIdx++ {
+		for range lock.NumValidators {
 			secrets[enrIdx] = append(secrets[enrIdx], rawSecrets[keyIdx])
 			keyIdx += len(lock.Definition.Operators)
 		}
 	}
 
 	for idx, keys := range secrets {
-		idx := idx
 		ep := filepath.Join(dir, fmt.Sprintf("node%d", idx))
 
 		vk := filepath.Join(ep, "validator_keys")
@@ -391,11 +384,8 @@ func runTwice(t *testing.T, force bool, processErr require.ErrorAssertionFunc) {
 	var expectedData []expected
 
 	for _, share := range shares {
-		share := share
-
 		sm := make(map[int]tbls.PrivateKey)
 		for idx, shareObj := range share {
-			shareObj := shareObj
 			sm[idx+1] = shareObj
 		}
 
@@ -425,9 +415,9 @@ func runTwice(t *testing.T, force bool, processErr require.ErrorAssertionFunc) {
 	secrets := make([][]tbls.PrivateKey, len(lock.Definition.Operators))
 
 	// populate key sets
-	for enrIdx := 0; enrIdx < len(lock.Definition.Operators); enrIdx++ {
+	for enrIdx := range len(lock.Definition.Operators) {
 		keyIdx := enrIdx
-		for dvIdx := 0; dvIdx < lock.NumValidators; dvIdx++ {
+		for range lock.NumValidators {
 			secrets[enrIdx] = append(secrets[enrIdx], rawSecrets[keyIdx])
 			keyIdx += len(lock.Definition.Operators)
 		}

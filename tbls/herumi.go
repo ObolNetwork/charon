@@ -3,7 +3,6 @@
 package tbls
 
 import (
-	"fmt"
 	"io"
 	"strconv"
 	"sync"
@@ -108,7 +107,7 @@ func (Herumi) ThresholdSplitInsecure(t *testing.T, secret PrivateKey, total uint
 	for i := 1; i <= int(total); i++ {
 		var blsID bls.ID
 
-		err := blsID.SetDecString(fmt.Sprintf("%d", i))
+		err := blsID.SetDecString(strconv.Itoa(i))
 		if err != nil {
 			return nil, errors.Wrap(
 				err,
@@ -154,7 +153,7 @@ func (Herumi) ThresholdSplit(secret PrivateKey, total uint, threshold uint) (map
 	for i := 1; i <= int(total); i++ {
 		var blsID bls.ID
 
-		err := blsID.SetDecString(fmt.Sprintf("%d", i))
+		err := blsID.SetDecString(strconv.Itoa(i))
 		if err != nil {
 			return nil, errors.Wrap(
 				err,
@@ -185,8 +184,6 @@ func (Herumi) RecoverSecret(shares map[int]PrivateKey, _, _ uint) (PrivateKey, e
 	)
 
 	for idx, key := range shares {
-		// do a local copy, we're dealing with references here
-		key := key
 		var kpk bls.SecretKey
 		if err := kpk.Deserialize(key[:]); err != nil {
 			return PrivateKey{}, errors.Wrap(
@@ -248,8 +245,6 @@ func (Herumi) ThresholdAggregate(partialSignaturesByIndex map[int]Signature) (Si
 	)
 
 	for idx, rawSignature := range partialSignaturesByIndex {
-		// do a local copy, we're dealing with references here
-		rawSignature := rawSignature
 		var signature bls.Sign
 		if err := signature.Deserialize(rawSignature[:]); err != nil {
 			return Signature{}, errors.Wrap(
@@ -342,7 +337,7 @@ func (Herumi) VerifyAggregate(publicShares []PublicKey, signature Signature, dat
 // provided random number generator. This is useful for testing.
 func generateInsecureSecret(t *testing.T, random io.Reader) (bls.SecretKey, error) {
 	t.Helper()
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		b := make([]byte, 32)
 		_, err := random.Read(b)
 		require.NoError(t, err)

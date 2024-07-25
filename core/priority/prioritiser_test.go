@@ -38,10 +38,11 @@ func TestPrioritiser(t *testing.T) {
 		deadliner    = core.NewDeadliner(ctx, "", func(core.Duty) (time.Time, bool) {
 			return time.Now().Add(time.Hour), true
 		})
+		errCh = make(chan error, len(duties))
 	)
 
 	// Create libp2p tcp nodes.
-	for i := 0; i < n; i++ {
+	for range n {
 		tcpNode := testutil.CreateHost(t, testutil.AvailableAddr(t))
 		for _, other := range tcpNodes {
 			tcpNode.Peerstore().AddAddrs(other.ID(), other.Addrs(), peerstore.PermanentAddrTTL)
@@ -54,12 +55,12 @@ func TestPrioritiser(t *testing.T) {
 	}
 
 	// Create prioritisers
-	for i := 0; i < n; i++ {
+	for i := range n {
 		tcpNode := tcpNodes[i]
 
 		// Propose 0:[0], 1:[0,1], 2:[0,1,2] - expect [0]
 		var priorities []*anypb.Any
-		for j := 0; j <= i; j++ {
+		for j := range i + 1 {
 			priorities = append(priorities, prioToAny(j))
 		}
 
@@ -67,14 +68,14 @@ func TestPrioritiser(t *testing.T) {
 			consensus, msgValidator, time.Hour, deadliner)
 
 		prio.Subscribe(func(_ context.Context, duty core.Duty, result *pbv1.PriorityResult) error {
-			require.Len(t, result.Topics, 1)
+			require.Len(t, result.GetTopics(), 1)
 
-			resTopic, err := result.Topics[0].Topic.UnmarshalNew()
+			resTopic, err := result.GetTopics()[0].GetTopic().UnmarshalNew()
 			require.NoError(t, err)
 
 			requireAnyDuty(t, duties, duty)
 			requireProtoEqual(t, topic, resTopic)
-			results <- result.Topics[0].Priorities
+			results <- result.GetTopics()[0].GetPriorities()
 
 			return nil
 		})
@@ -86,19 +87,25 @@ func TestPrioritiser(t *testing.T) {
 				PeerId: tcpNode.ID().String(),
 			}
 			go func() {
-				require.ErrorIs(t, prio.Prioritise(ctx, msg), context.Canceled)
+				err := prio.Prioritise(ctx, msg)
+				errCh <- err
 			}()
 		}
 	}
 
-	for i := 0; i < n*len(duties); i++ {
+	for range n * len(duties) {
 		res := <-results
 		require.Len(t, res, 1)
-		require.EqualValues(t, n*1000, res[0].Score)
-		requireProtoEqual(t, prioToAny(0), res[0].Priority)
+		require.EqualValues(t, n*1000, res[0].GetScore())
+		requireProtoEqual(t, prioToAny(0), res[0].GetPriority())
 	}
 
 	cancel()
+
+	for range duties {
+		err := <-errCh
+		require.ErrorIs(t, err, context.Canceled)
+	}
 }
 
 // testConsensus is a mock consensus implementation that "decides" on the first proposal.
@@ -115,8 +122,8 @@ func (t *testConsensus) ProposePriority(ctx context.Context, duty core.Duty, res
 	defer t.mu.Unlock()
 
 	if t.proposed[duty.Slot] != nil {
-		prev := mustResultsToText(t.proposed[duty.Slot].Topics)
-		this := mustResultsToText(result.Topics)
+		prev := mustResultsToText(t.proposed[duty.Slot].GetTopics())
+		this := mustResultsToText(result.GetTopics())
 		require.Equal(t.t, prev, this)
 
 		return nil

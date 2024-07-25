@@ -34,7 +34,7 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 		Short: "Submit partial exit message for a distributed validator",
 		Long:  `Retrieves and broadcasts to the configured beacon node a fully signed validator exit message, aggregated with the available partial signatures retrieved from the publish-address. Can also read a signed exit message from disk, in order to be broadcasted to the configured beacon node.`,
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			if err := log.InitLogger(config.Log); err != nil {
 				return err
 			}

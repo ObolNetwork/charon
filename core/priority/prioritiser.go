@@ -126,7 +126,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, minRequired int,
 			resp, err := p.handleRequest(ctx, pID, prioMsg)
 			if err != nil {
 				return nil, false, errors.Wrap(err, "handle priority request",
-					z.Any("duty", core.DutyFromProto(prioMsg.Duty)))
+					z.Any("duty", core.DutyFromProto(prioMsg.GetDuty())))
 			}
 
 			return resp, true, nil
@@ -182,7 +182,7 @@ func (p *Prioritiser) Subscribe(fn subscriber) {
 
 // Prioritise starts a new prioritisation instance for the provided message or returns an error.
 func (p *Prioritiser) Prioritise(ctx context.Context, msg *pbv1.PriorityMsg) error {
-	duty := core.DutyFromProto(msg.Duty)
+	duty := core.DutyFromProto(msg.GetDuty())
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
 	if !p.deadliner.Add(duty) {
@@ -200,8 +200,8 @@ func (p *Prioritiser) handleRequest(ctx context.Context, pID peer.ID, msg *pbv1.
 		return nil, errors.New("nil priority message")
 	}
 
-	if pID.String() != msg.PeerId {
-		return nil, errors.New("invalid priority message peer id", z.Str("expect", pID.String()), z.Str("actual", msg.PeerId))
+	if pID.String() != msg.GetPeerId() {
+		return nil, errors.New("invalid priority message peer id", z.Str("expect", pID.String()), z.Str("actual", msg.GetPeerId()))
 	} else if err := p.msgValidator(msg); err != nil {
 		return nil, errors.Wrap(err, "invalid priority message")
 	}
@@ -212,7 +212,7 @@ func (p *Prioritiser) handleRequest(ctx context.Context, pID peer.ID, msg *pbv1.
 		Response: response,
 	}
 
-	duty := core.DutyFromProto(msg.Duty)
+	duty := core.DutyFromProto(msg.GetDuty())
 
 	if !p.deadliner.Add(duty) {
 		return nil, errors.New("duty expired")
@@ -278,10 +278,10 @@ func runInstance(ctx context.Context, duty core.Duty, own *pbv1.PriorityMsg,
 
 	// addMsg adds the first message of each peer to msgs.
 	addMsg := func(msg *pbv1.PriorityMsg) {
-		if dedupPeers[msg.PeerId] {
+		if dedupPeers[msg.GetPeerId()] {
 			return
 		}
-		dedupPeers[msg.PeerId] = true
+		dedupPeers[msg.GetPeerId()] = true
 		msgs = append(msgs, msg)
 	}
 
@@ -339,7 +339,7 @@ func exchange(ctx context.Context, tcpNode host.Host, peers []peer.ID, msgValida
 				return
 			}
 
-			if pID.String() != response.PeerId {
+			if pID.String() != response.GetPeerId() {
 				log.Warn(ctx, "Invalid priority message peer id", nil, z.Str("peer", p2p.PeerName(pID)))
 				return
 			}

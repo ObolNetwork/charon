@@ -36,7 +36,7 @@ func TestBCast(t *testing.T) {
 	)
 
 	// Create secretes and libp2p nodes
-	for i := 0; i < n; i++ {
+	for range n {
 		secret, err := k1.GeneratePrivateKey()
 		require.NoError(t, err)
 		secrets = append(secrets, secret)
@@ -48,8 +48,8 @@ func TestBCast(t *testing.T) {
 	}
 
 	// Connect peers
-	for i := 0; i < n; i++ {
-		for j := 0; j < n; j++ {
+	for i := range n {
+		for j := range n {
 			tcpNodes[i].Peerstore().AddAddrs(tcpNodes[j].ID(), tcpNodes[j].Addrs(), peerstore.PermanentAddrTTL)
 		}
 	}
@@ -65,8 +65,7 @@ func TestBCast(t *testing.T) {
 	results := make(chan result, 1024)
 
 	// Create broadcasters
-	for i := 0; i < n; i++ {
-		i := i
+	for i := range n {
 		callback := func(_ context.Context, peerID peer.ID, msgID string, msg proto.Message) error {
 			results <- result{Source: peerID, MsgID: msgID, Msg: msg, Target: peers[i]}
 			return nil
@@ -94,7 +93,7 @@ func TestBCast(t *testing.T) {
 		t.Helper()
 
 		targets := make(map[peer.ID]struct{})
-		for i := 0; i < n-1; i++ {
+		for range n - 1 {
 			actual := <-results
 			require.Equal(t, expected.Source, actual.Source)
 			require.Equal(t, expected.MsgID, actual.MsgID)

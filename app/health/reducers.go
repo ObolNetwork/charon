@@ -17,12 +17,12 @@ func increase(samples []*pb.Metric) (float64, error) {
 		return 0, nil
 	}
 
-	if samples[0].Counter == nil && samples[0].Gauge == nil {
+	if samples[0].GetCounter() == nil && samples[0].GetGauge() == nil {
 		return 0, errors.New("bug: unsupported metric passed")
 	}
 
-	first := samples[0].Counter.GetValue() + samples[0].Gauge.GetValue()
-	last := samples[len(samples)-1].Counter.GetValue() + samples[len(samples)-1].Gauge.GetValue()
+	first := samples[0].GetCounter().GetValue() + samples[0].GetGauge().GetValue()
+	last := samples[len(samples)-1].GetCounter().GetValue() + samples[len(samples)-1].GetGauge().GetValue()
 
 	return last - first, nil
 }
@@ -31,12 +31,12 @@ func increase(samples []*pb.Metric) (float64, error) {
 func gaugeMax(samples []*pb.Metric) (float64, error) {
 	var max float64
 	for _, sample := range samples {
-		if sample.Gauge == nil {
+		if sample.GetGauge() == nil {
 			return 0, errors.New("bug: non-gauge metric passed")
 		}
 
-		if sample.Gauge.GetValue() > max {
-			max = sample.Gauge.GetValue()
+		if sample.GetGauge().GetValue() > max {
+			max = sample.GetGauge().GetValue()
 		}
 	}
 

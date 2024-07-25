@@ -4,10 +4,10 @@ package log
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/golang/snappy"
@@ -32,7 +32,7 @@ testing.tRunner
 	}
 
 	for i, test := range tests {
-		t.Run(fmt.Sprint(i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			actual := formatZapStack(test.Input)
 			require.Equal(t, test.Output, actual)
 		})
@@ -46,10 +46,10 @@ func TestLokiCaller(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, r.Body.Close())
 		req := decode(t, b)
-		require.Len(t, req.Streams, 1)
-		require.Len(t, req.Streams[0].Entries, 1)
+		require.Len(t, req.GetStreams(), 1)
+		require.Len(t, req.GetStreams()[0].GetEntries(), 1)
 		// Assert caller is this file.
-		require.Contains(t, req.Streams[0].Entries[0].String(), "caller=log/config_internal_test.go:")
+		require.Contains(t, req.GetStreams()[0].GetEntries()[0].String(), "caller=log/config_internal_test.go:")
 		close(done)
 	}))
 

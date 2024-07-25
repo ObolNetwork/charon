@@ -29,7 +29,7 @@ func newEnrCmd(runFunc func(io.Writer, string, bool) error) *cobra.Command {
 		Short: "Print the ENR that identifies this client",
 		Long:  `Prints an Ethereum Node Record (ENR) from this client's charon-enr-private-key. This serves as a public key that identifies this client to its peers.`,
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			return runFunc(cmd.OutOrStdout(), dataDir, verbose)
 		},
 	}

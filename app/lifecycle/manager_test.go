@@ -102,12 +102,12 @@ func TestManager(t *testing.T) {
 			// Run the lifecycle (async)
 			go func() {
 				err := life.Run(ctx)
-				require.NoError(t, err)
+				require.NoError(t, err) //nolint:testifylint // if there is an err it will be caught right away
 			}()
 
 			// Wait for the hooks to be called.
 			var calls []string
-			for i := 0; i < len(test.Hooks); i++ {
+			for i := range len(test.Hooks) {
 				if i == starts {
 					// Cancel application context after the starts hooks.
 					cancel()

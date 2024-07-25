@@ -161,7 +161,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	network, err := eth2util.ForkVersionToNetwork(cluster.ForkVersion)
+	network, err := eth2util.ForkVersionToNetwork(cluster.GetForkVersion())
 	if err != nil {
 		network = "unknown"
 	}
@@ -184,7 +184,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	lockHashHex := hex7(cluster.InitialMutationHash)
+	lockHashHex := hex7(cluster.GetInitialMutationHash())
 	tcpNode, err := wireP2P(ctx, life, conf, cluster, p2pKey, lockHashHex)
 	if err != nil {
 		return err
@@ -203,16 +203,16 @@ func Run(ctx context.Context, conf Config) (err error) {
 	log.Info(ctx, "Lock file loaded",
 		z.Str("peer_name", p2p.PeerName(tcpNode.ID())),
 		z.Int("peer_index", nodeIdx.PeerIdx),
-		z.Str("cluster_name", cluster.Name),
+		z.Str("cluster_name", cluster.GetName()),
 		z.Str("cluster_hash", lockHashHex),
 		z.Str("cluster_hash_full", hex.EncodeToString(cluster.GetInitialMutationHash())),
 		z.Str("enr", enrRec.String()),
-		z.Int("peers", len(cluster.Operators)))
+		z.Int("peers", len(cluster.GetOperators())))
 
 	// Metric and logging labels.
 	labels := map[string]string{
 		"cluster_hash":    lockHashHex,
-		"cluster_name":    cluster.Name,
+		"cluster_name":    cluster.GetName(),
 		"cluster_peer":    p2p.PeerName(tcpNode.ID()),
 		"cluster_network": network,
 		"charon_version":  version.Version.String(),
@@ -223,7 +223,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	initStartupMetrics(p2p.PeerName(tcpNode.ID()), int(cluster.Threshold), len(cluster.Operators), len(cluster.Validators), network)
+	initStartupMetrics(p2p.PeerName(tcpNode.ID()), int(cluster.GetThreshold()), len(cluster.GetOperators()), len(cluster.GetValidators()), network)
 
 	eth2Cl, subEth2Cl, err := newETH2Client(ctx, conf, life, cluster, cluster.GetForkVersion(), conf.BeaconNodeTimeout, conf.BeaconNodeSubmitTimeout)
 	if err != nil {
@@ -242,7 +242,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	sender := new(p2p.Sender)
 
-	wirePeerInfo(life, tcpNode, peerIDs, cluster.InitialMutationHash, sender, conf.BuilderAPI)
+	wirePeerInfo(life, tcpNode, peerIDs, cluster.GetInitialMutationHash(), sender, conf.BuilderAPI)
 
 	qbftDebug := newQBFTDebugger()
 
@@ -355,7 +355,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		allPubSharesByKey            = make(map[core.PubKey]map[int]tbls.PublicKey) // map[pubkey]map[shareIdx]pubshare
 		feeRecipientAddrByCorePubkey = make(map[core.PubKey]string)
 	)
-	for _, val := range cluster.Validators {
+	for _, val := range cluster.GetValidators() {
 		pubkey, err := manifest.ValidatorPublicKey(val)
 		if err != nil {
 			return err
@@ -367,7 +367,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		}
 
 		allPubShares := make(map[int]tbls.PublicKey)
-		for i, b := range val.PubShares {
+		for i, b := range val.GetPubShares() {
 			pubshare, err := tblsconv.PubkeyFromBytes(b)
 			if err != nil {
 				return err
@@ -390,7 +390,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		corePubkeys = append(corePubkeys, corePubkey)
 		pubshares = append(pubshares, eth2Share)
 		allPubSharesByKey[corePubkey] = allPubShares
-		feeRecipientAddrByCorePubkey[corePubkey] = val.FeeRecipientAddress
+		feeRecipientAddrByCorePubkey[corePubkey] = val.GetFeeRecipientAddress()
 	}
 
 	peers, err := manifest.ClusterPeers(cluster)
@@ -483,7 +483,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	parSigDB := parsigdb.NewMemDB(int(cluster.Threshold), deadlinerFunc("parsigdb"))
+	parSigDB := parsigdb.NewMemDB(int(cluster.GetThreshold()), deadlinerFunc("parsigdb"))
 
 	var parSigEx core.ParSigEx
 	if conf.TestConfig.ParSigExFunc != nil {
@@ -497,7 +497,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		parSigEx = parsigex.NewParSigEx(tcpNode, sender.SendAsync, nodeIdx.PeerIdx, peerIDs, verifyFunc, gaterFunc)
 	}
 
-	sigAgg, err := sigagg.New(int(cluster.Threshold), sigagg.NewVerifier(eth2Cl))
+	sigAgg, err := sigagg.New(int(cluster.GetThreshold()), sigagg.NewVerifier(eth2Cl))
 	if err != nil {
 		return err
 	}
@@ -522,13 +522,13 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	err = wirePrioritise(ctx, conf, life, tcpNode, peerIDs, int(cluster.Threshold),
+	err = wirePrioritise(ctx, conf, life, tcpNode, peerIDs, int(cluster.GetThreshold()),
 		sender.SendReceive, cons, sched, p2pKey, deadlineFunc, mutableConf)
 	if err != nil {
 		return err
 	}
 
-	if err = wireRecaster(ctx, eth2Cl, sched, sigAgg, broadcaster, cluster.Validators,
+	if err = wireRecaster(ctx, eth2Cl, sched, sigAgg, broadcaster, cluster.GetValidators(),
 		conf.BuilderAPI, conf.TestConfig.BroadcastCallback); err != nil {
 		return errors.Wrap(err, "wire recaster")
 	}
@@ -657,16 +657,16 @@ func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Schedu
 
 	for _, val := range validators {
 		// Check if the current cluster manifest supports pre-generate validator registrations.
-		if len(val.BuilderRegistrationJson) == 0 {
+		if len(val.GetBuilderRegistrationJson()) == 0 {
 			continue
 		}
 
 		reg := new(eth2api.VersionedSignedValidatorRegistration)
-		if err := json.Unmarshal(val.BuilderRegistrationJson, reg); err != nil {
+		if err := json.Unmarshal(val.GetBuilderRegistrationJson(), reg); err != nil {
 			return errors.Wrap(err, "unmarshal validator registration")
 		}
 
-		pubkey, err := core.PubKeyFromBytes(val.PublicKey)
+		pubkey, err := core.PubKeyFromBytes(val.GetPublicKey())
 		if err != nil {
 			return errors.Wrap(err, "core pubkey from bytes")
 		}
@@ -763,7 +763,7 @@ func calculateTrackerDelay(ctx context.Context, cl eth2wrap.Client, now time.Tim
 func eth2PubKeys(cluster *manifestpb.Cluster) ([]eth2p0.BLSPubKey, error) {
 	var pubkeys []eth2p0.BLSPubKey
 
-	for _, val := range cluster.Validators {
+	for _, val := range cluster.GetValidators() {
 		pubkey, err := manifest.ValidatorPublicKey(val)
 		if err != nil {
 			return []eth2p0.BLSPubKey{}, err
@@ -1041,7 +1041,7 @@ func setFeeRecipient(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) 
 // getDVPubkeys returns DV public keys from given cluster.Lock.
 func getDVPubkeys(cluster *manifestpb.Cluster) ([]core.PubKey, error) {
 	var pubkeys []core.PubKey
-	for _, val := range cluster.Validators {
+	for _, val := range cluster.GetValidators() {
 		pk, err := manifest.ValidatorPublicKey(val)
 		if err != nil {
 			return nil, err

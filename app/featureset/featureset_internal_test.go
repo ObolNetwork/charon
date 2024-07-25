@@ -20,6 +20,6 @@ func TestAllFeatureStatus(t *testing.T) {
 	for _, feature := range features {
 		status, ok := state[feature]
 		require.True(t, ok)
-		require.Greater(t, status, 0)
+		require.Positive(t, status)
 	}
 }

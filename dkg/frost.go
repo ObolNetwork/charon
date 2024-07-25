@@ -95,7 +95,7 @@ func newFrostParticipants(numValidators, numNodes, threshold, shareIdx uint32, d
 	}
 
 	resp := make(map[uint32]*frost.DkgParticipant)
-	for vIdx := uint32(0); vIdx < numValidators; vIdx++ {
+	for vIdx := range numValidators {
 		p, err := frost.NewDkgParticipant(
 			shareIdx,
 			threshold,
@@ -178,7 +178,6 @@ func getRound2Inputs(
 		if key.ValIdx != vIdx {
 			continue
 		}
-		cast := cast // Copy loop variable
 		castMap[key.SourceID] = &cast
 	}
 
@@ -187,7 +186,6 @@ func getRound2Inputs(
 		if key.ValIdx != vIdx {
 			continue
 		}
-		share := share // Copy loop variable
 		shareMap[key.SourceID] = &share
 	}
 

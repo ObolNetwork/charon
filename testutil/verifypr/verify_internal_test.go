@@ -4,7 +4,7 @@
 package main
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -66,7 +66,7 @@ func TestTitle(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		t.Run(fmt.Sprint(i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			err := verifyTitle(test.Title)
 			if test.Error == "" {
 				if err == nil {
@@ -163,7 +163,7 @@ func TestBody(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		t.Run(fmt.Sprint(i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			err := verifyBody(test.Body)
 			if test.Error == "" {
 				if err == nil {

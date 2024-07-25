@@ -62,7 +62,7 @@ func TestPeerInfo(t *testing.T) {
 		peerInfos   []*peerinfo.PeerInfo
 	)
 
-	for i := 0; i < n; i++ {
+	for i := range n {
 		tcpNode := testutil.CreateHost(t, testutil.AvailableAddr(t))
 		for j, other := range tcpNodes {
 			tcpNode.Peerstore().AddAddrs(other.ID(), other.Addrs(), peerstore.PermanentAddrTTL)
@@ -85,7 +85,7 @@ func TestPeerInfo(t *testing.T) {
 		return func() time.Time { return now.Add(nodes[i].Offset) }
 	}
 
-	for i := 0; i < n; i++ {
+	for i := range n {
 		node := nodes[i]
 
 		// Most nodes are passive
@@ -137,7 +137,7 @@ func TestPeerInfo(t *testing.T) {
 		peerInfos = append(peerInfos, peerInfo)
 	}
 
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if nodes[i].Ignore {
 			continue
 		}
