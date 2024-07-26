@@ -73,8 +73,8 @@ func newTestPerformanceCmd(runFunc func(context.Context, io.Writer, testPerforma
 
 func bindTestPerformanceFlags(cmd *cobra.Command, config *testPerformanceConfig) {
 	cmd.Flags().IntVar(&config.DiskWriteMB, "disk-write-mb", 4096, "Size of file to be created that is used for write speed test")
-	cmd.Flags().StringSliceVar(&config.InternetTestServersOnly, "internet-test-servers-only", []string{}, "List of server names to be included for the tests, the best performing one is chosen.")
-	cmd.Flags().StringSliceVar(&config.InternetTestServersExclude, "internet-test-servers-exclude", []string{}, "List of server names to be excluded from the tests.")
+	cmd.Flags().StringSliceVar(&config.InternetTestServersOnly, "internet-test-servers-only", []string{}, "List of specific server names to be included for the internet tests, the best performing one is chosen. If not provided, closest and best performing servers are chosen automatically.")
+	cmd.Flags().StringSliceVar(&config.InternetTestServersExclude, "internet-test-servers-exclude", []string{}, "List of server names to be excluded from the tests. To be specified only if you experience issues with a server that is wrongly considered best performing.")
 }
 
 func supportedPerformanceTestCases() map[testCaseName]func(context.Context, *testPerformanceConfig) testResult {
