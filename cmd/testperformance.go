@@ -55,7 +55,7 @@ func newTestPerformanceCmd(runFunc func(context.Context, io.Writer, testPerforma
 	cmd := &cobra.Command{
 		Use:   "performance",
 		Short: "Run multiple hardware and connectivity performance tests",
-		Long:  `Run multiple hardware and connectivity performance tests. Verify that Charon is running on sufficient hardware.`,
+		Long:  `Run multiple hardware and connectivity performance tests. Verify that Charon is running on host with sufficient capabilities.`,
 		Args:  cobra.NoArgs,
 		PreRunE: func(cmd *cobra.Command, _ []string) error {
 			return mustOutputToFileOnQuiet(cmd)
@@ -199,13 +199,13 @@ func performanceDiskWriteTest(ctx context.Context, conf *testPerformanceConfig) 
 	}
 
 	var stat unix.Statfs_t
-	wd, _ := os.Getwd()
+	wd, _ := os.UserHomeDir()
 	err := unix.Statfs(wd, &stat)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
-	// Available blocks * size per block = available space in bytes
-	availableMB := int(stat.Bavail * uint64(stat.Bsize) / 1024 / 1024)
+	// Available blocks * size per block = available space in bytes; remove 20% for safety
+	availableMB := int(stat.Bavail*uint64(stat.Bsize)/1024/1024) / 5 * 4
 	actualDiskWriteMB := conf.DiskWriteMB
 
 	for availableMB < actualDiskWriteMB {
