@@ -26,8 +26,8 @@ type testMEVConfig struct {
 type testCaseMEV func(context.Context, *testMEVConfig, string) testResult
 
 const (
-	thresholdMEVMeasureAvg = 40 * time.Millisecond
-	thresholdMEVMeasureBad = 100 * time.Millisecond
+	thresholdMEVMeasureAvg  = 40 * time.Millisecond
+	thresholdMEVMeasurePoor = 100 * time.Millisecond
 )
 
 func newTestMEVCmd(runFunc func(context.Context, io.Writer, testMEVConfig) error) *cobra.Command {
@@ -250,8 +250,8 @@ func mevPingMeasureTest(ctx context.Context, _ *testMEVConfig, target string) te
 		return failedTestResult(testRes, errors.New("status code %v", z.Int("status_code", resp.StatusCode)))
 	}
 
-	if firstByte > thresholdMEVMeasureBad {
-		testRes.Verdict = testVerdictBad
+	if firstByte > thresholdMEVMeasurePoor {
+		testRes.Verdict = testVerdictPoor
 	} else if firstByte > thresholdMEVMeasureAvg {
 		testRes.Verdict = testVerdictAvg
 	} else {

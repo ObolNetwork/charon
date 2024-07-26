@@ -35,12 +35,12 @@ type testBeaconConfig struct {
 type testCaseBeacon func(context.Context, *testBeaconConfig, string) testResult
 
 const (
-	thresholdBeaconMeasureAvg = 40 * time.Millisecond
-	thresholdBeaconMeasureBad = 100 * time.Millisecond
-	thresholdBeaconLoadAvg    = 40 * time.Millisecond
-	thresholdBeaconLoadBad    = 100 * time.Millisecond
-	thresholdBeaconPeersAvg   = 50
-	thresholdBeaconPeersBad   = 20
+	thresholdBeaconMeasureAvg  = 40 * time.Millisecond
+	thresholdBeaconMeasurePoor = 100 * time.Millisecond
+	thresholdBeaconLoadAvg     = 40 * time.Millisecond
+	thresholdBeaconLoadPoor    = 100 * time.Millisecond
+	thresholdBeaconPeersAvg    = 50
+	thresholdBeaconPeersPoor   = 20
 )
 
 func newTestBeaconCmd(runFunc func(context.Context, io.Writer, testBeaconConfig) error) *cobra.Command {
@@ -278,8 +278,8 @@ func beaconPingMeasureTest(ctx context.Context, _ *testBeaconConfig, target stri
 		return failedTestResult(testRes, err)
 	}
 
-	if rtt > thresholdBeaconMeasureBad {
-		testRes.Verdict = testVerdictBad
+	if rtt > thresholdBeaconMeasurePoor {
+		testRes.Verdict = testVerdictPoor
 	} else if rtt > thresholdBeaconMeasureAvg {
 		testRes.Verdict = testVerdictAvg
 	} else {
@@ -345,8 +345,8 @@ func beaconPingLoadTest(ctx context.Context, conf *testBeaconConfig, target stri
 			highestRTT = rtt
 		}
 	}
-	if highestRTT > thresholdBeaconLoadBad {
-		testRes.Verdict = testVerdictBad
+	if highestRTT > thresholdBeaconLoadPoor {
+		testRes.Verdict = testVerdictPoor
 	} else if highestRTT > thresholdBeaconLoadAvg {
 		testRes.Verdict = testVerdictAvg
 	} else {
@@ -441,8 +441,8 @@ func beaconPeerCountTest(ctx context.Context, _ *testBeaconConfig, target string
 
 	testRes.Measurement = strconv.Itoa(respUnmarshaled.Meta.Count)
 
-	if respUnmarshaled.Meta.Count < thresholdBeaconPeersBad {
-		testRes.Verdict = testVerdictBad
+	if respUnmarshaled.Meta.Count < thresholdBeaconPeersPoor {
+		testRes.Verdict = testVerdictPoor
 	} else if respUnmarshaled.Meta.Count < thresholdBeaconPeersAvg {
 		testRes.Verdict = testVerdictAvg
 	} else {

@@ -41,10 +41,10 @@ func TestPerformanceTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					"local": {
-						{Name: "diskWrite", Verdict: testVerdictBad, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "availableMemory", Verdict: testVerdictBad, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "totalMemory", Verdict: testVerdictBad, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "internetLatency", Verdict: testVerdictBad, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "diskWrite", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "availableMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "totalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "internetLatency", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score:        categoryScoreC,
@@ -88,10 +88,10 @@ func TestPerformanceTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					"local": {
-						{Name: "diskWrite", Verdict: testVerdictBad, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "availableMemory", Verdict: testVerdictBad, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "totalMemory", Verdict: testVerdictBad, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "internetLatency", Verdict: testVerdictBad, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "diskWrite", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "availableMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "totalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "internetLatency", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score:        categoryScoreC,
@@ -130,7 +130,7 @@ func TestPerformanceTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					"local": {
-						{Name: "diskWrite", Verdict: testVerdictBad, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "diskWrite", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score:        categoryScoreC,
@@ -152,10 +152,10 @@ func TestPerformanceTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					"local": {
-						{Name: "diskWrite", Verdict: testVerdictBad, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "availableMemory", Verdict: testVerdictBad, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "totalMemory", Verdict: testVerdictBad, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "internetLatency", Verdict: testVerdictBad, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "diskWrite", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "availableMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "totalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "internetLatency", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score:        categoryScoreC,
