@@ -65,7 +65,7 @@ func bindDataDirFlag(flags *pflag.FlagSet, dataDir *string) {
 }
 
 func bindPublishFlags(flags *pflag.FlagSet, config *dkg.Config) {
-	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech", "The URL to publish the cluster to.")
+	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech/v1", "The URL to publish the cluster to.")
 	flags.DurationVar(&config.PublishTimeout, "publish-timeout", 30*time.Second, "Timeout for publishing a cluster, consider increasing if the cluster contains more than 200 validators.")
 	flags.BoolVar(&config.Publish, "publish", false, "Publish the created cluster to a remote API.")
 }
