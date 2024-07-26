@@ -38,6 +38,7 @@ RUN adduser \
 RUN chown charon /usr/local/bin/charon
 RUN chmod u+x /usr/local/bin/charon
 WORKDIR "/opt/$USER"
+RUN chown charon "/opt/$USER"
 USER charon
 ENTRYPOINT ["/usr/local/bin/charon"]
 CMD ["run"]

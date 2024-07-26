@@ -52,6 +52,7 @@ func New() *cobra.Command {
 				newTestBeaconCmd(runTestBeacon),
 				newTestValidatorCmd(runTestValidator),
 				newTestMEVCmd(runTestMEV),
+				newTestPerformanceCmd(runTestPerformance),
 			),
 			newAddValidatorsCmd(runAddValidatorsSolo),
 			newViewClusterManifestCmd(runViewClusterManifest),
