@@ -115,7 +115,7 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 
 		switch flag {
 		case publishAddress:
-			cmd.Flags().StringVar(&config.PublishAddress, publishAddress.String(), "https://api.obol.tech", maybeRequired("The URL of the remote API."))
+			cmd.Flags().StringVar(&config.PublishAddress, publishAddress.String(), "https://api.obol.tech/v1", maybeRequired("The URL of the remote API."))
 		case beaconNodeEndpoints:
 			cmd.Flags().StringSliceVar(&config.BeaconNodeEndpoints, beaconNodeEndpoints.String(), nil, maybeRequired("Comma separated list of one or more beacon node endpoint URLs."))
 		case privateKeyPath:
@@ -137,7 +137,7 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 		case publishTimeout:
 			cmd.Flags().DurationVar(&config.PublishTimeout, publishTimeout.String(), 30*time.Second, "Timeout for publishing a signed exit to the publish-address API.")
 		case validatorIndex:
-			cmd.Flags().Uint64Var(&config.ValidatorIndex, validatorIndex.String(), 0, "Validator index of the validator to exit, the associated public key must be present in the cluster lock manifest. If --validator-pubkey is also provided, validator liveliness won't be checked on the beacon chain.")
+			cmd.Flags().Uint64Var(&config.ValidatorIndex, validatorIndex.String(), 0, "Validator index of the validator to exit, the associated public key must be present in the cluster lock manifest. If --validator-public-key is also provided, validator existence won't be checked on the beacon chain.")
 		}
 
 		if f.required {

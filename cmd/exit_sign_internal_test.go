@@ -351,7 +351,7 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 
 			oapiURL := badStr
 			if !test.badOAPIURL {
-				oapiURL = "https://api.obol.tech"
+				oapiURL = "https://api.obol.tech/v1"
 			}
 
 			valAddr := badStr

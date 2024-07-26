@@ -105,7 +105,7 @@ const (
 	// measurement tests
 	testVerdictGood testVerdict = "Good"
 	testVerdictAvg  testVerdict = "Avg"
-	testVerdictBad  testVerdict = "Bad"
+	testVerdictPoor testVerdict = "Poor"
 
 	// failed tests
 	testVerdictFail testVerdict = "Fail"
@@ -274,7 +274,7 @@ func calculateScore(results []testResult) categoryScore {
 	avg := 0
 	for _, t := range results {
 		switch t.Verdict {
-		case testVerdictBad:
+		case testVerdictPoor:
 			return categoryScoreC
 		case testVerdictGood:
 			avg++

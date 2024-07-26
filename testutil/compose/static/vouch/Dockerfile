@@ -1,4 +1,4 @@
-FROM wealdtech/ethdo:1.30.0 as ethdo
+FROM wealdtech/ethdo:1.35.2 as ethdo
 
 FROM attestant/vouch:1.8.2
 

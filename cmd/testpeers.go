@@ -53,12 +53,12 @@ type (
 )
 
 const (
-	thresholdPeersMeasureAvg = 50 * time.Millisecond
-	thresholdPeersMeasureBad = 240 * time.Millisecond
-	thresholdPeersLoadAvg    = 50 * time.Millisecond
-	thresholdPeersLoadBad    = 240 * time.Millisecond
-	thresholdRelayMeasureAvg = 50 * time.Millisecond
-	thresholdRelayMeasureBad = 240 * time.Millisecond
+	thresholdPeersMeasureAvg  = 50 * time.Millisecond
+	thresholdPeersMeasurePoor = 240 * time.Millisecond
+	thresholdPeersLoadAvg     = 50 * time.Millisecond
+	thresholdPeersLoadPoor    = 240 * time.Millisecond
+	thresholdRelayMeasureAvg  = 50 * time.Millisecond
+	thresholdRelayMeasurePoor = 240 * time.Millisecond
 )
 
 func newTestPeersCmd(runFunc func(context.Context, io.Writer, testPeersConfig) error) *cobra.Command {
@@ -605,8 +605,8 @@ func peerPingMeasureTest(ctx context.Context, _ *testPeersConfig, tcpNode host.H
 		return failedTestResult(testRes, result.Error)
 	}
 
-	if result.RTT > thresholdPeersMeasureBad {
-		testRes.Verdict = testVerdictBad
+	if result.RTT > thresholdPeersMeasurePoor {
+		testRes.Verdict = testVerdictPoor
 	} else if result.RTT > thresholdPeersMeasureAvg {
 		testRes.Verdict = testVerdictAvg
 	} else {
@@ -652,8 +652,8 @@ func peerPingLoadTest(ctx context.Context, conf *testPeersConfig, tcpNode host.H
 			highestRTT = val.RTT
 		}
 	}
-	if highestRTT > thresholdPeersLoadBad {
-		testRes.Verdict = testVerdictBad
+	if highestRTT > thresholdPeersLoadPoor {
+		testRes.Verdict = testVerdictPoor
 	} else if highestRTT > thresholdPeersLoadAvg {
 		testRes.Verdict = testVerdictAvg
 	} else {
@@ -788,8 +788,8 @@ func relayPingMeasureTest(ctx context.Context, _ *testPeersConfig, target string
 		return failedTestResult(testRes, errors.New("status code %v", z.Int("status_code", resp.StatusCode)))
 	}
 
-	if firstByte > thresholdRelayMeasureBad {
-		testRes.Verdict = testVerdictBad
+	if firstByte > thresholdRelayMeasurePoor {
+		testRes.Verdict = testVerdictPoor
 	} else if firstByte > thresholdRelayMeasureAvg {
 		testRes.Verdict = testVerdictAvg
 	} else {

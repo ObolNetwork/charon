@@ -34,19 +34,19 @@ type testPerformanceConfig struct {
 }
 
 const (
-	diskWriteLoops               = 5
-	diskWriteMBsAvg              = 1000
-	diskWriteMBsBad              = 500
-	availableMemoryMBsAvg        = 4000
-	availableMemoryMBsBad        = 2000
-	totalMemoryMBsAvg            = 8000
-	totalMemoryMBsBad            = 4000
-	internetLatencyAvg           = 20 * time.Millisecond
-	internetLatencyBad           = 50 * time.Millisecond
-	internetDownloadSpeedMbpsAvg = 50
-	internetDownloadSpeedMbpsBad = 15
-	internetUploadSpeedMbpsAvg   = 50
-	internetUploadSpeedMbpsBad   = 15
+	diskWriteLoops                = 5
+	diskWriteMBsAvg               = 1000
+	diskWriteMBsPoor              = 500
+	availableMemoryMBsAvg         = 4000
+	availableMemoryMBsPoor        = 2000
+	totalMemoryMBsAvg             = 8000
+	totalMemoryMBsPoor            = 4000
+	internetLatencyAvg            = 20 * time.Millisecond
+	internetLatencyPoor           = 50 * time.Millisecond
+	internetDownloadSpeedMbpsAvg  = 50
+	internetDownloadSpeedMbpsPoor = 15
+	internetUploadSpeedMbpsAvg    = 50
+	internetUploadSpeedMbpsPoor   = 15
 )
 
 func newTestPerformanceCmd(runFunc func(context.Context, io.Writer, testPerformanceConfig) error) *cobra.Command {
@@ -227,8 +227,8 @@ func performanceDiskWriteTest(ctx context.Context, conf *testPerformanceConfig) 
 
 	diskWriteFinal := diskWriteTotal / diskWriteLoops
 
-	if diskWriteFinal < diskWriteMBsBad {
-		testRes.Verdict = testVerdictBad
+	if diskWriteFinal < diskWriteMBsPoor {
+		testRes.Verdict = testVerdictPoor
 	} else if diskWriteFinal < diskWriteMBsAvg {
 		testRes.Verdict = testVerdictAvg
 	} else {
@@ -388,8 +388,8 @@ func performanceAvailableMemoryTest(ctx context.Context, _ *testPerformanceConfi
 
 	availableMemoryMB := availableMemory / 1024 / 1024
 
-	if availableMemoryMB < availableMemoryMBsBad {
-		testRes.Verdict = testVerdictBad
+	if availableMemoryMB < availableMemoryMBsPoor {
+		testRes.Verdict = testVerdictPoor
 	} else if availableMemoryMB < availableMemoryMBsAvg {
 		testRes.Verdict = testVerdictAvg
 	} else {
@@ -466,8 +466,8 @@ func performanceTotalMemoryTest(ctx context.Context, _ *testPerformanceConfig) t
 
 	totalMemoryMB := totalMemory / 1024 / 1024
 
-	if totalMemoryMB < totalMemoryMBsBad {
-		testRes.Verdict = testVerdictBad
+	if totalMemoryMB < totalMemoryMBsPoor {
+		testRes.Verdict = testVerdictPoor
 	} else if totalMemoryMB < totalMemoryMBsAvg {
 		testRes.Verdict = testVerdictAvg
 	} else {
@@ -537,8 +537,8 @@ func performanceInternetLatencyTest(ctx context.Context, conf *testPerformanceCo
 	}
 	latency := server.Latency
 
-	if latency > internetLatencyBad {
-		testRes.Verdict = testVerdictBad
+	if latency > internetLatencyPoor {
+		testRes.Verdict = testVerdictPoor
 	} else if latency > internetLatencyAvg {
 		testRes.Verdict = testVerdictAvg
 	} else {
@@ -569,8 +569,8 @@ func performanceInternetDownloadSpeedTest(ctx context.Context, conf *testPerform
 	}
 	downloadSpeed := server.DLSpeed.Mbps()
 
-	if downloadSpeed < internetDownloadSpeedMbpsBad {
-		testRes.Verdict = testVerdictBad
+	if downloadSpeed < internetDownloadSpeedMbpsPoor {
+		testRes.Verdict = testVerdictPoor
 	} else if downloadSpeed < internetDownloadSpeedMbpsAvg {
 		testRes.Verdict = testVerdictAvg
 	} else {
@@ -601,8 +601,8 @@ func performanceInternetUploadSpeedTest(ctx context.Context, conf *testPerforman
 	}
 	uploadSpeed := server.ULSpeed.Mbps()
 
-	if uploadSpeed < internetUploadSpeedMbpsBad {
-		testRes.Verdict = testVerdictBad
+	if uploadSpeed < internetUploadSpeedMbpsPoor {
+		testRes.Verdict = testVerdictPoor
 	} else if uploadSpeed < internetUploadSpeedMbpsAvg {
 		testRes.Verdict = testVerdictAvg
 	} else {
