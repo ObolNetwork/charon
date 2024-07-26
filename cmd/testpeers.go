@@ -46,9 +46,11 @@ type testPeersConfig struct {
 	DirectConnectionTimeout time.Duration
 }
 
-type testCasePeer func(context.Context, *testPeersConfig, host.Host, p2p.Peer) testResult
-type testCasePeerSelf func(context.Context, *testPeersConfig) testResult
-type testCaseRelay func(context.Context, *testPeersConfig, string) testResult
+type (
+	testCasePeer     func(context.Context, *testPeersConfig, host.Host, p2p.Peer) testResult
+	testCasePeerSelf func(context.Context, *testPeersConfig) testResult
+	testCaseRelay    func(context.Context, *testPeersConfig, string) testResult
+)
 
 const (
 	thresholdPeersMeasureAvg = 50 * time.Millisecond
