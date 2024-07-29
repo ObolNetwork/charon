@@ -18,7 +18,7 @@ RUN echo "Built charon version=$(./charon version)"
 
 # Copy final binary into light stage.
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y ca-certificates wget
+RUN apt-get update && apt-get install -y ca-certificates wget fio
 ARG GITHUB_SHA=local
 ENV GITHUB_SHA=${GITHUB_SHA}
 COPY --from=builder /app/charon/charon /usr/local/bin/
