@@ -239,12 +239,16 @@ func fioCommand(ctx context.Context, filename string, fileSize int, blocksize in
 func setupDiskOperation(ctx context.Context, conf *testPerformanceConfig) (int, string, error) {
 	var stat unix.Statfs_t
 	var dir string
+	var err error
 	if conf.DiskIOTestFileDir == "" {
-		dir, _ = os.UserHomeDir()
+		dir, err = os.UserHomeDir()
+		if err != nil {
+			return 0, "", errors.Wrap(err, "get user home dir")
+		}
 	} else {
 		dir = conf.DiskIOTestFileDir
 	}
-	err := unix.Statfs(dir, &stat)
+	err = unix.Statfs(dir, &stat)
 	if err != nil {
 		return 0, "", errors.Wrap(err, "unix stat free storage")
 	}
