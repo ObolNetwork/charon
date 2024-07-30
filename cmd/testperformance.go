@@ -73,6 +73,8 @@ const (
 	internetUploadSpeedMbpsPoor   = 15
 )
 
+var errFioNotFound = errors.New("fio command not found, install fio from https://fio.readthedocs.io/en/latest/fio_doc.html#binary-packages or using the package manager of your choice (apt, yum, brew, etc.)")
+
 func newTestPerformanceCmd(runFunc func(context.Context, io.Writer, testPerformanceConfig) error) *cobra.Command {
 	var config testPerformanceConfig
 
@@ -285,7 +287,7 @@ func performanceDiskWriteSpeedTest(ctx context.Context, conf *testPerformanceCon
 
 	_, err = exec.LookPath("fio")
 	if err != nil {
-		return failedTestResult(testRes, errors.New("fio command not found, install fio from https://fio.readthedocs.io/en/latest/fio_doc.html#binary-packages or using the package manager of your choice (apt, yum, brew, etc.)"))
+		return failedTestResult(testRes, errFioNotFound)
 	}
 
 	out, err := fioCommand(ctx, testFilePath, diskWriteMB/diskOpsNumOfJobs, conf.DiskIOBlockSizeKb, "write")
@@ -331,7 +333,7 @@ func performanceDiskWriteIOPSTest(ctx context.Context, conf *testPerformanceConf
 
 	_, err = exec.LookPath("fio")
 	if err != nil {
-		return failedTestResult(testRes, errors.New("fio command not found, install fio from https://fio.readthedocs.io/en/latest/fio_doc.html#binary-packages or using the package manager of your choice (apt, yum, brew, etc.)"))
+		return failedTestResult(testRes, errFioNotFound)
 	}
 
 	out, err := fioCommand(ctx, testFilePath, diskWriteMB/diskOpsNumOfJobs, conf.DiskIOBlockSizeKb, "write")
@@ -376,7 +378,7 @@ func performanceDiskReadSpeedTest(ctx context.Context, conf *testPerformanceConf
 
 	_, err = exec.LookPath("fio")
 	if err != nil {
-		return failedTestResult(testRes, errors.New("fio command not found, install fio from https://fio.readthedocs.io/en/latest/fio_doc.html#binary-packages or using the package manager of your choice (apt, yum, brew, etc.)"))
+		return failedTestResult(testRes, errFioNotFound)
 	}
 
 	out, err := fioCommand(ctx, testFilePath, diskReadMB/diskOpsNumOfJobs, conf.DiskIOBlockSizeKb, "read")
@@ -422,7 +424,7 @@ func performanceDiskReadIOPSTest(ctx context.Context, conf *testPerformanceConfi
 
 	_, err = exec.LookPath("fio")
 	if err != nil {
-		return failedTestResult(testRes, errors.New("fio command not found, install fio from https://fio.readthedocs.io/en/latest/fio_doc.html#binary-packages or using the package manager of your choice (apt, yum, brew, etc.)"))
+		return failedTestResult(testRes, errFioNotFound)
 	}
 
 	out, err := fioCommand(ctx, testFilePath, diskReadMB/diskOpsNumOfJobs, conf.DiskIOBlockSizeKb, "read")
