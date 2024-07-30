@@ -279,12 +279,13 @@ func performanceDiskWriteSpeedTest(ctx context.Context, conf *testPerformanceCon
 	}
 
 	log.Info(ctx, "Testing disk write speed...",
-		z.Any("test file size MB", diskWriteMB),
-		z.Any("jobs", diskOpsNumOfJobs))
+		z.Any("test_file_size_mb", diskWriteMB),
+		z.Any("jobs", diskOpsNumOfJobs),
+		z.Any("test_file_path", testFilePath))
 
 	_, err = exec.LookPath("fio")
 	if err != nil {
-		return failedTestResult(testRes, errors.New("fio command not found. Install fio from here https://fio.readthedocs.io/en/latest/fio_doc.html#binary-packages or install it using the package manager of your choice (apt, yum, brew, etc). "))
+		return failedTestResult(testRes, errors.New("fio command not found, install fio from https://fio.readthedocs.io/en/latest/fio_doc.html#binary-packages or using the package manager of your choice (apt, yum, brew, etc.)"))
 	}
 
 	out, err := fioCommand(ctx, testFilePath, diskWriteMB/diskOpsNumOfJobs, conf.DiskIOBlockSizeKb, "write")
@@ -299,6 +300,8 @@ func performanceDiskWriteSpeedTest(ctx context.Context, conf *testPerformanceCon
 		return failedTestResult(testRes, err)
 	}
 
+	// jobs are grouped, so we pick the first and only one
+	// bw (bandwidth) is in KB, convert it to MB
 	diskWriteMBs := fioRes.Jobs[0].Write.Bw / 1024
 
 	if diskWriteMBs < diskWriteSpeedMBsPoor {
@@ -322,12 +325,13 @@ func performanceDiskWriteIOPSTest(ctx context.Context, conf *testPerformanceConf
 	}
 
 	log.Info(ctx, "Testing disk write IOPS...",
-		z.Any("test file size MB", diskWriteMB),
-		z.Any("jobs", diskOpsNumOfJobs))
+		z.Any("test_file_size_mb", diskWriteMB),
+		z.Any("jobs", diskOpsNumOfJobs),
+		z.Any("test_file_path", testFilePath))
 
 	_, err = exec.LookPath("fio")
 	if err != nil {
-		return failedTestResult(testRes, errors.New("fio command not found. Install fio from here https://fio.readthedocs.io/en/latest/fio_doc.html#binary-packages or install it using the package manager of your choice (apt, yum, brew, etc). "))
+		return failedTestResult(testRes, errors.New("fio command not found, install fio from https://fio.readthedocs.io/en/latest/fio_doc.html#binary-packages or using the package manager of your choice (apt, yum, brew, etc.)"))
 	}
 
 	out, err := fioCommand(ctx, testFilePath, diskWriteMB/diskOpsNumOfJobs, conf.DiskIOBlockSizeKb, "write")
@@ -342,6 +346,7 @@ func performanceDiskWriteIOPSTest(ctx context.Context, conf *testPerformanceConf
 		return failedTestResult(testRes, err)
 	}
 
+	// jobs are grouped, so we pick the first and only one
 	diskWriteIOPS := fioRes.Jobs[0].Write.Iops
 
 	if diskWriteIOPS < diskWriteIOPSPoor {
@@ -365,12 +370,13 @@ func performanceDiskReadSpeedTest(ctx context.Context, conf *testPerformanceConf
 	}
 
 	log.Info(ctx, "Testing disk read speed...",
-		z.Any("test file size MB", diskReadMB),
-		z.Any("jobs", diskOpsNumOfJobs))
+		z.Any("test_file_size_mb", diskReadMB),
+		z.Any("jobs", diskOpsNumOfJobs),
+		z.Any("test_file_path", testFilePath))
 
 	_, err = exec.LookPath("fio")
 	if err != nil {
-		return failedTestResult(testRes, errors.New("fio command not found. Install fio from here https://fio.readthedocs.io/en/latest/fio_doc.html#binary-packages or install it using the package manager of your choice (apt, yum, brew, etc). "))
+		return failedTestResult(testRes, errors.New("fio command not found, install fio from https://fio.readthedocs.io/en/latest/fio_doc.html#binary-packages or using the package manager of your choice (apt, yum, brew, etc.)"))
 	}
 
 	out, err := fioCommand(ctx, testFilePath, diskReadMB/diskOpsNumOfJobs, conf.DiskIOBlockSizeKb, "read")
@@ -385,6 +391,8 @@ func performanceDiskReadSpeedTest(ctx context.Context, conf *testPerformanceConf
 		return failedTestResult(testRes, err)
 	}
 
+	// jobs are grouped, so we pick the first and only one
+	// bw (bandwidth) is in KB, convert it to MB
 	diskReadMBs := fioRes.Jobs[0].Read.Bw / 1024
 
 	if diskReadMBs < diskReadSpeedMBsPoor {
@@ -408,12 +416,13 @@ func performanceDiskReadIOPSTest(ctx context.Context, conf *testPerformanceConfi
 	}
 
 	log.Info(ctx, "Testing disk read IOPS...",
-		z.Any("test file size MB", diskReadMB),
-		z.Any("jobs", diskOpsNumOfJobs))
+		z.Any("test_file_size_mb", diskReadMB),
+		z.Any("jobs", diskOpsNumOfJobs),
+		z.Any("test_file_path", testFilePath))
 
 	_, err = exec.LookPath("fio")
 	if err != nil {
-		return failedTestResult(testRes, errors.New("fio command not found. Install fio from here https://fio.readthedocs.io/en/latest/fio_doc.html#binary-packages or install it using the package manager of your choice (apt, yum, brew, etc). "))
+		return failedTestResult(testRes, errors.New("fio command not found, install fio from https://fio.readthedocs.io/en/latest/fio_doc.html#binary-packages or using the package manager of your choice (apt, yum, brew, etc.)"))
 	}
 
 	out, err := fioCommand(ctx, testFilePath, diskReadMB/diskOpsNumOfJobs, conf.DiskIOBlockSizeKb, "read")
@@ -428,6 +437,7 @@ func performanceDiskReadIOPSTest(ctx context.Context, conf *testPerformanceConfi
 		return failedTestResult(testRes, err)
 	}
 
+	// jobs are grouped, so we pick the first and only one
 	diskReadIOPS := fioRes.Jobs[0].Read.Iops
 
 	if diskReadIOPS < diskReadIOPSPoor {
