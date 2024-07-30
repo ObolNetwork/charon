@@ -20,7 +20,6 @@ import (
 	"github.com/showwin/speedtest-go/speedtest"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/maps"
-	"golang.org/x/sys/unix"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -51,6 +50,7 @@ type fioResultSingle struct {
 
 const (
 	diskOpsNumOfJobs      = 8
+	diskOpsMBsTotal       = 4096 // split between number of jobs
 	diskWriteSpeedMBsAvg  = 1000
 	diskWriteSpeedMBsPoor = 500
 	diskWriteIOPSAvg      = 200
@@ -217,12 +217,12 @@ func testPerformance(ctx context.Context, queuedTests []testCaseName, allTests m
 	}
 }
 
-func fioCommand(ctx context.Context, filename string, fileSize int, blocksize int, operation string) ([]byte, error) {
+func fioCommand(ctx context.Context, filename string, blocksize int, operation string) ([]byte, error) {
 	//nolint:gosec
 	cmd, err := exec.CommandContext(ctx, "fio",
 		"--name=fioTest",
 		fmt.Sprintf("--filename=%v", filename),
-		fmt.Sprintf("--size=%vMb", fileSize),
+		fmt.Sprintf("--size=%vMb", diskOpsMBsTotal/diskOpsNumOfJobs),
 		fmt.Sprintf("--blocksize=%vk", blocksize),
 		fmt.Sprintf("--numjobs=%v", diskOpsNumOfJobs),
 		fmt.Sprintf("--rw=%v", operation),
@@ -238,50 +238,22 @@ func fioCommand(ctx context.Context, filename string, fileSize int, blocksize in
 	return cmd, nil
 }
 
-func setupDiskOperation(ctx context.Context, conf *testPerformanceConfig) (int, string, error) {
-	var stat unix.Statfs_t
-	var dir string
-	var err error
-	if conf.DiskIOTestFileDir == "" {
-		dir, err = os.UserHomeDir()
-		if err != nil {
-			return 0, "", errors.Wrap(err, "get user home dir")
-		}
-	} else {
-		dir = conf.DiskIOTestFileDir
-	}
-	err = unix.Statfs(dir, &stat)
-	if err != nil {
-		return 0, "", errors.Wrap(err, "unix stat free storage")
-	}
-
-	// Available blocks * size per block = available space in bytes; convert to MBs; use only 80% for safety
-	availableMB := int(stat.Bavail*uint64(stat.Bsize)/1024/1024) / 5 * 4
-	diskWriteMB := 8192
-
-	for availableMB < diskWriteMB {
-		log.Warn(ctx, fmt.Sprintf("Insufficient available disk space of %vMB, reducing the test size of %vMB to %vMB. Note that this might result in lower performance", availableMB, diskWriteMB, diskWriteMB/2), nil)
-		diskWriteMB /= 2
-		if diskWriteMB == 0 {
-			return 0, "", errors.New("insufficient available disk space", z.Str("available_space", strconv.Itoa(availableMB)+"MB"))
-		}
-	}
-
-	testFilePath := dir + "/fioTest"
-
-	return diskWriteMB, testFilePath, nil
-}
-
 func performanceDiskWriteSpeedTest(ctx context.Context, conf *testPerformanceConfig) testResult {
 	testRes := testResult{Name: "DiskWriteSpeed"}
 
-	diskWriteMB, testFilePath, err := setupDiskOperation(ctx, conf)
-	if err != nil {
-		return failedTestResult(testRes, err)
+	var err error
+	var testFilePath string
+	if conf.DiskIOTestFileDir == "" {
+		testFilePath, err = os.UserHomeDir()
+		if err != nil {
+			return failedTestResult(testRes, err)
+		}
+	} else {
+		testFilePath = conf.DiskIOTestFileDir
 	}
 
 	log.Info(ctx, "Testing disk write speed...",
-		z.Any("test_file_size_mb", diskWriteMB),
+		z.Any("test_file_size_mb", diskOpsMBsTotal),
 		z.Any("jobs", diskOpsNumOfJobs),
 		z.Any("test_file_path", testFilePath))
 
@@ -290,7 +262,7 @@ func performanceDiskWriteSpeedTest(ctx context.Context, conf *testPerformanceCon
 		return failedTestResult(testRes, errFioNotFound)
 	}
 
-	out, err := fioCommand(ctx, testFilePath, diskWriteMB/diskOpsNumOfJobs, conf.DiskIOBlockSizeKb, "write")
+	out, err := fioCommand(ctx, testFilePath, conf.DiskIOBlockSizeKb, "write")
 	if err != nil {
 		return failedTestResult(testRes, errors.Wrap(err, string(out)))
 	}
@@ -321,13 +293,19 @@ func performanceDiskWriteSpeedTest(ctx context.Context, conf *testPerformanceCon
 func performanceDiskWriteIOPSTest(ctx context.Context, conf *testPerformanceConfig) testResult {
 	testRes := testResult{Name: "DiskWriteIOPS"}
 
-	diskWriteMB, testFilePath, err := setupDiskOperation(ctx, conf)
-	if err != nil {
-		return failedTestResult(testRes, err)
+	var err error
+	var testFilePath string
+	if conf.DiskIOTestFileDir == "" {
+		testFilePath, err = os.UserHomeDir()
+		if err != nil {
+			return failedTestResult(testRes, err)
+		}
+	} else {
+		testFilePath = conf.DiskIOTestFileDir
 	}
 
 	log.Info(ctx, "Testing disk write IOPS...",
-		z.Any("test_file_size_mb", diskWriteMB),
+		z.Any("test_file_size_mb", diskOpsMBsTotal),
 		z.Any("jobs", diskOpsNumOfJobs),
 		z.Any("test_file_path", testFilePath))
 
@@ -336,7 +314,7 @@ func performanceDiskWriteIOPSTest(ctx context.Context, conf *testPerformanceConf
 		return failedTestResult(testRes, errFioNotFound)
 	}
 
-	out, err := fioCommand(ctx, testFilePath, diskWriteMB/diskOpsNumOfJobs, conf.DiskIOBlockSizeKb, "write")
+	out, err := fioCommand(ctx, testFilePath, conf.DiskIOBlockSizeKb, "write")
 	if err != nil {
 		return failedTestResult(testRes, errors.Wrap(err, string(out)))
 	}
@@ -366,13 +344,19 @@ func performanceDiskWriteIOPSTest(ctx context.Context, conf *testPerformanceConf
 func performanceDiskReadSpeedTest(ctx context.Context, conf *testPerformanceConfig) testResult {
 	testRes := testResult{Name: "DiskReadSpeed"}
 
-	diskReadMB, testFilePath, err := setupDiskOperation(ctx, conf)
-	if err != nil {
-		return failedTestResult(testRes, err)
+	var err error
+	var testFilePath string
+	if conf.DiskIOTestFileDir == "" {
+		testFilePath, err = os.UserHomeDir()
+		if err != nil {
+			return failedTestResult(testRes, err)
+		}
+	} else {
+		testFilePath = conf.DiskIOTestFileDir
 	}
 
 	log.Info(ctx, "Testing disk read speed...",
-		z.Any("test_file_size_mb", diskReadMB),
+		z.Any("test_file_size_mb", diskOpsMBsTotal),
 		z.Any("jobs", diskOpsNumOfJobs),
 		z.Any("test_file_path", testFilePath))
 
@@ -381,7 +365,7 @@ func performanceDiskReadSpeedTest(ctx context.Context, conf *testPerformanceConf
 		return failedTestResult(testRes, errFioNotFound)
 	}
 
-	out, err := fioCommand(ctx, testFilePath, diskReadMB/diskOpsNumOfJobs, conf.DiskIOBlockSizeKb, "read")
+	out, err := fioCommand(ctx, testFilePath, conf.DiskIOBlockSizeKb, "read")
 	if err != nil {
 		return failedTestResult(testRes, errors.Wrap(err, string(out)))
 	}
@@ -412,13 +396,19 @@ func performanceDiskReadSpeedTest(ctx context.Context, conf *testPerformanceConf
 func performanceDiskReadIOPSTest(ctx context.Context, conf *testPerformanceConfig) testResult {
 	testRes := testResult{Name: "DiskReadIOPS"}
 
-	diskReadMB, testFilePath, err := setupDiskOperation(ctx, conf)
-	if err != nil {
-		return failedTestResult(testRes, err)
+	var err error
+	var testFilePath string
+	if conf.DiskIOTestFileDir == "" {
+		testFilePath, err = os.UserHomeDir()
+		if err != nil {
+			return failedTestResult(testRes, err)
+		}
+	} else {
+		testFilePath = conf.DiskIOTestFileDir
 	}
 
 	log.Info(ctx, "Testing disk read IOPS...",
-		z.Any("test_file_size_mb", diskReadMB),
+		z.Any("test_file_size_mb", diskOpsMBsTotal),
 		z.Any("jobs", diskOpsNumOfJobs),
 		z.Any("test_file_path", testFilePath))
 
@@ -427,7 +417,7 @@ func performanceDiskReadIOPSTest(ctx context.Context, conf *testPerformanceConfi
 		return failedTestResult(testRes, errFioNotFound)
 	}
 
-	out, err := fioCommand(ctx, testFilePath, diskReadMB/diskOpsNumOfJobs, conf.DiskIOBlockSizeKb, "read")
+	out, err := fioCommand(ctx, testFilePath, conf.DiskIOBlockSizeKb, "read")
 	if err != nil {
 		return failedTestResult(testRes, errors.Wrap(err, string(out)))
 	}
