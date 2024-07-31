@@ -53,12 +53,12 @@ const (
 	diskOpsMBsTotal       = 4096 // split between number of jobs
 	diskWriteSpeedMBsAvg  = 1000
 	diskWriteSpeedMBsPoor = 500
-	diskWriteIOPSAvg      = 200
-	diskWriteIOPSPoor     = 100
+	diskWriteIOPSAvg      = 2000
+	diskWriteIOPSPoor     = 1000
 	diskReadSpeedMBsAvg   = 1000
 	diskReadSpeedMBsPoor  = 500
-	diskReadIOPSAvg       = 200
-	diskReadIOPSPoor      = 100
+	diskReadIOPSAvg       = 2000
+	diskReadIOPSPoor      = 1000
 
 	availableMemoryMBsAvg  = 4000
 	availableMemoryMBsPoor = 2000
