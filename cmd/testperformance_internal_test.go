@@ -33,15 +33,14 @@ func TestPerformanceTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputToml: "",
 					Quiet:      false,
-					TestCases:  []string{"diskWrite", "availableMemory", "totalMemory", "internetLatency"},
+					TestCases:  []string{"availableMemory", "totalMemory", "internetLatency"},
 					Timeout:    time.Minute,
 				},
-				DiskWriteMB: 1,
+				DiskIOBlockSizeKb: 1,
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					"local": {
-						{Name: "diskWrite", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "availableMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "totalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "internetLatency", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
@@ -61,12 +60,12 @@ func TestPerformanceTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    100 * time.Nanosecond,
 				},
-				DiskWriteMB: 1,
+				DiskIOBlockSizeKb: 1,
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					"local": {
-						{Name: "diskWrite", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "diskWriteSpeed", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
 				Score:        categoryScoreC,
@@ -80,15 +79,14 @@ func TestPerformanceTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputToml: "",
 					Quiet:      true,
-					TestCases:  []string{"diskWrite", "availableMemory", "totalMemory", "internetLatency"},
+					TestCases:  []string{"availableMemory", "totalMemory", "internetLatency"},
 					Timeout:    time.Minute,
 				},
-				DiskWriteMB: 1,
+				DiskIOBlockSizeKb: 1,
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					"local": {
-						{Name: "diskWrite", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "availableMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "totalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "internetLatency", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
@@ -108,7 +106,7 @@ func TestPerformanceTest(t *testing.T) {
 					TestCases:  []string{"notSupportedTest"},
 					Timeout:    time.Minute,
 				},
-				DiskWriteMB: 1,
+				DiskIOBlockSizeKb: 1,
 			},
 			expected: testCategoryResult{
 				Score:        categoryScoreC,
@@ -122,15 +120,15 @@ func TestPerformanceTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputToml: "",
 					Quiet:      false,
-					TestCases:  []string{"diskWrite"},
+					TestCases:  []string{"totalMemory"},
 					Timeout:    time.Minute,
 				},
-				DiskWriteMB: 1,
+				DiskIOBlockSizeKb: 1,
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					"local": {
-						{Name: "diskWrite", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "totalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score:        categoryScoreC,
@@ -144,21 +142,20 @@ func TestPerformanceTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputToml: "./write-to-file-test.toml.tmp",
 					Quiet:      false,
-					TestCases:  []string{"diskWrite", "availableMemory", "totalMemory", "internetLatency"},
+					TestCases:  []string{"availableMemory", "totalMemory", "internetLatency"},
 					Timeout:    time.Minute,
 				},
-				DiskWriteMB: 1,
+				DiskIOBlockSizeKb: 1,
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					"local": {
-						{Name: "diskWrite", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "availableMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "totalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "internetLatency", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
-				Score:        categoryScoreC,
+				Score:        categoryScoreA,
 				CategoryName: performanceTestCategory,
 			},
 			expectedErr: "",
@@ -226,12 +223,12 @@ func TestPerformanceTestFlags(t *testing.T) {
 	}{
 		{
 			name:        "default scenario",
-			args:        []string{"performance", "--disk-write-mb=1"},
+			args:        []string{"performance", "--disk-io-block-size-kb=1"},
 			expectedErr: "",
 		},
 		{
 			name:        "no output toml on quiet",
-			args:        []string{"performance", "--disk-write-mb=1", "--quiet"},
+			args:        []string{"performance", "--disk-io-block-size-kb=1", "--quiet"},
 			expectedErr: "on --quiet, an --output-toml is required",
 		},
 	}
