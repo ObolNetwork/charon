@@ -221,7 +221,7 @@ func fioCommand(ctx context.Context, filename string, blocksize int, operation s
 	//nolint:gosec
 	cmd, err := exec.CommandContext(ctx, "fio",
 		"--name=fioTest",
-		fmt.Sprintf("--filename=%v", filename),
+		fmt.Sprintf("--filename=%v/fiotest", filename),
 		fmt.Sprintf("--size=%vMb", diskOpsMBsTotal/diskOpsNumOfJobs),
 		fmt.Sprintf("--blocksize=%vk", blocksize),
 		fmt.Sprintf("--numjobs=%v", diskOpsNumOfJobs),
