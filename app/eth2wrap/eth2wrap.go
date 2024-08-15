@@ -5,8 +5,10 @@ package eth2wrap
 
 import (
 	"context"
+	"encoding/hex"
 	"net"
 	"net/url"
+	"slices"
 	"sync"
 	"time"
 
@@ -19,8 +21,10 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/forkjoin"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util"
 )
 
 //go:generate go run genwrap/genwrap.go
@@ -71,14 +75,26 @@ func WithSyntheticDuties(cl Client) Client {
 
 // NewMultiHTTP returns a new instrumented multi eth2 http client.
 func NewMultiHTTP(timeout time.Duration, forkVersion [4]byte, addresses ...string) (Client, error) {
-	var clients []Client
+	var (
+		customSpecForks = []string{
+			eth2util.Gnosis.GenesisForkVersionHex,
+			eth2util.Chiado.GenesisForkVersionHex,
+		}
+
+		clients []Client
+	)
+
 	for _, address := range addresses {
+		forkVersionHex := "0x" + hex.EncodeToString(forkVersion[:])
+		customSpecSupport := slices.Contains(customSpecForks, forkVersionHex)
+
 		parameters := []eth2http.Parameter{
 			eth2http.WithLogLevel(zeroLogInfo),
 			eth2http.WithAddress(address),
 			eth2http.WithTimeout(timeout),
 			eth2http.WithAllowDelayedStart(true),
 			eth2http.WithEnforceJSON(featureset.Enabled(featureset.JSONRequests)),
+			eth2http.WithCustomSpecSupport(customSpecSupport),
 		}
 
 		cl := newLazy(func(ctx context.Context) (Client, error) {
@@ -93,6 +109,10 @@ func NewMultiHTTP(timeout time.Duration, forkVersion [4]byte, addresses ...strin
 
 			adaptedCl := AdaptEth2HTTP(eth2Http, timeout)
 			adaptedCl.SetForkVersion(forkVersion)
+
+			if customSpecSupport {
+				log.Info(ctx, "Eth2 client enabled custom spec support")
+			}
 
 			return adaptedCl, nil
 		})

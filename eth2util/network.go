@@ -57,6 +57,13 @@ var (
 		GenesisTimestamp:      1638993340,
 		CapellaHardFork:       "0x03000064",
 	}
+	Chiado = Network{
+		ChainID:               10200,
+		Name:                  "chiado",
+		GenesisForkVersionHex: "0x0000006f",
+		GenesisTimestamp:      1665396300,
+		CapellaHardFork:       "0x0300006f",
+	}
 	Sepolia = Network{
 		ChainID:               11155111,
 		Name:                  "sepolia",
@@ -77,7 +84,7 @@ var (
 var (
 	networksMu        sync.Mutex
 	supportedNetworks = []Network{
-		Mainnet, Goerli, Gnosis, Sepolia, Holesky,
+		Mainnet, Goerli, Sepolia, Holesky, Gnosis, Chiado,
 	}
 )
 

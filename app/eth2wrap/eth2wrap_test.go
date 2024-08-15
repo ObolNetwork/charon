@@ -475,6 +475,11 @@ func TestLazyDomain(t *testing.T) {
 			expRes: "04000000398beb768264920602d7d79f88da05cac0550ae4108753fd846408b5",
 		},
 		{
+			name:   "chiado fork",
+			in:     eth2util.Chiado.GenesisForkVersionHex[2:],
+			expRes: "04000000549a4266fa19a7e6f2b5cf53bd9c06b8c2ec66c248f8df98162a9eb6",
+		},
+		{
 			name:   "sepolia fork",
 			in:     eth2util.Sepolia.GenesisForkVersionHex[2:],
 			expRes: "040000007191d9b3c210dbffc7810b6ccb436c1b3897b6772452924b20f6f5f2",
