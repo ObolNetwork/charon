@@ -17,7 +17,7 @@ import (
 
 func TestGetNetworkStatistics(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/v0/eth/network/stats", r.URL.Path)
+		require.Equal(t, "/v0/eth/network/overview", r.URL.Path)
 
 		require.Equal(t, "Bearer auth", r.Header.Get("Authorization"))
 		require.Equal(t, "prater", r.Header.Get("X-Rated-Network"))
