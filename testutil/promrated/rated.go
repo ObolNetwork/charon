@@ -35,7 +35,7 @@ func getNetworkStatistics(ctx context.Context, ratedEndpoint string, ratedAuth s
 		return networkEffectivenessData{}, errors.Wrap(err, "parse rated endpoint")
 	}
 
-	url.Path = "/v0/eth/network/stats"
+	url.Path = "/v0/eth/network/overview"
 
 	body, err := queryRatedAPI(ctx, url, ratedAuth, network)
 	if err != nil {
