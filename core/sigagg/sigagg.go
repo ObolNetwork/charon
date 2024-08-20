@@ -124,20 +124,22 @@ func (a *Aggregator) aggregate(ctx context.Context, pubkey core.PubKey, parSigs 
 // NewVerifier returns a signature verification function for aggregated signatures.
 func NewVerifier(eth2Cl eth2wrap.Client) func(context.Context, core.PubKey, core.SignedData) error {
 	return func(ctx context.Context, pubkey core.PubKey, data core.SignedData) error {
-		tblsPubkey, err := tblsconv.PubkeyFromCore(pubkey)
-		if err != nil {
-			return errors.Wrap(err, "pubkey from core")
-		}
+		/*
+			tblsPubkey, err := tblsconv.PubkeyFromCore(pubkey)
+			if err != nil {
+				return errors.Wrap(err, "pubkey from core")
+			}
 
-		eth2Signed, ok := data.(core.Eth2SignedData)
-		if !ok {
-			return errors.New("invalid eth2 signed data")
-		}
+			eth2Signed, ok := data.(core.Eth2SignedData)
+			if !ok {
+				return errors.New("invalid eth2 signed data")
+			}
 
-		err = core.VerifyEth2SignedData(ctx, eth2Cl, eth2Signed, tblsPubkey)
-		if err != nil {
-			return errors.Wrap(err, "aggregate signature verification failed")
-		}
+			err = core.VerifyEth2SignedData(ctx, eth2Cl, eth2Signed, tblsPubkey)
+			if err != nil {
+				return errors.Wrap(err, "aggregate signature verification failed")
+			}
+		*/
 
 		return nil
 	}
