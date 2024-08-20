@@ -11,6 +11,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/z"
@@ -124,22 +125,24 @@ func (a *Aggregator) aggregate(ctx context.Context, pubkey core.PubKey, parSigs 
 // NewVerifier returns a signature verification function for aggregated signatures.
 func NewVerifier(eth2Cl eth2wrap.Client) func(context.Context, core.PubKey, core.SignedData) error {
 	return func(ctx context.Context, pubkey core.PubKey, data core.SignedData) error {
-		/*
-			tblsPubkey, err := tblsconv.PubkeyFromCore(pubkey)
-			if err != nil {
-				return errors.Wrap(err, "pubkey from core")
-			}
+		if featureset.Enabled(featureset.DisableParSigChecks) {
+			return nil
+		}
 
-			eth2Signed, ok := data.(core.Eth2SignedData)
-			if !ok {
-				return errors.New("invalid eth2 signed data")
-			}
+		tblsPubkey, err := tblsconv.PubkeyFromCore(pubkey)
+		if err != nil {
+			return errors.Wrap(err, "pubkey from core")
+		}
 
-			err = core.VerifyEth2SignedData(ctx, eth2Cl, eth2Signed, tblsPubkey)
-			if err != nil {
-				return errors.Wrap(err, "aggregate signature verification failed")
-			}
-		*/
+		eth2Signed, ok := data.(core.Eth2SignedData)
+		if !ok {
+			return errors.New("invalid eth2 signed data")
+		}
+
+		err = core.VerifyEth2SignedData(ctx, eth2Cl, eth2Signed, tblsPubkey)
+		if err != nil {
+			return errors.Wrap(err, "aggregate signature verification failed")
+		}
 
 		return nil
 	}

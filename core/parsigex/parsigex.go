@@ -12,6 +12,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -145,27 +146,29 @@ func (m *ParSigEx) Subscribe(fn func(context.Context, core.Duty, core.ParSignedD
 // NewEth2Verifier returns a partial signature verification function for core workflow eth2 signatures.
 func NewEth2Verifier(eth2Cl eth2wrap.Client, pubSharesByKey map[core.PubKey]map[int]tbls.PublicKey) (func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error, error) {
 	return func(ctx context.Context, duty core.Duty, pubkey core.PubKey, data core.ParSignedData) error {
-		/*
-			pubshares, ok := pubSharesByKey[pubkey]
-			if !ok {
-				return errors.New("unknown pubkey, not part of cluster lock")
-			}
+		if featureset.Enabled(featureset.DisableParSigChecks) {
+			return nil
+		}
 
-			pubshare, ok := pubshares[data.ShareIdx]
-			if !ok {
-				return errors.New("invalid shareIdx")
-			}
+		pubshares, ok := pubSharesByKey[pubkey]
+		if !ok {
+			return errors.New("unknown pubkey, not part of cluster lock")
+		}
 
-			eth2Signed, ok := data.SignedData.(core.Eth2SignedData)
-			if !ok {
-				return errors.New("invalid eth2 signed data")
-			}
+		pubshare, ok := pubshares[data.ShareIdx]
+		if !ok {
+			return errors.New("invalid shareIdx")
+		}
 
-			err := core.VerifyEth2SignedData(ctx, eth2Cl, eth2Signed, pubshare)
-			if err != nil {
-				return errors.Wrap(err, "invalid signature", z.Str("duty", duty.String()))
-			}
-		*/
+		eth2Signed, ok := data.SignedData.(core.Eth2SignedData)
+		if !ok {
+			return errors.New("invalid eth2 signed data")
+		}
+
+		err := core.VerifyEth2SignedData(ctx, eth2Cl, eth2Signed, pubshare)
+		if err != nil {
+			return errors.Wrap(err, "invalid signature", z.Str("duty", duty.String()))
+		}
 
 		return nil
 	}, nil

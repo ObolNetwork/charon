@@ -15,6 +15,7 @@ func TestAllFeatureStatus(t *testing.T) {
 		EagerDoubleLinear,
 		ConsensusParticipate,
 		JSONRequests,
+		DisableParSigChecks,
 	}
 
 	for _, feature := range features {

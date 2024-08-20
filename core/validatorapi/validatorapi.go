@@ -19,6 +19,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
@@ -415,12 +416,12 @@ func (c Component) SubmitProposal(ctx context.Context, opts *eth2api.SubmitPropo
 	}
 
 	// Verify proposal signature
-	/*
+	if !featureset.Enabled(featureset.DisableParSigChecks) {
 		err = c.verifyPartialSig(ctx, signedData, pubkey)
 		if err != nil {
 			return err
 		}
-	*/
+	}
 
 	log.Debug(ctx, "Beacon proposal submitted by validator client", z.Str("block_version", opts.Proposal.Version.String()))
 
@@ -457,12 +458,12 @@ func (c Component) SubmitBlindedProposal(ctx context.Context, opts *eth2api.Subm
 	}
 
 	// Verify Blinded block signature
-	/*
+	if !featureset.Enabled(featureset.DisableParSigChecks) {
 		err = c.verifyPartialSig(ctx, signedData, pubkey)
 		if err != nil {
 			return err
 		}
-	*/
+	}
 
 	log.Debug(ctx, "Blinded beacon block submitted by validator client")
 

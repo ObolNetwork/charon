@@ -40,6 +40,10 @@ const (
 
 	// JSONRequests enables JSON requests for eth2 client.
 	JSONRequests Feature = "json_requests"
+
+	// DisableParSigChecks disables partial signatures verification.
+	// Designed as a temporary workaround for Gnosis chain.
+	DisableParSigChecks Feature = "disable_parsig_checks"
 )
 
 var (
@@ -50,6 +54,7 @@ var (
 		MockAlpha:            statusAlpha,
 		AggSigDBV2:           statusAlpha,
 		JSONRequests:         statusAlpha,
+		DisableParSigChecks:  statusAlpha,
 		// Add all features and there status here.
 	}
 
