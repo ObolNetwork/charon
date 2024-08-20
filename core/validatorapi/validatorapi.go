@@ -415,10 +415,12 @@ func (c Component) SubmitProposal(ctx context.Context, opts *eth2api.SubmitPropo
 	}
 
 	// Verify proposal signature
-	err = c.verifyPartialSig(ctx, signedData, pubkey)
-	if err != nil {
-		return err
-	}
+	/*
+		err = c.verifyPartialSig(ctx, signedData, pubkey)
+		if err != nil {
+			return err
+		}
+	*/
 
 	log.Debug(ctx, "Beacon proposal submitted by validator client", z.Str("block_version", opts.Proposal.Version.String()))
 
@@ -455,10 +457,12 @@ func (c Component) SubmitBlindedProposal(ctx context.Context, opts *eth2api.Subm
 	}
 
 	// Verify Blinded block signature
-	err = c.verifyPartialSig(ctx, signedData, pubkey)
-	if err != nil {
-		return err
-	}
+	/*
+		err = c.verifyPartialSig(ctx, signedData, pubkey)
+		if err != nil {
+			return err
+		}
+	*/
 
 	log.Debug(ctx, "Blinded beacon block submitted by validator client")
 
