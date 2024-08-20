@@ -27,6 +27,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/validatorapi"
 	"github.com/obolnetwork/charon/eth2util"
@@ -550,7 +551,7 @@ func TestComponent_SubmitProposalInvalidSignature(t *testing.T) {
 	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 		block, ok := set[corePubKey].SignedData.(core.VersionedSignedProposal)
 		require.True(t, ok)
-		require.Equal(t, signedBlock, block)
+		require.Equal(t, *signedBlock, block.VersionedSignedProposal)
 
 		return nil
 	})
@@ -559,6 +560,15 @@ func TestComponent_SubmitProposalInvalidSignature(t *testing.T) {
 		Proposal: signedBlock,
 	})
 	require.ErrorContains(t, err, "signature not verified")
+
+	t.Run("with disable_parsig_checks", func(t *testing.T) {
+		featureset.EnableForT(t, featureset.DisableParSigChecks)
+
+		err = vapi.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+			Proposal: signedBlock,
+		})
+		require.NoError(t, err)
+	})
 }
 
 func TestComponent_SubmitProposalInvalidBlock(t *testing.T) {

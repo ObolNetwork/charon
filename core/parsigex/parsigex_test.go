@@ -16,6 +16,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/parsigex"
 	"github.com/obolnetwork/charon/eth2util"
@@ -323,6 +324,13 @@ func TestParSigExVerifier(t *testing.T) {
 		parSigData := core.NewPartialSignedSyncContributionAndProof(proof, shareIdx)
 
 		require.NoError(t, verifyFunc(ctx, core.NewPrepareSyncContributionDuty(slot), pubkey, parSigData))
+	})
+
+	t.Run("with disable_parsig_checks", func(t *testing.T) {
+		featureset.EnableForT(t, featureset.DisableParSigChecks)
+
+		err := verifyFunc(ctx, core.NewProposerDuty(1), pubkey, core.ParSignedData{})
+		require.NoError(t, err)
 	})
 }
 

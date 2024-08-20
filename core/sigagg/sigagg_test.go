@@ -18,6 +18,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/sigagg"
 	"github.com/obolnetwork/charon/eth2util/signing"
@@ -26,6 +27,20 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
+
+func TestNewVerifier(t *testing.T) {
+	ctx := context.Background()
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	t.Run("with disable_parsig_checks", func(t *testing.T) {
+		featureset.EnableForT(t, featureset.DisableParSigChecks)
+
+		vf := sigagg.NewVerifier(bmock)
+		err := vf(ctx, "", nil)
+		require.NoError(t, err)
+	})
+}
 
 func TestSigAgg(t *testing.T) {
 	ctx := context.Background()
