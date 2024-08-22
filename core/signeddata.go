@@ -15,11 +15,13 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
+	"github.com/attestantio/go-eth2-client/spec/deneb"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
@@ -318,6 +320,12 @@ func (p VersionedSignedProposal) MessageRoot() ([32]byte, error) {
 	case eth2spec.DataVersionDeneb:
 		if p.Blinded {
 			return p.DenebBlinded.Message.HashTreeRoot()
+		}
+
+		if featureset.Enabled(featureset.GnosisBlockHotfix) {
+			// translate p.Deneb.SignedBlock to its Gnosis associate and return its hash tree root
+			sbGnosis := deneb.BeaconBlockToGnosis(*p.Deneb.SignedBlock.Message)
+			return sbGnosis.HashTreeRoot()
 		}
 
 		return p.Deneb.SignedBlock.Message.HashTreeRoot()
