@@ -190,6 +190,13 @@ func TestValidateDKGConfig(t *testing.T) {
 		threshold := 1
 		numOperators := 2
 		err := validateDKGConfig(threshold, numOperators, "", nil)
+		require.ErrorContains(t, err, "threshold cannot be smaller than 2")
+	})
+
+	t.Run("insufficient ENRs", func(t *testing.T) {
+		threshold := 2
+		numOperators := 2
+		err := validateDKGConfig(threshold, numOperators, "", nil)
 		require.ErrorContains(t, err, "insufficient operator ENRs")
 	})
 
