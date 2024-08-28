@@ -58,7 +58,7 @@ func TestCreateDkgInvalid(t *testing.T) {
 					"-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
 				}, validENRs...),
 				Threshold: 3,
-				Network: defaultNetwork,
+				Network:   defaultNetwork,
 			},
 			errMsg: "invalid ENR: missing 'enr:' prefix",
 		},
