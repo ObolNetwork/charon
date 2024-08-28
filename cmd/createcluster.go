@@ -51,6 +51,7 @@ const (
 	zeroAddress    = "0x0000000000000000000000000000000000000000"
 	defaultNetwork = "mainnet"
 	minNodes       = 3
+	minThreshold   = 2
 )
 
 type clusterConfig struct {
