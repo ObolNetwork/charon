@@ -324,6 +324,15 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 		return errors.New("missing --nodes flag")
 	}
 
+	// check for threshold parameter
+	if conf.Threshold < 2 {
+		return errors.New("threshold cannot be smaller than 2", z.Int("threshold", conf.Threshold))
+	}
+	if conf.Threshold > conf.NumNodes {
+		return errors.New("threshold cannot be greater than number of operators",
+			z.Int("threshold", conf.Threshold), z.Int("operators", conf.NumNodes))
+	}
+
 	// Check for valid network configuration.
 	if err := validateNetworkConfig(conf); err != nil {
 		return errors.Wrap(err, "get network config")

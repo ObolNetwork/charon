@@ -181,6 +181,10 @@ func validateWithdrawalAddrs(addrs []string, network string) error {
 
 // validateDKGConfig returns an error if any of the provided config parameter is invalid.
 func validateDKGConfig(threshold, numOperators int, network string, depositAmounts []int) error {
+	if threshold < 2 {
+		return errors.New("threshold cannot be smaller than 2", z.Int("threshold", threshold))
+	}
+
 	if threshold > numOperators {
 		return errors.New("threshold cannot be greater than length of operators",
 			z.Int("threshold", threshold), z.Int("operators", numOperators))
