@@ -246,6 +246,26 @@ func TestCreateCluster(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name: "threshold greater than the number of nodes",
+			Config: clusterConfig{
+				NumNodes:  4,
+				Threshold: 5,
+				NumDVs:    1,
+				Network:   defaultNetwork,
+			},
+			expectedErr: "threshold cannot be greater than number of operators",
+		},
+		{
+			Name: "threshold smaller than 2",
+			Config: clusterConfig{
+				NumNodes:  4,
+				Threshold: 1,
+				NumDVs:    1,
+				Network:   defaultNetwork,
+			},
+			expectedErr: "threshold cannot be smaller than 2",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
