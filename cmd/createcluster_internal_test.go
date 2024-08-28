@@ -575,7 +575,7 @@ func TestMultipleAddresses(t *testing.T) {
 		err := runCreateCluster(context.Background(), io.Discard, clusterConfig{
 			NumDVs:            4,
 			NumNodes:          4,
-			Threshold:         minThreshold, 
+			Threshold:         minThreshold,
 			Network:           defaultNetwork,
 			FeeRecipientAddrs: []string{},
 			WithdrawalAddrs:   []string{},
@@ -587,7 +587,7 @@ func TestMultipleAddresses(t *testing.T) {
 		err := runCreateCluster(context.Background(), io.Discard, clusterConfig{
 			NumDVs:            1,
 			NumNodes:          4,
-			Threshold:         3, 
+			Threshold:         3,
 			Network:           defaultNetwork,
 			FeeRecipientAddrs: []string{feeRecipientAddr},
 			WithdrawalAddrs:   []string{},
@@ -661,7 +661,7 @@ func TestKeymanager(t *testing.T) {
 		SplitKeysDir:         keyDir,
 		SplitKeys:            true,
 		NumNodes:             minNodes,
-		Threshold:            minThreshold, 
+		Threshold:            minThreshold,
 		KeymanagerAddrs:      addrs,
 		KeymanagerAuthTokens: authTokens,
 		Network:              eth2util.Goerli.Name,
