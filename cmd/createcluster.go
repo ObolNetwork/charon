@@ -144,6 +144,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		}
 
 		conf.NumNodes = len(def.Operators)
+		conf.Threshold = def.Threshold
 	}
 
 	if err = validateCreateConfig(ctx, conf); err != nil {
