@@ -218,7 +218,7 @@ func TestCreateCluster(t *testing.T) {
 			Config: clusterConfig{
 				Name:      "test_cluster",
 				NumNodes:  3,
-				Threshold: 4,
+				Threshold: 3,
 				NumDVs:    5,
 				Network:   "goerli",
 			},
