@@ -187,7 +187,7 @@ func validateDKGConfig(threshold, numOperators int, network string, depositAmoun
 	}
 
 	// Ensure threshold setting is sound
-	if threshold < 2 {
+	if threshold < minThreshold {
 		return errors.New("threshold cannot be smaller than 2", z.Int("threshold", threshold))
 	}
 	if threshold > numOperators {

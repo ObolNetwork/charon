@@ -369,7 +369,7 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 	}
 
 	// check for threshold parameter
-	if conf.Threshold < 2 {
+	if conf.Threshold < minThreshold {
 		return errors.New("threshold cannot be smaller than 2", z.Int("threshold", conf.Threshold))
 	}
 	if conf.Threshold > conf.NumNodes {
