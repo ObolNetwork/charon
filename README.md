@@ -9,7 +9,7 @@
 
 This repo contains the source code for the distributed validator client _Charon_ (pronounced 'kharon'); a HTTP middleware client for Ethereum Staking that enables you to safely run a single validator across a group of independent nodes.
 
-Charon is accompanied by a webapp called the [Distributed Validator Launchpad](https://goerli.launchpad.obol.tech/) for distributed validator key creation.
+Charon is accompanied by a webapp called the [Distributed Validator Launchpad](https://holesky.launchpad.obol.tech/) for distributed validator key creation.
 
 Charon is used by stakers to distribute the responsibility of running Ethereum Validators across a number of different instances and client implementations.
 
