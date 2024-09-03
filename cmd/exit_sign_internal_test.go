@@ -92,7 +92,7 @@ func Test_runSubmitPartialExit(t *testing.T) {
 		)
 	})
 
-	t.Run("main flow with expert mode with bad pubkey", func(t *testing.T) {
+	t.Run("main flow with skipBeaconNodeCheck mode with bad pubkey", func(t *testing.T) {
 		runSubmitPartialExitFlowTest(
 			t,
 			true,
@@ -103,7 +103,7 @@ func Test_runSubmitPartialExit(t *testing.T) {
 		)
 	})
 
-	t.Run("main flow with expert mode with pubkey not found in cluster lock", func(t *testing.T) {
+	t.Run("main flow with skipBeaconNodeCheck mode with pubkey not found in cluster lock", func(t *testing.T) {
 		runSubmitPartialExitFlowTest(
 			t,
 			true,
@@ -120,14 +120,14 @@ func Test_runSubmitPartialExit(t *testing.T) {
 	t.Run("main flow with validator index", func(t *testing.T) {
 		runSubmitPartialExitFlowTest(t, true, false, "", 0, "")
 	})
-	t.Run("main flow with expert mode", func(t *testing.T) {
+	t.Run("main flow with skipBeaconNodeCheck mode", func(t *testing.T) {
 		runSubmitPartialExitFlowTest(t, true, true, "", 0, "")
 	})
 
 	t.Run("config", Test_runSubmitPartialExit_Config)
 }
 
-func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, expertMode bool, valPubkey string, valIndex uint64, errString string) {
+func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, skipBeaconNodeCheck bool, valPubkey string, valIndex uint64, errString string) {
 	t.Helper()
 	t.Parallel()
 	ctx := context.Background()
@@ -215,11 +215,11 @@ func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, expertMode bool,
 		pubkey = valPubkey
 	}
 
-	if expertMode {
+	if skipBeaconNodeCheck {
 		config.ValidatorIndex = index
 		config.ValidatorIndexPresent = true
 		config.ValidatorPubkey = pubkey
-		config.ExpertMode = true
+		config.SkipBeaconNodeCheck = true
 	} else {
 		if useValIdx {
 			config.ValidatorIndex = index

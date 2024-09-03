@@ -5,7 +5,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -13,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
@@ -60,13 +60,12 @@ func newSubmitPartialExitCmd(runFunc func(context.Context, exitConfig) error) *c
 		valIdxPresent := cmd.Flags().Lookup(validatorIndex.String()).Changed
 		valPubkPresent := cmd.Flags().Lookup(validatorPubkey.String()).Changed
 
-		if strings.TrimSpace(config.ValidatorPubkey) == "" && !valIdxPresent {
-			//nolint:revive // we use our own version of the errors package.
+		if valIdxPresent && !valIdxPresent {
 			return errors.New(fmt.Sprintf("either %s or %s must be specified at least.", validatorIndex.String(), validatorPubkey.String()))
 		}
 
 		config.ValidatorIndexPresent = valIdxPresent
-		config.ExpertMode = valIdxPresent && valPubkPresent
+		config.SkipBeaconNodeCheck = valIdxPresent && valPubkPresent
 
 		return nil
 	})
@@ -100,34 +99,9 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "could not match local validator key shares with their counterparty in cluster lock")
 	}
 
-	validator := core.PubKey(config.ValidatorPubkey)
-
-	valEth2, err := validator.ToETH2()
-	if err != nil {
-		if (strings.TrimSpace(config.ValidatorPubkey) != "" && !config.ValidatorIndexPresent) || config.ExpertMode {
-			return errors.Wrap(err, "cannot convert validator pubkey to bytes")
-		}
-	}
-
-	switch {
-	case config.ExpertMode:
-		ctx = log.WithCtx(ctx, z.U64("validator_index", config.ValidatorIndex), z.Str("validator", validator.String()))
-	case config.ValidatorIndexPresent && !config.ExpertMode:
-		ctx = log.WithCtx(ctx, z.U64("validator_index", config.ValidatorIndex))
-	default:
-		ctx = log.WithCtx(ctx, z.Str("validator", validator.String()))
-	}
-
 	shareIdx, err := keystore.ShareIdxForCluster(cl, *identityKey.PubKey())
 	if err != nil {
 		return errors.Wrap(err, "could not determine operator index from cluster lock for supplied identity key")
-	}
-
-	ourShare, ok := shares[validator]
-	if !ok {
-		if (strings.TrimSpace(config.ValidatorPubkey) != "" && !config.ValidatorIndexPresent) || config.ExpertMode {
-			return errors.New("validator not present in cluster lock", z.Str("validator", validator.String()))
-		}
 	}
 
 	oAPI, err := obolapi.New(config.PublishAddress, obolapi.WithTimeout(config.PublishTimeout))
@@ -135,61 +109,42 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "could not create obol api client")
 	}
 
-	log.Info(ctx, "Signing exit message for validator")
-
-	var valIndex eth2p0.ValidatorIndex
-	var valIndexFound bool
-
-	valAPICallOpts := &eth2api.ValidatorsOpts{
-		State: "head",
-	}
-
-	if config.ValidatorIndexPresent {
-		valAPICallOpts.Indices = []eth2p0.ValidatorIndex{
-			eth2p0.ValidatorIndex(config.ValidatorIndex),
-		}
-		valIndex = eth2p0.ValidatorIndex(config.ValidatorIndex)
-	} else {
-		valAPICallOpts.PubKeys = []eth2p0.BLSPubKey{
-			valEth2,
-		}
-	}
-
 	eth2Cl, err := eth2Client(ctx, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.GetForkVersion()))
 	if err != nil {
 		return errors.Wrap(err, "cannot create eth2 client for specified beacon node")
 	}
 
-	if !config.ExpertMode {
-		rawValData, err := eth2Cl.Validators(ctx, valAPICallOpts)
-		if err != nil {
-			return errors.Wrap(err, "cannot fetch validator")
-		}
-
-		valData := rawValData.Data
-
-		for _, val := range valData {
-			if val.Validator.PublicKey == valEth2 || val.Index == eth2p0.ValidatorIndex(config.ValidatorIndex) {
-				valIndex = val.Index
-				valIndexFound = true
-
-				// re-initialize state variable after looking up all the necessary details, since user only provided a validator index
-				if config.ValidatorIndexPresent {
-					valEth2 = val.Validator.PublicKey
-					ourShare, ok = shares[core.PubKeyFrom48Bytes(valEth2)]
-					if !ok && !config.ValidatorIndexPresent {
-						return errors.New("validator not present in cluster lock", z.U64("validator_index", config.ValidatorIndex), z.Str("validator", validator.String()))
-					}
-				}
-
-				break
-			}
-		}
-
-		if !valIndexFound {
-			return errors.New("validator index not found in beacon node response")
-		}
+	logFields := []z.Field{}
+	if config.ValidatorIndexPresent {
+		logFields = append(logFields, z.U64("validator_index", config.ValidatorIndex))
 	}
+	if config.ValidatorPubkey != "" {
+		logFields = append(logFields, z.Str("validator_pubkey", config.ValidatorPubkey))
+	}
+	ctx = log.WithCtx(ctx, logFields...)
+
+	if config.SkipBeaconNodeCheck {
+		log.Info(ctx, "Both public key and index are specified, beacon node won't be checked for validator existence/liveness")
+	}
+
+	valEth2, err := fetchValidatorBLSPubKey(ctx, config, eth2Cl)
+	if err != nil {
+		return errors.Wrap(err, "cannot fetch validator public key")
+	}
+
+	validator := core.PubKeyFrom48Bytes(valEth2)
+
+	ourShare, ok := shares[validator]
+	if !ok {
+		return errors.New("validator not present in cluster lock", z.Str("validator", validator.String()))
+	}
+
+	valIndex, err := fetchValidatorIndex(ctx, config, eth2Cl)
+	if err != nil {
+		return errors.Wrap(err, "cannot fetch validator index")
+	}
+
+	log.Info(ctx, "Signing exit message for validator")
 
 	exitMsg, err := signExit(ctx, eth2Cl, valIndex, ourShare.Share, eth2p0.Epoch(config.ExitEpoch))
 	if err != nil {
@@ -206,4 +161,61 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 	}
 
 	return nil
+}
+
+func fetchValidatorBLSPubKey(ctx context.Context, config exitConfig, eth2Cl eth2wrap.Client) (eth2p0.BLSPubKey, error) {
+	if config.ValidatorPubkey != "" {
+		valEth2, err := core.PubKey(config.ValidatorPubkey).ToETH2()
+		if err != nil {
+			return eth2p0.BLSPubKey{}, errors.Wrap(err, "cannot convert validator pubkey to bytes")
+		}
+		return valEth2, nil
+	}
+
+	valAPICallOpts := &eth2api.ValidatorsOpts{
+		State:   "head",
+		Indices: []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(config.ValidatorIndex)},
+	}
+
+	rawValData, err := eth2Cl.Validators(ctx, valAPICallOpts)
+	if err != nil {
+		return eth2p0.BLSPubKey{}, errors.Wrap(err, "cannot fetch validators")
+	}
+
+	for _, val := range rawValData.Data {
+		if val.Index == eth2p0.ValidatorIndex(config.ValidatorIndex) {
+			return val.Validator.PublicKey, nil
+		}
+	}
+
+	return eth2p0.BLSPubKey{}, errors.New("validator index not found in beacon node response")
+}
+
+func fetchValidatorIndex(ctx context.Context, config exitConfig, eth2Cl eth2wrap.Client) (eth2p0.ValidatorIndex, error) {
+	if config.ValidatorIndexPresent {
+		return eth2p0.ValidatorIndex(config.ValidatorIndex), nil
+	}
+
+	valEth2, err := core.PubKey(config.ValidatorPubkey).ToETH2()
+	if err != nil {
+		return 0, errors.Wrap(err, "cannot convert validator pubkey to bytes")
+	}
+
+	valAPICallOpts := &eth2api.ValidatorsOpts{
+		State:   "head",
+		PubKeys: []eth2p0.BLSPubKey{valEth2},
+	}
+
+	rawValData, err := eth2Cl.Validators(ctx, valAPICallOpts)
+	if err != nil {
+		return 0, errors.Wrap(err, "cannot fetch validators")
+	}
+
+	for _, val := range rawValData.Data {
+		if val.Validator.PublicKey == valEth2 {
+			return eth2p0.ValidatorIndex(val.Index), nil
+		}
+	}
+
+	return 0, errors.New("validator public key not found in beacon node response")
 }
