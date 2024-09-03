@@ -28,7 +28,7 @@ type AutoConfig struct {
 	RunTmplFunc func(*TmplData)
 	// DefineTmplFunc allows arbitrary overrides if the define step template.
 	DefineTmplFunc func(*TmplData)
-	// LogFile enables writing (appending) docker-compose output to this file path instead of stdout.
+	// LogFile enables writing (appending) docker compose output to this file path instead of stdout.
 	LogFile string
 }
 
@@ -106,7 +106,7 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 
 	_, _ = w.Write([]byte("===== run step: docker compose up --no-start --build =====\n"))
 
-	// Build and create docker-compose services before executing docker compose up.
+	// Build and create docker compose services before executing docker compose up.
 	if err = execBuildAndCreate(ctx, conf.Dir); err != nil {
 		return err
 	}
@@ -204,7 +204,7 @@ func execDown(ctx context.Context, dir string) error {
 // execUp executes `docker compose up` and it writes docker compose logs to the given out io.Writer.
 func execUp(ctx context.Context, dir string, out io.Writer) error {
 	// Build first so containers start at the same time below.
-	log.Info(ctx, "Executing docker-compose build")
+	log.Info(ctx, "Executing docker compose build")
 	cmd := exec.CommandContext(ctx, "docker", "compose", "build", "--parallel")
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -226,7 +226,7 @@ func execUp(ctx context.Context, dir string, out io.Writer) error {
 			err = ctx.Err()
 		}
 
-		return errors.Wrap(err, "exec docker-compose up")
+		return errors.Wrap(err, "exec docker compose up")
 	}
 
 	return nil
