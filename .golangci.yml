@@ -183,13 +183,3 @@ linters:
     # Deprecated
     - goerr113
     - execinquery
-    - deadcode
-    - exhaustivestruct
-    - golint
-    - ifshort
-    - interfacer
-    - maligned
-    - nosnakecase
-    - structcheck
-    - scopelint
-    - varcheck
