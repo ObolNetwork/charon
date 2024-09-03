@@ -39,6 +39,10 @@ func TestCreateCluster(t *testing.T) {
 	def, err := loadDefinition(context.Background(), defPath)
 	require.NoError(t, err)
 
+	defPathTwoNodes := "../cluster/examples/cluster-definition-001.json"
+	defTwoNodes, err := loadDefinition(context.Background(), defPathTwoNodes)
+	require.NoError(t, err)
+
 	tests := []struct {
 		Name            string
 		Config          clusterConfig
@@ -218,7 +222,7 @@ func TestCreateCluster(t *testing.T) {
 			Config: clusterConfig{
 				Name:      "test_cluster",
 				NumNodes:  3,
-				Threshold: 4,
+				Threshold: 3,
 				NumDVs:    5,
 				Network:   "goerli",
 			},
@@ -230,6 +234,34 @@ func TestCreateCluster(t *testing.T) {
 
 				return config
 			},
+		},
+		{
+			Name: "test with threshold larger than number of nodes",
+			Config: clusterConfig{
+				Name:      "test_cluster",
+				NumNodes:  3,
+				Threshold: 4,
+				NumDVs:    5,
+				Network:   "goerli",
+			},
+			expectedErr: "threshold cannot be greater than number of nodes",
+		},
+		{
+			Name: "test with number of nodes below minimum",
+			Config: clusterConfig{
+				Name:      "test_cluster",
+				NumNodes:  2,
+				Threshold: 2,
+				NumDVs:    1,
+				Network:   "goerli",
+			},
+			defFileProvider: func() []byte {
+				data, err := json.Marshal(defTwoNodes)
+				require.NoError(t, err)
+
+				return data
+			},
+			expectedErr: "number of nodes is below minimum",
 		},
 		{
 			Name: "custom testnet flags",

@@ -186,9 +186,9 @@ func validateDKGConfig(threshold, numOperators int, network string, depositAmoun
 			z.Int("threshold", threshold), z.Int("operators", numOperators))
 	}
 
-	// Don't allow cluster size to be less than 4.
+	// Don't allow cluster size to be less than 3.
 	if numOperators < minNodes {
-		return errors.New("insufficient operator ENRs", z.Int("count", numOperators), z.Int("min", minNodes))
+		return errors.New("number of operators is below minimum", z.Int("operators", numOperators), z.Int("min", minNodes))
 	}
 
 	if !eth2util.ValidNetwork(network) {

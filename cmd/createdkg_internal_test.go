@@ -90,11 +90,11 @@ func TestCreateDkgInvalid(t *testing.T) {
 		},
 		{
 			conf:   createDKGConfig{OperatorENRs: []string{""}},
-			errMsg: "insufficient operator ENRs",
+			errMsg: "number of operators is below minimum",
 		},
 		{
 			conf:   createDKGConfig{},
-			errMsg: "insufficient operator ENRs",
+			errMsg: "number of operators is below minimum",
 		},
 	}
 
@@ -120,7 +120,7 @@ func TestRequireOperatorENRFlag(t *testing.T) {
 		{
 			name: "operator ENRs less than threshold",
 			args: []string{"dkg", "--operator-enrs=enr:-JG4QG472ZVvl8ySSnUK9uNVDrP_hjkUrUqIxUC75aayzmDVQedXkjbqc7QKyOOS71VmlqnYzri_taV8ZesFYaoQSIOGAYHtv1WsgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u", "--fee-recipient-addresses=0xa6430105220d0b29688b734b8ea0f3ca9936e846", "--withdrawal-addresses=0xa6430105220d0b29688b734b8ea0f3ca9936e846"},
-			err:  "insufficient operator ENRs",
+			err:  "number of operators is below minimum",
 		},
 	}
 
@@ -186,11 +186,11 @@ func TestValidateDKGConfig(t *testing.T) {
 		require.ErrorContains(t, err, "threshold cannot be greater than length of operators")
 	})
 
-	t.Run("insufficient ENRs", func(t *testing.T) {
+	t.Run("number of operators is below minimum", func(t *testing.T) {
 		threshold := 1
 		numOperators := 2
 		err := validateDKGConfig(threshold, numOperators, "", nil)
-		require.ErrorContains(t, err, "insufficient operator ENRs")
+		require.ErrorContains(t, err, "number of operators is below minimum")
 	})
 
 	t.Run("invalid network", func(t *testing.T) {
