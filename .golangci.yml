@@ -116,6 +116,12 @@ linters-settings:
       - expected-actual
     go-require:
       ignore-http-handlers: true
+  gosec:
+    excludes:
+      # Flags for potentially-unsafe casting of ints, seems good,
+      # but currently is really unstable with no clear way to make the linter pass.
+      # https://github.com/securego/gosec/issues/1187
+      - G115
 
 issues:
   fix: true
@@ -158,7 +164,6 @@ linters:
     - gocyclo
     - godot
     - godox
-    - goerr113
     - gomnd
     - gomoddirectives
     - inamedparam
@@ -176,6 +181,8 @@ linters:
     - varnamelen
     - wsl
     # Deprecated
+    - goerr113
+    - execinquery
     - deadcode
     - exhaustivestruct
     - golint
