@@ -61,6 +61,7 @@ func newSubmitPartialExitCmd(runFunc func(context.Context, exitConfig) error) *c
 		valPubkPresent := cmd.Flags().Lookup(validatorPubkey.String()).Changed
 
 		if valIdxPresent && !valIdxPresent {
+			//nolint:revive // we use our own version of the errors package.
 			return errors.New(fmt.Sprintf("either %s or %s must be specified at least.", validatorIndex.String(), validatorPubkey.String()))
 		}
 
@@ -169,6 +170,7 @@ func fetchValidatorBLSPubKey(ctx context.Context, config exitConfig, eth2Cl eth2
 		if err != nil {
 			return eth2p0.BLSPubKey{}, errors.Wrap(err, "cannot convert validator pubkey to bytes")
 		}
+
 		return valEth2, nil
 	}
 
@@ -213,7 +215,7 @@ func fetchValidatorIndex(ctx context.Context, config exitConfig, eth2Cl eth2wrap
 
 	for _, val := range rawValData.Data {
 		if val.Validator.PublicKey == valEth2 {
-			return eth2p0.ValidatorIndex(val.Index), nil
+			return val.Index, nil
 		}
 	}
 
