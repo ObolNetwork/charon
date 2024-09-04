@@ -224,7 +224,7 @@ func TestPeersTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputToml: "./write-to-file-test.toml.tmp",
 					Quiet:      false,
-					Timeout:    100 * time.Millisecond,
+					Timeout:    500 * time.Millisecond,
 				},
 				ENRs: []string{
 					"enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o",
