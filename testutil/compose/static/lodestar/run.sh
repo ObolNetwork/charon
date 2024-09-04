@@ -17,7 +17,7 @@ for f in /compose/"${NODE}"/validator_keys/keystore-*.json; do
     node /usr/app/packages/cli/bin/lodestar validator import \
         --network="dev" \
         --importKeystores="$f" \
-        --importKeystoresPassword="${f//json/txt}"
+        --importKeystoresPassword="${f%.json}.txt"
 done
 
 echo "Imported all keys"
