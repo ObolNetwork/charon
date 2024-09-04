@@ -77,7 +77,7 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 	}
 
 	log.Info(ctx, "Creating docker-compose.yml")
-	log.Info(ctx, "Create keys and cluster lock with: docker-compose up")
+	log.Info(ctx, "Create keys and cluster lock with: docker compose up")
 
 	conf.Step = stepLocked
 	if err := WriteConfig(dir, conf); err != nil {

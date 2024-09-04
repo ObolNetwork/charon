@@ -1,7 +1,7 @@
 // Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Command compose provides a tool to run, test, debug local charon clusters
-// using docker-compose.
+// using docker compose.
 //
 //	It consists of multiple steps:
 //	 - compose new: Creates a new config.json that defines what will be composed.
@@ -34,7 +34,7 @@ func main() {
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "compose",
-		Short: "Charon Compose - Run, test, and debug a developer-focussed insecure local charon cluster using docker-compose",
+		Short: "Charon Compose - Run, test, and debug a developer-focussed insecure local charon cluster using docker compose",
 	}
 
 	root.AddCommand(newNewCmd())

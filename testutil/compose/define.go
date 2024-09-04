@@ -145,7 +145,7 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 			Nodes:          []TmplNode{n},
 		}
 	} else {
-		// Other keygens only need a noop docker-compose, since charon-compose.yml
+		// Other keygens only need a noop docker compose, since charon-compose.yml
 		// is used directly in their compose lock.
 
 		data = TmplData{
@@ -169,7 +169,7 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 	}
 
 	log.Info(ctx, "Creating docker-compose.yml")
-	log.Info(ctx, "Create cluster definition: docker-compose up")
+	log.Info(ctx, "Create cluster definition: docker compose up")
 
 	if err := WriteDockerCompose(dir, data); err != nil {
 		return TmplData{}, err

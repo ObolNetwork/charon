@@ -1,5 +1,3 @@
-version: "3.8"
-
 x-node-base: &node-base
   image: obolnetwork/charon:latest
   command: run
@@ -211,7 +209,7 @@ services:
       - .:/compose
   
   curl:
-    # Can be used to curl services; e.g. docker-compose exec curl curl http://prometheus:9090/api/v1/rules\?type\=alert
+    # Can be used to curl services; e.g. docker compose exec curl curl http://prometheus:9090/api/v1/rules\?type\=alert
     image: curlimages/curl:latest
     command: sleep 1d
     networks: [compose]
