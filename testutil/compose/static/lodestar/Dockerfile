@@ -1,6 +1,6 @@
 FROM chainsafe/lodestar:v1.21.0
 
-RUN apt-get update && apt-get -y install curl jq wget
+RUN apt-get update && apt-get install -y curl jq wget
 
 ENV YQ_VERSION=v4.23.1
 ENV YQ_BINARY=yq_linux_amd64
