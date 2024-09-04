@@ -60,7 +60,7 @@ func newSubmitPartialExitCmd(runFunc func(context.Context, exitConfig) error) *c
 		valIdxPresent := cmd.Flags().Lookup(validatorIndex.String()).Changed
 		valPubkPresent := cmd.Flags().Lookup(validatorPubkey.String()).Changed
 
-		if valIdxPresent && !valIdxPresent {
+		if !valPubkPresent && !valIdxPresent {
 			//nolint:revive // we use our own version of the errors package.
 			return errors.New(fmt.Sprintf("either %s or %s must be specified at least.", validatorIndex.String(), validatorPubkey.String()))
 		}
@@ -115,14 +115,12 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "cannot create eth2 client for specified beacon node")
 	}
 
-	logFields := []z.Field{}
 	if config.ValidatorIndexPresent {
-		logFields = append(logFields, z.U64("validator_index", config.ValidatorIndex))
+		ctx = log.WithCtx(ctx, z.U64("validator_index", config.ValidatorIndex))
 	}
 	if config.ValidatorPubkey != "" {
-		logFields = append(logFields, z.Str("validator_pubkey", config.ValidatorPubkey))
+		ctx = log.WithCtx(ctx, z.Str("validator_pubkey", config.ValidatorPubkey))
 	}
-	ctx = log.WithCtx(ctx, logFields...)
 
 	if config.SkipBeaconNodeCheck {
 		log.Info(ctx, "Both public key and index are specified, beacon node won't be checked for validator existence/liveness")
