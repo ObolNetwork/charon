@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/url"
 	"os"
 	"path"
@@ -368,9 +369,15 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 		}
 	}
 
-	// check for threshold parameter
+	// Don't allow cluster size to be less than 3.
+	if conf.NumNodes < minNodes {
+		return errors.New("number of operators is below minimum", z.Int("operators", conf.NumNodes), z.Int("min", minNodes))
+	}
+
+	// Check for threshold parameter
+	minThreshold := int(math.Ceil(float64(conf.NumNodes*2) / 3))
 	if conf.Threshold < minThreshold {
-		return errors.New("threshold cannot be smaller than 2", z.Int("threshold", conf.Threshold))
+		return errors.New("threshold cannot be smaller than BFT quorum", z.Int("threshold", conf.Threshold), z.Int("min", minThreshold))
 	}
 	if conf.Threshold > conf.NumNodes {
 		return errors.New("threshold cannot be greater than number of operators",

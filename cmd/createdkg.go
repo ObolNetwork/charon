@@ -6,6 +6,7 @@ import (
 	"context"
 	crand "crypto/rand"
 	"encoding/json"
+	"math"
 	"os"
 	"path"
 
@@ -181,14 +182,15 @@ func validateWithdrawalAddrs(addrs []string, network string) error {
 
 // validateDKGConfig returns an error if any of the provided config parameter is invalid.
 func validateDKGConfig(threshold, numOperators int, network string, depositAmounts []int) error {
-	// Don't allow cluster size to be less than 4.
+	// Don't allow cluster size to be less than 3.
 	if numOperators < minNodes {
-		return errors.New("insufficient operator ENRs", z.Int("count", numOperators), z.Int("min", minNodes))
+		return errors.New("number of operators is below minimum", z.Int("operators", numOperators), z.Int("min", minNodes))
 	}
 
 	// Ensure threshold setting is sound
+	minThreshold := int(math.Ceil(float64(numOperators*2) / 3))
 	if threshold < minThreshold {
-		return errors.New("threshold cannot be smaller than 2", z.Int("threshold", threshold))
+		return errors.New("threshold cannot be smaller than BFT quorum", z.Int("threshold", threshold), z.Int("min", minThreshold))
 	}
 	if threshold > numOperators {
 		return errors.New("threshold cannot be greater than length of operators",

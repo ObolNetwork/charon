@@ -39,6 +39,10 @@ func TestCreateCluster(t *testing.T) {
 	def, err := loadDefinition(context.Background(), defPath)
 	require.NoError(t, err)
 
+	defPathTwoNodes := "../cluster/examples/cluster-definition-001.json"
+	defTwoNodes, err := loadDefinition(context.Background(), defPathTwoNodes)
+	require.NoError(t, err)
+
 	tests := []struct {
 		Name            string
 		Config          clusterConfig
@@ -247,7 +251,7 @@ func TestCreateCluster(t *testing.T) {
 			},
 		},
 		{
-			Name: "threshold greater than the number of nodes",
+			Name: "threshold greater than the number of operators",
 			Config: clusterConfig{
 				NumNodes:  4,
 				Threshold: 5,
@@ -257,14 +261,31 @@ func TestCreateCluster(t *testing.T) {
 			expectedErr: "threshold cannot be greater than number of operators",
 		},
 		{
-			Name: "threshold smaller than 2",
+			Name: "threshold smaller than BFT quorum",
 			Config: clusterConfig{
 				NumNodes:  4,
-				Threshold: 1,
+				Threshold: 2,
 				NumDVs:    1,
 				Network:   defaultNetwork,
 			},
-			expectedErr: "threshold cannot be smaller than 2",
+			expectedErr: "threshold cannot be smaller than BFT quorum",
+		},
+		{
+			Name: "test with number of nodes below minimum",
+			Config: clusterConfig{
+				Name:      "test_cluster",
+				NumNodes:  2,
+				Threshold: 2,
+				NumDVs:    1,
+				Network:   "goerli",
+			},
+			defFileProvider: func() []byte {
+				data, err := json.Marshal(defTwoNodes)
+				require.NoError(t, err)
+
+				return data
+			},
+			expectedErr: "number of operators is below minimum",
 		},
 	}
 	for _, test := range tests {
@@ -575,7 +596,7 @@ func TestMultipleAddresses(t *testing.T) {
 		err := runCreateCluster(context.Background(), io.Discard, clusterConfig{
 			NumDVs:            4,
 			NumNodes:          4,
-			Threshold:         minThreshold,
+			Threshold:         3,
 			Network:           defaultNetwork,
 			FeeRecipientAddrs: []string{},
 			WithdrawalAddrs:   []string{},
