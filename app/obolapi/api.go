@@ -123,7 +123,6 @@ func httpPost(ctx context.Context, url *url.URL, b []byte) error {
 		return errors.Wrap(err, "failed to read POST response")
 	}
 
-	//nolint:usestdlibvars // we should not replace 100 with http.StatusContinue, it makes it less readable
 	if res.StatusCode/100 != 2 {
 		return errors.New("post failed", z.Int("status", res.StatusCode), z.Str("body", string(data)))
 	}
