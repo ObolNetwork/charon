@@ -22,7 +22,7 @@ type exitConfig struct {
 	ValidatorPubkey       string
 	ValidatorIndex        uint64
 	ValidatorIndexPresent bool
-	ExpertMode            bool
+	SkipBeaconNodeCheck   bool
 	PrivateKeyPath        string
 	ValidatorKeysDir      string
 	LockFilePath          string
