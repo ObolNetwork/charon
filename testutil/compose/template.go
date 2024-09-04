@@ -85,7 +85,7 @@ func WriteDockerCompose(dir string, data TmplData) error {
 
 	err = os.WriteFile(path.Join(dir, "docker-compose.yml"), buf.Bytes(), 0o755) //nolint:gosec
 	if err != nil {
-		return errors.Wrap(err, "write docker-compose")
+		return errors.Wrap(err, "write docker-compose.yml")
 	}
 
 	return nil

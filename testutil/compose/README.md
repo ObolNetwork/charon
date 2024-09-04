@@ -1,6 +1,6 @@
 # Charon Compose
 
-> Run, test, and debug a developer-focussed insecure local charon cluster using docker-compose
+> Run, test, and debug a developer-focussed insecure local charon cluster using docker compose
 
 Compose is a tool that generates `docker-compose.yml` files such that different charon clusters can be created and run.
 
@@ -16,7 +16,7 @@ The `compose` command also includes some convenience functions.
 - `compose clean`: Cleans the compose directory of existing files.
 - `compose auto`: Runs `compose define && compose lock && compose run`.
 
-Note that compose automatically runs `docker-compose up` at the end of each command. This can be disabled via `--up=false`.
+Note that compose automatically runs `docker compose up` at the end of each command. This can be disabled via `--up=false`.
 
 The `compose new` step configures the target cluster and key generation process. See `compose new --help` for supported flags.
 
