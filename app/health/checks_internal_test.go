@@ -407,19 +407,19 @@ func testCheck(t *testing.T, m Metadata, checkName string, expect bool, metrics 
 		genGauge(genLabels("bar", "bar2"), 1, 1, 1),
 	)
 
-	var max int
-	if len(metrics) > max {
-		max = len(metrics)
+	var maxVal int
+	if len(metrics) > maxVal {
+		maxVal = len(metrics)
 	}
-	if len(randomFamFoo) > max {
-		max = len(randomFamFoo)
+	if len(randomFamFoo) > maxVal {
+		maxVal = len(randomFamFoo)
 	}
-	if len(randomFamBar) > max {
-		max = len(randomFamBar)
+	if len(randomFamBar) > maxVal {
+		maxVal = len(randomFamBar)
 	}
 
-	multiFams := make([][]*pb.MetricFamily, max)
-	for i := range max {
+	multiFams := make([][]*pb.MetricFamily, maxVal)
+	for i := range maxVal {
 		var fam []*pb.MetricFamily
 		if i < len(metrics) {
 			fam = append(fam, metrics[i])
@@ -455,14 +455,14 @@ func genFam(name string, metrics ...[]*pb.Metric) []*pb.MetricFamily {
 		typ = pb.MetricType_GAUGE
 	}
 
-	var max int
+	var maxVal int
 	for _, series := range metrics {
-		if len(series) > max {
-			max = len(series)
+		if len(series) > maxVal {
+			maxVal = len(series)
 		}
 	}
 
-	resp := make([]*pb.MetricFamily, max)
+	resp := make([]*pb.MetricFamily, maxVal)
 	for _, series := range metrics {
 		for i, metric := range series {
 			if resp[i] == nil {

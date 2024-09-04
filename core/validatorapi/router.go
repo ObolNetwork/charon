@@ -1144,7 +1144,6 @@ func writeError(ctx context.Context, w http.ResponseWriter, endpoint string, err
 		}
 	}
 
-	//nolint:usestdlibvars // we should not replace 100 with http.StatusContinue, it makes it less readable
 	if aerr.StatusCode/100 == 4 {
 		// 4xx status codes are client errors (not server), so log as debug only.
 		log.Debug(ctx, "Validator api 4xx response",

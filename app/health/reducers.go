@@ -29,16 +29,16 @@ func increase(samples []*pb.Metric) (float64, error) {
 
 // gaugeMax returns the maximum value in a time series of gauge metrics.
 func gaugeMax(samples []*pb.Metric) (float64, error) {
-	var max float64
+	var maxVal float64
 	for _, sample := range samples {
 		if sample.GetGauge() == nil {
 			return 0, errors.New("bug: non-gauge metric passed")
 		}
 
-		if sample.GetGauge().GetValue() > max {
-			max = sample.GetGauge().GetValue()
+		if sample.GetGauge().GetValue() > maxVal {
+			maxVal = sample.GetGauge().GetValue()
 		}
 	}
 
-	return max, nil
+	return maxVal, nil
 }
