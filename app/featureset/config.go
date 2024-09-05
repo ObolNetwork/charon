@@ -83,6 +83,29 @@ func Init(ctx context.Context, config Config) error {
 	return nil
 }
 
+// EnableGnosisBlockHotfixIfNotDisabled enables GnosisBlockHotfix if it was not disabled by the user.
+// This is still a temporary workaround for the gnosis chain.
+// When go-eth2-client is fully supporting custom specs, this function has be removed with GnosisBlockHotfix feature.
+func EnableGnosisBlockHotfixIfNotDisabled(ctx context.Context, config Config) {
+	initMu.Lock()
+	defer initMu.Unlock()
+
+	disabled := false
+
+	for _, f := range config.Disabled {
+		if strings.EqualFold(string(GnosisBlockHotfix), f) {
+			disabled = true
+			break
+		}
+	}
+
+	if disabled {
+		log.Warn(ctx, "Feature gnosis_block_hotfix is required by gnosis/chiado, but explicitly disabled", nil)
+	} else {
+		state[GnosisBlockHotfix] = enable
+	}
+}
+
 // EnableForT enables a feature for testing.
 func EnableForT(t *testing.T, feature Feature) {
 	t.Helper()

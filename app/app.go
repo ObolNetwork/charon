@@ -171,6 +171,14 @@ func Run(ctx context.Context, conf Config) (err error) {
 		network = "unknown"
 	}
 
+	// For Gnosis/Chiado we automatically enable GnosisBlockHotfix feature.
+	if network == eth2util.Chiado.Name || network == eth2util.Gnosis.Name {
+		// Even though we alter the feature flag post Init() call,
+		// this shall be safe for the GnosisBlockHotfix feature flag.
+		// We don't expect any serialization to happen in between.
+		featureset.EnableGnosisBlockHotfixIfNotDisabled(ctx, conf.Feature)
+	}
+
 	p2pKey := conf.TestConfig.P2PKey
 	if p2pKey == nil {
 		var err error
