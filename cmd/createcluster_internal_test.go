@@ -39,6 +39,10 @@ func TestCreateCluster(t *testing.T) {
 	def, err := loadDefinition(context.Background(), defPath)
 	require.NoError(t, err)
 
+	defPathTwoNodes := "../cluster/examples/cluster-definition-001.json"
+	defTwoNodes, err := loadDefinition(context.Background(), defPathTwoNodes)
+	require.NoError(t, err)
+
 	tests := []struct {
 		Name            string
 		Config          clusterConfig
@@ -218,7 +222,7 @@ func TestCreateCluster(t *testing.T) {
 			Config: clusterConfig{
 				Name:      "test_cluster",
 				NumNodes:  3,
-				Threshold: 4,
+				Threshold: 3,
 				NumDVs:    5,
 				Network:   "goerli",
 			},
@@ -245,6 +249,43 @@ func TestCreateCluster(t *testing.T) {
 					GenesisTimestamp:      time.Now().Unix(),
 				},
 			},
+		},
+		{
+			Name: "threshold greater than the number of operators",
+			Config: clusterConfig{
+				NumNodes:  4,
+				Threshold: 5,
+				NumDVs:    1,
+				Network:   defaultNetwork,
+			},
+			expectedErr: "threshold cannot be greater than number of operators",
+		},
+		{
+			Name: "threshold smaller than BFT quorum",
+			Config: clusterConfig{
+				NumNodes:  4,
+				Threshold: 2,
+				NumDVs:    1,
+				Network:   defaultNetwork,
+			},
+			expectedErr: "threshold cannot be smaller than BFT quorum",
+		},
+		{
+			Name: "test with number of nodes below minimum",
+			Config: clusterConfig{
+				Name:      "test_cluster",
+				NumNodes:  2,
+				Threshold: 2,
+				NumDVs:    1,
+				Network:   "goerli",
+			},
+			defFileProvider: func() []byte {
+				data, err := json.Marshal(defTwoNodes)
+				require.NoError(t, err)
+
+				return data
+			},
+			expectedErr: "number of operators is below minimum",
 		},
 	}
 	for _, test := range tests {
@@ -555,6 +596,7 @@ func TestMultipleAddresses(t *testing.T) {
 		err := runCreateCluster(context.Background(), io.Discard, clusterConfig{
 			NumDVs:            4,
 			NumNodes:          4,
+			Threshold:         3,
 			Network:           defaultNetwork,
 			FeeRecipientAddrs: []string{},
 			WithdrawalAddrs:   []string{},
@@ -566,6 +608,7 @@ func TestMultipleAddresses(t *testing.T) {
 		err := runCreateCluster(context.Background(), io.Discard, clusterConfig{
 			NumDVs:            1,
 			NumNodes:          4,
+			Threshold:         3,
 			Network:           defaultNetwork,
 			FeeRecipientAddrs: []string{feeRecipientAddr},
 			WithdrawalAddrs:   []string{},
@@ -639,6 +682,7 @@ func TestKeymanager(t *testing.T) {
 		SplitKeysDir:         keyDir,
 		SplitKeys:            true,
 		NumNodes:             minNodes,
+		Threshold:            minThreshold,
 		KeymanagerAddrs:      addrs,
 		KeymanagerAuthTokens: authTokens,
 		Network:              eth2util.Goerli.Name,
@@ -720,6 +764,7 @@ func TestPublish(t *testing.T) {
 	conf := clusterConfig{
 		Name:              t.Name(),
 		NumNodes:          minNodes,
+		Threshold:         minThreshold,
 		NumDVs:            1,
 		Network:           eth2util.Goerli.Name,
 		WithdrawalAddrs:   []string{zeroAddress},

@@ -57,7 +57,8 @@ func TestCreateDkgInvalid(t *testing.T) {
 				OperatorENRs: append([]string{
 					"-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
 				}, validENRs...),
-				Network: defaultNetwork,
+				Threshold: 3,
+				Network:   defaultNetwork,
 			},
 			errMsg: "invalid ENR: missing 'enr:' prefix",
 		},
@@ -66,7 +67,8 @@ func TestCreateDkgInvalid(t *testing.T) {
 				OperatorENRs: append([]string{
 					"enr:JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
 				}, validENRs...),
-				Network: defaultNetwork,
+				Threshold: 3,
+				Network:   defaultNetwork,
 			},
 			errMsg: "invalid ENR: invalid enr record, too few elements",
 		},
@@ -75,7 +77,8 @@ func TestCreateDkgInvalid(t *testing.T) {
 				OperatorENRs: append([]string{
 					"enrJG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
 				}, validENRs...),
-				Network: defaultNetwork,
+				Threshold: 3,
+				Network:   defaultNetwork,
 			},
 			errMsg: "invalid ENR: missing 'enr:' prefix",
 		},
@@ -84,17 +87,18 @@ func TestCreateDkgInvalid(t *testing.T) {
 				OperatorENRs: append([]string{
 					"JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
 				}, validENRs...),
-				Network: defaultNetwork,
+				Threshold: 3,
+				Network:   defaultNetwork,
 			},
 			errMsg: "invalid ENR: missing 'enr:' prefix",
 		},
 		{
 			conf:   createDKGConfig{OperatorENRs: []string{""}},
-			errMsg: "insufficient operator ENRs",
+			errMsg: "number of operators is below minimum",
 		},
 		{
 			conf:   createDKGConfig{},
-			errMsg: "insufficient operator ENRs",
+			errMsg: "number of operators is below minimum",
 		},
 	}
 
@@ -120,7 +124,7 @@ func TestRequireOperatorENRFlag(t *testing.T) {
 		{
 			name: "operator ENRs less than threshold",
 			args: []string{"dkg", "--operator-enrs=enr:-JG4QG472ZVvl8ySSnUK9uNVDrP_hjkUrUqIxUC75aayzmDVQedXkjbqc7QKyOOS71VmlqnYzri_taV8ZesFYaoQSIOGAYHtv1WsgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u", "--fee-recipient-addresses=0xa6430105220d0b29688b734b8ea0f3ca9936e846", "--withdrawal-addresses=0xa6430105220d0b29688b734b8ea0f3ca9936e846"},
-			err:  "insufficient operator ENRs",
+			err:  "number of operators is below minimum",
 		},
 	}
 
@@ -146,9 +150,10 @@ func TestExistingClusterDefinition(t *testing.T) {
 	feeRecipientArg := "--fee-recipient-addresses=" + validEthAddr
 	withdrawalArg := "--withdrawal-addresses=" + validEthAddr
 	outputDirArg := "--output-dir=" + charonDir
+	thresholdArg := "--threshold=2"
 
 	cmd := newCreateCmd(newCreateDKGCmd(runCreateDKG))
-	cmd.SetArgs([]string{"dkg", enrArg, feeRecipientArg, withdrawalArg, outputDirArg})
+	cmd.SetArgs([]string{"dkg", enrArg, feeRecipientArg, withdrawalArg, outputDirArg, thresholdArg})
 
 	require.EqualError(t, cmd.Execute(), "existing cluster-definition.json found. Try again after deleting it")
 }
@@ -179,18 +184,25 @@ func TestValidateWithdrawalAddr(t *testing.T) {
 }
 
 func TestValidateDKGConfig(t *testing.T) {
-	t.Run("invalid threshold", func(t *testing.T) {
+	t.Run("threshold exceeds numOperators", func(t *testing.T) {
 		threshold := 5
 		numOperators := 4
 		err := validateDKGConfig(threshold, numOperators, "", nil)
 		require.ErrorContains(t, err, "threshold cannot be greater than length of operators")
 	})
 
-	t.Run("insufficient ENRs", func(t *testing.T) {
+	t.Run("threshold equals 1", func(t *testing.T) {
 		threshold := 1
+		numOperators := 3
+		err := validateDKGConfig(threshold, numOperators, "", nil)
+		require.ErrorContains(t, err, "threshold cannot be smaller than BFT quorum")
+	})
+
+	t.Run("insufficient ENRs", func(t *testing.T) {
+		threshold := 2
 		numOperators := 2
 		err := validateDKGConfig(threshold, numOperators, "", nil)
-		require.ErrorContains(t, err, "insufficient operator ENRs")
+		require.ErrorContains(t, err, "number of operators is below minimum")
 	})
 
 	t.Run("invalid network", func(t *testing.T) {
