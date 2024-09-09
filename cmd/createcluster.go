@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/url"
 	"os"
 	"path"
@@ -51,6 +52,7 @@ const (
 	zeroAddress    = "0x0000000000000000000000000000000000000000"
 	defaultNetwork = "mainnet"
 	minNodes       = 3
+	minThreshold   = 2
 )
 
 type clusterConfig struct {
@@ -144,6 +146,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		}
 
 		conf.NumNodes = len(def.Operators)
+		conf.Threshold = def.Threshold
 	}
 
 	if err = validateCreateConfig(ctx, conf); err != nil {
@@ -364,6 +367,21 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 		if conf.NumDVs == 0 && conf.DefFile == "" { // if there's a definition file, infer this value from it later
 			return errors.New("missing --num-validators flag")
 		}
+	}
+
+	// Don't allow cluster size to be less than 3.
+	if conf.NumNodes < minNodes {
+		return errors.New("number of operators is below minimum", z.Int("operators", conf.NumNodes), z.Int("min", minNodes))
+	}
+
+	// Check for threshold parameter
+	minThreshold := int(math.Ceil(float64(conf.NumNodes*2) / 3))
+	if conf.Threshold < minThreshold {
+		return errors.New("threshold cannot be smaller than BFT quorum", z.Int("threshold", conf.Threshold), z.Int("min", minThreshold))
+	}
+	if conf.Threshold > conf.NumNodes {
+		return errors.New("threshold cannot be greater than number of operators",
+			z.Int("threshold", conf.Threshold), z.Int("operators", conf.NumNodes))
 	}
 
 	return nil
