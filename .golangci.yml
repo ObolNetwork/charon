@@ -1,6 +1,6 @@
 run:
   timeout: 5m
-  go: "1.22.5"
+  go: "1.23.1"
 linters-settings:
   cyclop:
     max-complexity: 15
