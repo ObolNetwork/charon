@@ -85,7 +85,7 @@ func Init(ctx context.Context, config Config) error {
 
 // EnableGnosisBlockHotfixIfNotDisabled enables GnosisBlockHotfix if it was not disabled by the user.
 // This is still a temporary workaround for the gnosis chain.
-// When go-eth2-client is fully supporting custom specs, this function has be removed with GnosisBlockHotfix feature.
+// When go-eth2-client is fully supporting custom specs, this function has to be removed with GnosisBlockHotfix feature.
 func EnableGnosisBlockHotfixIfNotDisabled(ctx context.Context, config Config) {
 	initMu.Lock()
 	defer initMu.Unlock()
