@@ -156,8 +156,8 @@ func testAllBeacons(ctx context.Context, queuedTestCases []testCaseName, allTest
 
 	doneReading := make(chan bool)
 	go func() {
-		for singlePeerRes := range singleBeaconResCh {
-			maps.Copy(allBeaconsRes, singlePeerRes)
+		for singleBeaconRes := range singleBeaconResCh {
+			maps.Copy(allBeaconsRes, singleBeaconRes)
 		}
 		doneReading <- true
 	}()
