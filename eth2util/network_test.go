@@ -69,16 +69,29 @@ func TestNetworkToForkVersionBytes(t *testing.T) {
 	require.ErrorContains(t, err, "invalid network name")
 }
 
-func TestSupportedNetwork(t *testing.T) {
-	t.Run("supported network", func(t *testing.T) {
-		require.True(t, eth2util.ValidNetwork("sepolia"))
-	})
+func TestValidNetwork(t *testing.T) {
+	supportedNetworks := []string{
+		"mainnet",
+		"goerli",
+		"sepolia",
+		"holesky",
+		"gnosis",
+		"chiado",
+	}
 
-	t.Run("supported network", func(t *testing.T) {
-		require.True(t, eth2util.ValidNetwork("holesky"))
-	})
+	unsupportedNetworks := []string{
+		"ropsten",
+	}
 
-	t.Run("unsupported network", func(t *testing.T) {
-		require.False(t, eth2util.ValidNetwork("ropsten"))
-	})
+	for _, network := range supportedNetworks {
+		t.Run("supported network "+network, func(t *testing.T) {
+			require.True(t, eth2util.ValidNetwork(network))
+		})
+	}
+
+	for _, network := range unsupportedNetworks {
+		t.Run("unsupported network "+network, func(t *testing.T) {
+			require.False(t, eth2util.ValidNetwork(network))
+		})
+	}
 }
