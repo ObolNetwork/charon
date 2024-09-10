@@ -499,6 +499,7 @@ func runPeerTest(ctx context.Context, queuedTestCases []testCaseName, allTestCas
 	for _, t := range queuedTestCases {
 		select {
 		case <-ctx.Done():
+			testResCh <- failedTestResult(testResult{Name: t.name}, errTimeoutInterrupted)
 			return
 		default:
 			testResCh <- allTestCases[t](ctx, &conf, tcpNode, target)

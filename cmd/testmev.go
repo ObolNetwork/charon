@@ -137,8 +137,8 @@ func testAllMEVs(ctx context.Context, queuedTestCases []testCaseName, allTestCas
 
 	doneReading := make(chan bool)
 	go func() {
-		for singlePeerRes := range singleMEVResCh {
-			maps.Copy(allMEVsRes, singlePeerRes)
+		for singleMEVRes := range singleMEVResCh {
+			maps.Copy(allMEVsRes, singleMEVRes)
 		}
 		doneReading <- true
 	}()
