@@ -66,7 +66,8 @@ func Test_runSubmitPartialExit(t *testing.T) {
 			false,
 			"test",
 			0,
-			"cannot convert validator pubkey to bytes",
+			"cannot convert core pubkey to eth2 pubkey",
+			false,
 		)
 	})
 
@@ -78,6 +79,7 @@ func Test_runSubmitPartialExit(t *testing.T) {
 			testutil.RandomEth2PubKey(t).String(),
 			0,
 			"validator not present in cluster lock",
+			false,
 		)
 	})
 
@@ -89,6 +91,7 @@ func Test_runSubmitPartialExit(t *testing.T) {
 			"",
 			9999,
 			"validator index not found in beacon node response",
+			false,
 		)
 	})
 
@@ -99,7 +102,8 @@ func Test_runSubmitPartialExit(t *testing.T) {
 			true,
 			"test",
 			9999,
-			"cannot convert validator pubkey to bytes",
+			"cannot convert core pubkey to eth2 pubkey",
+			false,
 		)
 	})
 
@@ -111,23 +115,27 @@ func Test_runSubmitPartialExit(t *testing.T) {
 			testutil.RandomEth2PubKey(t).String(),
 			9999,
 			"validator not present in cluster lock",
+			false,
 		)
 	})
 
 	t.Run("main flow with pubkey", func(t *testing.T) {
-		runSubmitPartialExitFlowTest(t, false, false, "", 0, "")
+		runSubmitPartialExitFlowTest(t, false, false, "", 0, "", false)
 	})
 	t.Run("main flow with validator index", func(t *testing.T) {
-		runSubmitPartialExitFlowTest(t, true, false, "", 0, "")
+		runSubmitPartialExitFlowTest(t, true, false, "", 0, "", false)
 	})
 	t.Run("main flow with skipBeaconNodeCheck mode", func(t *testing.T) {
-		runSubmitPartialExitFlowTest(t, true, true, "", 0, "")
+		runSubmitPartialExitFlowTest(t, true, true, "", 0, "", false)
+	})
+	t.Run("main flow with all mode", func(t *testing.T) {
+		runSubmitPartialExitFlowTest(t, false, false, "", 0, "", true)
 	})
 
 	t.Run("config", Test_runSubmitPartialExit_Config)
 }
 
-func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, skipBeaconNodeCheck bool, valPubkey string, valIndex uint64, errString string) {
+func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, skipBeaconNodeCheck bool, valPubkey string, valIndex uint64, errString string, all bool) {
 	t.Helper()
 	t.Parallel()
 	ctx := context.Background()
@@ -202,6 +210,7 @@ func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, skipBeaconNodeCh
 		ExitEpoch:           194048,
 		BeaconNodeTimeout:   30 * time.Second,
 		PublishTimeout:      10 * time.Second,
+		All:                 all,
 	}
 
 	index := uint64(0)
@@ -279,7 +288,7 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 		{
 			name:             "Bad validator address",
 			badValidatorAddr: true,
-			errData:          "cannot convert validator pubkey to bytes",
+			errData:          "cannot convert core pubkey to eth2 pubkey",
 		},
 	}
 
