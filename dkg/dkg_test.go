@@ -386,7 +386,7 @@ func verifyDistValidators(t *testing.T, lock cluster.Lock, def cluster.Definitio
 		// Assert Deposit Data
 		depositAmounts := deposit.DedupAmounts(def.DepositAmounts)
 		if len(depositAmounts) == 0 {
-			depositAmounts = []eth2p0.Gwei{deposit.MaxDepositAmount}
+			depositAmounts = []eth2p0.Gwei{deposit.DefaultDepositAmount}
 		}
 		require.Len(t, val.PartialDepositData, len(depositAmounts))
 

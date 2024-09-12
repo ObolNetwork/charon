@@ -31,7 +31,7 @@ The schema of the `cluster-definition.json` is defined as:
   "uuid": "1234-abcdef-1234-abcdef",            // Random unique identifier.
   "version": "v1.3.0",                          // Schema version
   "timestamp": "2022-01-01T12:00:00+00:00",     // Creation timestamp
-  "num_validators": 100,                        // Number of distributed validators (n*32ETH staked) to be created in cluster.lock
+  "num_validators": 100,                        // Number of distributed validators to be created in cluster.lock
   "threshold": 3,                               // Threshold required for signature reconstruction
   "validators": [                               // Metadata related to each validator to be created
     {
@@ -41,7 +41,7 @@ The schema of the `cluster-definition.json` is defined as:
   ],
   "dkg_algorithm": "foo_dkg_v1" ,               // DKG algorithm for key generation
   "fork_version": "0x00112233",                 // Chain/network identifier
-  "deposit_amounts": [                          // Partial deposit amounts in gwei (must sum up to 32ETH)
+  "deposit_amounts": [                          // Partial deposit amounts in gwei (must sum up to at least 32ETH)
     "16000000000",
     "16000000000"
   ],
@@ -63,7 +63,7 @@ The `cluster-lock.json` has the following schema:
 ```json
 {
   "cluster_definition": {...},                              // Cluster definition json, identical schema to above,
-  "distributed_validators": [                               // Length equal to num_validators (n*32ETH staked).
+  "distributed_validators": [                               // Length equal to num_validators.
     {
       "distributed_public_key":  "0x123..abfc",             // DV root pubkey
       "public_shares": ["0x123..abfc", "0x123..abfc"],      // The public share of each operator (length of num_operators)
@@ -71,7 +71,7 @@ The `cluster-lock.json` has the following schema:
       "builder_registration": {...}                         // Pre-generated signed builder registration for the validator
     }
   ],
-  "deposit_amounts": [                                      // Partial deposit amounts in gwei (must sum up to 32ETH)
+  "deposit_amounts": [                                      // Partial deposit amounts in gwei (must sum up to at least 32ETH)
     "16000000000",
     "16000000000"
   ],
@@ -89,7 +89,7 @@ on how an individual `distributed_validator` looks like.
 The following is the historical change log of the cluster config:
 - `v1.8.0` **default**:
   - Added the `deposit_amounts` list to cluster lock which contains partial deposit amounts in gwei.
-  - When not specified, the single value of 32ETH will be used. All partial amounts must sum up to 32ETH.
+  - When not specified, the single value of 32ETH will be used. All partial amounts must sum up to at least 32ETH.
   - `distributed_validator` structure replaced `deposit_data` with `partial_deposit_data` respectively.
 - `v1.7.0`:
   - Added the `builder_registration` structure to `distributed_validators` list in cluster lock.
