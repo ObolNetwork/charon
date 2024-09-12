@@ -62,9 +62,9 @@ func fullExitURL(valPubkey, lockHash string, shareIndex uint64) string {
 	).Replace(fullExitTmpl)
 }
 
-// PostPartialExit POSTs the set of msg's to the Obol API, for a given lock hash.
+// PostPartialExits POSTs the set of msg's to the Obol API, for a given lock hash.
 // It respects the timeout specified in the Client instance.
-func (c Client) PostPartialExit(ctx context.Context, lockHash []byte, shareIndex uint64, identityKey *k1.PrivateKey, exitBlobs ...ExitBlob) error {
+func (c Client) PostPartialExits(ctx context.Context, lockHash []byte, shareIndex uint64, identityKey *k1.PrivateKey, exitBlobs ...ExitBlob) error {
 	lockHashStr := "0x" + hex.EncodeToString(lockHash)
 
 	path := partialExitURL(lockHashStr)
