@@ -26,7 +26,7 @@ RUN echo "Built charon version=$(./charon version)"
 
 # Copy final binary into light stage.
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates wget fio \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates fio wget \
   && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 ARG GITHUB_SHA=local
 ENV GITHUB_SHA=${GITHUB_SHA}
@@ -46,10 +46,10 @@ RUN addgroup --gid "$GID" "$USER" \
     --no-create-home \
     --uid "$UID" \
     "$USER" \
-  && chown $USER /usr/local/bin/charon \
+  && chown "$USER" /usr/local/bin/charon \
   && chmod u+x /usr/local/bin/charon \
   && mkdir -p "/opt/$USER" \
-  && chown $USER "/opt/$USER"
+  && chown "$USER" "/opt/$USER"
 
 WORKDIR "/opt/$USER"
 USER charon
