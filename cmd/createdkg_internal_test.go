@@ -214,6 +214,6 @@ func TestValidateDKGConfig(t *testing.T) {
 
 	t.Run("wrong deposit amounts sum", func(t *testing.T) {
 		err := validateDKGConfig(3, 4, "goerli", []int{8, 16})
-		require.ErrorContains(t, err, "sum of partial deposit amounts must sum up to 32ETH")
+		require.ErrorContains(t, err, "sum of partial deposit amounts must be at least 32ETH")
 	})
 }

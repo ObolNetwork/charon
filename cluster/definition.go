@@ -131,7 +131,7 @@ type Definition struct {
 	// Note that this was added in v1.1.0, so may be empty for older versions.
 	Timestamp string `config_hash:"3" definition_hash:"3" json:"timestamp" ssz:"ByteList[32]"`
 
-	// NumValidators is the number of DVs (n*32ETH) to be created in the cluster lock file.
+	// NumValidators is the number of DVs to be created in the cluster lock file.
 	NumValidators int `config_hash:"4" definition_hash:"4" json:"num_validators" ssz:"uint64"`
 
 	// Threshold required for signature reconstruction. Defaults to safe value for number of nodes/peers.
@@ -152,7 +152,7 @@ type Definition struct {
 	// ValidatorAddresses define addresses of each validator.
 	ValidatorAddresses []ValidatorAddresses `config_hash:"10" definition_hash:"10" json:"validators" ssz:"CompositeList[65536]"`
 
-	// DepositAmounts specifies partial deposit amounts that sum up to 32ETH.
+	// DepositAmounts specifies partial deposit amounts that sum up to [32ETH..2048ETH].
 	DepositAmounts []eth2p0.Gwei `config_hash:"11" definition_hash:"11" json:"deposit_amounts" ssz:"uint64[256]"`
 
 	// ConfigHash uniquely identifies a cluster definition excluding operator ENRs and signatures.

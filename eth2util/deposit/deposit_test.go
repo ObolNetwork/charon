@@ -24,7 +24,7 @@ import (
 func TestNewMessage(t *testing.T) {
 	const privKey = "01477d4bfbbcebe1fef8d4d6f624ecbb6e3178558bb1b0d6286c816c66842a6d"
 	const addr = "0x321dcb529f3945bc94fecea9d3bc5caf35253b94"
-	amount := deposit.MaxDepositAmount
+	amount := deposit.DefaultDepositAmount
 	_, pubKey := GetKeys(t, privKey)
 
 	msg, err := deposit.NewMessage(pubKey, addr, amount)
@@ -42,12 +42,12 @@ func TestNewMessage(t *testing.T) {
 	t.Run("amount above maximum", func(t *testing.T) {
 		_, err := deposit.NewMessage(pubKey, addr, deposit.MaxDepositAmount+1)
 
-		require.ErrorContains(t, err, "deposit message maximum amount must <= 32ETH")
+		require.ErrorContains(t, err, "deposit message maximum amount must <= 2048ETH")
 	})
 }
 
 func TestMarshalDepositData(t *testing.T) {
-	datas := mustGenerateDepositDatas(t, deposit.MaxDepositAmount)
+	datas := mustGenerateDepositDatas(t, deposit.DefaultDepositAmount)
 
 	actual, err := deposit.MarshalDepositData(datas, eth2util.Goerli.Name)
 	require.NoError(t, err)
@@ -103,15 +103,15 @@ func TestVerifyDepositAmounts(t *testing.T) {
 		require.ErrorContains(t, err, "each partial deposit amount must be greater than 1ETH")
 	})
 
-	t.Run("total sum is 32ETH", func(t *testing.T) {
+	t.Run("total sum is at least 32ETH", func(t *testing.T) {
 		amounts := []eth2p0.Gwei{
 			eth2p0.Gwei(1000000000),
-			eth2p0.Gwei(32000000000),
+			deposit.MaxDepositAmount,
 		}
 
 		err := deposit.VerifyDepositAmounts(amounts)
 
-		require.ErrorContains(t, err, "sum of partial deposit amounts must sum up to 32ETH")
+		require.ErrorContains(t, err, "sum of partial deposit amounts must not exceed 2048ETH")
 
 		amounts = []eth2p0.Gwei{
 			eth2p0.Gwei(8000000000),
@@ -120,7 +120,7 @@ func TestVerifyDepositAmounts(t *testing.T) {
 
 		err = deposit.VerifyDepositAmounts(amounts)
 
-		require.ErrorContains(t, err, "sum of partial deposit amounts must sum up to 32ETH")
+		require.ErrorContains(t, err, "sum of partial deposit amounts must be at least 32ETH")
 	})
 }
 
@@ -147,16 +147,16 @@ func TestGetDepositFilePath(t *testing.T) {
 	filepath := deposit.GetDepositFilePath(dir, deposit.MinDepositAmount)
 	require.Equal(t, path.Join(dir, "deposit-data-1eth.json"), filepath)
 
-	filepath = deposit.GetDepositFilePath(dir, deposit.MaxDepositAmount-1)
+	filepath = deposit.GetDepositFilePath(dir, deposit.DefaultDepositAmount-1)
 	require.Equal(t, path.Join(dir, "deposit-data-31.999999999eth.json"), filepath)
 
-	filepath = deposit.GetDepositFilePath(dir, deposit.MaxDepositAmount)
+	filepath = deposit.GetDepositFilePath(dir, deposit.DefaultDepositAmount)
 	require.Equal(t, path.Join(dir, "deposit-data.json"), filepath)
 }
 
 func TestWriteDepositDataFile(t *testing.T) {
 	dir := t.TempDir()
-	depositDatas := mustGenerateDepositDatas(t, deposit.MaxDepositAmount)
+	depositDatas := mustGenerateDepositDatas(t, deposit.DefaultDepositAmount)
 
 	err := deposit.WriteDepositDataFile(depositDatas, eth2util.Goerli.Name, dir)
 	require.NoError(t, err)
@@ -164,7 +164,7 @@ func TestWriteDepositDataFile(t *testing.T) {
 	expected, err := deposit.MarshalDepositData(depositDatas, eth2util.Goerli.Name)
 	require.NoError(t, err)
 
-	filepath := deposit.GetDepositFilePath(dir, deposit.MaxDepositAmount)
+	filepath := deposit.GetDepositFilePath(dir, deposit.DefaultDepositAmount)
 	actual, err := os.ReadFile(filepath)
 
 	require.NoError(t, err)
@@ -192,8 +192,8 @@ func TestWriteClusterDepositDataFiles(t *testing.T) {
 	}
 
 	var depositDatas [][]eth2p0.DepositData
-	depositDatas = append(depositDatas, mustGenerateDepositDatas(t, deposit.MaxDepositAmount/2))
-	depositDatas = append(depositDatas, mustGenerateDepositDatas(t, deposit.MaxDepositAmount/4))
+	depositDatas = append(depositDatas, mustGenerateDepositDatas(t, deposit.DefaultDepositAmount/2))
+	depositDatas = append(depositDatas, mustGenerateDepositDatas(t, deposit.DefaultDepositAmount/4))
 
 	err := deposit.WriteClusterDepositDataFiles(depositDatas, eth2util.Goerli.Name, dir, numNodes)
 	require.NoError(t, err)
