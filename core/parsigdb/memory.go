@@ -83,7 +83,16 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 	output := make(map[core.PubKey][]core.ParSignedData)
 
 	for pubkey, sig := range signedSet {
-		sigs, ok, err := db.store(key{Duty: duty, PubKey: pubkey}, sig)
+		root, err := rootFromParSigDataSet(duty, sig)
+		if err != nil {
+			return errors.Wrap(err, "cannot hash tree root ParSignedData")
+		}
+
+		sigs, ok, err := db.store(key{
+			Duty:   duty,
+			PubKey: pubkey,
+			Root:   root,
+		}, sig)
 		if err != nil {
 			return err
 		} else if !ok {
@@ -224,6 +233,24 @@ func getThresholdMatching(typ core.DutyType, sigs []core.ParSignedData, threshol
 	return nil, false, nil
 }
 
+// rootFromParSigDataSet returns the MessageRoot of data only if the duty is supported,
+// and only if data is not a core.Signature.
+func rootFromParSigDataSet(duty core.Duty, data core.ParSignedData) ([32]byte, error) {
+	// known limitation: sync message and contributions might have different hashes,
+	// ignore them for now.
+	// signature duties don't have a MessageRoot implementation at all, by design.
+	if duty.Type == core.DutySyncMessage || duty.Type == core.DutySyncContribution || duty.Type == core.DutySignature {
+		return [32]byte{}, nil
+	}
+
+	root, err := data.MessageRoot()
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "cannot hash tree root ParSignedData")
+	}
+
+	return root, nil
+}
+
 func parSignedDataEqual(x, y core.ParSignedData) (bool, error) {
 	xjson, err := json.Marshal(x)
 	if err != nil {
@@ -240,4 +267,5 @@ func parSignedDataEqual(x, y core.ParSignedData) (bool, error) {
 type key struct {
 	Duty   core.Duty
 	PubKey core.PubKey
+	Root   [32]byte
 }

@@ -16,6 +16,83 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
+func TestRootMatching(t *testing.T) {
+	t.Run("matching roots yield threshold data", func(t *testing.T) {
+		deadliner := newTestDeadliner()
+		db := NewMemDB(2, deadliner)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go db.Trim(ctx)
+
+		timesCalled := 0
+		db.SubscribeThreshold(func(_ context.Context, _ core.Duty, _ map[core.PubKey][]core.ParSignedData) error {
+			timesCalled++
+
+			return nil
+		})
+
+		pubkey := testutil.RandomCorePubKey(t)
+
+		duty := core.NewProposerDuty(uint64(42))
+
+		blockData := testutil.RandomDenebVersionedSignedProposal()
+
+		for i := range 2 {
+			full, err := core.NewPartialVersionedSignedProposal(blockData, i+1)
+			require.NoError(t, err)
+
+			if i == 0 {
+				require.NoError(t, db.StoreInternal(ctx, duty, core.ParSignedDataSet{
+					pubkey: full,
+				}))
+			} else {
+				require.NoError(t, db.StoreExternal(ctx, duty, core.ParSignedDataSet{
+					pubkey: full,
+				}))
+			}
+		}
+
+		require.Equal(t, 1, timesCalled)
+	})
+
+	t.Run("non-matching roots yield no threshold data", func(t *testing.T) {
+		deadliner := newTestDeadliner()
+		db := NewMemDB(2, deadliner)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go db.Trim(ctx)
+
+		timesCalled := 0
+		db.SubscribeThreshold(func(_ context.Context, _ core.Duty, _ map[core.PubKey][]core.ParSignedData) error {
+			timesCalled++
+
+			return nil
+		})
+
+		duty := core.NewProposerDuty(uint64(42))
+		pubkey := testutil.RandomCorePubKey(t)
+
+		for i := range 2 {
+			full, err := core.NewPartialVersionedSignedProposal(testutil.RandomDenebVersionedSignedProposal(), i+1)
+			require.NoError(t, err)
+
+			if i == 0 {
+				require.NoError(t, db.StoreInternal(ctx, duty, core.ParSignedDataSet{
+					pubkey: full,
+				}))
+			} else {
+				require.NoError(t, db.StoreExternal(ctx, duty, core.ParSignedDataSet{
+					pubkey: full,
+				}))
+			}
+		}
+
+		require.Zero(t, timesCalled)
+	})
+}
+
 func TestGetThresholdMatching(t *testing.T) {
 	const n = 4
 
@@ -147,6 +224,66 @@ func TestMemDBThreshold(t *testing.T) {
 
 	enqueueN()
 	require.Equal(t, 2, timesCalled)
+}
+
+func Test_rootFromParSigDataSet(t *testing.T) {
+	blockData := testutil.RandomDenebVersionedSignedProposal()
+	full, err := core.NewPartialVersionedSignedProposal(blockData, 1)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name         string
+		duty         core.Duty
+		data         core.ParSignedData
+		shouldBeZero bool
+		wantErr      bool
+	}{
+		{
+			"ok",
+			core.NewProposerDuty(uint64(42)),
+			full,
+			false,
+			false,
+		},
+		{
+			"sync message",
+			core.NewSyncMessageDuty(uint64(42)),
+			full,
+			true,
+			false,
+		},
+		{
+			"sync contribution",
+			core.NewSyncContributionDuty(uint64(42)),
+			full,
+			true,
+			false,
+		},
+		{
+			"signature",
+			core.NewSignatureDuty(uint64(42)),
+			full,
+			true,
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := rootFromParSigDataSet(tt.duty, tt.data)
+
+			if tt.shouldBeZero {
+				require.Zero(t, got)
+			} else {
+				require.NotZero(t, got)
+			}
+
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func newTestDeadliner() *testDeadliner {
