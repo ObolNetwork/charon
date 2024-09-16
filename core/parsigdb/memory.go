@@ -243,12 +243,7 @@ func rootFromParSigDataSet(duty core.Duty, data core.ParSignedData) ([32]byte, e
 		return [32]byte{}, nil
 	}
 
-	root, err := data.MessageRoot()
-	if err != nil {
-		return [32]byte{}, errors.Wrap(err, "cannot hash tree root ParSignedData")
-	}
-
-	return root, nil
+	return data.MessageRoot()
 }
 
 func parSignedDataEqual(x, y core.ParSignedData) (bool, error) {
