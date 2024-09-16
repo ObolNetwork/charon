@@ -61,6 +61,7 @@ var (
 		AggSigDBV2:           statusAlpha,
 		JSONRequests:         statusAlpha,
 		GnosisBlockHotfix:    statusAlpha,
+		HardenedParSigDB:     statusAlpha,
 		// Add all features and there status here.
 	}
 
