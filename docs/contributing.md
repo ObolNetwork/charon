@@ -72,7 +72,7 @@ Note: PRs can only be merged by obol-bulldozer bot. It is author's responsibilit
 ### PR Template
 
 - **PRs are always squash merged into main**.
-- The PR title and body is used as the final squash-merged git commit message.
+- The PR title and body are used as the final squash-merged git commit message.
 - The PR's original git commits are therefore lost (so naming isn't specified)
 - **PR title format** is defined as:
   - Following the [go team's commit format](https://github.com/golang/go/commits/master): `package[/path]: concise overview of change`
@@ -80,7 +80,7 @@ Note: PRs can only be merged by obol-bulldozer bot. It is author's responsibilit
   - Prefix can be a single or double hierarchical package name, but not three or more. E.g. `app` , or `app/tracer`.
   - The rest of the title must be a concise high-level overview in the present tense and starting with lower case.
 - **PR body format** is defined as:
-  - Start with detailed description of the change.
+  - Start with a detailed description of the change.
   - Description should use proper grammar in present tense.
   - Ends with a list of tags (some required, others optional) (`^tag: value of this tag\n`):
   - `category`: required; one of: `refactor`, `bug`, `feature`, `docs`, `release`, `tidy`, `fixbuild`.
@@ -123,7 +123,7 @@ pre-commit clean
 
 The **linter** used is [golangci-lint](https://golangci-lint.run/). It runs as part of the githooks and is configured in [.golangci.yml](../.golangci.yml)
 
-Different **dev tools** are used in throughout the code base and are defined and installed from [tools.go](../tools.go). To install the dev tools run: `go generate tools.go`
+Different **dev tools** are used throughout the code base and are defined and installed from [tools.go](../tools.go). To install the dev tools run: `go generate tools.go`
 
 ## Code Review
 We tend to closely follow the following code review structure:
