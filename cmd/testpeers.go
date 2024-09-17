@@ -474,8 +474,10 @@ func testSinglePeer(ctx context.Context, queuedTestCases []testCaseName, allTest
 		var testName string
 		select {
 		case <-ctx.Done():
-			testName = queuedTestCases[testCounter].name
-			allTestRes = append(allTestRes, testResult{Name: testName, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
+			if testCounter < len(queuedTestCases) {
+				testName = queuedTestCases[testCounter].name
+				allTestRes = append(allTestRes, testResult{Name: testName, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
+			}
 			finished = true
 		case result, ok := <-singleTestResCh:
 			if !ok {
@@ -499,6 +501,7 @@ func runPeerTest(ctx context.Context, queuedTestCases []testCaseName, allTestCas
 	for _, t := range queuedTestCases {
 		select {
 		case <-ctx.Done():
+			testResCh <- failedTestResult(testResult{Name: t.name}, errTimeoutInterrupted)
 			return
 		default:
 			testResCh <- allTestCases[t](ctx, &conf, tcpNode, target)

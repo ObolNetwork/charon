@@ -40,6 +40,11 @@ const (
 
 	// JSONRequests enables JSON requests for eth2 client.
 	JSONRequests Feature = "json_requests"
+
+	// GnosisBlockHotfix enables Gnosis/Chiado SSZ fix.
+	// The feature gets automatically enabled when the current network is gnosis|chiado,
+	// unless the user disabled this feature explicitly.
+	GnosisBlockHotfix Feature = "gnosis_block_hotfix"
 )
 
 var (
@@ -50,6 +55,7 @@ var (
 		MockAlpha:            statusAlpha,
 		AggSigDBV2:           statusAlpha,
 		JSONRequests:         statusAlpha,
+		GnosisBlockHotfix:    statusAlpha,
 		// Add all features and there status here.
 	}
 

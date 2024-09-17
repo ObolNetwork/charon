@@ -122,7 +122,7 @@ func resolveRelay(ctx context.Context, rawURL, lockHashHex string, callback func
 // queryRelayAddrs returns the relay multiaddrs via a http GET query to the url.
 //
 // This supports resolving relay addrs from known http URLs which is handy
-// when relays are deployed in docker-compose or kubernetes
+// when relays are deployed in docker compose or kubernetes
 //
 // It retries until the context is cancelled.
 func queryRelayAddrs(ctx context.Context, relayURL string, backoff func(), lockHashHex string) ([]ma.Multiaddr, error) {

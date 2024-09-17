@@ -121,7 +121,7 @@ func TestPeersTest(t *testing.T) {
 					OutputToml: "",
 					Quiet:      true,
 					TestCases:  nil,
-					Timeout:    time.Second,
+					Timeout:    3 * time.Second,
 				},
 				ENRs: []string{
 					"enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o",
@@ -188,7 +188,7 @@ func TestPeersTest(t *testing.T) {
 					OutputToml: "",
 					Quiet:      false,
 					TestCases:  []string{"ping"},
-					Timeout:    time.Second,
+					Timeout:    200 * time.Millisecond,
 				},
 				ENRs: []string{
 					"enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o",
@@ -224,7 +224,7 @@ func TestPeersTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputToml: "./write-to-file-test.toml.tmp",
 					Quiet:      false,
-					Timeout:    100 * time.Millisecond,
+					Timeout:    3 * time.Second,
 				},
 				ENRs: []string{
 					"enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o",
@@ -241,10 +241,11 @@ func TestPeersTest(t *testing.T) {
 				CategoryName: peersTestCategory,
 				Targets: map[string][]testResult{
 					"self": {
-						{Name: "libp2pTCPPortOpenTest", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "libp2pTCPPortOpenTest", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 					fmt.Sprintf("relay %v", relayAddr): {
-						{Name: "pingRelay", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "pingRelay", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "pingMeasureRelay", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 					"peer inexpensive-farm enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},

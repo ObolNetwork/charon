@@ -46,3 +46,26 @@ func TestEnableForT(t *testing.T) {
 	featureset.DisableForT(t, testFeature)
 	require.False(t, featureset.Enabled(testFeature))
 }
+
+func TestEnableGnosisBlockHotfixIfNotDisabled(t *testing.T) {
+	ctx := context.Background()
+	config := featureset.DefaultConfig()
+
+	t.Run("not disabled explicitly", func(t *testing.T) {
+		err := featureset.Init(ctx, config)
+		require.NoError(t, err)
+
+		featureset.EnableGnosisBlockHotfixIfNotDisabled(ctx, config)
+		require.True(t, featureset.Enabled(featureset.GnosisBlockHotfix))
+	})
+
+	t.Run("disabled explicitly", func(t *testing.T) {
+		config.Disabled = append(config.Disabled, string(featureset.GnosisBlockHotfix))
+
+		err := featureset.Init(ctx, config)
+		require.NoError(t, err)
+
+		featureset.EnableGnosisBlockHotfixIfNotDisabled(ctx, config)
+		require.False(t, featureset.Enabled(featureset.GnosisBlockHotfix))
+	})
+}
