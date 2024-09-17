@@ -56,7 +56,7 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 		{lockFilePath, false},
 		{validatorKeysDir, false},
 		{exitEpoch, false},
-		{validatorPubkey, true},
+		{validatorPubkey, false},
 		{beaconNodeEndpoints, true},
 		{exitFromFile, false},
 		{exitFromDir, false},
@@ -65,6 +65,34 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
+
+	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
+		valPubkPresent := cmd.Flags().Lookup(validatorPubkey.String()).Changed
+		exitFilePresent := cmd.Flags().Lookup(exitFromFile.String()).Changed
+		exitDirPresent := cmd.Flags().Lookup(exitFromDir.String()).Changed
+
+		if !valPubkPresent && !config.All {
+			//nolint:revive,perfsprint // we use our own version of the errors package; keep consistency with other checks.
+			return errors.New(fmt.Sprintf("%s must be specified when exiting single validator.", validatorPubkey.String()))
+		}
+
+		if config.All && valPubkPresent {
+			//nolint:revive // we use our own version of the errors package.
+			return errors.New(fmt.Sprintf("%s should not be specified when %s is, as it is obsolete and misleading.", validatorPubkey.String(), all.String()))
+		}
+
+		if valPubkPresent && exitDirPresent {
+			//nolint:revive // we use our own version of the errors package.
+			return errors.New(fmt.Sprintf("if you want to specify exit file for single validator, you must provide %s and not %s.", exitFromFile.String(), exitFromDir.String()))
+		}
+
+		if config.All && exitFilePresent {
+			//nolint:revive // we use our own version of the errors package.
+			return errors.New(fmt.Sprintf("if you want to specify exit file directory for all validators, you must provide %s and not %s.", exitFromDir.String(), exitFromFile.String()))
+		}
+
+		return nil
+	})
 
 	return cmd
 }
