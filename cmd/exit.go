@@ -33,6 +33,7 @@ type exitConfig struct {
 	PlaintextOutput       bool
 	BeaconNodeTimeout     time.Duration
 	ExitFromFilePath      string
+	ExitFromFileDir       string
 	Log                   log.Config
 	All                   bool
 }
@@ -60,6 +61,7 @@ const (
 	validatorPubkey
 	exitEpoch
 	exitFromFile
+	exitFromDir
 	beaconNodeTimeout
 	fetchedExitPath
 	publishTimeout
@@ -85,6 +87,8 @@ func (ef exitFlag) String() string {
 		return "exit-epoch"
 	case exitFromFile:
 		return "exit-from-file"
+	case exitFromDir:
+		return "exit-from-dir"
 	case beaconNodeTimeout:
 		return "beacon-node-timeout"
 	case fetchedExitPath:
@@ -135,6 +139,8 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 			cmd.Flags().Uint64Var(&config.ExitEpoch, exitEpoch.String(), 162304, maybeRequired("Exit epoch at which the validator will exit, must be the same across all the partial exits."))
 		case exitFromFile:
 			cmd.Flags().StringVar(&config.ExitFromFilePath, exitFromFile.String(), "", maybeRequired("Retrieves a signed exit message from a pre-prepared file instead of --publish-address."))
+		case exitFromDir:
+			cmd.Flags().StringVar(&config.ExitFromFileDir, exitFromDir.String(), "", maybeRequired("Retrieves a signed exit messages from a pre-prepared files in a directory instead of --publish-address."))
 		case beaconNodeTimeout:
 			cmd.Flags().DurationVar(&config.BeaconNodeTimeout, beaconNodeTimeout.String(), 30*time.Second, maybeRequired("Timeout for beacon node HTTP calls."))
 		case fetchedExitPath:
