@@ -26,12 +26,19 @@ import (
 
 func Test_runFetchExit(t *testing.T) {
 	t.Parallel()
-	t.Run("full flow", Test_runFetchExitFullFlow)
+	t.Run("full flow", func(t *testing.T) {
+		t.Parallel()
+		testRunFetchExitFullFlow(t, false)
+	})
+	t.Run("full flow all", func(t *testing.T) {
+		t.Parallel()
+		testRunFetchExitFullFlow(t, true)
+	})
 	t.Run("bad out dir", Test_runFetchExitBadOutDir)
 }
 
-func Test_runFetchExitFullFlow(t *testing.T) {
-	t.Parallel()
+func testRunFetchExitFullFlow(t *testing.T, all bool) {
+	t.Helper()
 	ctx := context.Background()
 
 	valAmt := 100
@@ -106,6 +113,7 @@ func Test_runFetchExitFullFlow(t *testing.T) {
 			ExitEpoch:           194048,
 			BeaconNodeTimeout:   30 * time.Second,
 			PublishTimeout:      10 * time.Second,
+			All:                 all,
 		}
 
 		require.NoError(t, runSignPartialExit(ctx, config), "operator index: %v", idx)
@@ -120,6 +128,7 @@ func Test_runFetchExitFullFlow(t *testing.T) {
 		PublishAddress:  srv.URL,
 		FetchedExitPath: root,
 		PublishTimeout:  10 * time.Second,
+		All:             all,
 	}
 
 	require.NoError(t, runFetchExit(ctx, config))
