@@ -236,7 +236,10 @@ func broadcastExitsToBeacon(ctx context.Context, eth2Cl eth2wrap.Client, exits m
 		if err := tbls.Verify(pubkey, exitRoot[:], signature); err != nil {
 			return errors.Wrap(err, "exit message signature not verified")
 		}
+	}
 
+	for validator, fullExit := range exits {
+		valCtx := log.WithCtx(ctx, z.Str("validator", validator.String()))
 		if err := eth2Cl.SubmitVoluntaryExit(valCtx, &fullExit); err != nil {
 			return errors.Wrap(err, "could not submit voluntary exit")
 		}
