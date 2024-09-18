@@ -4,6 +4,7 @@ package parsigdb
 
 import (
 	"context"
+	"github.com/obolnetwork/charon/app/featureset"
 	"testing"
 
 	"github.com/attestantio/go-eth2-client/spec/altair"
@@ -227,6 +228,8 @@ func TestMemDBThreshold(t *testing.T) {
 }
 
 func Test_rootFromParSigDataSet(t *testing.T) {
+	featureset.EnableForT(t, featureset.HardenedParSigDB)
+	defer featureset.DisableForT(t, featureset.HardenedParSigDB)
 	blockData := testutil.RandomDenebVersionedSignedProposal()
 	full, err := core.NewPartialVersionedSignedProposal(blockData, 1)
 	require.NoError(t, err)
