@@ -13,8 +13,10 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	ssz "github.com/ferranbt/fastssz"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -394,19 +396,160 @@ func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*e
 	return wrapResponse(proposal), nil
 }
 
+func (c Component) propDataMatchesDuty(ctx context.Context, opts *eth2api.SubmitProposalOpts, prop *eth2api.VersionedProposal) error {
+	ourPropIdx, err := prop.ProposerIndex()
+	if err != nil {
+		return errors.Wrap(err, "cannot fetch validator index from dutydb proposal")
+	}
+
+	vcPropIdx, err := opts.Proposal.ProposerIndex()
+	if err != nil {
+		return errors.Wrap(err, "cannot fetch validator index from VC proposal")
+	}
+
+	if ourPropIdx != vcPropIdx {
+		return errors.New(
+			"dutydb and VC proposals have different index",
+			z.U64("vc", uint64(vcPropIdx)),
+			z.U64("dutydb", uint64(ourPropIdx)),
+		)
+	}
+
+	if opts.Proposal.Blinded != prop.Blinded {
+		return errors.New(
+			"dutydb and VC proposals have different blinded value",
+			z.Bool("vc", opts.Proposal.Blinded),
+			z.Bool("dutydb", prop.Blinded),
+		)
+	}
+
+	if opts.Proposal.Version != prop.Version {
+		return errors.New(
+			"dutydb and VC proposals have different version",
+			z.Str("vc", opts.Proposal.Version.String()),
+			z.Str("dutydb", prop.Version.String()),
+		)
+	}
+
+	checkHashes := func(d1, d2 ssz.HashRoot) error {
+		ddb, err := d1.HashTreeRoot()
+		if err != nil {
+			return errors.Wrap(err, "hash tree root dutydb")
+		}
+
+		if d2 == nil {
+			return errors.New("VC proposal data for the associated dutydb proposal is nil")
+		}
+
+		vc, err := d2.HashTreeRoot()
+		if err != nil {
+			return errors.Wrap(err, "hash tree root dutydb")
+		}
+
+		if ddb != vc {
+			return errors.New("dutydb and VC proposal data have different hash tree root")
+		}
+
+		return nil
+	}
+
+	switch prop.Version {
+	case spec.DataVersionPhase0:
+		return checkHashes(prop.Phase0, opts.Proposal.Phase0.Message)
+	case spec.DataVersionAltair:
+		return checkHashes(prop.Altair, opts.Proposal.Altair.Message)
+	case spec.DataVersionBellatrix:
+		var (
+			ddbData ssz.HashRoot = prop.Bellatrix
+			vcData  ssz.HashRoot = opts.Proposal.Bellatrix
+		)
+
+		if prop.Blinded {
+			ddbData = prop.BellatrixBlinded
+			vcData = opts.Proposal.BellatrixBlinded
+		}
+
+		return checkHashes(ddbData, vcData)
+	case spec.DataVersionCapella:
+
+		var (
+			ddbData ssz.HashRoot = prop.Capella
+			vcData  ssz.HashRoot = opts.Proposal.Capella
+		)
+
+		if prop.Blinded {
+			ddbData = prop.CapellaBlinded
+			vcData = opts.Proposal.CapellaBlinded
+		}
+
+		return checkHashes(ddbData, vcData)
+	case spec.DataVersionDeneb:
+
+		var (
+			ddbData ssz.HashRoot = prop.Deneb
+			vcData  ssz.HashRoot = opts.Proposal.Deneb
+		)
+
+		if prop.Blinded {
+			ddbData = prop.DenebBlinded
+			vcData = opts.Proposal.DenebBlinded
+		}
+
+		return checkHashes(ddbData, vcData)
+	case spec.DataVersionUnknown:
+		return errors.New("unexpected block version", z.Str("version", prop.Version.String()))
+	}
+
+	return nil
+}
+
+// valPubkeyFromProposal returns the public key of the validator associated to this proposal.
+// If the validator index does not belong to the configured cluster, this function will return an error.
+func (c Component) valPubkeyFromProposal(ctx context.Context, opts *eth2api.SubmitProposalOpts) (core.PubKey, error) {
+	idx, err := opts.Proposal.ProposerIndex()
+	if err != nil {
+		return "", errors.Wrap(err, "cannot fetch validator index from proposal")
+	}
+
+	activeVals, err := c.eth2Cl.ActiveValidators(ctx)
+	if err != nil {
+		return "", errors.Wrap(err, "cannot fetch active validators")
+	}
+
+	data, ok := activeVals[idx]
+	if !ok {
+		return "", errors.New(
+			"validator index contained in proposal does not belong to this cluster",
+			z.U64("validator_index", uint64(idx)),
+		)
+	}
+
+	return core.PubKeyFrom48Bytes(data), nil
+}
+
 func (c Component) SubmitProposal(ctx context.Context, opts *eth2api.SubmitProposalOpts) error {
 	slot, err := opts.Proposal.Slot()
 	if err != nil {
 		return err
 	}
 
-	pubkey, err := c.getProposerPubkey(ctx, core.NewProposerDuty(uint64(slot)))
+	duty := core.NewProposerDuty(uint64(slot))
+
+	pubkey, err := c.getProposerPubkey(ctx, duty)
 	if err != nil {
 		return err
 	}
 
+	prop, err := c.awaitProposalFunc(ctx, uint64(slot))
+	if err != nil {
+		return errors.Wrap(err, "could not fetch block definition from dutydb")
+	}
+
+	if err := c.propDataMatchesDuty(ctx, opts, prop); err != nil {
+		return errors.Wrap(err, "consensus proposal and VC-submitted one do not match")
+	}
+
 	// Save Partially Signed Block to ParSigDB
-	duty := core.NewProposerDuty(uint64(slot))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
 	signedData, err := core.NewPartialVersionedSignedProposal(opts.Proposal, c.shareIdx)
@@ -440,14 +583,24 @@ func (c Component) SubmitBlindedProposal(ctx context.Context, opts *eth2api.Subm
 		return err
 	}
 
-	pubkey, err := c.getProposerPubkey(ctx, core.NewProposerDuty(uint64(slot)))
+	duty := core.NewProposerDuty(uint64(slot))
+	ctx = log.WithCtx(ctx, z.Any("duty", duty))
+
+	pubkey, err := c.getProposerPubkey(ctx, duty)
 	if err != nil {
 		return err
 	}
 
 	// Save Partially Signed Blinded Block to ParSigDB
-	duty := core.NewProposerDuty(uint64(slot))
-	ctx = log.WithCtx(ctx, z.Any("duty", duty))
+
+	prop, err := c.awaitProposalFunc(ctx, uint64(slot))
+	if err != nil {
+		return errors.Wrap(err, "could not fetch block definition from dutydb")
+	}
+
+	if err := c.propDataMatchesDuty(ctx, opts, prop); err != nil {
+		return errors.Wrap(err, "consensus proposal and VC-submitted one do not match")
+	}
 
 	signedData, err := core.NewPartialVersionedSignedBlindedProposal(opts.Proposal, c.shareIdx)
 	if err != nil {
