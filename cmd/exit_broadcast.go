@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -125,7 +126,7 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 				if !strings.HasPrefix(entry.Name(), "exit-") {
 					continue
 				}
-				exit, err := fetchFullExit(ctx, config.ExitFromFileDir+"/"+entry.Name(), config, cl, identityKey, "")
+				exit, err := fetchFullExit(ctx, path.Join(config.ExitFromFileDir+"/"+entry.Name()), config, cl, identityKey, "")
 				if err != nil {
 					return errors.Wrap(err, "fetch full exit for all from dir")
 				}
