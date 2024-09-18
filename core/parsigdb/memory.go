@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -236,6 +237,10 @@ func getThresholdMatching(typ core.DutyType, sigs []core.ParSignedData, threshol
 // rootFromParSigDataSet returns the MessageRoot of data only if the duty is supported,
 // and only if data is not a core.Signature.
 func rootFromParSigDataSet(duty core.Duty, data core.ParSignedData) ([32]byte, error) {
+	if !featureset.Enabled(featureset.HardenedParSigDB) {
+		return [32]byte{}, nil
+	}
+
 	// known limitation: sync message and contributions might have different hashes,
 	// ignore them for now.
 	// signature duties don't have a MessageRoot implementation at all, by design.

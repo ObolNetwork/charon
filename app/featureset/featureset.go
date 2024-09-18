@@ -45,6 +45,11 @@ const (
 	// The feature gets automatically enabled when the current network is gnosis|chiado,
 	// unless the user disabled this feature explicitly.
 	GnosisBlockHotfix Feature = "gnosis_block_hotfix"
+
+	// HardenedParSigDB enables keying ParSigDB elements with their hash tree root
+	// on top of the core.Duty object.
+	// Since this is a breaking change, we'll gradually enable it in later releases.
+	HardenedParSigDB Feature = "hardened_par_sig_db"
 )
 
 var (
