@@ -115,7 +115,6 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 	}
 
 	fullExits := make(map[core.PubKey]eth2p0.SignedVoluntaryExit)
-	// multiple
 	if config.All {
 		if config.ExitFromFileDir != "" {
 			entries, err := os.ReadDir(config.ExitFromFileDir)
