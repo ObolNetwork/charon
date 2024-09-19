@@ -4,8 +4,11 @@ package cmd
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -15,6 +18,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
@@ -52,14 +56,43 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 		{lockFilePath, false},
 		{validatorKeysDir, false},
 		{exitEpoch, false},
-		{validatorPubkey, true},
+		{validatorPubkey, false},
 		{beaconNodeEndpoints, true},
 		{exitFromFile, false},
+		{exitFromDir, false},
 		{beaconNodeTimeout, false},
 		{publishTimeout, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
+
+	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
+		valPubkPresent := cmd.Flags().Lookup(validatorPubkey.String()).Changed
+		exitFilePresent := cmd.Flags().Lookup(exitFromFile.String()).Changed
+		exitDirPresent := cmd.Flags().Lookup(exitFromDir.String()).Changed
+
+		if !valPubkPresent && !config.All {
+			//nolint:revive,perfsprint // we use our own version of the errors package; keep consistency with other checks.
+			return errors.New(fmt.Sprintf("%s must be specified when exiting single validator.", validatorPubkey.String()))
+		}
+
+		if config.All && valPubkPresent {
+			//nolint:revive // we use our own version of the errors package.
+			return errors.New(fmt.Sprintf("%s should not be specified when %s is, as it is obsolete and misleading.", validatorPubkey.String(), all.String()))
+		}
+
+		if valPubkPresent && exitDirPresent {
+			//nolint:revive // we use our own version of the errors package.
+			return errors.New(fmt.Sprintf("if you want to specify exit file for single validator, you must provide %s and not %s.", exitFromFile.String(), exitFromDir.String()))
+		}
+
+		if config.All && exitFilePresent {
+			//nolint:revive // we use our own version of the errors package.
+			return errors.New(fmt.Sprintf("if you want to specify exit file directory for all validators, you must provide %s and not %s.", exitFromDir.String(), exitFromFile.String()))
+		}
+
+		return nil
+	})
 
 	return cmd
 }
@@ -75,66 +108,142 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "could not load cluster-lock.json")
 	}
 
-	validator := core.PubKey(config.ValidatorPubkey)
-	if _, err := validator.Bytes(); err != nil {
-		return errors.Wrap(err, "cannot convert validator pubkey to bytes")
-	}
-
-	ctx = log.WithCtx(ctx, z.Str("validator", validator.String()))
-
 	eth2Cl, err := eth2Client(ctx, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.GetForkVersion()))
 	if err != nil {
 		return errors.Wrap(err, "cannot create eth2 client for specified beacon node")
 	}
 
-	var fullExit eth2p0.SignedVoluntaryExit
-	maybeExitFilePath := strings.TrimSpace(config.ExitFromFilePath)
+	fullExits := make(map[core.PubKey]eth2p0.SignedVoluntaryExit)
+	if config.All {
+		if config.ExitFromFileDir != "" {
+			entries, err := os.ReadDir(config.ExitFromFileDir)
+			if err != nil {
+				return errors.Wrap(err, "could not read exits directory")
+			}
+			for _, entry := range entries {
+				if !strings.HasPrefix(entry.Name(), "exit-") {
+					continue
+				}
+				exit, err := fetchFullExit(ctx, filepath.Join(config.ExitFromFileDir, entry.Name()), config, cl, identityKey, "")
+				if err != nil {
+					return errors.Wrap(err, "fetch full exit for all from dir")
+				}
 
-	if len(maybeExitFilePath) != 0 {
-		log.Info(ctx, "Retrieving full exit message from path", z.Str("path", maybeExitFilePath))
-		fullExit, err = exitFromPath(maybeExitFilePath)
+				validatorPubKey, err := validatorPubKeyFromFileName(entry.Name())
+				if err != nil {
+					return err
+				}
+
+				fullExits[validatorPubKey] = exit
+			}
+		} else {
+			for _, validator := range cl.GetValidators() {
+				validatorPubKeyHex := fmt.Sprintf("0x%x", validator.GetPublicKey())
+
+				valCtx := log.WithCtx(ctx, z.Str("validator", validatorPubKeyHex))
+
+				exit, err := fetchFullExit(valCtx, "", config, cl, identityKey, validatorPubKeyHex)
+				if err != nil {
+					return errors.Wrap(err, "fetch full exit for all from public key")
+				}
+				validatorPubKey, err := core.PubKeyFromBytes(validator.GetPublicKey())
+				if err != nil {
+					return errors.Wrap(err, "convert public key for validator")
+				}
+				fullExits[validatorPubKey] = exit
+			}
+		}
+	} else {
+		exit, err := fetchFullExit(ctx, strings.TrimSpace(config.ExitFromFilePath), config, cl, identityKey, config.ValidatorPubkey)
+		if err != nil {
+			return errors.Wrap(err, "fetch full exit for public key")
+		}
+		var validatorPubKey core.PubKey
+		if len(strings.TrimSpace(config.ExitFromFilePath)) != 0 {
+			validatorPubKey, err = validatorPubKeyFromFileName(config.ExitFromFilePath)
+			if err != nil {
+				return err
+			}
+		} else {
+			validatorPubKey = core.PubKey(config.ValidatorPubkey)
+		}
+		fullExits[validatorPubKey] = exit
+	}
+
+	return broadcastExitsToBeacon(ctx, eth2Cl, fullExits)
+}
+
+func validatorPubKeyFromFileName(fileName string) (core.PubKey, error) {
+	fileNameChecked := filepath.Base(fileName)
+	fileExtension := filepath.Ext(fileNameChecked)
+	validatorPubKeyHex := strings.TrimPrefix(strings.TrimSuffix(fileNameChecked, fileExtension), "exit-0x")
+	validatorPubKeyBytes, err := hex.DecodeString(validatorPubKeyHex)
+	if err != nil {
+		return "", errors.Wrap(err, "cannot decode public key hex from file name")
+	}
+	validatorPubKey, err := core.PubKeyFromBytes(validatorPubKeyBytes)
+	if err != nil {
+		return "", errors.Wrap(err, "cannot decode core public key from hex")
+	}
+
+	return validatorPubKey, nil
+}
+
+func fetchFullExit(ctx context.Context, exitFilePath string, config exitConfig, cl *manifestpb.Cluster, identityKey *k1.PrivateKey, validatorPubKey string) (eth2p0.SignedVoluntaryExit, error) {
+	var fullExit eth2p0.SignedVoluntaryExit
+	var err error
+
+	if len(exitFilePath) != 0 {
+		log.Info(ctx, "Retrieving full exit message from path", z.Str("path", exitFilePath))
+		fullExit, err = exitFromPath(exitFilePath)
 	} else {
 		log.Info(ctx, "Retrieving full exit message from publish address")
-		fullExit, err = exitFromObolAPI(ctx, config.ValidatorPubkey, config.PublishAddress, config.PublishTimeout, cl, identityKey)
+		fullExit, err = exitFromObolAPI(ctx, validatorPubKey, config.PublishAddress, config.PublishTimeout, cl, identityKey)
 	}
 
-	if err != nil {
-		return err
+	return fullExit, err
+}
+
+func broadcastExitsToBeacon(ctx context.Context, eth2Cl eth2wrap.Client, exits map[core.PubKey]eth2p0.SignedVoluntaryExit) error {
+	for validator, fullExit := range exits {
+		valCtx := log.WithCtx(ctx, z.Str("validator", validator.String()))
+
+		rawPkBytes, err := validator.Bytes()
+		if err != nil {
+			return errors.Wrap(err, "could not serialize validator key bytes")
+		}
+
+		pubkey, err := tblsconv.PubkeyFromBytes(rawPkBytes)
+		if err != nil {
+			return errors.Wrap(err, "could not convert validator key bytes to BLS public key")
+		}
+
+		// parse signature
+		signature, err := tblsconv.SignatureFromBytes(fullExit.Signature[:])
+		if err != nil {
+			return errors.Wrap(err, "could not parse BLS signature from bytes")
+		}
+
+		exitRoot, err := sigDataForExit(
+			valCtx,
+			*fullExit.Message,
+			eth2Cl,
+			fullExit.Message.Epoch,
+		)
+		if err != nil {
+			return errors.Wrap(err, "cannot calculate hash tree root for exit message for verification")
+		}
+
+		if err := tbls.Verify(pubkey, exitRoot[:], signature); err != nil {
+			return errors.Wrap(err, "exit message signature not verified")
+		}
 	}
 
-	// parse validator public key
-	rawPkBytes, err := validator.Bytes()
-	if err != nil {
-		return errors.Wrap(err, "could not serialize validator key bytes")
-	}
-
-	pubkey, err := tblsconv.PubkeyFromBytes(rawPkBytes)
-	if err != nil {
-		return errors.Wrap(err, "could not convert validator key bytes to BLS public key")
-	}
-
-	// parse signature
-	signature, err := tblsconv.SignatureFromBytes(fullExit.Signature[:])
-	if err != nil {
-		return errors.Wrap(err, "could not parse BLS signature from bytes")
-	}
-
-	exitRoot, err := sigDataForExit(
-		ctx,
-		*fullExit.Message,
-		eth2Cl,
-		fullExit.Message.Epoch,
-	)
-	if err != nil {
-		return errors.Wrap(err, "cannot calculate hash tree root for exit message for verification")
-	}
-
-	if err := tbls.Verify(pubkey, exitRoot[:], signature); err != nil {
-		return errors.Wrap(err, "exit message signature not verified")
-	}
-
-	if err := eth2Cl.SubmitVoluntaryExit(ctx, &fullExit); err != nil {
-		return errors.Wrap(err, "could not submit voluntary exit")
+	for validator, fullExit := range exits {
+		valCtx := log.WithCtx(ctx, z.Str("validator", validator.String()))
+		if err := eth2Cl.SubmitVoluntaryExit(valCtx, &fullExit); err != nil {
+			return errors.Wrap(err, "could not submit voluntary exit")
+		}
 	}
 
 	return nil
