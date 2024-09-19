@@ -186,21 +186,19 @@ func TestValidateWithdrawalAddr(t *testing.T) {
 func TestValidateDKGConfig(t *testing.T) {
 
 	t.Run("insufficient ENRs", func(t *testing.T) {
-		threshold := 2
 		numOperators := 2
-		err := validateDKGConfig(threshold, numOperators, "", nil)
+		err := validateDKGConfig(numOperators, "", nil)
 		require.ErrorContains(t, err, "number of operators is below minimum")
 	})
 
 	t.Run("invalid network", func(t *testing.T) {
-		threshold := 3
 		numOperators := 4
-		err := validateDKGConfig(threshold, numOperators, "cosmos", nil)
+		err := validateDKGConfig(numOperators, "cosmos", nil)
 		require.ErrorContains(t, err, "unsupported network")
 	})
 
 	t.Run("wrong deposit amounts sum", func(t *testing.T) {
-		err := validateDKGConfig(3, 4, "goerli", []int{8, 16})
+		err := validateDKGConfig(4, "goerli", []int{8, 16})
 		require.ErrorContains(t, err, "sum of partial deposit amounts must sum up to 32ETH")
 	})
 }
