@@ -45,12 +45,29 @@ func newFetchExitCmd(runFunc func(context.Context, exitConfig) error) *cobra.Com
 		{publishAddress, false},
 		{privateKeyPath, false},
 		{lockFilePath, false},
-		{validatorPubkey, true},
+		{validatorPubkey, false},
+		{all, false},
 		{fetchedExitPath, false},
 		{publishTimeout, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
+
+	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
+		valPubkPresent := cmd.Flags().Lookup(validatorPubkey.String()).Changed
+
+		if !valPubkPresent && !config.All {
+			//nolint:revive,perfsprint // we use our own version of the errors package; keep consistency with other checks.
+			return errors.New(fmt.Sprintf("%s must be specified when exiting single validator.", validatorPubkey.String()))
+		}
+
+		if config.All && valPubkPresent {
+			//nolint:revive // we use our own version of the errors package.
+			return errors.New(fmt.Sprintf("%s should not be specified when %s is, as it is obsolete and misleading.", validatorPubkey.String(), all.String()))
+		}
+
+		return nil
+	})
 
 	return cmd
 }
@@ -79,33 +96,61 @@ func runFetchExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "could not load cluster-lock.json")
 	}
 
-	validator := core.PubKey(config.ValidatorPubkey)
-	if _, err := validator.Bytes(); err != nil {
-		return errors.Wrap(err, "cannot convert validator pubkey to bytes")
-	}
-
-	ctx = log.WithCtx(ctx, z.Str("validator", validator.String()))
-
 	oAPI, err := obolapi.New(config.PublishAddress, obolapi.WithTimeout(config.PublishTimeout))
 	if err != nil {
 		return errors.Wrap(err, "could not create obol api client")
 	}
-
-	log.Info(ctx, "Retrieving full exit message")
 
 	shareIdx, err := keystore.ShareIdxForCluster(cl, *identityKey.PubKey())
 	if err != nil {
 		return errors.Wrap(err, "could not determine operator index from cluster lock for supplied identity key")
 	}
 
-	fullExit, err := oAPI.GetFullExit(ctx, config.ValidatorPubkey, cl.GetInitialMutationHash(), shareIdx, identityKey)
-	if err != nil {
-		return errors.Wrap(err, "could not load full exit data from Obol API")
+	if config.All {
+		for _, validator := range cl.GetValidators() {
+			validatorPubKeyHex := fmt.Sprintf("0x%x", validator.GetPublicKey())
+
+			valCtx := log.WithCtx(ctx, z.Str("validator", validatorPubKeyHex))
+
+			log.Info(valCtx, "Retrieving full exit message")
+
+			fullExit, err := oAPI.GetFullExit(valCtx, validatorPubKeyHex, cl.GetInitialMutationHash(), shareIdx, identityKey)
+			if err != nil {
+				return errors.Wrap(err, "could not load full exit data from Obol API")
+			}
+
+			err = writeExitToFile(valCtx, validatorPubKeyHex, config.FetchedExitPath, fullExit)
+			if err != nil {
+				return err
+			}
+		}
+	} else {
+		validator := core.PubKey(config.ValidatorPubkey)
+		if _, err := validator.Bytes(); err != nil {
+			return errors.Wrap(err, "cannot convert validator pubkey to bytes")
+		}
+
+		ctx = log.WithCtx(ctx, z.Str("validator", validator.String()))
+
+		log.Info(ctx, "Retrieving full exit message")
+
+		fullExit, err := oAPI.GetFullExit(ctx, config.ValidatorPubkey, cl.GetInitialMutationHash(), shareIdx, identityKey)
+		if err != nil {
+			return errors.Wrap(err, "could not load full exit data from Obol API")
+		}
+
+		err = writeExitToFile(ctx, config.ValidatorPubkey, config.FetchedExitPath, fullExit)
+		if err != nil {
+			return err
+		}
 	}
 
-	fetchedExitFname := fmt.Sprintf("exit-%s.json", config.ValidatorPubkey)
+	return nil
+}
 
-	fetchedExitPath := filepath.Join(config.FetchedExitPath, fetchedExitFname)
+func writeExitToFile(ctx context.Context, valPubKey string, exitPath string, fullExit obolapi.ExitBlob) error {
+	fetchedExitFname := fmt.Sprintf("exit-%s.json", valPubKey)
+	fetchedExitPath := filepath.Join(exitPath, fetchedExitFname)
 
 	exitData, err := json.Marshal(fullExit.SignedExitMessage)
 	if err != nil {
