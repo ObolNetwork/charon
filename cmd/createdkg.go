@@ -6,7 +6,6 @@ import (
 	"context"
 	crand "crypto/rand"
 	"encoding/json"
-	"math"
 	"os"
 	"path"
 
@@ -49,6 +48,23 @@ func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobr
 	}
 
 	bindCreateDKGFlags(cmd, &config)
+
+	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
+		thresholdPresent := cmd.Flags().Lookup("threshold").Changed
+
+		if thresholdPresent {
+			minThreshold := cluster.Threshold(len(config.OperatorENRs))
+			if config.Threshold < minThreshold {
+				return errors.New("threshold cannot be smaller than BFT quorum", z.Int("threshold", config.Threshold), z.Int("min", minThreshold))
+			}
+			if config.Threshold > len(config.OperatorENRs) {
+				return errors.New("threshold cannot be greater than number of operators",
+					z.Int("threshold", config.Threshold), z.Int("operators", len(config.OperatorENRs)))
+			}
+		}
+
+		return nil
+	})
 
 	return cmd
 }
@@ -113,9 +129,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	}
 
 	safeThreshold := cluster.Threshold(len(conf.OperatorENRs))
-	if conf.Threshold == 0 {
-		conf.Threshold = safeThreshold
-	} else if conf.Threshold != safeThreshold {
+	if conf.Threshold != safeThreshold {
 		log.Warn(ctx, "Non standard `--threshold` flag provided, this will affect cluster safety", nil, z.Int("threshold", conf.Threshold), z.Int("safe_threshold", safeThreshold))
 	}
 
@@ -185,16 +199,6 @@ func validateDKGConfig(threshold, numOperators int, network string, depositAmoun
 	// Don't allow cluster size to be less than 3.
 	if numOperators < minNodes {
 		return errors.New("number of operators is below minimum", z.Int("operators", numOperators), z.Int("min", minNodes))
-	}
-
-	// Ensure threshold setting is sound
-	minThreshold := int(math.Ceil(float64(numOperators*2) / 3))
-	if threshold < minThreshold {
-		return errors.New("threshold cannot be smaller than BFT quorum", z.Int("threshold", threshold), z.Int("min", minThreshold))
-	}
-	if threshold > numOperators {
-		return errors.New("threshold cannot be greater than length of operators",
-			z.Int("threshold", threshold), z.Int("operators", numOperators))
 	}
 
 	if !eth2util.ValidNetwork(network) {
