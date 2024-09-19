@@ -98,7 +98,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		conf.Network = eth2util.Goerli.Name
 	}
 
-	if err = validateDKGConfig(conf.Threshold, len(conf.OperatorENRs), conf.Network, conf.DepositAmounts); err != nil {
+	if err = validateDKGConfig(len(conf.OperatorENRs), conf.Network, conf.DepositAmounts); err != nil {
 		return err
 	}
 
@@ -195,7 +195,7 @@ func validateWithdrawalAddrs(addrs []string, network string) error {
 }
 
 // validateDKGConfig returns an error if any of the provided config parameter is invalid.
-func validateDKGConfig(threshold, numOperators int, network string, depositAmounts []int) error {
+func validateDKGConfig(numOperators int, network string, depositAmounts []int) error {
 	// Don't allow cluster size to be less than 3.
 	if numOperators < minNodes {
 		return errors.New("number of operators is below minimum", z.Int("operators", numOperators), z.Int("min", minNodes))
