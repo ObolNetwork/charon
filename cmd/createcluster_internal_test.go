@@ -39,8 +39,8 @@ func TestCreateCluster(t *testing.T) {
 	def, err := loadDefinition(context.Background(), defPath)
 	require.NoError(t, err)
 
-	// defPathTwoNodes := "../cluster/examples/cluster-definition-001.json"
-	// defTwoNodes, err := loadDefinition(context.Background(), defPathTwoNodes)
+	defPathTwoNodes := "../cluster/examples/cluster-definition-001.json"
+	defTwoNodes, err := loadDefinition(context.Background(), defPathTwoNodes)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -250,43 +250,23 @@ func TestCreateCluster(t *testing.T) {
 				},
 			},
 		},
-		// {
-		// 	Name: "threshold greater than the number of operators",
-		// 	Config: clusterConfig{
-		// 		NumNodes:  4,
-		// 		Threshold: 5,
-		// 		NumDVs:    1,
-		// 		Network:   defaultNetwork,
-		// 	},
-		// 	expectedErr: "threshold cannot be greater than number of operators",
-		// },
-		// {
-		// 	Name: "threshold smaller than BFT quorum",
-		// 	Config: clusterConfig{
-		// 		NumNodes:  4,
-		// 		Threshold: 2,
-		// 		NumDVs:    1,
-		// 		Network:   defaultNetwork,
-		// 	},
-		// 	expectedErr: "threshold cannot be smaller than BFT quorum",
-		// },
-		// {
-		// 	Name: "test with number of nodes below minimum",
-		// 	Config: clusterConfig{
-		// 		Name:      "test_cluster",
-		// 		NumNodes:  2,
-		// 		Threshold: 2,
-		// 		NumDVs:    1,
-		// 		Network:   "goerli",
-		// 	},
-		// 	defFileProvider: func() []byte {
-		// 		data, err := json.Marshal(defTwoNodes)
-		// 		require.NoError(t, err)
+		{
+			Name: "test with number of nodes below minimum",
+			Config: clusterConfig{
+				Name:      "test_cluster",
+				NumNodes:  2,
+				Threshold: 2,
+				NumDVs:    1,
+				Network:   "goerli",
+			},
+			defFileProvider: func() []byte {
+				data, err := json.Marshal(defTwoNodes)
+				require.NoError(t, err)
 
-		// 		return data
-		// 	},
-		// 	expectedErr: "number of operators is below minimum",
-		// },
+				return data
+			},
+			expectedErr: "number of operators is below minimum",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
@@ -785,6 +765,28 @@ func TestPublish(t *testing.T) {
 
 		require.NoError(t, err)
 		require.Equal(t, <-result, struct{}{})
+	})
+}
+
+func TestWrongThreshold(t *testing.T) {
+	nodes := "--nodes=3"
+	feeRecipientArg := "--fee-recipient-addresses=" + validEthAddr
+	withdrawalArg := "--withdrawal-addresses=" + validEthAddr
+
+	t.Run("threshold below minimum", func(t *testing.T) {
+		thresholdArg := "--threshold=1"
+		cmd := newCreateCmd(newCreateClusterCmd(runCreateCluster))
+		cmd.SetArgs([]string{"cluster", nodes, feeRecipientArg, withdrawalArg, thresholdArg})
+		err := cmd.Execute()
+		require.ErrorContains(t, err, "threshold cannot be smaller than BFT quorum")
+	})
+
+	t.Run("threshold above maximum", func(t *testing.T) {
+		thresholdArg := "--threshold=4"
+		cmd := newCreateCmd(newCreateClusterCmd(runCreateCluster))
+		cmd.SetArgs([]string{"cluster", nodes, feeRecipientArg, withdrawalArg, thresholdArg})
+		err := cmd.Execute()
+		require.ErrorContains(t, err, "threshold cannot be greater than number of operators")
 	})
 }
 

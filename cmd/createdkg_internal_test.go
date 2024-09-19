@@ -184,19 +184,6 @@ func TestValidateWithdrawalAddr(t *testing.T) {
 }
 
 func TestValidateDKGConfig(t *testing.T) {
-	t.Run("threshold exceeds numOperators", func(t *testing.T) {
-		threshold := 5
-		numOperators := 4
-		err := validateDKGConfig(threshold, numOperators, "", nil)
-		require.ErrorContains(t, err, "threshold cannot be greater than length of operators")
-	})
-
-	t.Run("threshold equals 1", func(t *testing.T) {
-		threshold := 1
-		numOperators := 3
-		err := validateDKGConfig(threshold, numOperators, "", nil)
-		require.ErrorContains(t, err, "threshold cannot be smaller than BFT quorum")
-	})
 
 	t.Run("insufficient ENRs", func(t *testing.T) {
 		threshold := 2
@@ -215,5 +202,36 @@ func TestValidateDKGConfig(t *testing.T) {
 	t.Run("wrong deposit amounts sum", func(t *testing.T) {
 		err := validateDKGConfig(3, 4, "goerli", []int{8, 16})
 		require.ErrorContains(t, err, "sum of partial deposit amounts must sum up to 32ETH")
+	})
+}
+
+func TestWrongThresholdDKG(t *testing.T) {
+	charonDir := testutil.CreateTempCharonDir(t)
+	b := []byte("sample definition")
+	require.NoError(t, os.WriteFile(path.Join(charonDir, "cluster-definition.json"), b, 0o600))
+
+	var enrs []string
+	for range minNodes {
+		enrs = append(enrs, "enr:-JG4QG472ZVvl8ySSnUK9uNVDrP_hjkUrUqIxUC75aayzmDVQedXkjbqc7QKyOOS71VmlqnYzri_taV8ZesFYaoQSIOGAYHtv1WsgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u")
+	}
+	enrArg := "--operator-enrs=" + strings.Join(enrs, ",")
+	feeRecipientArg := "--fee-recipient-addresses=" + validEthAddr
+	withdrawalArg := "--withdrawal-addresses=" + validEthAddr
+	outputDirArg := "--output-dir=" + charonDir
+
+	t.Run("threshold below minimum", func(t *testing.T) {
+		thresholdArg := "--threshold=1"
+		cmd := newCreateCmd(newCreateDKGCmd(runCreateDKG))
+		cmd.SetArgs([]string{"dkg", enrArg, feeRecipientArg, withdrawalArg, outputDirArg, thresholdArg})
+		err := cmd.Execute()
+		require.ErrorContains(t, err, "threshold cannot be smaller than BFT quorum")
+	})
+
+	t.Run("threshold above maximum", func(t *testing.T) {
+		thresholdArg := "--threshold=4"
+		cmd := newCreateCmd(newCreateDKGCmd(runCreateDKG))
+		cmd.SetArgs([]string{"dkg", enrArg, feeRecipientArg, withdrawalArg, outputDirArg, thresholdArg})
+		err := cmd.Execute()
+		require.ErrorContains(t, err, "threshold cannot be greater than number of operators")
 	})
 }
