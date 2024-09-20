@@ -250,13 +250,13 @@ func TestDKGCLI(t *testing.T) {
 			outputDir:    outputDirArg,
 			threshold:    "",
 			expectedErr:  "",
-			prepare:      func(t *testing.T) {
+			prepare: func(t *testing.T) {
 				t.Helper()
 				charonDir := testutil.CreateTempCharonDir(t)
 				b := []byte("sample definition")
 				require.NoError(t, os.WriteFile(path.Join(charonDir, "cluster-definition.json"), b, 0o600))
 			},
-			cleanup:      func(t *testing.T) {
+			cleanup: func(t *testing.T) {
 				t.Helper()
 				err := os.RemoveAll(".charon")
 				require.NoError(t, err)

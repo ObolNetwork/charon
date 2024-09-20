@@ -781,7 +781,7 @@ func TestClusterCLI(t *testing.T) {
 		withdrawal    string
 		threshold     string
 		expectedErr   string
-		cleanup      func(*testing.T)
+		cleanup       func(*testing.T)
 	}{
 		{
 			name:          "threshold below minimum",
@@ -794,25 +794,25 @@ func TestClusterCLI(t *testing.T) {
 			expectedErr:   "threshold must be greater than 1",
 		},
 		{
-			name:         "threshold above maximum",
-			nodes:        "--nodes=4",
-			network:      "--network=holesky",
+			name:          "threshold above maximum",
+			nodes:         "--nodes=4",
+			network:       "--network=holesky",
 			numValidators: "--num-validators=1",
-			feeRecipient: feeRecipientArg,
-			withdrawal:   withdrawalArg,
-			threshold:    "--threshold=5",
-			expectedErr:  "threshold cannot be greater than number of operators",
+			feeRecipient:  feeRecipientArg,
+			withdrawal:    withdrawalArg,
+			threshold:     "--threshold=5",
+			expectedErr:   "threshold cannot be greater than number of operators",
 		},
 		{
-			name:         "no threshold provided",
-			nodes:        "--nodes=3",
-			network:      "--network=holesky",
+			name:          "no threshold provided",
+			nodes:         "--nodes=3",
+			network:       "--network=holesky",
 			numValidators: "--num-validators=1",
-			feeRecipient: feeRecipientArg,
-			withdrawal:   withdrawalArg,
-			threshold:    "",
-			expectedErr:  "",
-			cleanup:      func(t *testing.T) {
+			feeRecipient:  feeRecipientArg,
+			withdrawal:    withdrawalArg,
+			threshold:     "",
+			expectedErr:   "",
+			cleanup: func(t *testing.T) {
 				t.Helper()
 				require.NoError(t, os.RemoveAll("node0"))
 				require.NoError(t, os.RemoveAll("node1"))
