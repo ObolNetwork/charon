@@ -103,9 +103,8 @@ func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig)
 		thresholdPresent := cmd.Flags().Lookup("threshold").Changed
 
 		if thresholdPresent {
-			minThreshold := cluster.Threshold(conf.NumNodes)
 			if conf.Threshold < minThreshold {
-				return errors.New("threshold cannot be smaller than BFT quorum", z.Int("threshold", conf.Threshold), z.Int("min", minThreshold))
+				return errors.New("threshold must be greater than 1", z.Int("threshold", conf.Threshold), z.Int("min", minThreshold))
 			}
 			if conf.Threshold > conf.NumNodes {
 				return errors.New("threshold cannot be greater than number of operators",

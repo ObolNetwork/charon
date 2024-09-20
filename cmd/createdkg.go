@@ -53,9 +53,8 @@ func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobr
 		thresholdPresent := cmd.Flags().Lookup("threshold").Changed
 
 		if thresholdPresent {
-			minThreshold := cluster.Threshold(len(config.OperatorENRs))
 			if config.Threshold < minThreshold {
-				return errors.New("threshold cannot be smaller than BFT quorum", z.Int("threshold", config.Threshold), z.Int("min", minThreshold))
+				return errors.New("threshold must be greater than 1", z.Int("threshold", config.Threshold), z.Int("min", minThreshold))
 			}
 			if config.Threshold > len(config.OperatorENRs) {
 				return errors.New("threshold cannot be greater than number of operators",
@@ -129,7 +128,9 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	}
 
 	safeThreshold := cluster.Threshold(len(conf.OperatorENRs))
-	if conf.Threshold != safeThreshold {
+	if conf.Threshold == 0 {
+		conf.Threshold = safeThreshold
+	} else {
 		log.Warn(ctx, "Non standard `--threshold` flag provided, this will affect cluster safety", nil, z.Int("threshold", conf.Threshold), z.Int("safe_threshold", safeThreshold))
 	}
 
