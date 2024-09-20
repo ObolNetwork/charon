@@ -203,11 +203,7 @@ func TestValidateDKGConfig(t *testing.T) {
 	})
 }
 
-func TestWrongThresholdDKG(t *testing.T) {
-	charonDir := testutil.CreateTempCharonDir(t)
-	b := []byte("sample definition")
-	require.NoError(t, os.WriteFile(path.Join(charonDir, "cluster-definition.json"), b, 0o600))
-
+func TestDKGCLI(t *testing.T) {
 	var enrs []string
 	for range minNodes {
 		enrs = append(enrs, "enr:-JG4QG472ZVvl8ySSnUK9uNVDrP_hjkUrUqIxUC75aayzmDVQedXkjbqc7QKyOOS71VmlqnYzri_taV8ZesFYaoQSIOGAYHtv1WsgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u")
@@ -215,21 +211,82 @@ func TestWrongThresholdDKG(t *testing.T) {
 	enrArg := "--operator-enrs=" + strings.Join(enrs, ",")
 	feeRecipientArg := "--fee-recipient-addresses=" + validEthAddr
 	withdrawalArg := "--withdrawal-addresses=" + validEthAddr
-	outputDirArg := "--output-dir=" + charonDir
+	outputDirArg := "--output-dir=.charon"
 
-	t.Run("threshold below minimum", func(t *testing.T) {
-		thresholdArg := "--threshold=1"
-		cmd := newCreateCmd(newCreateDKGCmd(runCreateDKG))
-		cmd.SetArgs([]string{"dkg", enrArg, feeRecipientArg, withdrawalArg, outputDirArg, thresholdArg})
-		err := cmd.Execute()
-		require.ErrorContains(t, err, "threshold cannot be smaller than BFT quorum")
-	})
+	tests := []struct {
+		name         string
+		enr          string
+		feeRecipient string
+		withdrawal   string
+		outputDir    string
+		threshold    string
+		expectedErr  string
+		prepare      func(*testing.T)
+		cleanup      func(*testing.T)
+	}{
+		{
+			name:         "threshold below minimum",
+			enr:          enrArg,
+			feeRecipient: feeRecipientArg,
+			withdrawal:   withdrawalArg,
+			outputDir:    outputDirArg,
+			threshold:    "--threshold=1",
+			expectedErr:  "threshold must be greater than 1",
+		},
+		{
+			name:         "threshold above maximum",
+			enr:          enrArg,
+			feeRecipient: feeRecipientArg,
+			withdrawal:   withdrawalArg,
+			outputDir:    outputDirArg,
+			threshold:    "--threshold=4",
+			expectedErr:  "threshold cannot be greater than number of operators",
+		},
+		{
+			name:         "no threshold provided",
+			enr:          enrArg,
+			feeRecipient: feeRecipientArg,
+			withdrawal:   withdrawalArg,
+			outputDir:    outputDirArg,
+			threshold:    "",
+			expectedErr:  "",
+			prepare:      func(t *testing.T) {
+				t.Helper()
+				charonDir := testutil.CreateTempCharonDir(t)
+				b := []byte("sample definition")
+				require.NoError(t, os.WriteFile(path.Join(charonDir, "cluster-definition.json"), b, 0o600))
+			},
+			cleanup:      func(t *testing.T) {
+				t.Helper()
+				err := os.RemoveAll(".charon")
+				require.NoError(t, err)
+			},
+		},
+	}
 
-	t.Run("threshold above maximum", func(t *testing.T) {
-		thresholdArg := "--threshold=4"
-		cmd := newCreateCmd(newCreateDKGCmd(runCreateDKG))
-		cmd.SetArgs([]string{"dkg", enrArg, feeRecipientArg, withdrawalArg, outputDirArg, thresholdArg})
-		err := cmd.Execute()
-		require.ErrorContains(t, err, "threshold cannot be greater than number of operators")
-	})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.prepare != nil {
+				test.prepare(t)
+			}
+
+			cmd := newCreateCmd(newCreateDKGCmd(runCreateDKG))
+			if test.threshold != "" {
+				cmd.SetArgs([]string{"dkg", test.enr, test.feeRecipient, test.withdrawal, test.outputDir, test.threshold})
+			} else {
+				cmd.SetArgs([]string{"dkg", test.enr, test.feeRecipient, test.withdrawal, test.outputDir})
+			}
+
+			err := cmd.Execute()
+			if test.expectedErr != "" {
+				require.ErrorContains(t, err, test.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+
+			if test.cleanup != nil {
+				test.cleanup(t)
+			}
+		})
+	}
 }
