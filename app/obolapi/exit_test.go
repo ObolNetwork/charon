@@ -97,7 +97,7 @@ func TestAPIFlow(t *testing.T) {
 
 		// send all the partial exits
 		for idx, exit := range exits {
-			require.NoError(t, cl.PostPartialExit(ctx, lock.LockHash, uint64(idx+1), identityKeys[idx], exit), "share index: %d", idx+1)
+			require.NoError(t, cl.PostPartialExits(ctx, lock.LockHash, uint64(idx+1), identityKeys[idx], exit), "share index: %d", idx+1)
 		}
 
 		for idx := range exits {
@@ -188,7 +188,7 @@ func TestAPIFlowMissingSig(t *testing.T) {
 
 		// send all the partial exits
 		for idx, exit := range exits {
-			require.NoError(t, cl.PostPartialExit(ctx, lock.LockHash, uint64(idx+1), identityKeys[idx], exit), "share index: %d", idx+1)
+			require.NoError(t, cl.PostPartialExits(ctx, lock.LockHash, uint64(idx+1), identityKeys[idx], exit), "share index: %d", idx+1)
 		}
 
 		for idx := range exits {

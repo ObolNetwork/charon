@@ -33,7 +33,9 @@ type exitConfig struct {
 	PlaintextOutput       bool
 	BeaconNodeTimeout     time.Duration
 	ExitFromFilePath      string
+	ExitFromFileDir       string
 	Log                   log.Config
+	All                   bool
 }
 
 func newExitCmd(cmds ...*cobra.Command) *cobra.Command {
@@ -59,10 +61,12 @@ const (
 	validatorPubkey
 	exitEpoch
 	exitFromFile
+	exitFromDir
 	beaconNodeTimeout
 	fetchedExitPath
 	publishTimeout
 	validatorIndex
+	all
 )
 
 func (ef exitFlag) String() string {
@@ -83,6 +87,8 @@ func (ef exitFlag) String() string {
 		return "exit-epoch"
 	case exitFromFile:
 		return "exit-from-file"
+	case exitFromDir:
+		return "exit-from-dir"
 	case beaconNodeTimeout:
 		return "beacon-node-timeout"
 	case fetchedExitPath:
@@ -91,6 +97,8 @@ func (ef exitFlag) String() string {
 		return "publish-timeout"
 	case validatorIndex:
 		return "validator-index"
+	case all:
+		return "all"
 	default:
 		return "unknown"
 	}
@@ -113,6 +121,7 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 			return s
 		}
 
+		//nolint:exhaustive // `all` is not yet implemented
 		switch flag {
 		case publishAddress:
 			cmd.Flags().StringVar(&config.PublishAddress, publishAddress.String(), "https://api.obol.tech/v1", maybeRequired("The URL of the remote API."))
@@ -130,6 +139,8 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 			cmd.Flags().Uint64Var(&config.ExitEpoch, exitEpoch.String(), 162304, maybeRequired("Exit epoch at which the validator will exit, must be the same across all the partial exits."))
 		case exitFromFile:
 			cmd.Flags().StringVar(&config.ExitFromFilePath, exitFromFile.String(), "", maybeRequired("Retrieves a signed exit message from a pre-prepared file instead of --publish-address."))
+		case exitFromDir:
+			cmd.Flags().StringVar(&config.ExitFromFileDir, exitFromDir.String(), "", maybeRequired("Retrieves a signed exit messages from a pre-prepared files in a directory instead of --publish-address."))
 		case beaconNodeTimeout:
 			cmd.Flags().DurationVar(&config.BeaconNodeTimeout, beaconNodeTimeout.String(), 30*time.Second, maybeRequired("Timeout for beacon node HTTP calls."))
 		case fetchedExitPath:
@@ -138,6 +149,9 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 			cmd.Flags().DurationVar(&config.PublishTimeout, publishTimeout.String(), 30*time.Second, "Timeout for publishing a signed exit to the publish-address API.")
 		case validatorIndex:
 			cmd.Flags().Uint64Var(&config.ValidatorIndex, validatorIndex.String(), 0, "Validator index of the validator to exit, the associated public key must be present in the cluster lock manifest. If --validator-public-key is also provided, validator existence won't be checked on the beacon chain.")
+			// TODO: enable after all functionalities for --all are ready
+			// case all:
+			// 	cmd.Flags().BoolVar(&config.All, all.String(), false, "Exit all currently active validators in the cluster.")
 		}
 
 		if f.required {

@@ -29,7 +29,7 @@ thousand ways to approach a problem. The Charon codebase doesn't follow the comm
 Instead, it follows a more procedural style for a focus on *functions and values*, [#AlgorthimsAndDataStructuresOverTypes](https://en.wikipedia.org/wiki/Object-oriented_programming#cite_note-48). This style can be summarized by the following tradeoffs:
 
 - Prefer **unexported over exported** types and functions. [#WriteShyCode](https://dave.cheney.net/practical-go/presentations/qcon-china.html#_package_design)
-- Prefer **functions over methods** as methods lends itself to stateful code while functions are stateless. [#FunctionsOverMethods](https://kellysutton.com/2018/07/13/simple-made-easy-methods-vs-functions.html)
+- Prefer **functions over methods** as methods lends themselves to stateful code while functions are stateless. [#FunctionsOverMethods](https://kellysutton.com/2018/07/13/simple-made-easy-methods-vs-functions.html)
 - Prefer **structs over objects** as structs tend to be more on the immutable data side while “objects” tend to be mutable and combine data with logic. [#TheValueOfValues](https://www.youtube.com/watch?v=-I-VpPMzG7c)
 - Prefer **explicit over implement** as explicit code doesn’t hide anything while implicit code does.
 - Prefer **immutability over mutability** as that results in code that is easier to reason about and debug and compose.
@@ -146,7 +146,7 @@ Please try to inform your decisions by the following style for improved consiste
   - Note that passing pointers around is in general not faster than non-pointers (except in some edge cases).
 
 ### Naming:
-  - Data labels should be snake_case. This include json fields, structured logging fields, prometheus labels etc.
+  - Data labels should be snake_case. This includes json fields, structured logging fields, prometheus labels etc.
   - Go package names should be concise; aim for a single noun (`validator`) or two concatenated nouns (`validatorapi`). Avoid underscores or three word nouns.
 
 ### Declarations:

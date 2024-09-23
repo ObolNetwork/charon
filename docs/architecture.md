@@ -151,7 +151,7 @@ Therefore, Charon v1.x will not work together with Charon v0.x. See *Version com
 
 ### Scheduler
 
-The scheduler is the initiator of a duty in the core workflow. It resolves the which DVs in the cluster are active and
+The scheduler is the initiator of a duty in the core workflow. It resolves which DVs in the cluster are active and
 is then responsible for starting a duty at the optimal time by calling the `fetcher`.
 
 DVs are identified by their root public key `PubKey`.
@@ -325,7 +325,7 @@ type Entry struct {
   ValCommIdx   int64   // validator committee index (0 for DutyProposer)
 }
 ```
-> ℹ️ Database entry fields are persistence friendly types and are not exported or used outside this component
+> ℹ️ Database entry fields are persistence-friendly types and are not exported or used outside this component
 
 The database has the following indexes:
 - `Slot,DutyType,PubKey`: unique index for deduplication and idempotent inserts
@@ -361,7 +361,7 @@ type DutyDB interface {
 ### Validator API
 The validator API provides a [beacon-node API](https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi) to downstream VCs,
 intercepting some calls and proxying others directly to the upstream beacon node.
-It mostly serves unsigned duty data requests from the `DutyDB` and sends the resulting partial signed duty objects to the `ParSigDB`.
+It mostly serves unsigned duty data requests from the `DutyDB` and sends the resulting partially signed duty objects to the `ParSigDB`.
 
 Partial signed duty data values are defined as `ParSignedData` which extend `SignedData` values:
 ```go
