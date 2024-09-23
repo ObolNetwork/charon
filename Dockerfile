@@ -2,13 +2,10 @@
 FROM golang:1.23.1-bookworm AS builder
 
 # Install dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential git \
-  && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential git
 
 # Prep and copy source
 WORKDIR /app/charon
-COPY go.mod go.sum ./
-RUN go mod download
 
 COPY . .
 
@@ -47,9 +44,7 @@ RUN addgroup --gid "$GID" "$USER" \
     --uid "$UID" \
     "$USER" \
   && chown "$USER" /usr/local/bin/charon \
-  && chmod u+x /usr/local/bin/charon \
-  && mkdir -p "/opt/$USER" \
-  && chown "$USER" "/opt/$USER"
+  && chmod u+x /usr/local/bin/charon
 
 WORKDIR "/opt/$USER"
 USER charon
@@ -63,4 +58,3 @@ LABEL org.opencontainers.image.title="charon"
 LABEL org.opencontainers.image.description="Proof of Stake Ethereum Distributed Validator Client"
 LABEL org.opencontainers.image.licenses="GPL v3"
 LABEL org.opencontainers.image.documentation="https://github.com/ObolNetwork/charon/tree/main/docs"
-
