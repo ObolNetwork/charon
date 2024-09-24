@@ -164,6 +164,7 @@ func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, w
 			cancelFunc()
 		}
 
+		//nolint:fatcontext // test purposes
 		ctx, cancelFunc = context.WithCancel(parentCtx)
 		log.Debug(ctx, "Starting DKG node", z.Int("node", nodeIdx), z.Bool("first_time", firstTime))
 
