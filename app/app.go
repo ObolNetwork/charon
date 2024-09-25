@@ -257,7 +257,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	wirePeerInfo(life, tcpNode, peerIDs, cluster.GetInitialMutationHash(), sender, conf.BuilderAPI)
 
-	qbftDebug := newQBFTDebugger()
+	consensusDebugger := consensus.NewDebugger()
 
 	// seenPubkeys channel to send seen public keys from validatorapi to monitoringapi.
 	seenPubkeys := make(chan core.PubKey)
@@ -282,10 +282,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, conf.DebugAddr, tcpNode, eth2Cl, peerIDs,
-		promRegistry, qbftDebug, pubkeys, seenPubkeys, vapiCalls, len(cluster.GetValidators()))
+		promRegistry, consensusDebugger, pubkeys, seenPubkeys, vapiCalls, len(cluster.GetValidators()))
 
 	err = wireCoreWorkflow(ctx, life, conf, cluster, nodeIdx, tcpNode, p2pKey, eth2Cl, subEth2Cl,
-		peerIDs, sender, qbftDebug.AddInstance, seenPubkeysFunc, vapiCallsFunc)
+		peerIDs, sender, consensusDebugger, seenPubkeysFunc, vapiCallsFunc)
 	if err != nil {
 		return err
 	}
@@ -357,7 +357,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	cluster *manifestpb.Cluster, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *k1.PrivateKey,
 	eth2Cl, submissionEth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
-	qbftSniffer func(*pbv1.SniffedConsensusInstance), seenPubkeys func(core.PubKey),
+	consensusDebugger consensus.Debugger, seenPubkeys func(core.PubKey),
 	vapiCalls func(),
 ) error {
 	// Convert and prep public keys and public shares
@@ -530,7 +530,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	retryer := retry.New[core.Duty](deadlineFunc)
 
 	cons, startCons, err := newConsensus(cluster, tcpNode, p2pKey, sender,
-		deadlinerFunc("consensus"), gaterFunc, qbftSniffer)
+		deadlinerFunc("consensus"), gaterFunc, consensusDebugger.AddInstance)
 	if err != nil {
 		return err
 	}
