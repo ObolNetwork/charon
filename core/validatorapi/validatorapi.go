@@ -13,7 +13,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	"github.com/attestantio/go-eth2-client/spec"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
@@ -396,7 +396,8 @@ func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*e
 	return wrapResponse(proposal), nil
 }
 
-func (c Component) propDataMatchesDuty(ctx context.Context, opts *eth2api.SubmitProposalOpts, prop *eth2api.VersionedProposal) error {
+// propDataMatchesDuty checks that the VC-signed proposal data and prop are the same.
+func propDataMatchesDuty(opts *eth2api.SubmitProposalOpts, prop *eth2api.VersionedProposal) error {
 	ourPropIdx, err := prop.ProposerIndex()
 	if err != nil {
 		return errors.Wrap(err, "cannot fetch validator index from dutydb proposal")
@@ -438,7 +439,7 @@ func (c Component) propDataMatchesDuty(ctx context.Context, opts *eth2api.Submit
 		}
 
 		if d2 == nil {
-			return errors.New("VC proposal data for the associated dutydb proposal is nil")
+			return errors.New("validator client proposal data for the associated dutydb proposal is nil")
 		}
 
 		vc, err := d2.HashTreeRoot()
@@ -454,77 +455,36 @@ func (c Component) propDataMatchesDuty(ctx context.Context, opts *eth2api.Submit
 	}
 
 	switch prop.Version {
-	case spec.DataVersionPhase0:
+	case eth2spec.DataVersionPhase0:
 		return checkHashes(prop.Phase0, opts.Proposal.Phase0.Message)
-	case spec.DataVersionAltair:
+	case eth2spec.DataVersionAltair:
 		return checkHashes(prop.Altair, opts.Proposal.Altair.Message)
-	case spec.DataVersionBellatrix:
-		var (
-			ddbData ssz.HashRoot = prop.Bellatrix
-			vcData  ssz.HashRoot = opts.Proposal.Bellatrix
-		)
-
-		if prop.Blinded {
-			ddbData = prop.BellatrixBlinded
-			vcData = opts.Proposal.BellatrixBlinded
+	case eth2spec.DataVersionBellatrix:
+		switch prop.Blinded {
+		case false:
+			return checkHashes(prop.Bellatrix, opts.Proposal.Bellatrix.Message)
+		case true:
+			return checkHashes(prop.BellatrixBlinded, opts.Proposal.BellatrixBlinded.Message)
 		}
-
-		return checkHashes(ddbData, vcData)
-	case spec.DataVersionCapella:
-
-		var (
-			ddbData ssz.HashRoot = prop.Capella
-			vcData  ssz.HashRoot = opts.Proposal.Capella
-		)
-
-		if prop.Blinded {
-			ddbData = prop.CapellaBlinded
-			vcData = opts.Proposal.CapellaBlinded
+	case eth2spec.DataVersionCapella:
+		switch prop.Blinded {
+		case false:
+			return checkHashes(prop.Capella, opts.Proposal.Capella.Message)
+		case true:
+			return checkHashes(prop.CapellaBlinded, opts.Proposal.CapellaBlinded.Message)
 		}
-
-		return checkHashes(ddbData, vcData)
-	case spec.DataVersionDeneb:
-
-		var (
-			ddbData ssz.HashRoot = prop.Deneb
-			vcData  ssz.HashRoot = opts.Proposal.Deneb
-		)
-
-		if prop.Blinded {
-			ddbData = prop.DenebBlinded
-			vcData = opts.Proposal.DenebBlinded
+	case eth2spec.DataVersionDeneb:
+		switch prop.Blinded {
+		case false:
+			return checkHashes(prop.Deneb.Block, opts.Proposal.Deneb.SignedBlock.Message)
+		case true:
+			return checkHashes(prop.DenebBlinded, opts.Proposal.DenebBlinded.Message)
 		}
-
-		return checkHashes(ddbData, vcData)
-	case spec.DataVersionUnknown:
+	case eth2spec.DataVersionUnknown:
 		return errors.New("unexpected block version", z.Str("version", prop.Version.String()))
 	}
 
 	return nil
-}
-
-// valPubkeyFromProposal returns the public key of the validator associated to this proposal.
-// If the validator index does not belong to the configured cluster, this function will return an error.
-func (c Component) valPubkeyFromProposal(ctx context.Context, opts *eth2api.SubmitProposalOpts) (core.PubKey, error) {
-	idx, err := opts.Proposal.ProposerIndex()
-	if err != nil {
-		return "", errors.Wrap(err, "cannot fetch validator index from proposal")
-	}
-
-	activeVals, err := c.eth2Cl.ActiveValidators(ctx)
-	if err != nil {
-		return "", errors.Wrap(err, "cannot fetch active validators")
-	}
-
-	data, ok := activeVals[idx]
-	if !ok {
-		return "", errors.New(
-			"validator index contained in proposal does not belong to this cluster",
-			z.U64("validator_index", uint64(idx)),
-		)
-	}
-
-	return core.PubKeyFrom48Bytes(data), nil
 }
 
 func (c Component) SubmitProposal(ctx context.Context, opts *eth2api.SubmitProposalOpts) error {
@@ -545,7 +505,7 @@ func (c Component) SubmitProposal(ctx context.Context, opts *eth2api.SubmitPropo
 		return errors.Wrap(err, "could not fetch block definition from dutydb")
 	}
 
-	if err := c.propDataMatchesDuty(ctx, opts, prop); err != nil {
+	if err := propDataMatchesDuty(opts, prop); err != nil {
 		return errors.Wrap(err, "consensus proposal and VC-submitted one do not match")
 	}
 
@@ -591,17 +551,26 @@ func (c Component) SubmitBlindedProposal(ctx context.Context, opts *eth2api.Subm
 		return err
 	}
 
-	// Save Partially Signed Blinded Block to ParSigDB
-
 	prop, err := c.awaitProposalFunc(ctx, uint64(slot))
 	if err != nil {
 		return errors.Wrap(err, "could not fetch block definition from dutydb")
 	}
 
-	if err := c.propDataMatchesDuty(ctx, opts, prop); err != nil {
+	if err := propDataMatchesDuty(&eth2api.SubmitProposalOpts{
+		Common: opts.Common,
+		Proposal: &eth2api.VersionedSignedProposal{
+			Version:          opts.Proposal.Version,
+			Blinded:          true,
+			BellatrixBlinded: opts.Proposal.Bellatrix,
+			CapellaBlinded:   opts.Proposal.Capella,
+			DenebBlinded:     opts.Proposal.Deneb,
+		},
+		BroadcastValidation: opts.BroadcastValidation,
+	}, prop); err != nil {
 		return errors.Wrap(err, "consensus proposal and VC-submitted one do not match")
 	}
 
+	// Save Partially Signed Blinded Block to ParSigDB
 	signedData, err := core.NewPartialVersionedSignedBlindedProposal(opts.Proposal, c.shareIdx)
 	if err != nil {
 		return err
