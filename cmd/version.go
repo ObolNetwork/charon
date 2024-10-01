@@ -11,7 +11,6 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/obolnetwork/charon/app/version"
-	"github.com/obolnetwork/charon/core/consensus"
 )
 
 type versionConfig struct {
@@ -62,11 +61,5 @@ func runVersionCmd(out io.Writer, config versionConfig) {
 			dep = dep.Replace
 		}
 		_, _ = fmt.Fprintf(out, "\t%v %v\n", dep.Path, dep.Version)
-	}
-
-	_, _ = fmt.Fprint(out, "Consensus protocols:\n")
-
-	for _, cp := range consensus.Protocols() {
-		_, _ = fmt.Fprintf(out, "\t%s\n", cp)
 	}
 }
