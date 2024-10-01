@@ -251,26 +251,6 @@ func TestCreateCluster(t *testing.T) {
 			},
 		},
 		{
-			Name: "threshold greater than the number of operators",
-			Config: clusterConfig{
-				NumNodes:  4,
-				Threshold: 5,
-				NumDVs:    1,
-				Network:   defaultNetwork,
-			},
-			expectedErr: "threshold cannot be greater than number of operators",
-		},
-		{
-			Name: "threshold smaller than BFT quorum",
-			Config: clusterConfig{
-				NumNodes:  4,
-				Threshold: 2,
-				NumDVs:    1,
-				Network:   defaultNetwork,
-			},
-			expectedErr: "threshold cannot be smaller than BFT quorum",
-		},
-		{
 			Name: "test with number of nodes below minimum",
 			Config: clusterConfig{
 				Name:      "test_cluster",
@@ -786,6 +766,82 @@ func TestPublish(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, <-result, struct{}{})
 	})
+}
+
+func TestClusterCLI(t *testing.T) {
+	feeRecipientArg := "--fee-recipient-addresses=" + validEthAddr
+	withdrawalArg := "--withdrawal-addresses=" + validEthAddr
+
+	tests := []struct {
+		name          string
+		network       string
+		nodes         string
+		numValidators string
+		feeRecipient  string
+		withdrawal    string
+		threshold     string
+		expectedErr   string
+		cleanup       func(*testing.T)
+	}{
+		{
+			name:          "threshold below minimum",
+			nodes:         "--nodes=3",
+			network:       "--network=holesky",
+			numValidators: "--num-validators=1",
+			feeRecipient:  feeRecipientArg,
+			withdrawal:    withdrawalArg,
+			threshold:     "--threshold=1",
+			expectedErr:   "threshold must be greater than 1",
+		},
+		{
+			name:          "threshold above maximum",
+			nodes:         "--nodes=4",
+			network:       "--network=holesky",
+			numValidators: "--num-validators=1",
+			feeRecipient:  feeRecipientArg,
+			withdrawal:    withdrawalArg,
+			threshold:     "--threshold=5",
+			expectedErr:   "threshold cannot be greater than number of operators",
+		},
+		{
+			name:          "no threshold provided",
+			nodes:         "--nodes=3",
+			network:       "--network=holesky",
+			numValidators: "--num-validators=1",
+			feeRecipient:  feeRecipientArg,
+			withdrawal:    withdrawalArg,
+			threshold:     "",
+			expectedErr:   "",
+			cleanup: func(t *testing.T) {
+				t.Helper()
+				require.NoError(t, os.RemoveAll("node0"))
+				require.NoError(t, os.RemoveAll("node1"))
+				require.NoError(t, os.RemoveAll("node2"))
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := newCreateCmd(newCreateClusterCmd(runCreateCluster))
+			if test.threshold != "" {
+				cmd.SetArgs([]string{"cluster", test.nodes, test.feeRecipient, test.withdrawal, test.network, test.numValidators, test.threshold})
+			} else {
+				cmd.SetArgs([]string{"cluster", test.nodes, test.feeRecipient, test.withdrawal, test.network, test.numValidators})
+			}
+
+			err := cmd.Execute()
+			if test.expectedErr != "" {
+				require.ErrorContains(t, err, test.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+
+			if test.cleanup != nil {
+				test.cleanup(t)
+			}
+		})
+	}
 }
 
 // mockKeymanagerReq is a mock keymanager request for use in tests.
