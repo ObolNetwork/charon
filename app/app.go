@@ -10,7 +10,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -93,7 +92,6 @@ type Config struct {
 	SimnetBMockFuzz         bool
 	TestnetConfig           eth2util.Network
 	ProcDirectory           string
-	ConsensusProtocol       string
 
 	TestConfig TestConfig
 }
@@ -223,22 +221,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 		z.Str("cluster_hash_full", hex.EncodeToString(cluster.GetInitialMutationHash())),
 		z.Str("enr", enrRec.String()),
 		z.Int("peers", len(cluster.GetOperators())))
-
-	if conf.ConsensusProtocol != "" {
-		names, err := consensus.ListProtocolNames(consensus.Protocols())
-		if err != nil {
-			return err
-		}
-
-		target := strings.ToLower(conf.ConsensusProtocol)
-		if !slices.Contains(names, target) {
-			return errors.New("unknown consensus protocol name",
-				z.Str("protocol", target),
-				z.Str("available", strings.Join(names, ",")))
-		}
-
-		log.Info(ctx, "Overriding preferred consensus protocol", z.Str("protocol", conf.ConsensusProtocol))
-	}
 
 	// Metric and logging labels.
 	labels := map[string]string{
@@ -638,23 +620,6 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 	if conf.TestConfig.PrioritiseCallback != nil {
 		prio.Subscribe(conf.TestConfig.PrioritiseCallback)
 	}
-
-	prio.Subscribe(func(ctx context.Context, _ core.Duty, results []priority.TopicResult) error {
-		var protocols []protocol.ID
-		protocolStr := priority.GetTopicPriorities(infosync.TopicProtocol, results)
-		for _, p := range protocolStr {
-			protocols = append(protocols, protocol.ID(p))
-		}
-
-		// TODO: take cluster definition protocol or the override.
-		protocol := consensus.SelectLatestProtocolID(conf.ConsensusProtocol, protocols)
-		log.Info(ctx, "Selected consensus protocol", z.Str("protocol", string(protocol)))
-
-		// TODO: determine if the protocol is the same as the current protocol.
-		// Switch the protocol if it is different?
-
-		return nil
-	})
 
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPeerInfo, lifecycle.HookFuncCtx(prio.Start))
 

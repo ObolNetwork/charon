@@ -43,17 +43,6 @@ func (r TopicResult) PrioritiesOnly() []string {
 	return resp
 }
 
-// GetTopicPriorities returns the priorities of a topic from a list of topic results.
-func GetTopicPriorities(topic string, tr []TopicResult) []string {
-	for _, r := range tr {
-		if r.Topic == topic {
-			return r.PrioritiesOnly()
-		}
-	}
-
-	return nil
-}
-
 // ScoredPriority defines a resulting cluster-agreed priority including its score.
 type ScoredPriority struct {
 	Priority string

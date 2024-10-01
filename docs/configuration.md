@@ -153,7 +153,6 @@ Flags:
       --beacon-node-submit-timeout duration   Timeout for the submission-related HTTP requests Charon makes to the configured beacon nodes. (default 2s)
       --beacon-node-timeout duration          Timeout for the HTTP requests Charon makes to the configured beacon nodes. (default 2s)
       --builder-api                           Enables the builder api. Will only produce builder blocks. Builder API must also be enabled on the validator client. Beacon node must be connected to a builder-relay to access the builder network.
-      --consensus-protocol string             Preferred consensus protocol name to override the cluster definition setting.
       --debug-address string                  Listening address (ip and port) for the pprof and QBFT debug API. It is not enabled by default.
       --feature-set string                    Minimum feature set to enable by default: alpha, beta, or stable. Warning: modify at own risk. (default "stable")
       --feature-set-disable strings           Comma-separated list of features to disable, overriding the default minimum feature set.
