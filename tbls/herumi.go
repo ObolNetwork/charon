@@ -84,6 +84,10 @@ func (Herumi) ThresholdSplitInsecure(t *testing.T, secret PrivateKey, total uint
 	t.Helper()
 	var p bls.SecretKey
 
+	if threshold <= 1 {
+		return nil, errors.New("threshold has to be greater than 1")
+	}
+
 	if err := p.Deserialize(secret[:]); err != nil {
 		return nil, errors.Wrap(err, "cannot unmarshal bytes into Herumi secret key")
 	}
@@ -132,6 +136,10 @@ func (Herumi) ThresholdSplitInsecure(t *testing.T, secret PrivateKey, total uint
 
 func (Herumi) ThresholdSplit(secret PrivateKey, total uint, threshold uint) (map[int]PrivateKey, error) {
 	var p bls.SecretKey
+
+	if threshold <= 1 {
+		return nil, errors.New("threshold has to be greater than 1")
+	}
 
 	if err := p.Deserialize(secret[:]); err != nil {
 		return nil, errors.Wrap(err, "cannot unmarshal bytes into Herumi secret key")
