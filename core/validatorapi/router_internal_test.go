@@ -38,7 +38,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
-	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -88,8 +87,7 @@ func TestRouterIntegration(t *testing.T) {
 		t.Skip("Skipping integration test since BEACON_URL not found")
 	}
 
-	builderAPIEnabled := func(_ uint64) bool { return true }
-	r, err := NewRouter(context.Background(), Handler(nil), testBeaconAddr{addr: beaconURL}, builderAPIEnabled)
+	r, err := NewRouter(context.Background(), Handler(nil), testBeaconAddr{addr: beaconURL}, true)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -593,7 +591,7 @@ func TestRawRouter(t *testing.T) {
 		}
 
 		// BuilderAPI is disabled, we expect to get the blinded block
-		testRawRouterEx(t, handler, callback, func(_ uint64) bool { return true })
+		testRawRouterEx(t, handler, callback, true)
 	})
 }
 
@@ -615,8 +613,7 @@ func TestRouter(t *testing.T) {
 		proxy := httptest.NewServer(h.newBeaconHandler(t))
 		defer proxy.Close()
 
-		builderAPIEnabled := func(_ uint64) bool { return true }
-		r, err := NewRouter(ctx, h, testBeaconAddr{addr: proxy.URL}, builderAPIEnabled)
+		r, err := NewRouter(ctx, h, testBeaconAddr{addr: proxy.URL}, true)
 		require.NoError(t, err)
 
 		server := httptest.NewServer(r)
@@ -1386,8 +1383,7 @@ func TestBeaconCommitteeSelections(t *testing.T) {
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
-	builderAPIEnabled := func(_ uint64) bool { return true }
-	r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL}, builderAPIEnabled)
+	r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL}, true)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -1449,8 +1445,7 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
-	builderAPIEnabled := func(_ uint64) bool { return true }
-	r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL}, builderAPIEnabled)
+	r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL}, true)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -1742,8 +1737,7 @@ func testRouter(t *testing.T, handler testHandler, callback func(context.Context
 
 	ctx := context.Background()
 
-	builderAPIEnabled := func(_ uint64) bool { return true }
-	r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL}, builderAPIEnabled)
+	r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL}, true)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -1761,17 +1755,17 @@ func testRouter(t *testing.T, handler testHandler, callback func(context.Context
 func testRawRouter(t *testing.T, handler testHandler, callback func(context.Context, string)) {
 	t.Helper()
 
-	testRawRouterEx(t, handler, callback, func(_ uint64) bool { return true })
+	testRawRouterEx(t, handler, callback, true)
 }
 
 // testRawRouterEX is a helper function same as testRawRouter() but accepts GetBuilderAPIFlagFunc.
-func testRawRouterEx(t *testing.T, handler testHandler, callback func(context.Context, string), isBuilderEnabled core.BuilderEnabled) {
+func testRawRouterEx(t *testing.T, handler testHandler, callback func(context.Context, string), builderEnabled bool) {
 	t.Helper()
 
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
-	r, err := NewRouter(context.Background(), handler, testBeaconAddr{addr: proxy.URL}, isBuilderEnabled)
+	r, err := NewRouter(context.Background(), handler, testBeaconAddr{addr: proxy.URL}, builderEnabled)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)

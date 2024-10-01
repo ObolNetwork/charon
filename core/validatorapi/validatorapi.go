@@ -77,14 +77,14 @@ func NewComponentInsecure(_ *testing.T, eth2Cl eth2wrap.Client, shareIdx int) (*
 	return &Component{
 		eth2Cl:         eth2Cl,
 		shareIdx:       shareIdx,
-		builderEnabled: func(uint64) bool { return false },
+		builderEnabled: false,
 		insecureTest:   true,
 	}, nil
 }
 
 // NewComponent returns a new instance of the validator API core workflow component.
 func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[int]tbls.PublicKey,
-	shareIdx int, feeRecipientFunc func(core.PubKey) string, builderEnabled core.BuilderEnabled, seenPubkeys func(core.PubKey),
+	shareIdx int, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, seenPubkeys func(core.PubKey),
 ) (*Component, error) {
 	var (
 		sharesByKey     = make(map[eth2p0.BLSPubKey]eth2p0.BLSPubKey)
@@ -175,7 +175,7 @@ type Component struct {
 	shareIdx         int
 	insecureTest     bool
 	feeRecipientFunc func(core.PubKey) string
-	builderEnabled   core.BuilderEnabled
+	builderEnabled   bool
 	swallowRegFilter z.Field
 
 	// getVerifyShareFunc maps public shares (what the VC thinks as its public key)
@@ -536,13 +536,8 @@ func (c Component) SubmitValidatorRegistrations(ctx context.Context, registratio
 		return nil // Nothing to do
 	}
 
-	slot, err := SlotFromTimestamp(ctx, c.eth2Cl, time.Now())
-	if err != nil {
-		return err
-	}
-
 	// Swallow unexpected validator registrations from VCs (for ex: vouch)
-	if !c.builderEnabled(uint64(slot)) {
+	if !c.builderEnabled {
 		return nil
 	}
 
@@ -1186,11 +1181,6 @@ func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigR
 	}
 	timestamp = timestamp.Add(slotDuration) // Use slot 1 for timestamp to override pre-generated registrations.
 
-	slot, err := SlotFromTimestamp(ctx, c.eth2Cl, time.Now())
-	if err != nil {
-		return nil, err
-	}
-
 	for pubkey, pubshare := range c.sharesByKey {
 		eth2Share, err := pubshare.ToETH2()
 		if err != nil {
@@ -1200,7 +1190,7 @@ func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigR
 		resp.Proposers[eth2Share] = eth2exp.ProposerConfig{
 			FeeRecipient: c.feeRecipientFunc(pubkey),
 			Builder: eth2exp.Builder{
-				Enabled:  c.builderEnabled(uint64(slot)),
+				Enabled:  c.builderEnabled,
 				GasLimit: gasLimit,
 				Overrides: map[string]string{
 					"timestamp":  strconv.FormatInt(timestamp.Unix(), 10),

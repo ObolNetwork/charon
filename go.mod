@@ -11,6 +11,7 @@ require (
 	github.com/golang/snappy v0.0.4
 	github.com/google/gofuzz v1.2.0
 	github.com/gorilla/mux v1.8.1
+	github.com/hashicorp/go-version v1.7.0
 	github.com/herumi/bls-eth-go-binary v1.36.1
 	github.com/holiman/uint256 v1.3.1
 	github.com/ipfs/go-log/v2 v2.5.1

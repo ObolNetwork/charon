@@ -84,7 +84,7 @@ type Handler interface {
 // NewRouter returns a new validator http server router. The http router
 // translates http requests related to the distributed validator to the Handler.
 // All other requests are reverse-proxied to the beacon-node address.
-func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, isBuilderEnabled core.BuilderEnabled) (*mux.Router, error) {
+func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, builderEnabled bool) (*mux.Router, error) {
 	// Register subset of distributed validator related endpoints.
 	endpoints := []struct {
 		Name    string
@@ -149,7 +149,7 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, isBuilder
 		{
 			Name:    "propose_block_v3",
 			Path:    "/eth/v3/validator/blocks/{slot}",
-			Handler: proposeBlockV3(h, isBuilderEnabled),
+			Handler: proposeBlockV3(h, builderEnabled),
 			Methods: []string{http.MethodGet},
 		},
 		{
@@ -639,7 +639,7 @@ func respond404() handlerFunc {
 }
 
 // proposeBlockV3 returns a handler function returning an unsigned BeaconBlock or BlindedBeaconBlock.
-func proposeBlockV3(p eth2client.ProposalProvider, builderEnabled core.BuilderEnabled) handlerFunc {
+func proposeBlockV3(p eth2client.ProposalProvider, builderEnabled bool) handlerFunc {
 	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		slot, randao, graffiti, err := getProposeBlockParams(params, query)
 		if err != nil {
@@ -647,7 +647,7 @@ func proposeBlockV3(p eth2client.ProposalProvider, builderEnabled core.BuilderEn
 		}
 
 		var bbf uint64
-		if builderEnabled(slot) {
+		if builderEnabled {
 			// This gives maximum priority to builder blocks:
 			// https://ethereum.github.io/beacon-APIs/#/Validator/produceBlockV3
 			bbf = math.MaxUint64

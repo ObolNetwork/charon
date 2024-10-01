@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -92,6 +93,7 @@ type Config struct {
 	SimnetBMockFuzz         bool
 	TestnetConfig           eth2util.Network
 	ProcDirectory           string
+	ConsensusProtocol       string
 
 	TestConfig TestConfig
 }
@@ -221,6 +223,22 @@ func Run(ctx context.Context, conf Config) (err error) {
 		z.Str("cluster_hash_full", hex.EncodeToString(cluster.GetInitialMutationHash())),
 		z.Str("enr", enrRec.String()),
 		z.Int("peers", len(cluster.GetOperators())))
+
+	if conf.ConsensusProtocol != "" {
+		names, err := consensus.ListProtocolNames(consensus.Protocols())
+		if err != nil {
+			return err
+		}
+
+		target := strings.ToLower(conf.ConsensusProtocol)
+		if !slices.Contains(names, target) {
+			return errors.New("unknown consensus protocol name",
+				z.Str("protocol", target),
+				z.Str("available", strings.Join(names, ",")))
+		}
+
+		log.Info(ctx, "Overriding preferred consensus protocol", z.Str("protocol", conf.ConsensusProtocol))
+	}
 
 	// Metric and logging labels.
 	labels := map[string]string{
@@ -420,9 +438,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return core.NewDeadliner(ctx, label, deadlineFunc)
 	}
 
-	mutableConf := newMutableConfig(ctx, conf)
-
-	sched, err := scheduler.New(corePubkeys, eth2Cl, mutableConf.BuilderAPI)
+	sched, err := scheduler.New(corePubkeys, eth2Cl, conf.BuilderAPI)
 	if err != nil {
 		return err
 	}
@@ -479,20 +495,19 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	fetch, err := fetcher.New(eth2Cl, feeRecipientFunc, mutableConf.BuilderAPI)
+	fetch, err := fetcher.New(eth2Cl, feeRecipientFunc, conf.BuilderAPI)
 	if err != nil {
 		return err
 	}
 
 	dutyDB := dutydb.NewMemDB(deadlinerFunc("dutydb"))
 
-	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, feeRecipientFunc,
-		mutableConf.BuilderAPI, seenPubkeys)
+	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, feeRecipientFunc, conf.BuilderAPI, seenPubkeys)
 	if err != nil {
 		return err
 	}
 
-	if err := wireVAPIRouter(ctx, life, conf.ValidatorAPIAddr, eth2Cl, vapi, vapiCalls, mutableConf); err != nil {
+	if err := wireVAPIRouter(ctx, life, conf.ValidatorAPIAddr, eth2Cl, vapi, vapiCalls, conf.BuilderAPI); err != nil {
 		return err
 	}
 
@@ -536,7 +551,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	err = wirePrioritise(ctx, conf, life, tcpNode, peerIDs, int(cluster.GetThreshold()),
-		sender.SendReceive, cons, sched, p2pKey, deadlineFunc, mutableConf)
+		sender.SendReceive, cons, sched, p2pKey, deadlineFunc)
 	if err != nil {
 		return err
 	}
@@ -588,7 +603,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, tcpNode host.Host,
 	peers []peer.ID, threshold int, sendFunc p2p.SendReceiveFunc, coreCons core.Consensus,
 	sched core.Scheduler, p2pKey *k1.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
-	mutableConf *mutableConfig,
 ) error {
 	cons, ok := coreCons.(*consensus.Component)
 	if !ok {
@@ -612,8 +626,6 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 		ProposalTypes(conf.BuilderAPI, conf.SyntheticBlockProposals),
 	)
 
-	mutableConf.SetInfoSync(isync)
-
 	// Trigger info syncs in last slot of the epoch (for the next epoch).
 	sched.SubscribeSlots(func(ctx context.Context, slot core.Slot) error {
 		if !slot.LastInEpoch() {
@@ -626,6 +638,23 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 	if conf.TestConfig.PrioritiseCallback != nil {
 		prio.Subscribe(conf.TestConfig.PrioritiseCallback)
 	}
+
+	prio.Subscribe(func(ctx context.Context, _ core.Duty, results []priority.TopicResult) error {
+		var protocols []protocol.ID
+		protocolStr := priority.GetTopicPriorities(infosync.TopicProtocol, results)
+		for _, p := range protocolStr {
+			protocols = append(protocols, protocol.ID(p))
+		}
+
+		// TODO: take cluster definition protocol or the override.
+		protocol := consensus.SelectLatestProtocolID(conf.ConsensusProtocol, protocols)
+		log.Info(ctx, "Selected consensus protocol", z.Str("protocol", string(protocol)))
+
+		// TODO: determine if the protocol is the same as the current protocol.
+		// Switch the protocol if it is different?
+
+		return nil
+	})
 
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPeerInfo, lifecycle.HookFuncCtx(prio.Start))
 
@@ -967,11 +996,9 @@ func createMockValidators(pubkeys []eth2p0.BLSPubKey) beaconmock.ValidatorSet {
 
 // wireVAPIRouter constructs the validator API router and registers it with the life cycle manager.
 func wireVAPIRouter(ctx context.Context, life *lifecycle.Manager, vapiAddr string, eth2Cl eth2wrap.Client,
-	handler validatorapi.Handler, vapiCalls func(), mutableConf *mutableConfig,
+	handler validatorapi.Handler, vapiCalls func(), builderEnabled bool,
 ) error {
-	vrouter, err := validatorapi.NewRouter(ctx, handler, eth2Cl, func(slot uint64) bool {
-		return mutableConf.BuilderAPI(slot)
-	})
+	vrouter, err := validatorapi.NewRouter(ctx, handler, eth2Cl, builderEnabled)
 	if err != nil {
 		return errors.Wrap(err, "new monitoring server")
 	}
