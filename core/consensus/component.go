@@ -37,6 +37,19 @@ func Protocols() []protocol.ID {
 	return []protocol.ID{protocolID2}
 }
 
+// IsSupportedProtocolName returns true if the protocol name is supported.
+func IsSupportedProtocolName(name string) bool {
+	for _, p := range Protocols() {
+		nameAndVersion := strings.TrimPrefix(string(p), "/charon/consensus/")
+		parts := strings.Split(nameAndVersion, "/")
+		if len(parts) > 0 && parts[0] == strings.ToLower(name) {
+			return true
+		}
+	}
+
+	return false
+}
+
 type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) error
 
 // newDefinition returns a qbft definition (this is constant across all consensus instances).
