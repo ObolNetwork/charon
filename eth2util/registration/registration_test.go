@@ -106,21 +106,21 @@ func TestVerifySignedRegistration(t *testing.T) {
 	require.NoError(t, err)
 
 	registrationJSON := `
- {
-  "message": {
-   "fee_recipient": "0x000000000000000000000000000000000000dead",
-   "gas_limit": "30000000",
-   "timestamp": "1646092800",
-   "pubkey": "0x86966350b672bd502bfbdb37a6ea8a7392e8fb7f5ebb5c5e2055f4ee168ebfab0fef63084f28c9f62c3ba71f825e527e"
-  },
-  "signature": "0xb101da0fc08addcc5d010ee569f6bbbdca049a5cb27efad231565bff2e3af504ec2bb87b11ed22843e9c1094f1dfe51a0b2a5ad1808df18530a2f59f004032dbf6281ecf0fc3df86d032da5b9d32a3d282c05923de491381f8f28c2863a00180"
- }`
+		{
+		  "message": {
+			"fee_recipient": "0x000000000000000000000000000000000000dEaD",
+			"gas_limit": "30000000",
+			"timestamp": "1646092800",
+			"pubkey": "0x86966350b672bd502bfbdb37a6ea8a7392e8fb7f5ebb5c5e2055f4ee168ebfab0fef63084f28c9f62c3ba71f825e527e"
+		  },
+		  "signature": "0xad393c5b42b382cf93cd14f302b0175b4f9ccb000c201d42c3a6389971b8d910a81333d55ad2944b836a9bb35ba968ab06635dcd706380516ad0c653f48b1c6d52b8771c78d708e943b3ea8da59392fbf909decde262adc944fe3e57120d9bb4"
+		}`
 
 	reg := new(eth2v1.SignedValidatorRegistration)
 	err = json.Unmarshal([]byte(registrationJSON), reg)
 	require.NoError(t, err)
 
-	forkVersion, err := eth2util.NetworkToForkVersionBytes("goerli")
+	forkVersion, err := eth2util.NetworkToForkVersionBytes("holesky")
 	require.NoError(t, err)
 
 	sigRoot, err := registration.GetMessageSigningRoot(reg.Message, eth2p0.Version(forkVersion))

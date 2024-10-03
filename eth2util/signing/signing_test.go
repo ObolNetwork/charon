@@ -13,6 +13,8 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/registration"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -32,24 +34,27 @@ func TestVerifyRegistrationReference(t *testing.T) {
 	require.NoError(t, err)
 
 	registrationJSON := `
- {
-  "message": {
-   "fee_recipient": "0x000000000000000000000000000000000000dead",
-   "gas_limit": "30000000",
-   "timestamp": "1646092800",
-   "pubkey": "0x86966350b672bd502bfbdb37a6ea8a7392e8fb7f5ebb5c5e2055f4ee168ebfab0fef63084f28c9f62c3ba71f825e527e"
-  },
-  "signature": "0xb101da0fc08addcc5d010ee569f6bbbdca049a5cb27efad231565bff2e3af504ec2bb87b11ed22843e9c1094f1dfe51a0b2a5ad1808df18530a2f59f004032dbf6281ecf0fc3df86d032da5b9d32a3d282c05923de491381f8f28c2863a00180"
- }`
+		{
+		  "message": {
+			"fee_recipient": "0x000000000000000000000000000000000000dEaD",
+			"gas_limit": "30000000",
+			"timestamp": "1646092800",
+			"pubkey": "0x86966350b672bd502bfbdb37a6ea8a7392e8fb7f5ebb5c5e2055f4ee168ebfab0fef63084f28c9f62c3ba71f825e527e"
+		  },
+		  "signature": "0xad393c5b42b382cf93cd14f302b0175b4f9ccb000c201d42c3a6389971b8d910a81333d55ad2944b836a9bb35ba968ab06635dcd706380516ad0c653f48b1c6d52b8771c78d708e943b3ea8da59392fbf909decde262adc944fe3e57120d9bb4"
+		}`
 
-	registration := new(eth2v1.SignedValidatorRegistration)
-	err = json.Unmarshal([]byte(registrationJSON), registration)
+	reg := new(eth2v1.SignedValidatorRegistration)
+	err = json.Unmarshal([]byte(registrationJSON), reg)
 	require.NoError(t, err)
 
-	sigRoot, err := registration.Message.HashTreeRoot()
+	sigRoot, err := reg.Message.HashTreeRoot()
 	require.NoError(t, err)
 
-	sigData, err := signing.GetDataRoot(context.Background(), bmock, signing.DomainApplicationBuilder, 0, sigRoot)
+	fork, err := eth2util.NetworkToForkVersionBytes("holesky")
+	require.NoError(t, err)
+
+	sigData, err := registration.GetMessageSigningRoot(reg.Message, eth2p0.Version(fork))
 	require.NoError(t, err)
 
 	sig, err := tbls.Sign(secretShare, sigData[:])
@@ -57,7 +62,7 @@ func TestVerifyRegistrationReference(t *testing.T) {
 
 	sigEth2 := eth2p0.BLSSignature(sig)
 	require.Equal(t,
-		hex.EncodeToString(registration.Signature[:]),
+		hex.EncodeToString(reg.Signature[:]),
 		hex.EncodeToString(sigEth2[:]),
 	)
 
@@ -69,10 +74,10 @@ func TestVerifyRegistrationReference(t *testing.T) {
 }
 
 func TestConstantApplicationBuilder(t *testing.T) {
-	v0 := eth2p0.Version{0x00, 0x00, 0x10, 0x20}
-	v1 := eth2p0.Version{0x01, 0x00, 0x10, 0x20}
-	v2 := eth2p0.Version{0x02, 0x00, 0x10, 0x20}
-	v3 := eth2p0.Version{0x03, 0x00, 0x10, 0x20}
+	v0 := eth2p0.Version{0x01, 0x01, 0x70, 0x00}
+	v1 := eth2p0.Version{0x02, 0x01, 0x70, 0x00}
+	v2 := eth2p0.Version{0x03, 0x01, 0x70, 0x00}
+	v3 := eth2p0.Version{0x04, 0x01, 0x70, 0x00}
 
 	forkSchedule := []*eth2p0.Fork{
 		{PreviousVersion: v0, CurrentVersion: v0, Epoch: 0},
@@ -97,10 +102,10 @@ func TestConstantApplicationBuilder(t *testing.T) {
 
 	// Assert genesis domain is used for any fork schedule.
 	expect := eth2p0.Domain{
-		0x00, 0x00, 0x00, 0x01, 0xe4, 0xbe, 0x93, 0x93,
-		0xb0, 0x74, 0xca, 0x1f, 0x3e, 0x4a, 0xab, 0xd5,
-		0x85, 0xca, 0x4b, 0xea, 0x10, 0x11, 0x70, 0xcc,
-		0xfa, 0xf7, 0x1b, 0x89, 0xce, 0x5c, 0x5c, 0x38,
+		0x0, 0x0, 0x0, 0x1, 0x5b, 0x83, 0xa2, 0x37,
+		0x59, 0xc5, 0x60, 0xb2, 0xd0, 0xc6, 0x45, 0x76,
+		0xe1, 0xdc, 0xfc, 0x34, 0xea, 0x94, 0xc4, 0x98,
+		0x8f, 0x3e, 0xd, 0x9f, 0x77, 0xf0, 0x53, 0x87,
 	}
 
 	for i := range len(forkSchedule) {
