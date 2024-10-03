@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/obolnetwork/charon/app/version"
+	"github.com/obolnetwork/charon/core/consensus"
 )
 
 type versionConfig struct {
@@ -36,7 +37,7 @@ func newVersionCmd(runFunc func(io.Writer, versionConfig)) *cobra.Command {
 }
 
 func bindVersionFlags(flags *pflag.FlagSet, config *versionConfig) {
-	flags.BoolVar(&config.Verbose, "verbose", false, "Includes detailed module version info")
+	flags.BoolVar(&config.Verbose, "verbose", false, "Includes detailed module version info and supported protocols")
 }
 
 func runVersionCmd(out io.Writer, config versionConfig) {
@@ -61,5 +62,11 @@ func runVersionCmd(out io.Writer, config versionConfig) {
 			dep = dep.Replace
 		}
 		_, _ = fmt.Fprintf(out, "\t%v %v\n", dep.Path, dep.Version)
+	}
+
+	_, _ = fmt.Fprint(out, "Consensus protocols:\n")
+
+	for _, protocol := range consensus.Protocols() {
+		_, _ = fmt.Fprintf(out, "\t%v\n", protocol)
 	}
 }
