@@ -184,7 +184,6 @@ func TestValidateWithdrawalAddr(t *testing.T) {
 }
 
 func TestValidateDKGConfig(t *testing.T) {
-
 	t.Run("insufficient ENRs", func(t *testing.T) {
 		numOperators := 2
 		err := validateDKGConfig(numOperators, "", nil)
