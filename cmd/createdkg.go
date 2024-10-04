@@ -16,6 +16,7 @@ import (
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/core/consensus"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/enr"
@@ -32,6 +33,7 @@ type createDKGConfig struct {
 	DKGAlgo           string
 	DepositAmounts    []int // Amounts specified in ETH (integers).
 	OperatorENRs      []string
+	ConsensusProtocol string
 }
 
 func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobra.Command {
@@ -81,6 +83,7 @@ func bindCreateDKGFlags(cmd *cobra.Command, config *createDKGConfig) {
 	cmd.Flags().StringVar(&config.DKGAlgo, "dkg-algorithm", "default", "DKG algorithm to use; default, frost")
 	cmd.Flags().IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to exactly 32ETH.")
 	cmd.Flags().StringSliceVar(&config.OperatorENRs, operatorENRs, nil, "[REQUIRED] Comma-separated list of each operator's Charon ENR address.")
+	cmd.Flags().StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the cluster. Selected automatically when not specified.")
 
 	mustMarkFlagRequired(cmd, operatorENRs)
 }
@@ -97,7 +100,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		conf.Network = eth2util.Goerli.Name
 	}
 
-	if err = validateDKGConfig(len(conf.OperatorENRs), conf.Network, conf.DepositAmounts); err != nil {
+	if err = validateDKGConfig(len(conf.OperatorENRs), conf.Network, conf.DepositAmounts, conf.ConsensusProtocol); err != nil {
 		return err
 	}
 
@@ -147,8 +150,8 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	def, err := cluster.NewDefinition(
 		conf.Name, conf.NumValidators, conf.Threshold,
 		conf.FeeRecipientAddrs, conf.WithdrawalAddrs,
-		forkVersion, cluster.Creator{}, operators, conf.DepositAmounts, crand.Reader,
-		opts...)
+		forkVersion, cluster.Creator{}, operators, conf.DepositAmounts,
+		conf.ConsensusProtocol, crand.Reader, opts...)
 	if err != nil {
 		return err
 	}
@@ -196,7 +199,7 @@ func validateWithdrawalAddrs(addrs []string, network string) error {
 }
 
 // validateDKGConfig returns an error if any of the provided config parameter is invalid.
-func validateDKGConfig(numOperators int, network string, depositAmounts []int) error {
+func validateDKGConfig(numOperators int, network string, depositAmounts []int, consensusProtocol string) error {
 	// Don't allow cluster size to be less than 3.
 	if numOperators < minNodes {
 		return errors.New("number of operators is below minimum", z.Int("operators", numOperators), z.Int("min", minNodes))
@@ -212,6 +215,10 @@ func validateDKGConfig(numOperators int, network string, depositAmounts []int) e
 		if err := deposit.VerifyDepositAmounts(amounts); err != nil {
 			return err
 		}
+	}
+
+	if len(consensusProtocol) > 0 && !consensus.IsSupportedProtocolName(consensusProtocol) {
+		return errors.New("unsupported consensus protocol", z.Str("protocol", consensusProtocol))
 	}
 
 	return nil

@@ -29,6 +29,7 @@ func TestCreateDkgValid(t *testing.T) {
 		Network:           defaultNetwork,
 		DKGAlgo:           "default",
 		DepositAmounts:    []int{8, 16, 4, 4},
+		ConsensusProtocol: "qbft",
 		OperatorENRs: []string{
 			"enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u",
 			"enr:-JG4QPnqHa7FU3PBqGxpV5L0hjJrTUqv8Wl6_UTHt-rELeICWjvCfcVfwmax8xI_eJ0ntI3ly9fgxAsmABud6-yBQiuGAYGv0iYPgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMLLCMZ5Oqi_sdnBfdyhmysZMfFm78PgF7Y9jitTJPSroN0Y3CCPoODdWRwgj6E",
@@ -99,6 +100,15 @@ func TestCreateDkgInvalid(t *testing.T) {
 		{
 			conf:   createDKGConfig{},
 			errMsg: "number of operators is below minimum",
+		},
+		{
+			conf: createDKGConfig{
+				OperatorENRs:      validENRs,
+				Threshold:         3,
+				Network:           defaultNetwork,
+				ConsensusProtocol: "unreal",
+			},
+			errMsg: "unsupported consensus protocol",
 		},
 	}
 
@@ -186,19 +196,24 @@ func TestValidateWithdrawalAddr(t *testing.T) {
 func TestValidateDKGConfig(t *testing.T) {
 	t.Run("insufficient ENRs", func(t *testing.T) {
 		numOperators := 2
-		err := validateDKGConfig(numOperators, "", nil)
+		err := validateDKGConfig(numOperators, "", nil, "")
 		require.ErrorContains(t, err, "number of operators is below minimum")
 	})
 
 	t.Run("invalid network", func(t *testing.T) {
 		numOperators := 4
-		err := validateDKGConfig(numOperators, "cosmos", nil)
+		err := validateDKGConfig(numOperators, "cosmos", nil, "")
 		require.ErrorContains(t, err, "unsupported network")
 	})
 
 	t.Run("wrong deposit amounts sum", func(t *testing.T) {
-		err := validateDKGConfig(4, "goerli", []int{8, 16})
+		err := validateDKGConfig(4, "goerli", []int{8, 16}, "")
 		require.ErrorContains(t, err, "sum of partial deposit amounts must sum up to 32ETH")
+	})
+
+	t.Run("unsupported consensus protocol", func(t *testing.T) {
+		err := validateDKGConfig(4, "goerli", nil, "unreal")
+		require.ErrorContains(t, err, "unsupported consensus protocol")
 	})
 }
 
