@@ -18,6 +18,7 @@ import (
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 )
 
@@ -49,6 +50,11 @@ func newFetchExitCmd(runFunc func(context.Context, exitConfig) error) *cobra.Com
 		{all, false},
 		{fetchedExitPath, false},
 		{publishTimeout, false},
+		{testnetName, false},
+		{testnetForkVersion, false},
+		{testnetChainID, false},
+		{testnetGenesisTimestamp, false},
+		{testnetCapellaHardFork, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
@@ -73,6 +79,12 @@ func newFetchExitCmd(runFunc func(context.Context, exitConfig) error) *cobra.Com
 }
 
 func runFetchExit(ctx context.Context, config exitConfig) error {
+	// Check if custom testnet configuration is provided.
+	if config.testnetConfig.IsNonZero() {
+		// Add testnet config to supported networks.
+		eth2util.AddTestNetwork(config.testnetConfig)
+	}
+
 	if _, err := os.Stat(config.FetchedExitPath); err != nil {
 		return errors.Wrap(err, "store exit path")
 	}

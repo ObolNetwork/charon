@@ -19,6 +19,7 @@ import (
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 )
 
@@ -54,6 +55,11 @@ func newSubmitPartialExitCmd(runFunc func(context.Context, exitConfig) error) *c
 		{beaconNodeTimeout, false},
 		{publishTimeout, false},
 		{all, false},
+		{testnetName, false},
+		{testnetForkVersion, false},
+		{testnetChainID, false},
+		{testnetGenesisTimestamp, false},
+		{testnetCapellaHardFork, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
@@ -82,6 +88,12 @@ func newSubmitPartialExitCmd(runFunc func(context.Context, exitConfig) error) *c
 }
 
 func runSignPartialExit(ctx context.Context, config exitConfig) error {
+	// Check if custom testnet configuration is provided.
+	if config.testnetConfig.IsNonZero() {
+		// Add testnet config to supported networks.
+		eth2util.AddTestNetwork(config.testnetConfig)
+	}
+
 	identityKey, err := k1util.Load(config.PrivateKeyPath)
 	if err != nil {
 		return errors.Wrap(err, "could not load identity key")

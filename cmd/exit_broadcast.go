@@ -25,6 +25,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -62,6 +63,12 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 		{exitFromDir, false},
 		{beaconNodeTimeout, false},
 		{publishTimeout, false},
+		{all, false},
+		{testnetName, false},
+		{testnetForkVersion, false},
+		{testnetChainID, false},
+		{testnetGenesisTimestamp, false},
+		{testnetCapellaHardFork, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
@@ -98,6 +105,12 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 }
 
 func runBcastFullExit(ctx context.Context, config exitConfig) error {
+	// Check if custom testnet configuration is provided.
+	if config.testnetConfig.IsNonZero() {
+		// Add testnet config to supported networks.
+		eth2util.AddTestNetwork(config.testnetConfig)
+	}
+
 	identityKey, err := k1util.Load(config.PrivateKeyPath)
 	if err != nil {
 		return errors.Wrap(err, "could not load identity key")

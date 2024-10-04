@@ -824,10 +824,12 @@ func TestClusterCLI(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			cmd := newCreateCmd(newCreateClusterCmd(runCreateCluster))
+			charonDir := testutil.CreateTempCharonDir(t)
+			clusterDirArg := "--cluster-dir=" + charonDir
 			if test.threshold != "" {
-				cmd.SetArgs([]string{"cluster", test.nodes, test.feeRecipient, test.withdrawal, test.network, test.numValidators, test.threshold})
+				cmd.SetArgs([]string{"cluster", clusterDirArg, test.nodes, test.feeRecipient, test.withdrawal, test.network, test.numValidators, test.threshold})
 			} else {
-				cmd.SetArgs([]string{"cluster", test.nodes, test.feeRecipient, test.withdrawal, test.network, test.numValidators})
+				cmd.SetArgs([]string{"cluster", clusterDirArg, test.nodes, test.feeRecipient, test.withdrawal, test.network, test.numValidators})
 			}
 
 			err := cmd.Execute()
