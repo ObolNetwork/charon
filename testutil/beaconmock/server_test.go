@@ -25,11 +25,12 @@ func TestStatic(t *testing.T) {
 
 	configResp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)
-	require.Equal(t, uint64(36660), configResp.Data["ALTAIR_FORK_EPOCH"])
+	require.Equal(t, uint64(0), configResp.Data["ALTAIR_FORK_EPOCH"])
+	require.Equal(t, uint64(29696), configResp.Data["DENEB_FORK_EPOCH"])
 
 	contractResp, err := eth2Cl.DepositContract(ctx, &eth2api.DepositContractOpts{})
 	require.NoError(t, err)
-	require.Equal(t, uint64(5), contractResp.Data.ChainID)
+	require.Equal(t, uint64(17000), contractResp.Data.ChainID)
 
 	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
 	require.NoError(t, err)
