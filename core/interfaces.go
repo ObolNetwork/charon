@@ -8,6 +8,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/libp2p/go-libp2p/core/protocol"
 )
 
 // Scheduler triggers the start of a duty workflow.
@@ -67,6 +68,9 @@ type DutyDB interface {
 
 // Consensus comes to consensus on proposed duty data.
 type Consensus interface {
+	// Start starts the consensus protocol instance.
+	Start(ctx context.Context)
+
 	// Participate run the duty's consensus instance without a proposed value (if Propose not called yet).
 	Participate(context.Context, Duty) error
 
@@ -75,6 +79,12 @@ type Consensus interface {
 
 	// Subscribe registers a callback for resolved (reached consensus) duty unsigned data set.
 	Subscribe(func(context.Context, Duty, UnsignedDataSet) error)
+}
+
+// ConsensusFactory creates new consensus instances.
+type ConsensusFactory interface {
+	// New creates a new consensus instance for the specified protocol.
+	New(protocol protocol.ID) (Consensus, error)
 }
 
 // ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the DutyDB and stores partial signed data in the ParSigDB.

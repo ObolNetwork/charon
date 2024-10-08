@@ -62,11 +62,6 @@ func TestComponent(t *testing.T) {
 	}
 }
 
-func TestIsSupportedProtocolName(t *testing.T) {
-	require.True(t, consensus.IsSupportedProtocolName("qbft"))
-	require.False(t, consensus.IsSupportedProtocolName("unreal"))
-}
-
 // testComponent tests a consensus instance with size of threshold-of-nodes.
 // Note it only instantiates the minimum amount of peers, ie threshold.
 func testComponent(t *testing.T, threshold, nodes int) {

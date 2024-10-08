@@ -12,7 +12,6 @@ import (
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/protocol"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -28,27 +27,8 @@ import (
 )
 
 const (
-	recvBuffer  = 100 // Allow buffering some initial messages when this node is late to start an instance.
-	protocolID2 = "/charon/consensus/qbft/2.0.0"
+	recvBuffer = 100 // Allow buffering some initial messages when this node is late to start an instance.
 )
-
-// Protocols returns the supported protocols of this package in order of precedence.
-func Protocols() []protocol.ID {
-	return []protocol.ID{protocolID2}
-}
-
-// IsSupportedProtocolName returns true if the protocol name is supported.
-func IsSupportedProtocolName(name string) bool {
-	for _, p := range Protocols() {
-		nameAndVersion := strings.TrimPrefix(string(p), "/charon/consensus/")
-		parts := strings.Split(nameAndVersion, "/")
-		if len(parts) > 0 && parts[0] == strings.ToLower(name) {
-			return true
-		}
-	}
-
-	return false
-}
 
 type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) error
 
@@ -302,7 +282,7 @@ func (c *Component) SubscribePriority(fn func(ctx context.Context, duty core.Dut
 
 // Start registers the libp2p receive handler and starts a goroutine that cleans state. This should only be called once.
 func (c *Component) Start(ctx context.Context) {
-	p2p.RegisterHandler("qbft", c.tcpNode, protocolID2,
+	p2p.RegisterHandler("qbft", c.tcpNode, QBFTv2ProtocolID,
 		func() proto.Message { return new(pbv1.ConsensusMsg) },
 		c.handle)
 

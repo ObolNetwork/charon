@@ -127,7 +127,7 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 			continue
 		}
 
-		err = t.component.sender.SendAsync(ctx, t.component.tcpNode, protocolID2, p.ID, msg.ToConsensusMsg())
+		err = t.component.sender.SendAsync(ctx, t.component.tcpNode, QBFTv2ProtocolID, p.ID, msg.ToConsensusMsg())
 		if err != nil {
 			return err
 		}
