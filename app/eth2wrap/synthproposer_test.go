@@ -67,15 +67,10 @@ func TestSynthProposer(t *testing.T) {
 		activeVals++
 		return cached(ctx)
 	}
-	signedBeaconBlock := bmock.SignedBeaconBlock
 	bmock.SignedBeaconBlockFunc = func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error) {
-		opts := &eth2api.SignedBeaconBlockOpts{Block: blockID}
-		resp, err := signedBeaconBlock(ctx, opts)
-		if err != nil {
-			return nil, err
-		}
+		resp := testutil.RandomCapellaVersionedSignedBeaconBlock()
 
-		return resp.Data, nil
+		return resp, nil
 	}
 
 	eth2Cl := eth2wrap.WithSyntheticDuties(bmock)
