@@ -631,7 +631,7 @@ func (i *transportInstance) Broadcast(_ context.Context, typ qbft.MsgType,
 	// Transform justifications into protobufs
 	var justMsgs []*pbv1.QBFTMsg
 	for _, j := range justification {
-		impl, ok := j.(msg)
+		impl, ok := j.(qbftMsg)
 		if !ok {
 			return errors.New("invalid justification")
 		}
@@ -640,7 +640,7 @@ func (i *transportInstance) Broadcast(_ context.Context, typ qbft.MsgType,
 		values[impl.PreparedValue()] = dummy
 	}
 
-	msg, err := newMsg(pbMsg, justMsgs, values)
+	msg, err := newQBFTMsg(pbMsg, justMsgs, values)
 	if err != nil {
 		return err
 	}

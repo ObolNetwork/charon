@@ -27,7 +27,7 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestComponent(t *testing.T) {
+func TestQBFTConsensus(t *testing.T) {
 	tests := []struct {
 		name      string
 		threshold int
@@ -57,14 +57,14 @@ func TestComponent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testComponent(t, tt.threshold, tt.nodes)
+			testQBFTConsensus(t, tt.threshold, tt.nodes)
 		})
 	}
 }
 
-// testComponent tests a consensus instance with size of threshold-of-nodes.
+// testQBFTConsensus tests a consensus instance with size of threshold-of-nodes.
 // Note it only instantiates the minimum amount of peers, ie threshold.
-func testComponent(t *testing.T, threshold, nodes int) {
+func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 	t.Helper()
 	seed := 0
 	random := rand.New(rand.NewSource(int64(seed)))
@@ -74,7 +74,7 @@ func testComponent(t *testing.T, threshold, nodes int) {
 		peers       []p2p.Peer
 		hosts       []host.Host
 		hostsInfo   []peer.AddrInfo
-		components  []*consensus.Component
+		components  []*consensus.QBFTConsensus
 		results     = make(chan core.UnsignedDataSet, threshold)
 		runErrs     = make(chan error, threshold)
 		sniffed     = make(chan int, threshold)
@@ -119,7 +119,7 @@ func testComponent(t *testing.T, threshold, nodes int) {
 
 		gaterFunc := func(core.Duty) bool { return true }
 
-		c, err := consensus.New(hosts[i], new(p2p.Sender), peers, p2pkeys[i], testDeadliner{}, gaterFunc, sniffer)
+		c, err := consensus.NewQBFTConsensus(hosts[i], new(p2p.Sender), peers, p2pkeys[i], testDeadliner{}, gaterFunc, sniffer)
 		require.NoError(t, err)
 		c.Subscribe(func(_ context.Context, _ core.Duty, set core.UnsignedDataSet) error {
 			results <- set
@@ -134,7 +134,7 @@ func testComponent(t *testing.T, threshold, nodes int) {
 
 	// Start all components.
 	for i, c := range components {
-		go func(ctx context.Context, i int, c *consensus.Component) {
+		go func(ctx context.Context, i int, c *consensus.QBFTConsensus) {
 			runErrs <- c.Propose(
 				log.WithCtx(ctx, z.Int("node", i), z.Str("peer", p2p.PeerName(hosts[i].ID()))),
 				core.Duty{Type: core.DutyAttester, Slot: 1},

@@ -118,15 +118,15 @@ func (t testMsg) Justification() []qbft.Msg[core.Duty, [32]byte] {
 	panic("implement me")
 }
 
-func TestComponent_handle(t *testing.T) {
+func TestQBFTConsensus_handle(t *testing.T) {
 	tests := []struct {
 		name     string
-		mutate   func(base *pbv1.ConsensusMsg, c *Component)
+		mutate   func(base *pbv1.ConsensusMsg, c *QBFTConsensus)
 		checkErr func(err error)
 	}{
 		{
 			"qbft message with no pubkey errors",
-			func(base *pbv1.ConsensusMsg, c *Component) {
+			func(base *pbv1.ConsensusMsg, c *QBFTConsensus) {
 				// construct a valid basis message signature
 				base.Msg.Duty.Type = 1
 				base.Msg.Signature = bytes.Repeat([]byte{42}, 65)
@@ -142,7 +142,7 @@ func TestComponent_handle(t *testing.T) {
 		},
 		{
 			"qbft message with justifications mentioning unknown peerIdx errors",
-			func(base *pbv1.ConsensusMsg, c *Component) {
+			func(base *pbv1.ConsensusMsg, c *QBFTConsensus) {
 				p2pKey := testutil.GenerateInsecureK1Key(t, 0)
 				c.pubkeys = make(map[int64]*k1.PublicKey)
 				c.pubkeys[0] = p2pKey.PubKey()
@@ -189,7 +189,7 @@ func TestComponent_handle(t *testing.T) {
 		},
 		{
 			"qbft message with nil justification present in slice",
-			func(base *pbv1.ConsensusMsg, c *Component) {
+			func(base *pbv1.ConsensusMsg, c *QBFTConsensus) {
 				p2pKey := testutil.GenerateInsecureK1Key(t, 0)
 				c.pubkeys = make(map[int64]*k1.PublicKey)
 				c.pubkeys[0] = p2pKey.PubKey()
@@ -222,7 +222,7 @@ func TestComponent_handle(t *testing.T) {
 		},
 		{
 			"qbft message values present but nil",
-			func(base *pbv1.ConsensusMsg, c *Component) {
+			func(base *pbv1.ConsensusMsg, c *QBFTConsensus) {
 				p2pKey := testutil.GenerateInsecureK1Key(t, 0)
 				c.pubkeys = make(map[int64]*k1.PublicKey)
 				c.pubkeys[0] = p2pKey.PubKey()
@@ -255,7 +255,7 @@ func TestComponent_handle(t *testing.T) {
 		},
 		{
 			"qbft message with invalid duty fails",
-			func(base *pbv1.ConsensusMsg, c *Component) {
+			func(base *pbv1.ConsensusMsg, c *QBFTConsensus) {
 				// construct a valid basis message signature
 				base.Msg.Duty.Type = 1
 				base.Msg.Signature = bytes.Repeat([]byte{42}, 65)
@@ -271,7 +271,7 @@ func TestComponent_handle(t *testing.T) {
 		},
 		{
 			"qbft message with valid duty fails because justification has different duty type",
-			func(base *pbv1.ConsensusMsg, c *Component) {
+			func(base *pbv1.ConsensusMsg, c *QBFTConsensus) {
 				p2pKey := testutil.GenerateInsecureK1Key(t, 0)
 				c.pubkeys = make(map[int64]*k1.PublicKey)
 				c.pubkeys[0] = p2pKey.PubKey()
@@ -318,7 +318,7 @@ func TestComponent_handle(t *testing.T) {
 		},
 		{
 			"qbft message with valid duty and justification with same duty does not fail",
-			func(base *pbv1.ConsensusMsg, c *Component) {
+			func(base *pbv1.ConsensusMsg, c *QBFTConsensus) {
 				p2pKey := testutil.GenerateInsecureK1Key(t, 0)
 				c.pubkeys = make(map[int64]*k1.PublicKey)
 				c.pubkeys[0] = p2pKey.PubKey()
@@ -369,9 +369,9 @@ func TestComponent_handle(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var tc Component
+			var tc QBFTConsensus
 			tc.deadliner = testDeadliner{}
-			tc.mutable.instances = make(map[core.Duty]instanceIO)
+			tc.mutable.instances = make(map[core.Duty]instanceIO[qbftMsg])
 			tc.gaterFunc = func(core.Duty) bool { return true }
 
 			msg := &pbv1.ConsensusMsg{
@@ -386,7 +386,7 @@ func TestComponent_handle(t *testing.T) {
 	}
 }
 
-func TestComponentHandle(t *testing.T) {
+func TestQBFTConsensusHandle(t *testing.T) {
 	tests := []struct {
 		name     string
 		msg      *pbv1.ConsensusMsg
@@ -449,7 +449,7 @@ func TestComponentHandle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &Component{
+			c := &QBFTConsensus{
 				gaterFunc: func(core.Duty) bool { return true },
 			}
 
@@ -461,16 +461,16 @@ func TestComponentHandle(t *testing.T) {
 
 func TestInstanceIO_MaybeStart(t *testing.T) {
 	t.Run("MaybeStart for new instance", func(t *testing.T) {
-		inst1 := newInstanceIO()
+		inst1 := newInstanceIO[qbftMsg]()
 		require.True(t, inst1.MaybeStart())
 		require.False(t, inst1.MaybeStart())
 	})
 
 	t.Run("MaybeStart after handle", func(t *testing.T) {
-		var c Component
+		var c QBFTConsensus
 		c.deadliner = testDeadliner{}
 		c.gaterFunc = func(core.Duty) bool { return true }
-		c.mutable.instances = make(map[core.Duty]instanceIO)
+		c.mutable.instances = make(map[core.Duty]instanceIO[qbftMsg])
 
 		// Generate a p2p private key.
 		p2pKey := testutil.GenerateInsecureK1Key(t, 0)
@@ -496,10 +496,10 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 	t.Run("Call Propose after handle", func(t *testing.T) {
 		ctx := context.Background()
 
-		var c Component
+		var c QBFTConsensus
 		c.deadliner = testDeadliner{}
 		c.gaterFunc = func(core.Duty) bool { return true }
-		c.mutable.instances = make(map[core.Duty]instanceIO)
+		c.mutable.instances = make(map[core.Duty]instanceIO[qbftMsg])
 		c.timerFunc = getTimerFunc()
 
 		// Generate a p2p private key pair.

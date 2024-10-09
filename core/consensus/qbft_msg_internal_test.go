@@ -45,16 +45,16 @@ func TestSigning(t *testing.T) {
 
 	msg := randomMsg(t)
 
-	signed, err := signMsg(msg, privkey)
+	signed, err := signQBFTMsg(msg, privkey)
 	require.NoError(t, err)
 
-	ok, err := verifyMsgSig(signed, privkey.PubKey())
+	ok, err := verifyQBFTMsgSig(signed, privkey.PubKey())
 	require.NoError(t, err)
 	require.True(t, ok)
 
 	privkey2, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
-	ok, err = verifyMsgSig(signed, privkey2.PubKey())
+	ok, err = verifyQBFTMsgSig(signed, privkey2.PubKey())
 	require.NoError(t, err)
 	require.False(t, ok)
 }
@@ -77,7 +77,7 @@ func TestNewMsg(t *testing.T) {
 		hash2: any2,
 	}
 
-	msg, err := newMsg(&pbv1.QBFTMsg{
+	msg, err := newQBFTMsg(&pbv1.QBFTMsg{
 		Type:              int64(qbft.MsgPrePrepare),
 		ValueHash:         hash1[:],
 		PreparedValueHash: hash2[:],
@@ -94,7 +94,7 @@ func TestPartialLegacyNewMsg(t *testing.T) {
 	hash1, err := hashProto(val1)
 	require.NoError(t, err)
 
-	_, err = newMsg(&pbv1.QBFTMsg{
+	_, err = newQBFTMsg(&pbv1.QBFTMsg{
 		Type: int64(qbft.MsgPrePrepare),
 	}, []*pbv1.QBFTMsg{
 		{

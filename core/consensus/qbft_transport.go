@@ -5,12 +5,10 @@ package consensus
 import (
 	"context"
 	"sync"
-	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
@@ -18,10 +16,10 @@ import (
 	"github.com/obolnetwork/charon/core/qbft"
 )
 
-// transport encapsulates receiving and broadcasting for a consensus instance/duty.
-type transport struct {
+// qbftTransport encapsulates receiving and broadcasting for a consensus instance/duty.
+type qbftTransport struct {
 	// Immutable state
-	component  *Component
+	component  *QBFTConsensus
 	recvBuffer chan qbft.Msg[core.Duty, [32]byte] // Instance inner receive buffer.
 	sniffer    *sniffer
 
@@ -32,7 +30,7 @@ type transport struct {
 }
 
 // setValues caches the values and their hashes.
-func (t *transport) setValues(msg msg) {
+func (t *qbftTransport) setValues(msg qbftMsg) {
 	t.valueMu.Lock()
 	defer t.valueMu.Unlock()
 
@@ -42,7 +40,7 @@ func (t *transport) setValues(msg msg) {
 }
 
 // getValue returns the value by its hash.
-func (t *transport) getValue(hash [32]byte) (*anypb.Any, error) {
+func (t *qbftTransport) getValue(hash [32]byte) (*anypb.Any, error) {
 	t.valueMu.Lock()
 	defer t.valueMu.Unlock()
 
@@ -73,7 +71,7 @@ func (t *transport) getValue(hash [32]byte) (*anypb.Any, error) {
 }
 
 // Broadcast creates a msg and sends it to all peers (including self).
-func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.Duty,
+func (t *qbftTransport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.Duty,
 	peerIdx int64, round int64, valueHash [32]byte, pr int64, pvHash [32]byte,
 	justification []qbft.Msg[core.Duty, [32]byte],
 ) error {
@@ -82,7 +80,7 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 	hashes = append(hashes, valueHash)
 	hashes = append(hashes, pvHash)
 	for _, just := range justification {
-		msg, ok := just.(msg)
+		msg, ok := just.(qbftMsg)
 		if !ok {
 			return errors.New("invalid justification message")
 		}
@@ -106,7 +104,7 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 	}
 
 	// Make the message
-	msg, err := createMsg(typ, duty, peerIdx, round, valueHash, pr,
+	msg, err := createQBFTMsg(typ, duty, peerIdx, round, valueHash, pr,
 		pvHash, values, justification, t.component.privkey)
 	if err != nil {
 		return err
@@ -137,7 +135,7 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 }
 
 // ProcessReceives processes received messages from the outer buffer until the context is closed.
-func (t *transport) ProcessReceives(ctx context.Context, outerBuffer chan msg) {
+func (t *qbftTransport) ProcessReceives(ctx context.Context, outerBuffer chan qbftMsg) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -155,13 +153,13 @@ func (t *transport) ProcessReceives(ctx context.Context, outerBuffer chan msg) {
 	}
 }
 
-// createMsg returns a new message by converting the inputs into a protobuf
+// createQBFTMsg returns a new message by converting the inputs into a protobuf
 // and wrapping that in a msg type.
-func createMsg(typ qbft.MsgType, duty core.Duty,
+func createQBFTMsg(typ qbft.MsgType, duty core.Duty,
 	peerIdx int64, round int64, vHash [32]byte, pr int64, pvHash [32]byte,
 	values map[[32]byte]*anypb.Any, justification []qbft.Msg[core.Duty, [32]byte],
 	privkey *k1.PrivateKey,
-) (msg, error) {
+) (qbftMsg, error) {
 	pbMsg := &pbv1.QBFTMsg{
 		Type:              int64(typ),
 		Duty:              core.DutyToProto(duty),
@@ -172,63 +170,20 @@ func createMsg(typ qbft.MsgType, duty core.Duty,
 		PreparedValueHash: pvHash[:],
 	}
 
-	pbMsg, err := signMsg(pbMsg, privkey)
+	pbMsg, err := signQBFTMsg(pbMsg, privkey)
 	if err != nil {
-		return msg{}, err
+		return qbftMsg{}, err
 	}
 
 	// Transform justifications into protobufs
 	var justMsgs []*pbv1.QBFTMsg
 	for _, j := range justification {
-		impl, ok := j.(msg)
+		impl, ok := j.(qbftMsg)
 		if !ok {
-			return msg{}, errors.New("invalid justification")
+			return qbftMsg{}, errors.New("invalid justification")
 		}
 		justMsgs = append(justMsgs, impl.msg) // Note nested justifications are ignored.
 	}
 
-	return newMsg(pbMsg, justMsgs, values)
-}
-
-// newSniffer returns a new sniffer.
-func newSniffer(nodes, peerIdx int64) *sniffer {
-	return &sniffer{
-		nodes:     nodes,
-		peerIdx:   peerIdx,
-		startedAt: time.Now(),
-	}
-}
-
-// sniffer buffers consensus messages.
-type sniffer struct {
-	nodes     int64
-	peerIdx   int64
-	startedAt time.Time
-
-	mu   sync.Mutex
-	msgs []*pbv1.SniffedConsensusMsg
-}
-
-// Add adds a message to the sniffer buffer.
-func (c *sniffer) Add(msg *pbv1.ConsensusMsg) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.msgs = append(c.msgs, &pbv1.SniffedConsensusMsg{
-		Timestamp: timestamppb.Now(),
-		Msg:       msg,
-	})
-}
-
-// Instance returns the buffered messages as an instance.
-func (c *sniffer) Instance() *pbv1.SniffedConsensusInstance {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	return &pbv1.SniffedConsensusInstance{
-		Nodes:     c.nodes,
-		PeerIdx:   c.peerIdx,
-		StartedAt: timestamppb.New(c.startedAt),
-		Msgs:      c.msgs,
-	}
+	return newQBFTMsg(pbMsg, justMsgs, values)
 }

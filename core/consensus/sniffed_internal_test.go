@@ -68,7 +68,7 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 
 	var expectDecided bool
 
-	def := newDefinition(int(instance.GetNodes()), func() []subscriber {
+	def := newQBFTDefinition(int(instance.GetNodes()), func() []subscriber {
 		return []subscriber{func(ctx context.Context, duty core.Duty, value proto.Message) error {
 			log.Info(ctx, "Consensus decided", z.Any("value", value))
 			expectDecided = true
@@ -91,7 +91,7 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 		values, err := valuesByHash(msg.GetMsg().GetValues())
 		require.NoError(t, err)
 
-		m, err := newMsg(msg.GetMsg().GetMsg(), msg.GetMsg().GetJustification(), values)
+		m, err := newQBFTMsg(msg.GetMsg().GetMsg(), msg.GetMsg().GetJustification(), values)
 		require.NoError(t, err)
 		recvBuffer <- m
 	}

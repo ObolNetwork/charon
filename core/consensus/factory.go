@@ -42,7 +42,7 @@ func NewConsensusFactory(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer
 func (f *consensusFactory) New(protocol protocol.ID) (core.Consensus, error) {
 	// TODO: Refactor to a switch statement when more protocols are added.
 	if protocol == QBFTv2ProtocolID {
-		return New(f.tcpNode, f.sender, f.peers, f.p2pKey, f.deadliner, f.gaterFunc, f.snifferFunc)
+		return NewQBFTConsensus(f.tcpNode, f.sender, f.peers, f.p2pKey, f.deadliner, f.gaterFunc, f.snifferFunc)
 	}
 
 	return nil, errors.New("unknown consensus protocol")

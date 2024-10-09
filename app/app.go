@@ -525,13 +525,17 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	retryer := retry.New[core.Duty](deadlineFunc)
 
-	consensusFactory := consensus.NewConsensusFactory(tcpNode, sender, peers, p2pKey, deadlinerFunc("consensus"), gaterFunc, consensusDebugger.AddInstance)
+	consensusFactory := consensus.NewConsensusFactory(
+		tcpNode, sender, peers, p2pKey,
+		deadlinerFunc("consensus"), gaterFunc, consensusDebugger.AddInstance)
 
+	// We always need QBFT consensus instance as it is used for priority protocol.
+	// And for now it is used as the primary consensus protocol.
 	qbftConsensus, err := consensusFactory.New(consensus.QBFTv2ProtocolID)
 	if err != nil {
 		return err
 	}
-	startConsensus := lifecycle.HookFuncCtx(qbftConsensus.Start)
+	startQBFTConsensus := lifecycle.HookFuncCtx(qbftConsensus.Start)
 
 	err = wirePrioritise(ctx, conf, life, tcpNode, peerIDs, int(cluster.GetThreshold()),
 		sender.SendReceive, qbftConsensus, sched, p2pKey, deadlineFunc)
@@ -571,7 +575,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartScheduler, lifecycle.HookFuncErr(sched.Run))
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PConsensus, startConsensus)
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PConsensus, startQBFTConsensus)
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartAggSigDB, lifecycle.HookFuncCtx(aggSigDB.Run))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartParSigDB, lifecycle.HookFuncCtx(parSigDB.Trim))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartTracker, lifecycle.HookFuncCtx(inclusion.Run))
@@ -587,7 +591,7 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 	peers []peer.ID, threshold int, sendFunc p2p.SendReceiveFunc, coreCons core.Consensus,
 	sched core.Scheduler, p2pKey *k1.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
 ) error {
-	cons, ok := coreCons.(*consensus.Component)
+	cons, ok := coreCons.(*consensus.QBFTConsensus)
 	if !ok {
 		// Priority protocol not supported for leader cast.
 		return nil
