@@ -47,7 +47,8 @@ import (
 	"github.com/obolnetwork/charon/core/aggsigdb"
 	"github.com/obolnetwork/charon/core/bcast"
 	"github.com/obolnetwork/charon/core/consensus"
-	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
+	cprotocols "github.com/obolnetwork/charon/core/consensus/protocols"
+	cqbft "github.com/obolnetwork/charon/core/consensus/qbft"
 	"github.com/obolnetwork/charon/core/dutydb"
 	"github.com/obolnetwork/charon/core/fetcher"
 	"github.com/obolnetwork/charon/core/infosync"
@@ -526,14 +527,20 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	retryer := retry.New[core.Duty](deadlineFunc)
 
-	cons, startCons, err := newConsensus(cluster, tcpNode, p2pKey, sender,
+	consensusFactory := consensus.NewConsensusFactory(
+		tcpNode, sender, peers, p2pKey,
 		deadlinerFunc("consensus"), gaterFunc, consensusDebugger.AddInstance)
+
+	// We always need QBFT consensus instance as it is used for priority protocol.
+	// And for now it is used as the primary consensus protocol.
+	qbftConsensus, err := consensusFactory.New(cprotocols.QBFTv2ProtocolID)
 	if err != nil {
 		return err
 	}
+	startQBFTConsensus := lifecycle.HookFuncCtx(qbftConsensus.Start)
 
 	err = wirePrioritise(ctx, conf, life, tcpNode, peerIDs, int(cluster.GetThreshold()),
-		sender.SendReceive, cons, sched, p2pKey, deadlineFunc)
+		sender.SendReceive, qbftConsensus, sched, p2pKey, deadlineFunc)
 	if err != nil {
 		return err
 	}
@@ -558,7 +565,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		core.WithTracking(track, inclusion),
 		core.WithAsyncRetry(retryer),
 	}
-	core.Wire(sched, fetch, cons, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
+	core.Wire(sched, fetch, qbftConsensus, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
 
 	err = wireValidatorMock(ctx, conf, eth2Cl, pubshares, sched)
 	if err != nil {
@@ -570,7 +577,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartScheduler, lifecycle.HookFuncErr(sched.Run))
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PConsensus, startCons)
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PConsensus, startQBFTConsensus)
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartAggSigDB, lifecycle.HookFuncCtx(aggSigDB.Run))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartParSigDB, lifecycle.HookFuncCtx(parSigDB.Trim))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartTracker, lifecycle.HookFuncCtx(inclusion.Run))
@@ -586,7 +593,7 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 	peers []peer.ID, threshold int, sendFunc p2p.SendReceiveFunc, coreCons core.Consensus,
 	sched core.Scheduler, p2pKey *k1.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
 ) error {
-	cons, ok := coreCons.(*consensus.Component)
+	cons, ok := coreCons.(*cqbft.Consensus)
 	if !ok {
 		// Priority protocol not supported for leader cast.
 		return nil
@@ -918,24 +925,6 @@ func configureEth2Client(ctx context.Context, forkVersion []byte, addrs []string
 	return eth2Cl, nil
 }
 
-// newConsensus returns a new consensus component and its start lifecycle hook.
-func newConsensus(cluster *manifestpb.Cluster, tcpNode host.Host, p2pKey *k1.PrivateKey,
-	sender *p2p.Sender, deadliner core.Deadliner, gaterFunc core.DutyGaterFunc,
-	qbftSniffer func(*pbv1.SniffedConsensusInstance),
-) (core.Consensus, lifecycle.IHookFunc, error) {
-	peers, err := manifest.ClusterPeers(cluster)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	comp, err := consensus.New(tcpNode, sender, peers, p2pKey, deadliner, gaterFunc, qbftSniffer)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return comp, lifecycle.HookFuncCtx(comp.Start), nil
-}
-
 // createMockValidators creates mock validators identified by their public shares.
 func createMockValidators(pubkeys []eth2p0.BLSPubKey) beaconmock.ValidatorSet {
 	resp := make(beaconmock.ValidatorSet)
@@ -1079,7 +1068,7 @@ func (h httpServeHook) Call(context.Context) error {
 // Protocols returns the list of supported Protocols in order of precedence.
 func Protocols() []protocol.ID {
 	var resp []protocol.ID
-	resp = append(resp, consensus.Protocols()...)
+	resp = append(resp, cprotocols.Protocols()...)
 	resp = append(resp, parsigex.Protocols()...)
 	resp = append(resp, peerinfo.Protocols()...)
 	resp = append(resp, priority.Protocols()...)
