@@ -95,13 +95,13 @@ func TestSmoke(t *testing.T) {
 			},
 			DefineTmplFunc: func(data *compose.TmplData) {
 				// Use oldest supported version for cluster lock
-				pegImageTag(data.Nodes, 0, last(version.Supported()[1:])+"-rc")
+				pegImageTag(data.Nodes, 0, last(version.Supported()[1:])+".0-rc1")
 			},
 			RunTmplFunc: func(data *compose.TmplData) {
 				// Node 0 is local build
-				pegImageTag(data.Nodes, 1, nth(version.Supported(), 0)+"-dev") // Node 1 is previous commit on this branch (v0.X-dev/rc) Note this will fail for first commit on new branch version.
-				pegImageTag(data.Nodes, 2, nth(version.Supported()[1:], 1)+"-rc")
-				pegImageTag(data.Nodes, 3, nth(version.Supported()[1:], 2)+"-rc")
+				pegImageTag(data.Nodes, 1, nth(version.Supported(), 0)+"-dev") // Node 1 is previous commit on this branch (v1.X-dev/rc) Note this will fail for first commit on new branch version.
+				pegImageTag(data.Nodes, 2, nth(version.Supported()[1:], 1)+".0-rc1")
+				pegImageTag(data.Nodes, 3, nth(version.Supported()[1:], 2)+".0-rc1")
 			},
 		},
 		{
@@ -171,7 +171,7 @@ func TestSmoke(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			dir := t.TempDir()
+			dir := "."
 
 			conf := compose.NewDefaultConfig()
 			conf.Monitoring = false
