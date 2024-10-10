@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/compose"
 )
@@ -84,26 +85,25 @@ func TestSmoke(t *testing.T) {
 			},
 			Timeout: time.Minute * 2,
 		},
-		// TODO: https://github.com/ObolNetwork/charon/issues/3004
-		// {
-		// 	Name:     "run_version_matrix_with_dkg",
-		// 	PrintYML: true,
-		// 	ConfigFunc: func(conf *compose.Config) {
-		// 		conf.KeyGen = compose.KeyGenDKG
-		// 		// NOTE: Add external VCs when supported versions include minimal preset.
-		// 		conf.VCs = []compose.VCType{compose.VCMock}
-		// 	},
-		// 	DefineTmplFunc: func(data *compose.TmplData) {
-		// 		// Use oldest supported version for cluster lock
-		// 		pegImageTag(data.Nodes, 0, last(version.Supported()[1:])+"-rc")
-		// 	},
-		// 	RunTmplFunc: func(data *compose.TmplData) {
-		// 		// Node 0 is local build
-		// 		pegImageTag(data.Nodes, 1, nth(version.Supported(), 0)+"-dev") // Node 1 is previous commit on this branch (v0.X-dev/rc) Note this will fail for first commit on new branch version.
-		// 		pegImageTag(data.Nodes, 2, nth(version.Supported()[1:], 1)+"-rc")
-		// 		pegImageTag(data.Nodes, 3, nth(version.Supported()[1:], 2)+"-rc")
-		// 	},
-		// },
+		{
+			Name:     "run_version_matrix_with_dkg",
+			PrintYML: true,
+			ConfigFunc: func(conf *compose.Config) {
+				conf.KeyGen = compose.KeyGenDKG
+				// NOTE: Add external VCs when supported versions include minimal preset.
+				conf.VCs = []compose.VCType{compose.VCMock}
+			},
+			DefineTmplFunc: func(data *compose.TmplData) {
+				// Use oldest supported version for cluster lock
+				pegImageTag(data.Nodes, 0, last(version.Supported()[1:])+"-rc")
+			},
+			RunTmplFunc: func(data *compose.TmplData) {
+				// Node 0 is local build
+				pegImageTag(data.Nodes, 1, nth(version.Supported(), 0)+"-dev") // Node 1 is previous commit on this branch (v0.X-dev/rc) Note this will fail for first commit on new branch version.
+				pegImageTag(data.Nodes, 2, nth(version.Supported()[1:], 1)+"-rc")
+				pegImageTag(data.Nodes, 3, nth(version.Supported()[1:], 2)+"-rc")
+			},
+		},
 		{
 			Name: "teku_versions",
 			ConfigFunc: func(conf *compose.Config) {
@@ -171,8 +171,7 @@ func TestSmoke(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			dir, err := os.MkdirTemp("", "")
-			require.NoError(t, err)
+			dir := t.TempDir()
 
 			conf := compose.NewDefaultConfig()
 			conf.Monitoring = false
@@ -204,7 +203,7 @@ func TestSmoke(t *testing.T) {
 				autoConfig.LogFile = path.Join(*logDir, test.Name+".log")
 			}
 
-			err = compose.Auto(context.Background(), autoConfig)
+			err := compose.Auto(context.Background(), autoConfig)
 			testutil.RequireNoError(t, err)
 		})
 	}
@@ -212,17 +211,17 @@ func TestSmoke(t *testing.T) {
 
 // pegImageTag pegs the charon docker image tag for one of the nodes.
 // It overrides the default that uses locally built latest version.
-// func pegImageTag(nodes []compose.TmplNode, index int, imageTag string) {
-// 	nodes[index].ImageTag = imageTag
-// 	nodes[index].Entrypoint = "/usr/local/bin/charon" // Use contains binary, not locally built latest version.
-// }
+func pegImageTag(nodes []compose.TmplNode, index int, imageTag string) {
+	nodes[index].ImageTag = imageTag
+	nodes[index].Entrypoint = "/usr/local/bin/charon" // Use contains binary, not locally built latest version.
+}
 
-// // last returns the last element of a slice.
-// func last(s []version.SemVer) string {
-// 	return s[len(s)-1].String()
-// }
+// last returns the last element of a slice.
+func last(s []version.SemVer) string {
+	return s[len(s)-1].String()
+}
 
-// // nth returns the nth element of a slice, wrapping if n > len(s).
-// func nth(s []version.SemVer, n int) string {
-// 	return s[n%len(s)].String()
-// }
+// nth returns the nth element of a slice, wrapping if n > len(s).
+func nth(s []version.SemVer, n int) string {
+	return s[n%len(s)].String()
+}
