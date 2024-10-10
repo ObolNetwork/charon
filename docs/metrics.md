@@ -43,10 +43,10 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_bcast_recast_errors_total` | Counter | The total count of failed recasted registrations by source; `pregen` vs `downstream` | `source` |
 | `core_bcast_recast_registration_total` | Counter | The total number of unique validator registration stored in recaster per pubkey | `pubkey` |
 | `core_bcast_recast_total` | Counter | The total count of recasted registrations by source; `pregen` vs `downstream` | `source` |
-| `core_consensus_decided_rounds` | Gauge | Number of rounds it took to decide consensus instances by duty and timer type. | `protocol, duty, timer` |
-| `core_consensus_duration_seconds` | Histogram | Duration of a consensus instance in seconds by duty and timer type. | `protocol, duty, timer` |
-| `core_consensus_error_total` | Counter | Total count of consensus errors | `protocol` |
-| `core_consensus_timeout_total` | Counter | Total count of consensus timeouts by duty and timer type. | `protocol, duty, timer` |
+| `core_consensus_decided_rounds` | Gauge | Number of rounds it took to decide consensus instances by protocol, duty and timer type. | `protocol, duty, timer` |
+| `core_consensus_duration_seconds` | Histogram | Duration of a consensus instance in seconds by protocol, duty and timer type. | `protocol, duty, timer` |
+| `core_consensus_error_total` | Counter | Total count of consensus errors by protocol | `protocol` |
+| `core_consensus_timeout_total` | Counter | Total count of consensus timeouts by protocol, duty and timer type. | `protocol, duty, timer` |
 | `core_parsigdb_exit_total` | Counter | Total number of partially signed voluntary exits per public key | `pubkey` |
 | `core_scheduler_current_epoch` | Gauge | The current epoch |  |
 | `core_scheduler_current_slot` | Gauge | The current slot |  |
