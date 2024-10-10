@@ -34,7 +34,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/core/consensus"
+	"github.com/obolnetwork/charon/core/consensus/protocols"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/enr"
@@ -393,7 +393,7 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 		return errors.New("number of operators is below minimum", z.Int("operators", conf.NumNodes), z.Int("min", minNodes))
 	}
 
-	if len(conf.ConsensusProtocol) > 0 && !consensus.IsSupportedProtocolName(conf.ConsensusProtocol) {
+	if len(conf.ConsensusProtocol) > 0 && !protocols.IsSupportedProtocolName(conf.ConsensusProtocol) {
 		return errors.New("unsupported consensus protocol", z.Str("protocol", conf.ConsensusProtocol))
 	}
 
@@ -960,7 +960,7 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 		return errors.New("unsupported network", z.Str("network", network))
 	}
 
-	if len(def.ConsensusProtocol) > 0 && !consensus.IsSupportedProtocolName(def.ConsensusProtocol) {
+	if len(def.ConsensusProtocol) > 0 && !protocols.IsSupportedProtocolName(def.ConsensusProtocol) {
 		return errors.New("unsupported consensus protocol", z.Str("protocol", def.ConsensusProtocol))
 	}
 

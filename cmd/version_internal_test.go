@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/version"
-	"github.com/obolnetwork/charon/core/consensus"
+	"github.com/obolnetwork/charon/core/consensus/protocols"
 )
 
 func TestRunVersionCmd(t *testing.T) {
@@ -44,6 +44,6 @@ func TestRunVersionCmd(t *testing.T) {
 		require.Contains(t, str, "Package:")
 		require.Contains(t, str, "Dependencies:")
 		require.Contains(t, str, "Consensus protocols:")
-		require.Contains(t, str, consensus.Protocols()[0])
+		require.Contains(t, str, protocols.Protocols()[0])
 	})
 }

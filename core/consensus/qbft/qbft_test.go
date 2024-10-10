@@ -1,6 +1,6 @@
 // Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package consensus_test
+package qbft_test
 
 import (
 	"context"
@@ -20,7 +20,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/core/consensus"
+	"github.com/obolnetwork/charon/core/consensus/qbft"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
@@ -74,7 +74,7 @@ func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 		peers       []p2p.Peer
 		hosts       []host.Host
 		hostsInfo   []peer.AddrInfo
-		components  []*consensus.QBFTConsensus
+		components  []*qbft.Consensus
 		results     = make(chan core.UnsignedDataSet, threshold)
 		runErrs     = make(chan error, threshold)
 		sniffed     = make(chan int, threshold)
@@ -119,7 +119,7 @@ func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 
 		gaterFunc := func(core.Duty) bool { return true }
 
-		c, err := consensus.NewQBFTConsensus(hosts[i], new(p2p.Sender), peers, p2pkeys[i], testDeadliner{}, gaterFunc, sniffer)
+		c, err := qbft.NewConsensus(hosts[i], new(p2p.Sender), peers, p2pkeys[i], testDeadliner{}, gaterFunc, sniffer)
 		require.NoError(t, err)
 		c.Subscribe(func(_ context.Context, _ core.Duty, set core.UnsignedDataSet) error {
 			results <- set
@@ -134,7 +134,7 @@ func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 
 	// Start all components.
 	for i, c := range components {
-		go func(ctx context.Context, i int, c *consensus.QBFTConsensus) {
+		go func(ctx context.Context, i int, c *qbft.Consensus) {
 			runErrs <- c.Propose(
 				log.WithCtx(ctx, z.Int("node", i), z.Str("peer", p2p.PeerName(hosts[i].ID()))),
 				core.Duty{Type: core.DutyAttester, Slot: 1},

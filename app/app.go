@@ -47,6 +47,8 @@ import (
 	"github.com/obolnetwork/charon/core/aggsigdb"
 	"github.com/obolnetwork/charon/core/bcast"
 	"github.com/obolnetwork/charon/core/consensus"
+	cprotocols "github.com/obolnetwork/charon/core/consensus/protocols"
+	cqbft "github.com/obolnetwork/charon/core/consensus/qbft"
 	"github.com/obolnetwork/charon/core/dutydb"
 	"github.com/obolnetwork/charon/core/fetcher"
 	"github.com/obolnetwork/charon/core/infosync"
@@ -531,7 +533,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	// We always need QBFT consensus instance as it is used for priority protocol.
 	// And for now it is used as the primary consensus protocol.
-	qbftConsensus, err := consensusFactory.New(consensus.QBFTv2ProtocolID)
+	qbftConsensus, err := consensusFactory.New(cprotocols.QBFTv2ProtocolID)
 	if err != nil {
 		return err
 	}
@@ -591,7 +593,7 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 	peers []peer.ID, threshold int, sendFunc p2p.SendReceiveFunc, coreCons core.Consensus,
 	sched core.Scheduler, p2pKey *k1.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
 ) error {
-	cons, ok := coreCons.(*consensus.QBFTConsensus)
+	cons, ok := coreCons.(*cqbft.Consensus)
 	if !ok {
 		// Priority protocol not supported for leader cast.
 		return nil
@@ -1066,7 +1068,7 @@ func (h httpServeHook) Call(context.Context) error {
 // Protocols returns the list of supported Protocols in order of precedence.
 func Protocols() []protocol.ID {
 	var resp []protocol.ID
-	resp = append(resp, consensus.Protocols()...)
+	resp = append(resp, cprotocols.Protocols()...)
 	resp = append(resp, parsigex.Protocols()...)
 	resp = append(resp, peerinfo.Protocols()...)
 	resp = append(resp, priority.Protocols()...)

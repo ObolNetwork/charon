@@ -16,6 +16,7 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/consensus"
+	"github.com/obolnetwork/charon/core/consensus/protocols"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
@@ -56,7 +57,7 @@ func TestNewConsensusFactory(t *testing.T) {
 	factory := consensus.NewConsensusFactory(hosts[0], new(p2p.Sender), peers, p2pkeys[0], testDeadliner{}, gaterFunc, snifferFunc)
 	require.NotNil(t, factory)
 
-	cons, err := factory.New(consensus.QBFTv2ProtocolID)
+	cons, err := factory.New(protocols.QBFTv2ProtocolID)
 	require.NoError(t, err)
 	require.NotNil(t, cons)
 
@@ -64,4 +65,17 @@ func TestNewConsensusFactory(t *testing.T) {
 		_, err := factory.New("unknown")
 		require.Error(t, err)
 	})
+}
+
+// testDeadliner is a mock deadliner implementation.
+type testDeadliner struct {
+	deadlineChan chan core.Duty
+}
+
+func (testDeadliner) Add(core.Duty) bool {
+	return true
+}
+
+func (t testDeadliner) C() <-chan core.Duty {
+	return t.deadlineChan
 }

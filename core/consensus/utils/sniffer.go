@@ -1,6 +1,6 @@
 // Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package consensus
+package utils
 
 import (
 	"sync"
@@ -11,17 +11,17 @@ import (
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 )
 
-// newSniffer returns a new sniffer.
-func newSniffer(nodes, peerIdx int64) *sniffer {
-	return &sniffer{
+// NewSniffer returns a new sniffer.
+func NewSniffer(nodes, peerIdx int64) *Sniffer {
+	return &Sniffer{
 		nodes:     nodes,
 		peerIdx:   peerIdx,
 		startedAt: time.Now(),
 	}
 }
 
-// sniffer buffers consensus messages.
-type sniffer struct {
+// Sniffer buffers consensus messages.
+type Sniffer struct {
 	nodes     int64
 	peerIdx   int64
 	startedAt time.Time
@@ -31,7 +31,7 @@ type sniffer struct {
 }
 
 // Add adds a message to the sniffer buffer.
-func (c *sniffer) Add(msg *pbv1.ConsensusMsg) {
+func (c *Sniffer) Add(msg *pbv1.ConsensusMsg) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -42,7 +42,7 @@ func (c *sniffer) Add(msg *pbv1.ConsensusMsg) {
 }
 
 // Instance returns the buffered messages as an instance.
-func (c *sniffer) Instance() *pbv1.SniffedConsensusInstance {
+func (c *Sniffer) Instance() *pbv1.SniffedConsensusInstance {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

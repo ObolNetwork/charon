@@ -1,6 +1,6 @@
 // Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package consensus_test
+package protocols_test
 
 import (
 	"testing"
@@ -8,16 +8,16 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/core/consensus"
+	"github.com/obolnetwork/charon/core/consensus/protocols"
 )
 
 func TestIsSupportedProtocolName(t *testing.T) {
-	require.True(t, consensus.IsSupportedProtocolName("qbft"))
-	require.False(t, consensus.IsSupportedProtocolName("unreal"))
+	require.True(t, protocols.IsSupportedProtocolName("qbft"))
+	require.False(t, protocols.IsSupportedProtocolName("unreal"))
 }
 
 func TestProtocols(t *testing.T) {
 	require.Equal(t, []protocol.ID{
-		consensus.QBFTv2ProtocolID,
-	}, consensus.Protocols())
+		protocols.QBFTv2ProtocolID,
+	}, protocols.Protocols())
 }

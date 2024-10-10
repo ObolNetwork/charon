@@ -9,6 +9,8 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/core/consensus/protocols"
+	"github.com/obolnetwork/charon/core/consensus/qbft"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/p2p"
 )
@@ -41,8 +43,8 @@ func NewConsensusFactory(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer
 // New creates a new consensus instance.
 func (f *consensusFactory) New(protocol protocol.ID) (core.Consensus, error) {
 	// TODO: Refactor to a switch statement when more protocols are added.
-	if protocol == QBFTv2ProtocolID {
-		return NewQBFTConsensus(f.tcpNode, f.sender, f.peers, f.p2pKey, f.deadliner, f.gaterFunc, f.snifferFunc)
+	if protocol == protocols.QBFTv2ProtocolID {
+		return qbft.NewConsensus(f.tcpNode, f.sender, f.peers, f.p2pKey, f.deadliner, f.gaterFunc, f.snifferFunc)
 	}
 
 	return nil, errors.New("unknown consensus protocol")

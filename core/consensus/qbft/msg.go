@@ -1,10 +1,13 @@
 // Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package consensus
+package qbft
 
 import (
+	"testing"
+
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	ssz "github.com/ferranbt/fastssz"
+	"golang.org/x/exp/rand"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
@@ -15,10 +18,29 @@ import (
 	"github.com/obolnetwork/charon/core/qbft"
 )
 
-// newQBFTMsg returns a new QBFT msg.
-func newQBFTMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]byte]*anypb.Any) (qbftMsg, error) {
+// NewRandomMsgForT returns a random qbft message.
+func NewRandomMsgForT(t *testing.T) *pbv1.QBFTMsg {
+	t.Helper()
+
+	msgType := 1 + rand.Int63n(int64(qbft.MsgDecided))
+	if msgType == 0 {
+		msgType = 1
+	}
+
+	return &pbv1.QBFTMsg{
+		Type:          msgType,
+		Duty:          core.DutyToProto(core.Duty{Type: core.DutyType(rand.Int()), Slot: rand.Uint64()}),
+		PeerIdx:       rand.Int63(),
+		Round:         rand.Int63(),
+		PreparedRound: rand.Int63(),
+		Signature:     nil,
+	}
+}
+
+// NewMsg returns a new QBFT Msg.
+func NewMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]byte]*anypb.Any) (Msg, error) {
 	if pbMsg == nil {
-		return qbftMsg{}, errors.New("nil qbft message")
+		return Msg{}, errors.New("nil qbft message")
 	}
 
 	// Do all possible error conversions first.
@@ -30,28 +52,28 @@ func newQBFTMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[
 	if hash, ok := toHash32(pbMsg.GetValueHash()); ok {
 		valueHash = hash
 		if _, ok := values[valueHash]; !ok {
-			return qbftMsg{}, errors.New("value hash not found in values")
+			return Msg{}, errors.New("value hash not found in values")
 		}
 	}
 
 	if hash, ok := toHash32(pbMsg.GetPreparedValueHash()); ok {
 		preparedValueHash = hash
 		if _, ok := values[preparedValueHash]; !ok {
-			return qbftMsg{}, errors.New("prepared value hash not found in values")
+			return Msg{}, errors.New("prepared value hash not found in values")
 		}
 	}
 
 	var justImpls []qbft.Msg[core.Duty, [32]byte]
 	for _, j := range justification {
-		impl, err := newQBFTMsg(j, nil, values)
+		impl, err := NewMsg(j, nil, values)
 		if err != nil {
-			return qbftMsg{}, err
+			return Msg{}, err
 		}
 
 		justImpls = append(justImpls, impl)
 	}
 
-	return qbftMsg{
+	return Msg{
 		msg:                 pbMsg,
 		valueHash:           valueHash,
 		values:              values,
@@ -61,8 +83,8 @@ func newQBFTMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[
 	}, nil
 }
 
-// qbftMsg wraps *pbv1.QBFTMsg and justifications and implements qbft.Msg[core.Duty, [32]byte].
-type qbftMsg struct {
+// Msg wraps *pbv1.QBFTMsg and justifications and implements qbft.Msg[core.Duty, [32]byte].
+type Msg struct {
 	msg               *pbv1.QBFTMsg
 	valueHash         [32]byte
 	preparedValueHash [32]byte
@@ -72,39 +94,47 @@ type qbftMsg struct {
 	justification       []qbft.Msg[core.Duty, [32]byte]
 }
 
-func (m qbftMsg) Type() qbft.MsgType {
+func (m Msg) Type() qbft.MsgType {
 	return qbft.MsgType(m.msg.GetType())
 }
 
-func (m qbftMsg) Instance() core.Duty {
+func (m Msg) Instance() core.Duty {
 	return core.DutyFromProto(m.msg.GetDuty())
 }
 
-func (m qbftMsg) Source() int64 {
+func (m Msg) Source() int64 {
 	return m.msg.GetPeerIdx()
 }
 
-func (m qbftMsg) Round() int64 {
+func (m Msg) Round() int64 {
 	return m.msg.GetRound()
 }
 
-func (m qbftMsg) Value() [32]byte {
+func (m Msg) Value() [32]byte {
 	return m.valueHash
 }
 
-func (m qbftMsg) PreparedRound() int64 {
+func (m Msg) Values() map[[32]byte]*anypb.Any {
+	return m.values
+}
+
+func (m Msg) Msg() *pbv1.QBFTMsg {
+	return m.msg
+}
+
+func (m Msg) PreparedRound() int64 {
 	return m.msg.GetPreparedRound()
 }
 
-func (m qbftMsg) PreparedValue() [32]byte {
+func (m Msg) PreparedValue() [32]byte {
 	return m.preparedValueHash
 }
 
-func (m qbftMsg) Justification() []qbft.Msg[core.Duty, [32]byte] {
+func (m Msg) Justification() []qbft.Msg[core.Duty, [32]byte] {
 	return m.justification
 }
 
-func (m qbftMsg) ToConsensusMsg() *pbv1.ConsensusMsg {
+func (m Msg) ToConsensusMsg() *pbv1.ConsensusMsg {
 	var values []*anypb.Any
 	for _, v := range m.values {
 		values = append(values, v)
@@ -117,9 +147,9 @@ func (m qbftMsg) ToConsensusMsg() *pbv1.ConsensusMsg {
 	}
 }
 
-// hashProto returns a deterministic ssz hash root of the proto message.
+// HashProto returns a deterministic ssz hash root of the proto message.
 // It is the same logic as that used by the priority package.
-func hashProto(msg proto.Message) ([32]byte, error) {
+func HashProto(msg proto.Message) ([32]byte, error) {
 	if _, ok := msg.(*anypb.Any); ok {
 		return [32]byte{}, errors.New("cannot hash any proto, must hash inner value")
 	}
@@ -146,8 +176,8 @@ func hashProto(msg proto.Message) ([32]byte, error) {
 	return hash, nil
 }
 
-// verifyQBFTMsgSig returns true if the message was signed by pubkey.
-func verifyQBFTMsgSig(msg *pbv1.QBFTMsg, pubkey *k1.PublicKey) (bool, error) {
+// VerifyMsgSig returns true if the message was signed by pubkey.
+func VerifyMsgSig(msg *pbv1.QBFTMsg, pubkey *k1.PublicKey) (bool, error) {
 	if msg.Signature == nil {
 		return false, errors.New("empty signature")
 	}
@@ -157,7 +187,7 @@ func verifyQBFTMsgSig(msg *pbv1.QBFTMsg, pubkey *k1.PublicKey) (bool, error) {
 		return false, errors.New("type assert qbft msg")
 	}
 	clone.Signature = nil
-	hash, err := hashProto(clone)
+	hash, err := HashProto(clone)
 	if err != nil {
 		return false, err
 	}
@@ -170,15 +200,15 @@ func verifyQBFTMsgSig(msg *pbv1.QBFTMsg, pubkey *k1.PublicKey) (bool, error) {
 	return recovered.IsEqual(pubkey), nil
 }
 
-// signQBFTMsg returns a copy of the proto message with a populated signature signed by the provided private key.
-func signQBFTMsg(msg *pbv1.QBFTMsg, privkey *k1.PrivateKey) (*pbv1.QBFTMsg, error) {
+// SignMsg returns a copy of the proto message with a populated signature signed by the provided private key.
+func SignMsg(msg *pbv1.QBFTMsg, privkey *k1.PrivateKey) (*pbv1.QBFTMsg, error) {
 	clone, ok := proto.Clone(msg).(*pbv1.QBFTMsg)
 	if !ok {
 		return nil, errors.New("type assert qbft msg")
 	}
 	clone.Signature = nil
 
-	hash, err := hashProto(clone)
+	hash, err := HashProto(clone)
 	if err != nil {
 		return nil, err
 	}
@@ -205,4 +235,4 @@ func toHash32(val []byte) ([32]byte, bool) {
 	return resp, true
 }
 
-var _ qbft.Msg[core.Duty, [32]byte] = qbftMsg{} // Interface assertion
+var _ qbft.Msg[core.Duty, [32]byte] = Msg{} // Interface assertion
