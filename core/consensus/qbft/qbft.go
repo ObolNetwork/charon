@@ -148,6 +148,7 @@ func NewConsensus(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKe
 		gaterFunc:   gaterFunc,
 		dropFilter:  log.Filter(),
 		timerFunc:   utils.GetTimerFunc(),
+		metrics:     metrics.NewConsensusMetrics(protocols.QBFTv2ProtocolID),
 	}
 	c.mutable.instances = make(map[core.Duty]*utils.InstanceIO[Msg])
 
@@ -169,6 +170,7 @@ type Consensus struct {
 	gaterFunc   core.DutyGaterFunc
 	dropFilter  z.Field // Filter buffer overflow errors (possible DDoS)
 	timerFunc   utils.TimerFunc
+	metrics     metrics.ConsensusMetrics
 
 	// Mutable state
 	mutable struct {
@@ -289,7 +291,7 @@ func (c *Consensus) propose(ctx context.Context, duty core.Duty, value proto.Mes
 		case decidedAt := <-inst.DecidedAtCh:
 			timerType := c.timerFunc(duty).Type()
 			duration := decidedAt.Sub(proposedAt)
-			metrics.ConsensusDuration.WithLabelValues(duty.Type.String(), string(timerType)).Observe(duration.Seconds())
+			c.metrics.ObserveConsensusDuration(duty.Type.String(), string(timerType), duration.Seconds())
 		default:
 		}
 	}()
@@ -377,7 +379,7 @@ func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error)
 	var decided bool
 	decideCallback := func(qcommit []qbft.Msg[core.Duty, [32]byte]) {
 		decided = true
-		metrics.DecidedRoundsGauge.WithLabelValues(duty.Type.String(), string(roundTimer.Type())).Set(float64(qcommit[0].Round()))
+		c.metrics.SetDecidedRounds(duty.Type.String(), string(roundTimer.Type()), float64(qcommit[0].Round()))
 		inst.DecidedAtCh <- time.Now()
 	}
 
@@ -404,12 +406,12 @@ func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error)
 	// Run the algo, blocking until the context is cancelled.
 	err = qbft.Run[core.Duty, [32]byte](ctx, def, qt, duty, peerIdx, inst.HashCh)
 	if err != nil && !isContextErr(err) {
-		metrics.ConsensusError.Inc()
+		c.metrics.IncConsensusError()
 		return err // Only return non-context errors.
 	}
 
 	if !decided {
-		metrics.ConsensusTimeout.WithLabelValues(duty.Type.String(), string(roundTimer.Type())).Inc()
+		c.metrics.IncConsensusTimeout(duty.Type.String(), string(roundTimer.Type()))
 
 		return errors.New("consensus timeout", z.Str("duty", duty.String()))
 	}
