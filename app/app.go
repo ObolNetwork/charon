@@ -527,20 +527,18 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	retryer := retry.New[core.Duty](deadlineFunc)
 
-	consensusFactory := consensus.NewConsensusFactory(
+	consensusFactory, err := consensus.NewConsensusFactory(
 		tcpNode, sender, peers, p2pKey,
 		deadlinerFunc("consensus"), gaterFunc, consensusDebugger.AddInstance)
-
-	// We always need QBFT consensus instance as it is used for priority protocol.
-	// And for now it is used as the primary consensus protocol.
-	qbftConsensus, err := consensusFactory.New(cprotocols.QBFTv2ProtocolID)
 	if err != nil {
 		return err
 	}
-	startQBFTConsensus := lifecycle.HookFuncCtx(qbftConsensus.Start)
+
+	defaultConsensus := consensusFactory.DefaultConsensus()
+	startDefaultConsensus := lifecycle.HookFuncCtx(defaultConsensus.Start)
 
 	err = wirePrioritise(ctx, conf, life, tcpNode, peerIDs, int(cluster.GetThreshold()),
-		sender.SendReceive, qbftConsensus, sched, p2pKey, deadlineFunc)
+		sender.SendReceive, defaultConsensus, sched, p2pKey, deadlineFunc)
 	if err != nil {
 		return err
 	}
@@ -565,7 +563,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		core.WithTracking(track, inclusion),
 		core.WithAsyncRetry(retryer),
 	}
-	core.Wire(sched, fetch, qbftConsensus, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
+	core.Wire(sched, fetch, defaultConsensus, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
 
 	err = wireValidatorMock(ctx, conf, eth2Cl, pubshares, sched)
 	if err != nil {
@@ -577,7 +575,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartScheduler, lifecycle.HookFuncErr(sched.Run))
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PConsensus, startQBFTConsensus)
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PConsensus, startDefaultConsensus)
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartAggSigDB, lifecycle.HookFuncCtx(aggSigDB.Run))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartParSigDB, lifecycle.HookFuncCtx(parSigDB.Trim))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartTracker, lifecycle.HookFuncCtx(inclusion.Run))

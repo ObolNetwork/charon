@@ -68,6 +68,9 @@ type DutyDB interface {
 
 // Consensus comes to consensus on proposed duty data.
 type Consensus interface {
+	// ProtocolID returns the protocol ID of the consensus instance.
+	ProtocolID() protocol.ID
+
 	// Start starts the consensus protocol instance.
 	Start(ctx context.Context)
 
@@ -83,8 +86,15 @@ type Consensus interface {
 
 // ConsensusFactory creates new consensus instances.
 type ConsensusFactory interface {
-	// New creates a new consensus instance for the specified protocol.
-	New(protocol protocol.ID) (Consensus, error)
+	// DefaultConsensus returns the default consensus instance.
+	// The default consensus must be QBFT v2.0, since it is supported by all charon versions.
+	// It is used for Priority protocol as well as "the last resort" protocol when no other protocol is selected.
+	// Multiple calls to DefaultConsensus must return the same instance.
+	DefaultConsensus() Consensus
+
+	// ConsensusByProtocolID returns a consensus instance for the specified protocol ID.
+	// The same instance must be returned for the same protocol ID.
+	ConsensusByProtocolID(protocol protocol.ID) (Consensus, error)
 }
 
 // ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the DutyDB and stores partial signed data in the ParSigDB.

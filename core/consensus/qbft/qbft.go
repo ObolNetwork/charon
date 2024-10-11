@@ -12,6 +12,7 @@ import (
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -177,6 +178,11 @@ type Consensus struct {
 		sync.Mutex
 		instances map[core.Duty]*utils.InstanceIO[Msg]
 	}
+}
+
+// ProtocolID returns the protocol ID.
+func (*Consensus) ProtocolID() protocol.ID {
+	return protocols.QBFTv2ProtocolID
 }
 
 // Subscribe registers a callback for unsigned duty data proposals from leaders.
@@ -387,7 +393,7 @@ func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error)
 	def := NewDefinition(len(c.peers), c.subscribers, roundTimer, decideCallback)
 
 	// Create a new transport that handles sending and receiving for this instance.
-	t := NewTransport(c, c.privkey, inst.ValueCh, make(chan qbft.Msg[core.Duty, [32]byte]), utils.NewSniffer(int64(def.Nodes), peerIdx))
+	t := NewTransport(c, c.privkey, inst.ValueCh, make(chan qbft.Msg[core.Duty, [32]byte]), newSniffer(int64(def.Nodes), peerIdx))
 
 	// Provide sniffed buffer to snifferFunc at the end.
 	defer func() {

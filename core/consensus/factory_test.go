@@ -23,7 +23,7 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestNewConsensusFactory(t *testing.T) {
+func TestConsensusFactory(t *testing.T) {
 	var hosts []host.Host
 	var peers []p2p.Peer
 
@@ -54,16 +54,21 @@ func TestNewConsensusFactory(t *testing.T) {
 		hosts = append(hosts, h)
 	}
 
-	factory := consensus.NewConsensusFactory(hosts[0], new(p2p.Sender), peers, p2pkeys[0], testDeadliner{}, gaterFunc, snifferFunc)
+	factory, err := consensus.NewConsensusFactory(hosts[0], new(p2p.Sender), peers, p2pkeys[0], testDeadliner{}, gaterFunc, snifferFunc)
+	require.NoError(t, err)
 	require.NotNil(t, factory)
 
-	cons, err := factory.New(protocols.QBFTv2ProtocolID)
+	defaultConsensus := factory.DefaultConsensus()
+	require.NotNil(t, defaultConsensus)
+	require.EqualValues(t, protocols.QBFTv2ProtocolID, defaultConsensus.ProtocolID())
+
+	sameConsesus, err := factory.ConsensusByProtocolID(protocols.QBFTv2ProtocolID)
 	require.NoError(t, err)
-	require.NotNil(t, cons)
+	require.Equal(t, defaultConsensus, sameConsesus)
 
 	t.Run("unknown protocol", func(t *testing.T) {
-		_, err := factory.New("unknown")
-		require.Error(t, err)
+		_, err = factory.ConsensusByProtocolID("boo")
+		require.ErrorContains(t, err, "unknown consensus protocol")
 	})
 }
 

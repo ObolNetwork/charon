@@ -12,7 +12,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/core/consensus/utils"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/core/qbft"
 )
@@ -28,7 +27,7 @@ type Transport struct {
 	broadcaster Broadcaster
 	privkey     *k1.PrivateKey
 	recvBuffer  chan qbft.Msg[core.Duty, [32]byte] // Instance inner receive buffer.
-	sniffer     *utils.Sniffer
+	sniffer     *sniffer
 
 	// Mutable state
 	valueMu sync.Mutex
@@ -38,7 +37,7 @@ type Transport struct {
 
 // NewTransport creates a new qbftTransport.
 func NewTransport(broadcaster Broadcaster, privkey *k1.PrivateKey, valueCh <-chan proto.Message,
-	recvBuffer chan qbft.Msg[core.Duty, [32]byte], sniffer *utils.Sniffer,
+	recvBuffer chan qbft.Msg[core.Duty, [32]byte], sniffer *sniffer,
 ) *Transport {
 	return &Transport{
 		broadcaster: broadcaster,
