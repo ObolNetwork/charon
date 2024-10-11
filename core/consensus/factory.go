@@ -9,7 +9,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/core/consensus/protocols"
 	"github.com/obolnetwork/charon/core/consensus/qbft"
 	"github.com/obolnetwork/charon/p2p"
 )
@@ -67,7 +66,7 @@ func (f *consensusFactory) SetCurrentConsensusForProtocol(protocol protocol.ID) 
 		return nil
 	}
 
-	if protocol == protocols.QBFTv2ProtocolID {
+	if protocol == f.defaultConsensus.ProtocolID() {
 		f.wrappedConsensus.SetImpl(f.defaultConsensus)
 
 		return nil

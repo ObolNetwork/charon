@@ -93,6 +93,7 @@ type Config struct {
 	SimnetBMockFuzz         bool
 	TestnetConfig           eth2util.Network
 	ProcDirectory           string
+	ConsensusProtocol       string
 
 	TestConfig TestConfig
 }
@@ -538,7 +539,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	// Priority protocol always uses QBFTv2.
 	err = wirePrioritise(ctx, conf, life, tcpNode, peerIDs, int(cluster.GetThreshold()),
-		sender.SendReceive, defaultConsensus, sched, p2pKey, deadlineFunc, consensusFactory)
+		sender.SendReceive, defaultConsensus, sched, p2pKey, deadlineFunc,
+		consensusFactory, cluster.GetConsensusProtocol())
 	if err != nil {
 		return err
 	}
@@ -591,7 +593,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, tcpNode host.Host,
 	peers []peer.ID, threshold int, sendFunc p2p.SendReceiveFunc, coreCons core.Consensus,
 	sched core.Scheduler, p2pKey *k1.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
-	consensusFactory core.ConsensusFactory,
+	consensusFactory core.ConsensusFactory, clusterPreferredProtocol string,
 ) error {
 	cons, ok := coreCons.(*qbft.Consensus)
 	if !ok {
@@ -609,9 +611,22 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 		return err
 	}
 
+	// The initial protocols order as defined by implementation is altered by:
+	// 1. Bumping the cluster (lock) preferred protocol to the top.
+	// 2. Bumping the protocol specified by CLI flag (cluster run) to the top.
+	// In all cases this bumps all versions of the protocol identified by name.
+	// The order of all these operations are important.
+	allProtocols := Protocols()
+	if clusterPreferredProtocol != "" {
+		allProtocols = protocols.BumpProtocolsByName(clusterPreferredProtocol, allProtocols)
+	}
+	if conf.ConsensusProtocol != "" {
+		allProtocols = protocols.BumpProtocolsByName(conf.ConsensusProtocol, allProtocols)
+	}
+
 	isync := infosync.New(prio,
 		version.Supported(),
-		Protocols(),
+		allProtocols,
 		ProposalTypes(conf.BuilderAPI, conf.SyntheticBlockProposals),
 	)
 
