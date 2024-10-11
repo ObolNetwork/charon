@@ -16,6 +16,8 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
+//go:generate mockery --name=Deadliner --output=mocks --outpkg=mocks --case=underscore
+
 // lateFactor defines the number of slots duties may be late.
 // See https://pintail.xyz/posts/modelling-the-impact-of-altair/#proposer-and-delay-rewards.
 const lateFactor = 5

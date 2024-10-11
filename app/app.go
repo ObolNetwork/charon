@@ -47,8 +47,8 @@ import (
 	"github.com/obolnetwork/charon/core/aggsigdb"
 	"github.com/obolnetwork/charon/core/bcast"
 	"github.com/obolnetwork/charon/core/consensus"
-	cprotocols "github.com/obolnetwork/charon/core/consensus/protocols"
-	cqbft "github.com/obolnetwork/charon/core/consensus/qbft"
+	"github.com/obolnetwork/charon/core/consensus/protocols"
+	"github.com/obolnetwork/charon/core/consensus/qbft"
 	"github.com/obolnetwork/charon/core/dutydb"
 	"github.com/obolnetwork/charon/core/fetcher"
 	"github.com/obolnetwork/charon/core/infosync"
@@ -258,8 +258,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	wirePeerInfo(life, tcpNode, peerIDs, cluster.GetInitialMutationHash(), sender, conf.BuilderAPI)
 
-	consensusDebugger := consensus.NewDebugger()
-
 	// seenPubkeys channel to send seen public keys from validatorapi to monitoringapi.
 	seenPubkeys := make(chan core.PubKey)
 	seenPubkeysFunc := func(pk core.PubKey) {
@@ -281,6 +279,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 	if err != nil {
 		return err
 	}
+
+	consensusDebugger := consensus.NewDebugger()
 
 	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, conf.DebugAddr, tcpNode, eth2Cl, peerIDs,
 		promRegistry, consensusDebugger, pubkeys, seenPubkeys, vapiCalls, len(cluster.GetValidators()))
@@ -527,18 +527,18 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	retryer := retry.New[core.Duty](deadlineFunc)
 
-	consensusFactory, err := consensus.NewConsensusFactory(
-		tcpNode, sender, peers, p2pKey,
-		deadlinerFunc("consensus"), gaterFunc, consensusDebugger.AddInstance)
+	consensusFactory, err := consensus.NewConsensusFactory(tcpNode, sender, peers, p2pKey, deadlinerFunc, gaterFunc, consensusDebugger)
 	if err != nil {
 		return err
 	}
 
 	defaultConsensus := consensusFactory.DefaultConsensus()
-	startDefaultConsensus := lifecycle.HookFuncCtx(defaultConsensus.Start)
+	coreConsensus := consensusFactory.CurrentConsensus()
+	startConsensus := lifecycle.HookFuncCtx(defaultConsensus.Start)
 
+	// Priority protocol always uses QBFTv2.
 	err = wirePrioritise(ctx, conf, life, tcpNode, peerIDs, int(cluster.GetThreshold()),
-		sender.SendReceive, defaultConsensus, sched, p2pKey, deadlineFunc)
+		sender.SendReceive, defaultConsensus, sched, p2pKey, deadlineFunc, consensusFactory)
 	if err != nil {
 		return err
 	}
@@ -558,12 +558,13 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
+	// Core always uses the "current" consensus that is changed dynamically.
 	opts := []core.WireOption{
 		core.WithTracing(),
 		core.WithTracking(track, inclusion),
 		core.WithAsyncRetry(retryer),
 	}
-	core.Wire(sched, fetch, defaultConsensus, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
+	core.Wire(sched, fetch, coreConsensus, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
 
 	err = wireValidatorMock(ctx, conf, eth2Cl, pubshares, sched)
 	if err != nil {
@@ -575,7 +576,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartScheduler, lifecycle.HookFuncErr(sched.Run))
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PConsensus, startDefaultConsensus)
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PConsensus, startConsensus)
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartAggSigDB, lifecycle.HookFuncCtx(aggSigDB.Run))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartParSigDB, lifecycle.HookFuncCtx(parSigDB.Trim))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartTracker, lifecycle.HookFuncCtx(inclusion.Run))
@@ -590,8 +591,9 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, tcpNode host.Host,
 	peers []peer.ID, threshold int, sendFunc p2p.SendReceiveFunc, coreCons core.Consensus,
 	sched core.Scheduler, p2pKey *k1.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
+	consensusFactory core.ConsensusFactory,
 ) error {
-	cons, ok := coreCons.(*cqbft.Consensus)
+	cons, ok := coreCons.(*qbft.Consensus)
 	if !ok {
 		// Priority protocol not supported for leader cast.
 		return nil
@@ -625,6 +627,23 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 	if conf.TestConfig.PrioritiseCallback != nil {
 		prio.Subscribe(conf.TestConfig.PrioritiseCallback)
 	}
+
+	prio.Subscribe(func(ctx context.Context, _ core.Duty, tr []priority.TopicResult) error {
+		for _, t := range tr {
+			if t.Topic == infosync.TopicProtocol {
+				allProtocols := t.PrioritiesOnly()
+				preferredConsensusProtocol := protocols.MostPreferredConsensusProtocol(allProtocols)
+
+				if err := consensusFactory.SetCurrentConsensusForProtocol(protocol.ID(preferredConsensusProtocol)); err != nil {
+					log.Error(ctx, "Failed to set current consensus for protocol", err, z.Str("protocol", preferredConsensusProtocol))
+				} else {
+					log.Info(ctx, "Set current consensus for protocol", z.Str("protocol", preferredConsensusProtocol))
+				}
+			}
+		}
+
+		return nil
+	})
 
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPeerInfo, lifecycle.HookFuncCtx(prio.Start))
 
@@ -1066,7 +1085,7 @@ func (h httpServeHook) Call(context.Context) error {
 // Protocols returns the list of supported Protocols in order of precedence.
 func Protocols() []protocol.ID {
 	var resp []protocol.ID
-	resp = append(resp, cprotocols.Protocols()...)
+	resp = append(resp, protocols.Protocols()...)
 	resp = append(resp, parsigex.Protocols()...)
 	resp = append(resp, peerinfo.Protocols()...)
 	resp = append(resp, priority.Protocols()...)

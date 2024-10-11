@@ -19,6 +19,17 @@ func Protocols() []protocol.ID {
 	return []protocol.ID{QBFTv2ProtocolID}
 }
 
+// MostPreferredConsensusProtocol returns the most preferred consensus protocol from the given list.
+func MostPreferredConsensusProtocol(protocols []string) string {
+	for _, p := range protocols {
+		if strings.HasPrefix(p, protocolIDPrefix) {
+			return p
+		}
+	}
+
+	return QBFTv2ProtocolID
+}
+
 // IsSupportedProtocolName returns true if the protocol name is supported.
 func IsSupportedProtocolName(name string) bool {
 	for _, p := range Protocols() {

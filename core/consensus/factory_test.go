@@ -16,8 +16,9 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/consensus"
+	csmocks "github.com/obolnetwork/charon/core/consensus/mocks"
 	"github.com/obolnetwork/charon/core/consensus/protocols"
-	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
+	coremocks "github.com/obolnetwork/charon/core/mocks"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
@@ -31,7 +32,6 @@ func TestConsensusFactory(t *testing.T) {
 	random := rand.New(rand.NewSource(int64(seed)))
 	lock, p2pkeys, _ := cluster.NewForT(t, 1, 3, 3, seed, random)
 
-	snifferFunc := func(msgs *pbv1.SniffedConsensusInstance) {}
 	gaterFunc := func(core.Duty) bool { return true }
 
 	for i := range 3 {
@@ -54,33 +54,23 @@ func TestConsensusFactory(t *testing.T) {
 		hosts = append(hosts, h)
 	}
 
-	factory, err := consensus.NewConsensusFactory(hosts[0], new(p2p.Sender), peers, p2pkeys[0], testDeadliner{}, gaterFunc, snifferFunc)
+	deadlinerFunc := func(string) core.Deadliner {
+		return coremocks.NewDeadliner(t)
+	}
+	debugger := csmocks.NewDebugger(t)
+	factory, err := consensus.NewConsensusFactory(hosts[0], new(p2p.Sender), peers, p2pkeys[0], deadlinerFunc, gaterFunc, debugger)
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
-	defaultConsensus := factory.DefaultConsensus()
-	require.NotNil(t, defaultConsensus)
-	require.EqualValues(t, protocols.QBFTv2ProtocolID, defaultConsensus.ProtocolID())
-
-	sameConsesus, err := factory.ConsensusByProtocolID(protocols.QBFTv2ProtocolID)
-	require.NoError(t, err)
-	require.Equal(t, defaultConsensus, sameConsesus)
-
-	t.Run("unknown protocol", func(t *testing.T) {
-		_, err = factory.ConsensusByProtocolID("boo")
-		require.ErrorContains(t, err, "unknown consensus protocol")
+	t.Run("default and current consensus", func(t *testing.T) {
+		defaultConsensus := factory.DefaultConsensus()
+		require.NotNil(t, defaultConsensus)
+		require.EqualValues(t, protocols.QBFTv2ProtocolID, defaultConsensus.ProtocolID())
+		require.NotEqual(t, defaultConsensus, factory.CurrentConsensus()) // because the current is wrapped
 	})
-}
 
-// testDeadliner is a mock deadliner implementation.
-type testDeadliner struct {
-	deadlineChan chan core.Duty
-}
-
-func (testDeadliner) Add(core.Duty) bool {
-	return true
-}
-
-func (t testDeadliner) C() <-chan core.Duty {
-	return t.deadlineChan
+	t.Run("unsupported protocol id", func(t *testing.T) {
+		err := factory.SetCurrentConsensusForProtocol("boo")
+		require.ErrorContains(t, err, "unsupported protocol id")
+	})
 }

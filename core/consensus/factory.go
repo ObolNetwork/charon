@@ -9,27 +9,31 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/core/consensus/protocols"
 	"github.com/obolnetwork/charon/core/consensus/qbft"
-	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/p2p"
 )
+
+type DeadlinerFunc func(label string) core.Deadliner
 
 type consensusFactory struct {
 	tcpNode          host.Host
 	sender           *p2p.Sender
 	peers            []p2p.Peer
 	p2pKey           *k1.PrivateKey
-	deadliner        core.Deadliner
+	deadlinerFunc    DeadlinerFunc
 	gaterFunc        core.DutyGaterFunc
-	snifferFunc      func(*pbv1.SniffedConsensusInstance)
+	debugger         Debugger
 	defaultConsensus core.Consensus
+	wrappedConsensus *consensusWrapper
 }
 
 // NewConsensusFactory creates a new consensus factory with the default consensus protocol.
 func NewConsensusFactory(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey,
-	deadliner core.Deadliner, gaterFunc core.DutyGaterFunc, snifferFunc func(*pbv1.SniffedConsensusInstance),
+	deadlinerFunc DeadlinerFunc, gaterFunc core.DutyGaterFunc, debugger Debugger,
 ) (core.ConsensusFactory, error) {
-	defaultConsensus, err := qbft.NewConsensus(tcpNode, sender, peers, p2pKey, deadliner, gaterFunc, snifferFunc)
+	qbftDeadliner := deadlinerFunc("consensus.qbft")
+	defaultConsensus, err := qbft.NewConsensus(tcpNode, sender, peers, p2pKey, qbftDeadliner, gaterFunc, debugger.AddInstance)
 	if err != nil {
 		return nil, err
 	}
@@ -39,10 +43,11 @@ func NewConsensusFactory(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer
 		sender:           sender,
 		peers:            peers,
 		p2pKey:           p2pKey,
-		deadliner:        deadliner,
+		deadlinerFunc:    deadlinerFunc,
 		gaterFunc:        gaterFunc,
-		snifferFunc:      snifferFunc,
+		debugger:         debugger,
 		defaultConsensus: defaultConsensus,
+		wrappedConsensus: newConsensusWrapper(defaultConsensus),
 	}, nil
 }
 
@@ -51,13 +56,22 @@ func (f *consensusFactory) DefaultConsensus() core.Consensus {
 	return f.defaultConsensus
 }
 
-// ConsensusByProtocolID returns a consensus instance for the specified protocol ID.
-func (f *consensusFactory) ConsensusByProtocolID(protocol protocol.ID) (core.Consensus, error) {
-	if f.defaultConsensus.ProtocolID() == protocol {
-		return f.defaultConsensus, nil
+// CurrentConsensus returns the current consensus instance.
+func (f *consensusFactory) CurrentConsensus() core.Consensus {
+	return f.wrappedConsensus
+}
+
+// SetCurrentConsensusForProtocol sets the current consensus instance for the given protocol id.
+func (f *consensusFactory) SetCurrentConsensusForProtocol(protocol protocol.ID) error {
+	if f.wrappedConsensus.ProtocolID() == protocol {
+		return nil
 	}
 
-	// TODO: support for more protocols, add map[protocol.ID]core.Consensus with a lock, etc.
+	if protocol == protocols.QBFTv2ProtocolID {
+		f.wrappedConsensus.SetImpl(f.defaultConsensus)
 
-	return nil, errors.New("unknown consensus protocol")
+		return nil
+	}
+
+	return errors.New("unsupported protocol id")
 }

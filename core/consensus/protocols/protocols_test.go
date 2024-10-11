@@ -21,3 +21,19 @@ func TestProtocols(t *testing.T) {
 		protocols.QBFTv2ProtocolID,
 	}, protocols.Protocols())
 }
+
+func TestMostPreferredConsensusProtocol(t *testing.T) {
+	t.Run("default is qbft", func(t *testing.T) {
+		require.Equal(t, protocols.QBFTv2ProtocolID, protocols.MostPreferredConsensusProtocol([]string{"unreal"}))
+		require.Equal(t, protocols.QBFTv2ProtocolID, protocols.MostPreferredConsensusProtocol([]string{}))
+	})
+
+	t.Run("latest abft is preferred", func(t *testing.T) {
+		pp := []string{
+			"/charon/consensus/abft/3.0.0",
+			"/charon/consensus/abft/1.0.0",
+			"/charon/consensus/qbft/1.0.0",
+		}
+		require.Equal(t, "/charon/consensus/abft/3.0.0", protocols.MostPreferredConsensusProtocol(pp))
+	})
+}

@@ -11,6 +11,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 )
 
+//go:generate mockery --name=Consensus --output=mocks --outpkg=mocks --case=underscore
+
 // Scheduler triggers the start of a duty workflow.
 type Scheduler interface {
 	// SubscribeDuties subscribes a callback function for triggered duties.
@@ -92,9 +94,13 @@ type ConsensusFactory interface {
 	// Multiple calls to DefaultConsensus must return the same instance.
 	DefaultConsensus() Consensus
 
-	// ConsensusByProtocolID returns a consensus instance for the specified protocol ID.
-	// The same instance must be returned for the same protocol ID.
-	ConsensusByProtocolID(protocol protocol.ID) (Consensus, error)
+	// CurrentConsensus returns currently selected consensus instance.
+	// The instance is selected by the Priority protocol and can be changed by SetCurrentConsensusForProtocol().
+	// Before SetCurrentConsensusForProtocol() is called, CurrentConsensus() must return DefaultConsensus().
+	CurrentConsensus() Consensus
+
+	// SetCurrentConsensusForProtocol handles Priority protocol outcome and changes the CurrentConsensus() accordingly.
+	SetCurrentConsensusForProtocol(protocol protocol.ID) error
 }
 
 // ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the DutyDB and stores partial signed data in the ParSigDB.
