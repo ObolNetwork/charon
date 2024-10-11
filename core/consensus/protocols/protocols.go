@@ -43,9 +43,9 @@ func IsSupportedProtocolName(name string) bool {
 	return false
 }
 
-// BumpProtocolsByName bumps given protocols priority by protocol name.
-// The initial order of the protocols is preserved.
-func BumpProtocolsByName(protocolName string, allProtocols []protocol.ID) []protocol.ID {
+// PrioritizeProtocolsByName bumps given protocols priority by protocol name.
+// The initial order of the protocols and versions is preserved.
+func PrioritizeProtocolsByName(protocolName string, allProtocols []protocol.ID) []protocol.ID {
 	targetPrefix := protocolIDPrefix + protocolName + "/"
 
 	var bumped, others []protocol.ID

@@ -534,8 +534,9 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	defaultConsensus := consensusFactory.DefaultConsensus()
-	coreConsensus := consensusFactory.CurrentConsensus()
-	startConsensus := lifecycle.HookFuncCtx(defaultConsensus.Start)
+	startDefaultConsensus := lifecycle.HookFuncCtx(defaultConsensus.Start)
+
+	coreConsensus := consensusFactory.CurrentConsensus() // points to DefaultConsensus() initially
 
 	// Priority protocol always uses QBFTv2.
 	err = wirePrioritise(ctx, conf, life, tcpNode, peerIDs, int(cluster.GetThreshold()),
@@ -578,7 +579,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartScheduler, lifecycle.HookFuncErr(sched.Run))
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PConsensus, startConsensus)
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PConsensus, startDefaultConsensus)
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartAggSigDB, lifecycle.HookFuncCtx(aggSigDB.Run))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartParSigDB, lifecycle.HookFuncCtx(parSigDB.Trim))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartTracker, lifecycle.HookFuncCtx(inclusion.Run))
@@ -612,16 +613,16 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 	}
 
 	// The initial protocols order as defined by implementation is altered by:
-	// 1. Bumping the cluster (lock) preferred protocol to the top.
-	// 2. Bumping the protocol specified by CLI flag (cluster run) to the top.
-	// In all cases this bumps all versions of the protocol identified by name.
+	// 1. Prioritizing the cluster (lock) preferred protocol to the top.
+	// 2. Prioritizing the protocol specified by CLI flag (cluster run) to the top.
+	// In all cases this prioritizes all versions of the protocol identified by name.
 	// The order of all these operations are important.
 	allProtocols := Protocols()
 	if clusterPreferredProtocol != "" {
-		allProtocols = protocols.BumpProtocolsByName(clusterPreferredProtocol, allProtocols)
+		allProtocols = protocols.PrioritizeProtocolsByName(clusterPreferredProtocol, allProtocols)
 	}
 	if conf.ConsensusProtocol != "" {
-		allProtocols = protocols.BumpProtocolsByName(conf.ConsensusProtocol, allProtocols)
+		allProtocols = protocols.PrioritizeProtocolsByName(conf.ConsensusProtocol, allProtocols)
 	}
 
 	isync := infosync.New(prio,
@@ -650,10 +651,12 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 				preferredConsensusProtocol := protocols.MostPreferredConsensusProtocol(allProtocols)
 
 				if err := consensusFactory.SetCurrentConsensusForProtocol(protocol.ID(preferredConsensusProtocol)); err != nil {
-					log.Error(ctx, "Failed to set current consensus for protocol", err, z.Str("protocol", preferredConsensusProtocol))
+					log.Error(ctx, "Failed to set current consensus protocol", err, z.Str("protocol", preferredConsensusProtocol))
 				} else {
-					log.Info(ctx, "Set current consensus for protocol", z.Str("protocol", preferredConsensusProtocol))
+					log.Info(ctx, "Current consensus protocol changed", z.Str("protocol", preferredConsensusProtocol))
 				}
+
+				break
 			}
 		}
 

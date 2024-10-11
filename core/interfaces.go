@@ -96,7 +96,7 @@ type ConsensusFactory interface {
 
 	// CurrentConsensus returns currently selected consensus instance.
 	// The instance is selected by the Priority protocol and can be changed by SetCurrentConsensusForProtocol().
-	// Before SetCurrentConsensusForProtocol() is called, CurrentConsensus() must return DefaultConsensus().
+	// Before SetCurrentConsensusForProtocol() is called, CurrentConsensus() points to DefaultConsensus().
 	CurrentConsensus() Consensus
 
 	// SetCurrentConsensusForProtocol handles Priority protocol outcome and changes the CurrentConsensus() accordingly.

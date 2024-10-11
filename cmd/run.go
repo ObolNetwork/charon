@@ -92,7 +92,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().Int64Var(&config.TestnetConfig.GenesisTimestamp, "testnet-genesis-timestamp", 0, "Genesis timestamp of the custom test network.")
 	cmd.Flags().StringVar(&config.TestnetConfig.CapellaHardFork, "testnet-capella-hard-fork", "", "Capella hard fork version of the custom test network.")
 	cmd.Flags().StringVar(&config.ProcDirectory, "proc-directory", "", "Directory to look into in order to detect other stack components running on the host.")
-	cmd.Flags().StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the cluster. Selected automatically when not specified.")
+	cmd.Flags().StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the node. Selected automatically when not specified.")
 
 	wrapPreRunE(cmd, func(*cobra.Command, []string) error {
 		if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {
