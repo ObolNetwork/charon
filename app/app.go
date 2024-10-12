@@ -257,7 +257,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	wirePeerInfo(life, tcpNode, peerIDs, cluster.GetInitialMutationHash(), sender, conf.BuilderAPI)
 
-	qbftDebug := newQBFTDebugger()
+	consensusDebugger := consensus.NewDebugger()
 
 	// seenPubkeys channel to send seen public keys from validatorapi to monitoringapi.
 	seenPubkeys := make(chan core.PubKey)
@@ -282,10 +282,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, conf.DebugAddr, tcpNode, eth2Cl, peerIDs,
-		promRegistry, qbftDebug, pubkeys, seenPubkeys, vapiCalls, len(cluster.GetValidators()))
+		promRegistry, consensusDebugger, pubkeys, seenPubkeys, vapiCalls, len(cluster.GetValidators()))
 
 	err = wireCoreWorkflow(ctx, life, conf, cluster, nodeIdx, tcpNode, p2pKey, eth2Cl, subEth2Cl,
-		peerIDs, sender, qbftDebug.AddInstance, seenPubkeysFunc, vapiCallsFunc)
+		peerIDs, sender, consensusDebugger, seenPubkeysFunc, vapiCallsFunc)
 	if err != nil {
 		return err
 	}
@@ -357,7 +357,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	cluster *manifestpb.Cluster, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *k1.PrivateKey,
 	eth2Cl, submissionEth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
-	qbftSniffer func(*pbv1.SniffedConsensusInstance), seenPubkeys func(core.PubKey),
+	consensusDebugger consensus.Debugger, seenPubkeys func(core.PubKey),
 	vapiCalls func(),
 ) error {
 	// Convert and prep public keys and public shares
@@ -420,9 +420,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return core.NewDeadliner(ctx, label, deadlineFunc)
 	}
 
-	mutableConf := newMutableConfig(ctx, conf)
-
-	sched, err := scheduler.New(corePubkeys, eth2Cl, mutableConf.BuilderAPI)
+	sched, err := scheduler.New(corePubkeys, eth2Cl, conf.BuilderAPI)
 	if err != nil {
 		return err
 	}
@@ -479,20 +477,19 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	fetch, err := fetcher.New(eth2Cl, feeRecipientFunc, mutableConf.BuilderAPI)
+	fetch, err := fetcher.New(eth2Cl, feeRecipientFunc, conf.BuilderAPI)
 	if err != nil {
 		return err
 	}
 
 	dutyDB := dutydb.NewMemDB(deadlinerFunc("dutydb"))
 
-	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, feeRecipientFunc,
-		mutableConf.BuilderAPI, seenPubkeys)
+	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, feeRecipientFunc, conf.BuilderAPI, seenPubkeys)
 	if err != nil {
 		return err
 	}
 
-	if err := wireVAPIRouter(ctx, life, conf.ValidatorAPIAddr, eth2Cl, vapi, vapiCalls, mutableConf); err != nil {
+	if err := wireVAPIRouter(ctx, life, conf.ValidatorAPIAddr, eth2Cl, vapi, vapiCalls, conf.BuilderAPI); err != nil {
 		return err
 	}
 
@@ -530,13 +527,13 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	retryer := retry.New[core.Duty](deadlineFunc)
 
 	cons, startCons, err := newConsensus(cluster, tcpNode, p2pKey, sender,
-		deadlinerFunc("consensus"), gaterFunc, qbftSniffer)
+		deadlinerFunc("consensus"), gaterFunc, consensusDebugger.AddInstance)
 	if err != nil {
 		return err
 	}
 
 	err = wirePrioritise(ctx, conf, life, tcpNode, peerIDs, int(cluster.GetThreshold()),
-		sender.SendReceive, cons, sched, p2pKey, deadlineFunc, mutableConf)
+		sender.SendReceive, cons, sched, p2pKey, deadlineFunc)
 	if err != nil {
 		return err
 	}
@@ -588,7 +585,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, tcpNode host.Host,
 	peers []peer.ID, threshold int, sendFunc p2p.SendReceiveFunc, coreCons core.Consensus,
 	sched core.Scheduler, p2pKey *k1.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
-	mutableConf *mutableConfig,
 ) error {
 	cons, ok := coreCons.(*consensus.Component)
 	if !ok {
@@ -611,8 +607,6 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 		Protocols(),
 		ProposalTypes(conf.BuilderAPI, conf.SyntheticBlockProposals),
 	)
-
-	mutableConf.SetInfoSync(isync)
 
 	// Trigger info syncs in last slot of the epoch (for the next epoch).
 	sched.SubscribeSlots(func(ctx context.Context, slot core.Slot) error {
@@ -967,11 +961,9 @@ func createMockValidators(pubkeys []eth2p0.BLSPubKey) beaconmock.ValidatorSet {
 
 // wireVAPIRouter constructs the validator API router and registers it with the life cycle manager.
 func wireVAPIRouter(ctx context.Context, life *lifecycle.Manager, vapiAddr string, eth2Cl eth2wrap.Client,
-	handler validatorapi.Handler, vapiCalls func(), mutableConf *mutableConfig,
+	handler validatorapi.Handler, vapiCalls func(), builderEnabled bool,
 ) error {
-	vrouter, err := validatorapi.NewRouter(ctx, handler, eth2Cl, func(slot uint64) bool {
-		return mutableConf.BuilderAPI(slot)
-	})
+	vrouter, err := validatorapi.NewRouter(ctx, handler, eth2Cl, builderEnabled)
 	if err != nil {
 		return errors.Wrap(err, "new monitoring server")
 	}

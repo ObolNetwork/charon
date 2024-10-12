@@ -33,7 +33,7 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys [
 ) *Scheduler {
 	t.Helper()
 
-	s, err := New(pubkeys, eth2Cl, func(uint64) bool { return builderAPI })
+	s, err := New(pubkeys, eth2Cl, builderAPI)
 	require.NoError(t, err)
 
 	s.clock = clock
@@ -43,7 +43,7 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys [
 }
 
 // New returns a new scheduler.
-func New(pubkeys []core.PubKey, eth2Cl eth2wrap.Client, builderEnabled core.BuilderEnabled) (*Scheduler, error) {
+func New(pubkeys []core.PubKey, eth2Cl eth2wrap.Client, builderEnabled bool) (*Scheduler, error) {
 	return &Scheduler{
 		eth2Cl:        eth2Cl,
 		pubkeys:       pubkeys,
@@ -73,7 +73,7 @@ type Scheduler struct {
 	dutiesMutex     sync.Mutex
 	dutySubs        []func(context.Context, core.Duty, core.DutyDefinitionSet) error
 	slotSubs        []func(context.Context, core.Slot) error
-	builderEnabled  core.BuilderEnabled
+	builderEnabled  bool
 }
 
 // SubscribeDuties subscribes a callback function for triggered duties.

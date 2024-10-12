@@ -1,6 +1,6 @@
 // Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package app
+package consensus
 
 import (
 	"bytes"
@@ -16,20 +16,27 @@ import (
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 )
 
-const maxQBFTDebugger = 50 * (1 << 20) // 50 MB.
+const maxDebuggerBuffer = 50 * (1 << 20) // 50 MB.
 
-// newQBFTDebugger returns a new qbftDebugger.
-func newQBFTDebugger() *qbftDebugger {
+// Debugger is an interface for debugging consensus messages.
+type Debugger interface {
+	http.Handler
+
+	AddInstance(instance *pbv1.SniffedConsensusInstance)
+}
+
+// NewDebugger returns a new debugger.
+func NewDebugger() Debugger {
 	gitHash, _ := version.GitCommit()
 
-	return &qbftDebugger{
+	return &debugger{
 		gitHash: gitHash,
 	}
 }
 
-// qbftDebugger buffers up to 2MB worth of sniffed qbft messages in a fifo buffer serving them as a gzipped
+// debugger buffers sniffed consensus messages in a fifo buffer serving them as a gzipped
 // *pbv1.SniffedConsensusSets protobuf on request.
-type qbftDebugger struct {
+type debugger struct {
 	gitHash string
 
 	mu        sync.Mutex
@@ -37,56 +44,53 @@ type qbftDebugger struct {
 	sets      []*pbv1.SniffedConsensusInstance
 }
 
-// AddInstance adds the instance to the fifo buffer, removing older messages if the max size is exceeded.
-func (d *qbftDebugger) AddInstance(instance *pbv1.SniffedConsensusInstance) {
+// AddInstance adds the instance to the fifo buffer, removing older messages if the capacity is exceeded.
+func (d *debugger) AddInstance(instance *pbv1.SniffedConsensusInstance) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	// getSize returns the size of the proto or false.
-	getSize := func(instance *pbv1.SniffedConsensusInstance) (int, bool) {
-		b, err := proto.Marshal(instance)
-		return len(b), err == nil
+	getSize := func(instance *pbv1.SniffedConsensusInstance) int {
+		return proto.Size(instance)
 	}
 
-	size, ok := getSize(instance)
-	if !ok {
-		return // Just drop this if we cannot calculate the size
-	}
+	size := getSize(instance)
 
 	d.totalSize += size
 	d.sets = append(d.sets, instance)
 
-	for d.totalSize > maxQBFTDebugger {
-		dropped, _ := getSize(d.sets[0]) // Ignoring ok is ok here since we got the size when we added it.
+	for d.totalSize > maxDebuggerBuffer {
+		dropped := getSize(d.sets[0])
 		d.totalSize -= dropped
 		d.sets = d.sets[1:]
 	}
 }
 
-// ServeHTTP serves sniffed qbft messages in a fifo buffer as a gzipped
+// ServeHTTP serves sniffed consensus messages in a fifo buffer as a gzipped
 // *pbv1.SniffedConsensusSets protobuf.
-func (d *qbftDebugger) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (d *debugger) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	b, err := d.getZippedProto()
 	if err != nil {
-		log.Warn(r.Context(), "Error serving qbft debug", err)
+		log.Warn(r.Context(), "Error serving consensus debug", err)
 		http.Error(w, "something went wrong, see logs", http.StatusInternalServerError)
 
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Content-Disposition", `attachment; filename="qbft_messages.pb.gz"`)
+	w.Header().Set("Content-Disposition", `attachment; filename="consensus_messages.pb.gz"`)
 	_, _ = w.Write(b)
 }
 
 // getZippedProto returns a gzipped serialised *pbv1.SniffedConsensusSets protobuf of the fifo buffer.
-func (d *qbftDebugger) getZippedProto() ([]byte, error) {
+func (d *debugger) getZippedProto() ([]byte, error) {
 	d.mu.Lock()
 	b, err := proto.Marshal(&pbv1.SniffedConsensusInstances{
 		Instances: d.sets,
 		GitHash:   d.gitHash,
 	})
 	d.mu.Unlock()
+
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal proto")
 	}

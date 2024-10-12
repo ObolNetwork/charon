@@ -25,6 +25,8 @@ const (
 
 	// maxResults limits the number of results to keep.
 	maxResults = 100
+
+	TopicProtocol = topicProtocol
 )
 
 // New returns a new infosync component.
