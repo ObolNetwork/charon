@@ -251,6 +251,18 @@ func TestCreateCluster(t *testing.T) {
 			},
 		},
 		{
+			Name: "preferred consensus protocol",
+			Config: clusterConfig{
+				Name:              "test_cluster",
+				NumNodes:          4,
+				Threshold:         3,
+				NumDVs:            3,
+				Network:           defaultNetwork,
+				ConsensusProtocol: "unreal",
+			},
+			expectedErr: "unsupported consensus protocol",
+		},
+		{
 			Name: "test with number of nodes below minimum",
 			Config: clusterConfig{
 				Name:      "test_cluster",
@@ -268,6 +280,7 @@ func TestCreateCluster(t *testing.T) {
 			expectedErr: "number of operators is below minimum",
 		},
 	}
+
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
 			if test.defFileProvider != nil {
@@ -495,6 +508,13 @@ func TestValidateDef(t *testing.T) {
 		require.NoError(t, err)
 		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
 		require.ErrorContains(t, err, "invalid creator config signature")
+	})
+
+	t.Run("unsupported consensus protocol", func(t *testing.T) {
+		def := definition
+		def.ConsensusProtocol = "unreal"
+		err = validateDef(ctx, false, conf.KeymanagerAddrs, def)
+		require.Error(t, err, "unsupported consensus protocol")
 	})
 }
 
@@ -781,7 +801,6 @@ func TestClusterCLI(t *testing.T) {
 		withdrawal    string
 		threshold     string
 		expectedErr   string
-		cleanup       func(*testing.T)
 	}{
 		{
 			name:          "threshold below minimum",
@@ -812,22 +831,18 @@ func TestClusterCLI(t *testing.T) {
 			withdrawal:    withdrawalArg,
 			threshold:     "",
 			expectedErr:   "",
-			cleanup: func(t *testing.T) {
-				t.Helper()
-				require.NoError(t, os.RemoveAll("node0"))
-				require.NoError(t, os.RemoveAll("node1"))
-				require.NoError(t, os.RemoveAll("node2"))
-			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			clusterDir := "--cluster-dir=" + t.TempDir()
+
 			cmd := newCreateCmd(newCreateClusterCmd(runCreateCluster))
 			if test.threshold != "" {
-				cmd.SetArgs([]string{"cluster", test.nodes, test.feeRecipient, test.withdrawal, test.network, test.numValidators, test.threshold})
+				cmd.SetArgs([]string{"cluster", clusterDir, test.nodes, test.feeRecipient, test.withdrawal, test.network, test.numValidators, test.threshold})
 			} else {
-				cmd.SetArgs([]string{"cluster", test.nodes, test.feeRecipient, test.withdrawal, test.network, test.numValidators})
+				cmd.SetArgs([]string{"cluster", clusterDir, test.nodes, test.feeRecipient, test.withdrawal, test.network, test.numValidators})
 			}
 
 			err := cmd.Execute()
@@ -835,10 +850,6 @@ func TestClusterCLI(t *testing.T) {
 				require.ErrorContains(t, err, test.expectedErr)
 			} else {
 				require.NoError(t, err)
-			}
-
-			if test.cleanup != nil {
-				test.cleanup(t)
 			}
 		})
 	}
