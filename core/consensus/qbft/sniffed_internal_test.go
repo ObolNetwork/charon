@@ -1,6 +1,6 @@
 // Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package consensus
+package qbft
 
 import (
 	"bytes"
@@ -19,7 +19,6 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
-	cqbft "github.com/obolnetwork/charon/core/consensus/qbft"
 	"github.com/obolnetwork/charon/core/consensus/utils"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/core/qbft"
@@ -70,8 +69,8 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 
 	var expectDecided bool
 
-	def := cqbft.NewDefinition(int(instance.GetNodes()), func() []cqbft.Subscriber {
-		return []cqbft.Subscriber{func(ctx context.Context, duty core.Duty, value proto.Message) error {
+	def := newDefinition(int(instance.GetNodes()), func() []subscriber {
+		return []subscriber{func(ctx context.Context, duty core.Duty, value proto.Message) error {
 			log.Info(ctx, "Consensus decided", z.Any("value", value))
 			expectDecided = true
 			cancel()
@@ -90,10 +89,10 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 
 		duty = core.DutyFromProto(msg.GetMsg().GetMsg().GetDuty())
 
-		values, err := cqbft.ValuesByHash(msg.GetMsg().GetValues())
+		values, err := ValuesByHash(msg.GetMsg().GetValues())
 		require.NoError(t, err)
 
-		m, err := cqbft.NewMsg(msg.GetMsg().GetMsg(), msg.GetMsg().GetJustification(), values)
+		m, err := newMsg(msg.GetMsg().GetMsg(), msg.GetMsg().GetJustification(), values)
 		require.NoError(t, err)
 		recvBuffer <- m
 	}

@@ -1,6 +1,6 @@
 // Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package qbft_test
+package qbft
 
 import (
 	"encoding/hex"
@@ -14,7 +14,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/core/consensus/qbft"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	coreqbft "github.com/obolnetwork/charon/core/qbft"
 	"github.com/obolnetwork/charon/testutil"
@@ -29,7 +28,7 @@ func TestHashProto(t *testing.T) {
 
 	setPB, err := core.UnsignedDataSetToProto(set)
 	require.NoError(t, err)
-	hash, err := qbft.HashProto(setPB)
+	hash, err := hashProto(setPB)
 	require.NoError(t, err)
 
 	require.Equal(t,
@@ -44,18 +43,18 @@ func TestSigning(t *testing.T) {
 	privkey, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
 
-	msg := qbft.NewRandomMsgForT(t)
+	msg := newRandomQBFTMsg(t)
 
-	signed, err := qbft.SignMsg(msg, privkey)
+	signed, err := signMsg(msg, privkey)
 	require.NoError(t, err)
 
-	ok, err := qbft.VerifyMsgSig(signed, privkey.PubKey())
+	ok, err := verifyMsgSig(signed, privkey.PubKey())
 	require.NoError(t, err)
 	require.True(t, ok)
 
 	privkey2, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
-	ok, err = qbft.VerifyMsgSig(signed, privkey2.PubKey())
+	ok, err = verifyMsgSig(signed, privkey2.PubKey())
 	require.NoError(t, err)
 	require.False(t, ok)
 }
@@ -63,9 +62,9 @@ func TestSigning(t *testing.T) {
 func TestNewMsg(t *testing.T) {
 	val1 := timestamppb.New(time.Time{})
 	val2 := timestamppb.New(time.Now())
-	hash1, err := qbft.HashProto(val1)
+	hash1, err := hashProto(val1)
 	require.NoError(t, err)
-	hash2, err := qbft.HashProto(val2)
+	hash2, err := hashProto(val2)
 	require.NoError(t, err)
 
 	any1, err := anypb.New(val1)
@@ -78,7 +77,7 @@ func TestNewMsg(t *testing.T) {
 		hash2: any2,
 	}
 
-	msg, err := qbft.NewMsg(&pbv1.QBFTMsg{
+	msg, err := newMsg(&pbv1.QBFTMsg{
 		Type:              int64(coreqbft.MsgPrePrepare),
 		ValueHash:         hash1[:],
 		PreparedValueHash: hash2[:],
@@ -92,10 +91,10 @@ func TestNewMsg(t *testing.T) {
 
 func TestPartialLegacyNewMsg(t *testing.T) {
 	val1 := timestamppb.New(time.Time{})
-	hash1, err := qbft.HashProto(val1)
+	hash1, err := hashProto(val1)
 	require.NoError(t, err)
 
-	_, err = qbft.NewMsg(&pbv1.QBFTMsg{
+	_, err = newMsg(&pbv1.QBFTMsg{
 		Type: int64(coreqbft.MsgPrePrepare),
 	}, []*pbv1.QBFTMsg{
 		{
@@ -104,4 +103,23 @@ func TestPartialLegacyNewMsg(t *testing.T) {
 		},
 	}, make(map[[32]byte]*anypb.Any))
 	require.ErrorContains(t, err, "value hash not found in values")
+}
+
+// NewRandomMsgForT returns a random qbft message.
+func newRandomQBFTMsg(t *testing.T) *pbv1.QBFTMsg {
+	t.Helper()
+
+	msgType := 1 + rand.Int63n(int64(coreqbft.MsgDecided))
+	if msgType == 0 {
+		msgType = 1
+	}
+
+	return &pbv1.QBFTMsg{
+		Type:          msgType,
+		Duty:          core.DutyToProto(core.Duty{Type: core.DutyType(rand.Int()), Slot: rand.Uint64()}),
+		PeerIdx:       rand.Int63(),
+		Round:         rand.Int63(),
+		PreparedRound: rand.Int63(),
+		Signature:     nil,
+	}
 }

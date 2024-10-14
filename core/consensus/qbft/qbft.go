@@ -30,10 +30,10 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-type Subscriber func(ctx context.Context, duty core.Duty, value proto.Message) error
+type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) error
 
-// NewDefinition returns a qbft definition (this is constant across all consensus instances).
-func NewDefinition(nodes int, subs func() []Subscriber, roundTimer utils.RoundTimer,
+// newDefinition returns a qbft definition (this is constant across all consensus instances).
+func newDefinition(nodes int, subs func() []subscriber, roundTimer utils.RoundTimer,
 	decideCallback func(qcommit []qbft.Msg[core.Duty, [32]byte]),
 ) qbft.Definition[core.Duty, [32]byte] {
 	quorum := qbft.Definition[int, int]{Nodes: nodes}.Quorum()
@@ -165,7 +165,7 @@ type Consensus struct {
 	peers       []p2p.Peer
 	pubkeys     map[int64]*k1.PublicKey
 	privkey     *k1.PrivateKey
-	subs        []Subscriber
+	subs        []subscriber
 	deadliner   core.Deadliner
 	snifferFunc func(*pbv1.SniffedConsensusInstance)
 	gaterFunc   core.DutyGaterFunc
@@ -204,7 +204,7 @@ func (c *Consensus) Subscribe(fn func(ctx context.Context, duty core.Duty, set c
 }
 
 // subscribers returns the subscribers.
-func (c *Consensus) subscribers() []Subscriber {
+func (c *Consensus) subscribers() []subscriber {
 	return c.subs
 }
 
@@ -224,7 +224,7 @@ func (c *Consensus) SubscribePriority(fn func(ctx context.Context, duty core.Dut
 // Start registers the libp2p receive handler and starts a goroutine that cleans state. This should only be called once.
 func (c *Consensus) Start(ctx context.Context) {
 	p2p.RegisterHandler("qbft", c.tcpNode, protocols.QBFTv2ProtocolID,
-		func() proto.Message { return new(pbv1.ConsensusMsg) },
+		func() proto.Message { return new(pbv1.QBFTConsensusMsg) },
 		c.handle)
 
 	go func() {
@@ -266,7 +266,7 @@ func (c *Consensus) ProposePriority(ctx context.Context, duty core.Duty, msg *pb
 // waits until it completes, in both cases it returns the resulting error.
 // Note this errors if called multiple times for the same duty.
 func (c *Consensus) propose(ctx context.Context, duty core.Duty, value proto.Message) error {
-	hash, err := HashProto(value)
+	hash, err := hashProto(value)
 	if err != nil {
 		return err
 	}
@@ -336,7 +336,7 @@ func (c *Consensus) Participate(ctx context.Context, duty core.Duty) error {
 }
 
 // Broadcast implements Broadcaster interface.
-func (c *Consensus) Broadcast(ctx context.Context, msg *pbv1.ConsensusMsg) error {
+func (c *Consensus) Broadcast(ctx context.Context, msg *pbv1.QBFTConsensusMsg) error {
 	for _, peer := range c.peers {
 		if peer.ID == c.tcpNode.ID() {
 			// Do not broadcast to self
@@ -390,10 +390,10 @@ func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error)
 	}
 
 	// Create a new qbft definition for this instance.
-	def := NewDefinition(len(c.peers), c.subscribers, roundTimer, decideCallback)
+	def := newDefinition(len(c.peers), c.subscribers, roundTimer, decideCallback)
 
 	// Create a new transport that handles sending and receiving for this instance.
-	t := NewTransport(c, c.privkey, inst.ValueCh, make(chan qbft.Msg[core.Duty, [32]byte]), newSniffer(int64(def.Nodes), peerIdx))
+	t := newTransport(c, c.privkey, inst.ValueCh, make(chan qbft.Msg[core.Duty, [32]byte]), newSniffer(int64(def.Nodes), peerIdx))
 
 	// Provide sniffed buffer to snifferFunc at the end.
 	defer func() {
@@ -429,7 +429,7 @@ func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error)
 func (c *Consensus) handle(ctx context.Context, _ peer.ID, req proto.Message) (proto.Message, bool, error) {
 	t0 := time.Now()
 
-	pbMsg, ok := req.(*pbv1.ConsensusMsg)
+	pbMsg, ok := req.(*pbv1.QBFTConsensusMsg)
 	if !ok || pbMsg == nil {
 		return nil, false, errors.New("invalid consensus message")
 	}
@@ -465,7 +465,7 @@ func (c *Consensus) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 		return nil, false, err
 	}
 
-	msg, err := NewMsg(pbMsg.GetMsg(), pbMsg.GetJustification(), values)
+	msg, err := newMsg(pbMsg.GetMsg(), pbMsg.GetJustification(), values)
 	if err != nil {
 		return nil, false, err
 	}
@@ -568,7 +568,7 @@ func verifyMsg(msg *pbv1.QBFTMsg, pubkeys map[int64]*k1.PublicKey) error {
 		return errors.New("invalid peer index", z.I64("index", msg.GetPeerIdx()))
 	}
 
-	if ok, err := VerifyMsgSig(msg, msgPubkey); err != nil {
+	if ok, err := verifyMsgSig(msg, msgPubkey); err != nil {
 		return errors.Wrap(err, "verify consensus message signature")
 	} else if !ok {
 		return errors.New("invalid consensus message signature")
@@ -701,7 +701,7 @@ func ValuesByHash(values []*anypb.Any) (map[[32]byte]*anypb.Any, error) {
 			return nil, errors.Wrap(err, "unmarshal any")
 		}
 
-		hash, err := HashProto(inner)
+		hash, err := hashProto(inner)
 		if err != nil {
 			return nil, err
 		}

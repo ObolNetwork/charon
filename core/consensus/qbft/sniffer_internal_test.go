@@ -13,11 +13,11 @@ import (
 func TestSniffer(t *testing.T) {
 	sniffer := newSniffer(3, 1)
 
-	sniffer.Add(&pbv1.ConsensusMsg{
-		Msg: NewRandomMsgForT(t),
+	sniffer.Add(&pbv1.QBFTConsensusMsg{
+		Msg: newRandomQBFTMsg(t),
 	})
-	sniffer.Add(&pbv1.ConsensusMsg{
-		Msg: NewRandomMsgForT(t),
+	sniffer.Add(&pbv1.QBFTConsensusMsg{
+		Msg: newRandomQBFTMsg(t),
 	})
 
 	instance := sniffer.Instance()

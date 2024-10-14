@@ -122,12 +122,12 @@ func (t testMsg) Justification() []qbft.Msg[core.Duty, [32]byte] {
 func TestQBFTConsensus_handle(t *testing.T) {
 	tests := []struct {
 		name     string
-		mutate   func(base *pbv1.ConsensusMsg, c *Consensus)
+		mutate   func(base *pbv1.QBFTConsensusMsg, c *Consensus)
 		checkErr func(err error)
 	}{
 		{
 			"qbft message with no pubkey errors",
-			func(base *pbv1.ConsensusMsg, c *Consensus) {
+			func(base *pbv1.QBFTConsensusMsg, c *Consensus) {
 				// construct a valid basis message signature
 				base.Msg.Duty.Type = 1
 				base.Msg.Signature = bytes.Repeat([]byte{42}, 65)
@@ -143,7 +143,7 @@ func TestQBFTConsensus_handle(t *testing.T) {
 		},
 		{
 			"qbft message with justifications mentioning unknown peerIdx errors",
-			func(base *pbv1.ConsensusMsg, c *Consensus) {
+			func(base *pbv1.QBFTConsensusMsg, c *Consensus) {
 				p2pKey := testutil.GenerateInsecureK1Key(t, 0)
 				c.pubkeys = make(map[int64]*k1.PublicKey)
 				c.pubkeys[0] = p2pKey.PubKey()
@@ -156,7 +156,7 @@ func TestQBFTConsensus_handle(t *testing.T) {
 				}
 
 				// Sign the base message
-				msgHash, err := HashProto(base.GetMsg())
+				msgHash, err := hashProto(base.GetMsg())
 				require.NoError(t, err)
 
 				sign, err := k1util.Sign(p2pKey, msgHash[:])
@@ -166,7 +166,7 @@ func TestQBFTConsensus_handle(t *testing.T) {
 
 				// construct a justification
 				base.Justification = []*pbv1.QBFTMsg{
-					NewRandomMsgForT(t),
+					newRandomQBFTMsg(t),
 				}
 
 				base.Justification[0].PeerIdx = 42
@@ -176,7 +176,7 @@ func TestQBFTConsensus_handle(t *testing.T) {
 				}
 
 				// Sign the justification
-				justHash, err := HashProto(base.GetJustification()[0])
+				justHash, err := hashProto(base.GetJustification()[0])
 				require.NoError(t, err)
 
 				justSign, err := k1util.Sign(p2pKey, justHash[:])
@@ -190,7 +190,7 @@ func TestQBFTConsensus_handle(t *testing.T) {
 		},
 		{
 			"qbft message with nil justification present in slice",
-			func(base *pbv1.ConsensusMsg, c *Consensus) {
+			func(base *pbv1.QBFTConsensusMsg, c *Consensus) {
 				p2pKey := testutil.GenerateInsecureK1Key(t, 0)
 				c.pubkeys = make(map[int64]*k1.PublicKey)
 				c.pubkeys[0] = p2pKey.PubKey()
@@ -203,7 +203,7 @@ func TestQBFTConsensus_handle(t *testing.T) {
 				}
 
 				// Sign the base message
-				msgHash, err := HashProto(base.GetMsg())
+				msgHash, err := hashProto(base.GetMsg())
 				require.NoError(t, err)
 
 				sign, err := k1util.Sign(p2pKey, msgHash[:])
@@ -223,7 +223,7 @@ func TestQBFTConsensus_handle(t *testing.T) {
 		},
 		{
 			"qbft message values present but nil",
-			func(base *pbv1.ConsensusMsg, c *Consensus) {
+			func(base *pbv1.QBFTConsensusMsg, c *Consensus) {
 				p2pKey := testutil.GenerateInsecureK1Key(t, 0)
 				c.pubkeys = make(map[int64]*k1.PublicKey)
 				c.pubkeys[0] = p2pKey.PubKey()
@@ -242,7 +242,7 @@ func TestQBFTConsensus_handle(t *testing.T) {
 				}
 
 				// Sign the base message
-				msgHash, err := HashProto(base.GetMsg())
+				msgHash, err := hashProto(base.GetMsg())
 				require.NoError(t, err)
 
 				sign, err := k1util.Sign(p2pKey, msgHash[:])
@@ -256,7 +256,7 @@ func TestQBFTConsensus_handle(t *testing.T) {
 		},
 		{
 			"qbft message with invalid duty fails",
-			func(base *pbv1.ConsensusMsg, c *Consensus) {
+			func(base *pbv1.QBFTConsensusMsg, c *Consensus) {
 				// construct a valid basis message signature
 				base.Msg.Duty.Type = 1
 				base.Msg.Signature = bytes.Repeat([]byte{42}, 65)
@@ -272,7 +272,7 @@ func TestQBFTConsensus_handle(t *testing.T) {
 		},
 		{
 			"qbft message with valid duty fails because justification has different duty type",
-			func(base *pbv1.ConsensusMsg, c *Consensus) {
+			func(base *pbv1.QBFTConsensusMsg, c *Consensus) {
 				p2pKey := testutil.GenerateInsecureK1Key(t, 0)
 				c.pubkeys = make(map[int64]*k1.PublicKey)
 				c.pubkeys[0] = p2pKey.PubKey()
@@ -285,7 +285,7 @@ func TestQBFTConsensus_handle(t *testing.T) {
 				}
 
 				// Sign the base message
-				msgHash, err := HashProto(base.GetMsg())
+				msgHash, err := hashProto(base.GetMsg())
 				require.NoError(t, err)
 
 				sign, err := k1util.Sign(p2pKey, msgHash[:])
@@ -295,7 +295,7 @@ func TestQBFTConsensus_handle(t *testing.T) {
 
 				// construct a justification
 				base.Justification = []*pbv1.QBFTMsg{
-					NewRandomMsgForT(t),
+					newRandomQBFTMsg(t),
 				}
 
 				base.Justification[0].PeerIdx = 0
@@ -305,7 +305,7 @@ func TestQBFTConsensus_handle(t *testing.T) {
 				}
 
 				// Sign the justification
-				justHash, err := HashProto(base.GetJustification()[0])
+				justHash, err := hashProto(base.GetJustification()[0])
 				require.NoError(t, err)
 
 				justSign, err := k1util.Sign(p2pKey, justHash[:])
@@ -319,7 +319,7 @@ func TestQBFTConsensus_handle(t *testing.T) {
 		},
 		{
 			"qbft message with valid duty and justification with same duty does not fail",
-			func(base *pbv1.ConsensusMsg, c *Consensus) {
+			func(base *pbv1.QBFTConsensusMsg, c *Consensus) {
 				p2pKey := testutil.GenerateInsecureK1Key(t, 0)
 				c.pubkeys = make(map[int64]*k1.PublicKey)
 				c.pubkeys[0] = p2pKey.PubKey()
@@ -332,7 +332,7 @@ func TestQBFTConsensus_handle(t *testing.T) {
 				}
 
 				// Sign the base message
-				msgHash, err := HashProto(base.GetMsg())
+				msgHash, err := hashProto(base.GetMsg())
 				require.NoError(t, err)
 
 				sign, err := k1util.Sign(p2pKey, msgHash[:])
@@ -342,7 +342,7 @@ func TestQBFTConsensus_handle(t *testing.T) {
 
 				// construct a justification
 				base.Justification = []*pbv1.QBFTMsg{
-					NewRandomMsgForT(t),
+					newRandomQBFTMsg(t),
 				}
 
 				base.Justification[0].PeerIdx = 0
@@ -352,7 +352,7 @@ func TestQBFTConsensus_handle(t *testing.T) {
 				}
 
 				// Sign the justification
-				justHash, err := HashProto(base.GetJustification()[0])
+				justHash, err := hashProto(base.GetJustification()[0])
 				require.NoError(t, err)
 
 				justSign, err := k1util.Sign(p2pKey, justHash[:])
@@ -375,8 +375,8 @@ func TestQBFTConsensus_handle(t *testing.T) {
 			tc.mutable.instances = make(map[core.Duty]*utils.InstanceIO[Msg])
 			tc.gaterFunc = func(core.Duty) bool { return true }
 
-			msg := &pbv1.ConsensusMsg{
-				Msg: NewRandomMsgForT(t),
+			msg := &pbv1.QBFTConsensusMsg{
+				Msg: newRandomQBFTMsg(t),
 			}
 
 			test.mutate(msg, &tc)
@@ -390,7 +390,7 @@ func TestQBFTConsensus_handle(t *testing.T) {
 func TestQBFTConsensusHandle(t *testing.T) {
 	tests := []struct {
 		name     string
-		msg      *pbv1.ConsensusMsg
+		msg      *pbv1.QBFTConsensusMsg
 		errorMsg string
 		peerID   string
 	}{
@@ -400,14 +400,14 @@ func TestQBFTConsensusHandle(t *testing.T) {
 		},
 		{
 			name: "nil msg",
-			msg: &pbv1.ConsensusMsg{
+			msg: &pbv1.QBFTConsensusMsg{
 				Msg: nil,
 			},
 			errorMsg: "invalid consensus message",
 		},
 		{
 			name: "nil msg duty",
-			msg: &pbv1.ConsensusMsg{
+			msg: &pbv1.QBFTConsensusMsg{
 				Msg: &pbv1.QBFTMsg{
 					Duty: nil,
 				},
@@ -416,7 +416,7 @@ func TestQBFTConsensusHandle(t *testing.T) {
 		},
 		{
 			name: "invalid consensus msg type",
-			msg: &pbv1.ConsensusMsg{
+			msg: &pbv1.QBFTConsensusMsg{
 				Msg: &pbv1.QBFTMsg{
 					Duty: &pbv1.Duty{},
 				},
@@ -425,7 +425,7 @@ func TestQBFTConsensusHandle(t *testing.T) {
 		},
 		{
 			name: "invalid msg duty type",
-			msg: &pbv1.ConsensusMsg{
+			msg: &pbv1.QBFTConsensusMsg{
 				Msg: &pbv1.QBFTMsg{
 					Duty: &pbv1.Duty{},
 					Type: int64(qbft.MsgPrepare),
@@ -435,7 +435,7 @@ func TestQBFTConsensusHandle(t *testing.T) {
 		},
 		{
 			name: "invalid peer index",
-			msg: &pbv1.ConsensusMsg{
+			msg: &pbv1.QBFTConsensusMsg{
 				Msg: &pbv1.QBFTMsg{
 					Round: 1,
 					Duty:  &pbv1.Duty{Type: int32(core.DutyProposer)},
@@ -479,8 +479,8 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 		c.pubkeys[0] = p2pKey.PubKey()
 
 		duty := core.Duty{Slot: 42, Type: 1}
-		msg := &pbv1.ConsensusMsg{
-			Msg: NewRandomMsgForT(t),
+		msg := &pbv1.QBFTConsensusMsg{
+			Msg: newRandomQBFTMsg(t),
 		}
 		msg = signConsensusMsg(t, msg, p2pKey, duty)
 
@@ -509,8 +509,8 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 		c.pubkeys[0] = p2pKey.PubKey()
 
 		duty := core.Duty{Slot: 42, Type: 1}
-		msg := &pbv1.ConsensusMsg{
-			Msg: NewRandomMsgForT(t),
+		msg := &pbv1.QBFTConsensusMsg{
+			Msg: newRandomQBFTMsg(t),
 		}
 		msg = signConsensusMsg(t, msg, p2pKey, duty)
 
@@ -544,7 +544,7 @@ func (t testDeadliner) C() <-chan core.Duty {
 	return t.deadlineChan
 }
 
-func signConsensusMsg(t *testing.T, msg *pbv1.ConsensusMsg, privKey *k1.PrivateKey, duty core.Duty) *pbv1.ConsensusMsg {
+func signConsensusMsg(t *testing.T, msg *pbv1.QBFTConsensusMsg, privKey *k1.PrivateKey, duty core.Duty) *pbv1.QBFTConsensusMsg {
 	t.Helper()
 
 	msg.Msg.Duty.Type = int32(duty.Type)
@@ -555,7 +555,7 @@ func signConsensusMsg(t *testing.T, msg *pbv1.ConsensusMsg, privKey *k1.PrivateK
 	}
 
 	// Sign the base message
-	msgHash, err := HashProto(msg.GetMsg())
+	msgHash, err := hashProto(msg.GetMsg())
 	require.NoError(t, err)
 
 	sign, err := k1util.Sign(privKey, msgHash[:])
@@ -565,7 +565,7 @@ func signConsensusMsg(t *testing.T, msg *pbv1.ConsensusMsg, privKey *k1.PrivateK
 
 	// construct a justification
 	msg.Justification = []*pbv1.QBFTMsg{
-		NewRandomMsgForT(t),
+		newRandomQBFTMsg(t),
 	}
 
 	msg.Justification[0].PeerIdx = 0
@@ -575,7 +575,7 @@ func signConsensusMsg(t *testing.T, msg *pbv1.ConsensusMsg, privKey *k1.PrivateK
 	}
 
 	// Sign the justification
-	justHash, err := HashProto(msg.GetJustification()[0])
+	justHash, err := hashProto(msg.GetJustification()[0])
 	require.NoError(t, err)
 
 	justSign, err := k1util.Sign(privKey, justHash[:])

@@ -8,6 +8,7 @@ import (
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/obolnetwork/charon/core/consensus/protocols"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 )
 
@@ -31,7 +32,7 @@ type sniffer struct {
 }
 
 // Add adds a message to the sniffer buffer.
-func (c *sniffer) Add(msg *pbv1.ConsensusMsg) {
+func (c *sniffer) Add(msg *pbv1.QBFTConsensusMsg) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -47,9 +48,10 @@ func (c *sniffer) Instance() *pbv1.SniffedConsensusInstance {
 	defer c.mu.Unlock()
 
 	return &pbv1.SniffedConsensusInstance{
-		Nodes:     c.nodes,
-		PeerIdx:   c.peerIdx,
-		StartedAt: timestamppb.New(c.startedAt),
-		Msgs:      c.msgs,
+		Nodes:      c.nodes,
+		PeerIdx:    c.peerIdx,
+		StartedAt:  timestamppb.New(c.startedAt),
+		Msgs:       c.msgs,
+		ProtocolId: protocols.QBFTv2ProtocolID,
 	}
 }

@@ -3,11 +3,8 @@
 package qbft
 
 import (
-	"testing"
-
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	ssz "github.com/ferranbt/fastssz"
-	"golang.org/x/exp/rand"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
@@ -18,27 +15,8 @@ import (
 	"github.com/obolnetwork/charon/core/qbft"
 )
 
-// NewRandomMsgForT returns a random qbft message.
-func NewRandomMsgForT(t *testing.T) *pbv1.QBFTMsg {
-	t.Helper()
-
-	msgType := 1 + rand.Int63n(int64(qbft.MsgDecided))
-	if msgType == 0 {
-		msgType = 1
-	}
-
-	return &pbv1.QBFTMsg{
-		Type:          msgType,
-		Duty:          core.DutyToProto(core.Duty{Type: core.DutyType(rand.Int()), Slot: rand.Uint64()}),
-		PeerIdx:       rand.Int63(),
-		Round:         rand.Int63(),
-		PreparedRound: rand.Int63(),
-		Signature:     nil,
-	}
-}
-
-// NewMsg returns a new QBFT Msg.
-func NewMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]byte]*anypb.Any) (Msg, error) {
+// newMsg returns a new QBFT Msg.
+func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]byte]*anypb.Any) (Msg, error) {
 	if pbMsg == nil {
 		return Msg{}, errors.New("nil qbft message")
 	}
@@ -65,7 +43,7 @@ func NewMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]b
 
 	var justImpls []qbft.Msg[core.Duty, [32]byte]
 	for _, j := range justification {
-		impl, err := NewMsg(j, nil, values)
+		impl, err := newMsg(j, nil, values)
 		if err != nil {
 			return Msg{}, err
 		}
@@ -134,22 +112,22 @@ func (m Msg) Justification() []qbft.Msg[core.Duty, [32]byte] {
 	return m.justification
 }
 
-func (m Msg) ToConsensusMsg() *pbv1.ConsensusMsg {
+func (m Msg) ToConsensusMsg() *pbv1.QBFTConsensusMsg {
 	var values []*anypb.Any
 	for _, v := range m.values {
 		values = append(values, v)
 	}
 
-	return &pbv1.ConsensusMsg{
+	return &pbv1.QBFTConsensusMsg{
 		Msg:           m.msg,
 		Justification: m.justificationProtos,
 		Values:        values,
 	}
 }
 
-// HashProto returns a deterministic ssz hash root of the proto message.
+// hashProto returns a deterministic ssz hash root of the proto message.
 // It is the same logic as that used by the priority package.
-func HashProto(msg proto.Message) ([32]byte, error) {
+func hashProto(msg proto.Message) ([32]byte, error) {
 	if _, ok := msg.(*anypb.Any); ok {
 		return [32]byte{}, errors.New("cannot hash any proto, must hash inner value")
 	}
@@ -176,8 +154,8 @@ func HashProto(msg proto.Message) ([32]byte, error) {
 	return hash, nil
 }
 
-// VerifyMsgSig returns true if the message was signed by pubkey.
-func VerifyMsgSig(msg *pbv1.QBFTMsg, pubkey *k1.PublicKey) (bool, error) {
+// verifyMsgSig returns true if the message was signed by pubkey.
+func verifyMsgSig(msg *pbv1.QBFTMsg, pubkey *k1.PublicKey) (bool, error) {
 	if msg.Signature == nil {
 		return false, errors.New("empty signature")
 	}
@@ -187,7 +165,7 @@ func VerifyMsgSig(msg *pbv1.QBFTMsg, pubkey *k1.PublicKey) (bool, error) {
 		return false, errors.New("type assert qbft msg")
 	}
 	clone.Signature = nil
-	hash, err := HashProto(clone)
+	hash, err := hashProto(clone)
 	if err != nil {
 		return false, err
 	}
@@ -200,15 +178,15 @@ func VerifyMsgSig(msg *pbv1.QBFTMsg, pubkey *k1.PublicKey) (bool, error) {
 	return recovered.IsEqual(pubkey), nil
 }
 
-// SignMsg returns a copy of the proto message with a populated signature signed by the provided private key.
-func SignMsg(msg *pbv1.QBFTMsg, privkey *k1.PrivateKey) (*pbv1.QBFTMsg, error) {
+// signMsg returns a copy of the proto message with a populated signature signed by the provided private key.
+func signMsg(msg *pbv1.QBFTMsg, privkey *k1.PrivateKey) (*pbv1.QBFTMsg, error) {
 	clone, ok := proto.Clone(msg).(*pbv1.QBFTMsg)
 	if !ok {
 		return nil, errors.New("type assert qbft msg")
 	}
 	clone.Signature = nil
 
-	hash, err := HashProto(clone)
+	hash, err := hashProto(clone)
 	if err != nil {
 		return nil, err
 	}

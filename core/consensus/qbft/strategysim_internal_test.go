@@ -641,7 +641,7 @@ func (i *transportInstance) Broadcast(_ context.Context, typ qbft.MsgType,
 		values[impl.PreparedValue()] = dummy
 	}
 
-	msg, err := NewMsg(pbMsg, justMsgs, values)
+	msg, err := newMsg(pbMsg, justMsgs, values)
 	if err != nil {
 		return err
 	}

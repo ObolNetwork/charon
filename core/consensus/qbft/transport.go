@@ -16,15 +16,15 @@ import (
 	"github.com/obolnetwork/charon/core/qbft"
 )
 
-// Broadcaster is an interface for broadcasting messages asynchronously.
-type Broadcaster interface {
-	Broadcast(ctx context.Context, msg *pbv1.ConsensusMsg) error
+// broadcaster is an interface for broadcasting messages asynchronously.
+type broadcaster interface {
+	Broadcast(ctx context.Context, msg *pbv1.QBFTConsensusMsg) error
 }
 
-// Transport encapsulates receiving and broadcasting for a consensus instance/duty.
-type Transport struct {
+// transport encapsulates receiving and broadcasting for a consensus instance/duty.
+type transport struct {
 	// Immutable state
-	broadcaster Broadcaster
+	broadcaster broadcaster
 	privkey     *k1.PrivateKey
 	recvBuffer  chan qbft.Msg[core.Duty, [32]byte] // Instance inner receive buffer.
 	sniffer     *sniffer
@@ -35,11 +35,11 @@ type Transport struct {
 	values  map[[32]byte]*anypb.Any // maps any-wrapped proposed values to their hashes
 }
 
-// NewTransport creates a new qbftTransport.
-func NewTransport(broadcaster Broadcaster, privkey *k1.PrivateKey, valueCh <-chan proto.Message,
+// newTransport creates a new qbftTransport.
+func newTransport(broadcaster broadcaster, privkey *k1.PrivateKey, valueCh <-chan proto.Message,
 	recvBuffer chan qbft.Msg[core.Duty, [32]byte], sniffer *sniffer,
-) *Transport {
-	return &Transport{
+) *transport {
+	return &transport{
 		broadcaster: broadcaster,
 		privkey:     privkey,
 		recvBuffer:  recvBuffer,
@@ -50,7 +50,7 @@ func NewTransport(broadcaster Broadcaster, privkey *k1.PrivateKey, valueCh <-cha
 }
 
 // setValues caches the values and their hashes.
-func (t *Transport) setValues(msg Msg) {
+func (t *transport) setValues(msg Msg) {
 	t.valueMu.Lock()
 	defer t.valueMu.Unlock()
 
@@ -60,14 +60,14 @@ func (t *Transport) setValues(msg Msg) {
 }
 
 // getValue returns the value by its hash.
-func (t *Transport) getValue(hash [32]byte) (*anypb.Any, error) {
+func (t *transport) getValue(hash [32]byte) (*anypb.Any, error) {
 	t.valueMu.Lock()
 	defer t.valueMu.Unlock()
 
 	// First check if we have a new value.
 	select {
 	case value := <-t.valueCh:
-		valueHash, err := HashProto(value)
+		valueHash, err := hashProto(value)
 		if err != nil {
 			return nil, err
 		}
@@ -91,7 +91,7 @@ func (t *Transport) getValue(hash [32]byte) (*anypb.Any, error) {
 }
 
 // Broadcast creates a msg and sends it to all peers (including self).
-func (t *Transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.Duty,
+func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.Duty,
 	peerIdx int64, round int64, valueHash [32]byte, pr int64, pvHash [32]byte,
 	justification []qbft.Msg[core.Duty, [32]byte],
 ) error {
@@ -143,7 +143,7 @@ func (t *Transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 }
 
 // ProcessReceives processes received messages from the outer buffer until the context is closed.
-func (t *Transport) ProcessReceives(ctx context.Context, outerBuffer chan Msg) {
+func (t *transport) ProcessReceives(ctx context.Context, outerBuffer chan Msg) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -162,12 +162,12 @@ func (t *Transport) ProcessReceives(ctx context.Context, outerBuffer chan Msg) {
 }
 
 // SnifferInstance returns the current sniffed consensus instance.
-func (t *Transport) SnifferInstance() *pbv1.SniffedConsensusInstance {
+func (t *transport) SnifferInstance() *pbv1.SniffedConsensusInstance {
 	return t.sniffer.Instance()
 }
 
 // RecvBuffer returns the inner receive buffer.
-func (t *Transport) RecvBuffer() chan qbft.Msg[core.Duty, [32]byte] {
+func (t *transport) RecvBuffer() chan qbft.Msg[core.Duty, [32]byte] {
 	return t.recvBuffer
 }
 
@@ -188,7 +188,7 @@ func createMsg(typ qbft.MsgType, duty core.Duty,
 		PreparedValueHash: pvHash[:],
 	}
 
-	pbMsg, err := SignMsg(pbMsg, privkey)
+	pbMsg, err := signMsg(pbMsg, privkey)
 	if err != nil {
 		return Msg{}, err
 	}
@@ -203,5 +203,5 @@ func createMsg(typ qbft.MsgType, duty core.Duty,
 		justMsgs = append(justMsgs, impl.Msg()) // Note nested justifications are ignored.
 	}
 
-	return NewMsg(pbMsg, justMsgs, values)
+	return newMsg(pbMsg, justMsgs, values)
 }
