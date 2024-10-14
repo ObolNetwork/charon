@@ -46,6 +46,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_consensus_decided_rounds` | Gauge | Number of rounds it took to decide consensus instances by duty and timer type. | `duty, timer` |
 | `core_consensus_duration_seconds` | Histogram | Duration of a consensus instance in seconds by duty and timer type. | `duty, timer` |
 | `core_consensus_error_total` | Counter | Total count of consensus errors |  |
+| `core_consensus_propose_leader_index` | Gauge | Index of leader node proposing a block for the first round |  |
 | `core_consensus_timeout_total` | Counter | Total count of consensus timeouts by duty and timer type. | `duty, timer` |
 | `core_parsigdb_exit_total` | Counter | Total number of partially signed voluntary exits per public key | `pubkey` |
 | `core_scheduler_current_epoch` | Gauge | The current epoch |  |

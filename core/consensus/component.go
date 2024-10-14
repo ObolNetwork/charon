@@ -455,6 +455,13 @@ func (c *Component) runInstance(ctx context.Context, duty core.Duty) (err error)
 	// Create a new qbft definition for this instance.
 	def := newDefinition(len(c.peers), c.subscribers, roundTimer, decideCallback)
 
+	if duty.Type == core.DutyProposer {
+		leaderIndex := leader(duty, 0, len(c.peers))
+		proposeLeaderGauge.Set(float64(leaderIndex))
+
+		log.Debug(ctx, "QBFT consensus leader index", z.I64("index", leaderIndex))
+	}
+
 	// Create a new transport that handles sending and receiving for this instance.
 	t := transport{
 		component:  c,

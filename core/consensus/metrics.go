@@ -37,4 +37,11 @@ var (
 		Name:      "error_total",
 		Help:      "Total count of consensus errors",
 	})
+
+	proposeLeaderGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "core",
+		Subsystem: "consensus",
+		Name:      "propose_leader_index",
+		Help:      "Index of leader node proposing a block for the first round",
+	})
 )
