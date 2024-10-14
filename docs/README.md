@@ -11,3 +11,4 @@ This page acts as an index for the charon (pronounced 'kharon') markdown documen
 - [Go Guidelines](goguidelines.md): Guidelines and principals relating to go development
 - [Contributing](contributing.md): How to contribute to charon; githooks, PR templates, etc.
 - [Distributed Key Generation](dkg.md): How charon can create distributed validator key shares remotely from a cluster-definition file.
+- [Consensus](consensus.md): How charon handles various consensus protocols.
