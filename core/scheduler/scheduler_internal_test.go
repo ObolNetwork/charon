@@ -94,10 +94,8 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 	}
 
 	sched := &Scheduler{
-		eth2Cl: eth2Cl,
-		builderEnabled: func(_ uint64) bool {
-			return false
-		},
+		eth2Cl:         eth2Cl,
+		builderEnabled: false,
 	}
 
 	return sched, schedVals

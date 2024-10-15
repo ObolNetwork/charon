@@ -34,6 +34,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/core/consensus"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/enr"
@@ -79,6 +80,8 @@ type clusterConfig struct {
 
 	PublishAddr string
 	Publish     bool
+
+	ConsensusProtocol string
 
 	testnetConfig eth2util.Network
 }
@@ -139,6 +142,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.Uint64Var(&config.testnetConfig.ChainID, "testnet-chain-id", 0, "Chain ID of the custom test network.")
 	flags.Int64Var(&config.testnetConfig.GenesisTimestamp, "testnet-genesis-timestamp", 0, "Genesis timestamp of the custom test network.")
 	flags.IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to exactly 32ETH.")
+	flags.StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the cluster. Selected automatically when not specified.")
 }
 
 func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
@@ -387,6 +391,10 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 	// Don't allow cluster size to be less than 3.
 	if conf.NumNodes < minNodes {
 		return errors.New("number of operators is below minimum", z.Int("operators", conf.NumNodes), z.Int("min", minNodes))
+	}
+
+	if len(conf.ConsensusProtocol) > 0 && !consensus.IsSupportedProtocolName(conf.ConsensusProtocol) {
+		return errors.New("unsupported consensus protocol", z.Str("protocol", conf.ConsensusProtocol))
 	}
 
 	return nil
@@ -847,7 +855,8 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 		opts = append(opts, cluster.WithVersion(cluster.MinVersionForPartialDeposits))
 	}
 	def, err := cluster.NewDefinition(conf.Name, conf.NumDVs, threshold, feeRecipientAddrs,
-		withdrawalAddrs, forkVersion, cluster.Creator{}, ops, conf.DepositAmounts, rand.Reader, opts...)
+		withdrawalAddrs, forkVersion, cluster.Creator{}, ops, conf.DepositAmounts,
+		conf.ConsensusProtocol, rand.Reader, opts...)
 	if err != nil {
 		return cluster.Definition{}, err
 	}
@@ -949,6 +958,10 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 
 	if !eth2util.ValidNetwork(network) {
 		return errors.New("unsupported network", z.Str("network", network))
+	}
+
+	if len(def.ConsensusProtocol) > 0 && !consensus.IsSupportedProtocolName(def.ConsensusProtocol) {
+		return errors.New("unsupported consensus protocol", z.Str("protocol", def.ConsensusProtocol))
 	}
 
 	return validateWithdrawalAddrs(def.WithdrawalAddresses(), network)

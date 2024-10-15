@@ -511,9 +511,7 @@ func TestFetchSyncContribution(t *testing.T) {
 func mustCreateFetcher(t *testing.T, bmock beaconmock.Mock) *fetcher.Fetcher {
 	t.Helper()
 
-	fetch, err := fetcher.New(bmock, nil, func(uint64) bool {
-		return true
-	})
+	fetch, err := fetcher.New(bmock, nil, true)
 	require.NoError(t, err)
 
 	return fetch
@@ -524,9 +522,7 @@ func mustCreateFetcherWithAddress(t *testing.T, bmock beaconmock.Mock, addr stri
 
 	fetch, err := fetcher.New(bmock, func(core.PubKey) string {
 		return addr
-	}, func(uint64) bool {
-		return true
-	})
+	}, true)
 	require.NoError(t, err)
 
 	return fetch

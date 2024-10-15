@@ -192,7 +192,7 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, nil)
 	require.NoError(t, err)
 
 	vapi.RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valCommIdx uint64) (core.PubKey, error) {
@@ -300,7 +300,7 @@ func TestSignAndVerify(t *testing.T) {
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Setup validatorapi component.
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, nil)
 	require.NoError(t, err)
 	vapi.RegisterPubKeyByAttestation(func(context.Context, uint64, uint64, uint64) (core.PubKey, error) {
 		return core.PubKeyFromBytes(pubkey[:])
@@ -409,6 +409,104 @@ func TestComponent_Proposal(t *testing.T) {
 	require.Equal(t, block1, block2)
 }
 
+func TestComponent_SubmitProposalsWithWrongVCData(t *testing.T) {
+	ctx := context.Background()
+
+	// Create keys (just use normal keys, not split tbls)
+	secret, err := tbls.GenerateSecretKey()
+	require.NoError(t, err)
+
+	pubkey, err := tbls.SecretToPublicKey(secret)
+	require.NoError(t, err)
+
+	const (
+		vIdx     = 1
+		shareIdx = 1
+		slot     = 123
+		epoch    = eth2p0.Epoch(3)
+	)
+
+	// Convert pubkey
+	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
+	require.NoError(t, err)
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
+
+	// Configure beacon mock
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	// Construct the validator api component
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, nil)
+	require.NoError(t, err)
+
+	t.Run("full block fails", func(t *testing.T) {
+		unsignedBlock := &eth2spec.VersionedBeaconBlock{
+			Version: eth2spec.DataVersionCapella,
+			Capella: testutil.RandomCapellaBeaconBlock(),
+		}
+		vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+			return core.DutyDefinitionSet{corePubKey: nil}, nil
+		})
+
+		vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+			unsignedBlock := &eth2spec.VersionedBeaconBlock{
+				Version: eth2spec.DataVersionCapella,
+				Capella: testutil.RandomCapellaBeaconBlock(),
+			}
+
+			return &eth2api.VersionedProposal{
+				Version: unsignedBlock.Version,
+				Capella: unsignedBlock.Capella,
+			}, nil
+		})
+
+		err = vapi.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+			Proposal: &eth2api.VersionedSignedProposal{
+				Version: unsignedBlock.Version,
+				Capella: &capella.SignedBeaconBlock{
+					Message:   unsignedBlock.Capella,
+					Signature: eth2p0.BLSSignature{},
+				},
+			},
+		})
+		require.ErrorContains(t, err, "consensus proposal and VC-submitted one do not match: dutydb and VC proposal data have different hash tree root")
+	})
+
+	t.Run("blinded block fails", func(t *testing.T) {
+		unsignedBlindedBlock := testutil.RandomCapellaBlindedBeaconBlock()
+
+		vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+			return core.DutyDefinitionSet{corePubKey: nil}, nil
+		})
+
+		signedBlindedBlock := &eth2api.VersionedSignedBlindedProposal{
+			Version: eth2spec.DataVersionCapella,
+			Capella: &eth2capella.SignedBlindedBeaconBlock{
+				Message:   unsignedBlindedBlock,
+				Signature: eth2p0.BLSSignature{},
+			},
+		}
+
+		vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+			p := &eth2api.VersionedProposal{
+				Blinded:        true,
+				Version:        eth2spec.DataVersionCapella,
+				CapellaBlinded: testutil.RandomCapellaBlindedBeaconBlock(),
+			}
+
+			p.CapellaBlinded.ProposerIndex = signedBlindedBlock.Capella.Message.ProposerIndex
+
+			return p, nil
+		})
+
+		err = vapi.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+			Proposal: signedBlindedBlock,
+		})
+
+		require.ErrorContains(t, err, "consensus proposal and VC-submitted one do not match: dutydb and VC proposal data have different hash tree root")
+	})
+}
+
 func TestComponent_SubmitProposal(t *testing.T) {
 	ctx := context.Background()
 
@@ -436,7 +534,7 @@ func TestComponent_SubmitProposal(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, nil)
 	require.NoError(t, err)
 
 	// Prepare unsigned beacon block
@@ -477,6 +575,13 @@ func TestComponent_SubmitProposal(t *testing.T) {
 			Signature: eth2p0.BLSSignature(s),
 		},
 	}
+
+	vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+		return &eth2api.VersionedProposal{
+			Version: signedBlock.Version,
+			Capella: unsignedBlock.Capella,
+		}, nil
+	})
 
 	// Register subscriber
 	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
@@ -523,7 +628,7 @@ func TestComponent_SubmitProposal_Gnosis(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, nil)
 	require.NoError(t, err)
 
 	// Prepare unsigned beacon block
@@ -577,6 +682,17 @@ func TestComponent_SubmitProposal_Gnosis(t *testing.T) {
 		return nil
 	})
 
+	vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+		return &eth2api.VersionedProposal{
+			Version: signedBlock.Version,
+			Deneb: &eth2deneb.BlockContents{
+				Block:     signedBlock.Deneb.SignedBlock.Message,
+				KZGProofs: signedBlock.Deneb.KZGProofs,
+				Blobs:     signedBlock.Deneb.Blobs,
+			},
+		}, nil
+	})
+
 	err = vapi.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
 		Proposal: signedBlock,
 	})
@@ -609,7 +725,7 @@ func TestComponent_SubmitProposalInvalidSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, nil)
 	require.NoError(t, err)
 
 	// Prepare unsigned beacon block
@@ -637,6 +753,13 @@ func TestComponent_SubmitProposalInvalidSignature(t *testing.T) {
 			Signature: eth2p0.BLSSignature(s),
 		},
 	}
+
+	vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+		return &eth2api.VersionedProposal{
+			Version: signedBlock.Version,
+			Capella: signedBlock.Capella.Message,
+		}, nil
+	})
 
 	// Register subscriber
 	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
@@ -671,7 +794,7 @@ func TestComponent_SubmitProposalInvalidBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, nil)
 	require.NoError(t, err)
 
 	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
@@ -720,8 +843,49 @@ func TestComponent_SubmitProposalInvalidBlock(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			b := test.block
+			proposal := &eth2api.VersionedProposal{
+				Version:        b.Version,
+				Blinded:        b.Blinded,
+				ConsensusValue: b.ConsensusValue,
+				ExecutionValue: b.ExecutionValue,
+			}
+
+			if b.Phase0 != nil {
+				proposal.Phase0 = b.Phase0.Message
+			}
+			if b.Altair != nil {
+				proposal.Altair = b.Altair.Message
+			}
+			if b.Bellatrix != nil {
+				proposal.Bellatrix = b.Bellatrix.Message
+			}
+			if b.BellatrixBlinded != nil {
+				proposal.BellatrixBlinded = b.BellatrixBlinded.Message
+			}
+			if b.Capella != nil {
+				proposal.Capella = b.Capella.Message
+			}
+			if b.CapellaBlinded != nil {
+				proposal.CapellaBlinded = b.CapellaBlinded.Message
+			}
+			if b.Deneb != nil {
+				proposal.Deneb = &eth2deneb.BlockContents{
+					Block:     test.block.Deneb.SignedBlock.Message,
+					KZGProofs: test.block.Deneb.KZGProofs,
+					Blobs:     test.block.Deneb.Blobs,
+				}
+			}
+			if b.DenebBlinded != nil {
+				proposal.DenebBlinded = b.DenebBlinded.Message
+			}
+
+			vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+				return proposal, nil
+			})
+
 			err = vapi.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
-				Proposal: test.block,
+				Proposal: b,
 			})
 			require.ErrorContains(t, err, test.errMsg)
 		})
@@ -755,7 +919,7 @@ func TestComponent_SubmitBlindedProposal(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderTrue, nil)
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, true, nil)
 	require.NoError(t, err)
 
 	// Prepare unsigned beacon block
@@ -792,6 +956,14 @@ func TestComponent_SubmitBlindedProposal(t *testing.T) {
 			Signature: eth2p0.BLSSignature(s),
 		},
 	}
+
+	vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+		return &eth2api.VersionedProposal{
+			Version:        signedBlindedBlock.Version,
+			Blinded:        true,
+			CapellaBlinded: signedBlindedBlock.Capella.Message,
+		}, nil
+	})
 
 	// Register subscriber
 	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
@@ -837,7 +1009,7 @@ func TestComponent_SubmitBlindedProposalInvalidSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderTrue, nil)
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, true, nil)
 	require.NoError(t, err)
 
 	// Prepare unsigned beacon block
@@ -880,6 +1052,14 @@ func TestComponent_SubmitBlindedProposalInvalidSignature(t *testing.T) {
 		return nil
 	})
 
+	vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+		return &eth2api.VersionedProposal{
+			Version:        signedBlindedBlock.Version,
+			Blinded:        true,
+			CapellaBlinded: signedBlindedBlock.Capella.Message,
+		}, nil
+	})
+
 	err = vapi.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
 		Proposal: signedBlindedBlock,
 	})
@@ -903,7 +1083,7 @@ func TestComponent_SubmitBlindedProposalInvalidBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderTrue, nil)
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, true, nil)
 	require.NoError(t, err)
 
 	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
@@ -970,8 +1150,29 @@ func TestComponent_SubmitBlindedProposalInvalidBlock(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			b := test.block
+			proposal := &eth2api.VersionedProposal{
+				Version: b.Version,
+				Blinded: true,
+			}
+
+			if b.Bellatrix != nil {
+				proposal.BellatrixBlinded = b.Bellatrix.Message
+			}
+			if b.Capella != nil {
+				proposal.CapellaBlinded = b.Capella.Message
+			}
+
+			if b.Deneb != nil {
+				proposal.DenebBlinded = b.Deneb.Message
+			}
+
+			vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+				return proposal, nil
+			})
+
 			err = vapi.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
-				Proposal: test.block,
+				Proposal: b,
 			})
 			require.ErrorContains(t, err, test.errMsg)
 		})
@@ -1010,7 +1211,7 @@ func TestComponent_SubmitVoluntaryExit(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, nil)
 	require.NoError(t, err)
 
 	// Prepare unsigned voluntary exit
@@ -1080,7 +1281,7 @@ func TestComponent_SubmitVoluntaryExitInvalidSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, nil)
 	require.NoError(t, err)
 
 	// Register subscriber
@@ -1136,7 +1337,7 @@ func TestComponent_Duties(t *testing.T) {
 		}
 
 		// Construct the validator api component
-		vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
+		vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, nil)
 		require.NoError(t, err)
 
 		opts := &eth2api.ProposerDutiesOpts{
@@ -1162,7 +1363,7 @@ func TestComponent_Duties(t *testing.T) {
 		}
 
 		// Construct the validator api component
-		vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
+		vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, nil)
 		require.NoError(t, err)
 
 		opts := &eth2api.AttesterDutiesOpts{
@@ -1188,7 +1389,7 @@ func TestComponent_Duties(t *testing.T) {
 		}
 
 		// Construct the validator api component
-		vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
+		vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, nil)
 		require.NoError(t, err)
 
 		opts := &eth2api.SyncCommitteeDutiesOpts{
@@ -1224,7 +1425,7 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderTrue, nil)
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, true, nil)
 	require.NoError(t, err)
 
 	unsigned := testutil.RandomValidatorRegistration(t)
@@ -1302,7 +1503,7 @@ func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderTrue, nil)
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, true, nil)
 	require.NoError(t, err)
 
 	unsigned := testutil.RandomValidatorRegistration(t)
@@ -1357,7 +1558,7 @@ func TestComponent_TekuProposerConfig(t *testing.T) {
 	// Construct the validator api component
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, func(core.PubKey) string {
 		return feeRecipient
-	}, testutil.BuilderTrue, nil)
+	}, true, nil)
 	require.NoError(t, err)
 
 	resp, err := vapi.ProposerConfig(ctx)
@@ -1526,7 +1727,7 @@ func TestComponent_SubmitAggregateAttestationVerify(t *testing.T) {
 	}
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, nil)
 	require.NoError(t, err)
 
 	done := make(chan struct{})
@@ -1658,7 +1859,7 @@ func TestComponent_SubmitSyncCommitteeContributionsVerify(t *testing.T) {
 	}
 
 	// Construct validatorapi component.
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, nil)
 	require.NoError(t, err)
 
 	done := make(chan struct{})
@@ -1740,7 +1941,7 @@ func TestComponent_ValidatorCache(t *testing.T) {
 		}
 	}
 
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, 1, nil, testutil.BuilderFalse, nil)
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, 1, nil, false, nil)
 	require.NoError(t, err)
 
 	// request validators that are completely cached
@@ -1812,7 +2013,7 @@ func TestComponent_GetAllValidators(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct validatorapi component.
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, nil)
 	require.NoError(t, err)
 
 	opts := &eth2api.ValidatorsOpts{
@@ -1849,7 +2050,7 @@ func TestComponent_GetClusterValidatorsWithError(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct validatorapi component.
-	vapi, err := validatorapi.NewComponent(bmock, make(map[core.PubKey]map[int]tbls.PublicKey), shareIdx, nil, testutil.BuilderFalse, nil)
+	vapi, err := validatorapi.NewComponent(bmock, make(map[core.PubKey]map[int]tbls.PublicKey), shareIdx, nil, false, nil)
 	require.NoError(t, err)
 
 	opts := &eth2api.ValidatorsOpts{
@@ -1926,7 +2127,7 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 	}
 
 	// Construct the validator api component.
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, nil)
 	require.NoError(t, err)
 
 	vapi.RegisterAwaitAggSigDB(func(ctx context.Context, duty core.Duty, pubkey core.PubKey) (core.SignedData, error) {
