@@ -13,6 +13,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 )
@@ -36,6 +37,7 @@ type exitConfig struct {
 	ExitFromFileDir       string
 	Log                   log.Config
 	All                   bool
+	testnetConfig         eth2util.Network
 }
 
 func newExitCmd(cmds ...*cobra.Command) *cobra.Command {
@@ -67,6 +69,11 @@ const (
 	publishTimeout
 	validatorIndex
 	all
+	testnetName
+	testnetForkVersion
+	testnetChainID
+	testnetGenesisTimestamp
+	testnetCapellaHardFork
 )
 
 func (ef exitFlag) String() string {
@@ -99,6 +106,16 @@ func (ef exitFlag) String() string {
 		return "validator-index"
 	case all:
 		return "all"
+	case testnetName:
+		return "testnet-name"
+	case testnetForkVersion:
+		return "testnet-fork-version"
+	case testnetChainID:
+		return "testnet-chain-id"
+	case testnetGenesisTimestamp:
+		return "testnet-genesis-timestamp"
+	case testnetCapellaHardFork:
+		return "testnet-capella-hard-fork"
 	default:
 		return "unknown"
 	}
@@ -150,6 +167,16 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 			cmd.Flags().Uint64Var(&config.ValidatorIndex, validatorIndex.String(), 0, "Validator index of the validator to exit, the associated public key must be present in the cluster lock manifest. If --validator-public-key is also provided, validator existence won't be checked on the beacon chain.")
 		case all:
 			cmd.Flags().BoolVar(&config.All, all.String(), false, "Exit all currently active validators in the cluster.")
+		case testnetName:
+			cmd.Flags().StringVar(&config.testnetConfig.Name, testnetName.String(), "", "Name of the custom test network.")
+		case testnetForkVersion:
+			cmd.Flags().StringVar(&config.testnetConfig.GenesisForkVersionHex, testnetForkVersion.String(), "", "Genesis fork version of the custom test network (in hex).")
+		case testnetChainID:
+			cmd.Flags().Uint64Var(&config.testnetConfig.ChainID, "testnet-chain-id", 0, "Chain ID of the custom test network.")
+		case testnetGenesisTimestamp:
+			cmd.Flags().Int64Var(&config.testnetConfig.GenesisTimestamp, "testnet-genesis-timestamp", 0, "Genesis timestamp of the custom test network.")
+		case testnetCapellaHardFork:
+			cmd.Flags().StringVar(&config.testnetConfig.CapellaHardFork, "testnet-capella-hard-fork", "", "Capella hard fork version of the custom test network.")
 		}
 
 		if f.required {
