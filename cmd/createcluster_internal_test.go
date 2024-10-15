@@ -839,8 +839,6 @@ func TestClusterCLI(t *testing.T) {
 			clusterDir := "--cluster-dir=" + t.TempDir()
 
 			cmd := newCreateCmd(newCreateClusterCmd(runCreateCluster))
-			charonDir := testutil.CreateTempCharonDir(t)
-			clusterDirArg := "--cluster-dir=" + charonDir
 			if test.threshold != "" {
 				cmd.SetArgs([]string{"cluster", clusterDir, test.nodes, test.feeRecipient, test.withdrawal, test.network, test.numValidators, test.threshold})
 			} else {
