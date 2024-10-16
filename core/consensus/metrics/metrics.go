@@ -4,7 +4,8 @@ package metrics
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+
+	"github.com/obolnetwork/charon/app/promauto"
 )
 
 var (
@@ -19,8 +20,8 @@ var (
 		Namespace: "core",
 		Subsystem: "consensus",
 		Name:      "decided_leader_index",
-		Help:      "Index of the decided leader by protocol",
-	}, []string{"protocol"})
+		Help:      "Index of the decided leader by protocol and duty",
+	}, []string{"protocol", "duty"})
 
 	consensusDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "core",
@@ -49,8 +50,8 @@ type ConsensusMetrics interface {
 	// SetDecidedRounds sets the number of decided rounds for a given duty and timer.
 	SetDecidedRounds(duty, timer string, rounds int64)
 
-	// SetDecidedLeaderIndex sets the decided leader index.
-	SetDecidedLeaderIndex(leaderIndex int64)
+	// SetDecidedLeaderIndex sets the decided leader index for a given duty.
+	SetDecidedLeaderIndex(duty string, leaderIndex int64)
 
 	// ObserveConsensusDuration observes the duration of the consensus process for a given duty and timer.
 	ObserveConsensusDuration(duty, timer string, duration float64)
@@ -78,9 +79,9 @@ func (m *consensusMetrics) SetDecidedRounds(duty, timer string, rounds int64) {
 	decidedRoundsGauge.WithLabelValues(m.protocolID, duty, timer).Set(float64(rounds))
 }
 
-// SetDecidedLeaderIndex sets the decided leader index.
-func (m *consensusMetrics) SetDecidedLeaderIndex(leaderIndex int64) {
-	decidedLeaderGauge.WithLabelValues(m.protocolID).Set(float64(leaderIndex))
+// SetDecidedLeaderIndex sets the decided leader index for a given duty.
+func (m *consensusMetrics) SetDecidedLeaderIndex(duty string, leaderIndex int64) {
+	decidedLeaderGauge.WithLabelValues(m.protocolID, duty).Set(float64(leaderIndex))
 }
 
 // ObserveConsensusDuration observes the duration of the consensus process for a given duty and timer.

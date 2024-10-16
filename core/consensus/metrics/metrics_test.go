@@ -20,6 +20,19 @@ func TestConsensusMetrics_SetDecidedRounds(t *testing.T) {
 
 	m := gatherMetric(t, "core_consensus_decided_rounds")
 	require.InEpsilon(t, 1, m.GetMetric()[0].GetGauge().GetValue(), 0.0001)
+	verifyLabel(t, m.GetMetric()[0].GetLabel(), "protocol", "test")
+	verifyLabel(t, m.GetMetric()[0].GetLabel(), "duty", "duty")
+}
+
+func TestConsensusMetrics_SetDecidedLeaderIndex(t *testing.T) {
+	cm := metrics.NewConsensusMetrics("test")
+
+	cm.SetDecidedLeaderIndex("duty", 123)
+
+	m := gatherMetric(t, "core_consensus_decided_leader_index")
+	require.InEpsilon(t, 123, m.GetMetric()[0].GetGauge().GetValue(), 0.0001)
+	verifyLabel(t, m.GetMetric()[0].GetLabel(), "protocol", "test")
+	verifyLabel(t, m.GetMetric()[0].GetLabel(), "duty", "duty")
 }
 
 func TestConsensusMetrics_ObserveConsensusDuration(t *testing.T) {
@@ -29,6 +42,9 @@ func TestConsensusMetrics_ObserveConsensusDuration(t *testing.T) {
 
 	m := gatherMetric(t, "core_consensus_duration_seconds")
 	require.EqualValues(t, 1, m.GetMetric()[0].GetHistogram().GetSampleCount())
+	verifyLabel(t, m.GetMetric()[0].GetLabel(), "protocol", "test")
+	verifyLabel(t, m.GetMetric()[0].GetLabel(), "duty", "duty")
+	verifyLabel(t, m.GetMetric()[0].GetLabel(), "timer", "timer")
 }
 
 func TestConsensusMetrics_IncConsensusTimeout(t *testing.T) {
@@ -38,6 +54,9 @@ func TestConsensusMetrics_IncConsensusTimeout(t *testing.T) {
 
 	m := gatherMetric(t, "core_consensus_timeout_total")
 	require.InEpsilon(t, 1, m.GetMetric()[0].GetCounter().GetValue(), 0.0001)
+	verifyLabel(t, m.GetMetric()[0].GetLabel(), "protocol", "test")
+	verifyLabel(t, m.GetMetric()[0].GetLabel(), "duty", "duty")
+	verifyLabel(t, m.GetMetric()[0].GetLabel(), "timer", "timer")
 }
 
 func TestConsensusMetrics_IncConsensusError(t *testing.T) {
@@ -47,14 +66,13 @@ func TestConsensusMetrics_IncConsensusError(t *testing.T) {
 
 	m := gatherMetric(t, "core_consensus_error_total")
 	require.InEpsilon(t, 1, m.GetMetric()[0].GetCounter().GetValue(), 0.0001)
+	verifyLabel(t, m.GetMetric()[0].GetLabel(), "protocol", "test")
 }
 
 func gatherMetric(t *testing.T, name string) *pb.MetricFamily {
 	t.Helper()
 
-	labels := prometheus.Labels{}
-
-	registry, err := promauto.NewRegistry(labels)
+	registry, err := promauto.NewRegistry(prometheus.Labels{})
 	require.NoError(t, err)
 
 	mfa, err := registry.Gather()
@@ -69,4 +87,17 @@ func gatherMetric(t *testing.T, name string) *pb.MetricFamily {
 	require.Fail(t, "metric not found")
 
 	return nil
+}
+
+func verifyLabel(t *testing.T, labels []*pb.LabelPair, name, value string) {
+	t.Helper()
+
+	for _, label := range labels {
+		if label.GetName() == name {
+			require.Equal(t, value, label.GetValue())
+			return
+		}
+	}
+
+	require.Fail(t, "label not found")
 }

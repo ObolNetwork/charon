@@ -401,7 +401,7 @@ func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error)
 			z.I64("leader_index", leaderIndex),
 			z.Str("leader_name", leaderName))
 
-		c.metrics.SetDecidedLeaderIndex(leaderIndex)
+		c.metrics.SetDecidedLeaderIndex(duty.Type.String(), leaderIndex)
 		c.metrics.SetDecidedRounds(duty.Type.String(), string(roundTimer.Type()), round)
 	}
 
