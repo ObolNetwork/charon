@@ -14,6 +14,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/log"
@@ -22,6 +23,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/consensus/qbft"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
+	coremocks "github.com/obolnetwork/charon/core/mocks"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
@@ -119,13 +121,15 @@ func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 
 		gaterFunc := func(core.Duty) bool { return true }
 
-		c, err := qbft.NewConsensus(hosts[i], new(p2p.Sender), peers, p2pkeys[i], testDeadliner{}, gaterFunc, sniffer)
+		deadliner := coremocks.NewDeadliner(t)
+		deadliner.On("Add", mock.Anything).Return(true)
+		c, err := qbft.NewConsensus(hosts[i], new(p2p.Sender), peers, p2pkeys[i], deadliner, gaterFunc, sniffer)
 		require.NoError(t, err)
 		c.Subscribe(func(_ context.Context, _ core.Duty, set core.UnsignedDataSet) error {
 			results <- set
 			return nil
 		})
-		c.Start(log.WithCtx(ctx, z.Int("node", i)))
+		c.RegisterHandler()
 
 		components = append(components, c)
 	}
@@ -171,17 +175,4 @@ func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 	for range threshold {
 		require.NotZero(t, <-sniffed)
 	}
-}
-
-// testDeadliner is a mock deadliner implementation.
-type testDeadliner struct {
-	deadlineChan chan core.Duty
-}
-
-func (testDeadliner) Add(core.Duty) bool {
-	return true
-}
-
-func (t testDeadliner) C() <-chan core.Duty {
-	return t.deadlineChan
 }

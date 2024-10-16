@@ -221,22 +221,21 @@ func (c *Consensus) SubscribePriority(fn func(ctx context.Context, duty core.Dut
 	})
 }
 
-// Start registers the libp2p receive handler and starts a goroutine that cleans state. This should only be called once.
-func (c *Consensus) Start(ctx context.Context) {
+// RegisterHandler registers libp2p handler for the consensus instance.
+func (c *Consensus) RegisterHandler() {
 	p2p.RegisterHandler("qbft", c.tcpNode, protocols.QBFTv2ProtocolID,
 		func() proto.Message { return new(pbv1.QBFTConsensusMsg) },
 		c.handle)
+}
 
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case duty := <-c.deadliner.C():
-				c.deleteInstanceIO(duty)
-			}
-		}
-	}()
+// UnregisterHandler unregisters libp2p handler for the consensus instance.
+func (*Consensus) UnregisterHandler() {
+	// Never called, since this protocol is always enabled.
+}
+
+// HandleExpiredDuty removes the consensus instance for the expired duty.
+func (c *Consensus) HandleExpiredDuty(duty core.Duty) {
+	c.deleteInstanceIO(duty)
 }
 
 // Propose enqueues the proposed value to a consensus instance input channels.
@@ -476,7 +475,7 @@ func (c *Consensus) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 		}
 	}
 
-	values, err := ValuesByHash(pbMsg.GetValues())
+	values, err := valuesByHash(pbMsg.GetValues())
 	if err != nil {
 		return nil, false, err
 	}
@@ -529,8 +528,6 @@ func (c *Consensus) getInstanceIO(duty core.Duty) *utils.InstanceIO[Msg] {
 	if !ok { // Create new instanceIO.
 		inst = utils.NewInstanceIO[Msg]()
 		c.mutable.instances[duty] = inst
-
-		return inst
 	}
 
 	return inst
@@ -708,8 +705,8 @@ func leader(duty core.Duty, round int64, nodes int) int64 {
 	return (int64(duty.Slot) + int64(duty.Type) + round) % int64(nodes)
 }
 
-// ValuesByHash returns a map of values by hash.
-func ValuesByHash(values []*anypb.Any) (map[[32]byte]*anypb.Any, error) {
+// valuesByHash returns a map of values by hash.
+func valuesByHash(values []*anypb.Any) (map[[32]byte]*anypb.Any, error) {
 	resp := make(map[[32]byte]*anypb.Any)
 	for _, v := range values {
 		inner, err := v.UnmarshalNew()

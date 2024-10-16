@@ -526,22 +526,24 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	retryer := retry.New[core.Duty](deadlineFunc)
+	retryer := retry.New(deadlineFunc)
 
-	consensusFactory, err := consensus.NewConsensusFactory(tcpNode, sender, peers, p2pKey, deadlinerFunc, gaterFunc, consensusDebugger)
+	// Consensus
+	consensusDeadliner := deadlinerFunc("consensus")
+	consensusController, err := consensus.NewConsensusController(tcpNode, sender, peers, p2pKey, consensusDeadliner, gaterFunc, consensusDebugger)
 	if err != nil {
 		return err
 	}
 
-	defaultConsensus := consensusFactory.DefaultConsensus()
-	startDefaultConsensus := lifecycle.HookFuncCtx(defaultConsensus.Start)
+	defaultConsensus := consensusController.DefaultConsensus()
+	startConsensusCtrl := lifecycle.HookFuncCtx(consensusController.Start)
 
-	coreConsensus := consensusFactory.CurrentConsensus() // points to DefaultConsensus() initially
+	coreConsensus := consensusController.CurrentConsensus() // initially points to DefaultConsensus()
 
 	// Priority protocol always uses QBFTv2.
 	err = wirePrioritise(ctx, conf, life, tcpNode, peerIDs, int(cluster.GetThreshold()),
 		sender.SendReceive, defaultConsensus, sched, p2pKey, deadlineFunc,
-		consensusFactory, cluster.GetConsensusProtocol())
+		consensusController, cluster.GetConsensusProtocol())
 	if err != nil {
 		return err
 	}
@@ -579,7 +581,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartScheduler, lifecycle.HookFuncErr(sched.Run))
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PConsensus, startDefaultConsensus)
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PConsensus, startConsensusCtrl)
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartAggSigDB, lifecycle.HookFuncCtx(aggSigDB.Run))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartParSigDB, lifecycle.HookFuncCtx(parSigDB.Trim))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartTracker, lifecycle.HookFuncCtx(inclusion.Run))
@@ -594,7 +596,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, tcpNode host.Host,
 	peers []peer.ID, threshold int, sendFunc p2p.SendReceiveFunc, coreCons core.Consensus,
 	sched core.Scheduler, p2pKey *k1.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
-	consensusFactory core.ConsensusFactory, clusterPreferredProtocol string,
+	consensusController core.ConsensusController, clusterPreferredProtocol string,
 ) error {
 	cons, ok := coreCons.(*qbft.Consensus)
 	if !ok {
@@ -650,7 +652,7 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 				allProtocols := t.PrioritiesOnly()
 				preferredConsensusProtocol := protocols.MostPreferredConsensusProtocol(allProtocols)
 
-				if err := consensusFactory.SetCurrentConsensusForProtocol(protocol.ID(preferredConsensusProtocol)); err != nil {
+				if err := consensusController.SetCurrentConsensusForProtocol(protocol.ID(preferredConsensusProtocol)); err != nil {
 					log.Error(ctx, "Failed to set current consensus protocol", err, z.Str("protocol", preferredConsensusProtocol))
 				} else {
 					log.Info(ctx, "Current consensus protocol changed", z.Str("protocol", preferredConsensusProtocol))

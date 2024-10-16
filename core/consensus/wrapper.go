@@ -40,13 +40,6 @@ func (w *consensusWrapper) ProtocolID() protocol.ID {
 	return w.impl.ProtocolID()
 }
 
-func (w *consensusWrapper) Start(ctx context.Context) {
-	w.lock.RLock()
-	defer w.lock.RUnlock()
-
-	w.impl.Start(ctx)
-}
-
 func (w *consensusWrapper) Participate(ctx context.Context, duty core.Duty) error {
 	w.lock.RLock()
 	defer w.lock.RUnlock()
@@ -66,4 +59,25 @@ func (w *consensusWrapper) Subscribe(fn func(context.Context, core.Duty, core.Un
 	defer w.lock.RUnlock()
 
 	w.impl.Subscribe(fn)
+}
+
+func (w *consensusWrapper) HandleExpiredDuty(duty core.Duty) {
+	w.lock.RLock()
+	defer w.lock.RUnlock()
+
+	w.impl.HandleExpiredDuty(duty)
+}
+
+func (w *consensusWrapper) RegisterHandler() {
+	w.lock.RLock()
+	defer w.lock.RUnlock()
+
+	w.impl.RegisterHandler()
+}
+
+func (w *consensusWrapper) UnregisterHandler() {
+	w.lock.RLock()
+	defer w.lock.RUnlock()
+
+	w.impl.UnregisterHandler()
 }

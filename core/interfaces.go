@@ -73,9 +73,6 @@ type Consensus interface {
 	// ProtocolID returns the protocol ID of the consensus instance.
 	ProtocolID() protocol.ID
 
-	// Start starts the consensus protocol instance.
-	Start(ctx context.Context)
-
 	// Participate run the duty's consensus instance without a proposed value (if Propose not called yet).
 	Participate(context.Context, Duty) error
 
@@ -84,17 +81,29 @@ type Consensus interface {
 
 	// Subscribe registers a callback for resolved (reached consensus) duty unsigned data set.
 	Subscribe(func(context.Context, Duty, UnsignedDataSet) error)
+
+	// HandleExpiredDuty handles the expired duty event.
+	HandleExpiredDuty(Duty)
+
+	// RegisterHandler registers libp2p handler for the consensus instance.
+	RegisterHandler()
+
+	// UnregisterHandler unregisters libp2p handler for the consensus instance.
+	UnregisterHandler()
 }
 
-// ConsensusFactory creates new consensus instances.
-type ConsensusFactory interface {
+// ConsensusController manages consensus instances.
+type ConsensusController interface {
+	// Start starts the internal routines. The controller stops when the context is cancelled.
+	Start(ctx context.Context)
+
 	// DefaultConsensus returns the default consensus instance.
 	// The default consensus must be QBFT v2.0, since it is supported by all charon versions.
-	// It is used for Priority protocol as well as "the last resort" protocol when no other protocol is selected.
+	// It is used for Priority protocol as well as the fallback protocol when no other protocol is selected.
 	// Multiple calls to DefaultConsensus must return the same instance.
 	DefaultConsensus() Consensus
 
-	// CurrentConsensus returns currently selected consensus instance.
+	// CurrentConsensus returns the currently selected consensus instance.
 	// The instance is selected by the Priority protocol and can be changed by SetCurrentConsensusForProtocol().
 	// Before SetCurrentConsensusForProtocol() is called, CurrentConsensus() points to DefaultConsensus().
 	CurrentConsensus() Consensus

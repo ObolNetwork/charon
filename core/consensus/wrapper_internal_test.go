@@ -22,17 +22,15 @@ func TestNewConsensusWrapper(t *testing.T) {
 
 	impl := mocks.NewConsensus(t)
 	impl.On("ProtocolID").Return(protocol.ID(protocols.QBFTv2ProtocolID))
-	impl.On("Start", ctx).Return()
 	impl.On("Participate", ctx, randaoDuty).Return(nil)
 	impl.On("Propose", ctx, randaoDuty, dataSet).Return(nil)
 	impl.On("Subscribe", mock.Anything).Return()
+	impl.On("HandleExpiredDuty", randaoDuty).Return()
 
 	wrapped := newConsensusWrapper(impl)
 	require.NotNil(t, wrapped)
 
 	require.EqualValues(t, protocols.QBFTv2ProtocolID, wrapped.ProtocolID())
-
-	wrapped.Start(ctx)
 
 	err := wrapped.Participate(ctx, randaoDuty)
 	require.NoError(t, err)
@@ -43,6 +41,8 @@ func TestNewConsensusWrapper(t *testing.T) {
 	wrapped.Subscribe(func(ctx context.Context, d core.Duty, uds core.UnsignedDataSet) error {
 		return nil
 	})
+
+	wrapped.HandleExpiredDuty(randaoDuty)
 
 	impl2 := mocks.NewConsensus(t)
 	impl2.On("ProtocolID").Return(protocol.ID("foobar"))

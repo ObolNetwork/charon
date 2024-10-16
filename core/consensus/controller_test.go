@@ -24,7 +24,7 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestConsensusFactory(t *testing.T) {
+func TestConsensusController(t *testing.T) {
 	var hosts []host.Host
 	var peers []p2p.Peer
 
@@ -54,23 +54,21 @@ func TestConsensusFactory(t *testing.T) {
 		hosts = append(hosts, h)
 	}
 
-	deadlinerFunc := func(string) core.Deadliner {
-		return coremocks.NewDeadliner(t)
-	}
+	deadliner := coremocks.NewDeadliner(t)
 	debugger := csmocks.NewDebugger(t)
-	factory, err := consensus.NewConsensusFactory(hosts[0], new(p2p.Sender), peers, p2pkeys[0], deadlinerFunc, gaterFunc, debugger)
+	controller, err := consensus.NewConsensusController(hosts[0], new(p2p.Sender), peers, p2pkeys[0], deadliner, gaterFunc, debugger)
 	require.NoError(t, err)
-	require.NotNil(t, factory)
+	require.NotNil(t, controller)
 
 	t.Run("default and current consensus", func(t *testing.T) {
-		defaultConsensus := factory.DefaultConsensus()
+		defaultConsensus := controller.DefaultConsensus()
 		require.NotNil(t, defaultConsensus)
 		require.EqualValues(t, protocols.QBFTv2ProtocolID, defaultConsensus.ProtocolID())
-		require.NotEqual(t, defaultConsensus, factory.CurrentConsensus()) // because the current is wrapped
+		require.NotEqual(t, defaultConsensus, controller.CurrentConsensus()) // because the current is wrapped
 	})
 
 	t.Run("unsupported protocol id", func(t *testing.T) {
-		err := factory.SetCurrentConsensusForProtocol("boo")
+		err := controller.SetCurrentConsensusForProtocol("boo")
 		require.ErrorContains(t, err, "unsupported protocol id")
 	})
 }

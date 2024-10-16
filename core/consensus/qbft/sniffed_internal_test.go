@@ -89,7 +89,7 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 
 		duty = core.DutyFromProto(msg.GetMsg().GetMsg().GetDuty())
 
-		values, err := ValuesByHash(msg.GetMsg().GetValues())
+		values, err := valuesByHash(msg.GetMsg().GetValues())
 		require.NoError(t, err)
 
 		m, err := newMsg(msg.GetMsg().GetMsg(), msg.GetMsg().GetJustification(), values)

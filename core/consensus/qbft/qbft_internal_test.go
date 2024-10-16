@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/anypb"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/consensus/utils"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
+	coremocks "github.com/obolnetwork/charon/core/mocks"
 	"github.com/obolnetwork/charon/core/qbft"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -371,7 +373,9 @@ func TestQBFTConsensus_handle(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var tc Consensus
-			tc.deadliner = testDeadliner{}
+			deadliner := coremocks.NewDeadliner(t)
+			deadliner.On("Add", mock.Anything).Maybe().Return(true)
+			tc.deadliner = deadliner
 			tc.mutable.instances = make(map[core.Duty]*utils.InstanceIO[Msg])
 			tc.gaterFunc = func(core.Duty) bool { return true }
 
@@ -469,7 +473,9 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 
 	t.Run("MaybeStart after handle", func(t *testing.T) {
 		var c Consensus
-		c.deadliner = testDeadliner{}
+		deadliner := coremocks.NewDeadliner(t)
+		deadliner.On("Add", mock.Anything).Return(true)
+		c.deadliner = deadliner
 		c.gaterFunc = func(core.Duty) bool { return true }
 		c.mutable.instances = make(map[core.Duty]*utils.InstanceIO[Msg])
 
@@ -498,7 +504,9 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 		ctx := context.Background()
 
 		var c Consensus
-		c.deadliner = testDeadliner{}
+		deadliner := coremocks.NewDeadliner(t)
+		deadliner.On("Add", mock.Anything).Return(true)
+		c.deadliner = deadliner
 		c.gaterFunc = func(core.Duty) bool { return true }
 		c.mutable.instances = make(map[core.Duty]*utils.InstanceIO[Msg])
 		c.timerFunc = utils.GetTimerFunc()
@@ -529,19 +537,6 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 		require.True(t, ok)
 		require.False(t, inst.MaybeStart())
 	})
-}
-
-// testDeadliner is a mock deadliner implementation.
-type testDeadliner struct {
-	deadlineChan chan core.Duty
-}
-
-func (testDeadliner) Add(core.Duty) bool {
-	return true
-}
-
-func (t testDeadliner) C() <-chan core.Duty {
-	return t.deadlineChan
 }
 
 func signConsensusMsg(t *testing.T, msg *pbv1.QBFTConsensusMsg, privKey *k1.PrivateKey, duty core.Duty) *pbv1.QBFTConsensusMsg {
