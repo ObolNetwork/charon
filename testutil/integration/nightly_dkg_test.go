@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,8 +25,6 @@ import (
 	"github.com/obolnetwork/charon/dkg"
 	"github.com/obolnetwork/charon/p2p"
 )
-
-const ctxCanceledErr = "context canceled"
 
 var (
 	nightly  = flag.Bool("nightly", false, "Enable nightly integration tests")
@@ -162,17 +161,16 @@ func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, w
 
 		log.Debug(ctx, "Starting DKG node", z.Int("node", nodeIdx), z.Bool("first_time", firstTime))
 
-		errCh := make(chan error, 1)
 		go func(ctx context.Context) {
 			// Ensure DKGs don't save their artifacts in the same node directory since the current DKG would error
 			// as it would find an existing private key lock file previously created by earlier DKGs.
 			conf := dkgConf
 			conf.DataDir = t.TempDir()
 			err := dkg.Run(ctx, conf)
-			errCh <- err
+			if !strings.Contains(err.Error(), context.Canceled.Error()) {
+				panic("error is not of context canceled kind")
+			}
 		}(ctx)
-		err := <-errCh
-		require.ErrorContains(t, err, ctxCanceledErr)
 
 		return cancelFunc
 	}
