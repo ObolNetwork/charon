@@ -445,15 +445,31 @@ func (c *Component) runInstance(ctx context.Context, duty core.Duty) (err error)
 	}
 
 	// Instrument consensus instance.
-	var decided bool
+	var (
+		decided bool
+		nodes   = len(c.peers)
+	)
+
 	decideCallback := func(qcommit []qbft.Msg[core.Duty, [32]byte]) {
+		round := qcommit[0].Round()
 		decided = true
-		decidedRoundsGauge.WithLabelValues(duty.Type.String(), string(roundTimer.Type())).Set(float64(qcommit[0].Round()))
+		decidedRoundsGauge.WithLabelValues(duty.Type.String(), string(roundTimer.Type())).Set(float64(round))
 		inst.decidedAtCh <- time.Now()
+
+		leaderIndex := leader(duty, round, nodes)
+		leaderName := c.peers[leaderIndex].Name
+		log.Debug(ctx, "QBFT consensus decided",
+			z.Str("duty", duty.Type.String()),
+			z.U64("slot", duty.Slot),
+			z.I64("round", round),
+			z.I64("leader_index", leaderIndex),
+			z.Str("leader_name", leaderName))
+
+		decidedLeaderGauge.WithLabelValues(duty.Type.String()).Set(float64(leaderIndex))
 	}
 
 	// Create a new qbft definition for this instance.
-	def := newDefinition(len(c.peers), c.subscribers, roundTimer, decideCallback)
+	def := newDefinition(nodes, c.subscribers, roundTimer, decideCallback)
 
 	// Create a new transport that handles sending and receiving for this instance.
 	t := transport{
@@ -479,7 +495,7 @@ func (c *Component) runInstance(ctx context.Context, duty core.Duty) (err error)
 	}
 
 	// Run the algo, blocking until the context is cancelled.
-	err = qbft.Run[core.Duty, [32]byte](ctx, def, qt, duty, peerIdx, inst.hashCh)
+	err = qbft.Run(ctx, def, qt, duty, peerIdx, inst.hashCh)
 	if err != nil && !isContextErr(err) {
 		consensusError.Inc()
 		return err // Only return non-context errors.
