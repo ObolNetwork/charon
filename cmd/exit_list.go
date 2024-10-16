@@ -15,6 +15,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util"
 )
 
 func newListActiveValidatorsCmd(runFunc func(context.Context, exitConfig) error) *cobra.Command {
@@ -43,6 +44,11 @@ func newListActiveValidatorsCmd(runFunc func(context.Context, exitConfig) error)
 		{lockFilePath, false},
 		{beaconNodeEndpoints, true},
 		{beaconNodeTimeout, false},
+		{testnetName, false},
+		{testnetForkVersion, false},
+		{testnetChainID, false},
+		{testnetGenesisTimestamp, false},
+		{testnetCapellaHardFork, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
@@ -51,6 +57,12 @@ func newListActiveValidatorsCmd(runFunc func(context.Context, exitConfig) error)
 }
 
 func runListActiveValidatorsCmd(ctx context.Context, config exitConfig) error {
+	// Check if custom testnet configuration is provided.
+	if config.testnetConfig.IsNonZero() {
+		// Add testnet config to supported networks.
+		eth2util.AddTestNetwork(config.testnetConfig)
+	}
+
 	valList, err := listActiveVals(ctx, config)
 	if err != nil {
 		return err
