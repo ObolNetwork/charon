@@ -263,4 +263,4 @@ replace github.com/coinbase/kryptology => github.com/ObolNetwork/kryptology v0.0
 
 // We're replacing go-eth2-client with a branch off our fork, at version v0.21.10.
 // This is needed to ensure Gnosis compatibility.
-replace github.com/attestantio/go-eth2-client => github.com/ObolNetwork/go-eth2-client v0.21.11-0.20240822135044-f0a5b21e02c6
+// replace github.com/attestantio/go-eth2-client => github.com/ObolNetwork/go-eth2-client v0.21.11-0.20240822135044-f0a5b21e02c6
