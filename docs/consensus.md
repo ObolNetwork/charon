@@ -17,7 +17,8 @@ Under the hood this protocol uses the existing QBFT v2.0 algorithm that is known
 ### Priority Protocol Input and Output
 
 The input to the Priority protocol is a list of protocols defined in the order of precedence, e.g.:
-```
+
+```json
 [
     "/charon/consensus/hotstuff/1.0.0", // Highest precedence
     "/charon/consensus/abft/2.0.0",
@@ -27,7 +28,8 @@ The input to the Priority protocol is a list of protocols defined in the order o
 ```
 
 The output of the Priority protocol is the common "subset" of all inputs respecting the initial order of precedence, e.g.:
-```
+
+```json
 [
     "/charon/consensus/abft/1.0.0", // This means the quorum of nodes has this protocol in common
     "/charon/consensus/qbft/2.0.0",

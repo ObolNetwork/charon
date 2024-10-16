@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/test-go/testify/mock"
 
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/consensus/protocols"
