@@ -18,12 +18,12 @@ var (
 	}, []string{"duty", "timer"})
 
 	// Using gauge since the value changes slowly, once per slot.
-	decidedLeaderGauge = promauto.NewGauge(prometheus.GaugeOpts{
+	decidedLeaderGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "core",
 		Subsystem: "consensus",
 		Name:      "decided_leader_index",
-		Help:      "Leader node index of the decision round.",
-	})
+		Help:      "Leader node index of the decision round by duty.",
+	}, []string{"duty"})
 
 	consensusDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "core",

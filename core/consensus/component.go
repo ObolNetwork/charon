@@ -465,7 +465,7 @@ func (c *Component) runInstance(ctx context.Context, duty core.Duty) (err error)
 			z.I64("leader_index", leaderIndex),
 			z.Str("leader_name", leaderName))
 
-		decidedLeaderGauge.Set(float64(leaderIndex))
+		decidedLeaderGauge.WithLabelValues(duty.Type.String()).Set(float64(leaderIndex))
 	}
 
 	// Create a new qbft definition for this instance.
