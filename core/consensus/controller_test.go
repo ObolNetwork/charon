@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/libp2p/go-libp2p"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
@@ -19,7 +20,6 @@ import (
 	"github.com/obolnetwork/charon/core/consensus"
 	csmocks "github.com/obolnetwork/charon/core/consensus/mocks"
 	"github.com/obolnetwork/charon/core/consensus/protocols"
-	coremocks "github.com/obolnetwork/charon/core/mocks"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
@@ -55,13 +55,17 @@ func TestConsensusController(t *testing.T) {
 		hosts = append(hosts, h)
 	}
 
-	deadlinerFactory := func(string) core.Deadliner {
-		return coremocks.NewDeadliner(t)
-	}
+	deadlineFunc := func(core.Duty) (time.Time, bool) { return time.Time{}, false }
 	debugger := csmocks.NewDebugger(t)
-	controller, err := consensus.NewConsensusController(hosts[0], new(p2p.Sender), peers, p2pkeys[0], deadlinerFactory, gaterFunc, debugger)
+	ctx := context.Background()
+
+	controller, err := consensus.NewConsensusController(ctx, hosts[0], new(p2p.Sender), peers, p2pkeys[0], deadlineFunc, gaterFunc, debugger)
 	require.NoError(t, err)
 	require.NotNil(t, controller)
+
+	ctx, cancel := context.WithCancel(ctx)
+	controller.Start(ctx)
+	defer cancel()
 
 	t.Run("default and current consensus", func(t *testing.T) {
 		defaultConsensus := controller.DefaultConsensus()

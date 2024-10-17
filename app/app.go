@@ -529,7 +529,9 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	retryer := retry.New(deadlineFunc)
 
 	// Consensus
-	consensusController, err := consensus.NewConsensusController(tcpNode, sender, peers, p2pKey, deadlinerFunc, gaterFunc, consensusDebugger)
+	consensusController, err := consensus.NewConsensusController(
+		ctx, tcpNode, sender, peers, p2pKey,
+		deadlineFunc, gaterFunc, consensusDebugger)
 	if err != nil {
 		return err
 	}

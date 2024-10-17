@@ -23,8 +23,8 @@ type consensusController struct {
 	sender           *p2p.Sender
 	peers            []p2p.Peer
 	p2pKey           *k1.PrivateKey
-	deadlinerFactory DeadlinerFactory
 	gaterFunc        core.DutyGaterFunc
+	deadlineFunc     core.DeadlineFunc
 	debugger         Debugger
 	defaultConsensus core.Consensus
 	wrappedConsensus *consensusWrapper
@@ -36,10 +36,11 @@ type consensusController struct {
 }
 
 // NewConsensusController creates a new consensus controller with the default consensus protocol.
-func NewConsensusController(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey,
-	deadlinerFactory DeadlinerFactory, gaterFunc core.DutyGaterFunc, debugger Debugger,
+func NewConsensusController(ctx context.Context, tcpNode host.Host, sender *p2p.Sender,
+	peers []p2p.Peer, p2pKey *k1.PrivateKey, deadlineFunc core.DeadlineFunc,
+	gaterFunc core.DutyGaterFunc, debugger Debugger,
 ) (core.ConsensusController, error) {
-	qbftDeadliner := deadlinerFactory("consensus.qbft")
+	qbftDeadliner := core.NewDeadliner(ctx, "consensus.qbft", deadlineFunc)
 	defaultConsensus, err := qbft.NewConsensus(tcpNode, sender, peers, p2pKey, qbftDeadliner, gaterFunc, debugger.AddInstance)
 	if err != nil {
 		return nil, err
@@ -50,8 +51,8 @@ func NewConsensusController(tcpNode host.Host, sender *p2p.Sender, peers []p2p.P
 		sender:           sender,
 		peers:            peers,
 		p2pKey:           p2pKey,
-		deadlinerFactory: deadlinerFactory,
 		gaterFunc:        gaterFunc,
+		deadlineFunc:     deadlineFunc,
 		debugger:         debugger,
 		defaultConsensus: defaultConsensus,
 		wrappedConsensus: newConsensusWrapper(defaultConsensus),
@@ -95,11 +96,26 @@ func (f *consensusController) SetCurrentConsensusForProtocol(_ context.Context, 
 		return nil
 	}
 
-	// TODO: When introducing new consensus protocols, add them here.
-	// Create a new deadliner using f.deadlinerFactory.
-	// Cancel the previous protocol context: f.mutable.cancelWrappedCtx to stop it.
-	// Derive cancellable context from the given context and memorize the CancelFunc.
-	// Call Start() to enable the protocol immediately.
+	// TODO: When introducing new consensus protocols, add them here as follow:
+	/*
+		cctx, cancel := context.WithCancel(ctx)
+
+		f.mutable.Lock()
+		defer f.mutable.Unlock()
+
+		if f.mutable.cancelWrappedCtx != nil {
+			// Stopping the previous consensus instance if not the default one.
+			f.mutable.cancelWrappedCtx()
+		}
+
+		xyzDeadliner := core.NewDeadliner(cctx, "consensus.xyz", f.deadlineFunc)
+		xyzConsensus := xyz.NewConsensus(...)
+
+		f.mutable.cancelWrappedCtx = cancel
+		f.wrappedConsensus.SetImpl(xyzConsensus)
+
+		xyzConsensus.Start(cctx)
+	*/
 
 	return errors.New("unsupported protocol id")
 }
