@@ -1,6 +1,6 @@
 // Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package consensus
+package qbft
 
 import (
 	"encoding/hex"
@@ -15,7 +15,7 @@ import (
 
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
-	"github.com/obolnetwork/charon/core/qbft"
+	coreqbft "github.com/obolnetwork/charon/core/qbft"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -43,7 +43,7 @@ func TestSigning(t *testing.T) {
 	privkey, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
 
-	msg := randomMsg(t)
+	msg := newRandomQBFTMsg(t)
 
 	signed, err := signMsg(msg, privkey)
 	require.NoError(t, err)
@@ -78,7 +78,7 @@ func TestNewMsg(t *testing.T) {
 	}
 
 	msg, err := newMsg(&pbv1.QBFTMsg{
-		Type:              int64(qbft.MsgPrePrepare),
+		Type:              int64(coreqbft.MsgPrePrepare),
 		ValueHash:         hash1[:],
 		PreparedValueHash: hash2[:],
 	}, nil, values)
@@ -86,7 +86,7 @@ func TestNewMsg(t *testing.T) {
 
 	require.Equal(t, msg.Value(), hash1)
 	require.Equal(t, msg.PreparedValue(), hash2)
-	require.EqualValues(t, msg.values, values)
+	require.EqualValues(t, msg.Values(), values)
 }
 
 func TestPartialLegacyNewMsg(t *testing.T) {
@@ -95,21 +95,21 @@ func TestPartialLegacyNewMsg(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = newMsg(&pbv1.QBFTMsg{
-		Type: int64(qbft.MsgPrePrepare),
+		Type: int64(coreqbft.MsgPrePrepare),
 	}, []*pbv1.QBFTMsg{
 		{
-			Type:      int64(qbft.MsgPrePrepare),
+			Type:      int64(coreqbft.MsgPrePrepare),
 			ValueHash: hash1[:],
 		},
 	}, make(map[[32]byte]*anypb.Any))
 	require.ErrorContains(t, err, "value hash not found in values")
 }
 
-// randomMsg returns a random qbft message.
-func randomMsg(t *testing.T) *pbv1.QBFTMsg {
+// NewRandomMsgForT returns a random qbft message.
+func newRandomQBFTMsg(t *testing.T) *pbv1.QBFTMsg {
 	t.Helper()
 
-	msgType := 1 + rand.Int63n(int64(qbft.MsgDecided))
+	msgType := 1 + rand.Int63n(int64(coreqbft.MsgDecided))
 	if msgType == 0 {
 		msgType = 1
 	}

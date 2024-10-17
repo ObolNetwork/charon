@@ -8,7 +8,10 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/libp2p/go-libp2p/core/protocol"
 )
+
+//go:generate mockery --name=Consensus --output=mocks --outpkg=mocks --case=underscore
 
 // Scheduler triggers the start of a duty workflow.
 type Scheduler interface {
@@ -65,8 +68,20 @@ type DutyDB interface {
 	AwaitSyncContribution(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 }
 
+// P2PProtocol defines an arbitrary libp2p protocol.
+type P2PProtocol interface {
+	// ProtocolID returns the protocol ID.
+	ProtocolID() protocol.ID
+
+	// Start registers libp2p handler and runs internal routines until the context is cancelled.
+	// The protocol must be unregistered when the context is cancelled.
+	Start(context.Context)
+}
+
 // Consensus comes to consensus on proposed duty data.
 type Consensus interface {
+	P2PProtocol
+
 	// Participate run the duty's consensus instance without a proposed value (if Propose not called yet).
 	Participate(context.Context, Duty) error
 
@@ -75,6 +90,28 @@ type Consensus interface {
 
 	// Subscribe registers a callback for resolved (reached consensus) duty unsigned data set.
 	Subscribe(func(context.Context, Duty, UnsignedDataSet) error)
+}
+
+// ConsensusController manages consensus instances.
+type ConsensusController interface {
+	// Start starts the consensus controller lifecycle.
+	// The function is not thread safe, must be called once.
+	Start(context.Context)
+
+	// DefaultConsensus returns the default consensus instance.
+	// The default consensus must be QBFT v2.0, since it is supported by all charon versions.
+	// It is used for Priority protocol as well as the fallback protocol when no other protocol is selected.
+	// Multiple calls to DefaultConsensus must return the same instance.
+	DefaultConsensus() Consensus
+
+	// CurrentConsensus returns the currently selected consensus instance.
+	// The instance is selected by the Priority protocol and can be changed by SetCurrentConsensusForProtocol().
+	// Before SetCurrentConsensusForProtocol() is called, CurrentConsensus() points to DefaultConsensus().
+	CurrentConsensus() Consensus
+
+	// SetCurrentConsensusForProtocol handles Priority protocol outcome and changes the CurrentConsensus() accordingly.
+	// The function is not thread safe.
+	SetCurrentConsensusForProtocol(context.Context, protocol.ID) error
 }
 
 // ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the DutyDB and stores partial signed data in the ParSigDB.

@@ -16,12 +16,17 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
+//go:generate mockery --name=Deadliner --output=mocks --outpkg=mocks --case=underscore
+
 // lateFactor defines the number of slots duties may be late.
 // See https://pintail.xyz/posts/modelling-the-impact-of-altair/#proposer-and-delay-rewards.
 const lateFactor = 5
 
 // lateMin defines the minimum absolute value of the lateFactor.
 const lateMin = time.Second * 30 //nolint:revive // Min suffix is minimum not minute.
+
+// DeadlineFunc is a function that returns the deadline for a duty.
+type DeadlineFunc func(Duty) (time.Time, bool)
 
 // Deadliner provides duty Deadline functionality. The C method isn’t thread safe and
 // may only be used by a single goroutine. So, multiple instances are required
@@ -53,7 +58,7 @@ type deadliner struct {
 }
 
 // NewDeadlinerForT returns a Deadline for use in tests.
-func NewDeadlinerForT(ctx context.Context, t *testing.T, deadlineFunc func(Duty) (time.Time, bool), clock clockwork.Clock) Deadliner {
+func NewDeadlinerForT(ctx context.Context, t *testing.T, deadlineFunc DeadlineFunc, clock clockwork.Clock) Deadliner {
 	t.Helper()
 
 	return newDeadliner(ctx, "test", deadlineFunc, clock)
@@ -63,12 +68,12 @@ func NewDeadlinerForT(ctx context.Context, t *testing.T, deadlineFunc func(Duty)
 //
 // It also starts a goroutine which is responsible for reading and storing duties,
 // and sending the deadlined duty to receiver's deadlineChan until the context is closed.
-func NewDeadliner(ctx context.Context, label string, deadlineFunc func(Duty) (time.Time, bool)) Deadliner {
+func NewDeadliner(ctx context.Context, label string, deadlineFunc DeadlineFunc) Deadliner {
 	return newDeadliner(ctx, label, deadlineFunc, clockwork.NewRealClock())
 }
 
 // newDeadliner returns a new Deadliner, this is for internal use only.
-func newDeadliner(ctx context.Context, label string, deadlineFunc func(Duty) (time.Time, bool), clock clockwork.Clock) Deadliner {
+func newDeadliner(ctx context.Context, label string, deadlineFunc DeadlineFunc, clock clockwork.Clock) Deadliner {
 	// outputBuffer big enough to support all duty types, which can expire at the same time
 	// while external consumer is synchronously adding duties (so not reading output).
 	const outputBuffer = 10
@@ -86,7 +91,7 @@ func newDeadliner(ctx context.Context, label string, deadlineFunc func(Duty) (ti
 	return d
 }
 
-func (d *deadliner) run(ctx context.Context, deadlineFunc func(Duty) (time.Time, bool)) {
+func (d *deadliner) run(ctx context.Context, deadlineFunc DeadlineFunc) {
 	duties := make(map[Duty]bool)
 	currDuty, currDeadline := getCurrDuty(duties, deadlineFunc)
 	currTimer := d.clock.NewTimer(currDeadline.Sub(d.clock.Now()))
@@ -172,7 +177,7 @@ func (d *deadliner) C() <-chan Duty {
 }
 
 // getCurrDuty gets the duty to process next along-with the duty deadline. It selects duty with the latest deadline.
-func getCurrDuty(duties map[Duty]bool, deadlineFunc func(duty Duty) (time.Time, bool)) (Duty, time.Time) {
+func getCurrDuty(duties map[Duty]bool, deadlineFunc DeadlineFunc) (Duty, time.Time) {
 	var currDuty Duty
 	currDeadline := time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
 
@@ -193,7 +198,7 @@ func getCurrDuty(duties map[Duty]bool, deadlineFunc func(duty Duty) (time.Time, 
 }
 
 // NewDutyDeadlineFunc returns the function that provides duty deadlines or false if the duty never deadlines.
-func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(Duty) (time.Time, bool), error) {
+func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineFunc, error) {
 	genesis, err := eth2Cl.GenesisTime(ctx)
 	if err != nil {
 		return nil, err

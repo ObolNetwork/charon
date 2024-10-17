@@ -1,6 +1,6 @@
 // Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package consensus
+package utils
 
 import (
 	"strings"
@@ -14,64 +14,69 @@ import (
 )
 
 const (
-	incRoundStart    = time.Millisecond * 750
-	incRoundIncrease = time.Millisecond * 250
-	linearRoundInc   = time.Second
+	IncRoundStart    = time.Millisecond * 750
+	IncRoundIncrease = time.Millisecond * 250
+	LinearRoundInc   = time.Second
 )
 
-// timerFunc is a function that returns a round timer.
-type timerFunc func(core.Duty) roundTimer
+// TimerFunc is a function that returns a round timer.
+type TimerFunc func(core.Duty) RoundTimer
 
-// getTimerFunc returns a timer function based on the enabled features.
-func getTimerFunc() timerFunc {
+// GetTimerFunc returns a timer function based on the enabled features.
+func GetTimerFunc() TimerFunc {
 	if featureset.Enabled(featureset.EagerDoubleLinear) {
-		return func(core.Duty) roundTimer {
-			return newDoubleEagerLinearRoundTimer()
+		return func(core.Duty) RoundTimer {
+			return NewDoubleEagerLinearRoundTimer()
 		}
 	}
 
 	// Default to increasing round timer.
-	return func(core.Duty) roundTimer {
-		return newIncreasingRoundTimer()
+	return func(core.Duty) RoundTimer {
+		return NewIncreasingRoundTimer()
 	}
 }
 
-// timerType is the type of round timer.
-type timerType string
+// TimerType is the type of round timer.
+type TimerType string
 
 // Eager returns true if the timer type requires an eager start (before proposal values are present).
-func (t timerType) Eager() bool {
+func (t TimerType) Eager() bool {
 	return strings.Contains(string(t), "eager")
 }
 
 const (
-	timerIncreasing        timerType = "inc"
-	timerEagerDoubleLinear timerType = "eager_dlinear"
+	TimerIncreasing        TimerType = "inc"
+	TimerEagerDoubleLinear TimerType = "eager_dlinear"
 )
 
 // increasingRoundTimeout returns the duration for a round that starts at incRoundStart in round 1
 // and increases by incRoundIncrease for each subsequent round.
 func increasingRoundTimeout(round int64) time.Duration {
-	return incRoundStart + (time.Duration(round) * incRoundIncrease)
+	return IncRoundStart + (time.Duration(round) * IncRoundIncrease)
 }
 
 // increasingRoundTimeout returns linearRoundInc*round duration for a round.
 func linearRoundTimeout(round int64) time.Duration {
-	return time.Duration(round) * linearRoundInc
+	return time.Duration(round) * LinearRoundInc
 }
 
-// roundTimer provides the duration for each QBFT round.
-type roundTimer interface {
+// RoundTimer provides the duration for each consensus round.
+type RoundTimer interface {
 	// Timer returns a channel that will be closed when the round expires and a stop function.
 	Timer(round int64) (<-chan time.Time, func())
 	// Type returns the type of the round timerType.
-	Type() timerType
+	Type() TimerType
 }
 
-// newTimeoutRoundTimer returns a new increasing round timerType.
-func newIncreasingRoundTimer() roundTimer {
+// NewTimeoutRoundTimer returns a new increasing round timer type.
+func NewIncreasingRoundTimer() RoundTimer {
+	return NewIncreasingRoundTimerWithClock(clockwork.NewRealClock())
+}
+
+// NewIncreasingRoundTimerWithClock returns a new increasing round timer type with a custom clock.
+func NewIncreasingRoundTimerWithClock(clock clockwork.Clock) RoundTimer {
 	return &increasingRoundTimer{
-		clock: clockwork.NewRealClock(),
+		clock: clock,
 	}
 }
 
@@ -80,8 +85,8 @@ type increasingRoundTimer struct {
 	clock clockwork.Clock
 }
 
-func (increasingRoundTimer) Type() timerType {
-	return timerIncreasing
+func (increasingRoundTimer) Type() TimerType {
+	return TimerIncreasing
 }
 
 func (t increasingRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
@@ -89,10 +94,15 @@ func (t increasingRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
 	return timer.Chan(), func() { timer.Stop() }
 }
 
-// doubleEagerLinearRoundTimer returns a new eager double linear round timerType.
-func newDoubleEagerLinearRoundTimer() roundTimer {
+// NewDoubleEagerLinearRoundTimer returns a new eager double linear round timer type.
+func NewDoubleEagerLinearRoundTimer() RoundTimer {
+	return NewDoubleEagerLinearRoundTimerWithClock(clockwork.NewRealClock())
+}
+
+// NewDoubleEagerLinearRoundTimerWithClock returns a new eager double linear round timer type with a custom clock.
+func NewDoubleEagerLinearRoundTimerWithClock(clock clockwork.Clock) RoundTimer {
 	return &doubleEagerLinearRoundTimer{
-		clock:          clockwork.NewRealClock(),
+		clock:          clock,
 		firstDeadlines: make(map[int64]time.Time),
 	}
 }
@@ -118,8 +128,8 @@ type doubleEagerLinearRoundTimer struct {
 	firstDeadlines map[int64]time.Time
 }
 
-func (*doubleEagerLinearRoundTimer) Type() timerType {
-	return timerEagerDoubleLinear
+func (*doubleEagerLinearRoundTimer) Type() TimerType {
+	return TimerEagerDoubleLinear
 }
 
 func (t *doubleEagerLinearRoundTimer) Timer(round int64) (<-chan time.Time, func()) {

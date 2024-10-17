@@ -16,6 +16,7 @@ message Cluster {
   bytes            fork_version = 6; // ForkVersion is the fork version (network/chain) of the cluster. It must be 4 bytes.
   repeated Operator   operators = 7; // Operators is the list of operators of the cluster.
   repeated Validator validators = 8; // Validators is the list of validators of the cluster.
+  string     consensus_protocol = 9; // ConsensusProtocol is the consensus protocol name preferred by the cluster, e.g. "abft".
 }
 
 // Mutation mutates the cluster manifest.
