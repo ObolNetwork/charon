@@ -123,13 +123,14 @@ func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 
 		deadliner := coremocks.NewDeadliner(t)
 		deadliner.On("Add", mock.Anything).Return(true)
+		deadliner.On("C").Return(nil)
 		c, err := qbft.NewConsensus(hosts[i], new(p2p.Sender), peers, p2pkeys[i], deadliner, gaterFunc, sniffer)
 		require.NoError(t, err)
 		c.Subscribe(func(_ context.Context, _ core.Duty, set core.UnsignedDataSet) error {
 			results <- set
 			return nil
 		})
-		c.RegisterHandler()
+		c.Start(context.TODO())
 
 		components = append(components, c)
 	}

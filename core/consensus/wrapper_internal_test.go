@@ -25,7 +25,7 @@ func TestNewConsensusWrapper(t *testing.T) {
 	impl.On("Participate", ctx, randaoDuty).Return(nil)
 	impl.On("Propose", ctx, randaoDuty, dataSet).Return(nil)
 	impl.On("Subscribe", mock.Anything).Return()
-	impl.On("HandleExpiredDuty", randaoDuty).Return()
+	impl.On("Start", mock.Anything).Return()
 
 	wrapped := newConsensusWrapper(impl)
 	require.NotNil(t, wrapped)
@@ -42,7 +42,7 @@ func TestNewConsensusWrapper(t *testing.T) {
 		return nil
 	})
 
-	wrapped.HandleExpiredDuty(randaoDuty)
+	wrapped.Start(ctx)
 
 	impl2 := mocks.NewConsensus(t)
 	impl2.On("ProtocolID").Return(protocol.ID("foobar"))

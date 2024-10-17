@@ -4,6 +4,7 @@ package consensus
 
 import (
 	"context"
+	"sync"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -15,56 +16,59 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
+type DeadlinerFactory func(name string) core.Deadliner
+
 type consensusController struct {
-	tcpNode            host.Host
-	sender             *p2p.Sender
-	peers              []p2p.Peer
-	p2pKey             *k1.PrivateKey
-	consensusDeadliner core.Deadliner
-	gaterFunc          core.DutyGaterFunc
-	debugger           Debugger
-	defaultConsensus   core.Consensus
-	wrappedConsensus   *consensusWrapper
+	tcpNode          host.Host
+	sender           *p2p.Sender
+	peers            []p2p.Peer
+	p2pKey           *k1.PrivateKey
+	deadlinerFactory DeadlinerFactory
+	gaterFunc        core.DutyGaterFunc
+	debugger         Debugger
+	defaultConsensus core.Consensus
+	wrappedConsensus *consensusWrapper
+
+	mutable struct {
+		sync.Mutex
+		cancelWrappedCtx context.CancelFunc
+	}
 }
 
 // NewConsensusController creates a new consensus controller with the default consensus protocol.
 func NewConsensusController(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey,
-	consensusDeadliner core.Deadliner, gaterFunc core.DutyGaterFunc, debugger Debugger,
+	deadlinerFactory DeadlinerFactory, gaterFunc core.DutyGaterFunc, debugger Debugger,
 ) (core.ConsensusController, error) {
-	defaultConsensus, err := qbft.NewConsensus(tcpNode, sender, peers, p2pKey, consensusDeadliner, gaterFunc, debugger.AddInstance)
+	qbftDeadliner := deadlinerFactory("consensus.qbft")
+	defaultConsensus, err := qbft.NewConsensus(tcpNode, sender, peers, p2pKey, qbftDeadliner, gaterFunc, debugger.AddInstance)
 	if err != nil {
 		return nil, err
 	}
 
 	return &consensusController{
-		tcpNode:            tcpNode,
-		sender:             sender,
-		peers:              peers,
-		p2pKey:             p2pKey,
-		consensusDeadliner: consensusDeadliner,
-		gaterFunc:          gaterFunc,
-		debugger:           debugger,
-		defaultConsensus:   defaultConsensus,
-		wrappedConsensus:   newConsensusWrapper(defaultConsensus),
+		tcpNode:          tcpNode,
+		sender:           sender,
+		peers:            peers,
+		p2pKey:           p2pKey,
+		deadlinerFactory: deadlinerFactory,
+		gaterFunc:        gaterFunc,
+		debugger:         debugger,
+		defaultConsensus: defaultConsensus,
+		wrappedConsensus: newConsensusWrapper(defaultConsensus),
 	}, nil
 }
 
-// Start starts the internal routines. The controller stops when the context is cancelled.
 func (f *consensusController) Start(ctx context.Context) {
-	// The default protocol remains registered all the time.
-	f.defaultConsensus.RegisterHandler()
+	f.defaultConsensus.Start(ctx)
 
 	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case duty := <-f.consensusDeadliner.C():
-				f.defaultConsensus.HandleExpiredDuty(duty)
-				if f.wrappedConsensus.ProtocolID() != f.defaultConsensus.ProtocolID() {
-					f.wrappedConsensus.HandleExpiredDuty(duty)
-				}
-			}
+		<-ctx.Done()
+
+		f.mutable.Lock()
+		defer f.mutable.Unlock()
+
+		if f.mutable.cancelWrappedCtx != nil {
+			f.mutable.cancelWrappedCtx()
 		}
 	}()
 }
@@ -80,7 +84,7 @@ func (f *consensusController) CurrentConsensus() core.Consensus {
 }
 
 // SetCurrentConsensusForProtocol sets the current consensus instance for the given protocol id.
-func (f *consensusController) SetCurrentConsensusForProtocol(protocol protocol.ID) error {
+func (f *consensusController) SetCurrentConsensusForProtocol(_ context.Context, protocol protocol.ID) error {
 	if f.wrappedConsensus.ProtocolID() == protocol {
 		return nil
 	}
@@ -91,7 +95,11 @@ func (f *consensusController) SetCurrentConsensusForProtocol(protocol protocol.I
 		return nil
 	}
 
-	// TODO: Call RegisterHandler()/UnregisterHandler() when switching.
+	// TODO: When introducing new consensus protocols, add them here.
+	// Create a new deadliner using f.deadlinerFactory.
+	// Cancel the previous protocol context: f.mutable.cancelWrappedCtx to stop it.
+	// Derive cancellable context from the given context and memorize the CancelFunc.
+	// Call Start() to enable the protocol immediately.
 
 	return errors.New("unsupported protocol id")
 }

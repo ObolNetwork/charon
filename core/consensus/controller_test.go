@@ -3,6 +3,7 @@
 package consensus_test
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"testing"
@@ -54,9 +55,11 @@ func TestConsensusController(t *testing.T) {
 		hosts = append(hosts, h)
 	}
 
-	deadliner := coremocks.NewDeadliner(t)
+	deadlinerFactory := func(string) core.Deadliner {
+		return coremocks.NewDeadliner(t)
+	}
 	debugger := csmocks.NewDebugger(t)
-	controller, err := consensus.NewConsensusController(hosts[0], new(p2p.Sender), peers, p2pkeys[0], deadliner, gaterFunc, debugger)
+	controller, err := consensus.NewConsensusController(hosts[0], new(p2p.Sender), peers, p2pkeys[0], deadlinerFactory, gaterFunc, debugger)
 	require.NoError(t, err)
 	require.NotNil(t, controller)
 
@@ -68,7 +71,7 @@ func TestConsensusController(t *testing.T) {
 	})
 
 	t.Run("unsupported protocol id", func(t *testing.T) {
-		err := controller.SetCurrentConsensusForProtocol("boo")
+		err := controller.SetCurrentConsensusForProtocol(context.TODO(), "boo")
 		require.ErrorContains(t, err, "unsupported protocol id")
 	})
 }

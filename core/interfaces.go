@@ -68,10 +68,19 @@ type DutyDB interface {
 	AwaitSyncContribution(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 }
 
+// P2PProtocol defines an arbitrary libp2p protocol.
+type P2PProtocol interface {
+	// ProtocolID returns the protocol ID.
+	ProtocolID() protocol.ID
+
+	// Start registers libp2p handler and runs internal routines until the context is cancelled.
+	// The protocol must be unregistered when the context is cancelled.
+	Start(context.Context)
+}
+
 // Consensus comes to consensus on proposed duty data.
 type Consensus interface {
-	// ProtocolID returns the protocol ID of the consensus instance.
-	ProtocolID() protocol.ID
+	P2PProtocol
 
 	// Participate run the duty's consensus instance without a proposed value (if Propose not called yet).
 	Participate(context.Context, Duty) error
@@ -81,21 +90,13 @@ type Consensus interface {
 
 	// Subscribe registers a callback for resolved (reached consensus) duty unsigned data set.
 	Subscribe(func(context.Context, Duty, UnsignedDataSet) error)
-
-	// HandleExpiredDuty handles the expired duty event.
-	HandleExpiredDuty(Duty)
-
-	// RegisterHandler registers libp2p handler for the consensus instance.
-	RegisterHandler()
-
-	// UnregisterHandler unregisters libp2p handler for the consensus instance.
-	UnregisterHandler()
 }
 
 // ConsensusController manages consensus instances.
 type ConsensusController interface {
-	// Start starts the internal routines. The controller stops when the context is cancelled.
-	Start(ctx context.Context)
+	// Start starts the consensus controller lifecycle.
+	// The function is not thread safe, must be called once.
+	Start(context.Context)
 
 	// DefaultConsensus returns the default consensus instance.
 	// The default consensus must be QBFT v2.0, since it is supported by all charon versions.
@@ -109,7 +110,8 @@ type ConsensusController interface {
 	CurrentConsensus() Consensus
 
 	// SetCurrentConsensusForProtocol handles Priority protocol outcome and changes the CurrentConsensus() accordingly.
-	SetCurrentConsensusForProtocol(protocol protocol.ID) error
+	// The function is not thread safe.
+	SetCurrentConsensusForProtocol(context.Context, protocol.ID) error
 }
 
 // ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the DutyDB and stores partial signed data in the ParSigDB.

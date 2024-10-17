@@ -18,11 +18,6 @@ type Consensus struct {
 	mock.Mock
 }
 
-// HandleExpiredDuty provides a mock function with given fields: _a0
-func (_m *Consensus) HandleExpiredDuty(_a0 core.Duty) {
-	_m.Called(_a0)
-}
-
 // Participate provides a mock function with given fields: _a0, _a1
 func (_m *Consensus) Participate(_a0 context.Context, _a1 core.Duty) error {
 	ret := _m.Called(_a0, _a1)
@@ -77,19 +72,14 @@ func (_m *Consensus) ProtocolID() protocol.ID {
 	return r0
 }
 
-// RegisterHandler provides a mock function with given fields:
-func (_m *Consensus) RegisterHandler() {
-	_m.Called()
+// Start provides a mock function with given fields: _a0
+func (_m *Consensus) Start(_a0 context.Context) {
+	_m.Called(_a0)
 }
 
 // Subscribe provides a mock function with given fields: _a0
 func (_m *Consensus) Subscribe(_a0 func(context.Context, core.Duty, core.UnsignedDataSet) error) {
 	_m.Called(_a0)
-}
-
-// UnregisterHandler provides a mock function with given fields:
-func (_m *Consensus) UnregisterHandler() {
-	_m.Called()
 }
 
 // NewConsensus creates a new instance of Consensus. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

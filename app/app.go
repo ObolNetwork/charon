@@ -529,8 +529,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	retryer := retry.New(deadlineFunc)
 
 	// Consensus
-	consensusDeadliner := deadlinerFunc("consensus")
-	consensusController, err := consensus.NewConsensusController(tcpNode, sender, peers, p2pKey, consensusDeadliner, gaterFunc, consensusDebugger)
+	consensusController, err := consensus.NewConsensusController(tcpNode, sender, peers, p2pKey, deadlinerFunc, gaterFunc, consensusDebugger)
 	if err != nil {
 		return err
 	}
@@ -651,8 +650,9 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 			if t.Topic == infosync.TopicProtocol {
 				allProtocols := t.PrioritiesOnly()
 				preferredConsensusProtocol := protocols.MostPreferredConsensusProtocol(allProtocols)
+				preferredConsensusProtocolID := protocol.ID(preferredConsensusProtocol)
 
-				if err := consensusController.SetCurrentConsensusForProtocol(protocol.ID(preferredConsensusProtocol)); err != nil {
+				if err := consensusController.SetCurrentConsensusForProtocol(ctx, preferredConsensusProtocolID); err != nil {
 					log.Error(ctx, "Failed to set current consensus protocol", err, z.Str("protocol", preferredConsensusProtocol))
 				} else {
 					log.Info(ctx, "Current consensus protocol changed", z.Str("protocol", preferredConsensusProtocol))

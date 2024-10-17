@@ -221,21 +221,23 @@ func (c *Consensus) SubscribePriority(fn func(ctx context.Context, duty core.Dut
 	})
 }
 
-// RegisterHandler registers libp2p handler for the consensus instance.
-func (c *Consensus) RegisterHandler() {
+// Start registers libp2p handler and runs internal routines until the context is cancelled.
+func (c *Consensus) Start(ctx context.Context) {
 	p2p.RegisterHandler("qbft", c.tcpNode, protocols.QBFTv2ProtocolID,
 		func() proto.Message { return new(pbv1.QBFTConsensusMsg) },
 		c.handle)
-}
 
-// UnregisterHandler unregisters libp2p handler for the consensus instance.
-func (*Consensus) UnregisterHandler() {
-	// Never called, since this protocol is always enabled.
-}
-
-// HandleExpiredDuty removes the consensus instance for the expired duty.
-func (c *Consensus) HandleExpiredDuty(duty core.Duty) {
-	c.deleteInstanceIO(duty)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				// No need to unregister QBFT handler.
+				return
+			case duty := <-c.deadliner.C():
+				c.deleteInstanceIO(duty)
+			}
+		}
+	}()
 }
 
 // Propose enqueues the proposed value to a consensus instance input channels.
