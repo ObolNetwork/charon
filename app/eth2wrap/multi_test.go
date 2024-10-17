@@ -60,7 +60,7 @@ func TestMulti_NodePeerCount(t *testing.T) {
 	client.On("Address").Return("test").Once()
 	client.On("NodePeerCount", mock.Anything).Return(5, nil).Once()
 
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client})
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, eth2wrap.NewFallbackClient(0, [4]byte{}, nil))
 
 	c, err := m.NodePeerCount(context.Background())
 	require.NoError(t, err)
@@ -80,7 +80,7 @@ func TestMulti_BlockAttestations(t *testing.T) {
 	client.On("Address").Return("test").Once()
 	client.On("BlockAttestations", mock.Anything, "state").Return(atts, nil).Once()
 
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client})
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, eth2wrap.NewFallbackClient(0, [4]byte{}, nil))
 
 	atts2, err := m.BlockAttestations(ctx, "state")
 	require.NoError(t, err)
@@ -101,7 +101,7 @@ func TestMulti_AggregateSyncCommitteeSelections(t *testing.T) {
 	client.On("Address").Return("test").Once()
 	client.On("AggregateSyncCommitteeSelections", mock.Anything, partsel).Return(selections, nil).Once()
 
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client})
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, eth2wrap.NewFallbackClient(0, [4]byte{}, nil))
 
 	selections2, err := m.AggregateSyncCommitteeSelections(ctx, partsel)
 	require.NoError(t, err)
@@ -122,7 +122,7 @@ func TestMulti_AggregateBeaconCommitteeSelections(t *testing.T) {
 	client.On("Address").Return("test").Once()
 	client.On("AggregateBeaconCommitteeSelections", mock.Anything, partsel).Return(selections, nil).Once()
 
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client})
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, eth2wrap.NewFallbackClient(0, [4]byte{}, nil))
 
 	selections2, err := m.AggregateBeaconCommitteeSelections(ctx, partsel)
 	require.NoError(t, err)
@@ -142,7 +142,7 @@ func TestMulti_ProposerConfig(t *testing.T) {
 	client.On("Address").Return("test").Once()
 	client.On("ProposerConfig", mock.Anything).Return(resp, nil).Once()
 
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client})
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, eth2wrap.NewFallbackClient(0, [4]byte{}, nil))
 
 	resp2, err := m.ProposerConfig(ctx)
 	require.NoError(t, err)
