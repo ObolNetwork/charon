@@ -436,7 +436,7 @@ func TestComponent_SubmitProposalsWithWrongVCData(t *testing.T) {
 	require.NoError(t, err)
 
 	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, nil)
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, testutil.BuilderFalse, nil)
 	require.NoError(t, err)
 
 	t.Run("full block fails", func(t *testing.T) {
