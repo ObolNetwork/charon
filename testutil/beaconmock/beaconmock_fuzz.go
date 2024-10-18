@@ -8,6 +8,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	fuzz "github.com/google/gofuzz"
@@ -175,8 +176,8 @@ func WithBeaconMockFuzzer() Option {
 			return contribution, nil
 		}
 
-		mock.BlockAttestationsFunc = func(context.Context, string) ([]*eth2p0.Attestation, error) {
-			var atts []*eth2p0.Attestation
+		mock.BlockAttestationsFunc = func(context.Context, string) ([]*eth2spec.VersionedAttestation, error) {
+			var atts []*eth2spec.VersionedAttestation
 			fuzz.New().Fuzz(&atts)
 
 			return atts, nil

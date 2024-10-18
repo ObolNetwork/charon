@@ -441,7 +441,7 @@ func TestTrackerParticipation(t *testing.T) {
 					continue
 				}
 
-				set[pk] = core.NewPartialAttestation(testutil.RandomAttestation(), p.ShareIdx())
+				set[pk] = core.NewPartialAttestation(testutil.RandomVersionedDenebAttestation(), p.ShareIdx())
 			}
 
 			data = append(data, set)
@@ -698,7 +698,7 @@ func setupData(t *testing.T, slots []int, numVals int) ([]testDutyData, []core.P
 			})
 
 			unsignedset[pubkeysByIdx[eth2p0.ValidatorIndex(i)]] = testutil.RandomCoreAttestationData(t)
-			parsignedset[pubkeysByIdx[eth2p0.ValidatorIndex(i)]] = core.NewPartialAttestation(testutil.RandomAttestation(), 1)
+			parsignedset[pubkeysByIdx[eth2p0.ValidatorIndex(i)]] = core.NewPartialAttestation(testutil.RandomVersionedDenebAttestation(), 1)
 		}
 
 		data = append(data, testDutyData{

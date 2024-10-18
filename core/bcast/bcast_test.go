@@ -98,13 +98,13 @@ func TestBroadcastOtherDuties(t *testing.T) {
 func attData(t *testing.T, mock *beaconmock.Mock) test {
 	t.Helper()
 
-	aggData := core.Attestation{Attestation: *testutil.RandomAttestation()}
+	aggData := core.VersionedAttestation{VersionedAttestation: *testutil.RandomVersionedDenebAttestation()}
 	asserted := make(chan struct{})
 
 	var submitted int
-	mock.SubmitAttestationsFunc = func(ctx context.Context, attestations []*eth2p0.Attestation) error {
+	mock.SubmitAttestationsFunc = func(ctx context.Context, attestations []*eth2spec.VersionedAttestation) error {
 		require.Len(t, attestations, 1)
-		require.Equal(t, aggData.Attestation, *attestations[0])
+		require.Equal(t, aggData.Deneb, *attestations[0])
 
 		submitted++
 		if submitted == 1 {

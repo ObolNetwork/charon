@@ -155,12 +155,14 @@ func TestParSigExVerifier(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Verify attestation", func(t *testing.T) {
-		att := testutil.RandomAttestation()
-		sigRoot, err := att.Data.HashTreeRoot()
+		att := testutil.RandomVersionedDenebAttestation()
+		attData, err := att.Data()
 		require.NoError(t, err)
-		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainBeaconAttester, att.Data.Target.Epoch, sigRoot)
+		sigRoot, err := attData.HashTreeRoot()
 		require.NoError(t, err)
-		att.Signature = sign(sigData[:])
+		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainBeaconAttester, attData.Target.Epoch, sigRoot)
+		require.NoError(t, err)
+		att.Deneb.Signature = sign(sigData[:])
 		data := core.NewPartialAttestation(att, shareIdx)
 		require.NoError(t, verifyFunc(ctx, core.NewAttesterDuty(slot), pubkey, data))
 	})

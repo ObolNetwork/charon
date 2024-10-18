@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/attestantio/go-eth2-client/spec"
 
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
@@ -192,7 +192,7 @@ func (l *lazy) AggregateSyncCommitteeSelections(ctx context.Context, partialSele
 	return cl.AggregateSyncCommitteeSelections(ctx, partialSelections)
 }
 
-func (l *lazy) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
+func (l *lazy) BlockAttestations(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return nil, err

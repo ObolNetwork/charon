@@ -453,12 +453,13 @@ func attestationData(p eth2client.AttestationDataProvider) handlerFunc {
 // submitAttestations returns a handler function for the attestation submitter endpoint.
 func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
-		var atts []*eth2p0.Attestation
+		var atts []*eth2spec.VersionedAttestation
 		err := unmarshal(typ, body, &atts)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unmarshal attestations")
 		}
 
+		// TODO(kalo): go-eth2-client is using phase0 attestations here
 		return nil, nil, p.SubmitAttestations(ctx, atts)
 	}
 }

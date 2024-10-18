@@ -18,6 +18,7 @@ import (
 	"github.com/attestantio/go-eth2-client/api"
 	apiv1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2http "github.com/attestantio/go-eth2-client/http"
+	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -30,7 +31,7 @@ import (
 // It is a standard beacon API endpoint not implemented by eth2client.
 // See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockAttestations.
 type BlockAttestationsProvider interface {
-	BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error)
+	BlockAttestations(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error)
 }
 
 // NodePeerCountProvider is the interface for providing node peer count.
@@ -177,7 +178,7 @@ func (h *httpAdapter) AggregateSyncCommitteeSelections(ctx context.Context, sele
 
 // BlockAttestations returns the attestations included in the requested block.
 // See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockAttestations.
-func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
+func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error) {
 	path := fmt.Sprintf("/eth/v1/beacon/blocks/%s/attestations", stateID)
 	respBody, statusCode, err := httpGet(ctx, h.address, path, h.timeout)
 	if err != nil {
@@ -257,7 +258,7 @@ type submitSyncCommitteeSelectionsJSON struct {
 }
 
 type attestationsJSON struct {
-	Data []*eth2p0.Attestation `json:"data"`
+	Data []*spec.VersionedAttestation `json:"data"`
 }
 
 type peerCountJSON struct {

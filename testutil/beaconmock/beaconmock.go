@@ -126,12 +126,12 @@ type Mock struct {
 	CachedValidatorsFunc                   func(ctx context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error)
 	AttestationDataFunc                    func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
 	AttesterDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
-	BlockAttestationsFunc                  func(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error)
+	BlockAttestationsFunc                  func(ctx context.Context, stateID string) ([]*eth2spec.VersionedAttestation, error)
 	NodePeerCountFunc                      func(ctx context.Context) (int, error)
 	ProposalFunc                           func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error)
 	SignedBeaconBlockFunc                  func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error)
 	ProposerDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
-	SubmitAttestationsFunc                 func(context.Context, []*eth2p0.Attestation) error
+	SubmitAttestationsFunc                 func(context.Context, []*eth2spec.VersionedAttestation) error
 	SubmitProposalFunc                     func(context.Context, *eth2api.SubmitProposalOpts) error
 	SubmitBlindedProposalFunc              func(context.Context, *eth2api.SubmitBlindedProposalOpts) error
 	SubmitVoluntaryExitFunc                func(context.Context, *eth2p0.SignedVoluntaryExit) error
@@ -277,7 +277,7 @@ func (m Mock) CompleteValidators(ctx context.Context) (eth2wrap.CompleteValidato
 	return complete, err
 }
 
-func (m Mock) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
+func (m Mock) BlockAttestations(ctx context.Context, stateID string) ([]*eth2spec.VersionedAttestation, error) {
 	return m.BlockAttestationsFunc(ctx, stateID)
 }
 
@@ -285,7 +285,7 @@ func (m Mock) NodePeerCount(ctx context.Context) (int, error) {
 	return m.NodePeerCountFunc(ctx)
 }
 
-func (m Mock) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {
+func (m Mock) SubmitAttestations(ctx context.Context, attestations []*eth2spec.VersionedAttestation) error {
 	return m.SubmitAttestationsFunc(ctx, attestations)
 }
 

@@ -274,7 +274,7 @@ func (m multi) AttestationData(ctx context.Context, opts *api.AttestationDataOpt
 }
 
 // SubmitAttestations submits attestations.
-func (m multi) SubmitAttestations(ctx context.Context, attestations []*phase0.Attestation) error {
+func (m multi) SubmitAttestations(ctx context.Context, attestations []*spec.VersionedAttestation) error {
 	const label = "submit_attestations"
 	defer latency(ctx, label, false)()
 
@@ -1262,12 +1262,13 @@ func (l *lazy) AttestationData(ctx context.Context, opts *api.AttestationDataOpt
 }
 
 // SubmitAttestations submits attestations.
-func (l *lazy) SubmitAttestations(ctx context.Context, attestations []*phase0.Attestation) (err error) {
+func (l *lazy) SubmitAttestations(ctx context.Context, attestations []*spec.VersionedAttestation) (err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return err
 	}
 
+	//TODO(kalo): go-eth2-client is using phase0 attestations here
 	return cl.SubmitAttestations(ctx, attestations)
 }
 
