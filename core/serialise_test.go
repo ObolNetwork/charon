@@ -22,7 +22,7 @@ var coreTypeFuncs = []func() any{
 
 		return ret
 	},
-	func() any { return new(core.Attestation) },
+	func() any { return new(core.VersionedAttestation) },
 	func() any { return new(core.Signature) },
 	func() any { return new(core.SignedVoluntaryExit) },
 	func() any { return new(core.SignedRandao) },

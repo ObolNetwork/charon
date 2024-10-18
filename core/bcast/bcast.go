@@ -10,6 +10,7 @@ import (
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
@@ -54,6 +55,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 			return err
 		}
 
+		// TODO(kalo): go-eth2-client is using phase0 attestations here
 		err = b.eth2Cl.SubmitAttestations(ctx, atts)
 		if err != nil && strings.Contains(err.Error(), "PriorAttestationKnown") {
 			// Lighthouse isn't idempotent, so just swallow this non-issue.
@@ -282,14 +284,14 @@ func setToOne(set core.SignedDataSet) (core.PubKey, core.SignedData, error) {
 }
 
 // setToAttestations converts a set of signed data into a list of attestations.
-func setToAttestations(set core.SignedDataSet) ([]*eth2p0.Attestation, error) {
-	var resp []*eth2p0.Attestation
+func setToAttestations(set core.SignedDataSet) ([]*eth2spec.VersionedAttestation, error) {
+	var resp []*eth2spec.VersionedAttestation
 	for _, att := range set {
-		att, ok := att.(core.Attestation)
+		att, ok := att.(core.VersionedAttestation)
 		if !ok {
 			return nil, errors.New("invalid attestation")
 		}
-		resp = append(resp, &att.Attestation)
+		resp = append(resp, &att.VersionedAttestation)
 	}
 
 	return resp, nil

@@ -62,7 +62,7 @@ func TestSSZ(t *testing.T) {
 		zero func() any
 	}{
 		{zero: func() any { return new(core.VersionedSignedProposal) }},
-		{zero: func() any { return new(core.Attestation) }},
+		{zero: func() any { return new(core.VersionedAttestation) }},
 		{zero: func() any { return new(core.SignedAggregateAndProof) }},
 		{zero: func() any { return new(core.SignedSyncMessage) }},
 		{zero: func() any { return new(core.SyncContributionAndProof) }},
@@ -178,7 +178,7 @@ func TestMarshalParSignedProto(t *testing.T) {
 	}{
 		{
 			dutyType:  core.DutyAttester,
-			signedPtr: func() any { return new(core.Attestation) },
+			signedPtr: func() any { return new(core.VersionedAttestation) },
 		},
 		{
 			dutyType:  core.DutyAggregator,

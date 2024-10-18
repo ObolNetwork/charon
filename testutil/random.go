@@ -125,6 +125,13 @@ func RandomAttestation() *eth2p0.Attestation {
 	}
 }
 
+func RandomVersionedDenebAttestation() *eth2spec.VersionedAttestation {
+	return &eth2spec.VersionedAttestation{
+		Version: eth2spec.DataVersionDeneb,
+		Deneb:   RandomAttestation(),
+	}
+}
+
 func RandomAggregateAttestation() *eth2p0.Attestation {
 	return &eth2p0.Attestation{
 		AggregationBits: RandomBitList(64),

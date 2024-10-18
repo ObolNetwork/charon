@@ -7,6 +7,7 @@ import (
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
@@ -15,7 +16,7 @@ import (
 
 var (
 	_ Eth2SignedData = VersionedSignedProposal{}
-	_ Eth2SignedData = Attestation{}
+	_ Eth2SignedData = VersionedAttestation{}
 	_ Eth2SignedData = SignedVoluntaryExit{}
 	_ Eth2SignedData = VersionedSignedValidatorRegistration{}
 	_ Eth2SignedData = SignedRandao{}
@@ -58,12 +59,17 @@ func (p VersionedSignedProposal) Epoch(ctx context.Context, eth2Cl eth2wrap.Clie
 
 // Implement Eth2SignedData for Attestation.
 
-func (Attestation) DomainName() signing.DomainName {
+func (VersionedAttestation) DomainName() signing.DomainName {
 	return signing.DomainBeaconAttester
 }
 
-func (a Attestation) Epoch(_ context.Context, _ eth2wrap.Client) (eth2p0.Epoch, error) {
-	return a.Attestation.Data.Target.Epoch, nil
+func (a VersionedAttestation) Epoch(_ context.Context, _ eth2wrap.Client) (eth2p0.Epoch, error) {
+	data, err := a.Data()
+	if err != nil {
+		return 0, errors.Wrap(err, "get attestation data")
+	}
+
+	return data.Target.Epoch, nil
 }
 
 // Implement Eth2SignedData for SignedVoluntaryExit.

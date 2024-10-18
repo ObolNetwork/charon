@@ -129,7 +129,7 @@ func TestMemDBThreshold(t *testing.T) {
 	})
 
 	pubkey := testutil.RandomCorePubKey(t)
-	att := testutil.RandomAttestation()
+	att := testutil.RandomVersionedDenebAttestation()
 
 	enqueueN := func() {
 		for i := range n {

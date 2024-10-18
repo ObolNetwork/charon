@@ -271,8 +271,12 @@ func (c Component) AttestationData(parent context.Context, opts *eth2api.Attesta
 }
 
 // SubmitAttestations implements the eth2client.AttestationsSubmitter for the router.
-func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {
-	duty := core.NewAttesterDuty(uint64(attestations[0].Data.Slot))
+func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2spec.VersionedAttestation) error {
+	att0Data, err := attestations[0].Data()
+	if err != nil {
+		return errors.Wrap(err, "get attestation data")
+	}
+	duty := core.NewAttesterDuty(uint64(att0Data.Slot))
 	if len(attestations) > 0 {
 		// Pick the first attestation slot to use as trace root.
 		var span trace.Span
@@ -282,19 +286,27 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 
 	setsBySlot := make(map[uint64]core.ParSignedDataSet)
 	for _, att := range attestations {
-		slot := uint64(att.Data.Slot)
+		attData, err := att.Data()
+		if err != nil {
+			return errors.Wrap(err, "get attestation data")
+		}
+		slot := uint64(attData.Slot)
 
 		// Determine the validator that sent this by mapping values from original AttestationDuty via the dutyDB
-		indices := att.AggregationBits.BitIndices()
+		attAggregationBits, err := att.AggregationBits()
+		if err != nil {
+			return errors.Wrap(err, "get attestation aggregation bits")
+		}
+		indices := attAggregationBits.BitIndices()
 		if len(indices) != 1 {
 			return errors.New("unexpected number of aggregation bits",
-				z.Str("aggbits", fmt.Sprintf("%#x", []byte(att.AggregationBits))))
+				z.Str("aggbits", fmt.Sprintf("%#x", []byte(attAggregationBits))))
 		}
 
-		pubkey, err := c.pubKeyByAttFunc(ctx, slot, uint64(att.Data.Index), uint64(indices[0]))
+		pubkey, err := c.pubKeyByAttFunc(ctx, slot, uint64(attData.Index), uint64(indices[0]))
 		if err != nil {
 			return errors.Wrap(err, "failed to find pubkey", z.U64("slot", slot),
-				z.Int("commIdx", int(att.Data.Index)), z.Int("valCommIdx", indices[0]))
+				z.Int("commIdx", int(attData.Index)), z.Int("valCommIdx", indices[0]))
 		}
 
 		parSigData := core.NewPartialAttestation(att, c.shareIdx)
@@ -480,7 +492,7 @@ func propDataMatchesDuty(opts *eth2api.SubmitProposalOpts, prop *eth2api.Version
 		case true:
 			return checkHashes(prop.DenebBlinded, opts.Proposal.DenebBlinded.Message)
 		}
-	case eth2spec.DataVersionUnknown:
+	default:
 		return errors.New("unexpected block version", z.Str("version", prop.Version.String()))
 	}
 

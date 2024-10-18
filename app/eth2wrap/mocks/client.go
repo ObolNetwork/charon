@@ -259,23 +259,23 @@ func (_m *Client) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRoot
 }
 
 // BlockAttestations provides a mock function with given fields: ctx, stateID
-func (_m *Client) BlockAttestations(ctx context.Context, stateID string) ([]*phase0.Attestation, error) {
+func (_m *Client) BlockAttestations(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error) {
 	ret := _m.Called(ctx, stateID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for BlockAttestations")
 	}
 
-	var r0 []*phase0.Attestation
+	var r0 []*spec.VersionedAttestation
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) ([]*phase0.Attestation, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]*spec.VersionedAttestation, error)); ok {
 		return rf(ctx, stateID)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) []*phase0.Attestation); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) []*spec.VersionedAttestation); ok {
 		r0 = rf(ctx, stateID)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*phase0.Attestation)
+			r0 = ret.Get(0).([]*spec.VersionedAttestation)
 		}
 	}
 
@@ -903,7 +903,7 @@ func (_m *Client) SubmitAggregateAttestations(ctx context.Context, aggregateAndP
 }
 
 // SubmitAttestations provides a mock function with given fields: ctx, attestations
-func (_m *Client) SubmitAttestations(ctx context.Context, attestations []*phase0.Attestation) error {
+func (_m *Client) SubmitAttestations(ctx context.Context, attestations []*spec.VersionedAttestation) error {
 	ret := _m.Called(ctx, attestations)
 
 	if len(ret) == 0 {
@@ -911,7 +911,7 @@ func (_m *Client) SubmitAttestations(ctx context.Context, attestations []*phase0
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, []*phase0.Attestation) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, []*spec.VersionedAttestation) error); ok {
 		r0 = rf(ctx, attestations)
 	} else {
 		r0 = ret.Error(0)
