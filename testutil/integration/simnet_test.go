@@ -196,7 +196,9 @@ func newSimnetArgs(t *testing.T) simnetArgs {
 	)
 	seed := 99
 	random := rand.New(rand.NewSource(int64(seed)))
-	lock, p2pKeys, secretShares := cluster.NewForT(t, numDVs, n, n, seed, random)
+	lock, p2pKeys, secretShares := cluster.NewForT(t, numDVs, n, n, seed, random, func(definition *cluster.Definition) {
+		definition.ForkVersion = []byte{0x01, 0x01, 0x70, 0x00}
+	})
 
 	secrets := secretShares[0]
 

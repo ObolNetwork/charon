@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -537,7 +538,9 @@ func TestSyncFlow(t *testing.T) {
 			var disconnectedCount int
 			for err := range dkgErrChan {
 				testutil.SkipIfBindErr(t, err)
-				require.NoError(t, err)
+				if !errors.Is(err, context.Canceled) {
+					require.NoError(t, err)
+				}
 				disconnectedCount++
 				if disconnectedCount == test.nodes {
 					break

@@ -43,6 +43,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_bcast_recast_errors_total` | Counter | The total count of failed recasted registrations by source; `pregen` vs `downstream` | `source` |
 | `core_bcast_recast_registration_total` | Counter | The total number of unique validator registration stored in recaster per pubkey | `pubkey` |
 | `core_bcast_recast_total` | Counter | The total count of recasted registrations by source; `pregen` vs `downstream` | `source` |
+| `core_consensus_decided_leader_index` | Gauge | Leader node index of the decision round by duty. | `duty` |
 | `core_consensus_decided_rounds` | Gauge | Number of rounds it took to decide consensus instances by duty and timer type. | `duty, timer` |
 | `core_consensus_duration_seconds` | Histogram | Duration of a consensus instance in seconds by duty and timer type. | `duty, timer` |
 | `core_consensus_error_total` | Counter | Total count of consensus errors |  |

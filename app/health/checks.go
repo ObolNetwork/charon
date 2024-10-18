@@ -70,12 +70,12 @@ var checks = []check{
 		Description: "Beacon Node in syncing state.",
 		Severity:    severityCritical,
 		Func: func(q query, _ Metadata) (bool, error) {
-			max, err := q("app_monitoring_beacon_node_syncing", noLabels, gaugeMax)
+			maxVal, err := q("app_monitoring_beacon_node_syncing", noLabels, gaugeMax)
 			if err != nil {
 				return false, err
 			}
 
-			return max == 1, nil
+			return maxVal == 1, nil
 		},
 	},
 	{
@@ -83,14 +83,14 @@ var checks = []check{
 		Description: "Not connected to at least quorum peers. Check logs for networking issue or coordinate with peers.",
 		Severity:    severityCritical,
 		Func: func(q query, m Metadata) (bool, error) {
-			max, err := q("p2p_ping_success", countNonZeroLabels, gaugeMax)
+			maxVal, err := q("p2p_ping_success", countNonZeroLabels, gaugeMax)
 			if err != nil {
 				return false, err
 			}
 
 			required := float64(m.QuorumPeers) - 1 // Exclude self
 
-			return max < required, nil
+			return maxVal < required, nil
 		},
 	},
 	{
@@ -98,14 +98,14 @@ var checks = []check{
 		Description: "Pending validators detected. Activate them to start validating.",
 		Severity:    severityInfo,
 		Func: func(q query, _ Metadata) (bool, error) {
-			max, err := q("core_scheduler_validator_status",
+			maxVal, err := q("core_scheduler_validator_status",
 				countLabels(l("status", "pending")),
 				gaugeMax)
 			if err != nil {
 				return false, err
 			}
 
-			return max > 0, nil
+			return maxVal > 0, nil
 		},
 	},
 	{
@@ -140,12 +140,12 @@ var checks = []check{
 		Description: "Metrics reached high cardinality threshold. Please check metrics reported by app_health_metrics_high_cardinality.",
 		Severity:    severityWarning,
 		Func: func(q query, _ Metadata) (bool, error) {
-			max, err := q("app_health_metrics_high_cardinality", sumLabels(), gaugeMax)
+			maxVal, err := q("app_health_metrics_high_cardinality", sumLabels(), gaugeMax)
 			if err != nil {
 				return false, err
 			}
 
-			return max > 0, nil
+			return maxVal > 0, nil
 		},
 	},
 }

@@ -384,13 +384,15 @@ func testWriteFile(t *testing.T, expectedRes testCategoryResult, path string) {
 	require.NoError(t, err)
 
 	require.Equal(t, expectedRes.CategoryName, res.CategoryName)
-	require.Equal(t, expectedRes.Score, res.Score)
 	require.Equal(t, len(expectedRes.Targets), len(res.Targets))
+	checkFinalScore := true
 	for targetName, testResults := range res.Targets {
 		for idx, testRes := range testResults {
 			// do not test verdicts based on measurements
 			if expectedRes.Targets[targetName][idx].Verdict == testVerdictOk || expectedRes.Targets[targetName][idx].Verdict == testVerdictFail {
 				require.Equal(t, expectedRes.Targets[targetName][idx].Verdict, testRes.Verdict)
+			} else {
+				checkFinalScore = false
 			}
 			require.Equal(t, expectedRes.Targets[targetName][idx].IsAcceptable, testRes.IsAcceptable)
 			if expectedRes.Targets[targetName][idx].Error.error != nil {
@@ -401,6 +403,10 @@ func testWriteFile(t *testing.T, expectedRes testCategoryResult, path string) {
 			require.Equal(t, expectedRes.Targets[targetName][idx].Name, testRes.Name)
 			require.Equal(t, expectedRes.Targets[targetName][idx].Suggestion, testRes.Suggestion)
 		}
+	}
+	// check final score only if there are no tests based on actual measurement
+	if checkFinalScore {
+		require.Equal(t, expectedRes.Score, res.Score)
 	}
 }
 

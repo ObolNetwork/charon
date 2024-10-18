@@ -656,7 +656,6 @@ func fetchOoklaServer(_ context.Context, conf *testPerformanceConfig) (speedtest
 	}
 
 	if len(conf.InternetTestServersExclude) != 0 {
-		var targets speedtest.Servers
 		for _, server := range serverList {
 			if !slices.Contains(conf.InternetTestServersExclude, server.Name) {
 				targets = append(targets, server)

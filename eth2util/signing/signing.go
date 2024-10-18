@@ -52,6 +52,11 @@ func GetDomain(ctx context.Context, eth2Cl eth2wrap.Client, name DomainName, epo
 		return eth2p0.Domain{}, errors.New("invalid domain type")
 	}
 
+	// Domain needs to be genesis one for DomainApplicationBuilder
+	if name == DomainApplicationBuilder {
+		return eth2Cl.GenesisDomain(ctx, domainTyped)
+	}
+
 	return eth2Cl.Domain(ctx, domainTyped, epoch)
 }
 

@@ -210,7 +210,6 @@ func send(ctx context.Context, client *http.Client, endpoint string, batch *batc
 	}
 	defer resp.Body.Close()
 
-	//nolint:usestdlibvars // we should not replace 100 with http.StatusContinue, it makes it less readable
 	if resp.StatusCode/100 != 2 {
 		scanner := bufio.NewScanner(io.LimitReader(resp.Body, maxErrMsgLen))
 		line := ""

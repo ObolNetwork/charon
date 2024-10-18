@@ -21,7 +21,7 @@ on:
     - cron: '18 19 * * 6'
 
 env:
-  GOLANG_VERSION: '1.22'
+  GOLANG_VERSION: '1.23'
 
 jobs:
   analyze:

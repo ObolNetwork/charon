@@ -205,6 +205,7 @@ func writeMarkdown(t *testing.T, file string, tpl *template.Template, data any) 
 	content, err := os.ReadFile(file)
 	require.NoError(t, err)
 
+	//nolint:testifylint // don't remove fmt.Sprintf, it's not unnecessary
 	require.Equal(t, string(content), result,
 		fmt.Sprintf("%s doesn't contain latest metrics.\n"+
 			"To fix, run: go test github.com/obolnetwork/charon/cmd -update-markdown", file))

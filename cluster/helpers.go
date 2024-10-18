@@ -40,7 +40,6 @@ func FetchDefinition(ctx context.Context, url string) (Definition, error) {
 		return Definition{}, errors.Wrap(err, "fetch file")
 	}
 
-	//nolint:usestdlibvars // we should not replace 100 with http.StatusContinue, it makes it less readable
 	if resp.StatusCode/100 != 2 {
 		return Definition{}, errors.New("http error", z.Int("status_code", resp.StatusCode))
 	}

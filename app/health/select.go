@@ -15,8 +15,8 @@ type labelSelector func(*pb.MetricFamily) (*pb.Metric, error)
 // maxLabel returns the metric with the highest value.
 func maxLabel(metricsFam *pb.MetricFamily) *pb.Metric { //nolint: unused // This is used in the future.
 	var (
-		max  float64
-		resp *pb.Metric
+		maxVal float64
+		resp   *pb.Metric
 	)
 	for _, metric := range metricsFam.GetMetric() {
 		var val float64
@@ -29,8 +29,8 @@ func maxLabel(metricsFam *pb.MetricFamily) *pb.Metric { //nolint: unused // This
 			panic("invalid metric type for simple value labelSelector")
 		}
 
-		if max == 0 || val > max {
-			max = val
+		if maxVal == 0 || val > maxVal {
+			maxVal = val
 			resp = metric
 		}
 	}

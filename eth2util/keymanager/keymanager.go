@@ -110,7 +110,6 @@ func postKeys(ctx context.Context, addr, authToken string, reqBody keymanagerReq
 	}
 	_ = resp.Body.Close()
 
-	//nolint:usestdlibvars // we should not replace 100 with http.StatusContinue, it makes it less readable
 	if resp.StatusCode/100 != 2 {
 		return errors.New("failed posting keys", z.Int("status", resp.StatusCode), z.Str("body", string(data)))
 	}

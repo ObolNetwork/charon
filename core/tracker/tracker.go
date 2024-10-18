@@ -196,6 +196,7 @@ func dutyFailedStep(es []event) (bool, step, error) {
 	}
 
 	// Final step was successful.
+	//nolint:gosec // false positive slice index out of range
 	if lastEvent.step == lastStep(es[0].duty.Type) && lastEvent.stepErr == nil {
 		return false, zero, nil
 	}
