@@ -25,6 +25,7 @@ var Version, _ = Parse(version) // Error is caught in tests.
 // Supported returns the supported minor versions in order of precedence.
 func Supported() []SemVer {
 	return []SemVer{
+		{major: 1, minor: 2},
 		{major: 1, minor: 1},
 		{major: 1, minor: 0},
 	}
