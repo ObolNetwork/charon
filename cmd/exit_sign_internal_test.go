@@ -66,7 +66,7 @@ func Test_runSubmitPartialExit(t *testing.T) {
 			false,
 			"test",
 			0,
-			"cannot convert core pubkey to eth2 pubkey",
+			"convert core pubkey to eth2 pubkey",
 			false,
 		)
 	})
@@ -102,7 +102,7 @@ func Test_runSubmitPartialExit(t *testing.T) {
 			true,
 			"test",
 			9999,
-			"cannot convert core pubkey to eth2 pubkey",
+			"convert core pubkey to eth2 pubkey",
 			false,
 		)
 	})
@@ -263,32 +263,32 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 		{
 			name:       "No identity key",
 			noIdentity: true,
-			errData:    "could not load identity key",
+			errData:    "load identity key",
 		},
 		{
 			name:    "No cluster lock",
 			noLock:  true,
-			errData: "could not load cluster-lock.json",
+			errData: "load cluster lock",
 		},
 		{
 			name:       "No keystore",
 			noKeystore: true,
-			errData:    "could not load keystore",
+			errData:    "load keystore",
 		},
 		{
 			name:       "Bad Obol API URL",
 			badOAPIURL: true,
-			errData:    "could not create obol api client",
+			errData:    "create Obol API client",
 		},
 		{
 			name:                   "Bad beacon node URL",
 			badBeaconNodeEndpoints: true,
-			errData:                "cannot create eth2 client for specified beacon node",
+			errData:                "create eth2 client for specified beacon node",
 		},
 		{
 			name:             "Bad validator address",
 			badValidatorAddr: true,
-			errData:          "cannot convert core pubkey to eth2 pubkey",
+			errData:          "convert core pubkey to eth2 pubkey",
 		},
 	}
 
