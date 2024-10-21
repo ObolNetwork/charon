@@ -209,22 +209,22 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 		{
 			name:       "No identity key",
 			noIdentity: true,
-			errData:    "could not load identity key",
+			errData:    "load identity key",
 		},
 		{
 			name:    "No lock",
 			noLock:  true,
-			errData: "could not load cluster-lock.json",
+			errData: "load cluster lock",
 		},
 		{
 			name:       "Bad Obol API URL",
 			badOAPIURL: true,
-			errData:    "could not create obol api client",
+			errData:    "create Obol API client",
 		},
 		{
 			name:                   "Bad beacon node URLs",
 			badBeaconNodeEndpoints: true,
-			errData:                "cannot create eth2 client for specified beacon node",
+			errData:                "create eth2 client for specified beacon node",
 		},
 		{
 			name:             "Bad validator address",
