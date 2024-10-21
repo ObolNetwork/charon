@@ -28,7 +28,7 @@ const (
 func New(urlStr string, options ...func(*Client)) (Client, error) {
 	_, err := url.ParseRequestURI(urlStr) // check that urlStr is valid
 	if err != nil {
-		return Client{}, errors.Wrap(err, "could not parse Obol API URL")
+		return Client{}, errors.Wrap(err, "parse Obol API URL")
 	}
 
 	// always set a default timeout, even if no options are provided
@@ -63,7 +63,7 @@ func WithTimeout(timeout time.Duration) func(*Client) {
 func (c Client) url() *url.URL {
 	baseURL, err := url.ParseRequestURI(c.baseURL)
 	if err != nil {
-		panic(errors.Wrap(err, "could not parse Obol API URL, this should never happen"))
+		panic(errors.Wrap(err, "parse Obol API URL, this should never happen"))
 	}
 
 	return baseURL

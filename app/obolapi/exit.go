@@ -71,7 +71,7 @@ func (c Client) PostPartialExits(ctx context.Context, lockHash []byte, shareInde
 
 	u, err := url.ParseRequestURI(c.baseURL)
 	if err != nil {
-		return errors.Wrap(err, "bad obol api url")
+		return errors.Wrap(err, "bad Obol API url")
 	}
 
 	u.Path = path
@@ -142,7 +142,7 @@ func (c Client) GetFullExit(ctx context.Context, valPubkey string, lockHash []by
 
 	u, err := url.ParseRequestURI(c.baseURL)
 	if err != nil {
-		return ExitBlob{}, errors.Wrap(err, "bad obol api url")
+		return ExitBlob{}, errors.Wrap(err, "bad Obol API url")
 	}
 
 	u.Path = path
