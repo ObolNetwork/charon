@@ -83,7 +83,7 @@ func (c Client) PublishLock(ctx context.Context, lock cluster.Lock) error {
 	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
 	defer cancel()
 
-	err = httpPost(ctx, addr, b)
+	err = httpPost(ctx, addr, b, nil)
 	if err != nil {
 		return err
 	}
@@ -105,27 +105,58 @@ func launchpadURLPath(lock cluster.Lock) string {
 	return fmt.Sprintf(launchpadReturnPathFmt, lock.LockHash)
 }
 
-func httpPost(ctx context.Context, url *url.URL, b []byte) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url.String(), bytes.NewReader(b))
+func httpPost(ctx context.Context, url *url.URL, body []byte, headers map[string]string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url.String(), bytes.NewReader(body))
 	if err != nil {
 		return errors.Wrap(err, "new POST request with ctx")
 	}
 	req.Header.Add("Content-Type", "application/json")
+	for key, val := range headers {
+		req.Header.Set(key, val)
+	}
 
 	res, err := new(http.Client).Do(req)
 	if err != nil {
-		return errors.Wrap(err, "failed to call POST endpoint")
+		return errors.Wrap(err, "call POST endpoint")
 	}
 	defer res.Body.Close()
 
-	data, err := io.ReadAll(res.Body)
-	if err != nil {
-		return errors.Wrap(err, "failed to read POST response")
-	}
-
 	if res.StatusCode/100 != 2 {
-		return errors.New("post failed", z.Int("status", res.StatusCode), z.Str("body", string(data)))
+		data, err := io.ReadAll(res.Body)
+		if err != nil {
+			return errors.Wrap(err, "read POST response")
+		}
+
+		return errors.New("http POST failed", z.Int("status", res.StatusCode), z.Str("body", string(data)))
 	}
 
 	return nil
+}
+
+func httpGet(ctx context.Context, url *url.URL, headers map[string]string) (io.ReadCloser, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url.String(), nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "new GET request with ctx")
+	}
+	req.Header.Add("Content-Type", "application/json")
+
+	for key, val := range headers {
+		req.Header.Set(key, val)
+	}
+
+	res, err := new(http.Client).Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "call GET endpoint")
+	}
+
+	if res.StatusCode/100 != 2 {
+		data, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, errors.Wrap(err, "read POST response")
+		}
+
+		return nil, errors.New("http GET failed", z.Int("status", res.StatusCode), z.Str("body", string(data)))
+	}
+
+	return res.Body, nil
 }
