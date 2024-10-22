@@ -23,7 +23,7 @@ import (
 	"github.com/obolnetwork/charon/eth2util/keystore"
 )
 
-func newSubmitPartialExitCmd(runFunc func(context.Context, exitConfig) error) *cobra.Command {
+func newSignPartialExitCmd(runFunc func(context.Context, exitConfig) error) *cobra.Command {
 	var config exitConfig
 
 	cmd := &cobra.Command{
