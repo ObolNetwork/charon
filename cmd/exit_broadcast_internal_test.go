@@ -337,3 +337,92 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 		})
 	}
 }
+
+func TestExitBroadcastCLI(t *testing.T) {
+	tests := []struct {
+		name        string
+		expectedErr string
+
+		flags []string
+	}{
+		{
+			name:        "check flags",
+			expectedErr: "load identity key: read private key from disk: open test: no such file or directory",
+			flags: []string{
+				"--publish-address=test",
+				"--private-key-file=test",
+				"--lock-file=test",
+				"--validator-keys-dir=test",
+				"--exit-epoch=1",
+				"--validator-public-key=test", // single exit
+				"--beacon-node-endpoints=test1,test2",
+				"--exit-from-file=test", // single exit
+				"--beacon-node-timeout=1ms",
+				"--publish-timeout=1ms",
+				"--all=false", // single exit
+				"--testnet-name=test",
+				"--testnet-fork-version=test",
+				"--testnet-chain-id=1",
+				"--testnet-genesis-timestamp=1",
+				"--testnet-capella-hard-fork=test",
+			},
+		},
+		{
+			name:        "check flags all",
+			expectedErr: "load identity key: read private key from disk: open test: no such file or directory",
+			flags: []string{
+				"--publish-address=test",
+				"--private-key-file=test",
+				"--lock-file=test",
+				"--validator-keys-dir=test", // exit all
+				"--exit-epoch=1",
+				"--beacon-node-endpoints=test1,test2",
+				"--exit-from-dir=test",
+				"--beacon-node-timeout=1ms",
+				"--publish-timeout=1ms",
+				"--all", // exit all
+				"--testnet-name=test",
+				"--testnet-fork-version=test",
+				"--testnet-chain-id=1",
+				"--testnet-genesis-timestamp=1",
+				"--testnet-capella-hard-fork=test",
+			},
+		},
+		{
+			name:        "check flags all",
+			expectedErr: "load identity key: read private key from disk: open test: no such file or directory",
+			flags: []string{
+				"--publish-address=test",
+				"--private-key-file=test",
+				"--lock-file=test",
+				"--validator-keys-dir=test", // exit all
+				"--exit-epoch=1",
+				"--beacon-node-endpoints=test1,test2",
+				"--exit-from-dir=test",
+				"--beacon-node-timeout=1ms",
+				"--publish-timeout=1ms",
+				"--all", // exit all
+				"--testnet-name=test",
+				"--testnet-fork-version=test",
+				"--testnet-chain-id=1",
+				"--testnet-genesis-timestamp=1",
+				"--testnet-capella-hard-fork=test",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := newExitCmd(newBcastFullExitCmd(runBcastFullExit))
+			cmd.SetArgs(append([]string{"broadcast"}, test.flags...))
+
+			err := cmd.Execute()
+			if test.expectedErr != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, test.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

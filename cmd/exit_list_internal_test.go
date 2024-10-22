@@ -197,3 +197,58 @@ func Test_listActiveVals(t *testing.T) {
 		require.Len(t, vals, len(lock.Validators)/2)
 	})
 }
+
+func TestExitListCLI(t *testing.T) {
+	tests := []struct {
+		name        string
+		expectedErr string
+
+		lockFilePath            string
+		beaconNodeEndpoints     string
+		beaconNodeTimeout       string
+		testnetName             string
+		testnetForkVersion      string
+		testnetChainID          string
+		testnetGenesisTimestamp string
+		testnetCapellaHardFork  string
+	}{
+		{
+			name:        "check flags",
+			expectedErr: "load cluster lock: load cluster manifest from disk: load dag from disk: no file found",
+
+			lockFilePath:            "--lock-file=test",
+			beaconNodeEndpoints:     "--beacon-node-endpoints=test1,test2",
+			beaconNodeTimeout:       "--beacon-node-timeout=1ms",
+			testnetName:             "--testnet-name=test",
+			testnetForkVersion:      "--testnet-fork-version=test",
+			testnetChainID:          "--testnet-chain-id=1",
+			testnetGenesisTimestamp: "--testnet-genesis-timestamp=1",
+			testnetCapellaHardFork:  "--testnet-capella-hard-fork=test",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := newExitCmd(newListActiveValidatorsCmd(runListActiveValidatorsCmd))
+			cmd.SetArgs([]string{
+				"active-validator-list",
+				test.lockFilePath,
+				test.beaconNodeEndpoints,
+				test.beaconNodeTimeout,
+				test.testnetName,
+				test.testnetForkVersion,
+				test.testnetChainID,
+				test.testnetGenesisTimestamp,
+				test.testnetCapellaHardFork,
+			})
+
+			err := cmd.Execute()
+			if test.expectedErr != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, test.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

@@ -169,3 +169,70 @@ func Test_runFetchExitBadOutDir(t *testing.T) {
 
 	require.ErrorContains(t, runFetchExit(context.Background(), config), "permission denied")
 }
+
+func TestExitFetchCLI(t *testing.T) {
+	tests := []struct {
+		name        string
+		expectedErr string
+
+		publishAddress          string
+		privateKeyPath          string
+		lockFilePath            string
+		validatorPubkey         string
+		all                     string
+		fetchedExitPath         string
+		publishTimeout          string
+		testnetName             string
+		testnetForkVersion      string
+		testnetChainID          string
+		testnetGenesisTimestamp string
+		testnetCapellaHardFork  string
+	}{
+		{
+			name:        "check flags",
+			expectedErr: "store exit path: stat 1: no such file or directory",
+
+			publishAddress:          "--publish-address=test",
+			privateKeyPath:          "--private-key-file=test",
+			lockFilePath:            "--lock-file=test",
+			validatorPubkey:         "--validator-public-key=test",
+			fetchedExitPath:         "--fetched-exit-path=1",
+			publishTimeout:          "--publish-timeout=1ms",
+			all:                     "--all=false",
+			testnetName:             "--testnet-name=test",
+			testnetForkVersion:      "--testnet-fork-version=test",
+			testnetChainID:          "--testnet-chain-id=1",
+			testnetGenesisTimestamp: "--testnet-genesis-timestamp=1",
+			testnetCapellaHardFork:  "--testnet-capella-hard-fork=test",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := newExitCmd(newFetchExitCmd(runFetchExit))
+			cmd.SetArgs([]string{
+				"fetch",
+				test.publishAddress,
+				test.privateKeyPath,
+				test.lockFilePath,
+				test.validatorPubkey,
+				test.fetchedExitPath,
+				test.publishTimeout,
+				test.all,
+				test.testnetName,
+				test.testnetForkVersion,
+				test.testnetChainID,
+				test.testnetGenesisTimestamp,
+				test.testnetCapellaHardFork,
+			})
+
+			err := cmd.Execute()
+			if test.expectedErr != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, test.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

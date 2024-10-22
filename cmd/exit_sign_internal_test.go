@@ -386,3 +386,82 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 		})
 	}
 }
+
+func TestExitSignCLI(t *testing.T) {
+	tests := []struct {
+		name        string
+		expectedErr string
+
+		publishAddress          string
+		privateKeyPath          string
+		lockFilePath            string
+		validatorKeysDir        string
+		exitEpoch               string
+		validatorPubkey         string
+		validatorIndex          string
+		beaconNodeEndpoints     string
+		beaconNodeTimeout       string
+		publishTimeout          string
+		all                     string
+		testnetName             string
+		testnetForkVersion      string
+		testnetChainID          string
+		testnetGenesisTimestamp string
+		testnetCapellaHardFork  string
+	}{
+		{
+			name:        "check flags",
+			expectedErr: "load identity key: read private key from disk: open test: no such file or directory",
+
+			publishAddress:          "--publish-address=test",
+			privateKeyPath:          "--private-key-file=test",
+			lockFilePath:            "--lock-file=test",
+			validatorKeysDir:        "--validator-keys-dir=test",
+			exitEpoch:               "--exit-epoch=1",
+			validatorPubkey:         "--validator-public-key=test",
+			validatorIndex:          "--validator-index=1",
+			beaconNodeEndpoints:     "--beacon-node-endpoints=test1,test2",
+			beaconNodeTimeout:       "--beacon-node-timeout=1ms",
+			publishTimeout:          "--publish-timeout=1ms",
+			all:                     "--all=false",
+			testnetName:             "--testnet-name=test",
+			testnetForkVersion:      "--testnet-fork-version=test",
+			testnetChainID:          "--testnet-chain-id=1",
+			testnetGenesisTimestamp: "--testnet-genesis-timestamp=1",
+			testnetCapellaHardFork:  "--testnet-capella-hard-fork=test",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := newExitCmd(newSignPartialExitCmd(runSignPartialExit))
+			cmd.SetArgs([]string{
+				"sign",
+				test.publishAddress,
+				test.privateKeyPath,
+				test.lockFilePath,
+				test.validatorKeysDir,
+				test.exitEpoch,
+				test.validatorPubkey,
+				test.validatorIndex,
+				test.beaconNodeEndpoints,
+				test.beaconNodeTimeout,
+				test.publishTimeout,
+				test.all,
+				test.testnetName,
+				test.testnetForkVersion,
+				test.testnetChainID,
+				test.testnetGenesisTimestamp,
+				test.testnetCapellaHardFork,
+			})
+
+			err := cmd.Execute()
+			if test.expectedErr != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, test.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
