@@ -159,7 +159,7 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 	}
 
 	if err := oAPI.PostPartialExits(ctx, cl.GetInitialMutationHash(), shareIdx, identityKey, exitBlobs...); err != nil {
-		return errors.Wrap(err, "POST partial exit message to Obol API")
+		return errors.Wrap(err, "http POST partial exit message to Obol API")
 	}
 
 	return nil
