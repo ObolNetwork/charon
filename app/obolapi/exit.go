@@ -3,12 +3,10 @@
 package obolapi
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
 	"sort"
 	"strconv"
@@ -71,7 +69,7 @@ func (c Client) PostPartialExits(ctx context.Context, lockHash []byte, shareInde
 
 	u, err := url.ParseRequestURI(c.baseURL)
 	if err != nil {
-		return errors.Wrap(err, "bad obol api url")
+		return errors.Wrap(err, "bad Obol API url")
 	}
 
 	u.Path = path
@@ -107,24 +105,9 @@ func (c Client) PostPartialExits(ctx context.Context, lockHash []byte, shareInde
 	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(data))
+	err = httpPost(ctx, u, data, nil)
 	if err != nil {
-		return errors.Wrap(err, "http new post request")
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return errors.Wrap(err, "http post error")
-	}
-
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusCreated {
-		return errors.New("http error", z.Int("status_code", resp.StatusCode))
+		return errors.Wrap(err, "http Obol API POST request")
 	}
 
 	return nil
@@ -142,18 +125,13 @@ func (c Client) GetFullExit(ctx context.Context, valPubkey string, lockHash []by
 
 	u, err := url.ParseRequestURI(c.baseURL)
 	if err != nil {
-		return ExitBlob{}, errors.Wrap(err, "bad obol api url")
+		return ExitBlob{}, errors.Wrap(err, "bad Obol API url")
 	}
 
 	u.Path = path
 
 	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
 	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-	if err != nil {
-		return ExitBlob{}, errors.Wrap(err, "http new get request")
-	}
 
 	exitAuthData := FullExitAuthBlob{
 		LockHash:        lockHash,
@@ -172,28 +150,15 @@ func (c Client) GetFullExit(ctx context.Context, valPubkey string, lockHash []by
 		return ExitBlob{}, errors.Wrap(err, "k1 sign")
 	}
 
-	req.Header.Set("Authorization", bearerString(lockHashSignature))
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
+	respBody, err := httpGet(ctx, u, map[string]string{"Authorization": bearerString(lockHashSignature)})
 	if err != nil {
-		return ExitBlob{}, errors.Wrap(err, "http get error")
+		return ExitBlob{}, errors.Wrap(err, "http Obol API GET request")
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusNotFound {
-			return ExitBlob{}, ErrNoExit
-		}
-
-		return ExitBlob{}, errors.New("http error", z.Int("status_code", resp.StatusCode))
-	}
-
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+	defer respBody.Close()
 
 	var er FullExitResponse
-	if err := json.NewDecoder(resp.Body).Decode(&er); err != nil {
+	if err := json.NewDecoder(respBody).Decode(&er); err != nil {
 		return ExitBlob{}, errors.Wrap(err, "json unmarshal error")
 	}
 

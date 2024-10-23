@@ -197,3 +197,41 @@ func Test_listActiveVals(t *testing.T) {
 		require.Len(t, vals, len(lock.Validators)/2)
 	})
 }
+
+func TestExitListCLI(t *testing.T) {
+	tests := []struct {
+		name        string
+		expectedErr string
+		flags       []string
+	}{
+		{
+			name:        "check flags",
+			expectedErr: "load cluster lock: load cluster manifest from disk: load dag from disk: no file found",
+			flags: []string{
+				"--lock-file=test",
+				"--beacon-node-endpoints=test1,test2",
+				"--beacon-node-timeout=1ms",
+				"--testnet-name=test",
+				"--testnet-fork-version=test",
+				"--testnet-chain-id=1",
+				"--testnet-genesis-timestamp=1",
+				"--testnet-capella-hard-fork=test",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := newExitCmd(newListActiveValidatorsCmd(runListActiveValidatorsCmd))
+			cmd.SetArgs(append([]string{"active-validator-list"}, test.flags...))
+
+			err := cmd.Execute()
+			if test.expectedErr != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, test.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
