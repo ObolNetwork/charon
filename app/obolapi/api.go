@@ -124,7 +124,7 @@ func httpPost(ctx context.Context, url *url.URL, body []byte, headers map[string
 	if res.StatusCode/100 != 2 {
 		data, err := io.ReadAll(res.Body)
 		if err != nil {
-			return errors.Wrap(err, "read POST response")
+			return errors.Wrap(err, "read POST response", z.Int("status", res.StatusCode))
 		}
 
 		return errors.New("http POST failed", z.Int("status", res.StatusCode), z.Str("body", string(data)))
@@ -152,7 +152,7 @@ func httpGet(ctx context.Context, url *url.URL, headers map[string]string) (io.R
 	if res.StatusCode/100 != 2 {
 		data, err := io.ReadAll(res.Body)
 		if err != nil {
-			return nil, errors.Wrap(err, "read POST response")
+			return nil, errors.Wrap(err, "read POST response", z.Int("status", res.StatusCode))
 		}
 
 		return nil, errors.New("http GET failed", z.Int("status", res.StatusCode), z.Str("body", string(data)))
