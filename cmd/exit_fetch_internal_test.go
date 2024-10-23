@@ -174,57 +174,67 @@ func TestExitFetchCLI(t *testing.T) {
 	tests := []struct {
 		name        string
 		expectedErr string
-
-		publishAddress          string
-		privateKeyPath          string
-		lockFilePath            string
-		validatorPubkey         string
-		all                     string
-		fetchedExitPath         string
-		publishTimeout          string
-		testnetName             string
-		testnetForkVersion      string
-		testnetChainID          string
-		testnetGenesisTimestamp string
-		testnetCapellaHardFork  string
+		flags       []string
 	}{
 		{
 			name:        "check flags",
 			expectedErr: "store exit path: stat 1: no such file or directory",
-
-			publishAddress:          "--publish-address=test",
-			privateKeyPath:          "--private-key-file=test",
-			lockFilePath:            "--lock-file=test",
-			validatorPubkey:         "--validator-public-key=test",
-			fetchedExitPath:         "--fetched-exit-path=1",
-			publishTimeout:          "--publish-timeout=1ms",
-			all:                     "--all=false",
-			testnetName:             "--testnet-name=test",
-			testnetForkVersion:      "--testnet-fork-version=test",
-			testnetChainID:          "--testnet-chain-id=1",
-			testnetGenesisTimestamp: "--testnet-genesis-timestamp=1",
-			testnetCapellaHardFork:  "--testnet-capella-hard-fork=test",
+			flags: []string{
+				"--publish-address=test",
+				"--private-key-file=test",
+				"--lock-file=test",
+				"--validator-public-key=test",
+				"--fetched-exit-path=1",
+				"--publish-timeout=1ms",
+				"--all=false",
+				"--testnet-name=test",
+				"--testnet-fork-version=test",
+				"--testnet-chain-id=1",
+				"--testnet-genesis-timestamp=1",
+				"--testnet-capella-hard-fork=test",
+			},
+		},
+		{
+			name:        "no validator public key and not all",
+			expectedErr: "validator-public-key must be specified when exiting single validator.",
+			flags: []string{
+				"--publish-address=test",
+				"--private-key-file=test",
+				"--lock-file=test",
+				"--fetched-exit-path=1",
+				"--publish-timeout=1ms",
+				"--all=false",
+				"--testnet-name=test",
+				"--testnet-fork-version=test",
+				"--testnet-chain-id=1",
+				"--testnet-genesis-timestamp=1",
+				"--testnet-capella-hard-fork=test",
+			},
+		},
+		{
+			name:        "validator public key and all",
+			expectedErr: "validator-public-key should not be specified when all is, as it is obsolete and misleading.",
+			flags: []string{
+				"--publish-address=test",
+				"--private-key-file=test",
+				"--lock-file=test",
+				"--validator-public-key=test",
+				"--fetched-exit-path=1",
+				"--publish-timeout=1ms",
+				"--all=true",
+				"--testnet-name=test",
+				"--testnet-fork-version=test",
+				"--testnet-chain-id=1",
+				"--testnet-genesis-timestamp=1",
+				"--testnet-capella-hard-fork=test",
+			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			cmd := newExitCmd(newFetchExitCmd(runFetchExit))
-			cmd.SetArgs([]string{
-				"fetch",
-				test.publishAddress,
-				test.privateKeyPath,
-				test.lockFilePath,
-				test.validatorPubkey,
-				test.fetchedExitPath,
-				test.publishTimeout,
-				test.all,
-				test.testnetName,
-				test.testnetForkVersion,
-				test.testnetChainID,
-				test.testnetGenesisTimestamp,
-				test.testnetCapellaHardFork,
-			})
+			cmd.SetArgs(append([]string{"fetch"}, test.flags...))
 
 			err := cmd.Execute()
 			if test.expectedErr != "" {

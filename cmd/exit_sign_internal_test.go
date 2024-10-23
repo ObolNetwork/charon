@@ -391,69 +391,98 @@ func TestExitSignCLI(t *testing.T) {
 	tests := []struct {
 		name        string
 		expectedErr string
-
-		publishAddress          string
-		privateKeyPath          string
-		lockFilePath            string
-		validatorKeysDir        string
-		exitEpoch               string
-		validatorPubkey         string
-		validatorIndex          string
-		beaconNodeEndpoints     string
-		beaconNodeTimeout       string
-		publishTimeout          string
-		all                     string
-		testnetName             string
-		testnetForkVersion      string
-		testnetChainID          string
-		testnetGenesisTimestamp string
-		testnetCapellaHardFork  string
+		flags       []string
 	}{
 		{
 			name:        "check flags",
 			expectedErr: "load identity key: read private key from disk: open test: no such file or directory",
-
-			publishAddress:          "--publish-address=test",
-			privateKeyPath:          "--private-key-file=test",
-			lockFilePath:            "--lock-file=test",
-			validatorKeysDir:        "--validator-keys-dir=test",
-			exitEpoch:               "--exit-epoch=1",
-			validatorPubkey:         "--validator-public-key=test",
-			validatorIndex:          "--validator-index=1",
-			beaconNodeEndpoints:     "--beacon-node-endpoints=test1,test2",
-			beaconNodeTimeout:       "--beacon-node-timeout=1ms",
-			publishTimeout:          "--publish-timeout=1ms",
-			all:                     "--all=false",
-			testnetName:             "--testnet-name=test",
-			testnetForkVersion:      "--testnet-fork-version=test",
-			testnetChainID:          "--testnet-chain-id=1",
-			testnetGenesisTimestamp: "--testnet-genesis-timestamp=1",
-			testnetCapellaHardFork:  "--testnet-capella-hard-fork=test",
+			flags: []string{
+				"--publish-address=test",
+				"--private-key-file=test",
+				"--lock-file=test",
+				"--validator-keys-dir=test",
+				"--exit-epoch=1",
+				"--validator-public-key=test",
+				"--validator-index=1",
+				"--beacon-node-endpoints=test1,test2",
+				"--beacon-node-timeout=1ms",
+				"--publish-timeout=1ms",
+				"--all=false",
+				"--testnet-name=test",
+				"--testnet-fork-version=test",
+				"--testnet-chain-id=1",
+				"--testnet-genesis-timestamp=1",
+				"--testnet-capella-hard-fork=test",
+			},
+		},
+		{
+			name:        "no pubkey, no index, single validator",
+			expectedErr: "either validator-index or validator-public-key must be specified at least when exiting single validator.",
+			flags: []string{
+				"--publish-address=test",
+				"--private-key-file=test",
+				"--lock-file=test",
+				"--validator-keys-dir=test",
+				"--exit-epoch=1",
+				"--beacon-node-endpoints=test1,test2",
+				"--beacon-node-timeout=1ms",
+				"--publish-timeout=1ms",
+				"--all=false",
+				"--testnet-name=test",
+				"--testnet-fork-version=test",
+				"--testnet-chain-id=1",
+				"--testnet-genesis-timestamp=1",
+				"--testnet-capella-hard-fork=test",
+			},
+		},
+		{
+			name:        "pubkey present, all validators",
+			expectedErr: "validator-index or validator-public-key should not be specified when all is, as they are obsolete and misleading.",
+			flags: []string{
+				"--publish-address=test",
+				"--private-key-file=test",
+				"--lock-file=test",
+				"--validator-keys-dir=test",
+				"--exit-epoch=1",
+				"--validator-public-key=test",
+				"--beacon-node-endpoints=test1,test2",
+				"--beacon-node-timeout=1ms",
+				"--publish-timeout=1ms",
+				"--all=true",
+				"--testnet-name=test",
+				"--testnet-fork-version=test",
+				"--testnet-chain-id=1",
+				"--testnet-genesis-timestamp=1",
+				"--testnet-capella-hard-fork=test",
+			},
+		},
+		{
+			name:        "index present, all validators",
+			expectedErr: "validator-index or validator-public-key should not be specified when all is, as they are obsolete and misleading.",
+			flags: []string{
+				"--publish-address=test",
+				"--private-key-file=test",
+				"--lock-file=test",
+				"--validator-keys-dir=test",
+				"--exit-epoch=1",
+				"--validator-index=1",
+				"--beacon-node-endpoints=test1,test2",
+				"--beacon-node-timeout=1ms",
+				"--publish-timeout=1ms",
+				"--all=true",
+				"--testnet-name=test",
+				"--testnet-fork-version=test",
+				"--testnet-chain-id=1",
+				"--testnet-genesis-timestamp=1",
+				"--testnet-capella-hard-fork=test",
+			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			cmd := newExitCmd(newSignPartialExitCmd(runSignPartialExit))
-			cmd.SetArgs([]string{
-				"sign",
-				test.publishAddress,
-				test.privateKeyPath,
-				test.lockFilePath,
-				test.validatorKeysDir,
-				test.exitEpoch,
-				test.validatorPubkey,
-				test.validatorIndex,
-				test.beaconNodeEndpoints,
-				test.beaconNodeTimeout,
-				test.publishTimeout,
-				test.all,
-				test.testnetName,
-				test.testnetForkVersion,
-				test.testnetChainID,
-				test.testnetGenesisTimestamp,
-				test.testnetCapellaHardFork,
-			})
+			cmd.SetArgs(append([]string{"sign"}, test.flags...))
 
 			err := cmd.Execute()
 			if test.expectedErr != "" {
