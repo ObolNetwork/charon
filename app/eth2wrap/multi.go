@@ -11,16 +11,24 @@ import (
 )
 
 // NewMultiForT creates a new mutil client for testing.
-func NewMultiForT(clients []Client) Client {
+func NewMultiForT(clients []Client, client ...*FallbackClient) Client {
+	var fb *FallbackClient
+
+	if len(client) > 0 {
+		fb = client[0]
+	}
+
 	return &multi{
 		clients:  clients,
+		fallback: fb,
 		selector: newBestSelector(bestPeriod),
 	}
 }
 
-func newMulti(clients []Client) Client {
+func newMulti(clients []Client, fallback *FallbackClient) Client {
 	return multi{
 		clients:  clients,
+		fallback: fallback,
 		selector: newBestSelector(bestPeriod),
 	}
 }
@@ -28,9 +36,12 @@ func newMulti(clients []Client) Client {
 // multi implements Client by wrapping multiple clients, calling them in parallel
 // and returning the first successful response.
 // It also adds prometheus metrics and error wrapping.
-// It also implements a best client selector.
+// It also implements a "best client" selector.
+// When any of the Clients specified fails a request, it will re-try it on the specified
+// fallback endpoints, if any.
 type multi struct {
 	clients  []Client
+	fallback *FallbackClient
 	selector *bestSelector
 }
 
@@ -83,9 +94,9 @@ func (m multi) ActiveValidators(ctx context.Context) (ActiveValidators, error) {
 	const label = "active_validators"
 	// No latency since this is a cached endpoint.
 
-	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (ActiveValidators, error) {
-			return cl.ActiveValidators(ctx)
+	res0, err := provide(ctx, m.clients, m.fallback,
+		func(ctx context.Context, args provideArgs) (ActiveValidators, error) {
+			return args.client.ActiveValidators(ctx)
 		},
 		nil, nil,
 	)
@@ -101,9 +112,9 @@ func (m multi) CompleteValidators(ctx context.Context) (CompleteValidators, erro
 	const label = "complete_validators"
 	// No latency since this is a cached endpoint.
 
-	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (CompleteValidators, error) {
-			return cl.CompleteValidators(ctx)
+	res0, err := provide(ctx, m.clients, m.fallback,
+		func(ctx context.Context, args provideArgs) (CompleteValidators, error) {
+			return args.client.CompleteValidators(ctx)
 		},
 		nil, nil,
 	)
@@ -119,9 +130,23 @@ func (m multi) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigRespo
 	const label = "proposer_config"
 	defer latency(label)()
 
-	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (*eth2exp.ProposerConfigResponse, error) {
-			return cl.ProposerConfig(ctx)
+	res0, err := provide(ctx, m.clients, m.fallback,
+		func(ctx context.Context, args provideArgs) (*eth2exp.ProposerConfigResponse, error) {
+			res, bnErr := args.client.ProposerConfig(ctx)
+			if bnErr != nil {
+				// use a fallback BN if any
+				fe, err := args.fallback.pick()
+				if err != nil {
+					// no fallback endpoint available, return previous error
+					return res, bnErr
+				}
+
+				defer args.fallback.place()
+
+				return fe.ProposerConfig(ctx)
+			}
+
+			return res, bnErr
 		},
 		nil, m.selector,
 	)
@@ -137,9 +162,23 @@ func (m multi) AggregateBeaconCommitteeSelections(ctx context.Context, selection
 	const label = "aggregate_beacon_committee_selections"
 	defer latency(label)()
 
-	res0, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) ([]*eth2exp.BeaconCommitteeSelection, error) {
-			return cl.AggregateBeaconCommitteeSelections(ctx, selections)
+	res0, err := provide(ctx, m.clients, m.fallback,
+		func(ctx context.Context, args provideArgs) ([]*eth2exp.BeaconCommitteeSelection, error) {
+			res, bnErr := args.client.AggregateBeaconCommitteeSelections(ctx, selections)
+			if bnErr != nil {
+				// use a fallback BN if any
+				fe, err := m.fallback.pick()
+				if err != nil {
+					// no fallback endpoint available, return previous error
+					return res, bnErr
+				}
+
+				defer args.fallback.place()
+
+				return fe.AggregateBeaconCommitteeSelections(ctx, selections)
+			}
+
+			return res, bnErr
 		},
 		nil, m.selector,
 	)
@@ -155,10 +194,25 @@ func (m multi) AggregateSyncCommitteeSelections(ctx context.Context, selections 
 	const label = "aggregate_sync_committee_selections"
 	defer latency(label)()
 
-	res, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) ([]*eth2exp.SyncCommitteeSelection, error) {
-			return cl.AggregateSyncCommitteeSelections(ctx, selections)
+	res, err := provide(ctx, m.clients, m.fallback,
+		func(ctx context.Context, args provideArgs) ([]*eth2exp.SyncCommitteeSelection, error) {
+			res, bnErr := args.client.AggregateSyncCommitteeSelections(ctx, selections)
+			if bnErr != nil {
+				// use a fallback BN if any
+				fe, err := m.fallback.pick()
+				if err != nil {
+					// no fallback endpoint available, return previous error
+					return res, bnErr
+				}
+
+				defer args.fallback.place()
+
+				return fe.AggregateSyncCommitteeSelections(ctx, selections)
+			}
+
+			return res, bnErr
 		},
+
 		nil, m.selector,
 	)
 	if err != nil {
@@ -173,9 +227,23 @@ func (m multi) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0
 	const label = "block_attestations"
 	defer latency(label)()
 
-	res, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) ([]*eth2p0.Attestation, error) {
-			return cl.BlockAttestations(ctx, stateID)
+	res, err := provide(ctx, m.clients, m.fallback,
+		func(ctx context.Context, args provideArgs) ([]*eth2p0.Attestation, error) {
+			res, bnErr := args.client.BlockAttestations(ctx, stateID)
+			if bnErr != nil {
+				// use a fallback BN if any
+				fe, err := m.fallback.pick()
+				if err != nil {
+					// no fallback endpoint available, return previous error
+					return res, bnErr
+				}
+
+				defer args.fallback.place()
+
+				return fe.BlockAttestations(ctx, stateID)
+			}
+
+			return res, bnErr
 		},
 		nil, m.selector,
 	)
@@ -191,9 +259,23 @@ func (m multi) NodePeerCount(ctx context.Context) (int, error) {
 	const label = "node_peer_count"
 	defer latency(label)()
 
-	res, err := provide(ctx, m.clients,
-		func(ctx context.Context, cl Client) (int, error) {
-			return cl.NodePeerCount(ctx)
+	res, err := provide(ctx, m.clients, m.fallback,
+		func(ctx context.Context, args provideArgs) (int, error) {
+			res, bnErr := args.client.NodePeerCount(ctx)
+			if bnErr != nil {
+				// use a fallback BN if any
+				fe, err := m.fallback.pick()
+				if err != nil {
+					// no fallback endpoint available, return previous error
+					return res, bnErr
+				}
+
+				defer args.fallback.place()
+
+				return fe.NodePeerCount(ctx)
+			}
+
+			return res, bnErr
 		},
 		nil, m.selector,
 	)
