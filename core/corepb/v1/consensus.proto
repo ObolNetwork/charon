@@ -13,9 +13,9 @@ message QBFTMsg {
   core.corepb.v1.Duty            duty                  = 2;
   int64                          peer_idx              = 3;
   int64                          round                 = 4;
-  reserved                                               5 ;
+  reserved                                               5;
   int64                          prepared_round        = 6;
-  reserved                                               7 ;
+  reserved                                               7;
   bytes                          signature             = 8;
   reserved                                               9;
   reserved                                               10;
@@ -23,7 +23,7 @@ message QBFTMsg {
   bytes                          prepared_value_hash   = 12;
 }
 
-message ConsensusMsg {
+message QBFTConsensusMsg {
   QBFTMsg                      msg           = 1; // msg is the message that we send
   repeated QBFTMsg             justification = 2; // justification is the justifications from others for the message
   repeated google.protobuf.Any values        = 3; // values of the hashes in the messages
@@ -31,17 +31,19 @@ message ConsensusMsg {
 
 message SniffedConsensusMsg {
   google.protobuf.Timestamp timestamp = 1;
-  ConsensusMsg          msg           = 2;
+  QBFTConsensusMsg          msg       = 2;
+  // Other consensus protocol messages can be added here
 }
 
 message SniffedConsensusInstance {
-  google.protobuf.Timestamp started_at = 1;
-  int64                          nodes = 2;
-  int64                       peer_idx = 3;
-  repeated SniffedConsensusMsg    msgs = 4;
+  google.protobuf.Timestamp     started_at  = 1;
+  int64                         nodes       = 2;
+  int64                         peer_idx    = 3;
+  repeated SniffedConsensusMsg  msgs        = 4;
+  string                        protocol_id = 5;
 }
 
 message SniffedConsensusInstances {
   repeated SniffedConsensusInstance instances = 1;
-  string git_hash = 2;
+  string                            git_hash  = 2;
 }

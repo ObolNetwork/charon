@@ -145,12 +145,13 @@ func transformLegacyLock(input *manifestpb.Cluster, signed *manifestpb.SignedMut
 	}
 
 	return &manifestpb.Cluster{
-		Name:         lock.Name,
-		Threshold:    int32(lock.Threshold),
-		DkgAlgorithm: lock.DKGAlgorithm,
-		ForkVersion:  lock.ForkVersion,
-		Validators:   vals,
-		Operators:    ops,
+		Name:              lock.Name,
+		Threshold:         int32(lock.Threshold),
+		DkgAlgorithm:      lock.DKGAlgorithm,
+		ForkVersion:       lock.ForkVersion,
+		ConsensusProtocol: lock.ConsensusProtocol,
+		Validators:        vals,
+		Operators:         ops,
 	}, nil
 }
 

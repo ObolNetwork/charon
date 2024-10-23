@@ -138,7 +138,7 @@ func TestProtocolPrefix(b *testing.T) {
 func TestIsZeroProto(t *testing.T) {
 	for _, msg := range []proto.Message{
 		new(pbv1.Duty),
-		new(pbv1.ConsensusMsg),
+		new(pbv1.QBFTConsensusMsg),
 		new(timestamppb.Timestamp),
 	} {
 		require.False(t, isZeroProto(nil))

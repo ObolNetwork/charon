@@ -16,6 +16,8 @@ import (
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 )
 
+//go:generate mockery --name=Debugger --output=mocks --outpkg=mocks --case=underscore
+
 const maxDebuggerBuffer = 50 * (1 << 20) // 50 MB.
 
 // Debugger is an interface for debugging consensus messages.
