@@ -166,11 +166,11 @@ func writeExitToFile(ctx context.Context, valPubKey string, exitPath string, ful
 
 	exitData, err := json.Marshal(fullExit.SignedExitMessage)
 	if err != nil {
-		return errors.Wrap(err, "signed exit message marshal", z.Str("validator_public_key", fullExit.PublicKey))
+		return errors.Wrap(err, "signed exit message marshal")
 	}
 
 	if err := os.WriteFile(fetchedExitPath, exitData, 0o600); err != nil {
-		return errors.Wrap(err, "store signed exit message", z.Str("validator_public_key", fullExit.PublicKey))
+		return errors.Wrap(err, "store signed exit message")
 	}
 
 	log.Info(ctx, "Stored signed exit message", z.Str("path", fetchedExitPath))
