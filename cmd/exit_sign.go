@@ -70,7 +70,7 @@ func newSignPartialExitCmd(runFunc func(context.Context, exitConfig) error) *cob
 
 		if !valPubkPresent && !valIdxPresent && !config.All {
 			//nolint:revive // we use our own version of the errors package.
-			return errors.New(fmt.Sprintf("either %s or %s must be specified at least.", validatorIndex.String(), validatorPubkey.String()))
+			return errors.New(fmt.Sprintf("either %s or %s must be specified at least when exiting single validator.", validatorIndex.String(), validatorPubkey.String()))
 		}
 
 		if config.All && (valIdxPresent || valPubkPresent) {
