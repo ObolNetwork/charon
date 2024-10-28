@@ -33,6 +33,7 @@ jobs:
           token: ${{ secrets.RELEASE_SECRET }}
 
   trigger-dispatch:
+    needs: release
     runs-on: ubuntu-latest
     steps:
       - name: Extract tag name
@@ -43,14 +44,6 @@ jobs:
         with:
           token: ${{ secrets.OBOL_PLATFORM_PAT }}
           repository: ObolNetwork/obol-docs
-          event-type: update-version
-          client-payload: '{"tag": "${{ env.TAG_NAME }}"}'
-
-      - name: Trigger dispatch for obol-infrastructure
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          token: ${{ secrets.OBOL_PLATFORM_PAT }}
-          repository: ObolNetwork/obol-infrastructure
           event-type: update-version
           client-payload: '{"tag": "${{ env.TAG_NAME }}"}'
 
