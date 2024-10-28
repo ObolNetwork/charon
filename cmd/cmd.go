@@ -59,7 +59,7 @@ func New() *cobra.Command {
 		),
 		newExitCmd(
 			newListActiveValidatorsCmd(runListActiveValidatorsCmd),
-			newSubmitPartialExitCmd(runSignPartialExit),
+			newSignPartialExitCmd(runSignPartialExit),
 			newBcastFullExitCmd(runBcastFullExit),
 			newFetchExitCmd(runFetchExit),
 		),

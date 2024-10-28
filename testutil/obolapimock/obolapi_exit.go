@@ -314,7 +314,7 @@ func cleanTmpl(tmpl string) string {
 		"").Replace(tmpl)
 }
 
-// MockServer returns a obol API mock test server.
+// MockServer returns a Obol API mock test server.
 // It returns a http.Handler to be served over HTTP, and a function to add cluster lock files to its database.
 func MockServer(dropOnePsig bool, beacon eth2wrap.Client) (http.Handler, func(lock cluster.Lock)) {
 	ts := testServer{

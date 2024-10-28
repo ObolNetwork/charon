@@ -86,36 +86,36 @@ func runFetchExit(ctx context.Context, config exitConfig) error {
 	}
 
 	if _, err := os.Stat(config.FetchedExitPath); err != nil {
-		return errors.Wrap(err, "store exit path")
+		return errors.Wrap(err, "store exit path", z.Str("fetched_exit_path", config.FetchedExitPath))
 	}
 
 	writeTestFile := filepath.Join(config.FetchedExitPath, ".write-test")
 	if err := os.WriteFile(writeTestFile, []byte{}, 0o755); err != nil { //nolint:gosec // write test file
-		return errors.Wrap(err, "can't write to destination directory")
+		return errors.Wrap(err, "write to destination directory", z.Str("fetched_exit_path", config.FetchedExitPath))
 	}
 
 	if err := os.Remove(writeTestFile); err != nil {
-		return errors.Wrap(err, "can't delete write test file")
+		return errors.Wrap(err, "delete write test file", z.Str("test_file_path", writeTestFile))
 	}
 
 	identityKey, err := k1util.Load(config.PrivateKeyPath)
 	if err != nil {
-		return errors.Wrap(err, "could not load identity key")
+		return errors.Wrap(err, "load identity key", z.Str("private_key_path", config.PrivateKeyPath))
 	}
 
 	cl, err := loadClusterManifest("", config.LockFilePath)
 	if err != nil {
-		return errors.Wrap(err, "could not load cluster-lock.json")
+		return errors.Wrap(err, "load cluster lock", z.Str("lock_file_path", config.LockFilePath))
 	}
 
 	oAPI, err := obolapi.New(config.PublishAddress, obolapi.WithTimeout(config.PublishTimeout))
 	if err != nil {
-		return errors.Wrap(err, "could not create obol api client")
+		return errors.Wrap(err, "create Obol API client", z.Str("publish_address", config.PublishAddress))
 	}
 
 	shareIdx, err := keystore.ShareIdxForCluster(cl, *identityKey.PubKey())
 	if err != nil {
-		return errors.Wrap(err, "could not determine operator index from cluster lock for supplied identity key")
+		return errors.Wrap(err, "determine operator index from cluster lock for supplied identity key")
 	}
 
 	if config.All {
@@ -128,7 +128,7 @@ func runFetchExit(ctx context.Context, config exitConfig) error {
 
 			fullExit, err := oAPI.GetFullExit(valCtx, validatorPubKeyHex, cl.GetInitialMutationHash(), shareIdx, identityKey)
 			if err != nil {
-				return errors.Wrap(err, "could not load full exit data from Obol API")
+				return errors.Wrap(err, "load full exit data from Obol API", z.Str("validator_public_key", validatorPubKeyHex))
 			}
 
 			err = writeExitToFile(valCtx, validatorPubKeyHex, config.FetchedExitPath, fullExit)
@@ -139,7 +139,7 @@ func runFetchExit(ctx context.Context, config exitConfig) error {
 	} else {
 		validator := core.PubKey(config.ValidatorPubkey)
 		if _, err := validator.Bytes(); err != nil {
-			return errors.Wrap(err, "cannot convert validator pubkey to bytes")
+			return errors.Wrap(err, "convert validator pubkey to bytes", z.Str("validator_public_key", config.ValidatorPubkey))
 		}
 
 		ctx = log.WithCtx(ctx, z.Str("validator", validator.String()))
@@ -148,7 +148,7 @@ func runFetchExit(ctx context.Context, config exitConfig) error {
 
 		fullExit, err := oAPI.GetFullExit(ctx, config.ValidatorPubkey, cl.GetInitialMutationHash(), shareIdx, identityKey)
 		if err != nil {
-			return errors.Wrap(err, "could not load full exit data from Obol API")
+			return errors.Wrap(err, "load full exit data from Obol API", z.Str("validator_public_key", config.ValidatorPubkey))
 		}
 
 		err = writeExitToFile(ctx, config.ValidatorPubkey, config.FetchedExitPath, fullExit)
