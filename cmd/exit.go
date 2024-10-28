@@ -192,7 +192,7 @@ func eth2Client(ctx context.Context, u []string, timeout time.Duration, forkVers
 	}
 
 	if _, err = cl.NodeVersion(ctx, &eth2api.NodeVersionOpts{}); err != nil {
-		return nil, errors.Wrap(err, "can't connect to beacon node")
+		return nil, errors.Wrap(err, "connect to beacon node")
 	}
 
 	return cl, nil
