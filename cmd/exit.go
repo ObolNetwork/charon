@@ -162,7 +162,7 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 		case fetchedExitPath:
 			cmd.Flags().StringVar(&config.FetchedExitPath, fetchedExitPath.String(), "./", maybeRequired("Path to store fetched signed exit messages."))
 		case publishTimeout:
-			cmd.Flags().DurationVar(&config.PublishTimeout, publishTimeout.String(), 30*time.Second, "Timeout for publishing a signed exit to the publish-address API.")
+			cmd.Flags().DurationVar(&config.PublishTimeout, publishTimeout.String(), 5*time.Minute, "Timeout for publishing a signed exit to the publish-address API.")
 		case validatorIndex:
 			cmd.Flags().Uint64Var(&config.ValidatorIndex, validatorIndex.String(), 0, "Validator index of the validator to exit, the associated public key must be present in the cluster lock manifest. If --validator-public-key is also provided, validator existence won't be checked on the beacon chain.")
 		case all:
