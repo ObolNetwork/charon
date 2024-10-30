@@ -11,7 +11,11 @@ import (
 	"math/rand"
 	"net/http"
 	"net/http/httptrace"
+	"os"
+	"path/filepath"
+	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,12 +31,32 @@ import (
 
 type testBeaconConfig struct {
 	testConfig
-	Endpoints        []string
-	EnableLoadTest   bool
-	LoadTestDuration time.Duration
+	Endpoints            []string
+	EnableLoadTest       bool
+	EnableSimulation     bool
+	SimulationValidators int
+	SimulationFileDir    string
+	LoadTestDuration     time.Duration
 }
 
 type testCaseBeacon func(context.Context, *testBeaconConfig, string) testResult
+
+type SimulationValues struct {
+	Min    Duration
+	Max    Duration
+	Median Duration
+	Avg    Duration
+}
+
+type Simulation struct {
+	Attestation SimulationAttestation
+}
+
+type SimulationAttestation struct {
+	AttestationGetDuties SimulationValues
+	AttestationPostData  SimulationValues
+	SimulationValues
+}
 
 const (
 	thresholdBeaconMeasureAvg  = 40 * time.Millisecond
@@ -41,6 +65,12 @@ const (
 	thresholdBeaconLoadPoor    = 100 * time.Millisecond
 	thresholdBeaconPeersAvg    = 50
 	thresholdBeaconPeersPoor   = 20
+
+	thresholdBeaconSimulationAvg  = 200 * time.Millisecond
+	thresholdBeaconSimulationPoor = 400 * time.Millisecond
+	committeeIndexSizePerSlot     = 64
+	slotTime                      = 12 * time.Second
+	epochTime                     = 4 * slotTime
 )
 
 func newTestBeaconCmd(runFunc func(context.Context, io.Writer, testBeaconConfig) error) *cobra.Command {
@@ -70,6 +100,8 @@ func bindTestBeaconFlags(cmd *cobra.Command, config *testBeaconConfig) {
 	cmd.Flags().StringSliceVar(&config.Endpoints, endpoints, nil, "[REQUIRED] Comma separated list of one or more beacon node endpoint URLs.")
 	mustMarkFlagRequired(cmd, endpoints)
 	cmd.Flags().BoolVar(&config.EnableLoadTest, "enable-load-test", false, "Enable load test, not advisable when testing towards external beacon nodes.")
+	cmd.Flags().BoolVar(&config.EnableSimulation, "enable-simulation", false, "Enable simulation test, not advisable when testing towards external beacon nodes.")
+	cmd.Flags().StringVar(&config.SimulationFileDir, "simulation-file-dir", "./", "JSON directory to which simulation file results will be written.")
 	cmd.Flags().DurationVar(&config.LoadTestDuration, "load-test-duration", 5*time.Second, "Time to keep running the load tests in seconds. For each second a new continuous ping instance is spawned.")
 }
 
@@ -80,6 +112,8 @@ func supportedBeaconTestCases() map[testCaseName]testCaseBeacon {
 		{name: "isSynced", order: 3}:    beaconIsSyncedTest,
 		{name: "peerCount", order: 4}:   beaconPeerCountTest,
 		{name: "pingLoad", order: 5}:    beaconPingLoadTest,
+
+		{name: "simulate10", order: 6}: beaconSimulation10Test,
 	}
 }
 
@@ -450,4 +484,297 @@ func beaconPeerCountTest(ctx context.Context, _ *testBeaconConfig, target string
 	}
 
 	return testRes
+}
+
+func beaconSimulation10Test(ctx context.Context, conf *testBeaconConfig, target string) testResult {
+	testRes := testResult{Name: "BeaconSimulation10Validators"}
+	if !conf.EnableSimulation {
+		testRes.Verdict = testVerdictSkipped
+		return testRes
+	}
+	validatorsCount := 10
+
+	log.Info(ctx, "Running simulation for 10 validators tests...",
+		z.Any("validators", validatorsCount),
+		z.Any("target", target),
+	)
+
+	simulationResCh := make(chan Simulation)
+	simulationResAll := []Simulation{}
+	for range validatorsCount {
+		go singleValidatorSimulation(ctx, conf, target, simulationResCh)
+	}
+
+	finished := false
+	for !finished {
+		select {
+		case <-ctx.Done():
+			finished = true
+			continue
+		case result, ok := <-simulationResCh:
+			if !ok {
+				finished = true
+				continue
+			}
+			simulationResAll = append(simulationResAll, result)
+			if len(simulationResAll) == validatorsCount {
+				finished = true
+			}
+		}
+	}
+	close(simulationResCh)
+
+	simulationResAllJSON, err := json.Marshal(simulationResAll)
+	if err != nil {
+		log.Error(ctx, "Failed to marshal simulation result", err)
+	}
+	err = os.WriteFile(filepath.Join(conf.SimulationFileDir, "10-validators.json"), simulationResAllJSON, 0o644) //nolint:gosec
+	if err != nil {
+		log.Error(ctx, "Failed to write file", err)
+	}
+
+	highestRTT := Duration{0}
+	for _, sim := range simulationResAll {
+		simulationMax := Duration{max(sim.Attestation.Max.Duration)}
+		if simulationMax.Duration > highestRTT.Duration {
+			highestRTT = simulationMax
+		}
+	}
+	if highestRTT.Duration > thresholdBeaconSimulationPoor {
+		testRes.Verdict = testVerdictPoor
+	} else if highestRTT.Duration > thresholdBeaconSimulationAvg {
+		testRes.Verdict = testVerdictAvg
+	} else {
+		testRes.Verdict = testVerdictGood
+	}
+	testRes.Measurement = highestRTT.String()
+
+	return testRes
+}
+
+func getCurrentSlot(ctx context.Context, target string) (int, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target+"/eth/v1/node/syncing", nil)
+	if err != nil {
+		return 0, errors.Wrap(err, "create new http request")
+	}
+	resp, err := new(http.Client).Do(req)
+	if err != nil {
+		return 0, errors.Wrap(err, "call /eth/v1/node/syncing endpoint")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		return 0, errors.New("post failed", z.Int("status", resp.StatusCode))
+	}
+
+	type syncingResponseData struct {
+		HeadSlot string `json:"head_slot"`
+	}
+	type syncingResponse struct {
+		Data syncingResponseData `json:"data"`
+	}
+	var sr syncingResponse
+	if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
+		return 0, errors.Wrap(err, "json unmarshal error")
+	}
+
+	head, err := strconv.Atoi(sr.Data.HeadSlot)
+	if err != nil {
+		return 0, errors.Wrap(err, "head slot string to int")
+	}
+
+	return head, nil
+}
+
+func singleValidatorSimulation(ctx context.Context, conf *testBeaconConfig, target string, resultCh chan Simulation) {
+	// attestations
+	getAttestationDataCh := make(chan time.Duration)
+	getAttestationDataAll := []time.Duration{}
+	submitAttestationObjectCh := make(chan time.Duration)
+	submitAttestationObjectAll := []time.Duration{}
+	log.Info(ctx, "Starting attestation duties...")
+	slot, err := getCurrentSlot(ctx, target)
+	if err != nil {
+		log.Error(ctx, "Failed to get current slot", err)
+		slot = 1
+	}
+	go attestationDuty(ctx, conf, target, slot, slotTime, epochTime, getAttestationDataCh, submitAttestationObjectCh)
+
+	// start proposer duties
+	// TODO
+
+	finished := false
+	for !finished {
+		select {
+		case <-ctx.Done():
+			finished = true
+		case result, ok := <-getAttestationDataCh:
+			if !ok {
+				finished = true
+				continue
+			}
+			getAttestationDataAll = append(getAttestationDataAll, result)
+		case result, ok := <-submitAttestationObjectCh:
+			if !ok {
+				finished = true
+				continue
+			}
+			submitAttestationObjectAll = append(submitAttestationObjectAll, result)
+		}
+		// add propose channels
+		// TODO
+	}
+
+	getSimulationValues := simulationValuesFromSlice(getAttestationDataAll)
+	submitSimulationValues := simulationValuesFromSlice(submitAttestationObjectAll)
+
+	cumulativeAttestation := []time.Duration{}
+	for i := range getAttestationDataAll {
+		cumulativeAttestation = append(cumulativeAttestation, getAttestationDataAll[i]+submitAttestationObjectAll[i])
+	}
+	cumulativeSimulationValues := simulationValuesFromSlice(cumulativeAttestation)
+
+	attestationResult := SimulationAttestation{
+		AttestationGetDuties: getSimulationValues,
+		AttestationPostData:  submitSimulationValues,
+		SimulationValues:     cumulativeSimulationValues,
+	}
+
+	// synthesize proposer results
+	// TODO
+
+	log.Info(ctx, "Simulation for validator finished")
+	resultCh <- Simulation{
+		Attestation: attestationResult,
+	}
+}
+
+func simulationValuesFromSlice(s []time.Duration) SimulationValues {
+	sort.Slice(s, func(i, j int) bool {
+		return s[i] < s[j]
+	})
+	minVal := s[0]
+	maxVal := s[len(s)-1]
+	medianVal := s[len(s)/2]
+	var all time.Duration
+	for _, t := range s {
+		all += t
+	}
+	avgVal := time.Duration(int(all.Nanoseconds()) / len(s))
+
+	return SimulationValues{
+		Min:    Duration{minVal},
+		Max:    Duration{maxVal},
+		Median: Duration{medianVal},
+		Avg:    Duration{avgVal},
+	}
+}
+
+func attestationDuty(ctx context.Context, conf *testBeaconConfig, target string, slot int, slotTime time.Duration, epochTime time.Duration, getAttestationDataCh chan time.Duration, submitAttestationObjectCh chan time.Duration) {
+	defer close(submitAttestationObjectCh)
+	defer close(getAttestationDataCh)
+	pingCtx, cancel := context.WithTimeout(ctx, epochTime)
+	defer cancel()
+	ticker := time.NewTicker(slotTime)
+	defer ticker.Stop()
+	for pingCtx.Err() == nil {
+		select {
+		case <-ticker.C:
+			getResult, err := getAttestationData(ctx, conf, target, slot, rand.Intn(committeeIndexSizePerSlot)) //nolint:gosec // weak generator is not an issue here
+			if err != nil {
+				log.Error(ctx, "Unexpected getAttestationData failure", err)
+			}
+			submitResult, err := submitAttestationObject(ctx, conf, target)
+			if err != nil {
+				log.Error(ctx, "Unexpected submitAttestationObject failure", err)
+			}
+			getAttestationDataCh <- getResult
+			submitAttestationObjectCh <- submitResult
+			slot++
+		case <-pingCtx.Done():
+		}
+	}
+	log.Info(ctx, "Attestation duty simulation finished")
+}
+
+func getAttestationData(ctx context.Context, _ *testBeaconConfig, target string, slot int, committeeIndex int) (time.Duration, error) {
+	var start time.Time
+	var firstByte time.Duration
+
+	trace := &httptrace.ClientTrace{
+		GotFirstResponseByte: func() {
+			firstByte = time.Since(start)
+		},
+	}
+
+	start = time.Now()
+	targetEndpoint := fmt.Sprintf("%v/eth/v1/validator/attestation_data?slot=%v&committee_index=%v", target, slot, committeeIndex)
+	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), http.MethodGet, targetEndpoint, nil)
+	if err != nil {
+		return 0, errors.Wrap(err, "create new request with trace and context")
+	}
+
+	resp, err := http.DefaultTransport.RoundTrip(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode > 399 {
+		data, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return 0, errors.New("http GET failed", z.Int("status_code", resp.StatusCode), z.Str("endpoint", targetEndpoint))
+		}
+
+		return 0, errors.New("http GET failed", z.Int("status_code", resp.StatusCode), z.Str("endpoint", targetEndpoint), z.Str("body", string(data)))
+	}
+
+	return firstByte, nil
+}
+
+func submitAttestationObject(ctx context.Context, _ *testBeaconConfig, target string) (time.Duration, error) {
+	var start time.Time
+	var firstByte time.Duration
+
+	trace := &httptrace.ClientTrace{
+		GotFirstResponseByte: func() {
+			firstByte = time.Since(start)
+		},
+	}
+
+	start = time.Now()
+	targetEndpoint := fmt.Sprintf("%v/eth/v1/beacon/pool/attestations", target)
+	body := strings.NewReader(`{
+    "aggregation_bits": "0x01",
+    "signature": "0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505",
+    "data": {
+      "slot": "1",
+      "index": "1",
+      "beacon_block_root": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2",
+      "source": {
+        "epoch": "1",
+        "root": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"
+      },
+      "target": {
+        "epoch": "1",
+        "root": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"
+      }
+    }
+  }`)
+	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), http.MethodPost, targetEndpoint, body)
+	if err != nil {
+		return 0, errors.Wrap(err, "create new request with trace and context")
+	}
+
+	resp, err := http.DefaultTransport.RoundTrip(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	// if resp.StatusCode > 399 {
+	// 	return 0, errors.New("status code %v", z.Int("status_code", resp.StatusCode))
+	// }
+
+	return firstByte, nil
 }
