@@ -63,11 +63,18 @@ type Simulation struct {
 
 type SimulationPerValidator struct {
 	Attestation SimulationAttestation
+	Aggregation SimulationAggregation
 }
 
 type SimulationAttestation struct {
 	AttestationGetDuties SimulationValues
 	AttestationPostData  SimulationValues
+	SimulationValues
+}
+
+type SimulationAggregation struct {
+	AggregationGetAggregationAttestations SimulationValues
+	AggregationSubmitAggregateAndProofs   SimulationValues
 	SimulationValues
 }
 
@@ -744,8 +751,13 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 	log.Info(ctx, "Starting attestation duties...")
 	go attestationDuty(ctx, target, slot, simulationDuration, intensity.AttestationDuty, getAttestationDataCh, submitAttestationObjectCh)
 
-	// start proposer duties
-	// TODO
+	// aggregations
+	getAggregateAttestationsCh := make(chan time.Duration)
+	getAggregateAttestationsAll := []time.Duration{}
+	submitAggregateAndProofsCh := make(chan time.Duration)
+	submitAggregateAndProofsAll := []time.Duration{}
+	log.Info(ctx, "Starting aggregation duties...")
+	go aggregationDuty(ctx, target, slot, simulationDuration, intensity.AggregatorDuty, getAggregateAttestationsCh, submitAggregateAndProofsCh)
 
 	// capture results
 	finished := false
@@ -765,9 +777,19 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 				continue
 			}
 			submitAttestationObjectAll = append(submitAttestationObjectAll, result)
+		case result, ok := <-getAggregateAttestationsCh:
+			if !ok {
+				finished = true
+				continue
+			}
+			getAggregateAttestationsAll = append(getAggregateAttestationsAll, result)
+		case result, ok := <-submitAggregateAndProofsCh:
+			if !ok {
+				finished = true
+				continue
+			}
+			submitAggregateAndProofsAll = append(submitAggregateAndProofsAll, result)
 		}
-		// add propose channels
-		// TODO
 	}
 
 	// attestation results grouping
@@ -786,12 +808,26 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 		SimulationValues:     cumulativeSimulationValues,
 	}
 
-	// synthesize proposer results
-	// TODO
+	// aggregation results grouping
+	getAggregateSimulationValues := simulationValuesFromSlice(getAggregateAttestationsAll)
+	submitAggregateSimulationValues := simulationValuesFromSlice(submitAggregateAndProofsAll)
+
+	cumulativeAggregations := []time.Duration{}
+	for i := range getAggregateAttestationsAll {
+		cumulativeAggregations = append(cumulativeAggregations, getAggregateAttestationsAll[i]+submitAggregateAndProofsAll[i])
+	}
+	cumulativeAggregationsSimulationValues := simulationValuesFromSlice(cumulativeAggregations)
+
+	aggregationResults := SimulationAggregation{
+		AggregationGetAggregationAttestations: getAggregateSimulationValues,
+		AggregationSubmitAggregateAndProofs:   submitAggregateSimulationValues,
+		SimulationValues:                      cumulativeAggregationsSimulationValues,
+	}
 
 	log.Info(ctx, "Simulation for validator finished")
 	resultCh <- SimulationPerValidator{
 		Attestation: attestationResult,
+		Aggregation: aggregationResults,
 	}
 }
 
@@ -814,6 +850,34 @@ func simulationValuesFromSlice(s []time.Duration) SimulationValues {
 		Median: Duration{medianVal},
 		Avg:    Duration{avgVal},
 	}
+}
+
+func aggregationDuty(ctx context.Context, target string, slot int, simulationDuration time.Duration, tickTime time.Duration, getAggregateAttestationsCh chan time.Duration, submitAggregateAndProofsCh chan time.Duration) {
+	defer close(getAggregateAttestationsCh)
+	defer close(submitAggregateAndProofsCh)
+	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
+	defer cancel()
+	ticker := time.NewTicker(tickTime)
+	defer ticker.Stop()
+	for pingCtx.Err() == nil {
+		select {
+		case <-ticker.C:
+			// TODO: use real attestation data root
+			getResult, err := getAggregateAttestations(ctx, target, slot, "0x87db5c50a4586fa37662cf332382d56a0eeea688a7d7311a42735683dfdcbfa4")
+			if err != nil {
+				log.Error(ctx, "Unexpected getAggregateAttestations failure", err)
+			}
+			submitResult, err := aggregateAndProofs(ctx, target)
+			if err != nil {
+				log.Error(ctx, "Unexpected aggregateAndProofs failure", err)
+			}
+			getAggregateAttestationsCh <- getResult
+			submitAggregateAndProofsCh <- submitResult
+			slot++
+		case <-pingCtx.Done():
+		}
+	}
+	log.Info(ctx, "Aggregation duty simulation finished")
 }
 
 func attestationDuty(ctx context.Context, target string, slot int, simulationDuration time.Duration, tickTime time.Duration, getAttestationDataCh chan time.Duration, submitAttestationObjectCh chan time.Duration) {
@@ -915,4 +979,40 @@ func submitAttestationObject(ctx context.Context, target string) (time.Duration,
   }`)
 
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/beacon/pool/attestations", target), http.MethodPost, body, false)
+}
+
+func getAggregateAttestations(ctx context.Context, target string, slot int, attestationDataRoot string) (time.Duration, error) {
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/aggregate_attestation?slot=%v&attestation_data_root=%v", target, slot, attestationDataRoot), http.MethodGet, nil, false)
+}
+
+func aggregateAndProofs(ctx context.Context, target string) (time.Duration, error) {
+	body := strings.NewReader(`[
+		{
+			"message": {
+				"aggregator_index": "1",
+				"aggregate": {
+					"aggregation_bits": "0x01",
+					"signature": "0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505",
+					"data": {
+						"slot": "1",
+						"index": "1",
+						"beacon_block_root": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2",
+						"source": {
+							"epoch": "1",
+							"root": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"
+						},
+						"target": {
+							"epoch": "1",
+							"root": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"
+						}
+					}
+				},
+				"selection_proof": "0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505"
+			},
+			"signature": "0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505"
+		}
+	]
+	`)
+
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/aggregate_and_proofs", target), http.MethodPost, body, false)
 }
