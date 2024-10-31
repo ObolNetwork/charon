@@ -33,10 +33,11 @@ type testBeaconConfig struct {
 	testConfig
 	Endpoints            []string
 	EnableLoadTest       bool
+	LoadTestDuration     time.Duration
 	EnableSimulation     bool
 	SimulationValidators int
 	SimulationFileDir    string
-	LoadTestDuration     time.Duration
+	SimulationDuration   int
 }
 
 type testCaseBeacon func(context.Context, *testBeaconConfig, string) testResult
@@ -46,6 +47,13 @@ type SimulationValues struct {
 	Max    Duration
 	Median Duration
 	Avg    Duration
+}
+
+type RequestsIntensity struct {
+	AttestationDuty     time.Duration
+	AggregatorDuty      time.Duration
+	SyncCommitteeDuties time.Duration
+	ProposerDuty        time.Duration
 }
 
 type Simulation struct {
@@ -112,9 +120,10 @@ func bindTestBeaconFlags(cmd *cobra.Command, config *testBeaconConfig) {
 	cmd.Flags().StringSliceVar(&config.Endpoints, endpoints, nil, "[REQUIRED] Comma separated list of one or more beacon node endpoint URLs.")
 	mustMarkFlagRequired(cmd, endpoints)
 	cmd.Flags().BoolVar(&config.EnableLoadTest, "enable-load-test", false, "Enable load test, not advisable when testing towards external beacon nodes.")
+	cmd.Flags().DurationVar(&config.LoadTestDuration, "load-test-duration", 5*time.Second, "Time to keep running the load tests in seconds. For each second a new continuous ping instance is spawned.")
 	cmd.Flags().BoolVar(&config.EnableSimulation, "enable-simulation", false, "Enable simulation test, not advisable when testing towards external beacon nodes.")
 	cmd.Flags().StringVar(&config.SimulationFileDir, "simulation-file-dir", "./", "JSON directory to which simulation file results will be written.")
-	cmd.Flags().DurationVar(&config.LoadTestDuration, "load-test-duration", 5*time.Second, "Time to keep running the load tests in seconds. For each second a new continuous ping instance is spawned.")
+	cmd.Flags().IntVar(&config.SimulationDuration, "simulation-duration-in-slots", slotsInEpoch, "Time to keep running the simulation in slots.")
 }
 
 func supportedBeaconTestCases() map[testCaseName]testCaseBeacon {
@@ -509,16 +518,26 @@ func beaconSimulation10Test(ctx context.Context, conf *testBeaconConfig, target 
 	log.Info(ctx, "Running simulation for 10 validators tests...",
 		z.Any("validators", validatorsCount),
 		z.Any("target", target),
+		z.Any("duration_in_slots", conf.SimulationDuration),
 	)
+
+	intensity := RequestsIntensity{
+		AttestationDuty:     slotTime,
+		AggregatorDuty:      slotTime * 2,
+		SyncCommitteeDuties: epochTime,
+		ProposerDuty:        epochTime / 2,
+	}
+
+	duration := time.Duration(conf.SimulationDuration)*slotTime + time.Second
 
 	simulationGeneralResCh := make(chan SimulationGeneralRequests)
 	simulationGeneralRes := SimulationGeneralRequests{}
-	go singleClusterSimulation(ctx, conf, target, simulationGeneralResCh)
+	go singleClusterSimulation(ctx, duration, target, simulationGeneralResCh)
 	simulationResCh := make(chan SimulationPerValidator)
 	simulationResAll := []SimulationPerValidator{}
 	for v := range validatorsCount {
 		valCtx := log.WithCtx(ctx, z.Int("validator", v))
-		go singleValidatorSimulation(valCtx, conf, target, simulationResCh)
+		go singleValidatorSimulation(valCtx, duration, target, simulationResCh, intensity)
 	}
 
 	finished := false
@@ -617,7 +636,7 @@ func getCurrentSlot(ctx context.Context, target string) (int, error) {
 	return head, nil
 }
 
-func singleClusterSimulation(ctx context.Context, conf *testBeaconConfig, target string, resultCh chan SimulationGeneralRequests) {
+func singleClusterSimulation(ctx context.Context, simulationDuration time.Duration, target string, resultCh chan SimulationGeneralRequests) {
 	// per slot requests
 	attestationsForBlockCh := make(chan time.Duration)
 	attestationsForBlockAll := []time.Duration{}
@@ -631,7 +650,7 @@ func singleClusterSimulation(ctx context.Context, conf *testBeaconConfig, target
 		log.Error(ctx, "Failed to get current slot", err)
 		slot = 1
 	}
-	go clusterGeneralRequests(ctx, conf, target, slot, slotTime, epochTime, attestationsForBlockCh, proposerDutiesForEpochCh, syncingCh)
+	go clusterGeneralRequests(ctx, target, slot, slotTime, simulationDuration, attestationsForBlockCh, proposerDutiesForEpochCh, syncingCh)
 
 	finished := false
 	for !finished {
@@ -673,13 +692,13 @@ func singleClusterSimulation(ctx context.Context, conf *testBeaconConfig, target
 	resultCh <- generalResults
 }
 
-func clusterGeneralRequests(ctx context.Context, conf *testBeaconConfig, target string, slot int, slotTime time.Duration, epochTime time.Duration, attestationsForBlockCh chan time.Duration, proposerDutiesForEpochCh chan time.Duration, syncingCh chan time.Duration) {
+func clusterGeneralRequests(ctx context.Context, target string, slot int, slotTime time.Duration, simulationDuration time.Duration, attestationsForBlockCh chan time.Duration, proposerDutiesForEpochCh chan time.Duration, syncingCh chan time.Duration) {
 	defer func() {
 		close(proposerDutiesForEpochCh)
 		close(attestationsForBlockCh)
 		close(syncingCh)
 	}()
-	pingCtx, cancel := context.WithTimeout(ctx, epochTime)
+	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
 	tickerPerSlot := time.NewTicker(slotTime)
 	defer tickerPerSlot.Stop()
@@ -688,11 +707,11 @@ func clusterGeneralRequests(ctx context.Context, conf *testBeaconConfig, target 
 	for pingCtx.Err() == nil {
 		select {
 		case <-tickerPerSlot.C:
-			attestationsResult, err := getAttestationsForBlock(ctx, conf, target, slot-6)
+			attestationsResult, err := getAttestationsForBlock(ctx, target, slot-6)
 			if err != nil {
 				log.Error(ctx, "Unexpected getAttestationsForBlock failure", err)
 			}
-			submitResult, err := getProposerDutiesForEpoch(ctx, conf, target, slot/slotsInEpoch)
+			submitResult, err := getProposerDutiesForEpoch(ctx, target, slot/slotsInEpoch)
 			if err != nil {
 				log.Error(ctx, "Unexpected getProposerDutiesForEpoch failure", err)
 			}
@@ -700,7 +719,7 @@ func clusterGeneralRequests(ctx context.Context, conf *testBeaconConfig, target 
 			proposerDutiesForEpochCh <- submitResult
 			slot++
 		case <-tickerPer10Sec.C:
-			getSyncingResult, err := getSyncing(ctx, conf, target)
+			getSyncingResult, err := getSyncing(ctx, target)
 			if err != nil {
 				log.Error(ctx, "Unexpected getSyncing failure", err)
 			}
@@ -710,23 +729,25 @@ func clusterGeneralRequests(ctx context.Context, conf *testBeaconConfig, target 
 	}
 }
 
-func singleValidatorSimulation(ctx context.Context, conf *testBeaconConfig, target string, resultCh chan SimulationPerValidator) {
+func singleValidatorSimulation(ctx context.Context, simulationDuration time.Duration, target string, resultCh chan SimulationPerValidator, intensity RequestsIntensity) {
+	slot, err := getCurrentSlot(ctx, target)
+	if err != nil {
+		log.Error(ctx, "Failed to get current slot", err)
+		slot = 1
+	}
+
 	// attestations
 	getAttestationDataCh := make(chan time.Duration)
 	getAttestationDataAll := []time.Duration{}
 	submitAttestationObjectCh := make(chan time.Duration)
 	submitAttestationObjectAll := []time.Duration{}
 	log.Info(ctx, "Starting attestation duties...")
-	slot, err := getCurrentSlot(ctx, target)
-	if err != nil {
-		log.Error(ctx, "Failed to get current slot", err)
-		slot = 1
-	}
-	go attestationDuty(ctx, conf, target, slot, slotTime, epochTime, getAttestationDataCh, submitAttestationObjectCh)
+	go attestationDuty(ctx, target, slot, simulationDuration, intensity.AttestationDuty, getAttestationDataCh, submitAttestationObjectCh)
 
 	// start proposer duties
 	// TODO
 
+	// capture results
 	finished := false
 	for !finished {
 		select {
@@ -749,6 +770,7 @@ func singleValidatorSimulation(ctx context.Context, conf *testBeaconConfig, targ
 		// TODO
 	}
 
+	// attestation results grouping
 	getSimulationValues := simulationValuesFromSlice(getAttestationDataAll)
 	submitSimulationValues := simulationValuesFromSlice(submitAttestationObjectAll)
 
@@ -794,21 +816,21 @@ func simulationValuesFromSlice(s []time.Duration) SimulationValues {
 	}
 }
 
-func attestationDuty(ctx context.Context, conf *testBeaconConfig, target string, slot int, slotTime time.Duration, epochTime time.Duration, getAttestationDataCh chan time.Duration, submitAttestationObjectCh chan time.Duration) {
-	defer close(submitAttestationObjectCh)
+func attestationDuty(ctx context.Context, target string, slot int, simulationDuration time.Duration, tickTime time.Duration, getAttestationDataCh chan time.Duration, submitAttestationObjectCh chan time.Duration) {
 	defer close(getAttestationDataCh)
-	pingCtx, cancel := context.WithTimeout(ctx, epochTime)
+	defer close(submitAttestationObjectCh)
+	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
-	ticker := time.NewTicker(slotTime)
+	ticker := time.NewTicker(tickTime)
 	defer ticker.Stop()
 	for pingCtx.Err() == nil {
 		select {
 		case <-ticker.C:
-			getResult, err := getAttestationData(ctx, conf, target, slot, rand.Intn(committeeIndexSizePerSlot)) //nolint:gosec // weak generator is not an issue here
+			getResult, err := getAttestationData(ctx, target, slot, rand.Intn(committeeIndexSizePerSlot)) //nolint:gosec // weak generator is not an issue here
 			if err != nil {
 				log.Error(ctx, "Unexpected getAttestationData failure", err)
 			}
-			submitResult, err := submitAttestationObject(ctx, conf, target)
+			submitResult, err := submitAttestationObject(ctx, target)
 			if err != nil {
 				log.Error(ctx, "Unexpected submitAttestationObject failure", err)
 			}
@@ -857,23 +879,23 @@ func requestRTT(ctx context.Context, url string, method string, body io.Reader, 
 	return firstByte, nil
 }
 
-func getAttestationsForBlock(ctx context.Context, _ *testBeaconConfig, target string, block int) (time.Duration, error) {
+func getAttestationsForBlock(ctx context.Context, target string, block int) (time.Duration, error) {
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/beacon/blocks/%v/attestations", target, block), http.MethodGet, nil, false)
 }
 
-func getSyncing(ctx context.Context, _ *testBeaconConfig, target string) (time.Duration, error) {
+func getSyncing(ctx context.Context, target string) (time.Duration, error) {
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/node/syncing", target), http.MethodGet, nil, false)
 }
 
-func getProposerDutiesForEpoch(ctx context.Context, _ *testBeaconConfig, target string, epoch int) (time.Duration, error) {
+func getProposerDutiesForEpoch(ctx context.Context, target string, epoch int) (time.Duration, error) {
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/duties/proposer/%v", target, epoch), http.MethodGet, nil, true)
 }
 
-func getAttestationData(ctx context.Context, _ *testBeaconConfig, target string, slot int, committeeIndex int) (time.Duration, error) {
+func getAttestationData(ctx context.Context, target string, slot int, committeeIndex int) (time.Duration, error) {
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/attestation_data?slot=%v&committee_index=%v", target, slot, committeeIndex), http.MethodGet, nil, true)
 }
 
-func submitAttestationObject(ctx context.Context, _ *testBeaconConfig, target string) (time.Duration, error) {
+func submitAttestationObject(ctx context.Context, target string) (time.Duration, error) {
 	body := strings.NewReader(`{
     "aggregation_bits": "0x01",
     "signature": "0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505",
