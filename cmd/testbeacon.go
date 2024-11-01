@@ -526,6 +526,7 @@ func beaconSimulation10Test(ctx context.Context, conf *testBeaconConfig, target 
 		z.Any("validators", validatorsCount),
 		z.Any("target", target),
 		z.Any("duration_in_slots", conf.SimulationDuration),
+		z.Any("slot_duration", slotTime),
 	)
 
 	intensity := RequestsIntensity{
