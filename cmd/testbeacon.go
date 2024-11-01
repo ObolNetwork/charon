@@ -907,6 +907,7 @@ func aggregationDuty(ctx context.Context, target string, slot int, simulationDur
 	for pingCtx.Err() == nil {
 		select {
 		case <-ticker.C:
+			slot += int(tickTime.Seconds()) / int(slotTime.Seconds())
 			// TODO: use real attestation data root
 			getResult, err := getAggregateAttestations(ctx, target, slot, "0x87db5c50a4586fa37662cf332382d56a0eeea688a7d7311a42735683dfdcbfa4")
 			if err != nil {
@@ -918,7 +919,6 @@ func aggregationDuty(ctx context.Context, target string, slot int, simulationDur
 			}
 			getAggregateAttestationsCh <- getResult
 			submitAggregateAndProofsCh <- submitResult
-			slot += int(tickTime.Seconds()) / int(slotTime.Seconds())
 		case <-pingCtx.Done():
 		}
 	}
@@ -932,20 +932,21 @@ func proposalDuty(ctx context.Context, target string, slot int, simulationDurati
 	defer cancel()
 	ticker := time.NewTicker(tickTime)
 	defer ticker.Stop()
+	slot++ // produce block for the next slot, as the current one might have already been proposed
 	for pingCtx.Err() == nil {
 		select {
 		case <-ticker.C:
-			produceResult, err := produceBlock(ctx, target, slot, "0x9880dad5a0e900906a1355da0697821af687b4c2cd861cd219f2d779c50a47d3c0335c08d840c86c167986ae0aaf50070b708fe93a83f66c99a4f931f9a520aebb0f5b11ca202c3d76343e30e49f43c0479e850af0e410333f7c")
+			slot += int(tickTime.Seconds()) / int(slotTime.Seconds())
+			produceResult, err := produceBlock(ctx, target, slot, "0x1fe79e4193450abda94aec753895cfb2aac2c2a930b6bab00fbb27ef6f4a69f4400ad67b5255b91837982b4c511ae1d94eae1cf169e20c11bd417c1fffdb1f99f4e13e2de68f3b5e73f1de677d73cd43e44bf9b133a79caf8e5fad06738e1b0c")
 			if err != nil {
-				log.Error(ctx, "Unexpected getAggregateAttestations failure", err)
+				log.Error(ctx, "Unexpected produceBlock failure", err)
 			}
 			publishResult, err := publishBlindedBlock(ctx, target)
 			if err != nil {
-				log.Error(ctx, "Unexpected aggregateAndProofs failure", err)
+				log.Error(ctx, "Unexpected publishBlindedBlock failure", err)
 			}
 			produceBlockCh <- produceResult
 			publishBlindedBlockCh <- publishResult
-			slot += int(tickTime.Seconds()) / int(slotTime.Seconds())
 		case <-pingCtx.Done():
 		}
 	}
@@ -962,6 +963,7 @@ func attestationDuty(ctx context.Context, target string, slot int, simulationDur
 	for pingCtx.Err() == nil {
 		select {
 		case <-ticker.C:
+			slot += int(tickTime.Seconds()) / int(slotTime.Seconds())
 			getResult, err := getAttestationData(ctx, target, slot, rand.Intn(committeeIndexSizePerSlot)) //nolint:gosec // weak generator is not an issue here
 			if err != nil {
 				log.Error(ctx, "Unexpected getAttestationData failure", err)
@@ -972,7 +974,6 @@ func attestationDuty(ctx context.Context, target string, slot int, simulationDur
 			}
 			getAttestationDataCh <- getResult
 			submitAttestationObjectCh <- submitResult
-			slot += int(tickTime.Seconds()) / int(slotTime.Seconds())
 		case <-pingCtx.Done():
 		}
 	}
