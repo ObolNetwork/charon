@@ -873,7 +873,7 @@ func aggregationDuty(ctx context.Context, target string, slot int, simulationDur
 			}
 			getAggregateAttestationsCh <- getResult
 			submitAggregateAndProofsCh <- submitResult
-			slot++
+			slot += int(tickTime.Seconds()) / int(slotTime.Seconds())
 		case <-pingCtx.Done():
 		}
 	}
@@ -900,7 +900,7 @@ func attestationDuty(ctx context.Context, target string, slot int, simulationDur
 			}
 			getAttestationDataCh <- getResult
 			submitAttestationObjectCh <- submitResult
-			slot++
+			slot += int(tickTime.Seconds()) / int(slotTime.Seconds())
 		case <-pingCtx.Done():
 		}
 	}
