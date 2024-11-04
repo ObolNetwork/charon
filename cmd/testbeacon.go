@@ -50,10 +50,12 @@ type SimulationValues struct {
 }
 
 type RequestsIntensity struct {
-	AttestationDuty     time.Duration
-	AggregatorDuty      time.Duration
-	SyncCommitteeDuties time.Duration
-	ProposalDuty        time.Duration
+	AttestationDuty        time.Duration
+	AggregatorDuty         time.Duration
+	ProposalDuty           time.Duration
+	SyncCommitteeSubmit    time.Duration
+	SyncCommitteeProduce   time.Duration
+	SyncCommitteeSubscribe time.Duration
 }
 
 type Simulation struct {
@@ -62,9 +64,10 @@ type Simulation struct {
 }
 
 type SimulationPerValidator struct {
-	Attestation SimulationAttestation
-	Aggregation SimulationAggregation
-	Proposal    SimulationProposal
+	Attestation   SimulationAttestation
+	Aggregation   SimulationAggregation
+	Proposal      SimulationProposal
+	SyncCommittee SimulationSyncCommittee
 }
 
 type SimulationAttestation struct {
@@ -85,6 +88,12 @@ type SimulationProposal struct {
 	SimulationValues
 }
 
+type SimulationSyncCommittee struct {
+	SubmitSyncCommittees             SimulationValues
+	ProduceSyncCommitteeContribution SimulationValues
+	SyncCommitteeSubscription        SimulationValues
+}
+
 type SimulationGeneralRequests struct {
 	AttestationsForBlock   SimulationValues
 	ProposalDutiesForEpoch SimulationValues
@@ -101,7 +110,8 @@ const (
 
 	thresholdBeaconSimulationAvg  = 200 * time.Millisecond
 	thresholdBeaconSimulationPoor = 400 * time.Millisecond
-	committeeIndexSizePerSlot     = 64
+	committeeSizePerSlot          = 64
+	subCommitteeSize              = 4
 	slotTime                      = 12 * time.Second
 	slotsInEpoch                  = 32
 	epochTime                     = slotsInEpoch * slotTime
@@ -537,10 +547,12 @@ func beaconSimulation10Test(ctx context.Context, conf *testBeaconConfig, target 
 	)
 
 	intensity := RequestsIntensity{
-		AttestationDuty:     slotTime,
-		AggregatorDuty:      slotTime * 2,
-		ProposalDuty:        slotTime * 4,
-		SyncCommitteeDuties: epochTime,
+		AttestationDuty:        slotTime,
+		AggregatorDuty:         slotTime * 2,
+		ProposalDuty:           slotTime * 4,
+		SyncCommitteeSubmit:    slotTime,
+		SyncCommitteeProduce:   slotTime * 4,
+		SyncCommitteeSubscribe: epochTime,
 	}
 
 	duration := time.Duration(conf.SimulationDuration)*slotTime + time.Second
@@ -775,6 +787,18 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 	log.Info(ctx, "Starting proposal duties...")
 	go proposalDuty(ctx, target, slot, simulationDuration, intensity.ProposalDuty, produceBlockCh, publishBlindedBlockCh)
 
+	// sync_committee
+	submitSyncCommitteesCh := make(chan time.Duration)
+	submitSyncCommitteesAll := []time.Duration{}
+	produceSyncCommitteeContributionCh := make(chan time.Duration)
+	produceSyncCommitteeContributionAll := []time.Duration{}
+	syncCommitteeSubscriptionCh := make(chan time.Duration)
+	syncCommitteeSubscriptionAll := []time.Duration{}
+	log.Info(ctx, "Starting sync committee duties...")
+	go syncCommitteeDuty(ctx, target, slot,
+		simulationDuration, intensity.SyncCommitteeSubmit, intensity.SyncCommitteeProduce, intensity.SyncCommitteeSubscribe,
+		submitSyncCommitteesCh, produceSyncCommitteeContributionCh, syncCommitteeSubscriptionCh)
+
 	// capture results
 	finished := false
 	for !finished {
@@ -817,6 +841,24 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 				continue
 			}
 			publishBlindedBlockAll = append(publishBlindedBlockAll, result)
+		case result, ok := <-submitSyncCommitteesCh:
+			if !ok {
+				finished = true
+				continue
+			}
+			submitSyncCommitteesAll = append(submitSyncCommitteesAll, result)
+		case result, ok := <-produceSyncCommitteeContributionCh:
+			if !ok {
+				finished = true
+				continue
+			}
+			produceSyncCommitteeContributionAll = append(produceSyncCommitteeContributionAll, result)
+		case result, ok := <-syncCommitteeSubscriptionCh:
+			if !ok {
+				finished = true
+				continue
+			}
+			syncCommitteeSubscriptionAll = append(syncCommitteeSubscriptionAll, result)
 		}
 	}
 
@@ -868,15 +910,35 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 		SimulationValues:            cumulativeProposalsSimulationValues,
 	}
 
+	// sync committee results grouping
+	submitSyncCommitteesValues := simulationValuesFromSlice(submitSyncCommitteesAll)
+	produceSyncCommitteeContributionValues := simulationValuesFromSlice(produceSyncCommitteeContributionAll)
+	syncCommitteeSubscriptionValues := simulationValuesFromSlice(syncCommitteeSubscriptionAll)
+
+	syncCommitteeResults := SimulationSyncCommittee{
+		SubmitSyncCommittees:             submitSyncCommitteesValues,
+		ProduceSyncCommitteeContribution: produceSyncCommitteeContributionValues,
+		SyncCommitteeSubscription:        syncCommitteeSubscriptionValues,
+	}
+
 	log.Info(ctx, "Simulation for validator finished")
 	resultCh <- SimulationPerValidator{
-		Attestation: attestationResult,
-		Aggregation: aggregationResults,
-		Proposal:    proposalResults,
+		Attestation:   attestationResult,
+		Aggregation:   aggregationResults,
+		Proposal:      proposalResults,
+		SyncCommittee: syncCommitteeResults,
 	}
 }
 
 func simulationValuesFromSlice(s []time.Duration) SimulationValues {
+	if len(s) == 0 {
+		return SimulationValues{
+			Min:    Duration{0},
+			Max:    Duration{0},
+			Median: Duration{0},
+			Avg:    Duration{0},
+		}
+	}
 	sort.Slice(s, func(i, j int) bool {
 		return s[i] < s[j]
 	})
@@ -906,6 +968,7 @@ func aggregationDuty(ctx context.Context, target string, slot int, simulationDur
 	defer ticker.Stop()
 	for pingCtx.Err() == nil {
 		select {
+		case <-pingCtx.Done():
 		case <-ticker.C:
 			slot += int(tickTime.Seconds()) / int(slotTime.Seconds())
 			// TODO: use real attestation data root
@@ -919,7 +982,6 @@ func aggregationDuty(ctx context.Context, target string, slot int, simulationDur
 			}
 			getAggregateAttestationsCh <- getResult
 			submitAggregateAndProofsCh <- submitResult
-		case <-pingCtx.Done():
 		}
 	}
 	log.Info(ctx, "Aggregation duty simulation finished")
@@ -932,11 +994,11 @@ func proposalDuty(ctx context.Context, target string, slot int, simulationDurati
 	defer cancel()
 	ticker := time.NewTicker(tickTime)
 	defer ticker.Stop()
-	slot++ // produce block for the next slot, as the current one might have already been proposed
 	for pingCtx.Err() == nil {
 		select {
+		case <-pingCtx.Done():
 		case <-ticker.C:
-			slot += int(tickTime.Seconds()) / int(slotTime.Seconds())
+			slot += int(tickTime.Seconds())/int(slotTime.Seconds()) + 1 // produce block for the next slot, as the current one might have already been proposed
 			produceResult, err := produceBlock(ctx, target, slot, "0x1fe79e4193450abda94aec753895cfb2aac2c2a930b6bab00fbb27ef6f4a69f4400ad67b5255b91837982b4c511ae1d94eae1cf169e20c11bd417c1fffdb1f99f4e13e2de68f3b5e73f1de677d73cd43e44bf9b133a79caf8e5fad06738e1b0c")
 			if err != nil {
 				log.Error(ctx, "Unexpected produceBlock failure", err)
@@ -947,7 +1009,6 @@ func proposalDuty(ctx context.Context, target string, slot int, simulationDurati
 			}
 			produceBlockCh <- produceResult
 			publishBlindedBlockCh <- publishResult
-		case <-pingCtx.Done():
 		}
 	}
 	log.Info(ctx, "Proposal duty simulation finished")
@@ -962,9 +1023,10 @@ func attestationDuty(ctx context.Context, target string, slot int, simulationDur
 	defer ticker.Stop()
 	for pingCtx.Err() == nil {
 		select {
+		case <-pingCtx.Done():
 		case <-ticker.C:
 			slot += int(tickTime.Seconds()) / int(slotTime.Seconds())
-			getResult, err := getAttestationData(ctx, target, slot, rand.Intn(committeeIndexSizePerSlot)) //nolint:gosec // weak generator is not an issue here
+			getResult, err := getAttestationData(ctx, target, slot, rand.Intn(committeeSizePerSlot)) //nolint:gosec // weak generator is not an issue here
 			if err != nil {
 				log.Error(ctx, "Unexpected getAttestationData failure", err)
 			}
@@ -974,13 +1036,56 @@ func attestationDuty(ctx context.Context, target string, slot int, simulationDur
 			}
 			getAttestationDataCh <- getResult
 			submitAttestationObjectCh <- submitResult
-		case <-pingCtx.Done():
 		}
 	}
 	log.Info(ctx, "Attestation duty simulation finished")
 }
 
-func requestRTT(ctx context.Context, url string, method string, body io.Reader, isOK bool) (time.Duration, error) {
+func syncCommitteeDuty(
+	ctx context.Context, target string, slot int,
+	simulationDuration time.Duration, tickTimeSubmit time.Duration, tickTimeProduce time.Duration, tickTimeSubscribe time.Duration,
+	submitSyncCommitteesCh chan time.Duration, produceSyncCommitteeContributionCh chan time.Duration, syncCommitteeSubscriptionCh chan time.Duration,
+) {
+	defer close(submitSyncCommitteesCh)
+	defer close(produceSyncCommitteeContributionCh)
+	defer close(syncCommitteeSubscriptionCh)
+	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
+	defer cancel()
+	tickerSubmit := time.NewTicker(tickTimeSubmit)
+	defer tickerSubmit.Stop()
+	tickerProduce := time.NewTicker(tickTimeProduce)
+	defer tickerProduce.Stop()
+	tickerSubscribe := time.NewTicker(tickTimeSubscribe)
+	defer tickerSubscribe.Stop()
+
+	for pingCtx.Err() == nil {
+		select {
+		case <-pingCtx.Done():
+		case <-tickerSubmit.C:
+			submitResult, err := submitSyncCommittees(ctx, target)
+			if err != nil {
+				log.Error(ctx, "Unexpected submitSyncCommittees failure", err)
+			}
+			submitSyncCommitteesCh <- submitResult
+		case <-tickerProduce.C:
+			slot += int(tickTimeSubmit.Seconds()) / int(slotTime.Seconds())
+			produceResult, err := produceSyncCommitteeContribution(ctx, target, slot, rand.Intn(subCommitteeSize), "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2") //nolint:gosec // weak generator is not an issue here
+			if err != nil {
+				log.Error(ctx, "Unexpected produceSyncCommitteeContribution failure", err)
+			}
+			produceSyncCommitteeContributionCh <- produceResult
+		case <-tickerSubscribe.C:
+			subscribeResult, err := syncCommitteeSubscription(ctx, target)
+			if err != nil {
+				log.Error(ctx, "Unexpected syncCommitteeSubscription failure", err)
+			}
+			syncCommitteeSubscriptionCh <- subscribeResult
+		}
+	}
+	log.Info(ctx, "Sync committee duty simulation finished")
+}
+
+func requestRTT(ctx context.Context, url string, method string, body io.Reader, expectedStatus int) (time.Duration, error) {
 	var start time.Time
 	var firstByte time.Duration
 
@@ -1002,14 +1107,12 @@ func requestRTT(ctx context.Context, url string, method string, body io.Reader, 
 	}
 	defer resp.Body.Close()
 
-	if isOK {
-		if resp.StatusCode > 399 {
-			data, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return 0, errors.New("http GET failed", z.Int("status_code", resp.StatusCode), z.Str("endpoint", url))
-			}
-
-			return 0, errors.New("http GET failed", z.Int("status_code", resp.StatusCode), z.Str("endpoint", url), z.Str("body", string(data)))
+	if resp.StatusCode != expectedStatus {
+		data, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Warn(ctx, "Unexpected status code", nil, z.Int("status_code", resp.StatusCode), z.Int("expected_status_code", expectedStatus), z.Str("endpoint", url))
+		} else {
+			log.Warn(ctx, "Unexpected status code", nil, z.Int("status_code", resp.StatusCode), z.Int("expected_status_code", expectedStatus), z.Str("endpoint", url), z.Str("body", string(data)))
 		}
 	}
 
@@ -1017,40 +1120,54 @@ func requestRTT(ctx context.Context, url string, method string, body io.Reader, 
 }
 
 func produceBlock(ctx context.Context, target string, slot int, randaoReveal string) (time.Duration, error) {
-	return requestRTT(ctx, fmt.Sprintf("%v/eth/v3/validator/blocks/%v?randao_reveal=%v", target, slot, randaoReveal), http.MethodGet, nil, true)
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v3/validator/blocks/%v?randao_reveal=%v", target, slot, randaoReveal), http.MethodGet, nil, 200)
 }
 
 func publishBlindedBlock(ctx context.Context, target string) (time.Duration, error) {
 	body := strings.NewReader(`{"message":{"slot":"2872079","proposer_index":"1725813","parent_root":"0x05bea9b8e9cc28c4efa5586b4efac20b7a42c3112dbe144fb552b37ded249abd","state_root":"0x0138e6e8e956218aa534597a450a93c2c98f07da207077b4be05742279688da2","body":{"randao_reveal":"0x9880dad5a0e900906a1355da0697821af687b4c2cd861cd219f2d779c50a47d3c0335c08d840c86c167986ae0aaf50070b708fe93a83f66c99a4f931f9a520aebb0f5b11ca202c3d76343e30e49f43c0479e850af0e410333f7c59c4d37fa95a","eth1_data":{"deposit_root":"0x7dbea1a0af14d774da92d94a88d3bb1ae7abad16374da4db2c71dd086c84029e","deposit_count":"452100","block_hash":"0xc4bf450c9e362dcb2b50e76b45938c78d455acd1e1aec4e1ce4338ec023cd32a"},"graffiti":"0x636861726f6e2f76312e312e302d613139336638340000000000000000000000","proposer_slashings":[],"attester_slashings":[],"attestations":[{"aggregation_bits":"0xdbedbfa74eccaf3d7ef570bfdbbf84b4dffc5beede1c1f8b59feb8b3f2fbabdbdef3ceeb7b3dfdeeef8efcbdcd7bebbeff7adfff5ae3bf66bc5613feffef3deb987f7e7fff87ed6f8bbd1fffa57f1677efff646f0d3bd79fffdc5dfd78df6cf79fb7febff5dfdefb8e03","data":{"slot":"2872060","index":"12","beacon_block_root":"0x310506169f7f92dcd2bf00e8b4c2daac999566929395120fbbf4edd222e003eb","source":{"epoch":"89750","root":"0xcdb449d69e3e2d22378bfc2299ee1e9aeb1b2d15066022e854759dda73d1e219"},"target":{"epoch":"89751","root":"0x4ad0882f7adbb735c56b0b3f09d8e45dbd79db9528110f7117ec067f3a19eb0e"}},"signature":"0xa9d91d6cbc669ffcc8ba2435c633e0ec0eebecaa3acdcaa1454282ece1f816e8b853f00ba67ec1244703221efae4c834012819ca7b199354669f24ba8ab1c769f072c9f46b803082eac32e3611cd323eeb5b17fcd6201b41f3063834ff26ef53"}],"deposits":[],"voluntary_exits":[],"sync_aggregate":{"sync_committee_bits":"0xf9ff3ff7ffffb7dbfefddff5fffffefdbffffffffffedfefffffff7fbe9fdffffdb5feffffffbfdbefff3ffdf7f3fc6ff7fffbffff9df6fbbaf3beffefffffff","sync_committee_signature":"0xa9cf7d9f23a62e84f11851e2e4b3b929b1d03719a780b59ecba5daf57e21a0ceccaf13db4e1392a42e3603abeb839a2d16373dcdd5e696f11c5a809972c1e368d794f1c61d4d10b220df52616032f09b33912febf8c7a64f3ce067ab771c7ddf"},"execution_payload_header":{"parent_hash":"0x71c564f4a0c1dea921e8063fc620ccfa39c1b073e4ac0845ce7e9e6f909752de","fee_recipient":"0x148914866080716b10D686F5570631Fbb2207002","state_root":"0x89e74be562cd4a10eb20cdf674f65b1b0e53b33a7c3f2df848eb4f7e226742e0","receipts_root":"0x55b494ee1bb919e7abffaab1d5be05a109612c59a77406d929d77c0ce714f21d","logs_bloom":"0x20500886140245d001002010680c10411a2540420182810440a108800fc008440801180020011008004045005a2007826802e102000005c0c04030590004044810d0d20745c0904a4d583008a01758018001082024e40046000410020042400100012260220299a8084415e20002891224c132220010003a00006010020ed0c108920a13c0e200a1a00251100888c01408008132414068c88b028920440248209a280581a0e10800c14ea63082c1781308208b130508d4000400802d1224521094260912473404012810001503417b4050141100c1103004000c8900644560080472688450710084088800c4c80000c02008931188204c008009011784488060","prev_randao":"0xf4e9a4a7b88a3d349d779e13118b6d099f7773ec5323921343ac212df19c620f","block_number":"2643688","gas_limit":"30000000","gas_used":"24445884","timestamp":"1730367348","extra_data":"0x546974616e2028746974616e6275696c6465722e78797a29","base_fee_per_gas":"122747440","block_hash":"0x7524d779d328159e4d9ee8a4b04c4b251261da9a6da1d1461243125faa447227","transactions_root":"0x7e8a3391a77eaea563bf4e0ca4cf3190425b591ed8572818924c38f7e423c257","withdrawals_root":"0x61a5653b614ec3db0745ae5568e6de683520d84bc3db2dedf6a5158049cee807","blob_gas_used":"0","excess_blob_gas":"0"},"bls_to_execution_changes":[],"blob_kzg_commitments":[]}},"signature":"0x94320e6aecd65da3ef3e55e45208978844b262fe21cacbb0a8448b2caf21e8619b205c830116d8aad0a2c55d879fb571123a3fcf31b515f9508eb346ecd3de2db07cea6700379c00831cfb439f4aeb3bfa164395367c8d8befb92aa6682eae51"}`)
-	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/node/syncing", target), http.MethodPost, body, false)
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/node/syncing", target), http.MethodPost, body, 404)
 }
 
 func getAttestationsForBlock(ctx context.Context, target string, block int) (time.Duration, error) {
-	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/beacon/blocks/%v/attestations", target, block), http.MethodGet, nil, false)
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/beacon/blocks/%v/attestations", target, block), http.MethodGet, nil, 200)
 }
 
 func getSyncing(ctx context.Context, target string) (time.Duration, error) {
-	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/node/syncing", target), http.MethodGet, nil, false)
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/node/syncing", target), http.MethodGet, nil, 200)
 }
 
 func getProposalDutiesForEpoch(ctx context.Context, target string, epoch int) (time.Duration, error) {
-	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/duties/proposer/%v", target, epoch), http.MethodGet, nil, true)
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/duties/proposer/%v", target, epoch), http.MethodGet, nil, 200)
 }
 
 func getAttestationData(ctx context.Context, target string, slot int, committeeIndex int) (time.Duration, error) {
-	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/attestation_data?slot=%v&committee_index=%v", target, slot, committeeIndex), http.MethodGet, nil, true)
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/attestation_data?slot=%v&committee_index=%v", target, slot, committeeIndex), http.MethodGet, nil, 200)
 }
 
 func submitAttestationObject(ctx context.Context, target string) (time.Duration, error) {
 	body := strings.NewReader(`{{"aggregation_bits":"0x01","signature":"0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505","data":{"slot":"1","index":"1","beacon_block_root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2","source":{"epoch":"1","root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"},"target":{"epoch":"1","root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"}}}`)
-	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/beacon/pool/attestations", target), http.MethodPost, body, false)
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/beacon/pool/attestations", target), http.MethodPost, body, 400)
 }
 
 func getAggregateAttestations(ctx context.Context, target string, slot int, attestationDataRoot string) (time.Duration, error) {
-	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/aggregate_attestation?slot=%v&attestation_data_root=%v", target, slot, attestationDataRoot), http.MethodGet, nil, false)
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/aggregate_attestation?slot=%v&attestation_data_root=%v", target, slot, attestationDataRoot), http.MethodGet, nil, 404)
 }
 
 func aggregateAndProofs(ctx context.Context, target string) (time.Duration, error) {
 	body := strings.NewReader(`[{"message":{"aggregator_index":"1","aggregate":{"aggregation_bits":"0x01","signature":"0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505","data":{"slot":"1","index":"1","beacon_block_root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2","source":{"epoch":"1","root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"},"target":{"epoch":"1","root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"}}},"selection_proof":"0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505"},"signature":"0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505"}]`)
-	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/aggregate_and_proofs", target), http.MethodPost, body, false)
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/aggregate_and_proofs", target), http.MethodPost, body, 400)
+}
+
+func submitSyncCommittees(ctx context.Context, target string) (time.Duration, error) {
+	body := strings.NewReader(`{{"aggregation_bits":"0x01","signature":"0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505","data":{"slot":"1","index":"1","beacon_block_root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2","source":{"epoch":"1","root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"},"target":{"epoch":"1","root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"}}}`)
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/beacon/pool/sync_committees", target), http.MethodPost, body, 400)
+}
+
+func produceSyncCommitteeContribution(ctx context.Context, target string, slot int, subCommitteeIndex int, beaconBlockRoot string) (time.Duration, error) {
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/sync_committee_contribution?slot=%v&subcommittee_index=%v&beacon_block_root=%v", target, slot, subCommitteeIndex, beaconBlockRoot), http.MethodGet, nil, 404)
+}
+
+func syncCommitteeSubscription(ctx context.Context, target string) (time.Duration, error) {
+	body := strings.NewReader(`[{"message":{"aggregator_index":"1","aggregate":{"aggregation_bits":"0x01","signature":"0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505","data":{"slot":"1","index":"1","beacon_block_root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2","source":{"epoch":"1","root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"},"target":{"epoch":"1","root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"}}},"selection_proof":"0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505"},"signature":"0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505"}]`)
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/sync_committee_subscriptions", target), http.MethodPost, body, 400)
 }
