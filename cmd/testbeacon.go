@@ -38,11 +38,13 @@ type testBeaconConfig struct {
 	SimulationValidators int
 	SimulationFileDir    string
 	SimulationDuration   int
+	SimulationVerbose    bool
 }
 
 type testCaseBeacon func(context.Context, *testBeaconConfig, string) testResult
 
 type SimulationValues struct {
+	All    []Duration `json:",omitempty"`
 	Min    Duration
 	Max    Duration
 	Median Duration
@@ -58,9 +60,21 @@ type RequestsIntensity struct {
 	SyncCommitteeSubscribe time.Duration
 }
 
+type DutiesPerformed struct {
+	Attestation   bool
+	Aggregation   bool
+	Proposal      bool
+	SyncCommittee bool
+}
+
 type Simulation struct {
-	GeneralRequests SimulationGeneralRequests
-	Validators      []SimulationPerValidator
+	GeneralRequests    SimulationGeneralRequests
+	ValidatorsOverview SimulationAllValidators
+}
+
+type SimulationAllValidators struct {
+	Averaged      SimulationPerValidator
+	AllValidators []SimulationPerValidator `json:",omitempty"`
 }
 
 type SimulationPerValidator struct {
@@ -68,6 +82,7 @@ type SimulationPerValidator struct {
 	Aggregation   SimulationAggregation
 	Proposal      SimulationProposal
 	SyncCommittee SimulationSyncCommittee
+	SimulationValues
 }
 
 type SimulationAttestation struct {
@@ -148,6 +163,7 @@ func bindTestBeaconFlags(cmd *cobra.Command, config *testBeaconConfig) {
 	cmd.Flags().BoolVar(&config.EnableSimulation, "enable-simulation", false, "Enable simulation test, not advisable when testing towards external beacon nodes.")
 	cmd.Flags().StringVar(&config.SimulationFileDir, "simulation-file-dir", "./", "JSON directory to which simulation file results will be written.")
 	cmd.Flags().IntVar(&config.SimulationDuration, "simulation-duration-in-slots", slotsInEpoch, "Time to keep running the simulation in slots.")
+	cmd.Flags().BoolVar(&config.SimulationVerbose, "simulation-verbose", false, "Show results for each request and each validator.")
 }
 
 func supportedBeaconTestCases() map[testCaseName]testCaseBeacon {
@@ -537,15 +553,12 @@ func beaconSimulation10Test(ctx context.Context, conf *testBeaconConfig, target 
 		testRes.Verdict = testVerdictSkipped
 		return testRes
 	}
-	validatorsCount := 10
 
-	log.Info(ctx, "Running simulation for 10 validators tests...",
-		z.Any("validators", validatorsCount),
-		z.Any("target", target),
-		z.Any("duration_in_slots", conf.SimulationDuration),
-		z.Any("slot_duration", slotTime),
-	)
-
+	// setup simulation variables
+	totalValidatorsCount := 10
+	syncCommitteeValidatorsCount := 1
+	proposalValidatorsCount := 3
+	attesterValidatorsCount := totalValidatorsCount - syncCommitteeValidatorsCount - proposalValidatorsCount
 	intensity := RequestsIntensity{
 		AttestationDuty:        slotTime,
 		AggregatorDuty:         slotTime * 2,
@@ -554,58 +567,83 @@ func beaconSimulation10Test(ctx context.Context, conf *testBeaconConfig, target 
 		SyncCommitteeProduce:   slotTime * 4,
 		SyncCommitteeSubscribe: epochTime,
 	}
-
 	duration := time.Duration(conf.SimulationDuration)*slotTime + time.Second
+	var wg sync.WaitGroup
 
-	simulationGeneralResCh := make(chan SimulationGeneralRequests)
-	simulationGeneralRes := SimulationGeneralRequests{}
-	go singleClusterSimulation(ctx, duration, target, simulationGeneralResCh)
-	simulationResCh := make(chan SimulationPerValidator)
+	log.Info(ctx, "Running simulation for 10 validators...",
+		z.Any("validators", totalValidatorsCount),
+		z.Any("target", target),
+		z.Any("duration_in_slots", conf.SimulationDuration),
+		z.Any("slot_duration", slotTime),
+	)
+
+	// start general cluster requests
+	simulationGeneralResCh := make(chan SimulationGeneralRequests, 1)
+	var simulationGeneralRes SimulationGeneralRequests
+	wg.Add(1)
+	log.Info(ctx, "Starting general cluster requests...")
+	go singleClusterSimulation(ctx, duration, target, simulationGeneralResCh, &wg)
+
+	// start validator requests
+	simulationResCh := make(chan SimulationPerValidator, totalValidatorsCount)
 	simulationResAll := []SimulationPerValidator{}
-	for v := range validatorsCount {
-		valCtx := log.WithCtx(ctx, z.Int("validator", v))
-		go singleValidatorSimulation(valCtx, duration, target, simulationResCh, intensity)
+
+	log.Info(ctx, "Starting validators performing duties attestation, aggregation, proposal, sync committee...",
+		z.Any("validators", syncCommitteeValidatorsCount),
+	)
+	syncCommitteeValidatorsDuties := DutiesPerformed{Attestation: true, Aggregation: true, Proposal: true, SyncCommittee: true}
+	for range syncCommitteeValidatorsCount {
+		wg.Add(1)
+		go singleValidatorSimulation(ctx, duration, target, simulationResCh, intensity, syncCommitteeValidatorsDuties, &wg)
 	}
 
-	finished := false
-	for !finished {
-		select {
-		case <-ctx.Done():
-			finished = true
-			continue
-		case result, ok := <-simulationResCh:
-			if !ok {
-				finished = true
-				continue
-			}
-			simulationResAll = append(simulationResAll, result)
-			if len(simulationResAll) == validatorsCount {
-				finished = true
-			}
-		}
+	log.Info(ctx, "Starting validators performing duties attestation, aggregation, proposal...",
+		z.Any("validators", proposalValidatorsCount),
+	)
+	proposalValidatorsDuties := DutiesPerformed{Attestation: true, Aggregation: true, Proposal: true, SyncCommittee: false}
+	for range proposalValidatorsCount {
+		wg.Add(1)
+		go singleValidatorSimulation(ctx, duration, target, simulationResCh, intensity, proposalValidatorsDuties, &wg)
 	}
-	close(simulationResCh)
 
-	select {
-	case <-ctx.Done():
-	case result, ok := <-simulationGeneralResCh:
-		if !ok {
-			log.Error(ctx, "Failed to get result from simulationGeneralResCh", errors.New("not ok"))
-			break
-		}
-		simulationGeneralRes = result
+	log.Info(ctx, "Starting validators performing duties attestation, aggregation...",
+		z.Any("validators", attesterValidatorsCount),
+	)
+	attesterValidatorsDuties := DutiesPerformed{Attestation: true, Aggregation: true, Proposal: false, SyncCommittee: false}
+	for range attesterValidatorsCount {
+		wg.Add(1)
+		go singleValidatorSimulation(ctx, duration, target, simulationResCh, intensity, attesterValidatorsDuties, &wg)
 	}
+
+	log.Info(ctx, "Waiting for simulation to complete...")
+	// evaluate results
+	wg.Wait()
 	close(simulationGeneralResCh)
+	close(simulationResCh)
+	log.Info(ctx, "Simulation finished, evaluating results...")
+	simulationGeneralRes = <-simulationGeneralResCh
+	for result := range simulationResCh {
+		simulationResAll = append(simulationResAll, result)
+	}
+
+	averageValidatorResult := averageValidatorsResult(simulationResAll)
 
 	finalSimulation := Simulation{
 		GeneralRequests: simulationGeneralRes,
-		Validators:      simulationResAll,
+		ValidatorsOverview: SimulationAllValidators{
+			Averaged:      averageValidatorResult,
+			AllValidators: simulationResAll,
+		},
+	}
+
+	if !conf.SimulationVerbose {
+		finalSimulation = nonVerboseFinalSimulation(finalSimulation)
 	}
 	simulationResAllJSON, err := json.Marshal(finalSimulation)
 	if err != nil {
 		log.Error(ctx, "Failed to marshal simulation result", err)
 	}
-	err = os.WriteFile(filepath.Join(conf.SimulationFileDir, "10-validators.json"), simulationResAllJSON, 0o644) //nolint:gosec
+	err = os.WriteFile(filepath.Join(conf.SimulationFileDir, fmt.Sprintf("%v-validators.json", totalValidatorsCount)), simulationResAllJSON, 0o644) //nolint:gosec
 	if err != nil {
 		log.Error(ctx, "Failed to write file", err)
 	}
@@ -663,7 +701,32 @@ func getCurrentSlot(ctx context.Context, target string) (int, error) {
 	return head, nil
 }
 
-func singleClusterSimulation(ctx context.Context, simulationDuration time.Duration, target string, resultCh chan SimulationGeneralRequests) {
+func nonVerboseFinalSimulation(s Simulation) Simulation {
+	s.ValidatorsOverview.AllValidators = []SimulationPerValidator{}
+
+	s.ValidatorsOverview.Averaged.All = []Duration{}
+	s.ValidatorsOverview.Averaged.Aggregation.All = []Duration{}
+	s.ValidatorsOverview.Averaged.Aggregation.AggregationGetAggregationAttestations.All = []Duration{}
+	s.ValidatorsOverview.Averaged.Aggregation.AggregationSubmitAggregateAndProofs.All = []Duration{}
+	s.ValidatorsOverview.Averaged.Attestation.All = []Duration{}
+	s.ValidatorsOverview.Averaged.Attestation.AttestationGetDuties.All = []Duration{}
+	s.ValidatorsOverview.Averaged.Attestation.AttestationPostData.All = []Duration{}
+	s.ValidatorsOverview.Averaged.Proposal.All = []Duration{}
+	s.ValidatorsOverview.Averaged.Proposal.ProposalProduceBlock.All = []Duration{}
+	s.ValidatorsOverview.Averaged.Proposal.ProposalPublishBlindedBlock.All = []Duration{}
+	s.ValidatorsOverview.Averaged.SyncCommittee.ProduceSyncCommitteeContribution.All = []Duration{}
+	s.ValidatorsOverview.Averaged.SyncCommittee.SubmitSyncCommittees.All = []Duration{}
+	s.ValidatorsOverview.Averaged.SyncCommittee.SyncCommitteeSubscription.All = []Duration{}
+
+	s.GeneralRequests.AttestationsForBlock.All = []Duration{}
+	s.GeneralRequests.ProposalDutiesForEpoch.All = []Duration{}
+	s.GeneralRequests.Syncing.All = []Duration{}
+
+	return s
+}
+
+func singleClusterSimulation(ctx context.Context, simulationDuration time.Duration, target string, resultCh chan SimulationGeneralRequests, wg *sync.WaitGroup) {
+	defer wg.Done()
 	// per slot requests
 	attestationsForBlockCh := make(chan time.Duration)
 	attestationsForBlockAll := []time.Duration{}
@@ -671,7 +734,6 @@ func singleClusterSimulation(ctx context.Context, simulationDuration time.Durati
 	proposalDutiesForEpochAll := []time.Duration{}
 	syncingCh := make(chan time.Duration)
 	syncingAll := []time.Duration{}
-	log.Info(ctx, "Starting general cluster requests...")
 	slot, err := getCurrentSlot(ctx, target)
 	if err != nil {
 		log.Error(ctx, "Failed to get current slot", err)
@@ -705,9 +767,9 @@ func singleClusterSimulation(ctx context.Context, simulationDuration time.Durati
 		}
 	}
 
-	attestationsForBlockValues := simulationValuesFromSlice(attestationsForBlockAll)
-	proposalDutiesForEpochValues := simulationValuesFromSlice(proposalDutiesForEpochAll)
-	syncingValues := simulationValuesFromSlice(syncingAll)
+	attestationsForBlockValues := simulationValuesFromTime(attestationsForBlockAll)
+	proposalDutiesForEpochValues := simulationValuesFromTime(proposalDutiesForEpochAll)
+	syncingValues := simulationValuesFromTime(syncingAll)
 
 	generalResults := SimulationGeneralRequests{
 		AttestationsForBlock:   attestationsForBlockValues,
@@ -715,7 +777,6 @@ func singleClusterSimulation(ctx context.Context, simulationDuration time.Durati
 		Syncing:                syncingValues,
 	}
 
-	log.Info(ctx, "General requests simulation for cluster finished")
 	resultCh <- generalResults
 }
 
@@ -756,7 +817,8 @@ func clusterGeneralRequests(ctx context.Context, target string, slot int, slotTi
 	}
 }
 
-func singleValidatorSimulation(ctx context.Context, simulationDuration time.Duration, target string, resultCh chan SimulationPerValidator, intensity RequestsIntensity) {
+func singleValidatorSimulation(ctx context.Context, simulationDuration time.Duration, target string, resultCh chan SimulationPerValidator, intensity RequestsIntensity, dutiesPerformed DutiesPerformed, wg *sync.WaitGroup) {
+	defer wg.Done()
 	slot, err := getCurrentSlot(ctx, target)
 	if err != nil {
 		log.Error(ctx, "Failed to get current slot", err)
@@ -768,24 +830,27 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 	getAttestationDataAll := []time.Duration{}
 	submitAttestationObjectCh := make(chan time.Duration)
 	submitAttestationObjectAll := []time.Duration{}
-	log.Info(ctx, "Starting attestation duties...")
-	go attestationDuty(ctx, target, slot, simulationDuration, intensity.AttestationDuty, getAttestationDataCh, submitAttestationObjectCh)
+	if dutiesPerformed.Attestation {
+		go attestationDuty(ctx, target, slot, simulationDuration, intensity.AttestationDuty, getAttestationDataCh, submitAttestationObjectCh)
+	}
 
 	// aggregations
 	getAggregateAttestationsCh := make(chan time.Duration)
 	getAggregateAttestationsAll := []time.Duration{}
 	submitAggregateAndProofsCh := make(chan time.Duration)
 	submitAggregateAndProofsAll := []time.Duration{}
-	log.Info(ctx, "Starting aggregation duties...")
-	go aggregationDuty(ctx, target, slot, simulationDuration, intensity.AggregatorDuty, getAggregateAttestationsCh, submitAggregateAndProofsCh)
+	if dutiesPerformed.Aggregation {
+		go aggregationDuty(ctx, target, slot, simulationDuration, intensity.AggregatorDuty, getAggregateAttestationsCh, submitAggregateAndProofsCh)
+	}
 
 	// proposals
 	produceBlockCh := make(chan time.Duration)
 	produceBlockAll := []time.Duration{}
 	publishBlindedBlockCh := make(chan time.Duration)
 	publishBlindedBlockAll := []time.Duration{}
-	log.Info(ctx, "Starting proposal duties...")
-	go proposalDuty(ctx, target, slot, simulationDuration, intensity.ProposalDuty, produceBlockCh, publishBlindedBlockCh)
+	if dutiesPerformed.Proposal {
+		go proposalDuty(ctx, target, slot, simulationDuration, intensity.ProposalDuty, produceBlockCh, publishBlindedBlockCh)
+	}
 
 	// sync_committee
 	submitSyncCommitteesCh := make(chan time.Duration)
@@ -794,10 +859,11 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 	produceSyncCommitteeContributionAll := []time.Duration{}
 	syncCommitteeSubscriptionCh := make(chan time.Duration)
 	syncCommitteeSubscriptionAll := []time.Duration{}
-	log.Info(ctx, "Starting sync committee duties...")
-	go syncCommitteeDuty(ctx, target, slot,
-		simulationDuration, intensity.SyncCommitteeSubmit, intensity.SyncCommitteeProduce, intensity.SyncCommitteeSubscribe,
-		submitSyncCommitteesCh, produceSyncCommitteeContributionCh, syncCommitteeSubscriptionCh)
+	if dutiesPerformed.SyncCommittee {
+		go syncCommitteeDuty(ctx, target, slot,
+			simulationDuration, intensity.SyncCommitteeSubmit, intensity.SyncCommitteeProduce, intensity.SyncCommitteeSubscribe,
+			submitSyncCommitteesCh, produceSyncCommitteeContributionCh, syncCommitteeSubscriptionCh)
+	}
 
 	// capture results
 	finished := false
@@ -862,77 +928,100 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 		}
 	}
 
+	var allRequests []time.Duration
+
 	// attestation results grouping
-	getSimulationValues := simulationValuesFromSlice(getAttestationDataAll)
-	submitSimulationValues := simulationValuesFromSlice(submitAttestationObjectAll)
+	var attestationResult SimulationAttestation
+	if dutiesPerformed.Attestation {
+		getSimulationValues := simulationValuesFromTime(getAttestationDataAll)
+		submitSimulationValues := simulationValuesFromTime(submitAttestationObjectAll)
 
-	cumulativeAttestation := []time.Duration{}
-	for i := range getAttestationDataAll {
-		cumulativeAttestation = append(cumulativeAttestation, getAttestationDataAll[i]+submitAttestationObjectAll[i])
-	}
-	cumulativeSimulationValues := simulationValuesFromSlice(cumulativeAttestation)
+		cumulativeAttestation := []time.Duration{}
+		for i := range getAttestationDataAll {
+			cumulativeAttestation = append(cumulativeAttestation, getAttestationDataAll[i]+submitAttestationObjectAll[i])
+		}
+		cumulativeSimulationValues := simulationValuesFromTime(cumulativeAttestation)
+		allRequests = append(allRequests, cumulativeAttestation...)
 
-	attestationResult := SimulationAttestation{
-		AttestationGetDuties: getSimulationValues,
-		AttestationPostData:  submitSimulationValues,
-		SimulationValues:     cumulativeSimulationValues,
+		attestationResult = SimulationAttestation{
+			AttestationGetDuties: getSimulationValues,
+			AttestationPostData:  submitSimulationValues,
+			SimulationValues:     cumulativeSimulationValues,
+		}
 	}
 
 	// aggregation results grouping
-	getAggregateSimulationValues := simulationValuesFromSlice(getAggregateAttestationsAll)
-	submitAggregateSimulationValues := simulationValuesFromSlice(submitAggregateAndProofsAll)
+	var aggregationResults SimulationAggregation
+	if dutiesPerformed.Aggregation {
+		getAggregateSimulationValues := simulationValuesFromTime(getAggregateAttestationsAll)
+		submitAggregateSimulationValues := simulationValuesFromTime(submitAggregateAndProofsAll)
 
-	cumulativeAggregations := []time.Duration{}
-	for i := range getAggregateAttestationsAll {
-		cumulativeAggregations = append(cumulativeAggregations, getAggregateAttestationsAll[i]+submitAggregateAndProofsAll[i])
-	}
-	cumulativeAggregationsSimulationValues := simulationValuesFromSlice(cumulativeAggregations)
+		cumulativeAggregations := []time.Duration{}
+		for i := range getAggregateAttestationsAll {
+			cumulativeAggregations = append(cumulativeAggregations, getAggregateAttestationsAll[i]+submitAggregateAndProofsAll[i])
+		}
+		cumulativeAggregationsSimulationValues := simulationValuesFromTime(cumulativeAggregations)
+		allRequests = append(allRequests, cumulativeAggregations...)
 
-	aggregationResults := SimulationAggregation{
-		AggregationGetAggregationAttestations: getAggregateSimulationValues,
-		AggregationSubmitAggregateAndProofs:   submitAggregateSimulationValues,
-		SimulationValues:                      cumulativeAggregationsSimulationValues,
+		aggregationResults = SimulationAggregation{
+			AggregationGetAggregationAttestations: getAggregateSimulationValues,
+			AggregationSubmitAggregateAndProofs:   submitAggregateSimulationValues,
+			SimulationValues:                      cumulativeAggregationsSimulationValues,
+		}
 	}
 
 	// proposal results grouping
-	produceBlockValues := simulationValuesFromSlice(produceBlockAll)
-	publishBlindedBlockValues := simulationValuesFromSlice(publishBlindedBlockAll)
+	var proposalResults SimulationProposal
+	if dutiesPerformed.Proposal {
+		produceBlockValues := simulationValuesFromTime(produceBlockAll)
+		publishBlindedBlockValues := simulationValuesFromTime(publishBlindedBlockAll)
 
-	cumulativeProposals := []time.Duration{}
-	for i := range produceBlockAll {
-		cumulativeProposals = append(cumulativeProposals, produceBlockAll[i]+publishBlindedBlockAll[i])
-	}
-	cumulativeProposalsSimulationValues := simulationValuesFromSlice(cumulativeProposals)
+		cumulativeProposals := []time.Duration{}
+		for i := range produceBlockAll {
+			cumulativeProposals = append(cumulativeProposals, produceBlockAll[i]+publishBlindedBlockAll[i])
+		}
+		cumulativeProposalsSimulationValues := simulationValuesFromTime(cumulativeProposals)
+		allRequests = append(allRequests, cumulativeProposals...)
 
-	proposalResults := SimulationProposal{
-		ProposalProduceBlock:        produceBlockValues,
-		ProposalPublishBlindedBlock: publishBlindedBlockValues,
-		SimulationValues:            cumulativeProposalsSimulationValues,
+		proposalResults = SimulationProposal{
+			ProposalProduceBlock:        produceBlockValues,
+			ProposalPublishBlindedBlock: publishBlindedBlockValues,
+			SimulationValues:            cumulativeProposalsSimulationValues,
+		}
 	}
 
 	// sync committee results grouping
-	submitSyncCommitteesValues := simulationValuesFromSlice(submitSyncCommitteesAll)
-	produceSyncCommitteeContributionValues := simulationValuesFromSlice(produceSyncCommitteeContributionAll)
-	syncCommitteeSubscriptionValues := simulationValuesFromSlice(syncCommitteeSubscriptionAll)
+	var syncCommitteeResults SimulationSyncCommittee
+	if dutiesPerformed.SyncCommittee {
+		submitSyncCommitteesValues := simulationValuesFromTime(submitSyncCommitteesAll)
+		allRequests = append(allRequests, submitSyncCommitteesAll...)
+		produceSyncCommitteeContributionValues := simulationValuesFromTime(produceSyncCommitteeContributionAll)
+		allRequests = append(allRequests, produceSyncCommitteeContributionAll...)
+		syncCommitteeSubscriptionValues := simulationValuesFromTime(syncCommitteeSubscriptionAll)
+		allRequests = append(allRequests, syncCommitteeSubscriptionAll...)
 
-	syncCommitteeResults := SimulationSyncCommittee{
-		SubmitSyncCommittees:             submitSyncCommitteesValues,
-		ProduceSyncCommitteeContribution: produceSyncCommitteeContributionValues,
-		SyncCommitteeSubscription:        syncCommitteeSubscriptionValues,
+		syncCommitteeResults = SimulationSyncCommittee{
+			SubmitSyncCommittees:             submitSyncCommitteesValues,
+			ProduceSyncCommitteeContribution: produceSyncCommitteeContributionValues,
+			SyncCommitteeSubscription:        syncCommitteeSubscriptionValues,
+		}
 	}
 
-	log.Info(ctx, "Simulation for validator finished")
+	allResult := simulationValuesFromTime(allRequests)
+
 	resultCh <- SimulationPerValidator{
-		Attestation:   attestationResult,
-		Aggregation:   aggregationResults,
-		Proposal:      proposalResults,
-		SyncCommittee: syncCommitteeResults,
+		Attestation:      attestationResult,
+		Aggregation:      aggregationResults,
+		Proposal:         proposalResults,
+		SyncCommittee:    syncCommitteeResults,
+		SimulationValues: allResult,
 	}
 }
 
-func simulationValuesFromSlice(s []time.Duration) SimulationValues {
+func simulationValuesFromTime(s []time.Duration) SimulationValues {
 	if len(s) == 0 {
 		return SimulationValues{
+			All:    []Duration{},
 			Min:    Duration{0},
 			Max:    Duration{0},
 			Median: Duration{0},
@@ -945,17 +1034,105 @@ func simulationValuesFromSlice(s []time.Duration) SimulationValues {
 	minVal := s[0]
 	maxVal := s[len(s)-1]
 	medianVal := s[len(s)/2]
-	var all time.Duration
+	var sum time.Duration
+	all := []Duration{}
 	for _, t := range s {
-		all += t
+		sum += t
+		all = append(all, Duration{t})
 	}
-	avgVal := time.Duration(int(all.Nanoseconds()) / len(s))
+	avgVal := time.Duration(int(sum.Nanoseconds()) / len(s))
 
 	return SimulationValues{
+		All:    all,
 		Min:    Duration{minVal},
 		Max:    Duration{maxVal},
 		Median: Duration{medianVal},
 		Avg:    Duration{avgVal},
+	}
+}
+
+func simulationValuesFromDuration(s []Duration) SimulationValues {
+	if len(s) == 0 {
+		return SimulationValues{
+			All:    []Duration{},
+			Min:    Duration{0},
+			Max:    Duration{0},
+			Median: Duration{0},
+			Avg:    Duration{0},
+		}
+	}
+	sort.Slice(s, func(i, j int) bool {
+		return s[i].Duration < s[j].Duration
+	})
+	minVal := s[0]
+	maxVal := s[len(s)-1]
+	medianVal := s[len(s)/2]
+	var sum time.Duration
+	all := []Duration{}
+	for _, t := range s {
+		sum += t.Duration
+		all = append(all, t)
+	}
+	avgVal := time.Duration(int(sum.Nanoseconds()) / len(s))
+
+	return SimulationValues{
+		All:    all,
+		Min:    minVal,
+		Max:    maxVal,
+		Median: medianVal,
+		Avg:    Duration{avgVal},
+	}
+}
+
+func averageValidatorsResult(s []SimulationPerValidator) SimulationPerValidator {
+	if len(s) == 0 {
+		return SimulationPerValidator{}
+	}
+
+	var attestation, attestationGetDuties, attestationPostData,
+		aggregation, aggregationGetAggregationAttestations, aggregationSubmitAggregateAndProofs,
+		proposal, proposalProduceBlock, proposalPublishBlindedBlock,
+		syncCommitteeSubmit, syncCommitteeContribution, syncCommitteeSusbscription,
+		all []Duration
+
+	for _, sim := range s {
+		attestationGetDuties = append(attestationGetDuties, sim.Attestation.AttestationGetDuties.All...)
+		attestationPostData = append(attestationPostData, sim.Attestation.AttestationPostData.All...)
+		attestation = append(attestation, sim.Attestation.All...)
+		aggregationGetAggregationAttestations = append(aggregationGetAggregationAttestations, sim.Aggregation.AggregationGetAggregationAttestations.All...)
+		aggregationSubmitAggregateAndProofs = append(aggregationSubmitAggregateAndProofs, sim.Aggregation.AggregationSubmitAggregateAndProofs.All...)
+		aggregation = append(aggregation, sim.Aggregation.All...)
+		proposalProduceBlock = append(proposalProduceBlock, sim.Proposal.ProposalProduceBlock.All...)
+		proposalPublishBlindedBlock = append(proposalPublishBlindedBlock, sim.Proposal.ProposalPublishBlindedBlock.All...)
+		proposal = append(proposal, sim.Proposal.All...)
+		syncCommitteeSubmit = append(syncCommitteeSubmit, sim.SyncCommittee.SubmitSyncCommittees.All...)
+		syncCommitteeContribution = append(syncCommitteeContribution, sim.SyncCommittee.ProduceSyncCommitteeContribution.All...)
+		syncCommitteeSusbscription = append(syncCommitteeSusbscription, sim.SyncCommittee.SubmitSyncCommittees.All...)
+		all = append(all, sim.All...)
+	}
+
+	return SimulationPerValidator{
+		Attestation: SimulationAttestation{
+			AttestationGetDuties: simulationValuesFromDuration(attestationGetDuties),
+			AttestationPostData:  simulationValuesFromDuration(attestationPostData),
+			SimulationValues:     simulationValuesFromDuration(attestation),
+		},
+		Aggregation: SimulationAggregation{
+			AggregationGetAggregationAttestations: simulationValuesFromDuration(aggregationGetAggregationAttestations),
+			AggregationSubmitAggregateAndProofs:   simulationValuesFromDuration(aggregationSubmitAggregateAndProofs),
+			SimulationValues:                      simulationValuesFromDuration(aggregation),
+		},
+		Proposal: SimulationProposal{
+			ProposalProduceBlock:        simulationValuesFromDuration(proposalProduceBlock),
+			ProposalPublishBlindedBlock: simulationValuesFromDuration(proposalPublishBlindedBlock),
+			SimulationValues:            simulationValuesFromDuration(proposal),
+		},
+		SyncCommittee: SimulationSyncCommittee{
+			SubmitSyncCommittees:             simulationValuesFromDuration(syncCommitteeSubmit),
+			ProduceSyncCommitteeContribution: simulationValuesFromDuration(syncCommitteeContribution),
+			SyncCommitteeSubscription:        simulationValuesFromDuration(syncCommitteeSusbscription),
+		},
+		SimulationValues: simulationValuesFromDuration(all),
 	}
 }
 
@@ -984,7 +1161,6 @@ func aggregationDuty(ctx context.Context, target string, slot int, simulationDur
 			submitAggregateAndProofsCh <- submitResult
 		}
 	}
-	log.Info(ctx, "Aggregation duty simulation finished")
 }
 
 func proposalDuty(ctx context.Context, target string, slot int, simulationDuration time.Duration, tickTime time.Duration, produceBlockCh chan time.Duration, publishBlindedBlockCh chan time.Duration) {
@@ -1011,7 +1187,6 @@ func proposalDuty(ctx context.Context, target string, slot int, simulationDurati
 			publishBlindedBlockCh <- publishResult
 		}
 	}
-	log.Info(ctx, "Proposal duty simulation finished")
 }
 
 func attestationDuty(ctx context.Context, target string, slot int, simulationDuration time.Duration, tickTime time.Duration, getAttestationDataCh chan time.Duration, submitAttestationObjectCh chan time.Duration) {
@@ -1038,7 +1213,6 @@ func attestationDuty(ctx context.Context, target string, slot int, simulationDur
 			submitAttestationObjectCh <- submitResult
 		}
 	}
-	log.Info(ctx, "Attestation duty simulation finished")
 }
 
 func syncCommitteeDuty(
@@ -1082,7 +1256,6 @@ func syncCommitteeDuty(
 			syncCommitteeSubscriptionCh <- subscribeResult
 		}
 	}
-	log.Info(ctx, "Sync committee duty simulation finished")
 }
 
 func requestRTT(ctx context.Context, url string, method string, body io.Reader, expectedStatus int) (time.Duration, error) {
