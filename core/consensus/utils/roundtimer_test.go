@@ -1,6 +1,6 @@
 // Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package consensus
+package utils_test
 
 import (
 	"testing"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/core/consensus/utils"
 )
 
 func TestIncreasingRoundTimer(t *testing.T) {
@@ -38,8 +39,7 @@ func TestIncreasingRoundTimer(t *testing.T) {
 
 	for _, tt := range tests {
 		fakeClock := clockwork.NewFakeClock()
-		timer := newIncreasingRoundTimer().(*increasingRoundTimer)
-		timer.clock = fakeClock
+		timer := utils.NewIncreasingRoundTimerWithClock(fakeClock)
 
 		t.Run(tt.name, func(t *testing.T) {
 			// Start the timerType
@@ -63,8 +63,7 @@ func TestIncreasingRoundTimer(t *testing.T) {
 
 func TestDoubleEagerLinearRoundTimer(t *testing.T) {
 	fakeClock := clockwork.NewFakeClock()
-	timer := newDoubleEagerLinearRoundTimer().(*doubleEagerLinearRoundTimer)
-	timer.clock = fakeClock
+	timer := utils.NewDoubleEagerLinearRoundTimerWithClock(fakeClock)
 
 	require.True(t, timer.Type().Eager())
 
@@ -113,16 +112,16 @@ func TestDoubleEagerLinearRoundTimer(t *testing.T) {
 }
 
 func TestGetTimerFunc(t *testing.T) {
-	timerFunc := getTimerFunc()
-	require.Equal(t, timerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(0)).Type())
-	require.Equal(t, timerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(1)).Type())
-	require.Equal(t, timerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(2)).Type())
+	timerFunc := utils.GetTimerFunc()
+	require.Equal(t, utils.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(0)).Type())
+	require.Equal(t, utils.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(1)).Type())
+	require.Equal(t, utils.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(2)).Type())
 
 	featureset.DisableForT(t, featureset.EagerDoubleLinear)
 
-	timerFunc = getTimerFunc()
+	timerFunc = utils.GetTimerFunc()
 
-	require.Equal(t, timerIncreasing, timerFunc(core.NewAttesterDuty(0)).Type())
-	require.Equal(t, timerIncreasing, timerFunc(core.NewAttesterDuty(1)).Type())
-	require.Equal(t, timerIncreasing, timerFunc(core.NewAttesterDuty(2)).Type())
+	require.Equal(t, utils.TimerIncreasing, timerFunc(core.NewAttesterDuty(0)).Type())
+	require.Equal(t, utils.TimerIncreasing, timerFunc(core.NewAttesterDuty(1)).Type())
+	require.Equal(t, utils.TimerIncreasing, timerFunc(core.NewAttesterDuty(2)).Type())
 }

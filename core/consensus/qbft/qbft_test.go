@@ -1,6 +1,6 @@
 // Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package consensus_test
+package qbft_test
 
 import (
 	"context"
@@ -14,20 +14,22 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/core/consensus"
+	"github.com/obolnetwork/charon/core/consensus/qbft"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
+	coremocks "github.com/obolnetwork/charon/core/mocks"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestComponent(t *testing.T) {
+func TestQBFTConsensus(t *testing.T) {
 	tests := []struct {
 		name      string
 		threshold int
@@ -57,19 +59,14 @@ func TestComponent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testComponent(t, tt.threshold, tt.nodes)
+			testQBFTConsensus(t, tt.threshold, tt.nodes)
 		})
 	}
 }
 
-func TestIsSupportedProtocolName(t *testing.T) {
-	require.True(t, consensus.IsSupportedProtocolName("qbft"))
-	require.False(t, consensus.IsSupportedProtocolName("unreal"))
-}
-
-// testComponent tests a consensus instance with size of threshold-of-nodes.
+// testQBFTConsensus tests a consensus instance with size of threshold-of-nodes.
 // Note it only instantiates the minimum amount of peers, ie threshold.
-func testComponent(t *testing.T, threshold, nodes int) {
+func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 	t.Helper()
 	seed := 0
 	random := rand.New(rand.NewSource(int64(seed)))
@@ -79,7 +76,7 @@ func testComponent(t *testing.T, threshold, nodes int) {
 		peers       []p2p.Peer
 		hosts       []host.Host
 		hostsInfo   []peer.AddrInfo
-		components  []*consensus.Component
+		components  []*qbft.Consensus
 		results     = make(chan core.UnsignedDataSet, threshold)
 		runErrs     = make(chan error, threshold)
 		sniffed     = make(chan int, threshold)
@@ -124,13 +121,16 @@ func testComponent(t *testing.T, threshold, nodes int) {
 
 		gaterFunc := func(core.Duty) bool { return true }
 
-		c, err := consensus.New(hosts[i], new(p2p.Sender), peers, p2pkeys[i], testDeadliner{}, gaterFunc, sniffer)
+		deadliner := coremocks.NewDeadliner(t)
+		deadliner.On("Add", mock.Anything).Return(true)
+		deadliner.On("C").Return(nil)
+		c, err := qbft.NewConsensus(hosts[i], new(p2p.Sender), peers, p2pkeys[i], deadliner, gaterFunc, sniffer)
 		require.NoError(t, err)
 		c.Subscribe(func(_ context.Context, _ core.Duty, set core.UnsignedDataSet) error {
 			results <- set
 			return nil
 		})
-		c.Start(log.WithCtx(ctx, z.Int("node", i)))
+		c.Start(context.TODO())
 
 		components = append(components, c)
 	}
@@ -139,7 +139,7 @@ func testComponent(t *testing.T, threshold, nodes int) {
 
 	// Start all components.
 	for i, c := range components {
-		go func(ctx context.Context, i int, c *consensus.Component) {
+		go func(ctx context.Context, i int, c *qbft.Consensus) {
 			runErrs <- c.Propose(
 				log.WithCtx(ctx, z.Int("node", i), z.Str("peer", p2p.PeerName(hosts[i].ID()))),
 				core.Duty{Type: core.DutyAttester, Slot: 1},
@@ -176,17 +176,4 @@ func testComponent(t *testing.T, threshold, nodes int) {
 	for range threshold {
 		require.NotZero(t, <-sniffed)
 	}
-}
-
-// testDeadliner is a mock deadliner implementation.
-type testDeadliner struct {
-	deadlineChan chan core.Duty
-}
-
-func (testDeadliner) Add(core.Duty) bool {
-	return true
-}
-
-func (t testDeadliner) C() <-chan core.Duty {
-	return t.deadlineChan
 }

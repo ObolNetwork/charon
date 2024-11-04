@@ -1,16 +1,14 @@
 // Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package consensus
+package qbft
 
 import (
 	"context"
 	"sync"
-	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
@@ -18,12 +16,18 @@ import (
 	"github.com/obolnetwork/charon/core/qbft"
 )
 
+// broadcaster is an interface for broadcasting messages asynchronously.
+type broadcaster interface {
+	Broadcast(ctx context.Context, msg *pbv1.QBFTConsensusMsg) error
+}
+
 // transport encapsulates receiving and broadcasting for a consensus instance/duty.
 type transport struct {
 	// Immutable state
-	component  *Component
-	recvBuffer chan qbft.Msg[core.Duty, [32]byte] // Instance inner receive buffer.
-	sniffer    *sniffer
+	broadcaster broadcaster
+	privkey     *k1.PrivateKey
+	recvBuffer  chan qbft.Msg[core.Duty, [32]byte] // Instance inner receive buffer.
+	sniffer     *sniffer
 
 	// Mutable state
 	valueMu sync.Mutex
@@ -31,12 +35,26 @@ type transport struct {
 	values  map[[32]byte]*anypb.Any // maps any-wrapped proposed values to their hashes
 }
 
+// newTransport creates a new qbftTransport.
+func newTransport(broadcaster broadcaster, privkey *k1.PrivateKey, valueCh <-chan proto.Message,
+	recvBuffer chan qbft.Msg[core.Duty, [32]byte], sniffer *sniffer,
+) *transport {
+	return &transport{
+		broadcaster: broadcaster,
+		privkey:     privkey,
+		recvBuffer:  recvBuffer,
+		sniffer:     sniffer,
+		valueCh:     valueCh,
+		values:      make(map[[32]byte]*anypb.Any),
+	}
+}
+
 // setValues caches the values and their hashes.
-func (t *transport) setValues(msg msg) {
+func (t *transport) setValues(msg Msg) {
 	t.valueMu.Lock()
 	defer t.valueMu.Unlock()
 
-	for k, v := range msg.values {
+	for k, v := range msg.Values() {
 		t.values[k] = v
 	}
 }
@@ -82,12 +100,12 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 	hashes = append(hashes, valueHash)
 	hashes = append(hashes, pvHash)
 	for _, just := range justification {
-		msg, ok := just.(msg)
+		msg, ok := just.(Msg)
 		if !ok {
 			return errors.New("invalid justification message")
 		}
-		hashes = append(hashes, msg.valueHash)
-		hashes = append(hashes, msg.preparedValueHash)
+		hashes = append(hashes, msg.Value())
+		hashes = append(hashes, msg.PreparedValue())
 	}
 
 	// Get values by their hashes if not zero.
@@ -107,7 +125,7 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 
 	// Make the message
 	msg, err := createMsg(typ, duty, peerIdx, round, valueHash, pr,
-		pvHash, values, justification, t.component.privkey)
+		pvHash, values, justification, t.privkey)
 	if err != nil {
 		return err
 	}
@@ -121,23 +139,11 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 		}
 	}()
 
-	for _, p := range t.component.peers {
-		if p.ID == t.component.tcpNode.ID() {
-			// Do not broadcast to self
-			continue
-		}
-
-		err = t.component.sender.SendAsync(ctx, t.component.tcpNode, protocolID2, p.ID, msg.ToConsensusMsg())
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return t.broadcaster.Broadcast(ctx, msg.ToConsensusMsg())
 }
 
 // ProcessReceives processes received messages from the outer buffer until the context is closed.
-func (t *transport) ProcessReceives(ctx context.Context, outerBuffer chan msg) {
+func (t *transport) ProcessReceives(ctx context.Context, outerBuffer chan Msg) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -155,13 +161,23 @@ func (t *transport) ProcessReceives(ctx context.Context, outerBuffer chan msg) {
 	}
 }
 
+// SnifferInstance returns the current sniffed consensus instance.
+func (t *transport) SnifferInstance() *pbv1.SniffedConsensusInstance {
+	return t.sniffer.Instance()
+}
+
+// RecvBuffer returns the inner receive buffer.
+func (t *transport) RecvBuffer() chan qbft.Msg[core.Duty, [32]byte] {
+	return t.recvBuffer
+}
+
 // createMsg returns a new message by converting the inputs into a protobuf
 // and wrapping that in a msg type.
 func createMsg(typ qbft.MsgType, duty core.Duty,
 	peerIdx int64, round int64, vHash [32]byte, pr int64, pvHash [32]byte,
 	values map[[32]byte]*anypb.Any, justification []qbft.Msg[core.Duty, [32]byte],
 	privkey *k1.PrivateKey,
-) (msg, error) {
+) (Msg, error) {
 	pbMsg := &pbv1.QBFTMsg{
 		Type:              int64(typ),
 		Duty:              core.DutyToProto(duty),
@@ -174,61 +190,18 @@ func createMsg(typ qbft.MsgType, duty core.Duty,
 
 	pbMsg, err := signMsg(pbMsg, privkey)
 	if err != nil {
-		return msg{}, err
+		return Msg{}, err
 	}
 
 	// Transform justifications into protobufs
 	var justMsgs []*pbv1.QBFTMsg
 	for _, j := range justification {
-		impl, ok := j.(msg)
+		impl, ok := j.(Msg)
 		if !ok {
-			return msg{}, errors.New("invalid justification")
+			return Msg{}, errors.New("invalid justification")
 		}
-		justMsgs = append(justMsgs, impl.msg) // Note nested justifications are ignored.
+		justMsgs = append(justMsgs, impl.Msg()) // Note nested justifications are ignored.
 	}
 
 	return newMsg(pbMsg, justMsgs, values)
-}
-
-// newSniffer returns a new sniffer.
-func newSniffer(nodes, peerIdx int64) *sniffer {
-	return &sniffer{
-		nodes:     nodes,
-		peerIdx:   peerIdx,
-		startedAt: time.Now(),
-	}
-}
-
-// sniffer buffers consensus messages.
-type sniffer struct {
-	nodes     int64
-	peerIdx   int64
-	startedAt time.Time
-
-	mu   sync.Mutex
-	msgs []*pbv1.SniffedConsensusMsg
-}
-
-// Add adds a message to the sniffer buffer.
-func (c *sniffer) Add(msg *pbv1.ConsensusMsg) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.msgs = append(c.msgs, &pbv1.SniffedConsensusMsg{
-		Timestamp: timestamppb.Now(),
-		Msg:       msg,
-	})
-}
-
-// Instance returns the buffered messages as an instance.
-func (c *sniffer) Instance() *pbv1.SniffedConsensusInstance {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	return &pbv1.SniffedConsensusInstance{
-		Nodes:     c.nodes,
-		PeerIdx:   c.peerIdx,
-		StartedAt: timestamppb.New(c.startedAt),
-		Msgs:      c.msgs,
-	}
 }

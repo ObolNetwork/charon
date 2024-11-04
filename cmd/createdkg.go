@@ -16,7 +16,7 @@ import (
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/core/consensus"
+	"github.com/obolnetwork/charon/core/consensus/protocols"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/enr"
@@ -217,7 +217,7 @@ func validateDKGConfig(numOperators int, network string, depositAmounts []int, c
 		}
 	}
 
-	if len(consensusProtocol) > 0 && !consensus.IsSupportedProtocolName(consensusProtocol) {
+	if len(consensusProtocol) > 0 && !protocols.IsSupportedProtocolName(consensusProtocol) {
 		return errors.New("unsupported consensus protocol", z.Str("protocol", consensusProtocol))
 	}
 
