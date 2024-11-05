@@ -110,9 +110,18 @@ type SimulationSyncCommittee struct {
 }
 
 type SimulationGeneralRequests struct {
-	AttestationsForBlock   SimulationValues
-	ProposalDutiesForEpoch SimulationValues
-	Syncing                SimulationValues
+	AttestationsForBlock        SimulationValues
+	ProposalDutiesForEpoch      SimulationValues
+	Syncing                     SimulationValues
+	PeerCount                   SimulationValues
+	BeaconCommitteeSubscription SimulationValues
+	DutiesAttesterForEpoch      SimulationValues
+	DutiesSyncCommitteeForEpoch SimulationValues
+	BeaconHeadValidators        SimulationValues
+	BeaconGenesis               SimulationValues
+	PrepBeaconProposer          SimulationValues
+	ConfigSpec                  SimulationValues
+	NodeVersion                 SimulationValues
 }
 
 const (
@@ -732,14 +741,41 @@ func singleClusterSimulation(ctx context.Context, simulationDuration time.Durati
 	attestationsForBlockAll := []time.Duration{}
 	proposalDutiesForEpochCh := make(chan time.Duration)
 	proposalDutiesForEpochAll := []time.Duration{}
+	// per 10 sec requests
 	syncingCh := make(chan time.Duration)
 	syncingAll := []time.Duration{}
-	slot, err := getCurrentSlot(ctx, target)
-	if err != nil {
-		log.Error(ctx, "Failed to get current slot", err)
-		slot = 1
-	}
-	go clusterGeneralRequests(ctx, target, slot, slotTime, simulationDuration, attestationsForBlockCh, proposalDutiesForEpochCh, syncingCh)
+	// per minute requests
+	peerCountCh := make(chan time.Duration)
+	peerCountAll := []time.Duration{}
+	// per 12 slots requests
+	beaconCommitteeSubCh := make(chan time.Duration)
+	beaconCommitteeSubAll := []time.Duration{}
+	// 3 times per epoch - at first slot of the epoch, at the last but one and the last
+	dutiesAttesterCh := make(chan time.Duration)
+	dutiesAttesterAll := []time.Duration{}
+	// 3 times per epoch - 10 seconds before the epoch - call for the epoch, at the time of epoch - call for the epoch and call for the epoch+256
+	dutiesSyncCommitteeCh := make(chan time.Duration)
+	dutiesSyncCommitteeAll := []time.Duration{}
+	// once per epoch, at the beginning of the epoch
+	beaconHeadValidatorsCh := make(chan time.Duration)
+	beaconHeadValidatorsAll := []time.Duration{}
+	beaconGenesisCh := make(chan time.Duration)
+	beaconGenesisAll := []time.Duration{}
+	prepBeaconProposerCh := make(chan time.Duration)
+	prepBeaconProposerAll := []time.Duration{}
+	configSpecCh := make(chan time.Duration)
+	configSpecAll := []time.Duration{}
+	nodeVersionCh := make(chan time.Duration) // 7 seconds after start of epoch
+	nodeVersionAll := []time.Duration{}
+	// two endpoints called are not included:
+	// 1. /eth/v1/config/fork_schedule - it seemed at random every 240-600 epochs, didn't seem worth to do it
+	// 2. /eth/v1/events?topics=head - it happened only once for 26 hours, it didn't seem related to anything
+
+	go clusterGeneralRequests(ctx, target, slotTime, simulationDuration,
+		attestationsForBlockCh, proposalDutiesForEpochCh, syncingCh,
+		peerCountCh, beaconCommitteeSubCh, dutiesAttesterCh,
+		dutiesSyncCommitteeCh, beaconHeadValidatorsCh, beaconGenesisCh,
+		prepBeaconProposerCh, configSpecCh, nodeVersionCh)
 
 	finished := false
 	for !finished {
@@ -764,54 +800,243 @@ func singleClusterSimulation(ctx context.Context, simulationDuration time.Durati
 				continue
 			}
 			syncingAll = append(syncingAll, result)
+		case result, ok := <-peerCountCh:
+			if !ok {
+				finished = true
+				continue
+			}
+			peerCountAll = append(peerCountAll, result)
+		case result, ok := <-beaconCommitteeSubCh:
+			if !ok {
+				finished = true
+				continue
+			}
+			beaconCommitteeSubAll = append(beaconCommitteeSubAll, result)
+		case result, ok := <-dutiesAttesterCh:
+			if !ok {
+				finished = true
+				continue
+			}
+			dutiesAttesterAll = append(dutiesAttesterAll, result)
+		case result, ok := <-dutiesSyncCommitteeCh:
+			if !ok {
+				finished = true
+				continue
+			}
+			dutiesSyncCommitteeAll = append(dutiesSyncCommitteeAll, result)
+		case result, ok := <-beaconHeadValidatorsCh:
+			if !ok {
+				finished = true
+				continue
+			}
+			beaconHeadValidatorsAll = append(beaconHeadValidatorsAll, result)
+		case result, ok := <-beaconGenesisCh:
+			if !ok {
+				finished = true
+				continue
+			}
+			beaconGenesisAll = append(beaconGenesisAll, result)
+		case result, ok := <-prepBeaconProposerCh:
+			if !ok {
+				finished = true
+				continue
+			}
+			prepBeaconProposerAll = append(prepBeaconProposerAll, result)
+		case result, ok := <-configSpecCh:
+			if !ok {
+				finished = true
+				continue
+			}
+			configSpecAll = append(configSpecAll, result)
+		case result, ok := <-nodeVersionCh:
+			if !ok {
+				finished = true
+				continue
+			}
+			nodeVersionAll = append(nodeVersionAll, result)
 		}
 	}
 
 	attestationsForBlockValues := simulationValuesFromTime(attestationsForBlockAll)
 	proposalDutiesForEpochValues := simulationValuesFromTime(proposalDutiesForEpochAll)
 	syncingValues := simulationValuesFromTime(syncingAll)
+	peerCountValues := simulationValuesFromTime(peerCountAll)
+	beaconCommitteeSubValues := simulationValuesFromTime(beaconCommitteeSubAll)
+	dutiesAttesterValues := simulationValuesFromTime(dutiesAttesterAll)
+	dutiesSyncCommitteeValues := simulationValuesFromTime(dutiesSyncCommitteeAll)
+	beaconHeadValidatorsValues := simulationValuesFromTime(beaconHeadValidatorsAll)
+	beaconGenesisValues := simulationValuesFromTime(beaconGenesisAll)
+	prepBeaconProposerValues := simulationValuesFromTime(prepBeaconProposerAll)
+	configSpecValues := simulationValuesFromTime(configSpecAll)
+	nodeVersionValues := simulationValuesFromTime(nodeVersionAll)
 
 	generalResults := SimulationGeneralRequests{
-		AttestationsForBlock:   attestationsForBlockValues,
-		ProposalDutiesForEpoch: proposalDutiesForEpochValues,
-		Syncing:                syncingValues,
+		AttestationsForBlock:        attestationsForBlockValues,
+		ProposalDutiesForEpoch:      proposalDutiesForEpochValues,
+		Syncing:                     syncingValues,
+		PeerCount:                   peerCountValues,
+		BeaconCommitteeSubscription: beaconCommitteeSubValues,
+		DutiesAttesterForEpoch:      dutiesAttesterValues,
+		DutiesSyncCommitteeForEpoch: dutiesSyncCommitteeValues,
+		BeaconHeadValidators:        beaconHeadValidatorsValues,
+		BeaconGenesis:               beaconGenesisValues,
+		PrepBeaconProposer:          prepBeaconProposerValues,
+		ConfigSpec:                  configSpecValues,
+		NodeVersion:                 nodeVersionValues,
 	}
 
 	resultCh <- generalResults
 }
 
-func clusterGeneralRequests(ctx context.Context, target string, slot int, slotTime time.Duration, simulationDuration time.Duration, attestationsForBlockCh chan time.Duration, proposalDutiesForEpochCh chan time.Duration, syncingCh chan time.Duration) {
+func clusterGeneralRequests(
+	ctx context.Context, target string, slotTime time.Duration, simulationDuration time.Duration,
+	attestationsForBlockCh chan time.Duration, proposalDutiesForEpochCh chan time.Duration, syncingCh chan time.Duration,
+	peerCountCh chan time.Duration, beaconCommitteeSubCh chan time.Duration, dutiesAttesterCh chan time.Duration,
+	dutiesSyncCommitteeCh chan time.Duration, beaconHeadValidatorsCh chan time.Duration, beaconGenesisCh chan time.Duration,
+	prepBeaconProposerCh chan time.Duration, configSpecCh chan time.Duration, nodeVersionCh chan time.Duration,
+) {
 	defer func() {
 		close(proposalDutiesForEpochCh)
 		close(attestationsForBlockCh)
 		close(syncingCh)
+		close(peerCountCh)
+		close(beaconCommitteeSubCh)
+		close(dutiesAttesterCh)
+		close(dutiesSyncCommitteeCh)
+		close(beaconHeadValidatorsCh)
+		close(beaconGenesisCh)
+		close(prepBeaconProposerCh)
+		close(configSpecCh)
+		close(nodeVersionCh)
 	}()
+	// slot ticker
+	tickerSlot := time.NewTicker(slotTime)
+	defer tickerSlot.Stop()
+	// 12 slots ticker
+	ticker12Slots := time.NewTicker(12 * slotTime)
+	defer ticker12Slots.Stop()
+	// 10 sec ticker
+	ticker10Sec := time.NewTicker(10 * time.Second)
+	defer ticker10Sec.Stop()
+	// minute ticker
+	tickerMinute := time.NewTicker(time.Minute)
+	defer tickerMinute.Stop()
+
+	slot, err := getCurrentSlot(ctx, target)
+	if err != nil {
+		log.Error(ctx, "Failed to get current slot", err)
+		slot = 1
+	}
+
 	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
-	tickerPerSlot := time.NewTicker(slotTime)
-	defer tickerPerSlot.Stop()
-	tickerPer10Sec := time.NewTicker(10 * time.Second)
-	defer tickerPer10Sec.Stop()
+
 	for pingCtx.Err() == nil {
 		select {
-		case <-tickerPerSlot.C:
+		case <-tickerSlot.C:
+			slot++
+			epoch := slot / slotsInEpoch
+			// requests executed at every slot
 			attestationsResult, err := getAttestationsForBlock(ctx, target, slot-6)
 			if err != nil {
 				log.Error(ctx, "Unexpected getAttestationsForBlock failure", err)
 			}
-			submitResult, err := getProposalDutiesForEpoch(ctx, target, slot/slotsInEpoch)
+			attestationsForBlockCh <- attestationsResult
+			submitResult, err := getProposalDutiesForEpoch(ctx, target, epoch)
 			if err != nil {
 				log.Error(ctx, "Unexpected getProposalDutiesForEpoch failure", err)
 			}
-			attestationsForBlockCh <- attestationsResult
 			proposalDutiesForEpochCh <- submitResult
-			slot++
-		case <-tickerPer10Sec.C:
+			// requests executed at the first slot of the epoch
+			if slot%slotsInEpoch == 0 {
+				dutiesAttesterResult, err := getAttesterDutiesForEpoch(ctx, target, epoch)
+				if err != nil {
+					log.Error(ctx, "Unexpected getAttesterDutiesForEpoch failure", err)
+				}
+				dutiesAttesterCh <- dutiesAttesterResult
+
+				dutiesSyncCommitteeResult, err := getSyncCommitteeDutiesForEpoch(ctx, target, epoch)
+				if err != nil {
+					log.Error(ctx, "Unexpected getSyncCommitteeDutiesForEpoch failure", err)
+				}
+				dutiesSyncCommitteeCh <- dutiesSyncCommitteeResult
+
+				beaconHeadValidatorsResult, err := beaconHeadValidators(ctx, target)
+				if err != nil {
+					log.Error(ctx, "Unexpected beaconHeadValidators failure", err)
+				}
+				beaconHeadValidatorsCh <- beaconHeadValidatorsResult
+
+				beaconGenesisResult, err := beaconGenesis(ctx, target)
+				if err != nil {
+					log.Error(ctx, "Unexpected beaconGenesis failure", err)
+				}
+				beaconGenesisCh <- beaconGenesisResult
+
+				prepBeaconProposerResult, err := prepBeaconProposer(ctx, target)
+				if err != nil {
+					log.Error(ctx, "Unexpected prepBeaconProposer failure", err)
+				}
+				prepBeaconProposerCh <- prepBeaconProposerResult
+
+				configSpecResult, err := configSpec(ctx, target)
+				if err != nil {
+					log.Error(ctx, "Unexpected configSpec failure", err)
+				}
+				configSpecCh <- configSpecResult
+
+				nodeVersionResult, err := nodeVersion(ctx, target)
+				if err != nil {
+					log.Error(ctx, "Unexpected nodeVersion failure", err)
+				}
+				nodeVersionCh <- nodeVersionResult
+			}
+			// requests executed at the last but one slot of the epoch
+			if slot%slotsInEpoch == slotsInEpoch-2 {
+				dutiesAttesterResult, err := getAttesterDutiesForEpoch(ctx, target, epoch)
+				if err != nil {
+					log.Error(ctx, "Unexpected getAttesterDutiesForEpoch failure", err)
+				}
+				dutiesAttesterCh <- dutiesAttesterResult
+			}
+			// requests executed at the last slot of the epoch
+			if slot%slotsInEpoch == slotsInEpoch-1 {
+				dutiesAttesterResult, err := getAttesterDutiesForEpoch(ctx, target, epoch)
+				if err != nil {
+					log.Error(ctx, "Unexpected getAttesterDutiesForEpoch failure", err)
+				}
+				dutiesAttesterCh <- dutiesAttesterResult
+
+				dutiesSyncCommitteeResult, err := getSyncCommitteeDutiesForEpoch(ctx, target, epoch)
+				if err != nil {
+					log.Error(ctx, "Unexpected getSyncCommitteeDutiesForEpoch failure", err)
+				}
+				dutiesSyncCommitteeCh <- dutiesSyncCommitteeResult
+
+				dutiesSyncCommitteeResultFuture, err := getSyncCommitteeDutiesForEpoch(ctx, target, epoch+256)
+				if err != nil {
+					log.Error(ctx, "Unexpected getSyncCommitteeDutiesForEpoch for the future epoch failure", err)
+				}
+				dutiesSyncCommitteeCh <- dutiesSyncCommitteeResultFuture
+			}
+		case <-ticker12Slots.C:
+			beaconCommitteeSubResult, err := beaconCommitteeSub(ctx, target)
+			if err != nil {
+				log.Error(ctx, "Unexpected beaconCommitteeSub failure", err)
+			}
+			beaconCommitteeSubCh <- beaconCommitteeSubResult
+		case <-ticker10Sec.C:
 			getSyncingResult, err := getSyncing(ctx, target)
 			if err != nil {
 				log.Error(ctx, "Unexpected getSyncing failure", err)
 			}
 			syncingCh <- getSyncingResult
+		case <-tickerMinute.C:
+			peerCountResult, err := getPeerCount(ctx, target)
+			if err != nil {
+				log.Error(ctx, "Unexpected getPeerCount failure", err)
+			}
+			peerCountCh <- peerCountResult
 		case <-pingCtx.Done():
 		}
 	}
@@ -1307,6 +1532,47 @@ func getAttestationsForBlock(ctx context.Context, target string, block int) (tim
 
 func getSyncing(ctx context.Context, target string) (time.Duration, error) {
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/node/syncing", target), http.MethodGet, nil, 200)
+}
+
+func getPeerCount(ctx context.Context, target string) (time.Duration, error) {
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/node/peer_count", target), http.MethodGet, nil, 200)
+}
+
+func beaconCommitteeSub(ctx context.Context, target string) (time.Duration, error) {
+	body := strings.NewReader(`[{"validator_index":"1","committee_index":"1","committees_at_slot":"1","slot":"1","is_aggregator":true}]`)
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/beacon_committee_subscriptions", target), http.MethodPost, body, 200)
+}
+
+func getAttesterDutiesForEpoch(ctx context.Context, target string, epoch int) (time.Duration, error) {
+	body := strings.NewReader(`["1"]`)
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/duties/attester/%v", target, epoch), http.MethodPost, body, 200)
+}
+
+func getSyncCommitteeDutiesForEpoch(ctx context.Context, target string, epoch int) (time.Duration, error) {
+	body := strings.NewReader(`["1"]`)
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/duties/sync/%v", target, epoch), http.MethodPost, body, 200)
+}
+
+func beaconHeadValidators(ctx context.Context, target string) (time.Duration, error) {
+	body := strings.NewReader(`{"ids":["0xb6066945aa87a1e0e4b55e347d3a8a0ef7f0d9f7ef2c46abebadb25d7de176b83c88547e5f8644b659598063c845719a"]}`)
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/beacon/states/head/validators", target), http.MethodPost, body, 200)
+}
+
+func beaconGenesis(ctx context.Context, target string) (time.Duration, error) {
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/beacon/genesis", target), http.MethodGet, nil, 200)
+}
+
+func prepBeaconProposer(ctx context.Context, target string) (time.Duration, error) {
+	body := strings.NewReader(`[{"validator_index":"1725802","fee_recipient":"0x74b1C2f5788510c9ecA5f56D367B0a3D8a15a430"}]`)
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/prepare_beacon_proposer", target), http.MethodPost, body, 200)
+}
+
+func configSpec(ctx context.Context, target string) (time.Duration, error) {
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/config/spec", target), http.MethodGet, nil, 200)
+}
+
+func nodeVersion(ctx context.Context, target string) (time.Duration, error) {
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/node/version", target), http.MethodGet, nil, 200)
 }
 
 func getProposalDutiesForEpoch(ctx context.Context, target string, epoch int) (time.Duration, error) {
