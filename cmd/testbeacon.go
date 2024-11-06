@@ -43,11 +43,12 @@ type testBeaconConfig struct {
 type testCaseBeacon func(context.Context, *testBeaconConfig, string) testResult
 
 type SimulationValues struct {
-	All    []Duration `json:",omitempty"`
-	Min    Duration
-	Max    Duration
-	Median Duration
-	Avg    Duration
+	Endpoint string     `json:"endpoint,omitempty"`
+	All      []Duration `json:"all,omitempty"`
+	Min      Duration   `json:"min"`
+	Max      Duration   `json:"max"`
+	Median   Duration   `json:"median"`
+	Avg      Duration   `json:"avg"`
 }
 
 type RequestsIntensity struct {
@@ -68,61 +69,61 @@ type DutiesPerformed struct {
 }
 
 type Simulation struct {
-	GeneralRequests    SimulationGeneralRequests
-	ValidatorsOverview SimulationAllValidators
+	GeneralClusterRequests SimulationCluster    `json:"general_cluster_requests"`
+	ValidatorsRequests     SimulationValidators `json:"validators_requests"`
 }
 
-type SimulationAllValidators struct {
-	Averaged      SimulationPerValidator
-	AllValidators []SimulationPerValidator `json:",omitempty"`
+type SimulationValidators struct {
+	Averaged      SimulationSingleValidator   `json:"averaged"`
+	AllValidators []SimulationSingleValidator `json:"all_validators,omitempty"`
 }
 
-type SimulationPerValidator struct {
-	Attestation   SimulationAttestation
-	Aggregation   SimulationAggregation
-	Proposal      SimulationProposal
-	SyncCommittee SimulationSyncCommittee
+type SimulationSingleValidator struct {
+	AttestationDuty   SimulationAttestation   `json:"attestation_duty"`
+	AggregationDuty   SimulationAggregation   `json:"aggregation_duty"`
+	ProposalDuty      SimulationProposal      `json:"proposal_duty"`
+	SyncCommitteeDuty SimulationSyncCommittee `json:"sync_committee_duty"`
 	SimulationValues
 }
 
 type SimulationAttestation struct {
-	AttestationGetDuties SimulationValues
-	AttestationPostData  SimulationValues
+	GetAttestationDataRequest SimulationValues `json:"get_attestation_data_request"`
+	PostAttestationsRequest   SimulationValues `json:"post_attestations_request"`
 	SimulationValues
 }
 
 type SimulationAggregation struct {
-	AggregationGetAggregationAttestations SimulationValues
-	AggregationSubmitAggregateAndProofs   SimulationValues
+	GetAggregateAttestationRequest SimulationValues `json:"get_aggregate_attestation_request"`
+	PostAggregateAndProofsRequest  SimulationValues `json:"post_aggregate_and_proofs_request"`
 	SimulationValues
 }
 
 type SimulationProposal struct {
-	ProposalProduceBlock        SimulationValues
-	ProposalPublishBlindedBlock SimulationValues
+	ProduceBlockRequest        SimulationValues `json:"produce_block_request"`
+	PublishBlindedBlockRequest SimulationValues `json:"publish_blinded_block_request"`
 	SimulationValues
 }
 
 type SimulationSyncCommittee struct {
-	SubmitSyncCommittees             SimulationValues
-	ProduceSyncCommitteeContribution SimulationValues
-	SyncCommitteeSubscription        SimulationValues
-	SyncCommitteeContribution        SimulationValues
+	SubmitSyncCommitteeRequest              SimulationValues `json:"submit_sync_committees_request"`
+	ProduceSyncCommitteeContributionRequest SimulationValues `json:"produce_sync_committee_contribution_request"`
+	SubscribeSyncCommitteeRequest           SimulationValues `json:"subscribe_sync_committee_request"`
+	SubmitSyncCommitteeContributionRequest  SimulationValues `json:"submit_sync_committee_contribution_request"`
 }
 
-type SimulationGeneralRequests struct {
-	AttestationsForBlock        SimulationValues
-	ProposalDutiesForEpoch      SimulationValues
-	Syncing                     SimulationValues
-	PeerCount                   SimulationValues
-	BeaconCommitteeSubscription SimulationValues
-	DutiesAttesterForEpoch      SimulationValues
-	DutiesSyncCommitteeForEpoch SimulationValues
-	BeaconHeadValidators        SimulationValues
-	BeaconGenesis               SimulationValues
-	PrepBeaconProposer          SimulationValues
-	ConfigSpec                  SimulationValues
-	NodeVersion                 SimulationValues
+type SimulationCluster struct {
+	AttestationsForBlockRequest        SimulationValues `json:"attestations_for_block_request"`
+	ProposalDutiesForEpochRequest      SimulationValues `json:"proposal_duties_for_epoch_request"`
+	SyncingRequest                     SimulationValues `json:"syncing_request"`
+	PeerCountRequest                   SimulationValues `json:"peer_count_request"`
+	BeaconCommitteeSubscriptionRequest SimulationValues `json:"beacon_committee_subscription_request"`
+	DutiesAttesterForEpochRequest      SimulationValues `json:"duties_attester_for_epoch_request"`
+	DutiesSyncCommitteeForEpochRequest SimulationValues `json:"duties_sync_committee_for_epoch_request"`
+	BeaconHeadValidatorsRequest        SimulationValues `json:"beacon_head_validators_request"`
+	BeaconGenesisRequest               SimulationValues `json:"beacon_genesis_request"`
+	PrepBeaconProposerRequest          SimulationValues `json:"prep_beacon_proposer_request"`
+	ConfigSpecRequest                  SimulationValues `json:"config_spec_request"`
+	NodeVersionRequest                 SimulationValues `json:"node_version_request"`
 }
 
 const (
@@ -588,15 +589,15 @@ func beaconSimulation10Test(ctx context.Context, conf *testBeaconConfig, target 
 	)
 
 	// start general cluster requests
-	simulationGeneralResCh := make(chan SimulationGeneralRequests, 1)
-	var simulationGeneralRes SimulationGeneralRequests
+	simulationGeneralResCh := make(chan SimulationCluster, 1)
+	var simulationGeneralRes SimulationCluster
 	wg.Add(1)
 	log.Info(ctx, "Starting general cluster requests...")
 	go singleClusterSimulation(ctx, duration, target, simulationGeneralResCh, &wg)
 
 	// start validator requests
-	simulationResCh := make(chan SimulationPerValidator, totalValidatorsCount)
-	simulationResAll := []SimulationPerValidator{}
+	simulationResCh := make(chan SimulationSingleValidator, totalValidatorsCount)
+	simulationResAll := []SimulationSingleValidator{}
 
 	log.Info(ctx, "Starting validators performing duties attestation, aggregation, proposal, sync committee...",
 		z.Any("validators", syncCommitteeValidatorsCount),
@@ -639,8 +640,8 @@ func beaconSimulation10Test(ctx context.Context, conf *testBeaconConfig, target 
 	averageValidatorResult := averageValidatorsResult(simulationResAll)
 
 	finalSimulation := Simulation{
-		GeneralRequests: simulationGeneralRes,
-		ValidatorsOverview: SimulationAllValidators{
+		GeneralClusterRequests: simulationGeneralRes,
+		ValidatorsRequests: SimulationValidators{
 			Averaged:      averageValidatorResult,
 			AllValidators: simulationResAll,
 		},
@@ -660,7 +661,7 @@ func beaconSimulation10Test(ctx context.Context, conf *testBeaconConfig, target 
 
 	highestRTT := Duration{0}
 	for _, sim := range simulationResAll {
-		simulationMax := Duration{max(sim.Attestation.Max.Duration)}
+		simulationMax := Duration{max(sim.AttestationDuty.Max.Duration)}
 		if simulationMax.Duration > highestRTT.Duration {
 			highestRTT = simulationMax
 		}
@@ -673,6 +674,8 @@ func beaconSimulation10Test(ctx context.Context, conf *testBeaconConfig, target 
 		testRes.Verdict = testVerdictGood
 	}
 	testRes.Measurement = highestRTT.String()
+
+	log.Info(ctx, "10 validators simulation finished")
 
 	return testRes
 }
@@ -712,31 +715,40 @@ func getCurrentSlot(ctx context.Context, target string) (int, error) {
 }
 
 func nonVerboseFinalSimulation(s Simulation) Simulation {
-	s.ValidatorsOverview.AllValidators = []SimulationPerValidator{}
+	s.ValidatorsRequests.AllValidators = []SimulationSingleValidator{}
 
-	s.ValidatorsOverview.Averaged.All = []Duration{}
-	s.ValidatorsOverview.Averaged.Aggregation.All = []Duration{}
-	s.ValidatorsOverview.Averaged.Aggregation.AggregationGetAggregationAttestations.All = []Duration{}
-	s.ValidatorsOverview.Averaged.Aggregation.AggregationSubmitAggregateAndProofs.All = []Duration{}
-	s.ValidatorsOverview.Averaged.Attestation.All = []Duration{}
-	s.ValidatorsOverview.Averaged.Attestation.AttestationGetDuties.All = []Duration{}
-	s.ValidatorsOverview.Averaged.Attestation.AttestationPostData.All = []Duration{}
-	s.ValidatorsOverview.Averaged.Proposal.All = []Duration{}
-	s.ValidatorsOverview.Averaged.Proposal.ProposalProduceBlock.All = []Duration{}
-	s.ValidatorsOverview.Averaged.Proposal.ProposalPublishBlindedBlock.All = []Duration{}
-	s.ValidatorsOverview.Averaged.SyncCommittee.ProduceSyncCommitteeContribution.All = []Duration{}
-	s.ValidatorsOverview.Averaged.SyncCommittee.SubmitSyncCommittees.All = []Duration{}
-	s.ValidatorsOverview.Averaged.SyncCommittee.SyncCommitteeSubscription.All = []Duration{}
-	s.ValidatorsOverview.Averaged.SyncCommittee.SyncCommitteeContribution.All = []Duration{}
+	s.ValidatorsRequests.Averaged.All = []Duration{}
+	s.ValidatorsRequests.Averaged.AggregationDuty.All = []Duration{}
+	s.ValidatorsRequests.Averaged.AggregationDuty.GetAggregateAttestationRequest.All = []Duration{}
+	s.ValidatorsRequests.Averaged.AggregationDuty.PostAggregateAndProofsRequest.All = []Duration{}
+	s.ValidatorsRequests.Averaged.AttestationDuty.All = []Duration{}
+	s.ValidatorsRequests.Averaged.AttestationDuty.GetAttestationDataRequest.All = []Duration{}
+	s.ValidatorsRequests.Averaged.AttestationDuty.PostAttestationsRequest.All = []Duration{}
+	s.ValidatorsRequests.Averaged.ProposalDuty.All = []Duration{}
+	s.ValidatorsRequests.Averaged.ProposalDuty.ProduceBlockRequest.All = []Duration{}
+	s.ValidatorsRequests.Averaged.ProposalDuty.PublishBlindedBlockRequest.All = []Duration{}
+	s.ValidatorsRequests.Averaged.SyncCommitteeDuty.ProduceSyncCommitteeContributionRequest.All = []Duration{}
+	s.ValidatorsRequests.Averaged.SyncCommitteeDuty.SubmitSyncCommitteeRequest.All = []Duration{}
+	s.ValidatorsRequests.Averaged.SyncCommitteeDuty.SubscribeSyncCommitteeRequest.All = []Duration{}
+	s.ValidatorsRequests.Averaged.SyncCommitteeDuty.SubmitSyncCommitteeContributionRequest.All = []Duration{}
 
-	s.GeneralRequests.AttestationsForBlock.All = []Duration{}
-	s.GeneralRequests.ProposalDutiesForEpoch.All = []Duration{}
-	s.GeneralRequests.Syncing.All = []Duration{}
+	s.GeneralClusterRequests.AttestationsForBlockRequest.All = []Duration{}
+	s.GeneralClusterRequests.ProposalDutiesForEpochRequest.All = []Duration{}
+	s.GeneralClusterRequests.SyncingRequest.All = []Duration{}
+	s.GeneralClusterRequests.PeerCountRequest.All = []Duration{}
+	s.GeneralClusterRequests.BeaconCommitteeSubscriptionRequest.All = []Duration{}
+	s.GeneralClusterRequests.DutiesAttesterForEpochRequest.All = []Duration{}
+	s.GeneralClusterRequests.DutiesSyncCommitteeForEpochRequest.All = []Duration{}
+	s.GeneralClusterRequests.BeaconHeadValidatorsRequest.All = []Duration{}
+	s.GeneralClusterRequests.BeaconGenesisRequest.All = []Duration{}
+	s.GeneralClusterRequests.PrepBeaconProposerRequest.All = []Duration{}
+	s.GeneralClusterRequests.ConfigSpecRequest.All = []Duration{}
+	s.GeneralClusterRequests.NodeVersionRequest.All = []Duration{}
 
 	return s
 }
 
-func singleClusterSimulation(ctx context.Context, simulationDuration time.Duration, target string, resultCh chan SimulationGeneralRequests, wg *sync.WaitGroup) {
+func singleClusterSimulation(ctx context.Context, simulationDuration time.Duration, target string, resultCh chan SimulationCluster, wg *sync.WaitGroup) {
 	defer wg.Done()
 	// per slot requests
 	attestationsForBlockCh := make(chan time.Duration)
@@ -859,32 +871,32 @@ func singleClusterSimulation(ctx context.Context, simulationDuration time.Durati
 		}
 	}
 
-	attestationsForBlockValues := simulationValuesFromTime(attestationsForBlockAll)
-	proposalDutiesForEpochValues := simulationValuesFromTime(proposalDutiesForEpochAll)
-	syncingValues := simulationValuesFromTime(syncingAll)
-	peerCountValues := simulationValuesFromTime(peerCountAll)
-	beaconCommitteeSubValues := simulationValuesFromTime(beaconCommitteeSubAll)
-	dutiesAttesterValues := simulationValuesFromTime(dutiesAttesterAll)
-	dutiesSyncCommitteeValues := simulationValuesFromTime(dutiesSyncCommitteeAll)
-	beaconHeadValidatorsValues := simulationValuesFromTime(beaconHeadValidatorsAll)
-	beaconGenesisValues := simulationValuesFromTime(beaconGenesisAll)
-	prepBeaconProposerValues := simulationValuesFromTime(prepBeaconProposerAll)
-	configSpecValues := simulationValuesFromTime(configSpecAll)
-	nodeVersionValues := simulationValuesFromTime(nodeVersionAll)
+	attestationsForBlockValues := generateSimulationValues(attestationsForBlockAll, "GET /eth/v1/beacon/blocks/{BLOCK}/attestations")
+	proposalDutiesForEpochValues := generateSimulationValues(proposalDutiesForEpochAll, "GET /eth/v1/validator/duties/proposer/{EPOCH}")
+	syncingValues := generateSimulationValues(syncingAll, "GET /eth/v1/node/syncing")
+	peerCountValues := generateSimulationValues(peerCountAll, "GET /eth/v1/node/peer_count")
+	beaconCommitteeSubValues := generateSimulationValues(beaconCommitteeSubAll, "POST /eth/v1/validator/beacon_committee_subscriptions")
+	dutiesAttesterValues := generateSimulationValues(dutiesAttesterAll, "POST /eth/v1/validator/duties/attester/{EPOCH}")
+	dutiesSyncCommitteeValues := generateSimulationValues(dutiesSyncCommitteeAll, "POST /eth/v1/validator/duties/sync/{EPOCH}")
+	beaconHeadValidatorsValues := generateSimulationValues(beaconHeadValidatorsAll, "POST /eth/v1/beacon/states/head/validators")
+	beaconGenesisValues := generateSimulationValues(beaconGenesisAll, "GET /eth/v1/beacon/genesis")
+	prepBeaconProposerValues := generateSimulationValues(prepBeaconProposerAll, "POST /eth/v1/validator/prepare_beacon_proposer")
+	configSpecValues := generateSimulationValues(configSpecAll, "GET /eth/v1/config/spec")
+	nodeVersionValues := generateSimulationValues(nodeVersionAll, "GET /eth/v1/node/version")
 
-	generalResults := SimulationGeneralRequests{
-		AttestationsForBlock:        attestationsForBlockValues,
-		ProposalDutiesForEpoch:      proposalDutiesForEpochValues,
-		Syncing:                     syncingValues,
-		PeerCount:                   peerCountValues,
-		BeaconCommitteeSubscription: beaconCommitteeSubValues,
-		DutiesAttesterForEpoch:      dutiesAttesterValues,
-		DutiesSyncCommitteeForEpoch: dutiesSyncCommitteeValues,
-		BeaconHeadValidators:        beaconHeadValidatorsValues,
-		BeaconGenesis:               beaconGenesisValues,
-		PrepBeaconProposer:          prepBeaconProposerValues,
-		ConfigSpec:                  configSpecValues,
-		NodeVersion:                 nodeVersionValues,
+	generalResults := SimulationCluster{
+		AttestationsForBlockRequest:        attestationsForBlockValues,
+		ProposalDutiesForEpochRequest:      proposalDutiesForEpochValues,
+		SyncingRequest:                     syncingValues,
+		PeerCountRequest:                   peerCountValues,
+		BeaconCommitteeSubscriptionRequest: beaconCommitteeSubValues,
+		DutiesAttesterForEpochRequest:      dutiesAttesterValues,
+		DutiesSyncCommitteeForEpochRequest: dutiesSyncCommitteeValues,
+		BeaconHeadValidatorsRequest:        beaconHeadValidatorsValues,
+		BeaconGenesisRequest:               beaconGenesisValues,
+		PrepBeaconProposerRequest:          prepBeaconProposerValues,
+		ConfigSpecRequest:                  configSpecValues,
+		NodeVersionRequest:                 nodeVersionValues,
 	}
 
 	resultCh <- generalResults
@@ -1044,7 +1056,7 @@ func clusterGeneralRequests(
 	}
 }
 
-func singleValidatorSimulation(ctx context.Context, simulationDuration time.Duration, target string, resultCh chan SimulationPerValidator, intensity RequestsIntensity, dutiesPerformed DutiesPerformed, wg *sync.WaitGroup) {
+func singleValidatorSimulation(ctx context.Context, simulationDuration time.Duration, target string, resultCh chan SimulationSingleValidator, intensity RequestsIntensity, dutiesPerformed DutiesPerformed, wg *sync.WaitGroup) {
 	defer wg.Done()
 	slot, err := getCurrentSlot(ctx, target)
 	if err != nil {
@@ -1169,102 +1181,112 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 	// attestation results grouping
 	var attestationResult SimulationAttestation
 	if dutiesPerformed.Attestation {
-		getSimulationValues := simulationValuesFromTime(getAttestationDataAll)
-		submitSimulationValues := simulationValuesFromTime(submitAttestationObjectAll)
+		getSimulationValues := generateSimulationValues(getAttestationDataAll, "GET /eth/v1/validator/attestation_data")
+		submitSimulationValues := generateSimulationValues(submitAttestationObjectAll, "POST /eth/v1/beacon/pool/attestations")
 
 		cumulativeAttestation := []time.Duration{}
 		for i := range getAttestationDataAll {
 			cumulativeAttestation = append(cumulativeAttestation, getAttestationDataAll[i]+submitAttestationObjectAll[i])
 		}
-		cumulativeSimulationValues := simulationValuesFromTime(cumulativeAttestation)
+		cumulativeSimulationValues := generateSimulationValues(cumulativeAttestation, "")
 		allRequests = append(allRequests, cumulativeAttestation...)
 
 		attestationResult = SimulationAttestation{
-			AttestationGetDuties: getSimulationValues,
-			AttestationPostData:  submitSimulationValues,
-			SimulationValues:     cumulativeSimulationValues,
+			GetAttestationDataRequest: getSimulationValues,
+			PostAttestationsRequest:   submitSimulationValues,
+			SimulationValues:          cumulativeSimulationValues,
 		}
 	}
 
 	// aggregation results grouping
 	var aggregationResults SimulationAggregation
 	if dutiesPerformed.Aggregation {
-		getAggregateSimulationValues := simulationValuesFromTime(getAggregateAttestationsAll)
-		submitAggregateSimulationValues := simulationValuesFromTime(submitAggregateAndProofsAll)
+		getAggregateSimulationValues := generateSimulationValues(getAggregateAttestationsAll, "GET /eth/v1/validator/aggregate_attestation")
+		submitAggregateSimulationValues := generateSimulationValues(submitAggregateAndProofsAll, "POST /eth/v1/validator/aggregate_and_proofs")
 
 		cumulativeAggregations := []time.Duration{}
 		for i := range getAggregateAttestationsAll {
 			cumulativeAggregations = append(cumulativeAggregations, getAggregateAttestationsAll[i]+submitAggregateAndProofsAll[i])
 		}
-		cumulativeAggregationsSimulationValues := simulationValuesFromTime(cumulativeAggregations)
+		cumulativeAggregationsSimulationValues := generateSimulationValues(cumulativeAggregations, "")
 		allRequests = append(allRequests, cumulativeAggregations...)
 
 		aggregationResults = SimulationAggregation{
-			AggregationGetAggregationAttestations: getAggregateSimulationValues,
-			AggregationSubmitAggregateAndProofs:   submitAggregateSimulationValues,
-			SimulationValues:                      cumulativeAggregationsSimulationValues,
+			GetAggregateAttestationRequest: getAggregateSimulationValues,
+			PostAggregateAndProofsRequest:  submitAggregateSimulationValues,
+			SimulationValues:               cumulativeAggregationsSimulationValues,
 		}
 	}
 
 	// proposal results grouping
 	var proposalResults SimulationProposal
 	if dutiesPerformed.Proposal {
-		produceBlockValues := simulationValuesFromTime(produceBlockAll)
-		publishBlindedBlockValues := simulationValuesFromTime(publishBlindedBlockAll)
+		produceBlockValues := generateSimulationValues(produceBlockAll, "GET /eth/v3/validator/blocks/{SLOT}")
+		publishBlindedBlockValues := generateSimulationValues(publishBlindedBlockAll, "POST /eth/v2/beacon/blinded")
 
 		cumulativeProposals := []time.Duration{}
 		for i := range produceBlockAll {
 			cumulativeProposals = append(cumulativeProposals, produceBlockAll[i]+publishBlindedBlockAll[i])
 		}
-		cumulativeProposalsSimulationValues := simulationValuesFromTime(cumulativeProposals)
+		cumulativeProposalsSimulationValues := generateSimulationValues(cumulativeProposals, "")
 		allRequests = append(allRequests, cumulativeProposals...)
 
 		proposalResults = SimulationProposal{
-			ProposalProduceBlock:        produceBlockValues,
-			ProposalPublishBlindedBlock: publishBlindedBlockValues,
-			SimulationValues:            cumulativeProposalsSimulationValues,
+			ProduceBlockRequest:        produceBlockValues,
+			PublishBlindedBlockRequest: publishBlindedBlockValues,
+			SimulationValues:           cumulativeProposalsSimulationValues,
 		}
 	}
 
 	// sync committee results grouping
 	var syncCommitteeResults SimulationSyncCommittee
 	if dutiesPerformed.SyncCommittee {
-		submitSyncCommitteesValues := simulationValuesFromTime(submitSyncCommitteesAll)
+		submitSyncCommitteesValues := generateSimulationValues(submitSyncCommitteesAll, "POST /eth/v1/beacon/pool/sync_committees")
 		allRequests = append(allRequests, submitSyncCommitteesAll...)
-		produceSyncCommitteeContributionValues := simulationValuesFromTime(produceSyncCommitteeContributionAll)
+		produceSyncCommitteeContributionValues := generateSimulationValues(produceSyncCommitteeContributionAll, "GET /eth/v1/validator/sync_committee_contribution")
 		allRequests = append(allRequests, produceSyncCommitteeContributionAll...)
-		syncCommitteeSubscriptionValues := simulationValuesFromTime(syncCommitteeSubscriptionAll)
+		syncCommitteeSubscriptionValues := generateSimulationValues(syncCommitteeSubscriptionAll, "POST /eth/v1/validator/sync_committee_subscriptions")
 		allRequests = append(allRequests, syncCommitteeSubscriptionAll...)
-		syncCommitteeContributionValues := simulationValuesFromTime(syncCommitteeContributionAll)
+		syncCommitteeContributionValues := generateSimulationValues(syncCommitteeContributionAll, "POST /eth/v1/validator/contribution_and_proofs")
 		allRequests = append(allRequests, syncCommitteeContributionAll...)
 
 		syncCommitteeResults = SimulationSyncCommittee{
-			SubmitSyncCommittees:             submitSyncCommitteesValues,
-			ProduceSyncCommitteeContribution: produceSyncCommitteeContributionValues,
-			SyncCommitteeSubscription:        syncCommitteeSubscriptionValues,
-			SyncCommitteeContribution:        syncCommitteeContributionValues,
+			SubmitSyncCommitteeRequest:              submitSyncCommitteesValues,
+			ProduceSyncCommitteeContributionRequest: produceSyncCommitteeContributionValues,
+			SubscribeSyncCommitteeRequest:           syncCommitteeSubscriptionValues,
+			SubmitSyncCommitteeContributionRequest:  syncCommitteeContributionValues,
 		}
 	}
 
-	allResult := simulationValuesFromTime(allRequests)
+	allResult := generateSimulationValues(allRequests, "")
 
-	resultCh <- SimulationPerValidator{
-		Attestation:      attestationResult,
-		Aggregation:      aggregationResults,
-		Proposal:         proposalResults,
-		SyncCommittee:    syncCommitteeResults,
-		SimulationValues: allResult,
+	resultCh <- SimulationSingleValidator{
+		AttestationDuty:   attestationResult,
+		AggregationDuty:   aggregationResults,
+		ProposalDuty:      proposalResults,
+		SyncCommitteeDuty: syncCommitteeResults,
+		SimulationValues:  allResult,
 	}
 }
 
-func simulationValuesFromTime(s []time.Duration) SimulationValues {
+func mapDurationToTime(dur []Duration) []time.Duration {
+	result := make([]time.Duration, len(dur))
+	for i, e := range dur {
+		result[i] = e.Duration
+	}
+
+	return result
+}
+
+func generateSimulationValues(s []time.Duration, endpoint string) SimulationValues {
 	if len(s) == 0 {
 		return SimulationValues{
-			All:    []Duration{},
-			Min:    Duration{0},
-			Max:    Duration{0},
-			Median: Duration{0},
-			Avg:    Duration{0},
+			Endpoint: endpoint,
+			All:      []Duration{},
+			Min:      Duration{0},
+			Max:      Duration{0},
+			Median:   Duration{0},
+			Avg:      Duration{0},
 		}
 	}
 	sort.Slice(s, func(i, j int) bool {
@@ -1282,98 +1304,66 @@ func simulationValuesFromTime(s []time.Duration) SimulationValues {
 	avgVal := time.Duration(int(sum.Nanoseconds()) / len(s))
 
 	return SimulationValues{
-		All:    all,
-		Min:    Duration{minVal},
-		Max:    Duration{maxVal},
-		Median: Duration{medianVal},
-		Avg:    Duration{avgVal},
+		Endpoint: endpoint,
+		All:      all,
+		Min:      Duration{minVal},
+		Max:      Duration{maxVal},
+		Median:   Duration{medianVal},
+		Avg:      Duration{avgVal},
 	}
 }
 
-func simulationValuesFromDuration(s []Duration) SimulationValues {
+func averageValidatorsResult(s []SimulationSingleValidator) SimulationSingleValidator {
 	if len(s) == 0 {
-		return SimulationValues{
-			All:    []Duration{},
-			Min:    Duration{0},
-			Max:    Duration{0},
-			Median: Duration{0},
-			Avg:    Duration{0},
-		}
-	}
-	sort.Slice(s, func(i, j int) bool {
-		return s[i].Duration < s[j].Duration
-	})
-	minVal := s[0]
-	maxVal := s[len(s)-1]
-	medianVal := s[len(s)/2]
-	var sum time.Duration
-	all := []Duration{}
-	for _, t := range s {
-		sum += t.Duration
-		all = append(all, t)
-	}
-	avgVal := time.Duration(int(sum.Nanoseconds()) / len(s))
-
-	return SimulationValues{
-		All:    all,
-		Min:    minVal,
-		Max:    maxVal,
-		Median: medianVal,
-		Avg:    Duration{avgVal},
-	}
-}
-
-func averageValidatorsResult(s []SimulationPerValidator) SimulationPerValidator {
-	if len(s) == 0 {
-		return SimulationPerValidator{}
+		return SimulationSingleValidator{}
 	}
 
 	var attestation, attestationGetDuties, attestationPostData,
 		aggregation, aggregationGetAggregationAttestations, aggregationSubmitAggregateAndProofs,
 		proposal, proposalProduceBlock, proposalPublishBlindedBlock,
 		syncCommitteeSubmit, syncCommitteeProduce, syncCommitteeSusbscription, syncCommitteeContribution,
-		all []Duration
+		all []time.Duration
 
 	for _, sim := range s {
-		attestationGetDuties = append(attestationGetDuties, sim.Attestation.AttestationGetDuties.All...)
-		attestationPostData = append(attestationPostData, sim.Attestation.AttestationPostData.All...)
-		attestation = append(attestation, sim.Attestation.All...)
-		aggregationGetAggregationAttestations = append(aggregationGetAggregationAttestations, sim.Aggregation.AggregationGetAggregationAttestations.All...)
-		aggregationSubmitAggregateAndProofs = append(aggregationSubmitAggregateAndProofs, sim.Aggregation.AggregationSubmitAggregateAndProofs.All...)
-		aggregation = append(aggregation, sim.Aggregation.All...)
-		proposalProduceBlock = append(proposalProduceBlock, sim.Proposal.ProposalProduceBlock.All...)
-		proposalPublishBlindedBlock = append(proposalPublishBlindedBlock, sim.Proposal.ProposalPublishBlindedBlock.All...)
-		proposal = append(proposal, sim.Proposal.All...)
-		syncCommitteeSubmit = append(syncCommitteeSubmit, sim.SyncCommittee.SubmitSyncCommittees.All...)
-		syncCommitteeProduce = append(syncCommitteeProduce, sim.SyncCommittee.ProduceSyncCommitteeContribution.All...)
-		syncCommitteeSusbscription = append(syncCommitteeSusbscription, sim.SyncCommittee.SubmitSyncCommittees.All...)
-		syncCommitteeContribution = append(syncCommitteeContribution, sim.SyncCommittee.SyncCommitteeContribution.All...)
-		all = append(all, sim.All...)
+		attestationGetDuties = append(attestationGetDuties, mapDurationToTime(sim.AttestationDuty.GetAttestationDataRequest.All)...)
+		attestationPostData = append(attestationPostData, mapDurationToTime(sim.AttestationDuty.PostAttestationsRequest.All)...)
+		attestation = append(attestation, mapDurationToTime(sim.AttestationDuty.All)...)
+		aggregationGetAggregationAttestations = append(aggregationGetAggregationAttestations, mapDurationToTime(sim.AggregationDuty.GetAggregateAttestationRequest.All)...)
+		aggregationSubmitAggregateAndProofs = append(aggregationSubmitAggregateAndProofs, mapDurationToTime(sim.AggregationDuty.PostAggregateAndProofsRequest.All)...)
+		aggregation = append(aggregation, mapDurationToTime(sim.AggregationDuty.All)...)
+		proposalProduceBlock = append(proposalProduceBlock, mapDurationToTime(sim.ProposalDuty.ProduceBlockRequest.All)...)
+		proposalPublishBlindedBlock = append(proposalPublishBlindedBlock, mapDurationToTime(sim.ProposalDuty.PublishBlindedBlockRequest.All)...)
+		proposal = append(proposal, mapDurationToTime(sim.ProposalDuty.All)...)
+		syncCommitteeSubmit = append(syncCommitteeSubmit, mapDurationToTime(sim.SyncCommitteeDuty.SubmitSyncCommitteeRequest.All)...)
+		syncCommitteeProduce = append(syncCommitteeProduce, mapDurationToTime(sim.SyncCommitteeDuty.ProduceSyncCommitteeContributionRequest.All)...)
+		syncCommitteeSusbscription = append(syncCommitteeSusbscription, mapDurationToTime(sim.SyncCommitteeDuty.SubmitSyncCommitteeRequest.All)...)
+		syncCommitteeContribution = append(syncCommitteeContribution, mapDurationToTime(sim.SyncCommitteeDuty.SubmitSyncCommitteeContributionRequest.All)...)
+		all = append(all, mapDurationToTime(sim.All)...)
 	}
 
-	return SimulationPerValidator{
-		Attestation: SimulationAttestation{
-			AttestationGetDuties: simulationValuesFromDuration(attestationGetDuties),
-			AttestationPostData:  simulationValuesFromDuration(attestationPostData),
-			SimulationValues:     simulationValuesFromDuration(attestation),
+	return SimulationSingleValidator{
+		AttestationDuty: SimulationAttestation{
+			GetAttestationDataRequest: generateSimulationValues(attestationGetDuties, "GET /eth/v1/validator/attestation_data"),
+			PostAttestationsRequest:   generateSimulationValues(attestationPostData, "POST /eth/v1/beacon/pool/attestations"),
+			SimulationValues:          generateSimulationValues(attestation, ""),
 		},
-		Aggregation: SimulationAggregation{
-			AggregationGetAggregationAttestations: simulationValuesFromDuration(aggregationGetAggregationAttestations),
-			AggregationSubmitAggregateAndProofs:   simulationValuesFromDuration(aggregationSubmitAggregateAndProofs),
-			SimulationValues:                      simulationValuesFromDuration(aggregation),
+		AggregationDuty: SimulationAggregation{
+			GetAggregateAttestationRequest: generateSimulationValues(aggregationGetAggregationAttestations, "GET /eth/v1/validator/aggregate_attestation"),
+			PostAggregateAndProofsRequest:  generateSimulationValues(aggregationSubmitAggregateAndProofs, "POST /eth/v1/validator/aggregate_and_proofs"),
+			SimulationValues:               generateSimulationValues(aggregation, ""),
 		},
-		Proposal: SimulationProposal{
-			ProposalProduceBlock:        simulationValuesFromDuration(proposalProduceBlock),
-			ProposalPublishBlindedBlock: simulationValuesFromDuration(proposalPublishBlindedBlock),
-			SimulationValues:            simulationValuesFromDuration(proposal),
+		ProposalDuty: SimulationProposal{
+			ProduceBlockRequest:        generateSimulationValues(proposalProduceBlock, "GET /eth/v3/validator/blocks/{SLOT}"),
+			PublishBlindedBlockRequest: generateSimulationValues(proposalPublishBlindedBlock, "POST /eth/v2/beacon/blinded"),
+			SimulationValues:           generateSimulationValues(proposal, ""),
 		},
-		SyncCommittee: SimulationSyncCommittee{
-			SubmitSyncCommittees:             simulationValuesFromDuration(syncCommitteeSubmit),
-			ProduceSyncCommitteeContribution: simulationValuesFromDuration(syncCommitteeProduce),
-			SyncCommitteeSubscription:        simulationValuesFromDuration(syncCommitteeSusbscription),
-			SyncCommitteeContribution:        simulationValuesFromDuration(syncCommitteeContribution),
+		SyncCommitteeDuty: SimulationSyncCommittee{
+			SubmitSyncCommitteeRequest:              generateSimulationValues(syncCommitteeSubmit, "POST /eth/v1/beacon/pool/sync_committees"),
+			ProduceSyncCommitteeContributionRequest: generateSimulationValues(syncCommitteeProduce, "GET /eth/v1/validator/sync_committee_contribution"),
+			SubscribeSyncCommitteeRequest:           generateSimulationValues(syncCommitteeSusbscription, "POST /eth/v1/validator/sync_committee_subscriptions"),
+			SubmitSyncCommitteeContributionRequest:  generateSimulationValues(syncCommitteeContribution, "POST /eth/v1/validator/contribution_and_proofs"),
 		},
-		SimulationValues: simulationValuesFromDuration(all),
+		SimulationValues: generateSimulationValues(all, ""),
 	}
 }
 
@@ -1394,7 +1384,7 @@ func aggregationDuty(ctx context.Context, target string, slot int, simulationDur
 			if err != nil && !errors.Is(err, context.Canceled) {
 				log.Error(ctx, "Unexpected getAggregateAttestations failure", err)
 			}
-			submitResult, err := aggregateAndProofs(ctx, target)
+			submitResult, err := postAggregateAndProofs(ctx, target)
 			if err != nil && !errors.Is(err, context.Canceled) {
 				log.Error(ctx, "Unexpected aggregateAndProofs failure", err)
 			}
@@ -1442,15 +1432,17 @@ func attestationDuty(ctx context.Context, target string, slot int, simulationDur
 		case <-pingCtx.Done():
 		case <-ticker.C:
 			slot += int(tickTime.Seconds()) / int(slotTime.Seconds())
+
 			getResult, err := getAttestationData(ctx, target, slot, rand.Intn(committeeSizePerSlot)) //nolint:gosec // weak generator is not an issue here
 			if err != nil && !errors.Is(err, context.Canceled) {
 				log.Error(ctx, "Unexpected getAttestationData failure", err)
 			}
+			getAttestationDataCh <- getResult
+
 			submitResult, err := submitAttestationObject(ctx, target)
 			if err != nil && !errors.Is(err, context.Canceled) {
 				log.Error(ctx, "Unexpected submitAttestationObject failure", err)
 			}
-			getAttestationDataCh <- getResult
 			submitAttestationObjectCh <- submitResult
 		}
 	}
@@ -1479,7 +1471,7 @@ func syncCommitteeDuty(
 		select {
 		case <-pingCtx.Done():
 		case <-tickerSubmit.C:
-			submitResult, err := submitSyncCommittees(ctx, target)
+			submitResult, err := submitSyncCommittee(ctx, target)
 			if err != nil && !errors.Is(err, context.Canceled) {
 				log.Error(ctx, "Unexpected submitSyncCommittees failure", err)
 			}
@@ -1541,17 +1533,13 @@ func requestRTT(ctx context.Context, url string, method string, body io.Reader, 
 	return firstByte, nil
 }
 
-func produceBlock(ctx context.Context, target string, slot int, randaoReveal string) (time.Duration, error) {
-	return requestRTT(ctx, fmt.Sprintf("%v/eth/v3/validator/blocks/%v?randao_reveal=%v", target, slot, randaoReveal), http.MethodGet, nil, 200)
-}
-
-func publishBlindedBlock(ctx context.Context, target string) (time.Duration, error) {
-	body := strings.NewReader(`{"message":{"slot":"2872079","proposer_index":"1725813","parent_root":"0x05bea9b8e9cc28c4efa5586b4efac20b7a42c3112dbe144fb552b37ded249abd","state_root":"0x0138e6e8e956218aa534597a450a93c2c98f07da207077b4be05742279688da2","body":{"randao_reveal":"0x9880dad5a0e900906a1355da0697821af687b4c2cd861cd219f2d779c50a47d3c0335c08d840c86c167986ae0aaf50070b708fe93a83f66c99a4f931f9a520aebb0f5b11ca202c3d76343e30e49f43c0479e850af0e410333f7c59c4d37fa95a","eth1_data":{"deposit_root":"0x7dbea1a0af14d774da92d94a88d3bb1ae7abad16374da4db2c71dd086c84029e","deposit_count":"452100","block_hash":"0xc4bf450c9e362dcb2b50e76b45938c78d455acd1e1aec4e1ce4338ec023cd32a"},"graffiti":"0x636861726f6e2f76312e312e302d613139336638340000000000000000000000","proposer_slashings":[],"attester_slashings":[],"attestations":[{"aggregation_bits":"0xdbedbfa74eccaf3d7ef570bfdbbf84b4dffc5beede1c1f8b59feb8b3f2fbabdbdef3ceeb7b3dfdeeef8efcbdcd7bebbeff7adfff5ae3bf66bc5613feffef3deb987f7e7fff87ed6f8bbd1fffa57f1677efff646f0d3bd79fffdc5dfd78df6cf79fb7febff5dfdefb8e03","data":{"slot":"2872060","index":"12","beacon_block_root":"0x310506169f7f92dcd2bf00e8b4c2daac999566929395120fbbf4edd222e003eb","source":{"epoch":"89750","root":"0xcdb449d69e3e2d22378bfc2299ee1e9aeb1b2d15066022e854759dda73d1e219"},"target":{"epoch":"89751","root":"0x4ad0882f7adbb735c56b0b3f09d8e45dbd79db9528110f7117ec067f3a19eb0e"}},"signature":"0xa9d91d6cbc669ffcc8ba2435c633e0ec0eebecaa3acdcaa1454282ece1f816e8b853f00ba67ec1244703221efae4c834012819ca7b199354669f24ba8ab1c769f072c9f46b803082eac32e3611cd323eeb5b17fcd6201b41f3063834ff26ef53"}],"deposits":[],"voluntary_exits":[],"sync_aggregate":{"sync_committee_bits":"0xf9ff3ff7ffffb7dbfefddff5fffffefdbffffffffffedfefffffff7fbe9fdffffdb5feffffffbfdbefff3ffdf7f3fc6ff7fffbffff9df6fbbaf3beffefffffff","sync_committee_signature":"0xa9cf7d9f23a62e84f11851e2e4b3b929b1d03719a780b59ecba5daf57e21a0ceccaf13db4e1392a42e3603abeb839a2d16373dcdd5e696f11c5a809972c1e368d794f1c61d4d10b220df52616032f09b33912febf8c7a64f3ce067ab771c7ddf"},"execution_payload_header":{"parent_hash":"0x71c564f4a0c1dea921e8063fc620ccfa39c1b073e4ac0845ce7e9e6f909752de","fee_recipient":"0x148914866080716b10D686F5570631Fbb2207002","state_root":"0x89e74be562cd4a10eb20cdf674f65b1b0e53b33a7c3f2df848eb4f7e226742e0","receipts_root":"0x55b494ee1bb919e7abffaab1d5be05a109612c59a77406d929d77c0ce714f21d","logs_bloom":"0x20500886140245d001002010680c10411a2540420182810440a108800fc008440801180020011008004045005a2007826802e102000005c0c04030590004044810d0d20745c0904a4d583008a01758018001082024e40046000410020042400100012260220299a8084415e20002891224c132220010003a00006010020ed0c108920a13c0e200a1a00251100888c01408008132414068c88b028920440248209a280581a0e10800c14ea63082c1781308208b130508d4000400802d1224521094260912473404012810001503417b4050141100c1103004000c8900644560080472688450710084088800c4c80000c02008931188204c008009011784488060","prev_randao":"0xf4e9a4a7b88a3d349d779e13118b6d099f7773ec5323921343ac212df19c620f","block_number":"2643688","gas_limit":"30000000","gas_used":"24445884","timestamp":"1730367348","extra_data":"0x546974616e2028746974616e6275696c6465722e78797a29","base_fee_per_gas":"122747440","block_hash":"0x7524d779d328159e4d9ee8a4b04c4b251261da9a6da1d1461243125faa447227","transactions_root":"0x7e8a3391a77eaea563bf4e0ca4cf3190425b591ed8572818924c38f7e423c257","withdrawals_root":"0x61a5653b614ec3db0745ae5568e6de683520d84bc3db2dedf6a5158049cee807","blob_gas_used":"0","excess_blob_gas":"0"},"bls_to_execution_changes":[],"blob_kzg_commitments":[]}},"signature":"0x94320e6aecd65da3ef3e55e45208978844b262fe21cacbb0a8448b2caf21e8619b205c830116d8aad0a2c55d879fb571123a3fcf31b515f9508eb346ecd3de2db07cea6700379c00831cfb439f4aeb3bfa164395367c8d8befb92aa6682eae51"}`)
-	return requestRTT(ctx, fmt.Sprintf("%v/eth/v2/beacon/blinded", target), http.MethodPost, body, 404)
-}
-
+// cluster requests
 func getAttestationsForBlock(ctx context.Context, target string, block int) (time.Duration, error) {
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/beacon/blocks/%v/attestations", target, block), http.MethodGet, nil, 200)
+}
+
+func getProposalDutiesForEpoch(ctx context.Context, target string, epoch int) (time.Duration, error) {
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/duties/proposer/%v", target, epoch), http.MethodGet, nil, 200)
 }
 
 func getSyncing(ctx context.Context, target string) (time.Duration, error) {
@@ -1599,10 +1587,7 @@ func nodeVersion(ctx context.Context, target string) (time.Duration, error) {
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/node/version", target), http.MethodGet, nil, 200)
 }
 
-func getProposalDutiesForEpoch(ctx context.Context, target string, epoch int) (time.Duration, error) {
-	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/duties/proposer/%v", target, epoch), http.MethodGet, nil, 200)
-}
-
+// attestation duty requests
 func getAttestationData(ctx context.Context, target string, slot int, committeeIndex int) (time.Duration, error) {
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/attestation_data?slot=%v&committee_index=%v", target, slot, committeeIndex), http.MethodGet, nil, 200)
 }
@@ -1612,16 +1597,28 @@ func submitAttestationObject(ctx context.Context, target string) (time.Duration,
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/beacon/pool/attestations", target), http.MethodPost, body, 400)
 }
 
+// aggregation duty requests
 func getAggregateAttestations(ctx context.Context, target string, slot int, attestationDataRoot string) (time.Duration, error) {
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/aggregate_attestation?slot=%v&attestation_data_root=%v", target, slot, attestationDataRoot), http.MethodGet, nil, 404)
 }
 
-func aggregateAndProofs(ctx context.Context, target string) (time.Duration, error) {
+func postAggregateAndProofs(ctx context.Context, target string) (time.Duration, error) {
 	body := strings.NewReader(`[{"message":{"aggregator_index":"1","aggregate":{"aggregation_bits":"0x01","signature":"0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505","data":{"slot":"1","index":"1","beacon_block_root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2","source":{"epoch":"1","root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"},"target":{"epoch":"1","root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"}}},"selection_proof":"0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505"},"signature":"0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505"}]`)
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/aggregate_and_proofs", target), http.MethodPost, body, 400)
 }
 
-func submitSyncCommittees(ctx context.Context, target string) (time.Duration, error) {
+// proposal duty requests
+func produceBlock(ctx context.Context, target string, slot int, randaoReveal string) (time.Duration, error) {
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v3/validator/blocks/%v?randao_reveal=%v", target, slot, randaoReveal), http.MethodGet, nil, 200)
+}
+
+func publishBlindedBlock(ctx context.Context, target string) (time.Duration, error) {
+	body := strings.NewReader(`{"message":{"slot":"2872079","proposer_index":"1725813","parent_root":"0x05bea9b8e9cc28c4efa5586b4efac20b7a42c3112dbe144fb552b37ded249abd","state_root":"0x0138e6e8e956218aa534597a450a93c2c98f07da207077b4be05742279688da2","body":{"randao_reveal":"0x9880dad5a0e900906a1355da0697821af687b4c2cd861cd219f2d779c50a47d3c0335c08d840c86c167986ae0aaf50070b708fe93a83f66c99a4f931f9a520aebb0f5b11ca202c3d76343e30e49f43c0479e850af0e410333f7c59c4d37fa95a","eth1_data":{"deposit_root":"0x7dbea1a0af14d774da92d94a88d3bb1ae7abad16374da4db2c71dd086c84029e","deposit_count":"452100","block_hash":"0xc4bf450c9e362dcb2b50e76b45938c78d455acd1e1aec4e1ce4338ec023cd32a"},"graffiti":"0x636861726f6e2f76312e312e302d613139336638340000000000000000000000","proposer_slashings":[],"attester_slashings":[],"attestations":[{"aggregation_bits":"0xdbedbfa74eccaf3d7ef570bfdbbf84b4dffc5beede1c1f8b59feb8b3f2fbabdbdef3ceeb7b3dfdeeef8efcbdcd7bebbeff7adfff5ae3bf66bc5613feffef3deb987f7e7fff87ed6f8bbd1fffa57f1677efff646f0d3bd79fffdc5dfd78df6cf79fb7febff5dfdefb8e03","data":{"slot":"2872060","index":"12","beacon_block_root":"0x310506169f7f92dcd2bf00e8b4c2daac999566929395120fbbf4edd222e003eb","source":{"epoch":"89750","root":"0xcdb449d69e3e2d22378bfc2299ee1e9aeb1b2d15066022e854759dda73d1e219"},"target":{"epoch":"89751","root":"0x4ad0882f7adbb735c56b0b3f09d8e45dbd79db9528110f7117ec067f3a19eb0e"}},"signature":"0xa9d91d6cbc669ffcc8ba2435c633e0ec0eebecaa3acdcaa1454282ece1f816e8b853f00ba67ec1244703221efae4c834012819ca7b199354669f24ba8ab1c769f072c9f46b803082eac32e3611cd323eeb5b17fcd6201b41f3063834ff26ef53"}],"deposits":[],"voluntary_exits":[],"sync_aggregate":{"sync_committee_bits":"0xf9ff3ff7ffffb7dbfefddff5fffffefdbffffffffffedfefffffff7fbe9fdffffdb5feffffffbfdbefff3ffdf7f3fc6ff7fffbffff9df6fbbaf3beffefffffff","sync_committee_signature":"0xa9cf7d9f23a62e84f11851e2e4b3b929b1d03719a780b59ecba5daf57e21a0ceccaf13db4e1392a42e3603abeb839a2d16373dcdd5e696f11c5a809972c1e368d794f1c61d4d10b220df52616032f09b33912febf8c7a64f3ce067ab771c7ddf"},"execution_payload_header":{"parent_hash":"0x71c564f4a0c1dea921e8063fc620ccfa39c1b073e4ac0845ce7e9e6f909752de","fee_recipient":"0x148914866080716b10D686F5570631Fbb2207002","state_root":"0x89e74be562cd4a10eb20cdf674f65b1b0e53b33a7c3f2df848eb4f7e226742e0","receipts_root":"0x55b494ee1bb919e7abffaab1d5be05a109612c59a77406d929d77c0ce714f21d","logs_bloom":"0x20500886140245d001002010680c10411a2540420182810440a108800fc008440801180020011008004045005a2007826802e102000005c0c04030590004044810d0d20745c0904a4d583008a01758018001082024e40046000410020042400100012260220299a8084415e20002891224c132220010003a00006010020ed0c108920a13c0e200a1a00251100888c01408008132414068c88b028920440248209a280581a0e10800c14ea63082c1781308208b130508d4000400802d1224521094260912473404012810001503417b4050141100c1103004000c8900644560080472688450710084088800c4c80000c02008931188204c008009011784488060","prev_randao":"0xf4e9a4a7b88a3d349d779e13118b6d099f7773ec5323921343ac212df19c620f","block_number":"2643688","gas_limit":"30000000","gas_used":"24445884","timestamp":"1730367348","extra_data":"0x546974616e2028746974616e6275696c6465722e78797a29","base_fee_per_gas":"122747440","block_hash":"0x7524d779d328159e4d9ee8a4b04c4b251261da9a6da1d1461243125faa447227","transactions_root":"0x7e8a3391a77eaea563bf4e0ca4cf3190425b591ed8572818924c38f7e423c257","withdrawals_root":"0x61a5653b614ec3db0745ae5568e6de683520d84bc3db2dedf6a5158049cee807","blob_gas_used":"0","excess_blob_gas":"0"},"bls_to_execution_changes":[],"blob_kzg_commitments":[]}},"signature":"0x94320e6aecd65da3ef3e55e45208978844b262fe21cacbb0a8448b2caf21e8619b205c830116d8aad0a2c55d879fb571123a3fcf31b515f9508eb346ecd3de2db07cea6700379c00831cfb439f4aeb3bfa164395367c8d8befb92aa6682eae51"}`)
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v2/beacon/blinded", target), http.MethodPost, body, 404)
+}
+
+// sync committee duty requests
+func submitSyncCommittee(ctx context.Context, target string) (time.Duration, error) {
 	body := strings.NewReader(`{{"aggregation_bits":"0x01","signature":"0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505","data":{"slot":"1","index":"1","beacon_block_root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2","source":{"epoch":"1","root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"},"target":{"epoch":"1","root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"}}}`)
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/beacon/pool/sync_committees", target), http.MethodPost, body, 400)
 }
