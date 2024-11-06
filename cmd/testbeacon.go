@@ -52,12 +52,13 @@ type SimulationValues struct {
 }
 
 type RequestsIntensity struct {
-	AttestationDuty        time.Duration
-	AggregatorDuty         time.Duration
-	ProposalDuty           time.Duration
-	SyncCommitteeSubmit    time.Duration
-	SyncCommitteeProduce   time.Duration
-	SyncCommitteeSubscribe time.Duration
+	AttestationDuty           time.Duration
+	AggregatorDuty            time.Duration
+	ProposalDuty              time.Duration
+	SyncCommitteeSubmit       time.Duration
+	SyncCommitteeProduce      time.Duration
+	SyncCommitteeSubscribe    time.Duration
+	SyncCommitteeContribution time.Duration
 }
 
 type DutiesPerformed struct {
@@ -107,6 +108,7 @@ type SimulationSyncCommittee struct {
 	SubmitSyncCommittees             SimulationValues
 	ProduceSyncCommitteeContribution SimulationValues
 	SyncCommitteeSubscription        SimulationValues
+	SyncCommitteeContribution        SimulationValues
 }
 
 type SimulationGeneralRequests struct {
@@ -569,12 +571,13 @@ func beaconSimulation10Test(ctx context.Context, conf *testBeaconConfig, target 
 	proposalValidatorsCount := 3
 	attesterValidatorsCount := totalValidatorsCount - syncCommitteeValidatorsCount - proposalValidatorsCount
 	intensity := RequestsIntensity{
-		AttestationDuty:        slotTime,
-		AggregatorDuty:         slotTime * 2,
-		ProposalDuty:           slotTime * 4,
-		SyncCommitteeSubmit:    slotTime,
-		SyncCommitteeProduce:   slotTime * 4,
-		SyncCommitteeSubscribe: epochTime,
+		AttestationDuty:           slotTime,
+		AggregatorDuty:            slotTime * 2,
+		ProposalDuty:              slotTime * 4,
+		SyncCommitteeSubmit:       slotTime,
+		SyncCommitteeProduce:      slotTime * 4,
+		SyncCommitteeSubscribe:    epochTime,
+		SyncCommitteeContribution: slotTime * 8,
 	}
 	duration := time.Duration(conf.SimulationDuration)*slotTime + time.Second
 	var wg sync.WaitGroup
@@ -726,6 +729,7 @@ func nonVerboseFinalSimulation(s Simulation) Simulation {
 	s.ValidatorsOverview.Averaged.SyncCommittee.ProduceSyncCommitteeContribution.All = []Duration{}
 	s.ValidatorsOverview.Averaged.SyncCommittee.SubmitSyncCommittees.All = []Duration{}
 	s.ValidatorsOverview.Averaged.SyncCommittee.SyncCommitteeSubscription.All = []Duration{}
+	s.ValidatorsOverview.Averaged.SyncCommittee.SyncCommitteeContribution.All = []Duration{}
 
 	s.GeneralRequests.AttestationsForBlock.All = []Duration{}
 	s.GeneralRequests.ProposalDutiesForEpoch.All = []Duration{}
@@ -1084,10 +1088,12 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 	produceSyncCommitteeContributionAll := []time.Duration{}
 	syncCommitteeSubscriptionCh := make(chan time.Duration)
 	syncCommitteeSubscriptionAll := []time.Duration{}
+	syncCommitteeContributionCh := make(chan time.Duration)
+	syncCommitteeContributionAll := []time.Duration{}
 	if dutiesPerformed.SyncCommittee {
 		go syncCommitteeDuty(ctx, target, slot,
-			simulationDuration, intensity.SyncCommitteeSubmit, intensity.SyncCommitteeProduce, intensity.SyncCommitteeSubscribe,
-			submitSyncCommitteesCh, produceSyncCommitteeContributionCh, syncCommitteeSubscriptionCh)
+			simulationDuration, intensity.SyncCommitteeSubmit, intensity.SyncCommitteeProduce, intensity.SyncCommitteeSubscribe, intensity.SyncCommitteeContribution,
+			submitSyncCommitteesCh, produceSyncCommitteeContributionCh, syncCommitteeSubscriptionCh, syncCommitteeContributionCh)
 	}
 
 	// capture results
@@ -1150,6 +1156,13 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 				continue
 			}
 			syncCommitteeSubscriptionAll = append(syncCommitteeSubscriptionAll, result)
+		case result, ok := <-syncCommitteeContributionCh:
+
+			if !ok {
+				finished = true
+				continue
+			}
+			syncCommitteeContributionAll = append(syncCommitteeContributionAll, result)
 		}
 	}
 
@@ -1224,11 +1237,14 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 		allRequests = append(allRequests, produceSyncCommitteeContributionAll...)
 		syncCommitteeSubscriptionValues := simulationValuesFromTime(syncCommitteeSubscriptionAll)
 		allRequests = append(allRequests, syncCommitteeSubscriptionAll...)
+		syncCommitteeContributionValues := simulationValuesFromTime(syncCommitteeContributionAll)
+		allRequests = append(allRequests, syncCommitteeContributionAll...)
 
 		syncCommitteeResults = SimulationSyncCommittee{
 			SubmitSyncCommittees:             submitSyncCommitteesValues,
 			ProduceSyncCommitteeContribution: produceSyncCommitteeContributionValues,
 			SyncCommitteeSubscription:        syncCommitteeSubscriptionValues,
+			SyncCommitteeContribution:        syncCommitteeContributionValues,
 		}
 	}
 
@@ -1317,7 +1333,7 @@ func averageValidatorsResult(s []SimulationPerValidator) SimulationPerValidator 
 	var attestation, attestationGetDuties, attestationPostData,
 		aggregation, aggregationGetAggregationAttestations, aggregationSubmitAggregateAndProofs,
 		proposal, proposalProduceBlock, proposalPublishBlindedBlock,
-		syncCommitteeSubmit, syncCommitteeContribution, syncCommitteeSusbscription,
+		syncCommitteeSubmit, syncCommitteeProduce, syncCommitteeSusbscription, syncCommitteeContribution,
 		all []Duration
 
 	for _, sim := range s {
@@ -1331,8 +1347,9 @@ func averageValidatorsResult(s []SimulationPerValidator) SimulationPerValidator 
 		proposalPublishBlindedBlock = append(proposalPublishBlindedBlock, sim.Proposal.ProposalPublishBlindedBlock.All...)
 		proposal = append(proposal, sim.Proposal.All...)
 		syncCommitteeSubmit = append(syncCommitteeSubmit, sim.SyncCommittee.SubmitSyncCommittees.All...)
-		syncCommitteeContribution = append(syncCommitteeContribution, sim.SyncCommittee.ProduceSyncCommitteeContribution.All...)
+		syncCommitteeProduce = append(syncCommitteeProduce, sim.SyncCommittee.ProduceSyncCommitteeContribution.All...)
 		syncCommitteeSusbscription = append(syncCommitteeSusbscription, sim.SyncCommittee.SubmitSyncCommittees.All...)
+		syncCommitteeContribution = append(syncCommitteeContribution, sim.SyncCommittee.SyncCommitteeContribution.All...)
 		all = append(all, sim.All...)
 	}
 
@@ -1354,8 +1371,9 @@ func averageValidatorsResult(s []SimulationPerValidator) SimulationPerValidator 
 		},
 		SyncCommittee: SimulationSyncCommittee{
 			SubmitSyncCommittees:             simulationValuesFromDuration(syncCommitteeSubmit),
-			ProduceSyncCommitteeContribution: simulationValuesFromDuration(syncCommitteeContribution),
+			ProduceSyncCommitteeContribution: simulationValuesFromDuration(syncCommitteeProduce),
 			SyncCommitteeSubscription:        simulationValuesFromDuration(syncCommitteeSusbscription),
+			SyncCommitteeContribution:        simulationValuesFromDuration(syncCommitteeContribution),
 		},
 		SimulationValues: simulationValuesFromDuration(all),
 	}
@@ -1442,8 +1460,8 @@ func attestationDuty(ctx context.Context, target string, slot int, simulationDur
 
 func syncCommitteeDuty(
 	ctx context.Context, target string, slot int,
-	simulationDuration time.Duration, tickTimeSubmit time.Duration, tickTimeProduce time.Duration, tickTimeSubscribe time.Duration,
-	submitSyncCommitteesCh chan time.Duration, produceSyncCommitteeContributionCh chan time.Duration, syncCommitteeSubscriptionCh chan time.Duration,
+	simulationDuration time.Duration, tickTimeSubmit time.Duration, tickTimeProduce time.Duration, tickTimeSubscribe time.Duration, tickTimeContribution time.Duration,
+	submitSyncCommitteesCh chan time.Duration, produceSyncCommitteeContributionCh chan time.Duration, syncCommitteeSubscriptionCh chan time.Duration, syncCommitteeContributionCh chan time.Duration,
 ) {
 	defer close(submitSyncCommitteesCh)
 	defer close(produceSyncCommitteeContributionCh)
@@ -1455,6 +1473,8 @@ func syncCommitteeDuty(
 	tickerProduce := time.NewTicker(tickTimeProduce)
 	defer tickerProduce.Stop()
 	tickerSubscribe := time.NewTicker(tickTimeSubscribe)
+	defer tickerSubscribe.Stop()
+	tickerContribute := time.NewTicker(tickTimeContribution)
 	defer tickerSubscribe.Stop()
 
 	for pingCtx.Err() == nil {
@@ -1479,6 +1499,12 @@ func syncCommitteeDuty(
 				log.Error(ctx, "Unexpected syncCommitteeSubscription failure", err)
 			}
 			syncCommitteeSubscriptionCh <- subscribeResult
+		case <-tickerContribute.C:
+			contributeResult, err := syncCommitteeContribution(ctx, target)
+			if err != nil {
+				log.Error(ctx, "Unexpected syncCommitteeContribution failure", err)
+			}
+			syncCommitteeContributionCh <- contributeResult
 		}
 	}
 }
@@ -1609,4 +1635,9 @@ func produceSyncCommitteeContribution(ctx context.Context, target string, slot i
 func syncCommitteeSubscription(ctx context.Context, target string) (time.Duration, error) {
 	body := strings.NewReader(`[{"message":{"aggregator_index":"1","aggregate":{"aggregation_bits":"0x01","signature":"0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505","data":{"slot":"1","index":"1","beacon_block_root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2","source":{"epoch":"1","root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"},"target":{"epoch":"1","root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"}}},"selection_proof":"0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505"},"signature":"0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505"}]`)
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/sync_committee_subscriptions", target), http.MethodPost, body, 400)
+}
+
+func syncCommitteeContribution(ctx context.Context, target string) (time.Duration, error) {
+	body := strings.NewReader(`[{"message":{"aggregator_index":"1","contribution":{"slot":"1","beacon_block_root":"0xace2cad95a1b113457ccc680372880694a3ef820584d04a165aa2bda0f261950","subcommittee_index":"3","aggregation_bits":"0xfffffbfff7ddffffbef3bfffebffff7f","signature":"0xaa4cf0db0677555025fe12223572e67b509b0b24a2b07dc162aed38522febb2a64ad293e6dbfa1b81481eec250a2cdb61619456291f8d0e3f86097a42a71985d6dabd256107af8b4dfc2982a7d67ac63e2d6b7d59d24a9e87546c71b9c68ca1f"},"selection_proof":"0xb177453ba19233da0625b354d6a43e8621b676243ec4aa5dbb269ac750079cc23fced007ea6cdc1bfb6cc0e2fc796fbb154abed04d9aac7c1171810085beff2b9e5cff961975dbdce4199f39d97b4c46339e26eb7946762394905dbdb9818afe"},"signature":"0x8f73f3185164454f6807549bcbf9d1b0b5516279f35ead1a97812da5db43088de344fdc46aaafd20650bd6685515fb4e18f9f053e9e3691065f8a87f6160456ef8aa550f969ef8260368aae3e450e8763c6317f40b09863ad9b265a0e618e472"}]`)
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/contribution_and_proofs", target), http.MethodPost, body, 200)
 }
