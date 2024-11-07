@@ -42,6 +42,14 @@ type testBeaconConfig struct {
 
 type testCaseBeacon func(context.Context, *testBeaconConfig, string) testResult
 
+type simParams struct {
+	TotalValidatorsCount         int
+	AttestationValidatorsCount   int // attestation + aggregation
+	ProposalValidatorsCount      int // attestation + aggregation + proposals
+	SyncCommitteeValidatorsCount int // attestation + aggregation + proposals + sync committee
+	RequestIntensity             RequestsIntensity
+}
+
 type SimulationValues struct {
 	Endpoint string     `json:"endpoint,omitempty"`
 	All      []Duration `json:"all,omitempty"`
@@ -184,7 +192,11 @@ func supportedBeaconTestCases() map[testCaseName]testCaseBeacon {
 		{name: "peerCount", order: 4}:   beaconPeerCountTest,
 		{name: "pingLoad", order: 5}:    beaconPingLoadTest,
 
-		{name: "simulate10", order: 6}: beaconSimulation10Test,
+		{name: "simulate1", order: 6}:     beaconSimulation1Test,
+		{name: "simulate10", order: 7}:    beaconSimulation10Test,
+		{name: "simulate100", order: 8}:   beaconSimulation100Test,
+		{name: "simulate500", order: 9}:   beaconSimulation500Test,
+		{name: "simulate1000", order: 10}: beaconSimulation1000Test,
 	}
 }
 
@@ -557,6 +569,32 @@ func beaconPeerCountTest(ctx context.Context, _ *testBeaconConfig, target string
 	return testRes
 }
 
+func beaconSimulation1Test(ctx context.Context, conf *testBeaconConfig, target string) testResult {
+	testRes := testResult{Name: "BeaconSimulation1Validator"}
+	if !conf.LoadTest {
+		testRes.Verdict = testVerdictSkipped
+		return testRes
+	}
+
+	params := simParams{
+		TotalValidatorsCount:         1,
+		AttestationValidatorsCount:   0,
+		ProposalValidatorsCount:      0,
+		SyncCommitteeValidatorsCount: 1,
+		RequestIntensity: RequestsIntensity{
+			AttestationDuty:           slotTime,
+			AggregatorDuty:            slotTime * 2,
+			ProposalDuty:              slotTime * 4,
+			SyncCommitteeSubmit:       slotTime,
+			SyncCommitteeProduce:      slotTime * 4,
+			SyncCommitteeSubscribe:    epochTime,
+			SyncCommitteeContribution: slotTime * 8,
+		},
+	}
+
+	return beaconSimulationTest(ctx, conf, target, testRes, params)
+}
+
 func beaconSimulation10Test(ctx context.Context, conf *testBeaconConfig, target string) testResult {
 	testRes := testResult{Name: "BeaconSimulation10Validators"}
 	if !conf.LoadTest {
@@ -564,25 +602,109 @@ func beaconSimulation10Test(ctx context.Context, conf *testBeaconConfig, target 
 		return testRes
 	}
 
-	// setup simulation variables
-	totalValidatorsCount := 10
-	syncCommitteeValidatorsCount := 1
-	proposalValidatorsCount := 3
-	attesterValidatorsCount := totalValidatorsCount - syncCommitteeValidatorsCount - proposalValidatorsCount
-	intensity := RequestsIntensity{
-		AttestationDuty:           slotTime,
-		AggregatorDuty:            slotTime * 2,
-		ProposalDuty:              slotTime * 4,
-		SyncCommitteeSubmit:       slotTime,
-		SyncCommitteeProduce:      slotTime * 4,
-		SyncCommitteeSubscribe:    epochTime,
-		SyncCommitteeContribution: slotTime * 8,
+	params := simParams{
+		TotalValidatorsCount:         10,
+		AttestationValidatorsCount:   6,
+		ProposalValidatorsCount:      3,
+		SyncCommitteeValidatorsCount: 1,
+		RequestIntensity: RequestsIntensity{
+			AttestationDuty:           slotTime,
+			AggregatorDuty:            slotTime * 2,
+			ProposalDuty:              slotTime * 4,
+			SyncCommitteeSubmit:       slotTime,
+			SyncCommitteeProduce:      slotTime * 4,
+			SyncCommitteeSubscribe:    epochTime,
+			SyncCommitteeContribution: slotTime * 8,
+		},
 	}
+
+	return beaconSimulationTest(ctx, conf, target, testRes, params)
+}
+
+func beaconSimulation100Test(ctx context.Context, conf *testBeaconConfig, target string) testResult {
+	testRes := testResult{Name: "BeaconSimulation100Validators"}
+	if !conf.LoadTest {
+		testRes.Verdict = testVerdictSkipped
+		return testRes
+	}
+
+	params := simParams{
+		TotalValidatorsCount:         100,
+		AttestationValidatorsCount:   80,
+		ProposalValidatorsCount:      18,
+		SyncCommitteeValidatorsCount: 2,
+		RequestIntensity: RequestsIntensity{
+			AttestationDuty:           slotTime,
+			AggregatorDuty:            slotTime * 2,
+			ProposalDuty:              slotTime * 4,
+			SyncCommitteeSubmit:       slotTime,
+			SyncCommitteeProduce:      slotTime * 4,
+			SyncCommitteeSubscribe:    epochTime,
+			SyncCommitteeContribution: slotTime * 8,
+		},
+	}
+
+	return beaconSimulationTest(ctx, conf, target, testRes, params)
+}
+
+func beaconSimulation500Test(ctx context.Context, conf *testBeaconConfig, target string) testResult {
+	testRes := testResult{Name: "BeaconSimulation500Validators"}
+	if !conf.LoadTest {
+		testRes.Verdict = testVerdictSkipped
+		return testRes
+	}
+
+	params := simParams{
+		TotalValidatorsCount:         500,
+		AttestationValidatorsCount:   450,
+		ProposalValidatorsCount:      45,
+		SyncCommitteeValidatorsCount: 5,
+		RequestIntensity: RequestsIntensity{
+			AttestationDuty:           slotTime,
+			AggregatorDuty:            slotTime * 2,
+			ProposalDuty:              slotTime * 4,
+			SyncCommitteeSubmit:       slotTime,
+			SyncCommitteeProduce:      slotTime * 4,
+			SyncCommitteeSubscribe:    epochTime,
+			SyncCommitteeContribution: slotTime * 8,
+		},
+	}
+
+	return beaconSimulationTest(ctx, conf, target, testRes, params)
+}
+
+func beaconSimulation1000Test(ctx context.Context, conf *testBeaconConfig, target string) testResult {
+	testRes := testResult{Name: "BeaconSimulation1000Validators"}
+	if !conf.LoadTest {
+		testRes.Verdict = testVerdictSkipped
+		return testRes
+	}
+
+	params := simParams{
+		TotalValidatorsCount:         1000,
+		AttestationValidatorsCount:   930,
+		ProposalValidatorsCount:      65,
+		SyncCommitteeValidatorsCount: 5,
+		RequestIntensity: RequestsIntensity{
+			AttestationDuty:           slotTime,
+			AggregatorDuty:            slotTime * 2,
+			ProposalDuty:              slotTime * 4,
+			SyncCommitteeSubmit:       slotTime,
+			SyncCommitteeProduce:      slotTime * 4,
+			SyncCommitteeSubscribe:    epochTime,
+			SyncCommitteeContribution: slotTime * 8,
+		},
+	}
+
+	return beaconSimulationTest(ctx, conf, target, testRes, params)
+}
+
+func beaconSimulationTest(ctx context.Context, conf *testBeaconConfig, target string, testRes testResult, params simParams) testResult {
 	duration := time.Duration(conf.SimulationDuration)*slotTime + time.Second
 	var wg sync.WaitGroup
 
-	log.Info(ctx, "Running simulation for 10 validators...",
-		z.Any("validators", totalValidatorsCount),
+	log.Info(ctx, "Running beacon node simulation...",
+		z.Any("validators_count", params.TotalValidatorsCount),
 		z.Any("target", target),
 		z.Any("duration_in_slots", conf.SimulationDuration),
 		z.Any("slot_duration", slotTime),
@@ -596,34 +718,34 @@ func beaconSimulation10Test(ctx context.Context, conf *testBeaconConfig, target 
 	go singleClusterSimulation(ctx, duration, target, simulationGeneralResCh, &wg)
 
 	// start validator requests
-	simulationResCh := make(chan SimulationSingleValidator, totalValidatorsCount)
+	simulationResCh := make(chan SimulationSingleValidator, params.TotalValidatorsCount)
 	simulationResAll := []SimulationSingleValidator{}
 
 	log.Info(ctx, "Starting validators performing duties attestation, aggregation, proposal, sync committee...",
-		z.Any("validators", syncCommitteeValidatorsCount),
+		z.Any("validators", params.SyncCommitteeValidatorsCount),
 	)
 	syncCommitteeValidatorsDuties := DutiesPerformed{Attestation: true, Aggregation: true, Proposal: true, SyncCommittee: true}
-	for range syncCommitteeValidatorsCount {
+	for range params.SyncCommitteeValidatorsCount {
 		wg.Add(1)
-		go singleValidatorSimulation(ctx, duration, target, simulationResCh, intensity, syncCommitteeValidatorsDuties, &wg)
+		go singleValidatorSimulation(ctx, duration, target, simulationResCh, params.RequestIntensity, syncCommitteeValidatorsDuties, &wg)
 	}
 
 	log.Info(ctx, "Starting validators performing duties attestation, aggregation, proposal...",
-		z.Any("validators", proposalValidatorsCount),
+		z.Any("validators", params.ProposalValidatorsCount),
 	)
 	proposalValidatorsDuties := DutiesPerformed{Attestation: true, Aggregation: true, Proposal: true, SyncCommittee: false}
-	for range proposalValidatorsCount {
+	for range params.ProposalValidatorsCount {
 		wg.Add(1)
-		go singleValidatorSimulation(ctx, duration, target, simulationResCh, intensity, proposalValidatorsDuties, &wg)
+		go singleValidatorSimulation(ctx, duration, target, simulationResCh, params.RequestIntensity, proposalValidatorsDuties, &wg)
 	}
 
 	log.Info(ctx, "Starting validators performing duties attestation, aggregation...",
-		z.Any("validators", attesterValidatorsCount),
+		z.Any("validators", params.AttestationValidatorsCount),
 	)
 	attesterValidatorsDuties := DutiesPerformed{Attestation: true, Aggregation: true, Proposal: false, SyncCommittee: false}
-	for range attesterValidatorsCount {
+	for range params.AttestationValidatorsCount {
 		wg.Add(1)
-		go singleValidatorSimulation(ctx, duration, target, simulationResCh, intensity, attesterValidatorsDuties, &wg)
+		go singleValidatorSimulation(ctx, duration, target, simulationResCh, params.RequestIntensity, attesterValidatorsDuties, &wg)
 	}
 
 	log.Info(ctx, "Waiting for simulation to complete...")
@@ -654,16 +776,15 @@ func beaconSimulation10Test(ctx context.Context, conf *testBeaconConfig, target 
 	if err != nil {
 		log.Error(ctx, "Failed to marshal simulation result", err)
 	}
-	err = os.WriteFile(filepath.Join(conf.SimulationFileDir, fmt.Sprintf("%v-validators.json", totalValidatorsCount)), simulationResAllJSON, 0o644) //nolint:gosec
+	err = os.WriteFile(filepath.Join(conf.SimulationFileDir, fmt.Sprintf("%v-validators.json", params.TotalValidatorsCount)), simulationResAllJSON, 0o644) //nolint:gosec
 	if err != nil {
 		log.Error(ctx, "Failed to write file", err)
 	}
 
 	highestRTT := Duration{0}
 	for _, sim := range simulationResAll {
-		simulationMax := Duration{max(sim.AttestationDuty.Max.Duration)}
-		if simulationMax.Duration > highestRTT.Duration {
-			highestRTT = simulationMax
+		if sim.Max.Duration > highestRTT.Duration {
+			highestRTT = sim.Max
 		}
 	}
 	if highestRTT.Duration > thresholdBeaconSimulationPoor {
@@ -675,7 +796,10 @@ func beaconSimulation10Test(ctx context.Context, conf *testBeaconConfig, target 
 	}
 	testRes.Measurement = highestRTT.String()
 
-	log.Info(ctx, "10 validators simulation finished")
+	log.Info(ctx, "Validators simulation finished",
+		z.Any("validators_count", params.TotalValidatorsCount),
+		z.Any("target", target),
+	)
 
 	return testRes
 }
