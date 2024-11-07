@@ -1432,12 +1432,15 @@ func generateSimulationValues(s []time.Duration, endpoint string) SimulationValu
 			Avg:      Duration{0},
 		}
 	}
-	sort.Slice(s, func(i, j int) bool {
-		return s[i] < s[j]
+
+	sorted := make([]time.Duration, len(s))
+	copy(sorted, s)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i] < sorted[j]
 	})
-	minVal := s[0]
-	maxVal := s[len(s)-1]
-	medianVal := s[len(s)/2]
+	minVal := sorted[0]
+	maxVal := sorted[len(s)-1]
+	medianVal := sorted[len(s)/2]
 	var sum time.Duration
 	all := []Duration{}
 	for _, t := range s {
