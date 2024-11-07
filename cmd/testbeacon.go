@@ -1185,7 +1185,7 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 		submitSimulationValues := generateSimulationValues(submitAttestationObjectAll, "POST /eth/v1/beacon/pool/attestations")
 
 		cumulativeAttestation := []time.Duration{}
-		for i := range getAttestationDataAll {
+		for i := range min(len(getAttestationDataAll), len(submitAttestationObjectAll)) {
 			cumulativeAttestation = append(cumulativeAttestation, getAttestationDataAll[i]+submitAttestationObjectAll[i])
 		}
 		cumulativeSimulationValues := generateSimulationValues(cumulativeAttestation, "")
@@ -1205,7 +1205,7 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 		submitAggregateSimulationValues := generateSimulationValues(submitAggregateAndProofsAll, "POST /eth/v1/validator/aggregate_and_proofs")
 
 		cumulativeAggregations := []time.Duration{}
-		for i := range getAggregateAttestationsAll {
+		for i := range min(len(getAggregateAttestationsAll), len(submitAggregateAndProofsAll)) {
 			cumulativeAggregations = append(cumulativeAggregations, getAggregateAttestationsAll[i]+submitAggregateAndProofsAll[i])
 		}
 		cumulativeAggregationsSimulationValues := generateSimulationValues(cumulativeAggregations, "")
@@ -1225,7 +1225,7 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 		publishBlindedBlockValues := generateSimulationValues(publishBlindedBlockAll, "POST /eth/v2/beacon/blinded")
 
 		cumulativeProposals := []time.Duration{}
-		for i := range produceBlockAll {
+		for i := range min(len(produceBlockAll), len(publishBlindedBlockAll)) {
 			cumulativeProposals = append(cumulativeProposals, produceBlockAll[i]+publishBlindedBlockAll[i])
 		}
 		cumulativeProposalsSimulationValues := generateSimulationValues(cumulativeProposals, "")
