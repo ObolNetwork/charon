@@ -64,9 +64,8 @@ type RequestsIntensity struct {
 	AggregatorDuty            time.Duration
 	ProposalDuty              time.Duration
 	SyncCommitteeSubmit       time.Duration
-	SyncCommitteeProduce      time.Duration
-	SyncCommitteeSubscribe    time.Duration
 	SyncCommitteeContribution time.Duration
+	SyncCommitteeSubscribe    time.Duration
 }
 
 type DutiesPerformed struct {
@@ -87,10 +86,10 @@ type SimulationValidators struct {
 }
 
 type SimulationSingleValidator struct {
-	AttestationDuty   SimulationAttestation   `json:"attestation_duty"`
-	AggregationDuty   SimulationAggregation   `json:"aggregation_duty"`
-	ProposalDuty      SimulationProposal      `json:"proposal_duty"`
-	SyncCommitteeDuty SimulationSyncCommittee `json:"sync_committee_duty"`
+	AttestationDuty     SimulationAttestation   `json:"attestation_duty"`
+	AggregationDuty     SimulationAggregation   `json:"aggregation_duty"`
+	ProposalDuty        SimulationProposal      `json:"proposal_duty"`
+	SyncCommitteeDuties SimulationSyncCommittee `json:"sync_committee_duties"`
 	SimulationValues
 }
 
@@ -113,10 +112,20 @@ type SimulationProposal struct {
 }
 
 type SimulationSyncCommittee struct {
-	SubmitSyncCommitteeRequest              SimulationValues `json:"submit_sync_committees_request"`
+	MessageDuty                   SyncCommitteeMessageDuty      `json:"message_duty"`
+	ContributionDuty              SyncCommitteeContributionDuty `json:"contribution_duty"`
+	SubscribeSyncCommitteeRequest SimulationValues              `json:"subscribe_sync_committee_request"`
+	SimulationValues
+}
+
+type SyncCommitteeContributionDuty struct {
 	ProduceSyncCommitteeContributionRequest SimulationValues `json:"produce_sync_committee_contribution_request"`
-	SubscribeSyncCommitteeRequest           SimulationValues `json:"subscribe_sync_committee_request"`
 	SubmitSyncCommitteeContributionRequest  SimulationValues `json:"submit_sync_committee_contribution_request"`
+	SimulationValues
+}
+
+type SyncCommitteeMessageDuty struct {
+	SubmitSyncCommitteeMessageRequest SimulationValues `json:"submit_sync_committee_message_request"`
 }
 
 type SimulationCluster struct {
@@ -586,9 +595,8 @@ func beaconSimulation1Test(ctx context.Context, conf *testBeaconConfig, target s
 			AggregatorDuty:            slotTime * 2,
 			ProposalDuty:              slotTime * 4,
 			SyncCommitteeSubmit:       slotTime,
-			SyncCommitteeProduce:      slotTime * 4,
+			SyncCommitteeContribution: slotTime * 4,
 			SyncCommitteeSubscribe:    epochTime,
-			SyncCommitteeContribution: slotTime * 8,
 		},
 	}
 
@@ -612,9 +620,8 @@ func beaconSimulation10Test(ctx context.Context, conf *testBeaconConfig, target 
 			AggregatorDuty:            slotTime * 2,
 			ProposalDuty:              slotTime * 4,
 			SyncCommitteeSubmit:       slotTime,
-			SyncCommitteeProduce:      slotTime * 4,
+			SyncCommitteeContribution: slotTime * 4,
 			SyncCommitteeSubscribe:    epochTime,
-			SyncCommitteeContribution: slotTime * 8,
 		},
 	}
 
@@ -638,9 +645,8 @@ func beaconSimulation100Test(ctx context.Context, conf *testBeaconConfig, target
 			AggregatorDuty:            slotTime * 2,
 			ProposalDuty:              slotTime * 4,
 			SyncCommitteeSubmit:       slotTime,
-			SyncCommitteeProduce:      slotTime * 4,
+			SyncCommitteeContribution: slotTime * 4,
 			SyncCommitteeSubscribe:    epochTime,
-			SyncCommitteeContribution: slotTime * 8,
 		},
 	}
 
@@ -664,9 +670,8 @@ func beaconSimulation500Test(ctx context.Context, conf *testBeaconConfig, target
 			AggregatorDuty:            slotTime * 2,
 			ProposalDuty:              slotTime * 4,
 			SyncCommitteeSubmit:       slotTime,
-			SyncCommitteeProduce:      slotTime * 4,
+			SyncCommitteeContribution: slotTime * 4,
 			SyncCommitteeSubscribe:    epochTime,
-			SyncCommitteeContribution: slotTime * 8,
 		},
 	}
 
@@ -690,9 +695,8 @@ func beaconSimulation1000Test(ctx context.Context, conf *testBeaconConfig, targe
 			AggregatorDuty:            slotTime * 2,
 			ProposalDuty:              slotTime * 4,
 			SyncCommitteeSubmit:       slotTime,
-			SyncCommitteeProduce:      slotTime * 4,
+			SyncCommitteeContribution: slotTime * 4,
 			SyncCommitteeSubscribe:    epochTime,
-			SyncCommitteeContribution: slotTime * 8,
 		},
 	}
 
@@ -851,10 +855,12 @@ func nonVerboseFinalSimulation(s Simulation) Simulation {
 	s.ValidatorsRequests.Averaged.ProposalDuty.All = []Duration{}
 	s.ValidatorsRequests.Averaged.ProposalDuty.ProduceBlockRequest.All = []Duration{}
 	s.ValidatorsRequests.Averaged.ProposalDuty.PublishBlindedBlockRequest.All = []Duration{}
-	s.ValidatorsRequests.Averaged.SyncCommitteeDuty.ProduceSyncCommitteeContributionRequest.All = []Duration{}
-	s.ValidatorsRequests.Averaged.SyncCommitteeDuty.SubmitSyncCommitteeRequest.All = []Duration{}
-	s.ValidatorsRequests.Averaged.SyncCommitteeDuty.SubscribeSyncCommitteeRequest.All = []Duration{}
-	s.ValidatorsRequests.Averaged.SyncCommitteeDuty.SubmitSyncCommitteeContributionRequest.All = []Duration{}
+	s.ValidatorsRequests.Averaged.SyncCommitteeDuties.All = []Duration{}
+	s.ValidatorsRequests.Averaged.SyncCommitteeDuties.ContributionDuty.All = []Duration{}
+	s.ValidatorsRequests.Averaged.SyncCommitteeDuties.ContributionDuty.ProduceSyncCommitteeContributionRequest.All = []Duration{}
+	s.ValidatorsRequests.Averaged.SyncCommitteeDuties.ContributionDuty.SubmitSyncCommitteeContributionRequest.All = []Duration{}
+	s.ValidatorsRequests.Averaged.SyncCommitteeDuties.MessageDuty.SubmitSyncCommitteeMessageRequest.All = []Duration{}
+	s.ValidatorsRequests.Averaged.SyncCommitteeDuties.SubscribeSyncCommitteeRequest.All = []Duration{}
 
 	s.GeneralClusterRequests.AttestationsForBlockRequest.All = []Duration{}
 	s.GeneralClusterRequests.ProposalDutiesForEpochRequest.All = []Duration{}
@@ -1182,19 +1188,13 @@ func clusterGeneralRequests(
 
 func singleValidatorSimulation(ctx context.Context, simulationDuration time.Duration, target string, resultCh chan SimulationSingleValidator, intensity RequestsIntensity, dutiesPerformed DutiesPerformed, wg *sync.WaitGroup) {
 	defer wg.Done()
-	slot, err := getCurrentSlot(ctx, target)
-	if err != nil {
-		log.Error(ctx, "Failed to get current slot", err)
-		slot = 1
-	}
-
 	// attestations
 	getAttestationDataCh := make(chan time.Duration)
 	getAttestationDataAll := []time.Duration{}
 	submitAttestationObjectCh := make(chan time.Duration)
 	submitAttestationObjectAll := []time.Duration{}
 	if dutiesPerformed.Attestation {
-		go attestationDuty(ctx, target, slot, simulationDuration, intensity.AttestationDuty, getAttestationDataCh, submitAttestationObjectCh)
+		go attestationDuty(ctx, target, simulationDuration, intensity.AttestationDuty, getAttestationDataCh, submitAttestationObjectCh)
 	}
 
 	// aggregations
@@ -1203,7 +1203,7 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 	submitAggregateAndProofsCh := make(chan time.Duration)
 	submitAggregateAndProofsAll := []time.Duration{}
 	if dutiesPerformed.Aggregation {
-		go aggregationDuty(ctx, target, slot, simulationDuration, intensity.AggregatorDuty, getAggregateAttestationsCh, submitAggregateAndProofsCh)
+		go aggregationDuty(ctx, target, simulationDuration, intensity.AggregatorDuty, getAggregateAttestationsCh, submitAggregateAndProofsCh)
 	}
 
 	// proposals
@@ -1212,22 +1212,22 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 	publishBlindedBlockCh := make(chan time.Duration)
 	publishBlindedBlockAll := []time.Duration{}
 	if dutiesPerformed.Proposal {
-		go proposalDuty(ctx, target, slot, simulationDuration, intensity.ProposalDuty, produceBlockCh, publishBlindedBlockCh)
+		go proposalDuty(ctx, target, simulationDuration, intensity.ProposalDuty, produceBlockCh, publishBlindedBlockCh)
 	}
 
 	// sync_committee
-	submitSyncCommitteesCh := make(chan time.Duration)
-	submitSyncCommitteesAll := []time.Duration{}
-	produceSyncCommitteeContributionCh := make(chan time.Duration)
-	produceSyncCommitteeContributionAll := []time.Duration{}
 	syncCommitteeSubscriptionCh := make(chan time.Duration)
 	syncCommitteeSubscriptionAll := []time.Duration{}
-	syncCommitteeContributionCh := make(chan time.Duration)
-	syncCommitteeContributionAll := []time.Duration{}
+	submitSyncCommitteeMessageCh := make(chan time.Duration)
+	submitSyncCommitteeMessageAll := []time.Duration{}
+	produceSyncCommitteeContributionCh := make(chan time.Duration)
+	produceSyncCommitteeContributionAll := []time.Duration{}
+	submitSyncCommitteeContributionCh := make(chan time.Duration)
+	submitSyncCommitteeContributionAll := []time.Duration{}
 	if dutiesPerformed.SyncCommittee {
-		go syncCommitteeDuty(ctx, target, slot,
-			simulationDuration, intensity.SyncCommitteeSubmit, intensity.SyncCommitteeProduce, intensity.SyncCommitteeSubscribe, intensity.SyncCommitteeContribution,
-			submitSyncCommitteesCh, produceSyncCommitteeContributionCh, syncCommitteeSubscriptionCh, syncCommitteeContributionCh)
+		go syncCommitteeDuties(ctx, target,
+			simulationDuration, intensity.SyncCommitteeSubmit, intensity.SyncCommitteeSubscribe, intensity.SyncCommitteeContribution,
+			submitSyncCommitteeMessageCh, produceSyncCommitteeContributionCh, syncCommitteeSubscriptionCh, submitSyncCommitteeContributionCh)
 	}
 
 	// capture results
@@ -1272,12 +1272,12 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 				continue
 			}
 			publishBlindedBlockAll = append(publishBlindedBlockAll, result)
-		case result, ok := <-submitSyncCommitteesCh:
+		case result, ok := <-submitSyncCommitteeMessageCh:
 			if !ok {
 				finished = true
 				continue
 			}
-			submitSyncCommitteesAll = append(submitSyncCommitteesAll, result)
+			submitSyncCommitteeMessageAll = append(submitSyncCommitteeMessageAll, result)
 		case result, ok := <-produceSyncCommitteeContributionCh:
 			if !ok {
 				finished = true
@@ -1290,13 +1290,13 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 				continue
 			}
 			syncCommitteeSubscriptionAll = append(syncCommitteeSubscriptionAll, result)
-		case result, ok := <-syncCommitteeContributionCh:
+		case result, ok := <-submitSyncCommitteeContributionCh:
 
 			if !ok {
 				finished = true
 				continue
 			}
-			syncCommitteeContributionAll = append(syncCommitteeContributionAll, result)
+			submitSyncCommitteeContributionAll = append(submitSyncCommitteeContributionAll, result)
 		}
 	}
 
@@ -1365,31 +1365,50 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 	// sync committee results grouping
 	var syncCommitteeResults SimulationSyncCommittee
 	if dutiesPerformed.SyncCommittee {
-		submitSyncCommitteesValues := generateSimulationValues(submitSyncCommitteesAll, "POST /eth/v1/beacon/pool/sync_committees")
-		allRequests = append(allRequests, submitSyncCommitteesAll...)
-		produceSyncCommitteeContributionValues := generateSimulationValues(produceSyncCommitteeContributionAll, "GET /eth/v1/validator/sync_committee_contribution")
-		allRequests = append(allRequests, produceSyncCommitteeContributionAll...)
+		syncCommitteeAll := []time.Duration{}
 		syncCommitteeSubscriptionValues := generateSimulationValues(syncCommitteeSubscriptionAll, "POST /eth/v1/validator/sync_committee_subscriptions")
+		syncCommitteeAll = append(syncCommitteeAll, syncCommitteeSubscriptionAll...)
 		allRequests = append(allRequests, syncCommitteeSubscriptionAll...)
-		syncCommitteeContributionValues := generateSimulationValues(syncCommitteeContributionAll, "POST /eth/v1/validator/contribution_and_proofs")
+
+		submitSyncCommitteeMessageValues := generateSimulationValues(submitSyncCommitteeMessageAll, "POST /eth/v1/beacon/pool/sync_committees")
+		syncCommitteeAll = append(syncCommitteeAll, submitSyncCommitteeMessageAll...)
+		allRequests = append(allRequests, submitSyncCommitteeMessageAll...)
+
+		produceSyncCommitteeContributionValues := generateSimulationValues(produceSyncCommitteeContributionAll, "GET /eth/v1/validator/sync_committee_contribution")
+		submitSyncCommitteeContributionValues := generateSimulationValues(submitSyncCommitteeContributionAll, "POST /eth/v1/validator/contribution_and_proofs")
+
+		syncCommitteeContributionAll := []time.Duration{}
+		for i := range min(len(produceSyncCommitteeContributionAll), len(submitSyncCommitteeContributionAll)) {
+			syncCommitteeContributionAll = append(syncCommitteeContributionAll, produceSyncCommitteeContributionAll[i]+submitSyncCommitteeContributionAll[i])
+		}
+		syncCommitteeContributionValues := generateSimulationValues(syncCommitteeContributionAll, "")
+		syncCommitteeAll = append(syncCommitteeAll, syncCommitteeContributionAll...)
 		allRequests = append(allRequests, syncCommitteeContributionAll...)
 
+		cumulativeSyncCommitteesSimulationValues := generateSimulationValues(syncCommitteeAll, "")
+
 		syncCommitteeResults = SimulationSyncCommittee{
-			SubmitSyncCommitteeRequest:              submitSyncCommitteesValues,
-			ProduceSyncCommitteeContributionRequest: produceSyncCommitteeContributionValues,
-			SubscribeSyncCommitteeRequest:           syncCommitteeSubscriptionValues,
-			SubmitSyncCommitteeContributionRequest:  syncCommitteeContributionValues,
+			MessageDuty: SyncCommitteeMessageDuty{
+				SubmitSyncCommitteeMessageRequest: submitSyncCommitteeMessageValues,
+			},
+			ContributionDuty: SyncCommitteeContributionDuty{
+				ProduceSyncCommitteeContributionRequest: produceSyncCommitteeContributionValues,
+				SubmitSyncCommitteeContributionRequest:  submitSyncCommitteeContributionValues,
+				SimulationValues:                        syncCommitteeContributionValues,
+			},
+			SubscribeSyncCommitteeRequest: syncCommitteeSubscriptionValues,
+			SimulationValues:              cumulativeSyncCommitteesSimulationValues,
 		}
 	}
 
 	allResult := generateSimulationValues(allRequests, "")
 
 	resultCh <- SimulationSingleValidator{
-		AttestationDuty:   attestationResult,
-		AggregationDuty:   aggregationResults,
-		ProposalDuty:      proposalResults,
-		SyncCommitteeDuty: syncCommitteeResults,
-		SimulationValues:  allResult,
+		AttestationDuty:     attestationResult,
+		AggregationDuty:     aggregationResults,
+		ProposalDuty:        proposalResults,
+		SyncCommitteeDuties: syncCommitteeResults,
+		SimulationValues:    allResult,
 	}
 }
 
@@ -1445,7 +1464,7 @@ func averageValidatorsResult(s []SimulationSingleValidator) SimulationSingleVali
 	var attestation, attestationGetDuties, attestationPostData,
 		aggregation, aggregationGetAggregationAttestations, aggregationSubmitAggregateAndProofs,
 		proposal, proposalProduceBlock, proposalPublishBlindedBlock,
-		syncCommitteeSubmit, syncCommitteeProduce, syncCommitteeSusbscription, syncCommitteeContribution,
+		syncCommittee, syncCommitteeSubmitMessage, syncCommitteeProduceContribution, syncCommitteeSubmitContribution, syncCommitteeContribution, syncCommitteeSusbscription,
 		all []time.Duration
 
 	for _, sim := range s {
@@ -1458,10 +1477,12 @@ func averageValidatorsResult(s []SimulationSingleValidator) SimulationSingleVali
 		proposalProduceBlock = append(proposalProduceBlock, mapDurationToTime(sim.ProposalDuty.ProduceBlockRequest.All)...)
 		proposalPublishBlindedBlock = append(proposalPublishBlindedBlock, mapDurationToTime(sim.ProposalDuty.PublishBlindedBlockRequest.All)...)
 		proposal = append(proposal, mapDurationToTime(sim.ProposalDuty.All)...)
-		syncCommitteeSubmit = append(syncCommitteeSubmit, mapDurationToTime(sim.SyncCommitteeDuty.SubmitSyncCommitteeRequest.All)...)
-		syncCommitteeProduce = append(syncCommitteeProduce, mapDurationToTime(sim.SyncCommitteeDuty.ProduceSyncCommitteeContributionRequest.All)...)
-		syncCommitteeSusbscription = append(syncCommitteeSusbscription, mapDurationToTime(sim.SyncCommitteeDuty.SubmitSyncCommitteeRequest.All)...)
-		syncCommitteeContribution = append(syncCommitteeContribution, mapDurationToTime(sim.SyncCommitteeDuty.SubmitSyncCommitteeContributionRequest.All)...)
+		syncCommitteeSubmitMessage = append(syncCommitteeSubmitMessage, mapDurationToTime(sim.SyncCommitteeDuties.MessageDuty.SubmitSyncCommitteeMessageRequest.All)...)
+		syncCommitteeProduceContribution = append(syncCommitteeProduceContribution, mapDurationToTime(sim.SyncCommitteeDuties.ContributionDuty.ProduceSyncCommitteeContributionRequest.All)...)
+		syncCommitteeSubmitContribution = append(syncCommitteeSubmitContribution, mapDurationToTime(sim.SyncCommitteeDuties.ContributionDuty.SubmitSyncCommitteeContributionRequest.All)...)
+		syncCommitteeContribution = append(syncCommitteeContribution, mapDurationToTime(sim.SyncCommitteeDuties.ContributionDuty.All)...)
+		syncCommitteeSusbscription = append(syncCommitteeSusbscription, mapDurationToTime(sim.SyncCommitteeDuties.SubscribeSyncCommitteeRequest.All)...)
+		syncCommittee = append(syncCommittee, mapDurationToTime(sim.SyncCommitteeDuties.All)...)
 		all = append(all, mapDurationToTime(sim.All)...)
 	}
 
@@ -1481,144 +1502,207 @@ func averageValidatorsResult(s []SimulationSingleValidator) SimulationSingleVali
 			PublishBlindedBlockRequest: generateSimulationValues(proposalPublishBlindedBlock, "POST /eth/v2/beacon/blinded"),
 			SimulationValues:           generateSimulationValues(proposal, ""),
 		},
-		SyncCommitteeDuty: SimulationSyncCommittee{
-			SubmitSyncCommitteeRequest:              generateSimulationValues(syncCommitteeSubmit, "POST /eth/v1/beacon/pool/sync_committees"),
-			ProduceSyncCommitteeContributionRequest: generateSimulationValues(syncCommitteeProduce, "GET /eth/v1/validator/sync_committee_contribution"),
-			SubscribeSyncCommitteeRequest:           generateSimulationValues(syncCommitteeSusbscription, "POST /eth/v1/validator/sync_committee_subscriptions"),
-			SubmitSyncCommitteeContributionRequest:  generateSimulationValues(syncCommitteeContribution, "POST /eth/v1/validator/contribution_and_proofs"),
+		SyncCommitteeDuties: SimulationSyncCommittee{
+			MessageDuty: SyncCommitteeMessageDuty{
+				SubmitSyncCommitteeMessageRequest: generateSimulationValues(syncCommitteeSubmitMessage, "POST /eth/v1/beacon/pool/sync_committees"),
+			},
+			ContributionDuty: SyncCommitteeContributionDuty{
+				ProduceSyncCommitteeContributionRequest: generateSimulationValues(syncCommitteeProduceContribution, "GET /eth/v1/validator/sync_committee_contribution"),
+				SubmitSyncCommitteeContributionRequest:  generateSimulationValues(syncCommitteeSubmitContribution, "POST /eth/v1/validator/contribution_and_proofs"),
+				SimulationValues:                        generateSimulationValues(syncCommitteeContribution, ""),
+			},
+			SubscribeSyncCommitteeRequest: generateSimulationValues(syncCommitteeSusbscription, "POST /eth/v1/validator/sync_committee_subscriptions"),
+			SimulationValues:              generateSimulationValues(syncCommittee, ""),
 		},
 		SimulationValues: generateSimulationValues(all, ""),
 	}
 }
 
-func aggregationDuty(ctx context.Context, target string, slot int, simulationDuration time.Duration, tickTime time.Duration, getAggregateAttestationsCh chan time.Duration, submitAggregateAndProofsCh chan time.Duration) {
+func aggregationDuty(ctx context.Context, target string, simulationDuration time.Duration, tickTime time.Duration, getAggregateAttestationsCh chan time.Duration, submitAggregateAndProofsCh chan time.Duration) {
 	defer close(getAggregateAttestationsCh)
 	defer close(submitAggregateAndProofsCh)
 	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
 	ticker := time.NewTicker(tickTime)
 	defer ticker.Stop()
+	slot, err := getCurrentSlot(ctx, target)
+	if err != nil {
+		log.Error(ctx, "Failed to get current slot", err)
+		slot = 1
+	}
 	for pingCtx.Err() == nil {
+		// TODO: use real attestation data root
+		getResult, err := getAggregateAttestations(ctx, target, slot, "0x87db5c50a4586fa37662cf332382d56a0eeea688a7d7311a42735683dfdcbfa4")
+		if err != nil && !errors.Is(err, context.Canceled) {
+			log.Error(ctx, "Unexpected getAggregateAttestations failure", err)
+		}
+		submitResult, err := postAggregateAndProofs(ctx, target)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			log.Error(ctx, "Unexpected aggregateAndProofs failure", err)
+		}
+		getAggregateAttestationsCh <- getResult
+		submitAggregateAndProofsCh <- submitResult
 		select {
 		case <-pingCtx.Done():
 		case <-ticker.C:
 			slot += int(tickTime.Seconds()) / int(slotTime.Seconds())
-			// TODO: use real attestation data root
-			getResult, err := getAggregateAttestations(ctx, target, slot, "0x87db5c50a4586fa37662cf332382d56a0eeea688a7d7311a42735683dfdcbfa4")
-			if err != nil && !errors.Is(err, context.Canceled) {
-				log.Error(ctx, "Unexpected getAggregateAttestations failure", err)
-			}
-			submitResult, err := postAggregateAndProofs(ctx, target)
-			if err != nil && !errors.Is(err, context.Canceled) {
-				log.Error(ctx, "Unexpected aggregateAndProofs failure", err)
-			}
-			getAggregateAttestationsCh <- getResult
-			submitAggregateAndProofsCh <- submitResult
 		}
 	}
 }
 
-func proposalDuty(ctx context.Context, target string, slot int, simulationDuration time.Duration, tickTime time.Duration, produceBlockCh chan time.Duration, publishBlindedBlockCh chan time.Duration) {
+func proposalDuty(ctx context.Context, target string, simulationDuration time.Duration, tickTime time.Duration, produceBlockCh chan time.Duration, publishBlindedBlockCh chan time.Duration) {
 	defer close(produceBlockCh)
 	defer close(publishBlindedBlockCh)
 	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
+	// randomize duty execution between tickTimeSlot + [0, tickTimeSlot)
+	time.Sleep(slotTime * time.Duration(rand.Intn(int((tickTime / slotTime))))) //nolint:gosec // weak generator is not an issue here
 	ticker := time.NewTicker(tickTime)
 	defer ticker.Stop()
+	slot, err := getCurrentSlot(ctx, target)
+	if err != nil {
+		log.Error(ctx, "Failed to get current slot", err)
+		slot = 1
+	}
 	for pingCtx.Err() == nil {
+		produceResult, err := produceBlock(ctx, target, slot, "0x1fe79e4193450abda94aec753895cfb2aac2c2a930b6bab00fbb27ef6f4a69f4400ad67b5255b91837982b4c511ae1d94eae1cf169e20c11bd417c1fffdb1f99f4e13e2de68f3b5e73f1de677d73cd43e44bf9b133a79caf8e5fad06738e1b0c")
+		if err != nil && !errors.Is(err, context.Canceled) {
+			log.Error(ctx, "Unexpected produceBlock failure", err)
+		}
+		publishResult, err := publishBlindedBlock(ctx, target)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			log.Error(ctx, "Unexpected publishBlindedBlock failure", err)
+		}
+		produceBlockCh <- produceResult
+		publishBlindedBlockCh <- publishResult
 		select {
 		case <-pingCtx.Done():
 		case <-ticker.C:
 			slot += int(tickTime.Seconds())/int(slotTime.Seconds()) + 1 // produce block for the next slot, as the current one might have already been proposed
-			produceResult, err := produceBlock(ctx, target, slot, "0x1fe79e4193450abda94aec753895cfb2aac2c2a930b6bab00fbb27ef6f4a69f4400ad67b5255b91837982b4c511ae1d94eae1cf169e20c11bd417c1fffdb1f99f4e13e2de68f3b5e73f1de677d73cd43e44bf9b133a79caf8e5fad06738e1b0c")
-			if err != nil && !errors.Is(err, context.Canceled) {
-				log.Error(ctx, "Unexpected produceBlock failure", err)
-			}
-			publishResult, err := publishBlindedBlock(ctx, target)
-			if err != nil && !errors.Is(err, context.Canceled) {
-				log.Error(ctx, "Unexpected publishBlindedBlock failure", err)
-			}
-			produceBlockCh <- produceResult
-			publishBlindedBlockCh <- publishResult
 		}
 	}
 }
 
-func attestationDuty(ctx context.Context, target string, slot int, simulationDuration time.Duration, tickTime time.Duration, getAttestationDataCh chan time.Duration, submitAttestationObjectCh chan time.Duration) {
+func attestationDuty(ctx context.Context, target string, simulationDuration time.Duration, tickTime time.Duration, getAttestationDataCh chan time.Duration, submitAttestationObjectCh chan time.Duration) {
 	defer close(getAttestationDataCh)
 	defer close(submitAttestationObjectCh)
 	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
+	// randomize duty execution between tickTimeSlot + [0, tickTimeSlot)
+	time.Sleep(slotTime * time.Duration(rand.Intn(int((tickTime / slotTime)))) * time.Second) //nolint:gosec,durationcheck // weak generator is not an issue here, duration multiplication is fine
 	ticker := time.NewTicker(tickTime)
 	defer ticker.Stop()
+	slot, err := getCurrentSlot(ctx, target)
+	if err != nil {
+		log.Error(ctx, "Failed to get current slot", err)
+		slot = 1
+	}
 	for pingCtx.Err() == nil {
+		getResult, err := getAttestationData(ctx, target, slot, rand.Intn(committeeSizePerSlot)) //nolint:gosec // weak generator is not an issue here
+		if err != nil && !errors.Is(err, context.Canceled) {
+			log.Error(ctx, "Unexpected getAttestationData failure", err)
+		}
+		getAttestationDataCh <- getResult
+
+		submitResult, err := submitAttestationObject(ctx, target)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			log.Error(ctx, "Unexpected submitAttestationObject failure", err)
+		}
+		submitAttestationObjectCh <- submitResult
+
 		select {
 		case <-pingCtx.Done():
 		case <-ticker.C:
 			slot += int(tickTime.Seconds()) / int(slotTime.Seconds())
-
-			getResult, err := getAttestationData(ctx, target, slot, rand.Intn(committeeSizePerSlot)) //nolint:gosec // weak generator is not an issue here
-			if err != nil && !errors.Is(err, context.Canceled) {
-				log.Error(ctx, "Unexpected getAttestationData failure", err)
-			}
-			getAttestationDataCh <- getResult
-
-			submitResult, err := submitAttestationObject(ctx, target)
-			if err != nil && !errors.Is(err, context.Canceled) {
-				log.Error(ctx, "Unexpected submitAttestationObject failure", err)
-			}
-			submitAttestationObjectCh <- submitResult
 		}
 	}
 }
 
-func syncCommitteeDuty(
-	ctx context.Context, target string, slot int,
-	simulationDuration time.Duration, tickTimeSubmit time.Duration, tickTimeProduce time.Duration, tickTimeSubscribe time.Duration, tickTimeContribution time.Duration,
+func syncCommitteeDuties(
+	ctx context.Context, target string,
+	simulationDuration time.Duration, tickTimeSubmit time.Duration, tickTimeSubscribe time.Duration, tickTimeContribution time.Duration,
 	submitSyncCommitteesCh chan time.Duration, produceSyncCommitteeContributionCh chan time.Duration, syncCommitteeSubscriptionCh chan time.Duration, syncCommitteeContributionCh chan time.Duration,
 ) {
-	defer close(submitSyncCommitteesCh)
-	defer close(produceSyncCommitteeContributionCh)
+	go syncCommitteeContributionDuty(ctx, target, simulationDuration, tickTimeContribution, produceSyncCommitteeContributionCh, syncCommitteeContributionCh)
+	go syncCommitteeMessageDuty(ctx, target, simulationDuration, tickTimeSubmit, submitSyncCommitteesCh)
+
 	defer close(syncCommitteeSubscriptionCh)
 	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
-	tickerSubmit := time.NewTicker(tickTimeSubmit)
-	defer tickerSubmit.Stop()
-	tickerProduce := time.NewTicker(tickTimeProduce)
-	defer tickerProduce.Stop()
-	tickerSubscribe := time.NewTicker(tickTimeSubscribe)
-	defer tickerSubscribe.Stop()
-	tickerContribute := time.NewTicker(tickTimeContribution)
-	defer tickerSubscribe.Stop()
+
+	// randomize duty execution between tickTimeSlot + [0, tickTimeSlot)
+	time.Sleep(slotTime * time.Duration(rand.Intn(int((tickTimeSubscribe / slotTime)))) * time.Second) //nolint:gosec,durationcheck // weak generator is not an issue here, duration multiplication is fine
+	ticker := time.NewTicker(tickTimeSubscribe)
+	defer ticker.Stop()
 
 	for pingCtx.Err() == nil {
+		subscribeResult, err := syncCommitteeSubscription(ctx, target)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			log.Error(ctx, "Unexpected syncCommitteeSubscription failure", err)
+		}
+		syncCommitteeSubscriptionCh <- subscribeResult
+
 		select {
 		case <-pingCtx.Done():
-		case <-tickerSubmit.C:
-			submitResult, err := submitSyncCommittee(ctx, target)
-			if err != nil && !errors.Is(err, context.Canceled) {
-				log.Error(ctx, "Unexpected submitSyncCommittees failure", err)
-			}
-			submitSyncCommitteesCh <- submitResult
-		case <-tickerProduce.C:
-			slot += int(tickTimeSubmit.Seconds()) / int(slotTime.Seconds())
-			produceResult, err := produceSyncCommitteeContribution(ctx, target, slot, rand.Intn(subCommitteeSize), "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2") //nolint:gosec // weak generator is not an issue here
-			if err != nil && !errors.Is(err, context.Canceled) {
-				log.Error(ctx, "Unexpected produceSyncCommitteeContribution failure", err)
-			}
-			produceSyncCommitteeContributionCh <- produceResult
-		case <-tickerSubscribe.C:
-			subscribeResult, err := syncCommitteeSubscription(ctx, target)
-			if err != nil && !errors.Is(err, context.Canceled) {
-				log.Error(ctx, "Unexpected syncCommitteeSubscription failure", err)
-			}
-			syncCommitteeSubscriptionCh <- subscribeResult
-		case <-tickerContribute.C:
-			contributeResult, err := syncCommitteeContribution(ctx, target)
-			if err != nil && !errors.Is(err, context.Canceled) {
-				log.Error(ctx, "Unexpected syncCommitteeContribution failure", err)
-			}
-			syncCommitteeContributionCh <- contributeResult
+		case <-ticker.C:
+		}
+	}
+}
+
+func syncCommitteeContributionDuty(ctx context.Context, target string, simulationDuration time.Duration, tickTime time.Duration, produceSyncCommitteeContributionCh chan time.Duration, syncCommitteeContributionCh chan time.Duration) {
+	defer close(produceSyncCommitteeContributionCh)
+	defer close(syncCommitteeContributionCh)
+	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
+	defer cancel()
+
+	// randomize duty execution between tickTimeSlot + [0, tickTimeSlot)
+	time.Sleep(slotTime * time.Duration(rand.Intn(int((tickTime / slotTime)))) * time.Second) //nolint:gosec,durationcheck // weak generator is not an issue here, duration multiplication is fine
+	ticker := time.NewTicker(tickTime)
+	defer ticker.Stop()
+
+	slot, err := getCurrentSlot(ctx, target)
+	if err != nil {
+		log.Error(ctx, "Failed to get current slot", err)
+		slot = 1
+	}
+	for pingCtx.Err() == nil {
+		produceResult, err := produceSyncCommitteeContribution(ctx, target, slot, rand.Intn(subCommitteeSize), "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2") //nolint:gosec // weak generator is not an issue here
+		if err != nil && !errors.Is(err, context.Canceled) {
+			log.Error(ctx, "Unexpected produceSyncCommitteeContribution failure", err)
+		}
+		produceSyncCommitteeContributionCh <- produceResult
+		contributeResult, err := submitSyncCommitteeContribution(ctx, target)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			log.Error(ctx, "Unexpected submitSyncCommitteeContribution failure", err)
+		}
+		syncCommitteeContributionCh <- contributeResult
+		select {
+		case <-pingCtx.Done():
+		case <-ticker.C:
+			slot += int(tickTime.Seconds()) / int(slotTime.Seconds())
+		}
+	}
+}
+
+func syncCommitteeMessageDuty(ctx context.Context, target string, simulationDuration time.Duration, tickTime time.Duration, submitSyncCommitteesCh chan time.Duration) {
+	defer close(submitSyncCommitteesCh)
+	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
+	defer cancel()
+
+	// randomize duty execution between tickTimeSlot + [0, tickTimeSlot)
+	time.Sleep(slotTime * time.Duration(rand.Intn(int((tickTime / slotTime)))) * time.Second) //nolint:gosec,durationcheck // weak generator is not an issue here, duration multiplication is fine
+	ticker := time.NewTicker(tickTime)
+	defer ticker.Stop()
+
+	for pingCtx.Err() == nil {
+		submitResult, err := submitSyncCommittee(ctx, target)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			log.Error(ctx, "Unexpected submitSyncCommittee failure", err)
+		}
+		submitSyncCommitteesCh <- submitResult
+		select {
+		case <-pingCtx.Done():
+		case <-ticker.C:
 		}
 	}
 }
@@ -1756,7 +1840,7 @@ func syncCommitteeSubscription(ctx context.Context, target string) (time.Duratio
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/sync_committee_subscriptions", target), http.MethodPost, body, 400)
 }
 
-func syncCommitteeContribution(ctx context.Context, target string) (time.Duration, error) {
+func submitSyncCommitteeContribution(ctx context.Context, target string) (time.Duration, error) {
 	body := strings.NewReader(`[{"message":{"aggregator_index":"1","contribution":{"slot":"1","beacon_block_root":"0xace2cad95a1b113457ccc680372880694a3ef820584d04a165aa2bda0f261950","subcommittee_index":"3","aggregation_bits":"0xfffffbfff7ddffffbef3bfffebffff7f","signature":"0xaa4cf0db0677555025fe12223572e67b509b0b24a2b07dc162aed38522febb2a64ad293e6dbfa1b81481eec250a2cdb61619456291f8d0e3f86097a42a71985d6dabd256107af8b4dfc2982a7d67ac63e2d6b7d59d24a9e87546c71b9c68ca1f"},"selection_proof":"0xb177453ba19233da0625b354d6a43e8621b676243ec4aa5dbb269ac750079cc23fced007ea6cdc1bfb6cc0e2fc796fbb154abed04d9aac7c1171810085beff2b9e5cff961975dbdce4199f39d97b4c46339e26eb7946762394905dbdb9818afe"},"signature":"0x8f73f3185164454f6807549bcbf9d1b0b5516279f35ead1a97812da5db43088de344fdc46aaafd20650bd6685515fb4e18f9f053e9e3691065f8a87f6160456ef8aa550f969ef8260368aae3e450e8763c6317f40b09863ad9b265a0e618e472"}]`)
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/contribution_and_proofs", target), http.MethodPost, body, 200)
 }
