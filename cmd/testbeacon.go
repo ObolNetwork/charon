@@ -1526,15 +1526,17 @@ func aggregationDuty(ctx context.Context, target string, simulationDuration time
 	defer close(submitAggregateAndProofsCh)
 	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
-	ticker := time.NewTicker(tickTime)
-	defer ticker.Stop()
 	slot, err := getCurrentSlot(ctx, target)
 	if err != nil {
 		log.Error(ctx, "Failed to get current slot", err)
 		slot = 1
 	}
+
+	time.Sleep(randomizeStart(tickTime))
+	ticker := time.NewTicker(tickTime)
+	defer ticker.Stop()
+
 	for pingCtx.Err() == nil {
-		// TODO: use real attestation data root
 		getResult, err := getAggregateAttestations(ctx, target, slot, "0x87db5c50a4586fa37662cf332382d56a0eeea688a7d7311a42735683dfdcbfa4")
 		if err != nil && !errors.Is(err, context.Canceled) {
 			log.Error(ctx, "Unexpected getAggregateAttestations failure", err)
@@ -1558,8 +1560,8 @@ func proposalDuty(ctx context.Context, target string, simulationDuration time.Du
 	defer close(publishBlindedBlockCh)
 	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
-	// randomize duty execution between tickTimeSlot + [0, tickTimeSlot)
-	time.Sleep(slotTime * time.Duration(rand.Intn(int((tickTime / slotTime))))) //nolint:gosec // weak generator is not an issue here
+
+	time.Sleep(randomizeStart(tickTime))
 	ticker := time.NewTicker(tickTime)
 	defer ticker.Stop()
 	slot, err := getCurrentSlot(ctx, target)
@@ -1591,8 +1593,8 @@ func attestationDuty(ctx context.Context, target string, simulationDuration time
 	defer close(submitAttestationObjectCh)
 	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
-	// randomize duty execution between tickTimeSlot + [0, tickTimeSlot)
-	time.Sleep(slotTime * time.Duration(rand.Intn(int((tickTime / slotTime)))) * time.Second) //nolint:gosec,durationcheck // weak generator is not an issue here, duration multiplication is fine
+
+	time.Sleep(randomizeStart(tickTime))
 	ticker := time.NewTicker(tickTime)
 	defer ticker.Stop()
 	slot, err := getCurrentSlot(ctx, target)
@@ -1633,8 +1635,7 @@ func syncCommitteeDuties(
 	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
 
-	// randomize duty execution between tickTimeSlot + [0, tickTimeSlot)
-	time.Sleep(slotTime * time.Duration(rand.Intn(int((tickTimeSubscribe / slotTime)))) * time.Second) //nolint:gosec,durationcheck // weak generator is not an issue here, duration multiplication is fine
+	time.Sleep(randomizeStart(tickTimeSubscribe))
 	ticker := time.NewTicker(tickTimeSubscribe)
 	defer ticker.Stop()
 
@@ -1658,8 +1659,7 @@ func syncCommitteeContributionDuty(ctx context.Context, target string, simulatio
 	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
 
-	// randomize duty execution between tickTimeSlot + [0, tickTimeSlot)
-	time.Sleep(slotTime * time.Duration(rand.Intn(int((tickTime / slotTime)))) * time.Second) //nolint:gosec,durationcheck // weak generator is not an issue here, duration multiplication is fine
+	time.Sleep(randomizeStart(tickTime))
 	ticker := time.NewTicker(tickTime)
 	defer ticker.Stop()
 
@@ -1692,8 +1692,7 @@ func syncCommitteeMessageDuty(ctx context.Context, target string, simulationDura
 	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
 
-	// randomize duty execution between tickTimeSlot + [0, tickTimeSlot)
-	time.Sleep(slotTime * time.Duration(rand.Intn(int((tickTime / slotTime)))) * time.Second) //nolint:gosec,durationcheck // weak generator is not an issue here, duration multiplication is fine
+	time.Sleep(randomizeStart(tickTime))
 	ticker := time.NewTicker(tickTime)
 	defer ticker.Stop()
 
@@ -1708,6 +1707,11 @@ func syncCommitteeMessageDuty(ctx context.Context, target string, simulationDura
 		case <-ticker.C:
 		}
 	}
+}
+
+// randomize duty execution start to be in [0, tickTimeSlot)
+func randomizeStart(tickTime time.Duration) time.Duration {
+	return slotTime * time.Duration(rand.Intn(int((tickTime / slotTime)))) //nolint:gosec // weak generator is not an issue here
 }
 
 func requestRTT(ctx context.Context, url string, method string, body io.Reader, expectedStatus int) (time.Duration, error) {
