@@ -36,7 +36,7 @@ This cluster-definition file is created with the help of the [Distributed Valida
   - The list of participants in the cluster specified by Ethereum address(/ENS)
   - The threshold of fault tolerance required (if not choosing the safe default)
   - The network (fork_version/chainId) that this cluster will validate on
-- These key pieces of information form the basis of the cluster configuration. These fields (and some technical fields like DKG algorithm to use) are serialised and merklised to produce the manifests `cluster_definition_hash`. This merkle root will be used to confirm that their is no ambiguity or deviation between manifests when they are provided to charon nodes.
+- These key pieces of information form the basis of the cluster configuration. These fields (and some technical fields like DKG algorithm to use) are serialised and merklised to produce the manifests `cluster_definition_hash`. This merkle root will be used to confirm that there is no ambiguity or deviation between manifests when they are provided to charon nodes.
 - Once the leader is satisfied with the configuration they publish it to the launchpad's data availability layer for the other participants to access. (For early development the launchpad will use a centralised backend db to store the cluster configuration. Near production, solutions like IPFS or arweave may be more suitable for the long term decentralisation of the launchpad.)
 - The leader will then share the URL to this ceremony with their intended participants.
 - Anyone that clicks the ceremony url, or inputs the `config_hash` when prompted on the landing page will be brought to the ceremony status page. (After completing all disclaimers and advisories)
