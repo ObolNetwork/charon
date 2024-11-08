@@ -1,6 +1,6 @@
 # Charon Go Guidelines
 
-This page contains guidelines, principals and best practices relating to how we write go code.
+This page contains guidelines, principles and best practices relating to how we write go code.
 As an open source project, we need to aim for high code quality, consistency and canonical go.
 
 ## Required Knowledge
