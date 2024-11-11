@@ -20,7 +20,7 @@ The charon client has the responsibility of securely completing a distributed ke
 
 A distributed key generation ceremony involves `Operators` and their `Charon clients`.
 
-- An `Operator` is identified by their Ethereum address. They will sign with this address's private key to authenticate their charon client ahead of the ceremony. The signature will be of; a hash of the charon clients ENR public key, the `cluster_definition_hash`, and an incrementing `nonce`, allowing for a direct linkage between a user, their charon client, and the cluster this client is intended to service, while retaining the ability to update the charon client by incrementing the nonce value and re-signing like the standard ENR spec.
+- An `Operator` is identified by their Ethereum address. They will sign with this address's private key to authenticate their charon client ahead of the ceremony. The signature will be of a hash of the charon client’s ENR public key, the `cluster_definition_hash`, and an incrementing `nonce`, allowing for a direct linkage between a user, their charon client, and the cluster this client is intended to service, while retaining the ability to update the charon client by incrementing the nonce value and re-signing like the standard ENR spec.
 
 - A `Charon client` is also identified by a public/private key pair, in this instance, the public key is represented as an [Ethereum Node Record](https://eips.ethereum.org/EIPS/eip-778) (ENR). This is a standard identity format for both EL and CL clients. These ENRs are used by each charon node to identify its cluster peers over the internet, and to communicate with one another in an [end to end encrypted manner](https://github.com/libp2p/go-libp2p-noise). These keys need to be created by each operator before they can participate in a cluster creation.
 
@@ -37,7 +37,7 @@ This cluster-definition file is created with the help of the [Distributed Valida
   - The threshold of fault tolerance required (if not choosing the safe default)
   - The network (fork_version/chainId) that this cluster will validate on
 - These key pieces of information form the basis of the cluster configuration. These fields (and some technical fields like DKG algorithm to use) are serialised and merklised to produce the manifests `cluster_definition_hash`. This merkle root will be used to confirm that there is no ambiguity or deviation between manifests when they are provided to charon nodes.
-- Once the leader is satisfied with the configuration they publish it to the launchpad's data availability layer for the other participants to access. (For early development the launchpad will use a centralised backend db to store the cluster configuration. Near production, solutions like IPFS or arweave may be more suitable for the long term decentralisation of the launchpad.)
+- Once the leader is satisfied with the configuration, they publish it to the launchpad's data availability layer for the other participants to access. (For early development the launchpad will use a centralised backend db to store the cluster configuration. Near production, solutions like IPFS or arweave may be more suitable for the long term decentralisation of the launchpad.)
 - The leader will then share the URL to this ceremony with their intended participants.
 - Anyone that clicks the ceremony url, or inputs the `config_hash` when prompted on the landing page will be brought to the ceremony status page. (After completing all disclaimers and advisories)
 - A "Connect Wallet" button will be visible beneath the ceremony status container, a participant can click on it to connect their wallet to the site
@@ -53,7 +53,7 @@ This cluster-definition file is created with the help of the [Distributed Valida
 
 ## Carrying out the DKG ceremony
 
-Once participant has their cluster-definition file prepared, they will pass the file to charon's `dkg` command. Charon will read the ENRs in the cluster-definition, confirm that its ENR is present, and then will reach out to bootnodes that are deployed to find the other ENRs on the network. (Fresh ENRs just have a public key and an IP address of 0.0.0.0 until they are loaded into a live charon client, which will update the IP address and increment the ENRs nonce and resign with the clients private key. If an ENR with a higher nonce is seen to be a charon client, they will update the IP address of that ENR in their address book.)
+Once participants has their cluster-definition file prepared, they will pass the file to charon's `dkg` command. Charon will read the ENRs in the cluster-definition, confirm that its ENR is present, and then will reach out to bootnodes that are deployed to find the other ENRs on the network. (Fresh ENRs just have a public key and an IP address of 0.0.0.0 until they are loaded into a live charon client, which will update the IP address and increment the ENRs nonce and resign with the clients private key. If an ENR with a higher nonce is seen to be a charon client, they will update the IP address of that ENR in their address book.)
 
 Once all clients in the cluster can establish a connection with one another and they each complete a handshake (confirm everyone has a matching `cluster_definition_hash`), the ceremony begins.
 
@@ -74,7 +74,7 @@ Once the ceremony is complete, all participants should take a backup of the crea
 
 ## Preparing for validator activation
 
-Once the ceremony is complete, and secure backups of key shares have been made by each operator. They must now load these key shares into their validator clients, and run the `charon run` command to turn it into operational mode.
+Once the ceremony is complete and secure backups of key shares have been made by each operator. They must now load these key shares into their validator clients, and run the `charon run` command to turn it into operational mode.
 
 All operators should confirm that their charon client logs indicate all nodes are online and connected. They should also verify the readiness of their beacon clients and validator clients. Charon's grafana dashboard is a good way to see the readiness of the full cluster from its perspective.
 

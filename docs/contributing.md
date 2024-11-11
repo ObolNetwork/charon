@@ -18,12 +18,12 @@ instead of opening a public issue or PR on GitHub.
 - If you have found a bug...
     - Check for existing bug reports of the same issue in GitHub.
     - Do not post about it publicly if it is a suspected vulnerability to protect Obol's users;
-      instead use `security@obol.tech`.
+      instead, use `security@obol.tech`.
     - Maybe send a message in relevant community channels if you are unsure whether you are seeing a technical issue.
     - Open a GitHub issue if everything else checks out 🤓
 - Are you thinking of a small change that just makes sense? Feel free to submit a PR.
 - If you're envisioning a larger feature or are just looking for a discussion,
-  let's chat in the [Obol Discord](https://discord.com/invite/n6ebKsX46w)under `#dev-community`.
+  let's chat in the [Obol Discord](https://discord.com/invite/n6ebKsX46w) under `#dev-community`.
     - A quick sync before coding avoids conflicting work and makes large PRs much more likely to be accepted.
     - 👀 The Discord channel is currently _invite-only_ to prevent spam. Please ping a team member to get access.
 
@@ -42,7 +42,7 @@ an associated issue with a design discussed and decided upon. Small bug fixes an
 improvements don't need issues.
 
 New features and bug fixes must have tests. Documentation may need to be updated. If you're
-unsure what to update, open the PR, and we'll discuss during review.
+unsure what to update, open the PR and we'll discuss during review.
 
 Note that PRs updating dependencies and new Go versions are not accepted. Please file an issue instead.
 
@@ -75,7 +75,7 @@ Note: PRs can only be merged by obol-bulldozer bot. It is author's responsibilit
 - The PR title and body are used as the final squash-merged git commit message.
 - The PR's original git commits are therefore lost (so naming isn't specified)
 - **PR title format** is defined as:
-  - Following the [go team's commit format](https://github.com/golang/go/commits/master): `package[/path]: concise overview of change`
+  - Following the [Go team's commit format](https://github.com/golang/go/commits/master): `package[/path]: concise overview of change`
   - Prefix identifies the primary package affected by the change.
   - Prefix can be a single or double hierarchical package name, but not three or more. E.g. `app` , or `app/tracer`.
   - The rest of the title must be a concise high-level overview in the present tense and starting with lower case.
@@ -90,7 +90,7 @@ Note: PRs can only be merged by obol-bulldozer bot. It is author's responsibilit
 ```
 runner/tracer: add jaeger otel exporter
 
-Adds the jaeger exporter to our opentelemetery infra.
+Adds the jaeger exporter to our opentelemetry infra.
 
 category: feature
 ticket: #206
@@ -113,7 +113,7 @@ for each PR commit. But it is highly recommended running the githooks locally wh
 
 To install githooks:
 - Follow installation instructions [here](https://pre-commit.com/#installation) to install the `pre-commit` tool.
-- Once installed, run `pre-commit install` in the project's root directory. This will setup the hooks.
+- Once installed, run `pre-commit install` in the project's root directory. This will set up the hooks.
 - Note you can skip the hooks by committing with `-n`: `git commit -n -m "look mom no githooks"`
 
 To update githooks:
