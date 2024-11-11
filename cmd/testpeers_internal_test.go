@@ -320,7 +320,7 @@ func TestPeersTestFlags(t *testing.T) {
 		{
 			name:        "no enrs flag",
 			args:        []string{"peers"},
-			expectedErr: "required flag(s) \"enrs\" not set",
+			expectedErr: "--enrs, --cluster-lock-file-path or --cluster-definition-file-path must be specified.",
 		},
 		{
 			name:        "no output toml on quiet",
