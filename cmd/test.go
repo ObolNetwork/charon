@@ -19,6 +19,7 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"golang.org/x/exp/maps"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -64,6 +65,13 @@ func bindTestFlags(cmd *cobra.Command, config *testConfig) {
 	cmd.Flags().StringSliceVar(&config.TestCases, "test-cases", nil, fmt.Sprintf("List of comma separated names of tests to be exeucted. Available tests are: %v", listTestCases(cmd)))
 	cmd.Flags().DurationVar(&config.Timeout, "timeout", time.Hour, "Execution timeout for all tests.")
 	cmd.Flags().BoolVar(&config.Quiet, "quiet", false, "Do not print test results to stdout.")
+}
+
+func bindTestLogFlags(flags *pflag.FlagSet, config *log.Config) {
+	flags.StringVar(&config.Format, "log-format", "console", "Log format; console, logfmt or json")
+	flags.StringVar(&config.Level, "log-level", "info", "Log level; debug, info, warn or error")
+	flags.StringVar(&config.Color, "log-color", "auto", "Log color; auto, force, disable.")
+	flags.StringVar(&config.LogOutputPath, "log-output-path", "", "Path in which to write on-disk logs.")
 }
 
 func listTestCases(cmd *cobra.Command) []string {

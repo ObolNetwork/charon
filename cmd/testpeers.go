@@ -25,7 +25,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 
@@ -122,13 +121,6 @@ func bindTestPeersFlags(cmd *cobra.Command, config *testPeersConfig, flagsPrefix
 	cmd.Flags().DurationVar(&config.DirectConnectionTimeout, flagsPrefix+"direct-connection-timeout", 2*time.Minute, "Time to keep trying to establish direct connection to peer.")
 	cmd.Flags().StringVar(&config.ClusterLockFilePath, flagsPrefix+"cluster-lock-file-path", "", "Path to cluster lock file, used to fetch peers' ENR addresses.")
 	cmd.Flags().StringVar(&config.ClusterDefinitionFilePath, flagsPrefix+"cluster-definition-file-path", "", "Path to cluster definition file, used to fetch peers' ENR addresses.")
-}
-
-func bindTestLogFlags(flags *pflag.FlagSet, config *log.Config) {
-	flags.StringVar(&config.Format, "log-format", "console", "Log format; console, logfmt or json")
-	flags.StringVar(&config.Level, "log-level", "info", "Log level; debug, info, warn or error")
-	flags.StringVar(&config.Color, "log-color", "auto", "Log color; auto, force, disable.")
-	flags.StringVar(&config.LogOutputPath, "log-output-path", "", "Path in which to write on-disk logs.")
 }
 
 func supportedPeerTestCases() map[testCaseName]testCasePeer {
