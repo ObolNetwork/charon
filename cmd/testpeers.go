@@ -568,7 +568,8 @@ func testSinglePeer(ctx context.Context, queuedTestCases []testCaseName, allTest
 		return err
 	}
 
-	nameENR := fmt.Sprintf("peer %v %v", peerTarget.Name, target)
+	formatENR := target[:13] + "..." + target[len(target)-4:] // enr:- + first 8 chars + ... + last 4 chars
+	nameENR := fmt.Sprintf("peer %v %v", peerTarget.Name, formatENR)
 
 	if len(queuedTestCases) == 0 {
 		allTestResCh <- map[string][]testResult{nameENR: allTestRes}
