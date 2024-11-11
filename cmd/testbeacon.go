@@ -265,6 +265,8 @@ func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (err 
 	return nil
 }
 
+// beacon node tests
+
 func testAllBeacons(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCaseBeacon, conf testBeaconConfig, allBeaconsResCh chan map[string][]testResult) {
 	defer close(allBeaconsResCh)
 	// run tests for all beacon nodes
@@ -365,10 +367,6 @@ func beaconPingTest(ctx context.Context, _ *testBeaconConfig, target string) tes
 	return testRes
 }
 
-func beaconPingOnce(ctx context.Context, target string) (time.Duration, error) {
-	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/node/health", target), http.MethodGet, nil, 200)
-}
-
 func beaconPingMeasureTest(ctx context.Context, _ *testBeaconConfig, target string) testResult {
 	testRes := testResult{Name: "PingMeasure"}
 
@@ -380,22 +378,6 @@ func beaconPingMeasureTest(ctx context.Context, _ *testBeaconConfig, target stri
 	testRes = evaluateRTT(rtt, testRes, thresholdBeaconMeasureAvg, thresholdBeaconMeasurePoor)
 
 	return testRes
-}
-
-func pingBeaconContinuously(ctx context.Context, target string, resCh chan<- time.Duration) {
-	for {
-		rtt, err := beaconPingOnce(ctx, target)
-		if err != nil {
-			return
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case resCh <- rtt:
-			awaitTime := rand.Intn(100) //nolint:gosec // weak generator is not an issue here
-			sleepWithContext(ctx, time.Duration(awaitTime)*time.Millisecond)
-		}
-	}
 }
 
 func beaconPingLoadTest(ctx context.Context, conf *testBeaconConfig, target string) testResult {
@@ -530,6 +512,30 @@ func beaconPeerCountTest(ctx context.Context, _ *testBeaconConfig, target string
 
 	return testRes
 }
+
+// helper functions
+
+func beaconPingOnce(ctx context.Context, target string) (time.Duration, error) {
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/node/health", target), http.MethodGet, nil, 200)
+}
+
+func pingBeaconContinuously(ctx context.Context, target string, resCh chan<- time.Duration) {
+	for {
+		rtt, err := beaconPingOnce(ctx, target)
+		if err != nil {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case resCh <- rtt:
+			awaitTime := rand.Intn(100) //nolint:gosec // weak generator is not an issue here
+			sleepWithContext(ctx, time.Duration(awaitTime)*time.Millisecond)
+		}
+	}
+}
+
+// beacon simulation tests
 
 func beaconSimulation1Test(ctx context.Context, conf *testBeaconConfig, target string) testResult {
 	testRes := testResult{Name: "BeaconSimulation1Validator"}
@@ -760,6 +766,8 @@ func beaconSimulationTest(ctx context.Context, conf *testBeaconConfig, target st
 
 	return testRes
 }
+
+// requests per 1 cluster
 
 func singleClusterSimulation(ctx context.Context, simulationDuration time.Duration, target string, resultCh chan SimulationCluster, wgDone func()) {
 	defer wgDone()
@@ -1073,6 +1081,8 @@ func clusterGeneralRequests(
 	}
 }
 
+// requests per 1 validator
+
 func singleValidatorSimulation(ctx context.Context, simulationDuration time.Duration, target string, resultCh chan SimulationSingleValidator, intensity RequestsIntensity, dutiesPerformed DutiesPerformed, wg *sync.WaitGroup) {
 	defer wg.Done()
 	// attestations
@@ -1303,6 +1313,41 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 	}
 }
 
+func attestationDuty(ctx context.Context, target string, simulationDuration time.Duration, tickTime time.Duration, getAttestationDataCh chan time.Duration, submitAttestationObjectCh chan time.Duration) {
+	defer close(getAttestationDataCh)
+	defer close(submitAttestationObjectCh)
+	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
+	defer cancel()
+
+	time.Sleep(randomizeStart(tickTime))
+	ticker := time.NewTicker(tickTime)
+	defer ticker.Stop()
+	slot, err := getCurrentSlot(ctx, target)
+	if err != nil {
+		log.Error(ctx, "Failed to get current slot", err)
+		slot = 1
+	}
+	for pingCtx.Err() == nil {
+		getResult, err := getAttestationData(ctx, target, slot, rand.Intn(committeeSizePerSlot)) //nolint:gosec // weak generator is not an issue here
+		if err != nil && !errors.Is(err, context.Canceled) {
+			log.Error(ctx, "Unexpected getAttestationData failure", err)
+		}
+		getAttestationDataCh <- getResult
+
+		submitResult, err := submitAttestationObject(ctx, target)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			log.Error(ctx, "Unexpected submitAttestationObject failure", err)
+		}
+		submitAttestationObjectCh <- submitResult
+
+		select {
+		case <-pingCtx.Done():
+		case <-ticker.C:
+			slot += int(tickTime.Seconds()) / int(slotTime.Seconds())
+		}
+	}
+}
+
 func aggregationDuty(ctx context.Context, target string, simulationDuration time.Duration, tickTime time.Duration, getAggregateAttestationsCh chan time.Duration, submitAggregateAndProofsCh chan time.Duration) {
 	defer close(getAggregateAttestationsCh)
 	defer close(submitAggregateAndProofsCh)
@@ -1366,41 +1411,6 @@ func proposalDuty(ctx context.Context, target string, simulationDuration time.Du
 		case <-pingCtx.Done():
 		case <-ticker.C:
 			slot += int(tickTime.Seconds())/int(slotTime.Seconds()) + 1 // produce block for the next slot, as the current one might have already been proposed
-		}
-	}
-}
-
-func attestationDuty(ctx context.Context, target string, simulationDuration time.Duration, tickTime time.Duration, getAttestationDataCh chan time.Duration, submitAttestationObjectCh chan time.Duration) {
-	defer close(getAttestationDataCh)
-	defer close(submitAttestationObjectCh)
-	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
-	defer cancel()
-
-	time.Sleep(randomizeStart(tickTime))
-	ticker := time.NewTicker(tickTime)
-	defer ticker.Stop()
-	slot, err := getCurrentSlot(ctx, target)
-	if err != nil {
-		log.Error(ctx, "Failed to get current slot", err)
-		slot = 1
-	}
-	for pingCtx.Err() == nil {
-		getResult, err := getAttestationData(ctx, target, slot, rand.Intn(committeeSizePerSlot)) //nolint:gosec // weak generator is not an issue here
-		if err != nil && !errors.Is(err, context.Canceled) {
-			log.Error(ctx, "Unexpected getAttestationData failure", err)
-		}
-		getAttestationDataCh <- getResult
-
-		submitResult, err := submitAttestationObject(ctx, target)
-		if err != nil && !errors.Is(err, context.Canceled) {
-			log.Error(ctx, "Unexpected submitAttestationObject failure", err)
-		}
-		submitAttestationObjectCh <- submitResult
-
-		select {
-		case <-pingCtx.Done():
-		case <-ticker.C:
-			slot += int(tickTime.Seconds()) / int(slotTime.Seconds())
 		}
 	}
 }
@@ -1490,6 +1500,8 @@ func syncCommitteeMessageDuty(ctx context.Context, target string, simulationDura
 		}
 	}
 }
+
+// simulation helper functions
 
 func getCurrentSlot(ctx context.Context, target string) (int, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target+"/eth/v1/node/syncing", nil)
@@ -1676,7 +1688,8 @@ func randomizeStart(tickTime time.Duration) time.Duration {
 	return slotTime * time.Duration(rand.Intn(int((tickTime / slotTime)))) //nolint:gosec // weak generator is not an issue here
 }
 
-// cluster requests
+// simulation http requests - cluster
+
 func getAttestationsForBlock(ctx context.Context, target string, block int) (time.Duration, error) {
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/beacon/blocks/%v/attestations", target, block), http.MethodGet, nil, 200)
 }
@@ -1730,7 +1743,8 @@ func nodeVersion(ctx context.Context, target string) (time.Duration, error) {
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/node/version", target), http.MethodGet, nil, 200)
 }
 
-// attestation duty requests
+// simulation http requests - attestation duty
+
 func getAttestationData(ctx context.Context, target string, slot int, committeeIndex int) (time.Duration, error) {
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/attestation_data?slot=%v&committee_index=%v", target, slot, committeeIndex), http.MethodGet, nil, 200)
 }
@@ -1740,7 +1754,8 @@ func submitAttestationObject(ctx context.Context, target string) (time.Duration,
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/beacon/pool/attestations", target), http.MethodPost, body, 400)
 }
 
-// aggregation duty requests
+// simulation http requests - aggregation duty
+
 func getAggregateAttestations(ctx context.Context, target string, slot int, attestationDataRoot string) (time.Duration, error) {
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/aggregate_attestation?slot=%v&attestation_data_root=%v", target, slot, attestationDataRoot), http.MethodGet, nil, 404)
 }
@@ -1750,7 +1765,8 @@ func postAggregateAndProofs(ctx context.Context, target string) (time.Duration, 
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/validator/aggregate_and_proofs", target), http.MethodPost, body, 400)
 }
 
-// proposal duty requests
+// simulation http requests - proposal duty
+
 func produceBlock(ctx context.Context, target string, slot int, randaoReveal string) (time.Duration, error) {
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v3/validator/blocks/%v?randao_reveal=%v", target, slot, randaoReveal), http.MethodGet, nil, 200)
 }
@@ -1760,7 +1776,8 @@ func publishBlindedBlock(ctx context.Context, target string) (time.Duration, err
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v2/beacon/blinded", target), http.MethodPost, body, 404)
 }
 
-// sync committee duty requests
+// simulation http requests - sync committee duty
+
 func submitSyncCommittee(ctx context.Context, target string) (time.Duration, error) {
 	body := strings.NewReader(`{{"aggregation_bits":"0x01","signature":"0x1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505cc411d61252fb6cb3fa0017b679f8bb2305b26a285fa2737f175668d0dff91cc1b66ac1fb663c9bc59509846d6ec05345bd908eda73e670af888da41af171505","data":{"slot":"1","index":"1","beacon_block_root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2","source":{"epoch":"1","root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"},"target":{"epoch":"1","root":"0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"}}}`)
 	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/beacon/pool/sync_committees", target), http.MethodPost, body, 400)

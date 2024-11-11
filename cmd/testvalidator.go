@@ -126,6 +126,8 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 	return nil
 }
 
+// validator client tests
+
 func testSingleValidator(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testValidatorConfig) testResult, cfg testValidatorConfig, resCh chan map[string][]testResult) {
 	defer close(resCh)
 	singleTestResCh := make(chan testResult)
@@ -201,29 +203,6 @@ func validatorPingMeasureTest(ctx context.Context, conf *testValidatorConfig) te
 	return testRes
 }
 
-func pingValidatorContinuously(ctx context.Context, address string, resCh chan<- time.Duration) {
-	d := net.Dialer{Timeout: time.Second}
-	for {
-		before := time.Now()
-		conn, err := d.DialContext(ctx, "tcp", address)
-		if err != nil {
-			return
-		}
-		rtt := time.Since(before)
-		err = conn.Close()
-		if err != nil {
-			return
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case resCh <- rtt:
-			awaitTime := rand.Intn(100) //nolint:gosec // weak generator is not an issue here
-			sleepWithContext(ctx, time.Duration(awaitTime)*time.Millisecond)
-		}
-	}
-}
-
 func validatorPingLoadTest(ctx context.Context, conf *testValidatorConfig) testResult {
 	log.Info(ctx, "Running ping load tests...",
 		z.Any("duration", conf.LoadTestDuration),
@@ -256,4 +235,29 @@ func validatorPingLoadTest(ctx context.Context, conf *testValidatorConfig) testR
 	testRes = evaluateHighestRTTScores(testResCh, testRes, thresholdValidatorLoadAvg, thresholdValidatorLoadPoor)
 
 	return testRes
+}
+
+// helper functions
+
+func pingValidatorContinuously(ctx context.Context, address string, resCh chan<- time.Duration) {
+	d := net.Dialer{Timeout: time.Second}
+	for {
+		before := time.Now()
+		conn, err := d.DialContext(ctx, "tcp", address)
+		if err != nil {
+			return
+		}
+		rtt := time.Since(before)
+		err = conn.Close()
+		if err != nil {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case resCh <- rtt:
+			awaitTime := rand.Intn(100) //nolint:gosec // weak generator is not an issue here
+			sleepWithContext(ctx, time.Duration(awaitTime)*time.Millisecond)
+		}
+	}
 }
