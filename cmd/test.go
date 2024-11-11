@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"slices"
 	"sort"
 	"strings"
 	"syscall"
@@ -229,12 +230,14 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) error {
 	lines = append(lines, "")
 	lines = append(lines, fmt.Sprintf("%-64s%s", "TEST NAME", "RESULT"))
 	suggestions := []string{}
-	for target, testResults := range res.Targets {
-		if target != "" && len(testResults) > 0 {
+	targets := maps.Keys(res.Targets)
+	slices.Sort(targets)
+	for _, target := range targets {
+		if target != "" && len(res.Targets[target]) > 0 {
 			lines = append(lines, "")
 			lines = append(lines, target)
 		}
-		for _, singleTestRes := range testResults {
+		for _, singleTestRes := range res.Targets[target] {
 			testOutput := ""
 			testOutput += fmt.Sprintf("%-64s", singleTestRes.Name)
 			if singleTestRes.Measurement != "" {
