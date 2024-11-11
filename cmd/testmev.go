@@ -15,7 +15,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/z"
 )
 
 type testMEVConfig struct {
@@ -213,7 +212,7 @@ func mevPingTest(ctx context.Context, _ *testMEVConfig, target string) testResul
 	defer resp.Body.Close()
 
 	if resp.StatusCode > 399 {
-		return failedTestResult(testRes, errors.New("status code %v", z.Int("status_code", resp.StatusCode)))
+		return failedTestResult(testRes, errors.New(httpStatusError(resp.StatusCode)))
 	}
 
 	testRes.Verdict = testVerdictOk
@@ -247,7 +246,7 @@ func mevPingMeasureTest(ctx context.Context, _ *testMEVConfig, target string) te
 	defer resp.Body.Close()
 
 	if resp.StatusCode > 399 {
-		return failedTestResult(testRes, errors.New("status code %v", z.Int("status_code", resp.StatusCode)))
+		return failedTestResult(testRes, errors.New(httpStatusError(resp.StatusCode)))
 	}
 
 	if firstByte > thresholdMEVMeasurePoor {
