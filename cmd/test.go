@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptrace"
 	"os"
 	"os/signal"
 	"slices"
@@ -381,4 +383,38 @@ func sleepWithContext(ctx context.Context, d time.Duration) {
 		}
 	case <-timer.C:
 	}
+}
+
+func requestRTT(ctx context.Context, url string, method string, body io.Reader, expectedStatus int) (time.Duration, error) {
+	var start time.Time
+	var firstByte time.Duration
+
+	trace := &httptrace.ClientTrace{
+		GotFirstResponseByte: func() {
+			firstByte = time.Since(start)
+		},
+	}
+
+	start = time.Now()
+	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), method, url, body)
+	if err != nil {
+		return 0, errors.Wrap(err, "create new request with trace and context")
+	}
+
+	resp, err := http.DefaultTransport.RoundTrip(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != expectedStatus {
+		data, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Warn(ctx, "Unexpected status code", nil, z.Int("status_code", resp.StatusCode), z.Int("expected_status_code", expectedStatus), z.Str("endpoint", url))
+		} else {
+			log.Warn(ctx, "Unexpected status code", nil, z.Int("status_code", resp.StatusCode), z.Int("expected_status_code", expectedStatus), z.Str("endpoint", url), z.Str("body", string(data)))
+		}
+	}
+
+	return firstByte, nil
 }

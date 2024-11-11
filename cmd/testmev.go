@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptrace"
 	"strings"
 	"time"
 
@@ -249,40 +248,19 @@ func mevPingTest(ctx context.Context, _ *testMEVConfig, target string) testResul
 func mevPingMeasureTest(ctx context.Context, _ *testMEVConfig, target string) testResult {
 	testRes := testResult{Name: "PingMeasure"}
 
-	var start time.Time
-	var firstByte time.Duration
-
-	trace := &httptrace.ClientTrace{
-		GotFirstResponseByte: func() {
-			firstByte = time.Since(start)
-		},
-	}
-
-	start = time.Now()
-	targetEndpoint := fmt.Sprintf("%v/eth/v1/builder/status", target)
-	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), http.MethodGet, targetEndpoint, nil)
+	rtt, err := requestRTT(ctx, fmt.Sprintf("%v/eth/v1/builder/status", target), http.MethodGet, nil, 200)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
 
-	resp, err := http.DefaultTransport.RoundTrip(req)
-	if err != nil {
-		return failedTestResult(testRes, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode > 399 {
-		return failedTestResult(testRes, errors.New(httpStatusError(resp.StatusCode)))
-	}
-
-	if firstByte > thresholdMEVMeasurePoor {
+	if rtt > thresholdMEVMeasurePoor {
 		testRes.Verdict = testVerdictPoor
-	} else if firstByte > thresholdMEVMeasureAvg {
+	} else if rtt > thresholdMEVMeasureAvg {
 		testRes.Verdict = testVerdictAvg
 	} else {
 		testRes.Verdict = testVerdictGood
 	}
-	testRes.Measurement = Duration{firstByte}.String()
+	testRes.Measurement = Duration{rtt}.String()
 
 	return testRes
 }

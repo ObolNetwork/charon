@@ -10,7 +10,6 @@ import (
 	"math"
 	"math/rand"
 	"net/http"
-	"net/http/httptrace"
 	"os"
 	"path/filepath"
 	"sort"
@@ -367,33 +366,7 @@ func beaconPingTest(ctx context.Context, _ *testBeaconConfig, target string) tes
 }
 
 func beaconPingOnce(ctx context.Context, target string) (time.Duration, error) {
-	var start time.Time
-	var firstByte time.Duration
-
-	trace := &httptrace.ClientTrace{
-		GotFirstResponseByte: func() {
-			firstByte = time.Since(start)
-		},
-	}
-
-	start = time.Now()
-	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/health", target)
-	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), http.MethodGet, targetEndpoint, nil)
-	if err != nil {
-		return 0, errors.Wrap(err, "create new request with trace and context")
-	}
-
-	resp, err := http.DefaultTransport.RoundTrip(req)
-	if err != nil {
-		return 0, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode > 399 {
-		return 0, errors.New(httpStatusError(resp.StatusCode))
-	}
-
-	return firstByte, nil
+	return requestRTT(ctx, fmt.Sprintf("%v/eth/v1/node/health", target), http.MethodGet, nil, 200)
 }
 
 func beaconPingMeasureTest(ctx context.Context, _ *testBeaconConfig, target string) testResult {
@@ -1708,40 +1681,6 @@ func averageValidatorsResult(s []SimulationSingleValidator) SimulationSingleVali
 // randomize duty execution start to be in [0, n*slot), where n is the frequency of the request per slot
 func randomizeStart(tickTime time.Duration) time.Duration {
 	return slotTime * time.Duration(rand.Intn(int((tickTime / slotTime)))) //nolint:gosec // weak generator is not an issue here
-}
-
-func requestRTT(ctx context.Context, url string, method string, body io.Reader, expectedStatus int) (time.Duration, error) {
-	var start time.Time
-	var firstByte time.Duration
-
-	trace := &httptrace.ClientTrace{
-		GotFirstResponseByte: func() {
-			firstByte = time.Since(start)
-		},
-	}
-
-	start = time.Now()
-	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), method, url, body)
-	if err != nil {
-		return 0, errors.Wrap(err, "create new request with trace and context")
-	}
-
-	resp, err := http.DefaultTransport.RoundTrip(req)
-	if err != nil {
-		return 0, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != expectedStatus {
-		data, err := io.ReadAll(resp.Body)
-		if err != nil {
-			log.Warn(ctx, "Unexpected status code", nil, z.Int("status_code", resp.StatusCode), z.Int("expected_status_code", expectedStatus), z.Str("endpoint", url))
-		} else {
-			log.Warn(ctx, "Unexpected status code", nil, z.Int("status_code", resp.StatusCode), z.Int("expected_status_code", expectedStatus), z.Str("endpoint", url), z.Str("body", string(data)))
-		}
-	}
-
-	return firstByte, nil
 }
 
 // cluster requests

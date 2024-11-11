@@ -13,7 +13,6 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
-	"net/http/httptrace"
 	"os"
 	"slices"
 	"strings"
@@ -864,39 +863,19 @@ func relayPingTest(ctx context.Context, _ *testPeersConfig, target string) testR
 func relayPingMeasureTest(ctx context.Context, _ *testPeersConfig, target string) testResult {
 	testRes := testResult{Name: "PingMeasureRelay"}
 
-	var start time.Time
-	var firstByte time.Duration
-
-	trace := &httptrace.ClientTrace{
-		GotFirstResponseByte: func() {
-			firstByte = time.Since(start)
-		},
-	}
-
-	start = time.Now()
-	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), http.MethodGet, target, nil)
+	rtt, err := requestRTT(ctx, target, http.MethodGet, nil, 200)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
 
-	resp, err := http.DefaultTransport.RoundTrip(req)
-	if err != nil {
-		return failedTestResult(testRes, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode > 399 {
-		return failedTestResult(testRes, errors.New(httpStatusError(resp.StatusCode)))
-	}
-
-	if firstByte > thresholdRelayMeasurePoor {
+	if rtt > thresholdRelayMeasurePoor {
 		testRes.Verdict = testVerdictPoor
-	} else if firstByte > thresholdRelayMeasureAvg {
+	} else if rtt > thresholdRelayMeasureAvg {
 		testRes.Verdict = testVerdictAvg
 	} else {
 		testRes.Verdict = testVerdictGood
 	}
-	testRes.Measurement = Duration{firstByte}.String()
+	testRes.Measurement = Duration{rtt}.String()
 
 	return testRes
 }
