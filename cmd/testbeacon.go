@@ -719,7 +719,7 @@ func beaconSimulationTest(ctx context.Context, conf *testBeaconConfig, target st
 	var simulationGeneralRes SimulationCluster
 	wg.Add(1)
 	log.Info(ctx, "Starting general cluster requests...")
-	go singleClusterSimulation(ctx, duration, target, simulationGeneralResCh, &wg)
+	go singleClusterSimulation(ctx, duration, target, simulationGeneralResCh, wg.Done)
 
 	// start validator requests
 	simulationResCh := make(chan SimulationSingleValidator, params.TotalValidatorsCount)
@@ -808,8 +808,8 @@ func beaconSimulationTest(ctx context.Context, conf *testBeaconConfig, target st
 	return testRes
 }
 
-func singleClusterSimulation(ctx context.Context, simulationDuration time.Duration, target string, resultCh chan SimulationCluster, wg *sync.WaitGroup) {
-	defer wg.Done()
+func singleClusterSimulation(ctx context.Context, simulationDuration time.Duration, target string, resultCh chan SimulationCluster, wgDone func()) {
+	defer wgDone()
 	// per slot requests
 	attestationsForBlockCh := make(chan time.Duration)
 	attestationsForBlockAll := []time.Duration{}
