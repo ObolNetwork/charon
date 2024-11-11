@@ -253,14 +253,7 @@ func mevPingMeasureTest(ctx context.Context, _ *testMEVConfig, target string) te
 		return failedTestResult(testRes, err)
 	}
 
-	if rtt > thresholdMEVMeasurePoor {
-		testRes.Verdict = testVerdictPoor
-	} else if rtt > thresholdMEVMeasureAvg {
-		testRes.Verdict = testVerdictAvg
-	} else {
-		testRes.Verdict = testVerdictGood
-	}
-	testRes.Measurement = Duration{rtt}.String()
+	testRes = evaluateRTT(rtt, testRes, thresholdMEVMeasureAvg, thresholdMEVMeasurePoor)
 
 	return testRes
 }

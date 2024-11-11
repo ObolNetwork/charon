@@ -759,7 +759,7 @@ func peerPingLoadTest(ctx context.Context, conf *testPeersConfig, tcpNode host.H
 	close(testResCh)
 	log.Info(ctx, "Ping load tests finished", z.Any("target", peer.Name))
 
-	testRes = evaluateHighestRTTScore(testResCh, testRes, thresholdPeersLoadAvg, thresholdPeersLoadPoor)
+	testRes = evaluateHighestRTTScores(testResCh, testRes, thresholdPeersLoadAvg, thresholdPeersLoadPoor)
 
 	return testRes
 }
@@ -868,14 +868,7 @@ func relayPingMeasureTest(ctx context.Context, _ *testPeersConfig, target string
 		return failedTestResult(testRes, err)
 	}
 
-	if rtt > thresholdRelayMeasurePoor {
-		testRes.Verdict = testVerdictPoor
-	} else if rtt > thresholdRelayMeasureAvg {
-		testRes.Verdict = testVerdictAvg
-	} else {
-		testRes.Verdict = testVerdictGood
-	}
-	testRes.Measurement = Duration{rtt}.String()
+	testRes = evaluateRTT(rtt, testRes, thresholdRelayMeasureAvg, thresholdRelayMeasurePoor)
 
 	return testRes
 }

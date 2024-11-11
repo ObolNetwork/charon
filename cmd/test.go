@@ -289,7 +289,7 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) error {
 	return nil
 }
 
-func evaluateHighestRTTScore(testResCh chan time.Duration, testRes testResult, avg time.Duration, poor time.Duration) testResult {
+func evaluateHighestRTTScores(testResCh chan time.Duration, testRes testResult, avg time.Duration, poor time.Duration) testResult {
 	highestRTT := time.Duration(0)
 	for rtt := range testResCh {
 		if rtt > highestRTT {
@@ -297,14 +297,18 @@ func evaluateHighestRTTScore(testResCh chan time.Duration, testRes testResult, a
 		}
 	}
 
-	if highestRTT == 0 || highestRTT > poor {
+	return evaluateRTT(highestRTT, testRes, avg, poor)
+}
+
+func evaluateRTT(rtt time.Duration, testRes testResult, avg time.Duration, poor time.Duration) testResult {
+	if rtt == 0 || rtt > poor {
 		testRes.Verdict = testVerdictPoor
-	} else if highestRTT > avg {
+	} else if rtt > avg {
 		testRes.Verdict = testVerdictAvg
 	} else {
 		testRes.Verdict = testVerdictGood
 	}
-	testRes.Measurement = Duration{highestRTT}.String()
+	testRes.Measurement = Duration{rtt}.String()
 
 	return testRes
 }

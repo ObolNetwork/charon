@@ -196,14 +196,7 @@ func validatorPingMeasureTest(ctx context.Context, conf *testValidatorConfig) te
 	defer conn.Close()
 	rtt := time.Since(before)
 
-	if rtt > thresholdValidatorMeasurePoor {
-		testRes.Verdict = testVerdictPoor
-	} else if rtt > thresholdValidatorMeasureAvg {
-		testRes.Verdict = testVerdictAvg
-	} else {
-		testRes.Verdict = testVerdictGood
-	}
-	testRes.Measurement = Duration{rtt}.String()
+	testRes = evaluateRTT(rtt, testRes, thresholdValidatorMeasureAvg, thresholdValidatorMeasurePoor)
 
 	return testRes
 }
@@ -260,7 +253,7 @@ func validatorPingLoadTest(ctx context.Context, conf *testValidatorConfig) testR
 	close(testResCh)
 	log.Info(ctx, "Ping load tests finished", z.Any("target", conf.APIAddress))
 
-	testRes = evaluateHighestRTTScore(testResCh, testRes, thresholdValidatorLoadAvg, thresholdValidatorLoadPoor)
+	testRes = evaluateHighestRTTScores(testResCh, testRes, thresholdValidatorLoadAvg, thresholdValidatorLoadPoor)
 
 	return testRes
 }

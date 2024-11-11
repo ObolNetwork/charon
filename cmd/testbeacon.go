@@ -377,14 +377,7 @@ func beaconPingMeasureTest(ctx context.Context, _ *testBeaconConfig, target stri
 		return failedTestResult(testRes, err)
 	}
 
-	if rtt > thresholdBeaconMeasurePoor {
-		testRes.Verdict = testVerdictPoor
-	} else if rtt > thresholdBeaconMeasureAvg {
-		testRes.Verdict = testVerdictAvg
-	} else {
-		testRes.Verdict = testVerdictGood
-	}
-	testRes.Measurement = Duration{rtt}.String()
+	testRes = evaluateRTT(rtt, testRes, thresholdBeaconMeasureAvg, thresholdBeaconMeasurePoor)
 
 	return testRes
 }
@@ -438,7 +431,7 @@ func beaconPingLoadTest(ctx context.Context, conf *testBeaconConfig, target stri
 	close(testResCh)
 	log.Info(ctx, "Ping load tests finished", z.Any("target", target))
 
-	testRes = evaluateHighestRTTScore(testResCh, testRes, thresholdBeaconLoadAvg, thresholdBeaconLoadPoor)
+	testRes = evaluateHighestRTTScores(testResCh, testRes, thresholdBeaconLoadAvg, thresholdBeaconLoadPoor)
 
 	return testRes
 }
