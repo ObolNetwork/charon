@@ -358,7 +358,7 @@ func beaconPingTest(ctx context.Context, _ *testBeaconConfig, target string) tes
 	defer resp.Body.Close()
 
 	if resp.StatusCode > 399 {
-		return failedTestResult(testRes, errors.New("status code %v", z.Int("status_code", resp.StatusCode)))
+		return failedTestResult(testRes, errors.New(httpStatusError(resp.StatusCode)))
 	}
 
 	testRes.Verdict = testVerdictOk
@@ -390,7 +390,7 @@ func beaconPingOnce(ctx context.Context, target string) (time.Duration, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode > 399 {
-		return 0, errors.New("status code %v", z.Int("status_code", resp.StatusCode))
+		return 0, errors.New(httpStatusError(resp.StatusCode))
 	}
 
 	return firstByte, nil
@@ -502,7 +502,7 @@ func beaconIsSyncedTest(ctx context.Context, _ *testBeaconConfig, target string)
 	}
 
 	if resp.StatusCode > 399 {
-		return failedTestResult(testRes, errors.New("status code %v", z.Int("status_code", resp.StatusCode)))
+		return failedTestResult(testRes, errors.New(httpStatusError(resp.StatusCode)))
 	}
 
 	b, err := io.ReadAll(resp.Body)
@@ -550,7 +550,7 @@ func beaconPeerCountTest(ctx context.Context, _ *testBeaconConfig, target string
 	}
 
 	if resp.StatusCode > 399 {
-		return failedTestResult(testRes, errors.New("status code %v", z.Int("status_code", resp.StatusCode)))
+		return failedTestResult(testRes, errors.New(httpStatusError(resp.StatusCode)))
 	}
 
 	b, err := io.ReadAll(resp.Body)

@@ -755,7 +755,7 @@ func relayPingTest(ctx context.Context, _ *testPeersConfig, target string) testR
 	defer resp.Body.Close()
 
 	if resp.StatusCode > 399 {
-		return failedTestResult(testRes, errors.New("status code %v", z.Int("status_code", resp.StatusCode)))
+		return failedTestResult(testRes, errors.New(httpStatusError(resp.StatusCode)))
 	}
 
 	testRes.Verdict = testVerdictOk
@@ -788,7 +788,7 @@ func relayPingMeasureTest(ctx context.Context, _ *testPeersConfig, target string
 	defer resp.Body.Close()
 
 	if resp.StatusCode > 399 {
-		return failedTestResult(testRes, errors.New("status code %v", z.Int("status_code", resp.StatusCode)))
+		return failedTestResult(testRes, errors.New(httpStatusError(resp.StatusCode)))
 	}
 
 	if firstByte > thresholdRelayMeasurePoor {

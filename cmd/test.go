@@ -141,6 +141,10 @@ func failedTestResult(testRes testResult, err error) testResult {
 	return testRes
 }
 
+func httpStatusError(code int) string {
+	return fmt.Sprintf("HTTP status code %v", code)
+}
+
 func (s *testResultError) UnmarshalText(data []byte) error {
 	if len(data) == 0 {
 		return nil
