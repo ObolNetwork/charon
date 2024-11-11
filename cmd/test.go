@@ -35,6 +35,7 @@ const (
 	validatorTestCategory   = "validator"
 	mevTestCategory         = "mev"
 	performanceTestCategory = "performance"
+	allTestCategory         = "all"
 )
 
 type testConfig struct {
@@ -77,6 +78,16 @@ func listTestCases(cmd *cobra.Command) []string {
 		testCaseNames = maps.Keys(supportedMEVTestCases())
 	case performanceTestCategory:
 		testCaseNames = maps.Keys(supportedPerformanceTestCases())
+	case allTestCategory:
+		testCaseNames = slices.Concat(
+			maps.Keys(supportedPeerTestCases()),
+			maps.Keys(supportedSelfTestCases()),
+			maps.Keys(supportedRelayTestCases()),
+			maps.Keys(supportedBeaconTestCases()),
+			maps.Keys(supportedValidatorTestCases()),
+			maps.Keys(supportedMEVTestCases()),
+			maps.Keys(supportedPerformanceTestCases()),
+		)
 	default:
 		log.Warn(cmd.Context(), "Unknown command for listing test cases", nil, z.Str("name", cmd.Name()))
 	}

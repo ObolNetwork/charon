@@ -92,16 +92,16 @@ func newTestPerformanceCmd(runFunc func(context.Context, io.Writer, testPerforma
 	}
 
 	bindTestFlags(cmd, &config.testConfig)
-	bindTestPerformanceFlags(cmd, &config)
+	bindTestPerformanceFlags(cmd, &config, "")
 
 	return cmd
 }
 
-func bindTestPerformanceFlags(cmd *cobra.Command, config *testPerformanceConfig) {
-	cmd.Flags().StringVar(&config.DiskIOTestFileDir, "disk-io-test-file-dir", "", "Directory at which disk performance will be measured. If none specified, current user's home directory will be used.")
-	cmd.Flags().IntVar(&config.DiskIOBlockSizeKb, "disk-io-block-size-kb", 4096, "The block size in kilobytes used for I/O units. Same value applies for both reads and writes.")
-	cmd.Flags().StringSliceVar(&config.InternetTestServersOnly, "internet-test-servers-only", []string{}, "List of specific server names to be included for the internet tests, the best performing one is chosen. If not provided, closest and best performing servers are chosen automatically.")
-	cmd.Flags().StringSliceVar(&config.InternetTestServersExclude, "internet-test-servers-exclude", []string{}, "List of server names to be excluded from the tests. To be specified only if you experience issues with a server that is wrongly considered best performing.")
+func bindTestPerformanceFlags(cmd *cobra.Command, config *testPerformanceConfig, flagsPrefix string) {
+	cmd.Flags().StringVar(&config.DiskIOTestFileDir, flagsPrefix+"disk-io-test-file-dir", "", "Directory at which disk performance will be measured. If none specified, current user's home directory will be used.")
+	cmd.Flags().IntVar(&config.DiskIOBlockSizeKb, flagsPrefix+"disk-io-block-size-kb", 4096, "The block size in kilobytes used for I/O units. Same value applies for both reads and writes.")
+	cmd.Flags().StringSliceVar(&config.InternetTestServersOnly, flagsPrefix+"internet-test-servers-only", []string{}, "List of specific server names to be included for the internet tests, the best performing one is chosen. If not provided, closest and best performing servers are chosen automatically.")
+	cmd.Flags().StringSliceVar(&config.InternetTestServersExclude, flagsPrefix+"internet-test-servers-exclude", []string{}, "List of server names to be excluded from the tests. To be specified only if you experience issues with a server that is wrongly considered best performing.")
 }
 
 func supportedPerformanceTestCases() map[testCaseName]func(context.Context, *testPerformanceConfig) testResult {

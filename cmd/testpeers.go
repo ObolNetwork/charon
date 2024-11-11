@@ -83,7 +83,7 @@ func newTestPeersCmd(runFunc func(context.Context, io.Writer, testPeersConfig) e
 	}
 
 	bindTestFlags(cmd, &config.testConfig)
-	bindTestPeersFlags(cmd, &config)
+	bindTestPeersFlags(cmd, &config, "")
 	bindP2PFlags(cmd, &config.P2P)
 	bindDataDirFlag(cmd.Flags(), &config.DataDir)
 	bindTestLogFlags(cmd.Flags(), &config.Log)
@@ -116,14 +116,13 @@ func newTestPeersCmd(runFunc func(context.Context, io.Writer, testPeersConfig) e
 	return cmd
 }
 
-func bindTestPeersFlags(cmd *cobra.Command, config *testPeersConfig) {
-	const enrs = "enrs"
-	cmd.Flags().StringSliceVar(&config.ENRs, enrs, nil, "Comma-separated list of each peer ENR address.")
-	cmd.Flags().DurationVar(&config.KeepAlive, "keep-alive", 30*time.Minute, "Time to keep TCP node alive after test completion, so connection is open for other peers to test on their end.")
-	cmd.Flags().DurationVar(&config.LoadTestDuration, "load-test-duration", 30*time.Second, "Time to keep running the load tests in seconds. For each second a new continuous ping instance is spawned.")
-	cmd.Flags().DurationVar(&config.DirectConnectionTimeout, "direct-connection-timeout", 2*time.Minute, "Time to keep trying to establish direct connection to peer.")
-	cmd.Flags().StringVar(&config.ClusterLockFilePath, "cluster-lock-file-path", "", "Path to cluster lock file, used to fetch peers' ENR addresses.")
-	cmd.Flags().StringVar(&config.ClusterDefinitionFilePath, "cluster-definition-file-path", "", "Path to cluster definition file, used to fetch peers' ENR addresses.")
+func bindTestPeersFlags(cmd *cobra.Command, config *testPeersConfig, flagsPrefix string) {
+	cmd.Flags().StringSliceVar(&config.ENRs, flagsPrefix+"enrs", nil, "[REQUIRED] Comma-separated list of each peer ENR address.")
+	cmd.Flags().DurationVar(&config.KeepAlive, flagsPrefix+"keep-alive", 30*time.Minute, "Time to keep TCP node alive after test completion, so connection is open for other peers to test on their end.")
+	cmd.Flags().DurationVar(&config.LoadTestDuration, flagsPrefix+"load-test-duration", 30*time.Second, "Time to keep running the load tests in seconds. For each second a new continuous ping instance is spawned.")
+	cmd.Flags().DurationVar(&config.DirectConnectionTimeout, flagsPrefix+"direct-connection-timeout", 2*time.Minute, "Time to keep trying to establish direct connection to peer.")
+	cmd.Flags().StringVar(&config.ClusterLockFilePath, flagsPrefix+"cluster-lock-file-path", "", "Path to cluster lock file, used to fetch peers' ENR addresses.")
+	cmd.Flags().StringVar(&config.ClusterDefinitionFilePath, flagsPrefix+"cluster-definition-file-path", "", "Path to cluster definition file, used to fetch peers' ENR addresses.")
 }
 
 func bindTestLogFlags(flags *pflag.FlagSet, config *log.Config) {

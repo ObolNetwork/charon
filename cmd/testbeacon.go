@@ -177,20 +177,18 @@ func newTestBeaconCmd(runFunc func(context.Context, io.Writer, testBeaconConfig)
 	}
 
 	bindTestFlags(cmd, &config.testConfig)
-	bindTestBeaconFlags(cmd, &config)
+	bindTestBeaconFlags(cmd, &config, "")
 
 	return cmd
 }
 
-func bindTestBeaconFlags(cmd *cobra.Command, config *testBeaconConfig) {
-	const endpoints = "endpoints"
-	cmd.Flags().StringSliceVar(&config.Endpoints, endpoints, nil, "[REQUIRED] Comma separated list of one or more beacon node endpoint URLs.")
-	mustMarkFlagRequired(cmd, endpoints)
-	cmd.Flags().BoolVar(&config.LoadTest, "load-test", false, "Enable load test, not advisable when testing towards external beacon nodes.")
-	cmd.Flags().DurationVar(&config.LoadTestDuration, "load-test-duration", 5*time.Second, "Time to keep running the load tests in seconds. For each second a new continuous ping instance is spawned.")
-	cmd.Flags().StringVar(&config.SimulationFileDir, "simulation-file-dir", "./", "JSON directory to which simulation file results will be written.")
-	cmd.Flags().IntVar(&config.SimulationDuration, "simulation-duration-in-slots", slotsInEpoch, "Time to keep running the simulation in slots.")
-	cmd.Flags().BoolVar(&config.SimulationVerbose, "simulation-verbose", false, "Show results for each request and each validator.")
+func bindTestBeaconFlags(cmd *cobra.Command, config *testBeaconConfig, flagsPrefix string) {
+	cmd.Flags().StringSliceVar(&config.Endpoints, flagsPrefix+"endpoints", nil, "[REQUIRED] Comma separated list of one or more beacon node endpoint URLs.")
+	cmd.Flags().BoolVar(&config.LoadTest, flagsPrefix+"load-test", false, "Enable load test, not advisable when testing towards external beacon nodes.")
+	cmd.Flags().DurationVar(&config.LoadTestDuration, flagsPrefix+"load-test-duration", 5*time.Second, "Time to keep running the load tests in seconds. For each second a new continuous ping instance is spawned.")
+	cmd.Flags().IntVar(&config.SimulationDuration, flagsPrefix+"simulation-duration-in-slots", slotsInEpoch, "Time to keep running the simulation in slots.")
+	cmd.Flags().BoolVar(&config.SimulationVerbose, flagsPrefix+"simulation-verbose", false, "Show results for each request and each validator.")
+	mustMarkFlagRequired(cmd, flagsPrefix+"endpoints")
 }
 
 func supportedBeaconTestCases() map[testCaseName]testCaseBeacon {

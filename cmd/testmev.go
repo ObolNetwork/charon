@@ -48,13 +48,13 @@ func newTestMEVCmd(runFunc func(context.Context, io.Writer, testMEVConfig) error
 	}
 
 	bindTestFlags(cmd, &config.testConfig)
-	bindTestMEVFlags(cmd, &config)
+	bindTestMEVFlags(cmd, &config, "")
 
 	return cmd
 }
 
-func bindTestMEVFlags(cmd *cobra.Command, config *testMEVConfig) {
-	const endpoints = "endpoints"
+func bindTestMEVFlags(cmd *cobra.Command, config *testMEVConfig, flagsPrefix string) {
+	endpoints := flagsPrefix + "endpoints"
 	cmd.Flags().StringSliceVar(&config.Endpoints, endpoints, nil, "[REQUIRED] Comma separated list of one or more MEV relay endpoint URLs.")
 	mustMarkFlagRequired(cmd, endpoints)
 }

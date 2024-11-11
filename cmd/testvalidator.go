@@ -49,14 +49,14 @@ func newTestValidatorCmd(runFunc func(context.Context, io.Writer, testValidatorC
 	}
 
 	bindTestFlags(cmd, &config.testConfig)
-	bindTestValidatorFlags(cmd, &config)
+	bindTestValidatorFlags(cmd, &config, "")
 
 	return cmd
 }
 
-func bindTestValidatorFlags(cmd *cobra.Command, config *testValidatorConfig) {
-	cmd.Flags().StringVar(&config.APIAddress, "validator-api-address", "127.0.0.1:3600", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API.")
-	cmd.Flags().DurationVar(&config.LoadTestDuration, "load-test-duration", 5*time.Second, "Time to keep running the load tests in seconds. For each second a new continuous ping instance is spawned.")
+func bindTestValidatorFlags(cmd *cobra.Command, config *testValidatorConfig, flagsPrefix string) {
+	cmd.Flags().StringVar(&config.APIAddress, flagsPrefix+"validator-api-address", "127.0.0.1:3600", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API.")
+	cmd.Flags().DurationVar(&config.LoadTestDuration, flagsPrefix+"load-test-duration", 5*time.Second, "Time to keep running the load tests in seconds. For each second a new continuous ping instance is spawned.")
 }
 
 func supportedValidatorTestCases() map[testCaseName]func(context.Context, *testValidatorConfig) testResult {
