@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -13,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptrace"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -31,19 +33,22 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
 )
 
 type testPeersConfig struct {
 	testConfig
-	ENRs                    []string
-	P2P                     p2p.Config
-	Log                     log.Config
-	DataDir                 string
-	KeepAlive               time.Duration
-	LoadTestDuration        time.Duration
-	DirectConnectionTimeout time.Duration
+	ENRs                      []string
+	P2P                       p2p.Config
+	Log                       log.Config
+	DataDir                   string
+	KeepAlive                 time.Duration
+	LoadTestDuration          time.Duration
+	DirectConnectionTimeout   time.Duration
+	ClusterLockFilePath       string
+	ClusterDefinitionFilePath string
 }
 
 type (
@@ -83,16 +88,42 @@ func newTestPeersCmd(runFunc func(context.Context, io.Writer, testPeersConfig) e
 	bindDataDirFlag(cmd.Flags(), &config.DataDir)
 	bindTestLogFlags(cmd.Flags(), &config.Log)
 
+	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
+		const (
+			enrs                      = "enrs"
+			clusterLockFilePath       = "cluster-lock-file-path"
+			clusterDefinitionFilePath = "cluster-definition-file-path"
+		)
+		enrsValue := cmd.Flags().Lookup(enrs).Value.String()
+		clusterLockPathValue := cmd.Flags().Lookup(clusterLockFilePath).Value.String()
+		clusterDefinitionPathValue := cmd.Flags().Lookup(clusterDefinitionFilePath).Value.String()
+
+		if enrsValue == "[]" && clusterLockPathValue == "" && clusterDefinitionPathValue == "" {
+			//nolint:revive // we use our own version of the errors package.
+			return errors.New(fmt.Sprintf("--%v, --%v or --%v must be specified.", enrs, clusterLockFilePath, clusterDefinitionFilePath))
+		}
+
+		if (enrsValue != "[]" && clusterLockPathValue != "") ||
+			(enrsValue != "[]" && clusterDefinitionPathValue != "") ||
+			(clusterLockPathValue != "" && clusterDefinitionPathValue != "") {
+			//nolint:revive // we use our own version of the errors package.
+			return errors.New(fmt.Sprintf("Only one of --%v, --%v or --%v should be specified.", enrs, clusterLockFilePath, clusterDefinitionFilePath))
+		}
+
+		return nil
+	})
+
 	return cmd
 }
 
 func bindTestPeersFlags(cmd *cobra.Command, config *testPeersConfig) {
 	const enrs = "enrs"
-	cmd.Flags().StringSliceVar(&config.ENRs, enrs, nil, "[REQUIRED] Comma-separated list of each peer ENR address.")
+	cmd.Flags().StringSliceVar(&config.ENRs, enrs, nil, "Comma-separated list of each peer ENR address.")
 	cmd.Flags().DurationVar(&config.KeepAlive, "keep-alive", 30*time.Minute, "Time to keep TCP node alive after test completion, so connection is open for other peers to test on their end.")
 	cmd.Flags().DurationVar(&config.LoadTestDuration, "load-test-duration", 30*time.Second, "Time to keep running the load tests in seconds. For each second a new continuous ping instance is spawned.")
 	cmd.Flags().DurationVar(&config.DirectConnectionTimeout, "direct-connection-timeout", 2*time.Minute, "Time to keep trying to establish direct connection to peer.")
-	mustMarkFlagRequired(cmd, enrs)
+	cmd.Flags().StringVar(&config.ClusterLockFilePath, "cluster-lock-file-path", "", "Path to cluster lock file, used to fetch peers' ENR addresses.")
+	cmd.Flags().StringVar(&config.ClusterDefinitionFilePath, "cluster-definition-file-path", "", "Path to cluster definition file, used to fetch peers' ENR addresses.")
 }
 
 func bindTestLogFlags(flags *pflag.FlagSet, config *log.Config) {
@@ -124,9 +155,83 @@ func supportedSelfTestCases() map[testCaseName]testCasePeerSelf {
 	}
 }
 
+func fetchPeersFromDefinition(path string) ([]string, error) {
+	f, err := os.ReadFile(path)
+	if err != nil {
+		return nil, errors.Wrap(err, "read definition file", z.Str("path", path))
+	}
+
+	var def cluster.Definition
+	err = json.Unmarshal(f, &def)
+	if err != nil {
+		return nil, errors.Wrap(err, "unmarshal definition json", z.Str("path", path))
+	}
+
+	var enrs []string
+	for _, o := range def.Operators {
+		enrs = append(enrs, o.ENR)
+	}
+
+	if len(enrs) == 0 {
+		return nil, errors.New("no peers found in lock", z.Str("path", path))
+	}
+
+	return enrs, nil
+}
+
+func fetchPeersFromLock(path string) ([]string, error) {
+	f, err := os.ReadFile(path)
+	if err != nil {
+		return nil, errors.Wrap(err, "read lock file", z.Str("path", path))
+	}
+
+	var lock cluster.Lock
+	err = json.Unmarshal(f, &lock)
+	if err != nil {
+		return nil, errors.Wrap(err, "unmarshal lock json", z.Str("path", path))
+	}
+
+	var enrs []string
+	for _, o := range lock.Operators {
+		enrs = append(enrs, o.ENR)
+	}
+
+	if len(enrs) == 0 {
+		return nil, errors.New("no peers found in lock", z.Str("path", path))
+	}
+
+	return enrs, nil
+}
+
+func fetchENRs(conf testPeersConfig) ([]string, error) {
+	var enrs []string
+	var err error
+	switch {
+	case len(conf.ENRs) != 0:
+		enrs = conf.ENRs
+	case conf.ClusterDefinitionFilePath != "":
+		enrs, err = fetchPeersFromDefinition(conf.ClusterDefinitionFilePath)
+		if err != nil {
+			return nil, err
+		}
+	case conf.ClusterLockFilePath != "":
+		enrs, err = fetchPeersFromLock(conf.ClusterLockFilePath)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return enrs, nil
+}
+
 func startTCPNode(ctx context.Context, conf testPeersConfig) (host.Host, func(), error) {
-	var p2pPeers []p2p.Peer
-	for i, enrString := range conf.ENRs {
+	enrs, err := fetchENRs(conf)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var peers []p2p.Peer
+	for i, enrString := range enrs {
 		enrRecord, err := enr.Parse(enrString)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "decode enr", z.Str("enr", enrString))
@@ -137,7 +242,7 @@ func startTCPNode(ctx context.Context, conf testPeersConfig) (host.Host, func(),
 			return nil, nil, err
 		}
 
-		p2pPeers = append(p2pPeers, p2pPeer)
+		peers = append(peers, p2pPeer)
 	}
 
 	p2pPrivKey, err := p2p.LoadPrivKey(conf.DataDir)
@@ -150,22 +255,22 @@ func startTCPNode(ctx context.Context, conf testPeersConfig) (host.Host, func(),
 		return nil, nil, err
 	}
 
-	mePeer, err := p2p.NewPeerFromENR(meENR, len(conf.ENRs))
+	mePeer, err := p2p.NewPeerFromENR(meENR, len(enrs))
 	if err != nil {
 		return nil, nil, err
 	}
 
 	log.Info(ctx, "Self p2p name resolved", z.Any("name", mePeer.Name))
 
-	p2pPeers = append(p2pPeers, mePeer)
+	peers = append(peers, mePeer)
 
-	allENRs := conf.ENRs
+	allENRs := enrs
 	allENRs = append(allENRs, meENR.String())
 	slices.Sort(allENRs)
 	allENRsString := strings.Join(allENRs, ",")
 	allENRsHash := sha256.Sum256([]byte(allENRsString))
 
-	return setupP2P(ctx, p2pPrivKey, conf.P2P, p2pPeers, allENRsHash[:])
+	return setupP2P(ctx, p2pPrivKey, conf.P2P, peers, allENRsHash[:])
 }
 
 func setupP2P(ctx context.Context, privKey *k1.PrivateKey, conf p2p.Config, peers []p2p.Peer, enrsHash []byte) (host.Host, func(), error) {
@@ -420,7 +525,11 @@ func testAllPeers(ctx context.Context, queuedTestCases []testCaseName, allTestCa
 	singlePeerResCh := make(chan map[string][]testResult)
 	group, _ := errgroup.WithContext(ctx)
 
-	for _, enr := range conf.ENRs {
+	enrs, err := fetchENRs(conf)
+	if err != nil {
+		return err
+	}
+	for _, enr := range enrs {
 		currENR := enr // TODO: can be removed after go1.22 version bump
 		group.Go(func() error {
 			return testSinglePeer(ctx, queuedTestCases, allTestCases, conf, tcpNode, currENR, singlePeerResCh)
@@ -435,7 +544,7 @@ func testAllPeers(ctx context.Context, queuedTestCases []testCaseName, allTestCa
 		doneReading <- true
 	}()
 
-	err := group.Wait()
+	err = group.Wait()
 	if err != nil {
 		return errors.Wrap(err, "peers test errgroup")
 	}
