@@ -12,7 +12,7 @@
 
 ## Overview
 
-To make a distributed validator with no-fault tolerance (i.e. all nodes need to be online to sign every message), due to the BLS signature scheme used by Proof of Stake Ethereum, each key share could be chosen by operators independently. However, to create a distributed validator that can stay online despite a subset of its nodes going offline, the key shares need to be generated together. (4 randomly chosen points on a graph don't all necessarily sit on the same order three curve.) To do this in a secure manner with no one party being trusted to distribute the keys requires what is known as a distributed key generation ceremony.
+To make a distributed validator with no fault-tolerance (i.e. all nodes need to be online to sign every message), due to the BLS signature scheme used by Proof of Stake Ethereum, each key share could be chosen by operators independently. However, to create a distributed validator that can stay online despite a subset of its nodes going offline, the key shares need to be generated together. (4 randomly chosen points on a graph don't all necessarily sit on the same order three curve.) To do this in a secure manner with no one party being trusted to distribute the keys requires what is known as a distributed key generation ceremony.
 
 The charon client has the responsibility of securely completing a distributed key generation ceremony with its counterparty nodes. The ceremony configuration is outlined in a [cluster configuration](https://docs.obol.tech/docs/dv/distributed-validator-cluster-manifest).
 
