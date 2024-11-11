@@ -16,6 +16,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 )
 
 type testMEVConfig struct {
@@ -35,8 +36,8 @@ func newTestMEVCmd(runFunc func(context.Context, io.Writer, testMEVConfig) error
 
 	cmd := &cobra.Command{
 		Use:   "mev",
-		Short: "Run multiple tests towards mev nodes",
-		Long:  `Run multiple tests towards mev nodes. Verify that Charon can efficiently interact with MEV Node(s).`,
+		Short: "Run multiple tests towards MEV relays",
+		Long:  `Run multiple tests towards MEV relays. Verify that Charon can efficiently interact with MEV relay(s).`,
 		Args:  cobra.NoArgs,
 		PreRunE: func(cmd *cobra.Command, _ []string) error {
 			return mustOutputToFileOnQuiet(cmd)
