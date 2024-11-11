@@ -276,6 +276,26 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) error {
 	return nil
 }
 
+func evaluateHighestRTTScore(testResCh chan time.Duration, testRes testResult, avg time.Duration, poor time.Duration) testResult {
+	highestRTT := time.Duration(0)
+	for rtt := range testResCh {
+		if rtt > highestRTT {
+			highestRTT = rtt
+		}
+	}
+
+	if highestRTT == 0 || highestRTT > poor {
+		testRes.Verdict = testVerdictPoor
+	} else if highestRTT > avg {
+		testRes.Verdict = testVerdictAvg
+	} else {
+		testRes.Verdict = testVerdictGood
+	}
+	testRes.Measurement = Duration{highestRTT}.String()
+
+	return testRes
+}
+
 func calculateScore(results []testResult) categoryScore {
 	// TODO(kalo): calculate score more elaborately (potentially use weights)
 	avg := 0

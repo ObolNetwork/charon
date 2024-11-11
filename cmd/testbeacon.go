@@ -210,6 +210,8 @@ func supportedBeaconTestCases() map[testCaseName]testCaseBeacon {
 }
 
 func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (err error) {
+	log.Info(ctx, "Starting beacon node test")
+
 	testCases := supportedBeaconTestCases()
 	queuedTests := filterTests(maps.Keys(testCases), cfg.testConfig)
 	if len(queuedTests) == 0 {
@@ -465,20 +467,7 @@ func beaconPingLoadTest(ctx context.Context, conf *testBeaconConfig, target stri
 	close(testResCh)
 	log.Info(ctx, "Ping load tests finished", z.Any("target", target))
 
-	highestRTT := time.Duration(0)
-	for rtt := range testResCh {
-		if rtt > highestRTT {
-			highestRTT = rtt
-		}
-	}
-	if highestRTT > thresholdBeaconLoadPoor {
-		testRes.Verdict = testVerdictPoor
-	} else if highestRTT > thresholdBeaconLoadAvg {
-		testRes.Verdict = testVerdictAvg
-	} else {
-		testRes.Verdict = testVerdictGood
-	}
-	testRes.Measurement = Duration{highestRTT}.String()
+	testRes = evaluateHighestRTTScore(testResCh, testRes, thresholdBeaconLoadAvg, thresholdBeaconLoadPoor)
 
 	return testRes
 }

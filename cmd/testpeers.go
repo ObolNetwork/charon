@@ -327,7 +327,7 @@ func pingPeerOnce(ctx context.Context, tcpNode host.Host, peer p2p.Peer) (ping.R
 	return result, nil
 }
 
-func pingPeerContinuously(ctx context.Context, tcpNode host.Host, peer p2p.Peer, resCh chan<- ping.Result) {
+func pingPeerContinuously(ctx context.Context, tcpNode host.Host, peer p2p.Peer, resCh chan<- time.Duration) {
 	for {
 		r, err := pingPeerOnce(ctx, tcpNode, peer)
 		if err != nil {
@@ -337,7 +337,7 @@ func pingPeerContinuously(ctx context.Context, tcpNode host.Host, peer p2p.Peer,
 		select {
 		case <-ctx.Done():
 			return
-		case resCh <- r:
+		case resCh <- r.RTT:
 			awaitTime := rand.Intn(100) //nolint:gosec // weak generator is not an issue here
 			sleepWithContext(ctx, time.Duration(awaitTime)*time.Millisecond)
 		}
@@ -345,6 +345,8 @@ func pingPeerContinuously(ctx context.Context, tcpNode host.Host, peer p2p.Peer,
 }
 
 func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) error {
+	log.Info(ctx, "Starting charon peers and relays test")
+
 	relayTestCases := supportedRelayTestCases()
 	queuedTestsRelay := filterTests(maps.Keys(relayTestCases), conf.testConfig)
 	sortTests(queuedTestsRelay)
@@ -737,7 +739,7 @@ func peerPingLoadTest(ctx context.Context, conf *testPeersConfig, tcpNode host.H
 	)
 	testRes := testResult{Name: "PingLoad"}
 
-	testResCh := make(chan ping.Result, math.MaxInt16)
+	testResCh := make(chan time.Duration, math.MaxInt16)
 	pingCtx, cancel := context.WithTimeout(ctx, conf.LoadTestDuration)
 	defer cancel()
 	ticker := time.NewTicker(time.Second)
@@ -759,20 +761,7 @@ func peerPingLoadTest(ctx context.Context, conf *testPeersConfig, tcpNode host.H
 	close(testResCh)
 	log.Info(ctx, "Ping load tests finished", z.Any("target", peer.Name))
 
-	highestRTT := time.Duration(0)
-	for val := range testResCh {
-		if val.RTT > highestRTT {
-			highestRTT = val.RTT
-		}
-	}
-	if highestRTT > thresholdPeersLoadPoor {
-		testRes.Verdict = testVerdictPoor
-	} else if highestRTT > thresholdPeersLoadAvg {
-		testRes.Verdict = testVerdictAvg
-	} else {
-		testRes.Verdict = testVerdictGood
-	}
-	testRes.Measurement = Duration{highestRTT}.String()
+	testRes = evaluateHighestRTTScore(testResCh, testRes, thresholdPeersLoadAvg, thresholdPeersLoadPoor)
 
 	return testRes
 }

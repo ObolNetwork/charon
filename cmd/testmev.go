@@ -66,6 +66,8 @@ func supportedMEVTestCases() map[testCaseName]testCaseMEV {
 }
 
 func runTestMEV(ctx context.Context, w io.Writer, cfg testMEVConfig) (err error) {
+	log.Info(ctx, "Starting MEV relays test")
+
 	testCases := supportedMEVTestCases()
 	queuedTests := filterTests(maps.Keys(testCases), cfg.testConfig)
 	if len(queuedTests) == 0 {

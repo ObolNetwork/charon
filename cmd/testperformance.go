@@ -119,6 +119,8 @@ func supportedPerformanceTestCases() map[testCaseName]func(context.Context, *tes
 }
 
 func runTestPerformance(ctx context.Context, w io.Writer, cfg testPerformanceConfig) (err error) {
+	log.Info(ctx, "Starting machine performance and network connectivity test")
+
 	testCases := supportedPerformanceTestCases()
 	queuedTests := filterTests(maps.Keys(testCases), cfg.testConfig)
 	if len(queuedTests) == 0 {
