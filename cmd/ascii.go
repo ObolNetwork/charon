@@ -39,7 +39,7 @@ func validatorASCII() []string {
 
 func mevASCII() []string {
 	return []string{
-		"__  __ ________      __                                         ",
+		" __  __ ________      __                                        ",
 		"|  \\/  |  ____\\ \\    / /                                        ",
 		"| \\  / | |__   \\ \\  / /                                         ",
 		"| |\\/| |  __|   \\ \\/ /                                          ",
