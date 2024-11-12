@@ -2,8 +2,6 @@
 
 package hotstuff
 
-import "github.com/obolnetwork/charon/tbls"
-
 // ID uniquely identifies a replica. The first replica has ID = 0.
 type ID uint64
 
@@ -101,13 +99,5 @@ type QC struct {
 	Type  MsgType
 	View  View
 	Value string
-	Sig   []byte
-}
-
-func (qc *QC) Verify(pubKey tbls.PublicKey) error {
-	if qc == nil {
-		return nil
-	}
-
-	return Verify(pubKey, qc.Type, qc.View, qc.Value, qc.Sig)
+	Sigs  [][]byte
 }

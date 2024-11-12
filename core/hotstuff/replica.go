@@ -6,10 +6,12 @@ import (
 	"context"
 	"time"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
+
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/tbls"
 )
 
 // Replica represents a single HotStuff replica.
@@ -50,8 +52,8 @@ func NewReplica(id ID, cluster *Cluster, transport Transport[Msg], phaseTimeout 
 	}, nil
 }
 
-func (p *Replica) Run(ctx context.Context, done func()) {
-	ctx = log.WithCtx(log.WithTopic(ctx, "hotstuff"), z.Uint("replica", uint(p.id)))
+func (r *Replica) Run(ctx context.Context, done func()) {
+	ctx = log.WithCtx(log.WithTopic(ctx, "hotstuff"), z.Uint("replica", uint(r.id)))
 
 	defer func() {
 		log.Debug(ctx, "Stopped")
@@ -61,64 +63,64 @@ func (p *Replica) Run(ctx context.Context, done func()) {
 	log.Debug(ctx, "Starting")
 
 	// Initially all replicas send a NewView message to the leader.
-	if err := p.sendNewView(ctx); err != nil {
+	if err := r.sendNewView(ctx); err != nil {
 		log.Error(ctx, "Failed to send new_view", err)
 	}
 
 	for {
 		select {
-		case msg, ok := <-p.recvCh:
+		case msg, ok := <-r.recvCh:
 			if !ok {
 				return
 			}
-			p.handleMsg(ctx, msg)
+			r.handleMsg(ctx, msg)
 		case <-ctx.Done():
 			return
-		case <-time.After(p.phaseTimeout):
+		case <-time.After(r.phaseTimeout):
 			log.Warn(ctx, "Phase timeout", nil)
-			if err := p.nextView(ctx); err != nil {
+			if err := r.nextView(ctx); err != nil {
 				log.Error(ctx, "Failed to move to next view", err)
 			}
 		}
 	}
 }
 
-func (p *Replica) handleMsg(ctx context.Context, msg Msg) {
+func (r *Replica) handleMsg(ctx context.Context, msg Msg) {
 	ctx = log.WithCtx(ctx,
 		z.U64("sender", uint64(msg.Sender)),
-		z.U64("view", uint64(p.view)),
-		z.Str("phase", p.phase.String()))
+		z.U64("view", uint64(r.view)),
+		z.Str("phase", r.phase.String()))
 
-	leader := p.cluster.Leader(p.view)
+	leader := r.cluster.Leader(r.view)
 
 	log.Debug(ctx, "Processing message "+msg.Type.String(), z.U64("leader", uint64(leader)))
 
 	// NewView message has special handling
 	if msg.Type == MsgNewView {
-		if leader != p.id {
+		if leader != r.id {
 			log.Debug(ctx, "NewView message ignored due to wrong leader")
 		} else {
-			p.leaderNewView(ctx, msg)
+			r.leaderNewView(ctx, msg)
 		}
 
 		return
 	}
 
-	if msg.View != p.view {
+	if msg.View != r.view {
 		log.Debug(ctx, "Message ignored due to wrong view")
 		return
 	}
 
-	if leader == p.id && msg.Vote {
-		p.leaderDuty(ctx, msg)
+	if leader == r.id && msg.Vote {
+		r.leaderDuty(ctx, msg)
 	}
 
 	if !msg.Vote {
-		p.replicaDuty(ctx, msg, leader)
+		r.replicaDuty(ctx, msg, leader)
 	}
 }
 
-func (p *Replica) leaderDuty(ctx context.Context, msg Msg) {
+func (r *Replica) leaderDuty(ctx context.Context, msg Msg) {
 	validLeaderMsgInPhase := map[Phase]MsgType{
 		PreparePhase:   MsgPrepare,
 		PreCommitPhase: MsgPrepare,
@@ -126,33 +128,29 @@ func (p *Replica) leaderDuty(ctx context.Context, msg Msg) {
 		DecidePhase:    MsgCommit,
 	}
 
-	if t, ok := validLeaderMsgInPhase[p.leaderPhase]; !ok || msg.Type != t {
+	if t, ok := validLeaderMsgInPhase[r.leaderPhase]; !ok || msg.Type != t {
 		return
 	}
 
-	p.collector.AddMsg(&msg)
-	mm := p.collector.MatchingMsg(MsgPrepare, p.view)
-	if len(mm) < int(p.cluster.threshold) {
+	r.collector.AddMsg(&msg)
+	mm := r.collector.MatchingMsg(MsgPrepare, r.view)
+	if len(mm) < int(r.cluster.threshold) {
 		return
 	}
 
-	qc, err := createQC(mm)
-	if err != nil {
-		log.Error(ctx, "Failed to construct qc", err)
-		return
-	}
-	if err := qc.Verify(p.cluster.publicKey); err != nil {
+	qc := createQC(mm)
+	if err := r.verifyQC(qc); err != nil {
 		log.Error(ctx, "Failed to verify qc", err)
 		return
 	}
 
-	p.leaderPhase = p.leaderPhase.NextPhase()
+	r.leaderPhase = r.leaderPhase.NextPhase()
 
 	t := msg.Type.NextMsgType()
-	err = p.transport.Broadcast(ctx, Msg{
-		Sender:  p.id,
+	err := r.transport.Broadcast(ctx, Msg{
+		Sender:  r.id,
 		Type:    t,
-		View:    p.view,
+		View:    r.view,
 		Justify: qc,
 	})
 	if err != nil {
@@ -160,31 +158,33 @@ func (p *Replica) leaderDuty(ctx context.Context, msg Msg) {
 	}
 }
 
-func (p *Replica) leaderNewView(ctx context.Context, msg Msg) {
-	if p.leaderPhase != PreparePhase || msg.Type != MsgNewView {
+func (r *Replica) leaderNewView(ctx context.Context, msg Msg) {
+	if r.leaderPhase != PreparePhase || msg.Type != MsgNewView {
 		return
 	}
 
-	p.collector.AddMsg(&msg)
-	mm := p.collector.MatchingMsg(MsgNewView, p.view-1)
-	if len(mm) < int(p.cluster.threshold) {
+	r.collector.AddMsg(&msg)
+	mm := r.collector.MatchingMsg(MsgNewView, r.view-1)
+	if len(mm) < int(r.cluster.threshold) {
 		return
 	}
 
 	// HighQC will be nil in the first view
 	highQC := selectHighQC(mm)
-	if err := highQC.Verify(p.cluster.publicKey); err != nil {
-		log.Error(ctx, "Failed to verify qc", err)
-		return
+	if highQC != nil {
+		if err := r.verifyQC(highQC); err != nil {
+			log.Error(ctx, "Failed to verify qc", err)
+			return
+		}
 	}
 
-	p.leaderPhase = p.leaderPhase.NextPhase()
+	r.leaderPhase = r.leaderPhase.NextPhase()
 
-	newValue := <-p.cluster.inputCh
-	err := p.transport.Broadcast(ctx, Msg{
-		Sender:  p.id,
+	newValue := <-r.cluster.inputCh
+	err := r.transport.Broadcast(ctx, Msg{
+		Sender:  r.id,
 		Type:    MsgPrepare,
-		View:    p.view,
+		View:    r.view,
 		Value:   newValue,
 		Justify: highQC,
 	})
@@ -193,77 +193,77 @@ func (p *Replica) leaderNewView(ctx context.Context, msg Msg) {
 	}
 }
 
-func (p *Replica) sendNewView(ctx context.Context) error {
-	nextLeader := p.cluster.Leader(p.view)
+func (r *Replica) sendNewView(ctx context.Context) error {
+	nextLeader := r.cluster.Leader(r.view)
 
-	return p.transport.SendTo(ctx, nextLeader, Msg{
-		Sender:  p.id,
+	return r.transport.SendTo(ctx, nextLeader, Msg{
+		Sender:  r.id,
 		Type:    MsgNewView,
-		View:    p.view - 1,
-		Justify: p.prepareQC,
+		View:    r.view - 1,
+		Justify: r.prepareQC,
 	})
 }
 
-func (p *Replica) nextView(ctx context.Context) error {
-	p.view++
-	p.phase = PreparePhase
-	p.leaderPhase = PreparePhase
-	p.prepareQC = nil
-	p.lockedQC = nil
+func (r *Replica) nextView(ctx context.Context) error {
+	r.view++
+	r.phase = PreparePhase
+	r.leaderPhase = PreparePhase
+	r.prepareQC = nil
+	r.lockedQC = nil
 
-	return p.sendNewView(ctx)
+	return r.sendNewView(ctx)
 }
 
-func (p *Replica) replicaDuty(ctx context.Context, msg Msg, leader ID) {
-	currentPhase := p.phase
-	p.phase = p.phase.NextPhase()
+func (r *Replica) replicaDuty(ctx context.Context, msg Msg, leader ID) {
+	currentPhase := r.phase
+	r.phase = r.phase.NextPhase()
 
 	switch currentPhase {
 	case PreparePhase:
-		if !p.safeNode(msg.Justify) {
+		if !r.safeNode(msg.Justify) {
 			log.Error(ctx, "Unsafe node", nil)
 		} else {
-			p.sendVote(ctx, MsgPrepare, msg.Value, leader)
+			r.sendVote(ctx, MsgPrepare, msg.Value, leader)
 		}
 	case PreCommitPhase:
-		p.prepareQC = msg.Justify
-		p.sendVote(ctx, MsgPreCommit, msg.Value, leader)
+		r.prepareQC = msg.Justify
+		r.sendVote(ctx, MsgPreCommit, msg.Value, leader)
 	case CommitPhase:
-		p.lockedQC = msg.Justify
-		p.sendVote(ctx, MsgCommit, msg.Justify.Value, leader)
+		r.lockedQC = msg.Justify
+		r.sendVote(ctx, MsgCommit, msg.Justify.Value, leader)
 	case DecidePhase:
 		log.Info(ctx, "Decided value", z.Str("value", msg.Justify.Value))
-		p.cluster.outputCh <- msg.Justify.Value
+		r.cluster.outputCh <- msg.Justify.Value
 	default:
 		log.Debug(ctx, "Ignoring message in terminal phase")
 	}
 }
 
-func (p *Replica) safeNode(qc *QC) bool {
+func (r *Replica) safeNode(qc *QC) bool {
 	if qc == nil {
 		// Initial view has no justification
 		return true
 	}
 
-	if p.lockedQC == nil {
+	if r.lockedQC == nil {
 		return true
 	}
 
 	// Liveness rule
-	return qc.View > p.lockedQC.View
+	return qc.View > r.lockedQC.View
 }
 
-func (p *Replica) sendVote(ctx context.Context, t MsgType, value string, leader ID) {
+func (r *Replica) sendVote(ctx context.Context, t MsgType, value string, leader ID) {
 	voteMsg := Msg{
-		Sender: p.id,
+		Sender: r.id,
 		Type:   t,
-		View:   p.view,
+		View:   r.view,
 		Value:  value,
 		Vote:   true,
 	}
 
-	privKey := p.cluster.privateKeys[p.id]
-	sig, err := Sign(privKey, t, p.view, value)
+	privKey := r.cluster.privateKeys[r.id-1]
+	sig, err := Sign(privKey, t, r.view, value)
 	if err != nil {
 		log.Error(ctx, "Failed to sign vote", err)
 		return
@@ -271,9 +271,31 @@ func (p *Replica) sendVote(ctx context.Context, t MsgType, value string, leader 
 
 	voteMsg.ParSig = sig
 
-	if err := p.transport.SendTo(ctx, leader, voteMsg); err != nil {
+	if err := r.transport.SendTo(ctx, leader, voteMsg); err != nil {
 		log.Error(ctx, "Failed to send vote", err)
 	}
+}
+
+func (r *Replica) verifyQC(qc *QC) error {
+	hash, err := Hash(qc.Type, qc.View, qc.Value)
+	if err != nil {
+		return err
+	}
+
+	pubKeys := make([]*k1.PublicKey, 0)
+	for _, sig := range qc.Sigs {
+		pk, err := k1util.Recover(hash[:], sig)
+		if err != nil {
+			return errors.Wrap(err, "bad signature")
+		}
+		pubKeys = append(pubKeys, pk)
+	}
+
+	if !r.cluster.HasQuorum(pubKeys) {
+		return errors.New("quorum verification failed")
+	}
+
+	return nil
 }
 
 func selectHighQC(msgs []*Msg) *QC {
@@ -288,22 +310,17 @@ func selectHighQC(msgs []*Msg) *QC {
 	return highQC
 }
 
-func createQC(msgs []*Msg) (*QC, error) {
-	parSigs := make(map[int]tbls.Signature)
+func createQC(msgs []*Msg) *QC {
+	sigs := make([][]byte, len(msgs))
 
-	for _, msg := range msgs {
-		parSigs[int(msg.Sender)] = tbls.Signature(msg.ParSig)
-	}
-
-	aggSig, err := tbls.ThresholdAggregate(parSigs)
-	if err != nil {
-		return nil, errors.Wrap(err, "aggregate sig")
+	for i, msg := range msgs {
+		sigs[i] = msg.ParSig
 	}
 
 	return &QC{
 		Type:  msgs[0].Type,
 		View:  msgs[0].View,
 		Value: msgs[0].Value,
-		Sig:   aggSig[:],
-	}, nil
+		Sigs:  sigs,
+	}
 }

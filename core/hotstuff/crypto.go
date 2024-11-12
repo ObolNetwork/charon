@@ -3,10 +3,11 @@
 package hotstuff
 
 import (
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/app/k1util"
 )
 
 func Hash(t MsgType, view View, value string) ([32]byte, error) {
@@ -27,30 +28,16 @@ func Hash(t MsgType, view View, value string) ([32]byte, error) {
 	return hash, nil
 }
 
-func Sign(privKey tbls.PrivateKey, t MsgType, view View, value string) ([]byte, error) {
+func Sign(privKey *k1.PrivateKey, t MsgType, view View, value string) ([]byte, error) {
 	hash, err := Hash(t, view, value)
 	if err != nil {
 		return nil, err
 	}
 
-	sig, err := tbls.Sign(privKey, hash[:])
+	sig, err := k1util.Sign(privKey, hash[:])
 	if err != nil {
 		return nil, errors.Wrap(err, "sign")
 	}
 
-	return sig[:], nil
-}
-
-func Verify(pubKey tbls.PublicKey, t MsgType, view View, value string, sig []byte) error {
-	hash, err := Hash(t, view, value)
-	if err != nil {
-		return err
-	}
-
-	var tblsSig tbls.Signature
-	if copy(tblsSig[:], sig) != len(tbls.Signature{}) {
-		return errors.New("invalid signature length")
-	}
-
-	return tbls.Verify(pubKey, hash[:], tblsSig)
+	return sig, nil
 }

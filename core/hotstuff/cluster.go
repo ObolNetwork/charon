@@ -3,47 +3,42 @@
 package hotstuff
 
 import (
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
+
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/tbls"
 )
 
 // Represents the immutable Byzantine cluster configuration.
 type Cluster struct {
 	nodes       uint
 	threshold   uint
-	publicKey   tbls.PublicKey
-	privateKeys map[ID]tbls.PrivateKey
+	publicKeys  []*k1.PublicKey
+	privateKeys []*k1.PrivateKey
 	inputCh     <-chan string
 	outputCh    chan<- string
 }
 
 // NewCluster creates a new Byzantine cluster configuration.
 func NewCluster(nodes, threshold uint, inputCh <-chan string, outputCh chan<- string) (*Cluster, error) {
-	privKey, err := tbls.GenerateSecretKey()
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to generate secret key")
-	}
+	publicKeys := make([]*k1.PublicKey, 0)
+	privateKeys := make([]*k1.PrivateKey, 0)
 
-	pubKey, err := tbls.SecretToPublicKey(privKey)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to convert secret key to public key")
-	}
+	for i := 0; i < int(nodes); i++ {
+		privKey, err := k1.GeneratePrivateKey()
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to generate private key")
+		}
 
-	privKeysMap, err := tbls.ThresholdSplit(privKey, nodes, threshold)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to split secret key")
-	}
-
-	privKeysByID := make(map[ID]tbls.PrivateKey)
-	for i, privKey := range privKeysMap {
-		privKeysByID[ID(i)] = privKey
+		pubKey := privKey.PubKey()
+		publicKeys = append(publicKeys, pubKey)
+		privateKeys = append(privateKeys, privKey)
 	}
 
 	return &Cluster{
 		nodes,
 		threshold,
-		pubKey,
-		privKeysByID,
+		publicKeys,
+		privateKeys,
 		inputCh,
 		outputCh,
 	}, nil
@@ -57,4 +52,23 @@ func (c *Cluster) ValidID(id ID) bool {
 // Leader returns the deterministic leader ID for the given view.
 func (c *Cluster) Leader(view View) ID {
 	return ID(uint64(view) % uint64(c.nodes))
+}
+
+// HasQuorum returns true if the given public keys meet the threshold.
+func (c *Cluster) HasQuorum(pubKeys []*k1.PublicKey) bool {
+	for _, pubKey := range pubKeys {
+		found := false
+		for _, clusterPubKey := range c.publicKeys {
+			if clusterPubKey.IsEqual(pubKey) {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return false
+		}
+	}
+
+	return len(pubKeys) >= int(c.threshold)
 }

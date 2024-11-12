@@ -5,22 +5,27 @@ package hotstuff_test
 import (
 	"testing"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/core/hotstuff"
-	"github.com/obolnetwork/charon/tbls"
 )
 
 func TestSignVerify(t *testing.T) {
-	privKey, err := tbls.GenerateSecretKey()
+	privKey, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
 
-	pubKey, err := tbls.SecretToPublicKey(privKey)
-	require.NoError(t, err)
+	pubKey := privKey.PubKey()
+	require.NotNil(t, pubKey)
 
 	sig, err := hotstuff.Sign(privKey, hotstuff.MsgCommit, 3, "value")
 	require.NoError(t, err)
 
-	err = hotstuff.Verify(pubKey, hotstuff.MsgCommit, 3, "value", sig)
+	hash, err := hotstuff.Hash(hotstuff.MsgCommit, 3, "value")
 	require.NoError(t, err)
+
+	pk, err := k1util.Recover(hash[:], sig)
+	require.NoError(t, err)
+	require.Equal(t, pubKey.SerializeCompressed(), pk.SerializeCompressed())
 }
