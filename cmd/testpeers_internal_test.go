@@ -78,19 +78,19 @@ func TestPeersTest(t *testing.T) {
 						{Name: "pingRelay", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingMeasureRelay", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
-					"peer inexpensive-farm enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o": {
+					"peer inexpensive-farm enr:-HW4QBHlc...rx6o": {
 						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "directConn", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
-					"peer anxious-pencil enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw": {
+					"peer anxious-pencil enr:-HW4QDwUF...vKDw": {
 						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "directConn", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
-					"peer important-pen enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0": {
+					"peer important-pen enr:-HW4QPSBg...wbr0": {
 						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
@@ -144,13 +144,13 @@ func TestPeersTest(t *testing.T) {
 						{Name: "pingRelay", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingMeasureRelay", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
-					"peer inexpensive-farm enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o": {
+					"peer inexpensive-farm enr:-HW4QBHlc...rx6o": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
-					"peer anxious-pencil enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw": {
+					"peer anxious-pencil enr:-HW4QDwUF...vKDw": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
-					"peer important-pen enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0": {
+					"peer important-pen enr:-HW4QPSBg...wbr0": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
@@ -204,13 +204,13 @@ func TestPeersTest(t *testing.T) {
 			expected: testCategoryResult{
 				CategoryName: peersTestCategory,
 				Targets: map[string][]testResult{
-					"peer inexpensive-farm enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o": {
+					"peer inexpensive-farm enr:-HW4QBHlc...rx6o": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
-					"peer anxious-pencil enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw": {
+					"peer anxious-pencil enr:-HW4QDwUF...vKDw": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
-					"peer important-pen enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0": {
+					"peer important-pen enr:-HW4QPSBg...wbr0": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
@@ -247,13 +247,13 @@ func TestPeersTest(t *testing.T) {
 						{Name: "pingRelay", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingMeasureRelay", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
-					"peer inexpensive-farm enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o": {
+					"peer inexpensive-farm enr:-HW4QBHlc...rx6o": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
-					"peer anxious-pencil enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw": {
+					"peer anxious-pencil enr:-HW4QDwUF...vKDw": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
-					"peer important-pen enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0": {
+					"peer important-pen enr:-HW4QPSBg...wbr0": {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
