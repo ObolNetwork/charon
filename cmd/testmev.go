@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptrace"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -15,7 +15,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/app/log"
 )
 
 type testMEVConfig struct {
@@ -35,8 +35,8 @@ func newTestMEVCmd(runFunc func(context.Context, io.Writer, testMEVConfig) error
 
 	cmd := &cobra.Command{
 		Use:   "mev",
-		Short: "Run multiple tests towards mev nodes",
-		Long:  `Run multiple tests towards mev nodes. Verify that Charon can efficiently interact with MEV Node(s).`,
+		Short: "Run multiple tests towards MEV relays",
+		Long:  `Run multiple tests towards MEV relays. Verify that Charon can efficiently interact with MEV relay(s).`,
 		Args:  cobra.NoArgs,
 		PreRunE: func(cmd *cobra.Command, _ []string) error {
 			return mustOutputToFileOnQuiet(cmd)
@@ -47,13 +47,13 @@ func newTestMEVCmd(runFunc func(context.Context, io.Writer, testMEVConfig) error
 	}
 
 	bindTestFlags(cmd, &config.testConfig)
-	bindTestMEVFlags(cmd, &config)
+	bindTestMEVFlags(cmd, &config, "")
 
 	return cmd
 }
 
-func bindTestMEVFlags(cmd *cobra.Command, config *testMEVConfig) {
-	const endpoints = "endpoints"
+func bindTestMEVFlags(cmd *cobra.Command, config *testMEVConfig, flagsPrefix string) {
+	endpoints := flagsPrefix + "endpoints"
 	cmd.Flags().StringSliceVar(&config.Endpoints, endpoints, nil, "[REQUIRED] Comma separated list of one or more MEV relay endpoint URLs.")
 	mustMarkFlagRequired(cmd, endpoints)
 }
@@ -66,6 +66,8 @@ func supportedMEVTestCases() map[testCaseName]testCaseMEV {
 }
 
 func runTestMEV(ctx context.Context, w io.Writer, cfg testMEVConfig) (err error) {
+	log.Info(ctx, "Starting MEV relays test")
+
 	testCases := supportedMEVTestCases()
 	queuedTests := filterTests(maps.Keys(testCases), cfg.testConfig)
 	if len(queuedTests) == 0 {
@@ -121,6 +123,8 @@ func runTestMEV(ctx context.Context, w io.Writer, cfg testMEVConfig) (err error)
 
 	return nil
 }
+
+// mev relays tests
 
 func testAllMEVs(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCaseMEV, conf testMEVConfig, allMEVsResCh chan map[string][]testResult) {
 	defer close(allMEVsResCh)
@@ -180,7 +184,8 @@ func testSingleMEV(ctx context.Context, queuedTestCases []testCaseName, allTestC
 		}
 	}
 
-	resCh <- map[string][]testResult{target: allTestRes}
+	relayName := formatMEVRelayName(target)
+	resCh <- map[string][]testResult{relayName: allTestRes}
 
 	return nil
 }
@@ -213,7 +218,7 @@ func mevPingTest(ctx context.Context, _ *testMEVConfig, target string) testResul
 	defer resp.Body.Close()
 
 	if resp.StatusCode > 399 {
-		return failedTestResult(testRes, errors.New("status code %v", z.Int("status_code", resp.StatusCode)))
+		return failedTestResult(testRes, errors.New(httpStatusError(resp.StatusCode)))
 	}
 
 	testRes.Verdict = testVerdictOk
@@ -224,40 +229,35 @@ func mevPingTest(ctx context.Context, _ *testMEVConfig, target string) testResul
 func mevPingMeasureTest(ctx context.Context, _ *testMEVConfig, target string) testResult {
 	testRes := testResult{Name: "PingMeasure"}
 
-	var start time.Time
-	var firstByte time.Duration
-
-	trace := &httptrace.ClientTrace{
-		GotFirstResponseByte: func() {
-			firstByte = time.Since(start)
-		},
-	}
-
-	start = time.Now()
-	targetEndpoint := fmt.Sprintf("%v/eth/v1/builder/status", target)
-	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), http.MethodGet, targetEndpoint, nil)
+	rtt, err := requestRTT(ctx, fmt.Sprintf("%v/eth/v1/builder/status", target), http.MethodGet, nil, 200)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
 
-	resp, err := http.DefaultTransport.RoundTrip(req)
-	if err != nil {
-		return failedTestResult(testRes, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode > 399 {
-		return failedTestResult(testRes, errors.New("status code %v", z.Int("status_code", resp.StatusCode)))
-	}
-
-	if firstByte > thresholdMEVMeasurePoor {
-		testRes.Verdict = testVerdictPoor
-	} else if firstByte > thresholdMEVMeasureAvg {
-		testRes.Verdict = testVerdictAvg
-	} else {
-		testRes.Verdict = testVerdictGood
-	}
-	testRes.Measurement = Duration{firstByte}.String()
+	testRes = evaluateRTT(rtt, testRes, thresholdMEVMeasureAvg, thresholdMEVMeasurePoor)
 
 	return testRes
+}
+
+// helper functions
+
+// Shorten the hash of the MEV relay endpoint
+// Example: https://0xac6e77dfe25ecd6110b8e780608cce0dab71fdd5ebea22a16c0205200f2f8e2e3ad3b71d3499c54ad14d6c21b41a37ae@boost-relay.flashbots.net
+// to https://0xac6e...37ae@boost-relay.flashbots.net
+func formatMEVRelayName(urlString string) string {
+	splitScheme := strings.Split(urlString, "://")
+	if len(splitScheme) == 1 {
+		return urlString
+	}
+	hashSplit := strings.Split(splitScheme[1], "@")
+	if len(hashSplit) == 1 {
+		return urlString
+	}
+	hash := hashSplit[0]
+	if !strings.HasPrefix(hash, "0x") || len(hash) < 18 {
+		return urlString
+	}
+	hashShort := hash[:6] + "..." + hash[len(hash)-4:]
+
+	return splitScheme[0] + "://" + hashShort + "@" + hashSplit[1]
 }

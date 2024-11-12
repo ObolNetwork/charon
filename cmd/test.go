@@ -6,8 +6,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptrace"
 	"os"
 	"os/signal"
+	"slices"
 	"sort"
 	"strings"
 	"syscall"
@@ -16,6 +19,7 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"golang.org/x/exp/maps"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -34,6 +38,7 @@ const (
 	validatorTestCategory   = "validator"
 	mevTestCategory         = "mev"
 	performanceTestCategory = "performance"
+	allTestCategory         = "all"
 )
 
 type testConfig struct {
@@ -58,8 +63,15 @@ func newTestCmd(cmds ...*cobra.Command) *cobra.Command {
 func bindTestFlags(cmd *cobra.Command, config *testConfig) {
 	cmd.Flags().StringVar(&config.OutputToml, "output-toml", "", "File path to which output can be written in TOML format.")
 	cmd.Flags().StringSliceVar(&config.TestCases, "test-cases", nil, fmt.Sprintf("List of comma separated names of tests to be exeucted. Available tests are: %v", listTestCases(cmd)))
-	cmd.Flags().DurationVar(&config.Timeout, "timeout", 5*time.Minute, "Execution timeout for all tests.")
+	cmd.Flags().DurationVar(&config.Timeout, "timeout", time.Hour, "Execution timeout for all tests.")
 	cmd.Flags().BoolVar(&config.Quiet, "quiet", false, "Do not print test results to stdout.")
+}
+
+func bindTestLogFlags(flags *pflag.FlagSet, config *log.Config) {
+	flags.StringVar(&config.Format, "log-format", "console", "Log format; console, logfmt or json")
+	flags.StringVar(&config.Level, "log-level", "info", "Log level; debug, info, warn or error")
+	flags.StringVar(&config.Color, "log-color", "auto", "Log color; auto, force, disable.")
+	flags.StringVar(&config.LogOutputPath, "log-output-path", "", "Path in which to write on-disk logs.")
 }
 
 func listTestCases(cmd *cobra.Command) []string {
@@ -76,6 +88,16 @@ func listTestCases(cmd *cobra.Command) []string {
 		testCaseNames = maps.Keys(supportedMEVTestCases())
 	case performanceTestCategory:
 		testCaseNames = maps.Keys(supportedPerformanceTestCases())
+	case allTestCategory:
+		testCaseNames = slices.Concat(
+			maps.Keys(supportedPeerTestCases()),
+			maps.Keys(supportedSelfTestCases()),
+			maps.Keys(supportedRelayTestCases()),
+			maps.Keys(supportedBeaconTestCases()),
+			maps.Keys(supportedValidatorTestCases()),
+			maps.Keys(supportedMEVTestCases()),
+			maps.Keys(supportedPerformanceTestCases()),
+		)
 	default:
 		log.Warn(cmd.Context(), "Unknown command for listing test cases", nil, z.Str("name", cmd.Name()))
 	}
@@ -139,6 +161,10 @@ func failedTestResult(testRes testResult, err error) testResult {
 	testRes.Error = testResultError{err}
 
 	return testRes
+}
+
+func httpStatusError(code int) string {
+	return fmt.Sprintf("HTTP status code %v", code)
 }
 
 func (s *testResultError) UnmarshalText(data []byte) error {
@@ -225,12 +251,14 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) error {
 	lines = append(lines, "")
 	lines = append(lines, fmt.Sprintf("%-64s%s", "TEST NAME", "RESULT"))
 	suggestions := []string{}
-	for target, testResults := range res.Targets {
-		if target != "" && len(testResults) > 0 {
+	targets := maps.Keys(res.Targets)
+	slices.Sort(targets)
+	for _, target := range targets {
+		if target != "" && len(res.Targets[target]) > 0 {
 			lines = append(lines, "")
 			lines = append(lines, target)
 		}
-		for _, singleTestRes := range testResults {
+		for _, singleTestRes := range res.Targets[target] {
 			testOutput := ""
 			testOutput += fmt.Sprintf("%-64s", singleTestRes.Name)
 			if singleTestRes.Measurement != "" {
@@ -267,6 +295,30 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) error {
 	}
 
 	return nil
+}
+
+func evaluateHighestRTTScores(testResCh chan time.Duration, testRes testResult, avg time.Duration, poor time.Duration) testResult {
+	highestRTT := time.Duration(0)
+	for rtt := range testResCh {
+		if rtt > highestRTT {
+			highestRTT = rtt
+		}
+	}
+
+	return evaluateRTT(highestRTT, testRes, avg, poor)
+}
+
+func evaluateRTT(rtt time.Duration, testRes testResult, avg time.Duration, poor time.Duration) testResult {
+	if rtt == 0 || rtt > poor {
+		testRes.Verdict = testVerdictPoor
+	} else if rtt > avg {
+		testRes.Verdict = testVerdictAvg
+	} else {
+		testRes.Verdict = testVerdictGood
+	}
+	testRes.Measurement = Duration{rtt}.String()
+
+	return testRes
 }
 
 func calculateScore(results []testResult) categoryScore {
@@ -343,4 +395,38 @@ func sleepWithContext(ctx context.Context, d time.Duration) {
 		}
 	case <-timer.C:
 	}
+}
+
+func requestRTT(ctx context.Context, url string, method string, body io.Reader, expectedStatus int) (time.Duration, error) {
+	var start time.Time
+	var firstByte time.Duration
+
+	trace := &httptrace.ClientTrace{
+		GotFirstResponseByte: func() {
+			firstByte = time.Since(start)
+		},
+	}
+
+	start = time.Now()
+	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), method, url, body)
+	if err != nil {
+		return 0, errors.Wrap(err, "create new request with trace and context")
+	}
+
+	resp, err := http.DefaultTransport.RoundTrip(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != expectedStatus {
+		data, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Warn(ctx, "Unexpected status code", nil, z.Int("status_code", resp.StatusCode), z.Int("expected_status_code", expectedStatus), z.Str("endpoint", url))
+		} else {
+			log.Warn(ctx, "Unexpected status code", nil, z.Int("status_code", resp.StatusCode), z.Int("expected_status_code", expectedStatus), z.Str("endpoint", url), z.Str("body", string(data)))
+		}
+	}
+
+	return firstByte, nil
 }
