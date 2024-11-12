@@ -176,6 +176,8 @@ func runTestPerformance(ctx context.Context, w io.Writer, cfg testPerformanceCon
 	return nil
 }
 
+// hardware and internet connectivity performance tests
+
 func testSinglePerformance(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testPerformanceConfig) testResult, cfg testPerformanceConfig, resCh chan map[string][]testResult) {
 	defer close(resCh)
 	singleTestResCh := make(chan testResult)
@@ -217,27 +219,6 @@ func testPerformance(ctx context.Context, queuedTests []testCaseName, allTests m
 			ch <- allTests[t](ctx, &cfg)
 		}
 	}
-}
-
-func fioCommand(ctx context.Context, filename string, blocksize int, operation string) ([]byte, error) {
-	//nolint:gosec
-	cmd, err := exec.CommandContext(ctx, "fio",
-		"--name=fioTest",
-		fmt.Sprintf("--filename=%v/fiotest", filename),
-		fmt.Sprintf("--size=%vMb", diskOpsMBsTotal/diskOpsNumOfJobs),
-		fmt.Sprintf("--blocksize=%vk", blocksize),
-		fmt.Sprintf("--numjobs=%v", diskOpsNumOfJobs),
-		fmt.Sprintf("--rw=%v", operation),
-		"--direct=1",
-		"--runtime=60s",
-		"--group_reporting",
-		"--output-format=json",
-	).Output()
-	if err != nil {
-		return nil, errors.Wrap(err, "exec fio command")
-	}
-
-	return cmd, nil
 }
 
 func performanceDiskWriteSpeedTest(ctx context.Context, conf *testPerformanceConfig) testResult {
@@ -446,86 +427,6 @@ func performanceDiskReadIOPSTest(ctx context.Context, conf *testPerformanceConfi
 	return testRes
 }
 
-func availableMemoryLinux(context.Context) (int64, error) {
-	file, err := os.Open("/proc/meminfo")
-	if err != nil {
-		return 0, errors.Wrap(err, "open /proc/meminfo")
-	}
-	scanner := bufio.NewScanner(file)
-	if scanner.Err() != nil {
-		return 0, errors.Wrap(err, "new scanner")
-	}
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		if !strings.Contains(line, "MemAvailable") {
-			continue
-		}
-		splitText := strings.Split(line, ": ")
-		kbs := strings.Trim(strings.Split(splitText[1], "kB")[0], " ")
-		kbsInt, err := strconv.ParseInt(kbs, 10, 64)
-		if err != nil {
-			return 0, errors.Wrap(err, "parse MemAvailable int")
-		}
-
-		return kbsInt * 1024, nil
-	}
-
-	return 0, errors.New("memAvailable not found in /proc/meminfo")
-}
-
-func availableMemoryMacos(ctx context.Context) (int64, error) {
-	pageSizeBytes, err := exec.CommandContext(ctx, "pagesize").Output()
-	if err != nil {
-		return 0, errors.Wrap(err, "run pagesize")
-	}
-	memorySizePerPage, err := strconv.ParseInt(strings.TrimSuffix(string(pageSizeBytes), "\n"), 10, 64)
-	if err != nil {
-		return 0, errors.Wrap(err, "parse memorySizePerPage int")
-	}
-
-	out, err := exec.CommandContext(ctx, "vm_stat").Output()
-	if err != nil {
-		return 0, errors.Wrap(err, "run vm_stat")
-	}
-	outBuf := bytes.NewBuffer(out)
-	scanner := bufio.NewScanner(outBuf)
-	if scanner.Err() != nil {
-		return 0, errors.Wrap(err, "new scanner")
-	}
-
-	var pagesFree, pagesInactive, pagesSpeculative int64
-	for scanner.Scan() {
-		line := scanner.Text()
-		splitText := strings.Split(line, ": ")
-
-		var bytes int64
-		var err error
-		switch {
-		case strings.Contains(splitText[0], "Pages free"):
-			bytes, err = strconv.ParseInt(strings.Trim(strings.Split(splitText[1], ".")[0], " "), 10, 64)
-			if err != nil {
-				return 0, errors.Wrap(err, "parse Pages free int")
-			}
-			pagesFree = bytes
-		case strings.Contains(splitText[0], "Pages inactive"):
-			bytes, err = strconv.ParseInt(strings.Trim(strings.Split(splitText[1], ".")[0], " "), 10, 64)
-			if err != nil {
-				return 0, errors.Wrap(err, "parse Pages inactive int")
-			}
-			pagesInactive = bytes
-		case strings.Contains(splitText[0], "Pages speculative"):
-			bytes, err = strconv.ParseInt(strings.Trim(strings.Split(splitText[1], ".")[0], " "), 10, 64)
-			if err != nil {
-				return 0, errors.Wrap(err, "parse Pages speculative int")
-			}
-			pagesSpeculative = bytes
-		}
-	}
-
-	return ((pagesFree + pagesInactive + pagesSpeculative) * memorySizePerPage), nil
-}
-
 func performanceAvailableMemoryTest(ctx context.Context, _ *testPerformanceConfig) testResult {
 	testRes := testResult{Name: "AvailableMemory"}
 
@@ -561,49 +462,6 @@ func performanceAvailableMemoryTest(ctx context.Context, _ *testPerformanceConfi
 	return testRes
 }
 
-func totalMemoryLinux(context.Context) (int64, error) {
-	file, err := os.Open("/proc/meminfo")
-	if err != nil {
-		return 0, errors.Wrap(err, "open /proc/meminfo")
-	}
-	scanner := bufio.NewScanner(file)
-	if scanner.Err() != nil {
-		return 0, errors.Wrap(err, "new scanner")
-	}
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		if !strings.Contains(line, "MemTotal") {
-			continue
-		}
-		splitText := strings.Split(line, ": ")
-		kbs := strings.Trim(strings.Split(splitText[1], "kB")[0], " ")
-		kbsInt, err := strconv.ParseInt(kbs, 10, 64)
-		if err != nil {
-			return 0, errors.Wrap(err, "parse MemTotal int")
-		}
-
-		return kbsInt * 1024, nil
-	}
-
-	return 0, errors.New("memTotal not found in /proc/meminfo")
-}
-
-func totalMemoryMacos(ctx context.Context) (int64, error) {
-	out, err := exec.CommandContext(ctx, "sysctl", "hw.memsize").Output()
-	if err != nil {
-		return 0, errors.Wrap(err, "run sysctl hw.memsize")
-	}
-
-	memSize := strings.TrimSuffix(strings.Split(string(out), ": ")[1], "\n")
-	memSizeInt, err := strconv.ParseInt(memSize, 10, 64)
-	if err != nil {
-		return 0, errors.Wrap(err, "parse memSize int")
-	}
-
-	return memSizeInt, nil
-}
-
 func performanceTotalMemoryTest(ctx context.Context, _ *testPerformanceConfig) testResult {
 	testRes := testResult{Name: "TotalMemory"}
 
@@ -637,44 +495,6 @@ func performanceTotalMemoryTest(ctx context.Context, _ *testPerformanceConfig) t
 	testRes.Measurement = strconv.Itoa(int(totalMemoryMB)) + "MB"
 
 	return testRes
-}
-
-func fetchOoklaServer(_ context.Context, conf *testPerformanceConfig) (speedtest.Server, error) {
-	speedtestClient := speedtest.New()
-
-	serverList, err := speedtestClient.FetchServers()
-	if err != nil {
-		return speedtest.Server{}, errors.Wrap(err, "fetch Ookla servers")
-	}
-
-	var targets speedtest.Servers
-
-	if len(conf.InternetTestServersOnly) != 0 {
-		for _, server := range serverList {
-			if slices.Contains(conf.InternetTestServersOnly, server.Name) {
-				targets = append(targets, server)
-			}
-		}
-	}
-
-	if len(conf.InternetTestServersExclude) != 0 {
-		for _, server := range serverList {
-			if !slices.Contains(conf.InternetTestServersExclude, server.Name) {
-				targets = append(targets, server)
-			}
-		}
-	}
-
-	if targets == nil {
-		targets = serverList
-	}
-
-	servers, err := targets.FindServer([]int{})
-	if err != nil {
-		return speedtest.Server{}, errors.Wrap(err, "find Ookla server")
-	}
-
-	return *servers[0], nil
 }
 
 func performanceInternetLatencyTest(ctx context.Context, conf *testPerformanceConfig) testResult {
@@ -771,4 +591,188 @@ func performanceInternetUploadSpeedTest(ctx context.Context, conf *testPerforman
 	testRes.Measurement = strconv.FormatFloat(uploadSpeed, 'f', 2, 64) + "MB/s"
 
 	return testRes
+}
+
+// helper functions
+
+func fioCommand(ctx context.Context, filename string, blocksize int, operation string) ([]byte, error) {
+	//nolint:gosec
+	cmd, err := exec.CommandContext(ctx, "fio",
+		"--name=fioTest",
+		fmt.Sprintf("--filename=%v/fiotest", filename),
+		fmt.Sprintf("--size=%vMb", diskOpsMBsTotal/diskOpsNumOfJobs),
+		fmt.Sprintf("--blocksize=%vk", blocksize),
+		fmt.Sprintf("--numjobs=%v", diskOpsNumOfJobs),
+		fmt.Sprintf("--rw=%v", operation),
+		"--direct=1",
+		"--runtime=60s",
+		"--group_reporting",
+		"--output-format=json",
+	).Output()
+	if err != nil {
+		return nil, errors.Wrap(err, "exec fio command")
+	}
+
+	return cmd, nil
+}
+
+func availableMemoryLinux(context.Context) (int64, error) {
+	file, err := os.Open("/proc/meminfo")
+	if err != nil {
+		return 0, errors.Wrap(err, "open /proc/meminfo")
+	}
+	scanner := bufio.NewScanner(file)
+	if scanner.Err() != nil {
+		return 0, errors.Wrap(err, "new scanner")
+	}
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.Contains(line, "MemAvailable") {
+			continue
+		}
+		splitText := strings.Split(line, ": ")
+		kbs := strings.Trim(strings.Split(splitText[1], "kB")[0], " ")
+		kbsInt, err := strconv.ParseInt(kbs, 10, 64)
+		if err != nil {
+			return 0, errors.Wrap(err, "parse MemAvailable int")
+		}
+
+		return kbsInt * 1024, nil
+	}
+
+	return 0, errors.New("memAvailable not found in /proc/meminfo")
+}
+
+func availableMemoryMacos(ctx context.Context) (int64, error) {
+	pageSizeBytes, err := exec.CommandContext(ctx, "pagesize").Output()
+	if err != nil {
+		return 0, errors.Wrap(err, "run pagesize")
+	}
+	memorySizePerPage, err := strconv.ParseInt(strings.TrimSuffix(string(pageSizeBytes), "\n"), 10, 64)
+	if err != nil {
+		return 0, errors.Wrap(err, "parse memorySizePerPage int")
+	}
+
+	out, err := exec.CommandContext(ctx, "vm_stat").Output()
+	if err != nil {
+		return 0, errors.Wrap(err, "run vm_stat")
+	}
+	outBuf := bytes.NewBuffer(out)
+	scanner := bufio.NewScanner(outBuf)
+	if scanner.Err() != nil {
+		return 0, errors.Wrap(err, "new scanner")
+	}
+
+	var pagesFree, pagesInactive, pagesSpeculative int64
+	for scanner.Scan() {
+		line := scanner.Text()
+		splitText := strings.Split(line, ": ")
+
+		var bytes int64
+		var err error
+		switch {
+		case strings.Contains(splitText[0], "Pages free"):
+			bytes, err = strconv.ParseInt(strings.Trim(strings.Split(splitText[1], ".")[0], " "), 10, 64)
+			if err != nil {
+				return 0, errors.Wrap(err, "parse Pages free int")
+			}
+			pagesFree = bytes
+		case strings.Contains(splitText[0], "Pages inactive"):
+			bytes, err = strconv.ParseInt(strings.Trim(strings.Split(splitText[1], ".")[0], " "), 10, 64)
+			if err != nil {
+				return 0, errors.Wrap(err, "parse Pages inactive int")
+			}
+			pagesInactive = bytes
+		case strings.Contains(splitText[0], "Pages speculative"):
+			bytes, err = strconv.ParseInt(strings.Trim(strings.Split(splitText[1], ".")[0], " "), 10, 64)
+			if err != nil {
+				return 0, errors.Wrap(err, "parse Pages speculative int")
+			}
+			pagesSpeculative = bytes
+		}
+	}
+
+	return ((pagesFree + pagesInactive + pagesSpeculative) * memorySizePerPage), nil
+}
+
+func totalMemoryLinux(context.Context) (int64, error) {
+	file, err := os.Open("/proc/meminfo")
+	if err != nil {
+		return 0, errors.Wrap(err, "open /proc/meminfo")
+	}
+	scanner := bufio.NewScanner(file)
+	if scanner.Err() != nil {
+		return 0, errors.Wrap(err, "new scanner")
+	}
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.Contains(line, "MemTotal") {
+			continue
+		}
+		splitText := strings.Split(line, ": ")
+		kbs := strings.Trim(strings.Split(splitText[1], "kB")[0], " ")
+		kbsInt, err := strconv.ParseInt(kbs, 10, 64)
+		if err != nil {
+			return 0, errors.Wrap(err, "parse MemTotal int")
+		}
+
+		return kbsInt * 1024, nil
+	}
+
+	return 0, errors.New("memTotal not found in /proc/meminfo")
+}
+
+func totalMemoryMacos(ctx context.Context) (int64, error) {
+	out, err := exec.CommandContext(ctx, "sysctl", "hw.memsize").Output()
+	if err != nil {
+		return 0, errors.Wrap(err, "run sysctl hw.memsize")
+	}
+
+	memSize := strings.TrimSuffix(strings.Split(string(out), ": ")[1], "\n")
+	memSizeInt, err := strconv.ParseInt(memSize, 10, 64)
+	if err != nil {
+		return 0, errors.Wrap(err, "parse memSize int")
+	}
+
+	return memSizeInt, nil
+}
+
+func fetchOoklaServer(_ context.Context, conf *testPerformanceConfig) (speedtest.Server, error) {
+	speedtestClient := speedtest.New()
+
+	serverList, err := speedtestClient.FetchServers()
+	if err != nil {
+		return speedtest.Server{}, errors.Wrap(err, "fetch Ookla servers")
+	}
+
+	var targets speedtest.Servers
+
+	if len(conf.InternetTestServersOnly) != 0 {
+		for _, server := range serverList {
+			if slices.Contains(conf.InternetTestServersOnly, server.Name) {
+				targets = append(targets, server)
+			}
+		}
+	}
+
+	if len(conf.InternetTestServersExclude) != 0 {
+		for _, server := range serverList {
+			if !slices.Contains(conf.InternetTestServersExclude, server.Name) {
+				targets = append(targets, server)
+			}
+		}
+	}
+
+	if targets == nil {
+		targets = serverList
+	}
+
+	servers, err := targets.FindServer([]int{})
+	if err != nil {
+		return speedtest.Server{}, errors.Wrap(err, "find Ookla server")
+	}
+
+	return *servers[0], nil
 }

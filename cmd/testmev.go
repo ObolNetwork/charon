@@ -124,6 +124,8 @@ func runTestMEV(ctx context.Context, w io.Writer, cfg testMEVConfig) (err error)
 	return nil
 }
 
+// mev relays tests
+
 func testAllMEVs(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCaseMEV, conf testMEVConfig, allMEVsResCh chan map[string][]testResult) {
 	defer close(allMEVsResCh)
 	// run tests for all mev nodes
@@ -188,27 +190,6 @@ func testSingleMEV(ctx context.Context, queuedTestCases []testCaseName, allTestC
 	return nil
 }
 
-// Shorten the hash of the MEV relay endpoint
-// Example: https://0xac6e77dfe25ecd6110b8e780608cce0dab71fdd5ebea22a16c0205200f2f8e2e3ad3b71d3499c54ad14d6c21b41a37ae@boost-relay.flashbots.net
-// to https://0xac6e...37ae@boost-relay.flashbots.net
-func formatMEVRelayName(urlString string) string {
-	splitScheme := strings.Split(urlString, "://")
-	if len(splitScheme) == 1 {
-		return urlString
-	}
-	hashSplit := strings.Split(splitScheme[1], "@")
-	if len(hashSplit) == 1 {
-		return urlString
-	}
-	hash := hashSplit[0]
-	if !strings.HasPrefix(hash, "0x") || len(hash) < 18 {
-		return urlString
-	}
-	hashShort := hash[:6] + "..." + hash[len(hash)-4:]
-
-	return splitScheme[0] + "://" + hashShort + "@" + hashSplit[1]
-}
-
 func runMEVTest(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCaseMEV, cfg testMEVConfig, target string, ch chan testResult) {
 	defer close(ch)
 	for _, t := range queuedTestCases {
@@ -256,4 +237,27 @@ func mevPingMeasureTest(ctx context.Context, _ *testMEVConfig, target string) te
 	testRes = evaluateRTT(rtt, testRes, thresholdMEVMeasureAvg, thresholdMEVMeasurePoor)
 
 	return testRes
+}
+
+// helper functions
+
+// Shorten the hash of the MEV relay endpoint
+// Example: https://0xac6e77dfe25ecd6110b8e780608cce0dab71fdd5ebea22a16c0205200f2f8e2e3ad3b71d3499c54ad14d6c21b41a37ae@boost-relay.flashbots.net
+// to https://0xac6e...37ae@boost-relay.flashbots.net
+func formatMEVRelayName(urlString string) string {
+	splitScheme := strings.Split(urlString, "://")
+	if len(splitScheme) == 1 {
+		return urlString
+	}
+	hashSplit := strings.Split(splitScheme[1], "@")
+	if len(hashSplit) == 1 {
+		return urlString
+	}
+	hash := hashSplit[0]
+	if !strings.HasPrefix(hash, "0x") || len(hash) < 18 {
+		return urlString
+	}
+	hashShort := hash[:6] + "..." + hash[len(hash)-4:]
+
+	return splitScheme[0] + "://" + hashShort + "@" + hashSplit[1]
 }
