@@ -53,6 +53,7 @@ func TestMEVTest(t *testing.T) {
 					mockedMEVNode.URL: {
 						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 			},
@@ -74,10 +75,12 @@ func TestMEVTest(t *testing.T) {
 					endpoint1: {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
 						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
 					},
 					endpoint2: {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
 						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
 					},
 				},
 			},
@@ -122,10 +125,12 @@ func TestMEVTest(t *testing.T) {
 					endpoint1: {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
 						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
 					},
 					endpoint2: {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
 						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
 					},
 				},
 			},
@@ -184,10 +189,12 @@ func TestMEVTest(t *testing.T) {
 					endpoint1: {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
 						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
 					},
 					endpoint2: {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
 						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
 					},
 				},
 				Score:        categoryScoreC,
@@ -247,13 +254,13 @@ func TestMEVTestFlags(t *testing.T) {
 	}{
 		{
 			name:        "default scenario",
-			args:        []string{"mev", "--endpoints=\"test.endpoint\""},
+			args:        []string{"mev", "--endpoints=\"test.endpoint\"", "--beacon-node-endpoint=\"test.endpoint\""},
 			expectedErr: "",
 		},
 		{
 			name:        "no endpoints flag",
 			args:        []string{"mev"},
-			expectedErr: "required flag(s) \"endpoints\" not set",
+			expectedErr: "required flag(s) \"beacon-node-endpoint\", \"endpoints\" not set",
 		},
 		{
 			name:        "no output toml on quiet",

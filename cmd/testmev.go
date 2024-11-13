@@ -3,24 +3,35 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptrace"
+	"strconv"
 	"strings"
 	"time"
 
+	builderspec "github.com/attestantio/go-builder-client/spec"
+	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
+	eth2a "github.com/attestantio/go-eth2-client/spec/altair"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 type testMEVConfig struct {
 	testConfig
-	Endpoints []string
+	Endpoints          []string
+	BeaconNodeEndpoint string
 }
 
 type testCaseMEV func(context.Context, *testMEVConfig, string) testResult
@@ -28,7 +39,11 @@ type testCaseMEV func(context.Context, *testMEVConfig, string) testResult
 const (
 	thresholdMEVMeasureAvg  = 40 * time.Millisecond
 	thresholdMEVMeasurePoor = 100 * time.Millisecond
+	thresholdMEVBlockAvg    = 500 * time.Millisecond
+	thresholdMEVBlockPoor   = 800 * time.Millisecond
 )
+
+var errStatusCodeNot200 = errors.New("status code not 200 OK")
 
 func newTestMEVCmd(runFunc func(context.Context, io.Writer, testMEVConfig) error) *cobra.Command {
 	var config testMEVConfig
@@ -53,15 +68,17 @@ func newTestMEVCmd(runFunc func(context.Context, io.Writer, testMEVConfig) error
 }
 
 func bindTestMEVFlags(cmd *cobra.Command, config *testMEVConfig, flagsPrefix string) {
-	endpoints := flagsPrefix + "endpoints"
-	cmd.Flags().StringSliceVar(&config.Endpoints, endpoints, nil, "[REQUIRED] Comma separated list of one or more MEV relay endpoint URLs.")
-	mustMarkFlagRequired(cmd, endpoints)
+	cmd.Flags().StringSliceVar(&config.Endpoints, flagsPrefix+"endpoints", nil, "[REQUIRED] Comma separated list of one or more MEV relay endpoint URLs.")
+	cmd.Flags().StringVar(&config.BeaconNodeEndpoint, flagsPrefix+"beacon-node-endpoint", "", "[REQUIRED] Beacon node endpoint URL used for block creation test.")
+	mustMarkFlagRequired(cmd, flagsPrefix+"endpoints")
+	mustMarkFlagRequired(cmd, flagsPrefix+"beacon-node-endpoint")
 }
 
 func supportedMEVTestCases() map[testCaseName]testCaseMEV {
 	return map[testCaseName]testCaseMEV{
 		{name: "ping", order: 1}:        mevPingTest,
 		{name: "pingMeasure", order: 2}: mevPingMeasureTest,
+		{name: "createBlock", order: 3}: mevCreateBlockTest,
 	}
 }
 
@@ -239,6 +256,119 @@ func mevPingMeasureTest(ctx context.Context, _ *testMEVConfig, target string) te
 	return testRes
 }
 
+func mevCreateBlockTest(ctx context.Context, cfg *testMEVConfig, target string) testResult {
+	testRes := testResult{Name: "CreateBlock"}
+
+	latestBlock, err := latestBeaconBlock(ctx, cfg.BeaconNodeEndpoint)
+	if err != nil {
+		failedTestResult(testRes, err)
+	}
+
+	// wait for beginning of next slot, as the block for current one might have already been proposed
+	latestBlockTSUnix, err := strconv.ParseInt(latestBlock.Body.ExecutionPayload.Timestamp, 10, 64)
+	if err != nil {
+		failedTestResult(testRes, err)
+	}
+	latestBlockTS := time.Unix(latestBlockTSUnix, 0)
+	nextBlockTS := latestBlockTS.Add(slotTime)
+	for time.Now().Before(nextBlockTS) && ctx.Err() == nil {
+		sleepWithContext(ctx, 10*time.Millisecond)
+	}
+
+	latestSlot, err := strconv.ParseInt(latestBlock.Slot, 10, 64)
+	if err != nil {
+		failedTestResult(testRes, err)
+	}
+	nextSlot := latestSlot + 1
+	epoch := nextSlot / 32
+	proposerDuties, err := fetchProposersForEpoch(ctx, cfg, epoch)
+	if err != nil {
+		failedTestResult(testRes, err)
+	}
+
+	log.Info(ctx, "Starting attempts for block creation", z.Any("mev_relay", target))
+	var rttGetHeader time.Duration
+	var builderBid builderspec.VersionedSignedBuilderBid
+	for ctx.Err() == nil {
+		startIteration := time.Now()
+		epoch = nextSlot / 32
+
+		validatorPubKey, err := getValidatorPKForSlot(proposerDuties, nextSlot)
+		if err != nil {
+			proposerDuties, err = fetchProposersForEpoch(ctx, cfg, epoch)
+			if err != nil {
+				failedTestResult(testRes, err)
+			}
+			validatorPubKey, err = getValidatorPKForSlot(proposerDuties, nextSlot)
+			if err != nil {
+				failedTestResult(testRes, err)
+			}
+		}
+
+		builderBid, rttGetHeader, err = getBlockHeader(ctx, target, nextSlot, latestBlock.Body.ExecutionPayload.BlockHash, validatorPubKey)
+		if err != nil {
+			// the current proposer was not registered with the builder, wait for next block
+			if errors.Is(err, errStatusCodeNot200) {
+				sleepWithContext(ctx, slotTime-time.Since(startIteration))
+				latestBlock, err = latestBeaconBlock(ctx, cfg.BeaconNodeEndpoint)
+				nextSlot++
+				if err != nil {
+					failedTestResult(testRes, err)
+				}
+
+				continue
+			}
+
+			return failedTestResult(testRes, err)
+		}
+
+		break
+	}
+
+	log.Info(ctx, "Created block headers for slot", z.Any("slot", nextSlot), z.Any("target", target))
+
+	blindedBeaconBlock := eth2deneb.BlindedBeaconBlock{
+		Slot:          0,
+		ProposerIndex: 0,
+		ParentRoot:    eth2p0.Root{},
+		StateRoot:     eth2p0.Root{},
+		Body: &eth2deneb.BlindedBeaconBlockBody{
+			RANDAOReveal:           eth2p0.BLSSignature{},
+			ETH1Data:               &eth2p0.ETH1Data{},
+			Graffiti:               eth2p0.Hash32{},
+			ProposerSlashings:      []*eth2p0.ProposerSlashing{},
+			AttesterSlashings:      []*eth2p0.AttesterSlashing{},
+			Attestations:           []*eth2p0.Attestation{},
+			Deposits:               []*eth2p0.Deposit{},
+			VoluntaryExits:         []*eth2p0.SignedVoluntaryExit{},
+			SyncAggregate:          &eth2a.SyncAggregate{},
+			ExecutionPayloadHeader: builderBid.Deneb.Message.Header,
+		},
+	}
+
+	sig, err := hex.DecodeString("b9251a82040d4620b8c5665f328ee6c2eaa02d31d71d153f4abba31a7922a981e541e85283f0ced387d26e86aef9386d18c6982b9b5f8759882fe7f25a328180d86e146994ef19d28bc1432baf29751dec12b5f3d65dbbe224d72cf900c6831a")
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+
+	payload := eth2deneb.SignedBlindedBeaconBlock{
+		Message:   &blindedBeaconBlock,
+		Signature: eth2p0.BLSSignature(sig),
+	}
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+	rttBuild, err := requestRTT(ctx, target+"/eth/v1/builder/blinded_blocks", http.MethodPost, bytes.NewReader(payloadJSON), 400)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+
+	testRes = evaluateRTT(rttBuild+rttGetHeader, testRes, thresholdMEVBlockAvg, thresholdMEVBlockPoor)
+
+	return testRes
+}
+
 // helper functions
 
 // Shorten the hash of the MEV relay endpoint
@@ -260,4 +390,137 @@ func formatMEVRelayName(urlString string) string {
 	hashShort := hash[:6] + "..." + hash[len(hash)-4:]
 
 	return splitScheme[0] + "://" + hashShort + "@" + hashSplit[1]
+}
+
+func getBlockHeader(ctx context.Context, target string, nextSlot int64, blockHash string, validatorPubKey string) (builderspec.VersionedSignedBuilderBid, time.Duration, error) {
+	var start time.Time
+	var firstByte time.Duration
+	trace := &httptrace.ClientTrace{
+		GotFirstResponseByte: func() {
+			firstByte = time.Since(start)
+		},
+	}
+	start = time.Now()
+	req, err := http.NewRequestWithContext(
+		httptrace.WithClientTrace(ctx, trace),
+		http.MethodGet,
+		fmt.Sprintf("%v/eth/v1/builder/header/%v/%v/%v", target, nextSlot, blockHash, validatorPubKey),
+		nil)
+	if err != nil {
+		return builderspec.VersionedSignedBuilderBid{}, 0, errors.Wrap(err, "http request")
+	}
+
+	resp, err := http.DefaultTransport.RoundTrip(req)
+	if err != nil {
+		return builderspec.VersionedSignedBuilderBid{}, 0, errors.Wrap(err, "http request rtt")
+	}
+	defer resp.Body.Close()
+
+	// the current proposer was not registered with the builder, wait for next block
+	if resp.StatusCode != http.StatusOK {
+		return builderspec.VersionedSignedBuilderBid{}, 0, errStatusCodeNot200
+	}
+	rttGetHeader := firstByte
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return builderspec.VersionedSignedBuilderBid{}, 0, errors.Wrap(err, "http response body")
+	}
+
+	var builderBid builderspec.VersionedSignedBuilderBid
+	err = json.Unmarshal(bodyBytes, &builderBid)
+	if err != nil {
+		return builderspec.VersionedSignedBuilderBid{}, 0, errors.Wrap(err, "http response json")
+	}
+
+	return builderBid, rttGetHeader, nil
+}
+
+type BeaconBlock struct {
+	Data BeaconBlockData `json:"data"`
+}
+
+type BeaconBlockData struct {
+	Message BeaconBlockMessage `json:"message"`
+}
+
+type BeaconBlockMessage struct {
+	Slot string          `json:"slot"`
+	Body BeaconBlockBody `json:"body"`
+}
+
+type BeaconBlockBody struct {
+	ExecutionPayload BeaconBlockExecPayload `json:"execution_payload"`
+}
+
+type BeaconBlockExecPayload struct {
+	BlockHash string `json:"block_hash"`
+	Timestamp string `json:"timestamp"`
+}
+
+func latestBeaconBlock(ctx context.Context, endpoint string) (BeaconBlockMessage, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%v/eth/v2/beacon/blocks/head", endpoint), nil)
+	if err != nil {
+		return BeaconBlockMessage{}, errors.Wrap(err, "http request")
+	}
+	resp, err := new(http.Client).Do(req)
+	if err != nil {
+		return BeaconBlockMessage{}, errors.Wrap(err, "http request do")
+	}
+	defer resp.Body.Close()
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return BeaconBlockMessage{}, errors.Wrap(err, "http response body")
+	}
+
+	var beaconBlock BeaconBlock
+	err = json.Unmarshal(bodyBytes, &beaconBlock)
+	if err != nil {
+		return BeaconBlockMessage{}, errors.Wrap(err, "http response json")
+	}
+
+	return beaconBlock.Data.Message, nil
+}
+
+type ProposerDuties struct {
+	Data []ProposerDutiesData `json:"data"`
+}
+
+type ProposerDutiesData struct {
+	PubKey string `json:"pubkey"`
+	Slot   string `json:"slot"`
+}
+
+func fetchProposersForEpoch(ctx context.Context, cfg *testMEVConfig, epoch int64) ([]ProposerDutiesData, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%v/eth/v1/validator/duties/proposer/%v", cfg.BeaconNodeEndpoint, epoch), nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "http request")
+	}
+	resp, err := new(http.Client).Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "http request do")
+	}
+	defer resp.Body.Close()
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "http response body")
+	}
+
+	var proposerDuties ProposerDuties
+	err = json.Unmarshal(bodyBytes, &proposerDuties)
+	if err != nil {
+		return nil, errors.Wrap(err, "http response json")
+	}
+
+	return proposerDuties.Data, nil
+}
+
+func getValidatorPKForSlot(proposers []ProposerDutiesData, slot int64) (string, error) {
+	slotString := strconv.FormatInt(slot, 10)
+	for _, s := range proposers {
+		if s.Slot == slotString {
+			return s.PubKey, nil
+		}
+	}
+
+	return "", errors.New("slot not found")
 }
