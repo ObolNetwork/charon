@@ -14,21 +14,19 @@ func TestCollector(t *testing.T) {
 	c := hotstuff.NewCollector()
 
 	msg1 := &hotstuff.Msg{
-		Type:   hotstuff.MsgPrepare,
-		View:   1,
-		Sender: 1,
+		Type: hotstuff.MsgPrepare,
+		View: 1,
 	}
 
 	msg2 := &hotstuff.Msg{
-		Type:   hotstuff.MsgCommit,
-		View:   1,
-		Sender: 2,
+		Type: hotstuff.MsgCommit,
+		View: 1,
 	}
 
-	c.AddMsg(msg1)
-	c.AddMsg(msg1) // deduplication
-	c.AddMsg(msg2)
-	c.AddMsg(msg2) // deduplication
+	c.AddMsg(msg1, 1)
+	c.AddMsg(msg1, 1) // deduplication
+	c.AddMsg(msg2, 2)
+	c.AddMsg(msg2, 2) // deduplication
 
 	mm := c.MatchingMsg(hotstuff.MsgPrepare, 1)
 	require.Len(t, mm, 1)
@@ -42,12 +40,11 @@ func TestCollector(t *testing.T) {
 	require.Empty(t, mm)
 
 	msg3 := &hotstuff.Msg{
-		Type:   hotstuff.MsgPrepare,
-		View:   1,
-		Sender: 2,
+		Type: hotstuff.MsgPrepare,
+		View: 1,
 	}
 
-	c.AddMsg(msg3)
+	c.AddMsg(msg3, 2)
 	mm = c.MatchingMsg(hotstuff.MsgPrepare, 1)
 	require.Len(t, mm, 2)
 	require.Equal(t, msg1, mm[0])

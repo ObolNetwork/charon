@@ -2,8 +2,12 @@
 
 package hotstuff
 
-// ID uniquely identifies a replica. The first replica has ID = 0.
+// ID uniquely identifies a replica. The first replica has ID = 1.
 type ID uint64
+
+const (
+	InvalidID ID = 0
+)
 
 // View is the HotStuff view number. The first view has number 1.
 type View uint64
@@ -85,7 +89,6 @@ func (p Phase) NextPhase() Phase {
 
 // Msg represents a HotStuff protocol message.
 type Msg struct {
-	Sender    ID
 	Type      MsgType
 	View      View
 	Value     string

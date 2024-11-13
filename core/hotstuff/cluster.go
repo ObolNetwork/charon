@@ -14,6 +14,7 @@ type Cluster struct {
 	threshold   uint
 	publicKeys  []*k1.PublicKey
 	privateKeys []*k1.PrivateKey
+	pubKeysToID map[k1.PublicKey]ID
 	inputCh     <-chan string
 	outputCh    chan<- string
 }
@@ -22,6 +23,7 @@ type Cluster struct {
 func NewCluster(nodes, threshold uint, inputCh <-chan string, outputCh chan<- string) (*Cluster, error) {
 	publicKeys := make([]*k1.PublicKey, 0)
 	privateKeys := make([]*k1.PrivateKey, 0)
+	pubKeysToID := make(map[k1.PublicKey]ID)
 
 	for i := 0; i < int(nodes); i++ {
 		privKey, err := k1.GeneratePrivateKey()
@@ -32,6 +34,8 @@ func NewCluster(nodes, threshold uint, inputCh <-chan string, outputCh chan<- st
 		pubKey := privKey.PubKey()
 		publicKeys = append(publicKeys, pubKey)
 		privateKeys = append(privateKeys, privKey)
+
+		pubKeysToID[*pubKey] = ID(i + 1)
 	}
 
 	return &Cluster{
@@ -39,14 +43,10 @@ func NewCluster(nodes, threshold uint, inputCh <-chan string, outputCh chan<- st
 		threshold,
 		publicKeys,
 		privateKeys,
+		pubKeysToID,
 		inputCh,
 		outputCh,
 	}, nil
-}
-
-// ValidID returns true if the given ID is within the valid range.
-func (c *Cluster) ValidID(id ID) bool {
-	return id >= 1 && id <= ID(c.nodes)
 }
 
 // Leader returns the deterministic leader ID for the given view.
@@ -54,18 +54,16 @@ func (c *Cluster) Leader(view View) ID {
 	return ID(uint64(view) % uint64(c.nodes))
 }
 
+// PublicKeyToID returns the replica ID for the given public key.
+func (c *Cluster) PublicKeyToID(pubKey *k1.PublicKey) ID {
+	return c.pubKeysToID[*pubKey]
+}
+
 // HasQuorum returns true if the given public keys meet the threshold.
 func (c *Cluster) HasQuorum(pubKeys []*k1.PublicKey) bool {
 	for _, pubKey := range pubKeys {
-		found := false
-		for _, clusterPubKey := range c.publicKeys {
-			if clusterPubKey.IsEqual(pubKey) {
-				found = true
-				break
-			}
-		}
-
-		if !found {
+		_, ok := c.pubKeysToID[*pubKey]
+		if !ok {
 			return false
 		}
 	}

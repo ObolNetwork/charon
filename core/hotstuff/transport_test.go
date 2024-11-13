@@ -21,7 +21,7 @@ func TestTransport(t *testing.T) {
 	require.NoError(t, err)
 
 	for n := range nodes {
-		ch, err := transport.ReceiveCh(hotstuff.ID(n))
+		ch, err := transport.ReceiveCh(hotstuff.ID(n + 1))
 		require.NoError(t, err)
 
 		m := <-ch

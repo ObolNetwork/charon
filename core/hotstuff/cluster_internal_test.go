@@ -40,14 +40,15 @@ func TestLeader(t *testing.T) {
 	require.Equal(t, ID(3), c.Leader(7))
 }
 
-func TestValidID(t *testing.T) {
+func TestReplicaIDByPublicKey(t *testing.T) {
 	c, err := NewCluster(4, 3, nil, nil)
 	require.NoError(t, err)
 
-	require.False(t, c.ValidID(0))
-	require.True(t, c.ValidID(1))
-	require.True(t, c.ValidID(2))
-	require.True(t, c.ValidID(3))
-	require.True(t, c.ValidID(4))
-	require.False(t, c.ValidID(5))
+	pubKey := c.publicKeys[1]
+	id := c.PublicKeyToID(pubKey)
+	require.Equal(t, ID(2), id)
+
+	pubKey = c.publicKeys[3]
+	id = c.PublicKeyToID(pubKey)
+	require.Equal(t, ID(4), id)
 }

@@ -23,11 +23,11 @@ func NewCollector() *Collector {
 	}
 }
 
-func (c *Collector) AddMsg(msg *Msg) {
+func (c *Collector) AddMsg(msg *Msg, sender ID) {
 	key := dedupKey{
 		msgType: msg.Type,
 		view:    msg.View,
-		sender:  msg.Sender,
+		sender:  sender,
 	}
 
 	if _, ok := c.dedup[key]; ok {

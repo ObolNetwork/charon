@@ -30,7 +30,7 @@ func TestHotStuff(t *testing.T) {
 
 	replicas := make([]*hotstuff.Replica, total)
 	for i := range total {
-		id := hotstuff.ID(i)
+		id := hotstuff.ID(i + 1)
 		replicas[i], err = hotstuff.NewReplica(id, cluster, transport, phaseTimeout)
 		require.NoError(t, err)
 	}
@@ -43,8 +43,6 @@ func TestHotStuff(t *testing.T) {
 		go replicas[i].Run(ctx, wg.Done)
 	}
 
-	start := time.Now()
-
 	// The value to be replicated
 	inputCh <- "hotstuff"
 
@@ -52,9 +50,6 @@ func TestHotStuff(t *testing.T) {
 		value := <-outputCh
 		require.Equal(t, "hotstuff", value)
 	}
-
-	elapsed := time.Since(start)
-	t.Logf("Net consensus time: %v", elapsed)
 
 	// Stop all processes
 	cancel()

@@ -33,7 +33,7 @@ func NewTransport[M any](nodes uint) Transport[M] {
 	channels := make(map[ID]chan M, nodes)
 
 	for i := range nodes {
-		channels[ID(i)] = make(chan M, IOBufferSize)
+		channels[ID(i+1)] = make(chan M, IOBufferSize)
 	}
 
 	return &transport[M]{
