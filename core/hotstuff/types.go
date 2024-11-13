@@ -85,19 +85,20 @@ func (p Phase) NextPhase() Phase {
 
 // Msg represents a HotStuff protocol message.
 type Msg struct {
-	Sender  ID
-	Type    MsgType
-	View    View
-	Value   string
-	Vote    bool
-	ParSig  []byte
-	Justify *QC
+	Sender    ID
+	Type      MsgType
+	View      View
+	Value     string
+	ValueHash [32]byte
+	Vote      bool
+	ParSig    []byte
+	Justify   *QC
 }
 
 // QC represents a quorum certificate.
 type QC struct {
-	Type  MsgType
-	View  View
-	Value string
-	Sigs  [][]byte
+	Type      MsgType
+	View      View
+	ValueHash [32]byte
+	Sigs      [][]byte
 }

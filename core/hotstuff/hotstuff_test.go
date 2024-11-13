@@ -30,7 +30,7 @@ func TestHotStuff(t *testing.T) {
 
 	replicas := make([]*hotstuff.Replica, total)
 	for i := range total {
-		id := hotstuff.ID(i + 1)
+		id := hotstuff.ID(i)
 		replicas[i], err = hotstuff.NewReplica(id, cluster, transport, phaseTimeout)
 		require.NoError(t, err)
 	}

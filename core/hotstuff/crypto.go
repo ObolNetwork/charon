@@ -10,13 +10,29 @@ import (
 	"github.com/obolnetwork/charon/app/k1util"
 )
 
-func Hash(t MsgType, view View, value string) ([32]byte, error) {
+func Hash(t MsgType, view View, valueHash [32]byte) ([32]byte, error) {
 	hh := ssz.DefaultHasherPool.Get()
 	defer ssz.DefaultHasherPool.Put(hh)
 
 	index := hh.Index()
 	hh.PutUint64(uint64(t))
 	hh.PutUint64(uint64(view))
+	hh.PutBytes(valueHash[:])
+	hh.Merkleize(index)
+
+	hash, err := hh.HashRoot()
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash root")
+	}
+
+	return hash, nil
+}
+
+func HashValue(value string) ([32]byte, error) {
+	hh := ssz.DefaultHasherPool.Get()
+	defer ssz.DefaultHasherPool.Put(hh)
+
+	index := hh.Index()
 	hh.PutBytes([]byte(value))
 	hh.Merkleize(index)
 
@@ -28,8 +44,8 @@ func Hash(t MsgType, view View, value string) ([32]byte, error) {
 	return hash, nil
 }
 
-func Sign(privKey *k1.PrivateKey, t MsgType, view View, value string) ([]byte, error) {
-	hash, err := Hash(t, view, value)
+func Sign(privKey *k1.PrivateKey, t MsgType, view View, valueHash [32]byte) ([]byte, error) {
+	hash, err := Hash(t, view, valueHash)
 	if err != nil {
 		return nil, err
 	}

@@ -28,6 +28,7 @@ type Replica struct {
 	view        View
 	phase       Phase
 	leaderPhase Phase
+	valuesMap   map[[32]byte]string
 	prepareQC   *QC
 	lockedQC    *QC
 	collector   *Collector
@@ -48,6 +49,7 @@ func NewReplica(id ID, cluster *Cluster, transport Transport[Msg], phaseTimeout 
 		view:         1,
 		phase:        PreparePhase,
 		leaderPhase:  PreparePhase,
+		valuesMap:    make(map[[32]byte]string),
 		collector:    NewCollector(),
 	}, nil
 }
@@ -116,7 +118,9 @@ func (r *Replica) handleMsg(ctx context.Context, msg Msg) {
 	}
 
 	if !msg.Vote {
-		r.replicaDuty(ctx, msg, leader)
+		if err := r.replicaDuty(ctx, msg, leader); err != nil {
+			log.Error(ctx, "Failed to handle msg as replica", err)
+		}
 	}
 }
 
@@ -138,7 +142,11 @@ func (r *Replica) leaderDuty(ctx context.Context, msg Msg) {
 		return
 	}
 
-	qc := createQC(mm)
+	qc, err := createQC(mm)
+	if err != nil {
+		log.Error(ctx, "Failed to create qc", err)
+		return
+	}
 	if err := r.verifyQC(qc); err != nil {
 		log.Error(ctx, "Failed to verify qc", err)
 		return
@@ -147,7 +155,7 @@ func (r *Replica) leaderDuty(ctx context.Context, msg Msg) {
 	r.leaderPhase = r.leaderPhase.NextPhase()
 
 	t := msg.Type.NextMsgType()
-	err := r.transport.Broadcast(ctx, Msg{
+	err = r.transport.Broadcast(ctx, Msg{
 		Sender:  r.id,
 		Type:    t,
 		View:    r.view,
@@ -208,13 +216,12 @@ func (r *Replica) nextView(ctx context.Context) error {
 	r.view++
 	r.phase = PreparePhase
 	r.leaderPhase = PreparePhase
-	r.prepareQC = nil
-	r.lockedQC = nil
+	r.valuesMap = make(map[[32]byte]string)
 
 	return r.sendNewView(ctx)
 }
 
-func (r *Replica) replicaDuty(ctx context.Context, msg Msg, leader ID) {
+func (r *Replica) replicaDuty(ctx context.Context, msg Msg, leader ID) error {
 	currentPhase := r.phase
 	r.phase = r.phase.NextPhase()
 
@@ -223,20 +230,29 @@ func (r *Replica) replicaDuty(ctx context.Context, msg Msg, leader ID) {
 		if !r.safeNode(msg.Justify) {
 			log.Error(ctx, "Unsafe node", nil)
 		} else {
-			r.sendVote(ctx, MsgPrepare, msg.Value, leader)
+			valueHash, err := HashValue(msg.Value)
+			if err != nil {
+				return errors.Wrap(err, "hash value")
+			}
+
+			r.valuesMap[valueHash] = msg.Value
+			r.sendVote(ctx, MsgPrepare, valueHash, leader)
 		}
 	case PreCommitPhase:
 		r.prepareQC = msg.Justify
-		r.sendVote(ctx, MsgPreCommit, msg.Value, leader)
+		r.sendVote(ctx, MsgPreCommit, msg.Justify.ValueHash, leader)
 	case CommitPhase:
 		r.lockedQC = msg.Justify
-		r.sendVote(ctx, MsgCommit, msg.Justify.Value, leader)
+		r.sendVote(ctx, MsgCommit, msg.Justify.ValueHash, leader)
 	case DecidePhase:
-		log.Info(ctx, "Decided value", z.Str("value", msg.Justify.Value))
-		r.cluster.outputCh <- msg.Justify.Value
+		value := r.valuesMap[msg.Justify.ValueHash]
+		log.Info(ctx, "Decided value", z.Str("value", value))
+		r.cluster.outputCh <- value
 	default:
 		log.Debug(ctx, "Ignoring message in terminal phase")
 	}
+
+	return nil
 }
 
 func (r *Replica) safeNode(qc *QC) bool {
@@ -253,17 +269,17 @@ func (r *Replica) safeNode(qc *QC) bool {
 	return qc.View > r.lockedQC.View
 }
 
-func (r *Replica) sendVote(ctx context.Context, t MsgType, value string, leader ID) {
+func (r *Replica) sendVote(ctx context.Context, t MsgType, valueHash [32]byte, leader ID) {
 	voteMsg := Msg{
-		Sender: r.id,
-		Type:   t,
-		View:   r.view,
-		Value:  value,
-		Vote:   true,
+		Sender:    r.id,
+		Type:      t,
+		View:      r.view,
+		ValueHash: valueHash,
+		Vote:      true,
 	}
 
-	privKey := r.cluster.privateKeys[r.id-1]
-	sig, err := Sign(privKey, t, r.view, value)
+	privKey := r.cluster.privateKeys[r.id]
+	sig, err := Sign(privKey, t, r.view, valueHash)
 	if err != nil {
 		log.Error(ctx, "Failed to sign vote", err)
 		return
@@ -277,13 +293,12 @@ func (r *Replica) sendVote(ctx context.Context, t MsgType, value string, leader 
 }
 
 func (r *Replica) verifyQC(qc *QC) error {
-	hash, err := Hash(qc.Type, qc.View, qc.Value)
-	if err != nil {
-		return err
-	}
-
 	pubKeys := make([]*k1.PublicKey, 0)
 	for _, sig := range qc.Sigs {
+		hash, err := Hash(qc.Type, qc.View, qc.ValueHash)
+		if err != nil {
+			return errors.Wrap(err, "hash qc")
+		}
 		pk, err := k1util.Recover(hash[:], sig)
 		if err != nil {
 			return errors.Wrap(err, "bad signature")
@@ -310,17 +325,23 @@ func selectHighQC(msgs []*Msg) *QC {
 	return highQC
 }
 
-func createQC(msgs []*Msg) *QC {
+func createQC(msgs []*Msg) (*QC, error) {
 	sigs := make([][]byte, len(msgs))
 
 	for i, msg := range msgs {
 		sigs[i] = msg.ParSig
+
+		if i > 0 {
+			if msg.Type != msgs[0].Type || msg.View != msgs[0].View || msg.ValueHash != msgs[0].ValueHash {
+				return nil, errors.New("msg mismatch")
+			}
+		}
 	}
 
 	return &QC{
-		Type:  msgs[0].Type,
-		View:  msgs[0].View,
-		Value: msgs[0].Value,
-		Sigs:  sigs,
-	}
+		Type:      msgs[0].Type,
+		View:      msgs[0].View,
+		ValueHash: msgs[0].ValueHash,
+		Sigs:      sigs,
+	}, nil
 }
