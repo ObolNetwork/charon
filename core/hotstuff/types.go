@@ -87,12 +87,18 @@ func (p Phase) NextPhase() Phase {
 	}
 }
 
+// Hash represents a 32-byte hash.
+type Hash [32]byte
+
+// Value represents arbitrary value being replicated.
+type Value []byte
+
 // Msg represents a HotStuff protocol message.
 type Msg struct {
 	Type      MsgType
 	View      View
-	Value     string
-	ValueHash [32]byte
+	Value     Value
+	ValueHash Hash
 	Vote      bool
 	ParSig    []byte
 	Justify   *QC
@@ -102,6 +108,6 @@ type Msg struct {
 type QC struct {
 	Type      MsgType
 	View      View
-	ValueHash [32]byte
+	ValueHash Hash
 	Sigs      [][]byte
 }

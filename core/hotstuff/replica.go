@@ -28,7 +28,7 @@ type Replica struct {
 	view        View
 	phase       Phase
 	leaderPhase Phase
-	valuesMap   map[[32]byte]string
+	valuesMap   map[Hash]Value
 	prepareQC   *QC
 	lockedQC    *QC
 	collector   *Collector
@@ -49,7 +49,7 @@ func NewReplica(id ID, cluster *Cluster, transport Transport[Msg], phaseTimeout 
 		view:         1,
 		phase:        PreparePhase,
 		leaderPhase:  PreparePhase,
-		valuesMap:    make(map[[32]byte]string),
+		valuesMap:    make(map[Hash]Value),
 		collector:    NewCollector(),
 	}, nil
 }
@@ -210,7 +210,7 @@ func (r *Replica) nextView(ctx context.Context) error {
 	r.view++
 	r.phase = PreparePhase
 	r.leaderPhase = PreparePhase
-	r.valuesMap = make(map[[32]byte]string)
+	r.valuesMap = make(map[Hash]Value)
 
 	return r.sendNewView(ctx)
 }
@@ -240,7 +240,6 @@ func (r *Replica) replicaDuty(ctx context.Context, msg Msg, leader ID) (err erro
 		err = r.sendVote(ctx, MsgCommit, msg.Justify.ValueHash, leader)
 	case DecidePhase:
 		value := r.valuesMap[msg.Justify.ValueHash]
-		log.Info(ctx, "Decided value", z.Str("value", value))
 		r.cluster.outputCh <- value
 	default:
 		log.Debug(ctx, "Ignoring message in terminal phase")
@@ -304,7 +303,7 @@ func (r *Replica) sendMsg(ctx context.Context, msg *Msg, leader ID) error {
 }
 
 func (r *Replica) getSenderID(msg *Msg) (ID, error) {
-	hash, err := Hash(msg.Type, msg.View, msg.ValueHash)
+	hash, err := HashMsg(msg.Type, msg.View, msg.ValueHash)
 	if err != nil {
 		return InvalidID, errors.Wrap(err, "hash msg")
 	}
@@ -325,7 +324,7 @@ func (r *Replica) getSenderID(msg *Msg) (ID, error) {
 func (r *Replica) verifyQC(qc *QC) error {
 	pubKeys := make([]*k1.PublicKey, 0)
 	for _, sig := range qc.Sigs {
-		hash, err := Hash(qc.Type, qc.View, qc.ValueHash)
+		hash, err := HashMsg(qc.Type, qc.View, qc.ValueHash)
 		if err != nil {
 			return errors.Wrap(err, "hash qc")
 		}

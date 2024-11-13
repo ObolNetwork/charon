@@ -20,8 +20,8 @@ func TestHotStuff(t *testing.T) {
 		phaseTimeout = 100 * time.Millisecond
 	)
 
-	inputCh := make(chan string)
-	outputCh := make(chan string, total)
+	inputCh := make(chan hotstuff.Value)
+	outputCh := make(chan hotstuff.Value, total)
 
 	cluster, err := hotstuff.NewCluster(total, threshold, inputCh, outputCh)
 	require.NoError(t, err)
@@ -44,11 +44,11 @@ func TestHotStuff(t *testing.T) {
 	}
 
 	// The value to be replicated
-	inputCh <- "hotstuff"
+	inputCh <- []byte("hotstuff")
 
 	for range total {
 		value := <-outputCh
-		require.Equal(t, "hotstuff", value)
+		require.EqualValues(t, "hotstuff", value)
 	}
 
 	// Stop all processes

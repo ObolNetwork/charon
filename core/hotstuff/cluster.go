@@ -15,12 +15,12 @@ type Cluster struct {
 	publicKeys  []*k1.PublicKey
 	privateKeys []*k1.PrivateKey
 	pubKeysToID map[k1.PublicKey]ID
-	inputCh     <-chan string
-	outputCh    chan<- string
+	inputCh     <-chan Value
+	outputCh    chan<- Value
 }
 
 // NewCluster creates a new Byzantine cluster configuration.
-func NewCluster(nodes, threshold uint, inputCh <-chan string, outputCh chan<- string) (*Cluster, error) {
+func NewCluster(nodes, threshold uint, inputCh <-chan Value, outputCh chan<- Value) (*Cluster, error) {
 	publicKeys := make([]*k1.PublicKey, 0)
 	privateKeys := make([]*k1.PrivateKey, 0)
 	pubKeysToID := make(map[k1.PublicKey]ID)

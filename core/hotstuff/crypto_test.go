@@ -19,13 +19,13 @@ func TestSignVerify(t *testing.T) {
 	pubKey := privKey.PubKey()
 	require.NotNil(t, pubKey)
 
-	valueHash, err := hotstuff.HashValue("value")
+	valueHash, err := hotstuff.HashValue([]byte("value"))
 	require.NoError(t, err)
 
 	sig, err := hotstuff.Sign(privKey, hotstuff.MsgCommit, 3, valueHash)
 	require.NoError(t, err)
 
-	hash, err := hotstuff.Hash(hotstuff.MsgCommit, 3, valueHash)
+	hash, err := hotstuff.HashMsg(hotstuff.MsgCommit, 3, valueHash)
 	require.NoError(t, err)
 
 	pk, err := k1util.Recover(hash[:], sig)
