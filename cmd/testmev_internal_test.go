@@ -26,6 +26,8 @@ func TestMEVTest(t *testing.T) {
 	endpoint1 := fmt.Sprintf("http://localhost:%v", port1)
 	port2 := testutil.GetFreePort(t)
 	endpoint2 := fmt.Sprintf("http://localhost:%v", port2)
+	port3 := testutil.GetFreePort(t)
+	endpoint3 := fmt.Sprintf("http://localhost:%v", port3)
 
 	mockedMEVNode := StartHealthyMockedMEVNode(t)
 	defer mockedMEVNode.Close()
@@ -46,7 +48,8 @@ func TestMEVTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    time.Minute,
 				},
-				Endpoints: []string{mockedMEVNode.URL},
+				Endpoints:          []string{mockedMEVNode.URL},
+				BeaconNodeEndpoint: endpoint3,
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
@@ -54,6 +57,7 @@ func TestMEVTest(t *testing.T) {
 						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "createMultipleBlocks", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 			},
@@ -68,19 +72,22 @@ func TestMEVTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    time.Minute,
 				},
-				Endpoints: []string{endpoint1, endpoint2},
+				Endpoints:          []string{endpoint1, endpoint2},
+				BeaconNodeEndpoint: endpoint3,
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					endpoint1: {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
 						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
-						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
+						{Name: "createMultipleBlocks", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
 					},
 					endpoint2: {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
 						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
-						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
+						{Name: "createMultipleBlocks", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
 					},
 				},
 			},
@@ -95,7 +102,8 @@ func TestMEVTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    100 * time.Nanosecond,
 				},
-				Endpoints: []string{endpoint1, endpoint2},
+				Endpoints:          []string{endpoint1, endpoint2},
+				BeaconNodeEndpoint: endpoint3,
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
@@ -118,19 +126,22 @@ func TestMEVTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    time.Minute,
 				},
-				Endpoints: []string{endpoint1, endpoint2},
+				Endpoints:          []string{endpoint1, endpoint2},
+				BeaconNodeEndpoint: endpoint3,
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					endpoint1: {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
 						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
-						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
+						{Name: "createMultipleBlocks", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
 					},
 					endpoint2: {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
 						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
-						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
+						{Name: "createMultipleBlocks", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
 					},
 				},
 			},
@@ -145,7 +156,8 @@ func TestMEVTest(t *testing.T) {
 					TestCases:  []string{"notSupportedTest"},
 					Timeout:    time.Minute,
 				},
-				Endpoints: []string{endpoint1, endpoint2},
+				Endpoints:          []string{endpoint1, endpoint2},
+				BeaconNodeEndpoint: endpoint3,
 			},
 			expected:    testCategoryResult{},
 			expectedErr: "test case not supported",
@@ -159,7 +171,8 @@ func TestMEVTest(t *testing.T) {
 					TestCases:  []string{"ping"},
 					Timeout:    time.Minute,
 				},
-				Endpoints: []string{endpoint1, endpoint2},
+				Endpoints:          []string{endpoint1, endpoint2},
+				BeaconNodeEndpoint: endpoint3,
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
@@ -182,19 +195,22 @@ func TestMEVTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    time.Minute,
 				},
-				Endpoints: []string{endpoint1, endpoint2},
+				Endpoints:          []string{endpoint1, endpoint2},
+				BeaconNodeEndpoint: endpoint3,
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					endpoint1: {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
 						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
-						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
+						{Name: "createMultipleBlocks", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
 					},
 					endpoint2: {
 						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
 						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
-						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
+						{Name: "createMultipleBlocks", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
 					},
 				},
 				Score:        categoryScoreC,

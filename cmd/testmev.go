@@ -32,6 +32,7 @@ type testMEVConfig struct {
 	testConfig
 	Endpoints          []string
 	BeaconNodeEndpoint string
+	LoadTestBlocks     uint
 }
 
 type testCaseMEV func(context.Context, *testMEVConfig, string) testResult
@@ -70,15 +71,17 @@ func newTestMEVCmd(runFunc func(context.Context, io.Writer, testMEVConfig) error
 func bindTestMEVFlags(cmd *cobra.Command, config *testMEVConfig, flagsPrefix string) {
 	cmd.Flags().StringSliceVar(&config.Endpoints, flagsPrefix+"endpoints", nil, "[REQUIRED] Comma separated list of one or more MEV relay endpoint URLs.")
 	cmd.Flags().StringVar(&config.BeaconNodeEndpoint, flagsPrefix+"beacon-node-endpoint", "", "[REQUIRED] Beacon node endpoint URL used for block creation test.")
+	cmd.Flags().UintVar(&config.LoadTestBlocks, flagsPrefix+"load-test-blocks", 3, "Amount of blocks the 'createMultipleBlocks' test will create.")
 	mustMarkFlagRequired(cmd, flagsPrefix+"endpoints")
 	mustMarkFlagRequired(cmd, flagsPrefix+"beacon-node-endpoint")
 }
 
 func supportedMEVTestCases() map[testCaseName]testCaseMEV {
 	return map[testCaseName]testCaseMEV{
-		{name: "ping", order: 1}:        mevPingTest,
-		{name: "pingMeasure", order: 2}: mevPingMeasureTest,
-		{name: "createBlock", order: 3}: mevCreateBlockTest,
+		{name: "ping", order: 1}:                 mevPingTest,
+		{name: "pingMeasure", order: 2}:          mevPingMeasureTest,
+		{name: "createBlock", order: 3}:          mevCreateBlockTest,
+		{name: "createMultipleBlocks", order: 4}: mevCreateMultipleBlocksTest,
 	}
 }
 
@@ -256,12 +259,52 @@ func mevPingMeasureTest(ctx context.Context, _ *testMEVConfig, target string) te
 	return testRes
 }
 
-func mevCreateBlockTest(ctx context.Context, cfg *testMEVConfig, target string) testResult {
+func mevCreateBlockTest(ctx context.Context, conf *testMEVConfig, target string) testResult {
 	testRes := testResult{Name: "CreateBlock"}
 
-	latestBlock, err := latestBeaconBlock(ctx, cfg.BeaconNodeEndpoint)
+	latestBlock, err := latestBeaconBlock(ctx, conf.BeaconNodeEndpoint)
 	if err != nil {
-		failedTestResult(testRes, err)
+		return failedTestResult(testRes, err)
+	}
+
+	// wait for beginning of next slot, as the block for current one might have already been proposed
+	latestBlockTSUnix, err := strconv.ParseInt(latestBlock.Body.ExecutionPayload.Timestamp, 10, 64)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+	latestBlockTS := time.Unix(latestBlockTSUnix, 0)
+	nextBlockTS := latestBlockTS.Add(slotTime)
+	for time.Now().Before(nextBlockTS) && ctx.Err() == nil {
+		sleepWithContext(ctx, time.Millisecond)
+	}
+
+	latestSlot, err := strconv.ParseInt(latestBlock.Slot, 10, 64)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+	nextSlot := latestSlot + 1
+	epoch := nextSlot / slotsInEpoch
+	proposerDuties, err := fetchProposersForEpoch(ctx, conf, epoch)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+
+	log.Info(ctx, "Starting attempts for block creation", z.Any("mev_relay", target))
+	rtt, err := createMEVBlock(ctx, conf, target, nextSlot, latestBlock, proposerDuties)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+	testRes = evaluateRTT(rtt, testRes, thresholdMEVBlockAvg, thresholdMEVBlockPoor)
+
+	return testRes
+}
+
+func mevCreateMultipleBlocksTest(ctx context.Context, conf *testMEVConfig, target string) testResult {
+	testRes := testResult{Name: "CreateMultipleBlocks"}
+
+	latestBlock, err := latestBeaconBlock(ctx, conf.BeaconNodeEndpoint)
+	if err != nil {
+		return failedTestResult(testRes, err)
 	}
 
 	// wait for beginning of next slot, as the block for current one might have already been proposed
@@ -272,99 +315,56 @@ func mevCreateBlockTest(ctx context.Context, cfg *testMEVConfig, target string) 
 	latestBlockTS := time.Unix(latestBlockTSUnix, 0)
 	nextBlockTS := latestBlockTS.Add(slotTime)
 	for time.Now().Before(nextBlockTS) && ctx.Err() == nil {
-		sleepWithContext(ctx, 10*time.Millisecond)
+		sleepWithContext(ctx, time.Millisecond)
 	}
 
 	latestSlot, err := strconv.ParseInt(latestBlock.Slot, 10, 64)
 	if err != nil {
-		failedTestResult(testRes, err)
+		return failedTestResult(testRes, err)
 	}
 	nextSlot := latestSlot + 1
-	epoch := nextSlot / 32
-	proposerDuties, err := fetchProposersForEpoch(ctx, cfg, epoch)
+	epoch := nextSlot / slotsInEpoch
+	proposerDuties, err := fetchProposersForEpoch(ctx, conf, epoch)
 	if err != nil {
-		failedTestResult(testRes, err)
+		return failedTestResult(testRes, err)
 	}
 
-	log.Info(ctx, "Starting attempts for block creation", z.Any("mev_relay", target))
-	var rttGetHeader time.Duration
-	var builderBid builderspec.VersionedSignedBuilderBid
+	allBlocksRTT := []time.Duration{}
+	log.Info(ctx, "Starting attempts for multiple block creation", z.Any("mev_relay", target), z.Any("blocks", conf.LoadTestBlocks))
 	for ctx.Err() == nil {
 		startIteration := time.Now()
-		epoch = nextSlot / 32
-
-		validatorPubKey, err := getValidatorPKForSlot(proposerDuties, nextSlot)
+		rtt, err := createMEVBlock(ctx, conf, target, nextSlot, latestBlock, proposerDuties)
 		if err != nil {
-			proposerDuties, err = fetchProposersForEpoch(ctx, cfg, epoch)
-			if err != nil {
-				failedTestResult(testRes, err)
-			}
-			validatorPubKey, err = getValidatorPKForSlot(proposerDuties, nextSlot)
-			if err != nil {
-				failedTestResult(testRes, err)
-			}
-		}
-
-		builderBid, rttGetHeader, err = getBlockHeader(ctx, target, nextSlot, latestBlock.Body.ExecutionPayload.BlockHash, validatorPubKey)
-		if err != nil {
-			// the current proposer was not registered with the builder, wait for next block
-			if errors.Is(err, errStatusCodeNot200) {
-				sleepWithContext(ctx, slotTime-time.Since(startIteration))
-				latestBlock, err = latestBeaconBlock(ctx, cfg.BeaconNodeEndpoint)
-				nextSlot++
-				if err != nil {
-					failedTestResult(testRes, err)
-				}
-
-				continue
-			}
-
 			return failedTestResult(testRes, err)
 		}
-
-		break
+		allBlocksRTT = append(allBlocksRTT, rtt)
+		if len(allBlocksRTT) == int(conf.LoadTestBlocks) {
+			break
+		}
+		// wait for the next slot - time it took createMEVBlock - 1 sec
+		sleepWithContext(ctx, slotTime-time.Since(startIteration)%slotTime-time.Second)
+		startBeaconBlockFetch := time.Now()
+		// get the new latest block, produced during 'nextSlot'
+		latestBlock, err = latestBeaconBlock(ctx, conf.BeaconNodeEndpoint)
+		if err != nil {
+			return failedTestResult(testRes, err)
+		}
+		latestSlot, err := strconv.ParseInt(latestBlock.Slot, 10, 64)
+		if err != nil {
+			return failedTestResult(testRes, err)
+		}
+		nextSlot = latestSlot + 1
+		// wait 1 second - the time it took to fetch the latest block
+		sleepWithContext(ctx, time.Second-time.Since(startBeaconBlockFetch))
 	}
 
-	log.Info(ctx, "Created block headers for slot", z.Any("slot", nextSlot), z.Any("target", target))
+	totalRTT := time.Duration(0)
+	for _, rtt := range allBlocksRTT {
+		totalRTT += rtt
+	}
+	averageRTT := totalRTT / time.Duration(len(allBlocksRTT))
 
-	blindedBeaconBlock := eth2deneb.BlindedBeaconBlock{
-		Slot:          0,
-		ProposerIndex: 0,
-		ParentRoot:    eth2p0.Root{},
-		StateRoot:     eth2p0.Root{},
-		Body: &eth2deneb.BlindedBeaconBlockBody{
-			RANDAOReveal:           eth2p0.BLSSignature{},
-			ETH1Data:               &eth2p0.ETH1Data{},
-			Graffiti:               eth2p0.Hash32{},
-			ProposerSlashings:      []*eth2p0.ProposerSlashing{},
-			AttesterSlashings:      []*eth2p0.AttesterSlashing{},
-			Attestations:           []*eth2p0.Attestation{},
-			Deposits:               []*eth2p0.Deposit{},
-			VoluntaryExits:         []*eth2p0.SignedVoluntaryExit{},
-			SyncAggregate:          &eth2a.SyncAggregate{},
-			ExecutionPayloadHeader: builderBid.Deneb.Message.Header,
-		},
-	}
-
-	sig, err := hex.DecodeString("b9251a82040d4620b8c5665f328ee6c2eaa02d31d71d153f4abba31a7922a981e541e85283f0ced387d26e86aef9386d18c6982b9b5f8759882fe7f25a328180d86e146994ef19d28bc1432baf29751dec12b5f3d65dbbe224d72cf900c6831a")
-	if err != nil {
-		return failedTestResult(testRes, err)
-	}
-
-	payload := eth2deneb.SignedBlindedBeaconBlock{
-		Message:   &blindedBeaconBlock,
-		Signature: eth2p0.BLSSignature(sig),
-	}
-	payloadJSON, err := json.Marshal(payload)
-	if err != nil {
-		return failedTestResult(testRes, err)
-	}
-	rttBuild, err := requestRTT(ctx, target+"/eth/v1/builder/blinded_blocks", http.MethodPost, bytes.NewReader(payloadJSON), 400)
-	if err != nil {
-		return failedTestResult(testRes, err)
-	}
-
-	testRes = evaluateRTT(rttBuild+rttGetHeader, testRes, thresholdMEVBlockAvg, thresholdMEVBlockPoor)
+	testRes = evaluateRTT(averageRTT, testRes, thresholdMEVBlockAvg, thresholdMEVBlockPoor)
 
 	return testRes
 }
@@ -435,6 +435,90 @@ func getBlockHeader(ctx context.Context, target string, nextSlot int64, blockHas
 	return builderBid, rttGetHeader, nil
 }
 
+func createMEVBlock(ctx context.Context, conf *testMEVConfig, target string, nextSlot int64, latestBlock BeaconBlockMessage, proposerDuties []ProposerDutiesData) (time.Duration, error) {
+	var rttGetHeader time.Duration
+	var builderBid builderspec.VersionedSignedBuilderBid
+	for ctx.Err() == nil {
+		startIteration := time.Now()
+		epoch := nextSlot / slotsInEpoch
+
+		validatorPubKey, err := getValidatorPKForSlot(proposerDuties, nextSlot)
+		if err != nil {
+			// if no PK found, refresh the proposerDuties
+			proposerDuties, err = fetchProposersForEpoch(ctx, conf, epoch)
+			if err != nil {
+				return 0, err
+			}
+			validatorPubKey, err = getValidatorPKForSlot(proposerDuties, nextSlot)
+			if err != nil {
+				return 0, err
+			}
+		}
+
+		builderBid, rttGetHeader, err = getBlockHeader(ctx, target, nextSlot, latestBlock.Body.ExecutionPayload.BlockHash, validatorPubKey)
+		if err != nil {
+			// the current proposer was not registered with the builder, wait for next block
+			if errors.Is(err, errStatusCodeNot200) {
+				sleepWithContext(ctx, slotTime-time.Since(startIteration)-time.Second)
+				startBeaconBlockFetch := time.Now()
+				latestBlock, err = latestBeaconBlock(ctx, conf.BeaconNodeEndpoint)
+				if err != nil {
+					return 0, err
+				}
+				nextSlot++
+				// wait 1 second - the time it took to fetch the latest block
+				sleepWithContext(ctx, time.Second-time.Since(startBeaconBlockFetch))
+
+				continue
+			}
+
+			return 0, err
+		}
+		log.Info(ctx, "Created block headers for slot", z.Any("slot", nextSlot), z.Any("target", target))
+
+		break
+	}
+
+	blindedBeaconBlock := eth2deneb.BlindedBeaconBlock{
+		Slot:          0,
+		ProposerIndex: 0,
+		ParentRoot:    eth2p0.Root{},
+		StateRoot:     eth2p0.Root{},
+		Body: &eth2deneb.BlindedBeaconBlockBody{
+			RANDAOReveal:           eth2p0.BLSSignature{},
+			ETH1Data:               &eth2p0.ETH1Data{},
+			Graffiti:               eth2p0.Hash32{},
+			ProposerSlashings:      []*eth2p0.ProposerSlashing{},
+			AttesterSlashings:      []*eth2p0.AttesterSlashing{},
+			Attestations:           []*eth2p0.Attestation{},
+			Deposits:               []*eth2p0.Deposit{},
+			VoluntaryExits:         []*eth2p0.SignedVoluntaryExit{},
+			SyncAggregate:          &eth2a.SyncAggregate{},
+			ExecutionPayloadHeader: builderBid.Deneb.Message.Header,
+		},
+	}
+
+	sig, err := hex.DecodeString("b9251a82040d4620b8c5665f328ee6c2eaa02d31d71d153f4abba31a7922a981e541e85283f0ced387d26e86aef9386d18c6982b9b5f8759882fe7f25a328180d86e146994ef19d28bc1432baf29751dec12b5f3d65dbbe224d72cf900c6831a")
+	if err != nil {
+		return 0, errors.Wrap(err, "decode signature")
+	}
+
+	payload := eth2deneb.SignedBlindedBeaconBlock{
+		Message:   &blindedBeaconBlock,
+		Signature: eth2p0.BLSSignature(sig),
+	}
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return 0, errors.Wrap(err, "signed blinded beacon block json payload marshal")
+	}
+	rttSubmitBlock, err := requestRTT(ctx, target+"/eth/v1/builder/blinded_blocks", http.MethodPost, bytes.NewReader(payloadJSON), 400)
+	if err != nil {
+		return 0, err
+	}
+
+	return rttGetHeader + rttSubmitBlock, nil
+}
+
 type BeaconBlock struct {
 	Data BeaconBlockData `json:"data"`
 }
@@ -490,8 +574,8 @@ type ProposerDutiesData struct {
 	Slot   string `json:"slot"`
 }
 
-func fetchProposersForEpoch(ctx context.Context, cfg *testMEVConfig, epoch int64) ([]ProposerDutiesData, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%v/eth/v1/validator/duties/proposer/%v", cfg.BeaconNodeEndpoint, epoch), nil)
+func fetchProposersForEpoch(ctx context.Context, conf *testMEVConfig, epoch int64) ([]ProposerDutiesData, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%v/eth/v1/validator/duties/proposer/%v", conf.BeaconNodeEndpoint, epoch), nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "http request")
 	}
