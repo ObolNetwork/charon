@@ -33,12 +33,12 @@ var (
 )
 
 const (
-	peersTestCategory       = "peers"
-	beaconTestCategory      = "beacon"
-	validatorTestCategory   = "validator"
-	mevTestCategory         = "mev"
-	performanceTestCategory = "performance"
-	allTestCategory         = "all"
+	peersTestCategory     = "peers"
+	beaconTestCategory    = "beacon"
+	validatorTestCategory = "validator"
+	mevTestCategory       = "mev"
+	infraTestCategory     = "infra"
+	allTestCategory       = "all"
 
 	committeeSizePerSlot = 64
 	subCommitteeSize     = 4
@@ -58,7 +58,7 @@ func newTestCmd(cmds ...*cobra.Command) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "test",
 		Short: "Test subcommands provide test suite to evaluate current cluster setup",
-		Long:  `Test subcommands provide test suite to evaluate current cluster setup. The full validator stack can be tested - charon peers, consensus layer, validator client, MEV. Current machine's performance can be examined as well.`,
+		Long:  `Test subcommands provide test suite to evaluate current cluster setup. The full validator stack can be tested - charon peers, consensus layer, validator client, MEV. Current machine's infra can be examined as well.`,
 	}
 
 	root.AddCommand(cmds...)
@@ -92,8 +92,8 @@ func listTestCases(cmd *cobra.Command) []string {
 		testCaseNames = maps.Keys(supportedValidatorTestCases())
 	case mevTestCategory:
 		testCaseNames = maps.Keys(supportedMEVTestCases())
-	case performanceTestCategory:
-		testCaseNames = maps.Keys(supportedPerformanceTestCases())
+	case infraTestCategory:
+		testCaseNames = maps.Keys(supportedInfraTestCases())
 	case allTestCategory:
 		testCaseNames = slices.Concat(
 			maps.Keys(supportedPeerTestCases()),
@@ -102,7 +102,7 @@ func listTestCases(cmd *cobra.Command) []string {
 			maps.Keys(supportedBeaconTestCases()),
 			maps.Keys(supportedValidatorTestCases()),
 			maps.Keys(supportedMEVTestCases()),
-			maps.Keys(supportedPerformanceTestCases()),
+			maps.Keys(supportedInfraTestCases()),
 		)
 	default:
 		log.Warn(cmd.Context(), "Unknown command for listing test cases", nil, z.Str("name", cmd.Name()))
@@ -239,8 +239,8 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) error {
 		lines = append(lines, validatorASCII()...)
 	case mevTestCategory:
 		lines = append(lines, mevASCII()...)
-	case performanceTestCategory:
-		lines = append(lines, performanceASCII()...)
+	case infraTestCategory:
+		lines = append(lines, infraASCII()...)
 	default:
 		lines = append(lines, categoryDefaultASCII()...)
 	}

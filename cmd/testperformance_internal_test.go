@@ -17,19 +17,19 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-//go:generate go test . -run=TestPerformanceTest -update
+//go:generate go test . -run=TestInfraTest -update
 
-func TestPerformanceTest(t *testing.T) {
+func TestInfraTest(t *testing.T) {
 	tests := []struct {
 		name        string
-		config      testPerformanceConfig
+		config      testInfraConfig
 		expected    testCategoryResult
 		expectedErr string
 		cleanup     func(*testing.T, string)
 	}{
 		{
 			name: "default scenario",
-			config: testPerformanceConfig{
+			config: testInfraConfig{
 				testConfig: testConfig{
 					OutputToml: "",
 					Quiet:      false,
@@ -47,13 +47,13 @@ func TestPerformanceTest(t *testing.T) {
 					},
 				},
 				Score:        categoryScoreC,
-				CategoryName: performanceTestCategory,
+				CategoryName: infraTestCategory,
 			},
 			expectedErr: "",
 		},
 		{
 			name: "timeout",
-			config: testPerformanceConfig{
+			config: testInfraConfig{
 				testConfig: testConfig{
 					OutputToml: "",
 					Quiet:      false,
@@ -69,13 +69,13 @@ func TestPerformanceTest(t *testing.T) {
 					},
 				},
 				Score:        categoryScoreC,
-				CategoryName: performanceTestCategory,
+				CategoryName: infraTestCategory,
 			},
 			expectedErr: "",
 		},
 		{
 			name: "quiet",
-			config: testPerformanceConfig{
+			config: testInfraConfig{
 				testConfig: testConfig{
 					OutputToml: "",
 					Quiet:      true,
@@ -93,13 +93,13 @@ func TestPerformanceTest(t *testing.T) {
 					},
 				},
 				Score:        categoryScoreC,
-				CategoryName: performanceTestCategory,
+				CategoryName: infraTestCategory,
 			},
 			expectedErr: "",
 		},
 		{
 			name: "unsupported test",
-			config: testPerformanceConfig{
+			config: testInfraConfig{
 				testConfig: testConfig{
 					OutputToml: "",
 					Quiet:      false,
@@ -110,13 +110,13 @@ func TestPerformanceTest(t *testing.T) {
 			},
 			expected: testCategoryResult{
 				Score:        categoryScoreC,
-				CategoryName: performanceTestCategory,
+				CategoryName: infraTestCategory,
 			},
 			expectedErr: "test case not supported",
 		},
 		{
 			name: "custom test cases",
-			config: testPerformanceConfig{
+			config: testInfraConfig{
 				testConfig: testConfig{
 					OutputToml: "",
 					Quiet:      false,
@@ -132,13 +132,13 @@ func TestPerformanceTest(t *testing.T) {
 					},
 				},
 				Score:        categoryScoreC,
-				CategoryName: performanceTestCategory,
+				CategoryName: infraTestCategory,
 			},
 			expectedErr: "",
 		},
 		{
 			name: "write to file",
-			config: testPerformanceConfig{
+			config: testInfraConfig{
 				testConfig: testConfig{
 					OutputToml: "./write-to-file-test.toml.tmp",
 					Quiet:      false,
@@ -156,7 +156,7 @@ func TestPerformanceTest(t *testing.T) {
 					},
 				},
 				Score:        categoryScoreA,
-				CategoryName: performanceTestCategory,
+				CategoryName: infraTestCategory,
 			},
 			expectedErr: "",
 			cleanup: func(t *testing.T, p string) {
@@ -170,7 +170,7 @@ func TestPerformanceTest(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var buf bytes.Buffer
 			ctx := context.Background()
-			err := runTestPerformance(ctx, &buf, test.config)
+			err := runTestInfra(ctx, &buf, test.config)
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
 				return
@@ -196,7 +196,7 @@ func TestPerformanceTest(t *testing.T) {
 	}
 }
 
-func StartHealthyPerformanceClient(t *testing.T, port int, ready chan bool) error {
+func StartHealthyInfraClient(t *testing.T, port int, ready chan bool) error {
 	t.Helper()
 	defer close(ready)
 
@@ -215,7 +215,7 @@ func StartHealthyPerformanceClient(t *testing.T, port int, ready chan bool) erro
 	}
 }
 
-func TestPerformanceTestFlags(t *testing.T) {
+func TestInfraTestFlags(t *testing.T) {
 	tests := []struct {
 		name        string
 		args        []string
@@ -223,19 +223,19 @@ func TestPerformanceTestFlags(t *testing.T) {
 	}{
 		{
 			name:        "default scenario",
-			args:        []string{"performance", "--disk-io-block-size-kb=1"},
+			args:        []string{"infra", "--disk-io-block-size-kb=1"},
 			expectedErr: "",
 		},
 		{
 			name:        "no output toml on quiet",
-			args:        []string{"performance", "--disk-io-block-size-kb=1", "--quiet"},
+			args:        []string{"infra", "--disk-io-block-size-kb=1", "--quiet"},
 			expectedErr: "on --quiet, an --output-toml is required",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cmd := newAlphaCmd(newTestPerformanceCmd(func(context.Context, io.Writer, testPerformanceConfig) error { return nil }))
+			cmd := newAlphaCmd(newTestInfraCmd(func(context.Context, io.Writer, testInfraConfig) error { return nil }))
 			cmd.SetArgs(test.args)
 			err := cmd.Execute()
 			if test.expectedErr != "" {
