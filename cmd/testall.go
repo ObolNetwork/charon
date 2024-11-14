@@ -13,11 +13,11 @@ import (
 
 type testAllConfig struct {
 	testConfig
-	Peers       testPeersConfig
-	Beacon      testBeaconConfig
-	Validator   testValidatorConfig
-	MEV         testMEVConfig
-	Performance testPerformanceConfig
+	Peers     testPeersConfig
+	Beacon    testBeaconConfig
+	Validator testValidatorConfig
+	MEV       testMEVConfig
+	Infra     testInfraConfig
 }
 
 func newTestAllCmd(runFunc func(context.Context, io.Writer, testAllConfig) error) *cobra.Command {
@@ -42,7 +42,7 @@ func newTestAllCmd(runFunc func(context.Context, io.Writer, testAllConfig) error
 	bindTestBeaconFlags(cmd, &config.Beacon, "beacon-")
 	bindTestValidatorFlags(cmd, &config.Validator, "validator-")
 	bindTestMEVFlags(cmd, &config.MEV, "mev-")
-	bindTestPerformanceFlags(cmd, &config.Performance, "performance-")
+	bindTestInfraFlags(cmd, &config.Infra, "infra-")
 
 	bindP2PFlags(cmd, &config.Peers.P2P)
 	bindDataDirFlag(cmd.Flags(), &config.Peers.DataDir)
@@ -81,8 +81,8 @@ func runTestAll(ctx context.Context, w io.Writer, cfg testAllConfig) (err error)
 		return err
 	}
 
-	cfg.Performance.testConfig = cfg.testConfig
-	err = runTestPerformance(ctx, w, cfg.Performance)
+	cfg.Infra.testConfig = cfg.testConfig
+	err = runTestInfra(ctx, w, cfg.Infra)
 	if err != nil {
 		return err
 	}

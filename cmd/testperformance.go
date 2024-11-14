@@ -26,7 +26,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-type testPerformanceConfig struct {
+type testInfraConfig struct {
 	testConfig
 	DiskIOTestFileDir          string
 	DiskIOBlockSizeKb          int
@@ -75,13 +75,13 @@ const (
 
 var errFioNotFound = errors.New("fio command not found, install fio from https://fio.readthedocs.io/en/latest/fio_doc.html#binary-packages or using the package manager of your choice (apt, yum, brew, etc.)")
 
-func newTestPerformanceCmd(runFunc func(context.Context, io.Writer, testPerformanceConfig) error) *cobra.Command {
-	var config testPerformanceConfig
+func newTestInfraCmd(runFunc func(context.Context, io.Writer, testInfraConfig) error) *cobra.Command {
+	var config testInfraConfig
 
 	cmd := &cobra.Command{
-		Use:   "performance",
-		Short: "Run multiple hardware and connectivity performance tests",
-		Long:  `Run multiple hardware and connectivity performance tests. Verify that Charon is running on host with sufficient capabilities.`,
+		Use:   "infra",
+		Short: "Run multiple hardware and internet connectivity tests",
+		Long:  `Run multiple hardware and internet connectivity tests. Verify that Charon is running on host with sufficient capabilities.`,
 		Args:  cobra.NoArgs,
 		PreRunE: func(cmd *cobra.Command, _ []string) error {
 			return mustOutputToFileOnQuiet(cmd)
@@ -92,36 +92,36 @@ func newTestPerformanceCmd(runFunc func(context.Context, io.Writer, testPerforma
 	}
 
 	bindTestFlags(cmd, &config.testConfig)
-	bindTestPerformanceFlags(cmd, &config, "")
+	bindTestInfraFlags(cmd, &config, "")
 
 	return cmd
 }
 
-func bindTestPerformanceFlags(cmd *cobra.Command, config *testPerformanceConfig, flagsPrefix string) {
+func bindTestInfraFlags(cmd *cobra.Command, config *testInfraConfig, flagsPrefix string) {
 	cmd.Flags().StringVar(&config.DiskIOTestFileDir, flagsPrefix+"disk-io-test-file-dir", "", "Directory at which disk performance will be measured. If none specified, current user's home directory will be used.")
 	cmd.Flags().IntVar(&config.DiskIOBlockSizeKb, flagsPrefix+"disk-io-block-size-kb", 4096, "The block size in kilobytes used for I/O units. Same value applies for both reads and writes.")
 	cmd.Flags().StringSliceVar(&config.InternetTestServersOnly, flagsPrefix+"internet-test-servers-only", []string{}, "List of specific server names to be included for the internet tests, the best performing one is chosen. If not provided, closest and best performing servers are chosen automatically.")
 	cmd.Flags().StringSliceVar(&config.InternetTestServersExclude, flagsPrefix+"internet-test-servers-exclude", []string{}, "List of server names to be excluded from the tests. To be specified only if you experience issues with a server that is wrongly considered best performing.")
 }
 
-func supportedPerformanceTestCases() map[testCaseName]func(context.Context, *testPerformanceConfig) testResult {
-	return map[testCaseName]func(context.Context, *testPerformanceConfig) testResult{
-		{name: "diskWriteSpeed", order: 1}:        performanceDiskWriteSpeedTest,
-		{name: "diskWriteIOPS", order: 2}:         performanceDiskWriteIOPSTest,
-		{name: "diskReadSpeed", order: 3}:         performanceDiskReadSpeedTest,
-		{name: "diskReadIOPS", order: 4}:          performanceDiskReadIOPSTest,
-		{name: "availableMemory", order: 5}:       performanceAvailableMemoryTest,
-		{name: "totalMemory", order: 6}:           performanceTotalMemoryTest,
-		{name: "internetLatency", order: 7}:       performanceInternetLatencyTest,
-		{name: "internetDownloadSpeed", order: 8}: performanceInternetDownloadSpeedTest,
-		{name: "internetUploadSpeed", order: 9}:   performanceInternetUploadSpeedTest,
+func supportedInfraTestCases() map[testCaseName]func(context.Context, *testInfraConfig) testResult {
+	return map[testCaseName]func(context.Context, *testInfraConfig) testResult{
+		{name: "diskWriteSpeed", order: 1}:        infraDiskWriteSpeedTest,
+		{name: "diskWriteIOPS", order: 2}:         infraDiskWriteIOPSTest,
+		{name: "diskReadSpeed", order: 3}:         infraDiskReadSpeedTest,
+		{name: "diskReadIOPS", order: 4}:          infraDiskReadIOPSTest,
+		{name: "availableMemory", order: 5}:       infraAvailableMemoryTest,
+		{name: "totalMemory", order: 6}:           infraTotalMemoryTest,
+		{name: "internetLatency", order: 7}:       infraInternetLatencyTest,
+		{name: "internetDownloadSpeed", order: 8}: infraInternetDownloadSpeedTest,
+		{name: "internetUploadSpeed", order: 9}:   infraInternetUploadSpeedTest,
 	}
 }
 
-func runTestPerformance(ctx context.Context, w io.Writer, cfg testPerformanceConfig) (err error) {
-	log.Info(ctx, "Starting machine performance and network connectivity test")
+func runTestInfra(ctx context.Context, w io.Writer, cfg testInfraConfig) (err error) {
+	log.Info(ctx, "Starting hardware performance and network connectivity test")
 
-	testCases := supportedPerformanceTestCases()
+	testCases := supportedInfraTestCases()
 	queuedTests := filterTests(maps.Keys(testCases), cfg.testConfig)
 	if len(queuedTests) == 0 {
 		return errors.New("test case not supported")
@@ -135,7 +135,7 @@ func runTestPerformance(ctx context.Context, w io.Writer, cfg testPerformanceCon
 	testResults := make(map[string][]testResult)
 	startTime := time.Now()
 
-	go testSinglePerformance(timeoutCtx, queuedTests, testCases, cfg, testResultsChan)
+	go testSingleInfra(timeoutCtx, queuedTests, testCases, cfg, testResultsChan)
 
 	for result := range testResultsChan {
 		maps.Copy(testResults, result)
@@ -153,7 +153,7 @@ func runTestPerformance(ctx context.Context, w io.Writer, cfg testPerformanceCon
 	}
 
 	res := testCategoryResult{
-		CategoryName:  performanceTestCategory,
+		CategoryName:  infraTestCategory,
 		Targets:       testResults,
 		ExecutionTime: execTime,
 		Score:         score,
@@ -176,14 +176,14 @@ func runTestPerformance(ctx context.Context, w io.Writer, cfg testPerformanceCon
 	return nil
 }
 
-// hardware and internet connectivity performance tests
+// hardware and internet connectivity tests
 
-func testSinglePerformance(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testPerformanceConfig) testResult, cfg testPerformanceConfig, resCh chan map[string][]testResult) {
+func testSingleInfra(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testInfraConfig) testResult, cfg testInfraConfig, resCh chan map[string][]testResult) {
 	defer close(resCh)
 	singleTestResCh := make(chan testResult)
 	allTestRes := []testResult{}
-	// run all performance tests for a performance client, pushing each completed test to the channel until all are complete or timeout occurs
-	go testPerformance(ctx, queuedTestCases, allTestCases, cfg, singleTestResCh)
+	// run all infra tests for a client, pushing each completed test to the channel until all are complete or timeout occurs
+	go testInfra(ctx, queuedTestCases, allTestCases, cfg, singleTestResCh)
 
 	testCounter := 0
 	finished := false
@@ -209,7 +209,7 @@ func testSinglePerformance(ctx context.Context, queuedTestCases []testCaseName, 
 	resCh <- map[string][]testResult{"local": allTestRes}
 }
 
-func testPerformance(ctx context.Context, queuedTests []testCaseName, allTests map[testCaseName]func(context.Context, *testPerformanceConfig) testResult, cfg testPerformanceConfig, ch chan testResult) {
+func testInfra(ctx context.Context, queuedTests []testCaseName, allTests map[testCaseName]func(context.Context, *testInfraConfig) testResult, cfg testInfraConfig, ch chan testResult) {
 	defer close(ch)
 	for _, t := range queuedTests {
 		select {
@@ -221,7 +221,7 @@ func testPerformance(ctx context.Context, queuedTests []testCaseName, allTests m
 	}
 }
 
-func performanceDiskWriteSpeedTest(ctx context.Context, conf *testPerformanceConfig) testResult {
+func infraDiskWriteSpeedTest(ctx context.Context, conf *testInfraConfig) testResult {
 	testRes := testResult{Name: "DiskWriteSpeed"}
 
 	var err error
@@ -273,7 +273,7 @@ func performanceDiskWriteSpeedTest(ctx context.Context, conf *testPerformanceCon
 	return testRes
 }
 
-func performanceDiskWriteIOPSTest(ctx context.Context, conf *testPerformanceConfig) testResult {
+func infraDiskWriteIOPSTest(ctx context.Context, conf *testInfraConfig) testResult {
 	testRes := testResult{Name: "DiskWriteIOPS"}
 
 	var err error
@@ -324,7 +324,7 @@ func performanceDiskWriteIOPSTest(ctx context.Context, conf *testPerformanceConf
 	return testRes
 }
 
-func performanceDiskReadSpeedTest(ctx context.Context, conf *testPerformanceConfig) testResult {
+func infraDiskReadSpeedTest(ctx context.Context, conf *testInfraConfig) testResult {
 	testRes := testResult{Name: "DiskReadSpeed"}
 
 	var err error
@@ -376,7 +376,7 @@ func performanceDiskReadSpeedTest(ctx context.Context, conf *testPerformanceConf
 	return testRes
 }
 
-func performanceDiskReadIOPSTest(ctx context.Context, conf *testPerformanceConfig) testResult {
+func infraDiskReadIOPSTest(ctx context.Context, conf *testInfraConfig) testResult {
 	testRes := testResult{Name: "DiskReadIOPS"}
 
 	var err error
@@ -427,7 +427,7 @@ func performanceDiskReadIOPSTest(ctx context.Context, conf *testPerformanceConfi
 	return testRes
 }
 
-func performanceAvailableMemoryTest(ctx context.Context, _ *testPerformanceConfig) testResult {
+func infraAvailableMemoryTest(ctx context.Context, _ *testInfraConfig) testResult {
 	testRes := testResult{Name: "AvailableMemory"}
 
 	var availableMemory int64
@@ -462,7 +462,7 @@ func performanceAvailableMemoryTest(ctx context.Context, _ *testPerformanceConfi
 	return testRes
 }
 
-func performanceTotalMemoryTest(ctx context.Context, _ *testPerformanceConfig) testResult {
+func infraTotalMemoryTest(ctx context.Context, _ *testInfraConfig) testResult {
 	testRes := testResult{Name: "TotalMemory"}
 
 	var totalMemory int64
@@ -497,7 +497,7 @@ func performanceTotalMemoryTest(ctx context.Context, _ *testPerformanceConfig) t
 	return testRes
 }
 
-func performanceInternetLatencyTest(ctx context.Context, conf *testPerformanceConfig) testResult {
+func infraInternetLatencyTest(ctx context.Context, conf *testInfraConfig) testResult {
 	testRes := testResult{Name: "InternetLatency"}
 
 	server, err := fetchOoklaServer(ctx, conf)
@@ -529,7 +529,7 @@ func performanceInternetLatencyTest(ctx context.Context, conf *testPerformanceCo
 	return testRes
 }
 
-func performanceInternetDownloadSpeedTest(ctx context.Context, conf *testPerformanceConfig) testResult {
+func infraInternetDownloadSpeedTest(ctx context.Context, conf *testInfraConfig) testResult {
 	testRes := testResult{Name: "InternetDownloadSpeed"}
 
 	server, err := fetchOoklaServer(ctx, conf)
@@ -561,7 +561,7 @@ func performanceInternetDownloadSpeedTest(ctx context.Context, conf *testPerform
 	return testRes
 }
 
-func performanceInternetUploadSpeedTest(ctx context.Context, conf *testPerformanceConfig) testResult {
+func infraInternetUploadSpeedTest(ctx context.Context, conf *testInfraConfig) testResult {
 	testRes := testResult{Name: "InternetUploadSpeed"}
 
 	server, err := fetchOoklaServer(ctx, conf)
@@ -739,7 +739,7 @@ func totalMemoryMacos(ctx context.Context) (int64, error) {
 	return memSizeInt, nil
 }
 
-func fetchOoklaServer(_ context.Context, conf *testPerformanceConfig) (speedtest.Server, error) {
+func fetchOoklaServer(_ context.Context, conf *testInfraConfig) (speedtest.Server, error) {
 	speedtestClient := speedtest.New()
 
 	serverList, err := speedtestClient.FetchServers()
