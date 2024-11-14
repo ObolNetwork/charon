@@ -152,11 +152,6 @@ const (
 
 	thresholdBeaconSimulationAvg  = 200 * time.Millisecond
 	thresholdBeaconSimulationPoor = 400 * time.Millisecond
-	committeeSizePerSlot          = 64
-	subCommitteeSize              = 4
-	slotTime                      = 12 * time.Second
-	slotsInEpoch                  = 32
-	epochTime                     = slotsInEpoch * slotTime
 )
 
 func newTestBeaconCmd(runFunc func(context.Context, io.Writer, testBeaconConfig) error) *cobra.Command {
