@@ -39,6 +39,12 @@ const (
 	mevTestCategory         = "mev"
 	performanceTestCategory = "performance"
 	allTestCategory         = "all"
+
+	committeeSizePerSlot = 64
+	subCommitteeSize     = 4
+	slotTime             = 12 * time.Second
+	slotsInEpoch         = 32
+	epochTime            = slotsInEpoch * slotTime
 )
 
 type testConfig struct {
