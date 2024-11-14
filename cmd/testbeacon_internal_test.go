@@ -53,6 +53,7 @@ func TestBeaconTest(t *testing.T) {
 					mockedBeaconNode.URL: {
 						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "version", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "isSynced", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "peerCount", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "pingLoad", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
@@ -217,6 +218,7 @@ func defaultFailingBNTests(_ *testing.T, endpoint1 string, endpoint2 string, por
 		endpoint1: {
 			{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
 			{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+			{Name: "version", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
 			{Name: "isSynced", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
 			{Name: "peerCount", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
 			{Name: "pingLoad", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
@@ -229,6 +231,7 @@ func defaultFailingBNTests(_ *testing.T, endpoint1 string, endpoint2 string, por
 		endpoint2: {
 			{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
 			{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+			{Name: "version", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
 			{Name: "isSynced", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
 			{Name: "peerCount", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
 			{Name: "pingLoad", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
@@ -252,6 +255,9 @@ func startHealthyMockedBeaconNode(t *testing.T) *httptest.Server {
 			require.NoError(t, err)
 		case "/eth/v1/node/peers":
 			_, err := w.Write([]byte(`{"meta":{"count":500}}`))
+			require.NoError(t, err)
+		case "/eth/v1/node/version":
+			_, err := w.Write([]byte(`{"data":{"version":"BeaconNodeProvider/v1.0.0/linux_x86_64"}}`))
 			require.NoError(t, err)
 		}
 		w.WriteHeader(http.StatusOK)
