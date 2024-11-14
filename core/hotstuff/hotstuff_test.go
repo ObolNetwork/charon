@@ -26,13 +26,19 @@ func TestHotStuff(t *testing.T) {
 	cluster, err := hotstuff.NewCluster(total, threshold, inputCh, outputCh)
 	require.NoError(t, err)
 
-	transport := hotstuff.NewTransport[hotstuff.Msg](total)
+	recvChannels := make([]chan *hotstuff.Msg, total)
+	for i := range recvChannels {
+		recvChannels[i] = make(chan *hotstuff.Msg, ioBufferSize)
+	}
+	transports := make([]hotstuff.Transport, total)
+	for i := range transports {
+		transports[i] = newTransport(recvChannels, recvChannels[i])
+	}
 
 	replicas := make([]*hotstuff.Replica, total)
 	for i := range total {
 		id := hotstuff.ID(i + 1)
-		replicas[i], err = hotstuff.NewReplica(id, cluster, transport, phaseTimeout)
-		require.NoError(t, err)
+		replicas[i] = hotstuff.NewReplica(id, cluster, transports[i], phaseTimeout)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

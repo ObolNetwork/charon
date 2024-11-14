@@ -100,14 +100,14 @@ type Msg struct {
 	Value     Value
 	ValueHash Hash
 	Vote      bool
-	ParSig    []byte
+	Signature []byte
 	Justify   *QC
 }
 
 // QC represents a quorum certificate.
 type QC struct {
-	Type      MsgType
-	View      View
-	ValueHash Hash
-	Sigs      [][]byte
+	Type       MsgType
+	View       View
+	ValueHash  Hash
+	Signatures [][]byte
 }

@@ -48,7 +48,7 @@ func TestSniffedFile(t *testing.T) {
 				return
 			}
 
-			duty := core.DutyFromProto(instance.GetMsgs()[0].GetMsg().GetMsg().GetDuty())
+			duty := core.DutyFromProto(instance.GetMsgs()[0].GetQbftMsg().GetMsg().GetDuty())
 			ctx := log.WithCtx(ctx, z.Any("duty", duty))
 
 			log.Info(ctx, "Simulating sniffed consensus",
@@ -83,16 +83,16 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 
 	var duty core.Duty
 	for _, msg := range instance.GetMsgs() {
-		if qbft.MsgType(msg.GetMsg().GetMsg().GetType()) == qbft.MsgDecided {
+		if qbft.MsgType(msg.GetQbftMsg().GetMsg().GetType()) == qbft.MsgDecided {
 			expectDecided = true
 		}
 
-		duty = core.DutyFromProto(msg.GetMsg().GetMsg().GetDuty())
+		duty = core.DutyFromProto(msg.GetQbftMsg().GetMsg().GetDuty())
 
-		values, err := valuesByHash(msg.GetMsg().GetValues())
+		values, err := valuesByHash(msg.GetQbftMsg().GetValues())
 		require.NoError(t, err)
 
-		m, err := newMsg(msg.GetMsg().GetMsg(), msg.GetMsg().GetJustification(), values)
+		m, err := newMsg(msg.GetQbftMsg().GetMsg(), msg.GetQbftMsg().GetJustification(), values)
 		require.NoError(t, err)
 		recvBuffer <- m
 	}

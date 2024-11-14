@@ -19,6 +19,7 @@ func TestIsSupportedProtocolName(t *testing.T) {
 func TestProtocols(t *testing.T) {
 	require.Equal(t, []protocol.ID{
 		protocols.QBFTv2ProtocolID,
+		protocols.HotStuffv1ProtocolID,
 	}, protocols.Protocols())
 }
 

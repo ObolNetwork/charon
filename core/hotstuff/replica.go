@@ -20,8 +20,8 @@ type Replica struct {
 	// Immutable state
 	id           ID
 	cluster      *Cluster
-	transport    Transport[Msg]
-	recvCh       <-chan Msg
+	transport    Transport
+	recvCh       <-chan *Msg
 	phaseTimeout time.Duration
 
 	// Mutable state
@@ -34,24 +34,19 @@ type Replica struct {
 	collector   *Collector
 }
 
-func NewReplica(id ID, cluster *Cluster, transport Transport[Msg], phaseTimeout time.Duration) (*Replica, error) {
-	recvCh, err := transport.ReceiveCh(id)
-	if err != nil {
-		return nil, err
-	}
-
+func NewReplica(id ID, cluster *Cluster, transport Transport, phaseTimeout time.Duration) *Replica {
 	return &Replica{
 		id:           id,
 		cluster:      cluster,
 		transport:    transport,
-		recvCh:       recvCh,
+		recvCh:       transport.ReceiveCh(),
 		phaseTimeout: phaseTimeout,
 		view:         1,
 		phase:        PreparePhase,
 		leaderPhase:  PreparePhase,
 		valuesMap:    make(map[Hash]Value),
 		collector:    NewCollector(),
-	}, nil
+	}
 }
 
 func (r *Replica) Run(ctx context.Context, done func()) {
@@ -87,7 +82,7 @@ func (r *Replica) Run(ctx context.Context, done func()) {
 	}
 }
 
-func (r *Replica) handleMsg(ctx context.Context, msg Msg) {
+func (r *Replica) handleMsg(ctx context.Context, msg *Msg) {
 	ctx = log.WithCtx(ctx, z.U64("view", uint64(r.view)), z.Str("phase", r.phase.String()))
 
 	leader := r.cluster.Leader(r.view)
@@ -121,7 +116,7 @@ func (r *Replica) handleMsg(ctx context.Context, msg Msg) {
 	}
 }
 
-func (r *Replica) leaderDuty(ctx context.Context, msg Msg) {
+func (r *Replica) leaderDuty(ctx context.Context, msg *Msg) {
 	validLeaderMsgInPhase := map[Phase]MsgType{
 		PreparePhase:   MsgPrepare,
 		PreCommitPhase: MsgPrepare,
@@ -133,12 +128,12 @@ func (r *Replica) leaderDuty(ctx context.Context, msg Msg) {
 		return
 	}
 
-	sender, err := r.getSenderID(&msg)
+	sender, err := r.getSenderID(msg)
 	if err != nil {
 		log.Error(ctx, "Failed to get sender id", err)
 	}
 
-	r.collector.AddMsg(&msg, sender)
+	r.collector.AddMsg(msg, sender)
 	mm := r.collector.MatchingMsg(MsgPrepare, r.view)
 	if len(mm) < int(r.cluster.threshold) {
 		return
@@ -157,7 +152,7 @@ func (r *Replica) leaderDuty(ctx context.Context, msg Msg) {
 	r.leaderPhase = r.leaderPhase.NextPhase()
 
 	t := msg.Type.NextMsgType()
-	err = r.transport.Broadcast(ctx, Msg{
+	err = r.transport.Broadcast(ctx, &Msg{
 		Type:    t,
 		View:    r.view,
 		Justify: qc,
@@ -167,17 +162,17 @@ func (r *Replica) leaderDuty(ctx context.Context, msg Msg) {
 	}
 }
 
-func (r *Replica) leaderNewView(ctx context.Context, msg Msg) {
+func (r *Replica) leaderNewView(ctx context.Context, msg *Msg) {
 	if r.leaderPhase != PreparePhase || msg.Type != MsgNewView {
 		return
 	}
 
-	sender, err := r.getSenderID(&msg)
+	sender, err := r.getSenderID(msg)
 	if err != nil {
 		log.Error(ctx, "Failed to get sender id", err)
 	}
 
-	r.collector.AddMsg(&msg, sender)
+	r.collector.AddMsg(msg, sender)
 	mm := r.collector.MatchingMsg(MsgNewView, r.view-1)
 	if len(mm) < int(r.cluster.threshold) {
 		return
@@ -195,7 +190,7 @@ func (r *Replica) leaderNewView(ctx context.Context, msg Msg) {
 	r.leaderPhase = r.leaderPhase.NextPhase()
 
 	newValue := <-r.cluster.inputCh
-	err = r.transport.Broadcast(ctx, Msg{
+	err = r.transport.Broadcast(ctx, &Msg{
 		Type:    MsgPrepare,
 		View:    r.view,
 		Value:   newValue,
@@ -215,7 +210,7 @@ func (r *Replica) nextView(ctx context.Context) error {
 	return r.sendNewView(ctx)
 }
 
-func (r *Replica) replicaDuty(ctx context.Context, msg Msg, leader ID) (err error) {
+func (r *Replica) replicaDuty(ctx context.Context, msg *Msg, leader ID) (err error) {
 	currentPhase := r.phase
 	r.phase = r.phase.NextPhase()
 
@@ -293,9 +288,9 @@ func (r *Replica) sendMsg(ctx context.Context, msg *Msg, leader ID) error {
 	}
 
 	msgWithSig := *msg
-	msgWithSig.ParSig = sig
+	msgWithSig.Signature = sig
 
-	if err := r.transport.SendTo(ctx, leader, msgWithSig); err != nil {
+	if err := r.transport.SendTo(ctx, leader, &msgWithSig); err != nil {
 		return errors.Wrap(err, "send msg")
 	}
 
@@ -308,7 +303,7 @@ func (r *Replica) getSenderID(msg *Msg) (ID, error) {
 		return InvalidID, errors.Wrap(err, "hash msg")
 	}
 
-	pk, err := k1util.Recover(hash[:], msg.ParSig)
+	pk, err := k1util.Recover(hash[:], msg.Signature)
 	if err != nil {
 		return InvalidID, errors.Wrap(err, "bad msg signature")
 	}
@@ -323,7 +318,7 @@ func (r *Replica) getSenderID(msg *Msg) (ID, error) {
 
 func (r *Replica) verifyQC(qc *QC) error {
 	pubKeys := make([]*k1.PublicKey, 0)
-	for _, sig := range qc.Sigs {
+	for _, sig := range qc.Signatures {
 		hash, err := HashMsg(qc.Type, qc.View, qc.ValueHash)
 		if err != nil {
 			return errors.Wrap(err, "hash qc")
@@ -358,7 +353,7 @@ func createQC(msgs []*Msg) (*QC, error) {
 	sigs := make([][]byte, len(msgs))
 
 	for i, msg := range msgs {
-		sigs[i] = msg.ParSig
+		sigs[i] = msg.Signature
 
 		if i > 0 {
 			if msg.Type != msgs[0].Type || msg.View != msgs[0].View || msg.ValueHash != msgs[0].ValueHash {
@@ -368,9 +363,9 @@ func createQC(msgs []*Msg) (*QC, error) {
 	}
 
 	return &QC{
-		Type:      msgs[0].Type,
-		View:      msgs[0].View,
-		ValueHash: msgs[0].ValueHash,
-		Sigs:      sigs,
+		Type:       msgs[0].Type,
+		View:       msgs[0].View,
+		ValueHash:  msgs[0].ValueHash,
+		Signatures: sigs,
 	}, nil
 }

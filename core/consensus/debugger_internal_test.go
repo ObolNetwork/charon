@@ -29,7 +29,7 @@ func TestDebugger(t *testing.T) {
 				{
 					Timestamp: timestamppb.Now(),
 					// Eventually the ConsensusMsg will be replaced by a more generic message type.
-					Msg: &pbv1.QBFTConsensusMsg{
+					QbftMsg: &pbv1.QBFTConsensusMsg{
 						Msg:           randomQBFTMsg(),
 						Justification: []*pbv1.QBFTMsg{randomQBFTMsg(), randomQBFTMsg()},
 					},

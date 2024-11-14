@@ -38,7 +38,7 @@ func (c *sniffer) Add(msg *pbv1.QBFTConsensusMsg) {
 
 	c.msgs = append(c.msgs, &pbv1.SniffedConsensusMsg{
 		Timestamp: timestamppb.Now(),
-		Msg:       msg,
+		QbftMsg:   msg,
 	})
 }
 

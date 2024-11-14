@@ -11,12 +11,16 @@ import (
 const (
 	protocolIDPrefix = "/charon/consensus/"
 
-	QBFTv2ProtocolID = "/charon/consensus/qbft/2.0.0"
+	QBFTv2ProtocolID     = "/charon/consensus/qbft/2.0.0"
+	HotStuffv1ProtocolID = "/charon/consensus/hotstuff/1.0.0"
 )
 
 // Protocols returns the supported protocols of this package in order of precedence.
 func Protocols() []protocol.ID {
-	return []protocol.ID{QBFTv2ProtocolID}
+	return []protocol.ID{
+		QBFTv2ProtocolID,
+		HotStuffv1ProtocolID,
+	}
 }
 
 // MostPreferredConsensusProtocol returns the most preferred consensus protocol from the given list.

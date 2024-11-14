@@ -11,7 +11,10 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/core/consensus/hotstuff"
+	"github.com/obolnetwork/charon/core/consensus/protocols"
 	"github.com/obolnetwork/charon/core/consensus/qbft"
 	"github.com/obolnetwork/charon/p2p"
 )
@@ -85,19 +88,12 @@ func (f *consensusController) CurrentConsensus() core.Consensus {
 }
 
 // SetCurrentConsensusForProtocol sets the current consensus instance for the given protocol id.
-func (f *consensusController) SetCurrentConsensusForProtocol(_ context.Context, protocol protocol.ID) error {
-	if f.wrappedConsensus.ProtocolID() == protocol {
-		return nil
-	}
-
-	if protocol == f.defaultConsensus.ProtocolID() {
+func (f *consensusController) SetCurrentConsensusForProtocol(ctx context.Context, protocol protocol.ID) error {
+	switch protocol {
+	case f.wrappedConsensus.ProtocolID():
+	case f.defaultConsensus.ProtocolID():
 		f.wrappedConsensus.SetImpl(f.defaultConsensus)
-
-		return nil
-	}
-
-	// TODO: When introducing new consensus protocols, add them here as follow:
-	/*
+	case protocols.HotStuffv1ProtocolID:
 		cctx, cancel := context.WithCancel(ctx)
 
 		f.mutable.Lock()
@@ -108,14 +104,16 @@ func (f *consensusController) SetCurrentConsensusForProtocol(_ context.Context, 
 			f.mutable.cancelWrappedCtx()
 		}
 
-		xyzDeadliner := core.NewDeadliner(cctx, "consensus.xyz", f.deadlineFunc)
-		xyzConsensus := xyz.NewConsensus(...)
+		hotstuffDeadliner := core.NewDeadliner(cctx, "consensus.hotstuff", f.deadlineFunc)
+		hotstuffConsensus := hotstuff.NewConsensus(f.tcpNode, f.sender, f.peers, f.p2pKey, hotstuffDeadliner)
 
 		f.mutable.cancelWrappedCtx = cancel
-		f.wrappedConsensus.SetImpl(xyzConsensus)
+		f.wrappedConsensus.SetImpl(hotstuffConsensus)
 
-		xyzConsensus.Start(cctx)
-	*/
+		hotstuffConsensus.Start(cctx)
+	default:
+		return errors.New("unsupported protocol id", z.Str("protocol_id", string(protocol)))
+	}
 
-	return errors.New("unsupported protocol id")
+	return nil
 }

@@ -8,6 +8,8 @@ import "core/corepb/v1/core.proto";
 import "google/protobuf/any.proto";
 import "google/protobuf/timestamp.proto";
 
+// QBFT
+
 message QBFTMsg {
   int64                          type                  = 1;
   core.corepb.v1.Duty            duty                  = 2;
@@ -29,9 +31,31 @@ message QBFTConsensusMsg {
   repeated google.protobuf.Any values        = 3; // values of the hashes in the messages
 }
 
+// HotStuff
+
+message HotStuffMsg {
+  uint64                        type                  = 1;
+  uint64                        view                  = 2;
+  bytes                         value                 = 3;
+  bytes                         value_hash            = 4;
+  bool                          vote                  = 5;
+  bytes                         signature             = 6;
+  HotStuffQC                    qc                    = 7;
+}
+
+message HotStuffQC {
+  uint64                        type                  = 1;
+  uint64                        view                  = 2;
+  bytes                         value_hash            = 4;
+  repeated bytes                signatures            = 6;
+}
+
+// Generic
+
 message SniffedConsensusMsg {
-  google.protobuf.Timestamp timestamp = 1;
-  QBFTConsensusMsg          msg       = 2;
+  google.protobuf.Timestamp timestamp     = 1;
+  QBFTConsensusMsg          qbft_msg      = 2;
+  HotStuffMsg               hotstuff_msg  = 3;
   // Other consensus protocol messages can be added here
 }
 
