@@ -9,6 +9,11 @@ const (
 	InvalidID ID = 0
 )
 
+// ToIndex converts the ID to an index in a 0-based array.
+func (id ID) ToIndex() int {
+	return int(id - 1)
+}
+
 // View is the HotStuff view number. The first view has number 1.
 type View uint64
 

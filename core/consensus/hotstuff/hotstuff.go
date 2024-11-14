@@ -8,11 +8,9 @@ import (
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/host"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/consensus/metrics"
 	"github.com/obolnetwork/charon/core/consensus/protocols"
@@ -72,9 +70,10 @@ func (*Consensus) ProtocolID() protocol.ID {
 func (c *Consensus) Start(ctx context.Context) {
 	const logTopic = "hotstuff"
 
-	p2p.RegisterHandler(logTopic, c.tcpNode, protocols.HotStuffv1ProtocolID,
+	p2p.RegisterHandler(logTopic, c.tcpNode,
+		protocols.HotStuffv1ProtocolID,
 		func() proto.Message { return new(pbv1.HotStuffMsg) },
-		c.handle)
+		c.transport.P2PHandler)
 
 	go func() {
 		for {
@@ -114,13 +113,4 @@ func (c *Consensus) Subscribe(fn func(context.Context, core.Duty, core.UnsignedD
 
 		return fn(ctx, duty, unsigned)
 	})
-}
-
-func (c *Consensus) handle(ctx context.Context, _ peer.ID, req proto.Message) (proto.Message, bool, error) {
-	pbMsg, isValid := req.(*pbv1.HotStuffMsg)
-	if !isValid || pbMsg == nil {
-		return nil, false, errors.New("received invalid HotStuff consensus message")
-	}
-
-	return nil, false, c.transport.HandleReceivedMsg(ctx, pbMsg)
 }

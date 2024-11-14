@@ -91,29 +91,34 @@ func (f *consensusController) CurrentConsensus() core.Consensus {
 func (f *consensusController) SetCurrentConsensusForProtocol(ctx context.Context, protocol protocol.ID) error {
 	switch protocol {
 	case f.wrappedConsensus.ProtocolID():
+		// No-op for the same protocol ID
 	case f.defaultConsensus.ProtocolID():
 		f.wrappedConsensus.SetImpl(f.defaultConsensus)
 	case protocols.HotStuffv1ProtocolID:
-		cctx, cancel := context.WithCancel(ctx)
-
-		f.mutable.Lock()
-		defer f.mutable.Unlock()
-
-		if f.mutable.cancelWrappedCtx != nil {
-			// Stopping the previous consensus instance if not the default one.
-			f.mutable.cancelWrappedCtx()
-		}
-
-		hotstuffDeadliner := core.NewDeadliner(cctx, "consensus.hotstuff", f.deadlineFunc)
-		hotstuffConsensus := hotstuff.NewConsensus(f.tcpNode, f.sender, f.peers, f.p2pKey, hotstuffDeadliner)
-
-		f.mutable.cancelWrappedCtx = cancel
+		hotstuffConsensus := f.createHotStuffConsensus(ctx)
 		f.wrappedConsensus.SetImpl(hotstuffConsensus)
-
-		hotstuffConsensus.Start(cctx)
 	default:
 		return errors.New("unsupported protocol id", z.Str("protocol_id", string(protocol)))
 	}
 
 	return nil
+}
+
+func (f *consensusController) createHotStuffConsensus(ctx context.Context) core.Consensus {
+	cctx, cancel := context.WithCancel(ctx)
+
+	f.mutable.Lock()
+	defer f.mutable.Unlock()
+
+	if f.mutable.cancelWrappedCtx != nil {
+		f.mutable.cancelWrappedCtx()
+	}
+
+	hotstuffDeadliner := core.NewDeadliner(cctx, "consensus.hotstuff", f.deadlineFunc)
+	hotstuffConsensus := hotstuff.NewConsensus(f.tcpNode, f.sender, f.peers, f.p2pKey, hotstuffDeadliner)
+
+	f.mutable.cancelWrappedCtx = cancel
+	hotstuffConsensus.Start(cctx)
+
+	return hotstuffConsensus
 }

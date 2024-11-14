@@ -49,7 +49,7 @@ func (t *transport) SendTo(ctx context.Context, id hotstuff.ID, msg *hotstuff.Ms
 		return errInvalidReplicaID
 	}
 
-	recvCh := t.recvChannels[id-1]
+	recvCh := t.recvChannels[id.ToIndex()]
 
 	select {
 	case recvCh <- msg:

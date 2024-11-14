@@ -85,3 +85,8 @@ func TestNextPhase(t *testing.T) {
 		})
 	}
 }
+
+func TestIDToIndex(t *testing.T) {
+	require.Equal(t, 0, hotstuff.ID(1).ToIndex())
+	require.Equal(t, 1, hotstuff.ID(2).ToIndex())
+}

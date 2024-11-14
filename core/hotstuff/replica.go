@@ -281,7 +281,7 @@ func (r *Replica) sendNewView(ctx context.Context) error {
 }
 
 func (r *Replica) sendMsg(ctx context.Context, msg *Msg, leader ID) error {
-	privKey := r.cluster.privateKeys[r.id-1]
+	privKey := r.cluster.privateKeys[r.id.ToIndex()]
 	sig, err := Sign(privKey, msg.Type, msg.View, msg.ValueHash)
 	if err != nil {
 		return errors.Wrap(err, "sign msg")
