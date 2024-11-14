@@ -4,7 +4,6 @@ package hotstuff
 
 import (
 	"context"
-	"fmt"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -23,43 +22,37 @@ type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) e
 // Consensus implements core.Consensus.
 type Consensus struct {
 	// Immutable state
-	tcpNode    host.Host
-	sender     *p2p.Sender
-	peerLabels []string
-	peers      []p2p.Peer
-	pubkeys    map[int64]*k1.PublicKey
-	privkey    *k1.PrivateKey
-	subs       []subscriber
-	deadliner  core.Deadliner
-	metrics    metrics.ConsensusMetrics
-	transport  *transport
+	tcpNode   host.Host
+	sender    *p2p.Sender
+	peers     []p2p.Peer
+	subs      []subscriber
+	deadliner core.Deadliner
+	metrics   metrics.ConsensusMetrics
+	transport *transport
+	cluster   *cluster
 }
 
 var _ core.Consensus = (*Consensus)(nil)
 
 // NewConsensus returns a new consensus QBFT component.
 func NewConsensus(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey, deadliner core.Deadliner) *Consensus {
-	keys := make(map[int64]*k1.PublicKey)
-	var labels []string
+	keys := make([]*k1.PublicKey, len(peers))
 	for i, p := range peers {
-		labels = append(labels, fmt.Sprintf("%d:%s", p.Index, p.Name))
-
 		pk, _ := p.PublicKey()
-		keys[int64(i)] = pk
+		keys[i] = pk
 	}
 
 	transport := newTransport(tcpNode, sender, peers)
+	cluster := newCluster(uint(len(peers)), p2pKey, keys)
 
 	return &Consensus{
-		tcpNode:    tcpNode,
-		sender:     sender,
-		peers:      peers,
-		peerLabels: labels,
-		privkey:    p2pKey,
-		pubkeys:    keys,
-		deadliner:  deadliner,
-		metrics:    metrics.NewConsensusMetrics(protocols.HotStuffv1ProtocolID),
-		transport:  transport,
+		tcpNode:   tcpNode,
+		sender:    sender,
+		peers:     peers,
+		deadliner: deadliner,
+		metrics:   metrics.NewConsensusMetrics(protocols.HotStuffv1ProtocolID),
+		transport: transport,
+		cluster:   cluster,
 	}
 }
 
@@ -80,9 +73,8 @@ func (c *Consensus) Start(ctx context.Context) {
 			select {
 			case <-ctx.Done():
 				p2p.RegisterHandler(logTopic, c.tcpNode, protocols.HotStuffv1ProtocolID,
-					func() proto.Message { return new(pbv1.HotStuffMsg) },
-					nil)
-				// No need to unregister QBFT handler.
+					func() proto.Message { return new(pbv1.HotStuffMsg) }, nil)
+
 				return
 			case <-c.deadliner.C():
 				// TODO: remove duty

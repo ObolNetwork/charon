@@ -19,8 +19,11 @@ import (
 type Replica struct {
 	// Immutable state
 	id           ID
-	cluster      *Cluster
+	cluster      Cluster
 	transport    Transport
+	privateKey   *k1.PrivateKey
+	decidedFunc  DecidedFunc
+	inputValue   Value
 	recvCh       <-chan *Msg
 	phaseTimeout time.Duration
 
@@ -34,11 +37,17 @@ type Replica struct {
 	collector   *Collector
 }
 
-func NewReplica(id ID, cluster *Cluster, transport Transport, phaseTimeout time.Duration) *Replica {
+func NewReplica(id ID, cluster Cluster, transport Transport,
+	privateKey *k1.PrivateKey, decidedFunc DecidedFunc,
+	inputValue Value, phaseTimeout time.Duration,
+) *Replica {
 	return &Replica{
 		id:           id,
 		cluster:      cluster,
 		transport:    transport,
+		privateKey:   privateKey,
+		decidedFunc:  decidedFunc,
+		inputValue:   inputValue,
 		recvCh:       transport.ReceiveCh(),
 		phaseTimeout: phaseTimeout,
 		view:         1,
@@ -135,7 +144,7 @@ func (r *Replica) leaderDuty(ctx context.Context, msg *Msg) {
 
 	r.collector.AddMsg(msg, sender)
 	mm := r.collector.MatchingMsg(MsgPrepare, r.view)
-	if len(mm) < int(r.cluster.threshold) {
+	if len(mm) < int(r.cluster.Threshold()) {
 		return
 	}
 
@@ -174,7 +183,7 @@ func (r *Replica) leaderNewView(ctx context.Context, msg *Msg) {
 
 	r.collector.AddMsg(msg, sender)
 	mm := r.collector.MatchingMsg(MsgNewView, r.view-1)
-	if len(mm) < int(r.cluster.threshold) {
+	if len(mm) < int(r.cluster.Threshold()) {
 		return
 	}
 
@@ -189,11 +198,10 @@ func (r *Replica) leaderNewView(ctx context.Context, msg *Msg) {
 
 	r.leaderPhase = r.leaderPhase.NextPhase()
 
-	newValue := <-r.cluster.inputCh
 	err = r.transport.Broadcast(ctx, &Msg{
 		Type:  MsgPrepare,
 		View:  r.view,
-		Value: newValue,
+		Value: r.inputValue,
 		QC:    highQC,
 	})
 	if err != nil {
@@ -235,7 +243,7 @@ func (r *Replica) replicaDuty(ctx context.Context, msg *Msg, leader ID) (err err
 		err = r.sendVote(ctx, MsgCommit, msg.QC.ValueHash, leader)
 	case DecidePhase:
 		value := r.valuesMap[msg.QC.ValueHash]
-		r.cluster.outputCh <- value
+		r.decidedFunc(value, r.view)
 	default:
 		log.Debug(ctx, "Ignoring message in terminal phase")
 	}
@@ -281,8 +289,7 @@ func (r *Replica) sendNewView(ctx context.Context) error {
 }
 
 func (r *Replica) sendMsg(ctx context.Context, msg *Msg, leader ID) error {
-	privKey := r.cluster.privateKeys[r.id.ToIndex()]
-	sig, err := Sign(privKey, msg.Type, msg.View, msg.ValueHash)
+	sig, err := Sign(r.privateKey, msg.Type, msg.View, msg.ValueHash)
 	if err != nil {
 		return errors.Wrap(err, "sign msg")
 	}

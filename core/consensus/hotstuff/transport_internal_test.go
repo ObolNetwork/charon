@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/obolnetwork/charon/cluster"
+	charonCluster "github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core/consensus/protocols"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	hs "github.com/obolnetwork/charon/core/hotstuff"
@@ -36,7 +36,7 @@ func TestTransport(t *testing.T) {
 	)
 
 	random := rand.New(rand.NewSource(0))
-	lock, p2pkeys, _ := cluster.NewForT(t, 1, nodes, nodes, 0, random)
+	lock, p2pkeys, _ := charonCluster.NewForT(t, 1, nodes, nodes, 0, random)
 
 	for i := range nodes {
 		addr := testutil.AvailableAddr(t)

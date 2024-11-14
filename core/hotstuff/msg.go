@@ -6,21 +6,6 @@ import (
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 )
 
-// ID uniquely identifies a replica. The first replica has ID = 1.
-type ID uint64
-
-const (
-	InvalidID ID = 0
-)
-
-// ToIndex converts the ID to an index in a 0-based array.
-func (id ID) ToIndex() int {
-	return int(id - 1)
-}
-
-// View is the HotStuff view number. The first view has number 1.
-type View uint64
-
 // MsgType defines the HotStuff message types.
 type MsgType uint64
 
@@ -57,42 +42,6 @@ func (t MsgType) NextMsgType() MsgType {
 		return MsgDecide
 	default:
 		return MsgNewView
-	}
-}
-
-// Phase defines the HotStuff phases.
-type Phase uint64
-
-const (
-	PreparePhase Phase = iota
-	PreCommitPhase
-	CommitPhase
-	DecidePhase
-	TerminalPhase
-)
-
-var phaseLabels = map[Phase]string{
-	PreparePhase:   "prepare",
-	PreCommitPhase: "pre_commit",
-	CommitPhase:    "commit",
-	DecidePhase:    "decide",
-	TerminalPhase:  "terminal",
-}
-
-func (p Phase) String() string {
-	return phaseLabels[p]
-}
-
-func (p Phase) NextPhase() Phase {
-	switch p {
-	case PreparePhase:
-		return PreCommitPhase
-	case PreCommitPhase:
-		return CommitPhase
-	case CommitPhase:
-		return DecidePhase
-	default:
-		return TerminalPhase
 	}
 }
 
@@ -148,15 +97,15 @@ func (msg *Msg) ToProto() *pbv1.HotStuffMsg {
 
 func ProtoToMsg(protoMsg *pbv1.HotStuffMsg) *Msg {
 	msg := &Msg{
-		Type:      MsgType(protoMsg.Type),
-		View:      View(protoMsg.View),
-		Vote:      protoMsg.Vote,
-		Value:     protoMsg.Value,
-		Signature: protoMsg.Signature,
-		QC:        ProtoToQC(protoMsg.Qc),
+		Type:      MsgType(protoMsg.GetType()),
+		View:      View(protoMsg.GetView()),
+		Vote:      protoMsg.GetVote(),
+		Value:     protoMsg.GetValue(),
+		Signature: protoMsg.GetSignature(),
+		QC:        ProtoToQC(protoMsg.GetQc()),
 	}
 
-	copy(msg.ValueHash[:], protoMsg.ValueHash)
+	copy(msg.ValueHash[:], protoMsg.GetValueHash())
 
 	return msg
 }
@@ -167,13 +116,13 @@ func ProtoToQC(protoQC *pbv1.HotStuffQC) *QC {
 	}
 
 	qc := &QC{
-		Type:       MsgType(protoQC.Type),
-		View:       View(protoQC.View),
-		ValueHash:  Hash(protoQC.ValueHash),
-		Signatures: protoQC.Signatures,
+		Type:       MsgType(protoQC.GetType()),
+		View:       View(protoQC.GetView()),
+		ValueHash:  Hash(protoQC.GetValueHash()),
+		Signatures: protoQC.GetSignatures(),
 	}
 
-	copy(qc.ValueHash[:], protoQC.ValueHash)
+	copy(qc.ValueHash[:], protoQC.GetValueHash())
 
 	return qc
 }

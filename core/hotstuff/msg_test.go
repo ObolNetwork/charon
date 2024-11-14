@@ -48,49 +48,6 @@ func TestNextMsgType(t *testing.T) {
 	}
 }
 
-func TestPhaseString(t *testing.T) {
-	tests := []struct {
-		p    hotstuff.Phase
-		pstr string
-	}{
-		{hotstuff.PreparePhase, "prepare"},
-		{hotstuff.PreCommitPhase, "pre_commit"},
-		{hotstuff.CommitPhase, "commit"},
-		{hotstuff.DecidePhase, "decide"},
-		{hotstuff.TerminalPhase, "terminal"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.pstr, func(t *testing.T) {
-			require.Equal(t, tt.pstr, tt.p.String())
-		})
-	}
-}
-
-func TestNextPhase(t *testing.T) {
-	tests := []struct {
-		p    hotstuff.Phase
-		next hotstuff.Phase
-	}{
-		{hotstuff.PreparePhase, hotstuff.PreCommitPhase},
-		{hotstuff.PreCommitPhase, hotstuff.CommitPhase},
-		{hotstuff.CommitPhase, hotstuff.DecidePhase},
-		{hotstuff.DecidePhase, hotstuff.TerminalPhase},
-		{hotstuff.TerminalPhase, hotstuff.TerminalPhase},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.p.String(), func(t *testing.T) {
-			require.Equal(t, tt.next, tt.p.NextPhase())
-		})
-	}
-}
-
-func TestIDToIndex(t *testing.T) {
-	require.Equal(t, 0, hotstuff.ID(1).ToIndex())
-	require.Equal(t, 1, hotstuff.ID(2).ToIndex())
-}
-
 func TestMsgToProto(t *testing.T) {
 	msg := &hotstuff.Msg{
 		Type:      hotstuff.MsgPrepare,
