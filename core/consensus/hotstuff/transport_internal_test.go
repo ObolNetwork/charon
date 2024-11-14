@@ -83,7 +83,7 @@ func TestTransport(t *testing.T) {
 		Type:  hs.MsgCommit,
 		View:  2,
 		Value: []byte("hello"),
-		Justify: &hs.QC{
+		QC: &hs.QC{
 			Type: hs.MsgPreCommit,
 			View: 1,
 		},

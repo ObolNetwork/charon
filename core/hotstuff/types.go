@@ -2,6 +2,10 @@
 
 package hotstuff
 
+import (
+	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
+)
+
 // ID uniquely identifies a replica. The first replica has ID = 1.
 type ID uint64
 
@@ -106,7 +110,7 @@ type Msg struct {
 	ValueHash Hash
 	Vote      bool
 	Signature []byte
-	Justify   *QC
+	QC        *QC
 }
 
 // QC represents a quorum certificate.
@@ -115,4 +119,61 @@ type QC struct {
 	View       View
 	ValueHash  Hash
 	Signatures [][]byte
+}
+
+func (qc *QC) ToProto() *pbv1.HotStuffQC {
+	if qc == nil {
+		return nil
+	}
+
+	return &pbv1.HotStuffQC{
+		Type:       uint64(qc.Type),
+		View:       uint64(qc.View),
+		ValueHash:  qc.ValueHash[:],
+		Signatures: qc.Signatures,
+	}
+}
+
+func (msg *Msg) ToProto() *pbv1.HotStuffMsg {
+	return &pbv1.HotStuffMsg{
+		Type:      uint64(msg.Type),
+		View:      uint64(msg.View),
+		Vote:      msg.Vote,
+		Value:     msg.Value,
+		ValueHash: msg.ValueHash[:],
+		Signature: msg.Signature,
+		Qc:        msg.QC.ToProto(),
+	}
+}
+
+func ProtoToMsg(protoMsg *pbv1.HotStuffMsg) *Msg {
+	msg := &Msg{
+		Type:      MsgType(protoMsg.Type),
+		View:      View(protoMsg.View),
+		Vote:      protoMsg.Vote,
+		Value:     protoMsg.Value,
+		Signature: protoMsg.Signature,
+		QC:        ProtoToQC(protoMsg.Qc),
+	}
+
+	copy(msg.ValueHash[:], protoMsg.ValueHash)
+
+	return msg
+}
+
+func ProtoToQC(protoQC *pbv1.HotStuffQC) *QC {
+	if protoQC == nil {
+		return nil
+	}
+
+	qc := &QC{
+		Type:       MsgType(protoQC.Type),
+		View:       View(protoQC.View),
+		ValueHash:  Hash(protoQC.ValueHash),
+		Signatures: protoQC.Signatures,
+	}
+
+	copy(qc.ValueHash[:], protoQC.ValueHash)
+
+	return qc
 }

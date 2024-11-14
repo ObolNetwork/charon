@@ -153,9 +153,9 @@ func (r *Replica) leaderDuty(ctx context.Context, msg *Msg) {
 
 	t := msg.Type.NextMsgType()
 	err = r.transport.Broadcast(ctx, &Msg{
-		Type:    t,
-		View:    r.view,
-		Justify: qc,
+		Type: t,
+		View: r.view,
+		QC:   qc,
 	})
 	if err != nil {
 		log.Error(ctx, "Leader failed to broadcast", err)
@@ -191,10 +191,10 @@ func (r *Replica) leaderNewView(ctx context.Context, msg *Msg) {
 
 	newValue := <-r.cluster.inputCh
 	err = r.transport.Broadcast(ctx, &Msg{
-		Type:    MsgPrepare,
-		View:    r.view,
-		Value:   newValue,
-		Justify: highQC,
+		Type:  MsgPrepare,
+		View:  r.view,
+		Value: newValue,
+		QC:    highQC,
 	})
 	if err != nil {
 		log.Error(ctx, "Failed to broadcast prepare", err)
@@ -216,7 +216,7 @@ func (r *Replica) replicaDuty(ctx context.Context, msg *Msg, leader ID) (err err
 
 	switch currentPhase {
 	case PreparePhase:
-		if !r.safeNode(msg.Justify) {
+		if !r.safeNode(msg.QC) {
 			log.Error(ctx, "Unsafe node", nil)
 		} else {
 			valueHash, herr := HashValue(msg.Value)
@@ -228,13 +228,13 @@ func (r *Replica) replicaDuty(ctx context.Context, msg *Msg, leader ID) (err err
 			}
 		}
 	case PreCommitPhase:
-		r.prepareQC = msg.Justify
-		err = r.sendVote(ctx, MsgPreCommit, msg.Justify.ValueHash, leader)
+		r.prepareQC = msg.QC
+		err = r.sendVote(ctx, MsgPreCommit, msg.QC.ValueHash, leader)
 	case CommitPhase:
-		r.lockedQC = msg.Justify
-		err = r.sendVote(ctx, MsgCommit, msg.Justify.ValueHash, leader)
+		r.lockedQC = msg.QC
+		err = r.sendVote(ctx, MsgCommit, msg.QC.ValueHash, leader)
 	case DecidePhase:
-		value := r.valuesMap[msg.Justify.ValueHash]
+		value := r.valuesMap[msg.QC.ValueHash]
 		r.cluster.outputCh <- value
 	default:
 		log.Debug(ctx, "Ignoring message in terminal phase")
@@ -272,9 +272,9 @@ func (r *Replica) sendNewView(ctx context.Context) error {
 	nextLeader := r.cluster.Leader(r.view)
 
 	msg := Msg{
-		Type:    MsgNewView,
-		View:    r.view - 1,
-		Justify: r.prepareQC,
+		Type: MsgNewView,
+		View: r.view - 1,
+		QC:   r.prepareQC,
 	}
 
 	return r.sendMsg(ctx, &msg, nextLeader)
@@ -338,11 +338,11 @@ func (r *Replica) verifyQC(qc *QC) error {
 }
 
 func selectHighQC(msgs []*Msg) *QC {
-	highQC := msgs[0].Justify
+	highQC := msgs[0].QC
 
 	for _, msg := range msgs[1:] {
-		if msg.Justify != nil && (highQC == nil || msg.Justify.View > highQC.View) {
-			highQC = msg.Justify
+		if msg.QC != nil && (highQC == nil || msg.QC.View > highQC.View) {
+			highQC = msg.QC
 		}
 	}
 

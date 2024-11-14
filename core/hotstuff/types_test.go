@@ -90,3 +90,26 @@ func TestIDToIndex(t *testing.T) {
 	require.Equal(t, 0, hotstuff.ID(1).ToIndex())
 	require.Equal(t, 1, hotstuff.ID(2).ToIndex())
 }
+
+func TestMsgToProto(t *testing.T) {
+	msg := &hotstuff.Msg{
+		Type:      hotstuff.MsgPrepare,
+		View:      3,
+		Vote:      true,
+		Value:     []byte("hello"),
+		ValueHash: [32]byte{1},
+		Signature: []byte("sig"),
+		QC: &hotstuff.QC{
+			Type:      hotstuff.MsgCommit,
+			View:      2,
+			ValueHash: [32]byte{2},
+			Signatures: [][]byte{
+				[]byte("sig1"),
+				[]byte("sig2"),
+			},
+		},
+	}
+
+	msg2 := hotstuff.ProtoToMsg(msg.ToProto())
+	require.EqualValues(t, msg, msg2)
+}
