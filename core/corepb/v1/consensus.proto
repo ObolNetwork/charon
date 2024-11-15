@@ -34,14 +34,15 @@ message QBFTConsensusMsg {
 // HotStuff
 
 message HotStuffMsg {
-  uint64                        type                  = 1;
-  uint64                        view                  = 2;
-  bytes                         value                 = 3;
-  bytes                         value_hash            = 4;
-  bool                          vote                  = 5;
-  bytes                         signature             = 6;
-  HotStuffQC                    qc                    = 7;
-  bool                          has_qc                = 8;
+  core.corepb.v1.Duty           duty                  = 1;
+  uint64                        type                  = 2;
+  uint64                        view                  = 3;
+  bytes                         value                 = 4;
+  bytes                         value_hash            = 5;
+  bool                          vote                  = 6;
+  bytes                         signature             = 7;
+  HotStuffQC                    qc                    = 8;
+  bool                          has_qc                = 9;
 }
 
 message HotStuffQC {

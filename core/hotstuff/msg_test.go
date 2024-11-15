@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/hotstuff"
 )
 
@@ -51,6 +52,7 @@ func TestNextMsgType(t *testing.T) {
 
 func TestMsgToProto(t *testing.T) {
 	msg := &hotstuff.Msg{
+		Duty:      core.NewProposerDuty(1),
 		Type:      hotstuff.MsgPrepare,
 		View:      3,
 		Vote:      true,

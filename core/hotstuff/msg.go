@@ -3,6 +3,7 @@
 package hotstuff
 
 import (
+	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 )
 
@@ -53,6 +54,7 @@ type Value []byte
 
 // Msg represents a HotStuff protocol message.
 type Msg struct {
+	Duty      core.Duty
 	Type      MsgType
 	View      View
 	Value     Value
@@ -92,6 +94,10 @@ func (msg *Msg) ToProto() *pbv1.HotStuffMsg {
 	}
 
 	return &pbv1.HotStuffMsg{
+		Duty: &pbv1.Duty{
+			Type: int32(msg.Duty.Type),
+			Slot: msg.Duty.Slot,
+		},
 		Type:      uint64(msg.Type),
 		View:      uint64(msg.View),
 		Vote:      msg.Vote,
@@ -110,6 +116,7 @@ func ProtoToMsg(protoMsg *pbv1.HotStuffMsg) *Msg {
 	}
 
 	msg := &Msg{
+		Duty:      ProtoToDuty(protoMsg.GetDuty()),
 		Type:      MsgType(protoMsg.GetType()),
 		View:      View(protoMsg.GetView()),
 		Vote:      protoMsg.GetVote(),
@@ -137,4 +144,11 @@ func ProtoToQC(protoQC *pbv1.HotStuffQC) *QC {
 	copy(qc.ValueHash[:], protoQC.GetValueHash())
 
 	return qc
+}
+
+func ProtoToDuty(protoDuty *pbv1.Duty) core.Duty {
+	return core.Duty{
+		Type: core.DutyType(protoDuty.Type),
+		Slot: protoDuty.Slot,
+	}
 }

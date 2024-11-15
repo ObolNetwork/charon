@@ -10,6 +10,7 @@ import (
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	ssz "github.com/ferranbt/fastssz"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -39,19 +40,18 @@ type Consensus struct {
 	subs      []subscriber
 	deadliner core.Deadliner
 	metrics   metrics.ConsensusMetrics
-	transport *transport
 	cluster   *cluster
 
 	// Mutable state
 	mutable struct {
 		sync.Mutex
-		instances map[core.Duty]*utils.InstanceIO[hs.Msg]
+		instances map[core.Duty]*utils.InstanceIO[*hs.Msg]
 	}
 }
 
 var _ core.Consensus = (*Consensus)(nil)
 
-// NewConsensus returns a new consensus QBFT component.
+// NewConsensus returns a new consensus HotStuff component.
 func NewConsensus(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey, deadliner core.Deadliner) (*Consensus, error) {
 	var id hs.ID
 
@@ -67,7 +67,6 @@ func NewConsensus(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKe
 		keys[i] = pk
 	}
 
-	transport := newTransport(tcpNode, sender, peers)
 	cluster := newCluster(uint(len(peers)), p2pKey, keys)
 
 	c := &Consensus{
@@ -77,11 +76,10 @@ func NewConsensus(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKe
 		peers:     peers,
 		deadliner: deadliner,
 		metrics:   metrics.NewConsensusMetrics(protocols.HotStuffv1ProtocolID),
-		transport: transport,
 		cluster:   cluster,
 	}
 
-	c.mutable.instances = make(map[core.Duty]*utils.InstanceIO[hs.Msg])
+	c.mutable.instances = make(map[core.Duty]*utils.InstanceIO[*hs.Msg])
 
 	return c, nil
 }
@@ -96,7 +94,7 @@ func (c *Consensus) Start(ctx context.Context) {
 	p2p.RegisterHandler(logTopic, c.tcpNode,
 		protocols.HotStuffv1ProtocolID,
 		func() proto.Message { return new(pbv1.HotStuffMsg) },
-		c.transport.P2PHandler)
+		c.handle)
 
 	go func() {
 		for {
@@ -162,13 +160,13 @@ func (c *Consensus) Subscribe(fn func(context.Context, core.Duty, core.UnsignedD
 	})
 }
 
-func (c *Consensus) getInstanceIO(duty core.Duty) *utils.InstanceIO[hs.Msg] {
+func (c *Consensus) getInstanceIO(duty core.Duty) *utils.InstanceIO[*hs.Msg] {
 	c.mutable.Lock()
 	defer c.mutable.Unlock()
 
 	inst, ok := c.mutable.instances[duty]
 	if !ok {
-		inst = utils.NewInstanceIO[hs.Msg]()
+		inst = utils.NewInstanceIO[*hs.Msg]()
 		c.mutable.instances[duty] = inst
 	}
 
@@ -220,7 +218,7 @@ func (c *Consensus) propose(ctx context.Context, duty core.Duty, value proto.Mes
 
 func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error) {
 	const (
-		phaseTimeout = time.Second
+		phaseTimeout = 5 * time.Second
 	)
 
 	inst := c.getInstanceIO(duty)
@@ -266,6 +264,10 @@ func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error)
 		}
 	}
 
+	transport := newTransport(c.tcpNode, c.sender, c.peers)
+
+	go transport.ProcessReceives(ctx, c.getRecvBuffer(duty))
+
 	hsValueCh := make(chan hs.Value)
 
 	go func() {
@@ -280,7 +282,7 @@ func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error)
 		}
 	}()
 
-	r := hs.NewReplica(c.id, c.cluster, c.transport, c.cluster.privateKey, decidedFn, hsValueCh, phaseTimeout)
+	r := hs.NewReplica(c.id, duty, c.cluster, transport, c.cluster.privateKey, decidedFn, hsValueCh, phaseTimeout)
 	err = r.Run(ctx)
 	if err != nil && !isContextErr(err) {
 		c.metrics.IncConsensusError()
@@ -293,6 +295,44 @@ func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error)
 	}
 
 	return err
+}
+
+func (c *Consensus) getRecvBuffer(duty core.Duty) chan *hs.Msg {
+	c.mutable.Lock()
+	defer c.mutable.Unlock()
+
+	inst, ok := c.mutable.instances[duty]
+	if !ok {
+		inst = utils.NewInstanceIO[*hs.Msg]()
+		c.mutable.instances[duty] = inst
+	}
+
+	return inst.RecvBuffer
+}
+
+func (c *Consensus) handle(ctx context.Context, _ peer.ID, req proto.Message) (proto.Message, bool, error) {
+	pbMsg, ok := req.(*pbv1.HotStuffMsg)
+	if !ok || pbMsg == nil {
+		return nil, false, errors.New("invalid consensus message")
+	}
+
+	duty := core.DutyFromProto(pbMsg.GetDuty())
+	ctx = log.WithCtx(ctx, z.Any("duty", duty))
+
+	log.Debug(ctx, "Received consensus message")
+
+	if !c.deadliner.Add(duty) {
+		return nil, false, errors.New("duty expired", z.Any("duty", duty))
+	}
+
+	msg := hs.ProtoToMsg(pbMsg)
+
+	select {
+	case c.getRecvBuffer(duty) <- msg:
+		return nil, false, nil
+	case <-ctx.Done():
+		return nil, false, errors.Wrap(ctx.Err(), "timeout enqueuing receive buffer", z.Any("duty", duty))
+	}
 }
 
 func hashProto(msg proto.Message) ([32]byte, error) {

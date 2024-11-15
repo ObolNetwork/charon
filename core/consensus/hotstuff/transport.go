@@ -6,12 +6,9 @@ import (
 	"context"
 
 	"github.com/libp2p/go-libp2p/core/host"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core/consensus/protocols"
-	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	hs "github.com/obolnetwork/charon/core/hotstuff"
 	"github.com/obolnetwork/charon/p2p"
 )
@@ -85,19 +82,17 @@ func (t *transport) ReceiveCh() <-chan *hs.Msg {
 	return t.recvCh
 }
 
-func (t *transport) P2PHandler(ctx context.Context, _ peer.ID, req proto.Message) (proto.Message, bool, error) {
-	pbMsg, isValid := req.(*pbv1.HotStuffMsg)
-	if !isValid || pbMsg == nil {
-		return nil, false, errors.New("received invalid HotStuff consensus message")
+func (t *transport) ProcessReceives(ctx context.Context, outerBuffer chan *hs.Msg) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg := <-outerBuffer:
+			select {
+			case <-ctx.Done():
+				return
+			case t.recvCh <- msg:
+			}
+		}
 	}
-
-	var err error
-
-	select {
-	case t.recvCh <- hs.ProtoToMsg(pbMsg):
-	case <-ctx.Done():
-		err = ctx.Err()
-	}
-
-	return nil, false, err
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/hotstuff"
 )
 
@@ -42,11 +43,13 @@ func TestHotStuff(t *testing.T) {
 	valueCh := make(chan hotstuff.Value, 1)
 	valueCh <- inputValue
 
+	duty := core.NewProposerDuty(1)
+
 	replicas := make([]*hotstuff.Replica, total)
 	for i := range total {
 		id := hotstuff.NewIDFromIndex(i)
 		privateKey := cluster.privateKeys[i]
-		replicas[i] = hotstuff.NewReplica(id, cluster, transports[i], privateKey, decidedFunc, valueCh, phaseTimeout)
+		replicas[i] = hotstuff.NewReplica(id, duty, cluster, transports[i], privateKey, decidedFunc, valueCh, phaseTimeout)
 	}
 
 	group, ctx := errgroup.WithContext(context.Background())

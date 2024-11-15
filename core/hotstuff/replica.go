@@ -12,6 +12,7 @@ import (
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/core"
 )
 
 // Replica represents a single HotStuff replica.
@@ -19,6 +20,7 @@ import (
 type Replica struct {
 	// Immutable state
 	id           ID
+	duty         core.Duty
 	cluster      Cluster
 	transport    Transport
 	privateKey   *k1.PrivateKey
@@ -37,12 +39,14 @@ type Replica struct {
 	collector   *Collector
 }
 
-func NewReplica(id ID, cluster Cluster, transport Transport,
+func NewReplica(id ID, duty core.Duty,
+	cluster Cluster, transport Transport,
 	privateKey *k1.PrivateKey, decidedFunc DecidedFunc,
 	valueCh <-chan Value, phaseTimeout time.Duration,
 ) *Replica {
 	return &Replica{
 		id:           id,
+		duty:         duty,
 		cluster:      cluster,
 		transport:    transport,
 		privateKey:   privateKey,
@@ -79,16 +83,22 @@ func (r *Replica) Run(ctx context.Context) error {
 			return nil
 		case <-time.After(r.phaseTimeout):
 			log.Warn(ctx, "Phase timeout", nil)
-			if err := r.nextView(ctx); err != nil {
-				log.Error(ctx, "Failed to move to next view", err)
 
-				return err
-			}
+			return errors.New("phase timeout")
+			// if err := r.nextView(ctx); err != nil {
+			// 	log.Error(ctx, "Failed to move to next view", err)
+
+			// 	return err
+			// }
 		}
 	}
 }
 
 func (r *Replica) handleMsg(ctx context.Context, msg *Msg) {
+	if msg.Duty != r.duty {
+		return
+	}
+
 	ctx = log.WithCtx(ctx, z.U64("view", uint64(r.view)), z.Str("phase", r.phase.String()))
 
 	leader := r.cluster.Leader(r.view)
@@ -159,6 +169,7 @@ func (r *Replica) leaderDuty(ctx context.Context, msg *Msg) {
 
 	t := msg.Type.NextMsgType()
 	err = r.transport.Broadcast(ctx, &Msg{
+		Duty: r.duty,
 		Type: t,
 		View: r.view,
 		QC:   qc,
@@ -197,6 +208,7 @@ func (r *Replica) leaderNewView(ctx context.Context, msg *Msg) {
 
 	value := <-r.valueCh
 	err = r.transport.Broadcast(ctx, &Msg{
+		Duty:  r.duty,
 		Type:  MsgPrepare,
 		View:  r.view,
 		Value: value,
@@ -265,6 +277,7 @@ func (r *Replica) safeNode(qc *QC) bool {
 
 func (r *Replica) sendVote(ctx context.Context, t MsgType, valueHash [32]byte, leader ID) error {
 	msg := Msg{
+		Duty:      r.duty,
 		Type:      t,
 		View:      r.view,
 		ValueHash: valueHash,
@@ -278,6 +291,7 @@ func (r *Replica) sendNewView(ctx context.Context) error {
 	nextLeader := r.cluster.Leader(r.view)
 
 	msg := Msg{
+		Duty: r.duty,
 		Type: MsgNewView,
 		View: r.view - 1,
 		QC:   r.prepareQC,
