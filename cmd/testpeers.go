@@ -228,8 +228,8 @@ func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) error 
 		}
 	}
 
-	if conf.OutputToml != "" {
-		err = writeResultToFile(res, conf.OutputToml)
+	if conf.OutputJSON != "" {
+		err = writeResultToFile(res, conf.OutputJSON)
 		if err != nil {
 			return err
 		}

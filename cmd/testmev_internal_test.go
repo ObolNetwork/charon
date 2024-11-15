@@ -43,7 +43,7 @@ func TestMEVTest(t *testing.T) {
 			name: "default scenario",
 			config: testMEVConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
 					TestCases:  nil,
 					Timeout:    time.Minute,
@@ -67,7 +67,7 @@ func TestMEVTest(t *testing.T) {
 			name: "connection refused",
 			config: testMEVConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
 					TestCases:  nil,
 					Timeout:    time.Minute,
@@ -97,7 +97,7 @@ func TestMEVTest(t *testing.T) {
 			name: "timeout",
 			config: testMEVConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
 					TestCases:  nil,
 					Timeout:    100 * time.Nanosecond,
@@ -121,7 +121,7 @@ func TestMEVTest(t *testing.T) {
 			name: "quiet",
 			config: testMEVConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      true,
 					TestCases:  nil,
 					Timeout:    time.Minute,
@@ -151,7 +151,7 @@ func TestMEVTest(t *testing.T) {
 			name: "unsupported test",
 			config: testMEVConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
 					TestCases:  []string{"notSupportedTest"},
 					Timeout:    time.Minute,
@@ -166,7 +166,7 @@ func TestMEVTest(t *testing.T) {
 			name: "custom test cases",
 			config: testMEVConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
 					TestCases:  []string{"ping"},
 					Timeout:    time.Minute,
@@ -190,7 +190,7 @@ func TestMEVTest(t *testing.T) {
 			name: "write to file",
 			config: testMEVConfig{
 				testConfig: testConfig{
-					OutputToml: "./write-to-file-test.toml.tmp",
+					OutputJSON: "./write-to-file-test.json.tmp",
 					Quiet:      false,
 					TestCases:  nil,
 					Timeout:    time.Minute,
@@ -237,7 +237,7 @@ func TestMEVTest(t *testing.T) {
 			}
 			defer func() {
 				if test.cleanup != nil {
-					test.cleanup(t, test.config.OutputToml)
+					test.cleanup(t, test.config.OutputJSON)
 				}
 			}()
 
@@ -247,8 +247,8 @@ func TestMEVTest(t *testing.T) {
 				testWriteOut(t, test.expected, buf)
 			}
 
-			if test.config.OutputToml != "" {
-				testWriteFile(t, test.expected, test.config.OutputToml)
+			if test.config.OutputJSON != "" {
+				testWriteFile(t, test.expected, test.config.OutputJSON)
 			}
 		})
 	}
@@ -270,18 +270,23 @@ func TestMEVTestFlags(t *testing.T) {
 	}{
 		{
 			name:        "default scenario",
-			args:        []string{"mev", "--endpoints=\"test.endpoint\"", "--beacon-node-endpoint=\"test.endpoint\""},
+			args:        []string{"mev", "--endpoints=\"test.endpoint\""},
 			expectedErr: "",
 		},
 		{
 			name:        "no endpoints flag",
 			args:        []string{"mev"},
-			expectedErr: "required flag(s) \"beacon-node-endpoint\", \"endpoints\" not set",
+			expectedErr: "required flag(s) \"endpoints\" not set",
 		},
 		{
-			name:        "no output toml on quiet",
+			name:        "no output json on quiet",
 			args:        []string{"mev", "--endpoints=\"test.endpoint\"", "--quiet"},
-			expectedErr: "on --quiet, an --output-toml is required",
+			expectedErr: "on --quiet, an --output-json is required",
+		},
+		{
+			name:        "no beacon node endpoint flag on load test",
+			args:        []string{"mev", "--endpoints=\"test.endpoint\"", "--load-test"},
+			expectedErr: "beacon-node-endpoint should be specified when load-test is",
 		},
 	}
 
