@@ -84,6 +84,13 @@ func (qc *QC) ToProto() *pbv1.HotStuffQC {
 }
 
 func (msg *Msg) ToProto() *pbv1.HotStuffMsg {
+	hasQC := true
+	qc := msg.QC.ToProto()
+	if msg.QC == nil {
+		hasQC = false
+		qc = &pbv1.HotStuffQC{}
+	}
+
 	return &pbv1.HotStuffMsg{
 		Type:      uint64(msg.Type),
 		View:      uint64(msg.View),
@@ -91,18 +98,24 @@ func (msg *Msg) ToProto() *pbv1.HotStuffMsg {
 		Value:     msg.Value,
 		ValueHash: msg.ValueHash[:],
 		Signature: msg.Signature,
-		Qc:        msg.QC.ToProto(),
+		Qc:        qc,
+		HasQc:     hasQC,
 	}
 }
 
 func ProtoToMsg(protoMsg *pbv1.HotStuffMsg) *Msg {
+	var qc *QC
+	if protoMsg.GetHasQc() {
+		qc = ProtoToQC(protoMsg.GetQc())
+	}
+
 	msg := &Msg{
 		Type:      MsgType(protoMsg.GetType()),
 		View:      View(protoMsg.GetView()),
 		Vote:      protoMsg.GetVote(),
 		Value:     protoMsg.GetValue(),
 		Signature: protoMsg.GetSignature(),
-		QC:        ProtoToQC(protoMsg.GetQc()),
+		QC:        qc,
 	}
 
 	copy(msg.ValueHash[:], protoMsg.GetValueHash())
@@ -118,7 +131,6 @@ func ProtoToQC(protoQC *pbv1.HotStuffQC) *QC {
 	qc := &QC{
 		Type:       MsgType(protoQC.GetType()),
 		View:       View(protoQC.GetView()),
-		ValueHash:  Hash(protoQC.GetValueHash()),
 		Signatures: protoQC.GetSignatures(),
 	}
 

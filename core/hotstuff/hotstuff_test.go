@@ -4,11 +4,11 @@ package hotstuff_test
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/core/hotstuff"
 )
@@ -39,19 +39,23 @@ func TestHotStuff(t *testing.T) {
 		outputCh <- value
 	}
 
+	valueCh := make(chan hotstuff.Value, 1)
+	valueCh <- inputValue
+
 	replicas := make([]*hotstuff.Replica, total)
 	for i := range total {
 		id := hotstuff.NewIDFromIndex(i)
 		privateKey := cluster.privateKeys[i]
-		replicas[i] = hotstuff.NewReplica(id, cluster, transports[i], privateKey, decidedFunc, inputValue, phaseTimeout)
+		replicas[i] = hotstuff.NewReplica(id, cluster, transports[i], privateKey, decidedFunc, valueCh, phaseTimeout)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	wg := sync.WaitGroup{}
-	wg.Add(total)
+	group, ctx := errgroup.WithContext(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 
 	for i := range total {
-		go replicas[i].Run(ctx, wg.Done)
+		group.Go(func() error {
+			return replicas[i].Run(ctx)
+		})
 	}
 
 	for range total {
@@ -59,9 +63,9 @@ func TestHotStuff(t *testing.T) {
 		require.EqualValues(t, inputValue, value)
 	}
 
-	// Stop all processes
 	cancel()
-	wg.Wait()
+	err = group.Wait()
+	require.NoError(t, err)
 }
 
 func TestPhaseString(t *testing.T) {

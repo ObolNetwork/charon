@@ -23,7 +23,7 @@ type Replica struct {
 	transport    Transport
 	privateKey   *k1.PrivateKey
 	decidedFunc  DecidedFunc
-	inputValue   Value
+	valueCh      <-chan Value
 	recvCh       <-chan *Msg
 	phaseTimeout time.Duration
 
@@ -39,7 +39,7 @@ type Replica struct {
 
 func NewReplica(id ID, cluster Cluster, transport Transport,
 	privateKey *k1.PrivateKey, decidedFunc DecidedFunc,
-	inputValue Value, phaseTimeout time.Duration,
+	valueCh <-chan Value, phaseTimeout time.Duration,
 ) *Replica {
 	return &Replica{
 		id:           id,
@@ -47,7 +47,7 @@ func NewReplica(id ID, cluster Cluster, transport Transport,
 		transport:    transport,
 		privateKey:   privateKey,
 		decidedFunc:  decidedFunc,
-		inputValue:   inputValue,
+		valueCh:      valueCh,
 		recvCh:       transport.ReceiveCh(),
 		phaseTimeout: phaseTimeout,
 		view:         1,
@@ -58,34 +58,31 @@ func NewReplica(id ID, cluster Cluster, transport Transport,
 	}
 }
 
-func (r *Replica) Run(ctx context.Context, done func()) {
+func (r *Replica) Run(ctx context.Context) error {
 	ctx = log.WithCtx(log.WithTopic(ctx, "hotstuff"), z.Uint("replica", uint(r.id)))
-
-	defer func() {
-		log.Debug(ctx, "Stopped")
-		done()
-	}()
-
-	log.Debug(ctx, "Starting")
 
 	// Initially all replicas send a NewView message to the leader.
 	if err := r.sendNewView(ctx); err != nil {
 		log.Error(ctx, "Failed to send new_view", err)
+
+		return err
 	}
 
 	for {
 		select {
 		case msg, ok := <-r.recvCh:
 			if !ok {
-				return
+				return errors.New("receive channel closed")
 			}
 			r.handleMsg(ctx, msg)
 		case <-ctx.Done():
-			return
+			return nil
 		case <-time.After(r.phaseTimeout):
 			log.Warn(ctx, "Phase timeout", nil)
 			if err := r.nextView(ctx); err != nil {
 				log.Error(ctx, "Failed to move to next view", err)
+
+				return err
 			}
 		}
 	}
@@ -198,10 +195,11 @@ func (r *Replica) leaderNewView(ctx context.Context, msg *Msg) {
 
 	r.leaderPhase = r.leaderPhase.NextPhase()
 
+	value := <-r.valueCh
 	err = r.transport.Broadcast(ctx, &Msg{
 		Type:  MsgPrepare,
 		View:  r.view,
-		Value: r.inputValue,
+		Value: value,
 		QC:    highQC,
 	})
 	if err != nil {

@@ -95,7 +95,10 @@ func (f *consensusController) SetCurrentConsensusForProtocol(ctx context.Context
 	case f.defaultConsensus.ProtocolID():
 		f.wrappedConsensus.SetImpl(f.defaultConsensus)
 	case protocols.HotStuffv1ProtocolID:
-		hotstuffConsensus := f.createHotStuffConsensus(ctx)
+		hotstuffConsensus, err := f.createHotStuffConsensus(ctx)
+		if err != nil {
+			return err
+		}
 		f.wrappedConsensus.SetImpl(hotstuffConsensus)
 	default:
 		return errors.New("unsupported protocol id", z.Str("protocol_id", string(protocol)))
@@ -104,21 +107,26 @@ func (f *consensusController) SetCurrentConsensusForProtocol(ctx context.Context
 	return nil
 }
 
-func (f *consensusController) createHotStuffConsensus(ctx context.Context) core.Consensus {
+func (f *consensusController) createHotStuffConsensus(ctx context.Context) (core.Consensus, error) {
 	cctx, cancel := context.WithCancel(ctx)
 
 	f.mutable.Lock()
 	defer f.mutable.Unlock()
 
+	hotstuffDeadliner := core.NewDeadliner(cctx, "consensus.hotstuff", f.deadlineFunc)
+	hotstuffConsensus, err := hotstuff.NewConsensus(f.tcpNode, f.sender, f.peers, f.p2pKey, hotstuffDeadliner)
+	if err != nil {
+		cancel()
+
+		return nil, err
+	}
+
 	if f.mutable.cancelWrappedCtx != nil {
 		f.mutable.cancelWrappedCtx()
 	}
 
-	hotstuffDeadliner := core.NewDeadliner(cctx, "consensus.hotstuff", f.deadlineFunc)
-	hotstuffConsensus := hotstuff.NewConsensus(f.tcpNode, f.sender, f.peers, f.p2pKey, hotstuffDeadliner)
-
 	f.mutable.cancelWrappedCtx = cancel
 	hotstuffConsensus.Start(cctx)
 
-	return hotstuffConsensus
+	return hotstuffConsensus, nil
 }

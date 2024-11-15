@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/core/hotstuff"
 )
@@ -67,6 +68,13 @@ func TestMsgToProto(t *testing.T) {
 		},
 	}
 
-	msg2 := hotstuff.ProtoToMsg(msg.ToProto())
+	protoMsg := msg.ToProto()
+	pbytes, err := proto.Marshal(protoMsg)
+	require.NoError(t, err)
+
+	err = proto.Unmarshal(pbytes, protoMsg)
+	require.NoError(t, err)
+
+	msg2 := hotstuff.ProtoToMsg(protoMsg)
 	require.EqualValues(t, msg, msg2)
 }
