@@ -180,6 +180,7 @@ func bindTestBeaconFlags(cmd *cobra.Command, config *testBeaconConfig, flagsPref
 	cmd.Flags().BoolVar(&config.LoadTest, flagsPrefix+"load-test", false, "Enable load test, not advisable when testing towards external beacon nodes.")
 	cmd.Flags().DurationVar(&config.LoadTestDuration, flagsPrefix+"load-test-duration", 5*time.Second, "Time to keep running the load tests in seconds. For each second a new continuous ping instance is spawned.")
 	cmd.Flags().IntVar(&config.SimulationDuration, flagsPrefix+"simulation-duration-in-slots", slotsInEpoch, "Time to keep running the simulation in slots.")
+	cmd.Flags().StringVar(&config.SimulationFileDir, flagsPrefix+"simulation-file-dir", "./", "Time to keep running the simulation in slots.")
 	cmd.Flags().BoolVar(&config.SimulationVerbose, flagsPrefix+"simulation-verbose", false, "Show results for each request and each validator.")
 	mustMarkFlagRequired(cmd, flagsPrefix+"endpoints")
 }
@@ -250,8 +251,8 @@ func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (err 
 		}
 	}
 
-	if cfg.OutputToml != "" {
-		err = writeResultToFile(res, cfg.OutputToml)
+	if cfg.OutputJSON != "" {
+		err = writeResultToFile(res, cfg.OutputJSON)
 		if err != nil {
 			return err
 		}
@@ -270,9 +271,8 @@ func testAllBeacons(ctx context.Context, queuedTestCases []testCaseName, allTest
 	group, _ := errgroup.WithContext(ctx)
 
 	for _, endpoint := range conf.Endpoints {
-		currEndpoint := endpoint // TODO: can be removed after go1.22 version bump
 		group.Go(func() error {
-			return testSingleBeacon(ctx, queuedTestCases, allTestCases, conf, currEndpoint, singleBeaconResCh)
+			return testSingleBeacon(ctx, queuedTestCases, allTestCases, conf, endpoint, singleBeaconResCh)
 		})
 	}
 

@@ -4,12 +4,14 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptrace"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -17,7 +19,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"golang.org/x/exp/maps"
@@ -48,7 +49,7 @@ const (
 )
 
 type testConfig struct {
-	OutputToml string
+	OutputJSON string
 	Quiet      bool
 	TestCases  []string
 	Timeout    time.Duration
@@ -67,7 +68,7 @@ func newTestCmd(cmds ...*cobra.Command) *cobra.Command {
 }
 
 func bindTestFlags(cmd *cobra.Command, config *testConfig) {
-	cmd.Flags().StringVar(&config.OutputToml, "output-toml", "", "File path to which output can be written in TOML format.")
+	cmd.Flags().StringVar(&config.OutputJSON, "output-json", "", "File path to which output can be written in JSON format.")
 	cmd.Flags().StringSliceVar(&config.TestCases, "test-cases", nil, fmt.Sprintf("List of comma separated names of tests to be exeucted. Available tests are: %v", listTestCases(cmd)))
 	cmd.Flags().DurationVar(&config.Timeout, "timeout", time.Hour, "Execution timeout for all tests.")
 	cmd.Flags().BoolVar(&config.Quiet, "quiet", false, "Do not print test results to stdout.")
@@ -117,8 +118,8 @@ func listTestCases(cmd *cobra.Command) []string {
 }
 
 func mustOutputToFileOnQuiet(cmd *cobra.Command) error {
-	if cmd.Flag("quiet").Changed && !cmd.Flag("output-toml").Changed {
-		return errors.New("on --quiet, an --output-toml is required")
+	if cmd.Flag("quiet").Changed && !cmd.Flag("output-json").Changed {
+		return errors.New("on --quiet, an --output-json is required")
 	}
 
 	return nil
@@ -150,16 +151,15 @@ const (
 	categoryScoreC categoryScore = "C"
 )
 
-// toml fails on marshaling errors to string, so we wrap the errors and add custom marshal
 type testResultError struct{ error }
 
 type testResult struct {
-	Name         string
-	Verdict      testVerdict
-	Measurement  string
-	Suggestion   string
-	Error        testResultError
-	IsAcceptable bool
+	Name         string          `json:"name"`
+	Verdict      testVerdict     `json:"verdict"`
+	Measurement  string          `json:"measurement,omitempty"`
+	Suggestion   string          `json:"suggestion,omitempty"`
+	Error        testResultError `json:"error,omitempty"`
+	IsAcceptable bool            `json:"-"`
 }
 
 func failedTestResult(testRes testResult, err error) testResult {
@@ -198,10 +198,10 @@ type testCaseName struct {
 }
 
 type testCategoryResult struct {
-	CategoryName  string
-	Targets       map[string][]testResult
-	ExecutionTime Duration
-	Score         categoryScore
+	CategoryName  string                  `json:"category_name,omitempty"`
+	Targets       map[string][]testResult `json:"targets,omitempty"`
+	ExecutionTime Duration                `json:"execution_time,omitempty"`
+	Score         categoryScore           `json:"score,omitempty"`
 }
 
 func appendScore(cat []string, score []string) []string {
@@ -213,15 +213,73 @@ func appendScore(cat []string, score []string) []string {
 	return res
 }
 
+type fileResult struct {
+	Peers     testCategoryResult `json:"charon_peers,omitempty"`
+	Beacon    testCategoryResult `json:"beacon_node,omitempty"`
+	Validator testCategoryResult `json:"validator_client,omitempty"`
+	MEV       testCategoryResult `json:"mev,omitempty"`
+	Infra     testCategoryResult `json:"infra,omitempty"`
+}
+
 func writeResultToFile(res testCategoryResult, path string) error {
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o444)
+	// open or create a file
+	existingFile, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
 		return errors.Wrap(err, "create/open file")
 	}
-	defer f.Close()
-	err = toml.NewEncoder(f).Encode(res)
+	defer existingFile.Close()
+	stat, err := existingFile.Stat()
 	if err != nil {
-		return errors.Wrap(err, "encode testCategoryResult to TOML")
+		return errors.Wrap(err, "get file stat")
+	}
+	// read file contents or default to empty structure
+	var file fileResult
+	if stat.Size() == 0 {
+		file = fileResult{}
+	} else {
+		err = json.NewDecoder(existingFile).Decode(&file)
+		if err != nil {
+			return errors.Wrap(err, "decode fileResult from JSON")
+		}
+	}
+
+	switch res.CategoryName {
+	case peersTestCategory:
+		file.Peers = res
+	case beaconTestCategory:
+		file.Beacon = res
+	case validatorTestCategory:
+		file.Validator = res
+	case mevTestCategory:
+		file.MEV = res
+	case infraTestCategory:
+		file.Infra = res
+	}
+
+	// write data to temp file
+	tmpFile, err := os.CreateTemp(filepath.Dir(path), fmt.Sprintf("%v-tmp-*.json", filepath.Base(path)))
+	if err != nil {
+		return errors.Wrap(err, "create temp file")
+	}
+	defer tmpFile.Close()
+	err = tmpFile.Chmod(0o644)
+	if err != nil {
+		return errors.Wrap(err, "chmod temp file")
+	}
+
+	fileContentJSON, err := json.Marshal(file)
+	if err != nil {
+		return errors.Wrap(err, "marshal fileResult to JSON")
+	}
+
+	_, err = tmpFile.Write(fileContentJSON)
+	if err != nil {
+		return errors.Wrap(err, "write json to file")
+	}
+
+	err = os.Rename(tmpFile.Name(), path)
+	if err != nil {
+		return errors.Wrap(err, "rename temp file")
 	}
 
 	return nil

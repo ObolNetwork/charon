@@ -116,8 +116,8 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 		}
 	}
 
-	if cfg.OutputToml != "" {
-		err = writeResultToFile(res, cfg.OutputToml)
+	if cfg.OutputJSON != "" {
+		err = writeResultToFile(res, cfg.OutputJSON)
 		if err != nil {
 			return err
 		}
