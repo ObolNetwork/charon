@@ -166,8 +166,8 @@ func runTestInfra(ctx context.Context, w io.Writer, cfg testInfraConfig) (err er
 		}
 	}
 
-	if cfg.OutputToml != "" {
-		err = writeResultToFile(res, cfg.OutputToml)
+	if cfg.OutputJSON != "" {
+		err = writeResultToFile(res, cfg.OutputJSON)
 		if err != nil {
 			return err
 		}

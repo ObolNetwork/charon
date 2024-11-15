@@ -146,8 +146,8 @@ func runTestMEV(ctx context.Context, w io.Writer, cfg testMEVConfig) (err error)
 		}
 	}
 
-	if cfg.OutputToml != "" {
-		err = writeResultToFile(res, cfg.OutputToml)
+	if cfg.OutputJSON != "" {
+		err = writeResultToFile(res, cfg.OutputJSON)
 		if err != nil {
 			return err
 		}

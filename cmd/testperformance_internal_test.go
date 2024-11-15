@@ -31,7 +31,7 @@ func TestInfraTest(t *testing.T) {
 			name: "default scenario",
 			config: testInfraConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
 					TestCases:  []string{"availableMemory", "totalMemory", "internetLatency"},
 					Timeout:    time.Minute,
@@ -55,7 +55,7 @@ func TestInfraTest(t *testing.T) {
 			name: "timeout",
 			config: testInfraConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
 					TestCases:  nil,
 					Timeout:    100 * time.Nanosecond,
@@ -77,7 +77,7 @@ func TestInfraTest(t *testing.T) {
 			name: "quiet",
 			config: testInfraConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      true,
 					TestCases:  []string{"availableMemory", "totalMemory", "internetLatency"},
 					Timeout:    time.Minute,
@@ -101,7 +101,7 @@ func TestInfraTest(t *testing.T) {
 			name: "unsupported test",
 			config: testInfraConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
 					TestCases:  []string{"notSupportedTest"},
 					Timeout:    time.Minute,
@@ -118,7 +118,7 @@ func TestInfraTest(t *testing.T) {
 			name: "custom test cases",
 			config: testInfraConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
 					TestCases:  []string{"totalMemory"},
 					Timeout:    time.Minute,
@@ -140,7 +140,7 @@ func TestInfraTest(t *testing.T) {
 			name: "write to file",
 			config: testInfraConfig{
 				testConfig: testConfig{
-					OutputToml: "./write-to-file-test.toml.tmp",
+					OutputJSON: "./write-to-file-test.json.tmp",
 					Quiet:      false,
 					TestCases:  []string{"availableMemory", "totalMemory", "internetLatency"},
 					Timeout:    time.Minute,
@@ -179,7 +179,7 @@ func TestInfraTest(t *testing.T) {
 			}
 			defer func() {
 				if test.cleanup != nil {
-					test.cleanup(t, test.config.OutputToml)
+					test.cleanup(t, test.config.OutputJSON)
 				}
 			}()
 
@@ -189,8 +189,8 @@ func TestInfraTest(t *testing.T) {
 				testWriteOut(t, test.expected, buf)
 			}
 
-			if test.config.OutputToml != "" {
-				testWriteFile(t, test.expected, test.config.OutputToml)
+			if test.config.OutputJSON != "" {
+				testWriteFile(t, test.expected, test.config.OutputJSON)
 			}
 		})
 	}
@@ -227,9 +227,9 @@ func TestInfraTestFlags(t *testing.T) {
 			expectedErr: "",
 		},
 		{
-			name:        "no output toml on quiet",
+			name:        "no output json on quiet",
 			args:        []string{"infra", "--disk-io-block-size-kb=1", "--quiet"},
-			expectedErr: "on --quiet, an --output-toml is required",
+			expectedErr: "on --quiet, an --output-json is required",
 		},
 	}
 

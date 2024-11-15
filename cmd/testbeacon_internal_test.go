@@ -41,7 +41,7 @@ func TestBeaconTest(t *testing.T) {
 			name: "default scenario",
 			config: testBeaconConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
 					TestCases:  nil,
 					Timeout:    time.Minute,
@@ -71,7 +71,7 @@ func TestBeaconTest(t *testing.T) {
 			name: "connection refused",
 			config: testBeaconConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
 					TestCases:  nil,
 					Timeout:    time.Minute,
@@ -87,7 +87,7 @@ func TestBeaconTest(t *testing.T) {
 			name: "timeout",
 			config: testBeaconConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
 					TestCases:  nil,
 					Timeout:    100 * time.Nanosecond,
@@ -110,7 +110,7 @@ func TestBeaconTest(t *testing.T) {
 			name: "quiet",
 			config: testBeaconConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      true,
 					TestCases:  nil,
 					Timeout:    time.Minute,
@@ -126,7 +126,7 @@ func TestBeaconTest(t *testing.T) {
 			name: "unsupported test",
 			config: testBeaconConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
 					TestCases:  []string{"notSupportedTest"},
 					Timeout:    time.Minute,
@@ -140,7 +140,7 @@ func TestBeaconTest(t *testing.T) {
 			name: "custom test cases",
 			config: testBeaconConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
 					TestCases:  []string{"ping"},
 					Timeout:    time.Minute,
@@ -163,7 +163,7 @@ func TestBeaconTest(t *testing.T) {
 			name: "write to file",
 			config: testBeaconConfig{
 				testConfig: testConfig{
-					OutputToml: "./write-to-file-test.toml.tmp",
+					OutputJSON: "./write-to-file-test.json.tmp",
 					Quiet:      false,
 					TestCases:  nil,
 					Timeout:    time.Minute,
@@ -196,7 +196,7 @@ func TestBeaconTest(t *testing.T) {
 			}
 			defer func() {
 				if test.cleanup != nil {
-					test.cleanup(t, test.config.OutputToml)
+					test.cleanup(t, test.config.OutputJSON)
 				}
 			}()
 
@@ -206,8 +206,8 @@ func TestBeaconTest(t *testing.T) {
 				testWriteOut(t, test.expected, buf)
 			}
 
-			if test.config.OutputToml != "" {
-				testWriteFile(t, test.expected, test.config.OutputToml)
+			if test.config.OutputJSON != "" {
+				testWriteFile(t, test.expected, test.config.OutputJSON)
 			}
 		})
 	}
@@ -281,9 +281,9 @@ func TestBeaconTestFlags(t *testing.T) {
 			expectedErr: "required flag(s) \"endpoints\" not set",
 		},
 		{
-			name:        "no output toml on quiet",
+			name:        "no output json on quiet",
 			args:        []string{"beacon", "--endpoints=\"test.endpoint\"", "--quiet"},
-			expectedErr: "on --quiet, an --output-toml is required",
+			expectedErr: "on --quiet, an --output-json is required",
 		},
 	}
 
