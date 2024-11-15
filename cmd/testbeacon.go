@@ -271,9 +271,8 @@ func testAllBeacons(ctx context.Context, queuedTestCases []testCaseName, allTest
 	group, _ := errgroup.WithContext(ctx)
 
 	for _, endpoint := range conf.Endpoints {
-		currEndpoint := endpoint // TODO: can be removed after go1.22 version bump
 		group.Go(func() error {
-			return testSingleBeacon(ctx, queuedTestCases, allTestCases, conf, currEndpoint, singleBeaconResCh)
+			return testSingleBeacon(ctx, queuedTestCases, allTestCases, conf, endpoint, singleBeaconResCh)
 		})
 	}
 
