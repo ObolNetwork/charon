@@ -32,6 +32,7 @@ type testMEVConfig struct {
 	testConfig
 	Endpoints          []string
 	BeaconNodeEndpoint string
+	LoadTest           bool
 	LoadTestBlocks     uint
 }
 
@@ -65,15 +66,26 @@ func newTestMEVCmd(runFunc func(context.Context, io.Writer, testMEVConfig) error
 	bindTestFlags(cmd, &config.testConfig)
 	bindTestMEVFlags(cmd, &config, "")
 
+	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
+		loadTest := cmd.Flags().Lookup("load-test").Value.String()
+		beaconNodeEndpoint := cmd.Flags().Lookup("beacon-node-endpoint").Value.String()
+
+		if loadTest == "true" && beaconNodeEndpoint == "" {
+			return errors.New("beacon-node-endpoint should be specified when load-test is")
+		}
+
+		return nil
+	})
+
 	return cmd
 }
 
 func bindTestMEVFlags(cmd *cobra.Command, config *testMEVConfig, flagsPrefix string) {
 	cmd.Flags().StringSliceVar(&config.Endpoints, flagsPrefix+"endpoints", nil, "[REQUIRED] Comma separated list of one or more MEV relay endpoint URLs.")
 	cmd.Flags().StringVar(&config.BeaconNodeEndpoint, flagsPrefix+"beacon-node-endpoint", "", "[REQUIRED] Beacon node endpoint URL used for block creation test.")
+	cmd.Flags().BoolVar(&config.LoadTest, flagsPrefix+"load-test", false, "Enable load test.")
 	cmd.Flags().UintVar(&config.LoadTestBlocks, flagsPrefix+"load-test-blocks", 3, "Amount of blocks the 'createMultipleBlocks' test will create.")
 	mustMarkFlagRequired(cmd, flagsPrefix+"endpoints")
-	mustMarkFlagRequired(cmd, flagsPrefix+"beacon-node-endpoint")
 }
 
 func supportedMEVTestCases() map[testCaseName]testCaseMEV {

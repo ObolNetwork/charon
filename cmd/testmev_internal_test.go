@@ -270,18 +270,23 @@ func TestMEVTestFlags(t *testing.T) {
 	}{
 		{
 			name:        "default scenario",
-			args:        []string{"mev", "--endpoints=\"test.endpoint\"", "--beacon-node-endpoint=\"test.endpoint\""},
+			args:        []string{"mev", "--endpoints=\"test.endpoint\""},
 			expectedErr: "",
 		},
 		{
 			name:        "no endpoints flag",
 			args:        []string{"mev"},
-			expectedErr: "required flag(s) \"beacon-node-endpoint\", \"endpoints\" not set",
+			expectedErr: "required flag(s) \"endpoints\" not set",
 		},
 		{
 			name:        "no output toml on quiet",
 			args:        []string{"mev", "--endpoints=\"test.endpoint\"", "--quiet"},
 			expectedErr: "on --quiet, an --output-toml is required",
+		},
+		{
+			name:        "no beacon node endpoint flag on load test",
+			args:        []string{"mev", "--endpoints=\"test.endpoint\"", "--load-test"},
+			expectedErr: "beacon-node-endpoint should be specified when load-test is",
 		},
 	}
 
