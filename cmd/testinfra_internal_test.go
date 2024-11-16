@@ -33,7 +33,7 @@ func TestInfraTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputJSON: "",
 					Quiet:      false,
-					TestCases:  []string{"availableMemory", "totalMemory", "internetLatency"},
+					TestCases:  []string{"AvailableMemory", "TotalMemory", "InternetLatency"},
 					Timeout:    time.Minute,
 				},
 				DiskIOBlockSizeKb: 1,
@@ -41,9 +41,9 @@ func TestInfraTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					"local": {
-						{Name: "availableMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "totalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "internetLatency", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "AvailableMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "TotalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "InternetLatency", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score:        categoryScoreC,
@@ -65,7 +65,7 @@ func TestInfraTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					"local": {
-						{Name: "diskWriteSpeed", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "DiskWriteSpeed", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
 				Score:        categoryScoreC,
@@ -79,7 +79,7 @@ func TestInfraTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputJSON: "",
 					Quiet:      true,
-					TestCases:  []string{"availableMemory", "totalMemory", "internetLatency"},
+					TestCases:  []string{"AvailableMemory", "TotalMemory", "InternetLatency"},
 					Timeout:    time.Minute,
 				},
 				DiskIOBlockSizeKb: 1,
@@ -87,9 +87,9 @@ func TestInfraTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					"local": {
-						{Name: "availableMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "totalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "internetLatency", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "AvailableMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "TotalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "InternetLatency", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score:        categoryScoreC,
@@ -120,7 +120,7 @@ func TestInfraTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputJSON: "",
 					Quiet:      false,
-					TestCases:  []string{"totalMemory"},
+					TestCases:  []string{"TotalMemory"},
 					Timeout:    time.Minute,
 				},
 				DiskIOBlockSizeKb: 1,
@@ -128,7 +128,7 @@ func TestInfraTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					"local": {
-						{Name: "totalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "TotalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score:        categoryScoreC,
@@ -142,7 +142,7 @@ func TestInfraTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputJSON: "./write-to-file-test.json.tmp",
 					Quiet:      false,
-					TestCases:  []string{"availableMemory", "totalMemory", "internetLatency"},
+					TestCases:  []string{"AvailableMemory", "TotalMemory", "InternetLatency"},
 					Timeout:    time.Minute,
 				},
 				DiskIOBlockSizeKb: 1,
@@ -150,9 +150,9 @@ func TestInfraTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					"local": {
-						{Name: "availableMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "totalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "internetLatency", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "AvailableMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "TotalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "InternetLatency", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score:        categoryScoreA,

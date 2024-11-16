@@ -125,23 +125,23 @@ func bindTestPeersFlags(cmd *cobra.Command, config *testPeersConfig, flagsPrefix
 
 func supportedPeerTestCases() map[testCaseName]testCasePeer {
 	return map[testCaseName]testCasePeer{
-		{name: "ping", order: 1}:        peerPingTest,
-		{name: "pingMeasure", order: 2}: peerPingMeasureTest,
-		{name: "pingLoad", order: 3}:    peerPingLoadTest,
-		{name: "directConn", order: 4}:  peerDirectConnTest,
+		{name: "Ping", order: 1}:        peerPingTest,
+		{name: "PingMeasure", order: 2}: peerPingMeasureTest,
+		{name: "PingLoad", order: 3}:    peerPingLoadTest,
+		{name: "DirectConn", order: 4}:  peerDirectConnTest,
 	}
 }
 
 func supportedRelayTestCases() map[testCaseName]testCaseRelay {
 	return map[testCaseName]testCaseRelay{
-		{name: "pingRelay", order: 1}:        relayPingTest,
-		{name: "pingMeasureRelay", order: 2}: relayPingMeasureTest,
+		{name: "PingRelay", order: 1}:        relayPingTest,
+		{name: "PingMeasureRelay", order: 2}: relayPingMeasureTest,
 	}
 }
 
 func supportedSelfTestCases() map[testCaseName]testCasePeerSelf {
 	return map[testCaseName]testCasePeerSelf{
-		{name: "libp2pTCPPortOpenTest", order: 1}: libp2pTCPPortOpenTest,
+		{name: "Libp2pTCPPortOpen", order: 1}: libp2pTCPPortOpenTest,
 	}
 }
 
@@ -318,9 +318,7 @@ func testSinglePeer(ctx context.Context, queuedTestCases []testCaseName, allTest
 				finished = true
 				continue
 			}
-			testName = queuedTestCases[testCounter].name
 			testCounter++
-			result.Name = testName
 			allTestRes = append(allTestRes, result)
 		}
 	}

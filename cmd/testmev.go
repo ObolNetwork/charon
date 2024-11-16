@@ -90,10 +90,10 @@ func bindTestMEVFlags(cmd *cobra.Command, config *testMEVConfig, flagsPrefix str
 
 func supportedMEVTestCases() map[testCaseName]testCaseMEV {
 	return map[testCaseName]testCaseMEV{
-		{name: "ping", order: 1}:                 mevPingTest,
-		{name: "pingMeasure", order: 2}:          mevPingMeasureTest,
-		{name: "createBlock", order: 3}:          mevCreateBlockTest,
-		{name: "createMultipleBlocks", order: 4}: mevCreateMultipleBlocksTest,
+		{name: "Ping", order: 1}:                 mevPingTest,
+		{name: "PingMeasure", order: 2}:          mevPingMeasureTest,
+		{name: "CreateBlock", order: 3}:          mevCreateBlockTest,
+		{name: "CreateMultipleBlocks", order: 4}: mevCreateMultipleBlocksTest,
 	}
 }
 
@@ -209,9 +209,7 @@ func testSingleMEV(ctx context.Context, queuedTestCases []testCaseName, allTestC
 				finished = true
 				break
 			}
-			testName = queuedTestCases[testCounter].name
 			testCounter++
-			result.Name = testName
 			allTestRes = append(allTestRes, result)
 		}
 	}
@@ -274,6 +272,11 @@ func mevPingMeasureTest(ctx context.Context, _ *testMEVConfig, target string) te
 func mevCreateBlockTest(ctx context.Context, conf *testMEVConfig, target string) testResult {
 	testRes := testResult{Name: "CreateBlock"}
 
+	if !conf.LoadTest {
+		testRes.Verdict = testVerdictSkipped
+		return testRes
+	}
+
 	latestBlock, err := latestBeaconBlock(ctx, conf.BeaconNodeEndpoint)
 	if err != nil {
 		return failedTestResult(testRes, err)
@@ -313,6 +316,11 @@ func mevCreateBlockTest(ctx context.Context, conf *testMEVConfig, target string)
 
 func mevCreateMultipleBlocksTest(ctx context.Context, conf *testMEVConfig, target string) testResult {
 	testRes := testResult{Name: "CreateMultipleBlocks"}
+
+	if !conf.LoadTest {
+		testRes.Verdict = testVerdictSkipped
+		return testRes
+	}
 
 	latestBlock, err := latestBeaconBlock(ctx, conf.BeaconNodeEndpoint)
 	if err != nil {

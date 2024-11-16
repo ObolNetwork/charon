@@ -106,15 +106,15 @@ func bindTestInfraFlags(cmd *cobra.Command, config *testInfraConfig, flagsPrefix
 
 func supportedInfraTestCases() map[testCaseName]func(context.Context, *testInfraConfig) testResult {
 	return map[testCaseName]func(context.Context, *testInfraConfig) testResult{
-		{name: "diskWriteSpeed", order: 1}:        infraDiskWriteSpeedTest,
-		{name: "diskWriteIOPS", order: 2}:         infraDiskWriteIOPSTest,
-		{name: "diskReadSpeed", order: 3}:         infraDiskReadSpeedTest,
-		{name: "diskReadIOPS", order: 4}:          infraDiskReadIOPSTest,
-		{name: "availableMemory", order: 5}:       infraAvailableMemoryTest,
-		{name: "totalMemory", order: 6}:           infraTotalMemoryTest,
-		{name: "internetLatency", order: 7}:       infraInternetLatencyTest,
-		{name: "internetDownloadSpeed", order: 8}: infraInternetDownloadSpeedTest,
-		{name: "internetUploadSpeed", order: 9}:   infraInternetUploadSpeedTest,
+		{name: "DiskWriteSpeed", order: 1}:        infraDiskWriteSpeedTest,
+		{name: "DiskWriteIOPS", order: 2}:         infraDiskWriteIOPSTest,
+		{name: "DiskReadSpeed", order: 3}:         infraDiskReadSpeedTest,
+		{name: "DiskReadIOPS", order: 4}:          infraDiskReadIOPSTest,
+		{name: "AvailableMemory", order: 5}:       infraAvailableMemoryTest,
+		{name: "TotalMemory", order: 6}:           infraTotalMemoryTest,
+		{name: "InternetLatency", order: 7}:       infraInternetLatencyTest,
+		{name: "InternetDownloadSpeed", order: 8}: infraInternetDownloadSpeedTest,
+		{name: "InternetUploadSpeed", order: 9}:   infraInternetUploadSpeedTest,
 	}
 }
 
@@ -199,9 +199,7 @@ func testSingleInfra(ctx context.Context, queuedTestCases []testCaseName, allTes
 				finished = true
 				break
 			}
-			testName = queuedTestCases[testCounter].name
 			testCounter++
-			result.Name = testName
 			allTestRes = append(allTestRes, result)
 		}
 	}

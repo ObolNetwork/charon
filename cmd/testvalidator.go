@@ -61,9 +61,9 @@ func bindTestValidatorFlags(cmd *cobra.Command, config *testValidatorConfig, fla
 
 func supportedValidatorTestCases() map[testCaseName]func(context.Context, *testValidatorConfig) testResult {
 	return map[testCaseName]func(context.Context, *testValidatorConfig) testResult{
-		{name: "ping", order: 1}:        validatorPingTest,
-		{name: "pingMeasure", order: 2}: validatorPingMeasureTest,
-		{name: "pingLoad", order: 3}:    validatorPingLoadTest,
+		{name: "Ping", order: 1}:        validatorPingTest,
+		{name: "PingMeasure", order: 2}: validatorPingMeasureTest,
+		{name: "PingLoad", order: 3}:    validatorPingLoadTest,
 	}
 }
 
@@ -149,9 +149,7 @@ func testSingleValidator(ctx context.Context, queuedTestCases []testCaseName, al
 				finished = true
 				break
 			}
-			testName = queuedTestCases[testCounter].name
 			testCounter++
-			result.Name = testName
 			allTestRes = append(allTestRes, result)
 		}
 	}
@@ -208,7 +206,7 @@ func validatorPingLoadTest(ctx context.Context, conf *testValidatorConfig) testR
 		z.Any("duration", conf.LoadTestDuration),
 		z.Any("target", conf.APIAddress),
 	)
-	testRes := testResult{Name: "ValidatorLoad"}
+	testRes := testResult{Name: "PingLoad"}
 
 	testResCh := make(chan time.Duration, math.MaxInt16)
 	pingCtx, cancel := context.WithTimeout(ctx, conf.LoadTestDuration)

@@ -44,7 +44,6 @@ func TestValidatorTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputJSON: "",
 					Quiet:      false,
-					TestCases:  nil,
 					Timeout:    time.Minute,
 				},
 				APIAddress: validatorAPIAddress,
@@ -52,9 +51,9 @@ func TestValidatorTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					validatorAPIAddress: {
-						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "Ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score:        categoryScoreA,
@@ -68,7 +67,6 @@ func TestValidatorTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputJSON: "",
 					Quiet:      false,
-					TestCases:  nil,
 					Timeout:    100 * time.Nanosecond,
 				},
 				APIAddress: validatorAPIAddress,
@@ -76,7 +74,7 @@ func TestValidatorTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					validatorAPIAddress: {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
 				Score:        categoryScoreC,
@@ -90,7 +88,6 @@ func TestValidatorTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputJSON: "",
 					Quiet:      true,
-					TestCases:  nil,
 					Timeout:    time.Minute,
 				},
 				APIAddress: validatorAPIAddress,
@@ -98,9 +95,9 @@ func TestValidatorTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					validatorAPIAddress: {
-						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "Ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score:        categoryScoreA,
@@ -131,7 +128,7 @@ func TestValidatorTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputJSON: "",
 					Quiet:      false,
-					TestCases:  []string{"ping"},
+					TestCases:  []string{"Ping"},
 					Timeout:    time.Minute,
 				},
 				APIAddress: validatorAPIAddress,
@@ -139,7 +136,7 @@ func TestValidatorTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					validatorAPIAddress: {
-						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "Ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score:        categoryScoreA,
@@ -153,7 +150,6 @@ func TestValidatorTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputJSON: "./write-to-file-test.json.tmp",
 					Quiet:      false,
-					TestCases:  nil,
 					Timeout:    time.Minute,
 				},
 				APIAddress: validatorAPIAddress,
@@ -161,9 +157,9 @@ func TestValidatorTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					validatorAPIAddress: {
-						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "Ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score:        categoryScoreA,
