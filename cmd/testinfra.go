@@ -75,7 +75,7 @@ const (
 
 var errFioNotFound = errors.New("fio command not found, install fio from https://fio.readthedocs.io/en/latest/fio_doc.html#binary-packages or using the package manager of your choice (apt, yum, brew, etc.)")
 
-func newTestInfraCmd(runFunc func(context.Context, io.Writer, testInfraConfig) error) *cobra.Command {
+func newTestInfraCmd(runFunc func(context.Context, io.Writer, testInfraConfig) (res testCategoryResult, err error)) *cobra.Command {
 	var config testInfraConfig
 
 	cmd := &cobra.Command{
@@ -87,7 +87,8 @@ func newTestInfraCmd(runFunc func(context.Context, io.Writer, testInfraConfig) e
 			return mustOutputToFileOnQuiet(cmd)
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runFunc(cmd.Context(), cmd.OutOrStdout(), config)
+			_, err := runFunc(cmd.Context(), cmd.OutOrStdout(), config)
+			return err
 		},
 	}
 
@@ -118,13 +119,13 @@ func supportedInfraTestCases() map[testCaseName]func(context.Context, *testInfra
 	}
 }
 
-func runTestInfra(ctx context.Context, w io.Writer, cfg testInfraConfig) (err error) {
+func runTestInfra(ctx context.Context, w io.Writer, cfg testInfraConfig) (res testCategoryResult, err error) {
 	log.Info(ctx, "Starting hardware performance and network connectivity test")
 
 	testCases := supportedInfraTestCases()
 	queuedTests := filterTests(maps.Keys(testCases), cfg.testConfig)
 	if len(queuedTests) == 0 {
-		return errors.New("test case not supported")
+		return res, errors.New("test case not supported")
 	}
 	sortTests(queuedTests)
 
@@ -152,7 +153,7 @@ func runTestInfra(ctx context.Context, w io.Writer, cfg testInfraConfig) (err er
 		}
 	}
 
-	res := testCategoryResult{
+	res = testCategoryResult{
 		CategoryName:  infraTestCategory,
 		Targets:       testResults,
 		ExecutionTime: execTime,
@@ -162,18 +163,18 @@ func runTestInfra(ctx context.Context, w io.Writer, cfg testInfraConfig) (err er
 	if !cfg.Quiet {
 		err = writeResultToWriter(res, w)
 		if err != nil {
-			return err
+			return res, err
 		}
 	}
 
 	if cfg.OutputJSON != "" {
 		err = writeResultToFile(res, cfg.OutputJSON)
 		if err != nil {
-			return err
+			return res, err
 		}
 	}
 
-	return nil
+	return res, nil
 }
 
 // hardware and internet connectivity tests

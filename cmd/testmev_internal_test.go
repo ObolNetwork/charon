@@ -247,7 +247,7 @@ func TestMEVTest(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var buf bytes.Buffer
 			ctx := context.Background()
-			err := runTestMEV(ctx, &buf, test.config)
+			_, err := runTestMEV(ctx, &buf, test.config)
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
 				return
@@ -311,7 +311,9 @@ func TestMEVTestFlags(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cmd := newAlphaCmd(newTestMEVCmd(func(context.Context, io.Writer, testMEVConfig) error { return nil }))
+			cmd := newAlphaCmd(newTestMEVCmd(func(context.Context, io.Writer, testMEVConfig) (testCategoryResult, error) {
+				return testCategoryResult{}, nil
+			}))
 			cmd.SetArgs(test.args)
 			err := cmd.Execute()
 			if test.expectedErr != "" {

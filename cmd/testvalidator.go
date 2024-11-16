@@ -32,7 +32,7 @@ const (
 	thresholdValidatorLoadPoor    = 240 * time.Millisecond
 )
 
-func newTestValidatorCmd(runFunc func(context.Context, io.Writer, testValidatorConfig) error) *cobra.Command {
+func newTestValidatorCmd(runFunc func(context.Context, io.Writer, testValidatorConfig) (testCategoryResult, error)) *cobra.Command {
 	var config testValidatorConfig
 
 	cmd := &cobra.Command{
@@ -44,7 +44,8 @@ func newTestValidatorCmd(runFunc func(context.Context, io.Writer, testValidatorC
 			return mustOutputToFileOnQuiet(cmd)
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runFunc(cmd.Context(), cmd.OutOrStdout(), config)
+			_, err := runFunc(cmd.Context(), cmd.OutOrStdout(), config)
+			return err
 		},
 	}
 
@@ -67,13 +68,14 @@ func supportedValidatorTestCases() map[testCaseName]func(context.Context, *testV
 	}
 }
 
-func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig) (err error) {
+func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig) (res testCategoryResult, err error) {
 	log.Info(ctx, "Starting validator client test")
 
 	testCases := supportedValidatorTestCases()
 	queuedTests := filterTests(maps.Keys(testCases), cfg.testConfig)
 	if len(queuedTests) == 0 {
-		return errors.New("test case not supported")
+		err = errors.New("test case not supported")
+		return res, err
 	}
 	sortTests(queuedTests)
 
@@ -102,7 +104,7 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 		}
 	}
 
-	res := testCategoryResult{
+	res = testCategoryResult{
 		CategoryName:  validatorTestCategory,
 		Targets:       testResults,
 		ExecutionTime: execTime,
@@ -112,18 +114,18 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 	if !cfg.Quiet {
 		err = writeResultToWriter(res, w)
 		if err != nil {
-			return err
+			return res, err
 		}
 	}
 
 	if cfg.OutputJSON != "" {
 		err = writeResultToFile(res, cfg.OutputJSON)
 		if err != nil {
-			return err
+			return res, err
 		}
 	}
 
-	return nil
+	return res, nil
 }
 
 // validator client tests

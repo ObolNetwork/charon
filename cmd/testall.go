@@ -64,33 +64,53 @@ func newTestAllCmd(runFunc func(context.Context, io.Writer, testAllConfig) error
 
 func runTestAll(ctx context.Context, w io.Writer, cfg testAllConfig) (err error) {
 	cfg.Beacon.testConfig = cfg.testConfig
-	err = runTestBeacon(ctx, w, cfg.Beacon)
+	cfg.Beacon.Quiet = true
+	var results []testCategoryResult
+	beaconRes, err := runTestBeacon(ctx, w, cfg.Beacon)
 	if err != nil {
 		return err
 	}
+	results = append(results, beaconRes)
 
 	cfg.Validator.testConfig = cfg.testConfig
-	err = runTestValidator(ctx, w, cfg.Validator)
+	cfg.Validator.Quiet = true
+	validatorRes, err := runTestValidator(ctx, w, cfg.Validator)
 	if err != nil {
 		return err
 	}
+	results = append(results, validatorRes)
 
 	cfg.MEV.testConfig = cfg.testConfig
-	err = runTestMEV(ctx, w, cfg.MEV)
+	cfg.MEV.Quiet = true
+	mevRes, err := runTestMEV(ctx, w, cfg.MEV)
 	if err != nil {
 		return err
 	}
+	results = append(results, mevRes)
 
 	cfg.Infra.testConfig = cfg.testConfig
-	err = runTestInfra(ctx, w, cfg.Infra)
+	cfg.Infra.Quiet = true
+	infraRes, err := runTestInfra(ctx, w, cfg.Infra)
 	if err != nil {
 		return err
 	}
+	results = append(results, infraRes)
 
 	cfg.Peers.testConfig = cfg.testConfig
-	err = runTestPeers(ctx, w, cfg.Peers)
+	cfg.Peers.Quiet = true
+	peersRes, err := runTestPeers(ctx, w, cfg.Peers)
 	if err != nil {
 		return err
+	}
+	results = append(results, peersRes)
+
+	if !cfg.Quiet {
+		for _, res := range results {
+			err = writeResultToWriter(res, w)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil

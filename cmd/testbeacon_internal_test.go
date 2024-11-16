@@ -188,7 +188,7 @@ func TestBeaconTest(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var buf bytes.Buffer
 			ctx := context.Background()
-			err := runTestBeacon(ctx, &buf, test.config)
+			_, err := runTestBeacon(ctx, &buf, test.config)
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
 				return
@@ -292,7 +292,9 @@ func TestBeaconTestFlags(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cmd := newAlphaCmd(newTestBeaconCmd(func(context.Context, io.Writer, testBeaconConfig) error { return nil }))
+			cmd := newAlphaCmd(newTestBeaconCmd(func(context.Context, io.Writer, testBeaconConfig) (testCategoryResult, error) {
+				return testCategoryResult{}, nil
+			}))
 			cmd.SetArgs(test.args)
 			err := cmd.Execute()
 			if test.expectedErr != "" {

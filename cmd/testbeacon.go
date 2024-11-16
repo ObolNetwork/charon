@@ -154,7 +154,7 @@ const (
 	thresholdBeaconSimulationPoor = 400 * time.Millisecond
 )
 
-func newTestBeaconCmd(runFunc func(context.Context, io.Writer, testBeaconConfig) error) *cobra.Command {
+func newTestBeaconCmd(runFunc func(context.Context, io.Writer, testBeaconConfig) (testCategoryResult, error)) *cobra.Command {
 	var config testBeaconConfig
 
 	cmd := &cobra.Command{
@@ -166,7 +166,8 @@ func newTestBeaconCmd(runFunc func(context.Context, io.Writer, testBeaconConfig)
 			return mustOutputToFileOnQuiet(cmd)
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runFunc(cmd.Context(), cmd.OutOrStdout(), config)
+			_, err := runFunc(cmd.Context(), cmd.OutOrStdout(), config)
+			return err
 		},
 	}
 
@@ -205,13 +206,13 @@ func supportedBeaconTestCases() map[testCaseName]testCaseBeacon {
 	}
 }
 
-func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (err error) {
+func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (res testCategoryResult, err error) {
 	log.Info(ctx, "Starting beacon node test")
 
 	testCases := supportedBeaconTestCases()
 	queuedTests := filterTests(maps.Keys(testCases), cfg.testConfig)
 	if len(queuedTests) == 0 {
-		return errors.New("test case not supported")
+		return res, errors.New("test case not supported")
 	}
 	sortTests(queuedTests)
 
@@ -240,7 +241,7 @@ func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (err 
 		}
 	}
 
-	res := testCategoryResult{
+	res = testCategoryResult{
 		CategoryName:  beaconTestCategory,
 		Targets:       testResults,
 		ExecutionTime: execTime,
@@ -250,18 +251,18 @@ func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (err 
 	if !cfg.Quiet {
 		err = writeResultToWriter(res, w)
 		if err != nil {
-			return err
+			return res, err
 		}
 	}
 
 	if cfg.OutputJSON != "" {
 		err = writeResultToFile(res, cfg.OutputJSON)
 		if err != nil {
-			return err
+			return res, err
 		}
 	}
 
-	return nil
+	return res, nil
 }
 
 // beacon node tests

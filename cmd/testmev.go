@@ -47,7 +47,7 @@ const (
 
 var errStatusCodeNot200 = errors.New("status code not 200 OK")
 
-func newTestMEVCmd(runFunc func(context.Context, io.Writer, testMEVConfig) error) *cobra.Command {
+func newTestMEVCmd(runFunc func(context.Context, io.Writer, testMEVConfig) (testCategoryResult, error)) *cobra.Command {
 	var config testMEVConfig
 
 	cmd := &cobra.Command{
@@ -59,7 +59,8 @@ func newTestMEVCmd(runFunc func(context.Context, io.Writer, testMEVConfig) error
 			return mustOutputToFileOnQuiet(cmd)
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runFunc(cmd.Context(), cmd.OutOrStdout(), config)
+			_, err := runFunc(cmd.Context(), cmd.OutOrStdout(), config)
+			return err
 		},
 	}
 
@@ -97,13 +98,13 @@ func supportedMEVTestCases() map[testCaseName]testCaseMEV {
 	}
 }
 
-func runTestMEV(ctx context.Context, w io.Writer, cfg testMEVConfig) (err error) {
+func runTestMEV(ctx context.Context, w io.Writer, cfg testMEVConfig) (res testCategoryResult, err error) {
 	log.Info(ctx, "Starting MEV relays test")
 
 	testCases := supportedMEVTestCases()
 	queuedTests := filterTests(maps.Keys(testCases), cfg.testConfig)
 	if len(queuedTests) == 0 {
-		return errors.New("test case not supported")
+		return res, errors.New("test case not supported")
 	}
 	sortTests(queuedTests)
 
@@ -132,7 +133,7 @@ func runTestMEV(ctx context.Context, w io.Writer, cfg testMEVConfig) (err error)
 		}
 	}
 
-	res := testCategoryResult{
+	res = testCategoryResult{
 		CategoryName:  mevTestCategory,
 		Targets:       testResults,
 		ExecutionTime: execTime,
@@ -142,18 +143,18 @@ func runTestMEV(ctx context.Context, w io.Writer, cfg testMEVConfig) (err error)
 	if !cfg.Quiet {
 		err = writeResultToWriter(res, w)
 		if err != nil {
-			return err
+			return res, err
 		}
 	}
 
 	if cfg.OutputJSON != "" {
 		err = writeResultToFile(res, cfg.OutputJSON)
 		if err != nil {
-			return err
+			return res, err
 		}
 	}
 
-	return nil
+	return res, nil
 }
 
 // mev relays tests

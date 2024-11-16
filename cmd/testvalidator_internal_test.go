@@ -177,7 +177,7 @@ func TestValidatorTest(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var buf bytes.Buffer
 			ctx := context.Background()
-			err := runTestValidator(ctx, &buf, test.config)
+			_, err := runTestValidator(ctx, &buf, test.config)
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
 				return
@@ -242,7 +242,9 @@ func TestValidatorTestFlags(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cmd := newAlphaCmd(newTestValidatorCmd(func(context.Context, io.Writer, testValidatorConfig) error { return nil }))
+			cmd := newAlphaCmd(newTestValidatorCmd(func(context.Context, io.Writer, testValidatorConfig) (testCategoryResult, error) {
+				return testCategoryResult{}, nil
+			}))
 			cmd.SetArgs(test.args)
 			err := cmd.Execute()
 			if test.expectedErr != "" {

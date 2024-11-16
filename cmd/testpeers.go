@@ -64,7 +64,7 @@ const (
 	thresholdRelayMeasurePoor = 240 * time.Millisecond
 )
 
-func newTestPeersCmd(runFunc func(context.Context, io.Writer, testPeersConfig) error) *cobra.Command {
+func newTestPeersCmd(runFunc func(context.Context, io.Writer, testPeersConfig) (testCategoryResult, error)) *cobra.Command {
 	var config testPeersConfig
 
 	cmd := &cobra.Command{
@@ -76,7 +76,8 @@ func newTestPeersCmd(runFunc func(context.Context, io.Writer, testPeersConfig) e
 			return mustOutputToFileOnQuiet(cmd)
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runFunc(cmd.Context(), cmd.OutOrStdout(), config)
+			_, err := runFunc(cmd.Context(), cmd.OutOrStdout(), config)
+			return err
 		},
 	}
 
@@ -145,7 +146,7 @@ func supportedSelfTestCases() map[testCaseName]testCasePeerSelf {
 	}
 }
 
-func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) error {
+func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) (res testCategoryResult, err error) {
 	log.Info(ctx, "Starting charon peers and relays test")
 
 	relayTestCases := supportedRelayTestCases()
@@ -161,7 +162,8 @@ func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) error 
 	sortTests(queuedTestsSelf)
 
 	if len(queuedTestsPeer) == 0 && len(queuedTestsSelf) == 0 {
-		return errors.New("test case not supported")
+		err = errors.New("test case not supported")
+		return res, err
 	}
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, conf.Timeout)
@@ -172,7 +174,7 @@ func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) error 
 
 	tcpNode, shutdown, err := startTCPNode(ctx, conf)
 	if err != nil {
-		return err
+		return res, err
 	}
 	defer shutdown()
 
@@ -200,7 +202,7 @@ func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) error 
 	err = group.Wait()
 	execTime := Duration{time.Since(startTime)}
 	if err != nil {
-		return errors.Wrap(err, "peers test errgroup")
+		return res, errors.Wrap(err, "peers test errgroup")
 	}
 	close(testResultsChan)
 	<-doneReading
@@ -214,7 +216,7 @@ func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) error 
 		}
 	}
 
-	res := testCategoryResult{
+	res = testCategoryResult{
 		CategoryName:  peersTestCategory,
 		Targets:       testResults,
 		ExecutionTime: execTime,
@@ -224,21 +226,21 @@ func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) error 
 	if !conf.Quiet {
 		err = writeResultToWriter(res, w)
 		if err != nil {
-			return err
+			return res, err
 		}
 	}
 
 	if conf.OutputJSON != "" {
 		err = writeResultToFile(res, conf.OutputJSON)
 		if err != nil {
-			return err
+			return res, err
 		}
 	}
 
 	log.Info(ctx, "Keeping TCP node alive for peers until keep-alive time is reached...")
 	blockAndWait(ctx, conf.KeepAlive)
 
-	return nil
+	return res, nil
 }
 
 // charon peers tests

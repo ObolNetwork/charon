@@ -170,7 +170,7 @@ func TestInfraTest(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var buf bytes.Buffer
 			ctx := context.Background()
-			err := runTestInfra(ctx, &buf, test.config)
+			_, err := runTestInfra(ctx, &buf, test.config)
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
 				return
@@ -235,7 +235,9 @@ func TestInfraTestFlags(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cmd := newAlphaCmd(newTestInfraCmd(func(context.Context, io.Writer, testInfraConfig) error { return nil }))
+			cmd := newAlphaCmd(newTestInfraCmd(func(context.Context, io.Writer, testInfraConfig) (testCategoryResult, error) {
+				return testCategoryResult{}, nil
+			}))
 			cmd.SetArgs(test.args)
 			err := cmd.Execute()
 			if test.expectedErr != "" {

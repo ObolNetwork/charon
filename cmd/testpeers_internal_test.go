@@ -280,7 +280,7 @@ func TestPeersTest(t *testing.T) {
 			}
 
 			var buf bytes.Buffer
-			err = runTestPeers(ctx, &buf, conf)
+			_, err = runTestPeers(ctx, &buf, conf)
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
 				return
@@ -331,7 +331,9 @@ func TestPeersTestFlags(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cmd := newAlphaCmd(newTestPeersCmd(func(context.Context, io.Writer, testPeersConfig) error { return nil }))
+			cmd := newAlphaCmd(newTestPeersCmd(func(context.Context, io.Writer, testPeersConfig) (testCategoryResult, error) {
+				return testCategoryResult{}, nil
+			}))
 			cmd.SetArgs(test.args)
 			err := cmd.Execute()
 			if test.expectedErr != "" {
