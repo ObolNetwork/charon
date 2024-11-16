@@ -62,6 +62,7 @@ func TestBeaconTest(t *testing.T) {
 						{Name: "simulate100", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "simulate500", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "simulate1000", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "simulateCustom", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 			},
@@ -227,6 +228,7 @@ func defaultFailingBNTests(_ *testing.T, endpoint1 string, endpoint2 string, por
 			{Name: "simulate100", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
 			{Name: "simulate500", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
 			{Name: "simulate1000", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+			{Name: "simulateCustom", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
 		},
 		endpoint2: {
 			{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
@@ -240,6 +242,7 @@ func defaultFailingBNTests(_ *testing.T, endpoint1 string, endpoint2 string, por
 			{Name: "simulate100", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
 			{Name: "simulate500", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
 			{Name: "simulate1000", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+			{Name: "simulateCustom", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
 		},
 	}
 }

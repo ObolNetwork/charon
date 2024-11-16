@@ -37,6 +37,7 @@ type testBeaconConfig struct {
 	SimulationFileDir    string
 	SimulationDuration   int
 	SimulationVerbose    bool
+	SimulationCustom     int
 }
 
 type testCaseBeacon func(context.Context, *testBeaconConfig, string) testResult
@@ -182,6 +183,7 @@ func bindTestBeaconFlags(cmd *cobra.Command, config *testBeaconConfig, flagsPref
 	cmd.Flags().IntVar(&config.SimulationDuration, flagsPrefix+"simulation-duration-in-slots", slotsInEpoch, "Time to keep running the simulation in slots.")
 	cmd.Flags().StringVar(&config.SimulationFileDir, flagsPrefix+"simulation-file-dir", "./", "Time to keep running the simulation in slots.")
 	cmd.Flags().BoolVar(&config.SimulationVerbose, flagsPrefix+"simulation-verbose", false, "Show results for each request and each validator.")
+	cmd.Flags().IntVar(&config.SimulationCustom, flagsPrefix+"simulation-custom", 0, "Run custom simulation with the specified amount of validators.")
 	mustMarkFlagRequired(cmd, flagsPrefix+"endpoints")
 }
 
@@ -194,11 +196,12 @@ func supportedBeaconTestCases() map[testCaseName]testCaseBeacon {
 		{name: "peerCount", order: 5}:   beaconPeerCountTest,
 		{name: "pingLoad", order: 6}:    beaconPingLoadTest,
 
-		{name: "simulate1", order: 7}:     beaconSimulation1Test,
-		{name: "simulate10", order: 8}:    beaconSimulation10Test,
-		{name: "simulate100", order: 9}:   beaconSimulation100Test,
-		{name: "simulate500", order: 10}:  beaconSimulation500Test,
-		{name: "simulate1000", order: 11}: beaconSimulation1000Test,
+		{name: "simulate1", order: 7}:       beaconSimulation1Test,
+		{name: "simulate10", order: 8}:      beaconSimulation10Test,
+		{name: "simulate100", order: 9}:     beaconSimulation100Test,
+		{name: "simulate500", order: 10}:    beaconSimulation500Test,
+		{name: "simulate1000", order: 11}:   beaconSimulation1000Test,
+		{name: "simulateCustom", order: 12}: beaconSimulationCustomTest,
 	}
 }
 
@@ -690,6 +693,43 @@ func beaconSimulation1000Test(ctx context.Context, conf *testBeaconConfig, targe
 		AttestationValidatorsCount:   930,
 		ProposalValidatorsCount:      65,
 		SyncCommitteeValidatorsCount: 5,
+		RequestIntensity: RequestsIntensity{
+			AttestationDuty:           slotTime,
+			AggregatorDuty:            slotTime * 2,
+			ProposalDuty:              slotTime * 4,
+			SyncCommitteeSubmit:       slotTime,
+			SyncCommitteeContribution: slotTime * 4,
+			SyncCommitteeSubscribe:    epochTime,
+		},
+	}
+
+	return beaconSimulationTest(ctx, conf, target, testRes, params)
+}
+
+func beaconSimulationCustomTest(ctx context.Context, conf *testBeaconConfig, target string) testResult {
+	testRes := testResult{Name: "BeaconSimulationCustomValidators"}
+	if conf.SimulationCustom < 1 {
+		testRes.Verdict = testVerdictSkipped
+		return testRes
+	}
+	testRes.Name = fmt.Sprintf("BeaconSimulation%vValidators", conf.SimulationCustom)
+
+	total := conf.SimulationCustom
+	syncCommittees := total / 100
+	if syncCommittees == 0 {
+		syncCommittees++
+	}
+	proposals := total / 15
+	if proposals == 0 && (total-syncCommittees != 0) {
+		proposals++
+	}
+	attestations := total - syncCommittees - proposals
+
+	params := simParams{
+		TotalValidatorsCount:         total,
+		AttestationValidatorsCount:   attestations,
+		ProposalValidatorsCount:      proposals,
+		SyncCommitteeValidatorsCount: syncCommittees,
 		RequestIntensity: RequestsIntensity{
 			AttestationDuty:           slotTime,
 			AggregatorDuty:            slotTime * 2,
