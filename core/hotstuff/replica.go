@@ -26,7 +26,7 @@ type Replica struct {
 	privateKey   *k1.PrivateKey
 	decidedFunc  DecidedFunc
 	valueCh      <-chan Value
-	recvCh       <-chan *Msg
+	receiveCh    <-chan *Msg
 	phaseTimeout time.Duration
 
 	// Mutable state
@@ -40,7 +40,7 @@ type Replica struct {
 }
 
 func NewReplica(id ID, duty core.Duty,
-	cluster Cluster, transport Transport,
+	cluster Cluster, transport Transport, receiveCh <-chan *Msg,
 	privateKey *k1.PrivateKey, decidedFunc DecidedFunc,
 	valueCh <-chan Value, phaseTimeout time.Duration,
 ) *Replica {
@@ -52,7 +52,7 @@ func NewReplica(id ID, duty core.Duty,
 		privateKey:   privateKey,
 		decidedFunc:  decidedFunc,
 		valueCh:      valueCh,
-		recvCh:       transport.ReceiveCh(),
+		receiveCh:    receiveCh,
 		phaseTimeout: phaseTimeout,
 		view:         1,
 		phase:        PreparePhase,
@@ -74,7 +74,7 @@ func (r *Replica) Run(ctx context.Context) error {
 
 	for {
 		select {
-		case msg, ok := <-r.recvCh:
+		case msg, ok := <-r.receiveCh:
 			if !ok {
 				return errors.New("receive channel closed")
 			}

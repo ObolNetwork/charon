@@ -35,9 +35,6 @@ type Transport interface {
 
 	// SendTo sends a message to the specified replica, typically to the leader.
 	SendTo(ctx context.Context, id ID, msg *Msg) error
-
-	// ReceiveCh returns channel receiving inbound messages.
-	ReceiveCh() <-chan *Msg
 }
 
 // Cluster defines the Byzantine cluster configuration.

@@ -160,6 +160,44 @@ func (c *Consensus) Subscribe(fn func(context.Context, core.Duty, core.UnsignedD
 	})
 }
 
+// Broadcast implements hotstuff.Transport.
+func (c *Consensus) Broadcast(ctx context.Context, msg *hs.Msg) (err error) {
+	for i := range c.peers {
+		id := hs.NewIDFromIndex(i)
+		if err = c.SendTo(ctx, id, msg); err != nil {
+			break
+		}
+	}
+
+	return err
+}
+
+// SendTo implements hotstuff.Transport.
+func (c *Consensus) SendTo(ctx context.Context, id hs.ID, msg *hs.Msg) (err error) {
+	if id < 1 || int(id) > len(c.peers) {
+		return errors.New("invalid peer ID")
+	}
+
+	peer := c.peers[id.ToIndex()]
+	if c.tcpNode.ID() == peer.ID {
+		recvBufferCh := c.getRecvBuffer(msg.Duty)
+		if recvBufferCh != nil {
+			select {
+			case recvBufferCh <- msg:
+			case <-ctx.Done():
+				err = ctx.Err()
+			}
+		}
+	} else {
+		protoMsg := msg.ToProto()
+		if err2 := c.sender.SendAsync(ctx, c.tcpNode, protocols.HotStuffv1ProtocolID, peer.ID, protoMsg); err2 != nil {
+			err = errors.Wrap(err2, "failed to send message")
+		}
+	}
+
+	return err
+}
+
 func (c *Consensus) getInstanceIO(duty core.Duty) *utils.InstanceIO[*hs.Msg] {
 	c.mutable.Lock()
 	defer c.mutable.Unlock()
@@ -264,10 +302,7 @@ func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error)
 		}
 	}
 
-	transport := newTransport(c.tcpNode, c.sender, c.peers)
-
-	go transport.ProcessReceives(ctx, c.getRecvBuffer(duty))
-
+	receiveCh := c.getRecvBuffer(duty)
 	hsValueCh := make(chan hs.Value)
 
 	go func() {
@@ -282,7 +317,7 @@ func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error)
 		}
 	}()
 
-	r := hs.NewReplica(c.id, duty, c.cluster, transport, c.cluster.privateKey, decidedFn, hsValueCh, phaseTimeout)
+	r := hs.NewReplica(c.id, duty, c.cluster, c, receiveCh, c.cluster.privateKey, decidedFn, hsValueCh, phaseTimeout)
 	err = r.Run(ctx)
 	if err != nil && !isContextErr(err) {
 		c.metrics.IncConsensusError()
@@ -318,8 +353,6 @@ func (c *Consensus) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 
 	duty := core.DutyFromProto(pbMsg.GetDuty())
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
-
-	log.Debug(ctx, "Received consensus message")
 
 	if !c.deadliner.Add(duty) {
 		return nil, false, errors.New("duty expired", z.Any("duty", duty))

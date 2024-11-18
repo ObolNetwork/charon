@@ -148,7 +148,7 @@ func ProtoToQC(protoQC *pbv1.HotStuffQC) *QC {
 
 func ProtoToDuty(protoDuty *pbv1.Duty) core.Duty {
 	return core.Duty{
-		Type: core.DutyType(protoDuty.Type),
-		Slot: protoDuty.Slot,
+		Type: core.DutyType(protoDuty.GetType()),
+		Slot: protoDuty.GetSlot(),
 	}
 }

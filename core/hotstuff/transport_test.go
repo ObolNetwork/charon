@@ -89,7 +89,7 @@ func TestTransport(t *testing.T) {
 	require.NoError(t, err)
 
 	for n := range nodes {
-		m := <-transports[n].ReceiveCh()
+		m := <-recvChannels[n]
 		require.EqualValues(t, "bcast", m.Value)
 
 		if n > 0 {
@@ -104,7 +104,7 @@ func TestTransport(t *testing.T) {
 		}
 	}
 
-	ch0 := transports[0].ReceiveCh()
+	ch0 := recvChannels[0]
 
 	for n := 1; n < nodes; n++ {
 		expect := strconv.FormatInt(int64(n), 10)

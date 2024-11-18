@@ -49,7 +49,8 @@ func TestHotStuff(t *testing.T) {
 	for i := range total {
 		id := hotstuff.NewIDFromIndex(i)
 		privateKey := cluster.privateKeys[i]
-		replicas[i] = hotstuff.NewReplica(id, duty, cluster, transports[i], privateKey, decidedFunc, valueCh, phaseTimeout)
+		receiveCh := recvChannels[i]
+		replicas[i] = hotstuff.NewReplica(id, duty, cluster, transports[i], receiveCh, privateKey, decidedFunc, valueCh, phaseTimeout)
 	}
 
 	group, ctx := errgroup.WithContext(context.Background())
