@@ -75,7 +75,7 @@ const (
 
 var errFioNotFound = errors.New("fio command not found, install fio from https://fio.readthedocs.io/en/latest/fio_doc.html#binary-packages or using the package manager of your choice (apt, yum, brew, etc.)")
 
-func newTestInfraCmd(runFunc func(context.Context, io.Writer, testInfraConfig) error) *cobra.Command {
+func newTestInfraCmd(runFunc func(context.Context, io.Writer, testInfraConfig) (res testCategoryResult, err error)) *cobra.Command {
 	var config testInfraConfig
 
 	cmd := &cobra.Command{
@@ -87,7 +87,8 @@ func newTestInfraCmd(runFunc func(context.Context, io.Writer, testInfraConfig) e
 			return mustOutputToFileOnQuiet(cmd)
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runFunc(cmd.Context(), cmd.OutOrStdout(), config)
+			_, err := runFunc(cmd.Context(), cmd.OutOrStdout(), config)
+			return err
 		},
 	}
 
@@ -106,25 +107,25 @@ func bindTestInfraFlags(cmd *cobra.Command, config *testInfraConfig, flagsPrefix
 
 func supportedInfraTestCases() map[testCaseName]func(context.Context, *testInfraConfig) testResult {
 	return map[testCaseName]func(context.Context, *testInfraConfig) testResult{
-		{name: "diskWriteSpeed", order: 1}:        infraDiskWriteSpeedTest,
-		{name: "diskWriteIOPS", order: 2}:         infraDiskWriteIOPSTest,
-		{name: "diskReadSpeed", order: 3}:         infraDiskReadSpeedTest,
-		{name: "diskReadIOPS", order: 4}:          infraDiskReadIOPSTest,
-		{name: "availableMemory", order: 5}:       infraAvailableMemoryTest,
-		{name: "totalMemory", order: 6}:           infraTotalMemoryTest,
-		{name: "internetLatency", order: 7}:       infraInternetLatencyTest,
-		{name: "internetDownloadSpeed", order: 8}: infraInternetDownloadSpeedTest,
-		{name: "internetUploadSpeed", order: 9}:   infraInternetUploadSpeedTest,
+		{name: "DiskWriteSpeed", order: 1}:        infraDiskWriteSpeedTest,
+		{name: "DiskWriteIOPS", order: 2}:         infraDiskWriteIOPSTest,
+		{name: "DiskReadSpeed", order: 3}:         infraDiskReadSpeedTest,
+		{name: "DiskReadIOPS", order: 4}:          infraDiskReadIOPSTest,
+		{name: "AvailableMemory", order: 5}:       infraAvailableMemoryTest,
+		{name: "TotalMemory", order: 6}:           infraTotalMemoryTest,
+		{name: "InternetLatency", order: 7}:       infraInternetLatencyTest,
+		{name: "InternetDownloadSpeed", order: 8}: infraInternetDownloadSpeedTest,
+		{name: "InternetUploadSpeed", order: 9}:   infraInternetUploadSpeedTest,
 	}
 }
 
-func runTestInfra(ctx context.Context, w io.Writer, cfg testInfraConfig) (err error) {
+func runTestInfra(ctx context.Context, w io.Writer, cfg testInfraConfig) (res testCategoryResult, err error) {
 	log.Info(ctx, "Starting hardware performance and network connectivity test")
 
 	testCases := supportedInfraTestCases()
 	queuedTests := filterTests(maps.Keys(testCases), cfg.testConfig)
 	if len(queuedTests) == 0 {
-		return errors.New("test case not supported")
+		return res, errors.New("test case not supported")
 	}
 	sortTests(queuedTests)
 
@@ -152,7 +153,7 @@ func runTestInfra(ctx context.Context, w io.Writer, cfg testInfraConfig) (err er
 		}
 	}
 
-	res := testCategoryResult{
+	res = testCategoryResult{
 		CategoryName:  infraTestCategory,
 		Targets:       testResults,
 		ExecutionTime: execTime,
@@ -162,18 +163,18 @@ func runTestInfra(ctx context.Context, w io.Writer, cfg testInfraConfig) (err er
 	if !cfg.Quiet {
 		err = writeResultToWriter(res, w)
 		if err != nil {
-			return err
+			return res, err
 		}
 	}
 
 	if cfg.OutputJSON != "" {
 		err = writeResultToFile(res, cfg.OutputJSON)
 		if err != nil {
-			return err
+			return res, err
 		}
 	}
 
-	return nil
+	return res, nil
 }
 
 // hardware and internet connectivity tests
@@ -199,9 +200,7 @@ func testSingleInfra(ctx context.Context, queuedTestCases []testCaseName, allTes
 				finished = true
 				break
 			}
-			testName = queuedTestCases[testCounter].name
 			testCounter++
-			result.Name = testName
 			allTestRes = append(allTestRes, result)
 		}
 	}

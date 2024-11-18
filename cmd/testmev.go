@@ -47,7 +47,7 @@ const (
 
 var errStatusCodeNot200 = errors.New("status code not 200 OK")
 
-func newTestMEVCmd(runFunc func(context.Context, io.Writer, testMEVConfig) error) *cobra.Command {
+func newTestMEVCmd(runFunc func(context.Context, io.Writer, testMEVConfig) (testCategoryResult, error)) *cobra.Command {
 	var config testMEVConfig
 
 	cmd := &cobra.Command{
@@ -59,7 +59,8 @@ func newTestMEVCmd(runFunc func(context.Context, io.Writer, testMEVConfig) error
 			return mustOutputToFileOnQuiet(cmd)
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runFunc(cmd.Context(), cmd.OutOrStdout(), config)
+			_, err := runFunc(cmd.Context(), cmd.OutOrStdout(), config)
+			return err
 		},
 	}
 
@@ -90,20 +91,20 @@ func bindTestMEVFlags(cmd *cobra.Command, config *testMEVConfig, flagsPrefix str
 
 func supportedMEVTestCases() map[testCaseName]testCaseMEV {
 	return map[testCaseName]testCaseMEV{
-		{name: "ping", order: 1}:                 mevPingTest,
-		{name: "pingMeasure", order: 2}:          mevPingMeasureTest,
-		{name: "createBlock", order: 3}:          mevCreateBlockTest,
-		{name: "createMultipleBlocks", order: 4}: mevCreateMultipleBlocksTest,
+		{name: "Ping", order: 1}:                 mevPingTest,
+		{name: "PingMeasure", order: 2}:          mevPingMeasureTest,
+		{name: "CreateBlock", order: 3}:          mevCreateBlockTest,
+		{name: "CreateMultipleBlocks", order: 4}: mevCreateMultipleBlocksTest,
 	}
 }
 
-func runTestMEV(ctx context.Context, w io.Writer, cfg testMEVConfig) (err error) {
+func runTestMEV(ctx context.Context, w io.Writer, cfg testMEVConfig) (res testCategoryResult, err error) {
 	log.Info(ctx, "Starting MEV relays test")
 
 	testCases := supportedMEVTestCases()
 	queuedTests := filterTests(maps.Keys(testCases), cfg.testConfig)
 	if len(queuedTests) == 0 {
-		return errors.New("test case not supported")
+		return res, errors.New("test case not supported")
 	}
 	sortTests(queuedTests)
 
@@ -132,7 +133,7 @@ func runTestMEV(ctx context.Context, w io.Writer, cfg testMEVConfig) (err error)
 		}
 	}
 
-	res := testCategoryResult{
+	res = testCategoryResult{
 		CategoryName:  mevTestCategory,
 		Targets:       testResults,
 		ExecutionTime: execTime,
@@ -142,18 +143,18 @@ func runTestMEV(ctx context.Context, w io.Writer, cfg testMEVConfig) (err error)
 	if !cfg.Quiet {
 		err = writeResultToWriter(res, w)
 		if err != nil {
-			return err
+			return res, err
 		}
 	}
 
 	if cfg.OutputJSON != "" {
 		err = writeResultToFile(res, cfg.OutputJSON)
 		if err != nil {
-			return err
+			return res, err
 		}
 	}
 
-	return nil
+	return res, nil
 }
 
 // mev relays tests
@@ -209,9 +210,7 @@ func testSingleMEV(ctx context.Context, queuedTestCases []testCaseName, allTestC
 				finished = true
 				break
 			}
-			testName = queuedTestCases[testCounter].name
 			testCounter++
-			result.Name = testName
 			allTestRes = append(allTestRes, result)
 		}
 	}
@@ -274,6 +273,11 @@ func mevPingMeasureTest(ctx context.Context, _ *testMEVConfig, target string) te
 func mevCreateBlockTest(ctx context.Context, conf *testMEVConfig, target string) testResult {
 	testRes := testResult{Name: "CreateBlock"}
 
+	if !conf.LoadTest {
+		testRes.Verdict = testVerdictSkipped
+		return testRes
+	}
+
 	latestBlock, err := latestBeaconBlock(ctx, conf.BeaconNodeEndpoint)
 	if err != nil {
 		return failedTestResult(testRes, err)
@@ -313,6 +317,11 @@ func mevCreateBlockTest(ctx context.Context, conf *testMEVConfig, target string)
 
 func mevCreateMultipleBlocksTest(ctx context.Context, conf *testMEVConfig, target string) testResult {
 	testRes := testResult{Name: "CreateMultipleBlocks"}
+
+	if !conf.LoadTest {
+		testRes.Verdict = testVerdictSkipped
+		return testRes
+	}
 
 	latestBlock, err := latestBeaconBlock(ctx, conf.BeaconNodeEndpoint)
 	if err != nil {

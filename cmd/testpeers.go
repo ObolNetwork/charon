@@ -64,7 +64,7 @@ const (
 	thresholdRelayMeasurePoor = 240 * time.Millisecond
 )
 
-func newTestPeersCmd(runFunc func(context.Context, io.Writer, testPeersConfig) error) *cobra.Command {
+func newTestPeersCmd(runFunc func(context.Context, io.Writer, testPeersConfig) (testCategoryResult, error)) *cobra.Command {
 	var config testPeersConfig
 
 	cmd := &cobra.Command{
@@ -76,7 +76,8 @@ func newTestPeersCmd(runFunc func(context.Context, io.Writer, testPeersConfig) e
 			return mustOutputToFileOnQuiet(cmd)
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runFunc(cmd.Context(), cmd.OutOrStdout(), config)
+			_, err := runFunc(cmd.Context(), cmd.OutOrStdout(), config)
+			return err
 		},
 	}
 
@@ -125,27 +126,27 @@ func bindTestPeersFlags(cmd *cobra.Command, config *testPeersConfig, flagsPrefix
 
 func supportedPeerTestCases() map[testCaseName]testCasePeer {
 	return map[testCaseName]testCasePeer{
-		{name: "ping", order: 1}:        peerPingTest,
-		{name: "pingMeasure", order: 2}: peerPingMeasureTest,
-		{name: "pingLoad", order: 3}:    peerPingLoadTest,
-		{name: "directConn", order: 4}:  peerDirectConnTest,
+		{name: "Ping", order: 1}:        peerPingTest,
+		{name: "PingMeasure", order: 2}: peerPingMeasureTest,
+		{name: "PingLoad", order: 3}:    peerPingLoadTest,
+		{name: "DirectConn", order: 4}:  peerDirectConnTest,
 	}
 }
 
 func supportedRelayTestCases() map[testCaseName]testCaseRelay {
 	return map[testCaseName]testCaseRelay{
-		{name: "pingRelay", order: 1}:        relayPingTest,
-		{name: "pingMeasureRelay", order: 2}: relayPingMeasureTest,
+		{name: "PingRelay", order: 1}:        relayPingTest,
+		{name: "PingMeasureRelay", order: 2}: relayPingMeasureTest,
 	}
 }
 
 func supportedSelfTestCases() map[testCaseName]testCasePeerSelf {
 	return map[testCaseName]testCasePeerSelf{
-		{name: "libp2pTCPPortOpenTest", order: 1}: libp2pTCPPortOpenTest,
+		{name: "Libp2pTCPPortOpen", order: 1}: libp2pTCPPortOpenTest,
 	}
 }
 
-func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) error {
+func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) (res testCategoryResult, err error) {
 	log.Info(ctx, "Starting charon peers and relays test")
 
 	relayTestCases := supportedRelayTestCases()
@@ -161,7 +162,8 @@ func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) error 
 	sortTests(queuedTestsSelf)
 
 	if len(queuedTestsPeer) == 0 && len(queuedTestsSelf) == 0 {
-		return errors.New("test case not supported")
+		err = errors.New("test case not supported")
+		return res, err
 	}
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, conf.Timeout)
@@ -172,7 +174,7 @@ func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) error 
 
 	tcpNode, shutdown, err := startTCPNode(ctx, conf)
 	if err != nil {
-		return err
+		return res, err
 	}
 	defer shutdown()
 
@@ -200,7 +202,7 @@ func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) error 
 	err = group.Wait()
 	execTime := Duration{time.Since(startTime)}
 	if err != nil {
-		return errors.Wrap(err, "peers test errgroup")
+		return res, errors.Wrap(err, "peers test errgroup")
 	}
 	close(testResultsChan)
 	<-doneReading
@@ -214,7 +216,7 @@ func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) error 
 		}
 	}
 
-	res := testCategoryResult{
+	res = testCategoryResult{
 		CategoryName:  peersTestCategory,
 		Targets:       testResults,
 		ExecutionTime: execTime,
@@ -224,21 +226,21 @@ func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) error 
 	if !conf.Quiet {
 		err = writeResultToWriter(res, w)
 		if err != nil {
-			return err
+			return res, err
 		}
 	}
 
 	if conf.OutputJSON != "" {
 		err = writeResultToFile(res, conf.OutputJSON)
 		if err != nil {
-			return err
+			return res, err
 		}
 	}
 
 	log.Info(ctx, "Keeping TCP node alive for peers until keep-alive time is reached...")
 	blockAndWait(ctx, conf.KeepAlive)
 
-	return nil
+	return res, nil
 }
 
 // charon peers tests
@@ -318,9 +320,7 @@ func testSinglePeer(ctx context.Context, queuedTestCases []testCaseName, allTest
 				finished = true
 				continue
 			}
-			testName = queuedTestCases[testCounter].name
 			testCounter++
-			result.Name = testName
 			allTestRes = append(allTestRes, result)
 		}
 	}

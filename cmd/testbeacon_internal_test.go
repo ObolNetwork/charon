@@ -51,17 +51,18 @@ func TestBeaconTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					mockedBeaconNode.URL: {
-						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "version", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "isSynced", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "peerCount", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingLoad", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "simulate1", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "simulate10", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "simulate100", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "simulate500", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "simulate1000", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "Ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "Version", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "Synced", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PeerCount", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingLoad", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "Simulate1", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "Simulate10", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "Simulate100", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "Simulate500", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "Simulate1000", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "SimulateCustom", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 			},
@@ -97,10 +98,10 @@ func TestBeaconTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					endpoint1: {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 					endpoint2: {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
 			},
@@ -142,7 +143,7 @@ func TestBeaconTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputJSON: "",
 					Quiet:      false,
-					TestCases:  []string{"ping"},
+					TestCases:  []string{"Ping"},
 					Timeout:    time.Minute,
 				},
 				Endpoints: []string{endpoint1, endpoint2},
@@ -150,10 +151,10 @@ func TestBeaconTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					endpoint1: {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
 					},
 					endpoint2: {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
 					},
 				},
 			},
@@ -187,7 +188,7 @@ func TestBeaconTest(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var buf bytes.Buffer
 			ctx := context.Background()
-			err := runTestBeacon(ctx, &buf, test.config)
+			_, err := runTestBeacon(ctx, &buf, test.config)
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
 				return
@@ -216,30 +217,32 @@ func TestBeaconTest(t *testing.T) {
 func defaultFailingBNTests(_ *testing.T, endpoint1 string, endpoint2 string, port1 int, port2 int) map[string][]testResult {
 	return map[string][]testResult{
 		endpoint1: {
-			{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
-			{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
-			{Name: "version", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
-			{Name: "isSynced", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
-			{Name: "peerCount", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
-			{Name: "pingLoad", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
-			{Name: "simulate1", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
-			{Name: "simulate10", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
-			{Name: "simulate100", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
-			{Name: "simulate500", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
-			{Name: "simulate1000", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+			{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+			{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+			{Name: "Version", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+			{Name: "Synced", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+			{Name: "PeerCount", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+			{Name: "PingLoad", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+			{Name: "Simulate1", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+			{Name: "Simulate10", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+			{Name: "Simulate100", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+			{Name: "Simulate500", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+			{Name: "Simulate1000", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+			{Name: "SimulateCustom", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
 		},
 		endpoint2: {
-			{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
-			{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
-			{Name: "version", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
-			{Name: "isSynced", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
-			{Name: "peerCount", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
-			{Name: "pingLoad", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
-			{Name: "simulate1", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
-			{Name: "simulate10", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
-			{Name: "simulate100", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
-			{Name: "simulate500", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
-			{Name: "simulate1000", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+			{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+			{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+			{Name: "Version", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+			{Name: "Synced", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+			{Name: "PeerCount", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+			{Name: "PingLoad", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+			{Name: "Simulate1", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+			{Name: "Simulate10", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+			{Name: "Simulate100", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+			{Name: "Simulate500", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+			{Name: "Simulate1000", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+			{Name: "SimulateCustom", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
 		},
 	}
 }
@@ -289,7 +292,9 @@ func TestBeaconTestFlags(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cmd := newAlphaCmd(newTestBeaconCmd(func(context.Context, io.Writer, testBeaconConfig) error { return nil }))
+			cmd := newAlphaCmd(newTestBeaconCmd(func(context.Context, io.Writer, testBeaconConfig) (testCategoryResult, error) {
+				return testCategoryResult{}, nil
+			}))
 			cmd.SetArgs(test.args)
 			err := cmd.Execute()
 			if test.expectedErr != "" {
