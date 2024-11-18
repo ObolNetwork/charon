@@ -72,7 +72,7 @@ func (r *Replica) Run(ctx context.Context) error {
 		return err
 	}
 
-	for {
+	for r.phase != TerminalPhase {
 		select {
 		case msg, ok := <-r.receiveCh:
 			if !ok {
@@ -80,9 +80,9 @@ func (r *Replica) Run(ctx context.Context) error {
 			}
 			r.handleMsg(ctx, msg)
 		case <-ctx.Done():
-			return nil
+			return errors.Wrap(ctx.Err(), "context done")
 		case <-time.After(r.phaseTimeout):
-			log.Warn(ctx, "Phase timeout", nil)
+			log.Error(ctx, "Phase timeout", nil)
 
 			return errors.New("phase timeout")
 			// if err := r.nextView(ctx); err != nil {
@@ -92,6 +92,8 @@ func (r *Replica) Run(ctx context.Context) error {
 			// }
 		}
 	}
+
+	return nil
 }
 
 func (r *Replica) handleMsg(ctx context.Context, msg *Msg) {

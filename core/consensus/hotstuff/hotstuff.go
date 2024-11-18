@@ -8,12 +8,10 @@ import (
 	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
-	ssz "github.com/ferranbt/fastssz"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/featureset"
@@ -45,7 +43,7 @@ type Consensus struct {
 	// Mutable state
 	mutable struct {
 		sync.Mutex
-		instances map[core.Duty]*utils.InstanceIO[*hs.Msg]
+		instances map[core.Duty]*utils.InstanceIO[hs.Value, *hs.Msg]
 	}
 }
 
@@ -79,7 +77,7 @@ func NewConsensus(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKe
 		cluster:   cluster,
 	}
 
-	c.mutable.instances = make(map[core.Duty]*utils.InstanceIO[*hs.Msg])
+	c.mutable.instances = make(map[core.Duty]*utils.InstanceIO[hs.Value, *hs.Msg])
 
 	return c, nil
 }
@@ -198,42 +196,39 @@ func (c *Consensus) SendTo(ctx context.Context, id hs.ID, msg *hs.Msg) (err erro
 	return err
 }
 
-func (c *Consensus) getInstanceIO(duty core.Duty) *utils.InstanceIO[*hs.Msg] {
+func (c *Consensus) getInstanceIO(duty core.Duty) *utils.InstanceIO[hs.Value, *hs.Msg] {
 	c.mutable.Lock()
 	defer c.mutable.Unlock()
 
 	inst, ok := c.mutable.instances[duty]
 	if !ok {
-		inst = utils.NewInstanceIO[*hs.Msg]()
+		inst = utils.NewInstanceIO[hs.Value, *hs.Msg]()
 		c.mutable.instances[duty] = inst
 	}
 
 	return inst
 }
 
-func (c *Consensus) propose(ctx context.Context, duty core.Duty, value proto.Message) error {
-	hash, err := hashProto(value)
-	if err != nil {
-		return err
-	}
+func (c *Consensus) getRecvBuffer(duty core.Duty) chan *hs.Msg {
+	return c.getInstanceIO(duty).RecvBuffer
+}
 
+func (c *Consensus) propose(ctx context.Context, duty core.Duty, value proto.Message) error {
 	inst := c.getInstanceIO(duty)
 
 	if err := inst.MarkProposed(); err != nil {
 		return errors.Wrap(err, "propose consensus", z.Any("duty", duty))
 	}
 
-	// Provide proposal inputs to the instance.
-	select {
-	case inst.ValueCh <- value:
-	default:
-		return errors.New("input channel full")
+	protoBytes, err := proto.Marshal(value)
+	if err != nil {
+		return errors.Wrap(err, "marshal input value")
 	}
 
 	select {
-	case inst.HashCh <- hash:
-	default:
-		return errors.New("input channel full")
+	case <-ctx.Done():
+		return errors.Wrap(ctx.Err(), "context done")
+	case inst.ValueCh <- protoBytes:
 	}
 
 	// Instrument consensus duration using decidedAt output.
@@ -302,22 +297,7 @@ func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error)
 		}
 	}
 
-	receiveCh := c.getRecvBuffer(duty)
-	hsValueCh := make(chan hs.Value)
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case protoValue := <-inst.ValueCh:
-				value, _ := proto.Marshal(protoValue)
-				hsValueCh <- value
-			}
-		}
-	}()
-
-	r := hs.NewReplica(c.id, duty, c.cluster, c, receiveCh, c.cluster.privateKey, decidedFn, hsValueCh, phaseTimeout)
+	r := hs.NewReplica(c.id, duty, c.cluster, c, inst.RecvBuffer, c.cluster.privateKey, decidedFn, inst.ValueCh, phaseTimeout)
 	err = r.Run(ctx)
 	if err != nil && !isContextErr(err) {
 		c.metrics.IncConsensusError()
@@ -330,19 +310,6 @@ func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error)
 	}
 
 	return err
-}
-
-func (c *Consensus) getRecvBuffer(duty core.Duty) chan *hs.Msg {
-	c.mutable.Lock()
-	defer c.mutable.Unlock()
-
-	inst, ok := c.mutable.instances[duty]
-	if !ok {
-		inst = utils.NewInstanceIO[*hs.Msg]()
-		c.mutable.instances[duty] = inst
-	}
-
-	return inst.RecvBuffer
 }
 
 func (c *Consensus) handle(ctx context.Context, _ peer.ID, req proto.Message) (proto.Message, bool, error) {
@@ -366,33 +333,6 @@ func (c *Consensus) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 	case <-ctx.Done():
 		return nil, false, errors.Wrap(ctx.Err(), "timeout enqueuing receive buffer", z.Any("duty", duty))
 	}
-}
-
-func hashProto(msg proto.Message) ([32]byte, error) {
-	if _, ok := msg.(*anypb.Any); ok {
-		return [32]byte{}, errors.New("cannot hash any proto, must hash inner value")
-	}
-
-	hh := ssz.DefaultHasherPool.Get()
-	defer ssz.DefaultHasherPool.Put(hh)
-
-	index := hh.Index()
-
-	// Do deterministic marshalling.
-	b, err := proto.MarshalOptions{Deterministic: true}.Marshal(msg)
-	if err != nil {
-		return [32]byte{}, errors.Wrap(err, "marshal proto")
-	}
-	hh.PutBytes(b)
-
-	hh.Merkleize(index)
-
-	hash, err := hh.HashRoot()
-	if err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash proto")
-	}
-
-	return hash, nil
 }
 
 func isContextErr(err error) bool {

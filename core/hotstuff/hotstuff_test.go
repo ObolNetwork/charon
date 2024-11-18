@@ -54,7 +54,6 @@ func TestHotStuff(t *testing.T) {
 	}
 
 	group, ctx := errgroup.WithContext(context.Background())
-	ctx, cancel := context.WithCancel(ctx)
 
 	for i := range total {
 		group.Go(func() error {
@@ -67,7 +66,6 @@ func TestHotStuff(t *testing.T) {
 		require.EqualValues(t, inputValue, value)
 	}
 
-	cancel()
 	err = group.Wait()
 	require.NoError(t, err)
 }

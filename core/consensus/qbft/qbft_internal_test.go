@@ -10,6 +10,7 @@ import (
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/k1util"
@@ -376,7 +377,7 @@ func TestQBFTConsensus_handle(t *testing.T) {
 			deadliner := coremocks.NewDeadliner(t)
 			deadliner.On("Add", mock.Anything).Maybe().Return(true)
 			tc.deadliner = deadliner
-			tc.mutable.instances = make(map[core.Duty]*utils.InstanceIO[Msg])
+			tc.mutable.instances = make(map[core.Duty]*utils.InstanceIO[proto.Message, Msg])
 			tc.gaterFunc = func(core.Duty) bool { return true }
 
 			msg := &pbv1.QBFTConsensusMsg{
@@ -466,7 +467,7 @@ func TestQBFTConsensusHandle(t *testing.T) {
 
 func TestInstanceIO_MaybeStart(t *testing.T) {
 	t.Run("MaybeStart for new instance", func(t *testing.T) {
-		inst1 := utils.NewInstanceIO[Msg]()
+		inst1 := utils.NewInstanceIO[proto.Message, Msg]()
 		require.True(t, inst1.MaybeStart())
 		require.False(t, inst1.MaybeStart())
 	})
@@ -477,7 +478,7 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 		deadliner.On("Add", mock.Anything).Return(true)
 		c.deadliner = deadliner
 		c.gaterFunc = func(core.Duty) bool { return true }
-		c.mutable.instances = make(map[core.Duty]*utils.InstanceIO[Msg])
+		c.mutable.instances = make(map[core.Duty]*utils.InstanceIO[proto.Message, Msg])
 
 		// Generate a p2p private key.
 		p2pKey := testutil.GenerateInsecureK1Key(t, 0)
@@ -508,7 +509,7 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 		deadliner.On("Add", mock.Anything).Return(true)
 		c.deadliner = deadliner
 		c.gaterFunc = func(core.Duty) bool { return true }
-		c.mutable.instances = make(map[core.Duty]*utils.InstanceIO[Msg])
+		c.mutable.instances = make(map[core.Duty]*utils.InstanceIO[proto.Message, Msg])
 		c.timerFunc = utils.GetTimerFunc()
 
 		// Generate a p2p private key pair.

@@ -151,7 +151,7 @@ func NewConsensus(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKe
 		timerFunc:   utils.GetTimerFunc(),
 		metrics:     metrics.NewConsensusMetrics(protocols.QBFTv2ProtocolID),
 	}
-	c.mutable.instances = make(map[core.Duty]*utils.InstanceIO[Msg])
+	c.mutable.instances = make(map[core.Duty]*utils.InstanceIO[proto.Message, Msg])
 
 	return c, nil
 }
@@ -176,7 +176,7 @@ type Consensus struct {
 	// Mutable state
 	mutable struct {
 		sync.Mutex
-		instances map[core.Duty]*utils.InstanceIO[Msg]
+		instances map[core.Duty]*utils.InstanceIO[proto.Message, Msg]
 	}
 }
 
@@ -514,7 +514,7 @@ func (c *Consensus) getRecvBuffer(duty core.Duty) chan Msg {
 
 	inst, ok := c.mutable.instances[duty]
 	if !ok {
-		inst = utils.NewInstanceIO[Msg]()
+		inst = utils.NewInstanceIO[proto.Message, Msg]()
 		c.mutable.instances[duty] = inst
 	}
 
@@ -522,13 +522,13 @@ func (c *Consensus) getRecvBuffer(duty core.Duty) chan Msg {
 }
 
 // getInstanceIO returns the duty's instance if it were previously created.
-func (c *Consensus) getInstanceIO(duty core.Duty) *utils.InstanceIO[Msg] {
+func (c *Consensus) getInstanceIO(duty core.Duty) *utils.InstanceIO[proto.Message, Msg] {
 	c.mutable.Lock()
 	defer c.mutable.Unlock()
 
 	inst, ok := c.mutable.instances[duty]
 	if !ok { // Create new instanceIO.
-		inst = utils.NewInstanceIO[Msg]()
+		inst = utils.NewInstanceIO[proto.Message, Msg]()
 		c.mutable.instances[duty] = inst
 	}
 

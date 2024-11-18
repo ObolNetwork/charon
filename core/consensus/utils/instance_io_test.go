@@ -6,13 +6,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	cqbft "github.com/obolnetwork/charon/core/consensus/qbft"
 	"github.com/obolnetwork/charon/core/consensus/utils"
 )
 
 func TestMarkParticipated(t *testing.T) {
-	io := utils.NewInstanceIO[cqbft.Msg]()
+	io := utils.NewInstanceIO[proto.Message, cqbft.Msg]()
 
 	// First call succeeds.
 	err := io.MarkParticipated()
@@ -24,7 +25,7 @@ func TestMarkParticipated(t *testing.T) {
 }
 
 func TestMarkProposed(t *testing.T) {
-	io := utils.NewInstanceIO[cqbft.Msg]()
+	io := utils.NewInstanceIO[proto.Message, cqbft.Msg]()
 
 	// First call succeeds.
 	err := io.MarkProposed()
@@ -36,7 +37,7 @@ func TestMarkProposed(t *testing.T) {
 }
 
 func TestMaybeStart(t *testing.T) {
-	io := utils.NewInstanceIO[cqbft.Msg]()
+	io := utils.NewInstanceIO[proto.Message, cqbft.Msg]()
 
 	// First call succeeds.
 	ok := io.MaybeStart()
