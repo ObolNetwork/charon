@@ -28,6 +28,11 @@ func (id ID) ToIndex() int {
 // View is the HotStuff view number. The first view has number 1.
 type View uint64
 
+const (
+	// Allowing at most three views before stopping the protocol.
+	MaxView View = 3
+)
+
 // Transport defines replica's transport layer.
 type Transport interface {
 	// Broadcast sends a message to all replicas, including itself.

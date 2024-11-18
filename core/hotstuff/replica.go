@@ -82,14 +82,16 @@ func (r *Replica) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return errors.Wrap(ctx.Err(), "context done")
 		case <-time.After(r.phaseTimeout):
-			log.Error(ctx, "Phase timeout", nil)
+			log.Warn(ctx, "Phase timeout", nil)
 
-			return errors.New("phase timeout")
-			// if err := r.nextView(ctx); err != nil {
-			// 	log.Error(ctx, "Failed to move to next view", err)
+			if r.view > MaxView {
+				return errors.New("max view reached")
+			}
+			if err := r.nextView(ctx); err != nil {
+				log.Error(ctx, "Failed to move to next view", err)
 
-			// 	return err
-			// }
+				return err
+			}
 		}
 	}
 
