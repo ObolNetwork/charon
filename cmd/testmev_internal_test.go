@@ -54,10 +54,35 @@ func TestMEVTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					mockedMEVNode.URL: {
-						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "createMultipleBlocks", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "Ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "CreateBlock", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "CreateMultipleBlocks", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+					},
+				},
+			},
+			expectedErr: "",
+		},
+		{
+			name: "default load scenario",
+			config: testMEVConfig{
+				testConfig: testConfig{
+					OutputJSON: "",
+					Quiet:      false,
+					TestCases:  nil,
+					Timeout:    time.Minute,
+				},
+				Endpoints:          []string{mockedMEVNode.URL},
+				LoadTest:           true,
+				BeaconNodeEndpoint: endpoint3,
+			},
+			expected: testCategoryResult{
+				Targets: map[string][]testResult{
+					mockedMEVNode.URL: {
+						{Name: "Ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "CreateBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "CreateMultipleBlocks", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 			},
@@ -72,22 +97,21 @@ func TestMEVTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    time.Minute,
 				},
-				Endpoints:          []string{endpoint1, endpoint2},
-				BeaconNodeEndpoint: endpoint3,
+				Endpoints: []string{endpoint1, endpoint2},
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					endpoint1: {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
-						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
-						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
-						{Name: "createMultipleBlocks", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "CreateBlock", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "CreateMultipleBlocks", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 					endpoint2: {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
-						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
-						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
-						{Name: "createMultipleBlocks", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "CreateBlock", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "CreateMultipleBlocks", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 			},
@@ -102,16 +126,15 @@ func TestMEVTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    100 * time.Nanosecond,
 				},
-				Endpoints:          []string{endpoint1, endpoint2},
-				BeaconNodeEndpoint: endpoint3,
+				Endpoints: []string{endpoint1, endpoint2},
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					endpoint1: {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 					endpoint2: {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
 			},
@@ -126,22 +149,21 @@ func TestMEVTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    time.Minute,
 				},
-				Endpoints:          []string{endpoint1, endpoint2},
-				BeaconNodeEndpoint: endpoint3,
+				Endpoints: []string{endpoint1, endpoint2},
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					endpoint1: {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
-						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
-						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
-						{Name: "createMultipleBlocks", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "CreateBlock", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "CreateMultipleBlocks", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 					endpoint2: {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
-						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
-						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
-						{Name: "createMultipleBlocks", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "CreateBlock", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "CreateMultipleBlocks", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 			},
@@ -156,8 +178,7 @@ func TestMEVTest(t *testing.T) {
 					TestCases:  []string{"notSupportedTest"},
 					Timeout:    time.Minute,
 				},
-				Endpoints:          []string{endpoint1, endpoint2},
-				BeaconNodeEndpoint: endpoint3,
+				Endpoints: []string{endpoint1, endpoint2},
 			},
 			expected:    testCategoryResult{},
 			expectedErr: "test case not supported",
@@ -168,19 +189,18 @@ func TestMEVTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputJSON: "",
 					Quiet:      false,
-					TestCases:  []string{"ping"},
+					TestCases:  []string{"Ping"},
 					Timeout:    time.Minute,
 				},
-				Endpoints:          []string{endpoint1, endpoint2},
-				BeaconNodeEndpoint: endpoint3,
+				Endpoints: []string{endpoint1, endpoint2},
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					endpoint1: {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
 					},
 					endpoint2: {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
 					},
 				},
 			},
@@ -195,22 +215,21 @@ func TestMEVTest(t *testing.T) {
 					TestCases:  nil,
 					Timeout:    time.Minute,
 				},
-				Endpoints:          []string{endpoint1, endpoint2},
-				BeaconNodeEndpoint: endpoint3,
+				Endpoints: []string{endpoint1, endpoint2},
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					endpoint1: {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
-						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
-						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
-						{Name: "createMultipleBlocks", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port1))}},
+						{Name: "CreateBlock", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "CreateMultipleBlocks", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 					endpoint2: {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
-						{Name: "pingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
-						{Name: "createBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
-						{Name: "createMultipleBlocks", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port3))}},
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: testResultError{errors.New(fmt.Sprintf(`%v: connect: connection refused`, port2))}},
+						{Name: "CreateBlock", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "CreateMultipleBlocks", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score:        categoryScoreC,
@@ -228,7 +247,7 @@ func TestMEVTest(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var buf bytes.Buffer
 			ctx := context.Background()
-			err := runTestMEV(ctx, &buf, test.config)
+			_, err := runTestMEV(ctx, &buf, test.config)
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
 				return
@@ -292,7 +311,9 @@ func TestMEVTestFlags(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cmd := newAlphaCmd(newTestMEVCmd(func(context.Context, io.Writer, testMEVConfig) error { return nil }))
+			cmd := newAlphaCmd(newTestMEVCmd(func(context.Context, io.Writer, testMEVConfig) (testCategoryResult, error) {
+				return testCategoryResult{}, nil
+			}))
 			cmd.SetArgs(test.args)
 			err := cmd.Execute()
 			if test.expectedErr != "" {
