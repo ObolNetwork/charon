@@ -82,13 +82,13 @@ func (r *Replica) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return errors.Wrap(ctx.Err(), "context done")
 		case <-time.After(r.phaseTimeout):
-			log.Warn(ctx, "Phase timeout", nil)
+			log.Warn(ctx, "Phase timeout", nil, z.Str("phase", r.phase.String()))
 
 			if r.view > MaxView {
-				return errors.New("max view reached")
+				return errors.New("max view reached", z.Str("phase", r.phase.String()))
 			}
 			if err := r.nextView(ctx); err != nil {
-				log.Error(ctx, "Failed to move to next view", err)
+				log.Error(ctx, "Failed to move to next view", err, z.Str("phase", r.phase.String()))
 
 				return err
 			}
@@ -210,7 +210,13 @@ func (r *Replica) leaderNewView(ctx context.Context, msg *Msg) {
 
 	r.leaderPhase = r.leaderPhase.NextPhase()
 
-	value := <-r.valueCh
+	var value Value
+	select {
+	case value = <-r.valueCh:
+	case <-ctx.Done():
+		log.Error(ctx, "Leader stopped waiting for an input value", ctx.Err())
+		return
+	}
 	err = r.transport.Broadcast(ctx, &Msg{
 		Duty:  r.duty,
 		Type:  MsgPrepare,
