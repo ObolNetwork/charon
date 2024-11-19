@@ -148,8 +148,7 @@ func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, w
 	t.Helper()
 
 	var (
-		ctx        context.Context
-		cancelFunc context.CancelFunc
+		stopNode   context.CancelFunc
 		firstNode  bool   // True if node index is 0
 		allStarted bool   // True if all nodes have started DKG
 		firstTime  = true // True if the node is starting for the first time
@@ -158,13 +157,9 @@ func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, w
 	firstNode = nodeIdx == 0
 
 	// runDKG runs a new instance of DKG. If a DKG is already running, it stops it before starting a new one.
-	runDKG := func() {
-		// If there's an instance already running, stop it
-		if ctx != nil {
-			cancelFunc()
-		}
+	runDKG := func() context.CancelFunc {
+		ctx, cancelFunc := context.WithCancel(parentCtx)
 
-		ctx, cancelFunc = context.WithCancel(parentCtx)
 		log.Debug(ctx, "Starting DKG node", z.Int("node", nodeIdx), z.Bool("first_time", firstTime))
 
 		errCh := make(chan error, 1)
@@ -178,6 +173,8 @@ func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, w
 		}(ctx)
 		err := <-errCh
 		require.ErrorContains(t, err, ctxCanceledErr)
+
+		return cancelFunc
 	}
 
 	for {
@@ -186,12 +183,15 @@ func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, w
 			allStarted = true
 		case <-newWindowStarted:
 			if firstNode && !firstTime { // Node 0 never restarts (is always up)
-				log.Debug(ctx, "Not restarting node", z.Int("node", nodeIdx))
+				log.Debug(parentCtx, "Not restarting node", z.Int("node", nodeIdx))
 				continue
 			}
 
 			// Start the node
-			runDKG()
+			if stopNode != nil {
+				stopNode()
+			}
+			stopNode = runDKG()
 			firstTime = false
 			if firstNode {
 				continue
@@ -199,7 +199,7 @@ func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, w
 
 			// Wait for some random duration before stopping the node
 			stopDelay := calcStopDelay(t, window, nodeDownPeriod)
-			log.Debug(ctx, "Stopping node after delay", z.Int("node", nodeIdx), z.Str("delay", stopDelay.String()))
+			log.Debug(parentCtx, "Stopping node after delay", z.Int("node", nodeIdx), z.Str("delay", stopDelay.String()))
 			select {
 			case <-time.After(stopDelay):
 			case <-allNodesStarted:
@@ -207,8 +207,8 @@ func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, w
 			}
 
 			// Stop the node
-			cancelFunc()
-			log.Debug(ctx, "Node stopped", z.Int("node", nodeIdx))
+			stopNode()
+			log.Debug(parentCtx, "Node stopped", z.Int("node", nodeIdx))
 
 			// If all nodes have started, there's no point in restarting the node
 			if allStarted {
@@ -216,10 +216,10 @@ func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, w
 			}
 
 			// Wait nodeDownPeriod before restarting the node
-			log.Debug(ctx, "Waiting before restarting node", z.Int("node", nodeIdx), z.Str("delay", nodeDownPeriod.String()))
+			log.Debug(parentCtx, "Waiting before restarting node", z.Int("node", nodeIdx), z.Str("delay", nodeDownPeriod.String()))
 			select {
 			case <-time.After(nodeDownPeriod):
-				runDKG()
+				stopNode = runDKG()
 			case <-allNodesStarted:
 				allStarted = true
 			}
@@ -231,8 +231,8 @@ func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, w
 	}
 
 	// Stop any existing running DKG and run the final DKG since all nodes are up now
-	if ctx != nil {
-		cancelFunc()
+	if stopNode != nil {
+		stopNode()
 	}
 
 	log.Debug(parentCtx, "Running final DKG", z.Int("node", nodeIdx))
