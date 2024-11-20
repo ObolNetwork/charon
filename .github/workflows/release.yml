@@ -10,15 +10,55 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-    - uses: actions/checkout@v3
-      with:
-        fetch-depth: 0 # Disable shallow checkout
-    - uses: ./.github/actions/setup-go
-    - run: go run . --help > cli-reference.txt
-    - run: go run testutil/genchangelog/main.go
-    - uses: softprops/action-gh-release@v1
-      with:
-        draft: true
-        files: cli-reference.txt
-        body_path: changelog.md
-        token: ${{ secrets.RELEASE_SECRET }}
+      - name: Checkout repository
+        uses: actions /checkout@v4
+        with:
+          fetch-depth: 0 # Disable shallow checkout
+
+      - name: Setup Go environment
+        uses: ./.github/actions/setup-go
+
+      - name: Generate CLI reference
+        run: go run . --help > cli-reference.txt
+
+      - name: Generate changelog
+        run: go run testutil/genchangelog/main.go
+
+      - name: Create GitHub release draft
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          files: cli-reference.txt
+          body_path: changelog.md
+          token: ${{ secrets.RELEASE_SECRET }}
+
+  trigger-dispatch:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract tag name
+        run: echo "TAG_NAME=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
+      - name: Trigger dispatch for obol-docs
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.OBOL_PLATFORM_PAT }}
+          repository: ObolNetwork/obol-docs
+          event-type: update-version
+          client-payload: '{"tag": "${{ env.TAG_NAME }}"}'
+
+      - name: Trigger dispatch for helm-charts
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.OBOL_PLATFORM_PAT }}
+          repository: ObolNetwork/helm-charts
+          event-type: update-version
+          client-payload: '{"tag": "${{ env.TAG_NAME }}"}'
+
+      - name: Trigger dispatch for obol-ansible
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.OBOL_PLATFORM_PAT }}
+          repository: ObolNetwork/obol-ansible
+          event-type: update-version
+          client-payload: '{"tag": "${{ env.TAG_NAME }}"}'

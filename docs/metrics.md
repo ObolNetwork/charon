@@ -4,7 +4,7 @@ This document contains all the prometheus metrics exposed by a charon node.
 
 All metrics contain the following labels, so they are omitted from the table below:
 - `cluster_hash`: The cluster lock hash uniquely identifying the cluster.
-- `clustter_name`: The cluster lock name.
+- `cluster_name`: The cluster lock name.
 - `cluster_network`: The cluster network name; goerli, mainnet, etc.
 - `cluster_peer`: The name of this node in the cluster. It is determined from the operator ENR.
 
@@ -43,6 +43,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_bcast_recast_errors_total` | Counter | The total count of failed recasted registrations by source; `pregen` vs `downstream` | `source` |
 | `core_bcast_recast_registration_total` | Counter | The total number of unique validator registration stored in recaster per pubkey | `pubkey` |
 | `core_bcast_recast_total` | Counter | The total count of recasted registrations by source; `pregen` vs `downstream` | `source` |
+| `core_consensus_decided_leader_index` | Gauge | Leader node index of the decision round by duty. | `duty` |
 | `core_consensus_decided_rounds` | Gauge | Number of rounds it took to decide consensus instances by duty and timer type. | `duty, timer` |
 | `core_consensus_duration_seconds` | Histogram | Duration of a consensus instance in seconds by duty and timer type. | `duty, timer` |
 | `core_consensus_error_total` | Counter | Total count of consensus errors |  |

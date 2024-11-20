@@ -17,15 +17,13 @@ for f in /compose/"${NODE}"/validator_keys/keystore-*.json; do
     node /usr/app/packages/cli/bin/lodestar validator import \
         --network="dev" \
         --importKeystores="$f" \
-        --importKeystoresPassword="${f//json/txt}"
+        --importKeystoresPassword="${f%.json}.txt"
 done
 
 echo "Imported all keys"
 
 node /usr/app/packages/cli/bin/lodestar validator \
     --network="dev" \
-    --presetFile="/tmp/testnet/config.yaml" \
-    --paramsFile="/tmp/testnet/config.yaml" \
     --metrics=true \
     --metrics.address="0.0.0.0" \
     --metrics.port=5064 \

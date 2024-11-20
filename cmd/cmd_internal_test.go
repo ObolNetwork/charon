@@ -62,7 +62,7 @@ func TestCmdFlags(t *testing.T) {
 					LokiService: "charon",
 				},
 				P2P: p2p.Config{
-					Relays:   []string{"https://0.relay.obol.tech", "https://1.relay.obol.tech"},
+					Relays:   []string{"https://0.relay.obol.tech", "https://2.relay.obol.dev", "https://1.relay.obol.tech"},
 					TCPAddrs: nil,
 				},
 				Feature: featureset.Config{
@@ -113,7 +113,7 @@ func TestCmdFlags(t *testing.T) {
 					LokiService: "charon",
 				},
 				P2P: p2p.Config{
-					Relays:   []string{"https://0.relay.obol.tech", "https://1.relay.obol.tech"},
+					Relays:   []string{"https://0.relay.obol.tech", "https://2.relay.obol.dev", "https://1.relay.obol.tech"},
 					TCPAddrs: nil,
 				},
 				Feature: featureset.Config{

@@ -66,7 +66,8 @@ func Test_runSubmitPartialExit(t *testing.T) {
 			false,
 			"test",
 			0,
-			"cannot convert validator pubkey to bytes",
+			"convert core pubkey to eth2 pubkey",
+			false,
 		)
 	})
 
@@ -78,6 +79,7 @@ func Test_runSubmitPartialExit(t *testing.T) {
 			testutil.RandomEth2PubKey(t).String(),
 			0,
 			"validator not present in cluster lock",
+			false,
 		)
 	})
 
@@ -89,21 +91,23 @@ func Test_runSubmitPartialExit(t *testing.T) {
 			"",
 			9999,
 			"validator index not found in beacon node response",
+			false,
 		)
 	})
 
-	t.Run("main flow with expert mode with bad pubkey", func(t *testing.T) {
+	t.Run("main flow with skipBeaconNodeCheck mode with bad pubkey", func(t *testing.T) {
 		runSubmitPartialExitFlowTest(
 			t,
 			true,
 			true,
 			"test",
 			9999,
-			"cannot convert validator pubkey to bytes",
+			"convert core pubkey to eth2 pubkey",
+			false,
 		)
 	})
 
-	t.Run("main flow with expert mode with pubkey not found in cluster lock", func(t *testing.T) {
+	t.Run("main flow with skipBeaconNodeCheck mode with pubkey not found in cluster lock", func(t *testing.T) {
 		runSubmitPartialExitFlowTest(
 			t,
 			true,
@@ -111,23 +115,27 @@ func Test_runSubmitPartialExit(t *testing.T) {
 			testutil.RandomEth2PubKey(t).String(),
 			9999,
 			"validator not present in cluster lock",
+			false,
 		)
 	})
 
 	t.Run("main flow with pubkey", func(t *testing.T) {
-		runSubmitPartialExitFlowTest(t, false, false, "", 0, "")
+		runSubmitPartialExitFlowTest(t, false, false, "", 0, "", false)
 	})
 	t.Run("main flow with validator index", func(t *testing.T) {
-		runSubmitPartialExitFlowTest(t, true, false, "", 0, "")
+		runSubmitPartialExitFlowTest(t, true, false, "", 0, "", false)
 	})
-	t.Run("main flow with expert mode", func(t *testing.T) {
-		runSubmitPartialExitFlowTest(t, true, true, "", 0, "")
+	t.Run("main flow with skipBeaconNodeCheck mode", func(t *testing.T) {
+		runSubmitPartialExitFlowTest(t, true, true, "", 0, "", false)
+	})
+	t.Run("main flow with all mode", func(t *testing.T) {
+		runSubmitPartialExitFlowTest(t, false, false, "", 0, "", true)
 	})
 
 	t.Run("config", Test_runSubmitPartialExit_Config)
 }
 
-func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, expertMode bool, valPubkey string, valIndex uint64, errString string) {
+func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, skipBeaconNodeCheck bool, valPubkey string, valIndex uint64, errString string, all bool) {
 	t.Helper()
 	t.Parallel()
 	ctx := context.Background()
@@ -202,6 +210,7 @@ func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, expertMode bool,
 		ExitEpoch:           194048,
 		BeaconNodeTimeout:   30 * time.Second,
 		PublishTimeout:      10 * time.Second,
+		All:                 all,
 	}
 
 	index := uint64(0)
@@ -215,11 +224,11 @@ func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, expertMode bool,
 		pubkey = valPubkey
 	}
 
-	if expertMode {
+	if skipBeaconNodeCheck {
 		config.ValidatorIndex = index
 		config.ValidatorIndexPresent = true
 		config.ValidatorPubkey = pubkey
-		config.ExpertMode = true
+		config.SkipBeaconNodeCheck = true
 	} else {
 		if useValIdx {
 			config.ValidatorIndex = index
@@ -254,32 +263,32 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 		{
 			name:       "No identity key",
 			noIdentity: true,
-			errData:    "could not load identity key",
+			errData:    "load identity key",
 		},
 		{
 			name:    "No cluster lock",
 			noLock:  true,
-			errData: "could not load cluster-lock.json",
+			errData: "load cluster lock",
 		},
 		{
 			name:       "No keystore",
 			noKeystore: true,
-			errData:    "could not load keystore",
+			errData:    "load keystore",
 		},
 		{
 			name:       "Bad Obol API URL",
 			badOAPIURL: true,
-			errData:    "could not create obol api client",
+			errData:    "create Obol API client",
 		},
 		{
 			name:                   "Bad beacon node URL",
 			badBeaconNodeEndpoints: true,
-			errData:                "cannot create eth2 client for specified beacon node",
+			errData:                "create eth2 client for specified beacon node",
 		},
 		{
 			name:             "Bad validator address",
 			badValidatorAddr: true,
-			errData:          "cannot convert validator pubkey to bytes",
+			errData:          "convert core pubkey to eth2 pubkey",
 		},
 	}
 
@@ -374,6 +383,114 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 			}
 
 			require.ErrorContains(t, runSignPartialExit(ctx, config), test.errData)
+		})
+	}
+}
+
+func TestExitSignCLI(t *testing.T) {
+	tests := []struct {
+		name        string
+		expectedErr string
+		flags       []string
+	}{
+		{
+			name:        "check flags",
+			expectedErr: "load identity key: read private key from disk: open test: no such file or directory",
+			flags: []string{
+				"--publish-address=test",
+				"--private-key-file=test",
+				"--lock-file=test",
+				"--validator-keys-dir=test",
+				"--exit-epoch=1",
+				"--validator-public-key=test",
+				"--validator-index=1",
+				"--beacon-node-endpoints=test1,test2",
+				"--beacon-node-timeout=1ms",
+				"--publish-timeout=1ms",
+				"--all=false",
+				"--testnet-name=test",
+				"--testnet-fork-version=test",
+				"--testnet-chain-id=1",
+				"--testnet-genesis-timestamp=1",
+				"--testnet-capella-hard-fork=test",
+			},
+		},
+		{
+			name:        "no pubkey, no index, single validator",
+			expectedErr: "either validator-index or validator-public-key must be specified at least when exiting single validator.",
+			flags: []string{
+				"--publish-address=test",
+				"--private-key-file=test",
+				"--lock-file=test",
+				"--validator-keys-dir=test",
+				"--exit-epoch=1",
+				"--beacon-node-endpoints=test1,test2",
+				"--beacon-node-timeout=1ms",
+				"--publish-timeout=1ms",
+				"--all=false",
+				"--testnet-name=test",
+				"--testnet-fork-version=test",
+				"--testnet-chain-id=1",
+				"--testnet-genesis-timestamp=1",
+				"--testnet-capella-hard-fork=test",
+			},
+		},
+		{
+			name:        "pubkey present, all validators",
+			expectedErr: "validator-index or validator-public-key should not be specified when all is, as they are obsolete and misleading.",
+			flags: []string{
+				"--publish-address=test",
+				"--private-key-file=test",
+				"--lock-file=test",
+				"--validator-keys-dir=test",
+				"--exit-epoch=1",
+				"--validator-public-key=test",
+				"--beacon-node-endpoints=test1,test2",
+				"--beacon-node-timeout=1ms",
+				"--publish-timeout=1ms",
+				"--all=true",
+				"--testnet-name=test",
+				"--testnet-fork-version=test",
+				"--testnet-chain-id=1",
+				"--testnet-genesis-timestamp=1",
+				"--testnet-capella-hard-fork=test",
+			},
+		},
+		{
+			name:        "index present, all validators",
+			expectedErr: "validator-index or validator-public-key should not be specified when all is, as they are obsolete and misleading.",
+			flags: []string{
+				"--publish-address=test",
+				"--private-key-file=test",
+				"--lock-file=test",
+				"--validator-keys-dir=test",
+				"--exit-epoch=1",
+				"--validator-index=1",
+				"--beacon-node-endpoints=test1,test2",
+				"--beacon-node-timeout=1ms",
+				"--publish-timeout=1ms",
+				"--all=true",
+				"--testnet-name=test",
+				"--testnet-fork-version=test",
+				"--testnet-chain-id=1",
+				"--testnet-genesis-timestamp=1",
+				"--testnet-capella-hard-fork=test",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := newExitCmd(newSignPartialExitCmd(runSignPartialExit))
+			cmd.SetArgs(append([]string{"sign"}, test.flags...))
+
+			err := cmd.Execute()
+			if test.expectedErr != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, test.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }

@@ -49,6 +49,22 @@ func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobr
 
 	bindCreateDKGFlags(cmd, &config)
 
+	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
+		thresholdPresent := cmd.Flags().Lookup("threshold").Changed
+
+		if thresholdPresent {
+			if config.Threshold < minThreshold {
+				return errors.New("threshold must be greater than 1", z.Int("threshold", config.Threshold), z.Int("min", minThreshold))
+			}
+			if config.Threshold > len(config.OperatorENRs) {
+				return errors.New("threshold cannot be greater than number of operators",
+					z.Int("threshold", config.Threshold), z.Int("operators", len(config.OperatorENRs)))
+			}
+		}
+
+		return nil
+	})
+
 	return cmd
 }
 
@@ -81,7 +97,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		conf.Network = eth2util.Goerli.Name
 	}
 
-	if err = validateDKGConfig(conf.Threshold, len(conf.OperatorENRs), conf.Network, conf.DepositAmounts); err != nil {
+	if err = validateDKGConfig(len(conf.OperatorENRs), conf.Network, conf.DepositAmounts); err != nil {
 		return err
 	}
 
@@ -114,7 +130,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	safeThreshold := cluster.Threshold(len(conf.OperatorENRs))
 	if conf.Threshold == 0 {
 		conf.Threshold = safeThreshold
-	} else if conf.Threshold != safeThreshold {
+	} else {
 		log.Warn(ctx, "Non standard `--threshold` flag provided, this will affect cluster safety", nil, z.Int("threshold", conf.Threshold), z.Int("safe_threshold", safeThreshold))
 	}
 
@@ -180,15 +196,10 @@ func validateWithdrawalAddrs(addrs []string, network string) error {
 }
 
 // validateDKGConfig returns an error if any of the provided config parameter is invalid.
-func validateDKGConfig(threshold, numOperators int, network string, depositAmounts []int) error {
-	if threshold > numOperators {
-		return errors.New("threshold cannot be greater than length of operators",
-			z.Int("threshold", threshold), z.Int("operators", numOperators))
-	}
-
-	// Don't allow cluster size to be less than 4.
+func validateDKGConfig(numOperators int, network string, depositAmounts []int) error {
+	// Don't allow cluster size to be less than 3.
 	if numOperators < minNodes {
-		return errors.New("insufficient operator ENRs", z.Int("count", numOperators), z.Int("min", minNodes))
+		return errors.New("number of operators is below minimum", z.Int("operators", numOperators), z.Int("min", minNodes))
 	}
 
 	if !eth2util.ValidNetwork(network) {

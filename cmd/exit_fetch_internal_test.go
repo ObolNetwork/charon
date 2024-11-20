@@ -26,12 +26,19 @@ import (
 
 func Test_runFetchExit(t *testing.T) {
 	t.Parallel()
-	t.Run("full flow", Test_runFetchExitFullFlow)
+	t.Run("full flow", func(t *testing.T) {
+		t.Parallel()
+		testRunFetchExitFullFlow(t, false)
+	})
+	t.Run("full flow all", func(t *testing.T) {
+		t.Parallel()
+		testRunFetchExitFullFlow(t, true)
+	})
 	t.Run("bad out dir", Test_runFetchExitBadOutDir)
 }
 
-func Test_runFetchExitFullFlow(t *testing.T) {
-	t.Parallel()
+func testRunFetchExitFullFlow(t *testing.T, all bool) {
+	t.Helper()
 	ctx := context.Background()
 
 	valAmt := 100
@@ -106,6 +113,7 @@ func Test_runFetchExitFullFlow(t *testing.T) {
 			ExitEpoch:           194048,
 			BeaconNodeTimeout:   30 * time.Second,
 			PublishTimeout:      10 * time.Second,
+			All:                 all,
 		}
 
 		require.NoError(t, runSignPartialExit(ctx, config), "operator index: %v", idx)
@@ -120,6 +128,7 @@ func Test_runFetchExitFullFlow(t *testing.T) {
 		PublishAddress:  srv.URL,
 		FetchedExitPath: root,
 		PublishTimeout:  10 * time.Second,
+		All:             all,
 	}
 
 	require.NoError(t, runFetchExit(ctx, config))
@@ -159,4 +168,81 @@ func Test_runFetchExitBadOutDir(t *testing.T) {
 	}
 
 	require.ErrorContains(t, runFetchExit(context.Background(), config), "permission denied")
+}
+
+func TestExitFetchCLI(t *testing.T) {
+	tests := []struct {
+		name        string
+		expectedErr string
+		flags       []string
+	}{
+		{
+			name:        "check flags",
+			expectedErr: "store exit path: stat 1: no such file or directory",
+			flags: []string{
+				"--publish-address=test",
+				"--private-key-file=test",
+				"--lock-file=test",
+				"--validator-public-key=test",
+				"--fetched-exit-path=1",
+				"--publish-timeout=1ms",
+				"--all=false",
+				"--testnet-name=test",
+				"--testnet-fork-version=test",
+				"--testnet-chain-id=1",
+				"--testnet-genesis-timestamp=1",
+				"--testnet-capella-hard-fork=test",
+			},
+		},
+		{
+			name:        "no validator public key and not all",
+			expectedErr: "validator-public-key must be specified when exiting single validator.",
+			flags: []string{
+				"--publish-address=test",
+				"--private-key-file=test",
+				"--lock-file=test",
+				"--fetched-exit-path=1",
+				"--publish-timeout=1ms",
+				"--all=false",
+				"--testnet-name=test",
+				"--testnet-fork-version=test",
+				"--testnet-chain-id=1",
+				"--testnet-genesis-timestamp=1",
+				"--testnet-capella-hard-fork=test",
+			},
+		},
+		{
+			name:        "validator public key and all",
+			expectedErr: "validator-public-key should not be specified when all is, as it is obsolete and misleading.",
+			flags: []string{
+				"--publish-address=test",
+				"--private-key-file=test",
+				"--lock-file=test",
+				"--validator-public-key=test",
+				"--fetched-exit-path=1",
+				"--publish-timeout=1ms",
+				"--all=true",
+				"--testnet-name=test",
+				"--testnet-fork-version=test",
+				"--testnet-chain-id=1",
+				"--testnet-genesis-timestamp=1",
+				"--testnet-capella-hard-fork=test",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := newExitCmd(newFetchExitCmd(runFetchExit))
+			cmd.SetArgs(append([]string{"fetch"}, test.flags...))
+
+			err := cmd.Execute()
+			if test.expectedErr != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, test.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }

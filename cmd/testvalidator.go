@@ -32,7 +32,7 @@ const (
 	thresholdValidatorLoadPoor    = 240 * time.Millisecond
 )
 
-func newTestValidatorCmd(runFunc func(context.Context, io.Writer, testValidatorConfig) error) *cobra.Command {
+func newTestValidatorCmd(runFunc func(context.Context, io.Writer, testValidatorConfig) (testCategoryResult, error)) *cobra.Command {
 	var config testValidatorConfig
 
 	cmd := &cobra.Command{
@@ -44,34 +44,38 @@ func newTestValidatorCmd(runFunc func(context.Context, io.Writer, testValidatorC
 			return mustOutputToFileOnQuiet(cmd)
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runFunc(cmd.Context(), cmd.OutOrStdout(), config)
+			_, err := runFunc(cmd.Context(), cmd.OutOrStdout(), config)
+			return err
 		},
 	}
 
 	bindTestFlags(cmd, &config.testConfig)
-	bindTestValidatorFlags(cmd, &config)
+	bindTestValidatorFlags(cmd, &config, "")
 
 	return cmd
 }
 
-func bindTestValidatorFlags(cmd *cobra.Command, config *testValidatorConfig) {
-	cmd.Flags().StringVar(&config.APIAddress, "validator-api-address", "127.0.0.1:3600", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API.")
-	cmd.Flags().DurationVar(&config.LoadTestDuration, "load-test-duration", 5*time.Second, "Time to keep running the load tests in seconds. For each second a new continuous ping instance is spawned.")
+func bindTestValidatorFlags(cmd *cobra.Command, config *testValidatorConfig, flagsPrefix string) {
+	cmd.Flags().StringVar(&config.APIAddress, flagsPrefix+"validator-api-address", "127.0.0.1:3600", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API.")
+	cmd.Flags().DurationVar(&config.LoadTestDuration, flagsPrefix+"load-test-duration", 5*time.Second, "Time to keep running the load tests in seconds. For each second a new continuous ping instance is spawned.")
 }
 
 func supportedValidatorTestCases() map[testCaseName]func(context.Context, *testValidatorConfig) testResult {
 	return map[testCaseName]func(context.Context, *testValidatorConfig) testResult{
-		{name: "ping", order: 1}:        validatorPingTest,
-		{name: "pingMeasure", order: 2}: validatorPingMeasureTest,
-		{name: "pingLoad", order: 3}:    validatorPingLoadTest,
+		{name: "Ping", order: 1}:        validatorPingTest,
+		{name: "PingMeasure", order: 2}: validatorPingMeasureTest,
+		{name: "PingLoad", order: 3}:    validatorPingLoadTest,
 	}
 }
 
-func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig) (err error) {
+func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig) (res testCategoryResult, err error) {
+	log.Info(ctx, "Starting validator client test")
+
 	testCases := supportedValidatorTestCases()
 	queuedTests := filterTests(maps.Keys(testCases), cfg.testConfig)
 	if len(queuedTests) == 0 {
-		return errors.New("test case not supported")
+		err = errors.New("test case not supported")
+		return res, err
 	}
 	sortTests(queuedTests)
 
@@ -100,7 +104,7 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 		}
 	}
 
-	res := testCategoryResult{
+	res = testCategoryResult{
 		CategoryName:  validatorTestCategory,
 		Targets:       testResults,
 		ExecutionTime: execTime,
@@ -110,19 +114,21 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 	if !cfg.Quiet {
 		err = writeResultToWriter(res, w)
 		if err != nil {
-			return err
+			return res, err
 		}
 	}
 
-	if cfg.OutputToml != "" {
-		err = writeResultToFile(res, cfg.OutputToml)
+	if cfg.OutputJSON != "" {
+		err = writeResultToFile(res, cfg.OutputJSON)
 		if err != nil {
-			return err
+			return res, err
 		}
 	}
 
-	return nil
+	return res, nil
 }
+
+// validator client tests
 
 func testSingleValidator(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testValidatorConfig) testResult, cfg testValidatorConfig, resCh chan map[string][]testResult) {
 	defer close(resCh)
@@ -145,9 +151,7 @@ func testSingleValidator(ctx context.Context, queuedTestCases []testCaseName, al
 				finished = true
 				break
 			}
-			testName = queuedTestCases[testCounter].name
 			testCounter++
-			result.Name = testName
 			allTestRes = append(allTestRes, result)
 		}
 	}
@@ -194,39 +198,9 @@ func validatorPingMeasureTest(ctx context.Context, conf *testValidatorConfig) te
 	defer conn.Close()
 	rtt := time.Since(before)
 
-	if rtt > thresholdValidatorMeasurePoor {
-		testRes.Verdict = testVerdictPoor
-	} else if rtt > thresholdValidatorMeasureAvg {
-		testRes.Verdict = testVerdictAvg
-	} else {
-		testRes.Verdict = testVerdictGood
-	}
-	testRes.Measurement = Duration{rtt}.String()
+	testRes = evaluateRTT(rtt, testRes, thresholdValidatorMeasureAvg, thresholdValidatorMeasurePoor)
 
 	return testRes
-}
-
-func pingValidatorContinuously(ctx context.Context, address string, resCh chan<- time.Duration) {
-	d := net.Dialer{Timeout: time.Second}
-	for {
-		before := time.Now()
-		conn, err := d.DialContext(ctx, "tcp", address)
-		if err != nil {
-			return
-		}
-		rtt := time.Since(before)
-		err = conn.Close()
-		if err != nil {
-			return
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case resCh <- rtt:
-			awaitTime := rand.Intn(100) //nolint:gosec // weak generator is not an issue here
-			sleepWithContext(ctx, time.Duration(awaitTime)*time.Millisecond)
-		}
-	}
 }
 
 func validatorPingLoadTest(ctx context.Context, conf *testValidatorConfig) testResult {
@@ -234,7 +208,7 @@ func validatorPingLoadTest(ctx context.Context, conf *testValidatorConfig) testR
 		z.Any("duration", conf.LoadTestDuration),
 		z.Any("target", conf.APIAddress),
 	)
-	testRes := testResult{Name: "ValidatorLoad"}
+	testRes := testResult{Name: "PingLoad"}
 
 	testResCh := make(chan time.Duration, math.MaxInt16)
 	pingCtx, cancel := context.WithTimeout(ctx, conf.LoadTestDuration)
@@ -258,20 +232,32 @@ func validatorPingLoadTest(ctx context.Context, conf *testValidatorConfig) testR
 	close(testResCh)
 	log.Info(ctx, "Ping load tests finished", z.Any("target", conf.APIAddress))
 
-	highestRTT := time.Duration(0)
-	for rtt := range testResCh {
-		if rtt > highestRTT {
-			highestRTT = rtt
-		}
-	}
-	if highestRTT > thresholdValidatorLoadPoor {
-		testRes.Verdict = testVerdictPoor
-	} else if highestRTT > thresholdValidatorLoadAvg {
-		testRes.Verdict = testVerdictAvg
-	} else {
-		testRes.Verdict = testVerdictGood
-	}
-	testRes.Measurement = Duration{highestRTT}.String()
+	testRes = evaluateHighestRTTScores(testResCh, testRes, thresholdValidatorLoadAvg, thresholdValidatorLoadPoor)
 
 	return testRes
+}
+
+// helper functions
+
+func pingValidatorContinuously(ctx context.Context, address string, resCh chan<- time.Duration) {
+	d := net.Dialer{Timeout: time.Second}
+	for {
+		before := time.Now()
+		conn, err := d.DialContext(ctx, "tcp", address)
+		if err != nil {
+			return
+		}
+		rtt := time.Since(before)
+		err = conn.Close()
+		if err != nil {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case resCh <- rtt:
+			awaitTime := rand.Intn(100) //nolint:gosec // weak generator is not an issue here
+			sleepWithContext(ctx, time.Duration(awaitTime)*time.Millisecond)
+		}
+	}
 }

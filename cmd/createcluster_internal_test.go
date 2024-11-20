@@ -39,6 +39,10 @@ func TestCreateCluster(t *testing.T) {
 	def, err := loadDefinition(context.Background(), defPath)
 	require.NoError(t, err)
 
+	defPathTwoNodes := "../cluster/examples/cluster-definition-001.json"
+	defTwoNodes, err := loadDefinition(context.Background(), defPathTwoNodes)
+	require.NoError(t, err)
+
 	tests := []struct {
 		Name            string
 		Config          clusterConfig
@@ -218,7 +222,7 @@ func TestCreateCluster(t *testing.T) {
 			Config: clusterConfig{
 				Name:      "test_cluster",
 				NumNodes:  3,
-				Threshold: 4,
+				Threshold: 3,
 				NumDVs:    5,
 				Network:   "goerli",
 			},
@@ -245,6 +249,23 @@ func TestCreateCluster(t *testing.T) {
 					GenesisTimestamp:      time.Now().Unix(),
 				},
 			},
+		},
+		{
+			Name: "test with number of nodes below minimum",
+			Config: clusterConfig{
+				Name:      "test_cluster",
+				NumNodes:  2,
+				Threshold: 2,
+				NumDVs:    1,
+				Network:   "goerli",
+			},
+			defFileProvider: func() []byte {
+				data, err := json.Marshal(defTwoNodes)
+				require.NoError(t, err)
+
+				return data
+			},
+			expectedErr: "number of operators is below minimum",
 		},
 	}
 	for _, test := range tests {
@@ -555,6 +576,7 @@ func TestMultipleAddresses(t *testing.T) {
 		err := runCreateCluster(context.Background(), io.Discard, clusterConfig{
 			NumDVs:            4,
 			NumNodes:          4,
+			Threshold:         3,
 			Network:           defaultNetwork,
 			FeeRecipientAddrs: []string{},
 			WithdrawalAddrs:   []string{},
@@ -566,6 +588,7 @@ func TestMultipleAddresses(t *testing.T) {
 		err := runCreateCluster(context.Background(), io.Discard, clusterConfig{
 			NumDVs:            1,
 			NumNodes:          4,
+			Threshold:         3,
 			Network:           defaultNetwork,
 			FeeRecipientAddrs: []string{feeRecipientAddr},
 			WithdrawalAddrs:   []string{},
@@ -639,6 +662,7 @@ func TestKeymanager(t *testing.T) {
 		SplitKeysDir:         keyDir,
 		SplitKeys:            true,
 		NumNodes:             minNodes,
+		Threshold:            minThreshold,
 		KeymanagerAddrs:      addrs,
 		KeymanagerAuthTokens: authTokens,
 		Network:              eth2util.Goerli.Name,
@@ -720,6 +744,7 @@ func TestPublish(t *testing.T) {
 	conf := clusterConfig{
 		Name:              t.Name(),
 		NumNodes:          minNodes,
+		Threshold:         minThreshold,
 		NumDVs:            1,
 		Network:           eth2util.Goerli.Name,
 		WithdrawalAddrs:   []string{zeroAddress},
@@ -741,6 +766,82 @@ func TestPublish(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, <-result, struct{}{})
 	})
+}
+
+func TestClusterCLI(t *testing.T) {
+	feeRecipientArg := "--fee-recipient-addresses=" + validEthAddr
+	withdrawalArg := "--withdrawal-addresses=" + validEthAddr
+
+	tests := []struct {
+		name          string
+		network       string
+		nodes         string
+		numValidators string
+		feeRecipient  string
+		withdrawal    string
+		threshold     string
+		expectedErr   string
+		cleanup       func(*testing.T)
+	}{
+		{
+			name:          "threshold below minimum",
+			nodes:         "--nodes=3",
+			network:       "--network=holesky",
+			numValidators: "--num-validators=1",
+			feeRecipient:  feeRecipientArg,
+			withdrawal:    withdrawalArg,
+			threshold:     "--threshold=1",
+			expectedErr:   "threshold must be greater than 1",
+		},
+		{
+			name:          "threshold above maximum",
+			nodes:         "--nodes=4",
+			network:       "--network=holesky",
+			numValidators: "--num-validators=1",
+			feeRecipient:  feeRecipientArg,
+			withdrawal:    withdrawalArg,
+			threshold:     "--threshold=5",
+			expectedErr:   "threshold cannot be greater than number of operators",
+		},
+		{
+			name:          "no threshold provided",
+			nodes:         "--nodes=3",
+			network:       "--network=holesky",
+			numValidators: "--num-validators=1",
+			feeRecipient:  feeRecipientArg,
+			withdrawal:    withdrawalArg,
+			threshold:     "",
+			expectedErr:   "",
+			cleanup: func(t *testing.T) {
+				t.Helper()
+				require.NoError(t, os.RemoveAll("node0"))
+				require.NoError(t, os.RemoveAll("node1"))
+				require.NoError(t, os.RemoveAll("node2"))
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := newCreateCmd(newCreateClusterCmd(runCreateCluster))
+			if test.threshold != "" {
+				cmd.SetArgs([]string{"cluster", test.nodes, test.feeRecipient, test.withdrawal, test.network, test.numValidators, test.threshold})
+			} else {
+				cmd.SetArgs([]string{"cluster", test.nodes, test.feeRecipient, test.withdrawal, test.network, test.numValidators})
+			}
+
+			err := cmd.Execute()
+			if test.expectedErr != "" {
+				require.ErrorContains(t, err, test.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+
+			if test.cleanup != nil {
+				test.cleanup(t)
+			}
+		})
+	}
 }
 
 // mockKeymanagerReq is a mock keymanager request for use in tests.

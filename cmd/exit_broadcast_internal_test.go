@@ -31,16 +31,24 @@ func Test_runBcastFullExitCmd(t *testing.T) {
 	t.Parallel()
 	t.Run("main flow from api", func(t *testing.T) {
 		t.Parallel()
-		testRunBcastFullExitCmdFlow(t, false)
+		testRunBcastFullExitCmdFlow(t, false, false)
 	})
 	t.Run("main flow from file", func(t *testing.T) {
 		t.Parallel()
-		testRunBcastFullExitCmdFlow(t, true)
+		testRunBcastFullExitCmdFlow(t, true, false)
+	})
+	t.Run("main flow from api for all", func(t *testing.T) {
+		t.Parallel()
+		testRunBcastFullExitCmdFlow(t, false, true)
+	})
+	t.Run("main flow from file for all", func(t *testing.T) {
+		t.Parallel()
+		testRunBcastFullExitCmdFlow(t, true, true)
 	})
 	t.Run("config", Test_runBcastFullExitCmd_Config)
 }
 
-func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool) {
+func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool, all bool) {
 	t.Helper()
 	ctx := context.Background()
 
@@ -114,7 +122,6 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool) {
 
 		config := exitConfig{
 			BeaconNodeEndpoints: []string{beaconMock.Address()},
-			ValidatorPubkey:     lock.Validators[0].PublicKeyHex(),
 			PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
 			ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
 			LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
@@ -124,6 +131,12 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool) {
 			PublishTimeout:      10 * time.Second,
 		}
 
+		if all {
+			config.All = all
+		} else {
+			config.ValidatorPubkey = lock.Validators[0].PublicKeyHex()
+		}
+
 		require.NoError(t, runSignPartialExit(ctx, config), "operator index: %v", idx)
 	}
 
@@ -131,7 +144,6 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool) {
 
 	config := exitConfig{
 		BeaconNodeEndpoints: []string{beaconMock.Address()},
-		ValidatorPubkey:     lock.Validators[0].PublicKeyHex(),
 		PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
 		ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
 		LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
@@ -141,17 +153,39 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool) {
 		PublishTimeout:      10 * time.Second,
 	}
 
+	if all {
+		config.All = all
+	} else {
+		config.ValidatorPubkey = lock.Validators[0].PublicKeyHex()
+	}
+
 	if fromFile {
-		exit, err := exitFromObolAPI(ctx, lock.Validators[0].PublicKeyHex(), srv.URL, 10*time.Second, cl, enrs[0])
-		require.NoError(t, err)
+		if all {
+			for _, validator := range lock.Validators {
+				validatorPublicKey := validator.PublicKeyHex()
+				exit, err := exitFromObolAPI(ctx, validatorPublicKey, srv.URL, 10*time.Second, cl, enrs[0])
+				require.NoError(t, err)
 
-		exitBytes, err := json.Marshal(exit)
-		require.NoError(t, err)
+				exitBytes, err := json.Marshal(exit)
+				require.NoError(t, err)
 
-		exitPath := filepath.Join(baseDir, "exit.json")
-		require.NoError(t, os.WriteFile(exitPath, exitBytes, 0o755))
+				exitPath := filepath.Join(baseDir, fmt.Sprintf("exit-%s.json", validatorPublicKey))
+				require.NoError(t, os.WriteFile(exitPath, exitBytes, 0o755))
+			}
+			config.ExitFromFileDir = baseDir
+		} else {
+			validatorPublicKey := lock.Validators[0].PublicKeyHex()
+			exit, err := exitFromObolAPI(ctx, validatorPublicKey, srv.URL, 10*time.Second, cl, enrs[0])
+			require.NoError(t, err)
 
-		config.ExitFromFilePath = exitPath
+			exitBytes, err := json.Marshal(exit)
+			require.NoError(t, err)
+
+			exitPath := filepath.Join(baseDir, fmt.Sprintf("exit-%s.json", validatorPublicKey))
+			require.NoError(t, os.WriteFile(exitPath, exitBytes, 0o755))
+
+			config.ExitFromFilePath = exitPath
+		}
 	}
 
 	require.NoError(t, runBcastFullExit(ctx, config))
@@ -168,33 +202,34 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 		badValidatorAddr       bool
 		badExistingExitPath    bool
 		errData                string
+		all                    bool
 	}
 
 	tests := []test{
 		{
 			name:       "No identity key",
 			noIdentity: true,
-			errData:    "could not load identity key",
+			errData:    "load identity key",
 		},
 		{
 			name:    "No lock",
 			noLock:  true,
-			errData: "could not load cluster-lock.json",
+			errData: "load cluster lock",
 		},
 		{
 			name:       "Bad Obol API URL",
 			badOAPIURL: true,
-			errData:    "could not create obol api client",
+			errData:    "create Obol API client",
 		},
 		{
 			name:                   "Bad beacon node URLs",
 			badBeaconNodeEndpoints: true,
-			errData:                "cannot create eth2 client for specified beacon node",
+			errData:                "create eth2 client for specified beacon node",
 		},
 		{
 			name:             "Bad validator address",
 			badValidatorAddr: true,
-			errData:          "cannot convert validator pubkey to bytes",
+			errData:          "validator pubkey to bytes",
 		},
 		{
 			name:                "Bad existing exit file",
@@ -289,15 +324,105 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 				ExitEpoch:           0,
 				BeaconNodeTimeout:   30 * time.Second,
 				PublishTimeout:      10 * time.Second,
+				All:                 test.all,
 			}
 
 			if test.badExistingExitPath {
-				path := filepath.Join(baseDir, "exit.json")
+				path := filepath.Join(baseDir, fmt.Sprintf("exit-%s.json", lock.Validators[0].PublicKeyHex()))
 				require.NoError(t, os.WriteFile(path, []byte("bad"), 0o755))
 				config.ExitFromFilePath = path
 			}
 
 			require.ErrorContains(t, runBcastFullExit(ctx, config), test.errData)
+		})
+	}
+}
+
+func TestExitBroadcastCLI(t *testing.T) {
+	tests := []struct {
+		name        string
+		expectedErr string
+
+		flags []string
+	}{
+		{
+			name:        "check flags",
+			expectedErr: "load identity key: read private key from disk: open test: no such file or directory",
+			flags: []string{
+				"--publish-address=test",
+				"--private-key-file=test",
+				"--lock-file=test",
+				"--validator-keys-dir=test",
+				"--exit-epoch=1",
+				"--validator-public-key=test", // single exit
+				"--beacon-node-endpoints=test1,test2",
+				"--exit-from-file=test", // single exit
+				"--beacon-node-timeout=1ms",
+				"--publish-timeout=1ms",
+				"--all=false", // single exit
+				"--testnet-name=test",
+				"--testnet-fork-version=test",
+				"--testnet-chain-id=1",
+				"--testnet-genesis-timestamp=1",
+				"--testnet-capella-hard-fork=test",
+			},
+		},
+		{
+			name:        "check flags all",
+			expectedErr: "load identity key: read private key from disk: open test: no such file or directory",
+			flags: []string{
+				"--publish-address=test",
+				"--private-key-file=test",
+				"--lock-file=test",
+				"--validator-keys-dir=test", // exit all
+				"--exit-epoch=1",
+				"--beacon-node-endpoints=test1,test2",
+				"--exit-from-dir=test",
+				"--beacon-node-timeout=1ms",
+				"--publish-timeout=1ms",
+				"--all", // exit all
+				"--testnet-name=test",
+				"--testnet-fork-version=test",
+				"--testnet-chain-id=1",
+				"--testnet-genesis-timestamp=1",
+				"--testnet-capella-hard-fork=test",
+			},
+		},
+		{
+			name:        "check flags all",
+			expectedErr: "load identity key: read private key from disk: open test: no such file or directory",
+			flags: []string{
+				"--publish-address=test",
+				"--private-key-file=test",
+				"--lock-file=test",
+				"--validator-keys-dir=test", // exit all
+				"--exit-epoch=1",
+				"--beacon-node-endpoints=test1,test2",
+				"--exit-from-dir=test",
+				"--beacon-node-timeout=1ms",
+				"--publish-timeout=1ms",
+				"--all", // exit all
+				"--testnet-name=test",
+				"--testnet-fork-version=test",
+				"--testnet-chain-id=1",
+				"--testnet-genesis-timestamp=1",
+				"--testnet-capella-hard-fork=test",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := newExitCmd(newBcastFullExitCmd(runBcastFullExit))
+			cmd.SetArgs(append([]string{"broadcast"}, test.flags...))
+
+			err := cmd.Execute()
+			if test.expectedErr != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, test.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }

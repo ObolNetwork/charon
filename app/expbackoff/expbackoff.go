@@ -148,14 +148,14 @@ func Backoff(config Config, retries int) time.Duration {
 	}
 
 	backoff := float64(config.BaseDelay)
-	max := float64(config.MaxDelay)
+	maxVal := float64(config.MaxDelay)
 
-	for backoff < max && retries > 0 {
+	for backoff < maxVal && retries > 0 {
 		backoff *= config.Multiplier
 		retries--
 	}
-	if backoff > max {
-		backoff = max
+	if backoff > maxVal {
+		backoff = maxVal
 	}
 	// Randomize backoff delays so that if a cluster of requests start at
 	// the same time, they won't operate in lockstep.
