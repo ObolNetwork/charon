@@ -49,15 +49,6 @@ func NewConsensusController(ctx context.Context, tcpNode host.Host, sender *p2p.
 		return nil, err
 	}
 
-	cctx, cancel := context.WithCancel(ctx)
-	hotstuffDeadliner := core.NewDeadliner(cctx, "consensus.hotstuff", deadlineFunc)
-	hotstuffConsensus, err := hotstuff.NewConsensus(tcpNode, sender, peers, p2pKey, hotstuffDeadliner)
-	if err != nil {
-		cancel()
-
-		return nil, err
-	}
-
 	c := &consensusController{
 		tcpNode:          tcpNode,
 		sender:           sender,
@@ -67,17 +58,14 @@ func NewConsensusController(ctx context.Context, tcpNode host.Host, sender *p2p.
 		deadlineFunc:     deadlineFunc,
 		debugger:         debugger,
 		defaultConsensus: defaultConsensus,
-		wrappedConsensus: newConsensusWrapper(hotstuffConsensus),
+		wrappedConsensus: newConsensusWrapper(defaultConsensus),
 	}
-
-	c.mutable.cancelWrappedCtx = cancel
 
 	return c, nil
 }
 
 func (f *consensusController) Start(ctx context.Context) {
 	f.defaultConsensus.Start(ctx)
-	f.wrappedConsensus.Start(ctx)
 
 	go func() {
 		<-ctx.Done()

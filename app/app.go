@@ -622,9 +622,11 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 	// The order of all these operations are important.
 	allProtocols := Protocols()
 	if clusterPreferredProtocol != "" {
+		log.Debug(ctx, "Prioritizing consensus protocol from cluster definition", z.Str("protocol", clusterPreferredProtocol))
 		allProtocols = protocols.PrioritizeProtocolsByName(clusterPreferredProtocol, allProtocols)
 	}
 	if conf.ConsensusProtocol != "" {
+		log.Debug(ctx, "Prioritizing consensus protocol from CLI flag", z.Str("protocol", clusterPreferredProtocol))
 		allProtocols = protocols.PrioritizeProtocolsByName(conf.ConsensusProtocol, allProtocols)
 	}
 
@@ -655,9 +657,9 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 				preferredConsensusProtocolID := protocol.ID(preferredConsensusProtocol)
 
 				if err := consensusController.SetCurrentConsensusForProtocol(ctx, preferredConsensusProtocolID); err != nil {
-					log.Error(ctx, "Failed to set current consensus protocol", err, z.Str("protocol", preferredConsensusProtocol))
+					log.Error(ctx, "Failed to set core consensus protocol", err, z.Str("protocol", preferredConsensusProtocol))
 				} else {
-					log.Info(ctx, "Current consensus protocol changed", z.Str("protocol", preferredConsensusProtocol))
+					log.Info(ctx, "Core consensus protocol changed", z.Str("protocol", preferredConsensusProtocol))
 				}
 
 				break
