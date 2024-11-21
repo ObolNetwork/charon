@@ -17,23 +17,23 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-//go:generate go test . -run=TestPerformanceTest -update
+//go:generate go test . -run=TestInfraTest -update
 
-func TestPerformanceTest(t *testing.T) {
+func TestInfraTest(t *testing.T) {
 	tests := []struct {
 		name        string
-		config      testPerformanceConfig
+		config      testInfraConfig
 		expected    testCategoryResult
 		expectedErr string
 		cleanup     func(*testing.T, string)
 	}{
 		{
 			name: "default scenario",
-			config: testPerformanceConfig{
+			config: testInfraConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
-					TestCases:  []string{"availableMemory", "totalMemory", "internetLatency"},
+					TestCases:  []string{"AvailableMemory", "TotalMemory", "InternetLatency"},
 					Timeout:    time.Minute,
 				},
 				DiskIOBlockSizeKb: 1,
@@ -41,21 +41,21 @@ func TestPerformanceTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					"local": {
-						{Name: "availableMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "totalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "internetLatency", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "AvailableMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "TotalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "InternetLatency", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score:        categoryScoreC,
-				CategoryName: performanceTestCategory,
+				CategoryName: infraTestCategory,
 			},
 			expectedErr: "",
 		},
 		{
 			name: "timeout",
-			config: testPerformanceConfig{
+			config: testInfraConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
 					TestCases:  nil,
 					Timeout:    100 * time.Nanosecond,
@@ -65,21 +65,21 @@ func TestPerformanceTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					"local": {
-						{Name: "diskWriteSpeed", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "DiskWriteSpeed", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
 				Score:        categoryScoreC,
-				CategoryName: performanceTestCategory,
+				CategoryName: infraTestCategory,
 			},
 			expectedErr: "",
 		},
 		{
 			name: "quiet",
-			config: testPerformanceConfig{
+			config: testInfraConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      true,
-					TestCases:  []string{"availableMemory", "totalMemory", "internetLatency"},
+					TestCases:  []string{"AvailableMemory", "TotalMemory", "InternetLatency"},
 					Timeout:    time.Minute,
 				},
 				DiskIOBlockSizeKb: 1,
@@ -87,21 +87,21 @@ func TestPerformanceTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					"local": {
-						{Name: "availableMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "totalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "internetLatency", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "AvailableMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "TotalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "InternetLatency", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score:        categoryScoreC,
-				CategoryName: performanceTestCategory,
+				CategoryName: infraTestCategory,
 			},
 			expectedErr: "",
 		},
 		{
 			name: "unsupported test",
-			config: testPerformanceConfig{
+			config: testInfraConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
 					TestCases:  []string{"notSupportedTest"},
 					Timeout:    time.Minute,
@@ -110,17 +110,17 @@ func TestPerformanceTest(t *testing.T) {
 			},
 			expected: testCategoryResult{
 				Score:        categoryScoreC,
-				CategoryName: performanceTestCategory,
+				CategoryName: infraTestCategory,
 			},
 			expectedErr: "test case not supported",
 		},
 		{
 			name: "custom test cases",
-			config: testPerformanceConfig{
+			config: testInfraConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
-					TestCases:  []string{"totalMemory"},
+					TestCases:  []string{"TotalMemory"},
 					Timeout:    time.Minute,
 				},
 				DiskIOBlockSizeKb: 1,
@@ -128,21 +128,21 @@ func TestPerformanceTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					"local": {
-						{Name: "totalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "TotalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score:        categoryScoreC,
-				CategoryName: performanceTestCategory,
+				CategoryName: infraTestCategory,
 			},
 			expectedErr: "",
 		},
 		{
 			name: "write to file",
-			config: testPerformanceConfig{
+			config: testInfraConfig{
 				testConfig: testConfig{
-					OutputToml: "./write-to-file-test.toml.tmp",
+					OutputJSON: "./write-to-file-test.json.tmp",
 					Quiet:      false,
-					TestCases:  []string{"availableMemory", "totalMemory", "internetLatency"},
+					TestCases:  []string{"AvailableMemory", "TotalMemory", "InternetLatency"},
 					Timeout:    time.Minute,
 				},
 				DiskIOBlockSizeKb: 1,
@@ -150,13 +150,13 @@ func TestPerformanceTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					"local": {
-						{Name: "availableMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "totalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "internetLatency", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "AvailableMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "TotalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "InternetLatency", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score:        categoryScoreA,
-				CategoryName: performanceTestCategory,
+				CategoryName: infraTestCategory,
 			},
 			expectedErr: "",
 			cleanup: func(t *testing.T, p string) {
@@ -170,7 +170,7 @@ func TestPerformanceTest(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var buf bytes.Buffer
 			ctx := context.Background()
-			err := runTestPerformance(ctx, &buf, test.config)
+			_, err := runTestInfra(ctx, &buf, test.config)
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
 				return
@@ -179,7 +179,7 @@ func TestPerformanceTest(t *testing.T) {
 			}
 			defer func() {
 				if test.cleanup != nil {
-					test.cleanup(t, test.config.OutputToml)
+					test.cleanup(t, test.config.OutputJSON)
 				}
 			}()
 
@@ -189,14 +189,14 @@ func TestPerformanceTest(t *testing.T) {
 				testWriteOut(t, test.expected, buf)
 			}
 
-			if test.config.OutputToml != "" {
-				testWriteFile(t, test.expected, test.config.OutputToml)
+			if test.config.OutputJSON != "" {
+				testWriteFile(t, test.expected, test.config.OutputJSON)
 			}
 		})
 	}
 }
 
-func StartHealthyPerformanceClient(t *testing.T, port int, ready chan bool) error {
+func StartHealthyInfraClient(t *testing.T, port int, ready chan bool) error {
 	t.Helper()
 	defer close(ready)
 
@@ -215,7 +215,7 @@ func StartHealthyPerformanceClient(t *testing.T, port int, ready chan bool) erro
 	}
 }
 
-func TestPerformanceTestFlags(t *testing.T) {
+func TestInfraTestFlags(t *testing.T) {
 	tests := []struct {
 		name        string
 		args        []string
@@ -223,19 +223,21 @@ func TestPerformanceTestFlags(t *testing.T) {
 	}{
 		{
 			name:        "default scenario",
-			args:        []string{"performance", "--disk-io-block-size-kb=1"},
+			args:        []string{"infra", "--disk-io-block-size-kb=1"},
 			expectedErr: "",
 		},
 		{
-			name:        "no output toml on quiet",
-			args:        []string{"performance", "--disk-io-block-size-kb=1", "--quiet"},
-			expectedErr: "on --quiet, an --output-toml is required",
+			name:        "no output json on quiet",
+			args:        []string{"infra", "--disk-io-block-size-kb=1", "--quiet"},
+			expectedErr: "on --quiet, an --output-json is required",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cmd := newAlphaCmd(newTestPerformanceCmd(func(context.Context, io.Writer, testPerformanceConfig) error { return nil }))
+			cmd := newAlphaCmd(newTestInfraCmd(func(context.Context, io.Writer, testInfraConfig) (testCategoryResult, error) {
+				return testCategoryResult{}, nil
+			}))
 			cmd.SetArgs(test.args)
 			err := cmd.Execute()
 			if test.expectedErr != "" {

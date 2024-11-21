@@ -47,14 +47,6 @@ func New() *cobra.Command {
 		),
 		newCombineCmd(newCombineFunc),
 		newAlphaCmd(
-			newTestCmd(
-				newTestAllCmd(runTestAll),
-				newTestPeersCmd(runTestPeers),
-				newTestBeaconCmd(runTestBeacon),
-				newTestValidatorCmd(runTestValidator),
-				newTestMEVCmd(runTestMEV),
-				newTestPerformanceCmd(runTestPerformance),
-			),
 			newAddValidatorsCmd(runAddValidatorsSolo),
 			newViewClusterManifestCmd(runViewClusterManifest),
 		),
@@ -65,6 +57,14 @@ func New() *cobra.Command {
 			newFetchExitCmd(runFetchExit),
 		),
 		newUnsafeCmd(newRunCmd(app.Run, true)),
+		newTestCmd(
+			newTestAllCmd(runTestAll),
+			newTestPeersCmd(runTestPeers),
+			newTestBeaconCmd(runTestBeacon),
+			newTestValidatorCmd(runTestValidator),
+			newTestMEVCmd(runTestMEV),
+			newTestInfraCmd(runTestInfra),
+		),
 	)
 }
 

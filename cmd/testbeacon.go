@@ -37,6 +37,7 @@ type testBeaconConfig struct {
 	SimulationFileDir    string
 	SimulationDuration   int
 	SimulationVerbose    bool
+	SimulationCustom     int
 }
 
 type testCaseBeacon func(context.Context, *testBeaconConfig, string) testResult
@@ -143,23 +144,17 @@ type SimulationCluster struct {
 }
 
 const (
-	thresholdBeaconMeasureAvg  = 40 * time.Millisecond
-	thresholdBeaconMeasurePoor = 100 * time.Millisecond
-	thresholdBeaconLoadAvg     = 40 * time.Millisecond
-	thresholdBeaconLoadPoor    = 100 * time.Millisecond
-	thresholdBeaconPeersAvg    = 50
-	thresholdBeaconPeersPoor   = 20
-
+	thresholdBeaconMeasureAvg     = 40 * time.Millisecond
+	thresholdBeaconMeasurePoor    = 100 * time.Millisecond
+	thresholdBeaconLoadAvg        = 40 * time.Millisecond
+	thresholdBeaconLoadPoor       = 100 * time.Millisecond
+	thresholdBeaconPeersAvg       = 50
+	thresholdBeaconPeersPoor      = 20
 	thresholdBeaconSimulationAvg  = 200 * time.Millisecond
 	thresholdBeaconSimulationPoor = 400 * time.Millisecond
-	committeeSizePerSlot          = 64
-	subCommitteeSize              = 4
-	slotTime                      = 12 * time.Second
-	slotsInEpoch                  = 32
-	epochTime                     = slotsInEpoch * slotTime
 )
 
-func newTestBeaconCmd(runFunc func(context.Context, io.Writer, testBeaconConfig) error) *cobra.Command {
+func newTestBeaconCmd(runFunc func(context.Context, io.Writer, testBeaconConfig) (testCategoryResult, error)) *cobra.Command {
 	var config testBeaconConfig
 
 	cmd := &cobra.Command{
@@ -171,7 +166,8 @@ func newTestBeaconCmd(runFunc func(context.Context, io.Writer, testBeaconConfig)
 			return mustOutputToFileOnQuiet(cmd)
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runFunc(cmd.Context(), cmd.OutOrStdout(), config)
+			_, err := runFunc(cmd.Context(), cmd.OutOrStdout(), config)
+			return err
 		},
 	}
 
@@ -186,33 +182,37 @@ func bindTestBeaconFlags(cmd *cobra.Command, config *testBeaconConfig, flagsPref
 	cmd.Flags().BoolVar(&config.LoadTest, flagsPrefix+"load-test", false, "Enable load test, not advisable when testing towards external beacon nodes.")
 	cmd.Flags().DurationVar(&config.LoadTestDuration, flagsPrefix+"load-test-duration", 5*time.Second, "Time to keep running the load tests in seconds. For each second a new continuous ping instance is spawned.")
 	cmd.Flags().IntVar(&config.SimulationDuration, flagsPrefix+"simulation-duration-in-slots", slotsInEpoch, "Time to keep running the simulation in slots.")
+	cmd.Flags().StringVar(&config.SimulationFileDir, flagsPrefix+"simulation-file-dir", "./", "Time to keep running the simulation in slots.")
 	cmd.Flags().BoolVar(&config.SimulationVerbose, flagsPrefix+"simulation-verbose", false, "Show results for each request and each validator.")
+	cmd.Flags().IntVar(&config.SimulationCustom, flagsPrefix+"simulation-custom", 0, "Run custom simulation with the specified amount of validators.")
 	mustMarkFlagRequired(cmd, flagsPrefix+"endpoints")
 }
 
 func supportedBeaconTestCases() map[testCaseName]testCaseBeacon {
 	return map[testCaseName]testCaseBeacon{
-		{name: "ping", order: 1}:        beaconPingTest,
-		{name: "pingMeasure", order: 2}: beaconPingMeasureTest,
-		{name: "isSynced", order: 3}:    beaconIsSyncedTest,
-		{name: "peerCount", order: 4}:   beaconPeerCountTest,
-		{name: "pingLoad", order: 5}:    beaconPingLoadTest,
+		{name: "Ping", order: 1}:        beaconPingTest,
+		{name: "PingMeasure", order: 2}: beaconPingMeasureTest,
+		{name: "Version", order: 3}:     beaconVersionTest,
+		{name: "Synced", order: 4}:      beaconIsSyncedTest,
+		{name: "PeerCount", order: 5}:   beaconPeerCountTest,
+		{name: "PingLoad", order: 6}:    beaconPingLoadTest,
 
-		{name: "simulate1", order: 6}:     beaconSimulation1Test,
-		{name: "simulate10", order: 7}:    beaconSimulation10Test,
-		{name: "simulate100", order: 8}:   beaconSimulation100Test,
-		{name: "simulate500", order: 9}:   beaconSimulation500Test,
-		{name: "simulate1000", order: 10}: beaconSimulation1000Test,
+		{name: "Simulate1", order: 7}:       beaconSimulation1Test,
+		{name: "Simulate10", order: 8}:      beaconSimulation10Test,
+		{name: "Simulate100", order: 9}:     beaconSimulation100Test,
+		{name: "Simulate500", order: 10}:    beaconSimulation500Test,
+		{name: "Simulate1000", order: 11}:   beaconSimulation1000Test,
+		{name: "SimulateCustom", order: 12}: beaconSimulationCustomTest,
 	}
 }
 
-func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (err error) {
+func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (res testCategoryResult, err error) {
 	log.Info(ctx, "Starting beacon node test")
 
 	testCases := supportedBeaconTestCases()
 	queuedTests := filterTests(maps.Keys(testCases), cfg.testConfig)
 	if len(queuedTests) == 0 {
-		return errors.New("test case not supported")
+		return res, errors.New("test case not supported")
 	}
 	sortTests(queuedTests)
 
@@ -241,7 +241,7 @@ func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (err 
 		}
 	}
 
-	res := testCategoryResult{
+	res = testCategoryResult{
 		CategoryName:  beaconTestCategory,
 		Targets:       testResults,
 		ExecutionTime: execTime,
@@ -251,18 +251,18 @@ func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (err 
 	if !cfg.Quiet {
 		err = writeResultToWriter(res, w)
 		if err != nil {
-			return err
+			return res, err
 		}
 	}
 
-	if cfg.OutputToml != "" {
-		err = writeResultToFile(res, cfg.OutputToml)
+	if cfg.OutputJSON != "" {
+		err = writeResultToFile(res, cfg.OutputJSON)
 		if err != nil {
-			return err
+			return res, err
 		}
 	}
 
-	return nil
+	return res, nil
 }
 
 // beacon node tests
@@ -275,9 +275,8 @@ func testAllBeacons(ctx context.Context, queuedTestCases []testCaseName, allTest
 	group, _ := errgroup.WithContext(ctx)
 
 	for _, endpoint := range conf.Endpoints {
-		currEndpoint := endpoint // TODO: can be removed after go1.22 version bump
 		group.Go(func() error {
-			return testSingleBeacon(ctx, queuedTestCases, allTestCases, conf, currEndpoint, singleBeaconResCh)
+			return testSingleBeacon(ctx, queuedTestCases, allTestCases, conf, endpoint, singleBeaconResCh)
 		})
 	}
 
@@ -319,9 +318,7 @@ func testSingleBeacon(ctx context.Context, queuedTestCases []testCaseName, allTe
 				finished = true
 				break
 			}
-			testName = queuedTestCases[testCounter].name
 			testCounter++
-			result.Name = testName
 			allTestRes = append(allTestRes, result)
 		}
 	}
@@ -346,13 +343,12 @@ func runBeaconTest(ctx context.Context, queuedTestCases []testCaseName, allTestC
 func beaconPingTest(ctx context.Context, _ *testBeaconConfig, target string) testResult {
 	testRes := testResult{Name: "Ping"}
 
-	client := http.Client{}
 	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/health", target)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
-	resp, err := client.Do(req)
+	resp, err := new(http.Client).Do(req)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
@@ -380,8 +376,57 @@ func beaconPingMeasureTest(ctx context.Context, _ *testBeaconConfig, target stri
 	return testRes
 }
 
+func beaconVersionTest(ctx context.Context, _ *testBeaconConfig, target string) testResult {
+	testRes := testResult{Name: "Version"}
+
+	type versionData struct {
+		Version string `json:"version"`
+	}
+	type versionResponse struct {
+		Data versionData `json:"data"`
+	}
+
+	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/version", target)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+	resp, err := new(http.Client).Do(req)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+
+	if resp.StatusCode > 399 {
+		return failedTestResult(testRes, errors.New(httpStatusError(resp.StatusCode)))
+	}
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+	defer resp.Body.Close()
+
+	var versionResp versionResponse
+	err = json.Unmarshal(b, &versionResp)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+
+	// keep only provider, version and platform
+	splitVersion := strings.Split(versionResp.Data.Version, "/")
+	if len(splitVersion) > 3 {
+		splitVersion = splitVersion[:3]
+	}
+	version := strings.Join(splitVersion, "/")
+
+	testRes.Measurement = version
+	testRes.Verdict = testVerdictOk
+
+	return testRes
+}
+
 func beaconPingLoadTest(ctx context.Context, conf *testBeaconConfig, target string) testResult {
-	testRes := testResult{Name: "BeaconLoad"}
+	testRes := testResult{Name: "PingLoad"}
 	if !conf.LoadTest {
 		testRes.Verdict = testVerdictSkipped
 		return testRes
@@ -419,19 +464,18 @@ func beaconPingLoadTest(ctx context.Context, conf *testBeaconConfig, target stri
 }
 
 func beaconIsSyncedTest(ctx context.Context, _ *testBeaconConfig, target string) testResult {
-	testRes := testResult{Name: "isSynced"}
+	testRes := testResult{Name: "Synced"}
 
 	type isSyncedResponse struct {
 		Data eth2v1.SyncState `json:"data"`
 	}
 
-	client := http.Client{}
 	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/syncing", target)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
-	resp, err := client.Do(req)
+	resp, err := new(http.Client).Do(req)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
@@ -463,7 +507,7 @@ func beaconIsSyncedTest(ctx context.Context, _ *testBeaconConfig, target string)
 }
 
 func beaconPeerCountTest(ctx context.Context, _ *testBeaconConfig, target string) testResult {
-	testRes := testResult{Name: "peerCount"}
+	testRes := testResult{Name: "PeerCount"}
 
 	type peerCountResponseMeta struct {
 		Count int `json:"count"`
@@ -473,13 +517,12 @@ func beaconPeerCountTest(ctx context.Context, _ *testBeaconConfig, target string
 		Meta peerCountResponseMeta `json:"meta"`
 	}
 
-	client := http.Client{}
 	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/peers?state=connected", target)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
-	resp, err := client.Do(req)
+	resp, err := new(http.Client).Do(req)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
@@ -538,7 +581,7 @@ func pingBeaconContinuously(ctx context.Context, target string, resCh chan<- tim
 // beacon simulation tests
 
 func beaconSimulation1Test(ctx context.Context, conf *testBeaconConfig, target string) testResult {
-	testRes := testResult{Name: "BeaconSimulation1Validator"}
+	testRes := testResult{Name: "Simulate1"}
 	if !conf.LoadTest {
 		testRes.Verdict = testVerdictSkipped
 		return testRes
@@ -563,7 +606,7 @@ func beaconSimulation1Test(ctx context.Context, conf *testBeaconConfig, target s
 }
 
 func beaconSimulation10Test(ctx context.Context, conf *testBeaconConfig, target string) testResult {
-	testRes := testResult{Name: "BeaconSimulation10Validators"}
+	testRes := testResult{Name: "Simulate10"}
 	if !conf.LoadTest {
 		testRes.Verdict = testVerdictSkipped
 		return testRes
@@ -588,7 +631,7 @@ func beaconSimulation10Test(ctx context.Context, conf *testBeaconConfig, target 
 }
 
 func beaconSimulation100Test(ctx context.Context, conf *testBeaconConfig, target string) testResult {
-	testRes := testResult{Name: "BeaconSimulation100Validators"}
+	testRes := testResult{Name: "Simulate100"}
 	if !conf.LoadTest {
 		testRes.Verdict = testVerdictSkipped
 		return testRes
@@ -613,7 +656,7 @@ func beaconSimulation100Test(ctx context.Context, conf *testBeaconConfig, target
 }
 
 func beaconSimulation500Test(ctx context.Context, conf *testBeaconConfig, target string) testResult {
-	testRes := testResult{Name: "BeaconSimulation500Validators"}
+	testRes := testResult{Name: "Simulate500"}
 	if !conf.LoadTest {
 		testRes.Verdict = testVerdictSkipped
 		return testRes
@@ -638,7 +681,7 @@ func beaconSimulation500Test(ctx context.Context, conf *testBeaconConfig, target
 }
 
 func beaconSimulation1000Test(ctx context.Context, conf *testBeaconConfig, target string) testResult {
-	testRes := testResult{Name: "BeaconSimulation1000Validators"}
+	testRes := testResult{Name: "Simulate1000"}
 	if !conf.LoadTest {
 		testRes.Verdict = testVerdictSkipped
 		return testRes
@@ -649,6 +692,43 @@ func beaconSimulation1000Test(ctx context.Context, conf *testBeaconConfig, targe
 		AttestationValidatorsCount:   930,
 		ProposalValidatorsCount:      65,
 		SyncCommitteeValidatorsCount: 5,
+		RequestIntensity: RequestsIntensity{
+			AttestationDuty:           slotTime,
+			AggregatorDuty:            slotTime * 2,
+			ProposalDuty:              slotTime * 4,
+			SyncCommitteeSubmit:       slotTime,
+			SyncCommitteeContribution: slotTime * 4,
+			SyncCommitteeSubscribe:    epochTime,
+		},
+	}
+
+	return beaconSimulationTest(ctx, conf, target, testRes, params)
+}
+
+func beaconSimulationCustomTest(ctx context.Context, conf *testBeaconConfig, target string) testResult {
+	testRes := testResult{Name: "SimulateCustom"}
+	if conf.SimulationCustom < 1 {
+		testRes.Verdict = testVerdictSkipped
+		return testRes
+	}
+	testRes.Name = fmt.Sprintf("Simulate%v", conf.SimulationCustom)
+
+	total := conf.SimulationCustom
+	syncCommittees := total / 100
+	if syncCommittees == 0 {
+		syncCommittees++
+	}
+	proposals := total / 15
+	if proposals == 0 && (total-syncCommittees != 0) {
+		proposals++
+	}
+	attestations := total - syncCommittees - proposals
+
+	params := simParams{
+		TotalValidatorsCount:         total,
+		AttestationValidatorsCount:   attestations,
+		ProposalValidatorsCount:      proposals,
+		SyncCommitteeValidatorsCount: syncCommittees,
 		RequestIntensity: RequestsIntensity{
 			AttestationDuty:           slotTime,
 			AggregatorDuty:            slotTime * 2,

@@ -178,6 +178,7 @@ linters:
     - nonamedreturns
     - paralleltest
     - prealloc
+    - recvcheck # triggers a lot of false positives
     - tagliatelle
     - varnamelen
     - wsl

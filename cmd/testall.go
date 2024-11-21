@@ -13,11 +13,11 @@ import (
 
 type testAllConfig struct {
 	testConfig
-	Peers       testPeersConfig
-	Beacon      testBeaconConfig
-	Validator   testValidatorConfig
-	MEV         testMEVConfig
-	Performance testPerformanceConfig
+	Peers     testPeersConfig
+	Beacon    testBeaconConfig
+	Validator testValidatorConfig
+	MEV       testMEVConfig
+	Infra     testInfraConfig
 }
 
 func newTestAllCmd(runFunc func(context.Context, io.Writer, testAllConfig) error) *cobra.Command {
@@ -42,7 +42,7 @@ func newTestAllCmd(runFunc func(context.Context, io.Writer, testAllConfig) error
 	bindTestBeaconFlags(cmd, &config.Beacon, "beacon-")
 	bindTestValidatorFlags(cmd, &config.Validator, "validator-")
 	bindTestMEVFlags(cmd, &config.MEV, "mev-")
-	bindTestPerformanceFlags(cmd, &config.Performance, "performance-")
+	bindTestInfraFlags(cmd, &config.Infra, "infra-")
 
 	bindP2PFlags(cmd, &config.Peers.P2P)
 	bindDataDirFlag(cmd.Flags(), &config.Peers.DataDir)
@@ -64,33 +64,53 @@ func newTestAllCmd(runFunc func(context.Context, io.Writer, testAllConfig) error
 
 func runTestAll(ctx context.Context, w io.Writer, cfg testAllConfig) (err error) {
 	cfg.Beacon.testConfig = cfg.testConfig
-	err = runTestBeacon(ctx, w, cfg.Beacon)
+	cfg.Beacon.Quiet = true
+	var results []testCategoryResult
+	beaconRes, err := runTestBeacon(ctx, w, cfg.Beacon)
 	if err != nil {
 		return err
 	}
+	results = append(results, beaconRes)
 
 	cfg.Validator.testConfig = cfg.testConfig
-	err = runTestValidator(ctx, w, cfg.Validator)
+	cfg.Validator.Quiet = true
+	validatorRes, err := runTestValidator(ctx, w, cfg.Validator)
 	if err != nil {
 		return err
 	}
+	results = append(results, validatorRes)
 
 	cfg.MEV.testConfig = cfg.testConfig
-	err = runTestMEV(ctx, w, cfg.MEV)
+	cfg.MEV.Quiet = true
+	mevRes, err := runTestMEV(ctx, w, cfg.MEV)
 	if err != nil {
 		return err
 	}
+	results = append(results, mevRes)
 
-	cfg.Performance.testConfig = cfg.testConfig
-	err = runTestPerformance(ctx, w, cfg.Performance)
+	cfg.Infra.testConfig = cfg.testConfig
+	cfg.Infra.Quiet = true
+	infraRes, err := runTestInfra(ctx, w, cfg.Infra)
 	if err != nil {
 		return err
 	}
+	results = append(results, infraRes)
 
 	cfg.Peers.testConfig = cfg.testConfig
-	err = runTestPeers(ctx, w, cfg.Peers)
+	cfg.Peers.Quiet = true
+	peersRes, err := runTestPeers(ctx, w, cfg.Peers)
 	if err != nil {
 		return err
+	}
+	results = append(results, peersRes)
+
+	if !cfg.Quiet {
+		for _, res := range results {
+			err = writeResultToWriter(res, w)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
