@@ -626,7 +626,7 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 		allProtocols = protocols.PrioritizeProtocolsByName(clusterPreferredProtocol, allProtocols)
 	}
 	if conf.ConsensusProtocol != "" {
-		log.Debug(ctx, "Prioritizing consensus protocol from CLI flag", z.Str("protocol", clusterPreferredProtocol))
+		log.Debug(ctx, "Prioritizing consensus protocol from CLI flag", z.Str("protocol", conf.ConsensusProtocol))
 		allProtocols = protocols.PrioritizeProtocolsByName(conf.ConsensusProtocol, allProtocols)
 	}
 
@@ -649,7 +649,7 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 		prio.Subscribe(conf.TestConfig.PrioritiseCallback)
 	}
 
-	prio.Subscribe(func(ctx context.Context, _ core.Duty, tr []priority.TopicResult) error {
+	prio.Subscribe(func(lctx context.Context, _ core.Duty, tr []priority.TopicResult) error {
 		for _, t := range tr {
 			if t.Topic == infosync.TopicProtocol {
 				allProtocols := t.PrioritiesOnly()
@@ -657,9 +657,9 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 				preferredConsensusProtocolID := protocol.ID(preferredConsensusProtocol)
 
 				if err := consensusController.SetCurrentConsensusForProtocol(ctx, preferredConsensusProtocolID); err != nil {
-					log.Error(ctx, "Failed to set core consensus protocol", err, z.Str("protocol", preferredConsensusProtocol))
+					log.Error(lctx, "Failed to set core consensus protocol", err, z.Str("protocol", preferredConsensusProtocol))
 				} else {
-					log.Info(ctx, "Core consensus protocol changed", z.Str("protocol", preferredConsensusProtocol))
+					log.Info(lctx, "Core consensus protocol changed", z.Str("protocol", preferredConsensusProtocol))
 				}
 
 				break
