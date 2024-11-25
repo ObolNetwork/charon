@@ -335,7 +335,7 @@ func mevCreateMultipleBlocksTest(ctx context.Context, conf *testMEVConfig, targe
 	// wait for beginning of next slot, as the block for current one might have already been proposed
 	latestBlockTSUnix, err := strconv.ParseInt(latestBlock.Body.ExecutionPayload.Timestamp, 10, 64)
 	if err != nil {
-		failedTestResult(testRes, err)
+		return failedTestResult(testRes, err)
 	}
 	latestBlockTS := time.Unix(latestBlockTSUnix, 0)
 	nextBlockTS := latestBlockTS.Add(slotTime)
