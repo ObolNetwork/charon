@@ -612,6 +612,11 @@ func fioCommand(ctx context.Context, filename string, blocksize int, operation s
 		return nil, errors.Wrap(err, "exec fio command")
 	}
 
+	err = os.Remove(fmt.Sprintf("%v/fiotest", filename))
+	if err != nil {
+		return nil, errors.Wrap(err, "delete fio test file")
+	}
+
 	return cmd, nil
 }
 
