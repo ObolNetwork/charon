@@ -33,7 +33,7 @@ type testMEVConfig struct {
 	Endpoints          []string
 	BeaconNodeEndpoint string
 	LoadTest           bool
-	LoadTestBlocks     uint
+	NumberOfPayloads   uint
 }
 
 type testCaseMEV func(context.Context, *testMEVConfig, string) testResult
@@ -89,16 +89,15 @@ func bindTestMEVFlags(cmd *cobra.Command, config *testMEVConfig, flagsPrefix str
 	cmd.Flags().StringSliceVar(&config.Endpoints, flagsPrefix+"endpoints", nil, "Comma separated list of one or more MEV relay endpoint URLs.")
 	cmd.Flags().StringVar(&config.BeaconNodeEndpoint, flagsPrefix+"beacon-node-endpoint", "", "[REQUIRED] Beacon node endpoint URL used for block creation test.")
 	cmd.Flags().BoolVar(&config.LoadTest, flagsPrefix+"load-test", false, "Enable load test.")
-	cmd.Flags().UintVar(&config.LoadTestBlocks, flagsPrefix+"load-test-blocks", 3, "Amount of blocks the 'createMultipleBlocks' test will create.")
+	cmd.Flags().UintVar(&config.NumberOfPayloads, flagsPrefix+"number-of-payloads", 1, "Increases the accuracy of the load test by asking for multiple payloads. Increases test duration.")
 	mustMarkFlagRequired(cmd, flagsPrefix+"endpoints")
 }
 
 func supportedMEVTestCases() map[testCaseName]testCaseMEV {
 	return map[testCaseName]testCaseMEV{
-		{name: "Ping", order: 1}:                 mevPingTest,
-		{name: "PingMeasure", order: 2}:          mevPingMeasureTest,
-		{name: "CreateBlock", order: 3}:          mevCreateBlockTest,
-		{name: "CreateMultipleBlocks", order: 4}: mevCreateMultipleBlocksTest,
+		{name: "Ping", order: 1}:        mevPingTest,
+		{name: "PingMeasure", order: 2}: mevPingMeasureTest,
+		{name: "CreateBlock", order: 3}: mevCreateBlockTest,
 	}
 }
 
@@ -309,53 +308,8 @@ func mevCreateBlockTest(ctx context.Context, conf *testMEVConfig, target string)
 		return failedTestResult(testRes, err)
 	}
 
-	log.Info(ctx, "Starting attempts for block creation", z.Any("mev_relay", target))
-	rtt, err := createMEVBlock(ctx, conf, target, nextSlot, latestBlock, proposerDuties)
-	if err != nil {
-		return failedTestResult(testRes, err)
-	}
-	testRes = evaluateRTT(rtt, testRes, thresholdMEVBlockAvg, thresholdMEVBlockPoor)
-
-	return testRes
-}
-
-func mevCreateMultipleBlocksTest(ctx context.Context, conf *testMEVConfig, target string) testResult {
-	testRes := testResult{Name: "CreateMultipleBlocks"}
-
-	if !conf.LoadTest {
-		testRes.Verdict = testVerdictSkipped
-		return testRes
-	}
-
-	latestBlock, err := latestBeaconBlock(ctx, conf.BeaconNodeEndpoint)
-	if err != nil {
-		return failedTestResult(testRes, err)
-	}
-
-	// wait for beginning of next slot, as the block for current one might have already been proposed
-	latestBlockTSUnix, err := strconv.ParseInt(latestBlock.Body.ExecutionPayload.Timestamp, 10, 64)
-	if err != nil {
-		return failedTestResult(testRes, err)
-	}
-	latestBlockTS := time.Unix(latestBlockTSUnix, 0)
-	nextBlockTS := latestBlockTS.Add(slotTime)
-	for time.Now().Before(nextBlockTS) && ctx.Err() == nil {
-		sleepWithContext(ctx, time.Millisecond)
-	}
-
-	latestSlot, err := strconv.ParseInt(latestBlock.Slot, 10, 64)
-	if err != nil {
-		return failedTestResult(testRes, err)
-	}
-	nextSlot := latestSlot + 1
-	epoch := nextSlot / slotsInEpoch
-	proposerDuties, err := fetchProposersForEpoch(ctx, conf, epoch)
-	if err != nil {
-		return failedTestResult(testRes, err)
-	}
-
 	allBlocksRTT := []time.Duration{}
-	log.Info(ctx, "Starting attempts for multiple block creation", z.Any("mev_relay", target), z.Any("blocks", conf.LoadTestBlocks))
+	log.Info(ctx, "Starting attempts for block creation", z.Any("mev_relay", target), z.Any("blocks", conf.NumberOfPayloads))
 	for ctx.Err() == nil {
 		startIteration := time.Now()
 		rtt, err := createMEVBlock(ctx, conf, target, nextSlot, latestBlock, proposerDuties)
@@ -363,7 +317,7 @@ func mevCreateMultipleBlocksTest(ctx context.Context, conf *testMEVConfig, targe
 			return failedTestResult(testRes, err)
 		}
 		allBlocksRTT = append(allBlocksRTT, rtt)
-		if len(allBlocksRTT) == int(conf.LoadTestBlocks) {
+		if len(allBlocksRTT) == int(conf.NumberOfPayloads) {
 			break
 		}
 		// wait for the next slot - time it took createMEVBlock - 1 sec
