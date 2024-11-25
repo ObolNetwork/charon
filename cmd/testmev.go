@@ -75,6 +75,10 @@ func newTestMEVCmd(runFunc func(context.Context, io.Writer, testMEVConfig) (test
 			return errors.New("beacon-node-endpoint should be specified when load-test is")
 		}
 
+		if loadTest == "false" && beaconNodeEndpoint != "" {
+			return errors.New("beacon-node-endpoint should be used only when load-test is")
+		}
+
 		return nil
 	})
 
@@ -82,7 +86,7 @@ func newTestMEVCmd(runFunc func(context.Context, io.Writer, testMEVConfig) (test
 }
 
 func bindTestMEVFlags(cmd *cobra.Command, config *testMEVConfig, flagsPrefix string) {
-	cmd.Flags().StringSliceVar(&config.Endpoints, flagsPrefix+"endpoints", nil, "[REQUIRED] Comma separated list of one or more MEV relay endpoint URLs.")
+	cmd.Flags().StringSliceVar(&config.Endpoints, flagsPrefix+"endpoints", nil, "Comma separated list of one or more MEV relay endpoint URLs.")
 	cmd.Flags().StringVar(&config.BeaconNodeEndpoint, flagsPrefix+"beacon-node-endpoint", "", "[REQUIRED] Beacon node endpoint URL used for block creation test.")
 	cmd.Flags().BoolVar(&config.LoadTest, flagsPrefix+"load-test", false, "Enable load test.")
 	cmd.Flags().UintVar(&config.LoadTestBlocks, flagsPrefix+"load-test-blocks", 3, "Amount of blocks the 'createMultipleBlocks' test will create.")
