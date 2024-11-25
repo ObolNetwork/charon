@@ -46,6 +46,7 @@ RUN addgroup --gid "$GID" "$USER" \
   && chmod u+x /usr/local/bin/charon
 
 WORKDIR "/opt/$USER"
+RUN chown charon "/opt/$USER"
 USER charon
 
 ENTRYPOINT ["/usr/local/bin/charon"]
