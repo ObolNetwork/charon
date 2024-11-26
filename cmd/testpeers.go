@@ -395,14 +395,7 @@ func peerPingMeasureTest(ctx context.Context, _ *testPeersConfig, tcpNode host.H
 		return failedTestResult(testRes, result.Error)
 	}
 
-	if result.RTT > thresholdPeersMeasurePoor {
-		testRes.Verdict = testVerdictPoor
-	} else if result.RTT > thresholdPeersMeasureAvg {
-		testRes.Verdict = testVerdictAvg
-	} else {
-		testRes.Verdict = testVerdictGood
-	}
-	testRes.Measurement = Duration{result.RTT}.String()
+	testRes = evaluateRTT(result.RTT, testRes, thresholdPeersMeasureAvg, thresholdPeersMeasurePoor)
 
 	return testRes
 }
