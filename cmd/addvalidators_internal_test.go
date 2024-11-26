@@ -217,9 +217,9 @@ func TestRunAddValidators(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, entries, 3)
 
-		require.True(t, strings.Contains(entries[0].Name(), "cluster-manifest"))
-		require.True(t, strings.Contains(entries[1].Name(), "deposit-data"))
-		require.True(t, strings.Contains(entries[2].Name(), "validator_keys"))
+		require.Contains(t, entries[0].Name(), "cluster-manifest")
+		require.Contains(t, entries[1].Name(), "deposit-data")
+		require.Contains(t, entries[2].Name(), "validator_keys")
 	})
 }
 
