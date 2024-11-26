@@ -65,3 +65,16 @@ func (d *Duration) UnmarshalText(b []byte) error {
 
 	return nil
 }
+
+func RoundDuration(d Duration) Duration {
+	switch {
+	case d.Duration > time.Second:
+		return Duration{d.Round(10 * time.Millisecond)}
+	case d.Duration > time.Millisecond:
+		return Duration{d.Round(time.Millisecond)}
+	case d.Duration > time.Microsecond:
+		return Duration{d.Round(time.Microsecond)}
+	default:
+		return d
+	}
+}

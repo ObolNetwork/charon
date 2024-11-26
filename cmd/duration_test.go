@@ -294,3 +294,43 @@ func TestDurationUnmarshalText(t *testing.T) {
 		})
 	}
 }
+
+func TestRoundDuration(t *testing.T) {
+	tests := []struct {
+		name     string
+		in       cmd.Duration
+		expected cmd.Duration
+	}{
+		{
+			name:     "15.151 milliseconds",
+			in:       cmd.Duration{15151 * time.Microsecond},
+			expected: cmd.Duration{15 * time.Millisecond},
+		},
+		{
+			name:     "15.151515 milliseconds",
+			in:       cmd.Duration{15151515 * time.Nanosecond},
+			expected: cmd.Duration{15 * time.Millisecond},
+		},
+		{
+			name:     "2.344444 seconds",
+			in:       cmd.Duration{2344444 * time.Microsecond},
+			expected: cmd.Duration{2340 * time.Millisecond},
+		},
+		{
+			name:     "2.345555 seconds",
+			in:       cmd.Duration{2345555 * time.Microsecond},
+			expected: cmd.Duration{2350 * time.Millisecond},
+		},
+		{
+			name:     "15.151 microsecond",
+			in:       cmd.Duration{15151 * time.Nanosecond},
+			expected: cmd.Duration{15 * time.Microsecond},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			res := cmd.RoundDuration(test.in)
+			require.Equal(t, test.expected, res)
+		})
+	}
+}
