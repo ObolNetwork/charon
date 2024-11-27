@@ -9,6 +9,9 @@ import (
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 )
 
+//go:generate mockery --name=Transport --output=mocks --outpkg=mocks --case=underscore
+//go:generate mockery --name=Cluster --output=mocks --outpkg=mocks --case=underscore
+
 // ID uniquely identifies a replica. The first replica has ID = 1.
 type ID uint64
 

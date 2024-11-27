@@ -14,7 +14,7 @@ import (
 )
 
 func TestHasQuorum(t *testing.T) {
-	c, err := newCluster(4, 3)
+	c, err := newCluster(4, 3, 1, 100)
 	require.NoError(t, err)
 
 	pubKeys := make([]*k1.PublicKey, 0)
@@ -32,7 +32,7 @@ func TestHasQuorum(t *testing.T) {
 }
 
 func TestLeader(t *testing.T) {
-	c, err := newCluster(7, 5)
+	c, err := newCluster(7, 5, 1, 100)
 	require.NoError(t, err)
 
 	require.Equal(t, hotstuff.ID(2), c.Leader(1))
@@ -46,7 +46,7 @@ func TestLeader(t *testing.T) {
 }
 
 func TestReplicaIDByPublicKey(t *testing.T) {
-	c, err := newCluster(4, 3)
+	c, err := newCluster(4, 3, 1, 100)
 	require.NoError(t, err)
 
 	pubKey := c.publicKeys[1]
@@ -60,17 +60,19 @@ func TestReplicaIDByPublicKey(t *testing.T) {
 
 // Represents test cluster configuration.
 type cluster struct {
-	nodes       uint
-	threshold   uint
-	publicKeys  []*k1.PublicKey
-	privateKeys []*k1.PrivateKey
-	pubKeysToID map[k1.PublicKey]hotstuff.ID
+	nodes          uint
+	threshold      uint
+	maxView        uint
+	phaseTimeoutMs uint
+	publicKeys     []*k1.PublicKey
+	privateKeys    []*k1.PrivateKey
+	pubKeysToID    map[k1.PublicKey]hotstuff.ID
 }
 
 var _ hotstuff.Cluster = (*cluster)(nil)
 
 // NewCluster creates a new Byzantine cluster configuration.
-func newCluster(nodes, threshold uint) (*cluster, error) {
+func newCluster(nodes, threshold, maxView, phaseTimeoutMs uint) (*cluster, error) {
 	publicKeys := make([]*k1.PublicKey, 0)
 	privateKeys := make([]*k1.PrivateKey, 0)
 	pubKeysToID := make(map[k1.PublicKey]hotstuff.ID)
@@ -91,6 +93,8 @@ func newCluster(nodes, threshold uint) (*cluster, error) {
 	return &cluster{
 		nodes,
 		threshold,
+		maxView,
+		phaseTimeoutMs,
 		publicKeys,
 		privateKeys,
 		pubKeysToID,
@@ -121,9 +125,9 @@ func (c *cluster) Threshold() uint {
 }
 
 func (c *cluster) MaxView() hotstuff.View {
-	return hotstuff.View(3)
+	return hotstuff.View(c.maxView)
 }
 
 func (c *cluster) PhaseTimeout() time.Duration {
-	return time.Second
+	return time.Duration(c.phaseTimeoutMs) * time.Millisecond
 }

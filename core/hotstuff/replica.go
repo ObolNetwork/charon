@@ -15,6 +15,10 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
+var (
+	ErrMaxViewReached = errors.New("max view reached")
+)
+
 // Replica represents a single HotStuff replica.
 // A replica can also serve as the leader depending on the view.
 type Replica struct {
@@ -81,8 +85,8 @@ func (r *Replica) Run(ctx context.Context) error {
 		case <-time.After(r.cluster.PhaseTimeout()):
 			log.Warn(ctx, "Phase timeout", nil, z.Str("phase", r.phase.String()))
 
-			if r.view > r.cluster.MaxView() {
-				return errors.New("max view reached", z.Str("phase", r.phase.String()))
+			if r.view >= r.cluster.MaxView() {
+				return ErrMaxViewReached
 			}
 			if err := r.nextView(ctx); err != nil {
 				log.Error(ctx, "Failed to move to next view", err, z.Str("phase", r.phase.String()))
