@@ -4,6 +4,7 @@ package hotstuff_test
 
 import (
 	"testing"
+	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
@@ -117,4 +118,12 @@ func (c *cluster) HasQuorum(pubKeys []*k1.PublicKey) bool {
 
 func (c *cluster) Threshold() uint {
 	return c.threshold
+}
+
+func (c *cluster) MaxView() hotstuff.View {
+	return hotstuff.View(3)
+}
+
+func (c *cluster) PhaseTimeout() time.Duration {
+	return time.Second
 }

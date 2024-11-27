@@ -4,6 +4,7 @@ package hotstuff
 
 import (
 	"context"
+	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 )
@@ -28,11 +29,6 @@ func (id ID) ToIndex() int {
 // View is the HotStuff view number. The first view has number 1.
 type View uint64
 
-const (
-	// Allowing at most three views before stopping the protocol.
-	MaxView View = 3
-)
-
 // Transport defines replica's transport layer.
 type Transport interface {
 	// Broadcast sends a message to all replicas, including itself.
@@ -55,6 +51,13 @@ type Cluster interface {
 
 	// Threshold returns the Byzantine quorum threshold.
 	Threshold() uint
+
+	// MaxView returns the maximum view number.
+	// The number determines the number of views before stopping the protocol.
+	MaxView() View
+
+	// PhaseTimeout returns the timeout for each phase.
+	PhaseTimeout() time.Duration
 }
 
 // DecidedFunc is a callback function invoked when a value is decided.

@@ -5,7 +5,6 @@ package hotstuff_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -16,9 +15,8 @@ import (
 
 func TestHotStuff(t *testing.T) {
 	const (
-		total        = 4
-		threshold    = 3
-		phaseTimeout = 100 * time.Millisecond
+		total     = 4
+		threshold = 3
 	)
 
 	inputValue := []byte("hotstuff")
@@ -50,7 +48,7 @@ func TestHotStuff(t *testing.T) {
 		id := hotstuff.NewIDFromIndex(i)
 		privateKey := cluster.privateKeys[i]
 		receiveCh := recvChannels[i]
-		replicas[i] = hotstuff.NewReplica(id, duty, cluster, transports[i], receiveCh, privateKey, decidedFunc, valueCh, phaseTimeout)
+		replicas[i] = hotstuff.NewReplica(id, duty, cluster, transports[i], receiveCh, privateKey, decidedFunc, valueCh)
 	}
 
 	group, ctx := errgroup.WithContext(context.Background())

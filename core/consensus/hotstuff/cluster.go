@@ -4,10 +4,16 @@ package hotstuff
 
 import (
 	"math"
+	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 
 	hs "github.com/obolnetwork/charon/core/hotstuff"
+)
+
+const (
+	maxView      hs.View       = 3
+	phaseTimeout time.Duration = 5 * time.Second
 )
 
 // Represents immutable Byzantine cluster configuration.
@@ -60,4 +66,12 @@ func (c *cluster) HasQuorum(pubKeys []*k1.PublicKey) bool {
 
 func (c *cluster) Threshold() uint {
 	return c.threshold
+}
+
+func (*cluster) MaxView() hs.View {
+	return maxView
+}
+
+func (*cluster) PhaseTimeout() time.Duration {
+	return phaseTimeout
 }

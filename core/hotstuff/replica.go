@@ -19,15 +19,14 @@ import (
 // A replica can also serve as the leader depending on the view.
 type Replica struct {
 	// Immutable state
-	id           ID
-	duty         core.Duty
-	cluster      Cluster
-	transport    Transport
-	privateKey   *k1.PrivateKey
-	decidedFunc  DecidedFunc
-	valueCh      <-chan Value
-	receiveCh    <-chan *Msg
-	phaseTimeout time.Duration
+	id          ID
+	duty        core.Duty
+	cluster     Cluster
+	transport   Transport
+	privateKey  *k1.PrivateKey
+	decidedFunc DecidedFunc
+	valueCh     <-chan Value
+	receiveCh   <-chan *Msg
 
 	// Mutable state
 	view        View
@@ -41,24 +40,22 @@ type Replica struct {
 
 func NewReplica(id ID, duty core.Duty,
 	cluster Cluster, transport Transport, receiveCh <-chan *Msg,
-	privateKey *k1.PrivateKey, decidedFunc DecidedFunc,
-	valueCh <-chan Value, phaseTimeout time.Duration,
+	privateKey *k1.PrivateKey, decidedFunc DecidedFunc, valueCh <-chan Value,
 ) *Replica {
 	return &Replica{
-		id:           id,
-		duty:         duty,
-		cluster:      cluster,
-		transport:    transport,
-		privateKey:   privateKey,
-		decidedFunc:  decidedFunc,
-		valueCh:      valueCh,
-		receiveCh:    receiveCh,
-		phaseTimeout: phaseTimeout,
-		view:         1,
-		phase:        PreparePhase,
-		leaderPhase:  PreparePhase,
-		valuesMap:    make(map[Hash]Value),
-		collector:    NewCollector(),
+		id:          id,
+		duty:        duty,
+		cluster:     cluster,
+		transport:   transport,
+		privateKey:  privateKey,
+		decidedFunc: decidedFunc,
+		valueCh:     valueCh,
+		receiveCh:   receiveCh,
+		view:        1,
+		phase:       PreparePhase,
+		leaderPhase: PreparePhase,
+		valuesMap:   make(map[Hash]Value),
+		collector:   NewCollector(),
 	}
 }
 
@@ -81,10 +78,10 @@ func (r *Replica) Run(ctx context.Context) error {
 			r.handleMsg(ctx, msg)
 		case <-ctx.Done():
 			return errors.Wrap(ctx.Err(), "context done")
-		case <-time.After(r.phaseTimeout):
+		case <-time.After(r.cluster.PhaseTimeout()):
 			log.Warn(ctx, "Phase timeout", nil, z.Str("phase", r.phase.String()))
 
-			if r.view > MaxView {
+			if r.view > r.cluster.MaxView() {
 				return errors.New("max view reached", z.Str("phase", r.phase.String()))
 			}
 			if err := r.nextView(ctx); err != nil {

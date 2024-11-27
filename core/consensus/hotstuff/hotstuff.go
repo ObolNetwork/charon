@@ -250,10 +250,6 @@ func (c *Consensus) propose(ctx context.Context, duty core.Duty, value proto.Mes
 }
 
 func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error) {
-	const (
-		phaseTimeout = 5 * time.Second
-	)
-
 	inst := c.getInstanceIO(duty)
 	defer func() {
 		inst.ErrCh <- err // Send resulting error to errCh.
@@ -297,7 +293,7 @@ func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error)
 		}
 	}
 
-	r := hs.NewReplica(c.id, duty, c.cluster, c, inst.RecvBuffer, c.cluster.privateKey, decidedFn, inst.ValueCh, phaseTimeout)
+	r := hs.NewReplica(c.id, duty, c.cluster, c, inst.RecvBuffer, c.cluster.privateKey, decidedFn, inst.ValueCh)
 	err = r.Run(ctx)
 	if err != nil && !isContextErr(err) {
 		c.metrics.IncConsensusError()
