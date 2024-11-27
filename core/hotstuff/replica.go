@@ -15,9 +15,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-var (
-	ErrMaxViewReached = errors.New("max view reached")
-)
+var ErrMaxViewReached = errors.New("max view reached")
 
 // Replica represents a single HotStuff replica.
 // A replica can also serve as the leader depending on the view.
