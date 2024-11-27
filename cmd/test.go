@@ -380,7 +380,7 @@ func evaluateRTT(rtt time.Duration, testRes testResult, avg time.Duration, poor 
 	} else {
 		testRes.Verdict = testVerdictGood
 	}
-	testRes.Measurement = Duration{rtt}.String()
+	testRes.Measurement = RoundDuration(Duration{rtt}).String()
 
 	return testRes
 }

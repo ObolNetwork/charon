@@ -267,7 +267,7 @@ func infraDiskWriteSpeedTest(ctx context.Context, conf *testInfraConfig) testRes
 	} else {
 		testRes.Verdict = testVerdictGood
 	}
-	testRes.Measurement = strconv.FormatFloat(diskWriteMBs, 'f', 4, 64) + "MB/s"
+	testRes.Measurement = strconv.FormatFloat(diskWriteMBs, 'f', 2, 64) + "MB/s"
 
 	return testRes
 }
@@ -370,7 +370,7 @@ func infraDiskReadSpeedTest(ctx context.Context, conf *testInfraConfig) testResu
 	} else {
 		testRes.Verdict = testVerdictGood
 	}
-	testRes.Measurement = strconv.FormatFloat(diskReadMBs, 'f', 4, 64) + "MB/s"
+	testRes.Measurement = strconv.FormatFloat(diskReadMBs, 'f', 2, 64) + "MB/s"
 
 	return testRes
 }
@@ -514,16 +514,7 @@ func infraInternetLatencyTest(ctx context.Context, conf *testInfraConfig) testRe
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
-	latency := server.Latency
-
-	if latency > internetLatencyPoor {
-		testRes.Verdict = testVerdictPoor
-	} else if latency > internetLatencyAvg {
-		testRes.Verdict = testVerdictAvg
-	} else {
-		testRes.Verdict = testVerdictGood
-	}
-	testRes.Measurement = latency.Round(time.Microsecond).String()
+	testRes = evaluateRTT(server.Latency, testRes, internetLatencyAvg, internetLatencyPoor)
 
 	return testRes
 }
@@ -610,6 +601,11 @@ func fioCommand(ctx context.Context, filename string, blocksize int, operation s
 	).Output()
 	if err != nil {
 		return nil, errors.Wrap(err, "exec fio command")
+	}
+
+	err = os.Remove(fmt.Sprintf("%v/fiotest", filename))
+	if err != nil {
+		return nil, errors.Wrap(err, "delete fio test file")
 	}
 
 	return cmd, nil

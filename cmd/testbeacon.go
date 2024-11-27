@@ -830,14 +830,7 @@ func beaconSimulationTest(ctx context.Context, conf *testBeaconConfig, target st
 			highestRTT = sim.Max
 		}
 	}
-	if highestRTT.Duration > thresholdBeaconSimulationPoor {
-		testRes.Verdict = testVerdictPoor
-	} else if highestRTT.Duration > thresholdBeaconSimulationAvg {
-		testRes.Verdict = testVerdictAvg
-	} else {
-		testRes.Verdict = testVerdictGood
-	}
-	testRes.Measurement = highestRTT.String()
+	testRes = evaluateRTT(highestRTT.Duration, testRes, thresholdBeaconSimulationAvg, thresholdBeaconSimulationPoor)
 
 	log.Info(ctx, "Validators simulation finished",
 		z.Any("validators_count", params.TotalValidatorsCount),
