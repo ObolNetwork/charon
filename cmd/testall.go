@@ -45,7 +45,6 @@ func newTestAllCmd(runFunc func(context.Context, io.Writer, testAllConfig) error
 	bindTestInfraFlags(cmd, &config.Infra, "infra-")
 
 	bindP2PFlags(cmd, &config.Peers.P2P)
-	bindDataDirFlag(cmd.Flags(), &config.Peers.DataDir)
 	bindTestLogFlags(cmd.Flags(), &config.Peers.Log)
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
