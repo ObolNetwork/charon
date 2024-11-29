@@ -121,7 +121,7 @@ func bindTestPeersFlags(cmd *cobra.Command, config *testPeersConfig, flagsPrefix
 	cmd.Flags().DurationVar(&config.LoadTestDuration, flagsPrefix+"load-test-duration", 30*time.Second, "Time to keep running the load tests in seconds. For each second a new continuous ping instance is spawned.")
 	cmd.Flags().DurationVar(&config.DirectConnectionTimeout, flagsPrefix+"direct-connection-timeout", 2*time.Minute, "Time to keep trying to establish direct connection to peer.")
 	cmd.Flags().StringVar(&config.LockFile, flagsPrefix+"lock-file", "", "The path to the cluster lock file defining the distributed validator cluster.")
-	cmd.Flags().StringVar(&config.PrivateKeyFile, "private-key-file", ".charon/charon-enr-private-key", "The path to the charon enr private key file.")
+	cmd.Flags().StringVar(&config.PrivateKeyFile, flagsPrefix+"private-key-file", ".charon/charon-enr-private-key", "The path to the charon enr private key file.")
 	cmd.Flags().StringVar(&config.DefinitionFile, flagsPrefix+"definition-file", "", "The path to the cluster definition file or an HTTP URL.")
 }
 
