@@ -39,6 +39,7 @@ type Consensus struct {
 	deadliner core.Deadliner
 	metrics   metrics.ConsensusMetrics
 	cluster   *cluster
+	blacklist *hs.Blacklist
 
 	// Mutable state
 	mutable struct {
@@ -75,6 +76,7 @@ func NewConsensus(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKe
 		deadliner: deadliner,
 		metrics:   metrics.NewConsensusMetrics(protocols.HotStuffv1ProtocolID),
 		cluster:   cluster,
+		blacklist: hs.NewBlacklist(),
 	}
 
 	c.mutable.instances = make(map[core.Duty]*utils.InstanceIO[hs.Value, *hs.Msg])
@@ -292,7 +294,7 @@ func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error)
 		}
 	}
 
-	r := hs.NewReplica(c.id, duty, c.cluster, c, inst.RecvBuffer, c.cluster.privateKey, decidedFn, inst.ValueCh)
+	r := hs.NewReplica(c.id, duty, c.cluster, c, inst.RecvBuffer, c.cluster.privateKey, decidedFn, c.blacklist, inst.ValueCh)
 	err = r.Run(ctx)
 	if err != nil && !isContextErr(err) {
 		c.metrics.IncConsensusError()

@@ -63,9 +63,15 @@ func TestMsgToProto(t *testing.T) {
 			Type:      hotstuff.MsgCommit,
 			View:      2,
 			ValueHash: [32]byte{2},
-			Signatures: [][]byte{
-				[]byte("sig1"),
-				[]byte("sig2"),
+			Signatures: []hotstuff.Signature{
+				{
+					ReplicaID: 1,
+					Signature: []byte("sig1"),
+				},
+				{
+					ReplicaID: 2,
+					Signature: []byte("sig2"),
+				},
 			},
 		},
 	}

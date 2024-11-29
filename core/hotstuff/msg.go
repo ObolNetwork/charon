@@ -64,12 +64,35 @@ type Msg struct {
 	QC        *QC
 }
 
+// Signature represents a replica's signature.
+type Signature struct {
+	ReplicaID ID
+	Signature []byte
+}
+
 // QC represents a quorum certificate.
 type QC struct {
 	Type       MsgType
 	View       View
 	ValueHash  Hash
-	Signatures [][]byte
+	Signatures []Signature
+}
+
+func (qc *QC) SignatureIDs() []ID {
+	ids := make([]ID, 0, len(qc.Signatures))
+
+	for _, sig := range qc.Signatures {
+		ids = append(ids, sig.ReplicaID)
+	}
+
+	return ids
+}
+
+func (rs *Signature) ToProto() *pbv1.HotStuffReplicaSignature {
+	return &pbv1.HotStuffReplicaSignature{
+		ReplicaId: uint64(rs.ReplicaID),
+		Signature: rs.Signature,
+	}
 }
 
 func (qc *QC) ToProto() *pbv1.HotStuffQC {
@@ -77,11 +100,16 @@ func (qc *QC) ToProto() *pbv1.HotStuffQC {
 		return nil
 	}
 
+	rs := make([]*pbv1.HotStuffReplicaSignature, 0, len(qc.Signatures))
+	for _, sig := range qc.Signatures {
+		rs = append(rs, sig.ToProto())
+	}
+
 	return &pbv1.HotStuffQC{
 		Type:       uint64(qc.Type),
 		View:       uint64(qc.View),
 		ValueHash:  qc.ValueHash[:],
-		Signatures: qc.Signatures,
+		Signatures: rs,
 	}
 }
 
@@ -135,15 +163,27 @@ func ProtoToQC(protoQC *pbv1.HotStuffQC) *QC {
 		return nil
 	}
 
+	rs := make([]Signature, 0, len(protoQC.GetSignatures()))
+	for _, sig := range protoQC.GetSignatures() {
+		rs = append(rs, ProtoToReplicaSignature(sig))
+	}
+
 	qc := &QC{
 		Type:       MsgType(protoQC.GetType()),
 		View:       View(protoQC.GetView()),
-		Signatures: protoQC.GetSignatures(),
+		Signatures: rs,
 	}
 
 	copy(qc.ValueHash[:], protoQC.GetValueHash())
 
 	return qc
+}
+
+func ProtoToReplicaSignature(protoSig *pbv1.HotStuffReplicaSignature) Signature {
+	return Signature{
+		ReplicaID: ID(protoSig.GetReplicaId()),
+		Signature: protoSig.GetSignature(),
+	}
 }
 
 func ProtoToDuty(protoDuty *pbv1.Duty) core.Duty {
