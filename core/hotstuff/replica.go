@@ -328,20 +328,15 @@ func (r *Replica) sendMsg(ctx context.Context, msg *Msg, leader ID) error {
 func (r *Replica) getSenderID(msg *Msg) (ID, error) {
 	hash, err := HashMsg(msg.Type, msg.View, msg.ValueHash)
 	if err != nil {
-		return InvalidID, errors.Wrap(err, "hash msg")
+		return 0, errors.Wrap(err, "hash msg")
 	}
 
 	pk, err := k1util.Recover(hash[:], msg.Signature)
 	if err != nil {
-		return InvalidID, errors.Wrap(err, "bad msg signature")
+		return 0, errors.Wrap(err, "bad msg signature")
 	}
 
-	id := r.cluster.PublicKeyToID(pk)
-	if id == InvalidID {
-		return InvalidID, errors.New("unknown sender")
-	}
-
-	return id, nil
+	return r.cluster.PublicKeyToID(pk)
 }
 
 func (r *Replica) verifyQC(qc *QC) error {

@@ -53,10 +53,9 @@ func TestHotStuff(t *testing.T) {
 
 	replicas := make([]*hotstuff.Replica, total)
 	for i := range total {
-		id := hotstuff.NewIDFromIndex(i)
 		privateKey := cluster.privateKeys[i]
 		receiveCh := recvChannels[i]
-		replicas[i] = hotstuff.NewReplica(id, duty, cluster, transports[i], receiveCh, privateKey, decidedFunc, valueCh)
+		replicas[i] = hotstuff.NewReplica(hotstuff.ID(i), duty, cluster, transports[i], receiveCh, privateKey, decidedFunc, valueCh)
 	}
 
 	group, ctx := errgroup.WithContext(context.Background())
@@ -99,8 +98,6 @@ func TestHotStuffTimeout(t *testing.T) {
 
 	replicas := make([]*hotstuff.Replica, total)
 	for i := range total {
-		id := hotstuff.NewIDFromIndex(i)
-
 		mutedTransport := mocks.NewTransport(t)
 		mutedTransport.On("Broadcast", mock.Anything, mock.Anything).Return(nil).Maybe()
 		mutedTransport.On("SendTo", mock.Anything, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
@@ -112,7 +109,7 @@ func TestHotStuffTimeout(t *testing.T) {
 
 		privateKey := cluster.privateKeys[i]
 		receiveCh := recvChannels[i]
-		replicas[i] = hotstuff.NewReplica(id, duty, cluster, mutedTransport, receiveCh, privateKey, decidedFunc, valueCh)
+		replicas[i] = hotstuff.NewReplica(hotstuff.ID(i), duty, cluster, mutedTransport, receiveCh, privateKey, decidedFunc, valueCh)
 	}
 
 	group, ctx := errgroup.WithContext(context.Background())
@@ -165,14 +162,4 @@ func TestNextPhase(t *testing.T) {
 			require.Equal(t, tt.next, tt.p.NextPhase())
 		})
 	}
-}
-
-func TestIDToIndex(t *testing.T) {
-	require.Equal(t, 0, hotstuff.ID(1).ToIndex())
-	require.Equal(t, 1, hotstuff.ID(2).ToIndex())
-}
-
-func TestNewIDFromIndex(t *testing.T) {
-	require.Equal(t, hotstuff.ID(1), hotstuff.NewIDFromIndex(0))
-	require.Equal(t, hotstuff.ID(2), hotstuff.NewIDFromIndex(1))
 }

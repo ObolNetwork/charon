@@ -8,12 +8,13 @@ import (
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 
+	"github.com/obolnetwork/charon/app/errors"
 	hs "github.com/obolnetwork/charon/core/hotstuff"
 )
 
 const (
 	maxView      hs.View       = 3
-	phaseTimeout time.Duration = 5 * time.Second
+	phaseTimeout time.Duration = 3 * time.Second
 )
 
 // Represents immutable Byzantine cluster configuration.
@@ -31,7 +32,7 @@ var _ hs.Cluster = (*cluster)(nil)
 func newCluster(nodes uint, privateKey *k1.PrivateKey, publicKeys []*k1.PublicKey) *cluster {
 	pubKeysToID := make(map[k1.PublicKey]hs.ID)
 	for i, pubKey := range publicKeys {
-		pubKeysToID[*pubKey] = hs.NewIDFromIndex(i)
+		pubKeysToID[*pubKey] = hs.ID(i)
 	}
 
 	threshold := uint(math.Ceil(float64(nodes*2) / 3))
@@ -46,11 +47,16 @@ func newCluster(nodes uint, privateKey *k1.PrivateKey, publicKeys []*k1.PublicKe
 }
 
 func (c *cluster) Leader(view hs.View) hs.ID {
-	return hs.ID(1 + uint64(view)%uint64(c.nodes))
+	return hs.ID(uint64(view) % uint64(c.nodes))
 }
 
-func (c *cluster) PublicKeyToID(pubKey *k1.PublicKey) hs.ID {
-	return c.pubKeysToID[*pubKey]
+func (c *cluster) PublicKeyToID(pubKey *k1.PublicKey) (hs.ID, error) {
+	id, ok := c.pubKeysToID[*pubKey]
+	if !ok {
+		return 0, errors.New("public key not found")
+	}
+
+	return id, nil
 }
 
 func (c *cluster) HasQuorum(pubKeys []*k1.PublicKey) bool {

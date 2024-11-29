@@ -35,14 +35,14 @@ func TestLeader(t *testing.T) {
 	c, err := newCluster(7, 5, 1, 100)
 	require.NoError(t, err)
 
-	require.Equal(t, hotstuff.ID(2), c.Leader(1))
-	require.Equal(t, hotstuff.ID(3), c.Leader(2))
-	require.Equal(t, hotstuff.ID(4), c.Leader(3))
-	require.Equal(t, hotstuff.ID(5), c.Leader(4))
-	require.Equal(t, hotstuff.ID(6), c.Leader(5))
-	require.Equal(t, hotstuff.ID(7), c.Leader(6))
-	require.Equal(t, hotstuff.ID(1), c.Leader(7))
-	require.Equal(t, hotstuff.ID(2), c.Leader(8))
+	require.Equal(t, hotstuff.ID(1), c.Leader(1))
+	require.Equal(t, hotstuff.ID(2), c.Leader(2))
+	require.Equal(t, hotstuff.ID(3), c.Leader(3))
+	require.Equal(t, hotstuff.ID(4), c.Leader(4))
+	require.Equal(t, hotstuff.ID(5), c.Leader(5))
+	require.Equal(t, hotstuff.ID(6), c.Leader(6))
+	require.Equal(t, hotstuff.ID(0), c.Leader(7))
+	require.Equal(t, hotstuff.ID(1), c.Leader(8))
 }
 
 func TestReplicaIDByPublicKey(t *testing.T) {
@@ -50,12 +50,14 @@ func TestReplicaIDByPublicKey(t *testing.T) {
 	require.NoError(t, err)
 
 	pubKey := c.publicKeys[1]
-	id := c.PublicKeyToID(pubKey)
-	require.Equal(t, hotstuff.ID(2), id)
+	id, err := c.PublicKeyToID(pubKey)
+	require.NoError(t, err)
+	require.Equal(t, hotstuff.ID(1), id)
 
 	pubKey = c.publicKeys[3]
-	id = c.PublicKeyToID(pubKey)
-	require.Equal(t, hotstuff.ID(4), id)
+	id, err = c.PublicKeyToID(pubKey)
+	require.NoError(t, err)
+	require.Equal(t, hotstuff.ID(3), id)
 }
 
 // Represents test cluster configuration.
@@ -87,7 +89,7 @@ func newCluster(nodes, threshold, maxView, phaseTimeoutMs uint) (*cluster, error
 		publicKeys = append(publicKeys, pubKey)
 		privateKeys = append(privateKeys, privKey)
 
-		pubKeysToID[*pubKey] = hotstuff.NewIDFromIndex(i)
+		pubKeysToID[*pubKey] = hotstuff.ID(i)
 	}
 
 	return &cluster{
@@ -102,11 +104,16 @@ func newCluster(nodes, threshold, maxView, phaseTimeoutMs uint) (*cluster, error
 }
 
 func (c *cluster) Leader(view hotstuff.View) hotstuff.ID {
-	return hotstuff.ID(1 + uint64(view)%uint64(c.nodes))
+	return hotstuff.ID(uint64(view) % uint64(c.nodes))
 }
 
-func (c *cluster) PublicKeyToID(pubKey *k1.PublicKey) hotstuff.ID {
-	return c.pubKeysToID[*pubKey]
+func (c *cluster) PublicKeyToID(pubKey *k1.PublicKey) (hotstuff.ID, error) {
+	id, ok := c.pubKeysToID[*pubKey]
+	if !ok {
+		return 0, errors.New("public key not found")
+	}
+
+	return id, nil
 }
 
 func (c *cluster) HasQuorum(pubKeys []*k1.PublicKey) bool {

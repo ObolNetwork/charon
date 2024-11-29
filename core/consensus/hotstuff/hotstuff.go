@@ -56,7 +56,7 @@ func NewConsensus(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKe
 	keys := make([]*k1.PublicKey, len(peers))
 	for i, p := range peers {
 		if p.ID == tcpNode.ID() {
-			id = hs.NewIDFromIndex(i)
+			id = hs.ID(i)
 		}
 		pk, err := p.PublicKey()
 		if err != nil {
@@ -161,8 +161,7 @@ func (c *Consensus) Subscribe(fn func(context.Context, core.Duty, core.UnsignedD
 // Broadcast implements hotstuff.Transport.
 func (c *Consensus) Broadcast(ctx context.Context, msg *hs.Msg) (err error) {
 	for i := range c.peers {
-		id := hs.NewIDFromIndex(i)
-		if err = c.SendTo(ctx, id, msg); err != nil {
+		if err = c.SendTo(ctx, hs.ID(i), msg); err != nil {
 			break
 		}
 	}
@@ -172,11 +171,11 @@ func (c *Consensus) Broadcast(ctx context.Context, msg *hs.Msg) (err error) {
 
 // SendTo implements hotstuff.Transport.
 func (c *Consensus) SendTo(ctx context.Context, id hs.ID, msg *hs.Msg) (err error) {
-	if id < 1 || int(id) > len(c.peers) {
+	if int(id) >= len(c.peers) {
 		return errors.New("invalid peer ID")
 	}
 
-	peer := c.peers[id.ToIndex()]
+	peer := c.peers[id]
 	if c.tcpNode.ID() == peer.ID {
 		recvBufferCh := c.getRecvBuffer(msg.Duty)
 		if recvBufferCh != nil {
@@ -270,7 +269,7 @@ func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error)
 		inst.DecidedAtCh <- time.Now()
 
 		leaderID := c.cluster.Leader(view)
-		leaderName := c.peers[leaderID.ToIndex()].Name
+		leaderName := c.peers[leaderID].Name
 		log.Debug(ctx, "HotStuff consensus decided",
 			z.Str("duty", duty.Type.String()),
 			z.U64("slot", duty.Slot),

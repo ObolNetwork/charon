@@ -45,11 +45,11 @@ func (t *transport) Broadcast(ctx context.Context, msg *hotstuff.Msg) error {
 }
 
 func (t *transport) SendTo(ctx context.Context, id hotstuff.ID, msg *hotstuff.Msg) error {
-	if id < 1 || int(id) > len(t.recvChannels) {
+	if int(id) >= len(t.recvChannels) {
 		return errInvalidReplicaID
 	}
 
-	recvCh := t.recvChannels[id.ToIndex()]
+	recvCh := t.recvChannels[id]
 
 	select {
 	case recvCh <- msg:
@@ -99,7 +99,7 @@ func TestTransport(t *testing.T) {
 				View:  1,
 				Value: []byte(val),
 			}
-			err := transports[n].SendTo(ctx, hotstuff.ID(1), msg)
+			err := transports[n].SendTo(ctx, hotstuff.ID(0), msg)
 			require.NoError(t, err)
 		}
 	}
@@ -113,7 +113,7 @@ func TestTransport(t *testing.T) {
 	}
 
 	t.Run("invalid replica id", func(t *testing.T) {
-		err := transports[0].SendTo(ctx, hotstuff.ID(nodes+1), &hotstuff.Msg{})
+		err := transports[0].SendTo(ctx, hotstuff.ID(nodes), &hotstuff.Msg{})
 		require.Equal(t, errInvalidReplicaID, err)
 	})
 }

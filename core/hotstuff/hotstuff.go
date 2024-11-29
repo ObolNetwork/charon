@@ -12,22 +12,8 @@ import (
 //go:generate mockery --name=Transport --output=mocks --outpkg=mocks --case=underscore
 //go:generate mockery --name=Cluster --output=mocks --outpkg=mocks --case=underscore
 
-// ID uniquely identifies a replica. The first replica has ID = 1.
+// ID uniquely identifies a replica. The first replica has ID = 0.
 type ID uint64
-
-const (
-	InvalidID ID = 0
-)
-
-// NewIDFromIndex creates a new ID from an index in a 0-based array.
-func NewIDFromIndex(index int) ID {
-	return ID(index + 1)
-}
-
-// ToIndex converts the ID to an index in a 0-based array.
-func (id ID) ToIndex() int {
-	return int(id - 1)
-}
 
 // View is the HotStuff view number. The first view has number 1.
 type View uint64
@@ -47,7 +33,7 @@ type Cluster interface {
 	Leader(view View) ID
 
 	// PublicKeyToID returns the replica ID for the given public key.
-	PublicKeyToID(pubKey *k1.PublicKey) ID
+	PublicKeyToID(pubKey *k1.PublicKey) (ID, error)
 
 	// HasQuorum returns true if the given public keys meet the threshold.
 	HasQuorum(pubKeys []*k1.PublicKey) bool

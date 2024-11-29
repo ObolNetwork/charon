@@ -42,13 +42,13 @@ func TestHasQuorum(t *testing.T) {
 func TestLeader(t *testing.T) {
 	c := newCluster(4, nil, nil)
 
-	require.Equal(t, hs.ID(2), c.Leader(1))
-	require.Equal(t, hs.ID(3), c.Leader(2))
-	require.Equal(t, hs.ID(4), c.Leader(3))
-	require.Equal(t, hs.ID(1), c.Leader(4))
-	require.Equal(t, hs.ID(2), c.Leader(5))
-	require.Equal(t, hs.ID(3), c.Leader(6))
-	require.Equal(t, hs.ID(4), c.Leader(7))
+	require.Equal(t, hs.ID(1), c.Leader(1))
+	require.Equal(t, hs.ID(2), c.Leader(2))
+	require.Equal(t, hs.ID(3), c.Leader(3))
+	require.Equal(t, hs.ID(0), c.Leader(4))
+	require.Equal(t, hs.ID(1), c.Leader(5))
+	require.Equal(t, hs.ID(2), c.Leader(6))
+	require.Equal(t, hs.ID(3), c.Leader(7))
 }
 
 func TestReplicaIDByPublicKey(t *testing.T) {
@@ -56,12 +56,14 @@ func TestReplicaIDByPublicKey(t *testing.T) {
 	c := newCluster(4, privKeys[0], pubKeys)
 
 	pubKey := pubKeys[1]
-	id := c.PublicKeyToID(pubKey)
-	require.Equal(t, hs.ID(2), id)
+	id, err := c.PublicKeyToID(pubKey)
+	require.NoError(t, err)
+	require.Equal(t, hs.ID(1), id)
 
 	pubKey = pubKeys[3]
-	id = c.PublicKeyToID(pubKey)
-	require.Equal(t, hs.ID(4), id)
+	id, err = c.PublicKeyToID(pubKey)
+	require.NoError(t, err)
+	require.Equal(t, hs.ID(3), id)
 }
 
 func generateClusterKeys(t *testing.T, nodes uint) ([]*k1.PrivateKey, []*k1.PublicKey) {
