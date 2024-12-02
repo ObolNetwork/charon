@@ -4,7 +4,6 @@ package hotstuff
 
 import (
 	"context"
-	"slices"
 	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -39,13 +38,11 @@ type Replica struct {
 	prepareQC   *QC
 	lockedQC    *QC
 	collector   *Collector
-	blacklist   *Blacklist
 }
 
 func NewReplica(id ID, duty core.Duty,
 	cluster Cluster, transport Transport, receiveCh <-chan *Msg,
-	privateKey *k1.PrivateKey, decidedFunc DecidedFunc,
-	blacklist *Blacklist, valueCh <-chan Value,
+	privateKey *k1.PrivateKey, decidedFunc DecidedFunc, valueCh <-chan Value,
 ) *Replica {
 	return &Replica{
 		id:          id,
@@ -61,7 +58,6 @@ func NewReplica(id ID, duty core.Duty,
 		leaderPhase: PreparePhase,
 		valuesMap:   make(map[Hash]Value),
 		collector:   NewCollector(),
-		blacklist:   blacklist,
 	}
 }
 
@@ -157,12 +153,12 @@ func (r *Replica) leaderDuty(ctx context.Context, msg *Msg) {
 	}
 
 	r.collector.AddMsg(msg, sender)
-	mm, ids := r.collector.MatchingMsg(MsgPrepare, r.view)
+	mm := r.collector.MatchingMsg(MsgPrepare, r.view)
 	if len(mm) < int(r.cluster.Threshold()) {
 		return
 	}
 
-	qc, err := createQC(mm, ids)
+	qc, err := createQC(mm)
 	if err != nil {
 		log.Error(ctx, "Failed to create qc", err)
 		return
@@ -197,7 +193,7 @@ func (r *Replica) leaderNewView(ctx context.Context, msg *Msg) {
 	}
 
 	r.collector.AddMsg(msg, sender)
-	mm, _ := r.collector.MatchingMsg(MsgNewView, r.view-1)
+	mm := r.collector.MatchingMsg(MsgNewView, r.view-1)
 	if len(mm) < int(r.cluster.Threshold()) {
 		return
 	}
@@ -265,7 +261,6 @@ func (r *Replica) replicaDuty(ctx context.Context, msg *Msg, leader ID) (err err
 		r.lockedQC = msg.QC
 		err = r.sendVote(ctx, MsgCommit, msg.QC.ValueHash, leader)
 	case DecidePhase:
-		r.updateBlacklist(msg.QC)
 		value := r.valuesMap[msg.QC.ValueHash]
 		r.decidedFunc(value, r.view)
 	default:
@@ -273,22 +268,6 @@ func (r *Replica) replicaDuty(ctx context.Context, msg *Msg, leader ID) (err err
 	}
 
 	return err
-}
-
-func (r *Replica) updateBlacklist(qc *QC) {
-	sigIDs := qc.SignatureIDs()
-
-	if r.view > 1 {
-		faultyLeaderID := r.cluster.Leader(r.view - 1)
-		if !slices.Contains(sigIDs, faultyLeaderID) {
-			r.blacklist.Add(faultyLeaderID)
-		}
-	} else {
-		for _, sigID := range sigIDs {
-			r.blacklist.Remove(sigID)
-		}
-		r.blacklist.Remove(r.cluster.Leader(r.view))
-	}
 }
 
 func (r *Replica) safeNode(qc *QC) bool {
@@ -319,12 +298,6 @@ func (r *Replica) sendVote(ctx context.Context, t MsgType, valueHash [32]byte, l
 
 func (r *Replica) sendNewView(ctx context.Context) error {
 	nextLeader := r.cluster.Leader(r.view)
-	for r.blacklist.Contains(nextLeader) {
-		log.Debug(ctx, "Next leader is blacklisted", z.U64("leader", uint64(nextLeader)))
-
-		r.view++
-		nextLeader = r.cluster.Leader(r.view)
-	}
 
 	msg := Msg{
 		Duty: r.duty,
@@ -373,7 +346,7 @@ func (r *Replica) verifyQC(qc *QC) error {
 		if err != nil {
 			return errors.Wrap(err, "hash qc")
 		}
-		pk, err := k1util.Recover(hash[:], sig.Signature)
+		pk, err := k1util.Recover(hash[:], sig)
 		if err != nil {
 			return errors.Wrap(err, "bad signature")
 		}
@@ -399,14 +372,11 @@ func selectHighQC(msgs []*Msg) *QC {
 	return highQC
 }
 
-func createQC(msgs []*Msg, ids []ID) (*QC, error) {
-	sigs := make([]Signature, len(msgs))
+func createQC(msgs []*Msg) (*QC, error) {
+	sigs := make([][]byte, len(msgs))
 
 	for i, msg := range msgs {
-		sigs[i] = Signature{
-			ReplicaID: ids[i],
-			Signature: msg.Signature,
-		}
+		sigs[i] = msg.Signature
 
 		if i > 0 {
 			if msg.Type != msgs[0].Type || msg.View != msgs[0].View || msg.ValueHash != msgs[0].ValueHash {

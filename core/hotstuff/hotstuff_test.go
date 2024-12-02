@@ -55,8 +55,7 @@ func TestHotStuff(t *testing.T) {
 	for i := range total {
 		privateKey := cluster.privateKeys[i]
 		receiveCh := recvChannels[i]
-		blacklist := hotstuff.NewBlacklist()
-		replicas[i] = hotstuff.NewReplica(hotstuff.ID(i), duty, cluster, transports[i], receiveCh, privateKey, decidedFunc, blacklist, valueCh)
+		replicas[i] = hotstuff.NewReplica(hotstuff.ID(i), duty, cluster, transports[i], receiveCh, privateKey, decidedFunc, valueCh)
 	}
 
 	group, ctx := errgroup.WithContext(context.Background())
@@ -110,64 +109,7 @@ func TestHotStuffTimeout(t *testing.T) {
 
 		privateKey := cluster.privateKeys[i]
 		receiveCh := recvChannels[i]
-		blacklist := hotstuff.NewBlacklist()
-		replicas[i] = hotstuff.NewReplica(hotstuff.ID(i), duty, cluster, mutedTransport, receiveCh, privateKey, decidedFunc, blacklist, valueCh)
-	}
-
-	group, ctx := errgroup.WithContext(context.Background())
-
-	for i := range total {
-		group.Go(func() error {
-			return replicas[i].Run(ctx)
-		})
-	}
-
-	err = group.Wait()
-	require.ErrorIs(t, err, hotstuff.ErrMaxViewReached)
-
-	require.EqualValues(t, total*maxView, newViewMsgCounter.Load())
-}
-
-func TestHotStuffBlacklist(t *testing.T) {
-	const (
-		total     = 3
-		threshold = 3
-		maxView   = 3
-	)
-
-	cluster, err := newCluster(total, threshold, maxView, 100)
-	require.NoError(t, err)
-
-	duty := core.NewProposerDuty(1)
-	decidedFunc := func(hotstuff.Value, hotstuff.View) {}
-	valueCh := make(chan hotstuff.Value)
-
-	recvChannels := make([]chan *hotstuff.Msg, total)
-	for i := range recvChannels {
-		recvChannels[i] = make(chan *hotstuff.Msg, ioBufferSize)
-	}
-
-	var newViewMsgCounter atomic.Int64
-
-	replicas := make([]*hotstuff.Replica, total)
-	for i := range total {
-		mutedTransport := mocks.NewTransport(t)
-		mutedTransport.On("Broadcast", mock.Anything, mock.Anything).Return(nil).Maybe()
-		mutedTransport.On("SendTo", mock.Anything, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
-			to := args.Get(1).(hotstuff.ID)
-			require.NotEqual(t, hotstuff.ID(0), to)
-
-			msg := args.Get(2).(*hotstuff.Msg)
-			if msg.Type == hotstuff.MsgNewView {
-				newViewMsgCounter.Add(1)
-			}
-		}).Return(nil).Maybe()
-
-		privateKey := cluster.privateKeys[i]
-		receiveCh := recvChannels[i]
-		blacklist := hotstuff.NewBlacklist()
-		blacklist.Add(hotstuff.ID(0))
-		replicas[i] = hotstuff.NewReplica(hotstuff.ID(i), duty, cluster, mutedTransport, receiveCh, privateKey, decidedFunc, blacklist, valueCh)
+		replicas[i] = hotstuff.NewReplica(hotstuff.ID(i), duty, cluster, mutedTransport, receiveCh, privateKey, decidedFunc, valueCh)
 	}
 
 	group, ctx := errgroup.WithContext(context.Background())

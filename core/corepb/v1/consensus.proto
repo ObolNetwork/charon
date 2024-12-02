@@ -46,15 +46,10 @@ message HotStuffMsg {
 }
 
 message HotStuffQC {
-  uint64                             type                  = 1;
-  uint64                             view                  = 2;
-  bytes                              value_hash            = 3;
-  repeated HotStuffReplicaSignature  signatures            = 4;
-}
-
-message HotStuffReplicaSignature {
-  uint64                        replica_id            = 1;
-  bytes                         signature             = 2;
+  uint64                        type                  = 1;
+  uint64                        view                  = 2;
+  bytes                         value_hash            = 3;
+  repeated bytes                signatures            = 4;
 }
 
 // Generic

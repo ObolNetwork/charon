@@ -7,7 +7,6 @@ package hotstuff
 // as described by the HotStuff paper.
 type Collector struct {
 	msgs  []*Msg
-	ids   []ID
 	dedup map[dedupKey]struct{}
 }
 
@@ -36,20 +35,17 @@ func (c *Collector) AddMsg(msg *Msg, sender ID) {
 	}
 
 	c.msgs = append(c.msgs, msg)
-	c.ids = append(c.ids, sender)
 	c.dedup[key] = struct{}{}
 }
 
-func (c *Collector) MatchingMsg(t MsgType, view View) ([]*Msg, []ID) {
+func (c *Collector) MatchingMsg(t MsgType, view View) []*Msg {
 	matching := make([]*Msg, 0)
-	ids := make([]ID, 0)
 
-	for i, msg := range c.msgs {
+	for _, msg := range c.msgs {
 		if msg.Type == t && msg.View == view {
 			matching = append(matching, msg)
-			ids = append(ids, c.ids[i])
 		}
 	}
 
-	return matching, ids
+	return matching
 }
