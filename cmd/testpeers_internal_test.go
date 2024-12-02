@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cmd/relay"
 	"github.com/obolnetwork/charon/eth2util/enr"
@@ -274,7 +275,7 @@ func TestPeersTest(t *testing.T) {
 			temp := t.TempDir()
 			_, err := p2p.NewSavedPrivKey(temp)
 			require.NoError(t, err)
-			conf.DataDir = temp
+			conf.PrivateKeyFile = p2p.KeyPath(temp)
 			if test.prepare != nil {
 				conf = test.prepare(t, conf)
 			}
@@ -438,7 +439,7 @@ func startPeer(t *testing.T, conf testPeersConfig, peerPrivKey *k1.PrivateKey) e
 	relays, err := p2p.NewRelays(ctx, peerConf.P2P.Relays, "test")
 	require.NoError(t, err)
 
-	hostPrivKey, err := p2p.LoadPrivKey(peerConf.DataDir)
+	hostPrivKey, err := k1util.Load(conf.PrivateKeyFile)
 	require.NoError(t, err)
 	hostENR, err := enr.New(hostPrivKey)
 	require.NoError(t, err)

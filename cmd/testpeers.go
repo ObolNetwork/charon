@@ -29,6 +29,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
@@ -41,7 +42,7 @@ type testPeersConfig struct {
 	ENRs                    []string
 	P2P                     p2p.Config
 	Log                     log.Config
-	DataDir                 string
+	PrivateKeyFile          string
 	KeepAlive               time.Duration
 	LoadTestDuration        time.Duration
 	DirectConnectionTimeout time.Duration
@@ -84,7 +85,6 @@ func newTestPeersCmd(runFunc func(context.Context, io.Writer, testPeersConfig) (
 	bindTestFlags(cmd, &config.testConfig)
 	bindTestPeersFlags(cmd, &config, "")
 	bindP2PFlags(cmd, &config.P2P)
-	bindDataDirFlag(cmd.Flags(), &config.DataDir)
 	bindTestLogFlags(cmd.Flags(), &config.Log)
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
@@ -121,6 +121,7 @@ func bindTestPeersFlags(cmd *cobra.Command, config *testPeersConfig, flagsPrefix
 	cmd.Flags().DurationVar(&config.LoadTestDuration, flagsPrefix+"load-test-duration", 30*time.Second, "Time to keep running the load tests in seconds. For each second a new continuous ping instance is spawned.")
 	cmd.Flags().DurationVar(&config.DirectConnectionTimeout, flagsPrefix+"direct-connection-timeout", 2*time.Minute, "Time to keep trying to establish direct connection to peer.")
 	cmd.Flags().StringVar(&config.LockFile, flagsPrefix+"lock-file", "", "The path to the cluster lock file defining the distributed validator cluster.")
+	cmd.Flags().StringVar(&config.PrivateKeyFile, flagsPrefix+"private-key-file", ".charon/charon-enr-private-key", "The path to the charon enr private key file.")
 	cmd.Flags().StringVar(&config.DefinitionFile, flagsPrefix+"definition-file", "", "The path to the cluster definition file or an HTTP URL.")
 }
 
@@ -737,7 +738,7 @@ func startTCPNode(ctx context.Context, conf testPeersConfig) (host.Host, func(),
 		peers = append(peers, p2pPeer)
 	}
 
-	p2pPrivKey, err := p2p.LoadPrivKey(conf.DataDir)
+	p2pPrivKey, err := k1util.Load(conf.PrivateKeyFile)
 	if err != nil {
 		return nil, nil, err
 	}
