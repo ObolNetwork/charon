@@ -4,6 +4,7 @@ package hotstuff
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -15,7 +16,10 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-var ErrMaxViewReached = errors.New("max view reached")
+var (
+	ErrMaxViewReached    = errors.New("max view reached")
+	ErrNoLeaderAvailable = errors.New("no leader available")
+)
 
 // Replica represents a single HotStuff replica.
 // A replica can also serve as the leader depending on the view.
@@ -24,6 +28,7 @@ type Replica struct {
 	id          ID
 	duty        core.Duty
 	cluster     Cluster
+	unreachable []ID
 	transport   Transport
 	privateKey  *k1.PrivateKey
 	decidedFunc DecidedFunc
@@ -40,14 +45,15 @@ type Replica struct {
 	collector   *Collector
 }
 
-func NewReplica(id ID, duty core.Duty,
-	cluster Cluster, transport Transport, receiveCh <-chan *Msg,
+func NewReplica(id ID, duty core.Duty, cluster Cluster,
+	unreachable []ID, transport Transport, receiveCh <-chan *Msg,
 	privateKey *k1.PrivateKey, decidedFunc DecidedFunc, valueCh <-chan Value,
 ) *Replica {
 	return &Replica{
 		id:          id,
 		duty:        duty,
 		cluster:     cluster,
+		unreachable: unreachable,
 		transport:   transport,
 		privateKey:  privateKey,
 		decidedFunc: decidedFunc,
@@ -298,6 +304,20 @@ func (r *Replica) sendVote(ctx context.Context, t MsgType, valueHash [32]byte, l
 
 func (r *Replica) sendNewView(ctx context.Context) error {
 	nextLeader := r.cluster.Leader(r.view)
+	firstLeaderCandidate := nextLeader
+
+	for {
+		if !slices.Contains(r.unreachable, nextLeader) {
+			break
+		}
+
+		r.view++
+		nextLeader = r.cluster.Leader(r.view)
+
+		if nextLeader == firstLeaderCandidate {
+			return ErrNoLeaderAvailable
+		}
+	}
 
 	msg := Msg{
 		Duty: r.duty,

@@ -26,8 +26,10 @@ import (
 )
 
 func TestConsensusController(t *testing.T) {
-	var hosts []host.Host
-	var peers []p2p.Peer
+	var (
+		hosts []host.Host
+		peers []p2p.Peer
+	)
 
 	seed := 0
 	random := rand.New(rand.NewSource(int64(seed)))
@@ -59,7 +61,10 @@ func TestConsensusController(t *testing.T) {
 	debugger := csmocks.NewDebugger(t)
 	ctx := context.Background()
 
-	controller, err := consensus.NewConsensusController(ctx, hosts[0], new(p2p.Sender), peers, p2pkeys[0], deadlineFunc, gaterFunc, debugger)
+	peersTracker := core.NewPeersTracker()
+	controller, err := consensus.NewConsensusController(
+		ctx, hosts[0], new(p2p.Sender), peers, p2pkeys[0],
+		deadlineFunc, gaterFunc, debugger, peersTracker)
 	require.NoError(t, err)
 	require.NotNil(t, controller)
 

@@ -199,8 +199,9 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
+	peersTracker := core.NewPeersTracker()
 	lockHashHex := hex7(cluster.GetInitialMutationHash())
-	tcpNode, err := wireP2P(ctx, life, conf, cluster, p2pKey, lockHashHex)
+	tcpNode, err := wireP2P(ctx, life, conf, cluster, p2pKey, peersTracker, lockHashHex)
 	if err != nil {
 		return err
 	}
@@ -287,7 +288,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		promRegistry, consensusDebugger, pubkeys, seenPubkeys, vapiCalls, len(cluster.GetValidators()))
 
 	err = wireCoreWorkflow(ctx, life, conf, cluster, nodeIdx, tcpNode, p2pKey, eth2Cl, subEth2Cl,
-		peerIDs, sender, consensusDebugger, seenPubkeysFunc, vapiCallsFunc)
+		peerIDs, sender, consensusDebugger, seenPubkeysFunc, vapiCallsFunc, peersTracker)
 	if err != nil {
 		return err
 	}
@@ -305,7 +306,8 @@ func wirePeerInfo(life *lifecycle.Manager, tcpNode host.Host, peers []peer.ID, l
 
 // wireP2P constructs the p2p tcp (libp2p) and udp (discv5) nodes and registers it with the life cycle manager.
 func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
-	cluster *manifestpb.Cluster, p2pKey *k1.PrivateKey, lockHashHex string,
+	cluster *manifestpb.Cluster, p2pKey *k1.PrivateKey,
+	peersTracker core.PeersTracker, lockHashHex string,
 ) (host.Host, error) {
 	peerIDs, err := manifest.ClusterPeerIDs(cluster)
 	if err != nil {
@@ -347,7 +349,9 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartRelay, p2p.NewRelayReserver(tcpNode, relay))
 	}
 
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PPing, p2p.NewPingService(tcpNode, peerIDs, conf.TestConfig.TestPingConfig))
+	pingSvc := p2p.NewPingService(tcpNode, peerIDs, peersTracker, conf.TestConfig.TestPingConfig)
+
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PPing, pingSvc)
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PEventCollector, p2p.NewEventCollector(tcpNode))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PRouters, p2p.NewRelayRouter(tcpNode, peerIDs, relays))
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartForceDirectConns, p2p.ForceDirectConnections(tcpNode, peerIDs))
@@ -360,7 +364,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	cluster *manifestpb.Cluster, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *k1.PrivateKey,
 	eth2Cl, submissionEth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
 	consensusDebugger consensus.Debugger, seenPubkeys func(core.PubKey),
-	vapiCalls func(),
+	vapiCalls func(), peersTracker core.PeersTracker,
 ) error {
 	// Convert and prep public keys and public shares
 	var (
@@ -530,8 +534,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	// Consensus
 	consensusController, err := consensus.NewConsensusController(
-		ctx, tcpNode, sender, peers, p2pKey,
-		deadlineFunc, gaterFunc, consensusDebugger)
+		ctx, tcpNode, sender, peers, p2pKey, deadlineFunc, gaterFunc,
+		consensusDebugger, peersTracker)
 	if err != nil {
 		return err
 	}

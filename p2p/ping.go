@@ -18,6 +18,7 @@ import (
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/core"
 )
 
 // TestPingConfig overrides ping config for testing.
@@ -32,7 +33,7 @@ type TestPingConfig struct {
 
 // NewPingService returns a start function of a p2p ping service that pings all peers every second
 // and collects metrics.
-func NewPingService(h host.Host, peers []peer.ID, conf TestPingConfig) lifecycle.HookFuncCtx {
+func NewPingService(h host.Host, peers []peer.ID, peersTracker core.PeersTracker, conf TestPingConfig) lifecycle.HookFuncCtx {
 	if conf.Disable {
 		return func(context.Context) {}
 	}
@@ -60,7 +61,7 @@ func NewPingService(h host.Host, peers []peer.ID, conf TestPingConfig) lifecycle
 					callback = newPingDelayCallback()
 				}
 
-				pingPeer(ctx, svc, p, callback, maxBackoff)
+				pingPeer(ctx, svc, p, peersTracker, callback, maxBackoff)
 			}(p)
 		}
 	}
@@ -68,20 +69,21 @@ func NewPingService(h host.Host, peers []peer.ID, conf TestPingConfig) lifecycle
 
 // pingPeer starts (and restarts) a long-lived ping service stream, pinging the peer every second until some error.
 // It returns when the context is cancelled.
-func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID, callback func(peer.ID, host.Host),
-	maxBackoff time.Duration,
+func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID, peersTracker core.PeersTracker,
+	callback func(peer.ID, host.Host), maxBackoff time.Duration,
 ) {
 	backoff := expbackoff.New(ctx, expbackoff.WithMaxDelay(maxBackoff)) // Start quick, then slow down
 	logFunc := newPingLogger(svc.Host, p)
 	for ctx.Err() == nil {
-		pingPeerOnce(ctx, svc, p, logFunc, callback)
+		pingPeerOnce(ctx, svc, p, logFunc, peersTracker, callback)
 		backoff()
 	}
 }
 
 // pingPeerOnce starts a long lived ping connection with the peer and returns on first error.
 func pingPeerOnce(ctx context.Context, svc *ping.PingService, p peer.ID,
-	logFunc func(context.Context, ping.Result), callback func(peer.ID, host.Host),
+	logFunc func(context.Context, ping.Result), peersTracker core.PeersTracker,
+	callback func(peer.ID, host.Host),
 ) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -104,6 +106,7 @@ func pingPeerOnce(ctx context.Context, svc *ping.PingService, p peer.ID,
 			return
 		case result := <-pingChan: // Only ping once to always use "best" connection.
 			if IsRelayError(result.Error) || errors.Is(result.Error, context.Canceled) {
+				peersTracker.SetUnreachable(p)
 				// Just exit if relay error or context cancelled.
 				return
 			}
@@ -111,6 +114,7 @@ func pingPeerOnce(ctx context.Context, svc *ping.PingService, p peer.ID,
 			logFunc(ctx, result)
 
 			if result.Error != nil {
+				peersTracker.SetUnreachable(p)
 				incPingError(p)
 				// Manually exit on first error since some error (like resource scoped closed)
 				// result in ping just hanging.
@@ -119,6 +123,7 @@ func pingPeerOnce(ctx context.Context, svc *ping.PingService, p peer.ID,
 
 			observePing(p, result.RTT)
 			callback(p, svc.Host)
+			peersTracker.SetAlive(p)
 		}
 
 		// Signal ping service to close the existing stream to avoid having orphaned streams.

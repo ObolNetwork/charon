@@ -29,6 +29,7 @@ type consensusController struct {
 	gaterFunc        core.DutyGaterFunc
 	deadlineFunc     core.DeadlineFunc
 	debugger         Debugger
+	peersTracker     core.PeersTracker
 	defaultConsensus core.Consensus
 	wrappedConsensus *consensusWrapper
 
@@ -41,7 +42,7 @@ type consensusController struct {
 // NewConsensusController creates a new consensus controller with the default consensus protocol.
 func NewConsensusController(ctx context.Context, tcpNode host.Host, sender *p2p.Sender,
 	peers []p2p.Peer, p2pKey *k1.PrivateKey, deadlineFunc core.DeadlineFunc,
-	gaterFunc core.DutyGaterFunc, debugger Debugger,
+	gaterFunc core.DutyGaterFunc, debugger Debugger, peersTracker core.PeersTracker,
 ) (core.ConsensusController, error) {
 	qbftDeadliner := core.NewDeadliner(ctx, "consensus.qbft", deadlineFunc)
 	defaultConsensus, err := qbft.NewConsensus(tcpNode, sender, peers, p2pKey, qbftDeadliner, gaterFunc, debugger.AddInstance)
@@ -57,6 +58,7 @@ func NewConsensusController(ctx context.Context, tcpNode host.Host, sender *p2p.
 		gaterFunc:        gaterFunc,
 		deadlineFunc:     deadlineFunc,
 		debugger:         debugger,
+		peersTracker:     peersTracker,
 		defaultConsensus: defaultConsensus,
 		wrappedConsensus: newConsensusWrapper(defaultConsensus),
 	}
@@ -116,7 +118,7 @@ func (f *consensusController) createHotStuffConsensus(ctx context.Context) (core
 	defer f.mutable.Unlock()
 
 	hotstuffDeadliner := core.NewDeadliner(cctx, "consensus.hotstuff", f.deadlineFunc)
-	hotstuffConsensus, err := hotstuff.NewConsensus(f.tcpNode, f.sender, f.peers, f.p2pKey, hotstuffDeadliner)
+	hotstuffConsensus, err := hotstuff.NewConsensus(f.tcpNode, f.sender, f.peers, f.p2pKey, hotstuffDeadliner, f.peersTracker)
 	if err != nil {
 		cancel()
 

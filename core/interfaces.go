@@ -8,6 +8,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 )
 
@@ -112,6 +113,18 @@ type ConsensusController interface {
 	// SetCurrentConsensusForProtocol handles Priority protocol outcome and changes the CurrentConsensus() accordingly.
 	// The function is not thread safe.
 	SetCurrentConsensusForProtocol(context.Context, protocol.ID) error
+}
+
+// PeersTracker tracks unreachable peers using p2p.PingService.
+type PeersTracker interface {
+	// SetAlive marks the peer as alive.
+	SetAlive(peer.ID)
+
+	// SetUnreachable marks the peer as unreachable.
+	SetUnreachable(peer.ID)
+
+	// Unreachable returns unreachable peers.
+	Unreachable() []peer.ID
 }
 
 // ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the DutyDB and stores partial signed data in the ParSigDB.

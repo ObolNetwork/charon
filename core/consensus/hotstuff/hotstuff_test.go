@@ -116,7 +116,8 @@ func testHotStuffConsensus(t *testing.T, threshold, nodes int) {
 		deadliner := coremocks.NewDeadliner(t)
 		deadliner.On("Add", mock.Anything).Return(true)
 		deadliner.On("C").Return(nil)
-		c, err := hotstuff.NewConsensus(hosts[i], new(p2p.Sender), peers, p2pkeys[i], deadliner)
+		pt := core.NewPeersTracker()
+		c, err := hotstuff.NewConsensus(hosts[i], new(p2p.Sender), peers, p2pkeys[i], deadliner, pt)
 		require.NoError(t, err)
 		c.Subscribe(func(_ context.Context, _ core.Duty, set core.UnsignedDataSet) error {
 			results <- set

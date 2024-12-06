@@ -55,7 +55,9 @@ func TestHotStuff(t *testing.T) {
 	for i := range total {
 		privateKey := cluster.privateKeys[i]
 		receiveCh := recvChannels[i]
-		replicas[i] = hotstuff.NewReplica(hotstuff.ID(i), duty, cluster, transports[i], receiveCh, privateKey, decidedFunc, valueCh)
+		replicas[i] = hotstuff.NewReplica(
+			hotstuff.ID(i), duty, cluster, []hotstuff.ID{},
+			transports[i], receiveCh, privateKey, decidedFunc, valueCh)
 	}
 
 	group, ctx := errgroup.WithContext(context.Background())
@@ -109,7 +111,9 @@ func TestHotStuffTimeout(t *testing.T) {
 
 		privateKey := cluster.privateKeys[i]
 		receiveCh := recvChannels[i]
-		replicas[i] = hotstuff.NewReplica(hotstuff.ID(i), duty, cluster, mutedTransport, receiveCh, privateKey, decidedFunc, valueCh)
+		replicas[i] = hotstuff.NewReplica(
+			hotstuff.ID(i), duty, cluster, []hotstuff.ID{},
+			mutedTransport, receiveCh, privateKey, decidedFunc, valueCh)
 	}
 
 	group, ctx := errgroup.WithContext(context.Background())
@@ -124,6 +128,106 @@ func TestHotStuffTimeout(t *testing.T) {
 	require.ErrorIs(t, err, hotstuff.ErrMaxViewReached)
 
 	require.EqualValues(t, total*maxView, newViewMsgCounter.Load())
+}
+
+func TestHotStuffNoLeaderAvailable(t *testing.T) {
+	const (
+		total     = 3
+		threshold = 3
+		maxView   = 2
+	)
+
+	cluster, err := newCluster(total, threshold, maxView, 100)
+	require.NoError(t, err)
+
+	duty := core.NewProposerDuty(1)
+	decidedFunc := func(hotstuff.Value, hotstuff.View) {}
+	valueCh := make(chan hotstuff.Value)
+
+	recvChannels := make([]chan *hotstuff.Msg, total)
+	for i := range recvChannels {
+		recvChannels[i] = make(chan *hotstuff.Msg, ioBufferSize)
+	}
+
+	replicas := make([]*hotstuff.Replica, total)
+	for i := range total {
+		mutedTransport := mocks.NewTransport(t)
+		mutedTransport.On("Broadcast", mock.Anything, mock.Anything).Return(nil).Maybe()
+		mutedTransport.On("SendTo", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+
+		privateKey := cluster.privateKeys[i]
+		receiveCh := recvChannels[i]
+		replicas[i] = hotstuff.NewReplica(
+			hotstuff.ID(i), duty, cluster, []hotstuff.ID{0, 1, 2}, // all unreachable
+			mutedTransport, receiveCh, privateKey, decidedFunc, valueCh)
+	}
+
+	group, ctx := errgroup.WithContext(context.Background())
+
+	for i := range total {
+		group.Go(func() error {
+			return replicas[i].Run(ctx)
+		})
+	}
+
+	err = group.Wait()
+	require.ErrorIs(t, err, hotstuff.ErrNoLeaderAvailable)
+}
+
+func TestHotStuffSkipUnreachableLeader(t *testing.T) {
+	const (
+		total     = 4
+		threshold = 3
+	)
+
+	inputValue := []byte("hotstuff")
+	outputCh := make(chan hotstuff.Value, total)
+
+	cluster, err := newCluster(total, threshold, 1, 1000)
+	require.NoError(t, err)
+
+	recvChannels := make([]chan *hotstuff.Msg, total)
+	for i := range recvChannels {
+		recvChannels[i] = make(chan *hotstuff.Msg, ioBufferSize)
+	}
+	transports := make([]hotstuff.Transport, total)
+	for i := range transports {
+		transports[i] = newTransport(recvChannels, recvChannels[i])
+	}
+
+	decidedFunc := func(value hotstuff.Value, _ hotstuff.View) {
+		outputCh <- value
+	}
+
+	valueCh := make(chan hotstuff.Value, 1)
+	valueCh <- inputValue
+
+	duty := core.NewProposerDuty(1)
+
+	replicas := make([]*hotstuff.Replica, total)
+	for i := range total {
+		privateKey := cluster.privateKeys[i]
+		receiveCh := recvChannels[i]
+		replicas[i] = hotstuff.NewReplica(
+			hotstuff.ID(i), duty, cluster, []hotstuff.ID{0, 1},
+			transports[i], receiveCh, privateKey, decidedFunc, valueCh)
+	}
+
+	group, ctx := errgroup.WithContext(context.Background())
+
+	for i := range total {
+		group.Go(func() error {
+			return replicas[i].Run(ctx)
+		})
+	}
+
+	for range total {
+		value := <-outputCh
+		require.EqualValues(t, inputValue, value)
+	}
+
+	err = group.Wait()
+	require.NoError(t, err)
 }
 
 func TestPhaseString(t *testing.T) {

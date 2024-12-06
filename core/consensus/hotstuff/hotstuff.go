@@ -4,6 +4,7 @@ package hotstuff
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"time"
 
@@ -31,14 +32,15 @@ type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) e
 // Consensus implements core.Consensus.
 type Consensus struct {
 	// Immutable state
-	id        hs.ID
-	tcpNode   host.Host
-	sender    *p2p.Sender
-	peers     []p2p.Peer
-	subs      []subscriber
-	deadliner core.Deadliner
-	metrics   metrics.ConsensusMetrics
-	cluster   *cluster
+	id           hs.ID
+	tcpNode      host.Host
+	sender       *p2p.Sender
+	peers        []p2p.Peer
+	subs         []subscriber
+	deadliner    core.Deadliner
+	metrics      metrics.ConsensusMetrics
+	cluster      *cluster
+	peersTracker core.PeersTracker
 
 	// Mutable state
 	mutable struct {
@@ -50,7 +52,9 @@ type Consensus struct {
 var _ core.Consensus = (*Consensus)(nil)
 
 // NewConsensus returns a new consensus HotStuff component.
-func NewConsensus(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey, deadliner core.Deadliner) (*Consensus, error) {
+func NewConsensus(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer,
+	p2pKey *k1.PrivateKey, deadliner core.Deadliner, peersTracker core.PeersTracker,
+) (*Consensus, error) {
 	var id hs.ID
 
 	keys := make([]*k1.PublicKey, len(peers))
@@ -68,13 +72,14 @@ func NewConsensus(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKe
 	cluster := newCluster(uint(len(peers)), p2pKey, keys)
 
 	c := &Consensus{
-		id:        id,
-		tcpNode:   tcpNode,
-		sender:    sender,
-		peers:     peers,
-		deadliner: deadliner,
-		metrics:   metrics.NewConsensusMetrics(protocols.HotStuffv1ProtocolID),
-		cluster:   cluster,
+		id:           id,
+		tcpNode:      tcpNode,
+		sender:       sender,
+		peers:        peers,
+		deadliner:    deadliner,
+		metrics:      metrics.NewConsensusMetrics(protocols.HotStuffv1ProtocolID),
+		cluster:      cluster,
+		peersTracker: peersTracker,
 	}
 
 	c.mutable.instances = make(map[core.Duty]*utils.InstanceIO[hs.Value, *hs.Msg])
@@ -292,7 +297,12 @@ func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error)
 		}
 	}
 
-	r := hs.NewReplica(c.id, duty, c.cluster, c, inst.RecvBuffer, c.cluster.privateKey, decidedFn, inst.ValueCh)
+	uids := c.unreachableIDs()
+	for _, uid := range uids {
+		log.Warn(ctx, "Detected unreachable peer", nil, z.U64("id", uint64(uid)))
+	}
+
+	r := hs.NewReplica(c.id, duty, c.cluster, uids, c, inst.RecvBuffer, c.cluster.privateKey, decidedFn, inst.ValueCh)
 	err = r.Run(ctx)
 	if err != nil && !isContextErr(err) {
 		c.metrics.IncConsensusError()
@@ -328,6 +338,18 @@ func (c *Consensus) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 	case <-ctx.Done():
 		return nil, false, errors.Wrap(ctx.Err(), "timeout enqueuing receive buffer", z.Any("duty", duty))
 	}
+}
+
+func (c *Consensus) unreachableIDs() (uids []hs.ID) {
+	unreachable := c.peersTracker.Unreachable()
+
+	for i, peer := range c.peers {
+		if slices.Contains(unreachable, peer.ID) {
+			uids = append(uids, hs.ID(i))
+		}
+	}
+
+	return uids
 }
 
 func isContextErr(err error) bool {
