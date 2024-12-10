@@ -110,7 +110,7 @@ func (r *Replica) handleMsg(ctx context.Context, msg *Msg) {
 
 	ctx = log.WithCtx(ctx, z.U64("view", uint64(r.view)), z.Str("phase", r.phase.String()))
 
-	leader := r.cluster.Leader(r.view)
+	leader := r.cluster.Leader(r.duty, r.view)
 
 	log.Debug(ctx, "Processing message "+msg.Type.String(), z.U64("leader", uint64(leader)))
 
@@ -268,7 +268,7 @@ func (r *Replica) replicaDuty(ctx context.Context, msg *Msg, leader ID) (err err
 		err = r.sendVote(ctx, MsgCommit, msg.QC.ValueHash, leader)
 	case DecidePhase:
 		value := r.valuesMap[msg.QC.ValueHash]
-		r.decidedFunc(value, r.view)
+		r.decidedFunc(value, r.duty, r.view)
 	default:
 		log.Debug(ctx, "Ignoring message in terminal phase")
 	}
@@ -303,7 +303,7 @@ func (r *Replica) sendVote(ctx context.Context, t MsgType, valueHash [32]byte, l
 }
 
 func (r *Replica) sendNewView(ctx context.Context) error {
-	nextLeader := r.cluster.Leader(r.view)
+	nextLeader := r.cluster.Leader(r.duty, r.view)
 	firstLeaderCandidate := nextLeader
 
 	for {
@@ -312,7 +312,7 @@ func (r *Replica) sendNewView(ctx context.Context) error {
 		}
 
 		r.view++
-		nextLeader = r.cluster.Leader(r.view)
+		nextLeader = r.cluster.Leader(r.duty, r.view)
 
 		if nextLeader == firstLeaderCandidate {
 			return ErrNoLeaderAvailable

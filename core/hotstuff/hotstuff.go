@@ -7,6 +7,8 @@ import (
 	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
+
+	"github.com/obolnetwork/charon/core"
 )
 
 //go:generate mockery --name=Transport --output=mocks --outpkg=mocks --case=underscore
@@ -30,7 +32,7 @@ type Transport interface {
 // Cluster defines the Byzantine cluster configuration.
 type Cluster interface {
 	// Leader returns the deterministic leader ID for the given view.
-	Leader(view View) ID
+	Leader(duty core.Duty, view View) ID
 
 	// PublicKeyToID returns the replica ID for the given public key.
 	PublicKeyToID(pubKey *k1.PublicKey) (ID, error)
@@ -50,7 +52,7 @@ type Cluster interface {
 }
 
 // DecidedFunc is a callback function invoked when a value is decided.
-type DecidedFunc func(value Value, view View)
+type DecidedFunc func(value Value, duty core.Duty, view View)
 
 // Phase defines the HotStuff phases.
 type Phase uint64

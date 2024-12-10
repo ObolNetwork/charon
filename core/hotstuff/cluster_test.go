@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/hotstuff"
 )
 
@@ -35,14 +36,32 @@ func TestLeader(t *testing.T) {
 	c, err := newCluster(7, 5, 1, 100)
 	require.NoError(t, err)
 
-	require.Equal(t, hotstuff.ID(1), c.Leader(1))
-	require.Equal(t, hotstuff.ID(2), c.Leader(2))
-	require.Equal(t, hotstuff.ID(3), c.Leader(3))
-	require.Equal(t, hotstuff.ID(4), c.Leader(4))
-	require.Equal(t, hotstuff.ID(5), c.Leader(5))
-	require.Equal(t, hotstuff.ID(6), c.Leader(6))
-	require.Equal(t, hotstuff.ID(0), c.Leader(7))
-	require.Equal(t, hotstuff.ID(1), c.Leader(8))
+	t.Run("same duty, different views", func(t *testing.T) {
+		duty := core.NewAttesterDuty(1)
+
+		require.Equal(t, hotstuff.ID(4), c.Leader(duty, 1))
+		require.Equal(t, hotstuff.ID(5), c.Leader(duty, 2))
+		require.Equal(t, hotstuff.ID(6), c.Leader(duty, 3))
+		require.Equal(t, hotstuff.ID(0), c.Leader(duty, 4))
+		require.Equal(t, hotstuff.ID(1), c.Leader(duty, 5))
+		require.Equal(t, hotstuff.ID(2), c.Leader(duty, 6))
+		require.Equal(t, hotstuff.ID(3), c.Leader(duty, 7))
+		require.Equal(t, hotstuff.ID(4), c.Leader(duty, 8))
+	})
+
+	t.Run("same slot and view, different duty", func(t *testing.T) {
+		duty1 := core.NewAttesterDuty(1)
+		duty2 := core.NewProposerDuty(1)
+
+		require.NotEqual(t, c.Leader(duty1, 1), c.Leader(duty2, 1))
+	})
+
+	t.Run("different slot, same view and duty", func(t *testing.T) {
+		duty1 := core.NewAttesterDuty(1)
+		duty2 := core.NewAttesterDuty(2)
+
+		require.NotEqual(t, c.Leader(duty1, 1), c.Leader(duty2, 1))
+	})
 }
 
 func TestReplicaIDByPublicKey(t *testing.T) {
@@ -103,8 +122,8 @@ func newCluster(nodes, threshold, maxView, phaseTimeoutMs uint) (*cluster, error
 	}, nil
 }
 
-func (c *cluster) Leader(view hotstuff.View) hotstuff.ID {
-	return hotstuff.ID(uint64(view) % uint64(c.nodes))
+func (c *cluster) Leader(duty core.Duty, view hotstuff.View) hotstuff.ID {
+	return hotstuff.ID((duty.Slot + uint64(duty.Type) + uint64(view)) % uint64(c.nodes))
 }
 
 func (c *cluster) PublicKeyToID(pubKey *k1.PublicKey) (hotstuff.ID, error) {

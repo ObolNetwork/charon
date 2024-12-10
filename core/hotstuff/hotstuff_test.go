@@ -42,7 +42,7 @@ func TestHotStuff(t *testing.T) {
 	mutedTransport.On("SendTo", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	transports[0] = mutedTransport
 
-	decidedFunc := func(value hotstuff.Value, _ hotstuff.View) {
+	decidedFunc := func(value hotstuff.Value, _ core.Duty, _ hotstuff.View) {
 		outputCh <- value
 	}
 
@@ -88,7 +88,7 @@ func TestHotStuffTimeout(t *testing.T) {
 	require.NoError(t, err)
 
 	duty := core.NewProposerDuty(1)
-	decidedFunc := func(hotstuff.Value, hotstuff.View) {}
+	decidedFunc := func(hotstuff.Value, core.Duty, hotstuff.View) {}
 	valueCh := make(chan hotstuff.Value)
 
 	recvChannels := make([]chan *hotstuff.Msg, total)
@@ -141,7 +141,7 @@ func TestHotStuffNoLeaderAvailable(t *testing.T) {
 	require.NoError(t, err)
 
 	duty := core.NewProposerDuty(1)
-	decidedFunc := func(hotstuff.Value, hotstuff.View) {}
+	decidedFunc := func(hotstuff.Value, core.Duty, hotstuff.View) {}
 	valueCh := make(chan hotstuff.Value)
 
 	recvChannels := make([]chan *hotstuff.Msg, total)
@@ -195,7 +195,7 @@ func TestHotStuffSkipUnreachableLeader(t *testing.T) {
 		transports[i] = newTransport(recvChannels, recvChannels[i])
 	}
 
-	decidedFunc := func(value hotstuff.Value, _ hotstuff.View) {
+	decidedFunc := func(value hotstuff.Value, _ core.Duty, _ hotstuff.View) {
 		outputCh <- value
 	}
 

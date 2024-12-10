@@ -9,6 +9,7 @@ import (
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/core"
 	hs "github.com/obolnetwork/charon/core/hotstuff"
 )
 
@@ -46,8 +47,8 @@ func newCluster(nodes uint, privateKey *k1.PrivateKey, publicKeys []*k1.PublicKe
 	}
 }
 
-func (c *cluster) Leader(view hs.View) hs.ID {
-	return hs.ID(uint64(view) % uint64(c.nodes))
+func (c *cluster) Leader(duty core.Duty, view hs.View) hs.ID {
+	return hs.ID((duty.Slot + uint64(duty.Type) + uint64(view)) % uint64(c.nodes))
 }
 
 func (c *cluster) PublicKeyToID(pubKey *k1.PublicKey) (hs.ID, error) {

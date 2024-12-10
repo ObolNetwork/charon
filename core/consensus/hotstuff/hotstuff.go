@@ -269,11 +269,11 @@ func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error)
 
 	var decided bool
 
-	decidedFn := func(value hs.Value, view hs.View) {
+	decidedFn := func(value hs.Value, duty core.Duty, view hs.View) {
 		decided = true
 		inst.DecidedAtCh <- time.Now()
 
-		leaderID := c.cluster.Leader(view)
+		leaderID := c.cluster.Leader(duty, view)
 		leaderName := c.peers[leaderID].Name
 		log.Debug(ctx, "HotStuff consensus decided",
 			z.Str("duty", duty.Type.String()),

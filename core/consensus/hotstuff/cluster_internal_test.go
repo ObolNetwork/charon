@@ -8,6 +8,7 @@ import (
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/core"
 	hs "github.com/obolnetwork/charon/core/hotstuff"
 )
 
@@ -40,15 +41,34 @@ func TestHasQuorum(t *testing.T) {
 }
 
 func TestLeader(t *testing.T) {
-	c := newCluster(4, nil, nil)
+	c := newCluster(7, nil, nil)
 
-	require.Equal(t, hs.ID(1), c.Leader(1))
-	require.Equal(t, hs.ID(2), c.Leader(2))
-	require.Equal(t, hs.ID(3), c.Leader(3))
-	require.Equal(t, hs.ID(0), c.Leader(4))
-	require.Equal(t, hs.ID(1), c.Leader(5))
-	require.Equal(t, hs.ID(2), c.Leader(6))
-	require.Equal(t, hs.ID(3), c.Leader(7))
+	t.Run("same duty, different views", func(t *testing.T) {
+		duty := core.NewAttesterDuty(1)
+
+		require.Equal(t, hs.ID(4), c.Leader(duty, 1))
+		require.Equal(t, hs.ID(5), c.Leader(duty, 2))
+		require.Equal(t, hs.ID(6), c.Leader(duty, 3))
+		require.Equal(t, hs.ID(0), c.Leader(duty, 4))
+		require.Equal(t, hs.ID(1), c.Leader(duty, 5))
+		require.Equal(t, hs.ID(2), c.Leader(duty, 6))
+		require.Equal(t, hs.ID(3), c.Leader(duty, 7))
+		require.Equal(t, hs.ID(4), c.Leader(duty, 8))
+	})
+
+	t.Run("same slot and view, different duty", func(t *testing.T) {
+		duty1 := core.NewAttesterDuty(1)
+		duty2 := core.NewProposerDuty(1)
+
+		require.NotEqual(t, c.Leader(duty1, 1), c.Leader(duty2, 1))
+	})
+
+	t.Run("different slot, same view and duty", func(t *testing.T) {
+		duty1 := core.NewAttesterDuty(1)
+		duty2 := core.NewAttesterDuty(2)
+
+		require.NotEqual(t, c.Leader(duty1, 1), c.Leader(duty2, 1))
+	})
 }
 
 func TestReplicaIDByPublicKey(t *testing.T) {
