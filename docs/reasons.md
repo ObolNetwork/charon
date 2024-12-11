@@ -3,7 +3,7 @@
 This document enumerates and explains various duty failure reasons instrumented by the tracker component in charon.
 
 These reasons are logged and reported via the `core_tracker_failed_duty_reasons_total`
-prometheus counter when the tracker component detects duty failures.
+Prometheus counter when the tracker component detects duty failures.
 
 By understanding these failure reasons, operators can better monitor, troubleshoot, and
 maintain system performance.
