@@ -48,7 +48,7 @@ This cluster-definition file is created with the help of the [Distributed Valida
     - The participant signs their charon node's ENR, to authenticate and authorise that specific charon node to participate on their behalf in the distributed validator cluster.
   - These/this signature is sent to the data availability layer, where it verifies the signatures are correct for the given participants ethereum address. If the signatures pass validation, the signature of the config_hash and the ENR + signature get saved to the cluster definition object.
 - All participants in the list must sign the config_hash and submit a signed ENR before a DKG ceremony can begin. The outstanding signatures can be easily displayed on the status page.
-- Finally, once all participants have signed their approval, and submitted a charon node ENR to act on their behalf, the cluster-definition file can be downloaded as a file if the users click a newly displayed button, `Download Cluster Definition`.
+- Finally, once all participants has signed their approval, and submitted a charon node ENR to act on their behalf, the cluster-definition file can be downloaded as a file if the users click a newly displayed button, `Download Cluster Definition`.
 - At this point each participant must load this cluster-definition into their charon client, and the client will attempt to complete the DKG.
 
 ## Carrying out the DKG ceremony
