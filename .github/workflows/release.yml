@@ -62,3 +62,19 @@ jobs:
           repository: ObolNetwork/obol-ansible
           event-type: update-version
           client-payload: '{"tag": "${{ env.TAG_NAME }}"}'
+
+      - name: Trigger dispatch for CDVN
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.OBOL_PLATFORM_PAT }}
+          repository: ObolNetwork/charon-distributed-validator-node
+          event-type: update-version
+          client-payload: '{"tag": "${{ env.TAG_NAME }}"}'
+
+      - name: Trigger dispatch for CDVC
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.OBOL_PLATFORM_PAT }}
+          repository: ObolNetwork/charon-distributed-validator-cluster
+          event-type: update-version
+          client-payload: '{"tag": "${{ env.TAG_NAME }}"}'
