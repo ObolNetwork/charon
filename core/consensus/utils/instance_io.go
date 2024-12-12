@@ -29,9 +29,9 @@ func NewInstanceIO[T any]() *InstanceIO[T] {
 // InstanceIO defines the async input and output channels of a
 // single consensus instance in the Component.
 type InstanceIO[T any] struct {
-	Participated int32              // Closed when Participate was called for this instance.
-	Proposed     int32              // Closed when Propose was called for this instance.
-	Running      int32              // Closed when runInstance was already called.
+	Participated atomic.Bool        // True when Participate was called for this instance.
+	Proposed     atomic.Bool        // True when Propose was called for this instance.
+	Running      atomic.Bool        // True when runInstance was already called.
 	RecvBuffer   chan T             // Outer receive buffers.
 	HashCh       chan [32]byte      // Async input hash channel.
 	ValueCh      chan proto.Message // Async input value channel.
@@ -42,7 +42,7 @@ type InstanceIO[T any] struct {
 // MarkParticipated marks the instance as participated.
 // It returns an error if the instance was already marked as participated.
 func (io *InstanceIO[T]) MarkParticipated() error {
-	if !atomic.CompareAndSwapInt32(&io.Participated, 0, 1) {
+	if !io.Participated.CompareAndSwap(false, true) {
 		return errors.New("already participated")
 	}
 
@@ -52,7 +52,7 @@ func (io *InstanceIO[T]) MarkParticipated() error {
 // MarkProposed marks the instance as proposed.
 // It returns an error if the instance was already marked as proposed.
 func (io *InstanceIO[T]) MarkProposed() error {
-	if !atomic.CompareAndSwapInt32(&io.Proposed, 0, 1) {
+	if !io.Proposed.CompareAndSwap(false, true) {
 		return errors.New("already proposed")
 	}
 
@@ -62,5 +62,5 @@ func (io *InstanceIO[T]) MarkProposed() error {
 // MaybeStart returns true if the instance wasn't running and has been started by this call,
 // otherwise it returns false if the instance was started in the past and is either running now or has completed.
 func (io *InstanceIO[T]) MaybeStart() bool {
-	return atomic.CompareAndSwapInt32(&io.Running, 0, 1)
+	return io.Running.CompareAndSwap(false, true)
 }
