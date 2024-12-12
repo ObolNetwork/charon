@@ -575,6 +575,7 @@ func (m multi) NodeVersion(ctx context.Context, opts *api.NodeVersionOpts) (*api
 // Note this endpoint is cached in go-eth2-client.
 func (m multi) SubmitProposalPreparations(ctx context.Context, preparations []*apiv1.ProposalPreparation) error {
 	const label = "submit_proposal_preparations"
+	defer latency(ctx, label, true)()
 
 	err := submit(ctx, m.clients,
 		func(ctx context.Context, cl Client) error {
