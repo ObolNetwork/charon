@@ -42,7 +42,11 @@ func TestMaybeStart(t *testing.T) {
 	ok := io.MaybeStart()
 	require.True(t, ok)
 
-	// Second call fails.
+	// Subsequent calls fail.
+	ok = io.MaybeStart()
+	require.False(t, ok)
+	ok = io.MaybeStart()
+	require.False(t, ok)
 	ok = io.MaybeStart()
 	require.False(t, ok)
 }
