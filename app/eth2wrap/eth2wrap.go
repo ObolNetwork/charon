@@ -171,10 +171,10 @@ func submit(ctx context.Context, clients []Client, work func(context.Context, Cl
 //
 //	defer latency("endpoint")()
 func latency(ctx context.Context, endpoint string, enableLogs bool) func() {
-	t0 := time.Now()
 	if enableLogs {
 		log.Debug(ctx, "Calling beacon node endpoint...", z.Str("endpoint", endpoint))
 	}
+	t0 := time.Now()
 
 	return func() {
 		rtt := time.Since(t0).Seconds()
