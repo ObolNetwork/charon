@@ -177,12 +177,13 @@ func latency(ctx context.Context, endpoint string, enableLogs bool) func() {
 	t0 := time.Now()
 
 	return func() {
-		rtt := time.Since(t0).Seconds()
-		latencyHist.WithLabelValues(endpoint).Observe(rtt)
+		rttSeconds := time.Since(t0).Seconds()
+		latencyHist.WithLabelValues(endpoint).Observe(rttSeconds)
 		if enableLogs {
 			log.Debug(ctx, "Beacon node call finished", z.Str("endpoint", endpoint))
-			if rtt > float64(time.Second) {
-				log.Warn(ctx, "Beacon node call took more than 1 second to fulfill", nil, z.Str("endpoint", endpoint), z.F64("rtt_seconds", rtt))
+			// If BN call took more than 1 second, send WARN log
+			if rttSeconds > 1 {
+				log.Warn(ctx, "Beacon node call took longer than expected", nil, z.Str("endpoint", endpoint), z.F64("rtt_seconds", rttSeconds))
 			}
 		}
 	}
