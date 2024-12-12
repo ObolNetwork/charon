@@ -112,7 +112,7 @@ func (m multi) SlotsPerEpoch(ctx context.Context) (uint64, error) {
 // SignedBeaconBlock fetches a signed beacon block given a block ID.
 func (m multi) SignedBeaconBlock(ctx context.Context, opts *api.SignedBeaconBlockOpts) (*api.Response[*spec.VersionedSignedBeaconBlock], error) {
 	const label = "signed_beacon_block"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	res0, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) (*api.Response[*spec.VersionedSignedBeaconBlock], error) {
@@ -132,7 +132,7 @@ func (m multi) SignedBeaconBlock(ctx context.Context, opts *api.SignedBeaconBloc
 // AggregateAttestation fetches the aggregate attestation for the given options.
 func (m multi) AggregateAttestation(ctx context.Context, opts *api.AggregateAttestationOpts) (*api.Response[*phase0.Attestation], error) {
 	const label = "aggregate_attestation"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	res0, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) (*api.Response[*phase0.Attestation], error) {
@@ -152,7 +152,7 @@ func (m multi) AggregateAttestation(ctx context.Context, opts *api.AggregateAtte
 // SubmitAggregateAttestations submits aggregate attestations.
 func (m multi) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs []*phase0.SignedAggregateAndProof) error {
 	const label = "submit_aggregate_attestations"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	err := submit(ctx, m.clients,
 		func(ctx context.Context, cl Client) error {
@@ -172,7 +172,7 @@ func (m multi) SubmitAggregateAttestations(ctx context.Context, aggregateAndProo
 // AttestationData fetches the attestation data for the given options.
 func (m multi) AttestationData(ctx context.Context, opts *api.AttestationDataOpts) (*api.Response[*phase0.AttestationData], error) {
 	const label = "attestation_data"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	res0, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) (*api.Response[*phase0.AttestationData], error) {
@@ -192,7 +192,7 @@ func (m multi) AttestationData(ctx context.Context, opts *api.AttestationDataOpt
 // SubmitAttestations submits attestations.
 func (m multi) SubmitAttestations(ctx context.Context, attestations []*phase0.Attestation) error {
 	const label = "submit_attestations"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	err := submit(ctx, m.clients,
 		func(ctx context.Context, cl Client) error {
@@ -212,7 +212,7 @@ func (m multi) SubmitAttestations(ctx context.Context, attestations []*phase0.At
 // AttesterDuties obtains attester duties.
 func (m multi) AttesterDuties(ctx context.Context, opts *api.AttesterDutiesOpts) (*api.Response[[]*apiv1.AttesterDuty], error) {
 	const label = "attester_duties"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	res0, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) (*api.Response[[]*apiv1.AttesterDuty], error) {
@@ -253,7 +253,7 @@ func (m multi) DepositContract(ctx context.Context, opts *api.DepositContractOpt
 // If validatorIndicess is nil it will return all duties for the given epoch.
 func (m multi) SyncCommitteeDuties(ctx context.Context, opts *api.SyncCommitteeDutiesOpts) (*api.Response[[]*apiv1.SyncCommitteeDuty], error) {
 	const label = "sync_committee_duties"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	res0, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) (*api.Response[[]*apiv1.SyncCommitteeDuty], error) {
@@ -273,7 +273,7 @@ func (m multi) SyncCommitteeDuties(ctx context.Context, opts *api.SyncCommitteeD
 // SubmitSyncCommitteeMessages submits sync committee messages.
 func (m multi) SubmitSyncCommitteeMessages(ctx context.Context, messages []*altair.SyncCommitteeMessage) error {
 	const label = "submit_sync_committee_messages"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	err := submit(ctx, m.clients,
 		func(ctx context.Context, cl Client) error {
@@ -293,7 +293,7 @@ func (m multi) SubmitSyncCommitteeMessages(ctx context.Context, messages []*alta
 // SubmitSyncCommitteeSubscriptions subscribes to sync committees.
 func (m multi) SubmitSyncCommitteeSubscriptions(ctx context.Context, subscriptions []*apiv1.SyncCommitteeSubscription) error {
 	const label = "submit_sync_committee_subscriptions"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	err := submit(ctx, m.clients,
 		func(ctx context.Context, cl Client) error {
@@ -313,7 +313,7 @@ func (m multi) SubmitSyncCommitteeSubscriptions(ctx context.Context, subscriptio
 // SyncCommitteeContribution provides a sync committee contribution.
 func (m multi) SyncCommitteeContribution(ctx context.Context, opts *api.SyncCommitteeContributionOpts) (*api.Response[*altair.SyncCommitteeContribution], error) {
 	const label = "sync_committee_contribution"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	res0, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) (*api.Response[*altair.SyncCommitteeContribution], error) {
@@ -333,7 +333,7 @@ func (m multi) SyncCommitteeContribution(ctx context.Context, opts *api.SyncComm
 // SubmitSyncCommitteeContributions submits sync committee contributions.
 func (m multi) SubmitSyncCommitteeContributions(ctx context.Context, contributionAndProofs []*altair.SignedContributionAndProof) error {
 	const label = "submit_sync_committee_contributions"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	err := submit(ctx, m.clients,
 		func(ctx context.Context, cl Client) error {
@@ -353,7 +353,7 @@ func (m multi) SubmitSyncCommitteeContributions(ctx context.Context, contributio
 // Proposal fetches a proposal for signing.
 func (m multi) Proposal(ctx context.Context, opts *api.ProposalOpts) (*api.Response[*api.VersionedProposal], error) {
 	const label = "proposal"
-	defer latency(label)()
+	defer latency(ctx, label, true)()
 
 	res0, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) (*api.Response[*api.VersionedProposal], error) {
@@ -393,7 +393,7 @@ func (m multi) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRootOpt
 // SubmitProposal submits a proposal.
 func (m multi) SubmitProposal(ctx context.Context, opts *api.SubmitProposalOpts) error {
 	const label = "submit_proposal"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	err := submit(ctx, m.clients,
 		func(ctx context.Context, cl Client) error {
@@ -413,7 +413,7 @@ func (m multi) SubmitProposal(ctx context.Context, opts *api.SubmitProposalOpts)
 // SubmitBeaconCommitteeSubscriptions subscribes to beacon committees.
 func (m multi) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscriptions []*apiv1.BeaconCommitteeSubscription) error {
 	const label = "submit_beacon_committee_subscriptions"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	err := submit(ctx, m.clients,
 		func(ctx context.Context, cl Client) error {
@@ -433,7 +433,7 @@ func (m multi) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscript
 // SubmitBlindedProposal submits a beacon block.
 func (m multi) SubmitBlindedProposal(ctx context.Context, opts *api.SubmitBlindedProposalOpts) error {
 	const label = "submit_blinded_proposal"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	err := submit(ctx, m.clients,
 		func(ctx context.Context, cl Client) error {
@@ -453,7 +453,7 @@ func (m multi) SubmitBlindedProposal(ctx context.Context, opts *api.SubmitBlinde
 // SubmitValidatorRegistrations submits a validator registration.
 func (m multi) SubmitValidatorRegistrations(ctx context.Context, registrations []*api.VersionedSignedValidatorRegistration) error {
 	const label = "submit_validator_registrations"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	err := submit(ctx, m.clients,
 		func(ctx context.Context, cl Client) error {
@@ -473,7 +473,7 @@ func (m multi) SubmitValidatorRegistrations(ctx context.Context, registrations [
 // Fork fetches fork information for the given state.
 func (m multi) Fork(ctx context.Context, opts *api.ForkOpts) (*api.Response[*phase0.Fork], error) {
 	const label = "fork"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	res0, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) (*api.Response[*phase0.Fork], error) {
@@ -493,7 +493,7 @@ func (m multi) Fork(ctx context.Context, opts *api.ForkOpts) (*api.Response[*pha
 // ForkSchedule provides details of past and future changes in the chain's fork version.
 func (m multi) ForkSchedule(ctx context.Context, opts *api.ForkScheduleOpts) (*api.Response[[]*phase0.Fork], error) {
 	const label = "fork_schedule"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	res0, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) (*api.Response[[]*phase0.Fork], error) {
@@ -533,7 +533,7 @@ func (m multi) Genesis(ctx context.Context, opts *api.GenesisOpts) (*api.Respons
 // NodeSyncing provides the state of the node's synchronization with the chain.
 func (m multi) NodeSyncing(ctx context.Context, opts *api.NodeSyncingOpts) (*api.Response[*apiv1.SyncState], error) {
 	const label = "node_syncing"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	res0, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) (*api.Response[*apiv1.SyncState], error) {
@@ -594,7 +594,7 @@ func (m multi) SubmitProposalPreparations(ctx context.Context, preparations []*a
 // ProposerDuties obtains proposer duties for the given options.
 func (m multi) ProposerDuties(ctx context.Context, opts *api.ProposerDutiesOpts) (*api.Response[[]*apiv1.ProposerDuty], error) {
 	const label = "proposer_duties"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	res0, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) (*api.Response[[]*apiv1.ProposerDuty], error) {
@@ -634,7 +634,7 @@ func (m multi) Spec(ctx context.Context, opts *api.SpecOpts) (*api.Response[map[
 // Validators provides the validators, with their balance and status, for the given options.
 func (m multi) Validators(ctx context.Context, opts *api.ValidatorsOpts) (*api.Response[map[phase0.ValidatorIndex]*apiv1.Validator], error) {
 	const label = "validators"
-	defer latency(label)()
+	defer latency(ctx, label, true)()
 
 	res0, err := provide(ctx, m.clients,
 		func(ctx context.Context, cl Client) (*api.Response[map[phase0.ValidatorIndex]*apiv1.Validator], error) {
@@ -654,7 +654,7 @@ func (m multi) Validators(ctx context.Context, opts *api.ValidatorsOpts) (*api.R
 // SubmitVoluntaryExit submits a voluntary exit.
 func (m multi) SubmitVoluntaryExit(ctx context.Context, voluntaryExit *phase0.SignedVoluntaryExit) error {
 	const label = "submit_voluntary_exit"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	err := submit(ctx, m.clients,
 		func(ctx context.Context, cl Client) error {
