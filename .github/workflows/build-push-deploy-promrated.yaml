@@ -5,7 +5,7 @@ on:
     paths:
       - testutil/promrated/*
 
-name: Build and Deply Promrated Image
+name: Build and Deploy Promrated Image
 jobs:
   build-docker:
     runs-on: ubuntu-latest
@@ -17,7 +17,7 @@ jobs:
       uses: docker/setup-qemu-action@v1
     - uses: docker/setup-buildx-action@v1
 
-    - name: Define docker image meta data tags
+    - name: Define docker image metadata tags
       id: meta
       uses: docker/metadata-action@v3
       with:

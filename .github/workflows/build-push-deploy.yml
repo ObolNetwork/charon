@@ -24,7 +24,7 @@ jobs:
       if: github.ref_type == 'branch'
       run: echo "APP_VERSION=$(grep 'var version' app/version/version.go | cut -d'"' -f2)" >> $GITHUB_ENV
 
-    - name: Define docker image meta data tags
+    - name: Define docker image metadata tags
       id: meta
       uses: docker/metadata-action@v4
       with:

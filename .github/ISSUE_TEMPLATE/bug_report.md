@@ -7,8 +7,8 @@ labels: Bug
 
 Hey there!
 
-To help us tend to your issue faster, please search our currently open issues before submitting a new one.
-Existing issues often contain information about workarounds, resolution, or progress updates.
+To help us lean forward your issue faster, please search through our currently open issues before submitting a new one.
+Existing issues often contain information about workarounds, resolutions, or progress updates.
 
 ]-->
 
