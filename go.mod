@@ -3,8 +3,8 @@ module github.com/obolnetwork/charon
 go 1.23
 
 require (
-	github.com/attestantio/go-builder-client v0.5.1
-	github.com/attestantio/go-eth2-client v0.21.10
+	github.com/attestantio/go-builder-client v0.5.2
+	github.com/attestantio/go-eth2-client v0.21.11
 	github.com/bufbuild/buf v1.35.1
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0
@@ -110,7 +110,7 @@ require (
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.20.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
-	github.com/huandu/go-clone v1.6.0 // indirect
+	github.com/huandu/go-clone v1.7.2 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/ipfs/go-cid v0.4.1 // indirect
