@@ -37,5 +37,5 @@ func TestDoOnce(t *testing.T) {
 	require.Equal(t, gitHash, info.GetGitHash())
 	require.Equal(t, lockHash, info.GetLockHash())
 	require.True(t, info.GetBuilderApiEnabled())
-	require.Equal(t, nickname, info.Nickname)
+	require.Equal(t, nickname, info.GetNickname())
 }
