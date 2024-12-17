@@ -94,7 +94,7 @@ type Config struct {
 	TestnetConfig           eth2util.Network
 	ProcDirectory           string
 	ConsensusProtocol       string
-	Nickname            	string
+	Nickname                string
 
 	TestConfig TestConfig
 }

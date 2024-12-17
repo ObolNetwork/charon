@@ -62,10 +62,10 @@ var (
 	}, []string{"peer"})
 
 	peerNickname = promauto.NewResetGaugeVec(prometheus.GaugeOpts{
-		Namespace: "app",
-		Subsystem: "peerinfo",
-		Name:      "nickname",
-		Help:      "Constant gauge with nickname label set to peer's charon nickname.",
+		Namespace:   "app",
+		Subsystem:   "peerinfo",
+		Name:        "nickname",
+		Help:        "Constant gauge with nickname label set to peer's charon nickname.",
 		ConstLabels: nil,
 	}, []string{"peer", "nickname"})
 )

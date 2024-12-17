@@ -101,7 +101,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, loc
 				SentAt:            timestamppb.New(nowFunc()),
 				StartedAt:         startTime,
 				BuilderApiEnabled: builderAPIEnabled,
-				Nickname:      	   nickname,
+				Nickname:          nickname,
 			}, true, nil
 		},
 	)
