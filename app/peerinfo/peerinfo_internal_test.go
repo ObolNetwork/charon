@@ -72,6 +72,7 @@ func TestPeerBuilderAPIEnabledGauge(t *testing.T) {
 	lockHash := []byte("123")
 	gitHash := "abc"
 	peerName := p2p.PeerName(server.ID())
+	peerNickname := "johndoe"
 
 	tests := []struct {
 		name           string
@@ -84,7 +85,7 @@ func TestPeerBuilderAPIEnabledGauge(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_ = New(server, []peer.ID{server.ID(), client.ID()}, version.Version, lockHash, gitHash, nil, test.builderEnabled)
+			_ = New(server, []peer.ID{server.ID(), client.ID()}, version.Version, lockHash, gitHash, nil, test.builderEnabled, peerNickname)
 
 			expectedMetric := fmt.Sprintf(`
 			# HELP app_peerinfo_builder_api_enabled Set to 1 if builder API is enabled on this peer, else 0 if disabled.

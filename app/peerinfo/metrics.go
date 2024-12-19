@@ -60,4 +60,12 @@ var (
 		Name:      "builder_api_enabled",
 		Help:      "Set to 1 if builder API is enabled on this peer, else 0 if disabled.",
 	}, []string{"peer"})
+
+	peerNickname = promauto.NewResetGaugeVec(prometheus.GaugeOpts{
+		Namespace:   "app",
+		Subsystem:   "peerinfo",
+		Name:        "nickname",
+		Help:        "Constant gauge with nickname label set to peer's charon nickname.",
+		ConstLabels: nil,
+	}, []string{"peer", "nickname"})
 )

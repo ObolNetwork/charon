@@ -28,6 +28,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_peerinfo_clock_offset_seconds` | Gauge | Peer clock offset in seconds | `peer` |
 | `app_peerinfo_git_commit` | Gauge | Constant gauge with git_hash label set to peer`s git commit hash. | `peer, git_hash` |
 | `app_peerinfo_index` | Gauge | Constant gauge set to the peer index in the cluster definition | `peer` |
+| `app_peerinfo_nickname` | Gauge | Constant gauge with nickname label set to peer`s charon nickname. | `peer, nickname` |
 | `app_peerinfo_start_time_secs` | Gauge | Constant gauge set to the peer start time of the binary in unix seconds | `peer` |
 | `app_peerinfo_version` | Gauge | Constant gauge with version label set to peer`s charon version. | `peer, version` |
 | `app_peerinfo_version_support` | Gauge | Set to 1 if the peer`s version is supported by (compatible with) the current version, else 0 if unsupported. | `peer` |

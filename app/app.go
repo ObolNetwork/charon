@@ -94,6 +94,7 @@ type Config struct {
 	TestnetConfig           eth2util.Network
 	ProcDirectory           string
 	ConsensusProtocol       string
+	Nickname                string
 
 	TestConfig TestConfig
 }
@@ -257,7 +258,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	sender := new(p2p.Sender)
 
-	wirePeerInfo(life, tcpNode, peerIDs, cluster.GetInitialMutationHash(), sender, conf.BuilderAPI)
+	if len(conf.Nickname) > 32 {
+		return errors.New("nickname can not exceed 32 characters")
+	}
+	wirePeerInfo(life, tcpNode, peerIDs, cluster.GetInitialMutationHash(), sender, conf.BuilderAPI, conf.Nickname)
 
 	// seenPubkeys channel to send seen public keys from validatorapi to monitoringapi.
 	seenPubkeys := make(chan core.PubKey)
@@ -297,9 +301,9 @@ func Run(ctx context.Context, conf Config) (err error) {
 }
 
 // wirePeerInfo wires the peerinfo protocol.
-func wirePeerInfo(life *lifecycle.Manager, tcpNode host.Host, peers []peer.ID, lockHash []byte, sender *p2p.Sender, builderEnabled bool) {
+func wirePeerInfo(life *lifecycle.Manager, tcpNode host.Host, peers []peer.ID, lockHash []byte, sender *p2p.Sender, builderEnabled bool, nickname string) {
 	gitHash, _ := version.GitCommit()
-	peerInfo := peerinfo.New(tcpNode, peers, version.Version, lockHash, gitHash, sender.SendReceive, builderEnabled)
+	peerInfo := peerinfo.New(tcpNode, peers, version.Version, lockHash, gitHash, sender.SendReceive, builderEnabled, nickname)
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPeerInfo, lifecycle.HookFuncCtx(peerInfo.Run))
 }
 
