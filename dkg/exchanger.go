@@ -102,7 +102,7 @@ func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int, sig
 	return ex
 }
 
-// exchange exhanges partial signatures of lockhash/deposit-data among dkg participants and returns all the partial
+// exchange exchanges partial signatures of lockhash/deposit-data among dkg participants and returns all the partial
 // signatures of the group according to public key of each DV.
 func (e *exchanger) exchange(ctx context.Context, sigType sigType, set core.ParSignedDataSet) (map[core.PubKey][]core.ParSignedData, error) {
 	// Start the process by storing current peer's ParSignedDataSet
