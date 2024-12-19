@@ -66,9 +66,23 @@ type Client interface {
 		{{if .Latency}}defer latency(label)() {{end}}
 
 
-		{{.ResultNames}} := {{.DoFunc}}(ctx, m.clients,
-			func(ctx context.Context, cl Client) ({{.ResultTypes}}){
-				return cl.{{.Name}}({{.ParamNames}})
+		{{.ResultNames}} := {{.DoFunc}}(ctx, m.clients, m.fallback,
+			func(ctx context.Context, args provideArgs) ({{.ResultTypes}}){
+				{{.ResultNames}} := args.client.{{.Name}}({{.ParamNames}})
+				if err != nil {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return {{.ResultNames}}
+					}
+
+					defer args.fallback.place()
+
+					return fe.{{.Name}}({{.ParamNames}})
+				}
+
+				return {{.ResultNames}}
 			},
 			{{.SuccessFunc}} m.selector,
 		)
