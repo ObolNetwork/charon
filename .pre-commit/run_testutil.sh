@@ -22,7 +22,7 @@ exclude_names 'test'
 # Exclude all files with 'Allow testutil' content.
 exclude_content 'Allow testutil'
 
-# Chck any remaining files for testutil imports.
+# Check any remaining files for testutil imports.
 check 'Testutil package may only be imported by tests' 'github.com/obolnetwork/charon/testutil' && exit 1
 
 true
