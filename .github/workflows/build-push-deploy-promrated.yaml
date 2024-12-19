@@ -5,7 +5,7 @@ on:
     paths:
       - testutil/promrated/*
 
-name: Build and Deply Promrated Image
+name: Build and Deploy Promrated Image
 jobs:
   build-docker:
     runs-on: ubuntu-latest
