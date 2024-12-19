@@ -107,7 +107,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, loc
 	)
 
 	// Maps peers to their nickname
-	nicknames := map[peer.ID]string{tcpNode.ID(): nickname}
+	nicknames := map[string]string{p2p.PeerName(tcpNode.ID()): nickname}
 
 	// Create log filters
 	lockHashFilters := make(map[peer.ID]z.Field)
@@ -148,7 +148,7 @@ type PeerInfo struct {
 	nowFunc           func() time.Time
 	lockHashFilters   map[peer.ID]z.Field
 	versionFilters    map[peer.ID]z.Field
-	nicknames         map[peer.ID]string
+	nicknames         map[string]string
 }
 
 // Run runs the peer info protocol until the context is cancelled.
@@ -182,7 +182,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			SentAt:            timestamppb.New(now),
 			StartedAt:         p.startTime,
 			BuilderApiEnabled: p.builderAPIEnabled,
-			Nickname:          p.nicknames[p.tcpNode.ID()],
+			Nickname:          p.nicknames[p2p.PeerName(p.tcpNode.ID())],
 		}
 
 		go func(peerID peer.ID) {
@@ -202,7 +202,8 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 
 			name := p2p.PeerName(peerID)
 
-			p.nicknames[p.tcpNode.ID()] = resp.Nickname
+			p.nicknames[name] = resp.Nickname
+			log.Info(ctx, "Peer name to nickname mappings", z.Any("nicknames",p.nicknames))
 
 			// Validator git hash with regex.
 			if !gitHashMatch.MatchString(resp.GetGitHash()) {
