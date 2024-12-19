@@ -359,7 +359,7 @@ func (d Definition) SetDefinitionHashes() (Definition, error) {
 		return Definition{}, errors.Wrap(err, "config hash")
 	}
 
-	d.ConfigHash = configHash[:] //nolint: revive // okay to assign to by-value receiver as we return the struct
+	d.ConfigHash = configHash[:]
 
 	// Marshal definition hashDefinition
 	defHash, err := hashDefinition(d, false)
@@ -367,7 +367,7 @@ func (d Definition) SetDefinitionHashes() (Definition, error) {
 		return Definition{}, errors.Wrap(err, "definition hashDefinition")
 	}
 
-	d.DefinitionHash = defHash[:] //nolint: revive // okay to assign to by-value receiver as we return the struct
+	d.DefinitionHash = defHash[:]
 
 	return d, nil
 }
