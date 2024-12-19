@@ -165,7 +165,6 @@ linters:
     - gocyclo
     - godot
     - godox
-    - gomnd
     - gomoddirectives
     - inamedparam
     - interfacebloat
@@ -182,6 +181,4 @@ linters:
     - tagliatelle
     - varnamelen
     - wsl
-    # Deprecated
-    - goerr113
-    - execinquery
+    - err113
