@@ -70,6 +70,9 @@ jobs:
           echo "CHARON_REPO=$(pwd)" >> $GITHUB_ENV
           echo "DOCKER_BUILDKIT=1" >> $GITHUB_ENV
       - run: go test -race github.com/obolnetwork/charon/testutil/compose/smoke -v -integration -sudo-perms -timeout=20m -log-dir=.
+      - run: |
+          echo "Debugging file permissions:"
+          ls -lR /tmp
       - uses: actions/upload-artifact@v3
         if: always()
         with:
