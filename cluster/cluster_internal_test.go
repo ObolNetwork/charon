@@ -204,7 +204,7 @@ func TestDefinitionVerify(t *testing.T) {
 	})
 }
 
-// randomOperator returns a random ETH1 private key and populated creator struct (excluding config signature).
+// randomCreator returns a random ETH1 private key and populated creator struct (excluding config signature).
 func randomCreator(t *testing.T) (*k1.PrivateKey, Creator) {
 	t.Helper()
 

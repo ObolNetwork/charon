@@ -67,7 +67,7 @@ func hashDefinition(d Definition, configOnly bool) ([32]byte, error) {
 	return resp, nil
 }
 
-// hashLegaacy hashes a legacy definition.
+// hashDefinitionLegacy hashes a legacy definition.
 func hashDefinitionLegacy(d Definition, hh ssz.HashWalker, configOnly bool) error {
 	vaddrs, err := d.LegacyValidatorAddresses()
 	if err != nil {
@@ -446,7 +446,7 @@ func hashDefinitionV1x8(d Definition, hh ssz.HashWalker, configOnly bool) error 
 	return hashDefinitionV1x8to9(d, hh, configOnly, nil)
 }
 
-// hashDefinitionV1x9OrLater hashes the new definition.
+// hashDefinitionV1x9orLater hashes the new definition.
 func hashDefinitionV1x9orLater(d Definition, hh ssz.HashWalker, configOnly bool) error {
 	return hashDefinitionV1x8to9(d, hh, configOnly, []hashExtraFields{
 		func(d Definition, hh ssz.HashWalker) error {
