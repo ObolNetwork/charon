@@ -18,6 +18,14 @@ Existing issues often contain information about workarounds, resolution, or prog
 
 <!-- ✍️--> A clear and concise description of the problem...
 
+### Pre-submission Checklist
+
+<!-- Please check these items before submitting the bug report -->
+- [ ] I have searched existing issues
+- [ ] I have updated to the latest version
+- [ ] I have checked the documentation
+- [ ] I have included all relevant information
+
 ### Has this worked before in a previous version?
 
 <!-- Did this behavior use to work in the previous version? -->
@@ -26,7 +34,10 @@ Existing issues often contain information about workarounds, resolution, or prog
 ## 🔬 Minimal Reproduction
 
 <!--
-Please let us know how we can reproduce this issue. Include the exact method you used to run Charon along with any flags used in your beacon chain and/or validator. Make sure you don't upload any confidential files or private keys!
+Please let us know how we can reproduce this issue. Include:
+1. Exact method used to run Charon
+2. Flags used in beacon chain/validator
+3. Step by step instructions to reproduce
 -->
 
 ## 🔥 Error
@@ -37,23 +48,28 @@ Please let us know how we can reproduce this issue. Include the exact method you
 
 </code></pre>
 
+## 🌍 Your Environment
 
-## 🌍  Your Environment
+### System Requirements
+- RAM: <!-- Amount of RAM -->
+- CPU: <!-- CPU specifications -->
+- Disk Space: <!-- Available disk space -->
 
+### Software Versions
 **Operating System:**
+<pre><code>
 
-<pre>
-  <code>
+</code></pre>
 
-  </code>
-</pre>
+**Charon Version:**
+<pre><code>
 
-**What version of Charon are you running? (Which release)**
+</code></pre>
 
-<pre>
-  <code>
+**Additional Information:**
+- Validator Index: <!-- if applicable -->
+- Public Key: <!-- if applicable -->
+- Network: <!-- mainnet/testnet -->
 
-  </code>
-</pre>
-
-**Anything else relevant (validator index / public key)?**
+### Additional Context
+<!-- Add any other context about the problem here -->
