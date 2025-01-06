@@ -46,7 +46,7 @@ type (
 func New(tcpNode host.Host, peers []peer.ID, version version.SemVer, lockHash []byte, gitHash string,
 	sendFunc p2p.SendReceiveFunc, builderEnabled bool, nickname string,
 ) *PeerInfo {
-	// Set own version and git hash and nickname and start time and metrics.
+	// Set own version, git hash and nickname and start time and metrics.
 	name := p2p.PeerName(tcpNode.ID())
 	peerVersion.WithLabelValues(name, version.String()).Set(1)
 	peerGitHash.WithLabelValues(name, gitHash).Set(1)
