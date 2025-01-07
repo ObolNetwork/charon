@@ -169,12 +169,18 @@ func (*exponentialRoundTimer) Type() TimerType {
 
 func (t *exponentialRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
 	var timer clockwork.Timer
-	if round == 0 {
+	if round == 1 {
 		// First round has 1 second
 		timer = t.clock.NewTimer(time.Second)
 	} else {
 		// Subsequent rounds have exponentially more time starting at 200 milliseconds
-		timer = t.clock.NewTimer(time.Millisecond * time.Duration(math.Pow(2, float64(round))*100))
+		timer = t.clock.NewTimer(time.Millisecond * time.Duration(math.Pow(2, float64(round-1))*100))
 	}
 	return timer.Chan(), func() { timer.Stop() }
+}
+
+func NewExponentialRoundTimerWithClock(clock clockwork.Clock) RoundTimer {
+	return &exponentialRoundTimer{
+		clock: clock,
+	}
 }
