@@ -170,9 +170,16 @@ func TestGetTimerFunc(t *testing.T) {
 	require.Equal(t, utils.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(2)).Type())
 
 	featureset.DisableForT(t, featureset.EagerDoubleLinear)
+	featureset.EnableForT(t, featureset.Exponential)
 
 	timerFunc = utils.GetTimerFunc()
+	require.Equal(t, utils.TimerExponential, timerFunc(core.NewAttesterDuty(0)).Type())
+	require.Equal(t, utils.TimerExponential, timerFunc(core.NewAttesterDuty(1)).Type())
+	require.Equal(t, utils.TimerExponential, timerFunc(core.NewAttesterDuty(2)).Type())
 
+	featureset.DisableForT(t, featureset.Exponential)
+
+	timerFunc = utils.GetTimerFunc()
 	require.Equal(t, utils.TimerIncreasing, timerFunc(core.NewAttesterDuty(0)).Type())
 	require.Equal(t, utils.TimerIncreasing, timerFunc(core.NewAttesterDuty(1)).Type())
 	require.Equal(t, utils.TimerIncreasing, timerFunc(core.NewAttesterDuty(2)).Type())

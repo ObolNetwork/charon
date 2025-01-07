@@ -55,7 +55,7 @@ func (t TimerType) Eager() bool {
 const (
 	TimerIncreasing        TimerType = "inc"
 	TimerEagerDoubleLinear TimerType = "eager_dlinear"
-	Exponential            TimerType = "exponential"
+	TimerExponential       TimerType = "exponential"
 )
 
 // increasingRoundTimeout returns the duration for a round that starts at incRoundStart in round 1
@@ -171,7 +171,7 @@ type exponentialRoundTimer struct {
 }
 
 func (*exponentialRoundTimer) Type() TimerType {
-	return Exponential
+	return TimerExponential
 }
 
 func (t *exponentialRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
