@@ -47,6 +47,7 @@ const (
 	GnosisBlockHotfix Feature = "gnosis_block_hotfix"
 
 	// Exponential enables Exponential round timer for consensus rounds.
+	// This round timer has precedence over EagerDoubleLinear round timer
 	Exponential Feature = "exponential"
 )
 
