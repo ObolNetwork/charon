@@ -134,7 +134,7 @@ func TestExponentialRoundTimer(t *testing.T) {
 		},
 		{
 			name:  "round 4",
-			round: 3,
+			round: 4,
 			want:  800 * time.Millisecond,
 		},
 	}
