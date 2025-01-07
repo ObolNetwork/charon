@@ -21,10 +21,10 @@ The input to the Priority protocol is a list of protocols defined in order of pr
 
 ```json
 [
-    "/charon/consensus/hotstuff/1.0.0", // Highest precedence
-    "/charon/consensus/abft/2.0.0",
-    "/charon/consensus/abft/1.0.0",
-    "/charon/consensus/qbft/2.0.0",     // Lowest precedence and the fallback since it is always present
+  "/charon/consensus/hotstuff/1.0.0", // Highest precedence
+  "/charon/consensus/abft/2.0.0",
+  "/charon/consensus/abft/1.0.0",
+  "/charon/consensus/qbft/2.0.0" // Lowest precedence and the fallback since it is always present
 ]
 ```
 
@@ -32,8 +32,8 @@ The output of the Priority protocol is the common "subset" of all inputs, respec
 
 ```json
 [
-    "/charon/consensus/abft/1.0.0", // This means the majority of nodes have this protocol available
-    "/charon/consensus/qbft/2.0.0",
+  "/charon/consensus/abft/1.0.0", // This means the majority of nodes have this protocol available
+  "/charon/consensus/qbft/2.0.0"
 ]
 ```
 
@@ -52,6 +52,22 @@ The precise version of the protocol is to be determined by the Priority protocol
 To list all available consensus protocols (with versions), a user can run the command `charon version --verbose`.
 
 When a node starts, it sequentially mutates the list of preferred consensus protocols by processing the cluster configuration file and then the mentioned CLI flag. The final list of preferred protocols is then passed to the Priority protocol for cluster-wide consensus. Until the Priority protocol reaches consensus, the cluster will use the default QBFT v2.0 protocol for any duties.
+
+## Consensus Round Duration
+
+There are three diferent round timer implementations. These timers define the duration of each consensus round and how the timing adjusts for subsequent rounds.
+
+### Increasing Round Timer
+
+The `IncreasingRoundTimer` uses a linear increment strategy for round durations. It starts with a base duration and increases by a fixed increment for each subsequend round. The formula for a given round `n` is `Duration = IncRoundStart + (IncRoundIncrease * n)`.
+
+### Eager Double Linear Round Timer
+
+The `EagerDoubleLinearRoundTimer` aligns start times across participants by starting at an absolute time and doubling the round duration when the leader is active. The round duration increases linearly according to `LinearRoundInc`. This aims to fix an issue with the original solution where the leader resets the timer at the start of the round while others reset when they receive the justified pre-prepare which leads to leaders getting out of sync with the rest.
+
+### Exponential Round Timer
+
+The `ExponentialRoundTimer` increases round durations exponentially. It provides a sufficient timeout for the initial round and grows from a smaller base timeout for subsequent rounds. The idea behind this timer is that after the first timeout, the remaninig nodes already had time to fetch their proposals and therefore won't need as much time to reach consensus as for the first round.
 
 ## Observability
 
