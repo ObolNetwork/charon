@@ -25,7 +25,6 @@ type TimerFunc func(core.Duty) RoundTimer
 
 // GetTimerFunc returns a timer function based on the enabled features.
 func GetTimerFunc() TimerFunc {
-
 	if featureset.Enabled(featureset.Exponential) {
 		return func(core.Duty) RoundTimer {
 			return NewExponentialRoundTimer()
@@ -183,6 +182,7 @@ func (t *exponentialRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
 		// Subsequent rounds have exponentially more time starting at 200 milliseconds
 		timer = t.clock.NewTimer(time.Millisecond * time.Duration(math.Pow(2, float64(round-1))*100))
 	}
+
 	return timer.Chan(), func() { timer.Stop() }
 }
 
