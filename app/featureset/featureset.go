@@ -59,7 +59,7 @@ var (
 		AggSigDBV2:           statusAlpha,
 		JSONRequests:         statusAlpha,
 		GnosisBlockHotfix:    statusAlpha,
-		Exponential: 		  statusAlpha,
+		Exponential:          statusAlpha,
 		// Add all features and there status here.
 	}
 

@@ -48,7 +48,7 @@ func (t TimerType) Eager() bool {
 const (
 	TimerIncreasing        TimerType = "inc"
 	TimerEagerDoubleLinear TimerType = "eager_dlinear"
-	Exponential			   TimerType = "exponential"
+	Exponential            TimerType = "exponential"
 )
 
 // increasingRoundTimeout returns the duration for a round that starts at incRoundStart in round 1
@@ -157,7 +157,7 @@ func (t *doubleEagerLinearRoundTimer) Timer(round int64) (<-chan time.Time, func
 //
 // The first round has one second to complete consensus
 // If this round fails then other peers already had time to fetch proposal and therefore
-// won't need as much time to reach a consensus. Therefore start timeout with lower value 
+// won't need as much time to reach a consensus. Therefore start timeout with lower value
 // which will increase exponentially
 type exponentialRoundTimer struct {
 	clock clockwork.Clock
@@ -174,7 +174,7 @@ func (t *exponentialRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
 		timer = t.clock.NewTimer(time.Second)
 	} else {
 		// Subsequent rounds have exponentially more time starting at 200 milliseconds
-		timer = t.clock.NewTimer(time.Millisecond * time.Duration(math.Pow(2,float64(round))*100))
+		timer = t.clock.NewTimer(time.Millisecond * time.Duration(math.Pow(2, float64(round))*100))
 	}
-	return timer.Chan(), func() { timer.Stop() } 
+	return timer.Chan(), func() { timer.Stop() }
 }
