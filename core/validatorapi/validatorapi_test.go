@@ -5,6 +5,7 @@ package validatorapi_test
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sort"
 	"strconv"
 	"sync"
@@ -24,7 +25,6 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"

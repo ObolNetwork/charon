@@ -5,14 +5,15 @@ package cmd
 import (
 	"context"
 	"io"
+	"maps"
 	"math"
 	"math/rand"
 	"net"
+	"slices"
 	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/maps"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -72,7 +73,7 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 	log.Info(ctx, "Starting validator client test")
 
 	testCases := supportedValidatorTestCases()
-	queuedTests := filterTests(maps.Keys(testCases), cfg.testConfig)
+	queuedTests := filterTests(slices.Collect(maps.Keys(testCases)), cfg.testConfig)
 	if len(queuedTests) == 0 {
 		err = errors.New("test case not supported")
 		return res, err

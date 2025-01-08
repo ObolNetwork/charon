@@ -7,11 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -20,7 +22,6 @@ import (
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -210,7 +211,7 @@ func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (res 
 	log.Info(ctx, "Starting beacon node test")
 
 	testCases := supportedBeaconTestCases()
-	queuedTests := filterTests(maps.Keys(testCases), cfg.testConfig)
+	queuedTests := filterTests(slices.Collect(maps.Keys(testCases)), cfg.testConfig)
 	if len(queuedTests) == 0 {
 		return res, errors.New("test case not supported")
 	}

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-VERSION="1.62.2"
+VERSION="1.63.4"
 
 if ! command -v golangci-lint &> /dev/null
 then
