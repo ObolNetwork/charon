@@ -71,7 +71,7 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddresse
 	}
 
 	if len(withdrawalAddresses) != numVals {
-		return Definition{}, errors.New("insufficient fee-recipient addresses")
+		return Definition{}, errors.New("insufficient withdrawal addresses")
 	}
 
 	def := Definition{
