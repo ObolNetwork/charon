@@ -55,7 +55,9 @@ When a node starts, it sequentially mutates the list of preferred consensus prot
 
 ## Consensus Round Duration
 
-There are three diferent round timer implementations. These timers define the duration of each consensus round and how the timing adjusts for subsequent rounds.
+There are three different round timer implementations. These timers define the duration of each consensus round and how the timing adjusts for subsequent rounds. All nodes in a cluster must use the same timer implementation to ensure proper consensus operation.
+
+The default implementation is the `IncreasingRoundTimer`, which is recommended for most deployments. Other round timers can be enabled by using the flag `--feature-set-enable <timer-name>`.
 
 ### Increasing Round Timer
 
@@ -63,11 +65,11 @@ The `IncreasingRoundTimer` uses a linear increment strategy for round durations.
 
 ### Eager Double Linear Round Timer
 
-The `EagerDoubleLinearRoundTimer` aligns start times across participants by starting at an absolute time and doubling the round duration when the leader is active. The round duration increases linearly according to `LinearRoundInc`. This aims to fix an issue with the original solution where the leader resets the timer at the start of the round while others reset when they receive the justified pre-prepare which leads to leaders getting out of sync with the rest.
+The `EagerDoubleLinearRoundTimer` aligns start times across participants by starting at an absolute time and doubling the round duration when the leader is active. The round duration increases linearly according to `LinearRoundInc`. This aims to fix an issue with the original solution where the leader resets the timer at the start of the round while others reset when they receive the justified pre-prepare which leads to leaders getting out of sync with the rest. To enable this timer, use the flag `--feature-set-enable "eager_double_linear"`.
 
 ### Exponential Round Timer
 
-The `ExponentialRoundTimer` increases round durations exponentially. It provides a sufficient timeout for the initial round and grows from a smaller base timeout for subsequent rounds. The idea behind this timer is that after the first timeout, the remaninig nodes already had time to fetch their proposals and therefore won't need as much time to reach consensus as for the first round.
+The `ExponentialRoundTimer` increases round durations exponentially. It provides a sufficient timeout for the initial round and grows from a smaller base timeout for subsequent rounds. The idea behind this timer is, after the first timeout, the remaninig nodes already had time to fetch their proposals and therefore won't need as much time to reach consensus as for the first round. The shorter subsequent rounds allows us to more quickly skip faulty leader when compared to the `IncreasingRoundTimer`. To enable this timer, use the flag `--feature-set-enable "exponential"`.
 
 ## Observability
 
