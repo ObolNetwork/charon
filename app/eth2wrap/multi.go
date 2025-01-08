@@ -128,7 +128,7 @@ func (m multi) CompleteValidators(ctx context.Context) (CompleteValidators, erro
 
 func (m multi) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
 	const label = "proposer_config"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	res0, err := provide(ctx, m.clients, m.fallback,
 		func(ctx context.Context, args provideArgs) (*eth2exp.ProposerConfigResponse, error) {
@@ -160,7 +160,7 @@ func (m multi) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigRespo
 
 func (m multi) AggregateBeaconCommitteeSelections(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
 	const label = "aggregate_beacon_committee_selections"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	res0, err := provide(ctx, m.clients, m.fallback,
 		func(ctx context.Context, args provideArgs) ([]*eth2exp.BeaconCommitteeSelection, error) {
@@ -192,7 +192,7 @@ func (m multi) AggregateBeaconCommitteeSelections(ctx context.Context, selection
 
 func (m multi) AggregateSyncCommitteeSelections(ctx context.Context, selections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
 	const label = "aggregate_sync_committee_selections"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	res, err := provide(ctx, m.clients, m.fallback,
 		func(ctx context.Context, args provideArgs) ([]*eth2exp.SyncCommitteeSelection, error) {
@@ -225,7 +225,7 @@ func (m multi) AggregateSyncCommitteeSelections(ctx context.Context, selections 
 
 func (m multi) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
 	const label = "block_attestations"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	res, err := provide(ctx, m.clients, m.fallback,
 		func(ctx context.Context, args provideArgs) ([]*eth2p0.Attestation, error) {
@@ -257,7 +257,7 @@ func (m multi) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0
 
 func (m multi) NodePeerCount(ctx context.Context) (int, error) {
 	const label = "node_peer_count"
-	defer latency(label)()
+	defer latency(ctx, label, false)()
 
 	res, err := provide(ctx, m.clients, m.fallback,
 		func(ctx context.Context, args provideArgs) (int, error) {

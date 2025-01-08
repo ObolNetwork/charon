@@ -19,6 +19,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/forkjoin"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/z"
 )
@@ -197,14 +198,26 @@ func submit(ctx context.Context, clients []Client, fallback *FallbackClient, wor
 	return err
 }
 
-// latency measures endpoint latency.
+// latency measures endpoint latency and writes metrics and logs results.
 // Usage:
 //
 //	defer latency("endpoint")()
-func latency(endpoint string) func() {
+func latency(ctx context.Context, endpoint string, enableLogs bool) func() {
+	if enableLogs {
+		log.Debug(ctx, "Calling beacon node endpoint...", z.Str("endpoint", endpoint))
+	}
 	t0 := time.Now()
+
 	return func() {
-		latencyHist.WithLabelValues(endpoint).Observe(time.Since(t0).Seconds())
+		rtt := time.Since(t0)
+		latencyHist.WithLabelValues(endpoint).Observe(rtt.Seconds())
+		if enableLogs {
+			log.Debug(ctx, "Beacon node call finished", z.Str("endpoint", endpoint))
+		}
+		// If BN call took more than 1 second, send WARN log
+		if rtt > time.Second {
+			log.Warn(ctx, "Beacon node call took longer than expected", nil, z.Str("endpoint", endpoint), z.Str("rtt", rtt.String()))
+		}
 	}
 }
 
