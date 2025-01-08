@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"math/rand"
 	"net"
@@ -25,7 +26,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -151,15 +151,15 @@ func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) (res t
 	log.Info(ctx, "Starting charon peers and relays test")
 
 	relayTestCases := supportedRelayTestCases()
-	queuedTestsRelay := filterTests(maps.Keys(relayTestCases), conf.testConfig)
+	queuedTestsRelay := filterTests(slices.Collect(maps.Keys(relayTestCases)), conf.testConfig)
 	sortTests(queuedTestsRelay)
 
 	peerTestCases := supportedPeerTestCases()
-	queuedTestsPeer := filterTests(maps.Keys(peerTestCases), conf.testConfig)
+	queuedTestsPeer := filterTests(slices.Collect(maps.Keys(peerTestCases)), conf.testConfig)
 	sortTests(queuedTestsPeer)
 
 	selfTestCases := supportedSelfTestCases()
-	queuedTestsSelf := filterTests(maps.Keys(selfTestCases), conf.testConfig)
+	queuedTestsSelf := filterTests(slices.Collect(maps.Keys(selfTestCases)), conf.testConfig)
 	sortTests(queuedTestsSelf)
 
 	if len(queuedTestsPeer) == 0 && len(queuedTestsSelf) == 0 {
