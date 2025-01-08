@@ -181,10 +181,10 @@ func latency(ctx context.Context, endpoint string, enableLogs bool) func() {
 		latencyHist.WithLabelValues(endpoint).Observe(rtt.Seconds())
 		if enableLogs {
 			log.Debug(ctx, "Beacon node call finished", z.Str("endpoint", endpoint))
-			// If BN call took more than 1 second, send WARN log
-			if rtt > time.Second {
-				log.Warn(ctx, "Beacon node call took longer than expected", nil, z.Str("endpoint", endpoint), z.Str("rtt", rtt.String()))
-			}
+		}
+		// If BN call took more than 1 second, send WARN log
+		if rtt > time.Second {
+			log.Warn(ctx, "Beacon node call took longer than expected", nil, z.Str("endpoint", endpoint), z.Str("rtt", rtt.String()))
 		}
 	}
 }
