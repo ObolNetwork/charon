@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/exec"
 	"runtime"
@@ -19,7 +20,6 @@ import (
 
 	"github.com/showwin/speedtest-go/speedtest"
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/maps"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -123,7 +123,7 @@ func runTestInfra(ctx context.Context, w io.Writer, cfg testInfraConfig) (res te
 	log.Info(ctx, "Starting hardware performance and network connectivity test")
 
 	testCases := supportedInfraTestCases()
-	queuedTests := filterTests(maps.Keys(testCases), cfg.testConfig)
+	queuedTests := filterTests(slices.Collect(maps.Keys(testCases)), cfg.testConfig)
 	if len(queuedTests) == 0 {
 		return res, errors.New("test case not supported")
 	}

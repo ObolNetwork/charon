@@ -464,7 +464,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 	// Support specifying a custom base directory for docker mounts (required if running colima on macOS).
 	if dir, ok := os.LookupEnv("TEST_DOCKER_DIR"); ok {
 		var err error
-		tempDir, err = os.MkdirTemp(dir, "")
+		tempDir, err = os.MkdirTemp(dir, "") //nolint: usetesting // support custom base directory
 		require.NoError(t, err)
 	}
 

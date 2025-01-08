@@ -9,8 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptrace"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -20,7 +22,6 @@ import (
 	eth2a "github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -105,7 +106,7 @@ func runTestMEV(ctx context.Context, w io.Writer, cfg testMEVConfig) (res testCa
 	log.Info(ctx, "Starting MEV relays test")
 
 	testCases := supportedMEVTestCases()
-	queuedTests := filterTests(maps.Keys(testCases), cfg.testConfig)
+	queuedTests := filterTests(slices.Collect(maps.Keys(testCases)), cfg.testConfig)
 	if len(queuedTests) == 0 {
 		return res, errors.New("test case not supported")
 	}

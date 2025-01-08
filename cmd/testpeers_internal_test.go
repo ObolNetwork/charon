@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"slices"
@@ -19,7 +20,6 @@ import (
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
@@ -352,8 +352,8 @@ func testWriteOut(t *testing.T, expectedRes testCategoryResult, buf bytes.Buffer
 	bufTests = slices.Delete(bufTests, 0, 8)
 	bufTests = slices.Delete(bufTests, len(bufTests)-4, len(bufTests))
 
-	nTargets := len(maps.Keys(expectedRes.Targets))
-	require.Len(t, bufTests, len(slices.Concat(maps.Values(expectedRes.Targets)...))+nTargets*2)
+	nTargets := len(slices.Collect(maps.Keys(expectedRes.Targets)))
+	require.Len(t, bufTests, len(slices.Concat(slices.Collect(maps.Values(expectedRes.Targets))...))+nTargets*2)
 
 	for range nTargets {
 		bufTests = bufTests[1:]

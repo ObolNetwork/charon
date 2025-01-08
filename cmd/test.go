@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptrace"
 	"os"
@@ -21,7 +22,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"golang.org/x/exp/maps"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -85,25 +85,25 @@ func listTestCases(cmd *cobra.Command) []string {
 	var testCaseNames []testCaseName
 	switch cmd.Name() {
 	case peersTestCategory:
-		testCaseNames = maps.Keys(supportedPeerTestCases())
-		testCaseNames = append(testCaseNames, maps.Keys(supportedSelfTestCases())...)
+		testCaseNames = slices.Collect(maps.Keys(supportedPeerTestCases()))
+		testCaseNames = append(testCaseNames, slices.Collect(maps.Keys(supportedSelfTestCases()))...)
 	case beaconTestCategory:
-		testCaseNames = maps.Keys(supportedBeaconTestCases())
+		testCaseNames = slices.Collect(maps.Keys(supportedBeaconTestCases()))
 	case validatorTestCategory:
-		testCaseNames = maps.Keys(supportedValidatorTestCases())
+		testCaseNames = slices.Collect(maps.Keys(supportedValidatorTestCases()))
 	case mevTestCategory:
-		testCaseNames = maps.Keys(supportedMEVTestCases())
+		testCaseNames = slices.Collect(maps.Keys(supportedMEVTestCases()))
 	case infraTestCategory:
-		testCaseNames = maps.Keys(supportedInfraTestCases())
+		testCaseNames = slices.Collect(maps.Keys(supportedInfraTestCases()))
 	case allTestCategory:
 		testCaseNames = slices.Concat(
-			maps.Keys(supportedPeerTestCases()),
-			maps.Keys(supportedSelfTestCases()),
-			maps.Keys(supportedRelayTestCases()),
-			maps.Keys(supportedBeaconTestCases()),
-			maps.Keys(supportedValidatorTestCases()),
-			maps.Keys(supportedMEVTestCases()),
-			maps.Keys(supportedInfraTestCases()),
+			slices.Collect(maps.Keys(supportedPeerTestCases())),
+			slices.Collect(maps.Keys(supportedSelfTestCases())),
+			slices.Collect(maps.Keys(supportedRelayTestCases())),
+			slices.Collect(maps.Keys(supportedBeaconTestCases())),
+			slices.Collect(maps.Keys(supportedValidatorTestCases())),
+			slices.Collect(maps.Keys(supportedMEVTestCases())),
+			slices.Collect(maps.Keys(supportedInfraTestCases())),
 		)
 	default:
 		log.Warn(cmd.Context(), "Unknown command for listing test cases", nil, z.Str("name", cmd.Name()))
@@ -315,7 +315,7 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) error {
 	lines = append(lines, "")
 	lines = append(lines, fmt.Sprintf("%-64s%s", "TEST NAME", "RESULT"))
 	suggestions := []string{}
-	targets := maps.Keys(res.Targets)
+	targets := slices.Collect(maps.Keys(res.Targets))
 	slices.Sort(targets)
 	for _, target := range targets {
 		if target != "" && len(res.Targets[target]) > 0 {
