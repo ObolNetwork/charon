@@ -25,8 +25,10 @@ func TestDoOnce(t *testing.T) {
 	vers := version.Version
 	lockHash := []byte("123")
 	gitHash := "abc"
+	nickname := "johndoe"
+
 	// Register the server handler that either
-	_ = peerinfo.New(server, []peer.ID{server.ID(), client.ID()}, vers, lockHash, gitHash, p2p.SendReceive, true)
+	_ = peerinfo.New(server, []peer.ID{server.ID(), client.ID()}, vers, lockHash, gitHash, p2p.SendReceive, true, nickname)
 
 	info, _, ok, err := peerinfo.DoOnce(context.Background(), client, server.ID())
 	require.NoError(t, err)
@@ -35,4 +37,5 @@ func TestDoOnce(t *testing.T) {
 	require.Equal(t, gitHash, info.GetGitHash())
 	require.Equal(t, lockHash, info.GetLockHash())
 	require.True(t, info.GetBuilderApiEnabled())
+	require.Equal(t, nickname, info.GetNickname())
 }

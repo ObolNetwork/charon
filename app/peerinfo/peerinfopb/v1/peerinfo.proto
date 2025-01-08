@@ -13,6 +13,7 @@ message PeerInfo {
   string                               git_hash = 4;
   optional google.protobuf.Timestamp started_at = 5;
   bool                      builder_api_enabled = 6;
+  string                               nickname = 7;
 
   // NOTE: Always populate timestamps when sending, then make them required after subsequent release.
 }
