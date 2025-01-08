@@ -22,6 +22,7 @@ import (
 func TestPeerInfo(t *testing.T) {
 	now := time.Now()
 	const gitCommit = "1234567"
+	baseNickname := "john-"
 
 	// when a major release happens, charon will only be compatible with a single version
 	versions := version.Supported()
@@ -49,7 +50,7 @@ func TestPeerInfo(t *testing.T) {
 			Offset:   time.Minute,
 		},
 		{
-			Version: semver(t, "v0.0"),
+			Version: semver(t, "v1.0"),
 			Ignore:  true,
 		},
 	}
@@ -92,7 +93,7 @@ func TestPeerInfo(t *testing.T) {
 		tickProvider := func() (<-chan time.Time, func()) {
 			return nil, func() {}
 		}
-		metricSubmitter := func(peer.ID, time.Duration, string, string, time.Time, bool) {
+		metricSubmitter := func(peer.ID, time.Duration, string, string, time.Time, bool, string) {
 			panic("unexpected metric submitted")
 		}
 
@@ -107,7 +108,7 @@ func TestPeerInfo(t *testing.T) {
 
 			var submittedMutex sync.Mutex
 			var submitted int
-			metricSubmitter = func(peerID peer.ID, clockOffset time.Duration, version, gitHash string, startTime time.Time, builderEnabled bool) {
+			metricSubmitter = func(peerID peer.ID, clockOffset time.Duration, version, gitHash string, startTime time.Time, builderEnabled bool, nickname string) {
 				for i, tcpNode := range tcpNodes {
 					if tcpNode.ID() != peerID {
 						continue
@@ -117,6 +118,7 @@ func TestPeerInfo(t *testing.T) {
 					require.Equal(t, gitCommit, gitHash)
 					require.Equal(t, nowFunc(i)().Unix(), startTime.Unix())
 					require.True(t, builderEnabled)
+					require.Equal(t, baseNickname+p2p.PeerName(peerID), nickname)
 
 					submittedMutex.Lock()
 					submitted++
@@ -132,7 +134,7 @@ func TestPeerInfo(t *testing.T) {
 		}
 
 		peerInfo := peerinfo.NewForT(t, tcpNodes[i], peers, node.Version, node.LockHash, gitCommit, p2p.SendReceive, p2p.RegisterHandler,
-			tickProvider, nowFunc(i), metricSubmitter, true)
+			tickProvider, nowFunc(i), metricSubmitter, true, baseNickname+p2p.PeerName(peers[i]))
 
 		peerInfos = append(peerInfos, peerInfo)
 	}
