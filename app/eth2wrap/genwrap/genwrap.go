@@ -25,6 +25,11 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
+type latencyLog struct {
+	Latency bool
+	Log     bool
+}
+
 var (
 	tpl = `package eth2wrap
 
@@ -63,7 +68,7 @@ type Client interface {
     {{end -}}
 	func (m multi) {{.Name}}({{.Params}}) ({{.ResultTypes}}) {
 		const label = "{{.Label}}"
-		{{if .Latency}}defer latency(label)() {{end}}
+		{{if .Latency}}defer latency(ctx, label, {{.Log}})() {{end}}
 
 
 		{{.ResultNames}} := {{.DoFunc}}(ctx, m.clients, m.fallback,
@@ -109,42 +114,42 @@ type Client interface {
 {{end}}
 `
 
-	// interfaces defines all the interfaces to implement and whether to measure latency for each.
-	interfaces = map[string]bool{
-		"AggregateAttestationProvider":          true,
-		"AggregateAttestationsSubmitter":        true,
-		"AttestationDataProvider":               true,
-		"AttestationsSubmitter":                 true,
-		"AttesterDutiesProvider":                true,
-		"ProposalProvider":                      true,
-		"BeaconBlockRootProvider":               false,
-		"ProposalSubmitter":                     true,
-		"BeaconCommitteeSubscriptionsSubmitter": true,
-		"BlindedProposalProvider":               true,
-		"BlindedProposalSubmitter":              true,
-		"DepositContractProvider":               false,
-		"DomainProvider":                        false,
-		"ForkProvider":                          true,
-		"ForkScheduleProvider":                  true,
-		"GenesisProvider":                       false,
-		"GenesisTimeProvider":                   false,
-		"NodeSyncingProvider":                   true,
-		"NodeVersionProvider":                   false,
-		"ProposerDutiesProvider":                true,
-		"ProposalPreparationsSubmitter":         false,
-		"SlotDurationProvider":                  false,
-		"SlotsPerEpochProvider":                 false,
-		"SpecProvider":                          false,
-		"SignedBeaconBlockProvider":             true,
-		"SyncCommitteeDutiesProvider":           true,
-		"SyncCommitteeContributionProvider":     true,
-		"SyncCommitteeContributionsSubmitter":   true,
-		"SyncCommitteeMessagesSubmitter":        true,
-		"SyncCommitteeSubscriptionsSubmitter":   true,
-		"ValidatorsProvider":                    true,
-		"ValidatorRegistrationsSubmitter":       true,
-		"VoluntaryExitSubmitter":                true,
-		"SetForkVersion":                        true,
+	// interfaces defines all the interfaces to implement and whether to measure latency and logging for each.
+	interfaces = map[string]latencyLog{
+		"AggregateAttestationProvider":          {Latency: true, Log: false},
+		"AggregateAttestationsSubmitter":        {Latency: true, Log: false},
+		"AttestationDataProvider":               {Latency: true, Log: false},
+		"AttestationsSubmitter":                 {Latency: true, Log: false},
+		"AttesterDutiesProvider":                {Latency: true, Log: false},
+		"ProposalProvider":                      {Latency: true, Log: true},
+		"BeaconBlockRootProvider":               {Latency: false, Log: false},
+		"ProposalSubmitter":                     {Latency: true, Log: false},
+		"BeaconCommitteeSubscriptionsSubmitter": {Latency: true, Log: false},
+		"BlindedProposalProvider":               {Latency: true, Log: false},
+		"BlindedProposalSubmitter":              {Latency: true, Log: false},
+		"DepositContractProvider":               {Latency: false, Log: false},
+		"DomainProvider":                        {Latency: false, Log: false},
+		"ForkProvider":                          {Latency: true, Log: false},
+		"ForkScheduleProvider":                  {Latency: true, Log: false},
+		"GenesisProvider":                       {Latency: false, Log: false},
+		"GenesisTimeProvider":                   {Latency: false, Log: false},
+		"NodeSyncingProvider":                   {Latency: true, Log: false},
+		"NodeVersionProvider":                   {Latency: false, Log: false},
+		"ProposerDutiesProvider":                {Latency: true, Log: false},
+		"ProposalPreparationsSubmitter":         {Latency: true, Log: true},
+		"SlotDurationProvider":                  {Latency: false, Log: false},
+		"SlotsPerEpochProvider":                 {Latency: false, Log: false},
+		"SpecProvider":                          {Latency: false, Log: false},
+		"SignedBeaconBlockProvider":             {Latency: true, Log: false},
+		"SyncCommitteeDutiesProvider":           {Latency: true, Log: false},
+		"SyncCommitteeContributionProvider":     {Latency: true, Log: false},
+		"SyncCommitteeContributionsSubmitter":   {Latency: true, Log: false},
+		"SyncCommitteeMessagesSubmitter":        {Latency: true, Log: false},
+		"SyncCommitteeSubscriptionsSubmitter":   {Latency: true, Log: false},
+		"ValidatorsProvider":                    {Latency: true, Log: true},
+		"ValidatorRegistrationsSubmitter":       {Latency: true, Log: false},
+		"VoluntaryExitSubmitter":                {Latency: true, Log: false},
+		"SetForkVersion":                        {Latency: true, Log: false},
 	}
 
 	// addImport indicates which types need hardcoded imports.
@@ -167,6 +172,7 @@ type Method struct {
 	Name        string
 	Doc         string
 	Latency     bool
+	Log         bool
 	DoFunc      string
 	SuccessFunc string
 	params      []Field
@@ -362,7 +368,7 @@ func parseEth2Methods(pkg *packages.Package) ([]Method, []string, error) {
 					continue
 				}
 
-				latency, add := interfaces[typeSpec.Name.Name]
+				latencyLog, add := interfaces[typeSpec.Name.Name]
 				if !add {
 					continue
 				}
@@ -440,7 +446,8 @@ func parseEth2Methods(pkg *packages.Package) ([]Method, []string, error) {
 					methods = append(methods, Method{
 						Name:        name,
 						Doc:         doc,
-						Latency:     latency,
+						Latency:     latencyLog.Latency,
+						Log:         latencyLog.Log,
 						DoFunc:      dofunc,
 						SuccessFunc: successFunc,
 						params:      params,
