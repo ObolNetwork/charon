@@ -59,6 +59,7 @@ func newListActiveValidatorsCmd(runFunc func(context.Context, exitConfig) error)
 		if !regexp.MustCompile(`^([^=,]+)=([^=,]+)(,([^=,]+)=([^=,]+))*$`).MatchString(config.BeaconNodeHeaders) {
 			return errors.New("beacon node headers must be comma separated values formatted as <header>=<value>")
 		}
+
 		return nil
 	})
 
