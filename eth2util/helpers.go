@@ -5,6 +5,7 @@ package eth2util
 import (
 	"context"
 	"encoding/hex"
+	"regexp"
 	"strings"
 	"unicode"
 
@@ -16,6 +17,37 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
 )
+
+func ValidateBeaconNodeHeaders(headers string) error {
+	// This pattern ([^=,]+) captures any string that does not contain '=' or ','.
+	// The composition of patterns ([^=,]+)=([^=,]+) captures a pair of header and its corresponding value.
+	// The optional pattern at the end expresses the possibility of multiple pairs comma separated from each other.
+	if len(headers) > 0 && !regexp.MustCompile(`^([^=,]+)=([^=,]+)(,([^=,]+)=([^=,]+))*$`).MatchString(headers) {
+		return errors.New("beacon node headers must be comma separated values formatted as header=value")
+	}
+
+	return nil
+}
+
+func ParseBeaconNodeHeaders(headers string) (map[string]string, error) {
+	parsedHeaders := make(map[string]string)
+	if len(headers) == 0 {
+		return parsedHeaders, nil
+	}
+
+	err := ValidateBeaconNodeHeaders(headers)
+	if err != nil {
+		return nil, err
+	}
+
+	// Given that the string follows our pattern we can match by pairs to extract the values
+	pairs := regexp.MustCompile(`([^=,]+)=([^=,]+)`).FindAllStringSubmatch(headers, -1)
+	for _, pair := range pairs {
+		parsedHeaders[pair[1]] = pair[2]
+	}
+
+	return parsedHeaders, nil
+}
 
 // EpochFromSlot returns epoch calculated from given slot.
 func EpochFromSlot(ctx context.Context, eth2Cl eth2client.SlotsPerEpochProvider, slot eth2p0.Slot) (eth2p0.Epoch, error) {

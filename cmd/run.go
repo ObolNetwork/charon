@@ -5,7 +5,6 @@ package cmd
 import (
 	"context"
 	"net/url"
-	"regexp"
 	"time"
 
 	libp2plog "github.com/ipfs/go-log/v2"
@@ -17,6 +16,7 @@ import (
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -104,8 +104,9 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 		if len(config.Nickname) > 32 {
 			return errors.New("flag 'nickname' can not exceed 32 characters")
 		}
-		if len(config.BeaconNodeHeaders) > 0 && !regexp.MustCompile(`^([^=,]+)=([^=,]+)(,([^=,]+)=([^=,]+))*$`).MatchString(config.BeaconNodeHeaders) {
-			return errors.New("beacon node headers must be comma separated values formatted as <header>=<value>")
+		err := eth2util.ValidateBeaconNodeHeaders(config.BeaconNodeHeaders)
+		if err != nil {
+			return err
 		}
 
 		return nil

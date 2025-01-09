@@ -10,7 +10,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -911,19 +910,9 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 		log.Info(ctx, "Synthetic block proposals enabled")
 	}
 
-	beaconNodeHeaders := make(map[string]string)
-	if len(conf.BeaconNodeHeaders) > 0 {
-		// Headers must be comma separated values of format <key>=<value>.
-		// The pattern ([^=,]+) matches any string without '=' and ','.
-		// Hence we are looking for a pair of <pattern>=<pattern> with optionally more pairs
-		if !regexp.MustCompile(`^([^=,]+)=([^=,]+)(,([^=,]+)=([^=,]+))*$`).MatchString(conf.BeaconNodeHeaders) {
-			return nil, nil, errors.New("beacon node headers must be comma separated values formatted as header=value")
-		}
-
-		pairs := regexp.MustCompile(`([^=,]+)=([^=,]+)`).FindAllStringSubmatch(conf.BeaconNodeHeaders, -1)
-		for _, pair := range pairs {
-			beaconNodeHeaders[pair[1]] = pair[2]
-		}
+	beaconNodeHeaders, err := eth2util.ParseBeaconNodeHeaders(conf.BeaconNodeHeaders)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	eth2Cl, err := configureEth2Client(ctx, forkVersion, conf.BeaconNodeAddrs, beaconNodeHeaders, bnTimeout, conf.SyntheticBlockProposals)

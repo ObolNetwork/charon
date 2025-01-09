@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -100,8 +99,9 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 			return errors.New(fmt.Sprintf("if you want to specify exit file directory for all validators, you must provide %s and not %s.", exitFromDir.String(), exitFromFile.String()))
 		}
 
-		if len(config.BeaconNodeHeaders) > 0 && !regexp.MustCompile(`^([^=,]+)=([^=,]+)(,([^=,]+)=([^=,]+))*$`).MatchString(config.BeaconNodeHeaders) {
-			return errors.New("beacon node headers must be comma separated values formatted as <header>=<value>")
+		err := eth2util.ValidateBeaconNodeHeaders(config.BeaconNodeHeaders)
+		if err != nil {
+			return err
 		}
 
 		return nil
@@ -127,19 +127,9 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "load cluster lock", z.Str("lock_file_path", config.LockFilePath))
 	}
 
-	beaconNodeHeaders := make(map[string]string)
-	if len(config.BeaconNodeHeaders) > 0 {
-		// Headers must be comma separated values of format <key>=<value>.
-		// The pattern ([^=,]+) matches any string without '=' and ','.
-		// Hence we are looking for a pair of <pattern>=<pattern> with optionally more pairs
-		if !regexp.MustCompile(`^([^=,]+)=([^=,]+)(,([^=,]+)=([^=,]+))*$`).MatchString(config.BeaconNodeHeaders) {
-			return errors.New("beacon node headers must be comma separated values formatted as header=value")
-		}
-
-		pairs := regexp.MustCompile(`([^=,]+)=([^=,]+)`).FindAllStringSubmatch(config.BeaconNodeHeaders, -1)
-		for _, pair := range pairs {
-			beaconNodeHeaders[pair[1]] = pair[2]
-		}
+	beaconNodeHeaders, err := eth2util.ParseBeaconNodeHeaders(config.BeaconNodeHeaders)
+	if err != nil {
+		return err
 	}
 
 	eth2Cl, err := eth2Client(ctx, beaconNodeHeaders, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.GetForkVersion()))

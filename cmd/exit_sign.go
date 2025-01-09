@@ -5,7 +5,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"regexp"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -80,8 +79,9 @@ func newSignPartialExitCmd(runFunc func(context.Context, exitConfig) error) *cob
 			return errors.New(fmt.Sprintf("%s or %s should not be specified when %s is, as they are obsolete and misleading.", validatorIndex.String(), validatorPubkey.String(), all.String()))
 		}
 
-		if len(config.BeaconNodeHeaders) > 0 && !regexp.MustCompile(`^([^=,]+)=([^=,]+)(,([^=,]+)=([^=,]+))*$`).MatchString(config.BeaconNodeHeaders) {
-			return errors.New("beacon node headers must be comma separated values formatted as <header>=<value>")
+		err := eth2util.ValidateBeaconNodeHeaders(config.BeaconNodeHeaders)
+		if err != nil {
+			return err
 		}
 
 		config.ValidatorIndexPresent = valIdxPresent
@@ -135,19 +135,9 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "create Obol API client", z.Str("publish_address", config.PublishAddress))
 	}
 
-	beaconNodeHeaders := make(map[string]string)
-	if len(config.BeaconNodeHeaders) > 0 {
-		// Headers must be comma separated values of format <key>=<value>.
-		// The pattern ([^=,]+) matches any string without '=' and ','.
-		// Hence we are looking for a pair of <pattern>=<pattern> with optionally more pairs
-		if !regexp.MustCompile(`^([^=,]+)=([^=,]+)(,([^=,]+)=([^=,]+))*$`).MatchString(config.BeaconNodeHeaders) {
-			return errors.New("beacon node headers must be comma separated values formatted as header=value")
-		}
-
-		pairs := regexp.MustCompile(`([^=,]+)=([^=,]+)`).FindAllStringSubmatch(config.BeaconNodeHeaders, -1)
-		for _, pair := range pairs {
-			beaconNodeHeaders[pair[1]] = pair[2]
-		}
+	beaconNodeHeaders, err := eth2util.ParseBeaconNodeHeaders(config.BeaconNodeHeaders)
+	if err != nil {
+		return err
 	}
 
 	eth2Cl, err := eth2Client(ctx, beaconNodeHeaders, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.GetForkVersion()))
