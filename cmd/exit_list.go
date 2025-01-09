@@ -55,7 +55,7 @@ func newListActiveValidatorsCmd(runFunc func(context.Context, exitConfig) error)
 
 	bindLogFlags(cmd.Flags(), &config.Log)
 
-	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
+	wrapPreRunE(cmd, func(*cobra.Command, []string) error {
 		if !regexp.MustCompile(`^([^=,]+)=([^=,]+)(,([^=,]+)=([^=,]+))*$`).MatchString(config.BeaconNodeHeaders) {
 			return errors.New("beacon node headers must be comma separated values formatted as <header>=<value>")
 		}
