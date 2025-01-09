@@ -104,7 +104,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 		if len(config.Nickname) > 32 {
 			return errors.New("flag 'nickname' can not exceed 32 characters")
 		}
-		if !regexp.MustCompile(`^([^=,]+)=([^=,]+)(,([^=,]+)=([^=,]+))*$`).MatchString(config.BeaconNodeHeaders) {
+		if len(config.BeaconNodeHeaders) > 0 && !regexp.MustCompile(`^([^=,]+)=([^=,]+)(,([^=,]+)=([^=,]+))*$`).MatchString(config.BeaconNodeHeaders) {
 			return errors.New("beacon node headers must be comma separated values formatted as <header>=<value>")
 		}
 
