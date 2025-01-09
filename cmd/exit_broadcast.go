@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -69,6 +70,7 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 		{testnetChainID, false},
 		{testnetGenesisTimestamp, false},
 		{testnetCapellaHardFork, false},
+		{beaconNodeHeaders, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
@@ -98,6 +100,10 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 			return errors.New(fmt.Sprintf("if you want to specify exit file directory for all validators, you must provide %s and not %s.", exitFromDir.String(), exitFromFile.String()))
 		}
 
+		if !regexp.MustCompile(`^([^=,]+)=([^=,]+)(,([^=,]+)=([^=,]+))*$`).MatchString(config.BeaconNodeHeaders) {
+			return errors.New("beacon node headers must be comma separated values formatted as <header>=<value>")
+		}
+
 		return nil
 	})
 
@@ -121,7 +127,20 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "load cluster lock", z.Str("lock_file_path", config.LockFilePath))
 	}
 
-	eth2Cl, err := eth2Client(ctx, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.GetForkVersion()))
+	// Headers must be comma separated values of format <key>=<value>.
+	// The pattern ([^=,]+) matches any string without '=' and ','.
+	// Hence we are looking for a pair of <pattern>=<pattern> with optionally more pairs
+	if !regexp.MustCompile(`^([^=,]+)=([^=,]+)(,([^=,]+)=([^=,]+))*$`).MatchString(config.BeaconNodeHeaders) {
+		return errors.New("beacon node headers must be comma separated values formatted as header=value")
+	}
+
+	pairs := regexp.MustCompile(`([^=,]+)=([^=,]+)`).FindAllStringSubmatch(config.BeaconNodeHeaders, -1)
+	beaconNodeHeaders := make(map[string]string)
+	for _, pair := range pairs {
+		beaconNodeHeaders[pair[1]] = pair[2]
+	}
+
+	eth2Cl, err := eth2Client(ctx, beaconNodeHeaders, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.GetForkVersion()))
 	if err != nil {
 		return errors.Wrap(err, "create eth2 client for specified beacon node(s)", z.Any("beacon_nodes_endpoints", config.BeaconNodeEndpoints))
 	}

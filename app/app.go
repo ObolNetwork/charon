@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -95,6 +96,7 @@ type Config struct {
 	ProcDirectory           string
 	ConsensusProtocol       string
 	Nickname                string
+	BeaconNodeHeaders       string
 
 	TestConfig TestConfig
 }
@@ -909,12 +911,25 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 		log.Info(ctx, "Synthetic block proposals enabled")
 	}
 
-	eth2Cl, err := configureEth2Client(ctx, forkVersion, conf.BeaconNodeAddrs, bnTimeout, conf.SyntheticBlockProposals)
+	// Headers must be comma separated values of format <key>=<value>.
+	// The pattern ([^=,]+) matches any string without '=' and ','.
+	// Hence we are looking for a pair of <pattern>=<pattern> with optionally more pairs
+	if !regexp.MustCompile(`^([^=,]+)=([^=,]+)(,([^=,]+)=([^=,]+))*$`).MatchString(conf.BeaconNodeHeaders) {
+		return nil, nil, errors.New("beacon node headers must be comma separated values formatted as header=value")
+	}
+
+	pairs := regexp.MustCompile(`([^=,]+)=([^=,]+)`).FindAllStringSubmatch(conf.BeaconNodeHeaders, -1)
+	beaconNodeHeaders := make(map[string]string)
+	for _, pair := range pairs {
+		beaconNodeHeaders[pair[1]] = pair[2]
+	}
+
+	eth2Cl, err := configureEth2Client(ctx, forkVersion, conf.BeaconNodeAddrs, beaconNodeHeaders, bnTimeout, conf.SyntheticBlockProposals)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new eth2 http client")
 	}
 
-	submissionEth2Cl, err := configureEth2Client(ctx, forkVersion, conf.BeaconNodeAddrs, submissionBnTimeout, conf.SyntheticBlockProposals)
+	submissionEth2Cl, err := configureEth2Client(ctx, forkVersion, conf.BeaconNodeAddrs, beaconNodeHeaders, submissionBnTimeout, conf.SyntheticBlockProposals)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new submission eth2 http client")
 	}
@@ -923,8 +938,8 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 }
 
 // configureEth2Client configures a beacon node client with the provided settings.
-func configureEth2Client(ctx context.Context, forkVersion []byte, addrs []string, timeout time.Duration, syntheticBlockProposals bool) (eth2wrap.Client, error) {
-	eth2Cl, err := eth2wrap.NewMultiHTTP(timeout, [4]byte(forkVersion), addrs...)
+func configureEth2Client(ctx context.Context, forkVersion []byte, addrs []string, headers map[string]string, timeout time.Duration, syntheticBlockProposals bool) (eth2wrap.Client, error) {
+	eth2Cl, err := eth2wrap.NewMultiHTTP(timeout, [4]byte(forkVersion), headers, addrs...)
 	if err != nil {
 		return nil, errors.Wrap(err, "new eth2 http client")
 	}

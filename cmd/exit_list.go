@@ -5,6 +5,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"regexp"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -49,9 +50,17 @@ func newListActiveValidatorsCmd(runFunc func(context.Context, exitConfig) error)
 		{testnetChainID, false},
 		{testnetGenesisTimestamp, false},
 		{testnetCapellaHardFork, false},
+		{beaconNodeHeaders, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
+
+	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
+		if !regexp.MustCompile(`^([^=,]+)=([^=,]+)(,([^=,]+)=([^=,]+))*$`).MatchString(config.BeaconNodeHeaders) {
+			return errors.New("beacon node headers must be comma separated values formatted as <header>=<value>")
+		}
+		return nil
+	})
 
 	return cmd
 }
@@ -87,7 +96,20 @@ func listActiveVals(ctx context.Context, config exitConfig) ([]string, error) {
 		return nil, errors.Wrap(err, "load cluster lock", z.Str("lock_file_path", config.LockFilePath))
 	}
 
-	eth2Cl, err := eth2Client(ctx, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte{}) // fine to avoid initializing a fork version, we're just querying the BN
+	// Headers must be comma separated values of format <key>=<value>.
+	// The pattern ([^=,]+) matches any string without '=' and ','.
+	// Hence we are looking for a pair of <pattern>=<pattern> with optionally more pairs
+	if !regexp.MustCompile(`^([^=,]+)=([^=,]+)(,([^=,]+)=([^=,]+))*$`).MatchString(config.BeaconNodeHeaders) {
+		return nil, errors.New("beacon node headers must be comma separated values formatted as header=value")
+	}
+
+	pairs := regexp.MustCompile(`([^=,]+)=([^=,]+)`).FindAllStringSubmatch(config.BeaconNodeHeaders, -1)
+	beaconNodeHeaders := make(map[string]string)
+	for _, pair := range pairs {
+		beaconNodeHeaders[pair[1]] = pair[2]
+	}
+
+	eth2Cl, err := eth2Client(ctx, beaconNodeHeaders, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte{}) // fine to avoid initializing a fork version, we're just querying the BN
 	if err != nil {
 		return nil, errors.Wrap(err, "create eth2 client for specified beacon node(s)", z.Any("beacon_nodes_endpoints", config.BeaconNodeEndpoints))
 	}

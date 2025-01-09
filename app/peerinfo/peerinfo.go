@@ -202,7 +202,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 
 			name := p2p.PeerName(peerID)
 
-			p.nicknames[name] = resp.Nickname
+			p.nicknames[name] = resp.GetNickname()
 			log.Info(ctx, "Peer name to nickname mappings", z.Any("nicknames", p.nicknames))
 
 			// Validator git hash with regex.
