@@ -29,19 +29,22 @@ const (
 
 // getDefinitionHashFunc returns the function to hash a definition based on the provided version.
 func getDefinitionHashFunc(version string) (func(Definition, ssz.HashWalker, bool) error, error) {
-	if isAnyVersion(version, v1_0, v1_1, v1_2) {
+	switch {
+	case isAnyVersion(version, v1_0, v1_1, v1_2):
 		return hashDefinitionLegacy, nil
-	} else if isAnyVersion(version, v1_3, v1_4) {
+	case isAnyVersion(version, v1_3, v1_4):
 		return hashDefinitionV1x3or4, nil
-	} else if isAnyVersion(version, v1_5, v1_6, v1_7) {
+	case isAnyVersion(version, v1_5, v1_6, v1_7):
 		return hashDefinitionV1x5to7, nil
-	} else if isAnyVersion(version, v1_8) {
+	case isAnyVersion(version, v1_8):
 		return hashDefinitionV1x8, nil
-	} else if isAnyVersion(version, v1_9) {
-		return hashDefinitionV1x9orLater, nil
+	case isAnyVersion(version, v1_9):
+		return hashDefinitionV1x9, nil
+	case isAnyVersion(version, v1_10):
+		return hashDefinitionV1x10, nil
+	default:
+		return nil, errors.New("unknown version", z.Str("version", version))
 	}
-
-	return nil, errors.New("unknown version", z.Str("version", version))
 }
 
 // hashDefinition returns a config or definition hash. The config hash excludes operator ENRs and signatures
@@ -415,8 +418,8 @@ func hashDefinitionV1x5to7(d Definition, hh ssz.HashWalker, configOnly bool) err
 	return hashDefinitionV1x5to9(d, hh, configOnly, nil)
 }
 
-// hashDefinitionV1x8to9 hashes the new definition with extra fields.
-func hashDefinitionV1x8to9(d Definition, hh ssz.HashWalker, configOnly bool, extra []hashExtraFields) error {
+// hashDefinitionV1x8to10 hashes the new definition with extra fields.
+func hashDefinitionV1x8to10(d Definition, hh ssz.HashWalker, configOnly bool, extra []hashExtraFields) error {
 	return hashDefinitionV1x5to9(d, hh, configOnly, []hashExtraFields{
 		func(d Definition, hh ssz.HashWalker) error {
 			// Field (11) 'DepositAmounts' uint64[256]
@@ -443,15 +446,30 @@ func hashDefinitionV1x8to9(d Definition, hh ssz.HashWalker, configOnly bool, ext
 
 // hashDefinitionV1x8 hashes the new definition.
 func hashDefinitionV1x8(d Definition, hh ssz.HashWalker, configOnly bool) error {
-	return hashDefinitionV1x8to9(d, hh, configOnly, nil)
+	return hashDefinitionV1x8to10(d, hh, configOnly, nil)
 }
 
-// hashDefinitionV1x9OrLater hashes the new definition.
-func hashDefinitionV1x9orLater(d Definition, hh ssz.HashWalker, configOnly bool) error {
-	return hashDefinitionV1x8to9(d, hh, configOnly, []hashExtraFields{
+// hashDefinitionV1x9 hashes the new definition.
+func hashDefinitionV1x9(d Definition, hh ssz.HashWalker, configOnly bool) error {
+	return hashDefinitionV1x8to10(d, hh, configOnly, []hashExtraFields{
 		func(d Definition, hh ssz.HashWalker) error {
 			// Field (12) 'ConsensusProtocol' ByteList[256]
 			return putByteList(hh, []byte(d.ConsensusProtocol), sszMaxName, "consensus_protocol")
+		},
+	})
+}
+
+// hashDefinitionV1x10 hashes the new definition.
+func hashDefinitionV1x10(d Definition, hh ssz.HashWalker, configOnly bool) error {
+	return hashDefinitionV1x8to10(d, hh, configOnly, []hashExtraFields{
+		func(d Definition, hh ssz.HashWalker) error {
+			// Field (12) 'ConsensusProtocol' ByteList[256]
+			return putByteList(hh, []byte(d.ConsensusProtocol), sszMaxName, "consensus_protocol")
+		},
+		func(d Definition, hh ssz.HashWalker) error {
+			// Field (13) 'TargetGasLimit' uint64
+			hh.PutUint64(uint64(d.TargetGasLimit))
+			return nil
 		},
 	})
 }
@@ -461,7 +479,7 @@ func hashLock(l Lock) ([32]byte, error) {
 	var hashFunc func(Lock, ssz.HashWalker) error
 	if isAnyVersion(l.Version, v1_0, v1_1, v1_2) {
 		hashFunc = hashLockLegacy
-	} else if isAnyVersion(l.Version, v1_3, v1_4, v1_5, v1_6, v1_7, v1_8, v1_9) {
+	} else if isAnyVersion(l.Version, v1_3, v1_4, v1_5, v1_6, v1_7, v1_8, v1_9, v1_10) {
 		hashFunc = hashLockV1x3orLater
 	} else {
 		return [32]byte{}, errors.New("unknown version")
@@ -524,7 +542,7 @@ func getValidatorHashFunc(version string) (func(DistValidator, ssz.HashWalker, s
 		return hashValidatorV1x3Or4, nil
 	} else if isAnyVersion(version, v1_5, v1_6, v1_7) {
 		return hashValidatorV1x5to7, nil
-	} else if isAnyVersion(version, v1_8, v1_9) {
+	} else if isAnyVersion(version, v1_8, v1_9, v1_10) {
 		return hashValidatorV1x8OrLater, nil
 	}
 
@@ -716,7 +734,7 @@ func getDepositDataHashFunc(version string) (func(DepositData, ssz.HashWalker) e
 		return func(DepositData, ssz.HashWalker) error { return nil }, nil
 	} else if isAnyVersion(version, v1_6) {
 		return hashDepositDataV1x6, nil
-	} else if isAnyVersion(version, v1_7, v1_8, v1_9) {
+	} else if isAnyVersion(version, v1_7, v1_8, v1_9, v1_10) {
 		return hashDepositDataV1x7OrLater, nil
 	}
 
@@ -728,7 +746,7 @@ func getRegistrationHashFunc(version string) (func(BuilderRegistration, ssz.Hash
 	if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6) {
 		// Noop hash function for v1.0 to v1.6 that do not support builder registration.
 		return func(BuilderRegistration, ssz.HashWalker) error { return nil }, nil
-	} else if isAnyVersion(version, v1_7, v1_8, v1_9) {
+	} else if isAnyVersion(version, v1_7, v1_8, v1_9, v1_10) {
 		return hashBuilderRegistration, nil
 	}
 
