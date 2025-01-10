@@ -83,6 +83,8 @@ type clusterConfig struct {
 
 	ConsensusProtocol string
 
+	TargetGasLimit uint
+
 	testnetConfig eth2util.Network
 }
 
@@ -143,6 +145,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.Int64Var(&config.testnetConfig.GenesisTimestamp, "testnet-genesis-timestamp", 0, "Genesis timestamp of the custom test network.")
 	flags.IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to exactly 32ETH.")
 	flags.StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the cluster. Selected automatically when not specified.")
+	flags.UintVar(&config.TargetGasLimit, "target-gas-limit", 30000000, "Preferred target gas limit for transactions.")
 }
 
 func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
@@ -851,12 +854,9 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 	threshold := safeThreshold(ctx, conf.NumNodes, conf.Threshold)
 
 	var opts []func(*cluster.Definition)
-	if len(conf.DepositAmounts) > 0 {
-		opts = append(opts, cluster.WithVersion(cluster.MinVersionForPartialDeposits))
-	}
 	def, err := cluster.NewDefinition(conf.Name, conf.NumDVs, threshold, feeRecipientAddrs,
 		withdrawalAddrs, forkVersion, cluster.Creator{}, ops, conf.DepositAmounts,
-		conf.ConsensusProtocol, rand.Reader, opts...)
+		conf.ConsensusProtocol, conf.TargetGasLimit, rand.Reader, opts...)
 	if err != nil {
 		return cluster.Definition{}, err
 	}

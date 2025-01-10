@@ -35,7 +35,7 @@ import (
 //go:generate go test . -run=TestCreateCluster -update
 
 func TestCreateCluster(t *testing.T) {
-	defPath := "../cluster/examples/cluster-definition-005.json"
+	defPath := "../cluster/examples/cluster-definition-006.json"
 	def, err := loadDefinition(context.Background(), defPath)
 	require.NoError(t, err)
 
@@ -224,7 +224,7 @@ func TestCreateCluster(t *testing.T) {
 				NumNodes:  3,
 				Threshold: 3,
 				NumDVs:    5,
-				Network:   "goerli",
+				Network:   eth2util.Goerli.Name,
 			},
 			Prep: func(t *testing.T, config clusterConfig) clusterConfig {
 				t.Helper()
@@ -269,7 +269,7 @@ func TestCreateCluster(t *testing.T) {
 				NumNodes:  2,
 				Threshold: 2,
 				NumDVs:    1,
-				Network:   "goerli",
+				Network:   eth2util.Goerli.Name,
 			},
 			defFileProvider: func() []byte {
 				data, err := json.Marshal(defTwoNodes)
@@ -278,6 +278,17 @@ func TestCreateCluster(t *testing.T) {
 				return data
 			},
 			expectedErr: "number of operators is below minimum",
+		},
+		{
+			Name: "custom target gas limit",
+			Config: clusterConfig{
+				Name:           "test_cluster",
+				NumNodes:       4,
+				Threshold:      3,
+				NumDVs:         3,
+				Network:        eth2util.Holesky.Name,
+				TargetGasLimit: 36000000,
+			},
 		},
 	}
 
@@ -297,6 +308,9 @@ func TestCreateCluster(t *testing.T) {
 			test.Config.InsecureKeys = true
 			test.Config.WithdrawalAddrs = []string{zeroAddress}
 			test.Config.FeeRecipientAddrs = []string{zeroAddress}
+			if test.Config.TargetGasLimit == 0 && test.defFileProvider == nil {
+				test.Config.TargetGasLimit = 30000000
+			}
 
 			if test.Prep != nil {
 				test.Config = test.Prep(t, test.Config)
@@ -417,11 +431,12 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 func TestValidateDef(t *testing.T) {
 	ctx := context.Background()
 	conf := clusterConfig{
-		Name:      "test",
-		NumNodes:  4,
-		NumDVs:    4,
-		Threshold: 3,
-		Network:   "goerli",
+		Name:           "test",
+		NumNodes:       4,
+		NumDVs:         4,
+		Threshold:      3,
+		TargetGasLimit: 30000000,
+		Network:        eth2util.Goerli.Name,
 	}
 
 	for range conf.NumDVs {
@@ -568,6 +583,7 @@ func TestSplitKeys(t *testing.T) {
 			test.conf.SplitKeys = true
 			test.conf.InsecureKeys = true
 			test.conf.Network = eth2util.Goerli.Name
+			test.conf.TargetGasLimit = 30000000
 
 			var buf bytes.Buffer
 			err = runCreateCluster(context.Background(), &buf, test.conf)
@@ -640,6 +656,90 @@ func TestMultipleAddresses(t *testing.T) {
 	})
 }
 
+func TestTargetGasLimit(t *testing.T) {
+	tests := []struct {
+		name                   string
+		conf                   clusterConfig
+		expectedTargetGasLimit uint
+		expectedErrMsg         string
+	}{
+		{
+			name: "target gas limit from unsupported version",
+			conf: clusterConfig{
+				DefFile:    "../cluster/examples/cluster-definition-005.json",
+				ClusterDir: t.TempDir(),
+				NumNodes:   4,
+				Network:    defaultNetwork,
+			},
+			expectedTargetGasLimit: 0,
+		},
+		{
+			name: "target gas limit from supported version",
+			conf: clusterConfig{
+				DefFile:    "../cluster/examples/cluster-definition-006.json",
+				ClusterDir: t.TempDir(),
+				NumNodes:   4,
+				Network:    defaultNetwork,
+			},
+			expectedTargetGasLimit: 30000000,
+		},
+		{
+			name: "target gas limit with default version",
+			conf: clusterConfig{
+				Name:              t.Name(),
+				ClusterDir:        t.TempDir(),
+				NumNodes:          4,
+				Threshold:         3,
+				NumDVs:            1,
+				Network:           defaultNetwork,
+				WithdrawalAddrs:   []string{zeroAddress},
+				FeeRecipientAddrs: []string{zeroAddress},
+				InsecureKeys:      true,
+				TargetGasLimit:    36000000,
+			},
+			expectedTargetGasLimit: 36000000,
+		},
+		{
+			name: "no target gas limit with default version",
+			conf: clusterConfig{
+				Name:              t.Name(),
+				ClusterDir:        t.TempDir(),
+				NumNodes:          4,
+				Threshold:         3,
+				NumDVs:            1,
+				Network:           defaultNetwork,
+				WithdrawalAddrs:   []string{zeroAddress},
+				FeeRecipientAddrs: []string{zeroAddress},
+				InsecureKeys:      true,
+			},
+			expectedErrMsg: "target gas limit should be set",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			err := runCreateCluster(context.Background(), &buf, test.conf)
+			if test.expectedErrMsg != "" {
+				require.ErrorContains(t, err, test.expectedErrMsg)
+			} else {
+				testutil.RequireNoError(t, err)
+
+				// Since `cluster-lock.json` is copied into each node directory, use any one of them.
+				b, err := os.ReadFile(path.Join(nodeDir(test.conf.ClusterDir, 0), "cluster-lock.json"))
+				require.NoError(t, err)
+
+				var lock cluster.Lock
+				require.NoError(t, json.Unmarshal(b, &lock))
+				require.NoError(t, lock.VerifyHashes())
+				require.NoError(t, lock.VerifySignatures())
+
+				require.Equal(t, test.expectedTargetGasLimit, lock.TargetGasLimit)
+			}
+		})
+	}
+}
+
 // TestKeymanager tests keymanager support by letting create cluster command split a single secret and then receiving those keyshares using test
 // keymanager servers. These shares are then combined to create the combined share which is then compared to the original secret that was split.
 func TestKeymanager(t *testing.T) {
@@ -683,6 +783,7 @@ func TestKeymanager(t *testing.T) {
 		SplitKeys:            true,
 		NumNodes:             minNodes,
 		Threshold:            minThreshold,
+		TargetGasLimit:       30000000,
 		KeymanagerAddrs:      addrs,
 		KeymanagerAuthTokens: authTokens,
 		Network:              eth2util.Goerli.Name,
@@ -766,6 +867,7 @@ func TestPublish(t *testing.T) {
 		NumNodes:          minNodes,
 		Threshold:         minThreshold,
 		NumDVs:            1,
+		TargetGasLimit:    30000000,
 		Network:           eth2util.Goerli.Name,
 		WithdrawalAddrs:   []string{zeroAddress},
 		FeeRecipientAddrs: []string{zeroAddress},

@@ -22,8 +22,9 @@ func TestDefinitionVerify(t *testing.T) {
 	secret3, creator := randomCreator(t)
 
 	t.Run("verify definition v1.5 solo", func(t *testing.T) {
-		definition := randomDefinition(t, creator, Operator{}, Operator{},
+		definition := randomDefinition(t, creator, Operator{}, Operator{}, 0,
 			WithVersion(v1_5),
+			func(d *Definition) { d.TargetGasLimit = 0 },
 		)
 
 		definition, err = signCreator(secret3, definition)
@@ -34,8 +35,9 @@ func TestDefinitionVerify(t *testing.T) {
 	})
 
 	t.Run("verify definition v1.5", func(t *testing.T) {
-		definition := randomDefinition(t, creator, op0, op1,
+		definition := randomDefinition(t, creator, op0, op1, 0,
 			WithVersion(v1_5),
+			func(d *Definition) { d.TargetGasLimit = 0 },
 		)
 
 		definition, err = signCreator(secret3, definition)
@@ -52,9 +54,10 @@ func TestDefinitionVerify(t *testing.T) {
 	})
 
 	t.Run("verify definition v1.4", func(t *testing.T) {
-		definition := randomDefinition(t, creator, op0, op1,
+		definition := randomDefinition(t, creator, op0, op1, 0,
 			WithVersion(v1_4),
 			WithLegacyVAddrs(testutil.RandomETHAddress(), testutil.RandomETHAddress()),
+			func(d *Definition) { d.TargetGasLimit = 0 },
 		)
 
 		definition, err = signCreator(secret3, definition)
@@ -71,9 +74,10 @@ func TestDefinitionVerify(t *testing.T) {
 	})
 
 	t.Run("verify definition v1.3", func(t *testing.T) {
-		definition := randomDefinition(t, Creator{}, op0, op1,
+		definition := randomDefinition(t, Creator{}, op0, op1, 0,
 			WithVersion(v1_3),
 			WithLegacyVAddrs(testutil.RandomETHAddress(), testutil.RandomETHAddress()),
+			func(d *Definition) { d.TargetGasLimit = 0 },
 		)
 
 		definition.Operators[0], err = signOperator(secret0, definition, op0)
@@ -87,21 +91,23 @@ func TestDefinitionVerify(t *testing.T) {
 	})
 
 	t.Run("verify definition v1.2 or lower", func(t *testing.T) {
-		def := randomDefinition(t, Creator{}, op0, op1,
+		def := randomDefinition(t, Creator{}, op0, op1, 0,
 			WithVersion(v1_2),
 			WithLegacyVAddrs(testutil.RandomETHAddress(), testutil.RandomETHAddress()),
+			func(d *Definition) { d.TargetGasLimit = 0 },
 		)
 		require.NoError(t, def.VerifySignatures())
 
-		def = randomDefinition(t, Creator{}, op0, op1,
+		def = randomDefinition(t, Creator{}, op0, op1, 0,
 			WithVersion(v1_0),
 			WithLegacyVAddrs(testutil.RandomETHAddress(), testutil.RandomETHAddress()),
+			func(d *Definition) { d.TargetGasLimit = 0 },
 		)
 		require.NoError(t, def.VerifySignatures())
 	})
 
 	t.Run("unsigned creator and operators", func(t *testing.T) {
-		def := randomDefinition(t, creator, op0, op1)
+		def := randomDefinition(t, creator, op0, op1, 30000000)
 		def.Creator = Creator{}
 		def.Operators = []Operator{{}, {}}
 
@@ -109,9 +115,10 @@ func TestDefinitionVerify(t *testing.T) {
 	})
 
 	t.Run("unsigned operators v1.3", func(t *testing.T) {
-		def := randomDefinition(t, creator, op0, op1,
+		def := randomDefinition(t, creator, op0, op1, 0,
 			WithVersion(v1_3),
 			WithLegacyVAddrs(testutil.RandomETHAddress(), testutil.RandomETHAddress()),
+			func(d *Definition) { d.TargetGasLimit = 0 },
 		)
 
 		def.Operators = []Operator{{}, {}}
@@ -120,7 +127,7 @@ func TestDefinitionVerify(t *testing.T) {
 	})
 
 	t.Run("empty operator signatures", func(t *testing.T) {
-		def := randomDefinition(t, creator, op0, op1)
+		def := randomDefinition(t, creator, op0, op1, 30000000)
 
 		// Empty ENR sig
 		err := def.VerifySignatures()
@@ -135,7 +142,7 @@ func TestDefinitionVerify(t *testing.T) {
 	})
 
 	t.Run("some operators didn't sign", func(t *testing.T) {
-		definition := randomDefinition(t, creator, op0, op1)
+		definition := randomDefinition(t, creator, op0, op1, 30000000)
 		definition.Operators[0] = Operator{} // Operator with no address, enr sig or config sig
 
 		// Only operator 1 signed.
@@ -148,14 +155,14 @@ func TestDefinitionVerify(t *testing.T) {
 	})
 
 	t.Run("no operators no creator", func(t *testing.T) {
-		definition := randomDefinition(t, Creator{}, Operator{}, Operator{})
+		definition := randomDefinition(t, Creator{}, Operator{}, Operator{}, 30000000)
 
 		err = definition.VerifySignatures()
 		require.NoError(t, err)
 	})
 
 	t.Run("creator didn't sign", func(t *testing.T) {
-		definition := randomDefinition(t, creator, op0, op1)
+		definition := randomDefinition(t, creator, op0, op1, 30000000)
 		definition.Operators[0], err = signOperator(secret0, definition, op0)
 		require.NoError(t, err)
 
@@ -168,7 +175,7 @@ func TestDefinitionVerify(t *testing.T) {
 	})
 
 	t.Run("solo flow definition empty operators slice", func(t *testing.T) {
-		definition := randomDefinition(t, creator, Operator{}, Operator{}, func(def *Definition) {
+		definition := randomDefinition(t, creator, Operator{}, Operator{}, 30000000, func(def *Definition) {
 			def.Operators = []Operator{}
 		})
 
@@ -186,7 +193,7 @@ func TestDefinitionVerify(t *testing.T) {
 	})
 
 	t.Run("solo flow definition empty operator structs", func(t *testing.T) {
-		definition := randomDefinition(t, creator, Operator{}, Operator{}, func(definition *Definition) {
+		definition := randomDefinition(t, creator, Operator{}, Operator{}, 30000000, func(definition *Definition) {
 			definition.Name = "solo flow"
 		})
 
@@ -233,8 +240,8 @@ func randomOperator(t *testing.T) (*k1.PrivateKey, Operator) {
 	}
 }
 
-// randomDefinition returns a test cluster definition with version set to v1.4.0.
-func randomDefinition(t *testing.T, cr Creator, op0, op1 Operator, opts ...func(*Definition)) Definition {
+// randomDefinition returns a test cluster definition with version set to default.
+func randomDefinition(t *testing.T, cr Creator, op0, op1 Operator, targetGasLimit uint, opts ...func(*Definition)) Definition {
 	t.Helper()
 
 	const (
@@ -250,7 +257,7 @@ func randomDefinition(t *testing.T, cr Creator, op0, op1 Operator, opts ...func(
 
 	definition, err := NewDefinition("test definition", numVals, threshold,
 		feeRecipientAddrs, withdrawalAddrs, eth2util.Sepolia.GenesisForkVersionHex, cr, []Operator{op0, op1}, nil,
-		"qbft", rand.New(rand.NewSource(1)), opts...)
+		"qbft", targetGasLimit, rand.New(rand.NewSource(1)), opts...)
 	require.NoError(t, err)
 
 	return definition
