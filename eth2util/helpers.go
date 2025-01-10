@@ -18,6 +18,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
+// ValidateBeaconNodeHeaders validates the format of a string containing beacon node headers.
 func ValidateBeaconNodeHeaders(headers string) error {
 	// This pattern ([^=,]+) captures any string that does not contain '=' or ','.
 	// The composition of patterns ([^=,]+)=([^=,]+) captures a pair of header and its corresponding value.
@@ -29,6 +30,8 @@ func ValidateBeaconNodeHeaders(headers string) error {
 	return nil
 }
 
+// ParseBeaconNodeHeader validates and parses a string of headers into a map of key-value pairs.
+// Returns empty map if string is empty.
 func ParseBeaconNodeHeaders(headers string) (map[string]string, error) {
 	parsedHeaders := make(map[string]string)
 	if len(headers) == 0 {
