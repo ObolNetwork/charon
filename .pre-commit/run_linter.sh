@@ -14,4 +14,4 @@ if [[ $version_check != *"$VERSION"* ]]; then
     echo "golangci-lint version is not $VERSION"
 fi
 
-golangci-lint run
+golangci-lint run --allow-parallel-runners
