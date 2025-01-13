@@ -85,7 +85,7 @@ func bindCreateDKGFlags(cmd *cobra.Command, config *createDKGConfig) {
 	cmd.Flags().IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to exactly 32ETH.")
 	cmd.Flags().StringSliceVar(&config.OperatorENRs, operatorENRs, nil, "[REQUIRED] Comma-separated list of each operator's Charon ENR address.")
 	cmd.Flags().StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the cluster. Selected automatically when not specified.")
-	cmd.Flags().UintVar(&config.TargetGasLimit, "target-gas-limit", 30000000, "Preferred target gas limit for transactions.")
+	cmd.Flags().UintVar(&config.TargetGasLimit, "target-gas-limit", 36000000, "Preferred target gas limit for transactions.")
 
 	mustMarkFlagRequired(cmd, operatorENRs)
 }
