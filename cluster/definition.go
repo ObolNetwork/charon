@@ -110,11 +110,11 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddresse
 		return Definition{}, errors.New("the version does not support partial deposits", z.Str("version", def.Version))
 	}
 
-	if targetGasLimit != 0 && !supportTargetGasLimit(def.Version) {
+	if def.TargetGasLimit != 0 && !supportTargetGasLimit(def.Version) {
 		return Definition{}, errors.New("the version does not support custom target gas limit", z.Str("version", def.Version))
 	}
 
-	if targetGasLimit == 0 && supportTargetGasLimit(def.Version) {
+	if def.TargetGasLimit == 0 && supportTargetGasLimit(def.Version) {
 		return Definition{}, errors.New("target gas limit should be set", z.Str("version", def.Version))
 	}
 

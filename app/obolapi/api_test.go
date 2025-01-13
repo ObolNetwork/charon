@@ -43,6 +43,7 @@ func TestLockPublish(t *testing.T) {
 		opts := []func(d *cluster.Definition){
 			func(d *cluster.Definition) {
 				d.Version = "v1.5.0"
+				d.TargetGasLimit = 0
 			},
 		}
 
