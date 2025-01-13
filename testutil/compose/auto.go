@@ -185,7 +185,6 @@ func fixPerms(ctx context.Context, dir string) error {
 
 // execDown executes `docker compose down`.
 func execDown(ctx context.Context, dir string) error {
-
 	log.Info(ctx, "Finding and fixing permissions in /tmp")
 	chownCmd := exec.CommandContext(ctx, "sudo", "find", "/tmp/", "-name", "001", "-exec", "chown", "-R", "runner:docker", "{}", ";")
 	output, _ := chownCmd.CombinedOutput()
