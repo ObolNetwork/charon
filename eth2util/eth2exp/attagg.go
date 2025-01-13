@@ -25,7 +25,7 @@ type BeaconCommitteeSelectionAggregator interface {
 
 // BeaconCommitteeSelection is the data required for a beacon committee subscription.
 type BeaconCommitteeSelection struct {
-	// ValidatorIdex is the index of the validator making the aggregate request.
+	// ValidatorIndex is the index of the validator making the aggregate request.
 	ValidatorIndex eth2p0.ValidatorIndex
 	// Slot is the slot for which the validator is possibly aggregating.
 	Slot eth2p0.Slot
