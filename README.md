@@ -7,13 +7,54 @@
 <a href="https://goreportcard.com/report/github.com/obolnetwork/charon"><img src="https://goreportcard.com/badge/github.com/obolnetwork/charon"></a>
 <a href="https://github.com/ObolNetwork/charon/actions/workflows/golangci-lint.yml"><img src="https://github.com/obolnetwork/charon/workflows/golangci-lint/badge.svg"></a></p>
 
+## 🌟 Overview
+
+Charon (pronounced 'kharon') is a powerful HTTP middleware client for Ethereum Staking that revolutionizes validator operations by enabling distributed validator technology (DVT). It allows you to run a single validator safely across multiple independent nodes, significantly improving reliability and security.
+
+### Key Benefits
+- 🛡️ **Enhanced Security**: Distribute signing responsibilities across multiple nodes
+- 🔄 **High Availability**: Maintain validator uptime even if some nodes fail
+- 🌐 **Client Diversity**: Run different client implementations to reduce systemic risks
+- 🤝 **Reduced Single Point of Failure**: No single node can compromise the validator
+
+![Example Obol Cluster](./docs/images/DVCluster.png)
+
+## 💻 System Requirements
+
+- Go 1.20 or later
+- 4GB RAM minimum
+- 2 CPU cores minimum
+- 20GB free disk space
+- Stable internet connection
+
+## 🚀 Quickstart
+
+The fastest way to experience Charon is through our [charon-distributed-validator-cluster](https://github.com/ObolNetwork/charon-distributed-validator-cluster) repo:
+
+```bash
+git clone https://github.com/ObolNetwork/charon-distributed-validator-cluster
+cd charon-distributed-validator-cluster
+docker-compose up
+```
+
+## 📚 Documentation
+
+Visit our comprehensive documentation at [Obol Docs](https://docs.obol.tech/):
+- [📖 Introduction](https://docs.obol.tech/docs/intro)
+- [🔑 Key Concepts](https://docs.obol.tech/docs/int/key-concepts)
+- [⚙️ Charon Guide](https://docs.obol.tech/docs/charon/intro)
+
+### Technical Documentation
+- [Configuration](docs/configuration.md)
+- [Architecture](docs/architecture.md)
+- [Project Structure](docs/structure.md)
+- [Contributing Guidelines](docs/contributing.md)
+
 This repo contains the source code for the distributed validator client _Charon_ (pronounced 'kharon'); a HTTP middleware client for Ethereum Staking that enables you to safely run a single validator across a group of independent nodes.
 
 Charon is accompanied by a webapp called the [Distributed Validator Launchpad](https://holesky.launchpad.obol.tech/) for distributed validator key creation.
 
 Charon is used by stakers to distribute the responsibility of running Ethereum Validators across a number of different instances and client implementations.
-
-![Example Obol Cluster](./docs/images/DVCluster.png)
 
 ###### A Distributed Validator Cluster that uses the Charon client to hedge client and hardware failure risks
 
