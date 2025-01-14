@@ -21,10 +21,10 @@ The input to the Priority protocol is a list of protocols defined in order of pr
 
 ```json
 [
-    "/charon/consensus/hotstuff/1.0.0", // Highest precedence
-    "/charon/consensus/abft/2.0.0",
-    "/charon/consensus/abft/1.0.0",
-    "/charon/consensus/qbft/2.0.0",     // Lowest precedence and the fallback since it is always present
+  "/charon/consensus/hotstuff/1.0.0", // Highest precedence
+  "/charon/consensus/abft/2.0.0",
+  "/charon/consensus/abft/1.0.0",
+  "/charon/consensus/qbft/2.0.0" // Lowest precedence and the fallback since it is always present
 ]
 ```
 
@@ -32,8 +32,8 @@ The output of the Priority protocol is the common "subset" of all inputs, respec
 
 ```json
 [
-    "/charon/consensus/abft/1.0.0", // This means the majority of nodes have this protocol available
-    "/charon/consensus/qbft/2.0.0",
+  "/charon/consensus/abft/1.0.0", // This means the majority of nodes have this protocol available
+  "/charon/consensus/qbft/2.0.0"
 ]
 ```
 
@@ -52,6 +52,24 @@ The precise version of the protocol is to be determined by the Priority protocol
 To list all available consensus protocols (with versions), a user can run the command `charon version --verbose`.
 
 When a node starts, it sequentially mutates the list of preferred consensus protocols by processing the cluster configuration file and then the mentioned CLI flag. The final list of preferred protocols is then passed to the Priority protocol for cluster-wide consensus. Until the Priority protocol reaches consensus, the cluster will use the default QBFT v2.0 protocol for any duties.
+
+## Consensus Round Duration
+
+There are three different round timer implementations. These timers define the duration of each consensus round and how the timing adjusts for subsequent rounds. All nodes in a cluster must use the same timer implementation to ensure proper consensus operation.
+
+The default implementation is the `EagerDoubleLinearRoundTimer`, which is recommended for most deployments. Other round timers can be enabled or disabled by using the `--feature-set-enable <timer-name>` and `--feature-set-disable <timer-name>` flags.
+
+### Increasing Round Timer
+
+The `IncreasingRoundTimer` uses a linear increment strategy for round durations. It starts with a base duration and increases by a fixed increment for each subsequent round. The formula for a given round `n` is `Duration = IncRoundStart + (IncRoundIncrease * n)`. To enable this timer, disable the default timer by using the flag `--feature-set-disable "eager_double_linear"`.
+
+### Eager Double Linear Round Timer
+
+The `EagerDoubleLinearRoundTimer` aligns start times across participants by starting at an absolute time and doubling the round duration when the leader is active. The round duration increases linearly according to `LinearRoundInc`. This aims to fix an issue with the original solution where the leader resets the timer at the start of the round while others reset when they receive the justified pre-prepare which leads to leaders getting out of sync with the rest. This timer is enabled by default and doesn't require additional flags.
+
+### Exponential Round Timer
+
+The `ExponentialRoundTimer` increases round durations exponentially. It provides a sufficient timeout for the initial round and grows from a smaller base timeout for subsequent rounds. The idea behind this timer is, that the consensus timeout includes fetching the signing data. As all nodes do that at the start, irregardless if they are leader or not, after the first timeout, the remaining nodes already had time to fetch their signing data. Therefore they won't need as much time to reach consensus as the leader for the first round did. The shorter subsequent rounds allow us to more quickly skip underperforming leader when compared to both `IncreasingRoundTimer` and `EagerDoubleLinearRoundTimer`, giving more leaders a chance to advance the protocol before its too late. To enable this timer, use the flag `--feature-set-enable "exponential"`. Since this timer has precedence over the `EagerDoubleLinearRoundTimer` there is no need to disable the default timer.
 
 ## Observability
 
