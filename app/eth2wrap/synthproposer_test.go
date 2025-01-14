@@ -209,7 +209,7 @@ func TestSynthProposerBlockNotFound(t *testing.T) {
 	}
 
 	// Wrap beacon mock with multi eth2 client implementation which returns wrapped error.
-	eth2Cl, err := eth2wrap.Instrument(bmock)
+	eth2Cl, err := eth2wrap.InstrumentWithFallback(&eth2wrap.FallbackClient{}, bmock)
 	require.NoError(t, err)
 
 	eth2Cl = eth2wrap.WithSyntheticDuties(eth2Cl)
