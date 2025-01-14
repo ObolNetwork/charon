@@ -19,12 +19,17 @@ import (
 )
 
 // ValidateBeaconNodeHeaders validates the format of a string containing beacon node headers.
-func ValidateBeaconNodeHeaders(headers string) error {
-	// This pattern ([^=,]+) captures any string that does not contain '=' or ','.
-	// The composition of patterns ([^=,]+)=([^=,]+) captures a pair of header and its corresponding value.
-	// The optional pattern at the end expresses the possibility of multiple pairs comma separated from each other.
-	if len(headers) > 0 && !regexp.MustCompile(`^([^=,]+)=([^=,]+)(,([^=,]+)=([^=,]+))*$`).MatchString(headers) {
-		return errors.New("beacon node headers must be comma separated values formatted as header=value")
+func ValidateBeaconNodeHeaders(headers []string) error {
+	if len(headers) > 0 {
+		// The pattern ([^=,]+) captures any string that does not contain '=' or ','.
+		// The composition of patterns ([^=,]+)=([^=,]+) captures a pair of header and its corresponding value.
+		// We use ^ at the start and $ at the end to ensure exact match.
+		headerPattern := regexp.MustCompile(`^([^=,]+)=([^=,]+)$`)
+		for _, header := range headers {
+			if !headerPattern.MatchString(header) {
+				return errors.New("beacon node headers must be comma separated values formatted as header=value")
+			}
+		}
 	}
 
 	return nil
@@ -32,7 +37,7 @@ func ValidateBeaconNodeHeaders(headers string) error {
 
 // ParseBeaconNodeHeader validates and parses a string of headers into a map of key-value pairs.
 // Returns empty map if string is empty.
-func ParseBeaconNodeHeaders(headers string) (map[string]string, error) {
+func ParseBeaconNodeHeaders(headers []string) (map[string]string, error) {
 	parsedHeaders := make(map[string]string)
 	if len(headers) == 0 {
 		return parsedHeaders, nil
@@ -43,10 +48,9 @@ func ParseBeaconNodeHeaders(headers string) (map[string]string, error) {
 		return nil, err
 	}
 
-	// Given that the string follows our pattern we can match by pairs to extract the values
-	pairs := regexp.MustCompile(`([^=,]+)=([^=,]+)`).FindAllStringSubmatch(headers, -1)
-	for _, pair := range pairs {
-		parsedHeaders[pair[1]] = pair[2]
+	for _, header := range headers {
+		pair := strings.Split(header, "=")
+		parsedHeaders[pair[0]] = pair[1]
 	}
 
 	return parsedHeaders, nil

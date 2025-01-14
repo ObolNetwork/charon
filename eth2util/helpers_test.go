@@ -71,37 +71,62 @@ func TestPublicKeyToAddress(t *testing.T) {
 func TestValidateBeaconNodeHeaders(t *testing.T) {
 	tests := []struct {
 		name    string
-		headers string
+		headers []string
 		valid   bool
 	}{
 		{
-			name:    "empty",
-			headers: "",
+			name:    "nil",
+			headers: nil,
 			valid:   true,
 		},
 		{
 			name:    "one pair",
-			headers: "header-1=value-1",
+			headers: []string{"header-1=value-1"},
 			valid:   true,
 		},
 		{
 			name:    "two pairs",
-			headers: "header-1=value-1,header-2=value-2",
+			headers: []string{"header-1=value-1", "header-2=value-2"},
 			valid:   true,
 		},
 		{
+			name:    "empty",
+			headers: []string{""},
+			valid:   false,
+		},
+		{
 			name:    "value missing",
-			headers: "header-1=",
+			headers: []string{"header-1="},
 			valid:   false,
 		},
 		{
 			name:    "header missing",
-			headers: "=value-1",
+			headers: []string{"=value-1"},
+			valid:   false,
+		},
+		{
+			name:    "extra comma end",
+			headers: []string{"header-1=value-1,"},
+			valid:   false,
+		},
+		{
+			name:    "extra comma start",
+			headers: []string{",header-1=value-1"},
 			valid:   false,
 		},
 		{
 			name:    "pair and value missing",
-			headers: "header-1=value-1,header-2=",
+			headers: []string{"header-1=value-1", "header-2="},
+			valid:   false,
+		},
+		{
+			name:    "header and value missing 1",
+			headers: []string{"=="},
+			valid:   false,
+		},
+		{
+			name:    "header and value missing 2",
+			headers: []string{",,"},
 			valid:   false,
 		},
 	}
@@ -121,22 +146,22 @@ func TestValidateBeaconNodeHeaders(t *testing.T) {
 func TestParseBeaconNodeHeaders(t *testing.T) {
 	tests := []struct {
 		name    string
-		headers string
+		headers []string
 		want    map[string]string
 	}{
 		{
-			name:    "empty",
-			headers: "",
+			name:    "nil",
+			headers: nil,
 			want:    map[string]string{},
 		},
 		{
 			name:    "one pair",
-			headers: "header-1=value-1",
+			headers: []string{"header-1=value-1"},
 			want:    map[string]string{"header-1": "value-1"},
 		},
 		{
 			name:    "two pairs",
-			headers: "header-1=value-1,header-2=value-2",
+			headers: []string{"header-1=value-1","header-2=value-2"},
 			want:    map[string]string{"header-1": "value-1", "header-2": "value-2"},
 		},
 	}

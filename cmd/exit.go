@@ -38,7 +38,7 @@ type exitConfig struct {
 	Log                   log.Config
 	All                   bool
 	testnetConfig         eth2util.Network
-	BeaconNodeHeaders     string
+	BeaconNodeHeaders     []string
 }
 
 func newExitCmd(cmds ...*cobra.Command) *cobra.Command {
@@ -182,7 +182,7 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 		case testnetCapellaHardFork:
 			cmd.Flags().StringVar(&config.testnetConfig.CapellaHardFork, "testnet-capella-hard-fork", "", "Capella hard fork version of the custom test network.")
 		case beaconNodeHeaders:
-			cmd.Flags().StringVar(&config.BeaconNodeHeaders, "beacon-node-headers", "", "Comma separated list of headers formatted as header=value")
+			cmd.Flags().StringSliceVar(&config.BeaconNodeHeaders, "beacon-node-headers", nil, "Comma separated list of headers formatted as header=value")
 		}
 
 		if f.required {

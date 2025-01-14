@@ -95,7 +95,7 @@ type Config struct {
 	ProcDirectory           string
 	ConsensusProtocol       string
 	Nickname                string
-	BeaconNodeHeaders       string
+	BeaconNodeHeaders       []string
 
 	TestConfig TestConfig
 }
