@@ -61,7 +61,7 @@ The default implementation is the `EagerDoubleLinearRoundTimer`, which is recomm
 
 ### Increasing Round Timer
 
-The `IncreasingRoundTimer` uses a linear increment strategy for round durations. It starts with a base duration and increases by a fixed increment for each subsequend round. The formula for a given round `n` is `Duration = IncRoundStart + (IncRoundIncrease * n)`. To enable this timer, disable the default timer by using the flag `--feature-set-disable "eager_double_linear"`.
+The `IncreasingRoundTimer` uses a linear increment strategy for round durations. It starts with a base duration and increases by a fixed increment for each subsequent round. The formula for a given round `n` is `Duration = IncRoundStart + (IncRoundIncrease * n)`. To enable this timer, disable the default timer by using the flag `--feature-set-disable "eager_double_linear"`.
 
 ### Eager Double Linear Round Timer
 
