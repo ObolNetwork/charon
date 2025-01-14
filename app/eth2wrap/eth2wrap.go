@@ -52,19 +52,6 @@ var (
 	_ Client = (*lazy)(nil)
 )
 
-// Instrument returns a new multi instrumented client using the provided clients as backends.
-func Instrument(clients ...Client) (Client, error) {
-	if len(clients) == 0 {
-		return nil, errors.New("clients empty")
-	}
-
-	// TODO(gsora): remove once the implementation is agreed upon and
-	// wiring is complete.
-	fb := NewFallbackClient(0, [4]byte{}, nil)
-
-	return newMulti(clients, fb), nil
-}
-
 // InstrumentWithFallback returns a new multi instrumented client using the provided clients as backends and fallback
 // respectively.
 func InstrumentWithFallback(fallback *FallbackClient, clients ...Client) (Client, error) {
@@ -85,8 +72,11 @@ func WithSyntheticDuties(cl Client) Client {
 }
 
 // NewMultiHTTP returns a new instrumented multi eth2 http client.
-func NewMultiHTTP(timeout time.Duration, forkVersion [4]byte, headers map[string]string, addresses ...string) (Client, error) {
-	return Instrument(newClients(timeout, forkVersion, headers, addresses)...)
+func NewMultiHTTP(timeout time.Duration, forkVersion [4]byte, fallbackAddresses []string, headers map[string]string, addresses ...string) (Client, error) {
+	return InstrumentWithFallback(
+		NewFallbackClient(timeout, forkVersion, fallbackAddresses),
+		newClients(timeout, forkVersion, headers, addresses)...,
+	)
 }
 
 // newClients returns a slice of Client initialized with the provided settings.

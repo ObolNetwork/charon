@@ -26,6 +26,14 @@ func NewFallbackClient(timeout time.Duration, forkVersion [4]byte, addresses []s
 	}
 }
 
+// NewFallbackClientT initializes a FallbackClient using already initialized clients
+// for testing.
+func NewFallbackClientT(clients ...Client) *FallbackClient {
+	return &FallbackClient{
+		clients: clients,
+	}
+}
+
 // pick returns an available fallback client.
 // If no clients are available, it'll return an error.
 func (f *FallbackClient) pick() (Client, error) {

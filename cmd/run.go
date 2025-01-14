@@ -96,6 +96,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the node. Selected automatically when not specified.")
 	cmd.Flags().StringVar(&config.Nickname, "nickname", "", "Human friendly peer nickname. Maximum 32 characters.")
 	cmd.Flags().StringSliceVar(&config.BeaconNodeHeaders, "beacon-node-headers", nil, "Comma separated list of headers formatted as header=value")
+	cmd.Flags().StringSliceVar(&config.FallbackBeaconNodeAddrs, "fallback-beacon-node-endpoints", nil, "A list of beacon nodes to use if the primary list are offline or unhealthy.")
 
 	wrapPreRunE(cmd, func(*cobra.Command, []string) error {
 		if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {
