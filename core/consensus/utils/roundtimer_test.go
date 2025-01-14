@@ -111,6 +111,58 @@ func TestDoubleEagerLinearRoundTimer(t *testing.T) {
 	stop()
 }
 
+func TestExponentialRoundTimer(t *testing.T) {
+	tests := []struct {
+		name  string
+		round int64
+		want  time.Duration
+	}{
+		{
+			name:  "round 1",
+			round: 1,
+			want:  1000 * time.Millisecond,
+		},
+		{
+			name:  "round 2",
+			round: 2,
+			want:  200 * time.Millisecond,
+		},
+		{
+			name:  "round 3",
+			round: 3,
+			want:  400 * time.Millisecond,
+		},
+		{
+			name:  "round 4",
+			round: 4,
+			want:  800 * time.Millisecond,
+		},
+	}
+
+	for _, tt := range tests {
+		fakeClock := clockwork.NewFakeClock()
+		timer := utils.NewExponentialRoundTimerWithClock(fakeClock)
+
+		t.Run(tt.name, func(t *testing.T) {
+			// Start the timerType
+			timerC, stop := timer.Timer(tt.round)
+
+			// Advance the fake clock
+			fakeClock.Advance(tt.want)
+
+			// Check if the timerType fires
+			select {
+			case <-timerC:
+			default:
+				require.Fail(t, "Fail", "Timer(round %d) did not fire, want %v", tt.round, tt.want)
+			}
+
+			// Stop the timerType
+			stop()
+		})
+	}
+}
+
 func TestGetTimerFunc(t *testing.T) {
 	timerFunc := utils.GetTimerFunc()
 	require.Equal(t, utils.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(0)).Type())
@@ -118,9 +170,16 @@ func TestGetTimerFunc(t *testing.T) {
 	require.Equal(t, utils.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(2)).Type())
 
 	featureset.DisableForT(t, featureset.EagerDoubleLinear)
+	featureset.EnableForT(t, featureset.Exponential)
 
 	timerFunc = utils.GetTimerFunc()
+	require.Equal(t, utils.TimerExponential, timerFunc(core.NewAttesterDuty(0)).Type())
+	require.Equal(t, utils.TimerExponential, timerFunc(core.NewAttesterDuty(1)).Type())
+	require.Equal(t, utils.TimerExponential, timerFunc(core.NewAttesterDuty(2)).Type())
 
+	featureset.DisableForT(t, featureset.Exponential)
+
+	timerFunc = utils.GetTimerFunc()
 	require.Equal(t, utils.TimerIncreasing, timerFunc(core.NewAttesterDuty(0)).Type())
 	require.Equal(t, utils.TimerIncreasing, timerFunc(core.NewAttesterDuty(1)).Type())
 	require.Equal(t, utils.TimerIncreasing, timerFunc(core.NewAttesterDuty(2)).Type())
