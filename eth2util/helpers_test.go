@@ -161,7 +161,7 @@ func TestParseBeaconNodeHeaders(t *testing.T) {
 		},
 		{
 			name:    "two pairs",
-			headers: []string{"header-1=value-1","header-2=value-2"},
+			headers: []string{"header-1=value-1", "header-2=value-2"},
 			want:    map[string]string{"header-1": "value-1", "header-2": "value-2"},
 		},
 	}
