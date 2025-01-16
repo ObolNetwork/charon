@@ -21,7 +21,6 @@ instead of opening a public issue or PR on GitHub.
       instead, use `security@obol.tech`.
     - Maybe send a message in relevant community channels if you are unsure whether you are seeing a technical issue.
     - Open a GitHub issue if everything else checks out 🤓
-- Are you thinking of a small change that just makes sense? Feel free to submit a PR.
 - If you're envisioning a larger feature or are just looking for a discussion,
   let's chat in the [Obol Discord](https://discord.com/invite/n6ebKsX46w) under `#general`.
     - A quick sync before coding avoids conflicting work and makes large PRs much more likely to be accepted.
@@ -38,8 +37,7 @@ from a bot in this pull request after you open it. We cannot review code without
 
 As mentioned above, please file an associated issue if this pull request is non-trivial and
 requires context for our team to understand. All features and most bug fixes should have
-an associated issue with a design discussed and decided upon. Small bug fixes and documentation
-improvements don't need issues.
+an associated issue with a design discussed and decided upon. Small bug fixes don't need issues.
 
 New features and bug fixes must have tests. Documentation may need to be updated. If you're
 unsure what to update, open the PR and we'll discuss during review.
@@ -49,6 +47,10 @@ Note that PRs updating dependencies and new Go versions are not accepted. Please
 Note: PRs can only be merged by obol-bulldozer bot. It is author's responsibility to add label `merge when ready` after getting approval.
 
 > TL;DR: Open an Issue with details and motivation behind a PR.
+
+### Chore PRs
+
+We do not accept chore PRs such as fixing typos or trivial enhancements. For a meaningful improvement, we encourage contributors to submit an issue first, get a response from the core team, and then proceed with implementation and a PR.
 
 ### Core Dev Contributions
 
