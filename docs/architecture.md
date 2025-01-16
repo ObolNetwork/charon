@@ -306,7 +306,7 @@ type Consensus interface {
 ### DutyDB
 The duty database persists agreed upon unsigned data sets and makes them available for querying.
 It also acts as slashing database to aid in [avoiding slashing](https://github.com/ethereum/consensus-specs/blob/02b32100ed26c3c7a4a44f41b932437859487fd2/specs/phase0/validator.md#how-to-avoid-slashing) by applying unique indexes on the slot, duty type and DV.
-ensuring a single unique `UnsignedData` per `Duty,PubKey`.
+Ensuring a single unique `UnsignedData` per `Duty,PubKey`.
 
 When receiving a `UnsignedDataSet` to store, it is split by `PubKey` and stored as separate entries in the database.
 This ensures that a unique index can be applied on `Duty,PubKey`.
