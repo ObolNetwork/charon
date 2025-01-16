@@ -49,9 +49,6 @@ const (
 	// Exponential enables Exponential round timer for consensus rounds.
 	// When active has precedence over EagerDoubleLinear round timer.
 	Exponential Feature = "exponential"
-
-	// Pectra enables Pectra-update features.
-	Pectra Feature = "pectra"
 )
 
 var (
@@ -64,7 +61,6 @@ var (
 		JSONRequests:         statusAlpha,
 		GnosisBlockHotfix:    statusAlpha,
 		Exponential:          statusAlpha,
-		Pectra:               statusAlpha,
 		// Add all features and there status here.
 	}
 

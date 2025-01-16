@@ -17,7 +17,6 @@ func TestAllFeatureStatus(t *testing.T) {
 		JSONRequests,
 		GnosisBlockHotfix,
 		Exponential,
-		Pectra,
 	}
 
 	for _, feature := range features {

@@ -17,7 +17,6 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/tbls"
@@ -37,9 +36,6 @@ var (
 
 	// Default deposit amount (32ETH).
 	DefaultDepositAmount = eth2p0.Gwei(32000000000)
-
-	// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/validator.md#eth1_address_withdrawal_prefix
-	eth1AddressWithdrawalPrefix = []byte{0x01}
 
 	// https://eips.ethereum.org/EIPS/eip-7251
 	eip7251AddressWithdrawalPrefix = []byte{0x02}
@@ -62,13 +58,8 @@ func NewMessage(pubkey eth2p0.BLSPubKey, withdrawalAddr string, amount eth2p0.Gw
 		return eth2p0.DepositMessage{}, errors.New("deposit message minimum amount must be >= 1ETH", z.U64("amount", uint64(amount)))
 	}
 
-	maxDepositAmount := MaxDepositAmount
-	if !featureset.Enabled(featureset.Pectra) {
-		maxDepositAmount = DefaultDepositAmount
-	}
-
-	if amount > maxDepositAmount {
-		return eth2p0.DepositMessage{}, errors.New("deposit message maximum amount exceeded", z.U64("amount", uint64(amount)), z.U64("max", uint64(maxDepositAmount)))
+	if amount > MaxDepositAmount {
+		return eth2p0.DepositMessage{}, errors.New("deposit message maximum amount exceeded", z.U64("amount", uint64(amount)), z.U64("max", uint64(MaxDepositAmount)))
 	}
 
 	return eth2p0.DepositMessage{
@@ -200,13 +191,8 @@ func withdrawalCredsFromAddr(addr string) ([32]byte, error) {
 	}
 
 	var creds [32]byte
-	// Add 1 byte prefix.
-	if featureset.Enabled(featureset.Pectra) {
-		copy(creds[0:], eip7251AddressWithdrawalPrefix)
-	} else {
-		copy(creds[0:], eth1AddressWithdrawalPrefix)
-	}
-	copy(creds[12:], addrBytes) // Add 20 bytes of ethereum address suffix.
+	copy(creds[0:], eip7251AddressWithdrawalPrefix) // Add 1 byte prefix.
+	copy(creds[12:], addrBytes)                     // Add 20 bytes of ethereum address suffix.
 
 	return creds, nil
 }
