@@ -196,7 +196,9 @@ func newSimnetArgs(t *testing.T) simnetArgs {
 	)
 	seed := 99
 	random := rand.New(rand.NewSource(int64(seed)))
-	lock, p2pKeys, secretShares := cluster.NewForT(t, numDVs, n, n, seed, random)
+	lock, p2pKeys, secretShares := cluster.NewForT(t, numDVs, n, n, seed, random, func(definition *cluster.Definition) {
+		definition.ForkVersion = []byte{0x01, 0x01, 0x70, 0x00}
+	})
 
 	secrets := secretShares[0]
 
@@ -462,7 +464,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 	// Support specifying a custom base directory for docker mounts (required if running colima on macOS).
 	if dir, ok := os.LookupEnv("TEST_DOCKER_DIR"); ok {
 		var err error
-		tempDir, err = os.MkdirTemp(dir, "")
+		tempDir, err = os.MkdirTemp(dir, "") //nolint: usetesting // support custom base directory
 		require.NoError(t, err)
 	}
 

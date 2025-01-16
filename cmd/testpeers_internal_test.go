@@ -6,8 +6,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"slices"
@@ -17,10 +19,9 @@ import (
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/pelletier/go-toml/v2"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cmd/relay"
 	"github.com/obolnetwork/charon/eth2util/enr"
@@ -50,7 +51,7 @@ func TestPeersTest(t *testing.T) {
 			name: "default scenario",
 			config: testPeersConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
 					TestCases:  nil,
 					Timeout:    10 * time.Second,
@@ -72,29 +73,29 @@ func TestPeersTest(t *testing.T) {
 				CategoryName: peersTestCategory,
 				Targets: map[string][]testResult{
 					"self": {
-						{Name: "libp2pTCPPortOpenTest", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "Libp2pTCPPortOpen", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 					fmt.Sprintf("relay %v", relayAddr): {
-						{Name: "pingRelay", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingMeasureRelay", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingRelay", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingMeasureRelay", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
-					"peer inexpensive-farm enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o": {
-						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "directConn", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+					"peer inexpensive-farm enr:-HW4QBHlc...rx6o": {
+						{Name: "Ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "DirectConn", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
-					"peer anxious-pencil enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw": {
-						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "directConn", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+					"peer anxious-pencil enr:-HW4QDwUF...vKDw": {
+						{Name: "Ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "DirectConn", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
-					"peer important-pen enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0": {
-						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "directConn", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+					"peer important-pen enr:-HW4QPSBg...wbr0": {
+						{Name: "Ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "DirectConn", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score: categoryScoreC,
@@ -118,7 +119,7 @@ func TestPeersTest(t *testing.T) {
 			name: "quiet",
 			config: testPeersConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      true,
 					TestCases:  nil,
 					Timeout:    3 * time.Second,
@@ -138,20 +139,20 @@ func TestPeersTest(t *testing.T) {
 				CategoryName: peersTestCategory,
 				Targets: map[string][]testResult{
 					"self": {
-						{Name: "libp2pTCPPortOpenTest", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "Libp2pTCPPortOpen", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 					fmt.Sprintf("relay %v", relayAddr): {
-						{Name: "pingRelay", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingMeasureRelay", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingRelay", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingMeasureRelay", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
-					"peer inexpensive-farm enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o": {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+					"peer inexpensive-farm enr:-HW4QBHlc...rx6o": {
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
-					"peer anxious-pencil enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw": {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+					"peer anxious-pencil enr:-HW4QDwUF...vKDw": {
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
-					"peer important-pen enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0": {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+					"peer important-pen enr:-HW4QPSBg...wbr0": {
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
 				Score: categoryScoreC,
@@ -162,7 +163,7 @@ func TestPeersTest(t *testing.T) {
 			name: "unsupported test",
 			config: testPeersConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
 					TestCases:  []string{"notSupportedTest"},
 					Timeout:    200 * time.Millisecond,
@@ -185,9 +186,9 @@ func TestPeersTest(t *testing.T) {
 			name: "custom test cases",
 			config: testPeersConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
-					TestCases:  []string{"ping"},
+					TestCases:  []string{"Ping"},
 					Timeout:    200 * time.Millisecond,
 				},
 				ENRs: []string{
@@ -204,14 +205,14 @@ func TestPeersTest(t *testing.T) {
 			expected: testCategoryResult{
 				CategoryName: peersTestCategory,
 				Targets: map[string][]testResult{
-					"peer inexpensive-farm enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o": {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+					"peer inexpensive-farm enr:-HW4QBHlc...rx6o": {
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
-					"peer anxious-pencil enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw": {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+					"peer anxious-pencil enr:-HW4QDwUF...vKDw": {
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
-					"peer important-pen enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0": {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+					"peer important-pen enr:-HW4QPSBg...wbr0": {
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
 				Score: categoryScoreC,
@@ -222,7 +223,7 @@ func TestPeersTest(t *testing.T) {
 			name: "write to file",
 			config: testPeersConfig{
 				testConfig: testConfig{
-					OutputToml: "./write-to-file-test.toml.tmp",
+					OutputJSON: "./write-to-file-test.json.tmp",
 					Quiet:      false,
 					Timeout:    3 * time.Second,
 				},
@@ -241,20 +242,20 @@ func TestPeersTest(t *testing.T) {
 				CategoryName: peersTestCategory,
 				Targets: map[string][]testResult{
 					"self": {
-						{Name: "libp2pTCPPortOpenTest", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "Libp2pTCPPortOpen", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 					fmt.Sprintf("relay %v", relayAddr): {
-						{Name: "pingRelay", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingMeasureRelay", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingRelay", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingMeasureRelay", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
-					"peer inexpensive-farm enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o": {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+					"peer inexpensive-farm enr:-HW4QBHlc...rx6o": {
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
-					"peer anxious-pencil enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw": {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+					"peer anxious-pencil enr:-HW4QDwUF...vKDw": {
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
-					"peer important-pen enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0": {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+					"peer important-pen enr:-HW4QPSBg...wbr0": {
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
 				Score: categoryScoreC,
@@ -274,13 +275,13 @@ func TestPeersTest(t *testing.T) {
 			temp := t.TempDir()
 			_, err := p2p.NewSavedPrivKey(temp)
 			require.NoError(t, err)
-			conf.DataDir = temp
+			conf.PrivateKeyFile = p2p.KeyPath(temp)
 			if test.prepare != nil {
 				conf = test.prepare(t, conf)
 			}
 
 			var buf bytes.Buffer
-			err = runTestPeers(ctx, &buf, conf)
+			_, err = runTestPeers(ctx, &buf, conf)
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
 				return
@@ -289,7 +290,7 @@ func TestPeersTest(t *testing.T) {
 			}
 			defer func() {
 				if test.cleanup != nil {
-					test.cleanup(t, conf.OutputToml)
+					test.cleanup(t, conf.OutputJSON)
 				}
 			}()
 
@@ -299,8 +300,8 @@ func TestPeersTest(t *testing.T) {
 				testWriteOut(t, test.expected, buf)
 			}
 
-			if test.config.OutputToml != "" {
-				testWriteFile(t, test.expected, test.config.OutputToml)
+			if test.config.OutputJSON != "" {
+				testWriteFile(t, test.expected, test.config.OutputJSON)
 			}
 		})
 	}
@@ -320,18 +321,20 @@ func TestPeersTestFlags(t *testing.T) {
 		{
 			name:        "no enrs flag",
 			args:        []string{"peers"},
-			expectedErr: "required flag(s) \"enrs\" not set",
+			expectedErr: "--enrs, --lock-file or --definition-file must be specified.",
 		},
 		{
-			name:        "no output toml on quiet",
+			name:        "no output json on quiet",
 			args:        []string{"peers", "--enrs=\"test.endpoint\"", "--quiet"},
-			expectedErr: "on --quiet, an --output-toml is required",
+			expectedErr: "on --quiet, an --output-json is required",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cmd := newAlphaCmd(newTestPeersCmd(func(context.Context, io.Writer, testPeersConfig) error { return nil }))
+			cmd := newAlphaCmd(newTestPeersCmd(func(context.Context, io.Writer, testPeersConfig) (testCategoryResult, error) {
+				return testCategoryResult{}, nil
+			}))
 			cmd.SetArgs(test.args)
 			err := cmd.Execute()
 			if test.expectedErr != "" {
@@ -349,8 +352,8 @@ func testWriteOut(t *testing.T, expectedRes testCategoryResult, buf bytes.Buffer
 	bufTests = slices.Delete(bufTests, 0, 8)
 	bufTests = slices.Delete(bufTests, len(bufTests)-4, len(bufTests))
 
-	nTargets := len(maps.Keys(expectedRes.Targets))
-	require.Len(t, bufTests, len(slices.Concat(maps.Values(expectedRes.Targets)...))+nTargets*2)
+	nTargets := len(slices.Collect(maps.Keys(expectedRes.Targets)))
+	require.Len(t, bufTests, len(slices.Concat(slices.Collect(maps.Values(expectedRes.Targets))...))+nTargets*2)
 
 	for range nTargets {
 		bufTests = bufTests[1:]
@@ -379,18 +382,36 @@ func testWriteFile(t *testing.T, expectedRes testCategoryResult, path string) {
 	t.Helper()
 	file, err := os.ReadFile(path)
 	require.NoError(t, err)
-	var res testCategoryResult
-	err = toml.Unmarshal(file, &res)
+	var res fileResult
+	err = json.Unmarshal(file, &res)
 	require.NoError(t, err)
 
-	require.Equal(t, expectedRes.CategoryName, res.CategoryName)
-	require.Equal(t, expectedRes.Score, res.Score)
-	require.Equal(t, len(expectedRes.Targets), len(res.Targets))
-	for targetName, testResults := range res.Targets {
+	var actualRes testCategoryResult
+	switch expectedRes.CategoryName {
+	case peersTestCategory:
+		actualRes = res.Peers
+	case beaconTestCategory:
+		actualRes = res.Beacon
+	case validatorTestCategory:
+		actualRes = res.Validator
+	case mevTestCategory:
+		actualRes = res.MEV
+	case infraTestCategory:
+		actualRes = res.Infra
+	default:
+		t.Error("unknown category")
+	}
+
+	require.Equal(t, expectedRes.CategoryName, actualRes.CategoryName)
+	require.Equal(t, len(expectedRes.Targets), len(actualRes.Targets))
+	checkFinalScore := true
+	for targetName, testResults := range actualRes.Targets {
 		for idx, testRes := range testResults {
 			// do not test verdicts based on measurements
 			if expectedRes.Targets[targetName][idx].Verdict == testVerdictOk || expectedRes.Targets[targetName][idx].Verdict == testVerdictFail {
 				require.Equal(t, expectedRes.Targets[targetName][idx].Verdict, testRes.Verdict)
+			} else {
+				checkFinalScore = false
 			}
 			require.Equal(t, expectedRes.Targets[targetName][idx].IsAcceptable, testRes.IsAcceptable)
 			if expectedRes.Targets[targetName][idx].Error.error != nil {
@@ -401,6 +422,10 @@ func testWriteFile(t *testing.T, expectedRes testCategoryResult, path string) {
 			require.Equal(t, expectedRes.Targets[targetName][idx].Name, testRes.Name)
 			require.Equal(t, expectedRes.Targets[targetName][idx].Suggestion, testRes.Suggestion)
 		}
+	}
+	// check final score only if there are no tests based on actual measurement
+	if checkFinalScore {
+		require.Equal(t, expectedRes.Score, actualRes.Score)
 	}
 }
 
@@ -414,7 +439,7 @@ func startPeer(t *testing.T, conf testPeersConfig, peerPrivKey *k1.PrivateKey) e
 	relays, err := p2p.NewRelays(ctx, peerConf.P2P.Relays, "test")
 	require.NoError(t, err)
 
-	hostPrivKey, err := p2p.LoadPrivKey(peerConf.DataDir)
+	hostPrivKey, err := k1util.Load(conf.PrivateKeyFile)
 	require.NoError(t, err)
 	hostENR, err := enr.New(hostPrivKey)
 	require.NoError(t, err)

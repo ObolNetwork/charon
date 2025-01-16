@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"net/url"
 	"os"
 	"path"
@@ -35,6 +34,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/core/consensus/protocols"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/enr"
@@ -81,6 +81,8 @@ type clusterConfig struct {
 	PublishAddr string
 	Publish     bool
 
+	ConsensusProtocol string
+
 	testnetConfig eth2util.Network
 }
 
@@ -99,6 +101,22 @@ func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig)
 
 	bindClusterFlags(cmd.Flags(), &conf)
 	bindInsecureFlags(cmd.Flags(), &conf.InsecureKeys)
+
+	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
+		thresholdPresent := cmd.Flags().Lookup("threshold").Changed
+
+		if thresholdPresent {
+			if conf.Threshold < minThreshold {
+				return errors.New("threshold must be greater than 1", z.Int("threshold", conf.Threshold), z.Int("min", minThreshold))
+			}
+			if conf.Threshold > conf.NumNodes {
+				return errors.New("threshold cannot be greater than number of operators",
+					z.Int("threshold", conf.Threshold), z.Int("operators", conf.NumNodes))
+			}
+		}
+
+		return nil
+	})
 
 	return cmd
 }
@@ -123,7 +141,8 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.testnetConfig.GenesisForkVersionHex, "testnet-fork-version", "", "Genesis fork version of the custom test network (in hex).")
 	flags.Uint64Var(&config.testnetConfig.ChainID, "testnet-chain-id", 0, "Chain ID of the custom test network.")
 	flags.Int64Var(&config.testnetConfig.GenesisTimestamp, "testnet-genesis-timestamp", 0, "Genesis timestamp of the custom test network.")
-	flags.IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to at least 32ETH.")
+	flags.IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to exactly 32ETH.")
+	flags.StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the cluster. Selected automatically when not specified.")
 }
 
 func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
@@ -374,14 +393,8 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 		return errors.New("number of operators is below minimum", z.Int("operators", conf.NumNodes), z.Int("min", minNodes))
 	}
 
-	// Check for threshold parameter
-	minThreshold := int(math.Ceil(float64(conf.NumNodes*2) / 3))
-	if conf.Threshold < minThreshold {
-		return errors.New("threshold cannot be smaller than BFT quorum", z.Int("threshold", conf.Threshold), z.Int("min", minThreshold))
-	}
-	if conf.Threshold > conf.NumNodes {
-		return errors.New("threshold cannot be greater than number of operators",
-			z.Int("threshold", conf.Threshold), z.Int("operators", conf.NumNodes))
+	if len(conf.ConsensusProtocol) > 0 && !protocols.IsSupportedProtocolName(conf.ConsensusProtocol) {
+		return errors.New("unsupported consensus protocol", z.Str("protocol", conf.ConsensusProtocol))
 	}
 
 	return nil
@@ -842,7 +855,8 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 		opts = append(opts, cluster.WithVersion(cluster.MinVersionForPartialDeposits))
 	}
 	def, err := cluster.NewDefinition(conf.Name, conf.NumDVs, threshold, feeRecipientAddrs,
-		withdrawalAddrs, forkVersion, cluster.Creator{}, ops, conf.DepositAmounts, rand.Reader, opts...)
+		withdrawalAddrs, forkVersion, cluster.Creator{}, ops, conf.DepositAmounts,
+		conf.ConsensusProtocol, rand.Reader, opts...)
 	if err != nil {
 		return cluster.Definition{}, err
 	}
@@ -944,6 +958,10 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 
 	if !eth2util.ValidNetwork(network) {
 		return errors.New("unsupported network", z.Str("network", network))
+	}
+
+	if len(def.ConsensusProtocol) > 0 && !protocols.IsSupportedProtocolName(def.ConsensusProtocol) {
+		return errors.New("unsupported consensus protocol", z.Str("protocol", def.ConsensusProtocol))
 	}
 
 	return validateWithdrawalAddrs(def.WithdrawalAddresses(), network)

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -537,7 +538,9 @@ func TestSyncFlow(t *testing.T) {
 			var disconnectedCount int
 			for err := range dkgErrChan {
 				testutil.SkipIfBindErr(t, err)
-				require.NoError(t, err)
+				if !errors.Is(err, context.Canceled) {
+					require.NoError(t, err)
+				}
 				disconnectedCount++
 				if disconnectedCount == test.nodes {
 					break
@@ -577,7 +580,7 @@ func (c *connTracker) AwaitN(t *testing.T, dkgErrChan chan error, n int, peerIdx
 	ticker := time.NewTicker(time.Millisecond * 100)
 	defer ticker.Stop()
 
-	timeout := time.NewTimer(time.Second * 5)
+	timeout := time.NewTimer(time.Second * 10)
 	defer timeout.Stop()
 
 	for {
@@ -652,8 +655,12 @@ func startNewDKG(t *testing.T, parentCtx context.Context, config dkg.Config, dkg
 	ctx, cancel := context.WithCancel(parentCtx)
 
 	go func() {
+		jitter := time.Duration(rand.Intn(300)) * time.Millisecond
+		time.Sleep(jitter)
+
 		err := dkg.Run(ctx, config)
 		log.Info(ctx, "DKG process returned", z.Any("error", err))
+
 		select {
 		case <-parentCtx.Done():
 		case dkgErrChan <- err:

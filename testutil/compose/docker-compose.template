@@ -74,7 +74,7 @@ services:
     networks: [compose]
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:${PROMETHEUS_VERSION:-v2.50.1}
     {{if .MonitoringPorts}}ports:
       - "9090:9090"
     {{end -}}
@@ -86,7 +86,7 @@ services:
 
   {{if .Monitoring}}
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:${GRAFANA_VERSION:-10.4.2}
     {{if .MonitoringPorts}}ports:
       - "3000:3000"
     {{end -}}
@@ -101,7 +101,7 @@ services:
       - ./grafana/dash_alerts.json:/etc/dashboards/dash_alerts.json
 
   jaeger:
-    image: jaegertracing/all-in-one:latest
+    image: jaegertracing/all-in-one:${JAEGER_VERSION:-1.46.0}
     networks: [compose]
     environment:
       SPAN_STORAGE_TYPE: memory
@@ -111,11 +111,12 @@ services:
     {{end}}
 
   loki:
-    image: grafana/loki:latest
+    image: grafana/loki:${LOKI_VERSION:-2.8.2}
     networks: [compose]
-    command: -config.file=/etc/loki/loki.yml
+    user: ":"
+    command: -config.file=/opt/loki/loki.yml
     volumes:
-      - ./loki/loki.yml:/etc/loki/loki.yml
+      - ./loki:/opt/loki
   {{end}}
 
 networks:

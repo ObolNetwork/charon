@@ -1,6 +1,6 @@
 // Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package consensus
+package qbft
 
 import (
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -15,10 +15,10 @@ import (
 	"github.com/obolnetwork/charon/core/qbft"
 )
 
-// newMsg returns a new msg.
-func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]byte]*anypb.Any) (msg, error) {
+// newMsg returns a new QBFT Msg.
+func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]byte]*anypb.Any) (Msg, error) {
 	if pbMsg == nil {
-		return msg{}, errors.New("nil qbft message")
+		return Msg{}, errors.New("nil qbft message")
 	}
 
 	// Do all possible error conversions first.
@@ -30,14 +30,14 @@ func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]b
 	if hash, ok := toHash32(pbMsg.GetValueHash()); ok {
 		valueHash = hash
 		if _, ok := values[valueHash]; !ok {
-			return msg{}, errors.New("value hash not found in values")
+			return Msg{}, errors.New("value hash not found in values")
 		}
 	}
 
 	if hash, ok := toHash32(pbMsg.GetPreparedValueHash()); ok {
 		preparedValueHash = hash
 		if _, ok := values[preparedValueHash]; !ok {
-			return msg{}, errors.New("prepared value hash not found in values")
+			return Msg{}, errors.New("prepared value hash not found in values")
 		}
 	}
 
@@ -45,13 +45,13 @@ func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]b
 	for _, j := range justification {
 		impl, err := newMsg(j, nil, values)
 		if err != nil {
-			return msg{}, err
+			return Msg{}, err
 		}
 
 		justImpls = append(justImpls, impl)
 	}
 
-	return msg{
+	return Msg{
 		msg:                 pbMsg,
 		valueHash:           valueHash,
 		values:              values,
@@ -61,8 +61,8 @@ func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]b
 	}, nil
 }
 
-// msg wraps *pbv1.QBFTMsg and justifications and implements qbft.Msg[core.Duty, [32]byte].
-type msg struct {
+// Msg wraps *pbv1.QBFTMsg and justifications and implements qbft.Msg[core.Duty, [32]byte].
+type Msg struct {
 	msg               *pbv1.QBFTMsg
 	valueHash         [32]byte
 	preparedValueHash [32]byte
@@ -72,45 +72,53 @@ type msg struct {
 	justification       []qbft.Msg[core.Duty, [32]byte]
 }
 
-func (m msg) Type() qbft.MsgType {
+func (m Msg) Type() qbft.MsgType {
 	return qbft.MsgType(m.msg.GetType())
 }
 
-func (m msg) Instance() core.Duty {
+func (m Msg) Instance() core.Duty {
 	return core.DutyFromProto(m.msg.GetDuty())
 }
 
-func (m msg) Source() int64 {
+func (m Msg) Source() int64 {
 	return m.msg.GetPeerIdx()
 }
 
-func (m msg) Round() int64 {
+func (m Msg) Round() int64 {
 	return m.msg.GetRound()
 }
 
-func (m msg) Value() [32]byte {
+func (m Msg) Value() [32]byte {
 	return m.valueHash
 }
 
-func (m msg) PreparedRound() int64 {
+func (m Msg) Values() map[[32]byte]*anypb.Any {
+	return m.values
+}
+
+func (m Msg) Msg() *pbv1.QBFTMsg {
+	return m.msg
+}
+
+func (m Msg) PreparedRound() int64 {
 	return m.msg.GetPreparedRound()
 }
 
-func (m msg) PreparedValue() [32]byte {
+func (m Msg) PreparedValue() [32]byte {
 	return m.preparedValueHash
 }
 
-func (m msg) Justification() []qbft.Msg[core.Duty, [32]byte] {
+func (m Msg) Justification() []qbft.Msg[core.Duty, [32]byte] {
 	return m.justification
 }
 
-func (m msg) ToConsensusMsg() *pbv1.ConsensusMsg {
+func (m Msg) ToConsensusMsg() *pbv1.QBFTConsensusMsg {
 	var values []*anypb.Any
 	for _, v := range m.values {
 		values = append(values, v)
 	}
 
-	return &pbv1.ConsensusMsg{
+	return &pbv1.QBFTConsensusMsg{
 		Msg:           m.msg,
 		Justification: m.justificationProtos,
 		Values:        values,
@@ -205,4 +213,4 @@ func toHash32(val []byte) ([32]byte, bool) {
 	return resp, true
 }
 
-var _ qbft.Msg[core.Duty, [32]byte] = msg{} // Interface assertion
+var _ qbft.Msg[core.Duty, [32]byte] = Msg{} // Interface assertion

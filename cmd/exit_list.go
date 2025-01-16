@@ -15,6 +15,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util"
 )
 
 func newListActiveValidatorsCmd(runFunc func(context.Context, exitConfig) error) *cobra.Command {
@@ -43,6 +44,11 @@ func newListActiveValidatorsCmd(runFunc func(context.Context, exitConfig) error)
 		{lockFilePath, false},
 		{beaconNodeEndpoints, true},
 		{beaconNodeTimeout, false},
+		{testnetName, false},
+		{testnetForkVersion, false},
+		{testnetChainID, false},
+		{testnetGenesisTimestamp, false},
+		{testnetCapellaHardFork, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
@@ -51,6 +57,12 @@ func newListActiveValidatorsCmd(runFunc func(context.Context, exitConfig) error)
 }
 
 func runListActiveValidatorsCmd(ctx context.Context, config exitConfig) error {
+	// Check if custom testnet configuration is provided.
+	if config.testnetConfig.IsNonZero() {
+		// Add testnet config to supported networks.
+		eth2util.AddTestNetwork(config.testnetConfig)
+	}
+
 	valList, err := listActiveVals(ctx, config)
 	if err != nil {
 		return err
@@ -63,7 +75,7 @@ func runListActiveValidatorsCmd(ctx context.Context, config exitConfig) error {
 			continue
 		}
 
-		log.Info(ctx, "Validator", z.Str("pubkey", validator))
+		log.Info(ctx, "Validator", z.Str("validator_public_key", validator))
 	}
 
 	return nil
@@ -72,12 +84,12 @@ func runListActiveValidatorsCmd(ctx context.Context, config exitConfig) error {
 func listActiveVals(ctx context.Context, config exitConfig) ([]string, error) {
 	cl, err := loadClusterManifest("", config.LockFilePath)
 	if err != nil {
-		return nil, errors.Wrap(err, "could not load cluster-lock.json")
+		return nil, errors.Wrap(err, "load cluster lock", z.Str("lock_file_path", config.LockFilePath))
 	}
 
 	eth2Cl, err := eth2Client(ctx, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte{}) // fine to avoid initializing a fork version, we're just querying the BN
 	if err != nil {
-		return nil, errors.Wrap(err, "cannot create eth2 client for specified beacon node")
+		return nil, errors.Wrap(err, "create eth2 client for specified beacon node(s)", z.Any("beacon_nodes_endpoints", config.BeaconNodeEndpoints))
 	}
 
 	var allVals []eth2p0.BLSPubKey
@@ -91,7 +103,7 @@ func listActiveVals(ctx context.Context, config exitConfig) ([]string, error) {
 		State:   "head",
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "cannot fetch validator list")
+		return nil, errors.Wrap(err, "fetch validator list from beacon", z.Str("beacon_address", eth2Cl.Address()), z.Any("validators", allVals))
 	}
 
 	var ret []string

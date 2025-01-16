@@ -54,7 +54,7 @@ func (l Lock) MarshalJSON() ([]byte, error) {
 		return marshalLockV1x6(l, lockHash)
 	case isAnyVersion(l.Version, v1_7):
 		return marshalLockV1x7(l, lockHash)
-	case isAnyVersion(l.Version, v1_8):
+	case isAnyVersion(l.Version, v1_8, v1_9):
 		return marshalLockV1x8OrLater(l, lockHash)
 	default:
 		return nil, errors.New("unsupported version")
@@ -102,7 +102,7 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return err
 		}
-	case isAnyVersion(version.Definition.Version, v1_8):
+	case isAnyVersion(version.Definition.Version, v1_8, v1_9):
 		lock, err = unmarshalLockV1x8OrLater(data)
 		if err != nil {
 			return err
@@ -123,7 +123,7 @@ func (l Lock) SetLockHash() (Lock, error) {
 		return Lock{}, err
 	}
 
-	l.LockHash = lockHash[:] //nolint: revive // okay to assign to by-value receiver as we return the struct
+	l.LockHash = lockHash[:]
 
 	return l, nil
 }
@@ -346,7 +346,7 @@ func marshalLockV1x8OrLater(lock Lock, lockHash [32]byte) ([]byte, error) {
 		NodeSignatures:     byteSliceArrayToEthHex(lock.NodeSignatures),
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal definition v1_8")
+		return nil, errors.Wrap(err, "marshal definition v1_8 or later")
 	}
 
 	return resp, nil

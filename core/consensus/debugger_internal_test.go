@@ -1,6 +1,6 @@
 // Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package app
+package consensus
 
 import (
 	"compress/gzip"
@@ -17,10 +17,10 @@ import (
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 )
 
-func TestQBFTDebugger(t *testing.T) {
+func TestDebugger(t *testing.T) {
 	var (
 		instances []*pbv1.SniffedConsensusInstance
-		debug     = new(qbftDebugger)
+		debug     = new(debugger)
 	)
 
 	for range 10 {
@@ -28,9 +28,10 @@ func TestQBFTDebugger(t *testing.T) {
 			Msgs: []*pbv1.SniffedConsensusMsg{
 				{
 					Timestamp: timestamppb.Now(),
-					Msg: &pbv1.ConsensusMsg{
-						Msg:           randomQBFTMessage(),
-						Justification: []*pbv1.QBFTMsg{randomQBFTMessage(), randomQBFTMessage()},
+					// Eventually the ConsensusMsg will be replaced by a more generic message type.
+					Msg: &pbv1.QBFTConsensusMsg{
+						Msg:           randomQBFTMsg(),
+						Justification: []*pbv1.QBFTMsg{randomQBFTMsg(), randomQBFTMsg()},
 					},
 				},
 			},
@@ -58,7 +59,7 @@ func TestQBFTDebugger(t *testing.T) {
 	require.True(t, proto.Equal(&pbv1.SniffedConsensusInstances{Instances: instances}, resp))
 }
 
-func randomQBFTMessage() *pbv1.QBFTMsg {
+func randomQBFTMsg() *pbv1.QBFTMsg {
 	return &pbv1.QBFTMsg{
 		Type:          rand.Int63(),
 		Duty:          &pbv1.Duty{Slot: rand.Uint64()},

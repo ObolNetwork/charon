@@ -49,15 +49,9 @@ type ScoredPriority struct {
 	Score    int
 }
 
-// coreConsensus is an interface for the core/consensus.Component.
-type coreConsensus interface {
-	ProposePriority(context.Context, core.Duty, *pbv1.PriorityResult) error
-	SubscribePriority(func(context.Context, core.Duty, *pbv1.PriorityResult) error)
-}
-
 // NewComponent returns a new priority component.
 func NewComponent(ctx context.Context, tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc p2p.SendReceiveFunc,
-	registerHandlerFunc p2p.RegisterHandlerFunc, consensus coreConsensus,
+	registerHandlerFunc p2p.RegisterHandlerFunc, consensus Consensus,
 	exchangeTimeout time.Duration, privkey *k1.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
 ) (*Component, error) {
 	verifier, err := newMsgVerifier(peers)

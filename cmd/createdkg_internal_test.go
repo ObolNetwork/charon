@@ -29,6 +29,7 @@ func TestCreateDkgValid(t *testing.T) {
 		Network:           defaultNetwork,
 		DKGAlgo:           "default",
 		DepositAmounts:    []int{8, 16, 4, 4},
+		ConsensusProtocol: "qbft",
 		OperatorENRs: []string{
 			"enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u",
 			"enr:-JG4QPnqHa7FU3PBqGxpV5L0hjJrTUqv8Wl6_UTHt-rELeICWjvCfcVfwmax8xI_eJ0ntI3ly9fgxAsmABud6-yBQiuGAYGv0iYPgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMLLCMZ5Oqi_sdnBfdyhmysZMfFm78PgF7Y9jitTJPSroN0Y3CCPoODdWRwgj6E",
@@ -99,6 +100,15 @@ func TestCreateDkgInvalid(t *testing.T) {
 		{
 			conf:   createDKGConfig{},
 			errMsg: "number of operators is below minimum",
+		},
+		{
+			conf: createDKGConfig{
+				OperatorENRs:      validENRs,
+				Threshold:         3,
+				Network:           defaultNetwork,
+				ConsensusProtocol: "unreal",
+			},
+			errMsg: "unsupported consensus protocol",
 		},
 	}
 
@@ -184,36 +194,113 @@ func TestValidateWithdrawalAddr(t *testing.T) {
 }
 
 func TestValidateDKGConfig(t *testing.T) {
-	t.Run("threshold exceeds numOperators", func(t *testing.T) {
-		threshold := 5
-		numOperators := 4
-		err := validateDKGConfig(threshold, numOperators, "", nil)
-		require.ErrorContains(t, err, "threshold cannot be greater than length of operators")
-	})
-
-	t.Run("threshold equals 1", func(t *testing.T) {
-		threshold := 1
-		numOperators := 3
-		err := validateDKGConfig(threshold, numOperators, "", nil)
-		require.ErrorContains(t, err, "threshold cannot be smaller than BFT quorum")
-	})
-
 	t.Run("insufficient ENRs", func(t *testing.T) {
-		threshold := 2
 		numOperators := 2
-		err := validateDKGConfig(threshold, numOperators, "", nil)
+		err := validateDKGConfig(numOperators, "", nil, "")
 		require.ErrorContains(t, err, "number of operators is below minimum")
 	})
 
 	t.Run("invalid network", func(t *testing.T) {
-		threshold := 3
 		numOperators := 4
-		err := validateDKGConfig(threshold, numOperators, "cosmos", nil)
+		err := validateDKGConfig(numOperators, "cosmos", nil, "")
 		require.ErrorContains(t, err, "unsupported network")
 	})
 
 	t.Run("wrong deposit amounts sum", func(t *testing.T) {
-		err := validateDKGConfig(3, 4, "goerli", []int{8, 16})
-		require.ErrorContains(t, err, "sum of partial deposit amounts must be at least 32ETH")
+		err := validateDKGConfig(4, "goerli", []int{8, 16}, "")
+		require.ErrorContains(t, err, "sum of partial deposit amounts must sum up to 32ETH")
 	})
+
+	t.Run("unsupported consensus protocol", func(t *testing.T) {
+		err := validateDKGConfig(4, "goerli", nil, "unreal")
+		require.ErrorContains(t, err, "unsupported consensus protocol")
+	})
+}
+
+func TestDKGCLI(t *testing.T) {
+	var enrs []string
+	for range minNodes {
+		enrs = append(enrs, "enr:-JG4QG472ZVvl8ySSnUK9uNVDrP_hjkUrUqIxUC75aayzmDVQedXkjbqc7QKyOOS71VmlqnYzri_taV8ZesFYaoQSIOGAYHtv1WsgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u")
+	}
+	enrArg := "--operator-enrs=" + strings.Join(enrs, ",")
+	feeRecipientArg := "--fee-recipient-addresses=" + validEthAddr
+	withdrawalArg := "--withdrawal-addresses=" + validEthAddr
+	outputDirArg := "--output-dir=.charon"
+
+	tests := []struct {
+		name         string
+		enr          string
+		feeRecipient string
+		withdrawal   string
+		outputDir    string
+		threshold    string
+		expectedErr  string
+		prepare      func(*testing.T)
+		cleanup      func(*testing.T)
+	}{
+		{
+			name:         "threshold below minimum",
+			enr:          enrArg,
+			feeRecipient: feeRecipientArg,
+			withdrawal:   withdrawalArg,
+			outputDir:    outputDirArg,
+			threshold:    "--threshold=1",
+			expectedErr:  "threshold must be greater than 1",
+		},
+		{
+			name:         "threshold above maximum",
+			enr:          enrArg,
+			feeRecipient: feeRecipientArg,
+			withdrawal:   withdrawalArg,
+			outputDir:    outputDirArg,
+			threshold:    "--threshold=4",
+			expectedErr:  "threshold cannot be greater than number of operators",
+		},
+		{
+			name:         "no threshold provided",
+			enr:          enrArg,
+			feeRecipient: feeRecipientArg,
+			withdrawal:   withdrawalArg,
+			outputDir:    outputDirArg,
+			threshold:    "",
+			expectedErr:  "",
+			prepare: func(t *testing.T) {
+				t.Helper()
+				charonDir := testutil.CreateTempCharonDir(t)
+				b := []byte("sample definition")
+				require.NoError(t, os.WriteFile(path.Join(charonDir, "cluster-definition.json"), b, 0o600))
+			},
+			cleanup: func(t *testing.T) {
+				t.Helper()
+				err := os.RemoveAll(".charon")
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.prepare != nil {
+				test.prepare(t)
+			}
+
+			cmd := newCreateCmd(newCreateDKGCmd(runCreateDKG))
+			if test.threshold != "" {
+				cmd.SetArgs([]string{"dkg", test.enr, test.feeRecipient, test.withdrawal, test.outputDir, test.threshold})
+			} else {
+				cmd.SetArgs([]string{"dkg", test.enr, test.feeRecipient, test.withdrawal, test.outputDir})
+			}
+
+			err := cmd.Execute()
+			if test.expectedErr != "" {
+				require.ErrorContains(t, err, test.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+
+			if test.cleanup != nil {
+				test.cleanup(t)
+			}
+		})
+	}
 }

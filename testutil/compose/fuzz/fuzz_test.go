@@ -61,8 +61,7 @@ func TestFuzzers(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			dir, err := os.MkdirTemp("", "")
-			require.NoError(t, err)
+			dir := t.TempDir()
 
 			config := test.configFunc(defaultConfig)
 			require.NoError(t, compose.WriteConfig(dir, config))
@@ -79,7 +78,7 @@ func TestFuzzers(t *testing.T) {
 				autoConfig.LogFile = path.Join(*logDir, test.name+".log")
 			}
 
-			err = compose.Auto(context.Background(), autoConfig)
+			err := compose.Auto(context.Background(), autoConfig)
 			testutil.RequireNoError(t, err)
 		})
 	}

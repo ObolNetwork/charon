@@ -4,7 +4,7 @@ This document contains all the prometheus metrics exposed by a charon node.
 
 All metrics contain the following labels, so they are omitted from the table below:
 - `cluster_hash`: The cluster lock hash uniquely identifying the cluster.
-- `clustter_name`: The cluster lock name.
+- `cluster_name`: The cluster lock name.
 - `cluster_network`: The cluster network name; goerli, mainnet, etc.
 - `cluster_peer`: The name of this node in the cluster. It is determined from the operator ENR.
 
@@ -28,6 +28,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_peerinfo_clock_offset_seconds` | Gauge | Peer clock offset in seconds | `peer` |
 | `app_peerinfo_git_commit` | Gauge | Constant gauge with git_hash label set to peer`s git commit hash. | `peer, git_hash` |
 | `app_peerinfo_index` | Gauge | Constant gauge set to the peer index in the cluster definition | `peer` |
+| `app_peerinfo_nickname` | Gauge | Constant gauge with nickname label set to peer`s charon nickname. | `peer, nickname` |
 | `app_peerinfo_start_time_secs` | Gauge | Constant gauge set to the peer start time of the binary in unix seconds | `peer` |
 | `app_peerinfo_version` | Gauge | Constant gauge with version label set to peer`s charon version. | `peer, version` |
 | `app_peerinfo_version_support` | Gauge | Set to 1 if the peer`s version is supported by (compatible with) the current version, else 0 if unsupported. | `peer` |
@@ -43,10 +44,11 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_bcast_recast_errors_total` | Counter | The total count of failed recasted registrations by source; `pregen` vs `downstream` | `source` |
 | `core_bcast_recast_registration_total` | Counter | The total number of unique validator registration stored in recaster per pubkey | `pubkey` |
 | `core_bcast_recast_total` | Counter | The total count of recasted registrations by source; `pregen` vs `downstream` | `source` |
-| `core_consensus_decided_rounds` | Gauge | Number of rounds it took to decide consensus instances by duty and timer type. | `duty, timer` |
-| `core_consensus_duration_seconds` | Histogram | Duration of a consensus instance in seconds by duty and timer type. | `duty, timer` |
-| `core_consensus_error_total` | Counter | Total count of consensus errors |  |
-| `core_consensus_timeout_total` | Counter | Total count of consensus timeouts by duty and timer type. | `duty, timer` |
+| `core_consensus_decided_leader_index` | Gauge | Index of the decided leader by protocol and duty | `protocol, duty` |
+| `core_consensus_decided_rounds` | Gauge | Number of decided rounds by protocol, duty, and timer | `protocol, duty, timer` |
+| `core_consensus_duration_seconds` | Histogram | Duration of the consensus process by protocol, duty, and timer | `protocol, duty, timer` |
+| `core_consensus_error_total` | Counter | Total count of consensus errors by protocol | `protocol` |
+| `core_consensus_timeout_total` | Counter | Total count of consensus timeouts by protocol, duty, and timer | `protocol, duty, timer` |
 | `core_parsigdb_exit_total` | Counter | Total number of partially signed voluntary exits per public key | `pubkey` |
 | `core_scheduler_current_epoch` | Gauge | The current epoch |  |
 | `core_scheduler_current_slot` | Gauge | The current slot |  |

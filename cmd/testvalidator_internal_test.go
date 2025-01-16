@@ -42,9 +42,8 @@ func TestValidatorTest(t *testing.T) {
 			name: "default scenario",
 			config: testValidatorConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
-					TestCases:  nil,
 					Timeout:    time.Minute,
 				},
 				APIAddress: validatorAPIAddress,
@@ -52,9 +51,9 @@ func TestValidatorTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					validatorAPIAddress: {
-						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "Ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score:        categoryScoreA,
@@ -66,9 +65,8 @@ func TestValidatorTest(t *testing.T) {
 			name: "timeout",
 			config: testValidatorConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
-					TestCases:  nil,
 					Timeout:    100 * time.Nanosecond,
 				},
 				APIAddress: validatorAPIAddress,
@@ -76,7 +74,7 @@ func TestValidatorTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					validatorAPIAddress: {
-						{Name: "ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
 				Score:        categoryScoreC,
@@ -88,9 +86,8 @@ func TestValidatorTest(t *testing.T) {
 			name: "quiet",
 			config: testValidatorConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      true,
-					TestCases:  nil,
 					Timeout:    time.Minute,
 				},
 				APIAddress: validatorAPIAddress,
@@ -98,9 +95,9 @@ func TestValidatorTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					validatorAPIAddress: {
-						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "Ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score:        categoryScoreA,
@@ -112,7 +109,7 @@ func TestValidatorTest(t *testing.T) {
 			name: "unsupported test",
 			config: testValidatorConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
 					TestCases:  []string{"notSupportedTest"},
 					Timeout:    time.Minute,
@@ -129,9 +126,9 @@ func TestValidatorTest(t *testing.T) {
 			name: "custom test cases",
 			config: testValidatorConfig{
 				testConfig: testConfig{
-					OutputToml: "",
+					OutputJSON: "",
 					Quiet:      false,
-					TestCases:  []string{"ping"},
+					TestCases:  []string{"Ping"},
 					Timeout:    time.Minute,
 				},
 				APIAddress: validatorAPIAddress,
@@ -139,7 +136,7 @@ func TestValidatorTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					validatorAPIAddress: {
-						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "Ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score:        categoryScoreA,
@@ -151,9 +148,8 @@ func TestValidatorTest(t *testing.T) {
 			name: "write to file",
 			config: testValidatorConfig{
 				testConfig: testConfig{
-					OutputToml: "./write-to-file-test.toml.tmp",
+					OutputJSON: "./write-to-file-test.json.tmp",
 					Quiet:      false,
-					TestCases:  nil,
 					Timeout:    time.Minute,
 				},
 				APIAddress: validatorAPIAddress,
@@ -161,9 +157,9 @@ func TestValidatorTest(t *testing.T) {
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					validatorAPIAddress: {
-						{Name: "ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
-						{Name: "pingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "Ping", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingMeasure", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingLoad", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
 					},
 				},
 				Score:        categoryScoreA,
@@ -181,7 +177,7 @@ func TestValidatorTest(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var buf bytes.Buffer
 			ctx := context.Background()
-			err := runTestValidator(ctx, &buf, test.config)
+			_, err := runTestValidator(ctx, &buf, test.config)
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
 				return
@@ -190,7 +186,7 @@ func TestValidatorTest(t *testing.T) {
 			}
 			defer func() {
 				if test.cleanup != nil {
-					test.cleanup(t, test.config.OutputToml)
+					test.cleanup(t, test.config.OutputJSON)
 				}
 			}()
 
@@ -200,8 +196,8 @@ func TestValidatorTest(t *testing.T) {
 				testWriteOut(t, test.expected, buf)
 			}
 
-			if test.config.OutputToml != "" {
-				testWriteFile(t, test.expected, test.config.OutputToml)
+			if test.config.OutputJSON != "" {
+				testWriteFile(t, test.expected, test.config.OutputJSON)
 			}
 		})
 	}
@@ -238,15 +234,17 @@ func TestValidatorTestFlags(t *testing.T) {
 			expectedErr: "",
 		},
 		{
-			name:        "no output toml on quiet",
+			name:        "no output json on quiet",
 			args:        []string{"validator", "--validator-api-address=\"test.endpoint\"", "--quiet"},
-			expectedErr: "on --quiet, an --output-toml is required",
+			expectedErr: "on --quiet, an --output-json is required",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cmd := newAlphaCmd(newTestValidatorCmd(func(context.Context, io.Writer, testValidatorConfig) error { return nil }))
+			cmd := newAlphaCmd(newTestValidatorCmd(func(context.Context, io.Writer, testValidatorConfig) (testCategoryResult, error) {
+				return testCategoryResult{}, nil
+			}))
 			cmd.SetArgs(test.args)
 			err := cmd.Execute()
 			if test.expectedErr != "" {

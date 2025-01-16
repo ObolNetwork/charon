@@ -22,7 +22,7 @@ import (
 )
 
 // New returns a new fetcher instance.
-func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, builderEnabled core.BuilderEnabled) (*Fetcher, error) {
+func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, builderEnabled bool) (*Fetcher, error) {
 	return &Fetcher{
 		eth2Cl:           eth2Cl,
 		feeRecipientFunc: feeRecipientFunc,
@@ -37,7 +37,7 @@ type Fetcher struct {
 	subs             []func(context.Context, core.Duty, core.UnsignedDataSet) error
 	aggSigDBFunc     func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
 	awaitAttDataFunc func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
-	builderEnabled   core.BuilderEnabled
+	builderEnabled   bool
 }
 
 // Subscribe registers a callback for fetched duties.
@@ -252,7 +252,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 		copy(graffiti[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
 
 		var bbf uint64
-		if f.builderEnabled(slot) {
+		if f.builderEnabled {
 			// This gives maximum priority to builder blocks:
 			// https://ethereum.github.io/beacon-APIs/#/Validator/produceBlockV3
 			bbf = math.MaxUint64

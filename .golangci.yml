@@ -1,6 +1,6 @@
 run:
   timeout: 5m
-  go: "1.23.1"
+  go: "1.23"
 linters-settings:
   cyclop:
     max-complexity: 15
@@ -151,6 +151,7 @@ linters:
   enable-all: true
   disable:
     # Keep disabled
+    - intrange
     - containedctx
     - contextcheck
     - cyclop
@@ -164,7 +165,6 @@ linters:
     - gocyclo
     - godot
     - godox
-    - gomnd
     - gomoddirectives
     - inamedparam
     - interfacebloat
@@ -177,9 +177,8 @@ linters:
     - nonamedreturns
     - paralleltest
     - prealloc
+    - recvcheck # triggers a lot of false positives
     - tagliatelle
     - varnamelen
     - wsl
-    # Deprecated
-    - goerr113
-    - execinquery
+    - err113

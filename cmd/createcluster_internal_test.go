@@ -251,24 +251,16 @@ func TestCreateCluster(t *testing.T) {
 			},
 		},
 		{
-			Name: "threshold greater than the number of operators",
+			Name: "preferred consensus protocol",
 			Config: clusterConfig{
-				NumNodes:  4,
-				Threshold: 5,
-				NumDVs:    1,
-				Network:   defaultNetwork,
+				Name:              "test_cluster",
+				NumNodes:          4,
+				Threshold:         3,
+				NumDVs:            3,
+				Network:           defaultNetwork,
+				ConsensusProtocol: "unreal",
 			},
-			expectedErr: "threshold cannot be greater than number of operators",
-		},
-		{
-			Name: "threshold smaller than BFT quorum",
-			Config: clusterConfig{
-				NumNodes:  4,
-				Threshold: 2,
-				NumDVs:    1,
-				Network:   defaultNetwork,
-			},
-			expectedErr: "threshold cannot be smaller than BFT quorum",
+			expectedErr: "unsupported consensus protocol",
 		},
 		{
 			Name: "test with number of nodes below minimum",
@@ -288,6 +280,7 @@ func TestCreateCluster(t *testing.T) {
 			expectedErr: "number of operators is below minimum",
 		},
 	}
+
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
 			if test.defFileProvider != nil {
@@ -515,6 +508,13 @@ func TestValidateDef(t *testing.T) {
 		require.NoError(t, err)
 		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
 		require.ErrorContains(t, err, "invalid creator config signature")
+	})
+
+	t.Run("unsupported consensus protocol", func(t *testing.T) {
+		def := definition
+		def.ConsensusProtocol = "unreal"
+		err = validateDef(ctx, false, conf.KeymanagerAddrs, def)
+		require.Error(t, err, "unsupported consensus protocol")
 	})
 }
 
@@ -786,6 +786,73 @@ func TestPublish(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, <-result, struct{}{})
 	})
+}
+
+func TestClusterCLI(t *testing.T) {
+	feeRecipientArg := "--fee-recipient-addresses=" + validEthAddr
+	withdrawalArg := "--withdrawal-addresses=" + validEthAddr
+
+	tests := []struct {
+		name          string
+		network       string
+		nodes         string
+		numValidators string
+		feeRecipient  string
+		withdrawal    string
+		threshold     string
+		expectedErr   string
+	}{
+		{
+			name:          "threshold below minimum",
+			nodes:         "--nodes=3",
+			network:       "--network=holesky",
+			numValidators: "--num-validators=1",
+			feeRecipient:  feeRecipientArg,
+			withdrawal:    withdrawalArg,
+			threshold:     "--threshold=1",
+			expectedErr:   "threshold must be greater than 1",
+		},
+		{
+			name:          "threshold above maximum",
+			nodes:         "--nodes=4",
+			network:       "--network=holesky",
+			numValidators: "--num-validators=1",
+			feeRecipient:  feeRecipientArg,
+			withdrawal:    withdrawalArg,
+			threshold:     "--threshold=5",
+			expectedErr:   "threshold cannot be greater than number of operators",
+		},
+		{
+			name:          "no threshold provided",
+			nodes:         "--nodes=3",
+			network:       "--network=holesky",
+			numValidators: "--num-validators=1",
+			feeRecipient:  feeRecipientArg,
+			withdrawal:    withdrawalArg,
+			threshold:     "",
+			expectedErr:   "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			clusterDir := "--cluster-dir=" + t.TempDir()
+
+			cmd := newCreateCmd(newCreateClusterCmd(runCreateCluster))
+			if test.threshold != "" {
+				cmd.SetArgs([]string{"cluster", clusterDir, test.nodes, test.feeRecipient, test.withdrawal, test.network, test.numValidators, test.threshold})
+			} else {
+				cmd.SetArgs([]string{"cluster", clusterDir, test.nodes, test.feeRecipient, test.withdrawal, test.network, test.numValidators})
+			}
+
+			err := cmd.Execute()
+			if test.expectedErr != "" {
+				require.ErrorContains(t, err, test.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 // mockKeymanagerReq is a mock keymanager request for use in tests.
