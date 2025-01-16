@@ -150,7 +150,7 @@ Usage:
 
 Flags:
       --beacon-node-endpoints strings         Comma separated list of one or more beacon node endpoint URLs.
-      --beacon-node-headers string            Comma separated list of headers formatted as header=value
+      --beacon-node-headers strings           Comma separated list of headers formatted as header=value
       --beacon-node-submit-timeout duration   Timeout for the submission-related HTTP requests Charon makes to the configured beacon nodes. (default 2s)
       --beacon-node-timeout duration          Timeout for the HTTP requests Charon makes to the configured beacon nodes. (default 2s)
       --builder-api                           Enables the builder api. Will only produce builder blocks. Builder API must also be enabled on the validator client. Beacon node must be connected to a builder-relay to access the builder network.
