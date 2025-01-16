@@ -16,6 +16,7 @@ import (
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -94,6 +95,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().StringVar(&config.ProcDirectory, "proc-directory", "", "Directory to look into in order to detect other stack components running on the host.")
 	cmd.Flags().StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the node. Selected automatically when not specified.")
 	cmd.Flags().StringVar(&config.Nickname, "nickname", "", "Human friendly peer nickname. Maximum 32 characters.")
+	cmd.Flags().StringSliceVar(&config.BeaconNodeHeaders, "beacon-node-headers", nil, "Comma separated list of headers formatted as header=value")
 
 	wrapPreRunE(cmd, func(*cobra.Command, []string) error {
 		if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {
@@ -101,6 +103,10 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 		}
 		if len(config.Nickname) > 32 {
 			return errors.New("flag 'nickname' can not exceed 32 characters")
+		}
+		err := eth2util.ValidateBeaconNodeHeaders(config.BeaconNodeHeaders)
+		if err != nil {
+			return err
 		}
 
 		return nil

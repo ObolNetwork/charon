@@ -22,7 +22,7 @@ type FallbackClient struct {
 // NewFallbackClient initializes a FallbackClient with the provided settings
 func NewFallbackClient(timeout time.Duration, forkVersion [4]byte, addresses []string) *FallbackClient {
 	return &FallbackClient{
-		clients: newClients(timeout, forkVersion, addresses),
+		clients: newClients(timeout, forkVersion, map[string]string{}, addresses),
 	}
 }
 

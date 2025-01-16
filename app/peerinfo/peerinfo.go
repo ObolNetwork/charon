@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"sync"
 	"testing"
 	"time"
 
@@ -149,6 +150,7 @@ type PeerInfo struct {
 	lockHashFilters   map[peer.ID]z.Field
 	versionFilters    map[peer.ID]z.Field
 	nicknames         map[string]string
+	nicknamesMu       sync.RWMutex
 }
 
 // Run runs the peer info protocol until the context is cancelled.
@@ -202,8 +204,10 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 
 			name := p2p.PeerName(peerID)
 
-			p.nicknames[name] = resp.Nickname
+			p.nicknamesMu.Lock()
+			p.nicknames[name] = resp.GetNickname()
 			log.Info(ctx, "Peer name to nickname mappings", z.Any("nicknames", p.nicknames))
+			p.nicknamesMu.Unlock()
 
 			// Validator git hash with regex.
 			if !gitHashMatch.MatchString(resp.GetGitHash()) {

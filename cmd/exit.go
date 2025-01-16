@@ -38,6 +38,7 @@ type exitConfig struct {
 	Log                   log.Config
 	All                   bool
 	testnetConfig         eth2util.Network
+	BeaconNodeHeaders     []string
 }
 
 func newExitCmd(cmds ...*cobra.Command) *cobra.Command {
@@ -74,6 +75,7 @@ const (
 	testnetChainID
 	testnetGenesisTimestamp
 	testnetCapellaHardFork
+	beaconNodeHeaders
 )
 
 func (ef exitFlag) String() string {
@@ -116,6 +118,8 @@ func (ef exitFlag) String() string {
 		return "testnet-genesis-timestamp"
 	case testnetCapellaHardFork:
 		return "testnet-capella-hard-fork"
+	case beaconNodeHeaders:
+		return "beacon-node-headers"
 	default:
 		return "unknown"
 	}
@@ -177,6 +181,8 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 			cmd.Flags().Int64Var(&config.testnetConfig.GenesisTimestamp, "testnet-genesis-timestamp", 0, "Genesis timestamp of the custom test network.")
 		case testnetCapellaHardFork:
 			cmd.Flags().StringVar(&config.testnetConfig.CapellaHardFork, "testnet-capella-hard-fork", "", "Capella hard fork version of the custom test network.")
+		case beaconNodeHeaders:
+			cmd.Flags().StringSliceVar(&config.BeaconNodeHeaders, "beacon-node-headers", nil, "Comma separated list of headers formatted as header=value")
 		}
 
 		if f.required {
@@ -185,8 +191,8 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 	}
 }
 
-func eth2Client(ctx context.Context, u []string, timeout time.Duration, forkVersion [4]byte) (eth2wrap.Client, error) {
-	cl, err := eth2wrap.NewMultiHTTP(timeout, forkVersion, u...)
+func eth2Client(ctx context.Context, headers map[string]string, u []string, timeout time.Duration, forkVersion [4]byte) (eth2wrap.Client, error) {
+	cl, err := eth2wrap.NewMultiHTTP(timeout, forkVersion, headers, u...)
 	if err != nil {
 		return nil, err
 	}
