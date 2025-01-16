@@ -22,6 +22,9 @@ jobs:
           if [[ $GIT_BRANCH = main ]]; then
             # Do not label main branch PRs
             LABEL="skip"
+          elif [[ $GIT_BRANCH = electra ]]; then
+            # Label electra branch PRs
+            LABEL="electra"
           elif [[ $GIT_BRANCH = main* ]]; then
             # Label release branches
             LABEL="branch-release"
