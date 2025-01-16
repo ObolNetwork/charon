@@ -386,32 +386,48 @@ func evaluateRTT(rtt time.Duration, testRes testResult, avg time.Duration, poor 
 }
 
 func calculateScore(results []testResult) categoryScore {
-	// TODO(kalo): calculate score more elaborately (potentially use weights)
-	avg := 0
-	for _, t := range results {
-		switch t.Verdict {
-		case testVerdictPoor:
-			return categoryScoreC
-		case testVerdictGood:
-			avg++
-		case testVerdictAvg:
-			avg--
-		case testVerdictFail:
-			if !t.IsAcceptable {
-				return categoryScoreC
-			}
+	if len(results) == 0 {
+		return categoryScoreC
+	}
 
-			continue
-		case testVerdictOk, testVerdictSkipped:
+	// Weight configuration for different verdicts
+	weights := map[testVerdict]float64{
+		testVerdictPoor:     0.0,
+		testVerdictGood:     1.0,
+		testVerdictWarning:  0.5,
+		testVerdictSkipped:  0.0,
+		testVerdictFailed:   0.0,
+		testVerdictCritical: 0.0,
+	}
+
+	totalWeight := 0.0
+	totalScore := 0.0
+
+	for _, t := range results {
+		weight, exists := weights[t.Verdict]
+		if !exists {
 			continue
 		}
+		totalWeight++
+		totalScore += weight
 	}
 
-	if avg < 0 {
+	if totalWeight == 0 {
+		return categoryScoreC
+	}
+
+	// Calculate final score percentage
+	scorePercentage := (totalScore / totalWeight) * 100
+
+	// Map percentage to category scores
+	switch {
+	case scorePercentage >= 90:
+		return categoryScoreA
+	case scorePercentage >= 75:
 		return categoryScoreB
+	default:
+		return categoryScoreC
 	}
-
-	return categoryScoreA
 }
 
 func filterTests(supportedTestCases []testCaseName, cfg testConfig) []testCaseName {
