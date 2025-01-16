@@ -11,7 +11,7 @@ type DepositData struct {
 	// WithdrawalCredentials included in the deposit.
 	WithdrawalCredentials []byte `json:"withdrawal_credentials" lock_hash:"1" ssz:"Bytes32"`
 
-	// Amount is the amount in Gwei to be deposited [1ETH..32ETH].
+	// Amount is the amount in Gwei to be deposited [1ETH..2048ETH].
 	Amount int `json:"amount" lock_hash:"2" ssz:"uint64"`
 
 	// Signature is the BLS signature of the deposit message (above three fields).

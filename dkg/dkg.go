@@ -246,7 +246,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	// Sign, exchange and aggregate Deposit Data
 	depositAmounts := def.DepositAmounts
 	if len(depositAmounts) == 0 {
-		depositAmounts = []eth2p0.Gwei{deposit.MaxDepositAmount}
+		depositAmounts = []eth2p0.Gwei{deposit.DefaultDepositAmount}
 	} else {
 		depositAmounts = deposit.DedupAmounts(depositAmounts)
 	}

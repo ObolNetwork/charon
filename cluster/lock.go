@@ -22,7 +22,7 @@ type Lock struct {
 	// Definition is embedded and extended by Lock.
 	Definition `json:"cluster_definition" lock_hash:"0" ssz:"Composite"`
 
-	// Validators are the distributed validators (n*32ETH) managed by the cluster.
+	// Validators are the distributed validators managed by the cluster.
 	Validators []DistValidator `json:"distributed_validators" lock_hash:"1" ssz:"Composite[65536]"`
 
 	// LockHash uniquely identifies a cluster lock.

@@ -359,7 +359,7 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 		vals := make(map[string]struct{})
 		amounts := deposit.DedupAmounts(deposit.EthsToGweis(conf.DepositAmounts))
 		if len(amounts) == 0 {
-			amounts = []eth2p0.Gwei{deposit.MaxDepositAmount}
+			amounts = []eth2p0.Gwei{deposit.DefaultDepositAmount}
 		}
 		for _, val := range lock.Validators {
 			vals[val.PublicKeyHex()] = struct{}{}
