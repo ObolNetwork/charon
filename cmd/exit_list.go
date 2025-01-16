@@ -49,9 +49,14 @@ func newListActiveValidatorsCmd(runFunc func(context.Context, exitConfig) error)
 		{testnetChainID, false},
 		{testnetGenesisTimestamp, false},
 		{testnetCapellaHardFork, false},
+		{beaconNodeHeaders, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
+
+	wrapPreRunE(cmd, func(*cobra.Command, []string) error {
+		return eth2util.ValidateBeaconNodeHeaders(config.BeaconNodeHeaders)
+	})
 
 	return cmd
 }
@@ -87,7 +92,12 @@ func listActiveVals(ctx context.Context, config exitConfig) ([]string, error) {
 		return nil, errors.Wrap(err, "load cluster lock", z.Str("lock_file_path", config.LockFilePath))
 	}
 
-	eth2Cl, err := eth2Client(ctx, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte{}) // fine to avoid initializing a fork version, we're just querying the BN
+	beaconNodeHeaders, err := eth2util.ParseBeaconNodeHeaders(config.BeaconNodeHeaders)
+	if err != nil {
+		return nil, err
+	}
+
+	eth2Cl, err := eth2Client(ctx, beaconNodeHeaders, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte{}) // fine to avoid initializing a fork version, we're just querying the BN
 	if err != nil {
 		return nil, errors.Wrap(err, "create eth2 client for specified beacon node(s)", z.Any("beacon_nodes_endpoints", config.BeaconNodeEndpoints))
 	}

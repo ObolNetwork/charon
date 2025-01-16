@@ -4,6 +4,7 @@ package eth2util_test
 
 import (
 	"encoding/hex"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -65,4 +66,115 @@ func TestPublicKeyToAddress(t *testing.T) {
 
 	actual := eth2util.PublicKeyToAddress(privKey.PubKey())
 	require.Equal(t, testAddrHex, actual)
+}
+
+func TestValidateBeaconNodeHeaders(t *testing.T) {
+	tests := []struct {
+		name    string
+		headers []string
+		valid   bool
+	}{
+		{
+			name:    "nil",
+			headers: nil,
+			valid:   true,
+		},
+		{
+			name:    "one pair",
+			headers: []string{"header-1=value-1"},
+			valid:   true,
+		},
+		{
+			name:    "two pairs",
+			headers: []string{"header-1=value-1", "header-2=value-2"},
+			valid:   true,
+		},
+		{
+			name:    "empty",
+			headers: []string{""},
+			valid:   false,
+		},
+		{
+			name:    "value missing",
+			headers: []string{"header-1="},
+			valid:   false,
+		},
+		{
+			name:    "header missing",
+			headers: []string{"=value-1"},
+			valid:   false,
+		},
+		{
+			name:    "extra comma end",
+			headers: []string{"header-1=value-1,"},
+			valid:   false,
+		},
+		{
+			name:    "extra comma start",
+			headers: []string{",header-1=value-1"},
+			valid:   false,
+		},
+		{
+			name:    "pair and value missing",
+			headers: []string{"header-1=value-1", "header-2="},
+			valid:   false,
+		},
+		{
+			name:    "header and value missing 1",
+			headers: []string{"=="},
+			valid:   false,
+		},
+		{
+			name:    "header and value missing 2",
+			headers: []string{",,"},
+			valid:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := eth2util.ValidateBeaconNodeHeaders(tt.headers)
+			if err != nil && tt.valid {
+				require.Fail(t, "Fail", "Header (%d) is invalid, want valid", tt.headers)
+			} else if err == nil && !tt.valid {
+				require.Fail(t, "Fail", "Header (%d) is valid, want invalid", tt.headers)
+			}
+		})
+	}
+}
+
+func TestParseBeaconNodeHeaders(t *testing.T) {
+	tests := []struct {
+		name    string
+		headers []string
+		want    map[string]string
+	}{
+		{
+			name:    "nil",
+			headers: nil,
+			want:    map[string]string{},
+		},
+		{
+			name:    "one pair",
+			headers: []string{"header-1=value-1"},
+			want:    map[string]string{"header-1": "value-1"},
+		},
+		{
+			name:    "two pairs",
+			headers: []string{"header-1=value-1", "header-2=value-2"},
+			want:    map[string]string{"header-1": "value-1", "header-2": "value-2"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parsed, err := eth2util.ParseBeaconNodeHeaders(tt.headers)
+			if err != nil {
+				require.Fail(t, "Fail", "Header (%d) failed to parse", tt.headers)
+			}
+			if !reflect.DeepEqual(parsed, tt.want) {
+				require.Fail(t, "Fail", "Headers badly parsed, have %v, want %v", parsed, tt.want)
+			}
+		})
+	}
 }

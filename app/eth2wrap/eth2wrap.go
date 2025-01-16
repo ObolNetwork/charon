@@ -85,28 +85,29 @@ func WithSyntheticDuties(cl Client) Client {
 }
 
 // NewMultiHTTP returns a new instrumented multi eth2 http client.
-func NewMultiHTTP(timeout time.Duration, forkVersion [4]byte, addresses ...string) (Client, error) {
-	return Instrument(newClients(timeout, forkVersion, addresses)...)
+func NewMultiHTTP(timeout time.Duration, forkVersion [4]byte, headers map[string]string, addresses ...string) (Client, error) {
+	return Instrument(newClients(timeout, forkVersion, headers, addresses)...)
 }
 
 // newClients returns a slice of Client initialized with the provided settings.
-func newClients(timeout time.Duration, forkVersion [4]byte, addresses []string) []Client {
+func newClients(timeout time.Duration, forkVersion [4]byte, headers map[string]string, addresses []string) []Client {
 	var clients []Client
 	for _, address := range addresses {
-		clients = append(clients, newBeaconClient(timeout, forkVersion, address))
+		clients = append(clients, newBeaconClient(timeout, forkVersion, headers, address))
 	}
 
 	return clients
 }
 
 // newBeaconClient returns a Client with the provided settings.
-func newBeaconClient(timeout time.Duration, forkVersion [4]byte, address string) Client {
+func newBeaconClient(timeout time.Duration, forkVersion [4]byte, headers map[string]string, address string) Client {
 	parameters := []eth2http.Parameter{
 		eth2http.WithLogLevel(zeroLogInfo),
 		eth2http.WithAddress(address),
 		eth2http.WithTimeout(timeout),
 		eth2http.WithAllowDelayedStart(true),
 		eth2http.WithEnforceJSON(featureset.Enabled(featureset.JSONRequests)),
+		eth2http.WithExtraHeaders(headers),
 	}
 
 	cl := newLazy(func(ctx context.Context) (Client, error) {

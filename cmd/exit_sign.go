@@ -60,6 +60,7 @@ func newSignPartialExitCmd(runFunc func(context.Context, exitConfig) error) *cob
 		{testnetChainID, false},
 		{testnetGenesisTimestamp, false},
 		{testnetCapellaHardFork, false},
+		{beaconNodeHeaders, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
@@ -76,6 +77,11 @@ func newSignPartialExitCmd(runFunc func(context.Context, exitConfig) error) *cob
 		if config.All && (valIdxPresent || valPubkPresent) {
 			//nolint:revive // we use our own version of the errors package.
 			return errors.New(fmt.Sprintf("%s or %s should not be specified when %s is, as they are obsolete and misleading.", validatorIndex.String(), validatorPubkey.String(), all.String()))
+		}
+
+		err := eth2util.ValidateBeaconNodeHeaders(config.BeaconNodeHeaders)
+		if err != nil {
+			return err
 		}
 
 		config.ValidatorIndexPresent = valIdxPresent
@@ -129,7 +135,12 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "create Obol API client", z.Str("publish_address", config.PublishAddress))
 	}
 
-	eth2Cl, err := eth2Client(ctx, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.GetForkVersion()))
+	beaconNodeHeaders, err := eth2util.ParseBeaconNodeHeaders(config.BeaconNodeHeaders)
+	if err != nil {
+		return err
+	}
+
+	eth2Cl, err := eth2Client(ctx, beaconNodeHeaders, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.GetForkVersion()))
 	if err != nil {
 		return errors.Wrap(err, "create eth2 client for specified beacon node(s)", z.Any("beacon_nodes_endpoints", config.BeaconNodeEndpoints))
 	}
