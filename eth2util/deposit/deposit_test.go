@@ -12,6 +12,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/tbls"
@@ -39,10 +40,34 @@ func TestNewMessage(t *testing.T) {
 		require.ErrorContains(t, err, "deposit message minimum amount must be >= 1ETH")
 	})
 
-	t.Run("amount above maximum", func(t *testing.T) {
+	t.Run("amount above maximum post pectra", func(t *testing.T) {
+		featureset.EnableForT(t, featureset.Pectra)
 		_, err := deposit.NewMessage(pubKey, addr, deposit.MaxDepositAmount+1)
 
-		require.ErrorContains(t, err, "deposit message maximum amount must <= 2048ETH")
+		require.ErrorContains(t, err, "deposit message maximum amount exceeded")
+	})
+
+	t.Run("max amount post pectra", func(t *testing.T) {
+		featureset.EnableForT(t, featureset.Pectra)
+		msg, err := deposit.NewMessage(pubKey, addr, deposit.MaxDepositAmount)
+
+		require.NoError(t, err)
+		require.EqualValues(t, []byte{0x02}, msg.WithdrawalCredentials[:1])
+	})
+
+	t.Run("amount above maximum prior pectra", func(t *testing.T) {
+		featureset.DisableForT(t, featureset.Pectra)
+		_, err := deposit.NewMessage(pubKey, addr, deposit.DefaultDepositAmount+1)
+
+		require.ErrorContains(t, err, "deposit message maximum amount exceeded")
+	})
+
+	t.Run("max amount prior pectra", func(t *testing.T) {
+		featureset.DisableForT(t, featureset.Pectra)
+		msg, err := deposit.NewMessage(pubKey, addr, deposit.DefaultDepositAmount)
+
+		require.NoError(t, err)
+		require.EqualValues(t, []byte{0x01}, msg.WithdrawalCredentials[:1])
 	})
 }
 
