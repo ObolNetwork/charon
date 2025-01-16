@@ -173,7 +173,7 @@ type Definition struct {
 	TargetGasLimit uint `config_hash:"13" definition_hash:"13" json:"target_gas_limit" ssz:"uint64"`
 
 	// ConfigHash uniquely identifies a cluster definition excluding operator ENRs and signatures.
-	ConfigHash []byte `json:"config_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"13"`
+	ConfigHash []byte `json:"config_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"14"`
 
 	// DefinitionHash uniquely identifies a cluster definition including operator ENRs and signatures.
 	DefinitionHash []byte `json:"definition_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"-"`
