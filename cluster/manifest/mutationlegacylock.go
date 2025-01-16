@@ -150,6 +150,7 @@ func transformLegacyLock(input *manifestpb.Cluster, signed *manifestpb.SignedMut
 		DkgAlgorithm:      lock.DKGAlgorithm,
 		ForkVersion:       lock.ForkVersion,
 		ConsensusProtocol: lock.ConsensusProtocol,
+		TargetGasLimit:    uint32(lock.TargetGasLimit),
 		Validators:        vals,
 		Operators:         ops,
 	}, nil

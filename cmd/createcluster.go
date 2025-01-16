@@ -83,6 +83,8 @@ type clusterConfig struct {
 
 	ConsensusProtocol string
 
+	TargetGasLimit uint
+
 	testnetConfig eth2util.Network
 }
 
@@ -143,6 +145,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.Int64Var(&config.testnetConfig.GenesisTimestamp, "testnet-genesis-timestamp", 0, "Genesis timestamp of the custom test network.")
 	flags.IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to exactly 32ETH.")
 	flags.StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the cluster. Selected automatically when not specified.")
+	flags.UintVar(&config.TargetGasLimit, "target-gas-limit", 36000000, "Preferred target gas limit for transactions.")
 }
 
 func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
@@ -276,7 +279,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
-	valRegs, err := createValidatorRegistrations(def.FeeRecipientAddresses(), secrets, def.ForkVersion, conf.SplitKeys)
+	valRegs, err := createValidatorRegistrations(ctx, def.FeeRecipientAddresses(), secrets, def.ForkVersion, conf.SplitKeys, conf.TargetGasLimit)
 	if err != nil {
 		return err
 	}
@@ -469,7 +472,7 @@ func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, n
 }
 
 // signValidatorRegistrations returns a slice of validator registrations for each private key in secrets.
-func signValidatorRegistrations(secrets []tbls.PrivateKey, feeAddresses []string, forkVersion []byte, useCurrentTimestamp bool) ([]core.VersionedSignedValidatorRegistration, error) {
+func signValidatorRegistrations(secrets []tbls.PrivateKey, feeAddresses []string, forkVersion []byte, useCurrentTimestamp bool, targetGasLimit uint) ([]core.VersionedSignedValidatorRegistration, error) {
 	if len(secrets) != len(feeAddresses) {
 		return nil, errors.New("insufficient fee addresses")
 	}
@@ -500,7 +503,7 @@ func signValidatorRegistrations(secrets []tbls.PrivateKey, feeAddresses []string
 		unsignedReg, err := registration.NewMessage(
 			eth2p0.BLSPubKey(pk),
 			feeAddress,
-			registration.DefaultGasLimit,
+			uint64(targetGasLimit),
 			timestamp,
 		)
 		if err != nil {
@@ -621,12 +624,17 @@ func createDepositDatas(withdrawalAddresses []string, network string, secrets []
 }
 
 // createValidatorRegistrations creates a slice of builder validator registrations using the provided parameters and returns it.
-func createValidatorRegistrations(feeAddresses []string, secrets []tbls.PrivateKey, forkVersion []byte, useCurrentTimestamp bool) ([]core.VersionedSignedValidatorRegistration, error) {
+func createValidatorRegistrations(ctx context.Context, feeAddresses []string, secrets []tbls.PrivateKey, forkVersion []byte, useCurrentTimestamp bool, targetGasLimit uint) ([]core.VersionedSignedValidatorRegistration, error) {
 	if len(feeAddresses) != len(secrets) {
 		return nil, errors.New("insufficient fee addresses")
 	}
 
-	return signValidatorRegistrations(secrets, feeAddresses, forkVersion, useCurrentTimestamp)
+	if targetGasLimit == 0 {
+		log.Warn(ctx, "", errors.New("custom target gas limit not supported, setting to default", z.Uint("default_gas_limit", registration.DefaultGasLimit)))
+		targetGasLimit = registration.DefaultGasLimit
+	}
+
+	return signValidatorRegistrations(secrets, feeAddresses, forkVersion, useCurrentTimestamp, targetGasLimit)
 }
 
 // writeLock creates a cluster lock and writes it to disk for all peers.
@@ -851,12 +859,9 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 	threshold := safeThreshold(ctx, conf.NumNodes, conf.Threshold)
 
 	var opts []func(*cluster.Definition)
-	if len(conf.DepositAmounts) > 0 {
-		opts = append(opts, cluster.WithVersion(cluster.MinVersionForPartialDeposits))
-	}
 	def, err := cluster.NewDefinition(conf.Name, conf.NumDVs, threshold, feeRecipientAddrs,
 		withdrawalAddrs, forkVersion, cluster.Creator{}, ops, conf.DepositAmounts,
-		conf.ConsensusProtocol, rand.Reader, opts...)
+		conf.ConsensusProtocol, conf.TargetGasLimit, rand.Reader, opts...)
 	if err != nil {
 		return cluster.Definition{}, err
 	}

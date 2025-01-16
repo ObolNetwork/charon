@@ -5,19 +5,20 @@ package cluster
 import "testing"
 
 const (
-	currentVersion = v1_8
+	currentVersion = v1_10
 	dkgAlgo        = "default"
 
-	v1_9 = "v1.9.0"
-	v1_8 = "v1.8.0" // Default
-	v1_7 = "v1.7.0"
-	v1_6 = "v1.6.0"
-	v1_5 = "v1.5.0"
-	v1_4 = "v1.4.0"
-	v1_3 = "v1.3.0"
-	v1_2 = "v1.2.0"
-	v1_1 = "v1.1.0"
-	v1_0 = "v1.0.0"
+	v1_10 = "v1.10.0" // Default
+	v1_9  = "v1.9.0"
+	v1_8  = "v1.8.0"
+	v1_7  = "v1.7.0"
+	v1_6  = "v1.6.0"
+	v1_5  = "v1.5.0"
+	v1_4  = "v1.4.0"
+	v1_3  = "v1.3.0"
+	v1_2  = "v1.2.0"
+	v1_1  = "v1.1.0"
+	v1_0  = "v1.0.0"
 
 	zeroNonce = 0
 
@@ -25,16 +26,17 @@ const (
 )
 
 var supportedVersions = map[string]bool{
-	v1_9: true,
-	v1_8: true,
-	v1_7: true,
-	v1_6: true,
-	v1_5: true,
-	v1_4: true,
-	v1_3: true,
-	v1_2: true,
-	v1_1: true,
-	v1_0: true,
+	v1_10: true,
+	v1_9:  true,
+	v1_8:  true,
+	v1_7:  true,
+	v1_6:  true,
+	v1_5:  true,
+	v1_4:  true,
+	v1_3:  true,
+	v1_2:  true,
+	v1_1:  true,
+	v1_0:  true,
 }
 
 func isAnyVersion(version string, versions ...string) bool {

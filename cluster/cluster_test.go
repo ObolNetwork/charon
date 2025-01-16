@@ -21,16 +21,17 @@ import (
 //go:generate go test . -v -update -clean
 
 const (
-	v1_9 = "v1.9.0"
-	v1_8 = "v1.8.0"
-	v1_7 = "v1.7.0"
-	v1_6 = "v1.6.0"
-	v1_5 = "v1.5.0"
-	v1_4 = "v1.4.0"
-	v1_3 = "v1.3.0"
-	v1_2 = "v1.2.0"
-	v1_1 = "v1.1.0"
-	v1_0 = "v1.0.0"
+	v1_10 = "v1.10.0"
+	v1_9  = "v1.9.0"
+	v1_8  = "v1.8.0"
+	v1_7  = "v1.7.0"
+	v1_6  = "v1.6.0"
+	v1_5  = "v1.5.0"
+	v1_4  = "v1.4.0"
+	v1_3  = "v1.3.0"
+	v1_2  = "v1.2.0"
+	v1_1  = "v1.1.0"
+	v1_0  = "v1.0.0"
 )
 
 // TestEncode tests whether charon can correctly encode lock and definition files.
@@ -63,8 +64,13 @@ func TestEncode(t *testing.T) {
 			}
 
 			var partialAmounts []int
-			if isAnyVersion(version, v1_8, v1_9) {
+			if isAnyVersion(version, v1_8, v1_9, v1_10) {
 				partialAmounts = []int{16, 16}
+			}
+
+			targetGasLimit := uint(0)
+			if isAnyVersion(version, v1_10) {
+				targetGasLimit = 30000000
 			}
 
 			definition, err := cluster.NewDefinition(
@@ -94,6 +100,7 @@ func TestEncode(t *testing.T) {
 				},
 				partialAmounts,
 				"abft",
+				targetGasLimit,
 				rand.New(rand.NewSource(0)),
 				opts...,
 			)
@@ -121,6 +128,11 @@ func TestEncode(t *testing.T) {
 			// Definition version prior to v1.9.0 don't support ConsensusProtocol.
 			if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6, v1_7, v1_8) {
 				definition.ConsensusProtocol = ""
+			}
+
+			// Definition version prior to v1.10.0 don't support TargetGasLimit.
+			if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6, v1_7, v1_8, v1_9) {
+				definition.TargetGasLimit = 0
 			}
 
 			t.Run("definition_json_"+vStr, func(t *testing.T) {
@@ -197,7 +209,7 @@ func TestEncode(t *testing.T) {
 			}
 
 			// Lock versions v1.8.0 and later support multiple PartialDepositData.
-			if isAnyVersion(version, v1_8, v1_9) {
+			if !isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6, v1_7) {
 				for i := range lock.Validators {
 					dd := cluster.RandomDepositDataSeed(r)
 					dd.PubKey = lock.Validators[i].PubKey

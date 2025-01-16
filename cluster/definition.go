@@ -64,14 +64,14 @@ func WithLegacyVAddrs(feeRecipientAddress, withdrawalAddress string) func(*Defin
 // The hashes are also populated accordingly. Note that the hashes need to be recalculated when any field is modified.
 func NewDefinition(name string, numVals int, threshold int, feeRecipientAddresses []string, withdrawalAddresses []string,
 	forkVersionHex string, creator Creator, operators []Operator, depositAmounts []int,
-	consensusProtocol string, random io.Reader, opts ...func(*Definition),
+	consensusProtocol string, targetGasLimit uint, random io.Reader, opts ...func(*Definition),
 ) (Definition, error) {
 	if len(feeRecipientAddresses) != numVals {
 		return Definition{}, errors.New("insufficient fee-recipient addresses")
 	}
 
 	if len(withdrawalAddresses) != numVals {
-		return Definition{}, errors.New("insufficient fee-recipient addresses")
+		return Definition{}, errors.New("insufficient withdrawal addresses")
 	}
 
 	def := Definition{
@@ -86,6 +86,7 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddresse
 		Creator:           creator,
 		DepositAmounts:    deposit.EthsToGweis(depositAmounts),
 		ConsensusProtocol: consensusProtocol,
+		TargetGasLimit:    targetGasLimit,
 	}
 
 	for i := range numVals {
@@ -107,6 +108,14 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddresse
 
 	if len(depositAmounts) > 1 && !supportPartialDeposits(def.Version) {
 		return Definition{}, errors.New("the version does not support partial deposits", z.Str("version", def.Version))
+	}
+
+	if def.TargetGasLimit != 0 && !supportTargetGasLimit(def.Version) {
+		return Definition{}, errors.New("the version does not support custom target gas limit", z.Str("version", def.Version))
+	}
+
+	if def.TargetGasLimit == 0 && supportTargetGasLimit(def.Version) {
+		return Definition{}, errors.New("target gas limit should be set", z.Str("version", def.Version))
 	}
 
 	return def.SetDefinitionHashes()
@@ -160,8 +169,11 @@ type Definition struct {
 	// ConsensusProtocol is the consensus protocol name preferred by the cluster, e.g. "abft".
 	ConsensusProtocol string `config_hash:"12" definition_hash:"12" json:"consensus_protocol,omitempty" ssz:"ByteList[256]"`
 
+	// TargetGasLimit is the target block gas limit for the cluster.
+	TargetGasLimit uint `config_hash:"13" definition_hash:"13" json:"target_gas_limit" ssz:"uint64"`
+
 	// ConfigHash uniquely identifies a cluster definition excluding operator ENRs and signatures.
-	ConfigHash []byte `json:"config_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"13"`
+	ConfigHash []byte `json:"config_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"14"`
 
 	// DefinitionHash uniquely identifies a cluster definition including operator ENRs and signatures.
 	DefinitionHash []byte `json:"definition_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"-"`
@@ -392,6 +404,8 @@ func (d Definition) MarshalJSON() ([]byte, error) {
 		return marshalDefinitionV1x8(d2)
 	case isAnyVersion(d2.Version, v1_9):
 		return marshalDefinitionV1x9(d2)
+	case isAnyVersion(d2.Version, v1_10):
+		return marshalDefinitionV1x10(d2)
 	default:
 		return nil, errors.New("unsupported version")
 	}
@@ -443,6 +457,11 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 		}
 	case isAnyVersion(version.Version, v1_9):
 		def, err = unmarshalDefinitionV1x9(data)
+		if err != nil {
+			return err
+		}
+	case isAnyVersion(version.Version, v1_10):
+		def, err = unmarshalDefinitionV1x10(data)
 		if err != nil {
 			return err
 		}
@@ -640,6 +659,35 @@ func marshalDefinitionV1x9(def Definition) ([]byte, error) {
 		},
 		DepositAmounts:    def.DepositAmounts,
 		ConsensusProtocol: def.ConsensusProtocol,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal definition", z.Str("version", def.Version))
+	}
+
+	return resp, nil
+}
+
+func marshalDefinitionV1x10(def Definition) ([]byte, error) {
+	resp, err := json.Marshal(definitionJSONv1x10{
+		Name:               def.Name,
+		UUID:               def.UUID,
+		Version:            def.Version,
+		Timestamp:          def.Timestamp,
+		NumValidators:      def.NumValidators,
+		Threshold:          def.Threshold,
+		DKGAlgorithm:       def.DKGAlgorithm,
+		ValidatorAddresses: validatorAddressesToJSON(def.ValidatorAddresses),
+		ForkVersion:        def.ForkVersion,
+		ConfigHash:         def.ConfigHash,
+		DefinitionHash:     def.DefinitionHash,
+		Operators:          operatorsToV1x2orLater(def.Operators),
+		Creator: creatorJSON{
+			Address:         def.Creator.Address,
+			ConfigSignature: def.Creator.ConfigSignature,
+		},
+		DepositAmounts:    def.DepositAmounts,
+		ConsensusProtocol: def.ConsensusProtocol,
+		TargetGasLimit:    def.TargetGasLimit,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal definition", z.Str("version", def.Version))
@@ -847,6 +895,43 @@ func unmarshalDefinitionV1x9(data []byte) (def Definition, err error) {
 	}, nil
 }
 
+func unmarshalDefinitionV1x10(data []byte) (def Definition, err error) {
+	var defJSON definitionJSONv1x10
+	if err := json.Unmarshal(data, &defJSON); err != nil {
+		return Definition{}, errors.Wrap(err, "unmarshal definition v1_10")
+	}
+
+	if len(defJSON.ValidatorAddresses) != defJSON.NumValidators {
+		return Definition{}, errors.New("num_validators not matching validators length")
+	}
+
+	if err := deposit.VerifyDepositAmounts(def.DepositAmounts); err != nil {
+		return Definition{}, errors.Wrap(err, "invalid deposit amounts")
+	}
+
+	return Definition{
+		Name:               defJSON.Name,
+		UUID:               defJSON.UUID,
+		Version:            defJSON.Version,
+		Timestamp:          defJSON.Timestamp,
+		NumValidators:      defJSON.NumValidators,
+		Threshold:          defJSON.Threshold,
+		DKGAlgorithm:       defJSON.DKGAlgorithm,
+		ForkVersion:        defJSON.ForkVersion,
+		ConfigHash:         defJSON.ConfigHash,
+		DefinitionHash:     defJSON.DefinitionHash,
+		Operators:          operatorsFromV1x2orLater(defJSON.Operators),
+		ValidatorAddresses: validatorAddressesFromJSON(defJSON.ValidatorAddresses),
+		Creator: Creator{
+			Address:         defJSON.Creator.Address,
+			ConfigSignature: defJSON.Creator.ConfigSignature,
+		},
+		DepositAmounts:    defJSON.DepositAmounts,
+		ConsensusProtocol: defJSON.ConsensusProtocol,
+		TargetGasLimit:    defJSON.TargetGasLimit,
+	}, nil
+}
+
 // supportEIP712Sigs returns true if the provided definition version supports EIP712 signatures.
 // Note that Definition versions prior to v1.3.0 don't support EIP712 signatures.
 func supportEIP712Sigs(version string) bool {
@@ -856,6 +941,11 @@ func supportEIP712Sigs(version string) bool {
 // supportPartialDeposits returns true if the provided definition version supports partial deposits.
 func supportPartialDeposits(version string) bool {
 	return !isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6, v1_7)
+}
+
+// supportTargetGasLimit returns true if the provided definition version supports custom target gas limit.
+func supportTargetGasLimit(version string) bool {
+	return !isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6, v1_7, v1_8, v1_9)
 }
 
 func eip712SigsPresent(operators []Operator) bool {
@@ -970,6 +1060,26 @@ type definitionJSONv1x9 struct {
 	ForkVersion        ethHex                    `json:"fork_version"`
 	DepositAmounts     []eth2p0.Gwei             `json:"deposit_amounts"`
 	ConsensusProtocol  string                    `json:"consensus_protocol"`
+	ConfigHash         ethHex                    `json:"config_hash"`
+	DefinitionHash     ethHex                    `json:"definition_hash"`
+}
+
+// definitionJSONv1x10 is the json formatter of Definition for versions v1.10 or later.
+type definitionJSONv1x10 struct {
+	Name               string                    `json:"name,omitempty"`
+	Creator            creatorJSON               `json:"creator"`
+	Operators          []operatorJSONv1x2orLater `json:"operators"`
+	UUID               string                    `json:"uuid"`
+	Version            string                    `json:"version"`
+	Timestamp          string                    `json:"timestamp,omitempty"`
+	NumValidators      int                       `json:"num_validators"`
+	Threshold          int                       `json:"threshold"`
+	ValidatorAddresses []validatorAddressesJSON  `json:"validators"`
+	DKGAlgorithm       string                    `json:"dkg_algorithm"`
+	ForkVersion        ethHex                    `json:"fork_version"`
+	DepositAmounts     []eth2p0.Gwei             `json:"deposit_amounts"`
+	ConsensusProtocol  string                    `json:"consensus_protocol"`
+	TargetGasLimit     uint                      `json:"target_gas_limit"`
 	ConfigHash         ethHex                    `json:"config_hash"`
 	DefinitionHash     ethHex                    `json:"definition_hash"`
 }

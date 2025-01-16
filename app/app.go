@@ -95,6 +95,7 @@ type Config struct {
 	ProcDirectory           string
 	ConsensusProtocol       string
 	Nickname                string
+	TargetGasLimit          uint
 
 	TestConfig TestConfig
 }
@@ -490,7 +491,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	dutyDB := dutydb.NewMemDB(deadlinerFunc("dutydb"))
 
-	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, feeRecipientFunc, conf.BuilderAPI, seenPubkeys)
+	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, feeRecipientFunc, conf.BuilderAPI, uint(cluster.GetTargetGasLimit()), seenPubkeys)
 	if err != nil {
 		return err
 	}
