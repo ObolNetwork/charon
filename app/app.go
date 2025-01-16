@@ -95,6 +95,7 @@ type Config struct {
 	ProcDirectory           string
 	ConsensusProtocol       string
 	Nickname                string
+	FallbackBeaconNodeAddrs []string
 
 	TestConfig TestConfig
 }
@@ -853,7 +854,8 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 			return nil, nil, err
 		}
 
-		wrap, err := eth2wrap.Instrument(bmock)
+		fb := eth2wrap.NewFallbackClient(bnTimeout, [4]byte(forkVersion), conf.FallbackBeaconNodeAddrs)
+		wrap, err := eth2wrap.InstrumentWithFallback(fb, bmock)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -886,7 +888,8 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 			return nil, nil, err
 		}
 
-		wrap, err := eth2wrap.Instrument(bmock)
+		fb := eth2wrap.NewFallbackClient(bnTimeout, [4]byte(forkVersion), conf.FallbackBeaconNodeAddrs)
+		wrap, err := eth2wrap.InstrumentWithFallback(fb, bmock)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -909,12 +912,12 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 		log.Info(ctx, "Synthetic block proposals enabled")
 	}
 
-	eth2Cl, err := configureEth2Client(ctx, forkVersion, conf.BeaconNodeAddrs, bnTimeout, conf.SyntheticBlockProposals)
+	eth2Cl, err := configureEth2Client(ctx, forkVersion, conf.FallbackBeaconNodeAddrs, conf.BeaconNodeAddrs, bnTimeout, conf.SyntheticBlockProposals)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new eth2 http client")
 	}
 
-	submissionEth2Cl, err := configureEth2Client(ctx, forkVersion, conf.BeaconNodeAddrs, submissionBnTimeout, conf.SyntheticBlockProposals)
+	submissionEth2Cl, err := configureEth2Client(ctx, forkVersion, conf.FallbackBeaconNodeAddrs, conf.BeaconNodeAddrs, submissionBnTimeout, conf.SyntheticBlockProposals)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new submission eth2 http client")
 	}
@@ -923,8 +926,8 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 }
 
 // configureEth2Client configures a beacon node client with the provided settings.
-func configureEth2Client(ctx context.Context, forkVersion []byte, addrs []string, timeout time.Duration, syntheticBlockProposals bool) (eth2wrap.Client, error) {
-	eth2Cl, err := eth2wrap.NewMultiHTTP(timeout, [4]byte(forkVersion), addrs...)
+func configureEth2Client(ctx context.Context, forkVersion []byte, fallbackAddrs []string, addrs []string, timeout time.Duration, syntheticBlockProposals bool) (eth2wrap.Client, error) {
+	eth2Cl, err := eth2wrap.NewMultiHTTP(timeout, [4]byte(forkVersion), fallbackAddrs, addrs...)
 	if err != nil {
 		return nil, errors.Wrap(err, "new eth2 http client")
 	}

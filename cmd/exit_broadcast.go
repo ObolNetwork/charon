@@ -69,6 +69,7 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 		{testnetChainID, false},
 		{testnetGenesisTimestamp, false},
 		{testnetCapellaHardFork, false},
+		{fallbackBeaconNodeAddrs, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
@@ -121,7 +122,7 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "load cluster lock", z.Str("lock_file_path", config.LockFilePath))
 	}
 
-	eth2Cl, err := eth2Client(ctx, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.GetForkVersion()))
+	eth2Cl, err := eth2Client(ctx, config.FallbackBeaconNodeAddrs, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.GetForkVersion()))
 	if err != nil {
 		return errors.Wrap(err, "create eth2 client for specified beacon node(s)", z.Any("beacon_nodes_endpoints", config.BeaconNodeEndpoints))
 	}

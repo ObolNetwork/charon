@@ -19,25 +19,26 @@ import (
 )
 
 type exitConfig struct {
-	BeaconNodeEndpoints   []string
-	ValidatorPubkey       string
-	ValidatorIndex        uint64
-	ValidatorIndexPresent bool
-	SkipBeaconNodeCheck   bool
-	PrivateKeyPath        string
-	ValidatorKeysDir      string
-	LockFilePath          string
-	PublishAddress        string
-	PublishTimeout        time.Duration
-	ExitEpoch             uint64
-	FetchedExitPath       string
-	PlaintextOutput       bool
-	BeaconNodeTimeout     time.Duration
-	ExitFromFilePath      string
-	ExitFromFileDir       string
-	Log                   log.Config
-	All                   bool
-	testnetConfig         eth2util.Network
+	BeaconNodeEndpoints     []string
+	ValidatorPubkey         string
+	ValidatorIndex          uint64
+	ValidatorIndexPresent   bool
+	SkipBeaconNodeCheck     bool
+	PrivateKeyPath          string
+	ValidatorKeysDir        string
+	LockFilePath            string
+	PublishAddress          string
+	PublishTimeout          time.Duration
+	ExitEpoch               uint64
+	FetchedExitPath         string
+	PlaintextOutput         bool
+	BeaconNodeTimeout       time.Duration
+	ExitFromFilePath        string
+	ExitFromFileDir         string
+	Log                     log.Config
+	All                     bool
+	testnetConfig           eth2util.Network
+	FallbackBeaconNodeAddrs []string
 }
 
 func newExitCmd(cmds ...*cobra.Command) *cobra.Command {
@@ -74,6 +75,7 @@ const (
 	testnetChainID
 	testnetGenesisTimestamp
 	testnetCapellaHardFork
+	fallbackBeaconNodeAddrs
 )
 
 func (ef exitFlag) String() string {
@@ -116,6 +118,8 @@ func (ef exitFlag) String() string {
 		return "testnet-genesis-timestamp"
 	case testnetCapellaHardFork:
 		return "testnet-capella-hard-fork"
+	case fallbackBeaconNodeAddrs:
+		return "fallback-beacon-node-endpoints"
 	default:
 		return "unknown"
 	}
@@ -177,6 +181,8 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 			cmd.Flags().Int64Var(&config.testnetConfig.GenesisTimestamp, "testnet-genesis-timestamp", 0, "Genesis timestamp of the custom test network.")
 		case testnetCapellaHardFork:
 			cmd.Flags().StringVar(&config.testnetConfig.CapellaHardFork, "testnet-capella-hard-fork", "", "Capella hard fork version of the custom test network.")
+		case fallbackBeaconNodeAddrs:
+			cmd.Flags().StringSliceVar(&config.FallbackBeaconNodeAddrs, "fallback-beacon-node-endpoints", nil, "A list of beacon nodes to use if the primary list are offline or unhealthy.")
 		}
 
 		if f.required {
@@ -185,8 +191,8 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 	}
 }
 
-func eth2Client(ctx context.Context, u []string, timeout time.Duration, forkVersion [4]byte) (eth2wrap.Client, error) {
-	cl, err := eth2wrap.NewMultiHTTP(timeout, forkVersion, u...)
+func eth2Client(ctx context.Context, fallbackAddresses []string, u []string, timeout time.Duration, forkVersion [4]byte) (eth2wrap.Client, error) {
+	cl, err := eth2wrap.NewMultiHTTP(timeout, forkVersion, fallbackAddresses, u...)
 	if err != nil {
 		return nil, err
 	}
