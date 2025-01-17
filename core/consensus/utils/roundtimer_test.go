@@ -111,7 +111,7 @@ func TestDoubleEagerLinearRoundTimer(t *testing.T) {
 	stop()
 }
 
-func TestExponentialRoundTimer(t *testing.T) {
+func TestLinearRoundTimer(t *testing.T) {
 	tests := []struct {
 		name  string
 		round int64
@@ -125,12 +125,12 @@ func TestExponentialRoundTimer(t *testing.T) {
 		{
 			name:  "round 2",
 			round: 2,
-			want:  200 * time.Millisecond,
+			want:  400 * time.Millisecond,
 		},
 		{
 			name:  "round 3",
 			round: 3,
-			want:  400 * time.Millisecond,
+			want:  600 * time.Millisecond,
 		},
 		{
 			name:  "round 4",
@@ -141,7 +141,7 @@ func TestExponentialRoundTimer(t *testing.T) {
 
 	for _, tt := range tests {
 		fakeClock := clockwork.NewFakeClock()
-		timer := utils.NewExponentialRoundTimerWithClock(fakeClock)
+		timer := utils.NewLinearRoundTimerWithClock(fakeClock)
 
 		t.Run(tt.name, func(t *testing.T) {
 			// Start the timerType
@@ -170,14 +170,14 @@ func TestGetTimerFunc(t *testing.T) {
 	require.Equal(t, utils.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(2)).Type())
 
 	featureset.DisableForT(t, featureset.EagerDoubleLinear)
-	featureset.EnableForT(t, featureset.Exponential)
+	featureset.EnableForT(t, featureset.Linear)
 
 	timerFunc = utils.GetTimerFunc()
-	require.Equal(t, utils.TimerExponential, timerFunc(core.NewAttesterDuty(0)).Type())
-	require.Equal(t, utils.TimerExponential, timerFunc(core.NewAttesterDuty(1)).Type())
-	require.Equal(t, utils.TimerExponential, timerFunc(core.NewAttesterDuty(2)).Type())
+	require.Equal(t, utils.TimerLinear, timerFunc(core.NewAttesterDuty(0)).Type())
+	require.Equal(t, utils.TimerLinear, timerFunc(core.NewAttesterDuty(1)).Type())
+	require.Equal(t, utils.TimerLinear, timerFunc(core.NewAttesterDuty(2)).Type())
 
-	featureset.DisableForT(t, featureset.Exponential)
+	featureset.DisableForT(t, featureset.Linear)
 
 	timerFunc = utils.GetTimerFunc()
 	require.Equal(t, utils.TimerIncreasing, timerFunc(core.NewAttesterDuty(0)).Type())
