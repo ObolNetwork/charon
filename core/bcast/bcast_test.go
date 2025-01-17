@@ -102,9 +102,9 @@ func attData(t *testing.T, mock *beaconmock.Mock) test {
 	asserted := make(chan struct{})
 
 	var submitted int
-	mock.SubmitAttestationsFunc = func(ctx context.Context, attestations []*eth2spec.VersionedAttestation) error {
-		require.Len(t, attestations, 1)
-		require.Equal(t, aggData.Deneb, *attestations[0])
+	mock.SubmitAttestationsFunc = func(ctx context.Context, attestations *eth2api.SubmitAttestationsOpts) error {
+		require.Len(t, attestations.Attestations, 1)
+		require.Equal(t, aggData.VersionedAttestation, *attestations.Attestations[0])
 
 		submitted++
 		if submitted == 1 {

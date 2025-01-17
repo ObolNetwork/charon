@@ -186,7 +186,7 @@ func TestParSignedData(t *testing.T) {
 
 func TestParSignedDataFromProtoErrors(t *testing.T) {
 	parSig1 := core.ParSignedData{
-		SignedData: core.VersionedAttestation{VersionedAttestation: *testutil.RandomVersionedDenebAttestation()},
+		SignedData: core.SignedAggregateAndProof{*testutil.RandomSignedAggregateAndProof()},
 		ShareIdx:   rand.Intn(100),
 	}
 

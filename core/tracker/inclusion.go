@@ -453,7 +453,7 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 }
 
 func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64) error {
-	atts, err := a.eth2Cl.BlockAttestations(ctx, strconv.FormatUint(slot, 10))
+	atts, err := a.eth2Cl.BlockAttestationsV2(ctx, strconv.FormatUint(slot, 10))
 	if err != nil {
 		return err
 	} else if len(atts) == 0 {

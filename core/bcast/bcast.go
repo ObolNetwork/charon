@@ -55,8 +55,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 			return err
 		}
 
-		// TODO(kalo): go-eth2-client is using phase0 attestations here
-		err = b.eth2Cl.SubmitAttestations(ctx, atts)
+		err = b.eth2Cl.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
 		if err != nil && strings.Contains(err.Error(), "PriorAttestationKnown") {
 			// Lighthouse isn't idempotent, so just swallow this non-issue.
 			// See reference github.com/attestantio/go-eth2-client@v0.11.7/multi/submitattestations.go:38

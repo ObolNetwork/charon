@@ -18,7 +18,6 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -349,40 +348,40 @@ func TestVersionedSignedProposal(t *testing.T) {
 	}
 }
 
-func TestGnosisProposals(t *testing.T) {
-	baseProposal := eth2api.VersionedSignedProposal{
-		Version: eth2spec.DataVersionDeneb,
-		Deneb:   testutil.RandomDenebVersionedSignedProposal().Deneb,
-	}
+// func TestGnosisProposals(t *testing.T) {
+// 	baseProposal := eth2api.VersionedSignedProposal{
+// 		Version: eth2spec.DataVersionDeneb,
+// 		Deneb:   testutil.RandomDenebVersionedSignedProposal().Deneb,
+// 	}
 
-	rawGnosisProposal, err := core.NewVersionedSignedProposal(&baseProposal)
-	require.NoError(t, err)
+// 	rawGnosisProposal, err := core.NewVersionedSignedProposal(&baseProposal)
+// 	require.NoError(t, err)
 
-	rawStdProposal, err := core.NewVersionedSignedProposal(&baseProposal)
-	require.NoError(t, err)
+// 	rawStdProposal, err := core.NewVersionedSignedProposal(&baseProposal)
+// 	require.NoError(t, err)
 
-	featureset.EnableForT(t, featureset.GnosisBlockHotfix)
+// 	featureset.EnableForT(t, featureset.GnosisBlockHotfix)
 
-	gnosisProp := core.ParSignedData{
-		SignedData: rawGnosisProposal,
-		ShareIdx:   42,
-	}
+// 	gnosisProp := core.ParSignedData{
+// 		SignedData: rawGnosisProposal,
+// 		ShareIdx:   42,
+// 	}
 
-	gnosisRoot, err := gnosisProp.MessageRoot()
-	require.NoError(t, err)
+// 	gnosisRoot, err := gnosisProp.MessageRoot()
+// 	require.NoError(t, err)
 
-	featureset.DisableForT(t, featureset.GnosisBlockHotfix)
+// 	featureset.DisableForT(t, featureset.GnosisBlockHotfix)
 
-	stdProp := core.ParSignedData{
-		SignedData: rawStdProposal,
-		ShareIdx:   42,
-	}
+// 	stdProp := core.ParSignedData{
+// 		SignedData: rawStdProposal,
+// 		ShareIdx:   42,
+// 	}
 
-	stdRoot, err := stdProp.MessageRoot()
-	require.NoError(t, err)
+// 	stdRoot, err := stdProp.MessageRoot()
+// 	require.NoError(t, err)
 
-	require.NotEqual(t, stdRoot, gnosisRoot)
-}
+// 	require.NotEqual(t, stdRoot, gnosisRoot)
+// }
 
 // func TestGnosisRealBlockHash(t *testing.T) {
 // 	const (

@@ -109,7 +109,7 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 		parSignedDataA := set[pubkeysByIdx[vIdxA]]
 		actAttA, ok := parSignedDataA.SignedData.(core.VersionedAttestation)
 		require.True(t, ok)
-		require.Equal(t, *attA, actAttA.VersionedAttestation.Deneb)
+		require.Equal(t, *attA, actAttA.VersionedAttestation)
 
 		parSignedDataB := set[pubkeysByIdx[vIdxB]]
 		actAttB, ok := parSignedDataB.SignedData.(core.VersionedAttestation)
@@ -119,7 +119,7 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 		return nil
 	})
 
-	err = component.SubmitAttestations(ctx, atts)
+	err = component.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
 	require.NoError(t, err)
 }
 
@@ -159,7 +159,7 @@ func TestComponent_InvalidSubmitAttestations(t *testing.T) {
 
 	atts := []*eth2spec.VersionedAttestation{att}
 
-	err = component.SubmitAttestations(ctx, atts)
+	err = component.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
 	require.Error(t, err)
 }
 
@@ -335,7 +335,7 @@ func TestSignAndVerify(t *testing.T) {
 			Signature:       sig,
 		},
 	}
-	err = vapi.SubmitAttestations(ctx, []*eth2spec.VersionedAttestation{&att})
+	err = vapi.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: []*eth2spec.VersionedAttestation{&att}})
 	require.NoError(t, err)
 	wg.Wait()
 }
@@ -835,7 +835,7 @@ func TestComponent_SubmitProposalInvalidBlock(t *testing.T) {
 		},
 		{
 			name:   "none",
-			block:  &eth2api.VersionedSignedProposal{Version: eth2spec.DataVersion(6)},
+			block:  &eth2api.VersionedSignedProposal{Version: eth2spec.DataVersion(999)},
 			errMsg: "unsupported version",
 		},
 		{
@@ -1118,7 +1118,7 @@ func TestComponent_SubmitBlindedProposalInvalidBlock(t *testing.T) {
 		},
 		{
 			name:   "none",
-			block:  &eth2api.VersionedSignedBlindedProposal{Version: eth2spec.DataVersion(6)},
+			block:  &eth2api.VersionedSignedBlindedProposal{Version: eth2spec.DataVersion(999)},
 			errMsg: "unsupported version",
 		},
 		{

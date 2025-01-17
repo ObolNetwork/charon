@@ -345,8 +345,7 @@ func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot
 		}
 	}
 
-	// TODO(kalo): go-eth2-client is using phase0 attestations here
-	err := eth2Cl.SubmitAttestations(ctx, atts)
+	err := eth2Cl.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
 	if err != nil {
 		return nil, err
 	}

@@ -274,13 +274,13 @@ func (m multi) AttestationData(ctx context.Context, opts *api.AttestationDataOpt
 }
 
 // SubmitAttestations submits attestations.
-func (m multi) SubmitAttestations(ctx context.Context, attestations []*spec.VersionedAttestation) error {
+func (m multi) SubmitAttestations(ctx context.Context, opts *api.SubmitAttestationsOpts) error {
 	const label = "submit_attestations"
 	defer latency(ctx, label, false)()
 
 	err := submit(ctx, m.clients, m.fallback,
 		func(ctx context.Context, args provideArgs) error {
-			err := args.client.SubmitAttestations(ctx, attestations)
+			err := args.client.SubmitAttestations(ctx, opts)
 			if err != nil {
 				// use a fallback BN if any
 				fe, fallbackErr := args.fallback.pick()
@@ -291,7 +291,7 @@ func (m multi) SubmitAttestations(ctx context.Context, attestations []*spec.Vers
 
 				defer args.fallback.place()
 
-				return fe.SubmitAttestations(ctx, attestations)
+				return fe.SubmitAttestations(ctx, opts)
 			}
 
 			return err
@@ -376,7 +376,7 @@ func (m multi) DepositContract(ctx context.Context, opts *api.DepositContractOpt
 }
 
 // SyncCommitteeDuties obtains sync committee duties.
-// If validatorIndicess is nil it will return all duties for the given epoch.
+// If validatorIndices is nil it will return all duties for the given epoch.
 func (m multi) SyncCommitteeDuties(ctx context.Context, opts *api.SyncCommitteeDutiesOpts) (*api.Response[[]*apiv1.SyncCommitteeDuty], error) {
 	const label = "sync_committee_duties"
 	defer latency(ctx, label, false)()
@@ -922,7 +922,6 @@ func (m multi) NodeVersion(ctx context.Context, opts *api.NodeVersionOpts) (*api
 
 // SubmitProposalPreparations provides the beacon node with information required if a proposal for the given validators
 // shows up in the next epoch.
-// Note this endpoint is cached in go-eth2-client.
 func (m multi) SubmitProposalPreparations(ctx context.Context, preparations []*apiv1.ProposalPreparation) error {
 	const label = "submit_proposal_preparations"
 	defer latency(ctx, label, true)()
@@ -1262,14 +1261,13 @@ func (l *lazy) AttestationData(ctx context.Context, opts *api.AttestationDataOpt
 }
 
 // SubmitAttestations submits attestations.
-func (l *lazy) SubmitAttestations(ctx context.Context, attestations []*spec.VersionedAttestation) (err error) {
+func (l *lazy) SubmitAttestations(ctx context.Context, opts *api.SubmitAttestationsOpts) (err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return err
 	}
 
-	//TODO(kalo): go-eth2-client is using phase0 attestations here
-	return cl.SubmitAttestations(ctx, attestations)
+	return cl.SubmitAttestations(ctx, opts)
 }
 
 // AttesterDuties obtains attester duties.
@@ -1293,7 +1291,7 @@ func (l *lazy) DepositContract(ctx context.Context, opts *api.DepositContractOpt
 }
 
 // SyncCommitteeDuties obtains sync committee duties.
-// If validatorIndicess is nil it will return all duties for the given epoch.
+// If validatorIndices is nil it will return all duties for the given epoch.
 func (l *lazy) SyncCommitteeDuties(ctx context.Context, opts *api.SyncCommitteeDutiesOpts) (res0 *api.Response[[]*apiv1.SyncCommitteeDuty], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {

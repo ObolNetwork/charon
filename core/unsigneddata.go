@@ -10,6 +10,7 @@ import (
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
+	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -168,6 +169,13 @@ func NewVersionedProposal(proposal *eth2api.VersionedProposal) (VersionedProposa
 		if proposal.DenebBlinded == nil && proposal.Blinded {
 			return VersionedProposal{}, errors.New("no deneb blinded block")
 		}
+	case eth2spec.DataVersionElectra:
+		if proposal.Electra == nil && !proposal.Blinded {
+			return VersionedProposal{}, errors.New("no electra block")
+		}
+		if proposal.ElectraBlinded == nil && proposal.Blinded {
+			return VersionedProposal{}, errors.New("no electra blinded block")
+		}
 	default:
 		return VersionedProposal{}, errors.New("unknown version")
 	}
@@ -215,6 +223,12 @@ func (p VersionedProposal) MarshalJSON() ([]byte, error) {
 			marshaller = p.DenebBlinded
 		} else {
 			marshaller = p.Deneb
+		}
+	case eth2spec.DataVersionElectra:
+		if p.Blinded {
+			marshaller = p.ElectraBlinded
+		} else {
+			marshaller = p.Electra
 		}
 	default:
 		return nil, errors.New("unknown version")
@@ -313,6 +327,20 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 				return errors.Wrap(err, "unmarshal deneb")
 			}
 			resp.Deneb = block
+		}
+	case eth2spec.DataVersionElectra:
+		if raw.Blinded {
+			block := new(eth2electra.BlindedBeaconBlock)
+			if err := json.Unmarshal(raw.Block, &block); err != nil {
+				return errors.Wrap(err, "unmarshal electra blinded")
+			}
+			resp.ElectraBlinded = block
+		} else {
+			block := new(eth2electra.BlockContents)
+			if err := json.Unmarshal(raw.Block, &block); err != nil {
+				return errors.Wrap(err, "unmarshal electra")
+			}
+			resp.Electra = block
 		}
 	default:
 		return errors.New("unknown version")

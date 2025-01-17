@@ -7,6 +7,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -89,6 +90,26 @@ func TestMulti_BlockAttestations(t *testing.T) {
 	expectedErr := errors.New("boo")
 	client.On("BlockAttestations", mock.Anything, "state").Return(nil, expectedErr).Once()
 	_, err = m.BlockAttestations(ctx, "state")
+	require.ErrorIs(t, err, expectedErr)
+}
+
+func TestMulti_BlockAttestationsV2(t *testing.T) {
+	ctx := context.Background()
+	atts := make([]*spec.VersionedAttestation, 3)
+
+	client := mocks.NewClient(t)
+	client.On("Address").Return("test").Once()
+	client.On("BlockAttestationsV2", mock.Anything, "state").Return(atts, nil).Once()
+
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, eth2wrap.NewFallbackClient(0, [4]byte{}, nil))
+
+	atts2, err := m.BlockAttestationsV2(ctx, "state")
+	require.NoError(t, err)
+	require.Equal(t, atts, atts2)
+
+	expectedErr := errors.New("boo")
+	client.On("BlockAttestationsV2", mock.Anything, "state").Return(nil, expectedErr).Once()
+	_, err = m.BlockAttestationsV2(ctx, "state")
 	require.ErrorIs(t, err, expectedErr)
 }
 
