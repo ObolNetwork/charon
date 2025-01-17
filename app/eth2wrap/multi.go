@@ -6,6 +6,7 @@ import (
 	"context"
 
 	"github.com/attestantio/go-eth2-client/spec"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
@@ -223,12 +224,13 @@ func (m multi) AggregateSyncCommitteeSelections(ctx context.Context, selections 
 	return res, err
 }
 
-func (m multi) BlockAttestations(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error) {
+// Deprecated: use BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error)
+func (m multi) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
 	const label = "block_attestations"
 	defer latency(ctx, label, false)()
 
 	res, err := provide(ctx, m.clients, m.fallback,
-		func(ctx context.Context, args provideArgs) ([]*spec.VersionedAttestation, error) {
+		func(ctx context.Context, args provideArgs) ([]*eth2p0.Attestation, error) {
 			res, bnErr := args.client.BlockAttestations(ctx, stateID)
 			if bnErr != nil {
 				// use a fallback BN if any
@@ -241,6 +243,38 @@ func (m multi) BlockAttestations(ctx context.Context, stateID string) ([]*spec.V
 				defer args.fallback.place()
 
 				return fe.BlockAttestations(ctx, stateID)
+			}
+
+			return res, bnErr
+		},
+		nil, m.selector,
+	)
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res, err
+}
+
+func (m multi) BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error) {
+	const label = "block_attestations_v2"
+	defer latency(ctx, label, false)()
+
+	res, err := provide(ctx, m.clients, m.fallback,
+		func(ctx context.Context, args provideArgs) ([]*spec.VersionedAttestation, error) {
+			res, bnErr := args.client.BlockAttestationsV2(ctx, stateID)
+			if bnErr != nil {
+				// use a fallback BN if any
+				fe, err := m.fallback.pick()
+				if err != nil {
+					// no fallback endpoint available, return previous error
+					return res, bnErr
+				}
+
+				defer args.fallback.place()
+
+				return fe.BlockAttestationsV2(ctx, stateID)
 			}
 
 			return res, bnErr

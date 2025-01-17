@@ -30,7 +30,7 @@ func TestDuplicateAttData(t *testing.T) {
 	bits3 := testutil.RandomBitList(8)
 	attData := testutil.RandomAttestationData()
 
-	bmock.BlockAttestationsFunc = func(_ context.Context, _ string) ([]*eth2spec.VersionedAttestation, error) {
+	bmock.BlockAttestationsV2Func = func(_ context.Context, _ string) ([]*eth2spec.VersionedAttestation, error) {
 		return []*eth2spec.VersionedAttestation{
 			{Version: eth2spec.DataVersionDeneb, Deneb: &eth2p0.Attestation{AggregationBits: bits1, Data: attData}},
 			{Version: eth2spec.DataVersionDeneb, Deneb: &eth2p0.Attestation{AggregationBits: bits2, Data: attData}},

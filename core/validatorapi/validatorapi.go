@@ -271,7 +271,8 @@ func (c Component) AttestationData(parent context.Context, opts *eth2api.Attesta
 }
 
 // SubmitAttestations implements the eth2client.AttestationsSubmitter for the router.
-func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2spec.VersionedAttestation) error {
+func (c Component) SubmitAttestations(ctx context.Context, attestationOpts *eth2api.SubmitAttestationsOpts) error {
+	attestations := attestationOpts.Attestations
 	att0Data, err := attestations[0].Data()
 	if err != nil {
 		return errors.Wrap(err, "get attestation data")
