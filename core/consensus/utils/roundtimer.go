@@ -178,7 +178,7 @@ func (t *linearRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
 		// First round has 1 second
 		timer = t.clock.NewTimer(time.Second)
 	} else {
-		// Subsequent rounds have linearly more time starting at 200 milliseconds
+		// Subsequent rounds have linearly more time starting at 400 milliseconds
 		timer = t.clock.NewTimer(time.Duration(200*(round-1) + 200))
 	}
 
