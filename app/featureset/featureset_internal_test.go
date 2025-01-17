@@ -16,7 +16,7 @@ func TestAllFeatureStatus(t *testing.T) {
 		ConsensusParticipate,
 		JSONRequests,
 		GnosisBlockHotfix,
-		Exponential,
+		Linear,
 	}
 
 	for _, feature := range features {

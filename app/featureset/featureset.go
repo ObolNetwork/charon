@@ -46,9 +46,9 @@ const (
 	// unless the user disabled this feature explicitly.
 	GnosisBlockHotfix Feature = "gnosis_block_hotfix"
 
-	// Exponential enables Exponential round timer for consensus rounds.
+	// Linear enables Linear round timer for consensus rounds.
 	// When active has precedence over EagerDoubleLinear round timer.
-	Exponential Feature = "exponential"
+	Linear Feature = "linear"
 )
 
 var (
@@ -60,7 +60,7 @@ var (
 		AggSigDBV2:           statusAlpha,
 		JSONRequests:         statusAlpha,
 		GnosisBlockHotfix:    statusAlpha,
-		Exponential:          statusAlpha,
+		Linear:               statusAlpha,
 		// Add all features and there status here.
 	}
 
