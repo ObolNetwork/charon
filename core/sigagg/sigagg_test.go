@@ -112,13 +112,23 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 		sig, err := tbls.Sign(secret, msg[:])
 		require.NoError(t, err)
 
-		partialAtt := att.VersionedAttestation
-		partialAtt.Deneb.Signature = tblsconv.SigToCore(sig).ToETH2()
-		parsig, err := core.NewPartialVersionedAttestation(&partialAtt, shareIdx)
+		signedAttestation, err := core.NewVersionedAttestation(&att.VersionedAttestation)
 		require.NoError(t, err)
 
+		sigCore := tblsconv.SigToCore(sig)
+		signed, err := signedAttestation.SetSignature(sigCore)
+		require.NoError(t, err)
+
+		coreSig, err := tblsconv.SigFromCore(signed.Signature())
+		require.NoError(t, err)
+
+		require.Equal(t, sig, coreSig)
+
 		psigs[shareIdx] = sig
-		parsigs = append(parsigs, parsig)
+		parsigs = append(parsigs, core.ParSignedData{
+			SignedData: signed,
+			ShareIdx:   shareIdx,
+		})
 	}
 
 	// Create expected aggregated signature
