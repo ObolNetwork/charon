@@ -214,8 +214,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	if len(depositAmounts) == 0 {
-		// If partial deposit amounts were not specified, default to single amount of 32ETH.
-		depositAmounts = []eth2p0.Gwei{deposit.DefaultDepositAmount}
+		depositAmounts = deposit.DefaultDepositAmounts()
 	}
 
 	if len(secrets) == 0 {

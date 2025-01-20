@@ -271,6 +271,11 @@ func DedupAmounts(amounts []eth2p0.Gwei) []eth2p0.Gwei {
 	return result
 }
 
+// DefaultDepositAmounts returns the default deposit amounts: 1ETH and 32ETH.
+func DefaultDepositAmounts() []eth2p0.Gwei {
+	return []eth2p0.Gwei{MinDepositAmount, DefaultDepositAmount}
+}
+
 // WriteClusterDepositDataFiles writes deposit-data-*eth.json files for each distinct amount.
 func WriteClusterDepositDataFiles(depositDatas [][]eth2p0.DepositData, network string, clusterDir string, numNodes int) error {
 	// The loop across partial amounts (shall be unique)

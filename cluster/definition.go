@@ -105,7 +105,7 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddresse
 		opt(&def)
 	}
 
-	if len(depositAmounts) > 1 && !supportPartialDeposits(def.Version) {
+	if len(depositAmounts) > 1 && !SupportPartialDeposits(def.Version) {
 		return Definition{}, errors.New("the version does not support partial deposits", z.Str("version", def.Version))
 	}
 
@@ -853,8 +853,8 @@ func supportEIP712Sigs(version string) bool {
 	return !isAnyVersion(version, v1_0, v1_1, v1_2)
 }
 
-// supportPartialDeposits returns true if the provided definition version supports partial deposits.
-func supportPartialDeposits(version string) bool {
+// SupportPartialDeposits returns true if the provided definition version supports partial deposits.
+func SupportPartialDeposits(version string) bool {
 	return !isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6, v1_7)
 }
 

@@ -131,6 +131,15 @@ func TestVerifyDepositAmounts(t *testing.T) {
 	})
 }
 
+func TestDefaultDepositAmounts(t *testing.T) {
+	amounts := deposit.DefaultDepositAmounts()
+
+	require.Equal(t, []eth2p0.Gwei{
+		deposit.MinDepositAmount,
+		deposit.DefaultDepositAmount,
+	}, amounts)
+}
+
 func TestEthsToGweis(t *testing.T) {
 	t.Run("nil slice", func(t *testing.T) {
 		slice := deposit.EthsToGweis(nil)

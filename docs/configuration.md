@@ -88,8 +88,9 @@ on how an individual `distributed_validator` looks like.
 
 The following is the historical change log of the cluster config:
 - `v1.8.0` **default**:
-  - Added the `deposit_amounts` list to cluster lock which contains partial deposit amounts in gwei.
-  - When not specified, the single value of 32ETH will be used. All partial amounts must sum up to at least 32ETH.
+  - Added the `deposit_amounts` list to the cluster lock, which contains partial deposit amounts in gwei.
+  - When specified, the sum of the partial amounts must be between 32 ETH and 2048 ETH.
+  - When not specified, it generates deposits for 1 ETH and 32 ETH amounts.
   - `distributed_validator` structure replaced `deposit_data` with `partial_deposit_data` respectively.
 - `v1.7.0`:
   - Added the `builder_registration` structure to `distributed_validators` list in cluster lock.
