@@ -99,7 +99,7 @@ func TestVerifyDepositAmounts(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("each amount is greater than 1ETH", func(t *testing.T) {
+	t.Run("amount is greater than 1ETH", func(t *testing.T) {
 		amounts := []eth2p0.Gwei{
 			eth2p0.Gwei(500000000),   // 0.5ETH
 			eth2p0.Gwei(31500000000), // 31.5ETH
@@ -107,27 +107,17 @@ func TestVerifyDepositAmounts(t *testing.T) {
 
 		err := deposit.VerifyDepositAmounts(amounts)
 
-		require.ErrorContains(t, err, "each partial deposit amount must be greater than 1ETH")
+		require.ErrorContains(t, err, "partial deposit amount must be greater than 1ETH")
 	})
 
-	t.Run("total sum is at least 32ETH", func(t *testing.T) {
+	t.Run("amount must not exceed 2048ETH", func(t *testing.T) {
 		amounts := []eth2p0.Gwei{
-			eth2p0.Gwei(1000000000),
-			deposit.MaxDepositAmount,
+			deposit.MaxDepositAmount + 1,
 		}
 
 		err := deposit.VerifyDepositAmounts(amounts)
 
-		require.ErrorContains(t, err, "sum of partial deposit amounts must not exceed 2048ETH")
-
-		amounts = []eth2p0.Gwei{
-			eth2p0.Gwei(8000000000),
-			eth2p0.Gwei(16000000000),
-		}
-
-		err = deposit.VerifyDepositAmounts(amounts)
-
-		require.ErrorContains(t, err, "sum of partial deposit amounts must be at least 32ETH")
+		require.ErrorContains(t, err, "partial deposit amount must not exceed 2048ETH")
 	})
 }
 
@@ -270,4 +260,26 @@ func TestDedupAmounts(t *testing.T) {
 	amounts = deposit.DedupAmounts(amounts)
 
 	require.EqualValues(t, []eth2p0.Gwei{0, 100, 300, 500}, amounts)
+}
+
+func TestAddDefaultDepositAmounts(t *testing.T) {
+	amounts := []eth2p0.Gwei{16 * deposit.MinDepositAmount}
+
+	amounts = deposit.AddDefaultDepositAmounts(amounts)
+
+	require.EqualValues(t, []eth2p0.Gwei{
+		deposit.MinDepositAmount,
+		16 * deposit.MinDepositAmount,
+		deposit.DefaultDepositAmount,
+	}, amounts)
+
+	t.Run("dedup", func(t *testing.T) {
+		amounts = deposit.AddDefaultDepositAmounts(amounts)
+
+		require.EqualValues(t, []eth2p0.Gwei{
+			deposit.MinDepositAmount,
+			16 * deposit.MinDepositAmount,
+			deposit.DefaultDepositAmount,
+		}, amounts)
+	})
 }

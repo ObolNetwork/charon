@@ -615,7 +615,7 @@ func createDepositDatas(withdrawalAddresses []string, network string, secrets []
 	if len(depositAmounts) == 0 {
 		return nil, errors.New("empty deposit amounts")
 	}
-	depositAmounts = deposit.DedupAmounts(depositAmounts)
+	depositAmounts = deposit.AddDefaultDepositAmounts(depositAmounts)
 
 	return signDepositDatas(secrets, withdrawalAddresses, network, depositAmounts)
 }

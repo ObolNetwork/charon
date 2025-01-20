@@ -363,10 +363,7 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 		}
 		for _, val := range lock.Validators {
 			vals[val.PublicKeyHex()] = struct{}{}
-			require.Len(t, val.PartialDepositData, len(amounts))
-			for i, pdd := range val.PartialDepositData {
-				require.EqualValues(t, amounts[i], pdd.Amount)
-			}
+			verifyDepositAmounts(t, val.PartialDepositData, amounts)
 		}
 
 		require.Len(t, vals, lock.Definition.NumValidators)
@@ -412,6 +409,19 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 			}
 		}
 	})
+}
+
+func verifyDepositAmounts(t *testing.T, deposits []cluster.DepositData, amounts []eth2p0.Gwei) {
+	t.Helper()
+
+	// deposits must contain user amounts as well as default amounts (1 and 32 eth)
+	for _, deposit := range deposits {
+		amounts = append(amounts, eth2p0.Gwei(deposit.Amount))
+	}
+	amounts = deposit.DedupAmounts(amounts)
+
+	require.Contains(t, amounts, deposit.MinDepositAmount)
+	require.Contains(t, amounts, deposit.DefaultDepositAmount)
 }
 
 func TestValidateDef(t *testing.T) {

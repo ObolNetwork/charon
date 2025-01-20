@@ -206,11 +206,6 @@ func TestValidateDKGConfig(t *testing.T) {
 		require.ErrorContains(t, err, "unsupported network")
 	})
 
-	t.Run("wrong deposit amounts sum", func(t *testing.T) {
-		err := validateDKGConfig(4, "goerli", []int{8, 16}, "")
-		require.ErrorContains(t, err, "sum of partial deposit amounts must be at least 32ETH")
-	})
-
 	t.Run("unsupported consensus protocol", func(t *testing.T) {
 		err := validateDKGConfig(4, "goerli", nil, "unreal")
 		require.ErrorContains(t, err, "unsupported consensus protocol")

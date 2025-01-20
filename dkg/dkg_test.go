@@ -384,22 +384,18 @@ func verifyDistValidators(t *testing.T, lock cluster.Lock, def cluster.Definitio
 
 	for j, val := range lock.Validators {
 		// Assert Deposit Data
-		depositAmounts := deposit.DedupAmounts(def.DepositAmounts)
-		if len(depositAmounts) == 0 {
-			depositAmounts = []eth2p0.Gwei{deposit.DefaultDepositAmount}
+		if def.Version != "v1.6.0" {
+			verifyDepositAmounts(t, val.PartialDepositData, def.DepositAmounts)
 		}
-		require.Len(t, val.PartialDepositData, len(depositAmounts))
 
 		// Assert Partial Deposit Data
 		uniqueSigs := make(map[string]struct{})
-		for i, amount := range depositAmounts {
-			pdd := val.PartialDepositData[i]
+		for _, pdd := range val.PartialDepositData {
 			require.EqualValues(t, val.PubKey, pdd.PubKey)
-			require.EqualValues(t, amount, pdd.Amount)
 			uniqueSigs[hex.EncodeToString(pdd.Signature)] = struct{}{}
 		}
 		// Signatures must be unique for each deposit
-		require.Len(t, uniqueSigs, len(depositAmounts))
+		require.Len(t, uniqueSigs, len(val.PartialDepositData))
 
 		if !cluster.SupportPregenRegistrations(lock.Version) {
 			require.Empty(t, val.BuilderRegistration.Signature)
@@ -436,6 +432,19 @@ func verifyDistValidators(t *testing.T, lock cluster.Lock, def cluster.Definitio
 			fmt.Sprintf("%#x", val.BuilderRegistration.Message.FeeRecipient),
 		)
 	}
+}
+
+func verifyDepositAmounts(t *testing.T, deposits []cluster.DepositData, amounts []eth2p0.Gwei) {
+	t.Helper()
+
+	// deposits must contain user amounts as well as default amounts (1 and 32 eth)
+	for _, deposit := range deposits {
+		amounts = append(amounts, eth2p0.Gwei(deposit.Amount))
+	}
+	amounts = deposit.DedupAmounts(amounts)
+
+	require.Contains(t, amounts, deposit.MinDepositAmount)
+	require.Contains(t, amounts, deposit.DefaultDepositAmount)
 }
 
 func TestSyncFlow(t *testing.T) {

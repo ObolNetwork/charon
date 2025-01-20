@@ -217,21 +217,13 @@ func VerifyDepositAmounts(amounts []eth2p0.Gwei) error {
 		return nil
 	}
 
-	var sum eth2p0.Gwei
 	for _, amount := range amounts {
 		if amount < MinDepositAmount {
-			return errors.New("each partial deposit amount must be greater than 1ETH", z.U64("amount", uint64(amount)))
+			return errors.New("partial deposit amount must be greater than 1ETH", z.U64("amount", uint64(amount)))
 		}
-
-		sum += amount
-	}
-
-	if sum < DefaultDepositAmount {
-		return errors.New("sum of partial deposit amounts must be at least 32ETH", z.U64("sum", uint64(sum)))
-	}
-
-	if sum > MaxDepositAmount {
-		return errors.New("sum of partial deposit amounts must not exceed 2048ETH", z.U64("sum", uint64(sum)))
+		if amount > MaxDepositAmount {
+			return errors.New("partial deposit amount must not exceed 2048ETH", z.U64("sum", uint64(amount)))
+		}
 	}
 
 	return nil
@@ -269,6 +261,13 @@ func DedupAmounts(amounts []eth2p0.Gwei) []eth2p0.Gwei {
 	slices.Sort(result)
 
 	return result
+}
+
+// AddDefaultDepositAmounts adds MinDepositAmount and DefaultDepositAmount to the amounts list.
+func AddDefaultDepositAmounts(amounts []eth2p0.Gwei) []eth2p0.Gwei {
+	amounts = append(amounts, MinDepositAmount, DefaultDepositAmount)
+
+	return DedupAmounts(amounts)
 }
 
 // WriteClusterDepositDataFiles writes deposit-data-*eth.json files for each distinct amount.
