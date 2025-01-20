@@ -134,16 +134,21 @@ func (m multi) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigRespo
 		func(ctx context.Context, args provideArgs) (*eth2exp.ProposerConfigResponse, error) {
 			res, bnErr := args.client.ProposerConfig(ctx)
 			if bnErr != nil {
-				// use a fallback BN if any
-				fe, err := args.fallback.pick()
-				if err != nil {
-					// no fallback endpoint available, return previous error
-					return res, bnErr
+				for {
+					// use a fallback BN if any
+					fe, err := args.fallback.pick()
+					if err != nil {
+						// no fallback endpoint available, return previous error
+						return res, bnErr
+					}
+
+					defer args.fallback.place()
+
+					res, bnErr = fe.ProposerConfig(ctx)
+					if bnErr == nil {
+						return res, bnErr
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.ProposerConfig(ctx)
 			}
 
 			return res, bnErr
@@ -166,16 +171,21 @@ func (m multi) AggregateBeaconCommitteeSelections(ctx context.Context, selection
 		func(ctx context.Context, args provideArgs) ([]*eth2exp.BeaconCommitteeSelection, error) {
 			res, bnErr := args.client.AggregateBeaconCommitteeSelections(ctx, selections)
 			if bnErr != nil {
-				// use a fallback BN if any
-				fe, err := m.fallback.pick()
-				if err != nil {
-					// no fallback endpoint available, return previous error
-					return res, bnErr
+				for {
+					// use a fallback BN if any
+					fe, err := args.fallback.pick()
+					if err != nil {
+						// no fallback endpoint available, return previous error
+						return res, bnErr
+					}
+
+					defer args.fallback.place()
+
+					res, bnErr = fe.AggregateBeaconCommitteeSelections(ctx, selections)
+					if bnErr == nil {
+						return res, bnErr
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.AggregateBeaconCommitteeSelections(ctx, selections)
 			}
 
 			return res, bnErr
@@ -198,16 +208,21 @@ func (m multi) AggregateSyncCommitteeSelections(ctx context.Context, selections 
 		func(ctx context.Context, args provideArgs) ([]*eth2exp.SyncCommitteeSelection, error) {
 			res, bnErr := args.client.AggregateSyncCommitteeSelections(ctx, selections)
 			if bnErr != nil {
-				// use a fallback BN if any
-				fe, err := m.fallback.pick()
-				if err != nil {
-					// no fallback endpoint available, return previous error
-					return res, bnErr
+				for {
+					// use a fallback BN if any
+					fe, err := args.fallback.pick()
+					if err != nil {
+						// no fallback endpoint available, return previous error
+						return res, bnErr
+					}
+
+					defer args.fallback.place()
+
+					res, bnErr = fe.AggregateSyncCommitteeSelections(ctx, selections)
+					if bnErr == nil {
+						return res, bnErr
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.AggregateSyncCommitteeSelections(ctx, selections)
 			}
 
 			return res, bnErr
@@ -231,16 +246,21 @@ func (m multi) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0
 		func(ctx context.Context, args provideArgs) ([]*eth2p0.Attestation, error) {
 			res, bnErr := args.client.BlockAttestations(ctx, stateID)
 			if bnErr != nil {
-				// use a fallback BN if any
-				fe, err := m.fallback.pick()
-				if err != nil {
-					// no fallback endpoint available, return previous error
-					return res, bnErr
+				for {
+					// use a fallback BN if any
+					fe, err := args.fallback.pick()
+					if err != nil {
+						// no fallback endpoint available, return previous error
+						return res, bnErr
+					}
+
+					defer args.fallback.place()
+
+					res, bnErr = fe.BlockAttestations(ctx, stateID)
+					if bnErr == nil {
+						return res, bnErr
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.BlockAttestations(ctx, stateID)
 			}
 
 			return res, bnErr
@@ -263,16 +283,21 @@ func (m multi) NodePeerCount(ctx context.Context) (int, error) {
 		func(ctx context.Context, args provideArgs) (int, error) {
 			res, bnErr := args.client.NodePeerCount(ctx)
 			if bnErr != nil {
-				// use a fallback BN if any
-				fe, err := m.fallback.pick()
-				if err != nil {
-					// no fallback endpoint available, return previous error
-					return res, bnErr
+				for {
+					// use a fallback BN if any
+					fe, err := args.fallback.pick()
+					if err != nil {
+						// no fallback endpoint available, return previous error
+						return res, bnErr
+					}
+
+					defer args.fallback.place()
+
+					res, bnErr = fe.NodePeerCount(ctx)
+					if bnErr == nil {
+						return res, bnErr
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.NodePeerCount(ctx)
 			}
 
 			return res, bnErr

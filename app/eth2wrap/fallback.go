@@ -26,8 +26,7 @@ func NewFallbackClient(timeout time.Duration, forkVersion [4]byte, addresses []s
 	}
 }
 
-// NewFallbackClientT initializes a FallbackClient using already initialized clients
-// for testing.
+// NewFallbackClientT initializes a FallbackClient with initialized clients for testing
 func NewFallbackClientT(clients ...Client) *FallbackClient {
 	return &FallbackClient{
 		clients: clients,

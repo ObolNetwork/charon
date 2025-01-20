@@ -149,16 +149,41 @@ func TestMulti(t *testing.T) {
 func TestFallback(t *testing.T) {
 	tests := []struct {
 		name   string
-		handle func(cl1Ch, cl2Ch chan uint64, ctxCancel context.CancelFunc)
+		handle func(cl1Ch, cl2Ch, cl3Ch, cl4Ch chan uint64)
 		expErr error
 		expRes uint64
 	}{
 		{
-			name: "cl1 error, cl2 ok",
-			handle: func(cl1, cl2 chan uint64, _ context.CancelFunc) {
+			name: "cl1, cl2 error, cl3, cl4 ok",
+			handle: func(cl1, cl2, cl3, cl4 chan uint64) {
 				close(cl1)
-				cl2 <- 99
+				close(cl2)
+				cl3 <- 99
+				cl4 <- 99
 			},
+			expErr: nil,
+			expRes: 99,
+		},
+		{
+			name: "cl1, cl2, cl3 error, cl4 ok",
+			handle: func(cl1, cl2, cl3, cl4 chan uint64) {
+				close(cl1)
+				close(cl2)
+				close(cl3)
+				cl4 <- 99
+			},
+			expErr: nil,
+			expRes: 99,
+		},
+		{
+			name: "cl1, cl2, cl4 error, cl3 ok",
+			handle: func(cl1, cl2, cl3, cl4 chan uint64) {
+				close(cl1)
+				close(cl2)
+				close(cl4)
+				cl3 <- 99
+			},
+			expErr: nil,
 			expRes: 99,
 		},
 	}
@@ -167,44 +192,38 @@ func TestFallback(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			cl1, err := beaconmock.New()
-			require.NoError(t, err)
-			cl2, err := beaconmock.New()
-			require.NoError(t, err)
+			clientGen := func() (beaconmock.Mock, chan uint64) {
+				cl, err := beaconmock.New()
+				require.NoError(t, err)
 
-			cl1Ch := make(chan uint64)
-			cl2Ch := make(chan uint64)
+				clCh := make(chan uint64)
 
-			cl1.SlotsPerEpochFunc = func(ctx context.Context) (uint64, error) {
-				select {
-				case <-ctx.Done():
-					return 0, ctx.Err()
-				case resp, ok := <-cl1Ch:
-					if !ok {
-						return 0, errors.New("closed2")
+				cl.SlotsPerEpochFunc = func(ctx context.Context) (uint64, error) {
+					select {
+					case <-ctx.Done():
+						return 0, ctx.Err()
+					case resp, ok := <-clCh:
+						if !ok {
+							return 0, errors.New("closed1")
+						}
+
+						return resp, nil
 					}
-
-					return resp, nil
 				}
-			}
-			cl2.SlotsPerEpochFunc = func(ctx context.Context) (uint64, error) {
-				select {
-				case <-ctx.Done():
-					return 0, ctx.Err()
-				case resp, ok := <-cl2Ch:
-					if !ok {
-						return 0, errors.New("closed2")
-					}
 
-					return resp, nil
-				}
+				return cl, clCh
 			}
 
-			fb := eth2wrap.NewFallbackClientT(cl2)
-			eth2Cl, err := eth2wrap.InstrumentWithFallback(fb, cl1)
+			cl1, cl1Ch := clientGen()
+			cl2, cl2Ch := clientGen()
+			cl3, cl3Ch := clientGen()
+			cl4, cl4Ch := clientGen()
+
+			fb := eth2wrap.NewFallbackClientT(cl3, cl4)
+			eth2Cl, err := eth2wrap.InstrumentWithFallback(fb, cl1, cl2)
 			require.NoError(t, err)
 
-			go test.handle(cl1Ch, cl2Ch, cancel)
+			go test.handle(cl1Ch, cl2Ch, cl3Ch, cl4Ch)
 
 			resp, err := eth2Cl.SlotsPerEpoch(ctx)
 			require.ErrorIs(t, err, test.expErr)

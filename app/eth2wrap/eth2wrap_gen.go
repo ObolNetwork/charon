@@ -76,16 +76,21 @@ func (m multi) SlotDuration(ctx context.Context) (time.Duration, error) {
 		func(ctx context.Context, args provideArgs) (time.Duration, error) {
 			res0, err := args.client.SlotDuration(ctx)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return res0, err
+					}
+
+					defer args.fallback.place()
+
+					res0, err = fe.SlotDuration(ctx)
+					if err == nil {
+						return res0, err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.SlotDuration(ctx)
 			}
 
 			return res0, err
@@ -112,16 +117,21 @@ func (m multi) SlotsPerEpoch(ctx context.Context) (uint64, error) {
 		func(ctx context.Context, args provideArgs) (uint64, error) {
 			res0, err := args.client.SlotsPerEpoch(ctx)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return res0, err
+					}
+
+					defer args.fallback.place()
+
+					res0, err = fe.SlotsPerEpoch(ctx)
+					if err == nil {
+						return res0, err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.SlotsPerEpoch(ctx)
 			}
 
 			return res0, err
@@ -146,16 +156,21 @@ func (m multi) SignedBeaconBlock(ctx context.Context, opts *api.SignedBeaconBloc
 		func(ctx context.Context, args provideArgs) (*api.Response[*spec.VersionedSignedBeaconBlock], error) {
 			res0, err := args.client.SignedBeaconBlock(ctx, opts)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return res0, err
+					}
+
+					defer args.fallback.place()
+
+					res0, err = fe.SignedBeaconBlock(ctx, opts)
+					if err == nil {
+						return res0, err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.SignedBeaconBlock(ctx, opts)
 			}
 
 			return res0, err
@@ -180,16 +195,21 @@ func (m multi) AggregateAttestation(ctx context.Context, opts *api.AggregateAtte
 		func(ctx context.Context, args provideArgs) (*api.Response[*phase0.Attestation], error) {
 			res0, err := args.client.AggregateAttestation(ctx, opts)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return res0, err
+					}
+
+					defer args.fallback.place()
+
+					res0, err = fe.AggregateAttestation(ctx, opts)
+					if err == nil {
+						return res0, err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.AggregateAttestation(ctx, opts)
 			}
 
 			return res0, err
@@ -214,16 +234,21 @@ func (m multi) SubmitAggregateAttestations(ctx context.Context, aggregateAndProo
 		func(ctx context.Context, args provideArgs) error {
 			err := args.client.SubmitAggregateAttestations(ctx, aggregateAndProofs)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return err
+					}
+
+					defer args.fallback.place()
+
+					err = fe.SubmitAggregateAttestations(ctx, aggregateAndProofs)
+					if err == nil {
+						return err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.SubmitAggregateAttestations(ctx, aggregateAndProofs)
 			}
 
 			return err
@@ -248,16 +273,21 @@ func (m multi) AttestationData(ctx context.Context, opts *api.AttestationDataOpt
 		func(ctx context.Context, args provideArgs) (*api.Response[*phase0.AttestationData], error) {
 			res0, err := args.client.AttestationData(ctx, opts)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return res0, err
+					}
+
+					defer args.fallback.place()
+
+					res0, err = fe.AttestationData(ctx, opts)
+					if err == nil {
+						return res0, err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.AttestationData(ctx, opts)
 			}
 
 			return res0, err
@@ -282,16 +312,21 @@ func (m multi) SubmitAttestations(ctx context.Context, attestations []*phase0.At
 		func(ctx context.Context, args provideArgs) error {
 			err := args.client.SubmitAttestations(ctx, attestations)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return err
+					}
+
+					defer args.fallback.place()
+
+					err = fe.SubmitAttestations(ctx, attestations)
+					if err == nil {
+						return err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.SubmitAttestations(ctx, attestations)
 			}
 
 			return err
@@ -316,16 +351,21 @@ func (m multi) AttesterDuties(ctx context.Context, opts *api.AttesterDutiesOpts)
 		func(ctx context.Context, args provideArgs) (*api.Response[[]*apiv1.AttesterDuty], error) {
 			res0, err := args.client.AttesterDuties(ctx, opts)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return res0, err
+					}
+
+					defer args.fallback.place()
+
+					res0, err = fe.AttesterDuties(ctx, opts)
+					if err == nil {
+						return res0, err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.AttesterDuties(ctx, opts)
 			}
 
 			return res0, err
@@ -350,16 +390,21 @@ func (m multi) DepositContract(ctx context.Context, opts *api.DepositContractOpt
 		func(ctx context.Context, args provideArgs) (*api.Response[*apiv1.DepositContract], error) {
 			res0, err := args.client.DepositContract(ctx, opts)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return res0, err
+					}
+
+					defer args.fallback.place()
+
+					res0, err = fe.DepositContract(ctx, opts)
+					if err == nil {
+						return res0, err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.DepositContract(ctx, opts)
 			}
 
 			return res0, err
@@ -385,16 +430,21 @@ func (m multi) SyncCommitteeDuties(ctx context.Context, opts *api.SyncCommitteeD
 		func(ctx context.Context, args provideArgs) (*api.Response[[]*apiv1.SyncCommitteeDuty], error) {
 			res0, err := args.client.SyncCommitteeDuties(ctx, opts)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return res0, err
+					}
+
+					defer args.fallback.place()
+
+					res0, err = fe.SyncCommitteeDuties(ctx, opts)
+					if err == nil {
+						return res0, err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.SyncCommitteeDuties(ctx, opts)
 			}
 
 			return res0, err
@@ -419,16 +469,21 @@ func (m multi) SubmitSyncCommitteeMessages(ctx context.Context, messages []*alta
 		func(ctx context.Context, args provideArgs) error {
 			err := args.client.SubmitSyncCommitteeMessages(ctx, messages)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return err
+					}
+
+					defer args.fallback.place()
+
+					err = fe.SubmitSyncCommitteeMessages(ctx, messages)
+					if err == nil {
+						return err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.SubmitSyncCommitteeMessages(ctx, messages)
 			}
 
 			return err
@@ -453,16 +508,21 @@ func (m multi) SubmitSyncCommitteeSubscriptions(ctx context.Context, subscriptio
 		func(ctx context.Context, args provideArgs) error {
 			err := args.client.SubmitSyncCommitteeSubscriptions(ctx, subscriptions)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return err
+					}
+
+					defer args.fallback.place()
+
+					err = fe.SubmitSyncCommitteeSubscriptions(ctx, subscriptions)
+					if err == nil {
+						return err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.SubmitSyncCommitteeSubscriptions(ctx, subscriptions)
 			}
 
 			return err
@@ -487,16 +547,21 @@ func (m multi) SyncCommitteeContribution(ctx context.Context, opts *api.SyncComm
 		func(ctx context.Context, args provideArgs) (*api.Response[*altair.SyncCommitteeContribution], error) {
 			res0, err := args.client.SyncCommitteeContribution(ctx, opts)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return res0, err
+					}
+
+					defer args.fallback.place()
+
+					res0, err = fe.SyncCommitteeContribution(ctx, opts)
+					if err == nil {
+						return res0, err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.SyncCommitteeContribution(ctx, opts)
 			}
 
 			return res0, err
@@ -521,16 +586,21 @@ func (m multi) SubmitSyncCommitteeContributions(ctx context.Context, contributio
 		func(ctx context.Context, args provideArgs) error {
 			err := args.client.SubmitSyncCommitteeContributions(ctx, contributionAndProofs)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return err
+					}
+
+					defer args.fallback.place()
+
+					err = fe.SubmitSyncCommitteeContributions(ctx, contributionAndProofs)
+					if err == nil {
+						return err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.SubmitSyncCommitteeContributions(ctx, contributionAndProofs)
 			}
 
 			return err
@@ -555,16 +625,21 @@ func (m multi) Proposal(ctx context.Context, opts *api.ProposalOpts) (*api.Respo
 		func(ctx context.Context, args provideArgs) (*api.Response[*api.VersionedProposal], error) {
 			res0, err := args.client.Proposal(ctx, opts)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return res0, err
+					}
+
+					defer args.fallback.place()
+
+					res0, err = fe.Proposal(ctx, opts)
+					if err == nil {
+						return res0, err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.Proposal(ctx, opts)
 			}
 
 			return res0, err
@@ -589,16 +664,21 @@ func (m multi) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRootOpt
 		func(ctx context.Context, args provideArgs) (*api.Response[*phase0.Root], error) {
 			res0, err := args.client.BeaconBlockRoot(ctx, opts)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return res0, err
+					}
+
+					defer args.fallback.place()
+
+					res0, err = fe.BeaconBlockRoot(ctx, opts)
+					if err == nil {
+						return res0, err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.BeaconBlockRoot(ctx, opts)
 			}
 
 			return res0, err
@@ -623,16 +703,21 @@ func (m multi) SubmitProposal(ctx context.Context, opts *api.SubmitProposalOpts)
 		func(ctx context.Context, args provideArgs) error {
 			err := args.client.SubmitProposal(ctx, opts)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return err
+					}
+
+					defer args.fallback.place()
+
+					err = fe.SubmitProposal(ctx, opts)
+					if err == nil {
+						return err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.SubmitProposal(ctx, opts)
 			}
 
 			return err
@@ -657,16 +742,21 @@ func (m multi) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscript
 		func(ctx context.Context, args provideArgs) error {
 			err := args.client.SubmitBeaconCommitteeSubscriptions(ctx, subscriptions)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return err
+					}
+
+					defer args.fallback.place()
+
+					err = fe.SubmitBeaconCommitteeSubscriptions(ctx, subscriptions)
+					if err == nil {
+						return err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.SubmitBeaconCommitteeSubscriptions(ctx, subscriptions)
 			}
 
 			return err
@@ -691,16 +781,21 @@ func (m multi) SubmitBlindedProposal(ctx context.Context, opts *api.SubmitBlinde
 		func(ctx context.Context, args provideArgs) error {
 			err := args.client.SubmitBlindedProposal(ctx, opts)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return err
+					}
+
+					defer args.fallback.place()
+
+					err = fe.SubmitBlindedProposal(ctx, opts)
+					if err == nil {
+						return err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.SubmitBlindedProposal(ctx, opts)
 			}
 
 			return err
@@ -725,16 +820,21 @@ func (m multi) SubmitValidatorRegistrations(ctx context.Context, registrations [
 		func(ctx context.Context, args provideArgs) error {
 			err := args.client.SubmitValidatorRegistrations(ctx, registrations)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return err
+					}
+
+					defer args.fallback.place()
+
+					err = fe.SubmitValidatorRegistrations(ctx, registrations)
+					if err == nil {
+						return err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.SubmitValidatorRegistrations(ctx, registrations)
 			}
 
 			return err
@@ -759,16 +859,21 @@ func (m multi) Fork(ctx context.Context, opts *api.ForkOpts) (*api.Response[*pha
 		func(ctx context.Context, args provideArgs) (*api.Response[*phase0.Fork], error) {
 			res0, err := args.client.Fork(ctx, opts)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return res0, err
+					}
+
+					defer args.fallback.place()
+
+					res0, err = fe.Fork(ctx, opts)
+					if err == nil {
+						return res0, err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.Fork(ctx, opts)
 			}
 
 			return res0, err
@@ -793,16 +898,21 @@ func (m multi) ForkSchedule(ctx context.Context, opts *api.ForkScheduleOpts) (*a
 		func(ctx context.Context, args provideArgs) (*api.Response[[]*phase0.Fork], error) {
 			res0, err := args.client.ForkSchedule(ctx, opts)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return res0, err
+					}
+
+					defer args.fallback.place()
+
+					res0, err = fe.ForkSchedule(ctx, opts)
+					if err == nil {
+						return res0, err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.ForkSchedule(ctx, opts)
 			}
 
 			return res0, err
@@ -827,16 +937,21 @@ func (m multi) Genesis(ctx context.Context, opts *api.GenesisOpts) (*api.Respons
 		func(ctx context.Context, args provideArgs) (*api.Response[*apiv1.Genesis], error) {
 			res0, err := args.client.Genesis(ctx, opts)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return res0, err
+					}
+
+					defer args.fallback.place()
+
+					res0, err = fe.Genesis(ctx, opts)
+					if err == nil {
+						return res0, err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.Genesis(ctx, opts)
 			}
 
 			return res0, err
@@ -861,16 +976,21 @@ func (m multi) NodeSyncing(ctx context.Context, opts *api.NodeSyncingOpts) (*api
 		func(ctx context.Context, args provideArgs) (*api.Response[*apiv1.SyncState], error) {
 			res0, err := args.client.NodeSyncing(ctx, opts)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return res0, err
+					}
+
+					defer args.fallback.place()
+
+					res0, err = fe.NodeSyncing(ctx, opts)
+					if err == nil {
+						return res0, err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.NodeSyncing(ctx, opts)
 			}
 
 			return res0, err
@@ -895,16 +1015,21 @@ func (m multi) NodeVersion(ctx context.Context, opts *api.NodeVersionOpts) (*api
 		func(ctx context.Context, args provideArgs) (*api.Response[string], error) {
 			res0, err := args.client.NodeVersion(ctx, opts)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return res0, err
+					}
+
+					defer args.fallback.place()
+
+					res0, err = fe.NodeVersion(ctx, opts)
+					if err == nil {
+						return res0, err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.NodeVersion(ctx, opts)
 			}
 
 			return res0, err
@@ -922,7 +1047,6 @@ func (m multi) NodeVersion(ctx context.Context, opts *api.NodeVersionOpts) (*api
 
 // SubmitProposalPreparations provides the beacon node with information required if a proposal for the given validators
 // shows up in the next epoch.
-// Note this endpoint is cached in go-eth2-client.
 func (m multi) SubmitProposalPreparations(ctx context.Context, preparations []*apiv1.ProposalPreparation) error {
 	const label = "submit_proposal_preparations"
 	defer latency(ctx, label, true)()
@@ -931,16 +1055,21 @@ func (m multi) SubmitProposalPreparations(ctx context.Context, preparations []*a
 		func(ctx context.Context, args provideArgs) error {
 			err := args.client.SubmitProposalPreparations(ctx, preparations)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return err
+					}
+
+					defer args.fallback.place()
+
+					err = fe.SubmitProposalPreparations(ctx, preparations)
+					if err == nil {
+						return err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.SubmitProposalPreparations(ctx, preparations)
 			}
 
 			return err
@@ -965,16 +1094,21 @@ func (m multi) ProposerDuties(ctx context.Context, opts *api.ProposerDutiesOpts)
 		func(ctx context.Context, args provideArgs) (*api.Response[[]*apiv1.ProposerDuty], error) {
 			res0, err := args.client.ProposerDuties(ctx, opts)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return res0, err
+					}
+
+					defer args.fallback.place()
+
+					res0, err = fe.ProposerDuties(ctx, opts)
+					if err == nil {
+						return res0, err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.ProposerDuties(ctx, opts)
 			}
 
 			return res0, err
@@ -999,16 +1133,21 @@ func (m multi) Spec(ctx context.Context, opts *api.SpecOpts) (*api.Response[map[
 		func(ctx context.Context, args provideArgs) (*api.Response[map[string]any], error) {
 			res0, err := args.client.Spec(ctx, opts)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return res0, err
+					}
+
+					defer args.fallback.place()
+
+					res0, err = fe.Spec(ctx, opts)
+					if err == nil {
+						return res0, err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.Spec(ctx, opts)
 			}
 
 			return res0, err
@@ -1033,16 +1172,21 @@ func (m multi) Validators(ctx context.Context, opts *api.ValidatorsOpts) (*api.R
 		func(ctx context.Context, args provideArgs) (*api.Response[map[phase0.ValidatorIndex]*apiv1.Validator], error) {
 			res0, err := args.client.Validators(ctx, opts)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return res0, err
+					}
+
+					defer args.fallback.place()
+
+					res0, err = fe.Validators(ctx, opts)
+					if err == nil {
+						return res0, err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.Validators(ctx, opts)
 			}
 
 			return res0, err
@@ -1067,16 +1211,21 @@ func (m multi) SubmitVoluntaryExit(ctx context.Context, voluntaryExit *phase0.Si
 		func(ctx context.Context, args provideArgs) error {
 			err := args.client.SubmitVoluntaryExit(ctx, voluntaryExit)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return err
+					}
+
+					defer args.fallback.place()
+
+					err = fe.SubmitVoluntaryExit(ctx, voluntaryExit)
+					if err == nil {
+						return err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.SubmitVoluntaryExit(ctx, voluntaryExit)
 			}
 
 			return err
@@ -1101,16 +1250,21 @@ func (m multi) Domain(ctx context.Context, domainType phase0.DomainType, epoch p
 		func(ctx context.Context, args provideArgs) (phase0.Domain, error) {
 			res0, err := args.client.Domain(ctx, domainType, epoch)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return res0, err
+					}
+
+					defer args.fallback.place()
+
+					res0, err = fe.Domain(ctx, domainType, epoch)
+					if err == nil {
+						return res0, err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.Domain(ctx, domainType, epoch)
 			}
 
 			return res0, err
@@ -1138,16 +1292,21 @@ func (m multi) GenesisDomain(ctx context.Context, domainType phase0.DomainType) 
 		func(ctx context.Context, args provideArgs) (phase0.Domain, error) {
 			res0, err := args.client.GenesisDomain(ctx, domainType)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return res0, err
+					}
+
+					defer args.fallback.place()
+
+					res0, err = fe.GenesisDomain(ctx, domainType)
+					if err == nil {
+						return res0, err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.GenesisDomain(ctx, domainType)
 			}
 
 			return res0, err
@@ -1172,16 +1331,21 @@ func (m multi) GenesisTime(ctx context.Context) (time.Time, error) {
 		func(ctx context.Context, args provideArgs) (time.Time, error) {
 			res0, err := args.client.GenesisTime(ctx)
 			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
+				for {
+					// use a fallback BN if any
+					fe, fallbackErr := args.fallback.pick()
+					if fallbackErr != nil {
+						// no fallback endpoint available, return previous error
+						return res0, err
+					}
+
+					defer args.fallback.place()
+
+					res0, err = fe.GenesisTime(ctx)
+					if err == nil {
+						return res0, err
+					}
 				}
-
-				defer args.fallback.place()
-
-				return fe.GenesisTime(ctx)
 			}
 
 			return res0, err

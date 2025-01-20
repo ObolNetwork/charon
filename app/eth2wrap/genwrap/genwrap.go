@@ -75,16 +75,21 @@ type Client interface {
 			func(ctx context.Context, args provideArgs) ({{.ResultTypes}}){
 				{{.ResultNames}} := args.client.{{.Name}}({{.ParamNames}})
 				if err != nil {
-					// use a fallback BN if any
-					fe, fallbackErr := args.fallback.pick()
-					if fallbackErr != nil {
-						// no fallback endpoint available, return previous error
-						return {{.ResultNames}}
+					for {
+						// use a fallback BN if any
+						fe, fallbackErr := args.fallback.pick()
+						if fallbackErr != nil {
+							// no fallback endpoint available, return previous error
+							return {{.ResultNames}}
+						}
+
+						defer args.fallback.place()
+
+						{{.ResultNames}} = fe.{{.Name}}({{.ParamNames}})
+						if err == nil {
+							return {{.ResultNames}}
+						}
 					}
-
-					defer args.fallback.place()
-
-					return fe.{{.Name}}({{.ParamNames}})
 				}
 
 				return {{.ResultNames}}
