@@ -244,7 +244,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	// Sign, exchange and aggregate Deposit Data
-	depositAmounts := deposit.AddDefaultDepositAmounts(def.DepositAmounts)
+	depositAmounts := def.DepositAmounts
+	if len(depositAmounts) == 0 {
+		depositAmounts = []eth2p0.Gwei{deposit.DefaultDepositAmount}
+	} else {
+		depositAmounts = deposit.DedupAmounts(depositAmounts)
+	}
 	depositDatas, err := signAndAggDepositData(ctx, ex, shares, def.WithdrawalAddresses(), network, nodeIdx, depositAmounts)
 	if err != nil {
 		return err

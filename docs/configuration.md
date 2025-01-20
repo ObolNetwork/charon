@@ -41,7 +41,7 @@ The schema of the `cluster-definition.json` is defined as:
   ],
   "dkg_algorithm": "foo_dkg_v1" ,               // DKG algorithm for key generation
   "fork_version": "0x00112233",                 // Chain/network identifier
-  "deposit_amounts": [                          // The total must be at least 32ETH
+  "deposit_amounts": [                          // Partial deposit amounts in gwei (must sum up to at least 32ETH)
     "16000000000",
     "16000000000"
   ],
@@ -71,7 +71,7 @@ The `cluster-lock.json` has the following schema:
       "builder_registration": {...}                         // Pre-generated signed builder registration for the validator
     }
   ],
-  "deposit_amounts": [                                      // The total must be at least 32ETH
+  "deposit_amounts": [                                      // Partial deposit amounts in gwei (must sum up to at least 32ETH)
     "16000000000",
     "16000000000"
   ],
@@ -89,7 +89,7 @@ on how an individual `distributed_validator` looks like.
 The following is the historical change log of the cluster config:
 - `v1.8.0` **default**:
   - Added the `deposit_amounts` list to cluster lock which contains partial deposit amounts in gwei.
-  - In addition to user provided amounts, the implementation generates deposit data for 1ETH and 32ETH for future deposits.
+  - When not specified, the single value of 32ETH will be used. All partial amounts must sum up to at least 32ETH.
   - `distributed_validator` structure replaced `deposit_data` with `partial_deposit_data` respectively.
 - `v1.7.0`:
   - Added the `builder_registration` structure to `distributed_validators` list in cluster lock.
