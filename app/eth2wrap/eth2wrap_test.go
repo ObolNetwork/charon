@@ -263,8 +263,8 @@ func TestCtxCancel(t *testing.T) {
 
 func TestBlockAttestations(t *testing.T) {
 	atts := []*eth2spec.VersionedAttestation{
-		testutil.RandomVersionedDenebAttestation(),
-		testutil.RandomVersionedDenebAttestation(),
+		testutil.RandomDenebVersionedAttestation(),
+		testutil.RandomDenebVersionedAttestation(),
 	}
 
 	statusCode := http.StatusOK

@@ -98,7 +98,7 @@ func TestBroadcastOtherDuties(t *testing.T) {
 func attData(t *testing.T, mock *beaconmock.Mock) test {
 	t.Helper()
 
-	aggData := core.VersionedAttestation{VersionedAttestation: *testutil.RandomVersionedDenebAttestation()}
+	aggData := testutil.RandomDenebCoreVersionedAttestation()
 	asserted := make(chan struct{})
 
 	var submitted int

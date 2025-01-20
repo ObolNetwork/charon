@@ -310,7 +310,10 @@ func (c Component) SubmitAttestations(ctx context.Context, attestationOpts *eth2
 				z.Int("commIdx", int(attData.Index)), z.Int("valCommIdx", indices[0]))
 		}
 
-		parSigData := core.NewPartialAttestation(att, c.shareIdx)
+		parSigData, err := core.NewPartialVersionedAttestation(att, c.shareIdx)
+		if err != nil {
+			return err
+		}
 
 		// Verify attestation signature
 		err = c.verifyPartialSig(ctx, parSigData, pubkey)

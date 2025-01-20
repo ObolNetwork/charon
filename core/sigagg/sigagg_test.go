@@ -53,10 +53,11 @@ func TestSigAgg(t *testing.T) {
 	t.Run("partial sigs", func(t *testing.T) {
 		var (
 			parsigs []core.ParSignedData
-			att     = testutil.RandomVersionedDenebAttestation()
+			att     = testutil.RandomDenebVersionedAttestation()
 		)
 		for range peers {
-			parsig := core.NewPartialAttestation(att, 0) // All partial sig with the same shareIdx (0)
+			parsig, err := core.NewPartialVersionedAttestation(att, 0) // All partial sig with the same shareIdx (0)
+			require.NoError(t, err)
 			parsigs = append(parsigs, parsig)
 		}
 
@@ -75,7 +76,7 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 		peers     = 4
 	)
 
-	att := core.NewAttestation(testutil.RandomVersionedDenebAttestation())
+	att := testutil.RandomDenebCoreVersionedAttestation()
 
 	msgRoot, err := att.MessageRoot()
 	require.NoError(t, err)
@@ -112,8 +113,9 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 		require.NoError(t, err)
 
 		partialAtt := att.VersionedAttestation
-		partialAtt.Deneb.Signature = eth2p0.BLSSignature(sig)
-		parsig := core.NewPartialAttestation(&partialAtt, shareIdx)
+		partialAtt.Deneb.Signature = tblsconv.SigToCore(sig).ToETH2()
+		parsig, err := core.NewPartialVersionedAttestation(&partialAtt, shareIdx)
+		require.NoError(t, err)
 
 		psigs[shareIdx] = sig
 		parsigs = append(parsigs, parsig)

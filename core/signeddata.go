@@ -346,7 +346,6 @@ func (p VersionedSignedProposal) MessageRoot() ([32]byte, error) {
 		if p.Blinded {
 			return p.DenebBlinded.Message.HashTreeRoot()
 		}
-
 		// if featureset.Enabled(featureset.GnosisBlockHotfix) {
 		// 	// translate p.Deneb.SignedBlock to its Gnosis associate and return its hash tree root
 		// 	sbGnosis := deneb.BeaconBlockToGnosis(*p.Deneb.SignedBlock.Message)
@@ -354,6 +353,12 @@ func (p VersionedSignedProposal) MessageRoot() ([32]byte, error) {
 		// }
 
 		return p.Deneb.SignedBlock.Message.HashTreeRoot()
+	case eth2spec.DataVersionElectra:
+		if p.Blinded {
+			return p.ElectraBlinded.Message.HashTreeRoot()
+		}
+
+		return p.Electra.SignedBlock.Message.HashTreeRoot()
 	default:
 		panic("unknown version") // Note this is avoided by using `NewVersionedSignedProposal`.
 	}
@@ -533,17 +538,51 @@ type versionedRawAttestationJSON struct {
 	Attestation json.RawMessage      `json:"block"`
 }
 
-// NewAttestation is a convenience function that returns a new wrapped attestation.
-func NewAttestation(att *eth2spec.VersionedAttestation) VersionedAttestation {
-	return VersionedAttestation{VersionedAttestation: *att}
+// NewVersionedAttestation is a convenience function that returns a new wrapped attestation.
+func NewVersionedAttestation(att *eth2spec.VersionedAttestation) (VersionedAttestation, error) {
+	switch att.Version {
+	case eth2spec.DataVersionPhase0:
+		if att.Phase0 == nil {
+			return VersionedAttestation{}, errors.New("no phase0 attestation")
+		}
+	case eth2spec.DataVersionAltair:
+		if att.Altair == nil {
+			return VersionedAttestation{}, errors.New("no altair attestation")
+		}
+	case eth2spec.DataVersionBellatrix:
+		if att.Bellatrix == nil {
+			return VersionedAttestation{}, errors.New("no bellatrix attestation")
+		}
+	case eth2spec.DataVersionCapella:
+		if att.Capella == nil {
+			return VersionedAttestation{}, errors.New("no capella attestation")
+		}
+	case eth2spec.DataVersionDeneb:
+		if att.Deneb == nil {
+			return VersionedAttestation{}, errors.New("no deneb attestation")
+		}
+	case eth2spec.DataVersionElectra:
+		if att.Electra == nil {
+			return VersionedAttestation{}, errors.New("no electra attestation")
+		}
+	default:
+		return VersionedAttestation{}, errors.New("unknown version")
+	}
+
+	return VersionedAttestation{VersionedAttestation: *att}, nil
 }
 
-// NewPartialAttestation is a convenience function that returns a new partially signed attestation.
-func NewPartialAttestation(att *eth2spec.VersionedAttestation, shareIdx int) ParSignedData {
-	return ParSignedData{
-		SignedData: NewAttestation(att),
-		ShareIdx:   shareIdx,
+// NewPartialVersionedAttestation is a convenience function that returns a new partially signed attestation.
+func NewPartialVersionedAttestation(att *eth2spec.VersionedAttestation, shareIdx int) (ParSignedData, error) {
+	wrap, err := NewVersionedAttestation(att)
+	if err != nil {
+		return ParSignedData{}, err
 	}
+
+	return ParSignedData{
+		SignedData: wrap,
+		ShareIdx:   shareIdx,
+	}, nil
 }
 
 // VersionedAttestation is a signed attestation and implements SignedData.

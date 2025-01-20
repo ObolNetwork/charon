@@ -129,12 +129,14 @@ func TestMemDBThreshold(t *testing.T) {
 	})
 
 	pubkey := testutil.RandomCorePubKey(t)
-	att := testutil.RandomVersionedDenebAttestation()
+	att := testutil.RandomDenebVersionedAttestation()
 
 	enqueueN := func() {
 		for i := range n {
-			err := db.StoreExternal(context.Background(), core.NewAttesterDuty(123), core.ParSignedDataSet{
-				pubkey: core.NewPartialAttestation(att, i+1),
+			parAtt, err := core.NewPartialVersionedAttestation(att, i+1)
+			require.NoError(t, err)
+			err = db.StoreExternal(context.Background(), core.NewAttesterDuty(123), core.ParSignedDataSet{
+				pubkey: parAtt,
 			})
 			require.NoError(t, err)
 		}

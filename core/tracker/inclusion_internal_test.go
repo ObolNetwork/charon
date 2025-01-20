@@ -89,7 +89,7 @@ func TestInclusion(t *testing.T) {
 	}
 
 	// Create some duties
-	att1 := testutil.RandomVersionedDenebAttestation()
+	att1 := testutil.RandomDenebVersionedAttestation()
 	att1Data, err := att1.Data()
 	require.NoError(t, err)
 	att1Duty := core.NewAttesterDuty(uint64(att1Data.Slot))
@@ -97,7 +97,7 @@ func TestInclusion(t *testing.T) {
 	agg2 := testutil.RandomSignedAggregateAndProof()
 	agg2Duty := core.NewAggregatorDuty(uint64(agg2.Message.Aggregate.Data.Slot))
 
-	att3 := testutil.RandomVersionedDenebAttestation()
+	att3 := testutil.RandomDenebVersionedAttestation()
 	att3Data, err := att3.Data()
 	require.NoError(t, err)
 	att3Duty := core.NewAttesterDuty(uint64(att3Data.Slot))
@@ -113,11 +113,15 @@ func TestInclusion(t *testing.T) {
 	}
 
 	// Submit all duties
-	err = incl.Submitted(att1Duty, "", core.NewAttestation(att1), 0)
+	incl1, err := core.NewVersionedAttestation(att1)
+	require.NoError(t, err)
+	err = incl.Submitted(att1Duty, "", incl1, 0)
 	require.NoError(t, err)
 	err = incl.Submitted(agg2Duty, "", core.NewSignedAggregateAndProof(agg2), 0)
 	require.NoError(t, err)
-	err = incl.Submitted(att3Duty, "", core.NewAttestation(att3), 0)
+	incl3, err := core.NewVersionedAttestation(att3)
+	require.NoError(t, err)
+	err = incl.Submitted(att3Duty, "", incl3, 0)
 	require.NoError(t, err)
 
 	coreBlock4, err := core.NewVersionedSignedProposal(block4)

@@ -125,7 +125,16 @@ func RandomAttestation() *eth2p0.Attestation {
 	}
 }
 
-func RandomVersionedDenebAttestation() *eth2spec.VersionedAttestation {
+func RandomDenebCoreVersionedAttestation() core.VersionedAttestation {
+	return core.VersionedAttestation{
+		VersionedAttestation: eth2spec.VersionedAttestation{
+			Version: eth2spec.DataVersionDeneb,
+			Deneb:   RandomAttestation(),
+		},
+	}
+}
+
+func RandomDenebVersionedAttestation() *eth2spec.VersionedAttestation {
 	return &eth2spec.VersionedAttestation{
 		Version: eth2spec.DataVersionDeneb,
 		Deneb:   RandomAttestation(),

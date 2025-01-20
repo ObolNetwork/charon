@@ -33,7 +33,7 @@ func TestParSignedDataSetProto(t *testing.T) {
 	}{
 		{
 			Type: core.DutyAttester,
-			Data: core.VersionedAttestation{VersionedAttestation: *testutil.RandomVersionedDenebAttestation()},
+			Data: testutil.RandomDenebCoreVersionedAttestation(),
 		},
 		{
 			Type: core.DutyExit,
@@ -215,7 +215,7 @@ func TestSetSignature(t *testing.T) {
 }
 
 func TestMarshalAttestation(t *testing.T) {
-	att := core.VersionedAttestation{VersionedAttestation: *testutil.RandomVersionedDenebAttestation()}
+	att := testutil.RandomDenebCoreVersionedAttestation()
 
 	b, err := json.Marshal(att)
 	require.NoError(t, err)
@@ -235,7 +235,7 @@ func randomSignedData(t *testing.T) map[core.DutyType]core.SignedData {
 	t.Helper()
 
 	return map[core.DutyType]core.SignedData{
-		core.DutyAttester:                core.NewAttestation(testutil.RandomVersionedDenebAttestation()),
+		core.DutyAttester:                testutil.RandomDenebCoreVersionedAttestation(),
 		core.DutyExit:                    core.NewSignedVoluntaryExit(testutil.RandomExit()),
 		core.DutyRandao:                  core.SignedRandao{SignedEpoch: eth2util.SignedEpoch{Epoch: testutil.RandomEpoch(), Signature: testutil.RandomEth2Signature()}},
 		core.DutyProposer:                testutil.RandomBellatrixCoreVersionedSignedProposal(),
