@@ -23,10 +23,23 @@ import (
 
 // New returns a new fetcher instance.
 func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, builderEnabled bool) (*Fetcher, error) {
+	if eth2Cl == nil {
+		return nil, errors.New("nil eth2cl")
+	}
+
+	// Default graffiti includes version and commit SHA
+	defaultGraffiti := func(core.PubKey) [32]byte {
+		var graffiti [32]byte
+		commitSHA, _ := version.GitCommit()
+		copy(graffiti[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
+		return graffiti
+	}
+
 	return &Fetcher{
 		eth2Cl:           eth2Cl,
 		feeRecipientFunc: feeRecipientFunc,
 		builderEnabled:   builderEnabled,
+		graffitiFunc:     defaultGraffiti,
 	}, nil
 }
 
@@ -38,6 +51,7 @@ type Fetcher struct {
 	aggSigDBFunc     func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
 	awaitAttDataFunc func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 	builderEnabled   bool
+	graffitiFunc     func(core.PubKey) [32]byte // Function to get graffiti for a validator
 }
 
 // Subscribe registers a callback for fetched duties.
@@ -108,6 +122,11 @@ func (f *Fetcher) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubK
 // Note: This is not thread safe and should only be called *before* Fetch.
 func (f *Fetcher) RegisterAwaitAttData(fn func(ctx context.Context, slot uint64, commIdx uint64) (*eth2p0.AttestationData, error)) {
 	f.awaitAttDataFunc = fn
+}
+
+// SetGraffitiFunc sets the function used to get graffiti for a validator.
+func (f *Fetcher) SetGraffitiFunc(fn func(core.PubKey) [32]byte) {
+	f.graffitiFunc = fn
 }
 
 // fetchAttesterData returns the fetched attestation data set for committees and validators in the arg set.
@@ -246,10 +265,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 
 		randao := randaoData.Signature().ToETH2()
 
-		// TODO(dhruv): replace hardcoded graffiti with the one from cluster-lock.json
-		var graffiti [32]byte
-		commitSHA, _ := version.GitCommit()
-		copy(graffiti[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
+		graffiti := f.graffitiFunc(pubkey)
 
 		var bbf uint64
 		if f.builderEnabled {
