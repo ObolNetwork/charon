@@ -25,8 +25,15 @@ type TimerFunc func(core.Duty) RoundTimer
 // GetTimerFunc returns a timer function based on the enabled features.
 func GetTimerFunc() TimerFunc {
 	if featureset.Enabled(featureset.Linear) {
-		return func(core.Duty) RoundTimer {
-			return NewLinearRoundTimer()
+		return func(duty core.Duty) RoundTimer {
+			// Linear timer only affects Proposer duty
+			if duty.Type == core.DutyProposer {
+				return NewLinearRoundTimer()
+			} else if featureset.Enabled(featureset.EagerDoubleLinear) {
+				return NewDoubleEagerLinearRoundTimer()
+			}
+
+			return NewIncreasingRoundTimer()
 		}
 	}
 

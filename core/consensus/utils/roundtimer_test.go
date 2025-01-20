@@ -170,17 +170,28 @@ func TestGetTimerFunc(t *testing.T) {
 	require.Equal(t, utils.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(2)).Type())
 
 	featureset.DisableForT(t, featureset.EagerDoubleLinear)
-	featureset.EnableForT(t, featureset.Linear)
-
-	timerFunc = utils.GetTimerFunc()
-	require.Equal(t, utils.TimerLinear, timerFunc(core.NewAttesterDuty(0)).Type())
-	require.Equal(t, utils.TimerLinear, timerFunc(core.NewAttesterDuty(1)).Type())
-	require.Equal(t, utils.TimerLinear, timerFunc(core.NewAttesterDuty(2)).Type())
-
-	featureset.DisableForT(t, featureset.Linear)
 
 	timerFunc = utils.GetTimerFunc()
 	require.Equal(t, utils.TimerIncreasing, timerFunc(core.NewAttesterDuty(0)).Type())
 	require.Equal(t, utils.TimerIncreasing, timerFunc(core.NewAttesterDuty(1)).Type())
 	require.Equal(t, utils.TimerIncreasing, timerFunc(core.NewAttesterDuty(2)).Type())
+
+	featureset.EnableForT(t, featureset.Linear)
+
+	timerFunc = utils.GetTimerFunc()
+	// non proposer duty, defaults to increasing
+	require.Equal(t, utils.TimerIncreasing, timerFunc(core.NewAttesterDuty(0)).Type())
+	require.Equal(t, utils.TimerIncreasing, timerFunc(core.NewAttesterDuty(1)).Type())
+	require.Equal(t, utils.TimerIncreasing, timerFunc(core.NewAttesterDuty(2)).Type())
+
+	featureset.EnableForT(t, featureset.EagerDoubleLinear)
+	// non proposer duty, defaults to eager
+	require.Equal(t, utils.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(0)).Type())
+	require.Equal(t, utils.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(1)).Type())
+	require.Equal(t, utils.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(2)).Type())
+
+	// proposer duty, uses linear
+	require.Equal(t, utils.TimerLinear, timerFunc(core.NewProposerDuty(0)).Type())
+	require.Equal(t, utils.TimerLinear, timerFunc(core.NewProposerDuty(1)).Type())
+	require.Equal(t, utils.TimerLinear, timerFunc(core.NewProposerDuty(2)).Type())
 }
