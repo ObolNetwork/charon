@@ -172,6 +172,7 @@ func TestFallback(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var fallbackCalled bool
+			var primaryCalledMu sync.Mutex
 			primaryCalled := make([]bool, len(tt.primaryErrs))
 
 			// Create primary clients
@@ -179,9 +180,11 @@ func TestFallback(t *testing.T) {
 			for i, primaryErr := range tt.primaryErrs {
 				cl, err := beaconmock.New()
 				require.NoError(t, err)
-				i := i // capture loop variable
+
 				cl.SlotsPerEpochFunc = func(context.Context) (uint64, error) {
+					primaryCalledMu.Lock()
 					primaryCalled[i] = true
+					primaryCalledMu.Unlock()
 					return 42, primaryErr
 				}
 				primaryClients[i] = cl
@@ -196,12 +199,16 @@ func TestFallback(t *testing.T) {
 			}
 
 			eth2Cl, _ := eth2wrap.Instrument(primaryClients, []eth2wrap.Client{fallback})
-			eth2Cl.SlotsPerEpoch(context.Background())
+			res, err := eth2Cl.SlotsPerEpoch(context.Background())
+			require.NoError(t, err)
+			require.Equal(t, uint64(42), res)
 
 			// Verify all primaries were called
+			primaryCalledMu.Lock()
 			for i, called := range primaryCalled {
 				require.True(t, called, "primary client %d was not called", i)
 			}
+			primaryCalledMu.Unlock()
 
 			// Verify fallback behavior
 			require.Equal(t, tt.expectFallbackCalls, fallbackCalled,
