@@ -713,7 +713,7 @@ func (a VersionedAttestation) MarshalJSON() ([]byte, error) {
 func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
 	var raw versionedRawAttestationJSON
 	if err := json.Unmarshal(b, &raw); err != nil {
-		return errors.Wrap(err, "unmarshal block")
+		return errors.Wrap(err, "unmarshal attestation")
 	}
 
 	resp := eth2spec.VersionedAttestation{Version: raw.Version.ToETH2()}
@@ -729,35 +729,35 @@ func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
 		att := new(eth2p0.Attestation)
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
-			return errors.Wrap(err, "unmarshal phase0")
+			return errors.Wrap(err, "unmarshal altair")
 		}
 		resp.Altair = att
 	case eth2spec.DataVersionBellatrix:
 		att := new(eth2p0.Attestation)
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
-			return errors.Wrap(err, "unmarshal phase0")
+			return errors.Wrap(err, "unmarshal bellatrix")
 		}
 		resp.Bellatrix = att
 	case eth2spec.DataVersionCapella:
 		att := new(eth2p0.Attestation)
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
-			return errors.Wrap(err, "unmarshal phase0")
+			return errors.Wrap(err, "unmarshal capella")
 		}
 		resp.Capella = att
 	case eth2spec.DataVersionDeneb:
 		att := new(eth2p0.Attestation)
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
-			return errors.Wrap(err, "unmarshal phase0")
+			return errors.Wrap(err, "unmarshal deneb")
 		}
 		resp.Deneb = att
 	case eth2spec.DataVersionElectra:
 		att := new(eth2e.Attestation)
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
-			return errors.Wrap(err, "unmarshal phase0")
+			return errors.Wrap(err, "unmarshal electra")
 		}
 		resp.Electra = att
 	default:
