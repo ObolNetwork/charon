@@ -249,7 +249,7 @@ func writeDepositDatas(ctx context.Context, clusterDir string, numOps int, secre
 
 	var depositDatas []eth2p0.DepositData
 	for i, val := range vals {
-		depositMsg, err := deposit.NewMessage(eth2p0.BLSPubKey(val.GetPublicKey()), val.GetWithdrawalAddress(), deposit.MaxDepositAmount)
+		depositMsg, err := deposit.NewMessage(eth2p0.BLSPubKey(val.GetPublicKey()), val.GetWithdrawalAddress(), deposit.DefaultDepositAmount)
 		if err != nil {
 			return errors.Wrap(err, "new deposit message")
 		}
