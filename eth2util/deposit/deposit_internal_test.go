@@ -10,7 +10,7 @@ import (
 )
 
 func TestWithdrawalCredentials(t *testing.T) {
-	expectedWithdrawalCreds := "010000000000000000000000c0404ed740a69d11201f5ed297c5732f562c6e4e"
+	expectedWithdrawalCreds := "020000000000000000000000c0404ed740a69d11201f5ed297c5732f562c6e4e"
 	creds, err := withdrawalCredsFromAddr("0xc0404ed740a69d11201f5ed297c5732f562c6e4e")
 	require.NoError(t, err)
 
