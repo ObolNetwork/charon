@@ -14,7 +14,7 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
-// DistValidator is a distributed validator (1x32ETH) managed by the cluster.
+// DistValidator is a distributed validator managed by the cluster.
 type DistValidator struct {
 	// PubKey is the distributed validator group public key.
 	PubKey []byte `json:"distributed_public_key" lock_hash:"0" ssz:"Bytes48"`
