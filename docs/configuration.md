@@ -87,7 +87,13 @@ on how an individual `distributed_validator` looks like.
 ### Cluster Config Change Log
 
 The following is the historical change log of the cluster config:
-- `v1.8.0` **default**:
+- `v1.10.0` **default**:
+  - Added the `target_gas_limit` field to cluster lock which contains the prefered target gas limit for transactions.
+  - When not specified, the default value of `36000000` will be used.
+- `v1.9.0`:
+  - Added the `consensus_protocol` field to cluster lock which contains the prefered consensus protocol for the cluster.
+  - When not specified, the default value of `qbft` will be used.
+- `v1.8.0`:
   - Added the `deposit_amounts` list to cluster lock which contains partial deposit amounts in gwei.
   - When not specified, the single value of 32ETH will be used. All partial amounts must sum up to 32ETH.
   - `distributed_validator` structure replaced `deposit_data` with `partial_deposit_data` respectively.
