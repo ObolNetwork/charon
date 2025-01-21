@@ -105,7 +105,7 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddresse
 		opt(&def)
 	}
 
-	if len(depositAmounts) > 1 && !supportPartialDeposits(def.Version) {
+	if len(depositAmounts) > 1 && !SupportPartialDeposits(def.Version) {
 		return Definition{}, errors.New("the version does not support partial deposits", z.Str("version", def.Version))
 	}
 
@@ -133,7 +133,7 @@ type Definition struct {
 	// Note that this was added in v1.1.0, so may be empty for older versions.
 	Timestamp string `config_hash:"3" definition_hash:"3" json:"timestamp" ssz:"ByteList[32]"`
 
-	// NumValidators is the number of DVs (n*32ETH) to be created in the cluster lock file.
+	// NumValidators is the number of DVs to be created in the cluster lock file.
 	NumValidators int `config_hash:"4" definition_hash:"4" json:"num_validators" ssz:"uint64"`
 
 	// Threshold required for signature reconstruction. Defaults to safe value for number of nodes/peers.
@@ -154,7 +154,7 @@ type Definition struct {
 	// ValidatorAddresses define addresses of each validator.
 	ValidatorAddresses []ValidatorAddresses `config_hash:"10" definition_hash:"10" json:"validators" ssz:"CompositeList[65536]"`
 
-	// DepositAmounts specifies partial deposit amounts that sum up to 32ETH.
+	// DepositAmounts specifies partial deposit amounts that sum up to [32ETH..2048ETH].
 	DepositAmounts []eth2p0.Gwei `config_hash:"11" definition_hash:"11" json:"deposit_amounts" ssz:"uint64[256]"`
 
 	// ConsensusProtocol is the consensus protocol name preferred by the cluster, e.g. "abft".
@@ -853,8 +853,8 @@ func supportEIP712Sigs(version string) bool {
 	return !isAnyVersion(version, v1_0, v1_1, v1_2)
 }
 
-// supportPartialDeposits returns true if the provided definition version supports partial deposits.
-func supportPartialDeposits(version string) bool {
+// SupportPartialDeposits returns true if the provided definition version supports partial deposits.
+func SupportPartialDeposits(version string) bool {
 	return !isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6, v1_7)
 }
 
