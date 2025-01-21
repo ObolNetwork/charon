@@ -184,7 +184,7 @@ func provide[O any](ctx context.Context, clients []Client, fallbacks []Client,
 	}
 
 	output, err := runForkJoin(clients)
-	if err == nil || ctx.Err() != nil {
+	if err == nil || ctx.Err() != nil || len(fallbacks) == 0 {
 		return output, err
 	}
 
