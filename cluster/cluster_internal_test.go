@@ -286,6 +286,6 @@ func RandomDepositDataSeed(r *rand.Rand) DepositData {
 }
 
 func TestSupportPartialDeposits(t *testing.T) {
-	require.True(t, supportPartialDeposits(MinVersionForPartialDeposits))
-	require.False(t, supportPartialDeposits(v1_7))
+	require.True(t, SupportPartialDeposits(MinVersionForPartialDeposits))
+	require.False(t, SupportPartialDeposits(v1_7))
 }

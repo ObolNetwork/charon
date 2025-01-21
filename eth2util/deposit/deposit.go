@@ -31,11 +31,14 @@ var (
 	// Minimum allowed deposit amount (1ETH).
 	MinDepositAmount = eth2p0.Gwei(1000000000)
 
-	// Maximum allowed deposit amount (32ETH).
-	MaxDepositAmount = eth2p0.Gwei(32000000000)
+	// Maximum allowed deposit amount (2048ETH).
+	MaxDepositAmount = eth2p0.Gwei(2048000000000)
 
-	// https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/validator.md#eth1_address_withdrawal_prefix
-	eth1AddressWithdrawalPrefix = []byte{0x01}
+	// Default deposit amount (32ETH).
+	DefaultDepositAmount = eth2p0.Gwei(32000000000)
+
+	// https://eips.ethereum.org/EIPS/eip-7251
+	eip7251AddressWithdrawalPrefix = []byte{0x02}
 
 	// DOMAIN_DEPOSIT. See spec: https://benjaminion.xyz/eth2-annotated-spec/phase0/beacon-chain/#domain-types
 	depositDomainType = eth2p0.DomainType([4]byte{0x03, 0x00, 0x00, 0x00})
@@ -56,7 +59,7 @@ func NewMessage(pubkey eth2p0.BLSPubKey, withdrawalAddr string, amount eth2p0.Gw
 	}
 
 	if amount > MaxDepositAmount {
-		return eth2p0.DepositMessage{}, errors.New("deposit message maximum amount must <= 32ETH", z.U64("amount", uint64(amount)))
+		return eth2p0.DepositMessage{}, errors.New("deposit message maximum amount exceeded", z.U64("amount", uint64(amount)), z.U64("max", uint64(MaxDepositAmount)))
 	}
 
 	return eth2p0.DepositMessage{
@@ -175,7 +178,7 @@ func GetMessageSigningRoot(msg eth2p0.DepositMessage, network string) ([32]byte,
 	return resp, nil
 }
 
-// withdrawalCredsFromAddr returns the Withdrawal Credentials corresponding to a '0x01' Ethereum withdrawal address.
+// withdrawalCredsFromAddr returns the Withdrawal Credentials.
 func withdrawalCredsFromAddr(addr string) ([32]byte, error) {
 	// Check for validity of address.
 	if _, err := eth2util.ChecksumAddress(addr); err != nil {
@@ -188,8 +191,8 @@ func withdrawalCredsFromAddr(addr string) ([32]byte, error) {
 	}
 
 	var creds [32]byte
-	copy(creds[0:], eth1AddressWithdrawalPrefix) // Add 1 byte prefix.
-	copy(creds[12:], addrBytes)                  // Add 20 bytes of ethereum address suffix.
+	copy(creds[0:], eip7251AddressWithdrawalPrefix) // Add 1 byte prefix.
+	copy(creds[12:], addrBytes)                     // Add 20 bytes of ethereum address suffix.
 
 	return creds, nil
 }
@@ -223,8 +226,12 @@ func VerifyDepositAmounts(amounts []eth2p0.Gwei) error {
 		sum += amount
 	}
 
-	if sum != MaxDepositAmount {
-		return errors.New("sum of partial deposit amounts must sum up to 32ETH", z.U64("sum", uint64(sum)))
+	if sum < DefaultDepositAmount {
+		return errors.New("sum of partial deposit amounts must be at least 32ETH", z.U64("sum", uint64(sum)))
+	}
+
+	if sum > MaxDepositAmount {
+		return errors.New("sum of partial deposit amounts must not exceed 2048ETH", z.U64("sum", uint64(sum)))
 	}
 
 	return nil
@@ -262,6 +269,11 @@ func DedupAmounts(amounts []eth2p0.Gwei) []eth2p0.Gwei {
 	slices.Sort(result)
 
 	return result
+}
+
+// DefaultDepositAmounts returns the default deposit amounts: 1ETH and 32ETH.
+func DefaultDepositAmounts() []eth2p0.Gwei {
+	return []eth2p0.Gwei{MinDepositAmount, DefaultDepositAmount}
 }
 
 // WriteClusterDepositDataFiles writes deposit-data-*eth.json files for each distinct amount.
@@ -316,7 +328,7 @@ func WriteDepositDataFile(depositDatas []eth2p0.DepositData, network string, dat
 // GetDepositFilePath constructs and return deposit-data file path.
 func GetDepositFilePath(dataDir string, amount eth2p0.Gwei) string {
 	var filename string
-	if amount == MaxDepositAmount {
+	if amount == DefaultDepositAmount {
 		// For backward compatibility, use the old filename.
 		filename = "deposit-data.json"
 	} else {
