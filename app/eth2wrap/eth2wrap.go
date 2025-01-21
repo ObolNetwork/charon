@@ -79,9 +79,8 @@ func NewMultiHTTP(timeout time.Duration, forkVersion [4]byte, headers map[string
 	)
 }
 
-// NewFallbacks returns a slice of Client initialized with the provided settings.
-// TODO (diogo): could make newClients public instead of creating this one
-func NewFallbacks(timeout time.Duration, forkVersion [4]byte, headers map[string]string, addresses []string) []Client {
+// NewSimnetFallbacks returns a slice of Client initialized with the provided settings. Used in Simnet setting.
+func NewSimnetFallbacks(timeout time.Duration, forkVersion [4]byte, headers map[string]string, addresses []string) []Client {
 	var clients []Client
 	for _, address := range addresses {
 		clients = append(clients, newBeaconClient(timeout, forkVersion, headers, address))

@@ -860,7 +860,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 		if err != nil {
 			return nil, nil, err
 		}
-		fb := eth2wrap.NewFallbacks(bnTimeout, [4]byte(forkVersion), beaconNodeHeaders, conf.FallbackBeaconNodeAddrs)
+		fb := eth2wrap.NewSimnetFallbacks(bnTimeout, [4]byte(forkVersion), beaconNodeHeaders, conf.FallbackBeaconNodeAddrs)
 		wrap, err := eth2wrap.Instrument([]eth2wrap.Client{bmock}, fb)
 		if err != nil {
 			return nil, nil, err
@@ -898,7 +898,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 		if err != nil {
 			return nil, nil, err
 		}
-		fb := eth2wrap.NewFallbacks(bnTimeout, [4]byte(forkVersion), beaconNodeHeaders, conf.FallbackBeaconNodeAddrs)
+		fb := eth2wrap.NewSimnetFallbacks(bnTimeout, [4]byte(forkVersion), beaconNodeHeaders, conf.FallbackBeaconNodeAddrs)
 		wrap, err := eth2wrap.Instrument([]eth2wrap.Client{bmock}, fb)
 		if err != nil {
 			return nil, nil, err
