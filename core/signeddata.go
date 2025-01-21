@@ -535,7 +535,7 @@ type versionedRawBlockJSON struct {
 // versionedRawAttestationJSON is a custom VersionedAttestation serialiser.
 type versionedRawAttestationJSON struct {
 	Version     eth2util.DataVersion `json:"version"`
-	Attestation json.RawMessage      `json:"block"`
+	Attestation json.RawMessage      `json:"attestation"`
 }
 
 // NewVersionedAttestation is a convenience function that returns a new wrapped attestation.

@@ -1,6 +1,6 @@
 {
   "version": 5,
-  "block": {
+  "attestation": {
     "aggregation_bits": "0x0272908d45b01601",
     "data": {
       "slot": "3748136313440833973",
