@@ -178,7 +178,7 @@ func GetMessageSigningRoot(msg eth2p0.DepositMessage, network string) ([32]byte,
 	return resp, nil
 }
 
-// withdrawalCredsFromAddr returns the Withdrawal Credentials corresponding to a '0x01' Ethereum withdrawal address.
+// withdrawalCredsFromAddr returns the Withdrawal Credentials.
 func withdrawalCredsFromAddr(addr string) ([32]byte, error) {
 	// Check for validity of address.
 	if _, err := eth2util.ChecksumAddress(addr); err != nil {
