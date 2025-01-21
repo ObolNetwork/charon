@@ -112,7 +112,7 @@ func TestVerifyDepositAmounts(t *testing.T) {
 
 	t.Run("total sum is at least 32ETH", func(t *testing.T) {
 		amounts := []eth2p0.Gwei{
-			eth2p0.Gwei(1000000000),
+			deposit.MinDepositAmount,
 			deposit.MaxDepositAmount,
 		}
 
