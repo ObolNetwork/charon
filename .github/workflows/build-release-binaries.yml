@@ -1,0 +1,99 @@
+name: Build and Release Binaries
+
+on:
+  push:
+    branches:
+      - main*
+    tags:
+      - 'v*'
+
+jobs:
+  build-binaries:
+    runs-on: ubuntu-latest
+    name: Build Cross-Platform Binaries
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.23.4'
+
+    - name: Get app/version.Version from the code
+      if: github.ref_type == 'branch'
+      run: |
+        VERSION=$(grep 'var version' app/version/version.go | cut -d'"' -f2)
+        echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
+        echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
+
+    - name: Set version from git tag
+      if: github.ref_type == 'tag'
+      run: |
+        echo "APP_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+        echo "RELEASE_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+        echo "GO_BUILD_FLAG=-ldflags=-X github.com/obolnetwork/charon/app/version.version=${{ github.ref_name }}" >> $GITHUB_ENV
+
+    - name: Set build flags for branch
+      if: github.ref_type == 'branch'
+      run: |
+        echo "GO_BUILD_FLAG=-ldflags=-X github.com/obolnetwork/charon/app/version.version=${{ env.APP_VERSION }}" >> $GITHUB_ENV
+
+    - name: Install cross-compilation dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential gcc-aarch64-linux-gnu
+
+    - name: Build x86_64 binary
+      run: |
+        mkdir -p dist
+        docker run --rm --platform linux/amd64 \
+          -v $(pwd):/workspace -w /workspace \
+          golang:1.23.4-bookworm \
+          bash -c "apt-get update && apt-get install -y build-essential && \
+          env CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
+          go build -tags='netgo osusergo' ${{ env.GO_BUILD_FLAG }} \
+          -o dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64"
+
+    - name: Build ARM64 binary
+      run: |
+        docker run --rm --platform linux/amd64 \
+          -v $(pwd):/workspace -w /workspace \
+          golang:1.23.4-bookworm \
+          bash -c "apt-get update && apt-get install -y gcc-aarch64-linux-gnu && \
+          env CGO_ENABLED=1 GOOS=linux GOARCH=arm64 CC=aarch64-linux-gnu-gcc \
+          go build -tags='netgo osusergo' ${{ env.GO_BUILD_FLAG }} \
+          -o dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64"
+
+    - name: Create release archives
+      run: |
+        cd dist
+        tar czf charon-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz charon-${{ env.RELEASE_VERSION }}-linux-amd64
+        tar czf charon-${{ env.RELEASE_VERSION }}-linux-arm64.tar.gz charon-${{ env.RELEASE_VERSION }}-linux-arm64
+        sha256sum charon-${{ env.RELEASE_VERSION }}-linux-* > checksums.txt
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: charon-${{ env.RELEASE_VERSION }}-binaries
+        path: |
+          dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64
+          dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64
+          dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz
+          dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64.tar.gz
+          dist/checksums.txt
+
+    - name: Create GitHub Release
+      if: github.ref_type == 'tag'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz
+          dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64.tar.gz
+          dist/checksums.txt
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
