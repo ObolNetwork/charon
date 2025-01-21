@@ -134,7 +134,7 @@ func TestMulti(t *testing.T) {
 				}
 			}
 
-			eth2Cl, err := eth2wrap.InstrumentWithFallback(&eth2wrap.FallbackClient{}, cl1, cl2)
+			eth2Cl, err := eth2wrap.Instrument([]eth2wrap.Client{cl1, cl2}, nil)
 			require.NoError(t, err)
 
 			go test.handle(cl1Resp, cl2Resp, cancel)
@@ -163,6 +163,26 @@ func TestFallback(t *testing.T) {
 		config testConfig
 		expErr error
 	}{
+		{
+			name: "healthy",
+			config: testConfig{
+				mainClients:   2,
+				fallbackCount: 2,
+				expectedValue: 99,
+				channelStatus: []bool{true, true, true, true},
+			},
+			expErr: nil,
+		},
+		{
+			name: "sick",
+			config: testConfig{
+				mainClients:   2,
+				fallbackCount: 2,
+				expectedValue: 99,
+				channelStatus: []bool{false, false, true, true},
+			},
+			expErr: nil,
+		},
 		{
 			name: "main1 error, fb1, fb2 ok",
 			config: testConfig{
@@ -319,14 +339,13 @@ func TestFallback(t *testing.T) {
 			for i := 0; i < test.config.fallbackCount; i++ {
 				fallbackClients[i] = clients[len(clients)-test.config.fallbackCount+i]
 			}
-			fb := eth2wrap.NewFallbackClientT(fallbackClients...)
 
 			mainClients := make([]eth2wrap.Client, test.config.mainClients)
 			for i := 0; i < test.config.mainClients; i++ {
 				mainClients[i] = clients[i]
 			}
 
-			eth2Cl, err := eth2wrap.InstrumentWithFallback(fb, mainClients...)
+			eth2Cl, err := eth2wrap.Instrument(mainClients, fallbackClients)
 			require.NoError(t, err)
 
 			for i, status := range test.config.channelStatus {
@@ -359,7 +378,7 @@ func TestSyncState(t *testing.T) {
 		return &eth2v1.SyncState{IsSyncing: true}, nil
 	}
 
-	eth2Cl, err := eth2wrap.InstrumentWithFallback(&eth2wrap.FallbackClient{}, cl1, cl2)
+	eth2Cl, err := eth2wrap.Instrument([]eth2wrap.Client{cl1, cl2}, nil)
 	require.NoError(t, err)
 
 	resp, err := eth2Cl.NodeSyncing(context.Background(), nil)
@@ -371,7 +390,7 @@ func TestErrors(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("network dial error", func(t *testing.T) {
-		cl, err := eth2wrap.NewMultiHTTP(time.Hour, [4]byte{}, []string{}, map[string]string{}, "localhost:22222")
+		cl, err := eth2wrap.NewMultiHTTP(time.Hour, [4]byte{}, nil, []string{"localhost:22222"}, nil)
 		require.NoError(t, err)
 
 		_, err = cl.SlotsPerEpoch(ctx)
@@ -386,7 +405,7 @@ func TestErrors(t *testing.T) {
 	}))
 
 	t.Run("http timeout", func(t *testing.T) {
-		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, [4]byte{}, []string{}, map[string]string{}, srv.URL)
+		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, [4]byte{}, nil, []string{srv.URL}, nil)
 		require.NoError(t, err)
 
 		_, err = cl.SlotsPerEpoch(ctx)
@@ -399,7 +418,7 @@ func TestErrors(t *testing.T) {
 		ctx, cancel := context.WithCancel(ctx)
 		cancel()
 
-		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, [4]byte{}, []string{}, map[string]string{}, srv.URL)
+		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, [4]byte{}, nil, []string{srv.URL}, nil)
 		require.NoError(t, err)
 
 		_, err = cl.SlotsPerEpoch(ctx)
@@ -414,7 +433,7 @@ func TestErrors(t *testing.T) {
 		bmock.GenesisTimeFunc = func(context.Context) (time.Time, error) {
 			return time.Time{}, new(net.OpError)
 		}
-		eth2Cl, err := eth2wrap.InstrumentWithFallback(&eth2wrap.FallbackClient{}, bmock)
+		eth2Cl, err := eth2wrap.Instrument([]eth2wrap.Client{bmock}, nil)
 		require.NoError(t, err)
 
 		_, err = eth2Cl.GenesisTime(ctx)
@@ -435,7 +454,7 @@ func TestErrors(t *testing.T) {
 			}
 		}
 
-		eth2Cl, err := eth2wrap.InstrumentWithFallback(&eth2wrap.FallbackClient{}, bmock)
+		eth2Cl, err := eth2wrap.Instrument([]eth2wrap.Client{bmock}, nil)
 		require.NoError(t, err)
 
 		_, err = eth2Cl.SignedBeaconBlock(ctx, &eth2api.SignedBeaconBlockOpts{Block: "123"})
@@ -451,7 +470,7 @@ func TestCtxCancel(t *testing.T) {
 
 		bmock, err := beaconmock.New()
 		require.NoError(t, err)
-		eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte{}, []string{}, map[string]string{}, bmock.Address())
+		eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte{}, nil, []string{bmock.Address()}, nil)
 		require.NoError(t, err)
 
 		cancel() // Cancel context before calling method.
@@ -510,7 +529,7 @@ func TestOneError(t *testing.T) {
 		bmock.Address(), // Valid
 	}
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte{}, []string{}, map[string]string{}, addresses...)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte{}, nil, addresses, nil)
 	require.NoError(t, err)
 
 	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
@@ -541,7 +560,7 @@ func TestOneTimeout(t *testing.T) {
 		bmock.Address(), // Valid
 	}
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Minute, [4]byte{}, []string{}, map[string]string{}, addresses...)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Minute, [4]byte{}, nil, addresses, nil)
 	require.NoError(t, err)
 
 	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
@@ -564,7 +583,7 @@ func TestOnlyTimeout(t *testing.T) {
 	defer srv.Close()
 	defer cancel() // Cancel the context before stopping the server.
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Minute, [4]byte{}, []string{}, map[string]string{}, srv.URL)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Minute, [4]byte{}, nil, []string{srv.URL}, nil)
 	require.NoError(t, err)
 
 	// Start goroutine that is blocking trying to create the client.
@@ -626,7 +645,7 @@ func TestLazy(t *testing.T) {
 		httputil.NewSingleHostReverseProxy(target).ServeHTTP(w, r)
 	}))
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte{}, []string{}, map[string]string{}, srv1.URL, srv2.URL)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte{}, nil, []string{srv1.URL, srv2.URL}, nil)
 	require.NoError(t, err)
 
 	// Both proxies are disabled, so this should fail.
@@ -705,7 +724,7 @@ func TestLazyDomain(t *testing.T) {
 
 			forkVersionHex, err := hex.DecodeString(test.in)
 			require.NoError(t, err)
-			eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte(forkVersionHex), []string{}, map[string]string{}, srv.URL)
+			eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte(forkVersionHex), nil, []string{srv.URL}, nil)
 			require.NoError(t, err)
 
 			voluntaryExitDomain := eth2p0.DomainType{0x04, 0x00, 0x00, 0x00}

@@ -856,8 +856,12 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 			return nil, nil, err
 		}
 
-		fb := eth2wrap.NewFallbackClient(bnTimeout, [4]byte(forkVersion), conf.FallbackBeaconNodeAddrs)
-		wrap, err := eth2wrap.InstrumentWithFallback(fb, bmock)
+		beaconNodeHeaders, err := eth2util.ParseBeaconNodeHeaders(conf.BeaconNodeHeaders)
+		if err != nil {
+			return nil, nil, err
+		}
+		fb := eth2wrap.NewFallbacks(bnTimeout, [4]byte(forkVersion), beaconNodeHeaders, conf.FallbackBeaconNodeAddrs)
+		wrap, err := eth2wrap.Instrument([]eth2wrap.Client{bmock}, fb)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -890,8 +894,12 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 			return nil, nil, err
 		}
 
-		fb := eth2wrap.NewFallbackClient(bnTimeout, [4]byte(forkVersion), conf.FallbackBeaconNodeAddrs)
-		wrap, err := eth2wrap.InstrumentWithFallback(fb, bmock)
+		beaconNodeHeaders, err := eth2util.ParseBeaconNodeHeaders(conf.BeaconNodeHeaders)
+		if err != nil {
+			return nil, nil, err
+		}
+		fb := eth2wrap.NewFallbacks(bnTimeout, [4]byte(forkVersion), beaconNodeHeaders, conf.FallbackBeaconNodeAddrs)
+		wrap, err := eth2wrap.Instrument([]eth2wrap.Client{bmock}, fb)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -934,7 +942,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 
 // configureEth2Client configures a beacon node client with the provided settings.
 func configureEth2Client(ctx context.Context, forkVersion []byte, fallbackAddrs []string, addrs []string, headers map[string]string, timeout time.Duration, syntheticBlockProposals bool) (eth2wrap.Client, error) {
-	eth2Cl, err := eth2wrap.NewMultiHTTP(timeout, [4]byte(forkVersion), fallbackAddrs, headers, addrs...)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(timeout, [4]byte(forkVersion), headers, addrs, fallbackAddrs)
 	if err != nil {
 		return nil, errors.Wrap(err, "new eth2 http client")
 	}
