@@ -144,77 +144,52 @@ func provide[O any](ctx context.Context, clients []Client, fallbacks []Client,
 		isSuccessFunc = func(O) bool { return true }
 	}
 
-	fork, join, cancel := forkjoin.New(ctx, work,
-		forkjoin.WithoutFailFast(),
-		forkjoin.WithWorkers(len(clients)),
-	)
-	for _, client := range clients {
-		fork(provideArgs{
-			client: client,
-		})
-	}
-	defer cancel()
+	zero := func() O { var z O; return z }()
 
-	var (
-		nokResp    forkjoin.Result[provideArgs, O]
-		hasNokResp bool
-		zero       O
-	)
-	for res := range join() {
-		if ctx.Err() != nil {
-			return zero, ctx.Err()
-		} else if res.Err == nil && isSuccessFunc(res.Output) {
-			if bestSelector != nil {
-				bestSelector.Increment(res.Input.client.Address())
-			}
+	runForkJoin := func(clients []Client) (O, error) {
+		fork, join, cancel := forkjoin.New(ctx, work,
+			forkjoin.WithoutFailFast(),
+			forkjoin.WithWorkers(len(clients)),
+		)
+		defer cancel()
 
-			return res.Output, nil
+		for _, client := range clients {
+			fork(provideArgs{client: client})
 		}
 
-		nokResp = res
-		hasNokResp = true
-	}
-
-	if ctx.Err() != nil {
-		return zero, ctx.Err()
-	} else if !hasNokResp {
-		return zero, errors.New("bug: no forkjoin results")
-	}
-
-	// retry with fallback nodes
-	fork, join, cancel = forkjoin.New(ctx, work,
-		forkjoin.WithoutFailFast(),
-		forkjoin.WithWorkers(len(fallbacks)),
-	)
-	for _, fallback := range fallbacks {
-		fork(provideArgs{
-			client: fallback,
-		})
-	}
-	defer cancel()
-
-	for res := range join() {
-		if ctx.Err() != nil {
-			return zero, ctx.Err()
-		} else if res.Err == nil && isSuccessFunc(res.Output) {
-			if bestSelector != nil {
-				bestSelector.Increment(res.Input.client.Address())
+		var (
+			nokResp    forkjoin.Result[provideArgs, O]
+			hasNokResp bool
+		)
+		for res := range join() {
+			if ctx.Err() != nil {
+				return zero, ctx.Err()
+			} else if res.Err == nil && isSuccessFunc(res.Output) {
+				if bestSelector != nil {
+					bestSelector.Increment(res.Input.client.Address())
+				}
+				return res.Output, nil
 			}
 
-			return res.Output, nil
+			nokResp = res
+			hasNokResp = true
 		}
 
-		nokResp = res
-		hasNokResp = true
+		if ctx.Err() != nil {
+			return zero, ctx.Err()
+		} else if !hasNokResp {
+			return zero, errors.New("bug: no forkjoin results")
+		}
+
+		return nokResp.Output, nokResp.Err
 	}
 
-	if ctx.Err() != nil {
-		return zero, ctx.Err()
-	} else if !hasNokResp {
-		return zero, errors.New("bug: no forkjoin results")
+	output, err := runForkJoin(clients)
+	if err == nil || ctx.Err() != nil {
+		return output, err
 	}
 
-	return nokResp.Output, nokResp.Err
+	return runForkJoin(fallbacks)
 }
 
 type empty struct{}

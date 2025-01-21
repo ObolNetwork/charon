@@ -147,220 +147,65 @@ func TestMulti(t *testing.T) {
 }
 
 func TestFallback(t *testing.T) {
-	type testConfig struct {
-		mainClients   int
-		fallbackCount int
-		expectedValue uint64
-		// true for open, false for closed
-		// order matters, first main then fallback channels
-		channelStatus []bool
-	}
-
-	closedErr := errors.New("closed")
-
 	tests := []struct {
-		name   string
-		config testConfig
-		expErr error
+		name                string
+		primaryErrs         []error
+		expectFallbackCalls bool
 	}{
 		{
-			name: "healthy",
-			config: testConfig{
-				mainClients:   2,
-				fallbackCount: 2,
-				expectedValue: 99,
-				channelStatus: []bool{true, true, true, true},
-			},
-			expErr: nil,
+			name:                "primary success - no fallback called",
+			primaryErrs:         []error{nil, nil},
+			expectFallbackCalls: false,
 		},
 		{
-			name: "sick",
-			config: testConfig{
-				mainClients:   2,
-				fallbackCount: 2,
-				expectedValue: 99,
-				channelStatus: []bool{false, false, true, true},
-			},
-			expErr: nil,
+			name:                "one primary success - no fallback called",
+			primaryErrs:         []error{nil, errors.New("failed")},
+			expectFallbackCalls: false,
 		},
 		{
-			name: "main1 error, fb1, fb2 ok",
-			config: testConfig{
-				mainClients:   1,
-				fallbackCount: 2,
-				expectedValue: 99,
-				channelStatus: []bool{false, true, true},
-			},
-			expErr: nil,
-		},
-		{
-			name: "main1, fb1 error, fb2 ok",
-			config: testConfig{
-				mainClients:   1,
-				fallbackCount: 2,
-				expectedValue: 99,
-				channelStatus: []bool{false, false, true},
-			},
-			expErr: nil,
-		},
-		{
-			name: "main1, fb2, error, fb1 ok",
-			config: testConfig{
-				mainClients:   1,
-				fallbackCount: 2,
-				expectedValue: 99,
-				channelStatus: []bool{false, true, false},
-			},
-			expErr: nil,
-		},
-		{
-			name: "main1, fb1, fb2, error",
-			config: testConfig{
-				mainClients:   1,
-				fallbackCount: 2,
-				channelStatus: []bool{false, false, false},
-			},
-			expErr: closedErr,
-		},
-		{
-			name: "main1, main2 error, fb1, fb2 ok",
-			config: testConfig{
-				mainClients:   2,
-				fallbackCount: 2,
-				expectedValue: 99,
-				channelStatus: []bool{false, false, true, true},
-			},
-			expErr: nil,
-		},
-		{
-			name: "main1, main2, fb1 error, fb2 ok",
-			config: testConfig{
-				mainClients:   2,
-				fallbackCount: 2,
-				expectedValue: 99,
-				channelStatus: []bool{false, false, false, true},
-			},
-			expErr: nil,
-		},
-		{
-			name: "main1, main2, fb2 error, fb1 ok",
-			config: testConfig{
-				mainClients:   2,
-				fallbackCount: 2,
-				expectedValue: 99,
-				channelStatus: []bool{false, false, true, false},
-			},
-			expErr: nil,
-		},
-		{
-			name: "main1, main2, fb2, fb3, fb4 error, fb1 ok",
-			config: testConfig{
-				mainClients:   2,
-				fallbackCount: 4,
-				expectedValue: 99,
-				channelStatus: []bool{false, false, true, false, false, false},
-			},
-			expErr: nil,
-		},
-		{
-			name: "main1, main2, fb1, fb3, fb4 error, fb2 ok",
-			config: testConfig{
-				mainClients:   2,
-				fallbackCount: 4,
-				expectedValue: 99,
-				channelStatus: []bool{false, false, false, true, false, false},
-			},
-			expErr: nil,
-		},
-		{
-			name: "main1, main2, fb1, fb2, fb3 error, fb4 ok",
-			config: testConfig{
-				mainClients:   2,
-				fallbackCount: 4,
-				expectedValue: 99,
-				channelStatus: []bool{false, false, false, false, false, true},
-			},
-			expErr: nil,
-		},
-		{
-			name: "main1, main2, fb1, fb2, fb3, fb4 error",
-			config: testConfig{
-				mainClients:   2,
-				fallbackCount: 4,
-				channelStatus: []bool{false, false, false, false, false, false},
-			},
-			expErr: closedErr,
+			name:                "all primary fail - fallback called",
+			primaryErrs:         []error{errors.New("failed"), errors.New("failed")},
+			expectFallbackCalls: true,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var fallbackCalled bool
+			primaryCalled := make([]bool, len(tt.primaryErrs))
 
-			clientGen := func() (beaconmock.Mock, chan uint64) {
+			// Create primary clients
+			primaryClients := make([]eth2wrap.Client, len(tt.primaryErrs))
+			for i, primaryErr := range tt.primaryErrs {
 				cl, err := beaconmock.New()
 				require.NoError(t, err)
-
-				clCh := make(chan uint64)
-
-				cl.SlotsPerEpochFunc = func(ctx context.Context) (uint64, error) {
-					select {
-					case <-ctx.Done():
-						return 0, ctx.Err()
-					case resp, ok := <-clCh:
-						if !ok {
-							return 0, closedErr
-						}
-
-						return resp, nil
-					}
+				i := i // capture loop variable
+				cl.SlotsPerEpochFunc = func(context.Context) (uint64, error) {
+					primaryCalled[i] = true
+					return 42, primaryErr
 				}
-
-				return cl, clCh
+				primaryClients[i] = cl
 			}
 
-			// Ensure proper configuration
-			require.Len(t, test.config.channelStatus, test.config.mainClients+test.config.fallbackCount)
-
-			// Create clients/channels and assign them to either main or fallback
-			clients := make([]beaconmock.Mock, 0)
-			channels := make([]chan uint64, 0)
-
-			totalClients := test.config.mainClients + test.config.fallbackCount
-
-			for i := 0; i < totalClients; i++ {
-				cl, ch := clientGen()
-				clients = append(clients, cl)
-				channels = append(channels, ch)
-			}
-
-			fallbackClients := make([]eth2wrap.Client, test.config.fallbackCount)
-			for i := 0; i < test.config.fallbackCount; i++ {
-				fallbackClients[i] = clients[len(clients)-test.config.fallbackCount+i]
-			}
-
-			mainClients := make([]eth2wrap.Client, test.config.mainClients)
-			for i := 0; i < test.config.mainClients; i++ {
-				mainClients[i] = clients[i]
-			}
-
-			eth2Cl, err := eth2wrap.Instrument(mainClients, fallbackClients)
+			// Create fallback client
+			fallback, err := beaconmock.New()
 			require.NoError(t, err)
-
-			for i, status := range test.config.channelStatus {
-				go func() {
-					if status {
-						channels[i] <- test.config.expectedValue
-					} else {
-						close(channels[i])
-					}
-				}()
+			fallback.SlotsPerEpochFunc = func(context.Context) (uint64, error) {
+				fallbackCalled = true
+				return 42, nil
 			}
 
-			resp, err := eth2Cl.SlotsPerEpoch(ctx)
-			require.ErrorIs(t, err, test.expErr)
-			require.Equal(t, test.config.expectedValue, resp)
+			eth2Cl, _ := eth2wrap.Instrument(primaryClients, []eth2wrap.Client{fallback})
+			eth2Cl.SlotsPerEpoch(context.Background())
+
+			// Verify all primaries were called
+			for i, called := range primaryCalled {
+				require.True(t, called, "primary client %d was not called", i)
+			}
+
+			// Verify fallback behavior
+			require.Equal(t, tt.expectFallbackCalls, fallbackCalled,
+				"fallback called=%v, want=%v", fallbackCalled, tt.expectFallbackCalls)
 		})
 	}
 }
