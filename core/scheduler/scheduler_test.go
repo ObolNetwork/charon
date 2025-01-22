@@ -517,3 +517,7 @@ func (c *testClock) NewTimer(time.Duration) clockwork.Timer {
 func (c *testClock) AfterFunc(time.Duration, func()) clockwork.Timer {
 	panic("not supported")
 }
+
+func (c *testClock) Until(t time.Time) time.Duration {
+	panic("not supported")
+}

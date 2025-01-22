@@ -15,7 +15,7 @@ require (
 	github.com/herumi/bls-eth-go-binary v1.36.1
 	github.com/holiman/uint256 v1.3.2
 	github.com/ipfs/go-log/v2 v2.5.1
-	github.com/jonboulle/clockwork v0.4.0
+	github.com/jonboulle/clockwork v0.5.0
 	github.com/jsternberg/zap-logfmt v1.3.0
 	github.com/libp2p/go-libp2p v0.37.2
 	github.com/libp2p/go-msgio v0.3.0
