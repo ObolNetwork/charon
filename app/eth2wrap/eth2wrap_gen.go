@@ -190,13 +190,13 @@ func (m multi) AttestationData(ctx context.Context, opts *api.AttestationDataOpt
 }
 
 // SubmitAttestations submits attestations.
-func (m multi) SubmitAttestations(ctx context.Context, attestations []*phase0.Attestation) error {
+func (m multi) SubmitAttestations(ctx context.Context, opts *api.SubmitAttestationsOpts) error {
 	const label = "submit_attestations"
 	defer latency(ctx, label, false)()
 
 	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
-			return args.client.SubmitAttestations(ctx, attestations)
+			return args.client.SubmitAttestations(ctx, opts)
 		},
 		m.selector,
 	)
@@ -250,7 +250,7 @@ func (m multi) DepositContract(ctx context.Context, opts *api.DepositContractOpt
 }
 
 // SyncCommitteeDuties obtains sync committee duties.
-// If validatorIndicess is nil it will return all duties for the given epoch.
+// If validatorIndices is nil it will return all duties for the given epoch.
 func (m multi) SyncCommitteeDuties(ctx context.Context, opts *api.SyncCommitteeDutiesOpts) (*api.Response[[]*apiv1.SyncCommitteeDuty], error) {
 	const label = "sync_committee_duties"
 	defer latency(ctx, label, false)()
@@ -799,13 +799,13 @@ func (l *lazy) AttestationData(ctx context.Context, opts *api.AttestationDataOpt
 }
 
 // SubmitAttestations submits attestations.
-func (l *lazy) SubmitAttestations(ctx context.Context, attestations []*phase0.Attestation) (err error) {
+func (l *lazy) SubmitAttestations(ctx context.Context, opts *api.SubmitAttestationsOpts) (err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return err
 	}
 
-	return cl.SubmitAttestations(ctx, attestations)
+	return cl.SubmitAttestations(ctx, opts)
 }
 
 // AttesterDuties obtains attester duties.
@@ -829,7 +829,7 @@ func (l *lazy) DepositContract(ctx context.Context, opts *api.DepositContractOpt
 }
 
 // SyncCommitteeDuties obtains sync committee duties.
-// If validatorIndicess is nil it will return all duties for the given epoch.
+// If validatorIndices is nil it will return all duties for the given epoch.
 func (l *lazy) SyncCommitteeDuties(ctx context.Context, opts *api.SyncCommitteeDutiesOpts) (res0 *api.Response[[]*apiv1.SyncCommitteeDuty], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
