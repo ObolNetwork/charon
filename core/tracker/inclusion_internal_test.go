@@ -136,12 +136,12 @@ func TestInclusion(t *testing.T) {
 	// Create a mock block with the 1st and 2nd attestations.
 	att1Root, err := att1.Deneb.Data.HashTreeRoot()
 	require.NoError(t, err)
-	//TODO: fix after go-eth2-client make util functions for Aggregate or Data fields
+	//TODO: fix after go-eth2-client make util functions for Data field
 	att2Root, err := agg2.Message.Aggregate.Data.HashTreeRoot()
 	require.NoError(t, err)
 	// Add some random aggregation bits to the attestation
 	addRandomBits(att1.Deneb.AggregationBits)
-	//TODO: fix after go-eth2-client make util functions for Aggregate or Data fields
+	//TODO: fix after go-eth2-client make util functions for AggregationBits field
 	addRandomBits(agg2.Message.Aggregate.AggregationBits)
 
 	block := block{
