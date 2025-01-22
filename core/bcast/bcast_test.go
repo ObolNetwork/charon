@@ -238,10 +238,12 @@ func aggregateAttestationData(t *testing.T, mock *beaconmock.Mock) test {
 
 	asserted := make(chan struct{})
 	aggAndProof := testutil.RandomSignedAggregateAndProof()
-	aggData := core.SignedAggregateAndProof{SignedAggregateAndProof: *aggAndProof}
+	aggData := core.VersionedSignedAggregateAndProof{
+		VersionedSignedAggregateAndProof: *aggAndProof,
+	}
 
-	mock.SubmitAggregateAttestationsFunc = func(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
-		require.Equal(t, aggAndProof, aggregateAndProofs[0])
+	mock.SubmitAggregateAttestationsFunc = func(ctx context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
+		require.Equal(t, aggAndProof, aggregateAndProofs.SignedAggregateAndProofs[0])
 		close(asserted)
 
 		return nil

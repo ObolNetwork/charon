@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/attestantio/go-eth2-client/api"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -58,12 +59,12 @@ func TestAttest(t *testing.T) {
 
 			// Callback to collect attestations
 			var atts []*eth2spec.VersionedAttestation
-			var aggs []*eth2p0.SignedAggregateAndProof
+			var aggs *api.SubmitAggregateAttestationsOpts
 			beaconMock.SubmitAttestationsFunc = func(_ context.Context, attestations *eth2api.SubmitAttestationsOpts) error {
 				atts = attestations.Attestations
 				return nil
 			}
-			beaconMock.SubmitAggregateAttestationsFunc = func(_ context.Context, aggAndProofs []*eth2p0.SignedAggregateAndProof) error {
+			beaconMock.SubmitAggregateAttestationsFunc = func(_ context.Context, aggAndProofs *api.SubmitAggregateAttestationsOpts) error {
 				aggs = aggAndProofs
 				return nil
 			}
@@ -107,7 +108,8 @@ func TestAttest(t *testing.T) {
 			})
 
 			sort.Slice(aggs, func(i, j int) bool {
-				return aggs[i].Message.Aggregate.Data.Index < aggs[j].Message.Aggregate.Data.Index
+				//TODO: fix after go-eth2-client make util function for Data field
+				return aggs.SignedAggregateAndProofs[i].Message.Aggregate.Data.Index < aggs.SignedAggregateAndProofs[j].Message.Aggregate.Data.Index
 			})
 
 			t.Run("attestations", func(t *testing.T) {

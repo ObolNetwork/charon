@@ -95,7 +95,9 @@ func TestInclusion(t *testing.T) {
 	att1Duty := core.NewAttesterDuty(uint64(att1Data.Slot))
 
 	agg2 := testutil.RandomSignedAggregateAndProof()
-	agg2Duty := core.NewAggregatorDuty(uint64(agg2.Message.Aggregate.Data.Slot))
+	slot, err := agg2.Slot()
+	require.NoError(t, err)
+	agg2Duty := core.NewAggregatorDuty(uint64(slot))
 
 	att3 := testutil.RandomDenebVersionedAttestation()
 	att3Data, err := att3.Data()
@@ -134,17 +136,18 @@ func TestInclusion(t *testing.T) {
 	// Create a mock block with the 1st and 2nd attestations.
 	att1Root, err := att1.Deneb.Data.HashTreeRoot()
 	require.NoError(t, err)
+	//TODO: fix after go-eth2-client make util functions for Aggregate or Data fields
 	att2Root, err := agg2.Message.Aggregate.Data.HashTreeRoot()
 	require.NoError(t, err)
 	// Add some random aggregation bits to the attestation
 	addRandomBits(att1.Deneb.AggregationBits)
+	//TODO: fix after go-eth2-client make util functions for Aggregate or Data fields
 	addRandomBits(agg2.Message.Aggregate.AggregationBits)
 
 	block := block{
 		Slot: block4Duty.Slot,
 		AttestationsByDataRoot: map[eth2p0.Root]*eth2spec.VersionedAttestation{
 			att1Root: att1,
-			// TODO(kalo): go-eth2-client should (?) have versioned attestations for AggregateAndProof
 			att2Root: {Version: eth2spec.DataVersionDeneb, Deneb: agg2.Message.Aggregate},
 		},
 	}

@@ -548,15 +548,18 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		AttestationDataFunc: func(ctx context.Context, slot eth2p0.Slot, index eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
 			return attStore.NewAttestationData(ctx, slot, index)
 		},
-		AggregateAttestationFunc: func(_ context.Context, _ eth2p0.Slot, root eth2p0.Root) (*eth2p0.Attestation, error) {
+		AggregateAttestationFunc: func(_ context.Context, _ eth2p0.Slot, root eth2p0.Root) (*eth2spec.VersionedAttestation, error) {
 			attData, err := attStore.AttestationDataByRoot(root)
 			if err != nil {
 				return nil, err
 			}
 
-			return &eth2p0.Attestation{
-				AggregationBits: bitfield.NewBitlist(0),
-				Data:            attData,
+			return &eth2spec.VersionedAttestation{
+				Version: eth2spec.DataVersionDeneb,
+				Deneb: &eth2p0.Attestation{
+					AggregationBits: bitfield.NewBitlist(0),
+					Data:            attData,
+				},
 			}, nil
 		},
 		CachedValidatorsFunc: func(context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error) {
@@ -597,7 +600,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		AggregateBeaconCommitteeSelectionsFunc: func(_ context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
 			return selections, nil
 		},
-		SubmitAggregateAttestationsFunc: func(context.Context, []*eth2p0.SignedAggregateAndProof) error {
+		SubmitAggregateAttestationsFunc: func(context.Context, *eth2api.SubmitAggregateAttestationsOpts) error {
 			return nil
 		},
 		SlotsPerEpochFunc: func(ctx context.Context) (uint64, error) {

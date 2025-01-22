@@ -145,8 +145,8 @@ type Mock struct {
 	AggregateBeaconCommitteeSelectionsFunc func(context.Context, []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error)
 	AggregateSyncCommitteeSelectionsFunc   func(context.Context, []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error)
 	SubmitBeaconCommitteeSubscriptionsFunc func(ctx context.Context, subscriptions []*eth2v1.BeaconCommitteeSubscription) error
-	AggregateAttestationFunc               func(ctx context.Context, slot eth2p0.Slot, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error)
-	SubmitAggregateAttestationsFunc        func(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error
+	AggregateAttestationFunc               func(ctx context.Context, slot eth2p0.Slot, attestationDataRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error)
+	SubmitAggregateAttestationsFunc        func(ctx context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error
 	SyncCommitteeDutiesFunc                func(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error)
 	SubmitSyncCommitteeMessagesFunc        func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error
 	SubmitSyncCommitteeContributionsFunc   func(ctx context.Context, contributionAndProofs []*altair.SignedContributionAndProof) error
@@ -157,7 +157,7 @@ type Mock struct {
 	ProposerConfigFunc                     func(context.Context) (*eth2exp.ProposerConfigResponse, error)
 }
 
-func (m Mock) AggregateAttestation(ctx context.Context, opts *eth2api.AggregateAttestationOpts) (*eth2api.Response[*eth2p0.Attestation], error) {
+func (m Mock) AggregateAttestation(ctx context.Context, opts *eth2api.AggregateAttestationOpts) (*eth2api.Response[*eth2spec.VersionedAttestation], error) {
 	aggAtt, err := m.AggregateAttestationFunc(ctx, opts.Slot, opts.AttestationDataRoot)
 	if err != nil {
 		return nil, err
@@ -323,7 +323,7 @@ func (m Mock) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscripti
 	return m.SubmitBeaconCommitteeSubscriptionsFunc(ctx, subscriptions)
 }
 
-func (m Mock) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
+func (m Mock) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
 	return m.SubmitAggregateAttestationsFunc(ctx, aggregateAndProofs)
 }
 

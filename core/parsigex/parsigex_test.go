@@ -256,19 +256,22 @@ func TestParSigExVerifier(t *testing.T) {
 	})
 
 	t.Run("Verify aggregate and proof", func(t *testing.T) {
-		agg := &eth2p0.SignedAggregateAndProof{
-			Message: &eth2p0.AggregateAndProof{
-				AggregatorIndex: 0,
-				Aggregate:       testutil.RandomAttestation(),
-				SelectionProof:  testutil.RandomEth2Signature(),
+		agg := &eth2spec.VersionedSignedAggregateAndProof{
+			Version: eth2spec.DataVersionDeneb,
+			Deneb: &eth2p0.SignedAggregateAndProof{
+				Message: &eth2p0.AggregateAndProof{
+					AggregatorIndex: 0,
+					Aggregate:       testutil.RandomAttestation(),
+					SelectionProof:  testutil.RandomEth2Signature(),
+				},
 			},
 		}
-		agg.Message.Aggregate.Data.Slot = slot
-		sigRoot, err := agg.Message.HashTreeRoot()
+		agg.Deneb.Message.Aggregate.Data.Slot = slot
+		sigRoot, err := agg.Deneb.Message.HashTreeRoot()
 		require.NoError(t, err)
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainAggregateAndProof, epoch, sigRoot)
 		require.NoError(t, err)
-		agg.Signature = sign(sigData[:])
+		agg.Deneb.Signature = sign(sigData[:])
 		data := core.NewPartialSignedAggregateAndProof(agg, shareIdx)
 
 		require.NoError(t, verifyFunc(ctx, core.NewAggregatorDuty(slot), pubkey, data))

@@ -196,7 +196,7 @@ type Component struct {
 	awaitAttFunc              func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 	awaitProposalFunc         func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
 	awaitSyncContributionFunc func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
-	awaitAggAttFunc           func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)
+	awaitAggAttFunc           func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error)
 	awaitAggSigDBFunc         func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
 	dutyDefFunc               func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
 	subs                      []func(context.Context, core.Duty, core.ParSignedDataSet) error
@@ -234,7 +234,7 @@ func (c *Component) RegisterGetDutyDefinition(fn func(ctx context.Context, duty 
 
 // RegisterAwaitAggAttestation registers a function to query an aggregated attestation.
 // It supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitAggAttestation(fn func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)) {
+func (c *Component) RegisterAwaitAggAttestation(fn func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error)) {
 	c.awaitAggAttFunc = fn
 }
 
@@ -786,7 +786,7 @@ func (c Component) AggregateBeaconCommitteeSelections(ctx context.Context, selec
 
 // AggregateAttestation returns the aggregate attestation for the given attestation root.
 // It does a blocking query to DutyAggregator unsigned data from dutyDB.
-func (c Component) AggregateAttestation(ctx context.Context, opts *eth2api.AggregateAttestationOpts) (*eth2api.Response[*eth2p0.Attestation], error) {
+func (c Component) AggregateAttestation(ctx context.Context, opts *eth2api.AggregateAttestationOpts) (*eth2api.Response[*eth2spec.VersionedAttestation], error) {
 	aggAtt, err := c.awaitAggAttFunc(ctx, uint64(opts.Slot), opts.AttestationDataRoot)
 	if err != nil {
 		return nil, err
@@ -798,16 +798,21 @@ func (c Component) AggregateAttestation(ctx context.Context, opts *eth2api.Aggre
 // SubmitAggregateAttestations receives partially signed aggregateAndProofs.
 // - It verifies partial signature on AggregateAndProof.
 // - It then calls all the subscribers for further steps on partially signed aggregate and proof.
-func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
+func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
+	aggsAndProofs := aggregateAndProofs.SignedAggregateAndProofs
 	vals, err := c.eth2Cl.ActiveValidators(ctx)
 	if err != nil {
 		return err
 	}
 
 	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
-	for _, agg := range aggregateAndProofs {
-		slot := agg.Message.Aggregate.Data.Slot
-		eth2Pubkey, ok := vals[agg.Message.AggregatorIndex]
+	for _, agg := range aggsAndProofs {
+		slot, err := agg.Slot()
+		if err != nil {
+			return err
+		}
+		//TODO: fix after go-eth2-client make util function for AggregatorIndex field
+		eth2Pubkey, ok := vals[agg.AggregatorIndex()]
 		if !ok {
 			return errors.New("validator not found")
 		}
@@ -819,7 +824,7 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 
 		// Verify inner selection proof (outcome of DutyPrepareAggregator).
 		if !c.insecureTest {
-			err = signing.VerifyAggregateAndProofSelection(ctx, c.eth2Cl, tbls.PublicKey(eth2Pubkey), agg.Message)
+			err = signing.VerifyAggregateAndProofSelection(ctx, c.eth2Cl, tbls.PublicKey(eth2Pubkey), agg)
 			if err != nil {
 				return err
 			}

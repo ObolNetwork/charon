@@ -1008,7 +1008,7 @@ func aggregateAttestation(p eth2client.AggregateAttestationProvider) handlerFunc
 		data := eth2Resp.Data
 
 		return struct {
-			Data *eth2p0.Attestation `json:"data"`
+			Data *eth2spec.VersionedAttestation `json:"data"`
 		}{
 			Data: data,
 		}, nil, nil
@@ -1017,7 +1017,7 @@ func aggregateAttestation(p eth2client.AggregateAttestationProvider) handlerFunc
 
 func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
-		var aggs []*eth2p0.SignedAggregateAndProof
+		var aggs *eth2api.SubmitAggregateAttestationsOpts
 		err := unmarshal(typ, body, &aggs)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unmarshal signed aggregate and proofs")

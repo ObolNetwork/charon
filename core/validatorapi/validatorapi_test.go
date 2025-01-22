@@ -1666,16 +1666,20 @@ func TestComponent_SubmitAggregateAttestations(t *testing.T) {
 
 	const vIdx = 1
 
-	agg := &eth2p0.SignedAggregateAndProof{
-		Message: &eth2p0.AggregateAndProof{
-			AggregatorIndex: vIdx,
-			Aggregate:       testutil.RandomAttestation(),
-			SelectionProof:  testutil.RandomEth2Signature(),
+	agg := &eth2spec.VersionedSignedAggregateAndProof{
+		Version: eth2spec.DataVersionDeneb,
+		Deneb: &eth2p0.SignedAggregateAndProof{
+			Message: &eth2p0.AggregateAndProof{
+				AggregatorIndex: vIdx,
+				Aggregate:       testutil.RandomAttestation(),
+				SelectionProof:  testutil.RandomEth2Signature(),
+			},
+			Signature: testutil.RandomEth2Signature(),
 		},
-		Signature: testutil.RandomEth2Signature(),
 	}
 
-	slot := agg.Message.Aggregate.Data.Slot
+	slot, err := agg.Slot()
+	require.NoError(t, err)
 	pubkey := beaconmock.ValidatorSetA[vIdx].Validator.PublicKey
 
 	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
@@ -1697,7 +1701,7 @@ func TestComponent_SubmitAggregateAttestations(t *testing.T) {
 		return nil
 	})
 
-	require.NoError(t, vapi.SubmitAggregateAttestations(ctx, []*eth2p0.SignedAggregateAndProof{agg}))
+	require.NoError(t, vapi.SubmitAggregateAttestations(ctx, &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: []*eth2spec.VersionedSignedAggregateAndProof{agg}}))
 }
 
 func TestComponent_SubmitAggregateAttestationVerify(t *testing.T) {
@@ -1731,9 +1735,12 @@ func TestComponent_SubmitAggregateAttestationVerify(t *testing.T) {
 	}
 	aggProof.Aggregate.Data.Slot = slot
 	aggProof.SelectionProof = signBeaconSelection(t, bmock, secret, slot)
-	signedAggProof := &eth2p0.SignedAggregateAndProof{
-		Message:   aggProof,
-		Signature: signAggregationAndProof(t, bmock, secret, aggProof),
+	signedAggProof := &eth2spec.VersionedSignedAggregateAndProof{
+		Version: eth2spec.DataVersionDeneb,
+		Deneb: &eth2p0.SignedAggregateAndProof{
+			Message:   aggProof,
+			Signature: signAggregationAndProof(t, bmock, secret, aggProof),
+		},
 	}
 
 	// Construct the validator api component
@@ -1751,7 +1758,7 @@ func TestComponent_SubmitAggregateAttestationVerify(t *testing.T) {
 		return nil
 	})
 
-	err = vapi.SubmitAggregateAttestations(ctx, []*eth2p0.SignedAggregateAndProof{signedAggProof})
+	err = vapi.SubmitAggregateAttestations(ctx, &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: []*eth2spec.VersionedSignedAggregateAndProof{signedAggProof}})
 	require.NoError(t, err)
 	<-done
 }

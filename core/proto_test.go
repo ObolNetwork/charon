@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"testing"
 
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -61,10 +62,15 @@ func TestParSignedDataSetProto(t *testing.T) {
 		},
 		{
 			Type: core.DutyAggregator,
-			Data: core.SignedAggregateAndProof{SignedAggregateAndProof: eth2p0.SignedAggregateAndProof{
-				Message:   testutil.RandomAggregateAndProof(),
-				Signature: testutil.RandomEth2Signature(),
-			}},
+			Data: core.VersionedSignedAggregateAndProof{
+				VersionedSignedAggregateAndProof: eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionDeneb,
+					Deneb: &eth2p0.SignedAggregateAndProof{
+						Message:   testutil.RandomAggregateAndProof(),
+						Signature: testutil.RandomEth2Signature(),
+					},
+				},
+			},
 		},
 		{
 			Type: core.DutySyncMessage,
@@ -122,7 +128,7 @@ func TestUnsignedDataToProto(t *testing.T) {
 		},
 		{
 			Type: core.DutyAggregator,
-			Data: core.NewAggregatedAttestation(testutil.RandomAttestation()),
+			Data: testutil.RandomDenebCoreVersionedAggregateAttestation(),
 		},
 		{
 			Type: core.DutySyncContribution,
@@ -186,7 +192,7 @@ func TestParSignedData(t *testing.T) {
 
 func TestParSignedDataFromProtoErrors(t *testing.T) {
 	parSig1 := core.ParSignedData{
-		SignedData: core.SignedAggregateAndProof{*testutil.RandomSignedAggregateAndProof()},
+		SignedData: core.VersionedSignedAggregateAndProof{*testutil.RandomSignedAggregateAndProof()},
 		ShareIdx:   rand.Intn(100),
 	}
 

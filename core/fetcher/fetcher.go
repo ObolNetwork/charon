@@ -157,7 +157,7 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot uint64, defSet cor
 // fetchAggregatorData fetches the attestation aggregation data.
 func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
 	// We may have multiple aggregators in the same committee, use the same aggregated attestation in that case.
-	aggAttByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2p0.Attestation)
+	aggAttByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2spec.VersionedAttestation)
 
 	resp := make(core.UnsignedDataSet)
 	for pubkey, dutyDef := range defSet {
@@ -188,8 +188,8 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 
 		aggAtt, ok := aggAttByCommIdx[attDef.CommitteeIndex]
 		if ok {
-			resp[pubkey] = core.AggregatedAttestation{
-				Attestation: *aggAtt,
+			resp[pubkey] = core.VersionedAggregatedAttestation{
+				VersionedAttestation: *aggAtt,
 			}
 
 			// Skips querying aggregate attestation for aggregators of same committee.
@@ -226,8 +226,8 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 
 		aggAttByCommIdx[attDef.CommitteeIndex] = aggAtt
 
-		resp[pubkey] = core.AggregatedAttestation{
-			Attestation: *aggAtt,
+		resp[pubkey] = core.VersionedAggregatedAttestation{
+			VersionedAttestation: *aggAtt,
 		}
 	}
 

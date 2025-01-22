@@ -372,6 +372,196 @@ func (a *VersionedAttestation) sszValFromVersion(version eth2util.DataVersion) (
 	}
 }
 
+// ================== VersionedSignedAggregateAndProof ===================
+
+// MarshalSSZ ssz marshals the VersionedSignedAggregateAndProof object.
+func (a VersionedSignedAggregateAndProof) MarshalSSZ() ([]byte, error) {
+	resp, err := ssz.MarshalSSZ(a)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal VersionedSignedAggregateAndProof")
+	}
+
+	return resp, nil
+}
+
+// MarshalSSZTo ssz marshals the VersionedSignedAggregateAndProof object to a target array.
+func (a VersionedSignedAggregateAndProof) MarshalSSZTo(dst []byte) ([]byte, error) {
+	version, err := eth2util.DataVersionFromETH2(a.Version)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid version")
+	}
+
+	return marshalSSZVersionedTo(dst, version, a.sszValFromVersion)
+}
+
+// UnmarshalSSZ ssz unmarshalls the VersionedSignedAggregateAndProof object.
+func (a *VersionedSignedAggregateAndProof) UnmarshalSSZ(b []byte) error {
+	version, err := unmarshalSSZVersioned(b, a.sszValFromVersion)
+	if err != nil {
+		return errors.Wrap(err, "unmarshal VersionedSignedAggregateAndProof")
+	}
+
+	a.Version = version.ToETH2()
+
+	return nil
+}
+
+// SizeSSZ returns the ssz encoded size in bytes for the VersionedSignedAggregateAndProof object.
+func (a VersionedSignedAggregateAndProof) SizeSSZ() int {
+	version, err := eth2util.DataVersionFromETH2(a.Version)
+	if err != nil {
+		// SSZMarshaller interface doesn't return an error, so we can't either.
+		return 0
+	}
+
+	val, err := a.sszValFromVersion(version)
+	if err != nil {
+		// SSZMarshaller interface doesn't return an error, so we can't either.
+		return 0
+	}
+
+	return sizeSSZVersioned(val)
+}
+
+// sszValFromVersion returns the internal value of the VersionedSignedAggregateAndProof object for a given version.
+func (a *VersionedSignedAggregateAndProof) sszValFromVersion(version eth2util.DataVersion) (sszType, error) {
+	switch version {
+	case eth2util.DataVersionPhase0:
+		if a.Phase0 == nil {
+			a.Phase0 = new(eth2p0.SignedAggregateAndProof)
+		}
+
+		return a.Phase0, nil
+	case eth2util.DataVersionAltair:
+		if a.Altair == nil {
+			a.Altair = new(eth2p0.SignedAggregateAndProof)
+		}
+
+		return a.Altair, nil
+	case eth2util.DataVersionBellatrix:
+		if a.Bellatrix == nil {
+			a.Bellatrix = new(eth2p0.SignedAggregateAndProof)
+		}
+
+		return a.Bellatrix, nil
+	case eth2util.DataVersionCapella:
+		if a.Capella == nil {
+			a.Capella = new(eth2p0.SignedAggregateAndProof)
+		}
+
+		return a.Capella, nil
+	case eth2util.DataVersionDeneb:
+		if a.Deneb == nil {
+			a.Deneb = new(eth2p0.SignedAggregateAndProof)
+		}
+
+		return a.Deneb, nil
+	case eth2util.DataVersionElectra:
+		if a.Electra == nil {
+			a.Electra = new(electra.SignedAggregateAndProof)
+		}
+
+		return a.Electra, nil
+	default:
+		return nil, errors.New("invalid version")
+	}
+}
+
+// ================== VersionedAggregatedAttestation ===================
+
+// MarshalSSZ ssz marshals the VersionedAggregatedAttestation object.
+func (a VersionedAggregatedAttestation) MarshalSSZ() ([]byte, error) {
+	resp, err := ssz.MarshalSSZ(a)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal VersionedAggregatedAttestation")
+	}
+
+	return resp, nil
+}
+
+// MarshalSSZTo ssz marshals the VersionedAggregatedAttestation object to a target array.
+func (a VersionedAggregatedAttestation) MarshalSSZTo(dst []byte) ([]byte, error) {
+	version, err := eth2util.DataVersionFromETH2(a.Version)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid version")
+	}
+
+	return marshalSSZVersionedTo(dst, version, a.sszValFromVersion)
+}
+
+// UnmarshalSSZ ssz unmarshalls the VersionedAggregatedAttestation object.
+func (a *VersionedAggregatedAttestation) UnmarshalSSZ(b []byte) error {
+	version, err := unmarshalSSZVersioned(b, a.sszValFromVersion)
+	if err != nil {
+		return errors.Wrap(err, "unmarshal VersionedAggregatedAttestation")
+	}
+
+	a.Version = version.ToETH2()
+
+	return nil
+}
+
+// SizeSSZ returns the ssz encoded size in bytes for the VersionedAggregatedAttestation object.
+func (a VersionedAggregatedAttestation) SizeSSZ() int {
+	version, err := eth2util.DataVersionFromETH2(a.Version)
+	if err != nil {
+		// SSZMarshaller interface doesn't return an error, so we can't either.
+		return 0
+	}
+
+	val, err := a.sszValFromVersion(version)
+	if err != nil {
+		// SSZMarshaller interface doesn't return an error, so we can't either.
+		return 0
+	}
+
+	return sizeSSZVersioned(val)
+}
+
+// sszValFromVersion returns the internal value of the VersionedAggregatedAttestation object for a given version.
+func (a *VersionedAggregatedAttestation) sszValFromVersion(version eth2util.DataVersion) (sszType, error) {
+	switch version {
+	case eth2util.DataVersionPhase0:
+		if a.Phase0 == nil {
+			a.Phase0 = new(eth2p0.Attestation)
+		}
+
+		return a.Phase0, nil
+	case eth2util.DataVersionAltair:
+		if a.Altair == nil {
+			a.Altair = new(eth2p0.Attestation)
+		}
+
+		return a.Altair, nil
+	case eth2util.DataVersionBellatrix:
+		if a.Bellatrix == nil {
+			a.Bellatrix = new(eth2p0.Attestation)
+		}
+
+		return a.Bellatrix, nil
+	case eth2util.DataVersionCapella:
+		if a.Capella == nil {
+			a.Capella = new(eth2p0.Attestation)
+		}
+
+		return a.Capella, nil
+	case eth2util.DataVersionDeneb:
+		if a.Deneb == nil {
+			a.Deneb = new(eth2p0.Attestation)
+		}
+
+		return a.Deneb, nil
+	case eth2util.DataVersionElectra:
+		if a.Electra == nil {
+			a.Electra = new(electra.Attestation)
+		}
+
+		return a.Electra, nil
+	default:
+		return nil, errors.New("invalid version")
+	}
+}
+
 const (
 	// versionedBlindedOffset is the offset of a versioned blinded ssz encoded object.
 	versionedBlindedOffset = 8 + 1 + 4 // version (uint64) + blinded (uint8) + offset (uint32)
