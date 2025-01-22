@@ -370,33 +370,34 @@ func TestCtxCancel(t *testing.T) {
 }
 
 func TestBlockAttestations(t *testing.T) {
-	atts := []*eth2p0.Attestation{
-		testutil.RandomAttestation(),
-		testutil.RandomAttestation(),
+	atts := []*eth2spec.VersionedAttestation{
+		testutil.RandomDenebVersionedAttestation(),
+		testutil.RandomDenebVersionedAttestation(),
 	}
 
 	statusCode := http.StatusOK
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodGet, r.Method)
-		require.Equal(t, "/eth/v1/beacon/blocks/head/attestations", r.URL.Path)
+		require.Equal(t, "/eth/v2/beacon/blocks/head/attestations", r.URL.Path)
 		b, err := json.Marshal(struct {
 			Data []*eth2p0.Attestation
 		}{
-			Data: atts,
+			Data: []*eth2p0.Attestation{atts[0].Deneb, atts[1].Deneb},
 		})
 		require.NoError(t, err)
 
+		w.Header().Add("Eth-Consensus-Version", "deneb")
 		w.WriteHeader(statusCode)
 		_, _ = w.Write(b)
 	}))
 
 	cl := eth2wrap.NewHTTPAdapterForT(t, srv.URL, nil, time.Hour)
-	resp, err := cl.BlockAttestations(context.Background(), "head")
+	resp, err := cl.BlockAttestationsV2(context.Background(), "head")
 	require.NoError(t, err)
 	require.Equal(t, atts, resp)
 
 	statusCode = http.StatusNotFound
-	resp, err = cl.BlockAttestations(context.Background(), "head")
+	resp, err = cl.BlockAttestationsV2(context.Background(), "head")
 	require.NoError(t, err)
 	require.Empty(t, resp)
 }

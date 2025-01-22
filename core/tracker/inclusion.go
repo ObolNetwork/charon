@@ -10,7 +10,9 @@ import (
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/prysmaticlabs/go-bitfield"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
@@ -50,7 +52,7 @@ type submission struct {
 // block is a simplified block with its attestations.
 type block struct {
 	Slot                   uint64
-	AttestationsByDataRoot map[eth2p0.Root]*eth2p0.Attestation
+	AttestationsByDataRoot map[eth2p0.Root]*eth2spec.VersionedAttestation
 }
 
 // trackerInclFunc defines the tracker callback for the inclusion checker.
@@ -84,11 +86,15 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 
 	var attRoot eth2p0.Root
 	if duty.Type == core.DutyAttester {
-		att, ok := data.(core.Attestation)
+		att, ok := data.(core.VersionedAttestation)
 		if !ok {
 			return errors.New("invalid attestation")
 		}
-		attRoot, err = att.Data.HashTreeRoot()
+		attData, err := att.Data()
+		if err != nil {
+			return errors.Wrap(err, "get attestation data")
+		}
+		attRoot, err = attData.HashTreeRoot()
 		if err != nil {
 			return errors.Wrap(err, "hash attestation")
 		}
@@ -249,11 +255,15 @@ func checkAggregationInclusion(sub submission, block block) (bool, error) {
 		return false, nil
 	}
 
+	attAggregationBits, err := att.AggregationBits()
+	if err != nil {
+		return false, errors.Wrap(err, "get attestation aggregation bits")
+	}
 	subBits := sub.Data.(core.SignedAggregateAndProof).Message.Aggregate.AggregationBits
-	ok, err := att.AggregationBits.Contains(subBits)
+	ok, err = attAggregationBits.Contains(subBits)
 	if err != nil {
 		return false, errors.Wrap(err, "check aggregation bits",
-			z.U64("block_bits", att.AggregationBits.Len()),
+			z.U64("block_bits", attAggregationBits.Len()),
 			z.U64("sub_bits", subBits.Len()),
 		)
 	}
@@ -268,11 +278,18 @@ func checkAttestationInclusion(sub submission, block block) (bool, error) {
 		return false, nil
 	}
 
-	subBits := sub.Data.(core.Attestation).AggregationBits
-	ok, err := att.AggregationBits.Contains(subBits)
+	attAggregationBits, err := att.AggregationBits()
+	if err != nil {
+		return false, errors.Wrap(err, "get attestation aggregation bits")
+	}
+	subBits, err := sub.Data.(core.VersionedAttestation).AggregationBits()
+	if err != nil {
+		return false, errors.Wrap(err, "get attestation aggregation bits")
+	}
+	ok, err = attAggregationBits.Contains(subBits)
 	if err != nil {
 		return false, errors.Wrap(err, "check aggregation bits",
-			z.U64("block_bits", att.AggregationBits.Len()),
+			z.U64("block_bits", attAggregationBits.Len()),
 			z.U64("sub_bits", subBits.Len()),
 		)
 	}
@@ -320,8 +337,16 @@ func reportMissed(ctx context.Context, sub submission) {
 // reportAttInclusion reports attestations that were included in a block.
 func reportAttInclusion(ctx context.Context, sub submission, block block) {
 	att := block.AttestationsByDataRoot[sub.AttDataRoot]
-	aggIndices := att.AggregationBits.BitIndices()
-	attSlot := uint64(att.Data.Slot)
+	attAggregationBits, err := att.AggregationBits()
+	if err != nil {
+		return
+	}
+	aggIndices := attAggregationBits.BitIndices()
+	attData, err := att.Data()
+	if err != nil {
+		return
+	}
+	attSlot := uint64(attData.Slot)
 	blockSlot := block.Slot
 	inclDelay := block.Slot - attSlot
 
@@ -428,7 +453,7 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 }
 
 func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64) error {
-	atts, err := a.eth2Cl.BlockAttestations(ctx, strconv.FormatUint(slot, 10))
+	atts, err := a.eth2Cl.BlockAttestationsV2(ctx, strconv.FormatUint(slot, 10))
 	if err != nil {
 		return err
 	} else if len(atts) == 0 {
@@ -436,29 +461,49 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64) error {
 	}
 
 	// Map attestations by data root, merging duplicates (with identical attestation data).
-	attsMap := make(map[eth2p0.Root]*eth2p0.Attestation)
+	attsMap := make(map[eth2p0.Root]*eth2spec.VersionedAttestation)
 	for _, att := range atts {
-		if att == nil || att.Data == nil {
+		if att == nil {
 			return errors.New("invalid attestation")
 		}
 
-		if att.Data.Target == nil || att.Data.Source == nil {
+		attData, err := att.Data()
+		if err != nil {
+			return errors.New("invalid attestation")
+		}
+		if attData.Target == nil || attData.Source == nil {
 			return errors.New("invalid attestation data checkpoint")
 		}
 
-		root, err := att.Data.HashTreeRoot()
+		root, err := attData.HashTreeRoot()
 		if err != nil {
 			return errors.Wrap(err, "hash attestation")
 		}
 
 		// Zero signature since it isn't used and wouldn't be valid after merging anyway.
-		att.Signature = eth2p0.BLSSignature{}
+		err = setAttestationSignature(*att, eth2p0.BLSSignature{})
+		if err != nil {
+			return err
+		}
+
+		attAggregationBits, err := att.AggregationBits()
+		if err != nil {
+			return errors.Wrap(err, "get attestation aggregation bits")
+		}
 
 		if exist, ok := attsMap[root]; ok {
+			existAttAggregationBits, err := exist.AggregationBits()
+			if err != nil {
+				return errors.Wrap(err, "get attestation aggregation bits")
+			}
 			// Merge duplicate attestations (only aggregation bits)
-			att.AggregationBits, err = att.AggregationBits.Or(exist.AggregationBits)
+			bits, err := attAggregationBits.Or(existAttAggregationBits)
 			if err != nil {
 				return errors.Wrap(err, "merge attestation aggregation bits")
+			}
+			err = setAttestationAggregationBits(*att, bits)
+			if err != nil {
+				return errors.Wrap(err, "set attestation aggregation bits")
 			}
 		}
 
@@ -468,4 +513,102 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64) error {
 	a.checkBlockFunc(ctx, block{Slot: slot, AttestationsByDataRoot: attsMap})
 
 	return nil
+}
+
+func setAttestationSignature(att eth2spec.VersionedAttestation, sig eth2p0.BLSSignature) error {
+	switch att.Version {
+	case eth2spec.DataVersionPhase0:
+		if att.Phase0 == nil {
+			return errors.New("no Phase0 attestation")
+		}
+		att.Phase0.Signature = sig
+
+		return nil
+	case eth2spec.DataVersionAltair:
+		if att.Altair == nil {
+			return errors.New("no Altair attestation")
+		}
+		att.Altair.Signature = sig
+
+		return nil
+	case eth2spec.DataVersionBellatrix:
+		if att.Bellatrix == nil {
+			return errors.New("no Bellatrix attestation")
+		}
+		att.Bellatrix.Signature = sig
+
+		return nil
+	case eth2spec.DataVersionCapella:
+		if att.Capella == nil {
+			return errors.New("no Capella attestation")
+		}
+		att.Capella.Signature = sig
+
+		return nil
+	case eth2spec.DataVersionDeneb:
+		if att.Deneb == nil {
+			return errors.New("no Deneb attestation")
+		}
+		att.Deneb.Signature = sig
+
+		return nil
+	case eth2spec.DataVersionElectra:
+		if att.Electra == nil {
+			return errors.New("no Electra attestation")
+		}
+		att.Electra.Signature = sig
+
+		return nil
+	default:
+		return errors.New("unknown attestation version", z.Str("version", att.Version.String()))
+	}
+}
+
+func setAttestationAggregationBits(att eth2spec.VersionedAttestation, bits bitfield.Bitlist) error {
+	switch att.Version {
+	case eth2spec.DataVersionPhase0:
+		if att.Phase0 == nil {
+			return errors.New("no Phase0 attestation")
+		}
+		att.Phase0.AggregationBits = bits
+
+		return nil
+	case eth2spec.DataVersionAltair:
+		if att.Altair == nil {
+			return errors.New("no Altair attestation")
+		}
+		att.Altair.AggregationBits = bits
+
+		return nil
+	case eth2spec.DataVersionBellatrix:
+		if att.Bellatrix == nil {
+			return errors.New("no Bellatrix attestation")
+		}
+		att.Bellatrix.AggregationBits = bits
+
+		return nil
+	case eth2spec.DataVersionCapella:
+		if att.Capella == nil {
+			return errors.New("no Capella attestation")
+		}
+		att.Capella.AggregationBits = bits
+
+		return nil
+	case eth2spec.DataVersionDeneb:
+		if att.Deneb == nil {
+			return errors.New("no Deneb attestation")
+		}
+		att.Deneb.AggregationBits = bits
+
+		return nil
+	case eth2spec.DataVersionElectra:
+		if att.Electra == nil {
+			return errors.New("no Electra attestation")
+		}
+		att.Electra.AggregationBits = bits
+
+		return nil
+	default:
+		return errors.New("unknown attestation version", z.Str("version", att.Version.String()))
+	}
 }
