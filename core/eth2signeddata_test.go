@@ -24,7 +24,7 @@ func TestVerifyEth2SignedData(t *testing.T) {
 	}{
 		{
 			name: "verify attestation",
-			data: core.NewAttestation(testutil.RandomAttestation()),
+			data: testutil.RandomDenebCoreVersionedAttestation(),
 		},
 		{
 			name: "verify beacon block",

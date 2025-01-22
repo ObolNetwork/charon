@@ -539,6 +539,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		BlockAttestationsFunc: func(context.Context, string) ([]*eth2p0.Attestation, error) {
 			return []*eth2p0.Attestation{}, nil
 		},
+		BlockAttestationsV2Func: func(context.Context, string) ([]*eth2spec.VersionedAttestation, error) {
+			return []*eth2spec.VersionedAttestation{}, nil
+		},
 		NodePeerCountFunc: func(context.Context) (int, error) {
 			return 80, nil
 		},
@@ -565,7 +568,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		ValidatorsByPubKeyFunc: func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 			return nil, nil
 		},
-		SubmitAttestationsFunc: func(context.Context, []*eth2p0.Attestation) error {
+		SubmitAttestationsFunc: func(context.Context, *eth2api.SubmitAttestationsOpts) error {
 			return nil
 		},
 		SubmitProposalFunc: func(context.Context, *eth2api.SubmitProposalOpts) error {

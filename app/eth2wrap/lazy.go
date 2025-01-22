@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
@@ -192,6 +193,7 @@ func (l *lazy) AggregateSyncCommitteeSelections(ctx context.Context, partialSele
 	return cl.AggregateSyncCommitteeSelections(ctx, partialSelections)
 }
 
+// Deprecated: use BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error)
 func (l *lazy) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
@@ -199,6 +201,15 @@ func (l *lazy) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0
 	}
 
 	return cl.BlockAttestations(ctx, stateID)
+}
+
+func (l *lazy) BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return cl.BlockAttestationsV2(ctx, stateID)
 }
 
 func (l *lazy) NodePeerCount(ctx context.Context) (int, error) {
