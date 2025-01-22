@@ -70,6 +70,7 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 		{testnetGenesisTimestamp, false},
 		{testnetCapellaHardFork, false},
 		{beaconNodeHeaders, false},
+		{fallbackBeaconNodeAddrs, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
@@ -132,7 +133,7 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 		return err
 	}
 
-	eth2Cl, err := eth2Client(ctx, beaconNodeHeaders, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.GetForkVersion()))
+	eth2Cl, err := eth2Client(ctx, config.FallbackBeaconNodeAddrs, beaconNodeHeaders, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.GetForkVersion()))
 	if err != nil {
 		return errors.Wrap(err, "create eth2 client for specified beacon node(s)", z.Any("beacon_nodes_endpoints", config.BeaconNodeEndpoints))
 	}

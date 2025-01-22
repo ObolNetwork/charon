@@ -72,23 +72,9 @@ type Client interface {
 func (m multi) SlotDuration(ctx context.Context) (time.Duration, error) {
 	const label = "slot_duration"
 
-	res0, err := provide(ctx, m.clients, m.fallback,
+	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (time.Duration, error) {
-			res0, err := args.client.SlotDuration(ctx)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
-				}
-
-				defer args.fallback.place()
-
-				return fe.SlotDuration(ctx)
-			}
-
-			return res0, err
+			return args.client.SlotDuration(ctx)
 		},
 		nil, m.selector,
 	)
@@ -108,23 +94,9 @@ func (m multi) SlotDuration(ctx context.Context) (time.Duration, error) {
 func (m multi) SlotsPerEpoch(ctx context.Context) (uint64, error) {
 	const label = "slots_per_epoch"
 
-	res0, err := provide(ctx, m.clients, m.fallback,
+	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (uint64, error) {
-			res0, err := args.client.SlotsPerEpoch(ctx)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
-				}
-
-				defer args.fallback.place()
-
-				return fe.SlotsPerEpoch(ctx)
-			}
-
-			return res0, err
+			return args.client.SlotsPerEpoch(ctx)
 		},
 		nil, m.selector,
 	)
@@ -142,23 +114,9 @@ func (m multi) SignedBeaconBlock(ctx context.Context, opts *api.SignedBeaconBloc
 	const label = "signed_beacon_block"
 	defer latency(ctx, label, false)()
 
-	res0, err := provide(ctx, m.clients, m.fallback,
+	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*spec.VersionedSignedBeaconBlock], error) {
-			res0, err := args.client.SignedBeaconBlock(ctx, opts)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
-				}
-
-				defer args.fallback.place()
-
-				return fe.SignedBeaconBlock(ctx, opts)
-			}
-
-			return res0, err
+			return args.client.SignedBeaconBlock(ctx, opts)
 		},
 		nil, m.selector,
 	)
@@ -176,23 +134,9 @@ func (m multi) AggregateAttestation(ctx context.Context, opts *api.AggregateAtte
 	const label = "aggregate_attestation"
 	defer latency(ctx, label, false)()
 
-	res0, err := provide(ctx, m.clients, m.fallback,
+	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*phase0.Attestation], error) {
-			res0, err := args.client.AggregateAttestation(ctx, opts)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
-				}
-
-				defer args.fallback.place()
-
-				return fe.AggregateAttestation(ctx, opts)
-			}
-
-			return res0, err
+			return args.client.AggregateAttestation(ctx, opts)
 		},
 		isAggregateAttestationOk, m.selector,
 	)
@@ -210,23 +154,9 @@ func (m multi) SubmitAggregateAttestations(ctx context.Context, aggregateAndProo
 	const label = "submit_aggregate_attestations"
 	defer latency(ctx, label, false)()
 
-	err := submit(ctx, m.clients, m.fallback,
+	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
-			err := args.client.SubmitAggregateAttestations(ctx, aggregateAndProofs)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return err
-				}
-
-				defer args.fallback.place()
-
-				return fe.SubmitAggregateAttestations(ctx, aggregateAndProofs)
-			}
-
-			return err
+			return args.client.SubmitAggregateAttestations(ctx, aggregateAndProofs)
 		},
 		m.selector,
 	)
@@ -244,23 +174,9 @@ func (m multi) AttestationData(ctx context.Context, opts *api.AttestationDataOpt
 	const label = "attestation_data"
 	defer latency(ctx, label, false)()
 
-	res0, err := provide(ctx, m.clients, m.fallback,
+	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*phase0.AttestationData], error) {
-			res0, err := args.client.AttestationData(ctx, opts)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
-				}
-
-				defer args.fallback.place()
-
-				return fe.AttestationData(ctx, opts)
-			}
-
-			return res0, err
+			return args.client.AttestationData(ctx, opts)
 		},
 		nil, m.selector,
 	)
@@ -278,23 +194,9 @@ func (m multi) SubmitAttestations(ctx context.Context, attestations []*phase0.At
 	const label = "submit_attestations"
 	defer latency(ctx, label, false)()
 
-	err := submit(ctx, m.clients, m.fallback,
+	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
-			err := args.client.SubmitAttestations(ctx, attestations)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return err
-				}
-
-				defer args.fallback.place()
-
-				return fe.SubmitAttestations(ctx, attestations)
-			}
-
-			return err
+			return args.client.SubmitAttestations(ctx, attestations)
 		},
 		m.selector,
 	)
@@ -312,23 +214,9 @@ func (m multi) AttesterDuties(ctx context.Context, opts *api.AttesterDutiesOpts)
 	const label = "attester_duties"
 	defer latency(ctx, label, false)()
 
-	res0, err := provide(ctx, m.clients, m.fallback,
+	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[[]*apiv1.AttesterDuty], error) {
-			res0, err := args.client.AttesterDuties(ctx, opts)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
-				}
-
-				defer args.fallback.place()
-
-				return fe.AttesterDuties(ctx, opts)
-			}
-
-			return res0, err
+			return args.client.AttesterDuties(ctx, opts)
 		},
 		nil, m.selector,
 	)
@@ -346,23 +234,9 @@ func (m multi) AttesterDuties(ctx context.Context, opts *api.AttesterDutiesOpts)
 func (m multi) DepositContract(ctx context.Context, opts *api.DepositContractOpts) (*api.Response[*apiv1.DepositContract], error) {
 	const label = "deposit_contract"
 
-	res0, err := provide(ctx, m.clients, m.fallback,
+	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*apiv1.DepositContract], error) {
-			res0, err := args.client.DepositContract(ctx, opts)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
-				}
-
-				defer args.fallback.place()
-
-				return fe.DepositContract(ctx, opts)
-			}
-
-			return res0, err
+			return args.client.DepositContract(ctx, opts)
 		},
 		nil, m.selector,
 	)
@@ -381,23 +255,9 @@ func (m multi) SyncCommitteeDuties(ctx context.Context, opts *api.SyncCommitteeD
 	const label = "sync_committee_duties"
 	defer latency(ctx, label, false)()
 
-	res0, err := provide(ctx, m.clients, m.fallback,
+	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[[]*apiv1.SyncCommitteeDuty], error) {
-			res0, err := args.client.SyncCommitteeDuties(ctx, opts)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
-				}
-
-				defer args.fallback.place()
-
-				return fe.SyncCommitteeDuties(ctx, opts)
-			}
-
-			return res0, err
+			return args.client.SyncCommitteeDuties(ctx, opts)
 		},
 		nil, m.selector,
 	)
@@ -415,23 +275,9 @@ func (m multi) SubmitSyncCommitteeMessages(ctx context.Context, messages []*alta
 	const label = "submit_sync_committee_messages"
 	defer latency(ctx, label, false)()
 
-	err := submit(ctx, m.clients, m.fallback,
+	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
-			err := args.client.SubmitSyncCommitteeMessages(ctx, messages)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return err
-				}
-
-				defer args.fallback.place()
-
-				return fe.SubmitSyncCommitteeMessages(ctx, messages)
-			}
-
-			return err
+			return args.client.SubmitSyncCommitteeMessages(ctx, messages)
 		},
 		m.selector,
 	)
@@ -449,23 +295,9 @@ func (m multi) SubmitSyncCommitteeSubscriptions(ctx context.Context, subscriptio
 	const label = "submit_sync_committee_subscriptions"
 	defer latency(ctx, label, false)()
 
-	err := submit(ctx, m.clients, m.fallback,
+	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
-			err := args.client.SubmitSyncCommitteeSubscriptions(ctx, subscriptions)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return err
-				}
-
-				defer args.fallback.place()
-
-				return fe.SubmitSyncCommitteeSubscriptions(ctx, subscriptions)
-			}
-
-			return err
+			return args.client.SubmitSyncCommitteeSubscriptions(ctx, subscriptions)
 		},
 		m.selector,
 	)
@@ -483,23 +315,9 @@ func (m multi) SyncCommitteeContribution(ctx context.Context, opts *api.SyncComm
 	const label = "sync_committee_contribution"
 	defer latency(ctx, label, false)()
 
-	res0, err := provide(ctx, m.clients, m.fallback,
+	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*altair.SyncCommitteeContribution], error) {
-			res0, err := args.client.SyncCommitteeContribution(ctx, opts)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
-				}
-
-				defer args.fallback.place()
-
-				return fe.SyncCommitteeContribution(ctx, opts)
-			}
-
-			return res0, err
+			return args.client.SyncCommitteeContribution(ctx, opts)
 		},
 		nil, m.selector,
 	)
@@ -517,23 +335,9 @@ func (m multi) SubmitSyncCommitteeContributions(ctx context.Context, contributio
 	const label = "submit_sync_committee_contributions"
 	defer latency(ctx, label, false)()
 
-	err := submit(ctx, m.clients, m.fallback,
+	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
-			err := args.client.SubmitSyncCommitteeContributions(ctx, contributionAndProofs)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return err
-				}
-
-				defer args.fallback.place()
-
-				return fe.SubmitSyncCommitteeContributions(ctx, contributionAndProofs)
-			}
-
-			return err
+			return args.client.SubmitSyncCommitteeContributions(ctx, contributionAndProofs)
 		},
 		m.selector,
 	)
@@ -551,23 +355,9 @@ func (m multi) Proposal(ctx context.Context, opts *api.ProposalOpts) (*api.Respo
 	const label = "proposal"
 	defer latency(ctx, label, true)()
 
-	res0, err := provide(ctx, m.clients, m.fallback,
+	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*api.VersionedProposal], error) {
-			res0, err := args.client.Proposal(ctx, opts)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
-				}
-
-				defer args.fallback.place()
-
-				return fe.Proposal(ctx, opts)
-			}
-
-			return res0, err
+			return args.client.Proposal(ctx, opts)
 		},
 		nil, m.selector,
 	)
@@ -585,23 +375,9 @@ func (m multi) Proposal(ctx context.Context, opts *api.ProposalOpts) (*api.Respo
 func (m multi) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRootOpts) (*api.Response[*phase0.Root], error) {
 	const label = "beacon_block_root"
 
-	res0, err := provide(ctx, m.clients, m.fallback,
+	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*phase0.Root], error) {
-			res0, err := args.client.BeaconBlockRoot(ctx, opts)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
-				}
-
-				defer args.fallback.place()
-
-				return fe.BeaconBlockRoot(ctx, opts)
-			}
-
-			return res0, err
+			return args.client.BeaconBlockRoot(ctx, opts)
 		},
 		nil, m.selector,
 	)
@@ -619,23 +395,9 @@ func (m multi) SubmitProposal(ctx context.Context, opts *api.SubmitProposalOpts)
 	const label = "submit_proposal"
 	defer latency(ctx, label, false)()
 
-	err := submit(ctx, m.clients, m.fallback,
+	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
-			err := args.client.SubmitProposal(ctx, opts)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return err
-				}
-
-				defer args.fallback.place()
-
-				return fe.SubmitProposal(ctx, opts)
-			}
-
-			return err
+			return args.client.SubmitProposal(ctx, opts)
 		},
 		m.selector,
 	)
@@ -653,23 +415,9 @@ func (m multi) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscript
 	const label = "submit_beacon_committee_subscriptions"
 	defer latency(ctx, label, false)()
 
-	err := submit(ctx, m.clients, m.fallback,
+	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
-			err := args.client.SubmitBeaconCommitteeSubscriptions(ctx, subscriptions)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return err
-				}
-
-				defer args.fallback.place()
-
-				return fe.SubmitBeaconCommitteeSubscriptions(ctx, subscriptions)
-			}
-
-			return err
+			return args.client.SubmitBeaconCommitteeSubscriptions(ctx, subscriptions)
 		},
 		m.selector,
 	)
@@ -687,23 +435,9 @@ func (m multi) SubmitBlindedProposal(ctx context.Context, opts *api.SubmitBlinde
 	const label = "submit_blinded_proposal"
 	defer latency(ctx, label, false)()
 
-	err := submit(ctx, m.clients, m.fallback,
+	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
-			err := args.client.SubmitBlindedProposal(ctx, opts)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return err
-				}
-
-				defer args.fallback.place()
-
-				return fe.SubmitBlindedProposal(ctx, opts)
-			}
-
-			return err
+			return args.client.SubmitBlindedProposal(ctx, opts)
 		},
 		m.selector,
 	)
@@ -721,23 +455,9 @@ func (m multi) SubmitValidatorRegistrations(ctx context.Context, registrations [
 	const label = "submit_validator_registrations"
 	defer latency(ctx, label, false)()
 
-	err := submit(ctx, m.clients, m.fallback,
+	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
-			err := args.client.SubmitValidatorRegistrations(ctx, registrations)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return err
-				}
-
-				defer args.fallback.place()
-
-				return fe.SubmitValidatorRegistrations(ctx, registrations)
-			}
-
-			return err
+			return args.client.SubmitValidatorRegistrations(ctx, registrations)
 		},
 		m.selector,
 	)
@@ -755,23 +475,9 @@ func (m multi) Fork(ctx context.Context, opts *api.ForkOpts) (*api.Response[*pha
 	const label = "fork"
 	defer latency(ctx, label, false)()
 
-	res0, err := provide(ctx, m.clients, m.fallback,
+	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*phase0.Fork], error) {
-			res0, err := args.client.Fork(ctx, opts)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
-				}
-
-				defer args.fallback.place()
-
-				return fe.Fork(ctx, opts)
-			}
-
-			return res0, err
+			return args.client.Fork(ctx, opts)
 		},
 		nil, m.selector,
 	)
@@ -789,23 +495,9 @@ func (m multi) ForkSchedule(ctx context.Context, opts *api.ForkScheduleOpts) (*a
 	const label = "fork_schedule"
 	defer latency(ctx, label, false)()
 
-	res0, err := provide(ctx, m.clients, m.fallback,
+	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[[]*phase0.Fork], error) {
-			res0, err := args.client.ForkSchedule(ctx, opts)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
-				}
-
-				defer args.fallback.place()
-
-				return fe.ForkSchedule(ctx, opts)
-			}
-
-			return res0, err
+			return args.client.ForkSchedule(ctx, opts)
 		},
 		nil, m.selector,
 	)
@@ -823,23 +515,9 @@ func (m multi) ForkSchedule(ctx context.Context, opts *api.ForkScheduleOpts) (*a
 func (m multi) Genesis(ctx context.Context, opts *api.GenesisOpts) (*api.Response[*apiv1.Genesis], error) {
 	const label = "genesis"
 
-	res0, err := provide(ctx, m.clients, m.fallback,
+	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*apiv1.Genesis], error) {
-			res0, err := args.client.Genesis(ctx, opts)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
-				}
-
-				defer args.fallback.place()
-
-				return fe.Genesis(ctx, opts)
-			}
-
-			return res0, err
+			return args.client.Genesis(ctx, opts)
 		},
 		nil, m.selector,
 	)
@@ -857,23 +535,9 @@ func (m multi) NodeSyncing(ctx context.Context, opts *api.NodeSyncingOpts) (*api
 	const label = "node_syncing"
 	defer latency(ctx, label, false)()
 
-	res0, err := provide(ctx, m.clients, m.fallback,
+	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*apiv1.SyncState], error) {
-			res0, err := args.client.NodeSyncing(ctx, opts)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
-				}
-
-				defer args.fallback.place()
-
-				return fe.NodeSyncing(ctx, opts)
-			}
-
-			return res0, err
+			return args.client.NodeSyncing(ctx, opts)
 		},
 		isSyncStateOk, m.selector,
 	)
@@ -891,23 +555,9 @@ func (m multi) NodeSyncing(ctx context.Context, opts *api.NodeSyncingOpts) (*api
 func (m multi) NodeVersion(ctx context.Context, opts *api.NodeVersionOpts) (*api.Response[string], error) {
 	const label = "node_version"
 
-	res0, err := provide(ctx, m.clients, m.fallback,
+	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[string], error) {
-			res0, err := args.client.NodeVersion(ctx, opts)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
-				}
-
-				defer args.fallback.place()
-
-				return fe.NodeVersion(ctx, opts)
-			}
-
-			return res0, err
+			return args.client.NodeVersion(ctx, opts)
 		},
 		nil, m.selector,
 	)
@@ -922,28 +572,13 @@ func (m multi) NodeVersion(ctx context.Context, opts *api.NodeVersionOpts) (*api
 
 // SubmitProposalPreparations provides the beacon node with information required if a proposal for the given validators
 // shows up in the next epoch.
-// Note this endpoint is cached in go-eth2-client.
 func (m multi) SubmitProposalPreparations(ctx context.Context, preparations []*apiv1.ProposalPreparation) error {
 	const label = "submit_proposal_preparations"
 	defer latency(ctx, label, true)()
 
-	err := submit(ctx, m.clients, m.fallback,
+	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
-			err := args.client.SubmitProposalPreparations(ctx, preparations)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return err
-				}
-
-				defer args.fallback.place()
-
-				return fe.SubmitProposalPreparations(ctx, preparations)
-			}
-
-			return err
+			return args.client.SubmitProposalPreparations(ctx, preparations)
 		},
 		m.selector,
 	)
@@ -961,23 +596,9 @@ func (m multi) ProposerDuties(ctx context.Context, opts *api.ProposerDutiesOpts)
 	const label = "proposer_duties"
 	defer latency(ctx, label, false)()
 
-	res0, err := provide(ctx, m.clients, m.fallback,
+	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[[]*apiv1.ProposerDuty], error) {
-			res0, err := args.client.ProposerDuties(ctx, opts)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
-				}
-
-				defer args.fallback.place()
-
-				return fe.ProposerDuties(ctx, opts)
-			}
-
-			return res0, err
+			return args.client.ProposerDuties(ctx, opts)
 		},
 		nil, m.selector,
 	)
@@ -995,23 +616,9 @@ func (m multi) ProposerDuties(ctx context.Context, opts *api.ProposerDutiesOpts)
 func (m multi) Spec(ctx context.Context, opts *api.SpecOpts) (*api.Response[map[string]any], error) {
 	const label = "spec"
 
-	res0, err := provide(ctx, m.clients, m.fallback,
+	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[map[string]any], error) {
-			res0, err := args.client.Spec(ctx, opts)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
-				}
-
-				defer args.fallback.place()
-
-				return fe.Spec(ctx, opts)
-			}
-
-			return res0, err
+			return args.client.Spec(ctx, opts)
 		},
 		nil, m.selector,
 	)
@@ -1029,23 +636,9 @@ func (m multi) Validators(ctx context.Context, opts *api.ValidatorsOpts) (*api.R
 	const label = "validators"
 	defer latency(ctx, label, true)()
 
-	res0, err := provide(ctx, m.clients, m.fallback,
+	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[map[phase0.ValidatorIndex]*apiv1.Validator], error) {
-			res0, err := args.client.Validators(ctx, opts)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
-				}
-
-				defer args.fallback.place()
-
-				return fe.Validators(ctx, opts)
-			}
-
-			return res0, err
+			return args.client.Validators(ctx, opts)
 		},
 		nil, m.selector,
 	)
@@ -1063,23 +656,9 @@ func (m multi) SubmitVoluntaryExit(ctx context.Context, voluntaryExit *phase0.Si
 	const label = "submit_voluntary_exit"
 	defer latency(ctx, label, false)()
 
-	err := submit(ctx, m.clients, m.fallback,
+	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
-			err := args.client.SubmitVoluntaryExit(ctx, voluntaryExit)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return err
-				}
-
-				defer args.fallback.place()
-
-				return fe.SubmitVoluntaryExit(ctx, voluntaryExit)
-			}
-
-			return err
+			return args.client.SubmitVoluntaryExit(ctx, voluntaryExit)
 		},
 		m.selector,
 	)
@@ -1097,23 +676,9 @@ func (m multi) SubmitVoluntaryExit(ctx context.Context, voluntaryExit *phase0.Si
 func (m multi) Domain(ctx context.Context, domainType phase0.DomainType, epoch phase0.Epoch) (phase0.Domain, error) {
 	const label = "domain"
 
-	res0, err := provide(ctx, m.clients, m.fallback,
+	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (phase0.Domain, error) {
-			res0, err := args.client.Domain(ctx, domainType, epoch)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
-				}
-
-				defer args.fallback.place()
-
-				return fe.Domain(ctx, domainType, epoch)
-			}
-
-			return res0, err
+			return args.client.Domain(ctx, domainType, epoch)
 		},
 		nil, m.selector,
 	)
@@ -1134,23 +699,9 @@ func (m multi) Domain(ctx context.Context, domainType phase0.DomainType, epoch p
 func (m multi) GenesisDomain(ctx context.Context, domainType phase0.DomainType) (phase0.Domain, error) {
 	const label = "genesis_domain"
 
-	res0, err := provide(ctx, m.clients, m.fallback,
+	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (phase0.Domain, error) {
-			res0, err := args.client.GenesisDomain(ctx, domainType)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
-				}
-
-				defer args.fallback.place()
-
-				return fe.GenesisDomain(ctx, domainType)
-			}
-
-			return res0, err
+			return args.client.GenesisDomain(ctx, domainType)
 		},
 		nil, m.selector,
 	)
@@ -1168,23 +719,9 @@ func (m multi) GenesisDomain(ctx context.Context, domainType phase0.DomainType) 
 func (m multi) GenesisTime(ctx context.Context) (time.Time, error) {
 	const label = "genesis_time"
 
-	res0, err := provide(ctx, m.clients, m.fallback,
+	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (time.Time, error) {
-			res0, err := args.client.GenesisTime(ctx)
-			if err != nil {
-				// use a fallback BN if any
-				fe, fallbackErr := args.fallback.pick()
-				if fallbackErr != nil {
-					// no fallback endpoint available, return previous error
-					return res0, err
-				}
-
-				defer args.fallback.place()
-
-				return fe.GenesisTime(ctx)
-			}
-
-			return res0, err
+			return args.client.GenesisTime(ctx)
 		},
 		nil, m.selector,
 	)
