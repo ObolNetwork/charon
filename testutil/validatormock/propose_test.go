@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -55,10 +57,10 @@ func TestAttest(t *testing.T) {
 			require.NoError(t, err)
 
 			// Callback to collect attestations
-			var atts []*eth2p0.Attestation
+			var atts []*eth2spec.VersionedAttestation
 			var aggs []*eth2p0.SignedAggregateAndProof
-			beaconMock.SubmitAttestationsFunc = func(_ context.Context, attestations []*eth2p0.Attestation) error {
-				atts = attestations
+			beaconMock.SubmitAttestationsFunc = func(_ context.Context, attestations *eth2api.SubmitAttestationsOpts) error {
+				atts = attestations.Attestations
 				return nil
 			}
 			beaconMock.SubmitAggregateAttestationsFunc = func(_ context.Context, aggAndProofs []*eth2p0.SignedAggregateAndProof) error {
@@ -92,7 +94,16 @@ func TestAttest(t *testing.T) {
 
 			// Sort the outputs to make it deterministic to compare with json.
 			sort.Slice(atts, func(i, j int) bool {
-				return atts[i].Data.Index < atts[j].Data.Index
+				attsiData, err := atts[i].Data()
+				if err != nil {
+					return false
+				}
+				attsjData, err := atts[j].Data()
+				if err != nil {
+					return false
+				}
+
+				return attsiData.Index < attsjData.Index
 			})
 
 			sort.Slice(aggs, func(i, j int) bool {

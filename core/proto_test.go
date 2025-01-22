@@ -33,7 +33,7 @@ func TestParSignedDataSetProto(t *testing.T) {
 	}{
 		{
 			Type: core.DutyAttester,
-			Data: core.Attestation{Attestation: *testutil.RandomAttestation()},
+			Data: testutil.RandomDenebCoreVersionedAttestation(),
 		},
 		{
 			Type: core.DutyExit,
@@ -186,7 +186,7 @@ func TestParSignedData(t *testing.T) {
 
 func TestParSignedDataFromProtoErrors(t *testing.T) {
 	parSig1 := core.ParSignedData{
-		SignedData: core.Attestation{Attestation: *testutil.RandomAttestation()},
+		SignedData: core.SignedAggregateAndProof{*testutil.RandomSignedAggregateAndProof()},
 		ShareIdx:   rand.Intn(100),
 	}
 
@@ -215,7 +215,7 @@ func TestSetSignature(t *testing.T) {
 }
 
 func TestMarshalAttestation(t *testing.T) {
-	att := core.Attestation{Attestation: *testutil.RandomAttestation()}
+	att := testutil.RandomDenebCoreVersionedAttestation()
 
 	b, err := json.Marshal(att)
 	require.NoError(t, err)
@@ -224,7 +224,7 @@ func TestMarshalAttestation(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, b, b2)
 
-	a := new(core.Attestation)
+	a := new(core.VersionedAttestation)
 	err = json.Unmarshal(b, a)
 	require.NoError(t, err)
 
@@ -235,7 +235,7 @@ func randomSignedData(t *testing.T) map[core.DutyType]core.SignedData {
 	t.Helper()
 
 	return map[core.DutyType]core.SignedData{
-		core.DutyAttester:                core.NewAttestation(testutil.RandomAttestation()),
+		core.DutyAttester:                testutil.RandomDenebCoreVersionedAttestation(),
 		core.DutyExit:                    core.NewSignedVoluntaryExit(testutil.RandomExit()),
 		core.DutyRandao:                  core.SignedRandao{SignedEpoch: eth2util.SignedEpoch{Epoch: testutil.RandomEpoch(), Signature: testutil.RandomEth2Signature()}},
 		core.DutyProposer:                testutil.RandomBellatrixCoreVersionedSignedProposal(),

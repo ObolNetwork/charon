@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"testing"
 
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/stretchr/testify/require"
@@ -29,11 +30,11 @@ func TestDuplicateAttData(t *testing.T) {
 	bits3 := testutil.RandomBitList(8)
 	attData := testutil.RandomAttestationData()
 
-	bmock.BlockAttestationsFunc = func(_ context.Context, _ string) ([]*eth2p0.Attestation, error) {
-		return []*eth2p0.Attestation{
-			{AggregationBits: bits1, Data: attData},
-			{AggregationBits: bits2, Data: attData},
-			{AggregationBits: bits3, Data: attData},
+	bmock.BlockAttestationsV2Func = func(_ context.Context, _ string) ([]*eth2spec.VersionedAttestation, error) {
+		return []*eth2spec.VersionedAttestation{
+			{Version: eth2spec.DataVersionDeneb, Deneb: &eth2p0.Attestation{AggregationBits: bits1, Data: attData}},
+			{Version: eth2spec.DataVersionDeneb, Deneb: &eth2p0.Attestation{AggregationBits: bits2, Data: attData}},
+			{Version: eth2spec.DataVersionDeneb, Deneb: &eth2p0.Attestation{AggregationBits: bits3, Data: attData}},
 		}, nil
 	}
 
@@ -52,15 +53,15 @@ func TestDuplicateAttData(t *testing.T) {
 		att, ok := block.AttestationsByDataRoot[attDataRoot]
 		require.True(t, ok)
 
-		ok, err := att.AggregationBits.Contains(bits1)
+		ok, err := att.Deneb.AggregationBits.Contains(bits1)
 		require.NoError(t, err)
 		require.True(t, ok)
 
-		ok, err = att.AggregationBits.Contains(bits2)
+		ok, err = att.Deneb.AggregationBits.Contains(bits2)
 		require.NoError(t, err)
 		require.True(t, ok)
 
-		ok, err = att.AggregationBits.Contains(bits3)
+		ok, err = att.Deneb.AggregationBits.Contains(bits3)
 		require.NoError(t, err)
 		require.True(t, ok)
 
@@ -88,14 +89,18 @@ func TestInclusion(t *testing.T) {
 	}
 
 	// Create some duties
-	att1 := testutil.RandomAttestation()
-	att1Duty := core.NewAttesterDuty(uint64(att1.Data.Slot))
+	att1 := testutil.RandomDenebVersionedAttestation()
+	att1Data, err := att1.Data()
+	require.NoError(t, err)
+	att1Duty := core.NewAttesterDuty(uint64(att1Data.Slot))
 
 	agg2 := testutil.RandomSignedAggregateAndProof()
 	agg2Duty := core.NewAggregatorDuty(uint64(agg2.Message.Aggregate.Data.Slot))
 
-	att3 := testutil.RandomAttestation()
-	att3Duty := core.NewAttesterDuty(uint64(att3.Data.Slot))
+	att3 := testutil.RandomDenebVersionedAttestation()
+	att3Data, err := att3.Data()
+	require.NoError(t, err)
+	att3Duty := core.NewAttesterDuty(uint64(att3Data.Slot))
 
 	block4 := testutil.RandomDenebVersionedSignedProposal()
 	block4Duty := core.NewProposerDuty(uint64(block4.Deneb.SignedBlock.Message.Slot))
@@ -108,11 +113,15 @@ func TestInclusion(t *testing.T) {
 	}
 
 	// Submit all duties
-	err := incl.Submitted(att1Duty, "", core.NewAttestation(att1), 0)
+	incl1, err := core.NewVersionedAttestation(att1)
+	require.NoError(t, err)
+	err = incl.Submitted(att1Duty, "", incl1, 0)
 	require.NoError(t, err)
 	err = incl.Submitted(agg2Duty, "", core.NewSignedAggregateAndProof(agg2), 0)
 	require.NoError(t, err)
-	err = incl.Submitted(att3Duty, "", core.NewAttestation(att3), 0)
+	incl3, err := core.NewVersionedAttestation(att3)
+	require.NoError(t, err)
+	err = incl.Submitted(att3Duty, "", incl3, 0)
 	require.NoError(t, err)
 
 	coreBlock4, err := core.NewVersionedSignedProposal(block4)
@@ -123,19 +132,20 @@ func TestInclusion(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a mock block with the 1st and 2nd attestations.
-	att1Root, err := att1.Data.HashTreeRoot()
+	att1Root, err := att1.Deneb.Data.HashTreeRoot()
 	require.NoError(t, err)
 	att2Root, err := agg2.Message.Aggregate.Data.HashTreeRoot()
 	require.NoError(t, err)
 	// Add some random aggregation bits to the attestation
-	addRandomBits(att1.AggregationBits)
+	addRandomBits(att1.Deneb.AggregationBits)
 	addRandomBits(agg2.Message.Aggregate.AggregationBits)
 
 	block := block{
 		Slot: block4Duty.Slot,
-		AttestationsByDataRoot: map[eth2p0.Root]*eth2p0.Attestation{
+		AttestationsByDataRoot: map[eth2p0.Root]*eth2spec.VersionedAttestation{
 			att1Root: att1,
-			att2Root: agg2.Message.Aggregate,
+			// TODO(kalo): go-eth2-client should (?) have versioned attestations for AggregateAndProof
+			att2Root: {Version: eth2spec.DataVersionDeneb, Deneb: agg2.Message.Aggregate},
 		},
 	}
 

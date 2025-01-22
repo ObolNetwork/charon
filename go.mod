@@ -198,7 +198,7 @@ require (
 	github.com/pion/transport/v2 v2.2.10 // indirect
 	github.com/pion/turn/v2 v2.1.6 // indirect
 	github.com/pion/webrtc/v3 v3.3.4 // indirect
-	github.com/pk910/dynamic-ssz v0.0.3 // indirect
+	github.com/pk910/dynamic-ssz v0.0.4 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/profile v1.7.0 // indirect
@@ -263,4 +263,7 @@ replace github.com/coinbase/kryptology => github.com/ObolNetwork/kryptology v0.0
 
 // We're replacing go-eth2-client with a branch off our fork, at version v0.21.10.
 // This is needed to ensure Gnosis compatibility.
-replace github.com/attestantio/go-eth2-client => github.com/ObolNetwork/go-eth2-client v0.21.11-0.20240822135044-f0a5b21e02c6
+// replace github.com/attestantio/go-eth2-client => github.com/ObolNetwork/go-eth2-client v0.21.11-0.20240822135044-f0a5b21e02c6
+
+// Replace go-eth2-client version with the electra branch
+replace github.com/attestantio/go-eth2-client => github.com/attestantio/go-eth2-client v0.23.1-0.20250114123312-5a900c7c87e7
