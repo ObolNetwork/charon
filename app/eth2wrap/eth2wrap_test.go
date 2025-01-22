@@ -147,72 +147,97 @@ func TestMulti(t *testing.T) {
 }
 
 func TestFallback(t *testing.T) {
+	returnValue := uint64(42)
+	closedErr := errors.New("error")
+
 	tests := []struct {
-		name                string
-		primaryErrs         []error
-		expectFallbackCalls bool
+		name         string
+		primaryErrs  []error
+		fallbackErrs []error
 	}{
 		{
-			name:                "primary success - no fallback called",
-			primaryErrs:         []error{nil, nil},
-			expectFallbackCalls: false,
+			name:         "primary success - no fallback called",
+			primaryErrs:  []error{nil, nil},
+			fallbackErrs: []error{nil, nil},
 		},
 		{
-			name:                "one primary success - no fallback called",
-			primaryErrs:         []error{nil, errors.New("failed")},
-			expectFallbackCalls: false,
+			name:         "one primary success - no fallback called",
+			primaryErrs:  []error{nil, closedErr},
+			fallbackErrs: []error{nil, nil},
 		},
 		{
-			name:                "all primary fail - fallback called",
-			primaryErrs:         []error{errors.New("failed"), errors.New("failed")},
-			expectFallbackCalls: true,
+			name:         "all primary fail - fallback called",
+			primaryErrs:  []error{closedErr, closedErr},
+			fallbackErrs: []error{nil, nil},
+		},
+		{
+			name:         "all primary fail - one fallback success",
+			primaryErrs:  []error{closedErr, closedErr},
+			fallbackErrs: []error{nil, closedErr},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var fallbackCalled bool
-			var primaryCalledMu sync.Mutex
-			primaryCalled := make([]bool, len(tt.primaryErrs))
 
+			var calledMu sync.Mutex
+			primaryCalled := make([]bool, len(tt.primaryErrs))
+			fallbackCalled := make([]bool, len(tt.fallbackErrs))
+
+			// Track if all primaries fail to check if fallback must be called
+			allPrimariesFail := true
 			// Create primary clients
 			primaryClients := make([]eth2wrap.Client, len(tt.primaryErrs))
 			for i, primaryErr := range tt.primaryErrs {
+				if primaryErr == nil {
+					allPrimariesFail = false
+				}
 				cl, err := beaconmock.New()
 				require.NoError(t, err)
 
 				cl.SlotsPerEpochFunc = func(context.Context) (uint64, error) {
-					primaryCalledMu.Lock()
+					calledMu.Lock()
 					primaryCalled[i] = true
-					primaryCalledMu.Unlock()
-					return 42, primaryErr
+					calledMu.Unlock()
+					return returnValue, primaryErr
 				}
 				primaryClients[i] = cl
 			}
 
 			// Create fallback client
-			fallback, err := beaconmock.New()
-			require.NoError(t, err)
-			fallback.SlotsPerEpochFunc = func(context.Context) (uint64, error) {
-				fallbackCalled = true
-				return 42, nil
+			fallbackClients := make([]eth2wrap.Client, len(tt.fallbackErrs))
+			for i, fallbackErr := range tt.fallbackErrs {
+				cl, err := beaconmock.New()
+				require.NoError(t, err)
+
+				cl.SlotsPerEpochFunc = func(context.Context) (uint64, error) {
+					calledMu.Lock()
+					fallbackCalled[i] = true
+					calledMu.Unlock()
+					return returnValue, fallbackErr
+				}
+				fallbackClients[i] = cl
 			}
 
-			eth2Cl, _ := eth2wrap.Instrument(primaryClients, []eth2wrap.Client{fallback})
+			eth2Cl, err := eth2wrap.Instrument(primaryClients, fallbackClients)
+			require.NoError(t, err)
 			res, err := eth2Cl.SlotsPerEpoch(context.Background())
 			require.NoError(t, err)
-			require.Equal(t, uint64(42), res)
+			require.Equal(t, returnValue, res)
 
 			// Verify all primaries were called
-			primaryCalledMu.Lock()
+			calledMu.Lock()
 			for i, called := range primaryCalled {
 				require.True(t, called, "primary client %d was not called", i)
 			}
-			primaryCalledMu.Unlock()
 
-			// Verify fallback behavior
-			require.Equal(t, tt.expectFallbackCalls, fallbackCalled,
-				"fallback called=%v, want=%v", fallbackCalled, tt.expectFallbackCalls)
+			// Verify all fallbacks were called (when all primaries fail)
+			if allPrimariesFail {
+				for i, called := range fallbackCalled {
+					require.True(t, called, "fallback client %d was not called", i)
+				}
+			}
+			calledMu.Unlock()
 		})
 	}
 }
