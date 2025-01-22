@@ -8,6 +8,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prysmaticlabs/go-bitfield"
 
@@ -300,7 +301,7 @@ func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot
 	}
 
 	var (
-		atts  []*eth2p0.Attestation
+		atts  []*eth2spec.VersionedAttestation
 		datas attDatas
 	)
 	for commIdx, duties := range dutyByComm {
@@ -333,15 +334,18 @@ func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot
 			aggBits := bitfield.NewBitlist(duty.CommitteeLength)
 			aggBits.SetBitAt(duty.ValidatorCommitteeIndex, true)
 
-			atts = append(atts, &eth2p0.Attestation{
-				AggregationBits: aggBits,
-				Data:            data,
-				Signature:       sig,
+			atts = append(atts, &eth2spec.VersionedAttestation{
+				Version: eth2spec.DataVersionDeneb,
+				Deneb: &eth2p0.Attestation{
+					AggregationBits: aggBits,
+					Data:            data,
+					Signature:       sig,
+				},
 			})
 		}
 	}
 
-	err := eth2Cl.SubmitAttestations(ctx, atts)
+	err := eth2Cl.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
 	if err != nil {
 		return nil, err
 	}
