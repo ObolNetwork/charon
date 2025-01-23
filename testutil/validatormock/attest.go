@@ -8,7 +8,6 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	"github.com/attestantio/go-eth2-client/spec"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prysmaticlabs/go-bitfield"
@@ -374,7 +373,7 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 	}
 
 	var (
-		aggs       []*spec.VersionedSignedAggregateAndProof
+		aggs       []*eth2spec.VersionedSignedAggregateAndProof
 		attsByComm = make(map[eth2p0.CommitteeIndex]*eth2spec.VersionedAttestation)
 	)
 	for _, selection := range selections {
@@ -393,7 +392,7 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 			attsByComm[commIdx] = att
 		}
 
-		proof := spec.VersionedAggregateAndProof{
+		proof := eth2spec.VersionedAggregateAndProof{
 			Version: eth2spec.DataVersionDeneb,
 			Deneb: &eth2p0.AggregateAndProof{
 				AggregatorIndex: selection.ValidatorIndex,
@@ -422,7 +421,7 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 			return false, err
 		}
 
-		aggs = append(aggs, &spec.VersionedSignedAggregateAndProof{
+		aggs = append(aggs, &eth2spec.VersionedSignedAggregateAndProof{
 			Version: eth2spec.DataVersionDeneb,
 			Deneb: &eth2p0.SignedAggregateAndProof{
 				Message:   proof.Deneb,

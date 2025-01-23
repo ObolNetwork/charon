@@ -342,7 +342,6 @@ func (db *MemDB) storeAggAttestationUnsafe(unsignedData core.UnsignedData) error
 	if err != nil {
 		return err
 	}
-	aggAttData.HashTreeRoot()
 	aggRoot, err := aggAttData.HashTreeRoot()
 	if err != nil {
 		return errors.Wrap(err, "hash aggregated attestation root")

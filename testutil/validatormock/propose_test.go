@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/attestantio/go-eth2-client/api"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -59,12 +58,12 @@ func TestAttest(t *testing.T) {
 
 			// Callback to collect attestations
 			var atts []*eth2spec.VersionedAttestation
-			var aggs *api.SubmitAggregateAttestationsOpts
+			var aggs *eth2api.SubmitAggregateAttestationsOpts
 			beaconMock.SubmitAttestationsFunc = func(_ context.Context, attestations *eth2api.SubmitAttestationsOpts) error {
 				atts = attestations.Attestations
 				return nil
 			}
-			beaconMock.SubmitAggregateAttestationsFunc = func(_ context.Context, aggAndProofs *api.SubmitAggregateAttestationsOpts) error {
+			beaconMock.SubmitAggregateAttestationsFunc = func(_ context.Context, aggAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
 				aggs = aggAndProofs
 				return nil
 			}

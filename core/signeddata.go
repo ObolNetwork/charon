@@ -1191,131 +1191,131 @@ type VersionedSignedAggregateAndProof struct {
 	eth2spec.VersionedSignedAggregateAndProof
 }
 
-func (s VersionedSignedAggregateAndProof) MessageRoot() ([32]byte, error) {
-	switch s.Version {
+func (ap VersionedSignedAggregateAndProof) MessageRoot() ([32]byte, error) {
+	switch ap.Version {
 	case eth2spec.DataVersionPhase0:
-		if s.Phase0 == nil {
+		if ap.Phase0 == nil {
 			return [32]byte{}, errors.New("unmarshal phase0")
 		}
 
-		return s.Phase0.Message.HashTreeRoot()
+		return ap.Phase0.Message.HashTreeRoot()
 	case eth2spec.DataVersionAltair:
-		if s.Altair == nil {
+		if ap.Altair == nil {
 			return [32]byte{}, errors.New("unmarshal altair")
 		}
 
-		return s.Altair.Message.HashTreeRoot()
+		return ap.Altair.Message.HashTreeRoot()
 	case eth2spec.DataVersionBellatrix:
-		if s.Bellatrix == nil {
+		if ap.Bellatrix == nil {
 			return [32]byte{}, errors.New("unmarshal bellatrix")
 		}
 
-		return s.Bellatrix.Message.HashTreeRoot()
+		return ap.Bellatrix.Message.HashTreeRoot()
 	case eth2spec.DataVersionCapella:
-		if s.Capella == nil {
+		if ap.Capella == nil {
 			return [32]byte{}, errors.New("unmarshal capella")
 		}
 
-		return s.Capella.Message.HashTreeRoot()
+		return ap.Capella.Message.HashTreeRoot()
 	case eth2spec.DataVersionDeneb:
-		if s.Deneb == nil {
+		if ap.Deneb == nil {
 			return [32]byte{}, errors.New("unmarshal deneb")
 		}
 
-		return s.Deneb.Message.HashTreeRoot()
+		return ap.Deneb.Message.HashTreeRoot()
 	case eth2spec.DataVersionElectra:
-		if s.Electra == nil {
+		if ap.Electra == nil {
 			return [32]byte{}, errors.New("unmarshal electra")
 		}
 
-		return s.Electra.Message.HashTreeRoot()
+		return ap.Electra.Message.HashTreeRoot()
 	default:
 		return [32]byte{}, errors.New("unknown version")
 	}
 }
 
-func (s VersionedSignedAggregateAndProof) Signature() Signature {
-	switch s.Version {
+func (ap VersionedSignedAggregateAndProof) Signature() Signature {
+	switch ap.Version {
 	case eth2spec.DataVersionPhase0:
-		if s.Phase0 == nil {
+		if ap.Phase0 == nil {
 			return Signature{}
 		}
 
-		return SigFromETH2(s.Phase0.Signature)
+		return SigFromETH2(ap.Phase0.Signature)
 	case eth2spec.DataVersionAltair:
-		if s.Altair == nil {
+		if ap.Altair == nil {
 			return Signature{}
 		}
 
-		return SigFromETH2(s.Altair.Signature)
+		return SigFromETH2(ap.Altair.Signature)
 	case eth2spec.DataVersionBellatrix:
-		if s.Bellatrix == nil {
+		if ap.Bellatrix == nil {
 			return Signature{}
 		}
 
-		return SigFromETH2(s.Bellatrix.Signature)
+		return SigFromETH2(ap.Bellatrix.Signature)
 	case eth2spec.DataVersionCapella:
-		if s.Capella == nil {
+		if ap.Capella == nil {
 			return Signature{}
 		}
 
-		return SigFromETH2(s.Capella.Signature)
+		return SigFromETH2(ap.Capella.Signature)
 	case eth2spec.DataVersionDeneb:
-		if s.Deneb == nil {
+		if ap.Deneb == nil {
 			return Signature{}
 		}
 
-		return SigFromETH2(s.Deneb.Signature)
+		return SigFromETH2(ap.Deneb.Signature)
 	case eth2spec.DataVersionElectra:
-		if s.Electra == nil {
+		if ap.Electra == nil {
 			return Signature{}
 		}
 
-		return SigFromETH2(s.Electra.Signature)
+		return SigFromETH2(ap.Electra.Signature)
 	default:
 		return Signature{}
 	}
 }
 
-func (s VersionedSignedAggregateAndProof) SetSignature(sig Signature) (SignedData, error) {
-	resp, err := s.clone()
+func (ap VersionedSignedAggregateAndProof) SetSignature(sig Signature) (SignedData, error) {
+	resp, err := ap.clone()
 	if err != nil {
 		return nil, err
 	}
 
-	switch s.Version {
+	switch ap.Version {
 	case eth2spec.DataVersionPhase0:
-		if s.Phase0 == nil {
+		if ap.Phase0 == nil {
 			return nil, errors.New("unmarshal phase0")
 		}
 
 		resp.Phase0.Signature = sig.ToETH2()
 	case eth2spec.DataVersionAltair:
-		if s.Altair == nil {
+		if ap.Altair == nil {
 			return nil, errors.New("unmarshal altair")
 		}
 
 		resp.Altair.Signature = sig.ToETH2()
 	case eth2spec.DataVersionBellatrix:
-		if s.Bellatrix == nil {
+		if ap.Bellatrix == nil {
 			return nil, errors.New("unmarshal bellatrix")
 		}
 
 		resp.Bellatrix.Signature = sig.ToETH2()
 	case eth2spec.DataVersionCapella:
-		if s.Capella == nil {
+		if ap.Capella == nil {
 			return nil, errors.New("unmarshal capella")
 		}
 
 		resp.Capella.Signature = sig.ToETH2()
 	case eth2spec.DataVersionDeneb:
-		if s.Deneb == nil {
+		if ap.Deneb == nil {
 			return nil, errors.New("unmarshal deneb")
 		}
 
 		resp.Deneb.Signature = sig.ToETH2()
 	case eth2spec.DataVersionElectra:
-		if s.Electra == nil {
+		if ap.Electra == nil {
 			return nil, errors.New("unmarshal electra")
 		}
 
@@ -1327,13 +1327,13 @@ func (s VersionedSignedAggregateAndProof) SetSignature(sig Signature) (SignedDat
 	return resp, nil
 }
 
-func (s VersionedSignedAggregateAndProof) Clone() (SignedData, error) {
-	return s.clone()
+func (ap VersionedSignedAggregateAndProof) Clone() (SignedData, error) {
+	return ap.clone()
 }
 
-func (s VersionedSignedAggregateAndProof) clone() (VersionedSignedAggregateAndProof, error) {
+func (ap VersionedSignedAggregateAndProof) clone() (VersionedSignedAggregateAndProof, error) {
 	var resp VersionedSignedAggregateAndProof
-	err := cloneJSONMarshaler(s, &resp)
+	err := cloneJSONMarshaler(ap, &resp)
 	if err != nil {
 		return VersionedSignedAggregateAndProof{}, errors.Wrap(err, "clone signed aggregate and proof")
 	}
@@ -1341,27 +1341,27 @@ func (s VersionedSignedAggregateAndProof) clone() (VersionedSignedAggregateAndPr
 	return resp, nil
 }
 
-func (a VersionedSignedAggregateAndProof) MarshalJSON() ([]byte, error) {
-	if a.IsEmpty() {
+func (ap VersionedSignedAggregateAndProof) MarshalJSON() ([]byte, error) {
+	if ap.IsEmpty() {
 		return nil, errors.New("empty versioned signedAggregateAndProof object")
 	}
 
 	var marshaller json.Marshaler
-	switch a.Version {
+	switch ap.Version {
 	case eth2spec.DataVersionPhase0:
-		marshaller = a.Phase0
+		marshaller = ap.Phase0
 	case eth2spec.DataVersionAltair:
-		marshaller = a.Altair
+		marshaller = ap.Altair
 	case eth2spec.DataVersionBellatrix:
-		marshaller = a.Bellatrix
+		marshaller = ap.Bellatrix
 	case eth2spec.DataVersionCapella:
-		marshaller = a.Capella
+		marshaller = ap.Capella
 	case eth2spec.DataVersionDeneb:
-		marshaller = a.Deneb
+		marshaller = ap.Deneb
 	case eth2spec.DataVersionElectra:
-		marshaller = a.Electra
+		marshaller = ap.Electra
 	default:
-		return nil, errors.New("unknown signedAggregateAndProof version", z.Str("version", a.Version.String()))
+		return nil, errors.New("unknown signedAggregateAndProof version", z.Str("version", ap.Version.String()))
 	}
 
 	signedAggregateAndProof, err := marshaller.MarshalJSON()
@@ -1369,7 +1369,7 @@ func (a VersionedSignedAggregateAndProof) MarshalJSON() ([]byte, error) {
 		return nil, errors.Wrap(err, "marshal signedAggregateAndProof")
 	}
 
-	version, err := eth2util.DataVersionFromETH2(a.Version)
+	version, err := eth2util.DataVersionFromETH2(ap.Version)
 	if err != nil {
 		return nil, errors.Wrap(err, "convert version")
 	}
@@ -1385,7 +1385,7 @@ func (a VersionedSignedAggregateAndProof) MarshalJSON() ([]byte, error) {
 	return resp, nil
 }
 
-func (s *VersionedSignedAggregateAndProof) UnmarshalJSON(input []byte) error {
+func (ap *VersionedSignedAggregateAndProof) UnmarshalJSON(input []byte) error {
 	var raw versionedRawAggregateAndProofJSON
 	if err := json.Unmarshal(input, &raw); err != nil {
 		return errors.Wrap(err, "unmarshal aggregateAndProof")
@@ -1433,94 +1433,94 @@ func (s *VersionedSignedAggregateAndProof) UnmarshalJSON(input []byte) error {
 		return errors.New("unknown version")
 	}
 
-	s.VersionedSignedAggregateAndProof = resp
+	ap.VersionedSignedAggregateAndProof = resp
 
 	return nil
 }
 
 // TODO: remove after go-eth2-client make util functions for Aggregate or Data fields
-func (s *VersionedSignedAggregateAndProof) Data() *eth2p0.AttestationData {
-	switch s.Version {
+func (ap VersionedSignedAggregateAndProof) Data() *eth2p0.AttestationData {
+	switch ap.Version {
 	case eth2spec.DataVersionPhase0:
-		if s.Phase0 == nil {
+		if ap.Phase0 == nil {
 			return nil
 		}
 
-		return s.Phase0.Message.Aggregate.Data
+		return ap.Phase0.Message.Aggregate.Data
 	case eth2spec.DataVersionAltair:
-		if s.Altair == nil {
+		if ap.Altair == nil {
 			return nil
 		}
 
-		return s.Altair.Message.Aggregate.Data
+		return ap.Altair.Message.Aggregate.Data
 	case eth2spec.DataVersionBellatrix:
-		if s.Bellatrix == nil {
+		if ap.Bellatrix == nil {
 			return nil
 		}
 
-		return s.Bellatrix.Message.Aggregate.Data
+		return ap.Bellatrix.Message.Aggregate.Data
 	case eth2spec.DataVersionCapella:
-		if s.Capella == nil {
+		if ap.Capella == nil {
 			return nil
 		}
 
-		return s.Capella.Message.Aggregate.Data
+		return ap.Capella.Message.Aggregate.Data
 	case eth2spec.DataVersionDeneb:
-		if s.Deneb == nil {
+		if ap.Deneb == nil {
 			return nil
 		}
 
-		return s.Deneb.Message.Aggregate.Data
+		return ap.Deneb.Message.Aggregate.Data
 	case eth2spec.DataVersionElectra:
-		if s.Electra == nil {
+		if ap.Electra == nil {
 			return nil
 		}
 
-		return s.Electra.Message.Aggregate.Data
+		return ap.Electra.Message.Aggregate.Data
 	default:
 		return nil
 	}
 }
 
 // TODO: remove after go-eth2-client make util functions for Aggregate or Data fields
-func (s *VersionedSignedAggregateAndProof) AggregationBits() bitfield.Bitlist {
-	switch s.Version {
+func (ap VersionedSignedAggregateAndProof) AggregationBits() bitfield.Bitlist {
+	switch ap.Version {
 	case eth2spec.DataVersionPhase0:
-		if s.Phase0 == nil {
+		if ap.Phase0 == nil {
 			return nil
 		}
 
-		return s.Phase0.Message.Aggregate.AggregationBits
+		return ap.Phase0.Message.Aggregate.AggregationBits
 	case eth2spec.DataVersionAltair:
-		if s.Altair == nil {
+		if ap.Altair == nil {
 			return nil
 		}
 
-		return s.Altair.Message.Aggregate.AggregationBits
+		return ap.Altair.Message.Aggregate.AggregationBits
 	case eth2spec.DataVersionBellatrix:
-		if s.Bellatrix == nil {
+		if ap.Bellatrix == nil {
 			return nil
 		}
 
-		return s.Bellatrix.Message.Aggregate.AggregationBits
+		return ap.Bellatrix.Message.Aggregate.AggregationBits
 	case eth2spec.DataVersionCapella:
-		if s.Capella == nil {
+		if ap.Capella == nil {
 			return nil
 		}
 
-		return s.Capella.Message.Aggregate.AggregationBits
+		return ap.Capella.Message.Aggregate.AggregationBits
 	case eth2spec.DataVersionDeneb:
-		if s.Deneb == nil {
+		if ap.Deneb == nil {
 			return nil
 		}
 
-		return s.Deneb.Message.Aggregate.AggregationBits
+		return ap.Deneb.Message.Aggregate.AggregationBits
 	case eth2spec.DataVersionElectra:
-		if s.Electra == nil {
+		if ap.Electra == nil {
 			return nil
 		}
 
-		return s.Electra.Message.Aggregate.AggregationBits
+		return ap.Electra.Message.Aggregate.AggregationBits
 	default:
 		return nil
 	}

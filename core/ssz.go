@@ -375,8 +375,8 @@ func (a *VersionedAttestation) sszValFromVersion(version eth2util.DataVersion) (
 // ================== VersionedSignedAggregateAndProof ===================
 
 // MarshalSSZ ssz marshals the VersionedSignedAggregateAndProof object.
-func (a VersionedSignedAggregateAndProof) MarshalSSZ() ([]byte, error) {
-	resp, err := ssz.MarshalSSZ(a)
+func (ap VersionedSignedAggregateAndProof) MarshalSSZ() ([]byte, error) {
+	resp, err := ssz.MarshalSSZ(ap)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal VersionedSignedAggregateAndProof")
 	}
@@ -385,36 +385,36 @@ func (a VersionedSignedAggregateAndProof) MarshalSSZ() ([]byte, error) {
 }
 
 // MarshalSSZTo ssz marshals the VersionedSignedAggregateAndProof object to a target array.
-func (a VersionedSignedAggregateAndProof) MarshalSSZTo(dst []byte) ([]byte, error) {
-	version, err := eth2util.DataVersionFromETH2(a.Version)
+func (ap VersionedSignedAggregateAndProof) MarshalSSZTo(dst []byte) ([]byte, error) {
+	version, err := eth2util.DataVersionFromETH2(ap.Version)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid version")
 	}
 
-	return marshalSSZVersionedTo(dst, version, a.sszValFromVersion)
+	return marshalSSZVersionedTo(dst, version, ap.sszValFromVersion)
 }
 
 // UnmarshalSSZ ssz unmarshalls the VersionedSignedAggregateAndProof object.
-func (a *VersionedSignedAggregateAndProof) UnmarshalSSZ(b []byte) error {
-	version, err := unmarshalSSZVersioned(b, a.sszValFromVersion)
+func (ap *VersionedSignedAggregateAndProof) UnmarshalSSZ(b []byte) error {
+	version, err := unmarshalSSZVersioned(b, ap.sszValFromVersion)
 	if err != nil {
 		return errors.Wrap(err, "unmarshal VersionedSignedAggregateAndProof")
 	}
 
-	a.Version = version.ToETH2()
+	ap.Version = version.ToETH2()
 
 	return nil
 }
 
 // SizeSSZ returns the ssz encoded size in bytes for the VersionedSignedAggregateAndProof object.
-func (a VersionedSignedAggregateAndProof) SizeSSZ() int {
-	version, err := eth2util.DataVersionFromETH2(a.Version)
+func (ap VersionedSignedAggregateAndProof) SizeSSZ() int {
+	version, err := eth2util.DataVersionFromETH2(ap.Version)
 	if err != nil {
 		// SSZMarshaller interface doesn't return an error, so we can't either.
 		return 0
 	}
 
-	val, err := a.sszValFromVersion(version)
+	val, err := ap.sszValFromVersion(version)
 	if err != nil {
 		// SSZMarshaller interface doesn't return an error, so we can't either.
 		return 0
@@ -424,44 +424,44 @@ func (a VersionedSignedAggregateAndProof) SizeSSZ() int {
 }
 
 // sszValFromVersion returns the internal value of the VersionedSignedAggregateAndProof object for a given version.
-func (a *VersionedSignedAggregateAndProof) sszValFromVersion(version eth2util.DataVersion) (sszType, error) {
+func (ap *VersionedSignedAggregateAndProof) sszValFromVersion(version eth2util.DataVersion) (sszType, error) {
 	switch version {
 	case eth2util.DataVersionPhase0:
-		if a.Phase0 == nil {
-			a.Phase0 = new(eth2p0.SignedAggregateAndProof)
+		if ap.Phase0 == nil {
+			ap.Phase0 = new(eth2p0.SignedAggregateAndProof)
 		}
 
-		return a.Phase0, nil
+		return ap.Phase0, nil
 	case eth2util.DataVersionAltair:
-		if a.Altair == nil {
-			a.Altair = new(eth2p0.SignedAggregateAndProof)
+		if ap.Altair == nil {
+			ap.Altair = new(eth2p0.SignedAggregateAndProof)
 		}
 
-		return a.Altair, nil
+		return ap.Altair, nil
 	case eth2util.DataVersionBellatrix:
-		if a.Bellatrix == nil {
-			a.Bellatrix = new(eth2p0.SignedAggregateAndProof)
+		if ap.Bellatrix == nil {
+			ap.Bellatrix = new(eth2p0.SignedAggregateAndProof)
 		}
 
-		return a.Bellatrix, nil
+		return ap.Bellatrix, nil
 	case eth2util.DataVersionCapella:
-		if a.Capella == nil {
-			a.Capella = new(eth2p0.SignedAggregateAndProof)
+		if ap.Capella == nil {
+			ap.Capella = new(eth2p0.SignedAggregateAndProof)
 		}
 
-		return a.Capella, nil
+		return ap.Capella, nil
 	case eth2util.DataVersionDeneb:
-		if a.Deneb == nil {
-			a.Deneb = new(eth2p0.SignedAggregateAndProof)
+		if ap.Deneb == nil {
+			ap.Deneb = new(eth2p0.SignedAggregateAndProof)
 		}
 
-		return a.Deneb, nil
+		return ap.Deneb, nil
 	case eth2util.DataVersionElectra:
-		if a.Electra == nil {
-			a.Electra = new(electra.SignedAggregateAndProof)
+		if ap.Electra == nil {
+			ap.Electra = new(electra.SignedAggregateAndProof)
 		}
 
-		return a.Electra, nil
+		return ap.Electra, nil
 	default:
 		return nil, errors.New("invalid version")
 	}

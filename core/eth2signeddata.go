@@ -119,8 +119,8 @@ func (VersionedSignedAggregateAndProof) DomainName() signing.DomainName {
 	return signing.DomainAggregateAndProof
 }
 
-func (s VersionedSignedAggregateAndProof) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
-	slot, err := s.Slot()
+func (ap VersionedSignedAggregateAndProof) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	slot, err := ap.Slot()
 	if err != nil {
 		return 0, err
 	}

@@ -158,7 +158,8 @@ func RandomDenebCoreVersionedAggregateAttestation() core.VersionedAggregatedAtte
 				Data:            RandomAttestationData(),
 				Signature:       RandomEth2Signature(),
 			},
-		}}
+		},
+	}
 }
 
 func RandomAttestationData() *eth2p0.AttestationData {
@@ -679,7 +680,8 @@ func RandomDenebVersionedSignedAggregateAndProof() *eth2spec.VersionedSignedAggr
 		Deneb: &eth2p0.SignedAggregateAndProof{
 			Message:   RandomAggregateAndProof(),
 			Signature: RandomEth2Signature(),
-		}}
+		},
+	}
 }
 
 func RandomAggregateAndProof() *eth2p0.AggregateAndProof {
