@@ -673,7 +673,7 @@ func RandomCoreSyncCommitteeSelection() core.SyncCommitteeSelection {
 	return core.NewSyncCommitteeSelection(RandomSyncCommitteeSelection())
 }
 
-func RandomSignedAggregateAndProof() *eth2spec.VersionedSignedAggregateAndProof {
+func RandomDenebVersionedSignedAggregateAndProof() *eth2spec.VersionedSignedAggregateAndProof {
 	return &eth2spec.VersionedSignedAggregateAndProof{
 		Version: eth2spec.DataVersionDeneb,
 		Deneb: &eth2p0.SignedAggregateAndProof{

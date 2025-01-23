@@ -192,7 +192,7 @@ func TestParSignedData(t *testing.T) {
 
 func TestParSignedDataFromProtoErrors(t *testing.T) {
 	parSig1 := core.ParSignedData{
-		SignedData: core.VersionedSignedAggregateAndProof{*testutil.RandomSignedAggregateAndProof()},
+		SignedData: core.VersionedSignedAggregateAndProof{*testutil.RandomDenebVersionedSignedAggregateAndProof()},
 		ShareIdx:   rand.Intn(100),
 	}
 
@@ -246,7 +246,7 @@ func randomSignedData(t *testing.T) map[core.DutyType]core.SignedData {
 		core.DutyRandao:                  core.SignedRandao{SignedEpoch: eth2util.SignedEpoch{Epoch: testutil.RandomEpoch(), Signature: testutil.RandomEth2Signature()}},
 		core.DutyProposer:                testutil.RandomBellatrixCoreVersionedSignedProposal(),
 		core.DutyPrepareAggregator:       testutil.RandomCoreBeaconCommitteeSelection(),
-		core.DutyAggregator:              core.NewSignedAggregateAndProof(testutil.RandomSignedAggregateAndProof()),
+		core.DutyAggregator:              core.NewSignedAggregateAndProof(testutil.RandomDenebVersionedSignedAggregateAndProof()),
 		core.DutyPrepareSyncContribution: core.NewSyncCommitteeSelection(testutil.RandomSyncCommitteeSelection()),
 		core.DutySyncContribution:        core.NewSignedSyncContributionAndProof(testutil.RandomSignedSyncContributionAndProof()),
 	}

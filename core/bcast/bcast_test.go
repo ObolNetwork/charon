@@ -237,7 +237,7 @@ func aggregateAttestationData(t *testing.T, mock *beaconmock.Mock) test {
 	t.Helper()
 
 	asserted := make(chan struct{})
-	aggAndProof := testutil.RandomSignedAggregateAndProof()
+	aggAndProof := testutil.RandomDenebVersionedSignedAggregateAndProof()
 	aggData := core.VersionedSignedAggregateAndProof{
 		VersionedSignedAggregateAndProof: *aggAndProof,
 	}

@@ -107,9 +107,8 @@ func TestAttest(t *testing.T) {
 				return attsiData.Index < attsjData.Index
 			})
 
-			sort.Slice(aggs, func(i, j int) bool {
-				//TODO: fix after go-eth2-client make util function for Data field
-				return aggs.SignedAggregateAndProofs[i].Message.Aggregate.Data.Index < aggs.SignedAggregateAndProofs[j].Message.Aggregate.Data.Index
+			sort.Slice(aggs.SignedAggregateAndProofs, func(i, j int) bool {
+				return aggs.SignedAggregateAndProofs[i].Deneb.Message.Aggregate.Data.Index < aggs.SignedAggregateAndProofs[j].Deneb.Message.Aggregate.Data.Index
 			})
 
 			t.Run("attestations", func(t *testing.T) {

@@ -1448,31 +1448,31 @@ func (s *VersionedSignedAggregateAndProof) Data() *eth2p0.AttestationData {
 
 		return s.Phase0.Message.Aggregate.Data
 	case eth2spec.DataVersionAltair:
-		if s.Phase0 == nil {
+		if s.Altair == nil {
 			return nil
 		}
 
 		return s.Altair.Message.Aggregate.Data
 	case eth2spec.DataVersionBellatrix:
-		if s.Phase0 == nil {
+		if s.Bellatrix == nil {
 			return nil
 		}
 
 		return s.Bellatrix.Message.Aggregate.Data
 	case eth2spec.DataVersionCapella:
-		if s.Phase0 == nil {
+		if s.Capella == nil {
 			return nil
 		}
 
 		return s.Capella.Message.Aggregate.Data
 	case eth2spec.DataVersionDeneb:
-		if s.Phase0 == nil {
+		if s.Deneb == nil {
 			return nil
 		}
 
 		return s.Deneb.Message.Aggregate.Data
 	case eth2spec.DataVersionElectra:
-		if s.Phase0 == nil {
+		if s.Electra == nil {
 			return nil
 		}
 
@@ -1492,31 +1492,31 @@ func (s *VersionedSignedAggregateAndProof) AggregationBits() bitfield.Bitlist {
 
 		return s.Phase0.Message.Aggregate.AggregationBits
 	case eth2spec.DataVersionAltair:
-		if s.Phase0 == nil {
+		if s.Altair == nil {
 			return nil
 		}
 
 		return s.Altair.Message.Aggregate.AggregationBits
 	case eth2spec.DataVersionBellatrix:
-		if s.Phase0 == nil {
+		if s.Bellatrix == nil {
 			return nil
 		}
 
 		return s.Bellatrix.Message.Aggregate.AggregationBits
 	case eth2spec.DataVersionCapella:
-		if s.Phase0 == nil {
+		if s.Capella == nil {
 			return nil
 		}
 
 		return s.Capella.Message.Aggregate.AggregationBits
 	case eth2spec.DataVersionDeneb:
-		if s.Phase0 == nil {
+		if s.Deneb == nil {
 			return nil
 		}
 
 		return s.Deneb.Message.Aggregate.AggregationBits
 	case eth2spec.DataVersionElectra:
-		if s.Phase0 == nil {
+		if s.Electra == nil {
 			return nil
 		}
 
