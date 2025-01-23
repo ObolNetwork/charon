@@ -562,6 +562,12 @@ func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block core.Versioned
 		} else {
 			require.EqualValues(t, randao, block.Deneb.Block.Body.RANDAOReveal)
 		}
+	case eth2spec.DataVersionElectra:
+		if block.Blinded {
+			require.EqualValues(t, randao, block.ElectraBlinded.Body.RANDAOReveal)
+		} else {
+			require.EqualValues(t, randao, block.Electra.Block.Body.RANDAOReveal)
+		}
 	default:
 		require.Fail(t, "invalid block")
 	}

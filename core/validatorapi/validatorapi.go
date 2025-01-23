@@ -496,6 +496,13 @@ func propDataMatchesDuty(opts *eth2api.SubmitProposalOpts, prop *eth2api.Version
 		case true:
 			return checkHashes(prop.DenebBlinded, opts.Proposal.DenebBlinded.Message)
 		}
+	case eth2spec.DataVersionElectra:
+		switch prop.Blinded {
+		case false:
+			return checkHashes(prop.Electra.Block, opts.Proposal.Electra.SignedBlock.Message)
+		case true:
+			return checkHashes(prop.ElectraBlinded, opts.Proposal.ElectraBlinded.Message)
+		}
 	default:
 		return errors.New("unexpected block version", z.Str("version", prop.Version.String()))
 	}

@@ -774,6 +774,19 @@ func createProposeBlockResponse(proposal *eth2api.VersionedProposal) (*proposeBl
 			}
 			blockData = proposal.Deneb
 		}
+	case eth2spec.DataVersionElectra:
+		version = eth2spec.DataVersionElectra.String()
+		if proposal.Blinded {
+			if proposal.ElectraBlinded == nil {
+				return nil, errors.New("no electra blinded block")
+			}
+			blockData = proposal.ElectraBlinded
+		} else {
+			if proposal.Electra == nil {
+				return nil, errors.New("no electra block")
+			}
+			blockData = proposal.Electra
+		}
 	default:
 		if proposal.Blinded {
 			return nil, errors.New("invalid blinded block")
