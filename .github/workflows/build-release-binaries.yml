@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-binaries:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     name: Build Cross-Platform Binaries
     steps:
     - uses: actions/checkout@v3
