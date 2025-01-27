@@ -71,7 +71,10 @@ jobs:
         cd dist
         tar czf charon-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz charon-${{ env.RELEASE_VERSION }}-linux-amd64
         tar czf charon-${{ env.RELEASE_VERSION }}-linux-arm64.tar.gz charon-${{ env.RELEASE_VERSION }}-linux-arm64
-        sha256sum charon-${{ env.RELEASE_VERSION }}-linux-* > checksums.txt
+        echo "# Linux AMD64 (x86_64)" > checksums.txt
+        sha256sum charon-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz >> checksums.txt
+        echo -e "\n# Linux ARM64 (aarch64)" >> checksums.txt
+        sha256sum charon-${{ env.RELEASE_VERSION }}-linux-arm64.tar.gz >> checksums.txt
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v3
