@@ -15,10 +15,12 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
+	eth2e "github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 )
 
@@ -165,9 +167,9 @@ func (a VersionedAggregatedAttestation) MarshalJSON() ([]byte, error) {
 		return nil, errors.Wrap(err, "convert version")
 	}
 
-	resp, err := json.Marshal(versionedRawAggregateAndProofJSON{
-		Version:           version,
-		AggregateAndProof: aggregatedAttestation,
+	resp, err := json.Marshal(versionedRawAttestationJSON{
+		Version:     version,
+		Attestation: aggregatedAttestation,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal wrapper")
@@ -197,12 +199,60 @@ func (a VersionedAggregatedAttestation) HashTreeRoot() ([32]byte, error) {
 }
 
 func (a *VersionedAggregatedAttestation) UnmarshalJSON(input []byte) error {
-	var att eth2spec.VersionedAttestation
-	if err := json.Unmarshal(input, &att); err != nil {
-		return errors.Wrap(err, "unmarshal aggregated attestation")
+	var raw versionedRawAttestationJSON
+	if err := json.Unmarshal(input, &raw); err != nil {
+		return errors.Wrap(err, "unmarshal attestation")
 	}
 
-	*a = VersionedAggregatedAttestation{VersionedAttestation: att}
+	resp := eth2spec.VersionedAttestation{Version: raw.Version.ToETH2()}
+	switch resp.Version {
+	case eth2spec.DataVersionPhase0:
+		att := new(eth2p0.Attestation)
+		err := json.Unmarshal(raw.Attestation, &att)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal phase0")
+		}
+		resp.Phase0 = att
+	case eth2spec.DataVersionAltair:
+		att := new(eth2p0.Attestation)
+		err := json.Unmarshal(raw.Attestation, &att)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal altair")
+		}
+		resp.Altair = att
+	case eth2spec.DataVersionBellatrix:
+		att := new(eth2p0.Attestation)
+		err := json.Unmarshal(raw.Attestation, &att)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal bellatrix")
+		}
+		resp.Bellatrix = att
+	case eth2spec.DataVersionCapella:
+		att := new(eth2p0.Attestation)
+		err := json.Unmarshal(raw.Attestation, &att)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal capella")
+		}
+		resp.Capella = att
+	case eth2spec.DataVersionDeneb:
+		att := new(eth2p0.Attestation)
+		err := json.Unmarshal(raw.Attestation, &att)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal deneb")
+		}
+		resp.Deneb = att
+	case eth2spec.DataVersionElectra:
+		att := new(eth2e.Attestation)
+		err := json.Unmarshal(raw.Attestation, &att)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal electra")
+		}
+		resp.Electra = att
+	default:
+		return errors.New("unknown attestation version", z.Str("version", a.Version.String()))
+	}
+
+	a.VersionedAttestation = resp
 
 	return nil
 }

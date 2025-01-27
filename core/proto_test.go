@@ -192,7 +192,7 @@ func TestParSignedData(t *testing.T) {
 
 func TestParSignedDataFromProtoErrors(t *testing.T) {
 	parSig1 := core.ParSignedData{
-		SignedData: core.VersionedSignedAggregateAndProof{*testutil.RandomDenebVersionedSignedAggregateAndProof()},
+		SignedData: core.SyncCommitteeSelection{*testutil.RandomSyncCommitteeSelection()},
 		ShareIdx:   rand.Intn(100),
 	}
 
@@ -204,7 +204,7 @@ func TestParSignedDataFromProtoErrors(t *testing.T) {
 	require.ErrorContains(t, err, "unsupported duty type")
 
 	_, err = core.ParSignedDataFromProto(core.DutyProposer, pb1)
-	require.ErrorContains(t, err, "unknown data version")
+	require.ErrorContains(t, err, "unknown version")
 
 	_, err = core.ParSignedDataFromProto(core.DutyBuilderProposer, pb1)
 	require.ErrorIs(t, err, core.ErrDeprecatedDutyBuilderProposer)
@@ -246,7 +246,7 @@ func randomSignedData(t *testing.T) map[core.DutyType]core.SignedData {
 		core.DutyRandao:                  core.SignedRandao{SignedEpoch: eth2util.SignedEpoch{Epoch: testutil.RandomEpoch(), Signature: testutil.RandomEth2Signature()}},
 		core.DutyProposer:                testutil.RandomBellatrixCoreVersionedSignedProposal(),
 		core.DutyPrepareAggregator:       testutil.RandomCoreBeaconCommitteeSelection(),
-		core.DutyAggregator:              core.NewSignedAggregateAndProof(testutil.RandomDenebVersionedSignedAggregateAndProof()),
+		core.DutyAggregator:              core.NewVersionedSignedAggregateAndProof(testutil.RandomDenebVersionedSignedAggregateAndProof()),
 		core.DutyPrepareSyncContribution: core.NewSyncCommitteeSelection(testutil.RandomSyncCommitteeSelection()),
 		core.DutySyncContribution:        core.NewSignedSyncContributionAndProof(testutil.RandomSignedSyncContributionAndProof()),
 	}

@@ -119,7 +119,7 @@ func TestInclusion(t *testing.T) {
 	require.NoError(t, err)
 	err = incl.Submitted(att1Duty, "", incl1, 0)
 	require.NoError(t, err)
-	err = incl.Submitted(agg2Duty, "", core.NewSignedAggregateAndProof(agg2), 0)
+	err = incl.Submitted(agg2Duty, "", core.NewVersionedSignedAggregateAndProof(agg2), 0)
 	require.NoError(t, err)
 	incl3, err := core.NewVersionedAttestation(att3)
 	require.NoError(t, err)

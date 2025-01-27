@@ -272,7 +272,7 @@ func TestParSigExVerifier(t *testing.T) {
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainAggregateAndProof, epoch, sigRoot)
 		require.NoError(t, err)
 		agg.Deneb.Signature = sign(sigData[:])
-		data := core.NewPartialSignedAggregateAndProof(agg, shareIdx)
+		data := core.NewPartialVersionedSignedAggregateAndProof(agg, shareIdx)
 
 		require.NoError(t, verifyFunc(ctx, core.NewAggregatorDuty(slot), pubkey, data))
 	})

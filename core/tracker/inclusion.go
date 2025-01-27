@@ -259,7 +259,7 @@ func checkAggregationInclusion(sub submission, block block) (bool, error) {
 	if err != nil {
 		return false, errors.Wrap(err, "get attestation aggregation bits")
 	}
-	subBits := sub.Data.(*core.VersionedSignedAggregateAndProof).AggregationBits()
+	subBits := sub.Data.(core.VersionedSignedAggregateAndProof).AggregationBits()
 	ok, err = attAggregationBits.Contains(subBits)
 	if err != nil {
 		return false, errors.Wrap(err, "check aggregation bits",

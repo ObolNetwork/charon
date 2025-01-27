@@ -1173,15 +1173,15 @@ func (s *SyncCommitteeSelection) UnmarshalJSON(input []byte) error {
 	return s.SyncCommitteeSelection.UnmarshalJSON(input)
 }
 
-// NewSignedAggregateAndProof is a convenience function which returns a new signed SignedAggregateAndProof.
-func NewSignedAggregateAndProof(data *eth2spec.VersionedSignedAggregateAndProof) VersionedSignedAggregateAndProof {
+// NewVersionedSignedAggregateAndProof is a convenience function which returns a new signed VersionedSignedAggregateAndProof.
+func NewVersionedSignedAggregateAndProof(data *eth2spec.VersionedSignedAggregateAndProof) VersionedSignedAggregateAndProof {
 	return VersionedSignedAggregateAndProof{VersionedSignedAggregateAndProof: *data}
 }
 
-// NewPartialSignedAggregateAndProof is a convenience function which returns a new partially signed SignedAggregateAndProof.
-func NewPartialSignedAggregateAndProof(data *eth2spec.VersionedSignedAggregateAndProof, shareIdx int) ParSignedData {
+// NewPartialVersionedSignedAggregateAndProof is a convenience function which returns a new partially signed VersionedSignedAggregateAndProof.
+func NewPartialVersionedSignedAggregateAndProof(data *eth2spec.VersionedSignedAggregateAndProof, shareIdx int) ParSignedData {
 	return ParSignedData{
-		SignedData: NewSignedAggregateAndProof(data),
+		SignedData: NewVersionedSignedAggregateAndProof(data),
 		ShareIdx:   shareIdx,
 	}
 }

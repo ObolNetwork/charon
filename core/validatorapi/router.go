@@ -30,6 +30,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
+	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
 	"github.com/gorilla/mux"
@@ -208,13 +209,13 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, builderEn
 		},
 		{
 			Name:    "aggregate_attestation",
-			Path:    "/eth/v1/validator/aggregate_attestation",
+			Path:    "/eth/v2/validator/aggregate_attestation",
 			Handler: aggregateAttestation(h),
 			Methods: []string{http.MethodGet},
 		},
 		{
 			Name:    "submit_aggregate_and_proofs",
-			Path:    "/eth/v1/validator/aggregate_and_proofs",
+			Path:    "/eth/v2/validator/aggregate_and_proofs",
 			Handler: submitAggregateAttestations(h),
 			Methods: []string{http.MethodPost},
 		},
@@ -1030,18 +1031,42 @@ func aggregateAttestation(p eth2client.AggregateAttestationProvider) handlerFunc
 
 func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
-		var aggs *eth2api.SubmitAggregateAttestationsOpts
-		err := unmarshal(typ, body, &aggs)
-		if err != nil {
-			return nil, nil, errors.Wrap(err, "unmarshal signed aggregate and proofs")
+		aggs := []*eth2spec.VersionedSignedAggregateAndProof{}
+
+		denebAggs := new([]eth2p0.SignedAggregateAndProof)
+		err := unmarshal(typ, body, denebAggs)
+		if err == nil {
+			for _, agg := range *denebAggs {
+				// TODO: Data version is not Deneb, it might be anything between Phase0 and Deneb
+				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionDeneb,
+					Deneb:   &agg,
+				}
+				aggs = append(aggs, &versionedAgg)
+			}
+
+			return nil, nil, s.SubmitAggregateAttestations(ctx, &eth2api.SubmitAggregateAttestationsOpts{
+				SignedAggregateAndProofs: aggs,
+			})
 		}
 
-		err = s.SubmitAggregateAttestations(ctx, aggs)
-		if err != nil {
-			return nil, nil, err
+		electraAggs := new([]electra.SignedAggregateAndProof)
+		err = unmarshal(typ, body, electraAggs)
+		if err == nil {
+			for _, agg := range *electraAggs {
+				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionElectra,
+					Electra: &agg,
+				}
+				aggs = append(aggs, &versionedAgg)
+			}
+
+			return nil, nil, s.SubmitAggregateAttestations(ctx, &eth2api.SubmitAggregateAttestationsOpts{
+				SignedAggregateAndProofs: aggs,
+			})
 		}
 
-		return nil, nil, nil
+		return nil, nil, errors.New("invalid submitted aggregate and proofs", z.Hex("body", body))
 	}
 }
 

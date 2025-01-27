@@ -1696,7 +1696,7 @@ func TestComponent_SubmitAggregateAttestations(t *testing.T) {
 
 		data, ok := set[pk]
 		require.True(t, ok)
-		require.Equal(t, core.NewPartialSignedAggregateAndProof(agg, 0), data)
+		require.Equal(t, core.NewPartialVersionedSignedAggregateAndProof(agg, 0), data)
 
 		return nil
 	})

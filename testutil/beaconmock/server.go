@@ -66,7 +66,7 @@ func newHTTPServer(addr string, optionalHandlers map[string]http.HandlerFunc, ov
 		"/eth/v1/validator/sync_committee_subscriptions": func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		},
-		"/eth/v1/validator/aggregate_attestation": func(w http.ResponseWriter, _ *http.Request) {
+		"/eth/v2/validator/aggregate_attestation": func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			_, _ = w.Write([]byte(`{"code": 403,"message": "Beacon node was not assigned to aggregate on that subnet."}`))
 		},

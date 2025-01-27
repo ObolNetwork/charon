@@ -879,7 +879,7 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 			}
 		}
 
-		parSigData := core.NewPartialSignedAggregateAndProof(agg, c.shareIdx)
+		parSigData := core.NewPartialVersionedSignedAggregateAndProof(agg, c.shareIdx)
 
 		// Verify outer partial signature.
 		err = c.verifyPartialSig(ctx, parSigData, pk)
