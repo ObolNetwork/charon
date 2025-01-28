@@ -130,12 +130,12 @@ func (m multi) SignedBeaconBlock(ctx context.Context, opts *api.SignedBeaconBloc
 }
 
 // AggregateAttestation fetches the aggregate attestation for the given options.
-func (m multi) AggregateAttestation(ctx context.Context, opts *api.AggregateAttestationOpts) (*api.Response[*phase0.Attestation], error) {
+func (m multi) AggregateAttestation(ctx context.Context, opts *api.AggregateAttestationOpts) (*api.Response[*spec.VersionedAttestation], error) {
 	const label = "aggregate_attestation"
 	defer latency(ctx, label, false)()
 
 	res0, err := provide(ctx, m.clients, m.fallbacks,
-		func(ctx context.Context, args provideArgs) (*api.Response[*phase0.Attestation], error) {
+		func(ctx context.Context, args provideArgs) (*api.Response[*spec.VersionedAttestation], error) {
 			return args.client.AggregateAttestation(ctx, opts)
 		},
 		isAggregateAttestationOk, m.selector,
@@ -150,13 +150,13 @@ func (m multi) AggregateAttestation(ctx context.Context, opts *api.AggregateAtte
 }
 
 // SubmitAggregateAttestations submits aggregate attestations.
-func (m multi) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs []*phase0.SignedAggregateAndProof) error {
+func (m multi) SubmitAggregateAttestations(ctx context.Context, opts *api.SubmitAggregateAttestationsOpts) error {
 	const label = "submit_aggregate_attestations"
 	defer latency(ctx, label, false)()
 
 	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
-			return args.client.SubmitAggregateAttestations(ctx, aggregateAndProofs)
+			return args.client.SubmitAggregateAttestations(ctx, opts)
 		},
 		m.selector,
 	)
@@ -769,7 +769,7 @@ func (l *lazy) SignedBeaconBlock(ctx context.Context, opts *api.SignedBeaconBloc
 }
 
 // AggregateAttestation fetches the aggregate attestation for the given options.
-func (l *lazy) AggregateAttestation(ctx context.Context, opts *api.AggregateAttestationOpts) (res0 *api.Response[*phase0.Attestation], err error) {
+func (l *lazy) AggregateAttestation(ctx context.Context, opts *api.AggregateAttestationOpts) (res0 *api.Response[*spec.VersionedAttestation], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return res0, err
@@ -779,13 +779,13 @@ func (l *lazy) AggregateAttestation(ctx context.Context, opts *api.AggregateAtte
 }
 
 // SubmitAggregateAttestations submits aggregate attestations.
-func (l *lazy) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs []*phase0.SignedAggregateAndProof) (err error) {
+func (l *lazy) SubmitAggregateAttestations(ctx context.Context, opts *api.SubmitAggregateAttestationsOpts) (err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return err
 	}
 
-	return cl.SubmitAggregateAttestations(ctx, aggregateAndProofs)
+	return cl.SubmitAggregateAttestations(ctx, opts)
 }
 
 // AttestationData fetches the attestation data for the given options.
