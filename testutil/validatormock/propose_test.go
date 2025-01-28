@@ -58,12 +58,12 @@ func TestAttest(t *testing.T) {
 
 			// Callback to collect attestations
 			var atts []*eth2spec.VersionedAttestation
-			var aggs []*eth2p0.SignedAggregateAndProof
+			var aggs *eth2api.SubmitAggregateAttestationsOpts
 			beaconMock.SubmitAttestationsFunc = func(_ context.Context, attestations *eth2api.SubmitAttestationsOpts) error {
 				atts = attestations.Attestations
 				return nil
 			}
-			beaconMock.SubmitAggregateAttestationsFunc = func(_ context.Context, aggAndProofs []*eth2p0.SignedAggregateAndProof) error {
+			beaconMock.SubmitAggregateAttestationsFunc = func(_ context.Context, aggAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
 				aggs = aggAndProofs
 				return nil
 			}
@@ -90,7 +90,7 @@ func TestAttest(t *testing.T) {
 
 			// Assert length and expected attestations
 			require.Len(t, atts, test.ExpectAttestations)
-			require.Len(t, aggs, test.ExpectAggregations)
+			require.Len(t, aggs.SignedAggregateAndProofs, test.ExpectAggregations)
 
 			// Sort the outputs to make it deterministic to compare with json.
 			sort.Slice(atts, func(i, j int) bool {
@@ -106,8 +106,8 @@ func TestAttest(t *testing.T) {
 				return attsiData.Index < attsjData.Index
 			})
 
-			sort.Slice(aggs, func(i, j int) bool {
-				return aggs[i].Message.Aggregate.Data.Index < aggs[j].Message.Aggregate.Data.Index
+			sort.Slice(aggs.SignedAggregateAndProofs, func(i, j int) bool {
+				return aggs.SignedAggregateAndProofs[i].Deneb.Message.Aggregate.Data.Index < aggs.SignedAggregateAndProofs[j].Deneb.Message.Aggregate.Data.Index
 			})
 
 			t.Run("attestations", func(t *testing.T) {
