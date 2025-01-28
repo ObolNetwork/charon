@@ -72,7 +72,7 @@ func TestAttestationStore(t *testing.T) {
 	}
 	bmockResp, err := bmock.AggregateAttestation(ctx, aggAttOpts) // Slot is ignored.
 	require.NoError(t, err)
-	att := bmockResp.Data
+	att := bmockResp.Data.Deneb
 	require.Equal(t, attData, att.Data)
 
 	aggAttopts2 := &eth2api.AggregateAttestationOpts{

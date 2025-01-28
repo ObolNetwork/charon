@@ -149,6 +149,19 @@ func RandomAggregateAttestation() *eth2p0.Attestation {
 	}
 }
 
+func RandomDenebCoreVersionedAggregateAttestation() core.VersionedAggregatedAttestation {
+	return core.VersionedAggregatedAttestation{
+		VersionedAttestation: eth2spec.VersionedAttestation{
+			Version: eth2spec.DataVersionDeneb,
+			Deneb: &eth2p0.Attestation{
+				AggregationBits: RandomBitList(64),
+				Data:            RandomAttestationData(),
+				Signature:       RandomEth2Signature(),
+			},
+		},
+	}
+}
+
 func RandomAttestationData() *eth2p0.AttestationData {
 	return RandomAttestationDataSeed(NewSeedRand())
 }
@@ -661,10 +674,13 @@ func RandomCoreSyncCommitteeSelection() core.SyncCommitteeSelection {
 	return core.NewSyncCommitteeSelection(RandomSyncCommitteeSelection())
 }
 
-func RandomSignedAggregateAndProof() *eth2p0.SignedAggregateAndProof {
-	return &eth2p0.SignedAggregateAndProof{
-		Message:   RandomAggregateAndProof(),
-		Signature: RandomEth2Signature(),
+func RandomDenebVersionedSignedAggregateAndProof() *eth2spec.VersionedSignedAggregateAndProof {
+	return &eth2spec.VersionedSignedAggregateAndProof{
+		Version: eth2spec.DataVersionDeneb,
+		Deneb: &eth2p0.SignedAggregateAndProof{
+			Message:   RandomAggregateAndProof(),
+			Signature: RandomEth2Signature(),
+		},
 	}
 }
 
