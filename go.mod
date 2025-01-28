@@ -46,7 +46,7 @@ require (
 	golang.org/x/term v0.28.0
 	golang.org/x/time v0.9.0
 	golang.org/x/tools v0.29.0
-	google.golang.org/protobuf v1.36.4-0.20250116160514-2005adbe0cf6
+	google.golang.org/protobuf v1.36.4
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
