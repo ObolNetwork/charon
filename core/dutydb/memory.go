@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
@@ -22,7 +23,7 @@ func NewMemDB(deadliner core.Deadliner) *MemDB {
 		attPubKeys:        make(map[pkKey]core.PubKey),
 		attKeysBySlot:     make(map[uint64][]pkKey),
 		proDuties:         make(map[uint64]*eth2api.VersionedProposal),
-		aggDuties:         make(map[aggKey]core.AggregatedAttestation),
+		aggDuties:         make(map[aggKey]core.VersionedAggregatedAttestation),
 		aggKeysBySlot:     make(map[uint64][]aggKey),
 		contribDuties:     make(map[contribKey]*altair.SyncCommitteeContribution),
 		contribKeysBySlot: make(map[uint64][]contribKey),
@@ -47,7 +48,7 @@ type MemDB struct {
 	proQueries []proQuery
 
 	// DutyAggregator
-	aggDuties     map[aggKey]core.AggregatedAttestation
+	aggDuties     map[aggKey]core.VersionedAggregatedAttestation
 	aggKeysBySlot map[uint64][]aggKey
 	aggQueries    []aggQuery
 
@@ -195,10 +196,10 @@ func (db *MemDB) AwaitAttestation(ctx context.Context, slot uint64, commIdx uint
 // AwaitAggAttestation blocks and returns the aggregated attestation for the slot
 // and attestation when available.
 func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot uint64, attestationRoot eth2p0.Root,
-) (*eth2p0.Attestation, error) {
+) (*eth2spec.VersionedAttestation, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
-	response := make(chan core.AggregatedAttestation, 1) // Instance of one so resolving never blocks
+	response := make(chan core.VersionedAggregatedAttestation, 1) // Instance of one so resolving never blocks
 
 	db.mu.Lock()
 	db.aggQueries = append(db.aggQueries, aggQuery{
@@ -223,12 +224,12 @@ func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot uint64, attestati
 		if err != nil {
 			return nil, err
 		}
-		aggAtt, ok := clone.(core.AggregatedAttestation)
+		aggAtt, ok := clone.(core.VersionedAggregatedAttestation)
 		if !ok {
 			return nil, errors.New("invalid aggregated attestation")
 		}
 
-		return &aggAtt.Attestation, nil
+		return &aggAtt.VersionedAttestation, nil
 	}
 }
 
@@ -332,17 +333,21 @@ func (db *MemDB) storeAggAttestationUnsafe(unsignedData core.UnsignedData) error
 		return err
 	}
 
-	aggAtt, ok := cloned.(core.AggregatedAttestation)
+	aggAtt, ok := cloned.(core.VersionedAggregatedAttestation)
 	if !ok {
 		return errors.New("invalid unsigned aggregated attestation")
 	}
 
-	aggRoot, err := aggAtt.Attestation.Data.HashTreeRoot()
+	aggAttData, err := aggAtt.VersionedAttestation.Data()
+	if err != nil {
+		return err
+	}
+	aggRoot, err := aggAttData.HashTreeRoot()
 	if err != nil {
 		return errors.Wrap(err, "hash aggregated attestation root")
 	}
 
-	slot := uint64(aggAtt.Attestation.Data.Slot)
+	slot := uint64(aggAttData.Slot)
 
 	// Store key and value for PubKeyByAttestation
 	key := aggKey{
@@ -606,7 +611,7 @@ type proQuery struct {
 // aggQuery is a waiting aggQuery with a response channel.
 type aggQuery struct {
 	Key      aggKey
-	Response chan<- core.AggregatedAttestation
+	Response chan<- core.VersionedAggregatedAttestation
 	Cancel   <-chan struct{}
 }
 

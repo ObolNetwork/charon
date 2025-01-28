@@ -63,11 +63,11 @@ func TestSSZ(t *testing.T) {
 	}{
 		{zero: func() any { return new(core.VersionedSignedProposal) }},
 		{zero: func() any { return new(core.VersionedAttestation) }},
-		{zero: func() any { return new(core.SignedAggregateAndProof) }},
+		{zero: func() any { return new(core.VersionedSignedAggregateAndProof) }},
 		{zero: func() any { return new(core.SignedSyncMessage) }},
 		{zero: func() any { return new(core.SyncContributionAndProof) }},
 		{zero: func() any { return new(core.SignedSyncContributionAndProof) }},
-		{zero: func() any { return new(core.AggregatedAttestation) }},
+		{zero: func() any { return new(core.VersionedAggregatedAttestation) }},
 		{zero: func() any { return new(core.VersionedProposal) }},
 		{zero: func() any { return new(core.SyncContribution) }},
 	}
@@ -108,7 +108,7 @@ func TestMarshalUnsignedProto(t *testing.T) {
 		},
 		{
 			dutyType:    core.DutyAggregator,
-			unsignedPtr: func() any { return new(core.AggregatedAttestation) },
+			unsignedPtr: func() any { return new(core.VersionedAggregatedAttestation) },
 		},
 		{
 			dutyType:    core.DutyProposer,
@@ -182,7 +182,7 @@ func TestMarshalParSignedProto(t *testing.T) {
 		},
 		{
 			dutyType:  core.DutyAggregator,
-			signedPtr: func() any { return new(core.SignedAggregateAndProof) },
+			signedPtr: func() any { return new(core.VersionedSignedAggregateAndProof) },
 		},
 		{
 			dutyType:  core.DutyProposer,

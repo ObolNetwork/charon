@@ -43,8 +43,9 @@ import (
 )
 
 const (
-	slotsPerEpoch = 32
-	infoLevel     = 1 // 1 is InfoLevel, this avoids importing zerolog directly.
+	slotsPerEpoch    = 32
+	electraForkEpoch = 1
+	infoLevel        = 1 // 1 is InfoLevel, this avoids importing zerolog directly.
 )
 
 type addr string
@@ -1425,18 +1426,21 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 
 	const vIdx = 1
 
-	agg := &eth2p0.SignedAggregateAndProof{
-		Message: &eth2p0.AggregateAndProof{
-			AggregatorIndex: vIdx,
-			Aggregate:       testutil.RandomAttestation(),
-			SelectionProof:  testutil.RandomEth2Signature(),
+	agg := &eth2spec.VersionedSignedAggregateAndProof{
+		Version: eth2spec.DataVersionDeneb,
+		Deneb: &eth2p0.SignedAggregateAndProof{
+			Message: &eth2p0.AggregateAndProof{
+				AggregatorIndex: vIdx,
+				Aggregate:       testutil.RandomAttestation(),
+				SelectionProof:  testutil.RandomEth2Signature(),
+			},
+			Signature: testutil.RandomEth2Signature(),
 		},
-		Signature: testutil.RandomEth2Signature(),
 	}
 
 	handler := testHandler{
-		SubmitAggregateAttestationsFunc: func(_ context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
-			require.Equal(t, agg, aggregateAndProofs[0])
+		SubmitAggregateAttestationsFunc: func(_ context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
+			require.Equal(t, agg, aggregateAndProofs.SignedAggregateAndProofs[0])
 
 			return nil
 		},
@@ -1459,7 +1463,7 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 	require.NoError(t, err)
 
 	eth2Cl := eth2wrap.AdaptEth2HTTP(eth2Svc.(*eth2http.Service), time.Second)
-	err = eth2Cl.SubmitAggregateAttestations(ctx, []*eth2p0.SignedAggregateAndProof{agg})
+	err = eth2Cl.SubmitAggregateAttestations(ctx, &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: []*eth2spec.VersionedSignedAggregateAndProof{agg}})
 	require.NoError(t, err)
 }
 
@@ -1795,7 +1799,7 @@ type testHandler struct {
 	SubmitVoluntaryExitFunc                func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error
 	SubmitValidatorRegistrationsFunc       func(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error
 	AggregateBeaconCommitteeSelectionsFunc func(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error)
-	SubmitAggregateAttestationsFunc        func(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error
+	SubmitAggregateAttestationsFunc        func(ctx context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error
 	SubmitSyncCommitteeMessagesFunc        func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error
 	SyncCommitteeDutiesFunc                func(ctx context.Context, opts *eth2api.SyncCommitteeDutiesOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeDuty], error)
 	SyncCommitteeContributionFunc          func(ctx context.Context, opts *eth2api.SyncCommitteeContributionOpts) (*eth2api.Response[*altair.SyncCommitteeContribution], error)
@@ -1857,7 +1861,7 @@ func (h testHandler) AggregateBeaconCommitteeSelections(ctx context.Context, sel
 	return h.AggregateBeaconCommitteeSelectionsFunc(ctx, selections)
 }
 
-func (h testHandler) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
+func (h testHandler) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
 	return h.SubmitAggregateAttestationsFunc(ctx, aggregateAndProofs)
 }
 
@@ -1893,7 +1897,8 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 	})
 	mux.HandleFunc("/eth/v1/config/spec", func(w http.ResponseWriter, r *http.Request) {
 		res := map[string]any{
-			"SLOTS_PER_EPOCH": strconv.Itoa(slotsPerEpoch),
+			"SLOTS_PER_EPOCH":    strconv.Itoa(slotsPerEpoch),
+			"ELECTRA_FORK_EPOCH": strconv.Itoa(electraForkEpoch),
 		}
 		writeResponse(ctx, w, "", nest(res, "data"), nil)
 	})

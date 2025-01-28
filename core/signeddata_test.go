@@ -48,14 +48,17 @@ func TestSignedDataSetSignature(t *testing.T) {
 		},
 		{
 			name: "signed aggregate and proof",
-			data: core.SignedAggregateAndProof{
-				SignedAggregateAndProof: eth2p0.SignedAggregateAndProof{
-					Message: &eth2p0.AggregateAndProof{
-						AggregatorIndex: 0,
-						Aggregate:       testutil.RandomAttestation(),
-						SelectionProof:  testutil.RandomEth2Signature(),
+			data: core.VersionedSignedAggregateAndProof{
+				VersionedSignedAggregateAndProof: eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionDeneb,
+					Deneb: &eth2p0.SignedAggregateAndProof{
+						Message: &eth2p0.AggregateAndProof{
+							AggregatorIndex: 0,
+							Aggregate:       testutil.RandomAttestation(),
+							SelectionProof:  testutil.RandomEth2Signature(),
+						},
+						Signature: testutil.RandomEth2Signature(),
 					},
-					Signature: testutil.RandomEth2Signature(),
 				},
 			},
 		},

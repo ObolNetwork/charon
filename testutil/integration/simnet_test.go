@@ -439,9 +439,9 @@ var (
 		"validator-client",
 		"--network=auto",
 		"--log-destination=console",
-		"--Xblock-v3-enabled=true",
 		"--validators-external-signer-slashing-protection-enabled=true",
 		"--validators-proposer-default-fee-recipient=0x000000000000000000000000000000000000dead",
+		"--Xattestations-v2-apis-enabled",
 	}
 	tekuExit tekuCmd = []string{
 		"voluntary-exit",
@@ -504,7 +504,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 		"--name=" + name,
 		fmt.Sprintf("--volume=%s:/keys", tempDir),
 		"--user=root", // Root required to read volume files in GitHub actions.
-		"consensys/teku:24.3.1",
+		"ethpandaops/teku:mekong",
 	}
 	dockerArgs = append(dockerArgs, tekuArgs...)
 	t.Logf("docker args: %v", dockerArgs)

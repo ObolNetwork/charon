@@ -12,7 +12,6 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
@@ -240,18 +239,18 @@ func setToSyncMessages(set core.SignedDataSet) ([]*altair.SyncCommitteeMessage, 
 }
 
 // setToAggAndProof converts a set of signed data into a list of aggregate and proofs.
-func setToAggAndProof(set core.SignedDataSet) ([]*eth2p0.SignedAggregateAndProof, error) {
-	var resp []*eth2p0.SignedAggregateAndProof
+func setToAggAndProof(set core.SignedDataSet) (*eth2api.SubmitAggregateAttestationsOpts, error) {
+	var resp []*eth2spec.VersionedSignedAggregateAndProof
 	for _, aggAndProof := range set {
-		aggAndProof, ok := aggAndProof.(core.SignedAggregateAndProof)
+		aggAndProof, ok := aggAndProof.(core.VersionedSignedAggregateAndProof)
 		if !ok {
 			return nil, errors.New("invalid aggregate and proof")
 		}
 
-		resp = append(resp, &aggAndProof.SignedAggregateAndProof)
+		resp = append(resp, &aggAndProof.VersionedSignedAggregateAndProof)
 	}
 
-	return resp, nil
+	return &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: resp}, nil
 }
 
 // setToRegistrations converts a set of signed data into a list of registrations.

@@ -79,23 +79,23 @@ func (_m *Client) Address() string {
 }
 
 // AggregateAttestation provides a mock function with given fields: ctx, opts
-func (_m *Client) AggregateAttestation(ctx context.Context, opts *api.AggregateAttestationOpts) (*api.Response[*phase0.Attestation], error) {
+func (_m *Client) AggregateAttestation(ctx context.Context, opts *api.AggregateAttestationOpts) (*api.Response[*spec.VersionedAttestation], error) {
 	ret := _m.Called(ctx, opts)
 
 	if len(ret) == 0 {
 		panic("no return value specified for AggregateAttestation")
 	}
 
-	var r0 *api.Response[*phase0.Attestation]
+	var r0 *api.Response[*spec.VersionedAttestation]
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *api.AggregateAttestationOpts) (*api.Response[*phase0.Attestation], error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *api.AggregateAttestationOpts) (*api.Response[*spec.VersionedAttestation], error)); ok {
 		return rf(ctx, opts)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *api.AggregateAttestationOpts) *api.Response[*phase0.Attestation]); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *api.AggregateAttestationOpts) *api.Response[*spec.VersionedAttestation]); ok {
 		r0 = rf(ctx, opts)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.Response[*phase0.Attestation])
+			r0 = ret.Get(0).(*api.Response[*spec.VersionedAttestation])
 		}
 	}
 
@@ -916,7 +916,7 @@ func (_m *Client) Spec(ctx context.Context, opts *api.SpecOpts) (*api.Response[m
 }
 
 // SubmitAggregateAttestations provides a mock function with given fields: ctx, aggregateAndProofs
-func (_m *Client) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs []*phase0.SignedAggregateAndProof) error {
+func (_m *Client) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs *api.SubmitAggregateAttestationsOpts) error {
 	ret := _m.Called(ctx, aggregateAndProofs)
 
 	if len(ret) == 0 {
@@ -924,7 +924,7 @@ func (_m *Client) SubmitAggregateAttestations(ctx context.Context, aggregateAndP
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, []*phase0.SignedAggregateAndProof) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *api.SubmitAggregateAttestationsOpts) error); ok {
 		r0 = rf(ctx, aggregateAndProofs)
 	} else {
 		r0 = ret.Error(0)

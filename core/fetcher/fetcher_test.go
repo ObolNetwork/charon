@@ -105,24 +105,28 @@ func TestFetchAggregator(t *testing.T) {
 		vIdxB: testutil.RandomCorePubKey(t),
 	}
 
-	attA := testutil.RandomAttestation()
-	attB := testutil.RandomAttestation()
-	attByCommIdx := map[uint64]*eth2p0.Attestation{
-		uint64(attA.Data.Index): attA,
-		uint64(attB.Data.Index): attB,
+	attA := testutil.RandomDenebVersionedAttestation()
+	attB := testutil.RandomDenebVersionedAttestation()
+	attAData, err := attA.Data()
+	require.NoError(t, err)
+	attBData, err := attB.Data()
+	require.NoError(t, err)
+	attByCommIdx := map[uint64]*eth2spec.VersionedAttestation{
+		uint64(attAData.Index): attA,
+		uint64(attBData.Index): attB,
 	}
 
 	newDefSet := func(commLength uint64, sameCommitteeIndex bool) core.DutyDefinitionSet {
 		dutyA := testutil.RandomAttestationDuty(t)
 		dutyA.CommitteeLength = commLength
-		dutyA.CommitteeIndex = attA.Data.Index
+		dutyA.CommitteeIndex = attAData.Index
 		dutyB := testutil.RandomAttestationDuty(t)
 		dutyB.CommitteeLength = commLength
-		dutyB.CommitteeIndex = attB.Data.Index
+		dutyB.CommitteeIndex = attBData.Index
 
 		if sameCommitteeIndex {
-			dutyB.CommitteeIndex = attA.Data.Index
-			attB.Data.Index = attA.Data.Index
+			dutyB.CommitteeIndex = attAData.Index
+			attBData.Index = attAData.Index
 		}
 
 		return map[core.PubKey]core.DutyDefinition{
@@ -140,13 +144,15 @@ func TestFetchAggregator(t *testing.T) {
 	require.NoError(t, err)
 
 	var aggAttCallCount int
-	bmock.AggregateAttestationFunc = func(ctx context.Context, slot eth2p0.Slot, root eth2p0.Root) (*eth2p0.Attestation, error) {
+	bmock.AggregateAttestationFunc = func(ctx context.Context, slot eth2p0.Slot, root eth2p0.Root) (*eth2spec.VersionedAttestation, error) {
 		aggAttCallCount--
 		if nilAggregate {
 			return nil, nil //nolint:nilnil // This reproduces what go-eth2-client does
 		}
 		for _, att := range attByCommIdx {
-			dataRoot, err := att.Data.HashTreeRoot()
+			attData, err := att.Data()
+			require.NoError(t, err)
+			dataRoot, err := attData.HashTreeRoot()
 			require.NoError(t, err)
 			if dataRoot == root {
 				return att, nil
@@ -164,7 +170,7 @@ func TestFetchAggregator(t *testing.T) {
 	})
 
 	fetch.RegisterAwaitAttData(func(ctx context.Context, slot uint64, commIdx uint64) (*eth2p0.AttestationData, error) {
-		return attByCommIdx[commIdx].Data, nil
+		return attByCommIdx[commIdx].Data()
 	})
 
 	done := errors.New("done")
@@ -173,12 +179,14 @@ func TestFetchAggregator(t *testing.T) {
 		require.Len(t, resDataSet, 2)
 
 		for _, aggAtt := range resDataSet {
-			aggregated, ok := aggAtt.(core.AggregatedAttestation)
+			aggregated, ok := aggAtt.(core.VersionedAggregatedAttestation)
 			require.True(t, ok)
 
-			att, ok := attByCommIdx[uint64(aggregated.Attestation.Data.Index)]
+			aggregatedData, err := aggregated.VersionedAttestation.Data()
+			require.NoError(t, err)
+			att, ok := attByCommIdx[uint64(aggregatedData.Index)]
 			require.True(t, ok)
-			require.Equal(t, aggregated.Attestation, *att)
+			require.Equal(t, aggregated.VersionedAttestation, *att)
 		}
 
 		return done
@@ -553,6 +561,12 @@ func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block core.Versioned
 			require.EqualValues(t, randao, block.DenebBlinded.Body.RANDAOReveal)
 		} else {
 			require.EqualValues(t, randao, block.Deneb.Block.Body.RANDAOReveal)
+		}
+	case eth2spec.DataVersionElectra:
+		if block.Blinded {
+			require.EqualValues(t, randao, block.ElectraBlinded.Body.RANDAOReveal)
+		} else {
+			require.EqualValues(t, randao, block.Electra.Block.Body.RANDAOReveal)
 		}
 	default:
 		require.Fail(t, "invalid block")

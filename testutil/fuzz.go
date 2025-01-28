@@ -241,5 +241,21 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				}
 				e.CommitteeBits = bits
 			},
+			func(e *core.VersionedAggregatedAttestation, c fuzz.Continue) {
+				e.Version = allVersions[(c.Intn(len(allVersions)))]
+				version, err := eth2util.DataVersionFromETH2(e.Version)
+				require.NoError(t, err)
+
+				val := core.VersionedSSZValueForT(t, e, version)
+				c.Fuzz(val)
+			},
+			func(e *core.VersionedSignedAggregateAndProof, c fuzz.Continue) {
+				e.Version = allVersions[(c.Intn(len(allVersions)))]
+				version, err := eth2util.DataVersionFromETH2(e.Version)
+				require.NoError(t, err)
+
+				val := core.VersionedSSZValueForT(t, e, version)
+				c.Fuzz(val)
+			},
 		)
 }
