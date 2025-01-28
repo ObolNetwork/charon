@@ -1438,7 +1438,6 @@ func (ap *VersionedSignedAggregateAndProof) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
-// TODO: remove after go-eth2-client make util functions for Aggregate or Data fields
 func (ap VersionedSignedAggregateAndProof) Data() *eth2p0.AttestationData {
 	switch ap.Version {
 	case eth2spec.DataVersionPhase0:
@@ -1482,7 +1481,6 @@ func (ap VersionedSignedAggregateAndProof) Data() *eth2p0.AttestationData {
 	}
 }
 
-// TODO: remove after go-eth2-client make util functions for Aggregate or Data fields
 func (ap VersionedSignedAggregateAndProof) AggregationBits() bitfield.Bitlist {
 	switch ap.Version {
 	case eth2spec.DataVersionPhase0:

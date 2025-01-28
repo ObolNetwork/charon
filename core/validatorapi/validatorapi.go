@@ -818,47 +818,10 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 		if err != nil {
 			return err
 		}
-		// TODO: remove switch case after go-eth2-client make util function for AggregatorIndex field
-		var aggregatorIndex eth2p0.ValidatorIndex
-		switch agg.Version {
-		case eth2spec.DataVersionPhase0:
-			if agg.Phase0 == nil {
-				return errors.New("no phase0 aggregateAndProof")
-			}
 
-			aggregatorIndex = agg.Phase0.Message.AggregatorIndex
-		case eth2spec.DataVersionAltair:
-			if agg.Altair == nil {
-				return errors.New("no altair aggregateAndProof")
-			}
-
-			aggregatorIndex = agg.Altair.Message.AggregatorIndex
-		case eth2spec.DataVersionBellatrix:
-			if agg.Bellatrix == nil {
-				return errors.New("no bellatrix aggregateAndProof")
-			}
-
-			aggregatorIndex = agg.Bellatrix.Message.AggregatorIndex
-		case eth2spec.DataVersionCapella:
-			if agg.Capella == nil {
-				return errors.New("no capella aggregateAndProof")
-			}
-
-			aggregatorIndex = agg.Capella.Message.AggregatorIndex
-		case eth2spec.DataVersionDeneb:
-			if agg.Deneb == nil {
-				return errors.New("no deneb aggregateAndProof")
-			}
-
-			aggregatorIndex = agg.Deneb.Message.AggregatorIndex
-		case eth2spec.DataVersionElectra:
-			if agg.Electra == nil {
-				return errors.New("no electra aggregateAndProof")
-			}
-
-			aggregatorIndex = agg.Electra.Message.AggregatorIndex
-		default:
-			return errors.New("unknown version")
+		aggregatorIndex, err := agg.AggregatorIndex()
+		if err != nil {
+			return err
 		}
 
 		eth2Pubkey, ok := vals[aggregatorIndex]

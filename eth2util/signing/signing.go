@@ -95,47 +95,9 @@ func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Clien
 		return errors.Wrap(err, "cannot get hash root of slot")
 	}
 
-	// TODO: remove switch case after go-eth2-client make util function for SelectionProof field
-	var selectionProof eth2p0.BLSSignature
-	switch agg.Version {
-	case eth2spec.DataVersionPhase0:
-		if agg.Phase0 == nil {
-			return errors.New("no phase0 aggregateAndProof")
-		}
-
-		selectionProof = agg.Phase0.Message.SelectionProof
-	case eth2spec.DataVersionAltair:
-		if agg.Altair == nil {
-			return errors.New("no altair aggregateAndProof")
-		}
-
-		selectionProof = agg.Altair.Message.SelectionProof
-	case eth2spec.DataVersionBellatrix:
-		if agg.Bellatrix == nil {
-			return errors.New("no bellatrix aggregateAndProof")
-		}
-
-		selectionProof = agg.Bellatrix.Message.SelectionProof
-	case eth2spec.DataVersionCapella:
-		if agg.Capella == nil {
-			return errors.New("no capella aggregateAndProof")
-		}
-
-		selectionProof = agg.Capella.Message.SelectionProof
-	case eth2spec.DataVersionDeneb:
-		if agg.Deneb == nil {
-			return errors.New("no deneb aggregateAndProof")
-		}
-
-		selectionProof = agg.Deneb.Message.SelectionProof
-	case eth2spec.DataVersionElectra:
-		if agg.Electra == nil {
-			return errors.New("no electra aggregateAndProof")
-		}
-
-		selectionProof = agg.Electra.Message.SelectionProof
-	default:
-		return errors.New("unknown version")
+	selectionProof, err := agg.SelectionProof()
+	if err != nil {
+		return err
 	}
 
 	return Verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, selectionProof, pubkey)

@@ -43,8 +43,9 @@ import (
 )
 
 const (
-	slotsPerEpoch = 32
-	infoLevel     = 1 // 1 is InfoLevel, this avoids importing zerolog directly.
+	slotsPerEpoch    = 32
+	electraForkEpoch = 1
+	infoLevel        = 1 // 1 is InfoLevel, this avoids importing zerolog directly.
 )
 
 type addr string
@@ -1896,7 +1897,8 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 	})
 	mux.HandleFunc("/eth/v1/config/spec", func(w http.ResponseWriter, r *http.Request) {
 		res := map[string]any{
-			"SLOTS_PER_EPOCH": strconv.Itoa(slotsPerEpoch),
+			"SLOTS_PER_EPOCH":    strconv.Itoa(slotsPerEpoch),
+			"ELECTRA_FORK_EPOCH": strconv.Itoa(electraForkEpoch),
 		}
 		writeResponse(ctx, w, "", nest(res, "data"), nil)
 	})

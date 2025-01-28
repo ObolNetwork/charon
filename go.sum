@@ -47,8 +47,8 @@ github.com/antlr4-go/antlr/v4 v4.13.1 h1:SqQKkuVZ+zWkMMNkjy5FZe5mr5WURWnlpmOuzYW
 github.com/antlr4-go/antlr/v4 v4.13.1/go.mod h1:GKmUxMtwp6ZgGwZSva4eWPC5mS6vUAmOABFgjdkM7Nw=
 github.com/attestantio/go-builder-client v0.5.3 h1:4YFT0u823JvF4Uesj7SEG8f0De1uxLrVioOgKZYPl3I=
 github.com/attestantio/go-builder-client v0.5.3/go.mod h1:RaWc8K2SjyU19sL5UinOQ8n4vTZBrEQzsNuMWpNmwK4=
-github.com/attestantio/go-eth2-client v0.23.1-0.20250122084024-be3c6bce48f3 h1:wU1n1cUf5oPwr4Y9db+g+ZLSUP9VWyy8Zas9VnCLtyQ=
-github.com/attestantio/go-eth2-client v0.23.1-0.20250122084024-be3c6bce48f3/go.mod h1:vy5jU/uDZ2+RcVzq5BfnG+bQ3/6uu9DGwCrGsPtjJ1A=
+github.com/attestantio/go-eth2-client v0.23.1-0.20250127133620-39cd237a54a9 h1:0GjrZ5f9JwgeXUA8t0iFSBSnQn8CwHl2KMm79CcFprM=
+github.com/attestantio/go-eth2-client v0.23.1-0.20250127133620-39cd237a54a9/go.mod h1:vy5jU/uDZ2+RcVzq5BfnG+bQ3/6uu9DGwCrGsPtjJ1A=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/benbjohnson/clock v1.3.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/benbjohnson/clock v1.3.5 h1:VvXlSJBzZpA/zum6Sj74hxwYI2DIxRWuNIoXAzHZz5o=
