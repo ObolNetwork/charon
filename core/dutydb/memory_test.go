@@ -220,11 +220,15 @@ func TestMemDBAggregator(t *testing.T) {
 	const queries = 3
 
 	for range queries {
-		agg := testutil.RandomAttestation()
+		att := testutil.RandomDenebVersionedAttestation()
+		aggAttest, err := core.NewVersionedAggregatedAttestation(att)
+		require.NoError(t, err)
 		set := core.UnsignedDataSet{
-			testutil.RandomCorePubKey(t): core.NewAggregatedAttestation(agg),
+			testutil.RandomCorePubKey(t): aggAttest,
 		}
-		slot := uint64(agg.Data.Slot)
+		attData, err := att.Data()
+		require.NoError(t, err)
+		slot := uint64(attData.Slot)
 
 		errCh := make(chan error, 1)
 		go func() {
@@ -232,13 +236,13 @@ func TestMemDBAggregator(t *testing.T) {
 			errCh <- err
 		}()
 
-		root, err := agg.Data.HashTreeRoot()
+		root, err := attData.HashTreeRoot()
 		require.NoError(t, err)
 		err = <-errCh
 		require.NoError(t, err)
 		resp, err := db.AwaitAggAttestation(ctx, slot, root)
 		require.NoError(t, err)
-		require.Equal(t, agg, resp)
+		require.Equal(t, att, resp)
 	}
 }
 
@@ -333,7 +337,7 @@ func TestMemDBSyncContribution(t *testing.T) {
 		)
 
 		err := db.Store(ctx, duty, core.UnsignedDataSet{
-			testutil.RandomCorePubKey(t): core.NewAggregatedAttestation(testutil.RandomAttestation()),
+			testutil.RandomCorePubKey(t): testutil.RandomDenebCoreVersionedAggregateAttestation(),
 		})
 		require.Error(t, err)
 		require.ErrorContains(t, err, "invalid unsigned sync committee contribution")

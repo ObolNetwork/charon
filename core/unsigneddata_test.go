@@ -41,7 +41,7 @@ func TestUnsignedDataClone(t *testing.T) {
 		},
 		{
 			name: "aggregated attestation",
-			data: core.NewAggregatedAttestation(testutil.RandomAttestation()),
+			data: testutil.RandomDenebCoreVersionedAggregateAttestation(),
 		},
 		{
 			name: "sync contribution",

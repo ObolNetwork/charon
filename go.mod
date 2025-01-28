@@ -267,4 +267,4 @@ replace github.com/coinbase/kryptology => github.com/ObolNetwork/kryptology v0.0
 // replace github.com/attestantio/go-eth2-client => github.com/ObolNetwork/go-eth2-client v0.21.11-0.20240822135044-f0a5b21e02c6
 
 // Replace go-eth2-client version with the electra branch
-replace github.com/attestantio/go-eth2-client => github.com/attestantio/go-eth2-client v0.23.1-0.20250114123312-5a900c7c87e7
+replace github.com/attestantio/go-eth2-client => github.com/attestantio/go-eth2-client v0.23.1-0.20250127133620-39cd237a54a9
