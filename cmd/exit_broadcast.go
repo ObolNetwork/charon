@@ -169,9 +169,12 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 				valCtx := log.WithCtx(ctx, z.Str("validator_public_key", validatorPubKeyHex))
 				exit, err := fetchFullExit(valCtx, "", config, cl, identityKey, validatorPubKeyHex)
 				if err != nil {
-					log.Warn(ctx, fmt.Sprintf("exit for validator %v failed", validatorPubKeyHex), err)
-					continue
-					// return errors.Wrap(err, "fetch full exit for all validators from public key")
+					if errors.Is(err, obolapi.ErrNoExit) {
+						log.Warn(ctx, fmt.Sprintf("full exit data from Obol API for validator %v not available (validator may not be activated)", validatorPubKeyHex), nil)
+						continue
+					}
+
+					return errors.Wrap(err, "fetch full exit for all validators from public key")
 				}
 				validatorPubKey, err := core.PubKeyFromBytes(validator.GetPublicKey())
 				if err != nil {
