@@ -463,25 +463,8 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		atts := []*eth2spec.VersionedAttestation{}
 
-		denebAtts := new([]eth2p0.Attestation)
-		err := unmarshal(typ, body, denebAtts)
-		if err == nil {
-			for _, att := range *denebAtts {
-				// TODO: Data version is not Deneb, it might be anything between Phase0 and Deneb
-				versionedAgg := eth2spec.VersionedAttestation{
-					Version: eth2spec.DataVersionDeneb,
-					Deneb:   &att,
-				}
-				atts = append(atts, &versionedAgg)
-			}
-
-			return nil, nil, p.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{
-				Attestations: atts,
-			})
-		}
-
 		electraAtts := new([]electra.Attestation)
-		err = unmarshal(typ, body, electraAtts)
+		err := unmarshal(typ, body, electraAtts)
 		if err == nil {
 			for _, att := range *electraAtts {
 				versionedAtt := eth2spec.VersionedAttestation{
@@ -489,6 +472,23 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 					Electra: &att,
 				}
 				atts = append(atts, &versionedAtt)
+			}
+
+			return nil, nil, p.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{
+				Attestations: atts,
+			})
+		}
+
+		denebAtts := new([]eth2p0.Attestation)
+		err = unmarshal(typ, body, denebAtts)
+		if err == nil {
+			for _, att := range *denebAtts {
+				// TODO(kalo): Data version is not Deneb, it might be anything between Phase0 and Deneb
+				versionedAgg := eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionDeneb,
+					Deneb:   &att,
+				}
+				atts = append(atts, &versionedAgg)
 			}
 
 			return nil, nil, p.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{
@@ -1095,14 +1095,13 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		aggs := []*eth2spec.VersionedSignedAggregateAndProof{}
 
-		denebAggs := new([]eth2p0.SignedAggregateAndProof)
-		err := unmarshal(typ, body, denebAggs)
+		electraAggs := new([]electra.SignedAggregateAndProof)
+		err := unmarshal(typ, body, electraAggs)
 		if err == nil {
-			for _, agg := range *denebAggs {
-				// TODO: Data version is not Deneb, it might be anything between Phase0 and Deneb
+			for _, agg := range *electraAggs {
 				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
-					Version: eth2spec.DataVersionDeneb,
-					Deneb:   &agg,
+					Version: eth2spec.DataVersionElectra,
+					Electra: &agg,
 				}
 				aggs = append(aggs, &versionedAgg)
 			}
@@ -1112,13 +1111,14 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 			})
 		}
 
-		electraAggs := new([]electra.SignedAggregateAndProof)
-		err = unmarshal(typ, body, electraAggs)
+		denebAggs := new([]eth2p0.SignedAggregateAndProof)
+		err = unmarshal(typ, body, denebAggs)
 		if err == nil {
-			for _, agg := range *electraAggs {
+			for _, agg := range *denebAggs {
+				// TODO(kalo): Data version is not Deneb, it might be anything between Phase0 and Deneb
 				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
-					Version: eth2spec.DataVersionElectra,
-					Electra: &agg,
+					Version: eth2spec.DataVersionDeneb,
+					Deneb:   &agg,
 				}
 				aggs = append(aggs, &versionedAgg)
 			}

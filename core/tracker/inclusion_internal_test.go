@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/stretchr/testify/require"
@@ -21,57 +22,129 @@ import (
 func TestDuplicateAttData(t *testing.T) {
 	ctx := context.Background()
 
-	bmock, err := beaconmock.New()
-	require.NoError(t, err)
-
-	// Mock 3 attestations, with same data but different aggregation bits.
-	bits1 := testutil.RandomBitList(8)
-	bits2 := testutil.RandomBitList(8)
-	bits3 := testutil.RandomBitList(8)
-	attData := testutil.RandomAttestationData()
-
-	bmock.BlockAttestationsV2Func = func(_ context.Context, _ string) ([]*eth2spec.VersionedAttestation, error) {
-		return []*eth2spec.VersionedAttestation{
-			{Version: eth2spec.DataVersionDeneb, Deneb: &eth2p0.Attestation{AggregationBits: bits1, Data: attData}},
-			{Version: eth2spec.DataVersionDeneb, Deneb: &eth2p0.Attestation{AggregationBits: bits2, Data: attData}},
-			{Version: eth2spec.DataVersionDeneb, Deneb: &eth2p0.Attestation{AggregationBits: bits3, Data: attData}},
-		}, nil
+	tests := []struct {
+		name             string
+		attestationsFunc func(*eth2p0.AttestationData, bitfield.Bitlist, bitfield.Bitlist, bitfield.Bitlist) []*eth2spec.VersionedAttestation
+	}{
+		{
+			name: "phase0",
+			attestationsFunc: func(attData *eth2p0.AttestationData, bits1 bitfield.Bitlist, bits2 bitfield.Bitlist, bits3 bitfield.Bitlist) []*eth2spec.VersionedAttestation {
+				return []*eth2spec.VersionedAttestation{
+					{Version: eth2spec.DataVersionPhase0, Phase0: &eth2p0.Attestation{AggregationBits: bits1, Data: attData}},
+					{Version: eth2spec.DataVersionPhase0, Phase0: &eth2p0.Attestation{AggregationBits: bits2, Data: attData}},
+					{Version: eth2spec.DataVersionPhase0, Phase0: &eth2p0.Attestation{AggregationBits: bits3, Data: attData}},
+				}
+			},
+		},
+		{
+			name: "altair",
+			attestationsFunc: func(attData *eth2p0.AttestationData, bits1 bitfield.Bitlist, bits2 bitfield.Bitlist, bits3 bitfield.Bitlist) []*eth2spec.VersionedAttestation {
+				return []*eth2spec.VersionedAttestation{
+					{Version: eth2spec.DataVersionAltair, Altair: &eth2p0.Attestation{AggregationBits: bits1, Data: attData}},
+					{Version: eth2spec.DataVersionAltair, Altair: &eth2p0.Attestation{AggregationBits: bits2, Data: attData}},
+					{Version: eth2spec.DataVersionAltair, Altair: &eth2p0.Attestation{AggregationBits: bits3, Data: attData}},
+				}
+			},
+		},
+		{
+			name: "bellatrix",
+			attestationsFunc: func(attData *eth2p0.AttestationData, bits1 bitfield.Bitlist, bits2 bitfield.Bitlist, bits3 bitfield.Bitlist) []*eth2spec.VersionedAttestation {
+				return []*eth2spec.VersionedAttestation{
+					{Version: eth2spec.DataVersionBellatrix, Bellatrix: &eth2p0.Attestation{AggregationBits: bits1, Data: attData}},
+					{Version: eth2spec.DataVersionBellatrix, Bellatrix: &eth2p0.Attestation{AggregationBits: bits2, Data: attData}},
+					{Version: eth2spec.DataVersionBellatrix, Bellatrix: &eth2p0.Attestation{AggregationBits: bits3, Data: attData}},
+				}
+			},
+		},
+		{
+			name: "capella",
+			attestationsFunc: func(attData *eth2p0.AttestationData, bits1 bitfield.Bitlist, bits2 bitfield.Bitlist, bits3 bitfield.Bitlist) []*eth2spec.VersionedAttestation {
+				return []*eth2spec.VersionedAttestation{
+					{Version: eth2spec.DataVersionCapella, Capella: &eth2p0.Attestation{AggregationBits: bits1, Data: attData}},
+					{Version: eth2spec.DataVersionCapella, Capella: &eth2p0.Attestation{AggregationBits: bits2, Data: attData}},
+					{Version: eth2spec.DataVersionCapella, Capella: &eth2p0.Attestation{AggregationBits: bits3, Data: attData}},
+				}
+			},
+		},
+		{
+			name: "deneb",
+			attestationsFunc: func(attData *eth2p0.AttestationData, bits1 bitfield.Bitlist, bits2 bitfield.Bitlist, bits3 bitfield.Bitlist) []*eth2spec.VersionedAttestation {
+				return []*eth2spec.VersionedAttestation{
+					{Version: eth2spec.DataVersionDeneb, Deneb: &eth2p0.Attestation{AggregationBits: bits1, Data: attData}},
+					{Version: eth2spec.DataVersionDeneb, Deneb: &eth2p0.Attestation{AggregationBits: bits2, Data: attData}},
+					{Version: eth2spec.DataVersionDeneb, Deneb: &eth2p0.Attestation{AggregationBits: bits3, Data: attData}},
+				}
+			},
+		},
+		{
+			name: "electra",
+			attestationsFunc: func(attData *eth2p0.AttestationData, bits1 bitfield.Bitlist, bits2 bitfield.Bitlist, bits3 bitfield.Bitlist) []*eth2spec.VersionedAttestation {
+				return []*eth2spec.VersionedAttestation{
+					{Version: eth2spec.DataVersionElectra, Electra: &electra.Attestation{AggregationBits: bits1, Data: attData}},
+					{Version: eth2spec.DataVersionElectra, Electra: &electra.Attestation{AggregationBits: bits2, Data: attData}},
+					{Version: eth2spec.DataVersionElectra, Electra: &electra.Attestation{AggregationBits: bits3, Data: attData}},
+				}
+			},
+		},
 	}
 
-	noopTrackerInclFunc := func(duty core.Duty, key core.PubKey, data core.SignedData, err error) {}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			bmock, err := beaconmock.New()
+			require.NoError(t, err)
 
-	incl, err := NewInclusion(ctx, bmock, noopTrackerInclFunc)
-	require.NoError(t, err)
+			// Mock 3 attestations, with same data but different aggregation bits.
+			bits1 := testutil.RandomBitList(8)
+			bits2 := testutil.RandomBitList(8)
+			bits3 := testutil.RandomBitList(8)
+			attData := testutil.RandomAttestationData()
 
-	done := make(chan struct{})
-	attDataRoot, err := attData.HashTreeRoot()
-	require.NoError(t, err)
+			bmock.BlockAttestationsV2Func = func(_ context.Context, _ string) ([]*eth2spec.VersionedAttestation, error) {
+				return test.attestationsFunc(attData, bits1, bits2, bits3), nil
+			}
 
-	// Assert that the block to check contains all bitlists above.
-	incl.checkBlockFunc = func(ctx context.Context, block block) {
-		require.Len(t, block.AttestationsByDataRoot, 1)
-		att, ok := block.AttestationsByDataRoot[attDataRoot]
-		require.True(t, ok)
+			noopTrackerInclFunc := func(duty core.Duty, key core.PubKey, data core.SignedData, err error) {}
 
-		ok, err := att.Deneb.AggregationBits.Contains(bits1)
-		require.NoError(t, err)
-		require.True(t, ok)
+			incl, err := NewInclusion(ctx, bmock, noopTrackerInclFunc)
+			require.NoError(t, err)
 
-		ok, err = att.Deneb.AggregationBits.Contains(bits2)
-		require.NoError(t, err)
-		require.True(t, ok)
+			done := make(chan struct{})
+			attDataRoot, err := attData.HashTreeRoot()
+			require.NoError(t, err)
 
-		ok, err = att.Deneb.AggregationBits.Contains(bits3)
-		require.NoError(t, err)
-		require.True(t, ok)
+			// Assert that the block to check contains all bitlists above.
+			incl.checkBlockFunc = func(ctx context.Context, block block) {
+				require.Len(t, block.AttestationsByDataRoot, 1)
+				att, ok := block.AttestationsByDataRoot[attDataRoot]
+				require.True(t, ok)
 
-		close(done)
+				aggBits1, err := att.AggregationBits()
+				require.NoError(t, err)
+				ok, err = aggBits1.Contains(bits1)
+				require.NoError(t, err)
+				require.True(t, ok)
+
+				aggBits2, err := att.AggregationBits()
+				require.NoError(t, err)
+				ok, err = aggBits2.Contains(bits2)
+				require.NoError(t, err)
+				require.True(t, ok)
+
+				aggBits3, err := att.AggregationBits()
+				require.NoError(t, err)
+				ok, err = aggBits3.Contains(bits3)
+				require.NoError(t, err)
+				require.True(t, ok)
+
+				close(done)
+			}
+
+			err = incl.checkBlock(ctx, uint64(attData.Slot))
+			require.NoError(t, err)
+
+			<-done
+		})
 	}
-
-	err = incl.checkBlock(ctx, uint64(attData.Slot))
-	require.NoError(t, err)
-
-	<-done
 }
 
 func TestInclusion(t *testing.T) {

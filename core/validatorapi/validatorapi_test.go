@@ -17,10 +17,13 @@ import (
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
+	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
+	"github.com/attestantio/go-eth2-client/spec/deneb"
+	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/stretchr/testify/require"
@@ -520,13 +523,6 @@ func TestComponent_SubmitProposalsWithWrongVCData(t *testing.T) {
 func TestComponent_SubmitProposal(t *testing.T) {
 	ctx := context.Background()
 
-	// Create keys (just use normal keys, not split tbls)
-	secret, err := tbls.GenerateSecretKey()
-	require.NoError(t, err)
-
-	pubkey, err := tbls.SecretToPublicKey(secret)
-	require.NoError(t, err)
-
 	const (
 		vIdx     = 1
 		shareIdx = 1
@@ -534,78 +530,189 @@ func TestComponent_SubmitProposal(t *testing.T) {
 		epoch    = eth2p0.Epoch(3)
 	)
 
-	// Convert pubkey
-	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
-	require.NoError(t, err)
-	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
+	tests := []struct {
+		version              eth2spec.DataVersion
+		versionedSignedBlock *eth2spec.VersionedSignedBeaconBlock
+		unsignedBlockFunc    func(eth2p0.BLSSignature) *eth2spec.VersionedBeaconBlock
+		signedBlockFunc      func(*eth2spec.VersionedBeaconBlock, [96]byte) *eth2api.VersionedSignedProposal
+		awaitBlockFunc       func(*eth2spec.VersionedBeaconBlock, *eth2api.VersionedSignedProposal) *eth2api.VersionedProposal
+	}{
+		{
+			version:              eth2spec.DataVersionCapella,
+			versionedSignedBlock: testutil.RandomCapellaVersionedSignedBeaconBlock(),
+			unsignedBlockFunc: func(randao eth2p0.BLSSignature) *eth2spec.VersionedBeaconBlock {
+				unsignedBlock := &eth2spec.VersionedBeaconBlock{
+					Version: eth2spec.DataVersionCapella,
+					Capella: testutil.RandomCapellaBeaconBlock(),
+				}
+				unsignedBlock.Capella.Body.RANDAOReveal = randao
+				unsignedBlock.Capella.Slot = slot
+				unsignedBlock.Capella.ProposerIndex = vIdx
 
-	// Configure beacon mock
-	bmock, err := beaconmock.New()
-	require.NoError(t, err)
+				return unsignedBlock
+			},
+			signedBlockFunc: func(unsignedBlock *eth2spec.VersionedBeaconBlock, s [96]byte) *eth2api.VersionedSignedProposal {
+				return &eth2api.VersionedSignedProposal{
+					Version: eth2spec.DataVersionCapella,
+					Capella: &capella.SignedBeaconBlock{
+						Message:   unsignedBlock.Capella,
+						Signature: eth2p0.BLSSignature(s),
+					},
+				}
+			},
+			awaitBlockFunc: func(unsignedBlock *eth2spec.VersionedBeaconBlock, signedBlock *eth2api.VersionedSignedProposal) *eth2api.VersionedProposal {
+				return &eth2api.VersionedProposal{
+					Version: signedBlock.Version,
+					Capella: unsignedBlock.Capella,
+				}
+			},
+		},
+		{
+			version:              eth2spec.DataVersionDeneb,
+			versionedSignedBlock: testutil.RandomDenebVersionedSignedBeaconBlock(),
+			unsignedBlockFunc: func(randao eth2p0.BLSSignature) *eth2spec.VersionedBeaconBlock {
+				unsignedBlock := &eth2spec.VersionedBeaconBlock{
+					Version: eth2spec.DataVersionDeneb,
+					Deneb:   testutil.RandomDenebBeaconBlock(),
+				}
+				unsignedBlock.Deneb.Body.RANDAOReveal = randao
+				unsignedBlock.Deneb.Slot = slot
+				unsignedBlock.Deneb.ProposerIndex = vIdx
 
-	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, nil)
-	require.NoError(t, err)
+				return unsignedBlock
+			},
+			signedBlockFunc: func(unsignedBlock *eth2spec.VersionedBeaconBlock, s [96]byte) *eth2api.VersionedSignedProposal {
+				return &eth2api.VersionedSignedProposal{
+					Version: eth2spec.DataVersionDeneb,
+					Deneb: &eth2deneb.SignedBlockContents{
+						SignedBlock: &deneb.SignedBeaconBlock{
+							Message:   unsignedBlock.Deneb,
+							Signature: eth2p0.BLSSignature(s),
+						},
+						KZGProofs: []deneb.KZGProof{},
+						Blobs:     []deneb.Blob{},
+					},
+				}
+			},
+			awaitBlockFunc: func(unsignedBlock *eth2spec.VersionedBeaconBlock, signedBlock *eth2api.VersionedSignedProposal) *eth2api.VersionedProposal {
+				return &eth2api.VersionedProposal{
+					Version: signedBlock.Version,
+					Deneb: &eth2deneb.BlockContents{
+						Block:     unsignedBlock.Deneb,
+						KZGProofs: []deneb.KZGProof{},
+						Blobs:     []deneb.Blob{},
+					},
+				}
+			},
+		},
+		{
+			version:              eth2spec.DataVersionElectra,
+			versionedSignedBlock: testutil.RandomElectraVersionedSignedBeaconBlock(),
+			unsignedBlockFunc: func(randao eth2p0.BLSSignature) *eth2spec.VersionedBeaconBlock {
+				unsignedBlock := &eth2spec.VersionedBeaconBlock{
+					Version: eth2spec.DataVersionElectra,
+					Electra: testutil.RandomElectraBeaconBlock(),
+				}
+				unsignedBlock.Electra.Body.RANDAOReveal = randao
+				unsignedBlock.Electra.Slot = slot
+				unsignedBlock.Electra.ProposerIndex = vIdx
 
-	// Prepare unsigned beacon block
-	msg := []byte("randao reveal")
-	sig, err := tbls.Sign(secret, msg)
-	require.NoError(t, err)
-
-	randao := eth2p0.BLSSignature(sig)
-	unsignedBlock := &eth2spec.VersionedBeaconBlock{
-		Version: eth2spec.DataVersionCapella,
-		Capella: testutil.RandomCapellaBeaconBlock(),
-	}
-	unsignedBlock.Capella.Body.RANDAOReveal = randao
-	unsignedBlock.Capella.Slot = slot
-	unsignedBlock.Capella.ProposerIndex = vIdx
-
-	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
-		return core.DutyDefinitionSet{corePubKey: nil}, nil
-	})
-
-	// Sign beacon block
-	sigRoot, err := unsignedBlock.Root()
-	require.NoError(t, err)
-
-	domain, err := signing.GetDomain(ctx, bmock, signing.DomainBeaconProposer, epoch)
-	require.NoError(t, err)
-
-	sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()
-	require.NoError(t, err)
-
-	s, err := tbls.Sign(secret, sigData[:])
-	require.NoError(t, err)
-
-	signedBlock := &eth2api.VersionedSignedProposal{
-		Version: eth2spec.DataVersionCapella,
-		Capella: &capella.SignedBeaconBlock{
-			Message:   unsignedBlock.Capella,
-			Signature: eth2p0.BLSSignature(s),
+				return unsignedBlock
+			},
+			signedBlockFunc: func(unsignedBlock *eth2spec.VersionedBeaconBlock, s [96]byte) *eth2api.VersionedSignedProposal {
+				return &eth2api.VersionedSignedProposal{
+					Version: eth2spec.DataVersionElectra,
+					Electra: &eth2electra.SignedBlockContents{
+						SignedBlock: &electra.SignedBeaconBlock{
+							Message:   unsignedBlock.Electra,
+							Signature: eth2p0.BLSSignature(s),
+						},
+						KZGProofs: []deneb.KZGProof{},
+						Blobs:     []deneb.Blob{},
+					},
+				}
+			},
+			awaitBlockFunc: func(unsignedBlock *eth2spec.VersionedBeaconBlock, signedBlock *eth2api.VersionedSignedProposal) *eth2api.VersionedProposal {
+				return &eth2api.VersionedProposal{
+					Version: signedBlock.Version,
+					Electra: &eth2electra.BlockContents{
+						Block:     unsignedBlock.Electra,
+						KZGProofs: []deneb.KZGProof{},
+						Blobs:     []deneb.Blob{},
+					},
+				}
+			},
 		},
 	}
 
-	vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
-		return &eth2api.VersionedProposal{
-			Version: signedBlock.Version,
-			Capella: unsignedBlock.Capella,
-		}, nil
-	})
+	for _, test := range tests {
+		t.Run(test.version.String(), func(t *testing.T) {
+			// Create keys (just use normal keys, not split tbls)
+			secret, err := tbls.GenerateSecretKey()
+			require.NoError(t, err)
 
-	// Register subscriber
-	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-		block, ok := set[corePubKey].SignedData.(core.VersionedSignedProposal)
-		require.True(t, ok)
-		require.Equal(t, *signedBlock, block.VersionedSignedProposal)
+			pubkey, err := tbls.SecretToPublicKey(secret)
+			require.NoError(t, err)
 
-		return nil
-	})
+			// Convert pubkey
+			corePubKey, err := core.PubKeyFromBytes(pubkey[:])
+			require.NoError(t, err)
+			allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
-	err = vapi.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
-		Proposal: signedBlock,
-	})
-	require.NoError(t, err)
+			// Configure beacon mock
+			bmock, err := beaconmock.New()
+			require.NoError(t, err)
+
+			// Construct the validator api component
+			vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, nil)
+			require.NoError(t, err)
+
+			// Prepare unsigned beacon block
+			msg := []byte("randao reveal")
+			sig, err := tbls.Sign(secret, msg)
+			require.NoError(t, err)
+
+			randao := eth2p0.BLSSignature(sig)
+			unsignedBlock := test.unsignedBlockFunc(randao)
+
+			vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+				return core.DutyDefinitionSet{corePubKey: nil}, nil
+			})
+
+			// Sign beacon block
+			sigRoot, err := unsignedBlock.Root()
+			require.NoError(t, err)
+
+			domain, err := signing.GetDomain(ctx, bmock, signing.DomainBeaconProposer, epoch)
+			require.NoError(t, err)
+
+			sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()
+			require.NoError(t, err)
+
+			s, err := tbls.Sign(secret, sigData[:])
+			require.NoError(t, err)
+
+			signedBlock := test.signedBlockFunc(unsignedBlock, s)
+
+			vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+				return test.awaitBlockFunc(unsignedBlock, signedBlock), nil
+			})
+
+			// Register subscriber
+			vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+				block, ok := set[corePubKey].SignedData.(core.VersionedSignedProposal)
+				require.True(t, ok)
+				require.Equal(t, *signedBlock, block.VersionedSignedProposal)
+
+				return nil
+			})
+
+			err = vapi.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+				Proposal: signedBlock,
+			})
+			require.NoError(t, err)
+		})
+	}
 }
 
 // func TestComponent_SubmitProposal_Gnosis(t *testing.T) {
@@ -905,13 +1012,6 @@ func TestComponent_SubmitProposalInvalidBlock(t *testing.T) {
 func TestComponent_SubmitBlindedProposal(t *testing.T) {
 	ctx := context.Background()
 
-	// Create keys (just use normal keys, not split tbls)
-	secret, err := tbls.GenerateSecretKey()
-	require.NoError(t, err)
-
-	pubkey, err := tbls.SecretToPublicKey(secret)
-	require.NoError(t, err)
-
 	const (
 		vIdx     = 1
 		shareIdx = 1
@@ -919,78 +1019,170 @@ func TestComponent_SubmitBlindedProposal(t *testing.T) {
 		epoch    = eth2p0.Epoch(3)
 	)
 
-	// Convert pubkey
-	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
-	require.NoError(t, err)
-	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
+	tests := []struct {
+		version                  eth2spec.DataVersion
+		versionedSignedBlock     *eth2spec.VersionedSignedBeaconBlock
+		unsignedBlockSigRootFunc func(tbls.Signature) (any, [32]byte, error)
+		signedBlockFunc          func(any, [96]byte) *eth2api.VersionedSignedBlindedProposal
+		awaitBlockFunc           func(*eth2api.VersionedSignedBlindedProposal) *eth2api.VersionedProposal
+	}{
+		{
+			version: eth2spec.DataVersionCapella,
+			unsignedBlockSigRootFunc: func(sig tbls.Signature) (any, [32]byte, error) {
+				unsignedBlindedBlock := testutil.RandomCapellaBlindedBeaconBlock()
+				unsignedBlindedBlock.Body.RANDAOReveal = eth2p0.BLSSignature(sig)
+				unsignedBlindedBlock.Slot = slot
+				unsignedBlindedBlock.ProposerIndex = vIdx
+				hash, err := unsignedBlindedBlock.HashTreeRoot()
 
-	// Configure beacon mock
-	bmock, err := beaconmock.New()
-	require.NoError(t, err)
+				return unsignedBlindedBlock, hash, err
+			},
+			signedBlockFunc: func(unsignedBlock any, s [96]byte) *eth2api.VersionedSignedBlindedProposal {
+				parsed := unsignedBlock.(*eth2capella.BlindedBeaconBlock)
+				return &eth2api.VersionedSignedBlindedProposal{
+					Version: eth2spec.DataVersionCapella,
+					Capella: &eth2capella.SignedBlindedBeaconBlock{
+						Message:   parsed,
+						Signature: eth2p0.BLSSignature(s),
+					},
+				}
+			},
+			awaitBlockFunc: func(signedBlock *eth2api.VersionedSignedBlindedProposal) *eth2api.VersionedProposal {
+				return &eth2api.VersionedProposal{
+					Version:        signedBlock.Version,
+					Blinded:        true,
+					CapellaBlinded: signedBlock.Capella.Message,
+				}
+			},
+		},
+		{
+			version: eth2spec.DataVersionDeneb,
+			unsignedBlockSigRootFunc: func(sig tbls.Signature) (any, [32]byte, error) {
+				unsignedBlindedBlock := testutil.RandomDenebBlindedBeaconBlock()
+				unsignedBlindedBlock.Body.RANDAOReveal = eth2p0.BLSSignature(sig)
+				unsignedBlindedBlock.Slot = slot
+				unsignedBlindedBlock.ProposerIndex = vIdx
+				hash, err := unsignedBlindedBlock.HashTreeRoot()
 
-	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, true, nil)
-	require.NoError(t, err)
+				return unsignedBlindedBlock, hash, err
+			},
+			signedBlockFunc: func(unsignedBlock any, s [96]byte) *eth2api.VersionedSignedBlindedProposal {
+				parsed := unsignedBlock.(*eth2deneb.BlindedBeaconBlock)
+				return &eth2api.VersionedSignedBlindedProposal{
+					Version: eth2spec.DataVersionDeneb,
+					Deneb: &eth2deneb.SignedBlindedBeaconBlock{
+						Message:   parsed,
+						Signature: eth2p0.BLSSignature(s),
+					},
+				}
+			},
+			awaitBlockFunc: func(signedBlock *eth2api.VersionedSignedBlindedProposal) *eth2api.VersionedProposal {
+				return &eth2api.VersionedProposal{
+					Version:      signedBlock.Version,
+					Blinded:      true,
+					DenebBlinded: signedBlock.Deneb.Message,
+				}
+			},
+		},
+		{
+			version: eth2spec.DataVersionElectra,
+			unsignedBlockSigRootFunc: func(sig tbls.Signature) (any, [32]byte, error) {
+				unsignedBlindedBlock := testutil.RandomElectraBlindedBeaconBlock()
+				unsignedBlindedBlock.Body.RANDAOReveal = eth2p0.BLSSignature(sig)
+				unsignedBlindedBlock.Slot = slot
+				unsignedBlindedBlock.ProposerIndex = vIdx
+				hash, err := unsignedBlindedBlock.HashTreeRoot()
 
-	// Prepare unsigned beacon block
-	msg := []byte("randao reveal")
-	sig, err := tbls.Sign(secret, msg)
-	require.NoError(t, err)
-
-	unsignedBlindedBlock := testutil.RandomCapellaBlindedBeaconBlock()
-	unsignedBlindedBlock.Body.RANDAOReveal = eth2p0.BLSSignature(sig)
-	unsignedBlindedBlock.Slot = slot
-	unsignedBlindedBlock.ProposerIndex = vIdx
-
-	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
-		return core.DutyDefinitionSet{corePubKey: nil}, nil
-	})
-
-	// Sign blinded beacon block
-	sigRoot, err := unsignedBlindedBlock.HashTreeRoot()
-	require.NoError(t, err)
-
-	domain, err := signing.GetDomain(ctx, bmock, signing.DomainBeaconProposer, epoch)
-	require.NoError(t, err)
-
-	sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()
-	require.NoError(t, err)
-
-	s, err := tbls.Sign(secret, sigData[:])
-	require.NoError(t, err)
-
-	signedBlindedBlock := &eth2api.VersionedSignedBlindedProposal{
-		Version: eth2spec.DataVersionCapella,
-		Capella: &eth2capella.SignedBlindedBeaconBlock{
-			Message:   unsignedBlindedBlock,
-			Signature: eth2p0.BLSSignature(s),
+				return unsignedBlindedBlock, hash, err
+			},
+			signedBlockFunc: func(unsignedBlock any, s [96]byte) *eth2api.VersionedSignedBlindedProposal {
+				parsed := unsignedBlock.(*eth2electra.BlindedBeaconBlock)
+				return &eth2api.VersionedSignedBlindedProposal{
+					Version: eth2spec.DataVersionElectra,
+					Electra: &eth2electra.SignedBlindedBeaconBlock{
+						Message:   parsed,
+						Signature: eth2p0.BLSSignature(s),
+					},
+				}
+			},
+			awaitBlockFunc: func(signedBlock *eth2api.VersionedSignedBlindedProposal) *eth2api.VersionedProposal {
+				return &eth2api.VersionedProposal{
+					Version:        signedBlock.Version,
+					Blinded:        true,
+					ElectraBlinded: signedBlock.Electra.Message,
+				}
+			},
 		},
 	}
 
-	vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
-		return &eth2api.VersionedProposal{
-			Version:        signedBlindedBlock.Version,
-			Blinded:        true,
-			CapellaBlinded: signedBlindedBlock.Capella.Message,
-		}, nil
-	})
+	for _, test := range tests {
+		t.Run(test.version.String(), func(t *testing.T) {
+			// Create keys (just use normal keys, not split tbls)
+			secret, err := tbls.GenerateSecretKey()
+			require.NoError(t, err)
 
-	// Register subscriber
-	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-		block, ok := set[corePubKey].SignedData.(core.VersionedSignedProposal)
-		require.True(t, ok)
+			pubkey, err := tbls.SecretToPublicKey(secret)
+			require.NoError(t, err)
 
-		blindedBlock, err := block.ToBlinded()
-		require.NoError(t, err)
-		require.Equal(t, *signedBlindedBlock, blindedBlock)
+			// Convert pubkey
+			corePubKey, err := core.PubKeyFromBytes(pubkey[:])
+			require.NoError(t, err)
+			allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
-		return nil
-	})
+			// Configure beacon mock
+			bmock, err := beaconmock.New()
+			require.NoError(t, err)
 
-	err = vapi.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
-		Proposal: signedBlindedBlock,
-	})
-	require.NoError(t, err)
+			// Construct the validator api component
+			vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, true, nil)
+			require.NoError(t, err)
+
+			// Prepare unsigned beacon block
+			msg := []byte("randao reveal")
+			sig, err := tbls.Sign(secret, msg)
+			require.NoError(t, err)
+
+			vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+				return core.DutyDefinitionSet{corePubKey: nil}, nil
+			})
+
+			// Sign blinded beacon block
+			unsignedBlindedBlock, sigRoot, err := test.unsignedBlockSigRootFunc(sig)
+			require.NoError(t, err)
+
+			domain, err := signing.GetDomain(ctx, bmock, signing.DomainBeaconProposer, epoch)
+			require.NoError(t, err)
+
+			sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()
+			require.NoError(t, err)
+
+			s, err := tbls.Sign(secret, sigData[:])
+			require.NoError(t, err)
+
+			signedBlindedBlock := test.signedBlockFunc(unsignedBlindedBlock, s)
+
+			vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+				return test.awaitBlockFunc(signedBlindedBlock), nil
+			})
+
+			// Register subscriber
+			vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+				block, ok := set[corePubKey].SignedData.(core.VersionedSignedProposal)
+				require.True(t, ok)
+
+				blindedBlock, err := block.ToBlinded()
+				require.NoError(t, err)
+				require.Equal(t, *signedBlindedBlock, blindedBlock)
+
+				return nil
+			})
+
+			err = vapi.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+				Proposal: signedBlindedBlock,
+			})
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestComponent_SubmitBlindedProposalInvalidSignature(t *testing.T) {
@@ -1671,7 +1863,7 @@ func TestComponent_SubmitAggregateAttestations(t *testing.T) {
 		Deneb: &eth2p0.SignedAggregateAndProof{
 			Message: &eth2p0.AggregateAndProof{
 				AggregatorIndex: vIdx,
-				Aggregate:       testutil.RandomAttestation(),
+				Aggregate:       testutil.RandomPhase0Attestation(),
 				SelectionProof:  testutil.RandomEth2Signature(),
 			},
 			Signature: testutil.RandomEth2Signature(),
@@ -1731,7 +1923,7 @@ func TestComponent_SubmitAggregateAttestationVerify(t *testing.T) {
 	slot := eth2p0.Slot(99)
 	aggProof := &eth2p0.AggregateAndProof{
 		AggregatorIndex: val.Index,
-		Aggregate:       testutil.RandomAttestation(),
+		Aggregate:       testutil.RandomPhase0Attestation(),
 	}
 	aggProof.Aggregate.Data.Slot = slot
 	aggProof.SelectionProof = signBeaconSelection(t, bmock, secret, slot)
