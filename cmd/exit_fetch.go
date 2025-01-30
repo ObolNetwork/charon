@@ -128,7 +128,8 @@ func runFetchExit(ctx context.Context, config exitConfig) error {
 
 			fullExit, err := oAPI.GetFullExit(valCtx, validatorPubKeyHex, cl.GetInitialMutationHash(), shareIdx, identityKey)
 			if err != nil {
-				return errors.Wrap(err, "load full exit data from Obol API", z.Str("validator_public_key", validatorPubKeyHex))
+				log.Warn(ctx, fmt.Sprintf("load full exit data from Obol API for validator %v failed", validatorPubKeyHex), err)
+				continue
 			}
 
 			err = writeExitToFile(valCtx, validatorPubKeyHex, config.FetchedExitPath, fullExit)

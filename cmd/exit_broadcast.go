@@ -169,7 +169,9 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 				valCtx := log.WithCtx(ctx, z.Str("validator_public_key", validatorPubKeyHex))
 				exit, err := fetchFullExit(valCtx, "", config, cl, identityKey, validatorPubKeyHex)
 				if err != nil {
-					return errors.Wrap(err, "fetch full exit for all validators from public key")
+					log.Warn(ctx, fmt.Sprintf("exit for validator %v failed", validatorPubKeyHex), err)
+					continue
+					// return errors.Wrap(err, "fetch full exit for all validators from public key")
 				}
 				validatorPubKey, err := core.PubKeyFromBytes(validator.GetPublicKey())
 				if err != nil {

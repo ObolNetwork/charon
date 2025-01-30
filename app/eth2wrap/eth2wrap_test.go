@@ -179,7 +179,6 @@ func TestFallback(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			var calledMu sync.Mutex
 			primaryCalled := make([]bool, len(tt.primaryErrs))
 			fallbackCalled := make([]bool, len(tt.fallbackErrs))
@@ -199,6 +198,7 @@ func TestFallback(t *testing.T) {
 					calledMu.Lock()
 					primaryCalled[i] = true
 					calledMu.Unlock()
+
 					return returnValue, primaryErr
 				}
 				primaryClients[i] = cl
@@ -214,6 +214,7 @@ func TestFallback(t *testing.T) {
 					calledMu.Lock()
 					fallbackCalled[i] = true
 					calledMu.Unlock()
+
 					return returnValue, fallbackErr
 				}
 				fallbackClients[i] = cl
