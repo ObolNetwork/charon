@@ -167,6 +167,7 @@ func provide[O any](ctx context.Context, clients []Client, fallbacks []Client,
 				if bestSelector != nil {
 					bestSelector.Increment(res.Input.client.Address())
 				}
+
 				return res.Output, nil
 			}
 
