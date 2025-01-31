@@ -261,7 +261,7 @@ func TestParSigExVerifier(t *testing.T) {
 			Deneb: &eth2p0.SignedAggregateAndProof{
 				Message: &eth2p0.AggregateAndProof{
 					AggregatorIndex: 0,
-					Aggregate:       testutil.RandomAttestation(),
+					Aggregate:       testutil.RandomPhase0Attestation(),
 					SelectionProof:  testutil.RandomEth2Signature(),
 				},
 			},

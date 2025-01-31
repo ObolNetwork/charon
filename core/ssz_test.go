@@ -14,6 +14,7 @@ import (
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
+	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -330,6 +331,24 @@ func TestV3SignedProposalSSZSerialisation(t *testing.T) {
 				Version: eth2spec.DataVersionDeneb,
 				DenebBlinded: &eth2deneb.SignedBlindedBeaconBlock{
 					Message:   testutil.RandomDenebBlindedBeaconBlock(),
+					Signature: testutil.RandomEth2Signature(),
+				},
+				Blinded: true,
+			},
+		},
+		{
+			name: "electra",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionElectra,
+				Electra: testutil.RandomElectraVersionedSignedProposal().Electra,
+			},
+		},
+		{
+			name: "electra blinded",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionElectra,
+				ElectraBlinded: &eth2electra.SignedBlindedBeaconBlock{
+					Message:   testutil.RandomElectraBlindedBeaconBlock(),
 					Signature: testutil.RandomEth2Signature(),
 				},
 				Blinded: true,
