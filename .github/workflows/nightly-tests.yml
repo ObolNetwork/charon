@@ -8,9 +8,9 @@ jobs:
   nightly_test:
     runs-on: charon-ci
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-go
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: |
             ~/go/pkg/mod
@@ -23,7 +23,7 @@ jobs:
   fuzz_tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set up QEMU
         id: qemu
         uses: docker/setup-qemu-action@v2
@@ -31,7 +31,7 @@ jobs:
         with:
           driver-opts: "image=moby/buildkit:v0.10.5" # avoid unknown/unknown arch in ghcr
       - uses: ./.github/actions/setup-go
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: |
             ~/go/pkg/mod
@@ -43,7 +43,7 @@ jobs:
           echo "CHARON_REPO=$(pwd)" >> $GITHUB_ENV
           echo "DOCKER_BUILDKIT=1" >> $GITHUB_ENV
       - run: go test -race github.com/obolnetwork/charon/testutil/compose/fuzz -v -fuzzer -sudo-perms -timeout=45m -log-dir=.
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: fuzz-test-logs
