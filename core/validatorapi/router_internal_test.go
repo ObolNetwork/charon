@@ -25,13 +25,15 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
-	"github.com/attestantio/go-eth2-client/api/v1/deneb"
+	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
+	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2mock "github.com/attestantio/go-eth2-client/mock"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
+	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
 	"github.com/stretchr/testify/require"
@@ -531,6 +533,38 @@ func TestRawRouter(t *testing.T) {
 
 		callback := func(ctx context.Context, baseURL string) {
 			b, err := ssz.MarshalSSZ(proposal.Deneb)
+			require.NoError(t, err)
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+				baseURL+"/eth/v2/beacon/blocks", bytes.NewReader(b))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/octet-stream")
+
+			resp, err := new(http.Client).Do(req)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+		}
+
+		testRawRouter(t, handler, callback)
+		require.True(t, done.Load())
+	})
+
+	t.Run("submit electra ssz beacon block", func(t *testing.T) {
+		var done atomic.Bool
+		coreBlock := testutil.RandomElectraCoreVersionedSignedProposal()
+		proposal := &coreBlock.VersionedSignedProposal
+
+		handler := testHandler{
+			SubmitProposalFunc: func(ctx context.Context, actual *eth2api.SubmitProposalOpts) error {
+				require.Equal(t, proposal, actual.Proposal)
+				done.Store(true)
+
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			b, err := ssz.MarshalSSZ(proposal.Electra)
 			require.NoError(t, err)
 
 			req, err := http.NewRequestWithContext(ctx, http.MethodPost,
@@ -1203,8 +1237,33 @@ func TestRouter(t *testing.T) {
 	t.Run("submit blinded block deneb", func(t *testing.T) {
 		block1 := &eth2api.VersionedSignedBlindedProposal{
 			Version: eth2spec.DataVersionDeneb,
-			Deneb: &deneb.SignedBlindedBeaconBlock{
+			Deneb: &eth2deneb.SignedBlindedBeaconBlock{
 				Message:   testutil.RandomDenebBlindedBeaconBlock(),
+				Signature: testutil.RandomEth2Signature(),
+			},
+		}
+		handler := testHandler{
+			SubmitBlindedProposalFunc: func(ctx context.Context, block *eth2api.SubmitBlindedProposalOpts) error {
+				require.Equal(t, block1, block.Proposal)
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			err := cl.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+				Proposal: block1,
+			})
+			require.NoError(t, err)
+		}
+
+		testRouter(t, handler, callback)
+	})
+
+	t.Run("submit blinded block electra", func(t *testing.T) {
+		block1 := &eth2api.VersionedSignedBlindedProposal{
+			Version: eth2spec.DataVersionElectra,
+			Electra: &eth2electra.SignedBlindedBeaconBlock{
+				Message:   testutil.RandomElectraBlindedBeaconBlock(),
 				Signature: testutil.RandomEth2Signature(),
 			},
 		}
@@ -1422,49 +1481,133 @@ func TestBeaconCommitteeSelections(t *testing.T) {
 }
 
 func TestSubmitAggregateAttestations(t *testing.T) {
-	ctx := context.Background()
-
 	const vIdx = 1
 
-	agg := &eth2spec.VersionedSignedAggregateAndProof{
-		Version: eth2spec.DataVersionDeneb,
-		Deneb: &eth2p0.SignedAggregateAndProof{
-			Message: &eth2p0.AggregateAndProof{
-				AggregatorIndex: vIdx,
-				Aggregate:       testutil.RandomAttestation(),
-				SelectionProof:  testutil.RandomEth2Signature(),
+	tests := []struct {
+		version                          eth2spec.DataVersion
+		versionedSignedAggregateAndProof *eth2spec.VersionedSignedAggregateAndProof
+	}{
+		{
+			version: eth2spec.DataVersionDeneb,
+			versionedSignedAggregateAndProof: &eth2spec.VersionedSignedAggregateAndProof{
+				Version: eth2spec.DataVersionDeneb,
+				Deneb: &eth2p0.SignedAggregateAndProof{
+					Message: &eth2p0.AggregateAndProof{
+						AggregatorIndex: vIdx,
+						Aggregate:       testutil.RandomPhase0Attestation(),
+						SelectionProof:  testutil.RandomEth2Signature(),
+					},
+					Signature: testutil.RandomEth2Signature(),
+				},
 			},
-			Signature: testutil.RandomEth2Signature(),
+		},
+		{
+			version: eth2spec.DataVersionElectra,
+			versionedSignedAggregateAndProof: &eth2spec.VersionedSignedAggregateAndProof{
+				Version: eth2spec.DataVersionElectra,
+				Electra: &electra.SignedAggregateAndProof{
+					Message: &electra.AggregateAndProof{
+						AggregatorIndex: vIdx,
+						Aggregate:       testutil.RandomElectraAttestation(),
+						SelectionProof:  testutil.RandomEth2Signature(),
+					},
+					Signature: testutil.RandomEth2Signature(),
+				},
+			},
 		},
 	}
+	for _, test := range tests {
+		t.Run(test.version.String(), func(t *testing.T) {
+			ctx := context.Background()
 
-	handler := testHandler{
-		SubmitAggregateAttestationsFunc: func(_ context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
-			require.Equal(t, agg, aggregateAndProofs.SignedAggregateAndProofs[0])
+			agg := test.versionedSignedAggregateAndProof
 
-			return nil
+			handler := testHandler{
+				SubmitAggregateAttestationsFunc: func(_ context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
+					require.Equal(t, agg, aggregateAndProofs.SignedAggregateAndProofs[0])
+
+					return nil
+				},
+			}
+
+			proxy := httptest.NewServer(handler.newBeaconHandler(t))
+			defer proxy.Close()
+
+			r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL}, true)
+			require.NoError(t, err)
+
+			server := httptest.NewServer(r)
+			defer server.Close()
+
+			var eth2Svc eth2client.Service
+			eth2Svc, err = eth2http.New(ctx,
+				eth2http.WithLogLevel(1),
+				eth2http.WithAddress(server.URL),
+			)
+			require.NoError(t, err)
+
+			eth2Cl := eth2wrap.AdaptEth2HTTP(eth2Svc.(*eth2http.Service), time.Second)
+			err = eth2Cl.SubmitAggregateAttestations(ctx, &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: []*eth2spec.VersionedSignedAggregateAndProof{agg}})
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestSubmitAttestations(t *testing.T) {
+	tests := []struct {
+		version              eth2spec.DataVersion
+		versionedAttestation *eth2spec.VersionedAttestation
+	}{
+		{
+			version: eth2spec.DataVersionDeneb,
+			versionedAttestation: &eth2spec.VersionedAttestation{
+				Version: eth2spec.DataVersionDeneb,
+				Deneb:   testutil.RandomPhase0Attestation(),
+			},
+		},
+		{
+			version: eth2spec.DataVersionElectra,
+			versionedAttestation: &eth2spec.VersionedAttestation{
+				Version: eth2spec.DataVersionElectra,
+				Electra: testutil.RandomElectraAttestation(),
+			},
 		},
 	}
+	for _, test := range tests {
+		t.Run(test.version.String(), func(t *testing.T) {
+			ctx := context.Background()
 
-	proxy := httptest.NewServer(handler.newBeaconHandler(t))
-	defer proxy.Close()
+			att := test.versionedAttestation
 
-	r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL}, true)
-	require.NoError(t, err)
+			handler := testHandler{
+				SubmitAttestationsFunc: func(_ context.Context, attestations *eth2api.SubmitAttestationsOpts) error {
+					require.Equal(t, att, attestations.Attestations[0])
 
-	server := httptest.NewServer(r)
-	defer server.Close()
+					return nil
+				},
+			}
 
-	var eth2Svc eth2client.Service
-	eth2Svc, err = eth2http.New(ctx,
-		eth2http.WithLogLevel(1),
-		eth2http.WithAddress(server.URL),
-	)
-	require.NoError(t, err)
+			proxy := httptest.NewServer(handler.newBeaconHandler(t))
+			defer proxy.Close()
 
-	eth2Cl := eth2wrap.AdaptEth2HTTP(eth2Svc.(*eth2http.Service), time.Second)
-	err = eth2Cl.SubmitAggregateAttestations(ctx, &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: []*eth2spec.VersionedSignedAggregateAndProof{agg}})
-	require.NoError(t, err)
+			r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL}, true)
+			require.NoError(t, err)
+
+			server := httptest.NewServer(r)
+			defer server.Close()
+
+			var eth2Svc eth2client.Service
+			eth2Svc, err = eth2http.New(ctx,
+				eth2http.WithLogLevel(1),
+				eth2http.WithAddress(server.URL),
+			)
+			require.NoError(t, err)
+
+			eth2Cl := eth2wrap.AdaptEth2HTTP(eth2Svc.(*eth2http.Service), time.Second)
+			err = eth2Cl.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: []*eth2spec.VersionedAttestation{att}})
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestGetExecutionOptimisticFromMetadata(t *testing.T) {
@@ -1612,6 +1755,30 @@ func TestCreateProposeBlindedBlockResponse(t *testing.T) {
 			Blinded: true,
 		})
 		require.ErrorContains(t, err, "no deneb blinded block")
+	})
+
+	t.Run("electra", func(t *testing.T) {
+		p := &eth2api.VersionedProposal{
+			Version:        eth2spec.DataVersionElectra,
+			ElectraBlinded: testutil.RandomElectraBlindedBeaconBlock(),
+			Blinded:        true,
+			ConsensusValue: big.NewInt(123),
+			ExecutionValue: big.NewInt(456),
+		}
+
+		pp, err := createProposeBlockResponse(p)
+		require.NoError(t, err)
+		require.NotNil(t, pp)
+		require.Equal(t, p.Version.String(), pp.Version)
+		require.Equal(t, p.ElectraBlinded, pp.Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.ExecutionPayloadValue)
+
+		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
+			Version: eth2spec.DataVersionElectra,
+			Blinded: true,
+		})
+		require.ErrorContains(t, err, "no electra blinded block")
 	})
 }
 
@@ -1788,6 +1955,7 @@ type testHandler struct {
 	AggregateSyncCommitteeSelectionsFunc   func(ctx context.Context, partialSelections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error)
 	AttestationDataFunc                    func(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error)
 	AttesterDutiesFunc                     func(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error)
+	SubmitAttestationsFunc                 func(ctx context.Context, opts *eth2api.SubmitAttestationsOpts) error
 	ProposalFunc                           func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error)
 	SubmitProposalFunc                     func(ctx context.Context, proposal *eth2api.SubmitProposalOpts) error
 	SubmitBlindedProposalFunc              func(ctx context.Context, proposal *eth2api.SubmitBlindedProposalOpts) error
@@ -1811,6 +1979,10 @@ func (h testHandler) AttestationData(ctx context.Context, opts *eth2api.Attestat
 
 func (h testHandler) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {
 	return h.AttesterDutiesFunc(ctx, opts)
+}
+
+func (h testHandler) SubmitAttestations(ctx context.Context, opts *eth2api.SubmitAttestationsOpts) error {
+	return h.SubmitAttestationsFunc(ctx, opts)
 }
 
 func (h testHandler) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {

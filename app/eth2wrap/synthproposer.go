@@ -14,6 +14,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
+	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -174,6 +175,14 @@ func (h *synthWrapper) syntheticProposal(ctx context.Context, slot eth2p0.Slot, 
 		proposal.Deneb.Block.ProposerIndex = vIdx
 		proposal.Deneb.Block.Body.ExecutionPayload.FeeRecipient = feeRecipient
 		proposal.Deneb.Block.Body.ExecutionPayload.Transactions = fraction(proposal.Deneb.Block.Body.ExecutionPayload.Transactions)
+	case eth2spec.DataVersionElectra:
+		proposal.Electra = &eth2electra.BlockContents{}
+		proposal.Electra.Block = signedBlock.Electra.Message
+		proposal.Electra.Block.Body.Graffiti = GetSyntheticGraffiti()
+		proposal.Electra.Block.Slot = slot
+		proposal.Electra.Block.ProposerIndex = vIdx
+		proposal.Electra.Block.Body.ExecutionPayload.FeeRecipient = feeRecipient
+		proposal.Electra.Block.Body.ExecutionPayload.Transactions = fraction(proposal.Electra.Block.Body.ExecutionPayload.Transactions)
 	default:
 		return nil, errors.New("unsupported proposal version")
 	}
@@ -225,6 +234,8 @@ func IsSyntheticBlindedBlock(block *eth2api.VersionedSignedBlindedProposal) bool
 		graffiti = block.Capella.Message.Body.Graffiti
 	case eth2spec.DataVersionDeneb:
 		graffiti = block.Deneb.Message.Body.Graffiti
+	case eth2spec.DataVersionElectra:
+		graffiti = block.Electra.Message.Body.Graffiti
 	default:
 		return false
 	}
@@ -246,6 +257,8 @@ func IsSyntheticProposal(block *eth2api.VersionedSignedProposal) bool {
 		graffiti = block.Capella.Message.Body.Graffiti
 	case eth2spec.DataVersionDeneb:
 		graffiti = block.Deneb.SignedBlock.Message.Body.Graffiti
+	case eth2spec.DataVersionElectra:
+		graffiti = block.Electra.SignedBlock.Message.Body.Graffiti
 	default:
 		return false
 	}

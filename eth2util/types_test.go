@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"testing"
 
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -52,4 +53,94 @@ func TestUnmarshallingSignedEpoch(t *testing.T) {
 	testutil.RequireNoError(t, err)
 	require.Equal(t, sig, e2.Signature[:])
 	require.Equal(t, epoch, e2.Epoch)
+}
+
+func TestToETH2(t *testing.T) {
+	tests := []struct {
+		version         eth2util.DataVersion
+		expectedVersion eth2spec.DataVersion
+	}{
+		{
+			version:         eth2util.DataVersionUnknown,
+			expectedVersion: eth2spec.DataVersionUnknown,
+		},
+		{
+			version:         eth2util.DataVersionPhase0,
+			expectedVersion: eth2spec.DataVersionPhase0,
+		},
+		{
+			version:         eth2util.DataVersionAltair,
+			expectedVersion: eth2spec.DataVersionAltair,
+		},
+		{
+			version:         eth2util.DataVersionBellatrix,
+			expectedVersion: eth2spec.DataVersionBellatrix,
+		},
+		{
+			version:         eth2util.DataVersionCapella,
+			expectedVersion: eth2spec.DataVersionCapella,
+		},
+		{
+			version:         eth2util.DataVersionDeneb,
+			expectedVersion: eth2spec.DataVersionDeneb,
+		},
+		{
+			version:         eth2util.DataVersionElectra,
+			expectedVersion: eth2spec.DataVersionElectra,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.version.String(), func(t *testing.T) {
+			require.Equal(t, test.expectedVersion, test.version.ToETH2())
+		},
+		)
+	}
+}
+
+func TestDataVersionFromETH2(t *testing.T) {
+	tests := []struct {
+		version         eth2spec.DataVersion
+		expectedVersion eth2util.DataVersion
+		expectedErr     string
+	}{
+		{
+			version:         eth2spec.DataVersionUnknown,
+			expectedVersion: eth2util.DataVersionUnknown,
+			expectedErr:     "unknown data version",
+		},
+		{
+			version:         eth2spec.DataVersionPhase0,
+			expectedVersion: eth2util.DataVersionPhase0,
+		},
+		{
+			version:         eth2spec.DataVersionAltair,
+			expectedVersion: eth2util.DataVersionAltair,
+		},
+		{
+			version:         eth2spec.DataVersionBellatrix,
+			expectedVersion: eth2util.DataVersionBellatrix,
+		},
+		{
+			version:         eth2spec.DataVersionCapella,
+			expectedVersion: eth2util.DataVersionCapella,
+		},
+		{
+			version:         eth2spec.DataVersionDeneb,
+			expectedVersion: eth2util.DataVersionDeneb,
+		},
+		{
+			version:         eth2spec.DataVersionElectra,
+			expectedVersion: eth2util.DataVersionElectra,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.expectedVersion.String(), func(t *testing.T) {
+			actual, err := eth2util.DataVersionFromETH2(test.version)
+			if test.expectedErr != "" {
+				require.ErrorContains(t, err, test.expectedErr)
+			}
+			require.Equal(t, test.expectedVersion, actual)
+		},
+		)
+	}
 }
