@@ -589,6 +589,7 @@ func (c Component) SubmitBlindedProposal(ctx context.Context, opts *eth2api.Subm
 			BellatrixBlinded: opts.Proposal.Bellatrix,
 			CapellaBlinded:   opts.Proposal.Capella,
 			DenebBlinded:     opts.Proposal.Deneb,
+			ElectraBlinded:   opts.Proposal.Electra,
 		},
 		BroadcastValidation: opts.BroadcastValidation,
 	}, prop); err != nil {
