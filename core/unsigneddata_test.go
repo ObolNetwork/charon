@@ -8,6 +8,8 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/electra"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
@@ -91,6 +93,10 @@ func TestNewVersionedProposal(t *testing.T) {
 			version: eth2spec.DataVersionDeneb,
 		},
 		{
+			error:   "no electra block",
+			version: eth2spec.DataVersionElectra,
+		},
+		{
 			error:   "no bellatrix blinded block",
 			version: eth2spec.DataVersionBellatrix,
 			blinded: true,
@@ -103,6 +109,11 @@ func TestNewVersionedProposal(t *testing.T) {
 		{
 			error:   "no deneb blinded block",
 			version: eth2spec.DataVersionDeneb,
+			blinded: true,
+		},
+		{
+			error:   "no electra blinded block",
+			version: eth2spec.DataVersionElectra,
 			blinded: true,
 		},
 	}
@@ -124,6 +135,164 @@ func TestNewVersionedProposal(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, proposal, p)
 	})
+}
+
+func TestNewVersionedAggregatedAttestation(t *testing.T) {
+	type testCase struct {
+		error   string
+		version eth2spec.DataVersion
+	}
+
+	tests := []testCase{
+		{
+			error:   "unknown version",
+			version: eth2spec.DataVersion(999),
+		},
+		{
+			error:   "no phase0 attestation",
+			version: eth2spec.DataVersionPhase0,
+		},
+		{
+			error:   "no altair attestation",
+			version: eth2spec.DataVersionAltair,
+		},
+		{
+			error:   "no bellatrix attestation",
+			version: eth2spec.DataVersionBellatrix,
+		},
+		{
+			error:   "no capella attestation",
+			version: eth2spec.DataVersionCapella,
+		},
+		{
+			error:   "no deneb attestation",
+			version: eth2spec.DataVersionDeneb,
+		},
+		{
+			error:   "no electra attestation",
+			version: eth2spec.DataVersionElectra,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.error, func(t *testing.T) {
+			_, err := core.NewVersionedAggregatedAttestation(&eth2spec.VersionedAttestation{
+				Version: test.version,
+			})
+			require.ErrorContains(t, err, test.error)
+		})
+	}
+
+	t.Run("happy path", func(t *testing.T) {
+		attestation := testutil.RandomElectraCoreVersionedAttestation()
+
+		p, err := core.NewVersionedAggregatedAttestation(&attestation.VersionedAttestation)
+		require.NoError(t, err)
+		require.Equal(t, attestation.VersionedAttestation, p.VersionedAttestation)
+	})
+}
+
+func TestVersionedAggregatedAttestationUtilFunctions(t *testing.T) {
+	data := testutil.RandomAttestationData()
+	aggregationBits := testutil.RandomBitList(64)
+	type testCase struct {
+		name                 string
+		versionedAttestation core.VersionedAggregatedAttestation
+	}
+
+	tests := []testCase{
+		{
+			name: "phase0",
+			versionedAttestation: core.VersionedAggregatedAttestation{
+				VersionedAttestation: eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionPhase0,
+					Phase0: &eth2p0.Attestation{
+						AggregationBits: aggregationBits,
+						Data:            data,
+						Signature:       testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "altair",
+			versionedAttestation: core.VersionedAggregatedAttestation{
+				VersionedAttestation: eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionAltair,
+					Altair: &eth2p0.Attestation{
+						AggregationBits: aggregationBits,
+						Data:            data,
+						Signature:       testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "bellatrix",
+			versionedAttestation: core.VersionedAggregatedAttestation{
+				VersionedAttestation: eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionBellatrix,
+					Bellatrix: &eth2p0.Attestation{
+						AggregationBits: aggregationBits,
+						Data:            data,
+						Signature:       testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "capella",
+			versionedAttestation: core.VersionedAggregatedAttestation{
+				VersionedAttestation: eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionCapella,
+					Capella: &eth2p0.Attestation{
+						AggregationBits: aggregationBits,
+						Data:            data,
+						Signature:       testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "deneb",
+			versionedAttestation: core.VersionedAggregatedAttestation{
+				VersionedAttestation: eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionDeneb,
+					Deneb: &eth2p0.Attestation{
+						AggregationBits: aggregationBits,
+						Data:            data,
+						Signature:       testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "electra",
+			versionedAttestation: core.VersionedAggregatedAttestation{
+				VersionedAttestation: eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionElectra,
+					Electra: &electra.Attestation{
+						AggregationBits: aggregationBits,
+						Data:            data,
+						Signature:       testutil.RandomEth2Signature(),
+						CommitteeBits:   testutil.RandomBitVec64(),
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			hash, err := test.versionedAttestation.HashTreeRoot()
+			require.NoError(t, err)
+			require.NotNil(t, hash)
+
+			attJSON, err := test.versionedAttestation.MarshalJSON()
+			require.NoError(t, err)
+			require.NotNil(t, attJSON)
+		})
+	}
 }
 
 func TestVersionedProposal(t *testing.T) {
@@ -216,6 +385,21 @@ func TestVersionedProposal(t *testing.T) {
 				Version:      eth2spec.DataVersionDeneb,
 				DenebBlinded: testutil.RandomDenebBlindedBeaconBlock(),
 				Blinded:      true,
+			},
+		},
+		{
+			name: "electra",
+			proposal: eth2api.VersionedProposal{
+				Version: eth2spec.DataVersionElectra,
+				Electra: testutil.RandomElectraVersionedProposal().Electra,
+			},
+		},
+		{
+			name: "electra blinded",
+			proposal: eth2api.VersionedProposal{
+				Version:        eth2spec.DataVersionElectra,
+				ElectraBlinded: testutil.RandomElectraBlindedBeaconBlock(),
+				Blinded:        true,
 			},
 		},
 	}

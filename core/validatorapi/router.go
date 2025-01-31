@@ -26,6 +26,7 @@ import (
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
+	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -462,25 +463,8 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		atts := []*eth2spec.VersionedAttestation{}
 
-		denebAtts := new([]eth2p0.Attestation)
-		err := unmarshal(typ, body, denebAtts)
-		if err == nil {
-			for _, att := range *denebAtts {
-				// TODO: Data version is not Deneb, it might be anything between Phase0 and Deneb
-				versionedAgg := eth2spec.VersionedAttestation{
-					Version: eth2spec.DataVersionDeneb,
-					Deneb:   &att,
-				}
-				atts = append(atts, &versionedAgg)
-			}
-
-			return nil, nil, p.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{
-				Attestations: atts,
-			})
-		}
-
 		electraAtts := new([]electra.Attestation)
-		err = unmarshal(typ, body, electraAtts)
+		err := unmarshal(typ, body, electraAtts)
 		if err == nil {
 			for _, att := range *electraAtts {
 				versionedAtt := eth2spec.VersionedAttestation{
@@ -488,6 +472,23 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 					Electra: &att,
 				}
 				atts = append(atts, &versionedAtt)
+			}
+
+			return nil, nil, p.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{
+				Attestations: atts,
+			})
+		}
+
+		denebAtts := new([]eth2p0.Attestation)
+		err = unmarshal(typ, body, denebAtts)
+		if err == nil {
+			for _, att := range *denebAtts {
+				// TODO(kalo): Data version is not Deneb, it might be anything between Phase0 and Deneb
+				versionedAgg := eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionDeneb,
+					Deneb:   &att,
+				}
+				atts = append(atts, &versionedAgg)
 			}
 
 			return nil, nil, p.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{
@@ -842,8 +843,21 @@ func createProposeBlockResponse(proposal *eth2api.VersionedProposal) (*proposeBl
 
 func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		electraBlock := new(eth2electra.SignedBlockContents)
+		err := unmarshal(typ, body, electraBlock)
+		if err == nil {
+			block := &eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionElectra,
+				Electra: electraBlock,
+			}
+
+			return nil, nil, p.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+				Proposal: block,
+			})
+		}
+
 		denebBlock := new(eth2deneb.SignedBlockContents)
-		err := unmarshal(typ, body, denebBlock)
+		err = unmarshal(typ, body, denebBlock)
 		if err == nil {
 			block := &eth2api.VersionedSignedProposal{
 				Version: eth2spec.DataVersionDeneb,
@@ -913,9 +927,22 @@ func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 
 func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
-		// The blinded block maybe either bellatrix, capella or deneb.
+		// The blinded block maybe either bellatrix, capella, deneb or electra.
+		electraBlock := new(eth2electra.SignedBlindedBeaconBlock)
+		err := unmarshal(typ, body, electraBlock)
+		if err == nil {
+			block := &eth2api.VersionedSignedBlindedProposal{
+				Version: eth2spec.DataVersionElectra,
+				Electra: electraBlock,
+			}
+
+			return nil, nil, p.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+				Proposal: block,
+			})
+		}
+
 		denebBlock := new(eth2deneb.SignedBlindedBeaconBlock)
-		err := unmarshal(typ, body, denebBlock)
+		err = unmarshal(typ, body, denebBlock)
 		if err == nil {
 			block := &eth2api.VersionedSignedBlindedProposal{
 				Version: eth2spec.DataVersionDeneb,
@@ -1068,14 +1095,13 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		aggs := []*eth2spec.VersionedSignedAggregateAndProof{}
 
-		denebAggs := new([]eth2p0.SignedAggregateAndProof)
-		err := unmarshal(typ, body, denebAggs)
+		electraAggs := new([]electra.SignedAggregateAndProof)
+		err := unmarshal(typ, body, electraAggs)
 		if err == nil {
-			for _, agg := range *denebAggs {
-				// TODO: Data version is not Deneb, it might be anything between Phase0 and Deneb
+			for _, agg := range *electraAggs {
 				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
-					Version: eth2spec.DataVersionDeneb,
-					Deneb:   &agg,
+					Version: eth2spec.DataVersionElectra,
+					Electra: &agg,
 				}
 				aggs = append(aggs, &versionedAgg)
 			}
@@ -1085,13 +1111,14 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 			})
 		}
 
-		electraAggs := new([]electra.SignedAggregateAndProof)
-		err = unmarshal(typ, body, electraAggs)
+		denebAggs := new([]eth2p0.SignedAggregateAndProof)
+		err = unmarshal(typ, body, denebAggs)
 		if err == nil {
-			for _, agg := range *electraAggs {
+			for _, agg := range *denebAggs {
+				// TODO(kalo): Data version is not Deneb, it might be anything between Phase0 and Deneb
 				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
-					Version: eth2spec.DataVersionElectra,
-					Electra: &agg,
+					Version: eth2spec.DataVersionDeneb,
+					Deneb:   &agg,
 				}
 				aggs = append(aggs, &versionedAgg)
 			}

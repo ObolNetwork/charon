@@ -11,10 +11,13 @@ import (
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
+	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
+	"github.com/attestantio/go-eth2-client/spec/deneb"
+	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -31,7 +34,31 @@ func TestSignedDataSetSignature(t *testing.T) {
 		data core.SignedData
 	}{
 		{
-			name: "versioned signed proposal",
+			name: "versioned signed proposal phase0",
+			data: core.VersionedSignedProposal{
+				VersionedSignedProposal: eth2api.VersionedSignedProposal{
+					Version: eth2spec.DataVersionPhase0,
+					Phase0: &eth2p0.SignedBeaconBlock{
+						Message:   testutil.RandomPhase0BeaconBlock(),
+						Signature: testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "versioned signed proposal altair",
+			data: core.VersionedSignedProposal{
+				VersionedSignedProposal: eth2api.VersionedSignedProposal{
+					Version: eth2spec.DataVersionAltair,
+					Altair: &altair.SignedBeaconBlock{
+						Message:   testutil.RandomAltairBeaconBlock(),
+						Signature: testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "versioned signed proposal bellatrix",
 			data: core.VersionedSignedProposal{
 				VersionedSignedProposal: eth2api.VersionedSignedProposal{
 					Version: eth2spec.DataVersionBellatrix,
@@ -43,21 +70,276 @@ func TestSignedDataSetSignature(t *testing.T) {
 			},
 		},
 		{
+			name: "versioned signed proposal bellatrix blinded",
+			data: core.VersionedSignedProposal{
+				VersionedSignedProposal: eth2api.VersionedSignedProposal{
+					Version: eth2spec.DataVersionBellatrix,
+					BellatrixBlinded: &eth2bellatrix.SignedBlindedBeaconBlock{
+						Message:   testutil.RandomBellatrixBlindedBeaconBlock(),
+						Signature: testutil.RandomEth2Signature(),
+					},
+					Blinded: true,
+				},
+			},
+		},
+		{
+			name: "versioned signed proposal capella",
+			data: core.VersionedSignedProposal{
+				VersionedSignedProposal: eth2api.VersionedSignedProposal{
+					Version: eth2spec.DataVersionCapella,
+					Capella: &capella.SignedBeaconBlock{
+						Message:   testutil.RandomCapellaBeaconBlock(),
+						Signature: testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "versioned signed proposal capella blinded",
+			data: core.VersionedSignedProposal{
+				VersionedSignedProposal: eth2api.VersionedSignedProposal{
+					Version: eth2spec.DataVersionCapella,
+					CapellaBlinded: &eth2capella.SignedBlindedBeaconBlock{
+						Message:   testutil.RandomCapellaBlindedBeaconBlock(),
+						Signature: testutil.RandomEth2Signature(),
+					},
+					Blinded: true,
+				},
+			},
+		},
+		{
+			name: "versioned signed proposal deneb",
+			data: core.VersionedSignedProposal{
+				VersionedSignedProposal: eth2api.VersionedSignedProposal{
+					Version: eth2spec.DataVersionDeneb,
+					Deneb: &eth2deneb.SignedBlockContents{
+						SignedBlock: &deneb.SignedBeaconBlock{
+							Message:   testutil.RandomDenebBeaconBlock(),
+							Signature: testutil.RandomEth2Signature(),
+						},
+						KZGProofs: []deneb.KZGProof{},
+						Blobs:     []deneb.Blob{},
+					},
+				},
+			},
+		},
+		{
+			name: "versioned signed proposal deneb blinded",
+			data: core.VersionedSignedProposal{
+				VersionedSignedProposal: eth2api.VersionedSignedProposal{
+					Version: eth2spec.DataVersionDeneb,
+					DenebBlinded: &eth2deneb.SignedBlindedBeaconBlock{
+						Message:   testutil.RandomDenebBlindedBeaconBlock(),
+						Signature: testutil.RandomEth2Signature(),
+					},
+					Blinded: true,
+				},
+			},
+		},
+		{
+			name: "versioned signed proposal electra",
+			data: core.VersionedSignedProposal{
+				VersionedSignedProposal: eth2api.VersionedSignedProposal{
+					Version: eth2spec.DataVersionElectra,
+					Electra: &eth2electra.SignedBlockContents{
+						SignedBlock: &electra.SignedBeaconBlock{
+							Message:   testutil.RandomElectraBeaconBlock(),
+							Signature: testutil.RandomEth2Signature(),
+						},
+						KZGProofs: []deneb.KZGProof{},
+						Blobs:     []deneb.Blob{},
+					},
+				},
+			},
+		},
+		{
+			name: "versioned signed proposal electra blinded",
+			data: core.VersionedSignedProposal{
+				VersionedSignedProposal: eth2api.VersionedSignedProposal{
+					Version: eth2spec.DataVersionElectra,
+					ElectraBlinded: &eth2electra.SignedBlindedBeaconBlock{
+						Message:   testutil.RandomElectraBlindedBeaconBlock(),
+						Signature: testutil.RandomEth2Signature(),
+					},
+					Blinded: true,
+				},
+			},
+		},
+		{
 			name: "signed beacon committee selection",
 			data: testutil.RandomCoreBeaconCommitteeSelection(),
 		},
 		{
-			name: "signed aggregate and proof",
+			name: "signed aggregate and proof phase0",
+			data: core.VersionedSignedAggregateAndProof{
+				VersionedSignedAggregateAndProof: eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionPhase0,
+					Phase0: &eth2p0.SignedAggregateAndProof{
+						Message: &eth2p0.AggregateAndProof{
+							AggregatorIndex: 0,
+							Aggregate:       testutil.RandomPhase0Attestation(),
+							SelectionProof:  testutil.RandomEth2Signature(),
+						},
+						Signature: testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "signed aggregate and proof altair",
+			data: core.VersionedSignedAggregateAndProof{
+				VersionedSignedAggregateAndProof: eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionAltair,
+					Altair: &eth2p0.SignedAggregateAndProof{
+						Message: &eth2p0.AggregateAndProof{
+							AggregatorIndex: 0,
+							Aggregate:       testutil.RandomPhase0Attestation(),
+							SelectionProof:  testutil.RandomEth2Signature(),
+						},
+						Signature: testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "signed aggregate and proof bellatrix",
+			data: core.VersionedSignedAggregateAndProof{
+				VersionedSignedAggregateAndProof: eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionBellatrix,
+					Bellatrix: &eth2p0.SignedAggregateAndProof{
+						Message: &eth2p0.AggregateAndProof{
+							AggregatorIndex: 0,
+							Aggregate:       testutil.RandomPhase0Attestation(),
+							SelectionProof:  testutil.RandomEth2Signature(),
+						},
+						Signature: testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "signed aggregate and proof capella",
+			data: core.VersionedSignedAggregateAndProof{
+				VersionedSignedAggregateAndProof: eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionCapella,
+					Capella: &eth2p0.SignedAggregateAndProof{
+						Message: &eth2p0.AggregateAndProof{
+							AggregatorIndex: 0,
+							Aggregate:       testutil.RandomPhase0Attestation(),
+							SelectionProof:  testutil.RandomEth2Signature(),
+						},
+						Signature: testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "signed aggregate and proof deneb",
 			data: core.VersionedSignedAggregateAndProof{
 				VersionedSignedAggregateAndProof: eth2spec.VersionedSignedAggregateAndProof{
 					Version: eth2spec.DataVersionDeneb,
 					Deneb: &eth2p0.SignedAggregateAndProof{
 						Message: &eth2p0.AggregateAndProof{
 							AggregatorIndex: 0,
-							Aggregate:       testutil.RandomAttestation(),
+							Aggregate:       testutil.RandomPhase0Attestation(),
 							SelectionProof:  testutil.RandomEth2Signature(),
 						},
 						Signature: testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "signed aggregate and proof electra",
+			data: core.VersionedSignedAggregateAndProof{
+				VersionedSignedAggregateAndProof: eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionElectra,
+					Electra: &electra.SignedAggregateAndProof{
+						Message: &electra.AggregateAndProof{
+							AggregatorIndex: 0,
+							Aggregate:       testutil.RandomElectraAttestation(),
+							SelectionProof:  testutil.RandomEth2Signature(),
+						},
+						Signature: testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "signed attestation phase0",
+			data: core.VersionedAttestation{
+				VersionedAttestation: eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionPhase0,
+					Phase0: &eth2p0.Attestation{
+						AggregationBits: testutil.RandomBitList(1),
+						Data:            testutil.RandomAttestationData(),
+						Signature:       testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "signed attestation altair",
+			data: core.VersionedAttestation{
+				VersionedAttestation: eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionAltair,
+					Altair: &eth2p0.Attestation{
+						AggregationBits: testutil.RandomBitList(1),
+						Data:            testutil.RandomAttestationData(),
+						Signature:       testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "signed attestation bellatrix",
+			data: core.VersionedAttestation{
+				VersionedAttestation: eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionBellatrix,
+					Bellatrix: &eth2p0.Attestation{
+						AggregationBits: testutil.RandomBitList(1),
+						Data:            testutil.RandomAttestationData(),
+						Signature:       testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "signed attestation capella",
+			data: core.VersionedAttestation{
+				VersionedAttestation: eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionCapella,
+					Capella: &eth2p0.Attestation{
+						AggregationBits: testutil.RandomBitList(1),
+						Data:            testutil.RandomAttestationData(),
+						Signature:       testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "signed attestation deneb",
+			data: core.VersionedAttestation{
+				VersionedAttestation: eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionDeneb,
+					Deneb: &eth2p0.Attestation{
+						AggregationBits: testutil.RandomBitList(1),
+						Data:            testutil.RandomAttestationData(),
+						Signature:       testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
+			name: "signed attestation electra",
+			data: core.VersionedAttestation{
+				VersionedAttestation: eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionElectra,
+					Electra: &electra.Attestation{
+						AggregationBits: testutil.RandomBitList(1),
+						Data:            testutil.RandomAttestationData(),
+						Signature:       testutil.RandomEth2Signature(),
+						CommitteeBits:   testutil.RandomBitVec64(),
 					},
 				},
 			},
@@ -180,6 +462,10 @@ func TestNewVersionedSignedProposal(t *testing.T) {
 			version: eth2spec.DataVersionDeneb,
 		},
 		{
+			error:   "no electra proposal",
+			version: eth2spec.DataVersionElectra,
+		},
+		{
 			error:   "no bellatrix blinded proposal",
 			version: eth2spec.DataVersionBellatrix,
 			blinded: true,
@@ -192,6 +478,11 @@ func TestNewVersionedSignedProposal(t *testing.T) {
 		{
 			error:   "no deneb blinded proposal",
 			version: eth2spec.DataVersionDeneb,
+			blinded: true,
+		},
+		{
+			error:   "no electra blinded proposal",
+			version: eth2spec.DataVersionElectra,
 			blinded: true,
 		},
 	}
@@ -223,6 +514,92 @@ func TestNewPartialVersionedSignedProposal(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, psd.SignedData)
 	require.Equal(t, 3, psd.ShareIdx)
+}
+
+func TestNewVersionedSignedProposalFromBlindedProposal(t *testing.T) {
+	proposal, err := testutil.RandomElectraVersionedSignedBlindedProposal().ToBlinded()
+	require.NoError(t, err)
+
+	pvsp, err := core.NewVersionedSignedProposalFromBlindedProposal(&proposal)
+
+	require.NoError(t, err)
+	require.NotNil(t, pvsp.ElectraBlinded)
+}
+
+func TestNewPartialVersionedSignedBlindedProposal(t *testing.T) {
+	proposal, err := testutil.RandomElectraVersionedSignedBlindedProposal().ToBlinded()
+	require.NoError(t, err)
+
+	pvsp, err := core.NewPartialVersionedSignedBlindedProposal(&proposal, 3)
+
+	require.NoError(t, err)
+	require.NotNil(t, pvsp.SignedData)
+	require.Equal(t, 3, pvsp.ShareIdx)
+}
+
+func TestNewVersionedAttestation(t *testing.T) {
+	type testCase struct {
+		error   string
+		version eth2spec.DataVersion
+	}
+
+	tests := []testCase{
+		{
+			error:   "unknown version",
+			version: eth2spec.DataVersion(999),
+		},
+		{
+			error:   "no phase0 attestation",
+			version: eth2spec.DataVersionPhase0,
+		},
+		{
+			error:   "no altair attestation",
+			version: eth2spec.DataVersionAltair,
+		},
+		{
+			error:   "no bellatrix attestation",
+			version: eth2spec.DataVersionBellatrix,
+		},
+		{
+			error:   "no capella attestation",
+			version: eth2spec.DataVersionCapella,
+		},
+		{
+			error:   "no deneb attestation",
+			version: eth2spec.DataVersionDeneb,
+		},
+		{
+			error:   "no electra attestation",
+			version: eth2spec.DataVersionElectra,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.error, func(t *testing.T) {
+			_, err := core.NewVersionedAttestation(&eth2spec.VersionedAttestation{
+				Version: test.version,
+			})
+			require.ErrorContains(t, err, test.error)
+		})
+	}
+
+	t.Run("happy path", func(t *testing.T) {
+		attestation := testutil.RandomElectraCoreVersionedAttestation()
+
+		p, err := core.NewVersionedAttestation(&attestation.VersionedAttestation)
+		require.NoError(t, err)
+		require.Equal(t, attestation, p)
+	})
+}
+
+func TestNewPartialVersionedAttestation(t *testing.T) {
+	attestation := testutil.RandomElectraVersionedAttestation()
+
+	pva, err := core.NewPartialVersionedAttestation(attestation, 3)
+
+	require.NoError(t, err)
+	require.NotNil(t, pva.SignedData)
+	require.Equal(t, 3, pva.ShareIdx)
 }
 
 func TestVersionedSignedProposal(t *testing.T) {
@@ -312,6 +689,24 @@ func TestVersionedSignedProposal(t *testing.T) {
 				Blinded: true,
 			},
 		},
+		{
+			name: "electra",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionElectra,
+				Electra: testutil.RandomElectraVersionedSignedProposal().Electra,
+			},
+		},
+		{
+			name: "electra blinded",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionElectra,
+				ElectraBlinded: &eth2electra.SignedBlindedBeaconBlock{
+					Message:   testutil.RandomElectraBlindedBeaconBlock(),
+					Signature: testutil.RandomEth2Signature(),
+				},
+				Blinded: true,
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -347,6 +742,140 @@ func TestVersionedSignedProposal(t *testing.T) {
 				err = p2.UnmarshalJSON([]byte(js))
 				require.ErrorContains(t, err, unmarshalPrefix+test.proposal.Version.String())
 			}
+		})
+	}
+}
+
+func TestVersionedSignedAggregateAndProofUtilFunctions(t *testing.T) {
+	data := testutil.RandomAttestationData()
+	aggregationBits := testutil.RandomBitList(64)
+	type testCase struct {
+		name              string
+		aggregateAndProof core.VersionedSignedAggregateAndProof
+	}
+
+	tests := []testCase{
+		{
+			name: "phase0",
+			aggregateAndProof: core.VersionedSignedAggregateAndProof{
+				VersionedSignedAggregateAndProof: eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionPhase0,
+					Phase0: &eth2p0.SignedAggregateAndProof{
+						Message: &eth2p0.AggregateAndProof{
+							AggregatorIndex: testutil.RandomVIdx(),
+							Aggregate: &eth2p0.Attestation{
+								AggregationBits: aggregationBits,
+								Data:            data,
+								Signature:       testutil.RandomEth2Signature(),
+							},
+							SelectionProof: testutil.RandomEth2Signature(),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "altair",
+			aggregateAndProof: core.VersionedSignedAggregateAndProof{
+				VersionedSignedAggregateAndProof: eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionAltair,
+					Altair: &eth2p0.SignedAggregateAndProof{
+						Message: &eth2p0.AggregateAndProof{
+							AggregatorIndex: testutil.RandomVIdx(),
+							Aggregate: &eth2p0.Attestation{
+								AggregationBits: aggregationBits,
+								Data:            data,
+								Signature:       testutil.RandomEth2Signature(),
+							},
+							SelectionProof: testutil.RandomEth2Signature(),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "bellatrix",
+			aggregateAndProof: core.VersionedSignedAggregateAndProof{
+				VersionedSignedAggregateAndProof: eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionBellatrix,
+					Bellatrix: &eth2p0.SignedAggregateAndProof{
+						Message: &eth2p0.AggregateAndProof{
+							AggregatorIndex: testutil.RandomVIdx(),
+							Aggregate: &eth2p0.Attestation{
+								AggregationBits: aggregationBits,
+								Data:            data,
+								Signature:       testutil.RandomEth2Signature(),
+							},
+							SelectionProof: testutil.RandomEth2Signature(),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "capella",
+			aggregateAndProof: core.VersionedSignedAggregateAndProof{
+				VersionedSignedAggregateAndProof: eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionCapella,
+					Capella: &eth2p0.SignedAggregateAndProof{
+						Message: &eth2p0.AggregateAndProof{
+							AggregatorIndex: testutil.RandomVIdx(),
+							Aggregate: &eth2p0.Attestation{
+								AggregationBits: aggregationBits,
+								Data:            data,
+								Signature:       testutil.RandomEth2Signature(),
+							},
+							SelectionProof: testutil.RandomEth2Signature(),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "deneb",
+			aggregateAndProof: core.VersionedSignedAggregateAndProof{
+				VersionedSignedAggregateAndProof: eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionDeneb,
+					Deneb: &eth2p0.SignedAggregateAndProof{
+						Message: &eth2p0.AggregateAndProof{
+							AggregatorIndex: testutil.RandomVIdx(),
+							Aggregate: &eth2p0.Attestation{
+								AggregationBits: aggregationBits,
+								Data:            data,
+								Signature:       testutil.RandomEth2Signature(),
+							},
+							SelectionProof: testutil.RandomEth2Signature(),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "electra",
+			aggregateAndProof: core.VersionedSignedAggregateAndProof{
+				VersionedSignedAggregateAndProof: eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionElectra,
+					Electra: &electra.SignedAggregateAndProof{
+						Message: &electra.AggregateAndProof{
+							AggregatorIndex: testutil.RandomVIdx(),
+							Aggregate: &electra.Attestation{
+								AggregationBits: aggregationBits,
+								Data:            data,
+								Signature:       testutil.RandomEth2Signature(),
+								CommitteeBits:   testutil.RandomBitVec64(),
+							},
+							SelectionProof: testutil.RandomEth2Signature(),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, data, test.aggregateAndProof.Data())
+			require.Equal(t, aggregationBits, test.aggregateAndProof.AggregationBits())
 		})
 	}
 }
