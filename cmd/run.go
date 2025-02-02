@@ -16,6 +16,7 @@ import (
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/p2p"
 )
 
@@ -93,10 +94,20 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().StringVar(&config.TestnetConfig.CapellaHardFork, "testnet-capella-hard-fork", "", "Capella hard fork version of the custom test network.")
 	cmd.Flags().StringVar(&config.ProcDirectory, "proc-directory", "", "Directory to look into in order to detect other stack components running on the host.")
 	cmd.Flags().StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the node. Selected automatically when not specified.")
+	cmd.Flags().StringVar(&config.Nickname, "nickname", "", "Human friendly peer nickname. Maximum 32 characters.")
+	cmd.Flags().StringSliceVar(&config.BeaconNodeHeaders, "beacon-node-headers", nil, "Comma separated list of headers formatted as header=value")
+	cmd.Flags().StringSliceVar(&config.FallbackBeaconNodeAddrs, "fallback-beacon-node-endpoints", nil, "A list of beacon nodes to use if the primary list are offline or unhealthy.")
 
 	wrapPreRunE(cmd, func(*cobra.Command, []string) error {
 		if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {
 			return errors.New("either flag 'beacon-node-endpoints' or flag 'simnet-beacon-mock=true' must be specified")
+		}
+		if len(config.Nickname) > 32 {
+			return errors.New("flag 'nickname' can not exceed 32 characters")
+		}
+		err := eth2util.ValidateBeaconNodeHeaders(config.BeaconNodeHeaders)
+		if err != nil {
+			return err
 		}
 
 		return nil

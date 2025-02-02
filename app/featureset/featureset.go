@@ -45,6 +45,10 @@ const (
 	// The feature gets automatically enabled when the current network is gnosis|chiado,
 	// unless the user disabled this feature explicitly.
 	GnosisBlockHotfix Feature = "gnosis_block_hotfix"
+
+	// Linear enables Linear round timer for consensus rounds.
+	// When active has precedence over EagerDoubleLinear round timer.
+	Linear Feature = "linear"
 )
 
 var (
@@ -56,6 +60,7 @@ var (
 		AggSigDBV2:           statusAlpha,
 		JSONRequests:         statusAlpha,
 		GnosisBlockHotfix:    statusAlpha,
+		Linear:               statusAlpha,
 		// Add all features and there status here.
 	}
 

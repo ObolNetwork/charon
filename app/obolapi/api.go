@@ -150,6 +150,9 @@ func httpGet(ctx context.Context, url *url.URL, headers map[string]string) (io.R
 	}
 
 	if res.StatusCode/100 != 2 {
+		if res.StatusCode == http.StatusNotFound {
+			return nil, ErrNoExit
+		}
 		data, err := io.ReadAll(res.Body)
 		if err != nil {
 			return nil, errors.Wrap(err, "read POST response", z.Int("status", res.StatusCode))

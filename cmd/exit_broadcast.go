@@ -69,6 +69,8 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 		{testnetChainID, false},
 		{testnetGenesisTimestamp, false},
 		{testnetCapellaHardFork, false},
+		{beaconNodeHeaders, false},
+		{fallbackBeaconNodeAddrs, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
@@ -98,6 +100,11 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 			return errors.New(fmt.Sprintf("if you want to specify exit file directory for all validators, you must provide %s and not %s.", exitFromDir.String(), exitFromFile.String()))
 		}
 
+		err := eth2util.ValidateBeaconNodeHeaders(config.BeaconNodeHeaders)
+		if err != nil {
+			return err
+		}
+
 		return nil
 	})
 
@@ -121,7 +128,12 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "load cluster lock", z.Str("lock_file_path", config.LockFilePath))
 	}
 
-	eth2Cl, err := eth2Client(ctx, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.GetForkVersion()))
+	beaconNodeHeaders, err := eth2util.ParseBeaconNodeHeaders(config.BeaconNodeHeaders)
+	if err != nil {
+		return err
+	}
+
+	eth2Cl, err := eth2Client(ctx, config.FallbackBeaconNodeAddrs, beaconNodeHeaders, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.GetForkVersion()))
 	if err != nil {
 		return errors.Wrap(err, "create eth2 client for specified beacon node(s)", z.Any("beacon_nodes_endpoints", config.BeaconNodeEndpoints))
 	}
@@ -157,6 +169,11 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 				valCtx := log.WithCtx(ctx, z.Str("validator_public_key", validatorPubKeyHex))
 				exit, err := fetchFullExit(valCtx, "", config, cl, identityKey, validatorPubKeyHex)
 				if err != nil {
+					if errors.Is(err, obolapi.ErrNoExit) {
+						log.Warn(ctx, fmt.Sprintf("full exit data from Obol API for validator %v not available (validator may not be activated)", validatorPubKeyHex), nil)
+						continue
+					}
+
 					return errors.Wrap(err, "fetch full exit for all validators from public key")
 				}
 				validatorPubKey, err := core.PubKeyFromBytes(validator.GetPublicKey())

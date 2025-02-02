@@ -1,0 +1,55 @@
+{
+  "name": "solo flow",
+  "creator": {
+    "address": "",
+    "config_signature": ""
+  },
+  "operators": [
+    {
+      "address": "",
+      "enr": "enr:-HW4QOOzaUkBDJxca3MoJItjqSv438Ko2ah4oYd6gUczVEReYp9e5Eo6fhwZIG7YYHqzXROm3VVAVX-tJ1W9IQC3XjiAgmlkgnY0iXNlY3AyNTZrMaECOuyMY6-I8YdN_zrY8FrKXdRBAyrGuaxug6eTR_tmQbw",
+      "config_signature": "",
+      "enr_signature": ""
+    },
+    {
+      "address": "",
+      "enr": "enr:-HW4QHjmSl61pUW_gtIoJhqQ-tkB1M1Ovabr0Pp77EyAJD-QXC503L2d2gPgnPtzoxhuhgGjNk8CRSZqtYDNp6uhaaCAgmlkgnY0iXNlY3AyNTZrMaECZBJKObtiUVAbMO0GP09_Kro3AtBhkN30ZgKbNrBZkPo",
+      "config_signature": "",
+      "enr_signature": ""
+    },
+    {
+      "address": "",
+      "enr": "enr:-HW4QHUvGyPKGZ4zDHG69PzFYPgJWKcZiwFV2HrU-41gVYTUCpvA6v-Tdyr4UGgfVHhc9tfMHHhDSlmRUAa-3nlqEnaAgmlkgnY0iXNlY3AyNTZrMaECOmWQK7FDxAtKLuZXWahsxOqIHQbX6WSnTKiJrdOIaZo",
+      "config_signature": "",
+      "enr_signature": ""
+    },
+    {
+      "address": "",
+      "enr": "enr:-HW4QC7kiC4A1x0qVzoQAc_wdXcuTd0UYcOetICL6MJOXskdAjJmfF4pYgFMLx0fCGK3iiv8Cq_mQZ18bt9BvrbeegWAgmlkgnY0iXNlY3AyNTZrMaECXbfZRpz8MygZmrZoobn9dUrLKABO_eojFp1cemlv-18",
+      "config_signature": "",
+      "enr_signature": ""
+    }
+  ],
+  "uuid": "AAA47693-6F13-56CA-D1E1-A70D1E89F3A5",
+  "version": "v1.10.0",
+  "timestamp": "2025-01-09T12:51:06+02:00",
+  "num_validators": 2,
+  "threshold": 3,
+  "validators": [
+    {
+      "fee_recipient_address": "0x0D941218c10b055f0907FE1BbE486ccdAa7e332A",
+      "withdrawal_address": "0x0D941218c10b055f0907FE1BbE486ccdAa7e332A"
+    },
+    {
+      "fee_recipient_address": "0x0D941218c10b055f0907FE1BbE486ccdAa7e332A",
+      "withdrawal_address": "0x0D941218c10b055f0907FE1BbE486ccdAa7e332A"
+    }
+  ],
+  "dkg_algorithm": "default",
+  "fork_version": "0x01017000",
+  "deposit_amounts": null,
+  "consensus_protocol": "",
+  "target_gas_limit": 30000000,
+  "config_hash": "0x10ac111410084511b00cbbbd3fe11c649425a53f2db97322a70520b287089b86",
+  "definition_hash": "0xec542a3aa3dbdce4e57551b491e536eb1bf2abb46dba2c4d238a93075f19318a"
+}

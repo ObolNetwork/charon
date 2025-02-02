@@ -90,7 +90,7 @@ func testRunFetchExitFullFlow(t *testing.T, all bool) {
 		require.NoError(t, beaconMock.Close())
 	}()
 
-	eth2Cl, err := eth2Client(ctx, []string{beaconMock.Address()}, 10*time.Second, [4]byte(lock.ForkVersion))
+	eth2Cl, err := eth2Client(ctx, []string{}, map[string]string{}, []string{beaconMock.Address()}, 10*time.Second, [4]byte(lock.ForkVersion))
 	require.NoError(t, err)
 
 	handler, addLockFiles := obolapimock.MockServer(false, eth2Cl)
@@ -244,5 +244,118 @@ func TestExitFetchCLI(t *testing.T) {
 				require.NoError(t, err)
 			}
 		})
+	}
+}
+
+func TestFetchExitFullFlowNotActivated(t *testing.T) {
+	ctx := context.Background()
+
+	valAmt := 10
+	operatorAmt := 4
+
+	random := rand.New(rand.NewSource(int64(0)))
+
+	lock, enrs, keyShares := cluster.NewForT(
+		t,
+		valAmt,
+		operatorAmt,
+		operatorAmt,
+		0,
+		random,
+	)
+
+	root := t.TempDir()
+
+	operatorShares := make([][]tbls.PrivateKey, operatorAmt)
+
+	for opIdx := range operatorAmt {
+		for _, share := range keyShares {
+			operatorShares[opIdx] = append(operatorShares[opIdx], share[opIdx])
+		}
+	}
+
+	mBytes, err := json.Marshal(lock)
+	require.NoError(t, err)
+
+	validatorSet := beaconmock.ValidatorSet{}
+
+	for idx, v := range lock.Validators {
+		validatorSet[eth2p0.ValidatorIndex(idx)] = &eth2v1.Validator{
+			Index:   eth2p0.ValidatorIndex(idx),
+			Balance: 42,
+			Status:  eth2v1.ValidatorStateActiveOngoing,
+			Validator: &eth2p0.Validator{
+				PublicKey:             eth2p0.BLSPubKey(v.PubKey),
+				WithdrawalCredentials: testutil.RandomBytes32(),
+			},
+		}
+	}
+
+	beaconMock, err := beaconmock.New(
+		beaconmock.WithValidatorSet(validatorSet),
+	)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, beaconMock.Close())
+	}()
+
+	eth2Cl, err := eth2Client(ctx, []string{}, map[string]string{}, []string{beaconMock.Address()}, 10*time.Second, [4]byte(lock.ForkVersion))
+	require.NoError(t, err)
+
+	handler, addLockFiles := obolapimock.MockServer(false, eth2Cl)
+	srv := httptest.NewServer(handler)
+	addLockFiles(lock)
+	defer srv.Close()
+
+	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
+
+	for idxOp := range operatorAmt {
+		// submit partial exits only for a subset
+		for idxVal := range valAmt / 2 {
+			baseDir := filepath.Join(root, fmt.Sprintf("op%d", idxOp))
+
+			config := exitConfig{
+				BeaconNodeEndpoints: []string{beaconMock.Address()},
+				ValidatorPubkey:     lock.Validators[0].PublicKeyHex(),
+				PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
+				ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
+				LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
+				PublishAddress:      srv.URL,
+				ExitEpoch:           194048,
+				BeaconNodeTimeout:   30 * time.Second,
+				PublishTimeout:      10 * time.Second,
+			}
+			config.ValidatorPubkey = lock.Validators[idxVal].PublicKeyHex()
+
+			require.NoError(t, runSignPartialExit(ctx, config), "operator index: %v", idxOp)
+		}
+	}
+
+	baseDir := filepath.Join(root, fmt.Sprintf("op%d", 0))
+
+	config := exitConfig{
+		ValidatorPubkey: lock.Validators[0].PublicKeyHex(),
+		PrivateKeyPath:  filepath.Join(baseDir, "charon-enr-private-key"),
+		LockFilePath:    filepath.Join(baseDir, "cluster-lock.json"),
+		PublishAddress:  srv.URL,
+		FetchedExitPath: root,
+		PublishTimeout:  10 * time.Second,
+		All:             true,
+	}
+
+	require.NoError(t, runFetchExit(ctx, config))
+
+	for idxVal := range valAmt / 2 {
+		exitFilePath := filepath.Join(root, fmt.Sprintf("exit-%s.json", lock.Validators[idxVal].PublicKeyHex()))
+
+		require.FileExists(t, exitFilePath)
+
+		f, err := os.Open(exitFilePath)
+		require.NoError(t, err)
+
+		var finalExit eth2p0.SignedVoluntaryExit
+		require.NoError(t, json.NewDecoder(f).Decode(&finalExit))
+
+		require.NotEmpty(t, finalExit)
 	}
 }

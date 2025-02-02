@@ -45,6 +45,16 @@ func Test_runBcastFullExitCmd(t *testing.T) {
 		t.Parallel()
 		testRunBcastFullExitCmdFlow(t, true, true)
 	})
+	t.Run("main flow from api for all with already exited validator", func(t *testing.T) {
+		t.Parallel()
+		testRunBcastFullExitCmdFlow(t, false, false)
+		testRunBcastFullExitCmdFlow(t, false, true)
+	})
+	t.Run("main flow from file for all with already exited validator", func(t *testing.T) {
+		t.Parallel()
+		testRunBcastFullExitCmdFlow(t, true, false)
+		testRunBcastFullExitCmdFlow(t, true, true)
+	})
 	t.Run("config", Test_runBcastFullExitCmd_Config)
 }
 
@@ -107,7 +117,7 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool, all bool) {
 		require.NoError(t, beaconMock.Close())
 	}()
 
-	eth2Cl, err := eth2Client(ctx, []string{beaconMock.Address()}, 10*time.Second, [4]byte(lock.ForkVersion))
+	eth2Cl, err := eth2Client(ctx, []string{}, map[string]string{}, []string{beaconMock.Address()}, 10*time.Second, [4]byte(lock.ForkVersion))
 	require.NoError(t, err)
 
 	handler, addLockFiles := obolapimock.MockServer(false, eth2Cl)
@@ -425,4 +435,108 @@ func TestExitBroadcastCLI(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestExitBcastFullExitNotActivated(t *testing.T) {
+	ctx := context.Background()
+
+	valAmt := 10
+	operatorAmt := 4
+
+	random := rand.New(rand.NewSource(int64(0)))
+
+	lock, enrs, keyShares := cluster.NewForT(
+		t,
+		valAmt,
+		operatorAmt,
+		operatorAmt,
+		0,
+		random,
+	)
+
+	root := t.TempDir()
+
+	operatorShares := make([][]tbls.PrivateKey, operatorAmt)
+
+	for opIdx := range operatorAmt {
+		for _, share := range keyShares {
+			operatorShares[opIdx] = append(operatorShares[opIdx], share[opIdx])
+		}
+	}
+
+	mBytes, err := json.Marshal(lock)
+	require.NoError(t, err)
+
+	validatorSet := beaconmock.ValidatorSet{}
+
+	for idx, v := range lock.Validators {
+		validatorSet[eth2p0.ValidatorIndex(idx)] = &eth2v1.Validator{
+			Index:   eth2p0.ValidatorIndex(idx),
+			Balance: 42,
+			Status:  eth2v1.ValidatorStateActiveOngoing,
+			Validator: &eth2p0.Validator{
+				PublicKey:             eth2p0.BLSPubKey(v.PubKey),
+				WithdrawalCredentials: testutil.RandomBytes32(),
+			},
+		}
+	}
+
+	beaconMock, err := beaconmock.New(
+		beaconmock.WithValidatorSet(validatorSet),
+		beaconmock.WithEndpoint("/eth/v1/beacon/pool/voluntary_exits", ""),
+	)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, beaconMock.Close())
+	}()
+
+	eth2Cl, err := eth2Client(ctx, []string{}, map[string]string{}, []string{beaconMock.Address()}, 10*time.Second, [4]byte(lock.ForkVersion))
+	require.NoError(t, err)
+
+	handler, addLockFiles := obolapimock.MockServer(false, eth2Cl)
+	srv := httptest.NewServer(handler)
+	addLockFiles(lock)
+	defer srv.Close()
+
+	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
+
+	for idxOp := range operatorAmt {
+		// submit partial exits only for a subset
+		for idxVal := range valAmt / 2 {
+			baseDir := filepath.Join(root, fmt.Sprintf("op%d", idxOp))
+
+			config := exitConfig{
+				BeaconNodeEndpoints: []string{beaconMock.Address()},
+				PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
+				ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
+				LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
+				PublishAddress:      srv.URL,
+				ExitEpoch:           194048,
+				BeaconNodeTimeout:   30 * time.Second,
+				PublishTimeout:      10 * time.Second,
+			}
+
+			config.ValidatorPubkey = lock.Validators[idxVal].PublicKeyHex()
+
+			require.NoError(t, runSignPartialExit(ctx, config), "operator index: %v", idxOp)
+		}
+	}
+
+	baseDir := filepath.Join(root, fmt.Sprintf("op%d", 0))
+
+	config := exitConfig{
+		BeaconNodeEndpoints: []string{beaconMock.Address()},
+		PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
+		ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
+		LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
+		PublishAddress:      srv.URL,
+		ExitEpoch:           194048,
+		BeaconNodeTimeout:   30 * time.Second,
+		PublishTimeout:      10 * time.Second,
+	}
+
+	// exit all and do not fail on non-existing keys
+	config.All = true
+
+	require.NoError(t, runBcastFullExit(ctx, config))
 }

@@ -19,7 +19,7 @@ import (
 func TestMulti_Name(t *testing.T) {
 	client := mocks.NewClient(t)
 
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client})
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
 
 	require.Equal(t, "eth2wrap.multi", m.Name())
 }
@@ -28,7 +28,7 @@ func TestMulti_Address(t *testing.T) {
 	client := mocks.NewClient(t)
 	client.On("Address").Return("test").Once()
 
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client})
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
 
 	require.Equal(t, "test", m.Address())
 }
@@ -39,7 +39,7 @@ func TestMulti_IsActive(t *testing.T) {
 	client2 := mocks.NewClient(t)
 	client2.On("IsActive").Return(true).Once()
 
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client1, client2})
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client1, client2}, nil)
 
 	require.True(t, m.IsActive())
 }
@@ -50,7 +50,7 @@ func TestMulti_IsSynced(t *testing.T) {
 	client2 := mocks.NewClient(t)
 	client2.On("IsSynced").Return(true).Once()
 
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client1, client2})
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client1, client2}, nil)
 
 	require.True(t, m.IsSynced())
 }
@@ -60,7 +60,7 @@ func TestMulti_NodePeerCount(t *testing.T) {
 	client.On("Address").Return("test").Once()
 	client.On("NodePeerCount", mock.Anything).Return(5, nil).Once()
 
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client})
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
 
 	c, err := m.NodePeerCount(context.Background())
 	require.NoError(t, err)
@@ -80,7 +80,7 @@ func TestMulti_BlockAttestations(t *testing.T) {
 	client.On("Address").Return("test").Once()
 	client.On("BlockAttestations", mock.Anything, "state").Return(atts, nil).Once()
 
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client})
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
 
 	atts2, err := m.BlockAttestations(ctx, "state")
 	require.NoError(t, err)
@@ -101,7 +101,7 @@ func TestMulti_AggregateSyncCommitteeSelections(t *testing.T) {
 	client.On("Address").Return("test").Once()
 	client.On("AggregateSyncCommitteeSelections", mock.Anything, partsel).Return(selections, nil).Once()
 
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client})
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
 
 	selections2, err := m.AggregateSyncCommitteeSelections(ctx, partsel)
 	require.NoError(t, err)
@@ -122,7 +122,7 @@ func TestMulti_AggregateBeaconCommitteeSelections(t *testing.T) {
 	client.On("Address").Return("test").Once()
 	client.On("AggregateBeaconCommitteeSelections", mock.Anything, partsel).Return(selections, nil).Once()
 
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client})
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
 
 	selections2, err := m.AggregateBeaconCommitteeSelections(ctx, partsel)
 	require.NoError(t, err)
@@ -142,7 +142,7 @@ func TestMulti_ProposerConfig(t *testing.T) {
 	client.On("Address").Return("test").Once()
 	client.On("ProposerConfig", mock.Anything).Return(resp, nil).Once()
 
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client})
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
 
 	resp2, err := m.ProposerConfig(ctx)
 	require.NoError(t, err)
@@ -161,7 +161,7 @@ func TestMulti_ActiveValidators(t *testing.T) {
 	client := mocks.NewClient(t)
 	client.On("ActiveValidators", mock.Anything).Return(vals, nil).Once()
 
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client})
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
 
 	vals2, err := m.ActiveValidators(ctx)
 	require.NoError(t, err)
@@ -181,6 +181,6 @@ func TestMulti_SetValidatorCache(t *testing.T) {
 	client := mocks.NewClient(t)
 	client.On("SetValidatorCache", mock.Anything).Once()
 
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client})
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
 	m.SetValidatorCache(valCache)
 }
