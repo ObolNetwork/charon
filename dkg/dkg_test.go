@@ -42,6 +42,30 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
+const (
+	v1_10 = "v1.10.0"
+	v1_9  = "v1.9.0"
+	v1_8  = "v1.8.0"
+	v1_7  = "v1.7.0"
+	v1_6  = "v1.6.0"
+	v1_5  = "v1.5.0"
+	v1_4  = "v1.4.0"
+	v1_3  = "v1.3.0"
+	v1_2  = "v1.2.0"
+	v1_1  = "v1.1.0"
+	v1_0  = "v1.0.0"
+)
+
+func isAnyVersion(version string, list ...string) bool {
+	for _, v := range list {
+		if version == v {
+			return true
+		}
+	}
+
+	return false
+}
+
 func TestDKG(t *testing.T) {
 	const (
 		nodes = 3
@@ -107,6 +131,11 @@ func TestDKG(t *testing.T) {
 			}
 			if test.version != "" {
 				opts = append(opts, cluster.WithVersion(test.version))
+			}
+			if isAnyVersion(test.version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6, v1_7, v1_8, v1_9) {
+				opts = append(opts, func(d *cluster.Definition) { d.TargetGasLimit = 0 })
+			} else {
+				opts = append(opts, func(d *cluster.Definition) { d.TargetGasLimit = 30000000 })
 			}
 
 			seed := 1

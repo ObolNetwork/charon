@@ -131,7 +131,7 @@ func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err er
 		conf.WithdrawalAddrs = repeatAddr(conf.WithdrawalAddrs[0], conf.NumVals)
 	}
 
-	vals, secrets, shareSets, err := genNewVals(len(cluster.GetOperators()), int(cluster.GetThreshold()), cluster.GetForkVersion(), conf)
+	vals, secrets, shareSets, err := genNewVals(ctx, len(cluster.GetOperators()), int(cluster.GetThreshold()), cluster.GetForkVersion(), cluster.GetTargetGasLimit(), conf)
 	if err != nil {
 		return err
 	}
@@ -203,16 +203,21 @@ func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err er
 }
 
 // builderRegistration returns a builder registration object using the provided inputs.
-func builderRegistration(secret tbls.PrivateKey, pubkey tbls.PublicKey, feeRecipientAddr string, forkVersion []byte) (*eth2v1.SignedValidatorRegistration, error) {
+func builderRegistration(ctx context.Context, secret tbls.PrivateKey, pubkey tbls.PublicKey, feeRecipientAddr string, forkVersion []byte, targetGasLimit uint32) (*eth2v1.SignedValidatorRegistration, error) {
 	timestamp, err := eth2util.ForkVersionToGenesisTime(forkVersion)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid fork version")
 	}
 
+	if targetGasLimit == 0 {
+		log.Warn(ctx, "", errors.New("custom target gas limit not supported, setting to default", z.Uint("default_gas_limit", registration.DefaultGasLimit)))
+		targetGasLimit = registration.DefaultGasLimit
+	}
+
 	reg, err := registration.NewMessage(
 		eth2p0.BLSPubKey(pubkey),
 		feeRecipientAddr,
-		registration.DefaultGasLimit,
+		uint64(targetGasLimit),
 		timestamp,
 	)
 	if err != nil {
@@ -384,7 +389,7 @@ func validateConf(conf addValidatorsConfig) error {
 }
 
 // genNewVals returns a list of new validators, their corresponding private keys and threshold keyshares from the provided config.
-func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsConfig) ([]*manifestpb.Validator, []tbls.PrivateKey, [][]tbls.PrivateKey, error) {
+func genNewVals(ctx context.Context, numOps, threshold int, forkVersion []byte, targetGasLimit uint32, conf addValidatorsConfig) ([]*manifestpb.Validator, []tbls.PrivateKey, [][]tbls.PrivateKey, error) {
 	// Generate new validators
 	var (
 		vals      []*manifestpb.Validator
@@ -439,7 +444,7 @@ func genNewVals(numOps, threshold int, forkVersion []byte, conf addValidatorsCon
 		}
 
 		// Generate builder registration
-		builderReg, err := builderRegistration(secret, pubkey, feeRecipientAddr, forkVersion)
+		builderReg, err := builderRegistration(ctx, secret, pubkey, feeRecipientAddr, forkVersion, targetGasLimit)
 		if err != nil {
 			return nil, nil, nil, err
 		}

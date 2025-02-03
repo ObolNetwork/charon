@@ -41,7 +41,7 @@ func TestIntegration(t *testing.T) {
 		t.Fatal("BEACON_URL env var not set")
 	}
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second*2, [4]byte{}, map[string]string{}, beaconURL)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second*2, [4]byte{}, map[string]string{}, []string{beaconURL}, []string{})
 	require.NoError(t, err)
 
 	// Use random actual mainnet validators
@@ -515,5 +515,9 @@ func (c *testClock) NewTimer(time.Duration) clockwork.Timer {
 }
 
 func (c *testClock) AfterFunc(time.Duration, func()) clockwork.Timer {
+	panic("not supported")
+}
+
+func (c *testClock) Until(t time.Time) time.Duration {
 	panic("not supported")
 }

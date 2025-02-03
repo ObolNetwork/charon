@@ -33,8 +33,8 @@ import (
 )
 
 const (
-	gasLimit    = 30000000
-	zeroAddress = "0x0000000000000000000000000000000000000000"
+	defaultGasLimit = 30000000
+	zeroAddress     = "0x0000000000000000000000000000000000000000"
 )
 
 // SlotFromTimestamp returns the Ethereum slot associated to a timestamp, given the genesis configuration fetched
@@ -86,7 +86,7 @@ func NewComponentInsecure(_ *testing.T, eth2Cl eth2wrap.Client, shareIdx int) (*
 
 // NewComponent returns a new instance of the validator API core workflow component.
 func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[int]tbls.PublicKey,
-	shareIdx int, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, seenPubkeys func(core.PubKey),
+	shareIdx int, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, targetGasLimit uint, seenPubkeys func(core.PubKey),
 ) (*Component, error) {
 	var (
 		sharesByKey     = make(map[eth2p0.BLSPubKey]eth2p0.BLSPubKey)
@@ -168,6 +168,7 @@ func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[
 		shareIdx:           shareIdx,
 		feeRecipientFunc:   feeRecipientFunc,
 		builderEnabled:     builderEnabled,
+		targetGasLimit:     targetGasLimit,
 		swallowRegFilter:   log.Filter(),
 	}, nil
 }
@@ -178,6 +179,7 @@ type Component struct {
 	insecureTest     bool
 	feeRecipientFunc func(core.PubKey) string
 	builderEnabled   bool
+	targetGasLimit   uint
 	swallowRegFilter z.Field
 
 	// getVerifyShareFunc maps public shares (what the VC thinks as its public key)
@@ -1276,13 +1278,20 @@ func (c Component) getAggregateSyncCommSelection(ctx context.Context, psigsBySlo
 
 // ProposerConfig returns the proposer configuration for all validators.
 func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
+	var targetGasLimit uint
+	if c.targetGasLimit == 0 {
+		log.Warn(ctx, "", errors.New("custom target gas limit not supported, setting to default", z.Uint("default_gas_limit", defaultGasLimit)))
+		targetGasLimit = defaultGasLimit
+	} else {
+		targetGasLimit = c.targetGasLimit
+	}
 	resp := eth2exp.ProposerConfigResponse{
 		Proposers: make(map[eth2p0.BLSPubKey]eth2exp.ProposerConfig),
 		Default: eth2exp.ProposerConfig{ // Default doesn't make sense, disable for now.
 			FeeRecipient: zeroAddress,
 			Builder: eth2exp.Builder{
 				Enabled:  false,
-				GasLimit: gasLimit,
+				GasLimit: targetGasLimit,
 			},
 		},
 	}
@@ -1313,7 +1322,7 @@ func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigR
 			FeeRecipient: c.feeRecipientFunc(pubkey),
 			Builder: eth2exp.Builder{
 				Enabled:  c.builderEnabled,
-				GasLimit: gasLimit,
+				GasLimit: targetGasLimit,
 				Overrides: map[string]string{
 					"timestamp":  strconv.FormatInt(timestamp.Unix(), 10),
 					"public_key": string(pubkey),

@@ -52,22 +52,9 @@ var (
 	_ Client = (*lazy)(nil)
 )
 
-// Instrument returns a new multi instrumented client using the provided clients as backends.
-func Instrument(clients ...Client) (Client, error) {
-	if len(clients) == 0 {
-		return nil, errors.New("clients empty")
-	}
-
-	// TODO(gsora): remove once the implementation is agreed upon and
-	// wiring is complete.
-	fb := NewFallbackClient(0, [4]byte{}, nil)
-
-	return newMulti(clients, fb), nil
-}
-
-// InstrumentWithFallback returns a new multi instrumented client using the provided clients as backends and fallback
-// respectively.
-func InstrumentWithFallback(fallback *FallbackClient, clients ...Client) (Client, error) {
+// Instrument returns a new multi instrumented client using the provided clients as backends
+// and fallback as alternatives when all clients fail.
+func Instrument(clients []Client, fallback []Client) (Client, error) {
 	if len(clients) == 0 {
 		return nil, errors.New("clients empty")
 	}
@@ -85,8 +72,21 @@ func WithSyntheticDuties(cl Client) Client {
 }
 
 // NewMultiHTTP returns a new instrumented multi eth2 http client.
-func NewMultiHTTP(timeout time.Duration, forkVersion [4]byte, headers map[string]string, addresses ...string) (Client, error) {
-	return Instrument(newClients(timeout, forkVersion, headers, addresses)...)
+func NewMultiHTTP(timeout time.Duration, forkVersion [4]byte, headers map[string]string, addrs []string, fallbackAddrs []string) (Client, error) {
+	return Instrument(
+		newClients(timeout, forkVersion, headers, addrs),
+		newClients(timeout, forkVersion, headers, fallbackAddrs),
+	)
+}
+
+// NewSimnetFallbacks returns a slice of Client initialized with the provided settings. Used in Simnet setting.
+func NewSimnetFallbacks(timeout time.Duration, forkVersion [4]byte, headers map[string]string, addresses []string) []Client {
+	var clients []Client
+	for _, address := range addresses {
+		clients = append(clients, newBeaconClient(timeout, forkVersion, headers, address))
+	}
+
+	return clients
 }
 
 // newClients returns a slice of Client initialized with the provided settings.
@@ -130,66 +130,73 @@ func newBeaconClient(timeout time.Duration, forkVersion [4]byte, headers map[str
 }
 
 type provideArgs struct {
-	client   Client
-	fallback *FallbackClient
+	client Client
 }
 
 // provide calls the work function with each client in parallel, returning the
 // first successful result or first error.
 // The bestIdxFunc is called with the index of the client returning a successful response.
-func provide[O any](ctx context.Context, clients []Client, fallback *FallbackClient,
+func provide[O any](ctx context.Context, clients []Client, fallbacks []Client,
 	work forkjoin.Work[provideArgs, O], isSuccessFunc func(O) bool, bestSelector *bestSelector,
 ) (O, error) {
 	if isSuccessFunc == nil {
 		isSuccessFunc = func(O) bool { return true }
 	}
 
-	fork, join, cancel := forkjoin.New(ctx, work,
-		forkjoin.WithoutFailFast(),
-		forkjoin.WithWorkers(len(clients)),
-	)
-	for _, client := range clients {
-		fork(provideArgs{
-			client:   client,
-			fallback: fallback,
-		})
-	}
-	defer cancel()
+	zero := func() O { var z O; return z }()
 
-	var (
-		nokResp    forkjoin.Result[provideArgs, O]
-		hasNokResp bool
-		zero       O
-	)
-	for res := range join() {
-		if ctx.Err() != nil {
-			return zero, ctx.Err()
-		} else if res.Err == nil && isSuccessFunc(res.Output) {
-			if bestSelector != nil {
-				bestSelector.Increment(res.Input.client.Address())
-			}
+	runForkJoin := func(clients []Client) (O, error) {
+		fork, join, cancel := forkjoin.New(ctx, work,
+			forkjoin.WithoutFailFast(),
+			forkjoin.WithWorkers(len(clients)),
+		)
+		defer cancel()
 
-			return res.Output, nil
+		for _, client := range clients {
+			fork(provideArgs{client: client})
 		}
 
-		nokResp = res
-		hasNokResp = true
+		var (
+			nokResp    forkjoin.Result[provideArgs, O]
+			hasNokResp bool
+		)
+		for res := range join() {
+			if ctx.Err() != nil {
+				return zero, ctx.Err()
+			} else if res.Err == nil && isSuccessFunc(res.Output) {
+				if bestSelector != nil {
+					bestSelector.Increment(res.Input.client.Address())
+				}
+
+				return res.Output, nil
+			}
+
+			nokResp = res
+			hasNokResp = true
+		}
+
+		if ctx.Err() != nil {
+			return zero, ctx.Err()
+		} else if !hasNokResp {
+			return zero, errors.New("bug: no forkjoin results")
+		}
+
+		return nokResp.Output, nokResp.Err
 	}
 
-	if ctx.Err() != nil {
-		return zero, ctx.Err()
-	} else if !hasNokResp {
-		return zero, errors.New("bug: no forkjoin results")
+	output, err := runForkJoin(clients)
+	if err == nil || ctx.Err() != nil || len(fallbacks) == 0 {
+		return output, err
 	}
 
-	return nokResp.Output, nokResp.Err
+	return runForkJoin(fallbacks)
 }
 
 type empty struct{}
 
 // submit proxies provide, but returns nil instead of a successful result.
-func submit(ctx context.Context, clients []Client, fallback *FallbackClient, work func(context.Context, provideArgs) error, selector *bestSelector) error {
-	_, err := provide(ctx, clients, fallback,
+func submit(ctx context.Context, clients []Client, fallbacks []Client, work func(context.Context, provideArgs) error, selector *bestSelector) error {
+	_, err := provide(ctx, clients, fallbacks,
 		func(ctx context.Context, args provideArgs) (empty, error) {
 			return empty{}, work(ctx, args)
 		},

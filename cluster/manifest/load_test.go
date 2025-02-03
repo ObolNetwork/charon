@@ -111,8 +111,14 @@ func testLoadLegacy(t *testing.T, version string) {
 
 	var opts []func(*cluster.Definition)
 	opts = append(opts, cluster.WithVersion(version))
-	if version < "v1.5.0" {
+	if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4) {
 		opts = append(opts, cluster.WithLegacyVAddrs(testutil.RandomETHAddress(), testutil.RandomETHAddress()))
+	}
+
+	if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6, v1_7, v1_8, v1_9) {
+		opts = append(opts, func(d *cluster.Definition) { d.TargetGasLimit = 0 })
+	} else {
+		opts = append(opts, func(d *cluster.Definition) { d.TargetGasLimit = 36000000 })
 	}
 
 	seed := 0

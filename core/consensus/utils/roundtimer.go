@@ -3,7 +3,6 @@
 package utils
 
 import (
-	"math"
 	"strings"
 	"sync"
 	"time"
@@ -25,9 +24,16 @@ type TimerFunc func(core.Duty) RoundTimer
 
 // GetTimerFunc returns a timer function based on the enabled features.
 func GetTimerFunc() TimerFunc {
-	if featureset.Enabled(featureset.Exponential) {
-		return func(core.Duty) RoundTimer {
-			return NewExponentialRoundTimer()
+	if featureset.Enabled(featureset.Linear) {
+		return func(duty core.Duty) RoundTimer {
+			// Linear timer only affects Proposer duty
+			if duty.Type == core.DutyProposer {
+				return NewLinearRoundTimer()
+			} else if featureset.Enabled(featureset.EagerDoubleLinear) {
+				return NewDoubleEagerLinearRoundTimer()
+			}
+
+			return NewIncreasingRoundTimer()
 		}
 	}
 
@@ -54,7 +60,7 @@ func (t TimerType) Eager() bool {
 const (
 	TimerIncreasing        TimerType = "inc"
 	TimerEagerDoubleLinear TimerType = "eager_dlinear"
-	TimerExponential       TimerType = "exponential"
+	TimerLinear            TimerType = "linear"
 )
 
 // increasingRoundTimeout returns the duration for a round that starts at incRoundStart in round 1
@@ -159,40 +165,40 @@ func (t *doubleEagerLinearRoundTimer) Timer(round int64) (<-chan time.Time, func
 	return timer.Chan(), func() { timer.Stop() }
 }
 
-// exponentialRoundTimer implements a round timerType with the following properties:
+// linearRoundTimer implements a round timerType with the following properties:
 //
 // The first round has one second to complete consensus
 // If this round fails then other peers already had time to fetch proposal and therefore
 // won't need as much time to reach a consensus. Therefore start timeout with lower value
-// which will increase exponentially
-type exponentialRoundTimer struct {
+// which will increase linearly
+type linearRoundTimer struct {
 	clock clockwork.Clock
 }
 
-func (*exponentialRoundTimer) Type() TimerType {
-	return TimerExponential
+func (*linearRoundTimer) Type() TimerType {
+	return TimerLinear
 }
 
-func (t *exponentialRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
+func (t *linearRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
 	var timer clockwork.Timer
 	if round == 1 {
 		// First round has 1 second
 		timer = t.clock.NewTimer(time.Second)
 	} else {
-		// Subsequent rounds have exponentially more time starting at 200 milliseconds
-		timer = t.clock.NewTimer(time.Millisecond * time.Duration(math.Pow(2, float64(round-1))*100))
+		// Subsequent rounds have linearly more time starting at 400 milliseconds
+		timer = t.clock.NewTimer(time.Duration(200*(round-1) + 200))
 	}
 
 	return timer.Chan(), func() { timer.Stop() }
 }
 
-// NewExponentialRoundTimer returns a new exponential round timer type.
-func NewExponentialRoundTimer() RoundTimer {
-	return NewExponentialRoundTimerWithClock(clockwork.NewRealClock())
+// NewLinearRoundTimer returns a new linear round timer type.
+func NewLinearRoundTimer() RoundTimer {
+	return NewLinearRoundTimerWithClock(clockwork.NewRealClock())
 }
 
-func NewExponentialRoundTimerWithClock(clock clockwork.Clock) RoundTimer {
-	return &exponentialRoundTimer{
+func NewLinearRoundTimerWithClock(clock clockwork.Clock) RoundTimer {
+	return &linearRoundTimer{
 		clock: clock,
 	}
 }

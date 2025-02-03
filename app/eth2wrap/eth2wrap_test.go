@@ -134,7 +134,7 @@ func TestMulti(t *testing.T) {
 				}
 			}
 
-			eth2Cl, err := eth2wrap.Instrument(cl1, cl2)
+			eth2Cl, err := eth2wrap.Instrument([]eth2wrap.Client{cl1, cl2}, nil)
 			require.NoError(t, err)
 
 			go test.handle(cl1Resp, cl2Resp, cancel)
@@ -142,6 +142,103 @@ func TestMulti(t *testing.T) {
 			resp, err := eth2Cl.SlotsPerEpoch(ctx)
 			require.ErrorIs(t, err, test.expErr)
 			require.Equal(t, test.expRes, resp)
+		})
+	}
+}
+
+func TestFallback(t *testing.T) {
+	returnValue := uint64(42)
+	closedErr := errors.New("error")
+
+	tests := []struct {
+		name         string
+		primaryErrs  []error
+		fallbackErrs []error
+	}{
+		{
+			name:         "primary success - no fallback called",
+			primaryErrs:  []error{nil, nil},
+			fallbackErrs: []error{nil, nil},
+		},
+		{
+			name:         "one primary success - no fallback called",
+			primaryErrs:  []error{nil, closedErr},
+			fallbackErrs: []error{nil, nil},
+		},
+		{
+			name:         "all primary fail - fallback called",
+			primaryErrs:  []error{closedErr, closedErr},
+			fallbackErrs: []error{nil, nil},
+		},
+		{
+			name:         "all primary fail - one fallback success",
+			primaryErrs:  []error{closedErr, closedErr},
+			fallbackErrs: []error{nil, closedErr},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var calledMu sync.Mutex
+			primaryCalled := make([]bool, len(tt.primaryErrs))
+			fallbackCalled := make([]bool, len(tt.fallbackErrs))
+
+			// Track if all primaries fail to check if fallback must be called
+			allPrimariesFail := true
+			// Create primary clients
+			primaryClients := make([]eth2wrap.Client, len(tt.primaryErrs))
+			for i, primaryErr := range tt.primaryErrs {
+				if primaryErr == nil {
+					allPrimariesFail = false
+				}
+				cl, err := beaconmock.New()
+				require.NoError(t, err)
+
+				cl.SlotsPerEpochFunc = func(context.Context) (uint64, error) {
+					calledMu.Lock()
+					primaryCalled[i] = true
+					calledMu.Unlock()
+
+					return returnValue, primaryErr
+				}
+				primaryClients[i] = cl
+			}
+
+			// Create fallback client
+			fallbackClients := make([]eth2wrap.Client, len(tt.fallbackErrs))
+			for i, fallbackErr := range tt.fallbackErrs {
+				cl, err := beaconmock.New()
+				require.NoError(t, err)
+
+				cl.SlotsPerEpochFunc = func(context.Context) (uint64, error) {
+					calledMu.Lock()
+					fallbackCalled[i] = true
+					calledMu.Unlock()
+
+					return returnValue, fallbackErr
+				}
+				fallbackClients[i] = cl
+			}
+
+			eth2Cl, err := eth2wrap.Instrument(primaryClients, fallbackClients)
+			require.NoError(t, err)
+			res, err := eth2Cl.SlotsPerEpoch(context.Background())
+			require.NoError(t, err)
+			require.Equal(t, returnValue, res)
+
+			// Verify all primaries were called
+			calledMu.Lock()
+			for i, called := range primaryCalled {
+				require.True(t, called, "primary client %d was not called", i)
+			}
+
+			// Verify all fallbacks were called (when all primaries fail)
+			if allPrimariesFail {
+				for i, called := range fallbackCalled {
+					require.True(t, called, "fallback client %d was not called", i)
+				}
+			}
+			calledMu.Unlock()
 		})
 	}
 }
@@ -159,7 +256,7 @@ func TestSyncState(t *testing.T) {
 		return &eth2v1.SyncState{IsSyncing: true}, nil
 	}
 
-	eth2Cl, err := eth2wrap.Instrument(cl1, cl2)
+	eth2Cl, err := eth2wrap.Instrument([]eth2wrap.Client{cl1, cl2}, nil)
 	require.NoError(t, err)
 
 	resp, err := eth2Cl.NodeSyncing(context.Background(), nil)
@@ -171,7 +268,7 @@ func TestErrors(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("network dial error", func(t *testing.T) {
-		cl, err := eth2wrap.NewMultiHTTP(time.Hour, [4]byte{}, map[string]string{}, "localhost:22222")
+		cl, err := eth2wrap.NewMultiHTTP(time.Hour, [4]byte{}, nil, []string{"localhost:22222"}, nil)
 		require.NoError(t, err)
 
 		_, err = cl.SlotsPerEpoch(ctx)
@@ -186,7 +283,7 @@ func TestErrors(t *testing.T) {
 	}))
 
 	t.Run("http timeout", func(t *testing.T) {
-		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, [4]byte{}, map[string]string{}, srv.URL)
+		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, [4]byte{}, nil, []string{srv.URL}, nil)
 		require.NoError(t, err)
 
 		_, err = cl.SlotsPerEpoch(ctx)
@@ -199,7 +296,7 @@ func TestErrors(t *testing.T) {
 		ctx, cancel := context.WithCancel(ctx)
 		cancel()
 
-		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, [4]byte{}, map[string]string{}, srv.URL)
+		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, [4]byte{}, nil, []string{srv.URL}, nil)
 		require.NoError(t, err)
 
 		_, err = cl.SlotsPerEpoch(ctx)
@@ -214,7 +311,7 @@ func TestErrors(t *testing.T) {
 		bmock.GenesisTimeFunc = func(context.Context) (time.Time, error) {
 			return time.Time{}, new(net.OpError)
 		}
-		eth2Cl, err := eth2wrap.Instrument(bmock)
+		eth2Cl, err := eth2wrap.Instrument([]eth2wrap.Client{bmock}, nil)
 		require.NoError(t, err)
 
 		_, err = eth2Cl.GenesisTime(ctx)
@@ -235,7 +332,7 @@ func TestErrors(t *testing.T) {
 			}
 		}
 
-		eth2Cl, err := eth2wrap.Instrument(bmock)
+		eth2Cl, err := eth2wrap.Instrument([]eth2wrap.Client{bmock}, nil)
 		require.NoError(t, err)
 
 		_, err = eth2Cl.SignedBeaconBlock(ctx, &eth2api.SignedBeaconBlockOpts{Block: "123"})
@@ -251,7 +348,7 @@ func TestCtxCancel(t *testing.T) {
 
 		bmock, err := beaconmock.New()
 		require.NoError(t, err)
-		eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte{}, map[string]string{}, bmock.Address())
+		eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte{}, nil, []string{bmock.Address()}, nil)
 		require.NoError(t, err)
 
 		cancel() // Cancel context before calling method.
@@ -310,7 +407,7 @@ func TestOneError(t *testing.T) {
 		bmock.Address(), // Valid
 	}
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte{}, map[string]string{}, addresses...)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte{}, nil, addresses, nil)
 	require.NoError(t, err)
 
 	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
@@ -341,7 +438,7 @@ func TestOneTimeout(t *testing.T) {
 		bmock.Address(), // Valid
 	}
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Minute, [4]byte{}, map[string]string{}, addresses...)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Minute, [4]byte{}, nil, addresses, nil)
 	require.NoError(t, err)
 
 	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
@@ -364,7 +461,7 @@ func TestOnlyTimeout(t *testing.T) {
 	defer srv.Close()
 	defer cancel() // Cancel the context before stopping the server.
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Minute, [4]byte{}, map[string]string{}, srv.URL)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Minute, [4]byte{}, nil, []string{srv.URL}, nil)
 	require.NoError(t, err)
 
 	// Start goroutine that is blocking trying to create the client.
@@ -426,7 +523,7 @@ func TestLazy(t *testing.T) {
 		httputil.NewSingleHostReverseProxy(target).ServeHTTP(w, r)
 	}))
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte{}, map[string]string{}, srv1.URL, srv2.URL)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte{}, nil, []string{srv1.URL, srv2.URL}, nil)
 	require.NoError(t, err)
 
 	// Both proxies are disabled, so this should fail.
@@ -505,7 +602,7 @@ func TestLazyDomain(t *testing.T) {
 
 			forkVersionHex, err := hex.DecodeString(test.in)
 			require.NoError(t, err)
-			eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte(forkVersionHex), map[string]string{}, srv.URL)
+			eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte(forkVersionHex), nil, []string{srv.URL}, nil)
 			require.NoError(t, err)
 
 			voluntaryExitDomain := eth2p0.DomainType{0x04, 0x00, 0x00, 0x00}

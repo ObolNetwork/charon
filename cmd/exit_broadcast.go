@@ -70,6 +70,7 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 		{testnetGenesisTimestamp, false},
 		{testnetCapellaHardFork, false},
 		{beaconNodeHeaders, false},
+		{fallbackBeaconNodeAddrs, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
@@ -132,7 +133,7 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 		return err
 	}
 
-	eth2Cl, err := eth2Client(ctx, beaconNodeHeaders, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.GetForkVersion()))
+	eth2Cl, err := eth2Client(ctx, config.FallbackBeaconNodeAddrs, beaconNodeHeaders, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.GetForkVersion()))
 	if err != nil {
 		return errors.Wrap(err, "create eth2 client for specified beacon node(s)", z.Any("beacon_nodes_endpoints", config.BeaconNodeEndpoints))
 	}
@@ -168,6 +169,11 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 				valCtx := log.WithCtx(ctx, z.Str("validator_public_key", validatorPubKeyHex))
 				exit, err := fetchFullExit(valCtx, "", config, cl, identityKey, validatorPubKeyHex)
 				if err != nil {
+					if errors.Is(err, obolapi.ErrNoExit) {
+						log.Warn(ctx, fmt.Sprintf("full exit data from Obol API for validator %v not available (validator may not be activated)", validatorPubKeyHex), nil)
+						continue
+					}
+
 					return errors.Wrap(err, "fetch full exit for all validators from public key")
 				}
 				validatorPubKey, err := core.PubKeyFromBytes(validator.GetPublicKey())

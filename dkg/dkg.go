@@ -111,7 +111,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	// This DKG only supports a few specific config versions.
-	if def.Version != "v1.6.0" && def.Version != "v1.7.0" && def.Version != "v1.8.0" {
+	if def.Version != "v1.6.0" && def.Version != "v1.7.0" && def.Version != "v1.8.0" && def.Version != "v1.9.0" && def.Version != "v1.10.0" {
 		return errors.New("only v1.6.0, v1.7.0 and v1.8.0 cluster definition versions supported")
 	}
 
@@ -267,7 +267,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		ex,
 		shares,
 		def.FeeRecipientAddresses(),
-		registration.DefaultGasLimit,
+		uint64(def.TargetGasLimit),
 		nodeIdx,
 		def.ForkVersion,
 	)
@@ -638,11 +638,16 @@ func signAndAggValidatorRegistrations(
 	ex *exchanger,
 	shares []share,
 	feeRecipients []string,
-	gasLimit uint64,
+	targetGasLimit uint64,
 	nodeIdx cluster.NodeIdx,
 	forkVersion []byte,
 ) ([]core.VersionedSignedValidatorRegistration, error) {
-	parSig, valRegs, err := signValidatorRegistrations(shares, nodeIdx.ShareIdx, feeRecipients, gasLimit, forkVersion)
+	if targetGasLimit == 0 {
+		log.Warn(ctx, "", errors.New("custom target gas limit not supported, setting to default", z.Uint("default_gas_limit", registration.DefaultGasLimit)))
+		targetGasLimit = registration.DefaultGasLimit
+	}
+
+	parSig, valRegs, err := signValidatorRegistrations(shares, nodeIdx.ShareIdx, feeRecipients, targetGasLimit, forkVersion)
 	if err != nil {
 		return nil, err
 	}
