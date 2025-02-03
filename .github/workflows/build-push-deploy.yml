@@ -39,7 +39,7 @@ jobs:
           type=raw,value=next,event=branch,enable={{is_default_branch}}
 
           # Tag "latest" on git-tag events
-          type=semver,value=latest,event=tag,enable={{ startsWith(ref, 'refs/tags/v') }}
+          type=raw,value=latest,event=tag,enable=${{ matches(github.ref, '^refs/tags/v?[0-9]+\\.[0-9]+\\.[0-9]+$') }}
 
           # Tag "$APP_VERSION" on git-push-to-branch events
           type=raw,value=${{ env.APP_VERSION }},event=branch
