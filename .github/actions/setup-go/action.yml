@@ -15,5 +15,6 @@ runs:
         go-version: '1.23'
 
     - name: Verify setup
+      shell: bash
       run: |
         echo "Go version: $(go version)"
