@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-24.04
     name: Build Cross-Platform Binaries
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
@@ -78,7 +78,7 @@ jobs:
         sha256sum charon-${{ env.RELEASE_VERSION }}-linux-arm64.tar.gz >> checksums.txt
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: charon-${{ env.RELEASE_VERSION }}-binaries
         path: |
@@ -90,7 +90,7 @@ jobs:
 
     - name: Attach to GitHub Release
       if: github.event.workflow_run.conclusion == 'success'
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         files: |
           dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz
