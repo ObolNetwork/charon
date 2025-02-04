@@ -7,7 +7,7 @@ on:
 name: Build and Publish Docker Image
 jobs:
   build-docker:
-    runs-on: charon-ci
+    runs-on: ubuntu-latest
     name: Build Docker Image
     steps:
     - uses: actions/checkout@v4
