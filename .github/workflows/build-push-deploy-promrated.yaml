@@ -1,3 +1,5 @@
+name: Build and Deploy Promrated Image
+
 on:
   push:
     branches:
@@ -5,7 +7,6 @@ on:
     paths:
       - testutil/promrated/*
 
-name: Build and Deply Promrated Image
 jobs:
   build-docker:
     runs-on: ubuntu-latest
@@ -14,21 +15,28 @@ jobs:
     - uses: actions/checkout@v4
     - name: Set up QEMU
       id: qemu
-      uses: docker/setup-qemu-action@v1
-    - uses: docker/setup-buildx-action@v1
+      uses: docker/setup-qemu-action@v3
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    - name: Cache Docker layers
+      uses: actions/cache@v3
+      with:
+        path: /tmp/.buildx-cache
+        key: ${{ runner.os }}-buildx-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-buildx-
 
     - name: Define docker image meta data tags
       id: meta
-      uses: docker/metadata-action@v3
+      uses: docker/metadata-action@v5
       with:
         images: |
           obolnetwork/promrated
           ghcr.io/obolnetwork/promrated
         tags: |
-          # Tag "git short sha" on all git events
           type=sha,prefix=
-          # Tag "latest" on all git events
           type=raw,value=latest
+
     - name: Login to Github container registry
       uses: docker/login-action@v2
       with:
@@ -42,7 +50,7 @@ jobs:
         username: obolnetwork
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - uses: docker/build-push-action@v4
+    - uses: docker/build-push-action@v5
       with:
         context: .
         file: ./testutil/promrated/Dockerfile
@@ -50,18 +58,23 @@ jobs:
         push: true
         build-args: GITHUB_SHA=${{ github.sha }}
         tags: ${{ steps.meta.outputs.tags }}
+        cache-from: type=local,src=/tmp/.buildx-cache
+        cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+    - name: Move cache
+      run: |
+        rm -rf /tmp/.buildx-cache
+        mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
     - name: Set short git commit SHA
       id: vars
-      run: |
-        calculatedSha=$(git rev-parse --short=7 ${{ github.sha }})
-        echo "::set-output name=short_sha::$calculatedSha"
+      run: echo "short_sha=$(git rev-parse --short=7 ${{ github.sha }})" >> $GITHUB_OUTPUT
 
     - name: Confirm git commit SHA output
       run: echo ${{ steps.vars.outputs.short_sha }}
 
     - name: Trigger promrated deploy job
-      uses: peter-evans/repository-dispatch@v2
+      uses: peter-evans/repository-dispatch@v3
       with:
         token: ${{ secrets.CHARON_K8S_REPO_ACCESS_TOKEN }}
         repository: ObolNetwork/obol-infrastructure
