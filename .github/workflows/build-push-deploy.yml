@@ -2,6 +2,7 @@ on:
   push:
     branches:
       - main*
+      - electra
     tags:
       - 'v*'
 name: Build and Publish Docker Image
@@ -41,8 +42,12 @@ jobs:
           # Tag "latest" on git-tag events
           type=raw,value=latest,event=tag,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
 
+          # Tag "electra" only when pushing to the "electra" branch
+          type=raw,value=electra,event=branch,enable=${{ github.ref == 'refs/heads/electra' }}
+
           # Tag "$APP_VERSION" on git-push-to-branch events
-          type=raw,value=${{ env.APP_VERSION }},event=branch
+          type=raw,value=${{ env.APP_VERSION }},event=branch,enable=${{ github.ref != 'refs/heads/electra' }}
+
 
           # Tag "tag ref" on git-tag events
           type=ref,event=tag
