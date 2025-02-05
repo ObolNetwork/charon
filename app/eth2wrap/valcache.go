@@ -17,6 +17,11 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
+var (
+	maxRetries = 20
+	retryDelay = 100 * time.Millisecond
+)
+
 // ActiveValidators is a map of active validator indices to pubkeys.
 type ActiveValidators map[eth2p0.ValidatorIndex]eth2p0.BLSPubKey
 
@@ -139,7 +144,6 @@ func (c *ValidatorCache) Get(ctx context.Context) (ActiveValidators, CompleteVal
 
 // GetBySlot fetches active and complete validator by slot populating the cache.
 func (c *ValidatorCache) GetBySlot(ctx context.Context, slot uint64) (ActiveValidators, CompleteValidators, error) {
-
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -150,12 +154,10 @@ func (c *ValidatorCache) GetBySlot(ctx context.Context, slot uint64) (ActiveVali
 
 	var eth2Resp *eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator]
 	var err error
-	maxRetries := 20
-	retryDelay := 100 * time.Millisecond
 
 	for retryCount := 0; retryCount < maxRetries; retryCount++ {
 		eth2Resp, err = c.eth2Cl.Validators(ctx, opts)
-		if err == nil {
+		if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			break
 		}
 
@@ -170,10 +172,10 @@ func (c *ValidatorCache) GetBySlot(ctx context.Context, slot uint64) (ActiveVali
 		return nil, nil, wrapError(ctx, err, "Failed to fetch validators by slot after maximum retries")
 	}
 
-	vals := eth2Resp.Data
+	complete := eth2Resp.Data
 
-	resp := make(ActiveValidators)
-	for _, val := range vals {
+	active := make(ActiveValidators)
+	for _, val := range complete {
 		if val == nil || val.Validator == nil {
 			return nil, nil, errors.New("validator data cannot be nil")
 		}
@@ -182,11 +184,11 @@ func (c *ValidatorCache) GetBySlot(ctx context.Context, slot uint64) (ActiveVali
 			continue
 		}
 
-		resp[val.Index] = val.Validator.PublicKey
+		active[val.Index] = val.Validator.PublicKey
 	}
 
-	c.active = resp
+	c.active = active
 	c.complete = eth2Resp.Data
 
-	return resp, eth2Resp.Data, nil
+	return active, eth2Resp.Data, nil
 }

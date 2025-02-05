@@ -90,7 +90,6 @@ func TestValidatorCache(t *testing.T) {
 }
 
 func TestGetBySlot(t *testing.T) {
-
 	// Create a mock client.
 	eth2Cl, err := beaconmock.New()
 	require.NoError(t, err)
@@ -138,7 +137,7 @@ func TestGetBySlot(t *testing.T) {
 				},
 			}, nil
 		default:
-			return nil, nil
+			return beaconmock.ValidatorSet{}, nil
 		}
 	}
 
@@ -148,6 +147,7 @@ func TestGetBySlot(t *testing.T) {
 	active, complete, err := valCache.GetBySlot(ctx, 1)
 	require.NoError(t, err)
 	require.Len(t, active, 1)
+	require.Equal(t, pubkeys[1], active[1])
 	require.Len(t, complete, 2)
 
 	active, complete, err = valCache.GetBySlot(ctx, 2)
