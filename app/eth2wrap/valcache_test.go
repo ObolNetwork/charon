@@ -12,6 +12,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
@@ -155,7 +156,7 @@ func TestGetBySlot(t *testing.T) {
 			}, nil
 
 		default:
-			return beaconmock.ValidatorSet{}, nil
+			return nil, errors.New("no slot found")
 		}
 	}
 
@@ -177,4 +178,7 @@ func TestGetBySlot(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, active, 0)
 	require.Len(t, complete, 2)
+
+	_, _, err = valCache.GetBySlot(ctx, 3)
+	require.Error(t, err)
 }
