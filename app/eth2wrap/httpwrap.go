@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
+	"github.com/obolnetwork/charon/eth2util/statecommittees"
 )
 
 // BlockAttestationsProvider is the interface for providing attestations included in blocks.
@@ -35,6 +37,13 @@ type BlockAttestationsProvider interface {
 	// Deprecated: use BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error)
 	BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error)
 	BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error)
+}
+
+// BeaconStateCommitteesProvider is the interface for providing committees for given slot.
+// It is a standard beacon API endpoint not implemented by eth2client.
+// See https://ethereum.github.io/beacon-APIs/#/Beacon/getEpochCommittees.
+type BeaconStateCommitteesProvider interface {
+	BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecommittees.StateCommittee, error)
 }
 
 // NodePeerCountProvider is the interface for providing node peer count.
@@ -184,7 +193,7 @@ func (h *httpAdapter) AggregateSyncCommitteeSelections(ctx context.Context, sele
 // See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockAttestations.
 func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
 	path := fmt.Sprintf("/eth/v1/beacon/blocks/%s/attestations", stateID)
-	respBody, statusCode, err := httpGet(ctx, h.address, path, h.timeout)
+	respBody, statusCode, err := httpGet(ctx, h.address, path, nil, h.timeout)
 	if err != nil {
 		return nil, errors.Wrap(err, "request block attestations")
 	} else if statusCode == http.StatusNotFound {
@@ -205,21 +214,24 @@ func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]
 // See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockAttestationsV2.
 func (h *httpAdapter) BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error) {
 	path := fmt.Sprintf("/eth/v2/beacon/blocks/%s/attestations", stateID)
-	resp, err := httpGetRaw(ctx, h.address, path, h.timeout)
+	ctx, cancel := context.WithTimeout(ctx, h.timeout)
+	defer cancel()
+
+	resp, err := httpGetRaw(ctx, h.address, path, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "request block attestations")
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, errors.Wrap(err, "request block attestations body")
-	}
-
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, nil // No block for slot, so no attestations.
 	} else if resp.StatusCode != http.StatusOK {
-		return nil, errors.New("request block attestations failed", z.Int("status", resp.StatusCode), z.Str("body", string(respBody)))
+		return nil, errors.New("request block attestations failed", z.Int("status", resp.StatusCode))
+	}
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "request block attestations body")
 	}
 
 	version, err := fetchConsensusVersion(resp)
@@ -284,9 +296,35 @@ func (h *httpAdapter) BlockAttestationsV2(ctx context.Context, stateID string) (
 	return res, nil
 }
 
+// BeaconStateCommittees returns the attestations included in the requested block.
+// See https://ethereum.github.io/beacon-APIs/#/Beacon/getStateValidators.
+func (h *httpAdapter) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecommittees.StateCommittee, error) {
+	r := strconv.FormatUint(slot, 10)
+	path := fmt.Sprintf("/eth/v1/beacon/states/%v/committees", r)
+	queryParams := map[string]string{
+		"slot": strconv.FormatUint(slot, 10),
+	}
+	respBody, statusCode, err := httpGet(ctx, h.address, path, queryParams, h.timeout)
+	if err != nil {
+		return nil, errors.Wrap(err, "request state committees for slot", z.Int("status", statusCode), z.U64("slot", slot))
+	}
+
+	if statusCode != http.StatusOK {
+		return nil, errors.New("request state committees for slot failed", z.Int("status", statusCode), z.U64("slot", slot))
+	}
+
+	var res statecommittees.StateCommitteesResponse
+	err = json.Unmarshal(respBody, &res)
+	if err != nil {
+		return nil, errors.Wrap(err, "unmarshal state committees", z.Int("status", statusCode), z.U64("slot", slot))
+	}
+
+	return res.Data, nil
+}
+
 // ProposerConfig implements eth2exp.ProposerConfigProvider.
 func (h *httpAdapter) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
-	respBody, statusCode, err := httpGet(ctx, h.address, "/proposer_config", h.timeout)
+	respBody, statusCode, err := httpGet(ctx, h.address, "/proposer_config", nil, h.timeout)
 	if err != nil {
 		return nil, errors.Wrap(err, "submit sync committee selections")
 	} else if statusCode != http.StatusOK {
@@ -305,7 +343,7 @@ func (h *httpAdapter) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConf
 // See https://ethereum.github.io/beacon-APIs/#/Node/getPeerCount.
 func (h *httpAdapter) NodePeerCount(ctx context.Context) (int, error) {
 	const path = "/eth/v1/node/peer_count"
-	respBody, statusCode, err := httpGet(ctx, h.address, path, h.timeout)
+	respBody, statusCode, err := httpGet(ctx, h.address, path, nil, h.timeout)
 	if err != nil {
 		return 0, errors.Wrap(err, "request beacon node peer count")
 	} else if statusCode != http.StatusOK {
@@ -400,10 +438,7 @@ func httpPost(ctx context.Context, base string, endpoint string, body io.Reader,
 }
 
 // httpGetRaw performs a GET request and returns the raw http response or an error.
-func httpGetRaw(ctx context.Context, base string, endpoint string, timeout time.Duration) (*http.Response, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
+func httpGetRaw(ctx context.Context, base string, endpoint string, queryParams map[string]string) (*http.Response, error) {
 	addr, err := url.JoinPath(base, endpoint)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid address")
@@ -419,6 +454,12 @@ func httpGetRaw(ctx context.Context, base string, endpoint string, timeout time.
 		return nil, errors.Wrap(err, "new GET request with ctx")
 	}
 
+	q := req.URL.Query()
+	for key, val := range queryParams {
+		q.Add(key, val)
+	}
+	req.URL.RawQuery = q.Encode()
+
 	res, err := new(http.Client).Do(req)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to call GET endpoint")
@@ -428,8 +469,11 @@ func httpGetRaw(ctx context.Context, base string, endpoint string, timeout time.
 }
 
 // httpGet performs a GET request and returns the body and status code or an error.
-func httpGet(ctx context.Context, base string, endpoint string, timeout time.Duration) ([]byte, int, error) {
-	res, err := httpGetRaw(ctx, base, endpoint, timeout)
+func httpGet(ctx context.Context, base string, endpoint string, queryParams map[string]string, timeout time.Duration) ([]byte, int, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	res, err := httpGetRaw(ctx, base, endpoint, queryParams)
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "failed to read GET response")
 	}
@@ -437,7 +481,7 @@ func httpGet(ctx context.Context, base string, endpoint string, timeout time.Dur
 
 	data, err := io.ReadAll(res.Body)
 	if err != nil {
-		return nil, 0, errors.Wrap(err, "failed to read GET response body")
+		return nil, res.StatusCode, errors.Wrap(err, "failed to read GET response body")
 	}
 
 	return data, res.StatusCode, nil

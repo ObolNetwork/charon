@@ -19,6 +19,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util/statecommittees"
 )
 
 const (
@@ -53,6 +54,12 @@ type submission struct {
 type block struct {
 	Slot                   uint64
 	AttestationsByDataRoot map[eth2p0.Root]*eth2spec.VersionedAttestation
+}
+
+// attCommittee is a versioned attestation with its aggregation bits mapped to the respective beacon committee
+type attCommittee struct {
+	Attestation           *eth2spec.VersionedAttestation
+	CommitteeAggregations map[eth2p0.CommitteeIndex]bitfield.Bitlist
 }
 
 // trackerInclFunc defines the tracker callback for the inclusion checker.
@@ -460,8 +467,22 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64) error {
 		return nil // No block for this slot
 	}
 
-	// Map attestations by data root, merging duplicates (with identical attestation data).
-	attsMap := make(map[eth2p0.Root]*eth2spec.VersionedAttestation)
+	// Get the slot for which the attestations in the current slot are.
+	// This is usually the previous slot, except when the previous is a missed proposal.
+	attestation0Data, err := atts[0].Data()
+	if err != nil {
+		return err
+	}
+	attestedSlot := attestation0Data.Slot
+
+	// Get the beacon committee for the above mentioned slot.
+	committeesForState, err := a.eth2Cl.BeaconStateCommittees(ctx, uint64(attestedSlot))
+	if err != nil {
+		return err
+	}
+
+	// Map attestations by data root, merging duplicates' aggregation bits.
+	attsCommitteesMap := make(map[eth2p0.Root]*attCommittee)
 	for _, att := range atts {
 		if att == nil {
 			return errors.New("invalid attestation")
@@ -486,28 +507,30 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64) error {
 			return err
 		}
 
-		attAggregationBits, err := att.AggregationBits()
+		attCommittee := &attCommittee{
+			Attestation: att,
+		}
+		err = a.conjugateAggregationBits(attCommittee, attsCommitteesMap, root, committeesForState)
 		if err != nil {
-			return errors.Wrap(err, "get attestation aggregation bits")
+			return err
 		}
+		attsCommitteesMap[root] = attCommittee
+	}
 
-		if exist, ok := attsMap[root]; ok {
-			existAttAggregationBits, err := exist.AggregationBits()
-			if err != nil {
-				return errors.Wrap(err, "get attestation aggregation bits")
+	attsMap := make(map[eth2p0.Root]*eth2spec.VersionedAttestation)
+	for root, att := range attsCommitteesMap {
+		unwrapedAtt := att.Attestation
+		if att.CommitteeAggregations != nil {
+			aggBits := bitfield.Bitlist{}
+			for _, commBits := range att.CommitteeAggregations {
+				aggBits = append(aggBits, commBits...)
 			}
-			// Merge duplicate attestations (only aggregation bits)
-			bits, err := attAggregationBits.Or(existAttAggregationBits)
+			err = setAttestationAggregationBits(*unwrapedAtt, aggBits)
 			if err != nil {
-				return errors.Wrap(err, "merge attestation aggregation bits")
-			}
-			err = setAttestationAggregationBits(*att, bits)
-			if err != nil {
-				return errors.Wrap(err, "set attestation aggregation bits")
+				return err
 			}
 		}
-
-		attsMap[root] = att
+		attsMap[root] = unwrapedAtt
 	}
 
 	a.checkBlockFunc(ctx, block{Slot: slot, AttestationsByDataRoot: attsMap})
@@ -610,5 +633,115 @@ func setAttestationAggregationBits(att eth2spec.VersionedAttestation, bits bitfi
 		return nil
 	default:
 		return errors.New("unknown attestation version", z.Str("version", att.Version.String()))
+	}
+}
+
+func (a *InclusionChecker) conjugateAggregationBits(att *attCommittee, attsMap map[eth2p0.Root]*attCommittee, root eth2p0.Root, committeesForState []*statecommittees.StateCommittee) error {
+	switch att.Attestation.Version {
+	case eth2spec.DataVersionPhase0:
+		if att.Attestation.Phase0 == nil {
+			return errors.New("no Phase0 attestation")
+		}
+
+		return a.conjugateAggregationBitsPhase0(att, attsMap, root)
+	case eth2spec.DataVersionAltair:
+		if att.Attestation.Altair == nil {
+			return errors.New("no Altair attestation")
+		}
+
+		return a.conjugateAggregationBitsPhase0(att, attsMap, root)
+	case eth2spec.DataVersionBellatrix:
+		if att.Attestation.Bellatrix == nil {
+			return errors.New("no Bellatrix attestation")
+		}
+
+		return a.conjugateAggregationBitsPhase0(att, attsMap, root)
+	case eth2spec.DataVersionCapella:
+		if att.Attestation.Capella == nil {
+			return errors.New("no Capella attestation")
+		}
+
+		return a.conjugateAggregationBitsPhase0(att, attsMap, root)
+	case eth2spec.DataVersionDeneb:
+		if att.Attestation.Deneb == nil {
+			return errors.New("no Deneb attestation")
+		}
+
+		return a.conjugateAggregationBitsPhase0(att, attsMap, root)
+	case eth2spec.DataVersionElectra:
+		if att.Attestation.Electra == nil {
+			return errors.New("no Electra attestation")
+		}
+
+		return a.conjugateAggregationBitsElectra(att, attsMap, root, committeesForState)
+	default:
+		return errors.New("unknown attestation version", z.Str("version", att.Attestation.Version.String()))
+	}
+}
+
+func (a *InclusionChecker) conjugateAggregationBitsPhase0(att *attCommittee, attsMap map[eth2p0.Root]*attCommittee, root eth2p0.Root) error {
+	attAggregationBits, err := att.Attestation.AggregationBits()
+	if err != nil {
+		return errors.Wrap(err, "get attestation aggregation bits")
+	}
+
+	if exist, ok := attsMap[root]; ok {
+		existAttAggregationBits, err := exist.Attestation.AggregationBits()
+		if err != nil {
+			return errors.Wrap(err, "get attestation aggregation bits")
+		}
+		// Merge duplicate attestations (only aggregation bits).
+		bits, err := attAggregationBits.Or(existAttAggregationBits)
+		if err != nil {
+			return errors.Wrap(err, "merge attestation aggregation bits")
+		}
+		err = setAttestationAggregationBits(*att.Attestation, bits)
+		if err != nil {
+			return errors.Wrap(err, "set attestation aggregation bits")
+		}
+	}
+
+	return nil
+}
+
+func (a *InclusionChecker) conjugateAggregationBitsElectra(att *attCommittee, attsMap map[eth2p0.Root]*attCommittee, root eth2p0.Root, committeesForState []*statecommittees.StateCommittee) error {
+	fullAttestationAggregationBits, err := att.Attestation.AggregationBits()
+	if err != nil {
+		return err
+	}
+	committeeBits, err := att.Attestation.CommitteeBits()
+	if err != nil {
+		return err
+	}
+
+	if exist, ok := attsMap[root]; ok {
+		updateAggregationBits(committeeBits, exist.CommitteeAggregations, fullAttestationAggregationBits)
+	} else {
+		// Create new empty map of committee indeces and aggregations per committee.
+		attsAggBits := make(map[eth2p0.CommitteeIndex]bitfield.Bitlist)
+		// Create a 0'ed bitlist of aggregations of size the amount of validators for all committees.
+		for _, comm := range committeesForState {
+			attsAggBits[comm.Index] = bitfield.NewBitlist(uint64(len(comm.Validators)))
+		}
+
+		updateAggregationBits(committeeBits, attsAggBits, fullAttestationAggregationBits)
+	}
+
+	return nil
+}
+
+func updateAggregationBits(committeeBits bitfield.Bitvector64, committeeAggregation map[eth2p0.CommitteeIndex]bitfield.Bitlist, fullAttestationAggregationBits bitfield.Bitlist) {
+	offset := uint64(0)
+	// Iterate over all committees that attested in the current attestation object.
+	for _, committeeIndex := range committeeBits.BitIndices() {
+		validatorsInCommittee := committeeAggregation[eth2p0.CommitteeIndex(committeeIndex)].Len()
+		// Iterate over all validators in the committee.
+		for idx := range validatorsInCommittee {
+			// Update the existing map if the said validator attested.
+			if fullAttestationAggregationBits.BitAt(offset + idx) {
+				committeeAggregation[eth2p0.CommitteeIndex(committeeIndex)].SetBitAt(idx, fullAttestationAggregationBits.BitAt(offset+idx))
+			}
+		}
+		offset += validatorsInCommittee
 	}
 }
