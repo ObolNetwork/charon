@@ -88,3 +88,70 @@ func TestValidatorCache(t *testing.T) {
 	require.Equal(t, 2, queried)
 	require.Equal(t, completeExpected, complete)
 }
+
+func TestGetBySlot(t *testing.T) {
+
+	// Create a mock client.
+	eth2Cl, err := beaconmock.New()
+	require.NoError(t, err)
+
+	// Create two validators pubkeys
+	pubkeys := []eth2p0.BLSPubKey{
+		testutil.RandomEth2PubKey(t),
+		testutil.RandomEth2PubKey(t),
+	}
+
+	eth2Cl.ValidatorsFunc = func(ctx context.Context, opts *eth2api.ValidatorsOpts) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+		switch opts.State {
+		case "1":
+			return beaconmock.ValidatorSet{
+				0: &eth2v1.Validator{
+					Index:  0,
+					Status: eth2v1.ValidatorStatePendingQueued,
+					Validator: &eth2p0.Validator{
+						PublicKey: pubkeys[0],
+					},
+				},
+				1: &eth2v1.Validator{
+					Index:  1,
+					Status: eth2v1.ValidatorStateActiveOngoing,
+					Validator: &eth2p0.Validator{
+						PublicKey: pubkeys[1],
+					},
+				},
+			}, nil
+		case "2":
+			return beaconmock.ValidatorSet{
+				0: &eth2v1.Validator{
+					Index:  0,
+					Status: eth2v1.ValidatorStateActiveOngoing,
+					Validator: &eth2p0.Validator{
+						PublicKey: pubkeys[0],
+					},
+				},
+				1: &eth2v1.Validator{
+					Index:  1,
+					Status: eth2v1.ValidatorStateActiveOngoing,
+					Validator: &eth2p0.Validator{
+						PublicKey: pubkeys[1],
+					},
+				},
+			}, nil
+		default:
+			return nil, nil
+		}
+	}
+
+	valCache := eth2wrap.NewValidatorCache(eth2Cl, pubkeys)
+	ctx := context.Background()
+
+	active, complete, err := valCache.GetBySlot(ctx, 1)
+	require.NoError(t, err)
+	require.Len(t, active, 1)
+	require.Len(t, complete, 2)
+
+	active, complete, err = valCache.GetBySlot(ctx, 2)
+	require.NoError(t, err)
+	require.Len(t, active, 2)
+	require.Len(t, complete, 2)
+}
