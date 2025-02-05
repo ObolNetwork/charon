@@ -27,7 +27,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
-	"github.com/obolnetwork/charon/eth2util/statecommittees"
+	"github.com/obolnetwork/charon/eth2util/statecomm"
 )
 
 // BlockAttestationsProvider is the interface for providing attestations included in blocks.
@@ -43,7 +43,7 @@ type BlockAttestationsProvider interface {
 // It is a standard beacon API endpoint not implemented by eth2client.
 // See https://ethereum.github.io/beacon-APIs/#/Beacon/getEpochCommittees.
 type BeaconStateCommitteesProvider interface {
-	BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecommittees.StateCommittee, error)
+	BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error)
 }
 
 // NodePeerCountProvider is the interface for providing node peer count.
@@ -298,7 +298,7 @@ func (h *httpAdapter) BlockAttestationsV2(ctx context.Context, stateID string) (
 
 // BeaconStateCommittees returns the attestations included in the requested block.
 // See https://ethereum.github.io/beacon-APIs/#/Beacon/getStateValidators.
-func (h *httpAdapter) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecommittees.StateCommittee, error) {
+func (h *httpAdapter) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error) {
 	r := strconv.FormatUint(slot, 10)
 	path := fmt.Sprintf("/eth/v1/beacon/states/%v/committees", r)
 	queryParams := map[string]string{
@@ -313,7 +313,7 @@ func (h *httpAdapter) BeaconStateCommittees(ctx context.Context, slot uint64) ([
 		return nil, errors.New("request state committees for slot failed", z.Int("status", statusCode), z.U64("slot", slot))
 	}
 
-	var res statecommittees.StateCommitteesResponse
+	var res statecomm.StateCommitteesResponse
 	err = json.Unmarshal(respBody, &res)
 	if err != nil {
 		return nil, errors.Wrap(err, "unmarshal state committees", z.Int("status", statusCode), z.U64("slot", slot))

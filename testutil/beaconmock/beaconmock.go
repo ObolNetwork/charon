@@ -39,7 +39,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
-	"github.com/obolnetwork/charon/eth2util/statecommittees"
+	"github.com/obolnetwork/charon/eth2util/statecomm"
 )
 
 // Interface assertions.
@@ -129,7 +129,7 @@ type Mock struct {
 	AttesterDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
 	BlockAttestationsFunc                  func(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error)
 	BlockAttestationsV2Func                func(ctx context.Context, stateID string) ([]*eth2spec.VersionedAttestation, error)
-	BeaconStateCommitteesFunc              func(ctx context.Context, slot uint64) ([]*statecommittees.StateCommittee, error)
+	BeaconStateCommitteesFunc              func(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error)
 	NodePeerCountFunc                      func(ctx context.Context) (int, error)
 	ProposalFunc                           func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error)
 	SignedBeaconBlockFunc                  func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error)
@@ -289,7 +289,7 @@ func (m Mock) BlockAttestationsV2(ctx context.Context, stateID string) ([]*eth2s
 	return m.BlockAttestationsV2Func(ctx, stateID)
 }
 
-func (m Mock) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecommittees.StateCommittee, error) {
+func (m Mock) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error) {
 	return m.BeaconStateCommitteesFunc(ctx, slot)
 }
 

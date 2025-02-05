@@ -1,15 +1,15 @@
 // Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package statecommittees
+package statecomm
 
 import (
 	"encoding/json"
 	"fmt"
 	"strconv"
 
-	"github.com/obolnetwork/charon/app/errors"
-
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 // StateCommitteesResponse is simplified response structure for fetching the beacon node committees for a given state.

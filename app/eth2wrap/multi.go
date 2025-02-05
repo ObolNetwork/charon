@@ -9,7 +9,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
-	"github.com/obolnetwork/charon/eth2util/statecommittees"
+	"github.com/obolnetwork/charon/eth2util/statecomm"
 )
 
 // NewMultiForT creates a new mutil client for testing.
@@ -214,12 +214,12 @@ func (m multi) BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec
 	return res, err
 }
 
-func (m multi) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecommittees.StateCommittee, error) {
+func (m multi) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error) {
 	const label = "beacon_state_committees"
 	defer latency(ctx, label, false)()
 
 	res, err := provide(ctx, m.clients, m.fallbacks,
-		func(ctx context.Context, args provideArgs) ([]*statecommittees.StateCommittee, error) {
+		func(ctx context.Context, args provideArgs) ([]*statecomm.StateCommittee, error) {
 			return args.client.BeaconStateCommittees(ctx, slot)
 		},
 		nil, m.selector,

@@ -19,7 +19,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/eth2util/statecommittees"
+	"github.com/obolnetwork/charon/eth2util/statecomm"
 )
 
 const (
@@ -510,7 +510,7 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64) error {
 		attCommittee := &attCommittee{
 			Attestation: att,
 		}
-		err = a.conjugateAggregationBits(attCommittee, attsCommitteesMap, root, committeesForState)
+		err = conjugateAggregationBits(attCommittee, attsCommitteesMap, root, committeesForState)
 		if err != nil {
 			return err
 		}
@@ -636,50 +636,50 @@ func setAttestationAggregationBits(att eth2spec.VersionedAttestation, bits bitfi
 	}
 }
 
-func (a *InclusionChecker) conjugateAggregationBits(att *attCommittee, attsMap map[eth2p0.Root]*attCommittee, root eth2p0.Root, committeesForState []*statecommittees.StateCommittee) error {
+func conjugateAggregationBits(att *attCommittee, attsMap map[eth2p0.Root]*attCommittee, root eth2p0.Root, committeesForState []*statecomm.StateCommittee) error {
 	switch att.Attestation.Version {
 	case eth2spec.DataVersionPhase0:
 		if att.Attestation.Phase0 == nil {
 			return errors.New("no Phase0 attestation")
 		}
 
-		return a.conjugateAggregationBitsPhase0(att, attsMap, root)
+		return conjugateAggregationBitsPhase0(att, attsMap, root)
 	case eth2spec.DataVersionAltair:
 		if att.Attestation.Altair == nil {
 			return errors.New("no Altair attestation")
 		}
 
-		return a.conjugateAggregationBitsPhase0(att, attsMap, root)
+		return conjugateAggregationBitsPhase0(att, attsMap, root)
 	case eth2spec.DataVersionBellatrix:
 		if att.Attestation.Bellatrix == nil {
 			return errors.New("no Bellatrix attestation")
 		}
 
-		return a.conjugateAggregationBitsPhase0(att, attsMap, root)
+		return conjugateAggregationBitsPhase0(att, attsMap, root)
 	case eth2spec.DataVersionCapella:
 		if att.Attestation.Capella == nil {
 			return errors.New("no Capella attestation")
 		}
 
-		return a.conjugateAggregationBitsPhase0(att, attsMap, root)
+		return conjugateAggregationBitsPhase0(att, attsMap, root)
 	case eth2spec.DataVersionDeneb:
 		if att.Attestation.Deneb == nil {
 			return errors.New("no Deneb attestation")
 		}
 
-		return a.conjugateAggregationBitsPhase0(att, attsMap, root)
+		return conjugateAggregationBitsPhase0(att, attsMap, root)
 	case eth2spec.DataVersionElectra:
 		if att.Attestation.Electra == nil {
 			return errors.New("no Electra attestation")
 		}
 
-		return a.conjugateAggregationBitsElectra(att, attsMap, root, committeesForState)
+		return conjugateAggregationBitsElectra(att, attsMap, root, committeesForState)
 	default:
 		return errors.New("unknown attestation version", z.Str("version", att.Attestation.Version.String()))
 	}
 }
 
-func (a *InclusionChecker) conjugateAggregationBitsPhase0(att *attCommittee, attsMap map[eth2p0.Root]*attCommittee, root eth2p0.Root) error {
+func conjugateAggregationBitsPhase0(att *attCommittee, attsMap map[eth2p0.Root]*attCommittee, root eth2p0.Root) error {
 	attAggregationBits, err := att.Attestation.AggregationBits()
 	if err != nil {
 		return errors.Wrap(err, "get attestation aggregation bits")
@@ -704,7 +704,7 @@ func (a *InclusionChecker) conjugateAggregationBitsPhase0(att *attCommittee, att
 	return nil
 }
 
-func (a *InclusionChecker) conjugateAggregationBitsElectra(att *attCommittee, attsMap map[eth2p0.Root]*attCommittee, root eth2p0.Root, committeesForState []*statecommittees.StateCommittee) error {
+func conjugateAggregationBitsElectra(att *attCommittee, attsMap map[eth2p0.Root]*attCommittee, root eth2p0.Root, committeesForState []*statecomm.StateCommittee) error {
 	fullAttestationAggregationBits, err := att.Attestation.AggregationBits()
 	if err != nil {
 		return err
@@ -717,7 +717,7 @@ func (a *InclusionChecker) conjugateAggregationBitsElectra(att *attCommittee, at
 	if exist, ok := attsMap[root]; ok {
 		updateAggregationBits(committeeBits, exist.CommitteeAggregations, fullAttestationAggregationBits)
 	} else {
-		// Create new empty map of committee indeces and aggregations per committee.
+		// Create new empty map of committee indices and aggregations per committee.
 		attsAggBits := make(map[eth2p0.CommitteeIndex]bitfield.Bitlist)
 		// Create a 0'ed bitlist of aggregations of size the amount of validators for all committees.
 		for _, comm := range committeesForState {
