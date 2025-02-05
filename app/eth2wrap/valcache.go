@@ -148,7 +148,7 @@ func (c *ValidatorCache) GetBySlot(ctx context.Context, slot uint64) (ActiveVali
 	defer c.mu.Unlock()
 
 	opts := &eth2api.ValidatorsOpts{
-		State:   strconv.Itoa(int(slot)),
+		State:   strconv.FormatUint(slot, 10),
 		PubKeys: c.pubkeys,
 	}
 

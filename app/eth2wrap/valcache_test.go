@@ -136,6 +136,24 @@ func TestGetBySlot(t *testing.T) {
 					},
 				},
 			}, nil
+		case "11":
+			return beaconmock.ValidatorSet{
+				0: &eth2v1.Validator{
+					Index:  0,
+					Status: eth2v1.ValidatorStatePendingQueued,
+					Validator: &eth2p0.Validator{
+						PublicKey: pubkeys[0],
+					},
+				},
+				1: &eth2v1.Validator{
+					Index:  1,
+					Status: eth2v1.ValidatorStatePendingQueued,
+					Validator: &eth2p0.Validator{
+						PublicKey: pubkeys[1],
+					},
+				},
+			}, nil
+
 		default:
 			return beaconmock.ValidatorSet{}, nil
 		}
@@ -153,5 +171,10 @@ func TestGetBySlot(t *testing.T) {
 	active, complete, err = valCache.GetBySlot(ctx, 2)
 	require.NoError(t, err)
 	require.Len(t, active, 2)
+	require.Len(t, complete, 2)
+
+	active, complete, err = valCache.GetBySlot(ctx, 11)
+	require.NoError(t, err)
+	require.Len(t, active, 0)
 	require.Len(t, complete, 2)
 }
