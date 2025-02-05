@@ -17,7 +17,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-var (
+const (
 	maxRetries = 20
 	retryDelay = 100 * time.Millisecond
 )
@@ -188,7 +188,7 @@ func (c *ValidatorCache) GetBySlot(ctx context.Context, slot uint64) (ActiveVali
 	}
 
 	c.active = active
-	c.complete = eth2Resp.Data
+	c.complete = complete
 
-	return active, eth2Resp.Data, nil
+	return active, complete, nil
 }
