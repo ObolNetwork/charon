@@ -54,6 +54,7 @@ type submission struct {
 type block struct {
 	Slot                   uint64
 	AttestationsByDataRoot map[eth2p0.Root]*eth2spec.VersionedAttestation
+	BeaconCommitees        []*statecomm.StateCommittee
 }
 
 // attCommittee is a versioned attestation with its aggregation bits mapped to the respective beacon committee
@@ -284,24 +285,36 @@ func checkAttestationInclusion(sub submission, block block) (bool, error) {
 	if !ok {
 		return false, nil
 	}
-
-	attAggregationBits, err := att.AggregationBits()
+	attAggBits, err := att.AggregationBits()
 	if err != nil {
 		return false, errors.Wrap(err, "get attestation aggregation bits")
 	}
-	subBits, err := sub.Data.(core.VersionedAttestation).AggregationBits()
+
+	subData, ok := sub.Data.(core.VersionedAttestation)
+	if !ok {
+		return false, errors.New("invalid attestation")
+	}
+	subAggBits, err := subData.AggregationBits()
 	if err != nil {
 		return false, errors.Wrap(err, "get attestation aggregation bits")
 	}
-	ok, err = attAggregationBits.Contains(subBits)
+	if len(subAggBits.BitIndices()) != 1 {
+		return false, errors.New("unexpected number of aggregation bits")
+	}
+	subAggIdx := subAggBits.BitIndices()[0]
+	subCommIdx, err := subData.CommitteeIndex()
 	if err != nil {
-		return false, errors.Wrap(err, "check aggregation bits",
-			z.U64("block_bits", attAggregationBits.Len()),
-			z.U64("sub_bits", subBits.Len()),
-		)
+		return false, errors.Wrap(err, "get committee index")
 	}
 
-	return ok, nil
+	// Calculate the length of validators of committees before the committee index of the submitted attestation.
+	previousCommsValidatorsLen := 0
+	for idx := range subCommIdx {
+		previousCommsValidatorsLen += len(block.BeaconCommitees[idx].Validators)
+	}
+
+	// Previous committees validators length + validator index in attestation committee gives the index of the attestation in the full agreggation bits bitlist.
+	return attAggBits.BitAt(uint64(previousCommsValidatorsLen) + uint64(subAggIdx)), nil
 }
 
 // reportMissed reports duties that were broadcast but never included on chain.
@@ -510,10 +523,11 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64) error {
 		attCommittee := &attCommittee{
 			Attestation: att,
 		}
-		err = conjugateAggregationBits(attCommittee, attsCommitteesMap, root, committeesForState)
+		committeeAggregations, err := conjugateAggregationBits(attCommittee, attsCommitteesMap, root, committeesForState)
 		if err != nil {
 			return err
 		}
+		attCommittee.CommitteeAggregations = committeeAggregations
 		attsCommitteesMap[root] = attCommittee
 	}
 
@@ -533,7 +547,7 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64) error {
 		attsMap[root] = unwrapedAtt
 	}
 
-	a.checkBlockFunc(ctx, block{Slot: slot, AttestationsByDataRoot: attsMap})
+	a.checkBlockFunc(ctx, block{Slot: slot, AttestationsByDataRoot: attsMap, BeaconCommitees: committeesForState})
 
 	return nil
 }
@@ -636,46 +650,46 @@ func setAttestationAggregationBits(att eth2spec.VersionedAttestation, bits bitfi
 	}
 }
 
-func conjugateAggregationBits(att *attCommittee, attsMap map[eth2p0.Root]*attCommittee, root eth2p0.Root, committeesForState []*statecomm.StateCommittee) error {
+func conjugateAggregationBits(att *attCommittee, attsMap map[eth2p0.Root]*attCommittee, root eth2p0.Root, committeesForState []*statecomm.StateCommittee) (map[eth2p0.CommitteeIndex]bitfield.Bitlist, error) {
 	switch att.Attestation.Version {
 	case eth2spec.DataVersionPhase0:
 		if att.Attestation.Phase0 == nil {
-			return errors.New("no Phase0 attestation")
+			return nil, errors.New("no Phase0 attestation")
 		}
 
-		return conjugateAggregationBitsPhase0(att, attsMap, root)
+		return nil, conjugateAggregationBitsPhase0(att, attsMap, root)
 	case eth2spec.DataVersionAltair:
 		if att.Attestation.Altair == nil {
-			return errors.New("no Altair attestation")
+			return nil, errors.New("no Altair attestation")
 		}
 
-		return conjugateAggregationBitsPhase0(att, attsMap, root)
+		return nil, conjugateAggregationBitsPhase0(att, attsMap, root)
 	case eth2spec.DataVersionBellatrix:
 		if att.Attestation.Bellatrix == nil {
-			return errors.New("no Bellatrix attestation")
+			return nil, errors.New("no Bellatrix attestation")
 		}
 
-		return conjugateAggregationBitsPhase0(att, attsMap, root)
+		return nil, conjugateAggregationBitsPhase0(att, attsMap, root)
 	case eth2spec.DataVersionCapella:
 		if att.Attestation.Capella == nil {
-			return errors.New("no Capella attestation")
+			return nil, errors.New("no Capella attestation")
 		}
 
-		return conjugateAggregationBitsPhase0(att, attsMap, root)
+		return nil, conjugateAggregationBitsPhase0(att, attsMap, root)
 	case eth2spec.DataVersionDeneb:
 		if att.Attestation.Deneb == nil {
-			return errors.New("no Deneb attestation")
+			return nil, errors.New("no Deneb attestation")
 		}
 
-		return conjugateAggregationBitsPhase0(att, attsMap, root)
+		return nil, conjugateAggregationBitsPhase0(att, attsMap, root)
 	case eth2spec.DataVersionElectra:
 		if att.Attestation.Electra == nil {
-			return errors.New("no Electra attestation")
+			return nil, errors.New("no Electra attestation")
 		}
 
 		return conjugateAggregationBitsElectra(att, attsMap, root, committeesForState)
 	default:
-		return errors.New("unknown attestation version", z.Str("version", att.Attestation.Version.String()))
+		return nil, errors.New("unknown attestation version", z.Str("version", att.Attestation.Version.String()))
 	}
 }
 
@@ -704,18 +718,19 @@ func conjugateAggregationBitsPhase0(att *attCommittee, attsMap map[eth2p0.Root]*
 	return nil
 }
 
-func conjugateAggregationBitsElectra(att *attCommittee, attsMap map[eth2p0.Root]*attCommittee, root eth2p0.Root, committeesForState []*statecomm.StateCommittee) error {
+func conjugateAggregationBitsElectra(att *attCommittee, attsMap map[eth2p0.Root]*attCommittee, root eth2p0.Root, committeesForState []*statecomm.StateCommittee) (map[eth2p0.CommitteeIndex]bitfield.Bitlist, error) {
 	fullAttestationAggregationBits, err := att.Attestation.AggregationBits()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	committeeBits, err := att.Attestation.CommitteeBits()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	var updated map[eth2p0.CommitteeIndex]bitfield.Bitlist
 	if exist, ok := attsMap[root]; ok {
-		updateAggregationBits(committeeBits, exist.CommitteeAggregations, fullAttestationAggregationBits)
+		updated = updateAggregationBits(committeeBits, exist.CommitteeAggregations, fullAttestationAggregationBits)
 	} else {
 		// Create new empty map of committee indices and aggregations per committee.
 		attsAggBits := make(map[eth2p0.CommitteeIndex]bitfield.Bitlist)
@@ -724,13 +739,13 @@ func conjugateAggregationBitsElectra(att *attCommittee, attsMap map[eth2p0.Root]
 			attsAggBits[comm.Index] = bitfield.NewBitlist(uint64(len(comm.Validators)))
 		}
 
-		updateAggregationBits(committeeBits, attsAggBits, fullAttestationAggregationBits)
+		updated = updateAggregationBits(committeeBits, attsAggBits, fullAttestationAggregationBits)
 	}
 
-	return nil
+	return updated, nil
 }
 
-func updateAggregationBits(committeeBits bitfield.Bitvector64, committeeAggregation map[eth2p0.CommitteeIndex]bitfield.Bitlist, fullAttestationAggregationBits bitfield.Bitlist) {
+func updateAggregationBits(committeeBits bitfield.Bitvector64, committeeAggregation map[eth2p0.CommitteeIndex]bitfield.Bitlist, fullAttestationAggregationBits bitfield.Bitlist) map[eth2p0.CommitteeIndex]bitfield.Bitlist {
 	offset := uint64(0)
 	// Iterate over all committees that attested in the current attestation object.
 	for _, committeeIndex := range committeeBits.BitIndices() {
@@ -744,4 +759,6 @@ func updateAggregationBits(committeeBits bitfield.Bitvector64, committeeAggregat
 		}
 		offset += validatorsInCommittee
 	}
+
+	return committeeAggregation
 }
