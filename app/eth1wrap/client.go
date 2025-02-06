@@ -57,8 +57,8 @@ func (cl *Client) initializeClient() error {
 	return nil
 }
 
-// VerifyGnosisSafeSignature returns true if sig is a valid signature of hash according to ERC-1271
-func (cl *Client) VerifyGnosisSafeSignature(contractAddress string, hash [32]byte, sig []byte) (bool, error) {
+// VerifySmartContractBasedSignature returns true if sig is a valid signature of hash according to ERC-1271
+func (cl *Client) VerifySmartContractBasedSignature(contractAddress string, hash [32]byte, sig []byte) (bool, error) {
 	err := cl.maybeInitializeClient()
 	if err != nil {
 		return false, nil

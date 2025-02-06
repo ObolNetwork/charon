@@ -105,7 +105,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	version.LogInfo(ctx, "Charon DKG starting")
 
-	// TODO(diogo): create eth1Client and perform gnosis safe sig verification
+	// TODO(diogo): create eth1Client and perform smart contract based sig verification
 	def, err := loadDefinition(ctx, conf)
 	if err != nil {
 		return err
