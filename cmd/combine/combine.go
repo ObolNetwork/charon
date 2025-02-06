@@ -65,6 +65,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 		z.Str("output_dir", outputDir),
 	)
 
+	// TODO(diogo): create eth1Client and perform gnosis safe sig verification
 	cluster, possibleKeyPaths, err := loadManifest(ctx, inputDir, noverify)
 	if err != nil {
 		return errors.Wrap(err, "cannot open manifest file")
@@ -257,6 +258,7 @@ func loadManifest(ctx context.Context, dir string, noverify bool) (*manifestpb.C
 		lockFile := filepath.Join(dir, sd.Name(), "cluster-lock.json")
 		manifestFile := filepath.Join(dir, sd.Name(), "cluster-manifest.pb")
 
+		// TODO(diogo): add gnosis safe signature verification
 		cl, err := manifest.LoadCluster(manifestFile, lockFile, func(lock cluster.Lock) error {
 			return verifyLock(ctx, lock, noverify)
 		})
