@@ -272,7 +272,7 @@ func TestSignedDataSetSignature(t *testing.T) {
 					Version: eth2spec.DataVersionPhase0,
 					Phase0: &eth2p0.Attestation{
 						AggregationBits: testutil.RandomBitList(1),
-						Data:            testutil.RandomAttestationData(),
+						Data:            testutil.RandomAttestationDataPhase0(),
 						Signature:       testutil.RandomEth2Signature(),
 					},
 				},
@@ -285,7 +285,7 @@ func TestSignedDataSetSignature(t *testing.T) {
 					Version: eth2spec.DataVersionAltair,
 					Altair: &eth2p0.Attestation{
 						AggregationBits: testutil.RandomBitList(1),
-						Data:            testutil.RandomAttestationData(),
+						Data:            testutil.RandomAttestationDataPhase0(),
 						Signature:       testutil.RandomEth2Signature(),
 					},
 				},
@@ -298,7 +298,7 @@ func TestSignedDataSetSignature(t *testing.T) {
 					Version: eth2spec.DataVersionBellatrix,
 					Bellatrix: &eth2p0.Attestation{
 						AggregationBits: testutil.RandomBitList(1),
-						Data:            testutil.RandomAttestationData(),
+						Data:            testutil.RandomAttestationDataPhase0(),
 						Signature:       testutil.RandomEth2Signature(),
 					},
 				},
@@ -311,7 +311,7 @@ func TestSignedDataSetSignature(t *testing.T) {
 					Version: eth2spec.DataVersionCapella,
 					Capella: &eth2p0.Attestation{
 						AggregationBits: testutil.RandomBitList(1),
-						Data:            testutil.RandomAttestationData(),
+						Data:            testutil.RandomAttestationDataPhase0(),
 						Signature:       testutil.RandomEth2Signature(),
 					},
 				},
@@ -324,7 +324,7 @@ func TestSignedDataSetSignature(t *testing.T) {
 					Version: eth2spec.DataVersionDeneb,
 					Deneb: &eth2p0.Attestation{
 						AggregationBits: testutil.RandomBitList(1),
-						Data:            testutil.RandomAttestationData(),
+						Data:            testutil.RandomAttestationDataPhase0(),
 						Signature:       testutil.RandomEth2Signature(),
 					},
 				},
@@ -337,7 +337,7 @@ func TestSignedDataSetSignature(t *testing.T) {
 					Version: eth2spec.DataVersionElectra,
 					Electra: &electra.Attestation{
 						AggregationBits: testutil.RandomBitList(1),
-						Data:            testutil.RandomAttestationData(),
+						Data:            testutil.RandomAttestationDataPhase0(),
 						Signature:       testutil.RandomEth2Signature(),
 						CommitteeBits:   testutil.RandomBitVec64(),
 					},
@@ -747,7 +747,7 @@ func TestVersionedSignedProposal(t *testing.T) {
 }
 
 func TestVersionedSignedAggregateAndProofUtilFunctions(t *testing.T) {
-	data := testutil.RandomAttestationData()
+	data := testutil.RandomAttestationDataPhase0()
 	aggregationBits := testutil.RandomBitList(64)
 	type testCase struct {
 		name              string

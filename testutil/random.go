@@ -122,7 +122,7 @@ func RandomValidatorSet(t *testing.T, vals int) map[eth2p0.ValidatorIndex]*eth2v
 func RandomPhase0Attestation() *eth2p0.Attestation {
 	return &eth2p0.Attestation{
 		AggregationBits: RandomBitList(1),
-		Data:            RandomAttestationData(),
+		Data:            RandomAttestationDataPhase0(),
 		Signature:       RandomEth2Signature(),
 	}
 }
@@ -130,7 +130,7 @@ func RandomPhase0Attestation() *eth2p0.Attestation {
 func RandomElectraAttestation() *electra.Attestation {
 	return &electra.Attestation{
 		AggregationBits: RandomBitList(1),
-		Data:            RandomAttestationData(),
+		Data:            RandomAttestationDataPhase0(),
 		Signature:       RandomEth2Signature(),
 		CommitteeBits:   RandomBitVec64(),
 	}
@@ -171,7 +171,7 @@ func RandomElectraVersionedAttestation() *eth2spec.VersionedAttestation {
 func RandomAggregateAttestation() *eth2p0.Attestation {
 	return &eth2p0.Attestation{
 		AggregationBits: RandomBitList(64),
-		Data:            RandomAttestationData(),
+		Data:            RandomAttestationDataPhase0(),
 		Signature:       RandomEth2Signature(),
 	}
 }
@@ -182,21 +182,35 @@ func RandomDenebCoreVersionedAggregateAttestation() core.VersionedAggregatedAtte
 			Version: eth2spec.DataVersionDeneb,
 			Deneb: &eth2p0.Attestation{
 				AggregationBits: RandomBitList(64),
-				Data:            RandomAttestationData(),
+				Data:            RandomAttestationDataPhase0(),
 				Signature:       RandomEth2Signature(),
 			},
 		},
 	}
 }
 
-func RandomAttestationData() *eth2p0.AttestationData {
-	return RandomAttestationDataSeed(NewSeedRand())
+func RandomAttestationDataPhase0() *eth2p0.AttestationData {
+	return RandomAttestationDataSeedPhase0(NewSeedRand())
 }
 
-func RandomAttestationDataSeed(r *rand.Rand) *eth2p0.AttestationData {
+func RandomAttestationDataSeedPhase0(r *rand.Rand) *eth2p0.AttestationData {
 	return &eth2p0.AttestationData{
 		Slot:            RandomSlotSeed(r),
 		Index:           RandomCommIdxSeed(r),
+		BeaconBlockRoot: RandomRootSeed(r),
+		Source:          RandomCheckpointSeed(r),
+		Target:          RandomCheckpointSeed(r),
+	}
+}
+
+func RandomAttestationDataElectra() *eth2p0.AttestationData {
+	return RandomAttestationDataSeedElectra(NewSeedRand())
+}
+
+func RandomAttestationDataSeedElectra(r *rand.Rand) *eth2p0.AttestationData {
+	return &eth2p0.AttestationData{
+		Slot:            RandomSlotSeed(r),
+		Index:           0,
 		BeaconBlockRoot: RandomRootSeed(r),
 		Source:          RandomCheckpointSeed(r),
 		Target:          RandomCheckpointSeed(r),
@@ -1425,7 +1439,7 @@ func RandomCoreAttestationDataSeed(t *testing.T, r *rand.Rand) core.AttestationD
 	t.Helper()
 
 	duty := RandomAttestationDutySeed(t, r)
-	data := RandomAttestationDataSeed(r)
+	data := RandomAttestationDataSeedPhase0(r)
 
 	return core.AttestationData{
 		Data: *data,

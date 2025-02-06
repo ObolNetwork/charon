@@ -1010,7 +1010,7 @@ func TestRouter(t *testing.T) {
 	t.Run("attestation data", func(t *testing.T) {
 		handler := testHandler{
 			AttestationDataFunc: func(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error) {
-				data := testutil.RandomAttestationData()
+				data := testutil.RandomAttestationDataPhase0()
 				data.Slot = opts.Slot
 				data.Index = opts.CommitteeIndex
 
