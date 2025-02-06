@@ -98,6 +98,7 @@ type Config struct {
 	BeaconNodeHeaders       []string
 	TargetGasLimit          uint
 	FallbackBeaconNodeAddrs []string
+	ExecutionEngineAddr     string
 
 	TestConfig TestConfig
 }
@@ -167,6 +168,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
+	// TODO(diogo): create eth1Client and perform gnosis safe sig verification
 	cluster, err := loadClusterManifest(ctx, conf)
 	if err != nil {
 		return err
