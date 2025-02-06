@@ -226,19 +226,30 @@ func TestFallback(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, returnValue, res)
 
-			// Verify all primaries were called
 			calledMu.Lock()
-			for i, called := range primaryCalled {
-				require.True(t, called, "primary client %d was not called", i)
+			defer calledMu.Unlock()
+
+			// Helper function to check if at least one client was called
+			atLeastOneCalled := func(called []bool) bool {
+				for _, c := range called {
+					if c {
+						return true
+					}
+				}
+				return false
 			}
 
-			// Verify all fallbacks were called (when all primaries fail)
+			// Only possible to check if all primaries are called if they all fail because
+			// otherwise one could return sooner without the other even being called.
 			if allPrimariesFail {
-				for i, called := range fallbackCalled {
-					require.True(t, called, "fallback client %d was not called", i)
+				for i, called := range primaryCalled {
+					require.True(t, called, "primary client %d was not called", i)
 				}
+				require.True(t, atLeastOneCalled(fallbackCalled), "at least one fallback client should have been called")
+
+			} else {
+				require.True(t, atLeastOneCalled(primaryCalled), "at least one primary client should have been called")
 			}
-			calledMu.Unlock()
 		})
 	}
 }
