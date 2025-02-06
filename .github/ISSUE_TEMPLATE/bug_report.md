@@ -1,16 +1,8 @@
 ---
 name: "\U0001F41E Bug report"
-about: Report a bug or problem with running charon
+about: Report a bug or problem with running Charon
 labels: Bug
 ---
-<!--
-
-Hey there!
-
-To help us tend to your issue faster, please search our currently open issues before submitting a new one.
-Existing issues often contain information about workarounds, resolution, or progress updates.
-
-]-->
 
 # 🐞 Bug Report
 
@@ -25,18 +17,15 @@ Existing issues often contain information about workarounds, resolution, or prog
 
 ## 🔬 Minimal Reproduction
 
-<!--
-Please let us know how we can reproduce this issue. Include the exact method you used to run Charon along with any flags used in your beacon chain and/or validator. Make sure you don't upload any confidential files or private keys!
--->
+<!-- Please let us know how we can reproduce this issue. Include the exact method you used to run Charon along with any flags used in your beacon chain and/or validator. Make sure you don't upload any confidential files or private keys! -->
 
 ## 🔥 Error
 
 <pre><code>
-<!-- If the issue is accompanied by an error, please share the error logs with us below. If you have a lot of logs, place make a paste bin with your logs and share the link with us here: -->
+<!-- If the issue is accompanied by an error, please share the error logs with us below. If you have a lot of logs, place them in a pastebin and share the link with us here: -->
 <!-- ✍️-->
 
 </code></pre>
-
 
 ## 🌍  Your Environment
 
