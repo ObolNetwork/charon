@@ -64,7 +64,7 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 	}
 
 	// Verify
-
+	// TODO(diogo): add gnosis safe signature verification
 	if err := def.VerifyHashes(); err != nil && !conf.NoVerify {
 		return cluster.Definition{}, errors.Wrap(err, "cluster definition hashes verification failed. Run with --no-verify to bypass verification at own risk")
 	} else if err != nil && conf.NoVerify {

@@ -6,6 +6,7 @@ import (
 	"context"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/manifest"
@@ -18,6 +19,7 @@ func loadClusterManifest(ctx context.Context, conf Config) (*manifestpb.Cluster,
 		return manifest.NewClusterFromLockForT(nil, *conf.TestConfig.Lock)
 	}
 
+	// TODO(diogo): add gnosis safe signature verification
 	verifyLock := func(lock cluster.Lock) error {
 		if err := lock.VerifyHashes(); err != nil && !conf.NoVerify {
 			return errors.Wrap(err, "cluster lock hash verification failed. Run with --no-verify to bypass verification at own risk")
@@ -25,7 +27,9 @@ func loadClusterManifest(ctx context.Context, conf Config) (*manifestpb.Cluster,
 			log.Warn(ctx, "Ignoring failed cluster lock hash verification due to --no-verify flag", err)
 		}
 
-		if err := lock.VerifySignatures(); err != nil && !conf.NoVerify {
+		eth1Cl := eth1wrap.NewLazyEth1Client(conf.ExecutionEngineAddr)
+
+		if err := lock.VerifySignatures(eth1Cl); err != nil && !conf.NoVerify {
 			return errors.Wrap(err, "cluster lock signature verification failed. Run with --no-verify to bypass verification at own risk")
 		} else if err != nil && conf.NoVerify {
 			log.Warn(ctx, "Ignoring failed cluster lock signature verification due to --no-verify flag", err)

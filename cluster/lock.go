@@ -9,6 +9,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	eth1wrap "github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util/enr"
@@ -148,8 +149,8 @@ func (l Lock) VerifyHashes() error {
 
 // VerifySignatures returns true if all config signatures are fully populated and valid.
 // A verified lock is ready for use in charon run.
-func (l Lock) VerifySignatures() error {
-	if err := l.Definition.VerifySignatures(); err != nil {
+func (l Lock) VerifySignatures(cl *eth1wrap.Client) error {
+	if err := l.Definition.VerifySignatures(cl); err != nil {
 		return errors.Wrap(err, "invalid definition")
 	}
 
