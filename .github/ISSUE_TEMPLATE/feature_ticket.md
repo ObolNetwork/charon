@@ -1,6 +1,6 @@
 ---
 name: "\U0001F680 Feature or Improvement Ticket"
-about: Create a new feature or suggest an improvement for charon
+about: Create a new feature or suggest an improvement for Charon
 labels: Enhancement
 ---
 
@@ -11,12 +11,12 @@ Describe in detail the problem to be solved by this feature/enhancement and why 
 - [ ] Approved design doc: *link*
 - [ ] Core team consensus on the proposed solution
 
-Describe the solution to be implemented
+Describe the solution to be implemented.
 
 # 🧪 Tests
-- [ ] Tested by new automated unit/integration/smoke tests
-- [ ] Manually tested on core team/canary/test clusters
-- [ ] Manually tested on local compose simnet
+- [ ] Tested by new automated unit/integration/smoke tests.
+- [ ] Manually tested on core team/canary/test clusters.
+- [ ] Manually tested on local compose simnet.
 
 <!-- Optional sections
 
