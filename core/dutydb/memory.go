@@ -297,7 +297,7 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 	// Store key and value for PubKeyByAttestation
 	pKey := pkKey{
 		Slot:       uint64(attData.Data.Slot),
-		CommIdx:    uint64(attData.Data.Index),
+		CommIdx:    uint64(attData.Duty.CommitteeIndex),
 		ValCommIdx: attData.Duty.ValidatorCommitteeIndex,
 	}
 	if value, ok := db.attPubKeys[pKey]; ok {
@@ -312,7 +312,7 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 	// Store key and value for AwaitAttestation
 	aKey := attKey{
 		Slot:    uint64(attData.Data.Slot),
-		CommIdx: uint64(attData.Data.Index),
+		CommIdx: uint64(attData.Duty.CommitteeIndex),
 	}
 
 	if value, ok := db.attDuties[aKey]; ok {
