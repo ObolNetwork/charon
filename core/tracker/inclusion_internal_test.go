@@ -240,6 +240,7 @@ func TestInclusion(t *testing.T) {
 
 	// Create some duties
 	att1 := testutil.RandomDenebVersionedAttestation()
+	att1.Deneb.Data.Index = 0
 	att1Data, err := att1.Data()
 	require.NoError(t, err)
 	att1Duty := core.NewAttesterDuty(uint64(att1Data.Slot))
@@ -250,6 +251,7 @@ func TestInclusion(t *testing.T) {
 	agg2Duty := core.NewAggregatorDuty(uint64(slot))
 
 	att3 := testutil.RandomDenebVersionedAttestation()
+	att3.Deneb.Data.Index = 1
 	att3Data, err := att3.Data()
 	require.NoError(t, err)
 	att3Duty := core.NewAttesterDuty(uint64(att3Data.Slot))
@@ -292,11 +294,33 @@ func TestInclusion(t *testing.T) {
 	addRandomBits(att1.Deneb.AggregationBits)
 	addRandomBits(agg2.Deneb.Message.Aggregate.AggregationBits)
 
+	att1CommIdx, err := att1.CommitteeIndex()
+	require.NoError(t, err)
+	att1AggBits, err := att1.AggregationBits()
+	require.NoError(t, err)
+
+	att3CommIdx, err := att3.CommitteeIndex()
+	require.NoError(t, err)
+	att3AggBits, err := att3.AggregationBits()
+	require.NoError(t, err)
+
 	block := block{
 		Slot: block4Duty.Slot,
 		AttestationsByDataRoot: map[eth2p0.Root]*eth2spec.VersionedAttestation{
 			att1Root: att1,
 			att2Root: {Version: eth2spec.DataVersionDeneb, Deneb: agg2.Deneb.Message.Aggregate},
+		},
+		BeaconCommitees: []*statecomm.StateCommittee{
+			{
+				Index:      att1CommIdx,
+				Slot:       att1Data.Slot,
+				Validators: []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex((att1AggBits.BitIndices()[0]))},
+			},
+			{
+				Index:      att3CommIdx,
+				Slot:       att3Data.Slot,
+				Validators: []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex((att3AggBits.BitIndices()[0]))},
+			},
 		},
 	}
 
