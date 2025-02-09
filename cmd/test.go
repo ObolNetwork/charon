@@ -69,7 +69,7 @@ func newTestCmd(cmds ...*cobra.Command) *cobra.Command {
 
 func bindTestFlags(cmd *cobra.Command, config *testConfig) {
 	cmd.Flags().StringVar(&config.OutputJSON, "output-json", "", "File path to which output can be written in JSON format.")
-	cmd.Flags().StringSliceVar(&config.TestCases, "test-cases", nil, fmt.Sprintf("List of comma separated names of tests to be exeucted. Available tests are: %v", listTestCases(cmd)))
+	cmd.Flags().StringSliceVar(&config.TestCases, "test-cases", nil, fmt.Sprintf("List of comma separated names of tests to be executed. Available tests are: %v", listTestCases(cmd)))
 	cmd.Flags().DurationVar(&config.Timeout, "timeout", time.Hour, "Execution timeout for all tests.")
 	cmd.Flags().BoolVar(&config.Quiet, "quiet", false, "Do not print test results to stdout.")
 }
