@@ -39,14 +39,14 @@ func TestMostPreferredConsensusProtocol(t *testing.T) {
 }
 
 func TestPrioritizeProtocolsByName(t *testing.T) {
-	intitial := []protocol.ID{
+	initial := []protocol.ID{
 		"/charon/consensus/hotstuff/1.0.0",
 		"/charon/consensus/abft/3.0.0",
 		"/charon/consensus/abft/1.0.0",
 		"/charon/consensus/qbft/1.0.0",
 	}
 
-	bumped := protocols.PrioritizeProtocolsByName("abft", intitial)
+	bumped := protocols.PrioritizeProtocolsByName("abft", initial)
 	require.Equal(t, []protocol.ID{
 		"/charon/consensus/abft/3.0.0",
 		"/charon/consensus/abft/1.0.0",
