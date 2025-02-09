@@ -120,7 +120,7 @@ func newBeaconClient(timeout time.Duration, forkVersion [4]byte, headers map[str
 			return nil, errors.New("invalid eth2 http service")
 		}
 
-		adaptedCl := AdaptEth2HTTP(eth2Http, timeout)
+		adaptedCl := AdaptEth2HTTP(eth2Http, headers, timeout)
 		adaptedCl.SetForkVersion(forkVersion)
 
 		return adaptedCl, nil
