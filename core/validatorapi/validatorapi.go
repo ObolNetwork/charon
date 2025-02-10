@@ -300,16 +300,22 @@ func (c Component) SubmitAttestations(ctx context.Context, attestationOpts *eth2
 		if err != nil {
 			return errors.Wrap(err, "get attestation aggregation bits")
 		}
-		indices := attAggregationBits.BitIndices()
-		if len(indices) != 1 {
+		attAggregationIndices := attAggregationBits.BitIndices()
+		// expected only 1 index here, as it is a single attestation
+		if len(attAggregationIndices) != 1 {
 			return errors.New("unexpected number of aggregation bits",
 				z.Str("aggbits", fmt.Sprintf("%#x", []byte(attAggregationBits))))
 		}
 
-		pubkey, err := c.pubKeyByAttFunc(ctx, slot, uint64(attData.Index), uint64(indices[0]))
+		attCommitteeIndex, err := att.CommitteeIndex()
+		if err != nil {
+			return errors.Wrap(err, "get attestation committee index")
+		}
+
+		pubkey, err := c.pubKeyByAttFunc(ctx, slot, uint64(attCommitteeIndex), uint64(attAggregationIndices[0]))
 		if err != nil {
 			return errors.Wrap(err, "failed to find pubkey", z.U64("slot", slot),
-				z.Int("commIdx", int(attData.Index)), z.Int("valCommIdx", indices[0]))
+				z.Int("commIdx", int(attCommitteeIndex)), z.Int("valCommIdx", attAggregationIndices[0]))
 		}
 
 		parSigData, err := core.NewPartialVersionedAttestation(att, c.shareIdx)

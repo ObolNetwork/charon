@@ -1073,9 +1073,15 @@ func aggregateAttestation(p eth2client.AggregateAttestationProvider) handlerFunc
 			return nil, nil, err
 		}
 
+		committeeIndex, err := uintQuery(query, "committee_index")
+		if err != nil {
+			return nil, nil, err
+		}
+
 		opts := &eth2api.AggregateAttestationOpts{
 			Slot:                eth2p0.Slot(slot),
 			AttestationDataRoot: attDataRoot,
+			CommitteeIndex:      eth2p0.CommitteeIndex(committeeIndex),
 		}
 		eth2Resp, err := p.AggregateAttestation(ctx, opts)
 		if err != nil {
