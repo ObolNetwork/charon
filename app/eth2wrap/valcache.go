@@ -168,7 +168,6 @@ func (c *ValidatorCache) GetBySlot(ctx context.Context, slot uint64) (ActiveVali
 	}
 
 	if err != nil {
-		log.Error(ctx, "Failed to fetch validators by slot after maximum retries", err, z.U64("slot", slot))
 		return nil, nil, wrapError(ctx, err, "Failed to fetch validators by slot after maximum retries")
 	}
 

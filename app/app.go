@@ -467,6 +467,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 		ctx = log.WithCtx(ctx, z.Bool("first_refresh", firstValCacheRefresh))
 
+		log.Info(ctx, "Refreshing validator cache")
+
 		valCache.Trim()
 		_, _, err := valCache.GetBySlot(ctx, slot.Slot)
 		if err != nil {
