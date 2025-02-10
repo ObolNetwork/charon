@@ -291,7 +291,7 @@ func verifyLock(ctx context.Context, lock cluster.Lock, noverify bool) error {
 		log.Warn(ctx, "Ignoring failed cluster lock hash verification due to --no-verify flag", err)
 	}
 
-	if err := lock.VerifySignatures(); err != nil && !noverify {
+	if err := lock.VerifySignatures(nil); err != nil && !noverify {
 		return errors.Wrap(err, "cluster lock signature verification failed. Run with --no-verify to bypass verification at own risk")
 	} else if err != nil && noverify {
 		log.Warn(ctx, "Ignoring failed cluster lock signature verification due to --no-verify flag", err)

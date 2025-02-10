@@ -367,7 +367,7 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 		var lock cluster.Lock
 		require.NoError(t, json.Unmarshal(b, &lock))
 		require.NoError(t, lock.VerifyHashes())
-		require.NoError(t, lock.VerifySignatures())
+		require.NoError(t, lock.VerifySignatures(nil))
 
 		// check that there are lock.Definition.NumValidators different public keys in the validator slice
 		vals := make(map[string]struct{})
@@ -599,7 +599,7 @@ func TestSplitKeys(t *testing.T) {
 				var lock cluster.Lock
 				require.NoError(t, json.Unmarshal(b, &lock))
 				require.NoError(t, lock.VerifyHashes())
-				require.NoError(t, lock.VerifySignatures())
+				require.NoError(t, lock.VerifySignatures(nil))
 
 				require.Equal(t, test.numSplitKeys, lock.NumValidators)
 			}
@@ -732,7 +732,7 @@ func TestTargetGasLimit(t *testing.T) {
 				var lock cluster.Lock
 				require.NoError(t, json.Unmarshal(b, &lock))
 				require.NoError(t, lock.VerifyHashes())
-				require.NoError(t, lock.VerifySignatures())
+				require.NoError(t, lock.VerifySignatures(nil))
 
 				require.Equal(t, test.expectedTargetGasLimit, lock.TargetGasLimit)
 			}

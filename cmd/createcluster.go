@@ -28,6 +28,7 @@ import (
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
@@ -86,6 +87,8 @@ type clusterConfig struct {
 	TargetGasLimit uint
 
 	testnetConfig eth2util.Network
+
+	ExecutionEngineAddr string
 }
 
 func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig) error) *cobra.Command {
@@ -146,6 +149,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to exactly 32ETH.")
 	flags.StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the cluster. Selected automatically when not specified.")
 	flags.UintVar(&config.TargetGasLimit, "target-gas-limit", 36000000, "Preferred target gas limit for transactions.")
+	flags.StringVar(&config.ExecutionEngineAddr, "execution-rpc-api", "", "The address of the execution engine JSON-RPC API.")
 }
 
 func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
@@ -196,7 +200,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	// Get a cluster definition, either from a definition file or from the config.
 	if conf.DefFile != "" {
 		// Validate the provided definition.
-		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, conf.ExecutionEngineAddr)
 		if err != nil {
 			return err
 		}
@@ -919,7 +923,7 @@ func nodeDir(clusterDir string, i int) string {
 }
 
 // validateDef returns an error if the provided cluster definition is invalid.
-func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []string, def cluster.Definition) error {
+func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []string, def cluster.Definition, executionEngineAddr string) error {
 	if def.NumValidators == 0 {
 		return errors.New("cannot create cluster with zero validators, specify at least one")
 	}
@@ -957,7 +961,9 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 		return err
 	}
 
-	if err = def.VerifySignatures(); err != nil {
+	eth1Cl := eth1wrap.NewLazyEth1Client(executionEngineAddr)
+
+	if err = def.VerifySignatures(eth1Cl); err != nil {
 		return err
 	}
 
@@ -1022,7 +1028,7 @@ func loadDefinition(ctx context.Context, defFile string) (cluster.Definition, er
 			z.Str("definition_hash", fmt.Sprintf("%#x", def.DefinitionHash)))
 	}
 
-	if err := def.VerifySignatures(); err != nil {
+	if err := def.VerifySignatures(nil); err != nil {
 		return cluster.Definition{}, err
 	}
 	if err := def.VerifyHashes(); err != nil {

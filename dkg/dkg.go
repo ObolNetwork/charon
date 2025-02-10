@@ -20,6 +20,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/peerinfo"
@@ -54,6 +55,8 @@ type Config struct {
 	PublishAddr    string
 	PublishTimeout time.Duration
 	Publish        bool
+
+	ExecutionEngineAddr string
 
 	TestConfig TestConfig
 }
@@ -105,7 +108,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	version.LogInfo(ctx, "Charon DKG starting")
 
-	// TODO(diogo): create eth1Client and perform smart contract based sig verification
 	def, err := loadDefinition(ctx, conf)
 	if err != nil {
 		return err
@@ -311,7 +313,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	if !conf.NoVerify {
-		if err := lock.VerifySignatures(); err != nil {
+		eth1Cl := eth1wrap.NewLazyEth1Client(conf.ExecutionEngineAddr)
+		if err := lock.VerifySignatures(eth1Cl); err != nil {
 			return errors.Wrap(err, "invalid lock file")
 		}
 	}
