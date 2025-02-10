@@ -457,20 +457,20 @@ func TestValidateDef(t *testing.T) {
 		require.NoError(t, err)
 		def.ForkVersion = gnosis
 
-		err = validateDef(ctx, false, conf.KeymanagerAddrs, def)
+		err = validateDef(ctx, false, conf.KeymanagerAddrs, def, "")
 		require.Error(t, err, "zero address")
 	})
 
 	t.Run("fork versions", func(t *testing.T) {
 		def := definition
-		err = validateDef(ctx, false, conf.KeymanagerAddrs, def)
+		err = validateDef(ctx, false, conf.KeymanagerAddrs, def, "")
 		require.NoError(t, err)
 
 		mainnet, err := hex.DecodeString(strings.TrimPrefix(eth2util.Mainnet.GenesisForkVersionHex, "0x"))
 		require.NoError(t, err)
 		def.ForkVersion = mainnet
 
-		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, "")
 		require.Error(t, err, "zero address")
 	})
 
@@ -478,41 +478,41 @@ func TestValidateDef(t *testing.T) {
 		conf := conf
 		conf.KeymanagerAddrs = []string{"127.0.0.1:1234"}
 
-		err = validateDef(ctx, true, conf.KeymanagerAddrs, definition)
+		err = validateDef(ctx, true, conf.KeymanagerAddrs, definition, "")
 		require.Error(t, err)
 	})
 
 	t.Run("insecure keys", func(t *testing.T) {
 		conf := conf
-		err = validateDef(ctx, true, conf.KeymanagerAddrs, definition) // Validate with insecure keys set to true
+		err = validateDef(ctx, true, conf.KeymanagerAddrs, definition, "") // Validate with insecure keys set to true
 		require.NoError(t, err)
 	})
 
 	t.Run("insufficient number of nodes", func(t *testing.T) {
 		def := definition
 		def.Operators = nil
-		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, "")
 		require.ErrorContains(t, err, "insufficient number of nodes")
 	})
 
 	t.Run("name not provided", func(t *testing.T) {
 		def := definition
 		def.Name = ""
-		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, "")
 		require.ErrorContains(t, err, "name not provided")
 	})
 
 	t.Run("zero validators provided", func(t *testing.T) {
 		def := definition
 		def.NumValidators = 0
-		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, "")
 		require.ErrorContains(t, err, "cannot create cluster with zero validators, specify at least one")
 	})
 
 	t.Run("invalid hash", func(t *testing.T) {
 		def := remoteDef
 		def.NumValidators = 3
-		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, "")
 		require.ErrorContains(t, err, "invalid config hash")
 	})
 
@@ -521,14 +521,14 @@ func TestValidateDef(t *testing.T) {
 		def.NumValidators = 3
 		def, err = def.SetDefinitionHashes()
 		require.NoError(t, err)
-		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, "")
 		require.ErrorContains(t, err, "invalid creator config signature")
 	})
 
 	t.Run("unsupported consensus protocol", func(t *testing.T) {
 		def := definition
 		def.ConsensusProtocol = "unreal"
-		err = validateDef(ctx, false, conf.KeymanagerAddrs, def)
+		err = validateDef(ctx, false, conf.KeymanagerAddrs, def, "")
 		require.Error(t, err, "unsupported consensus protocol")
 	})
 }
