@@ -211,6 +211,7 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 		opts := &eth2api.AggregateAttestationOpts{
 			Slot:                eth2p0.Slot(slot),
 			AttestationDataRoot: dataRoot,
+			CommitteeIndex:      attDef.CommitteeIndex,
 		}
 		eth2Resp, err := f.eth2Cl.AggregateAttestation(ctx, opts)
 		if err != nil {

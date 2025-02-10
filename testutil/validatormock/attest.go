@@ -454,6 +454,7 @@ func getAggregateAttestation(ctx context.Context, eth2Cl eth2wrap.Client, datas 
 		opts := &eth2api.AggregateAttestationOpts{
 			Slot:                data.Slot,
 			AttestationDataRoot: root,
+			CommitteeIndex:      commIdx,
 		}
 		eth2Resp, err := eth2Cl.AggregateAttestation(ctx, opts)
 		if err != nil {
