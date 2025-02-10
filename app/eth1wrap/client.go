@@ -75,6 +75,6 @@ func (cl *Client) VerifySmartContractBasedSignature(contractAddress string, hash
 	if err != nil {
 		return false, err
 	}
-
+	
 	return result == ERC1271_MAGIC_VALUE, nil
 }

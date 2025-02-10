@@ -168,7 +168,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	// TODO(diogo): create eth1Client and perform smart contract based sig verification
 	cluster, err := loadClusterManifest(ctx, conf)
 	if err != nil {
 		return err

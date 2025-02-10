@@ -161,7 +161,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	if err := def.VerifyHashes(); err != nil {
 		return err
 	}
-	if err := def.VerifySignatures(); err != nil {
+	if err := def.VerifySignatures(nil); err != nil {
 		return err
 	}
 
