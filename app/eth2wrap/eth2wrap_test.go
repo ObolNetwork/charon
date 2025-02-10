@@ -237,6 +237,7 @@ func TestFallback(t *testing.T) {
 						return true
 					}
 				}
+
 				return false
 			}
 
@@ -247,7 +248,6 @@ func TestFallback(t *testing.T) {
 					require.True(t, called, "primary client %d was not called", i)
 				}
 				require.True(t, atLeastOneCalled(fallbackCalled), "at least one fallback client should have been called")
-
 			} else {
 				require.True(t, atLeastOneCalled(primaryCalled), "at least one primary client should have been called")
 			}

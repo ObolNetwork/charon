@@ -209,7 +209,7 @@ func TestValidateDKGConfig(t *testing.T) {
 
 	t.Run("wrong deposit amounts sum", func(t *testing.T) {
 		err := validateDKGConfig(4, "goerli", []int{8, 16}, "", false)
-		require.ErrorContains(t, err, "sum of partial deposit amounts must be at least 32ETH")
+		require.ErrorContains(t, err, "sum of partial deposit amounts must be at least 32ETH, repetition is allowed")
 	})
 
 	t.Run("unsupported consensus protocol", func(t *testing.T) {

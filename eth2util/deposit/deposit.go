@@ -244,14 +244,14 @@ func VerifyDepositAmounts(amounts []eth2p0.Gwei, compounding bool) error {
 		}
 
 		if amount > maxAmount {
-			return errors.New("single partial deposit amount is too big", z.U64("amount", uint64(amount)), z.U64("max", uint64(maxAmount)))
+			return errors.New("single partial deposit amount is too large unless --compounding validators are used", z.U64("amount", uint64(amount)), z.U64("max", uint64(maxAmount)))
 		}
 
 		sum += amount
 	}
 
 	if sum < DefaultDepositAmount {
-		return errors.New("sum of partial deposit amounts must be at least 32ETH", z.U64("sum", uint64(sum)))
+		return errors.New("sum of partial deposit amounts must be at least 32ETH, repetition is allowed", z.U64("sum", uint64(sum)))
 	}
 
 	return nil

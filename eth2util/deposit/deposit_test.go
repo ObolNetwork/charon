@@ -131,7 +131,7 @@ func TestVerifyDepositAmounts(t *testing.T) {
 		}
 
 		err := deposit.VerifyDepositAmounts(amounts, false)
-		require.ErrorContains(t, err, "single partial deposit amount is too big")
+		require.ErrorContains(t, err, "single partial deposit amount is too large unless --compounding validators are used")
 
 		err = deposit.VerifyDepositAmounts(amounts, true)
 		require.NoError(t, err)
@@ -139,7 +139,7 @@ func TestVerifyDepositAmounts(t *testing.T) {
 		amounts = append(amounts, deposit.MaxCompoundingDepositAmount+deposit.MinDepositAmount) // 2049ETH
 
 		err = deposit.VerifyDepositAmounts(amounts, true)
-		require.ErrorContains(t, err, "single partial deposit amount is too big")
+		require.ErrorContains(t, err, "single partial deposit amount is too large unless --compounding validators are used")
 	})
 
 	t.Run("total sum is at least 32ETH", func(t *testing.T) {
@@ -150,7 +150,7 @@ func TestVerifyDepositAmounts(t *testing.T) {
 
 		err := deposit.VerifyDepositAmounts(amounts, false)
 
-		require.ErrorContains(t, err, "sum of partial deposit amounts must be at least 32ETH")
+		require.ErrorContains(t, err, "sum of partial deposit amounts must be at least 32ETH, repetition is allowed")
 	})
 }
 
