@@ -45,6 +45,7 @@ this command at the same time.`,
 	bindLogFlags(cmd.Flags(), &config.Log)
 	bindPublishFlags(cmd.Flags(), &config)
 	bindShutdownDelayFlag(cmd.Flags(), &config.ShutdownDelay)
+	bindEth1Flag(cmd.Flags(), &config.ExecutionEngineAddr)
 
 	cmd.Flags().DurationVar(&config.Timeout, "timeout", 1*time.Minute, "Timeout for the DKG process, should be increased if DKG times out.")
 
@@ -72,4 +73,8 @@ func bindPublishFlags(flags *pflag.FlagSet, config *dkg.Config) {
 
 func bindShutdownDelayFlag(flags *pflag.FlagSet, shutdownDelay *time.Duration) {
 	flags.DurationVar(shutdownDelay, "shutdown-delay", time.Second, "Graceful shutdown delay.")
+}
+
+func bindEth1Flag(flags *pflag.FlagSet, executionEngineAddr *string) {
+	flags.StringVar(executionEngineAddr, "execution-rpc-api", "", "The address of the execution engine JSON-RPC API.")
 }

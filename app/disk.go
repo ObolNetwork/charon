@@ -19,7 +19,6 @@ func loadClusterManifest(ctx context.Context, conf Config) (*manifestpb.Cluster,
 		return manifest.NewClusterFromLockForT(nil, *conf.TestConfig.Lock)
 	}
 
-	// TODO(diogo): add smart contract based signature verification
 	verifyLock := func(lock cluster.Lock) error {
 		if err := lock.VerifyHashes(); err != nil && !conf.NoVerify {
 			return errors.Wrap(err, "cluster lock hash verification failed. Run with --no-verify to bypass verification at own risk")

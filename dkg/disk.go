@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
@@ -64,14 +65,15 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 	}
 
 	// Verify
-	// TODO(diogo): add smart contract based signature verification
 	if err := def.VerifyHashes(); err != nil && !conf.NoVerify {
 		return cluster.Definition{}, errors.Wrap(err, "cluster definition hashes verification failed. Run with --no-verify to bypass verification at own risk")
 	} else if err != nil && conf.NoVerify {
 		log.Warn(ctx, "Ignoring failed cluster definition hashes verification due to --no-verify flag", err)
 	}
 
-	if err := def.VerifySignatures(); err != nil && !conf.NoVerify {
+	eth1Cl := eth1wrap.NewLazyEth1Client(conf.ExecutionEngineAddr)
+
+	if err := def.VerifySignatures(eth1Cl); err != nil && !conf.NoVerify {
 		return cluster.Definition{}, errors.Wrap(err, "cluster definition signature verification failed. Run with --no-verify to bypass verification at own risk")
 	} else if err != nil && conf.NoVerify {
 		log.Warn(ctx, "Ignoring failed cluster definition signature verification due to --no-verify flag", err)
