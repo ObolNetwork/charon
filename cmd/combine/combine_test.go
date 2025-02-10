@@ -32,7 +32,7 @@ func noLockModif(_ int, l cluster.Lock) cluster.Lock {
 func TestCombineNoLockfile(t *testing.T) {
 	td := t.TempDir()
 	od := t.TempDir()
-	err := combine.Combine(context.Background(), td, od, false, false, eth2util.Network{})
+	err := combine.Combine(context.Background(), td, od, false, false, "", eth2util.Network{})
 	require.ErrorContains(t, err, "no manifest file found")
 }
 
@@ -88,7 +88,7 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 	require.NoError(t, os.RemoveAll(filepath.Join(dir, "node0")))
 	require.NoError(t, os.RemoveAll(filepath.Join(dir, "node1")))
 
-	err := combine.Combine(context.Background(), dir, od, false, false, eth2util.Network{}, combine.WithInsecureKeysForT(t))
+	err := combine.Combine(context.Background(), dir, od, false, false, "", eth2util.Network{}, combine.WithInsecureKeysForT(t))
 	require.ErrorContains(t, err, "insufficient private key shares found for validator")
 }
 
@@ -334,7 +334,7 @@ func combineTest(
 		}
 	}
 
-	err := combine.Combine(context.Background(), dir, od, true, noVerify, testnetConfig, combine.WithInsecureKeysForT(t))
+	err := combine.Combine(context.Background(), dir, od, true, noVerify, "", testnetConfig, combine.WithInsecureKeysForT(t))
 	if wantErr {
 		require.Error(t, err)
 		return
@@ -438,10 +438,10 @@ func runTwice(t *testing.T, force bool, processErr require.ErrorAssertionFunc) {
 		require.NoError(t, json.NewEncoder(lf).Encode(lock))
 	}
 
-	err := combine.Combine(context.Background(), dir, od, false, false, eth2util.Network{}, combine.WithInsecureKeysForT(t))
+	err := combine.Combine(context.Background(), dir, od, false, false, "", eth2util.Network{}, combine.WithInsecureKeysForT(t))
 	require.NoError(t, err)
 
-	err = combine.Combine(context.Background(), dir, od, force, false, eth2util.Network{}, combine.WithInsecureKeysForT(t))
+	err = combine.Combine(context.Background(), dir, od, force, false, "", eth2util.Network{}, combine.WithInsecureKeysForT(t))
 	processErr(t, err)
 
 	keyFiles, err := keystore.LoadFilesUnordered(od)
