@@ -379,7 +379,7 @@ func TestBlockAttestations(t *testing.T) {
 		_, _ = w.Write(b)
 	}))
 
-	cl := eth2wrap.NewHTTPAdapterForT(t, srv.URL, time.Hour)
+	cl := eth2wrap.NewHTTPAdapterForT(t, srv.URL, nil, time.Hour)
 	resp, err := cl.BlockAttestations(context.Background(), "head")
 	require.NoError(t, err)
 	require.Equal(t, atts, resp)

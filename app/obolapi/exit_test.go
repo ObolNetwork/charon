@@ -220,5 +220,5 @@ func eth2Client(t *testing.T, ctx context.Context, bnURL string) eth2wrap.Client
 
 	bnClient := bnHTTPClient.(*eth2http.Service)
 
-	return eth2wrap.AdaptEth2HTTP(bnClient, 1*time.Second)
+	return eth2wrap.AdaptEth2HTTP(bnClient, nil, 1*time.Second)
 }
