@@ -35,6 +35,7 @@ type createDKGConfig struct {
 	OperatorENRs      []string
 	ConsensusProtocol string
 	TargetGasLimit    uint
+	Compounding       bool
 }
 
 func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobra.Command {
@@ -86,6 +87,7 @@ func bindCreateDKGFlags(cmd *cobra.Command, config *createDKGConfig) {
 	cmd.Flags().StringSliceVar(&config.OperatorENRs, operatorENRs, nil, "[REQUIRED] Comma-separated list of each operator's Charon ENR address.")
 	cmd.Flags().StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the cluster. Selected automatically when not specified.")
 	cmd.Flags().UintVar(&config.TargetGasLimit, "target-gas-limit", 36000000, "Preferred target gas limit for transactions.")
+	cmd.Flags().BoolVar(&config.Compounding, "compounding", false, "Enable compounding rewards for validators by using 0x02 withdrawal credentials.")
 
 	mustMarkFlagRequired(cmd, operatorENRs)
 }
@@ -102,7 +104,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		conf.Network = eth2util.Goerli.Name
 	}
 
-	if err = validateDKGConfig(len(conf.OperatorENRs), conf.Network, conf.DepositAmounts, conf.ConsensusProtocol); err != nil {
+	if err = validateDKGConfig(len(conf.OperatorENRs), conf.Network, conf.DepositAmounts, conf.ConsensusProtocol, conf.Compounding); err != nil {
 		return err
 	}
 
@@ -150,7 +152,8 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		conf.Name, conf.NumValidators, conf.Threshold,
 		conf.FeeRecipientAddrs, conf.WithdrawalAddrs,
 		forkVersion, cluster.Creator{}, operators, conf.DepositAmounts,
-		conf.ConsensusProtocol, conf.TargetGasLimit, crand.Reader, opts...)
+		conf.ConsensusProtocol, conf.TargetGasLimit, conf.Compounding,
+		crand.Reader, opts...)
 	if err != nil {
 		return err
 	}
@@ -198,7 +201,7 @@ func validateWithdrawalAddrs(addrs []string, network string) error {
 }
 
 // validateDKGConfig returns an error if any of the provided config parameter is invalid.
-func validateDKGConfig(numOperators int, network string, depositAmounts []int, consensusProtocol string) error {
+func validateDKGConfig(numOperators int, network string, depositAmounts []int, consensusProtocol string, compounding bool) error {
 	// Don't allow cluster size to be less than 3.
 	if numOperators < minNodes {
 		return errors.New("number of operators is below minimum", z.Int("operators", numOperators), z.Int("min", minNodes))
@@ -211,7 +214,7 @@ func validateDKGConfig(numOperators int, network string, depositAmounts []int, c
 	if len(depositAmounts) > 0 {
 		amounts := deposit.EthsToGweis(depositAmounts)
 
-		if err := deposit.VerifyDepositAmounts(amounts); err != nil {
+		if err := deposit.VerifyDepositAmounts(amounts, compounding); err != nil {
 			return err
 		}
 	}

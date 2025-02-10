@@ -197,23 +197,23 @@ func TestValidateWithdrawalAddr(t *testing.T) {
 func TestValidateDKGConfig(t *testing.T) {
 	t.Run("insufficient ENRs", func(t *testing.T) {
 		numOperators := 2
-		err := validateDKGConfig(numOperators, "", nil, "")
+		err := validateDKGConfig(numOperators, "", nil, "", false)
 		require.ErrorContains(t, err, "number of operators is below minimum")
 	})
 
 	t.Run("invalid network", func(t *testing.T) {
 		numOperators := 4
-		err := validateDKGConfig(numOperators, "cosmos", nil, "")
+		err := validateDKGConfig(numOperators, "cosmos", nil, "", false)
 		require.ErrorContains(t, err, "unsupported network")
 	})
 
 	t.Run("wrong deposit amounts sum", func(t *testing.T) {
-		err := validateDKGConfig(4, "goerli", []int{8, 16}, "")
+		err := validateDKGConfig(4, "goerli", []int{8, 16}, "", false)
 		require.ErrorContains(t, err, "sum of partial deposit amounts must be at least 32ETH")
 	})
 
 	t.Run("unsupported consensus protocol", func(t *testing.T) {
-		err := validateDKGConfig(4, "goerli", nil, "unreal")
+		err := validateDKGConfig(4, "goerli", nil, "unreal", false)
 		require.ErrorContains(t, err, "unsupported consensus protocol")
 	})
 }
