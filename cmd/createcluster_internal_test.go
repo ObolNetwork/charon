@@ -695,7 +695,6 @@ func TestTargetGasLimit(t *testing.T) {
 				FeeRecipientAddrs: []string{zeroAddress},
 				InsecureKeys:      true,
 				TargetGasLimit:    36000000,
-				Compounding:       true,
 			},
 			expectedTargetGasLimit: 36000000,
 		},
