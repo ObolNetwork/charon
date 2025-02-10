@@ -86,7 +86,7 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 		}
 	}
 
-	if err := deposit.VerifyDepositAmounts(def.DepositAmounts); err != nil {
+	if err := deposit.VerifyDepositAmounts(def.DepositAmounts, def.Compounding); err != nil {
 		return cluster.Definition{}, err
 	}
 

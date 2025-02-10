@@ -42,8 +42,9 @@
   ],
   "consensus_protocol": "abft",
   "target_gas_limit": 30000000,
+  "compounding": false,
   "config_hash": "0xafad2b3c34a7579fdd38c7a8d2b9f1ea5c7d0f940d2fbbcd2a383258ce8d76a2",
-  "definition_hash": "0x174b33b12bcb1ed2313c3a7b1c11dd348ccf21db13d987b0c9722df44bd62da0"
+  "definition_hash": "0x4b14c0ed4538c288b7107d99e03e85bf883f93adcc51df0ee09091a9ef05068d"
  },
  "distributed_validators": [
   {
@@ -108,7 +109,7 @@
   }
  ],
  "signature_aggregate": "0x9347800979d1830356f2a54c3deab2a4b4475d63afbe8fb56987c77f5818526f",
- "lock_hash": "0x3511c8de562186b1a95cb4fd73a30a26707cd05003e4050134254cb30f7e456e",
+ "lock_hash": "0xd47fce04edfbeadf06aeeb1d235ebf98fdff6122c7d1f1978d6869d0d228a1dd",
  "node_signatures": [
   "0xb38b19f53784c19e9beac03c875a27db029de37ae37a42318813487685929359",
   "0xca8c5eb94e152dc1af42ea3d1676c1bdd19ab8e2925c6daee4de5ef9f9dcf08d"
