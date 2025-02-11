@@ -41,6 +41,10 @@ type Client struct {
 
 // maybeInitializeClient initializes the eth1 client if not initialized.
 func (cl *Client) maybeInitializeClient() error {
+	if cl.executionEngineAddress == "" {
+		return errors.New("empty execution engine address<")
+	}
+
 	// faster than acquiring a write lock
 	cl.eth1ClMu.RLock()
 	if cl.eth1Cl != nil {
