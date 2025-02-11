@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
@@ -23,18 +24,19 @@ import (
 )
 
 type createDKGConfig struct {
-	OutputDir         string
-	Name              string
-	NumValidators     int
-	Threshold         int
-	FeeRecipientAddrs []string
-	WithdrawalAddrs   []string
-	Network           string
-	DKGAlgo           string
-	DepositAmounts    []int // Amounts specified in ETH (integers).
-	OperatorENRs      []string
-	ConsensusProtocol string
-	TargetGasLimit    uint
+	OutputDir           string
+	Name                string
+	NumValidators       int
+	Threshold           int
+	FeeRecipientAddrs   []string
+	WithdrawalAddrs     []string
+	Network             string
+	DKGAlgo             string
+	DepositAmounts      []int // Amounts specified in ETH (integers).
+	OperatorENRs        []string
+	ConsensusProtocol   string
+	TargetGasLimit      uint
+	ExecutionEngineAddr string
 }
 
 func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobra.Command {
@@ -86,6 +88,7 @@ func bindCreateDKGFlags(cmd *cobra.Command, config *createDKGConfig) {
 	cmd.Flags().StringSliceVar(&config.OperatorENRs, operatorENRs, nil, "[REQUIRED] Comma-separated list of each operator's Charon ENR address.")
 	cmd.Flags().StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the cluster. Selected automatically when not specified.")
 	cmd.Flags().UintVar(&config.TargetGasLimit, "target-gas-limit", 36000000, "Preferred target gas limit for transactions.")
+	cmd.Flags().StringVar(&config.ExecutionEngineAddr, "execution-rpc-api", "", "The address of the execution engine JSON-RPC API.")
 
 	mustMarkFlagRequired(cmd, operatorENRs)
 }
@@ -158,7 +161,8 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	if err := def.VerifyHashes(); err != nil {
 		return err
 	}
-	if err := def.VerifySignatures(nil); err != nil {
+	eth1Cl := eth1wrap.NewLazyEth1Client(conf.ExecutionEngineAddr)
+	if err := def.VerifySignatures(eth1Cl); err != nil {
 		return err
 	}
 
