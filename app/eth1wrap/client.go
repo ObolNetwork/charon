@@ -1,13 +1,15 @@
+// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+
 package eth1wrap
 
 import (
 	"sync"
 
-	"github.com/obolnetwork/charon/app/errors"
-	erc1271 "github.com/obolnetwork/charon/app/eth1wrap/generated"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+
+	"github.com/obolnetwork/charon/app/errors"
+	erc1271 "github.com/obolnetwork/charon/app/eth1wrap/generated"
 )
 
 var (
@@ -40,21 +42,21 @@ type Client struct {
 // maybeInitializeClient initializes the eth1 client if not initialized.
 func (cl *Client) maybeInitializeClient() error {
 	// faster than acquiring a write lock
-    cl.eth1ClMu.RLock()
-    if cl.eth1Cl != nil {
-        cl.eth1ClMu.RUnlock()
-        return nil
-    }
-    cl.eth1ClMu.RUnlock()
+	cl.eth1ClMu.RLock()
+	if cl.eth1Cl != nil {
+		cl.eth1ClMu.RUnlock()
+		return nil
+	}
+	cl.eth1ClMu.RUnlock()
 
-    // need write lock to initialize
-    cl.eth1ClMu.Lock()
-    defer cl.eth1ClMu.Unlock()
+	// need write lock to initialize
+	cl.eth1ClMu.Lock()
+	defer cl.eth1ClMu.Unlock()
 
 	// double-check
-    if cl.eth1Cl != nil {
-        return nil
-    }
+	if cl.eth1Cl != nil {
+		return nil
+	}
 
 	if cl.eth1Cl == nil {
 		err := cl.initializeClient()
