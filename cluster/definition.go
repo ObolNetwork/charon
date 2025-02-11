@@ -248,7 +248,7 @@ func (d Definition) VerifySignatures(cl *eth1wrap.Client) error {
 			return err
 		} else if !ok {
 			// Check ERC-1271 signature
-			if ok ,err = cl.VerifySmartContractBasedSignature(o.Address, [32]byte(operatorConfigHashDigest), o.ConfigSignature); err != nil {
+			if ok, err = cl.VerifySmartContractBasedSignature(o.Address, [32]byte(operatorConfigHashDigest), o.ConfigSignature); err != nil {
 				return err
 			} else if !ok {
 				return errors.New("invalid operator config signature", z.Any("operator_address", o.Address))
@@ -265,7 +265,7 @@ func (d Definition) VerifySignatures(cl *eth1wrap.Client) error {
 			return err
 		} else if !ok {
 			// Check ERC-1271 signature
-			if ok ,err = cl.VerifySmartContractBasedSignature(o.Address, [32]byte(enrDigest), o.ENRSignature); err != nil {
+			if ok, err = cl.VerifySmartContractBasedSignature(o.Address, [32]byte(enrDigest), o.ENRSignature); err != nil {
 				return err
 			} else if !ok {
 				return errors.New("invalid operator enr signature", z.Any("operator_address", o.Address))
