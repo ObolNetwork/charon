@@ -12,6 +12,8 @@ import (
 	erc1271 "github.com/obolnetwork/charon/app/eth1wrap/generated"
 )
 
+//go:generate abigen --abi=build/IERC1271.abi --pkg=erc1271 --out=generated/erc1271.go
+
 var (
 	ERC1271_MAGIC_VALUE = [4]byte{0x16, 0x26, 0xba, 0x7e}
 )
