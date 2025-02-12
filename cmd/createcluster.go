@@ -85,6 +85,8 @@ type clusterConfig struct {
 
 	TargetGasLimit uint
 
+	Compounding bool
+
 	testnetConfig eth2util.Network
 }
 
@@ -146,6 +148,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to at least 32ETH.")
 	flags.StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the cluster. Selected automatically when not specified.")
 	flags.UintVar(&config.TargetGasLimit, "target-gas-limit", 36000000, "Preferred target gas limit for transactions.")
+	flags.BoolVar(&config.Compounding, "compounding", false, "Enable compounding rewards for validators by using 0x02 withdrawal credentials.")
 }
 
 func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
@@ -268,7 +271,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
-	depositDatas, err := createDepositDatas(def.WithdrawalAddresses(), network, secrets, depositAmounts)
+	depositDatas, err := createDepositDatas(def.WithdrawalAddresses(), network, secrets, depositAmounts, def.Compounding)
 	if err != nil {
 		return err
 	}
@@ -364,7 +367,7 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 	if len(conf.DepositAmounts) > 0 {
 		amounts := deposit.EthsToGweis(conf.DepositAmounts)
 
-		if err := deposit.VerifyDepositAmounts(amounts); err != nil {
+		if err := deposit.VerifyDepositAmounts(amounts, conf.Compounding); err != nil {
 			return err
 		}
 	}
@@ -419,7 +422,7 @@ func detectNodeDirs(clusterDir string, nodeAmount int) error {
 }
 
 // signDepositDatas returns a list of DepositData for each partial deposit amount.
-func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, network string, depositAmounts []eth2p0.Gwei) ([][]eth2p0.DepositData, error) {
+func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, network string, depositAmounts []eth2p0.Gwei, compouding bool) ([][]eth2p0.DepositData, error) {
 	if len(secrets) != len(withdrawalAddresses) {
 		return nil, errors.New("insufficient withdrawal addresses")
 	}
@@ -441,7 +444,7 @@ func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, n
 				return nil, errors.Wrap(err, "secret to pubkey")
 			}
 
-			msg, err := deposit.NewMessage(eth2p0.BLSPubKey(pk), withdrawalAddr, depositAmount)
+			msg, err := deposit.NewMessage(eth2p0.BLSPubKey(pk), withdrawalAddr, depositAmount, compouding)
 			if err != nil {
 				return nil, err
 			}
@@ -610,7 +613,7 @@ func generateKeys(numDVs int) ([]tbls.PrivateKey, error) {
 }
 
 // createDepositDatas creates a slice of deposit datas using the provided parameters and returns it.
-func createDepositDatas(withdrawalAddresses []string, network string, secrets []tbls.PrivateKey, depositAmounts []eth2p0.Gwei) ([][]eth2p0.DepositData, error) {
+func createDepositDatas(withdrawalAddresses []string, network string, secrets []tbls.PrivateKey, depositAmounts []eth2p0.Gwei, compounding bool) ([][]eth2p0.DepositData, error) {
 	if len(secrets) != len(withdrawalAddresses) {
 		return nil, errors.New("insufficient withdrawal addresses")
 	}
@@ -619,7 +622,7 @@ func createDepositDatas(withdrawalAddresses []string, network string, secrets []
 	}
 	depositAmounts = deposit.DedupAmounts(depositAmounts)
 
-	return signDepositDatas(secrets, withdrawalAddresses, network, depositAmounts)
+	return signDepositDatas(secrets, withdrawalAddresses, network, depositAmounts, compounding)
 }
 
 // createValidatorRegistrations creates a slice of builder validator registrations using the provided parameters and returns it.
@@ -860,7 +863,7 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 	var opts []func(*cluster.Definition)
 	def, err := cluster.NewDefinition(conf.Name, conf.NumDVs, threshold, feeRecipientAddrs,
 		withdrawalAddrs, forkVersion, cluster.Creator{}, ops, conf.DepositAmounts,
-		conf.ConsensusProtocol, conf.TargetGasLimit, rand.Reader, opts...)
+		conf.ConsensusProtocol, conf.TargetGasLimit, conf.Compounding, rand.Reader, opts...)
 	if err != nil {
 		return cluster.Definition{}, err
 	}
@@ -932,7 +935,7 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 	}
 
 	if len(def.DepositAmounts) > 0 {
-		if err := deposit.VerifyDepositAmounts(def.DepositAmounts); err != nil {
+		if err := deposit.VerifyDepositAmounts(def.DepositAmounts, def.Compounding); err != nil {
 			return errors.Wrap(err, "deposit amounts verification failed")
 		}
 	}

@@ -257,7 +257,7 @@ func randomDefinition(t *testing.T, cr Creator, op0, op1 Operator, targetGasLimi
 
 	definition, err := NewDefinition("test definition", numVals, threshold,
 		feeRecipientAddrs, withdrawalAddrs, eth2util.Sepolia.GenesisForkVersionHex, cr, []Operator{op0, op1}, nil,
-		"qbft", targetGasLimit, rand.New(rand.NewSource(1)), opts...)
+		"qbft", targetGasLimit, false, rand.New(rand.NewSource(1)), opts...)
 	require.NoError(t, err)
 
 	return definition

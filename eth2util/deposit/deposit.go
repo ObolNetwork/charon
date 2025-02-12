@@ -31,13 +31,17 @@ var (
 	// Minimum allowed deposit amount (1ETH).
 	MinDepositAmount = eth2p0.Gwei(1000000000)
 
-	// Maximum allowed deposit amount (2048ETH).
-	MaxDepositAmount = eth2p0.Gwei(2048000000000)
-
 	// Default deposit amount (32ETH).
 	DefaultDepositAmount = eth2p0.Gwei(32000000000)
 
-	// https://eips.ethereum.org/EIPS/eip-7251
+	// Maximum allowed deposit amount when compounding is enabled.
+	MaxCompoundingDepositAmount = eth2p0.Gwei(2048000000000)
+
+	// Maximum allowed deposit amount when compounding is disabled.
+	MaxStandardDepositAmount = eth2p0.Gwei(32000000000)
+
+	// Withdrawal prefixes.
+	eth1AddressWithdrawalPrefix    = []byte{0x01}
 	eip7251AddressWithdrawalPrefix = []byte{0x02}
 
 	// DOMAIN_DEPOSIT. See spec: https://benjaminion.xyz/eth2-annotated-spec/phase0/beacon-chain/#domain-types
@@ -48,8 +52,8 @@ var (
 )
 
 // NewMessage returns a deposit message created using the provided parameters.
-func NewMessage(pubkey eth2p0.BLSPubKey, withdrawalAddr string, amount eth2p0.Gwei) (eth2p0.DepositMessage, error) {
-	creds, err := withdrawalCredsFromAddr(withdrawalAddr)
+func NewMessage(pubkey eth2p0.BLSPubKey, withdrawalAddr string, amount eth2p0.Gwei, compounding bool) (eth2p0.DepositMessage, error) {
+	creds, err := withdrawalCredsFromAddr(withdrawalAddr, compounding)
 	if err != nil {
 		return eth2p0.DepositMessage{}, err
 	}
@@ -58,8 +62,9 @@ func NewMessage(pubkey eth2p0.BLSPubKey, withdrawalAddr string, amount eth2p0.Gw
 		return eth2p0.DepositMessage{}, errors.New("deposit message minimum amount must be >= 1ETH", z.U64("amount", uint64(amount)))
 	}
 
-	if amount > MaxDepositAmount {
-		return eth2p0.DepositMessage{}, errors.New("deposit message maximum amount exceeded", z.U64("amount", uint64(amount)), z.U64("max", uint64(MaxDepositAmount)))
+	maxAmount := MaxDepositAmount(compounding)
+	if amount > maxAmount {
+		return eth2p0.DepositMessage{}, errors.New("deposit message maximum amount exceeded", z.U64("amount", uint64(amount)), z.U64("max", uint64(maxAmount)))
 	}
 
 	return eth2p0.DepositMessage{
@@ -67,6 +72,15 @@ func NewMessage(pubkey eth2p0.BLSPubKey, withdrawalAddr string, amount eth2p0.Gw
 		WithdrawalCredentials: creds[:],
 		Amount:                amount,
 	}, nil
+}
+
+// MaxDepositAmount returns the maximum deposit amount based on compounding flag.
+func MaxDepositAmount(compounding bool) eth2p0.Gwei {
+	if compounding {
+		return MaxCompoundingDepositAmount
+	}
+
+	return MaxStandardDepositAmount
 }
 
 // MarshalDepositData serializes a list of deposit data into a single file.
@@ -179,7 +193,7 @@ func GetMessageSigningRoot(msg eth2p0.DepositMessage, network string) ([32]byte,
 }
 
 // withdrawalCredsFromAddr returns the Withdrawal Credentials.
-func withdrawalCredsFromAddr(addr string) ([32]byte, error) {
+func withdrawalCredsFromAddr(addr string, compounding bool) ([32]byte, error) {
 	// Check for validity of address.
 	if _, err := eth2util.ChecksumAddress(addr); err != nil {
 		return [32]byte{}, errors.Wrap(err, "invalid withdrawal address", z.Str("addr", addr))
@@ -191,8 +205,12 @@ func withdrawalCredsFromAddr(addr string) ([32]byte, error) {
 	}
 
 	var creds [32]byte
-	copy(creds[0:], eip7251AddressWithdrawalPrefix) // Add 1 byte prefix.
-	copy(creds[12:], addrBytes)                     // Add 20 bytes of ethereum address suffix.
+	if compounding {
+		copy(creds[0:], eip7251AddressWithdrawalPrefix)
+	} else {
+		copy(creds[0:], eth1AddressWithdrawalPrefix)
+	}
+	copy(creds[12:], addrBytes) // Add 20 bytes of ethereum address suffix.
 
 	return creds, nil
 }
@@ -211,11 +229,13 @@ type depositDataJSON struct {
 }
 
 // VerifyDepositAmounts verifies various conditions about partial deposits rules.
-func VerifyDepositAmounts(amounts []eth2p0.Gwei) error {
+func VerifyDepositAmounts(amounts []eth2p0.Gwei, compounding bool) error {
 	if len(amounts) == 0 {
 		// If no partial amounts specified, the implementation shall default to 32ETH.
 		return nil
 	}
+
+	maxAmount := MaxDepositAmount(compounding)
 
 	var sum eth2p0.Gwei
 	for _, amount := range amounts {
@@ -223,15 +243,15 @@ func VerifyDepositAmounts(amounts []eth2p0.Gwei) error {
 			return errors.New("each partial deposit amount must be greater than 1ETH", z.U64("amount", uint64(amount)))
 		}
 
+		if amount > maxAmount {
+			return errors.New("single partial deposit amount is too large unless --compounding validators are used", z.U64("amount", uint64(amount)), z.U64("max", uint64(maxAmount)))
+		}
+
 		sum += amount
 	}
 
 	if sum < DefaultDepositAmount {
-		return errors.New("sum of partial deposit amounts must be at least 32ETH", z.U64("sum", uint64(sum)))
-	}
-
-	if sum > MaxDepositAmount {
-		return errors.New("sum of partial deposit amounts must not exceed 2048ETH", z.U64("sum", uint64(sum)))
+		return errors.New("sum of partial deposit amounts must be at least 32ETH, repetition is allowed", z.U64("sum", uint64(sum)))
 	}
 
 	return nil
