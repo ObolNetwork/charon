@@ -30,3 +30,6 @@ import (
 
 //go:generate echo Installing tools: compose
 //go:generate go install github.com/obolnetwork/charon/testutil/compose/compose
+
+//go:generate echo Installing tools: abigen
+//go:generate go install github.com/ethereum/go-ethereum/cmd/abigen@latest
