@@ -14,9 +14,7 @@ import (
 
 //go:generate abigen --abi=build/IERC1271.abi --pkg=erc1271 --out=generated/erc1271.go
 
-var (
-	ERC1271_MAGIC_VALUE = [4]byte{0x16, 0x26, 0xba, 0x7e}
-)
+var erc1271MagicValue = [4]byte{0x16, 0x26, 0xba, 0x7e}
 
 // NewEth1Client returns a initiliazed eth1 JSON-RPC client.
 func NewEth1Client(addr string) (*Client, error) {
@@ -90,7 +88,7 @@ func (cl *Client) initializeClient() error {
 func (cl *Client) VerifySmartContractBasedSignature(contractAddress string, hash [32]byte, sig []byte) (bool, error) {
 	err := cl.maybeInitializeClient()
 	if err != nil {
-		return false, nil
+		return false, err
 	}
 
 	addr := common.HexToAddress(contractAddress)
@@ -105,5 +103,5 @@ func (cl *Client) VerifySmartContractBasedSignature(contractAddress string, hash
 		return false, err
 	}
 
-	return result == ERC1271_MAGIC_VALUE, nil
+	return result == erc1271MagicValue, nil
 }
