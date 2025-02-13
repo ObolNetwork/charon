@@ -1,5 +1,5 @@
 # Container for building Go binary.
-FROM golang:1.23.6-bookworm AS builder
+FROM golang:1.24.0-bookworm AS builder
 # Install dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential git
 
