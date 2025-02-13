@@ -534,8 +534,9 @@ type versionedRawBlockJSON struct {
 
 // versionedRawAttestationJSON is a custom VersionedAttestation serialiser.
 type versionedRawAttestationJSON struct {
-	Version     eth2util.DataVersion `json:"version"`
-	Attestation json.RawMessage      `json:"attestation"`
+	Version        eth2util.DataVersion   `json:"version"`
+	ValidatorIndex *eth2p0.ValidatorIndex `json:"validator_index"`
+	Attestation    json.RawMessage        `json:"attestation"`
 }
 
 // versionedRawAggregateAndProofJSON is a custom VersionedAttestation serialiser.
@@ -706,8 +707,9 @@ func (a VersionedAttestation) MarshalJSON() ([]byte, error) {
 	}
 
 	resp, err := json.Marshal(versionedRawAttestationJSON{
-		Version:     version,
-		Attestation: attestation,
+		Version:        version,
+		ValidatorIndex: a.ValidatorIndex,
+		Attestation:    attestation,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal wrapper")
@@ -769,6 +771,8 @@ func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
 	default:
 		return errors.New("unknown attestation version", z.Str("version", a.Version.String()))
 	}
+
+	resp.ValidatorIndex = raw.ValidatorIndex
 
 	a.VersionedAttestation = resp
 
