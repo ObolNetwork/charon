@@ -1,6 +1,7 @@
 [
  {
   "Version": "deneb",
+  "ValidatorIndex": null,
   "Phase0": null,
   "Altair": null,
   "Bellatrix": null,
@@ -26,6 +27,7 @@
  },
  {
   "Version": "deneb",
+  "ValidatorIndex": null,
   "Phase0": null,
   "Altair": null,
   "Bellatrix": null,
@@ -51,6 +53,7 @@
  },
  {
   "Version": "deneb",
+  "ValidatorIndex": null,
   "Phase0": null,
   "Altair": null,
   "Bellatrix": null,

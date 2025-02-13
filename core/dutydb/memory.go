@@ -264,14 +264,14 @@ func (db *MemDB) AwaitSyncContribution(ctx context.Context, slot, subcommIdx uin
 }
 
 // PubKeyByAttestation implements core.DutyDB, see its godoc.
-func (db *MemDB) PubKeyByAttestation(_ context.Context, slot, commIdx, valCommIdx uint64) (core.PubKey, error) {
+func (db *MemDB) PubKeyByAttestation(_ context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
 	key := pkKey{
-		Slot:       slot,
-		CommIdx:    commIdx,
-		ValCommIdx: valCommIdx,
+		Slot:    slot,
+		CommIdx: commIdx,
+		ValIdx:  valIdx,
 	}
 
 	pubkey, ok := db.attPubKeys[key]
@@ -296,9 +296,9 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 
 	// Store key and value for PubKeyByAttestation
 	pKey := pkKey{
-		Slot:       uint64(attData.Data.Slot),
-		CommIdx:    uint64(attData.Duty.CommitteeIndex),
-		ValCommIdx: attData.Duty.ValidatorCommitteeIndex,
+		Slot:    uint64(attData.Data.Slot),
+		CommIdx: uint64(attData.Duty.CommitteeIndex),
+		ValIdx:  uint64(attData.Duty.ValidatorIndex),
 	}
 	if value, ok := db.attPubKeys[pKey]; ok {
 		if value != pubkey {
@@ -576,9 +576,9 @@ type attKey struct {
 
 // pkKey is the key to lookup pubkeys by attestation in the DB.
 type pkKey struct {
-	Slot       uint64
-	CommIdx    uint64
-	ValCommIdx uint64
+	Slot    uint64
+	CommIdx uint64
+	ValIdx  uint64
 }
 
 // aggKey is the key to lookup an aggregated attestation by root in the DB.

@@ -194,7 +194,7 @@ type Component struct {
 
 	// Registered input functions
 
-	pubKeyByAttFunc           func(ctx context.Context, slot, commIdx, valCommIdx uint64) (core.PubKey, error)
+	pubKeyByAttFunc           func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error)
 	awaitAttFunc              func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 	awaitProposalFunc         func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
 	awaitSyncContributionFunc func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
@@ -224,7 +224,7 @@ func (c *Component) RegisterAwaitSyncContribution(fn func(ctx context.Context, s
 
 // RegisterPubKeyByAttestation registers a function to query pubkeys by attestation.
 // It only supports a single function, since it is an input of the component.
-func (c *Component) RegisterPubKeyByAttestation(fn func(ctx context.Context, slot, commIdx, valCommIdx uint64) (core.PubKey, error)) {
+func (c *Component) RegisterPubKeyByAttestation(fn func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error)) {
 	c.pubKeyByAttFunc = fn
 }
 
@@ -295,27 +295,22 @@ func (c Component) SubmitAttestations(ctx context.Context, attestationOpts *eth2
 		}
 		slot := uint64(attData.Slot)
 
-		// Determine the validator that sent this by mapping values from original AttestationDuty via the dutyDB
-		attAggregationBits, err := att.AggregationBits()
-		if err != nil {
-			return errors.Wrap(err, "get attestation aggregation bits")
-		}
-		attAggregationIndices := attAggregationBits.BitIndices()
-		// expected only 1 index here, as it is a single attestation
-		if len(attAggregationIndices) != 1 {
-			return errors.New("unexpected number of aggregation bits",
-				z.Str("aggbits", fmt.Sprintf("%#x", []byte(attAggregationBits))))
-		}
-
 		attCommitteeIndex, err := att.CommitteeIndex()
 		if err != nil {
 			return errors.Wrap(err, "get attestation committee index")
 		}
 
-		pubkey, err := c.pubKeyByAttFunc(ctx, slot, uint64(attCommitteeIndex), uint64(attAggregationIndices[0]))
+		// pre-electra attestations were stored in DB with unique validator committee index
+		// post-electra attestations cannot be identified by validator committee index and we use the validator index in the chain
+		valIdxOrValCommIdx, err := fetchAttestationPubKeyIdentifier(att)
+		if err != nil {
+			return errors.Wrap(err, "fetch attestation pubkey identifier")
+		}
+
+		pubkey, err := c.pubKeyByAttFunc(ctx, slot, uint64(attCommitteeIndex), uint64(valIdxOrValCommIdx))
 		if err != nil {
 			return errors.Wrap(err, "failed to find pubkey", z.U64("slot", slot),
-				z.Int("commIdx", int(attCommitteeIndex)), z.Int("valCommIdx", attAggregationIndices[0]))
+				z.U64("commIdx", uint64(attCommitteeIndex)), z.U64("valIdx", uint64(valIdxOrValCommIdx)))
 		}
 
 		parSigData, err := core.NewPartialVersionedAttestation(att, c.shareIdx)
@@ -354,6 +349,41 @@ func (c Component) SubmitAttestations(ctx context.Context, attestationOpts *eth2
 	}
 
 	return nil
+}
+
+func fetchAttestationPubKeyIdentifier(att *eth2spec.VersionedAttestation) (int, error) {
+	switch att.Version {
+	case eth2spec.DataVersionPhase0:
+		return aggBitsIndex(att)
+	case eth2spec.DataVersionAltair:
+		return aggBitsIndex(att)
+	case eth2spec.DataVersionBellatrix:
+		return aggBitsIndex(att)
+	case eth2spec.DataVersionCapella:
+		return aggBitsIndex(att)
+	case eth2spec.DataVersionDeneb:
+		return aggBitsIndex(att)
+	case eth2spec.DataVersionElectra:
+		return int(*att.ValidatorIndex), nil
+	default:
+		return 0, errors.New("unknown version")
+	}
+}
+
+func aggBitsIndex(att *eth2spec.VersionedAttestation) (int, error) {
+	// Determine the validator that sent this by mapping values from original AttestationDuty via the dutyDB
+	attAggregationBits, err := att.AggregationBits()
+	if err != nil {
+		return 0, errors.Wrap(err, "get attestation aggregation bits")
+	}
+	attAggregationIndices := attAggregationBits.BitIndices()
+	// expected only 1 index here, as it is a single attestation
+	if len(attAggregationIndices) != 1 {
+		return 0, errors.New("unexpected number of aggregation bits",
+			z.Str("aggbits", fmt.Sprintf("%#x", []byte(attAggregationBits))))
+	}
+
+	return attAggregationIndices[0], nil
 }
 
 func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
