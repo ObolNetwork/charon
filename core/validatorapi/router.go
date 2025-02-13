@@ -35,6 +35,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
 	"github.com/gorilla/mux"
+	"github.com/prysmaticlabs/go-bitfield"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -461,22 +462,28 @@ func attestationData(p eth2client.AttestationDataProvider) handlerFunc {
 // submitAttestations returns a handler function for the attestation submitter endpoint.
 func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
-		atts := []*eth2spec.VersionedAttestation{}
+		versionedAtts := []*eth2spec.VersionedAttestation{}
 
-		electraAtts := new([]electra.Attestation)
+		electraAtts := new([]electra.SingleAttestation)
 		err := unmarshal(typ, body, electraAtts)
 		if err == nil {
-			for _, att := range *electraAtts {
+			for _, electraAtt := range *electraAtts {
+				commBits := bitfield.NewBitvector64()
+				commBits.SetBitAt(uint64(electraAtt.CommitteeIndex), true)
 				versionedAtt := eth2spec.VersionedAttestation{
-					Version: eth2spec.DataVersionElectra,
-					Electra: &att,
+					Version:        eth2spec.DataVersionElectra,
+					ValidatorIndex: &electraAtt.AttesterIndex,
+					Electra: &electra.Attestation{
+						AggregationBits: bitfield.NewBitlist(0),
+						Data:            electraAtt.Data,
+						Signature:       electraAtt.Signature,
+						CommitteeBits:   commBits,
+					},
 				}
-				atts = append(atts, &versionedAtt)
+				versionedAtts = append(versionedAtts, &versionedAtt)
 			}
 
-			return nil, nil, p.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{
-				Attestations: atts,
-			})
+			return nil, nil, p.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: versionedAtts})
 		}
 
 		denebAtts := new([]eth2p0.Attestation)
@@ -488,11 +495,11 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 					Version: eth2spec.DataVersionDeneb,
 					Deneb:   &att,
 				}
-				atts = append(atts, &versionedAgg)
+				versionedAtts = append(versionedAtts, &versionedAgg)
 			}
 
 			return nil, nil, p.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{
-				Attestations: atts,
+				Attestations: versionedAtts,
 			})
 		}
 
@@ -1089,12 +1096,64 @@ func aggregateAttestation(p eth2client.AggregateAttestationProvider) handlerFunc
 		}
 		data := eth2Resp.Data
 
-		return struct {
-			Data *eth2spec.VersionedAttestation `json:"data"`
-		}{
-			Data: data,
-		}, nil, nil
+		resHeaders := make(http.Header)
+		resHeaders.Add(versionHeader, data.Version.String())
+
+		res, err := createAggregateAttestation(data)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return res, resHeaders, nil
 	}
+}
+
+// createProposeBlockResponse constructs proposeBlockV3Response object for given block.
+func createAggregateAttestation(aggAtt *eth2spec.VersionedAttestation) (*aggregateAttestationV2Response, error) {
+	res := aggregateAttestationV2Response{Version: aggAtt.Version.String()}
+
+	switch aggAtt.Version {
+	case eth2spec.DataVersionPhase0:
+		if aggAtt.Phase0 == nil {
+			return nil, errors.New("no phase0 attestation")
+		}
+
+		res.Data = aggAtt.Phase0
+	case eth2spec.DataVersionAltair:
+		if aggAtt.Altair == nil {
+			return nil, errors.New("no altair attestation")
+		}
+
+		res.Data = aggAtt.Altair
+	case eth2spec.DataVersionBellatrix:
+		if aggAtt.Bellatrix == nil {
+			return nil, errors.New("no bellatrix attestation")
+		}
+
+		res.Data = aggAtt.Bellatrix
+	case eth2spec.DataVersionCapella:
+		if aggAtt.Capella == nil {
+			return nil, errors.New("no capella attestation")
+		}
+
+		res.Data = aggAtt.Capella
+	case eth2spec.DataVersionDeneb:
+		if aggAtt.Deneb == nil {
+			return nil, errors.New("no deneb attestation")
+		}
+
+		res.Data = aggAtt.Deneb
+	case eth2spec.DataVersionElectra:
+		if aggAtt.Electra == nil {
+			return nil, errors.New("no electra attestation")
+		}
+
+		res.Data = aggAtt.Electra
+	default:
+		return nil, errors.New("invalid attestation")
+	}
+
+	return &res, nil
 }
 
 func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) handlerFunc {

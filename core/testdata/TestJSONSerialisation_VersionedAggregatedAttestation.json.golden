@@ -1,5 +1,6 @@
 {
   "version": 5,
+  "validator_index": null,
   "attestation": {
     "aggregation_bits": "0x0272908d45b01601",
     "data": {

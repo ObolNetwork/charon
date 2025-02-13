@@ -168,8 +168,9 @@ func (a VersionedAggregatedAttestation) MarshalJSON() ([]byte, error) {
 	}
 
 	resp, err := json.Marshal(versionedRawAttestationJSON{
-		Version:     version,
-		Attestation: aggregatedAttestation,
+		Version:        version,
+		ValidatorIndex: a.ValidatorIndex,
+		Attestation:    aggregatedAttestation,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal wrapper")
@@ -251,6 +252,7 @@ func (a *VersionedAggregatedAttestation) UnmarshalJSON(input []byte) error {
 	default:
 		return errors.New("unknown attestation version", z.Str("version", a.Version.String()))
 	}
+	resp.ValidatorIndex = raw.ValidatorIndex
 
 	a.VersionedAttestation = resp
 

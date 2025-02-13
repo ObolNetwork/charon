@@ -92,6 +92,7 @@ func TestMemDB(t *testing.T) {
 			ValidatorCommitteeIndex: valCommIdxA,
 			CommitteesAtSlot:        notZero,
 			CommitteeIndex:          commIdx,
+			ValidatorIndex:          vIdxA,
 		},
 	}
 	unsignedB := core.AttestationData{
@@ -101,6 +102,7 @@ func TestMemDB(t *testing.T) {
 			ValidatorCommitteeIndex: valCommIdxB,
 			CommitteesAtSlot:        notZero,
 			CommitteeIndex:          commIdx,
+			ValidatorIndex:          vIdxB,
 		},
 	}
 
@@ -438,7 +440,7 @@ func TestDutyExpiry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Ensure it exists
-	pk, err := db.PubKeyByAttestation(ctx, uint64(att1.Data.Slot), uint64(att1.Duty.CommitteeIndex), att1.Duty.ValidatorCommitteeIndex)
+	pk, err := db.PubKeyByAttestation(ctx, uint64(att1.Data.Slot), uint64(att1.Duty.CommitteeIndex), uint64(att1.Duty.ValidatorIndex))
 	require.NoError(t, err)
 	require.NotEmpty(t, pk)
 
@@ -454,7 +456,7 @@ func TestDutyExpiry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Pubkey not found.
-	_, err = db.PubKeyByAttestation(ctx, uint64(att1.Data.Slot), uint64(att1.Duty.CommitteeIndex), att1.Duty.ValidatorCommitteeIndex)
+	_, err = db.PubKeyByAttestation(ctx, uint64(att1.Data.Slot), uint64(att1.Duty.CommitteeIndex), uint64(att1.Duty.ValidatorIndex))
 	require.Error(t, err)
 }
 

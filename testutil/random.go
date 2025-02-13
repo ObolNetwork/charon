@@ -129,7 +129,7 @@ func RandomPhase0Attestation() *eth2p0.Attestation {
 
 func RandomElectraAttestation() *electra.Attestation {
 	return &electra.Attestation{
-		AggregationBits: RandomBitList(1),
+		AggregationBits: RandomBitList(64),
 		Data:            RandomAttestationDataPhase0(),
 		Signature:       RandomEth2Signature(),
 		CommitteeBits:   RandomBitVec64(),

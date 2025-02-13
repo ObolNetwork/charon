@@ -1554,6 +1554,7 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 }
 
 func TestSubmitAttestations(t *testing.T) {
+	vidx := testutil.RandomVIdx()
 	tests := []struct {
 		version              eth2spec.DataVersion
 		versionedAttestation *eth2spec.VersionedAttestation
@@ -1568,8 +1569,9 @@ func TestSubmitAttestations(t *testing.T) {
 		{
 			version: eth2spec.DataVersionElectra,
 			versionedAttestation: &eth2spec.VersionedAttestation{
-				Version: eth2spec.DataVersionElectra,
-				Electra: testutil.RandomElectraAttestation(),
+				Version:        eth2spec.DataVersionElectra,
+				ValidatorIndex: &vidx,
+				Electra:        testutil.RandomElectraAttestation(),
 			},
 		},
 	}
@@ -1581,7 +1583,25 @@ func TestSubmitAttestations(t *testing.T) {
 
 			handler := testHandler{
 				SubmitAttestationsFunc: func(_ context.Context, attestations *eth2api.SubmitAttestationsOpts) error {
-					require.Equal(t, att, attestations.Attestations[0])
+					switch attestations.Attestations[0].Version {
+					case eth2spec.DataVersionPhase0:
+						require.Equal(t, att, attestations.Attestations[0])
+					case eth2spec.DataVersionAltair:
+						require.Equal(t, att, attestations.Attestations[0])
+					case eth2spec.DataVersionBellatrix:
+						require.Equal(t, att, attestations.Attestations[0])
+					case eth2spec.DataVersionCapella:
+						require.Equal(t, att, attestations.Attestations[0])
+					case eth2spec.DataVersionDeneb:
+						require.Equal(t, att, attestations.Attestations[0])
+					case eth2spec.DataVersionElectra:
+						// we don't check for aggregation bits for electra, as it uses SingleAttestation structure which does not include them aggregation bits
+						require.Equal(t, att.Electra.Data, attestations.Attestations[0].Electra.Data)
+						require.Equal(t, att.Electra.Signature, attestations.Attestations[0].Electra.Signature)
+						require.Equal(t, att.Electra.CommitteeBits, attestations.Attestations[0].Electra.CommitteeBits)
+					default:
+						require.Fail(t, "unknown version")
+					}
 
 					return nil
 				},
