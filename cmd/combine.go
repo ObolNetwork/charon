@@ -63,7 +63,7 @@ func bindCombineFlags(flags *pflag.FlagSet, clusterDir, outputDir *string, force
 	flags.StringVar(clusterDir, "cluster-dir", ".charon/cluster", `Parent directory containing a number of .charon subdirectories from the required threshold of nodes in the cluster.`)
 	flags.StringVar(outputDir, "output-dir", "./validator_keys", "Directory to output the combined private keys to.")
 	flags.BoolVar(force, "force", false, "Overwrites private keys with the same name if present.")
-	flags.StringVar(executionEngineAddr, "execution-rpc-api", "", "The address of the execution engine JSON-RPC API.")
+	flags.StringVar(executionEngineAddr, "execution-client-rpc-endpoint", "", "The address of the execution engine JSON-RPC API.")
 	flags.StringVar(&config.Name, "testnet-name", "", "Name of the custom test network.")
 	flags.StringVar(&config.GenesisForkVersionHex, "testnet-fork-version", "", "Genesis fork version of the custom test network (in hex).")
 	flags.Uint64Var(&config.ChainID, "testnet-chain-id", 0, "Chain ID of the custom test network.")

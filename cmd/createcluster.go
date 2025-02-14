@@ -152,7 +152,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the cluster. Selected automatically when not specified.")
 	flags.UintVar(&config.TargetGasLimit, "target-gas-limit", 36000000, "Preferred target gas limit for transactions.")
 	flags.BoolVar(&config.Compounding, "compounding", false, "Enable compounding rewards for validators by using 0x02 withdrawal credentials.")
-	flags.StringVar(&config.ExecutionEngineAddr, "execution-rpc-api", "", "The address of the execution engine JSON-RPC API.")
+	flags.StringVar(&config.ExecutionEngineAddr, "execution-client-rpc-endpoint", "", "The address of the execution engine JSON-RPC API.")
 }
 
 func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {

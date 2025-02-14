@@ -90,7 +90,7 @@ func bindCreateDKGFlags(cmd *cobra.Command, config *createDKGConfig) {
 	cmd.Flags().StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the cluster. Selected automatically when not specified.")
 	cmd.Flags().UintVar(&config.TargetGasLimit, "target-gas-limit", 36000000, "Preferred target gas limit for transactions.")
 	cmd.Flags().BoolVar(&config.Compounding, "compounding", false, "Enable compounding rewards for validators by using 0x02 withdrawal credentials.")
-	cmd.Flags().StringVar(&config.ExecutionEngineAddr, "execution-rpc-api", "", "The address of the execution engine JSON-RPC API.")
+	cmd.Flags().StringVar(&config.ExecutionEngineAddr, "execution-client-rpc-endpoint", "", "The address of the execution engine JSON-RPC API.")
 
 	mustMarkFlagRequired(cmd, operatorENRs)
 }
