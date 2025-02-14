@@ -54,7 +54,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 			return err
 		}
 
-		err = b.eth2Cl.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
+		err = b.eth2Cl.SubmitAttestationsV2(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
 		if err != nil && strings.Contains(err.Error(), "PriorAttestationKnown") {
 			// Lighthouse isn't idempotent, so just swallow this non-issue.
 			// See reference github.com/attestantio/go-eth2-client@v0.11.7/multi/submitattestations.go:38
@@ -167,7 +167,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 			return err
 		}
 
-		err = b.eth2Cl.SubmitAggregateAttestations(ctx, aggAndProofs)
+		err = b.eth2Cl.SubmitAggregateAttestationsV2(ctx, aggAndProofs)
 		if err == nil {
 			log.Info(ctx, "Successfully submitted attestation aggregations to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot)))

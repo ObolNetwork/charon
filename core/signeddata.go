@@ -545,6 +545,84 @@ type versionedRawAggregateAndProofJSON struct {
 	AggregateAndProof json.RawMessage      `json:"aggregate_and_proof"`
 }
 
+// Attestation is a signed attestation and implements SignedData.
+type Attestation struct {
+	eth2p0.Attestation
+}
+
+func (a Attestation) MessageRoot() ([32]byte, error) {
+	return a.Data.HashTreeRoot()
+}
+
+func (a Attestation) Clone() (SignedData, error) {
+	return a.clone()
+}
+
+// clone returns a copy of the Attestation.
+// It is similar to Clone that returns the SignedData interface.
+
+func (a Attestation) clone() (Attestation, error) {
+	var resp Attestation
+	err := cloneJSONMarshaler(a, &resp)
+	if err != nil {
+		return Attestation{}, errors.Wrap(err, "clone attestation")
+	}
+
+	return resp, nil
+}
+
+func (a Attestation) Signature() Signature {
+	return SigFromETH2(a.Attestation.Signature)
+}
+
+func (a Attestation) SetSignature(sig Signature) (SignedData, error) {
+	resp, err := a.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	resp.Attestation.Signature = sig.ToETH2()
+
+	return resp, nil
+}
+
+func (a Attestation) MarshalJSON() ([]byte, error) {
+	return a.Attestation.MarshalJSON()
+}
+
+func (a *Attestation) UnmarshalJSON(b []byte) error {
+	return a.Attestation.UnmarshalJSON(b)
+}
+
+func (a Attestation) MarshalSSZ() ([]byte, error) {
+	return a.Attestation.MarshalSSZ()
+}
+
+func (a Attestation) MarshalSSZTo(dst []byte) ([]byte, error) {
+	return a.Attestation.MarshalSSZTo(dst)
+}
+
+func (a Attestation) SizeSSZ() int {
+	return a.Attestation.SizeSSZ()
+}
+
+func (a *Attestation) UnmarshalSSZ(b []byte) error {
+	return a.Attestation.UnmarshalSSZ(b)
+}
+
+// NewAttestation is a convenience function that returns a new wrapped attestation.
+func NewAttestation(att *eth2p0.Attestation) Attestation {
+	return Attestation{Attestation: *att}
+}
+
+// NewPartialAttestation is a convenience function that returns a new partially signed attestation.
+func NewPartialAttestation(att *eth2p0.Attestation, shareIdx int) ParSignedData {
+	return ParSignedData{
+		SignedData: NewAttestation(att),
+		ShareIdx:   shareIdx,
+	}
+}
+
 // NewVersionedAttestation is a convenience function that returns a new wrapped attestation.
 func NewVersionedAttestation(att *eth2spec.VersionedAttestation) (VersionedAttestation, error) {
 	switch att.Version {
@@ -1175,6 +1253,81 @@ func (s SyncCommitteeSelection) MarshalJSON() ([]byte, error) {
 
 func (s *SyncCommitteeSelection) UnmarshalJSON(input []byte) error {
 	return s.SyncCommitteeSelection.UnmarshalJSON(input)
+}
+
+// NewSignedAggregateAndProof is a convenience function which returns a new signed SignedAggregateAndProof.
+func NewSignedAggregateAndProof(data *eth2p0.SignedAggregateAndProof) SignedAggregateAndProof {
+	return SignedAggregateAndProof{SignedAggregateAndProof: *data}
+}
+
+// NewPartialSignedAggregateAndProof is a convenience function which returns a new partially signed SignedAggregateAndProof.
+func NewPartialSignedAggregateAndProof(data *eth2p0.SignedAggregateAndProof, shareIdx int) ParSignedData {
+	return ParSignedData{
+		SignedData: NewSignedAggregateAndProof(data),
+		ShareIdx:   shareIdx,
+	}
+}
+
+// SignedAggregateAndProof wraps eth2p0.SignedAggregateAndProof and implements SignedData.
+type SignedAggregateAndProof struct {
+	eth2p0.SignedAggregateAndProof
+}
+
+func (s SignedAggregateAndProof) MessageRoot() ([32]byte, error) {
+	return s.Message.HashTreeRoot()
+}
+
+func (s SignedAggregateAndProof) Signature() Signature {
+	return SigFromETH2(s.SignedAggregateAndProof.Signature)
+}
+
+func (s SignedAggregateAndProof) SetSignature(sig Signature) (SignedData, error) {
+	resp, err := s.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	resp.SignedAggregateAndProof.Signature = sig.ToETH2()
+
+	return resp, nil
+}
+
+func (s SignedAggregateAndProof) Clone() (SignedData, error) {
+	return s.clone()
+}
+
+func (s SignedAggregateAndProof) clone() (SignedAggregateAndProof, error) {
+	var resp SignedAggregateAndProof
+	err := cloneJSONMarshaler(s, &resp)
+	if err != nil {
+		return SignedAggregateAndProof{}, errors.Wrap(err, "clone signed aggregate and proof")
+	}
+
+	return resp, nil
+}
+
+func (s SignedAggregateAndProof) MarshalJSON() ([]byte, error) {
+	return s.SignedAggregateAndProof.MarshalJSON()
+}
+
+func (s *SignedAggregateAndProof) UnmarshalJSON(input []byte) error {
+	return s.SignedAggregateAndProof.UnmarshalJSON(input)
+}
+
+func (s SignedAggregateAndProof) MarshalSSZ() ([]byte, error) {
+	return s.SignedAggregateAndProof.MarshalSSZ()
+}
+
+func (s SignedAggregateAndProof) MarshalSSZTo(dst []byte) ([]byte, error) {
+	return s.SignedAggregateAndProof.MarshalSSZTo(dst)
+}
+
+func (s SignedAggregateAndProof) SizeSSZ() int {
+	return s.SignedAggregateAndProof.SizeSSZ()
+}
+
+func (s *SignedAggregateAndProof) UnmarshalSSZ(b []byte) error {
+	return s.SignedAggregateAndProof.UnmarshalSSZ(b)
 }
 
 // NewVersionedSignedAggregateAndProof is a convenience function which returns a new signed VersionedSignedAggregateAndProof.

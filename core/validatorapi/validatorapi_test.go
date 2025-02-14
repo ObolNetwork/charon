@@ -122,7 +122,7 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 		return nil
 	})
 
-	err = component.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
+	err = component.SubmitAttestationsV2(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
 	require.NoError(t, err)
 }
 
@@ -162,7 +162,7 @@ func TestComponent_InvalidSubmitAttestations(t *testing.T) {
 
 	atts := []*eth2spec.VersionedAttestation{att}
 
-	err = component.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
+	err = component.SubmitAttestationsV2(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
 	require.Error(t, err)
 }
 
@@ -223,7 +223,7 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	})
 
 	// Configure beacon mock to call validator API for submissions
-	bmock.SubmitAttestationsFunc = vapi.SubmitAttestations
+	bmock.SubmitAttestationsV2Func = vapi.SubmitAttestationsV2
 
 	signer, err := validatormock.NewSigner(secret)
 	require.NoError(t, err)
@@ -338,7 +338,7 @@ func TestSignAndVerify(t *testing.T) {
 			Signature:       sig,
 		},
 	}
-	err = vapi.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: []*eth2spec.VersionedAttestation{&att}})
+	err = vapi.SubmitAttestationsV2(ctx, &eth2api.SubmitAttestationsOpts{Attestations: []*eth2spec.VersionedAttestation{&att}})
 	require.NoError(t, err)
 	wg.Wait()
 }
@@ -1893,7 +1893,7 @@ func TestComponent_SubmitAggregateAttestations(t *testing.T) {
 		return nil
 	})
 
-	require.NoError(t, vapi.SubmitAggregateAttestations(ctx, &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: []*eth2spec.VersionedSignedAggregateAndProof{agg}}))
+	require.NoError(t, vapi.SubmitAggregateAttestationsV2(ctx, &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: []*eth2spec.VersionedSignedAggregateAndProof{agg}}))
 }
 
 func TestComponent_SubmitAggregateAttestationVerify(t *testing.T) {
@@ -1950,7 +1950,7 @@ func TestComponent_SubmitAggregateAttestationVerify(t *testing.T) {
 		return nil
 	})
 
-	err = vapi.SubmitAggregateAttestations(ctx, &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: []*eth2spec.VersionedSignedAggregateAndProof{signedAggProof}})
+	err = vapi.SubmitAggregateAttestationsV2(ctx, &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: []*eth2spec.VersionedSignedAggregateAndProof{signedAggProof}})
 	require.NoError(t, err)
 	<-done
 }

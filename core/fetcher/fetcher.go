@@ -213,7 +213,7 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 			AttestationDataRoot: dataRoot,
 			CommitteeIndex:      attDef.CommitteeIndex,
 		}
-		eth2Resp, err := f.eth2Cl.AggregateAttestation(ctx, opts)
+		eth2Resp, err := f.eth2Cl.AggregateAttestationV2(ctx, opts)
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		}

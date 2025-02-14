@@ -61,11 +61,11 @@ func TestAttest(t *testing.T) {
 			// Callback to collect attestations
 			var atts []*eth2spec.VersionedAttestation
 			var aggs *eth2api.SubmitAggregateAttestationsOpts
-			beaconMock.SubmitAttestationsFunc = func(_ context.Context, attestations *eth2api.SubmitAttestationsOpts) error {
+			beaconMock.SubmitAttestationsV2Func = func(_ context.Context, attestations *eth2api.SubmitAttestationsOpts) error {
 				atts = attestations.Attestations
 				return nil
 			}
-			beaconMock.SubmitAggregateAttestationsFunc = func(_ context.Context, aggAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
+			beaconMock.SubmitAggregateAttestationsV2Func = func(_ context.Context, aggAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
 				aggs = aggAndProofs
 				return nil
 			}

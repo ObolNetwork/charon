@@ -128,7 +128,7 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, builderEn
 		{
 			Name:    "submit_attestations_v2",
 			Path:    "/eth/v2/beacon/pool/attestations",
-			Handler: submitAttestations(h),
+			Handler: submitAttestationsV2(h),
 			Methods: []string{http.MethodPost},
 		},
 		{
@@ -218,13 +218,13 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, builderEn
 		{
 			Name:    "aggregate_attestation",
 			Path:    "/eth/v2/validator/aggregate_attestation",
-			Handler: aggregateAttestation(h),
+			Handler: aggregateAttestationV2(h),
 			Methods: []string{http.MethodGet},
 		},
 		{
 			Name:    "submit_aggregate_and_proofs",
 			Path:    "/eth/v2/validator/aggregate_and_proofs",
-			Handler: submitAggregateAttestations(h),
+			Handler: submitAggregateAttestationsV2(h),
 			Methods: []string{http.MethodPost},
 		},
 		{
@@ -460,7 +460,7 @@ func attestationData(p eth2client.AttestationDataProvider) handlerFunc {
 }
 
 // submitAttestations returns a handler function for the attestation submitter endpoint.
-func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
+func submitAttestationsV2(p eth2client.AttestationsSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		versionedAtts := []*eth2spec.VersionedAttestation{}
 
@@ -483,7 +483,7 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 				versionedAtts = append(versionedAtts, &versionedAtt)
 			}
 
-			return nil, nil, p.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: versionedAtts})
+			return nil, nil, p.SubmitAttestationsV2(ctx, &eth2api.SubmitAttestationsOpts{Attestations: versionedAtts})
 		}
 
 		denebAtts := new([]eth2p0.Attestation)
@@ -498,7 +498,7 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 				versionedAtts = append(versionedAtts, &versionedAgg)
 			}
 
-			return nil, nil, p.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{
+			return nil, nil, p.SubmitAttestationsV2(ctx, &eth2api.SubmitAttestationsOpts{
 				Attestations: versionedAtts,
 			})
 		}
@@ -1068,7 +1068,7 @@ func proposerConfig(p eth2exp.ProposerConfigProvider) handlerFunc {
 	}
 }
 
-func aggregateAttestation(p eth2client.AggregateAttestationProvider) handlerFunc {
+func aggregateAttestationV2(p eth2client.AggregateAttestationProvider) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		slot, err := uintQuery(query, "slot")
 		if err != nil {
@@ -1090,7 +1090,7 @@ func aggregateAttestation(p eth2client.AggregateAttestationProvider) handlerFunc
 			AttestationDataRoot: attDataRoot,
 			CommitteeIndex:      eth2p0.CommitteeIndex(committeeIndex),
 		}
-		eth2Resp, err := p.AggregateAttestation(ctx, opts)
+		eth2Resp, err := p.AggregateAttestationV2(ctx, opts)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1156,7 +1156,7 @@ func createAggregateAttestation(aggAtt *eth2spec.VersionedAttestation) (*aggrega
 	return &res, nil
 }
 
-func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) handlerFunc {
+func submitAggregateAttestationsV2(s eth2client.AggregateAttestationsSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		aggs := []*eth2spec.VersionedSignedAggregateAndProof{}
 
@@ -1171,7 +1171,7 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 				aggs = append(aggs, &versionedAgg)
 			}
 
-			return nil, nil, s.SubmitAggregateAttestations(ctx, &eth2api.SubmitAggregateAttestationsOpts{
+			return nil, nil, s.SubmitAggregateAttestationsV2(ctx, &eth2api.SubmitAggregateAttestationsOpts{
 				SignedAggregateAndProofs: aggs,
 			})
 		}
@@ -1188,7 +1188,7 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 				aggs = append(aggs, &versionedAgg)
 			}
 
-			return nil, nil, s.SubmitAggregateAttestations(ctx, &eth2api.SubmitAggregateAttestationsOpts{
+			return nil, nil, s.SubmitAggregateAttestationsV2(ctx, &eth2api.SubmitAggregateAttestationsOpts{
 				SignedAggregateAndProofs: aggs,
 			})
 		}
