@@ -98,6 +98,7 @@ type Config struct {
 	BeaconNodeHeaders       []string
 	TargetGasLimit          uint
 	FallbackBeaconNodeAddrs []string
+	ExecutionEngineAddr     string
 
 	TestConfig TestConfig
 }

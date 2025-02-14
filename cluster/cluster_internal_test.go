@@ -30,7 +30,7 @@ func TestDefinitionVerify(t *testing.T) {
 		definition, err = signCreator(secret3, definition)
 		require.NoError(t, err)
 
-		err = definition.VerifySignatures()
+		err = definition.VerifySignatures(nil)
 		require.NoError(t, err)
 	})
 
@@ -49,7 +49,7 @@ func TestDefinitionVerify(t *testing.T) {
 		definition.Operators[1], err = signOperator(secret1, definition, op1)
 		require.NoError(t, err)
 
-		err = definition.VerifySignatures()
+		err = definition.VerifySignatures(nil)
 		require.NoError(t, err)
 	})
 
@@ -69,7 +69,7 @@ func TestDefinitionVerify(t *testing.T) {
 		definition.Operators[1], err = signOperator(secret1, definition, op1)
 		require.NoError(t, err)
 
-		err = definition.VerifySignatures()
+		err = definition.VerifySignatures(nil)
 		require.NoError(t, err)
 	})
 
@@ -86,7 +86,7 @@ func TestDefinitionVerify(t *testing.T) {
 		definition.Operators[1], err = signOperator(secret1, definition, op1)
 		require.NoError(t, err)
 
-		err = definition.VerifySignatures()
+		err = definition.VerifySignatures(nil)
 		require.NoError(t, err)
 	})
 
@@ -96,14 +96,14 @@ func TestDefinitionVerify(t *testing.T) {
 			WithLegacyVAddrs(testutil.RandomETHAddress(), testutil.RandomETHAddress()),
 			func(d *Definition) { d.TargetGasLimit = 0 },
 		)
-		require.NoError(t, def.VerifySignatures())
+		require.NoError(t, def.VerifySignatures(nil))
 
 		def = randomDefinition(t, Creator{}, op0, op1, 0,
 			WithVersion(v1_0),
 			WithLegacyVAddrs(testutil.RandomETHAddress(), testutil.RandomETHAddress()),
 			func(d *Definition) { d.TargetGasLimit = 0 },
 		)
-		require.NoError(t, def.VerifySignatures())
+		require.NoError(t, def.VerifySignatures(nil))
 	})
 
 	t.Run("unsigned creator and operators", func(t *testing.T) {
@@ -111,7 +111,7 @@ func TestDefinitionVerify(t *testing.T) {
 		def.Creator = Creator{}
 		def.Operators = []Operator{{}, {}}
 
-		require.NoError(t, def.VerifySignatures())
+		require.NoError(t, def.VerifySignatures(nil))
 	})
 
 	t.Run("unsigned operators v1.3", func(t *testing.T) {
@@ -123,20 +123,20 @@ func TestDefinitionVerify(t *testing.T) {
 
 		def.Operators = []Operator{{}, {}}
 
-		require.NoError(t, def.VerifySignatures())
+		require.NoError(t, def.VerifySignatures(nil))
 	})
 
 	t.Run("empty operator signatures", func(t *testing.T) {
 		def := randomDefinition(t, creator, op0, op1, 30000000)
 
 		// Empty ENR sig
-		err := def.VerifySignatures()
+		err := def.VerifySignatures(nil)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "empty operator enr signature")
 
 		// Empty Config sig
 		def.Operators[0].ENRSignature = []byte{1, 2, 3}
-		err = def.VerifySignatures()
+		err = def.VerifySignatures(nil)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "empty operator config signature")
 	})
@@ -149,7 +149,7 @@ func TestDefinitionVerify(t *testing.T) {
 		definition.Operators[1], err = signOperator(secret1, definition, op1)
 		require.NoError(t, err)
 
-		err = definition.VerifySignatures()
+		err = definition.VerifySignatures(nil)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "some operators signed while others didn't")
 	})
@@ -157,7 +157,7 @@ func TestDefinitionVerify(t *testing.T) {
 	t.Run("no operators no creator", func(t *testing.T) {
 		definition := randomDefinition(t, Creator{}, Operator{}, Operator{}, 30000000)
 
-		err = definition.VerifySignatures()
+		err = definition.VerifySignatures(nil)
 		require.NoError(t, err)
 	})
 
@@ -169,7 +169,7 @@ func TestDefinitionVerify(t *testing.T) {
 		definition.Operators[1], err = signOperator(secret1, definition, op1)
 		require.NoError(t, err)
 
-		err = definition.VerifySignatures()
+		err = definition.VerifySignatures(nil)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "empty creator config signature")
 	})
@@ -188,7 +188,7 @@ func TestDefinitionVerify(t *testing.T) {
 		err = definition.VerifyHashes()
 		require.NoError(t, err)
 
-		err = definition.VerifySignatures()
+		err = definition.VerifySignatures(nil)
 		require.NoError(t, err)
 	})
 
@@ -206,7 +206,7 @@ func TestDefinitionVerify(t *testing.T) {
 		err = definition.VerifyHashes()
 		require.NoError(t, err)
 
-		err = definition.VerifySignatures()
+		err = definition.VerifySignatures(nil)
 		require.NoError(t, err)
 	})
 }
