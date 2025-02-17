@@ -5,7 +5,6 @@ package eth2util
 import (
 	"context"
 	"encoding/hex"
-	"fmt"
 	"regexp"
 	"strings"
 	"unicode"
@@ -51,7 +50,6 @@ func ParseBeaconNodeHeaders(headers []string) (map[string]string, error) {
 
 	for _, header := range headers {
 		pair := strings.SplitN(header, "=", 2)
-		fmt.Println(pair)
 		parsedHeaders[pair[0]] = pair[1]
 	}
 
