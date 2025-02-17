@@ -20,8 +20,10 @@ import (
 func NewMemDB(deadliner core.Deadliner) *MemDB {
 	return &MemDB{
 		attDuties:         make(map[attKey]*eth2p0.AttestationData),
-		attPubKeys:        make(map[pkKey]core.PubKey),
+		attPubKeys:        make(map[pkKey]*core.PubKey),
+		attV2PubKeys:      make(map[pkKeyV2]*core.PubKey),
 		attKeysBySlot:     make(map[uint64][]pkKey),
+		attV2KeysBySlot:   make(map[uint64][]pkKeyV2),
 		proDuties:         make(map[uint64]*eth2api.VersionedProposal),
 		aggDuties:         make(map[aggKey]core.VersionedAggregatedAttestation),
 		aggKeysBySlot:     make(map[uint64][]aggKey),
@@ -38,10 +40,12 @@ type MemDB struct {
 	mu sync.Mutex
 
 	// DutyAttester
-	attDuties     map[attKey]*eth2p0.AttestationData
-	attPubKeys    map[pkKey]core.PubKey
-	attKeysBySlot map[uint64][]pkKey
-	attQueries    []attQuery
+	attDuties       map[attKey]*eth2p0.AttestationData
+	attPubKeys      map[pkKey]*core.PubKey
+	attV2PubKeys    map[pkKeyV2]*core.PubKey
+	attKeysBySlot   map[uint64][]pkKey
+	attV2KeysBySlot map[uint64][]pkKeyV2
+	attQueries      []attQuery
 
 	// DutyProposer
 	proDuties  map[uint64]*eth2api.VersionedProposal
@@ -264,14 +268,14 @@ func (db *MemDB) AwaitSyncContribution(ctx context.Context, slot, subcommIdx uin
 }
 
 // PubKeyByAttestation implements core.DutyDB, see its godoc.
-func (db *MemDB) PubKeyByAttestation(_ context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error) {
+func (db *MemDB) PubKeyByAttestation(_ context.Context, slot, commIdx, valCommIdx uint64) (core.PubKey, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
 	key := pkKey{
-		Slot:    slot,
-		CommIdx: commIdx,
-		ValIdx:  valIdx,
+		Slot:       slot,
+		CommIdx:    commIdx,
+		ValCommIdx: valCommIdx,
 	}
 
 	pubkey, ok := db.attPubKeys[key]
@@ -279,7 +283,26 @@ func (db *MemDB) PubKeyByAttestation(_ context.Context, slot, commIdx, valIdx ui
 		return "", errors.New("pubkey not found")
 	}
 
-	return pubkey, nil
+	return *pubkey, nil
+}
+
+// PubKeyByAttestationV2 implements core.DutyDB, see its godoc.
+func (db *MemDB) PubKeyByAttestationV2(_ context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	key := pkKeyV2{
+		Slot:    slot,
+		CommIdx: commIdx,
+		ValIdx:  valIdx,
+	}
+
+	pubkey, ok := db.attV2PubKeys[key]
+	if !ok {
+		return "", errors.New("pubkey not found")
+	}
+
+	return *pubkey, nil
 }
 
 // storeAttestationUnsafe stores the unsigned attestation. It is unsafe since it assumes the lock is held.
@@ -294,19 +317,39 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 		return errors.New("invalid unsigned attestation data")
 	}
 
+	// Store the same pubkey in v1 and v2 maps in order to avoid data duplication.
+	pubkeyStore := &pubkey
+
 	// Store key and value for PubKeyByAttestation
 	pKey := pkKey{
+		Slot:       uint64(attData.Data.Slot),
+		CommIdx:    uint64(attData.Duty.CommitteeIndex),
+		ValCommIdx: attData.Duty.ValidatorCommitteeIndex,
+	}
+
+	if value, ok := db.attPubKeys[pKey]; ok {
+		if *value != *pubkeyStore {
+			return errors.New("clashing public key", z.Any("pKey", pKey))
+		}
+	} else {
+		db.attPubKeys[pKey] = pubkeyStore
+		db.attKeysBySlot[uint64(attData.Duty.Slot)] = append(db.attKeysBySlot[uint64(attData.Duty.Slot)], pKey)
+	}
+
+	// Store key and value for PubKeyByAttestationV2
+	pKeyV2 := pkKeyV2{
 		Slot:    uint64(attData.Data.Slot),
 		CommIdx: uint64(attData.Duty.CommitteeIndex),
 		ValIdx:  uint64(attData.Duty.ValidatorIndex),
 	}
-	if value, ok := db.attPubKeys[pKey]; ok {
-		if value != pubkey {
-			return errors.New("clashing public key", z.Any("key", pKey))
+
+	if value, ok := db.attV2PubKeys[pKeyV2]; ok {
+		if *value != *pubkeyStore {
+			return errors.New("clashing public key", z.Any("pKeyV2", pKeyV2))
 		}
 	} else {
-		db.attPubKeys[pKey] = pubkey
-		db.attKeysBySlot[uint64(attData.Duty.Slot)] = append(db.attKeysBySlot[uint64(attData.Duty.Slot)], pKey)
+		db.attV2PubKeys[pKeyV2] = pubkeyStore
+		db.attV2KeysBySlot[uint64(attData.Duty.Slot)] = append(db.attV2KeysBySlot[uint64(attData.Duty.Slot)], pKeyV2)
 	}
 
 	// Store key and value for AwaitAttestation
@@ -550,6 +593,9 @@ func (db *MemDB) deleteDutyUnsafe(duty core.Duty) error {
 			delete(db.attPubKeys, key)
 			delete(db.attDuties, attKey{Slot: key.Slot, CommIdx: key.CommIdx})
 		}
+		for _, key := range db.attV2KeysBySlot[duty.Slot] {
+			delete(db.attV2PubKeys, key)
+		}
 		delete(db.attKeysBySlot, duty.Slot)
 	case core.DutyAggregator:
 		for _, key := range db.aggKeysBySlot[duty.Slot] {
@@ -576,6 +622,13 @@ type attKey struct {
 
 // pkKey is the key to lookup pubkeys by attestation in the DB.
 type pkKey struct {
+	Slot       uint64
+	CommIdx    uint64
+	ValCommIdx uint64
+}
+
+// pkKey is the key to lookup pubkeys by v2 attestation in the DB.
+type pkKeyV2 struct {
 	Slot    uint64
 	CommIdx uint64
 	ValIdx  uint64

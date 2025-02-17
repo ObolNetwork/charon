@@ -52,8 +52,8 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 		commIdx     = 456
 		vIdxA       = 1
 		vIdxB       = 2
-		valCommIdxA = vIdxA
-		valCommIdxB = vIdxB
+		valCommIdxA = 4
+		valCommIdxB = 5
 		commLen     = 8
 	)
 
@@ -68,8 +68,10 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 	aggBitsA := bitfield.NewBitlist(commLen)
 	aggBitsA.SetBitAt(valCommIdxA, true)
 
+	valIdxAMut := eth2p0.ValidatorIndex(uint64(vIdxA))
 	attA := &eth2spec.VersionedAttestation{
-		Version: eth2spec.DataVersionDeneb,
+		Version:        eth2spec.DataVersionDeneb,
+		ValidatorIndex: &valIdxAMut,
 		Deneb: &eth2p0.Attestation{
 			AggregationBits: aggBitsA,
 			Data: &eth2p0.AttestationData{
@@ -85,8 +87,10 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 	aggBitsB := bitfield.NewBitlist(commLen)
 	aggBitsB.SetBitAt(valCommIdxB, true)
 
+	valIdxBMut := eth2p0.ValidatorIndex(uint64(vIdxB))
 	attB := &eth2spec.VersionedAttestation{
-		Version: eth2spec.DataVersionDeneb,
+		Version:        eth2spec.DataVersionDeneb,
+		ValidatorIndex: &valIdxBMut,
 		Deneb: &eth2p0.Attestation{
 			AggregationBits: aggBitsB,
 			Data: &eth2p0.AttestationData{
@@ -101,8 +105,8 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 
 	atts := []*eth2spec.VersionedAttestation{attA, attB}
 
-	component.RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valCommIdx uint64) (core.PubKey, error) {
-		return pubkeysByIdx[eth2p0.ValidatorIndex(valCommIdx)], nil
+	component.RegisterPubKeyByAttestationV2(func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error) {
+		return pubkeysByIdx[eth2p0.ValidatorIndex(valIdx)], nil
 	})
 
 	component.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
@@ -135,7 +139,7 @@ func TestComponent_InvalidSubmitAttestations(t *testing.T) {
 		slot       = 123
 		commIdx    = 456
 		vIdx       = 1
-		valCommIdx = vIdx
+		valCommIdx = 3
 		commLen    = 8
 	)
 
@@ -146,23 +150,20 @@ func TestComponent_InvalidSubmitAttestations(t *testing.T) {
 	aggBits.SetBitAt(valCommIdx, true)
 	aggBits.SetBitAt(valCommIdx+1, true)
 
-	att := &eth2spec.VersionedAttestation{
-		Version: eth2spec.DataVersionDeneb,
-		Deneb: &eth2p0.Attestation{
-			AggregationBits: aggBits,
-			Data: &eth2p0.AttestationData{
-				Slot:   slot,
-				Index:  commIdx,
-				Source: &eth2p0.Checkpoint{},
-				Target: &eth2p0.Checkpoint{},
-			},
-			Signature: eth2p0.BLSSignature{},
+	att := &eth2p0.Attestation{
+		AggregationBits: aggBits,
+		Data: &eth2p0.AttestationData{
+			Slot:   slot,
+			Index:  commIdx,
+			Source: &eth2p0.Checkpoint{},
+			Target: &eth2p0.Checkpoint{},
 		},
+		Signature: eth2p0.BLSSignature{},
 	}
 
-	atts := []*eth2spec.VersionedAttestation{att}
+	atts := []*eth2p0.Attestation{att}
 
-	err = component.SubmitAttestationsV2(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
+	err = component.SubmitAttestations(ctx, atts)
 	require.Error(t, err)
 }
 
@@ -205,10 +206,10 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000, nil)
 	require.NoError(t, err)
 
-	vapi.RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valCommIdx uint64) (core.PubKey, error) {
+	vapi.RegisterPubKeyByAttestationV2(func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error) {
 		require.EqualValues(t, slot, epochSlot)
 		require.EqualValues(t, commIdx, vIdx)
-		require.EqualValues(t, valCommIdx, 0)
+		require.EqualValues(t, valIdx, 0)
 
 		return corePubKey, nil
 	})
@@ -312,7 +313,7 @@ func TestSignAndVerify(t *testing.T) {
 	// Setup validatorapi component.
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000, nil)
 	require.NoError(t, err)
-	vapi.RegisterPubKeyByAttestation(func(context.Context, uint64, uint64, uint64) (core.PubKey, error) {
+	vapi.RegisterPubKeyByAttestationV2(func(context.Context, uint64, uint64, uint64) (core.PubKey, error) {
 		return core.PubKeyFromBytes(pubkey[:])
 	})
 
@@ -327,11 +328,13 @@ func TestSignAndVerify(t *testing.T) {
 		return nil
 	})
 
+	vIdx := eth2p0.ValidatorIndex(1)
 	// Create and submit attestation.
 	aggBits := bitfield.NewBitlist(1)
 	aggBits.SetBitAt(0, true)
 	att := eth2spec.VersionedAttestation{
-		Version: eth2spec.DataVersionDeneb,
+		Version:        eth2spec.DataVersionDeneb,
+		ValidatorIndex: &vIdx,
 		Deneb: &eth2p0.Attestation{
 			AggregationBits: aggBits,
 			Data:            &attData,

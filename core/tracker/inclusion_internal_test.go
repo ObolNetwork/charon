@@ -190,7 +190,7 @@ func TestDuplicateAttData(t *testing.T) {
 			require.NoError(t, err)
 
 			// Assert that the block to check contains all bitlists above.
-			incl.checkBlockFunc = func(ctx context.Context, block block) {
+			incl.checkBlockV2Func = func(ctx context.Context, block blockV2) {
 				require.Len(t, block.AttestationsByDataRoot, 1)
 				att, ok := block.AttestationsByDataRoot[attDataRoot]
 				require.True(t, ok)
@@ -304,7 +304,7 @@ func TestInclusion(t *testing.T) {
 	att3AggBits, err := att3.AggregationBits()
 	require.NoError(t, err)
 
-	block := block{
+	block := blockV2{
 		Slot: block4Duty.Slot,
 		AttestationsByDataRoot: map[eth2p0.Root]*eth2spec.VersionedAttestation{
 			att1Root: att1,
@@ -325,7 +325,7 @@ func TestInclusion(t *testing.T) {
 	}
 
 	// Check the block
-	incl.CheckBlock(context.Background(), block)
+	incl.CheckBlockV2(context.Background(), block)
 
 	// Assert that the 1st and 2nd duty was included
 	duties := []core.Duty{att1Duty, agg2Duty}

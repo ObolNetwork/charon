@@ -32,6 +32,7 @@ import (
 
 var (
 	_ SignedData = VersionedSignedProposal{}
+	_ SignedData = Attestation{}
 	_ SignedData = VersionedAttestation{}
 	_ SignedData = Signature{}
 	_ SignedData = SignedVoluntaryExit{}
@@ -46,12 +47,14 @@ var (
 
 	// Some types support SSZ marshalling and unmarshalling.
 	_ ssz.Marshaler   = VersionedSignedProposal{}
+	_ ssz.Marshaler   = Attestation{}
 	_ ssz.Marshaler   = VersionedAttestation{}
 	_ ssz.Marshaler   = VersionedSignedAggregateAndProof{}
 	_ ssz.Marshaler   = SignedSyncMessage{}
 	_ ssz.Marshaler   = SyncContributionAndProof{}
 	_ ssz.Marshaler   = SignedSyncContributionAndProof{}
 	_ ssz.Unmarshaler = new(VersionedSignedProposal)
+	_ ssz.Unmarshaler = new(Attestation)
 	_ ssz.Unmarshaler = new(VersionedAttestation)
 	_ ssz.Unmarshaler = new(VersionedSignedAggregateAndProof)
 	_ ssz.Unmarshaler = new(SignedSyncMessage)
@@ -532,17 +535,17 @@ type versionedRawBlockJSON struct {
 	Blinded bool                 `json:"blinded,omitempty"`
 }
 
-// versionedRawAttestationJSON is a custom VersionedAttestation serialiser.
-type versionedRawAttestationJSON struct {
-	Version        eth2util.DataVersion   `json:"version"`
-	ValidatorIndex *eth2p0.ValidatorIndex `json:"validator_index"`
-	Attestation    json.RawMessage        `json:"attestation"`
+// NewAttestation is a convenience function that returns a new wrapped attestation.
+func NewAttestation(att *eth2p0.Attestation) Attestation {
+	return Attestation{Attestation: *att}
 }
 
-// versionedRawAggregateAndProofJSON is a custom VersionedAttestation serialiser.
-type versionedRawAggregateAndProofJSON struct {
-	Version           eth2util.DataVersion `json:"version"`
-	AggregateAndProof json.RawMessage      `json:"aggregate_and_proof"`
+// NewPartialAttestation is a convenience function that returns a new partially signed attestation.
+func NewPartialAttestation(att *eth2p0.Attestation, shareIdx int) ParSignedData {
+	return ParSignedData{
+		SignedData: NewAttestation(att),
+		ShareIdx:   shareIdx,
+	}
 }
 
 // Attestation is a signed attestation and implements SignedData.
@@ -608,19 +611,6 @@ func (a Attestation) SizeSSZ() int {
 
 func (a *Attestation) UnmarshalSSZ(b []byte) error {
 	return a.Attestation.UnmarshalSSZ(b)
-}
-
-// NewAttestation is a convenience function that returns a new wrapped attestation.
-func NewAttestation(att *eth2p0.Attestation) Attestation {
-	return Attestation{Attestation: *att}
-}
-
-// NewPartialAttestation is a convenience function that returns a new partially signed attestation.
-func NewPartialAttestation(att *eth2p0.Attestation, shareIdx int) ParSignedData {
-	return ParSignedData{
-		SignedData: NewAttestation(att),
-		ShareIdx:   shareIdx,
-	}
 }
 
 // NewVersionedAttestation is a convenience function that returns a new wrapped attestation.
@@ -855,6 +845,13 @@ func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
 	a.VersionedAttestation = resp
 
 	return nil
+}
+
+// versionedRawAttestationJSON is a custom VersionedAttestation serialiser.
+type versionedRawAttestationJSON struct {
+	Version        eth2util.DataVersion   `json:"version"`
+	ValidatorIndex *eth2p0.ValidatorIndex `json:"validator_index"`
+	Attestation    json.RawMessage        `json:"attestation"`
 }
 
 // NewSignedVoluntaryExit is a convenience function that returns a new signed voluntary exit.
@@ -1679,6 +1676,12 @@ func (ap VersionedSignedAggregateAndProof) AggregationBits() bitfield.Bitlist {
 	default:
 		return nil
 	}
+}
+
+// versionedRawAggregateAndProofJSON is a custom VersionedAttestation serialiser.
+type versionedRawAggregateAndProofJSON struct {
+	Version           eth2util.DataVersion `json:"version"`
+	AggregateAndProof json.RawMessage      `json:"aggregate_and_proof"`
 }
 
 // SyncCommitteeMessage: https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#synccommitteemessage.

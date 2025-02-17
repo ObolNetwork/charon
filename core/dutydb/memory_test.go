@@ -440,7 +440,7 @@ func TestDutyExpiry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Ensure it exists
-	pk, err := db.PubKeyByAttestation(ctx, uint64(att1.Data.Slot), uint64(att1.Duty.CommitteeIndex), uint64(att1.Duty.ValidatorIndex))
+	pk, err := db.PubKeyByAttestationV2(ctx, uint64(att1.Data.Slot), uint64(att1.Duty.CommitteeIndex), uint64(att1.Duty.ValidatorIndex))
 	require.NoError(t, err)
 	require.NotEmpty(t, pk)
 
@@ -456,7 +456,7 @@ func TestDutyExpiry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Pubkey not found.
-	_, err = db.PubKeyByAttestation(ctx, uint64(att1.Data.Slot), uint64(att1.Duty.CommitteeIndex), uint64(att1.Duty.ValidatorIndex))
+	_, err = db.PubKeyByAttestationV2(ctx, uint64(att1.Data.Slot), uint64(att1.Duty.CommitteeIndex), uint64(att1.Duty.ValidatorIndex))
 	require.Error(t, err)
 }
 

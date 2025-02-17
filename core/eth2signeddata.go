@@ -16,6 +16,7 @@ import (
 
 var (
 	_ Eth2SignedData = VersionedSignedProposal{}
+	_ Eth2SignedData = Attestation{}
 	_ Eth2SignedData = VersionedAttestation{}
 	_ Eth2SignedData = SignedVoluntaryExit{}
 	_ Eth2SignedData = VersionedSignedValidatorRegistration{}
@@ -58,6 +59,16 @@ func (p VersionedSignedProposal) Epoch(ctx context.Context, eth2Cl eth2wrap.Clie
 }
 
 // Implement Eth2SignedData for Attestation.
+
+func (Attestation) DomainName() signing.DomainName {
+	return signing.DomainBeaconAttester
+}
+
+func (a Attestation) Epoch(_ context.Context, _ eth2wrap.Client) (eth2p0.Epoch, error) {
+	return a.Attestation.Data.Target.Epoch, nil
+}
+
+// Implement Eth2SignedData for VersionedAttestation.
 
 func (VersionedAttestation) DomainName() signing.DomainName {
 	return signing.DomainBeaconAttester
