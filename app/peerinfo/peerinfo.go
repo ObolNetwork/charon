@@ -205,8 +205,11 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			name := p2p.PeerName(peerID)
 
 			p.nicknamesMu.Lock()
+			prevNickname, ok := p.nicknames[name]
 			p.nicknames[name] = resp.GetNickname()
-			log.Info(ctx, "Peer name to nickname mappings", z.Any("nicknames", p.nicknames))
+			if !ok || prevNickname != resp.GetNickname() {
+				log.Info(ctx, "Peer name to nickname mappings", z.Any("nicknames", p.nicknames))
+			}
 			p.nicknamesMu.Unlock()
 
 			// Validator git hash with regex.
