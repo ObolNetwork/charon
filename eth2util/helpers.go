@@ -5,6 +5,7 @@ package eth2util
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"regexp"
 	"strings"
 	"unicode"
@@ -24,7 +25,7 @@ func ValidateBeaconNodeHeaders(headers []string) error {
 		// The pattern ([^=,]+) captures any string that does not contain '=' or ','.
 		// The composition of patterns ([^=,]+)=([^=,]+) captures a pair of header and its corresponding value.
 		// We use ^ at the start and $ at the end to ensure exact match.
-		headerPattern := regexp.MustCompile(`^([^=,]+)=([^=,]+)$`)
+		headerPattern := regexp.MustCompile(`^([^=,]+)=([^,]+)$`)
 		for _, header := range headers {
 			if !headerPattern.MatchString(header) {
 				return errors.New("beacon node headers must be comma separated values formatted as header=value")
@@ -49,7 +50,8 @@ func ParseBeaconNodeHeaders(headers []string) (map[string]string, error) {
 	}
 
 	for _, header := range headers {
-		pair := strings.Split(header, "=")
+		pair := strings.SplitN(header, "=", 2)
+		fmt.Println(pair)
 		parsedHeaders[pair[0]] = pair[1]
 	}
 
