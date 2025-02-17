@@ -22,7 +22,8 @@ import (
 func ValidateBeaconNodeHeaders(headers []string) error {
 	if len(headers) > 0 {
 		// The pattern ([^=,]+) captures any string that does not contain '=' or ','.
-		// The composition of patterns ([^=,]+)=([^=,]+) captures a pair of header and its corresponding value.
+		// The pattern ([^,]+) captures any string that does not contain ','.
+		// The composition of patterns ([^=,]+)=([^,]+) captures a pair of header and its corresponding value.
 		// We use ^ at the start and $ at the end to ensure exact match.
 		headerPattern := regexp.MustCompile(`^([^=,]+)=([^,]+)$`)
 		for _, header := range headers {
