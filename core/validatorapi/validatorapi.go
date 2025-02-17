@@ -244,7 +244,13 @@ func (c *Component) RegisterGetDutyDefinition(fn func(ctx context.Context, duty 
 
 // RegisterAwaitAggAttestation registers a function to query an aggregated attestation.
 // It supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitAggAttestation(fn func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error)) {
+func (c *Component) RegisterAwaitAggAttestation(fn func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)) {
+	c.awaitAggAttFunc = fn
+}
+
+// RegisterAwaitAggAttestationV2 registers a function to query an aggregated attestation.
+// It supports a single function, since it is an input of the component.
+func (c *Component) RegisterAwaitAggAttestationV2(fn func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error)) {
 	c.awaitAggAttV2Func = fn
 }
 

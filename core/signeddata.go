@@ -39,6 +39,7 @@ var (
 	_ SignedData = VersionedSignedValidatorRegistration{}
 	_ SignedData = SignedRandao{}
 	_ SignedData = BeaconCommitteeSelection{}
+	_ SignedData = SignedAggregateAndProof{}
 	_ SignedData = VersionedSignedAggregateAndProof{}
 	_ SignedData = SignedSyncMessage{}
 	_ SignedData = SyncContributionAndProof{}
@@ -49,6 +50,7 @@ var (
 	_ ssz.Marshaler   = VersionedSignedProposal{}
 	_ ssz.Marshaler   = Attestation{}
 	_ ssz.Marshaler   = VersionedAttestation{}
+	_ ssz.Marshaler   = SignedAggregateAndProof{}
 	_ ssz.Marshaler   = VersionedSignedAggregateAndProof{}
 	_ ssz.Marshaler   = SignedSyncMessage{}
 	_ ssz.Marshaler   = SyncContributionAndProof{}
@@ -56,6 +58,7 @@ var (
 	_ ssz.Unmarshaler = new(VersionedSignedProposal)
 	_ ssz.Unmarshaler = new(Attestation)
 	_ ssz.Unmarshaler = new(VersionedAttestation)
+	_ ssz.Unmarshaler = new(SignedAggregateAndProof)
 	_ ssz.Unmarshaler = new(VersionedSignedAggregateAndProof)
 	_ ssz.Unmarshaler = new(SignedSyncMessage)
 	_ ssz.Unmarshaler = new(SyncContributionAndProof)

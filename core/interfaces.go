@@ -67,7 +67,11 @@ type DutyDB interface {
 
 	// AwaitAggAttestation blocks and returns the aggregated attestation for the slot
 	// and attestation when available.
-	AwaitAggAttestation(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error)
+	AwaitAggAttestation(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)
+
+	// AwaitAggAttestationV2 blocks and returns the aggregated attestation for the slot
+	// and attestation when available.
+	AwaitAggAttestationV2(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error)
 
 	// AwaitSyncContribution blocks and returns the sync committee contribution data for the slot and
 	// the subcommittee and the beacon block root when available.
@@ -141,7 +145,10 @@ type ValidatorAPI interface {
 	RegisterGetDutyDefinition(func(context.Context, Duty) (DutyDefinitionSet, error))
 
 	// RegisterAwaitAggAttestation registers a function to query aggregated attestation.
-	RegisterAwaitAggAttestation(fn func(ctx context.Context, slot uint64, attestationDataRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error))
+	RegisterAwaitAggAttestation(fn func(ctx context.Context, slot uint64, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error))
+
+	// RegisterAwaitAggAttestation registers a function to query aggregated attestation.
+	RegisterAwaitAggAttestationV2(fn func(ctx context.Context, slot uint64, attestationDataRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error))
 
 	// RegisterAwaitAggSigDB registers a function to query aggregated signed data from aggSigDB.
 	RegisterAwaitAggSigDB(func(context.Context, Duty, PubKey) (SignedData, error))
@@ -262,7 +269,8 @@ type wireFuncs struct {
 	DutyDBAwaitAttestation            func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 	DutyDBPubKeyByAttestation         func(ctx context.Context, slot, commIdx, valCommIdx uint64) (PubKey, error)
 	DutyDBPubKeyByAttestationV2       func(ctx context.Context, slot, commIdx, valIdx uint64) (PubKey, error)
-	DutyDBAwaitAggAttestation         func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error)
+	DutyDBAwaitAggAttestation         func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)
+	DutyDBAwaitAggAttestationV2       func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error)
 	DutyDBAwaitSyncContribution       func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	VAPIRegisterAwaitAttestation      func(func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error))
 	VAPIRegisterAwaitSyncContribution func(func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error))
@@ -270,7 +278,8 @@ type wireFuncs struct {
 	VAPIRegisterGetDutyDefinition     func(func(context.Context, Duty) (DutyDefinitionSet, error))
 	VAPIRegisterPubKeyByAttestation   func(func(ctx context.Context, slot, commIdx, valCommIdx uint64) (PubKey, error))
 	VAPIRegisterPubKeyByAttestationV2 func(func(ctx context.Context, slot, commIdx, valIdx uint64) (PubKey, error))
-	VAPIRegisterAwaitAggAttestation   func(func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error))
+	VAPIRegisterAwaitAggAttestation   func(func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error))
+	VAPIRegisterAwaitAggAttestationV2 func(func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error))
 	VAPIRegisterAwaitAggSigDB         func(func(context.Context, Duty, PubKey) (SignedData, error))
 	VAPISubscribe                     func(func(context.Context, Duty, ParSignedDataSet) error)
 	ParSigDBStoreInternal             func(context.Context, Duty, ParSignedDataSet) error
@@ -319,6 +328,7 @@ func Wire(sched Scheduler,
 		DutyDBPubKeyByAttestation:         dutyDB.PubKeyByAttestation,
 		DutyDBPubKeyByAttestationV2:       dutyDB.PubKeyByAttestationV2,
 		DutyDBAwaitAggAttestation:         dutyDB.AwaitAggAttestation,
+		DutyDBAwaitAggAttestationV2:       dutyDB.AwaitAggAttestationV2,
 		DutyDBAwaitSyncContribution:       dutyDB.AwaitSyncContribution,
 		VAPIRegisterAwaitProposal:         vapi.RegisterAwaitProposal,
 		VAPIRegisterAwaitAttestation:      vapi.RegisterAwaitAttestation,
@@ -327,6 +337,7 @@ func Wire(sched Scheduler,
 		VAPIRegisterPubKeyByAttestation:   vapi.RegisterPubKeyByAttestation,
 		VAPIRegisterPubKeyByAttestationV2: vapi.RegisterPubKeyByAttestationV2,
 		VAPIRegisterAwaitAggAttestation:   vapi.RegisterAwaitAggAttestation,
+		VAPIRegisterAwaitAggAttestationV2: vapi.RegisterAwaitAggAttestationV2,
 		VAPIRegisterAwaitAggSigDB:         vapi.RegisterAwaitAggSigDB,
 		VAPISubscribe:                     vapi.Subscribe,
 		ParSigDBStoreInternal:             parSigDB.StoreInternal,
@@ -361,6 +372,7 @@ func Wire(sched Scheduler,
 	w.VAPIRegisterPubKeyByAttestation(w.DutyDBPubKeyByAttestation)
 	w.VAPIRegisterPubKeyByAttestationV2(w.DutyDBPubKeyByAttestationV2)
 	w.VAPIRegisterAwaitAggAttestation(w.DutyDBAwaitAggAttestation)
+	w.VAPIRegisterAwaitAggAttestationV2(w.DutyDBAwaitAggAttestationV2)
 	w.VAPIRegisterAwaitAggSigDB(w.AggSigDBAwait)
 	w.VAPISubscribe(w.ParSigDBStoreInternal)
 	w.ParSigDBSubscribeInternal(w.ParSigExBroadcast)

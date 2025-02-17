@@ -206,7 +206,7 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000, nil)
 	require.NoError(t, err)
 
-	vapi.RegisterPubKeyByAttestationV2(func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error) {
+	vapi.RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error) {
 		require.EqualValues(t, slot, epochSlot)
 		require.EqualValues(t, commIdx, vIdx)
 		require.EqualValues(t, valIdx, 0)
@@ -224,7 +224,7 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	})
 
 	// Configure beacon mock to call validator API for submissions
-	bmock.SubmitAttestationsV2Func = vapi.SubmitAttestationsV2
+	bmock.SubmitAttestationsFunc = vapi.SubmitAttestations
 
 	signer, err := validatormock.NewSigner(secret)
 	require.NoError(t, err)

@@ -854,6 +854,13 @@ func RandomCoreSyncCommitteeSelection() core.SyncCommitteeSelection {
 	return core.NewSyncCommitteeSelection(RandomSyncCommitteeSelection())
 }
 
+func RandomSignedAggregateAndProof() *eth2p0.SignedAggregateAndProof {
+	return &eth2p0.SignedAggregateAndProof{
+		Message:   RandomAggregateAndProof(),
+		Signature: RandomEth2Signature(),
+	}
+}
+
 func RandomDenebVersionedSignedAggregateAndProof() *eth2spec.VersionedSignedAggregateAndProof {
 	return &eth2spec.VersionedSignedAggregateAndProof{
 		Version: eth2spec.DataVersionDeneb,

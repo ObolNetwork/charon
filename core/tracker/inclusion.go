@@ -123,12 +123,20 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 		}
 	} else if duty.Type == core.DutyAggregator {
 		agg, ok := data.(core.VersionedSignedAggregateAndProof)
-		if !ok {
-			return errors.New("invalid aggregate and proof")
-		}
-		attRoot, err = agg.Data().HashTreeRoot()
-		if err != nil {
-			return errors.Wrap(err, "hash aggregate")
+		if ok {
+			attRoot, err = agg.Data().HashTreeRoot()
+			if err != nil {
+				return errors.Wrap(err, "hash aggregate")
+			}
+		} else {
+			agg, ok := data.(core.SignedAggregateAndProof)
+			if !ok {
+				return errors.New("invalid aggregate and proof")
+			}
+			attRoot, err = agg.Message.Aggregate.Data.HashTreeRoot()
+			if err != nil {
+				return errors.Wrap(err, "hash aggregate")
+			}
 		}
 	} else if duty.Type == core.DutyProposer {
 		var (
@@ -339,7 +347,11 @@ func checkAggregationInclusion(sub submission, block block) (bool, error) {
 		return false, nil
 	}
 
-	subBits := sub.Data.(core.SignedAggregateAndProof).Message.Aggregate.AggregationBits
+	signedAggProof, ok := sub.Data.(core.SignedAggregateAndProof)
+	if !ok {
+		return false, errors.New("parse SignedAggregateAndProof")
+	}
+	subBits := signedAggProof.Message.Aggregate.AggregationBits
 	ok, err := att.AggregationBits.Contains(subBits)
 	if err != nil {
 		return false, errors.Wrap(err, "check aggregation bits",
@@ -362,7 +374,12 @@ func checkAggregationV2Inclusion(sub submission, block blockV2) (bool, error) {
 	if err != nil {
 		return false, errors.Wrap(err, "get attestation aggregation bits")
 	}
-	subBits := sub.Data.(core.VersionedSignedAggregateAndProof).AggregationBits()
+	signedAggAndProof, ok := sub.Data.(core.VersionedSignedAggregateAndProof)
+	if !ok {
+		return false, errors.New("parse VersionedSignedAggregateAndProof")
+	}
+
+	subBits := signedAggAndProof.AggregationBits()
 	ok, err = attAggregationBits.Contains(subBits)
 	if err != nil {
 		return false, errors.Wrap(err, "check aggregation bits",
@@ -381,7 +398,11 @@ func checkAttestationInclusion(sub submission, block block) (bool, error) {
 		return false, nil
 	}
 
-	subBits := sub.Data.(core.Attestation).AggregationBits
+	coreAtt, ok := sub.Data.(core.Attestation)
+	if !ok {
+		return false, errors.New("parse Attestation")
+	}
+	subBits := coreAtt.AggregationBits
 	ok, err := att.AggregationBits.Contains(subBits)
 	if err != nil {
 		return false, errors.Wrap(err, "check aggregation bits",
@@ -625,8 +646,10 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64) error {
 			} else if len(atts) == 0 {
 				return nil
 			}
+
 			return a.checkBlockAtts(ctx, slot, atts)
 		}
+
 		return err
 	} else if len(attsV2) == 0 {
 		return nil // No block for this slot

@@ -224,15 +224,11 @@ func TestMemDBAggregator(t *testing.T) {
 	const queries = 3
 
 	for range queries {
-		att := testutil.RandomDenebVersionedAttestation()
-		aggAttest, err := core.NewVersionedAggregatedAttestation(att)
-		require.NoError(t, err)
+		agg := testutil.RandomPhase0Attestation()
 		set := core.UnsignedDataSet{
-			testutil.RandomCorePubKey(t): aggAttest,
+			testutil.RandomCorePubKey(t): core.NewAggregatedAttestation(agg),
 		}
-		attData, err := att.Data()
-		require.NoError(t, err)
-		slot := uint64(attData.Slot)
+		slot := uint64(agg.Data.Slot)
 
 		errCh := make(chan error, 1)
 		go func() {
@@ -240,13 +236,13 @@ func TestMemDBAggregator(t *testing.T) {
 			errCh <- err
 		}()
 
-		root, err := attData.HashTreeRoot()
+		root, err := agg.Data.HashTreeRoot()
 		require.NoError(t, err)
 		err = <-errCh
 		require.NoError(t, err)
 		resp, err := db.AwaitAggAttestation(ctx, slot, root)
 		require.NoError(t, err)
-		require.Equal(t, att, resp)
+		require.Equal(t, agg, resp)
 	}
 }
 

@@ -233,9 +233,9 @@ func (h *httpAdapter) BlockAttestationsV2(ctx context.Context, stateID string) (
 		}
 		if strings.Contains(string(respBody), "Block not found") {
 			return nil, nil // No block for slot, so no attestations.
-		} else {
-			return nil, errors.Wrap(err, ErrEndpointNotFound.Error(), z.Int("status", resp.StatusCode))
 		}
+
+		return nil, errors.Wrap(err, ErrEndpointNotFound.Error(), z.Int("status", resp.StatusCode))
 	} else if resp.StatusCode != http.StatusOK {
 		return nil, errors.New("request block attestations failed", z.Int("status", resp.StatusCode))
 	}

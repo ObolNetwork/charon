@@ -90,6 +90,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 				)
 			}
 		}
+
 		return err
 
 	case core.DutyProposer:

@@ -113,11 +113,18 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (_ ParSigned
 		}
 		signedData = s
 	case DutyAggregator:
-		var s VersionedSignedAggregateAndProof
-		if err := unmarshal(data.GetData(), &s); err != nil {
-			return ParSignedData{}, errors.Wrap(err, "unmarshal signed aggregate and proof")
+		var s SignedAggregateAndProof
+		err := unmarshal(data.GetData(), &s)
+		if err == nil {
+			signedData = s
+		} else {
+			var sv VersionedSignedAggregateAndProof
+			err = unmarshal(data.GetData(), &sv)
+			if err != nil {
+				return ParSignedData{}, errors.Wrap(err, "unmarshal signed aggregate and proof")
+			}
+			signedData = sv
 		}
-		signedData = s
 	case DutySyncMessage:
 		var s SignedSyncMessage
 		if err := unmarshal(data.GetData(), &s); err != nil {

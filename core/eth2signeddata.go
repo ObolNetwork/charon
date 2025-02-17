@@ -22,6 +22,7 @@ var (
 	_ Eth2SignedData = VersionedSignedValidatorRegistration{}
 	_ Eth2SignedData = SignedRandao{}
 	_ Eth2SignedData = BeaconCommitteeSelection{}
+	_ Eth2SignedData = SignedAggregateAndProof{}
 	_ Eth2SignedData = VersionedSignedAggregateAndProof{}
 	_ Eth2SignedData = SignedSyncMessage{}
 	_ Eth2SignedData = SignedSyncContributionAndProof{}
@@ -122,6 +123,16 @@ func (BeaconCommitteeSelection) DomainName() signing.DomainName {
 
 func (s BeaconCommitteeSelection) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
 	return eth2util.EpochFromSlot(ctx, eth2Cl, s.Slot)
+}
+
+// Implement Eth2SignedData for SignedAggregateAndProof.
+
+func (SignedAggregateAndProof) DomainName() signing.DomainName {
+	return signing.DomainAggregateAndProof
+}
+
+func (s SignedAggregateAndProof) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	return eth2util.EpochFromSlot(ctx, eth2Cl, s.Message.Aggregate.Data.Slot)
 }
 
 // Implement Eth2SignedData for SignedAggregateAndProof.
