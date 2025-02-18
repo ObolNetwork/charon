@@ -17,8 +17,9 @@ import (
 )
 
 const (
-	attV1 = iota + 1
-	attV2 = iota + 1
+	_ = iota
+	attV1
+	attV2
 )
 
 // NewMemDB returns a new in-memory dutyDB instance.
