@@ -134,7 +134,8 @@ type Mock struct {
 	ProposalFunc                           func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error)
 	SignedBeaconBlockFunc                  func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error)
 	ProposerDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
-	SubmitAttestationsFunc                 func(context.Context, *eth2api.SubmitAttestationsOpts) error
+	SubmitAttestationsFunc                 func(context.Context, []*eth2p0.Attestation) error
+	SubmitAttestationsV2Func               func(context.Context, *eth2api.SubmitAttestationsOpts) error
 	SubmitProposalFunc                     func(context.Context, *eth2api.SubmitProposalOpts) error
 	SubmitBlindedProposalFunc              func(context.Context, *eth2api.SubmitBlindedProposalOpts) error
 	SubmitVoluntaryExitFunc                func(context.Context, *eth2p0.SignedVoluntaryExit) error
@@ -147,8 +148,10 @@ type Mock struct {
 	AggregateBeaconCommitteeSelectionsFunc func(context.Context, []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error)
 	AggregateSyncCommitteeSelectionsFunc   func(context.Context, []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error)
 	SubmitBeaconCommitteeSubscriptionsFunc func(ctx context.Context, subscriptions []*eth2v1.BeaconCommitteeSubscription) error
-	AggregateAttestationFunc               func(ctx context.Context, slot eth2p0.Slot, attestationDataRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error)
-	SubmitAggregateAttestationsFunc        func(ctx context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error
+	AggregateAttestationFunc               func(ctx context.Context, slot eth2p0.Slot, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error)
+	AggregateAttestationV2Func             func(ctx context.Context, slot eth2p0.Slot, attestationDataRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error)
+	SubmitAggregateAttestationsFunc        func(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error
+	SubmitAggregateAttestationsV2Func      func(ctx context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error
 	SyncCommitteeDutiesFunc                func(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error)
 	SubmitSyncCommitteeMessagesFunc        func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error
 	SubmitSyncCommitteeContributionsFunc   func(ctx context.Context, contributionAndProofs []*altair.SignedContributionAndProof) error
@@ -159,8 +162,17 @@ type Mock struct {
 	ProposerConfigFunc                     func(context.Context) (*eth2exp.ProposerConfigResponse, error)
 }
 
-func (m Mock) AggregateAttestation(ctx context.Context, opts *eth2api.AggregateAttestationOpts) (*eth2api.Response[*eth2spec.VersionedAttestation], error) {
+func (m Mock) AggregateAttestation(ctx context.Context, opts *eth2api.AggregateAttestationOpts) (*eth2api.Response[*eth2p0.Attestation], error) {
 	aggAtt, err := m.AggregateAttestationFunc(ctx, opts.Slot, opts.AttestationDataRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	return wrapResponse(aggAtt), nil
+}
+
+func (m Mock) AggregateAttestationV2(ctx context.Context, opts *eth2api.AggregateAttestationOpts) (*eth2api.Response[*eth2spec.VersionedAttestation], error) {
+	aggAtt, err := m.AggregateAttestationV2Func(ctx, opts.Slot, opts.AttestationDataRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -297,8 +309,12 @@ func (m Mock) NodePeerCount(ctx context.Context) (int, error) {
 	return m.NodePeerCountFunc(ctx)
 }
 
-func (m Mock) SubmitAttestations(ctx context.Context, attestations *eth2api.SubmitAttestationsOpts) error {
+func (m Mock) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {
 	return m.SubmitAttestationsFunc(ctx, attestations)
+}
+
+func (m Mock) SubmitAttestationsV2(ctx context.Context, attestations *eth2api.SubmitAttestationsOpts) error {
+	return m.SubmitAttestationsV2Func(ctx, attestations)
 }
 
 func (m Mock) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error {
@@ -329,8 +345,12 @@ func (m Mock) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscripti
 	return m.SubmitBeaconCommitteeSubscriptionsFunc(ctx, subscriptions)
 }
 
-func (m Mock) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
+func (m Mock) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
 	return m.SubmitAggregateAttestationsFunc(ctx, aggregateAndProofs)
+}
+
+func (m Mock) SubmitAggregateAttestationsV2(ctx context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
+	return m.SubmitAggregateAttestationsV2Func(ctx, aggregateAndProofs)
 }
 
 func (m Mock) SubmitSyncCommitteeMessages(ctx context.Context, messages []*altair.SyncCommitteeMessage) error {
