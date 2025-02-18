@@ -105,28 +105,24 @@ func TestFetchAggregator(t *testing.T) {
 		vIdxB: testutil.RandomCorePubKey(t),
 	}
 
-	attA := testutil.RandomDenebVersionedAttestation()
-	attB := testutil.RandomDenebVersionedAttestation()
-	attAData, err := attA.Data()
-	require.NoError(t, err)
-	attBData, err := attB.Data()
-	require.NoError(t, err)
-	attByCommIdx := map[uint64]*eth2spec.VersionedAttestation{
-		uint64(attAData.Index): attA,
-		uint64(attBData.Index): attB,
+	attA := testutil.RandomPhase0Attestation()
+	attB := testutil.RandomPhase0Attestation()
+	attByCommIdx := map[uint64]*eth2p0.Attestation{
+		uint64(attA.Data.Index): attA,
+		uint64(attB.Data.Index): attB,
 	}
 
 	newDefSet := func(commLength uint64, sameCommitteeIndex bool) core.DutyDefinitionSet {
 		dutyA := testutil.RandomAttestationDuty(t)
 		dutyA.CommitteeLength = commLength
-		dutyA.CommitteeIndex = attAData.Index
+		dutyA.CommitteeIndex = attA.Data.Index
 		dutyB := testutil.RandomAttestationDuty(t)
 		dutyB.CommitteeLength = commLength
-		dutyB.CommitteeIndex = attBData.Index
+		dutyB.CommitteeIndex = attB.Data.Index
 
 		if sameCommitteeIndex {
-			dutyB.CommitteeIndex = attAData.Index
-			attBData.Index = attAData.Index
+			dutyB.CommitteeIndex = attA.Data.Index
+			attB.Data.Index = attA.Data.Index
 		}
 
 		return map[core.PubKey]core.DutyDefinition{
@@ -144,15 +140,13 @@ func TestFetchAggregator(t *testing.T) {
 	require.NoError(t, err)
 
 	var aggAttCallCount int
-	bmock.AggregateAttestationFunc = func(ctx context.Context, slot eth2p0.Slot, root eth2p0.Root) (*eth2spec.VersionedAttestation, error) {
+	bmock.AggregateAttestationFunc = func(ctx context.Context, slot eth2p0.Slot, root eth2p0.Root) (*eth2p0.Attestation, error) {
 		aggAttCallCount--
 		if nilAggregate {
 			return nil, nil //nolint:nilnil // This reproduces what go-eth2-client does
 		}
 		for _, att := range attByCommIdx {
-			attData, err := att.Data()
-			require.NoError(t, err)
-			dataRoot, err := attData.HashTreeRoot()
+			dataRoot, err := att.Data.HashTreeRoot()
 			require.NoError(t, err)
 			if dataRoot == root {
 				return att, nil
@@ -170,7 +164,7 @@ func TestFetchAggregator(t *testing.T) {
 	})
 
 	fetch.RegisterAwaitAttData(func(ctx context.Context, slot uint64, commIdx uint64) (*eth2p0.AttestationData, error) {
-		return attByCommIdx[commIdx].Data()
+		return attByCommIdx[commIdx].Data, nil
 	})
 
 	done := errors.New("done")
@@ -179,14 +173,12 @@ func TestFetchAggregator(t *testing.T) {
 		require.Len(t, resDataSet, 2)
 
 		for _, aggAtt := range resDataSet {
-			aggregated, ok := aggAtt.(core.VersionedAggregatedAttestation)
+			aggregated, ok := aggAtt.(core.AggregatedAttestation)
 			require.True(t, ok)
 
-			aggregatedData, err := aggregated.VersionedAttestation.Data()
-			require.NoError(t, err)
-			att, ok := attByCommIdx[uint64(aggregatedData.Index)]
+			att, ok := attByCommIdx[uint64(aggregated.Attestation.Data.Index)]
 			require.True(t, ok)
-			require.Equal(t, aggregated.VersionedAttestation, *att)
+			require.Equal(t, aggregated.Attestation, *att)
 		}
 
 		return done

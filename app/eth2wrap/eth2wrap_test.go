@@ -370,9 +370,39 @@ func TestCtxCancel(t *testing.T) {
 	}
 }
 
+func TestBlockAttestations(t *testing.T) {
+	atts := []*eth2p0.Attestation{
+		testutil.RandomPhase0Attestation(),
+		testutil.RandomPhase0Attestation(),
+	}
+
+	statusCode := http.StatusOK
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/eth/v1/beacon/blocks/head/attestations", r.URL.Path)
+		b, err := json.Marshal(struct {
+			Data []*eth2p0.Attestation
+		}{
+			Data: atts,
+		})
+		require.NoError(t, err)
+
+		w.WriteHeader(statusCode)
+		_, _ = w.Write(b)
+	}))
+
+	cl := eth2wrap.NewHTTPAdapterForT(t, srv.URL, nil, time.Hour)
+	resp, err := cl.BlockAttestations(context.Background(), "head")
+	require.NoError(t, err)
+	require.Equal(t, atts, resp)
+
+	statusCode = http.StatusNotFound
+	resp, err = cl.BlockAttestations(context.Background(), "head")
+	require.NoError(t, err)
+	require.Empty(t, resp)
+}
+
 func TestBlockAttestationsV2(t *testing.T) {
-	phase0Att1 := testutil.RandomPhase0Attestation()
-	phase0Att2 := testutil.RandomPhase0Attestation()
 	electraAtt1 := testutil.RandomElectraAttestation()
 	electraAtt2 := testutil.RandomElectraAttestation()
 
@@ -390,57 +420,6 @@ func TestBlockAttestationsV2(t *testing.T) {
 			},
 			serverJSONStruct: struct{ Data []*eth2e.Attestation }{Data: []*eth2e.Attestation{electraAtt1, electraAtt2}},
 			expErr:           "",
-		},
-		{
-			version: "deneb",
-			attestations: []*eth2spec.VersionedAttestation{
-				{Version: eth2spec.DataVersionDeneb, Deneb: phase0Att1},
-				{Version: eth2spec.DataVersionDeneb, Deneb: phase0Att2},
-			},
-			serverJSONStruct: struct{ Data []*eth2p0.Attestation }{Data: []*eth2p0.Attestation{phase0Att1, phase0Att2}},
-			expErr:           "",
-		},
-		{
-			version: "capella",
-			attestations: []*eth2spec.VersionedAttestation{
-				{Version: eth2spec.DataVersionCapella, Capella: phase0Att1},
-				{Version: eth2spec.DataVersionCapella, Capella: phase0Att2},
-			},
-			serverJSONStruct: struct{ Data []*eth2p0.Attestation }{Data: []*eth2p0.Attestation{phase0Att1, phase0Att2}},
-			expErr:           "",
-		},
-		{
-			version: "bellatrix",
-			attestations: []*eth2spec.VersionedAttestation{
-				{Version: eth2spec.DataVersionBellatrix, Bellatrix: phase0Att1},
-				{Version: eth2spec.DataVersionBellatrix, Bellatrix: phase0Att2},
-			},
-			serverJSONStruct: struct{ Data []*eth2p0.Attestation }{Data: []*eth2p0.Attestation{phase0Att1, phase0Att2}},
-			expErr:           "",
-		},
-		{
-			version: "altair",
-			attestations: []*eth2spec.VersionedAttestation{
-				{Version: eth2spec.DataVersionAltair, Altair: phase0Att1},
-				{Version: eth2spec.DataVersionAltair, Altair: phase0Att2},
-			},
-			serverJSONStruct: struct{ Data []*eth2p0.Attestation }{Data: []*eth2p0.Attestation{phase0Att1, phase0Att2}},
-			expErr:           "",
-		},
-		{
-			version: "phase0",
-			attestations: []*eth2spec.VersionedAttestation{
-				{Version: eth2spec.DataVersionPhase0, Phase0: phase0Att1},
-				{Version: eth2spec.DataVersionPhase0, Phase0: phase0Att2},
-			},
-			serverJSONStruct: struct{ Data []*eth2p0.Attestation }{Data: []*eth2p0.Attestation{phase0Att1, phase0Att2}},
-			expErr:           "",
-		},
-		{
-			version:          "unknown version",
-			attestations:     nil,
-			serverJSONStruct: struct{ Data []*eth2p0.Attestation }{Data: []*eth2p0.Attestation{phase0Att1, phase0Att2}},
-			expErr:           "failed to get consensus version",
 		},
 	}
 	for _, test := range tests {
@@ -468,7 +447,7 @@ func TestBlockAttestationsV2(t *testing.T) {
 
 			statusCode = http.StatusNotFound
 			resp, err = cl.BlockAttestationsV2(context.Background(), "head")
-			require.NoError(t, err)
+			require.ErrorContains(t, err, eth2wrap.ErrEndpointNotFound.Error())
 			require.Empty(t, resp)
 		})
 	}

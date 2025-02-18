@@ -57,6 +57,8 @@ var (
 	_ Client = (*httpAdapter)(nil)
 	_ Client = multi{}
 	_ Client = (*lazy)(nil)
+
+	ErrEndpointNotFound = errors.New("endpoint not found")
 )
 
 // Instrument returns a new multi instrumented client using the provided clients as backends

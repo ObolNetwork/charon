@@ -67,9 +67,12 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 	case core.DutyBuilderProposer:
 		return core.ErrDeprecatedDutyBuilderProposer
 	case core.DutyAggregator:
-		unsignedSet, err = f.fetchAggregatorData(ctx, duty.Slot, defSet)
+		unsignedSet, err = f.fetchAggregatorDataV2(ctx, duty.Slot, defSet)
 		if err != nil {
-			return errors.Wrap(err, "fetch aggregator data")
+			unsignedSet, err = f.fetchAggregatorData(ctx, duty.Slot, defSet)
+			if err != nil {
+				return errors.Wrap(err, "fetch aggregator data")
+			}
 		} else if len(unsignedSet) == 0 { // No aggregators found in this slot
 			return nil
 		}
@@ -157,6 +160,86 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot uint64, defSet cor
 // fetchAggregatorData fetches the attestation aggregation data.
 func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
 	// We may have multiple aggregators in the same committee, use the same aggregated attestation in that case.
+	aggAttByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2p0.Attestation)
+
+	resp := make(core.UnsignedDataSet)
+	for pubkey, dutyDef := range defSet {
+		attDef, ok := dutyDef.(core.AttesterDefinition)
+		if !ok {
+			return core.UnsignedDataSet{}, errors.New("invalid attester definition")
+		}
+
+		// Query AggSigDB for DutyPrepareAggregator to get beacon committee selections.
+		prepAggData, err := f.aggSigDBFunc(ctx, core.NewPrepareAggregatorDuty(slot), pubkey)
+		if err != nil {
+			return core.UnsignedDataSet{}, err
+		}
+
+		selection, ok := prepAggData.(core.BeaconCommitteeSelection)
+		if !ok {
+			return core.UnsignedDataSet{}, errors.New("invalid beacon committee selection")
+		}
+
+		ok, err = eth2exp.IsAttAggregator(ctx, f.eth2Cl, attDef.CommitteeLength, selection.SelectionProof)
+		if err != nil {
+			return core.UnsignedDataSet{}, err
+		} else if !ok {
+			log.Debug(ctx, "Attester not selected for aggregation duty", z.Any("pubkey", pubkey))
+			continue
+		}
+		log.Info(ctx, "Resolved attester aggregation duty", z.Any("pubkey", pubkey))
+
+		aggAtt, ok := aggAttByCommIdx[attDef.CommitteeIndex]
+		if ok {
+			resp[pubkey] = core.AggregatedAttestation{
+				Attestation: *aggAtt,
+			}
+
+			// Skips querying aggregate attestation for aggregators of same committee.
+			continue
+		}
+
+		// Query DutyDB for Attestation data to get attestation data root.
+		attData, err := f.awaitAttDataFunc(ctx, slot, uint64(attDef.CommitteeIndex))
+		if err != nil {
+			return core.UnsignedDataSet{}, err
+		}
+
+		dataRoot, err := attData.HashTreeRoot()
+		if err != nil {
+			return core.UnsignedDataSet{}, err
+		}
+
+		// Query BN for aggregate attestation.
+		opts := &eth2api.AggregateAttestationOpts{
+			Slot:                eth2p0.Slot(slot),
+			AttestationDataRoot: dataRoot,
+		}
+		eth2Resp, err := f.eth2Cl.AggregateAttestation(ctx, opts)
+		if err != nil {
+			return core.UnsignedDataSet{}, err
+		}
+
+		aggAtt = eth2Resp.Data
+		if aggAtt == nil {
+			// Some beacon nodes return nil if the root is not found, return retryable error.
+			// This could happen if the beacon node didn't subscribe to the correct subnet.
+			return core.UnsignedDataSet{}, errors.New("aggregate attestation not found by root (retryable)", z.Hex("root", dataRoot[:]))
+		}
+
+		aggAttByCommIdx[attDef.CommitteeIndex] = aggAtt
+
+		resp[pubkey] = core.AggregatedAttestation{
+			Attestation: *aggAtt,
+		}
+	}
+
+	return resp, nil
+}
+
+// fetchAggregatorDataV2 fetches the attestation aggregation data.
+func (f *Fetcher) fetchAggregatorDataV2(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
+	// We may have multiple aggregators in the same committee, use the same aggregated attestation in that case.
 	aggAttByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2spec.VersionedAttestation)
 
 	resp := make(core.UnsignedDataSet)
@@ -188,8 +271,35 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 
 		aggAtt, ok := aggAttByCommIdx[attDef.CommitteeIndex]
 		if ok {
-			resp[pubkey] = core.VersionedAggregatedAttestation{
-				VersionedAttestation: *aggAtt,
+			switch aggAtt.Version {
+			case eth2spec.DataVersionPhase0:
+				resp[pubkey] = core.AggregatedAttestation{
+					Attestation: *aggAtt.Phase0,
+				}
+			case eth2spec.DataVersionAltair:
+				resp[pubkey] = core.AggregatedAttestation{
+					Attestation: *aggAtt.Altair,
+				}
+			case eth2spec.DataVersionBellatrix:
+				resp[pubkey] = core.AggregatedAttestation{
+					Attestation: *aggAtt.Bellatrix,
+				}
+			case eth2spec.DataVersionCapella:
+				resp[pubkey] = core.AggregatedAttestation{
+					Attestation: *aggAtt.Capella,
+				}
+			case eth2spec.DataVersionDeneb:
+				resp[pubkey] = core.AggregatedAttestation{
+					Attestation: *aggAtt.Deneb,
+				}
+			case eth2spec.DataVersionElectra:
+				resp[pubkey] = core.VersionedAggregatedAttestation{
+					VersionedAttestation: *aggAtt,
+				}
+			default:
+				resp[pubkey] = core.VersionedAggregatedAttestation{
+					VersionedAttestation: *aggAtt,
+				}
 			}
 
 			// Skips querying aggregate attestation for aggregators of same committee.
@@ -213,7 +323,7 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 			AttestationDataRoot: dataRoot,
 			CommitteeIndex:      attDef.CommitteeIndex,
 		}
-		eth2Resp, err := f.eth2Cl.AggregateAttestation(ctx, opts)
+		eth2Resp, err := f.eth2Cl.AggregateAttestationV2(ctx, opts)
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		}
@@ -227,8 +337,35 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 
 		aggAttByCommIdx[attDef.CommitteeIndex] = aggAtt
 
-		resp[pubkey] = core.VersionedAggregatedAttestation{
-			VersionedAttestation: *aggAtt,
+		switch eth2Resp.Data.Version {
+		case eth2spec.DataVersionPhase0:
+			resp[pubkey] = core.AggregatedAttestation{
+				Attestation: *aggAtt.Phase0,
+			}
+		case eth2spec.DataVersionAltair:
+			resp[pubkey] = core.AggregatedAttestation{
+				Attestation: *aggAtt.Altair,
+			}
+		case eth2spec.DataVersionBellatrix:
+			resp[pubkey] = core.AggregatedAttestation{
+				Attestation: *aggAtt.Bellatrix,
+			}
+		case eth2spec.DataVersionCapella:
+			resp[pubkey] = core.AggregatedAttestation{
+				Attestation: *aggAtt.Capella,
+			}
+		case eth2spec.DataVersionDeneb:
+			resp[pubkey] = core.AggregatedAttestation{
+				Attestation: *aggAtt.Deneb,
+			}
+		case eth2spec.DataVersionElectra:
+			resp[pubkey] = core.VersionedAggregatedAttestation{
+				VersionedAttestation: *aggAtt,
+			}
+		default:
+			resp[pubkey] = core.VersionedAggregatedAttestation{
+				VersionedAttestation: *aggAtt,
+			}
 		}
 	}
 
