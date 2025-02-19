@@ -47,11 +47,11 @@ var (
 	}, []string{"endpoint"})
 
 	usingFallbackGauge = promauto.NewGauge(prometheus.GaugeOpts{
-        Namespace: "app",
-        Subsystem: "eth2",
-        Name:      "using_fallback",
-        Help:      "Indicates if client is using fallback (1) or primary (0) beacon node",
-    })
+		Namespace: "app",
+		Subsystem: "eth2",
+		Name:      "using_fallback",
+		Help:      "Indicates if client is using fallback (1) or primary (0) beacon node",
+	})
 
 	// Interface assertions.
 	_ Client = (*httpAdapter)(nil)
@@ -155,10 +155,10 @@ func provide[O any](ctx context.Context, clients []Client, fallbacks []Client,
 	runForkJoin := func(clients []Client, isFallback bool) (O, error) {
 
 		if isFallback {
-            usingFallbackGauge.Set(1)
-        } else {
-            usingFallbackGauge.Set(0)
-        }
+			usingFallbackGauge.Set(1)
+		} else {
+			usingFallbackGauge.Set(0)
+		}
 
 		fork, join, cancel := forkjoin.New(ctx, work,
 			forkjoin.WithoutFailFast(),
