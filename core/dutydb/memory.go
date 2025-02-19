@@ -219,7 +219,8 @@ func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot uint64, attestati
 ) (*eth2p0.Attestation, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
-	response := make(chan core.AggregatedAttestation, 1) // Instance of one so resolving never blocks
+	response := make(chan core.AggregatedAttestation, 1)                   // Instance of one so resolving never blocks
+	responseVersioned := make(chan core.VersionedAggregatedAttestation, 1) // Instance of one so resolving never blocks
 
 	db.mu.Lock()
 	db.aggQueries = append(db.aggQueries, aggQuery{
@@ -231,6 +232,15 @@ func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot uint64, attestati
 		Cancel:   cancel,
 	})
 	db.resolveAggQueriesUnsafe()
+	db.aggQueriesV2 = append(db.aggQueriesV2, aggQueryV2{
+		Key: aggKey{
+			Slot: slot,
+			Root: attestationRoot,
+		},
+		Response: responseVersioned,
+		Cancel:   cancel,
+	})
+	db.resolveAggQueriesV2Unsafe()
 	db.mu.Unlock()
 
 	select {
@@ -250,6 +260,31 @@ func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot uint64, attestati
 		}
 
 		return &aggAtt.Attestation, nil
+	case valueVersioned := <-responseVersioned:
+		// Clone before returning.
+		clone, err := valueVersioned.Clone()
+		if err != nil {
+			return nil, err
+		}
+		aggAtt, ok := clone.(core.VersionedAggregatedAttestation)
+		if !ok {
+			return nil, errors.New("invalid versioned aggregated attestation")
+		}
+
+		switch aggAtt.Version {
+		case eth2spec.DataVersionPhase0:
+			return aggAtt.VersionedAttestation.Phase0, nil
+		case eth2spec.DataVersionAltair:
+			return aggAtt.VersionedAttestation.Altair, nil
+		case eth2spec.DataVersionBellatrix:
+			return aggAtt.VersionedAttestation.Bellatrix, nil
+		case eth2spec.DataVersionCapella:
+			return aggAtt.VersionedAttestation.Capella, nil
+		case eth2spec.DataVersionDeneb:
+			return aggAtt.VersionedAttestation.Deneb, nil
+		default:
+			return nil, errors.New("unsupported versioned aggregated attestation for v1 endpoint", z.Str("version", aggAtt.Version.String()))
+		}
 	}
 }
 
@@ -259,15 +294,25 @@ func (db *MemDB) AwaitAggAttestationV2(ctx context.Context, slot uint64, attesta
 ) (*eth2spec.VersionedAttestation, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
-	response := make(chan core.VersionedAggregatedAttestation, 1) // Instance of one so resolving never blocks
+	response := make(chan core.AggregatedAttestation, 1)                   // Instance of one so resolving never blocks
+	versionedResponse := make(chan core.VersionedAggregatedAttestation, 1) // Instance of one so resolving never blocks
 
 	db.mu.Lock()
-	db.aggQueriesV2 = append(db.aggQueriesV2, aggQueryV2{
+	db.aggQueries = append(db.aggQueries, aggQuery{
 		Key: aggKey{
 			Slot: slot,
 			Root: attestationRoot,
 		},
 		Response: response,
+		Cancel:   cancel,
+	})
+	db.resolveAggQueriesUnsafe()
+	db.aggQueriesV2 = append(db.aggQueriesV2, aggQueryV2{
+		Key: aggKey{
+			Slot: slot,
+			Root: attestationRoot,
+		},
+		Response: versionedResponse,
 		Cancel:   cancel,
 	})
 	db.resolveAggQueriesV2Unsafe()
@@ -278,9 +323,9 @@ func (db *MemDB) AwaitAggAttestationV2(ctx context.Context, slot uint64, attesta
 		return nil, errors.New("dutydb shutdown")
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case value := <-response:
+	case versionedValue := <-versionedResponse:
 		// Clone before returning.
-		clone, err := value.Clone()
+		clone, err := versionedValue.Clone()
 		if err != nil {
 			return nil, err
 		}
@@ -290,6 +335,21 @@ func (db *MemDB) AwaitAggAttestationV2(ctx context.Context, slot uint64, attesta
 		}
 
 		return &aggAtt.VersionedAttestation, nil
+	case value := <-response:
+		// Clone before returning.
+		clone, err := value.Clone()
+		if err != nil {
+			return nil, err
+		}
+		aggAtt, ok := clone.(core.AggregatedAttestation)
+		if !ok {
+			return nil, errors.New("invalid aggregated attestation")
+		}
+
+		return &eth2spec.VersionedAttestation{
+			Version: eth2spec.DataVersionDeneb,
+			Deneb:   &aggAtt.Attestation,
+		}, nil
 	}
 }
 
