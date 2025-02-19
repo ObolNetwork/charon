@@ -153,7 +153,6 @@ func provide[O any](ctx context.Context, clients []Client, fallbacks []Client,
 	zero := func() O { var z O; return z }()
 
 	runForkJoin := func(clients []Client, isFallback bool) (O, error) {
-
 		if isFallback {
 			usingFallbackGauge.Set(1)
 		} else {
