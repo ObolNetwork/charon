@@ -5,7 +5,7 @@
 package errors
 
 import (
-	stderrors "errors"
+	stderrors "errors" //nolint:revive // Allow import of stdlib errors package.
 	"fmt"
 
 	"go.uber.org/zap"

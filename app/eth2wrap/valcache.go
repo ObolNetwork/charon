@@ -4,13 +4,22 @@ package eth2wrap
 
 import (
 	"context"
+	"strconv"
 	"sync"
+	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
+)
+
+const (
+	maxRetries = 20
+	retryDelay = 100 * time.Millisecond
 )
 
 // ActiveValidators is a map of active validator indices to pubkeys.
@@ -131,4 +140,54 @@ func (c *ValidatorCache) Get(ctx context.Context) (ActiveValidators, CompleteVal
 	c.complete = eth2Resp.Data
 
 	return resp, eth2Resp.Data, nil
+}
+
+// GetBySlot fetches active and complete validator by slot populating the cache.
+func (c *ValidatorCache) GetBySlot(ctx context.Context, slot uint64) (ActiveValidators, CompleteValidators, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	opts := &eth2api.ValidatorsOpts{
+		State:   strconv.FormatUint(slot, 10),
+		PubKeys: c.pubkeys,
+	}
+
+	var eth2Resp *eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator]
+	var err error
+
+	for retryCount := 0; retryCount < maxRetries; retryCount++ {
+		eth2Resp, err = c.eth2Cl.Validators(ctx, opts)
+		if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			break
+		}
+
+		sleepDuration := retryDelay * time.Duration(retryCount+1)
+		time.Sleep(sleepDuration)
+
+		log.Info(ctx, "Retrying fetching validators by slot", z.U64("slot", slot), z.Int("retryCount", retryCount+1), z.Err(err))
+	}
+
+	if err != nil {
+		return nil, nil, wrapError(ctx, err, "Failed to fetch validators by slot after maximum retries")
+	}
+
+	complete := eth2Resp.Data
+
+	active := make(ActiveValidators)
+	for _, val := range complete {
+		if val == nil || val.Validator == nil {
+			return nil, nil, errors.New("validator data cannot be nil")
+		}
+
+		if !val.Status.IsActive() {
+			continue
+		}
+
+		active[val.Index] = val.Validator.PublicKey
+	}
+
+	c.active = active
+	c.complete = complete
+
+	return active, complete, nil
 }

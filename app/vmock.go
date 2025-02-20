@@ -93,7 +93,7 @@ func newVMockEth2Provider(conf Config, pubshares []eth2p0.BLSPubKey) func() (eth
 				return nil, errors.New("invalid eth2 http service")
 			}
 
-			cached = eth2wrap.AdaptEth2HTTP(eth2Http, timeout)
+			cached = eth2wrap.AdaptEth2HTTP(eth2Http, nil, timeout)
 			valCache := eth2wrap.NewValidatorCache(cached, pubshares)
 			cached.SetValidatorCache(valCache.Get)
 

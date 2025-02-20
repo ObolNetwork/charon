@@ -42,21 +42,22 @@ type NodePeerCountProvider interface {
 }
 
 // NewHTTPAdapterForT returns a http adapter for testing non-eth2service methods as it is nil.
-func NewHTTPAdapterForT(_ *testing.T, address string, timeout time.Duration) Client {
-	return newHTTPAdapter(nil, address, timeout)
+func NewHTTPAdapterForT(_ *testing.T, address string, headers map[string]string, timeout time.Duration) Client {
+	return newHTTPAdapter(nil, address, headers, timeout)
 }
 
 // AdaptEth2HTTP returns a Client wrapping an eth2http service by adding experimental endpoints.
 // Note that the returned client doesn't wrap errors, so they are unstructured without stacktraces.
-func AdaptEth2HTTP(eth2Svc *eth2http.Service, timeout time.Duration) Client {
-	return newHTTPAdapter(eth2Svc, eth2Svc.Address(), timeout)
+func AdaptEth2HTTP(eth2Svc *eth2http.Service, headers map[string]string, timeout time.Duration) Client {
+	return newHTTPAdapter(eth2Svc, eth2Svc.Address(), headers, timeout)
 }
 
 // newHTTPAdapter returns a new http adapter.
-func newHTTPAdapter(ethSvc *eth2http.Service, address string, timeout time.Duration) *httpAdapter {
+func newHTTPAdapter(ethSvc *eth2http.Service, address string, headers map[string]string, timeout time.Duration) *httpAdapter {
 	return &httpAdapter{
 		Service: ethSvc,
 		address: address,
+		headers: headers,
 		timeout: timeout,
 	}
 }
@@ -67,6 +68,7 @@ func newHTTPAdapter(ethSvc *eth2http.Service, address string, timeout time.Durat
 type httpAdapter struct {
 	*eth2http.Service
 	address     string
+	headers     map[string]string
 	timeout     time.Duration
 	valCacheMu  sync.RWMutex
 	valCache    func(context.Context) (ActiveValidators, CompleteValidators, error)
@@ -142,7 +144,7 @@ func (h *httpAdapter) AggregateBeaconCommitteeSelections(ctx context.Context, se
 		return nil, errors.Wrap(err, "marshal submit beacon committee selections")
 	}
 
-	respBody, err := httpPost(ctx, h.address, "/eth/v1/validator/beacon_committee_selections", bytes.NewReader(reqBody), h.timeout)
+	respBody, err := httpPost(ctx, h.address, "/eth/v1/validator/beacon_committee_selections", bytes.NewReader(reqBody), h.headers, h.timeout)
 	if err != nil {
 		return nil, errors.Wrap(err, "submit beacon committee selections")
 	}
@@ -162,7 +164,7 @@ func (h *httpAdapter) AggregateSyncCommitteeSelections(ctx context.Context, sele
 		return nil, errors.Wrap(err, "marshal sync committee selections")
 	}
 
-	respBody, err := httpPost(ctx, h.address, "/eth/v1/validator/sync_committee_selections", bytes.NewReader(reqBody), h.timeout)
+	respBody, err := httpPost(ctx, h.address, "/eth/v1/validator/sync_committee_selections", bytes.NewReader(reqBody), h.headers, h.timeout)
 	if err != nil {
 		return nil, errors.Wrap(err, "submit sync committee selections")
 	}
@@ -179,7 +181,7 @@ func (h *httpAdapter) AggregateSyncCommitteeSelections(ctx context.Context, sele
 // See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockAttestations.
 func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
 	path := fmt.Sprintf("/eth/v1/beacon/blocks/%s/attestations", stateID)
-	respBody, statusCode, err := httpGet(ctx, h.address, path, h.timeout)
+	respBody, statusCode, err := httpGet(ctx, h.address, path, h.headers, h.timeout)
 	if err != nil {
 		return nil, errors.Wrap(err, "request block attestations")
 	} else if statusCode == http.StatusNotFound {
@@ -198,7 +200,7 @@ func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]
 
 // ProposerConfig implements eth2exp.ProposerConfigProvider.
 func (h *httpAdapter) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
-	respBody, statusCode, err := httpGet(ctx, h.address, "/proposer_config", h.timeout)
+	respBody, statusCode, err := httpGet(ctx, h.address, "/proposer_config", h.headers, h.timeout)
 	if err != nil {
 		return nil, errors.Wrap(err, "submit sync committee selections")
 	} else if statusCode != http.StatusOK {
@@ -217,7 +219,7 @@ func (h *httpAdapter) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConf
 // See https://ethereum.github.io/beacon-APIs/#/Node/getPeerCount.
 func (h *httpAdapter) NodePeerCount(ctx context.Context) (int, error) {
 	const path = "/eth/v1/node/peer_count"
-	respBody, statusCode, err := httpGet(ctx, h.address, path, h.timeout)
+	respBody, statusCode, err := httpGet(ctx, h.address, path, h.headers, h.timeout)
 	if err != nil {
 		return 0, errors.Wrap(err, "request beacon node peer count")
 	} else if statusCode != http.StatusOK {
@@ -266,7 +268,7 @@ type peerCountJSON struct {
 	} `json:"data"`
 }
 
-func httpPost(ctx context.Context, base string, endpoint string, body io.Reader, timeout time.Duration) ([]byte, error) {
+func httpPost(ctx context.Context, base string, endpoint string, body io.Reader, headers map[string]string, timeout time.Duration) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -283,6 +285,9 @@ func httpPost(ctx context.Context, base string, endpoint string, body io.Reader,
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url.String(), body)
 	if err != nil {
 		return nil, errors.Wrap(err, "new POST request with ctx")
+	}
+	for k, v := range headers {
+		req.Header.Add(k, v)
 	}
 
 	res, err := new(http.Client).Do(req)
@@ -304,7 +309,7 @@ func httpPost(ctx context.Context, base string, endpoint string, body io.Reader,
 }
 
 // httpGet performs a GET request and returns the body and status code or an error.
-func httpGet(ctx context.Context, base string, endpoint string, timeout time.Duration) ([]byte, int, error) {
+func httpGet(ctx context.Context, base string, endpoint string, headers map[string]string, timeout time.Duration) ([]byte, int, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -321,6 +326,9 @@ func httpGet(ctx context.Context, base string, endpoint string, timeout time.Dur
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "new GET request with ctx")
+	}
+	for k, v := range headers {
+		req.Header.Add(k, v)
 	}
 
 	res, err := new(http.Client).Do(req)

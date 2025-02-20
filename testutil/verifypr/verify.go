@@ -65,6 +65,11 @@ func verify() error {
 		return nil
 	}
 
+	// Skip Renovate PRs.
+	if strings.Contains(pr.Title, "chore(deps)") && strings.Contains(pr.Body, "Renovate") {
+		return nil
+	}
+
 	log.Printf("Verifying charon PR against template\n")
 	log.Printf("PR Title: %s\n", pr.Title)
 	log.Printf("## PR Body:\n%s\n####\n", pr.Body)
