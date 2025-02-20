@@ -86,7 +86,7 @@ jobs:
         echo "::set-output name=short_sha::$calculatedSha"
 
     - name: Trigger dev relay deploy job
-      uses: peter-evans/repository-dispatch@v2
+      uses: peter-evans/repository-dispatch@v3
       with:
         token: ${{ secrets.CHARON_K8S_REPO_ACCESS_TOKEN }}
         repository: ObolNetwork/obol-infrastructure
@@ -94,7 +94,7 @@ jobs:
         client-payload: '{"relay_name": "relay-dev","relay_version": "${{ steps.vars.outputs.short_sha }}"}'
 
     - name: Trigger charon-K8S deploy job
-      uses: peter-evans/repository-dispatch@v2
+      uses: peter-evans/repository-dispatch@v3
       with:
         token: ${{ secrets.CHARON_K8S_REPO_ACCESS_TOKEN }}
         repository: ObolNetwork/obol-infrastructure
