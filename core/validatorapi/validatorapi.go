@@ -376,10 +376,31 @@ func (c Component) SubmitAttestationsV2(ctx context.Context, attestationOpts *et
 			return errors.Wrap(err, "get attestation committee index")
 		}
 
-		pubkey, err := c.pubKeyByAttV2Func(ctx, slot, uint64(attCommitteeIndex), uint64(*att.ValidatorIndex))
-		if err != nil {
-			return errors.Wrap(err, "failed to find pubkey", z.U64("slot", slot),
-				z.U64("commIdx", uint64(attCommitteeIndex)), z.U64("valIdx", uint64(*att.ValidatorIndex)))
+		// ValidatorIndex is available only in post-pectra attestations, if it's not, procceed with pre-pectra flow
+		var pubkey core.PubKey
+		if att.ValidatorIndex != nil {
+			pubkey, err = c.pubKeyByAttV2Func(ctx, slot, uint64(attCommitteeIndex), uint64(*att.ValidatorIndex))
+			if err != nil {
+				return errors.Wrap(err, "failed to find v2 pubkey", z.U64("slot", slot),
+					z.U64("commIdx", uint64(attCommitteeIndex)), z.U64("valIdx", uint64(*att.ValidatorIndex)))
+			}
+		} else {
+			aggBits, err := att.AggregationBits()
+			if err != nil {
+				return errors.Wrap(err, "get attestation aggregation bits", z.U64("slot", slot),
+					z.U64("commIdx", uint64(attCommitteeIndex)))
+			}
+			indices := aggBits.BitIndices()
+			if len(indices) != 1 {
+				return errors.New("unexpected number of aggregation bits",
+					z.Str("aggbits", fmt.Sprintf("%#x", []byte(aggBits))))
+			}
+
+			pubkey, err = c.pubKeyByAttFunc(ctx, slot, uint64(attCommitteeIndex), uint64(indices[0]))
+			if err != nil {
+				return errors.Wrap(err, "failed to find pubkey", z.U64("slot", slot),
+					z.Int("commIdx", int(attCommitteeIndex)), z.Int("valCommIdx", indices[0]))
+			}
 		}
 
 		parSigData, err := core.NewPartialVersionedAttestation(att, c.shareIdx)
