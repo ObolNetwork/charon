@@ -15,7 +15,7 @@ jobs:
           fetch-depth: 0 # Disable shallow checkout
       - uses: actions/setup-python@v5
       - uses: ./.github/actions/setup-go
-      - uses: pre-commit/action@v2.0.3
+      - uses: pre-commit/action@v3.0.1
 
       - name: notify failure
         if: failure() && github.ref == 'refs/heads/main'
