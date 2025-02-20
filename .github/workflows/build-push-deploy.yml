@@ -16,7 +16,7 @@ jobs:
         fetch-depth: 0
     - name: Set up QEMU
       id: qemu
-      uses: docker/setup-qemu-action@v2
+      uses: docker/setup-qemu-action@v3
     - uses: docker/setup-buildx-action@v3
       with:
         driver-opts: "image=moby/buildkit:v0.10.5" # avoid unknown/unknown arch in ghcr
