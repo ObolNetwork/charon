@@ -27,7 +27,7 @@ require (
 	github.com/r3labs/sse/v2 v2.10.0
 	github.com/rs/zerolog v1.33.0
 	github.com/showwin/speedtest-go v1.7.10
-	github.com/spf13/cobra v1.8.1
+	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.6
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
