@@ -1334,7 +1334,7 @@ func TestRouter(t *testing.T) {
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			eth2Cl := eth2wrap.AdaptEth2HTTP(cl, time.Second)
+			eth2Cl := eth2wrap.AdaptEth2HTTP(cl, nil, time.Second)
 			actual, err := eth2Cl.AggregateSyncCommitteeSelections(ctx, selections)
 			require.NoError(t, err)
 			require.Equal(t, selections, actual)
@@ -1414,7 +1414,7 @@ func TestBeaconCommitteeSelections(t *testing.T) {
 		},
 	}
 
-	eth2Cl := eth2wrap.AdaptEth2HTTP(eth2Svc.(*eth2http.Service), time.Second)
+	eth2Cl := eth2wrap.AdaptEth2HTTP(eth2Svc.(*eth2http.Service), nil, time.Second)
 	actual, err := eth2Cl.AggregateBeaconCommitteeSelections(ctx, selections)
 	require.NoError(t, err)
 	require.Equal(t, selections, actual)
@@ -1458,7 +1458,7 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	eth2Cl := eth2wrap.AdaptEth2HTTP(eth2Svc.(*eth2http.Service), time.Second)
+	eth2Cl := eth2wrap.AdaptEth2HTTP(eth2Svc.(*eth2http.Service), nil, time.Second)
 	err = eth2Cl.SubmitAggregateAttestations(ctx, []*eth2p0.SignedAggregateAndProof{agg})
 	require.NoError(t, err)
 }

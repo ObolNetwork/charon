@@ -592,7 +592,7 @@ func getKeys(splitKeysDir string) ([]tbls.PrivateKey, error) {
 		return nil, err
 	}
 
-	return files.Keys(), nil
+	return files.SequencedKeys()
 }
 
 // generateKeys generates numDVs amount of tbls.PrivateKeys.
