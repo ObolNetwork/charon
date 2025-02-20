@@ -176,7 +176,7 @@ func TestGetBySlot(t *testing.T) {
 
 	active, complete, err = valCache.GetBySlot(ctx, 11)
 	require.NoError(t, err)
-	require.Len(t, active, 0)
+	require.Empty(t, active)
 	require.Len(t, complete, 2)
 
 	_, _, err = valCache.GetBySlot(ctx, 3)
