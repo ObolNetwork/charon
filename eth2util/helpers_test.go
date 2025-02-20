@@ -129,6 +129,11 @@ func TestValidateBeaconNodeHeaders(t *testing.T) {
 			headers: []string{",,"},
 			valid:   false,
 		},
+		{
+			name:    "value contains equal sign",
+			headers: []string{"Authorization=Basic bmljZXRyeQ=="},
+			valid:   true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -163,6 +168,11 @@ func TestParseBeaconNodeHeaders(t *testing.T) {
 			name:    "two pairs",
 			headers: []string{"header-1=value-1", "header-2=value-2"},
 			want:    map[string]string{"header-1": "value-1", "header-2": "value-2"},
+		},
+		{
+			name:    "value contains equal sign",
+			headers: []string{"Authorization=Basic bmljZXRyeQ=="},
+			want:    map[string]string{"Authorization": "Basic bmljZXRyeQ=="},
 		},
 	}
 

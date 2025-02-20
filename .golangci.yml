@@ -94,7 +94,7 @@ linters-settings:
         arguments:
          - 'fmt.Printf'
          - 'fmt.Println'
-      - name: imports-blacklist
+      - name: imports-blocklist
         arguments:
          - "errors" # Prefer ./app/errors
          - "github.com/pkg/errors" # Prefer ./app/errors
