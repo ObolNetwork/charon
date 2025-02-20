@@ -50,7 +50,7 @@ jobs:
         username: obolnetwork
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - uses: docker/build-push-action@v5
+    - uses: docker/build-push-action@v6
       with:
         context: .
         file: ./testutil/promrated/Dockerfile

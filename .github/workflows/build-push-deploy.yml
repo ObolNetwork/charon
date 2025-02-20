@@ -69,7 +69,7 @@ jobs:
       if: github.ref_type == 'tag'
       run: echo 'GO_BUILD_FLAG=-ldflags=-X github.com/obolnetwork/charon/app/version.version=${{ github.ref_name }}' >> $GITHUB_ENV
 
-    - uses: docker/build-push-action@v4
+    - uses: docker/build-push-action@v6
       with:
         context: .
         platforms: linux/amd64,linux/arm64
