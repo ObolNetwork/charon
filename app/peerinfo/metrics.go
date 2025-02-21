@@ -67,5 +67,5 @@ var (
 		Name:        "nickname",
 		Help:        "Constant gauge with nickname label set to peer's charon nickname.",
 		ConstLabels: nil,
-	}, []string{"peer", "nickname"})
+	}, []string{"peer", "peer_nickname"})
 )
