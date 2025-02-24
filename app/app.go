@@ -221,6 +221,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	log.Info(ctx, "Lock file loaded",
 		z.Str("peer_name", p2p.PeerName(tcpNode.ID())),
+		z.Str("nickname", conf.Nickname),
 		z.Int("peer_index", nodeIdx.PeerIdx),
 		z.Str("cluster_name", cluster.GetName()),
 		z.Str("cluster_hash", lockHashHex),
@@ -233,6 +234,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		"cluster_hash":    lockHashHex,
 		"cluster_name":    cluster.GetName(),
 		"cluster_peer":    p2p.PeerName(tcpNode.ID()),
+		"nickname":        conf.Nickname,
 		"cluster_network": network,
 		"charon_version":  version.Version.String(),
 	}
