@@ -7,6 +7,7 @@ import (
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
@@ -16,11 +17,13 @@ import (
 var (
 	_ Eth2SignedData = VersionedSignedProposal{}
 	_ Eth2SignedData = Attestation{}
+	_ Eth2SignedData = VersionedAttestation{}
 	_ Eth2SignedData = SignedVoluntaryExit{}
 	_ Eth2SignedData = VersionedSignedValidatorRegistration{}
 	_ Eth2SignedData = SignedRandao{}
 	_ Eth2SignedData = BeaconCommitteeSelection{}
 	_ Eth2SignedData = SignedAggregateAndProof{}
+	_ Eth2SignedData = VersionedSignedAggregateAndProof{}
 	_ Eth2SignedData = SignedSyncMessage{}
 	_ Eth2SignedData = SignedSyncContributionAndProof{}
 	_ Eth2SignedData = SyncCommitteeSelection{}
@@ -64,6 +67,21 @@ func (Attestation) DomainName() signing.DomainName {
 
 func (a Attestation) Epoch(_ context.Context, _ eth2wrap.Client) (eth2p0.Epoch, error) {
 	return a.Attestation.Data.Target.Epoch, nil
+}
+
+// Implement Eth2SignedData for VersionedAttestation.
+
+func (VersionedAttestation) DomainName() signing.DomainName {
+	return signing.DomainBeaconAttester
+}
+
+func (a VersionedAttestation) Epoch(_ context.Context, _ eth2wrap.Client) (eth2p0.Epoch, error) {
+	data, err := a.Data()
+	if err != nil {
+		return 0, errors.Wrap(err, "get attestation data")
+	}
+
+	return data.Target.Epoch, nil
 }
 
 // Implement Eth2SignedData for SignedVoluntaryExit.
@@ -115,6 +133,21 @@ func (SignedAggregateAndProof) DomainName() signing.DomainName {
 
 func (s SignedAggregateAndProof) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
 	return eth2util.EpochFromSlot(ctx, eth2Cl, s.Message.Aggregate.Data.Slot)
+}
+
+// Implement Eth2SignedData for SignedAggregateAndProof.
+
+func (VersionedSignedAggregateAndProof) DomainName() signing.DomainName {
+	return signing.DomainAggregateAndProof
+}
+
+func (ap VersionedSignedAggregateAndProof) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	slot, err := ap.Slot()
+	if err != nil {
+		return 0, err
+	}
+
+	return eth2util.EpochFromSlot(ctx, eth2Cl, slot)
 }
 
 // Implement Eth2SignedData for SignedSyncMessage.

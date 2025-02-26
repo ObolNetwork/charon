@@ -6,6 +6,7 @@ import (
 	"context"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -90,6 +91,32 @@ func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Clien
 	}
 
 	return Verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, agg.SelectionProof, pubkey)
+}
+
+// VerifyAggregateAndProofSelectionV2 verifies the eth2p0.AggregateAndProof with the provided pubkey.
+// Refer get_slot_signature from https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/validator.md#aggregation-selection.
+func VerifyAggregateAndProofSelectionV2(ctx context.Context, eth2Cl eth2wrap.Client, pubkey tbls.PublicKey, agg *eth2spec.VersionedSignedAggregateAndProof) error {
+	slot, err := agg.Slot()
+	if err != nil {
+		return err
+	}
+
+	epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, slot)
+	if err != nil {
+		return err
+	}
+
+	sigRoot, err := eth2util.SlotHashRoot(slot)
+	if err != nil {
+		return errors.Wrap(err, "cannot get hash root of slot")
+	}
+
+	selectionProof, err := agg.SelectionProof()
+	if err != nil {
+		return err
+	}
+
+	return Verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, selectionProof, pubkey)
 }
 
 // Verify returns an error if the signature doesn't match the eth2 domain signed root.

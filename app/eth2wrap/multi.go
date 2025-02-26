@@ -5,9 +5,11 @@ package eth2wrap
 import (
 	"context"
 
+	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
+	"github.com/obolnetwork/charon/eth2util/statecomm"
 )
 
 // NewMultiForT creates a new mutil client for testing.
@@ -175,6 +177,7 @@ func (m multi) AggregateSyncCommitteeSelections(ctx context.Context, selections 
 	return res, err
 }
 
+// Deprecated: use BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error)
 func (m multi) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
 	const label = "block_attestations"
 	defer latency(ctx, label, false)()
@@ -182,6 +185,42 @@ func (m multi) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0
 	res, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) ([]*eth2p0.Attestation, error) {
 			return args.client.BlockAttestations(ctx, stateID)
+		},
+		nil, m.selector,
+	)
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res, err
+}
+
+func (m multi) BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error) {
+	const label = "block_attestations_v2"
+	defer latency(ctx, label, false)()
+
+	res, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) ([]*spec.VersionedAttestation, error) {
+			return args.client.BlockAttestationsV2(ctx, stateID)
+		},
+		nil, m.selector,
+	)
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res, err
+}
+
+func (m multi) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error) {
+	const label = "beacon_state_committees"
+	defer latency(ctx, label, false)()
+
+	res, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) ([]*statecomm.StateCommittee, error) {
+			return args.client.BeaconStateCommittees(ctx, slot)
 		},
 		nil, m.selector,
 	)

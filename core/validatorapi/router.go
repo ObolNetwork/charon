@@ -26,13 +26,16 @@ import (
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
+	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
+	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
 	"github.com/gorilla/mux"
+	"github.com/prysmaticlabs/go-bitfield"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -120,6 +123,12 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, builderEn
 			Name:    "submit_attestations",
 			Path:    "/eth/v1/beacon/pool/attestations",
 			Handler: submitAttestations(h),
+			Methods: []string{http.MethodPost},
+		},
+		{
+			Name:    "submit_attestations_v2",
+			Path:    "/eth/v2/beacon/pool/attestations",
+			Handler: submitAttestationsV2(h),
 			Methods: []string{http.MethodPost},
 		},
 		{
@@ -213,9 +222,21 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, builderEn
 			Methods: []string{http.MethodGet},
 		},
 		{
+			Name:    "aggregate_attestation_v2",
+			Path:    "/eth/v2/validator/aggregate_attestation",
+			Handler: aggregateAttestationV2(h),
+			Methods: []string{http.MethodGet},
+		},
+		{
 			Name:    "submit_aggregate_and_proofs",
 			Path:    "/eth/v1/validator/aggregate_and_proofs",
 			Handler: submitAggregateAttestations(h),
+			Methods: []string{http.MethodPost},
+		},
+		{
+			Name:    "submit_aggregate_and_proofs_v2",
+			Path:    "/eth/v2/validator/aggregate_and_proofs",
+			Handler: submitAggregateAttestationsV2(h),
 			Methods: []string{http.MethodPost},
 		},
 		{
@@ -450,7 +471,7 @@ func attestationData(p eth2client.AttestationDataProvider) handlerFunc {
 	}
 }
 
-// submitAttestations returns a handler function for the attestation submitter endpoint.
+// submitAttestations returns a handler function for the attestation submitter v1 endpoint.
 func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		var atts []*eth2p0.Attestation
@@ -460,6 +481,56 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 		}
 
 		return nil, nil, p.SubmitAttestations(ctx, atts)
+	}
+}
+
+// submitAttestationsV2 returns a handler function for the attestation submitter v2 endpoint.
+func submitAttestationsV2(p eth2client.AttestationsSubmitter) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		versionedAtts := []*eth2spec.VersionedAttestation{}
+
+		electraAtts := new([]electra.SingleAttestation)
+		err := unmarshal(typ, body, electraAtts)
+		if err == nil {
+			for _, electraAtt := range *electraAtts {
+				commBits := bitfield.NewBitvector64()
+				commBits.SetBitAt(uint64(electraAtt.CommitteeIndex), true)
+				versionedAtt := eth2spec.VersionedAttestation{
+					Version:        eth2spec.DataVersionElectra,
+					ValidatorIndex: &electraAtt.AttesterIndex,
+					Electra: &electra.Attestation{
+						// the VersionedAttestation object will be converted back to SingleAttestation object inside go-eth2-client's SubmitAttestationsV2,
+						// SingleAttestation object disregards AggregationBits, so this empty Bitlist is safe
+						AggregationBits: bitfield.NewBitlist(0),
+						Data:            electraAtt.Data,
+						Signature:       electraAtt.Signature,
+						CommitteeBits:   commBits,
+					},
+				}
+				versionedAtts = append(versionedAtts, &versionedAtt)
+			}
+
+			return nil, nil, p.SubmitAttestationsV2(ctx, &eth2api.SubmitAttestationsOpts{Attestations: versionedAtts})
+		}
+
+		denebAtts := new([]eth2p0.Attestation)
+		err = unmarshal(typ, body, denebAtts)
+		if err == nil {
+			for _, att := range *denebAtts {
+				// TODO(kalo): Data version is not Deneb, it might be anything between Phase0 and Deneb
+				versionedAgg := eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionDeneb,
+					Deneb:   &att,
+				}
+				versionedAtts = append(versionedAtts, &versionedAgg)
+			}
+
+			return nil, nil, p.SubmitAttestationsV2(ctx, &eth2api.SubmitAttestationsOpts{
+				Attestations: versionedAtts,
+			})
+		}
+
+		return nil, nil, errors.New("invalid attestations", z.Hex("body", body))
 	}
 }
 
@@ -774,6 +845,19 @@ func createProposeBlockResponse(proposal *eth2api.VersionedProposal) (*proposeBl
 			}
 			blockData = proposal.Deneb
 		}
+	case eth2spec.DataVersionElectra:
+		version = eth2spec.DataVersionElectra.String()
+		if proposal.Blinded {
+			if proposal.ElectraBlinded == nil {
+				return nil, errors.New("no electra blinded block")
+			}
+			blockData = proposal.ElectraBlinded
+		} else {
+			if proposal.Electra == nil {
+				return nil, errors.New("no electra block")
+			}
+			blockData = proposal.Electra
+		}
 	default:
 		if proposal.Blinded {
 			return nil, errors.New("invalid blinded block")
@@ -793,8 +877,21 @@ func createProposeBlockResponse(proposal *eth2api.VersionedProposal) (*proposeBl
 
 func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		electraBlock := new(eth2electra.SignedBlockContents)
+		err := unmarshal(typ, body, electraBlock)
+		if err == nil {
+			block := &eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionElectra,
+				Electra: electraBlock,
+			}
+
+			return nil, nil, p.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+				Proposal: block,
+			})
+		}
+
 		denebBlock := new(eth2deneb.SignedBlockContents)
-		err := unmarshal(typ, body, denebBlock)
+		err = unmarshal(typ, body, denebBlock)
 		if err == nil {
 			block := &eth2api.VersionedSignedProposal{
 				Version: eth2spec.DataVersionDeneb,
@@ -864,9 +961,22 @@ func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 
 func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
-		// The blinded block maybe either bellatrix, capella or deneb.
+		// The blinded block maybe either bellatrix, capella, deneb or electra.
+		electraBlock := new(eth2electra.SignedBlindedBeaconBlock)
+		err := unmarshal(typ, body, electraBlock)
+		if err == nil {
+			block := &eth2api.VersionedSignedBlindedProposal{
+				Version: eth2spec.DataVersionElectra,
+				Electra: electraBlock,
+			}
+
+			return nil, nil, p.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+				Proposal: block,
+			})
+		}
+
 		denebBlock := new(eth2deneb.SignedBlindedBeaconBlock)
-		err := unmarshal(typ, body, denebBlock)
+		err = unmarshal(typ, body, denebBlock)
 		if err == nil {
 			block := &eth2api.VersionedSignedBlindedProposal{
 				Version: eth2spec.DataVersionDeneb,
@@ -1015,6 +1125,94 @@ func aggregateAttestation(p eth2client.AggregateAttestationProvider) handlerFunc
 	}
 }
 
+func aggregateAttestationV2(p eth2client.AggregateAttestationProvider) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+		slot, err := uintQuery(query, "slot")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		var attDataRoot eth2p0.Root
+		if err := hexQueryFixed(query, "attestation_data_root", attDataRoot[:]); err != nil {
+			return nil, nil, err
+		}
+
+		committeeIndex, err := uintQuery(query, "committee_index")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		opts := &eth2api.AggregateAttestationOpts{
+			Slot:                eth2p0.Slot(slot),
+			AttestationDataRoot: attDataRoot,
+			CommitteeIndex:      eth2p0.CommitteeIndex(committeeIndex),
+		}
+		eth2Resp, err := p.AggregateAttestationV2(ctx, opts)
+		if err != nil {
+			return nil, nil, err
+		}
+		data := eth2Resp.Data
+
+		resHeaders := make(http.Header)
+		resHeaders.Add(versionHeader, data.Version.String())
+
+		res, err := createAggregateAttestation(data)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return res, resHeaders, nil
+	}
+}
+
+// createProposeBlockResponse constructs proposeBlockV3Response object for given block.
+func createAggregateAttestation(aggAtt *eth2spec.VersionedAttestation) (*aggregateAttestationV2Response, error) {
+	res := aggregateAttestationV2Response{Version: aggAtt.Version.String()}
+
+	switch aggAtt.Version {
+	case eth2spec.DataVersionPhase0:
+		if aggAtt.Phase0 == nil {
+			return nil, errors.New("no phase0 attestation")
+		}
+
+		res.Data = aggAtt.Phase0
+	case eth2spec.DataVersionAltair:
+		if aggAtt.Altair == nil {
+			return nil, errors.New("no altair attestation")
+		}
+
+		res.Data = aggAtt.Altair
+	case eth2spec.DataVersionBellatrix:
+		if aggAtt.Bellatrix == nil {
+			return nil, errors.New("no bellatrix attestation")
+		}
+
+		res.Data = aggAtt.Bellatrix
+	case eth2spec.DataVersionCapella:
+		if aggAtt.Capella == nil {
+			return nil, errors.New("no capella attestation")
+		}
+
+		res.Data = aggAtt.Capella
+	case eth2spec.DataVersionDeneb:
+		if aggAtt.Deneb == nil {
+			return nil, errors.New("no deneb attestation")
+		}
+
+		res.Data = aggAtt.Deneb
+	case eth2spec.DataVersionElectra:
+		if aggAtt.Electra == nil {
+			return nil, errors.New("no electra attestation")
+		}
+
+		res.Data = aggAtt.Electra
+	default:
+		return nil, errors.New("invalid attestation")
+	}
+
+	return &res, nil
+}
+
 func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		var aggs []*eth2p0.SignedAggregateAndProof
@@ -1029,6 +1227,47 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 		}
 
 		return nil, nil, nil
+	}
+}
+
+func submitAggregateAttestationsV2(s eth2client.AggregateAttestationsSubmitter) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		aggs := []*eth2spec.VersionedSignedAggregateAndProof{}
+
+		electraAggs := new([]electra.SignedAggregateAndProof)
+		err := unmarshal(typ, body, electraAggs)
+		if err == nil {
+			for _, agg := range *electraAggs {
+				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionElectra,
+					Electra: &agg,
+				}
+				aggs = append(aggs, &versionedAgg)
+			}
+
+			return nil, nil, s.SubmitAggregateAttestationsV2(ctx, &eth2api.SubmitAggregateAttestationsOpts{
+				SignedAggregateAndProofs: aggs,
+			})
+		}
+
+		denebAggs := new([]eth2p0.SignedAggregateAndProof)
+		err = unmarshal(typ, body, denebAggs)
+		if err == nil {
+			for _, agg := range *denebAggs {
+				// TODO(kalo): Data version is not Deneb, it might be anything between Phase0 and Deneb
+				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionDeneb,
+					Deneb:   &agg,
+				}
+				aggs = append(aggs, &versionedAgg)
+			}
+
+			return nil, nil, s.SubmitAggregateAttestationsV2(ctx, &eth2api.SubmitAggregateAttestationsOpts{
+				SignedAggregateAndProofs: aggs,
+			})
+		}
+
+		return nil, nil, errors.New("invalid submitted aggregate and proofs", z.Hex("body", body))
 	}
 }
 

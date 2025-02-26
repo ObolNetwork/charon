@@ -441,7 +441,9 @@ func TestTrackerParticipation(t *testing.T) {
 					continue
 				}
 
-				set[pk] = core.NewPartialAttestation(testutil.RandomAttestation(), p.ShareIdx())
+				parSigData, err := core.NewPartialVersionedAttestation(testutil.RandomDenebVersionedAttestation(), p.ShareIdx())
+				require.NoError(t, err)
+				set[pk] = parSigData
 			}
 
 			data = append(data, set)
@@ -698,7 +700,9 @@ func setupData(t *testing.T, slots []int, numVals int) ([]testDutyData, []core.P
 			})
 
 			unsignedset[pubkeysByIdx[eth2p0.ValidatorIndex(i)]] = testutil.RandomCoreAttestationData(t)
-			parsignedset[pubkeysByIdx[eth2p0.ValidatorIndex(i)]] = core.NewPartialAttestation(testutil.RandomAttestation(), 1)
+			parSigAttestation, err := core.NewPartialVersionedAttestation(testutil.RandomDenebVersionedAttestation(), 1)
+			require.NoError(t, err)
+			parsignedset[pubkeysByIdx[eth2p0.ValidatorIndex(i)]] = parSigAttestation
 		}
 
 		data = append(data, testDutyData{

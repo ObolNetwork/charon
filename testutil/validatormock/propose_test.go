@@ -4,6 +4,8 @@ package validatormock_test
 
 import (
 	"context"
+	"fmt"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -11,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -55,13 +59,13 @@ func TestAttest(t *testing.T) {
 			require.NoError(t, err)
 
 			// Callback to collect attestations
-			var atts []*eth2p0.Attestation
-			var aggs []*eth2p0.SignedAggregateAndProof
-			beaconMock.SubmitAttestationsFunc = func(_ context.Context, attestations []*eth2p0.Attestation) error {
-				atts = attestations
+			var atts []*eth2spec.VersionedAttestation
+			var aggs *eth2api.SubmitAggregateAttestationsOpts
+			beaconMock.SubmitAttestationsV2Func = func(_ context.Context, attestations *eth2api.SubmitAttestationsOpts) error {
+				atts = attestations.Attestations
 				return nil
 			}
-			beaconMock.SubmitAggregateAttestationsFunc = func(_ context.Context, aggAndProofs []*eth2p0.SignedAggregateAndProof) error {
+			beaconMock.SubmitAggregateAttestationsV2Func = func(_ context.Context, aggAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
 				aggs = aggAndProofs
 				return nil
 			}
@@ -88,15 +92,24 @@ func TestAttest(t *testing.T) {
 
 			// Assert length and expected attestations
 			require.Len(t, atts, test.ExpectAttestations)
-			require.Len(t, aggs, test.ExpectAggregations)
+			require.Len(t, aggs.SignedAggregateAndProofs, test.ExpectAggregations)
 
 			// Sort the outputs to make it deterministic to compare with json.
 			sort.Slice(atts, func(i, j int) bool {
-				return atts[i].Data.Index < atts[j].Data.Index
+				attsiData, err := atts[i].Data()
+				if err != nil {
+					return false
+				}
+				attsjData, err := atts[j].Data()
+				if err != nil {
+					return false
+				}
+
+				return attsiData.Index < attsjData.Index
 			})
 
-			sort.Slice(aggs, func(i, j int) bool {
-				return aggs[i].Message.Aggregate.Data.Index < aggs[j].Message.Aggregate.Data.Index
+			sort.Slice(aggs.SignedAggregateAndProofs, func(i, j int) bool {
+				return aggs.SignedAggregateAndProofs[i].Deneb.Message.Aggregate.Data.Index < aggs.SignedAggregateAndProofs[j].Deneb.Message.Aggregate.Data.Index
 			})
 
 			t.Run("attestations", func(t *testing.T) {
@@ -112,49 +125,196 @@ func TestAttest(t *testing.T) {
 func TestProposeBlock(t *testing.T) {
 	ctx := context.Background()
 
-	// Configure beacon mock
-	valSet := beaconmock.ValidatorSetA
-	beaconMock, err := beaconmock.New(
-		beaconmock.WithValidatorSet(valSet),
-		beaconmock.WithDeterministicProposerDuties(0),
-	)
-	require.NoError(t, err)
+	tests := []struct {
+		version                string
+		jsonBeaconBlock        func(slotsPerEpoch uint64) []byte
+		beaconMockProposalFunc func(context.Context, *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error)
+	}{
+		{
+			version: "capella",
+			jsonBeaconBlock: func(slotsPerEpoch uint64) []byte {
+				block := testutil.RandomCapellaBeaconBlock()
+				block.Slot = eth2p0.Slot(slotsPerEpoch)
+				blockJSON, err := block.MarshalJSON()
+				require.NoError(t, err)
 
-	// Signature stub function
-	signFunc := func(key eth2p0.BLSPubKey, _ []byte) (eth2p0.BLSSignature, error) {
-		var sig eth2p0.BLSSignature
-		copy(sig[:], key[:])
+				return blockJSON
+			},
+			beaconMockProposalFunc: func(_ context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error) {
+				block := testutil.RandomCapellaVersionedProposal()
+				block.Capella.Slot = opts.Slot
+				block.Capella.Body.RANDAOReveal = opts.RandaoReveal
+				block.Capella.Body.Graffiti = opts.Graffiti
+				block.ExecutionValue = big.NewInt(1)
+				block.ConsensusValue = big.NewInt(1)
 
-		return sig, nil
+				return block, nil
+			},
+		},
+		{
+			version: "deneb",
+			jsonBeaconBlock: func(slotsPerEpoch uint64) []byte {
+				block := testutil.RandomDenebBeaconBlock()
+				block.Slot = eth2p0.Slot(slotsPerEpoch)
+				blockJSON, err := block.MarshalJSON()
+				require.NoError(t, err)
+
+				return blockJSON
+			},
+			beaconMockProposalFunc: func(_ context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error) {
+				block := testutil.RandomDenebVersionedProposal()
+				block.Deneb.Block.Slot = opts.Slot
+				block.Deneb.Block.Body.RANDAOReveal = opts.RandaoReveal
+				block.Deneb.Block.Body.Graffiti = opts.Graffiti
+				block.ExecutionValue = big.NewInt(1)
+				block.ConsensusValue = big.NewInt(1)
+
+				return block, nil
+			},
+		},
+		{
+			version: "electra",
+			jsonBeaconBlock: func(slotsPerEpoch uint64) []byte {
+				block := testutil.RandomElectraBeaconBlock()
+				block.Slot = eth2p0.Slot(slotsPerEpoch)
+				blockJSON, err := block.MarshalJSON()
+				require.NoError(t, err)
+
+				return blockJSON
+			},
+			beaconMockProposalFunc: func(_ context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error) {
+				block := testutil.RandomElectraVersionedProposal()
+				block.Electra.Block.Slot = opts.Slot
+				block.Electra.Block.Body.RANDAOReveal = opts.RandaoReveal
+				block.Electra.Block.Body.Graffiti = opts.Graffiti
+				block.ExecutionValue = big.NewInt(1)
+				block.ConsensusValue = big.NewInt(1)
+
+				return block, nil
+			},
+		},
+		{
+			version: "capella blinded",
+			jsonBeaconBlock: func(slotsPerEpoch uint64) []byte {
+				block := testutil.RandomCapellaBlindedBeaconBlock()
+				block.Slot = eth2p0.Slot(slotsPerEpoch)
+				blockJSON, err := block.MarshalJSON()
+				require.NoError(t, err)
+
+				return blockJSON
+			},
+			beaconMockProposalFunc: func(_ context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error) {
+				block := &eth2api.VersionedProposal{
+					Version:        eth2spec.DataVersionCapella,
+					CapellaBlinded: testutil.RandomCapellaBlindedBeaconBlock(),
+				}
+				block.CapellaBlinded.Slot = opts.Slot
+				block.CapellaBlinded.Body.RANDAOReveal = opts.RandaoReveal
+				block.CapellaBlinded.Body.Graffiti = opts.Graffiti
+				block.ExecutionValue = big.NewInt(1)
+				block.ConsensusValue = big.NewInt(1)
+				block.Blinded = true
+
+				return block, nil
+			},
+		},
+		{
+			version: "deneb blinded",
+			jsonBeaconBlock: func(slotsPerEpoch uint64) []byte {
+				block := testutil.RandomDenebBeaconBlock()
+				block.Slot = eth2p0.Slot(slotsPerEpoch)
+				blockJSON, err := block.MarshalJSON()
+				require.NoError(t, err)
+
+				return blockJSON
+			},
+			beaconMockProposalFunc: func(_ context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error) {
+				block := &eth2api.VersionedProposal{
+					Version:      eth2spec.DataVersionDeneb,
+					DenebBlinded: testutil.RandomDenebBlindedBeaconBlock(),
+				}
+				block.DenebBlinded.Slot = opts.Slot
+				block.DenebBlinded.Body.RANDAOReveal = opts.RandaoReveal
+				block.DenebBlinded.Body.Graffiti = opts.Graffiti
+				block.ExecutionValue = big.NewInt(1)
+				block.ConsensusValue = big.NewInt(1)
+				block.Blinded = true
+
+				return block, nil
+			},
+		},
+		{
+			version: "electra blinded",
+			jsonBeaconBlock: func(slotsPerEpoch uint64) []byte {
+				block := testutil.RandomElectraBeaconBlock()
+				block.Slot = eth2p0.Slot(slotsPerEpoch)
+				blockJSON, err := block.MarshalJSON()
+				require.NoError(t, err)
+
+				return blockJSON
+			},
+			beaconMockProposalFunc: func(_ context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error) {
+				block := &eth2api.VersionedProposal{
+					Version:        eth2spec.DataVersionElectra,
+					ElectraBlinded: testutil.RandomElectraBlindedBeaconBlock(),
+				}
+				block.ElectraBlinded.Slot = opts.Slot
+				block.ElectraBlinded.Body.RANDAOReveal = opts.RandaoReveal
+				block.ElectraBlinded.Body.Graffiti = opts.Graffiti
+				block.ExecutionValue = big.NewInt(1)
+				block.ConsensusValue = big.NewInt(1)
+				block.Blinded = true
+
+				return block, nil
+			},
+		},
 	}
 
-	slotsPerEpoch, err := beaconMock.SlotsPerEpoch(ctx)
-	require.NoError(t, err)
+	for _, test := range tests {
+		t.Run(test.version, func(t *testing.T) {
+			// Configure beacon mock
+			valSet := beaconmock.ValidatorSetA
+			beaconMock, err := beaconmock.New(
+				beaconmock.WithValidatorSet(valSet),
+				beaconmock.WithDeterministicProposerDuties(0),
+			)
+			require.NoError(t, err)
 
-	block := testutil.RandomPhase0BeaconBlock()
-	block.Slot = eth2p0.Slot(slotsPerEpoch)
+			beaconMock.ProposalFunc = test.beaconMockProposalFunc
 
-	mockVAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		testResponse := []byte(`{"version":"phase0","data":`)
-		blockJSON, err := block.MarshalJSON()
-		require.NoError(t, err)
+			// Signature stub function
+			signFunc := func(key eth2p0.BLSPubKey, _ []byte) (eth2p0.BLSSignature, error) {
+				var sig eth2p0.BLSSignature
+				copy(sig[:], key[:])
 
-		testResponse = append(testResponse, blockJSON...)
-		testResponse = append(testResponse, []byte(`}`)...)
-		require.NoError(t, err)
+				return sig, nil
+			}
 
-		_, _ = w.Write(testResponse)
-	}))
-	defer mockVAPI.Close()
+			slotsPerEpoch, err := beaconMock.SlotsPerEpoch(ctx)
+			require.NoError(t, err)
 
-	provider := addrWrap{
-		Client: beaconMock,
-		addr:   mockVAPI.URL,
+			mockVAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				testResponse := []byte(fmt.Sprintf(`{"version":"%v","data":`, test.version))
+				blockJSON := test.jsonBeaconBlock(slotsPerEpoch)
+
+				testResponse = append(testResponse, blockJSON...)
+				testResponse = append(testResponse, []byte(`}`)...)
+				require.NoError(t, err)
+
+				_, _ = w.Write(testResponse)
+			}))
+			defer mockVAPI.Close()
+
+			provider := addrWrap{
+				Client: beaconMock,
+				addr:   mockVAPI.URL,
+			}
+
+			// Call propose block function
+			err = validatormock.ProposeBlock(ctx, provider, signFunc, eth2p0.Slot(slotsPerEpoch))
+			require.NoError(t, err)
+		})
 	}
-
-	// Call propose block function
-	err = validatormock.ProposeBlock(ctx, provider, signFunc, eth2p0.Slot(slotsPerEpoch))
-	require.NoError(t, err)
 }
 
 func TestProposeBlindedBlock(t *testing.T) {

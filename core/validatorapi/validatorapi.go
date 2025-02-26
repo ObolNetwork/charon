@@ -195,10 +195,12 @@ type Component struct {
 	// Registered input functions
 
 	pubKeyByAttFunc           func(ctx context.Context, slot, commIdx, valCommIdx uint64) (core.PubKey, error)
+	pubKeyByAttV2Func         func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error)
 	awaitAttFunc              func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 	awaitProposalFunc         func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
 	awaitSyncContributionFunc func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	awaitAggAttFunc           func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)
+	awaitAggAttV2Func         func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error)
 	awaitAggSigDBFunc         func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
 	dutyDefFunc               func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
 	subs                      []func(context.Context, core.Duty, core.ParSignedDataSet) error
@@ -228,6 +230,12 @@ func (c *Component) RegisterPubKeyByAttestation(fn func(ctx context.Context, slo
 	c.pubKeyByAttFunc = fn
 }
 
+// RegisterPubKeyByAttestationV2 registers a function to query pubkeys by attestation.
+// It only supports a single function, since it is an input of the component.
+func (c *Component) RegisterPubKeyByAttestationV2(fn func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error)) {
+	c.pubKeyByAttV2Func = fn
+}
+
 // RegisterGetDutyDefinition registers a function to query duty definitions.
 // It supports a single function, since it is an input of the component.
 func (c *Component) RegisterGetDutyDefinition(fn func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)) {
@@ -238,6 +246,12 @@ func (c *Component) RegisterGetDutyDefinition(fn func(ctx context.Context, duty 
 // It supports a single function, since it is an input of the component.
 func (c *Component) RegisterAwaitAggAttestation(fn func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)) {
 	c.awaitAggAttFunc = fn
+}
+
+// RegisterAwaitAggAttestationV2 registers a function to query an aggregated attestation.
+// It supports a single function, since it is an input of the component.
+func (c *Component) RegisterAwaitAggAttestationV2(fn func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error)) {
+	c.awaitAggAttV2Func = fn
 }
 
 // RegisterAwaitAggSigDB registers a function to query aggregated signed data from aggSigDB.
@@ -300,6 +314,99 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 		}
 
 		parSigData := core.NewPartialAttestation(att, c.shareIdx)
+
+		// Verify attestation signature
+		err = c.verifyPartialSig(ctx, parSigData, pubkey)
+		if err != nil {
+			return err
+		}
+
+		// Encode partial signed data and add to a set
+		set, ok := setsBySlot[slot]
+		if !ok {
+			set = make(core.ParSignedDataSet)
+			setsBySlot[slot] = set
+		}
+
+		set[pubkey] = parSigData
+	}
+
+	// Send sets to subscriptions.
+	for slot, set := range setsBySlot {
+		duty := core.NewAttesterDuty(slot)
+		ctx := log.WithCtx(ctx, z.Any("duty", duty))
+
+		for _, sub := range c.subs {
+			// No need to clone since sub auto clones.
+			err := sub(ctx, duty, set)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// SubmitAttestationsV2 implements the eth2client.AttestationsSubmitter for the router.
+func (c Component) SubmitAttestationsV2(ctx context.Context, attestationOpts *eth2api.SubmitAttestationsOpts) error {
+	attestations := attestationOpts.Attestations
+	att0Data, err := attestations[0].Data()
+	if err != nil {
+		return errors.Wrap(err, "get attestation data")
+	}
+	duty := core.NewAttesterDuty(uint64(att0Data.Slot))
+	if len(attestations) > 0 {
+		// Pick the first attestation slot to use as trace root.
+		var span trace.Span
+		ctx, span = core.StartDutyTrace(ctx, duty, "core/validatorapi.SubmitAttestationsV2")
+		defer span.End()
+	}
+
+	setsBySlot := make(map[uint64]core.ParSignedDataSet)
+	for _, att := range attestations {
+		attData, err := att.Data()
+		if err != nil {
+			return errors.Wrap(err, "get attestation data")
+		}
+		slot := uint64(attData.Slot)
+
+		attCommitteeIndex, err := att.CommitteeIndex()
+		if err != nil {
+			return errors.Wrap(err, "get attestation committee index")
+		}
+
+		// ValidatorIndex is available only in post-pectra attestations, if it's not, procceed with pre-pectra flow
+		var pubkey core.PubKey
+		if att.ValidatorIndex != nil {
+			pubkey, err = c.pubKeyByAttV2Func(ctx, slot, uint64(attCommitteeIndex), uint64(*att.ValidatorIndex))
+			if err != nil {
+				return errors.Wrap(err, "failed to find v2 pubkey", z.U64("slot", slot),
+					z.U64("commIdx", uint64(attCommitteeIndex)), z.U64("valIdx", uint64(*att.ValidatorIndex)))
+			}
+		} else {
+			aggBits, err := att.AggregationBits()
+			if err != nil {
+				return errors.Wrap(err, "get attestation aggregation bits", z.U64("slot", slot),
+					z.U64("commIdx", uint64(attCommitteeIndex)))
+			}
+			indices := aggBits.BitIndices()
+			if len(indices) != 1 {
+				return errors.New("unexpected number of aggregation bits",
+					z.Str("aggbits", fmt.Sprintf("%#x", []byte(aggBits))))
+			}
+
+			pubkey, err = c.pubKeyByAttFunc(ctx, slot, uint64(attCommitteeIndex), uint64(indices[0]))
+			if err != nil {
+				return errors.Wrap(err, "failed to find pubkey", z.U64("slot", slot),
+					z.Int("commIdx", int(attCommitteeIndex)), z.Int("valCommIdx", indices[0]))
+			}
+		}
+
+		parSigData, err := core.NewPartialVersionedAttestation(att, c.shareIdx)
+		if err != nil {
+			return err
+		}
 
 		// Verify attestation signature
 		err = c.verifyPartialSig(ctx, parSigData, pubkey)
@@ -482,7 +589,14 @@ func propDataMatchesDuty(opts *eth2api.SubmitProposalOpts, prop *eth2api.Version
 		case true:
 			return checkHashes(prop.DenebBlinded, opts.Proposal.DenebBlinded.Message)
 		}
-	case eth2spec.DataVersionUnknown:
+	case eth2spec.DataVersionElectra:
+		switch prop.Blinded {
+		case false:
+			return checkHashes(prop.Electra.Block, opts.Proposal.Electra.SignedBlock.Message)
+		case true:
+			return checkHashes(prop.ElectraBlinded, opts.Proposal.ElectraBlinded.Message)
+		}
+	default:
 		return errors.New("unexpected block version", z.Str("version", prop.Version.String()))
 	}
 
@@ -566,6 +680,7 @@ func (c Component) SubmitBlindedProposal(ctx context.Context, opts *eth2api.Subm
 			BellatrixBlinded: opts.Proposal.Bellatrix,
 			CapellaBlinded:   opts.Proposal.Capella,
 			DenebBlinded:     opts.Proposal.Deneb,
+			ElectraBlinded:   opts.Proposal.Electra,
 		},
 		BroadcastValidation: opts.BroadcastValidation,
 	}, prop); err != nil {
@@ -781,6 +896,17 @@ func (c Component) AggregateAttestation(ctx context.Context, opts *eth2api.Aggre
 	return wrapResponse(aggAtt), nil
 }
 
+// AggregateAttestationV2 returns the aggregate attestation for the given attestation root.
+// It does a blocking query to DutyAggregator unsigned data from dutyDB.
+func (c Component) AggregateAttestationV2(ctx context.Context, opts *eth2api.AggregateAttestationOpts) (*eth2api.Response[*eth2spec.VersionedAttestation], error) {
+	aggAtt, err := c.awaitAggAttV2Func(ctx, uint64(opts.Slot), opts.AttestationDataRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	return wrapResponse(aggAtt), nil
+}
+
 // SubmitAggregateAttestations receives partially signed aggregateAndProofs.
 // - It verifies partial signature on AggregateAndProof.
 // - It then calls all the subscribers for further steps on partially signed aggregate and proof.
@@ -812,6 +938,75 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 		}
 
 		parSigData := core.NewPartialSignedAggregateAndProof(agg, c.shareIdx)
+
+		// Verify outer partial signature.
+		err = c.verifyPartialSig(ctx, parSigData, pk)
+		if err != nil {
+			return err
+		}
+
+		_, ok = psigsBySlot[slot]
+		if !ok {
+			psigsBySlot[slot] = make(core.ParSignedDataSet)
+		}
+
+		psigsBySlot[slot][pk] = parSigData
+	}
+
+	for slot, data := range psigsBySlot {
+		duty := core.NewAggregatorDuty(uint64(slot))
+		for _, sub := range c.subs {
+			err = sub(ctx, duty, data)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// SubmitAggregateAttestationsV2 receives partially signed aggregateAndProofs.
+// - It verifies partial signature on AggregateAndProof.
+// - It then calls all the subscribers for further steps on partially signed aggregate and proof.
+func (c Component) SubmitAggregateAttestationsV2(ctx context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
+	aggsAndProofs := aggregateAndProofs.SignedAggregateAndProofs
+	vals, err := c.eth2Cl.ActiveValidators(ctx)
+	if err != nil {
+		return err
+	}
+
+	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
+	for _, agg := range aggsAndProofs {
+		slot, err := agg.Slot()
+		if err != nil {
+			return err
+		}
+
+		aggregatorIndex, err := agg.AggregatorIndex()
+		if err != nil {
+			return err
+		}
+
+		eth2Pubkey, ok := vals[aggregatorIndex]
+		if !ok {
+			return errors.New("validator not found")
+		}
+
+		pk, err := core.PubKeyFromBytes(eth2Pubkey[:])
+		if err != nil {
+			return err
+		}
+
+		// Verify inner selection proof (outcome of DutyPrepareAggregator).
+		if !c.insecureTest {
+			err = signing.VerifyAggregateAndProofSelectionV2(ctx, c.eth2Cl, tbls.PublicKey(eth2Pubkey), agg)
+			if err != nil {
+				return err
+			}
+		}
+
+		parSigData := core.NewPartialVersionedSignedAggregateAndProof(agg, c.shareIdx)
 
 		// Verify outer partial signature.
 		err = c.verifyPartialSig(ctx, parSigData, pk)

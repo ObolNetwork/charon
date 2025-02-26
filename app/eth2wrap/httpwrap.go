@@ -11,6 +11,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -18,19 +20,31 @@ import (
 	"github.com/attestantio/go-eth2-client/api"
 	apiv1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2http "github.com/attestantio/go-eth2-client/http"
+	"github.com/attestantio/go-eth2-client/spec"
+	eth2e "github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
+	"github.com/obolnetwork/charon/eth2util/statecomm"
 )
 
 // BlockAttestationsProvider is the interface for providing attestations included in blocks.
 // It is a standard beacon API endpoint not implemented by eth2client.
 // See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockAttestations.
 type BlockAttestationsProvider interface {
+	// Deprecated: use BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error)
 	BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error)
+	BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error)
+}
+
+// BeaconStateCommitteesProvider is the interface for providing committees for given slot.
+// It is a standard beacon API endpoint not implemented by eth2client.
+// See https://ethereum.github.io/beacon-APIs/#/Beacon/getEpochCommittees.
+type BeaconStateCommitteesProvider interface {
+	BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error)
 }
 
 // NodePeerCountProvider is the interface for providing node peer count.
@@ -177,11 +191,12 @@ func (h *httpAdapter) AggregateSyncCommitteeSelections(ctx context.Context, sele
 	return resp.Data, nil
 }
 
+// Deprecated: use BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error)
 // BlockAttestations returns the attestations included in the requested block.
 // See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockAttestations.
 func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
 	path := fmt.Sprintf("/eth/v1/beacon/blocks/%s/attestations", stateID)
-	respBody, statusCode, err := httpGet(ctx, h.address, path, h.headers, h.timeout)
+	respBody, statusCode, err := httpGet(ctx, h.address, path, h.headers, nil, h.timeout)
 	if err != nil {
 		return nil, errors.Wrap(err, "request block attestations")
 	} else if statusCode == http.StatusNotFound {
@@ -190,7 +205,7 @@ func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]
 		return nil, errors.New("request block attestations failed", z.Int("status", statusCode), z.Str("body", string(respBody)))
 	}
 
-	var resp attestationsJSON
+	var resp p0AttestationsJSON
 	if err := json.Unmarshal(respBody, &resp); err != nil {
 		return nil, errors.Wrap(err, "failed to parse block attestations response")
 	}
@@ -198,9 +213,129 @@ func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]
 	return resp.Data, nil
 }
 
+// BlockAttestationsV2 returns the attestations included in the requested block.
+// See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockAttestationsV2.
+func (h *httpAdapter) BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error) {
+	path := fmt.Sprintf("/eth/v2/beacon/blocks/%s/attestations", stateID)
+	ctx, cancel := context.WithTimeout(ctx, h.timeout)
+	defer cancel()
+
+	resp, err := httpGetRaw(ctx, h.address, path, h.headers, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "request block attestations")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, errors.Wrap(err, ErrEndpointNotFound.Error(), z.Int("status", resp.StatusCode))
+		}
+		if strings.Contains(string(respBody), "Block not found") {
+			return nil, nil // No block for slot, so no attestations.
+		}
+
+		return nil, errors.Wrap(err, ErrEndpointNotFound.Error(), z.Int("status", resp.StatusCode))
+	} else if resp.StatusCode != http.StatusOK {
+		return nil, errors.New("request block attestations failed", z.Int("status", resp.StatusCode))
+	}
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "request block attestations body")
+	}
+
+	version, err := fetchConsensusVersion(resp)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get consensus version")
+	}
+
+	res := []*spec.VersionedAttestation{}
+	switch version {
+	case spec.DataVersionPhase0:
+		var respAttestation p0AttestationsJSON
+		if err := json.Unmarshal(respBody, &respAttestation); err != nil {
+			return nil, errors.Wrap(err, "failed to parse block attestations response")
+		}
+		for _, a := range respAttestation.Data {
+			res = append(res, &spec.VersionedAttestation{Version: version, Phase0: a})
+		}
+	case spec.DataVersionAltair:
+		var respAttestation p0AttestationsJSON
+		if err := json.Unmarshal(respBody, &respAttestation); err != nil {
+			return nil, errors.Wrap(err, "failed to parse block attestations response")
+		}
+		for _, a := range respAttestation.Data {
+			res = append(res, &spec.VersionedAttestation{Version: version, Altair: a})
+		}
+	case spec.DataVersionBellatrix:
+		var respAttestation p0AttestationsJSON
+		if err := json.Unmarshal(respBody, &respAttestation); err != nil {
+			return nil, errors.Wrap(err, "failed to parse block attestations response")
+		}
+		for _, a := range respAttestation.Data {
+			res = append(res, &spec.VersionedAttestation{Version: version, Bellatrix: a})
+		}
+	case spec.DataVersionCapella:
+		var respAttestation p0AttestationsJSON
+		if err := json.Unmarshal(respBody, &respAttestation); err != nil {
+			return nil, errors.Wrap(err, "failed to parse block attestations response")
+		}
+		for _, a := range respAttestation.Data {
+			res = append(res, &spec.VersionedAttestation{Version: version, Capella: a})
+		}
+	case spec.DataVersionDeneb:
+		var respAttestation p0AttestationsJSON
+		if err := json.Unmarshal(respBody, &respAttestation); err != nil {
+			return nil, errors.Wrap(err, "failed to parse block attestations response")
+		}
+		for _, a := range respAttestation.Data {
+			res = append(res, &spec.VersionedAttestation{Version: version, Deneb: a})
+		}
+	case spec.DataVersionElectra:
+		var respAttestation electraAttestationsJSON
+		if err := json.Unmarshal(respBody, &respAttestation); err != nil {
+			return nil, errors.Wrap(err, "failed to parse block attestations response")
+		}
+		for _, a := range respAttestation.Data {
+			res = append(res, &spec.VersionedAttestation{Version: version, Electra: a})
+		}
+	case spec.DataVersionUnknown:
+		return nil, errors.New("attestations data version unknown")
+	}
+
+	return res, nil
+}
+
+// BeaconStateCommittees returns the attestations included in the requested block.
+// See https://ethereum.github.io/beacon-APIs/#/Beacon/getStateValidators.
+func (h *httpAdapter) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error) {
+	r := strconv.FormatUint(slot, 10)
+	path := fmt.Sprintf("/eth/v1/beacon/states/%v/committees", r)
+	queryParams := map[string]string{
+		"slot": strconv.FormatUint(slot, 10),
+	}
+	respBody, statusCode, err := httpGet(ctx, h.address, path, h.headers, queryParams, h.timeout)
+	if err != nil {
+		return nil, errors.Wrap(err, "request state committees for slot", z.Int("status", statusCode), z.U64("slot", slot))
+	}
+
+	if statusCode != http.StatusOK {
+		return nil, errors.New("request state committees for slot failed", z.Int("status", statusCode), z.U64("slot", slot))
+	}
+
+	var res statecomm.StateCommitteesResponse
+	err = json.Unmarshal(respBody, &res)
+	if err != nil {
+		return nil, errors.Wrap(err, "unmarshal state committees", z.Int("status", statusCode), z.U64("slot", slot))
+	}
+
+	return res.Data, nil
+}
+
 // ProposerConfig implements eth2exp.ProposerConfigProvider.
 func (h *httpAdapter) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
-	respBody, statusCode, err := httpGet(ctx, h.address, "/proposer_config", h.headers, h.timeout)
+	respBody, statusCode, err := httpGet(ctx, h.address, "/proposer_config", h.headers, nil, h.timeout)
 	if err != nil {
 		return nil, errors.Wrap(err, "submit sync committee selections")
 	} else if statusCode != http.StatusOK {
@@ -219,7 +354,7 @@ func (h *httpAdapter) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConf
 // See https://ethereum.github.io/beacon-APIs/#/Node/getPeerCount.
 func (h *httpAdapter) NodePeerCount(ctx context.Context) (int, error) {
 	const path = "/eth/v1/node/peer_count"
-	respBody, statusCode, err := httpGet(ctx, h.address, path, h.headers, h.timeout)
+	respBody, statusCode, err := httpGet(ctx, h.address, path, h.headers, nil, h.timeout)
 	if err != nil {
 		return 0, errors.Wrap(err, "request beacon node peer count")
 	} else if statusCode != http.StatusOK {
@@ -258,14 +393,22 @@ type submitSyncCommitteeSelectionsJSON struct {
 	Data []*eth2exp.SyncCommitteeSelection `json:"data"`
 }
 
-type attestationsJSON struct {
+type p0AttestationsJSON struct {
 	Data []*eth2p0.Attestation `json:"data"`
+}
+
+type electraAttestationsJSON struct {
+	Data []*eth2e.Attestation `json:"data"`
 }
 
 type peerCountJSON struct {
 	Data struct {
 		Connected int `json:"connected,string"`
 	} `json:"data"`
+}
+
+type responseMetadata struct {
+	Version spec.DataVersion `json:"version"`
 }
 
 func httpPost(ctx context.Context, base string, endpoint string, body io.Reader, headers map[string]string, timeout time.Duration) ([]byte, error) {
@@ -308,39 +451,83 @@ func httpPost(ctx context.Context, base string, endpoint string, body io.Reader,
 	return data, nil
 }
 
-// httpGet performs a GET request and returns the body and status code or an error.
-func httpGet(ctx context.Context, base string, endpoint string, headers map[string]string, timeout time.Duration) ([]byte, int, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
+// httpGetRaw performs a GET request and returns the raw http response or an error.
+func httpGetRaw(ctx context.Context, base string, endpoint string, headers map[string]string, queryParams map[string]string) (*http.Response, error) {
 	addr, err := url.JoinPath(base, endpoint)
 	if err != nil {
-		return nil, 0, errors.Wrap(err, "invalid address")
+		return nil, errors.Wrap(err, "invalid address")
 	}
 
 	u, err := url.ParseRequestURI(addr)
 	if err != nil {
-		return nil, 0, errors.Wrap(err, "invalid endpoint")
+		return nil, errors.Wrap(err, "invalid endpoint")
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return nil, 0, errors.Wrap(err, "new GET request with ctx")
+		return nil, errors.Wrap(err, "new GET request with ctx")
 	}
 	for k, v := range headers {
 		req.Header.Add(k, v)
 	}
 
+	q := req.URL.Query()
+	for key, val := range queryParams {
+		q.Add(key, val)
+	}
+	req.URL.RawQuery = q.Encode()
+
 	res, err := new(http.Client).Do(req)
 	if err != nil {
-		return nil, 0, errors.Wrap(err, "failed to call GET endpoint")
+		return nil, errors.Wrap(err, "failed to call GET endpoint")
+	}
+
+	return res, nil
+}
+
+// httpGet performs a GET request and returns the body and status code or an error.
+func httpGet(ctx context.Context, base string, endpoint string, headers map[string]string, queryParams map[string]string, timeout time.Duration) ([]byte, int, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	res, err := httpGetRaw(ctx, base, endpoint, headers, queryParams)
+	if err != nil {
+		return nil, 0, errors.Wrap(err, "failed to read GET response")
 	}
 	defer res.Body.Close()
 
 	data, err := io.ReadAll(res.Body)
 	if err != nil {
-		return nil, 0, errors.Wrap(err, "failed to read GET response")
+		return nil, res.StatusCode, errors.Wrap(err, "failed to read GET response body")
 	}
 
 	return data, res.StatusCode, nil
+}
+
+// fetchConsensusVersion attempts to extract the consensus version from the beacon node http response.
+func fetchConsensusVersion(resp *http.Response) (spec.DataVersion, error) {
+	respConsensusVersions, exists := resp.Header["Eth-Consensus-Version"]
+	if !exists {
+		// No consensus version supplied in response; obtain it from the body if possible.
+		var metadata responseMetadata
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return spec.DataVersionUnknown, errors.Wrap(err, "read resp body")
+		}
+		if err := json.Unmarshal(body, &metadata); err != nil {
+			return spec.DataVersionUnknown, errors.Wrap(err, "no consensus version header and failed to parse response")
+		}
+
+		return metadata.Version, nil
+	}
+	if len(respConsensusVersions) != 1 {
+		return spec.DataVersionUnknown, errors.New("malformed consensus version", z.Int("entries", len(respConsensusVersions)))
+	}
+	var dataVersion spec.DataVersion
+	err := dataVersion.UnmarshalJSON([]byte(fmt.Sprintf("%q", respConsensusVersions[0])))
+	if err != nil {
+		return spec.DataVersionUnknown, errors.Wrap(err, "unmarshal consensus version header to data version")
+	}
+
+	return dataVersion, nil
 }

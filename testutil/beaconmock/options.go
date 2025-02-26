@@ -539,6 +539,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		BlockAttestationsFunc: func(context.Context, string) ([]*eth2p0.Attestation, error) {
 			return []*eth2p0.Attestation{}, nil
 		},
+		BlockAttestationsV2Func: func(context.Context, string) ([]*eth2spec.VersionedAttestation, error) {
+			return []*eth2spec.VersionedAttestation{}, nil
+		},
 		NodePeerCountFunc: func(context.Context) (int, error) {
 			return 80, nil
 		},
@@ -556,6 +559,20 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 				Data:            attData,
 			}, nil
 		},
+		AggregateAttestationV2Func: func(_ context.Context, _ eth2p0.Slot, root eth2p0.Root) (*eth2spec.VersionedAttestation, error) {
+			attData, err := attStore.AttestationDataByRoot(root)
+			if err != nil {
+				return nil, err
+			}
+
+			return &eth2spec.VersionedAttestation{
+				Version: eth2spec.DataVersionDeneb,
+				Deneb: &eth2p0.Attestation{
+					AggregationBits: bitfield.NewBitlist(0),
+					Data:            attData,
+				},
+			}, nil
+		},
 		CachedValidatorsFunc: func(context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error) {
 			return nil, nil, nil
 		},
@@ -566,6 +583,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			return nil, nil
 		},
 		SubmitAttestationsFunc: func(context.Context, []*eth2p0.Attestation) error {
+			return nil
+		},
+		SubmitAttestationsV2Func: func(context.Context, *eth2api.SubmitAttestationsOpts) error {
 			return nil
 		},
 		SubmitProposalFunc: func(context.Context, *eth2api.SubmitProposalOpts) error {
@@ -595,6 +615,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			return selections, nil
 		},
 		SubmitAggregateAttestationsFunc: func(context.Context, []*eth2p0.SignedAggregateAndProof) error {
+			return nil
+		},
+		SubmitAggregateAttestationsV2Func: func(context.Context, *eth2api.SubmitAggregateAttestationsOpts) error {
 			return nil
 		},
 		SlotsPerEpochFunc: func(ctx context.Context) (uint64, error) {

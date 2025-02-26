@@ -8,6 +8,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prysmaticlabs/go-bitfield"
 
@@ -300,7 +301,7 @@ func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot
 	}
 
 	var (
-		atts  []*eth2p0.Attestation
+		atts  []*eth2spec.VersionedAttestation
 		datas attDatas
 	)
 	for commIdx, duties := range dutyByComm {
@@ -333,15 +334,18 @@ func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot
 			aggBits := bitfield.NewBitlist(duty.CommitteeLength)
 			aggBits.SetBitAt(duty.ValidatorCommitteeIndex, true)
 
-			atts = append(atts, &eth2p0.Attestation{
-				AggregationBits: aggBits,
-				Data:            data,
-				Signature:       sig,
+			atts = append(atts, &eth2spec.VersionedAttestation{
+				Version: eth2spec.DataVersionDeneb,
+				Deneb: &eth2p0.Attestation{
+					AggregationBits: aggBits,
+					Data:            data,
+					Signature:       sig,
+				},
 			})
 		}
 	}
 
-	err := eth2Cl.SubmitAttestations(ctx, atts)
+	err := eth2Cl.SubmitAttestationsV2(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
 	if err != nil {
 		return nil, err
 	}
@@ -369,8 +373,8 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 	}
 
 	var (
-		aggs       []*eth2p0.SignedAggregateAndProof
-		attsByComm = make(map[eth2p0.CommitteeIndex]*eth2p0.Attestation)
+		aggs       []*eth2spec.VersionedSignedAggregateAndProof
+		attsByComm = make(map[eth2p0.CommitteeIndex]*eth2spec.VersionedAttestation)
 	)
 	for _, selection := range selections {
 		commIdx, ok := committees[selection.ValidatorIndex]
@@ -388,10 +392,13 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 			attsByComm[commIdx] = att
 		}
 
-		proof := eth2p0.AggregateAndProof{
-			AggregatorIndex: selection.ValidatorIndex,
-			Aggregate:       att,
-			SelectionProof:  selection.SelectionProof,
+		proof := eth2spec.VersionedAggregateAndProof{
+			Version: eth2spec.DataVersionDeneb,
+			Deneb: &eth2p0.AggregateAndProof{
+				AggregatorIndex: selection.ValidatorIndex,
+				Aggregate:       att.Deneb,
+				SelectionProof:  selection.SelectionProof,
+			},
 		}
 
 		proofRoot, err := proof.HashTreeRoot()
@@ -414,13 +421,16 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 			return false, err
 		}
 
-		aggs = append(aggs, &eth2p0.SignedAggregateAndProof{
-			Message:   &proof,
-			Signature: proofSig,
+		aggs = append(aggs, &eth2spec.VersionedSignedAggregateAndProof{
+			Version: eth2spec.DataVersionDeneb,
+			Deneb: &eth2p0.SignedAggregateAndProof{
+				Message:   proof.Deneb,
+				Signature: proofSig,
+			},
 		})
 	}
 
-	if err := eth2Cl.SubmitAggregateAttestations(ctx, aggs); err != nil {
+	if err := eth2Cl.SubmitAggregateAttestationsV2(ctx, &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: aggs}); err != nil {
 		return false, err
 	}
 
@@ -430,7 +440,7 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 // getAggregateAttestation returns an aggregated attestation for the provided committee.
 func getAggregateAttestation(ctx context.Context, eth2Cl eth2wrap.Client, datas attDatas,
 	commIdx eth2p0.CommitteeIndex,
-) (*eth2p0.Attestation, error) {
+) (*eth2spec.VersionedAttestation, error) {
 	for _, data := range datas {
 		if data.Index != commIdx {
 			continue
@@ -444,8 +454,9 @@ func getAggregateAttestation(ctx context.Context, eth2Cl eth2wrap.Client, datas 
 		opts := &eth2api.AggregateAttestationOpts{
 			Slot:                data.Slot,
 			AttestationDataRoot: root,
+			CommitteeIndex:      commIdx,
 		}
-		eth2Resp, err := eth2Cl.AggregateAttestation(ctx, opts)
+		eth2Resp, err := eth2Cl.AggregateAttestationV2(ctx, opts)
 		if err != nil {
 			return nil, err
 		}

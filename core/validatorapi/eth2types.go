@@ -93,6 +93,11 @@ type validatorResponse struct {
 	Data                v1Validator `json:"data"`
 }
 
+type aggregateAttestationV2Response struct {
+	Version string `json:"version"`
+	Data    any    `json:"data"`
+}
+
 type aggregateBeaconCommitteeSelectionsJSON struct {
 	Data []*eth2exp.BeaconCommitteeSelection `json:"data"`
 }

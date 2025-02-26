@@ -90,6 +90,12 @@ func WithTracing() WireOption {
 
 			return clone.DutyDBPubKeyByAttestation(ctx, slot, commIdx, valCommIdx)
 		}
+		w.DutyDBPubKeyByAttestationV2 = func(parent context.Context, slot, commIdx, valIdx uint64) (PubKey, error) {
+			ctx, span := tracer.Start(parent, "core/dutydb.PubKeyByAttestationV2")
+			defer span.End()
+
+			return clone.DutyDBPubKeyByAttestationV2(ctx, slot, commIdx, valIdx)
+		}
 		w.ParSigDBStoreInternal = func(parent context.Context, duty Duty, set ParSignedDataSet) error {
 			ctx, span := tracer.Start(parent, "core/parsigdb.StoreInternal")
 			defer span.End()

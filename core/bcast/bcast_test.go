@@ -98,13 +98,13 @@ func TestBroadcastOtherDuties(t *testing.T) {
 func attData(t *testing.T, mock *beaconmock.Mock) test {
 	t.Helper()
 
-	aggData := core.Attestation{Attestation: *testutil.RandomAttestation()}
+	aggData := testutil.RandomDenebCoreVersionedAttestation()
 	asserted := make(chan struct{})
 
 	var submitted int
-	mock.SubmitAttestationsFunc = func(ctx context.Context, attestations []*eth2p0.Attestation) error {
-		require.Len(t, attestations, 1)
-		require.Equal(t, aggData.Attestation, *attestations[0])
+	mock.SubmitAttestationsV2Func = func(ctx context.Context, attestations *eth2api.SubmitAttestationsOpts) error {
+		require.Len(t, attestations.Attestations, 1)
+		require.Equal(t, aggData.VersionedAttestation, *attestations.Attestations[0])
 
 		submitted++
 		if submitted == 1 {
@@ -237,11 +237,13 @@ func aggregateAttestationData(t *testing.T, mock *beaconmock.Mock) test {
 	t.Helper()
 
 	asserted := make(chan struct{})
-	aggAndProof := testutil.RandomSignedAggregateAndProof()
-	aggData := core.SignedAggregateAndProof{SignedAggregateAndProof: *aggAndProof}
+	aggAndProof := testutil.RandomDenebVersionedSignedAggregateAndProof()
+	aggData := core.VersionedSignedAggregateAndProof{
+		VersionedSignedAggregateAndProof: *aggAndProof,
+	}
 
-	mock.SubmitAggregateAttestationsFunc = func(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
-		require.Equal(t, aggAndProof, aggregateAndProofs[0])
+	mock.SubmitAggregateAttestationsV2Func = func(ctx context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
+		require.Equal(t, aggAndProof, aggregateAndProofs.SignedAggregateAndProofs[0])
 		close(asserted)
 
 		return nil

@@ -91,6 +91,8 @@ func TestMemDB(t *testing.T) {
 			CommitteeLength:         commLen,
 			ValidatorCommitteeIndex: valCommIdxA,
 			CommitteesAtSlot:        notZero,
+			CommitteeIndex:          commIdx,
+			ValidatorIndex:          vIdxA,
 		},
 	}
 	unsignedB := core.AttestationData{
@@ -99,6 +101,8 @@ func TestMemDB(t *testing.T) {
 			CommitteeLength:         commLen,
 			ValidatorCommitteeIndex: valCommIdxB,
 			CommitteesAtSlot:        notZero,
+			CommitteeIndex:          commIdx,
+			ValidatorIndex:          vIdxB,
 		},
 	}
 
@@ -220,7 +224,7 @@ func TestMemDBAggregator(t *testing.T) {
 	const queries = 3
 
 	for range queries {
-		agg := testutil.RandomAttestation()
+		agg := testutil.RandomPhase0Attestation()
 		set := core.UnsignedDataSet{
 			testutil.RandomCorePubKey(t): core.NewAggregatedAttestation(agg),
 		}
@@ -333,7 +337,7 @@ func TestMemDBSyncContribution(t *testing.T) {
 		)
 
 		err := db.Store(ctx, duty, core.UnsignedDataSet{
-			testutil.RandomCorePubKey(t): core.NewAggregatedAttestation(testutil.RandomAttestation()),
+			testutil.RandomCorePubKey(t): testutil.RandomDenebCoreVersionedAggregateAttestation(),
 		})
 		require.Error(t, err)
 		require.ErrorContains(t, err, "invalid unsigned sync committee contribution")
@@ -432,7 +436,7 @@ func TestDutyExpiry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Ensure it exists
-	pk, err := db.PubKeyByAttestation(ctx, uint64(att1.Data.Slot), uint64(att1.Data.Index), att1.Duty.ValidatorCommitteeIndex)
+	pk, err := db.PubKeyByAttestationV2(ctx, uint64(att1.Data.Slot), uint64(att1.Duty.CommitteeIndex), uint64(att1.Duty.ValidatorIndex))
 	require.NoError(t, err)
 	require.NotEmpty(t, pk)
 
@@ -448,7 +452,7 @@ func TestDutyExpiry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Pubkey not found.
-	_, err = db.PubKeyByAttestation(ctx, uint64(att1.Data.Slot), uint64(att1.Data.Index), att1.Duty.ValidatorCommitteeIndex)
+	_, err = db.PubKeyByAttestationV2(ctx, uint64(att1.Data.Slot), uint64(att1.Duty.CommitteeIndex), uint64(att1.Duty.ValidatorIndex))
 	require.Error(t, err)
 }
 

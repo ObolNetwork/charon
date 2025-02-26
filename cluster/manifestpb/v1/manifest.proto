@@ -18,6 +18,7 @@ message Cluster {
   repeated Validator validators = 8; // Validators is the list of validators of the cluster.
   string     consensus_protocol = 9; // ConsensusProtocol is the consensus protocol name preferred by the cluster, e.g. "abft".
   uint32      target_gas_limit = 10; // TargetGasLimit is the custom target gas limit for transactions.
+  bool             compounding = 11; // Compounding is the flag to enable compounding rewards.
 }
 
 // Mutation mutates the cluster manifest.

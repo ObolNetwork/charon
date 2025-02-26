@@ -64,7 +64,7 @@ func WithLegacyVAddrs(feeRecipientAddress, withdrawalAddress string) func(*Defin
 // The hashes are also populated accordingly. Note that the hashes need to be recalculated when any field is modified.
 func NewDefinition(name string, numVals int, threshold int, feeRecipientAddresses []string, withdrawalAddresses []string,
 	forkVersionHex string, creator Creator, operators []Operator, depositAmounts []int,
-	consensusProtocol string, targetGasLimit uint, random io.Reader, opts ...func(*Definition),
+	consensusProtocol string, targetGasLimit uint, compounding bool, random io.Reader, opts ...func(*Definition),
 ) (Definition, error) {
 	if len(feeRecipientAddresses) != numVals {
 		return Definition{}, errors.New("insufficient fee-recipient addresses")
@@ -87,6 +87,7 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddresse
 		DepositAmounts:    deposit.EthsToGweis(depositAmounts),
 		ConsensusProtocol: consensusProtocol,
 		TargetGasLimit:    targetGasLimit,
+		Compounding:       compounding,
 	}
 
 	for i := range numVals {
@@ -106,12 +107,16 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddresse
 		opt(&def)
 	}
 
-	if len(depositAmounts) > 1 && !supportPartialDeposits(def.Version) {
+	if len(depositAmounts) > 1 && !SupportPartialDeposits(def.Version) {
 		return Definition{}, errors.New("the version does not support partial deposits", z.Str("version", def.Version))
 	}
 
 	if def.TargetGasLimit != 0 && !supportTargetGasLimit(def.Version) {
 		return Definition{}, errors.New("the version does not support custom target gas limit", z.Str("version", def.Version))
+	}
+
+	if def.Compounding && !supportCompounding(def.Version) {
+		return Definition{}, errors.New("the version does not support compounding", z.Str("version", def.Version))
 	}
 
 	if def.TargetGasLimit == 0 && supportTargetGasLimit(def.Version) {
@@ -142,7 +147,7 @@ type Definition struct {
 	// Note that this was added in v1.1.0, so may be empty for older versions.
 	Timestamp string `config_hash:"3" definition_hash:"3" json:"timestamp" ssz:"ByteList[32]"`
 
-	// NumValidators is the number of DVs (n*32ETH) to be created in the cluster lock file.
+	// NumValidators is the number of DVs to be created in the cluster lock file.
 	NumValidators int `config_hash:"4" definition_hash:"4" json:"num_validators" ssz:"uint64"`
 
 	// Threshold required for signature reconstruction. Defaults to safe value for number of nodes/peers.
@@ -163,7 +168,7 @@ type Definition struct {
 	// ValidatorAddresses define addresses of each validator.
 	ValidatorAddresses []ValidatorAddresses `config_hash:"10" definition_hash:"10" json:"validators" ssz:"CompositeList[65536]"`
 
-	// DepositAmounts specifies partial deposit amounts that sum up to 32ETH.
+	// DepositAmounts specifies partial deposit amounts that sum up to at least 32ETH.
 	DepositAmounts []eth2p0.Gwei `config_hash:"11" definition_hash:"11" json:"deposit_amounts" ssz:"uint64[256]"`
 
 	// ConsensusProtocol is the consensus protocol name preferred by the cluster, e.g. "abft".
@@ -172,8 +177,11 @@ type Definition struct {
 	// TargetGasLimit is the target block gas limit for the cluster.
 	TargetGasLimit uint `config_hash:"13" definition_hash:"13" json:"target_gas_limit" ssz:"uint64"`
 
+	// Compounding flag enables compounding rewards for validators by using 0x02 withdrawal credentials.
+	Compounding bool `config_hash:"14" definition_hash:"14" json:"compounding" ssz:"bool"`
+
 	// ConfigHash uniquely identifies a cluster definition excluding operator ENRs and signatures.
-	ConfigHash []byte `json:"config_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"14"`
+	ConfigHash []byte `json:"config_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"15"`
 
 	// DefinitionHash uniquely identifies a cluster definition including operator ENRs and signatures.
 	DefinitionHash []byte `json:"definition_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"-"`
@@ -688,6 +696,7 @@ func marshalDefinitionV1x10(def Definition) ([]byte, error) {
 		DepositAmounts:    def.DepositAmounts,
 		ConsensusProtocol: def.ConsensusProtocol,
 		TargetGasLimit:    def.TargetGasLimit,
+		Compounding:       def.Compounding,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal definition", z.Str("version", def.Version))
@@ -834,7 +843,7 @@ func unmarshalDefinitionV1x8(data []byte) (def Definition, err error) {
 		return Definition{}, errors.New("num_validators not matching validators length")
 	}
 
-	if err := deposit.VerifyDepositAmounts(def.DepositAmounts); err != nil {
+	if err := deposit.VerifyDepositAmounts(def.DepositAmounts, def.Compounding); err != nil {
 		return Definition{}, errors.Wrap(err, "invalid deposit amounts")
 	}
 
@@ -869,7 +878,7 @@ func unmarshalDefinitionV1x9(data []byte) (def Definition, err error) {
 		return Definition{}, errors.New("num_validators not matching validators length")
 	}
 
-	if err := deposit.VerifyDepositAmounts(def.DepositAmounts); err != nil {
+	if err := deposit.VerifyDepositAmounts(def.DepositAmounts, def.Compounding); err != nil {
 		return Definition{}, errors.Wrap(err, "invalid deposit amounts")
 	}
 
@@ -905,7 +914,7 @@ func unmarshalDefinitionV1x10(data []byte) (def Definition, err error) {
 		return Definition{}, errors.New("num_validators not matching validators length")
 	}
 
-	if err := deposit.VerifyDepositAmounts(def.DepositAmounts); err != nil {
+	if err := deposit.VerifyDepositAmounts(def.DepositAmounts, def.Compounding); err != nil {
 		return Definition{}, errors.Wrap(err, "invalid deposit amounts")
 	}
 
@@ -929,6 +938,7 @@ func unmarshalDefinitionV1x10(data []byte) (def Definition, err error) {
 		DepositAmounts:    defJSON.DepositAmounts,
 		ConsensusProtocol: defJSON.ConsensusProtocol,
 		TargetGasLimit:    defJSON.TargetGasLimit,
+		Compounding:       defJSON.Compounding,
 	}, nil
 }
 
@@ -938,13 +948,18 @@ func supportEIP712Sigs(version string) bool {
 	return !isAnyVersion(version, v1_0, v1_1, v1_2)
 }
 
-// supportPartialDeposits returns true if the provided definition version supports partial deposits.
-func supportPartialDeposits(version string) bool {
+// SupportPartialDeposits returns true if the provided definition version supports partial deposits.
+func SupportPartialDeposits(version string) bool {
 	return !isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6, v1_7)
 }
 
 // supportTargetGasLimit returns true if the provided definition version supports custom target gas limit.
 func supportTargetGasLimit(version string) bool {
+	return !isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6, v1_7, v1_8, v1_9)
+}
+
+// supportCompounding returns true if the provided definition version supports compounding.
+func supportCompounding(version string) bool {
 	return !isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6, v1_7, v1_8, v1_9)
 }
 
@@ -1080,6 +1095,7 @@ type definitionJSONv1x10 struct {
 	DepositAmounts     []eth2p0.Gwei             `json:"deposit_amounts"`
 	ConsensusProtocol  string                    `json:"consensus_protocol"`
 	TargetGasLimit     uint                      `json:"target_gas_limit"`
+	Compounding        bool                      `json:"compounding"`
 	ConfigHash         ethHex                    `json:"config_hash"`
 	DefinitionHash     ethHex                    `json:"definition_hash"`
 }

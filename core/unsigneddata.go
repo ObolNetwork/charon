@@ -10,30 +10,36 @@ import (
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
+	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
+	eth2e "github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 )
 
 var (
 	_ UnsignedData = AttestationData{}
 	_ UnsignedData = AggregatedAttestation{}
+	_ UnsignedData = VersionedAggregatedAttestation{}
 	_ UnsignedData = VersionedProposal{}
 	_ UnsignedData = SyncContribution{}
 
 	// Some types also support SSZ marshalling and unmarshalling.
 	_ ssz.Marshaler   = AttestationData{}
 	_ ssz.Marshaler   = AggregatedAttestation{}
+	_ ssz.Marshaler   = VersionedAggregatedAttestation{}
 	_ ssz.Marshaler   = VersionedProposal{}
 	_ ssz.Marshaler   = SyncContribution{}
 	_ ssz.Unmarshaler = new(AttestationData)
 	_ ssz.Unmarshaler = new(AggregatedAttestation)
+	_ ssz.Unmarshaler = new(VersionedAggregatedAttestation)
 	_ ssz.Unmarshaler = new(VersionedProposal)
 	_ ssz.Unmarshaler = new(SyncContribution)
 )
@@ -136,6 +142,177 @@ func (a *AggregatedAttestation) UnmarshalSSZ(b []byte) error {
 	return a.Attestation.UnmarshalSSZ(b)
 }
 
+// NewVersionedAggregatedAttestation returns a new aggregated attestation.
+func NewVersionedAggregatedAttestation(att *eth2spec.VersionedAttestation) (VersionedAggregatedAttestation, error) {
+	switch att.Version {
+	case eth2spec.DataVersionPhase0:
+		if att.Phase0 == nil {
+			return VersionedAggregatedAttestation{}, errors.New("no phase0 attestation")
+		}
+	case eth2spec.DataVersionAltair:
+		if att.Altair == nil {
+			return VersionedAggregatedAttestation{}, errors.New("no altair attestation")
+		}
+	case eth2spec.DataVersionBellatrix:
+		if att.Bellatrix == nil {
+			return VersionedAggregatedAttestation{}, errors.New("no bellatrix attestation")
+		}
+	case eth2spec.DataVersionCapella:
+		if att.Capella == nil {
+			return VersionedAggregatedAttestation{}, errors.New("no capella attestation")
+		}
+	case eth2spec.DataVersionDeneb:
+		if att.Deneb == nil {
+			return VersionedAggregatedAttestation{}, errors.New("no deneb attestation")
+		}
+	case eth2spec.DataVersionElectra:
+		if att.Electra == nil {
+			return VersionedAggregatedAttestation{}, errors.New("no electra attestation")
+		}
+	default:
+		return VersionedAggregatedAttestation{}, errors.New("unknown version")
+	}
+
+	return VersionedAggregatedAttestation{VersionedAttestation: *att}, nil
+}
+
+// VersionedAggregatedAttestation wraps un unsigned aggregated attestation and implements the UnsignedData interface.
+type VersionedAggregatedAttestation struct {
+	eth2spec.VersionedAttestation
+}
+
+func (a VersionedAggregatedAttestation) Clone() (UnsignedData, error) {
+	var resp VersionedAggregatedAttestation
+	err := cloneJSONMarshaler(a, &resp)
+	if err != nil {
+		return nil, errors.Wrap(err, "clone aggregated attestation")
+	}
+
+	return resp, nil
+}
+
+func (a VersionedAggregatedAttestation) MarshalJSON() ([]byte, error) {
+	var marshaller json.Marshaler
+	switch a.Version {
+	// No aggregatedAttestation nil checks since `NewVersionedProposal` assumed.
+	case eth2spec.DataVersionPhase0:
+		marshaller = a.Phase0
+	case eth2spec.DataVersionAltair:
+		marshaller = a.Altair
+	case eth2spec.DataVersionBellatrix:
+		marshaller = a.Bellatrix
+	case eth2spec.DataVersionCapella:
+		marshaller = a.Capella
+	case eth2spec.DataVersionDeneb:
+		marshaller = a.Deneb
+	case eth2spec.DataVersionElectra:
+		marshaller = a.Electra
+	default:
+		return nil, errors.New("unknown version")
+	}
+
+	aggregatedAttestation, err := marshaller.MarshalJSON()
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal aggregatedAttestation")
+	}
+
+	version, err := eth2util.DataVersionFromETH2(a.Version)
+	if err != nil {
+		return nil, errors.Wrap(err, "convert version")
+	}
+
+	resp, err := json.Marshal(versionedRawAttestationJSON{
+		Version:        version,
+		ValidatorIndex: a.ValidatorIndex,
+		Attestation:    aggregatedAttestation,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal wrapper")
+	}
+
+	return resp, nil
+}
+
+func (a VersionedAggregatedAttestation) HashTreeRoot() ([32]byte, error) {
+	switch a.Version {
+	// No aggregatedAttestation nil checks since `NewVersionedProposal` assumed.
+	case eth2spec.DataVersionPhase0:
+		return a.Phase0.HashTreeRoot()
+	case eth2spec.DataVersionAltair:
+		return a.Altair.HashTreeRoot()
+	case eth2spec.DataVersionBellatrix:
+		return a.Bellatrix.HashTreeRoot()
+	case eth2spec.DataVersionCapella:
+		return a.Capella.HashTreeRoot()
+	case eth2spec.DataVersionDeneb:
+		return a.Deneb.HashTreeRoot()
+	case eth2spec.DataVersionElectra:
+		return a.Electra.HashTreeRoot()
+	default:
+		return [32]byte{}, errors.New("unknown version")
+	}
+}
+
+func (a *VersionedAggregatedAttestation) UnmarshalJSON(input []byte) error {
+	var raw versionedRawAttestationJSON
+	if err := json.Unmarshal(input, &raw); err != nil {
+		return errors.Wrap(err, "unmarshal attestation")
+	}
+
+	resp := eth2spec.VersionedAttestation{Version: raw.Version.ToETH2()}
+	switch resp.Version {
+	case eth2spec.DataVersionPhase0:
+		att := new(eth2p0.Attestation)
+		err := json.Unmarshal(raw.Attestation, &att)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal phase0")
+		}
+		resp.Phase0 = att
+	case eth2spec.DataVersionAltair:
+		att := new(eth2p0.Attestation)
+		err := json.Unmarshal(raw.Attestation, &att)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal altair")
+		}
+		resp.Altair = att
+	case eth2spec.DataVersionBellatrix:
+		att := new(eth2p0.Attestation)
+		err := json.Unmarshal(raw.Attestation, &att)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal bellatrix")
+		}
+		resp.Bellatrix = att
+	case eth2spec.DataVersionCapella:
+		att := new(eth2p0.Attestation)
+		err := json.Unmarshal(raw.Attestation, &att)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal capella")
+		}
+		resp.Capella = att
+	case eth2spec.DataVersionDeneb:
+		att := new(eth2p0.Attestation)
+		err := json.Unmarshal(raw.Attestation, &att)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal deneb")
+		}
+		resp.Deneb = att
+	case eth2spec.DataVersionElectra:
+		att := new(eth2e.Attestation)
+		err := json.Unmarshal(raw.Attestation, &att)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal electra")
+		}
+		resp.Electra = att
+	default:
+		return errors.New("unknown attestation version", z.Str("version", a.Version.String()))
+	}
+	resp.ValidatorIndex = raw.ValidatorIndex
+
+	a.VersionedAttestation = resp
+
+	return nil
+}
+
 // NewVersionedProposal validates and returns a new wrapped VersionedProposal.
 func NewVersionedProposal(proposal *eth2api.VersionedProposal) (VersionedProposal, error) {
 	switch proposal.Version {
@@ -167,6 +344,13 @@ func NewVersionedProposal(proposal *eth2api.VersionedProposal) (VersionedProposa
 		}
 		if proposal.DenebBlinded == nil && proposal.Blinded {
 			return VersionedProposal{}, errors.New("no deneb blinded block")
+		}
+	case eth2spec.DataVersionElectra:
+		if proposal.Electra == nil && !proposal.Blinded {
+			return VersionedProposal{}, errors.New("no electra block")
+		}
+		if proposal.ElectraBlinded == nil && proposal.Blinded {
+			return VersionedProposal{}, errors.New("no electra blinded block")
 		}
 	default:
 		return VersionedProposal{}, errors.New("unknown version")
@@ -215,6 +399,12 @@ func (p VersionedProposal) MarshalJSON() ([]byte, error) {
 			marshaller = p.DenebBlinded
 		} else {
 			marshaller = p.Deneb
+		}
+	case eth2spec.DataVersionElectra:
+		if p.Blinded {
+			marshaller = p.ElectraBlinded
+		} else {
+			marshaller = p.Electra
 		}
 	default:
 		return nil, errors.New("unknown version")
@@ -314,6 +504,20 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 			}
 			resp.Deneb = block
 		}
+	case eth2spec.DataVersionElectra:
+		if raw.Blinded {
+			block := new(eth2electra.BlindedBeaconBlock)
+			if err := json.Unmarshal(raw.Block, &block); err != nil {
+				return errors.Wrap(err, "unmarshal electra blinded")
+			}
+			resp.ElectraBlinded = block
+		} else {
+			block := new(eth2electra.BlockContents)
+			if err := json.Unmarshal(raw.Block, &block); err != nil {
+				return errors.Wrap(err, "unmarshal electra")
+			}
+			resp.Electra = block
+		}
 	default:
 		return errors.New("unknown version")
 	}
@@ -384,12 +588,17 @@ func unmarshalUnsignedData(typ DutyType, data []byte) (UnsignedData, error) {
 
 		return resp, nil
 	case DutyAggregator:
-		var resp AggregatedAttestation
-		if err := unmarshal(data, &resp); err != nil {
-			return nil, errors.Wrap(err, "unmarshal aggregated attestation")
+		var respVersioned VersionedAggregatedAttestation
+		if err := unmarshal(data, &respVersioned); err != nil {
+			var resp AggregatedAttestation
+			if err := unmarshal(data, &resp); err != nil {
+				return nil, errors.Wrap(err, "unmarshal aggregated attestation")
+			}
+
+			return resp, nil
 		}
 
-		return resp, nil
+		return respVersioned, nil
 	case DutySyncContribution:
 		var resp SyncContribution
 		if err := unmarshal(data, &resp); err != nil {

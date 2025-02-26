@@ -19,11 +19,13 @@ import (
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
+	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
+	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/holiman/uint256"
@@ -117,30 +119,98 @@ func RandomValidatorSet(t *testing.T, vals int) map[eth2p0.ValidatorIndex]*eth2v
 	return resp
 }
 
-func RandomAttestation() *eth2p0.Attestation {
+func RandomPhase0Attestation() *eth2p0.Attestation {
 	return &eth2p0.Attestation{
 		AggregationBits: RandomBitList(1),
-		Data:            RandomAttestationData(),
+		Data:            RandomAttestationDataPhase0(),
 		Signature:       RandomEth2Signature(),
+	}
+}
+
+func RandomElectraAttestation() *electra.Attestation {
+	return &electra.Attestation{
+		AggregationBits: RandomBitList(64),
+		Data:            RandomAttestationDataPhase0(),
+		Signature:       RandomEth2Signature(),
+		CommitteeBits:   RandomBitVec64(),
+	}
+}
+
+func RandomDenebCoreVersionedAttestation() core.VersionedAttestation {
+	return core.VersionedAttestation{
+		VersionedAttestation: eth2spec.VersionedAttestation{
+			Version: eth2spec.DataVersionDeneb,
+			Deneb:   RandomPhase0Attestation(),
+		},
+	}
+}
+
+func RandomElectraCoreVersionedAttestation() core.VersionedAttestation {
+	return core.VersionedAttestation{
+		VersionedAttestation: eth2spec.VersionedAttestation{
+			Version: eth2spec.DataVersionElectra,
+			Electra: RandomElectraAttestation(),
+		},
+	}
+}
+
+func RandomDenebVersionedAttestation() *eth2spec.VersionedAttestation {
+	return &eth2spec.VersionedAttestation{
+		Version: eth2spec.DataVersionDeneb,
+		Deneb:   RandomPhase0Attestation(),
+	}
+}
+
+func RandomElectraVersionedAttestation() *eth2spec.VersionedAttestation {
+	return &eth2spec.VersionedAttestation{
+		Version: eth2spec.DataVersionElectra,
+		Electra: RandomElectraAttestation(),
 	}
 }
 
 func RandomAggregateAttestation() *eth2p0.Attestation {
 	return &eth2p0.Attestation{
 		AggregationBits: RandomBitList(64),
-		Data:            RandomAttestationData(),
+		Data:            RandomAttestationDataPhase0(),
 		Signature:       RandomEth2Signature(),
 	}
 }
 
-func RandomAttestationData() *eth2p0.AttestationData {
-	return RandomAttestationDataSeed(NewSeedRand())
+func RandomDenebCoreVersionedAggregateAttestation() core.VersionedAggregatedAttestation {
+	return core.VersionedAggregatedAttestation{
+		VersionedAttestation: eth2spec.VersionedAttestation{
+			Version: eth2spec.DataVersionDeneb,
+			Deneb: &eth2p0.Attestation{
+				AggregationBits: RandomBitList(64),
+				Data:            RandomAttestationDataPhase0(),
+				Signature:       RandomEth2Signature(),
+			},
+		},
+	}
 }
 
-func RandomAttestationDataSeed(r *rand.Rand) *eth2p0.AttestationData {
+func RandomAttestationDataPhase0() *eth2p0.AttestationData {
+	return RandomAttestationDataSeedPhase0(NewSeedRand())
+}
+
+func RandomAttestationDataSeedPhase0(r *rand.Rand) *eth2p0.AttestationData {
 	return &eth2p0.AttestationData{
 		Slot:            RandomSlotSeed(r),
 		Index:           RandomCommIdxSeed(r),
+		BeaconBlockRoot: RandomRootSeed(r),
+		Source:          RandomCheckpointSeed(r),
+		Target:          RandomCheckpointSeed(r),
+	}
+}
+
+func RandomAttestationDataElectra() *eth2p0.AttestationData {
+	return RandomAttestationDataSeedElectra(NewSeedRand())
+}
+
+func RandomAttestationDataSeedElectra(r *rand.Rand) *eth2p0.AttestationData {
+	return &eth2p0.AttestationData{
+		Slot:            RandomSlotSeed(r),
+		Index:           0,
 		BeaconBlockRoot: RandomRootSeed(r),
 		Source:          RandomCheckpointSeed(r),
 		Target:          RandomCheckpointSeed(r),
@@ -168,7 +238,7 @@ func RandomPhase0BeaconBlockBody() *eth2p0.BeaconBlockBody {
 		Graffiti:          RandomArray32(),
 		ProposerSlashings: []*eth2p0.ProposerSlashing{},
 		AttesterSlashings: []*eth2p0.AttesterSlashing{},
-		Attestations:      []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
+		Attestations:      []*eth2p0.Attestation{RandomPhase0Attestation(), RandomPhase0Attestation()},
 		Deposits:          []*eth2p0.Deposit{},
 		VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
 	}
@@ -195,7 +265,7 @@ func RandomAltairBeaconBlockBody() *altair.BeaconBlockBody {
 		Graffiti:          RandomArray32(),
 		ProposerSlashings: []*eth2p0.ProposerSlashing{},
 		AttesterSlashings: []*eth2p0.AttesterSlashing{},
-		Attestations:      []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
+		Attestations:      []*eth2p0.Attestation{RandomPhase0Attestation(), RandomPhase0Attestation()},
 		Deposits:          []*eth2p0.Deposit{},
 		VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
 		SyncAggregate:     RandomSyncAggregate(),
@@ -230,7 +300,7 @@ func RandomBellatrixBeaconBlockBody() *bellatrix.BeaconBlockBody {
 		Graffiti:          RandomArray32(),
 		ProposerSlashings: []*eth2p0.ProposerSlashing{},
 		AttesterSlashings: []*eth2p0.AttesterSlashing{},
-		Attestations:      []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
+		Attestations:      []*eth2p0.Attestation{RandomPhase0Attestation(), RandomPhase0Attestation()},
 		Deposits:          []*eth2p0.Deposit{},
 		VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
 		SyncAggregate:     RandomSyncAggregate(),
@@ -256,7 +326,7 @@ func RandomCapellaBeaconBlockBody() *capella.BeaconBlockBody {
 		Graffiti:              RandomArray32(),
 		ProposerSlashings:     []*eth2p0.ProposerSlashing{},
 		AttesterSlashings:     []*eth2p0.AttesterSlashing{},
-		Attestations:          []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
+		Attestations:          []*eth2p0.Attestation{RandomPhase0Attestation(), RandomPhase0Attestation()},
 		Deposits:              []*eth2p0.Deposit{},
 		VoluntaryExits:        []*eth2p0.SignedVoluntaryExit{},
 		SyncAggregate:         RandomSyncAggregate(),
@@ -337,6 +407,22 @@ func RandomDenebCoreVersionedSignedProposal() core.VersionedSignedProposal {
 	}
 }
 
+func RandomElectraCoreVersionedSignedProposal() core.VersionedSignedProposal {
+	return core.VersionedSignedProposal{
+		VersionedSignedProposal: eth2api.VersionedSignedProposal{
+			Version: eth2spec.DataVersionElectra,
+			Electra: &eth2electra.SignedBlockContents{
+				SignedBlock: &electra.SignedBeaconBlock{
+					Message:   RandomElectraBeaconBlock(),
+					Signature: RandomEth2Signature(),
+				},
+				KZGProofs: []deneb.KZGProof{},
+				Blobs:     []deneb.Blob{},
+			},
+		},
+	}
+}
+
 // RandomCapellaVersionedSignedBeaconBlock returns a random signed capella beacon block.
 func RandomCapellaVersionedSignedBeaconBlock() *eth2spec.VersionedSignedBeaconBlock {
 	return &eth2spec.VersionedSignedBeaconBlock{
@@ -354,6 +440,17 @@ func RandomDenebVersionedSignedBeaconBlock() *eth2spec.VersionedSignedBeaconBloc
 		Version: eth2spec.DataVersionDeneb,
 		Deneb: &deneb.SignedBeaconBlock{
 			Message:   RandomDenebBeaconBlock(),
+			Signature: RandomEth2Signature(),
+		},
+	}
+}
+
+// RandomElectraVersionedSignedBeaconBlock returns a random signed electra beacon block.
+func RandomElectraVersionedSignedBeaconBlock() *eth2spec.VersionedSignedBeaconBlock {
+	return &eth2spec.VersionedSignedBeaconBlock{
+		Version: eth2spec.DataVersionElectra,
+		Electra: &electra.SignedBeaconBlock{
+			Message:   RandomElectraBeaconBlock(),
 			Signature: RandomEth2Signature(),
 		},
 	}
@@ -385,6 +482,21 @@ func RandomDenebVersionedSignedProposal() *eth2api.VersionedSignedProposal {
 	}
 }
 
+// RandomElectraVersionedSignedProposal returns a random versioned signed proposal containing electra beacon block.
+func RandomElectraVersionedSignedProposal() *eth2api.VersionedSignedProposal {
+	return &eth2api.VersionedSignedProposal{
+		Version: eth2spec.DataVersionElectra,
+		Electra: &eth2electra.SignedBlockContents{
+			SignedBlock: &electra.SignedBeaconBlock{
+				Message:   RandomElectraBeaconBlock(),
+				Signature: RandomEth2Signature(),
+			},
+			KZGProofs: []deneb.KZGProof{},
+			Blobs:     []deneb.Blob{},
+		},
+	}
+}
+
 // RandomCapellaVersionedProposal returns a random versioned proposal containing capella beacon block.
 func RandomCapellaVersionedProposal() *eth2api.VersionedProposal {
 	return &eth2api.VersionedProposal{
@@ -399,6 +511,18 @@ func RandomDenebVersionedProposal() *eth2api.VersionedProposal {
 		Version: eth2spec.DataVersionDeneb,
 		Deneb: &eth2deneb.BlockContents{
 			Block:     RandomDenebBeaconBlock(),
+			KZGProofs: []deneb.KZGProof{},
+			Blobs:     []deneb.Blob{},
+		},
+	}
+}
+
+// RandomElectraVersionedProposal returns a random versioned proposal containing electra beacon block.
+func RandomElectraVersionedProposal() *eth2api.VersionedProposal {
+	return &eth2api.VersionedProposal{
+		Version: eth2spec.DataVersionElectra,
+		Electra: &eth2electra.BlockContents{
+			Block:     RandomElectraBeaconBlock(),
 			KZGProofs: []deneb.KZGProof{},
 			Blobs:     []deneb.Blob{},
 		},
@@ -426,7 +550,7 @@ func RandomBellatrixBlindedBeaconBlockBody() *eth2bellatrix.BlindedBeaconBlockBo
 		Graffiti:               RandomArray32(),
 		ProposerSlashings:      []*eth2p0.ProposerSlashing{},
 		AttesterSlashings:      []*eth2p0.AttesterSlashing{},
-		Attestations:           []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
+		Attestations:           []*eth2p0.Attestation{RandomPhase0Attestation(), RandomPhase0Attestation()},
 		Deposits:               []*eth2p0.Deposit{},
 		VoluntaryExits:         []*eth2p0.SignedVoluntaryExit{},
 		SyncAggregate:          RandomSyncAggregate(),
@@ -455,7 +579,7 @@ func RandomCapellaBlindedBeaconBlockBody() *eth2capella.BlindedBeaconBlockBody {
 		Graffiti:               RandomArray32(),
 		ProposerSlashings:      []*eth2p0.ProposerSlashing{},
 		AttesterSlashings:      []*eth2p0.AttesterSlashing{},
-		Attestations:           []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
+		Attestations:           []*eth2p0.Attestation{RandomPhase0Attestation(), RandomPhase0Attestation()},
 		Deposits:               []*eth2p0.Deposit{},
 		VoluntaryExits:         []*eth2p0.SignedVoluntaryExit{},
 		SyncAggregate:          RandomSyncAggregate(),
@@ -523,6 +647,19 @@ func RandomDenebVersionedSignedBlindedProposal() core.VersionedSignedProposal {
 	}
 }
 
+func RandomElectraVersionedSignedBlindedProposal() core.VersionedSignedProposal {
+	return core.VersionedSignedProposal{
+		VersionedSignedProposal: eth2api.VersionedSignedProposal{
+			Blinded: true,
+			Version: eth2spec.DataVersionElectra,
+			ElectraBlinded: &eth2electra.SignedBlindedBeaconBlock{
+				Message:   RandomElectraBlindedBeaconBlock(),
+				Signature: RandomEth2Signature(),
+			},
+		},
+	}
+}
+
 func RandomDenebBeaconBlock() *deneb.BeaconBlock {
 	return &deneb.BeaconBlock{
 		Slot:          RandomSlot(),
@@ -533,6 +670,16 @@ func RandomDenebBeaconBlock() *deneb.BeaconBlock {
 	}
 }
 
+func RandomElectraBeaconBlock() *electra.BeaconBlock {
+	return &electra.BeaconBlock{
+		Slot:          RandomSlot(),
+		ProposerIndex: RandomVIdx(),
+		ParentRoot:    RandomRoot(),
+		StateRoot:     RandomRoot(),
+		Body:          RandomElectraBeaconBlockBody(),
+	}
+}
+
 func RandomDenebBlindedBeaconBlock() *eth2deneb.BlindedBeaconBlock {
 	return &eth2deneb.BlindedBeaconBlock{
 		Slot:          RandomSlot(),
@@ -540,6 +687,16 @@ func RandomDenebBlindedBeaconBlock() *eth2deneb.BlindedBeaconBlock {
 		ParentRoot:    RandomRoot(),
 		StateRoot:     RandomRoot(),
 		Body:          RandomDenebBlindedBeaconBlockBody(),
+	}
+}
+
+func RandomElectraBlindedBeaconBlock() *eth2electra.BlindedBeaconBlock {
+	return &eth2electra.BlindedBeaconBlock{
+		Slot:          RandomSlot(),
+		ProposerIndex: RandomVIdx(),
+		ParentRoot:    RandomRoot(),
+		StateRoot:     RandomRoot(),
+		Body:          RandomElectraBlindedBeaconBlockBody(),
 	}
 }
 
@@ -554,13 +711,39 @@ func RandomDenebBeaconBlockBody() *deneb.BeaconBlockBody {
 		Graffiti:              RandomArray32(),
 		ProposerSlashings:     []*eth2p0.ProposerSlashing{},
 		AttesterSlashings:     []*eth2p0.AttesterSlashing{},
-		Attestations:          []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
+		Attestations:          []*eth2p0.Attestation{RandomPhase0Attestation(), RandomPhase0Attestation()},
 		Deposits:              []*eth2p0.Deposit{},
 		VoluntaryExits:        []*eth2p0.SignedVoluntaryExit{},
 		SyncAggregate:         RandomSyncAggregate(),
 		ExecutionPayload:      RandomDenebExecutionPayload(),
 		BLSToExecutionChanges: []*capella.SignedBLSToExecutionChange{},
 		BlobKZGCommitments:    []deneb.KZGCommitment{},
+	}
+}
+
+func RandomElectraBeaconBlockBody() *electra.BeaconBlockBody {
+	return &electra.BeaconBlockBody{
+		RANDAOReveal: RandomEth2Signature(),
+		ETH1Data: &eth2p0.ETH1Data{
+			DepositRoot:  RandomRoot(),
+			DepositCount: 0,
+			BlockHash:    RandomBytes32(),
+		},
+		Graffiti:              RandomArray32(),
+		ProposerSlashings:     []*eth2p0.ProposerSlashing{},
+		AttesterSlashings:     []*electra.AttesterSlashing{},
+		Attestations:          []*electra.Attestation{RandomElectraAttestation(), RandomElectraAttestation()},
+		Deposits:              []*eth2p0.Deposit{},
+		VoluntaryExits:        []*eth2p0.SignedVoluntaryExit{},
+		SyncAggregate:         RandomSyncAggregate(),
+		ExecutionPayload:      RandomDenebExecutionPayload(),
+		BLSToExecutionChanges: []*capella.SignedBLSToExecutionChange{},
+		BlobKZGCommitments:    []deneb.KZGCommitment{},
+		ExecutionRequests: &electra.ExecutionRequests{
+			Deposits:       []*electra.DepositRequest{},
+			Withdrawals:    []*electra.WithdrawalRequest{},
+			Consolidations: []*electra.ConsolidationRequest{},
+		},
 	}
 }
 
@@ -575,13 +758,39 @@ func RandomDenebBlindedBeaconBlockBody() *eth2deneb.BlindedBeaconBlockBody {
 		Graffiti:               RandomArray32(),
 		ProposerSlashings:      []*eth2p0.ProposerSlashing{},
 		AttesterSlashings:      []*eth2p0.AttesterSlashing{},
-		Attestations:           []*eth2p0.Attestation{RandomAttestation(), RandomAttestation()},
+		Attestations:           []*eth2p0.Attestation{RandomPhase0Attestation(), RandomPhase0Attestation()},
 		Deposits:               []*eth2p0.Deposit{},
 		VoluntaryExits:         []*eth2p0.SignedVoluntaryExit{},
 		SyncAggregate:          RandomSyncAggregate(),
 		ExecutionPayloadHeader: RandomDenebExecutionPayloadHeader(),
 		BLSToExecutionChanges:  []*capella.SignedBLSToExecutionChange{},
 		BlobKZGCommitments:     []deneb.KZGCommitment{},
+	}
+}
+
+func RandomElectraBlindedBeaconBlockBody() *eth2electra.BlindedBeaconBlockBody {
+	return &eth2electra.BlindedBeaconBlockBody{
+		RANDAOReveal: RandomEth2Signature(),
+		ETH1Data: &eth2p0.ETH1Data{
+			DepositRoot:  RandomRoot(),
+			DepositCount: 0,
+			BlockHash:    RandomBytes32(),
+		},
+		Graffiti:               RandomArray32(),
+		ProposerSlashings:      []*eth2p0.ProposerSlashing{},
+		AttesterSlashings:      []*electra.AttesterSlashing{},
+		Attestations:           []*electra.Attestation{RandomElectraAttestation(), RandomElectraAttestation()},
+		Deposits:               []*eth2p0.Deposit{},
+		VoluntaryExits:         []*eth2p0.SignedVoluntaryExit{},
+		SyncAggregate:          RandomSyncAggregate(),
+		ExecutionPayloadHeader: RandomDenebExecutionPayloadHeader(),
+		BLSToExecutionChanges:  []*capella.SignedBLSToExecutionChange{},
+		BlobKZGCommitments:     []deneb.KZGCommitment{},
+		ExecutionRequests: &electra.ExecutionRequests{
+			Deposits:       []*electra.DepositRequest{},
+			Withdrawals:    []*electra.WithdrawalRequest{},
+			Consolidations: []*electra.ConsolidationRequest{},
+		},
 	}
 }
 
@@ -652,6 +861,16 @@ func RandomSignedAggregateAndProof() *eth2p0.SignedAggregateAndProof {
 	}
 }
 
+func RandomDenebVersionedSignedAggregateAndProof() *eth2spec.VersionedSignedAggregateAndProof {
+	return &eth2spec.VersionedSignedAggregateAndProof{
+		Version: eth2spec.DataVersionDeneb,
+		Deneb: &eth2p0.SignedAggregateAndProof{
+			Message:   RandomAggregateAndProof(),
+			Signature: RandomEth2Signature(),
+		},
+	}
+}
+
 func RandomAggregateAndProof() *eth2p0.AggregateAndProof {
 	return &eth2p0.AggregateAndProof{
 		AggregatorIndex: RandomVIdx(),
@@ -688,7 +907,7 @@ func RandomSyncCommitteeContribution() *altair.SyncCommitteeContribution {
 		Slot:              RandomSlot(),
 		BeaconBlockRoot:   RandomRoot(),
 		SubcommitteeIndex: rand.Uint64(),
-		AggregationBits:   RandomBitVec(),
+		AggregationBits:   RandomBitVec128(),
 		Signature:         RandomEth2Signature(),
 	}
 }
@@ -1078,7 +1297,7 @@ func RandomBitList(length int) bitfield.Bitlist {
 	return resp
 }
 
-func RandomBitVec() bitfield.Bitvector128 {
+func RandomBitVec128() bitfield.Bitvector128 {
 	size := 128
 	index := rand.Intn(size)
 	resp := bitfield.NewBitvector128()
@@ -1091,6 +1310,15 @@ func RandomBitVec4() bitfield.Bitvector4 {
 	size := 4
 	index := rand.Intn(size)
 	resp := bitfield.NewBitvector4()
+	resp.SetBitAt(uint64(index), true)
+
+	return resp
+}
+
+func RandomBitVec64() bitfield.Bitvector64 {
+	size := 64
+	index := rand.Intn(size)
+	resp := bitfield.NewBitvector64()
 	resp.SetBitAt(uint64(index), true)
 
 	return resp
@@ -1218,7 +1446,7 @@ func RandomCoreAttestationDataSeed(t *testing.T, r *rand.Rand) core.AttestationD
 	t.Helper()
 
 	duty := RandomAttestationDutySeed(t, r)
-	data := RandomAttestationDataSeed(r)
+	data := RandomAttestationDataSeedPhase0(r)
 
 	return core.AttestationData{
 		Data: *data,

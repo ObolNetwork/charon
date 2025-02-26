@@ -105,8 +105,8 @@ func TestFetchAggregator(t *testing.T) {
 		vIdxB: testutil.RandomCorePubKey(t),
 	}
 
-	attA := testutil.RandomAttestation()
-	attB := testutil.RandomAttestation()
+	attA := testutil.RandomPhase0Attestation()
+	attB := testutil.RandomPhase0Attestation()
 	attByCommIdx := map[uint64]*eth2p0.Attestation{
 		uint64(attA.Data.Index): attA,
 		uint64(attB.Data.Index): attB,
@@ -553,6 +553,12 @@ func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block core.Versioned
 			require.EqualValues(t, randao, block.DenebBlinded.Body.RANDAOReveal)
 		} else {
 			require.EqualValues(t, randao, block.Deneb.Block.Body.RANDAOReveal)
+		}
+	case eth2spec.DataVersionElectra:
+		if block.Blinded {
+			require.EqualValues(t, randao, block.ElectraBlinded.Body.RANDAOReveal)
+		} else {
+			require.EqualValues(t, randao, block.Electra.Block.Body.RANDAOReveal)
 		}
 	default:
 		require.Fail(t, "invalid block")

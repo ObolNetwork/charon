@@ -246,11 +246,15 @@ func Run(ctx context.Context, conf Config) (err error) {
 	// Sign, exchange and aggregate Deposit Data
 	depositAmounts := def.DepositAmounts
 	if len(depositAmounts) == 0 {
-		depositAmounts = []eth2p0.Gwei{deposit.MaxDepositAmount}
+		if cluster.SupportPartialDeposits(def.Version) {
+			depositAmounts = deposit.DefaultDepositAmounts()
+		} else {
+			depositAmounts = []eth2p0.Gwei{deposit.DefaultDepositAmount}
+		}
 	} else {
 		depositAmounts = deposit.DedupAmounts(depositAmounts)
 	}
-	depositDatas, err := signAndAggDepositData(ctx, ex, shares, def.WithdrawalAddresses(), network, nodeIdx, depositAmounts)
+	depositDatas, err := signAndAggDepositData(ctx, ex, shares, def.WithdrawalAddresses(), network, nodeIdx, depositAmounts, def.Compounding)
 	if err != nil {
 		return err
 	}
@@ -605,13 +609,13 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 
 // signAndAggDepositData returns the deposit datas for each DV after signing, exchange and aggregation of partial signatures.
 func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share,
-	withdrawalAddresses []string, network string,
-	nodeIdx cluster.NodeIdx, depositAmounts []eth2p0.Gwei,
+	withdrawalAddresses []string, network string, nodeIdx cluster.NodeIdx,
+	depositAmounts []eth2p0.Gwei, compounding bool,
 ) ([][]eth2p0.DepositData, error) {
 	var depositDataForAmounts [][]eth2p0.DepositData
 
 	for i, amount := range depositAmounts {
-		parSig, despositMsgs, err := signDepositMsgs(shares, nodeIdx.ShareIdx, withdrawalAddresses, network, amount)
+		parSig, despositMsgs, err := signDepositMsgs(shares, nodeIdx.ShareIdx, withdrawalAddresses, network, amount, compounding)
 		if err != nil {
 			return nil, err
 		}
@@ -728,7 +732,7 @@ func signLockHash(shareIdx int, shares []share, hash []byte) (core.ParSignedData
 }
 
 // signDepositMsgs returns a partially signed dataset containing signatures of the deposit message signing root.
-func signDepositMsgs(shares []share, shareIdx int, withdrawalAddresses []string, network string, amount eth2p0.Gwei) (core.ParSignedDataSet, map[core.PubKey]eth2p0.DepositMessage, error) {
+func signDepositMsgs(shares []share, shareIdx int, withdrawalAddresses []string, network string, amount eth2p0.Gwei, compounding bool) (core.ParSignedDataSet, map[core.PubKey]eth2p0.DepositMessage, error) {
 	msgs := make(map[core.PubKey]eth2p0.DepositMessage)
 	set := make(core.ParSignedDataSet)
 	for i, share := range shares {
@@ -746,7 +750,7 @@ func signDepositMsgs(shares []share, shareIdx int, withdrawalAddresses []string,
 			return nil, nil, err
 		}
 
-		msg, err := deposit.NewMessage(pubkey, withdrawalHex, amount)
+		msg, err := deposit.NewMessage(pubkey, withdrawalHex, amount, compounding)
 		if err != nil {
 			return nil, nil, err
 		}
