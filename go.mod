@@ -1,7 +1,6 @@
 module github.com/obolnetwork/charon
 
 go 1.23
-
 require (
 	github.com/attestantio/go-builder-client v0.5.3
 	github.com/attestantio/go-eth2-client v0.21.11
@@ -41,7 +40,7 @@ require (
 	go.uber.org/automaxprocs v1.6.0
 	go.uber.org/goleak v1.3.0
 	go.uber.org/zap v1.27.0
-	golang.org/x/crypto v0.33.0
+	golang.org/x/crypto v0.35.0
 	golang.org/x/sync v0.11.0
 	golang.org/x/term v0.29.0
 	golang.org/x/time v0.10.0
