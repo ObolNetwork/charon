@@ -543,7 +543,7 @@ func (s SyncContribution) Clone() (UnsignedData, error) {
 		return nil, errors.Wrap(err, "clone sync contribution")
 	}
 
-	return resp, err
+	return resp, nil
 }
 
 func (s SyncContribution) MarshalJSON() ([]byte, error) {
