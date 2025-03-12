@@ -106,7 +106,7 @@ func bindCreateDKGFlags(cmd *cobra.Command, config *createDKGConfig) {
 	cmd.Flags().UintVar(&config.TargetGasLimit, "target-gas-limit", 36000000, "Preferred target gas limit for transactions.")
 	cmd.Flags().BoolVar(&config.Compounding, "compounding", false, "Enable compounding rewards for validators by using 0x02 withdrawal credentials.")
 	cmd.Flags().StringVar(&config.ExecutionEngineAddr, "execution-client-rpc-endpoint", "", "The address of the execution engine JSON-RPC API.")
-	cmd.Flags().BoolVar(&config.Publish, "publish", false, "Publish the created cluster to a remote API and generate invite link.")
+	cmd.Flags().BoolVar(&config.Publish, "publish", false, "Creates an invitation to the DKG ceremony on the DV Launchpad. Terms and conditions apply.")
 	cmd.Flags().StringVar(&config.PublishAddress, "publish-address", "https://api.obol.tech/v1", "The URL to publish the cluster to.")
 	cmd.Flags().StringSliceVar(&config.OperatorsAddresses, "operator-addresses", nil, "Comma-separated list of each operator's Ethereum address.")
 }
