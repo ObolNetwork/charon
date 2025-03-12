@@ -209,7 +209,7 @@ func (d Definition) NodeIdx(pID peer.ID) (NodeIdx, error) {
 }
 
 // VerifySignatures returns nil if all config signatures are fully populated and valid. A verified definition is ready for use in DKG.
-func (d Definition) VerifySignatures() error {
+func (d Definition) VerifySignatures(partialClusterDefinition bool) error {
 	// Skip signature verification for definition versions earlier than v1.3 since there are no EIP712 signatures before v1.3.0.
 	if !supportEIP712Sigs(d.Version) && !eip712SigsPresent(d.Operators) {
 		return nil
@@ -228,6 +228,17 @@ func (d Definition) VerifySignatures() error {
 
 	var noOpSigs int
 	for _, o := range d.Operators {
+		if partialClusterDefinition {
+			if o.Address == "" {
+				return errors.New("empty operator address")
+			}
+			if len(o.ENRSignature) != 0 || len(o.ConfigSignature) != 0 {
+				return errors.New("premature operator signatures")
+			}
+			noOpSigs++
+
+			continue
+		}
 		// Completely unsigned operators are also fine, assuming a single cluster-wide operator.
 		if o.Address == "" && len(o.ENRSignature) == 0 && len(o.ConfigSignature) == 0 {
 			noOpSigs++
