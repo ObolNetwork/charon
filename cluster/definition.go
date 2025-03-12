@@ -229,6 +229,17 @@ func (d Definition) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 
 	var noOpSigs int
 	for _, o := range d.Operators {
+		if partialClusterDefinition {
+			if o.Address == "" {
+				return errors.New("empty operator address")
+			}
+			if len(o.ENRSignature) != 0 || len(o.ConfigSignature) != 0 {
+				return errors.New("premature operator signatures")
+			}
+			noOpSigs++
+
+			continue
+		}
 		// Completely unsigned operators are also fine, assuming a single cluster-wide operator.
 		if o.Address == "" && len(o.ENRSignature) == 0 && len(o.ConfigSignature) == 0 {
 			noOpSigs++
