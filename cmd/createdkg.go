@@ -279,6 +279,10 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 			return errors.Wrap(err, "publish cluster definition")
 		}
 
+		// Display invite link
+		log.Info(ctx, "Cluster Invitation Prepared:")
+		log.Info(ctx, "Direct the Node Operators to: https://launchpad.obol.org/invite/"+def.UUID+" to review the cluster configuration and begin the distributed key generation ceremony.\n")
+
 		return nil
 	}
 
