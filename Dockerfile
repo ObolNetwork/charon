@@ -56,5 +56,5 @@ CMD ["run"]
 LABEL org.opencontainers.image.source="https://github.com/obolnetwork/charon"
 LABEL org.opencontainers.image.title="charon"
 LABEL org.opencontainers.image.description="Proof of Stake Ethereum Distributed Validator Client"
-LABEL org.opencontainers.image.licenses="GPL v3"
+LABEL org.opencontainers.image.licenses="BUSL"
 LABEL org.opencontainers.image.documentation="https://github.com/ObolNetwork/charon/tree/main/docs"
