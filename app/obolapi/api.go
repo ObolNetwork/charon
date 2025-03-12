@@ -110,7 +110,7 @@ func (c Client) PublishDefinition(ctx context.Context, def cluster.Definition, s
 	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
 	defer cancel()
 
-	err = httpPost(ctx, addr, b, headers)
+	return httpPost(ctx, addr, b, headers)
 	if err != nil {
 		return err
 	}
