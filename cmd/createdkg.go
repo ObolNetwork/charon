@@ -6,6 +6,7 @@ import (
 	"context"
 	crand "crypto/rand"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path"
 	"time"
@@ -242,37 +243,17 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 			return errors.Wrap(err, "create Obol API client")
 		}
 
-		// Verify creator signed T&C
-		signed, err := apiClient.VerifySignedTermsAndConditions(ctx, def.Creator.Address)
+		sig, err := cluster.SignTermsAndConditions(privKey, def)
 		if err != nil {
-			return errors.Wrap(err, "verify user signed terms")
+			return errors.Wrap(err, "sign terms")
 		}
 
-		if !signed {
-			log.Info(ctx, "Creator has not signed Obol's terms and conditions")
-
-			// Sign T&C and publish to obol-api
-			sig, err := cluster.SignTermsAndConditions(privKey, def)
-			if err != nil {
-				return errors.Wrap(err, "sign terms")
-			}
-			err = apiClient.SignTermsAndConditions(ctx, def.Creator.Address, def.ForkVersion, sig)
-			if err != nil {
-				return errors.Wrap(err, "submit sign terms")
-			}
-
-			// Confirm correctly signed
-			signed, err = apiClient.VerifySignedTermsAndConditions(ctx, def.Creator.Address)
-			if err != nil {
-				return errors.Wrap(err, "verify user signed terms")
-			}
-
-			if !signed {
-				return errors.New("creator failed to sign terms and conditions")
-			}
-
-			log.Info(ctx, "Creator successfully signed Obol's terms and conditions")
+		err = apiClient.SignTermsAndConditions(ctx, def.Creator.Address, def.ForkVersion, sig)
+		if err != nil {
+			return errors.Wrap(err, "submit sign terms")
 		}
+
+		log.Info(ctx, "Creator successfully signed Obol's terms and conditions")
 
 		err = apiClient.PublishDefinition(ctx, def, def.Creator.ConfigSignature)
 		if err != nil {
@@ -281,7 +262,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 
 		// Display invite link
 		log.Info(ctx, "Cluster Invitation Prepared:")
-		log.Info(ctx, "Direct the Node Operators to: https://launchpad.obol.org/invite/"+def.UUID+" to review the cluster configuration and begin the distributed key generation ceremony.\n")
+		log.Info(ctx, "Direct the Node Operators to: https://launchpad.obol.org/dv#"+fmt.Sprintf("%#x", def.ConfigHash)+" to review the cluster configuration and begin the distributed key generation ceremony.\n")
 
 		return nil
 	}
