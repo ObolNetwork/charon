@@ -5,6 +5,7 @@ package obolapi
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,8 +21,11 @@ const (
 	// launchpadReturnPathFmt is the URL path format string at which one can find details for a given cluster lock hash.
 	launchpadReturnPathFmt = "/lock/0x%X/launchpad"
 
-	// defaultTimeout is the default HTTP request timeout if not specified
+	// defaultTimeout is the default HTTP request timeout if not specified.
 	defaultTimeout = 10 * time.Second
+
+	// termsAndConditionsHash is the hash of the terms and conditions that the user must sign.
+	termsAndConditionsHash = "0xd33721644e8f3afab1495a74abe3523cec12d48b8da6cb760972492ca3f1a273"
 )
 
 // New returns a new Client.
@@ -84,6 +88,66 @@ func (c Client) PublishLock(ctx context.Context, lock cluster.Lock) error {
 	defer cancel()
 
 	err = httpPost(ctx, addr, b, nil)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// PublishDefinition posts the cluster definition to obol-api.
+// It requires the cluster creator to previously sign Obol's Terms and Conditions.
+func (c Client) PublishDefinition(ctx context.Context, def cluster.Definition, sig []byte) error {
+	addr := c.url()
+	addr.Path = "v1/definition"
+
+	b, err := def.MarshalJSON()
+	if err != nil {
+		return errors.Wrap(err, "marshal definition")
+	}
+
+	headers := map[string]string{
+		"authorization": fmt.Sprintf("Bearer 0x%x", sig),
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
+	defer cancel()
+
+	return httpPost(ctx, addr, b, headers)
+}
+
+// SignTermsAndConditions submits the user's signature of Obol's Terms and Conditions to obol-api.
+func (c Client) SignTermsAndConditions(ctx context.Context, userAddr string, forkVersion []byte, sig []byte) error {
+	type request struct {
+		Address                string `json:"address"`
+		Version                int    `json:"version"`
+		TermsAndConditionsHash string `json:"terms_and_conditions_hash"`
+		ForkVersion            string `json:"fork_version"`
+	}
+
+	addr := c.url()
+	addr.Path = "v1/termsAndConditions"
+
+	req := request{
+		Address:                userAddr,
+		Version:                1,
+		TermsAndConditionsHash: termsAndConditionsHash,
+		ForkVersion:            fmt.Sprintf("0x%x", forkVersion),
+	}
+
+	r, err := json.Marshal(req)
+	if err != nil {
+		return errors.Wrap(err, "marshal sign terms and Conditions")
+	}
+
+	headers := map[string]string{
+		"authorization": fmt.Sprintf("Bearer 0x%x", sig),
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
+	defer cancel()
+
+	err = httpPost(ctx, addr, r, headers)
 	if err != nil {
 		return err
 	}

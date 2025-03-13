@@ -959,7 +959,7 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 		return err
 	}
 
-	if err = def.VerifySignatures(); err != nil {
+	if err = def.VerifySignatures(false); err != nil {
 		return err
 	}
 
@@ -1024,7 +1024,7 @@ func loadDefinition(ctx context.Context, defFile string) (cluster.Definition, er
 			z.Str("definition_hash", fmt.Sprintf("%#x", def.DefinitionHash)))
 	}
 
-	if err := def.VerifySignatures(); err != nil {
+	if err := def.VerifySignatures(false); err != nil {
 		return cluster.Definition{}, err
 	}
 	if err := def.VerifyHashes(); err != nil {
