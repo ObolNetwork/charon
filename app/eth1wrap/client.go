@@ -39,25 +39,28 @@ type Client struct {
 	executionEngineAddress string
 }
 
+// isInitialized returns true if the eth1 client is initialized and false otherwise.
+func (cl *Client) isInitialized() bool {
+	cl.eth1ClMu.RLock()
+	defer cl.eth1ClMu.RUnlock()
+
+	return cl.eth1Cl != nil
+}
+
 // maybeInitializeClient initializes the eth1 client if not initialized.
 func (cl *Client) maybeInitializeClient() error {
 	if cl.executionEngineAddress == "" {
 		return errors.New("empty execution engine address")
 	}
 
-	// faster than acquiring a write lock
-	cl.eth1ClMu.RLock()
-	if cl.eth1Cl != nil {
-		cl.eth1ClMu.RUnlock()
+	if cl.isInitialized() {
 		return nil
 	}
-	cl.eth1ClMu.RUnlock()
 
-	// need write lock to initialize
 	cl.eth1ClMu.Lock()
 	defer cl.eth1ClMu.Unlock()
 
-	// double-check
+	// double-check, another goroutine might have initialized in the meantime
 	if cl.eth1Cl != nil {
 		return nil
 	}
