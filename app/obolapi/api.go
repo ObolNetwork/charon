@@ -114,11 +114,6 @@ func (c Client) PublishDefinition(ctx context.Context, def cluster.Definition, s
 	defer cancel()
 
 	return httpPost(ctx, addr, b, headers)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // SignTermsAndConditions submits the user's signature of Obol's Terms and Conditions to obol-api.
