@@ -21,8 +21,11 @@ const (
 	// launchpadReturnPathFmt is the URL path format string at which one can find details for a given cluster lock hash.
 	launchpadReturnPathFmt = "/lock/0x%X/launchpad"
 
-	// defaultTimeout is the default HTTP request timeout if not specified
+	// defaultTimeout is the default HTTP request timeout if not specified.
 	defaultTimeout = 10 * time.Second
+
+	// termsAndConditionsHash is the hash of the terms and conditions that the user must sign.
+	termsAndConditionsHash = "0xd33721644e8f3afab1495a74abe3523cec12d48b8da6cb760972492ca3f1a273"
 )
 
 // New returns a new Client.
@@ -118,38 +121,6 @@ func (c Client) PublishDefinition(ctx context.Context, def cluster.Definition, s
 	return nil
 }
 
-// VeriftySignedTermsAndConditions verifies if the user address has previously signed Obol's Terms and Conditions.
-func (c Client) VerifySignedTermsAndConditions(ctx context.Context, userAddr string) (bool, error) {
-	type response struct {
-		Signed bool `json:"isTermsAndConditionsSigned"`
-	}
-
-	addr := c.url()
-	addr.Path = "v1/termsAndConditions/" + userAddr
-
-	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
-	defer cancel()
-
-	resp, err := httpGet(ctx, addr, nil)
-	if err != nil {
-		return false, err
-	}
-
-	defer resp.Close()
-
-	buf, err := io.ReadAll(resp)
-	if err != nil {
-		return false, errors.Wrap(err, "read response body")
-	}
-
-	var res response
-	if err := json.Unmarshal(buf, &res); err != nil {
-		return false, errors.Wrap(err, "unmarshal response")
-	}
-
-	return res.Signed, nil
-}
-
 // SignTermsAndConditions submits the user's signature of Obol's Terms and Conditions to obol-api.
 func (c Client) SignTermsAndConditions(ctx context.Context, userAddr string, forkVersion []byte, sig []byte) error {
 	type request struct {
@@ -165,7 +136,7 @@ func (c Client) SignTermsAndConditions(ctx context.Context, userAddr string, for
 	req := request{
 		Address:                userAddr,
 		Version:                1,
-		TermsAndConditionsHash: "0xd33721644e8f3afab1495a74abe3523cec12d48b8da6cb760972492ca3f1a273",
+		TermsAndConditionsHash: termsAndConditionsHash,
 		ForkVersion:            fmt.Sprintf("0x%x", forkVersion),
 	}
 
