@@ -319,7 +319,7 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event, fetch
 	return true, fetcher, reason, fetchErr
 }
 
-// analyseFetcherFailed returns the reason behind why proposer duty failed which might actually
+// analyseFetcherFailedProposer returns the reason behind why proposer duty failed which might actually
 // be due to randao duty failed.
 func analyseFetcherFailedProposer(duty core.Duty, allEvents map[core.Duty][]event, fetchErr error) (bool, step, reason, error) {
 	reason := reasonBugFetchError
