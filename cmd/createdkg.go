@@ -9,10 +9,13 @@ import (
 	"os"
 	"path"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth1wrap"
+	erc1271 "github.com/obolnetwork/charon/app/eth1wrap/generated"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
@@ -161,7 +164,25 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	if err := def.VerifyHashes(); err != nil {
 		return err
 	}
-	eth1Cl := eth1wrap.NewLazyEth1Client(conf.ExecutionEngineAddr)
+	eth1Cl := eth1wrap.NewEth1Client(conf.ExecutionEngineAddr,
+		func(ctx context.Context, url string) (eth1wrap.Eth1Client, error) {
+			cl, err := ethclient.DialContext(ctx, url)
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to connect to eth1 client")
+			}
+
+			return &eth1Client{client: cl}, nil
+		},
+		func(contractAddress string, eth1Client eth1wrap.Eth1Client) (eth1wrap.Erc1271, error) {
+			addr := common.HexToAddress(contractAddress)
+			erc1271, err := erc1271.NewErc1271(addr, eth1Client.GetClient())
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to create binding to ERC1271 contract")
+			}
+
+			return erc1271, nil
+		},
+	)
 	if err := def.VerifySignatures(eth1Cl); err != nil {
 		return err
 	}
