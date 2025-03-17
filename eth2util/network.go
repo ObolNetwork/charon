@@ -79,12 +79,20 @@ var (
 		GenesisTimestamp:      1696000704,
 		CapellaHardFork:       "0x04017000",
 	}
+	// Hoodi metadata taken from https://github.com/eth-clients/hoodi/#metadata.
+	Hoodi = Network{
+		ChainID:               560048,
+		Name:                  "hoodi",
+		GenesisForkVersionHex: "0x10000910",
+		GenesisTimestamp:      1742213400,
+		CapellaHardFork:       "0x40000910",
+	}
 )
 
 var (
 	networksMu        sync.Mutex
 	supportedNetworks = []Network{
-		Mainnet, Goerli, Gnosis, Chiado, Sepolia, Holesky,
+		Mainnet, Goerli, Gnosis, Chiado, Sepolia, Holesky, Hoodi,
 	}
 )
 
