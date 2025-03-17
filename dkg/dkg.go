@@ -15,12 +15,15 @@ import (
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth1wrap"
+	erc1271 "github.com/obolnetwork/charon/app/eth1wrap/generated"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/peerinfo"
@@ -317,7 +320,25 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	if !conf.NoVerify {
-		eth1Cl := eth1wrap.NewLazyEth1Client(conf.ExecutionEngineAddr)
+		eth1Cl := eth1wrap.NewEth1Client(conf.ExecutionEngineAddr,
+			func(ctx context.Context, url string) (eth1wrap.Eth1Client, error) {
+				cl, err := ethclient.DialContext(ctx, url)
+				if err != nil {
+					return nil, errors.Wrap(err, "failed to connect to eth1 client")
+				}
+
+				return &eth1Client{client: cl}, nil
+			},
+			func(contractAddress string, eth1Client eth1wrap.Eth1Client) (eth1wrap.Erc1271, error) {
+				addr := common.HexToAddress(contractAddress)
+				erc1271, err := erc1271.NewErc1271(addr, eth1Client.GetClient())
+				if err != nil {
+					return nil, errors.Wrap(err, "failed to create binding to ERC1271 contract")
+				}
+
+				return erc1271, nil
+			},
+		)
 		if err := lock.VerifySignatures(eth1Cl); err != nil {
 			return errors.Wrap(err, "invalid lock file")
 		}
