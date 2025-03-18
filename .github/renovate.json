@@ -6,6 +6,8 @@
   "enabledManagers": [
     "github-actions"
   ],
+  "dependencyDashboard": false,
+  "dependencyDashboardApproval": false,
   "packageRules": [
     {
       "matchManagers": [
