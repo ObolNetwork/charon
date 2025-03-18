@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"slices"
 
 	"golang.org/x/crypto/sha3"
 
@@ -64,7 +65,14 @@ func domainToType(domain Domain) Type {
 
 // HashTypedData returns the hash of the typed data.
 func HashTypedData(data TypedData) ([]byte, error) {
-	domainHash, err := hashData(domainToType(data.Domain))
+	domainType := domainToType(data.Domain)
+
+	// TODO(diogo): any better ideas?
+	if data.Type.Name == "TermsAndConditions" {
+		domainType.Fields = slices.Delete(domainType.Fields, 2, 3)
+	}
+
+	domainHash, err := hashData(domainType)
 	if err != nil {
 		return nil, err
 	}
