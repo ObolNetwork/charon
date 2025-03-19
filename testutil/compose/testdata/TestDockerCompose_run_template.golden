@@ -42,14 +42,6 @@
      "Value": "alpha"
     },
     {
-     "Key": "jaeger-service",
-     "Value": "node0"
-    },
-    {
-     "Key": "jaeger-address",
-     "Value": "jaeger:6831"
-    },
-    {
      "Key": "lock-file",
      "Value": "/compose/node0/cluster-lock.json"
     },
@@ -153,14 +145,6 @@
     {
      "Key": "feature-set",
      "Value": "alpha"
-    },
-    {
-     "Key": "jaeger-service",
-     "Value": "node1"
-    },
-    {
-     "Key": "jaeger-address",
-     "Value": "jaeger:6831"
     },
     {
      "Key": "lock-file",
@@ -268,14 +252,6 @@
      "Value": "alpha"
     },
     {
-     "Key": "jaeger-service",
-     "Value": "node2"
-    },
-    {
-     "Key": "jaeger-address",
-     "Value": "jaeger:6831"
-    },
-    {
      "Key": "lock-file",
      "Value": "/compose/node2/cluster-lock.json"
     },
@@ -379,14 +355,6 @@
     {
      "Key": "feature-set",
      "Value": "alpha"
-    },
-    {
-     "Key": "jaeger-service",
-     "Value": "node3"
-    },
-    {
-     "Key": "jaeger-address",
-     "Value": "jaeger:6831"
     },
     {
      "Key": "lock-file",
