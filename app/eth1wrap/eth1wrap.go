@@ -6,72 +6,50 @@ import (
 	"context"
 	"sync"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/ethclient"
-
 	"github.com/obolnetwork/charon/app/errors"
 )
 
 //go:generate abigen --abi=build/IERC1271.abi --pkg=erc1271 --out=generated/erc1271.go
-//go:generate mockery --name Eth1Client --output=mocks --outpkg=mocks --case=underscore
-//go:generate mockery --name Erc1271 --output=mocks --outpkg=mocks --case=underscore
-//go:generate mockery --name Client --output=mocks --outpkg=mocks --case=underscore
 
 var (
-	ErrEth1ClientNotConnected = errors.New("eth1 client is not connected")
-	erc1271MagicValue         = [4]byte{0x16, 0x26, 0xba, 0x7e}
+	ErrEthClientNotConnected = errors.New("eth1 client is not connected")
+	erc1271MagicValue        = [4]byte{0x16, 0x26, 0xba, 0x7e}
 )
 
-type Eth1ClientFactoryFn func(ctx context.Context, rawurl string) (Eth1Client, error)
-
-// Eth1Client is a JSON-RPC client for eth1.
-type Eth1Client interface {
-	Close()
-	BlockNumber(ctx context.Context) (uint64, error)
-	GetClient() *ethclient.Client
-}
-
-type Erc1271FactoryFn func(contractAddress string, eth1Client Eth1Client) (Erc1271, error)
-
-// Erc1271 is an interface for ERC-1271 smart contracts.
-type Erc1271 interface {
-	IsValidSignature(opts *bind.CallOpts, hash [32]byte, sig []byte) ([4]byte, error)
-}
-
-// NewEth1Client returns a initiliazed eth1 JSON-RPC client.
-func NewEth1Client(addr string, eth1clientFactory Eth1ClientFactoryFn, erc1271Factory Erc1271FactoryFn) *Client {
-	return &Client{
-		addr:                addr,
-		eth1clientFactoryFn: eth1clientFactory,
-		eth1client:          nil,
-		erc1271FactoryFn:    erc1271Factory,
-		reconnectCh:         make(chan struct{}, 1),
+// NewEthClientRunner returns a initialized EL client runner.
+func NewEthClientRunner(addr string, ethclientFactory EthClientFactoryFn, erc1271Factory Erc1271FactoryFn) EthClientRunner {
+	return &client{
+		addr:               addr,
+		ethclientFactoryFn: ethclientFactory,
+		eth1client:         nil,
+		erc1271FactoryFn:   erc1271Factory,
+		reconnectCh:        make(chan struct{}, 1),
 	}
 }
 
-// Client wraps a eth1 client
-type Client struct {
+// client wraps a eth1 client with reconnect logic.
+type client struct {
 	sync.Mutex
 
-	addr                string
-	eth1clientFactoryFn Eth1ClientFactoryFn
-	eth1client          Eth1Client
-	erc1271FactoryFn    Erc1271FactoryFn
-	reconnectCh         chan struct{}
+	addr               string
+	ethclientFactoryFn EthClientFactoryFn
+	eth1client         EthClient
+	erc1271FactoryFn   Erc1271FactoryFn
+	reconnectCh        chan struct{}
 }
 
 // Run starts the eth1 client and reconnects if necessary.
-func (cl *Client) Run(ctx context.Context) error {
+func (cl *client) Run(ctx context.Context) error {
 	defer func() {
 		close(cl.reconnectCh)
-		cl.closeClient()
+		cl.eth1client.Close()
 	}()
 
 	needReconnect := true
 
 	for {
 		if needReconnect {
-			eth1client, err := cl.eth1clientFactoryFn(ctx, cl.addr)
+			eth1client, err := cl.ethclientFactoryFn(ctx, cl.addr)
 			if err != nil {
 				// TODO: delay reconnect attempts
 				continue
@@ -88,17 +66,17 @@ func (cl *Client) Run(ctx context.Context) error {
 		if !needReconnect {
 			continue
 		}
-		cl.closeClient()
+		cl.close()
 	}
 }
 
 // VerifySmartContractBasedSignature returns true if sig is a valid signature of hash according to ERC-1271.
-func (cl *Client) VerifySmartContractBasedSignature(contractAddress string, hash [32]byte, sig []byte) (bool, error) {
+func (cl *client) VerifySmartContractBasedSignature(contractAddress string, hash [32]byte, sig []byte) (bool, error) {
 	cl.Lock()
 	defer cl.Unlock()
 
 	if cl.eth1client == nil {
-		return false, ErrEth1ClientNotConnected
+		return false, ErrEthClientNotConnected
 	}
 
 	erc1271, err := cl.erc1271FactoryFn(contractAddress, cl.eth1client)
@@ -115,11 +93,11 @@ func (cl *Client) VerifySmartContractBasedSignature(contractAddress string, hash
 	return result == erc1271MagicValue, nil
 }
 
-func (cl *Client) maybeReconnect() {
+func (cl *client) maybeReconnect() {
 	cl.reconnectCh <- struct{}{}
 }
 
-func (cl *Client) checkClientIsAlive(ctx context.Context) bool {
+func (cl *client) checkClientIsAlive(ctx context.Context) bool {
 	if cl.eth1client == nil {
 		return false
 	}
@@ -132,13 +110,14 @@ func (cl *Client) checkClientIsAlive(ctx context.Context) bool {
 	return true
 }
 
-func (cl *Client) setClient(client Eth1Client) {
+func (cl *client) setClient(client EthClient) {
 	cl.Lock()
 	defer cl.Unlock()
+
 	cl.eth1client = client
 }
 
-func (cl *Client) closeClient() {
+func (cl *client) close() {
 	cl.Lock()
 	defer cl.Unlock()
 

@@ -26,27 +26,6 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
-type eth1Client struct {
-	client *ethclient.Client
-}
-
-func (cl *eth1Client) Close() {
-	cl.client.Close()
-}
-
-func (cl *eth1Client) BlockNumber(ctx context.Context) (uint64, error) {
-	n, err := cl.client.BlockNumber(ctx)
-	if err != nil {
-		return 0, errors.Wrap(err, "failed to get block number")
-	}
-
-	return n, nil
-}
-
-func (cl *eth1Client) GetClient() *ethclient.Client {
-	return cl.client
-}
-
 // Combine combines validator private key shares contained in inputDir, and writes the original BLS12-381 private keys.
 // Combine is cluster-aware: it'll recombine all the validator keys listed in the "Validator" field of the lock file.
 // To do so place all the cluster nodes' ".charon" directories in inputDir renaming each.
@@ -315,18 +294,18 @@ func verifyLock(ctx context.Context, lock cluster.Lock, noverify bool, execution
 		log.Warn(ctx, "Ignoring failed cluster lock hash verification due to --no-verify flag", err)
 	}
 
-	eth1Cl := eth1wrap.NewEth1Client(executionEngineAddr,
-		func(ctx context.Context, url string) (eth1wrap.Eth1Client, error) {
+	eth1Cl := eth1wrap.NewEthClientRunner(executionEngineAddr,
+		func(ctx context.Context, url string) (eth1wrap.EthClient, error) {
 			cl, err := ethclient.DialContext(ctx, url)
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to connect to eth1 client")
 			}
 
-			return &eth1Client{client: cl}, nil
+			return cl, nil
 		},
-		func(contractAddress string, eth1Client eth1wrap.Eth1Client) (eth1wrap.Erc1271, error) {
+		func(contractAddress string, cl eth1wrap.EthClient) (eth1wrap.Erc1271, error) {
 			addr := common.HexToAddress(contractAddress)
-			erc1271, err := erc1271.NewErc1271(addr, eth1Client.GetClient())
+			erc1271, err := erc1271.NewErc1271(addr, cl)
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to create binding to ERC1271 contract")
 			}
