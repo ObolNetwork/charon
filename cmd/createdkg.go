@@ -167,18 +167,18 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	if err := def.VerifyHashes(); err != nil {
 		return err
 	}
-	eth1Cl := eth1wrap.NewEth1Client(conf.ExecutionEngineAddr,
-		func(ctx context.Context, url string) (eth1wrap.Eth1Client, error) {
+	eth1Cl := eth1wrap.NewEthClientRunner(conf.ExecutionEngineAddr,
+		func(ctx context.Context, url string) (eth1wrap.EthClient, error) {
 			cl, err := ethclient.DialContext(ctx, url)
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to connect to eth1 client")
 			}
 
-			return &eth1Client{client: cl}, nil
+			return cl, nil
 		},
-		func(contractAddress string, eth1Client eth1wrap.Eth1Client) (eth1wrap.Erc1271, error) {
+		func(contractAddress string, cl eth1wrap.EthClient) (eth1wrap.Erc1271, error) {
 			addr := common.HexToAddress(contractAddress)
-			erc1271, err := erc1271.NewErc1271(addr, eth1Client.GetClient())
+			erc1271, err := erc1271.NewErc1271(addr, cl)
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to create binding to ERC1271 contract")
 			}

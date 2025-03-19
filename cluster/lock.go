@@ -149,8 +149,8 @@ func (l Lock) VerifyHashes() error {
 
 // VerifySignatures returns true if all config signatures are fully populated and valid.
 // A verified lock is ready for use in charon run.
-func (l Lock) VerifySignatures(cl *eth1wrap.Client) error {
-	if err := l.Definition.VerifySignatures(cl); err != nil {
+func (l Lock) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
+	if err := l.Definition.VerifySignatures(eth1); err != nil {
 		return errors.Wrap(err, "invalid definition")
 	}
 
