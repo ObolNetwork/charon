@@ -23,7 +23,7 @@ import (
 const lateFactor = 5
 
 // lateMin defines the minimum absolute value of the lateFactor.
-const lateMin = time.Second * 30
+const lateMin = time.Second * 30 //nolint:revive // Min suffix is minimum not minute.
 
 // DeadlineFunc is a function that returns the deadline for a duty.
 type DeadlineFunc func(Duty) (time.Time, bool)

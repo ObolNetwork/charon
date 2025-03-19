@@ -107,6 +107,9 @@ func TestMagicValue(t *testing.T) {
 }
 
 func TestERC1271Implementation(t *testing.T) {
+	errCh := make(chan error)
+	createdConnection := make(chan struct{})
+
 	ecMock := mocks.NewEthClient(t)
 	ecMock.On("Close").Return().Maybe()
 
@@ -126,6 +129,7 @@ func TestERC1271Implementation(t *testing.T) {
 	client := NewEthClientRunner(
 		"http://localhost:8545",
 		func(ctx context.Context, rawurl string) (EthClient, error) {
+			close(createdConnection)
 			return ecMock, nil
 		},
 		func(contractAddress string, eth1Client EthClient) (Erc1271, error) {
@@ -138,14 +142,13 @@ func TestERC1271Implementation(t *testing.T) {
 
 	// Start the client
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	go func() {
-		_ = client.Run(ctx)
+		errCh <- client.Run(ctx)
 	}()
 
 	// Wait for client to initialize
-	time.Sleep(100 * time.Millisecond)
+	<-createdConnection
 
 	hash := [32]byte{1, 2, 3}
 	sig := []byte{4, 5, 6}
@@ -153,4 +156,9 @@ func TestERC1271Implementation(t *testing.T) {
 
 	require.NoError(t, err, "Should not return an error")
 	require.True(t, valid, "Signature should be valid")
+
+	cancel()
+	require.Eventually(t, func() bool {
+		return <-errCh == nil
+	}, 1*time.Second, 10*time.Millisecond)
 }
