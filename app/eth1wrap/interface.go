@@ -18,8 +18,6 @@ import (
 //go:generate mockery --name Erc1271 --output=mocks --outpkg=mocks --case=underscore
 //go:generate mockery --name EthClientRunner --output=mocks --outpkg=mocks --case=underscore
 
-var _ context.Context
-
 // EthClient defines the interface for the Ethereum EL RPC client.
 type EthClient interface {
 	Close()

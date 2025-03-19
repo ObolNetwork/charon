@@ -110,12 +110,14 @@ func TestClientRun(t *testing.T) {
 			mockEth1Client.On("BlockNumber", mock.Anything).Return(uint64(0),
 				errors.New("connection lost")).Once()
 			mockEth1Client.On("Close").Return().Once()
+
 			return mockEth1Client
 		}
 
 		createGoodClient := func() eth1wrap.EthClient {
 			mockEth1Client := mocks.NewEthClient(t)
 			mockEth1Client.On("Close").Return().Once()
+
 			return mockEth1Client
 		}
 
@@ -128,6 +130,7 @@ func TestClientRun(t *testing.T) {
 				if connectionAttempts.Load() == 1 {
 					return createFaultyClient(), nil
 				}
+
 				return createGoodClient(), nil
 			},
 			func(contractAddress string, eth1Client eth1wrap.EthClient) (eth1wrap.Erc1271, error) {
@@ -139,6 +142,7 @@ func TestClientRun(t *testing.T) {
 					mockErc1271.On("IsValidSignature", mock.Anything, mock.Anything, mock.Anything).
 						Return([4]byte{0x16, 0x26, 0xba, 0x7e}, nil).Once()
 				}
+
 				return mockErc1271, nil
 			},
 		)
