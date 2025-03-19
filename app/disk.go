@@ -5,12 +5,8 @@ package app
 import (
 	"context"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
-
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth1wrap"
-	erc1271 "github.com/obolnetwork/charon/app/eth1wrap/generated"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/manifest"
@@ -30,25 +26,7 @@ func loadClusterManifest(ctx context.Context, conf Config) (*manifestpb.Cluster,
 			log.Warn(ctx, "Ignoring failed cluster lock hash verification due to --no-verify flag", err)
 		}
 
-		eth1Cl := eth1wrap.NewEthClientRunner(conf.ExecutionEngineAddr,
-			func(ctx context.Context, url string) (eth1wrap.EthClient, error) {
-				cl, err := ethclient.DialContext(ctx, url)
-				if err != nil {
-					return nil, errors.Wrap(err, "failed to connect to eth1 client")
-				}
-
-				return cl, nil
-			},
-			func(contractAddress string, cl eth1wrap.EthClient) (eth1wrap.Erc1271, error) {
-				addr := common.HexToAddress(contractAddress)
-				erc1271, err := erc1271.NewErc1271(addr, cl)
-				if err != nil {
-					return nil, errors.Wrap(err, "failed to create binding to ERC1271 contract")
-				}
-
-				return erc1271, nil
-			},
-		)
+		eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
 
 		if err := lock.VerifySignatures(eth1Cl); err != nil && !conf.NoVerify {
 			return errors.Wrap(err, "cluster lock signature verification failed. Run with --no-verify to bypass verification at own risk")

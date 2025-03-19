@@ -6,7 +6,12 @@ import (
 	"context"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
+
 	"github.com/obolnetwork/charon/app/errors"
+	erc1271 "github.com/obolnetwork/charon/app/eth1wrap/generated"
+	"github.com/obolnetwork/charon/app/expbackoff"
 )
 
 //go:generate abigen --abi=build/IERC1271.abi --pkg=erc1271 --out=generated/erc1271.go
@@ -27,6 +32,28 @@ func NewEthClientRunner(addr string, ethclientFactory EthClientFactoryFn, erc127
 	}
 }
 
+func NewDefaultEthClientRunner(addr string) EthClientRunner {
+	return NewEthClientRunner(addr,
+		func(ctx context.Context, url string) (EthClient, error) {
+			cl, err := ethclient.DialContext(ctx, url)
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to connect to eth1 client")
+			}
+
+			return cl, nil
+		},
+		func(contractAddress string, cl EthClient) (Erc1271, error) {
+			addr := common.HexToAddress(contractAddress)
+			erc1271, err := erc1271.NewErc1271(addr, cl)
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to create binding to ERC1271 contract")
+			}
+
+			return erc1271, nil
+		},
+	)
+}
+
 // client wraps a eth1 client with reconnect logic.
 type client struct {
 	sync.Mutex
@@ -45,13 +72,16 @@ func (cl *client) Run(ctx context.Context) error {
 		cl.eth1client.Close()
 	}()
 
-	needReconnect := true
+	var (
+		needReconnect = true
+		backoff       = expbackoff.New(ctx, expbackoff.WithFastConfig())
+	)
 
 	for {
 		if needReconnect {
 			eth1client, err := cl.ethclientFactoryFn(ctx, cl.addr)
 			if err != nil {
-				// TODO: delay reconnect attempts
+				backoff()
 				continue
 			}
 			cl.setClient(eth1client)

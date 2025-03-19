@@ -51,10 +51,7 @@ func TestClientRun(t *testing.T) {
 		)
 
 		ctx, cancel := context.WithCancel(context.Background())
-		go func() {
-			time.Sleep(100 * time.Millisecond)
-			cancel()
-		}()
+		cancel()
 
 		err := client.Run(ctx)
 		require.NoError(t, err)
@@ -68,7 +65,8 @@ func TestClientRun(t *testing.T) {
 	// 6. Connection is closed
 	t.Run("connection failure", func(t *testing.T) {
 		connectionFailed := errors.New("connection failed")
-		attemptsCounter := 0
+		var attemptsCounter atomic.Int32
+		errCh := make(chan error)
 
 		mockEth1Client := mocks.NewEthClient(t)
 		mockEth1Client.On("Close").Return().Once()
@@ -76,8 +74,8 @@ func TestClientRun(t *testing.T) {
 		client := eth1wrap.NewEthClientRunner(
 			URL,
 			func(ctx context.Context, rawurl string) (eth1wrap.EthClient, error) {
-				attemptsCounter++
-				if attemptsCounter == 1 {
+				attemptsCounter.Add(1)
+				if attemptsCounter.Load() == 1 {
 					return nil, connectionFailed
 				}
 
@@ -89,14 +87,19 @@ func TestClientRun(t *testing.T) {
 		)
 
 		ctx, cancel := context.WithCancel(context.Background())
+
 		go func() {
-			time.Sleep(100 * time.Millisecond)
-			cancel()
+			errCh <- client.Run(ctx)
 		}()
 
-		err := client.Run(ctx)
-		require.NoError(t, err)
-		require.Greater(t, attemptsCounter, 1, "Should attempt to reconnect after failure")
+		require.Eventually(t, func() bool {
+			return attemptsCounter.Load() == 2
+		}, 1*time.Second, 10*time.Millisecond)
+
+		cancel()
+		require.Eventually(t, func() bool {
+			return <-errCh == nil
+		}, 1*time.Second, 10*time.Millisecond)
 	})
 
 	// 1. Create client connection
@@ -148,13 +151,11 @@ func TestClientRun(t *testing.T) {
 		)
 
 		ctx, cancel := context.WithCancel(context.Background())
-		doneCh := make(chan struct{})
+		errCh := make(chan error)
 
 		// Run client in a goroutine
 		go func() {
-			err := client.Run(ctx)
-			require.NoError(t, err)
-			close(doneCh)
+			errCh <- client.Run(ctx)
 		}()
 
 		// Wait for the first connection attempt
@@ -180,7 +181,9 @@ func TestClientRun(t *testing.T) {
 		require.EqualValues(t, connectionAttempts.Load(), 2, "Should attempt to reconnect after connection lost")
 
 		cancel()
-		<-doneCh
+		require.Eventually(t, func() bool {
+			return <-errCh == nil
+		}, 1*time.Second, 10*time.Millisecond)
 	})
 }
 
@@ -212,6 +215,7 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 			Return([4]byte{0x16, 0x26, 0xba, 0x7e}, nil).Once()
 
 		clientCreatedCh := make(chan struct{})
+		errCh := make(chan error)
 
 		client := eth1wrap.NewEthClientRunner(
 			URL,
@@ -226,10 +230,9 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 
 		// Start the client
 		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
 
 		go func() {
-			_ = client.Run(ctx)
+			errCh <- client.Run(ctx)
 		}()
 
 		// Wait for client to initialize
@@ -238,23 +241,29 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 		valid, err := client.VerifySmartContractBasedSignature("0x123", [32]byte{}, []byte{})
 		require.NoError(t, err)
 		require.True(t, valid)
+
+		cancel()
+		require.Eventually(t, func() bool {
+			return <-errCh == nil
+		}, 1*time.Second, 10*time.Millisecond)
 	})
 
 	t.Run("signature validation fails", func(t *testing.T) {
 		mockEth1Client := mocks.NewEthClient(t)
 		mockEth1Client.On("Close").Return().Maybe()
 
-		mockErc1271 := new(mocks.Erc1271)
+		mockErc1271 := mocks.NewErc1271(t)
 		// Return an invalid magic value
 		mockErc1271.On("IsValidSignature", mock.Anything, mock.Anything, mock.Anything).
 			Return([4]byte{0x00, 0x00, 0x00, 0x00}, nil).Maybe()
 
 		clientCreatedCh := make(chan struct{})
+		errCh := make(chan error)
 
 		client := eth1wrap.NewEthClientRunner(
 			URL,
 			func(ctx context.Context, rawurl string) (eth1wrap.EthClient, error) {
-				clientCreatedCh <- struct{}{}
+				close(clientCreatedCh)
 				return mockEth1Client, nil
 			},
 			func(contractAddress string, eth1Client eth1wrap.EthClient) (eth1wrap.Erc1271, error) {
@@ -263,10 +272,9 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 		)
 
 		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
 
 		go func() {
-			_ = client.Run(ctx)
+			errCh <- client.Run(ctx)
 		}()
 
 		// Wait for client to initialize
@@ -275,5 +283,10 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 		valid, err := client.VerifySmartContractBasedSignature("0x123", [32]byte{}, []byte{})
 		require.NoError(t, err)
 		require.False(t, valid)
+
+		cancel()
+		require.Eventually(t, func() bool {
+			return <-errCh == nil
+		}, 1*time.Second, 10*time.Millisecond)
 	})
 }
