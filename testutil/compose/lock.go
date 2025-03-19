@@ -130,8 +130,6 @@ func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 
 	// Define run config
 	return append(kvs,
-		kv{"jaeger-service", fmt.Sprintf("node%d", index)},
-		kv{"jaeger-address", "jaeger:6831"},
 		kv{"lock-file", lockFile},
 		kv{"validator-api-address", "0.0.0.0:3600"},
 		kv{"beacon-node-endpoints", beaconNode},

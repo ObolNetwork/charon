@@ -81,8 +81,6 @@ func TestCmdFlags(t *testing.T) {
 				BeaconNodeAddrs:         []string{"http://beacon.node"},
 				BeaconNodeTimeout:       2 * time.Second,
 				BeaconNodeSubmitTimeout: 2 * time.Second,
-				JaegerAddr:              "",
-				JaegerService:           "charon",
 			},
 		},
 		{

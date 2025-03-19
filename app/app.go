@@ -1036,16 +1036,13 @@ func wireVAPIRouter(ctx context.Context, life *lifecycle.Manager, vapiAddr strin
 }
 
 // wireTracing constructs the global tracer and registers it with the life cycle manager.
-func wireTracing(life *lifecycle.Manager, conf Config) error {
-	stopjaeger, err := tracer.Init(
-		tracer.WithJaegerOrNoop(conf.JaegerAddr),
-		tracer.WithJaegerService(conf.JaegerService),
-	)
+func wireTracing(life *lifecycle.Manager, _ Config) error {
+	stopTracer, err := tracer.Init()
 	if err != nil {
-		return errors.Wrap(err, "init jaeger tracing")
+		return errors.Wrap(err, "init tracing")
 	}
 
-	life.RegisterStop(lifecycle.StopTracing, lifecycle.HookFunc(stopjaeger))
+	life.RegisterStop(lifecycle.StopTracing, lifecycle.HookFunc(stopTracer))
 
 	return nil
 }

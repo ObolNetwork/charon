@@ -6,21 +6,20 @@ package tracer
 import (
 	"context"
 	"io"
-	"net"
 
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
 
 // tracer is the global app level tracer, it defaults to a noop tracer.
-var tracer = trace.NewNoopTracerProvider().Tracer("")
+var tracer = noop.NewTracerProvider().Tracer("")
 
 // Start creates a span and a context.Context containing the newly-created span from the global tracer.
 // See go.opentelemetry.io/otel/trace#Start for more details.
@@ -54,7 +53,7 @@ func Init(opts ...func(*options)) (func(context.Context) error, error) {
 		return nil, err
 	}
 
-	tp := newTraceProvider(exp, o.jaegerService)
+	tp := newTraceProvider(exp, "")
 
 	// Set globals
 	otel.SetTracerProvider(tp)
@@ -64,8 +63,7 @@ func Init(opts ...func(*options)) (func(context.Context) error, error) {
 }
 
 type options struct {
-	jaegerService string
-	expFunc       func() (sdktrace.SpanExporter, error)
+	expFunc func() (sdktrace.SpanExporter, error)
 }
 
 // WithStdOut returns an option to configure an OpenTelemetry exporter for tracing
@@ -75,46 +73,7 @@ func WithStdOut(w io.Writer) func(*options) {
 		o.expFunc = func() (sdktrace.SpanExporter, error) {
 			ex, err := stdouttrace.New(stdouttrace.WithWriter(w))
 			if err != nil {
-				return nil, errors.Wrap(err, "jaeger exporter")
-			}
-
-			return ex, nil
-		}
-	}
-}
-
-// WithJaegerOrNoop returns an option to configure an OpenTelemetry tracing exporter for Jaeger
-// if the address is not empty, else the default noop tracer is retained.
-func WithJaegerOrNoop(jaegerAddr string) func(*options) {
-	if jaegerAddr == "" {
-		return func(*options) {}
-	}
-
-	return WithJaeger(jaegerAddr)
-}
-
-// WithJaegerService returns an option to configure the jaeger service name.
-func WithJaegerService(service string) func(*options) {
-	return func(o *options) {
-		o.jaegerService = service
-	}
-}
-
-// WithJaeger returns an option to configure an OpenTelemetry tracing exporter for Jaeger.
-func WithJaeger(addr string) func(*options) {
-	return func(o *options) {
-		o.expFunc = func() (sdktrace.SpanExporter, error) {
-			host, port, err := net.SplitHostPort(addr)
-			if err != nil {
-				return nil, errors.Wrap(err, "parse jaeger address (host:port)")
-			}
-
-			ex, err := jaeger.New(jaeger.WithAgentEndpoint(
-				jaeger.WithAgentHost(host),
-				jaeger.WithAgentPort(port),
-			))
-			if err != nil {
-				return nil, errors.Wrap(err, "jaeger exporter")
+				return nil, errors.Wrap(err, "stdouttrace error")
 			}
 
 			return ex, nil
