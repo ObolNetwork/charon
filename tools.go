@@ -20,7 +20,7 @@ import (
 //go:generate go install golang.org/x/tools/cmd/stringer
 
 //go:generate echo Installing tools: mockery
-//go install github.com/vektra/mockery/v2@v2.42.1
+//go:generate go install github.com/vektra/mockery/v2@v2.42.1
 
 //go:generate echo Installing tools: protobuf
 //go:generate go install github.com/bufbuild/buf/cmd/buf@latest
