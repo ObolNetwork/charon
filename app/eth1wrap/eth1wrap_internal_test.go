@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/obolnetwork/charon/app/eth1wrap/mocks"
-
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/app/eth1wrap/mocks"
 )
 
 func TestSetClient(t *testing.T) {
