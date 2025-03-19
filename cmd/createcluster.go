@@ -964,6 +964,7 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 	}
 
 	eth1Cl := eth1wrap.NewDefaultEthClientRunner(executionEngineAddr)
+	go eth1Cl.Run(ctx)
 
 	if err = def.VerifySignatures(eth1Cl); err != nil {
 		return err

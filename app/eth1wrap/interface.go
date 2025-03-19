@@ -70,7 +70,7 @@ type EthClientFactoryFn func(ctx context.Context, rawurl string) (EthClient, err
 
 // EthClientRunner is a JSON-RPC client for eth with reconnect logic.
 type EthClientRunner interface {
-	Run(ctx context.Context) error
+	Run(ctx context.Context)
 	VerifySmartContractBasedSignature(contractAddress string, hash [32]byte, sig []byte) (bool, error)
 }
 

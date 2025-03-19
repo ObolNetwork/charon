@@ -18,7 +18,7 @@ import (
 
 const URL = "http://localhost:8545"
 
-func TestNewEth1Client(t *testing.T) {
+func TestNewEthClientRunner(t *testing.T) {
 	client := eth1wrap.NewEthClientRunner(
 		URL,
 		func(ctx context.Context, rawurl string) (eth1wrap.EthClient, error) {
@@ -30,6 +30,11 @@ func TestNewEth1Client(t *testing.T) {
 	)
 
 	require.NotNil(t, client, "NewEth1Client should return a non-nil client")
+}
+
+func TestNewDefaultEthClientRunner(t *testing.T) {
+	client := eth1wrap.NewDefaultEthClientRunner(URL)
+	require.NotNil(t, client, "NewDefaultEth1Client should return a non-nil client")
 }
 
 func TestClientRun(t *testing.T) {
@@ -53,8 +58,7 @@ func TestClientRun(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		err := client.Run(ctx)
-		require.NoError(t, err)
+		client.Run(ctx)
 	})
 
 	// 1. Create client connection
@@ -66,7 +70,7 @@ func TestClientRun(t *testing.T) {
 	t.Run("connection failure", func(t *testing.T) {
 		connectionFailed := errors.New("connection failed")
 		var attemptsCounter atomic.Int32
-		errCh := make(chan error)
+		doneCh := make(chan struct{})
 
 		mockEth1Client := mocks.NewEthClient(t)
 		mockEth1Client.On("Close").Return().Once()
@@ -89,7 +93,8 @@ func TestClientRun(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		go func() {
-			errCh <- client.Run(ctx)
+			client.Run(ctx)
+			close(doneCh)
 		}()
 
 		require.Eventually(t, func() bool {
@@ -98,7 +103,8 @@ func TestClientRun(t *testing.T) {
 
 		cancel()
 		require.Eventually(t, func() bool {
-			return <-errCh == nil
+			<-doneCh
+			return true
 		}, 1*time.Second, 10*time.Millisecond)
 	})
 
@@ -151,11 +157,12 @@ func TestClientRun(t *testing.T) {
 		)
 
 		ctx, cancel := context.WithCancel(context.Background())
-		errCh := make(chan error)
+		doneCh := make(chan struct{})
 
 		// Run client in a goroutine
 		go func() {
-			errCh <- client.Run(ctx)
+			client.Run(ctx)
+			close(doneCh)
 		}()
 
 		// Wait for the first connection attempt
@@ -182,7 +189,8 @@ func TestClientRun(t *testing.T) {
 
 		cancel()
 		require.Eventually(t, func() bool {
-			return <-errCh == nil
+			<-doneCh
+			return true
 		}, 1*time.Second, 10*time.Millisecond)
 	})
 }
@@ -215,7 +223,7 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 			Return([4]byte{0x16, 0x26, 0xba, 0x7e}, nil).Once()
 
 		clientCreatedCh := make(chan struct{})
-		errCh := make(chan error)
+		doneCh := make(chan struct{})
 
 		client := eth1wrap.NewEthClientRunner(
 			URL,
@@ -232,7 +240,8 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		go func() {
-			errCh <- client.Run(ctx)
+			client.Run(ctx)
+			close(doneCh)
 		}()
 
 		// Wait for client to initialize
@@ -244,7 +253,8 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 
 		cancel()
 		require.Eventually(t, func() bool {
-			return <-errCh == nil
+			<-doneCh
+			return true
 		}, 1*time.Second, 10*time.Millisecond)
 	})
 
@@ -258,7 +268,7 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 			Return([4]byte{0x00, 0x00, 0x00, 0x00}, nil).Maybe()
 
 		clientCreatedCh := make(chan struct{})
-		errCh := make(chan error)
+		doneCh := make(chan struct{})
 
 		client := eth1wrap.NewEthClientRunner(
 			URL,
@@ -274,7 +284,8 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		go func() {
-			errCh <- client.Run(ctx)
+			client.Run(ctx)
+			close(doneCh)
 		}()
 
 		// Wait for client to initialize
@@ -286,7 +297,8 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 
 		cancel()
 		require.Eventually(t, func() bool {
-			return <-errCh == nil
+			<-doneCh
+			return true
 		}, 1*time.Second, 10*time.Millisecond)
 	})
 }

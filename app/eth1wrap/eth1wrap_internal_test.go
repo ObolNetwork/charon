@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -107,7 +106,6 @@ func TestMagicValue(t *testing.T) {
 }
 
 func TestERC1271Implementation(t *testing.T) {
-	errCh := make(chan error)
 	createdConnection := make(chan struct{})
 
 	ecMock := mocks.NewEthClient(t)
@@ -143,9 +141,7 @@ func TestERC1271Implementation(t *testing.T) {
 	// Start the client
 	ctx, cancel := context.WithCancel(context.Background())
 
-	go func() {
-		errCh <- client.Run(ctx)
-	}()
+	go client.Run(ctx)
 
 	// Wait for client to initialize
 	<-createdConnection
@@ -158,7 +154,4 @@ func TestERC1271Implementation(t *testing.T) {
 	require.True(t, valid, "Signature should be valid")
 
 	cancel()
-	require.Eventually(t, func() bool {
-		return <-errCh == nil
-	}, 1*time.Second, 10*time.Millisecond)
 }

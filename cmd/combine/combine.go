@@ -291,6 +291,7 @@ func verifyLock(ctx context.Context, lock cluster.Lock, noverify bool, execution
 	}
 
 	eth1Cl := eth1wrap.NewDefaultEthClientRunner(executionEngineAddr)
+	go eth1Cl.Run(ctx)
 
 	if err := lock.VerifySignatures(eth1Cl); err != nil && !noverify {
 		return errors.Wrap(err, "cluster lock signature verification failed. Run with --no-verify to bypass verification at own risk")
