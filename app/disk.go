@@ -27,6 +27,7 @@ func loadClusterManifest(ctx context.Context, conf Config) (*manifestpb.Cluster,
 		}
 
 		eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
+		go eth1Cl.Run(ctx)
 
 		if err := lock.VerifySignatures(eth1Cl); err != nil && !conf.NoVerify {
 			return errors.Wrap(err, "cluster lock signature verification failed. Run with --no-verify to bypass verification at own risk")

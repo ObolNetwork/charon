@@ -72,6 +72,7 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 	}
 
 	eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
+	go eth1Cl.Run(ctx)
 
 	if err := def.VerifySignatures(eth1Cl); err != nil && !conf.NoVerify {
 		return cluster.Definition{}, errors.Wrap(err, "cluster definition signature verification failed. Run with --no-verify to bypass verification at own risk")

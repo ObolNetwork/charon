@@ -21,7 +21,7 @@ var (
 	erc1271MagicValue        = [4]byte{0x16, 0x26, 0xba, 0x7e}
 )
 
-// NewEthClientRunner returns a initialized EL client runner.
+// NewEthClientRunner returns an uninitialized EL client runner.
 func NewEthClientRunner(addr string, ethclientFactory EthClientFactoryFn, erc1271Factory Erc1271FactoryFn) EthClientRunner {
 	return &client{
 		addr:               addr,
@@ -32,6 +32,7 @@ func NewEthClientRunner(addr string, ethclientFactory EthClientFactoryFn, erc127
 	}
 }
 
+// NewDefaultEthClientRunner returns an uninitialized EL client runner with default implementations.
 func NewDefaultEthClientRunner(addr string) EthClientRunner {
 	return NewEthClientRunner(addr,
 		func(ctx context.Context, url string) (EthClient, error) {
@@ -66,7 +67,7 @@ type client struct {
 }
 
 // Run starts the eth1 client and reconnects if necessary.
-func (cl *client) Run(ctx context.Context) error {
+func (cl *client) Run(ctx context.Context) {
 	defer func() {
 		close(cl.reconnectCh)
 		cl.eth1client.Close()
@@ -88,7 +89,7 @@ func (cl *client) Run(ctx context.Context) error {
 		}
 		select {
 		case <-ctx.Done():
-			return nil
+			return
 		case <-cl.reconnectCh:
 		}
 
