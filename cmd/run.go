@@ -79,7 +79,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().DurationVar(&config.BeaconNodeSubmitTimeout, "beacon-node-submit-timeout", eth2ClientTimeout, "Timeout for the submission-related HTTP requests Charon makes to the configured beacon nodes.")
 	cmd.Flags().StringVar(&config.ValidatorAPIAddr, "validator-api-address", "127.0.0.1:3600", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API.")
 	cmd.Flags().StringVar(&config.JaegerAddr, "jaeger-address", "", "[DEPRECATED] Listening address for jaeger tracing.")
-	cmd.Flags().StringVar(&config.JaegerService, "jaeger-service", "charon", "[DEPRECATED] Service name used for jaeger tracing.")
+	cmd.Flags().StringVar(&config.JaegerService, "jaeger-service", "", "[DEPRECATED] Service name used for jaeger tracing.")
 	cmd.Flags().BoolVar(&config.SimnetBMock, "simnet-beacon-mock", false, "Enables an internal mock beacon node for running a simnet.")
 	cmd.Flags().BoolVar(&config.SimnetVMock, "simnet-validator-mock", false, "Enables an internal mock validator client when running a simnet. Requires simnet-beacon-mock.")
 	cmd.Flags().StringVar(&config.SimnetValidatorKeysDir, "simnet-validator-keys-dir", ".charon/validator_keys", "The directory containing the simnet validator key shares.")

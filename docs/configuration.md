@@ -170,7 +170,7 @@ Flags:
       --feature-set-enable strings               Comma-separated list of features to enable, overriding the default minimum feature set.
   -h, --help                                     Help for run
       --jaeger-address string                    [DEPRECATED] Listening address for jaeger tracing.
-      --jaeger-service string                    [DEPRECATED] Service name used for jaeger tracing. (default "charon")
+      --jaeger-service string                    [DEPRECATED] Service name used for jaeger tracing.
       --lock-file string                         The path to the cluster lock file defining the distributed validator cluster. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence. (default ".charon/cluster-lock.json")
       --log-color string                         Log color; auto, force, disable. (default "auto")
       --log-format string                        Log format; console, logfmt or json (default "console")
