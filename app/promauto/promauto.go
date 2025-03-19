@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Package promauto is a drop-in replacement of github.com/prometheus/client_golang/prometheus/promauto
 // and adds support for wrapping all metrics with runtime labels.

@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package metrics_test
 

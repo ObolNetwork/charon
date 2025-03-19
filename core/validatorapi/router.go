@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Package validatorapi defines validator facing API that serves the subset of
 // endpoints related to distributed validation and reverse-proxies the rest to the
