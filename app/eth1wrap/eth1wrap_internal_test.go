@@ -4,47 +4,47 @@ package eth1wrap
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
+	"github.com/obolnetwork/charon/app/eth1wrap/mocks"
+
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-
-	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/eth1wrap/mocks"
 )
 
 func TestSetClient(t *testing.T) {
-	client := &Client{
+	client := &client{
 		addr:        "http://localhost:8545",
 		reconnectCh: make(chan struct{}, 1),
 	}
 
-	mockEth1Client := mocks.NewEth1Client(t)
-	client.setClient(mockEth1Client)
+	newNativeClient := &ethclient.Client{}
+	client.setClient(newNativeClient)
 
-	require.Equal(t, mockEth1Client, client.eth1client, "Client should be set correctly")
+	require.Equal(t, newNativeClient, client.eth1client)
 }
 
 func TestCloseClient(t *testing.T) {
-	mockEth1Client := mocks.NewEth1Client(t)
-	mockEth1Client.On("Close").Return().Once()
+	ecMock := mocks.NewEthClient(t)
+	ecMock.On("Close").Return().Once()
 
-	client := &Client{
+	client := &client{
 		addr:        "http://localhost:8545",
-		eth1client:  mockEth1Client,
+		eth1client:  ecMock,
 		reconnectCh: make(chan struct{}, 1),
 	}
 
-	client.closeClient()
+	client.close()
 
 	require.Nil(t, client.eth1client, "Client should be nil after closing")
-	mockEth1Client.AssertExpectations(t)
 }
 
 func TestMaybeReconnect(t *testing.T) {
-	client := &Client{
+	client := &client{
 		addr:        "http://localhost:8545",
 		reconnectCh: make(chan struct{}, 1),
 	}
@@ -60,8 +60,10 @@ func TestMaybeReconnect(t *testing.T) {
 }
 
 func TestCheckClientIsAlive(t *testing.T) {
-	t.Run("client_is_nil", func(t *testing.T) {
-		client := &Client{
+	ecMock := mocks.NewEthClient(t)
+
+	t.Run("client is nil", func(t *testing.T) {
+		client := &client{
 			addr:        "http://localhost:8545",
 			eth1client:  nil,
 			reconnectCh: make(chan struct{}, 1),
@@ -71,34 +73,30 @@ func TestCheckClientIsAlive(t *testing.T) {
 		require.False(t, isAlive, "Client should not be alive when nil")
 	})
 
-	t.Run("client_is_alive", func(t *testing.T) {
-		mockEth1Client := mocks.NewEth1Client(t)
-		mockEth1Client.On("BlockNumber", mock.Anything).Return(uint64(12345), nil)
+	t.Run("client is alive", func(t *testing.T) {
+		ecMock.On("BlockNumber", mock.Anything).Return(uint64(1), nil).Once()
 
-		client := &Client{
+		client := &client{
 			addr:        "http://localhost:8545",
-			eth1client:  mockEth1Client,
+			eth1client:  ecMock,
 			reconnectCh: make(chan struct{}, 1),
 		}
 
 		isAlive := client.checkClientIsAlive(context.Background())
 		require.True(t, isAlive, "Client should be alive when BlockNumber succeeds")
-		mockEth1Client.AssertExpectations(t)
 	})
 
-	t.Run("client_is_not_alive", func(t *testing.T) {
-		mockEth1Client := mocks.NewEth1Client(t)
-		mockEth1Client.On("BlockNumber", mock.Anything).Return(uint64(0), errors.New("connection error"))
+	t.Run("client is not alive", func(t *testing.T) {
+		ecMock.On("BlockNumber", mock.Anything).Return(uint64(0), errors.New("no luck")).Once()
 
-		client := &Client{
+		client := &client{
 			addr:        "http://localhost:8545",
-			eth1client:  mockEth1Client,
+			eth1client:  ecMock,
 			reconnectCh: make(chan struct{}, 1),
 		}
 
 		isAlive := client.checkClientIsAlive(context.Background())
 		require.False(t, isAlive, "Client should not be alive when BlockNumber fails")
-		mockEth1Client.AssertExpectations(t)
 	})
 }
 
@@ -109,8 +107,8 @@ func TestMagicValue(t *testing.T) {
 }
 
 func TestERC1271Implementation(t *testing.T) {
-	mockEth1Client := mocks.NewEth1Client(t)
-	mockEth1Client.On("Close").Return().Maybe()
+	ecMock := mocks.NewEthClient(t)
+	ecMock.On("Close").Return().Maybe()
 
 	mockErc1271 := mocks.NewErc1271(t)
 	mockErc1271.On("IsValidSignature", mock.Anything, mock.Anything, mock.Anything).
@@ -125,14 +123,14 @@ func TestERC1271Implementation(t *testing.T) {
 		}).
 		Return(erc1271MagicValue, nil).Once()
 
-	client := NewEth1Client(
+	client := NewEthClientRunner(
 		"http://localhost:8545",
-		func(ctx context.Context, rawurl string) (Eth1Client, error) {
-			return mockEth1Client, nil
+		func(ctx context.Context, rawurl string) (EthClient, error) {
+			return ecMock, nil
 		},
-		func(contractAddress string, eth1Client Eth1Client) (Erc1271, error) {
+		func(contractAddress string, eth1Client EthClient) (Erc1271, error) {
 			require.Equal(t, "0x123", contractAddress, "Contract address should be passed to factory")
-			require.Equal(t, mockEth1Client, eth1Client, "Eth1Client should be passed to factory")
+			require.Equal(t, ecMock, eth1Client, "Eth1Client should be passed to factory")
 
 			return mockErc1271, nil
 		},
@@ -155,7 +153,4 @@ func TestERC1271Implementation(t *testing.T) {
 
 	require.NoError(t, err, "Should not return an error")
 	require.True(t, valid, "Signature should be valid")
-
-	mockEth1Client.AssertExpectations(t)
-	mockErc1271.AssertExpectations(t)
 }
