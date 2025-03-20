@@ -12,12 +12,13 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 )
 
-func newCombineCmd(runFunc func(ctx context.Context, clusterDir, outputDir string, force, noverify bool, testnetConfig eth2util.Network) error) *cobra.Command {
+func newCombineCmd(runFunc func(ctx context.Context, clusterDir, outputDir string, force, noverify bool, executionEngineAddr string, testnetConfig eth2util.Network) error) *cobra.Command {
 	var (
-		clusterDir string
-		outputDir  string
-		force      bool
-		noverify   bool
+		clusterDir          string
+		outputDir           string
+		force               bool
+		noverify            bool
+		executionEngineAddr string
 
 		testnetConfig eth2util.Network
 	)
@@ -34,6 +35,7 @@ func newCombineCmd(runFunc func(ctx context.Context, clusterDir, outputDir strin
 				outputDir,
 				force,
 				noverify,
+				executionEngineAddr,
 				testnetConfig,
 			)
 		},
@@ -44,6 +46,7 @@ func newCombineCmd(runFunc func(ctx context.Context, clusterDir, outputDir strin
 		&clusterDir,
 		&outputDir,
 		&force,
+		&executionEngineAddr,
 		&testnetConfig,
 	)
 
@@ -52,14 +55,15 @@ func newCombineCmd(runFunc func(ctx context.Context, clusterDir, outputDir strin
 	return cmd
 }
 
-func newCombineFunc(ctx context.Context, clusterDir, outputDir string, force, noverify bool, testnetConfig eth2util.Network) error {
-	return combine.Combine(ctx, clusterDir, outputDir, force, noverify, testnetConfig)
+func newCombineFunc(ctx context.Context, clusterDir, outputDir string, force, noverify bool, executionEngineAddr string, testnetConfig eth2util.Network) error {
+	return combine.Combine(ctx, clusterDir, outputDir, force, noverify, executionEngineAddr, testnetConfig)
 }
 
-func bindCombineFlags(flags *pflag.FlagSet, clusterDir, outputDir *string, force *bool, config *eth2util.Network) {
+func bindCombineFlags(flags *pflag.FlagSet, clusterDir, outputDir *string, force *bool, executionEngineAddr *string, config *eth2util.Network) {
 	flags.StringVar(clusterDir, "cluster-dir", ".charon/cluster", `Parent directory containing a number of .charon subdirectories from the required threshold of nodes in the cluster.`)
 	flags.StringVar(outputDir, "output-dir", "./validator_keys", "Directory to output the combined private keys to.")
 	flags.BoolVar(force, "force", false, "Overwrites private keys with the same name if present.")
+	flags.StringVar(executionEngineAddr, "execution-client-rpc-endpoint", "", "The address of the execution engine JSON-RPC API.")
 	flags.StringVar(&config.Name, "testnet-name", "", "Name of the custom test network.")
 	flags.StringVar(&config.GenesisForkVersionHex, "testnet-fork-version", "", "Genesis fork version of the custom test network (in hex).")
 	flags.Uint64Var(&config.ChainID, "testnet-chain-id", 0, "Chain ID of the custom test network.")

@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
@@ -26,7 +27,7 @@ import (
 )
 
 // loadDefinition returns the cluster definition from disk or an HTTP URL. It returns the test definition if configured.
-func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error) {
+func loadDefinition(ctx context.Context, conf Config, eth1Cl eth1wrap.EthClientRunner) (cluster.Definition, error) {
 	if conf.TestConfig.Def != nil {
 		return *conf.TestConfig.Def, nil
 	}
@@ -64,14 +65,13 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 	}
 
 	// Verify
-
 	if err := def.VerifyHashes(); err != nil && !conf.NoVerify {
 		return cluster.Definition{}, errors.Wrap(err, "cluster definition hashes verification failed. Run with --no-verify to bypass verification at own risk")
 	} else if err != nil && conf.NoVerify {
 		log.Warn(ctx, "Ignoring failed cluster definition hashes verification due to --no-verify flag", err)
 	}
 
-	if err := def.VerifySignatures(); err != nil && !conf.NoVerify {
+	if err := def.VerifySignatures(eth1Cl); err != nil && !conf.NoVerify {
 		return cluster.Definition{}, errors.Wrap(err, "cluster definition signature verification failed. Run with --no-verify to bypass verification at own risk")
 	} else if err != nil && conf.NoVerify {
 		log.Warn(ctx, "Ignoring failed cluster definition signature verification due to --no-verify flag", err)

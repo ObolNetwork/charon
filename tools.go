@@ -20,7 +20,7 @@ import (
 //go:generate go install golang.org/x/tools/cmd/stringer
 
 //go:generate echo Installing tools: mockery
-//go install github.com/vektra/mockery/v2@v2.42.1
+//go install github.com/vektra/mockery/v2@v2.53.3
 
 //go:generate echo Installing tools: protobuf
 //go:generate go install github.com/bufbuild/buf/cmd/buf@latest
@@ -30,3 +30,6 @@ import (
 
 //go:generate echo Installing tools: compose
 //go:generate go install github.com/obolnetwork/charon/testutil/compose/compose
+
+//go:generate echo Installing tools: abigen
+//go:generate go install github.com/ethereum/go-ethereum/cmd/abigen@latest

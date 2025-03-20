@@ -269,7 +269,7 @@ func TestExamples(t *testing.T) {
 			require.NoError(t, err)
 
 			require.NoError(t, lock.VerifyHashes())
-			require.NoError(t, lock.VerifySignatures())
+			require.NoError(t, lock.VerifySignatures(nil))
 		})
 	}
 
@@ -285,7 +285,7 @@ func TestExamples(t *testing.T) {
 			err = json.Unmarshal(b, &def)
 			require.NoError(t, err)
 			require.NoError(t, def.VerifyHashes())
-			require.NoError(t, def.VerifySignatures())
+			require.NoError(t, def.VerifySignatures(nil))
 		})
 	}
 }
