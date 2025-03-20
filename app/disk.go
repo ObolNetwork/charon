@@ -14,7 +14,7 @@ import (
 )
 
 // loadClusterManifest returns the cluster manifest from the given file path.
-func loadClusterManifest(ctx context.Context, conf Config) (*manifestpb.Cluster, error) {
+func loadClusterManifest(ctx context.Context, conf Config, eth1Cl eth1wrap.EthClientRunner) (*manifestpb.Cluster, error) {
 	if conf.TestConfig.Lock != nil {
 		return manifest.NewClusterFromLockForT(nil, *conf.TestConfig.Lock)
 	}
@@ -25,9 +25,6 @@ func loadClusterManifest(ctx context.Context, conf Config) (*manifestpb.Cluster,
 		} else if err != nil && conf.NoVerify {
 			log.Warn(ctx, "Ignoring failed cluster lock hash verification due to --no-verify flag", err)
 		}
-
-		eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
-		go eth1Cl.Run(ctx)
 
 		if err := lock.VerifySignatures(eth1Cl); err != nil && !conf.NoVerify {
 			return errors.Wrap(err, "cluster lock signature verification failed. Run with --no-verify to bypass verification at own risk")
