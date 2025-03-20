@@ -27,7 +27,7 @@ import (
 )
 
 // loadDefinition returns the cluster definition from disk or an HTTP URL. It returns the test definition if configured.
-func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error) {
+func loadDefinition(ctx context.Context, conf Config, eth1Cl eth1wrap.EthClientRunner) (cluster.Definition, error) {
 	if conf.TestConfig.Def != nil {
 		return *conf.TestConfig.Def, nil
 	}
@@ -70,9 +70,6 @@ func loadDefinition(ctx context.Context, conf Config) (cluster.Definition, error
 	} else if err != nil && conf.NoVerify {
 		log.Warn(ctx, "Ignoring failed cluster definition hashes verification due to --no-verify flag", err)
 	}
-
-	eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
-	go eth1Cl.Run(ctx)
 
 	if err := def.VerifySignatures(eth1Cl); err != nil && !conf.NoVerify {
 		return cluster.Definition{}, errors.Wrap(err, "cluster definition signature verification failed. Run with --no-verify to bypass verification at own risk")

@@ -18,6 +18,7 @@ import (
 
 var (
 	ErrEthClientNotConnected = errors.New("eth1 client is not connected")
+	ErrNoExecutionEngineAddr = errors.New("execution engine endpoint is not set")
 	erc1271MagicValue        = [4]byte{0x16, 0x26, 0xba, 0x7e}
 )
 
@@ -32,8 +33,12 @@ func NewEthClientRunner(addr string, ethclientFactory EthClientFactoryFn, erc127
 	}
 }
 
-// NewDefaultEthClientRunner returns an uninitialized EL client runner with default implementations.
+// NewDefaultEthClientRunner returns an uninitialized EL client runner with default implementations or a noop if no address is provided.
 func NewDefaultEthClientRunner(addr string) EthClientRunner {
+	if addr == "" {
+		return noopClient{}
+	}
+
 	return NewEthClientRunner(addr,
 		func(ctx context.Context, url string) (EthClient, error) {
 			cl, err := ethclient.DialContext(ctx, url)
@@ -55,7 +60,7 @@ func NewDefaultEthClientRunner(addr string) EthClientRunner {
 	)
 }
 
-// client wraps a eth1 client with reconnect logic.
+// client is an implementation of EthClientRunner.
 type client struct {
 	sync.Mutex
 
@@ -122,6 +127,15 @@ func (cl *client) VerifySmartContractBasedSignature(contractAddress string, hash
 	}
 
 	return result == erc1271MagicValue, nil
+}
+
+// noopClient is a no-op implementation of EthClientRunner when address is not set.
+type noopClient struct{}
+
+func (noopClient) Run(_ context.Context) {}
+
+func (noopClient) VerifySmartContractBasedSignature(_ string, _ [32]byte, _ []byte) (bool, error) {
+	return false, ErrNoExecutionEngineAddr
 }
 
 func (cl *client) maybeReconnect() {

@@ -155,3 +155,10 @@ func TestERC1271Implementation(t *testing.T) {
 
 	cancel()
 }
+
+func TestNoopClientCreation(t *testing.T) {
+	client := NewDefaultEthClientRunner("")
+
+	require.NotNil(t, client, "Client should be created")
+	require.IsType(t, noopClient{}, client, "Client should be a noopClient")
+}

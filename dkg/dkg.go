@@ -108,7 +108,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	version.LogInfo(ctx, "Charon DKG starting")
 
-	def, err := loadDefinition(ctx, conf)
+	eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
+	go eth1Cl.Run(ctx)
+
+	def, err := loadDefinition(ctx, conf, eth1Cl)
 	if err != nil {
 		return err
 	}
@@ -317,9 +320,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	if !conf.NoVerify {
-		eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
-		go eth1Cl.Run(ctx)
-
 		if err := lock.VerifySignatures(eth1Cl); err != nil {
 			return errors.Wrap(err, "invalid lock file")
 		}

@@ -302,3 +302,26 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 		}, 1*time.Second, 10*time.Millisecond)
 	})
 }
+
+func TestNoopClient(t *testing.T) {
+	t.Run("noop run", func(t *testing.T) {
+		client := eth1wrap.NewDefaultEthClientRunner("")
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		// does nothing and immediately returns
+		require.Eventually(t, func() bool {
+			client.Run(ctx)
+			return true
+		}, 1*time.Second, 10*time.Millisecond)
+	})
+
+	t.Run("noop verify", func(t *testing.T) {
+		client := eth1wrap.NewDefaultEthClientRunner("")
+
+		valid, err := client.VerifySmartContractBasedSignature("0x123", [32]byte{}, []byte{})
+		require.False(t, valid)
+		require.ErrorIs(t, err, eth1wrap.ErrNoExecutionEngineAddr)
+	})
+}

@@ -202,8 +202,11 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 
 	// Get a cluster definition, either from a definition file or from the config.
 	if conf.DefFile != "" {
+		eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
+		go eth1Cl.Run(ctx)
+
 		// Validate the provided definition.
-		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, conf.ExecutionEngineAddr)
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, eth1Cl)
 		if err != nil {
 			return err
 		}
@@ -925,7 +928,7 @@ func nodeDir(clusterDir string, i int) string {
 }
 
 // validateDef returns an error if the provided cluster definition is invalid.
-func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []string, def cluster.Definition, executionEngineAddr string) error {
+func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []string, def cluster.Definition, eth1Cl eth1wrap.EthClientRunner) error {
 	if def.NumValidators == 0 {
 		return errors.New("cannot create cluster with zero validators, specify at least one")
 	}
@@ -962,9 +965,6 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 	if err = def.VerifyHashes(); err != nil {
 		return err
 	}
-
-	eth1Cl := eth1wrap.NewDefaultEthClientRunner(executionEngineAddr)
-	go eth1Cl.Run(ctx)
 
 	if err = def.VerifySignatures(eth1Cl); err != nil {
 		return err
