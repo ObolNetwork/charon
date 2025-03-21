@@ -85,6 +85,8 @@ type Config struct {
 	BeaconNodeSubmitTimeout time.Duration
 	JaegerAddr              string
 	JaegerService           string
+	OTLPAddress             string
+	OTLPServiceName         string
 	SimnetBMock             bool
 	SimnetVMock             bool
 	SimnetValidatorKeysDir  string
@@ -1041,8 +1043,11 @@ func wireVAPIRouter(ctx context.Context, life *lifecycle.Manager, vapiAddr strin
 }
 
 // wireTracing constructs the global tracer and registers it with the life cycle manager.
-func wireTracing(life *lifecycle.Manager, _ Config) error {
-	stopTracer, err := tracer.Init()
+func wireTracing(life *lifecycle.Manager, conf Config) error {
+	stopTracer, err := tracer.Init(
+		tracer.WithOTLPTracer(conf.OTLPAddress),
+		tracer.WithServiceName(conf.OTLPServiceName),
+	)
 	if err != nil {
 		return errors.Wrap(err, "init tracing")
 	}

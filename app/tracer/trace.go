@@ -8,6 +8,8 @@ import (
 	"io"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -53,7 +55,7 @@ func Init(opts ...func(*options)) (func(context.Context) error, error) {
 		return nil, err
 	}
 
-	tp := newTraceProvider(exp, "")
+	tp := newTraceProvider(exp, o.serviceName)
 
 	// Set globals
 	otel.SetTracerProvider(tp)
@@ -63,7 +65,8 @@ func Init(opts ...func(*options)) (func(context.Context) error, error) {
 }
 
 type options struct {
-	expFunc func() (sdktrace.SpanExporter, error)
+	serviceName string
+	expFunc     func() (sdktrace.SpanExporter, error)
 }
 
 // WithStdOut returns an option to configure an OpenTelemetry exporter for tracing
@@ -78,6 +81,27 @@ func WithStdOut(w io.Writer) func(*options) {
 
 			return ex, nil
 		}
+	}
+}
+
+// WithOTLPTracer returns an option to configure an OpenTelemetry exporter for tracing
+// telemetry to be sent to an OpenTelemetry Collector via gRPC.
+func WithOTLPTracer(addr string) func(*options) {
+	return func(o *options) {
+		o.expFunc = func() (sdktrace.SpanExporter, error) {
+			client := otlptracegrpc.NewClient(
+				otlptracegrpc.WithInsecure(),
+				otlptracegrpc.WithEndpoint(addr))
+
+			return otlptrace.New(context.Background(), client)
+		}
+	}
+}
+
+// WithServiceName returns an option to configure the service name.
+func WithServiceName(serviceName string) func(*options) {
+	return func(o *options) {
+		o.serviceName = serviceName
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -95,6 +96,12 @@ func WithTracing() WireOption {
 			defer span.End()
 
 			return clone.DutyDBPubKeyByAttestationV2(ctx, slot, commIdx, valIdx)
+		}
+		w.DutyDBAwaitProposal = func(parent context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+			ctx, span := tracer.Start(parent, "core/dutydb.AwaitProposal")
+			defer span.End()
+
+			return clone.DutyDBAwaitProposal(ctx, slot)
 		}
 		w.ParSigDBStoreInternal = func(parent context.Context, duty Duty, set ParSignedDataSet) error {
 			ctx, span := tracer.Start(parent, "core/parsigdb.StoreInternal")

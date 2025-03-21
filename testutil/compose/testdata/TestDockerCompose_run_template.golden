@@ -42,6 +42,14 @@
      "Value": "alpha"
     },
     {
+     "Key": "otlp-address",
+     "Value": "tempo:4317"
+    },
+    {
+     "Key": "otlp-service-name",
+     "Value": "node0"
+    },
+    {
      "Key": "lock-file",
      "Value": "/compose/node0/cluster-lock.json"
     },
@@ -145,6 +153,14 @@
     {
      "Key": "feature-set",
      "Value": "alpha"
+    },
+    {
+     "Key": "otlp-address",
+     "Value": "tempo:4317"
+    },
+    {
+     "Key": "otlp-service-name",
+     "Value": "node1"
     },
     {
      "Key": "lock-file",
@@ -252,6 +268,14 @@
      "Value": "alpha"
     },
     {
+     "Key": "otlp-address",
+     "Value": "tempo:4317"
+    },
+    {
+     "Key": "otlp-service-name",
+     "Value": "node2"
+    },
+    {
      "Key": "lock-file",
      "Value": "/compose/node2/cluster-lock.json"
     },
@@ -355,6 +379,14 @@
     {
      "Key": "feature-set",
      "Value": "alpha"
+    },
+    {
+     "Key": "otlp-address",
+     "Value": "tempo:4317"
+    },
+    {
+     "Key": "otlp-service-name",
+     "Value": "node3"
     },
     {
      "Key": "lock-file",

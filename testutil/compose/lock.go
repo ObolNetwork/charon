@@ -130,6 +130,8 @@ func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 
 	// Define run config
 	return append(kvs,
+		kv{"otlp-address", "tempo:4317"},
+		kv{"otlp-service-name", fmt.Sprintf("node%d", index)},
 		kv{"lock-file", lockFile},
 		kv{"validator-api-address", "0.0.0.0:3600"},
 		kv{"beacon-node-endpoints", beaconNode},

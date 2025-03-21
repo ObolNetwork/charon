@@ -611,6 +611,10 @@ func (c Component) SubmitProposal(ctx context.Context, opts *eth2api.SubmitPropo
 
 	duty := core.NewProposerDuty(uint64(slot))
 
+	var span trace.Span
+	ctx, span = core.StartDutyTrace(ctx, duty, "core/validatorapi.SubmitProposal")
+	defer span.End()
+
 	pubkey, err := c.getProposerPubkey(ctx, duty)
 	if err != nil {
 		return err
@@ -660,6 +664,10 @@ func (c Component) SubmitBlindedProposal(ctx context.Context, opts *eth2api.Subm
 	}
 
 	duty := core.NewProposerDuty(uint64(slot))
+	var span trace.Span
+	ctx, span = core.StartDutyTrace(ctx, duty, "core/validatorapi.SubmitBlindedProposal")
+	defer span.End()
+
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
 	pubkey, err := c.getProposerPubkey(ctx, duty)

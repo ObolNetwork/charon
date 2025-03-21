@@ -80,6 +80,8 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().StringVar(&config.ValidatorAPIAddr, "validator-api-address", "127.0.0.1:3600", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API.")
 	cmd.Flags().StringVar(&config.JaegerAddr, "jaeger-address", "", "[DISABLED] Listening address for jaeger tracing.")
 	cmd.Flags().StringVar(&config.JaegerService, "jaeger-service", "", "[DISABLED] Service name used for jaeger tracing.")
+	cmd.Flags().StringVar(&config.OTLPAddress, "otlp-address", "", "Listening address for OTLP gRPC tracing backend.")
+	cmd.Flags().StringVar(&config.OTLPServiceName, "otlp-service-name", "charon", "Service name used for OTLP gRPC tracing.")
 	cmd.Flags().BoolVar(&config.SimnetBMock, "simnet-beacon-mock", false, "Enables an internal mock beacon node for running a simnet.")
 	cmd.Flags().BoolVar(&config.SimnetVMock, "simnet-validator-mock", false, "Enables an internal mock validator client when running a simnet. Requires simnet-beacon-mock.")
 	cmd.Flags().StringVar(&config.SimnetValidatorKeysDir, "simnet-validator-keys-dir", ".charon/validator_keys", "The directory containing the simnet validator key shares.")
@@ -107,7 +109,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 			return errors.New("flag 'nickname' can not exceed 32 characters")
 		}
 		if len(config.JaegerAddr) > 0 || len(config.JaegerService) > 0 {
-			log.Warn(cc.Context(), "Jaeger flags are deprecated and will be removed in a future release", nil)
+			log.Warn(cc.Context(), "Jaeger flags are disabled and will be removed in a future release", nil)
 		}
 		err := eth2util.ValidateBeaconNodeHeaders(config.BeaconNodeHeaders)
 		if err != nil {
