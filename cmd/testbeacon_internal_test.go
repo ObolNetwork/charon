@@ -91,7 +91,7 @@ func TestBeaconTest(t *testing.T) {
 					OutputJSON: "",
 					Quiet:      false,
 					TestCases:  nil,
-					Timeout:    100 * time.Nanosecond,
+					Timeout:    100 * time.Microsecond,
 				},
 				Endpoints: []string{endpoint1, endpoint2},
 			},

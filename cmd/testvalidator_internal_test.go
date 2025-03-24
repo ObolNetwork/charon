@@ -67,7 +67,7 @@ func TestValidatorTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputJSON: "",
 					Quiet:      false,
-					Timeout:    100 * time.Nanosecond,
+					Timeout:    100 * time.Microsecond,
 				},
 				APIAddress: validatorAPIAddress,
 			},

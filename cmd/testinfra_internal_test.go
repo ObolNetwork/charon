@@ -85,7 +85,7 @@ func TestInfraTest(t *testing.T) {
 					OutputJSON: "",
 					Quiet:      false,
 					TestCases:  nil,
-					Timeout:    100 * time.Nanosecond,
+					Timeout:    100 * time.Microsecond,
 				},
 				DiskIOBlockSizeKb: 1,
 				DiskTestTool:      DiskTestToolMock{},
