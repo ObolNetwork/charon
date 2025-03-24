@@ -1448,7 +1448,7 @@ func unmarshal(typ contentType, body []byte, v any) error {
 		unmarshaller, ok := v.(ssz.Unmarshaler)
 		if !ok {
 			return apiError{
-				StatusCode: http.StatusInternalServerError,
+				StatusCode: http.StatusUnsupportedMediaType,
 				Message:    "internal type doesn't support ssz unmarshalling",
 				Err:        errors.New("internal type doesn't support ssz unmarshalling"),
 			}
@@ -1457,7 +1457,7 @@ func unmarshal(typ contentType, body []byte, v any) error {
 		err := unmarshaller.UnmarshalSSZ(body)
 		if err != nil {
 			return apiError{
-				StatusCode: http.StatusBadRequest,
+				StatusCode: http.StatusUnsupportedMediaType,
 				Message:    "failed parsing ssz request body",
 				Err:        err,
 			}
