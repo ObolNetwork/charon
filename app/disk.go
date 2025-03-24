@@ -20,16 +20,22 @@ func loadClusterManifest(ctx context.Context, conf Config, eth1Cl eth1wrap.EthCl
 	}
 
 	verifyLock := func(lock cluster.Lock) error {
-		if err := lock.VerifyHashes(); err != nil && !conf.NoVerify {
-			return errors.Wrap(err, "cluster lock hash verification failed. Run with --no-verify to bypass verification at own risk")
-		} else if err != nil && conf.NoVerify {
-			log.Warn(ctx, "Ignoring failed cluster lock hash verification due to --no-verify flag", err)
+		if conf.NoVerify {
+			if err := lock.VerifyHashes(); err != nil {
+				log.Warn(ctx, "Ignoring failed cluster lock hash verification due to --no-verify flag", err)
+			}
+			if err := lock.VerifySignatures(eth1Cl); err != nil {
+				log.Warn(ctx, "Ignoring failed cluster lock signature verification due to --no-verify flag", err)
+			}
+
+			return nil
 		}
 
-		if err := lock.VerifySignatures(eth1Cl); err != nil && !conf.NoVerify {
+		if err := lock.VerifyHashes(); err != nil {
+			return errors.Wrap(err, "cluster lock hash verification failed. Run with --no-verify to bypass verification at own risk")
+		}
+		if err := lock.VerifySignatures(eth1Cl); err != nil {
 			return errors.Wrap(err, "cluster lock signature verification failed. Run with --no-verify to bypass verification at own risk")
-		} else if err != nil && conf.NoVerify {
-			log.Warn(ctx, "Ignoring failed cluster lock signature verification due to --no-verify flag", err)
 		}
 
 		return nil

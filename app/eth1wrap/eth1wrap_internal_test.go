@@ -17,7 +17,6 @@ import (
 
 func TestSetClient(t *testing.T) {
 	client := &client{
-		addr:        "http://localhost:8545",
 		reconnectCh: make(chan struct{}, 1),
 	}
 
@@ -32,7 +31,6 @@ func TestCloseClient(t *testing.T) {
 	ecMock.On("Close").Return().Once()
 
 	client := &client{
-		addr:        "http://localhost:8545",
 		eth1client:  ecMock,
 		reconnectCh: make(chan struct{}, 1),
 	}
@@ -44,7 +42,6 @@ func TestCloseClient(t *testing.T) {
 
 func TestMaybeReconnect(t *testing.T) {
 	client := &client{
-		addr:        "http://localhost:8545",
 		reconnectCh: make(chan struct{}, 1),
 	}
 
@@ -63,7 +60,6 @@ func TestCheckClientIsAlive(t *testing.T) {
 
 	t.Run("client is nil", func(t *testing.T) {
 		client := &client{
-			addr:        "http://localhost:8545",
 			eth1client:  nil,
 			reconnectCh: make(chan struct{}, 1),
 		}
@@ -76,7 +72,6 @@ func TestCheckClientIsAlive(t *testing.T) {
 		ecMock.On("BlockNumber", mock.Anything).Return(uint64(1), nil).Once()
 
 		client := &client{
-			addr:        "http://localhost:8545",
 			eth1client:  ecMock,
 			reconnectCh: make(chan struct{}, 1),
 		}
@@ -89,7 +84,6 @@ func TestCheckClientIsAlive(t *testing.T) {
 		ecMock.On("BlockNumber", mock.Anything).Return(uint64(0), errors.New("no luck")).Once()
 
 		client := &client{
-			addr:        "http://localhost:8545",
 			eth1client:  ecMock,
 			reconnectCh: make(chan struct{}, 1),
 		}
@@ -125,7 +119,7 @@ func TestERC1271Implementation(t *testing.T) {
 		Return(erc1271MagicValue, nil).Once()
 
 	client := NewEthClientRunner(
-		"http://localhost:8545",
+		"",
 		func(ctx context.Context, rawurl string) (EthClient, error) {
 			close(createdConnection)
 			return ecMock, nil
