@@ -91,7 +91,7 @@ func (l *lazy) getOrCreateClient(ctx context.Context) (Client, error) {
 
 	l.setClient(cl)
 
-	return cl, err
+	return cl, nil
 }
 
 func (l *lazy) SetForkVersion(forkVersion [4]byte) {

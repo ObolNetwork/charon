@@ -1894,7 +1894,7 @@ func (s SignedSyncContributionAndProof) SetSignature(sig Signature) (SignedData,
 
 	resp.SignedContributionAndProof.Signature = sig.ToETH2()
 
-	return resp, err
+	return resp, nil
 }
 
 func (s SignedSyncContributionAndProof) Clone() (SignedData, error) {
