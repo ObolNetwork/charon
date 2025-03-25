@@ -69,39 +69,41 @@ import (
 )
 
 type Config struct {
-	P2P                     p2p.Config
-	Log                     log.Config
-	Feature                 featureset.Config
-	LockFile                string
-	ManifestFile            string
-	NoVerify                bool
-	PrivKeyFile             string
-	PrivKeyLocking          bool
-	MonitoringAddr          string
-	DebugAddr               string
-	ValidatorAPIAddr        string
-	BeaconNodeAddrs         []string
-	BeaconNodeTimeout       time.Duration
-	BeaconNodeSubmitTimeout time.Duration
-	JaegerAddr              string
-	JaegerService           string
-	OTLPAddress             string
-	OTLPServiceName         string
-	SimnetBMock             bool
-	SimnetVMock             bool
-	SimnetValidatorKeysDir  string
-	SimnetSlotDuration      time.Duration
-	SyntheticBlockProposals bool
-	BuilderAPI              bool
-	SimnetBMockFuzz         bool
-	TestnetConfig           eth2util.Network
-	ProcDirectory           string
-	ConsensusProtocol       string
-	Nickname                string
-	BeaconNodeHeaders       []string
-	TargetGasLimit          uint
-	FallbackBeaconNodeAddrs []string
-	ExecutionEngineAddr     string
+	P2P                         p2p.Config
+	Log                         log.Config
+	Feature                     featureset.Config
+	LockFile                    string
+	ManifestFile                string
+	NoVerify                    bool
+	PrivKeyFile                 string
+	PrivKeyLocking              bool
+	MonitoringAddr              string
+	DebugAddr                   string
+	ValidatorAPIAddr            string
+	BeaconNodeAddrs             []string
+	BeaconNodeTimeout           time.Duration
+	BeaconNodeSubmitTimeout     time.Duration
+	JaegerAddr                  string
+	JaegerService               string
+	OTLPAddress                 string
+	OTLPServiceName             string
+	SimnetBMock                 bool
+	SimnetVMock                 bool
+	SimnetValidatorKeysDir      string
+	SimnetSlotDuration          time.Duration
+	SyntheticBlockProposals     bool
+	BuilderAPI                  bool
+	SimnetBMockFuzz             bool
+	TestnetConfig               eth2util.Network
+	ProcDirectory               string
+	ConsensusProtocol           string
+	Nickname                    string
+	BeaconNodeHeaders           []string
+	TargetGasLimit              uint
+	FallbackBeaconNodeAddrs     []string
+	ExecutionEngineAddr         string
+	Graffiti                    []string
+	GraffitiDisableClientAppend bool
 
 	TestConfig TestConfig
 }
@@ -307,7 +309,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		promRegistry, consensusDebugger, pubkeys, seenPubkeys, vapiCalls, len(cluster.GetValidators()))
 
 	err = wireCoreWorkflow(ctx, life, conf, cluster, nodeIdx, tcpNode, p2pKey, eth2Cl, subEth2Cl,
-		peerIDs, sender, consensusDebugger, seenPubkeysFunc, vapiCallsFunc)
+		peerIDs, sender, consensusDebugger, pubkeys, seenPubkeysFunc, vapiCallsFunc)
 	if err != nil {
 		return err
 	}
@@ -379,7 +381,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	cluster *manifestpb.Cluster, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *k1.PrivateKey,
 	eth2Cl, submissionEth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
-	consensusDebugger consensus.Debugger, seenPubkeys func(core.PubKey),
+	consensusDebugger consensus.Debugger, pubkeys []core.PubKey, seenPubkeys func(core.PubKey),
 	vapiCalls func(),
 ) error {
 	// Convert and prep public keys and public shares
@@ -499,7 +501,14 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	fetch, err := fetcher.New(eth2Cl, feeRecipientFunc, conf.BuilderAPI)
+	graffitiFunc, err := fetcher.GetGraffitiFunc(pubkeys, conf.Graffiti, conf.GraffitiDisableClientAppend)
+	if err != nil {
+		return err
+	}
+	getGraffitiFunc := func(pubkey core.PubKey) [32]byte {
+		return graffitiFunc(pubkeys, pubkey, conf.Graffiti, conf.GraffitiDisableClientAppend)
+	}
+	fetch, err := fetcher.New(eth2Cl, feeRecipientFunc, conf.BuilderAPI, getGraffitiFunc)
 	if err != nil {
 		return err
 	}

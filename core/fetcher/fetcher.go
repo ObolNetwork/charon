@@ -15,18 +15,18 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 // New returns a new fetcher instance.
-func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, builderEnabled bool) (*Fetcher, error) {
+func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, getGraffitiFunc func(core.PubKey) [32]byte) (*Fetcher, error) {
 	return &Fetcher{
 		eth2Cl:           eth2Cl,
 		feeRecipientFunc: feeRecipientFunc,
 		builderEnabled:   builderEnabled,
+		getGraffitiFunc:  getGraffitiFunc,
 	}, nil
 }
 
@@ -38,6 +38,7 @@ type Fetcher struct {
 	aggSigDBFunc     func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
 	awaitAttDataFunc func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 	builderEnabled   bool
+	getGraffitiFunc  func(core.PubKey) [32]byte
 }
 
 // Subscribe registers a callback for fetched duties.
@@ -384,11 +385,6 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 
 		randao := randaoData.Signature().ToETH2()
 
-		// TODO(dhruv): replace hardcoded graffiti with the one from cluster-lock.json
-		var graffiti [32]byte
-		commitSHA, _ := version.GitCommit()
-		copy(graffiti[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
-
 		var bbf uint64
 		if f.builderEnabled {
 			// This gives maximum priority to builder blocks:
@@ -399,7 +395,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 		opts := &eth2api.ProposalOpts{
 			Slot:               eth2p0.Slot(slot),
 			RandaoReveal:       randao,
-			Graffiti:           graffiti,
+			Graffiti:           f.getGraffitiFunc(pubkey),
 			BuilderBoostFactor: &bbf,
 		}
 		eth2Resp, err := f.eth2Cl.Proposal(ctx, opts)
