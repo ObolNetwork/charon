@@ -215,26 +215,46 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				val := core.VersionedBlindedSSZValueForT(t, e, version, false)
 				c.Fuzz(val)
 
-				// Limit length of KZGProofs and Blobs to 6
-				// See https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/beacon-chain.md#execution
-				maxKZGProofs := 6
-				if e.Version == eth2spec.DataVersionDeneb && len(e.Deneb.KZGProofs) > maxKZGProofs {
-					e.Deneb.KZGProofs = e.Deneb.KZGProofs[:maxKZGProofs]
-				}
-				if e.Version == eth2spec.DataVersionElectra && len(e.Electra.KZGProofs) > maxKZGProofs {
-					e.Electra.KZGProofs = e.Electra.KZGProofs[:maxKZGProofs]
-				}
-				maxBlobs := 6
-				if e.Version == eth2spec.DataVersionDeneb && len(e.Deneb.Blobs) > maxBlobs {
-					e.Deneb.Blobs = e.Deneb.Blobs[:maxBlobs]
-				}
-				if e.Version == eth2spec.DataVersionElectra && len(e.Electra.Blobs) > maxBlobs {
-					e.Electra.Blobs = e.Electra.Blobs[:maxBlobs]
+				if e.Version == eth2spec.DataVersionElectra {
+					// Limit length of KZGProofs and Blobs to 6
+					// See https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/beacon-chain.md#execution
+					maxKZGProofs := 6
+					maxBlobs := 6
+					if e.Version == eth2spec.DataVersionDeneb && len(e.Deneb.KZGProofs) > maxKZGProofs {
+						e.Deneb.KZGProofs = e.Deneb.KZGProofs[:maxKZGProofs]
+					}
+					if e.Version == eth2spec.DataVersionDeneb && len(e.Deneb.Blobs) > maxBlobs {
+						e.Deneb.Blobs = e.Deneb.Blobs[:maxBlobs]
+					}
 				}
 
-				// Limit ExecutionRequests.Consolidations to 2
-				if e.Version == eth2spec.DataVersionElectra && len(e.Electra.Block.Body.ExecutionRequests.Consolidations) > 2 {
-					e.Electra.Block.Body.ExecutionRequests.Consolidations = e.Electra.Block.Body.ExecutionRequests.Consolidations[:2]
+				if e.Version == eth2spec.DataVersionElectra {
+					// Limit length of KZGProofs and Blobs to 6
+					// See https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/beacon-chain.md#execution
+					maxKZGProofs := 6
+					maxBlobs := 6
+					if len(e.Electra.Blobs) > maxBlobs {
+						e.Electra.Blobs = e.Electra.Blobs[:maxBlobs]
+					}
+
+					if len(e.Electra.KZGProofs) > maxKZGProofs {
+						e.Electra.KZGProofs = e.Electra.KZGProofs[:maxKZGProofs]
+					}
+
+					// Limit ExecutionRequests.Consolidations to 2
+					if len(e.Electra.Block.Body.ExecutionRequests.Consolidations) > 2 {
+						e.Electra.Block.Body.ExecutionRequests.Consolidations = e.Electra.Block.Body.ExecutionRequests.Consolidations[:2]
+					}
+					// Limit Attestations to 8
+					// See https://github.com/ethereum/consensus-specs/blob/v1.5.0-beta.3/specs/electra/beacon-chain.md#max-operations-per-block
+					if len(e.Electra.Block.Body.Attestations) > 8 {
+						e.Electra.Block.Body.Attestations = e.Electra.Block.Body.Attestations[:8]
+					}
+					// Limit AttesterSlashings to 1
+					// See https://github.com/ethereum/consensus-specs/blob/v1.5.0-beta.3/specs/electra/beacon-chain.md#max-operations-per-block
+					if len(e.Electra.Block.Body.AttesterSlashings) > 1 {
+						e.Electra.Block.Body.AttesterSlashings = e.Electra.Block.Body.AttesterSlashings[:1]
+					}
 				}
 			},
 			func(e *core.VersionedAttestation, c fuzz.Continue) {
