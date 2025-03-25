@@ -1,6 +1,6 @@
 run:
   timeout: 5m
-  go: "1.23"
+  go: "1.24"
 linters-settings:
   cyclop:
     max-complexity: 15
@@ -92,19 +92,19 @@ linters-settings:
       # Some configured revive rules
       - name: unhandled-error
         arguments:
-         - 'fmt.Printf'
-         - 'fmt.Println'
+          - "fmt.Printf"
+          - "fmt.Println"
       - name: imports-blocklist
         arguments:
-         - "errors" # Prefer ./app/errors
-         - "github.com/pkg/errors" # Prefer ./app/errors
-         - "github.com/golang/protobuf" # Prefer google.golang.org/protobuf
-         - "github.com/gogo/protobuf/proto" # Prefer google.golang.org/protobuf
-         - "github.com/prometheus/client_golang/prometheus/promauto" # Prefer ./app/promauto
+          - "errors" # Prefer ./app/errors
+          - "github.com/pkg/errors" # Prefer ./app/errors
+          - "github.com/golang/protobuf" # Prefer google.golang.org/protobuf
+          - "github.com/gogo/protobuf/proto" # Prefer google.golang.org/protobuf
+          - "github.com/prometheus/client_golang/prometheus/promauto" # Prefer ./app/promauto
   staticcheck:
     checks:
-     - "all"
-     - "-SA1019" # Ignoring since github.com/drand/kyber/sign/bls uses Proof Of Possession as does Ethereum.
+      - "all"
+      - "-SA1019" # Ignoring since github.com/drand/kyber/sign/bls uses Proof Of Possession as does Ethereum.
   testpackage:
     skip-regexp: internal_test\.go
   wrapcheck:
@@ -134,7 +134,7 @@ issues:
         - gosec
         - noctx
         - revive
-    - path: 'eth2wrap'
+    - path: "eth2wrap"
       linters:
         - importas
   exclude:
@@ -145,7 +145,7 @@ issues:
     - "confusing-naming" # Relax revive
     - "nested-structs" # Relax revive
     - "0xhex" # Relax revive and staticcheck about our custom struct tag
-    - "shadow: declaration of \"err\" shadows declaration" # Relax govet
+    - 'shadow: declaration of "err" shadows declaration' # Relax govet
 
 linters:
   enable-all: true

@@ -1,6 +1,6 @@
 module github.com/obolnetwork/charon
 
-go 1.23
+go 1.24
 
 require (
 	github.com/attestantio/go-builder-client v0.5.3
