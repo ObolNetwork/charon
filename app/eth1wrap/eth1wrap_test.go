@@ -16,11 +16,9 @@ import (
 	"github.com/obolnetwork/charon/app/eth1wrap/mocks"
 )
 
-const URL = "http://localhost:8545"
-
 func TestNewEthClientRunner(t *testing.T) {
 	client := eth1wrap.NewEthClientRunner(
-		URL,
+		"",
 		func(ctx context.Context, rawurl string) (eth1wrap.EthClient, error) {
 			return mocks.NewEthClient(t), nil
 		},
@@ -33,7 +31,7 @@ func TestNewEthClientRunner(t *testing.T) {
 }
 
 func TestNewDefaultEthClientRunner(t *testing.T) {
-	client := eth1wrap.NewDefaultEthClientRunner(URL)
+	client := eth1wrap.NewDefaultEthClientRunner("")
 	require.NotNil(t, client, "NewDefaultEth1Client should return a non-nil client")
 }
 
@@ -46,7 +44,7 @@ func TestClientRun(t *testing.T) {
 		mockEth1Client.On("Close").Return().Once()
 
 		client := eth1wrap.NewEthClientRunner(
-			URL,
+			"",
 			func(ctx context.Context, rawurl string) (eth1wrap.EthClient, error) {
 				return mockEth1Client, nil
 			},
@@ -76,7 +74,7 @@ func TestClientRun(t *testing.T) {
 		mockEth1Client.On("Close").Return().Once()
 
 		client := eth1wrap.NewEthClientRunner(
-			URL,
+			"",
 			func(ctx context.Context, rawurl string) (eth1wrap.EthClient, error) {
 				attemptsCounter.Add(1)
 				if attemptsCounter.Load() == 1 {
@@ -133,7 +131,7 @@ func TestClientRun(t *testing.T) {
 		var connectionAttempts atomic.Int32
 
 		client := eth1wrap.NewEthClientRunner(
-			URL,
+			"",
 			func(ctx context.Context, rawurl string) (eth1wrap.EthClient, error) {
 				connectionAttempts.Add(1)
 				if connectionAttempts.Load() == 1 {
@@ -198,7 +196,7 @@ func TestClientRun(t *testing.T) {
 func TestVerifySmartContractBasedSignature(t *testing.T) {
 	t.Run("client not connected", func(t *testing.T) {
 		client := eth1wrap.NewEthClientRunner(
-			URL,
+			"",
 			func(ctx context.Context, rawurl string) (eth1wrap.EthClient, error) {
 				return mocks.NewEthClient(t), nil
 			},
@@ -226,7 +224,7 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 		doneCh := make(chan struct{})
 
 		client := eth1wrap.NewEthClientRunner(
-			URL,
+			"",
 			func(ctx context.Context, rawurl string) (eth1wrap.EthClient, error) {
 				clientCreatedCh <- struct{}{}
 				return mockEth1Client, nil
@@ -271,7 +269,7 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 		doneCh := make(chan struct{})
 
 		client := eth1wrap.NewEthClientRunner(
-			URL,
+			"",
 			func(ctx context.Context, rawurl string) (eth1wrap.EthClient, error) {
 				close(clientCreatedCh)
 				return mockEth1Client, nil
