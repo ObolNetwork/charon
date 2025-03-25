@@ -19,6 +19,28 @@ import (
 
 //go:generate go test . -run=TestInfraTest -update
 
+type DiskTestToolMock struct{}
+
+func (DiskTestToolMock) CheckAvailability() error {
+	return nil
+}
+
+func (DiskTestToolMock) WriteSpeed(context.Context, string, int) (float64, error) {
+	return 100, nil
+}
+
+func (DiskTestToolMock) WriteIOPS(context.Context, string, int) (float64, error) {
+	return 10, nil
+}
+
+func (DiskTestToolMock) ReadSpeed(context.Context, string, int) (float64, error) {
+	return 100, nil
+}
+
+func (DiskTestToolMock) ReadIOPS(context.Context, string, int) (float64, error) {
+	return 10, nil
+}
+
 func TestInfraTest(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -33,14 +55,19 @@ func TestInfraTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputJSON: "",
 					Quiet:      false,
-					TestCases:  []string{"AvailableMemory", "TotalMemory", "InternetLatency"},
+					TestCases:  []string{"AvailableMemory", "TotalMemory", "InternetLatency", "DiskWriteSpeed", "DiskWriteIOPS", "DiskReadSpeed", "DiskReadIOPS"},
 					Timeout:    time.Minute,
 				},
 				DiskIOBlockSizeKb: 1,
+				DiskTestTool:      DiskTestToolMock{},
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					"local": {
+						{Name: "DiskWriteSpeed", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "DiskWriteIOPS", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "DiskReadSpeed", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "DiskReadIOPS", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "AvailableMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "TotalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "InternetLatency", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
@@ -61,6 +88,7 @@ func TestInfraTest(t *testing.T) {
 					Timeout:    100 * time.Nanosecond,
 				},
 				DiskIOBlockSizeKb: 1,
+				DiskTestTool:      DiskTestToolMock{},
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
@@ -79,14 +107,19 @@ func TestInfraTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputJSON: "",
 					Quiet:      true,
-					TestCases:  []string{"AvailableMemory", "TotalMemory", "InternetLatency"},
+					TestCases:  []string{"AvailableMemory", "TotalMemory", "InternetLatency", "DiskWriteSpeed", "DiskWriteIOPS", "DiskReadSpeed", "DiskReadIOPS"},
 					Timeout:    time.Minute,
 				},
 				DiskIOBlockSizeKb: 1,
+				DiskTestTool:      DiskTestToolMock{},
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					"local": {
+						{Name: "DiskWriteSpeed", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "DiskWriteIOPS", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "DiskReadSpeed", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "DiskReadIOPS", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "AvailableMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "TotalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "InternetLatency", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
@@ -107,6 +140,7 @@ func TestInfraTest(t *testing.T) {
 					Timeout:    time.Minute,
 				},
 				DiskIOBlockSizeKb: 1,
+				DiskTestTool:      DiskTestToolMock{},
 			},
 			expected: testCategoryResult{
 				Score:        categoryScoreC,
@@ -124,6 +158,7 @@ func TestInfraTest(t *testing.T) {
 					Timeout:    time.Minute,
 				},
 				DiskIOBlockSizeKb: 1,
+				DiskTestTool:      DiskTestToolMock{},
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
@@ -142,14 +177,19 @@ func TestInfraTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputJSON: "./write-to-file-test.json.tmp",
 					Quiet:      false,
-					TestCases:  []string{"AvailableMemory", "TotalMemory", "InternetLatency"},
+					TestCases:  []string{"AvailableMemory", "TotalMemory", "InternetLatency", "DiskWriteSpeed", "DiskWriteIOPS", "DiskReadSpeed", "DiskReadIOPS"},
 					Timeout:    time.Minute,
 				},
 				DiskIOBlockSizeKb: 1,
+				DiskTestTool:      DiskTestToolMock{},
 			},
 			expected: testCategoryResult{
 				Targets: map[string][]testResult{
 					"local": {
+						{Name: "DiskWriteSpeed", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "DiskWriteIOPS", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "DiskReadSpeed", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "DiskReadIOPS", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "AvailableMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "TotalMemory", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
 						{Name: "InternetLatency", Verdict: testVerdictPoor, Measurement: "", Suggestion: "", Error: testResultError{}},
