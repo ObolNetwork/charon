@@ -285,7 +285,7 @@ func TestExamples(t *testing.T) {
 			err = json.Unmarshal(b, &def)
 			require.NoError(t, err)
 			require.NoError(t, def.VerifyHashes())
-			require.NoError(t, def.VerifySignatures())
+			require.NoError(t, def.VerifySignatures(false))
 		})
 	}
 }

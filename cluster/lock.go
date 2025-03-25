@@ -149,7 +149,7 @@ func (l Lock) VerifyHashes() error {
 // VerifySignatures returns true if all config signatures are fully populated and valid.
 // A verified lock is ready for use in charon run.
 func (l Lock) VerifySignatures() error {
-	if err := l.Definition.VerifySignatures(); err != nil {
+	if err := l.Definition.VerifySignatures(false); err != nil {
 		return errors.Wrap(err, "invalid definition")
 	}
 

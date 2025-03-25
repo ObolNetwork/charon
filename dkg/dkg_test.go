@@ -154,7 +154,7 @@ func TestDKG(t *testing.T) {
 func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.PrivateKey, keymanager bool, publish bool) {
 	t.Helper()
 
-	require.NoError(t, def.VerifySignatures())
+	require.NoError(t, def.VerifySignatures(false))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
