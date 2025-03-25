@@ -173,6 +173,16 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 							// Limit length of BlobKZGCommitments to 6
 							e.Electra.SignedBlock.Message.Body.ExecutionRequests.Consolidations = e.Electra.SignedBlock.Message.Body.ExecutionRequests.Consolidations[:2]
 						}
+						// Limit Attestations to 8
+						// https://github.com/ethereum/consensus-specs/blob/v1.5.0-beta.3/specs/electra/beacon-chain.md#max-operations-per-block
+						if len(e.Electra.SignedBlock.Message.Body.Attestations) > 8 {
+							e.Electra.SignedBlock.Message.Body.Attestations = e.Electra.SignedBlock.Message.Body.Attestations[:8]
+						}
+						// Limit AttesterSlashings to 1
+						// https://github.com/ethereum/consensus-specs/blob/v1.5.0-beta.3/specs/electra/beacon-chain.md#max-operations-per-block
+						if len(e.Electra.SignedBlock.Message.Body.AttesterSlashings) > 1 {
+							e.Electra.SignedBlock.Message.Body.AttesterSlashings = e.Electra.SignedBlock.Message.Body.AttesterSlashings[:1]
+						}
 					}
 
 					if e.ElectraBlinded != nil {
@@ -183,6 +193,16 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 						// Limit ExecutionRequests.Consolidations to 2
 						if len(e.ElectraBlinded.Message.Body.ExecutionRequests.Consolidations) > 2 {
 							e.ElectraBlinded.Message.Body.ExecutionRequests.Consolidations = e.ElectraBlinded.Message.Body.ExecutionRequests.Consolidations[:2]
+						}
+						// Limit Attestations to 8
+						// https://github.com/ethereum/consensus-specs/blob/v1.5.0-beta.3/specs/electra/beacon-chain.md#max-operations-per-block
+						if len(e.ElectraBlinded.Message.Body.Attestations) > 8 {
+							e.ElectraBlinded.Message.Body.Attestations = e.Electra.SignedBlock.Message.Body.Attestations[:8]
+						}
+						// Limit AttesterSlashings to 1
+						// https://github.com/ethereum/consensus-specs/blob/v1.5.0-beta.3/specs/electra/beacon-chain.md#max-operations-per-block
+						if len(e.ElectraBlinded.Message.Body.AttesterSlashings) > 1 {
+							e.ElectraBlinded.Message.Body.AttesterSlashings = e.Electra.SignedBlock.Message.Body.AttesterSlashings[:1]
 						}
 					}
 				}
