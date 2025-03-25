@@ -18,8 +18,6 @@ services:
       CHARON_LOG_LEVEL: debug
       CHARON_LOG_COLOR: force
       CHARON_FEATURE_SET: alpha
-      CHARON_JAEGER_SERVICE: node0
-      CHARON_JAEGER_ADDRESS: jaeger:6831
       CHARON_LOCK_FILE: /compose/node0/cluster-lock.json
       CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_BEACON_NODE_ENDPOINTS: 
@@ -54,8 +52,6 @@ services:
       CHARON_LOG_LEVEL: debug
       CHARON_LOG_COLOR: force
       CHARON_FEATURE_SET: alpha
-      CHARON_JAEGER_SERVICE: node1
-      CHARON_JAEGER_ADDRESS: jaeger:6831
       CHARON_LOCK_FILE: /compose/node1/cluster-lock.json
       CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_BEACON_NODE_ENDPOINTS: 
@@ -90,8 +86,6 @@ services:
       CHARON_LOG_LEVEL: debug
       CHARON_LOG_COLOR: force
       CHARON_FEATURE_SET: alpha
-      CHARON_JAEGER_SERVICE: node2
-      CHARON_JAEGER_ADDRESS: jaeger:6831
       CHARON_LOCK_FILE: /compose/node2/cluster-lock.json
       CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_BEACON_NODE_ENDPOINTS: 
@@ -126,8 +120,6 @@ services:
       CHARON_LOG_LEVEL: debug
       CHARON_LOG_COLOR: force
       CHARON_FEATURE_SET: alpha
-      CHARON_JAEGER_SERVICE: node3
-      CHARON_JAEGER_ADDRESS: jaeger:6831
       CHARON_LOCK_FILE: /compose/node3/cluster-lock.json
       CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_BEACON_NODE_ENDPOINTS: 
