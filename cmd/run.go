@@ -100,7 +100,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().StringSliceVar(&config.BeaconNodeHeaders, "beacon-node-headers", nil, "Comma separated list of headers formatted as header=value")
 	cmd.Flags().StringSliceVar(&config.FallbackBeaconNodeAddrs, "fallback-beacon-node-endpoints", nil, "A list of beacon nodes to use if the primary list are offline or unhealthy.")
 	cmd.Flags().StringVar(&config.ExecutionEngineAddr, "execution-client-rpc-endpoint", "", "The address of the execution engine JSON-RPC API.")
-	cmd.Flags().StringSliceVar(&config.Graffiti, "graffiti", nil, "Comma separated list of graffiti strings to include in block proposals.")
+	cmd.Flags().StringSliceVar(&config.Graffiti, "graffiti", nil, "Comma separated list of graffiti strings to include in block proposals. Maximum 32 ASCII characters per graffiti.")
 	cmd.Flags().BoolVar(&config.GraffitiDisableClientAppend, "graffiti-disable-client-append", false, "Disables appending the charon name to the client graffiti.")
 
 	wrapPreRunE(cmd, func(cc *cobra.Command, _ []string) error {
