@@ -17,6 +17,14 @@ import (
 
 const obolToken = " OB"
 
+var tokens map[string]string = map[string]string{
+	"Teku":       "TK",
+	"Lighthouse": "LH",
+	"LodeStar":   "LS",
+	"Prysm":      "PY",
+	"Nimbus":     "NB",
+}
+
 type GraffitiBuilder struct {
 	defaultGraffiti [32]byte
 	graffiti        map[core.PubKey][32]byte
@@ -112,26 +120,15 @@ func defaultGraffiti() [32]byte {
 }
 
 func fetchBeaconNodeToken(eth2Cl eth2wrap.Client) string {
-	var token string
 	eth2Resp, err := eth2Cl.NodeVersion(context.Background(), &eth2api.NodeVersionOpts{})
 	if err != nil {
 		return ""
 	}
 
 	productToken := strings.Split(eth2Resp.Data, "/")[0]
-	switch productToken {
-	case "Teku":
-		token = "TK"
-	case "Lighthouse":
-		token = "LH"
-	case "LodeStar":
-		token = "LS"
-	case "Prysm":
-		token = "PY"
-	case "Nimbus":
-		token = "NB"
-	default:
-		token = ""
+	token, ok := tokens[productToken]
+	if !ok {
+		return ""
 	}
 
 	return token
