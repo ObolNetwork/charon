@@ -6,6 +6,7 @@ package tracer
 import (
 	"context"
 	"io"
+	"sync"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
@@ -21,7 +22,10 @@ import (
 )
 
 // tracer is the global app level tracer, it defaults to a noop tracer.
-var tracer = noop.NewTracerProvider().Tracer("")
+var (
+	tracer        = noop.NewTracerProvider().Tracer("")
+	setTracerOnce sync.Once
+)
 
 // Start creates a span and a context.Context containing the newly-created span from the global tracer.
 // See go.opentelemetry.io/otel/trace#Start for more details.
@@ -59,7 +63,9 @@ func Init(opts ...func(*options)) (func(context.Context) error, error) {
 
 	// Set globals
 	otel.SetTracerProvider(tp)
-	tracer = tp.Tracer("")
+	setTracerOnce.Do(func() {
+		tracer = tp.Tracer("")
+	})
 
 	return tp.Shutdown, nil
 }

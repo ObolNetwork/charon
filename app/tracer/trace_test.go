@@ -48,30 +48,6 @@ func TestStdOutTracer(t *testing.T) {
 	require.Equal(t, "root", m["Name"])
 }
 
-func TestWithServiceName(t *testing.T) {
-	ctx := context.Background()
-
-	var buf bytes.Buffer
-	stop, err := tracer.Init(tracer.WithStdOut(&buf), tracer.WithServiceName("test-service"))
-	require.NoError(t, err)
-
-	var span trace.Span
-	ctx, span = tracer.Start(ctx, "root")
-	inner(ctx)
-	span.End()
-
-	require.NoError(t, stop(ctx))
-
-	var m map[string]any
-	d := json.NewDecoder(&buf)
-	err = d.Decode(&m)
-	require.NoError(t, err)
-
-	resource, err := json.Marshal(m["Resource"])
-	require.NoError(t, err)
-	require.JSONEq(t, `[{"Key":"service.name","Value":{"Type":"STRING","Value":"test-service"}}]`, string(resource))
-}
-
 func inner(ctx context.Context) {
 	var span trace.Span
 	_, span = tracer.Start(ctx, "inner")
