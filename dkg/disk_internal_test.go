@@ -103,7 +103,8 @@ func TestLoadDefinition(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			eth1Cl := mocks.NewEthClientRunner(t)
-			eth1Cl.On("VerifySmartContractBasedSignature", mock.Anything, mock.Anything, mock.Anything).Return(false, nil).Once()
+			// Maybe is used because we're not testing this function however it may be called when first signature check fails therefore return false
+			eth1Cl.On("VerifySmartContractBasedSignature", mock.Anything, mock.Anything, mock.Anything).Return(false, nil).Maybe()
 			got, err := loadDefinition(context.Background(), Config{DefFile: tt.defFile, NoVerify: tt.noVerify}, eth1Cl)
 			if tt.wantErr {
 				require.Error(t, err)

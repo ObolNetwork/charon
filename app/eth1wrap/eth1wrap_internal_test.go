@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -103,7 +104,7 @@ func TestERC1271Implementation(t *testing.T) {
 	createdConnection := make(chan struct{})
 
 	ecMock := mocks.NewEthClient(t)
-	ecMock.On("Close").Return().Maybe()
+	ecMock.On("Close").Return().Once()
 
 	mockErc1271 := mocks.NewErc1271(t)
 	mockErc1271.On("IsValidSignature", mock.Anything, mock.Anything, mock.Anything).
@@ -117,6 +118,8 @@ func TestERC1271Implementation(t *testing.T) {
 			require.Equal(t, []byte{4, 5, 6}, sig, "Signature should be passed correctly")
 		}).
 		Return(erc1271MagicValue, nil).Once()
+
+	doneCh := make(chan struct{})
 
 	client := NewEthClientRunner(
 		"",
@@ -135,7 +138,10 @@ func TestERC1271Implementation(t *testing.T) {
 	// Start the client
 	ctx, cancel := context.WithCancel(context.Background())
 
-	go client.Run(ctx)
+	go func() {
+		client.Run(ctx)
+		close(doneCh)
+	}()
 
 	// Wait for client to initialize
 	<-createdConnection
@@ -148,6 +154,10 @@ func TestERC1271Implementation(t *testing.T) {
 	require.True(t, valid, "Signature should be valid")
 
 	cancel()
+	require.Eventually(t, func() bool {
+		<-doneCh
+		return true
+	}, 1*time.Second, 10*time.Millisecond)
 }
 
 func TestNoopClientCreation(t *testing.T) {

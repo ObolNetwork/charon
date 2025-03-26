@@ -213,7 +213,7 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 
 	t.Run("successful", func(t *testing.T) {
 		mockEth1Client := mocks.NewEthClient(t)
-		mockEth1Client.On("Close").Return().Maybe()
+		mockEth1Client.On("Close").Return().Once()
 
 		mockErc1271 := mocks.NewErc1271(t)
 		// Return the magic value for a valid signature
@@ -258,12 +258,12 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 
 	t.Run("signature validation fails", func(t *testing.T) {
 		mockEth1Client := mocks.NewEthClient(t)
-		mockEth1Client.On("Close").Return().Maybe()
+		mockEth1Client.On("Close").Return().Once()
 
 		mockErc1271 := mocks.NewErc1271(t)
 		// Return an invalid magic value
 		mockErc1271.On("IsValidSignature", mock.Anything, mock.Anything, mock.Anything).
-			Return([4]byte{0x00, 0x00, 0x00, 0x00}, nil).Maybe()
+			Return([4]byte{0x00, 0x00, 0x00, 0x00}, nil).Once()
 
 		clientCreatedCh := make(chan struct{})
 		doneCh := make(chan struct{})
