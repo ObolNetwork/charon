@@ -3,21 +3,26 @@
 package fetcher
 
 import (
+	"context"
 	"fmt"
+	"strings"
+
+	eth2api "github.com/attestantio/go-eth2-client/api"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/core"
 )
 
-const obolSignature = " OB"
+const obolToken = " OB"
 
 type GraffitiBuilder struct {
 	defaultGraffiti [32]byte
 	graffiti        map[core.PubKey][32]byte
 }
 
-func NewGraffitiBuilder(pubkeys []core.PubKey, graffiti []string, disableClientAppend bool) (*GraffitiBuilder, error) {
+func NewGraffitiBuilder(pubkeys []core.PubKey, graffiti []string, disableClientAppend bool, eth2Cl eth2wrap.Client) (*GraffitiBuilder, error) {
 	builder := &GraffitiBuilder{
 		defaultGraffiti: defaultGraffiti(),
 		graffiti:        make(map[core.PubKey][32]byte, len(pubkeys)),
@@ -42,11 +47,13 @@ func NewGraffitiBuilder(pubkeys []core.PubKey, graffiti []string, disableClientA
 		}
 	}
 
+	token := fetchBeaconNodeToken(eth2Cl)
+
 	// Handle single graffiti case
 	if len(graffiti) == 1 {
 		singleGraffiti := graffiti[0]
 		for _, pubkey := range pubkeys {
-			builder.graffiti[pubkey] = buildGraffiti(singleGraffiti, disableClientAppend)
+			builder.graffiti[pubkey] = buildGraffiti(singleGraffiti, token, disableClientAppend)
 		}
 
 		return builder, nil
@@ -54,7 +61,7 @@ func NewGraffitiBuilder(pubkeys []core.PubKey, graffiti []string, disableClientA
 
 	// Handle multiple graffiti case
 	for idx, pubkey := range pubkeys {
-		builder.graffiti[pubkey] = buildGraffiti(graffiti[idx], disableClientAppend)
+		builder.graffiti[pubkey] = buildGraffiti(graffiti[idx], token, disableClientAppend)
 	}
 
 	return builder, nil
@@ -70,13 +77,26 @@ func (g *GraffitiBuilder) GetGraffiti(pubkey core.PubKey) [32]byte {
 	return graffiti
 }
 
-// buildGraffiti builds the graffiti with optional obolSignature
-func buildGraffiti(graffiti string, disableClientAppend bool) [32]byte {
+// buildGraffiti builds the graffiti with optional obolToken and token.
+// If there is space for both, it appends both. If not, obolToken takes precedence.
+// The disableClientAppend flag prevents appending any signatures.
+func buildGraffiti(graffiti string, token string, disableClientAppend bool) [32]byte {
 	var graffitiBytes [32]byte
-	if len(graffiti)+len(obolSignature) > 32 || disableClientAppend {
+
+	if disableClientAppend {
 		copy(graffitiBytes[:], graffiti)
-	} else {
-		copy(graffitiBytes[:], graffiti+obolSignature)
+		return graffitiBytes
+	}
+
+	availableSpace := 32 - len(graffiti)
+
+	switch {
+	case availableSpace >= len(obolToken)+len(token):
+		copy(graffitiBytes[:], graffiti+obolToken+token)
+	case availableSpace >= len(obolToken):
+		copy(graffitiBytes[:], graffiti+obolToken)
+	default:
+		copy(graffitiBytes[:], graffiti)
 	}
 
 	return graffitiBytes
@@ -89,4 +109,30 @@ func defaultGraffiti() [32]byte {
 	copy(graffitiBytes[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
 
 	return graffitiBytes
+}
+
+func fetchBeaconNodeToken(eth2Cl eth2wrap.Client) string {
+	var token string
+	eth2Resp, err := eth2Cl.NodeVersion(context.Background(), &eth2api.NodeVersionOpts{})
+	if err != nil {
+		return ""
+	}
+
+	productToken := strings.Split(eth2Resp.Data, "/")[0]
+	switch productToken {
+	case "Teku":
+		token = "TK"
+	case "Lighthouse":
+		token = "LH"
+	case "LodeStar":
+		token = "LS"
+	case "Prysm":
+		token = "PY"
+	case "Nimbus":
+		token = "NB"
+	default:
+		token = ""
+	}
+
+	return token
 }

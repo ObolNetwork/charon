@@ -501,7 +501,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	graffitiBuilder, err := fetcher.NewGraffitiBuilder(pubkeys, conf.Graffiti, conf.GraffitiDisableClientAppend)
+	graffitiBuilder, err := fetcher.NewGraffitiBuilder(pubkeys, conf.Graffiti, conf.GraffitiDisableClientAppend, eth2Cl)
 	if err != nil {
 		return err
 	}
