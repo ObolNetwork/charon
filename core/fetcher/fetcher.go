@@ -21,12 +21,12 @@ import (
 )
 
 // New returns a new fetcher instance.
-func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, getGraffitiFunc func(core.PubKey) [32]byte) (*Fetcher, error) {
+func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, graffitiBuilder *GraffitiBuilder) (*Fetcher, error) {
 	return &Fetcher{
 		eth2Cl:           eth2Cl,
 		feeRecipientFunc: feeRecipientFunc,
 		builderEnabled:   builderEnabled,
-		getGraffitiFunc:  getGraffitiFunc,
+		graffitiBuilder:  graffitiBuilder,
 	}, nil
 }
 
@@ -38,7 +38,7 @@ type Fetcher struct {
 	aggSigDBFunc     func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
 	awaitAttDataFunc func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 	builderEnabled   bool
-	getGraffitiFunc  func(core.PubKey) [32]byte
+	graffitiBuilder  *GraffitiBuilder
 }
 
 // Subscribe registers a callback for fetched duties.
@@ -395,7 +395,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 		opts := &eth2api.ProposalOpts{
 			Slot:               eth2p0.Slot(slot),
 			RandaoReveal:       randao,
-			Graffiti:           f.getGraffitiFunc(pubkey),
+			Graffiti:           f.graffitiBuilder.GetGraffiti(pubkey),
 			BuilderBoostFactor: &bbf,
 		}
 		eth2Resp, err := f.eth2Cl.Proposal(ctx, opts)

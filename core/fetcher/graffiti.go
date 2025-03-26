@@ -5,7 +5,6 @@ package fetcher
 import (
 	"errors"
 	"fmt"
-	"slices"
 
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/core"
@@ -13,17 +12,29 @@ import (
 
 const obolSignature = " OB"
 
-// GraffitiFunc is a type that describes a function that returns a graffiti for a validator.
-type GraffitiFunc func(pubkeys []core.PubKey, pubkey core.PubKey, graffiti []string, disable bool) [32]byte
+type GraffitiBuilder struct {
+	defaultGraffiti [32]byte
+	graffiti        map[core.PubKey][32]byte
+}
 
-// GetGraffitiFunc returns a GraffitiFunc based on the number of validators and CLI graffiti flags provided.
-func GetGraffitiFunc(pubkeys []core.PubKey, graffiti []string, disableClientAppend bool) (GraffitiFunc, error) {
-	if graffiti == nil {
-		return getDefaultGraffiti, nil
+func NewGraffitiBuilder(pubkeys []core.PubKey, graffiti []string, disableClientAppend bool) (*GraffitiBuilder, error) {
+	builder := &GraffitiBuilder{
+		defaultGraffiti: defaultGraffiti(),
+		graffiti:        make(map[core.PubKey][32]byte, len(pubkeys)),
 	}
 
-	if len(graffiti) > len(pubkeys) {
-		return nil, errors.New("graffiti length is greater than the number of validators")
+	// Handle nil graffiti
+	if graffiti == nil {
+		for _, pubkey := range pubkeys {
+			builder.graffiti[pubkey] = builder.defaultGraffiti
+		}
+
+	
+	return builder, nil
+	}
+
+	if len(graffiti) > 1 && len(graffiti) != len(pubkeys) {
+		return nil, errors.New("graffiti length must match the number of validators or be a single value")
 	}
 
 	for _, g := range graffiti {
@@ -32,56 +43,51 @@ func GetGraffitiFunc(pubkeys []core.PubKey, graffiti []string, disableClientAppe
 		}
 	}
 
+	// Handle single graffiti case
 	if len(graffiti) == 1 {
-		if len(graffiti[0])+len(obolSignature) > 32 || disableClientAppend {
-			return getEqualGraffitiWithoutAppend, nil
+		singleGraffiti := graffiti[0]
+		for _, pubkey := range pubkeys {
+			builder.graffiti[pubkey] = buildGraffiti(singleGraffiti, disableClientAppend)
 		}
 
-		return getEqualGraffitiWithAppend, nil
+
+		return builder, nil
 	}
 
-	return getGraffitiPerValidator, nil
+	// Handle multiple graffiti case
+	for idx, pubkey := range pubkeys {
+		builder.graffiti[pubkey] = buildGraffiti(graffiti[idx], disableClientAppend)
+	}
+
+	return builder, nil
 }
 
-// getDefaultGraffiti returns a graffiti with the version and commit hash.
-func getDefaultGraffiti(pubkeys []core.PubKey, pubkey core.PubKey, graffiti []string, _ bool) [32]byte {
+// getGraffiti returns the graffiti for a given pubkey or the default graffiti
+func (g *GraffitiBuilder) GetGraffiti(pubkey core.PubKey) [32]byte {
+	if graffiti, ok := g.graffiti[pubkey]; !ok {
+		return g.defaultGraffiti
+	} else {
+		return graffiti
+	}
+}
+
+// buildGraffiti builds the graffiti with optional obolSignature
+func buildGraffiti(graffiti string, disableClientAppend bool) [32]byte {
+	var graffitiBytes [32]byte
+	if len(graffiti)+len(obolSignature) > 32 || disableClientAppend {
+		copy(graffitiBytes[:], graffiti)
+	} else {
+		copy(graffitiBytes[:], graffiti+obolSignature)
+	}
+
+	return graffitiBytes
+}
+
+// defaultGraffiti returns the default graffiti
+func defaultGraffiti() [32]byte {
 	var graffitiBytes [32]byte
 	commitSHA, _ := version.GitCommit()
 	copy(graffitiBytes[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
-
-	return graffitiBytes
-}
-
-// getEqualGraffitiWithAppend returns a graffiti with the first graffiti string and Obol appended.
-func getEqualGraffitiWithAppend(pubkeys []core.PubKey, pubkey core.PubKey, graffiti []string, _ bool) [32]byte {
-	var graffitiBytes [32]byte
-	copy(graffitiBytes[:], graffiti[0]+obolSignature)
-
-	return graffitiBytes
-}
-
-// getEqualGraffitiWithoutAppend returns a graffiti with the first graffiti string.
-func getEqualGraffitiWithoutAppend(pubkeys []core.PubKey, pubkey core.PubKey, graffiti []string, _ bool) [32]byte {
-	var graffitiBytes [32]byte
-	copy(graffitiBytes[:], graffiti[0])
-
-	return graffitiBytes
-}
-
-// getGraffitiPerValidator returns a graffiti based on the validator's public key.
-func getGraffitiPerValidator(pubkeys []core.PubKey, pubkey core.PubKey, graffiti []string, disableClientAppend bool) [32]byte {
-	var graffitiBytes [32]byte
-
-	idx := slices.Index(pubkeys, pubkey)
-	if idx == -1 {
-		return getDefaultGraffiti(pubkeys, pubkey, graffiti, disableClientAppend)
-	}
-
-	if len(graffiti[idx])+len(obolSignature) > 32 || disableClientAppend {
-		copy(graffitiBytes[:], graffiti[idx])
-	} else {
-		copy(graffitiBytes[:], graffiti[idx]+obolSignature)
-	}
 
 	return graffitiBytes
 }

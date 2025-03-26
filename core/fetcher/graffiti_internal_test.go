@@ -5,7 +5,6 @@ package fetcher
 import (
 	"crypto/rand"
 	"fmt"
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -23,145 +22,99 @@ func randomString(n int) string {
 	return string(b)
 }
 
-func TestGetGraffitiFunc(t *testing.T) {
-	pubkeys := []core.PubKey{testutil.RandomCorePubKey(t), testutil.RandomCorePubKey(t)}
+func TestNewGraffitiBuilder(t *testing.T) {
+	pubkeys := []core.PubKey{testutil.RandomCorePubKey(t), testutil.RandomCorePubKey(t), testutil.RandomCorePubKey(t)}
 
 	t.Run("graffiti length greater than pubkeys", func(t *testing.T) {
-		fn, err := GetGraffitiFunc(pubkeys, []string{randomString(10), randomString(15), randomString(20)}, false)
-		require.Nil(t, fn)
+		builder, err := NewGraffitiBuilder(pubkeys, []string{randomString(10), randomString(15), randomString(20), randomString(25)}, false)
+		require.Nil(t, builder)
+		require.Error(t, err)
+	})
+
+	t.Run("graffiti length lesser than pubkeys", func(t *testing.T) {
+		builder, err := NewGraffitiBuilder(pubkeys, []string{randomString(10), randomString(15)}, false)
+		require.Nil(t, builder)
 		require.Error(t, err)
 	})
 
 	t.Run("graffiti length greater than 32 characters", func(t *testing.T) {
-		fn, err := GetGraffitiFunc(pubkeys, []string{randomString(33)}, false)
-		require.Nil(t, fn)
+		builder, err := NewGraffitiBuilder(pubkeys, []string{randomString(33)}, false)
+		require.Nil(t, builder)
 		require.Error(t, err)
 	})
 
-	tests := []struct {
-		name                string
-		graffiti            []string
-		disableClientAppend bool
-		expected            GraffitiFunc
-	}{
-		{
-			name:                "nil graffiti - with append",
-			disableClientAppend: false,
-			expected:            getDefaultGraffiti,
-		},
-		{
-			name:                "nil graffiti - without append",
-			disableClientAppend: true,
-			expected:            getDefaultGraffiti,
-		},
-		{
-			name:                "single graffiti - space for signature - with append",
-			graffiti:            []string{randomString(32 - len(obolSignature))},
-			disableClientAppend: false,
-			expected:            getEqualGraffitiWithAppend,
-		},
-		{
-			name:                "single graffiti - space for signature - without append",
-			graffiti:            []string{randomString(32 - len(obolSignature))},
-			disableClientAppend: true,
-			expected:            getEqualGraffitiWithoutAppend,
-		},
-		{
-			name:                "single graffiti - no space for signature - with append",
-			graffiti:            []string{randomString(32 - len(obolSignature) + 1)},
-			disableClientAppend: false,
-			expected:            getEqualGraffitiWithoutAppend,
-		},
-		{
-			name:                "single graffiti - no space for signature - without append",
-			graffiti:            []string{randomString(32 - len(obolSignature) + 1)},
-			disableClientAppend: true,
-			expected:            getEqualGraffitiWithoutAppend,
-		},
-		{
-			name:     "multiple graffiti",
-			graffiti: []string{randomString(32 - len(obolSignature)), randomString(32 - len(obolSignature) + 1)},
-			expected: getGraffitiPerValidator,
-		},
-	}
+	t.Run("default graffiti", func(t *testing.T) {
+		defaultGraffiti := defaultGraffiti()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			fn, err := GetGraffitiFunc(pubkeys, tt.graffiti, tt.disableClientAppend)
-			require.NoError(t, err)
-			require.Equal(t, reflect.ValueOf(tt.expected).Pointer(), reflect.ValueOf(fn).Pointer())
-		})
-	}
-}
+		var graffitiBytes [32]byte
+		commitSHA, _ := version.GitCommit()
+		copy(graffitiBytes[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
 
-func TestGetDefaultGraffiti(t *testing.T) {
-	pubkeys := []core.PubKey{testutil.RandomCorePubKey(t)}
-	graffiti := []string{}
-
-	graffitiBytes := getDefaultGraffiti(pubkeys, pubkeys[0], graffiti, false)
-	commitSHA, _ := version.GitCommit()
-	var expected [32]byte
-	copy(expected[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
-
-	require.Equal(t, expected, graffitiBytes)
-	require.LessOrEqual(t, len(graffitiBytes), 32)
-}
-
-func TestGetEqualGraffitiWithAppend(t *testing.T) {
-	pubkeys := []core.PubKey{testutil.RandomCorePubKey(t)}
-	graffiti := randomString(10)
-
-	graffitiBytes := getEqualGraffitiWithAppend(pubkeys, pubkeys[0], []string{graffiti}, false)
-	var expected [32]byte
-	copy(expected[:], graffiti+obolSignature)
-
-	require.Equal(t, expected, graffitiBytes)
-	require.LessOrEqual(t, len(graffitiBytes), 32)
-}
-
-func TestGetEqualGraffitiWithoutAppend(t *testing.T) {
-	pubkeys := []core.PubKey{testutil.RandomCorePubKey(t)}
-	graffiti := randomString(32 - len(obolSignature) + 1)
-
-	graffitiBytes := getEqualGraffitiWithoutAppend(pubkeys, pubkeys[0], []string{graffiti}, false)
-	var expected [32]byte
-	copy(expected[:], graffiti)
-
-	require.Equal(t, expected, graffitiBytes)
-	require.LessOrEqual(t, len(graffitiBytes), 32)
-}
-
-func TestGetGraffitiPerValidator(t *testing.T) {
-	pubkeys := []core.PubKey{
-		testutil.RandomCorePubKey(t),
-		testutil.RandomCorePubKey(t),
-		testutil.RandomCorePubKey(t),
-	}
-	graffiti := []string{randomString(10), randomString(32 - len(obolSignature)), randomString(32 - len(obolSignature) + 1)}
-
-	t.Run("invalid pubkey", func(t *testing.T) {
-		graffitiBytes := getGraffitiPerValidator(pubkeys, "invalid_pubkey", graffiti, false)
-		expected := getDefaultGraffiti(pubkeys, "", graffiti, false)
-
-		require.Equal(t, expected, graffitiBytes)
-		require.LessOrEqual(t, len(graffitiBytes), 32)
+		require.Equal(t, graffitiBytes, defaultGraffiti)
 	})
 
-	t.Run("graffiti space for signature", func(t *testing.T) {
-		graffitiBytes := getGraffitiPerValidator(pubkeys, pubkeys[1], graffiti, false)
-		var expected [32]byte
-		copy(expected[:], graffiti[1]+obolSignature)
+	t.Run("get graffiti", func(t *testing.T) {
+		graffiti := [][32]byte{{1}, {2}}
 
-		require.Equal(t, expected, graffitiBytes)
-		require.LessOrEqual(t, len(graffitiBytes), 32)
+		builder := &GraffitiBuilder{
+			defaultGraffiti: defaultGraffiti(),
+			graffiti: map[core.PubKey][32]byte{
+				pubkeys[0]: graffiti[0],
+				pubkeys[1]: graffiti[1],
+			},
+		}
+
+		require.Equal(t, graffiti[0], builder.GetGraffiti(pubkeys[0]))
+		require.Equal(t, graffiti[1], builder.GetGraffiti(pubkeys[1]))
+		require.Equal(t, defaultGraffiti(), builder.GetGraffiti(testutil.RandomCorePubKey(t)))
 	})
 
-	t.Run("graffiti no space for signature", func(t *testing.T) {
-		graffitiBytes := getGraffitiPerValidator(pubkeys, pubkeys[2], graffiti, false)
-		var expected [32]byte
-		copy(expected[:], graffiti[2])
+	t.Run("nil graffiti", func(t *testing.T) {
+		builder, err := NewGraffitiBuilder(pubkeys, nil, false)
+		require.NoError(t, err)
 
-		require.Equal(t, expected, graffitiBytes)
-		require.LessOrEqual(t, len(graffitiBytes), 32)
+		for _, pubkey := range pubkeys {
+			require.Equal(t, defaultGraffiti(), builder.GetGraffiti(pubkey))
+		}
+	})
+
+	t.Run("single graffiti with space for signature", func(t *testing.T) {
+		graffiti := randomString(32 - len(obolSignature))
+		builder, err := NewGraffitiBuilder(pubkeys, []string{graffiti}, false)
+		require.NoError(t, err)
+
+		for _, pubkey := range pubkeys {
+			var expected [32]byte
+			copy(expected[:], graffiti+obolSignature)
+
+			require.Equal(t, expected, builder.GetGraffiti(pubkey))
+		}
+	})
+
+	t.Run("single graffiti without space for signature", func(t *testing.T) {
+		graffiti := randomString(32 - len(obolSignature) + 1)
+		builder, err := NewGraffitiBuilder(pubkeys, []string{graffiti}, false)
+		require.NoError(t, err)
+
+		for _, pubkey := range pubkeys {
+			var expected [32]byte
+			copy(expected[:], graffiti)
+
+			require.Equal(t, expected, builder.GetGraffiti(pubkey))
+		}
+	})
+
+	t.Run("multiple graffiti", func(t *testing.T) {
+		graffiti := []string{randomString(10), randomString(32 - len(obolSignature)), randomString(32 - len(obolSignature) + 1)}
+		expectedGraffiti := []string{graffiti[0] + obolSignature, graffiti[1] + obolSignature, graffiti[2]}
+		builder, err := NewGraffitiBuilder(pubkeys, graffiti, false)
+		require.NoError(t, err)
+
+		for idx, pubkey := range pubkeys {
+			var expected [32]byte
+			copy(expected[:], expectedGraffiti[idx])
+
+			require.Equal(t, expected, builder.GetGraffiti(pubkey))
+		}
 	})
 }

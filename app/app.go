@@ -501,14 +501,11 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	graffitiFunc, err := fetcher.GetGraffitiFunc(pubkeys, conf.Graffiti, conf.GraffitiDisableClientAppend)
+	graffitiBuilder, err := fetcher.NewGraffitiBuilder(pubkeys, conf.Graffiti, conf.GraffitiDisableClientAppend)
 	if err != nil {
 		return err
 	}
-	getGraffitiFunc := func(pubkey core.PubKey) [32]byte {
-		return graffitiFunc(pubkeys, pubkey, conf.Graffiti, conf.GraffitiDisableClientAppend)
-	}
-	fetch, err := fetcher.New(eth2Cl, feeRecipientFunc, conf.BuilderAPI, getGraffitiFunc)
+	fetch, err := fetcher.New(eth2Cl, feeRecipientFunc, conf.BuilderAPI, graffitiBuilder)
 	if err != nil {
 		return err
 	}

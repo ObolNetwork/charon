@@ -244,18 +244,15 @@ func TestFetchBlocks(t *testing.T) {
 	)
 
 	var (
-		graffitiA = [32]byte{'t', 'e', 's', 't', 'A'}
-		graffitiB = [32]byte{'t', 'e', 's', 't', 'B'}
+		graffitiAString = "testA"
+		graffitiABytes  = [32]byte{'t', 'e', 's', 't', 'A'}
+		graffitiBString = "testB"
+		graffitiBBytes  = [32]byte{'t', 'e', 's', 't', 'B'}
 	)
 
 	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
 		vIdxA: testutil.RandomCorePubKey(t),
 		vIdxB: testutil.RandomCorePubKey(t),
-	}
-
-	graffitiByPubKey := map[core.PubKey][32]byte{
-		pubkeysByIdx[vIdxA]: graffitiA,
-		pubkeysByIdx[vIdxB]: graffitiB,
 	}
 
 	dutyA := eth2v1.ProposerDuty{
@@ -278,16 +275,19 @@ func TestFetchBlocks(t *testing.T) {
 		pubkeysByIdx[vIdxB]: randaoB,
 	}
 
-	getGraffitiFunc := func(pubkey core.PubKey) [32]byte {
-		return graffitiByPubKey[pubkey]
-	}
+	graffitiBuilder, err := fetcher.NewGraffitiBuilder(
+		[]core.PubKey{pubkeysByIdx[vIdxA], pubkeysByIdx[vIdxB]},
+		[]string{graffitiAString, graffitiBString},
+		true,
+	)
+	require.NoError(t, err)
 
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 
 	t.Run("fetch DutyProposer", func(t *testing.T) {
 		duty := core.NewProposerDuty(slot)
-		fetch := mustCreateFetcherWithAddressAndGraffiti(t, bmock, feeRecipientAddr, getGraffitiFunc)
+		fetch := mustCreateFetcherWithAddressAndGraffiti(t, bmock, feeRecipientAddr, graffitiBuilder)
 
 		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
 			return randaoByPubKey[key], nil
@@ -309,7 +309,7 @@ func TestFetchBlocks(t *testing.T) {
 			assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
 			graffitiDutyA, err := dutyDataA.Graffiti()
 			require.NoError(t, err)
-			require.Equal(t, graffitiA, graffitiDutyA)
+			require.Equal(t, graffitiABytes, graffitiDutyA)
 
 			dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.VersionedProposal)
 			slotB, err := dutyDataB.Slot()
@@ -323,7 +323,7 @@ func TestFetchBlocks(t *testing.T) {
 			assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature().ToETH2(), dutyDataB)
 			graffitiDutyB, err := dutyDataB.Graffiti()
 			require.NoError(t, err)
-			require.Equal(t, graffitiB, graffitiDutyB)
+			require.Equal(t, graffitiBBytes, graffitiDutyB)
 
 			return nil
 		})
@@ -531,18 +531,18 @@ func TestFetchSyncContribution(t *testing.T) {
 func mustCreateFetcher(t *testing.T, bmock beaconmock.Mock) *fetcher.Fetcher {
 	t.Helper()
 
-	fetch, err := fetcher.New(bmock, nil, true, nil)
+	fetch, err := fetcher.New(bmock, nil, true, &fetcher.GraffitiBuilder{})
 	require.NoError(t, err)
 
 	return fetch
 }
 
-func mustCreateFetcherWithAddressAndGraffiti(t *testing.T, bmock beaconmock.Mock, addr string, getGraffitiFunc func(core.PubKey) [32]byte) *fetcher.Fetcher {
+func mustCreateFetcherWithAddressAndGraffiti(t *testing.T, bmock beaconmock.Mock, addr string, graffitiBuilder *fetcher.GraffitiBuilder) *fetcher.Fetcher {
 	t.Helper()
 
 	fetch, err := fetcher.New(bmock, func(core.PubKey) string {
 		return addr
-	}, true, getGraffitiFunc)
+	}, true, graffitiBuilder)
 	require.NoError(t, err)
 
 	return fetch
