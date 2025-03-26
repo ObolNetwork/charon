@@ -814,11 +814,7 @@ func calculateTrackerDelay(ctx context.Context, cl eth2wrap.Client, now time.Tim
 	maxDelayTimeSlot := currentSlot + uint64(maxDelayTime/slotDuration) + 1
 	minDelaySlot := currentSlot + minDelaySlots
 
-	if maxDelayTimeSlot < minDelaySlot {
-		return minDelaySlot, nil
-	}
-
-	return maxDelayTimeSlot, nil
+	return max(minDelaySlot, maxDelayTimeSlot), nil
 }
 
 // eth2PubKeys returns a list of BLS pubkeys of validators in the cluster lock.
