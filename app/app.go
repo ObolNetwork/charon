@@ -27,6 +27,7 @@ import (
 	"go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/k1util"
@@ -98,6 +99,7 @@ type Config struct {
 	BeaconNodeHeaders       []string
 	TargetGasLimit          uint
 	FallbackBeaconNodeAddrs []string
+	ExecutionEngineAddr     string
 
 	TestConfig TestConfig
 }
@@ -167,7 +169,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	cluster, err := loadClusterManifest(ctx, conf)
+	eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
+	go eth1Cl.Run(ctx)
+
+	cluster, err := loadClusterManifest(ctx, conf, eth1Cl)
 	if err != nil {
 		return err
 	}

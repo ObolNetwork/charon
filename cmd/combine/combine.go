@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
@@ -27,7 +28,7 @@ import (
 // Note all nodes directories must be preset and all validator private key shares must be present.
 //
 // Combine will create a new directory named after "outputDir", which will contain Keystore files.
-func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bool, testnetConfig eth2util.Network, opts ...func(*options)) error {
+func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bool, executionEngineAddr string, testnetConfig eth2util.Network, opts ...func(*options)) error {
 	o := options{
 		keyStoreFunc: keystore.StoreKeys,
 	}
@@ -65,7 +66,10 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 		z.Str("output_dir", outputDir),
 	)
 
-	cluster, possibleKeyPaths, err := loadManifest(ctx, inputDir, noverify)
+	eth1Cl := eth1wrap.NewDefaultEthClientRunner(executionEngineAddr)
+	go eth1Cl.Run(ctx)
+
+	cluster, possibleKeyPaths, err := loadManifest(ctx, inputDir, noverify, eth1Cl)
 	if err != nil {
 		return errors.Wrap(err, "cannot open manifest file")
 	}
@@ -230,7 +234,7 @@ type options struct {
 // loadManifest will fail if some of the directories contain a different set of manifest and lock file.
 // For example, if 3 out of 4 directories contain both manifest and lock file, and the fourth only contains lock, loadManifest will return error.
 // It returns the v1.Cluster read from the manifest, and a list of directories that possibly contains keys.
-func loadManifest(ctx context.Context, dir string, noverify bool) (*manifestpb.Cluster, []string, error) {
+func loadManifest(ctx context.Context, dir string, noverify bool, eth1Cl eth1wrap.EthClientRunner) (*manifestpb.Cluster, []string, error) {
 	root, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "can't read directory")
@@ -258,7 +262,7 @@ func loadManifest(ctx context.Context, dir string, noverify bool) (*manifestpb.C
 		manifestFile := filepath.Join(dir, sd.Name(), "cluster-manifest.pb")
 
 		cl, err := manifest.LoadCluster(manifestFile, lockFile, func(lock cluster.Lock) error {
-			return verifyLock(ctx, lock, noverify)
+			return verifyLock(ctx, lock, noverify, eth1Cl)
 		})
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "manifest load error", z.Str("name", sd.Name()))
@@ -282,14 +286,14 @@ func loadManifest(ctx context.Context, dir string, noverify bool) (*manifestpb.C
 	return lastCluster, possibleValKeysDir, nil
 }
 
-func verifyLock(ctx context.Context, lock cluster.Lock, noverify bool) error {
+func verifyLock(ctx context.Context, lock cluster.Lock, noverify bool, eth1Cl eth1wrap.EthClientRunner) error {
 	if err := lock.VerifyHashes(); err != nil && !noverify {
 		return errors.Wrap(err, "cluster lock hash verification failed. Run with --no-verify to bypass verification at own risk")
 	} else if err != nil && noverify {
 		log.Warn(ctx, "Ignoring failed cluster lock hash verification due to --no-verify flag", err)
 	}
 
-	if err := lock.VerifySignatures(); err != nil && !noverify {
+	if err := lock.VerifySignatures(eth1Cl); err != nil && !noverify {
 		return errors.Wrap(err, "cluster lock signature verification failed. Run with --no-verify to bypass verification at own risk")
 	} else if err != nil && noverify {
 		log.Warn(ctx, "Ignoring failed cluster lock signature verification due to --no-verify flag", err)

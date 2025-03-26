@@ -6,6 +6,7 @@ import (
 	"context"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/manifest"
@@ -13,22 +14,28 @@ import (
 )
 
 // loadClusterManifest returns the cluster manifest from the given file path.
-func loadClusterManifest(ctx context.Context, conf Config) (*manifestpb.Cluster, error) {
+func loadClusterManifest(ctx context.Context, conf Config, eth1Cl eth1wrap.EthClientRunner) (*manifestpb.Cluster, error) {
 	if conf.TestConfig.Lock != nil {
 		return manifest.NewClusterFromLockForT(nil, *conf.TestConfig.Lock)
 	}
 
 	verifyLock := func(lock cluster.Lock) error {
-		if err := lock.VerifyHashes(); err != nil && !conf.NoVerify {
-			return errors.Wrap(err, "cluster lock hash verification failed. Run with --no-verify to bypass verification at own risk")
-		} else if err != nil && conf.NoVerify {
-			log.Warn(ctx, "Ignoring failed cluster lock hash verification due to --no-verify flag", err)
+		if conf.NoVerify {
+			if err := lock.VerifyHashes(); err != nil {
+				log.Warn(ctx, "Ignoring failed cluster lock hash verification due to --no-verify flag", err)
+			}
+			if err := lock.VerifySignatures(eth1Cl); err != nil {
+				log.Warn(ctx, "Ignoring failed cluster lock signature verification due to --no-verify flag", err)
+			}
+
+			return nil
 		}
 
-		if err := lock.VerifySignatures(); err != nil && !conf.NoVerify {
+		if err := lock.VerifyHashes(); err != nil {
+			return errors.Wrap(err, "cluster lock hash verification failed. Run with --no-verify to bypass verification at own risk")
+		}
+		if err := lock.VerifySignatures(eth1Cl); err != nil {
 			return errors.Wrap(err, "cluster lock signature verification failed. Run with --no-verify to bypass verification at own risk")
-		} else if err != nil && conf.NoVerify {
-			log.Warn(ctx, "Ignoring failed cluster lock signature verification due to --no-verify flag", err)
 		}
 
 		return nil
