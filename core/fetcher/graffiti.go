@@ -3,9 +3,9 @@
 package fetcher
 
 import (
-	"errors"
 	"fmt"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/core"
 )
@@ -60,13 +60,14 @@ func NewGraffitiBuilder(pubkeys []core.PubKey, graffiti []string, disableClientA
 	return builder, nil
 }
 
-// getGraffiti returns the graffiti for a given pubkey or the default graffiti
+// GetGraffiti returns the graffiti for a given pubkey or the default graffiti
 func (g *GraffitiBuilder) GetGraffiti(pubkey core.PubKey) [32]byte {
-	if graffiti, ok := g.graffiti[pubkey]; !ok {
+	graffiti, ok := g.graffiti[pubkey]
+	if !ok {
 		return g.defaultGraffiti
-	} else {
-		return graffiti
 	}
+
+	return graffiti
 }
 
 // buildGraffiti builds the graffiti with optional obolSignature
