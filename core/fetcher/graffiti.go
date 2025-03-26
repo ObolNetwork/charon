@@ -38,7 +38,7 @@ func NewGraffitiBuilder(pubkeys []core.PubKey, graffiti []string, disableClientA
 
 	for _, g := range graffiti {
 		if len(g) > 32 {
-			return nil, errors.New("graffiti length is greater than 32 characters")
+			return nil, errors.New("graffiti length is greater than 32 bytes")
 		}
 	}
 

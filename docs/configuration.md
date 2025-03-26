@@ -169,8 +169,8 @@ Flags:
       --feature-set string                       Minimum feature set to enable by default: alpha, beta, or stable. Warning: modify at own risk. (default "stable")
       --feature-set-disable strings              Comma-separated list of features to disable, overriding the default minimum feature set.
       --feature-set-enable strings               Comma-separated list of features to enable, overriding the default minimum feature set.
-      --graffiti strings                         Comma separated list of graffiti strings to include in block proposals. Maximum 32 ASCII characters per graffiti.
-      --graffiti-disable-client-append           Disables appending the charon name to the client graffiti.
+      --graffiti strings                         Comma-separated list of graffiti strings to include in block proposals. If possible appends OB (Obol) suffix to graffiti. Maximum 32 ASCII characters per graffiti.
+      --graffiti-disable-client-append           Disables appending OB suffix to beacon proposal graffiti.
   -h, --help                                     Help for run
       --jaeger-address string                    [DISABLED] Listening address for jaeger tracing.
       --jaeger-service string                    [DISABLED] Service name used for jaeger tracing.
