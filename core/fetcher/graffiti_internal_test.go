@@ -3,7 +3,6 @@
 package fetcher
 
 import (
-	"crypto/rand"
 	"fmt"
 	"testing"
 
@@ -14,31 +13,23 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-// randomString returns a random string of length n.
-func randomString(n int) string {
-	b := make([]byte, n)
-	_, _ = rand.Read(b)
-
-	return string(b)
-}
-
 func TestNewGraffitiBuilder(t *testing.T) {
 	pubkeys := []core.PubKey{testutil.RandomCorePubKey(t), testutil.RandomCorePubKey(t), testutil.RandomCorePubKey(t)}
 
 	t.Run("graffiti length greater than pubkeys", func(t *testing.T) {
-		builder, err := NewGraffitiBuilder(pubkeys, []string{randomString(10), randomString(15), randomString(20), randomString(25)}, false)
+		builder, err := NewGraffitiBuilder(pubkeys, []string{testutil.RandomBytesAsString(10), testutil.RandomBytesAsString(15), testutil.RandomBytesAsString(20), testutil.RandomBytesAsString(25)}, false)
 		require.Nil(t, builder)
 		require.Error(t, err)
 	})
 
 	t.Run("graffiti length lesser than pubkeys", func(t *testing.T) {
-		builder, err := NewGraffitiBuilder(pubkeys, []string{randomString(10), randomString(15)}, false)
+		builder, err := NewGraffitiBuilder(pubkeys, []string{testutil.RandomBytesAsString(10), testutil.RandomBytesAsString(15)}, false)
 		require.Nil(t, builder)
 		require.Error(t, err)
 	})
 
 	t.Run("graffiti length greater than 32 characters", func(t *testing.T) {
-		builder, err := NewGraffitiBuilder(pubkeys, []string{randomString(33)}, false)
+		builder, err := NewGraffitiBuilder(pubkeys, []string{testutil.RandomBytesAsString(33)}, false)
 		require.Nil(t, builder)
 		require.Error(t, err)
 	})
@@ -79,7 +70,7 @@ func TestNewGraffitiBuilder(t *testing.T) {
 	})
 
 	t.Run("single graffiti with space for signature", func(t *testing.T) {
-		graffiti := randomString(32 - len(obolSignature))
+		graffiti := testutil.RandomBytesAsString(32 - len(obolSignature))
 		builder, err := NewGraffitiBuilder(pubkeys, []string{graffiti}, false)
 		require.NoError(t, err)
 
@@ -92,7 +83,7 @@ func TestNewGraffitiBuilder(t *testing.T) {
 	})
 
 	t.Run("single graffiti without space for signature", func(t *testing.T) {
-		graffiti := randomString(32 - len(obolSignature) + 1)
+		graffiti := testutil.RandomBytesAsString(32 - len(obolSignature) + 1)
 		builder, err := NewGraffitiBuilder(pubkeys, []string{graffiti}, false)
 		require.NoError(t, err)
 
@@ -105,7 +96,7 @@ func TestNewGraffitiBuilder(t *testing.T) {
 	})
 
 	t.Run("multiple graffiti", func(t *testing.T) {
-		graffiti := []string{randomString(10), randomString(32 - len(obolSignature)), randomString(32 - len(obolSignature) + 1)}
+		graffiti := []string{testutil.RandomBytesAsString(10), testutil.RandomBytesAsString(32 - len(obolSignature)), testutil.RandomBytesAsString(32 - len(obolSignature) + 1)}
 		expectedGraffiti := []string{graffiti[0] + obolSignature, graffiti[1] + obolSignature, graffiti[2]}
 		builder, err := NewGraffitiBuilder(pubkeys, graffiti, false)
 		require.NoError(t, err)

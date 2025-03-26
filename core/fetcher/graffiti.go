@@ -29,8 +29,7 @@ func NewGraffitiBuilder(pubkeys []core.PubKey, graffiti []string, disableClientA
 			builder.graffiti[pubkey] = builder.defaultGraffiti
 		}
 
-	
-	return builder, nil
+		return builder, nil
 	}
 
 	if len(graffiti) > 1 && len(graffiti) != len(pubkeys) {
@@ -49,7 +48,6 @@ func NewGraffitiBuilder(pubkeys []core.PubKey, graffiti []string, disableClientA
 		for _, pubkey := range pubkeys {
 			builder.graffiti[pubkey] = buildGraffiti(singleGraffiti, disableClientAppend)
 		}
-
 
 		return builder, nil
 	}

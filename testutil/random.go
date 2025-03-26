@@ -1243,6 +1243,13 @@ func RandomChecksummedETHAddress(t *testing.T, seed int) string {
 	return eth2util.PublicKeyToAddress(publicKey)
 }
 
+func RandomBytesAsString(length int) string {
+	b := make([]byte, length)
+	_, _ = NewSeedRand().Read(b)
+
+	return string(b)
+}
+
 func RandomBytes96() []byte {
 	return RandomBytes96Seed(NewSeedRand())
 }
