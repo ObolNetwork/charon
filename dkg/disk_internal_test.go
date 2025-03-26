@@ -11,8 +11,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/eth1wrap/mocks"
 	"github.com/obolnetwork/charon/cluster"
 )
 
@@ -100,7 +102,9 @@ func TestLoadDefinition(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := loadDefinition(context.Background(), Config{DefFile: tt.defFile, NoVerify: tt.noVerify}, nil)
+			eth1Cl := mocks.NewEthClientRunner(t)
+			eth1Cl.On("VerifySmartContractBasedSignature", mock.Anything, mock.Anything, mock.Anything).Return(false, nil).Once()
+			got, err := loadDefinition(context.Background(), Config{DefFile: tt.defFile, NoVerify: tt.noVerify}, eth1Cl)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
