@@ -242,6 +242,7 @@ services:
   tempo:
     image: grafana/tempo:${TEMPO_VERSION:-2.7.1}
     networks: [compose]
+    user: ":"
     command: -config.file=/opt/tempo/tempo.yaml
     volumes:
       - ./tempo:/opt/tempo
