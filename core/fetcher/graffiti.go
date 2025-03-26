@@ -119,6 +119,7 @@ func defaultGraffiti() [32]byte {
 	return graffitiBytes
 }
 
+// fetchBeaconNodeToken queries the beacon node for the product token
 func fetchBeaconNodeToken(eth2Cl eth2wrap.Client) string {
 	eth2Resp, err := eth2Cl.NodeVersion(context.Background(), &eth2api.NodeVersionOpts{})
 	if err != nil {
