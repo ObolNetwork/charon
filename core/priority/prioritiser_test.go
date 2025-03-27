@@ -4,6 +4,7 @@ package priority_test
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -163,12 +164,10 @@ func prioToAny(prio int) *anypb.Any {
 
 func requireAnyDuty(t *testing.T, anyOf []core.Duty, actual core.Duty) {
 	t.Helper()
-	for _, msg := range anyOf {
-		if msg == actual {
-			return
-		}
+	if slices.Contains(anyOf, actual) {
+		return
 	}
-	require.Fail(t, "not anyOf: %#v\nactual: %#v\n", anyOf, actual)
+	require.Fail(t, "slice does not contain duty", "not anyOf: %#v\nactual: %#v\n", anyOf, actual)
 }
 
 func mustResultsToText(msgs []*pbv1.PriorityTopicResult) string {
