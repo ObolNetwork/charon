@@ -807,10 +807,13 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 		return err
 	}
 
-	// Use 1st slot in exit epoch for duty.
-	slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
+	respSpec, err := c.eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return err
+	}
+	slotsPerEpoch, ok := respSpec.Data["SLOTS_PER_EPOCH"].(uint64)
+	if !ok {
+		return errors.New("fetch slots per epoch")
 	}
 
 	duty := core.NewVoluntaryExit(slotsPerEpoch * uint64(exit.Message.Epoch))

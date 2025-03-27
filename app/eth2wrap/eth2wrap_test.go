@@ -37,34 +37,34 @@ func TestMulti(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		handle func(cl1Resp, cl2Resp chan uint64, ctxCancel context.CancelFunc)
+		handle func(cl1Resp, cl2Resp chan int, ctxCancel context.CancelFunc)
 		expErr error
-		expRes uint64
+		expRes int
 	}{
 		{
 			name: "cl1 only",
-			handle: func(cl1Resp, _ chan uint64, _ context.CancelFunc) {
+			handle: func(cl1Resp, _ chan int, _ context.CancelFunc) {
 				cl1Resp <- 99
 			},
 			expRes: 99,
 		},
 		{
 			name: "cl2 only",
-			handle: func(_, cl2Resp chan uint64, _ context.CancelFunc) {
+			handle: func(_, cl2Resp chan int, _ context.CancelFunc) {
 				cl2Resp <- 99
 			},
 			expRes: 99,
 		},
 		{
 			name: "ctx cancel",
-			handle: func(_, _ chan uint64, ctxCancel context.CancelFunc) {
+			handle: func(_, _ chan int, ctxCancel context.CancelFunc) {
 				ctxCancel()
 			},
 			expErr: context.Canceled,
 		},
 		{
 			name: "cl1 error, cl2 ok",
-			handle: func(cl1, cl2 chan uint64, _ context.CancelFunc) {
+			handle: func(cl1, cl2 chan int, _ context.CancelFunc) {
 				close(cl1)
 				cl2 <- 99
 			},
@@ -72,7 +72,7 @@ func TestMulti(t *testing.T) {
 		},
 		{
 			name: "all error",
-			handle: func(cl1, cl2 chan uint64, _ context.CancelFunc) {
+			handle: func(cl1, cl2 chan int, _ context.CancelFunc) {
 				close(cl1)
 				close(cl2)
 			},
@@ -80,7 +80,7 @@ func TestMulti(t *testing.T) {
 		},
 		{
 			name: "cl1 error, ctx cancel",
-			handle: func(cl1, _ chan uint64, cancel context.CancelFunc) {
+			handle: func(cl1, _ chan int, cancel context.CancelFunc) {
 				close(cl1)
 				cancel()
 			},
@@ -88,7 +88,7 @@ func TestMulti(t *testing.T) {
 		},
 		{
 			name: "cl2 before cl1",
-			handle: func(cl1, cl2 chan uint64, cancel context.CancelFunc) {
+			handle: func(cl1, cl2 chan int, cancel context.CancelFunc) {
 				cl2 <- 99
 
 				time.Sleep(time.Millisecond)
@@ -107,10 +107,10 @@ func TestMulti(t *testing.T) {
 			cl2, err := beaconmock.New()
 			require.NoError(t, err)
 
-			cl1Resp := make(chan uint64)
-			cl2Resp := make(chan uint64)
+			cl1Resp := make(chan int)
+			cl2Resp := make(chan int)
 
-			cl1.SlotsPerEpochFunc = func(ctx context.Context) (uint64, error) {
+			cl1.NodePeerCountFunc = func(ctx context.Context) (int, error) {
 				select {
 				case <-ctx.Done():
 					return 0, ctx.Err()
@@ -122,7 +122,7 @@ func TestMulti(t *testing.T) {
 					return resp, nil
 				}
 			}
-			cl2.SlotsPerEpochFunc = func(ctx context.Context) (uint64, error) {
+			cl2.NodePeerCountFunc = func(ctx context.Context) (int, error) {
 				select {
 				case <-ctx.Done():
 					return 0, ctx.Err()
@@ -140,7 +140,7 @@ func TestMulti(t *testing.T) {
 
 			go test.handle(cl1Resp, cl2Resp, cancel)
 
-			resp, err := eth2Cl.SlotsPerEpoch(ctx)
+			resp, err := eth2Cl.NodePeerCount(ctx)
 			require.ErrorIs(t, err, test.expErr)
 			require.Equal(t, test.expRes, resp)
 		})
@@ -148,7 +148,7 @@ func TestMulti(t *testing.T) {
 }
 
 func TestFallback(t *testing.T) {
-	returnValue := uint64(42)
+	returnValue := 42
 	closedErr := errors.New("error")
 
 	tests := []struct {
@@ -195,7 +195,7 @@ func TestFallback(t *testing.T) {
 				cl, err := beaconmock.New()
 				require.NoError(t, err)
 
-				cl.SlotsPerEpochFunc = func(context.Context) (uint64, error) {
+				cl.NodePeerCountFunc = func(context.Context) (int, error) {
 					calledMu.Lock()
 					primaryCalled[i] = true
 					calledMu.Unlock()
@@ -211,7 +211,7 @@ func TestFallback(t *testing.T) {
 				cl, err := beaconmock.New()
 				require.NoError(t, err)
 
-				cl.SlotsPerEpochFunc = func(context.Context) (uint64, error) {
+				cl.NodePeerCountFunc = func(context.Context) (int, error) {
 					calledMu.Lock()
 					fallbackCalled[i] = true
 					calledMu.Unlock()
@@ -223,7 +223,7 @@ func TestFallback(t *testing.T) {
 
 			eth2Cl, err := eth2wrap.Instrument(primaryClients, fallbackClients)
 			require.NoError(t, err)
-			res, err := eth2Cl.SlotsPerEpoch(context.Background())
+			res, err := eth2Cl.NodePeerCount(t.Context())
 			require.NoError(t, err)
 			require.Equal(t, returnValue, res)
 
@@ -283,10 +283,10 @@ func TestErrors(t *testing.T) {
 		cl, err := eth2wrap.NewMultiHTTP(time.Hour, [4]byte{}, nil, []string{"localhost:22222"}, nil)
 		require.NoError(t, err)
 
-		_, err = cl.SlotsPerEpoch(ctx)
+		_, err = cl.NodePeerCount(ctx)
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "beacon api slots_per_epoch: client is not active")
+		require.ErrorContains(t, err, "beacon api node_peer_count: network operation error")
 	})
 
 	// Test http server that just hangs until request cancelled
@@ -298,10 +298,10 @@ func TestErrors(t *testing.T) {
 		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, [4]byte{}, nil, []string{srv.URL}, nil)
 		require.NoError(t, err)
 
-		_, err = cl.SlotsPerEpoch(ctx)
+		_, err = cl.NodePeerCount(ctx)
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "beacon api slots_per_epoch: client is not active")
+		require.ErrorContains(t, err, "beacon api node_peer_count: http request timeout")
 	})
 
 	t.Run("caller cancelled", func(t *testing.T) {
@@ -311,10 +311,10 @@ func TestErrors(t *testing.T) {
 		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, [4]byte{}, nil, []string{srv.URL}, nil)
 		require.NoError(t, err)
 
-		_, err = cl.SlotsPerEpoch(ctx)
+		_, err = cl.NodePeerCount(ctx)
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "beacon api slots_per_epoch: context canceled")
+		require.ErrorContains(t, err, "beacon api node_peer_count: context canceled")
 	})
 
 	t.Run("zero net op error", func(t *testing.T) {

@@ -144,9 +144,13 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 		return nil, core.ErrDeprecatedDutyBuilderProposer
 	}
 
-	slotsPerEpoch, err := s.eth2Cl.SlotsPerEpoch(ctx)
+	respSpec, err := s.eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return nil, err
+	}
+	slotsPerEpoch, ok := respSpec.Data["SLOTS_PER_EPOCH"].(uint64)
+	if !ok {
+		return nil, errors.New("fetch slots per epoch")
 	}
 
 	epoch := duty.Slot / slotsPerEpoch

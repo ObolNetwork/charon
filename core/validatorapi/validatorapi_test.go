@@ -1774,8 +1774,10 @@ func TestComponent_TekuProposerConfig(t *testing.T) {
 
 	genesis, err := bmock.GenesisTime(ctx)
 	require.NoError(t, err)
-	slotDuration, err := bmock.SlotDuration(ctx)
+	respSpec, err := bmock.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)
+	slotDuration, ok := respSpec.Data["SECONDS_PER_SLOT"].(time.Duration)
+	require.True(t, ok)
 
 	eth2pk, err := pk.ToETH2()
 	require.NoError(t, err)

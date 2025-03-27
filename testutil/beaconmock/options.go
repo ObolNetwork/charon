@@ -621,7 +621,16 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			return nil
 		},
 		SlotsPerEpochFunc: func(ctx context.Context) (uint64, error) {
-			return httpMock.SlotsPerEpoch(ctx)
+			respSpec, err := httpMock.Spec(ctx, &eth2api.SpecOpts{})
+			if err != nil {
+				return 0, errors.Wrap(err, "getting spec")
+			}
+			slotsPerEpoch, ok := respSpec.Data["SLOTS_PER_EPOCH"].(uint64)
+			if !ok {
+				return 0, errors.New("fetch slots per epoch")
+			}
+
+			return slotsPerEpoch, nil
 		},
 		SubmitProposalPreparationsFunc: func(context.Context, []*eth2v1.ProposalPreparation) error {
 			return nil

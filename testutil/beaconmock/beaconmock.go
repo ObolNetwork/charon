@@ -94,6 +94,11 @@ func defaultHTTPMock() Mock {
 				Value:    "16",
 			},
 			{
+				Endpoint: "/eth/v1/config/spec",
+				Key:      "SECONDS_PER_SLOT",
+				Value:    "12",
+			},
+			{
 				Endpoint: "/eth/v1/beacon/genesis",
 				Key:      "genesis_time",
 				Value:    strconv.FormatInt(genesis.Unix(), 10),
