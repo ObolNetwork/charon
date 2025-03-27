@@ -60,7 +60,6 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 	relayResources.Limit.Data = 32 * (1 << 20) // 32MB
 	relayResources.Limit.Duration = time.Hour
 	relayResources.BufferSize = 64 * (1 << 10) // 64KB
-	relayResources.MaxReservationsPerPeer = config.MaxResPerPeer
 	relayResources.MaxReservationsPerIP = config.MaxResPerPeer
 	relayResources.MaxReservations = config.MaxConns
 	relayResources.MaxCircuits = config.MaxResPerPeer
