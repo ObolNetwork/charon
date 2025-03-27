@@ -327,7 +327,7 @@ func TestRawRouter(t *testing.T) {
 	})
 
 	t.Run("get validators with post", func(t *testing.T) {
-		simpleValidatorsFunc := func(_ context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) { //nolint:golint,unparam
+		simpleValidatorsFunc := func(_ context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) { //nolint:unparam
 			res := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
 			if len(opts.Indices) == 0 {
 				opts.Indices = []eth2p0.ValidatorIndex{12, 35}

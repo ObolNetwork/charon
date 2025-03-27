@@ -24,7 +24,6 @@ var initOnce = sync.Once{}
 //nolint:gochecknoinits
 func init() {
 	initOnce.Do(func() {
-		//nolint:nosnakecase
 		if err := bls.Init(bls.BLS12_381); err != nil {
 			panic(errors.Wrap(err, "cannot initialize Herumi BLS"))
 		}
