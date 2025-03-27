@@ -794,10 +794,11 @@ func calculateTrackerDelay(ctx context.Context, cl eth2wrap.Client, now time.Tim
 	const maxDelayTime = time.Second * 10 // We want to delay at most 10 seconds
 	const minDelaySlots = 2               // But we do not want to delay less than 2 slots
 
-	genesisTime, err := cl.GenesisTime(ctx)
+	genesis, err := cl.Genesis(ctx, &eth2api.GenesisOpts{})
 	if err != nil {
 		return 0, err
 	}
+	genesisTime := genesis.Data.GenesisTime
 
 	eth2Resp, err := cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {

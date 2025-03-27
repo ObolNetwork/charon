@@ -37,7 +37,6 @@ type HTTPMock interface {
 	eth2client.ForkProvider
 	eth2client.ForkScheduleProvider
 	eth2client.GenesisProvider
-	eth2client.GenesisTimeProvider
 	eth2client.NodeSyncingProvider
 	eth2client.NodeVersionProvider
 	eth2client.SlotDurationProvider

@@ -119,7 +119,6 @@ type Client interface {
 		"ForkProvider":                          {Latency: true, Log: false},
 		"ForkScheduleProvider":                  {Latency: true, Log: false},
 		"GenesisProvider":                       {Latency: false, Log: false},
-		"GenesisTimeProvider":                   {Latency: false, Log: false},
 		"NodeSyncingProvider":                   {Latency: true, Log: false},
 		"NodeVersionProvider":                   {Latency: false, Log: false},
 		"ProposerDutiesProvider":                {Latency: true, Log: false},

@@ -45,10 +45,11 @@ func NewDutyGater(ctx context.Context, eth2Cl eth2wrap.Client, opts ...func(*dut
 		opt(&o)
 	}
 
-	genesisTime, err := eth2Cl.GenesisTime(ctx)
+	genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
 	if err != nil {
 		return nil, err
 	}
+	genesisTime := genesis.Data.GenesisTime
 
 	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {

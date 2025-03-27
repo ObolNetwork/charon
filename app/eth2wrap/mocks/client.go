@@ -591,34 +591,6 @@ func (_m *Client) GenesisDomain(ctx context.Context, domainType phase0.DomainTyp
 	return r0, r1
 }
 
-// GenesisTime provides a mock function with given fields: ctx
-func (_m *Client) GenesisTime(ctx context.Context) (time.Time, error) {
-	ret := _m.Called(ctx)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GenesisTime")
-	}
-
-	var r0 time.Time
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context) (time.Time, error)); ok {
-		return rf(ctx)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context) time.Time); ok {
-		r0 = rf(ctx)
-	} else {
-		r0 = ret.Get(0).(time.Time)
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
-		r1 = rf(ctx)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // IsActive provides a mock function with given fields:
 func (_m *Client) IsActive() bool {
 	ret := _m.Called()

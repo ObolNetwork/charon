@@ -558,10 +558,11 @@ func reportAttInclusion(ctx context.Context, sub submission, block block) {
 
 // NewInclusion returns a new InclusionChecker.
 func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client, trackerInclFunc trackerInclFunc) (*InclusionChecker, error) {
-	genesis, err := eth2Cl.GenesisTime(ctx)
+	genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
 	if err != nil {
 		return nil, err
 	}
+	genesisTime := genesis.Data.GenesisTime
 
 	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
@@ -584,7 +585,7 @@ func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client, trackerInclFunc t
 	return &InclusionChecker{
 		core:             inclCore,
 		eth2Cl:           eth2Cl,
-		genesis:          genesis,
+		genesis:          genesisTime,
 		slotDuration:     slotDuration,
 		checkBlockFunc:   inclCore.CheckBlock,
 		checkBlockV2Func: inclCore.CheckBlockV2,

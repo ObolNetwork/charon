@@ -146,7 +146,7 @@ type Mock struct {
 	SubmitVoluntaryExitFunc                func(context.Context, *eth2p0.SignedVoluntaryExit) error
 	ValidatorsByPubKeyFunc                 func(context.Context, string, []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
 	ValidatorsFunc                         func(context.Context, *eth2api.ValidatorsOpts) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
-	GenesisTimeFunc                        func(context.Context) (time.Time, error)
+	GenesisFunc                            func(context.Context, *eth2api.GenesisOpts) (*eth2v1.Genesis, error)
 	NodeSyncingFunc                        func(context.Context, *eth2api.NodeSyncingOpts) (*eth2v1.SyncState, error)
 	SubmitValidatorRegistrationsFunc       func(context.Context, []*eth2api.VersionedSignedValidatorRegistration) error
 	SlotsPerEpochFunc                      func(context.Context) (uint64, error)
@@ -297,6 +297,15 @@ func (m Mock) CompleteValidators(ctx context.Context) (eth2wrap.CompleteValidato
 	return complete, err
 }
 
+func (m Mock) Genesis(ctx context.Context, opts *eth2api.GenesisOpts) (*eth2api.Response[*eth2v1.Genesis], error) {
+	genesis, err := m.GenesisFunc(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return wrapResponse(genesis), nil
+}
+
 // Deprecated: use BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error)
 func (m Mock) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
 	return m.BlockAttestationsFunc(ctx, stateID)
@@ -328,10 +337,6 @@ func (m Mock) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedVolunt
 
 func (m Mock) ValidatorsByPubKey(ctx context.Context, stateID string, validatorPubKeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 	return m.ValidatorsByPubKeyFunc(ctx, stateID, validatorPubKeys)
-}
-
-func (m Mock) GenesisTime(ctx context.Context) (time.Time, error) {
-	return m.GenesisTimeFunc(ctx)
 }
 
 func (m Mock) SubmitValidatorRegistrations(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error {

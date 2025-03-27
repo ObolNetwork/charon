@@ -40,17 +40,20 @@ const (
 // SlotFromTimestamp returns the Ethereum slot associated to a timestamp, given the genesis configuration fetched
 // from client.
 func SlotFromTimestamp(ctx context.Context, client eth2wrap.Client, timestamp time.Time) (eth2p0.Slot, error) {
-	genesis, err := client.GenesisTime(ctx)
+	genesis, err := client.Genesis(ctx, &eth2api.GenesisOpts{})
 	if err != nil {
 		return 0, err
-	} else if timestamp.Before(genesis) {
+	}
+	genesisTime := genesis.Data.GenesisTime
+	if timestamp.Before(genesisTime) {
+		genesisTime := genesis.Data.GenesisTime
 		// if timestamp is in the past (can happen in testing scenarios, there's no strict form of checking on it),  fall back on current timestamp.
 		nextTimestamp := time.Now()
 
 		log.Info(
 			ctx,
 			"timestamp before genesis, defaulting to current timestamp",
-			z.I64("genesis_timestamp", genesis.Unix()),
+			z.I64("genesis_timestamp", genesisTime.Unix()),
 			z.I64("overridden_timestamp", timestamp.Unix()),
 			z.I64("new_timestamp", nextTimestamp.Unix()),
 		)
@@ -68,7 +71,7 @@ func SlotFromTimestamp(ctx context.Context, client eth2wrap.Client, timestamp ti
 		return 0, errors.New("fetch slot duration")
 	}
 
-	delta := timestamp.Sub(genesis)
+	delta := timestamp.Sub(genesisTime)
 
 	return eth2p0.Slot(delta / slotDuration), nil
 }
@@ -1498,10 +1501,11 @@ func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigR
 		return nil, errors.New("fetch slot duration")
 	}
 
-	timestamp, err := c.eth2Cl.GenesisTime(ctx)
+	genesis, err := c.eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
 	if err != nil {
 		return nil, err
 	}
+	timestamp := genesis.Data.GenesisTime
 	timestamp = timestamp.Add(slotDuration) // Use slot 1 for timestamp to override pre-generated registrations.
 
 	for pubkey, pubshare := range c.sharesByKey {

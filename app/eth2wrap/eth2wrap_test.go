@@ -320,16 +320,18 @@ func TestErrors(t *testing.T) {
 	t.Run("zero net op error", func(t *testing.T) {
 		bmock, err := beaconmock.New()
 		require.NoError(t, err)
-		bmock.GenesisTimeFunc = func(context.Context) (time.Time, error) {
-			return time.Time{}, new(net.OpError)
+		bmock.GenesisFunc = func(context.Context, *eth2api.GenesisOpts) (*eth2v1.Genesis, error) {
+			return &eth2v1.Genesis{
+				GenesisTime: time.Time{},
+			}, new(net.OpError)
 		}
 		eth2Cl, err := eth2wrap.Instrument([]eth2wrap.Client{bmock}, nil)
 		require.NoError(t, err)
 
-		_, err = eth2Cl.GenesisTime(ctx)
+		_, err = eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "beacon api genesis_time: network operation error: :")
+		require.ErrorContains(t, err, "beacon api genesis: network operation error: :")
 	})
 
 	t.Run("eth2api error", func(t *testing.T) {

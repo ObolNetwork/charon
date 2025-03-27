@@ -597,8 +597,13 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SubmitVoluntaryExitFunc: func(context.Context, *eth2p0.SignedVoluntaryExit) error {
 			return nil
 		},
-		GenesisTimeFunc: func(ctx context.Context) (time.Time, error) {
-			return httpMock.GenesisTime(ctx)
+		GenesisFunc: func(ctx context.Context, opts *eth2api.GenesisOpts) (*eth2v1.Genesis, error) {
+			resp, err := httpMock.Genesis(ctx, opts)
+			if err != nil {
+				return nil, err
+			}
+
+			return resp.Data, nil
 		},
 		NodeSyncingFunc: func(ctx context.Context, opts *eth2api.NodeSyncingOpts) (*eth2v1.SyncState, error) {
 			resp, err := httpMock.NodeSyncing(ctx, opts)

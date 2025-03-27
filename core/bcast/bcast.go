@@ -407,10 +407,11 @@ func setToAttestationsV2(set core.SignedDataSet) ([]*eth2spec.VersionedAttestati
 
 // newDelayFunc returns a function that calculates the delay since the start of a slot.
 func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64) time.Duration, error) {
-	genesis, err := eth2Cl.GenesisTime(ctx)
+	genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
 	if err != nil {
 		return nil, err
 	}
+	genesisTime := genesis.Data.GenesisTime
 
 	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
@@ -423,7 +424,7 @@ func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64
 	}
 
 	return func(slot uint64) time.Duration {
-		slotStart := genesis.Add(slotDuration * time.Duration(slot))
+		slotStart := genesisTime.Add(slotDuration * time.Duration(slot))
 		return time.Since(slotStart)
 	}, nil
 }
