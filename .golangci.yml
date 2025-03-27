@@ -1,165 +1,16 @@
+version: "2"
 run:
-  timeout: 5m
   go: "1.24"
-linters-settings:
-  cyclop:
-    max-complexity: 15
-    skip-tests: true
-  dupl:
-    # tokens count to trigger issue, 150 by default
-    threshold: 400
-  depguard:
-    rules:
-      main:
-        deny:
-          - pkg: "github.com/pkg/errors"
-            desc: Prefer ./app/errors
-          - pkg: "github.com/golang/protobuf"
-            desc: Prefer google.golang.org/protobuf
-          - pkg: "github.com/gogo/protobuf/proto"
-            desc: Prefer google.golang.org/protobuf
-  exhaustive:
-    default-signifies-exhaustive: true
-  forbidigo:
-    forbid:
-      - 'fmt\.Print.*(# Avoid debug logging)?'
-      - 'fmt\.Errorf.*(# Prefer app/errors.Wrap)?'
-  gci:
-    sections:
-      - prefix(github.com/obolnetwork/charon)
-  gocritic:
-    disabled-checks:
-      - ifElseChain
-  govet:
-    enable-all: true
-    disable:
-      - fieldalignment
-      - shadow
-  importas:
-    no-unaliased: true
-    alias:
-      - pkg: github.com/attestantio/go-eth2-client/spec/phase0
-        alias: eth2p0
-      - pkg: github.com/attestantio/go-eth2-client/api/v1
-        alias: eth2v1
-      - pkg: github.com/attestantio/go-eth2-client/api
-        alias: eth2api
-      - pkg: github.com/attestantio/go-eth2-client/spec
-        alias: eth2spec
-      - pkg: github.com/attestantio/go-eth2-client/http
-        alias: eth2http
-      - pkg: github.com/attestantio/go-eth2-client/mock
-        alias: eth2mock
-      - pkg: github.com/attestantio/go-eth2-client/api/v1/bellatrix
-        alias: eth2bellatrix
-      - pkg: github.com/attestantio/go-eth2-client/api/v1/capella
-        alias: eth2capella
-      - pkg: github.com/decred/dcrd/dcrec/secp256k1/v4
-        alias: k1
-      - pkg: github.com/obolnetwork/charon/cluster/manifestpb/v1
-        alias: manifestpb
-  nlreturn:
-    block-size: 2
-  revive:
-    enable-all-rules: true
-    severity: warning
-    rules:
-      # Disabled revive rules
-      - name: banned-characters
-        disabled: true
-      - name: add-constant
-        disabled: true
-      - name: file-header
-        disabled: true
-      - name: function-result-limit
-        disabled: true
-      - name: cyclomatic
-        disabled: true
-      - name: line-length-limit
-        disabled: true
-      - name: max-public-structs
-        disabled: true
-      - name: argument-limit
-        disabled: true
-      - name: function-length
-        disabled: true
-      - name: cognitive-complexity
-        disabled: true
-      - name: comment-spacings
-        disabled: true # Doesn't support latest go spec comments
-      - name: range-val-address
-        disabled: true # It is not an issue for go versions >=1.22
-      # Some configured revive rules
-      - name: unhandled-error
-        arguments:
-          - "fmt.Printf"
-          - "fmt.Println"
-      - name: imports-blocklist
-        arguments:
-          - "errors" # Prefer ./app/errors
-          - "github.com/pkg/errors" # Prefer ./app/errors
-          - "github.com/golang/protobuf" # Prefer google.golang.org/protobuf
-          - "github.com/gogo/protobuf/proto" # Prefer google.golang.org/protobuf
-          - "github.com/prometheus/client_golang/prometheus/promauto" # Prefer ./app/promauto
-  staticcheck:
-    checks:
-      - "all"
-      - "-SA1019" # Ignoring since github.com/drand/kyber/sign/bls uses Proof Of Possession as does Ethereum.
-  testpackage:
-    skip-regexp: internal_test\.go
-  wrapcheck:
-    ignoreSigs:
-      - github.com/obolnetwork/charon/
-      - github.com/attestantio/go-eth2-client
-  testifylint:
-    disable:
-      - expected-actual
-    go-require:
-      ignore-http-handlers: true
-  gosec:
-    excludes:
-      # Flags for potentially-unsafe casting of ints, seems good,
-      # but currently is really unstable with no clear way to make the linter pass.
-      # https://github.com/securego/gosec/issues/1187
-      - G115
-
-issues:
-  fix: true
-  max-same-issues: 0
-  max-issues-per-linter: 0
-  exclude-rules:
-    - path: '(.+)_test\.go'
-      linters:
-        - bodyclose
-        - gosec
-        - noctx
-        - revive
-    - path: "eth2wrap"
-      linters:
-        - importas
-  exclude:
-    - "error returned from interface method should be wrapped" # Relax wrapcheck
-    - "defer: prefer not to defer chains of function calls" # Relax revive
-    - "avoid control coupling" # Relax revive
-    - "shadows an import name" # Relax revive
-    - "confusing-naming" # Relax revive
-    - "nested-structs" # Relax revive
-    - "0xhex" # Relax revive and staticcheck about our custom struct tag
-    - 'shadow: declaration of "err" shadows declaration' # Relax govet
-
 linters:
-  enable-all: true
+  default: all
   disable:
-    # Keep disabled
-    - intrange
     - containedctx
     - contextcheck
     - cyclop
+    - err113
     - exhaustruct
-    - exportloopref # It is not an issue for go versions >=1.22
-    - funlen
     - forcetypeassert
-    - gci
+    - funlen
     - gochecknoglobals
     - gocognit
     - gocyclo
@@ -168,8 +19,9 @@ linters:
     - gomoddirectives
     - inamedparam
     - interfacebloat
+    - intrange
     - ireturn
-    - lll # Think about adding this (max line length)
+    - lll
     - maintidx
     - mnd
     - musttag
@@ -177,8 +29,177 @@ linters:
     - nonamedreturns
     - paralleltest
     - prealloc
-    - recvcheck # triggers a lot of false positives
+    - recvcheck
     - tagliatelle
     - varnamelen
     - wsl
-    - err113
+  settings:
+    cyclop:
+      max-complexity: 15
+    depguard:
+      rules:
+        main:
+          deny:
+            - pkg: github.com/pkg/errors
+              desc: Prefer ./app/errors
+            - pkg: github.com/golang/protobuf
+              desc: Prefer google.golang.org/protobuf
+            - pkg: github.com/gogo/protobuf/proto
+              desc: Prefer google.golang.org/protobuf
+    dupl:
+      threshold: 400
+    exhaustive:
+      default-signifies-exhaustive: true
+    forbidigo:
+      forbid:
+        - pattern: fmt\.Print.*(# Avoid debug logging)?
+        - pattern: fmt\.Errorf.*(# Prefer app/errors.Wrap)?
+    gocritic:
+      disabled-checks:
+        - ifElseChain
+    gosec:
+      excludes:
+        - G115
+    govet:
+      disable:
+        - fieldalignment
+        - shadow
+      enable-all: true
+    importas:
+      alias:
+        - pkg: github.com/attestantio/go-eth2-client/spec/phase0
+          alias: eth2p0
+        - pkg: github.com/attestantio/go-eth2-client/api/v1
+          alias: eth2v1
+        - pkg: github.com/attestantio/go-eth2-client/api
+          alias: eth2api
+        - pkg: github.com/attestantio/go-eth2-client/spec
+          alias: eth2spec
+        - pkg: github.com/attestantio/go-eth2-client/http
+          alias: eth2http
+        - pkg: github.com/attestantio/go-eth2-client/mock
+          alias: eth2mock
+        - pkg: github.com/attestantio/go-eth2-client/api/v1/bellatrix
+          alias: eth2bellatrix
+        - pkg: github.com/attestantio/go-eth2-client/api/v1/capella
+          alias: eth2capella
+        - pkg: github.com/decred/dcrd/dcrec/secp256k1/v4
+          alias: k1
+        - pkg: github.com/obolnetwork/charon/cluster/manifestpb/v1
+          alias: manifestpb
+      no-unaliased: true
+    nlreturn:
+      block-size: 2
+    revive:
+      severity: warning
+      enable-all-rules: true
+      rules:
+        - name: banned-characters
+          disabled: true
+        - name: add-constant
+          disabled: true
+        - name: file-header
+          disabled: true
+        - name: function-result-limit
+          disabled: true
+        - name: cyclomatic
+          disabled: true
+        - name: line-length-limit
+          disabled: true
+        - name: max-public-structs
+          disabled: true
+        - name: argument-limit
+          disabled: true
+        - name: function-length
+          disabled: true
+        - name: cognitive-complexity
+          disabled: true
+        - name: comment-spacings
+          disabled: true
+        - name: range-val-address
+          disabled: true
+        - name: unhandled-error
+          arguments:
+            - fmt.Printf
+            - fmt.Println
+        - name: imports-blocklist
+          arguments:
+            - errors
+            - github.com/pkg/errors
+            - github.com/golang/protobuf
+            - github.com/gogo/protobuf/proto
+            - github.com/prometheus/client_golang/prometheus/promauto
+    staticcheck:
+      checks:
+        - -SA1019
+        - all
+    testifylint:
+      disable:
+        - expected-actual
+      go-require:
+        ignore-http-handlers: true
+    testpackage:
+      skip-regexp: internal_test\.go
+    wrapcheck:
+      ignore-sigs:
+        - github.com/obolnetwork/charon/
+        - github.com/attestantio/go-eth2-client
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - bodyclose
+          - gosec
+          - noctx
+          - revive
+        path: (.+)_test\.go
+      - linters:
+          - importas
+        path: eth2wrap
+      - path: (.+)\.go$
+        text: error returned from interface method should be wrapped
+      - path: (.+)\.go$
+        text: 'defer: prefer not to defer chains of function calls'
+      - path: (.+)\.go$
+        text: avoid control coupling
+      - path: (.+)\.go$
+        text: shadows an import name
+      - path: (.+)\.go$
+        text: confusing-naming
+      - path: (.+)\.go$
+        text: nested-structs
+      - path: (.+)\.go$
+        text: 0xhex
+      - path: (.+)\.go$
+        text: 'shadow: declaration of "err" shadows declaration'
+      - linters:
+          - cyclop
+        path: (.+)_test\.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  fix: true
+formatters:
+  enable:
+    - gofmt
+    - gofumpt
+    - goimports
+  settings:
+    gci:
+      sections:
+        - prefix(github.com/obolnetwork/charon)
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
