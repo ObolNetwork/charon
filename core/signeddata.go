@@ -391,32 +391,32 @@ func (p VersionedSignedProposal) MarshalJSON() ([]byte, error) {
 	switch p.Version {
 	// No proposal nil checks since `NewVersionedSignedProposal` assumed.
 	case eth2spec.DataVersionPhase0:
-		marshaller = p.VersionedSignedProposal.Phase0
+		marshaller = p.Phase0
 	case eth2spec.DataVersionAltair:
-		marshaller = p.VersionedSignedProposal.Altair
+		marshaller = p.Altair
 	case eth2spec.DataVersionBellatrix:
 		if p.Blinded {
-			marshaller = p.VersionedSignedProposal.BellatrixBlinded
+			marshaller = p.BellatrixBlinded
 		} else {
-			marshaller = p.VersionedSignedProposal.Bellatrix
+			marshaller = p.Bellatrix
 		}
 	case eth2spec.DataVersionCapella:
 		if p.Blinded {
-			marshaller = p.VersionedSignedProposal.CapellaBlinded
+			marshaller = p.CapellaBlinded
 		} else {
-			marshaller = p.VersionedSignedProposal.Capella
+			marshaller = p.Capella
 		}
 	case eth2spec.DataVersionDeneb:
 		if p.Blinded {
-			marshaller = p.VersionedSignedProposal.DenebBlinded
+			marshaller = p.DenebBlinded
 		} else {
-			marshaller = p.VersionedSignedProposal.Deneb
+			marshaller = p.Deneb
 		}
 	case eth2spec.DataVersionElectra:
 		if p.Blinded {
-			marshaller = p.VersionedSignedProposal.ElectraBlinded
+			marshaller = p.ElectraBlinded
 		} else {
-			marshaller = p.VersionedSignedProposal.Electra
+			marshaller = p.Electra
 		}
 	default:
 		return nil, errors.New("unknown version")
@@ -1010,7 +1010,7 @@ func (r VersionedSignedValidatorRegistration) MarshalJSON() ([]byte, error) {
 	var marshaller json.Marshaler
 	switch r.Version {
 	case eth2spec.BuilderVersionV1:
-		marshaller = r.VersionedSignedValidatorRegistration.V1
+		marshaller = r.V1
 	default:
 		return nil, errors.New("unknown version")
 	}
@@ -1086,7 +1086,7 @@ type SignedRandao struct {
 }
 
 func (s SignedRandao) MessageRoot() ([32]byte, error) {
-	return s.SignedEpoch.HashTreeRoot()
+	return s.HashTreeRoot()
 }
 
 func (s SignedRandao) Signature() Signature {
@@ -1788,15 +1788,15 @@ type SyncContributionAndProof struct {
 // Refer: https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#aggregation-selection.
 func (s SyncContributionAndProof) MessageRoot() ([32]byte, error) {
 	data := altair.SyncAggregatorSelectionData{
-		Slot:              s.ContributionAndProof.Contribution.Slot,
-		SubcommitteeIndex: s.ContributionAndProof.Contribution.SubcommitteeIndex,
+		Slot:              s.Contribution.Slot,
+		SubcommitteeIndex: s.Contribution.SubcommitteeIndex,
 	}
 
 	return data.HashTreeRoot()
 }
 
 func (s SyncContributionAndProof) Signature() Signature {
-	return SigFromETH2(s.ContributionAndProof.SelectionProof)
+	return SigFromETH2(s.SelectionProof)
 }
 
 func (s SyncContributionAndProof) SetSignature(sig Signature) (SignedData, error) {

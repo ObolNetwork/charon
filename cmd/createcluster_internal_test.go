@@ -382,7 +382,7 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 			}
 		}
 
-		require.Len(t, vals, lock.Definition.NumValidators)
+		require.Len(t, vals, lock.NumValidators)
 
 		if conf.DefFile != "" {
 			// Config hash and creator should remain the same
@@ -815,7 +815,7 @@ func TestKeymanager(t *testing.T) {
 		csb, err := tbls.RecoverSecret(shares, minNodes, 3)
 		require.NoError(t, err)
 
-		require.EqualValues(t, secret1, csb)
+		require.Equal(t, secret1, csb)
 	})
 
 	t.Run("some unsuccessful", func(t *testing.T) {
@@ -994,7 +994,7 @@ func newKeymanagerHandler(ctx context.Context, t *testing.T, id int, results cha
 		var req mockKeymanagerReq
 		require.NoError(t, json.Unmarshal(data, &req))
 
-		require.Equal(t, len(req.Keystores), len(req.Passwords))
+		require.Len(t, req.Passwords, len(req.Keystores))
 		require.Len(t, req.Keystores, 1) // Since we split only 1 key
 
 		var ks keystore.Keystore

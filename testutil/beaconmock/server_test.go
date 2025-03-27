@@ -90,7 +90,7 @@ func TestSlotsDurationOverride(t *testing.T) {
 	actual, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
 	require.True(t, ok)
 	require.NoError(t, err)
-	require.EqualValues(t, expect, actual)
+	require.Equal(t, expect, actual)
 
 	specResp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)

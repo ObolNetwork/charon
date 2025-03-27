@@ -855,7 +855,7 @@ func TestRouter(t *testing.T) {
 
 			require.Len(t, res, 2)
 			require.EqualValues(t, val1, res[val1].Index)
-			require.EqualValues(t, eth2v1.ValidatorStateActiveOngoing, res[val1].Status)
+			require.Equal(t, eth2v1.ValidatorStateActiveOngoing, res[val1].Status)
 		}
 
 		testRouter(t, handler, callback)
@@ -896,7 +896,7 @@ func TestRouter(t *testing.T) {
 
 			require.Len(t, res, 2)
 			require.EqualValues(t, 1, res[1].Index)
-			require.EqualValues(t, eth2v1.ValidatorStateActiveOngoing, res[1].Status)
+			require.Equal(t, eth2v1.ValidatorStateActiveOngoing, res[1].Status)
 		}
 
 		testRouter(t, handler, callback)
@@ -1329,7 +1329,7 @@ func TestRouter(t *testing.T) {
 
 			require.Equal(t, resp.Data.Slot, slot)
 			require.EqualValues(t, resp.Data.SubcommitteeIndex, subcommIdx)
-			require.EqualValues(t, resp.Data.BeaconBlockRoot, beaconBlockRoot)
+			require.Equal(t, resp.Data.BeaconBlockRoot, beaconBlockRoot)
 		}
 
 		testRouter(t, handler, callback)

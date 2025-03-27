@@ -273,15 +273,15 @@ func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot uint64, attestati
 
 		switch aggAtt.Version {
 		case eth2spec.DataVersionPhase0:
-			return aggAtt.VersionedAttestation.Phase0, nil
+			return aggAtt.Phase0, nil
 		case eth2spec.DataVersionAltair:
-			return aggAtt.VersionedAttestation.Altair, nil
+			return aggAtt.Altair, nil
 		case eth2spec.DataVersionBellatrix:
-			return aggAtt.VersionedAttestation.Bellatrix, nil
+			return aggAtt.Bellatrix, nil
 		case eth2spec.DataVersionCapella:
-			return aggAtt.VersionedAttestation.Capella, nil
+			return aggAtt.Capella, nil
 		case eth2spec.DataVersionDeneb:
-			return aggAtt.VersionedAttestation.Deneb, nil
+			return aggAtt.Deneb, nil
 		default:
 			return nil, errors.New("unsupported versioned aggregated attestation for v1 endpoint", z.Str("version", aggAtt.Version.String()))
 		}
@@ -507,12 +507,12 @@ func (db *MemDB) storeAggAttestationUnsafe(unsignedData core.UnsignedData) (int,
 
 // storeAggAttestationUnsafeV1 stores the unsigned aggregated attestation. It is unsafe since it assumes the lock is held.
 func (db *MemDB) storeAggAttestationUnsafeV1(aggAtt core.AggregatedAttestation) error {
-	aggRoot, err := aggAtt.Attestation.Data.HashTreeRoot()
+	aggRoot, err := aggAtt.Data.HashTreeRoot()
 	if err != nil {
 		return errors.Wrap(err, "hash aggregated attestation root")
 	}
 
-	slot := uint64(aggAtt.Attestation.Data.Slot)
+	slot := uint64(aggAtt.Data.Slot)
 
 	// Store key and value for PubKeyByAttestation
 	key := aggKey{
@@ -543,7 +543,7 @@ func (db *MemDB) storeAggAttestationUnsafeV1(aggAtt core.AggregatedAttestation) 
 
 // storeAggAttestationUnsafeV2 stores the unsigned versioned aggregated attestation. It is unsafe since it assumes the lock is held.
 func (db *MemDB) storeAggAttestationUnsafeV2(aggAtt core.VersionedAggregatedAttestation) error {
-	aggAttData, err := aggAtt.VersionedAttestation.Data()
+	aggAttData, err := aggAtt.Data()
 	if err != nil {
 		return err
 	}
@@ -593,7 +593,7 @@ func (db *MemDB) storeSyncContributionUnsafe(unsignedData core.UnsignedData) err
 		return errors.New("invalid unsigned sync committee contribution")
 	}
 
-	contribRoot, err := contrib.SyncCommitteeContribution.HashTreeRoot()
+	contribRoot, err := contrib.HashTreeRoot()
 	if err != nil {
 		return errors.Wrap(err, "hash sync committee contribution")
 	}

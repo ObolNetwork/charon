@@ -75,7 +75,7 @@ func TestConsensusController(t *testing.T) {
 	})
 
 	t.Run("unsupported protocol id", func(t *testing.T) {
-		err := controller.SetCurrentConsensusForProtocol(context.TODO(), "boo")
+		err := controller.SetCurrentConsensusForProtocol(t.Context(), "boo")
 		require.ErrorContains(t, err, "unsupported protocol id")
 	})
 }

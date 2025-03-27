@@ -119,7 +119,7 @@ func (h *synthWrapper) syntheticProposal(ctx context.Context, slot eth2p0.Slot, 
 		opts := &eth2api.SignedBeaconBlockOpts{
 			Block: fmt.Sprint(prev),
 		}
-		signed, err := h.Client.SignedBeaconBlock(ctx, opts)
+		signed, err := h.SignedBeaconBlock(ctx, opts)
 		if err != nil {
 			if z.ContainsField(err, z.Int("status_code", http.StatusNotFound)) {
 				continue

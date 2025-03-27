@@ -138,14 +138,13 @@ func TestSimnetDuties(t *testing.T) {
 			args.BuilderAPI = test.builderAPI
 			args.VoluntaryExit = test.exit
 
-			if test.vcType == vcTeku {
+			switch test.vcType {
+			case vcTeku:
 				for i := range args.N {
 					args = startTeku(t, args, i)
 				}
-			} else if test.vcType == vcVmock {
+			case vcVmock:
 				args.VMocks = true
-			case vcUnknown:
-				panic("unknown VC")
 			}
 
 			if test.scheduledType != core.DutyAttester {

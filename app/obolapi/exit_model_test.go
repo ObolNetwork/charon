@@ -40,7 +40,7 @@ func Test_PartialExitRequest(t *testing.T) {
 	var other obolapi.PartialExitRequest
 	err = other.UnmarshalJSON(jbytes)
 	require.NoError(t, err)
-	require.EqualValues(t, other, pr)
+	require.Equal(t, other, pr)
 
 	err = pr.HashTreeRootWith(ssz.DefaultHasherPool.Get())
 	require.NoError(t, err)

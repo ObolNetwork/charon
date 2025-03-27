@@ -207,7 +207,7 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	require.NoError(t, err)
 
 	vapi.RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error) {
-		require.EqualValues(t, slot, epochSlot)
+		require.Equal(t, slot, epochSlot)
 		require.EqualValues(t, commIdx, vIdx)
 		require.EqualValues(t, valIdx, 0)
 
