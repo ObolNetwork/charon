@@ -107,7 +107,7 @@ func (r *Retryer[T]) DoAsync(parent context.Context, t T, topic, name string, fn
 	ctx, cancel := r.ctxTimeoutFunc(ctx, t)
 	defer cancel()
 
-	ctx, span := tracer.Start(ctx, "app/retry.DoAsync")
+	_, span := tracer.Start(parent, "app/retry.DoAsync")
 	defer span.End()
 	span.SetAttributes(attribute.String("topic", topic))
 	span.SetAttributes(attribute.String("name", name))

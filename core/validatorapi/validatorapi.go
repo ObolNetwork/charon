@@ -274,10 +274,7 @@ func (c *Component) Subscribe(fn func(context.Context, core.Duty, core.ParSigned
 }
 
 // AttestationData implements the eth2client.AttesterDutiesProvider for the router.
-func (c Component) AttestationData(parent context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error) {
-	ctx, span := core.StartDutyTrace(parent, core.NewAttesterDuty(uint64(opts.Slot)), "core/validatorapi.AttestationData")
-	defer span.End()
-
+func (c Component) AttestationData(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error) {
 	att, err := c.awaitAttFunc(ctx, uint64(opts.Slot), uint64(opts.CommitteeIndex))
 	if err != nil {
 		return nil, err
@@ -288,14 +285,6 @@ func (c Component) AttestationData(parent context.Context, opts *eth2api.Attesta
 
 // SubmitAttestations implements the eth2client.AttestationsSubmitter for the router.
 func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {
-	duty := core.NewAttesterDuty(uint64(attestations[0].Data.Slot))
-	if len(attestations) > 0 {
-		// Pick the first attestation slot to use as trace root.
-		var span trace.Span
-		ctx, span = core.StartDutyTrace(ctx, duty, "core/validatorapi.SubmitAttestations")
-		defer span.End()
-	}
-
 	setsBySlot := make(map[uint64]core.ParSignedDataSet)
 	for _, att := range attestations {
 		slot := uint64(att.Data.Slot)
@@ -351,18 +340,6 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 // SubmitAttestationsV2 implements the eth2client.AttestationsSubmitter for the router.
 func (c Component) SubmitAttestationsV2(ctx context.Context, attestationOpts *eth2api.SubmitAttestationsOpts) error {
 	attestations := attestationOpts.Attestations
-	att0Data, err := attestations[0].Data()
-	if err != nil {
-		return errors.Wrap(err, "get attestation data")
-	}
-	duty := core.NewAttesterDuty(uint64(att0Data.Slot))
-	if len(attestations) > 0 {
-		// Pick the first attestation slot to use as trace root.
-		var span trace.Span
-		ctx, span = core.StartDutyTrace(ctx, duty, "core/validatorapi.SubmitAttestationsV2")
-		defer span.End()
-	}
-
 	setsBySlot := make(map[uint64]core.ParSignedDataSet)
 	for _, att := range attestations {
 		attData, err := att.Data()
