@@ -144,6 +144,8 @@ linters:
       ignore-sigs:
         - github.com/obolnetwork/charon/
         - github.com/attestantio/go-eth2-client
+    usetesting:
+      context-background: false # causes data races
   exclusions:
     generated: lax
     presets:
@@ -164,7 +166,7 @@ linters:
       - path: (.+)\.go$
         text: error returned from interface method should be wrapped
       - path: (.+)\.go$
-        text: 'defer: prefer not to defer chains of function calls'
+        text: "defer: prefer not to defer chains of function calls"
       - path: (.+)\.go$
         text: avoid control coupling
       - path: (.+)\.go$
