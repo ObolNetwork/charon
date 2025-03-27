@@ -53,8 +53,8 @@ github.com/VictoriaMetrics/fastcache v1.12.2/go.mod h1:AmC+Nzz1+3G2eCPapF6UcsnkT
 github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239/go.mod h1:2FmKhYUyUczH0OGQWaF5ceTx0UBShxjsH6f8oGKYe2c=
 github.com/antlr4-go/antlr/v4 v4.13.1 h1:SqQKkuVZ+zWkMMNkjy5FZe5mr5WURWnlpmOuzYWrPrQ=
 github.com/antlr4-go/antlr/v4 v4.13.1/go.mod h1:GKmUxMtwp6ZgGwZSva4eWPC5mS6vUAmOABFgjdkM7Nw=
-github.com/attestantio/go-builder-client v0.5.3 h1:4YFT0u823JvF4Uesj7SEG8f0De1uxLrVioOgKZYPl3I=
-github.com/attestantio/go-builder-client v0.5.3/go.mod h1:RaWc8K2SjyU19sL5UinOQ8n4vTZBrEQzsNuMWpNmwK4=
+github.com/attestantio/go-builder-client v0.6.1 h1:fn6PC8aDWx2YbptstR1JKP8NyakiNJJTiOE5f9N0z5Q=
+github.com/attestantio/go-builder-client v0.6.1/go.mod h1:f8wi3HzuPxfJoi2PirpJK3yZhte4SavDgKJbRrKoB1Q=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/benbjohnson/clock v1.3.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/benbjohnson/clock v1.3.5 h1:VvXlSJBzZpA/zum6Sj74hxwYI2DIxRWuNIoXAzHZz5o=
