@@ -329,7 +329,7 @@ func selectCategory(current, candidate string) string {
 // parsePRs returns parsed PRs by query the git logs for the provided range.
 func parsePRs(gitRange string) ([]pullRequest, error) {
 	// Custom json encoding of git log output.
-	const format = `--pretty=format:{…commit…: …%h…,…body…: …%b…,…subject…: …%s…,…author…: …%aE…}†`
+	const format = `--pretty=format:{¬commit¬: ¬%h¬,¬body¬: ¬%b¬,¬subject¬: ¬%s¬,¬author¬: ¬%aE¬}†`
 
 	b, err := exec.Command("git", "log", format, gitRange).CombinedOutput()
 	if err != nil {
@@ -344,8 +344,9 @@ func parsePRs(gitRange string) ([]pullRequest, error) {
 	out = strings.ReplaceAll(out, `\"`, `‰`)        // Hide already escaped quotes
 	out = strings.ReplaceAll(out, `"`, `\"`)        // Escape double quotes
 	out = strings.ReplaceAll(out, `‰`, `\"`)        // Unhide already escaped quotes
-	out = strings.ReplaceAll(out, `…`, `"`)         // Replace field separator
+	out = strings.ReplaceAll(out, `¬`, `"`)         // Replace field separator
 	out = strings.ReplaceAll(out, "`\\`", "`\\\\`") // Edge case in which backticks are used in issue/PR names
+	out = strings.ReplaceAll(out, `\[`, `\\[`)      // Edge case with invalid escape character
 
 	var logs []log
 	if err := json.Unmarshal([]byte(out), &logs); err != nil {
