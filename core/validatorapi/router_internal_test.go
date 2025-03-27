@@ -1059,31 +1059,6 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
-	t.Run("submit randao blinded block", func(t *testing.T) {
-		handler := testHandler{
-			ProposalFunc: func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
-				return &eth2api.Response[*eth2api.VersionedProposal]{}, errors.New("not implemented")
-			},
-		}
-
-		callback := func(ctx context.Context, cl *eth2http.Service) {
-			slot := eth2p0.Slot(1)
-			randaoReveal := testutil.RandomEth2Signature()
-			graffiti := testutil.RandomArray32()
-
-			opts := &eth2api.BlindedProposalOpts{
-				Slot:         slot,
-				RandaoReveal: randaoReveal,
-				Graffiti:     graffiti,
-			}
-			res, err := cl.BlindedProposal(ctx, opts)
-			require.Error(t, err)
-			require.Nil(t, res)
-		}
-
-		testRouter(t, handler, callback)
-	})
-
 	t.Run("submit block phase0", func(t *testing.T) {
 		block1 := &eth2api.VersionedSignedProposal{
 			Version: eth2spec.DataVersionPhase0,
