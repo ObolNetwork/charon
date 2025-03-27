@@ -434,7 +434,7 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, conf Config, peers []p2p.
 // when all peers are connected.
 func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKey, defHash []byte,
 	peerIDs []peer.ID, onFailure func(), testConfig TestConfig,
-) (func(context.Context) error, func(context.Context) error, error) {
+) (stepSyncFunc func(context.Context) error, shutdownFunc func(context.Context) error, err error) {
 	// Sign definition hash with charon-enr-private-key
 	// Note: libp2p signing does another hash of the defHash.
 
@@ -512,7 +512,7 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 	}
 
 	var step int
-	stepSyncFunc := func(ctx context.Context) error {
+	stepSyncFunc = func(ctx context.Context) error {
 		// Start next step ourselves by incrementing our step client side
 		step++
 		for _, client := range clients {
@@ -534,7 +534,7 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 	}
 
 	// Shutdown function stops all clients and server
-	shutdownFunc := func(ctx context.Context) error {
+	shutdownFunc = func(ctx context.Context) error {
 		for _, client := range clients {
 			err := client.Shutdown(ctx)
 			if err != nil {
