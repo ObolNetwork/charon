@@ -36,7 +36,6 @@ import (
 	ssz "github.com/ferranbt/fastssz"
 	"github.com/gorilla/mux"
 	"github.com/prysmaticlabs/go-bitfield"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
@@ -356,7 +355,7 @@ func wrap(endpoint string, handler handlerFunc) http.Handler {
 		writeResponse(ctx, w, endpoint, res, headers)
 	}
 
-	return wrapTrace(endpoint, wrap)
+	return http.HandlerFunc(wrap)
 }
 
 // writeResponse writes the 200 OK response and json response body.
@@ -383,11 +382,6 @@ func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, 
 		// Too late to also try to writeError at this point, so just log.
 		log.Error(ctx, "Failed writing api response", err)
 	}
-}
-
-// wrapTrace wraps the passed handler in a OpenTelemetry tracing span.
-func wrapTrace(endpoint string, handler http.HandlerFunc) http.Handler {
-	return otelhttp.NewHandler(handler, "core/validatorapi."+endpoint)
 }
 
 // getValidators returns a handler function for the get validators by pubkey or index endpoint.

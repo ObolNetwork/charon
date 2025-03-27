@@ -389,7 +389,7 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 		span    trace.Span
 	)
 
-	ctx, span = tracer.Start(parent, "qbft.runInstance")
+	_, span = tracer.Start(parent, "qbft.runInstance")
 	defer span.End()
 
 	decideCallback := func(qcommit []qbft.Msg[core.Duty, [32]byte]) {

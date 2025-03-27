@@ -7,7 +7,6 @@ import (
 	"crypto/rand"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
 
@@ -75,24 +74,6 @@ func WithTracing() WireOption {
 			defer span.End()
 
 			return clone.DutyDBStore(ctx, duty, set)
-		}
-		w.DutyDBAwaitAttestation = func(parent context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error) {
-			ctx, span := tracer.Start(parent, "core/dutydb.AwaitAttestation")
-			defer span.End()
-
-			return clone.DutyDBAwaitAttestation(ctx, slot, commIdx)
-		}
-		w.DutyDBPubKeyByAttestation = func(parent context.Context, slot, commIdx, valCommIdx uint64) (PubKey, error) {
-			ctx, span := tracer.Start(parent, "core/dutydb.PubKeyByAttestation")
-			defer span.End()
-
-			return clone.DutyDBPubKeyByAttestation(ctx, slot, commIdx, valCommIdx)
-		}
-		w.DutyDBPubKeyByAttestationV2 = func(parent context.Context, slot, commIdx, valIdx uint64) (PubKey, error) {
-			ctx, span := tracer.Start(parent, "core/dutydb.PubKeyByAttestationV2")
-			defer span.End()
-
-			return clone.DutyDBPubKeyByAttestationV2(ctx, slot, commIdx, valIdx)
 		}
 		w.DutyDBAwaitProposal = func(parent context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
 			ctx, span := tracer.Start(parent, "core/dutydb.AwaitProposal")
