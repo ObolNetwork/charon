@@ -6,8 +6,11 @@ package tracer
 import (
 	"context"
 	"io"
+	"sync"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -19,7 +22,10 @@ import (
 )
 
 // tracer is the global app level tracer, it defaults to a noop tracer.
-var tracer = noop.NewTracerProvider().Tracer("")
+var (
+	tracer        = noop.NewTracerProvider().Tracer("")
+	setTracerOnce sync.Once
+)
 
 // Start creates a span and a context.Context containing the newly-created span from the global tracer.
 // See go.opentelemetry.io/otel/trace#Start for more details.
@@ -53,17 +59,20 @@ func Init(opts ...func(*options)) (func(context.Context) error, error) {
 		return nil, err
 	}
 
-	tp := newTraceProvider(exp, "")
+	tp := newTraceProvider(exp, o.serviceName)
 
 	// Set globals
 	otel.SetTracerProvider(tp)
-	tracer = tp.Tracer("")
+	setTracerOnce.Do(func() {
+		tracer = tp.Tracer("")
+	})
 
 	return tp.Shutdown, nil
 }
 
 type options struct {
-	expFunc func() (sdktrace.SpanExporter, error)
+	serviceName string
+	expFunc     func() (sdktrace.SpanExporter, error)
 }
 
 // WithStdOut returns an option to configure an OpenTelemetry exporter for tracing
@@ -78,6 +87,27 @@ func WithStdOut(w io.Writer) func(*options) {
 
 			return ex, nil
 		}
+	}
+}
+
+// WithOTLPTracer returns an option to configure an OpenTelemetry exporter for tracing
+// telemetry to be sent to an OpenTelemetry Collector via gRPC.
+func WithOTLPTracer(addr string) func(*options) {
+	return func(o *options) {
+		o.expFunc = func() (sdktrace.SpanExporter, error) {
+			client := otlptracegrpc.NewClient(
+				otlptracegrpc.WithInsecure(),
+				otlptracegrpc.WithEndpoint(addr))
+
+			return otlptrace.New(context.Background(), client)
+		}
+	}
+}
+
+// WithServiceName returns an option to configure the service name.
+func WithServiceName(serviceName string) func(*options) {
+	return func(o *options) {
+		o.serviceName = serviceName
 	}
 }
 

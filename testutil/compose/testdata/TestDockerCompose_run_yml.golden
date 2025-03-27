@@ -18,6 +18,8 @@ services:
       CHARON_LOG_LEVEL: debug
       CHARON_LOG_COLOR: force
       CHARON_FEATURE_SET: alpha
+      CHARON_OTLP_ADDRESS: tempo:4317
+      CHARON_OTLP_SERVICE_NAME: node0
       CHARON_LOCK_FILE: /compose/node0/cluster-lock.json
       CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_BEACON_NODE_ENDPOINTS: 
@@ -52,6 +54,8 @@ services:
       CHARON_LOG_LEVEL: debug
       CHARON_LOG_COLOR: force
       CHARON_FEATURE_SET: alpha
+      CHARON_OTLP_ADDRESS: tempo:4317
+      CHARON_OTLP_SERVICE_NAME: node1
       CHARON_LOCK_FILE: /compose/node1/cluster-lock.json
       CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_BEACON_NODE_ENDPOINTS: 
@@ -86,6 +90,8 @@ services:
       CHARON_LOG_LEVEL: debug
       CHARON_LOG_COLOR: force
       CHARON_FEATURE_SET: alpha
+      CHARON_OTLP_ADDRESS: tempo:4317
+      CHARON_OTLP_SERVICE_NAME: node2
       CHARON_LOCK_FILE: /compose/node2/cluster-lock.json
       CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_BEACON_NODE_ENDPOINTS: 
@@ -120,6 +126,8 @@ services:
       CHARON_LOG_LEVEL: debug
       CHARON_LOG_COLOR: force
       CHARON_FEATURE_SET: alpha
+      CHARON_OTLP_ADDRESS: tempo:4317
+      CHARON_OTLP_SERVICE_NAME: node3
       CHARON_LOCK_FILE: /compose/node3/cluster-lock.json
       CHARON_VALIDATOR_API_ADDRESS: 0.0.0.0:3600
       CHARON_BEACON_NODE_ENDPOINTS: 
@@ -231,15 +239,13 @@ services:
       - ./grafana/dash_duty_details.json:/etc/dashboards/dash_duty_details.json
       - ./grafana/dash_alerts.json:/etc/dashboards/dash_alerts.json
 
-  jaeger:
-    image: jaegertracing/all-in-one:${JAEGER_VERSION:-1.46.0}
+  tempo:
+    image: grafana/tempo:${TEMPO_VERSION:-2.7.1}
     networks: [compose]
-    environment:
-      SPAN_STORAGE_TYPE: memory
-      MEMORY_MAX_TRACES: 10000
-    ports:
-      - "16686:16686"
-    
+    user: ":"
+    command: -config.file=/opt/tempo/tempo.yaml
+    volumes:
+      - ./tempo:/opt/tempo
 
   loki:
     image: grafana/loki:${LOKI_VERSION:-2.8.2}

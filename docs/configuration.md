@@ -183,6 +183,8 @@ Flags:
       --monitoring-address string                Listening address (ip and port) for the monitoring API (prometheus). (default "127.0.0.1:3620")
       --nickname string                          Human friendly peer nickname. Maximum 32 characters.
       --no-verify                                Disables cluster definition and lock file verification.
+      --otlp-address string                      Listening address for OTLP gRPC tracing backend.
+      --otlp-service-name string                 Service name used for OTLP gRPC tracing. (default "charon")
       --p2p-disable-reuseport                    Disables TCP port reuse for outgoing libp2p connections.
       --p2p-external-hostname string             The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.
       --p2p-external-ip string                   The IP address advertised by libp2p. This may be used to advertise an external IP.
