@@ -144,6 +144,8 @@ func TestSimnetDuties(t *testing.T) {
 				}
 			} else if test.vcType == vcVmock {
 				args.VMocks = true
+			case vcUnknown:
+				panic("unknown VC")
 			}
 
 			if test.scheduledType != core.DutyAttester {

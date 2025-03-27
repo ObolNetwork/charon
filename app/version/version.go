@@ -91,9 +91,9 @@ func (v SemVer) String() string {
 		return fmt.Sprintf("v%d.%d", v.major, v.minor)
 	} else if v.semVerType == typePatch {
 		return fmt.Sprintf("v%d.%d.%d", v.major, v.minor, v.patch)
+	default:
+		return fmt.Sprintf("v%d.%d.%d-%s", v.major, v.minor, v.patch, v.preRelease)
 	}
-
-	return fmt.Sprintf("v%d.%d.%d-%s", v.major, v.minor, v.patch, v.preRelease)
 }
 
 // PreRelease returns true if v represents a tag for a pre-release.

@@ -100,6 +100,7 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 	}
 
 	var attRoot eth2p0.Root
+
 	if duty.Type == core.DutyAttester {
 		att, ok := data.(core.VersionedAttestation)
 		if ok {
@@ -121,7 +122,9 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 				return errors.Wrap(err, "hash attestation")
 			}
 		}
-	} else if duty.Type == core.DutyAggregator {
+	}
+
+	if duty.Type == core.DutyAggregator {
 		agg, ok := data.(core.VersionedSignedAggregateAndProof)
 		if ok {
 			attRoot, err = agg.Data().HashTreeRoot()
@@ -138,7 +141,9 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 				return errors.Wrap(err, "hash aggregate")
 			}
 		}
-	} else if duty.Type == core.DutyProposer {
+	}
+
+	if duty.Type == core.DutyProposer {
 		var (
 			block core.VersionedSignedProposal
 			ok    bool
@@ -158,8 +163,8 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 			}
 		}()
 
-		switch block.Blinded {
-		case true:
+		//nolint: gocritic // Prefer clearer separation of blinded <-> unblinded.
+		if block.Blinded {
 			blinded, err := block.ToBlinded()
 			if err != nil {
 				return errors.Wrap(err, "expected blinded proposal")
@@ -171,7 +176,7 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 
 				return nil
 			}
-		default:
+		} else {
 			if eth2wrap.IsSyntheticProposal(&block.VersionedSignedProposal) {
 				// Report inclusion for synthetic blocks as it is already included on-chain.
 				i.trackerInclFunc(duty, pubkey, data, nil)
@@ -179,7 +184,9 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 				return nil
 			}
 		}
-	} else if duty.Type == core.DutyBuilderProposer {
+	}
+
+	if duty.Type == core.DutyBuilderProposer {
 		return core.ErrDeprecatedDutyBuilderProposer
 	}
 
