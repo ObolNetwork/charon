@@ -68,7 +68,7 @@ func TestImportKeystores(t *testing.T) {
 
 			var req mockKeymanagerReq
 			require.NoError(t, json.Unmarshal(data, &req))
-			require.Equal(t, len(req.Keystores), len(req.Passwords))
+			require.Len(t, req.Passwords, len(req.Keystores))
 			require.Equal(t, len(req.Keystores), numSecrets)
 
 			for i := range numSecrets {

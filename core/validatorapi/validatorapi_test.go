@@ -207,7 +207,7 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	require.NoError(t, err)
 
 	vapi.RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error) {
-		require.EqualValues(t, slot, epochSlot)
+		require.Equal(t, slot, epochSlot)
 		require.EqualValues(t, commIdx, vIdx)
 		require.EqualValues(t, valIdx, 0)
 
@@ -1635,8 +1635,10 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 
 	unsigned := testutil.RandomValidatorRegistration(t)
 	unsigned.Pubkey = eth2Pubkey
-	unsigned.Timestamp, err = bmock.GenesisTime(ctx) // Set timestamp to genesis which should result in epoch 0 and slot 0.
+	genesis, err := bmock.Genesis(ctx, &eth2api.GenesisOpts{})
 	require.NoError(t, err)
+	genesisTime := genesis.Data.GenesisTime
+	unsigned.Timestamp = genesisTime // Set timestamp to genesis which should result in epoch 0 and slot 0.
 
 	// Sign validator (builder) registration
 	sigRoot, err := unsigned.HashTreeRoot()
@@ -1713,8 +1715,10 @@ func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
 
 	unsigned := testutil.RandomValidatorRegistration(t)
 	unsigned.Pubkey = eth2Pubkey
-	unsigned.Timestamp, err = bmock.GenesisTime(ctx) // Set timestamp to genesis which should result in epoch 0 and slot 0.
+	genesis, err := bmock.Genesis(ctx, &eth2api.GenesisOpts{})
 	require.NoError(t, err)
+	genesisTime := genesis.Data.GenesisTime
+	unsigned.Timestamp = genesisTime // Set timestamp to genesis which should result in epoch 0 and slot 0.
 
 	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
 		return core.DutyDefinitionSet{corePubKey: nil}, nil
@@ -1772,10 +1776,13 @@ func TestComponent_TekuProposerConfig(t *testing.T) {
 	pk, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
 
-	genesis, err := bmock.GenesisTime(ctx)
+	genesis, err := bmock.Genesis(ctx, &eth2api.GenesisOpts{})
 	require.NoError(t, err)
-	slotDuration, err := bmock.SlotDuration(ctx)
+	genesisTime := genesis.Data.GenesisTime
+	respSpec, err := bmock.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)
+	slotDuration, ok := respSpec.Data["SECONDS_PER_SLOT"].(time.Duration)
+	require.True(t, ok)
 
 	eth2pk, err := pk.ToETH2()
 	require.NoError(t, err)
@@ -1788,7 +1795,7 @@ func TestComponent_TekuProposerConfig(t *testing.T) {
 					Enabled:  true,
 					GasLimit: 30000000,
 					Overrides: map[string]string{
-						"timestamp":  strconv.FormatInt(genesis.Add(slotDuration).Unix(), 10),
+						"timestamp":  strconv.FormatInt(genesisTime.Add(slotDuration).Unix(), 10),
 						"public_key": string(pk),
 					},
 				},

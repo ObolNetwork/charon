@@ -427,7 +427,7 @@ func verifyDistValidators(t *testing.T, lock cluster.Lock, def cluster.Definitio
 		uniqueSigs := make(map[string]struct{})
 		for i, amount := range depositAmounts {
 			pdd := val.PartialDepositData[i]
-			require.EqualValues(t, val.PubKey, pdd.PubKey)
+			require.Equal(t, val.PubKey, pdd.PubKey)
 			require.EqualValues(t, amount, pdd.Amount)
 			uniqueSigs[hex.EncodeToString(pdd.Signature)] = struct{}{}
 		}
@@ -440,11 +440,11 @@ func verifyDistValidators(t *testing.T, lock cluster.Lock, def cluster.Definitio
 		}
 
 		// Assert Builder Registration
-		require.EqualValues(t, val.PubKey, val.BuilderRegistration.Message.PubKey)
-		require.EqualValues(t, registration.DefaultGasLimit, val.BuilderRegistration.Message.GasLimit)
+		require.Equal(t, val.PubKey, val.BuilderRegistration.Message.PubKey)
+		require.Equal(t, registration.DefaultGasLimit, val.BuilderRegistration.Message.GasLimit)
 		timestamp, err := eth2util.ForkVersionToGenesisTime(lock.ForkVersion)
 		require.NoError(t, err)
-		require.EqualValues(t, timestamp, val.BuilderRegistration.Message.Timestamp)
+		require.Equal(t, timestamp, val.BuilderRegistration.Message.Timestamp)
 
 		// Verify registration signatures
 		eth2Reg, err := registration.NewMessage(eth2p0.BLSPubKey(val.BuilderRegistration.Message.PubKey),
@@ -464,7 +464,7 @@ func verifyDistValidators(t *testing.T, lock cluster.Lock, def cluster.Definitio
 		err = tbls.Verify(pubkey, sigRoot[:], sig)
 		require.NoError(t, err)
 
-		require.EqualValues(t,
+		require.Equal(t,
 			lock.ValidatorAddresses[j].FeeRecipientAddress,
 			fmt.Sprintf("%#x", val.BuilderRegistration.Message.FeeRecipient),
 		)

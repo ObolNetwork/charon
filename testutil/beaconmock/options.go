@@ -597,8 +597,13 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SubmitVoluntaryExitFunc: func(context.Context, *eth2p0.SignedVoluntaryExit) error {
 			return nil
 		},
-		GenesisTimeFunc: func(ctx context.Context) (time.Time, error) {
-			return httpMock.GenesisTime(ctx)
+		GenesisFunc: func(ctx context.Context, opts *eth2api.GenesisOpts) (*eth2v1.Genesis, error) {
+			resp, err := httpMock.Genesis(ctx, opts)
+			if err != nil {
+				return nil, err
+			}
+
+			return resp.Data, nil
 		},
 		NodeSyncingFunc: func(ctx context.Context, opts *eth2api.NodeSyncingOpts) (*eth2v1.SyncState, error) {
 			resp, err := httpMock.NodeSyncing(ctx, opts)
@@ -621,7 +626,16 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			return nil
 		},
 		SlotsPerEpochFunc: func(ctx context.Context) (uint64, error) {
-			return httpMock.SlotsPerEpoch(ctx)
+			respSpec, err := httpMock.Spec(ctx, &eth2api.SpecOpts{})
+			if err != nil {
+				return 0, errors.Wrap(err, "getting spec")
+			}
+			slotsPerEpoch, ok := respSpec.Data["SLOTS_PER_EPOCH"].(uint64)
+			if !ok {
+				return 0, errors.New("fetch slots per epoch")
+			}
+
+			return slotsPerEpoch, nil
 		},
 		SubmitProposalPreparationsFunc: func(context.Context, []*eth2v1.ProposalPreparation) error {
 			return nil

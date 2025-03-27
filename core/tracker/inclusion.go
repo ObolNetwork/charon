@@ -100,6 +100,7 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 	}
 
 	var attRoot eth2p0.Root
+
 	if duty.Type == core.DutyAttester {
 		att, ok := data.(core.VersionedAttestation)
 		if ok {
@@ -121,7 +122,9 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 				return errors.Wrap(err, "hash attestation")
 			}
 		}
-	} else if duty.Type == core.DutyAggregator {
+	}
+
+	if duty.Type == core.DutyAggregator {
 		agg, ok := data.(core.VersionedSignedAggregateAndProof)
 		if ok {
 			attRoot, err = agg.Data().HashTreeRoot()
@@ -138,7 +141,9 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 				return errors.Wrap(err, "hash aggregate")
 			}
 		}
-	} else if duty.Type == core.DutyProposer {
+	}
+
+	if duty.Type == core.DutyProposer {
 		var (
 			block core.VersionedSignedProposal
 			ok    bool
@@ -158,8 +163,8 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 			}
 		}()
 
-		switch block.Blinded {
-		case true:
+		//nolint: gocritic // Prefer clearer separation of blinded <-> unblinded.
+		if block.Blinded {
 			blinded, err := block.ToBlinded()
 			if err != nil {
 				return errors.Wrap(err, "expected blinded proposal")
@@ -171,7 +176,7 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 
 				return nil
 			}
-		default:
+		} else {
 			if eth2wrap.IsSyntheticProposal(&block.VersionedSignedProposal) {
 				// Report inclusion for synthetic blocks as it is already included on-chain.
 				i.trackerInclFunc(duty, pubkey, data, nil)
@@ -179,7 +184,9 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 				return nil
 			}
 		}
-	} else if duty.Type == core.DutyBuilderProposer {
+	}
+
+	if duty.Type == core.DutyBuilderProposer {
 		return core.ErrDeprecatedDutyBuilderProposer
 	}
 
@@ -551,10 +558,11 @@ func reportAttInclusion(ctx context.Context, sub submission, block block) {
 
 // NewInclusion returns a new InclusionChecker.
 func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client, trackerInclFunc trackerInclFunc) (*InclusionChecker, error) {
-	genesis, err := eth2Cl.GenesisTime(ctx)
+	genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
 	if err != nil {
 		return nil, err
 	}
+	genesisTime := genesis.Data.GenesisTime
 
 	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
@@ -577,7 +585,7 @@ func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client, trackerInclFunc t
 	return &InclusionChecker{
 		core:             inclCore,
 		eth2Cl:           eth2Cl,
-		genesis:          genesis,
+		genesis:          genesisTime,
 		slotDuration:     slotDuration,
 		checkBlockFunc:   inclCore.CheckBlock,
 		checkBlockV2Func: inclCore.CheckBlockV2,
@@ -640,6 +648,7 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64) error {
 	attsV2, err := a.eth2Cl.BlockAttestationsV2(ctx, strconv.FormatUint(slot, 10))
 	if err != nil {
 		if errors.Is(err, eth2wrap.ErrEndpointNotFound) {
+			//nolint:staticcheck // depreacted BlockAttestations pre-electra is fine.
 			atts, err := a.eth2Cl.BlockAttestations(ctx, strconv.FormatUint(slot, 10))
 			if err != nil {
 				return err

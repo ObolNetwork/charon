@@ -327,7 +327,7 @@ func TestRawRouter(t *testing.T) {
 	})
 
 	t.Run("get validators with post", func(t *testing.T) {
-		simpleValidatorsFunc := func(_ context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) { //nolint:golint,unparam
+		simpleValidatorsFunc := func(_ context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) { //nolint:unparam
 			res := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
 			if len(opts.Indices) == 0 {
 				opts.Indices = []eth2p0.ValidatorIndex{12, 35}
@@ -855,7 +855,7 @@ func TestRouter(t *testing.T) {
 
 			require.Len(t, res, 2)
 			require.EqualValues(t, val1, res[val1].Index)
-			require.EqualValues(t, eth2v1.ValidatorStateActiveOngoing, res[val1].Status)
+			require.Equal(t, eth2v1.ValidatorStateActiveOngoing, res[val1].Status)
 		}
 
 		testRouter(t, handler, callback)
@@ -896,7 +896,7 @@ func TestRouter(t *testing.T) {
 
 			require.Len(t, res, 2)
 			require.EqualValues(t, 1, res[1].Index)
-			require.EqualValues(t, eth2v1.ValidatorStateActiveOngoing, res[1].Status)
+			require.Equal(t, eth2v1.ValidatorStateActiveOngoing, res[1].Status)
 		}
 
 		testRouter(t, handler, callback)
@@ -1052,31 +1052,6 @@ func TestRouter(t *testing.T) {
 				Graffiti:     graffiti,
 			}
 			res, err := cl.Proposal(ctx, opts)
-			require.Error(t, err)
-			require.Nil(t, res)
-		}
-
-		testRouter(t, handler, callback)
-	})
-
-	t.Run("submit randao blinded block", func(t *testing.T) {
-		handler := testHandler{
-			ProposalFunc: func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
-				return &eth2api.Response[*eth2api.VersionedProposal]{}, errors.New("not implemented")
-			},
-		}
-
-		callback := func(ctx context.Context, cl *eth2http.Service) {
-			slot := eth2p0.Slot(1)
-			randaoReveal := testutil.RandomEth2Signature()
-			graffiti := testutil.RandomArray32()
-
-			opts := &eth2api.BlindedProposalOpts{
-				Slot:         slot,
-				RandaoReveal: randaoReveal,
-				Graffiti:     graffiti,
-			}
-			res, err := cl.BlindedProposal(ctx, opts)
 			require.Error(t, err)
 			require.Nil(t, res)
 		}
@@ -1354,7 +1329,7 @@ func TestRouter(t *testing.T) {
 
 			require.Equal(t, resp.Data.Slot, slot)
 			require.EqualValues(t, resp.Data.SubcommitteeIndex, subcommIdx)
-			require.EqualValues(t, resp.Data.BeaconBlockRoot, beaconBlockRoot)
+			require.Equal(t, resp.Data.BeaconBlockRoot, beaconBlockRoot)
 		}
 
 		testRouter(t, handler, callback)

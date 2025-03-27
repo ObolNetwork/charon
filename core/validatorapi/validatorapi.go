@@ -40,17 +40,20 @@ const (
 // SlotFromTimestamp returns the Ethereum slot associated to a timestamp, given the genesis configuration fetched
 // from client.
 func SlotFromTimestamp(ctx context.Context, client eth2wrap.Client, timestamp time.Time) (eth2p0.Slot, error) {
-	genesis, err := client.GenesisTime(ctx)
+	genesis, err := client.Genesis(ctx, &eth2api.GenesisOpts{})
 	if err != nil {
 		return 0, err
-	} else if timestamp.Before(genesis) {
+	}
+	genesisTime := genesis.Data.GenesisTime
+	if timestamp.Before(genesisTime) {
+		genesisTime := genesis.Data.GenesisTime
 		// if timestamp is in the past (can happen in testing scenarios, there's no strict form of checking on it),  fall back on current timestamp.
 		nextTimestamp := time.Now()
 
 		log.Info(
 			ctx,
 			"timestamp before genesis, defaulting to current timestamp",
-			z.I64("genesis_timestamp", genesis.Unix()),
+			z.I64("genesis_timestamp", genesisTime.Unix()),
 			z.I64("overridden_timestamp", timestamp.Unix()),
 			z.I64("new_timestamp", nextTimestamp.Unix()),
 		)
@@ -68,7 +71,7 @@ func SlotFromTimestamp(ctx context.Context, client eth2wrap.Client, timestamp ti
 		return 0, errors.New("fetch slot duration")
 	}
 
-	delta := timestamp.Sub(genesis)
+	delta := timestamp.Sub(genesisTime)
 
 	return eth2p0.Slot(delta / slotDuration), nil
 }
@@ -569,38 +572,32 @@ func propDataMatchesDuty(opts *eth2api.SubmitProposalOpts, prop *eth2api.Version
 	case eth2spec.DataVersionAltair:
 		return checkHashes(prop.Altair, opts.Proposal.Altair.Message)
 	case eth2spec.DataVersionBellatrix:
-		switch prop.Blinded {
-		case false:
-			return checkHashes(prop.Bellatrix, opts.Proposal.Bellatrix.Message)
-		case true:
+		if prop.Blinded {
 			return checkHashes(prop.BellatrixBlinded, opts.Proposal.BellatrixBlinded.Message)
 		}
+
+		return checkHashes(prop.Bellatrix, opts.Proposal.Bellatrix.Message)
 	case eth2spec.DataVersionCapella:
-		switch prop.Blinded {
-		case false:
-			return checkHashes(prop.Capella, opts.Proposal.Capella.Message)
-		case true:
+		if prop.Blinded {
 			return checkHashes(prop.CapellaBlinded, opts.Proposal.CapellaBlinded.Message)
 		}
+
+		return checkHashes(prop.Capella, opts.Proposal.Capella.Message)
 	case eth2spec.DataVersionDeneb:
-		switch prop.Blinded {
-		case false:
-			return checkHashes(prop.Deneb.Block, opts.Proposal.Deneb.SignedBlock.Message)
-		case true:
+		if prop.Blinded {
 			return checkHashes(prop.DenebBlinded, opts.Proposal.DenebBlinded.Message)
 		}
+
+		return checkHashes(prop.Deneb.Block, opts.Proposal.Deneb.SignedBlock.Message)
 	case eth2spec.DataVersionElectra:
-		switch prop.Blinded {
-		case false:
-			return checkHashes(prop.Electra.Block, opts.Proposal.Electra.SignedBlock.Message)
-		case true:
+		if prop.Blinded {
 			return checkHashes(prop.ElectraBlinded, opts.Proposal.ElectraBlinded.Message)
 		}
+
+		return checkHashes(prop.Electra.Block, opts.Proposal.Electra.SignedBlock.Message)
 	default:
 		return errors.New("unexpected block version", z.Str("version", prop.Version.String()))
 	}
-
-	return nil
 }
 
 func (c Component) SubmitProposal(ctx context.Context, opts *eth2api.SubmitProposalOpts) error {
@@ -815,10 +812,13 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 		return err
 	}
 
-	// Use 1st slot in exit epoch for duty.
-	slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
+	respSpec, err := c.eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return err
+	}
+	slotsPerEpoch, ok := respSpec.Data["SLOTS_PER_EPOCH"].(uint64)
+	if !ok {
+		return errors.New("fetch slots per epoch")
 	}
 
 	duty := core.NewVoluntaryExit(slotsPerEpoch * uint64(exit.Message.Epoch))
@@ -1509,10 +1509,11 @@ func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigR
 		return nil, errors.New("fetch slot duration")
 	}
 
-	timestamp, err := c.eth2Cl.GenesisTime(ctx)
+	genesis, err := c.eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
 	if err != nil {
 		return nil, err
 	}
+	timestamp := genesis.Data.GenesisTime
 	timestamp = timestamp.Add(slotDuration) // Use slot 1 for timestamp to override pre-generated registrations.
 
 	for pubkey, pubshare := range c.sharesByKey {

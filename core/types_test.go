@@ -36,13 +36,14 @@ func TestBackwardsCompatability(t *testing.T) {
 
 	const sentinel = core.DutyType(14)
 	for i := core.DutyUnknown; i <= sentinel; i++ {
-		if i == core.DutyUnknown {
+		switch i {
+		case core.DutyUnknown:
 			require.False(t, i.Valid())
 			require.Equal(t, "unknown", i.String())
-		} else if i == sentinel {
+		case sentinel:
 			require.False(t, i.Valid())
-			require.Equal(t, "", i.String())
-		} else {
+			require.Empty(t, i.String())
+		default:
 			require.True(t, i.Valid())
 			require.NotEmpty(t, i.String())
 		}
@@ -83,7 +84,7 @@ func TestAllDutyTypes(t *testing.T) {
 func TestNewBuilderRegistrationDuty(t *testing.T) {
 	d := core.NewBuilderRegistrationDuty(1)
 
-	require.EqualValues(t, core.DutyBuilderRegistration, d.Type)
+	require.Equal(t, core.DutyBuilderRegistration, d.Type)
 	require.Equal(t, "1/builder_registration", d.String())
 	require.EqualValues(t, 1, d.Slot)
 }
@@ -91,7 +92,7 @@ func TestNewBuilderRegistrationDuty(t *testing.T) {
 func TestNewSignatureDuty(t *testing.T) {
 	d := core.NewSignatureDuty(1)
 
-	require.EqualValues(t, core.DutySignature, d.Type)
+	require.Equal(t, core.DutySignature, d.Type)
 	require.Equal(t, "1/signature", d.String())
 	require.EqualValues(t, 1, d.Slot)
 }
@@ -99,7 +100,7 @@ func TestNewSignatureDuty(t *testing.T) {
 func TestNewPrepareAggregatorDuty(t *testing.T) {
 	d := core.NewPrepareAggregatorDuty(1)
 
-	require.EqualValues(t, core.DutyPrepareAggregator, d.Type)
+	require.Equal(t, core.DutyPrepareAggregator, d.Type)
 	require.Equal(t, "1/prepare_aggregator", d.String())
 	require.EqualValues(t, 1, d.Slot)
 }
@@ -107,7 +108,7 @@ func TestNewPrepareAggregatorDuty(t *testing.T) {
 func TestNewAggregatorDuty(t *testing.T) {
 	d := core.NewAggregatorDuty(1)
 
-	require.EqualValues(t, core.DutyAggregator, d.Type)
+	require.Equal(t, core.DutyAggregator, d.Type)
 	require.Equal(t, "1/aggregator", d.String())
 	require.EqualValues(t, 1, d.Slot)
 }
@@ -115,7 +116,7 @@ func TestNewAggregatorDuty(t *testing.T) {
 func TestNewSyncMessageDuty(t *testing.T) {
 	d := core.NewSyncMessageDuty(1)
 
-	require.EqualValues(t, core.DutySyncMessage, d.Type)
+	require.Equal(t, core.DutySyncMessage, d.Type)
 	require.Equal(t, "1/sync_message", d.String())
 	require.EqualValues(t, 1, d.Slot)
 }
@@ -123,7 +124,7 @@ func TestNewSyncMessageDuty(t *testing.T) {
 func TestNewPrepareSyncContributionDuty(t *testing.T) {
 	d := core.NewPrepareSyncContributionDuty(1)
 
-	require.EqualValues(t, core.DutyPrepareSyncContribution, d.Type)
+	require.Equal(t, core.DutyPrepareSyncContribution, d.Type)
 	require.Equal(t, "1/prepare_sync_contribution", d.String())
 	require.EqualValues(t, 1, d.Slot)
 }
@@ -131,7 +132,7 @@ func TestNewPrepareSyncContributionDuty(t *testing.T) {
 func TestNewSyncContributionDuty(t *testing.T) {
 	d := core.NewSyncContributionDuty(1)
 
-	require.EqualValues(t, core.DutySyncContribution, d.Type)
+	require.Equal(t, core.DutySyncContribution, d.Type)
 	require.Equal(t, "1/sync_contribution", d.String())
 	require.EqualValues(t, 1, d.Slot)
 }
@@ -139,7 +140,7 @@ func TestNewSyncContributionDuty(t *testing.T) {
 func TestNewInfoSyncDuty(t *testing.T) {
 	d := core.NewInfoSyncDuty(1)
 
-	require.EqualValues(t, core.DutyInfoSync, d.Type)
+	require.Equal(t, core.DutyInfoSync, d.Type)
 	require.Equal(t, "1/info_sync", d.String())
 	require.EqualValues(t, 1, d.Slot)
 }

@@ -801,10 +801,11 @@ func calculateTrackerDelay(ctx context.Context, cl eth2wrap.Client, now time.Tim
 	const maxDelayTime = time.Second * 10 // We want to delay at most 10 seconds
 	const minDelaySlots = 2               // But we do not want to delay less than 2 slots
 
-	genesisTime, err := cl.GenesisTime(ctx)
+	genesis, err := cl.Genesis(ctx, &eth2api.GenesisOpts{})
 	if err != nil {
 		return 0, err
 	}
+	genesisTime := genesis.Data.GenesisTime
 
 	eth2Resp, err := cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
@@ -847,7 +848,7 @@ func eth2PubKeys(cluster *manifestpb.Cluster) ([]eth2p0.BLSPubKey, error) {
 
 // newETH2Client returns a new eth2client for the configured timeouts; it is either a beaconmock for
 // simnet or a multi http client to a real beacon node.
-func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cluster *manifestpb.Cluster, forkVersion []byte, bnTimeout time.Duration, submissionBnTimeout time.Duration) (eth2wrap.Client, eth2wrap.Client, error) {
+func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cluster *manifestpb.Cluster, forkVersion []byte, bnTimeout time.Duration, submissionBnTimeout time.Duration) (eth2Cl eth2wrap.Client, submissionEth2Cl eth2wrap.Client, err error) {
 	pubkeys, err := eth2PubKeys(cluster)
 	if err != nil {
 		return nil, nil, err
@@ -936,12 +937,12 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 		return nil, nil, err
 	}
 
-	eth2Cl, err := configureEth2Client(ctx, forkVersion, conf.FallbackBeaconNodeAddrs, conf.BeaconNodeAddrs, beaconNodeHeaders, bnTimeout, conf.SyntheticBlockProposals)
+	eth2Cl, err = configureEth2Client(ctx, forkVersion, conf.FallbackBeaconNodeAddrs, conf.BeaconNodeAddrs, beaconNodeHeaders, bnTimeout, conf.SyntheticBlockProposals)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new eth2 http client")
 	}
 
-	submissionEth2Cl, err := configureEth2Client(ctx, forkVersion, conf.FallbackBeaconNodeAddrs, conf.BeaconNodeAddrs, beaconNodeHeaders, submissionBnTimeout, conf.SyntheticBlockProposals)
+	submissionEth2Cl, err = configureEth2Client(ctx, forkVersion, conf.FallbackBeaconNodeAddrs, conf.BeaconNodeAddrs, beaconNodeHeaders, submissionBnTimeout, conf.SyntheticBlockProposals)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new submission eth2 http client")
 	}

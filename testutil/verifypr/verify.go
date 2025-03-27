@@ -190,9 +190,10 @@ func verifyBody(body string) error {
 
 			ticket := strings.TrimSpace(strings.TrimPrefix(line, ticketTag))
 
-			if ticket == "" {
+			switch ticket {
+			case "":
 				return errors.New("ticket tag empty")
-			} else if ticket == "#000" {
+			case "#000":
 				return errors.New("invalid #000 ticket")
 			}
 
@@ -224,9 +225,10 @@ func verifyBody(body string) error {
 
 			flag := strings.TrimSpace(strings.TrimPrefix(line, featureTag))
 
-			if flag == "" {
+			switch flag {
+			case "":
 				return errors.New("feature_flag tag empty")
-			} else if flag == "?" {
+			case "?":
 				return errors.New("invalid ? feature_flag")
 			}
 

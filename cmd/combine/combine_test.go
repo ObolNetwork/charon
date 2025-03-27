@@ -59,14 +59,14 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 
 	// for each ENR, create a slice of keys to hold
 	// each set will be len(lock.Definition.Operators)
-	secrets := make([][]tbls.PrivateKey, len(lock.Definition.Operators))
+	secrets := make([][]tbls.PrivateKey, len(lock.Operators))
 
 	// populate key sets
-	for enrIdx := range len(lock.Definition.Operators) {
+	for enrIdx := range len(lock.Operators) {
 		keyIdx := enrIdx
 		for range lock.NumValidators {
 			secrets[enrIdx] = append(secrets[enrIdx], rawSecrets[keyIdx])
-			keyIdx += len(lock.Definition.Operators)
+			keyIdx += len(lock.Operators)
 		}
 	}
 
@@ -297,14 +297,14 @@ func combineTest(
 
 	// for each ENR, create a slice of keys to hold
 	// each set will be len(lock.Definition.Operators)
-	secrets := make([][]tbls.PrivateKey, len(lock.Definition.Operators))
+	secrets := make([][]tbls.PrivateKey, len(lock.Operators))
 
 	// populate key sets
-	for enrIdx := range len(lock.Definition.Operators) {
+	for enrIdx := range len(lock.Operators) {
 		keyIdx := enrIdx
 		for range lock.NumValidators {
 			secrets[enrIdx] = append(secrets[enrIdx], rawSecrets[keyIdx])
-			keyIdx += len(lock.Definition.Operators)
+			keyIdx += len(lock.Operators)
 		}
 	}
 
@@ -412,14 +412,14 @@ func runTwice(t *testing.T, force bool, processErr require.ErrorAssertionFunc) {
 
 	// for each ENR, create a slice of keys to hold
 	// each set will be len(lock.Definition.Operators)
-	secrets := make([][]tbls.PrivateKey, len(lock.Definition.Operators))
+	secrets := make([][]tbls.PrivateKey, len(lock.Operators))
 
 	// populate key sets
-	for enrIdx := range len(lock.Definition.Operators) {
+	for enrIdx := range len(lock.Operators) {
 		keyIdx := enrIdx
 		for range lock.NumValidators {
 			secrets[enrIdx] = append(secrets[enrIdx], rawSecrets[keyIdx])
-			keyIdx += len(lock.Definition.Operators)
+			keyIdx += len(lock.Operators)
 		}
 	}
 
