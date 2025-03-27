@@ -20,7 +20,7 @@ require (
 	github.com/jsternberg/zap-logfmt v1.3.0
 	github.com/libp2p/go-libp2p v0.37.2
 	github.com/libp2p/go-msgio v0.3.0
-	github.com/multiformats/go-multiaddr v0.14.0
+	github.com/multiformats/go-multiaddr v0.15.0
 	github.com/prometheus/client_golang v1.21.1
 	github.com/prometheus/client_model v0.6.1
 	github.com/protolambda/eth2-shuffle v1.1.0
