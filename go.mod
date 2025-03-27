@@ -3,8 +3,8 @@ module github.com/obolnetwork/charon
 go 1.24
 
 require (
-	github.com/attestantio/go-builder-client v0.5.3
-	github.com/attestantio/go-eth2-client v0.21.11
+	github.com/attestantio/go-builder-client v0.6.1
+	github.com/attestantio/go-eth2-client v0.24.0
 	github.com/bufbuild/buf v1.50.0
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
