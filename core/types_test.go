@@ -57,15 +57,15 @@ func TestWithDutySpanCtx(t *testing.T) {
 		require.NoError(t, stop(ctx))
 	}()
 
-	_, span1 := core.StartDutyTrace(ctx, core.Duty{}, "span1")
+	_, span1_1 := core.StartDutyTrace(ctx, core.Duty{}, "span1")
+	_, span1_2 := core.StartDutyTrace(ctx, core.Duty{}, "span1")
 	_, span2 := core.StartDutyTrace(ctx, core.Duty{}, "span2")
 
-	require.Equal(t, "7d0b160d5b04eac85dd1eaf0585c5b82", span1.SpanContext().TraceID().String())
-	require.Equal(t, span1.SpanContext().TraceID(), span2.SpanContext().TraceID())
-	require.NotEqual(t, span1.SpanContext().SpanID(), span2.SpanContext().SpanID())
+	require.NotEqual(t, span1_1.SpanContext().TraceID(), span1_2.SpanContext().TraceID())
+	require.NotEqual(t, span1_1.SpanContext().SpanID(), span2.SpanContext().SpanID())
 
-	require.True(t, span1.SpanContext().IsValid())
-	require.True(t, span1.SpanContext().IsSampled())
+	require.True(t, span1_1.SpanContext().IsValid())
+	require.True(t, span1_1.SpanContext().IsSampled())
 
 	require.True(t, span2.SpanContext().IsValid())
 	require.True(t, span2.SpanContext().IsSampled())

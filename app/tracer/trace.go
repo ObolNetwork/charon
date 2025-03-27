@@ -59,7 +59,7 @@ func Init(opts ...func(*options)) (func(context.Context) error, error) {
 		return nil, err
 	}
 
-	tp := newTraceProvider(exp, o.serviceName)
+	tp := newTraceProvider(exp, o.serviceName, o.namespaceName)
 
 	// Set globals
 	otel.SetTracerProvider(tp)
@@ -71,8 +71,9 @@ func Init(opts ...func(*options)) (func(context.Context) error, error) {
 }
 
 type options struct {
-	serviceName string
-	expFunc     func() (sdktrace.SpanExporter, error)
+	serviceName   string
+	namespaceName string
+	expFunc       func() (sdktrace.SpanExporter, error)
 }
 
 // WithStdOut returns an option to configure an OpenTelemetry exporter for tracing
@@ -111,10 +112,18 @@ func WithServiceName(serviceName string) func(*options) {
 	}
 }
 
-func newTraceProvider(exp sdktrace.SpanExporter, service string) *sdktrace.TracerProvider {
+// WithNamespaceName returns an option to configure the namespace.
+func WithNamespaceName(namespaceName string) func(*options) {
+	return func(o *options) {
+		o.namespaceName = namespaceName
+	}
+}
+
+func newTraceProvider(exp sdktrace.SpanExporter, service, namespace string) *sdktrace.TracerProvider {
 	r := resource.NewWithAttributes(
 		semconv.SchemaURL,
 		semconv.ServiceNameKey.String(service),
+		semconv.ServiceNamespaceKey.String(namespace),
 	)
 
 	tp := sdktrace.NewTracerProvider(

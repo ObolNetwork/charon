@@ -20,6 +20,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/consensus/metrics"
@@ -46,7 +47,6 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer utils.RoundTi
 
 		// Decide sends consensus output to subscribers.
 		Decide: func(ctx context.Context, duty core.Duty, _ [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte]) {
-			defer endCtxSpan(ctx) // End the parent tracing span when decided
 			msg, ok := qcommit[0].(Msg)
 			if !ok {
 				log.Error(ctx, "Invalid message type", nil)
@@ -356,6 +356,10 @@ func (c *Consensus) Broadcast(ctx context.Context, msg *pbv1.QBFTConsensusMsg) e
 // It returns an error or nil when the context is cancelled.
 // Note each instance may only be run once.
 func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error) {
+	var span trace.Span
+	ctx, span = tracer.Start(ctx, "qbft.runInstance")
+	defer span.End()
+
 	roundTimer := c.timerFunc(duty)
 	ctx = log.WithTopic(ctx, "qbft")
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
@@ -382,7 +386,6 @@ func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error)
 		return err
 	}
 
-	// Instrument consensus instance.
 	var (
 		decided bool
 		nodes   = len(c.peers)
@@ -594,11 +597,6 @@ func verifyMsg(msg *pbv1.QBFTMsg, pubkeys map[int64]*k1.PublicKey) error {
 
 func isContextErr(err error) bool {
 	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
-}
-
-// endCtxSpan ends the parent span if included in the context.
-func endCtxSpan(ctx context.Context) {
-	trace.SpanFromContext(ctx).End()
 }
 
 // roundStep groups consensus round messages by type and peer status.

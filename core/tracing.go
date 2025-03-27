@@ -4,13 +4,11 @@ package core
 
 import (
 	"context"
-	"hash/fnv"
-	"strconv"
-	"strings"
+	"crypto/rand"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/obolnetwork/charon/app/tracer"
@@ -20,18 +18,17 @@ import (
 // This creates a new trace root and should generally only be called when a new duty is scheduled
 // or when a duty is received from the VC or peer.
 func StartDutyTrace(ctx context.Context, duty Duty, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-	h := fnv.New128a()
-	_, _ = h.Write([]byte(duty.String()))
-
+	// TraceID must be globally unique.
+	// It's not intended to use directly as backend will use it to group spans.
+	// For event traceability, users will use ClusterHash+NodeName+Duty tuple.
 	var traceID trace.TraceID
-	copy(traceID[:], h.Sum(nil))
+	_, _ = rand.Read(traceID[:])
 
 	var outerSpan, innerSpan trace.Span
-	ctx, outerSpan = tracer.Start(tracer.RootedCtx(ctx, traceID), "core/duty."+strings.Title(duty.Type.String()))
+	ctx, outerSpan = tracer.Start(tracer.RootedCtx(ctx, traceID), "core/duty."+duty.Type.String())
 	ctx, innerSpan = tracer.Start(ctx, spanName, opts...)
 
-	slotStr := strconv.FormatUint(duty.Slot, 10)
-	outerSpan.SetAttributes(attribute.String("slot", slotStr))
+	outerSpan.SetAttributes(semconv.ServiceInstanceIDKey.String(duty.String()))
 
 	return ctx, withEndSpan{
 		Span:    innerSpan,
