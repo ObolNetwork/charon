@@ -6,11 +6,12 @@ import (
 	"context"
 	"hash/fnv"
 	"strconv"
-	"strings"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/obolnetwork/charon/app/tracer"
 )
@@ -26,7 +27,7 @@ func StartDutyTrace(ctx context.Context, duty Duty, spanName string, opts ...tra
 	copy(traceID[:], h.Sum(nil))
 
 	var outerSpan, innerSpan trace.Span
-	ctx, outerSpan = tracer.Start(tracer.RootedCtx(ctx, traceID), "core/duty."+strings.Title(duty.Type.String()))
+	ctx, outerSpan = tracer.Start(tracer.RootedCtx(ctx, traceID), "core/duty."+cases.Title(language.English).String(duty.Type.String()))
 	ctx, innerSpan = tracer.Start(ctx, spanName, opts...)
 
 	slotStr := strconv.FormatUint(duty.Slot, 10)

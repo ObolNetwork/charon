@@ -29,6 +29,9 @@ import (
 	"text/template"
 	"time"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/obolnetwork/charon/app/errors"
 	applog "github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/version"
@@ -274,7 +277,7 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (str
 
 		cat := cats[issue.Category]
 		cat.Name = issue.Category
-		cat.Label = strings.Title(issue.Category)
+		cat.Label = cases.Title(language.English).String(issue.Category)
 		cat.Issues = append(cat.Issues, issue)
 		cats[issue.Category] = cat
 	}
