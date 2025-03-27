@@ -569,38 +569,32 @@ func propDataMatchesDuty(opts *eth2api.SubmitProposalOpts, prop *eth2api.Version
 	case eth2spec.DataVersionAltair:
 		return checkHashes(prop.Altair, opts.Proposal.Altair.Message)
 	case eth2spec.DataVersionBellatrix:
-		switch prop.Blinded {
-		case false:
-			return checkHashes(prop.Bellatrix, opts.Proposal.Bellatrix.Message)
-		case true:
+		if prop.Blinded {
 			return checkHashes(prop.BellatrixBlinded, opts.Proposal.BellatrixBlinded.Message)
 		}
+
+		return checkHashes(prop.Bellatrix, opts.Proposal.Bellatrix.Message)
 	case eth2spec.DataVersionCapella:
-		switch prop.Blinded {
-		case false:
-			return checkHashes(prop.Capella, opts.Proposal.Capella.Message)
-		case true:
+		if prop.Blinded {
 			return checkHashes(prop.CapellaBlinded, opts.Proposal.CapellaBlinded.Message)
 		}
+
+		return checkHashes(prop.Capella, opts.Proposal.Capella.Message)
 	case eth2spec.DataVersionDeneb:
-		switch prop.Blinded {
-		case false:
-			return checkHashes(prop.Deneb.Block, opts.Proposal.Deneb.SignedBlock.Message)
-		case true:
+		if prop.Blinded {
 			return checkHashes(prop.DenebBlinded, opts.Proposal.DenebBlinded.Message)
 		}
+
+		return checkHashes(prop.Deneb.Block, opts.Proposal.Deneb.SignedBlock.Message)
 	case eth2spec.DataVersionElectra:
-		switch prop.Blinded {
-		case false:
-			return checkHashes(prop.Electra.Block, opts.Proposal.Electra.SignedBlock.Message)
-		case true:
+		if prop.Blinded {
 			return checkHashes(prop.ElectraBlinded, opts.Proposal.ElectraBlinded.Message)
 		}
+
+		return checkHashes(prop.Electra.Block, opts.Proposal.Electra.SignedBlock.Message)
 	default:
 		return errors.New("unexpected block version", z.Str("version", prop.Version.String()))
 	}
-
-	return nil
 }
 
 func (c Component) SubmitProposal(ctx context.Context, opts *eth2api.SubmitProposalOpts) error {

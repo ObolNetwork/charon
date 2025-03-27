@@ -109,8 +109,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 			return errors.New("invalid proposal")
 		}
 
-		switch block.Blinded {
-		case true:
+		if block.Blinded {
 			var blinded eth2api.VersionedSignedBlindedProposal
 
 			blinded, err = block.ToBlinded()
@@ -121,7 +120,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 			err = b.eth2Cl.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
 				Proposal: &blinded,
 			})
-		default:
+		} else {
 			err = b.eth2Cl.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
 				Proposal: &block.VersionedSignedProposal,
 			})
