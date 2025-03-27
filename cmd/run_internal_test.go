@@ -44,7 +44,7 @@ func TestBindPrivKeyFlag(t *testing.T) {
 
 			// Set envs (only for duration of the test)
 			for k, v := range test.Envs {
-				require.NoError(t, os.Setenv(k, v))
+				t.Setenv(k, v)
 			}
 
 			t.Cleanup(func() {
