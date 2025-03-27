@@ -647,6 +647,7 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64) error {
 	attsV2, err := a.eth2Cl.BlockAttestationsV2(ctx, strconv.FormatUint(slot, 10))
 	if err != nil {
 		if errors.Is(err, eth2wrap.ErrEndpointNotFound) {
+			//nolint:staticcheck // depreacted BlockAttestations pre-electra is fine.
 			atts, err := a.eth2Cl.BlockAttestations(ctx, strconv.FormatUint(slot, 10))
 			if err != nil {
 				return err
