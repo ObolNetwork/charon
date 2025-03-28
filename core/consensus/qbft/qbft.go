@@ -13,6 +13,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -20,6 +21,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/consensus/metrics"
@@ -46,7 +48,6 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer utils.RoundTi
 
 		// Decide sends consensus output to subscribers.
 		Decide: func(ctx context.Context, duty core.Duty, _ [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte]) {
-			defer endCtxSpan(ctx) // End the parent tracing span when decided
 			msg, ok := qcommit[0].(Msg)
 			if !ok {
 				log.Error(ctx, "Invalid message type", nil)
@@ -355,9 +356,9 @@ func (c *Consensus) Broadcast(ctx context.Context, msg *pbv1.QBFTConsensusMsg) e
 // runInstance blocks and runs a consensus instance for the given duty.
 // It returns an error or nil when the context is cancelled.
 // Note each instance may only be run once.
-func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error) {
+func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err error) {
 	roundTimer := c.timerFunc(duty)
-	ctx = log.WithTopic(ctx, "qbft")
+	ctx := log.WithTopic(parent, "qbft")
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -382,11 +383,14 @@ func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error)
 		return err
 	}
 
-	// Instrument consensus instance.
 	var (
 		decided bool
 		nodes   = len(c.peers)
+		span    trace.Span
 	)
+
+	_, span = tracer.Start(parent, "qbft.runInstance")
+	defer span.End()
 
 	decideCallback := func(qcommit []qbft.Msg[core.Duty, [32]byte]) {
 		round := qcommit[0].Round()
@@ -404,6 +408,11 @@ func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error)
 
 		c.metrics.SetDecidedLeaderIndex(duty.Type.String(), leaderIndex)
 		c.metrics.SetDecidedRounds(duty.Type.String(), string(roundTimer.Type()), round)
+
+		span.SetAttributes(attribute.Int64("round", round))
+		span.SetAttributes(attribute.Int64("leader_index", leaderIndex))
+		span.SetAttributes(attribute.String("leader_name", leaderName))
+		endSpanWithEvent(span, "qbft.Decided")
 	}
 
 	// Create a new qbft definition for this instance.
@@ -429,17 +438,26 @@ func (c *Consensus) runInstance(ctx context.Context, duty core.Duty) (err error)
 	// Run the algo, blocking until the context is cancelled.
 	err = qbft.Run(ctx, def, qt, duty, peerIdx, inst.HashCh)
 	if err != nil && !isContextErr(err) {
+		endSpanWithEvent(span, "qbft.Error")
+
 		c.metrics.IncConsensusError()
+
 		return err // Only return non-context errors.
 	}
 
 	if !decided {
+		endSpanWithEvent(span, "qbft.Timeout")
 		c.metrics.IncConsensusTimeout(duty.Type.String(), string(roundTimer.Type()))
 
 		return errors.New("consensus timeout", z.Str("duty", duty.String()))
 	}
 
 	return nil
+}
+
+func endSpanWithEvent(span trace.Span, event string) {
+	span.AddEvent(event)
+	span.End()
 }
 
 // handle processes an incoming consensus wire message.
@@ -594,11 +612,6 @@ func verifyMsg(msg *pbv1.QBFTMsg, pubkeys map[int64]*k1.PublicKey) error {
 
 func isContextErr(err error) bool {
 	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
-}
-
-// endCtxSpan ends the parent span if included in the context.
-func endCtxSpan(ctx context.Context) {
-	trace.SpanFromContext(ctx).End()
 }
 
 // roundStep groups consensus round messages by type and peer status.

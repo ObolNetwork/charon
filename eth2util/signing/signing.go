@@ -11,7 +11,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
-	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/tbls"
 )
@@ -123,9 +122,6 @@ func VerifyAggregateAndProofSelectionV2(ctx context.Context, eth2Cl eth2wrap.Cli
 func Verify(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoch eth2p0.Epoch, sigRoot eth2p0.Root,
 	signature eth2p0.BLSSignature, pubkey tbls.PublicKey,
 ) error {
-	ctx, span := tracer.Start(ctx, "eth2util.Verify")
-	defer span.End()
-
 	sigData, err := GetDataRoot(ctx, eth2Cl, domain, epoch, sigRoot)
 	if err != nil {
 		return err
@@ -135,8 +131,6 @@ func Verify(ctx context.Context, eth2Cl eth2wrap.Client, domain DomainName, epoc
 	if signature == zeroSig {
 		return errors.New("no signature found")
 	}
-
-	span.AddEvent("tbls.Verify")
 
 	return tbls.Verify(pubkey, sigData[:], tbls.Signature(signature))
 }

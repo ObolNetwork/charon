@@ -14,6 +14,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
@@ -201,8 +202,11 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 
 			instrumentDuty(duty, defSet)
 			dutyCtx := log.WithCtx(ctx, z.Any("duty", duty))
-			dutyCtx, span := core.StartDutyTrace(dutyCtx, duty, "core/scheduler.scheduleSlot")
-			defer span.End()
+			if duty.Type == core.DutyProposer {
+				var span trace.Span
+				dutyCtx, span = core.StartDutyTrace(dutyCtx, duty, "core/scheduler.scheduleSlot")
+				defer span.End()
+			}
 
 			for _, sub := range s.dutySubs {
 				clone, err := defSet.Clone() // Clone for each subscriber.

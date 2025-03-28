@@ -8,6 +8,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -87,8 +88,11 @@ func (m *ParSigEx) handle(ctx context.Context, _ peer.ID, req proto.Message) (pr
 		return nil, false, errors.Wrap(err, "convert parsigex proto")
 	}
 
-	ctx, span := core.StartDutyTrace(ctx, duty, "core/parsigex.Handle")
-	defer span.End()
+	if duty.Type == core.DutyProposer {
+		var span trace.Span
+		ctx, span = core.StartDutyTrace(ctx, duty, "core/parsigex.Handle")
+		defer span.End()
+	}
 
 	// Verify partial signature
 	for pubkey, data := range set {

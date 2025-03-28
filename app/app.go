@@ -167,15 +167,19 @@ func Run(ctx context.Context, conf Config) (err error) {
 		eth2util.AddTestNetwork(conf.TestnetConfig)
 	}
 
-	if err := wireTracing(life, conf); err != nil {
-		return err
-	}
-
 	eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
 	go eth1Cl.Run(ctx)
 
 	cluster, err := loadClusterManifest(ctx, conf, eth1Cl)
 	if err != nil {
+		return err
+	}
+
+	clusterHash := cluster.GetInitialMutationHash()
+	core.SetClusterHash(clusterHash)
+
+	tracingNamespace := hex.EncodeToString(clusterHash)
+	if err := wireTracing(life, conf, tracingNamespace); err != nil {
 		return err
 	}
 
@@ -1044,10 +1048,11 @@ func wireVAPIRouter(ctx context.Context, life *lifecycle.Manager, vapiAddr strin
 }
 
 // wireTracing constructs the global tracer and registers it with the life cycle manager.
-func wireTracing(life *lifecycle.Manager, conf Config) error {
+func wireTracing(life *lifecycle.Manager, conf Config, clusterHash string) error {
 	stopTracer, err := tracer.Init(
 		tracer.WithOTLPTracer(conf.OTLPAddress),
 		tracer.WithServiceName(conf.OTLPServiceName),
+		tracer.WithNamespaceName(clusterHash),
 	)
 	if err != nil {
 		return errors.Wrap(err, "init tracing")
