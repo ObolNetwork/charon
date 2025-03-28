@@ -100,6 +100,8 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().StringSliceVar(&config.BeaconNodeHeaders, "beacon-node-headers", nil, "Comma separated list of headers formatted as header=value")
 	cmd.Flags().StringSliceVar(&config.FallbackBeaconNodeAddrs, "fallback-beacon-node-endpoints", nil, "A list of beacon nodes to use if the primary list are offline or unhealthy.")
 	cmd.Flags().StringVar(&config.ExecutionEngineAddr, "execution-client-rpc-endpoint", "", "The address of the execution engine JSON-RPC API.")
+	cmd.Flags().StringSliceVar(&config.Graffiti, "graffiti", nil, "Comma-separated list or single graffiti string to include in block proposals. List maps to validator's public key in cluster lock. Appends \"OB<CL_TYPE>\" suffix to graffiti. Maximum 28 bytes per graffiti.")
+	cmd.Flags().BoolVar(&config.GraffitiDisableClientAppend, "graffiti-disable-client-append", false, "Disables appending \"OB<CL_TYPE>\" suffix to graffiti. Increases maximum bytes per graffiti to 32.")
 
 	wrapPreRunE(cmd, func(cc *cobra.Command, _ []string) error {
 		if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {
@@ -114,6 +116,15 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 		err := eth2util.ValidateBeaconNodeHeaders(config.BeaconNodeHeaders)
 		if err != nil {
 			return err
+		}
+		maxGraffitiBytes := 28
+		if config.GraffitiDisableClientAppend {
+			maxGraffitiBytes = 32
+		}
+		for _, g := range config.Graffiti {
+			if len(g) > maxGraffitiBytes {
+				return errors.New("graffiti string length is greater than maximum size")
+			}
 		}
 
 		return nil

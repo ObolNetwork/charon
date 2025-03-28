@@ -165,6 +165,7 @@ type Mock struct {
 	SubmitProposalPreparationsFunc         func(ctx context.Context, preparations []*eth2v1.ProposalPreparation) error
 	ForkScheduleFunc                       func(context.Context, *eth2api.ForkScheduleOpts) ([]*eth2p0.Fork, error)
 	ProposerConfigFunc                     func(context.Context) (*eth2exp.ProposerConfigResponse, error)
+	NodeVersionFunc                        func(context.Context, *eth2api.NodeVersionOpts) (*eth2api.Response[string], error)
 }
 
 func (m Mock) AggregateAttestation(ctx context.Context, opts *eth2api.AggregateAttestationOpts) (*eth2api.Response[*eth2p0.Attestation], error) {
@@ -385,6 +386,10 @@ func (m Mock) SlotsPerEpoch(ctx context.Context) (uint64, error) {
 
 func (m Mock) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
 	return m.ProposerConfigFunc(ctx)
+}
+
+func (m Mock) NodeVersion(ctx context.Context, opts *eth2api.NodeVersionOpts) (*eth2api.Response[string], error) {
+	return m.NodeVersionFunc(ctx, opts)
 }
 
 func (Mock) SetForkVersion([4]byte) {
