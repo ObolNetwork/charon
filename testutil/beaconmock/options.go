@@ -678,7 +678,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		ProposerConfigFunc: func(context.Context) (*eth2exp.ProposerConfigResponse, error) {
 			return nil, nil
 		},
-		NodeVersionFunc: func(ctx context.Context, nvo *eth2api.NodeVersionOpts) (*eth2api.Response[string], error) {
+		NodeVersionFunc: func(_ context.Context, _ *eth2api.NodeVersionOpts) (*eth2api.Response[string], error) {
 			return &eth2api.Response[string]{Data: "charon/static_beacon_mock"}, nil
 		},
 	}
