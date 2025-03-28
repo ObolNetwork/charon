@@ -169,7 +169,7 @@ Flags:
       --feature-set string                       Minimum feature set to enable by default: alpha, beta, or stable. Warning: modify at own risk. (default "stable")
       --feature-set-disable strings              Comma-separated list of features to disable, overriding the default minimum feature set.
       --feature-set-enable strings               Comma-separated list of features to enable, overriding the default minimum feature set.
-      --graffiti strings                         Comma-separated list or single graffiti string to include in block proposals. List maps to validator's public key in cluster lock. Appends " OB<CL_YPE>" suffix to graffiti. Maximum 27 bytes per graffiti.
+      --graffiti strings                         Comma-separated list or single graffiti string to include in block proposals. List maps to validator's public key in cluster lock. Appends "OB<CL_TYPE>" suffix to graffiti. Maximum 28 bytes per graffiti.
       --graffiti-disable-client-append           Disables appending our suffix to graffiti. Increases maximum bytes per graffiti to 32.
   -h, --help                                     Help for run
       --jaeger-address string                    [DISABLED] Listening address for jaeger tracing.

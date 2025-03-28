@@ -15,7 +15,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-const obolToken = " OB"
+const obolToken = "OB"
 
 func ClientGraffitiMappings() map[string]string {
 	return map[string]string{
