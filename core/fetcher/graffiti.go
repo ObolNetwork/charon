@@ -17,12 +17,15 @@ import (
 
 const obolToken = " OB"
 
-var tokens map[string]string = map[string]string{
-	"Teku":       "TK",
-	"Lighthouse": "LH",
-	"LodeStar":   "LS",
-	"Prysm":      "PY",
-	"Nimbus":     "NB",
+func ClientGraffitiMappings() map[string]string {
+	return map[string]string{
+		"Teku":       "TK",
+		"Lighthouse": "LH",
+		"LodeStar":   "LS",
+		"Prysm":      "PY",
+		"Nimbus":     "NB",
+		"Grandine":   "GD",
+	}
 }
 
 type GraffitiBuilder struct {
@@ -47,12 +50,6 @@ func NewGraffitiBuilder(pubkeys []core.PubKey, graffiti []string, disableClientA
 
 	if len(graffiti) > 1 && len(graffiti) != len(pubkeys) {
 		return nil, errors.New("graffiti length must match the number of validators or be a single value")
-	}
-
-	for _, g := range graffiti {
-		if len(g) > 32 {
-			return nil, errors.New("graffiti length is greater than 32 bytes")
-		}
 	}
 
 	token := fetchBeaconNodeToken(eth2Cl)
@@ -85,26 +82,14 @@ func (g *GraffitiBuilder) GetGraffiti(pubkey core.PubKey) [32]byte {
 	return graffiti
 }
 
-// buildGraffiti builds the graffiti with optional obolToken and token.
-// If there is space for both, it appends both. If not, obolToken takes precedence.
-// The disableClientAppend flag prevents appending any signatures.
+// buildGraffiti builds the graffiti with optional Obol and beacon node token.
 func buildGraffiti(graffiti string, token string, disableClientAppend bool) [32]byte {
 	var graffitiBytes [32]byte
 
 	if disableClientAppend {
 		copy(graffitiBytes[:], graffiti)
-		return graffitiBytes
-	}
-
-	availableSpace := 32 - len(graffiti)
-
-	switch {
-	case availableSpace >= len(obolToken)+len(token):
+	} else {
 		copy(graffitiBytes[:], graffiti+obolToken+token)
-	case availableSpace >= len(obolToken):
-		copy(graffitiBytes[:], graffiti+obolToken)
-	default:
-		copy(graffitiBytes[:], graffiti)
 	}
 
 	return graffitiBytes
@@ -127,7 +112,7 @@ func fetchBeaconNodeToken(eth2Cl eth2wrap.Client) string {
 	}
 
 	productToken := strings.Split(eth2Resp.Data, "/")[0]
-	token, ok := tokens[productToken]
+	token, ok := ClientGraffitiMappings()[productToken]
 	if !ok {
 		return ""
 	}

@@ -59,35 +59,13 @@ func TestBuildGraffiti(t *testing.T) {
 		require.Equal(t, expected, result)
 	})
 
-	t.Run("space for both signatures", func(t *testing.T) {
+	t.Run("enable client append", func(t *testing.T) {
 		graffiti := testutil.RandomBytesAsString(10)
 		token := "BN"
 		result := buildGraffiti(graffiti, token, false)
 
 		var expected [32]byte
 		copy(expected[:], graffiti+obolToken+token)
-
-		require.Equal(t, expected, result)
-	})
-
-	t.Run("space for obolToken only", func(t *testing.T) {
-		graffiti := testutil.RandomBytesAsString(32 - len(obolToken))
-		token := "BN"
-		result := buildGraffiti(graffiti, token, false)
-
-		var expected [32]byte
-		copy(expected[:], graffiti+obolToken)
-
-		require.Equal(t, expected, result)
-	})
-
-	t.Run("no space for any signature", func(t *testing.T) {
-		graffiti := testutil.RandomBytesAsString(32 - len(obolToken) + 1)
-		token := "BN"
-		result := buildGraffiti(graffiti, token, false)
-
-		var expected [32]byte
-		copy(expected[:], graffiti)
 
 		require.Equal(t, expected, result)
 	})
@@ -137,13 +115,6 @@ func TestNewGraffitiBuilder(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("graffiti length greater than 32 characters", func(t *testing.T) {
-		eth2Cl := mocks.NewClient(t)
-		builder, err := NewGraffitiBuilder(pubkeys, []string{testutil.RandomBytesAsString(33)}, false, eth2Cl)
-		require.Nil(t, builder)
-		require.Error(t, err)
-	})
-
 	t.Run("nil graffiti", func(t *testing.T) {
 		eth2Cl := mocks.NewClient(t)
 		builder, err := NewGraffitiBuilder(pubkeys, nil, false, eth2Cl)
@@ -154,26 +125,26 @@ func TestNewGraffitiBuilder(t *testing.T) {
 		}
 	})
 
-	t.Run("single graffiti with space for signature", func(t *testing.T) {
-		graffiti := testutil.RandomBytesAsString(32 - len(obolToken))
+	t.Run("single graffiti with append", func(t *testing.T) {
+		graffiti := testutil.RandomBytesAsString(32 - len(obolToken) - 2)
 		eth2Cl := mocks.NewClient(t)
-		eth2Cl.On("NodeVersion", mock.Anything, mock.Anything).Return(&eth2api.Response[string]{Data: ""}, nil).Once()
+		eth2Cl.On("NodeVersion", mock.Anything, mock.Anything).Return(&eth2api.Response[string]{Data: "Grandine/v2.1.4 (Linux x86_64)"}, nil).Once()
 		builder, err := NewGraffitiBuilder(pubkeys, []string{graffiti}, false, eth2Cl)
 		require.NoError(t, err)
 
 		for _, pubkey := range pubkeys {
 			var expected [32]byte
-			copy(expected[:], graffiti+obolToken)
+			copy(expected[:], graffiti+obolToken+"GD")
 
 			require.Equal(t, expected, builder.GetGraffiti(pubkey))
 		}
 	})
 
-	t.Run("single graffiti without space for signature", func(t *testing.T) {
-		graffiti := testutil.RandomBytesAsString(32 - len(obolToken) + 1)
+	t.Run("single graffiti without append", func(t *testing.T) {
+		graffiti := testutil.RandomBytesAsString(32)
 		eth2Cl := mocks.NewClient(t)
-		eth2Cl.On("NodeVersion", mock.Anything, mock.Anything).Return(&eth2api.Response[string]{Data: ""}, nil).Once()
-		builder, err := NewGraffitiBuilder(pubkeys, []string{graffiti}, false, eth2Cl)
+		eth2Cl.On("NodeVersion", mock.Anything, mock.Anything).Return(&eth2api.Response[string]{Data: "Teku/v4.2.1 (Linux x86_64)"}, nil).Once()
+		builder, err := NewGraffitiBuilder(pubkeys, []string{graffiti}, true, eth2Cl)
 		require.NoError(t, err)
 
 		for _, pubkey := range pubkeys {
@@ -184,17 +155,31 @@ func TestNewGraffitiBuilder(t *testing.T) {
 		}
 	})
 
-	t.Run("multiple graffiti", func(t *testing.T) {
-		graffiti := []string{testutil.RandomBytesAsString(10), testutil.RandomBytesAsString(32 - len(obolToken)), testutil.RandomBytesAsString(32 - len(obolToken) + 1)}
-		expectedGraffiti := []string{graffiti[0] + obolToken, graffiti[1] + obolToken, graffiti[2]}
+	t.Run("multiple graffiti with append", func(t *testing.T) {
+		graffiti := []string{testutil.RandomBytesAsString(10), testutil.RandomBytesAsString(32 - len(obolToken) - 3), testutil.RandomBytesAsString(32 - len(obolToken) - 4)}
 		eth2Cl := mocks.NewClient(t)
-		eth2Cl.On("NodeVersion", mock.Anything, mock.Anything).Return(&eth2api.Response[string]{Data: ""}, nil).Once()
+		eth2Cl.On("NodeVersion", mock.Anything, mock.Anything).Return(&eth2api.Response[string]{Data: "Prysm/v0.2.7 (Linux x86_64)"}, nil).Once()
 		builder, err := NewGraffitiBuilder(pubkeys, graffiti, false, eth2Cl)
 		require.NoError(t, err)
 
 		for idx, pubkey := range pubkeys {
 			var expected [32]byte
-			copy(expected[:], expectedGraffiti[idx])
+			copy(expected[:], graffiti[idx]+obolToken+"PY")
+
+			require.Equal(t, expected, builder.GetGraffiti(pubkey))
+		}
+	})
+
+	t.Run("multiple graffiti without append", func(t *testing.T) {
+		graffiti := []string{testutil.RandomBytesAsString(10), testutil.RandomBytesAsString(32 - len(obolToken)), testutil.RandomBytesAsString(32 - len(obolToken) + 1)}
+		eth2Cl := mocks.NewClient(t)
+		eth2Cl.On("NodeVersion", mock.Anything, mock.Anything).Return(&eth2api.Response[string]{Data: ""}, nil).Once()
+		builder, err := NewGraffitiBuilder(pubkeys, graffiti, true, eth2Cl)
+		require.NoError(t, err)
+
+		for idx, pubkey := range pubkeys {
+			var expected [32]byte
+			copy(expected[:], graffiti[idx])
 
 			require.Equal(t, expected, builder.GetGraffiti(pubkey))
 		}
