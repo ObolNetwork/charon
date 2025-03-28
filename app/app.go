@@ -175,7 +175,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	tracingNamespace := hex.EncodeToString(cluster.GetLatestMutationHash())
+	clusterHash := cluster.GetInitialMutationHash()
+	core.SetClusterHash(clusterHash)
+
+	tracingNamespace := hex.EncodeToString(clusterHash)
 	if err := wireTracing(life, conf, tracingNamespace); err != nil {
 		return err
 	}

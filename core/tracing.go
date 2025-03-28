@@ -4,7 +4,8 @@ package core
 
 import (
 	"context"
-	"crypto/rand"
+	"hash/fnv"
+	"sync"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -13,26 +14,42 @@ import (
 	"github.com/obolnetwork/charon/app/tracer"
 )
 
+var (
+	clusterHash     []byte
+	clusterHashOnce sync.Once
+)
+
 // StartDutyTrace returns a context and span rooted to the duty traceID and wrapped in a duty span.
 // This creates a new trace root and should generally only be called when a new duty is scheduled
 // or when a duty is received from the VC or peer.
 func StartDutyTrace(ctx context.Context, duty Duty, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-	// TraceID must be globally unique.
-	// It's not intended to use directly as backend will use it to group spans.
-	// For event traceability, users will use ClusterHash+NodeName+Duty tuple.
+	dutyStr := duty.String()
+
+	// TraceID must be globally unique, but consistent across all nodes.
+	h := fnv.New128a()
+	_, _ = h.Write(clusterHash)
+	_, _ = h.Write([]byte(dutyStr))
+
 	var traceID trace.TraceID
-	_, _ = rand.Read(traceID[:])
+	copy(traceID[:], h.Sum(nil))
 
 	var outerSpan, innerSpan trace.Span
 	ctx, outerSpan = tracer.Start(tracer.RootedCtx(ctx, traceID), "core/duty."+duty.Type.String())
 	ctx, innerSpan = tracer.Start(ctx, spanName, opts...)
 
-	outerSpan.SetAttributes(semconv.ServiceInstanceIDKey.String(duty.String()))
+	outerSpan.SetAttributes(semconv.ServiceInstanceIDKey.String(dutyStr))
 
 	return ctx, withEndSpan{
 		Span:    innerSpan,
 		endFunc: func() { outerSpan.End() },
 	}
+}
+
+// SetClusterHash sets the cluster hash.
+func SetClusterHash(hash []byte) {
+	clusterHashOnce.Do(func() {
+		clusterHash = hash
+	})
 }
 
 // withEndSpan wraps a trace span and calls endFunc when End is called.

@@ -58,11 +58,12 @@ func TestWithDutySpanCtx(t *testing.T) {
 		require.NoError(t, stop(ctx))
 	}()
 
+	core.SetClusterHash([]byte("cluster_hash"))
 	_, span1_1 := core.StartDutyTrace(ctx, core.Duty{}, "span1")
 	_, span1_2 := core.StartDutyTrace(ctx, core.Duty{}, "span1")
 	_, span2 := core.StartDutyTrace(ctx, core.Duty{}, "span2")
 
-	require.NotEqual(t, span1_1.SpanContext().TraceID(), span1_2.SpanContext().TraceID())
+	require.Equal(t, span1_1.SpanContext().TraceID(), span1_2.SpanContext().TraceID())
 	require.NotEqual(t, span1_1.SpanContext().SpanID(), span2.SpanContext().SpanID())
 
 	require.True(t, span1_1.SpanContext().IsValid())
