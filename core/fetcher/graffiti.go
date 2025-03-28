@@ -19,7 +19,7 @@ const obolToken = "OB"
 
 func ClientGraffitiMappings() map[string]string {
 	return map[string]string{
-		"Teku":       "TK",
+		"teku":       "TK",
 		"Lighthouse": "LH",
 		"Lodestar":   "LS",
 		"Prysm":      "PY",
