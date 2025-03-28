@@ -2,7 +2,7 @@
 
 if ! which buf 1>/dev/null; then
   echo "Installing tools"
-  go generate tools.go
+  go install tool
 fi
 
 buf generate

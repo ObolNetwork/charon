@@ -125,7 +125,7 @@ pre-commit clean
 
 The **linter** used is [golangci-lint](https://golangci-lint.run/). It runs as part of the githooks and is configured in [.golangci.yml](../.golangci.yml)
 
-Different **dev tools** are used throughout the code base and are defined and installed from [tools.go](../tools.go). To install the dev tools run: `go generate tools.go`
+Different **dev tools** are used throughout the code base and are defined and installed from [go.mod](../go.mod). To install the dev tools run: `go instal tool`
 
 ## Code Review
 We tend to closely follow the following code review structure:
