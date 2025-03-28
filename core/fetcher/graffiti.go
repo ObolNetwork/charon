@@ -21,7 +21,7 @@ func ClientGraffitiMappings() map[string]string {
 	return map[string]string{
 		"Teku":       "TK",
 		"Lighthouse": "LH",
-		"LodeStar":   "LS",
+		"Lodestar":   "LS",
 		"Prysm":      "PY",
 		"Nimbus":     "NB",
 		"Grandine":   "GD",
