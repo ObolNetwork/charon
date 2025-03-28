@@ -88,7 +88,7 @@ func (m *ParSigEx) handle(ctx context.Context, _ peer.ID, req proto.Message) (pr
 		return nil, false, errors.Wrap(err, "convert parsigex proto")
 	}
 
-	if duty.Type == core.DutyProposer || duty.Type == core.DutyBuilderProposer {
+	if duty.Type == core.DutyProposer {
 		var span trace.Span
 		ctx, span = core.StartDutyTrace(ctx, duty, "core/parsigex.Handle")
 		defer span.End()

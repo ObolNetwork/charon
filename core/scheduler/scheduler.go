@@ -202,7 +202,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 
 			instrumentDuty(duty, defSet)
 			dutyCtx := log.WithCtx(ctx, z.Any("duty", duty))
-			if duty.Type == core.DutyProposer || duty.Type == core.DutyBuilderProposer {
+			if duty.Type == core.DutyProposer {
 				var span trace.Span
 				dutyCtx, span = core.StartDutyTrace(dutyCtx, duty, "core/scheduler.scheduleSlot")
 				defer span.End()
