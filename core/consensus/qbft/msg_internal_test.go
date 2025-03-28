@@ -86,7 +86,7 @@ func TestNewMsg(t *testing.T) {
 
 	require.Equal(t, msg.Value(), hash1)
 	require.Equal(t, msg.PreparedValue(), hash2)
-	require.EqualValues(t, msg.Values(), values)
+	require.Equal(t, msg.Values(), values)
 }
 
 func TestPartialLegacyNewMsg(t *testing.T) {

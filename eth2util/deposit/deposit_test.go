@@ -59,9 +59,9 @@ func TestNewMessage(t *testing.T) {
 
 			require.NoError(t, err)
 			if test.compouding {
-				require.EqualValues(t, []byte{0x02}, msg.WithdrawalCredentials[:1])
+				require.Equal(t, []byte{0x02}, msg.WithdrawalCredentials[:1])
 			} else {
-				require.EqualValues(t, []byte{0x01}, msg.WithdrawalCredentials[:1])
+				require.Equal(t, []byte{0x01}, msg.WithdrawalCredentials[:1])
 			}
 		})
 	}
@@ -301,5 +301,5 @@ func TestDedupAmounts(t *testing.T) {
 
 	amounts = deposit.DedupAmounts(amounts)
 
-	require.EqualValues(t, []eth2p0.Gwei{0, 100, 300, 500}, amounts)
+	require.Equal(t, []eth2p0.Gwei{0, 100, 300, 500}, amounts)
 }

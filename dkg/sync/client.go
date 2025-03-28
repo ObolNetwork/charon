@@ -223,7 +223,7 @@ func (c *Client) connect(ctx context.Context) (network.Stream, error) {
 	)
 
 	for {
-		s, err := c.tcpNode.NewStream(network.WithUseTransient(ctx, "sync"), c.peer, protocolID)
+		s, err := c.tcpNode.NewStream(network.WithAllowLimitedConn(ctx, "sync"), c.peer, protocolID)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		} else if err != nil {

@@ -45,7 +45,6 @@ type Client interface {
 	eth2client.ForkProvider
 	eth2client.ForkScheduleProvider
 	eth2client.GenesisProvider
-	eth2client.GenesisTimeProvider
 	eth2client.NodeSyncingProvider
 	eth2client.NodeVersionProvider
 	eth2client.ProposalPreparationsSubmitter
@@ -775,26 +774,6 @@ func (m multi) GenesisDomain(ctx context.Context, domainType phase0.DomainType) 
 	return res0, err
 }
 
-// GenesisTime provides the genesis time of the chain.
-// Note this endpoint is cached in go-eth2-client.
-func (m multi) GenesisTime(ctx context.Context) (time.Time, error) {
-	const label = "genesis_time"
-
-	res0, err := provide(ctx, m.clients, m.fallbacks,
-		func(ctx context.Context, args provideArgs) (time.Time, error) {
-			return args.client.GenesisTime(ctx)
-		},
-		nil, m.selector,
-	)
-
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return res0, err
-}
-
 // SlotDuration provides the duration of a slot of the chain.
 //
 // Deprecated: use Spec()
@@ -1152,14 +1131,4 @@ func (l *lazy) GenesisDomain(ctx context.Context, domainType phase0.DomainType) 
 	}
 
 	return cl.GenesisDomain(ctx, domainType)
-}
-
-// GenesisTime provides the genesis time of the chain.
-func (l *lazy) GenesisTime(ctx context.Context) (res0 time.Time, err error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return res0, err
-	}
-
-	return cl.GenesisTime(ctx)
 }

@@ -66,7 +66,7 @@ func (Attestation) DomainName() signing.DomainName {
 }
 
 func (a Attestation) Epoch(_ context.Context, _ eth2wrap.Client) (eth2p0.Epoch, error) {
-	return a.Attestation.Data.Target.Epoch, nil
+	return a.Data.Target.Epoch, nil
 }
 
 // Implement Eth2SignedData for VersionedAttestation.

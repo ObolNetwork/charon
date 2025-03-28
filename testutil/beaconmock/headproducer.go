@@ -51,10 +51,11 @@ type headProducer struct {
 // Start starts the internal slot ticker that updates head.
 func (p *headProducer) Start(httpMock HTTPMock) error {
 	ctx := context.Background()
-	genesisTime, err := httpMock.GenesisTime(ctx)
+	genesis, err := httpMock.Genesis(ctx, &eth2api.GenesisOpts{})
 	if err != nil {
 		return err
 	}
+	genesisTime := genesis.Data.GenesisTime
 
 	eth2Resp, err := httpMock.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {

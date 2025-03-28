@@ -76,7 +76,7 @@ func TestFilterAdvertisedAddrs(t *testing.T) {
 			for _, mAddr := range res {
 				resStr = append(resStr, mAddr.String())
 			}
-			require.EqualValues(t, test.result, resStr)
+			require.Equal(t, test.result, resStr)
 		})
 	}
 }

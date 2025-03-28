@@ -275,7 +275,7 @@ func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
 	}
 
 	// Circuit relay connections are transient
-	s, err := tcpNode.NewStream(network.WithUseTransient(ctx, ""), peerID, o.protocols...)
+	s, err := tcpNode.NewStream(network.WithAllowLimitedConn(ctx, ""), peerID, o.protocols...)
 	if err != nil {
 		return errors.Wrap(err, "new stream", z.Any("protocols", o.protocols))
 	}
@@ -326,7 +326,7 @@ func Send(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID pe
 		opt(&o)
 	}
 	// Circuit relay connections are transient
-	s, err := tcpNode.NewStream(network.WithUseTransient(ctx, ""), peerID, o.protocols...)
+	s, err := tcpNode.NewStream(network.WithAllowLimitedConn(ctx, ""), peerID, o.protocols...)
 	if err != nil {
 		return errors.Wrap(err, "tcpNode stream")
 	}

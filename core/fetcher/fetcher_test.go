@@ -71,12 +71,12 @@ func TestFetchAttester(t *testing.T) {
 		dutyDataA := resDataSet[pubkeysByIdx[vIdxA]].(core.AttestationData)
 		require.EqualValues(t, slot, dutyDataA.Data.Slot)
 		require.EqualValues(t, vIdxA, dutyDataA.Data.Index)
-		require.EqualValues(t, dutyA, dutyDataA.Duty)
+		require.Equal(t, dutyA, dutyDataA.Duty)
 
 		dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.AttestationData)
 		require.EqualValues(t, slot, dutyDataB.Data.Slot)
 		require.EqualValues(t, vIdxB, dutyDataB.Data.Index)
-		require.EqualValues(t, dutyB, dutyDataB.Duty)
+		require.Equal(t, dutyB, dutyDataB.Duty)
 
 		return nil
 	})
@@ -176,7 +176,7 @@ func TestFetchAggregator(t *testing.T) {
 			aggregated, ok := aggAtt.(core.AggregatedAttestation)
 			require.True(t, ok)
 
-			att, ok := attByCommIdx[uint64(aggregated.Attestation.Data.Index)]
+			att, ok := attByCommIdx[uint64(aggregated.Data.Index)]
 			require.True(t, ok)
 			require.Equal(t, aggregated.Attestation, *att)
 		}
@@ -533,32 +533,32 @@ func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block core.Versioned
 
 	switch block.Version {
 	case eth2spec.DataVersionPhase0:
-		require.EqualValues(t, randao, block.Phase0.Body.RANDAOReveal)
+		require.Equal(t, randao, block.Phase0.Body.RANDAOReveal)
 	case eth2spec.DataVersionAltair:
-		require.EqualValues(t, randao, block.Altair.Body.RANDAOReveal)
+		require.Equal(t, randao, block.Altair.Body.RANDAOReveal)
 	case eth2spec.DataVersionBellatrix:
 		if block.Blinded {
-			require.EqualValues(t, randao, block.BellatrixBlinded.Body.RANDAOReveal)
+			require.Equal(t, randao, block.BellatrixBlinded.Body.RANDAOReveal)
 		} else {
-			require.EqualValues(t, randao, block.Bellatrix.Body.RANDAOReveal)
+			require.Equal(t, randao, block.Bellatrix.Body.RANDAOReveal)
 		}
 	case eth2spec.DataVersionCapella:
 		if block.Blinded {
-			require.EqualValues(t, randao, block.CapellaBlinded.Body.RANDAOReveal)
+			require.Equal(t, randao, block.CapellaBlinded.Body.RANDAOReveal)
 		} else {
-			require.EqualValues(t, randao, block.Capella.Body.RANDAOReveal)
+			require.Equal(t, randao, block.Capella.Body.RANDAOReveal)
 		}
 	case eth2spec.DataVersionDeneb:
 		if block.Blinded {
-			require.EqualValues(t, randao, block.DenebBlinded.Body.RANDAOReveal)
+			require.Equal(t, randao, block.DenebBlinded.Body.RANDAOReveal)
 		} else {
-			require.EqualValues(t, randao, block.Deneb.Block.Body.RANDAOReveal)
+			require.Equal(t, randao, block.Deneb.Block.Body.RANDAOReveal)
 		}
 	case eth2spec.DataVersionElectra:
 		if block.Blinded {
-			require.EqualValues(t, randao, block.ElectraBlinded.Body.RANDAOReveal)
+			require.Equal(t, randao, block.ElectraBlinded.Body.RANDAOReveal)
 		} else {
-			require.EqualValues(t, randao, block.Electra.Block.Body.RANDAOReveal)
+			require.Equal(t, randao, block.Electra.Block.Body.RANDAOReveal)
 		}
 	default:
 		require.Fail(t, "invalid block")

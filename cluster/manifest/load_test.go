@@ -145,8 +145,8 @@ func testLoadLegacy(t *testing.T, version string) {
 	require.EqualValues(t, lock.Threshold, cluster.GetThreshold())
 	require.Equal(t, lock.DKGAlgorithm, cluster.GetDkgAlgorithm())
 	require.Equal(t, lock.ForkVersion, cluster.GetForkVersion())
-	require.Equal(t, len(lock.Validators), len(cluster.GetValidators()))
-	require.Equal(t, len(lock.Operators), len(cluster.GetOperators()))
+	require.Len(t, cluster.GetValidators(), len(lock.Validators))
+	require.Len(t, cluster.GetOperators(), len(lock.Operators))
 
 	for i, validator := range cluster.GetValidators() {
 		require.Equal(t, lock.Validators[i].PubKey, validator.GetPublicKey())

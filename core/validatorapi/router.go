@@ -1427,7 +1427,8 @@ func unmarshal(typ contentType, body []byte, v any) error {
 		}
 	}
 
-	if typ == contentTypeJSON {
+	switch typ {
+	case contentTypeJSON:
 		err := json.Unmarshal(body, v)
 		if err != nil {
 			return apiError{
@@ -1438,7 +1439,7 @@ func unmarshal(typ contentType, body []byte, v any) error {
 		}
 
 		return nil
-	} else if typ == contentTypeSSZ {
+	case contentTypeSSZ:
 		unmarshaller, ok := v.(ssz.Unmarshaler)
 		if !ok {
 			return apiError{

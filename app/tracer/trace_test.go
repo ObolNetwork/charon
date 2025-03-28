@@ -14,9 +14,9 @@ import (
 	"github.com/obolnetwork/charon/app/tracer"
 )
 
-func TestDefaultNoopTracer(_ *testing.T) {
+func TestDefaultNoopTracer(t *testing.T) {
 	// This just shouldn't panic.
-	ctx, span := tracer.Start(context.Background(), "root")
+	ctx, span := tracer.Start(t.Context(), "root")
 	defer span.End()
 
 	inner(ctx)
