@@ -170,7 +170,7 @@ Flags:
       --feature-set-disable strings              Comma-separated list of features to disable, overriding the default minimum feature set.
       --feature-set-enable strings               Comma-separated list of features to enable, overriding the default minimum feature set.
       --graffiti strings                         Comma-separated list or single graffiti string to include in block proposals. List maps to validator's public key in cluster lock. Appends "OB<CL_TYPE>" suffix to graffiti. Maximum 28 bytes per graffiti.
-      --graffiti-disable-client-append           Disables appending our suffix to graffiti. Increases maximum bytes per graffiti to 32.
+      --graffiti-disable-client-append           Disables appending "OB<CL_TYPE>" suffix to graffiti. Increases maximum bytes per graffiti to 32.
   -h, --help                                     Help for run
       --jaeger-address string                    [DISABLED] Listening address for jaeger tracing.
       --jaeger-service string                    [DISABLED] Service name used for jaeger tracing.
