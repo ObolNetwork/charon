@@ -9,14 +9,17 @@ import (
 	"math"
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prysmaticlabs/go-bitfield"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap/mocks"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/fetcher"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
@@ -243,6 +246,13 @@ func TestFetchBlocks(t *testing.T) {
 		feeRecipientAddr = "0x0000000000000000000000000000000000000000"
 	)
 
+	var (
+		graffitiAString = "testA"
+		graffitiABytes  = [32]byte{'t', 'e', 's', 't', 'A'}
+		graffitiBString = "testB"
+		graffitiBBytes  = [32]byte{'t', 'e', 's', 't', 'B'}
+	)
+
 	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
 		vIdxA: testutil.RandomCorePubKey(t),
 		vIdxB: testutil.RandomCorePubKey(t),
@@ -268,12 +278,21 @@ func TestFetchBlocks(t *testing.T) {
 		pubkeysByIdx[vIdxB]: randaoB,
 	}
 
+	eth2Cl := mocks.NewClient(t)
+	eth2Cl.On("NodeVersion", mock.Anything, mock.Anything).Return(&eth2api.Response[string]{Data: ""}, nil).Once()
+	graffitiBuilder, err := fetcher.NewGraffitiBuilder(
+		[]core.PubKey{pubkeysByIdx[vIdxA], pubkeysByIdx[vIdxB]},
+		[]string{graffitiAString, graffitiBString},
+		true, eth2Cl,
+	)
+	require.NoError(t, err)
+
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 
 	t.Run("fetch DutyProposer", func(t *testing.T) {
 		duty := core.NewProposerDuty(slot)
-		fetch := mustCreateFetcherWithAddress(t, bmock, feeRecipientAddr)
+		fetch := mustCreateFetcherWithAddressAndGraffiti(t, bmock, feeRecipientAddr, graffitiBuilder)
 
 		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
 			return randaoByPubKey[key], nil
@@ -293,6 +312,9 @@ func TestFetchBlocks(t *testing.T) {
 				require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Capella.Body.ExecutionPayload.FeeRecipient))
 			}
 			assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
+			graffitiDutyA, err := dutyDataA.Graffiti()
+			require.NoError(t, err)
+			require.Equal(t, graffitiABytes, graffitiDutyA)
 
 			dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.VersionedProposal)
 			slotB, err := dutyDataB.Slot()
@@ -304,6 +326,9 @@ func TestFetchBlocks(t *testing.T) {
 				require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.Capella.Body.ExecutionPayload.FeeRecipient))
 			}
 			assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature().ToETH2(), dutyDataB)
+			graffitiDutyB, err := dutyDataB.Graffiti()
+			require.NoError(t, err)
+			require.Equal(t, graffitiBBytes, graffitiDutyB)
 
 			return nil
 		})
@@ -511,18 +536,18 @@ func TestFetchSyncContribution(t *testing.T) {
 func mustCreateFetcher(t *testing.T, bmock beaconmock.Mock) *fetcher.Fetcher {
 	t.Helper()
 
-	fetch, err := fetcher.New(bmock, nil, true)
+	fetch, err := fetcher.New(bmock, nil, true, &fetcher.GraffitiBuilder{})
 	require.NoError(t, err)
 
 	return fetch
 }
 
-func mustCreateFetcherWithAddress(t *testing.T, bmock beaconmock.Mock, addr string) *fetcher.Fetcher {
+func mustCreateFetcherWithAddressAndGraffiti(t *testing.T, bmock beaconmock.Mock, addr string, graffitiBuilder *fetcher.GraffitiBuilder) *fetcher.Fetcher {
 	t.Helper()
 
 	fetch, err := fetcher.New(bmock, func(core.PubKey) string {
 		return addr
-	}, true)
+	}, true, graffitiBuilder)
 	require.NoError(t, err)
 
 	return fetch
