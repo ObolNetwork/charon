@@ -7,7 +7,7 @@ require (
 	github.com/attestantio/go-eth2-client v1.15.2
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
-	github.com/ethereum/go-ethereum v1.15.6
+	github.com/ethereum/go-ethereum v1.15.7
 	github.com/ferranbt/fastssz v0.1.4
 	github.com/golang/snappy v1.0.0
 	github.com/google/gofuzz v1.2.0
