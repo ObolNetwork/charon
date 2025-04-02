@@ -65,11 +65,15 @@ jobs:
 
     - name: Test AMD64 Binary
       run: |
+        echo "Listing host dist directory before test:"
+        ls -l dist/
         echo "Testing AMD64 binary version..."
         docker run --rm --platform linux/amd64 \
           -v $(pwd)/dist:/dist \
           golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
-          bash -c "echo '--- Running version command ---'; \
+          bash -c "echo '--- Listing /dist inside container ---'; \
+                   ls -l /dist; \
+                   echo '--- Running version command ---'; \
                    VERSION_OUTPUT=$(/dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64 version); \
                    VERSION_EXIT_CODE=$?; \
                    echo \"Exit Code: $VERSION_EXIT_CODE\"; \
@@ -81,12 +85,16 @@ jobs:
 
     - name: Test ARM64 Binary
       run: |
+        echo "Listing host dist directory before test:"
+        ls -l dist/
         echo "Testing ARM64 binary version..."
         # Use an AMD64 container but install QEMU to run the ARM64 binary
         docker run --rm --platform linux/amd64 \
           -v $(pwd)/dist:/dist \
           golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
           bash -c "apt-get update > /dev/null && apt-get install -y -qq qemu-user-static > /dev/null && \
+          echo '--- Listing /dist inside container ---'; \
+          ls -l /dist; \
           echo '--- Running version command ---'; \
           VERSION_OUTPUT=$(/dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64 version); \
           VERSION_EXIT_CODE=$?; \
