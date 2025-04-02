@@ -31,7 +31,7 @@ The schema of the `cluster-definition.json` is defined as:
   "uuid": "1234-abcdef-1234-abcdef",            // Random unique identifier.
   "version": "v1.3.0",                          // Schema version
   "timestamp": "2022-01-01T12:00:00+00:00",     // Creation timestamp
-  "num_validators": 100,                        // Number of distributed validators (n*32ETH staked) to be created in cluster.lock
+  "num_validators": 100,                        // Number of distributed validators to be created in cluster.lock
   "threshold": 3,                               // Threshold required for signature reconstruction
   "validators": [                               // Metadata related to each validator to be created
     {
@@ -41,7 +41,7 @@ The schema of the `cluster-definition.json` is defined as:
   ],
   "dkg_algorithm": "foo_dkg_v1" ,               // DKG algorithm for key generation
   "fork_version": "0x00112233",                 // Chain/network identifier
-  "deposit_amounts": [                          // Partial deposit amounts in gwei (must sum up to 32ETH)
+  "deposit_amounts": [                          // Partial deposit amounts in gwei (must sum up to at least 32ETH)
     "16000000000",
     "16000000000"
   ],
@@ -63,7 +63,7 @@ The `cluster-lock.json` has the following schema:
 ```json
 {
   "cluster_definition": {...},                              // Cluster definition json, identical schema to above,
-  "distributed_validators": [                               // Length equal to num_validators (n*32ETH staked).
+  "distributed_validators": [                               // Length equal to num_validators.
     {
       "distributed_public_key":  "0x123..abfc",             // DV root pubkey
       "public_shares": ["0x123..abfc", "0x123..abfc"],      // The public share of each operator (length of num_operators)
@@ -71,7 +71,7 @@ The `cluster-lock.json` has the following schema:
       "builder_registration": {...}                         // Pre-generated signed builder registration for the validator
     }
   ],
-  "deposit_amounts": [                                      // Partial deposit amounts in gwei (must sum up to 32ETH)
+  "deposit_amounts": [                                      // Partial deposit amounts in gwei (must sum up to at least 32ETH)
     "16000000000",
     "16000000000"
   ],
@@ -90,12 +90,14 @@ The following is the historical change log of the cluster config:
 - `v1.10.0` **default**:
   - Added the `target_gas_limit` field to cluster lock which contains the prefered target gas limit for transactions.
   - When not specified, the default value of `36000000` will be used.
+  - Added the `compounding` flag to cluster lock which enables compounding rewards for validators by using 0x02 withdrawal credentials.
 - `v1.9.0`:
   - Added the `consensus_protocol` field to cluster lock which contains the prefered consensus protocol for the cluster.
   - When not specified, the default value of `qbft` will be used.
 - `v1.8.0`:
-  - Added the `deposit_amounts` list to cluster lock which contains partial deposit amounts in gwei.
-  - When not specified, the single value of 32ETH will be used. All partial amounts must sum up to 32ETH.
+  - Added the `deposit_amounts` list to the cluster lock, which contains partial deposit amounts in gwei.
+  - When specified, the sum of the partial amounts must be between 32 ETH and 2048 ETH.
+  - When not specified, it generates deposits for 1 ETH and 32 ETH amounts.
   - `distributed_validator` structure replaced `deposit_data` with `partial_deposit_data` respectively.
 - `v1.7.0`:
   - Added the `builder_registration` structure to `distributed_validators` list in cluster lock.
@@ -162,13 +164,16 @@ Flags:
       --builder-api                              Enables the builder api. Will only produce builder blocks. Builder API must also be enabled on the validator client. Beacon node must be connected to a builder-relay to access the builder network.
       --consensus-protocol string                Preferred consensus protocol name for the node. Selected automatically when not specified.
       --debug-address string                     Listening address (ip and port) for the pprof and QBFT debug API. It is not enabled by default.
+      --execution-client-rpc-endpoint string     The address of the execution engine JSON-RPC API.
       --fallback-beacon-node-endpoints strings   A list of beacon nodes to use if the primary list are offline or unhealthy.
       --feature-set string                       Minimum feature set to enable by default: alpha, beta, or stable. Warning: modify at own risk. (default "stable")
       --feature-set-disable strings              Comma-separated list of features to disable, overriding the default minimum feature set.
       --feature-set-enable strings               Comma-separated list of features to enable, overriding the default minimum feature set.
+      --graffiti strings                         Comma-separated list or single graffiti string to include in block proposals. List maps to validator's public key in cluster lock. Appends "OB<CL_TYPE>" suffix to graffiti. Maximum 28 bytes per graffiti.
+      --graffiti-disable-client-append           Disables appending "OB<CL_TYPE>" suffix to graffiti. Increases maximum bytes per graffiti to 32.
   -h, --help                                     Help for run
-      --jaeger-address string                    Listening address for jaeger tracing.
-      --jaeger-service string                    Service name used for jaeger tracing. (default "charon")
+      --jaeger-address string                    [DISABLED] Listening address for jaeger tracing.
+      --jaeger-service string                    [DISABLED] Service name used for jaeger tracing.
       --lock-file string                         The path to the cluster lock file defining the distributed validator cluster. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence. (default ".charon/cluster-lock.json")
       --log-color string                         Log color; auto, force, disable. (default "auto")
       --log-format string                        Log format; console, logfmt or json (default "console")
@@ -180,6 +185,8 @@ Flags:
       --monitoring-address string                Listening address (ip and port) for the monitoring API (prometheus). (default "127.0.0.1:3620")
       --nickname string                          Human friendly peer nickname. Maximum 32 characters.
       --no-verify                                Disables cluster definition and lock file verification.
+      --otlp-address string                      Listening address for OTLP gRPC tracing backend.
+      --otlp-service-name string                 Service name used for OTLP gRPC tracing. (default "charon")
       --p2p-disable-reuseport                    Disables TCP port reuse for outgoing libp2p connections.
       --p2p-external-hostname string             The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.
       --p2p-external-ip string                   The IP address advertised by libp2p. This may be used to advertise an external IP.

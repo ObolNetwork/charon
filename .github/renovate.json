@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "enabledManagers": [
+    "github-actions"
+  ],
+  "dependencyDashboard": false,
+  "dependencyDashboardApproval": false,
+  "packageRules": [
+    {
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchDepTypes": [
+        "github-actions"
+      ],
+      "matchFileNames": [
+        ".github/workflows/**"
+      ],
+      "schedule": [
+        "every weekend"
+      ],
+      "labels": [
+        "renovate/github-actions"
+      ],
+      "groupName": "GitHub Actions updates"
+    }
+  ]
+}

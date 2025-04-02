@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package tracer_test
 
@@ -14,9 +14,9 @@ import (
 	"github.com/obolnetwork/charon/app/tracer"
 )
 
-func TestDefaultNoopTracer(_ *testing.T) {
+func TestDefaultNoopTracer(t *testing.T) {
 	// This just shouldn't panic.
-	ctx, span := tracer.Start(context.Background(), "root")
+	ctx, span := tracer.Start(t.Context(), "root")
 	defer span.End()
 
 	inner(ctx)

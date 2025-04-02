@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package core_test
 
@@ -22,18 +22,18 @@ var coreTypeFuncs = []func() any{
 
 		return ret
 	},
-	func() any { return new(core.Attestation) },
+	func() any { return new(core.VersionedAttestation) },
 	func() any { return new(core.Signature) },
 	func() any { return new(core.SignedVoluntaryExit) },
 	func() any { return new(core.SignedRandao) },
 	func() any { return new(core.BeaconCommitteeSelection) },
-	func() any { return new(core.SignedAggregateAndProof) },
+	func() any { return new(core.VersionedSignedAggregateAndProof) },
 	func() any { return new(core.SignedSyncMessage) },
 	func() any { return new(core.SyncContributionAndProof) },
 	func() any { return new(core.SignedSyncContributionAndProof) },
 	func() any { return new(core.SyncCommitteeSelection) },
 	func() any { return new(core.AttestationData) },
-	func() any { return new(core.AggregatedAttestation) },
+	func() any { return new(core.VersionedAggregatedAttestation) },
 	func() any { return new(core.VersionedProposal) },
 	func() any { return new(core.SyncContribution) },
 }

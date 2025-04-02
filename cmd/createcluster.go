@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cmd
 
@@ -28,6 +28,7 @@ import (
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
@@ -85,7 +86,11 @@ type clusterConfig struct {
 
 	TargetGasLimit uint
 
+	Compounding bool
+
 	testnetConfig eth2util.Network
+
+	ExecutionEngineAddr string
 }
 
 func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig) error) *cobra.Command {
@@ -133,7 +138,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.IntVar(&config.Threshold, "threshold", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
 	flags.StringSliceVar(&config.FeeRecipientAddrs, "fee-recipient-addresses", nil, "Comma separated list of Ethereum addresses of the fee recipient for each validator. Either provide a single fee recipient address or fee recipient addresses for each validator.")
 	flags.StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
-	flags.StringVar(&config.Network, "network", "", "Ethereum network to create validators for. Options: mainnet, goerli, sepolia, holesky, gnosis, chiado.")
+	flags.StringVar(&config.Network, "network", "", "Ethereum network to create validators for. Options: mainnet, goerli, sepolia, hoodi, holesky, gnosis, chiado.")
 	flags.IntVar(&config.NumDVs, "num-validators", 0, "The number of distributed validators needed in the cluster.")
 	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Does not re-create deposit data for this key.")
 	flags.StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-existing-keys.")
@@ -143,9 +148,11 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringVar(&config.testnetConfig.GenesisForkVersionHex, "testnet-fork-version", "", "Genesis fork version of the custom test network (in hex).")
 	flags.Uint64Var(&config.testnetConfig.ChainID, "testnet-chain-id", 0, "Chain ID of the custom test network.")
 	flags.Int64Var(&config.testnetConfig.GenesisTimestamp, "testnet-genesis-timestamp", 0, "Genesis timestamp of the custom test network.")
-	flags.IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to exactly 32ETH.")
+	flags.IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to at least 32ETH.")
 	flags.StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the cluster. Selected automatically when not specified.")
 	flags.UintVar(&config.TargetGasLimit, "target-gas-limit", 36000000, "Preferred target gas limit for transactions.")
+	flags.BoolVar(&config.Compounding, "compounding", false, "Enable compounding rewards for validators by using 0x02 withdrawal credentials.")
+	flags.StringVar(&config.ExecutionEngineAddr, "execution-client-rpc-endpoint", "", "The address of the execution engine JSON-RPC API.")
 }
 
 func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
@@ -195,8 +202,11 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 
 	// Get a cluster definition, either from a definition file or from the config.
 	if conf.DefFile != "" {
+		eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
+		go eth1Cl.Run(ctx)
+
 		// Validate the provided definition.
-		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, eth1Cl)
 		if err != nil {
 			return err
 		}
@@ -217,8 +227,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	if len(depositAmounts) == 0 {
-		// If partial deposit amounts were not specified, default to single amount of 32ETH.
-		depositAmounts = []eth2p0.Gwei{deposit.MaxDepositAmount}
+		depositAmounts = deposit.DefaultDepositAmounts()
 	}
 
 	if len(secrets) == 0 {
@@ -269,7 +278,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
-	depositDatas, err := createDepositDatas(def.WithdrawalAddresses(), network, secrets, depositAmounts)
+	depositDatas, err := createDepositDatas(def.WithdrawalAddresses(), network, secrets, depositAmounts, def.Compounding)
 	if err != nil {
 		return err
 	}
@@ -365,7 +374,7 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 	if len(conf.DepositAmounts) > 0 {
 		amounts := deposit.EthsToGweis(conf.DepositAmounts)
 
-		if err := deposit.VerifyDepositAmounts(amounts); err != nil {
+		if err := deposit.VerifyDepositAmounts(amounts, conf.Compounding); err != nil {
 			return err
 		}
 	}
@@ -420,7 +429,7 @@ func detectNodeDirs(clusterDir string, nodeAmount int) error {
 }
 
 // signDepositDatas returns a list of DepositData for each partial deposit amount.
-func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, network string, depositAmounts []eth2p0.Gwei) ([][]eth2p0.DepositData, error) {
+func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, network string, depositAmounts []eth2p0.Gwei, compouding bool) ([][]eth2p0.DepositData, error) {
 	if len(secrets) != len(withdrawalAddresses) {
 		return nil, errors.New("insufficient withdrawal addresses")
 	}
@@ -442,7 +451,7 @@ func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, n
 				return nil, errors.Wrap(err, "secret to pubkey")
 			}
 
-			msg, err := deposit.NewMessage(eth2p0.BLSPubKey(pk), withdrawalAddr, depositAmount)
+			msg, err := deposit.NewMessage(eth2p0.BLSPubKey(pk), withdrawalAddr, depositAmount, compouding)
 			if err != nil {
 				return nil, err
 			}
@@ -592,7 +601,7 @@ func getKeys(splitKeysDir string) ([]tbls.PrivateKey, error) {
 		return nil, err
 	}
 
-	return files.Keys(), nil
+	return files.SequencedKeys()
 }
 
 // generateKeys generates numDVs amount of tbls.PrivateKeys.
@@ -611,7 +620,7 @@ func generateKeys(numDVs int) ([]tbls.PrivateKey, error) {
 }
 
 // createDepositDatas creates a slice of deposit datas using the provided parameters and returns it.
-func createDepositDatas(withdrawalAddresses []string, network string, secrets []tbls.PrivateKey, depositAmounts []eth2p0.Gwei) ([][]eth2p0.DepositData, error) {
+func createDepositDatas(withdrawalAddresses []string, network string, secrets []tbls.PrivateKey, depositAmounts []eth2p0.Gwei, compounding bool) ([][]eth2p0.DepositData, error) {
 	if len(secrets) != len(withdrawalAddresses) {
 		return nil, errors.New("insufficient withdrawal addresses")
 	}
@@ -620,7 +629,7 @@ func createDepositDatas(withdrawalAddresses []string, network string, secrets []
 	}
 	depositAmounts = deposit.DedupAmounts(depositAmounts)
 
-	return signDepositDatas(secrets, withdrawalAddresses, network, depositAmounts)
+	return signDepositDatas(secrets, withdrawalAddresses, network, depositAmounts, compounding)
 }
 
 // createValidatorRegistrations creates a slice of builder validator registrations using the provided parameters and returns it.
@@ -861,7 +870,7 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 	var opts []func(*cluster.Definition)
 	def, err := cluster.NewDefinition(conf.Name, conf.NumDVs, threshold, feeRecipientAddrs,
 		withdrawalAddrs, forkVersion, cluster.Creator{}, ops, conf.DepositAmounts,
-		conf.ConsensusProtocol, conf.TargetGasLimit, rand.Reader, opts...)
+		conf.ConsensusProtocol, conf.TargetGasLimit, conf.Compounding, rand.Reader, opts...)
 	if err != nil {
 		return cluster.Definition{}, err
 	}
@@ -919,7 +928,7 @@ func nodeDir(clusterDir string, i int) string {
 }
 
 // validateDef returns an error if the provided cluster definition is invalid.
-func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []string, def cluster.Definition) error {
+func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []string, def cluster.Definition, eth1Cl eth1wrap.EthClientRunner) error {
 	if def.NumValidators == 0 {
 		return errors.New("cannot create cluster with zero validators, specify at least one")
 	}
@@ -933,7 +942,7 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 	}
 
 	if len(def.DepositAmounts) > 0 {
-		if err := deposit.VerifyDepositAmounts(def.DepositAmounts); err != nil {
+		if err := deposit.VerifyDepositAmounts(def.DepositAmounts, def.Compounding); err != nil {
 			return errors.Wrap(err, "deposit amounts verification failed")
 		}
 	}
@@ -957,7 +966,7 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 		return err
 	}
 
-	if err = def.VerifySignatures(); err != nil {
+	if err = def.VerifySignatures(eth1Cl); err != nil {
 		return err
 	}
 
@@ -1022,7 +1031,7 @@ func loadDefinition(ctx context.Context, defFile string) (cluster.Definition, er
 			z.Str("definition_hash", fmt.Sprintf("%#x", def.DefinitionHash)))
 	}
 
-	if err := def.VerifySignatures(); err != nil {
+	if err := def.VerifySignatures(nil); err != nil {
 		return cluster.Definition{}, err
 	}
 	if err := def.VerifyHashes(); err != nil {
@@ -1084,6 +1093,7 @@ func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) 
 	return cl.LaunchpadURLForLock(lock), nil
 }
 
+// nolint: revive // Not really confusing here as they are passed as arguments as well.
 // validateAddresses checks if we have sufficient addresses. It also fills addresses slices if only one is provided.
 func validateAddresses(numVals int, feeRecipientAddrs []string, withdrawalAddrs []string) ([]string, []string, error) {
 	if len(feeRecipientAddrs) != numVals && len(feeRecipientAddrs) != 1 {

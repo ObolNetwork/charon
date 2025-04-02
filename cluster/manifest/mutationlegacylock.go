@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package manifest
 
@@ -151,6 +151,7 @@ func transformLegacyLock(input *manifestpb.Cluster, signed *manifestpb.SignedMut
 		ForkVersion:       lock.ForkVersion,
 		ConsensusProtocol: lock.ConsensusProtocol,
 		TargetGasLimit:    uint32(lock.TargetGasLimit),
+		Compounding:       lock.Compounding,
 		Validators:        vals,
 		Operators:         ops,
 	}, nil

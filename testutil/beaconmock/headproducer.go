@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package beaconmock
 
@@ -51,10 +51,11 @@ type headProducer struct {
 // Start starts the internal slot ticker that updates head.
 func (p *headProducer) Start(httpMock HTTPMock) error {
 	ctx := context.Background()
-	genesisTime, err := httpMock.GenesisTime(ctx)
+	genesis, err := httpMock.Genesis(ctx, &eth2api.GenesisOpts{})
 	if err != nil {
 		return err
 	}
+	genesisTime := genesis.Data.GenesisTime
 
 	eth2Resp, err := httpMock.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {

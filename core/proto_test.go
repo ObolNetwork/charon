@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package core_test
 
@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"testing"
 
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -33,7 +34,7 @@ func TestParSignedDataSetProto(t *testing.T) {
 	}{
 		{
 			Type: core.DutyAttester,
-			Data: core.Attestation{Attestation: *testutil.RandomAttestation()},
+			Data: testutil.RandomDenebCoreVersionedAttestation(),
 		},
 		{
 			Type: core.DutyExit,
@@ -61,10 +62,15 @@ func TestParSignedDataSetProto(t *testing.T) {
 		},
 		{
 			Type: core.DutyAggregator,
-			Data: core.SignedAggregateAndProof{SignedAggregateAndProof: eth2p0.SignedAggregateAndProof{
-				Message:   testutil.RandomAggregateAndProof(),
-				Signature: testutil.RandomEth2Signature(),
-			}},
+			Data: core.VersionedSignedAggregateAndProof{
+				VersionedSignedAggregateAndProof: eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionDeneb,
+					Deneb: &eth2p0.SignedAggregateAndProof{
+						Message:   testutil.RandomAggregateAndProof(),
+						Signature: testutil.RandomEth2Signature(),
+					},
+				},
+			},
 		},
 		{
 			Type: core.DutySyncMessage,
@@ -122,7 +128,7 @@ func TestUnsignedDataToProto(t *testing.T) {
 		},
 		{
 			Type: core.DutyAggregator,
-			Data: core.NewAggregatedAttestation(testutil.RandomAttestation()),
+			Data: testutil.RandomDenebCoreVersionedAggregateAttestation(),
 		},
 		{
 			Type: core.DutySyncContribution,
@@ -186,7 +192,7 @@ func TestParSignedData(t *testing.T) {
 
 func TestParSignedDataFromProtoErrors(t *testing.T) {
 	parSig1 := core.ParSignedData{
-		SignedData: core.Attestation{Attestation: *testutil.RandomAttestation()},
+		SignedData: core.SyncCommitteeSelection{*testutil.RandomSyncCommitteeSelection()},
 		ShareIdx:   rand.Intn(100),
 	}
 
@@ -198,7 +204,7 @@ func TestParSignedDataFromProtoErrors(t *testing.T) {
 	require.ErrorContains(t, err, "unsupported duty type")
 
 	_, err = core.ParSignedDataFromProto(core.DutyProposer, pb1)
-	require.ErrorContains(t, err, "unknown data version")
+	require.ErrorContains(t, err, "unknown version")
 
 	_, err = core.ParSignedDataFromProto(core.DutyBuilderProposer, pb1)
 	require.ErrorIs(t, err, core.ErrDeprecatedDutyBuilderProposer)
@@ -215,7 +221,7 @@ func TestSetSignature(t *testing.T) {
 }
 
 func TestMarshalAttestation(t *testing.T) {
-	att := core.Attestation{Attestation: *testutil.RandomAttestation()}
+	att := testutil.RandomDenebCoreVersionedAttestation()
 
 	b, err := json.Marshal(att)
 	require.NoError(t, err)
@@ -224,7 +230,7 @@ func TestMarshalAttestation(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, b, b2)
 
-	a := new(core.Attestation)
+	a := new(core.VersionedAttestation)
 	err = json.Unmarshal(b, a)
 	require.NoError(t, err)
 
@@ -235,12 +241,12 @@ func randomSignedData(t *testing.T) map[core.DutyType]core.SignedData {
 	t.Helper()
 
 	return map[core.DutyType]core.SignedData{
-		core.DutyAttester:                core.NewAttestation(testutil.RandomAttestation()),
+		core.DutyAttester:                testutil.RandomDenebCoreVersionedAttestation(),
 		core.DutyExit:                    core.NewSignedVoluntaryExit(testutil.RandomExit()),
 		core.DutyRandao:                  core.SignedRandao{SignedEpoch: eth2util.SignedEpoch{Epoch: testutil.RandomEpoch(), Signature: testutil.RandomEth2Signature()}},
 		core.DutyProposer:                testutil.RandomBellatrixCoreVersionedSignedProposal(),
 		core.DutyPrepareAggregator:       testutil.RandomCoreBeaconCommitteeSelection(),
-		core.DutyAggregator:              core.NewSignedAggregateAndProof(testutil.RandomSignedAggregateAndProof()),
+		core.DutyAggregator:              core.NewVersionedSignedAggregateAndProof(testutil.RandomDenebVersionedSignedAggregateAndProof()),
 		core.DutyPrepareSyncContribution: core.NewSyncCommitteeSelection(testutil.RandomSyncCommitteeSelection()),
 		core.DutySyncContribution:        core.NewSignedSyncContributionAndProof(testutil.RandomSignedSyncContributionAndProof()),
 	}

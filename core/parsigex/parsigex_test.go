@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package parsigex_test
 
@@ -155,13 +155,16 @@ func TestParSigExVerifier(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Verify attestation", func(t *testing.T) {
-		att := testutil.RandomAttestation()
-		sigRoot, err := att.Data.HashTreeRoot()
+		att := testutil.RandomDenebVersionedAttestation()
+		attData, err := att.Data()
 		require.NoError(t, err)
-		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainBeaconAttester, att.Data.Target.Epoch, sigRoot)
+		sigRoot, err := attData.HashTreeRoot()
 		require.NoError(t, err)
-		att.Signature = sign(sigData[:])
-		data := core.NewPartialAttestation(att, shareIdx)
+		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainBeaconAttester, attData.Target.Epoch, sigRoot)
+		require.NoError(t, err)
+		att.Deneb.Signature = sign(sigData[:])
+		data, err := core.NewPartialVersionedAttestation(att, shareIdx)
+		require.NoError(t, err)
 		require.NoError(t, verifyFunc(ctx, core.NewAttesterDuty(slot), pubkey, data))
 	})
 
@@ -253,20 +256,23 @@ func TestParSigExVerifier(t *testing.T) {
 	})
 
 	t.Run("Verify aggregate and proof", func(t *testing.T) {
-		agg := &eth2p0.SignedAggregateAndProof{
-			Message: &eth2p0.AggregateAndProof{
-				AggregatorIndex: 0,
-				Aggregate:       testutil.RandomAttestation(),
-				SelectionProof:  testutil.RandomEth2Signature(),
+		agg := &eth2spec.VersionedSignedAggregateAndProof{
+			Version: eth2spec.DataVersionDeneb,
+			Deneb: &eth2p0.SignedAggregateAndProof{
+				Message: &eth2p0.AggregateAndProof{
+					AggregatorIndex: 0,
+					Aggregate:       testutil.RandomPhase0Attestation(),
+					SelectionProof:  testutil.RandomEth2Signature(),
+				},
 			},
 		}
-		agg.Message.Aggregate.Data.Slot = slot
-		sigRoot, err := agg.Message.HashTreeRoot()
+		agg.Deneb.Message.Aggregate.Data.Slot = slot
+		sigRoot, err := agg.Deneb.Message.HashTreeRoot()
 		require.NoError(t, err)
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainAggregateAndProof, epoch, sigRoot)
 		require.NoError(t, err)
-		agg.Signature = sign(sigData[:])
-		data := core.NewPartialSignedAggregateAndProof(agg, shareIdx)
+		agg.Deneb.Signature = sign(sigData[:])
+		data := core.NewPartialVersionedSignedAggregateAndProof(agg, shareIdx)
 
 		require.NoError(t, verifyFunc(ctx, core.NewAggregatorDuty(slot), pubkey, data))
 	})
@@ -339,6 +345,8 @@ func versionedSignedProposalRoot(t *testing.T, p *eth2api.VersionedSignedProposa
 	case eth2spec.DataVersionCapella:
 		return p.Capella.Message.HashTreeRoot()
 	case eth2spec.DataVersionDeneb:
+		return p.Deneb.SignedBlock.Message.HashTreeRoot()
+	case eth2spec.DataVersionElectra:
 		return p.Deneb.SignedBlock.Message.HashTreeRoot()
 	default:
 		require.Equal(t, 0, 1)

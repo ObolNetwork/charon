@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package eth2wrap
 
@@ -14,6 +14,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
+	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -37,7 +38,7 @@ const (
 
 type synthProposerEth2Provider interface {
 	CachedValidatorsProvider
-	eth2client.SlotsPerEpochProvider
+	eth2client.SpecProvider
 	eth2client.ProposerDutiesProvider
 }
 
@@ -118,7 +119,7 @@ func (h *synthWrapper) syntheticProposal(ctx context.Context, slot eth2p0.Slot, 
 		opts := &eth2api.SignedBeaconBlockOpts{
 			Block: fmt.Sprint(prev),
 		}
-		signed, err := h.Client.SignedBeaconBlock(ctx, opts)
+		signed, err := h.SignedBeaconBlock(ctx, opts)
 		if err != nil {
 			if z.ContainsField(err, z.Int("status_code", http.StatusNotFound)) {
 				continue
@@ -174,6 +175,14 @@ func (h *synthWrapper) syntheticProposal(ctx context.Context, slot eth2p0.Slot, 
 		proposal.Deneb.Block.ProposerIndex = vIdx
 		proposal.Deneb.Block.Body.ExecutionPayload.FeeRecipient = feeRecipient
 		proposal.Deneb.Block.Body.ExecutionPayload.Transactions = fraction(proposal.Deneb.Block.Body.ExecutionPayload.Transactions)
+	case eth2spec.DataVersionElectra:
+		proposal.Electra = &eth2electra.BlockContents{}
+		proposal.Electra.Block = signedBlock.Electra.Message
+		proposal.Electra.Block.Body.Graffiti = GetSyntheticGraffiti()
+		proposal.Electra.Block.Slot = slot
+		proposal.Electra.Block.ProposerIndex = vIdx
+		proposal.Electra.Block.Body.ExecutionPayload.FeeRecipient = feeRecipient
+		proposal.Electra.Block.Body.ExecutionPayload.Transactions = fraction(proposal.Electra.Block.Body.ExecutionPayload.Transactions)
 	default:
 		return nil, errors.New("unsupported proposal version")
 	}
@@ -225,6 +234,8 @@ func IsSyntheticBlindedBlock(block *eth2api.VersionedSignedBlindedProposal) bool
 		graffiti = block.Capella.Message.Body.Graffiti
 	case eth2spec.DataVersionDeneb:
 		graffiti = block.Deneb.Message.Body.Graffiti
+	case eth2spec.DataVersionElectra:
+		graffiti = block.Electra.Message.Body.Graffiti
 	default:
 		return false
 	}
@@ -246,6 +257,8 @@ func IsSyntheticProposal(block *eth2api.VersionedSignedProposal) bool {
 		graffiti = block.Capella.Message.Body.Graffiti
 	case eth2spec.DataVersionDeneb:
 		graffiti = block.Deneb.SignedBlock.Message.Body.Graffiti
+	case eth2spec.DataVersionElectra:
+		graffiti = block.Electra.SignedBlock.Message.Body.Graffiti
 	default:
 		return false
 	}
@@ -304,10 +317,15 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 	duties = resp.Data
 
 	// Get slotsPerEpoch and the starting slot of the epoch.
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	respSpec, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return nil, err
 	}
+	slotsPerEpoch, ok := respSpec.Data["SLOTS_PER_EPOCH"].(uint64)
+	if !ok {
+		return nil, errors.New("fetch slots per epoch")
+	}
+
 	epochSlot := eth2p0.Slot(epoch) * eth2p0.Slot(slotsPerEpoch)
 
 	// Mark those not requiring synthetic duties.
@@ -359,10 +377,15 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 // SyntheticVIdx returns the validator index and true if the slot is a synthetic proposer duty.
 func (c *synthProposerCache) SyntheticVIdx(ctx context.Context, eth2Cl synthProposerEth2Provider, slot eth2p0.Slot) (eth2p0.ValidatorIndex, bool, error) {
 	// Get the epoch.
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	respSpec, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return 0, false, err
 	}
+	slotsPerEpoch, ok := respSpec.Data["SLOTS_PER_EPOCH"].(uint64)
+	if !ok {
+		return 0, false, errors.New("fetch slots per epoch")
+	}
+
 	epoch := eth2p0.Epoch(slot) / eth2p0.Epoch(slotsPerEpoch)
 
 	// Ensure that cache is populated.

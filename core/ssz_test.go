@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package core_test
 
@@ -14,6 +14,7 @@ import (
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
+	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -62,12 +63,12 @@ func TestSSZ(t *testing.T) {
 		zero func() any
 	}{
 		{zero: func() any { return new(core.VersionedSignedProposal) }},
-		{zero: func() any { return new(core.Attestation) }},
-		{zero: func() any { return new(core.SignedAggregateAndProof) }},
+		{zero: func() any { return new(core.VersionedAttestation) }},
+		{zero: func() any { return new(core.VersionedSignedAggregateAndProof) }},
 		{zero: func() any { return new(core.SignedSyncMessage) }},
 		{zero: func() any { return new(core.SyncContributionAndProof) }},
 		{zero: func() any { return new(core.SignedSyncContributionAndProof) }},
-		{zero: func() any { return new(core.AggregatedAttestation) }},
+		{zero: func() any { return new(core.VersionedAggregatedAttestation) }},
 		{zero: func() any { return new(core.VersionedProposal) }},
 		{zero: func() any { return new(core.SyncContribution) }},
 	}
@@ -108,7 +109,7 @@ func TestMarshalUnsignedProto(t *testing.T) {
 		},
 		{
 			dutyType:    core.DutyAggregator,
-			unsignedPtr: func() any { return new(core.AggregatedAttestation) },
+			unsignedPtr: func() any { return new(core.VersionedAggregatedAttestation) },
 		},
 		{
 			dutyType:    core.DutyProposer,
@@ -178,11 +179,11 @@ func TestMarshalParSignedProto(t *testing.T) {
 	}{
 		{
 			dutyType:  core.DutyAttester,
-			signedPtr: func() any { return new(core.Attestation) },
+			signedPtr: func() any { return new(core.VersionedAttestation) },
 		},
 		{
 			dutyType:  core.DutyAggregator,
-			signedPtr: func() any { return new(core.SignedAggregateAndProof) },
+			signedPtr: func() any { return new(core.VersionedSignedAggregateAndProof) },
 		},
 		{
 			dutyType:  core.DutyProposer,
@@ -330,6 +331,24 @@ func TestV3SignedProposalSSZSerialisation(t *testing.T) {
 				Version: eth2spec.DataVersionDeneb,
 				DenebBlinded: &eth2deneb.SignedBlindedBeaconBlock{
 					Message:   testutil.RandomDenebBlindedBeaconBlock(),
+					Signature: testutil.RandomEth2Signature(),
+				},
+				Blinded: true,
+			},
+		},
+		{
+			name: "electra",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionElectra,
+				Electra: testutil.RandomElectraVersionedSignedProposal().Electra,
+			},
+		},
+		{
+			name: "electra blinded",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionElectra,
+				ElectraBlinded: &eth2electra.SignedBlindedBeaconBlock{
+					Message:   testutil.RandomElectraBlindedBeaconBlock(),
 					Signature: testutil.RandomEth2Signature(),
 				},
 				Blinded: true,

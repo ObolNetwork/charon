@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cmd
 
@@ -78,11 +78,11 @@ func TestCmdFlags(t *testing.T) {
 				SimnetSlotDuration:      time.Second,
 				MonitoringAddr:          "127.0.0.1:3620",
 				ValidatorAPIAddr:        "127.0.0.1:3600",
+				OTLPAddress:             "",
+				OTLPServiceName:         "charon",
 				BeaconNodeAddrs:         []string{"http://beacon.node"},
 				BeaconNodeTimeout:       2 * time.Second,
 				BeaconNodeSubmitTimeout: 2 * time.Second,
-				JaegerAddr:              "",
-				JaegerService:           "charon",
 			},
 		},
 		{
@@ -129,11 +129,11 @@ func TestCmdFlags(t *testing.T) {
 				SimnetSlotDuration:      time.Second,
 				MonitoringAddr:          "127.0.0.1:3620",
 				ValidatorAPIAddr:        "127.0.0.1:3600",
+				OTLPAddress:             "",
+				OTLPServiceName:         "charon",
 				BeaconNodeAddrs:         []string{"http://beacon.node"},
 				BeaconNodeTimeout:       2 * time.Second,
 				BeaconNodeSubmitTimeout: 2 * time.Second,
-				JaegerAddr:              "",
-				JaegerService:           "charon",
 				TestConfig: app.TestConfig{
 					P2PFuzz: true,
 				},
@@ -176,7 +176,7 @@ func TestCmdFlags(t *testing.T) {
 
 			// Set envs (only for duration of the test)
 			for k, v := range test.Envs {
-				require.NoError(t, os.Setenv(k, v))
+				t.Setenv(k, v)
 			}
 
 			_ = testutil.CreateTempCharonDir(t)

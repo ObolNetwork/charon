@@ -100,15 +100,13 @@ services:
       - ./grafana/dash_duty_details.json:/etc/dashboards/dash_duty_details.json
       - ./grafana/dash_alerts.json:/etc/dashboards/dash_alerts.json
 
-  jaeger:
-    image: jaegertracing/all-in-one:${JAEGER_VERSION:-1.46.0}
+  tempo:
+    image: grafana/tempo:${TEMPO_VERSION:-2.7.1}
     networks: [compose]
-    environment:
-      SPAN_STORAGE_TYPE: memory
-      MEMORY_MAX_TRACES: 10000
-    {{if .MonitoringPorts}}ports:
-      - "16686:16686"
-    {{end}}
+    user: ":"
+    command: -config.file=/opt/tempo/tempo.yaml
+    volumes:
+      - ./tempo:/opt/tempo
 
   loki:
     image: grafana/loki:${LOKI_VERSION:-2.8.2}

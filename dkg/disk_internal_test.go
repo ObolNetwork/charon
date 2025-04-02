@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package dkg
 
@@ -11,8 +11,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/eth1wrap/mocks"
 	"github.com/obolnetwork/charon/cluster"
 )
 
@@ -100,7 +102,10 @@ func TestLoadDefinition(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := loadDefinition(context.Background(), Config{DefFile: tt.defFile, NoVerify: tt.noVerify})
+			eth1Cl := mocks.NewEthClientRunner(t)
+			// Maybe is used because we're not testing this function however it may be called when first signature check fails therefore return false
+			eth1Cl.On("VerifySmartContractBasedSignature", mock.Anything, mock.Anything, mock.Anything).Return(false, nil).Maybe()
+			got, err := loadDefinition(context.Background(), Config{DefFile: tt.defFile, NoVerify: tt.noVerify}, eth1Cl)
 			if tt.wantErr {
 				require.Error(t, err)
 				return

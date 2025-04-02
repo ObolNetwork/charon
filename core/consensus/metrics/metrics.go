@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package metrics
 
@@ -28,6 +28,7 @@ var (
 		Subsystem: "consensus",
 		Name:      "duration_seconds",
 		Help:      "Duration of the consensus process by protocol, duty, and timer",
+		Buckets:   []float64{.01, .025, .05, .1, .25, .5, .75, 1, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3, 5},
 	}, []string{"protocol", "duty", "timer"})
 
 	consensusTimeout = promauto.NewCounterVec(prometheus.CounterOpts{

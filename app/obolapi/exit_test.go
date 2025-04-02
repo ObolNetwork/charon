@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package obolapi_test
 
@@ -220,5 +220,5 @@ func eth2Client(t *testing.T, ctx context.Context, bnURL string) eth2wrap.Client
 
 	bnClient := bnHTTPClient.(*eth2http.Service)
 
-	return eth2wrap.AdaptEth2HTTP(bnClient, 1*time.Second)
+	return eth2wrap.AdaptEth2HTTP(bnClient, nil, 1*time.Second)
 }

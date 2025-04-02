@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package compose
 
@@ -130,8 +130,8 @@ func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 
 	// Define run config
 	return append(kvs,
-		kv{"jaeger-service", fmt.Sprintf("node%d", index)},
-		kv{"jaeger-address", "jaeger:6831"},
+		kv{"otlp-address", "tempo:4317"},
+		kv{"otlp-service-name", fmt.Sprintf("node%d", index)},
 		kv{"lock-file", lockFile},
 		kv{"validator-api-address", "0.0.0.0:3600"},
 		kv{"beacon-node-endpoints", beaconNode},

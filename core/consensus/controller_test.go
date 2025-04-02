@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package consensus_test
 
@@ -75,7 +75,7 @@ func TestConsensusController(t *testing.T) {
 	})
 
 	t.Run("unsupported protocol id", func(t *testing.T) {
-		err := controller.SetCurrentConsensusForProtocol(context.TODO(), "boo")
+		err := controller.SetCurrentConsensusForProtocol(t.Context(), "boo")
 		require.ErrorContains(t, err, "unsupported protocol id")
 	})
 }

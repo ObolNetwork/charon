@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package sync
 
@@ -223,7 +223,7 @@ func (c *Client) connect(ctx context.Context) (network.Stream, error) {
 	)
 
 	for {
-		s, err := c.tcpNode.NewStream(network.WithUseTransient(ctx, "sync"), c.peer, protocolID)
+		s, err := c.tcpNode.NewStream(network.WithAllowLimitedConn(ctx, "sync"), c.peer, protocolID)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		} else if err != nil {

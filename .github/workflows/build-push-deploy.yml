@@ -2,6 +2,7 @@ on:
   push:
     branches:
       - main*
+      - electra
     tags:
       - 'v*'
 name: Build and Publish Docker Image
@@ -15,8 +16,8 @@ jobs:
         fetch-depth: 0
     - name: Set up QEMU
       id: qemu
-      uses: docker/setup-qemu-action@v2
-    - uses: docker/setup-buildx-action@v2
+      uses: docker/setup-qemu-action@v3
+    - uses: docker/setup-buildx-action@v3
       with:
         driver-opts: "image=moby/buildkit:v0.10.5" # avoid unknown/unknown arch in ghcr
 
@@ -26,7 +27,7 @@ jobs:
 
     - name: Define docker image meta data tags
       id: meta
-      uses: docker/metadata-action@v4
+      uses: docker/metadata-action@v5
       with:
         images: |
           obolnetwork/charon
@@ -39,23 +40,27 @@ jobs:
           type=raw,value=next,event=branch,enable={{is_default_branch}}
 
           # Tag "latest" on git-tag events
-          type=raw,value=latest,event=tag,enable={{matches(ref, 'refs/tags/v[0-9]+.[0-9]+.[0-9]+')}}
+          type=raw,value=latest,event=tag,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+
+          # Tag "electra" only when pushing to the "electra" branch
+          type=raw,value=electra,event=branch,enable=${{ github.ref == 'refs/heads/electra' }}
 
           # Tag "$APP_VERSION" on git-push-to-branch events
-          type=raw,value=${{ env.APP_VERSION }},event=branch
+          type=raw,value=${{ env.APP_VERSION }},event=branch,enable=${{ github.ref != 'refs/heads/electra' }}
+
 
           # Tag "tag ref" on git-tag events
           type=ref,event=tag
 
     - name: Login to Github container registry
-      uses: docker/login-action@v2
+      uses: docker/login-action@v3
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Login to Dockerhub container registry
-      uses: docker/login-action@v2
+      uses: docker/login-action@v3
       with:
         username: obolnetwork
         password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -64,7 +69,7 @@ jobs:
       if: github.ref_type == 'tag'
       run: echo 'GO_BUILD_FLAG=-ldflags=-X github.com/obolnetwork/charon/app/version.version=${{ github.ref_name }}' >> $GITHUB_ENV
 
-    - uses: docker/build-push-action@v4
+    - uses: docker/build-push-action@v6
       with:
         context: .
         platforms: linux/amd64,linux/arm64
@@ -81,7 +86,7 @@ jobs:
         echo "::set-output name=short_sha::$calculatedSha"
 
     - name: Trigger dev relay deploy job
-      uses: peter-evans/repository-dispatch@v2
+      uses: peter-evans/repository-dispatch@v3
       with:
         token: ${{ secrets.CHARON_K8S_REPO_ACCESS_TOKEN }}
         repository: ObolNetwork/obol-infrastructure
@@ -89,7 +94,7 @@ jobs:
         client-payload: '{"relay_name": "relay-dev","relay_version": "${{ steps.vars.outputs.short_sha }}"}'
 
     - name: Trigger charon-K8S deploy job
-      uses: peter-evans/repository-dispatch@v2
+      uses: peter-evans/repository-dispatch@v3
       with:
         token: ${{ secrets.CHARON_K8S_REPO_ACCESS_TOKEN }}
         repository: ObolNetwork/obol-infrastructure

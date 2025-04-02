@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cluster
 
@@ -117,7 +117,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, random *rand.Rand, opts ...func(*
 	def, err := NewDefinition("test cluster", dv, k,
 		feeRecipientAddrs, withdrawalAddrs,
 		eth2util.Goerli.GenesisForkVersionHex, creator, ops, nil,
-		"", 30000000, randomReader, opts...)
+		"", 30000000, false, randomReader, opts...)
 	require.NoError(t, err)
 
 	// Definition version prior to v1.3.0 don't support EIP712 signatures.

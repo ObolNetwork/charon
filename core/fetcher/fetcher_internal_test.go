@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package fetcher
 
@@ -65,6 +65,21 @@ func TestVerifyFeeRecipient(t *testing.T) {
 				Version:      eth2spec.DataVersionDeneb,
 				DenebBlinded: testutil.RandomDenebBlindedBeaconBlock(),
 				Blinded:      true,
+			},
+		},
+		{
+			name: "electra",
+			proposal: eth2api.VersionedProposal{
+				Version: eth2spec.DataVersionElectra,
+				Electra: testutil.RandomElectraVersionedProposal().Electra,
+			},
+		},
+		{
+			name: "electra blinded",
+			proposal: eth2api.VersionedProposal{
+				Version:        eth2spec.DataVersionElectra,
+				ElectraBlinded: testutil.RandomElectraBlindedBeaconBlock(),
+				Blinded:        true,
 			},
 		},
 	}

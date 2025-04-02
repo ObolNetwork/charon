@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package manifest
 
@@ -160,6 +160,7 @@ func to0xHex(b []byte) string {
 	return fmt.Sprintf("%#x", b)
 }
 
+// nolint: unparam
 // to0xHex returns bytes represented by the hex string.
 func from0xHex(s string, length int) ([]byte, error) {
 	if s == "" {

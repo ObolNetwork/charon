@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package scheduler_test
 
@@ -118,14 +118,18 @@ func TestSchedulerWait(t *testing.T) {
 			eth2Cl, err := beaconmock.New()
 			require.NoError(t, err)
 
-			eth2Cl.GenesisTimeFunc = func(context.Context) (time.Time, error) {
+			eth2Cl.GenesisFunc = func(context.Context, *eth2api.GenesisOpts) (*eth2v1.Genesis, error) {
 				var err error
 				if test.GenesisErrs > 0 {
 					err = errors.New("mock error")
 					test.GenesisErrs--
 				}
 
-				return t0.Add(test.GenesisAfter), err
+				time := t0.Add(test.GenesisAfter)
+
+				return &eth2v1.Genesis{
+					GenesisTime: time,
+				}, err
 			}
 
 			eth2Cl.NodeSyncingFunc = func(context.Context, *eth2api.NodeSyncingOpts) (*eth2v1.SyncState, error) {

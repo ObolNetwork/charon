@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Package validatormock provides mock validator client functionality.
 package validatormock
@@ -13,11 +13,13 @@ import (
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
+	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
+	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -40,10 +42,15 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 		return err
 	}
 
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+	respSpec, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return err
 	}
+	slotsPerEpoch, ok := respSpec.Data["SLOTS_PER_EPOCH"].(uint64)
+	if !ok {
+		return errors.New("fetch slots per epoch")
+	}
+
 	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
 
 	var indexes []eth2p0.ValidatorIndex
@@ -145,6 +152,11 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 				Message:   block.DenebBlinded,
 				Signature: sig,
 			}
+		case eth2spec.DataVersionElectra:
+			signedBlock.Electra = &eth2electra.SignedBlindedBeaconBlock{
+				Message:   block.ElectraBlinded,
+				Signature: sig,
+			}
 		default:
 			return errors.New("invalid blinded block")
 		}
@@ -186,6 +198,15 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 			},
 			KZGProofs: block.Deneb.KZGProofs,
 			Blobs:     block.Deneb.Blobs,
+		}
+	case eth2spec.DataVersionElectra:
+		signedBlock.Electra = &eth2electra.SignedBlockContents{
+			SignedBlock: &electra.SignedBeaconBlock{
+				Message:   block.Electra.Block,
+				Signature: sig,
+			},
+			KZGProofs: block.Electra.KZGProofs,
+			Blobs:     block.Electra.Blobs,
 		}
 	default:
 		return errors.New("invalid block")

@@ -1,41 +1,55 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package core
 
 import (
 	"context"
 	"hash/fnv"
-	"strconv"
-	"strings"
+	"sync"
 
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"go.opentelemetry.io/otel/attribute"
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/obolnetwork/charon/app/tracer"
+)
+
+var (
+	clusterHash     []byte
+	clusterHashOnce sync.Once
 )
 
 // StartDutyTrace returns a context and span rooted to the duty traceID and wrapped in a duty span.
 // This creates a new trace root and should generally only be called when a new duty is scheduled
 // or when a duty is received from the VC or peer.
 func StartDutyTrace(ctx context.Context, duty Duty, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+	dutyStr := duty.String()
+
+	// TraceID must be globally unique, but consistent across all nodes.
 	h := fnv.New128a()
-	_, _ = h.Write([]byte(duty.String()))
+	_, _ = h.Write(clusterHash)
+	_, _ = h.Write([]byte(dutyStr))
 
 	var traceID trace.TraceID
 	copy(traceID[:], h.Sum(nil))
 
 	var outerSpan, innerSpan trace.Span
-	ctx, outerSpan = tracer.Start(tracer.RootedCtx(ctx, traceID), "core/duty."+strings.Title(duty.Type.String()))
+	ctx, outerSpan = tracer.Start(tracer.RootedCtx(ctx, traceID), "core/duty."+duty.Type.String())
 	ctx, innerSpan = tracer.Start(ctx, spanName, opts...)
 
-	slotStr := strconv.FormatUint(duty.Slot, 10)
-	outerSpan.SetAttributes(attribute.String("slot", slotStr))
+	outerSpan.SetAttributes(semconv.ServiceInstanceIDKey.String(dutyStr))
 
 	return ctx, withEndSpan{
 		Span:    innerSpan,
 		endFunc: func() { outerSpan.End() },
 	}
+}
+
+// SetClusterHash sets the cluster hash.
+func SetClusterHash(hash []byte) {
+	clusterHashOnce.Do(func() {
+		clusterHash = hash
+	})
 }
 
 // withEndSpan wraps a trace span and calls endFunc when End is called.
@@ -78,17 +92,11 @@ func WithTracing() WireOption {
 
 			return clone.DutyDBStore(ctx, duty, set)
 		}
-		w.DutyDBAwaitAttestation = func(parent context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error) {
-			ctx, span := tracer.Start(parent, "core/dutydb.AwaitAttestation")
+		w.DutyDBAwaitProposal = func(parent context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+			ctx, span := tracer.Start(parent, "core/dutydb.AwaitProposal")
 			defer span.End()
 
-			return clone.DutyDBAwaitAttestation(ctx, slot, commIdx)
-		}
-		w.DutyDBPubKeyByAttestation = func(parent context.Context, slot, commIdx, valCommIdx uint64) (PubKey, error) {
-			ctx, span := tracer.Start(parent, "core/dutydb.PubKeyByAttestation")
-			defer span.End()
-
-			return clone.DutyDBPubKeyByAttestation(ctx, slot, commIdx, valCommIdx)
+			return clone.DutyDBAwaitProposal(ctx, slot)
 		}
 		w.ParSigDBStoreInternal = func(parent context.Context, duty Duty, set ParSignedDataSet) error {
 			ctx, span := tracer.Start(parent, "core/parsigdb.StoreInternal")

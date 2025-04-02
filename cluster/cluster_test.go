@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cluster_test
 
@@ -101,6 +101,7 @@ func TestEncode(t *testing.T) {
 				partialAmounts,
 				"abft",
 				targetGasLimit,
+				false,
 				rand.New(rand.NewSource(0)),
 				opts...,
 			)
@@ -133,6 +134,7 @@ func TestEncode(t *testing.T) {
 			// Definition version prior to v1.10.0 don't support TargetGasLimit.
 			if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6, v1_7, v1_8, v1_9) {
 				definition.TargetGasLimit = 0
+				definition.Compounding = false
 			}
 
 			t.Run("definition_json_"+vStr, func(t *testing.T) {
@@ -267,7 +269,7 @@ func TestExamples(t *testing.T) {
 			require.NoError(t, err)
 
 			require.NoError(t, lock.VerifyHashes())
-			require.NoError(t, lock.VerifySignatures())
+			require.NoError(t, lock.VerifySignatures(nil))
 		})
 	}
 
@@ -283,7 +285,7 @@ func TestExamples(t *testing.T) {
 			err = json.Unmarshal(b, &def)
 			require.NoError(t, err)
 			require.NoError(t, def.VerifyHashes())
-			require.NoError(t, def.VerifySignatures())
+			require.NoError(t, def.VerifySignatures(nil))
 		})
 	}
 }

@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Package bcast provides the core workflow's broadcaster component that
 // broadcasts/submits aggregated signed duty data to the beacon node.
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
@@ -49,24 +50,49 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 
 	switch duty.Type {
 	case core.DutyAttester:
-		atts, err := setToAttestations(set)
+		isElectra, err := isElectraAttestation(set)
 		if err != nil {
 			return err
 		}
 
-		err = b.eth2Cl.SubmitAttestations(ctx, atts)
-		if err != nil && strings.Contains(err.Error(), "PriorAttestationKnown") {
-			// Lighthouse isn't idempotent, so just swallow this non-issue.
-			// See reference github.com/attestantio/go-eth2-client@v0.11.7/multi/submitattestations.go:38
-			err = nil
-		}
-		if err == nil {
-			log.Info(ctx, "Successfully submitted attestations to beacon node",
-				z.Any("delay", b.delayFunc(duty.Slot)),
-			)
+		if isElectra {
+			atts, err := setToAttestationsV2(set)
+			if err != nil {
+				return err
+			}
+
+			err = b.eth2Cl.SubmitAttestationsV2(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
+			if err != nil && strings.Contains(err.Error(), "PriorAttestationKnown") {
+				// Lighthouse isn't idempotent, so just swallow this non-issue.
+				// See reference github.com/attestantio/go-eth2-client@v0.11.7/multi/submitattestations.go:38
+				err = nil
+			}
+			if err == nil {
+				log.Info(ctx, "Successfully submitted v2 attestations to beacon node",
+					z.Any("delay", b.delayFunc(duty.Slot)),
+				)
+			}
+		} else {
+			atts, err := setToAttestations(set)
+			if err != nil {
+				return err
+			}
+
+			err = b.eth2Cl.SubmitAttestations(ctx, atts)
+			if err != nil && strings.Contains(err.Error(), "PriorAttestationKnown") {
+				// Lighthouse isn't idempotent, so just swallow this non-issue.
+				// See reference github.com/attestantio/go-eth2-client@v0.11.7/multi/submitattestations.go:38
+				err = nil
+			}
+			if err == nil {
+				log.Info(ctx, "Successfully submitted v1 attestations to beacon node",
+					z.Any("delay", b.delayFunc(duty.Slot)),
+				)
+			}
 		}
 
 		return err
+
 	case core.DutyProposer:
 		pubkey, aggData, err := setToOne(set)
 		if err != nil {
@@ -83,8 +109,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 			return errors.New("invalid proposal")
 		}
 
-		switch block.Blinded {
-		case true:
+		if block.Blinded {
 			var blinded eth2api.VersionedSignedBlindedProposal
 
 			blinded, err = block.ToBlinded()
@@ -95,7 +120,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 			err = b.eth2Cl.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
 				Proposal: &blinded,
 			})
-		default:
+		} else {
 			err = b.eth2Cl.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
 				Proposal: &block.VersionedSignedProposal,
 			})
@@ -162,15 +187,33 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 		// Beacon committee selections are only applicable to DVT, not broadcasted to beacon chain.
 		return nil
 	case core.DutyAggregator:
-		aggAndProofs, err := setToAggAndProof(set)
+		isElectra, err := isElectraAggAndProof(set)
 		if err != nil {
 			return err
 		}
 
-		err = b.eth2Cl.SubmitAggregateAttestations(ctx, aggAndProofs)
-		if err == nil {
-			log.Info(ctx, "Successfully submitted attestation aggregations to beacon node",
-				z.Any("delay", b.delayFunc(duty.Slot)))
+		if isElectra {
+			aggAndProofs, err := setToAggAndProofV2(set)
+			if err != nil {
+				return err
+			}
+
+			err = b.eth2Cl.SubmitAggregateAttestationsV2(ctx, aggAndProofs)
+			if err == nil {
+				log.Info(ctx, "Successfully submitted v2 attestation aggregations to beacon node",
+					z.Any("delay", b.delayFunc(duty.Slot)))
+			}
+		} else {
+			aggAndProofs, err := setToAggAndProof(set)
+			if err != nil {
+				return err
+			}
+
+			err = b.eth2Cl.SubmitAggregateAttestations(ctx, aggAndProofs)
+			if err == nil {
+				log.Info(ctx, "Successfully submitted v1 attestation aggregations to beacon node",
+					z.Any("delay", b.delayFunc(duty.Slot)))
+			}
 		}
 
 		return err
@@ -238,6 +281,25 @@ func setToSyncMessages(set core.SignedDataSet) ([]*altair.SyncCommitteeMessage, 
 	return resp, nil
 }
 
+// isElectraAggAndProof checks if a core.SignedDataSet object is pre- or post-electra aggregate and proof.
+func isElectraAggAndProof(set core.SignedDataSet) (bool, error) {
+	for _, att := range set {
+		_, ok := att.(core.SignedAggregateAndProof)
+		if ok {
+			return false, nil
+		}
+
+		_, ok = att.(core.VersionedSignedAggregateAndProof)
+		if ok {
+			return true, nil
+		}
+
+		return false, errors.New("invalid aggregate and proof")
+	}
+
+	return false, errors.New("empty aggregates and proof signed data set")
+}
+
 // setToAggAndProof converts a set of signed data into a list of aggregate and proofs.
 func setToAggAndProof(set core.SignedDataSet) ([]*eth2p0.SignedAggregateAndProof, error) {
 	var resp []*eth2p0.SignedAggregateAndProof
@@ -251,6 +313,21 @@ func setToAggAndProof(set core.SignedDataSet) ([]*eth2p0.SignedAggregateAndProof
 	}
 
 	return resp, nil
+}
+
+// setToAggAndProofV2 converts a set of signed data into a list of versioned aggregate and proofs.
+func setToAggAndProofV2(set core.SignedDataSet) (*eth2api.SubmitAggregateAttestationsOpts, error) {
+	var resp []*eth2spec.VersionedSignedAggregateAndProof
+	for _, aggAndProof := range set {
+		aggAndProof, ok := aggAndProof.(core.VersionedSignedAggregateAndProof)
+		if !ok {
+			return nil, errors.New("invalid aggregate and proof")
+		}
+
+		resp = append(resp, &aggAndProof.VersionedSignedAggregateAndProof)
+	}
+
+	return &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: resp}, nil
 }
 
 // setToRegistrations converts a set of signed data into a list of registrations.
@@ -281,6 +358,25 @@ func setToOne(set core.SignedDataSet) (core.PubKey, core.SignedData, error) {
 	return "", nil, errors.New("expected one item in set")
 }
 
+// isElectraAttestation checks if a core.SignedDataSet object is pre- or post-electra attestation.
+func isElectraAttestation(set core.SignedDataSet) (bool, error) {
+	for _, att := range set {
+		_, ok := att.(core.Attestation)
+		if ok {
+			return false, nil
+		}
+
+		_, ok = att.(core.VersionedAttestation)
+		if ok {
+			return true, nil
+		}
+
+		return false, errors.New("invalid attestation")
+	}
+
+	return false, errors.New("empty attestations signed data set")
+}
+
 // setToAttestations converts a set of signed data into a list of attestations.
 func setToAttestations(set core.SignedDataSet) ([]*eth2p0.Attestation, error) {
 	var resp []*eth2p0.Attestation
@@ -295,12 +391,27 @@ func setToAttestations(set core.SignedDataSet) ([]*eth2p0.Attestation, error) {
 	return resp, nil
 }
 
+// setToAttestationsV2 converts a set of signed data into a list of versioned attestations.
+func setToAttestationsV2(set core.SignedDataSet) ([]*eth2spec.VersionedAttestation, error) {
+	var resp []*eth2spec.VersionedAttestation
+	for _, att := range set {
+		att, ok := att.(core.VersionedAttestation)
+		if !ok {
+			return nil, errors.New("invalid attestation")
+		}
+		resp = append(resp, &att.VersionedAttestation)
+	}
+
+	return resp, nil
+}
+
 // newDelayFunc returns a function that calculates the delay since the start of a slot.
 func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64) time.Duration, error) {
-	genesis, err := eth2Cl.GenesisTime(ctx)
+	genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
 	if err != nil {
 		return nil, err
 	}
+	genesisTime := genesis.Data.GenesisTime
 
 	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
@@ -313,7 +424,7 @@ func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64
 	}
 
 	return func(slot uint64) time.Duration {
-		slotStart := genesis.Add(slotDuration * time.Duration(slot))
+		slotStart := genesisTime.Add(slotDuration * time.Duration(slot))
 		return time.Since(slotStart)
 	}, nil
 }

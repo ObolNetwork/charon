@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package integration_test
 
@@ -138,12 +138,14 @@ func TestSimnetDuties(t *testing.T) {
 			args.BuilderAPI = test.builderAPI
 			args.VoluntaryExit = test.exit
 
-			if test.vcType == vcTeku {
+			switch test.vcType {
+			case vcTeku:
 				for i := range args.N {
 					args = startTeku(t, args, i)
 				}
-			} else if test.vcType == vcVmock {
+			case vcVmock:
 				args.VMocks = true
+			case vcUnknown:
 			}
 
 			if test.scheduledType != core.DutyAttester {
@@ -439,9 +441,9 @@ var (
 		"validator-client",
 		"--network=auto",
 		"--log-destination=console",
-		"--Xblock-v3-enabled=true",
 		"--validators-external-signer-slashing-protection-enabled=true",
 		"--validators-proposer-default-fee-recipient=0x000000000000000000000000000000000000dead",
+		"--Xattestations-v2-apis-enabled",
 	}
 	tekuExit tekuCmd = []string{
 		"voluntary-exit",
@@ -504,7 +506,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 		"--name=" + name,
 		fmt.Sprintf("--volume=%s:/keys", tempDir),
 		"--user=root", // Root required to read volume files in GitHub actions.
-		"consensys/teku:24.3.1",
+		"ethpandaops/teku:mekong",
 	}
 	dockerArgs = append(dockerArgs, tekuArgs...)
 	t.Logf("docker args: %v", dockerArgs)

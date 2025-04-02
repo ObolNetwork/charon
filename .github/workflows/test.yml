@@ -20,7 +20,7 @@ jobs:
             ${{ runner.os }}-go-
       - run: go test -coverprofile=coverage.out -covermode=atomic -timeout=5m -race ./...
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3.1.1
+        uses: codecov/codecov-action@v5.4.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.out
@@ -53,8 +53,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set up QEMU
         id: qemu
-        uses: docker/setup-qemu-action@v2
-      - uses: docker/setup-buildx-action@v2 # For compose to build images
+        uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3 # For compose to build images
         with:
           driver-opts: "image=moby/buildkit:v0.10.5" # avoid unknown/unknown arch in ghcr
       - uses: ./.github/actions/setup-go

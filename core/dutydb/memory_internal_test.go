@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package dutydb
 
@@ -24,7 +24,7 @@ func TestCancelledQueries(t *testing.T) {
 	_, err := db.AwaitAttestation(ctx, slot, 0)
 	require.ErrorContains(t, err, "shutdown")
 
-	_, err = db.AwaitAggAttestation(ctx, slot, eth2p0.Root{})
+	_, err = db.AwaitAggAttestationV2(ctx, slot, eth2p0.Root{})
 	require.ErrorContains(t, err, "shutdown")
 
 	_, err = db.AwaitProposal(ctx, slot)
@@ -37,10 +37,10 @@ func TestCancelledQueries(t *testing.T) {
 	require.NotEmpty(t, db.contribQueries)
 	require.NotEmpty(t, db.attQueries)
 	require.NotEmpty(t, db.proQueries)
-	require.NotEmpty(t, db.aggQueries)
+	require.NotEmpty(t, db.aggQueriesV2)
 
 	// Resolve queries
-	db.resolveAggQueriesUnsafe()
+	db.resolveAggQueriesV2Unsafe()
 	db.resolveAttQueriesUnsafe()
 	db.resolveContribQueriesUnsafe()
 	db.resolveProQueriesUnsafe()
@@ -49,7 +49,7 @@ func TestCancelledQueries(t *testing.T) {
 	require.Empty(t, db.contribQueries)
 	require.Empty(t, db.attQueries)
 	require.Empty(t, db.proQueries)
-	require.Empty(t, db.aggQueries)
+	require.Empty(t, db.aggQueriesV2)
 }
 
 type noopDeadliner struct{}

@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package eth2util_test
 
@@ -129,6 +129,11 @@ func TestValidateBeaconNodeHeaders(t *testing.T) {
 			headers: []string{",,"},
 			valid:   false,
 		},
+		{
+			name:    "value contains equal sign",
+			headers: []string{"Authorization=Basic bmljZXRyeQ=="},
+			valid:   true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -163,6 +168,11 @@ func TestParseBeaconNodeHeaders(t *testing.T) {
 			name:    "two pairs",
 			headers: []string{"header-1=value-1", "header-2=value-2"},
 			want:    map[string]string{"header-1": "value-1", "header-2": "value-2"},
+		},
+		{
+			name:    "value contains equal sign",
+			headers: []string{"Authorization=Basic bmljZXRyeQ=="},
+			want:    map[string]string{"Authorization": "Basic bmljZXRyeQ=="},
 		},
 	}
 
