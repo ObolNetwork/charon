@@ -69,7 +69,15 @@ jobs:
         docker run --rm --platform linux/amd64 \
           -v $(pwd)/dist:/dist \
           golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
-          bash -c "/dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64 version | grep '${{ env.RELEASE_VERSION }}'"
+          bash -c "echo '--- Running version command ---'; \
+                   VERSION_OUTPUT=$(/dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64 version); \
+                   VERSION_EXIT_CODE=$?; \
+                   echo \"Exit Code: $VERSION_EXIT_CODE\"; \
+                   echo \"Output:\"; \
+                   echo \"$VERSION_OUTPUT\"; \
+                   echo '--- Grepping output ---'; \
+                   echo \"$VERSION_OUTPUT\" | grep '${{ env.RELEASE_VERSION }}'; \
+                   echo '--- Grep finished ---'"
 
     - name: Test ARM64 Binary
       run: |
@@ -79,7 +87,15 @@ jobs:
           -v $(pwd)/dist:/dist \
           golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
           bash -c "apt-get update > /dev/null && apt-get install -y -qq qemu-user-static > /dev/null && \
-          /dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64 version | grep '${{ env.RELEASE_VERSION }}'"
+          echo '--- Running version command ---'; \
+          VERSION_OUTPUT=$(/dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64 version); \
+          VERSION_EXIT_CODE=$?; \
+          echo \"Exit Code: $VERSION_EXIT_CODE\"; \
+          echo \"Output:\"; \
+          echo \"$VERSION_OUTPUT\"; \
+          echo '--- Grepping output ---'; \
+          echo \"$VERSION_OUTPUT\" | grep '${{ env.RELEASE_VERSION }}'; \
+          echo '--- Grep finished ---'"
 
     - name: Create release archives
       run: |
