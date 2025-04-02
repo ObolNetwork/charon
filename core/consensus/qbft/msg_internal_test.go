@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package qbft
 
@@ -86,7 +86,7 @@ func TestNewMsg(t *testing.T) {
 
 	require.Equal(t, msg.Value(), hash1)
 	require.Equal(t, msg.PreparedValue(), hash2)
-	require.EqualValues(t, msg.Values(), values)
+	require.Equal(t, msg.Values(), values)
 }
 
 func TestPartialLegacyNewMsg(t *testing.T) {

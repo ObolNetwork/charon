@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package beaconmock
 
@@ -37,7 +37,6 @@ type HTTPMock interface {
 	eth2client.ForkProvider
 	eth2client.ForkScheduleProvider
 	eth2client.GenesisProvider
-	eth2client.GenesisTimeProvider
 	eth2client.NodeSyncingProvider
 	eth2client.NodeVersionProvider
 	eth2client.SlotDurationProvider
@@ -66,7 +65,7 @@ func newHTTPServer(addr string, optionalHandlers map[string]http.HandlerFunc, ov
 		"/eth/v1/validator/sync_committee_subscriptions": func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		},
-		"/eth/v1/validator/aggregate_attestation": func(w http.ResponseWriter, _ *http.Request) {
+		"/eth/v2/validator/aggregate_attestation": func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			_, _ = w.Write([]byte(`{"code": 403,"message": "Beacon node was not assigned to aggregate on that subnet."}`))
 		},

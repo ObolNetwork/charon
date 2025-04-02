@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package dkg
 
@@ -84,7 +84,7 @@ func runFrostParallel(ctx context.Context, tp fTransport, numValidators, numNode
 	return makeShares(validators, castR2Result)
 }
 
-// newFrostParticipant returns multiple frost dkg participants (one for each parallel validator).
+// newFrostParticipants returns multiple frost dkg participants (one for each parallel validator).
 func newFrostParticipants(numValidators, numNodes, threshold, shareIdx uint32, dgkCtx string) (map[uint32]*frost.DkgParticipant, error) {
 	var otherIDs []uint32
 	for i := uint32(1); i <= numNodes; i++ {

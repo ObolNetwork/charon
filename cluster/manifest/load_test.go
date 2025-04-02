@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package manifest_test
 
@@ -118,7 +118,10 @@ func testLoadLegacy(t *testing.T, version string) {
 	if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6, v1_7, v1_8, v1_9) {
 		opts = append(opts, func(d *cluster.Definition) { d.TargetGasLimit = 0 })
 	} else {
-		opts = append(opts, func(d *cluster.Definition) { d.TargetGasLimit = 36000000 })
+		opts = append(opts, func(d *cluster.Definition) {
+			d.TargetGasLimit = 36000000
+			d.Compounding = true
+		})
 	}
 
 	seed := 0
@@ -142,8 +145,8 @@ func testLoadLegacy(t *testing.T, version string) {
 	require.EqualValues(t, lock.Threshold, cluster.GetThreshold())
 	require.Equal(t, lock.DKGAlgorithm, cluster.GetDkgAlgorithm())
 	require.Equal(t, lock.ForkVersion, cluster.GetForkVersion())
-	require.Equal(t, len(lock.Validators), len(cluster.GetValidators()))
-	require.Equal(t, len(lock.Operators), len(cluster.GetOperators()))
+	require.Len(t, cluster.GetValidators(), len(lock.Validators))
+	require.Len(t, cluster.GetOperators(), len(lock.Operators))
 
 	for i, validator := range cluster.GetValidators() {
 		require.Equal(t, lock.Validators[i].PubKey, validator.GetPublicKey())

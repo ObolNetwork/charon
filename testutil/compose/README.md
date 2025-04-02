@@ -47,10 +47,9 @@ Create the default cluster:
 compose clean && compose new && compose define && compose lock && compose run
 ```
 
-Monitor the cluster via `grafana` and `jaeger`:
+Monitor the cluster via `grafana`:
 ```
 open http://localhost:3000/d/charon_overview_dashboard/charon-overview  # Open Grafana simnet dashboard
-open http://localhost:16686                                             # Open Jaeger dashboard
 ```
 
 Creating a DKG based cluster that uses locally built binary:

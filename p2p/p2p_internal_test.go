@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package p2p
 
@@ -76,7 +76,7 @@ func TestFilterAdvertisedAddrs(t *testing.T) {
 			for _, mAddr := range res {
 				resStr = append(resStr, mAddr.String())
 			}
-			require.EqualValues(t, test.result, resStr)
+			require.Equal(t, test.result, resStr)
 		})
 	}
 }

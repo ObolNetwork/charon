@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cmd
 
@@ -403,7 +403,7 @@ func testWriteFile(t *testing.T, expectedRes testCategoryResult, path string) {
 	}
 
 	require.Equal(t, expectedRes.CategoryName, actualRes.CategoryName)
-	require.Equal(t, len(expectedRes.Targets), len(actualRes.Targets))
+	require.Len(t, actualRes.Targets, len(expectedRes.Targets))
 	checkFinalScore := true
 	for targetName, testResults := range actualRes.Targets {
 		for idx, testRes := range testResults {
@@ -415,7 +415,7 @@ func testWriteFile(t *testing.T, expectedRes testCategoryResult, path string) {
 			}
 			require.Equal(t, expectedRes.Targets[targetName][idx].IsAcceptable, testRes.IsAcceptable)
 			if expectedRes.Targets[targetName][idx].Error.error != nil {
-				require.ErrorContains(t, testRes.Error.error, expectedRes.Targets[targetName][idx].Error.error.Error())
+				require.ErrorContains(t, testRes.Error.error, expectedRes.Targets[targetName][idx].Error.Error())
 			} else {
 				require.NoError(t, testRes.Error.error)
 			}

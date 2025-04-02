@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cluster
 
@@ -9,6 +9,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util/enr"
@@ -22,7 +23,7 @@ type Lock struct {
 	// Definition is embedded and extended by Lock.
 	Definition `json:"cluster_definition" lock_hash:"0" ssz:"Composite"`
 
-	// Validators are the distributed validators (n*32ETH) managed by the cluster.
+	// Validators are the distributed validators managed by the cluster.
 	Validators []DistValidator `json:"distributed_validators" lock_hash:"1" ssz:"Composite[65536]"`
 
 	// LockHash uniquely identifies a cluster lock.
@@ -148,8 +149,8 @@ func (l Lock) VerifyHashes() error {
 
 // VerifySignatures returns true if all config signatures are fully populated and valid.
 // A verified lock is ready for use in charon run.
-func (l Lock) VerifySignatures() error {
-	if err := l.Definition.VerifySignatures(); err != nil {
+func (l Lock) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
+	if err := l.Definition.VerifySignatures(eth1); err != nil {
 		return errors.Wrap(err, "invalid definition")
 	}
 

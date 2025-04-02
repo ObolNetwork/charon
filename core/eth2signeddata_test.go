@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package core_test
 
@@ -6,6 +6,7 @@ import (
 	"context"
 	"testing"
 
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -24,7 +25,7 @@ func TestVerifyEth2SignedData(t *testing.T) {
 	}{
 		{
 			name: "verify attestation",
-			data: core.NewAttestation(testutil.RandomAttestation()),
+			data: testutil.RandomDenebCoreVersionedAttestation(),
 		},
 		{
 			name: "verify beacon block",
@@ -48,9 +49,12 @@ func TestVerifyEth2SignedData(t *testing.T) {
 		},
 		{
 			name: "verify attestation aggregate and proof",
-			data: core.SignedAggregateAndProof{
-				SignedAggregateAndProof: eth2p0.SignedAggregateAndProof{
-					Message: testutil.RandomAggregateAndProof(),
+			data: core.VersionedSignedAggregateAndProof{
+				VersionedSignedAggregateAndProof: eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionDeneb,
+					Deneb: &eth2p0.SignedAggregateAndProof{
+						Message: testutil.RandomAggregateAndProof(),
+					},
 				},
 			},
 		},

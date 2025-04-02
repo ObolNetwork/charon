@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cmd
 
@@ -18,7 +18,6 @@ import (
 	"testing"
 	"time"
 
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
@@ -367,13 +366,13 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 		var lock cluster.Lock
 		require.NoError(t, json.Unmarshal(b, &lock))
 		require.NoError(t, lock.VerifyHashes())
-		require.NoError(t, lock.VerifySignatures())
+		require.NoError(t, lock.VerifySignatures(nil))
 
 		// check that there are lock.Definition.NumValidators different public keys in the validator slice
 		vals := make(map[string]struct{})
 		amounts := deposit.DedupAmounts(deposit.EthsToGweis(conf.DepositAmounts))
 		if len(amounts) == 0 {
-			amounts = []eth2p0.Gwei{deposit.MaxDepositAmount}
+			amounts = deposit.DefaultDepositAmounts()
 		}
 		for _, val := range lock.Validators {
 			vals[val.PublicKeyHex()] = struct{}{}
@@ -383,7 +382,7 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 			}
 		}
 
-		require.Len(t, vals, lock.Definition.NumValidators)
+		require.Len(t, vals, lock.NumValidators)
 
 		if conf.DefFile != "" {
 			// Config hash and creator should remain the same
@@ -392,7 +391,7 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 
 			for i := range len(def.Operators) {
 				// ENRs should be populated
-				require.NotEqual(t, lock.Operators[i].ENR, "")
+				require.NotNil(t, lock.Operators[i].ENR)
 			}
 		}
 
@@ -457,20 +456,20 @@ func TestValidateDef(t *testing.T) {
 		require.NoError(t, err)
 		def.ForkVersion = gnosis
 
-		err = validateDef(ctx, false, conf.KeymanagerAddrs, def)
+		err = validateDef(ctx, false, conf.KeymanagerAddrs, def, nil)
 		require.Error(t, err, "zero address")
 	})
 
 	t.Run("fork versions", func(t *testing.T) {
 		def := definition
-		err = validateDef(ctx, false, conf.KeymanagerAddrs, def)
+		err = validateDef(ctx, false, conf.KeymanagerAddrs, def, nil)
 		require.NoError(t, err)
 
 		mainnet, err := hex.DecodeString(strings.TrimPrefix(eth2util.Mainnet.GenesisForkVersionHex, "0x"))
 		require.NoError(t, err)
 		def.ForkVersion = mainnet
 
-		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, nil)
 		require.Error(t, err, "zero address")
 	})
 
@@ -478,41 +477,41 @@ func TestValidateDef(t *testing.T) {
 		conf := conf
 		conf.KeymanagerAddrs = []string{"127.0.0.1:1234"}
 
-		err = validateDef(ctx, true, conf.KeymanagerAddrs, definition)
+		err = validateDef(ctx, true, conf.KeymanagerAddrs, definition, nil)
 		require.Error(t, err)
 	})
 
 	t.Run("insecure keys", func(t *testing.T) {
 		conf := conf
-		err = validateDef(ctx, true, conf.KeymanagerAddrs, definition) // Validate with insecure keys set to true
+		err = validateDef(ctx, true, conf.KeymanagerAddrs, definition, nil) // Validate with insecure keys set to true
 		require.NoError(t, err)
 	})
 
 	t.Run("insufficient number of nodes", func(t *testing.T) {
 		def := definition
 		def.Operators = nil
-		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, nil)
 		require.ErrorContains(t, err, "insufficient number of nodes")
 	})
 
 	t.Run("name not provided", func(t *testing.T) {
 		def := definition
 		def.Name = ""
-		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, nil)
 		require.ErrorContains(t, err, "name not provided")
 	})
 
 	t.Run("zero validators provided", func(t *testing.T) {
 		def := definition
 		def.NumValidators = 0
-		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, nil)
 		require.ErrorContains(t, err, "cannot create cluster with zero validators, specify at least one")
 	})
 
 	t.Run("invalid hash", func(t *testing.T) {
 		def := remoteDef
 		def.NumValidators = 3
-		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, nil)
 		require.ErrorContains(t, err, "invalid config hash")
 	})
 
@@ -521,14 +520,14 @@ func TestValidateDef(t *testing.T) {
 		def.NumValidators = 3
 		def, err = def.SetDefinitionHashes()
 		require.NoError(t, err)
-		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def)
+		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, nil)
 		require.ErrorContains(t, err, "invalid creator config signature")
 	})
 
 	t.Run("unsupported consensus protocol", func(t *testing.T) {
 		def := definition
 		def.ConsensusProtocol = "unreal"
-		err = validateDef(ctx, false, conf.KeymanagerAddrs, def)
+		err = validateDef(ctx, false, conf.KeymanagerAddrs, def, nil)
 		require.Error(t, err, "unsupported consensus protocol")
 	})
 }
@@ -599,7 +598,7 @@ func TestSplitKeys(t *testing.T) {
 				var lock cluster.Lock
 				require.NoError(t, json.Unmarshal(b, &lock))
 				require.NoError(t, lock.VerifyHashes())
-				require.NoError(t, lock.VerifySignatures())
+				require.NoError(t, lock.VerifySignatures(nil))
 
 				require.Equal(t, test.numSplitKeys, lock.NumValidators)
 			}
@@ -732,7 +731,7 @@ func TestTargetGasLimit(t *testing.T) {
 				var lock cluster.Lock
 				require.NoError(t, json.Unmarshal(b, &lock))
 				require.NoError(t, lock.VerifyHashes())
-				require.NoError(t, lock.VerifySignatures())
+				require.NoError(t, lock.VerifySignatures(nil))
 
 				require.Equal(t, test.expectedTargetGasLimit, lock.TargetGasLimit)
 			}
@@ -816,7 +815,7 @@ func TestKeymanager(t *testing.T) {
 		csb, err := tbls.RecoverSecret(shares, minNodes, 3)
 		require.NoError(t, err)
 
-		require.EqualValues(t, secret1, csb)
+		require.Equal(t, secret1, csb)
 	})
 
 	t.Run("some unsuccessful", func(t *testing.T) {
@@ -995,7 +994,7 @@ func newKeymanagerHandler(ctx context.Context, t *testing.T, id int, results cha
 		var req mockKeymanagerReq
 		require.NoError(t, json.Unmarshal(data, &req))
 
-		require.Equal(t, len(req.Keystores), len(req.Passwords))
+		require.Len(t, req.Passwords, len(req.Keystores))
 		require.Len(t, req.Keystores, 1) // Since we split only 1 key
 
 		var ks keystore.Keystore

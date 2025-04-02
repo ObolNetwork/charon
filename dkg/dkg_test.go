@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package dkg_test
 
@@ -154,7 +154,7 @@ func TestDKG(t *testing.T) {
 func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.PrivateKey, keymanager bool, publish bool) {
 	t.Helper()
 
-	require.NoError(t, def.VerifySignatures())
+	require.NoError(t, def.VerifySignatures(nil))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -367,7 +367,7 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 
 		var lock cluster.Lock
 		require.NoError(t, json.Unmarshal(lockFile, &lock))
-		require.NoError(t, lock.VerifySignatures())
+		require.NoError(t, lock.VerifySignatures(nil))
 		locks = append(locks, lock)
 
 		verifyDistValidators(t, lock, def)
@@ -415,7 +415,11 @@ func verifyDistValidators(t *testing.T, lock cluster.Lock, def cluster.Definitio
 		// Assert Deposit Data
 		depositAmounts := deposit.DedupAmounts(def.DepositAmounts)
 		if len(depositAmounts) == 0 {
-			depositAmounts = []eth2p0.Gwei{deposit.MaxDepositAmount}
+			if !cluster.SupportPartialDeposits(def.Version) {
+				depositAmounts = []eth2p0.Gwei{deposit.DefaultDepositAmount}
+			} else {
+				depositAmounts = deposit.DefaultDepositAmounts()
+			}
 		}
 		require.Len(t, val.PartialDepositData, len(depositAmounts))
 
@@ -423,7 +427,7 @@ func verifyDistValidators(t *testing.T, lock cluster.Lock, def cluster.Definitio
 		uniqueSigs := make(map[string]struct{})
 		for i, amount := range depositAmounts {
 			pdd := val.PartialDepositData[i]
-			require.EqualValues(t, val.PubKey, pdd.PubKey)
+			require.Equal(t, val.PubKey, pdd.PubKey)
 			require.EqualValues(t, amount, pdd.Amount)
 			uniqueSigs[hex.EncodeToString(pdd.Signature)] = struct{}{}
 		}
@@ -436,11 +440,11 @@ func verifyDistValidators(t *testing.T, lock cluster.Lock, def cluster.Definitio
 		}
 
 		// Assert Builder Registration
-		require.EqualValues(t, val.PubKey, val.BuilderRegistration.Message.PubKey)
-		require.EqualValues(t, registration.DefaultGasLimit, val.BuilderRegistration.Message.GasLimit)
+		require.Equal(t, val.PubKey, val.BuilderRegistration.Message.PubKey)
+		require.Equal(t, registration.DefaultGasLimit, val.BuilderRegistration.Message.GasLimit)
 		timestamp, err := eth2util.ForkVersionToGenesisTime(lock.ForkVersion)
 		require.NoError(t, err)
-		require.EqualValues(t, timestamp, val.BuilderRegistration.Message.Timestamp)
+		require.Equal(t, timestamp, val.BuilderRegistration.Message.Timestamp)
 
 		// Verify registration signatures
 		eth2Reg, err := registration.NewMessage(eth2p0.BLSPubKey(val.BuilderRegistration.Message.PubKey),
@@ -460,7 +464,7 @@ func verifyDistValidators(t *testing.T, lock cluster.Lock, def cluster.Definitio
 		err = tbls.Verify(pubkey, sigRoot[:], sig)
 		require.NoError(t, err)
 
-		require.EqualValues(t,
+		require.Equal(t,
 			lock.ValidatorAddresses[j].FeeRecipientAddress,
 			fmt.Sprintf("%#x", val.BuilderRegistration.Message.FeeRecipient),
 		)

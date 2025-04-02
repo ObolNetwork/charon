@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package beaconmock_test
 
@@ -55,10 +55,6 @@ func TestGenesisTimeOverride(t *testing.T) {
 	genesisResp, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
 	require.NoError(t, err)
 	require.Equal(t, t0, genesisResp.Data.GenesisTime)
-
-	genesisTime, err := eth2Cl.GenesisTime(ctx)
-	require.NoError(t, err)
-	require.Equal(t, t0, genesisTime)
 }
 
 func TestSlotsPerEpochOverride(t *testing.T) {
@@ -90,7 +86,7 @@ func TestSlotsDurationOverride(t *testing.T) {
 	actual, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
 	require.True(t, ok)
 	require.NoError(t, err)
-	require.EqualValues(t, expect, actual)
+	require.Equal(t, expect, actual)
 
 	specResp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)
@@ -134,7 +130,8 @@ func TestDefaultOverrides(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 16, slotsPerEpoch)
 
-	genesis, err := bmock.GenesisTime(ctx)
+	genesis, err := bmock.Genesis(ctx, &eth2api.GenesisOpts{})
+	genesisTime := genesis.Data.GenesisTime
 	require.NoError(t, err)
-	require.Equal(t, "2022-03-01 00:00:00 +0000 UTC", genesis.UTC().String())
+	require.Equal(t, "2022-03-01 00:00:00 +0000 UTC", genesisTime.UTC().String())
 }

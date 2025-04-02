@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package scheduler
 
@@ -14,6 +14,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
@@ -144,9 +145,13 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 		return nil, core.ErrDeprecatedDutyBuilderProposer
 	}
 
-	slotsPerEpoch, err := s.eth2Cl.SlotsPerEpoch(ctx)
+	respSpec, err := s.eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return nil, err
+	}
+	slotsPerEpoch, ok := respSpec.Data["SLOTS_PER_EPOCH"].(uint64)
+	if !ok {
+		return nil, errors.New("fetch slots per epoch")
 	}
 
 	epoch := duty.Slot / slotsPerEpoch
@@ -197,8 +202,11 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 
 			instrumentDuty(duty, defSet)
 			dutyCtx := log.WithCtx(ctx, z.Any("duty", duty))
-			dutyCtx, span := core.StartDutyTrace(dutyCtx, duty, "core/scheduler.scheduleSlot")
-			defer span.End()
+			if duty.Type == core.DutyProposer {
+				var span trace.Span
+				dutyCtx, span = core.StartDutyTrace(dutyCtx, duty, "core/scheduler.scheduleSlot")
+				defer span.End()
+			}
 
 			for _, sub := range s.dutySubs {
 				clone, err := defSet.Clone() // Clone for each subscriber.
@@ -546,10 +554,11 @@ func (s *Scheduler) trimDuties(epoch uint64) {
 // newSlotTicker returns a blocking channel that will be populated with new slots in real time.
 // It is also populated with the current slot immediately.
 func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) (<-chan core.Slot, error) {
-	genesis, err := eth2Cl.GenesisTime(ctx)
+	genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
 	if err != nil {
 		return nil, err
 	}
+	genesisTime := genesis.Data.GenesisTime
 
 	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
@@ -568,9 +577,9 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.
 	}
 
 	currentSlot := func() core.Slot {
-		chainAge := clock.Since(genesis)
+		chainAge := clock.Since(genesisTime)
 		slot := int64(chainAge / slotDuration)
-		startTime := genesis.Add(time.Duration(slot) * slotDuration)
+		startTime := genesisTime.Add(time.Duration(slot) * slotDuration)
 
 		return core.Slot{
 			Slot:          uint64(slot),
@@ -652,19 +661,20 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2wrap.Client, submit
 // waitChainStart blocks until the beacon chain has started.
 func waitChainStart(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
 	for ctx.Err() == nil {
-		genesis, err := eth2Cl.GenesisTime(ctx)
+		genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
 		if err != nil {
-			log.Error(ctx, "Failure getting genesis time", err)
+			log.Error(ctx, "Failure getting genesis", err)
 			clock.Sleep(time.Second * 5) // TODO(corver): Improve backoff
 
 			continue
 		}
+		genesisTime := genesis.Data.GenesisTime
 
 		now := clock.Now()
-		if now.Before(genesis) {
-			delta := genesis.Sub(now)
+		if now.Before(genesisTime) {
+			delta := genesisTime.Sub(now)
 			log.Info(ctx, "Sleeping until genesis time",
-				z.Str("genesis", genesis.String()), z.Str("sleep", delta.String()))
+				z.Str("genesisTime", genesisTime.String()), z.Str("sleep", delta.String()))
 			clock.Sleep(delta)
 
 			continue

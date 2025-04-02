@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package qbft_test
 
@@ -130,7 +130,7 @@ func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 			results <- set
 			return nil
 		})
-		c.Start(context.TODO())
+		c.Start(t.Context())
 
 		components = append(components, c)
 	}
@@ -161,7 +161,7 @@ func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 			if count == 0 {
 				result = res
 			} else {
-				require.EqualValues(t, result, res)
+				require.Equal(t, result, res)
 			}
 			count++
 		}

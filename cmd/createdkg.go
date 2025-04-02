@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cmd
 
@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
@@ -23,18 +24,20 @@ import (
 )
 
 type createDKGConfig struct {
-	OutputDir         string
-	Name              string
-	NumValidators     int
-	Threshold         int
-	FeeRecipientAddrs []string
-	WithdrawalAddrs   []string
-	Network           string
-	DKGAlgo           string
-	DepositAmounts    []int // Amounts specified in ETH (integers).
-	OperatorENRs      []string
-	ConsensusProtocol string
-	TargetGasLimit    uint
+	OutputDir           string
+	Name                string
+	NumValidators       int
+	Threshold           int
+	FeeRecipientAddrs   []string
+	WithdrawalAddrs     []string
+	Network             string
+	DKGAlgo             string
+	DepositAmounts      []int // Amounts specified in ETH (integers).
+	OperatorENRs        []string
+	ConsensusProtocol   string
+	TargetGasLimit      uint
+	Compounding         bool
+	ExecutionEngineAddr string
 }
 
 func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobra.Command {
@@ -76,16 +79,18 @@ func bindCreateDKGFlags(cmd *cobra.Command, config *createDKGConfig) {
 
 	cmd.Flags().StringVar(&config.Name, "name", "", "Optional cosmetic cluster name")
 	cmd.Flags().StringVar(&config.OutputDir, "output-dir", ".charon", "The folder to write the output cluster-definition.json file to.")
-	cmd.Flags().IntVar(&config.NumValidators, "num-validators", 1, "The number of distributed validators the cluster will manage (32ETH staked for each).")
+	cmd.Flags().IntVar(&config.NumValidators, "num-validators", 1, "The number of distributed validators the cluster will manage (32ETH+ staked for each).")
 	cmd.Flags().IntVarP(&config.Threshold, "threshold", "t", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
 	cmd.Flags().StringSliceVar(&config.FeeRecipientAddrs, "fee-recipient-addresses", nil, "Comma separated list of Ethereum addresses of the fee recipient for each validator. Either provide a single fee recipient address or fee recipient addresses for each validator.")
 	cmd.Flags().StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
-	cmd.Flags().StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, goerli, sepolia, holesky, gnosis, chiado.")
+	cmd.Flags().StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, goerli, sepolia, hoodi, holesky, gnosis, chiado.")
 	cmd.Flags().StringVar(&config.DKGAlgo, "dkg-algorithm", "default", "DKG algorithm to use; default, frost")
-	cmd.Flags().IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to exactly 32ETH.")
+	cmd.Flags().IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to at least 32ETH.")
 	cmd.Flags().StringSliceVar(&config.OperatorENRs, operatorENRs, nil, "[REQUIRED] Comma-separated list of each operator's Charon ENR address.")
 	cmd.Flags().StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the cluster. Selected automatically when not specified.")
 	cmd.Flags().UintVar(&config.TargetGasLimit, "target-gas-limit", 36000000, "Preferred target gas limit for transactions.")
+	cmd.Flags().BoolVar(&config.Compounding, "compounding", false, "Enable compounding rewards for validators by using 0x02 withdrawal credentials.")
+	cmd.Flags().StringVar(&config.ExecutionEngineAddr, "execution-client-rpc-endpoint", "", "The address of the execution engine JSON-RPC API.")
 
 	mustMarkFlagRequired(cmd, operatorENRs)
 }
@@ -102,7 +107,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		conf.Network = eth2util.Goerli.Name
 	}
 
-	if err = validateDKGConfig(len(conf.OperatorENRs), conf.Network, conf.DepositAmounts, conf.ConsensusProtocol); err != nil {
+	if err = validateDKGConfig(len(conf.OperatorENRs), conf.Network, conf.DepositAmounts, conf.ConsensusProtocol, conf.Compounding); err != nil {
 		return err
 	}
 
@@ -150,7 +155,8 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		conf.Name, conf.NumValidators, conf.Threshold,
 		conf.FeeRecipientAddrs, conf.WithdrawalAddrs,
 		forkVersion, cluster.Creator{}, operators, conf.DepositAmounts,
-		conf.ConsensusProtocol, conf.TargetGasLimit, crand.Reader, opts...)
+		conf.ConsensusProtocol, conf.TargetGasLimit, conf.Compounding,
+		crand.Reader, opts...)
 	if err != nil {
 		return err
 	}
@@ -158,7 +164,11 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	if err := def.VerifyHashes(); err != nil {
 		return err
 	}
-	if err := def.VerifySignatures(); err != nil {
+
+	eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
+	go eth1Cl.Run(ctx)
+
+	if err := def.VerifySignatures(eth1Cl); err != nil {
 		return err
 	}
 
@@ -198,7 +208,7 @@ func validateWithdrawalAddrs(addrs []string, network string) error {
 }
 
 // validateDKGConfig returns an error if any of the provided config parameter is invalid.
-func validateDKGConfig(numOperators int, network string, depositAmounts []int, consensusProtocol string) error {
+func validateDKGConfig(numOperators int, network string, depositAmounts []int, consensusProtocol string, compounding bool) error {
 	// Don't allow cluster size to be less than 3.
 	if numOperators < minNodes {
 		return errors.New("number of operators is below minimum", z.Int("operators", numOperators), z.Int("min", minNodes))
@@ -211,7 +221,7 @@ func validateDKGConfig(numOperators int, network string, depositAmounts []int, c
 	if len(depositAmounts) > 0 {
 		amounts := deposit.EthsToGweis(depositAmounts)
 
-		if err := deposit.VerifyDepositAmounts(amounts); err != nil {
+		if err := deposit.VerifyDepositAmounts(amounts, compounding); err != nil {
 			return err
 		}
 	}

@@ -31,3 +31,13 @@ datasources:
     isDefault: false
     version: 1
     editable: true
+
+  - name: Tempo
+    type: tempo
+    uid: tempo
+    orgId: 1
+    url: http://tempo:3200
+    basicAuth: false
+    isDefault: false
+    version: 1
+    editable: true

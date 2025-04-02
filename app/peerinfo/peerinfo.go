@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package peerinfo
 
@@ -205,8 +205,11 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			name := p2p.PeerName(peerID)
 
 			p.nicknamesMu.Lock()
+			prevNickname, ok := p.nicknames[name]
 			p.nicknames[name] = resp.GetNickname()
-			log.Info(ctx, "Peer name to nickname mappings", z.Any("nicknames", p.nicknames))
+			if !ok || prevNickname != resp.GetNickname() {
+				log.Info(ctx, "Peer name to nickname mappings", z.Any("nicknames", p.nicknames))
+			}
 			p.nicknamesMu.Unlock()
 
 			// Validator git hash with regex.

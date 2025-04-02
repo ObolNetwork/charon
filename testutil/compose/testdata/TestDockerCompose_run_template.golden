@@ -42,12 +42,12 @@
      "Value": "alpha"
     },
     {
-     "Key": "jaeger-service",
-     "Value": "node0"
+     "Key": "otlp-address",
+     "Value": "tempo:4317"
     },
     {
-     "Key": "jaeger-address",
-     "Value": "jaeger:6831"
+     "Key": "otlp-service-name",
+     "Value": "node0"
     },
     {
      "Key": "lock-file",
@@ -155,12 +155,12 @@
      "Value": "alpha"
     },
     {
-     "Key": "jaeger-service",
-     "Value": "node1"
+     "Key": "otlp-address",
+     "Value": "tempo:4317"
     },
     {
-     "Key": "jaeger-address",
-     "Value": "jaeger:6831"
+     "Key": "otlp-service-name",
+     "Value": "node1"
     },
     {
      "Key": "lock-file",
@@ -268,12 +268,12 @@
      "Value": "alpha"
     },
     {
-     "Key": "jaeger-service",
-     "Value": "node2"
+     "Key": "otlp-address",
+     "Value": "tempo:4317"
     },
     {
-     "Key": "jaeger-address",
-     "Value": "jaeger:6831"
+     "Key": "otlp-service-name",
+     "Value": "node2"
     },
     {
      "Key": "lock-file",
@@ -381,12 +381,12 @@
      "Value": "alpha"
     },
     {
-     "Key": "jaeger-service",
-     "Value": "node3"
+     "Key": "otlp-address",
+     "Value": "tempo:4317"
     },
     {
-     "Key": "jaeger-address",
-     "Value": "jaeger:6831"
+     "Key": "otlp-service-name",
+     "Value": "node3"
     },
     {
      "Key": "lock-file",

@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package tracker
 
@@ -319,7 +319,7 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event, fetch
 	return true, fetcher, reason, fetchErr
 }
 
-// analyseFetcherFailed returns the reason behind why proposer duty failed which might actually
+// analyseFetcherFailedProposer returns the reason behind why proposer duty failed which might actually
 // be due to randao duty failed.
 func analyseFetcherFailedProposer(duty core.Duty, allEvents map[core.Duty][]event, fetchErr error) (bool, step, reason, error) {
 	reason := reasonBugFetchError
@@ -536,10 +536,10 @@ func newUnsupportedIgnorer() func(ctx context.Context, duty core.Duty, failed bo
 
 // analyseParticipation returns a count of partial signatures submitted (correct and unexpected) by share index
 // and total expected partial signatures for the given duty.
-func analyseParticipation(duty core.Duty, allEvents map[core.Duty][]event) (map[int]int, map[int]int, int) {
+func analyseParticipation(duty core.Duty, allEvents map[core.Duty][]event) (resp map[int]int, unexpectedShares map[int]int, pubkeyMapLen int) {
 	// Set of shareIdx of participated peers.
-	resp := make(map[int]int)
-	unexpectedShares := make(map[int]int)
+	resp = make(map[int]int)
+	unexpectedShares = make(map[int]int)
 
 	// Dedup participation for each validator per peer for the given duty. Each peer can submit any number of partial signatures.
 	type dedupKey struct {
@@ -568,8 +568,9 @@ func analyseParticipation(duty core.Duty, allEvents map[core.Duty][]event) (map[
 			}
 		}
 	}
+	pubkeyMapLen = len(pubkeyMap)
 
-	return resp, unexpectedShares, len(pubkeyMap)
+	return resp, unexpectedShares, pubkeyMapLen
 }
 
 // isParSigEventExpected returns true if a partial signature event is expected for the given duty and pubkey.

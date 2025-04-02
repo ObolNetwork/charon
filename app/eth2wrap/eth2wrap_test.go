@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package eth2wrap_test
 
@@ -19,6 +19,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
+	eth2e "github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,34 +37,34 @@ func TestMulti(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		handle func(cl1Resp, cl2Resp chan uint64, ctxCancel context.CancelFunc)
+		handle func(cl1Resp, cl2Resp chan int, ctxCancel context.CancelFunc)
 		expErr error
-		expRes uint64
+		expRes int
 	}{
 		{
 			name: "cl1 only",
-			handle: func(cl1Resp, _ chan uint64, _ context.CancelFunc) {
+			handle: func(cl1Resp, _ chan int, _ context.CancelFunc) {
 				cl1Resp <- 99
 			},
 			expRes: 99,
 		},
 		{
 			name: "cl2 only",
-			handle: func(_, cl2Resp chan uint64, _ context.CancelFunc) {
+			handle: func(_, cl2Resp chan int, _ context.CancelFunc) {
 				cl2Resp <- 99
 			},
 			expRes: 99,
 		},
 		{
 			name: "ctx cancel",
-			handle: func(_, _ chan uint64, ctxCancel context.CancelFunc) {
+			handle: func(_, _ chan int, ctxCancel context.CancelFunc) {
 				ctxCancel()
 			},
 			expErr: context.Canceled,
 		},
 		{
 			name: "cl1 error, cl2 ok",
-			handle: func(cl1, cl2 chan uint64, _ context.CancelFunc) {
+			handle: func(cl1, cl2 chan int, _ context.CancelFunc) {
 				close(cl1)
 				cl2 <- 99
 			},
@@ -71,7 +72,7 @@ func TestMulti(t *testing.T) {
 		},
 		{
 			name: "all error",
-			handle: func(cl1, cl2 chan uint64, _ context.CancelFunc) {
+			handle: func(cl1, cl2 chan int, _ context.CancelFunc) {
 				close(cl1)
 				close(cl2)
 			},
@@ -79,7 +80,7 @@ func TestMulti(t *testing.T) {
 		},
 		{
 			name: "cl1 error, ctx cancel",
-			handle: func(cl1, _ chan uint64, cancel context.CancelFunc) {
+			handle: func(cl1, _ chan int, cancel context.CancelFunc) {
 				close(cl1)
 				cancel()
 			},
@@ -87,7 +88,7 @@ func TestMulti(t *testing.T) {
 		},
 		{
 			name: "cl2 before cl1",
-			handle: func(cl1, cl2 chan uint64, cancel context.CancelFunc) {
+			handle: func(cl1, cl2 chan int, cancel context.CancelFunc) {
 				cl2 <- 99
 
 				time.Sleep(time.Millisecond)
@@ -106,10 +107,10 @@ func TestMulti(t *testing.T) {
 			cl2, err := beaconmock.New()
 			require.NoError(t, err)
 
-			cl1Resp := make(chan uint64)
-			cl2Resp := make(chan uint64)
+			cl1Resp := make(chan int)
+			cl2Resp := make(chan int)
 
-			cl1.SlotsPerEpochFunc = func(ctx context.Context) (uint64, error) {
+			cl1.NodePeerCountFunc = func(ctx context.Context) (int, error) {
 				select {
 				case <-ctx.Done():
 					return 0, ctx.Err()
@@ -121,7 +122,7 @@ func TestMulti(t *testing.T) {
 					return resp, nil
 				}
 			}
-			cl2.SlotsPerEpochFunc = func(ctx context.Context) (uint64, error) {
+			cl2.NodePeerCountFunc = func(ctx context.Context) (int, error) {
 				select {
 				case <-ctx.Done():
 					return 0, ctx.Err()
@@ -139,7 +140,7 @@ func TestMulti(t *testing.T) {
 
 			go test.handle(cl1Resp, cl2Resp, cancel)
 
-			resp, err := eth2Cl.SlotsPerEpoch(ctx)
+			resp, err := eth2Cl.NodePeerCount(ctx)
 			require.ErrorIs(t, err, test.expErr)
 			require.Equal(t, test.expRes, resp)
 		})
@@ -147,7 +148,7 @@ func TestMulti(t *testing.T) {
 }
 
 func TestFallback(t *testing.T) {
-	returnValue := uint64(42)
+	returnValue := 42
 	closedErr := errors.New("error")
 
 	tests := []struct {
@@ -194,7 +195,7 @@ func TestFallback(t *testing.T) {
 				cl, err := beaconmock.New()
 				require.NoError(t, err)
 
-				cl.SlotsPerEpochFunc = func(context.Context) (uint64, error) {
+				cl.NodePeerCountFunc = func(context.Context) (int, error) {
 					calledMu.Lock()
 					primaryCalled[i] = true
 					calledMu.Unlock()
@@ -210,7 +211,7 @@ func TestFallback(t *testing.T) {
 				cl, err := beaconmock.New()
 				require.NoError(t, err)
 
-				cl.SlotsPerEpochFunc = func(context.Context) (uint64, error) {
+				cl.NodePeerCountFunc = func(context.Context) (int, error) {
 					calledMu.Lock()
 					fallbackCalled[i] = true
 					calledMu.Unlock()
@@ -222,23 +223,34 @@ func TestFallback(t *testing.T) {
 
 			eth2Cl, err := eth2wrap.Instrument(primaryClients, fallbackClients)
 			require.NoError(t, err)
-			res, err := eth2Cl.SlotsPerEpoch(context.Background())
+			res, err := eth2Cl.NodePeerCount(t.Context())
 			require.NoError(t, err)
 			require.Equal(t, returnValue, res)
 
-			// Verify all primaries were called
 			calledMu.Lock()
-			for i, called := range primaryCalled {
-				require.True(t, called, "primary client %d was not called", i)
+			defer calledMu.Unlock()
+
+			// Helper function to check if at least one client was called
+			atLeastOneCalled := func(called []bool) bool {
+				for _, c := range called {
+					if c {
+						return true
+					}
+				}
+
+				return false
 			}
 
-			// Verify all fallbacks were called (when all primaries fail)
+			// Only possible to check if all primaries are called if they all fail because
+			// otherwise one could return sooner without the other even being called.
 			if allPrimariesFail {
-				for i, called := range fallbackCalled {
-					require.True(t, called, "fallback client %d was not called", i)
+				for i, called := range primaryCalled {
+					require.True(t, called, "primary client %d was not called", i)
 				}
+				require.True(t, atLeastOneCalled(fallbackCalled), "at least one fallback client should have been called")
+			} else {
+				require.True(t, atLeastOneCalled(primaryCalled), "at least one primary client should have been called")
 			}
-			calledMu.Unlock()
 		})
 	}
 }
@@ -271,10 +283,10 @@ func TestErrors(t *testing.T) {
 		cl, err := eth2wrap.NewMultiHTTP(time.Hour, [4]byte{}, nil, []string{"localhost:22222"}, nil)
 		require.NoError(t, err)
 
-		_, err = cl.SlotsPerEpoch(ctx)
+		_, err = cl.NodePeerCount(ctx)
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "beacon api slots_per_epoch: client is not active")
+		require.ErrorContains(t, err, "beacon api node_peer_count: network operation error")
 	})
 
 	// Test http server that just hangs until request cancelled
@@ -286,10 +298,10 @@ func TestErrors(t *testing.T) {
 		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, [4]byte{}, nil, []string{srv.URL}, nil)
 		require.NoError(t, err)
 
-		_, err = cl.SlotsPerEpoch(ctx)
+		_, err = cl.NodePeerCount(ctx)
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "beacon api slots_per_epoch: client is not active")
+		require.ErrorContains(t, err, "beacon api node_peer_count: http request timeout")
 	})
 
 	t.Run("caller cancelled", func(t *testing.T) {
@@ -299,25 +311,27 @@ func TestErrors(t *testing.T) {
 		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, [4]byte{}, nil, []string{srv.URL}, nil)
 		require.NoError(t, err)
 
-		_, err = cl.SlotsPerEpoch(ctx)
+		_, err = cl.NodePeerCount(ctx)
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "beacon api slots_per_epoch: context canceled")
+		require.ErrorContains(t, err, "beacon api node_peer_count: context canceled")
 	})
 
 	t.Run("zero net op error", func(t *testing.T) {
 		bmock, err := beaconmock.New()
 		require.NoError(t, err)
-		bmock.GenesisTimeFunc = func(context.Context) (time.Time, error) {
-			return time.Time{}, new(net.OpError)
+		bmock.GenesisFunc = func(context.Context, *eth2api.GenesisOpts) (*eth2v1.Genesis, error) {
+			return &eth2v1.Genesis{
+				GenesisTime: time.Time{},
+			}, new(net.OpError)
 		}
 		eth2Cl, err := eth2wrap.Instrument([]eth2wrap.Client{bmock}, nil)
 		require.NoError(t, err)
 
-		_, err = eth2Cl.GenesisTime(ctx)
+		_, err = eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "beacon api genesis_time: network operation error: :")
+		require.ErrorContains(t, err, "beacon api genesis: network operation error: :")
 	})
 
 	t.Run("eth2api error", func(t *testing.T) {
@@ -360,8 +374,8 @@ func TestCtxCancel(t *testing.T) {
 
 func TestBlockAttestations(t *testing.T) {
 	atts := []*eth2p0.Attestation{
-		testutil.RandomAttestation(),
-		testutil.RandomAttestation(),
+		testutil.RandomPhase0Attestation(),
+		testutil.RandomPhase0Attestation(),
 	}
 
 	statusCode := http.StatusOK
@@ -379,7 +393,7 @@ func TestBlockAttestations(t *testing.T) {
 		_, _ = w.Write(b)
 	}))
 
-	cl := eth2wrap.NewHTTPAdapterForT(t, srv.URL, time.Hour)
+	cl := eth2wrap.NewHTTPAdapterForT(t, srv.URL, nil, time.Hour)
 	resp, err := cl.BlockAttestations(context.Background(), "head")
 	require.NoError(t, err)
 	require.Equal(t, atts, resp)
@@ -388,6 +402,57 @@ func TestBlockAttestations(t *testing.T) {
 	resp, err = cl.BlockAttestations(context.Background(), "head")
 	require.NoError(t, err)
 	require.Empty(t, resp)
+}
+
+func TestBlockAttestationsV2(t *testing.T) {
+	electraAtt1 := testutil.RandomElectraAttestation()
+	electraAtt2 := testutil.RandomElectraAttestation()
+
+	tests := []struct {
+		version          string
+		attestations     []*eth2spec.VersionedAttestation
+		serverJSONStruct any
+		expErr           string
+	}{
+		{
+			version: "electra",
+			attestations: []*eth2spec.VersionedAttestation{
+				{Version: eth2spec.DataVersionElectra, Electra: electraAtt1},
+				{Version: eth2spec.DataVersionElectra, Electra: electraAtt2},
+			},
+			serverJSONStruct: struct{ Data []*eth2e.Attestation }{Data: []*eth2e.Attestation{electraAtt1, electraAtt2}},
+			expErr:           "",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.version, func(t *testing.T) {
+			statusCode := http.StatusOK
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				require.Equal(t, http.MethodGet, r.Method)
+				require.Equal(t, "/eth/v2/beacon/blocks/head/attestations", r.URL.Path)
+				b, err := json.Marshal(test.serverJSONStruct)
+				require.NoError(t, err)
+
+				w.Header().Add("Eth-Consensus-Version", test.version)
+				w.WriteHeader(statusCode)
+				_, _ = w.Write(b)
+			}))
+
+			cl := eth2wrap.NewHTTPAdapterForT(t, srv.URL, nil, time.Hour)
+			resp, err := cl.BlockAttestationsV2(context.Background(), "head")
+			if test.expErr != "" {
+				require.ErrorContains(t, err, test.expErr)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, test.attestations, resp)
+
+			statusCode = http.StatusNotFound
+			resp, err = cl.BlockAttestationsV2(context.Background(), "head")
+			require.ErrorContains(t, err, eth2wrap.ErrEndpointNotFound.Error())
+			require.Empty(t, resp)
+		})
+	}
 }
 
 // TestOneError tests the case where one of the servers returns errors.

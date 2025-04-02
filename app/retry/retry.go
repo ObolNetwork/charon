@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Package retry provides a generic async function executor with retries for robustness against network failures.
 // Functions are linked to a deadline, executed asynchronously and network or context errors retried with backoff
@@ -107,7 +107,7 @@ func (r *Retryer[T]) DoAsync(parent context.Context, t T, topic, name string, fn
 	ctx, cancel := r.ctxTimeoutFunc(ctx, t)
 	defer cancel()
 
-	ctx, span := tracer.Start(ctx, "app/retry.DoAsync")
+	_, span := tracer.Start(r.asyncCtx, "app/retry.DoAsync")
 	defer span.End()
 	span.SetAttributes(attribute.String("topic", topic))
 	span.SetAttributes(attribute.String("name", name))

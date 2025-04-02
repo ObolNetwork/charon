@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package beaconmock
 
@@ -8,6 +8,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	fuzz "github.com/google/gofuzz"
@@ -115,8 +116,8 @@ func WithBeaconMockFuzzer() Option {
 			return block, nil
 		}
 
-		mock.AggregateAttestationFunc = func(context.Context, eth2p0.Slot, eth2p0.Root) (*eth2p0.Attestation, error) {
-			var att *eth2p0.Attestation
+		mock.AggregateAttestationV2Func = func(context.Context, eth2p0.Slot, eth2p0.Root) (*eth2spec.VersionedAttestation, error) {
+			var att *eth2spec.VersionedAttestation
 			fuzz.New().Fuzz(&att)
 
 			return att, nil
@@ -177,6 +178,13 @@ func WithBeaconMockFuzzer() Option {
 
 		mock.BlockAttestationsFunc = func(context.Context, string) ([]*eth2p0.Attestation, error) {
 			var atts []*eth2p0.Attestation
+			fuzz.New().Fuzz(&atts)
+
+			return atts, nil
+		}
+
+		mock.BlockAttestationsV2Func = func(context.Context, string) ([]*eth2spec.VersionedAttestation, error) {
+			var atts []*eth2spec.VersionedAttestation
 			fuzz.New().Fuzz(&atts)
 
 			return atts, nil

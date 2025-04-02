@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cmd
 
@@ -78,8 +78,10 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().DurationVar(&config.BeaconNodeTimeout, "beacon-node-timeout", eth2ClientTimeout, "Timeout for the HTTP requests Charon makes to the configured beacon nodes.")
 	cmd.Flags().DurationVar(&config.BeaconNodeSubmitTimeout, "beacon-node-submit-timeout", eth2ClientTimeout, "Timeout for the submission-related HTTP requests Charon makes to the configured beacon nodes.")
 	cmd.Flags().StringVar(&config.ValidatorAPIAddr, "validator-api-address", "127.0.0.1:3600", "Listening address (ip and port) for validator-facing traffic proxying the beacon-node API.")
-	cmd.Flags().StringVar(&config.JaegerAddr, "jaeger-address", "", "Listening address for jaeger tracing.")
-	cmd.Flags().StringVar(&config.JaegerService, "jaeger-service", "charon", "Service name used for jaeger tracing.")
+	cmd.Flags().StringVar(&config.JaegerAddr, "jaeger-address", "", "[DISABLED] Listening address for jaeger tracing.")
+	cmd.Flags().StringVar(&config.JaegerService, "jaeger-service", "", "[DISABLED] Service name used for jaeger tracing.")
+	cmd.Flags().StringVar(&config.OTLPAddress, "otlp-address", "", "Listening address for OTLP gRPC tracing backend.")
+	cmd.Flags().StringVar(&config.OTLPServiceName, "otlp-service-name", "charon", "Service name used for OTLP gRPC tracing.")
 	cmd.Flags().BoolVar(&config.SimnetBMock, "simnet-beacon-mock", false, "Enables an internal mock beacon node for running a simnet.")
 	cmd.Flags().BoolVar(&config.SimnetVMock, "simnet-validator-mock", false, "Enables an internal mock validator client when running a simnet. Requires simnet-beacon-mock.")
 	cmd.Flags().StringVar(&config.SimnetValidatorKeysDir, "simnet-validator-keys-dir", ".charon/validator_keys", "The directory containing the simnet validator key shares.")
@@ -97,17 +99,32 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().StringVar(&config.Nickname, "nickname", "", "Human friendly peer nickname. Maximum 32 characters.")
 	cmd.Flags().StringSliceVar(&config.BeaconNodeHeaders, "beacon-node-headers", nil, "Comma separated list of headers formatted as header=value")
 	cmd.Flags().StringSliceVar(&config.FallbackBeaconNodeAddrs, "fallback-beacon-node-endpoints", nil, "A list of beacon nodes to use if the primary list are offline or unhealthy.")
+	cmd.Flags().StringVar(&config.ExecutionEngineAddr, "execution-client-rpc-endpoint", "", "The address of the execution engine JSON-RPC API.")
+	cmd.Flags().StringSliceVar(&config.Graffiti, "graffiti", nil, "Comma-separated list or single graffiti string to include in block proposals. List maps to validator's public key in cluster lock. Appends \"OB<CL_TYPE>\" suffix to graffiti. Maximum 28 bytes per graffiti.")
+	cmd.Flags().BoolVar(&config.GraffitiDisableClientAppend, "graffiti-disable-client-append", false, "Disables appending \"OB<CL_TYPE>\" suffix to graffiti. Increases maximum bytes per graffiti to 32.")
 
-	wrapPreRunE(cmd, func(*cobra.Command, []string) error {
+	wrapPreRunE(cmd, func(cc *cobra.Command, _ []string) error {
 		if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {
 			return errors.New("either flag 'beacon-node-endpoints' or flag 'simnet-beacon-mock=true' must be specified")
 		}
 		if len(config.Nickname) > 32 {
 			return errors.New("flag 'nickname' can not exceed 32 characters")
 		}
+		if len(config.JaegerAddr) > 0 || len(config.JaegerService) > 0 {
+			log.Warn(cc.Context(), "Jaeger flags are disabled and will be removed in a future release", nil)
+		}
 		err := eth2util.ValidateBeaconNodeHeaders(config.BeaconNodeHeaders)
 		if err != nil {
 			return err
+		}
+		maxGraffitiBytes := 28
+		if config.GraffitiDisableClientAppend {
+			maxGraffitiBytes = 32
+		}
+		for _, g := range config.Graffiti {
+			if len(g) > maxGraffitiBytes {
+				return errors.New("graffiti string length is greater than maximum size")
+			}
 		}
 
 		return nil
