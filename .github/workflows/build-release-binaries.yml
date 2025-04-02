@@ -63,6 +63,24 @@ jobs:
           go build -buildvcs=false -tags='netgo osusergo' -ldflags \"${{ env.LDFLAGS_VALUE }}\" \
           -o dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64"
 
+    - name: Test AMD64 Binary
+      run: |
+        echo "Testing AMD64 binary version..."
+        docker run --rm --platform linux/amd64 \
+          -v $(pwd)/dist:/dist \
+          golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
+          bash -c "/dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64 version | grep '${{ env.RELEASE_VERSION }}'"
+
+    - name: Test ARM64 Binary
+      run: |
+        echo "Testing ARM64 binary version..."
+        # Use an AMD64 container but install QEMU to run the ARM64 binary
+        docker run --rm --platform linux/amd64 \
+          -v $(pwd)/dist:/dist \
+          golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
+          bash -c "apt-get update > /dev/null && apt-get install -y -qq qemu-user-static > /dev/null && \
+          /dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64 version | grep '${{ env.RELEASE_VERSION }}'"
+
     - name: Create release archives
       run: |
         cd dist
