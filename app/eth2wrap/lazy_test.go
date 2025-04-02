@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package eth2wrap_test
 
@@ -6,6 +6,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -72,6 +73,20 @@ func TestLazy_BlockAttestations(t *testing.T) {
 	l := eth2wrap.NewLazyForT(client)
 
 	atts2, err := l.BlockAttestations(ctx, "state")
+	require.NoError(t, err)
+	require.Equal(t, atts, atts2)
+}
+
+func TestLazy_BlockAttestationsV2(t *testing.T) {
+	ctx := context.Background()
+	atts := make([]*spec.VersionedAttestation, 3)
+
+	client := mocks.NewClient(t)
+	client.On("BlockAttestationsV2", ctx, "state").Return(atts, nil).Once()
+
+	l := eth2wrap.NewLazyForT(client)
+
+	atts2, err := l.BlockAttestationsV2(ctx, "state")
 	require.NoError(t, err)
 	require.Equal(t, atts, atts2)
 }

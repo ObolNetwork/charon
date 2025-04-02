@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package app
 
@@ -31,10 +31,11 @@ func wireValidatorMock(ctx context.Context, conf Config, eth2Cl eth2wrap.Client,
 		return err
 	}
 
-	genesisTime, err := eth2Cl.GenesisTime(ctx)
+	genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
 	if err != nil {
 		return err
 	}
+	genesisTime := genesis.Data.GenesisTime
 
 	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
@@ -93,7 +94,7 @@ func newVMockEth2Provider(conf Config, pubshares []eth2p0.BLSPubKey) func() (eth
 				return nil, errors.New("invalid eth2 http service")
 			}
 
-			cached = eth2wrap.AdaptEth2HTTP(eth2Http, timeout)
+			cached = eth2wrap.AdaptEth2HTTP(eth2Http, nil, timeout)
 			valCache := eth2wrap.NewValidatorCache(cached, pubshares)
 			cached.SetValidatorCache(valCache.Get)
 

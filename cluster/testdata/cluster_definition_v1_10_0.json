@@ -41,6 +41,7 @@
  ],
  "consensus_protocol": "abft",
  "target_gas_limit": 30000000,
+ "compounding": false,
  "config_hash": "0xafad2b3c34a7579fdd38c7a8d2b9f1ea5c7d0f940d2fbbcd2a383258ce8d76a2",
- "definition_hash": "0x174b33b12bcb1ed2313c3a7b1c11dd348ccf21db13d987b0c9722df44bd62da0"
+ "definition_hash": "0x4b14c0ed4538c288b7107d99e03e85bf883f93adcc51df0ee09091a9ef05068d"
 }

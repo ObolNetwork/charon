@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Command verifypr provides a tool to verify charon PRs against the template defined in docs/contibuting.md.
 //
@@ -62,6 +62,11 @@ func verify() error {
 
 	// Skip dependabot PRs.
 	if strings.Contains(pr.Title, "build(deps)") && strings.Contains(pr.Body, "dependabot") {
+		return nil
+	}
+
+	// Skip Renovate PRs.
+	if strings.Contains(pr.Title, "chore(deps)") && strings.Contains(pr.Body, "Renovate") {
 		return nil
 	}
 
@@ -185,9 +190,10 @@ func verifyBody(body string) error {
 
 			ticket := strings.TrimSpace(strings.TrimPrefix(line, ticketTag))
 
-			if ticket == "" {
+			switch ticket {
+			case "":
 				return errors.New("ticket tag empty")
-			} else if ticket == "#000" {
+			case "#000":
 				return errors.New("invalid #000 ticket")
 			}
 
@@ -219,9 +225,10 @@ func verifyBody(body string) error {
 
 			flag := strings.TrimSpace(strings.TrimPrefix(line, featureTag))
 
-			if flag == "" {
+			switch flag {
+			case "":
 				return errors.New("feature_flag tag empty")
-			} else if flag == "?" {
+			case "?":
 				return errors.New("invalid ? feature_flag")
 			}
 

@@ -1,18 +1,22 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package tracker
 
 import (
 	"context"
 	"math/rand"
+	"slices"
 	"testing"
 
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util/statecomm"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -20,57 +24,204 @@ import (
 func TestDuplicateAttData(t *testing.T) {
 	ctx := context.Background()
 
-	bmock, err := beaconmock.New()
-	require.NoError(t, err)
+	tests := []struct {
+		name                      string
+		attData                   *eth2p0.AttestationData
+		attestationsFunc          func(*eth2p0.AttestationData, bitfield.Bitlist, bitfield.Bitlist, bitfield.Bitlist) []*eth2spec.VersionedAttestation
+		beaconStateCommitteesFunc func(*eth2p0.AttestationData) []*statecomm.StateCommittee
+	}{
+		{
+			name:    "phase0",
+			attData: testutil.RandomAttestationDataPhase0(),
+			attestationsFunc: func(attData *eth2p0.AttestationData, aggBits1 bitfield.Bitlist, aggBits2 bitfield.Bitlist, aggBits3 bitfield.Bitlist) []*eth2spec.VersionedAttestation {
+				return []*eth2spec.VersionedAttestation{
+					{Version: eth2spec.DataVersionPhase0, Phase0: &eth2p0.Attestation{AggregationBits: aggBits1, Data: attData}},
+					{Version: eth2spec.DataVersionPhase0, Phase0: &eth2p0.Attestation{AggregationBits: aggBits2, Data: attData}},
+					{Version: eth2spec.DataVersionPhase0, Phase0: &eth2p0.Attestation{AggregationBits: aggBits3, Data: attData}},
+				}
+			},
+			beaconStateCommitteesFunc: func(attData *eth2p0.AttestationData) []*statecomm.StateCommittee {
+				return []*statecomm.StateCommittee{
+					{Index: attData.Index, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1}},
+				}
+			},
+		},
+		{
+			name:    "altair",
+			attData: testutil.RandomAttestationDataPhase0(),
+			attestationsFunc: func(attData *eth2p0.AttestationData, aggBits1 bitfield.Bitlist, aggBits2 bitfield.Bitlist, aggBits3 bitfield.Bitlist) []*eth2spec.VersionedAttestation {
+				return []*eth2spec.VersionedAttestation{
+					{Version: eth2spec.DataVersionAltair, Altair: &eth2p0.Attestation{AggregationBits: aggBits1, Data: attData}},
+					{Version: eth2spec.DataVersionAltair, Altair: &eth2p0.Attestation{AggregationBits: aggBits2, Data: attData}},
+					{Version: eth2spec.DataVersionAltair, Altair: &eth2p0.Attestation{AggregationBits: aggBits3, Data: attData}},
+				}
+			},
+			beaconStateCommitteesFunc: func(attData *eth2p0.AttestationData) []*statecomm.StateCommittee {
+				return []*statecomm.StateCommittee{
+					{Index: attData.Index, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1}},
+				}
+			},
+		},
+		{
+			name:    "bellatrix",
+			attData: testutil.RandomAttestationDataPhase0(),
+			attestationsFunc: func(attData *eth2p0.AttestationData, aggBits1 bitfield.Bitlist, aggBits2 bitfield.Bitlist, aggBits3 bitfield.Bitlist) []*eth2spec.VersionedAttestation {
+				return []*eth2spec.VersionedAttestation{
+					{Version: eth2spec.DataVersionBellatrix, Bellatrix: &eth2p0.Attestation{AggregationBits: aggBits1, Data: attData}},
+					{Version: eth2spec.DataVersionBellatrix, Bellatrix: &eth2p0.Attestation{AggregationBits: aggBits2, Data: attData}},
+					{Version: eth2spec.DataVersionBellatrix, Bellatrix: &eth2p0.Attestation{AggregationBits: aggBits3, Data: attData}},
+				}
+			},
+			beaconStateCommitteesFunc: func(attData *eth2p0.AttestationData) []*statecomm.StateCommittee {
+				return []*statecomm.StateCommittee{
+					{Index: attData.Index, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1}},
+				}
+			},
+		},
+		{
+			name:    "capella",
+			attData: testutil.RandomAttestationDataPhase0(),
+			attestationsFunc: func(attData *eth2p0.AttestationData, aggBits1 bitfield.Bitlist, aggBits2 bitfield.Bitlist, aggBits3 bitfield.Bitlist) []*eth2spec.VersionedAttestation {
+				return []*eth2spec.VersionedAttestation{
+					{Version: eth2spec.DataVersionCapella, Capella: &eth2p0.Attestation{AggregationBits: aggBits1, Data: attData}},
+					{Version: eth2spec.DataVersionCapella, Capella: &eth2p0.Attestation{AggregationBits: aggBits2, Data: attData}},
+					{Version: eth2spec.DataVersionCapella, Capella: &eth2p0.Attestation{AggregationBits: aggBits3, Data: attData}},
+				}
+			},
+			beaconStateCommitteesFunc: func(attData *eth2p0.AttestationData) []*statecomm.StateCommittee {
+				return []*statecomm.StateCommittee{
+					{Index: attData.Index, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1}},
+				}
+			},
+		},
+		{
+			name:    "deneb",
+			attData: testutil.RandomAttestationDataPhase0(),
+			attestationsFunc: func(attData *eth2p0.AttestationData, aggBits1 bitfield.Bitlist, aggBits2 bitfield.Bitlist, aggBits3 bitfield.Bitlist) []*eth2spec.VersionedAttestation {
+				return []*eth2spec.VersionedAttestation{
+					{Version: eth2spec.DataVersionDeneb, Deneb: &eth2p0.Attestation{AggregationBits: aggBits1, Data: attData}},
+					{Version: eth2spec.DataVersionDeneb, Deneb: &eth2p0.Attestation{AggregationBits: aggBits2, Data: attData}},
+					{Version: eth2spec.DataVersionDeneb, Deneb: &eth2p0.Attestation{AggregationBits: aggBits3, Data: attData}},
+				}
+			},
+			beaconStateCommitteesFunc: func(attData *eth2p0.AttestationData) []*statecomm.StateCommittee {
+				return []*statecomm.StateCommittee{
+					{Index: attData.Index, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1}},
+				}
+			},
+		},
+		{
+			name:    "electra",
+			attData: testutil.RandomAttestationDataElectra(),
+			attestationsFunc: func(attData *eth2p0.AttestationData, aggBits1 bitfield.Bitlist, aggBits2 bitfield.Bitlist, aggBits3 bitfield.Bitlist) []*eth2spec.VersionedAttestation {
+				zeroComm := bitfield.NewBitvector64()
+				zeroComm.SetBitAt(0, true)
+				oneComm := bitfield.NewBitvector64()
+				oneComm.SetBitAt(1, true)
+				twoComm := bitfield.NewBitvector64()
+				twoComm.SetBitAt(2, true)
 
-	// Mock 3 attestations, with same data but different aggregation bits.
-	bits1 := testutil.RandomBitList(8)
-	bits2 := testutil.RandomBitList(8)
-	bits3 := testutil.RandomBitList(8)
-	attData := testutil.RandomAttestationData()
+				return []*eth2spec.VersionedAttestation{
+					{Version: eth2spec.DataVersionElectra, Electra: &electra.Attestation{AggregationBits: aggBits1, Data: attData, CommitteeBits: zeroComm}},
+					{Version: eth2spec.DataVersionElectra, Electra: &electra.Attestation{AggregationBits: aggBits2, Data: attData, CommitteeBits: oneComm}},
+					{Version: eth2spec.DataVersionElectra, Electra: &electra.Attestation{AggregationBits: aggBits3, Data: attData, CommitteeBits: twoComm}},
+				}
+			},
+			beaconStateCommitteesFunc: func(attData *eth2p0.AttestationData) []*statecomm.StateCommittee {
+				return []*statecomm.StateCommittee{
+					{Index: 0, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1, 2}},
+					{Index: 1, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1, 2}},
+					{Index: 2, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1, 2}},
+				}
+			},
+		},
+		{
+			name:    "electra - multiple committies per attestation",
+			attData: testutil.RandomAttestationDataElectra(),
+			attestationsFunc: func(attData *eth2p0.AttestationData, aggBits1 bitfield.Bitlist, aggBits2 bitfield.Bitlist, aggBits3 bitfield.Bitlist) []*eth2spec.VersionedAttestation {
+				zeroTwoComm := bitfield.NewBitvector64()
+				zeroTwoComm.SetBitAt(0, true)
+				zeroTwoComm.SetBitAt(2, true)
+				oneComm := bitfield.NewBitvector64()
+				oneComm.SetBitAt(1, true)
+				complexAttestationAggBits := slices.Concat(aggBits1, aggBits2)
 
-	bmock.BlockAttestationsFunc = func(_ context.Context, _ string) ([]*eth2p0.Attestation, error) {
-		return []*eth2p0.Attestation{
-			{AggregationBits: bits1, Data: attData},
-			{AggregationBits: bits2, Data: attData},
-			{AggregationBits: bits3, Data: attData},
-		}, nil
+				return []*eth2spec.VersionedAttestation{
+					{Version: eth2spec.DataVersionElectra, Electra: &electra.Attestation{AggregationBits: complexAttestationAggBits, Data: attData, CommitteeBits: zeroTwoComm}},
+					{Version: eth2spec.DataVersionElectra, Electra: &electra.Attestation{AggregationBits: aggBits2, Data: attData, CommitteeBits: oneComm}},
+				}
+			},
+			beaconStateCommitteesFunc: func(attData *eth2p0.AttestationData) []*statecomm.StateCommittee {
+				return []*statecomm.StateCommittee{
+					{Index: 0, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1, 2}},
+					{Index: 1, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1, 2}},
+					{Index: 2, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1, 2}},
+				}
+			},
+		},
 	}
 
-	noopTrackerInclFunc := func(duty core.Duty, key core.PubKey, data core.SignedData, err error) {}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			bmock, err := beaconmock.New()
+			require.NoError(t, err)
 
-	incl, err := NewInclusion(ctx, bmock, noopTrackerInclFunc)
-	require.NoError(t, err)
+			// Mock 3 attestations, with same data but different aggregation bits.
+			attData := test.attData
+			aggBits1 := testutil.RandomBitList(8)
+			aggBits2 := testutil.RandomBitList(8)
+			aggBits3 := testutil.RandomBitList(8)
 
-	done := make(chan struct{})
-	attDataRoot, err := attData.HashTreeRoot()
-	require.NoError(t, err)
+			bmock.BlockAttestationsV2Func = func(_ context.Context, _ string) ([]*eth2spec.VersionedAttestation, error) {
+				return test.attestationsFunc(attData, aggBits1, aggBits2, aggBits3), nil
+			}
 
-	// Assert that the block to check contains all bitlists above.
-	incl.checkBlockFunc = func(ctx context.Context, block block) {
-		require.Len(t, block.AttestationsByDataRoot, 1)
-		att, ok := block.AttestationsByDataRoot[attDataRoot]
-		require.True(t, ok)
+			bmock.BeaconStateCommitteesFunc = func(_ context.Context, slot uint64) ([]*statecomm.StateCommittee, error) {
+				return test.beaconStateCommitteesFunc(attData), nil
+			}
 
-		ok, err := att.AggregationBits.Contains(bits1)
-		require.NoError(t, err)
-		require.True(t, ok)
+			noopTrackerInclFunc := func(duty core.Duty, key core.PubKey, data core.SignedData, err error) {}
 
-		ok, err = att.AggregationBits.Contains(bits2)
-		require.NoError(t, err)
-		require.True(t, ok)
+			incl, err := NewInclusion(ctx, bmock, noopTrackerInclFunc)
+			require.NoError(t, err)
 
-		ok, err = att.AggregationBits.Contains(bits3)
-		require.NoError(t, err)
-		require.True(t, ok)
+			done := make(chan struct{})
+			attDataRoot, err := attData.HashTreeRoot()
+			require.NoError(t, err)
 
-		close(done)
+			// Assert that the block to check contains all bitlists above.
+			incl.checkBlockV2Func = func(ctx context.Context, block blockV2) {
+				require.Len(t, block.AttestationsByDataRoot, 1)
+				att, ok := block.AttestationsByDataRoot[attDataRoot]
+				require.True(t, ok)
+
+				aggBits1, err := att.AggregationBits()
+				require.NoError(t, err)
+				ok, err = aggBits1.Contains(aggBits1)
+				require.NoError(t, err)
+				require.True(t, ok)
+
+				aggBits2, err := att.AggregationBits()
+				require.NoError(t, err)
+				ok, err = aggBits2.Contains(aggBits2)
+				require.NoError(t, err)
+				require.True(t, ok)
+
+				aggBits3, err := att.AggregationBits()
+				require.NoError(t, err)
+				ok, err = aggBits3.Contains(aggBits3)
+				require.NoError(t, err)
+				require.True(t, ok)
+
+				close(done)
+			}
+
+			err = incl.checkBlock(ctx, uint64(attData.Slot))
+			require.NoError(t, err)
+
+			<-done
+		})
 	}
-
-	err = incl.checkBlock(ctx, uint64(attData.Slot))
-	require.NoError(t, err)
-
-	<-done
 }
 
 func TestInclusion(t *testing.T) {
@@ -88,13 +239,13 @@ func TestInclusion(t *testing.T) {
 	}
 
 	// Create some duties
-	att1 := testutil.RandomAttestation()
+	att1 := testutil.RandomPhase0Attestation()
 	att1Duty := core.NewAttesterDuty(uint64(att1.Data.Slot))
 
 	agg2 := testutil.RandomSignedAggregateAndProof()
 	agg2Duty := core.NewAggregatorDuty(uint64(agg2.Message.Aggregate.Data.Slot))
 
-	att3 := testutil.RandomAttestation()
+	att3 := testutil.RandomPhase0Attestation()
 	att3Duty := core.NewAttesterDuty(uint64(att3.Data.Slot))
 
 	block4 := testutil.RandomDenebVersionedSignedProposal()

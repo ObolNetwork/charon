@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package fetcher_test
 
@@ -9,14 +9,17 @@ import (
 	"math"
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prysmaticlabs/go-bitfield"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap/mocks"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/fetcher"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
@@ -71,12 +74,12 @@ func TestFetchAttester(t *testing.T) {
 		dutyDataA := resDataSet[pubkeysByIdx[vIdxA]].(core.AttestationData)
 		require.EqualValues(t, slot, dutyDataA.Data.Slot)
 		require.EqualValues(t, vIdxA, dutyDataA.Data.Index)
-		require.EqualValues(t, dutyA, dutyDataA.Duty)
+		require.Equal(t, dutyA, dutyDataA.Duty)
 
 		dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.AttestationData)
 		require.EqualValues(t, slot, dutyDataB.Data.Slot)
 		require.EqualValues(t, vIdxB, dutyDataB.Data.Index)
-		require.EqualValues(t, dutyB, dutyDataB.Duty)
+		require.Equal(t, dutyB, dutyDataB.Duty)
 
 		return nil
 	})
@@ -105,8 +108,8 @@ func TestFetchAggregator(t *testing.T) {
 		vIdxB: testutil.RandomCorePubKey(t),
 	}
 
-	attA := testutil.RandomAttestation()
-	attB := testutil.RandomAttestation()
+	attA := testutil.RandomPhase0Attestation()
+	attB := testutil.RandomPhase0Attestation()
 	attByCommIdx := map[uint64]*eth2p0.Attestation{
 		uint64(attA.Data.Index): attA,
 		uint64(attB.Data.Index): attB,
@@ -176,7 +179,7 @@ func TestFetchAggregator(t *testing.T) {
 			aggregated, ok := aggAtt.(core.AggregatedAttestation)
 			require.True(t, ok)
 
-			att, ok := attByCommIdx[uint64(aggregated.Attestation.Data.Index)]
+			att, ok := attByCommIdx[uint64(aggregated.Data.Index)]
 			require.True(t, ok)
 			require.Equal(t, aggregated.Attestation, *att)
 		}
@@ -243,6 +246,13 @@ func TestFetchBlocks(t *testing.T) {
 		feeRecipientAddr = "0x0000000000000000000000000000000000000000"
 	)
 
+	var (
+		graffitiAString = "testA"
+		graffitiABytes  = [32]byte{'t', 'e', 's', 't', 'A'}
+		graffitiBString = "testB"
+		graffitiBBytes  = [32]byte{'t', 'e', 's', 't', 'B'}
+	)
+
 	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
 		vIdxA: testutil.RandomCorePubKey(t),
 		vIdxB: testutil.RandomCorePubKey(t),
@@ -268,12 +278,21 @@ func TestFetchBlocks(t *testing.T) {
 		pubkeysByIdx[vIdxB]: randaoB,
 	}
 
+	eth2Cl := mocks.NewClient(t)
+	eth2Cl.On("NodeVersion", mock.Anything, mock.Anything).Return(&eth2api.Response[string]{Data: ""}, nil).Once()
+	graffitiBuilder, err := fetcher.NewGraffitiBuilder(
+		[]core.PubKey{pubkeysByIdx[vIdxA], pubkeysByIdx[vIdxB]},
+		[]string{graffitiAString, graffitiBString},
+		true, eth2Cl,
+	)
+	require.NoError(t, err)
+
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 
 	t.Run("fetch DutyProposer", func(t *testing.T) {
 		duty := core.NewProposerDuty(slot)
-		fetch := mustCreateFetcherWithAddress(t, bmock, feeRecipientAddr)
+		fetch := mustCreateFetcherWithAddressAndGraffiti(t, bmock, feeRecipientAddr, graffitiBuilder)
 
 		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
 			return randaoByPubKey[key], nil
@@ -293,6 +312,9 @@ func TestFetchBlocks(t *testing.T) {
 				require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Capella.Body.ExecutionPayload.FeeRecipient))
 			}
 			assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
+			graffitiDutyA, err := dutyDataA.Graffiti()
+			require.NoError(t, err)
+			require.Equal(t, graffitiABytes, graffitiDutyA)
 
 			dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.VersionedProposal)
 			slotB, err := dutyDataB.Slot()
@@ -304,6 +326,9 @@ func TestFetchBlocks(t *testing.T) {
 				require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.Capella.Body.ExecutionPayload.FeeRecipient))
 			}
 			assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature().ToETH2(), dutyDataB)
+			graffitiDutyB, err := dutyDataB.Graffiti()
+			require.NoError(t, err)
+			require.Equal(t, graffitiBBytes, graffitiDutyB)
 
 			return nil
 		})
@@ -511,18 +536,18 @@ func TestFetchSyncContribution(t *testing.T) {
 func mustCreateFetcher(t *testing.T, bmock beaconmock.Mock) *fetcher.Fetcher {
 	t.Helper()
 
-	fetch, err := fetcher.New(bmock, nil, true)
+	fetch, err := fetcher.New(bmock, nil, true, &fetcher.GraffitiBuilder{})
 	require.NoError(t, err)
 
 	return fetch
 }
 
-func mustCreateFetcherWithAddress(t *testing.T, bmock beaconmock.Mock, addr string) *fetcher.Fetcher {
+func mustCreateFetcherWithAddressAndGraffiti(t *testing.T, bmock beaconmock.Mock, addr string, graffitiBuilder *fetcher.GraffitiBuilder) *fetcher.Fetcher {
 	t.Helper()
 
 	fetch, err := fetcher.New(bmock, func(core.PubKey) string {
 		return addr
-	}, true)
+	}, true, graffitiBuilder)
 	require.NoError(t, err)
 
 	return fetch
@@ -533,26 +558,32 @@ func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block core.Versioned
 
 	switch block.Version {
 	case eth2spec.DataVersionPhase0:
-		require.EqualValues(t, randao, block.Phase0.Body.RANDAOReveal)
+		require.Equal(t, randao, block.Phase0.Body.RANDAOReveal)
 	case eth2spec.DataVersionAltair:
-		require.EqualValues(t, randao, block.Altair.Body.RANDAOReveal)
+		require.Equal(t, randao, block.Altair.Body.RANDAOReveal)
 	case eth2spec.DataVersionBellatrix:
 		if block.Blinded {
-			require.EqualValues(t, randao, block.BellatrixBlinded.Body.RANDAOReveal)
+			require.Equal(t, randao, block.BellatrixBlinded.Body.RANDAOReveal)
 		} else {
-			require.EqualValues(t, randao, block.Bellatrix.Body.RANDAOReveal)
+			require.Equal(t, randao, block.Bellatrix.Body.RANDAOReveal)
 		}
 	case eth2spec.DataVersionCapella:
 		if block.Blinded {
-			require.EqualValues(t, randao, block.CapellaBlinded.Body.RANDAOReveal)
+			require.Equal(t, randao, block.CapellaBlinded.Body.RANDAOReveal)
 		} else {
-			require.EqualValues(t, randao, block.Capella.Body.RANDAOReveal)
+			require.Equal(t, randao, block.Capella.Body.RANDAOReveal)
 		}
 	case eth2spec.DataVersionDeneb:
 		if block.Blinded {
-			require.EqualValues(t, randao, block.DenebBlinded.Body.RANDAOReveal)
+			require.Equal(t, randao, block.DenebBlinded.Body.RANDAOReveal)
 		} else {
-			require.EqualValues(t, randao, block.Deneb.Block.Body.RANDAOReveal)
+			require.Equal(t, randao, block.Deneb.Block.Body.RANDAOReveal)
+		}
+	case eth2spec.DataVersionElectra:
+		if block.Blinded {
+			require.Equal(t, randao, block.ElectraBlinded.Body.RANDAOReveal)
+		} else {
+			require.Equal(t, randao, block.Electra.Block.Body.RANDAOReveal)
 		}
 	default:
 		require.Fail(t, "invalid block")

@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Command genwrap provides a code generator for eth2client provider
 // methods implemented by eth2multi.Service.
@@ -51,6 +51,7 @@ type Client interface {
     eth2exp.SyncCommitteeSelectionAggregator
     eth2exp.ProposerConfigProvider
     BlockAttestationsProvider
+    BeaconStateCommitteesProvider
     NodePeerCountProvider
 
     CachedValidatorsProvider
@@ -118,7 +119,6 @@ type Client interface {
 		"ForkProvider":                          {Latency: true, Log: false},
 		"ForkScheduleProvider":                  {Latency: true, Log: false},
 		"GenesisProvider":                       {Latency: false, Log: false},
-		"GenesisTimeProvider":                   {Latency: false, Log: false},
 		"NodeSyncingProvider":                   {Latency: true, Log: false},
 		"NodeVersionProvider":                   {Latency: false, Log: false},
 		"ProposerDutiesProvider":                {Latency: true, Log: false},
@@ -145,8 +145,9 @@ type Client interface {
 
 	// successFuncs indicates which endpoints have custom success functions.
 	successFuncs = map[string]string{
-		"NodeSyncing":          "isSyncStateOk",
-		"AggregateAttestation": "isAggregateAttestationOk",
+		"NodeSyncing":            "isSyncStateOk",
+		"AggregateAttestation":   "isAggregateAttestationOk",
+		"AggregateAttestationV2": "isAggregateAttestationOkV2",
 	}
 
 	skipImport = map[string]bool{

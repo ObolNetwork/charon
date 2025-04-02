@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package keymanager_test
 
@@ -68,7 +68,7 @@ func TestImportKeystores(t *testing.T) {
 
 			var req mockKeymanagerReq
 			require.NoError(t, json.Unmarshal(data, &req))
-			require.Equal(t, len(req.Keystores), len(req.Passwords))
+			require.Len(t, req.Passwords, len(req.Keystores))
 			require.Equal(t, len(req.Keystores), numSecrets)
 
 			for i := range numSecrets {

@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package beaconmock
 
@@ -539,6 +539,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		BlockAttestationsFunc: func(context.Context, string) ([]*eth2p0.Attestation, error) {
 			return []*eth2p0.Attestation{}, nil
 		},
+		BlockAttestationsV2Func: func(context.Context, string) ([]*eth2spec.VersionedAttestation, error) {
+			return []*eth2spec.VersionedAttestation{}, nil
+		},
 		NodePeerCountFunc: func(context.Context) (int, error) {
 			return 80, nil
 		},
@@ -556,6 +559,20 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 				Data:            attData,
 			}, nil
 		},
+		AggregateAttestationV2Func: func(_ context.Context, _ eth2p0.Slot, root eth2p0.Root) (*eth2spec.VersionedAttestation, error) {
+			attData, err := attStore.AttestationDataByRoot(root)
+			if err != nil {
+				return nil, err
+			}
+
+			return &eth2spec.VersionedAttestation{
+				Version: eth2spec.DataVersionDeneb,
+				Deneb: &eth2p0.Attestation{
+					AggregationBits: bitfield.NewBitlist(0),
+					Data:            attData,
+				},
+			}, nil
+		},
 		CachedValidatorsFunc: func(context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error) {
 			return nil, nil, nil
 		},
@@ -568,6 +585,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SubmitAttestationsFunc: func(context.Context, []*eth2p0.Attestation) error {
 			return nil
 		},
+		SubmitAttestationsV2Func: func(context.Context, *eth2api.SubmitAttestationsOpts) error {
+			return nil
+		},
 		SubmitProposalFunc: func(context.Context, *eth2api.SubmitProposalOpts) error {
 			return nil
 		},
@@ -577,8 +597,13 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SubmitVoluntaryExitFunc: func(context.Context, *eth2p0.SignedVoluntaryExit) error {
 			return nil
 		},
-		GenesisTimeFunc: func(ctx context.Context) (time.Time, error) {
-			return httpMock.GenesisTime(ctx)
+		GenesisFunc: func(ctx context.Context, opts *eth2api.GenesisOpts) (*eth2v1.Genesis, error) {
+			resp, err := httpMock.Genesis(ctx, opts)
+			if err != nil {
+				return nil, err
+			}
+
+			return resp.Data, nil
 		},
 		NodeSyncingFunc: func(ctx context.Context, opts *eth2api.NodeSyncingOpts) (*eth2v1.SyncState, error) {
 			resp, err := httpMock.NodeSyncing(ctx, opts)
@@ -597,8 +622,20 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SubmitAggregateAttestationsFunc: func(context.Context, []*eth2p0.SignedAggregateAndProof) error {
 			return nil
 		},
+		SubmitAggregateAttestationsV2Func: func(context.Context, *eth2api.SubmitAggregateAttestationsOpts) error {
+			return nil
+		},
 		SlotsPerEpochFunc: func(ctx context.Context) (uint64, error) {
-			return httpMock.SlotsPerEpoch(ctx)
+			respSpec, err := httpMock.Spec(ctx, &eth2api.SpecOpts{})
+			if err != nil {
+				return 0, errors.Wrap(err, "getting spec")
+			}
+			slotsPerEpoch, ok := respSpec.Data["SLOTS_PER_EPOCH"].(uint64)
+			if !ok {
+				return 0, errors.New("fetch slots per epoch")
+			}
+
+			return slotsPerEpoch, nil
 		},
 		SubmitProposalPreparationsFunc: func(context.Context, []*eth2v1.ProposalPreparation) error {
 			return nil
@@ -640,6 +677,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		},
 		ProposerConfigFunc: func(context.Context) (*eth2exp.ProposerConfigResponse, error) {
 			return nil, nil
+		},
+		NodeVersionFunc: func(_ context.Context, _ *eth2api.NodeVersionOpts) (*eth2api.Response[string], error) {
+			return &eth2api.Response[string]{Data: "charon/static_beacon_mock"}, nil
 		},
 	}
 }

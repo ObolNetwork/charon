@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package obolapi_test
 
@@ -40,7 +40,7 @@ func Test_PartialExitRequest(t *testing.T) {
 	var other obolapi.PartialExitRequest
 	err = other.UnmarshalJSON(jbytes)
 	require.NoError(t, err)
-	require.EqualValues(t, other, pr)
+	require.Equal(t, other, pr)
 
 	err = pr.HashTreeRootWith(ssz.DefaultHasherPool.Get())
 	require.NoError(t, err)

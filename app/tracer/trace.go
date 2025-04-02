@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Package tracer provides a global OpenTelemetry tracer.
 package tracer
@@ -6,21 +6,26 @@ package tracer
 import (
 	"context"
 	"io"
-	"net"
+	"sync"
 
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
 
 // tracer is the global app level tracer, it defaults to a noop tracer.
-var tracer = trace.NewNoopTracerProvider().Tracer("")
+var (
+	tracer        = noop.NewTracerProvider().Tracer("")
+	setTracerOnce sync.Once
+)
 
 // Start creates a span and a context.Context containing the newly-created span from the global tracer.
 // See go.opentelemetry.io/otel/trace#Start for more details.
@@ -54,17 +59,20 @@ func Init(opts ...func(*options)) (func(context.Context) error, error) {
 		return nil, err
 	}
 
-	tp := newTraceProvider(exp, o.jaegerService)
+	tp := newTraceProvider(exp, o.serviceName, o.namespaceName)
 
 	// Set globals
 	otel.SetTracerProvider(tp)
-	tracer = tp.Tracer("")
+	setTracerOnce.Do(func() {
+		tracer = tp.Tracer("")
+	})
 
 	return tp.Shutdown, nil
 }
 
 type options struct {
-	jaegerService string
+	serviceName   string
+	namespaceName string
 	expFunc       func() (sdktrace.SpanExporter, error)
 }
 
@@ -75,7 +83,7 @@ func WithStdOut(w io.Writer) func(*options) {
 		o.expFunc = func() (sdktrace.SpanExporter, error) {
 			ex, err := stdouttrace.New(stdouttrace.WithWriter(w))
 			if err != nil {
-				return nil, errors.Wrap(err, "jaeger exporter")
+				return nil, errors.Wrap(err, "stdouttrace error")
 			}
 
 			return ex, nil
@@ -83,49 +91,39 @@ func WithStdOut(w io.Writer) func(*options) {
 	}
 }
 
-// WithJaegerOrNoop returns an option to configure an OpenTelemetry tracing exporter for Jaeger
-// if the address is not empty, else the default noop tracer is retained.
-func WithJaegerOrNoop(jaegerAddr string) func(*options) {
-	if jaegerAddr == "" {
-		return func(*options) {}
-	}
-
-	return WithJaeger(jaegerAddr)
-}
-
-// WithJaegerService returns an option to configure the jaeger service name.
-func WithJaegerService(service string) func(*options) {
-	return func(o *options) {
-		o.jaegerService = service
-	}
-}
-
-// WithJaeger returns an option to configure an OpenTelemetry tracing exporter for Jaeger.
-func WithJaeger(addr string) func(*options) {
+// WithOTLPTracer returns an option to configure an OpenTelemetry exporter for tracing
+// telemetry to be sent to an OpenTelemetry Collector via gRPC.
+func WithOTLPTracer(addr string) func(*options) {
 	return func(o *options) {
 		o.expFunc = func() (sdktrace.SpanExporter, error) {
-			host, port, err := net.SplitHostPort(addr)
-			if err != nil {
-				return nil, errors.Wrap(err, "parse jaeger address (host:port)")
-			}
+			client := otlptracegrpc.NewClient(
+				otlptracegrpc.WithInsecure(),
+				otlptracegrpc.WithEndpoint(addr))
 
-			ex, err := jaeger.New(jaeger.WithAgentEndpoint(
-				jaeger.WithAgentHost(host),
-				jaeger.WithAgentPort(port),
-			))
-			if err != nil {
-				return nil, errors.Wrap(err, "jaeger exporter")
-			}
-
-			return ex, nil
+			return otlptrace.New(context.Background(), client)
 		}
 	}
 }
 
-func newTraceProvider(exp sdktrace.SpanExporter, service string) *sdktrace.TracerProvider {
+// WithServiceName returns an option to configure the service name.
+func WithServiceName(serviceName string) func(*options) {
+	return func(o *options) {
+		o.serviceName = serviceName
+	}
+}
+
+// WithNamespaceName returns an option to configure the namespace.
+func WithNamespaceName(namespaceName string) func(*options) {
+	return func(o *options) {
+		o.namespaceName = namespaceName
+	}
+}
+
+func newTraceProvider(exp sdktrace.SpanExporter, service, namespace string) *sdktrace.TracerProvider {
 	r := resource.NewWithAttributes(
 		semconv.SchemaURL,
 		semconv.ServiceNameKey.String(service),
+		semconv.ServiceNamespaceKey.String(namespace),
 	)
 
 	tp := sdktrace.NewTracerProvider(

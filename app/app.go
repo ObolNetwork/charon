@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Package app provides the top app-level abstraction and entrypoint for a charon DVC instance.
 // The sub-packages also provide app-level functionality.
@@ -27,6 +27,7 @@ import (
 	"go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/k1util"
@@ -68,36 +69,41 @@ import (
 )
 
 type Config struct {
-	P2P                     p2p.Config
-	Log                     log.Config
-	Feature                 featureset.Config
-	LockFile                string
-	ManifestFile            string
-	NoVerify                bool
-	PrivKeyFile             string
-	PrivKeyLocking          bool
-	MonitoringAddr          string
-	DebugAddr               string
-	ValidatorAPIAddr        string
-	BeaconNodeAddrs         []string
-	BeaconNodeTimeout       time.Duration
-	BeaconNodeSubmitTimeout time.Duration
-	JaegerAddr              string
-	JaegerService           string
-	SimnetBMock             bool
-	SimnetVMock             bool
-	SimnetValidatorKeysDir  string
-	SimnetSlotDuration      time.Duration
-	SyntheticBlockProposals bool
-	BuilderAPI              bool
-	SimnetBMockFuzz         bool
-	TestnetConfig           eth2util.Network
-	ProcDirectory           string
-	ConsensusProtocol       string
-	Nickname                string
-	BeaconNodeHeaders       []string
-	TargetGasLimit          uint
-	FallbackBeaconNodeAddrs []string
+	P2P                         p2p.Config
+	Log                         log.Config
+	Feature                     featureset.Config
+	LockFile                    string
+	ManifestFile                string
+	NoVerify                    bool
+	PrivKeyFile                 string
+	PrivKeyLocking              bool
+	MonitoringAddr              string
+	DebugAddr                   string
+	ValidatorAPIAddr            string
+	BeaconNodeAddrs             []string
+	BeaconNodeTimeout           time.Duration
+	BeaconNodeSubmitTimeout     time.Duration
+	JaegerAddr                  string
+	JaegerService               string
+	OTLPAddress                 string
+	OTLPServiceName             string
+	SimnetBMock                 bool
+	SimnetVMock                 bool
+	SimnetValidatorKeysDir      string
+	SimnetSlotDuration          time.Duration
+	SyntheticBlockProposals     bool
+	BuilderAPI                  bool
+	SimnetBMockFuzz             bool
+	TestnetConfig               eth2util.Network
+	ProcDirectory               string
+	ConsensusProtocol           string
+	Nickname                    string
+	BeaconNodeHeaders           []string
+	TargetGasLimit              uint
+	FallbackBeaconNodeAddrs     []string
+	ExecutionEngineAddr         string
+	Graffiti                    []string
+	GraffitiDisableClientAppend bool
 
 	TestConfig TestConfig
 }
@@ -163,12 +169,19 @@ func Run(ctx context.Context, conf Config) (err error) {
 		eth2util.AddTestNetwork(conf.TestnetConfig)
 	}
 
-	if err := wireTracing(life, conf); err != nil {
+	eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
+	go eth1Cl.Run(ctx)
+
+	cluster, err := loadClusterManifest(ctx, conf, eth1Cl)
+	if err != nil {
 		return err
 	}
 
-	cluster, err := loadClusterManifest(ctx, conf)
-	if err != nil {
+	clusterHash := cluster.GetInitialMutationHash()
+	core.SetClusterHash(clusterHash)
+
+	tracingNamespace := hex.EncodeToString(clusterHash)
+	if err := wireTracing(life, conf, tracingNamespace); err != nil {
 		return err
 	}
 
@@ -221,6 +234,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	log.Info(ctx, "Lock file loaded",
 		z.Str("peer_name", p2p.PeerName(tcpNode.ID())),
+		z.Str("nickname", conf.Nickname),
 		z.Int("peer_index", nodeIdx.PeerIdx),
 		z.Str("cluster_name", cluster.GetName()),
 		z.Str("cluster_hash", lockHashHex),
@@ -233,6 +247,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		"cluster_hash":    lockHashHex,
 		"cluster_name":    cluster.GetName(),
 		"cluster_peer":    p2p.PeerName(tcpNode.ID()),
+		"nickname":        conf.Nickname,
 		"cluster_network": network,
 		"charon_version":  version.Version.String(),
 	}
@@ -294,7 +309,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		promRegistry, consensusDebugger, pubkeys, seenPubkeys, vapiCalls, len(cluster.GetValidators()))
 
 	err = wireCoreWorkflow(ctx, life, conf, cluster, nodeIdx, tcpNode, p2pKey, eth2Cl, subEth2Cl,
-		peerIDs, sender, consensusDebugger, seenPubkeysFunc, vapiCallsFunc)
+		peerIDs, sender, consensusDebugger, pubkeys, seenPubkeysFunc, vapiCallsFunc)
 	if err != nil {
 		return err
 	}
@@ -366,7 +381,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	cluster *manifestpb.Cluster, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *k1.PrivateKey,
 	eth2Cl, submissionEth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
-	consensusDebugger consensus.Debugger, seenPubkeys func(core.PubKey),
+	consensusDebugger consensus.Debugger, pubkeys []core.PubKey, seenPubkeys func(core.PubKey),
 	vapiCalls func(),
 ) error {
 	// Convert and prep public keys and public shares
@@ -467,10 +482,10 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 		ctx = log.WithCtx(ctx, z.Bool("first_refresh", firstValCacheRefresh))
 
-		log.Debug(ctx, "Refreshing validator cache")
+		log.Info(ctx, "Refreshing validator cache")
 
 		valCache.Trim()
-		_, _, err := valCache.Get(ctx)
+		_, _, err := valCache.GetBySlot(ctx, slot.Slot)
 		if err != nil {
 			log.Error(ctx, "Cannot refresh validator cache", err)
 			return err
@@ -486,7 +501,11 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	fetch, err := fetcher.New(eth2Cl, feeRecipientFunc, conf.BuilderAPI)
+	graffitiBuilder, err := fetcher.NewGraffitiBuilder(pubkeys, conf.Graffiti, conf.GraffitiDisableClientAppend, eth2Cl)
+	if err != nil {
+		return err
+	}
+	fetch, err := fetcher.New(eth2Cl, feeRecipientFunc, conf.BuilderAPI, graffitiBuilder)
 	if err != nil {
 		return err
 	}
@@ -792,10 +811,11 @@ func calculateTrackerDelay(ctx context.Context, cl eth2wrap.Client, now time.Tim
 	const maxDelayTime = time.Second * 10 // We want to delay at most 10 seconds
 	const minDelaySlots = 2               // But we do not want to delay less than 2 slots
 
-	genesisTime, err := cl.GenesisTime(ctx)
+	genesis, err := cl.Genesis(ctx, &eth2api.GenesisOpts{})
 	if err != nil {
 		return 0, err
 	}
+	genesisTime := genesis.Data.GenesisTime
 
 	eth2Resp, err := cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
@@ -838,7 +858,7 @@ func eth2PubKeys(cluster *manifestpb.Cluster) ([]eth2p0.BLSPubKey, error) {
 
 // newETH2Client returns a new eth2client for the configured timeouts; it is either a beaconmock for
 // simnet or a multi http client to a real beacon node.
-func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cluster *manifestpb.Cluster, forkVersion []byte, bnTimeout time.Duration, submissionBnTimeout time.Duration) (eth2wrap.Client, eth2wrap.Client, error) {
+func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cluster *manifestpb.Cluster, forkVersion []byte, bnTimeout time.Duration, submissionBnTimeout time.Duration) (eth2Cl eth2wrap.Client, submissionEth2Cl eth2wrap.Client, err error) {
 	pubkeys, err := eth2PubKeys(cluster)
 	if err != nil {
 		return nil, nil, err
@@ -927,12 +947,12 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 		return nil, nil, err
 	}
 
-	eth2Cl, err := configureEth2Client(ctx, forkVersion, conf.FallbackBeaconNodeAddrs, conf.BeaconNodeAddrs, beaconNodeHeaders, bnTimeout, conf.SyntheticBlockProposals)
+	eth2Cl, err = configureEth2Client(ctx, forkVersion, conf.FallbackBeaconNodeAddrs, conf.BeaconNodeAddrs, beaconNodeHeaders, bnTimeout, conf.SyntheticBlockProposals)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new eth2 http client")
 	}
 
-	submissionEth2Cl, err := configureEth2Client(ctx, forkVersion, conf.FallbackBeaconNodeAddrs, conf.BeaconNodeAddrs, beaconNodeHeaders, submissionBnTimeout, conf.SyntheticBlockProposals)
+	submissionEth2Cl, err = configureEth2Client(ctx, forkVersion, conf.FallbackBeaconNodeAddrs, conf.BeaconNodeAddrs, beaconNodeHeaders, submissionBnTimeout, conf.SyntheticBlockProposals)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new submission eth2 http client")
 	}
@@ -1034,16 +1054,17 @@ func wireVAPIRouter(ctx context.Context, life *lifecycle.Manager, vapiAddr strin
 }
 
 // wireTracing constructs the global tracer and registers it with the life cycle manager.
-func wireTracing(life *lifecycle.Manager, conf Config) error {
-	stopjaeger, err := tracer.Init(
-		tracer.WithJaegerOrNoop(conf.JaegerAddr),
-		tracer.WithJaegerService(conf.JaegerService),
+func wireTracing(life *lifecycle.Manager, conf Config, clusterHash string) error {
+	stopTracer, err := tracer.Init(
+		tracer.WithOTLPTracer(conf.OTLPAddress),
+		tracer.WithServiceName(conf.OTLPServiceName),
+		tracer.WithNamespaceName(clusterHash),
 	)
 	if err != nil {
-		return errors.Wrap(err, "init jaeger tracing")
+		return errors.Wrap(err, "init tracing")
 	}
 
-	life.RegisterStop(lifecycle.StopTracing, lifecycle.HookFunc(stopjaeger))
+	life.RegisterStop(lifecycle.StopTracing, lifecycle.HookFunc(stopTracer))
 
 	return nil
 }

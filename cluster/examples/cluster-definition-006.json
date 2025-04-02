@@ -51,5 +51,5 @@
   "consensus_protocol": "",
   "target_gas_limit": 30000000,
   "config_hash": "0x10ac111410084511b00cbbbd3fe11c649425a53f2db97322a70520b287089b86",
-  "definition_hash": "0xec542a3aa3dbdce4e57551b491e536eb1bf2abb46dba2c4d238a93075f19318a"
+  "definition_hash": "0x51034f15f40b45458f5d2fd57b10a4662e745709b3e459c2ad0f715efefd0af3"
 }

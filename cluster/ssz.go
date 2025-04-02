@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cluster
 
@@ -469,6 +469,10 @@ func hashDefinitionV1x10(d Definition, hh ssz.HashWalker, configOnly bool) error
 		func(d Definition, hh ssz.HashWalker) error {
 			// Field (13) 'TargetGasLimit' uint64
 			hh.PutUint64(uint64(d.TargetGasLimit))
+
+			// Field (14) 'Compounding' bool
+			hh.PutBool(d.Compounding)
+
 			return nil
 		},
 	})

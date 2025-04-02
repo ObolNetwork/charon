@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cmd
 
@@ -32,6 +32,7 @@ type testInfraConfig struct {
 	DiskIOBlockSizeKb          int
 	InternetTestServersOnly    []string
 	InternetTestServersExclude []string
+	DiskTestTool               DiskTestTool
 }
 
 type fioResult struct {
@@ -94,6 +95,7 @@ func newTestInfraCmd(runFunc func(context.Context, io.Writer, testInfraConfig) (
 
 	bindTestFlags(cmd, &config.testConfig)
 	bindTestInfraFlags(cmd, &config, "")
+	config.DiskTestTool = FioTestTool{}
 
 	return cmd
 }
@@ -239,26 +241,15 @@ func infraDiskWriteSpeedTest(ctx context.Context, conf *testInfraConfig) testRes
 		z.Any("jobs", diskOpsNumOfJobs),
 		z.Any("test_file_path", testFilePath))
 
-	_, err = exec.LookPath("fio")
-	if err != nil {
-		return failedTestResult(testRes, errFioNotFound)
-	}
-
-	out, err := fioCommand(ctx, testFilePath, conf.DiskIOBlockSizeKb, "write")
-	if err != nil {
-		return failedTestResult(testRes, errors.Wrap(err, string(out)))
-	}
-	defer os.Remove(testFilePath)
-
-	var fioRes fioResult
-	err = json.Unmarshal(out, &fioRes)
+	err = conf.DiskTestTool.CheckAvailability()
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
 
-	// jobs are grouped, so we pick the first and only one
-	// bw (bandwidth) is in KB, convert it to MB
-	diskWriteMBs := fioRes.Jobs[0].Write.Bw / 1024
+	diskWriteMBs, err := conf.DiskTestTool.WriteSpeed(ctx, testFilePath, conf.DiskIOBlockSizeKb)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
 
 	if diskWriteMBs < diskWriteSpeedMBsPoor {
 		testRes.Verdict = testVerdictPoor
@@ -291,25 +282,15 @@ func infraDiskWriteIOPSTest(ctx context.Context, conf *testInfraConfig) testResu
 		z.Any("jobs", diskOpsNumOfJobs),
 		z.Any("test_file_path", testFilePath))
 
-	_, err = exec.LookPath("fio")
-	if err != nil {
-		return failedTestResult(testRes, errFioNotFound)
-	}
-
-	out, err := fioCommand(ctx, testFilePath, conf.DiskIOBlockSizeKb, "write")
-	if err != nil {
-		return failedTestResult(testRes, errors.Wrap(err, string(out)))
-	}
-	defer os.Remove(testFilePath)
-
-	var fioRes fioResult
-	err = json.Unmarshal(out, &fioRes)
+	err = conf.DiskTestTool.CheckAvailability()
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
 
-	// jobs are grouped, so we pick the first and only one
-	diskWriteIOPS := fioRes.Jobs[0].Write.Iops
+	diskWriteIOPS, err := conf.DiskTestTool.WriteIOPS(ctx, testFilePath, conf.DiskIOBlockSizeKb)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
 
 	if diskWriteIOPS < diskWriteIOPSPoor {
 		testRes.Verdict = testVerdictPoor
@@ -342,26 +323,15 @@ func infraDiskReadSpeedTest(ctx context.Context, conf *testInfraConfig) testResu
 		z.Any("jobs", diskOpsNumOfJobs),
 		z.Any("test_file_path", testFilePath))
 
-	_, err = exec.LookPath("fio")
-	if err != nil {
-		return failedTestResult(testRes, errFioNotFound)
-	}
-
-	out, err := fioCommand(ctx, testFilePath, conf.DiskIOBlockSizeKb, "read")
-	if err != nil {
-		return failedTestResult(testRes, errors.Wrap(err, string(out)))
-	}
-	defer os.Remove(testFilePath)
-
-	var fioRes fioResult
-	err = json.Unmarshal(out, &fioRes)
+	err = conf.DiskTestTool.CheckAvailability()
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
 
-	// jobs are grouped, so we pick the first and only one
-	// bw (bandwidth) is in KB, convert it to MB
-	diskReadMBs := fioRes.Jobs[0].Read.Bw / 1024
+	diskReadMBs, err := conf.DiskTestTool.ReadSpeed(ctx, testFilePath, conf.DiskIOBlockSizeKb)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
 
 	if diskReadMBs < diskReadSpeedMBsPoor {
 		testRes.Verdict = testVerdictPoor
@@ -394,25 +364,15 @@ func infraDiskReadIOPSTest(ctx context.Context, conf *testInfraConfig) testResul
 		z.Any("jobs", diskOpsNumOfJobs),
 		z.Any("test_file_path", testFilePath))
 
-	_, err = exec.LookPath("fio")
-	if err != nil {
-		return failedTestResult(testRes, errFioNotFound)
-	}
-
-	out, err := fioCommand(ctx, testFilePath, conf.DiskIOBlockSizeKb, "read")
-	if err != nil {
-		return failedTestResult(testRes, errors.Wrap(err, string(out)))
-	}
-	defer os.Remove(testFilePath)
-
-	var fioRes fioResult
-	err = json.Unmarshal(out, &fioRes)
+	err = conf.DiskTestTool.CheckAvailability()
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
 
-	// jobs are grouped, so we pick the first and only one
-	diskReadIOPS := fioRes.Jobs[0].Read.Iops
+	diskReadIOPS, err := conf.DiskTestTool.ReadSpeed(ctx, testFilePath, conf.DiskIOBlockSizeKb)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
 
 	if diskReadIOPS < diskReadIOPSPoor {
 		testRes.Verdict = testVerdictPoor
@@ -584,6 +544,104 @@ func infraInternetUploadSpeedTest(ctx context.Context, conf *testInfraConfig) te
 }
 
 // helper functions
+
+// DiskTestTool is the interface for different tools used for testing the disk.
+type DiskTestTool interface {
+	CheckAvailability() error
+	WriteSpeed(ctx context.Context, testFilePath string, blockSize int) (float64, error)
+	WriteIOPS(ctx context.Context, testFilePath string, blockSize int) (float64, error)
+	ReadSpeed(ctx context.Context, testFilePath string, blockSize int) (float64, error)
+	ReadIOPS(ctx context.Context, testFilePath string, blockSize int) (float64, error)
+}
+
+type FioTestTool struct{}
+
+func (FioTestTool) CheckAvailability() error {
+	_, err := exec.LookPath("fio")
+	if err != nil {
+		return errFioNotFound
+	}
+
+	return nil
+}
+
+func (FioTestTool) WriteSpeed(ctx context.Context, testFilePath string, blockSize int) (float64, error) {
+	out, err := fioCommand(ctx, testFilePath, blockSize, "write")
+	if err != nil {
+		return 0, errors.Wrap(err, string(out))
+	}
+	defer os.Remove(testFilePath)
+
+	var fioRes fioResult
+	err = json.Unmarshal(out, &fioRes)
+	if err != nil {
+		return 0, errors.Wrap(err, "unmarshal fio result")
+	}
+
+	// jobs are grouped, so we pick the first and only one
+	// bw (bandwidth) is in KB, convert it to MB
+	diskWriteMBs := fioRes.Jobs[0].Write.Bw / 1024
+
+	return diskWriteMBs, nil
+}
+
+func (FioTestTool) WriteIOPS(ctx context.Context, testFilePath string, blockSize int) (float64, error) {
+	out, err := fioCommand(ctx, testFilePath, blockSize, "write")
+	if err != nil {
+		return 0, errors.Wrap(err, string(out))
+	}
+	defer os.Remove(testFilePath)
+
+	var fioRes fioResult
+	err = json.Unmarshal(out, &fioRes)
+	if err != nil {
+		return 0, errors.Wrap(err, "unmarshal fio result")
+	}
+
+	// jobs are grouped, so we pick the first and only one
+	diskWriteIOPS := fioRes.Jobs[0].Write.Iops
+
+	return diskWriteIOPS, nil
+}
+
+func (FioTestTool) ReadSpeed(ctx context.Context, testFilePath string, blockSize int) (float64, error) {
+	out, err := fioCommand(ctx, testFilePath, blockSize, "read")
+	if err != nil {
+		return 0, errors.Wrap(err, string(out))
+	}
+	defer os.Remove(testFilePath)
+
+	var fioRes fioResult
+	err = json.Unmarshal(out, &fioRes)
+	if err != nil {
+		return 0, errors.Wrap(err, "unmarshal fio result")
+	}
+
+	// jobs are grouped, so we pick the first and only one
+	// bw (bandwidth) is in KB, convert it to MB
+	diskReadMBs := fioRes.Jobs[0].Read.Bw / 1024
+
+	return diskReadMBs, nil
+}
+
+func (FioTestTool) ReadIOPS(ctx context.Context, testFilePath string, blockSize int) (float64, error) {
+	out, err := fioCommand(ctx, testFilePath, blockSize, "read")
+	if err != nil {
+		return 0, errors.Wrap(err, string(out))
+	}
+	defer os.Remove(testFilePath)
+
+	var fioRes fioResult
+	err = json.Unmarshal(out, &fioRes)
+	if err != nil {
+		return 0, errors.Wrap(err, "unmarshal fio result")
+	}
+
+	// jobs are grouped, so we pick the first and only one
+	diskReadIOPS := fioRes.Jobs[0].Read.Iops
+
+	return diskReadIOPS, nil
+}
 
 func fioCommand(ctx context.Context, filename string, blocksize int, operation string) ([]byte, error) {
 	//nolint:gosec

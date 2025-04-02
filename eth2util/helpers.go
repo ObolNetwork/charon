@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package eth2util
 
@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	eth2client "github.com/attestantio/go-eth2-client"
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"golang.org/x/crypto/sha3"
@@ -22,9 +23,10 @@ import (
 func ValidateBeaconNodeHeaders(headers []string) error {
 	if len(headers) > 0 {
 		// The pattern ([^=,]+) captures any string that does not contain '=' or ','.
-		// The composition of patterns ([^=,]+)=([^=,]+) captures a pair of header and its corresponding value.
+		// The pattern ([^,]+) captures any string that does not contain ','.
+		// The composition of patterns ([^=,]+)=([^,]+) captures a pair of header and its corresponding value.
 		// We use ^ at the start and $ at the end to ensure exact match.
-		headerPattern := regexp.MustCompile(`^([^=,]+)=([^=,]+)$`)
+		headerPattern := regexp.MustCompile(`^([^=,]+)=([^,]+)$`)
 		for _, header := range headers {
 			if !headerPattern.MatchString(header) {
 				return errors.New("beacon node headers must be comma separated values formatted as header=value")
@@ -35,7 +37,7 @@ func ValidateBeaconNodeHeaders(headers []string) error {
 	return nil
 }
 
-// ParseBeaconNodeHeader validates and parses a string of headers into a map of key-value pairs.
+// ParseBeaconNodeHeaders validates and parses a string of headers into a map of key-value pairs.
 // Returns empty map if string is empty.
 func ParseBeaconNodeHeaders(headers []string) (map[string]string, error) {
 	parsedHeaders := make(map[string]string)
@@ -49,7 +51,7 @@ func ParseBeaconNodeHeaders(headers []string) (map[string]string, error) {
 	}
 
 	for _, header := range headers {
-		pair := strings.Split(header, "=")
+		pair := strings.SplitN(header, "=", 2)
 		parsedHeaders[pair[0]] = pair[1]
 	}
 
@@ -57,10 +59,14 @@ func ParseBeaconNodeHeaders(headers []string) (map[string]string, error) {
 }
 
 // EpochFromSlot returns epoch calculated from given slot.
-func EpochFromSlot(ctx context.Context, eth2Cl eth2client.SlotsPerEpochProvider, slot eth2p0.Slot) (eth2p0.Epoch, error) {
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
+func EpochFromSlot(ctx context.Context, eth2Cl eth2client.SpecProvider, slot eth2p0.Slot) (eth2p0.Epoch, error) {
+	respSpec, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
-		return 0, errors.Wrap(err, "getting slots per epoch")
+		return 0, errors.Wrap(err, "getting spec")
+	}
+	slotsPerEpoch, ok := respSpec.Data["SLOTS_PER_EPOCH"].(uint64)
+	if !ok {
+		return 0, errors.New("fetch slots per epoch")
 	}
 
 	return eth2p0.Epoch(uint64(slot) / slotsPerEpoch), nil
@@ -79,7 +85,7 @@ func ChecksumAddress(address string) (string, error) {
 	return checksumAddressBytes(b), nil
 }
 
-// ChecksumAddress returns an EIP55-compliant 0xhex representation of the binary ethereum address.
+// checksumAddressBytes returns an EIP55-compliant 0xhex representation of the binary ethereum address.
 func checksumAddressBytes(addressBytes []byte) string {
 	hexAddr := hex.EncodeToString(addressBytes)
 

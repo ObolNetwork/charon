@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Package eth2wrap provides a wrapper for eth2http.Service adding prometheus metrics and error wrapping.
 package eth2wrap
@@ -37,6 +37,7 @@ var (
 		Subsystem: "eth2",
 		Name:      "latency_seconds",
 		Help:      "Latency in seconds for eth2 beacon node requests",
+		Buckets:   []float64{.01, .025, .05, .1, .25, .5, .75, 1, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3, 5},
 	}, []string{"endpoint"})
 
 	errorCount = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -46,10 +47,19 @@ var (
 		Help:      "Total number of errors returned by eth2 beacon node requests",
 	}, []string{"endpoint"})
 
+	usingFallbackGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "app",
+		Subsystem: "eth2",
+		Name:      "using_fallback",
+		Help:      "Indicates if client is using fallback (1) or primary (0) beacon node",
+	})
+
 	// Interface assertions.
 	_ Client = (*httpAdapter)(nil)
 	_ Client = multi{}
 	_ Client = (*lazy)(nil)
+
+	ErrEndpointNotFound = errors.New("endpoint not found")
 )
 
 // Instrument returns a new multi instrumented client using the provided clients as backends
@@ -120,7 +130,7 @@ func newBeaconClient(timeout time.Duration, forkVersion [4]byte, headers map[str
 			return nil, errors.New("invalid eth2 http service")
 		}
 
-		adaptedCl := AdaptEth2HTTP(eth2Http, timeout)
+		adaptedCl := AdaptEth2HTTP(eth2Http, headers, timeout)
 		adaptedCl.SetForkVersion(forkVersion)
 
 		return adaptedCl, nil
@@ -145,7 +155,13 @@ func provide[O any](ctx context.Context, clients []Client, fallbacks []Client,
 
 	zero := func() O { var z O; return z }()
 
-	runForkJoin := func(clients []Client) (O, error) {
+	runForkJoin := func(clients []Client, isFallback bool) (O, error) {
+		if isFallback {
+			usingFallbackGauge.Set(1)
+		} else {
+			usingFallbackGauge.Set(0)
+		}
+
 		fork, join, cancel := forkjoin.New(ctx, work,
 			forkjoin.WithoutFailFast(),
 			forkjoin.WithWorkers(len(clients)),
@@ -184,12 +200,12 @@ func provide[O any](ctx context.Context, clients []Client, fallbacks []Client,
 		return nokResp.Output, nokResp.Err
 	}
 
-	output, err := runForkJoin(clients)
+	output, err := runForkJoin(clients, false)
 	if err == nil || ctx.Err() != nil || len(fallbacks) == 0 {
 		return output, err
 	}
 
-	return runForkJoin(fallbacks)
+	return runForkJoin(fallbacks, true)
 }
 
 type empty struct{}

@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package core
 
@@ -23,7 +23,7 @@ import (
 const lateFactor = 5
 
 // lateMin defines the minimum absolute value of the lateFactor.
-const lateMin = time.Second * 30 //nolint:revive // Min suffix is minimum not minute.
+const lateMin = time.Second * 30
 
 // DeadlineFunc is a function that returns the deadline for a duty.
 type DeadlineFunc func(Duty) (time.Time, bool)
@@ -199,10 +199,11 @@ func getCurrDuty(duties map[Duty]bool, deadlineFunc DeadlineFunc) (Duty, time.Ti
 
 // NewDutyDeadlineFunc returns the function that provides duty deadlines or false if the duty never deadlines.
 func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineFunc, error) {
-	genesis, err := eth2Cl.GenesisTime(ctx)
+	genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
 	if err != nil {
 		return nil, err
 	}
+	genesisTime := genesis.Data.GenesisTime
 
 	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
@@ -220,7 +221,7 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineF
 			return time.Time{}, false
 		}
 
-		start := genesis.Add(duration * time.Duration(duty.Slot))
+		start := genesisTime.Add(duration * time.Duration(duty.Slot))
 		delta := duration * time.Duration(lateFactor)
 		if delta < lateMin {
 			delta = lateMin

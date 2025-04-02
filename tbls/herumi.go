@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package tbls
 
@@ -24,7 +24,6 @@ var initOnce = sync.Once{}
 //nolint:gochecknoinits
 func init() {
 	initOnce.Do(func() {
-		//nolint:nosnakecase
 		if err := bls.Init(bls.BLS12_381); err != nil {
 			panic(errors.Wrap(err, "cannot initialize Herumi BLS"))
 		}

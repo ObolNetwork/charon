@@ -1,5 +1,5 @@
 # Container for building Go binary.
-FROM golang:1.23.5-bookworm AS builder
+FROM golang:1.24.1-bookworm AS builder
 # Install dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential git
 
@@ -56,5 +56,5 @@ CMD ["run"]
 LABEL org.opencontainers.image.source="https://github.com/obolnetwork/charon"
 LABEL org.opencontainers.image.title="charon"
 LABEL org.opencontainers.image.description="Proof of Stake Ethereum Distributed Validator Client"
-LABEL org.opencontainers.image.licenses="GPL v3"
+LABEL org.opencontainers.image.licenses="BUSL"
 LABEL org.opencontainers.image.documentation="https://github.com/ObolNetwork/charon/tree/main/docs"

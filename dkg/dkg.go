@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package dkg
 
@@ -20,6 +20,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/peerinfo"
@@ -54,6 +55,8 @@ type Config struct {
 	PublishAddr    string
 	PublishTimeout time.Duration
 	Publish        bool
+
+	ExecutionEngineAddr string
 
 	TestConfig TestConfig
 }
@@ -105,7 +108,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	version.LogInfo(ctx, "Charon DKG starting")
 
-	def, err := loadDefinition(ctx, conf)
+	eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
+	go eth1Cl.Run(ctx)
+
+	def, err := loadDefinition(ctx, conf, eth1Cl)
 	if err != nil {
 		return err
 	}
@@ -246,11 +252,15 @@ func Run(ctx context.Context, conf Config) (err error) {
 	// Sign, exchange and aggregate Deposit Data
 	depositAmounts := def.DepositAmounts
 	if len(depositAmounts) == 0 {
-		depositAmounts = []eth2p0.Gwei{deposit.MaxDepositAmount}
+		if cluster.SupportPartialDeposits(def.Version) {
+			depositAmounts = deposit.DefaultDepositAmounts()
+		} else {
+			depositAmounts = []eth2p0.Gwei{deposit.DefaultDepositAmount}
+		}
 	} else {
 		depositAmounts = deposit.DedupAmounts(depositAmounts)
 	}
-	depositDatas, err := signAndAggDepositData(ctx, ex, shares, def.WithdrawalAddresses(), network, nodeIdx, depositAmounts)
+	depositDatas, err := signAndAggDepositData(ctx, ex, shares, def.WithdrawalAddresses(), network, nodeIdx, depositAmounts, def.Compounding)
 	if err != nil {
 		return err
 	}
@@ -310,7 +320,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	if !conf.NoVerify {
-		if err := lock.VerifySignatures(); err != nil {
+		if err := lock.VerifySignatures(eth1Cl); err != nil {
 			return errors.Wrap(err, "invalid lock file")
 		}
 	}
@@ -430,7 +440,7 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, conf Config, peers []p2p.
 // when all peers are connected.
 func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKey, defHash []byte,
 	peerIDs []peer.ID, onFailure func(), testConfig TestConfig,
-) (func(context.Context) error, func(context.Context) error, error) {
+) (stepSyncFunc func(context.Context) error, shutdownFunc func(context.Context) error, err error) {
 	// Sign definition hash with charon-enr-private-key
 	// Note: libp2p signing does another hash of the defHash.
 
@@ -508,7 +518,7 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 	}
 
 	var step int
-	stepSyncFunc := func(ctx context.Context) error {
+	stepSyncFunc = func(ctx context.Context) error {
 		// Start next step ourselves by incrementing our step client side
 		step++
 		for _, client := range clients {
@@ -530,7 +540,7 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 	}
 
 	// Shutdown function stops all clients and server
-	shutdownFunc := func(ctx context.Context) error {
+	shutdownFunc = func(ctx context.Context) error {
 		for _, client := range clients {
 			err := client.Shutdown(ctx)
 			if err != nil {
@@ -605,13 +615,13 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 
 // signAndAggDepositData returns the deposit datas for each DV after signing, exchange and aggregation of partial signatures.
 func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share,
-	withdrawalAddresses []string, network string,
-	nodeIdx cluster.NodeIdx, depositAmounts []eth2p0.Gwei,
+	withdrawalAddresses []string, network string, nodeIdx cluster.NodeIdx,
+	depositAmounts []eth2p0.Gwei, compounding bool,
 ) ([][]eth2p0.DepositData, error) {
 	var depositDataForAmounts [][]eth2p0.DepositData
 
 	for i, amount := range depositAmounts {
-		parSig, despositMsgs, err := signDepositMsgs(shares, nodeIdx.ShareIdx, withdrawalAddresses, network, amount)
+		parSig, despositMsgs, err := signDepositMsgs(shares, nodeIdx.ShareIdx, withdrawalAddresses, network, amount, compounding)
 		if err != nil {
 			return nil, err
 		}
@@ -728,7 +738,7 @@ func signLockHash(shareIdx int, shares []share, hash []byte) (core.ParSignedData
 }
 
 // signDepositMsgs returns a partially signed dataset containing signatures of the deposit message signing root.
-func signDepositMsgs(shares []share, shareIdx int, withdrawalAddresses []string, network string, amount eth2p0.Gwei) (core.ParSignedDataSet, map[core.PubKey]eth2p0.DepositMessage, error) {
+func signDepositMsgs(shares []share, shareIdx int, withdrawalAddresses []string, network string, amount eth2p0.Gwei, compounding bool) (core.ParSignedDataSet, map[core.PubKey]eth2p0.DepositMessage, error) {
 	msgs := make(map[core.PubKey]eth2p0.DepositMessage)
 	set := make(core.ParSignedDataSet)
 	for i, share := range shares {
@@ -746,7 +756,7 @@ func signDepositMsgs(shares []share, shareIdx int, withdrawalAddresses []string,
 			return nil, nil, err
 		}
 
-		msg, err := deposit.NewMessage(pubkey, withdrawalHex, amount)
+		msg, err := deposit.NewMessage(pubkey, withdrawalHex, amount, compounding)
 		if err != nil {
 			return nil, nil, err
 		}

@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package validatorapi
 
@@ -40,17 +40,20 @@ const (
 // SlotFromTimestamp returns the Ethereum slot associated to a timestamp, given the genesis configuration fetched
 // from client.
 func SlotFromTimestamp(ctx context.Context, client eth2wrap.Client, timestamp time.Time) (eth2p0.Slot, error) {
-	genesis, err := client.GenesisTime(ctx)
+	genesis, err := client.Genesis(ctx, &eth2api.GenesisOpts{})
 	if err != nil {
 		return 0, err
-	} else if timestamp.Before(genesis) {
+	}
+	genesisTime := genesis.Data.GenesisTime
+	if timestamp.Before(genesisTime) {
+		genesisTime := genesis.Data.GenesisTime
 		// if timestamp is in the past (can happen in testing scenarios, there's no strict form of checking on it),  fall back on current timestamp.
 		nextTimestamp := time.Now()
 
 		log.Info(
 			ctx,
 			"timestamp before genesis, defaulting to current timestamp",
-			z.I64("genesis_timestamp", genesis.Unix()),
+			z.I64("genesis_timestamp", genesisTime.Unix()),
 			z.I64("overridden_timestamp", timestamp.Unix()),
 			z.I64("new_timestamp", nextTimestamp.Unix()),
 		)
@@ -68,7 +71,7 @@ func SlotFromTimestamp(ctx context.Context, client eth2wrap.Client, timestamp ti
 		return 0, errors.New("fetch slot duration")
 	}
 
-	delta := timestamp.Sub(genesis)
+	delta := timestamp.Sub(genesisTime)
 
 	return eth2p0.Slot(delta / slotDuration), nil
 }
@@ -195,10 +198,12 @@ type Component struct {
 	// Registered input functions
 
 	pubKeyByAttFunc           func(ctx context.Context, slot, commIdx, valCommIdx uint64) (core.PubKey, error)
+	pubKeyByAttV2Func         func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error)
 	awaitAttFunc              func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 	awaitProposalFunc         func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
 	awaitSyncContributionFunc func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	awaitAggAttFunc           func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)
+	awaitAggAttV2Func         func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error)
 	awaitAggSigDBFunc         func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
 	dutyDefFunc               func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
 	subs                      []func(context.Context, core.Duty, core.ParSignedDataSet) error
@@ -228,6 +233,12 @@ func (c *Component) RegisterPubKeyByAttestation(fn func(ctx context.Context, slo
 	c.pubKeyByAttFunc = fn
 }
 
+// RegisterPubKeyByAttestationV2 registers a function to query pubkeys by attestation.
+// It only supports a single function, since it is an input of the component.
+func (c *Component) RegisterPubKeyByAttestationV2(fn func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error)) {
+	c.pubKeyByAttV2Func = fn
+}
+
 // RegisterGetDutyDefinition registers a function to query duty definitions.
 // It supports a single function, since it is an input of the component.
 func (c *Component) RegisterGetDutyDefinition(fn func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)) {
@@ -238,6 +249,12 @@ func (c *Component) RegisterGetDutyDefinition(fn func(ctx context.Context, duty 
 // It supports a single function, since it is an input of the component.
 func (c *Component) RegisterAwaitAggAttestation(fn func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)) {
 	c.awaitAggAttFunc = fn
+}
+
+// RegisterAwaitAggAttestationV2 registers a function to query an aggregated attestation.
+// It supports a single function, since it is an input of the component.
+func (c *Component) RegisterAwaitAggAttestationV2(fn func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error)) {
+	c.awaitAggAttV2Func = fn
 }
 
 // RegisterAwaitAggSigDB registers a function to query aggregated signed data from aggSigDB.
@@ -260,10 +277,7 @@ func (c *Component) Subscribe(fn func(context.Context, core.Duty, core.ParSigned
 }
 
 // AttestationData implements the eth2client.AttesterDutiesProvider for the router.
-func (c Component) AttestationData(parent context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error) {
-	ctx, span := core.StartDutyTrace(parent, core.NewAttesterDuty(uint64(opts.Slot)), "core/validatorapi.AttestationData")
-	defer span.End()
-
+func (c Component) AttestationData(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error) {
 	att, err := c.awaitAttFunc(ctx, uint64(opts.Slot), uint64(opts.CommitteeIndex))
 	if err != nil {
 		return nil, err
@@ -274,14 +288,6 @@ func (c Component) AttestationData(parent context.Context, opts *eth2api.Attesta
 
 // SubmitAttestations implements the eth2client.AttestationsSubmitter for the router.
 func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p0.Attestation) error {
-	duty := core.NewAttesterDuty(uint64(attestations[0].Data.Slot))
-	if len(attestations) > 0 {
-		// Pick the first attestation slot to use as trace root.
-		var span trace.Span
-		ctx, span = core.StartDutyTrace(ctx, duty, "core/validatorapi.SubmitAttestations")
-		defer span.End()
-	}
-
 	setsBySlot := make(map[uint64]core.ParSignedDataSet)
 	for _, att := range attestations {
 		slot := uint64(att.Data.Slot)
@@ -300,6 +306,87 @@ func (c Component) SubmitAttestations(ctx context.Context, attestations []*eth2p
 		}
 
 		parSigData := core.NewPartialAttestation(att, c.shareIdx)
+
+		// Verify attestation signature
+		err = c.verifyPartialSig(ctx, parSigData, pubkey)
+		if err != nil {
+			return err
+		}
+
+		// Encode partial signed data and add to a set
+		set, ok := setsBySlot[slot]
+		if !ok {
+			set = make(core.ParSignedDataSet)
+			setsBySlot[slot] = set
+		}
+
+		set[pubkey] = parSigData
+	}
+
+	// Send sets to subscriptions.
+	for slot, set := range setsBySlot {
+		duty := core.NewAttesterDuty(slot)
+		ctx := log.WithCtx(ctx, z.Any("duty", duty))
+
+		for _, sub := range c.subs {
+			// No need to clone since sub auto clones.
+			err := sub(ctx, duty, set)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// SubmitAttestationsV2 implements the eth2client.AttestationsSubmitter for the router.
+func (c Component) SubmitAttestationsV2(ctx context.Context, attestationOpts *eth2api.SubmitAttestationsOpts) error {
+	attestations := attestationOpts.Attestations
+	setsBySlot := make(map[uint64]core.ParSignedDataSet)
+	for _, att := range attestations {
+		attData, err := att.Data()
+		if err != nil {
+			return errors.Wrap(err, "get attestation data")
+		}
+		slot := uint64(attData.Slot)
+
+		attCommitteeIndex, err := att.CommitteeIndex()
+		if err != nil {
+			return errors.Wrap(err, "get attestation committee index")
+		}
+
+		// ValidatorIndex is available only in post-pectra attestations, if it's not, procceed with pre-pectra flow
+		var pubkey core.PubKey
+		if att.ValidatorIndex != nil {
+			pubkey, err = c.pubKeyByAttV2Func(ctx, slot, uint64(attCommitteeIndex), uint64(*att.ValidatorIndex))
+			if err != nil {
+				return errors.Wrap(err, "failed to find v2 pubkey", z.U64("slot", slot),
+					z.U64("commIdx", uint64(attCommitteeIndex)), z.U64("valIdx", uint64(*att.ValidatorIndex)))
+			}
+		} else {
+			aggBits, err := att.AggregationBits()
+			if err != nil {
+				return errors.Wrap(err, "get attestation aggregation bits", z.U64("slot", slot),
+					z.U64("commIdx", uint64(attCommitteeIndex)))
+			}
+			indices := aggBits.BitIndices()
+			if len(indices) != 1 {
+				return errors.New("unexpected number of aggregation bits",
+					z.Str("aggbits", fmt.Sprintf("%#x", []byte(aggBits))))
+			}
+
+			pubkey, err = c.pubKeyByAttFunc(ctx, slot, uint64(attCommitteeIndex), uint64(indices[0]))
+			if err != nil {
+				return errors.Wrap(err, "failed to find pubkey", z.U64("slot", slot),
+					z.Int("commIdx", int(attCommitteeIndex)), z.Int("valCommIdx", indices[0]))
+			}
+		}
+
+		parSigData, err := core.NewPartialVersionedAttestation(att, c.shareIdx)
+		if err != nil {
+			return err
+		}
 
 		// Verify attestation signature
 		err = c.verifyPartialSig(ctx, parSigData, pubkey)
@@ -462,31 +549,32 @@ func propDataMatchesDuty(opts *eth2api.SubmitProposalOpts, prop *eth2api.Version
 	case eth2spec.DataVersionAltair:
 		return checkHashes(prop.Altair, opts.Proposal.Altair.Message)
 	case eth2spec.DataVersionBellatrix:
-		switch prop.Blinded {
-		case false:
-			return checkHashes(prop.Bellatrix, opts.Proposal.Bellatrix.Message)
-		case true:
+		if prop.Blinded {
 			return checkHashes(prop.BellatrixBlinded, opts.Proposal.BellatrixBlinded.Message)
 		}
+
+		return checkHashes(prop.Bellatrix, opts.Proposal.Bellatrix.Message)
 	case eth2spec.DataVersionCapella:
-		switch prop.Blinded {
-		case false:
-			return checkHashes(prop.Capella, opts.Proposal.Capella.Message)
-		case true:
+		if prop.Blinded {
 			return checkHashes(prop.CapellaBlinded, opts.Proposal.CapellaBlinded.Message)
 		}
+
+		return checkHashes(prop.Capella, opts.Proposal.Capella.Message)
 	case eth2spec.DataVersionDeneb:
-		switch prop.Blinded {
-		case false:
-			return checkHashes(prop.Deneb.Block, opts.Proposal.Deneb.SignedBlock.Message)
-		case true:
+		if prop.Blinded {
 			return checkHashes(prop.DenebBlinded, opts.Proposal.DenebBlinded.Message)
 		}
-	case eth2spec.DataVersionUnknown:
+
+		return checkHashes(prop.Deneb.Block, opts.Proposal.Deneb.SignedBlock.Message)
+	case eth2spec.DataVersionElectra:
+		if prop.Blinded {
+			return checkHashes(prop.ElectraBlinded, opts.Proposal.ElectraBlinded.Message)
+		}
+
+		return checkHashes(prop.Electra.Block, opts.Proposal.Electra.SignedBlock.Message)
+	default:
 		return errors.New("unexpected block version", z.Str("version", prop.Version.String()))
 	}
-
-	return nil
 }
 
 func (c Component) SubmitProposal(ctx context.Context, opts *eth2api.SubmitProposalOpts) error {
@@ -496,6 +584,10 @@ func (c Component) SubmitProposal(ctx context.Context, opts *eth2api.SubmitPropo
 	}
 
 	duty := core.NewProposerDuty(uint64(slot))
+
+	var span trace.Span
+	ctx, span = core.StartDutyTrace(ctx, duty, "core/validatorapi.SubmitProposal")
+	defer span.End()
 
 	pubkey, err := c.getProposerPubkey(ctx, duty)
 	if err != nil {
@@ -546,6 +638,10 @@ func (c Component) SubmitBlindedProposal(ctx context.Context, opts *eth2api.Subm
 	}
 
 	duty := core.NewProposerDuty(uint64(slot))
+	var span trace.Span
+	ctx, span = core.StartDutyTrace(ctx, duty, "core/validatorapi.SubmitBlindedProposal")
+	defer span.End()
+
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
 	pubkey, err := c.getProposerPubkey(ctx, duty)
@@ -566,6 +662,7 @@ func (c Component) SubmitBlindedProposal(ctx context.Context, opts *eth2api.Subm
 			BellatrixBlinded: opts.Proposal.Bellatrix,
 			CapellaBlinded:   opts.Proposal.Capella,
 			DenebBlinded:     opts.Proposal.Deneb,
+			ElectraBlinded:   opts.Proposal.Electra,
 		},
 		BroadcastValidation: opts.BroadcastValidation,
 	}, prop); err != nil {
@@ -692,10 +789,13 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 		return err
 	}
 
-	// Use 1st slot in exit epoch for duty.
-	slotsPerEpoch, err := c.eth2Cl.SlotsPerEpoch(ctx)
+	respSpec, err := c.eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
 		return err
+	}
+	slotsPerEpoch, ok := respSpec.Data["SLOTS_PER_EPOCH"].(uint64)
+	if !ok {
+		return errors.New("fetch slots per epoch")
 	}
 
 	duty := core.NewVoluntaryExit(slotsPerEpoch * uint64(exit.Message.Epoch))
@@ -781,6 +881,17 @@ func (c Component) AggregateAttestation(ctx context.Context, opts *eth2api.Aggre
 	return wrapResponse(aggAtt), nil
 }
 
+// AggregateAttestationV2 returns the aggregate attestation for the given attestation root.
+// It does a blocking query to DutyAggregator unsigned data from dutyDB.
+func (c Component) AggregateAttestationV2(ctx context.Context, opts *eth2api.AggregateAttestationOpts) (*eth2api.Response[*eth2spec.VersionedAttestation], error) {
+	aggAtt, err := c.awaitAggAttV2Func(ctx, uint64(opts.Slot), opts.AttestationDataRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	return wrapResponse(aggAtt), nil
+}
+
 // SubmitAggregateAttestations receives partially signed aggregateAndProofs.
 // - It verifies partial signature on AggregateAndProof.
 // - It then calls all the subscribers for further steps on partially signed aggregate and proof.
@@ -812,6 +923,75 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAnd
 		}
 
 		parSigData := core.NewPartialSignedAggregateAndProof(agg, c.shareIdx)
+
+		// Verify outer partial signature.
+		err = c.verifyPartialSig(ctx, parSigData, pk)
+		if err != nil {
+			return err
+		}
+
+		_, ok = psigsBySlot[slot]
+		if !ok {
+			psigsBySlot[slot] = make(core.ParSignedDataSet)
+		}
+
+		psigsBySlot[slot][pk] = parSigData
+	}
+
+	for slot, data := range psigsBySlot {
+		duty := core.NewAggregatorDuty(uint64(slot))
+		for _, sub := range c.subs {
+			err = sub(ctx, duty, data)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// SubmitAggregateAttestationsV2 receives partially signed aggregateAndProofs.
+// - It verifies partial signature on AggregateAndProof.
+// - It then calls all the subscribers for further steps on partially signed aggregate and proof.
+func (c Component) SubmitAggregateAttestationsV2(ctx context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
+	aggsAndProofs := aggregateAndProofs.SignedAggregateAndProofs
+	vals, err := c.eth2Cl.ActiveValidators(ctx)
+	if err != nil {
+		return err
+	}
+
+	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
+	for _, agg := range aggsAndProofs {
+		slot, err := agg.Slot()
+		if err != nil {
+			return err
+		}
+
+		aggregatorIndex, err := agg.AggregatorIndex()
+		if err != nil {
+			return err
+		}
+
+		eth2Pubkey, ok := vals[aggregatorIndex]
+		if !ok {
+			return errors.New("validator not found")
+		}
+
+		pk, err := core.PubKeyFromBytes(eth2Pubkey[:])
+		if err != nil {
+			return err
+		}
+
+		// Verify inner selection proof (outcome of DutyPrepareAggregator).
+		if !c.insecureTest {
+			err = signing.VerifyAggregateAndProofSelectionV2(ctx, c.eth2Cl, tbls.PublicKey(eth2Pubkey), agg)
+			if err != nil {
+				return err
+			}
+		}
+
+		parSigData := core.NewPartialVersionedSignedAggregateAndProof(agg, c.shareIdx)
 
 		// Verify outer partial signature.
 		err = c.verifyPartialSig(ctx, parSigData, pk)
@@ -1306,10 +1486,11 @@ func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigR
 		return nil, errors.New("fetch slot duration")
 	}
 
-	timestamp, err := c.eth2Cl.GenesisTime(ctx)
+	genesis, err := c.eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
 	if err != nil {
 		return nil, err
 	}
+	timestamp := genesis.Data.GenesisTime
 	timestamp = timestamp.Add(slotDuration) // Use slot 1 for timestamp to override pre-generated registrations.
 
 	for pubkey, pubshare := range c.sharesByKey {

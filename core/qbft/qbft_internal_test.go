@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package qbft
 
@@ -433,7 +433,7 @@ func testQBFT(t *testing.T, test test) {
 			for _, commit := range qCommit {
 				// Ensure that all results are the same
 				for _, previous := range results {
-					require.EqualValues(t, previous.Value(), commit.Value(), "commit values")
+					require.Equal(t, previous.Value(), commit.Value(), "commit values")
 				}
 				if !test.RandomRound {
 					require.EqualValues(t, test.DecideRound, commit.Round(), "wrong decide round")

@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package combine_test
 
@@ -32,7 +32,7 @@ func noLockModif(_ int, l cluster.Lock) cluster.Lock {
 func TestCombineNoLockfile(t *testing.T) {
 	td := t.TempDir()
 	od := t.TempDir()
-	err := combine.Combine(context.Background(), td, od, false, false, eth2util.Network{})
+	err := combine.Combine(context.Background(), td, od, false, false, "", eth2util.Network{})
 	require.ErrorContains(t, err, "no manifest file found")
 }
 
@@ -59,14 +59,14 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 
 	// for each ENR, create a slice of keys to hold
 	// each set will be len(lock.Definition.Operators)
-	secrets := make([][]tbls.PrivateKey, len(lock.Definition.Operators))
+	secrets := make([][]tbls.PrivateKey, len(lock.Operators))
 
 	// populate key sets
-	for enrIdx := range len(lock.Definition.Operators) {
+	for enrIdx := range len(lock.Operators) {
 		keyIdx := enrIdx
 		for range lock.NumValidators {
 			secrets[enrIdx] = append(secrets[enrIdx], rawSecrets[keyIdx])
-			keyIdx += len(lock.Definition.Operators)
+			keyIdx += len(lock.Operators)
 		}
 	}
 
@@ -88,7 +88,7 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 	require.NoError(t, os.RemoveAll(filepath.Join(dir, "node0")))
 	require.NoError(t, os.RemoveAll(filepath.Join(dir, "node1")))
 
-	err := combine.Combine(context.Background(), dir, od, false, false, eth2util.Network{}, combine.WithInsecureKeysForT(t))
+	err := combine.Combine(context.Background(), dir, od, false, false, "", eth2util.Network{}, combine.WithInsecureKeysForT(t))
 	require.ErrorContains(t, err, "insufficient private key shares found for validator")
 }
 
@@ -297,14 +297,14 @@ func combineTest(
 
 	// for each ENR, create a slice of keys to hold
 	// each set will be len(lock.Definition.Operators)
-	secrets := make([][]tbls.PrivateKey, len(lock.Definition.Operators))
+	secrets := make([][]tbls.PrivateKey, len(lock.Operators))
 
 	// populate key sets
-	for enrIdx := range len(lock.Definition.Operators) {
+	for enrIdx := range len(lock.Operators) {
 		keyIdx := enrIdx
 		for range lock.NumValidators {
 			secrets[enrIdx] = append(secrets[enrIdx], rawSecrets[keyIdx])
-			keyIdx += len(lock.Definition.Operators)
+			keyIdx += len(lock.Operators)
 		}
 	}
 
@@ -334,7 +334,7 @@ func combineTest(
 		}
 	}
 
-	err := combine.Combine(context.Background(), dir, od, true, noVerify, testnetConfig, combine.WithInsecureKeysForT(t))
+	err := combine.Combine(context.Background(), dir, od, true, noVerify, "", testnetConfig, combine.WithInsecureKeysForT(t))
 	if wantErr {
 		require.Error(t, err)
 		return
@@ -412,14 +412,14 @@ func runTwice(t *testing.T, force bool, processErr require.ErrorAssertionFunc) {
 
 	// for each ENR, create a slice of keys to hold
 	// each set will be len(lock.Definition.Operators)
-	secrets := make([][]tbls.PrivateKey, len(lock.Definition.Operators))
+	secrets := make([][]tbls.PrivateKey, len(lock.Operators))
 
 	// populate key sets
-	for enrIdx := range len(lock.Definition.Operators) {
+	for enrIdx := range len(lock.Operators) {
 		keyIdx := enrIdx
 		for range lock.NumValidators {
 			secrets[enrIdx] = append(secrets[enrIdx], rawSecrets[keyIdx])
-			keyIdx += len(lock.Definition.Operators)
+			keyIdx += len(lock.Operators)
 		}
 	}
 
@@ -438,10 +438,10 @@ func runTwice(t *testing.T, force bool, processErr require.ErrorAssertionFunc) {
 		require.NoError(t, json.NewEncoder(lf).Encode(lock))
 	}
 
-	err := combine.Combine(context.Background(), dir, od, false, false, eth2util.Network{}, combine.WithInsecureKeysForT(t))
+	err := combine.Combine(context.Background(), dir, od, false, false, "", eth2util.Network{}, combine.WithInsecureKeysForT(t))
 	require.NoError(t, err)
 
-	err = combine.Combine(context.Background(), dir, od, force, false, eth2util.Network{}, combine.WithInsecureKeysForT(t))
+	err = combine.Combine(context.Background(), dir, od, force, false, "", eth2util.Network{}, combine.WithInsecureKeysForT(t))
 	processErr(t, err)
 
 	keyFiles, err := keystore.LoadFilesUnordered(od)

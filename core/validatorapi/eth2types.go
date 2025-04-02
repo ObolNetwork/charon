@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package validatorapi
 
@@ -91,6 +91,11 @@ type validatorResponse struct {
 	ExecutionOptimistic bool        `json:"execution_optimistic"`
 	Finalized           bool        `json:"finalized"`
 	Data                v1Validator `json:"data"`
+}
+
+type aggregateAttestationV2Response struct {
+	Version string `json:"version"`
+	Data    any    `json:"data"`
 }
 
 type aggregateBeaconCommitteeSelectionsJSON struct {

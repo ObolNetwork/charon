@@ -17,6 +17,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_beacon_node_version` | Gauge | Constant gauge with label set to the node version of the upstream beacon node | `version` |
 | `app_eth2_errors_total` | Counter | Total number of errors returned by eth2 beacon node requests | `endpoint` |
 | `app_eth2_latency_seconds` | Histogram | Latency in seconds for eth2 beacon node requests | `endpoint` |
+| `app_eth2_using_fallback` | Gauge | Indicates if client is using fallback (1) or primary (0) beacon node |  |
 | `app_git_commit` | Gauge | Constant gauge with label set to current git commit hash | `git_hash` |
 | `app_health_checks` | Gauge | Application health checks by name and severity. Set to 1 for failing, 0 for ok. | `severity, name` |
 | `app_health_metrics_high_cardinality` | Gauge | Metrics with high cardinality by name. | `name` |
@@ -28,7 +29,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_peerinfo_clock_offset_seconds` | Gauge | Peer clock offset in seconds | `peer` |
 | `app_peerinfo_git_commit` | Gauge | Constant gauge with git_hash label set to peer`s git commit hash. | `peer, git_hash` |
 | `app_peerinfo_index` | Gauge | Constant gauge set to the peer index in the cluster definition | `peer` |
-| `app_peerinfo_nickname` | Gauge | Constant gauge with nickname label set to peer`s charon nickname. | `peer, nickname` |
+| `app_peerinfo_nickname` | Gauge | Constant gauge with nickname label set to peer`s charon nickname. | `peer, peer_nickname` |
 | `app_peerinfo_start_time_secs` | Gauge | Constant gauge set to the peer start time of the binary in unix seconds | `peer` |
 | `app_peerinfo_version` | Gauge | Constant gauge with version label set to peer`s charon version. | `peer, version` |
 | `app_peerinfo_version_support` | Gauge | Set to 1 if the peer`s version is supported by (compatible with) the current version, else 0 if unsupported. | `peer` |

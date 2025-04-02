@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package compose
 
@@ -73,7 +73,7 @@ type Config struct {
 	// Threshold required for signature reconstruction. Defaults to safe value for number of nodes/peers.
 	Threshold int `json:"threshold"`
 
-	// NumValidators is the number of DVs (n*32ETH) to be created in the cluster lock file.
+	// NumValidators is the number of DVs to be created in the cluster lock file.
 	NumValidators int `json:"num_validators"`
 
 	// ImageTag defines the charon docker image tag: obolnetwork/charon:{ImageTag}.

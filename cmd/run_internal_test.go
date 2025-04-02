@@ -1,4 +1,4 @@
-// Copyright © 2022-2024 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cmd
 
@@ -44,7 +44,7 @@ func TestBindPrivKeyFlag(t *testing.T) {
 
 			// Set envs (only for duration of the test)
 			for k, v := range test.Envs {
-				require.NoError(t, os.Setenv(k, v))
+				t.Setenv(k, v)
 			}
 
 			t.Cleanup(func() {
