@@ -88,11 +88,13 @@ jobs:
         echo "Listing host dist directory before test:"
         ls -l dist/
         echo "Testing ARM64 binary version..."
-        # Use an AMD64 container but install QEMU to run the ARM64 binary
+        # Use an AMD64 container but install QEMU and arm64 libs to run the ARM64 binary
         docker run --rm --platform linux/amd64 \
           -v $(pwd)/dist:/dist \
           golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
-          bash -c "apt-get update > /dev/null && apt-get install -y -qq qemu-user-static > /dev/null && \
+          bash -c "dpkg --add-architecture arm64 && \
+                   apt-get update > /dev/null && \
+                   apt-get install -y -qq --no-install-recommends qemu-user-static libc6:arm64 > /dev/null && \
           echo '--- Listing /dist inside container ---'; \
           ls -l /dist; \
           echo '--- Running version command ---'; \
