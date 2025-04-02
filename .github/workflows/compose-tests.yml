@@ -1,0 +1,41 @@
+name: Compose Tests
+on:
+  pull_request:
+  push:
+    branches:
+      - main*
+
+concurrency:
+  group: compose-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compose_tests:
+    runs-on: charon-ci
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up QEMU
+        id: qemu
+        uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: "image=moby/buildkit:v0.10.5"
+      - uses: ./.github/actions/setup-go
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - run: |
+          echo "CHARON_REPO=$(pwd)" >> $GITHUB_ENV
+          echo "DOCKER_BUILDKIT=1" >> $GITHUB_ENV
+      - run: go test -race github.com/obolnetwork/charon/testutil/compose/smoke -v -integration -sudo-perms -timeout=20m -log-dir=.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-test-logs
+          path: testutil/compose/smoke/*.log
+          retention-days: 3
