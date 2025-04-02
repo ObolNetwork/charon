@@ -8,10 +8,6 @@ on:
 
 jobs:
   build-binaries:
-    # Only run if the triggering workflow succeeded and it was triggered by a tag
-    if: >
-      github.event.workflow_run.conclusion == 'success' &&
-      startsWith(github.event.workflow_run.head_branch, 'refs/tags/v')
     runs-on: ubuntu-24.04
     name: Build Cross-Platform Binaries
     steps:
@@ -88,15 +84,3 @@ jobs:
           dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64.tar.gz
           dist/checksums.txt
 
-    - name: Attach to GitHub Release
-      if: github.event.workflow_run.conclusion == 'success'
-      uses: softprops/action-gh-release@v2
-      with:
-        files: |
-          dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz
-          dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64.tar.gz
-          dist/checksums.txt
-        draft: true
-        tag_name: ${{ github.event.workflow_run.head_branch }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
