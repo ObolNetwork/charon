@@ -34,12 +34,12 @@ jobs:
       run: |
         echo "APP_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
         echo "RELEASE_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
-        echo "GO_BUILD_FLAG=-ldflags=-X github.com/obolnetwork/charon/app/version.version=${{ github.ref_name }}" >> $GITHUB_ENV
+        echo "LDFLAGS_VALUE=-X github.com/obolnetwork/charon/app/version.version=${{ github.ref_name }}" >> $GITHUB_ENV
 
     - name: Set build flags for branch
       if: github.ref_type == 'branch'
       run: |
-        echo "GO_BUILD_FLAG=-ldflags=-X github.com/obolnetwork/charon/app/version.version=${{ env.APP_VERSION }}" >> $GITHUB_ENV
+        echo "LDFLAGS_VALUE=-X github.com/obolnetwork/charon/app/version.version=${{ env.APP_VERSION }}" >> $GITHUB_ENV
 
     - name: Install cross-compilation dependencies
       run: |
@@ -54,7 +54,7 @@ jobs:
           golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
           bash -c "apt-get update && apt-get install -y build-essential && \
           env CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
-          go build -tags='netgo osusergo' ${{ env.GO_BUILD_FLAG }} \
+          go build -tags='netgo osusergo' -ldflags \"${{ env.LDFLAGS_VALUE }}\" \
           -o dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64"
 
     - name: Build ARM64 binary
@@ -64,7 +64,7 @@ jobs:
           golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
           bash -c "apt-get update && apt-get install -y gcc-aarch64-linux-gnu && \
           env CGO_ENABLED=1 GOOS=linux GOARCH=arm64 CC=aarch64-linux-gnu-gcc \
-          go build -tags='netgo osusergo' ${{ env.GO_BUILD_FLAG }} \
+          go build -tags='netgo osusergo' -ldflags \"${{ env.LDFLAGS_VALUE }}\" \
           -o dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64"
 
     - name: Create release archives
