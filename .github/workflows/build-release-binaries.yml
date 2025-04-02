@@ -50,7 +50,7 @@ jobs:
           golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
           bash -c "apt-get update && apt-get install -y build-essential && \
           env CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
-          go build -buildvcs=false -tags='netgo osusergo' -ldflags \"${{ env.LDFLAGS_VALUE }}\" \
+          go build -buildvcs=false -tags='netgo osusergo' -ldflags \"${{ env.LDFLAGS_VALUE }} -extldflags '-static'\" \
           -o dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64"
 
     - name: Build ARM64 binary
@@ -60,7 +60,7 @@ jobs:
           golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
           bash -c "apt-get update && apt-get install -y gcc-aarch64-linux-gnu && \
           env CGO_ENABLED=1 GOOS=linux GOARCH=arm64 CC=aarch64-linux-gnu-gcc \
-          go build -buildvcs=false -tags='netgo osusergo' -ldflags \"${{ env.LDFLAGS_VALUE }}\" \
+          go build -buildvcs=false -tags='netgo osusergo' -ldflags \"${{ env.LDFLAGS_VALUE }} -extldflags '-static'\" \
           -o dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64"
 
     - name: Test AMD64 Binary
@@ -83,18 +83,16 @@ jobs:
                    echo \"$VERSION_OUTPUT\" | grep '${{ env.RELEASE_VERSION }}'; \
                    echo '--- Grep finished ---'"
 
-    - name: Test ARM64 Binary
+    - name: Test ARM64 Binary (Static)
       run: |
         echo "Listing host dist directory before test:"
         ls -l dist/
         echo "Testing ARM64 binary version..."
-        # Use an AMD64 container but install QEMU and arm64 libs to run the ARM64 binary
         docker run --rm --platform linux/amd64 \
           -v $(pwd)/dist:/dist \
           golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
-          bash -c "dpkg --add-architecture arm64 && \
-                   apt-get update > /dev/null && \
-                   apt-get install -y -qq --no-install-recommends qemu-user-static libc6:arm64 > /dev/null && \
+          bash -c "apt-get update > /dev/null && \
+                   apt-get install -y -qq --no-install-recommends qemu-user-static > /dev/null && \
           echo '--- Listing /dist inside container ---'; \
           ls -l /dist; \
           echo '--- Running version command ---'; \
