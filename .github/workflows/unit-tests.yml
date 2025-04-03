@@ -30,7 +30,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.out
 
-      - name: Cancel other workflows if this one fails
+      - name: Cancel integration/compose workflows if this workflow fails
         if: failure()
         uses: actions/github-script@v6
         with:
