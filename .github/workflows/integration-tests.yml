@@ -1,0 +1,26 @@
+name: Integration Tests
+on:
+  pull_request:
+  push:
+    branches:
+      - main*
+
+concurrency:
+  group: integration-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration_tests:
+    runs-on: charon-ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-go
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - run: go test -v -timeout=10m -race github.com/obolnetwork/charon/testutil/integration -integration
