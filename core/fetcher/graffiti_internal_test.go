@@ -43,7 +43,7 @@ func TestFetchBeaconNodeToken(t *testing.T) {
 		eth2Cl := mocks.NewClient(t)
 		eth2Cl.On("NodeVersion", mock.Anything, mock.Anything).Return(&eth2api.Response[string]{Data: "Lighthouse/v0.1.5 (Linux x86_64)"}, nil).Once()
 		token := fetchBeaconNodeToken(eth2Cl)
-		require.Equal(t, "LHH", token)
+		require.Equal(t, "LH", token)
 	})
 }
 
