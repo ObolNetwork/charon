@@ -101,7 +101,7 @@ func (c Client) PublishDefinition(ctx context.Context, def cluster.Definition, s
 	addr := c.url()
 	addr.Path = "v1/definition"
 
-	b, err := def.MarshalJSON()
+	b, err := def.MarshalJSONAPI()
 	if err != nil {
 		return errors.Wrap(err, "marshal definition")
 	}
