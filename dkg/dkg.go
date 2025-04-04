@@ -320,7 +320,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	if !conf.NoVerify {
-		if err := lock.VerifySignatures(eth1Cl); err != nil {
+		if err := lock.VerifySignatures(eth1Cl, false); err != nil {
 			return errors.Wrap(err, "invalid lock file")
 		}
 	}

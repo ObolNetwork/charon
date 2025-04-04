@@ -15,6 +15,6 @@ func TestVerifyLock(t *testing.T) {
 	seed := 0
 	random := rand.New(rand.NewSource(int64(seed)))
 	lock, _, _ := cluster.NewForT(t, 3, 3, 4, seed, random)
-	require.NoError(t, lock.Definition.VerifySignatures(nil))
-	require.NoError(t, lock.VerifySignatures(nil))
+	require.NoError(t, lock.Definition.VerifySignatures(nil, false))
+	require.NoError(t, lock.VerifySignatures(nil, false))
 }

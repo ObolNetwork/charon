@@ -42,9 +42,9 @@ type createDKGConfig struct {
 	TargetGasLimit      uint
 	Compounding         bool
 	ExecutionEngineAddr string
-	Publish            bool
-	PublishAddress     string
-	OperatorsAddresses []string
+	Publish             bool
+	PublishAddress      string
+	OperatorsAddresses  []string
 }
 
 func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobra.Command {
@@ -218,13 +218,6 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		return err
 	}
 
-	eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
-	go eth1Cl.Run(ctx)
-
-	if err := def.VerifySignatures(eth1Cl); err != nil {
-		return err 
-	}
-	
 	// Generate creator signature after hashes have been populated
 	if conf.Publish {
 		def.Creator.ConfigSignature, err = cluster.SignClusterDefinitionHash(privKey, def)
@@ -233,7 +226,10 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		}
 	}
 
-	if err := def.VerifySignatures(conf.Publish); err != nil {
+	eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
+	go eth1Cl.Run(ctx)
+
+	if err := def.VerifySignatures(eth1Cl, conf.Publish); err != nil {
 		return err
 	}
 
