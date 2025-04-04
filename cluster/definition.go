@@ -210,7 +210,7 @@ func (d Definition) NodeIdx(pID peer.ID) (NodeIdx, error) {
 }
 
 // VerifySignatures returns nil if all config signatures are fully populated and valid. A verified definition is ready for use in DKG.
-func (d Definition) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
+func (d Definition) VerifySignatures(eth1 eth1wrap.EthClientRunner, partialClusterDefinition bool) error {
 	// Skip signature verification for definition versions earlier than v1.3 since there are no EIP712 signatures before v1.3.0.
 	if !supportEIP712Sigs(d.Version) && !eip712SigsPresent(d.Operators) {
 		return nil
@@ -229,6 +229,17 @@ func (d Definition) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 
 	var noOpSigs int
 	for _, o := range d.Operators {
+		if partialClusterDefinition {
+			if o.Address == "" {
+				return errors.New("empty operator address")
+			}
+			if len(o.ENRSignature) != 0 || len(o.ConfigSignature) != 0 {
+				return errors.New("premature operator signatures")
+			}
+			noOpSigs++
+
+			continue
+		}
 		// Completely unsigned operators are also fine, assuming a single cluster-wide operator.
 		if o.Address == "" && len(o.ENRSignature) == 0 && len(o.ConfigSignature) == 0 {
 			noOpSigs++
@@ -429,6 +440,15 @@ func (d Definition) MarshalJSON() ([]byte, error) {
 	default:
 		return nil, errors.New("unsupported version")
 	}
+}
+
+func (d Definition) MarshalJSONAPI() ([]byte, error) {
+	d2, err := d.SetDefinitionHashes()
+	if err != nil {
+		return nil, err
+	}
+
+	return marshalDefinitionAPI(d2)
 }
 
 func (d *Definition) UnmarshalJSON(data []byte) error {
@@ -709,6 +729,35 @@ func marshalDefinitionV1x10(def Definition) ([]byte, error) {
 		ConsensusProtocol: def.ConsensusProtocol,
 		TargetGasLimit:    def.TargetGasLimit,
 		Compounding:       def.Compounding,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal definition", z.Str("version", def.Version))
+	}
+
+	return resp, nil
+}
+
+func marshalDefinitionAPI(def Definition) ([]byte, error) {
+	resp, err := json.Marshal(definitionJSONAPI{
+		Name:          def.Name,
+		UUID:          def.UUID,
+		Version:       def.Version,
+		Timestamp:     def.Timestamp,
+		NumValidators: def.NumValidators,
+		Threshold:     def.Threshold,
+		DKGAlgorithm:  def.DKGAlgorithm,
+		ForkVersion:   def.ForkVersion,
+		ConfigHash:    def.ConfigHash,
+		Operators:     operatorsToV1x2orLater(def.Operators),
+		Creator: creatorJSON{
+			Address:         def.Creator.Address,
+			ConfigSignature: def.Creator.ConfigSignature,
+		},
+		ValidatorAddresses: validatorAddressesToJSON(def.ValidatorAddresses),
+		DepositAmounts:     def.DepositAmounts,
+		ConsensusProtocol:  def.ConsensusProtocol,
+		TargetGasLimit:     def.TargetGasLimit,
+		Compounding:        def.Compounding,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal definition", z.Str("version", def.Version))
@@ -1110,6 +1159,26 @@ type definitionJSONv1x10 struct {
 	Compounding        bool                      `json:"compounding"`
 	ConfigHash         ethHex                    `json:"config_hash"`
 	DefinitionHash     ethHex                    `json:"definition_hash"`
+}
+
+// definitionJSONAPI is the json formatter of Definition for Obol API.
+type definitionJSONAPI struct {
+	Name               string                    `json:"name"`
+	Operators          []operatorJSONv1x2orLater `json:"operators"`
+	Creator            creatorJSON               `json:"creator"`
+	UUID               string                    `json:"uuid"`
+	Version            string                    `json:"version"`
+	NumValidators      int                       `json:"num_validators"`
+	Threshold          int                       `json:"threshold"`
+	DKGAlgorithm       string                    `json:"dkg_algorithm"`
+	ForkVersion        ethHex                    `json:"fork_version"`
+	Timestamp          string                    `json:"timestamp"`
+	ValidatorAddresses []validatorAddressesJSON  `json:"validators"`
+	DepositAmounts     []eth2p0.Gwei             `json:"deposit_amounts"`
+	ConsensusProtocol  string                    `json:"consensus_protocol"`
+	TargetGasLimit     uint                      `json:"target_gas_limit"`
+	Compounding        bool                      `json:"compounding"`
+	ConfigHash         ethHex                    `json:"config_hash"`
 }
 
 // Creator identifies the creator of a cluster definition.

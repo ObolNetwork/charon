@@ -11,47 +11,94 @@ import (
 	"github.com/obolnetwork/charon/eth2util/eip712"
 )
 
-// eip712Type defines the EIP712 (https://eips.ethereum.org/EIPS/eip-712) Primary type and the Message field and value.
+// eip712TypeField defines the fields, values and types of a EIP712 message
+type eip712TypeField struct {
+	Field     string
+	Type      eip712.Primitive
+	ValueFunc func(Definition, Operator) any
+}
+
+// eip712Type defines the EIP712 (https://eips.ethereum.org/EIPS/eip-712) Primary type and the Message fields.
 type eip712Type struct {
 	PrimaryType string
-	Field       string
-	ValueFunc   func(Definition, Operator) string
+	Fields      []eip712TypeField
 }
 
 var (
 	// eip712CreatorConfigHash defines the EIP712 structure of the legacy config signature for v1.4 and later.
 	eip712CreatorConfigHash = eip712Type{
 		PrimaryType: "CreatorConfigHash",
-		Field:       "creator_config_hash",
-		ValueFunc: func(definition Definition, _ Operator) string {
-			return to0xHex(definition.ConfigHash)
+		Fields: []eip712TypeField{
+			{
+				Field: "creator_config_hash",
+				Type:  eip712.PrimitiveString,
+				ValueFunc: func(definition Definition, _ Operator) any {
+					return to0xHex(definition.ConfigHash)
+				},
+			},
 		},
 	}
 
 	// eip712OperatorConfigHash defines the EIP712 structure of the operator config signature for v1.4 and later.
 	eip712OperatorConfigHash = eip712Type{
 		PrimaryType: "OperatorConfigHash",
-		Field:       "operator_config_hash",
-		ValueFunc: func(definition Definition, _ Operator) string {
-			return to0xHex(definition.ConfigHash)
+		Fields: []eip712TypeField{
+			{
+				Field: "operator_config_hash",
+				Type:  eip712.PrimitiveString,
+				ValueFunc: func(definition Definition, _ Operator) any {
+					return to0xHex(definition.ConfigHash)
+				},
+			},
 		},
 	}
 
 	// eip712V1x3ConfigHash defines the EIP712 structure of the legacy config signature for v1.3 and before.
 	eip712V1x3ConfigHash = eip712Type{
 		PrimaryType: "ConfigHash",
-		Field:       "config_hash",
-		ValueFunc: func(definition Definition, _ Operator) string {
-			return to0xHex(definition.ConfigHash)
+		Fields: []eip712TypeField{
+			{
+				Field: "config_hash",
+				Type:  eip712.PrimitiveString,
+				ValueFunc: func(definition Definition, _ Operator) any {
+					return to0xHex(definition.ConfigHash)
+				},
+			},
 		},
 	}
 
 	// eip712ENR defines the EIP712 structure of the enr signature.
 	eip712ENR = eip712Type{
 		PrimaryType: "ENR",
-		Field:       "enr",
-		ValueFunc: func(_ Definition, operator Operator) string {
-			return operator.ENR
+		Fields: []eip712TypeField{
+			{
+				Field: "enr",
+				Type:  eip712.PrimitiveString,
+				ValueFunc: func(_ Definition, operator Operator) any {
+					return operator.ENR
+				},
+			},
+		},
+	}
+
+	// eip712TermsAndConditions defines the EIP712 structure of the terms and conditions signature.
+	eip712TermsAndConditions = eip712Type{
+		PrimaryType: "TermsAndConditions",
+		Fields: []eip712TypeField{
+			{
+				Field: "terms_and_conditions_hash",
+				Type:  eip712.PrimitiveString,
+				ValueFunc: func(_ Definition, _ Operator) any {
+					return "0xd33721644e8f3afab1495a74abe3523cec12d48b8da6cb760972492ca3f1a273"
+				},
+			},
+			{
+				Field: "version",
+				Type:  eip712.PrimitiveUint256,
+				ValueFunc: func(_ Definition, _ Operator) any {
+					return uint64(1)
+				},
+			},
 		},
 	}
 )
@@ -84,14 +131,15 @@ func digestEIP712(typ eip712Type, def Definition, operator Operator) ([]byte, er
 		},
 		Type: eip712.Type{
 			Name: typ.PrimaryType,
-			Fields: []eip712.Field{
-				{
-					Name:  typ.Field,
-					Type:  eip712.PrimitiveString,
-					Value: typ.ValueFunc(def, operator),
-				},
-			},
 		},
+	}
+
+	for _, field := range typ.Fields {
+		data.Type.Fields = append(data.Type.Fields, eip712.Field{
+			Name:  field.Field,
+			Type:  field.Type,
+			Value: field.ValueFunc(def, operator),
+		})
 	}
 
 	digest, err := eip712.HashTypedData(data)
@@ -115,4 +163,14 @@ func signEIP712(secret *k1.PrivateKey, typ eip712Type, def Definition, operator 
 	}
 
 	return sig, nil
+}
+
+// SignTermsAndConditions returns the EIP712 signature for Obol's Terms and Conditions
+func SignTermsAndConditions(secret *k1.PrivateKey, def Definition) ([]byte, error) {
+	return signEIP712(secret, eip712TermsAndConditions, def, Operator{})
+}
+
+// SignClusterDefinitionHash returns the EIP712 signature for cluster configuration hash
+func SignClusterDefinitionHash(secret *k1.PrivateKey, def Definition) ([]byte, error) {
+	return signEIP712(secret, eip712CreatorConfigHash, def, Operator{})
 }
