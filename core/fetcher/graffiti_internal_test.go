@@ -22,21 +22,21 @@ func TestFetchBeaconNodeToken(t *testing.T) {
 		eth2Cl := mocks.NewClient(t)
 		eth2Cl.On("NodeVersion", mock.Anything, mock.Anything).Return(nil, errors.New("")).Once()
 		token := fetchBeaconNodeToken(eth2Cl)
-		require.Equal(t, "", token)
+		require.Empty(t, token)
 	})
 
 	t.Run("fetch token unexpected response", func(t *testing.T) {
 		eth2Cl := mocks.NewClient(t)
 		eth2Cl.On("NodeVersion", mock.Anything, mock.Anything).Return(&eth2api.Response[string]{Data: "IncorrectUserAgent"}, nil).Once()
 		token := fetchBeaconNodeToken(eth2Cl)
-		require.Equal(t, "", token)
+		require.Empty(t, token)
 	})
 
 	t.Run("fetch token not predicted in map", func(t *testing.T) {
 		eth2Cl := mocks.NewClient(t)
 		eth2Cl.On("NodeVersion", mock.Anything, mock.Anything).Return(&eth2api.Response[string]{Data: "Dune/v1.3 (Windows)"}, nil).Once()
 		token := fetchBeaconNodeToken(eth2Cl)
-		require.Equal(t, "", token)
+		require.Empty(t, token)
 	})
 
 	t.Run("fetch token", func(t *testing.T) {
