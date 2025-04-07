@@ -101,7 +101,7 @@ func bindCreateDKGFlags(cmd *cobra.Command, config *createDKGConfig) {
 	cmd.Flags().StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
 	cmd.Flags().StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, goerli, sepolia, hoodi, holesky, gnosis, chiado.")
 	cmd.Flags().StringVar(&config.DKGAlgo, "dkg-algorithm", "default", "DKG algorithm to use; default, frost")
-	cmd.Flags().IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to exactly 32ETH.")
+	cmd.Flags().IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to at least 32ETH.")
 	cmd.Flags().StringSliceVar(&config.OperatorENRs, "operator-enrs", nil, "Comma-separated list of each operator's Charon ENR address.")
 	cmd.Flags().StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the cluster. Selected automatically when not specified.")
 	cmd.Flags().UintVar(&config.TargetGasLimit, "target-gas-limit", 36000000, "Preferred target gas limit for transactions.")
@@ -229,37 +229,14 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
 	go eth1Cl.Run(ctx)
 
-	if err := def.VerifySignatures(eth1Cl, conf.Publish); err != nil {
-		return err
+	if !conf.Publish {
+		if err := def.VerifySignatures(eth1Cl); err != nil {
+			return err
+		}
 	}
 
 	if conf.Publish {
-		apiClient, err := obolapi.New(conf.PublishAddress, obolapi.WithTimeout(10*time.Second))
-		if err != nil {
-			return errors.Wrap(err, "create Obol API client")
-		}
-
-		sig, err := cluster.SignTermsAndConditions(privKey, def)
-		if err != nil {
-			return errors.Wrap(err, "sign terms")
-		}
-
-		err = apiClient.SignTermsAndConditions(ctx, def.Creator.Address, def.ForkVersion, sig)
-		if err != nil {
-			return errors.Wrap(err, "submit sign terms")
-		}
-
-		log.Info(ctx, "Creator successfully signed Obol's terms and conditions")
-
-		err = apiClient.PublishDefinition(ctx, def, def.Creator.ConfigSignature)
-		if err != nil {
-			return errors.Wrap(err, "publish cluster definition")
-		}
-
-		log.Info(ctx, "Cluster Invitation Prepared")
-		log.Info(ctx, "Direct the Node Operators to: https://launchpad.obol.org/dv#"+fmt.Sprintf("%#x", def.ConfigHash)+" to review the cluster configuration and begin the distributed key generation ceremony.\n")
-
-		return nil
+		return publishPartialDefinition(ctx, conf, privKey, def)
 	}
 
 	b, err := json.MarshalIndent(def, "", " ")
@@ -326,4 +303,33 @@ func validateDKGConfig(numOperators int, network string, depositAmounts []int, c
 // isMainOrGnosis returns true if the network is either mainnet or gnosis.
 func isMainOrGnosis(network string) bool {
 	return network == eth2util.Mainnet.Name || network == eth2util.Gnosis.Name
+}
+
+func publishPartialDefinition(ctx context.Context, conf createDKGConfig, privKey *k1.PrivateKey, def cluster.Definition) error {
+	apiClient, err := obolapi.New(conf.PublishAddress, obolapi.WithTimeout(10*time.Second))
+	if err != nil {
+		return errors.Wrap(err, "create Obol API client")
+	}
+
+	sig, err := cluster.SignTermsAndConditions(privKey, def)
+	if err != nil {
+		return errors.Wrap(err, "sign terms")
+	}
+
+	err = apiClient.SignTermsAndConditions(ctx, def.Creator.Address, def.ForkVersion, sig)
+	if err != nil {
+		return errors.Wrap(err, "submit sign terms")
+	}
+
+	log.Info(ctx, "Creator successfully signed Obol's terms and conditions")
+
+	err = apiClient.PublishDefinition(ctx, def, def.Creator.ConfigSignature)
+	if err != nil {
+		return errors.Wrap(err, "publish cluster definition")
+	}
+
+	log.Info(ctx, "Cluster Invitation Prepared")
+	log.Info(ctx, "Direct the Node Operators to: https://launchpad.obol.org/dv#"+fmt.Sprintf("%#x", def.ConfigHash)+" to review the cluster configuration and begin the distributed key generation ceremony.")
+
+	return nil
 }

@@ -71,7 +71,7 @@ func loadDefinition(ctx context.Context, conf Config, eth1Cl eth1wrap.EthClientR
 		log.Warn(ctx, "Ignoring failed cluster definition hashes verification due to --no-verify flag", err)
 	}
 
-	if err := def.VerifySignatures(eth1Cl, false); err != nil && !conf.NoVerify {
+	if err := def.VerifySignatures(eth1Cl); err != nil && !conf.NoVerify {
 		return cluster.Definition{}, errors.Wrap(err, "cluster definition signature verification failed. Run with --no-verify to bypass verification at own risk")
 	} else if err != nil && conf.NoVerify {
 		log.Warn(ctx, "Ignoring failed cluster definition signature verification due to --no-verify flag", err)

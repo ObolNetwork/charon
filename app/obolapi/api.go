@@ -99,7 +99,7 @@ func (c Client) PublishLock(ctx context.Context, lock cluster.Lock) error {
 // It requires the cluster creator to previously sign Obol's Terms and Conditions.
 func (c Client) PublishDefinition(ctx context.Context, def cluster.Definition, sig []byte) error {
 	addr := c.url()
-	addr.Path = "v1/definition"
+	addr.Path = "definition"
 
 	b, err := def.MarshalJSONAPI()
 	if err != nil {
@@ -107,7 +107,7 @@ func (c Client) PublishDefinition(ctx context.Context, def cluster.Definition, s
 	}
 
 	headers := map[string]string{
-		"authorization": fmt.Sprintf("Bearer 0x%x", sig),
+		"authorization": bearerString(sig),
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
@@ -126,7 +126,7 @@ type RequestSignTermsAndConditions struct {
 // SignTermsAndConditions submits the user's signature of Obol's Terms and Conditions to obol-api.
 func (c Client) SignTermsAndConditions(ctx context.Context, userAddr string, forkVersion []byte, sig []byte) error {
 	addr := c.url()
-	addr.Path = "v1/termsAndConditions"
+	addr.Path = "termsAndConditions"
 
 	req := RequestSignTermsAndConditions{
 		Address:                userAddr,
@@ -141,7 +141,7 @@ func (c Client) SignTermsAndConditions(ctx context.Context, userAddr string, for
 	}
 
 	headers := map[string]string{
-		"authorization": fmt.Sprintf("Bearer 0x%x", sig),
+		"authorization": bearerString(sig),
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)

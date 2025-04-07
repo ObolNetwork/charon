@@ -22,7 +22,7 @@ func loadClusterManifest(manifestFilePath, lockFilePath string) (*manifestpb.Clu
 			return errors.Wrap(err, "cluster lock hash verification failed")
 		}
 
-		if err := lock.VerifySignatures(nil, false); err != nil {
+		if err := lock.VerifySignatures(nil); err != nil {
 			return errors.Wrap(err, "cluster lock signature verification failed")
 		}
 
@@ -44,7 +44,7 @@ func loadDAGFromDisk(manifestFilePath, lockFilePath string) (*manifestpb.SignedM
 			return errors.Wrap(err, "cluster lock hash verification failed")
 		}
 
-		if err := lock.VerifySignatures(nil, false); err != nil {
+		if err := lock.VerifySignatures(nil); err != nil {
 			return errors.Wrap(err, "cluster lock signature verification failed")
 		}
 

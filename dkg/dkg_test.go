@@ -154,7 +154,7 @@ func TestDKG(t *testing.T) {
 func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.PrivateKey, keymanager bool, publish bool) {
 	t.Helper()
 
-	require.NoError(t, def.VerifySignatures(nil, false))
+	require.NoError(t, def.VerifySignatures(nil))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -367,7 +367,7 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 
 		var lock cluster.Lock
 		require.NoError(t, json.Unmarshal(lockFile, &lock))
-		require.NoError(t, lock.VerifySignatures(nil, false))
+		require.NoError(t, lock.VerifySignatures(nil))
 		locks = append(locks, lock)
 
 		verifyDistValidators(t, lock, def)

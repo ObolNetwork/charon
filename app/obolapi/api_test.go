@@ -102,7 +102,7 @@ func TestLaunchpadDashURL(t *testing.T) {
 func TestSignTermsAndConditions(t *testing.T) {
 	t.Run("successful request", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			require.Equal(t, "/v1/termsAndConditions", r.URL.Path)
+			require.Equal(t, "/termsAndConditions", r.URL.Path)
 			require.Equal(t, "application/json", r.Header.Get("Content-Type"))
 			require.Contains(t, r.Header.Get("Authorization"), "Bearer 0x5678")
 
@@ -156,7 +156,7 @@ func TestSignTermsAndConditions(t *testing.T) {
 func TestPublishDefinition(t *testing.T) {
 	t.Run("successful request", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			require.Equal(t, "/v1/definition", r.URL.Path)
+			require.Equal(t, "/definition", r.URL.Path)
 			require.Equal(t, "application/json", r.Header.Get("Content-Type"))
 			require.Contains(t, r.Header.Get("Authorization"), "Bearer 0x5678")
 
