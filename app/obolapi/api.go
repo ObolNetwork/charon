@@ -116,19 +116,19 @@ func (c Client) PublishDefinition(ctx context.Context, def cluster.Definition, s
 	return httpPost(ctx, addr, b, headers)
 }
 
+type RequestSignTermsAndConditions struct {
+	Address                string `json:"address"`
+	Version                int    `json:"version"`
+	TermsAndConditionsHash string `json:"terms_and_conditions_hash"`
+	ForkVersion            string `json:"fork_version"`
+}
+
 // SignTermsAndConditions submits the user's signature of Obol's Terms and Conditions to obol-api.
 func (c Client) SignTermsAndConditions(ctx context.Context, userAddr string, forkVersion []byte, sig []byte) error {
-	type request struct {
-		Address                string `json:"address"`
-		Version                int    `json:"version"`
-		TermsAndConditionsHash string `json:"terms_and_conditions_hash"`
-		ForkVersion            string `json:"fork_version"`
-	}
-
 	addr := c.url()
 	addr.Path = "v1/termsAndConditions"
 
-	req := request{
+	req := RequestSignTermsAndConditions{
 		Address:                userAddr,
 		Version:                1,
 		TermsAndConditionsHash: termsAndConditionsHash,
@@ -147,12 +147,7 @@ func (c Client) SignTermsAndConditions(ctx context.Context, userAddr string, for
 	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
 	defer cancel()
 
-	err = httpPost(ctx, addr, r, headers)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return httpPost(ctx, addr, r, headers)
 }
 
 // LaunchpadURLForLock returns the Launchpad cluster dashboard page for a given lock, on the given

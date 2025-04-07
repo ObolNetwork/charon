@@ -98,3 +98,116 @@ func TestLaunchpadDashURL(t *testing.T) {
 		)
 	})
 }
+
+func TestSignTermsAndConditions(t *testing.T) {
+	t.Run("successful request", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, "/v1/termsAndConditions", r.URL.Path)
+			require.Equal(t, "application/json", r.Header.Get("Content-Type"))
+			require.Contains(t, r.Header.Get("Authorization"), "Bearer 0x5678")
+
+			data, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			defer r.Body.Close()
+
+			var req obolapi.RequestSignTermsAndConditions
+			require.NoError(t, json.Unmarshal(data, &req))
+			require.Equal(t, 1, req.Version)
+			require.Equal(t, "user-address", req.Address)
+			require.Equal(t, "0xd33721644e8f3afab1495a74abe3523cec12d48b8da6cb760972492ca3f1a273", req.TermsAndConditionsHash)
+			require.Equal(t, "0x1234", req.ForkVersion)
+
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer srv.Close()
+
+		cl, err := obolapi.New(srv.URL)
+		require.NoError(t, err)
+
+		err = cl.SignTermsAndConditions(t.Context(), "user-address", []byte{0x12, 0x34}, []byte{0x56, 0x78})
+		require.NoError(t, err)
+	})
+
+	t.Run("marshal error", func(t *testing.T) {
+		cl, err := obolapi.New("http://example.com")
+		require.NoError(t, err)
+
+		err = cl.SignTermsAndConditions(t.Context(), "user-address", nil, nil)
+		require.Error(t, err)
+	})
+
+	t.Run("server error response", func(t *testing.T) {
+		// Mock server to simulate a server error
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		defer srv.Close()
+
+		// Create the client
+		cl, err := obolapi.New(srv.URL)
+		require.NoError(t, err)
+
+		// Call the function
+		err = cl.SignTermsAndConditions(t.Context(), "user-address", []byte{0x12, 0x34}, []byte{0x56, 0x78})
+		require.Error(t, err)
+	})
+}
+
+func TestPublishDefinition(t *testing.T) {
+	t.Run("successful request", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, "/v1/definition", r.URL.Path)
+			require.Equal(t, "application/json", r.Header.Get("Content-Type"))
+			require.Contains(t, r.Header.Get("Authorization"), "Bearer 0x5678")
+
+			data, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			defer r.Body.Close()
+
+			var req cluster.Definition
+			require.NoError(t, json.Unmarshal(data, &req))
+			require.Equal(t, "v1.10.0", req.Version)
+
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer srv.Close()
+
+		cl, err := obolapi.New(srv.URL)
+		require.NoError(t, err)
+
+		def := cluster.Definition{
+			Version: "v1.10.0",
+		}
+
+		err = cl.PublishDefinition(t.Context(), def, []byte{0x56, 0x78})
+		require.NoError(t, err)
+	})
+
+	t.Run("marshal error", func(t *testing.T) {
+		cl, err := obolapi.New("http://example.com")
+		require.NoError(t, err)
+
+		// Call the function with an invalid definition to force a marshal error
+		var def cluster.Definition
+		err = cl.PublishDefinition(t.Context(), def, nil)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "marshal definition")
+	})
+
+	t.Run("server error response", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		defer srv.Close()
+
+		cl, err := obolapi.New(srv.URL)
+		require.NoError(t, err)
+
+		def := cluster.Definition{
+			Version: "v1.10.0",
+		}
+
+		err = cl.PublishDefinition(t.Context(), def, []byte{0x56, 0x78})
+		require.Error(t, err)
+	})
+}
