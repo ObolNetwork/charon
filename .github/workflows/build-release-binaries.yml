@@ -52,16 +52,13 @@ jobs:
           go build -buildvcs=false -tags='netgo osusergo' -ldflags \"${{ env.LDFLAGS_VALUE }} -extldflags '-static'\" \
           -o dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64"
 
-    - name: Build ARM64 binary (Emulated)
+    - name: Build ARM64 binary
       run: |
-        # Run build inside an emulated ARM64 container
         docker run --rm --platform linux/arm64 \
           -v $(pwd):/workspace -w /workspace \
           golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
           bash -c "apt-get update && \
-                   # Install native build tools for ARM64 container
-                   apt-get install -y build-essential && \
-          # Set target GOARCH, but don't need specific CC (native compiler is used)
+          apt-get install -y build-essential && \
           env CGO_ENABLED=1 GOOS=linux GOARCH=arm64 \
           go build -buildvcs=false -tags='netgo osusergo' -ldflags \"${{ env.LDFLAGS_VALUE }} -extldflags '-static'\" \
           -o dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64"
