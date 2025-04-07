@@ -382,7 +382,7 @@ func testWriteFile(t *testing.T, expectedRes testCategoryResult, path string) {
 	t.Helper()
 	file, err := os.ReadFile(path)
 	require.NoError(t, err)
-	var res fileResult
+	var res allCategoriesResult
 	err = json.Unmarshal(file, &res)
 	require.NoError(t, err)
 

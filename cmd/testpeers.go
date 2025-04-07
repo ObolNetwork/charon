@@ -238,6 +238,13 @@ func runTestPeers(ctx context.Context, w io.Writer, conf testPeersConfig) (res t
 		}
 	}
 
+	if conf.Publish {
+		err = publishResultToObolAPI(ctx, allCategoriesResult{Peers: res}, conf.PublishAddr, conf.PublishPrivateKeyFile)
+		if err != nil {
+			return res, err
+		}
+	}
+
 	log.Info(ctx, "Keeping TCP node alive for peers until keep-alive time is reached...")
 	blockAndWait(ctx, conf.KeepAlive)
 

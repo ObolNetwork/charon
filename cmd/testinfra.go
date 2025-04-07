@@ -176,6 +176,13 @@ func runTestInfra(ctx context.Context, w io.Writer, cfg testInfraConfig) (res te
 		}
 	}
 
+	if cfg.Publish {
+		err = publishResultToObolAPI(ctx, allCategoriesResult{Infra: res}, cfg.PublishAddr, cfg.PublishPrivateKeyFile)
+		if err != nil {
+			return res, err
+		}
+	}
+
 	return res, nil
 }
 
