@@ -22,13 +22,6 @@ jobs:
     - uses: ./.github/actions/setup-go
       id: setup-go
 
-    - name: Get app/version.Version from the code
-      if: github.ref_type == 'branch'
-      run: |
-        VERSION=$(grep 'var version' app/version/version.go | cut -d'"' -f2)
-        echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
-        echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
-
     - name: Set version from git tag
       if: github.ref_type == 'tag'
       run: |
@@ -36,14 +29,8 @@ jobs:
         echo "RELEASE_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
         echo "LDFLAGS_VALUE=-X github.com/obolnetwork/charon/app/version.version=${{ github.ref_name }}" >> $GITHUB_ENV
 
-    - name: Set build flags for branch
-      if: github.ref_type == 'branch'
-      run: |
-        echo "LDFLAGS_VALUE=-X github.com/obolnetwork/charon/app/version.version=${{ env.APP_VERSION }}" >> $GITHUB_ENV
-
     - name: Build x86_64 binary
       run: |
-        mkdir -p dist
         docker run --rm --platform linux/amd64 \
           -v $(pwd):/workspace -w /workspace \
           golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
