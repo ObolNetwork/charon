@@ -377,6 +377,11 @@ func prFromLog(l log) (pullRequest, bool) {
 		return pullRequest{}, false
 	}
 
+	if strings.Contains(l.Subject, "chore(deps)") {
+		fmt.Printf("Skipping renovate PR (%s): %s\n", l.Commit, l.Subject)
+		return pullRequest{}, false
+	}
+
 	var ok bool
 
 	pr := pullRequest{
