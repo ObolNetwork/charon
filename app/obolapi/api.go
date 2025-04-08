@@ -5,7 +5,6 @@ package obolapi
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -23,9 +22,6 @@ const (
 
 	// defaultTimeout is the default HTTP request timeout if not specified.
 	defaultTimeout = 10 * time.Second
-
-	// termsAndConditionsHash is the hash of the terms and conditions that the user must sign.
-	termsAndConditionsHash = "0xd33721644e8f3afab1495a74abe3523cec12d48b8da6cb760972492ca3f1a273"
 )
 
 // New returns a new Client.
@@ -37,7 +33,6 @@ func New(urlStr string, options ...func(*Client)) (Client, error) {
 
 	// always set a default timeout, even if no options are provided
 	options = append([]func(*Client){WithTimeout(defaultTimeout)}, options...)
-
 	cl := Client{
 		baseURL: urlStr,
 	}
@@ -71,83 +66,6 @@ func (c Client) url() *url.URL {
 	}
 
 	return baseURL
-}
-
-// PublishLock posts the lockfile to obol-api.
-// It respects the timeout specified in the Client instance.
-func (c Client) PublishLock(ctx context.Context, lock cluster.Lock) error {
-	addr := c.url()
-	addr.Path = "lock"
-
-	b, err := lock.MarshalJSON()
-	if err != nil {
-		return errors.Wrap(err, "marshal lock")
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
-	defer cancel()
-
-	err = httpPost(ctx, addr, b, nil)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// PublishDefinition posts the cluster definition to obol-api.
-// It requires the cluster creator to previously sign Obol's Terms and Conditions.
-func (c Client) PublishDefinition(ctx context.Context, def cluster.Definition, sig []byte) error {
-	addr := c.url()
-	addr.Path = "definition"
-
-	b, err := def.MarshalJSONAPI()
-	if err != nil {
-		return errors.Wrap(err, "marshal definition")
-	}
-
-	headers := map[string]string{
-		"authorization": bearerString(sig),
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
-	defer cancel()
-
-	return httpPost(ctx, addr, b, headers)
-}
-
-type RequestSignTermsAndConditions struct {
-	Address                string `json:"address"`
-	Version                int    `json:"version"`
-	TermsAndConditionsHash string `json:"terms_and_conditions_hash"`
-	ForkVersion            string `json:"fork_version"`
-}
-
-// SignTermsAndConditions submits the user's signature of Obol's Terms and Conditions to obol-api.
-func (c Client) SignTermsAndConditions(ctx context.Context, userAddr string, forkVersion []byte, sig []byte) error {
-	addr := c.url()
-	addr.Path = "termsAndConditions"
-
-	req := RequestSignTermsAndConditions{
-		Address:                userAddr,
-		Version:                1,
-		TermsAndConditionsHash: termsAndConditionsHash,
-		ForkVersion:            fmt.Sprintf("0x%x", forkVersion),
-	}
-
-	r, err := json.Marshal(req)
-	if err != nil {
-		return errors.Wrap(err, "marshal sign terms and Conditions")
-	}
-
-	headers := map[string]string{
-		"authorization": bearerString(sig),
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
-	defer cancel()
-
-	return httpPost(ctx, addr, r, headers)
 }
 
 // LaunchpadURLForLock returns the Launchpad cluster dashboard page for a given lock, on the given
