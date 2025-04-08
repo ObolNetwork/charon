@@ -67,7 +67,7 @@ func domainToType(domain Domain) Type {
 func HashTypedData(data TypedData) ([]byte, error) {
 	domainType := domainToType(data.Domain)
 
-	// TODO(diogo): any better ideas?
+	// TODO(diogo): temporary hack until api is updated then remove
 	if data.Type.Name == "TermsAndConditions" {
 		domainType.Fields = slices.Delete(domainType.Fields, 2, 3)
 	}
