@@ -65,8 +65,6 @@ jobs:
       with:
         name: charon-${{ env.RELEASE_VERSION }}-binaries
         path: |
-          dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64
-          dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64
           dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz
           dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64.tar.gz
           dist/checksums.txt
