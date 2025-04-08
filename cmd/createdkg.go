@@ -191,7 +191,6 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 
 	// Populate creator field
 	if conf.Publish {
-		// TODO(diogo): Should we store this private key in the disk?
 		// Temporary creator address
 		privKey, err = k1.GeneratePrivateKey()
 		if err != nil {
