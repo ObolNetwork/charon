@@ -1,0 +1,83 @@
+name: Build and Release Binaries
+
+on:
+  workflow_run:
+    workflows: ["Publish Release"]
+    types:
+      - completed
+
+jobs:
+  build-binaries:
+    # Only run if the triggering workflow succeeded and it was triggered by a tag
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      startsWith(github.event.workflow_run.head_branch, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    name: Build Cross-Platform Binaries
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - uses: ./.github/actions/setup-go
+      id: setup-go
+
+    - name: Set version from git tag
+      if: github.ref_type == 'tag'
+      run: |
+        echo "APP_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+        echo "RELEASE_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+        echo "LDFLAGS_VALUE=-X github.com/obolnetwork/charon/app/version.version=${{ github.ref_name }}" >> $GITHUB_ENV
+
+    - name: Build x86_64 binary
+      run: |
+        docker run --rm --platform linux/amd64 \
+          -v $(pwd):/workspace -w /workspace \
+          golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
+          bash -c "apt-get update && apt-get install -y build-essential && \
+          env CGO_ENABLED=1 GOOS=linux GOARCH=amd64 CC=x86_64-linux-gnu-gcc \
+          go build -tags='netgo osusergo' -ldflags \"${{ env.LDFLAGS_VALUE }} -extldflags '-static'\" \
+          -o dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64"
+
+    - name: Build ARM64 binary
+      run: |
+        docker run --rm --platform linux/arm64 \
+          -v $(pwd):/workspace -w /workspace \
+          golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
+          bash -c "apt-get update && \
+          apt-get install -y build-essential && \
+          env CGO_ENABLED=1 GOOS=linux GOARCH=arm64 \
+          go build -tags='netgo osusergo' -ldflags \"${{ env.LDFLAGS_VALUE }} -extldflags '-static'\" \
+          -o dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64"
+
+    - name: Create release archives
+      run: |
+        cd dist
+        tar czf charon-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz charon-${{ env.RELEASE_VERSION }}-linux-amd64
+        tar czf charon-${{ env.RELEASE_VERSION }}-linux-arm64.tar.gz charon-${{ env.RELEASE_VERSION }}-linux-arm64
+        echo "# Linux AMD64 (x86_64)" > checksums.txt
+        sha256sum charon-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz >> checksums.txt
+        echo -e "\n# Linux ARM64 (aarch64)" >> checksums.txt
+        sha256sum charon-${{ env.RELEASE_VERSION }}-linux-arm64.tar.gz >> checksums.txt
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: charon-${{ env.RELEASE_VERSION }}-binaries
+        path: |
+          dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz
+          dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64.tar.gz
+          dist/checksums.txt
+
+    - name: Attach to GitHub Release
+      if: github.event.workflow_run.conclusion == 'success'
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz
+          dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64.tar.gz
+          dist/checksums.txt
+        draft: true
+        tag_name: ${{ github.event.workflow_run.head_branch }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
