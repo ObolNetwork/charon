@@ -291,8 +291,14 @@ func DedupAmounts(amounts []eth2p0.Gwei) []eth2p0.Gwei {
 	return result
 }
 
-// DefaultDepositAmounts returns the default deposit amounts: 1ETH and 32ETH.
-func DefaultDepositAmounts() []eth2p0.Gwei {
+// DefaultDepositAmounts returns the default deposit amounts:
+// --compounding=false: [1,32] ETH,
+// --compounding=true: [1,8,32,256] ETH.
+func DefaultDepositAmounts(compounding bool) []eth2p0.Gwei {
+	if compounding {
+		return []eth2p0.Gwei{MinDepositAmount, 8 * OneEthInGwei, 32 * OneEthInGwei, 256 * OneEthInGwei}
+	}
+
 	return []eth2p0.Gwei{MinDepositAmount, DefaultDepositAmount}
 }
 

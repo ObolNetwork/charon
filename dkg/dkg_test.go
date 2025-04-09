@@ -418,7 +418,7 @@ func verifyDistValidators(t *testing.T, lock cluster.Lock, def cluster.Definitio
 			if !cluster.SupportPartialDeposits(def.Version) {
 				depositAmounts = []eth2p0.Gwei{deposit.DefaultDepositAmount}
 			} else {
-				depositAmounts = deposit.DefaultDepositAmounts()
+				depositAmounts = deposit.DefaultDepositAmounts(def.Compounding)
 			}
 		}
 		require.Len(t, val.PartialDepositData, len(depositAmounts))
