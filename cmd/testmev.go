@@ -158,6 +158,13 @@ func runTestMEV(ctx context.Context, w io.Writer, cfg testMEVConfig) (res testCa
 		}
 	}
 
+	if cfg.Publish {
+		err = publishResultToObolAPI(ctx, allCategoriesResult{MEV: res}, cfg.PublishAddr, cfg.PublishPrivateKeyFile)
+		if err != nil {
+			return res, err
+		}
+	}
+
 	return res, nil
 }
 

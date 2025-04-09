@@ -20,12 +20,16 @@ import (
 	"time"
 	"unicode/utf8"
 
+	ssz "github.com/ferranbt/fastssz"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util/enr"
 )
 
 var (
@@ -49,10 +53,13 @@ const (
 )
 
 type testConfig struct {
-	OutputJSON string
-	Quiet      bool
-	TestCases  []string
-	Timeout    time.Duration
+	OutputJSON            string
+	Quiet                 bool
+	TestCases             []string
+	Timeout               time.Duration
+	Publish               bool
+	PublishAddr           string
+	PublishPrivateKeyFile string
 }
 
 func newTestCmd(cmds ...*cobra.Command) *cobra.Command {
@@ -72,6 +79,9 @@ func bindTestFlags(cmd *cobra.Command, config *testConfig) {
 	cmd.Flags().StringSliceVar(&config.TestCases, "test-cases", nil, fmt.Sprintf("List of comma separated names of tests to be exeucted. Available tests are: %v", listTestCases(cmd)))
 	cmd.Flags().DurationVar(&config.Timeout, "timeout", time.Hour, "Execution timeout for all tests.")
 	cmd.Flags().BoolVar(&config.Quiet, "quiet", false, "Do not print test results to stdout.")
+	cmd.Flags().BoolVar(&config.Publish, "publish", false, "Publish test result file to obol-api.")
+	cmd.Flags().StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech/v1", "The URL to publish the test result file to.")
+	cmd.Flags().StringVar(&config.PublishPrivateKeyFile, "publish-private-key-file", ".charon/charon-enr-private-key", "The path to the charon enr private key file, used for signing the publish request.")
 }
 
 func bindTestLogFlags(flags *pflag.FlagSet, config *log.Config) {
@@ -204,6 +214,14 @@ type testCategoryResult struct {
 	Score         categoryScore           `json:"score,omitempty"`
 }
 
+type allCategoriesResult struct {
+	Peers     testCategoryResult `json:"charon_peers,omitempty"`
+	Beacon    testCategoryResult `json:"beacon_node,omitempty"`
+	Validator testCategoryResult `json:"validator_client,omitempty"`
+	MEV       testCategoryResult `json:"mev,omitempty"`
+	Infra     testCategoryResult `json:"infra,omitempty"`
+}
+
 func appendScore(cat []string, score []string) []string {
 	var res []string
 	for i, l := range cat {
@@ -213,12 +231,67 @@ func appendScore(cat []string, score []string) []string {
 	return res
 }
 
-type fileResult struct {
-	Peers     testCategoryResult `json:"charon_peers,omitempty"`
-	Beacon    testCategoryResult `json:"beacon_node,omitempty"`
-	Validator testCategoryResult `json:"validator_client,omitempty"`
-	MEV       testCategoryResult `json:"mev,omitempty"`
-	Infra     testCategoryResult `json:"infra,omitempty"`
+type obolAPIResult struct {
+	ENR  string              `json:"enr,omitempty"`
+	Sig  []byte              `json:"sig,omitempty"`
+	Data allCategoriesResult `json:"data"`
+}
+
+func publishResultToObolAPI(ctx context.Context, data allCategoriesResult, path string, privateKeyFile string) error {
+	p2pPrivKey, err := k1util.Load(privateKeyFile)
+	if err != nil {
+		return err
+	}
+
+	enr, err := enr.New(p2pPrivKey)
+	if err != nil {
+		return err
+	}
+
+	signDataBytes, err := json.Marshal(data)
+	if err != nil {
+		return errors.Wrap(err, "marshal all test categories signing data")
+	}
+
+	hh := ssz.DefaultHasherPool.Get()
+	defer ssz.DefaultHasherPool.Put(hh)
+
+	indx := hh.Index()
+	hh.PutBytes(signDataBytes)
+	hh.Merkleize(indx)
+
+	hash, err := hh.HashRoot()
+	if err != nil {
+		return errors.Wrap(err, "hash root")
+	}
+
+	sig, err := k1util.Sign(p2pPrivKey, hash[:])
+	if err != nil {
+		return errors.Wrap(err, "k1 sign")
+	}
+
+	obolAPI, err := obolapi.New(path)
+	if err != nil {
+		return err
+	}
+
+	res := obolAPIResult{
+		ENR:  enr.String(),
+		Sig:  sig,
+		Data: data,
+	}
+
+	obolAPIJSON, err := json.Marshal(res)
+	if err != nil {
+		return errors.Wrap(err, "marshal Obol API test struct")
+	}
+
+	err = obolAPI.PostTestResult(ctx, obolAPIJSON)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func writeResultToFile(res testCategoryResult, path string) error {
@@ -233,9 +306,9 @@ func writeResultToFile(res testCategoryResult, path string) error {
 		return errors.Wrap(err, "get file stat")
 	}
 	// read file contents or default to empty structure
-	var file fileResult
+	var file allCategoriesResult
 	if stat.Size() == 0 {
-		file = fileResult{}
+		file = allCategoriesResult{}
 	} else {
 		err = json.NewDecoder(existingFile).Decode(&file)
 		if err != nil {

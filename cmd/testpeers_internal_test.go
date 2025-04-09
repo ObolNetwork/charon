@@ -11,6 +11,7 @@ import (
 	"io"
 	"maps"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"slices"
 	"strings"
@@ -267,6 +268,49 @@ func TestPeersTest(t *testing.T) {
 				require.NoError(t, err)
 			},
 		},
+		{
+			name: "publish to Obol API",
+			config: testPeersConfig{
+				testConfig: testConfig{
+					Publish: true,
+					Quiet:   false,
+					Timeout: 3 * time.Second,
+				},
+				ENRs: []string{
+					"enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o",
+					"enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw",
+					"enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0",
+				},
+				P2P: p2p.Config{
+					TCPAddrs: []string{freeTCPAddr.String()},
+					Relays:   []string{relayAddr},
+				},
+				Log: log.DefaultConfig(),
+			},
+			expected: testCategoryResult{
+				CategoryName: peersTestCategory,
+				Targets: map[string][]testResult{
+					"self": {
+						{Name: "Libp2pTCPPortOpen", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+					},
+					fmt.Sprintf("relay %v", relayAddr): {
+						{Name: "PingRelay", Verdict: testVerdictOk, Measurement: "", Suggestion: "", Error: testResultError{}},
+						{Name: "PingMeasureRelay", Verdict: testVerdictGood, Measurement: "", Suggestion: "", Error: testResultError{}},
+					},
+					"peer inexpensive-farm enr:-HW4QBHlc...rx6o": {
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+					},
+					"peer anxious-pencil enr:-HW4QDwUF...vKDw": {
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+					},
+					"peer important-pen enr:-HW4QPSBg...wbr0": {
+						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+					},
+				},
+				Score: categoryScoreC,
+			},
+			expectedErr: "",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -276,6 +320,11 @@ func TestPeersTest(t *testing.T) {
 			_, err := p2p.NewSavedPrivKey(temp)
 			require.NoError(t, err)
 			conf.PrivateKeyFile = p2p.KeyPath(temp)
+			if conf.Publish {
+				var server *httptest.Server
+				server, conf = testPublishToObolAPI(t, test.expected, conf, temp)
+				defer server.Close()
+			}
 			if test.prepare != nil {
 				conf = test.prepare(t, conf)
 			}
@@ -382,7 +431,7 @@ func testWriteFile(t *testing.T, expectedRes testCategoryResult, path string) {
 	t.Helper()
 	file, err := os.ReadFile(path)
 	require.NoError(t, err)
-	var res fileResult
+	var res allCategoriesResult
 	err = json.Unmarshal(file, &res)
 	require.NoError(t, err)
 
@@ -427,6 +476,29 @@ func testWriteFile(t *testing.T, expectedRes testCategoryResult, path string) {
 	if checkFinalScore {
 		require.Equal(t, expectedRes.Score, actualRes.Score)
 	}
+}
+
+func testPublishToObolAPI(t *testing.T, expectedRes testCategoryResult, conf testPeersConfig, keyPath string) (*httptest.Server, testPeersConfig) {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, r.URL.Path, "/test")
+		require.Equal(t, r.Method, http.MethodPost)
+		require.Equal(t, r.Header.Get("Content-Type"), "application/json")
+
+		w.WriteHeader(http.StatusOK)
+		b, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		var res obolAPIResult
+		err = json.Unmarshal(b, &res)
+		require.NoError(t, err)
+		require.Equal(t, expectedRes.CategoryName, res.Data.Peers.CategoryName)
+		require.NotEmpty(t, res.ENR)
+		require.NotEmpty(t, res.Sig)
+	}))
+	conf.PublishAddr = server.URL
+	conf.PublishPrivateKeyFile = p2p.KeyPath(keyPath)
+
+	return server, conf
 }
 
 func startPeer(t *testing.T, conf testPeersConfig, peerPrivKey *k1.PrivateKey) enr.Record {

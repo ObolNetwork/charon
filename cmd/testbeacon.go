@@ -263,6 +263,13 @@ func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (res 
 		}
 	}
 
+	if cfg.Publish {
+		err = publishResultToObolAPI(ctx, allCategoriesResult{Beacon: res}, cfg.PublishAddr, cfg.PublishPrivateKeyFile)
+		if err != nil {
+			return res, err
+		}
+	}
+
 	return res, nil
 }
 

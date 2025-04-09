@@ -126,6 +126,13 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 		}
 	}
 
+	if cfg.Publish {
+		err = publishResultToObolAPI(ctx, allCategoriesResult{Validator: res}, cfg.PublishAddr, cfg.PublishPrivateKeyFile)
+		if err != nil {
+			return res, err
+		}
+	}
+
 	return res, nil
 }
 
