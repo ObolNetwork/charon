@@ -459,13 +459,14 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	eth2Cl.SetValidatorCache(valCache.Get)
 
 	firstValCacheRefresh := true
+	refreshedBySlot := true
 	var fvcrLock sync.RWMutex
 
 	shouldUpdateCache := func(slot core.Slot, lock *sync.RWMutex) bool {
 		lock.RLock()
 		defer lock.RUnlock()
 
-		if !slot.FirstInEpoch() && !firstValCacheRefresh {
+		if !slot.FirstInEpoch() && !firstValCacheRefresh && refreshedBySlot {
 			return false
 		}
 
@@ -484,13 +485,22 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 		log.Info(ctx, "Refreshing validator cache")
 
+		// If not refreshed by slot previously then fetch the first slot of the epoch
+		var slotToFetch uint64
+		if !refreshedBySlot {
+			slotToFetch = slot.Epoch() * slot.SlotsPerEpoch
+		} else {
+			slotToFetch = slot.Slot
+		}
+
 		valCache.Trim()
-		_, _, err := valCache.GetBySlot(ctx, slot.Slot)
+		_, _, refresh, err := valCache.GetBySlot(ctx, slotToFetch)
 		if err != nil {
 			log.Error(ctx, "Cannot refresh validator cache", err)
 			return err
 		}
 
+		refreshedBySlot = refresh
 		firstValCacheRefresh = false
 
 		return nil

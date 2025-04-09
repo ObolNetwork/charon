@@ -91,94 +91,146 @@ func TestValidatorCache(t *testing.T) {
 }
 
 func TestGetBySlot(t *testing.T) {
-	// Create a mock client.
-	eth2Cl, err := beaconmock.New()
-	require.NoError(t, err)
 
-	// Create two validators pubkeys
-	pubkeys := []eth2p0.BLSPubKey{
-		testutil.RandomEth2PubKey(t),
-		testutil.RandomEth2PubKey(t),
-	}
+	t.Run("successful fetch", func(t *testing.T) {
+		// Create a mock client.
+		eth2Cl, err := beaconmock.New()
+		require.NoError(t, err)
 
-	eth2Cl.ValidatorsFunc = func(ctx context.Context, opts *eth2api.ValidatorsOpts) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
-		switch opts.State {
-		case "1":
-			return beaconmock.ValidatorSet{
-				0: &eth2v1.Validator{
-					Index:  0,
-					Status: eth2v1.ValidatorStatePendingQueued,
-					Validator: &eth2p0.Validator{
-						PublicKey: pubkeys[0],
-					},
-				},
-				1: &eth2v1.Validator{
-					Index:  1,
-					Status: eth2v1.ValidatorStateActiveOngoing,
-					Validator: &eth2p0.Validator{
-						PublicKey: pubkeys[1],
-					},
-				},
-			}, nil
-		case "2":
-			return beaconmock.ValidatorSet{
-				0: &eth2v1.Validator{
-					Index:  0,
-					Status: eth2v1.ValidatorStateActiveOngoing,
-					Validator: &eth2p0.Validator{
-						PublicKey: pubkeys[0],
-					},
-				},
-				1: &eth2v1.Validator{
-					Index:  1,
-					Status: eth2v1.ValidatorStateActiveOngoing,
-					Validator: &eth2p0.Validator{
-						PublicKey: pubkeys[1],
-					},
-				},
-			}, nil
-		case "11":
-			return beaconmock.ValidatorSet{
-				0: &eth2v1.Validator{
-					Index:  0,
-					Status: eth2v1.ValidatorStatePendingQueued,
-					Validator: &eth2p0.Validator{
-						PublicKey: pubkeys[0],
-					},
-				},
-				1: &eth2v1.Validator{
-					Index:  1,
-					Status: eth2v1.ValidatorStatePendingQueued,
-					Validator: &eth2p0.Validator{
-						PublicKey: pubkeys[1],
-					},
-				},
-			}, nil
-
-		default:
-			return nil, errors.New("no slot found")
+		// Create two validators pubkeys
+		pubkeys := []eth2p0.BLSPubKey{
+			testutil.RandomEth2PubKey(t),
+			testutil.RandomEth2PubKey(t),
 		}
-	}
 
-	valCache := eth2wrap.NewValidatorCache(eth2Cl, pubkeys)
-	ctx := context.Background()
+		eth2Cl.ValidatorsFunc = func(ctx context.Context, opts *eth2api.ValidatorsOpts) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+			switch opts.State {
+			case "1":
+				return beaconmock.ValidatorSet{
+					0: &eth2v1.Validator{
+						Index:  0,
+						Status: eth2v1.ValidatorStatePendingQueued,
+						Validator: &eth2p0.Validator{
+							PublicKey: pubkeys[0],
+						},
+					},
+					1: &eth2v1.Validator{
+						Index:  1,
+						Status: eth2v1.ValidatorStateActiveOngoing,
+						Validator: &eth2p0.Validator{
+							PublicKey: pubkeys[1],
+						},
+					},
+				}, nil
+			case "2":
+				return beaconmock.ValidatorSet{
+					0: &eth2v1.Validator{
+						Index:  0,
+						Status: eth2v1.ValidatorStateActiveOngoing,
+						Validator: &eth2p0.Validator{
+							PublicKey: pubkeys[0],
+						},
+					},
+					1: &eth2v1.Validator{
+						Index:  1,
+						Status: eth2v1.ValidatorStateActiveOngoing,
+						Validator: &eth2p0.Validator{
+							PublicKey: pubkeys[1],
+						},
+					},
+				}, nil
+			case "11":
+				return beaconmock.ValidatorSet{
+					0: &eth2v1.Validator{
+						Index:  0,
+						Status: eth2v1.ValidatorStatePendingQueued,
+						Validator: &eth2p0.Validator{
+							PublicKey: pubkeys[0],
+						},
+					},
+					1: &eth2v1.Validator{
+						Index:  1,
+						Status: eth2v1.ValidatorStatePendingQueued,
+						Validator: &eth2p0.Validator{
+							PublicKey: pubkeys[1],
+						},
+					},
+				}, nil
 
-	active, complete, err := valCache.GetBySlot(ctx, 1)
-	require.NoError(t, err)
-	require.Len(t, active, 1)
-	require.Equal(t, pubkeys[1], active[1])
-	require.Len(t, complete, 2)
+			default:
+				return nil, errors.New("no slot found")
+			}
+		}
 
-	active, complete, err = valCache.GetBySlot(ctx, 2)
-	require.NoError(t, err)
-	require.Len(t, active, 2)
-	require.Len(t, complete, 2)
+		valCache := eth2wrap.NewValidatorCache(eth2Cl, pubkeys)
+		ctx := t.Context()
 
-	active, complete, err = valCache.GetBySlot(ctx, 11)
-	require.NoError(t, err)
-	require.Empty(t, active)
-	require.Len(t, complete, 2)
+		active, complete, refreshedBySlot, err := valCache.GetBySlot(ctx, 1)
+		require.NoError(t, err)
+		require.Len(t, active, 1)
+		require.Equal(t, pubkeys[1], active[1])
+		require.Len(t, complete, 2)
+		require.True(t, refreshedBySlot)
 
-	_, _, err = valCache.GetBySlot(ctx, 3)
-	require.Error(t, err)
+		active, complete, refreshedBySlot, err = valCache.GetBySlot(ctx, 2)
+		require.NoError(t, err)
+		require.Len(t, active, 2)
+		require.Len(t, complete, 2)
+		require.True(t, refreshedBySlot)
+
+		active, complete, refreshedBySlot, err = valCache.GetBySlot(ctx, 11)
+		require.NoError(t, err)
+		require.Empty(t, active)
+		require.Len(t, complete, 2)
+		require.True(t, refreshedBySlot)
+
+		_, _, refreshedBySlot, err = valCache.GetBySlot(ctx, 3)
+		require.Error(t, err)
+		require.False(t, refreshedBySlot)
+	})
+
+	t.Run("fallback to head state", func(t *testing.T) {
+		// Create a mock client.
+		eth2Cl, err := beaconmock.New()
+		require.NoError(t, err)
+
+		// Create two validators pubkeys
+		pubkeys := []eth2p0.BLSPubKey{
+			testutil.RandomEth2PubKey(t),
+			testutil.RandomEth2PubKey(t),
+		}
+
+		eth2Cl.ValidatorsFunc = func(ctx context.Context, opts *eth2api.ValidatorsOpts) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+			switch opts.State {
+			case "head":
+				return beaconmock.ValidatorSet{
+					0: &eth2v1.Validator{
+						Index:  0,
+						Status: eth2v1.ValidatorStateActiveOngoing,
+						Validator: &eth2p0.Validator{
+							PublicKey: pubkeys[0],
+						},
+					},
+					1: &eth2v1.Validator{
+						Index:  1,
+						Status: eth2v1.ValidatorStateActiveOngoing,
+						Validator: &eth2p0.Validator{
+							PublicKey: pubkeys[1],
+						},
+					},
+				}, nil
+			default:
+				return beaconmock.ValidatorSet{}, errors.New("no slot found")
+			}
+		}
+
+		valCache := eth2wrap.NewValidatorCache(eth2Cl, pubkeys)
+		ctx := t.Context()
+
+		active, complete, refreshedBySlot, err := valCache.GetBySlot(ctx, 1)
+		require.NoError(t, err)
+		require.Len(t, active, 2)
+		require.Len(t, complete, 2)
+		require.False(t, refreshedBySlot)
+	})
 }
