@@ -155,11 +155,20 @@ func TestVerifyDepositAmounts(t *testing.T) {
 }
 
 func TestDefaultDepositAmounts(t *testing.T) {
-	amounts := deposit.DefaultDepositAmounts()
+	amounts := deposit.DefaultDepositAmounts(false)
 
 	require.Equal(t, []eth2p0.Gwei{
 		deposit.MinDepositAmount,
 		deposit.DefaultDepositAmount,
+	}, amounts)
+
+	amounts = deposit.DefaultDepositAmounts(true)
+
+	require.Equal(t, []eth2p0.Gwei{
+		deposit.MinDepositAmount,
+		8 * deposit.OneEthInGwei,
+		32 * deposit.OneEthInGwei,
+		256 * deposit.OneEthInGwei,
 	}, amounts)
 }
 

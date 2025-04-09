@@ -253,7 +253,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	depositAmounts := def.DepositAmounts
 	if len(depositAmounts) == 0 {
 		if cluster.SupportPartialDeposits(def.Version) {
-			depositAmounts = deposit.DefaultDepositAmounts()
+			depositAmounts = deposit.DefaultDepositAmounts(def.Compounding)
 		} else {
 			depositAmounts = []eth2p0.Gwei{deposit.DefaultDepositAmount}
 		}

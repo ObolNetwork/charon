@@ -227,7 +227,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	if len(depositAmounts) == 0 {
-		depositAmounts = deposit.DefaultDepositAmounts()
+		depositAmounts = deposit.DefaultDepositAmounts(conf.Compounding)
 	}
 
 	if len(secrets) == 0 {
