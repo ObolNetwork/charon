@@ -391,6 +391,8 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 	)
 
 	_, span = tracer.Start(ctx, "qbft.runInstance")
+	span.SetAttributes(attribute.String("duty", duty.Type.String()))
+
 	defer func() {
 		if err != nil && !isContextErr(err) {
 			span.RecordError(err)
