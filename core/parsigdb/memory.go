@@ -92,10 +92,6 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 			continue
 		}
 
-		log.Debug(ctx, "Partial signed data stored",
-			z.Int("count", len(sigs)),
-			z.Any("pubkey", pubkey))
-
 		// Check if sufficient matching partial signed data has been received.
 		psigs, ok, err := getThresholdMatching(duty.Type, sigs, db.threshold)
 		if err != nil {

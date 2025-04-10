@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -108,15 +109,16 @@ func (r *Retryer[T]) DoAsync(parent context.Context, t T, topic, name string, fn
 	defer cancel()
 
 	_, span := tracer.Start(r.asyncCtx, "app/retry.DoAsync")
-	defer span.End()
 	span.SetAttributes(attribute.String("topic", topic))
 	span.SetAttributes(attribute.String("name", name))
+	defer span.End()
 
 	for i := 0; ; i++ {
 		span.AddEvent("retry.attempt.start", trace.WithAttributes(attribute.Int("i", i)))
 
 		err := fn(ctx)
 		if err == nil {
+			span.SetStatus(codes.Ok, "success")
 			return
 		}
 
@@ -127,27 +129,30 @@ func (r *Retryer[T]) DoAsync(parent context.Context, t T, topic, name string, fn
 		// Note that the local context is not checked, since we care about downstream timeouts.
 
 		if !isCtxErr && !isNetErr && !isTempErr {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			log.Error(ctx, "Permanent failure calling "+label, err)
+
 			return
 		}
 
 		if ctx.Err() == nil {
 			log.Warn(ctx, "Temporary failure (will retry) calling "+label, err)
-			span.AddEvent("retry.backoff.start")
 			select {
 			case <-backoffFunc():
 			case <-ctx.Done():
 			case <-r.shutdown:
 				return
 			}
-			span.AddEvent("retry.backoff.done")
 		}
 
 		if r.asyncCtx.Err() != nil {
 			return // Shutdown, return without logging
 		} else if ctx.Err() != nil {
+			span.SetStatus(codes.Error, "timeout")
 			// No need to log this at error level since tracker will analyse and report on failed duties.
 			log.Debug(ctx, "Timeout calling "+label+", duty expired")
+
 			return
 		}
 	}
