@@ -12,6 +12,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/tracer"
 )
 
@@ -149,7 +150,7 @@ func WithTracing() WireOption {
 }
 
 func withSpanStatus(span trace.Span, err error) error {
-	if err != nil {
+	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 	} else {
