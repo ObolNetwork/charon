@@ -19,7 +19,7 @@ func (c Client) PostTestResult(ctx context.Context, jsonTestResult []byte) error
 		return errors.Wrap(err, "bad Obol API url")
 	}
 
-	u.Path = postTestPath
+	u.Path += postTestPath
 
 	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
 	defer cancel()
