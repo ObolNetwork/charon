@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"slices"
 
 	"golang.org/x/crypto/sha3"
 
@@ -18,8 +19,9 @@ import (
 type Primitive string
 
 const (
-	PrimitiveString  Primitive = "string"
-	PrimitiveUint256 Primitive = "uint256"
+	PrimitiveString           Primitive = "string"
+	PrimitiveUint256          Primitive = "uint256"
+	TermsAndConditionTypeName string    = "TermsAndConditions"
 )
 
 // TypedData represents a dynamically typed EIP-712 message.
@@ -64,7 +66,16 @@ func domainToType(domain Domain) Type {
 
 // HashTypedData returns the hash of the typed data.
 func HashTypedData(data TypedData) ([]byte, error) {
-	domainHash, err := hashData(domainToType(data.Domain))
+	domainType := domainToType(data.Domain)
+
+	// TODO(diogo): temporary hack until api is updated then remove
+	// Currently, api doesn't have chainId field in the domain for
+	// eip712 termsAndConditions message. This will change in the future.
+	if data.Type.Name == TermsAndConditionTypeName {
+		domainType.Fields = slices.Delete(domainType.Fields, 2, 3)
+	}
+
+	domainHash, err := hashData(domainType)
 	if err != nil {
 		return nil, err
 	}

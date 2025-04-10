@@ -20,7 +20,7 @@ const (
 	// launchpadReturnPathFmt is the URL path format string at which one can find details for a given cluster lock hash.
 	launchpadReturnPathFmt = "/lock/0x%X/launchpad"
 
-	// defaultTimeout is the default HTTP request timeout if not specified
+	// defaultTimeout is the default HTTP request timeout if not specified.
 	defaultTimeout = 10 * time.Second
 )
 
@@ -33,7 +33,6 @@ func New(urlStr string, options ...func(*Client)) (Client, error) {
 
 	// always set a default timeout, even if no options are provided
 	options = append([]func(*Client){WithTimeout(defaultTimeout)}, options...)
-
 	cl := Client{
 		baseURL: urlStr,
 	}
@@ -67,28 +66,6 @@ func (c Client) url() *url.URL {
 	}
 
 	return baseURL
-}
-
-// PublishLock posts the lockfile to obol-api.
-// It respects the timeout specified in the Client instance.
-func (c Client) PublishLock(ctx context.Context, lock cluster.Lock) error {
-	addr := c.url()
-	addr.Path = "lock"
-
-	b, err := lock.MarshalJSON()
-	if err != nil {
-		return errors.Wrap(err, "marshal lock")
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
-	defer cancel()
-
-	err = httpPost(ctx, addr, b, nil)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // LaunchpadURLForLock returns the Launchpad cluster dashboard page for a given lock, on the given
