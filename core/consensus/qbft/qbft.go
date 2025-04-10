@@ -14,6 +14,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -389,8 +390,16 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 		span    trace.Span
 	)
 
-	_, span = tracer.Start(parent, "qbft.runInstance")
-	defer span.End()
+	_, span = tracer.Start(ctx, "qbft.runInstance")
+	defer func() {
+		if err != nil && !isContextErr(err) {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		} else {
+			span.SetStatus(codes.Ok, "")
+		}
+		span.End()
+	}()
 
 	decideCallback := func(qcommit []qbft.Msg[core.Duty, [32]byte]) {
 		round := qcommit[0].Round()
@@ -412,7 +421,10 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 		span.SetAttributes(attribute.Int64("round", round))
 		span.SetAttributes(attribute.Int64("leader_index", leaderIndex))
 		span.SetAttributes(attribute.String("leader_name", leaderName))
-		endSpanWithEvent(span, "qbft.Decided")
+		span.AddEvent("qbft.Decided")
+
+		// qbft.Run() is stopped by cancelling the context, or if an error occurred.
+		cancel()
 	}
 
 	// Create a new qbft definition for this instance.
@@ -438,26 +450,20 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 	// Run the algo, blocking until the context is cancelled.
 	err = qbft.Run(ctx, def, qt, duty, peerIdx, inst.HashCh)
 	if err != nil && !isContextErr(err) {
-		endSpanWithEvent(span, "qbft.Error")
-
+		span.AddEvent("qbft.Error")
 		c.metrics.IncConsensusError()
 
 		return err // Only return non-context errors.
 	}
 
 	if !decided {
-		endSpanWithEvent(span, "qbft.Timeout")
+		span.AddEvent("qbft.Timeout")
 		c.metrics.IncConsensusTimeout(duty.Type.String(), string(roundTimer.Type()))
 
 		return errors.New("consensus timeout", z.Str("duty", duty.String()))
 	}
 
 	return nil
-}
-
-func endSpanWithEvent(span trace.Span, event string) {
-	span.AddEvent(event)
-	span.End()
 }
 
 // handle processes an incoming consensus wire message.

@@ -9,6 +9,8 @@ package sigagg
 import (
 	"context"
 
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
@@ -101,22 +103,34 @@ func (a *Aggregator) aggregate(ctx context.Context, pubkey core.PubKey, parSigs 
 	}
 
 	// Aggregate signatures
-	_, span := tracer.Start(ctx, "tbls.Aggregate")
+	_, span := tracer.Start(ctx, "tbls.ThresholdAggregate")
+	defer span.End()
+
 	sig, err := tbls.ThresholdAggregate(blsSigs)
-	span.End()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
 		return nil, err
 	}
 
 	// Inject signature into one of the parSigs resulting in aggregate signed data.
 	aggSig, err := parSigs[0].SetSignature(tblsconv.SigToCore(sig))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
 		return nil, err
 	}
 
 	if err := a.verifyFunc(ctx, pubkey, aggSig); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
 		return nil, err
 	}
+
+	span.SetStatus(codes.Ok, "success")
 
 	return aggSig, nil
 }
