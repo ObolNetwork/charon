@@ -19,8 +19,9 @@ import (
 type Primitive string
 
 const (
-	PrimitiveString  Primitive = "string"
-	PrimitiveUint256 Primitive = "uint256"
+	PrimitiveString           Primitive = "string"
+	PrimitiveUint256          Primitive = "uint256"
+	TermsAndConditionTypeName string    = "TermsAndConditions"
 )
 
 // TypedData represents a dynamically typed EIP-712 message.
@@ -68,7 +69,9 @@ func HashTypedData(data TypedData) ([]byte, error) {
 	domainType := domainToType(data.Domain)
 
 	// TODO(diogo): temporary hack until api is updated then remove
-	if data.Type.Name == "TermsAndConditions" {
+	// Currently, api doesn't have chainId field in the domain for
+	// eip712 termsAndConditions message. This will change in the future.
+	if data.Type.Name == TermsAndConditionTypeName {
 		domainType.Fields = slices.Delete(domainType.Fields, 2, 3)
 	}
 
