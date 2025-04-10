@@ -6,20 +6,12 @@ import (
 	"context"
 	"strconv"
 	"sync"
-	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/z"
-)
-
-const (
-	maxRetries = 20
-	retryDelay = 100 * time.Millisecond
 )
 
 // ActiveValidators is a map of active validator indices to pubkeys.
@@ -100,7 +92,7 @@ func (c *ValidatorCache) cached() (CompleteValidators, bool) {
 }
 
 // Get returns the cached active validators, cached complete Validators response, or fetches them if not available populating the cache.
-func (c *ValidatorCache) Get(ctx context.Context) (ActiveValidators, CompleteValidators, error) {
+func (c *ValidatorCache) GetByHead(ctx context.Context) (ActiveValidators, CompleteValidators, error) {
 	completeCached, completeOk := c.cached()
 	activeCached, activeOk := c.activeCached()
 
@@ -143,32 +135,27 @@ func (c *ValidatorCache) Get(ctx context.Context) (ActiveValidators, CompleteVal
 }
 
 // GetBySlot fetches active and complete validator by slot populating the cache.
-func (c *ValidatorCache) GetBySlot(ctx context.Context, slot uint64) (ActiveValidators, CompleteValidators, error) {
+// If it fails to fetch by slot, it falls back to head state and retries to fetch by slot next slot.
+func (c *ValidatorCache) GetBySlot(ctx context.Context, slot uint64) (ActiveValidators, CompleteValidators, bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	refreshedBySlot := true
 
 	opts := &eth2api.ValidatorsOpts{
 		State:   strconv.FormatUint(slot, 10),
 		PubKeys: c.pubkeys,
 	}
 
-	var eth2Resp *eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator]
-	var err error
-
-	for retryCount := 0; retryCount < maxRetries; retryCount++ {
-		eth2Resp, err = c.eth2Cl.Validators(ctx, opts)
-		if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			break
-		}
-
-		sleepDuration := retryDelay * time.Duration(retryCount+1)
-		time.Sleep(sleepDuration)
-
-		log.Info(ctx, "Retrying fetching validators by slot", z.U64("slot", slot), z.Int("retryCount", retryCount+1), z.Err(err))
-	}
-
+	eth2Resp, err := c.eth2Cl.Validators(ctx, opts)
 	if err != nil {
-		return nil, nil, wrapError(ctx, err, "Failed to fetch validators by slot after maximum retries")
+		// Failed to fetch by slot, fall back to head state
+		refreshedBySlot = false
+		opts.State = "head"
+		eth2Resp, err = c.eth2Cl.Validators(ctx, opts)
+		if err != nil {
+			return nil, nil, refreshedBySlot, err
+		}
 	}
 
 	complete := eth2Resp.Data
@@ -176,7 +163,7 @@ func (c *ValidatorCache) GetBySlot(ctx context.Context, slot uint64) (ActiveVali
 	active := make(ActiveValidators)
 	for _, val := range complete {
 		if val == nil || val.Validator == nil {
-			return nil, nil, errors.New("validator data cannot be nil")
+			return nil, nil, refreshedBySlot, errors.New("validator data cannot be nil")
 		}
 
 		if !val.Status.IsActive() {
@@ -189,5 +176,5 @@ func (c *ValidatorCache) GetBySlot(ctx context.Context, slot uint64) (ActiveVali
 	c.active = active
 	c.complete = complete
 
-	return active, complete, nil
+	return active, complete, refreshedBySlot, nil
 }
