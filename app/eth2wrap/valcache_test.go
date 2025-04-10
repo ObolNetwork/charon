@@ -59,14 +59,14 @@ func TestValidatorCache(t *testing.T) {
 	ctx := context.Background()
 
 	// Check cache is populated.
-	actual, complete, err := valCache.Get(ctx)
+	actual, complete, err := valCache.GetByHead(ctx)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 	require.Equal(t, 1, queried)
 	require.Equal(t, completeExpected, complete)
 
 	// Check cache is used.
-	actual, complete, err = valCache.Get(ctx)
+	actual, complete, err = valCache.GetByHead(ctx)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 	require.Equal(t, 1, queried)
@@ -76,14 +76,14 @@ func TestValidatorCache(t *testing.T) {
 	valCache.Trim()
 
 	// Check cache is populated again.
-	actual, complete, err = valCache.Get(ctx)
+	actual, complete, err = valCache.GetByHead(ctx)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 	require.Equal(t, 2, queried)
 	require.Equal(t, completeExpected, complete)
 
 	// Check cache is used again.
-	actual, complete, err = valCache.Get(ctx)
+	actual, complete, err = valCache.GetByHead(ctx)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 	require.Equal(t, 2, queried)

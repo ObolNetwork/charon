@@ -456,7 +456,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	// Setup validator cache, refreshing it every epoch.
 	valCache := eth2wrap.NewValidatorCache(eth2Cl, eth2Pubkeys)
-	eth2Cl.SetValidatorCache(valCache.Get)
+	eth2Cl.SetValidatorCache(valCache.GetByHead)
 
 	firstValCacheRefresh := true
 	refreshedBySlot := true

@@ -92,7 +92,7 @@ func (c *ValidatorCache) cached() (CompleteValidators, bool) {
 }
 
 // Get returns the cached active validators, cached complete Validators response, or fetches them if not available populating the cache.
-func (c *ValidatorCache) Get(ctx context.Context) (ActiveValidators, CompleteValidators, error) {
+func (c *ValidatorCache) GetByHead(ctx context.Context) (ActiveValidators, CompleteValidators, error) {
 	completeCached, completeOk := c.cached()
 	activeCached, activeOk := c.activeCached()
 
