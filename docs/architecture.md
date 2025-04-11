@@ -465,23 +465,6 @@ type ValidatorAPI interface {
 }
 ```
 
-### Signer
-The signer provides support the alternative _Remote Signature_ architecture
-which authorises charon to request adhoc signatures from a [remote signer instance](https://lighthouse-book.sigmaprime.io/validator-web3signer.html).
-In the _middleware_ architecture charon cannot initiate signatures itself and has to
-wait for the VC to submit signatures.
-
-Duties originating in the `scheduler` (`DutyAttester`, `DutyProposer`) are not significantly affected by this change in architecture.
-Instead of waiting for the `validatorapi` to submit signatures, these duties directly request
-signatures from the remote signer instance. The flow is otherwise unaffected.
-
-Duties originating in the `validatorapi` (`DutyRandao`, `DutyExit`, `DutyBuilderRegistration`) has to refactored to
-originate in the `scheduler`, since charon is in full control of the duties in this architecture.
-
-The overall core workflow remains the same, `scheduler` just schedules all the duties.
-
-> 🏗️ TODO: Figure out if signer should query DutyDB for slashing, or if DutyDB should push to signer.
-
 ### ParSigDB
 The partial signature database persists partial BLS threshold signatures received internally (from the local Charon node's VC(s))
 as well as externally (from other nodes in cluster).
