@@ -104,6 +104,8 @@ type Config struct {
 	ExecutionEngineAddr         string
 	Graffiti                    []string
 	GraffitiDisableClientAppend bool
+	VCTLSCertFile               string
+	VCTLSKeyFile                string
 
 	TestConfig TestConfig
 }
@@ -527,7 +529,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	if err := wireVAPIRouter(ctx, life, conf.ValidatorAPIAddr, eth2Cl, vapi, vapiCalls, conf.BuilderAPI); err != nil {
+	if err := wireVAPIRouter(ctx, life, conf.ValidatorAPIAddr, eth2Cl, vapi, vapiCalls, &conf); err != nil {
 		return err
 	}
 
@@ -1041,9 +1043,9 @@ func createMockValidators(pubkeys []eth2p0.BLSPubKey) beaconmock.ValidatorSet {
 
 // wireVAPIRouter constructs the validator API router and registers it with the life cycle manager.
 func wireVAPIRouter(ctx context.Context, life *lifecycle.Manager, vapiAddr string, eth2Cl eth2wrap.Client,
-	handler validatorapi.Handler, vapiCalls func(), builderEnabled bool,
+	handler validatorapi.Handler, vapiCalls func(), conf *Config,
 ) error {
-	vrouter, err := validatorapi.NewRouter(ctx, handler, eth2Cl, builderEnabled)
+	vrouter, err := validatorapi.NewRouter(ctx, handler, eth2Cl, conf.BuilderAPI)
 	if err != nil {
 		return errors.Wrap(err, "new monitoring server")
 	}
@@ -1057,7 +1059,15 @@ func wireVAPIRouter(ctx context.Context, life *lifecycle.Manager, vapiAddr strin
 		ReadHeaderTimeout: time.Second,
 	}
 
-	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartValidatorAPI, httpServeHook(server.ListenAndServe))
+	if conf.VCTLSCertFile != "" && conf.VCTLSKeyFile != "" {
+		listenAndServeTLS := func() error {
+			return server.ListenAndServeTLS(conf.VCTLSCertFile, conf.VCTLSKeyFile)
+		}
+		life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartValidatorAPI, httpServeHook(listenAndServeTLS))
+	} else {
+		life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartValidatorAPI, httpServeHook(server.ListenAndServe))
+	}
+
 	life.RegisterStop(lifecycle.StopValidatorAPI, lifecycle.HookFunc(server.Shutdown))
 
 	return nil

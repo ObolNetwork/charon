@@ -102,6 +102,8 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().StringVar(&config.ExecutionEngineAddr, "execution-client-rpc-endpoint", "", "The address of the execution engine JSON-RPC API.")
 	cmd.Flags().StringSliceVar(&config.Graffiti, "graffiti", nil, "Comma-separated list or single graffiti string to include in block proposals. List maps to validator's public key in cluster lock. Appends \"OB<CL_TYPE>\" suffix to graffiti. Maximum 28 bytes per graffiti.")
 	cmd.Flags().BoolVar(&config.GraffitiDisableClientAppend, "graffiti-disable-client-append", false, "Disables appending \"OB<CL_TYPE>\" suffix to graffiti. Increases maximum bytes per graffiti to 32.")
+	cmd.Flags().StringVar(&config.VCTLSCertFile, "vc-tls-cert-file", "", "The path to the TLS certificate file used by the Validator Client for secure communication.")
+	cmd.Flags().StringVar(&config.VCTLSKeyFile, "vc-tls-key-file", "", "The path to the TLS key file used by the Validator Client for secure communication.")
 
 	wrapPreRunE(cmd, func(cc *cobra.Command, _ []string) error {
 		if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {
@@ -113,8 +115,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 		if len(config.JaegerAddr) > 0 || len(config.JaegerService) > 0 {
 			log.Warn(cc.Context(), "Jaeger flags are disabled and will be removed in a future release", nil)
 		}
-		err := eth2util.ValidateBeaconNodeHeaders(config.BeaconNodeHeaders)
-		if err != nil {
+		if err := eth2util.ValidateBeaconNodeHeaders(config.BeaconNodeHeaders); err != nil {
 			return err
 		}
 		maxGraffitiBytes := 28
@@ -125,6 +126,15 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 			if len(g) > maxGraffitiBytes {
 				return errors.New("graffiti string length is greater than maximum size")
 			}
+		}
+		if (config.VCTLSCertFile == "" && config.VCTLSKeyFile != "") || (config.VCTLSCertFile != "" && config.VCTLSKeyFile == "") {
+			return errors.New("both VCTLSCertFile and VCTLSKeyFile must be set or both must be empty")
+		}
+		if config.VCTLSCertFile != "" && !app.FileExists(config.VCTLSCertFile) {
+			return errors.New("file VCTLSCertFile does not exist", z.Str("file", config.VCTLSCertFile))
+		}
+		if config.VCTLSKeyFile != "" && !app.FileExists(config.VCTLSKeyFile) {
+			return errors.New("file VCTLSKeyFile does not exist", z.Str("file", config.VCTLSKeyFile))
 		}
 
 		return nil
