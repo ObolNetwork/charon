@@ -345,11 +345,11 @@ func parsePRs(gitRange string) ([]pullRequest, error) {
 	out = strings.ReplaceAll(out, "\n", `\n`)       // Escape new lines
 	out = strings.ReplaceAll(out, "\t", `\t`)       // Escape tabs
 	out = strings.ReplaceAll(out, `\"`, `‰`)        // Hide already escaped quotes
+	out = strings.ReplaceAll(out, `\`, `\\`)        // Escape backslashes
 	out = strings.ReplaceAll(out, `"`, `\"`)        // Escape double quotes
 	out = strings.ReplaceAll(out, `‰`, `\"`)        // Unhide already escaped quotes
 	out = strings.ReplaceAll(out, `¬`, `"`)         // Replace field separator
 	out = strings.ReplaceAll(out, "`\\`", "`\\\\`") // Edge case in which backticks are used in issue/PR names
-	out = strings.ReplaceAll(out, `\[`, `\\[`)      // Edge case with invalid escape character
 
 	var logs []log
 	if err := json.Unmarshal([]byte(out), &logs); err != nil {
