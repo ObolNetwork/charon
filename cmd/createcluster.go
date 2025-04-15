@@ -189,7 +189,8 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	// If SplitKeys wasn't set, we wouldn't have reached this part of code because validateCreateConfig()
 	// would've already errored.
 	if conf.SplitKeys {
-		secrets, err = getKeys(conf.SplitKeysDir)
+		useSequencedKeys := len(conf.WithdrawalAddrs) > 1
+		secrets, err = getKeys(conf.SplitKeysDir, useSequencedKeys)
 		if err != nil {
 			return err
 		}
@@ -591,7 +592,7 @@ func writeWarning(w io.Writer) {
 }
 
 // getKeys fetches secret keys from splitKeysDir.
-func getKeys(splitKeysDir string) ([]tbls.PrivateKey, error) {
+func getKeys(splitKeysDir string, useSequencedKeys bool) ([]tbls.PrivateKey, error) {
 	if splitKeysDir == "" {
 		return nil, errors.New("--split-keys-dir required when splitting keys")
 	}
@@ -601,7 +602,11 @@ func getKeys(splitKeysDir string) ([]tbls.PrivateKey, error) {
 		return nil, err
 	}
 
-	return files.SequencedKeys()
+	if useSequencedKeys {
+		return files.SequencedKeys()
+	}
+
+	return files.Keys(), nil
 }
 
 // generateKeys generates numDVs amount of tbls.PrivateKeys.
