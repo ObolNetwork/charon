@@ -124,21 +124,21 @@ func TestBindRunFlagsValidation(t *testing.T) {
 		{
 			Name: "vc tls cert set without key",
 			Args: slice("run", "--beacon-node-endpoints", "http://beacon.node", "--vc-tls-cert-file", "cert.pem"),
-			Err:  "both VCTLSCertFile and VCTLSKeyFile must be set or both must be empty",
+			Err:  "both vc-tls-cert-file and vc-tls-public-key-file must be set or both must be empty",
 		},
 		{
 			Name: "vc tls key set without cert",
-			Args: slice("run", "--beacon-node-endpoints", "http://beacon.node", "--vc-tls-key-file", "cert.key"),
-			Err:  "both VCTLSCertFile and VCTLSKeyFile must be set or both must be empty",
+			Args: slice("run", "--beacon-node-endpoints", "http://beacon.node", "--vc-tls-public-key-file", "cert.key"),
+			Err:  "both vc-tls-cert-file and vc-tls-public-key-file must be set or both must be empty",
 		},
 		{
 			Name: "vc tls cert file does not exist",
-			Args: slice("run", "--beacon-node-endpoints", "http://beacon.node", "--vc-tls-cert-file", "cert.pem", "--vc-tls-key-file", "cert.key"),
-			Err:  "file VCTLSCertFile does not exist",
+			Args: slice("run", "--beacon-node-endpoints", "http://beacon.node", "--vc-tls-cert-file", "cert.pem", "--vc-tls-public-key-file", "cert.key"),
+			Err:  "file vc-tls-cert-file does not exist",
 		},
 		{
 			Name: "valid vc tls cert and key files",
-			Args: slice("run", "--beacon-node-endpoints", "http://beacon.node", "--vc-tls-cert-file", certFile.Name(), "--vc-tls-key-file", keyFile.Name()),
+			Args: slice("run", "--beacon-node-endpoints", "http://beacon.node", "--vc-tls-cert-file", certFile.Name(), "--vc-tls-public-key-file", keyFile.Name()),
 		},
 	}
 
