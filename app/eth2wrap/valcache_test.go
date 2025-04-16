@@ -91,7 +91,6 @@ func TestValidatorCache(t *testing.T) {
 }
 
 func TestGetBySlot(t *testing.T) {
-
 	t.Run("successful fetch", func(t *testing.T) {
 		// Create a mock client.
 		eth2Cl, err := beaconmock.New()

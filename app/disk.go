@@ -4,6 +4,7 @@ package app
 
 import (
 	"context"
+	"os"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth1wrap"
@@ -47,4 +48,14 @@ func loadClusterManifest(ctx context.Context, conf Config, eth1Cl eth1wrap.EthCl
 	}
 
 	return cluster, nil
+}
+
+// FileExists checks if a file exists at the given path.
+func FileExists(path string) bool {
+	_, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return false
+	}
+
+	return err == nil
 }

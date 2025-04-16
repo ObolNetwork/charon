@@ -4,6 +4,7 @@ package app
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -93,4 +94,16 @@ func TestSetFeeRecipient(t *testing.T) {
 
 		require.Equal(t, active, len(clone)-(i+1))
 	}
+}
+
+func TestFileExists(t *testing.T) {
+	tempDir := t.TempDir()
+
+	tmpFile, err := os.CreateTemp(tempDir, "testfile")
+	require.NoError(t, err)
+
+	require.NoError(t, os.Remove(tmpFile.Name()))
+
+	exists := FileExists(tmpFile.Name())
+	require.False(t, exists)
 }

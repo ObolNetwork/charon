@@ -46,6 +46,8 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
+//go:generate mockery --name Handler --output=mocks --outpkg=mocks --case=underscore
+
 type contentType string
 
 const (
