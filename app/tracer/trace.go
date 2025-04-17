@@ -5,7 +5,9 @@ package tracer
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"strings"
 	"sync"
 
 	"go.opentelemetry.io/otel"
@@ -120,10 +122,17 @@ func WithNamespaceName(namespaceName string) func(*options) {
 }
 
 func newTraceProvider(exp sdktrace.SpanExporter, service, namespace string) *sdktrace.TracerProvider {
+	// Tempo does not index the namespace (yet),
+	// so we include it into the service name for indexing.
+	fullServiceName := fmt.Sprintf("%s/%s", namespace, service)
+	fullServiceName = strings.Trim(fullServiceName, "/")
+
 	r := resource.NewWithAttributes(
 		semconv.SchemaURL,
-		semconv.ServiceNameKey.String(service),
-		semconv.ServiceNamespaceKey.String(namespace),
+		semconv.ServiceNameKey.String(fullServiceName),
+
+		// Enable this when Tempo & Grafana support it
+		// semconv.ServiceNamespaceKey.String(namespace),
 	)
 
 	tp := sdktrace.NewTracerProvider(
