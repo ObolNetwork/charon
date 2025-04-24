@@ -102,8 +102,8 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().StringVar(&config.ExecutionEngineAddr, "execution-client-rpc-endpoint", "", "The address of the execution engine JSON-RPC API.")
 	cmd.Flags().StringSliceVar(&config.Graffiti, "graffiti", nil, "Comma-separated list or single graffiti string to include in block proposals. List maps to validator's public key in cluster lock. Appends \"OB<CL_TYPE>\" suffix to graffiti. Maximum 28 bytes per graffiti.")
 	cmd.Flags().BoolVar(&config.GraffitiDisableClientAppend, "graffiti-disable-client-append", false, "Disables appending \"OB<CL_TYPE>\" suffix to graffiti. Increases maximum bytes per graffiti to 32.")
-	cmd.Flags().StringVar(&config.VCTLSCertFile, "vc-tls-cert-file", "", "The path to the TLS certificate file used by charon for secure communication with the validator client.")
-	cmd.Flags().StringVar(&config.VCTLSKeyFile, "vc-tls-public-key-file", "", "The path to the TLS public key file used by the validator client for secure communication with charon.")
+	cmd.Flags().StringVar(&config.VCTLSCertFile, "vc-tls-cert-file", "", "The path to the TLS certificate file used by charon for the validator client API endpoint.")
+	cmd.Flags().StringVar(&config.VCTLSKeyFile, "vc-tls-key-file", "", "The path to the TLS private key file associated with the provided TLS certificate.")
 
 	wrapPreRunE(cmd, func(cc *cobra.Command, _ []string) error {
 		if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {
@@ -128,13 +128,13 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 			}
 		}
 		if (config.VCTLSCertFile == "" && config.VCTLSKeyFile != "") || (config.VCTLSCertFile != "" && config.VCTLSKeyFile == "") {
-			return errors.New("both vc-tls-cert-file and vc-tls-public-key-file must be set or both must be empty")
+			return errors.New("both vc-tls-cert-file and vc-tls-key-file must be set or both must be empty")
 		}
 		if config.VCTLSCertFile != "" && !app.FileExists(config.VCTLSCertFile) {
 			return errors.New("file vc-tls-cert-file does not exist", z.Str("file", config.VCTLSCertFile))
 		}
 		if config.VCTLSKeyFile != "" && !app.FileExists(config.VCTLSKeyFile) {
-			return errors.New("file vc-tls-public-key-file does not exist", z.Str("file", config.VCTLSKeyFile))
+			return errors.New("file vc-tls-key-file does not exist", z.Str("file", config.VCTLSKeyFile))
 		}
 
 		return nil
