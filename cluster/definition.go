@@ -5,6 +5,7 @@ package cluster
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"time"
 
@@ -500,7 +501,8 @@ func (d Definition) VerifyHashes() error {
 	}
 
 	if !bytes.Equal(d.DefinitionHash, defHash[:]) {
-		return errors.New("invalid definition hash")
+		errStr := fmt.Sprintf("invalid definition hash: expected %x, actual %x", d.DefinitionHash, defHash[:])
+		return errors.New(errStr)
 	}
 
 	return nil

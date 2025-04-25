@@ -64,6 +64,7 @@ func New() *cobra.Command {
 			newBcastFullExitCmd(runBcastFullExit),
 			newFetchExitCmd(runFetchExit),
 		),
+		newVerifyLockCmd(runVerifyLockCmd),
 		newUnsafeCmd(newRunCmd(app.Run, true)),
 	)
 }
