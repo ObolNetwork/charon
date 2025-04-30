@@ -153,12 +153,12 @@ var checks = []check{
 		Description: "Using fallback beacon nodes. Please check primary beacon nodes health.",
 		Severity:    severityWarning,
 		Func: func(q query, _ Metadata) (bool, error) {
-			increase, err := q("app_eth2_using_fallback", sumLabels(), increase)
+			increase, err := q("app_eth2_using_fallback", sumLabels(), average)
 			if err != nil {
 				return false, err
 			}
 
-			return increase > 0, nil
+			return increase > 0.5, nil
 		},
 	},
 }

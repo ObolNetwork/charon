@@ -11,6 +11,24 @@ import (
 // seriesReducer is a function that reduces a time series of metrics to a single value.
 type seriesReducer func([]*pb.Metric) (float64, error)
 
+// average returns the average value in a time series of metrics.
+func average(samples []*pb.Metric) (float64, error) {
+	if len(samples) == 0 {
+		return 0, nil
+	}
+
+	var sum float64
+	for _, sample := range samples {
+		if sample.GetGauge() == nil && sample.GetCounter() == nil {
+			return 0, errors.New("bug: unsupported metric passed")
+		}
+
+		sum += sample.GetCounter().GetValue() + sample.GetGauge().GetValue()
+	}
+
+	return sum / float64(len(samples)), nil
+}
+
 // increase returns the increase in a time series of counter metrics.
 func increase(samples []*pb.Metric) (float64, error) {
 	if len(samples) < 2 {
