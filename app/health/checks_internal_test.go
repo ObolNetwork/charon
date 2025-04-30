@@ -412,26 +412,10 @@ func TestUsingFallbackBeaconNodesCheck(t *testing.T) {
 		)
 	})
 
-	t.Run("no fallback below average", func(t *testing.T) {
-		testCheck(t, m, checkName, false,
-			genFam(metricName,
-				genGauge(nil, 0, 0, 0, 1, 1),
-			),
-		)
-	})
-
-	t.Run("using fallback above average", func(t *testing.T) {
+	t.Run("single fallback", func(t *testing.T) {
 		testCheck(t, m, checkName, true,
 			genFam(metricName,
-				genGauge(nil, 0, 0, 1, 1, 1),
-			),
-		)
-	})
-
-	t.Run("using fallback", func(t *testing.T) {
-		testCheck(t, m, checkName, true,
-			genFam(metricName,
-				genGauge(nil, 1, 1, 1),
+				genGauge(nil, 0, 1, 0),
 			),
 		)
 	})
