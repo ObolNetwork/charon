@@ -148,6 +148,19 @@ var checks = []check{
 			return maxVal > 0, nil
 		},
 	},
+	{
+		Name:        "using_fallback_beacon_nodes",
+		Description: "Using fallback beacon nodes. Please check primary beacon nodes health.",
+		Severity:    severityWarning,
+		Func: func(q query, _ Metadata) (bool, error) {
+			maxVal, err := q("app_eth2_using_fallback", sumLabels(), gaugeMax)
+			if err != nil {
+				return false, err
+			}
+
+			return maxVal > 0, nil
+		},
+	},
 }
 
 // l is a concise convenience function to create a label pair.

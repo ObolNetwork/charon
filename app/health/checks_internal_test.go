@@ -395,6 +395,32 @@ func TestMetricsHighCardinalityCheck(t *testing.T) {
 	})
 }
 
+func TestUsingFallbackBeaconNodesCheck(t *testing.T) {
+	m := Metadata{}
+	checkName := "using_fallback_beacon_nodes"
+	metricName := "app_eth2_using_fallback"
+
+	t.Run("no data", func(t *testing.T) {
+		testCheck(t, m, checkName, false, nil)
+	})
+
+	t.Run("no fallback", func(t *testing.T) {
+		testCheck(t, m, checkName, false,
+			genFam(metricName,
+				genGauge(nil, 0, 0, 0),
+			),
+		)
+	})
+
+	t.Run("single fallback", func(t *testing.T) {
+		testCheck(t, m, checkName, true,
+			genFam(metricName,
+				genGauge(nil, 0, 1, 0),
+			),
+		)
+	})
+}
+
 func testCheck(t *testing.T, m Metadata, checkName string, expect bool, metrics []*pb.MetricFamily) {
 	t.Helper()
 
