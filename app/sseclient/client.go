@@ -179,7 +179,7 @@ func (c *Client) parseEvent(r *bufio.Reader) (*Event, error) {
 func formatAndValidateEvent(r *bufio.Reader) ([][]byte, error) {
 	line, err := r.ReadBytes('\n')
 	if err != nil {
-		if err == io.EOF {
+		if err == io.EOF && len(line) != 0 {
 			return nil, errors.New("incomplete event at the end of the stream")
 		}
 

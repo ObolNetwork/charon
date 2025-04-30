@@ -41,7 +41,7 @@ type SSEChainReorg struct {
 	OldHeadState        string `json:"old_head_state"`
 	NewHeadState        string `json:"new_head_state"`
 	Epoch               string `json:"epoch"`
-	ExecutionOptimistic string `json:"execution_optimistic"`
+	ExecutionOptimistic bool   `json:"execution_optimistic"`
 }
 
 func sseErrorHandler(err error, url string) error {
@@ -58,13 +58,13 @@ func sseEventHandler(ctx context.Context, event *sseclient.Event, url string, op
 		}
 		slot, err := strconv.ParseInt(head.Slot, 10, 64)
 		if err != nil {
-			return errors.Wrap(err, "parse slot to uint64", z.Str("url", url))
+			return errors.Wrap(err, "parse slot to int64", z.Str("url", url))
 		}
-		delay, err := computeDelay(slot, event.Timestamp, opts)
+		delay, ok, err := computeDelay(slot, event.Timestamp, opts)
 		if err != nil {
 			return errors.Wrap(err, "compute delay", z.Str("url", url))
 		}
-		if delay > 4*time.Second {
+		if !ok {
 			log.Debug(ctx, "Beacon node received head event too late", z.I64("slot", slot), z.Str("delay", delay.String()))
 		}
 		sseHeadGauge.WithLabelValues(url, head.Block, delay.String()).Set(float64(slot))
@@ -76,7 +76,7 @@ func sseEventHandler(ctx context.Context, event *sseclient.Event, url string, op
 		}
 		slot, err := strconv.ParseInt(chainReorg.Slot, 10, 64)
 		if err != nil {
-			return errors.Wrap(err, "parse slot to uint64", z.Str("url", url))
+			return errors.Wrap(err, "parse slot to int64", z.Str("url", url))
 		}
 		log.Debug(ctx, "Beacon node reorged", z.I64("slot", slot), z.Str("depth", chainReorg.Depth))
 		sseChainReorgGauge.WithLabelValues(url, chainReorg.Depth, chainReorg.OldHeadBlock, chainReorg.NewHeadBlock).Set(float64(slot))
@@ -87,29 +87,34 @@ func sseEventHandler(ctx context.Context, event *sseclient.Event, url string, op
 }
 
 // Compute delay between start of the slot and receiving the head update event.
-func computeDelay(slot int64, eventTS time.Time, opts map[string]string) (time.Duration, error) {
+func computeDelay(slot int64, eventTS time.Time, opts map[string]string) (time.Duration, bool, error) {
 	slotDurationOpt, ok := opts["slotDuration"]
 	if !ok {
-		return 0, errors.New("fetch slotDuration from options")
+		return 0, false, errors.New("fetch slotDuration from options")
 	}
 	genesisTimeOpt, ok := opts["genesisTime"]
 	if !ok {
-		return 0, errors.New("fetch genesisTime from options")
+		return 0, false, errors.New("fetch genesisTime from options")
 	}
 
 	slotDuration, err := time.ParseDuration(slotDurationOpt)
 	if err != nil {
-		return 0, errors.Wrap(err, "parse slotDuration to time.Duration")
+		return 0, false, errors.Wrap(err, "parse slotDuration to time.Duration")
 	}
 	genesisTime, err := time.Parse(time.RFC3339, genesisTimeOpt)
 	if err != nil {
-		return 0, errors.Wrap(err, "parse genesisTime to RFC3339 time.Time")
+		return 0, false, errors.Wrap(err, "parse genesisTime to RFC3339 time.Time")
 	}
 
-	slotStartTime := genesisTime.Add(time.Second * time.Duration((slot-1)*int64(slotDuration.Seconds())))
+	slotStartTime := genesisTime.Add(time.Second * time.Duration((slot)*int64(slotDuration.Seconds())))
+
+	delay := eventTS.Sub(slotStartTime)
+	// Chain's head is updated upon majority of the chain voting with attestations for a block.
+	// Realistically this happens between 2/3 and 3/3 of the slot's timeframe.
+	delayOK := delay < slotDuration
 
 	// calculate time of receiving the event - the time of start of the slot
-	return eventTS.Sub(slotStartTime), nil
+	return delay, delayOK, nil
 }
 
 // Start long running connection on endpoint /eth/v1/events with all configured beacon nodes.
