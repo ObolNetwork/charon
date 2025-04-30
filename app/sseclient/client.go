@@ -16,14 +16,15 @@ import (
 )
 
 type Event struct {
-	ID    string
-	Event string
-	Data  []byte
+	ID        string
+	Event     string
+	Data      []byte
+	Timestamp time.Time
 }
 
 type (
 	ErrorHandler func(err error, url string) error
-	EventHandler func(e *Event, url string) error
+	EventHandler func(ctx context.Context, e *Event, url string, options map[string]string) error
 )
 
 type Client struct {
@@ -44,7 +45,7 @@ func New(url string) *Client {
 }
 
 // Start connects to the SSE stream. This function will block until SSE stream is stopped.
-func (c *Client) Start(ctx context.Context, eventFn EventHandler, errorFn ErrorHandler) error {
+func (c *Client) Start(ctx context.Context, eventFn EventHandler, errorFn ErrorHandler, opts map[string]string) error {
 	timeout := c.Retry / 32
 	timer := time.NewTimer(0)
 
@@ -60,7 +61,7 @@ func (c *Client) Start(ctx context.Context, eventFn EventHandler, errorFn ErrorH
 
 	for {
 		// Function blocks here.
-		err := c.connect(ctx, eventFn)
+		err := c.connect(ctx, eventFn, opts)
 
 		switch {
 		case err == nil, errors.Is(err, io.EOF):
@@ -93,7 +94,7 @@ func (c *Client) Start(ctx context.Context, eventFn EventHandler, errorFn ErrorH
 	}
 }
 
-func (c *Client) connect(ctx context.Context, eventFn EventHandler) error {
+func (c *Client) connect(ctx context.Context, eventFn EventHandler, opts map[string]string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.URL, nil)
 	if err != nil {
 		return errors.Wrap(err, "create new request")
@@ -126,7 +127,7 @@ func (c *Client) connect(ctx context.Context, eventFn EventHandler) error {
 				continue
 			}
 
-			if err := eventFn(event, c.URL); err != nil {
+			if err := eventFn(ctx, event, c.URL, opts); err != nil {
 				return err
 			}
 		}
@@ -137,7 +138,8 @@ func (c *Client) connect(ctx context.Context, eventFn EventHandler) error {
 
 func (c *Client) parseEvent(r *bufio.Reader) (*Event, error) {
 	event := &Event{
-		Event: "message",
+		Event:     "message",
+		Timestamp: time.Now(),
 	}
 
 	for {

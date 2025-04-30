@@ -265,7 +265,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	err = bnMetrics(ctx, conf)
+	err = bnMetrics(ctx, conf, eth2Cl)
 	if err != nil {
 		return err
 	}
