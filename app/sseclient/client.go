@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/expbackoff"
 	"github.com/obolnetwork/charon/app/z"
 )
 
@@ -34,11 +35,15 @@ type Client struct {
 	Headers    http.Header
 }
 
-var errStreamConn = errors.New("cannot connect to the stream")
+var (
+	errStreamConn = errors.New("cannot connect to the stream")
+	defaultRetry  = time.Second
+)
 
 func New(url string) *Client {
 	return &Client{
 		URL:        url,
+		Retry:      defaultRetry,
 		HTTPClient: &http.Client{},
 		Headers:    make(http.Header),
 	}
@@ -46,50 +51,40 @@ func New(url string) *Client {
 
 // Start connects to the SSE stream. This function will block until SSE stream is stopped.
 func (c *Client) Start(ctx context.Context, eventFn EventHandler, errorFn ErrorHandler, opts map[string]string) error {
-	timeout := c.Retry / 32
-	timer := time.NewTimer(0)
-
-	stop := func() {
-		timer.Stop()
-
-		select {
-		case <-timer.C:
-		default:
-		}
-	}
-	defer stop()
+	backoff := func() {}
+	backoffSet := false
 
 	for {
-		// Function blocks here.
 		err := c.connect(ctx, eventFn, opts)
 
 		switch {
 		case err == nil, errors.Is(err, io.EOF):
-			// Reset timeout if no error.
-			timeout = c.Retry / 32
-		case errors.Is(err, ctx.Err()):
-			// Exit function if context errored.
-			return nil
+			// Reset the retry.
+			c.Retry = defaultRetry
+			backoffSet = false
+
+			continue
+		case ctx.Err() != nil:
+			// Exit function if context done.
+			return nil //nolint:nilerr
 		default:
 			// If error is not stream-related error, do not attempt retries and return the error.
 			if !errors.Is(err, errStreamConn) {
 				return errorFn(err, c.URL)
 			}
 
-			// Wait for the specified timeout (c.Retry/32 initially).
-			stop()
-			timer.Reset(timeout)
-
-			select {
-			case <-timer.C:
-			case <-ctx.Done():
-				return nil
+			if !backoffSet {
+				backoffConfig := expbackoff.Config{
+					BaseDelay:  c.Retry,
+					Multiplier: 1.6,
+					Jitter:     0.2,
+					MaxDelay:   c.Retry * 2,
+				}
+				backoff = expbackoff.New(ctx, expbackoff.WithConfig(backoffConfig))
+				backoffSet = true
 			}
 
-			// Increase the timeout by twice for the next potential failure, up to c.Retry.
-			if timeout < c.Retry {
-				timeout *= 2
-			}
+			backoff()
 		}
 	}
 }
@@ -118,17 +113,22 @@ func (c *Client) connect(ctx context.Context, eventFn EventHandler, opts map[str
 		r := bufio.NewReader(resp.Body)
 
 		for {
-			event, err := c.parseEvent(r)
-			if err != nil {
-				return err
-			}
+			select {
+			case <-ctx.Done():
+				return nil
+			default:
+				event, err := c.parseEvent(r)
+				if err != nil {
+					return err
+				}
 
-			if len(event.Data) == 0 {
-				continue
-			}
+				if len(event.Data) == 0 {
+					continue
+				}
 
-			if err := eventFn(ctx, event, c.URL, opts); err != nil {
-				return err
+				if err := eventFn(ctx, event, c.URL, opts); err != nil {
+					return err
+				}
 			}
 		}
 	default:
@@ -138,7 +138,6 @@ func (c *Client) connect(ctx context.Context, eventFn EventHandler, opts map[str
 
 func (c *Client) parseEvent(r *bufio.Reader) (*Event, error) {
 	event := &Event{
-		Event:     "message",
 		Timestamp: time.Now(),
 	}
 
@@ -179,7 +178,12 @@ func (c *Client) parseEvent(r *bufio.Reader) (*Event, error) {
 func formatAndValidateEvent(r *bufio.Reader) ([][]byte, error) {
 	line, err := r.ReadBytes('\n')
 	if err != nil {
-		if err == io.EOF && len(line) != 0 {
+		// Connection was lost during reading.
+		if errors.Is(err, io.ErrUnexpectedEOF) {
+			return nil, errStreamConn
+		}
+
+		if errors.Is(err, io.EOF) && len(line) != 0 {
 			return nil, errors.New("incomplete event at the end of the stream")
 		}
 

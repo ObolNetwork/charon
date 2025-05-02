@@ -27,7 +27,7 @@ func TestSseEventHandler(t *testing.T) {
 		{
 			name: "head happy path",
 			event: &sseclient.Event{
-				Event:     sseHead,
+				Event:     sseHeadEvent,
 				Data:      []byte(`{"slot":"10", "block":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "state":"0x600e852a08c1200654ddf11025f1ceacb3c2e74bdd5c630cde0838b2591b69f9", "epoch_transition":false, "previous_duty_dependent_root":"0x5e0043f107cb57913498fbf2f99ff55e730bf1e151f02f221e977c91a90a0e91", "current_duty_dependent_root":"0x5e0043f107cb57913498fbf2f99ff55e730bf1e151f02f221e977c91a90a0e91", "execution_optimistic": false}`),
 				Timestamp: time.Now(),
 			},
@@ -40,7 +40,7 @@ func TestSseEventHandler(t *testing.T) {
 		{
 			name: "head incompatible data payload",
 			event: &sseclient.Event{
-				Event:     sseHead,
+				Event:     sseHeadEvent,
 				Data:      []byte(`"error"`),
 				Timestamp: time.Now(),
 			},
@@ -53,7 +53,7 @@ func TestSseEventHandler(t *testing.T) {
 		{
 			name: "head parse slot",
 			event: &sseclient.Event{
-				Event:     sseHead,
+				Event:     sseHeadEvent,
 				Data:      []byte(`{"slot":"ten", "block":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "state":"0x600e852a08c1200654ddf11025f1ceacb3c2e74bdd5c630cde0838b2591b69f9", "epoch_transition":false, "previous_duty_dependent_root":"0x5e0043f107cb57913498fbf2f99ff55e730bf1e151f02f221e977c91a90a0e91", "current_duty_dependent_root":"0x5e0043f107cb57913498fbf2f99ff55e730bf1e151f02f221e977c91a90a0e91", "execution_optimistic": false}`),
 				Timestamp: time.Now(),
 			},
@@ -66,7 +66,7 @@ func TestSseEventHandler(t *testing.T) {
 		{
 			name: "head fetch missing opts",
 			event: &sseclient.Event{
-				Event:     sseHead,
+				Event:     sseHeadEvent,
 				Data:      []byte(`{"slot":"10", "block":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "state":"0x600e852a08c1200654ddf11025f1ceacb3c2e74bdd5c630cde0838b2591b69f9", "epoch_transition":false, "previous_duty_dependent_root":"0x5e0043f107cb57913498fbf2f99ff55e730bf1e151f02f221e977c91a90a0e91", "current_duty_dependent_root":"0x5e0043f107cb57913498fbf2f99ff55e730bf1e151f02f221e977c91a90a0e91", "execution_optimistic": false}`),
 				Timestamp: time.Now(),
 			},
@@ -76,7 +76,7 @@ func TestSseEventHandler(t *testing.T) {
 		{
 			name: "chain_reorg happy path",
 			event: &sseclient.Event{
-				Event:     sseChainReorg,
+				Event:     sseChainReorgEvent,
 				Data:      []byte(`{"slot":"200", "depth":"50", "old_head_block":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "new_head_block":"0x76262e91970d375a19bfe8a867288d7b9cde43c8635f598d93d39d041706fc76", "old_head_state":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "new_head_state":"0x600e852a08c1200654ddf11025f1ceacb3c2e74bdd5c630cde0838b2591b69f9", "epoch":"2", "execution_optimistic": false}`),
 				Timestamp: time.Now(),
 			},
@@ -85,7 +85,7 @@ func TestSseEventHandler(t *testing.T) {
 		{
 			name: "chain_reorg incompatible data payload",
 			event: &sseclient.Event{
-				Event:     sseChainReorg,
+				Event:     sseChainReorgEvent,
 				Data:      []byte(`"error"`),
 				Timestamp: time.Now(),
 			},
@@ -94,7 +94,7 @@ func TestSseEventHandler(t *testing.T) {
 		{
 			name: "chain_reorg parse slot",
 			event: &sseclient.Event{
-				Event:     sseChainReorg,
+				Event:     sseChainReorgEvent,
 				Data:      []byte(`{"slot":"ten", "depth":"50", "old_head_block":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "new_head_block":"0x76262e91970d375a19bfe8a867288d7b9cde43c8635f598d93d39d041706fc76", "old_head_state":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "new_head_state":"0x600e852a08c1200654ddf11025f1ceacb3c2e74bdd5c630cde0838b2591b69f9", "epoch":"2", "execution_optimistic": false}`),
 				Timestamp: time.Now(),
 			},

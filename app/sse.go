@@ -50,7 +50,7 @@ func sseErrorHandler(err error, url string) error {
 
 func sseEventHandler(ctx context.Context, event *sseclient.Event, url string, opts map[string]string) error {
 	switch event.Event {
-	case sseHead:
+	case sseHeadEvent:
 		var head SSEHead
 		err := json.Unmarshal(event.Data, &head)
 		if err != nil {
@@ -68,7 +68,7 @@ func sseEventHandler(ctx context.Context, event *sseclient.Event, url string, op
 			log.Debug(ctx, "Beacon node received head event too late", z.I64("slot", slot), z.Str("delay", delay.String()))
 		}
 		sseHeadGauge.WithLabelValues(url, head.Block, delay.String()).Set(float64(slot))
-	case sseChainReorg:
+	case sseChainReorgEvent:
 		var chainReorg SSEChainReorg
 		err := json.Unmarshal(event.Data, &chainReorg)
 		if err != nil {
@@ -142,7 +142,7 @@ func bnMetrics(ctx context.Context, conf Config, eth2Cl eth2wrap.Client) error {
 		"genesisTime":  genesisTime.Format(time.RFC3339),
 	}
 
-	topics := queryTopics([]string{sseHead, sseChainReorg})
+	topics := queryTopics([]string{sseHeadEvent, sseChainReorgEvent})
 	headers, err := eth2util.ParseBeaconNodeHeaders(conf.BeaconNodeHeaders)
 	if err != nil {
 		return err

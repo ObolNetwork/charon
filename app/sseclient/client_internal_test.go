@@ -5,7 +5,11 @@ package sseclient
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"io"
+	"net/http"
+	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,6 +17,42 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 )
+
+func TestReconnect(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	var wg sync.WaitGroup
+	// Start test server.
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/eth/events", r.URL.Path)
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Connection", "keep-alive")
+		wg.Done()
+	}))
+	defer ts.Close()
+
+	// Create SSE client and add to waitgroup.
+	cl := New(ts.URL + "/v1/eth/events")
+	eventHandler := func(ctx context.Context, event *Event, url string, opts map[string]string) error { return nil }
+	errHandler := func(err error, url string) error { return nil }
+
+	wg.Add(1)
+	errCh := make(chan error)
+	go func() { errCh <- cl.Start(ctx, eventHandler, errHandler, nil) }()
+
+	// Wait for waitgroup to be finished by the test server (= call from SSE client received).
+	wg.Wait()
+	// Close connection from test server to the client.
+	ts.CloseClientConnections()
+	// Add to waitgroup.
+	wg.Add(1)
+	// Wait for the SSE client to reconnect to the server, send new request and SSE server to unblock.
+	wg.Wait()
+
+	cancel()
+	require.NoError(t, <-errCh)
+}
 
 func TestParseEventRetry(t *testing.T) {
 	r := bufio.NewReader(bytes.NewBufferString("retry: 10\n\n"))
@@ -44,7 +84,7 @@ func TestParseEvent(t *testing.T) {
 			data: "\n\n",
 			event: &Event{
 				ID:    "",
-				Event: "message",
+				Event: "",
 				Data:  nil,
 			},
 			err: nil,
@@ -54,7 +94,7 @@ func TestParseEvent(t *testing.T) {
 			data: "id: 123\n\n",
 			event: &Event{
 				ID:    "123",
-				Event: "message",
+				Event: "",
 				Data:  nil,
 			},
 			err: nil,
@@ -74,7 +114,7 @@ func TestParseEvent(t *testing.T) {
 			data: "data: some data\n\n",
 			event: &Event{
 				ID:    "",
-				Event: "message",
+				Event: "",
 				Data:  []byte("some data"),
 			},
 			err: nil,
@@ -84,7 +124,7 @@ func TestParseEvent(t *testing.T) {
 			data: "data: some data\ndata: multiline data\n\n",
 			event: &Event{
 				ID:    "",
-				Event: "message",
+				Event: "",
 				Data:  []byte("some data\nmultiline data"),
 			},
 			err: nil,
@@ -94,7 +134,7 @@ func TestParseEvent(t *testing.T) {
 			data: "data: some data\r\ndata: multiline data\r\n\r\n",
 			event: &Event{
 				ID:    "",
-				Event: "message",
+				Event: "",
 				Data:  []byte("some data\nmultiline data"),
 			},
 			err: nil,
@@ -104,7 +144,7 @@ func TestParseEvent(t *testing.T) {
 			data: ": some comment\n\n",
 			event: &Event{
 				ID:    "",
-				Event: "message",
+				Event: "",
 				Data:  nil,
 			},
 			err: nil,
@@ -114,7 +154,7 @@ func TestParseEvent(t *testing.T) {
 			data: "unsupported field\n\n",
 			event: &Event{
 				ID:    "",
-				Event: "message",
+				Event: "",
 				Data:  nil,
 			},
 			err: nil,
