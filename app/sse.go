@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	sseHead       = "head"
-	sseChainReorg = "chain_reorg"
+	sseHeadEvent       = "head"
+	sseChainReorgEvent = "chain_reorg"
 )
 
 type SSEHead struct {
