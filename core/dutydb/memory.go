@@ -16,11 +16,6 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-const (
-	_ = iota
-	att
-)
-
 // NewMemDB returns a new in-memory dutyDB instance.
 func NewMemDB(deadliner core.Deadliner) *MemDB {
 	return &MemDB{

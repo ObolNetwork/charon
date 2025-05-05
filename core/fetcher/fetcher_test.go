@@ -181,7 +181,7 @@ func TestFetchAggregator(t *testing.T) {
 
 			att, ok := attByCommIdx[uint64(aggregated.Data.Index)]
 			require.True(t, ok)
-			require.Equal(t, aggregated.Attestation, *att)
+			require.Equal(t, aggregated.Attestation, *att.Deneb)
 		}
 
 		return done

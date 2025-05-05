@@ -286,7 +286,7 @@ func TestInclusion(t *testing.T) {
 		Slot: block4Duty.Slot,
 		AttestationsByDataRoot: map[eth2p0.Root]*eth2spec.VersionedAttestation{
 			att1Root: att1,
-			att2Root: &eth2spec.VersionedAttestation{Deneb: agg2.Deneb.Message.Aggregate},
+			att2Root: {Deneb: agg2.Deneb.Message.Aggregate},
 		},
 	}
 
