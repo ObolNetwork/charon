@@ -41,7 +41,7 @@ func TestMemDB(t *testing.T) {
 	db := dutydb.NewMemDB(new(testDeadliner))
 
 	// Nothing in the DB, so expect error
-	_, err := db.PubKeyByAttestationOld(ctx, 0, 0, 0)
+	_, err := db.PubKeyByAttestation(ctx, 0, 0, 0)
 	require.Error(t, err)
 
 	const (
@@ -126,11 +126,11 @@ func TestMemDB(t *testing.T) {
 	}
 
 	// Assert that two pubkeys can be resolved.
-	pkA, err := db.PubKeyByAttestationOld(ctx, uint64(attData.Slot), uint64(attData.Index), valCommIdxA)
+	pkA, err := db.PubKeyByAttestation(ctx, uint64(attData.Slot), uint64(attData.Index), valCommIdxA)
 	require.NoError(t, err)
 	require.Equal(t, pubkeysByIdx[vIdxA], pkA)
 
-	pkB, err := db.PubKeyByAttestationOld(ctx, uint64(attData.Slot), uint64(attData.Index), valCommIdxB)
+	pkB, err := db.PubKeyByAttestation(ctx, uint64(attData.Slot), uint64(attData.Index), valCommIdxB)
 	require.NoError(t, err)
 	require.Equal(t, pubkeysByIdx[vIdxB], pkB)
 }
@@ -240,7 +240,7 @@ func TestMemDBAggregator(t *testing.T) {
 		require.NoError(t, err)
 		err = <-errCh
 		require.NoError(t, err)
-		resp, err := db.AwaitAggAttestationOld(ctx, slot, root)
+		resp, err := db.AwaitAggAttestation(ctx, slot, root)
 		require.NoError(t, err)
 		require.Equal(t, agg, resp)
 	}

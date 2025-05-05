@@ -6,17 +6,11 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 )
 
 // isSyncStateOk returns true if the sync state is not syncing.
 func isSyncStateOk(resp *eth2api.Response[*eth2v1.SyncState]) bool {
 	return !resp.Data.IsSyncing
-}
-
-// isAggregateAttestationOkOld returns true if the aggregate attestation is not nil (which can happen if the subscription wasn't successful).
-func isAggregateAttestationOkOld(resp *eth2api.Response[*eth2p0.Attestation]) bool {
-	return resp.Data != nil
 }
 
 // isAggregateAttestationOk returns true if the aggregate attestation is not nil (which can happen if the subscription wasn't successful).

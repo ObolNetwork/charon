@@ -1950,7 +1950,6 @@ type testHandler struct {
 	AggregateSyncCommitteeSelectionsFunc   func(ctx context.Context, partialSelections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error)
 	AttestationDataFunc                    func(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error)
 	AttesterDutiesFunc                     func(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error)
-	SubmitAttestationsFuncOld              func(ctx context.Context, opts []*eth2p0.Attestation) error
 	SubmitAttestationsFunc                 func(ctx context.Context, opts *eth2api.SubmitAttestationsOpts) error
 	ProposalFunc                           func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error)
 	SubmitProposalFunc                     func(ctx context.Context, proposal *eth2api.SubmitProposalOpts) error
@@ -1963,7 +1962,6 @@ type testHandler struct {
 	SubmitVoluntaryExitFunc                func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error
 	SubmitValidatorRegistrationsFunc       func(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error
 	AggregateBeaconCommitteeSelectionsFunc func(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error)
-	SubmitAggregateAttestationsFuncOld     func(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error
 	SubmitAggregateAttestationsFunc        func(ctx context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error
 	SubmitSyncCommitteeMessagesFunc        func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error
 	SyncCommitteeDutiesFunc                func(ctx context.Context, opts *eth2api.SyncCommitteeDutiesOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeDuty], error)
@@ -1976,10 +1974,6 @@ func (h testHandler) AttestationData(ctx context.Context, opts *eth2api.Attestat
 
 func (h testHandler) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {
 	return h.AttesterDutiesFunc(ctx, opts)
-}
-
-func (h testHandler) SubmitAttestationsOld(ctx context.Context, opts []*eth2p0.Attestation) error {
-	return h.SubmitAttestationsFuncOld(ctx, opts)
 }
 
 func (h testHandler) SubmitAttestations(ctx context.Context, opts *eth2api.SubmitAttestationsOpts) error {
@@ -2032,10 +2026,6 @@ func (h testHandler) SubmitValidatorRegistrations(ctx context.Context, registrat
 
 func (h testHandler) AggregateBeaconCommitteeSelections(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
 	return h.AggregateBeaconCommitteeSelectionsFunc(ctx, selections)
-}
-
-func (h testHandler) SubmitAggregateAttestationsOld(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
-	return h.SubmitAggregateAttestationsFuncOld(ctx, aggregateAndProofs)
 }
 
 func (h testHandler) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {

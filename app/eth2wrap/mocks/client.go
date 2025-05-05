@@ -20,8 +20,6 @@ import (
 
 	spec "github.com/attestantio/go-eth2-client/spec"
 
-	statecomm "github.com/obolnetwork/charon/eth2util/statecomm"
-
 	time "time"
 
 	v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -78,36 +76,6 @@ func (_m *Client) Address() string {
 	}
 
 	return r0
-}
-
-// AggregateAttestationOld provides a mock function with given fields: ctx, opts
-func (_m *Client) AggregateAttestationOld(ctx context.Context, opts *api.AggregateAttestationOpts) (*api.Response[*phase0.Attestation], error) {
-	ret := _m.Called(ctx, opts)
-
-	if len(ret) == 0 {
-		panic("no return value specified for AggregateAttestationOld")
-	}
-
-	var r0 *api.Response[*phase0.Attestation]
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *api.AggregateAttestationOpts) (*api.Response[*phase0.Attestation], error)); ok {
-		return rf(ctx, opts)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, *api.AggregateAttestationOpts) *api.Response[*phase0.Attestation]); ok {
-		r0 = rf(ctx, opts)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.Response[*phase0.Attestation])
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, *api.AggregateAttestationOpts) error); ok {
-		r1 = rf(ctx, opts)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
 }
 
 // AggregateAttestation provides a mock function with given fields: ctx, opts
@@ -283,65 +251,6 @@ func (_m *Client) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRoot
 
 	if rf, ok := ret.Get(1).(func(context.Context, *api.BeaconBlockRootOpts) error); ok {
 		r1 = rf(ctx, opts)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// BeaconStateCommittees provides a mock function with given fields: ctx, slot
-func (_m *Client) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error) {
-	ret := _m.Called(ctx, slot)
-
-	if len(ret) == 0 {
-		panic("no return value specified for BeaconStateCommittees")
-	}
-
-	var r0 []*statecomm.StateCommittee
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uint64) ([]*statecomm.StateCommittee, error)); ok {
-		return rf(ctx, slot)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, uint64) []*statecomm.StateCommittee); ok {
-		r0 = rf(ctx, slot)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*statecomm.StateCommittee)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, uint64) error); ok {
-		r1 = rf(ctx, slot)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-func (_m *Client) BlockAttestationsOld(ctx context.Context, stateID string) ([]*phase0.Attestation, error) {
-	ret := _m.Called(ctx, stateID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for BlockAttestationsOld")
-	}
-
-	var r0 []*phase0.Attestation
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) ([]*phase0.Attestation, error)); ok {
-		return rf(ctx, stateID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) []*phase0.Attestation); ok {
-		r0 = rf(ctx, stateID)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*phase0.Attestation)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, stateID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -947,24 +856,6 @@ func (_m *Client) Spec(ctx context.Context, opts *api.SpecOpts) (*api.Response[m
 	return r0, r1
 }
 
-// SubmitAggregateAttestationsOld provides a mock function with given fields: ctx, aggregateAndProofs
-func (_m *Client) SubmitAggregateAttestationsOld(ctx context.Context, aggregateAndProofs []*phase0.SignedAggregateAndProof) error {
-	ret := _m.Called(ctx, aggregateAndProofs)
-
-	if len(ret) == 0 {
-		panic("no return value specified for SubmitAggregateAttestationsOld")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, []*phase0.SignedAggregateAndProof) error); ok {
-		r0 = rf(ctx, aggregateAndProofs)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
 // SubmitAggregateAttestations provides a mock function with given fields: ctx, opts
 func (_m *Client) SubmitAggregateAttestations(ctx context.Context, opts *api.SubmitAggregateAttestationsOpts) error {
 	ret := _m.Called(ctx, opts)
@@ -976,24 +867,6 @@ func (_m *Client) SubmitAggregateAttestations(ctx context.Context, opts *api.Sub
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, *api.SubmitAggregateAttestationsOpts) error); ok {
 		r0 = rf(ctx, opts)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// SubmitAttestationsOld provides a mock function with given fields: ctx, attestations
-func (_m *Client) SubmitAttestationsOld(ctx context.Context, attestations []*phase0.Attestation) error {
-	ret := _m.Called(ctx, attestations)
-
-	if len(ret) == 0 {
-		panic("no return value specified for SubmitAttestationsOld")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, []*phase0.Attestation) error); ok {
-		r0 = rf(ctx, attestations)
 	} else {
 		r0 = ret.Error(0)
 	}

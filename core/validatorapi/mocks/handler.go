@@ -26,36 +26,6 @@ type Handler struct {
 	mock.Mock
 }
 
-// AggregateAttestationOld provides a mock function with given fields: ctx, opts
-func (_m *Handler) AggregateAttestationOld(ctx context.Context, opts *api.AggregateAttestationOpts) (*api.Response[*phase0.Attestation], error) {
-	ret := _m.Called(ctx, opts)
-
-	if len(ret) == 0 {
-		panic("no return value specified for AggregateAttestationOld")
-	}
-
-	var r0 *api.Response[*phase0.Attestation]
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *api.AggregateAttestationOpts) (*api.Response[*phase0.Attestation], error)); ok {
-		return rf(ctx, opts)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, *api.AggregateAttestationOpts) *api.Response[*phase0.Attestation]); ok {
-		r0 = rf(ctx, opts)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.Response[*phase0.Attestation])
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, *api.AggregateAttestationOpts) error); ok {
-		r1 = rf(ctx, opts)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // AggregateAttestation provides a mock function with given fields: ctx, opts
 func (_m *Handler) AggregateAttestation(ctx context.Context, opts *api.AggregateAttestationOpts) (*api.Response[*spec.VersionedAttestation], error) {
 	ret := _m.Called(ctx, opts)
@@ -326,24 +296,6 @@ func (_m *Handler) ProposerDuties(ctx context.Context, opts *api.ProposerDutiesO
 	return r0, r1
 }
 
-// SubmitAggregateAttestationsOld provides a mock function with given fields: ctx, aggregateAndProofs
-func (_m *Handler) SubmitAggregateAttestationsOld(ctx context.Context, aggregateAndProofs []*phase0.SignedAggregateAndProof) error {
-	ret := _m.Called(ctx, aggregateAndProofs)
-
-	if len(ret) == 0 {
-		panic("no return value specified for SubmitAggregateAttestationsOld")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, []*phase0.SignedAggregateAndProof) error); ok {
-		r0 = rf(ctx, aggregateAndProofs)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
 // SubmitAggregateAttestations provides a mock function with given fields: ctx, opts
 func (_m *Handler) SubmitAggregateAttestations(ctx context.Context, opts *api.SubmitAggregateAttestationsOpts) error {
 	ret := _m.Called(ctx, opts)
@@ -355,24 +307,6 @@ func (_m *Handler) SubmitAggregateAttestations(ctx context.Context, opts *api.Su
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, *api.SubmitAggregateAttestationsOpts) error); ok {
 		r0 = rf(ctx, opts)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// SubmitAttestationsOld provides a mock function with given fields: ctx, attestations
-func (_m *Handler) SubmitAttestationsOld(ctx context.Context, attestations []*phase0.Attestation) error {
-	ret := _m.Called(ctx, attestations)
-
-	if len(ret) == 0 {
-		panic("no return value specified for SubmitAttestationsOld")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, []*phase0.Attestation) error); ok {
-		r0 = rf(ctx, attestations)
 	} else {
 		r0 = ret.Error(0)
 	}

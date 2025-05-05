@@ -34,8 +34,6 @@ import (
 // It is a standard beacon API endpoint not implemented by eth2client.
 // See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockAttestations.
 type BlockAttestationsProvider interface {
-	// Deprecated: use BlockAttestations(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error)
-	BlockAttestationsOld(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error)
 	BlockAttestations(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error)
 }
 
@@ -185,28 +183,6 @@ func (h *httpAdapter) AggregateSyncCommitteeSelections(ctx context.Context, sele
 	var resp submitSyncCommitteeSelectionsJSON
 	if err := json.Unmarshal(respBody, &resp); err != nil {
 		return nil, errors.Wrap(err, "failed to parse sync committee selections response")
-	}
-
-	return resp.Data, nil
-}
-
-// Deprecated: use BlockAttestations(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error)
-// BlockAttestationsOld returns the attestations included in the requested block.
-// See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockAttestations.
-func (h *httpAdapter) BlockAttestationsOld(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
-	path := fmt.Sprintf("/eth/v1/beacon/blocks/%s/attestations", stateID)
-	respBody, statusCode, err := httpGet(ctx, h.address, path, h.headers, nil, h.timeout)
-	if err != nil {
-		return nil, errors.Wrap(err, "request block attestations")
-	} else if statusCode == http.StatusNotFound {
-		return nil, nil // No block for slot, so no attestations.
-	} else if statusCode != http.StatusOK {
-		return nil, errors.New("request block attestations failed", z.Int("status", statusCode), z.Str("body", string(respBody)))
-	}
-
-	var resp p0AttestationsJSON
-	if err := json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrap(err, "failed to parse block attestations response")
 	}
 
 	return resp.Data, nil

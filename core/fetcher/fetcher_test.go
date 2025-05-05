@@ -108,24 +108,24 @@ func TestFetchAggregator(t *testing.T) {
 		vIdxB: testutil.RandomCorePubKey(t),
 	}
 
-	attA := testutil.RandomPhase0Attestation()
-	attB := testutil.RandomPhase0Attestation()
-	attByCommIdx := map[uint64]*eth2p0.Attestation{
-		uint64(attA.Data.Index): attA,
-		uint64(attB.Data.Index): attB,
+	attA := testutil.RandomDenebVersionedAttestation()
+	attB := testutil.RandomDenebVersionedAttestation()
+	attByCommIdx := map[uint64]*eth2spec.VersionedAttestation{
+		uint64(attA.Deneb.Data.Index): attA,
+		uint64(attB.Deneb.Data.Index): attB,
 	}
 
 	newDefSet := func(commLength uint64, sameCommitteeIndex bool) core.DutyDefinitionSet {
 		dutyA := testutil.RandomAttestationDuty(t)
 		dutyA.CommitteeLength = commLength
-		dutyA.CommitteeIndex = attA.Data.Index
+		dutyA.CommitteeIndex = attA.Deneb.Data.Index
 		dutyB := testutil.RandomAttestationDuty(t)
 		dutyB.CommitteeLength = commLength
-		dutyB.CommitteeIndex = attB.Data.Index
+		dutyB.CommitteeIndex = attB.Deneb.Data.Index
 
 		if sameCommitteeIndex {
-			dutyB.CommitteeIndex = attA.Data.Index
-			attB.Data.Index = attA.Data.Index
+			dutyB.CommitteeIndex = attA.Deneb.Data.Index
+			attB.Deneb.Data.Index = attA.Deneb.Data.Index
 		}
 
 		return map[core.PubKey]core.DutyDefinition{
@@ -143,13 +143,13 @@ func TestFetchAggregator(t *testing.T) {
 	require.NoError(t, err)
 
 	var aggAttCallCount int
-	bmock.AggregateAttestationFuncOld = func(ctx context.Context, slot eth2p0.Slot, root eth2p0.Root) (*eth2p0.Attestation, error) {
+	bmock.AggregateAttestationFunc = func(ctx context.Context, slot eth2p0.Slot, root eth2p0.Root) (*eth2spec.VersionedAttestation, error) {
 		aggAttCallCount--
 		if nilAggregate {
 			return nil, nil //nolint:nilnil // This reproduces what go-eth2-client does
 		}
 		for _, att := range attByCommIdx {
-			dataRoot, err := att.Data.HashTreeRoot()
+			dataRoot, err := att.Deneb.Data.HashTreeRoot()
 			require.NoError(t, err)
 			if dataRoot == root {
 				return att, nil
@@ -167,7 +167,7 @@ func TestFetchAggregator(t *testing.T) {
 	})
 
 	fetch.RegisterAwaitAttData(func(ctx context.Context, slot uint64, commIdx uint64) (*eth2p0.AttestationData, error) {
-		return attByCommIdx[commIdx].Data, nil
+		return attByCommIdx[commIdx].Deneb.Data, nil
 	})
 
 	done := errors.New("done")

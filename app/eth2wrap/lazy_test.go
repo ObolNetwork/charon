@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/attestantio/go-eth2-client/spec"
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -61,20 +60,6 @@ func TestLazy_NodePeerCount(t *testing.T) {
 	c, err := l.NodePeerCount(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, 5, c)
-}
-
-func TestLazy_BlockAttestationsOld(t *testing.T) {
-	ctx := context.Background()
-	atts := make([]*eth2p0.Attestation, 3)
-
-	client := mocks.NewClient(t)
-	client.On("BlockAttestationsOld", ctx, "state").Return(atts, nil).Once()
-
-	l := eth2wrap.NewLazyForT(client)
-
-	atts2, err := l.BlockAttestationsOld(ctx, "state")
-	require.NoError(t, err)
-	require.Equal(t, atts, atts2)
 }
 
 func TestLazy_BlockAttestations(t *testing.T) {

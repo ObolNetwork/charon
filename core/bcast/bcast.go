@@ -12,7 +12,6 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
@@ -50,49 +49,26 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 
 	switch duty.Type {
 	case core.DutyAttester:
-		isElectra, err := isElectraAttestation(set)
+		atts, err := setToAttestations(set)
 		if err != nil {
 			return err
 		}
 
-		if isElectra {
-			atts, err := setToAttestations(set)
-			if err != nil {
-				return err
-			}
-
-			err = b.eth2Cl.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
-			if err != nil && strings.Contains(err.Error(), "PriorAttestationKnown") {
-				// Lighthouse isn't idempotent, so just swallow this non-issue.
-				// See reference github.com/attestantio/go-eth2-client@v0.11.7/multi/submitattestations.go:38
-				err = nil
-			}
-			if err == nil {
-				log.Info(ctx, "Successfully submitted v2 attestations to beacon node",
-					z.Any("delay", b.delayFunc(duty.Slot)),
-				)
-			}
-		} else {
-			atts, err := setToAttestationsOld(set)
-			if err != nil {
-				return err
-			}
-
-			err = b.eth2Cl.SubmitAttestationsOld(ctx, atts)
-			if err != nil && strings.Contains(err.Error(), "PriorAttestationKnown") {
-				// Lighthouse isn't idempotent, so just swallow this non-issue.
-				// See reference github.com/attestantio/go-eth2-client@v0.11.7/multi/submitattestations.go:38
-				err = nil
-			}
-			if err == nil {
-				log.Info(ctx, "Successfully submitted v1 attestations to beacon node",
-					z.Any("delay", b.delayFunc(duty.Slot)),
-				)
-			}
+		err = b.eth2Cl.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
+		if err != nil && strings.Contains(err.Error(), "PriorAttestationKnown") {
+			// Lighthouse isn't idempotent, so just swallow this non-issue.
+			// See reference github.com/attestantio/go-eth2-client@v0.11.7/multi/submitattestations.go:38
+			err = nil
+		}
+		if err != nil {
+			return err
 		}
 
-		return err
+		log.Info(ctx, "Successfully submitted v2 attestations to beacon node",
+			z.Any("delay", b.delayFunc(duty.Slot)),
+		)
 
+		return nil
 	case core.DutyProposer:
 		pubkey, aggData, err := setToOne(set)
 		if err != nil {
@@ -187,36 +163,20 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 		// Beacon committee selections are only applicable to DVT, not broadcasted to beacon chain.
 		return nil
 	case core.DutyAggregator:
-		isElectra, err := isElectraAggAndProof(set)
+		aggAndProofs, err := setToAggAndProof(set)
 		if err != nil {
 			return err
 		}
 
-		if isElectra {
-			aggAndProofs, err := setToAggAndProof(set)
-			if err != nil {
-				return err
-			}
-
-			err = b.eth2Cl.SubmitAggregateAttestations(ctx, aggAndProofs)
-			if err == nil {
-				log.Info(ctx, "Successfully submitted v2 attestation aggregations to beacon node",
-					z.Any("delay", b.delayFunc(duty.Slot)))
-			}
-		} else {
-			aggAndProofs, err := setToAggAndProofOld(set)
-			if err != nil {
-				return err
-			}
-
-			err = b.eth2Cl.SubmitAggregateAttestationsOld(ctx, aggAndProofs)
-			if err == nil {
-				log.Info(ctx, "Successfully submitted v1 attestation aggregations to beacon node",
-					z.Any("delay", b.delayFunc(duty.Slot)))
-			}
+		err = b.eth2Cl.SubmitAggregateAttestations(ctx, aggAndProofs)
+		if err != nil {
+			return err
 		}
 
-		return err
+		log.Info(ctx, "Successfully submitted v2 attestation aggregations to beacon node",
+			z.Any("delay", b.delayFunc(duty.Slot)))
+
+		return nil
 	case core.DutySyncMessage:
 		msgs, err := setToSyncMessages(set)
 		if err != nil {
@@ -300,21 +260,6 @@ func isElectraAggAndProof(set core.SignedDataSet) (bool, error) {
 	return false, errors.New("empty aggregates and proof signed data set")
 }
 
-// setToAggAndProofOld converts a set of signed data into a list of aggregate and proofs.
-func setToAggAndProofOld(set core.SignedDataSet) ([]*eth2p0.SignedAggregateAndProof, error) {
-	var resp []*eth2p0.SignedAggregateAndProof
-	for _, aggAndProof := range set {
-		aggAndProof, ok := aggAndProof.(core.SignedAggregateAndProof)
-		if !ok {
-			return nil, errors.New("invalid aggregate and proof")
-		}
-
-		resp = append(resp, &aggAndProof.SignedAggregateAndProof)
-	}
-
-	return resp, nil
-}
-
 // setToAggAndProof converts a set of signed data into a list of versioned aggregate and proofs.
 func setToAggAndProof(set core.SignedDataSet) (*eth2api.SubmitAggregateAttestationsOpts, error) {
 	var resp []*eth2spec.VersionedSignedAggregateAndProof
@@ -375,20 +320,6 @@ func isElectraAttestation(set core.SignedDataSet) (bool, error) {
 	}
 
 	return false, errors.New("empty attestations signed data set")
-}
-
-// setToAttestationsOld converts a set of signed data into a list of attestations.
-func setToAttestationsOld(set core.SignedDataSet) ([]*eth2p0.Attestation, error) {
-	var resp []*eth2p0.Attestation
-	for _, att := range set {
-		att, ok := att.(core.Attestation)
-		if !ok {
-			return nil, errors.New("invalid attestation")
-		}
-		resp = append(resp, &att.Attestation)
-	}
-
-	return resp, nil
 }
 
 // setToAttestations converts a set of signed data into a list of versioned attestations.

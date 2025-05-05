@@ -132,11 +132,10 @@ func (m multi) SignedBeaconBlock(ctx context.Context, opts *api.SignedBeaconBloc
 	return res0, err
 }
 
-// AggregateAttestation fetches the aggregate attestation for the given options.
+// AggregateAttestation fetches the aggregate attestation for the given options to v2 beacon node endpoint.
 func (m multi) AggregateAttestation(ctx context.Context, opts *api.AggregateAttestationOpts) (*api.Response[*spec.VersionedAttestation], error) {
-	const label = "aggregate_attestation"
+	const label = "aggregate_attestation_v2"
 	defer latency(ctx, label, false)()
-	defer incRequest(label)
 
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*spec.VersionedAttestation], error) {
@@ -153,11 +152,10 @@ func (m multi) AggregateAttestation(ctx context.Context, opts *api.AggregateAtte
 	return res0, err
 }
 
-// SubmitAggregateAttestations submits aggregate attestations.
+// SubmitAggregateAttestations submits aggregate attestations to v2 beacon node endpoint..
 func (m multi) SubmitAggregateAttestations(ctx context.Context, opts *api.SubmitAggregateAttestationsOpts) error {
-	const label = "submit_aggregate_attestations"
+	const label = "submit_aggregate_attestations_v2"
 	defer latency(ctx, label, false)()
-	defer incRequest(label)
 
 	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
@@ -195,11 +193,10 @@ func (m multi) AttestationData(ctx context.Context, opts *api.AttestationDataOpt
 	return res0, err
 }
 
-// SubmitAttestations submits attestations.
+// SubmitAttestations submits attestations on v2 BN endpoint.
 func (m multi) SubmitAttestations(ctx context.Context, opts *api.SubmitAttestationsOpts) error {
-	const label = "submit_attestations"
+	const label = "submit_attestations_v2"
 	defer latency(ctx, label, false)()
-	defer incRequest(label)
 
 	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
@@ -787,7 +784,7 @@ func (l *lazy) SignedBeaconBlock(ctx context.Context, opts *api.SignedBeaconBloc
 	return cl.SignedBeaconBlock(ctx, opts)
 }
 
-// AggregateAttestation fetches the aggregate attestation for the given options.
+// AggregateAttestation fetches the aggregate attestation for the given options to v2 beacon node endpoint.
 func (l *lazy) AggregateAttestation(ctx context.Context, opts *api.AggregateAttestationOpts) (res0 *api.Response[*spec.VersionedAttestation], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
@@ -797,7 +794,7 @@ func (l *lazy) AggregateAttestation(ctx context.Context, opts *api.AggregateAtte
 	return cl.AggregateAttestation(ctx, opts)
 }
 
-// SubmitAggregateAttestations submits aggregate attestations.
+// SubmitAggregateAttestations submits aggregate attestations to v2 beacon node endpoint..
 func (l *lazy) SubmitAggregateAttestations(ctx context.Context, opts *api.SubmitAggregateAttestationsOpts) (err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
@@ -817,7 +814,7 @@ func (l *lazy) AttestationData(ctx context.Context, opts *api.AttestationDataOpt
 	return cl.AttestationData(ctx, opts)
 }
 
-// SubmitAttestations submits attestations.
+// SubmitAttestations submits attestations on v2 BN endpoint.
 func (l *lazy) SubmitAttestations(ctx context.Context, opts *api.SubmitAttestationsOpts) (err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {

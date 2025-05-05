@@ -373,38 +373,6 @@ func TestCtxCancel(t *testing.T) {
 }
 
 func TestBlockAttestations(t *testing.T) {
-	atts := []*eth2p0.Attestation{
-		testutil.RandomPhase0Attestation(),
-		testutil.RandomPhase0Attestation(),
-	}
-
-	statusCode := http.StatusOK
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, http.MethodGet, r.Method)
-		require.Equal(t, "/eth/v1/beacon/blocks/head/attestations", r.URL.Path)
-		b, err := json.Marshal(struct {
-			Data []*eth2p0.Attestation
-		}{
-			Data: atts,
-		})
-		require.NoError(t, err)
-
-		w.WriteHeader(statusCode)
-		_, _ = w.Write(b)
-	}))
-
-	cl := eth2wrap.NewHTTPAdapterForT(t, srv.URL, nil, time.Hour)
-	resp, err := cl.BlockAttestationsOld(context.Background(), "head")
-	require.NoError(t, err)
-	require.Equal(t, atts, resp)
-
-	statusCode = http.StatusNotFound
-	resp, err = cl.BlockAttestationsOld(context.Background(), "head")
-	require.NoError(t, err)
-	require.Empty(t, resp)
-}
-
-func TestBlockAttestationsV2(t *testing.T) {
 	electraAtt1 := testutil.RandomElectraAttestation()
 	electraAtt2 := testutil.RandomElectraAttestation()
 

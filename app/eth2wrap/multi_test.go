@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/attestantio/go-eth2-client/spec"
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -70,26 +69,6 @@ func TestMulti_NodePeerCount(t *testing.T) {
 	expectedErr := errors.New("boo")
 	client.On("NodePeerCount", mock.Anything).Return(0, expectedErr).Once()
 	_, err = m.NodePeerCount(context.Background())
-	require.ErrorIs(t, err, expectedErr)
-}
-
-func TestMulti_BlockAttestationsOld(t *testing.T) {
-	ctx := context.Background()
-	atts := make([]*eth2p0.Attestation, 3)
-
-	client := mocks.NewClient(t)
-	client.On("Address").Return("test").Once()
-	client.On("BlockAttestationsOld", mock.Anything, "state").Return(atts, nil).Once()
-
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
-
-	atts2, err := m.BlockAttestationsOld(ctx, "state")
-	require.NoError(t, err)
-	require.Equal(t, atts, atts2)
-
-	expectedErr := errors.New("boo")
-	client.On("BlockAttestationsOld", mock.Anything, "state").Return(nil, expectedErr).Once()
-	_, err = m.BlockAttestationsOld(ctx, "state")
 	require.ErrorIs(t, err, expectedErr)
 }
 

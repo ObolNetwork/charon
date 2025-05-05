@@ -189,13 +189,10 @@ type Component struct {
 	sharesByKey map[core.PubKey]core.PubKey
 
 	// Registered input functions
-
-	pubKeyByAttFuncOld        func(ctx context.Context, slot, commIdx, valCommIdx uint64) (core.PubKey, error)
 	pubKeyByAttFunc           func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error)
 	awaitAttFunc              func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 	awaitProposalFunc         func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
 	awaitSyncContributionFunc func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
-	awaitAggAttFuncOld        func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)
 	awaitAggAttFunc           func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error)
 	awaitAggSigDBFunc         func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
 	dutyDefFunc               func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
@@ -220,12 +217,6 @@ func (c *Component) RegisterAwaitSyncContribution(fn func(ctx context.Context, s
 	c.awaitSyncContributionFunc = fn
 }
 
-// RegisterPubKeyByAttestationOld registers a function to query pubkeys by attestation.
-// It only supports a single function, since it is an input of the component.
-func (c *Component) RegisterPubKeyByAttestationOld(fn func(ctx context.Context, slot, commIdx, valCommIdx uint64) (core.PubKey, error)) {
-	c.pubKeyByAttFuncOld = fn
-}
-
 // RegisterPubKeyByAttestation registers a function to query pubkeys by attestation.
 // It only supports a single function, since it is an input of the component.
 func (c *Component) RegisterPubKeyByAttestation(fn func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error)) {
@@ -236,12 +227,6 @@ func (c *Component) RegisterPubKeyByAttestation(fn func(ctx context.Context, slo
 // It supports a single function, since it is an input of the component.
 func (c *Component) RegisterGetDutyDefinition(fn func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)) {
 	c.dutyDefFunc = fn
-}
-
-// RegisterAwaitAggAttestationOld registers a function to query an aggregated attestation.
-// It supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitAggAttestationOld(fn func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)) {
-	c.awaitAggAttFuncOld = fn
 }
 
 // RegisterAwaitAggAttestation registers a function to query an aggregated attestation.
@@ -277,60 +262,6 @@ func (c Component) AttestationData(ctx context.Context, opts *eth2api.Attestatio
 	}
 
 	return wrapResponse(att), nil
-}
-
-// SubmitAttestationsOld implements the eth2client.AttestationsSubmitter for the router.
-func (c Component) SubmitAttestationsOld(ctx context.Context, attestations []*eth2p0.Attestation) error {
-	setsBySlot := make(map[uint64]core.ParSignedDataSet)
-	for _, att := range attestations {
-		slot := uint64(att.Data.Slot)
-
-		// Determine the validator that sent this by mapping values from original AttestationDuty via the dutyDB
-		indices := att.AggregationBits.BitIndices()
-		if len(indices) != 1 {
-			return errors.New("unexpected number of aggregation bits",
-				z.Str("aggbits", fmt.Sprintf("%#x", []byte(att.AggregationBits))))
-		}
-
-		pubkey, err := c.pubKeyByAttFuncOld(ctx, slot, uint64(att.Data.Index), uint64(indices[0]))
-		if err != nil {
-			return errors.Wrap(err, "failed to find pubkey", z.U64("slot", slot),
-				z.Int("commIdx", int(att.Data.Index)), z.Int("valCommIdx", indices[0]))
-		}
-
-		parSigData := core.NewPartialAttestation(att, c.shareIdx)
-
-		// Verify attestation signature
-		err = c.verifyPartialSig(ctx, parSigData, pubkey)
-		if err != nil {
-			return err
-		}
-
-		// Encode partial signed data and add to a set
-		set, ok := setsBySlot[slot]
-		if !ok {
-			set = make(core.ParSignedDataSet)
-			setsBySlot[slot] = set
-		}
-
-		set[pubkey] = parSigData
-	}
-
-	// Send sets to subscriptions.
-	for slot, set := range setsBySlot {
-		duty := core.NewAttesterDuty(slot)
-		ctx := log.WithCtx(ctx, z.Any("duty", duty))
-
-		for _, sub := range c.subs {
-			// No need to clone since sub auto clones.
-			err := sub(ctx, duty, set)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
 }
 
 // SubmitAttestations implements the eth2client.AttestationsSubmitter for the router.
@@ -369,7 +300,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestationOpts *eth2
 					z.Str("aggbits", fmt.Sprintf("%#x", []byte(aggBits))))
 			}
 
-			pubkey, err = c.pubKeyByAttFuncOld(ctx, slot, uint64(attCommitteeIndex), uint64(indices[0]))
+			pubkey, err = c.pubKeyByAttFunc(ctx, slot, uint64(attCommitteeIndex), uint64(indices[0]))
 			if err != nil {
 				return errors.Wrap(err, "failed to find pubkey", z.U64("slot", slot),
 					z.Int("commIdx", int(attCommitteeIndex)), z.Int("valCommIdx", indices[0]))
@@ -859,17 +790,6 @@ func (c Component) AggregateBeaconCommitteeSelections(ctx context.Context, selec
 	return c.getAggregateBeaconCommSelection(ctx, psigsBySlot)
 }
 
-// AggregateAttestationOld returns the aggregate attestation for the given attestation root.
-// It does a blocking query to DutyAggregator unsigned data from dutyDB.
-func (c Component) AggregateAttestationOld(ctx context.Context, opts *eth2api.AggregateAttestationOpts) (*eth2api.Response[*eth2p0.Attestation], error) {
-	aggAtt, err := c.awaitAggAttFuncOld(ctx, uint64(opts.Slot), opts.AttestationDataRoot)
-	if err != nil {
-		return nil, err
-	}
-
-	return wrapResponse(aggAtt), nil
-}
-
 // AggregateAttestation returns the aggregate attestation for the given attestation root.
 // It does a blocking query to DutyAggregator unsigned data from dutyDB.
 func (c Component) AggregateAttestation(ctx context.Context, opts *eth2api.AggregateAttestationOpts) (*eth2api.Response[*eth2spec.VersionedAttestation], error) {
@@ -879,65 +799,6 @@ func (c Component) AggregateAttestation(ctx context.Context, opts *eth2api.Aggre
 	}
 
 	return wrapResponse(aggAtt), nil
-}
-
-// SubmitAggregateAttestationsOld receives partially signed aggregateAndProofs.
-// - It verifies partial signature on AggregateAndProof.
-// - It then calls all the subscribers for further steps on partially signed aggregate and proof.
-func (c Component) SubmitAggregateAttestationsOld(ctx context.Context, aggregateAndProofs []*eth2p0.SignedAggregateAndProof) error {
-	vals, err := c.eth2Cl.ActiveValidators(ctx)
-	if err != nil {
-		return err
-	}
-
-	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
-	for _, agg := range aggregateAndProofs {
-		slot := agg.Message.Aggregate.Data.Slot
-		eth2Pubkey, ok := vals[agg.Message.AggregatorIndex]
-		if !ok {
-			return errors.New("validator not found")
-		}
-
-		pk, err := core.PubKeyFromBytes(eth2Pubkey[:])
-		if err != nil {
-			return err
-		}
-
-		// Verify inner selection proof (outcome of DutyPrepareAggregator).
-		if !c.insecureTest {
-			err = signing.VerifyAggregateAndProofSelectionOld(ctx, c.eth2Cl, tbls.PublicKey(eth2Pubkey), agg.Message)
-			if err != nil {
-				return err
-			}
-		}
-
-		parSigData := core.NewPartialSignedAggregateAndProof(agg, c.shareIdx)
-
-		// Verify outer partial signature.
-		err = c.verifyPartialSig(ctx, parSigData, pk)
-		if err != nil {
-			return err
-		}
-
-		_, ok = psigsBySlot[slot]
-		if !ok {
-			psigsBySlot[slot] = make(core.ParSignedDataSet)
-		}
-
-		psigsBySlot[slot][pk] = parSigData
-	}
-
-	for slot, data := range psigsBySlot {
-		duty := core.NewAggregatorDuty(uint64(slot))
-		for _, sub := range c.subs {
-			err = sub(ctx, duty, data)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
 }
 
 // SubmitAggregateAttestations receives partially signed aggregateAndProofs.
