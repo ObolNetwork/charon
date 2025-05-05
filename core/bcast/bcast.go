@@ -241,25 +241,6 @@ func setToSyncMessages(set core.SignedDataSet) ([]*altair.SyncCommitteeMessage, 
 	return resp, nil
 }
 
-// isElectraAggAndProof checks if a core.SignedDataSet object is pre- or post-electra aggregate and proof.
-func isElectraAggAndProof(set core.SignedDataSet) (bool, error) {
-	for _, att := range set {
-		_, ok := att.(core.SignedAggregateAndProof)
-		if ok {
-			return false, nil
-		}
-
-		_, ok = att.(core.VersionedSignedAggregateAndProof)
-		if ok {
-			return true, nil
-		}
-
-		return false, errors.New("invalid aggregate and proof")
-	}
-
-	return false, errors.New("empty aggregates and proof signed data set")
-}
-
 // setToAggAndProof converts a set of signed data into a list of versioned aggregate and proofs.
 func setToAggAndProof(set core.SignedDataSet) (*eth2api.SubmitAggregateAttestationsOpts, error) {
 	var resp []*eth2spec.VersionedSignedAggregateAndProof
@@ -301,25 +282,6 @@ func setToOne(set core.SignedDataSet) (core.PubKey, core.SignedData, error) {
 	}
 
 	return "", nil, errors.New("expected one item in set")
-}
-
-// isElectraAttestation checks if a core.SignedDataSet object is pre- or post-electra attestation.
-func isElectraAttestation(set core.SignedDataSet) (bool, error) {
-	for _, att := range set {
-		_, ok := att.(core.Attestation)
-		if ok {
-			return false, nil
-		}
-
-		_, ok = att.(core.VersionedAttestation)
-		if ok {
-			return true, nil
-		}
-
-		return false, errors.New("invalid attestation")
-	}
-
-	return false, errors.New("empty attestations signed data set")
 }
 
 // setToAttestations converts a set of signed data into a list of versioned attestations.

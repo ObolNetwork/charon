@@ -163,7 +163,7 @@ func TestComponent_InvalidSubmitAttestations(t *testing.T) {
 
 	atts := &eth2api.SubmitAttestationsOpts{
 		Attestations: []*eth2spec.VersionedAttestation{
-			&eth2spec.VersionedAttestation{
+			{
 				Deneb: att,
 			},
 		},
@@ -2341,18 +2341,6 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 	require.Equal(t, selections, got)
 }
 
-func signAggregationAndProof(t *testing.T, eth2Cl eth2wrap.Client, secret tbls.PrivateKey, aggProof *eth2p0.AggregateAndProof) eth2p0.BLSSignature {
-	t.Helper()
-
-	epoch, err := eth2util.EpochFromSlot(context.Background(), eth2Cl, aggProof.Aggregate.Data.Slot)
-	require.NoError(t, err)
-
-	dataRoot, err := aggProof.HashTreeRoot()
-	require.NoError(t, err)
-
-	return sign(t, eth2Cl, secret, signing.DomainAggregateAndProof, epoch, dataRoot)
-}
-
 // syncCommSelectionProof returns the selection_proof corresponding to the provided altair.ContributionAndProof.
 // Refer get_sync_committee_selection_proof from https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#aggregation-selection.
 func syncCommSelectionProof(t *testing.T, eth2Cl eth2wrap.Client, secret tbls.PrivateKey, slot eth2p0.Slot, subcommIdx eth2p0.CommitteeIndex) eth2p0.BLSSignature {
@@ -2384,18 +2372,6 @@ func signContributionAndProof(t *testing.T, eth2Cl eth2wrap.Client, secret tbls.
 	require.NoError(t, err)
 
 	return sign(t, eth2Cl, secret, signing.DomainContributionAndProof, epoch, sigRoot)
-}
-
-func signBeaconSelection(t *testing.T, eth2Cl eth2wrap.Client, secret tbls.PrivateKey, slot eth2p0.Slot) eth2p0.BLSSignature {
-	t.Helper()
-
-	epoch, err := eth2util.EpochFromSlot(context.Background(), eth2Cl, slot)
-	require.NoError(t, err)
-
-	dataRoot, err := eth2util.SlotHashRoot(slot)
-	require.NoError(t, err)
-
-	return sign(t, eth2Cl, secret, signing.DomainSelectionProof, epoch, dataRoot)
 }
 
 func sign(t *testing.T, eth2Cl eth2wrap.Client, secret tbls.PrivateKey, domain signing.DomainName, epoch eth2p0.Epoch, dataRoot eth2p0.Root) eth2p0.BLSSignature {
