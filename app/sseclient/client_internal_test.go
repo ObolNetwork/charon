@@ -29,6 +29,7 @@ func TestReconnect(t *testing.T) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Connection", "keep-alive")
 		wg.Done()
+		time.Sleep(100 * time.Millisecond)
 	}))
 	defer ts.Close()
 
