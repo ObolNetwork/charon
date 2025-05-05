@@ -1,17 +1,14 @@
 name: Build and Release Binaries
 
 on:
-  workflow_run:
-    workflows: ["Publish Release"]
-    types:
-      - completed
+  push:
+    branches:
+      - main*
+    tags:
+      - 'v*'
 
 jobs:
   build-binaries:
-    # Only run if the triggering workflow succeeded and it was triggered by a tag
-    if: >
-      github.event.workflow_run.conclusion == 'success' &&
-      startsWith(github.event.workflow_run.head_branch, 'refs/tags/v')
     runs-on: ubuntu-24.04
     name: Build Cross-Platform Binaries
     steps:
