@@ -102,7 +102,7 @@ func attData(t *testing.T, mock *beaconmock.Mock) test {
 	asserted := make(chan struct{})
 
 	var submitted int
-	mock.SubmitAttestationsV2Func = func(ctx context.Context, attestations *eth2api.SubmitAttestationsOpts) error {
+	mock.SubmitAttestationsFunc = func(ctx context.Context, attestations *eth2api.SubmitAttestationsOpts) error {
 		require.Len(t, attestations.Attestations, 1)
 		require.Equal(t, aggData.VersionedAttestation, *attestations.Attestations[0])
 
@@ -242,7 +242,7 @@ func aggregateAttestationData(t *testing.T, mock *beaconmock.Mock) test {
 		VersionedSignedAggregateAndProof: *aggAndProof,
 	}
 
-	mock.SubmitAggregateAttestationsV2Func = func(ctx context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
+	mock.SubmitAggregateAttestationsFunc = func(ctx context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
 		require.Equal(t, aggAndProof, aggregateAndProofs.SignedAggregateAndProofs[0])
 		close(asserted)
 

@@ -329,7 +329,7 @@ type Entry struct {
 
 The database has the following indexes:
 - `Slot,DutyType,PubKey`: unique index for deduplication and idempotent inserts
-- `Slot,DutyType,CommIdx,ValCommIdx`: Queried by `AwaitAttester` and `PubKeyByAttestation`
+- `Slot,DutyType,CommIdx,ValCommIdx`: Queried by `AwaitAttester` and `PubKeyByAttestationOld`
 
 The `UnsignedData` might however not be available yet at the time the VC queries the `ValidatorAPI`.
 The `DutyDB` therefore provides a blocking query API. This query blocks until any requested data is available or until VC decides to timeout.
@@ -352,10 +352,10 @@ type DutyDB interface {
         // for the slot and committee index when available.
         AwaitAttestation(context.Context, slot int, commIdx int) (*beaconapi.AttestationData, error)
 
-        // PubKeyByAttestation returns the validator PubKey for the provided attestation data
+        // PubKeyByAttestationOld returns the validator PubKey for the provided attestation data
         // slot, committee index and validator committee index. This allows mapping of attestation
         // data response to validator.
-        PubKeyByAttestation(context.Context, slot int, commIdx int, valCommIdx int) (PubKey, error)
+        PubKeyByAttestationOld(context.Context, slot int, commIdx int, valCommIdx int) (PubKey, error)
 }
 ```
 ### Validator API
@@ -410,7 +410,7 @@ The validator API provides the following beacon-node endpoints relating to dutie
   - Serve response
 - `POST /eth/v1/beacon/pool/attestations` Submit Attestation objects to node
   - Construct a `ParSignedData` for each attestation object in request body.
-  - Infer `PubKey` of the request by querying the `DutyDB` `PubKeyByAttestation` with the `slot`, `committee index` and `aggregation bits` provided in the request body.
+  - Infer `PubKey` of the request by querying the `DutyDB` `PubKeyByAttestationOld` with the `slot`, `committee index` and `aggregation bits` provided in the request body.
   - Set the BLS private share `index` to charon node index.
   - Combine `ParSignedData`s into a `SignedDutyDataSet`.
   - Store `SignedDutyDataSet` in the `SigDB`
@@ -448,14 +448,14 @@ type ValidatorAPI interface {
 	// RegisterAwaitSyncContribution registers a function to query sync contribution data.
 	RegisterAwaitSyncContribution(func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error))
 
-	// RegisterPubKeyByAttestation registers a function to query validator by attestation.
-	RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valCommIdx uint64) (PubKey, error))
+	// RegisterPubKeyByAttestationOld registers a function to query validator by attestation.
+	RegisterPubKeyByAttestationOld(func(ctx context.Context, slot, commIdx, valCommIdx uint64) (PubKey, error))
 
 	// RegisterGetDutyDefinition registers a function to query duty definitions.
 	RegisterGetDutyDefinition(func(context.Context, Duty) (DutyDefinitionSet, error))
 
-	// RegisterAwaitAggAttestation registers a function to query aggregated attestation.
-	RegisterAwaitAggAttestation(fn func(ctx context.Context, slot uint64, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error))
+	// RegisterAwaitAggAttestationOld registers a function to query aggregated attestation.
+	RegisterAwaitAggAttestationOld(fn func(ctx context.Context, slot uint64, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error))
 
 	// RegisterAwaitAggSigDB registers a function to query aggregated signed data from aggSigDB.
 	RegisterAwaitAggSigDB(func(context.Context, Duty, PubKey) (SignedData, error))

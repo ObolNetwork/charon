@@ -63,9 +63,23 @@ func TestLazy_NodePeerCount(t *testing.T) {
 	require.Equal(t, 5, c)
 }
 
-func TestLazy_BlockAttestations(t *testing.T) {
+func TestLazy_BlockAttestationsOld(t *testing.T) {
 	ctx := context.Background()
 	atts := make([]*eth2p0.Attestation, 3)
+
+	client := mocks.NewClient(t)
+	client.On("BlockAttestationsOld", ctx, "state").Return(atts, nil).Once()
+
+	l := eth2wrap.NewLazyForT(client)
+
+	atts2, err := l.BlockAttestationsOld(ctx, "state")
+	require.NoError(t, err)
+	require.Equal(t, atts, atts2)
+}
+
+func TestLazy_BlockAttestations(t *testing.T) {
+	ctx := context.Background()
+	atts := make([]*spec.VersionedAttestation, 3)
 
 	client := mocks.NewClient(t)
 	client.On("BlockAttestations", ctx, "state").Return(atts, nil).Once()
@@ -73,20 +87,6 @@ func TestLazy_BlockAttestations(t *testing.T) {
 	l := eth2wrap.NewLazyForT(client)
 
 	atts2, err := l.BlockAttestations(ctx, "state")
-	require.NoError(t, err)
-	require.Equal(t, atts, atts2)
-}
-
-func TestLazy_BlockAttestationsV2(t *testing.T) {
-	ctx := context.Background()
-	atts := make([]*spec.VersionedAttestation, 3)
-
-	client := mocks.NewClient(t)
-	client.On("BlockAttestationsV2", ctx, "state").Return(atts, nil).Once()
-
-	l := eth2wrap.NewLazyForT(client)
-
-	atts2, err := l.BlockAttestationsV2(ctx, "state")
 	require.NoError(t, err)
 	require.Equal(t, atts, atts2)
 }

@@ -172,7 +172,7 @@ func TestDuplicateAttData(t *testing.T) {
 			aggBits2 := testutil.RandomBitList(8)
 			aggBits3 := testutil.RandomBitList(8)
 
-			bmock.BlockAttestationsV2Func = func(_ context.Context, _ string) ([]*eth2spec.VersionedAttestation, error) {
+			bmock.BlockAttestationsFunc = func(_ context.Context, _ string) ([]*eth2spec.VersionedAttestation, error) {
 				return test.attestationsFunc(attData, aggBits1, aggBits2, aggBits3), nil
 			}
 
@@ -190,7 +190,7 @@ func TestDuplicateAttData(t *testing.T) {
 			require.NoError(t, err)
 
 			// Assert that the block to check contains all bitlists above.
-			incl.checkBlockV2Func = func(ctx context.Context, block blockV2) {
+			incl.checkBlockFunc = func(ctx context.Context, block block) {
 				require.Len(t, block.AttestationsByDataRoot, 1)
 				att, ok := block.AttestationsByDataRoot[attDataRoot]
 				require.True(t, ok)
@@ -231,7 +231,7 @@ func TestInclusion(t *testing.T) {
 		missedFunc: func(ctx context.Context, sub submission) {
 			missed = append(missed, sub.Duty)
 		},
-		attIncludedFunc: func(ctx context.Context, sub submission, block block) {
+		attIncludedFuncOld: func(ctx context.Context, sub submission, block blockOld) {
 			included = append(included, sub.Duty)
 		},
 		trackerInclFunc: func(duty core.Duty, key core.PubKey, data core.SignedData, err error) {},
@@ -282,7 +282,7 @@ func TestInclusion(t *testing.T) {
 	addRandomBits(att1.AggregationBits)
 	addRandomBits(agg2.Message.Aggregate.AggregationBits)
 
-	block := block{
+	block := blockOld{
 		Slot: block4Duty.Slot,
 		AttestationsByDataRoot: map[eth2p0.Root]*eth2p0.Attestation{
 			att1Root: att1,
@@ -291,7 +291,7 @@ func TestInclusion(t *testing.T) {
 	}
 
 	// Check the block
-	incl.CheckBlock(context.Background(), block)
+	incl.CheckBlockOld(context.Background(), block)
 
 	// Assert that the 1st and 2nd duty was included
 	duties := []core.Duty{att1Duty, agg2Duty}

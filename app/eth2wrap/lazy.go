@@ -194,23 +194,23 @@ func (l *lazy) AggregateSyncCommitteeSelections(ctx context.Context, partialSele
 	return cl.AggregateSyncCommitteeSelections(ctx, partialSelections)
 }
 
-// Deprecated: use BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error)
-func (l *lazy) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
+// Deprecated: use BlockAttestations(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error)
+func (l *lazy) BlockAttestationsOld(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return cl.BlockAttestationsOld(ctx, stateID)
+}
+
+func (l *lazy) BlockAttestations(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	return cl.BlockAttestations(ctx, stateID)
-}
-
-func (l *lazy) BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return cl.BlockAttestationsV2(ctx, stateID)
 }
 
 func (l *lazy) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error) {

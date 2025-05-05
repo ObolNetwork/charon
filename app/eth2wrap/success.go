@@ -14,12 +14,12 @@ func isSyncStateOk(resp *eth2api.Response[*eth2v1.SyncState]) bool {
 	return !resp.Data.IsSyncing
 }
 
-// isAggregateAttestationOk returns true if the aggregate attestation is not nil (which can happen if the subscription wasn't successful).
-func isAggregateAttestationOk(resp *eth2api.Response[*eth2p0.Attestation]) bool {
+// isAggregateAttestationOkOld returns true if the aggregate attestation is not nil (which can happen if the subscription wasn't successful).
+func isAggregateAttestationOkOld(resp *eth2api.Response[*eth2p0.Attestation]) bool {
 	return resp.Data != nil
 }
 
-// isAggregateAttestationOkV2 returns true if the aggregate attestation is not nil (which can happen if the subscription wasn't successful).
-func isAggregateAttestationOkV2(resp *eth2api.Response[*eth2spec.VersionedAttestation]) bool {
+// isAggregateAttestationOk returns true if the aggregate attestation is not nil (which can happen if the subscription wasn't successful).
+func isAggregateAttestationOk(resp *eth2api.Response[*eth2spec.VersionedAttestation]) bool {
 	return resp.Data != nil
 }

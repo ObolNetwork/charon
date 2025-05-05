@@ -394,12 +394,12 @@ func TestBlockAttestations(t *testing.T) {
 	}))
 
 	cl := eth2wrap.NewHTTPAdapterForT(t, srv.URL, nil, time.Hour)
-	resp, err := cl.BlockAttestations(context.Background(), "head")
+	resp, err := cl.BlockAttestationsOld(context.Background(), "head")
 	require.NoError(t, err)
 	require.Equal(t, atts, resp)
 
 	statusCode = http.StatusNotFound
-	resp, err = cl.BlockAttestations(context.Background(), "head")
+	resp, err = cl.BlockAttestationsOld(context.Background(), "head")
 	require.NoError(t, err)
 	require.Empty(t, resp)
 }
@@ -439,7 +439,7 @@ func TestBlockAttestationsV2(t *testing.T) {
 			}))
 
 			cl := eth2wrap.NewHTTPAdapterForT(t, srv.URL, nil, time.Hour)
-			resp, err := cl.BlockAttestationsV2(context.Background(), "head")
+			resp, err := cl.BlockAttestations(context.Background(), "head")
 			if test.expErr != "" {
 				require.ErrorContains(t, err, test.expErr)
 			} else {
@@ -448,7 +448,7 @@ func TestBlockAttestationsV2(t *testing.T) {
 			require.Equal(t, test.attestations, resp)
 
 			statusCode = http.StatusNotFound
-			resp, err = cl.BlockAttestationsV2(context.Background(), "head")
+			resp, err = cl.BlockAttestations(context.Background(), "head")
 			require.ErrorContains(t, err, eth2wrap.ErrEndpointNotFound.Error())
 			require.Empty(t, resp)
 		})

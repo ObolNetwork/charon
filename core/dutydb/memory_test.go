@@ -41,7 +41,7 @@ func TestMemDB(t *testing.T) {
 	db := dutydb.NewMemDB(new(testDeadliner))
 
 	// Nothing in the DB, so expect error
-	_, err := db.PubKeyByAttestation(ctx, 0, 0, 0)
+	_, err := db.PubKeyByAttestationOld(ctx, 0, 0, 0)
 	require.Error(t, err)
 
 	const (
@@ -126,11 +126,11 @@ func TestMemDB(t *testing.T) {
 	}
 
 	// Assert that two pubkeys can be resolved.
-	pkA, err := db.PubKeyByAttestation(ctx, uint64(attData.Slot), uint64(attData.Index), valCommIdxA)
+	pkA, err := db.PubKeyByAttestationOld(ctx, uint64(attData.Slot), uint64(attData.Index), valCommIdxA)
 	require.NoError(t, err)
 	require.Equal(t, pubkeysByIdx[vIdxA], pkA)
 
-	pkB, err := db.PubKeyByAttestation(ctx, uint64(attData.Slot), uint64(attData.Index), valCommIdxB)
+	pkB, err := db.PubKeyByAttestationOld(ctx, uint64(attData.Slot), uint64(attData.Index), valCommIdxB)
 	require.NoError(t, err)
 	require.Equal(t, pubkeysByIdx[vIdxB], pkB)
 }
@@ -240,7 +240,7 @@ func TestMemDBAggregator(t *testing.T) {
 		require.NoError(t, err)
 		err = <-errCh
 		require.NoError(t, err)
-		resp, err := db.AwaitAggAttestation(ctx, slot, root)
+		resp, err := db.AwaitAggAttestationOld(ctx, slot, root)
 		require.NoError(t, err)
 		require.Equal(t, agg, resp)
 	}
@@ -436,7 +436,7 @@ func TestDutyExpiry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Ensure it exists
-	pk, err := db.PubKeyByAttestationV2(ctx, uint64(att1.Data.Slot), uint64(att1.Duty.CommitteeIndex), uint64(att1.Duty.ValidatorIndex))
+	pk, err := db.PubKeyByAttestation(ctx, uint64(att1.Data.Slot), uint64(att1.Duty.CommitteeIndex), uint64(att1.Duty.ValidatorIndex))
 	require.NoError(t, err)
 	require.NotEmpty(t, pk)
 
@@ -452,7 +452,7 @@ func TestDutyExpiry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Pubkey not found.
-	_, err = db.PubKeyByAttestationV2(ctx, uint64(att1.Data.Slot), uint64(att1.Duty.CommitteeIndex), uint64(att1.Duty.ValidatorIndex))
+	_, err = db.PubKeyByAttestation(ctx, uint64(att1.Data.Slot), uint64(att1.Duty.CommitteeIndex), uint64(att1.Duty.ValidatorIndex))
 	require.Error(t, err)
 }
 

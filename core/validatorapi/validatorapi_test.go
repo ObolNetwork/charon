@@ -105,7 +105,7 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 
 	atts := []*eth2spec.VersionedAttestation{attA, attB}
 
-	component.RegisterPubKeyByAttestationV2(func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error) {
+	component.RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error) {
 		return pubkeysByIdx[eth2p0.ValidatorIndex(valIdx)], nil
 	})
 
@@ -126,7 +126,7 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 		return nil
 	})
 
-	err = component.SubmitAttestationsV2(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
+	err = component.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
 	require.NoError(t, err)
 }
 
@@ -163,7 +163,7 @@ func TestComponent_InvalidSubmitAttestations(t *testing.T) {
 
 	atts := []*eth2p0.Attestation{att}
 
-	err = component.SubmitAttestations(ctx, atts)
+	err = component.SubmitAttestationsOld(ctx, atts)
 	require.Error(t, err)
 }
 
@@ -206,7 +206,7 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000, nil)
 	require.NoError(t, err)
 
-	vapi.RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error) {
+	vapi.RegisterPubKeyByAttestationOld(func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error) {
 		require.Equal(t, slot, epochSlot)
 		require.EqualValues(t, commIdx, vIdx)
 		require.EqualValues(t, valIdx, 0)
@@ -224,7 +224,7 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	})
 
 	// Configure beacon mock to call validator API for submissions
-	bmock.SubmitAttestationsFunc = vapi.SubmitAttestations
+	bmock.SubmitAttestationsFuncOld = vapi.SubmitAttestationsOld
 
 	signer, err := validatormock.NewSigner(secret)
 	require.NoError(t, err)
@@ -313,7 +313,7 @@ func TestSignAndVerify(t *testing.T) {
 	// Setup validatorapi component.
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000, nil)
 	require.NoError(t, err)
-	vapi.RegisterPubKeyByAttestationV2(func(context.Context, uint64, uint64, uint64) (core.PubKey, error) {
+	vapi.RegisterPubKeyByAttestation(func(context.Context, uint64, uint64, uint64) (core.PubKey, error) {
 		return core.PubKeyFromBytes(pubkey[:])
 	})
 
@@ -341,7 +341,7 @@ func TestSignAndVerify(t *testing.T) {
 			Signature:       sig,
 		},
 	}
-	err = vapi.SubmitAttestationsV2(ctx, &eth2api.SubmitAttestationsOpts{Attestations: []*eth2spec.VersionedAttestation{&att}})
+	err = vapi.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: []*eth2spec.VersionedAttestation{&att}})
 	require.NoError(t, err)
 	wg.Wait()
 }
@@ -1903,7 +1903,7 @@ func TestComponent_SubmitAggregateAttestations(t *testing.T) {
 		return nil
 	})
 
-	require.NoError(t, vapi.SubmitAggregateAttestationsV2(ctx, &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: []*eth2spec.VersionedSignedAggregateAndProof{agg}}))
+	require.NoError(t, vapi.SubmitAggregateAttestations(ctx, &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: []*eth2spec.VersionedSignedAggregateAndProof{agg}}))
 }
 
 func TestComponent_SubmitAggregateAttestationVerify(t *testing.T) {
@@ -1960,7 +1960,7 @@ func TestComponent_SubmitAggregateAttestationVerify(t *testing.T) {
 		return nil
 	})
 
-	err = vapi.SubmitAggregateAttestationsV2(ctx, &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: []*eth2spec.VersionedSignedAggregateAndProof{signedAggProof}})
+	err = vapi.SubmitAggregateAttestationsOld(ctx, &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: []*eth2spec.VersionedSignedAggregateAndProof{signedAggProof}})
 	require.NoError(t, err)
 	<-done
 }

@@ -345,7 +345,7 @@ func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot
 		}
 	}
 
-	err := eth2Cl.SubmitAttestationsV2(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
+	err := eth2Cl.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
 	if err != nil {
 		return nil, err
 	}
@@ -430,7 +430,7 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 		})
 	}
 
-	if err := eth2Cl.SubmitAggregateAttestationsV2(ctx, &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: aggs}); err != nil {
+	if err := eth2Cl.SubmitAggregateAttestations(ctx, &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: aggs}); err != nil {
 		return false, err
 	}
 
@@ -456,7 +456,7 @@ func getAggregateAttestation(ctx context.Context, eth2Cl eth2wrap.Client, datas 
 			AttestationDataRoot: root,
 			CommitteeIndex:      commIdx,
 		}
-		eth2Resp, err := eth2Cl.AggregateAttestationV2(ctx, opts)
+		eth2Resp, err := eth2Cl.AggregateAttestation(ctx, opts)
 		if err != nil {
 			return nil, err
 		}
