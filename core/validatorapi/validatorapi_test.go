@@ -161,9 +161,15 @@ func TestComponent_InvalidSubmitAttestations(t *testing.T) {
 		Signature: eth2p0.BLSSignature{},
 	}
 
-	atts := []*eth2p0.Attestation{att}
+	atts := &eth2api.SubmitAttestationsOpts{
+		Attestations: []*eth2spec.VersionedAttestation{
+			&eth2spec.VersionedAttestation{
+				Deneb: att,
+			},
+		},
+	}
 
-	err = component.SubmitAttestationsOld(ctx, atts)
+	err = component.SubmitAttestations(ctx, atts)
 	require.Error(t, err)
 }
 
@@ -206,7 +212,7 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000, nil)
 	require.NoError(t, err)
 
-	vapi.RegisterPubKeyByAttestationOld(func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error) {
+	vapi.RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error) {
 		require.Equal(t, slot, epochSlot)
 		require.EqualValues(t, commIdx, vIdx)
 		require.EqualValues(t, valIdx, 0)
@@ -224,7 +230,7 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	})
 
 	// Configure beacon mock to call validator API for submissions
-	bmock.SubmitAttestationsFuncOld = vapi.SubmitAttestationsOld
+	bmock.SubmitAttestationsFunc = vapi.SubmitAttestations
 
 	signer, err := validatormock.NewSigner(secret)
 	require.NoError(t, err)
@@ -1904,65 +1910,6 @@ func TestComponent_SubmitAggregateAttestations(t *testing.T) {
 	})
 
 	require.NoError(t, vapi.SubmitAggregateAttestations(ctx, &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: []*eth2spec.VersionedSignedAggregateAndProof{agg}}))
-}
-
-func TestComponent_SubmitAggregateAttestationVerify(t *testing.T) {
-	const shareIdx = 1
-	var (
-		ctx = context.Background()
-		val = testutil.RandomValidator(t)
-	)
-
-	// Create keys (just use normal keys, not split tbls)
-	secret, err := tbls.GenerateSecretKey()
-	require.NoError(t, err)
-
-	pubkey, err := tbls.SecretToPublicKey(secret)
-	require.NoError(t, err)
-
-	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
-	require.NoError(t, err)
-
-	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
-
-	val.Validator.PublicKey = eth2p0.BLSPubKey(pubkey)
-
-	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSet{val.Index: val}))
-	require.NoError(t, err)
-
-	slot := eth2p0.Slot(99)
-	aggProof := &eth2p0.AggregateAndProof{
-		AggregatorIndex: val.Index,
-		Aggregate:       testutil.RandomPhase0Attestation(),
-	}
-	aggProof.Aggregate.Data.Slot = slot
-	aggProof.SelectionProof = signBeaconSelection(t, bmock, secret, slot)
-	signedAggProof := &eth2spec.VersionedSignedAggregateAndProof{
-		Version: eth2spec.DataVersionDeneb,
-		Deneb: &eth2p0.SignedAggregateAndProof{
-			Message:   aggProof,
-			Signature: signAggregationAndProof(t, bmock, secret, aggProof),
-		},
-	}
-
-	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000, nil)
-	require.NoError(t, err)
-
-	done := make(chan struct{})
-	// Collect submitted partial signature.
-	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-		require.Len(t, set, 1)
-		_, ok := set[core.PubKeyFrom48Bytes(val.Validator.PublicKey)]
-		require.True(t, ok)
-		close(done)
-
-		return nil
-	})
-
-	err = vapi.SubmitAggregateAttestationsOld(ctx, &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: []*eth2spec.VersionedSignedAggregateAndProof{signedAggProof}})
-	require.NoError(t, err)
-	<-done
 }
 
 func TestComponent_SubmitSyncCommitteeMessages(t *testing.T) {

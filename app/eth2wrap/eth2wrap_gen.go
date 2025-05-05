@@ -129,26 +129,6 @@ func (m multi) SignedBeaconBlock(ctx context.Context, opts *api.SignedBeaconBloc
 	return res0, err
 }
 
-// AggregateAttestationOld fetches the aggregate attestation for the given options to v1 beacon node endpoint.
-func (m multi) AggregateAttestationOld(ctx context.Context, opts *api.AggregateAttestationOpts) (*api.Response[*phase0.Attestation], error) {
-	const label = "aggregate_attestation"
-	defer latency(ctx, label, false)()
-
-	res0, err := provide(ctx, m.clients, m.fallbacks,
-		func(ctx context.Context, args provideArgs) (*api.Response[*phase0.Attestation], error) {
-			return args.client.AggregateAttestationOld(ctx, opts)
-		},
-		isAggregateAttestationOkOld, m.selector,
-	)
-
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return res0, err
-}
-
 // AggregateAttestation fetches the aggregate attestation for the given options to v2 beacon node endpoint.
 func (m multi) AggregateAttestation(ctx context.Context, opts *api.AggregateAttestationOpts) (*api.Response[*spec.VersionedAttestation], error) {
 	const label = "aggregate_attestation_v2"
@@ -167,26 +147,6 @@ func (m multi) AggregateAttestation(ctx context.Context, opts *api.AggregateAtte
 	}
 
 	return res0, err
-}
-
-// SubmitAggregateAttestationsOld submits aggregate attestations to v1 beacon node endpoint.
-func (m multi) SubmitAggregateAttestationsOld(ctx context.Context, aggregateAndProofs []*phase0.SignedAggregateAndProof) error {
-	const label = "submit_aggregate_attestations"
-	defer latency(ctx, label, false)()
-
-	err := submit(ctx, m.clients, m.fallbacks,
-		func(ctx context.Context, args provideArgs) error {
-			return args.client.SubmitAggregateAttestationsOld(ctx, aggregateAndProofs)
-		},
-		m.selector,
-	)
-
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return err
 }
 
 // SubmitAggregateAttestations submits aggregate attestations to v2 beacon node endpoint..
@@ -227,26 +187,6 @@ func (m multi) AttestationData(ctx context.Context, opts *api.AttestationDataOpt
 	}
 
 	return res0, err
-}
-
-// SubmitAttestationsOld submits attestations on v1 BN endpoint.
-func (m multi) SubmitAttestationsOld(ctx context.Context, attestations []*phase0.Attestation) error {
-	const label = "submit_attestations"
-	defer latency(ctx, label, false)()
-
-	err := submit(ctx, m.clients, m.fallbacks,
-		func(ctx context.Context, args provideArgs) error {
-			return args.client.SubmitAttestationsOld(ctx, attestations)
-		},
-		m.selector,
-	)
-
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return err
 }
 
 // SubmitAttestations submits attestations on v2 BN endpoint.
@@ -808,16 +748,6 @@ func (l *lazy) SignedBeaconBlock(ctx context.Context, opts *api.SignedBeaconBloc
 	return cl.SignedBeaconBlock(ctx, opts)
 }
 
-// AggregateAttestationOld fetches the aggregate attestation for the given options to v1 beacon node endpoint.
-func (l *lazy) AggregateAttestationOld(ctx context.Context, opts *api.AggregateAttestationOpts) (res0 *api.Response[*phase0.Attestation], err error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return res0, err
-	}
-
-	return cl.AggregateAttestationOld(ctx, opts)
-}
-
 // AggregateAttestation fetches the aggregate attestation for the given options to v2 beacon node endpoint.
 func (l *lazy) AggregateAttestation(ctx context.Context, opts *api.AggregateAttestationOpts) (res0 *api.Response[*spec.VersionedAttestation], err error) {
 	cl, err := l.getOrCreateClient(ctx)
@@ -826,16 +756,6 @@ func (l *lazy) AggregateAttestation(ctx context.Context, opts *api.AggregateAtte
 	}
 
 	return cl.AggregateAttestation(ctx, opts)
-}
-
-// SubmitAggregateAttestationsOld submits aggregate attestations to v1 beacon node endpoint.
-func (l *lazy) SubmitAggregateAttestationsOld(ctx context.Context, aggregateAndProofs []*phase0.SignedAggregateAndProof) (err error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return err
-	}
-
-	return cl.SubmitAggregateAttestationsOld(ctx, aggregateAndProofs)
 }
 
 // SubmitAggregateAttestations submits aggregate attestations to v2 beacon node endpoint..
@@ -856,16 +776,6 @@ func (l *lazy) AttestationData(ctx context.Context, opts *api.AttestationDataOpt
 	}
 
 	return cl.AttestationData(ctx, opts)
-}
-
-// SubmitAttestationsOld submits attestations on v1 BN endpoint.
-func (l *lazy) SubmitAttestationsOld(ctx context.Context, attestations []*phase0.Attestation) (err error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return err
-	}
-
-	return cl.SubmitAttestationsOld(ctx, attestations)
 }
 
 // SubmitAttestations submits attestations on v2 BN endpoint.
