@@ -304,7 +304,7 @@ replace github.com/coinbase/kryptology => github.com/ObolNetwork/kryptology v0.0
 // replace github.com/attestantio/go-eth2-client => github.com/ObolNetwork/go-eth2-client v0.21.11-0.20240822135044-f0a5b21e02c6
 
 // Replace go-eth2-client version with the electra branch
-replace github.com/attestantio/go-eth2-client => github.com/ObolNetwork/go-eth2-client v0.24.1-0.20250213170417-18ce11f7e20b
+replace github.com/attestantio/go-eth2-client => github.com/ObolNetwork/go-eth2-client v0.24.1-0.20250430155428-3d42d3872437
 
 tool (
 	github.com/bufbuild/buf/cmd/buf
