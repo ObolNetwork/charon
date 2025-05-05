@@ -27,41 +27,11 @@ type Handler struct {
 }
 
 // AggregateAttestation provides a mock function with given fields: ctx, opts
-func (_m *Handler) AggregateAttestation(ctx context.Context, opts *api.AggregateAttestationOpts) (*api.Response[*phase0.Attestation], error) {
+func (_m *Handler) AggregateAttestation(ctx context.Context, opts *api.AggregateAttestationOpts) (*api.Response[*spec.VersionedAttestation], error) {
 	ret := _m.Called(ctx, opts)
 
 	if len(ret) == 0 {
 		panic("no return value specified for AggregateAttestation")
-	}
-
-	var r0 *api.Response[*phase0.Attestation]
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *api.AggregateAttestationOpts) (*api.Response[*phase0.Attestation], error)); ok {
-		return rf(ctx, opts)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, *api.AggregateAttestationOpts) *api.Response[*phase0.Attestation]); ok {
-		r0 = rf(ctx, opts)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.Response[*phase0.Attestation])
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, *api.AggregateAttestationOpts) error); ok {
-		r1 = rf(ctx, opts)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// AggregateAttestationV2 provides a mock function with given fields: ctx, opts
-func (_m *Handler) AggregateAttestationV2(ctx context.Context, opts *api.AggregateAttestationOpts) (*api.Response[*spec.VersionedAttestation], error) {
-	ret := _m.Called(ctx, opts)
-
-	if len(ret) == 0 {
-		panic("no return value specified for AggregateAttestationV2")
 	}
 
 	var r0 *api.Response[*spec.VersionedAttestation]
@@ -326,30 +296,12 @@ func (_m *Handler) ProposerDuties(ctx context.Context, opts *api.ProposerDutiesO
 	return r0, r1
 }
 
-// SubmitAggregateAttestations provides a mock function with given fields: ctx, aggregateAndProofs
-func (_m *Handler) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs []*phase0.SignedAggregateAndProof) error {
-	ret := _m.Called(ctx, aggregateAndProofs)
-
-	if len(ret) == 0 {
-		panic("no return value specified for SubmitAggregateAttestations")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, []*phase0.SignedAggregateAndProof) error); ok {
-		r0 = rf(ctx, aggregateAndProofs)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// SubmitAggregateAttestationsV2 provides a mock function with given fields: ctx, opts
-func (_m *Handler) SubmitAggregateAttestationsV2(ctx context.Context, opts *api.SubmitAggregateAttestationsOpts) error {
+// SubmitAggregateAttestations provides a mock function with given fields: ctx, opts
+func (_m *Handler) SubmitAggregateAttestations(ctx context.Context, opts *api.SubmitAggregateAttestationsOpts) error {
 	ret := _m.Called(ctx, opts)
 
 	if len(ret) == 0 {
-		panic("no return value specified for SubmitAggregateAttestationsV2")
+		panic("no return value specified for SubmitAggregateAttestations")
 	}
 
 	var r0 error
@@ -362,30 +314,12 @@ func (_m *Handler) SubmitAggregateAttestationsV2(ctx context.Context, opts *api.
 	return r0
 }
 
-// SubmitAttestations provides a mock function with given fields: ctx, attestations
-func (_m *Handler) SubmitAttestations(ctx context.Context, attestations []*phase0.Attestation) error {
-	ret := _m.Called(ctx, attestations)
-
-	if len(ret) == 0 {
-		panic("no return value specified for SubmitAttestations")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, []*phase0.Attestation) error); ok {
-		r0 = rf(ctx, attestations)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// SubmitAttestationsV2 provides a mock function with given fields: ctx, opts
-func (_m *Handler) SubmitAttestationsV2(ctx context.Context, opts *api.SubmitAttestationsOpts) error {
+// SubmitAttestations provides a mock function with given fields: ctx, opts
+func (_m *Handler) SubmitAttestations(ctx context.Context, opts *api.SubmitAttestationsOpts) error {
 	ret := _m.Called(ctx, opts)
 
 	if len(ret) == 0 {
-		panic("no return value specified for SubmitAttestationsV2")
+		panic("no return value specified for SubmitAttestations")
 	}
 
 	var r0 error

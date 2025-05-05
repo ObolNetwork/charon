@@ -224,11 +224,11 @@ func TestMemDBAggregator(t *testing.T) {
 	const queries = 3
 
 	for range queries {
-		agg := testutil.RandomPhase0Attestation()
+		agg := testutil.RandomDenebCoreVersionedAggregateAttestation()
 		set := core.UnsignedDataSet{
-			testutil.RandomCorePubKey(t): core.NewAggregatedAttestation(agg),
+			testutil.RandomCorePubKey(t): agg,
 		}
-		slot := uint64(agg.Data.Slot)
+		slot := uint64(agg.Deneb.Data.Slot)
 
 		errCh := make(chan error, 1)
 		go func() {
@@ -236,13 +236,13 @@ func TestMemDBAggregator(t *testing.T) {
 			errCh <- err
 		}()
 
-		root, err := agg.Data.HashTreeRoot()
+		root, err := agg.Deneb.Data.HashTreeRoot()
 		require.NoError(t, err)
 		err = <-errCh
 		require.NoError(t, err)
 		resp, err := db.AwaitAggAttestation(ctx, slot, root)
 		require.NoError(t, err)
-		require.Equal(t, agg, resp)
+		require.Equal(t, agg.Deneb, resp.Deneb)
 	}
 }
 
@@ -436,7 +436,7 @@ func TestDutyExpiry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Ensure it exists
-	pk, err := db.PubKeyByAttestationV2(ctx, uint64(att1.Data.Slot), uint64(att1.Duty.CommitteeIndex), uint64(att1.Duty.ValidatorIndex))
+	pk, err := db.PubKeyByAttestation(ctx, uint64(att1.Data.Slot), uint64(att1.Duty.CommitteeIndex), uint64(att1.Duty.ValidatorIndex))
 	require.NoError(t, err)
 	require.NotEmpty(t, pk)
 
@@ -452,7 +452,7 @@ func TestDutyExpiry(t *testing.T) {
 	require.NoError(t, err)
 
 	// Pubkey not found.
-	_, err = db.PubKeyByAttestationV2(ctx, uint64(att1.Data.Slot), uint64(att1.Duty.CommitteeIndex), uint64(att1.Duty.ValidatorIndex))
+	_, err = db.PubKeyByAttestation(ctx, uint64(att1.Data.Slot), uint64(att1.Duty.CommitteeIndex), uint64(att1.Duty.ValidatorIndex))
 	require.Error(t, err)
 }
 

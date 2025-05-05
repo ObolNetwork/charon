@@ -116,7 +116,7 @@ func WithBeaconMockFuzzer() Option {
 			return block, nil
 		}
 
-		mock.AggregateAttestationV2Func = func(context.Context, eth2p0.Slot, eth2p0.Root) (*eth2spec.VersionedAttestation, error) {
+		mock.AggregateAttestationFunc = func(context.Context, eth2p0.Slot, eth2p0.Root) (*eth2spec.VersionedAttestation, error) {
 			var att *eth2spec.VersionedAttestation
 			fuzz.New().Fuzz(&att)
 
@@ -176,14 +176,7 @@ func WithBeaconMockFuzzer() Option {
 			return contribution, nil
 		}
 
-		mock.BlockAttestationsFunc = func(context.Context, string) ([]*eth2p0.Attestation, error) {
-			var atts []*eth2p0.Attestation
-			fuzz.New().Fuzz(&atts)
-
-			return atts, nil
-		}
-
-		mock.BlockAttestationsV2Func = func(context.Context, string) ([]*eth2spec.VersionedAttestation, error) {
+		mock.BlockAttestationsFunc = func(context.Context, string) ([]*eth2spec.VersionedAttestation, error) {
 			var atts []*eth2spec.VersionedAttestation
 			fuzz.New().Fuzz(&atts)
 
