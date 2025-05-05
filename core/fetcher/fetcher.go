@@ -68,9 +68,9 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 	case core.DutyBuilderProposer:
 		return core.ErrDeprecatedDutyBuilderProposer
 	case core.DutyAggregator:
-		unsignedSet, err = f.fetchAggregatorDataV2(ctx, duty.Slot, defSet)
+		unsignedSet, err = f.fetchAggregatorData(ctx, duty.Slot, defSet)
 		if err != nil {
-			unsignedSet, err = f.fetchAggregatorData(ctx, duty.Slot, defSet)
+			unsignedSet, err = f.fetchAggregatorDataOld(ctx, duty.Slot, defSet)
 			if err != nil {
 				return errors.Wrap(err, "fetch aggregator data")
 			}
@@ -158,8 +158,8 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot uint64, defSet cor
 	return resp, nil
 }
 
-// fetchAggregatorData fetches the attestation aggregation data.
-func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
+// fetchAggregatorDataOld fetches the attestation aggregation data.
+func (f *Fetcher) fetchAggregatorDataOld(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
 	// We may have multiple aggregators in the same committee, use the same aggregated attestation in that case.
 	aggAttByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2p0.Attestation)
 
@@ -216,7 +216,7 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 			Slot:                eth2p0.Slot(slot),
 			AttestationDataRoot: dataRoot,
 		}
-		eth2Resp, err := f.eth2Cl.AggregateAttestation(ctx, opts)
+		eth2Resp, err := f.eth2Cl.AggregateAttestationOld(ctx, opts)
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		}
@@ -238,8 +238,8 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 	return resp, nil
 }
 
-// fetchAggregatorDataV2 fetches the attestation aggregation data.
-func (f *Fetcher) fetchAggregatorDataV2(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
+// fetchAggregatorData fetches the attestation aggregation data.
+func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
 	// We may have multiple aggregators in the same committee, use the same aggregated attestation in that case.
 	aggAttByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2spec.VersionedAttestation)
 
@@ -324,7 +324,7 @@ func (f *Fetcher) fetchAggregatorDataV2(ctx context.Context, slot uint64, defSet
 			AttestationDataRoot: dataRoot,
 			CommitteeIndex:      attDef.CommitteeIndex,
 		}
-		eth2Resp, err := f.eth2Cl.AggregateAttestationV2(ctx, opts)
+		eth2Resp, err := f.eth2Cl.AggregateAttestation(ctx, opts)
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		}

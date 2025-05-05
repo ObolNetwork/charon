@@ -184,15 +184,15 @@ func (m multi) AggregateSyncCommitteeSelections(ctx context.Context, selections 
 	return res, err
 }
 
-// Deprecated: use BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error)
-func (m multi) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
+// Deprecated: use BlockAttestations(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error)
+func (m multi) BlockAttestationsOld(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
 	const label = "block_attestations"
 	defer latency(ctx, label, false)()
 	defer incRequest(label)
 
 	res, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) ([]*eth2p0.Attestation, error) {
-			return args.client.BlockAttestations(ctx, stateID)
+			return args.client.BlockAttestationsOld(ctx, stateID)
 		},
 		nil, m.selector,
 	)
@@ -204,14 +204,14 @@ func (m multi) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0
 	return res, err
 }
 
-func (m multi) BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error) {
+func (m multi) BlockAttestations(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error) {
 	const label = "block_attestations_v2"
 	defer latency(ctx, label, false)()
 	defer incRequest(label)
 
 	res, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) ([]*spec.VersionedAttestation, error) {
-			return args.client.BlockAttestationsV2(ctx, stateID)
+			return args.client.BlockAttestations(ctx, stateID)
 		},
 		nil, m.selector,
 	)

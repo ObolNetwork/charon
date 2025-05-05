@@ -76,9 +76,9 @@ func GetDataRoot(ctx context.Context, eth2Cl eth2wrap.Client, name DomainName, e
 	return msg, nil
 }
 
-// VerifyAggregateAndProofSelection verifies the eth2p0.AggregateAndProof with the provided pubkey.
+// VerifyAggregateAndProofSelectionOld verifies the eth2p0.AggregateAndProof with the provided pubkey.
 // Refer get_slot_signature from https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/validator.md#aggregation-selection.
-func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Client, pubkey tbls.PublicKey, agg *eth2p0.AggregateAndProof) error {
+func VerifyAggregateAndProofSelectionOld(ctx context.Context, eth2Cl eth2wrap.Client, pubkey tbls.PublicKey, agg *eth2p0.AggregateAndProof) error {
 	epoch, err := eth2util.EpochFromSlot(ctx, eth2Cl, agg.Aggregate.Data.Slot)
 	if err != nil {
 		return err
@@ -92,9 +92,9 @@ func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Clien
 	return Verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, agg.SelectionProof, pubkey)
 }
 
-// VerifyAggregateAndProofSelectionV2 verifies the eth2p0.AggregateAndProof with the provided pubkey.
+// VerifyAggregateAndProofSelection verifies the eth2p0.AggregateAndProof with the provided pubkey.
 // Refer get_slot_signature from https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/validator.md#aggregation-selection.
-func VerifyAggregateAndProofSelectionV2(ctx context.Context, eth2Cl eth2wrap.Client, pubkey tbls.PublicKey, agg *eth2spec.VersionedSignedAggregateAndProof) error {
+func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Client, pubkey tbls.PublicKey, agg *eth2spec.VersionedSignedAggregateAndProof) error {
 	slot, err := agg.Slot()
 	if err != nil {
 		return err

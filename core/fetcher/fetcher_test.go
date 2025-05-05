@@ -143,7 +143,7 @@ func TestFetchAggregator(t *testing.T) {
 	require.NoError(t, err)
 
 	var aggAttCallCount int
-	bmock.AggregateAttestationFunc = func(ctx context.Context, slot eth2p0.Slot, root eth2p0.Root) (*eth2p0.Attestation, error) {
+	bmock.AggregateAttestationFuncOld = func(ctx context.Context, slot eth2p0.Slot, root eth2p0.Root) (*eth2p0.Attestation, error) {
 		aggAttCallCount--
 		if nilAggregate {
 			return nil, nil //nolint:nilnil // This reproduces what go-eth2-client does
