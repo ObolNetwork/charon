@@ -202,7 +202,11 @@ func getCurrDuty(duties map[Duty]bool, deadlineFunc DeadlineFunc) (Duty, time.Ti
 	return currDuty, currDeadline
 }
 
-// NewDutyDeadlineFunc returns the function that provides duty deadlines or false if the duty never deadlines.
+// NewDutyDeadlineFunc returns two functions:
+// 1. dutyDeadline: Determines the deadline for a duty to be processed. If a duty never expires (e.g., exit or registration duties), it returns false.
+// 2. submitDutyDeadline: Determines the submission deadline for a duty, which varies based on the duty type.
+// For example, proposer duties have a submission deadline of 1/3 of the slot duration.
+// Both functions use the genesis time and slot duration to calculate deadlines.
 func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineFunc, SubmitDeadlineFunc, error) {
 	genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
 	if err != nil {
