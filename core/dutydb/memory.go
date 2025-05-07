@@ -4,6 +4,7 @@ package dutydb
 
 import (
 	"context"
+	"encoding/hex"
 	"slices"
 	"sync"
 
@@ -597,13 +598,13 @@ func (db *MemDB) storeAggAttestationUnsafeV2(aggAtt core.VersionedAggregatedAtte
 		}
 
 		if existingDataRoot != providedDataRoot {
-			return errors.New("clashing data root")
+			return errors.New("clashing data root", z.Str("existing", hex.EncodeToString(existingDataRoot[:])), z.Str("provided", hex.EncodeToString(providedDataRoot[:])))
 		}
-		if !slices.Equal(existingAggBits, providedAggBits) {
-			return errors.New("clashing agg bits")
+		if !slices.Equal(existingAggBits.Bytes(), providedAggBits.Bytes()) {
+			return errors.New("clashing agg bits", z.Str("existing", hex.EncodeToString(existingAggBits.Bytes())), z.Str("provided", hex.EncodeToString(existingAggBits.Bytes())))
 		}
 		if !slices.Equal(existingSignature[:], providedSignature[:]) {
-			return errors.New("clashing sigs")
+			return errors.New("clashing sigs", z.Str("existing", existingSignature.String()), z.Str("provided", providedSignature.String()))
 		}
 
 		existingCommitteeBits, err := existing.CommitteeBits()
