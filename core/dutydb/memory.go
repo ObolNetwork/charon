@@ -601,7 +601,7 @@ func (db *MemDB) storeAggAttestationUnsafeV2(aggAtt core.VersionedAggregatedAtte
 			return errors.New("clashing data root", z.Str("existing", hex.EncodeToString(existingDataRoot[:])), z.Str("provided", hex.EncodeToString(providedDataRoot[:])))
 		}
 		if !slices.Equal(existingAggBits.Bytes(), providedAggBits.Bytes()) {
-			return errors.New("clashing agg bits", z.Str("existing", hex.EncodeToString(existingAggBits.Bytes())), z.Str("provided", hex.EncodeToString(existingAggBits.Bytes())))
+			return errors.New("clashing agg bits", z.Str("existing", hex.EncodeToString(existingAggBits.Bytes())), z.Str("provided", hex.EncodeToString(providedAggBits.Bytes())))
 		}
 		if !slices.Equal(existingSignature[:], providedSignature[:]) {
 			return errors.New("clashing sigs", z.Str("existing", existingSignature.String()), z.Str("provided", providedSignature.String()))
