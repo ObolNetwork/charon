@@ -296,17 +296,25 @@ func (a VersionedAttestation) MarshalSSZTo(dst []byte) ([]byte, error) {
 		return nil, errors.Wrap(err, "invalid version")
 	}
 
-	return marshalSSZVersionedTo(dst, version, a.sszValFromVersion)
+	var valIdx eth2p0.ValidatorIndex
+	if a.ValidatorIndex == nil {
+		valIdx = 0
+	} else {
+		valIdx = *a.ValidatorIndex
+	}
+
+	return marshalSSZVersionedValidatorIdxTo(dst, version, valIdx, a.sszValFromVersion)
 }
 
 // UnmarshalSSZ ssz unmarshalls the VersionedAttestation object.
 func (a *VersionedAttestation) UnmarshalSSZ(b []byte) error {
-	version, err := unmarshalSSZVersioned(b, a.sszValFromVersion)
+	version, valIdx, err := unmarshalSSZVersionedValidatorIdx(b, a.sszValFromVersion)
 	if err != nil {
 		return errors.Wrap(err, "unmarshal VersionedAttestation")
 	}
 
 	a.Version = version.ToETH2()
+	a.ValidatorIndex = &valIdx
 
 	return nil
 }
@@ -325,7 +333,7 @@ func (a VersionedAttestation) SizeSSZ() int {
 		return 0
 	}
 
-	return sizeSSZVersioned(val)
+	return sizeSSZValIdxVersioned(val)
 }
 
 // sszValFromVersion returns the internal value of the VersionedAttestation object for a given version.
@@ -567,6 +575,8 @@ const (
 	versionedBlindedOffset = 8 + 1 + 4 // version (uint64) + blinded (uint8) + offset (uint32)
 	// versionedOffset is the offset of a versioned ssz encoded object.
 	versionedOffset = 8 + 4 // version (uint64) + offset (uint32)
+	// versionedValIdxOffset is the offset of a versioned attestation ssz encoded object.
+	versionedValIdxOffset = 8 + 8 + 4 // version (uint64) + validatorIndex (uint64) + offset (uint32)
 )
 
 // marshalSSZVersionedBlindedTo marshals a versioned object to a target array.
@@ -588,6 +598,32 @@ func marshalSSZVersionedBlindedTo(dst []byte, version eth2util.DataVersion, blin
 	}
 
 	// Field (1) 'Value'
+	if dst, err = val.MarshalSSZTo(dst); err != nil {
+		return nil, errors.Wrap(err, "marshal sszValFromVersion")
+	}
+
+	return dst, nil
+}
+
+// marshalSSZVersionedTo marshals a versioned object to a target array.
+func marshalSSZVersionedValidatorIdxTo(dst []byte, version eth2util.DataVersion, valIdx eth2p0.ValidatorIndex, valFunc func(eth2util.DataVersion) (sszType, error)) ([]byte, error) {
+	// Field (0) 'Version'
+	dst = ssz.MarshalUint64(dst, version.ToUint64())
+
+	// Field (1) 'ValidatorIndex'
+	dst = ssz.MarshalUint64(dst, uint64(valIdx))
+
+	// Offset (2) 'Value'
+	dst = ssz.WriteOffset(dst, versionedValIdxOffset)
+
+	// TODO(corver): Add a constant length data version string field, ensure this is backwards compatible.
+
+	val, err := valFunc(version)
+	if err != nil {
+		return nil, errors.Wrap(err, "sszValFromVersion from version")
+	}
+
+	// Field (2) 'Value'
 	if dst, err = val.MarshalSSZTo(dst); err != nil {
 		return nil, errors.Wrap(err, "marshal sszValFromVersion")
 	}
@@ -653,6 +689,41 @@ func unmarshalSSZVersionedBlinded(buf []byte, valFunc func(eth2util.DataVersion,
 	return version, blinded, nil
 }
 
+// unmarshalSSZVersionedValidatorIdx unmarshals a versioned attestation object.
+func unmarshalSSZVersionedValidatorIdx(buf []byte, valFunc func(eth2util.DataVersion) (sszType, error)) (eth2util.DataVersion, eth2p0.ValidatorIndex, error) {
+	if len(buf) < versionedOffset {
+		return "", 0, errors.Wrap(ssz.ErrSize, "versioned object too short")
+	}
+
+	// Field (0) 'Version'
+	version, err := eth2util.DataVersionFromUint64(ssz.UnmarshallUint64(buf[0:8]))
+	if err != nil {
+		return "", 0, errors.Wrap(err, "unmarshal sszValFromVersion version")
+	}
+
+	// Field (1) 'ValidatorIndex'
+	valIdx := eth2p0.ValidatorIndex(ssz.UnmarshallUint64(buf[8:16]))
+
+	// Offset (2) 'Value'
+	o1 := ssz.ReadOffset(buf[16:20])
+	if versionedOffset > o1 {
+		return "", 0, errors.Wrap(ssz.ErrOffset, "sszValFromVersion offset", z.Any("version", version))
+	}
+
+	// TODO(corver): Add a constant length data version string field, ensure this is backwards compatible.
+
+	val, err := valFunc(version)
+	if err != nil {
+		return "", 0, errors.Wrap(err, "sszValFromVersion from version", z.Any("version", version))
+	}
+
+	if err = val.UnmarshalSSZ(buf[o1:]); err != nil {
+		return "", 0, errors.Wrap(err, "unmarshal sszValFromVersion", z.Any("version", version))
+	}
+
+	return version, valIdx, nil
+}
+
 // unmarshalSSZVersioned unmarshals a versioned object.
 func unmarshalSSZVersioned(buf []byte, valFunc func(eth2util.DataVersion) (sszType, error)) (eth2util.DataVersion, error) {
 	if len(buf) < versionedOffset {
@@ -693,6 +764,11 @@ func sizeSSZVersionedBlinded(value sszType) int {
 // sizeSSZVersioned returns the ssz encoded size in bytes for a given versioned object.
 func sizeSSZVersioned(value sszType) int {
 	return versionedOffset + value.SizeSSZ()
+}
+
+// sizeSSZValIdxVersioned returns the ssz encoded size in bytes for a given versioned object.
+func sizeSSZValIdxVersioned(value sszType) int {
+	return versionedValIdxOffset + value.SizeSSZ()
 }
 
 // VersionedBlindedSSZValueForT exposes the value method of a type for testing purposes.
