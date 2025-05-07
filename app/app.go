@@ -441,7 +441,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, eth2Cl)
+	deadlineFunc, submitDeadlineFunc, err := core.NewDutyDeadlineFunc(ctx, eth2Cl)
 	if err != nil {
 		return err
 	}
@@ -570,6 +570,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	retryer := retry.New(deadlineFunc)
+	submitRetryer := retry.New(submitDeadlineFunc)
 
 	// Consensus
 	consensusController, err := consensus.NewConsensusController(
@@ -611,7 +612,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	opts := []core.WireOption{
 		core.WithTracing(),
 		core.WithTracking(track, inclusion),
-		core.WithAsyncRetry(retryer),
+		core.WithAsyncRetry(retryer, submitRetryer),
 	}
 	core.Wire(sched, fetch, coreConsensus, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
 

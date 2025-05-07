@@ -9,7 +9,7 @@ import (
 )
 
 // WithAsyncRetry wraps component input functions with the async Retryer adding robustness to network issues.
-func WithAsyncRetry(retryer *retry.Retryer[Duty]) WireOption {
+func WithAsyncRetry(retryer, submitRetryer *retry.Retryer[Duty]) WireOption {
 	return func(w *wireFuncs) {
 		clone := *w
 		w.FetcherFetch = func(ctx context.Context, duty Duty, set DutyDefinitionSet) error {
@@ -42,7 +42,7 @@ func WithAsyncRetry(retryer *retry.Retryer[Duty]) WireOption {
 			return nil
 		}
 		w.BroadcasterBroadcast = func(ctx context.Context, duty Duty, set SignedDataSet) error {
-			go retryer.DoAsync(ctx, duty, "bcast", "broadcast", func(ctx context.Context) error {
+			go submitRetryer.DoAsync(ctx, duty, "bcast", "broadcast", func(ctx context.Context) error {
 				return clone.BroadcasterBroadcast(ctx, duty, set)
 			})
 

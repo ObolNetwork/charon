@@ -105,7 +105,7 @@ func TestShutdown(t *testing.T) {
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 
-	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, bmock)
+	deadlineFunc, _, err := core.NewDutyDeadlineFunc(ctx, bmock)
 	require.NoError(t, err)
 
 	retryer := retry.New[core.Duty](deadlineFunc)

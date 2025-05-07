@@ -26,7 +26,12 @@ const lateFactor = 5
 const lateMin = time.Second * 30
 
 // DeadlineFunc is a function that returns the deadline for a duty.
+// The second return value indicates whether the duty has a deadline.
 type DeadlineFunc func(Duty) (time.Time, bool)
+
+// DeadlineFunc is a function that returns the submission deadline for a duty.
+// The second return value indicates whether the duty has a deadline.
+type SubmitDeadlineFunc func(Duty) (time.Time, bool)
 
 // Deadliner provides duty Deadline functionality. The C method isn’t thread safe and
 // may only be used by a single goroutine. So, multiple instances are required
@@ -198,36 +203,70 @@ func getCurrDuty(duties map[Duty]bool, deadlineFunc DeadlineFunc) (Duty, time.Ti
 }
 
 // NewDutyDeadlineFunc returns the function that provides duty deadlines or false if the duty never deadlines.
-func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineFunc, error) {
+func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineFunc, SubmitDeadlineFunc, error) {
 	genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	genesisTime := genesis.Data.GenesisTime
 
 	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	duration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
+	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
 	if !ok {
-		return nil, errors.New("fetch slot duration")
+		return nil, nil, errors.New("fetch slot duration")
 	}
 
-	return func(duty Duty) (time.Time, bool) {
+	delta := slotDuration * time.Duration(lateFactor)
+	if delta < lateMin {
+		delta = lateMin
+	}
+
+	dutyDeadline := func(duty Duty) (time.Time, bool) {
 		if duty.Type == DutyExit || duty.Type == DutyBuilderRegistration {
 			// Do not timeout exit or registration duties.
 			return time.Time{}, false
 		}
 
-		start := genesisTime.Add(duration * time.Duration(duty.Slot))
-		delta := duration * time.Duration(lateFactor)
-		if delta < lateMin {
-			delta = lateMin
-		}
+		start := genesisTime.Add(slotDuration * time.Duration(duty.Slot))
 		end := start.Add(delta)
 
 		return end, true
-	}, nil
+	}
+
+	submitDutyDeadline := func(duty Duty) (time.Time, bool) {
+		if duty.Type == DutyExit || duty.Type == DutyBuilderRegistration {
+			// Do not timeout exit or registration duties.
+			return time.Time{}, false
+		}
+
+		start := genesisTime.Add(slotDuration * time.Duration(duty.Slot))
+		var end time.Time
+
+		// Depending on the duty type, the submission deadline shall be different.
+		// For example, the proposer duty has submission deadline of 1/3 of the slot duration.
+		// Any retry attempts must be done before such the deadline.
+		switch duty.Type {
+		case DutyProposer:
+			end = start.Add(slotDuration / 3)
+		case DutyAttester:
+			end = start.Add(slotDuration * 2 / 3)
+		case DutySyncMessage:
+			end = start.Add(slotDuration * 2 / 3)
+		case DutyAggregator:
+			end = start.Add(slotDuration)
+		case DutySyncContribution:
+			end = start.Add(slotDuration)
+		default:
+			// This defaults to the same as the normal duty deadline.
+			end = start.Add(delta)
+		}
+
+		return end, true
+	}
+
+	return dutyDeadline, submitDutyDeadline, nil
 }
