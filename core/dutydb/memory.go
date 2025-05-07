@@ -5,7 +5,6 @@ package dutydb
 import (
 	"context"
 	"encoding/hex"
-	"slices"
 	"sync"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -570,14 +569,6 @@ func (db *MemDB) storeAggAttestationUnsafeV2(aggAtt core.VersionedAggregatedAtte
 		if err != nil {
 			return errors.Wrap(err, "existing data root")
 		}
-		existingAggBits, err := existing.AggregationBits()
-		if err != nil {
-			return errors.Wrap(err, "existing agg bits")
-		}
-		existingSignature, err := existing.Signature()
-		if err != nil {
-			return errors.Wrap(err, "existing sig")
-		}
 
 		provided := aggAtt
 		providedData, err := provided.Data()
@@ -588,45 +579,16 @@ func (db *MemDB) storeAggAttestationUnsafeV2(aggAtt core.VersionedAggregatedAtte
 		if err != nil {
 			return errors.Wrap(err, "provided data root")
 		}
-		providedAggBits, err := provided.AggregationBits()
-		if err != nil {
-			return errors.Wrap(err, "provided agg bits")
-		}
-		providedSignature, err := provided.Signature()
-		if err != nil {
-			return errors.Wrap(err, "provided sig")
-		}
 
 		if existingDataRoot != providedDataRoot {
 			return errors.New("clashing data root", z.Str("existing", hex.EncodeToString(existingDataRoot[:])), z.Str("provided", hex.EncodeToString(providedDataRoot[:])))
 		}
-		if !slices.Equal(existingAggBits.Bytes(), providedAggBits.Bytes()) {
-			return errors.New("clashing agg bits", z.Str("existing", hex.EncodeToString(existingAggBits.Bytes())), z.Str("provided", hex.EncodeToString(providedAggBits.Bytes())))
-		}
-		if !slices.Equal(existingSignature[:], providedSignature[:]) {
-			return errors.New("clashing sigs", z.Str("existing", existingSignature.String()), z.Str("provided", providedSignature.String()))
-		}
 
-		existingCommitteeBits, err := existing.CommitteeBits()
-		if err != nil {
-			return errors.Wrap(err, "existing committee bits")
-		}
-		providedCommitteeBits, err := provided.CommitteeBits()
-		if err != nil {
-			return errors.Wrap(err, "provided committee bits")
-		}
-		for _, bitIdx := range providedCommitteeBits.BitIndices() {
-			existingCommitteeBits.SetBitAt(uint64(bitIdx), true)
-		}
 		switch existing.Version {
 		case eth2spec.DataVersionPhase0, eth2spec.DataVersionAltair, eth2spec.DataVersionBellatrix, eth2spec.DataVersionCapella, eth2spec.DataVersionDeneb:
 			return errors.New("incorrect version for storing aggregation attestation v2")
 		case eth2spec.DataVersionElectra:
-			if existing.Electra == nil {
-				return errors.New("no Electra attestation")
-			}
-			existing.Electra.CommitteeBits = existingCommitteeBits
-			db.aggDutiesV2[key] = existing
+			db.aggDutiesV2[key] = provided
 		default:
 			return errors.New("unknown version")
 		}
