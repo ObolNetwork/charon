@@ -9,6 +9,8 @@ import (
 )
 
 // WithAsyncRetry wraps component input functions with the async Retryer adding robustness to network issues.
+// The submitRetryer is dedicated to handling submission-related retries,
+// while the primary retryer is for all other functions.
 func WithAsyncRetry(retryer, submitRetryer *retry.Retryer[Duty]) WireOption {
 	return func(w *wireFuncs) {
 		clone := *w
