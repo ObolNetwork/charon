@@ -98,5 +98,6 @@ func (c Client) SignTermsAndConditions(ctx context.Context, userAddr string, for
 
 	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
 	defer cancel()
+
 	return httpPost(ctx, addr, r, headers)
 }
