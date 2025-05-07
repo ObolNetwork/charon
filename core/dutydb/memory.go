@@ -625,6 +625,7 @@ func (db *MemDB) storeAggAttestationUnsafeV2(aggAtt core.VersionedAggregatedAtte
 				return errors.New("no Electra attestation")
 			}
 			existing.Electra.CommitteeBits = existingCommitteeBits
+			db.aggDutiesV2[key] = existing
 		default:
 			return errors.New("unknown version")
 		}
