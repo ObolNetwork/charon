@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -227,15 +226,7 @@ func (h *httpAdapter) BlockAttestationsV2(ctx context.Context, stateID string) (
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		respBody, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, errors.Wrap(err, ErrEndpointNotFound.Error(), z.Int("status", resp.StatusCode))
-		}
-		if strings.Contains(string(respBody), "Block not found") {
-			return nil, nil // No block for slot, so no attestations.
-		}
-
-		return nil, errors.Wrap(err, ErrEndpointNotFound.Error(), z.Int("status", resp.StatusCode))
+		return nil, nil // No block for slot, so no attestations.
 	} else if resp.StatusCode != http.StatusOK {
 		return nil, errors.New("request block attestations failed", z.Int("status", resp.StatusCode))
 	}
