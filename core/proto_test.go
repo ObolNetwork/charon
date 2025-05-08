@@ -37,6 +37,10 @@ func TestParSignedDataSetProto(t *testing.T) {
 			Data: testutil.RandomDenebCoreVersionedAttestation(),
 		},
 		{
+			Type: core.DutyAttester,
+			Data: testutil.RandomElectraCoreVersionedAttestation(),
+		},
+		{
 			Type: core.DutyExit,
 			Data: core.SignedVoluntaryExit{SignedVoluntaryExit: *testutil.RandomExit()},
 		},
