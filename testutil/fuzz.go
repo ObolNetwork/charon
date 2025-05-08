@@ -222,6 +222,9 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				version, err := eth2util.DataVersionFromETH2(e.Version)
 				require.NoError(t, err)
 
+				valIdx := eth2p0.ValidatorIndex(c.Intn(256))
+				e.ValidatorIndex = &valIdx
+
 				val := core.VersionedSSZValueForT(t, e, version)
 				c.Fuzz(val)
 			},

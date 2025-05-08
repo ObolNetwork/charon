@@ -137,19 +137,23 @@ func RandomElectraAttestation() *electra.Attestation {
 }
 
 func RandomDenebCoreVersionedAttestation() core.VersionedAttestation {
+	vIdx := eth2p0.ValidatorIndex(0)
 	return core.VersionedAttestation{
 		VersionedAttestation: eth2spec.VersionedAttestation{
-			Version: eth2spec.DataVersionDeneb,
-			Deneb:   RandomPhase0Attestation(),
+			Version:        eth2spec.DataVersionDeneb,
+			ValidatorIndex: &vIdx,
+			Deneb:          RandomPhase0Attestation(),
 		},
 	}
 }
 
 func RandomElectraCoreVersionedAttestation() core.VersionedAttestation {
+	vIdx := RandomVIdx()
 	return core.VersionedAttestation{
 		VersionedAttestation: eth2spec.VersionedAttestation{
-			Version: eth2spec.DataVersionElectra,
-			Electra: RandomElectraAttestation(),
+			Version:        eth2spec.DataVersionElectra,
+			ValidatorIndex: &vIdx,
+			Electra:        RandomElectraAttestation(),
 		},
 	}
 }
