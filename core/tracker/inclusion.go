@@ -656,6 +656,9 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 				if !ok {
 					continue
 				}
+				if att.ValidatorIndex == nil {
+					continue
+				}
 				indices = append(indices, *att.ValidatorIndex)
 			}
 
