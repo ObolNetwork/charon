@@ -5,11 +5,13 @@ package tracker
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strconv"
 	"sync"
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prysmaticlabs/go-bitfield"
@@ -59,6 +61,7 @@ type block struct {
 // blockV2 is a simplified block with its v2 attestations.
 type blockV2 struct {
 	Slot                   uint64
+	AttDuties              []*eth2v1.AttesterDuty
 	AttestationsByDataRoot map[eth2p0.Root]*eth2spec.VersionedAttestation
 	BeaconCommitees        []*statecomm.StateCommittee
 }
@@ -416,27 +419,29 @@ func checkAttestationInclusion(sub submission, block block) (bool, error) {
 
 // checkAttestationV2Inclusion checks whether the attestation is included in the block.
 func checkAttestationV2Inclusion(sub submission, block blockV2) (bool, error) {
+	subData, ok := sub.Data.(core.VersionedAttestation)
+	if !ok {
+		return false, errors.New("not an attestation block data")
+	}
+
 	att, ok := block.AttestationsByDataRoot[sub.AttDataRoot]
 	if !ok {
 		return false, nil
 	}
+
+	var attesterDutyData *eth2v1.AttesterDuty
+	for _, ad := range block.AttDuties {
+		if *subData.ValidatorIndex == ad.ValidatorIndex {
+			attesterDutyData = ad
+			break
+		}
+	}
+
 	attAggBits, err := att.AggregationBits()
 	if err != nil {
 		return false, errors.Wrap(err, "get attestation aggregation bits")
 	}
 
-	subData, ok := sub.Data.(core.VersionedAttestation)
-	if !ok {
-		return false, errors.New("invalid attestation")
-	}
-	subAggBits, err := subData.AggregationBits()
-	if err != nil {
-		return false, errors.Wrap(err, "get attestation aggregation bits")
-	}
-	if len(subAggBits.BitIndices()) != 1 {
-		return false, errors.New("unexpected number of aggregation bits")
-	}
-	subAggIdx := subAggBits.BitIndices()[0]
 	subCommIdx, err := subData.CommitteeIndex()
 	if err != nil {
 		return false, errors.Wrap(err, "get committee index")
@@ -449,7 +454,7 @@ func checkAttestationV2Inclusion(sub submission, block blockV2) (bool, error) {
 	}
 
 	// Previous committees validators length + validator index in attestation committee gives the index of the attestation in the full agreggation bits bitlist.
-	return attAggBits.BitAt(uint64(previousCommsValidatorsLen) + uint64(subAggIdx)), nil
+	return attAggBits.BitAt(uint64(previousCommsValidatorsLen) + attesterDutyData.ValidatorCommitteeIndex), nil
 }
 
 // reportMissed reports duties that were broadcast but never included on chain.
@@ -491,12 +496,10 @@ func reportMissed(ctx context.Context, sub submission) {
 
 // reportAttV2Inclusion reports attestations that were included in a block.
 func reportAttV2Inclusion(ctx context.Context, sub submission, block blockV2) {
-	att := block.AttestationsByDataRoot[sub.AttDataRoot]
-	attAggregationBits, err := att.AggregationBits()
-	if err != nil {
+	att, ok := block.AttestationsByDataRoot[sub.AttDataRoot]
+	if !ok {
 		return
 	}
-	aggIndices := attAggregationBits.BitIndices()
 	attData, err := att.Data()
 	if err != nil {
 		return
@@ -516,8 +519,6 @@ func reportAttV2Inclusion(ctx context.Context, sub submission, block blockV2) {
 		z.Any("pubkey", sub.Pubkey),
 		z.U64("inclusion_delay", inclDelay),
 		z.Any("broadcast_delay", sub.Delay),
-		z.Int("aggregate_len", len(aggIndices)),
-		z.Bool("aggregated", len(aggIndices) > 1),
 	)
 
 	inclusionDelay.Set(float64(blockSlot - attSlot))
@@ -613,7 +614,20 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
+	eth2spec, err := a.eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
+	if err != nil {
+		log.Warn(ctx, "Failed to fetch eth2 spec and start inclusion checker", err)
+		return
+	}
+
+	slotsPerEpoch, ok := eth2spec.Data["SLOTS_PER_EPOCH"].(uint64)
+	if !ok {
+		log.Warn(ctx, "Failed to fetch SLOTS_PER_EPOCH from eth2spec and start inclusion checker", err)
+		return
+	}
+
 	var checkedSlot uint64
+	var attesterDuties []*eth2v1.AttesterDuty
 
 	for {
 		select {
@@ -624,8 +638,39 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 			if checkedSlot == slot {
 				continue
 			}
+			epoch := slot / slotsPerEpoch
+			indices := []eth2p0.ValidatorIndex{}
+			a.core.mu.Lock()
+			subs := maps.Clone(a.core.submissions)
+			a.core.mu.Unlock()
+			for _, s := range subs {
+				att, ok := s.Data.(core.VersionedAttestation)
+				if !ok {
+					continue
+				}
+				if att.ValidatorIndex == nil {
+					continue
+				}
+				indices = append(indices, *att.ValidatorIndex)
+			}
 
-			if err := a.checkBlock(ctx, slot); err != nil {
+			// check if there are pending unchecked submissions are made
+			if len(indices) == 0 {
+				attesterDuties = []*eth2v1.AttesterDuty{}
+			} else {
+				// TODO: This can be optimised by not calling attester duties on every slot, in the case of small clusters, where there are <32 validators per cluster.
+				opts := &eth2api.AttesterDutiesOpts{
+					Epoch:   eth2p0.Epoch(epoch),
+					Indices: indices,
+				}
+				resp, err := a.eth2Cl.AttesterDuties(ctx, opts)
+				if err != nil {
+					log.Warn(ctx, "Failed to fetch attester duties for epoch", err, z.U64("epoch", epoch))
+				}
+				attesterDuties = resp.Data
+			}
+
+			if err := a.checkBlock(ctx, slot, attesterDuties); err != nil {
 				log.Warn(ctx, "Failed to check inclusion", err, z.U64("slot", slot))
 				continue
 			}
@@ -636,65 +681,14 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 	}
 }
 
-func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64) error {
-	attsV2, err := a.eth2Cl.BlockAttestationsV2(ctx, strconv.FormatUint(slot, 10))
+func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64, attDuties []*eth2v1.AttesterDuty) error {
+	atts, err := a.eth2Cl.BlockAttestationsV2(ctx, strconv.FormatUint(slot, 10))
 	if err != nil {
-		if errors.Is(err, eth2wrap.ErrEndpointNotFound) {
-			atts, err := a.eth2Cl.BlockAttestations(ctx, strconv.FormatUint(slot, 10))
-			if err != nil {
-				return err
-			} else if len(atts) == 0 {
-				return nil
-			}
-
-			return a.checkBlockAtts(ctx, slot, atts)
-		}
-
 		return err
-	} else if len(attsV2) == 0 {
+	} else if len(atts) == 0 {
 		return nil // No block for this slot
 	}
 
-	return a.checkBlockAttsV2(ctx, slot, attsV2)
-}
-
-func (a *InclusionChecker) checkBlockAtts(ctx context.Context, slot uint64, atts []*eth2p0.Attestation) error {
-	// Map attestations by data root, merging duplicates (with identical attestation data).
-	attsMap := make(map[eth2p0.Root]*eth2p0.Attestation)
-	for _, att := range atts {
-		if att == nil || att.Data == nil {
-			return errors.New("invalid attestation")
-		}
-
-		if att.Data.Target == nil || att.Data.Source == nil {
-			return errors.New("invalid attestation data checkpoint")
-		}
-
-		root, err := att.Data.HashTreeRoot()
-		if err != nil {
-			return errors.Wrap(err, "hash attestation")
-		}
-
-		// Zero signature since it isn't used and wouldn't be valid after merging anyway.
-		att.Signature = eth2p0.BLSSignature{}
-
-		if exist, ok := attsMap[root]; ok {
-			// Merge duplicate attestations (only aggregation bits)
-			att.AggregationBits, err = att.AggregationBits.Or(exist.AggregationBits)
-			if err != nil {
-				return errors.Wrap(err, "merge attestation aggregation bits")
-			}
-		}
-
-		attsMap[root] = att
-	}
-
-	a.checkBlockFunc(ctx, block{Slot: slot, AttestationsByDataRoot: attsMap})
-
-	return nil
-}
-
-func (a *InclusionChecker) checkBlockAttsV2(ctx context.Context, slot uint64, atts []*eth2spec.VersionedAttestation) error {
 	// Get the slot for which the attestations in the current slot are.
 	// This is usually the previous slot, except when the previous is a missed proposal.
 	attestation0Data, err := atts[0].Data()
@@ -762,7 +756,7 @@ func (a *InclusionChecker) checkBlockAttsV2(ctx context.Context, slot uint64, at
 		attsMap[root] = unwrapedAtt
 	}
 
-	a.checkBlockV2Func(ctx, blockV2{Slot: slot, AttestationsByDataRoot: attsMap, BeaconCommitees: committeesForState})
+	a.checkBlockV2Func(ctx, blockV2{Slot: slot, AttDuties: attDuties, AttestationsByDataRoot: attsMap, BeaconCommitees: committeesForState})
 
 	return nil
 }
