@@ -216,7 +216,7 @@ func TestDuplicateAttData(t *testing.T) {
 				close(done)
 			}
 
-			err = incl.checkBlock(ctx, uint64(attData.Slot))
+			err = incl.checkBlock(ctx, uint64(attData.Slot), nil)
 			require.NoError(t, err)
 
 			<-done
