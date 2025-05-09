@@ -457,3 +457,22 @@ func TestV3ProposalSSZSerialisation(t *testing.T) {
 		})
 	}
 }
+
+func TestValIdxVersionedAttestation(t *testing.T) {
+	f := testutil.NewEth2Fuzzer(t, 0)
+
+	val1, val2 := new(core.VersionedAttestation), new(core.VersionedAttestation)
+
+	f.Fuzz(val1)
+
+	// Assert that we can successfully unmarshal attestation without ValidatorIndex.
+	val1.ValidatorIndex = nil
+
+	b, err := val1.MarshalSSZ()
+	testutil.RequireNoError(t, err)
+
+	err = val2.UnmarshalSSZ(b)
+	testutil.RequireNoError(t, err)
+
+	require.Equal(t, val1, val2)
+}
