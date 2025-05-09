@@ -1078,7 +1078,12 @@ func wireVAPIRouter(ctx context.Context, life *lifecycle.Manager, vapiAddr strin
 }
 
 // wireTracing constructs the global tracer and registers it with the life cycle manager.
+// If OTLPAddress is not configured, no tracer is created.
 func wireTracing(life *lifecycle.Manager, conf Config, clusterHash []byte) error {
+	if conf.OTLPAddress == "" {
+		return nil
+	}
+
 	stopTracer, err := tracer.Init(
 		tracer.WithOTLPTracer(conf.OTLPAddress),
 		tracer.WithServiceName(conf.OTLPServiceName),
