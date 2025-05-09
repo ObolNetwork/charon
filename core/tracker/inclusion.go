@@ -437,6 +437,10 @@ func checkAttestationV2Inclusion(sub submission, block blockV2) (bool, error) {
 		}
 	}
 
+	if attesterDutyData == nil {
+		return false, errors.New("no attester duty data found")
+	}
+
 	attAggBits, err := att.AggregationBits()
 	if err != nil {
 		return false, errors.Wrap(err, "get attestation aggregation bits")
@@ -665,9 +669,11 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 				}
 				resp, err := a.eth2Cl.AttesterDuties(ctx, opts)
 				if err != nil {
-					log.Warn(ctx, "Failed to fetch attester duties for epoch", err, z.U64("epoch", epoch))
+					log.Warn(ctx, "Failed to fetch attester duties for epoch", err, z.U64("epoch", epoch), z.Any("indices", indices))
+					attesterDuties = []*eth2v1.AttesterDuty{}
+				} else {
+					attesterDuties = resp.Data
 				}
-				attesterDuties = resp.Data
 			}
 
 			if err := a.checkBlock(ctx, slot, attesterDuties); err != nil {
