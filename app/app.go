@@ -180,8 +180,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	clusterHash := cluster.GetInitialMutationHash()
 	core.SetClusterHash(clusterHash)
 
-	tracingNamespace := hex.EncodeToString(clusterHash)
-	if err := wireTracing(life, conf, tracingNamespace); err != nil {
+	if err := wireTracing(life, conf, clusterHash); err != nil {
 		return err
 	}
 
@@ -1064,11 +1063,16 @@ func wireVAPIRouter(ctx context.Context, life *lifecycle.Manager, vapiAddr strin
 }
 
 // wireTracing constructs the global tracer and registers it with the life cycle manager.
-func wireTracing(life *lifecycle.Manager, conf Config, clusterHash string) error {
+// If OTLPAddress is not configured, no tracer is created.
+func wireTracing(life *lifecycle.Manager, conf Config, clusterHash []byte) error {
+	if conf.OTLPAddress == "" {
+		return nil
+	}
+
 	stopTracer, err := tracer.Init(
 		tracer.WithOTLPTracer(conf.OTLPAddress),
 		tracer.WithServiceName(conf.OTLPServiceName),
-		tracer.WithNamespaceName(clusterHash),
+		tracer.WithNamespaceName(hex7(clusterHash)),
 	)
 	if err != nil {
 		return errors.Wrap(err, "init tracing")
