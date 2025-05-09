@@ -436,6 +436,10 @@ func checkAttestationV2Inclusion(sub submission, block blockV2) (bool, error) {
 		return false, nil
 	}
 
+	if subData.ValidatorIndex == nil {
+		return false, errors.New("no validator index in attestation")
+	}
+
 	var attesterDutyData *eth2v1.AttesterDuty
 	for _, ad := range block.AttDuties {
 		if *subData.ValidatorIndex == ad.ValidatorIndex {
