@@ -5,6 +5,7 @@ package tracer
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"sync"
 
@@ -120,9 +121,13 @@ func WithNamespaceName(namespaceName string) func(*options) {
 }
 
 func newTraceProvider(exp sdktrace.SpanExporter, service, namespace string) *sdktrace.TracerProvider {
+	// Tempo does not index the namespace (yet),
+	// so we include it (up to 7 characters) into service name for indexing.
+	fullServiceName := fmt.Sprintf("%s/%s", str7(namespace), service)
+
 	r := resource.NewWithAttributes(
 		semconv.SchemaURL,
-		semconv.ServiceNameKey.String(service),
+		semconv.ServiceNameKey.String(fullServiceName),
 		semconv.ServiceNamespaceKey.String(namespace),
 	)
 
@@ -133,4 +138,12 @@ func newTraceProvider(exp sdktrace.SpanExporter, service, namespace string) *sdk
 	)
 
 	return tp
+}
+
+func str7(s string) string {
+	if len(s) > 7 {
+		return s[:7]
+	}
+
+	return s
 }
