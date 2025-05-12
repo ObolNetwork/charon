@@ -15,7 +15,10 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-var initOnce = sync.Once{}
+var (
+	initOnce          = sync.Once{}
+	ErrSigNotVerified = errors.New("signature not verified")
+)
 
 // PSA: as much as init() is (almost) an antipattern in Go, Herumi BLS implementation needs an initialization routine
 // before it can be used.
@@ -297,7 +300,7 @@ func (Herumi) Verify(compressedPublicKey PublicKey, data []byte, rawSignature Si
 	}
 
 	if !signature.VerifyByte(&pubKey, data) {
-		return errors.New("signature not verified")
+		return ErrSigNotVerified
 	}
 
 	return nil

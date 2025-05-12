@@ -108,8 +108,24 @@ func (a *Aggregator) aggregate(ctx context.Context, pubkey core.PubKey, parSigs 
 		return nil, err
 	}
 
+	// Fix for validator index sent only by validator client and not peers.
+	var fullSig core.SignedData
+	for _, parSig := range parSigs {
+		attVidx, ok := parSig.SignedData.(core.VersionedAttestation)
+		if !ok {
+			break
+		}
+		if attVidx.ValidatorIndex != nil {
+			fullSig = attVidx
+			break
+		}
+	}
+	if fullSig == nil {
+		fullSig = parSigs[0].SignedData
+	}
+
 	// Inject signature into one of the parSigs resulting in aggregate signed data.
-	aggSig, err := parSigs[0].SetSignature(tblsconv.SigToCore(sig))
+	aggSig, err := fullSig.SetSignature(tblsconv.SigToCore(sig))
 	if err != nil {
 		return nil, err
 	}
