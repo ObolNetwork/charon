@@ -108,7 +108,7 @@ func TestShutdown(t *testing.T) {
 	deadlineFunc, _, err := core.NewDutyDeadlineFunc(ctx, bmock)
 	require.NoError(t, err)
 
-	retryer := retry.New[core.Duty](deadlineFunc)
+	retryer := retry.New(deadlineFunc)
 
 	const n = 3
 	waiting := make(chan struct{}, n)
