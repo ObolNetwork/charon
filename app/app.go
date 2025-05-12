@@ -530,7 +530,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		aggSigDB = aggsigdb.NewMemDB(deadlinerFunc("aggsigdb"))
 	}
 
-	submissionEth2Cl.SetValidatorCache(valCache.GetByHead)
+	submissionEth2Cl.SetValidatorCache(valCache.Get)
 	broadcaster, err := bcast.New(ctx, submissionEth2Cl)
 	if err != nil {
 		return err
