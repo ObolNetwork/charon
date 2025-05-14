@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -165,17 +166,10 @@ func verifyBody(body string) error {
 			}
 
 			var (
-				ok     bool
 				allows = []string{"feature", "bug", "refactor", "docs", "test", "fixbuild", "misc"}
 			)
-			for _, allow := range allows {
-				if allow == cat {
-					ok = true
-					break
-				}
-			}
 
-			if !ok {
+			if !slices.Contains(allows, cat) {
 				return errors.New("invalid category", z.Str("category", cat), z.Any("allows", allows))
 			}
 
