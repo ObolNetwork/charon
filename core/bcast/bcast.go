@@ -489,56 +489,29 @@ func setToAttestationsV2(set core.SignedDataSet) ([]*eth2spec.VersionedAttestati
 
 // newDelayFunc returns a function that calculates the delay since the start of a slot.
 func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64) time.Duration, error) {
-	genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
+	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
-	}
-	genesisTime := genesis.Data.GenesisTime
-
-	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
-	if err != nil {
-		return nil, err
-	}
-
-	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
-	if !ok {
-		return nil, errors.New("fetch slot duration")
 	}
 
 	return func(slot uint64) time.Duration {
-		slotStart := genesisTime.Add(slotDuration * time.Duration(slot))
+		slotStart := spec.GenesisTime.Add(spec.SlotDuration * time.Duration(slot))
 		return time.Since(slotStart)
 	}, nil
 }
 
 // firstSlotInCurrentEpoch calculates first slot number of the current ongoing epoch.
 func firstSlotInCurrentEpoch(ctx context.Context, eth2Cl eth2wrap.Client) (uint64, error) {
-	genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
-	if err != nil {
-		return 0, errors.Wrap(err, "fetch genesis")
-	}
-
-	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
+	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
 	if err != nil {
 		return 0, err
 	}
-	spec := eth2Resp.Data
 
-	slotDuration, ok := spec["SECONDS_PER_SLOT"].(time.Duration)
-	if !ok {
-		return 0, errors.New("fetch slot duration")
-	}
+	chainAge := time.Since(spec.GenesisTime)
+	currentSlot := chainAge / spec.SlotDuration
+	currentEpoch := uint64(currentSlot) / spec.SlotsPerEpoch
 
-	slotsPerEpoch, ok := spec["SLOTS_PER_EPOCH"].(uint64)
-	if !ok {
-		return 0, errors.New("fetch slots per epoch")
-	}
-
-	chainAge := time.Since(genesis.Data.GenesisTime)
-	currentSlot := chainAge / slotDuration
-	currentEpoch := uint64(currentSlot) / slotsPerEpoch
-
-	return currentEpoch * slotsPerEpoch, nil
+	return currentEpoch * spec.SlotsPerEpoch, nil
 }
 
 // resolveActiveValidatorsIndices returns the active validators (including their validator index) for the slot.

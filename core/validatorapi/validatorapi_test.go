@@ -1610,7 +1610,7 @@ func TestComponent_Duties(t *testing.T) {
 }
 
 func TestComponent_SubmitValidatorRegistration(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	shareIdx := 1
 	// Create keys (just use normal keys, not split tbls)
 	secret, err := tbls.GenerateSecretKey()
@@ -1626,7 +1626,7 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(beaconmock.WithGenesisTime(time.Now().Add(-time.Hour)))
 	require.NoError(t, err)
 
 	// Construct the validator api component
@@ -1761,7 +1761,7 @@ func TestComponent_TekuProposerConfig(t *testing.T) {
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(beaconmock.WithGenesisTime(time.Now().Add(-time.Hour)))
 	require.NoError(t, err)
 
 	// Construct the validator api component

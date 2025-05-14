@@ -42,16 +42,12 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 		return err
 	}
 
-	respSpec, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
+	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
 	if err != nil {
 		return err
 	}
-	slotsPerEpoch, ok := respSpec.Data["SLOTS_PER_EPOCH"].(uint64)
-	if !ok {
-		return errors.New("fetch slots per epoch")
-	}
 
-	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
+	epoch := eth2p0.Epoch(uint64(slot) / spec.SlotsPerEpoch)
 
 	var indexes []eth2p0.ValidatorIndex
 	for index := range valMap {
