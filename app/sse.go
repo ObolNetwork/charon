@@ -8,8 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	eth2api "github.com/attestantio/go-eth2-client/api"
-
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
@@ -122,24 +120,14 @@ func computeDelay(slot int64, eventTS time.Time, opts map[string]string) (time.D
 func bnMetrics(ctx context.Context, conf Config, eth2Cl eth2wrap.Client) error {
 	// It is fine to use response from eth2cl (and respectively response from one of the nodes),
 	// as configurations are per network and not per node.
-	eth2Spec, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
+	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
 	if err != nil {
 		return err
 	}
-	slotDuration, ok := eth2Spec.Data["SECONDS_PER_SLOT"].(time.Duration)
-	if !ok {
-		return errors.New("fetch slot duration")
-	}
-
-	eth2Genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
-	if err != nil {
-		return err
-	}
-	genesisTime := eth2Genesis.Data.GenesisTime
 
 	opts := map[string]string{
-		"slotDuration": slotDuration.String(),
-		"genesisTime":  genesisTime.Format(time.RFC3339),
+		"slotDuration": spec.SlotDuration.String(),
+		"genesisTime":  spec.GenesisTime.Format(time.RFC3339),
 	}
 
 	topics := queryTopics([]string{sseHeadEvent, sseChainReorgEvent})

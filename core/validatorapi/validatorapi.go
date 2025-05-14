@@ -40,20 +40,19 @@ const (
 // SlotFromTimestamp returns the Ethereum slot associated to a timestamp, given the genesis configuration fetched
 // from client.
 func SlotFromTimestamp(ctx context.Context, client eth2wrap.Client, timestamp time.Time) (eth2p0.Slot, error) {
-	genesis, err := client.Genesis(ctx, &eth2api.GenesisOpts{})
+	spec, err := eth2wrap.FetchNetworkSpec(ctx, client)
 	if err != nil {
 		return 0, err
 	}
-	genesisTime := genesis.Data.GenesisTime
-	if timestamp.Before(genesisTime) {
-		genesisTime := genesis.Data.GenesisTime
-		// if timestamp is in the past (can happen in testing scenarios, there's no strict form of checking on it),  fall back on current timestamp.
+
+	if timestamp.Before(spec.GenesisTime) {
+		// if timestamp is in the past (can happen in testing scenarios, there's no strict form of checking on it), fall back on current timestamp.
 		nextTimestamp := time.Now()
 
 		log.Info(
 			ctx,
 			"timestamp before genesis, defaulting to current timestamp",
-			z.I64("genesis_timestamp", genesisTime.Unix()),
+			z.I64("genesis_timestamp", spec.GenesisTime.Unix()),
 			z.I64("overridden_timestamp", timestamp.Unix()),
 			z.I64("new_timestamp", nextTimestamp.Unix()),
 		)
@@ -61,19 +60,9 @@ func SlotFromTimestamp(ctx context.Context, client eth2wrap.Client, timestamp ti
 		timestamp = nextTimestamp
 	}
 
-	eth2Resp, err := client.Spec(ctx, &eth2api.SpecOpts{})
-	if err != nil {
-		return 0, err
-	}
+	delta := timestamp.Sub(spec.GenesisTime)
 
-	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
-	if !ok {
-		return 0, errors.New("fetch slot duration")
-	}
-
-	delta := timestamp.Sub(genesisTime)
-
-	return eth2p0.Slot(delta / slotDuration), nil
+	return eth2p0.Slot(delta / spec.SlotDuration), nil
 }
 
 // NewComponentInsecure returns a new instance of the validator API core workflow component
@@ -789,16 +778,12 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 		return err
 	}
 
-	respSpec, err := c.eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
+	spec, err := eth2wrap.FetchNetworkSpec(ctx, c.eth2Cl)
 	if err != nil {
 		return err
 	}
-	slotsPerEpoch, ok := respSpec.Data["SLOTS_PER_EPOCH"].(uint64)
-	if !ok {
-		return errors.New("fetch slots per epoch")
-	}
 
-	duty := core.NewVoluntaryExit(slotsPerEpoch * uint64(exit.Message.Epoch))
+	duty := core.NewVoluntaryExit(spec.SlotsPerEpoch * uint64(exit.Message.Epoch))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
 	parSigData := core.NewPartialSignedVoluntaryExit(exit, c.shareIdx)
@@ -1476,22 +1461,13 @@ func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigR
 		},
 	}
 
-	eth2Resp, err := c.eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
+	spec, err := eth2wrap.FetchNetworkSpec(ctx, c.eth2Cl)
 	if err != nil {
 		return nil, err
 	}
 
-	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
-	if !ok {
-		return nil, errors.New("fetch slot duration")
-	}
-
-	genesis, err := c.eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
-	if err != nil {
-		return nil, err
-	}
-	timestamp := genesis.Data.GenesisTime
-	timestamp = timestamp.Add(slotDuration) // Use slot 1 for timestamp to override pre-generated registrations.
+	timestamp := spec.GenesisTime
+	timestamp = timestamp.Add(spec.SlotDuration) // Use slot 1 for timestamp to override pre-generated registrations.
 
 	for pubkey, pubshare := range c.sharesByKey {
 		eth2Share, err := pubshare.ToETH2()

@@ -7,9 +7,6 @@ import (
 	"testing"
 	"time"
 
-	eth2api "github.com/attestantio/go-eth2-client/api"
-
-	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 )
 
@@ -45,25 +42,9 @@ func NewDutyGater(ctx context.Context, eth2Cl eth2wrap.Client, opts ...func(*dut
 		opt(&o)
 	}
 
-	genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
+	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
-	}
-	genesisTime := genesis.Data.GenesisTime
-
-	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
-	if err != nil {
-		return nil, err
-	}
-
-	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
-	if !ok {
-		return nil, errors.New("fetch slot duration")
-	}
-
-	slotsPerEpoch, ok := eth2Resp.Data["SLOTS_PER_EPOCH"].(uint64)
-	if !ok {
-		return nil, errors.New("fetch slots per epoch")
 	}
 
 	return func(duty Duty) bool {
@@ -71,10 +52,10 @@ func NewDutyGater(ctx context.Context, eth2Cl eth2wrap.Client, opts ...func(*dut
 			return false
 		}
 
-		currentSlot := o.nowFunc().Sub(genesisTime) / slotDuration
-		currentEpoch := uint64(currentSlot) / slotsPerEpoch
+		currentSlot := o.nowFunc().Sub(spec.GenesisTime) / spec.SlotDuration
+		currentEpoch := uint64(currentSlot) / spec.SlotsPerEpoch
 
-		dutyEpoch := duty.Slot / slotsPerEpoch
+		dutyEpoch := duty.Slot / spec.SlotsPerEpoch
 
 		return dutyEpoch <= currentEpoch+uint64(o.allowedFutureEpochs)
 	}, nil

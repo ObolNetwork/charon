@@ -145,16 +145,12 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 		return nil, core.ErrDeprecatedDutyBuilderProposer
 	}
 
-	respSpec, err := s.eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
+	spec, err := eth2wrap.FetchNetworkSpec(ctx, s.eth2Cl)
 	if err != nil {
 		return nil, err
 	}
-	slotsPerEpoch, ok := respSpec.Data["SLOTS_PER_EPOCH"].(uint64)
-	if !ok {
-		return nil, errors.New("fetch slots per epoch")
-	}
 
-	epoch := duty.Slot / slotsPerEpoch
+	epoch := uint64(spec.SlotEpoch(eth2p0.Slot(duty.Slot)))
 	if !s.isEpochResolved(epoch) {
 		return nil, errors.New("epoch not resolved yet",
 			z.Str("duty", duty.String()), z.U64("epoch", epoch))
@@ -554,38 +550,21 @@ func (s *Scheduler) trimDuties(epoch uint64) {
 // newSlotTicker returns a blocking channel that will be populated with new slots in real time.
 // It is also populated with the current slot immediately.
 func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) (<-chan core.Slot, error) {
-	genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
+	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
-	}
-	genesisTime := genesis.Data.GenesisTime
-
-	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
-	if err != nil {
-		return nil, err
-	}
-	spec := eth2Resp.Data
-
-	slotDuration, ok := spec["SECONDS_PER_SLOT"].(time.Duration)
-	if !ok {
-		return nil, errors.New("fetch slot duration")
-	}
-
-	slotsPerEpoch, ok := spec["SLOTS_PER_EPOCH"].(uint64)
-	if !ok {
-		return nil, errors.New("fetch slots per epoch")
 	}
 
 	currentSlot := func() core.Slot {
-		chainAge := clock.Since(genesisTime)
-		slot := int64(chainAge / slotDuration)
-		startTime := genesisTime.Add(time.Duration(slot) * slotDuration)
+		chainAge := clock.Since(spec.GenesisTime)
+		slot := int64(chainAge / spec.SlotDuration)
+		startTime := spec.GenesisTime.Add(time.Duration(slot) * spec.SlotDuration)
 
 		return core.Slot{
 			Slot:          uint64(slot),
 			Time:          startTime,
-			SlotsPerEpoch: slotsPerEpoch,
-			SlotDuration:  slotDuration,
+			SlotsPerEpoch: spec.SlotsPerEpoch,
+			SlotDuration:  spec.SlotDuration,
 		}
 	}
 
