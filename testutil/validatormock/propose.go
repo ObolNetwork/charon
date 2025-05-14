@@ -42,12 +42,8 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 		return err
 	}
 
-	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
-	if err != nil {
-		return err
-	}
-
-	epoch := eth2p0.Epoch(uint64(slot) / spec.SlotsPerEpoch)
+	network := eth2util.CurrentNetwork()
+	epoch := eth2p0.Epoch(uint64(slot) / network.SlotsPerEpoch)
 
 	var indexes []eth2p0.ValidatorIndex
 	for index := range valMap {

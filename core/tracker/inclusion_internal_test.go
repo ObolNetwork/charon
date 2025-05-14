@@ -182,7 +182,7 @@ func TestDuplicateAttData(t *testing.T) {
 
 			noopTrackerInclFunc := func(duty core.Duty, key core.PubKey, data core.SignedData, err error) {}
 
-			incl, err := NewInclusion(ctx, bmock, noopTrackerInclFunc)
+			incl, err := NewInclusion(bmock, noopTrackerInclFunc)
 			require.NoError(t, err)
 
 			done := make(chan struct{})

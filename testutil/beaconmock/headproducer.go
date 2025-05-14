@@ -17,9 +17,9 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/r3labs/sse/v2"
 
-	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util"
 )
 
 const (
@@ -48,15 +48,10 @@ type headProducer struct {
 }
 
 // Start starts the internal slot ticker that updates head.
-func (p *headProducer) Start(httpMock HTTPMock) error {
-	ctx := context.Background()
+func (p *headProducer) Start() error {
+	network := eth2util.CurrentNetwork()
 
-	spec, err := eth2wrap.FetchNetworkSpec(ctx, httpMock)
-	if err != nil {
-		return err
-	}
-
-	startSlotTicker(p.quit, p.updateHead, spec.GenesisTime, spec.SlotDuration)
+	startSlotTicker(p.quit, p.updateHead, network.GetGenesisTimestamp(), network.SlotDuration)
 
 	return nil
 }

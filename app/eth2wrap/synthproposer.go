@@ -23,6 +23,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util"
 )
 
 const (
@@ -316,12 +317,8 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 
 	duties = resp.Data
 
-	spec, err := FetchNetworkSpec(ctx, eth2Cl)
-	if err != nil {
-		return nil, err
-	}
-
-	epochSlot := spec.EpochSlot(epoch)
+	network := eth2util.CurrentNetwork()
+	epochSlot := network.EpochSlot(epoch)
 
 	// Mark those not requiring synthetic duties.
 	noSynth := make(map[eth2p0.ValidatorIndex]bool)
@@ -336,7 +333,7 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 			continue
 		}
 
-		offset := eth2p0.Slot(valIdx) % eth2p0.Slot(spec.SlotsPerEpoch)
+		offset := eth2p0.Slot(valIdx) % eth2p0.Slot(network.SlotsPerEpoch)
 		synthSlot := epochSlot + offset
 		if _, ok := synthSlots[synthSlot]; ok {
 			// We already have a synth proposer for this slot.
@@ -371,15 +368,11 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 
 // SyntheticVIdx returns the validator index and true if the slot is a synthetic proposer duty.
 func (c *synthProposerCache) SyntheticVIdx(ctx context.Context, eth2Cl synthProposerEth2Provider, slot eth2p0.Slot) (eth2p0.ValidatorIndex, bool, error) {
-	spec, err := FetchNetworkSpec(ctx, eth2Cl)
-	if err != nil {
-		return 0, false, err
-	}
-
-	epoch := spec.SlotEpoch(slot)
+	network := eth2util.CurrentNetwork()
+	epoch := network.SlotEpoch(slot)
 
 	// Ensure that cache is populated.
-	_, err = c.Duties(ctx, eth2Cl, epoch)
+	_, err := c.Duties(ctx, eth2Cl, epoch)
 	if err != nil {
 		return 0, false, err
 	}

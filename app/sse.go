@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/sseclient"
 	"github.com/obolnetwork/charon/app/z"
@@ -117,17 +116,14 @@ func computeDelay(slot int64, eventTS time.Time, opts map[string]string) (time.D
 
 // Start long running connection on endpoint /eth/v1/events with all configured beacon nodes.
 // Gather metrics and send them to prometheus.
-func bnMetrics(ctx context.Context, conf Config, eth2Cl eth2wrap.Client) error {
+func bnMetrics(ctx context.Context, conf Config) error {
 	// It is fine to use response from eth2cl (and respectively response from one of the nodes),
 	// as configurations are per network and not per node.
-	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
-	if err != nil {
-		return err
-	}
+	network := eth2util.CurrentNetwork()
 
 	opts := map[string]string{
-		"slotDuration": spec.SlotDuration.String(),
-		"genesisTime":  spec.GenesisTime.Format(time.RFC3339),
+		"slotDuration": network.SlotDuration.String(),
+		"genesisTime":  network.GetGenesisTimestamp().Format(time.RFC3339),
 	}
 
 	topics := queryTopics([]string{sseHeadEvent, sseChainReorgEvent})
