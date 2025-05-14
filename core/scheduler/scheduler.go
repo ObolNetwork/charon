@@ -21,6 +21,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
 )
 
 const trimEpochOffset = 3 // Trim cached duties after 3 epochs. Note inclusion delay calculation requires now-32 slot duties.
@@ -103,10 +104,7 @@ func (s *Scheduler) Run() error {
 	waitChainStart(ctx, s.eth2Cl, s.clock)
 	waitBeaconSync(ctx, s.eth2Cl, s.clock)
 
-	slotTicker, err := newSlotTicker(ctx, s.eth2Cl, s.clock)
-	if err != nil {
-		return err
-	}
+	slotTicker := newSlotTicker(ctx, s.clock)
 
 	for {
 		select {
@@ -140,17 +138,14 @@ func (s *Scheduler) emitCoreSlot(ctx context.Context, slot core.Slot) {
 
 // GetDutyDefinition returns the definition for a duty or core.ErrNotFound if no definitions exist for a resolved epoch
 // or another error.
-func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+func (s *Scheduler) GetDutyDefinition(duty core.Duty) (core.DutyDefinitionSet, error) {
 	if duty.Type == core.DutyBuilderProposer {
 		return nil, core.ErrDeprecatedDutyBuilderProposer
 	}
 
-	spec, err := eth2wrap.FetchNetworkSpec(ctx, s.eth2Cl)
-	if err != nil {
-		return nil, err
-	}
+	network := eth2util.CurrentNetwork()
 
-	epoch := uint64(spec.SlotEpoch(eth2p0.Slot(duty.Slot)))
+	epoch := uint64(network.SlotEpoch(eth2p0.Slot(duty.Slot)))
 	if !s.isEpochResolved(epoch) {
 		return nil, errors.New("epoch not resolved yet",
 			z.Str("duty", duty.String()), z.U64("epoch", epoch))
@@ -549,22 +544,19 @@ func (s *Scheduler) trimDuties(epoch uint64) {
 
 // newSlotTicker returns a blocking channel that will be populated with new slots in real time.
 // It is also populated with the current slot immediately.
-func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) (<-chan core.Slot, error) {
-	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
-	if err != nil {
-		return nil, err
-	}
+func newSlotTicker(ctx context.Context, clock clockwork.Clock) <-chan core.Slot {
+	network := eth2util.CurrentNetwork()
 
 	currentSlot := func() core.Slot {
-		chainAge := clock.Since(spec.GenesisTime)
-		slot := int64(chainAge / spec.SlotDuration)
-		startTime := spec.GenesisTime.Add(time.Duration(slot) * spec.SlotDuration)
+		chainAge := clock.Since(network.GetGenesisTimestamp())
+		slot := int64(chainAge / network.SlotDuration)
+		startTime := network.GetGenesisTimestamp().Add(time.Duration(slot) * network.SlotDuration)
 
 		return core.Slot{
 			Slot:          uint64(slot),
 			Time:          startTime,
-			SlotsPerEpoch: spec.SlotsPerEpoch,
-			SlotDuration:  spec.SlotDuration,
+			SlotsPerEpoch: network.SlotsPerEpoch,
+			SlotDuration:  network.SlotDuration,
 		}
 	}
 
@@ -598,7 +590,7 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.
 		}
 	}()
 
-	return resp, nil
+	return resp
 }
 
 // resolveActiveValidators returns the active validators (including their validator index) for the slot.

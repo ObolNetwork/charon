@@ -21,6 +21,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/statecomm"
 )
 
@@ -566,11 +567,8 @@ func reportAttInclusion(ctx context.Context, sub submission, block block) {
 }
 
 // NewInclusion returns a new InclusionChecker.
-func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client, trackerInclFunc trackerInclFunc) (*InclusionChecker, error) {
-	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
-	if err != nil {
-		return nil, err
-	}
+func NewInclusion(eth2Cl eth2wrap.Client, trackerInclFunc trackerInclFunc) (*InclusionChecker, error) {
+	network := eth2util.CurrentNetwork()
 
 	inclCore := &inclusionCore{
 		attIncludedFunc:   reportAttInclusion,
@@ -583,8 +581,8 @@ func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client, trackerInclFunc t
 	return &InclusionChecker{
 		core:             inclCore,
 		eth2Cl:           eth2Cl,
-		genesis:          spec.GenesisTime,
-		slotDuration:     spec.SlotDuration,
+		genesis:          network.GetGenesisTimestamp(),
+		slotDuration:     network.SlotDuration,
 		checkBlockFunc:   inclCore.CheckBlock,
 		checkBlockV2Func: inclCore.CheckBlockV2,
 	}, nil
@@ -619,11 +617,7 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	spec, err := eth2wrap.FetchNetworkSpec(ctx, a.eth2Cl)
-	if err != nil {
-		log.Warn(ctx, "Failed to fetch eth2 spec and start inclusion checker", err)
-		return
-	}
+	network := eth2util.CurrentNetwork()
 
 	var checkedSlot uint64
 	var attesterDuties []*eth2v1.AttesterDuty
@@ -637,7 +631,7 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 			if checkedSlot == slot {
 				continue
 			}
-			epoch := spec.SlotEpoch(eth2p0.Slot(slot))
+			epoch := network.SlotEpoch(eth2p0.Slot(slot))
 			indices := []eth2p0.ValidatorIndex{}
 			a.core.mu.Lock()
 			subs := maps.Clone(a.core.submissions)

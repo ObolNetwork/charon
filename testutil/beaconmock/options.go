@@ -242,6 +242,7 @@ func WithEndpoint(endpoint string, value string) Option {
 // WithGenesisTime configures the http mock with the provided genesis time.
 func WithGenesisTime(t0 time.Time) Option {
 	return func(mock *Mock) {
+		mock.genesis = t0
 		value := strconv.FormatInt(t0.Unix(), 10)
 		mock.overrides = append(mock.overrides,
 			staticOverride{
@@ -271,6 +272,7 @@ func WithGenesisValidatorsRoot(root [32]byte) Option {
 // WithSlotDuration configures the http mock with the provided slots duration.
 func WithSlotDuration(duration time.Duration) Option {
 	return func(mock *Mock) {
+		mock.slotDuration = duration
 		mock.overrides = append(mock.overrides, staticOverride{
 			Endpoint: "/eth/v1/config/spec",
 			Key:      "SECONDS_PER_SLOT",
@@ -282,6 +284,7 @@ func WithSlotDuration(duration time.Duration) Option {
 // WithSlotsPerEpoch configures the http mock with the provided slots per epoch.
 func WithSlotsPerEpoch(slotsPerEpoch int) Option {
 	return func(mock *Mock) {
+		mock.slotsPerEpoch = uint64(slotsPerEpoch)
 		mock.overrides = append(mock.overrides, staticOverride{
 			Endpoint: "/eth/v1/config/spec",
 			Key:      "SLOTS_PER_EPOCH",
@@ -499,14 +502,16 @@ func WithClock(clock clockwork.Clock) Option {
 }
 
 // defaultMock returns a minimum viable mock that doesn't panic and returns mostly empty responses.
-func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clock, headProducer *headProducer) Mock {
+func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clock, headProducer *headProducer) *Mock {
 	attStore := newAttestationStore(httpMock)
 
-	return Mock{
-		clock:        clock,
-		HTTPMock:     httpMock,
-		httpServer:   httpServer,
-		headProducer: headProducer,
+	return &Mock{
+		clock:         clock,
+		HTTPMock:      httpMock,
+		httpServer:    httpServer,
+		headProducer:  headProducer,
+		slotDuration:  12 * time.Second,
+		slotsPerEpoch: 16,
 		ProposalFunc: func(_ context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error) {
 			var block *eth2api.VersionedProposal
 			if opts.BuilderBoostFactor == nil || *opts.BuilderBoostFactor == 0 {

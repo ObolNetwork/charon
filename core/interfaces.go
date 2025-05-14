@@ -23,7 +23,7 @@ type Scheduler interface {
 	SubscribeSlots(func(context.Context, Slot) error)
 
 	// GetDutyDefinition returns the definition set for a duty if already resolved.
-	GetDutyDefinition(context.Context, Duty) (DutyDefinitionSet, error)
+	GetDutyDefinition(Duty) (DutyDefinitionSet, error)
 }
 
 // Fetcher fetches proposed unsigned duty data.
@@ -142,7 +142,7 @@ type ValidatorAPI interface {
 	RegisterPubKeyByAttestationV2(func(ctx context.Context, slot, commIdx, valIdx uint64) (PubKey, error))
 
 	// RegisterGetDutyDefinition registers a function to query duty definitions.
-	RegisterGetDutyDefinition(func(context.Context, Duty) (DutyDefinitionSet, error))
+	RegisterGetDutyDefinition(func(Duty) (DutyDefinitionSet, error))
 
 	// RegisterAwaitAggAttestation registers a function to query aggregated attestation.
 	RegisterAwaitAggAttestation(fn func(ctx context.Context, slot uint64, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error))
@@ -256,7 +256,7 @@ type Tracker interface {
 type wireFuncs struct {
 	SchedulerSubscribeDuties          func(func(context.Context, Duty, DutyDefinitionSet) error)
 	SchedulerSubscribeSlots           func(func(context.Context, Slot) error)
-	SchedulerGetDutyDefinition        func(context.Context, Duty) (DutyDefinitionSet, error)
+	SchedulerGetDutyDefinition        func(Duty) (DutyDefinitionSet, error)
 	FetcherFetch                      func(context.Context, Duty, DutyDefinitionSet) error
 	FetcherSubscribe                  func(func(context.Context, Duty, UnsignedDataSet) error)
 	FetcherRegisterAggSigDB           func(func(context.Context, Duty, PubKey) (SignedData, error))
@@ -275,7 +275,7 @@ type wireFuncs struct {
 	VAPIRegisterAwaitAttestation      func(func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error))
 	VAPIRegisterAwaitSyncContribution func(func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error))
 	VAPIRegisterAwaitProposal         func(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error))
-	VAPIRegisterGetDutyDefinition     func(func(context.Context, Duty) (DutyDefinitionSet, error))
+	VAPIRegisterGetDutyDefinition     func(func(Duty) (DutyDefinitionSet, error))
 	VAPIRegisterPubKeyByAttestation   func(func(ctx context.Context, slot, commIdx, valCommIdx uint64) (PubKey, error))
 	VAPIRegisterPubKeyByAttestationV2 func(func(ctx context.Context, slot, commIdx, valIdx uint64) (PubKey, error))
 	VAPIRegisterAwaitAggAttestation   func(func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error))

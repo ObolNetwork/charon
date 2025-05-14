@@ -19,16 +19,14 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 )
 
 // New returns a new broadcaster instance.
-func New(ctx context.Context, eth2Cl eth2wrap.Client) (Broadcaster, error) {
-	delayFunc, err := newDelayFunc(ctx, eth2Cl)
-	if err != nil {
-		return Broadcaster{}, err
-	}
+func New(eth2Cl eth2wrap.Client) (Broadcaster, error) {
+	delayFunc := newDelayFunc()
 
 	return Broadcaster{
 		eth2Cl:    eth2Cl,
@@ -222,10 +220,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 		return core.ErrDeprecatedDutyBuilderProposer
 
 	case core.DutyBuilderRegistration:
-		slot, err := firstSlotInCurrentEpoch(ctx, b.eth2Cl)
-		if err != nil {
-			return errors.Wrap(err, "calculate first slot in epoch")
-		}
+		slot := firstSlotInCurrentEpoch()
 
 		// Use first slot in current epoch for accurate delay calculations while submitting builder registrations.
 		// This is because builder registrations are submitted in first slot of every epoch.
@@ -488,30 +483,24 @@ func setToAttestationsV2(set core.SignedDataSet) ([]*eth2spec.VersionedAttestati
 }
 
 // newDelayFunc returns a function that calculates the delay since the start of a slot.
-func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64) time.Duration, error) {
-	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
-	if err != nil {
-		return nil, err
-	}
+func newDelayFunc() func(slot uint64) time.Duration {
+	network := eth2util.CurrentNetwork()
 
 	return func(slot uint64) time.Duration {
-		slotStart := spec.GenesisTime.Add(spec.SlotDuration * time.Duration(slot))
+		slotStart := network.GetGenesisTimestamp().Add(network.SlotDuration * time.Duration(slot))
 		return time.Since(slotStart)
-	}, nil
+	}
 }
 
 // firstSlotInCurrentEpoch calculates first slot number of the current ongoing epoch.
-func firstSlotInCurrentEpoch(ctx context.Context, eth2Cl eth2wrap.Client) (uint64, error) {
-	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
-	if err != nil {
-		return 0, err
-	}
+func firstSlotInCurrentEpoch() uint64 {
+	network := eth2util.CurrentNetwork()
 
-	chainAge := time.Since(spec.GenesisTime)
-	currentSlot := chainAge / spec.SlotDuration
-	currentEpoch := uint64(currentSlot) / spec.SlotsPerEpoch
+	chainAge := time.Since(network.GetGenesisTimestamp())
+	currentSlot := chainAge / network.SlotDuration
+	currentEpoch := uint64(currentSlot) / network.SlotsPerEpoch
 
-	return currentEpoch * spec.SlotsPerEpoch, nil
+	return currentEpoch * network.SlotsPerEpoch
 }
 
 // resolveActiveValidatorsIndices returns the active validators (including their validator index) for the slot.
