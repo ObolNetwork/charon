@@ -72,6 +72,8 @@ type Client interface {
 func (m multi) SlotDuration(ctx context.Context) (time.Duration, error) {
 	const label = "slot_duration"
 
+	defer incRequest(label)
+
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (time.Duration, error) {
 			return args.client.SlotDuration(ctx)
@@ -94,6 +96,8 @@ func (m multi) SlotDuration(ctx context.Context) (time.Duration, error) {
 func (m multi) SlotsPerEpoch(ctx context.Context) (uint64, error) {
 	const label = "slots_per_epoch"
 
+	defer incRequest(label)
+
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (uint64, error) {
 			return args.client.SlotsPerEpoch(ctx)
@@ -113,6 +117,7 @@ func (m multi) SlotsPerEpoch(ctx context.Context) (uint64, error) {
 func (m multi) SignedBeaconBlock(ctx context.Context, opts *api.SignedBeaconBlockOpts) (*api.Response[*spec.VersionedSignedBeaconBlock], error) {
 	const label = "signed_beacon_block"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*spec.VersionedSignedBeaconBlock], error) {
@@ -133,6 +138,7 @@ func (m multi) SignedBeaconBlock(ctx context.Context, opts *api.SignedBeaconBloc
 func (m multi) AggregateAttestation(ctx context.Context, opts *api.AggregateAttestationOpts) (*api.Response[*phase0.Attestation], error) {
 	const label = "aggregate_attestation"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*phase0.Attestation], error) {
@@ -153,6 +159,7 @@ func (m multi) AggregateAttestation(ctx context.Context, opts *api.AggregateAtte
 func (m multi) AggregateAttestationV2(ctx context.Context, opts *api.AggregateAttestationOpts) (*api.Response[*spec.VersionedAttestation], error) {
 	const label = "aggregate_attestation_v2"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*spec.VersionedAttestation], error) {
@@ -173,6 +180,7 @@ func (m multi) AggregateAttestationV2(ctx context.Context, opts *api.AggregateAt
 func (m multi) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs []*phase0.SignedAggregateAndProof) error {
 	const label = "submit_aggregate_attestations"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
@@ -193,6 +201,7 @@ func (m multi) SubmitAggregateAttestations(ctx context.Context, aggregateAndProo
 func (m multi) SubmitAggregateAttestationsV2(ctx context.Context, opts *api.SubmitAggregateAttestationsOpts) error {
 	const label = "submit_aggregate_attestations_v2"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
@@ -213,6 +222,7 @@ func (m multi) SubmitAggregateAttestationsV2(ctx context.Context, opts *api.Subm
 func (m multi) AttestationData(ctx context.Context, opts *api.AttestationDataOpts) (*api.Response[*phase0.AttestationData], error) {
 	const label = "attestation_data"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*phase0.AttestationData], error) {
@@ -233,6 +243,7 @@ func (m multi) AttestationData(ctx context.Context, opts *api.AttestationDataOpt
 func (m multi) SubmitAttestations(ctx context.Context, attestations []*phase0.Attestation) error {
 	const label = "submit_attestations"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
@@ -253,6 +264,7 @@ func (m multi) SubmitAttestations(ctx context.Context, attestations []*phase0.At
 func (m multi) SubmitAttestationsV2(ctx context.Context, opts *api.SubmitAttestationsOpts) error {
 	const label = "submit_attestations_v2"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
@@ -273,6 +285,7 @@ func (m multi) SubmitAttestationsV2(ctx context.Context, opts *api.SubmitAttesta
 func (m multi) AttesterDuties(ctx context.Context, opts *api.AttesterDutiesOpts) (*api.Response[[]*apiv1.AttesterDuty], error) {
 	const label = "attester_duties"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[[]*apiv1.AttesterDuty], error) {
@@ -294,6 +307,8 @@ func (m multi) AttesterDuties(ctx context.Context, opts *api.AttesterDutiesOpts)
 func (m multi) DepositContract(ctx context.Context, opts *api.DepositContractOpts) (*api.Response[*apiv1.DepositContract], error) {
 	const label = "deposit_contract"
 
+	defer incRequest(label)
+
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*apiv1.DepositContract], error) {
 			return args.client.DepositContract(ctx, opts)
@@ -314,6 +329,7 @@ func (m multi) DepositContract(ctx context.Context, opts *api.DepositContractOpt
 func (m multi) SyncCommitteeDuties(ctx context.Context, opts *api.SyncCommitteeDutiesOpts) (*api.Response[[]*apiv1.SyncCommitteeDuty], error) {
 	const label = "sync_committee_duties"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[[]*apiv1.SyncCommitteeDuty], error) {
@@ -334,6 +350,7 @@ func (m multi) SyncCommitteeDuties(ctx context.Context, opts *api.SyncCommitteeD
 func (m multi) SubmitSyncCommitteeMessages(ctx context.Context, messages []*altair.SyncCommitteeMessage) error {
 	const label = "submit_sync_committee_messages"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
@@ -354,6 +371,7 @@ func (m multi) SubmitSyncCommitteeMessages(ctx context.Context, messages []*alta
 func (m multi) SubmitSyncCommitteeSubscriptions(ctx context.Context, subscriptions []*apiv1.SyncCommitteeSubscription) error {
 	const label = "submit_sync_committee_subscriptions"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
@@ -374,6 +392,7 @@ func (m multi) SubmitSyncCommitteeSubscriptions(ctx context.Context, subscriptio
 func (m multi) SyncCommitteeContribution(ctx context.Context, opts *api.SyncCommitteeContributionOpts) (*api.Response[*altair.SyncCommitteeContribution], error) {
 	const label = "sync_committee_contribution"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*altair.SyncCommitteeContribution], error) {
@@ -394,6 +413,7 @@ func (m multi) SyncCommitteeContribution(ctx context.Context, opts *api.SyncComm
 func (m multi) SubmitSyncCommitteeContributions(ctx context.Context, contributionAndProofs []*altair.SignedContributionAndProof) error {
 	const label = "submit_sync_committee_contributions"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
@@ -414,6 +434,7 @@ func (m multi) SubmitSyncCommitteeContributions(ctx context.Context, contributio
 func (m multi) Proposal(ctx context.Context, opts *api.ProposalOpts) (*api.Response[*api.VersionedProposal], error) {
 	const label = "proposal"
 	defer latency(ctx, label, true)()
+	defer incRequest(label)
 
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*api.VersionedProposal], error) {
@@ -435,6 +456,8 @@ func (m multi) Proposal(ctx context.Context, opts *api.ProposalOpts) (*api.Respo
 func (m multi) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRootOpts) (*api.Response[*phase0.Root], error) {
 	const label = "beacon_block_root"
 
+	defer incRequest(label)
+
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*phase0.Root], error) {
 			return args.client.BeaconBlockRoot(ctx, opts)
@@ -454,6 +477,7 @@ func (m multi) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRootOpt
 func (m multi) SubmitProposal(ctx context.Context, opts *api.SubmitProposalOpts) error {
 	const label = "submit_proposal"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
@@ -474,6 +498,7 @@ func (m multi) SubmitProposal(ctx context.Context, opts *api.SubmitProposalOpts)
 func (m multi) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscriptions []*apiv1.BeaconCommitteeSubscription) error {
 	const label = "submit_beacon_committee_subscriptions"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
@@ -494,6 +519,7 @@ func (m multi) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscript
 func (m multi) SubmitBlindedProposal(ctx context.Context, opts *api.SubmitBlindedProposalOpts) error {
 	const label = "submit_blinded_proposal"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
@@ -514,6 +540,7 @@ func (m multi) SubmitBlindedProposal(ctx context.Context, opts *api.SubmitBlinde
 func (m multi) SubmitValidatorRegistrations(ctx context.Context, registrations []*api.VersionedSignedValidatorRegistration) error {
 	const label = "submit_validator_registrations"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
@@ -534,6 +561,7 @@ func (m multi) SubmitValidatorRegistrations(ctx context.Context, registrations [
 func (m multi) Fork(ctx context.Context, opts *api.ForkOpts) (*api.Response[*phase0.Fork], error) {
 	const label = "fork"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*phase0.Fork], error) {
@@ -554,6 +582,7 @@ func (m multi) Fork(ctx context.Context, opts *api.ForkOpts) (*api.Response[*pha
 func (m multi) ForkSchedule(ctx context.Context, opts *api.ForkScheduleOpts) (*api.Response[[]*phase0.Fork], error) {
 	const label = "fork_schedule"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[[]*phase0.Fork], error) {
@@ -575,6 +604,8 @@ func (m multi) ForkSchedule(ctx context.Context, opts *api.ForkScheduleOpts) (*a
 func (m multi) Genesis(ctx context.Context, opts *api.GenesisOpts) (*api.Response[*apiv1.Genesis], error) {
 	const label = "genesis"
 
+	defer incRequest(label)
+
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*apiv1.Genesis], error) {
 			return args.client.Genesis(ctx, opts)
@@ -594,6 +625,7 @@ func (m multi) Genesis(ctx context.Context, opts *api.GenesisOpts) (*api.Respons
 func (m multi) NodeSyncing(ctx context.Context, opts *api.NodeSyncingOpts) (*api.Response[*apiv1.SyncState], error) {
 	const label = "node_syncing"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*apiv1.SyncState], error) {
@@ -615,6 +647,8 @@ func (m multi) NodeSyncing(ctx context.Context, opts *api.NodeSyncingOpts) (*api
 func (m multi) NodeVersion(ctx context.Context, opts *api.NodeVersionOpts) (*api.Response[string], error) {
 	const label = "node_version"
 
+	defer incRequest(label)
+
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[string], error) {
 			return args.client.NodeVersion(ctx, opts)
@@ -635,6 +669,7 @@ func (m multi) NodeVersion(ctx context.Context, opts *api.NodeVersionOpts) (*api
 func (m multi) SubmitProposalPreparations(ctx context.Context, preparations []*apiv1.ProposalPreparation) error {
 	const label = "submit_proposal_preparations"
 	defer latency(ctx, label, true)()
+	defer incRequest(label)
 
 	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
@@ -655,6 +690,7 @@ func (m multi) SubmitProposalPreparations(ctx context.Context, preparations []*a
 func (m multi) ProposerDuties(ctx context.Context, opts *api.ProposerDutiesOpts) (*api.Response[[]*apiv1.ProposerDuty], error) {
 	const label = "proposer_duties"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[[]*apiv1.ProposerDuty], error) {
@@ -676,6 +712,8 @@ func (m multi) ProposerDuties(ctx context.Context, opts *api.ProposerDutiesOpts)
 func (m multi) Spec(ctx context.Context, opts *api.SpecOpts) (*api.Response[map[string]any], error) {
 	const label = "spec"
 
+	defer incRequest(label)
+
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[map[string]any], error) {
 			return args.client.Spec(ctx, opts)
@@ -695,6 +733,7 @@ func (m multi) Spec(ctx context.Context, opts *api.SpecOpts) (*api.Response[map[
 func (m multi) Validators(ctx context.Context, opts *api.ValidatorsOpts) (*api.Response[map[phase0.ValidatorIndex]*apiv1.Validator], error) {
 	const label = "validators"
 	defer latency(ctx, label, true)()
+	defer incRequest(label)
 
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[map[phase0.ValidatorIndex]*apiv1.Validator], error) {
@@ -715,6 +754,7 @@ func (m multi) Validators(ctx context.Context, opts *api.ValidatorsOpts) (*api.R
 func (m multi) SubmitVoluntaryExit(ctx context.Context, voluntaryExit *phase0.SignedVoluntaryExit) error {
 	const label = "submit_voluntary_exit"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
@@ -735,6 +775,8 @@ func (m multi) SubmitVoluntaryExit(ctx context.Context, voluntaryExit *phase0.Si
 // Note this endpoint is cached in go-eth2-client.
 func (m multi) Domain(ctx context.Context, domainType phase0.DomainType, epoch phase0.Epoch) (phase0.Domain, error) {
 	const label = "domain"
+
+	defer incRequest(label)
 
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (phase0.Domain, error) {
@@ -758,6 +800,8 @@ func (m multi) Domain(ctx context.Context, domainType phase0.DomainType, epoch p
 // Note this endpoint is cached in go-eth2-client.
 func (m multi) GenesisDomain(ctx context.Context, domainType phase0.DomainType) (phase0.Domain, error) {
 	const label = "genesis_domain"
+
+	defer incRequest(label)
 
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (phase0.Domain, error) {

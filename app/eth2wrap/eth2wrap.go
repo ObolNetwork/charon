@@ -47,6 +47,13 @@ var (
 		Help:      "Total number of errors returned by eth2 beacon node requests",
 	}, []string{"endpoint"})
 
+	requestCount = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "app",
+		Subsystem: "eth2",
+		Name:      "requests_total",
+		Help:      "Total number of requests sent to eth2 beacon node",
+	}, []string{"endpoint"})
+
 	usingFallbackGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "app",
 		Subsystem: "eth2",
@@ -248,6 +255,11 @@ func latency(ctx context.Context, endpoint string, enableLogs bool) func() {
 // incError increments the error counter.
 func incError(endpoint string) {
 	errorCount.WithLabelValues(endpoint).Inc()
+}
+
+// incRequest increments the request counter.
+func incRequest(endpoint string) {
+	requestCount.WithLabelValues(endpoint).Inc()
 }
 
 // wrapError returns the error as a wrapped structured error.
