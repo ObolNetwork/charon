@@ -150,7 +150,7 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 		return nil, err
 	}
 
-	epoch := duty.Slot / uint64(slotsPerEpoch)
+	epoch := duty.Slot / slotsPerEpoch
 	if !s.isEpochResolved(epoch) {
 		return nil, errors.New("epoch not resolved yet",
 			z.Str("duty", duty.String()), z.U64("epoch", epoch))
