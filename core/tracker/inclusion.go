@@ -567,9 +567,13 @@ func reportAttInclusion(ctx context.Context, sub submission, block block) {
 
 // NewInclusion returns a new InclusionChecker.
 func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client, trackerInclFunc trackerInclFunc) (*InclusionChecker, error) {
-	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
+	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
+	}
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
+	if err != nil {
+		return nil, errors.Wrap(err, "fetch slots config")
 	}
 
 	inclCore := &inclusionCore{
@@ -583,8 +587,8 @@ func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client, trackerInclFunc t
 	return &InclusionChecker{
 		core:             inclCore,
 		eth2Cl:           eth2Cl,
-		genesis:          spec.GenesisTime,
-		slotDuration:     spec.SlotDuration,
+		genesis:          genesisTime,
+		slotDuration:     slotDuration,
 		checkBlockFunc:   inclCore.CheckBlock,
 		checkBlockV2Func: inclCore.CheckBlockV2,
 	}, nil
@@ -619,7 +623,7 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	spec, err := eth2wrap.FetchNetworkSpec(ctx, a.eth2Cl)
+	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, a.eth2Cl)
 	if err != nil {
 		log.Warn(ctx, "Failed to fetch eth2 spec and start inclusion checker", err)
 		return
@@ -637,7 +641,7 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 			if checkedSlot == slot {
 				continue
 			}
-			epoch := spec.SlotEpoch(eth2p0.Slot(slot))
+			epoch := eth2p0.Epoch(slot) / eth2p0.Epoch(slotsPerEpoch)
 			indices := []eth2p0.ValidatorIndex{}
 			a.core.mu.Lock()
 			subs := maps.Clone(a.core.submissions)

@@ -42,7 +42,11 @@ func NewDutyGater(ctx context.Context, eth2Cl eth2wrap.Client, opts ...func(*dut
 		opt(&o)
 	}
 
-	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
+	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
+	if err != nil {
+		return nil, err
+	}
+	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
 	}
@@ -52,10 +56,10 @@ func NewDutyGater(ctx context.Context, eth2Cl eth2wrap.Client, opts ...func(*dut
 			return false
 		}
 
-		currentSlot := o.nowFunc().Sub(spec.GenesisTime) / spec.SlotDuration
-		currentEpoch := uint64(currentSlot) / spec.SlotsPerEpoch
+		currentSlot := o.nowFunc().Sub(genesisTime) / slotDuration
+		currentEpoch := uint64(currentSlot) / slotsPerEpoch
 
-		dutyEpoch := duty.Slot / spec.SlotsPerEpoch
+		dutyEpoch := duty.Slot / slotsPerEpoch
 
 		return dutyEpoch <= currentEpoch+uint64(o.allowedFutureEpochs)
 	}, nil

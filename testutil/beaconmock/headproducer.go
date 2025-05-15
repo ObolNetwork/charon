@@ -51,12 +51,16 @@ type headProducer struct {
 func (p *headProducer) Start(httpMock HTTPMock) error {
 	ctx := context.Background()
 
-	spec, err := eth2wrap.FetchNetworkSpec(ctx, httpMock)
+	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, httpMock)
+	if err != nil {
+		return err
+	}
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, httpMock)
 	if err != nil {
 		return err
 	}
 
-	startSlotTicker(p.quit, p.updateHead, spec.GenesisTime, spec.SlotDuration)
+	startSlotTicker(p.quit, p.updateHead, genesisTime, slotDuration)
 
 	return nil
 }

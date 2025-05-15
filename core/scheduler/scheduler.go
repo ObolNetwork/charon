@@ -145,12 +145,12 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 		return nil, core.ErrDeprecatedDutyBuilderProposer
 	}
 
-	spec, err := eth2wrap.FetchNetworkSpec(ctx, s.eth2Cl)
+	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, s.eth2Cl)
 	if err != nil {
 		return nil, err
 	}
 
-	epoch := uint64(spec.SlotEpoch(eth2p0.Slot(duty.Slot)))
+	epoch := duty.Slot / uint64(slotsPerEpoch)
 	if !s.isEpochResolved(epoch) {
 		return nil, errors.New("epoch not resolved yet",
 			z.Str("duty", duty.String()), z.U64("epoch", epoch))
@@ -550,21 +550,25 @@ func (s *Scheduler) trimDuties(epoch uint64) {
 // newSlotTicker returns a blocking channel that will be populated with new slots in real time.
 // It is also populated with the current slot immediately.
 func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) (<-chan core.Slot, error) {
-	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
+	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
+	if err != nil {
+		return nil, err
+	}
+	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
 	}
 
 	currentSlot := func() core.Slot {
-		chainAge := clock.Since(spec.GenesisTime)
-		slot := int64(chainAge / spec.SlotDuration)
-		startTime := spec.GenesisTime.Add(time.Duration(slot) * spec.SlotDuration)
+		chainAge := clock.Since(genesisTime)
+		slot := int64(chainAge / slotDuration)
+		startTime := genesisTime.Add(time.Duration(slot) * slotDuration)
 
 		return core.Slot{
 			Slot:          uint64(slot),
 			Time:          startTime,
-			SlotsPerEpoch: spec.SlotsPerEpoch,
-			SlotDuration:  spec.SlotDuration,
+			SlotsPerEpoch: slotsPerEpoch,
+			SlotDuration:  slotDuration,
 		}
 	}
 

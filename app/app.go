@@ -789,7 +789,7 @@ func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Schedu
 func newTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(duty core.Duty) (time.Time, bool),
 	peers []p2p.Peer, eth2Cl eth2wrap.Client,
 ) (core.Tracker, error) {
-	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
 	}
@@ -799,11 +799,11 @@ func newTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(
 
 	analyser := core.NewDeadliner(ctx, "tracker_analyser", func(duty core.Duty) (time.Time, bool) {
 		d, ok := deadlineFunc(duty)
-		return d.Add(time.Duration(trackerDelay) * spec.SlotDuration), ok
+		return d.Add(time.Duration(trackerDelay) * slotDuration), ok
 	})
 	deleter := core.NewDeadliner(ctx, "tracker_deleter", func(duty core.Duty) (time.Time, bool) {
 		d, ok := deadlineFunc(duty)
-		return d.Add(time.Duration(trackerDelay) * spec.SlotDuration).Add(time.Minute), ok // Delete duties after analyser_deadline+1min.
+		return d.Add(time.Duration(trackerDelay) * slotDuration).Add(time.Minute), ok // Delete duties after analyser_deadline+1min.
 	})
 
 	trackFrom, err := calculateTrackerDelay(ctx, eth2Cl, time.Now())
@@ -823,14 +823,18 @@ func calculateTrackerDelay(ctx context.Context, cl eth2wrap.Client, now time.Tim
 	const maxDelayTime = time.Second * 10 // We want to delay at most 10 seconds
 	const minDelaySlots = 2               // But we do not want to delay less than 2 slots
 
-	spec, err := eth2wrap.FetchNetworkSpec(ctx, cl)
+	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, cl)
+	if err != nil {
+		return 0, err
+	}
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, cl)
 	if err != nil {
 		return 0, err
 	}
 
-	currentSlot := uint64(now.Sub(spec.GenesisTime) / spec.SlotDuration)
+	currentSlot := uint64(now.Sub(genesisTime) / slotDuration)
 
-	maxDelayTimeSlot := currentSlot + uint64(maxDelayTime/spec.SlotDuration) + 1
+	maxDelayTimeSlot := currentSlot + uint64(maxDelayTime/slotDuration) + 1
 	minDelaySlot := currentSlot + minDelaySlots
 
 	if maxDelayTimeSlot < minDelaySlot {

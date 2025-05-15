@@ -489,29 +489,37 @@ func setToAttestationsV2(set core.SignedDataSet) ([]*eth2spec.VersionedAttestati
 
 // newDelayFunc returns a function that calculates the delay since the start of a slot.
 func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64) time.Duration, error) {
-	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
+	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
+	if err != nil {
+		return nil, err
+	}
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
 	}
 
 	return func(slot uint64) time.Duration {
-		slotStart := spec.GenesisTime.Add(spec.SlotDuration * time.Duration(slot))
+		slotStart := genesisTime.Add(slotDuration * time.Duration(slot))
 		return time.Since(slotStart)
 	}, nil
 }
 
 // firstSlotInCurrentEpoch calculates first slot number of the current ongoing epoch.
 func firstSlotInCurrentEpoch(ctx context.Context, eth2Cl eth2wrap.Client) (uint64, error) {
-	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
+	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
+	if err != nil {
+		return 0, err
+	}
+	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return 0, err
 	}
 
-	chainAge := time.Since(spec.GenesisTime)
-	currentSlot := chainAge / spec.SlotDuration
-	currentEpoch := uint64(currentSlot) / spec.SlotsPerEpoch
+	chainAge := time.Since(genesisTime)
+	currentSlot := chainAge / slotDuration
+	currentEpoch := uint64(currentSlot) / slotsPerEpoch
 
-	return currentEpoch * spec.SlotsPerEpoch, nil
+	return currentEpoch * slotsPerEpoch, nil
 }
 
 // resolveActiveValidatorsIndices returns the active validators (including their validator index) for the slot.

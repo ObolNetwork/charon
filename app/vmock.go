@@ -30,13 +30,16 @@ func wireValidatorMock(ctx context.Context, conf Config, eth2Cl eth2wrap.Client,
 		return err
 	}
 
-	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
+	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
+	if err != nil {
+		return err
+	}
+	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return err
 	}
 
-	vmock := validatormock.New(ctx, newVMockEth2Provider(conf, pubshares), signer, pubshares, spec.GenesisTime, spec.SlotDuration,
-		spec.SlotsPerEpoch, conf.BuilderAPI)
+	vmock := validatormock.New(ctx, newVMockEth2Provider(conf, pubshares), signer, pubshares, genesisTime, slotDuration, slotsPerEpoch, conf.BuilderAPI)
 	sched.SubscribeSlots(vmock.SlotTicked)
 
 	return nil

@@ -197,7 +197,11 @@ func getCurrDuty(duties map[Duty]bool, deadlineFunc DeadlineFunc) (Duty, time.Ti
 
 // NewDutyDeadlineFunc returns the function that provides duty deadlines or false if the duty never deadlines.
 func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineFunc, error) {
-	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
+	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
+	if err != nil {
+		return nil, err
+	}
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
 	}
@@ -208,8 +212,8 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineF
 			return time.Time{}, false
 		}
 
-		start := spec.GenesisTime.Add(spec.SlotDuration * time.Duration(duty.Slot))
-		delta := spec.SlotDuration * time.Duration(lateFactor)
+		start := genesisTime.Add(slotDuration * time.Duration(duty.Slot))
+		delta := slotDuration * time.Duration(lateFactor)
 		if delta < lateMin {
 			delta = lateMin
 		}
