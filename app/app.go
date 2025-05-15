@@ -965,9 +965,7 @@ func configureEth2Client(ctx context.Context, forkVersion []byte, fallbackAddrs 
 	var ok bool
 	for _, fork := range schedule {
 		if bytes.Equal(fork.CurrentVersion[:], forkVersion) {
-			if err := eth2util.SetCurrentNetwork(forkVersion); err != nil {
-				return nil, errors.Wrap(err, "possibly unknown network", z.Str("fork_version", hex.EncodeToString(forkVersion)))
-			}
+			eth2util.SetCurrentNetwork(forkVersion)
 			ok = true
 
 			break

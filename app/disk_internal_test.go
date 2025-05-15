@@ -52,7 +52,7 @@ func TestCalculateTrackerDelay(t *testing.T) {
 			})
 
 			fromSlot := calculateTrackerDelay(now)
-			require.Equal(t, currentSlot+test.slotDelay, fromSlot)
+			require.EqualValues(t, currentSlot+test.slotDelay, fromSlot)
 		})
 	}
 	set := beaconmock.ValidatorSetA
