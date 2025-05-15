@@ -39,6 +39,13 @@ func WithVersion(version string) func(*Definition) {
 	}
 }
 
+// WithForkVersion returns an option to set a non-default fork version in a new definition.
+func WithForkVersion(forkVersion []byte) func(*Definition) {
+	return func(d *Definition) {
+		d.ForkVersion = forkVersion
+	}
+}
+
 // WithDKGAlgorithm returns an option to set a non-default DKG algorithm in a new definition.
 func WithDKGAlgorithm(algorithm string) func(*Definition) {
 	return func(d *Definition) {
