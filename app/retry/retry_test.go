@@ -13,6 +13,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/retry"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 func TestRetryer(t *testing.T) {
@@ -100,12 +101,14 @@ func TestRetryer(t *testing.T) {
 //go:generate go test . -v -run=TestShutdown -count=10
 
 func TestShutdown(t *testing.T) {
-	ctx := t.Context()
-
-	deadlineFunc, err := core.NewDutyDeadlineFunc()
+	ctx := context.Background()
+	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 
-	retryer := retry.New(deadlineFunc)
+	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, bmock)
+	require.NoError(t, err)
+
+	retryer := retry.New[core.Duty](deadlineFunc)
 
 	const n = 3
 	waiting := make(chan struct{}, n)

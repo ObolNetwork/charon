@@ -25,7 +25,6 @@ package beaconmock
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -39,7 +38,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
-	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/statecomm"
 )
@@ -68,24 +66,14 @@ func New(opts ...Option) (Mock, error) {
 	// Then configure the mock
 	mock := defaultMock(httpMock, httpServer, temp.clock, headProducer)
 	for _, opt := range opts {
-		opt(mock)
+		opt(&mock)
 	}
 
-	eth2util.SetCustomNetworkForTest(&eth2util.Network{
-		ChainID:               0,
-		Name:                  mock.Name(),
-		GenesisForkVersionHex: fmt.Sprintf("%#x", mock.forkVersion),
-		GenesisTimestamp:      mock.genesis.Unix(),
-		CapellaHardFork:       "0x03000000",
-		SlotDuration:          mock.slotDuration,
-		SlotsPerEpoch:         mock.slotsPerEpoch,
-	})
-
-	if err := headProducer.Start(); err != nil {
+	if err := headProducer.Start(httpMock); err != nil {
 		return Mock{}, err
 	}
 
-	return *mock, nil
+	return mock, nil
 }
 
 // defaultHTTPMock returns a mock with default http mock overrides.
@@ -93,8 +81,7 @@ func defaultHTTPMock() Mock {
 	// Default to recent genesis for lower slot and epoch numbers.
 	genesis := time.Date(2022, 3, 1, 0, 0, 0, 0, time.UTC)
 	return Mock{
-		genesis: genesis,
-		clock:   clockwork.NewRealClock(),
+		clock: clockwork.NewRealClock(),
 		overrides: []staticOverride{
 			{
 				Endpoint: "/eth/v1/config/spec",
@@ -134,14 +121,11 @@ func WithForkVersion(forkVersion [4]byte) Option {
 type Mock struct {
 	HTTPMock
 
-	httpServer    *http.Server
-	overrides     []staticOverride
-	clock         clockwork.Clock
-	headProducer  *headProducer
-	forkVersion   [4]byte
-	genesis       time.Time
-	slotDuration  time.Duration
-	slotsPerEpoch uint64
+	httpServer   *http.Server
+	overrides    []staticOverride
+	clock        clockwork.Clock
+	headProducer *headProducer
+	forkVersion  [4]byte
 
 	IsActiveFunc                           func() bool
 	IsSyncedFunc                           func() bool

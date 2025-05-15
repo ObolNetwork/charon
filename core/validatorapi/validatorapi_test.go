@@ -396,7 +396,7 @@ func TestComponent_Proposal(t *testing.T) {
 	block1.Phase0.ProposerIndex = vIdx
 	block1.Phase0.Body.RANDAOReveal = randao
 
-	component.RegisterGetDutyDefinition(func(duty core.Duty) (core.DutyDefinitionSet, error) {
+	component.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
 		return core.DutyDefinitionSet{pubkey: nil}, nil
 	})
 
@@ -460,7 +460,7 @@ func TestComponent_SubmitProposalsWithWrongVCData(t *testing.T) {
 			Version: eth2spec.DataVersionCapella,
 			Capella: testutil.RandomCapellaBeaconBlock(),
 		}
-		vapi.RegisterGetDutyDefinition(func(duty core.Duty) (core.DutyDefinitionSet, error) {
+		vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
 			return core.DutyDefinitionSet{corePubKey: nil}, nil
 		})
 
@@ -491,7 +491,7 @@ func TestComponent_SubmitProposalsWithWrongVCData(t *testing.T) {
 	t.Run("blinded block fails", func(t *testing.T) {
 		unsignedBlindedBlock := testutil.RandomCapellaBlindedBeaconBlock()
 
-		vapi.RegisterGetDutyDefinition(func(duty core.Duty) (core.DutyDefinitionSet, error) {
+		vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
 			return core.DutyDefinitionSet{corePubKey: nil}, nil
 		})
 
@@ -678,7 +678,7 @@ func TestComponent_SubmitProposal(t *testing.T) {
 			randao := eth2p0.BLSSignature(sig)
 			unsignedBlock := test.unsignedBlockFunc(randao)
 
-			vapi.RegisterGetDutyDefinition(func(duty core.Duty) (core.DutyDefinitionSet, error) {
+			vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
 				return core.DutyDefinitionSet{corePubKey: nil}, nil
 			})
 
@@ -853,7 +853,7 @@ func TestComponent_SubmitProposalInvalidSignature(t *testing.T) {
 	sig, err := tbls.Sign(secret, msg)
 	require.NoError(t, err)
 
-	vapi.RegisterGetDutyDefinition(func(duty core.Duty) (core.DutyDefinitionSet, error) {
+	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
 		return core.DutyDefinitionSet{corePubKey: nil}, nil
 	})
 
@@ -917,7 +917,7 @@ func TestComponent_SubmitProposalInvalidBlock(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000, nil)
 	require.NoError(t, err)
 
-	vapi.RegisterGetDutyDefinition(func(duty core.Duty) (core.DutyDefinitionSet, error) {
+	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
 		return core.DutyDefinitionSet{pubkey: nil}, nil
 	})
 
@@ -1145,7 +1145,7 @@ func TestComponent_SubmitBlindedProposal(t *testing.T) {
 			sig, err := tbls.Sign(secret, msg)
 			require.NoError(t, err)
 
-			vapi.RegisterGetDutyDefinition(func(duty core.Duty) (core.DutyDefinitionSet, error) {
+			vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
 				return core.DutyDefinitionSet{corePubKey: nil}, nil
 			})
 
@@ -1227,7 +1227,7 @@ func TestComponent_SubmitBlindedProposalInvalidSignature(t *testing.T) {
 	unsignedBlindedBlock.Slot = slot
 	unsignedBlindedBlock.ProposerIndex = vIdx
 
-	vapi.RegisterGetDutyDefinition(func(duty core.Duty) (core.DutyDefinitionSet, error) {
+	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
 		return core.DutyDefinitionSet{corePubKey: nil}, nil
 	})
 
@@ -1291,7 +1291,7 @@ func TestComponent_SubmitBlindedProposalInvalidBlock(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, true, 30000000, nil)
 	require.NoError(t, err)
 
-	vapi.RegisterGetDutyDefinition(func(duty core.Duty) (core.DutyDefinitionSet, error) {
+	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
 		return core.DutyDefinitionSet{pubkey: nil}, nil
 	})
 
@@ -1720,7 +1720,7 @@ func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
 	genesisTime := genesis.Data.GenesisTime
 	unsigned.Timestamp = genesisTime // Set timestamp to genesis which should result in epoch 0 and slot 0.
 
-	vapi.RegisterGetDutyDefinition(func(duty core.Duty) (core.DutyDefinitionSet, error) {
+	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
 		return core.DutyDefinitionSet{corePubKey: nil}, nil
 	})
 
@@ -2540,7 +2540,14 @@ func TestSlotFromTimestamp(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := validatorapi.SlotFromTimestamp(t.Context(), tt.timestamp)
+			genesis, err := eth2util.NetworkToGenesisTime(tt.network)
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			eth2Cl, err := beaconmock.New(beaconmock.WithGenesisTime(genesis))
+			require.NoError(t, err)
+
+			got, err := validatorapi.SlotFromTimestamp(ctx, eth2Cl, tt.timestamp)
 			if tt.wantErr {
 				require.Error(t, err)
 				require.Equal(t, 0, got)

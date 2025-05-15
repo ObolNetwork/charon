@@ -143,7 +143,7 @@ func TestBnMetrics(t *testing.T) {
 		BeaconNodeHeaders: []string{},
 	}
 
-	err = bnMetrics(t.Context(), config)
+	err = bnMetrics(t.Context(), config, bmock)
 	require.NoError(t, err)
 }
 

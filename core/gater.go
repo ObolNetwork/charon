@@ -3,10 +3,11 @@
 package core
 
 import (
+	"context"
 	"testing"
 	"time"
 
-	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 )
 
 const defaultAllowedFutureEpochs = 2
@@ -32,7 +33,7 @@ type dutyGaterOptions struct {
 }
 
 // NewDutyGater returns a new instance of DutyGaterFunc.
-func NewDutyGater(opts ...func(*dutyGaterOptions)) (DutyGaterFunc, error) {
+func NewDutyGater(ctx context.Context, eth2Cl eth2wrap.Client, opts ...func(*dutyGaterOptions)) (DutyGaterFunc, error) {
 	o := dutyGaterOptions{
 		allowedFutureEpochs: defaultAllowedFutureEpochs,
 		nowFunc:             time.Now,
@@ -41,16 +42,20 @@ func NewDutyGater(opts ...func(*dutyGaterOptions)) (DutyGaterFunc, error) {
 		opt(&o)
 	}
 
-	network := eth2util.CurrentNetwork()
+	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
+	if err != nil {
+		return nil, err
+	}
 
 	return func(duty Duty) bool {
 		if !duty.Type.Valid() {
 			return false
 		}
 
-		currentSlot := o.nowFunc().Sub(network.GetGenesisTimestamp()) / network.SlotDuration
-		currentEpoch := uint64(currentSlot) / network.SlotsPerEpoch
-		dutyEpoch := duty.Slot / network.SlotsPerEpoch
+		currentSlot := o.nowFunc().Sub(spec.GenesisTime) / spec.SlotDuration
+		currentEpoch := uint64(currentSlot) / spec.SlotsPerEpoch
+
+		dutyEpoch := duty.Slot / spec.SlotsPerEpoch
 
 		return dutyEpoch <= currentEpoch+uint64(o.allowedFutureEpochs)
 	}, nil

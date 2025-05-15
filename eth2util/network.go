@@ -9,8 +9,6 @@ import (
 	"sync"
 	"time"
 
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
 )
@@ -29,25 +27,6 @@ type Network struct {
 	GenesisTimestamp int64
 	// CapellaHardFork represents capella fork version, used for computing domains for signatures
 	CapellaHardFork string
-	// Slot duration
-	SlotDuration time.Duration
-	// Number of slots per epoch
-	SlotsPerEpoch uint64
-}
-
-// EpochSlot converts an epoch number to its first slot number.
-func (n Network) EpochSlot(epoch eth2p0.Epoch) eth2p0.Slot {
-	return eth2p0.Slot(epoch) * eth2p0.Slot(n.SlotsPerEpoch)
-}
-
-// SlotEpoch converts a slot number to its epoch number.
-func (n Network) SlotEpoch(slot eth2p0.Slot) eth2p0.Epoch {
-	return eth2p0.Epoch(slot) / eth2p0.Epoch(n.SlotsPerEpoch)
-}
-
-// GetGenesisTimestamp returns the genesis timestamp of the network as time.Time.
-func (n Network) GetGenesisTimestamp() time.Time {
-	return time.Unix(n.GenesisTimestamp, 0)
 }
 
 // IsNonZero checks if each field in this struct is not equal to its zero value.
@@ -63,8 +42,6 @@ var (
 		GenesisForkVersionHex: "0x00000000",
 		GenesisTimestamp:      1606824023,
 		CapellaHardFork:       "0x03000000",
-		SlotDuration:          12 * time.Second,
-		SlotsPerEpoch:         32,
 	}
 	Goerli = Network{
 		ChainID:               5,
@@ -72,8 +49,6 @@ var (
 		GenesisForkVersionHex: "0x00001020",
 		GenesisTimestamp:      1616508000,
 		CapellaHardFork:       "0x03001020",
-		SlotDuration:          12 * time.Second,
-		SlotsPerEpoch:         32,
 	}
 	Gnosis = Network{
 		ChainID:               100,
@@ -81,8 +56,6 @@ var (
 		GenesisForkVersionHex: "0x00000064",
 		GenesisTimestamp:      1638993340,
 		CapellaHardFork:       "0x03000064",
-		SlotDuration:          5 * time.Second,
-		SlotsPerEpoch:         16,
 	}
 	Chiado = Network{
 		ChainID:               10200,
@@ -90,8 +63,6 @@ var (
 		GenesisForkVersionHex: "0x0000006f",
 		GenesisTimestamp:      1665396300,
 		CapellaHardFork:       "0x0300006f",
-		SlotDuration:          5 * time.Second,
-		SlotsPerEpoch:         16,
 	}
 	Sepolia = Network{
 		ChainID:               11155111,
@@ -99,8 +70,6 @@ var (
 		GenesisForkVersionHex: "0x90000069",
 		GenesisTimestamp:      1655733600,
 		CapellaHardFork:       "0x90000072",
-		SlotDuration:          12 * time.Second,
-		SlotsPerEpoch:         32,
 	}
 	// Holesky metadata taken from https://github.com/eth-clients/holesky#metadata.
 	Holesky = Network{
@@ -109,8 +78,6 @@ var (
 		GenesisForkVersionHex: "0x01017000",
 		GenesisTimestamp:      1696000704,
 		CapellaHardFork:       "0x04017000",
-		SlotDuration:          12 * time.Second,
-		SlotsPerEpoch:         32,
 	}
 	// Hoodi metadata taken from https://github.com/eth-clients/hoodi/#metadata.
 	Hoodi = Network{
@@ -119,66 +86,15 @@ var (
 		GenesisForkVersionHex: "0x10000910",
 		GenesisTimestamp:      1742213400,
 		CapellaHardFork:       "0x40000910",
-		SlotDuration:          12 * time.Second,
-		SlotsPerEpoch:         32,
 	}
 )
 
 var (
-	networksMu        sync.RWMutex
-	currentNetwork    *Network
+	networksMu        sync.Mutex
 	supportedNetworks = []Network{
 		Mainnet, Goerli, Gnosis, Chiado, Sepolia, Holesky, Hoodi,
 	}
 )
-
-// SetCurrentNetwork sets the current network to the given network.
-func SetCurrentNetwork(forkVersion []byte) error {
-	networksMu.Lock()
-	defer networksMu.Unlock()
-
-	if currentNetwork != nil {
-		return nil
-	}
-
-	forkHex := fmt.Sprintf("%#x", forkVersion)
-	var network *Network
-
-	for _, n := range supportedNetworks {
-		if forkHex == n.GenesisForkVersionHex {
-			network = &n
-			break
-		}
-	}
-
-	if network == nil {
-		return errors.New("invalid network name", z.Str("network", forkHex))
-	}
-
-	currentNetwork = network
-
-	return nil
-}
-
-// SetCustomNetworkForTest is used for testing purposes to override the current network.
-func SetCustomNetworkForTest(network *Network) {
-	networksMu.Lock()
-	defer networksMu.Unlock()
-
-	currentNetwork = network
-}
-
-// CurrentNetwork returns the current network.
-func CurrentNetwork() *Network {
-	networksMu.RLock()
-	defer networksMu.RUnlock()
-
-	if currentNetwork == nil {
-		panic("current network is not set")
-	}
-
-	return currentNetwork
-}
 
 // AddTestNetwork adds given network to list of supported networks.
 func AddTestNetwork(network Network) {
@@ -190,8 +106,8 @@ func AddTestNetwork(network Network) {
 
 // networkFromName returns network from the given network name from list of supported networks.
 func networkFromName(name string) (Network, error) {
-	networksMu.RLock()
-	defer networksMu.RUnlock()
+	networksMu.Lock()
+	defer networksMu.Unlock()
 
 	for _, network := range supportedNetworks {
 		if name == network.Name {
@@ -204,8 +120,8 @@ func networkFromName(name string) (Network, error) {
 
 // networkFromForkVersion returns network from the given fork version from the list of supported networks.
 func networkFromForkVersion(forkVersion string) (Network, error) {
-	networksMu.RLock()
-	defer networksMu.RUnlock()
+	networksMu.Lock()
+	defer networksMu.Unlock()
 
 	for _, network := range supportedNetworks {
 		if forkVersion == network.GenesisForkVersionHex {

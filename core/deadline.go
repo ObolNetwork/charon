@@ -9,9 +9,9 @@ import (
 
 	"github.com/jonboulle/clockwork"
 
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/eth2util"
 )
 
 //go:generate mockery --name=Deadliner --output=mocks --outpkg=mocks --case=underscore
@@ -196,8 +196,11 @@ func getCurrDuty(duties map[Duty]bool, deadlineFunc DeadlineFunc) (Duty, time.Ti
 }
 
 // NewDutyDeadlineFunc returns the function that provides duty deadlines or false if the duty never deadlines.
-func NewDutyDeadlineFunc() (DeadlineFunc, error) {
-	network := eth2util.CurrentNetwork()
+func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineFunc, error) {
+	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
+	if err != nil {
+		return nil, err
+	}
 
 	return func(duty Duty) (time.Time, bool) {
 		if duty.Type == DutyExit || duty.Type == DutyBuilderRegistration {
@@ -205,8 +208,8 @@ func NewDutyDeadlineFunc() (DeadlineFunc, error) {
 			return time.Time{}, false
 		}
 
-		start := network.GetGenesisTimestamp().Add(network.SlotDuration * time.Duration(duty.Slot))
-		delta := network.SlotDuration * time.Duration(lateFactor)
+		start := spec.GenesisTime.Add(spec.SlotDuration * time.Duration(duty.Slot))
+		delta := spec.SlotDuration * time.Duration(lateFactor)
 		if delta < lateMin {
 			delta = lateMin
 		}

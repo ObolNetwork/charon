@@ -21,7 +21,6 @@ import (
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/scheduler"
-	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -317,25 +316,29 @@ func TestScheduler_GetDuty(t *testing.T) {
 	dd := new(delayer)
 	sched := scheduler.NewForT(t, clock, dd.delay, pubkeys, eth2Cl, false)
 
-	_, err = sched.GetDutyDefinition(core.NewAttesterDuty(slot))
+	_, err = sched.GetDutyDefinition(ctx, core.NewAttesterDuty(slot))
 	require.ErrorContains(t, err, "epoch not resolved yet")
 
-	_, err = sched.GetDutyDefinition(core.NewAggregatorDuty(slot))
+	_, err = sched.GetDutyDefinition(ctx, core.NewAggregatorDuty(slot))
 	require.ErrorContains(t, err, "epoch not resolved yet")
 
-	_, err = sched.GetDutyDefinition(core.NewSyncContributionDuty(slot))
+	_, err = sched.GetDutyDefinition(ctx, core.NewSyncContributionDuty(slot))
 	require.ErrorContains(t, err, "epoch not resolved yet")
 
-	_, err = sched.GetDutyDefinition(core.Duty{
+	_, err = sched.GetDutyDefinition(ctx, core.Duty{
 		Slot: slot,
 		Type: core.DutyBuilderProposer,
 	})
 	require.ErrorIs(t, err, core.ErrDeprecatedDutyBuilderProposer)
 
-	network := eth2util.CurrentNetwork()
+	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
+	require.NoError(t, err)
 
-	clock.CallbackAfter(t0.Add(network.SlotDuration).Add(time.Second), func() {
-		res, err := sched.GetDutyDefinition(core.NewAttesterDuty(slot))
+	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
+	require.True(t, ok)
+
+	clock.CallbackAfter(t0.Add(slotDuration).Add(time.Second), func() {
+		res, err := sched.GetDutyDefinition(ctx, core.NewAttesterDuty(slot))
 		require.NoError(t, err)
 
 		pubKeys, err := valSet.CorePubKeys()
@@ -345,13 +348,13 @@ func TestScheduler_GetDuty(t *testing.T) {
 			require.NotNil(t, res[pubKey])
 		}
 
-		res, err = sched.GetDutyDefinition(core.NewAggregatorDuty(slot))
+		res, err = sched.GetDutyDefinition(ctx, core.NewAggregatorDuty(slot))
 		require.NoError(t, err)
 		for _, pubKey := range pubKeys {
 			require.NotNil(t, res[pubKey])
 		}
 
-		res, err = sched.GetDutyDefinition(core.NewSyncContributionDuty(slot))
+		res, err = sched.GetDutyDefinition(ctx, core.NewSyncContributionDuty(slot))
 		require.NoError(t, err)
 		for _, pubKey := range pubKeys {
 			require.NotNil(t, res[pubKey])
@@ -363,15 +366,15 @@ func TestScheduler_GetDuty(t *testing.T) {
 
 	// Expire all duties
 	const trimEpochOffset = 3
-	expiry := time.Duration(trimEpochOffset*slotsPerEpoch) * network.SlotDuration
+	expiry := time.Duration(trimEpochOffset*slotsPerEpoch) * slotDuration
 	clock.CallbackAfter(t0.Add(expiry).Add(time.Minute), func() {
-		_, err = sched.GetDutyDefinition(core.NewAttesterDuty(slot))
+		_, err = sched.GetDutyDefinition(ctx, core.NewAttesterDuty(slot))
 		require.ErrorContains(t, err, "epoch already trimmed")
 
-		_, err = sched.GetDutyDefinition(core.NewAggregatorDuty(slot))
+		_, err = sched.GetDutyDefinition(ctx, core.NewAggregatorDuty(slot))
 		require.ErrorContains(t, err, "epoch already trimmed")
 
-		_, err = sched.GetDutyDefinition(core.NewSyncContributionDuty(slot))
+		_, err = sched.GetDutyDefinition(ctx, core.NewSyncContributionDuty(slot))
 		require.ErrorContains(t, err, "epoch already trimmed")
 
 		sched.Stop()
@@ -385,6 +388,7 @@ func TestScheduler_GetDuty(t *testing.T) {
 
 func TestNoActive(t *testing.T) {
 	var (
+		ctx          = context.Background()
 		t0           = time.Now()
 		slotDuration = time.Second
 	)
@@ -403,7 +407,7 @@ func TestNoActive(t *testing.T) {
 	sched := scheduler.NewForT(t, clock, dd.delay, nil, eth2Cl, false)
 
 	clock.CallbackAfter(t0.Add(slotDuration*2), func() {
-		_, err := sched.GetDutyDefinition(core.NewAttesterDuty(1))
+		_, err := sched.GetDutyDefinition(ctx, core.NewAttesterDuty(1))
 		require.ErrorContains(t, err, "duty not present for resolved epoch")
 		sched.Stop()
 	})

@@ -3,31 +3,30 @@
 package core_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 func TestDutyGater(t *testing.T) {
 	now := time.Now()
 	allowedFutureEpochs := 2
 
-	eth2util.SetCustomNetworkForTest(&eth2util.Network{
-		ChainID:               0,
-		Name:                  "simnet",
-		GenesisForkVersionHex: "0x00000000",
-		GenesisTimestamp:      now.Unix(),
-		CapellaHardFork:       "0x03000000",
-		SlotDuration:          time.Second,
-		SlotsPerEpoch:         uint64(allowedFutureEpochs),
-	})
-
 	// Allow slots 0-3.
-	gater, err := core.NewDutyGater(core.WithDutyGaterForT(t,
+	slotDuration := time.Second
+	bmock, err := beaconmock.New(
+		beaconmock.WithGenesisTime(now),
+		beaconmock.WithSlotDuration(slotDuration),
+		beaconmock.WithSlotsPerEpoch(2),
+	)
+	require.NoError(t, err)
+
+	gater, err := core.NewDutyGater(context.Background(), bmock, core.WithDutyGaterForT(t,
 		func() time.Time { return now },
 		allowedFutureEpochs,
 	))

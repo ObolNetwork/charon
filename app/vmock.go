@@ -15,13 +15,12 @@ import (
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/testutil/validatormock" // Allow testutil
 )
 
 // wireValidatorMock wires the validator mock if enabled. It connects via http validatorapi.Router.
-func wireValidatorMock(ctx context.Context, conf Config, pubshares []eth2p0.BLSPubKey, sched core.Scheduler) error {
+func wireValidatorMock(ctx context.Context, conf Config, eth2Cl eth2wrap.Client, pubshares []eth2p0.BLSPubKey, sched core.Scheduler) error {
 	if !conf.SimnetVMock {
 		return nil
 	}
@@ -31,10 +30,13 @@ func wireValidatorMock(ctx context.Context, conf Config, pubshares []eth2p0.BLSP
 		return err
 	}
 
-	network := eth2util.CurrentNetwork()
+	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
+	if err != nil {
+		return err
+	}
 
-	vmock := validatormock.New(ctx, newVMockEth2Provider(conf, pubshares), signer, pubshares, network.GetGenesisTimestamp(), network.SlotDuration,
-		network.SlotsPerEpoch, conf.BuilderAPI)
+	vmock := validatormock.New(ctx, newVMockEth2Provider(conf, pubshares), signer, pubshares, spec.GenesisTime, spec.SlotDuration,
+		spec.SlotsPerEpoch, conf.BuilderAPI)
 	sched.SubscribeSlots(vmock.SlotTicked)
 
 	return nil

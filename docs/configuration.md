@@ -206,8 +206,6 @@ Flags:
       --testnet-fork-version string              Genesis fork version in hex of the custom test network.
       --testnet-genesis-timestamp int            Genesis timestamp of the custom test network.
       --testnet-name string                      Name of the custom test network.
-      --testnet-slot-duration duration           Slot duration of the custom test network.
-      --testnet-slots-per-epoch uint             Number of slots per epoch of the custom test network.
       --validator-api-address string             Listening address (ip and port) for validator-facing traffic proxying the beacon-node API. (default "127.0.0.1:3600")
       --vc-tls-cert-file string                  The path to the TLS certificate file used by charon for the validator client API endpoint.
       --vc-tls-key-file string                   The path to the TLS private key file associated with the provided TLS certificate.

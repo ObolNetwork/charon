@@ -13,7 +13,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
@@ -21,7 +20,7 @@ func TestCalculateTrackerDelay(t *testing.T) {
 	tests := []struct {
 		name         string
 		slotDuration time.Duration
-		slotDelay    uint64
+		slotDelay    int64
 	}{
 		{
 			name:         "slow slots",
@@ -38,23 +37,24 @@ func TestCalculateTrackerDelay(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			const currentSlot = 100
 
+			ctx := context.Background()
 			now := time.Now()
 			genesis := now.Add(-test.slotDuration * currentSlot)
 
-			eth2util.SetCustomNetworkForTest(&eth2util.Network{
-				ChainID:               0,
-				Name:                  "simnet",
-				GenesisForkVersionHex: "0x00000000",
-				GenesisTimestamp:      genesis.Unix(),
-				CapellaHardFork:       "0x03000000",
-				SlotDuration:          test.slotDuration,
-				SlotsPerEpoch:         16,
-			})
+			bmock, err := beaconmock.New(
+				beaconmock.WithSlotDuration(test.slotDuration),
+				beaconmock.WithGenesisTime(genesis),
+			)
+			require.NoError(t, err)
 
-			fromSlot := calculateTrackerDelay(now)
+			fromSlot, err := calculateTrackerDelay(ctx, bmock, now)
+			require.NoError(t, err)
 			require.EqualValues(t, currentSlot+test.slotDelay, fromSlot)
 		})
 	}
+}
+
+func TestSetFeeRecipient(t *testing.T) {
 	set := beaconmock.ValidatorSetA
 	for i := range len(set) {
 		clone, err := set.Clone()

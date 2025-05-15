@@ -50,7 +50,7 @@ func TestBroadcast(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			bcaster, err := bcast.New(mock)
+			bcaster, err := bcast.New(ctx, mock)
 			require.NoError(t, err)
 
 			for range test.bcastCnt {
@@ -76,7 +76,7 @@ func TestBroadcastOtherDuties(t *testing.T) {
 	mock, err := beaconmock.New()
 	require.NoError(t, err)
 
-	bcaster, err := bcast.New(mock)
+	bcaster, err := bcast.New(context.Background(), mock)
 	require.NoError(t, err)
 
 	err = bcaster.Broadcast(context.Background(), core.Duty{Type: core.DutyBuilderProposer}, nil)

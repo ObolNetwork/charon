@@ -39,17 +39,20 @@ const (
 
 // SlotFromTimestamp returns the Ethereum slot associated to a timestamp, given the genesis configuration fetched
 // from client.
-func SlotFromTimestamp(ctx context.Context, timestamp time.Time) (eth2p0.Slot, error) {
-	network := eth2util.CurrentNetwork()
+func SlotFromTimestamp(ctx context.Context, client eth2wrap.Client, timestamp time.Time) (eth2p0.Slot, error) {
+	spec, err := eth2wrap.FetchNetworkSpec(ctx, client)
+	if err != nil {
+		return 0, err
+	}
 
-	if timestamp.Before(network.GetGenesisTimestamp()) {
+	if timestamp.Before(spec.GenesisTime) {
 		// if timestamp is in the past (can happen in testing scenarios, there's no strict form of checking on it), fall back on current timestamp.
 		nextTimestamp := time.Now()
 
 		log.Info(
 			ctx,
 			"timestamp before genesis, defaulting to current timestamp",
-			z.I64("genesis_timestamp", network.GetGenesisTimestamp().Unix()),
+			z.I64("genesis_timestamp", spec.GenesisTime.Unix()),
 			z.I64("overridden_timestamp", timestamp.Unix()),
 			z.I64("new_timestamp", nextTimestamp.Unix()),
 		)
@@ -57,9 +60,9 @@ func SlotFromTimestamp(ctx context.Context, timestamp time.Time) (eth2p0.Slot, e
 		timestamp = nextTimestamp
 	}
 
-	delta := timestamp.Sub(network.GetGenesisTimestamp())
+	delta := timestamp.Sub(spec.GenesisTime)
 
-	return eth2p0.Slot(delta / network.SlotDuration), nil
+	return eth2p0.Slot(delta / spec.SlotDuration), nil
 }
 
 // NewComponentInsecure returns a new instance of the validator API core workflow component
@@ -191,7 +194,7 @@ type Component struct {
 	awaitAggAttFunc           func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2p0.Attestation, error)
 	awaitAggAttV2Func         func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error)
 	awaitAggSigDBFunc         func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
-	dutyDefFunc               func(duty core.Duty) (core.DutyDefinitionSet, error)
+	dutyDefFunc               func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
 	subs                      []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
@@ -227,7 +230,7 @@ func (c *Component) RegisterPubKeyByAttestationV2(fn func(ctx context.Context, s
 
 // RegisterGetDutyDefinition registers a function to query duty definitions.
 // It supports a single function, since it is an input of the component.
-func (c *Component) RegisterGetDutyDefinition(fn func(duty core.Duty) (core.DutyDefinitionSet, error)) {
+func (c *Component) RegisterGetDutyDefinition(fn func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)) {
 	c.dutyDefFunc = fn
 }
 
@@ -409,7 +412,7 @@ func (c Component) SubmitAttestationsV2(ctx context.Context, attestationOpts *et
 
 func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
 	// Get proposer pubkey (this is a blocking query).
-	pubkey, err := c.getProposerPubkey(core.NewProposerDuty(uint64(opts.Slot)))
+	pubkey, err := c.getProposerPubkey(ctx, core.NewProposerDuty(uint64(opts.Slot)))
 	if err != nil {
 		return nil, err
 	}
@@ -575,7 +578,7 @@ func (c Component) SubmitProposal(ctx context.Context, opts *eth2api.SubmitPropo
 	ctx, span = core.StartDutyTrace(ctx, duty, "core/validatorapi.SubmitProposal")
 	defer span.End()
 
-	pubkey, err := c.getProposerPubkey(duty)
+	pubkey, err := c.getProposerPubkey(ctx, duty)
 	if err != nil {
 		return err
 	}
@@ -630,7 +633,7 @@ func (c Component) SubmitBlindedProposal(ctx context.Context, opts *eth2api.Subm
 
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	pubkey, err := c.getProposerPubkey(duty)
+	pubkey, err := c.getProposerPubkey(ctx, duty)
 	if err != nil {
 		return err
 	}
@@ -705,7 +708,7 @@ func (c Component) submitRegistration(ctx context.Context, registration *eth2api
 	if err != nil {
 		return err
 	}
-	slot, err := SlotFromTimestamp(ctx, timestamp)
+	slot, err := SlotFromTimestamp(ctx, c.eth2Cl, timestamp)
 	if err != nil {
 		return err
 	}
@@ -775,8 +778,12 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 		return err
 	}
 
-	network := eth2util.CurrentNetwork()
-	duty := core.NewVoluntaryExit(network.SlotsPerEpoch * uint64(exit.Message.Epoch))
+	spec, err := eth2wrap.FetchNetworkSpec(ctx, c.eth2Cl)
+	if err != nil {
+		return err
+	}
+
+	duty := core.NewVoluntaryExit(spec.SlotsPerEpoch * uint64(exit.Message.Epoch))
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
 	parSigData := core.NewPartialSignedVoluntaryExit(exit, c.shareIdx)
@@ -1352,9 +1359,9 @@ func (c Component) convertValidators(vals map[eth2p0.ValidatorIndex]*eth2v1.Vali
 	return resp, nil
 }
 
-func (c Component) getProposerPubkey(duty core.Duty) (core.PubKey, error) {
+func (c Component) getProposerPubkey(ctx context.Context, duty core.Duty) (core.PubKey, error) {
 	// Get proposer pubkey (this is a blocking query).
-	defSet, err := c.dutyDefFunc(duty)
+	defSet, err := c.dutyDefFunc(ctx, duty)
 	if err != nil {
 		return "", err
 	} else if len(defSet) != 1 {
@@ -1454,9 +1461,13 @@ func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigR
 		},
 	}
 
-	network := eth2util.CurrentNetwork()
-	timestamp := network.GetGenesisTimestamp()
-	timestamp = timestamp.Add(network.SlotDuration) // Use slot 1 for timestamp to override pre-generated registrations.
+	spec, err := eth2wrap.FetchNetworkSpec(ctx, c.eth2Cl)
+	if err != nil {
+		return nil, err
+	}
+
+	timestamp := spec.GenesisTime
+	timestamp = timestamp.Add(spec.SlotDuration) // Use slot 1 for timestamp to override pre-generated registrations.
 
 	for pubkey, pubshare := range c.sharesByKey {
 		eth2Share, err := pubshare.ToETH2()

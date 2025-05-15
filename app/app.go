@@ -265,7 +265,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	err = bnMetrics(ctx, conf)
+	err = bnMetrics(ctx, conf, eth2Cl)
 	if err != nil {
 		return err
 	}
@@ -441,7 +441,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	deadlineFunc, err := core.NewDutyDeadlineFunc()
+	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, eth2Cl)
 	if err != nil {
 		return err
 	}
@@ -512,7 +512,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return nil
 	})
 
-	gaterFunc, err := core.NewDutyGater()
+	gaterFunc, err := core.NewDutyGater(ctx, eth2Cl)
 	if err != nil {
 		return err
 	}
@@ -564,7 +564,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	submissionEth2Cl.SetValidatorCache(valCache.GetByHead)
-	broadcaster, err := bcast.New(submissionEth2Cl)
+	broadcaster, err := bcast.New(ctx, submissionEth2Cl)
 	if err != nil {
 		return err
 	}
@@ -597,8 +597,12 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return errors.Wrap(err, "wire recaster")
 	}
 
-	track := newTracker(ctx, life, deadlineFunc, peers)
-	inclusion, err := tracker.NewInclusion(eth2Cl, track.InclusionChecked)
+	track, err := newTracker(ctx, life, deadlineFunc, peers, eth2Cl)
+	if err != nil {
+		return err
+	}
+
+	inclusion, err := tracker.NewInclusion(ctx, eth2Cl, track.InclusionChecked)
 	if err != nil {
 		return err
 	}
@@ -611,7 +615,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 	core.Wire(sched, fetch, coreConsensus, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
 
-	err = wireValidatorMock(ctx, conf, pubshares, sched)
+	err = wireValidatorMock(ctx, conf, eth2Cl, pubshares, sched)
 	if err != nil {
 		return err
 	}
@@ -768,7 +772,7 @@ func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Schedu
 			return errors.Wrap(err, "new versioned signed validator registration")
 		}
 
-		slot, err := validatorapi.SlotFromTimestamp(ctx, reg.V1.Message.Timestamp)
+		slot, err := validatorapi.SlotFromTimestamp(ctx, eth2Cl, reg.V1.Message.Timestamp)
 		if err != nil {
 			return errors.Wrap(err, "calculate slot from timestamp")
 		}
@@ -782,45 +786,58 @@ func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Schedu
 }
 
 // newTracker creates and starts a new tracker instance.
-func newTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(duty core.Duty) (time.Time, bool), peers []p2p.Peer) core.Tracker {
-	network := eth2util.CurrentNetwork()
+func newTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(duty core.Duty) (time.Time, bool),
+	peers []p2p.Peer, eth2Cl eth2wrap.Client,
+) (core.Tracker, error) {
+	spec, err := eth2wrap.FetchNetworkSpec(ctx, eth2Cl)
+	if err != nil {
+		return nil, err
+	}
 
 	// Add InclMissedLag slots and InclCheckLag delay to analyser to capture missed inclusion errors.
 	trackerDelay := tracker.InclMissedLag + tracker.InclCheckLag
 
 	analyser := core.NewDeadliner(ctx, "tracker_analyser", func(duty core.Duty) (time.Time, bool) {
 		d, ok := deadlineFunc(duty)
-		return d.Add(time.Duration(trackerDelay) * network.SlotDuration), ok
+		return d.Add(time.Duration(trackerDelay) * spec.SlotDuration), ok
 	})
 	deleter := core.NewDeadliner(ctx, "tracker_deleter", func(duty core.Duty) (time.Time, bool) {
 		d, ok := deadlineFunc(duty)
-		return d.Add(time.Duration(trackerDelay) * network.SlotDuration).Add(time.Minute), ok // Delete duties after analyser_deadline+1min.
+		return d.Add(time.Duration(trackerDelay) * spec.SlotDuration).Add(time.Minute), ok // Delete duties after analyser_deadline+1min.
 	})
 
-	trackFrom := calculateTrackerDelay(time.Now())
+	trackFrom, err := calculateTrackerDelay(ctx, eth2Cl, time.Now())
+	if err != nil {
+		return nil, err
+	}
+
 	track := tracker.New(analyser, deleter, peers, trackFrom)
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartTracker, lifecycle.HookFunc(track.Run))
 
-	return track
+	return track, nil
 }
 
 // calculateTrackerDelay returns the slot to start tracking from. This mitigates noisy failed duties on
 // startup due to downstream VC startup delays.
-func calculateTrackerDelay(now time.Time) uint64 {
+func calculateTrackerDelay(ctx context.Context, cl eth2wrap.Client, now time.Time) (uint64, error) {
 	const maxDelayTime = time.Second * 10 // We want to delay at most 10 seconds
 	const minDelaySlots = 2               // But we do not want to delay less than 2 slots
 
-	network := eth2util.CurrentNetwork()
-	currentSlot := uint64(now.Sub(network.GetGenesisTimestamp()) / network.SlotDuration)
+	spec, err := eth2wrap.FetchNetworkSpec(ctx, cl)
+	if err != nil {
+		return 0, err
+	}
 
-	maxDelayTimeSlot := currentSlot + uint64(maxDelayTime/network.SlotDuration) + 1
+	currentSlot := uint64(now.Sub(spec.GenesisTime) / spec.SlotDuration)
+
+	maxDelayTimeSlot := currentSlot + uint64(maxDelayTime/spec.SlotDuration) + 1
 	minDelaySlot := currentSlot + minDelaySlots
 
 	if maxDelayTimeSlot < minDelaySlot {
-		return minDelaySlot
+		return minDelaySlot, nil
 	}
 
-	return maxDelayTimeSlot
+	return maxDelayTimeSlot, nil
 }
 
 // eth2PubKeys returns a list of BLS pubkeys of validators in the cluster lock.
@@ -965,9 +982,7 @@ func configureEth2Client(ctx context.Context, forkVersion []byte, fallbackAddrs 
 	var ok bool
 	for _, fork := range schedule {
 		if bytes.Equal(fork.CurrentVersion[:], forkVersion) {
-			eth2util.SetCurrentNetwork(forkVersion)
 			ok = true
-
 			break
 		}
 	}

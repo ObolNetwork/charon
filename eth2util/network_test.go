@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/eth2util"
@@ -95,20 +94,4 @@ func TestValidNetwork(t *testing.T) {
 			require.False(t, eth2util.ValidNetwork(network))
 		})
 	}
-}
-
-func TestEpochSlot(t *testing.T) {
-	n := eth2util.Mainnet
-
-	slot := n.EpochSlot(123)
-
-	require.Equal(t, eth2p0.Slot(123*32), slot)
-}
-
-func TestSlotEpoch(t *testing.T) {
-	n := eth2util.Mainnet
-
-	epoch := n.SlotEpoch(123*32 + 1)
-
-	require.Equal(t, eth2p0.Epoch(123), epoch)
 }
