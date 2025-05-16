@@ -12,12 +12,15 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 //go:generate go test .
+
 func TestDeadliner(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	expiredDuties, nonExpiredDuties, voluntaryExits, dutyExpired := setupData(t)
@@ -79,6 +82,90 @@ func TestDeadliner(t *testing.T) {
 	})
 
 	require.Equal(t, nonExpiredDuties, actualDuties)
+}
+
+func TestNewDutyDeadlineFunc(t *testing.T) {
+	bmock, err := beaconmock.New()
+	require.NoError(t, err)
+
+	genesisTime, err := eth2wrap.FetchGenesisTime(t.Context(), bmock)
+	require.NoError(t, err)
+
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(t.Context(), bmock)
+	require.NoError(t, err)
+
+	margin := slotDuration / 24
+	currentSlot := uint64(time.Since(genesisTime) / slotDuration)
+	now := genesisTime.Add(time.Duration(currentSlot) * slotDuration)
+
+	deadlineFunc, err := core.NewDutyDeadlineFunc(t.Context(), bmock)
+	require.NoError(t, err)
+
+	t.Run("never expire", func(t *testing.T) {
+		t.Run("exit", func(t *testing.T) {
+			duty := core.NewVoluntaryExit(currentSlot)
+			_, ok := deadlineFunc(duty)
+			require.False(t, ok)
+		})
+
+		t.Run("builder registration", func(t *testing.T) {
+			duty := core.NewBuilderRegistrationDuty(currentSlot)
+			_, ok := deadlineFunc(duty)
+			require.False(t, ok)
+		})
+	})
+
+	tests := []struct {
+		duty             core.Duty
+		expectedDuration time.Duration
+	}{
+		{
+			duty:             core.NewProposerDuty(currentSlot),
+			expectedDuration: slotDuration/3 + margin,
+		},
+		{
+			duty:             core.NewAttesterDuty(currentSlot),
+			expectedDuration: 2*slotDuration + margin,
+		},
+		{
+			duty:             core.NewAggregatorDuty(currentSlot),
+			expectedDuration: 2*slotDuration + margin,
+		},
+		{
+			duty:             core.NewPrepareAggregatorDuty(currentSlot),
+			expectedDuration: 2*slotDuration + margin,
+		},
+		{
+			duty:             core.NewSyncMessageDuty(currentSlot),
+			expectedDuration: 2*slotDuration/3 + margin,
+		},
+		{
+			duty:             core.NewSyncContributionDuty(currentSlot),
+			expectedDuration: 2*slotDuration/3 + margin,
+		},
+		{
+			duty:             core.NewRandaoDuty(currentSlot),
+			expectedDuration: slotDuration + margin,
+		},
+		{
+			duty:             core.NewInfoSyncDuty(currentSlot),
+			expectedDuration: slotDuration + margin,
+		},
+		{
+			duty:             core.NewPrepareSyncContributionDuty(currentSlot),
+			expectedDuration: slotDuration + margin,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.duty.Type.String(), func(t *testing.T) {
+			now := now.Add(tt.expectedDuration - time.Millisecond)
+			end, ok := deadlineFunc(tt.duty)
+			require.True(t, ok, "duty should have a deadline")
+			require.True(t, now.Before(end), "wrong duty deadline")
+			require.Equal(t, time.Millisecond, end.Sub(now))
+		})
+	}
 }
 
 // sendDuties runs a goroutine which adds the duties to the deadliner channel.
