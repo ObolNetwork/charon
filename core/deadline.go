@@ -210,6 +210,7 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineF
 		case DutyExit, DutyBuilderRegistration:
 			// Do not timeout exit or registration duties.
 			return time.Time{}, false
+		default:
 		}
 
 		var (
