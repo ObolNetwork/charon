@@ -3,6 +3,7 @@
 package promauto_test
 
 import (
+	"maps"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -35,9 +36,7 @@ func TestWrapRegisterer(t *testing.T) {
 		// All metrics contain own and registered labels.
 		for _, metric := range metricFam.GetMetric() {
 			notFound := make(prometheus.Labels)
-			for k, v := range labels {
-				notFound[k] = v
-			}
+			maps.Copy(notFound, labels)
 			for _, label := range metric.GetLabel() {
 				v, ok := notFound[label.GetName()]
 				if !ok {
