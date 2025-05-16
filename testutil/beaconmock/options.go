@@ -242,11 +242,18 @@ func WithEndpoint(endpoint string, value string) Option {
 // WithGenesisTime configures the http mock with the provided genesis time.
 func WithGenesisTime(t0 time.Time) Option {
 	return func(mock *Mock) {
-		mock.overrides = append(mock.overrides, staticOverride{
-			Endpoint: "/eth/v1/beacon/genesis",
-			Key:      "genesis_time",
-			Value:    strconv.FormatInt(t0.Unix(), 10),
-		})
+		value := strconv.FormatInt(t0.Unix(), 10)
+		mock.overrides = append(mock.overrides,
+			staticOverride{
+				Endpoint: "/eth/v1/beacon/genesis",
+				Key:      "genesis_time",
+				Value:    value,
+			},
+			staticOverride{
+				Endpoint: "/eth/v1/config/spec",
+				Key:      "MIN_GENESIS_TIME",
+				Value:    value,
+			})
 	}
 }
 

@@ -12,13 +12,12 @@ import (
 	"sync"
 	"time"
 
-	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/gorilla/mux"
 	"github.com/r3labs/sse/v2"
 
-	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
@@ -51,20 +50,14 @@ type headProducer struct {
 // Start starts the internal slot ticker that updates head.
 func (p *headProducer) Start(httpMock HTTPMock) error {
 	ctx := context.Background()
-	genesis, err := httpMock.Genesis(ctx, &eth2api.GenesisOpts{})
+
+	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, httpMock)
 	if err != nil {
 		return err
 	}
-	genesisTime := genesis.Data.GenesisTime
-
-	eth2Resp, err := httpMock.Spec(ctx, &eth2api.SpecOpts{})
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, httpMock)
 	if err != nil {
 		return err
-	}
-
-	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
-	if !ok {
-		return errors.New("fetch slot duration")
 	}
 
 	startSlotTicker(p.quit, p.updateHead, genesisTime, slotDuration)

@@ -316,14 +316,9 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 
 	duties = resp.Data
 
-	// Get slotsPerEpoch and the starting slot of the epoch.
-	respSpec, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
+	_, slotsPerEpoch, err := FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
-	}
-	slotsPerEpoch, ok := respSpec.Data["SLOTS_PER_EPOCH"].(uint64)
-	if !ok {
-		return nil, errors.New("fetch slots per epoch")
 	}
 
 	epochSlot := eth2p0.Slot(epoch) * eth2p0.Slot(slotsPerEpoch)
@@ -376,14 +371,9 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 
 // SyntheticVIdx returns the validator index and true if the slot is a synthetic proposer duty.
 func (c *synthProposerCache) SyntheticVIdx(ctx context.Context, eth2Cl synthProposerEth2Provider, slot eth2p0.Slot) (eth2p0.ValidatorIndex, bool, error) {
-	// Get the epoch.
-	respSpec, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
+	_, slotsPerEpoch, err := FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return 0, false, err
-	}
-	slotsPerEpoch, ok := respSpec.Data["SLOTS_PER_EPOCH"].(uint64)
-	if !ok {
-		return 0, false, errors.New("fetch slots per epoch")
 	}
 
 	epoch := eth2p0.Epoch(slot) / eth2p0.Epoch(slotsPerEpoch)

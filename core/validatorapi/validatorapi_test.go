@@ -1610,7 +1610,7 @@ func TestComponent_Duties(t *testing.T) {
 }
 
 func TestComponent_SubmitValidatorRegistration(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	shareIdx := 1
 	// Create keys (just use normal keys, not split tbls)
 	secret, err := tbls.GenerateSecretKey()

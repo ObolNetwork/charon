@@ -567,20 +567,13 @@ func reportAttInclusion(ctx context.Context, sub submission, block block) {
 
 // NewInclusion returns a new InclusionChecker.
 func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client, trackerInclFunc trackerInclFunc) (*InclusionChecker, error) {
-	genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
+	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
 	}
-	genesisTime := genesis.Data.GenesisTime
-
-	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
-		return nil, err
-	}
-
-	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
-	if !ok {
-		return nil, errors.New("fetch slot duration")
+		return nil, errors.Wrap(err, "fetch slots config")
 	}
 
 	inclCore := &inclusionCore{
@@ -630,15 +623,9 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	eth2spec, err := a.eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
+	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, a.eth2Cl)
 	if err != nil {
 		log.Warn(ctx, "Failed to fetch eth2 spec and start inclusion checker", err)
-		return
-	}
-
-	slotsPerEpoch, ok := eth2spec.Data["SLOTS_PER_EPOCH"].(uint64)
-	if !ok {
-		log.Warn(ctx, "Failed to fetch SLOTS_PER_EPOCH from eth2spec and start inclusion checker", err)
 		return
 	}
 
@@ -654,7 +641,7 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 			if checkedSlot == slot {
 				continue
 			}
-			epoch := slot / slotsPerEpoch
+			epoch := eth2p0.Epoch(slot) / eth2p0.Epoch(slotsPerEpoch)
 			indices := []eth2p0.ValidatorIndex{}
 			a.core.mu.Lock()
 			subs := maps.Clone(a.core.submissions)
@@ -676,12 +663,12 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 			} else {
 				// TODO: This can be optimised by not calling attester duties on every slot, in the case of small clusters, where there are <32 validators per cluster.
 				opts := &eth2api.AttesterDutiesOpts{
-					Epoch:   eth2p0.Epoch(epoch),
+					Epoch:   epoch,
 					Indices: indices,
 				}
 				resp, err := a.eth2Cl.AttesterDuties(ctx, opts)
 				if err != nil {
-					log.Warn(ctx, "Failed to fetch attester duties for epoch", err, z.U64("epoch", epoch), z.Any("indices", indices))
+					log.Warn(ctx, "Failed to fetch attester duties for epoch", err, z.U64("epoch", uint64(epoch)), z.Any("indices", indices))
 					attesterDuties = []*eth2v1.AttesterDuty{}
 				} else {
 					attesterDuties = resp.Data

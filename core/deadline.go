@@ -7,10 +7,8 @@ import (
 	"testing"
 	"time"
 
-	eth2api "github.com/attestantio/go-eth2-client/api"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
@@ -199,20 +197,13 @@ func getCurrDuty(duties map[Duty]bool, deadlineFunc DeadlineFunc) (Duty, time.Ti
 
 // NewDutyDeadlineFunc returns the function that provides duty deadlines or false if the duty never deadlines.
 func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineFunc, error) {
-	genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
+	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
 	}
-	genesisTime := genesis.Data.GenesisTime
-
-	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
-	}
-
-	duration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
-	if !ok {
-		return nil, errors.New("fetch slot duration")
 	}
 
 	return func(duty Duty) (time.Time, bool) {
@@ -221,8 +212,8 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineF
 			return time.Time{}, false
 		}
 
-		start := genesisTime.Add(duration * time.Duration(duty.Slot))
-		delta := duration * time.Duration(lateFactor)
+		start := genesisTime.Add(slotDuration * time.Duration(duty.Slot))
+		delta := slotDuration * time.Duration(lateFactor)
 		if delta < lateMin {
 			delta = lateMin
 		}
