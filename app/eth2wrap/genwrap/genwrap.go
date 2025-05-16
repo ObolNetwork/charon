@@ -70,7 +70,7 @@ type Client interface {
 	func (m multi) {{.Name}}({{.Params}}) ({{.ResultTypes}}) {
 		const label = "{{.Label}}"
 		{{if .Latency}}defer latency(ctx, label, {{.Log}})() {{end}}
-
+		defer incRequest(label)
 
 		{{.ResultNames}} := {{.DoFunc}}(ctx, m.clients, m.fallbacks,
 			func(ctx context.Context, args provideArgs) ({{.ResultTypes}}){

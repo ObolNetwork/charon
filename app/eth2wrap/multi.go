@@ -90,6 +90,8 @@ func (m multi) ActiveValidators(ctx context.Context) (ActiveValidators, error) {
 	const label = "active_validators"
 	// No latency since this is a cached endpoint.
 
+	defer incRequest(label)
+
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (ActiveValidators, error) {
 			return args.client.ActiveValidators(ctx)
@@ -108,6 +110,8 @@ func (m multi) CompleteValidators(ctx context.Context) (CompleteValidators, erro
 	const label = "complete_validators"
 	// No latency since this is a cached endpoint.
 
+	defer incRequest(label)
+
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (CompleteValidators, error) {
 			return args.client.CompleteValidators(ctx)
@@ -125,6 +129,7 @@ func (m multi) CompleteValidators(ctx context.Context) (CompleteValidators, erro
 func (m multi) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
 	const label = "proposer_config"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*eth2exp.ProposerConfigResponse, error) {
@@ -143,6 +148,7 @@ func (m multi) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigRespo
 func (m multi) AggregateBeaconCommitteeSelections(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
 	const label = "aggregate_beacon_committee_selections"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) ([]*eth2exp.BeaconCommitteeSelection, error) {
@@ -161,6 +167,7 @@ func (m multi) AggregateBeaconCommitteeSelections(ctx context.Context, selection
 func (m multi) AggregateSyncCommitteeSelections(ctx context.Context, selections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
 	const label = "aggregate_sync_committee_selections"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	res, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) ([]*eth2exp.SyncCommitteeSelection, error) {
@@ -181,6 +188,7 @@ func (m multi) AggregateSyncCommitteeSelections(ctx context.Context, selections 
 func (m multi) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
 	const label = "block_attestations"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	res, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) ([]*eth2p0.Attestation, error) {
@@ -199,6 +207,7 @@ func (m multi) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0
 func (m multi) BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error) {
 	const label = "block_attestations_v2"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	res, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) ([]*spec.VersionedAttestation, error) {
@@ -217,6 +226,7 @@ func (m multi) BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec
 func (m multi) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error) {
 	const label = "beacon_state_committees"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	res, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) ([]*statecomm.StateCommittee, error) {
@@ -235,6 +245,7 @@ func (m multi) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*state
 func (m multi) NodePeerCount(ctx context.Context) (int, error) {
 	const label = "node_peer_count"
 	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	res, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (int, error) {
