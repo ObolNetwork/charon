@@ -16,12 +16,11 @@ import (
 
 //go:generate mockery --name=Deadliner --output=mocks --outpkg=mocks --case=underscore
 
-// lateFactor defines the number of slots duties may be late.
-// See https://pintail.xyz/posts/modelling-the-impact-of-altair/#proposer-and-delay-rewards.
-const lateFactor = 5
-
-// lateMin defines the minimum absolute value of the lateFactor.
-const lateMin = time.Second * 30
+const (
+	// marginFactor defines the fraction of the slot duration to use as a margin.
+	// This is to consider network delays and other factors that may affect the timing.
+	marginFactor = 24
+)
 
 // DeadlineFunc is a function that returns the deadline for a duty.
 type DeadlineFunc func(Duty) (time.Time, bool)
@@ -207,18 +206,29 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineF
 	}
 
 	return func(duty Duty) (time.Time, bool) {
-		if duty.Type == DutyExit || duty.Type == DutyBuilderRegistration {
+		switch duty.Type {
+		case DutyExit, DutyBuilderRegistration:
 			// Do not timeout exit or registration duties.
 			return time.Time{}, false
 		}
 
-		start := genesisTime.Add(slotDuration * time.Duration(duty.Slot))
-		delta := slotDuration * time.Duration(lateFactor)
-		if delta < lateMin {
-			delta = lateMin
-		}
-		end := start.Add(delta)
+		var (
+			start    = genesisTime.Add(slotDuration * time.Duration(duty.Slot))
+			margin   = slotDuration / marginFactor
+			duration time.Duration
+		)
 
-		return end, true
+		switch duty.Type {
+		case DutyProposer:
+			duration = slotDuration / 3
+		case DutyAttester, DutyAggregator, DutyPrepareAggregator:
+			duration = 2 * slotDuration
+		case DutySyncMessage, DutySyncContribution:
+			duration = 2 * slotDuration / 3
+		default:
+			duration = slotDuration
+		}
+
+		return start.Add(duration + margin), true
 	}, nil
 }
