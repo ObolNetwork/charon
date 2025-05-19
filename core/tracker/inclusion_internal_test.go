@@ -294,13 +294,8 @@ func TestInclusion(t *testing.T) {
 	incl.CheckBlock(context.Background(), block)
 
 	// Assert that the 1st and 2nd duty was included
-	duties := []core.Duty{att1Duty, agg2Duty}
+	duties := []core.Duty{att1Duty, agg2Duty, att3Duty}
 	require.ElementsMatch(t, included, duties)
-
-	// Trim the duties
-	incl.Trim(context.Background(), att3Duty.Slot)
-	// Assert that the 3rd duty was missed
-	require.Equal(t, []core.Duty{att3Duty}, missed)
 }
 
 func addRandomBits(list bitfield.Bitlist) {

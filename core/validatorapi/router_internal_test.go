@@ -1463,13 +1463,13 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 		versionedSignedAggregateAndProof *eth2spec.VersionedSignedAggregateAndProof
 	}{
 		{
-			version: eth2spec.DataVersionDeneb,
+			version: eth2spec.DataVersionElectra,
 			versionedSignedAggregateAndProof: &eth2spec.VersionedSignedAggregateAndProof{
-				Version: eth2spec.DataVersionDeneb,
-				Deneb: &eth2p0.SignedAggregateAndProof{
-					Message: &eth2p0.AggregateAndProof{
+				Version: eth2spec.DataVersionElectra,
+				Electra: &electra.SignedAggregateAndProof{
+					Message: &electra.AggregateAndProof{
 						AggregatorIndex: vIdx,
-						Aggregate:       testutil.RandomPhase0Attestation(),
+						Aggregate:       testutil.RandomElectraAttestation(),
 						SelectionProof:  testutil.RandomEth2Signature(),
 					},
 					Signature: testutil.RandomEth2Signature(),
@@ -1534,13 +1534,14 @@ func TestSubmitAttestations(t *testing.T) {
 		version              eth2spec.DataVersion
 		versionedAttestation *eth2spec.VersionedAttestation
 	}{
-		{
-			version: eth2spec.DataVersionDeneb,
-			versionedAttestation: &eth2spec.VersionedAttestation{
-				Version: eth2spec.DataVersionDeneb,
-				Deneb:   testutil.RandomPhase0Attestation(),
-			},
-		},
+		// TODO(kalo): uncomment once we bring back pre-electra support.
+		// {
+		// 	version: eth2spec.DataVersionDeneb,
+		// 	versionedAttestation: &eth2spec.VersionedAttestation{
+		// 		Version: eth2spec.DataVersionDeneb,
+		// 		Deneb:   testutil.RandomPhase0Attestation(),
+		// 	},
+		// },
 		{
 			version: eth2spec.DataVersionElectra,
 			versionedAttestation: &eth2spec.VersionedAttestation{

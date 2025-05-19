@@ -9,6 +9,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prysmaticlabs/go-bitfield"
 
@@ -333,13 +334,17 @@ func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot
 			}
 			aggBits := bitfield.NewBitlist(duty.CommitteeLength)
 			aggBits.SetBitAt(duty.ValidatorCommitteeIndex, true)
+			commBits := bitfield.NewBitvector64()
+			commBits.SetBitAt(uint64(duty.CommitteeIndex), true)
 
 			atts = append(atts, &eth2spec.VersionedAttestation{
-				Version: eth2spec.DataVersionDeneb,
-				Deneb: &eth2p0.Attestation{
+				Version:        eth2spec.DataVersionElectra,
+				ValidatorIndex: &duty.ValidatorIndex,
+				Electra: &electra.Attestation{
 					AggregationBits: aggBits,
 					Data:            data,
 					Signature:       sig,
+					CommitteeBits:   commBits,
 				},
 			})
 		}
@@ -393,10 +398,10 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 		}
 
 		proof := eth2spec.VersionedAggregateAndProof{
-			Version: eth2spec.DataVersionDeneb,
-			Deneb: &eth2p0.AggregateAndProof{
+			Version: eth2spec.DataVersionElectra,
+			Electra: &electra.AggregateAndProof{
 				AggregatorIndex: selection.ValidatorIndex,
-				Aggregate:       att.Deneb,
+				Aggregate:       att.Electra,
 				SelectionProof:  selection.SelectionProof,
 			},
 		}
@@ -422,9 +427,9 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 		}
 
 		aggs = append(aggs, &eth2spec.VersionedSignedAggregateAndProof{
-			Version: eth2spec.DataVersionDeneb,
-			Deneb: &eth2p0.SignedAggregateAndProof{
-				Message:   proof.Deneb,
+			Version: eth2spec.DataVersionElectra,
+			Electra: &electra.SignedAggregateAndProof{
+				Message:   proof.Electra,
 				Signature: proofSig,
 			},
 		})

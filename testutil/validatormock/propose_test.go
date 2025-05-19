@@ -109,7 +109,7 @@ func TestAttest(t *testing.T) {
 			})
 
 			sort.Slice(aggs.SignedAggregateAndProofs, func(i, j int) bool {
-				return aggs.SignedAggregateAndProofs[i].Deneb.Message.Aggregate.Data.Index < aggs.SignedAggregateAndProofs[j].Deneb.Message.Aggregate.Data.Index
+				return aggs.SignedAggregateAndProofs[i].Electra.Message.Aggregate.Data.Index < aggs.SignedAggregateAndProofs[j].Electra.Message.Aggregate.Data.Index
 			})
 
 			t.Run("attestations", func(t *testing.T) {

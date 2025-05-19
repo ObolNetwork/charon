@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/prysmaticlabs/go-bitfield"
@@ -320,9 +322,7 @@ func WithDeterministicAttesterDuties(factor int) Option {
 				return nil, err
 			}
 
-			sort.Slice(indices, func(i, j int) bool {
-				return indices[i] < indices[j]
-			})
+			slices.Sort(indices)
 
 			var resp []*eth2v1.AttesterDuty
 			for i, index := range indices {
@@ -557,12 +557,17 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			if err != nil {
 				return nil, err
 			}
+			valIdx := eth2p0.ValidatorIndex(0)
+			commBits := bitfield.NewBitvector64()
+			commBits.SetBitAt(0, true)
 
 			return &eth2spec.VersionedAttestation{
-				Version: eth2spec.DataVersionDeneb,
-				Deneb: &eth2p0.Attestation{
+				Version:        eth2spec.DataVersionElectra,
+				ValidatorIndex: &valIdx,
+				Electra: &electra.Attestation{
 					AggregationBits: bitfield.NewBitlist(0),
 					Data:            attData,
+					CommitteeBits:   commBits,
 				},
 			}, nil
 		},

@@ -312,6 +312,11 @@ func checkAggregationInclusion(sub submission, block block) (bool, error) {
 
 // checkAttestationInclusion checks whether the attestation is included in the block.
 func checkAttestationInclusion(sub submission, block block) (bool, error) {
+	subData, ok := sub.Data.(core.VersionedAttestation)
+	if !ok {
+		return false, errors.New("not an attestation block data")
+	}
+
 	att, ok := block.AttestationsByDataRoot[sub.AttDataRoot]
 	if !ok {
 		return false, nil
@@ -392,9 +397,8 @@ func reportMissed(ctx context.Context, sub submission) {
 
 // reportAttInclusion reports attestations that were included in a block.
 func reportAttInclusion(ctx context.Context, sub submission, block block) {
-	att := block.AttestationsByDataRoot[sub.AttDataRoot]
-	attAggregationBits, err := att.AggregationBits()
-	if err != nil {
+	att, ok := block.AttestationsByDataRoot[sub.AttDataRoot]
+	if !ok {
 		return
 	}
 	attData, err := att.Data()
@@ -539,7 +543,7 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 	}
 }
 
-func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64) error {
+func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64, attDuties []*eth2v1.AttesterDuty) error {
 	atts, err := a.eth2Cl.BlockAttestations(ctx, strconv.FormatUint(slot, 10))
 	if err != nil {
 		return err
@@ -614,7 +618,7 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64) error {
 		attsMap[root] = unwrapedAtt
 	}
 
-	a.checkBlockFunc(ctx, block{Slot: slot, AttestationsByDataRoot: attsMap, BeaconCommitees: committeesForState})
+	a.checkBlockFunc(ctx, block{Slot: slot, AttDuties: attDuties, AttestationsByDataRoot: attsMap, BeaconCommitees: committeesForState})
 
 	return nil
 }

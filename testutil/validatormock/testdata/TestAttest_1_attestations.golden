@@ -1,12 +1,13 @@
 [
  {
-  "Version": "deneb",
-  "ValidatorIndex": null,
+  "Version": "electra",
+  "ValidatorIndex": "1",
   "Phase0": null,
   "Altair": null,
   "Bellatrix": null,
   "Capella": null,
-  "Deneb": {
+  "Deneb": null,
+  "Electra": {
    "aggregation_bits": "0x03",
    "data": {
     "slot": "16",
@@ -21,8 +22,8 @@
      "root": "0x0100000000000000000000000000000000000000000000000000000000000000"
     }
    },
-   "signature": "0x914cff835a769156ba43ad50b931083c2dadd94e8359ce394bc7a3e06424d0214922ddf15f81640530b9c25c0bc0d490000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-  },
-  "Electra": null
+   "signature": "0x914cff835a769156ba43ad50b931083c2dadd94e8359ce394bc7a3e06424d0214922ddf15f81640530b9c25c0bc0d490000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "committee_bits": "0x0200000000000000"
+  }
  }
 ]

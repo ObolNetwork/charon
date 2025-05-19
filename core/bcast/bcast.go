@@ -332,29 +332,3 @@ func firstSlotInCurrentEpoch(ctx context.Context, eth2Cl eth2wrap.Client) (uint6
 
 	return currentEpoch * slotsPerEpoch, nil
 }
-
-// resolveActiveValidatorsIndices returns the active validators (including their validator index) for the slot.
-func resolveActiveValidatorsIndices(ctx context.Context, eth2Cl eth2wrap.Client, epoch eth2p0.Epoch) ([]eth2p0.ValidatorIndex, error) {
-	eth2Resp, err := eth2Cl.CompleteValidators(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	var indices []eth2p0.ValidatorIndex
-
-	for index, val := range eth2Resp {
-		if val == nil || val.Validator == nil {
-			return nil, errors.New("validator data cannot be nil")
-		}
-
-		// Check for active validators for the given epoch.
-		// The activation epoch needs to be checked in cases where this function is called before the epoch starts.
-		if !val.Status.IsActive() && val.Validator.ActivationEpoch != epoch {
-			continue
-		}
-
-		indices = append(indices, index)
-	}
-
-	return indices, nil
-}
