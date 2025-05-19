@@ -224,8 +224,10 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineF
 			duration = slotDuration / 3
 		case DutyAttester, DutyAggregator, DutyPrepareAggregator:
 			duration = 2 * slotDuration
-		case DutySyncMessage, DutySyncContribution:
+		case DutySyncMessage:
 			duration = 2 * slotDuration / 3
+		case DutyRandao:
+			duration = 2 * slotDuration
 		default:
 			duration = slotDuration
 		}
