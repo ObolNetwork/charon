@@ -307,8 +307,8 @@ func (m Mock) NodePeerCount(ctx context.Context) (int, error) {
 	return m.NodePeerCountFunc(ctx)
 }
 
-func (m Mock) SubmitAttestations(ctx context.Context, attestations *eth2api.SubmitAttestationsOpts) error {
-	return m.SubmitAttestationsFunc(ctx, attestations)
+func (m Mock) SubmitAttestations(ctx context.Context, opts *eth2api.SubmitAttestationsOpts) error {
+	return m.SubmitAttestationsFunc(ctx, opts)
 }
 
 func (m Mock) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error {
@@ -335,8 +335,8 @@ func (m Mock) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscripti
 	return m.SubmitBeaconCommitteeSubscriptionsFunc(ctx, subscriptions)
 }
 
-func (m Mock) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
-	return m.SubmitAggregateAttestationsFunc(ctx, aggregateAndProofs)
+func (m Mock) SubmitAggregateAttestations(ctx context.Context, opts *eth2api.SubmitAggregateAttestationsOpts) error {
+	return m.SubmitAggregateAttestationsFunc(ctx, opts)
 }
 
 func (m Mock) SubmitSyncCommitteeMessages(ctx context.Context, messages []*altair.SyncCommitteeMessage) error {

@@ -1963,7 +1963,7 @@ type testHandler struct {
 	SubmitVoluntaryExitFunc                func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error
 	SubmitValidatorRegistrationsFunc       func(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error
 	AggregateBeaconCommitteeSelectionsFunc func(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error)
-	SubmitAggregateAttestationsFunc        func(ctx context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error
+	SubmitAggregateAttestationsFunc        func(ctx context.Context, opts *eth2api.SubmitAggregateAttestationsOpts) error
 	SubmitSyncCommitteeMessagesFunc        func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error
 	SyncCommitteeDutiesFunc                func(ctx context.Context, opts *eth2api.SyncCommitteeDutiesOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeDuty], error)
 	SyncCommitteeContributionFunc          func(ctx context.Context, opts *eth2api.SyncCommitteeContributionOpts) (*eth2api.Response[*altair.SyncCommitteeContribution], error)
@@ -2029,8 +2029,8 @@ func (h testHandler) AggregateBeaconCommitteeSelections(ctx context.Context, sel
 	return h.AggregateBeaconCommitteeSelectionsFunc(ctx, selections)
 }
 
-func (h testHandler) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
-	return h.SubmitAggregateAttestationsFunc(ctx, aggregateAndProofs)
+func (h testHandler) SubmitAggregateAttestations(ctx context.Context, opts *eth2api.SubmitAggregateAttestationsOpts) error {
+	return h.SubmitAggregateAttestationsFunc(ctx, opts)
 }
 
 func (h testHandler) SubmitSyncCommitteeMessages(ctx context.Context, messages []*altair.SyncCommitteeMessage) error {

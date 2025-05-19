@@ -788,8 +788,8 @@ func (c Component) AggregateAttestation(ctx context.Context, opts *eth2api.Aggre
 // SubmitAggregateAttestations receives partially signed aggregateAndProofs.
 // - It verifies partial signature on AggregateAndProof.
 // - It then calls all the subscribers for further steps on partially signed aggregate and proof.
-func (c Component) SubmitAggregateAttestations(ctx context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
-	aggsAndProofs := aggregateAndProofs.SignedAggregateAndProofs
+func (c Component) SubmitAggregateAttestations(ctx context.Context, opts *eth2api.SubmitAggregateAttestationsOpts) error {
+	aggsAndProofs := opts.SignedAggregateAndProofs
 	vals, err := c.eth2Cl.ActiveValidators(ctx)
 	if err != nil {
 		return err

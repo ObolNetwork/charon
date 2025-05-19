@@ -4,6 +4,7 @@ package dutydb
 
 import (
 	"context"
+	"encoding/hex"
 	"sync"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -375,18 +376,36 @@ func (db *MemDB) storeAggAttestationUnsafe(unsignedData core.UnsignedData) error
 		Root: aggRoot,
 	}
 	if existing, ok := db.aggDuties[key]; ok {
-		existingRoot, err := existing.HashTreeRoot()
+		existingData, err := existing.Data()
 		if err != nil {
-			return errors.Wrap(err, "attestation root")
+			return errors.Wrap(err, "existing data")
+		}
+		existingDataRoot, err := existingData.HashTreeRoot()
+		if err != nil {
+			return errors.Wrap(err, "existing data root")
 		}
 
-		providedRoot, err := aggAtt.HashTreeRoot()
+		provided := aggAtt
+		providedData, err := provided.Data()
 		if err != nil {
-			return errors.Wrap(err, "attestation root")
+			return errors.Wrap(err, "provided data")
+		}
+		providedDataRoot, err := providedData.HashTreeRoot()
+		if err != nil {
+			return errors.Wrap(err, "provided data root")
 		}
 
-		if existingRoot != providedRoot {
-			return errors.New("clashing aggregated attestation")
+		if existingDataRoot != providedDataRoot {
+			return errors.New("clashing data root", z.Str("existing", hex.EncodeToString(existingDataRoot[:])), z.Str("provided", hex.EncodeToString(providedDataRoot[:])))
+		}
+
+		switch existing.Version {
+		case eth2spec.DataVersionPhase0, eth2spec.DataVersionAltair, eth2spec.DataVersionBellatrix, eth2spec.DataVersionCapella, eth2spec.DataVersionDeneb:
+			return errors.New("incorrect version for storing aggregation attestation v2")
+		case eth2spec.DataVersionElectra:
+			db.aggDuties[key] = provided
+		default:
+			return errors.New("unknown version")
 		}
 	} else {
 		db.aggDuties[key] = aggAtt
