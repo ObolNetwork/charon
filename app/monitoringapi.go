@@ -243,6 +243,8 @@ func beaconNodeVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, clock 
 
 		beaconNodeVersionGauge.Reset()
 		beaconNodeVersionGauge.WithLabelValues(version).Set(1)
+
+		eth2wrap.CheckBeaconNodeVersion(ctx, version)
 	}
 
 	go func() {
