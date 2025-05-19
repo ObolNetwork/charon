@@ -417,7 +417,12 @@ func TestBlockAttestations(t *testing.T) {
 
 			statusCode = http.StatusNotFound
 			resp, err = cl.BlockAttestations(context.Background(), "head")
-			require.ErrorContains(t, err, eth2wrap.ErrEndpointNotFound.Error())
+			require.NoError(t, err)
+			require.Empty(t, resp)
+
+			statusCode = http.StatusBadRequest
+			resp, err = cl.BlockAttestations(context.Background(), "head")
+			require.Error(t, err)
 			require.Empty(t, resp)
 		})
 	}

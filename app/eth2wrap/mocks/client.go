@@ -20,6 +20,8 @@ import (
 
 	spec "github.com/attestantio/go-eth2-client/spec"
 
+	statecomm "github.com/obolnetwork/charon/eth2util/statecomm"
+
 	time "time"
 
 	v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -251,6 +253,36 @@ func (_m *Client) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRoot
 
 	if rf, ok := ret.Get(1).(func(context.Context, *api.BeaconBlockRootOpts) error); ok {
 		r1 = rf(ctx, opts)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// BeaconStateCommittees provides a mock function with given fields: ctx, slot
+func (_m *Client) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error) {
+	ret := _m.Called(ctx, slot)
+
+	if len(ret) == 0 {
+		panic("no return value specified for BeaconStateCommittees")
+	}
+
+	var r0 []*statecomm.StateCommittee
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uint64) ([]*statecomm.StateCommittee, error)); ok {
+		return rf(ctx, slot)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uint64) []*statecomm.StateCommittee); ok {
+		r0 = rf(ctx, slot)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*statecomm.StateCommittee)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uint64) error); ok {
+		r1 = rf(ctx, slot)
 	} else {
 		r1 = ret.Error(1)
 	}
