@@ -40,7 +40,7 @@ var versionExtractRegex = regexp.MustCompile(`^([^/]+)/v?([0-9]+\.[0-9]+\.[0-9]+
 
 // CheckBeaconNodeVersionStatus checks the version of the beacon node client against the minimum required version.
 // It returns the status of the version check as an enum, the current version, and the minimum required version.
-func checkBeaconNodeVersionStatus(bnVersion string) (BeaconNodeVersionStatus, string, string) {
+func checkBeaconNodeVersionStatus(bnVersion string) (beaconNodeVersionStatus BeaconNodeVersionStatus, clVer string, minVer string) {
 	matches := versionExtractRegex.FindStringSubmatch(bnVersion)
 	if len(matches) != 3 {
 		return VersionFormatError, "", ""
@@ -67,7 +67,7 @@ func checkBeaconNodeVersionStatus(bnVersion string) (BeaconNodeVersionStatus, st
 // CheckBeaconNodeVersion checks the version of the beacon node client and logs a warning if the version is below the minimum
 // or if the client is not recognized.
 func CheckBeaconNodeVersion(ctx context.Context, bnVersion string) {
-	status, current, min := checkBeaconNodeVersionStatus(bnVersion)
+	status, currentVersion, minVersion := checkBeaconNodeVersionStatus(bnVersion)
 
 	switch status {
 	case VersionFormatError:
@@ -78,6 +78,8 @@ func CheckBeaconNodeVersion(ctx context.Context, bnVersion string) {
 			nil, z.Str("client", bnVersion))
 	case VersionTooOld:
 		log.Warn(ctx, "Beacon node client version is below the minimum supported version. Please upgrade your beacon node.",
-			nil, z.Str("client_version", current), z.Str("minimum_required", min))
+			nil, z.Str("client_version", currentVersion), z.Str("minimum_required", minVersion))
+	case VersionOK:
+		// Do nothing
 	}
 }
