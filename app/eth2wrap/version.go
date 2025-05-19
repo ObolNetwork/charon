@@ -15,7 +15,7 @@ var (
 	minLighthouseVersion, _ = version.Parse("v7.0.0")
 	minTekuVersion, _       = version.Parse("v25.4.1")
 	minLodestarVersion, _   = version.Parse("v1.29.0")
-	minNimbusVersion, _     = version.Parse("v25.4.1")
+	minNimbusVersion, _     = version.Parse("v25.4.0")
 	minPrysmVersion, _      = version.Parse("v6.0.0")
 	minGrandineVersion, _   = version.Parse("v1.1.0")
 
@@ -27,6 +27,8 @@ var (
 		"Prysm":      minPrysmVersion,
 		"Grandine":   minGrandineVersion,
 	}
+
+	incompatibleBeaconNodeVersion = map[string][]version.SemVer{}
 )
 
 type BeaconNodeVersionStatus int
@@ -36,11 +38,12 @@ const (
 	VersionFormatError
 	VersionUnknownClient
 	VersionTooOld
+	VersionIncompatible
 )
 
 var versionExtractRegex = regexp.MustCompile(`^([^/]+)/v?([0-9]+\.[0-9]+\.[0-9]+)`)
 
-// CheckBeaconNodeVersionStatus checks the version of the beacon node client against the minimum required version.
+// CheckBeaconNodeVersionStatus checks the version of the beacon node client against the minimum required version and possible incompatible versions.
 // It returns the status of the version check as an enum, the current version, and the minimum required version.
 func checkBeaconNodeVersionStatus(bnVersion string) (beaconNodeVersionStatus BeaconNodeVersionStatus, clVer string, minVer string) {
 	matches := versionExtractRegex.FindStringSubmatch(bnVersion)
@@ -63,11 +66,17 @@ func checkBeaconNodeVersionStatus(bnVersion string) (beaconNodeVersionStatus Bea
 		return VersionTooOld, clientVersion.String(), minVersion.String()
 	}
 
+	for _, badVer := range incompatibleBeaconNodeVersion[client] {
+		if version.Compare(clientVersion, badVer) == 0 {
+			return VersionIncompatible, clientVersion.String(), ""
+		}
+	}
+
 	return VersionOK, clientVersion.String(), minVersion.String()
 }
 
-// CheckBeaconNodeVersion checks the version of the beacon node client and logs a warning if the version is below the minimum
-// or if the client is not recognized.
+// CheckBeaconNodeVersion checks the version of the beacon node client and logs a warning if the version is below the minimum,
+// if its an incompatible version or if the client is not recognized.
 func CheckBeaconNodeVersion(ctx context.Context, bnVersion string) {
 	status, currentVersion, minVersion := checkBeaconNodeVersionStatus(bnVersion)
 
@@ -81,6 +90,9 @@ func CheckBeaconNodeVersion(ctx context.Context, bnVersion string) {
 	case VersionTooOld:
 		log.Warn(ctx, "Beacon node client version is below the minimum supported version. Please upgrade your beacon node.",
 			nil, z.Str("client_version", currentVersion), z.Str("minimum_required", minVersion))
+	case VersionIncompatible:
+		log.Warn(ctx, "Beacon node client version is known to be incompatible. Please upgrade or downgrade your beacon node.",
+			nil, z.Str("client_version", currentVersion))
 	case VersionOK:
 		// Do nothing
 	}

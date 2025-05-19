@@ -20,6 +20,7 @@ func TestCheckBeaconNodeVersionStatus(t *testing.T) {
 		{"teku/vUNKNOWN+g40561a9/linux-x86_64/-eclipseadoptium-openjdk64bitservervm-java-21", VersionFormatError},
 
 		// Lighthouse
+		{"Lighthouse/v7.0.3/x86_64-linux", VersionIncompatible},
 		{"Lighthouse/v7.0.1-e42406d/x86_64-linux", VersionOK},
 		{"Lighthouse/v7.0.0-54f7bc5/aarch64-linux", VersionOK},
 
@@ -64,6 +65,12 @@ func TestCheckBeaconNodeVersionStatus(t *testing.T) {
 		"Nimbus":     minNimbusVersion,
 		"Prysm":      minPrysmVersion,
 		"Grandine":   minGrandineVersion,
+	}
+
+	incompatibleLighthouseVersion, _ := version.Parse("v7.0.3")
+
+	incompatibleBeaconNodeVersion = map[string][]version.SemVer{
+		"Lighthouse": {incompatibleLighthouseVersion},
 	}
 
 	for _, tc := range cases {
