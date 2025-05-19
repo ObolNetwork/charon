@@ -17,6 +17,7 @@ var (
 	minLodestarVersion, _   = version.Parse("v1.29.0")
 	minNimbusVersion, _     = version.Parse("v25.4.1")
 	minPrysmVersion, _      = version.Parse("v6.0.0")
+	minGrandineVersion, _   = version.Parse("v1.1.0")
 
 	minimumBeaconNodeVersion = map[string]version.SemVer{
 		"Lighthouse": minLighthouseVersion,
@@ -24,6 +25,7 @@ var (
 		"Lodestar":   minLodestarVersion,
 		"Nimbus":     minNimbusVersion,
 		"Prysm":      minPrysmVersion,
+		"Grandine":   minGrandineVersion,
 	}
 )
 

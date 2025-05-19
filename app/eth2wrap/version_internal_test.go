@@ -37,6 +37,9 @@ func TestCheckBeaconNodeVersionStatus(t *testing.T) {
 		{"Prysm/v6.0.2 (linux amd64)", VersionOK},
 		{"Prysm/v6.0.0 (linux amd64)", VersionOK},
 
+		// Grandine
+		{"Grandine/1.1.0-29cb5c1/x86_64-linux2025-05-19", VersionOK},
+
 		// Additional error cases
 		{"", VersionFormatError},
 		{"justastring", VersionFormatError},
@@ -52,6 +55,7 @@ func TestCheckBeaconNodeVersionStatus(t *testing.T) {
 	minLodestarVersion, _ = version.Parse("v1.29.0")
 	minNimbusVersion, _ = version.Parse("v25.4.1")
 	minPrysmVersion, _ = version.Parse("v6.0.0")
+	minGrandineVersion, _ = version.Parse("v1.1.0")
 
 	minimumBeaconNodeVersion = map[string]version.SemVer{
 		"Lighthouse": minLighthouseVersion,
@@ -59,6 +63,7 @@ func TestCheckBeaconNodeVersionStatus(t *testing.T) {
 		"Lodestar":   minLodestarVersion,
 		"Nimbus":     minNimbusVersion,
 		"Prysm":      minPrysmVersion,
+		"Grandine":   minGrandineVersion,
 	}
 
 	for _, tc := range cases {
