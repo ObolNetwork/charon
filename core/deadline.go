@@ -221,12 +221,17 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineF
 
 		switch duty.Type {
 		case DutyProposer:
-			duration = slotDuration / 3
+			duration = 1 / 3 * slotDuration
 		case DutyAttester, DutyAggregator, DutyPrepareAggregator:
+			// Even though attestations and aggregations are acceptable even after 2 slots, the rewards are heavily diminished.
 			duration = 2 * slotDuration
 		case DutySyncMessage:
-			duration = 2 * slotDuration / 3
+			duration = 2 / 3 * slotDuration
+		case DutySyncContribution, DutyPrepareSyncContribution:
+			duration = slotDuration
 		case DutyRandao:
+			// Randao should be accepted as long as it is not after the proposer's slot.
+			// However, given how cheap the operation is, the beacon node failing to provide it for 2 slots signals that there is something wrong with the beacon node itself.
 			duration = 2 * slotDuration
 		default:
 			duration = slotDuration
