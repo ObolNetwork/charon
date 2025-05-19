@@ -27,13 +27,14 @@ The below matrix details a combination of beacon node (consensus layer) + valida
 - 🔴: One or more duties fails consistently
 
 <!-- TODO: Update clients versions, results and remarks -->
-| Validator 👉 Consensus 👇 | Teku v25.3.0 | Lighthouse v7.0.0 | Lodestar v1.28.1 | Nimbus v25.3.1 | Prysm v5.3.1 | Remarks |
-|---------------------------|--------------|-------------------|------------------|----------------|--------------|---------|
-| Teku v25.3.0              |       ✅     |         ✅        |        ✅        |       ✅       |       ✅     |         |
-| Lighthouse v7.0.0         |       ✅     |         ✅        |        ✅        |       ✅       |       ✅     |         |
-| Lodestar v1.28.1          |       ✅     |         ✅        |        ✅        |       ✅       |       ✅     |         |
-| Nimbus v25.3.1            |       ✅     |         ✅        |        ✅        |       ✅       |       ✅     |         |
-| Prysm v5.3.1              |       ✅     |         ✅        |        ✅        |       ✅       |       ✅     |         |
+| Validator 👉 Consensus 👇 | Teku v25.3.0 | Lighthouse v7.0.0 | Lodestar v1.28.1 | Nimbus v25.3.1 | Prysm v5.3.1 | Vouch v1.10.2 | Remarks |
+|---------------------------|--------------|-------------------|------------------|----------------|--------------|---------------|---------|
+| Teku v25.3.0              |       ✅     |         ✅        |        ✅        |       ✅       |       ✅     |       ✅      |         |
+| Lighthouse v7.0.0         |       ✅     |         ✅        |        ✅        |       ✅       |       ✅     |       ✅      |         |
+| Lodestar v1.28.1          |       ✅     |         ✅        |        ✅        |       ✅       |       ✅     |       ✅      |         |
+| Nimbus v25.3.1            |       ✅     |         ✅        |        ✅        |       ✅       |       ✅     |       ✅      |         |
+| Prysm v5.3.1              |       ✅     |         ✅        |        ✅        |       ✅       |       ✅     |       ✅      |         |
+| Grandine v1.1.0           |       ✅     |         ✅        |        ✅        |       ✅       |       ✅     |       ✅      |         |
 
 ## What's Changed
 {{range .ExtraPRs}}
