@@ -20,10 +20,19 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/expbackoff"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/z"
 )
+
+// Derived from expbackoff.DefaultConfig, but MaxDelay is 12s.
+var backoffConfig = expbackoff.Config{
+	BaseDelay:  250 * time.Millisecond,
+	Multiplier: 1.6,
+	Jitter:     0.1,
+	MaxDelay:   12 * time.Second,
+}
 
 // New returns a new Retryer instance.
 func New[T any](timeoutFunc func(T) (time.Time, bool)) *Retryer[T] {
@@ -37,11 +46,10 @@ func New[T any](timeoutFunc func(T) (time.Time, bool)) *Retryer[T] {
 		return context.WithDeadline(ctx, timeout)
 	}
 
-	// backoffProvider is a naive constant 1s backoff function.
-	backoffProvider := func() func() <-chan time.Time {
-		return func() <-chan time.Time {
-			const backoff = time.Second
-			return time.After(backoff)
+	backoffProvider := func() func(int) <-chan time.Time {
+		return func(iteration int) <-chan time.Time {
+			delay := delayForIteration(iteration)
+			return time.After(delay)
 		}
 	}
 
@@ -52,14 +60,20 @@ func New[T any](timeoutFunc func(T) (time.Time, bool)) *Retryer[T] {
 func NewForT[T any](
 	_ *testing.T,
 	ctxTimeoutFunc func(context.Context, T) (context.Context, context.CancelFunc),
-	backoffProvider func() func() <-chan time.Time,
+	backoffProvider func() func(int) <-chan time.Time,
 ) *Retryer[T] {
 	return newInternal(ctxTimeoutFunc, backoffProvider)
 }
 
+// delayForIteration returns the delay for the given iteration:
+// 250ms, 400ms, 640ms, 1s, 1.6s, 2.56s, 4.096s, 6.5536s, 10.48576s, 12s
+func delayForIteration(iteration int) time.Duration {
+	return expbackoff.Backoff(backoffConfig, iteration)
+}
+
 func newInternal[T any](
 	ctxTimeoutFunc func(context.Context, T) (context.Context, context.CancelFunc),
-	backoffProvider func() func() <-chan time.Time,
+	backoffProvider func() func(int) <-chan time.Time,
 ) *Retryer[T] {
 	// Create a fresh context used as parent of all async contexts
 	ctx, cancel := context.WithCancel(context.Background())
@@ -80,7 +94,7 @@ type Retryer[T any] struct {
 	asyncCtx        context.Context
 	asyncCancel     context.CancelFunc
 	ctxTimeoutFunc  func(context.Context, T) (context.Context, context.CancelFunc)
-	backoffProvider func() func() <-chan time.Time
+	backoffProvider func() func(int) <-chan time.Time
 
 	mu       sync.Mutex
 	shutdown chan struct{}
@@ -139,7 +153,7 @@ func (r *Retryer[T]) DoAsync(parent context.Context, t T, topic, name string, fn
 		if ctx.Err() == nil {
 			log.Warn(ctx, "Temporary failure (will retry) calling "+label, err)
 			select {
-			case <-backoffFunc():
+			case <-backoffFunc(i):
 			case <-ctx.Done():
 			case <-r.shutdown:
 				return

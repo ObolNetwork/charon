@@ -75,8 +75,8 @@ func TestRetryer(t *testing.T) {
 			}
 
 			var backoffCount int
-			backoffProvider := func() func() <-chan time.Time {
-				return func() <-chan time.Time {
+			backoffProvider := func() func(int) <-chan time.Time {
+				return func(int) <-chan time.Time {
 					backoffCount++
 					if backoffCount >= test.TimeoutCount {
 						cancel()

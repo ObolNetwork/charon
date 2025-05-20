@@ -16,12 +16,11 @@ import (
 
 //go:generate mockery --name=Deadliner --output=mocks --outpkg=mocks --case=underscore
 
-// lateFactor defines the number of slots duties may be late.
-// See https://pintail.xyz/posts/modelling-the-impact-of-altair/#proposer-and-delay-rewards.
-const lateFactor = 5
-
-// lateMin defines the minimum absolute value of the lateFactor.
-const lateMin = time.Second * 30
+const (
+	// marginFactor defines the fraction of the slot duration to use as a margin.
+	// This is to consider network delays and other factors that may affect the timing.
+	marginFactor = 24
+)
 
 // DeadlineFunc is a function that returns the deadline for a duty.
 type DeadlineFunc func(Duty) (time.Time, bool)
@@ -68,6 +67,47 @@ func NewDeadlinerForT(ctx context.Context, t *testing.T, deadlineFunc DeadlineFu
 // and sending the deadlined duty to receiver's deadlineChan until the context is closed.
 func NewDeadliner(ctx context.Context, label string, deadlineFunc DeadlineFunc) Deadliner {
 	return newDeadliner(ctx, label, deadlineFunc, clockwork.NewRealClock())
+}
+
+// NewDutyDeadlineFunc returns the function that provides duty deadlines or false if the duty never deadlines.
+func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineFunc, error) {
+	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
+	if err != nil {
+		return nil, err
+	}
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
+	if err != nil {
+		return nil, err
+	}
+
+	return func(duty Duty) (time.Time, bool) {
+		switch duty.Type {
+		case DutyExit, DutyBuilderRegistration:
+			// Do not timeout exit or registration duties.
+			return time.Time{}, false
+		default:
+		}
+
+		var (
+			start    = genesisTime.Add(slotDuration * time.Duration(duty.Slot))
+			margin   = slotDuration / marginFactor
+			duration time.Duration
+		)
+
+		switch duty.Type {
+		case DutyProposer, DutyRandao:
+			duration = slotDuration / 3
+		case DutySyncMessage:
+			duration = 2 * slotDuration / 3
+		case DutyAttester, DutyAggregator, DutyPrepareAggregator:
+			// Even though attestations and aggregations are acceptable even after 2 slots, the rewards are heavily diminished.
+			duration = 2 * slotDuration
+		default:
+			duration = slotDuration
+		}
+
+		return start.Add(duration + margin), true
+	}, nil
 }
 
 // newDeadliner returns a new Deadliner, this is for internal use only.
@@ -193,32 +233,4 @@ func getCurrDuty(duties map[Duty]bool, deadlineFunc DeadlineFunc) (Duty, time.Ti
 	}
 
 	return currDuty, currDeadline
-}
-
-// NewDutyDeadlineFunc returns the function that provides duty deadlines or false if the duty never deadlines.
-func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineFunc, error) {
-	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
-	if err != nil {
-		return nil, err
-	}
-	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
-	if err != nil {
-		return nil, err
-	}
-
-	return func(duty Duty) (time.Time, bool) {
-		if duty.Type == DutyExit || duty.Type == DutyBuilderRegistration {
-			// Do not timeout exit or registration duties.
-			return time.Time{}, false
-		}
-
-		start := genesisTime.Add(slotDuration * time.Duration(duty.Slot))
-		delta := slotDuration * time.Duration(lateFactor)
-		if delta < lateMin {
-			delta = lateMin
-		}
-		end := start.Add(delta)
-
-		return end, true
-	}, nil
 }
