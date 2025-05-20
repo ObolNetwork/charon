@@ -95,13 +95,13 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineF
 		)
 
 		switch duty.Type {
-		case DutyProposer, DutyRandao, DutySyncMessage:
+		case DutyProposer, DutyRandao:
 			duration = slotDuration / 3
+		case DutySyncMessage:
+			duration = 2 * slotDuration / 3
 		case DutyAttester, DutyAggregator, DutyPrepareAggregator:
 			// Even though attestations and aggregations are acceptable even after 2 slots, the rewards are heavily diminished.
 			duration = 2 * slotDuration
-		case DutySyncContribution, DutyPrepareSyncContribution:
-			duration = slotDuration
 		default:
 			duration = slotDuration
 		}

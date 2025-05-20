@@ -30,7 +30,7 @@ import (
 func TestInfoSync(t *testing.T) {
 	skipIfDisabled(t)
 
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(context.Background())
 
 	const n = 3
 	seed := 0
@@ -38,7 +38,7 @@ func TestInfoSync(t *testing.T) {
 	lock, p2pKeys, _ := cluster.NewForT(t, 1, n, n, seed, random)
 
 	asserter := &priorityAsserter{
-		asserter: asserter{Timeout: time.Second * 15},
+		asserter: asserter{Timeout: time.Second * 10},
 		N:        n,
 	}
 

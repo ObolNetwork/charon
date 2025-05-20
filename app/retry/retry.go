@@ -28,9 +28,9 @@ import (
 
 // Derived from expbackoff.DefaultConfig, but MaxDelay is 12s.
 var backoffConfig = expbackoff.Config{
-	BaseDelay:  1.0 * time.Second,
+	BaseDelay:  250 * time.Millisecond,
 	Multiplier: 1.6,
-	Jitter:     0.2,
+	Jitter:     0.1,
 	MaxDelay:   12 * time.Second,
 }
 
@@ -66,17 +66,9 @@ func NewForT[T any](
 }
 
 // delayForIteration returns the delay for the given iteration:
-// 1s, 1s, 1s, 1s, 1.6s, 2.56s, 4.09s, 6.55s, 10.48s, 12s, 12s, 12s, 12s.
+// 250ms, 400ms, 640ms, 1s, 1.6s, 2.56s, 4.096s, 6.5536s, 10.48576s, 12s
 func delayForIteration(iteration int) time.Duration {
-	const linearBackoffIterations = 3
-	var delay time.Duration
-	if iteration < linearBackoffIterations {
-		delay = time.Second
-	} else {
-		delay = expbackoff.Backoff(backoffConfig, iteration-linearBackoffIterations)
-	}
-
-	return delay
+	return expbackoff.Backoff(backoffConfig, iteration)
 }
 
 func newInternal[T any](

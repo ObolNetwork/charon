@@ -4,7 +4,6 @@ package retry
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -14,13 +13,9 @@ import (
 func TestDelayForIteration(t *testing.T) {
 	for i := 0; i < 13; i++ {
 		delay := delayForIteration(i)
-
-		if i < 3 {
-			require.Equal(t, time.Second, delay)
-		} else {
-			backoff := expbackoff.Backoff(backoffConfig, i-3)
-			deltaWithJitter := float64(backoff) * (1 + backoffConfig.Jitter)
-			require.InDelta(t, backoff, delay, deltaWithJitter)
-		}
+		t.Log(delay)
+		backoff := expbackoff.Backoff(backoffConfig, i)
+		deltaWithJitter := float64(backoff) * (1 + backoffConfig.Jitter)
+		require.InDelta(t, backoff, delay, deltaWithJitter)
 	}
 }
