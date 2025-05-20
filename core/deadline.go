@@ -69,6 +69,53 @@ func NewDeadliner(ctx context.Context, label string, deadlineFunc DeadlineFunc) 
 	return newDeadliner(ctx, label, deadlineFunc, clockwork.NewRealClock())
 }
 
+// NewDutyDeadlineFunc returns the function that provides duty deadlines or false if the duty never deadlines.
+func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineFunc, error) {
+	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
+	if err != nil {
+		return nil, err
+	}
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
+	if err != nil {
+		return nil, err
+	}
+
+	return func(duty Duty) (time.Time, bool) {
+		switch duty.Type {
+		case DutyExit, DutyBuilderRegistration:
+			// Do not timeout exit or registration duties.
+			return time.Time{}, false
+		default:
+		}
+
+		var (
+			start    = genesisTime.Add(slotDuration * time.Duration(duty.Slot))
+			margin   = slotDuration / marginFactor
+			duration time.Duration
+		)
+
+		switch duty.Type {
+		case DutyProposer:
+			duration = slotDuration / 3
+		case DutyAttester, DutyAggregator, DutyPrepareAggregator:
+			// Even though attestations and aggregations are acceptable even after 2 slots, the rewards are heavily diminished.
+			duration = 2 * slotDuration
+		case DutySyncMessage:
+			duration = 2 * slotDuration / 3
+		case DutySyncContribution, DutyPrepareSyncContribution:
+			duration = slotDuration
+		case DutyRandao:
+			// Randao should be accepted as long as it is not after the proposer's slot.
+			// However, given how cheap the operation is, the beacon node failing to provide it for 2 slots signals that there is something wrong with the beacon node itself.
+			duration = 2 * slotDuration
+		default:
+			duration = slotDuration
+		}
+
+		return start.Add(duration + margin), true
+	}, nil
+}
+
 // newDeadliner returns a new Deadliner, this is for internal use only.
 func newDeadliner(ctx context.Context, label string, deadlineFunc DeadlineFunc, clock clockwork.Clock) Deadliner {
 	// outputBuffer big enough to support all duty types, which can expire at the same time
@@ -192,51 +239,4 @@ func getCurrDuty(duties map[Duty]bool, deadlineFunc DeadlineFunc) (Duty, time.Ti
 	}
 
 	return currDuty, currDeadline
-}
-
-// NewDutyDeadlineFunc returns the function that provides duty deadlines or false if the duty never deadlines.
-func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineFunc, error) {
-	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
-	if err != nil {
-		return nil, err
-	}
-	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
-	if err != nil {
-		return nil, err
-	}
-
-	return func(duty Duty) (time.Time, bool) {
-		switch duty.Type {
-		case DutyExit, DutyBuilderRegistration:
-			// Do not timeout exit or registration duties.
-			return time.Time{}, false
-		default:
-		}
-
-		var (
-			start    = genesisTime.Add(slotDuration * time.Duration(duty.Slot))
-			margin   = slotDuration / marginFactor
-			duration time.Duration
-		)
-
-		switch duty.Type {
-		case DutyProposer:
-			duration = slotDuration / 3
-		case DutyAttester, DutyAggregator, DutyPrepareAggregator:
-			// Even though attestations and aggregations are acceptable even after 2 slots, the rewards are heavily diminished.
-			duration = 2 * slotDuration
-		case DutySyncMessage:
-			duration = 2 * slotDuration / 3
-		case DutySyncContribution, DutyPrepareSyncContribution:
-			duration = slotDuration
-		case DutyRandao:
-			// Randao should be accepted as long as it is not after the proposer's slot.
-			// However, given how cheap the operation is, the beacon node failing to provide it for 2 slots signals that there is something wrong with the beacon node itself.
-			duration = 2 * slotDuration
-		default:
-			duration = slotDuration
-		}
-
-		return start.Add(duration + margin), true
-	}, nil
 }
