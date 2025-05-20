@@ -70,16 +70,16 @@ func TestAttestationStore(t *testing.T) {
 		Slot:                0,
 		AttestationDataRoot: root,
 	}
-	bmockResp, err := bmock.AggregateAttestationV2(ctx, aggAttOpts) // Slot is ignored.
+	bmockResp, err := bmock.AggregateAttestation(ctx, aggAttOpts) // Slot is ignored.
 	require.NoError(t, err)
-	att := bmockResp.Data.Deneb
+	att := bmockResp.Data.Electra
 	require.Equal(t, attData, att.Data)
 
 	aggAttopts2 := &eth2api.AggregateAttestationOpts{
 		Slot:                attData.Slot,
 		AttestationDataRoot: eth2p0.Root{},
 	}
-	_, err = bmock.AggregateAttestationV2(ctx, aggAttopts2) // Not found
+	_, err = bmock.AggregateAttestation(ctx, aggAttopts2) // Not found
 	require.Error(t, err)
 
 	// New attestation data with much larger slots delete old ones.
@@ -94,6 +94,6 @@ func TestAttestationStore(t *testing.T) {
 		Slot:                0,
 		AttestationDataRoot: root,
 	}
-	_, err = bmock.AggregateAttestationV2(ctx, aggDataOpts) // Deleted.
+	_, err = bmock.AggregateAttestation(ctx, aggDataOpts) // Deleted.
 	require.Error(t, err)
 }

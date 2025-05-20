@@ -55,12 +55,6 @@ type submission struct {
 // block is a simplified block with its attestations.
 type block struct {
 	Slot                   uint64
-	AttestationsByDataRoot map[eth2p0.Root]*eth2p0.Attestation
-}
-
-// blockV2 is a simplified block with its v2 attestations.
-type blockV2 struct {
-	Slot                   uint64
 	AttDuties              []*eth2v1.AttesterDuty
 	AttestationsByDataRoot map[eth2p0.Root]*eth2spec.VersionedAttestation
 	BeaconCommitees        []*statecomm.StateCommittee
@@ -89,10 +83,9 @@ type inclusionCore struct {
 	mu          sync.Mutex
 	submissions map[subkey]submission
 
-	trackerInclFunc   trackerInclFunc
-	missedFunc        func(context.Context, submission)
-	attIncludedFunc   func(context.Context, submission, block)
-	attV2IncludedFunc func(context.Context, submission, blockV2)
+	trackerInclFunc trackerInclFunc
+	missedFunc      func(context.Context, submission)
+	attIncludedFunc func(context.Context, submission, block)
 }
 
 // Submitted is called when a duty is submitted to the beacon node.
@@ -289,92 +282,8 @@ func (i *inclusionCore) CheckBlock(ctx context.Context, block block) {
 	}
 }
 
-// CheckBlockV2 checks whether the block includes any of the submitted duties.
-func (i *inclusionCore) CheckBlockV2(ctx context.Context, block blockV2) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-
-	for key, sub := range i.submissions {
-		switch sub.Duty.Type {
-		case core.DutyAttester:
-			ok, err := checkAttestationV2Inclusion(sub, block)
-			if err != nil {
-				log.Warn(ctx, "Failed to check attestation inclusion", err)
-			} else if !ok {
-				continue
-			}
-
-			// Report inclusion and trim
-			i.attV2IncludedFunc(ctx, sub, block)
-			i.trackerInclFunc(sub.Duty, sub.Pubkey, sub.Data, nil)
-			delete(i.submissions, key)
-		case core.DutyAggregator:
-			ok, err := checkAggregationV2Inclusion(sub, block)
-			if err != nil {
-				log.Warn(ctx, "Failed to check aggregate inclusion", err)
-			} else if !ok {
-				continue
-			}
-			// Report inclusion and trim
-			i.attV2IncludedFunc(ctx, sub, block)
-			i.trackerInclFunc(sub.Duty, sub.Pubkey, sub.Data, nil)
-			delete(i.submissions, key)
-		case core.DutyProposer:
-			if sub.Duty.Slot != block.Slot {
-				continue
-			}
-
-			proposal, ok := sub.Data.(core.VersionedSignedProposal)
-			if !ok {
-				log.Error(ctx, "Submission data has wrong type", nil, z.Str("type", fmt.Sprintf("%T", sub.Data)))
-				continue
-			}
-
-			msg := "Broadcasted block included on-chain"
-			if proposal.Blinded {
-				msg = "Broadcasted blinded block included on-chain"
-			}
-
-			log.Info(ctx, msg,
-				z.U64("block_slot", block.Slot),
-				z.Any("pubkey", sub.Pubkey),
-				z.Any("broadcast_delay", sub.Delay),
-			)
-
-			// Just report block inclusions to tracker and trim
-			i.trackerInclFunc(sub.Duty, sub.Pubkey, sub.Data, nil)
-			delete(i.submissions, key)
-		default:
-			panic("bug: unexpected type") // Sanity check, this should never happen
-		}
-	}
-}
-
 // checkAggregationInclusion checks whether the aggregation is included in the block.
 func checkAggregationInclusion(sub submission, block block) (bool, error) {
-	att, ok := block.AttestationsByDataRoot[sub.AttDataRoot]
-	if !ok {
-		return false, nil
-	}
-
-	signedAggProof, ok := sub.Data.(core.SignedAggregateAndProof)
-	if !ok {
-		return false, errors.New("parse SignedAggregateAndProof")
-	}
-	subBits := signedAggProof.Message.Aggregate.AggregationBits
-	ok, err := att.AggregationBits.Contains(subBits)
-	if err != nil {
-		return false, errors.Wrap(err, "check aggregation bits",
-			z.U64("block_bits", att.AggregationBits.Len()),
-			z.U64("sub_bits", subBits.Len()),
-		)
-	}
-
-	return ok, nil
-}
-
-// checkAggregationV2Inclusion checks whether the aggregation is included in the block.
-func checkAggregationV2Inclusion(sub submission, block blockV2) (bool, error) {
 	att, ok := block.AttestationsByDataRoot[sub.AttDataRoot]
 	if !ok {
 		return false, nil
@@ -403,29 +312,6 @@ func checkAggregationV2Inclusion(sub submission, block blockV2) (bool, error) {
 
 // checkAttestationInclusion checks whether the attestation is included in the block.
 func checkAttestationInclusion(sub submission, block block) (bool, error) {
-	att, ok := block.AttestationsByDataRoot[sub.AttDataRoot]
-	if !ok {
-		return false, nil
-	}
-
-	coreAtt, ok := sub.Data.(core.Attestation)
-	if !ok {
-		return false, errors.New("parse Attestation")
-	}
-	subBits := coreAtt.AggregationBits
-	ok, err := att.AggregationBits.Contains(subBits)
-	if err != nil {
-		return false, errors.Wrap(err, "check aggregation bits",
-			z.U64("block_bits", att.AggregationBits.Len()),
-			z.U64("sub_bits", subBits.Len()),
-		)
-	}
-
-	return ok, nil
-}
-
-// checkAttestationV2Inclusion checks whether the attestation is included in the block.
-func checkAttestationV2Inclusion(sub submission, block blockV2) (bool, error) {
 	subData, ok := sub.Data.(core.VersionedAttestation)
 	if !ok {
 		return false, errors.New("not an attestation block data")
@@ -509,8 +395,8 @@ func reportMissed(ctx context.Context, sub submission) {
 	}
 }
 
-// reportAttV2Inclusion reports attestations that were included in a block.
-func reportAttV2Inclusion(ctx context.Context, sub submission, block blockV2) {
+// reportAttInclusion reports attestations that were included in a block.
+func reportAttInclusion(ctx context.Context, sub submission, block block) {
 	att, ok := block.AttestationsByDataRoot[sub.AttDataRoot]
 	if !ok {
 		return
@@ -539,32 +425,6 @@ func reportAttV2Inclusion(ctx context.Context, sub submission, block blockV2) {
 	inclusionDelay.Set(float64(blockSlot - attSlot))
 }
 
-// reportAttInclusion reports attestations that were included in a block.
-func reportAttInclusion(ctx context.Context, sub submission, block block) {
-	att := block.AttestationsByDataRoot[sub.AttDataRoot]
-	aggIndices := att.AggregationBits.BitIndices()
-	attSlot := uint64(att.Data.Slot)
-	blockSlot := block.Slot
-	inclDelay := block.Slot - attSlot
-
-	msg := "Broadcasted attestation included on-chain"
-	if sub.Duty.Type == core.DutyAggregator {
-		msg = "Broadcasted attestation aggregate included on-chain"
-	}
-
-	log.Info(ctx, msg,
-		z.U64("block_slot", blockSlot),
-		z.U64("attestation_slot", attSlot),
-		z.Any("pubkey", sub.Pubkey),
-		z.U64("inclusion_delay", inclDelay),
-		z.Any("broadcast_delay", sub.Delay),
-		z.Int("aggregate_len", len(aggIndices)),
-		z.Bool("aggregated", len(aggIndices) > 1),
-	)
-
-	inclusionDelay.Set(float64(blockSlot - attSlot))
-}
-
 // NewInclusion returns a new InclusionChecker.
 func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client, trackerInclFunc trackerInclFunc) (*InclusionChecker, error) {
 	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
@@ -577,31 +437,28 @@ func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client, trackerInclFunc t
 	}
 
 	inclCore := &inclusionCore{
-		attIncludedFunc:   reportAttInclusion,
-		attV2IncludedFunc: reportAttV2Inclusion,
-		missedFunc:        reportMissed,
-		trackerInclFunc:   trackerInclFunc,
-		submissions:       make(map[subkey]submission),
+		attIncludedFunc: reportAttInclusion,
+		missedFunc:      reportMissed,
+		trackerInclFunc: trackerInclFunc,
+		submissions:     make(map[subkey]submission),
 	}
 
 	return &InclusionChecker{
-		core:             inclCore,
-		eth2Cl:           eth2Cl,
-		genesis:          genesisTime,
-		slotDuration:     slotDuration,
-		checkBlockFunc:   inclCore.CheckBlock,
-		checkBlockV2Func: inclCore.CheckBlockV2,
+		core:           inclCore,
+		eth2Cl:         eth2Cl,
+		genesis:        genesisTime,
+		slotDuration:   slotDuration,
+		checkBlockFunc: inclCore.CheckBlock,
 	}, nil
 }
 
 // InclusionChecker checks whether duties have been included on-chain.
 type InclusionChecker struct {
-	genesis          time.Time
-	slotDuration     time.Duration
-	eth2Cl           eth2wrap.Client
-	core             *inclusionCore
-	checkBlockFunc   func(context.Context, block)   // Alises for testing
-	checkBlockV2Func func(context.Context, blockV2) // Alises for testing
+	genesis        time.Time
+	slotDuration   time.Duration
+	eth2Cl         eth2wrap.Client
+	core           *inclusionCore
+	checkBlockFunc func(context.Context, block) // Alises for testing
 }
 
 // Submitted is called when a duty has been submitted.
@@ -687,7 +544,7 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 }
 
 func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64, attDuties []*eth2v1.AttesterDuty) error {
-	atts, err := a.eth2Cl.BlockAttestationsV2(ctx, strconv.FormatUint(slot, 10))
+	atts, err := a.eth2Cl.BlockAttestations(ctx, strconv.FormatUint(slot, 10))
 	if err != nil {
 		return err
 	} else if len(atts) == 0 {
@@ -761,7 +618,7 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64, attDutie
 		attsMap[root] = unwrapedAtt
 	}
 
-	a.checkBlockV2Func(ctx, blockV2{Slot: slot, AttDuties: attDuties, AttestationsByDataRoot: attsMap, BeaconCommitees: committeesForState})
+	a.checkBlockFunc(ctx, block{Slot: slot, AttDuties: attDuties, AttestationsByDataRoot: attsMap, BeaconCommitees: committeesForState})
 
 	return nil
 }

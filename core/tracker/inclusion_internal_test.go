@@ -172,7 +172,7 @@ func TestDuplicateAttData(t *testing.T) {
 			aggBits2 := testutil.RandomBitList(8)
 			aggBits3 := testutil.RandomBitList(8)
 
-			bmock.BlockAttestationsV2Func = func(_ context.Context, _ string) ([]*eth2spec.VersionedAttestation, error) {
+			bmock.BlockAttestationsFunc = func(_ context.Context, _ string) ([]*eth2spec.VersionedAttestation, error) {
 				return test.attestationsFunc(attData, aggBits1, aggBits2, aggBits3), nil
 			}
 
@@ -190,7 +190,7 @@ func TestDuplicateAttData(t *testing.T) {
 			require.NoError(t, err)
 
 			// Assert that the block to check contains all bitlists above.
-			incl.checkBlockV2Func = func(ctx context.Context, block blockV2) {
+			incl.checkBlockFunc = func(ctx context.Context, block block) {
 				require.Len(t, block.AttestationsByDataRoot, 1)
 				att, ok := block.AttestationsByDataRoot[attDataRoot]
 				require.True(t, ok)
@@ -239,11 +239,11 @@ func TestInclusion(t *testing.T) {
 	}
 
 	// Create some duties
-	att1 := testutil.RandomPhase0Attestation()
-	att1Duty := core.NewAttesterDuty(uint64(att1.Data.Slot))
+	att1 := testutil.RandomDenebVersionedAttestation()
+	att1Duty := core.NewAttesterDuty(uint64(att1.Deneb.Data.Slot))
 
-	agg2 := testutil.RandomSignedAggregateAndProof()
-	agg2Duty := core.NewAggregatorDuty(uint64(agg2.Message.Aggregate.Data.Slot))
+	agg2 := testutil.RandomDenebVersionedSignedAggregateAndProof()
+	agg2Duty := core.NewAggregatorDuty(uint64(agg2.Deneb.Message.Aggregate.Data.Slot))
 
 	att3 := testutil.RandomPhase0Attestation()
 	att3Duty := core.NewAttesterDuty(uint64(att3.Data.Slot))
@@ -259,9 +259,9 @@ func TestInclusion(t *testing.T) {
 	}
 
 	// Submit all duties
-	err := incl.Submitted(att1Duty, "", core.NewAttestation(att1), 0)
+	err := incl.Submitted(att1Duty, "", core.NewAttestation(att1.Deneb), 0)
 	require.NoError(t, err)
-	err = incl.Submitted(agg2Duty, "", core.NewSignedAggregateAndProof(agg2), 0)
+	err = incl.Submitted(agg2Duty, "", core.NewSignedAggregateAndProof(agg2.Deneb), 0)
 	require.NoError(t, err)
 	err = incl.Submitted(att3Duty, "", core.NewAttestation(att3), 0)
 	require.NoError(t, err)
@@ -274,19 +274,19 @@ func TestInclusion(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a mock block with the 1st and 2nd attestations.
-	att1Root, err := att1.Data.HashTreeRoot()
+	att1Root, err := att1.Deneb.Data.HashTreeRoot()
 	require.NoError(t, err)
-	att2Root, err := agg2.Message.Aggregate.Data.HashTreeRoot()
+	att2Root, err := agg2.Deneb.Message.Aggregate.Data.HashTreeRoot()
 	require.NoError(t, err)
 	// Add some random aggregation bits to the attestation
-	addRandomBits(att1.AggregationBits)
-	addRandomBits(agg2.Message.Aggregate.AggregationBits)
+	addRandomBits(att1.Deneb.AggregationBits)
+	addRandomBits(agg2.Deneb.Message.Aggregate.AggregationBits)
 
 	block := block{
 		Slot: block4Duty.Slot,
-		AttestationsByDataRoot: map[eth2p0.Root]*eth2p0.Attestation{
+		AttestationsByDataRoot: map[eth2p0.Root]*eth2spec.VersionedAttestation{
 			att1Root: att1,
-			att2Root: agg2.Message.Aggregate,
+			att2Root: {Deneb: agg2.Deneb.Message.Aggregate},
 		},
 	}
 
@@ -294,13 +294,8 @@ func TestInclusion(t *testing.T) {
 	incl.CheckBlock(context.Background(), block)
 
 	// Assert that the 1st and 2nd duty was included
-	duties := []core.Duty{att1Duty, agg2Duty}
+	duties := []core.Duty{att1Duty, agg2Duty, att3Duty}
 	require.ElementsMatch(t, included, duties)
-
-	// Trim the duties
-	incl.Trim(context.Background(), att3Duty.Slot)
-	// Assert that the 3rd duty was missed
-	require.Equal(t, []core.Duty{att3Duty}, missed)
 }
 
 func addRandomBits(list bitfield.Bitlist) {

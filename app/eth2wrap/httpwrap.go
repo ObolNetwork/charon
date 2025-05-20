@@ -34,9 +34,7 @@ import (
 // It is a standard beacon API endpoint not implemented by eth2client.
 // See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockAttestations.
 type BlockAttestationsProvider interface {
-	// Deprecated: use BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error)
-	BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error)
-	BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error)
+	BlockAttestations(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error)
 }
 
 // BeaconStateCommitteesProvider is the interface for providing committees for given slot.
@@ -190,31 +188,9 @@ func (h *httpAdapter) AggregateSyncCommitteeSelections(ctx context.Context, sele
 	return resp.Data, nil
 }
 
-// Deprecated: use BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error)
 // BlockAttestations returns the attestations included in the requested block.
-// See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockAttestations.
-func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]*eth2p0.Attestation, error) {
-	path := fmt.Sprintf("/eth/v1/beacon/blocks/%s/attestations", stateID)
-	respBody, statusCode, err := httpGet(ctx, h.address, path, h.headers, nil, h.timeout)
-	if err != nil {
-		return nil, errors.Wrap(err, "request block attestations")
-	} else if statusCode == http.StatusNotFound {
-		return nil, nil // No block for slot, so no attestations.
-	} else if statusCode != http.StatusOK {
-		return nil, errors.New("request block attestations failed", z.Int("status", statusCode), z.Str("body", string(respBody)))
-	}
-
-	var resp p0AttestationsJSON
-	if err := json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrap(err, "failed to parse block attestations response")
-	}
-
-	return resp.Data, nil
-}
-
-// BlockAttestationsV2 returns the attestations included in the requested block.
 // See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockAttestationsV2.
-func (h *httpAdapter) BlockAttestationsV2(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error) {
+func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error) {
 	path := fmt.Sprintf("/eth/v2/beacon/blocks/%s/attestations", stateID)
 	ctx, cancel := context.WithTimeout(ctx, h.timeout)
 	defer cancel()

@@ -17,23 +17,14 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-const (
-	_ = iota
-	attV1
-	attV2
-)
-
 // NewMemDB returns a new in-memory dutyDB instance.
 func NewMemDB(deadliner core.Deadliner) *MemDB {
 	return &MemDB{
 		attDuties:         make(map[attKey]*eth2p0.AttestationData),
 		attPubKeys:        make(map[pkKey]*core.PubKey),
-		attV2PubKeys:      make(map[pkKeyV2]*core.PubKey),
 		attKeysBySlot:     make(map[uint64][]pkKey),
-		attV2KeysBySlot:   make(map[uint64][]pkKeyV2),
 		proDuties:         make(map[uint64]*eth2api.VersionedProposal),
-		aggDuties:         make(map[aggKey]core.AggregatedAttestation),
-		aggDutiesV2:       make(map[aggKey]core.VersionedAggregatedAttestation),
+		aggDuties:         make(map[aggKey]core.VersionedAggregatedAttestation),
 		aggKeysBySlot:     make(map[uint64][]aggKey),
 		contribDuties:     make(map[contribKey]*altair.SyncCommitteeContribution),
 		contribKeysBySlot: make(map[uint64][]contribKey),
@@ -48,23 +39,19 @@ type MemDB struct {
 	mu sync.Mutex
 
 	// DutyAttester
-	attDuties       map[attKey]*eth2p0.AttestationData
-	attPubKeys      map[pkKey]*core.PubKey
-	attV2PubKeys    map[pkKeyV2]*core.PubKey
-	attKeysBySlot   map[uint64][]pkKey
-	attV2KeysBySlot map[uint64][]pkKeyV2
-	attQueries      []attQuery
+	attDuties     map[attKey]*eth2p0.AttestationData
+	attPubKeys    map[pkKey]*core.PubKey
+	attKeysBySlot map[uint64][]pkKey
+	attQueries    []attQuery
 
 	// DutyProposer
 	proDuties  map[uint64]*eth2api.VersionedProposal
 	proQueries []proQuery
 
 	// DutyAggregator
-	aggDuties     map[aggKey]core.AggregatedAttestation
-	aggDutiesV2   map[aggKey]core.VersionedAggregatedAttestation
+	aggDuties     map[aggKey]core.VersionedAggregatedAttestation
 	aggKeysBySlot map[uint64][]aggKey
 	aggQueries    []aggQuery
-	aggQueriesV2  []aggQueryV2
 
 	// DutySyncContribution
 	contribDuties     map[contribKey]*altair.SyncCommitteeContribution
@@ -114,20 +101,14 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 		}
 		db.resolveAttQueriesUnsafe()
 	case core.DutyAggregator:
-		version := 0
 		var err error
 		for _, unsignedData := range unsignedSet {
-			version, err = db.storeAggAttestationUnsafe(unsignedData)
+			err = db.storeAggAttestationUnsafe(unsignedData)
 			if err != nil {
 				return err
 			}
 		}
-		switch version {
-		case attV1:
-			db.resolveAggQueriesUnsafe()
-		case attV2:
-			db.resolveAggQueriesV2Unsafe()
-		}
+		db.resolveAggQueriesUnsafe()
 	case core.DutySyncContribution:
 		for _, unsignedData := range unsignedSet {
 			err := db.storeSyncContributionUnsafe(unsignedData)
@@ -217,81 +198,6 @@ func (db *MemDB) AwaitAttestation(ctx context.Context, slot uint64, commIdx uint
 // AwaitAggAttestation blocks and returns the aggregated attestation for the slot
 // and attestation when available.
 func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot uint64, attestationRoot eth2p0.Root,
-) (*eth2p0.Attestation, error) {
-	cancel := make(chan struct{})
-	defer close(cancel)
-	response := make(chan core.AggregatedAttestation, 1)                   // Instance of one so resolving never blocks
-	responseVersioned := make(chan core.VersionedAggregatedAttestation, 1) // Instance of one so resolving never blocks
-
-	db.mu.Lock()
-	db.aggQueries = append(db.aggQueries, aggQuery{
-		Key: aggKey{
-			Slot: slot,
-			Root: attestationRoot,
-		},
-		Response: response,
-		Cancel:   cancel,
-	})
-	db.resolveAggQueriesUnsafe()
-	db.aggQueriesV2 = append(db.aggQueriesV2, aggQueryV2{
-		Key: aggKey{
-			Slot: slot,
-			Root: attestationRoot,
-		},
-		Response: responseVersioned,
-		Cancel:   cancel,
-	})
-	db.resolveAggQueriesV2Unsafe()
-	db.mu.Unlock()
-
-	select {
-	case <-db.shutdown:
-		return nil, errors.New("dutydb shutdown")
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case value := <-response:
-		// Clone before returning.
-		clone, err := value.Clone()
-		if err != nil {
-			return nil, err
-		}
-		aggAtt, ok := clone.(core.AggregatedAttestation)
-		if !ok {
-			return nil, errors.New("invalid aggregated attestation")
-		}
-
-		return &aggAtt.Attestation, nil
-	case valueVersioned := <-responseVersioned:
-		// Clone before returning.
-		clone, err := valueVersioned.Clone()
-		if err != nil {
-			return nil, err
-		}
-		aggAtt, ok := clone.(core.VersionedAggregatedAttestation)
-		if !ok {
-			return nil, errors.New("invalid versioned aggregated attestation")
-		}
-
-		switch aggAtt.Version {
-		case eth2spec.DataVersionPhase0:
-			return aggAtt.Phase0, nil
-		case eth2spec.DataVersionAltair:
-			return aggAtt.Altair, nil
-		case eth2spec.DataVersionBellatrix:
-			return aggAtt.Bellatrix, nil
-		case eth2spec.DataVersionCapella:
-			return aggAtt.Capella, nil
-		case eth2spec.DataVersionDeneb:
-			return aggAtt.Deneb, nil
-		default:
-			return nil, errors.New("unsupported versioned aggregated attestation for v1 endpoint", z.Str("version", aggAtt.Version.String()))
-		}
-	}
-}
-
-// AwaitAggAttestationV2 blocks and returns the aggregated attestation for the slot
-// and attestation when available.
-func (db *MemDB) AwaitAggAttestationV2(ctx context.Context, slot uint64, attestationRoot eth2p0.Root,
 ) (*eth2spec.VersionedAttestation, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
@@ -304,19 +210,10 @@ func (db *MemDB) AwaitAggAttestationV2(ctx context.Context, slot uint64, attesta
 			Slot: slot,
 			Root: attestationRoot,
 		},
-		Response: response,
-		Cancel:   cancel,
-	})
-	db.resolveAggQueriesUnsafe()
-	db.aggQueriesV2 = append(db.aggQueriesV2, aggQueryV2{
-		Key: aggKey{
-			Slot: slot,
-			Root: attestationRoot,
-		},
 		Response: versionedResponse,
 		Cancel:   cancel,
 	})
-	db.resolveAggQueriesV2Unsafe()
+	db.resolveAggQueriesUnsafe()
 	db.mu.Unlock()
 
 	select {
@@ -385,36 +282,17 @@ func (db *MemDB) AwaitSyncContribution(ctx context.Context, slot, subcommIdx uin
 }
 
 // PubKeyByAttestation implements core.DutyDB, see its godoc.
-func (db *MemDB) PubKeyByAttestation(_ context.Context, slot, commIdx, valCommIdx uint64) (core.PubKey, error) {
+func (db *MemDB) PubKeyByAttestation(_ context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
 	key := pkKey{
-		Slot:       slot,
-		CommIdx:    commIdx,
-		ValCommIdx: valCommIdx,
-	}
-
-	pubkey, ok := db.attPubKeys[key]
-	if !ok {
-		return "", errors.New("pubkey not found")
-	}
-
-	return *pubkey, nil
-}
-
-// PubKeyByAttestationV2 implements core.DutyDB, see its godoc.
-func (db *MemDB) PubKeyByAttestationV2(_ context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error) {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-
-	key := pkKeyV2{
 		Slot:    slot,
 		CommIdx: commIdx,
 		ValIdx:  valIdx,
 	}
 
-	pubkey, ok := db.attV2PubKeys[key]
+	pubkey, ok := db.attPubKeys[key]
 	if !ok {
 		return "", errors.New("pubkey not found")
 	}
@@ -434,14 +312,13 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 		return errors.New("invalid unsigned attestation data")
 	}
 
-	// Store the same pubkey in v1 and v2 maps in order to avoid data duplication.
 	pubkeyStore := &pubkey
 
 	// Store key and value for PubKeyByAttestation
 	pKey := pkKey{
-		Slot:       uint64(attData.Data.Slot),
-		CommIdx:    uint64(attData.Duty.CommitteeIndex),
-		ValCommIdx: attData.Duty.ValidatorCommitteeIndex,
+		Slot:    uint64(attData.Data.Slot),
+		CommIdx: uint64(attData.Duty.CommitteeIndex),
+		ValIdx:  uint64(attData.Duty.ValidatorIndex),
 	}
 
 	if value, ok := db.attPubKeys[pKey]; ok {
@@ -451,22 +328,6 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 	} else {
 		db.attPubKeys[pKey] = pubkeyStore
 		db.attKeysBySlot[uint64(attData.Duty.Slot)] = append(db.attKeysBySlot[uint64(attData.Duty.Slot)], pKey)
-	}
-
-	// Store key and value for PubKeyByAttestationV2
-	pKeyV2 := pkKeyV2{
-		Slot:    uint64(attData.Data.Slot),
-		CommIdx: uint64(attData.Duty.CommitteeIndex),
-		ValIdx:  uint64(attData.Duty.ValidatorIndex),
-	}
-
-	if value, ok := db.attV2PubKeys[pKeyV2]; ok {
-		if *value != *pubkeyStore {
-			return errors.New("clashing public key", z.Any("pKeyV2", pKeyV2))
-		}
-	} else {
-		db.attV2PubKeys[pKeyV2] = pubkeyStore
-		db.attV2KeysBySlot[uint64(attData.Duty.Slot)] = append(db.attV2KeysBySlot[uint64(attData.Duty.Slot)], pKeyV2)
 	}
 
 	// Store key and value for AwaitAttestation
@@ -487,63 +348,17 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 }
 
 // storeAggAttestationUnsafe stores the unsigned aggregated attestation. It is unsafe since it assumes the lock is held.
-func (db *MemDB) storeAggAttestationUnsafe(unsignedData core.UnsignedData) (int, error) {
+func (db *MemDB) storeAggAttestationUnsafe(unsignedData core.UnsignedData) error {
 	cloned, err := unsignedData.Clone() // Clone before storing.
 	if err != nil {
-		return 0, err
+		return err
 	}
 
-	versionedAggAtt, ok := cloned.(core.VersionedAggregatedAttestation)
+	aggAtt, ok := cloned.(core.VersionedAggregatedAttestation)
 	if !ok {
-		aggAtt, ok := cloned.(core.AggregatedAttestation)
-		if !ok {
-			return 0, errors.New("invalid unsigned aggregated attestation")
-		}
-
-		return attV1, db.storeAggAttestationUnsafeV1(aggAtt)
+		return errors.New("invalid unsigned aggregated attestation")
 	}
 
-	return attV2, db.storeAggAttestationUnsafeV2(versionedAggAtt)
-}
-
-// storeAggAttestationUnsafeV1 stores the unsigned aggregated attestation. It is unsafe since it assumes the lock is held.
-func (db *MemDB) storeAggAttestationUnsafeV1(aggAtt core.AggregatedAttestation) error {
-	aggRoot, err := aggAtt.Data.HashTreeRoot()
-	if err != nil {
-		return errors.Wrap(err, "hash aggregated attestation root")
-	}
-
-	slot := uint64(aggAtt.Data.Slot)
-
-	// Store key and value for PubKeyByAttestation
-	key := aggKey{
-		Slot: slot,
-		Root: aggRoot,
-	}
-	if existing, ok := db.aggDuties[key]; ok {
-		existingRoot, err := existing.HashTreeRoot()
-		if err != nil {
-			return errors.Wrap(err, "attestation root")
-		}
-
-		providedRoot, err := aggAtt.HashTreeRoot()
-		if err != nil {
-			return errors.Wrap(err, "attestation root")
-		}
-
-		if existingRoot != providedRoot {
-			return errors.New("clashing aggregated attestation")
-		}
-	} else {
-		db.aggDuties[key] = aggAtt
-		db.aggKeysBySlot[slot] = append(db.aggKeysBySlot[slot], key)
-	}
-
-	return nil
-}
-
-// storeAggAttestationUnsafeV2 stores the unsigned versioned aggregated attestation. It is unsafe since it assumes the lock is held.
-func (db *MemDB) storeAggAttestationUnsafeV2(aggAtt core.VersionedAggregatedAttestation) error {
 	aggAttData, err := aggAtt.Data()
 	if err != nil {
 		return err
@@ -560,7 +375,7 @@ func (db *MemDB) storeAggAttestationUnsafeV2(aggAtt core.VersionedAggregatedAtte
 		Slot: slot,
 		Root: aggRoot,
 	}
-	if existing, ok := db.aggDutiesV2[key]; ok {
+	if existing, ok := db.aggDuties[key]; ok {
 		existingData, err := existing.Data()
 		if err != nil {
 			return errors.Wrap(err, "existing data")
@@ -588,12 +403,12 @@ func (db *MemDB) storeAggAttestationUnsafeV2(aggAtt core.VersionedAggregatedAtte
 		case eth2spec.DataVersionPhase0, eth2spec.DataVersionAltair, eth2spec.DataVersionBellatrix, eth2spec.DataVersionCapella, eth2spec.DataVersionDeneb:
 			return errors.New("incorrect version for storing aggregation attestation v2")
 		case eth2spec.DataVersionElectra:
-			db.aggDutiesV2[key] = provided
+			db.aggDuties[key] = provided
 		default:
 			return errors.New("unknown version")
 		}
 	} else {
-		db.aggDutiesV2[key] = aggAtt
+		db.aggDuties[key] = aggAtt
 		db.aggKeysBySlot[slot] = append(db.aggKeysBySlot[slot], key)
 	}
 
@@ -741,27 +556,6 @@ func (db *MemDB) resolveAggQueriesUnsafe() {
 	db.aggQueries = unresolved
 }
 
-// resolveAggQueriesV2Unsafe resolve any aggQueryV2 to a result if found.
-// It is unsafe since it assume that the lock is held.
-func (db *MemDB) resolveAggQueriesV2Unsafe() {
-	var unresolved []aggQueryV2
-	for _, query := range db.aggQueriesV2 {
-		if cancelled(query.Cancel) {
-			continue // Drop cancelled queries.
-		}
-
-		value, ok := db.aggDutiesV2[query.Key]
-		if !ok {
-			unresolved = append(unresolved, query)
-			continue
-		}
-
-		query.Response <- value
-	}
-
-	db.aggQueriesV2 = unresolved
-}
-
 // resolveContribQueriesUnsafe resolves any contribQuery to a result if found.
 // It is unsafe since it assumes that the lock is held.
 func (db *MemDB) resolveContribQueriesUnsafe() {
@@ -795,14 +589,10 @@ func (db *MemDB) deleteDutyUnsafe(duty core.Duty) error {
 			delete(db.attPubKeys, key)
 			delete(db.attDuties, attKey{Slot: key.Slot, CommIdx: key.CommIdx})
 		}
-		for _, key := range db.attV2KeysBySlot[duty.Slot] {
-			delete(db.attV2PubKeys, key)
-		}
 		delete(db.attKeysBySlot, duty.Slot)
 	case core.DutyAggregator:
 		for _, key := range db.aggKeysBySlot[duty.Slot] {
 			delete(db.aggDuties, key)
-			delete(db.aggDutiesV2, key)
 		}
 		delete(db.aggKeysBySlot, duty.Slot)
 	case core.DutySyncContribution:
@@ -825,13 +615,6 @@ type attKey struct {
 
 // pkKey is the key to lookup pubkeys by attestation in the DB.
 type pkKey struct {
-	Slot       uint64
-	CommIdx    uint64
-	ValCommIdx uint64
-}
-
-// pkKey is the key to lookup pubkeys by v2 attestation in the DB.
-type pkKeyV2 struct {
 	Slot    uint64
 	CommIdx uint64
 	ValIdx  uint64
@@ -866,13 +649,6 @@ type proQuery struct {
 
 // aggQuery is a waiting aggQuery with a response channel.
 type aggQuery struct {
-	Key      aggKey
-	Response chan<- core.AggregatedAttestation
-	Cancel   <-chan struct{}
-}
-
-// aggQueryV2 is a waiting aggQueryV2 with a response channel.
-type aggQueryV2 struct {
 	Key      aggKey
 	Response chan<- core.VersionedAggregatedAttestation
 	Cancel   <-chan struct{}

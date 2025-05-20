@@ -105,7 +105,7 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 
 	atts := []*eth2spec.VersionedAttestation{attA, attB}
 
-	component.RegisterPubKeyByAttestationV2(func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error) {
+	component.RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error) {
 		return pubkeysByIdx[eth2p0.ValidatorIndex(valIdx)], nil
 	})
 
@@ -126,7 +126,7 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 		return nil
 	})
 
-	err = component.SubmitAttestationsV2(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
+	err = component.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
 	require.NoError(t, err)
 }
 
@@ -161,7 +161,13 @@ func TestComponent_InvalidSubmitAttestations(t *testing.T) {
 		Signature: eth2p0.BLSSignature{},
 	}
 
-	atts := []*eth2p0.Attestation{att}
+	atts := &eth2api.SubmitAttestationsOpts{
+		Attestations: []*eth2spec.VersionedAttestation{
+			{
+				Deneb: att,
+			},
+		},
+	}
 
 	err = component.SubmitAttestations(ctx, atts)
 	require.Error(t, err)
@@ -209,7 +215,7 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 	vapi.RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error) {
 		require.Equal(t, slot, epochSlot)
 		require.EqualValues(t, commIdx, vIdx)
-		require.EqualValues(t, valIdx, 0)
+		require.EqualValues(t, valIdx, vIdx)
 
 		return corePubKey, nil
 	})
@@ -313,7 +319,7 @@ func TestSignAndVerify(t *testing.T) {
 	// Setup validatorapi component.
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000, nil)
 	require.NoError(t, err)
-	vapi.RegisterPubKeyByAttestationV2(func(context.Context, uint64, uint64, uint64) (core.PubKey, error) {
+	vapi.RegisterPubKeyByAttestation(func(context.Context, uint64, uint64, uint64) (core.PubKey, error) {
 		return core.PubKeyFromBytes(pubkey[:])
 	})
 
@@ -341,7 +347,7 @@ func TestSignAndVerify(t *testing.T) {
 			Signature:       sig,
 		},
 	}
-	err = vapi.SubmitAttestationsV2(ctx, &eth2api.SubmitAttestationsOpts{Attestations: []*eth2spec.VersionedAttestation{&att}})
+	err = vapi.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: []*eth2spec.VersionedAttestation{&att}})
 	require.NoError(t, err)
 	wg.Wait()
 }
@@ -1903,66 +1909,7 @@ func TestComponent_SubmitAggregateAttestations(t *testing.T) {
 		return nil
 	})
 
-	require.NoError(t, vapi.SubmitAggregateAttestationsV2(ctx, &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: []*eth2spec.VersionedSignedAggregateAndProof{agg}}))
-}
-
-func TestComponent_SubmitAggregateAttestationVerify(t *testing.T) {
-	const shareIdx = 1
-	var (
-		ctx = context.Background()
-		val = testutil.RandomValidator(t)
-	)
-
-	// Create keys (just use normal keys, not split tbls)
-	secret, err := tbls.GenerateSecretKey()
-	require.NoError(t, err)
-
-	pubkey, err := tbls.SecretToPublicKey(secret)
-	require.NoError(t, err)
-
-	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
-	require.NoError(t, err)
-
-	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
-
-	val.Validator.PublicKey = eth2p0.BLSPubKey(pubkey)
-
-	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSet{val.Index: val}))
-	require.NoError(t, err)
-
-	slot := eth2p0.Slot(99)
-	aggProof := &eth2p0.AggregateAndProof{
-		AggregatorIndex: val.Index,
-		Aggregate:       testutil.RandomPhase0Attestation(),
-	}
-	aggProof.Aggregate.Data.Slot = slot
-	aggProof.SelectionProof = signBeaconSelection(t, bmock, secret, slot)
-	signedAggProof := &eth2spec.VersionedSignedAggregateAndProof{
-		Version: eth2spec.DataVersionDeneb,
-		Deneb: &eth2p0.SignedAggregateAndProof{
-			Message:   aggProof,
-			Signature: signAggregationAndProof(t, bmock, secret, aggProof),
-		},
-	}
-
-	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000, nil)
-	require.NoError(t, err)
-
-	done := make(chan struct{})
-	// Collect submitted partial signature.
-	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-		require.Len(t, set, 1)
-		_, ok := set[core.PubKeyFrom48Bytes(val.Validator.PublicKey)]
-		require.True(t, ok)
-		close(done)
-
-		return nil
-	})
-
-	err = vapi.SubmitAggregateAttestationsV2(ctx, &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: []*eth2spec.VersionedSignedAggregateAndProof{signedAggProof}})
-	require.NoError(t, err)
-	<-done
+	require.NoError(t, vapi.SubmitAggregateAttestations(ctx, &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: []*eth2spec.VersionedSignedAggregateAndProof{agg}}))
 }
 
 func TestComponent_SubmitSyncCommitteeMessages(t *testing.T) {
@@ -2394,18 +2341,6 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 	require.Equal(t, selections, got)
 }
 
-func signAggregationAndProof(t *testing.T, eth2Cl eth2wrap.Client, secret tbls.PrivateKey, aggProof *eth2p0.AggregateAndProof) eth2p0.BLSSignature {
-	t.Helper()
-
-	epoch, err := eth2util.EpochFromSlot(context.Background(), eth2Cl, aggProof.Aggregate.Data.Slot)
-	require.NoError(t, err)
-
-	dataRoot, err := aggProof.HashTreeRoot()
-	require.NoError(t, err)
-
-	return sign(t, eth2Cl, secret, signing.DomainAggregateAndProof, epoch, dataRoot)
-}
-
 // syncCommSelectionProof returns the selection_proof corresponding to the provided altair.ContributionAndProof.
 // Refer get_sync_committee_selection_proof from https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#aggregation-selection.
 func syncCommSelectionProof(t *testing.T, eth2Cl eth2wrap.Client, secret tbls.PrivateKey, slot eth2p0.Slot, subcommIdx eth2p0.CommitteeIndex) eth2p0.BLSSignature {
@@ -2437,18 +2372,6 @@ func signContributionAndProof(t *testing.T, eth2Cl eth2wrap.Client, secret tbls.
 	require.NoError(t, err)
 
 	return sign(t, eth2Cl, secret, signing.DomainContributionAndProof, epoch, sigRoot)
-}
-
-func signBeaconSelection(t *testing.T, eth2Cl eth2wrap.Client, secret tbls.PrivateKey, slot eth2p0.Slot) eth2p0.BLSSignature {
-	t.Helper()
-
-	epoch, err := eth2util.EpochFromSlot(context.Background(), eth2Cl, slot)
-	require.NoError(t, err)
-
-	dataRoot, err := eth2util.SlotHashRoot(slot)
-	require.NoError(t, err)
-
-	return sign(t, eth2Cl, secret, signing.DomainSelectionProof, epoch, dataRoot)
 }
 
 func sign(t *testing.T, eth2Cl eth2wrap.Client, secret tbls.PrivateKey, domain signing.DomainName, epoch eth2p0.Epoch, dataRoot eth2p0.Root) eth2p0.BLSSignature {

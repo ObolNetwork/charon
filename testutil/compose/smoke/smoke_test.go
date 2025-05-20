@@ -99,7 +99,7 @@ func TestSmoke(t *testing.T) {
 			},
 			RunTmplFunc: func(data *compose.TmplData) {
 				// Node 0 is local build
-				// Nodeы 1-3 use the previous release; ensure better diversity in the matrix when more releases are added.
+				// Nodes 1-3 use the previous release; ensure better diversity in the matrix when more releases are added.
 				pegImageTag(data.Nodes, 1, nth(version.Supported(), 1)+".0-rc1")
 				pegImageTag(data.Nodes, 2, nth(version.Supported(), 1)+".0-rc1")
 				pegImageTag(data.Nodes, 3, nth(version.Supported(), 1)+".0-rc1")
@@ -112,9 +112,9 @@ func TestSmoke(t *testing.T) {
 			},
 			RunTmplFunc: func(data *compose.TmplData) {
 				data.VCs[0].Image = "consensys/teku:latest"
-				data.VCs[1].Image = "consensys/teku:23.6.0"
-				data.VCs[2].Image = "consensys/teku:23.5.0"
-				data.VCs[3].Image = "consensys/teku:23.4.0"
+				data.VCs[1].Image = "consensys/teku:25.4.1"
+				data.VCs[2].Image = "consensys/teku:25.4.0"
+				data.VCs[3].Image = "consensys/teku:25.3.0"
 			},
 		},
 		{

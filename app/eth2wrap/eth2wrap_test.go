@@ -19,6 +19,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
+	eth2e "github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -372,35 +373,59 @@ func TestCtxCancel(t *testing.T) {
 }
 
 func TestBlockAttestations(t *testing.T) {
-	atts := []*eth2p0.Attestation{
-		testutil.RandomPhase0Attestation(),
-		testutil.RandomPhase0Attestation(),
+	electraAtt1 := testutil.RandomElectraAttestation()
+	electraAtt2 := testutil.RandomElectraAttestation()
+
+	tests := []struct {
+		version          string
+		attestations     []*eth2spec.VersionedAttestation
+		serverJSONStruct any
+		expErr           string
+	}{
+		{
+			version: "electra",
+			attestations: []*eth2spec.VersionedAttestation{
+				{Version: eth2spec.DataVersionElectra, Electra: electraAtt1},
+				{Version: eth2spec.DataVersionElectra, Electra: electraAtt2},
+			},
+			serverJSONStruct: struct{ Data []*eth2e.Attestation }{Data: []*eth2e.Attestation{electraAtt1, electraAtt2}},
+			expErr:           "",
+		},
 	}
+	for _, test := range tests {
+		t.Run(test.version, func(t *testing.T) {
+			statusCode := http.StatusOK
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				require.Equal(t, http.MethodGet, r.Method)
+				require.Equal(t, "/eth/v2/beacon/blocks/head/attestations", r.URL.Path)
+				b, err := json.Marshal(test.serverJSONStruct)
+				require.NoError(t, err)
 
-	statusCode := http.StatusOK
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, http.MethodGet, r.Method)
-		require.Equal(t, "/eth/v1/beacon/blocks/head/attestations", r.URL.Path)
-		b, err := json.Marshal(struct {
-			Data []*eth2p0.Attestation
-		}{
-			Data: atts,
+				w.Header().Add("Eth-Consensus-Version", test.version)
+				w.WriteHeader(statusCode)
+				_, _ = w.Write(b)
+			}))
+
+			cl := eth2wrap.NewHTTPAdapterForT(t, srv.URL, nil, time.Hour)
+			resp, err := cl.BlockAttestations(context.Background(), "head")
+			if test.expErr != "" {
+				require.ErrorContains(t, err, test.expErr)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, test.attestations, resp)
+
+			statusCode = http.StatusNotFound
+			resp, err = cl.BlockAttestations(context.Background(), "head")
+			require.NoError(t, err)
+			require.Empty(t, resp)
+
+			statusCode = http.StatusBadRequest
+			resp, err = cl.BlockAttestations(context.Background(), "head")
+			require.Error(t, err)
+			require.Empty(t, resp)
 		})
-		require.NoError(t, err)
-
-		w.WriteHeader(statusCode)
-		_, _ = w.Write(b)
-	}))
-
-	cl := eth2wrap.NewHTTPAdapterForT(t, srv.URL, nil, time.Hour)
-	resp, err := cl.BlockAttestations(context.Background(), "head")
-	require.NoError(t, err)
-	require.Equal(t, atts, resp)
-
-	statusCode = http.StatusNotFound
-	resp, err = cl.BlockAttestations(context.Background(), "head")
-	require.NoError(t, err)
-	require.Empty(t, resp)
+	}
 }
 
 // TestOneError tests the case where one of the servers returns errors.

@@ -61,11 +61,11 @@ func TestAttest(t *testing.T) {
 			// Callback to collect attestations
 			var atts []*eth2spec.VersionedAttestation
 			var aggs *eth2api.SubmitAggregateAttestationsOpts
-			beaconMock.SubmitAttestationsV2Func = func(_ context.Context, attestations *eth2api.SubmitAttestationsOpts) error {
+			beaconMock.SubmitAttestationsFunc = func(_ context.Context, attestations *eth2api.SubmitAttestationsOpts) error {
 				atts = attestations.Attestations
 				return nil
 			}
-			beaconMock.SubmitAggregateAttestationsV2Func = func(_ context.Context, aggAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
+			beaconMock.SubmitAggregateAttestationsFunc = func(_ context.Context, aggAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
 				aggs = aggAndProofs
 				return nil
 			}
@@ -109,7 +109,7 @@ func TestAttest(t *testing.T) {
 			})
 
 			sort.Slice(aggs.SignedAggregateAndProofs, func(i, j int) bool {
-				return aggs.SignedAggregateAndProofs[i].Deneb.Message.Aggregate.Data.Index < aggs.SignedAggregateAndProofs[j].Deneb.Message.Aggregate.Data.Index
+				return aggs.SignedAggregateAndProofs[i].Electra.Message.Aggregate.Data.Index < aggs.SignedAggregateAndProofs[j].Electra.Message.Aggregate.Data.Index
 			})
 
 			t.Run("attestations", func(t *testing.T) {

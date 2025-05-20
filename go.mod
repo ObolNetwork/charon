@@ -4,7 +4,7 @@ go 1.24
 
 require (
 	github.com/attestantio/go-builder-client v0.6.3
-	github.com/attestantio/go-eth2-client v1.15.2
+	github.com/attestantio/go-eth2-client v0.25.0
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
 	github.com/ethereum/go-ethereum v1.15.11
@@ -302,9 +302,6 @@ replace github.com/coinbase/kryptology => github.com/ObolNetwork/kryptology v0.0
 // We're replacing go-eth2-client with a branch off our fork, at version v0.21.10.
 // This is needed to ensure Gnosis compatibility.
 // replace github.com/attestantio/go-eth2-client => github.com/ObolNetwork/go-eth2-client v0.21.11-0.20240822135044-f0a5b21e02c6
-
-// Replace go-eth2-client version with the electra branch
-replace github.com/attestantio/go-eth2-client => github.com/ObolNetwork/go-eth2-client v0.24.1-0.20250430155428-3d42d3872437
 
 tool (
 	github.com/bufbuild/buf/cmd/buf
