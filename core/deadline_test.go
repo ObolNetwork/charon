@@ -137,7 +137,7 @@ func TestNewDutyDeadlineFunc(t *testing.T) {
 		},
 		{
 			duty:             core.NewSyncMessageDuty(currentSlot),
-			expectedDuration: 2*slotDuration/3 + margin,
+			expectedDuration: slotDuration/3 + margin,
 		},
 		{
 			duty:             core.NewSyncContributionDuty(currentSlot),
@@ -145,7 +145,7 @@ func TestNewDutyDeadlineFunc(t *testing.T) {
 		},
 		{
 			duty:             core.NewRandaoDuty(currentSlot),
-			expectedDuration: 2*slotDuration + margin,
+			expectedDuration: slotDuration/3 + margin,
 		},
 		{
 			duty:             core.NewInfoSyncDuty(currentSlot),
