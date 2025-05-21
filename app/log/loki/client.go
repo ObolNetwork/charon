@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"maps"
 	"net/http"
 	"time"
 
@@ -182,9 +183,7 @@ func (c *Client) labels() map[string]string {
 	}
 
 	kvs, _ := c.moreLabelsFunc()
-	for k, v := range kvs {
-		labels[k] = v
-	}
+	maps.Copy(labels, kvs)
 
 	return labels
 }
