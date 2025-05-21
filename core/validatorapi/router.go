@@ -344,7 +344,7 @@ type handlerFunc func(ctx context.Context, params map[string]string, query url.V
 
 // wrap adapts the handler function returning a standard http handler.
 // It does tracing, metrics and response and error writing.
-func wrap(endpoint string, handler handlerFunc, encondings []contentType) http.Handler {
+func wrap(endpoint string, handler handlerFunc, encodings []contentType) http.Handler {
 	wrap := func(w http.ResponseWriter, r *http.Request) {
 		defer observeAPILatency(endpoint)()
 
@@ -369,7 +369,7 @@ func wrap(endpoint string, handler handlerFunc, encondings []contentType) http.H
 		}
 		vcContentType.WithLabelValues(endpoint, string(typ)).Inc()
 
-		if !slices.Contains(encondings, typ) {
+		if !slices.Contains(encodings, typ) {
 			writeError(ctx, w, endpoint, apiError{
 				StatusCode: http.StatusUnsupportedMediaType,
 				Message:    "Cannot read the supplied content type.",
