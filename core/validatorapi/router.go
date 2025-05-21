@@ -374,6 +374,8 @@ func wrap(endpoint string, handler handlerFunc, encondings []contentType) http.H
 				StatusCode: http.StatusUnsupportedMediaType,
 				Message:    "Cannot read the supplied content type.",
 			})
+
+			return
 		}
 
 		userAgent := r.Header.Get("User-Agent")
