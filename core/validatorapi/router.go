@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -91,196 +92,227 @@ type Handler interface {
 func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, builderEnabled bool) (*mux.Router, error) {
 	// Register subset of distributed validator related endpoints.
 	endpoints := []struct {
-		Name    string
-		Path    string
-		Handler handlerFunc
-		Methods []string
+		Name      string
+		Path      string
+		Handler   handlerFunc
+		Methods   []string
+		Encodings []contentType
 	}{
 		{
-			Name:    "attester_duties",
-			Path:    "/eth/v1/validator/duties/attester/{epoch}",
-			Handler: attesterDuties(h),
-			Methods: []string{http.MethodPost},
+			Name:      "attester_duties",
+			Path:      "/eth/v1/validator/duties/attester/{epoch}",
+			Handler:   attesterDuties(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON},
 		},
 		{
-			Name:    "proposer_duties",
-			Path:    "/eth/v1/validator/duties/proposer/{epoch}",
-			Handler: proposerDuties(h),
-			Methods: []string{http.MethodGet},
+			Name:      "proposer_duties",
+			Path:      "/eth/v1/validator/duties/proposer/{epoch}",
+			Handler:   proposerDuties(h),
+			Methods:   []string{http.MethodGet},
+			Encodings: []contentType{contentTypeJSON},
 		},
 		{
-			Name:    "sync_committee_duties",
-			Path:    "/eth/v1/validator/duties/sync/{epoch}",
-			Handler: syncCommitteeDuties(h),
-			Methods: []string{http.MethodPost},
+			Name:      "sync_committee_duties",
+			Path:      "/eth/v1/validator/duties/sync/{epoch}",
+			Handler:   syncCommitteeDuties(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON},
 		},
 		{
-			Name:    "attestation_data",
-			Path:    "/eth/v1/validator/attestation_data",
-			Handler: attestationData(h),
-			Methods: []string{http.MethodGet},
+			Name:      "attestation_data",
+			Path:      "/eth/v1/validator/attestation_data",
+			Handler:   attestationData(h),
+			Methods:   []string{http.MethodGet},
+			Encodings: []contentType{contentTypeJSON},
 		},
 		{
-			Name:    "submit_attestations",
-			Path:    "/eth/v1/beacon/pool/attestations",
-			Handler: respond404("/eth/v1/beacon/pool/attestations"),
-			Methods: []string{http.MethodPost},
+			Name:      "submit_attestations",
+			Path:      "/eth/v1/beacon/pool/attestations",
+			Handler:   respond404("/eth/v1/beacon/pool/attestations"),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{},
 		},
 		{
-			Name:    "submit_attestations_v2",
-			Path:    "/eth/v2/beacon/pool/attestations",
-			Handler: submitAttestations(h),
-			Methods: []string{http.MethodPost},
+			Name:      "submit_attestations_v2",
+			Path:      "/eth/v2/beacon/pool/attestations",
+			Handler:   submitAttestations(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON},
 		},
 		{
-			Name:    "get_validators",
-			Path:    "/eth/v1/beacon/states/{state_id}/validators",
-			Handler: getValidators(h),
-			Methods: []string{http.MethodPost, http.MethodGet},
+			Name:      "get_validators",
+			Path:      "/eth/v1/beacon/states/{state_id}/validators",
+			Handler:   getValidators(h),
+			Methods:   []string{http.MethodPost, http.MethodGet},
+			Encodings: []contentType{contentTypeJSON},
 		},
 		{
-			Name:    "get_validator",
-			Path:    "/eth/v1/beacon/states/{state_id}/validators/{validator_id}",
-			Handler: getValidator(h),
-			Methods: []string{http.MethodGet},
+			Name:      "get_validator",
+			Path:      "/eth/v1/beacon/states/{state_id}/validators/{validator_id}",
+			Handler:   getValidator(h),
+			Methods:   []string{http.MethodGet},
+			Encodings: []contentType{contentTypeJSON},
 		},
 		{
-			Name:    "propose_block",
-			Path:    "/eth/v2/validator/blocks/{slot}",
-			Handler: respond404("/eth/v2/validator/blocks/{slot}"),
-			Methods: []string{http.MethodGet},
+			Name:      "propose_block",
+			Path:      "/eth/v2/validator/blocks/{slot}",
+			Handler:   respond404("/eth/v2/validator/blocks/{slot}"),
+			Methods:   []string{http.MethodGet},
+			Encodings: []contentType{},
 		},
 		{
-			Name:    "propose_blinded_block",
-			Path:    "/eth/v1/validator/blinded_blocks/{slot}",
-			Handler: respond404("/eth/v1/validator/blinded_blocks/{slot}"),
-			Methods: []string{http.MethodGet},
+			Name:      "propose_blinded_block",
+			Path:      "/eth/v1/validator/blinded_blocks/{slot}",
+			Handler:   respond404("/eth/v1/validator/blinded_blocks/{slot}"),
+			Methods:   []string{http.MethodGet},
+			Encodings: []contentType{},
 		},
 		{
-			Name:    "propose_block_v3",
-			Path:    "/eth/v3/validator/blocks/{slot}",
-			Handler: proposeBlockV3(h, builderEnabled),
-			Methods: []string{http.MethodGet},
+			Name:      "propose_block_v3",
+			Path:      "/eth/v3/validator/blocks/{slot}",
+			Handler:   proposeBlockV3(h, builderEnabled),
+			Methods:   []string{http.MethodGet},
+			Encodings: []contentType{contentTypeJSON, contentTypeSSZ},
 		},
 		{
-			Name:    "submit_proposal_v1",
-			Path:    "/eth/v1/beacon/blocks",
-			Handler: submitProposal(h),
-			Methods: []string{http.MethodPost},
+			Name:      "submit_proposal_v1",
+			Path:      "/eth/v1/beacon/blocks",
+			Handler:   submitProposal(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON, contentTypeSSZ},
 		},
 		{
-			Name:    "submit_proposal_v2",
-			Path:    "/eth/v2/beacon/blocks",
-			Handler: submitProposal(h),
-			Methods: []string{http.MethodPost},
+			Name:      "submit_proposal_v2",
+			Path:      "/eth/v2/beacon/blocks",
+			Handler:   submitProposal(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON, contentTypeSSZ},
 		},
 		{
-			Name:    "submit_blinded_block_v1",
-			Path:    "/eth/v1/beacon/blinded_blocks",
-			Handler: submitBlindedBlock(h),
-			Methods: []string{http.MethodPost},
+			Name:      "submit_blinded_block_v1",
+			Path:      "/eth/v1/beacon/blinded_blocks",
+			Handler:   submitBlindedBlock(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON, contentTypeSSZ},
 		},
 		{
-			Name:    "submit_blinded_block_v2",
-			Path:    "/eth/v2/beacon/blinded_blocks",
-			Handler: submitBlindedBlock(h),
-			Methods: []string{http.MethodPost},
+			Name:      "submit_blinded_block_v2",
+			Path:      "/eth/v2/beacon/blinded_blocks",
+			Handler:   submitBlindedBlock(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON, contentTypeSSZ},
 		},
 		{
-			Name:    "submit_validator_registration",
-			Path:    "/eth/v1/validator/register_validator",
-			Handler: submitValidatorRegistrations(h),
-			Methods: []string{http.MethodPost},
+			Name:      "submit_validator_registration",
+			Path:      "/eth/v1/validator/register_validator",
+			Handler:   submitValidatorRegistrations(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON, contentTypeSSZ},
 		},
 		{
-			Name:    "submit_voluntary_exit",
-			Path:    "/eth/v1/beacon/pool/voluntary_exits",
-			Handler: submitExit(h),
-			Methods: []string{http.MethodPost},
+			Name:      "submit_voluntary_exit",
+			Path:      "/eth/v1/beacon/pool/voluntary_exits",
+			Handler:   submitExit(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON},
 		},
 		{
-			Name:    "teku_proposer_config",
-			Path:    "/teku_proposer_config",
-			Handler: proposerConfig(h),
-			Methods: []string{http.MethodGet},
+			Name:      "teku_proposer_config",
+			Path:      "/teku_proposer_config",
+			Handler:   proposerConfig(h),
+			Methods:   []string{http.MethodGet},
+			Encodings: []contentType{contentTypeJSON},
 		},
 		{
-			Name:    "proposer_config",
-			Path:    "/proposer_config",
-			Handler: proposerConfig(h),
-			Methods: []string{http.MethodGet},
+			Name:      "proposer_config",
+			Path:      "/proposer_config",
+			Handler:   proposerConfig(h),
+			Methods:   []string{http.MethodGet},
+			Encodings: []contentType{contentTypeJSON},
 		},
 		{
-			Name:    "aggregate_beacon_committee_selections",
-			Path:    "/eth/v1/validator/beacon_committee_selections",
-			Handler: aggregateBeaconCommitteeSelections(h),
-			Methods: []string{http.MethodPost},
+			Name:      "aggregate_beacon_committee_selections",
+			Path:      "/eth/v1/validator/beacon_committee_selections",
+			Handler:   aggregateBeaconCommitteeSelections(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON},
 		},
 		{
-			Name:    "aggregate_attestation",
-			Path:    "/eth/v1/validator/aggregate_attestation",
-			Handler: respond404("/eth/v1/validator/aggregate_attestation"),
-			Methods: []string{http.MethodGet},
+			Name:      "aggregate_attestation",
+			Path:      "/eth/v1/validator/aggregate_attestation",
+			Handler:   respond404("/eth/v1/validator/aggregate_attestation"),
+			Methods:   []string{http.MethodGet},
+			Encodings: []contentType{},
 		},
 		{
-			Name:    "aggregate_attestation_v2",
-			Path:    "/eth/v2/validator/aggregate_attestation",
-			Handler: aggregateAttestation(h),
-			Methods: []string{http.MethodGet},
+			Name:      "aggregate_attestation_v2",
+			Path:      "/eth/v2/validator/aggregate_attestation",
+			Handler:   aggregateAttestation(h),
+			Methods:   []string{http.MethodGet},
+			Encodings: []contentType{contentTypeJSON},
 		},
 		{
-			Name:    "submit_aggregate_and_proofs",
-			Path:    "/eth/v1/validator/aggregate_and_proofs",
-			Handler: respond404("/eth/v1/validator/aggregate_and_proofs"),
-			Methods: []string{http.MethodPost},
+			Name:      "submit_aggregate_and_proofs",
+			Path:      "/eth/v1/validator/aggregate_and_proofs",
+			Handler:   respond404("/eth/v1/validator/aggregate_and_proofs"),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{},
 		},
 		{
-			Name:    "submit_aggregate_and_proofs_v2",
-			Path:    "/eth/v2/validator/aggregate_and_proofs",
-			Handler: submitAggregateAttestations(h),
-			Methods: []string{http.MethodPost},
+			Name:      "submit_aggregate_and_proofs_v2",
+			Path:      "/eth/v2/validator/aggregate_and_proofs",
+			Handler:   submitAggregateAttestations(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON},
 		},
 		{
-			Name:    "submit_sync_committee_messages",
-			Path:    "/eth/v1/beacon/pool/sync_committees",
-			Handler: submitSyncCommitteeMessages(h),
-			Methods: []string{http.MethodPost},
+			Name:      "submit_sync_committee_messages",
+			Path:      "/eth/v1/beacon/pool/sync_committees",
+			Handler:   submitSyncCommitteeMessages(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON},
 		},
 		{
-			Name:    "sync_committee_contribution",
-			Path:    "/eth/v1/validator/sync_committee_contribution",
-			Handler: syncCommitteeContribution(h),
-			Methods: []string{http.MethodGet},
+			Name:      "sync_committee_contribution",
+			Path:      "/eth/v1/validator/sync_committee_contribution",
+			Handler:   syncCommitteeContribution(h),
+			Methods:   []string{http.MethodGet},
+			Encodings: []contentType{contentTypeJSON},
 		},
 		{
-			Name:    "submit_contribution_and_proofs",
-			Path:    "/eth/v1/validator/contribution_and_proofs",
-			Handler: submitContributionAndProofs(h),
-			Methods: []string{http.MethodPost},
+			Name:      "submit_contribution_and_proofs",
+			Path:      "/eth/v1/validator/contribution_and_proofs",
+			Handler:   submitContributionAndProofs(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON},
 		},
 		{
-			Name:    "submit_proposal_preparations",
-			Path:    "/eth/v1/validator/prepare_beacon_proposer",
-			Handler: submitProposalPreparations(),
-			Methods: []string{http.MethodPost},
+			Name:      "submit_proposal_preparations",
+			Path:      "/eth/v1/validator/prepare_beacon_proposer",
+			Handler:   submitProposalPreparations(),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON},
 		},
 		{
-			Name:    "aggregate_sync_committee_selections",
-			Path:    "/eth/v1/validator/sync_committee_selections",
-			Handler: aggregateSyncCommitteeSelections(h),
-			Methods: []string{http.MethodPost},
+			Name:      "aggregate_sync_committee_selections",
+			Path:      "/eth/v1/validator/sync_committee_selections",
+			Handler:   aggregateSyncCommitteeSelections(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON},
 		},
 		{
-			Name:    "node_version",
-			Path:    "/eth/v1/node/version",
-			Handler: nodeVersion(h),
-			Methods: []string{http.MethodGet},
+			Name:      "node_version",
+			Path:      "/eth/v1/node/version",
+			Handler:   nodeVersion(h),
+			Methods:   []string{http.MethodGet},
+			Encodings: []contentType{contentTypeJSON},
 		},
 	}
 
 	r := mux.NewRouter()
 	for _, e := range endpoints {
-		handler := r.Handle(e.Path, wrap(e.Name, e.Handler))
+		handler := r.Handle(e.Path, wrap(e.Name, e.Handler, e.Encodings))
 		if len(e.Methods) != 0 {
 			handler.Methods(e.Methods...)
 		}
@@ -312,7 +344,7 @@ type handlerFunc func(ctx context.Context, params map[string]string, query url.V
 
 // wrap adapts the handler function returning a standard http handler.
 // It does tracing, metrics and response and error writing.
-func wrap(endpoint string, handler handlerFunc) http.Handler {
+func wrap(endpoint string, handler handlerFunc, encondings []contentType) http.Handler {
 	wrap := func(w http.ResponseWriter, r *http.Request) {
 		defer observeAPILatency(endpoint)()
 
@@ -336,6 +368,13 @@ func wrap(endpoint string, handler handlerFunc) http.Handler {
 			return
 		}
 		vcContentType.WithLabelValues(endpoint, string(typ)).Inc()
+
+		if !slices.Contains(encondings, typ) {
+			writeError(ctx, w, endpoint, apiError{
+				StatusCode: http.StatusUnsupportedMediaType,
+				Message:    "Cannot read the supplied content type.",
+			})
+		}
 
 		userAgent := r.Header.Get("User-Agent")
 		if userAgent != "" {
@@ -986,13 +1025,13 @@ func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
 // submitValidatorRegistrations returns a handler function for the validator (builder) registration submitter endpoint.
 func submitValidatorRegistrations(r eth2client.ValidatorRegistrationsSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
-		var unversioned []*eth2v1.SignedValidatorRegistration
+		var unversioned signedValidatorRegistrations
 		if err := unmarshal(typ, body, &unversioned); err != nil {
 			return nil, nil, errors.Wrap(err, "unmarshal signed builder registration")
 		}
 
 		var versioned []*eth2api.VersionedSignedValidatorRegistration
-		for _, registration := range unversioned {
+		for _, registration := range unversioned.Registrations {
 			versioned = append(versioned, &eth2api.VersionedSignedValidatorRegistration{
 				Version: eth2spec.BuilderVersionV1,
 				V1:      registration,
