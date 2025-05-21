@@ -1266,20 +1266,96 @@ func createAggregateAttestation(aggAtt *eth2spec.VersionedAttestation) (*aggrega
 }
 
 func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, header http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		aggs := []*eth2spec.VersionedSignedAggregateAndProof{}
 
-		electraAggs := new([]electra.SignedAggregateAndProof)
-		err := unmarshal(typ, body, electraAggs)
+		var version eth2spec.DataVersion
+		err := version.UnmarshalJSON([]byte("\"" + header.Get(versionHeader) + "\""))
 		if err != nil {
-			return nil, nil, errors.New("invalid submitted aggregate and proofs", z.Hex("body", body))
+			return nil, nil, errors.New("missing consensus version header", z.Hex("body", body))
 		}
-		for _, agg := range *electraAggs {
-			versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
-				Version: eth2spec.DataVersionElectra,
-				Electra: &agg,
+
+		switch version {
+		case eth2spec.DataVersionPhase0:
+			var p0Aggs []*eth2p0.SignedAggregateAndProof
+			err := unmarshal(typ, body, &p0Aggs)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "unmarshal phase0 signed aggregate and proofs", z.Hex("body", body))
 			}
-			aggs = append(aggs, &versionedAgg)
+			for _, p0Agg := range p0Aggs {
+				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionPhase0,
+					Phase0:  p0Agg,
+				}
+				aggs = append(aggs, &versionedAgg)
+			}
+		case eth2spec.DataVersionAltair:
+			var p0Aggs []*eth2p0.SignedAggregateAndProof
+			err := unmarshal(typ, body, &p0Aggs)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "unmarshal altair signed aggregate and proofs", z.Hex("body", body))
+			}
+			for _, p0Agg := range p0Aggs {
+				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionAltair,
+					Altair:  p0Agg,
+				}
+				aggs = append(aggs, &versionedAgg)
+			}
+		case eth2spec.DataVersionBellatrix:
+			var p0Aggs []*eth2p0.SignedAggregateAndProof
+			err := unmarshal(typ, body, &p0Aggs)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "unmarshal bellatrix signed aggregate and proofs", z.Hex("body", body))
+			}
+			for _, p0Agg := range p0Aggs {
+				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
+					Version:   eth2spec.DataVersionBellatrix,
+					Bellatrix: p0Agg,
+				}
+				aggs = append(aggs, &versionedAgg)
+			}
+		case eth2spec.DataVersionCapella:
+			var p0Aggs []*eth2p0.SignedAggregateAndProof
+			err := unmarshal(typ, body, &p0Aggs)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "unmarshal capella signed aggregate and proofs", z.Hex("body", body))
+			}
+			for _, p0Agg := range p0Aggs {
+				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionCapella,
+					Capella: p0Agg,
+				}
+				aggs = append(aggs, &versionedAgg)
+			}
+		case eth2spec.DataVersionDeneb:
+			var p0Aggs []*eth2p0.SignedAggregateAndProof
+			err := unmarshal(typ, body, &p0Aggs)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "unmarshal deneb signed aggregate and proofs", z.Hex("body", body))
+			}
+			for _, p0Agg := range p0Aggs {
+				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionDeneb,
+					Deneb:   p0Agg,
+				}
+				aggs = append(aggs, &versionedAgg)
+			}
+		case eth2spec.DataVersionElectra:
+			var electraAggs []*electra.SignedAggregateAndProof
+			err := unmarshal(typ, body, &electraAggs)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "unmarshal electra signed aggregate and proofs", z.Hex("body", body))
+			}
+			for _, electraAgg := range electraAggs {
+				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionElectra,
+					Electra: electraAgg,
+				}
+				aggs = append(aggs, &versionedAgg)
+			}
+		default:
+			return nil, nil, errors.Wrap(err, "unknown signed aggregate and proofs version", z.Hex("body", body), z.Str("version", version.String()))
 		}
 
 		return nil, nil, s.SubmitAggregateAttestations(ctx, &eth2api.SubmitAggregateAttestationsOpts{
