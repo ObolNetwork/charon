@@ -280,15 +280,52 @@ func (c Component) SubmitAttestations(ctx context.Context, attestationOpts *eth2
 			return errors.Wrap(err, "get attestation committee index")
 		}
 
-		if att.ValidatorIndex == nil {
-			return errors.New("missing attestation validator index")
+		var valIdx eth2p0.ValidatorIndex
+		switch att.Version {
+		// In pre-electra attestations ValidatorIndex is not part of the VersionedAttestation structure.
+		// Try to fetch it by matching the aggregation bits and validator's committee index from the payload to an attester duty from the scheduler.
+		case eth2spec.DataVersionPhase0, eth2spec.DataVersionAltair, eth2spec.DataVersionBellatrix, eth2spec.DataVersionCapella, eth2spec.DataVersionDeneb:
+			dutyDefSet, err := c.dutyDefFunc(ctx, core.Duty{Slot: uint64(attData.Slot), Type: core.DutyAttester})
+			if err != nil {
+				return errors.Wrap(err, "duty def set")
+			}
+
+			for _, dutyDef := range dutyDefSet {
+				attDef, ok := dutyDef.(core.AttesterDefinition)
+				if !ok {
+					return errors.New("parse duty definition to attester definition")
+				}
+				if attDef.CommitteeIndex != attData.Index {
+					continue
+				}
+				aggBits, err := att.AggregationBits()
+				if err != nil {
+					return errors.Wrap(err, "get attestation aggregation bits")
+				}
+				indices := aggBits.BitIndices()
+				if len(indices) != 1 {
+					return errors.New("unexpected number of aggregation bits",
+						z.Str("aggbits", fmt.Sprintf("%#x", []byte(aggBits))))
+				}
+				if attDef.ValidatorCommitteeIndex == uint64(indices[0]) {
+					valIdx = attDef.ValidatorIndex
+					break
+				}
+			}
+		case eth2spec.DataVersionElectra:
+			if att.ValidatorIndex == nil {
+				return errors.New("missing attestation validator index from electra attestation")
+			}
+			valIdx = *att.ValidatorIndex
+		default:
+			return errors.New("invalid attestations version", z.Str("version", att.Version.String()))
 		}
 
 		var pubkey core.PubKey
-		pubkey, err = c.pubKeyByAttFunc(ctx, slot, uint64(attCommitteeIndex), uint64(*att.ValidatorIndex))
+		pubkey, err = c.pubKeyByAttFunc(ctx, slot, uint64(attCommitteeIndex), uint64(valIdx))
 		if err != nil {
 			return errors.Wrap(err, "failed to find pubkey", z.U64("slot", slot),
-				z.U64("commIdx", uint64(attCommitteeIndex)), z.U64("valIdx", uint64(*att.ValidatorIndex)))
+				z.U64("commIdx", uint64(attCommitteeIndex)), z.U64("valIdx", uint64(valIdx)))
 		}
 
 		parSigData, err := core.NewPartialVersionedAttestation(att, c.shareIdx)

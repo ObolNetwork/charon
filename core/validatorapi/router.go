@@ -340,7 +340,7 @@ func (a apiError) Error() string {
 
 // handlerFunc is a convenient handler function providing a context, parsed path parameters,
 // the request body, and returning the response struct or an error.
-type handlerFunc func(ctx context.Context, params map[string]string, query url.Values, typ contentType, body []byte) (res any, headers http.Header, err error)
+type handlerFunc func(ctx context.Context, params map[string]string, header http.Header, query url.Values, typ contentType, body []byte) (res any, headers http.Header, err error)
 
 // wrap adapts the handler function returning a standard http handler.
 // It does tracing, metrics and response and error writing.
@@ -389,7 +389,7 @@ func wrap(endpoint string, handler handlerFunc, encodings []contentType) http.Ha
 			return
 		}
 
-		res, headers, err := handler(ctx, mux.Vars(r), r.URL.Query(), typ, body)
+		res, headers, err := handler(ctx, mux.Vars(r), r.Header, r.URL.Query(), typ, body)
 		if err != nil {
 			writeError(ctx, w, endpoint, err)
 			return
@@ -429,7 +429,7 @@ func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, 
 
 // getValidators returns a handler function for the get validators by pubkey or index endpoint.
 func getValidators(p eth2client.ValidatorsProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, body []byte) (any, http.Header, error) {
+	return func(ctx context.Context, params map[string]string, _ http.Header, query url.Values, _ contentType, body []byte) (any, http.Header, error) {
 		stateID := params["state_id"]
 
 		// TODO: support 'status' param when go-eth2-client supports it
@@ -457,7 +457,7 @@ func getValidators(p eth2client.ValidatorsProvider) handlerFunc {
 
 // getValidator returns a handler function for the get validators by pubkey or index endpoint.
 func getValidator(p eth2client.ValidatorsProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+	return func(ctx context.Context, params map[string]string, _ http.Header, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		stateID := params["state_id"]
 		id := params["validator_id"]
 
@@ -479,7 +479,7 @@ func getValidator(p eth2client.ValidatorsProvider) handlerFunc {
 
 // attestationData returns a handler function for the attestation data endpoint.
 func attestationData(p eth2client.AttestationDataProvider) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, _ http.Header, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		slot, err := uintQuery(query, "slot")
 		if err != nil {
 			return nil, nil, err
@@ -510,30 +510,106 @@ func attestationData(p eth2client.AttestationDataProvider) handlerFunc {
 
 // submitAttestations returns a handler function for the attestation submitter v2 endpoint.
 func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, header http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		versionedAtts := []*eth2spec.VersionedAttestation{}
 
-		electraAtts := new([]electra.SingleAttestation)
-		err := unmarshal(typ, body, electraAtts)
+		var version eth2spec.DataVersion
+		err := version.UnmarshalJSON([]byte("\"" + header.Get(versionHeader) + "\""))
 		if err != nil {
-			return nil, nil, errors.New("invalid attestations", z.Hex("body", body))
+			return nil, nil, errors.New("missing consensus version header", z.Hex("body", body))
 		}
-		for _, electraAtt := range *electraAtts {
-			commBits := bitfield.NewBitvector64()
-			commBits.SetBitAt(uint64(electraAtt.CommitteeIndex), true)
-			versionedAtt := eth2spec.VersionedAttestation{
-				Version:        eth2spec.DataVersionElectra,
-				ValidatorIndex: &electraAtt.AttesterIndex,
-				Electra: &electra.Attestation{
-					// the VersionedAttestation object will be converted back to SingleAttestation object inside go-eth2-client's SubmitAttestations,
-					// SingleAttestation object disregards AggregationBits, so this empty Bitlist is safe
-					AggregationBits: bitfield.NewBitlist(0),
-					Data:            electraAtt.Data,
-					Signature:       electraAtt.Signature,
-					CommitteeBits:   commBits,
-				},
+
+		switch version {
+		case eth2spec.DataVersionPhase0:
+			p0Atts := new([]eth2p0.Attestation)
+			err = unmarshal(typ, body, p0Atts)
+			if err != nil {
+				return nil, nil, errors.New("invalid phase0 attestations", z.Hex("body", body))
 			}
-			versionedAtts = append(versionedAtts, &versionedAtt)
+			for _, p0Att := range *p0Atts {
+				versionedAtt := eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionPhase0,
+					Phase0:  &p0Att,
+				}
+				versionedAtts = append(versionedAtts, &versionedAtt)
+			}
+		case eth2spec.DataVersionAltair:
+			p0Atts := new([]eth2p0.Attestation)
+			err = unmarshal(typ, body, p0Atts)
+			if err != nil {
+				return nil, nil, errors.New("invalid altair attestations", z.Hex("body", body))
+			}
+			for _, p0Att := range *p0Atts {
+				versionedAtt := eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionAltair,
+					Altair:  &p0Att,
+				}
+				versionedAtts = append(versionedAtts, &versionedAtt)
+			}
+		case eth2spec.DataVersionBellatrix:
+			p0Atts := new([]eth2p0.Attestation)
+			err = unmarshal(typ, body, p0Atts)
+			if err != nil {
+				return nil, nil, errors.New("invalid bellatrix attestations", z.Hex("body", body))
+			}
+			for _, p0Att := range *p0Atts {
+				versionedAtt := eth2spec.VersionedAttestation{
+					Version:   eth2spec.DataVersionBellatrix,
+					Bellatrix: &p0Att,
+				}
+				versionedAtts = append(versionedAtts, &versionedAtt)
+			}
+		case eth2spec.DataVersionCapella:
+			p0Atts := new([]eth2p0.Attestation)
+			err = unmarshal(typ, body, p0Atts)
+			if err != nil {
+				return nil, nil, errors.New("invalid capella attestations", z.Hex("body", body))
+			}
+			for _, p0Att := range *p0Atts {
+				versionedAtt := eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionCapella,
+					Capella: &p0Att,
+				}
+				versionedAtts = append(versionedAtts, &versionedAtt)
+			}
+		case eth2spec.DataVersionDeneb:
+			p0Atts := new([]eth2p0.Attestation)
+			err = unmarshal(typ, body, p0Atts)
+			if err != nil {
+				return nil, nil, errors.New("invalid deneb attestations", z.Hex("body", body))
+			}
+			for _, p0Att := range *p0Atts {
+				versionedAtt := eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionDeneb,
+					Deneb:   &p0Att,
+				}
+				versionedAtts = append(versionedAtts, &versionedAtt)
+			}
+		case eth2spec.DataVersionElectra:
+			electraAtts := new([]electra.SingleAttestation)
+			err = unmarshal(typ, body, electraAtts)
+			if err != nil {
+				return nil, nil, errors.New("invalid attestations", z.Hex("body", body))
+			}
+			for _, electraAtt := range *electraAtts {
+				commBits := bitfield.NewBitvector64()
+				commBits.SetBitAt(uint64(electraAtt.CommitteeIndex), true)
+				versionedAtt := eth2spec.VersionedAttestation{
+					Version:        eth2spec.DataVersionElectra,
+					ValidatorIndex: &electraAtt.AttesterIndex,
+					Electra: &electra.Attestation{
+						// the VersionedAttestation object will be converted back to SingleAttestation object inside go-eth2-client's SubmitAttestations,
+						// SingleAttestation object disregards AggregationBits, so this empty Bitlist is safe
+						AggregationBits: bitfield.NewBitlist(0),
+						Data:            electraAtt.Data,
+						Signature:       electraAtt.Signature,
+						CommitteeBits:   commBits,
+					},
+				}
+				versionedAtts = append(versionedAtts, &versionedAtt)
+			}
+		default:
+			return nil, nil, errors.New("invalid attestations version", z.Hex("body", body), z.Str("version", version.String()))
 		}
 
 		return nil, nil, p.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: versionedAtts})
@@ -542,7 +618,7 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 
 // proposerDuties returns a handler function for the proposer duty endpoint.
 func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+	return func(ctx context.Context, params map[string]string, _ http.Header, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		epoch, err := uintParam(params, "epoch")
 		if err != nil {
 			return nil, nil, err
@@ -584,7 +660,7 @@ func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
 
 // attesterDuties returns a handler function for the attester duty endpoint.
 func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+	return func(ctx context.Context, params map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		epoch, err := uintParam(params, "epoch")
 		if err != nil {
 			return nil, nil, err
@@ -629,7 +705,7 @@ func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 
 // syncCommitteeDuties returns a handler function for the sync committee duty endpoint.
 func syncCommitteeDuties(p eth2client.SyncCommitteeDutiesProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+	return func(ctx context.Context, params map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		epoch, err := uintParam(params, "epoch")
 		if err != nil {
 			return nil, nil, err
@@ -660,7 +736,7 @@ func syncCommitteeDuties(p eth2client.SyncCommitteeDutiesProvider) handlerFunc {
 
 // syncCommitteeContribution returns a handler function for get sync committee contribution endpoint.
 func syncCommitteeContribution(s eth2client.SyncCommitteeContributionProvider) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, _ http.Header, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		slot, err := uintQuery(query, "slot")
 		if err != nil {
 			return nil, nil, err
@@ -694,7 +770,7 @@ func syncCommitteeContribution(s eth2client.SyncCommitteeContributionProvider) h
 
 // submitContributionAndProofs returns a handler function for sync committee contributions submitter endpoint.
 func submitContributionAndProofs(s eth2client.SyncCommitteeContributionsSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		var contributionAndProofs []*altair.SignedContributionAndProof
 		err := unmarshal(typ, body, &contributionAndProofs)
 		if err != nil {
@@ -707,7 +783,7 @@ func submitContributionAndProofs(s eth2client.SyncCommitteeContributionsSubmitte
 
 // respond404 returns a handler function always returning http.StatusNotFound
 func respond404(endpoint string) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		log.Warn(ctx, "This endpoint shall not be hit", nil, z.Str("endpoint", endpoint))
 
 		return nil, nil, apiError{
@@ -719,7 +795,7 @@ func respond404(endpoint string) handlerFunc {
 
 // proposeBlockV3 returns a handler function returning an unsigned BeaconBlock or BlindedBeaconBlock.
 func proposeBlockV3(p eth2client.ProposalProvider, builderEnabled bool) handlerFunc {
-	return func(ctx context.Context, params map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+	return func(ctx context.Context, params map[string]string, _ http.Header, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		slot, randao, graffiti, err := getProposeBlockParams(params, query)
 		if err != nil {
 			return nil, nil, err
@@ -882,7 +958,7 @@ func createProposeBlockResponse(proposal *eth2api.VersionedProposal) (*proposeBl
 }
 
 func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		electraBlock := new(eth2electra.SignedBlockContents)
 		err := unmarshal(typ, body, electraBlock)
 		if err == nil {
@@ -966,7 +1042,7 @@ func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 }
 
 func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		// The blinded block maybe either bellatrix, capella, deneb or electra.
 		electraBlock := new(eth2electra.SignedBlindedBeaconBlock)
 		err := unmarshal(typ, body, electraBlock)
@@ -1026,7 +1102,7 @@ func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
 
 // submitValidatorRegistrations returns a handler function for the validator (builder) registration submitter endpoint.
 func submitValidatorRegistrations(r eth2client.ValidatorRegistrationsSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		var unversioned signedValidatorRegistrations
 		if err := unmarshal(typ, body, &unversioned); err != nil {
 			return nil, nil, errors.Wrap(err, "unmarshal signed builder registration")
@@ -1046,7 +1122,7 @@ func submitValidatorRegistrations(r eth2client.ValidatorRegistrationsSubmitter) 
 
 // aggregateBeaconCommitteeSelections receives partial beacon committee selections and returns aggregated selections.
 func aggregateBeaconCommitteeSelections(a eth2exp.BeaconCommitteeSelectionAggregator) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (res any, headers http.Header, err error) {
+	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (res any, headers http.Header, err error) {
 		var selections []*eth2exp.BeaconCommitteeSelection
 		if err := unmarshal(typ, body, &selections); err != nil {
 			return nil, nil, errors.Wrap(err, "unmarshal beacon committee selections")
@@ -1063,7 +1139,7 @@ func aggregateBeaconCommitteeSelections(a eth2exp.BeaconCommitteeSelectionAggreg
 
 // aggregateSyncCommitteeSelections receives partial sync committee selections and returns aggregated selections.
 func aggregateSyncCommitteeSelections(a eth2exp.SyncCommitteeSelectionAggregator) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (res any, headers http.Header, err error) {
+	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (res any, headers http.Header, err error) {
 		var selections []*eth2exp.SyncCommitteeSelection
 		if err := unmarshal(typ, body, &selections); err != nil {
 			return nil, nil, errors.Wrap(err, "unmarshal sync committee selections")
@@ -1080,7 +1156,7 @@ func aggregateSyncCommitteeSelections(a eth2exp.SyncCommitteeSelectionAggregator
 
 // submitExit returns a handler function for the exit submitter endpoint.
 func submitExit(p eth2client.VoluntaryExitSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		exit := new(eth2p0.SignedVoluntaryExit)
 		if err := unmarshal(typ, body, exit); err != nil {
 			return nil, nil, errors.Wrap(err, "unmarshal signed voluntary exit")
@@ -1091,7 +1167,7 @@ func submitExit(p eth2client.VoluntaryExitSubmitter) handlerFunc {
 }
 
 func proposerConfig(p eth2exp.ProposerConfigProvider) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		resp, err := p.ProposerConfig(ctx)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "proposer config")
@@ -1102,7 +1178,7 @@ func proposerConfig(p eth2exp.ProposerConfigProvider) handlerFunc {
 }
 
 func aggregateAttestation(p eth2client.AggregateAttestationProvider) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, _ http.Header, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		slot, err := uintQuery(query, "slot")
 		if err != nil {
 			return nil, nil, err
@@ -1190,7 +1266,7 @@ func createAggregateAttestation(aggAtt *eth2spec.VersionedAttestation) (*aggrega
 }
 
 func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		aggs := []*eth2spec.VersionedSignedAggregateAndProof{}
 
 		electraAggs := new([]electra.SignedAggregateAndProof)
@@ -1213,7 +1289,7 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 }
 
 func submitSyncCommitteeMessages(s eth2client.SyncCommitteeMessagesSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		var msgs []*altair.SyncCommitteeMessage
 		err := unmarshal(typ, body, &msgs)
 		if err != nil {
@@ -1232,14 +1308,14 @@ func submitSyncCommitteeMessages(s eth2client.SyncCommitteeMessagesSubmitter) ha
 // submitProposalPreparations swallows fee-recipient-address from validator client as it should be
 // configured by charon from cluster-lock.json and VC need not be configured with correct fee-recipient-address.
 func submitProposalPreparations() handlerFunc {
-	return func(context.Context, map[string]string, url.Values, contentType, []byte) (any, http.Header, error) {
+	return func(context.Context, map[string]string, http.Header, url.Values, contentType, []byte) (any, http.Header, error) {
 		return nil, nil, nil
 	}
 }
 
 // nodeVersion returns the version of the node.
 func nodeVersion(p eth2client.NodeVersionProvider) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		eth2Resp, err := p.NodeVersion(ctx, &eth2api.NodeVersionOpts{})
 		if err != nil {
 			return nil, nil, err
