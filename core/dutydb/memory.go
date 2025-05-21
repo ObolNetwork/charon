@@ -399,14 +399,7 @@ func (db *MemDB) storeAggAttestationUnsafe(unsignedData core.UnsignedData) error
 			return errors.New("clashing data root", z.Str("existing", hex.EncodeToString(existingDataRoot[:])), z.Str("provided", hex.EncodeToString(providedDataRoot[:])))
 		}
 
-		switch existing.Version {
-		case eth2spec.DataVersionPhase0, eth2spec.DataVersionAltair, eth2spec.DataVersionBellatrix, eth2spec.DataVersionCapella, eth2spec.DataVersionDeneb:
-			return errors.New("incorrect version for storing aggregation attestation v2")
-		case eth2spec.DataVersionElectra:
-			db.aggDuties[key] = provided
-		default:
-			return errors.New("unknown version")
-		}
+		db.aggDuties[key] = provided
 	} else {
 		db.aggDuties[key] = aggAtt
 		db.aggKeysBySlot[slot] = append(db.aggKeysBySlot[slot], key)

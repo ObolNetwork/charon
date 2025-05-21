@@ -322,40 +322,63 @@ func checkAttestationInclusion(sub submission, block block) (bool, error) {
 		return false, nil
 	}
 
-	if subData.ValidatorIndex == nil {
-		return false, errors.New("no validator index in attestation")
-	}
-
-	var attesterDutyData *eth2v1.AttesterDuty
-	for _, ad := range block.AttDuties {
-		if *subData.ValidatorIndex == ad.ValidatorIndex {
-			attesterDutyData = ad
-			break
+	switch subData.Version {
+	case eth2spec.DataVersionPhase0, eth2spec.DataVersionAltair, eth2spec.DataVersionBellatrix, eth2spec.DataVersionCapella, eth2spec.DataVersionDeneb:
+		subBits, err := subData.AggregationBits()
+		if err != nil {
+			return false, errors.Wrap(err, "fetch submission aggregation bits from phase0 attestation")
 		}
-	}
+		attAggBits, err := att.AggregationBits()
+		if err != nil {
+			return false, errors.Wrap(err, "fetch attestation aggregation bits from phase0 attestation")
+		}
+		ok, err := attAggBits.Contains(subBits)
+		if err != nil {
+			return false, errors.Wrap(err, "check phase0 aggregation bits",
+				z.U64("block_bits", attAggBits.Len()),
+				z.U64("sub_bits", subBits.Len()),
+			)
+		}
 
-	if attesterDutyData == nil {
-		return false, errors.New("no attester duty data found")
-	}
+		return ok, nil
+	case eth2spec.DataVersionElectra:
+		if subData.ValidatorIndex == nil {
+			return false, errors.New("no validator index in electra attestation")
+		}
 
-	attAggBits, err := att.AggregationBits()
-	if err != nil {
-		return false, errors.Wrap(err, "get attestation aggregation bits")
-	}
+		var attesterDutyData *eth2v1.AttesterDuty
+		for _, ad := range block.AttDuties {
+			if *subData.ValidatorIndex == ad.ValidatorIndex {
+				attesterDutyData = ad
+				break
+			}
+		}
 
-	subCommIdx, err := subData.CommitteeIndex()
-	if err != nil {
-		return false, errors.Wrap(err, "get committee index")
-	}
+		if attesterDutyData == nil {
+			return false, errors.New("no attester duty data found in electra attestation")
+		}
 
-	// Calculate the length of validators of committees before the committee index of the submitted attestation.
-	previousCommsValidatorsLen := 0
-	for idx := range subCommIdx {
-		previousCommsValidatorsLen += len(block.BeaconCommitees[idx].Validators)
-	}
+		attAggBits, err := att.AggregationBits()
+		if err != nil {
+			return false, errors.Wrap(err, "get attestation aggregation bits from phase0 attestation")
+		}
 
-	// Previous committees validators length + validator index in attestation committee gives the index of the attestation in the full agreggation bits bitlist.
-	return attAggBits.BitAt(uint64(previousCommsValidatorsLen) + attesterDutyData.ValidatorCommitteeIndex), nil
+		subCommIdx, err := subData.CommitteeIndex()
+		if err != nil {
+			return false, errors.Wrap(err, "get committee index from phase0 attestation")
+		}
+
+		// Calculate the length of validators of committees before the committee index of the submitted attestation.
+		previousCommsValidatorsLen := 0
+		for idx := range subCommIdx {
+			previousCommsValidatorsLen += len(block.BeaconCommitees[idx].Validators)
+		}
+
+		// Previous committees validators length + validator index in attestation committee gives the index of the attestation in the full agreggation bits bitlist.
+		return attAggBits.BitAt(uint64(previousCommsValidatorsLen) + attesterDutyData.ValidatorCommitteeIndex), nil
+	default:
+		return false, errors.New("unknown version", z.Str("version", subData.Version.String()))
+	}
 }
 
 // reportMissed reports duties that were broadcast but never included on chain.

@@ -189,35 +189,8 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 
 		aggAtt, ok := aggAttByCommIdx[attDef.CommitteeIndex]
 		if ok {
-			switch aggAtt.Version {
-			case eth2spec.DataVersionPhase0:
-				resp[pubkey] = core.AggregatedAttestation{
-					Attestation: *aggAtt.Phase0,
-				}
-			case eth2spec.DataVersionAltair:
-				resp[pubkey] = core.AggregatedAttestation{
-					Attestation: *aggAtt.Altair,
-				}
-			case eth2spec.DataVersionBellatrix:
-				resp[pubkey] = core.AggregatedAttestation{
-					Attestation: *aggAtt.Bellatrix,
-				}
-			case eth2spec.DataVersionCapella:
-				resp[pubkey] = core.AggregatedAttestation{
-					Attestation: *aggAtt.Capella,
-				}
-			case eth2spec.DataVersionDeneb:
-				resp[pubkey] = core.AggregatedAttestation{
-					Attestation: *aggAtt.Deneb,
-				}
-			case eth2spec.DataVersionElectra:
-				resp[pubkey] = core.VersionedAggregatedAttestation{
-					VersionedAttestation: *aggAtt,
-				}
-			default:
-				resp[pubkey] = core.VersionedAggregatedAttestation{
-					VersionedAttestation: *aggAtt,
-				}
+			resp[pubkey] = core.VersionedAggregatedAttestation{
+				VersionedAttestation: *aggAtt,
 			}
 
 			// Skips querying aggregate attestation for aggregators of same committee.
@@ -255,35 +228,8 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 
 		aggAttByCommIdx[attDef.CommitteeIndex] = aggAtt
 
-		switch eth2Resp.Data.Version {
-		case eth2spec.DataVersionPhase0:
-			resp[pubkey] = core.AggregatedAttestation{
-				Attestation: *aggAtt.Phase0,
-			}
-		case eth2spec.DataVersionAltair:
-			resp[pubkey] = core.AggregatedAttestation{
-				Attestation: *aggAtt.Altair,
-			}
-		case eth2spec.DataVersionBellatrix:
-			resp[pubkey] = core.AggregatedAttestation{
-				Attestation: *aggAtt.Bellatrix,
-			}
-		case eth2spec.DataVersionCapella:
-			resp[pubkey] = core.AggregatedAttestation{
-				Attestation: *aggAtt.Capella,
-			}
-		case eth2spec.DataVersionDeneb:
-			resp[pubkey] = core.AggregatedAttestation{
-				Attestation: *aggAtt.Deneb,
-			}
-		case eth2spec.DataVersionElectra:
-			resp[pubkey] = core.VersionedAggregatedAttestation{
-				VersionedAttestation: *aggAtt,
-			}
-		default:
-			resp[pubkey] = core.VersionedAggregatedAttestation{
-				VersionedAttestation: *aggAtt,
-			}
+		resp[pubkey] = core.VersionedAggregatedAttestation{
+			VersionedAttestation: *aggAtt,
 		}
 	}
 

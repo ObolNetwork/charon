@@ -59,6 +59,10 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 
 		checkValIdxs := false
 		for _, att := range atts {
+			// Do not check for validator index pre-electra, as it is not expected.
+			if att.Version < eth2spec.DataVersionElectra {
+				break
+			}
 			if att.ValidatorIndex == nil {
 				checkValIdxs = true
 				break
