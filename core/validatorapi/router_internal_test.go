@@ -1534,14 +1534,13 @@ func TestSubmitAttestations(t *testing.T) {
 		version              eth2spec.DataVersion
 		versionedAttestation *eth2spec.VersionedAttestation
 	}{
-		// TODO(kalo): uncomment once we bring back pre-electra support.
-		// {
-		// 	version: eth2spec.DataVersionDeneb,
-		// 	versionedAttestation: &eth2spec.VersionedAttestation{
-		// 		Version: eth2spec.DataVersionDeneb,
-		// 		Deneb:   testutil.RandomPhase0Attestation(),
-		// 	},
-		// },
+		{
+			version: eth2spec.DataVersionDeneb,
+			versionedAttestation: &eth2spec.VersionedAttestation{
+				Version: eth2spec.DataVersionDeneb,
+				Deneb:   testutil.RandomPhase0Attestation(),
+			},
+		},
 		{
 			version: eth2spec.DataVersionElectra,
 			versionedAttestation: &eth2spec.VersionedAttestation{
