@@ -146,3 +146,38 @@ type nodeVersionResponse struct {
 		Version string `json:"version"`
 	} `json:"data"`
 }
+
+// SignedValidatorRegistrations defines the request body to the submit validator registration endpoint.
+// See: https://ethereum.github.io/beacon-APIs/#/Validator/registerValidator
+// Implements the ssz.Unmarshal interface
+type signedValidatorRegistrations struct {
+	Registrations []*eth2v1.SignedValidatorRegistration
+}
+
+// UnmarshalSSZ unmarshals an array of eth2v1.SignedValidatorRegistration SSZ marshaled objects
+func (s *signedValidatorRegistrations) UnmarshalSSZ(buf []byte) error {
+	const sszObjectSize = 180
+
+	if len(buf)%sszObjectSize != 0 {
+		return errors.New("invalid buffer size")
+	}
+	for offset := 0; offset < len(buf); offset += sszObjectSize {
+		registration := new(eth2v1.SignedValidatorRegistration)
+		err := registration.UnmarshalSSZ(buf[offset : offset+sszObjectSize])
+		if err != nil {
+			return errors.Wrap(err, "unmarshal wrapped signed validator registrations")
+		}
+		s.Registrations = append(s.Registrations, registration)
+	}
+
+	return nil
+}
+
+// UnmarshalJSON unmarshals an array of eth2v1.SignedValidatorRegistration JSON marshaled objects
+func (s *signedValidatorRegistrations) UnmarshalJSON(buf []byte) error {
+	err := json.Unmarshal(buf, &s.Registrations)
+	if err != nil {
+		return errors.Wrap(err, "unmarshal wrapped signed validator registrations")
+	}
+	return nil
+}
