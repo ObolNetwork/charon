@@ -176,12 +176,14 @@ func TestFetchAggregator(t *testing.T) {
 		require.Len(t, resDataSet, 2)
 
 		for _, aggAtt := range resDataSet {
-			aggregated, ok := aggAtt.(core.AggregatedAttestation)
+			aggregated, ok := aggAtt.(core.VersionedAggregatedAttestation)
 			require.True(t, ok)
+			aggData, err := aggregated.Data()
+			require.NoError(t, err)
 
-			att, ok := attByCommIdx[uint64(aggregated.Data.Index)]
+			att, ok := attByCommIdx[uint64(aggData.Index)]
 			require.True(t, ok)
-			require.Equal(t, aggregated.Attestation, *att.Deneb)
+			require.Equal(t, aggregated.Deneb, att.Deneb)
 		}
 
 		return done

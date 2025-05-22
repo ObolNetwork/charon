@@ -43,10 +43,6 @@ import (
 )
 
 func TestComponent_ValidSubmitAttestations(t *testing.T) {
-	ctx := context.Background()
-	eth2Cl, err := beaconmock.New()
-	require.NoError(t, err)
-
 	const (
 		slot        = 123
 		commIdx     = 456
@@ -56,78 +52,164 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 		valCommIdxB = 5
 		commLen     = 8
 	)
-
-	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
-		vIdxA: testutil.RandomCorePubKey(t),
-		vIdxB: testutil.RandomCorePubKey(t),
-	}
-
-	component, err := validatorapi.NewComponentInsecure(t, eth2Cl, 0)
-	require.NoError(t, err)
+	valIdxAMut := eth2p0.ValidatorIndex(uint64(vIdxA))
+	valIdxBMut := eth2p0.ValidatorIndex(uint64(vIdxB))
 
 	aggBitsA := bitfield.NewBitlist(commLen)
 	aggBitsA.SetBitAt(valCommIdxA, true)
-
-	valIdxAMut := eth2p0.ValidatorIndex(uint64(vIdxA))
-	attA := &eth2spec.VersionedAttestation{
-		Version:        eth2spec.DataVersionDeneb,
-		ValidatorIndex: &valIdxAMut,
-		Deneb: &eth2p0.Attestation{
-			AggregationBits: aggBitsA,
-			Data: &eth2p0.AttestationData{
-				Slot:   slot,
-				Index:  commIdx,
-				Source: &eth2p0.Checkpoint{},
-				Target: &eth2p0.Checkpoint{},
-			},
-			Signature: eth2p0.BLSSignature{},
-		},
-	}
-
 	aggBitsB := bitfield.NewBitlist(commLen)
 	aggBitsB.SetBitAt(valCommIdxB, true)
 
-	valIdxBMut := eth2p0.ValidatorIndex(uint64(vIdxB))
-	attB := &eth2spec.VersionedAttestation{
-		Version:        eth2spec.DataVersionDeneb,
-		ValidatorIndex: &valIdxBMut,
-		Deneb: &eth2p0.Attestation{
-			AggregationBits: aggBitsB,
-			Data: &eth2p0.AttestationData{
-				Slot:   slot,
-				Index:  commIdx,
-				Source: &eth2p0.Checkpoint{},
-				Target: &eth2p0.Checkpoint{},
+	commBitsA := bitfield.NewBitvector64()
+	commBitsA.SetBitAt(valCommIdxA, true)
+	commBitsB := bitfield.NewBitvector64()
+	commBitsB.SetBitAt(valCommIdxB, true)
+
+	tests := []struct {
+		name string
+		attA *eth2spec.VersionedAttestation
+		attB *eth2spec.VersionedAttestation
+		err  error
+	}{
+		{
+			name: "deneb",
+			attA: &eth2spec.VersionedAttestation{
+				Version:        eth2spec.DataVersionDeneb,
+				ValidatorIndex: nil,
+				Deneb: &eth2p0.Attestation{
+					AggregationBits: aggBitsA,
+					Data: &eth2p0.AttestationData{
+						Slot:   slot,
+						Index:  commIdx,
+						Source: &eth2p0.Checkpoint{},
+						Target: &eth2p0.Checkpoint{},
+					},
+					Signature: eth2p0.BLSSignature{},
+				},
 			},
-			Signature: eth2p0.BLSSignature{},
+			attB: &eth2spec.VersionedAttestation{
+				Version:        eth2spec.DataVersionDeneb,
+				ValidatorIndex: nil,
+				Deneb: &eth2p0.Attestation{
+					AggregationBits: aggBitsB,
+					Data: &eth2p0.AttestationData{
+						Slot:   slot,
+						Index:  commIdx,
+						Source: &eth2p0.Checkpoint{},
+						Target: &eth2p0.Checkpoint{},
+					},
+					Signature: eth2p0.BLSSignature{},
+				},
+			},
+			err: nil,
+		},
+		{
+			name: "electra",
+			attA: &eth2spec.VersionedAttestation{
+				Version:        eth2spec.DataVersionElectra,
+				ValidatorIndex: &valIdxAMut,
+				Electra: &electra.Attestation{
+					AggregationBits: bitfield.NewBitlist(0),
+					Data: &eth2p0.AttestationData{
+						Slot:   slot,
+						Index:  0,
+						Source: &eth2p0.Checkpoint{},
+						Target: &eth2p0.Checkpoint{},
+					},
+					CommitteeBits: commBitsA,
+					Signature:     eth2p0.BLSSignature{},
+				},
+			},
+			attB: &eth2spec.VersionedAttestation{
+				Version:        eth2spec.DataVersionElectra,
+				ValidatorIndex: &valIdxBMut,
+				Electra: &electra.Attestation{
+					AggregationBits: bitfield.NewBitlist(0),
+					Data: &eth2p0.AttestationData{
+						Slot:   slot,
+						Index:  0,
+						Source: &eth2p0.Checkpoint{},
+						Target: &eth2p0.Checkpoint{},
+					},
+					CommitteeBits: commBitsB,
+					Signature:     eth2p0.BLSSignature{},
+				},
+			},
+			err: nil,
 		},
 	}
 
-	atts := []*eth2spec.VersionedAttestation{attA, attB}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := t.Context()
+			eth2Cl, err := beaconmock.New()
+			require.NoError(t, err)
 
-	component.RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error) {
-		return pubkeysByIdx[eth2p0.ValidatorIndex(valIdx)], nil
-	})
+			vPKA := testutil.RandomCorePubKey(t)
+			vPKB := testutil.RandomCorePubKey(t)
 
-	component.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
-		require.Equal(t, core.DutyAttester, duty.Type)
-		require.Equal(t, uint64(slot), duty.Slot)
+			pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
+				vIdxA: vPKA,
+				vIdxB: vPKB,
+			}
 
-		parSignedDataA := set[pubkeysByIdx[vIdxA]]
-		actAttA, ok := parSignedDataA.SignedData.(core.VersionedAttestation)
-		require.True(t, ok)
-		require.Equal(t, *attA, actAttA.VersionedAttestation)
+			component, err := validatorapi.NewComponentInsecure(t, eth2Cl, 0)
+			require.NoError(t, err)
 
-		parSignedDataB := set[pubkeysByIdx[vIdxB]]
-		actAttB, ok := parSignedDataB.SignedData.(core.VersionedAttestation)
-		require.True(t, ok)
-		require.Equal(t, *attB, actAttB.VersionedAttestation)
+			atts := []*eth2spec.VersionedAttestation{test.attA, test.attB}
 
-		return nil
-	})
+			component.RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error) {
+				return pubkeysByIdx[eth2p0.ValidatorIndex(valIdx)], nil
+			})
 
-	err = component.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
-	require.NoError(t, err)
+			component.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+				return map[core.PubKey]core.DutyDefinition{
+					vPKA: core.AttesterDefinition{
+						AttesterDuty: eth2v1.AttesterDuty{
+							PubKey:                  eth2p0.BLSPubKey{}, // not used in the test
+							Slot:                    slot,
+							ValidatorIndex:          vIdxA,
+							CommitteeIndex:          commIdx,
+							CommitteeLength:         commLen,
+							CommitteesAtSlot:        0, // not used in the test
+							ValidatorCommitteeIndex: valCommIdxA,
+						},
+					},
+					vPKB: core.AttesterDefinition{
+						AttesterDuty: eth2v1.AttesterDuty{
+							PubKey:                  eth2p0.BLSPubKey{}, // not used in the test
+							Slot:                    slot,
+							ValidatorIndex:          vIdxB,
+							CommitteeIndex:          commIdx,
+							CommitteeLength:         commLen,
+							CommitteesAtSlot:        0, // not used in the test
+							ValidatorCommitteeIndex: valCommIdxB,
+						},
+					},
+				}, nil
+			})
+
+			component.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+				require.Equal(t, core.DutyAttester, duty.Type)
+				require.Equal(t, uint64(slot), duty.Slot)
+
+				parSignedDataA := set[pubkeysByIdx[vIdxA]]
+				actAttA, ok := parSignedDataA.SignedData.(core.VersionedAttestation)
+				require.True(t, ok)
+				require.Equal(t, *test.attA, actAttA.VersionedAttestation)
+
+				parSignedDataB := set[pubkeysByIdx[vIdxB]]
+				actAttB, ok := parSignedDataB.SignedData.(core.VersionedAttestation)
+				require.True(t, ok)
+				require.Equal(t, *test.attB, actAttB.VersionedAttestation)
+
+				return nil
+			})
+
+			err = component.SubmitAttestations(ctx, &eth2api.SubmitAttestationsOpts{Attestations: atts})
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestComponent_InvalidSubmitAttestations(t *testing.T) {
@@ -275,9 +357,13 @@ func TestSignAndVerify(t *testing.T) {
 	blockRoot := padTo([]byte("blockRoot"), 32)
 	var eth2Root eth2p0.Root
 	copy(eth2Root[:], blockRoot)
+	slot := eth2p0.Slot(999)
+	committeeIndex := eth2p0.CommitteeIndex(0)
+	validatorCommitteeIndex := uint64(0)
+	committeeLen := uint64(1)
 	attData := eth2p0.AttestationData{
-		Slot:            999,
-		Index:           0,
+		Slot:            slot,
+		Index:           committeeIndex,
 		BeaconBlockRoot: eth2Root,
 		Source:          &eth2p0.Checkpoint{Epoch: 100},
 		Target:          &eth2p0.Checkpoint{Epoch: 200},
@@ -322,6 +408,21 @@ func TestSignAndVerify(t *testing.T) {
 	vapi.RegisterPubKeyByAttestation(func(context.Context, uint64, uint64, uint64) (core.PubKey, error) {
 		return core.PubKeyFromBytes(pubkey[:])
 	})
+	vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+		return map[core.PubKey]core.DutyDefinition{
+			corePubKey: core.AttesterDefinition{
+				AttesterDuty: eth2v1.AttesterDuty{
+					PubKey:                  eth2p0.BLSPubKey{}, // not used in the test
+					Slot:                    slot,
+					ValidatorIndex:          eth2p0.ValidatorIndex(1),
+					CommitteeIndex:          committeeIndex,
+					CommitteeLength:         committeeLen,
+					CommitteesAtSlot:        0, // not used in the test
+					ValidatorCommitteeIndex: validatorCommitteeIndex,
+				},
+			},
+		}, nil
+	})
 
 	// Assert output
 	var wg sync.WaitGroup
@@ -334,13 +435,11 @@ func TestSignAndVerify(t *testing.T) {
 		return nil
 	})
 
-	vIdx := eth2p0.ValidatorIndex(1)
 	// Create and submit attestation.
-	aggBits := bitfield.NewBitlist(1)
-	aggBits.SetBitAt(0, true)
+	aggBits := bitfield.NewBitlist(committeeLen)
+	aggBits.SetBitAt(validatorCommitteeIndex, true)
 	att := eth2spec.VersionedAttestation{
-		Version:        eth2spec.DataVersionDeneb,
-		ValidatorIndex: &vIdx,
+		Version: eth2spec.DataVersionDeneb,
 		Deneb: &eth2p0.Attestation{
 			AggregationBits: aggBits,
 			Data:            &attData,
