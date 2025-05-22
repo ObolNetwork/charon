@@ -28,6 +28,7 @@ var supportedVCs = map[string]struct{}{
 	"nimbus":     {},
 	"prysm":      {},
 	"lodestar":   {},
+	"vouch":      {},
 }
 
 // maybeVCs is the list of process names which might be running as interpreters for components of the
