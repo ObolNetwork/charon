@@ -18,8 +18,13 @@ import (
 	"time"
 
 	builderspec "github.com/attestantio/go-builder-client/spec"
+	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
+	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
+	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2a "github.com/attestantio/go-eth2-client/spec/altair"
+	eth2e "github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
@@ -466,33 +471,105 @@ func createMEVBlock(ctx context.Context, conf *testMEVConfig, target string, nex
 		break
 	}
 
-	blindedBeaconBlock := eth2deneb.BlindedBeaconBlock{
-		Slot:          0,
-		ProposerIndex: 0,
-		ParentRoot:    eth2p0.Root{},
-		StateRoot:     eth2p0.Root{},
-		Body: &eth2deneb.BlindedBeaconBlockBody{
-			RANDAOReveal:           eth2p0.BLSSignature{},
-			ETH1Data:               &eth2p0.ETH1Data{},
-			Graffiti:               eth2p0.Hash32{},
-			ProposerSlashings:      []*eth2p0.ProposerSlashing{},
-			AttesterSlashings:      []*eth2p0.AttesterSlashing{},
-			Attestations:           []*eth2p0.Attestation{},
-			Deposits:               []*eth2p0.Deposit{},
-			VoluntaryExits:         []*eth2p0.SignedVoluntaryExit{},
-			SyncAggregate:          &eth2a.SyncAggregate{},
-			ExecutionPayloadHeader: builderBid.Deneb.Message.Header,
-		},
-	}
-
+	// We cannot submit a real block with signature without keys.
+	// Use hardcoded signature which we know will fail either way, as a best attempt to fail later in the processing of the BN.
 	sig, err := hex.DecodeString("b9251a82040d4620b8c5665f328ee6c2eaa02d31d71d153f4abba31a7922a981e541e85283f0ced387d26e86aef9386d18c6982b9b5f8759882fe7f25a328180d86e146994ef19d28bc1432baf29751dec12b5f3d65dbbe224d72cf900c6831a")
 	if err != nil {
 		return 0, errors.Wrap(err, "decode signature")
 	}
 
-	payload := eth2deneb.SignedBlindedBeaconBlock{
-		Message:   &blindedBeaconBlock,
-		Signature: eth2p0.BLSSignature(sig),
+	var payload any
+	switch builderBid.Version {
+	case eth2spec.DataVersionBellatrix:
+		payload = eth2bellatrix.SignedBlindedBeaconBlock{
+			Message: &eth2bellatrix.BlindedBeaconBlock{
+				Slot:          0,
+				ProposerIndex: 0,
+				ParentRoot:    eth2p0.Root{},
+				StateRoot:     eth2p0.Root{},
+				Body: &eth2bellatrix.BlindedBeaconBlockBody{
+					RANDAOReveal:           eth2p0.BLSSignature{},
+					ETH1Data:               &eth2p0.ETH1Data{},
+					Graffiti:               eth2p0.Hash32{},
+					ProposerSlashings:      []*eth2p0.ProposerSlashing{},
+					AttesterSlashings:      []*eth2p0.AttesterSlashing{},
+					Attestations:           []*eth2p0.Attestation{},
+					Deposits:               []*eth2p0.Deposit{},
+					VoluntaryExits:         []*eth2p0.SignedVoluntaryExit{},
+					SyncAggregate:          &eth2a.SyncAggregate{},
+					ExecutionPayloadHeader: builderBid.Bellatrix.Message.Header,
+				},
+			},
+			Signature: eth2p0.BLSSignature(sig),
+		}
+	case eth2spec.DataVersionCapella:
+		payload = eth2capella.SignedBlindedBeaconBlock{
+			Message: &eth2capella.BlindedBeaconBlock{
+				Slot:          0,
+				ProposerIndex: 0,
+				ParentRoot:    eth2p0.Root{},
+				StateRoot:     eth2p0.Root{},
+				Body: &eth2capella.BlindedBeaconBlockBody{
+					RANDAOReveal:           eth2p0.BLSSignature{},
+					ETH1Data:               &eth2p0.ETH1Data{},
+					Graffiti:               eth2p0.Hash32{},
+					ProposerSlashings:      []*eth2p0.ProposerSlashing{},
+					AttesterSlashings:      []*eth2p0.AttesterSlashing{},
+					Attestations:           []*eth2p0.Attestation{},
+					Deposits:               []*eth2p0.Deposit{},
+					VoluntaryExits:         []*eth2p0.SignedVoluntaryExit{},
+					SyncAggregate:          &eth2a.SyncAggregate{},
+					ExecutionPayloadHeader: builderBid.Capella.Message.Header,
+				},
+			},
+			Signature: eth2p0.BLSSignature(sig),
+		}
+	case eth2spec.DataVersionDeneb:
+		payload = eth2deneb.SignedBlindedBeaconBlock{
+			Message: &eth2deneb.BlindedBeaconBlock{
+				Slot:          0,
+				ProposerIndex: 0,
+				ParentRoot:    eth2p0.Root{},
+				StateRoot:     eth2p0.Root{},
+				Body: &eth2deneb.BlindedBeaconBlockBody{
+					RANDAOReveal:           eth2p0.BLSSignature{},
+					ETH1Data:               &eth2p0.ETH1Data{},
+					Graffiti:               eth2p0.Hash32{},
+					ProposerSlashings:      []*eth2p0.ProposerSlashing{},
+					AttesterSlashings:      []*eth2p0.AttesterSlashing{},
+					Attestations:           []*eth2p0.Attestation{},
+					Deposits:               []*eth2p0.Deposit{},
+					VoluntaryExits:         []*eth2p0.SignedVoluntaryExit{},
+					SyncAggregate:          &eth2a.SyncAggregate{},
+					ExecutionPayloadHeader: builderBid.Deneb.Message.Header,
+				},
+			},
+			Signature: eth2p0.BLSSignature(sig),
+		}
+	case eth2spec.DataVersionElectra:
+		payload = eth2electra.SignedBlindedBeaconBlock{
+			Message: &eth2electra.BlindedBeaconBlock{
+				Slot:          0,
+				ProposerIndex: 0,
+				ParentRoot:    eth2p0.Root{},
+				StateRoot:     eth2p0.Root{},
+				Body: &eth2electra.BlindedBeaconBlockBody{
+					RANDAOReveal:           eth2p0.BLSSignature{},
+					ETH1Data:               &eth2p0.ETH1Data{},
+					Graffiti:               eth2p0.Hash32{},
+					ProposerSlashings:      []*eth2p0.ProposerSlashing{},
+					AttesterSlashings:      []*eth2e.AttesterSlashing{},
+					Attestations:           []*eth2e.Attestation{},
+					Deposits:               []*eth2p0.Deposit{},
+					VoluntaryExits:         []*eth2p0.SignedVoluntaryExit{},
+					SyncAggregate:          &eth2a.SyncAggregate{},
+					ExecutionPayloadHeader: builderBid.Electra.Message.Header,
+				},
+			},
+			Signature: eth2p0.BLSSignature(sig),
+		}
+	default:
+		return 0, errors.New("not supported version", z.Str("version", builderBid.Version.String()))
 	}
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
