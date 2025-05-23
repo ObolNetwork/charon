@@ -179,5 +179,6 @@ func (s *signedValidatorRegistrations) UnmarshalJSON(buf []byte) error {
 	if err != nil {
 		return errors.Wrap(err, "unmarshal wrapped signed validator registrations")
 	}
+
 	return nil
 }
