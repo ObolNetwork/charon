@@ -18,6 +18,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/expbackoff"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -71,7 +72,7 @@ type Scheduler struct {
 	resolvedEpoch   uint64
 	duties          map[core.Duty]core.DutyDefinitionSet
 	dutiesByEpoch   map[uint64][]core.Duty
-	dutiesMutex     sync.Mutex
+	dutiesMutex     sync.RWMutex
 	dutySubs        []func(context.Context, core.Duty, core.DutyDefinitionSet) error
 	slotSubs        []func(context.Context, core.Slot) error
 	builderEnabled  bool
@@ -470,8 +471,8 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 }
 
 func (s *Scheduler) getDutyDefinitionSet(duty core.Duty) (core.DutyDefinitionSet, bool) {
-	s.dutiesMutex.Lock()
-	defer s.dutiesMutex.Unlock()
+	s.dutiesMutex.RLock()
+	defer s.dutiesMutex.RUnlock()
 
 	defSet, ok := s.duties[duty]
 
@@ -499,8 +500,8 @@ func (s *Scheduler) setDutyDefinition(duty core.Duty, epoch uint64, pubkey core.
 }
 
 func (s *Scheduler) getResolvedEpoch() uint64 {
-	s.dutiesMutex.Lock()
-	defer s.dutiesMutex.Unlock()
+	s.dutiesMutex.RLock()
+	defer s.dutiesMutex.RUnlock()
 
 	return s.resolvedEpoch
 }
@@ -643,11 +644,11 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2wrap.Client, submit
 
 // waitChainStart blocks until the beacon chain has started.
 func waitChainStart(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
-	for ctx.Err() == nil {
+	for i := 0; ctx.Err() == nil; i++ {
 		genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
 		if err != nil {
 			log.Error(ctx, "Failure getting genesis", err)
-			clock.Sleep(time.Second * 5) // TODO(corver): Improve backoff
+			clock.Sleep(expbackoff.Backoff(expbackoff.FastConfig, i))
 
 			continue
 		}
@@ -656,8 +657,7 @@ func waitChainStart(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork
 		now := clock.Now()
 		if now.Before(genesisTime) {
 			delta := genesisTime.Sub(now)
-			log.Info(ctx, "Sleeping until genesis time",
-				z.Str("genesisTime", genesisTime.String()), z.Str("sleep", delta.String()))
+			log.Info(ctx, "Sleeping until genesis time", z.Str("genesisTime", genesisTime.String()), z.Str("sleep", delta.String()))
 			clock.Sleep(delta)
 
 			continue
@@ -669,20 +669,19 @@ func waitChainStart(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork
 
 // waitBeaconSync blocks until the beacon node is synced.
 func waitBeaconSync(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
-	for ctx.Err() == nil {
+	for i := 0; ctx.Err() == nil; i++ {
 		eth2Resp, err := eth2Cl.NodeSyncing(ctx, &eth2api.NodeSyncingOpts{})
 		if err != nil {
 			log.Error(ctx, "Failure getting sync state", err)
-			clock.Sleep(time.Second * 5) // TODO(corver): Improve backoff
+			clock.Sleep(expbackoff.Backoff(expbackoff.FastConfig, i))
 
 			continue
 		}
 		state := eth2Resp.Data
 
 		if state.IsSyncing {
-			log.Info(ctx, "Waiting for beacon node to sync",
-				z.U64("distance", uint64(state.SyncDistance)))
-			clock.Sleep(time.Minute) // TODO(corver): Improve backoff
+			log.Info(ctx, "Waiting for beacon node to sync", z.U64("distance", uint64(state.SyncDistance)))
+			clock.Sleep(expbackoff.Backoff(expbackoff.DefaultConfig, i))
 
 			continue
 		}
