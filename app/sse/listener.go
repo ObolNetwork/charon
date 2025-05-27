@@ -5,8 +5,10 @@ package sse
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -87,12 +89,12 @@ func (p *listener) Start(ctx context.Context) error {
 
 	// Open connections for each beacon node.
 	for _, addr := range p.addresses {
-		go func() {
+		go func(addr string) {
 			client := newClient(addr+"/eth/v1/events"+topics, httpHeader)
 			if err := client.Start(ctx, p.eventHandler); err != nil {
 				log.Warn(ctx, "Failed to start SSE client", err, z.Str("address", addr))
 			}
-		}()
+		}(addr)
 	}
 
 	return nil
@@ -119,6 +121,9 @@ func (p *listener) handleHeadEvent(ctx context.Context, event *event, url string
 	if err != nil {
 		return errors.Wrap(err, "parse slot to uint64", z.Str("url", url))
 	}
+	if slot > math.MaxInt64 {
+		return errors.New("slot value exceeds int64 range", z.Str("url", url), z.U64("slot", slot))
+	}
 	delay, ok := p.computeDelay(slot, event.Timestamp)
 	if !ok {
 		log.Debug(ctx, "Beacon node received head event too late", z.U64("slot", slot), z.Str("delay", delay.String()))
@@ -141,9 +146,16 @@ func (p *listener) handleChainReorgEvent(ctx context.Context, event *event, url 
 	if err != nil {
 		return errors.Wrap(err, "parse slot to uint64", z.Str("url", url))
 	}
+	if slot > math.MaxInt64 {
+		return errors.New("slot value exceeds int64 range", z.Str("url", url), z.U64("slot", slot))
+	}
 	depth, err := strconv.ParseUint(chainReorg.Depth, 10, 64)
 	if err != nil {
 		return errors.Wrap(err, "parse depth to uint64", z.Str("url", url))
+	}
+	if slot < depth {
+		log.Warn(ctx, "Invalid chain reorg event: depth exceeds slot", nil, z.U64("slot", slot), z.U64("depth", depth))
+		return errors.New("invalid chain reorg event: depth exceeds slot")
 	}
 
 	reorgEpoch := (slot - depth) / p.slotsPerEpoch
@@ -178,10 +190,14 @@ func (p *listener) computeDelay(slot uint64, eventTS time.Time) (time.Duration, 
 }
 
 func queryTopics(topics []string) string {
-	query := "?"
-	for _, t := range topics {
-		query += "topics=" + t + "&"
+	var builder strings.Builder
+	builder.WriteString("?")
+	for i, t := range topics {
+		if i > 0 {
+			builder.WriteString("&")
+		}
+		builder.WriteString("topics=")
+		builder.WriteString(t)
 	}
-
-	return query
+	return builder.String()
 }
