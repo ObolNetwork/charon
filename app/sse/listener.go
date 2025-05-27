@@ -126,7 +126,7 @@ func (p *listener) handleHeadEvent(ctx context.Context, event *event, url string
 		sseHeadDelayHistogram.WithLabelValues(url).Observe(float64(delay.Milliseconds()))
 	}
 
-	sseHeadGauge.WithLabelValues(url).Set(float64(slot))
+	sseHeadSlotGauge.WithLabelValues(url).Set(float64(slot))
 
 	return nil
 }
@@ -167,7 +167,7 @@ func (p *listener) notifyChainReorg(ctx context.Context, epoch eth2p0.Epoch) {
 
 // Compute delay between start of the slot and receiving the head update event.
 func (p *listener) computeDelay(slot uint64, eventTS time.Time) (time.Duration, bool) {
-	slotStartTime := p.genesisTime.Add(time.Second * time.Duration(slot) * p.slotDuration)
+	slotStartTime := p.genesisTime.Add(time.Duration(slot) * p.slotDuration)
 	delay := eventTS.Sub(slotStartTime)
 	// Chain's head is updated upon majority of the chain voting with attestations for a block.
 	// Realistically this happens between 2/3 and 3/3 of the slot's timeframe.
