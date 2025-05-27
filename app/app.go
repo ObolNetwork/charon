@@ -37,6 +37,7 @@ import (
 	"github.com/obolnetwork/charon/app/privkeylock"
 	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/retry"
+	"github.com/obolnetwork/charon/app/sse"
 	"github.com/obolnetwork/charon/app/stacksnipe"
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/version"
@@ -265,8 +266,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	err = bnMetrics(ctx, conf, eth2Cl)
-	if err != nil {
+	sseListener := sse.NewListener(eth2Cl, conf.BeaconNodeAddrs, conf.BeaconNodeHeaders)
+	if err := sseListener.Start(ctx); err != nil {
 		return err
 	}
 
@@ -315,7 +316,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		promRegistry, consensusDebugger, pubkeys, seenPubkeys, vapiCalls, len(cluster.GetValidators()))
 
 	err = wireCoreWorkflow(ctx, life, conf, cluster, nodeIdx, tcpNode, p2pKey, eth2Cl, subEth2Cl,
-		peerIDs, sender, consensusDebugger, pubkeys, seenPubkeysFunc, vapiCallsFunc)
+		peerIDs, sender, consensusDebugger, pubkeys, seenPubkeysFunc, sseListener, vapiCallsFunc)
 	if err != nil {
 		return err
 	}
@@ -388,7 +389,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	cluster *manifestpb.Cluster, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *k1.PrivateKey,
 	eth2Cl, submissionEth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
 	consensusDebugger consensus.Debugger, pubkeys []core.PubKey, seenPubkeys func(core.PubKey),
-	vapiCalls func(),
+	sseListener sse.Listener, vapiCalls func(),
 ) error {
 	// Convert and prep public keys and public shares
 	var (
@@ -454,6 +455,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	if err != nil {
 		return err
 	}
+	sseListener.SubscribeChainReorgEvent(sched.ChainReorgEventHandler)
 
 	feeRecipientFunc := func(pubkey core.PubKey) string {
 		return feeRecipientAddrByCorePubkey[pubkey]

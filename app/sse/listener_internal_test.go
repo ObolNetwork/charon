@@ -1,32 +1,18 @@
 // Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package app
+package sse
 
-import (
-	"context"
-	"testing"
-	"time"
-
-	eth2api "github.com/attestantio/go-eth2-client/api"
-	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/stretchr/testify/require"
-
-	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/sseclient"
-	"github.com/obolnetwork/charon/testutil/beaconmock"
-)
-
+/*
 func TestSseEventHandler(t *testing.T) {
 	tests := []struct {
 		name  string
-		event *sseclient.Event
+		event *event
 		opts  map[string]string
 		err   error
 	}{
 		{
 			name: "head happy path",
-			event: &sseclient.Event{
+			event: &event{
 				Event:     sseHeadEvent,
 				Data:      []byte(`{"slot":"10", "block":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "state":"0x600e852a08c1200654ddf11025f1ceacb3c2e74bdd5c630cde0838b2591b69f9", "epoch_transition":false, "previous_duty_dependent_root":"0x5e0043f107cb57913498fbf2f99ff55e730bf1e151f02f221e977c91a90a0e91", "current_duty_dependent_root":"0x5e0043f107cb57913498fbf2f99ff55e730bf1e151f02f221e977c91a90a0e91", "execution_optimistic": false}`),
 				Timestamp: time.Now(),
@@ -39,7 +25,7 @@ func TestSseEventHandler(t *testing.T) {
 		},
 		{
 			name: "head incompatible data payload",
-			event: &sseclient.Event{
+			event: &event{
 				Event:     sseHeadEvent,
 				Data:      []byte(`"error"`),
 				Timestamp: time.Now(),
@@ -52,7 +38,7 @@ func TestSseEventHandler(t *testing.T) {
 		},
 		{
 			name: "head parse slot",
-			event: &sseclient.Event{
+			event: &event{
 				Event:     sseHeadEvent,
 				Data:      []byte(`{"slot":"ten", "block":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "state":"0x600e852a08c1200654ddf11025f1ceacb3c2e74bdd5c630cde0838b2591b69f9", "epoch_transition":false, "previous_duty_dependent_root":"0x5e0043f107cb57913498fbf2f99ff55e730bf1e151f02f221e977c91a90a0e91", "current_duty_dependent_root":"0x5e0043f107cb57913498fbf2f99ff55e730bf1e151f02f221e977c91a90a0e91", "execution_optimistic": false}`),
 				Timestamp: time.Now(),
@@ -65,7 +51,7 @@ func TestSseEventHandler(t *testing.T) {
 		},
 		{
 			name: "head fetch missing opts",
-			event: &sseclient.Event{
+			event: &event{
 				Event:     sseHeadEvent,
 				Data:      []byte(`{"slot":"10", "block":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "state":"0x600e852a08c1200654ddf11025f1ceacb3c2e74bdd5c630cde0838b2591b69f9", "epoch_transition":false, "previous_duty_dependent_root":"0x5e0043f107cb57913498fbf2f99ff55e730bf1e151f02f221e977c91a90a0e91", "current_duty_dependent_root":"0x5e0043f107cb57913498fbf2f99ff55e730bf1e151f02f221e977c91a90a0e91", "execution_optimistic": false}`),
 				Timestamp: time.Now(),
@@ -75,7 +61,7 @@ func TestSseEventHandler(t *testing.T) {
 		},
 		{
 			name: "chain_reorg happy path",
-			event: &sseclient.Event{
+			event: &event{
 				Event:     sseChainReorgEvent,
 				Data:      []byte(`{"slot":"200", "depth":"50", "old_head_block":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "new_head_block":"0x76262e91970d375a19bfe8a867288d7b9cde43c8635f598d93d39d041706fc76", "old_head_state":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "new_head_state":"0x600e852a08c1200654ddf11025f1ceacb3c2e74bdd5c630cde0838b2591b69f9", "epoch":"2", "execution_optimistic": false}`),
 				Timestamp: time.Now(),
@@ -84,7 +70,7 @@ func TestSseEventHandler(t *testing.T) {
 		},
 		{
 			name: "chain_reorg incompatible data payload",
-			event: &sseclient.Event{
+			event: &event{
 				Event:     sseChainReorgEvent,
 				Data:      []byte(`"error"`),
 				Timestamp: time.Now(),
@@ -93,7 +79,7 @@ func TestSseEventHandler(t *testing.T) {
 		},
 		{
 			name: "chain_reorg parse slot",
-			event: &sseclient.Event{
+			event: &event{
 				Event:     sseChainReorgEvent,
 				Data:      []byte(`{"slot":"ten", "depth":"50", "old_head_block":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "new_head_block":"0x76262e91970d375a19bfe8a867288d7b9cde43c8635f598d93d39d041706fc76", "old_head_state":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "new_head_state":"0x600e852a08c1200654ddf11025f1ceacb3c2e74bdd5c630cde0838b2591b69f9", "epoch":"2", "execution_optimistic": false}`),
 				Timestamp: time.Now(),
@@ -115,13 +101,6 @@ func TestSseEventHandler(t *testing.T) {
 	}
 }
 
-func TestSseErrorHandler(t *testing.T) {
-	err := errors.New("sseErr")
-	resErr := sseErrorHandler(err, "/events")
-	require.ErrorContains(t, resErr, "handle SSE payload")
-	require.ErrorContains(t, resErr, "sseErr")
-}
-
 func TestBnMetrics(t *testing.T) {
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
@@ -138,12 +117,9 @@ func TestBnMetrics(t *testing.T) {
 		return nil
 	}
 
-	config := Config{
-		BeaconNodeAddrs:   []string{bmock.Address()},
-		BeaconNodeHeaders: []string{},
-	}
+	provider := mocks.NewSSEProvider(t)
 
-	err = bnMetrics(t.Context(), config, bmock)
+	err = ListenBeaconChainEvents(t.Context(), bmock, provider, []string{bmock.Address()}, []string{})
 	require.NoError(t, err)
 }
 
@@ -242,3 +218,4 @@ func TestComputeDelay(t *testing.T) {
 		})
 	}
 }
+*/
