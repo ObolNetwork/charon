@@ -199,5 +199,6 @@ func queryTopics(topics []string) string {
 		builder.WriteString("topics=")
 		builder.WriteString(t)
 	}
+
 	return builder.String()
 }
