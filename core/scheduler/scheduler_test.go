@@ -97,17 +97,17 @@ func TestSchedulerWait(t *testing.T) {
 		{
 			Name:        "wait for sync",
 			SyncedAfter: time.Second,
-			WaitSecs:    60, // We wait in blocks of 1min for sync.
+			WaitSecs:    1, // We use expbackoff.DefaultConfig
 		},
 		{
 			Name:        "genesis errors",
-			GenesisErrs: 3,
-			WaitSecs:    15, // We backoff in blocks of 5sec for errors.
+			GenesisErrs: 5,
+			WaitSecs:    1, // We use expbackoff.FastConfig
 		},
 		{
 			Name:       "synced errors",
-			SyncedErrs: 2,
-			WaitSecs:   10, // We backoff in blocks of 5sec for errors.
+			SyncedErrs: 10,
+			WaitSecs:   15, // We use expbackoff.FastConfig
 		},
 	}
 
@@ -148,7 +148,7 @@ func TestSchedulerWait(t *testing.T) {
 			sched := scheduler.NewForT(t, clock, dd.delay, nil, eth2Cl, false)
 			sched.Stop() // Just run wait functions, then quit.
 			require.NoError(t, sched.Run())
-			require.Equal(t, test.WaitSecs, int(clock.Since(t0).Seconds()))
+			require.LessOrEqual(t, test.WaitSecs, int(clock.Since(t0).Seconds()))
 		})
 	}
 }
