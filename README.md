@@ -25,7 +25,7 @@ which contains a docker compose setup for running a full charon cluster on your 
 ## Documentation
 
 The [Obol Docs](https://docs.obol.tech/) website is the best place to get started.
-The important sections are [intro](https://docs.obol.org/sdk/index),
+The important sections are [intro](https://docs.obol.org/learn/charon),
 [key concepts](https://docs.obol.tech/docs/int/key-concepts) and [charon](https://docs.obol.tech/docs/charon/intro).
 
 For detailed documentation on this repo, see the [docs](docs) folder:
