@@ -14,19 +14,19 @@ var (
 		Subsystem: "beacon_node",
 		Name:      "sse_head_slot",
 		Help:      "Current beacon node head slot, supplied by beacon node's SSE endpoint",
-	}, []string{"url"})
+	}, []string{"addr"})
 
 	sseHeadDelayHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "app",
 		Subsystem: "beacon_node",
 		Name:      "sse_head_delay",
-		Help:      "Delay in ms between the beacon node head and the SSE head",
-	}, []string{"url"})
+		Help:      "Delay in seconds between the beacon node head and the SSE head",
+	}, []string{"addr"})
 
 	sseChainReorgDepthGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "app",
 		Subsystem: "beacon_node",
 		Name:      "sse_chain_reorg_depth",
 		Help:      "Chain reorg depth, supplied by beacon node's SSE endpoint",
-	}, []string{"url"})
+	}, []string{"addr"})
 )

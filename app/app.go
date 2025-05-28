@@ -266,8 +266,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	sseListener := sse.NewListener(eth2Cl, conf.BeaconNodeAddrs, conf.BeaconNodeHeaders)
-	if err := sseListener.Start(ctx); err != nil {
+	sseListener, err := sse.StartListener(ctx, eth2Cl, conf.BeaconNodeAddrs, conf.BeaconNodeHeaders)
+	if err != nil {
 		return err
 	}
 

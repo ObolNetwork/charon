@@ -2,12 +2,22 @@
 
 package sse
 
-/*
-func TestSseEventHandler(t *testing.T) {
+import (
+	"context"
+	"testing"
+	"time"
+
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/testutil/beaconmock"
+)
+
+func TestHandleEvents(t *testing.T) {
 	tests := []struct {
 		name  string
 		event *event
-		opts  map[string]string
 		err   error
 	}{
 		{
@@ -16,10 +26,6 @@ func TestSseEventHandler(t *testing.T) {
 				Event:     sseHeadEvent,
 				Data:      []byte(`{"slot":"10", "block":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "state":"0x600e852a08c1200654ddf11025f1ceacb3c2e74bdd5c630cde0838b2591b69f9", "epoch_transition":false, "previous_duty_dependent_root":"0x5e0043f107cb57913498fbf2f99ff55e730bf1e151f02f221e977c91a90a0e91", "current_duty_dependent_root":"0x5e0043f107cb57913498fbf2f99ff55e730bf1e151f02f221e977c91a90a0e91", "execution_optimistic": false}`),
 				Timestamp: time.Now(),
-			},
-			opts: map[string]string{
-				"slotDuration": "12s",
-				"genesisTime":  "2020-12-01T12:00:23+00:00",
 			},
 			err: nil,
 		},
@@ -30,10 +36,6 @@ func TestSseEventHandler(t *testing.T) {
 				Data:      []byte(`"error"`),
 				Timestamp: time.Now(),
 			},
-			opts: map[string]string{
-				"slotDuration": "12s",
-				"genesisTime":  "2020-12-01T12:00:23+00:00",
-			},
 			err: errors.New("unmarshal SSE head event"),
 		},
 		{
@@ -43,21 +45,7 @@ func TestSseEventHandler(t *testing.T) {
 				Data:      []byte(`{"slot":"ten", "block":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "state":"0x600e852a08c1200654ddf11025f1ceacb3c2e74bdd5c630cde0838b2591b69f9", "epoch_transition":false, "previous_duty_dependent_root":"0x5e0043f107cb57913498fbf2f99ff55e730bf1e151f02f221e977c91a90a0e91", "current_duty_dependent_root":"0x5e0043f107cb57913498fbf2f99ff55e730bf1e151f02f221e977c91a90a0e91", "execution_optimistic": false}`),
 				Timestamp: time.Now(),
 			},
-			opts: map[string]string{
-				"slotDuration": "12s",
-				"genesisTime":  "2020-12-01T12:00:23+00:00",
-			},
-			err: errors.New("parse slot to int64"),
-		},
-		{
-			name: "head fetch missing opts",
-			event: &event{
-				Event:     sseHeadEvent,
-				Data:      []byte(`{"slot":"10", "block":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "state":"0x600e852a08c1200654ddf11025f1ceacb3c2e74bdd5c630cde0838b2591b69f9", "epoch_transition":false, "previous_duty_dependent_root":"0x5e0043f107cb57913498fbf2f99ff55e730bf1e151f02f221e977c91a90a0e91", "current_duty_dependent_root":"0x5e0043f107cb57913498fbf2f99ff55e730bf1e151f02f221e977c91a90a0e91", "execution_optimistic": false}`),
-				Timestamp: time.Now(),
-			},
-			opts: nil,
-			err:  errors.New("compute delay"),
+			err: errors.New("parse slot to uint64"),
 		},
 		{
 			name: "chain_reorg happy path",
@@ -84,13 +72,29 @@ func TestSseEventHandler(t *testing.T) {
 				Data:      []byte(`{"slot":"ten", "depth":"50", "old_head_block":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "new_head_block":"0x76262e91970d375a19bfe8a867288d7b9cde43c8635f598d93d39d041706fc76", "old_head_state":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "new_head_state":"0x600e852a08c1200654ddf11025f1ceacb3c2e74bdd5c630cde0838b2591b69f9", "epoch":"2", "execution_optimistic": false}`),
 				Timestamp: time.Now(),
 			},
-			err: errors.New("parse slot to int64"),
+			err: errors.New("parse slot to uint64"),
+		},
+		{
+			name: "chain_reorg parse depth",
+			event: &event{
+				Event:     sseChainReorgEvent,
+				Data:      []byte(`{"slot":"1", "depth":"x50", "old_head_block":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "new_head_block":"0x76262e91970d375a19bfe8a867288d7b9cde43c8635f598d93d39d041706fc76", "old_head_state":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "new_head_state":"0x600e852a08c1200654ddf11025f1ceacb3c2e74bdd5c630cde0838b2591b69f9", "epoch":"2", "execution_optimistic": false}`),
+				Timestamp: time.Now(),
+			},
+			err: errors.New("parse depth to uint64"),
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := sseEventHandler(t.Context(), test.event, "/url", test.opts)
+			l := &listener{
+				chainReorgSubs: make([]ChainReorgEventHandlerFunc, 0),
+				slotDuration:   12 * time.Second,
+				genesisTime:    time.Date(2020, 12, 1, 12, 0, 23, 0, time.UTC),
+				slotsPerEpoch:  32,
+			}
+
+			err := l.eventHandler(t.Context(), test.event, "test")
 
 			if test.err != nil {
 				require.ErrorContains(t, err, test.err.Error())
@@ -101,121 +105,75 @@ func TestSseEventHandler(t *testing.T) {
 	}
 }
 
-func TestBnMetrics(t *testing.T) {
+func TestStartListener(t *testing.T) {
 	bmock, err := beaconmock.New()
 	require.NoError(t, err)
 
-	bmock.GenesisFunc = func(context.Context, *eth2api.GenesisOpts) (*eth2v1.Genesis, error) {
-		return &eth2v1.Genesis{
-			GenesisTime:           time.Unix(int64(1606824023), 0),
-			GenesisValidatorsRoot: eth2p0.Root([]byte("0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95")),
-			GenesisForkVersion:    eth2p0.Version{0x00, 0x00, 0x00, 0x00},
-		}, nil
-	}
-
-	bmock.EventsFunc = func(context.Context, *eth2api.EventsOpts) error {
-		return nil
-	}
-
-	provider := mocks.NewSSEProvider(t)
-
-	err = ListenBeaconChainEvents(t.Context(), bmock, provider, []string{bmock.Address()}, []string{})
+	_, err = StartListener(t.Context(), bmock, []string{bmock.Address()}, []string{})
 	require.NoError(t, err)
+}
+
+func TestSubscribeNotifyChainReorg(t *testing.T) {
+	ctx := t.Context()
+	l := &listener{
+		chainReorgSubs: make([]ChainReorgEventHandlerFunc, 0),
+	}
+
+	reportedEpochs := make([]eth2p0.Epoch, 0)
+
+	l.SubscribeChainReorgEvent(func(_ context.Context, epoch eth2p0.Epoch) {
+		reportedEpochs = append(reportedEpochs, epoch)
+	})
+
+	l.notifyChainReorg(ctx, eth2p0.Epoch(5))
+	l.notifyChainReorg(ctx, eth2p0.Epoch(5)) // Duplicate should not be reported again
+	l.notifyChainReorg(ctx, eth2p0.Epoch(10))
+
+	require.Len(t, reportedEpochs, 2)
+	require.Equal(t, eth2p0.Epoch(5), reportedEpochs[0])
+	require.Equal(t, eth2p0.Epoch(10), reportedEpochs[1])
 }
 
 func TestComputeDelay(t *testing.T) {
 	genesisTimeString := "2020-12-01T12:00:23+00:00"
 	genesisTime, err := time.Parse(time.RFC3339, genesisTimeString)
 	require.NoError(t, err)
-	slotDurationString := "12s"
-	slotDuration, err := time.ParseDuration(slotDurationString)
-	require.NoError(t, err)
+	slotDuration := 12 * time.Second
 
 	tests := []struct {
 		name       string
-		slot       int64
+		slot       uint64
 		eventTS    time.Time
-		opts       map[string]string
 		expected   time.Duration
 		expectedOk bool
-		err        error
 	}{
 		{
-			name:    "happy path",
-			slot:    1,
-			eventTS: genesisTime.Add(slotDuration + 2*3/slotDuration), // 2/3 into slot 1
-			opts: map[string]string{
-				"slotDuration": slotDurationString,
-				"genesisTime":  genesisTimeString,
-			},
+			name:       "happy path",
+			slot:       1,
+			eventTS:    genesisTime.Add(slotDuration + 2*3/slotDuration), // 2/3 into slot 1
 			expected:   2 * 3 / slotDuration,
 			expectedOk: true,
-			err:        nil,
 		},
 		{
-			name:    "happy path, not ok",
-			slot:    1,
-			eventTS: genesisTime.Add(2*slotDuration + time.Second), // 1 second into slot 2
-			opts: map[string]string{
-				"slotDuration": slotDurationString,
-				"genesisTime":  genesisTimeString,
-			},
+			name:       "happy path, not ok",
+			slot:       1,
+			eventTS:    genesisTime.Add(2*slotDuration + time.Second), // 1 second into slot 2
 			expected:   slotDuration + time.Second,
 			expectedOk: false,
-			err:        nil,
-		},
-		{
-			name:    "slotDuration missing",
-			slot:    1,
-			eventTS: genesisTime.Add(slotDuration + 2*3/slotDuration),
-			opts: map[string]string{
-				"genesisTime": genesisTimeString,
-			},
-			err: errors.New("fetch slotDuration from options"),
-		},
-		{
-			name:    "genesisTime missing",
-			slot:    1,
-			eventTS: genesisTime.Add(slotDuration + 2*3/slotDuration),
-			opts: map[string]string{
-				"slotDuration": slotDurationString,
-			},
-			err: errors.New("fetch genesisTime from options"),
-		},
-		{
-			name:    "slotDuration unable to parse",
-			slot:    1,
-			eventTS: genesisTime.Add(slotDuration + 2*3/slotDuration),
-			opts: map[string]string{
-				"slotDuration": "error",
-				"genesisTime":  genesisTimeString,
-			},
-			err: errors.New("parse slotDuration to time.Duration"),
-		},
-		{
-			name:    "genesisTime unable to parse",
-			slot:    1,
-			eventTS: genesisTime.Add(slotDuration + 2*3/slotDuration),
-			opts: map[string]string{
-				"slotDuration": slotDurationString,
-				"genesisTime":  "error",
-			},
-			err: errors.New("parse genesisTime to RFC3339 time.Time"),
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			res, ok, err := computeDelay(test.slot, test.eventTS, test.opts)
-
-			if test.err != nil {
-				require.ErrorContains(t, err, test.err.Error())
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, test.expected, res)
-				require.Equal(t, test.expectedOk, ok)
+			l := &listener{
+				genesisTime:   genesisTime,
+				slotDuration:  slotDuration,
+				slotsPerEpoch: 32,
 			}
+
+			res, ok := l.computeDelay(test.slot, test.eventTS)
+			require.Equal(t, test.expected, res)
+			require.Equal(t, test.expectedOk, ok)
 		})
 	}
 }
-*/

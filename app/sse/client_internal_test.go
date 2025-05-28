@@ -25,7 +25,7 @@ func TestReconnect(t *testing.T) {
 	var wg sync.WaitGroup
 	// Start test server.
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/v1/eth/events", r.URL.Path)
+		require.Equal(t, "/eth/v1/events", r.URL.Path)
 
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Connection", "keep-alive")
@@ -35,12 +35,13 @@ func TestReconnect(t *testing.T) {
 	defer ts.Close()
 
 	// Create SSE client and add to waitgroup.
-	cl := newClient(ts.URL+"/v1/eth/events", make(http.Header))
+	cl, err := newClient(ts.URL, make(http.Header))
+	require.NoError(t, err)
 	eventHandler := func(ctx context.Context, event *event, url string) error { return nil }
 
 	wg.Add(1)
 	errCh := make(chan error)
-	go func() { errCh <- cl.Start(ctx, eventHandler) }()
+	go func() { errCh <- cl.start(ctx, eventHandler) }()
 
 	// Wait for waitgroup to be finished by the test server (= call from SSE client received).
 	wg.Wait()
@@ -261,7 +262,8 @@ func TestClientReconnect(t *testing.T) {
 
 	// Single event stream will disconnect after emitting single event, sse
 	// client should automatically reconnect until context deadline stops it.
-	client := newClient(server.URL+"/single-event", make(http.Header))
+	client, err := newClientForT(server.URL, "single-event")
+	require.NoError(t, err)
 	client.retry = 0
 
 	counter := 0
@@ -275,7 +277,7 @@ func TestClientReconnect(t *testing.T) {
 		return nil
 	}
 
-	_ = client.Start(ctx, handler)
+	_ = client.start(ctx, handler)
 
 	require.Equal(t, 5, counter)
 }
@@ -287,12 +289,13 @@ func TestClientError409(t *testing.T) {
 	eventHandler := func(context.Context, *event, string) error { return nil }
 
 	// /409 endpoint will return 409 status code which should trigger an error.
-	client := newClient(server.URL+"/409", make(http.Header))
+	client, err := newClientForT(server.URL, "409")
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
 	defer cancel()
 
-	err := client.Start(ctx, eventHandler)
+	err = client.start(ctx, eventHandler)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "bad response status code")
 }
@@ -309,11 +312,12 @@ func TestClientEventHandlerErrorPropagation(t *testing.T) {
 	// fail to parse it. We check if error returned by parser is passed back
 	// to the error handler and if error returned by error handler is passed
 	// back on stream end.
-	client := newClient(server.URL+"/single-event", make(http.Header))
+	client, err := newClientForT(server.URL, "single-event")
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
 	defer cancel()
 
-	err := client.Start(ctx, eventHandler)
+	err = client.start(ctx, eventHandler)
 	require.ErrorIs(t, err, parserErr, "expected error from event handler to be returned")
 }
