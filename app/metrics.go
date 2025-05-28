@@ -112,20 +112,6 @@ var (
 		Name:      "params",
 		Help:      "Parameters for each component of the validator stack in which this Charon instance is deployed into",
 	}, []string{"component", "cli_parameters"})
-
-	sseHeadGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "app",
-		Subsystem: "beacon_node",
-		Name:      "sse_head",
-		Help:      "Current beacon node head, supplied by beacon node's SSE endpoint",
-	}, []string{"url", "block", "delay"})
-
-	sseChainReorgGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "app",
-		Subsystem: "beacon_node",
-		Name:      "sse_chain_reorg",
-		Help:      "Chain reorg event occurrence, supplied by beacon node's SSE endpoint",
-	}, []string{"url", "depth", "old_head_block", "new_head_block"})
 )
 
 func initStartupMetrics(peerName string, threshold, numOperators, numValidators int, network string) {

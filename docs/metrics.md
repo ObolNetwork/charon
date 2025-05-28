@@ -14,8 +14,9 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | Name | Type | Help | Labels |
 |---|---|---|---|
 | `app_beacon_node_peers` | Gauge | Gauge set to the peer count of the upstream beacon node |  |
-| `app_beacon_node_sse_chain_reorg` | Gauge | Chain reorg event occurrence, supplied by beacon node`s SSE endpoint | `url, depth, old_head_block, new_head_block` |
-| `app_beacon_node_sse_head` | Gauge | Current beacon node head, supplied by beacon node`s SSE endpoint | `url, block, delay` |
+| `app_beacon_node_sse_chain_reorg_depth` | Gauge | Chain reorg depth, supplied by beacon node`s SSE endpoint | `addr` |
+| `app_beacon_node_sse_head_delay` | Histogram | Delay in seconds between slot start and head update, supplied by beacon node`s SSE endpoint. Values between 8s and 12s for Ethereum mainnet are considered safe. | `addr` |
+| `app_beacon_node_sse_head_slot` | Gauge | Current beacon node head slot, supplied by beacon node`s SSE endpoint | `addr` |
 | `app_beacon_node_version` | Gauge | Constant gauge with label set to the node version of the upstream beacon node | `version` |
 | `app_eth2_errors_total` | Counter | Total number of errors returned by eth2 beacon node requests | `endpoint` |
 | `app_eth2_latency_seconds` | Histogram | Latency in seconds for eth2 beacon node requests | `endpoint` |

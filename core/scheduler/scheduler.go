@@ -127,6 +127,12 @@ func (s *Scheduler) Run() error {
 	}
 }
 
+// ChainReorgEventHandler is connected to SSE Listener and handles chain reorg events.
+func (*Scheduler) ChainReorgEventHandler(ctx context.Context, epoch eth2p0.Epoch) {
+	// TODO: implement chain reorg handling.
+	log.Warn(ctx, "Scheduler received chain reorg event", nil, z.U64("epoch", uint64(epoch)))
+}
+
 // emitCoreSlot calls all slot subscriptions asynchronously with the provided slot.
 func (s *Scheduler) emitCoreSlot(ctx context.Context, slot core.Slot) {
 	for _, sub := range s.slotSubs {

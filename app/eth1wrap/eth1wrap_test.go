@@ -258,7 +258,7 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 
 	t.Run("signature validation fails", func(t *testing.T) {
 		mockEth1Client := mocks.NewEthClient(t)
-		mockEth1Client.On("Close").Return().Once()
+		mockEth1Client.On("Close").Return().Maybe()
 
 		mockErc1271 := mocks.NewErc1271(t)
 		// Return an invalid magic value

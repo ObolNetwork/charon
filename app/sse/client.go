@@ -1,6 +1,6 @@
 // Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package sseclient
+package sse
 
 import (
 	"bufio"
@@ -8,15 +8,18 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/expbackoff"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
 
-type Event struct {
+type event struct {
 	ID        string
 	Event     string
 	Data      []byte
@@ -24,15 +27,15 @@ type Event struct {
 }
 
 type (
-	ErrorHandler func(err error, url string) error
-	EventHandler func(ctx context.Context, e *Event, url string, options map[string]string) error
+	EventHandler func(ctx context.Context, e *event, addr string) error
 )
 
-type Client struct {
-	URL        string
-	Retry      time.Duration
-	HTTPClient *http.Client
-	Headers    http.Header
+type client struct {
+	addr       string
+	sseURL     *url.URL
+	retry      time.Duration
+	httpClient *http.Client
+	headers    http.Header
 }
 
 var (
@@ -40,27 +43,64 @@ var (
 	defaultRetry  = time.Second
 )
 
-func New(url string) *Client {
-	return &Client{
-		URL:        url,
-		Retry:      defaultRetry,
-		HTTPClient: &http.Client{},
-		Headers:    make(http.Header),
+func newClient(addr string, header http.Header) (*client, error) {
+	prefixedAddr := addr
+	if !strings.HasPrefix(addr, "http") {
+		prefixedAddr = "http://" + addr
 	}
+	u, err := url.Parse(prefixedAddr)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse bn addr", z.Str("addr", addr))
+	}
+
+	u.Path = "/eth/v1/events"
+	q := u.Query()
+	q.Add("topics", sseHeadEvent)
+	q.Add("topics", sseChainReorgEvent)
+	u.RawQuery = q.Encode()
+
+	return &client{
+		addr:       addr,
+		sseURL:     u,
+		retry:      defaultRetry,
+		httpClient: &http.Client{},
+		headers:    header,
+	}, nil
 }
 
-// Start connects to the SSE stream. This function will block until SSE stream is stopped.
-func (c *Client) Start(ctx context.Context, eventFn EventHandler, errorFn ErrorHandler, opts map[string]string) error {
+func newClientForT(addr, path string) (*client, error) {
+	prefixedAddr := addr
+	if !strings.HasPrefix(addr, "http") {
+		prefixedAddr = "http://" + addr
+	}
+	u, err := url.Parse(prefixedAddr)
+	if err != nil {
+		return nil, errors.Wrap(err, "parse bn addr", z.Str("addr", addr))
+	}
+	u.Path = path
+
+	// For testing purposes, we use a different retry duration.
+	return &client{
+		addr:       addr,
+		sseURL:     u,
+		retry:      100 * time.Millisecond,
+		httpClient: &http.Client{},
+		headers:    make(http.Header),
+	}, nil
+}
+
+// start connects to the SSE stream. This function will block until SSE stream is stopped.
+func (c *client) start(ctx context.Context, eventFn EventHandler) error {
 	backoff := func() {}
 	backoffSet := false
 
 	for {
-		err := c.connect(ctx, eventFn, opts)
+		err := c.connect(ctx, eventFn)
 
 		switch {
 		case err == nil, errors.Is(err, io.EOF):
 			// Reset the retry.
-			c.Retry = defaultRetry
+			c.retry = defaultRetry
 			backoffSet = false
 
 			continue
@@ -70,15 +110,15 @@ func (c *Client) Start(ctx context.Context, eventFn EventHandler, errorFn ErrorH
 		default:
 			// If error is not stream-related error, do not attempt retries and return the error.
 			if !errors.Is(err, errStreamConn) {
-				return errorFn(err, c.URL)
+				return errors.Wrap(err, "handle SSE payload", z.Str("url", c.sseURL.String()))
 			}
 
 			if !backoffSet {
 				backoffConfig := expbackoff.Config{
-					BaseDelay:  c.Retry,
+					BaseDelay:  c.retry,
 					Multiplier: 1.6,
 					Jitter:     0.2,
-					MaxDelay:   c.Retry * 2,
+					MaxDelay:   c.retry * 2,
 				}
 				backoff = expbackoff.New(ctx, expbackoff.WithConfig(backoffConfig))
 				backoffSet = true
@@ -89,20 +129,18 @@ func (c *Client) Start(ctx context.Context, eventFn EventHandler, errorFn ErrorH
 	}
 }
 
-func (c *Client) connect(ctx context.Context, eventFn EventHandler, opts map[string]string) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.URL, nil)
+func (c *client) connect(ctx context.Context, eventFn EventHandler) error {
+	log.Debug(ctx, "Connecting to SSE stream", z.Str("url", c.sseURL.String()))
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.sseURL.String(), nil)
 	if err != nil {
 		return errors.Wrap(err, "create new request")
 	}
 
-	for h, vs := range c.Headers {
-		for _, v := range vs {
-			req.Header.Add(h, v)
-		}
-	}
+	req.Header = c.headers.Clone()
 	req.Header.Set("Accept", "text/event-stream")
 
-	resp, err := c.HTTPClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return errStreamConn
 	}
@@ -126,7 +164,7 @@ func (c *Client) connect(ctx context.Context, eventFn EventHandler, opts map[str
 					continue
 				}
 
-				if err := eventFn(ctx, event, c.URL, opts); err != nil {
+				if err := eventFn(ctx, event, c.addr); err != nil {
 					return err
 				}
 			}
@@ -136,8 +174,8 @@ func (c *Client) connect(ctx context.Context, eventFn EventHandler, opts map[str
 	}
 }
 
-func (c *Client) parseEvent(r *bufio.Reader) (*Event, error) {
-	event := &Event{
+func (c *client) parseEvent(r *bufio.Reader) (*event, error) {
+	event := &event{
 		Timestamp: time.Now(),
 	}
 
@@ -158,7 +196,7 @@ func (c *Client) parseEvent(r *bufio.Reader) (*Event, error) {
 				continue
 			}
 
-			c.Retry = time.Duration(ms) * time.Millisecond
+			c.retry = time.Duration(ms) * time.Millisecond
 		case "id":
 			event.ID = string(parts[1])
 		case "event":
