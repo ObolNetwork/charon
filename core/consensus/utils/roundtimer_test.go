@@ -195,3 +195,90 @@ func TestGetTimerFunc(t *testing.T) {
 	require.Equal(t, utils.TimerLinear, timerFunc(core.NewProposerDuty(1)).Type())
 	require.Equal(t, utils.TimerLinear, timerFunc(core.NewProposerDuty(2)).Type())
 }
+
+func TestProposalTimeoutOptimization_IncreasingRoundTimer(t *testing.T) {
+	featureset.EnableForT(t, featureset.ProposalTimeout)
+	defer featureset.DisableForT(t, featureset.ProposalTimeout)
+
+	fakeClock := clockwork.NewFakeClock()
+	duty := core.NewProposerDuty(0)
+	timer := utils.NewIncreasingRoundTimerWithDutyAndClock(duty, fakeClock)
+
+	// First round for proposer should be 1.5s
+	timerC, stop := timer.Timer(1)
+	fakeClock.Advance(1500 * time.Millisecond)
+	select {
+	case <-timerC:
+	default:
+		require.Fail(t, "Timer(round 1, proposer) did not fire at 1.5s")
+	}
+	stop()
+
+	// Second round should use original logic
+	timerC, stop = timer.Timer(2)
+	fakeClock.Advance(utils.IncRoundStart + 2*utils.IncRoundIncrease)
+	select {
+	case <-timerC:
+	default:
+		require.Fail(t, "Timer(round 2, proposer) did not fire at original duration")
+	}
+	stop()
+}
+
+func TestProposalTimeoutOptimization_DoubleEagerLinearRoundTimer(t *testing.T) {
+	featureset.EnableForT(t, featureset.ProposalTimeout)
+	defer featureset.DisableForT(t, featureset.ProposalTimeout)
+
+	fakeClock := clockwork.NewFakeClock()
+	duty := core.NewProposerDuty(0)
+	timer := utils.NewDoubleEagerLinearRoundTimerWithDutyAndClock(duty, fakeClock)
+
+	// First round for proposer should be 1.5s
+	timerC, stop := timer.Timer(1)
+	fakeClock.Advance(1500 * time.Millisecond)
+	select {
+	case <-timerC:
+	default:
+		require.Fail(t, "Timer(round 1, proposer) did not fire at 1.5s")
+	}
+	stop()
+
+	// Second round should use original logic (2s)
+	timerC, stop = timer.Timer(2)
+	fakeClock.Advance(2 * time.Second)
+	select {
+	case <-timerC:
+	default:
+		require.Fail(t, "Timer(round 2, proposer) did not fire at 2s")
+	}
+	stop()
+}
+
+func TestProposalTimeoutOptimization_LinearRoundTimer(t *testing.T) {
+	featureset.EnableForT(t, featureset.ProposalTimeout)
+	defer featureset.DisableForT(t, featureset.ProposalTimeout)
+
+	fakeClock := clockwork.NewFakeClock()
+	duty := core.NewProposerDuty(0)
+	timer := utils.NewLinearRoundTimerWithDutyAndClock(duty, fakeClock)
+
+	// First round for proposer should be 1.5s
+	timerC, stop := timer.Timer(1)
+	fakeClock.Advance(1500 * time.Millisecond)
+	select {
+	case <-timerC:
+	default:
+		require.Fail(t, "Timer(round 1, proposer) did not fire at 1.5s")
+	}
+	stop()
+
+	// Third round should use original logic (600ms)
+	timerC, stop = timer.Timer(3)
+	fakeClock.Advance(600 * time.Millisecond)
+	select {
+	case <-timerC:
+	default:
+		require.Fail(t, "Timer(round 3, proposer) did not fire at 600ms")
+	}
+	stop()
+}
