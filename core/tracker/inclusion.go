@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -574,18 +575,30 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64, attDutie
 		return nil // No block for this slot
 	}
 
-	// Get the slot for which the attestations in the current slot are.
-	// This is usually the previous slot, except when the previous is a missed proposal.
-	attestation0Data, err := atts[0].Data()
-	if err != nil {
-		return err
-	}
-	attestedSlot := attestation0Data.Slot
+	var committeesForState []*statecomm.StateCommittee
+	var checkedSlots []eth2p0.Slot
+	for _, att := range atts {
+		attestationData, err := att.Data()
+		if err != nil {
+			return err
+		}
 
-	// Get the beacon committee for the above mentioned slot.
-	committeesForState, err := a.eth2Cl.BeaconStateCommittees(ctx, uint64(attestedSlot))
-	if err != nil {
-		return err
+		// State committess for the said slot were already fetched.
+		if slices.Contains(checkedSlots, attestationData.Slot) {
+			continue
+		}
+
+		// Get the beacon committee for the above mentioned slot.
+		fetchedCommitteesForState, err := a.eth2Cl.BeaconStateCommittees(ctx, uint64(attestationData.Slot))
+		if err != nil {
+			return err
+		}
+		committeesForState = append(committeesForState, fetchedCommitteesForState...)
+		checkedSlots = append(checkedSlots, attestationData.Slot)
+	}
+
+	if len(committeesForState) == 0 {
+		return nil // no committees
 	}
 
 	// Map attestations by data root, merging duplicates' aggregation bits.
@@ -843,12 +856,13 @@ func updateAggregationBits(committeeBits bitfield.Bitvector64, committeeAggregat
 	offset := uint64(0)
 	// Iterate over all committees that attested in the current attestation object.
 	for _, committeeIndex := range committeeBits.BitIndices() {
-		validatorsInCommittee := committeeAggregation[eth2p0.CommitteeIndex(committeeIndex)].Len()
+		commIdx := eth2p0.CommitteeIndex(committeeIndex)
+		validatorsInCommittee := committeeAggregation[commIdx].Len()
 		// Iterate over all validators in the committee.
 		for idx := range validatorsInCommittee {
 			// Update the existing map if the said validator attested.
 			if fullAttestationAggregationBits.BitAt(offset + idx) {
-				committeeAggregation[eth2p0.CommitteeIndex(committeeIndex)].SetBitAt(idx, fullAttestationAggregationBits.BitAt(offset+idx))
+				committeeAggregation[commIdx].SetBitAt(idx, true)
 			}
 		}
 		offset += validatorsInCommittee
