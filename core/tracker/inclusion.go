@@ -81,8 +81,9 @@ var inclSupported = map[core.DutyType]bool{
 // inclusionCore tracks the inclusion of submitted duties.
 // It has a simplified API to allow for easy testing.
 type inclusionCore struct {
-	mu          sync.Mutex
-	submissions map[subkey]submission
+	mu              sync.Mutex
+	submissions     map[subkey]submission
+	stateCommittees map[eth2p0.Slot][]*statecomm.StateCommittee
 
 	trackerInclFunc trackerInclFunc
 	missedFunc      func(context.Context, submission)
@@ -281,6 +282,11 @@ func (i *inclusionCore) CheckBlock(ctx context.Context, block block) {
 			panic("bug: unexpected type") // Sanity check, this should never happen
 		}
 	}
+
+	// Delete
+	if block.Slot >= InclMissedLag {
+		delete(i.stateCommittees, eth2p0.Slot(block.Slot-InclMissedLag))
+	}
 }
 
 // checkAggregationInclusion checks whether the aggregation is included in the block.
@@ -465,6 +471,7 @@ func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client, trackerInclFunc t
 		missedFunc:      reportMissed,
 		trackerInclFunc: trackerInclFunc,
 		submissions:     make(map[subkey]submission),
+		stateCommittees: make(map[eth2p0.Slot][]*statecomm.StateCommittee),
 	}
 
 	return &InclusionChecker{
@@ -588,12 +595,18 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64, attDutie
 			continue
 		}
 
-		// Get the beacon committee for the above mentioned slot.
-		fetchedCommitteesForState, err := a.eth2Cl.BeaconStateCommittees(ctx, uint64(attestationData.Slot))
-		if err != nil {
-			return err
+		stateComms, ok := a.core.stateCommittees[attestationData.Slot]
+		if ok {
+			committeesForState = append(committeesForState, stateComms...)
+		} else {
+			// Get the beacon committee for the above mentioned slot.
+			fetchedCommitteesForState, err := a.eth2Cl.BeaconStateCommittees(ctx, uint64(attestationData.Slot))
+			if err != nil {
+				return err
+			}
+			committeesForState = append(committeesForState, fetchedCommitteesForState...)
+			a.core.stateCommittees[attestationData.Slot] = fetchedCommitteesForState
 		}
-		committeesForState = append(committeesForState, fetchedCommitteesForState...)
 		checkedSlots = append(checkedSlots, attestationData.Slot)
 	}
 
