@@ -136,13 +136,17 @@ func (s *Scheduler) ChainReorgEventHandler(ctx context.Context, epoch eth2p0.Epo
 			slot, err := currentSlot(ctx, s.eth2Cl, s.clock)
 			if err != nil {
 				log.Error(ctx, "Failed to calculate the current slot", err)
-			} else {
-				s.trimDuties(uint64(epoch))
-				s.resolveDuties(ctx, slot)
+
+				return
+			}
+
+			s.trimDuties(uint64(epoch))
+			if err = s.resolveDuties(ctx, slot); err != nil {
+				log.Error(ctx, "Resolving duties error after chain reorg", err, z.U64("reorg_epoch", uint64(epoch)))
 			}
 		}
 	} else {
-		log.Warn(ctx, "Chain reorg event ignored due to disabled ReorgRefreshDuties feature", nil, z.U64("epoch", uint64(epoch)))
+		log.Warn(ctx, "Chain reorg event ignored due to disabled ReorgRefreshDuties feature", nil, z.U64("reorg_epoch", uint64(epoch)))
 	}
 }
 
@@ -578,6 +582,10 @@ func currentSlot(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Cl
 		return core.Slot{}, err
 	}
 
+	if slotDuration == 0 {
+		return core.Slot{}, errors.New("slot duration cannot be zero")
+	}
+
 	chainAge := clock.Since(genesisTime)
 	slot := int64(chainAge / slotDuration)
 	startTime := genesisTime.Add(time.Duration(slot) * slotDuration)
@@ -600,6 +608,10 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.
 	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
+	}
+
+	if slotDuration == 0 {
+		return nil, errors.New("slot duration cannot be zero")
 	}
 
 	currentSlot := func() core.Slot {
