@@ -3,7 +3,10 @@
 package cmd
 
 import (
+	"archive/tar"
+	"archive/zip"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -91,6 +94,8 @@ type clusterConfig struct {
 	testnetConfig eth2util.Network
 
 	ExecutionEngineAddr string
+
+	Zipped string
 }
 
 func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig) error) *cobra.Command {
@@ -153,6 +158,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.UintVar(&config.TargetGasLimit, "target-gas-limit", 36000000, "Preferred target gas limit for transactions.")
 	flags.BoolVar(&config.Compounding, "compounding", false, "Enable compounding rewards for validators by using 0x02 withdrawal credentials.")
 	flags.StringVar(&config.ExecutionEngineAddr, "execution-client-rpc-endpoint", "", "The address of the execution engine JSON-RPC API.")
+	flags.StringVar(&config.Zipped, "zipped", "", "Zip created files and folders into a zip or tar file")
 }
 
 func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
@@ -335,6 +341,10 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	if err = writeLock(lock, conf.ClusterDir, numNodes); err != nil {
+		return err
+	}
+
+	if err = bundleOutput(conf.Zipped, conf.ClusterDir); err != nil {
 		return err
 	}
 
@@ -1177,4 +1187,95 @@ func validateNetworkConfig(conf clusterConfig) error {
 	}
 
 	return errors.New("missing --network flag or testnet config flags")
+}
+
+func bundleOutput(archiveFormat, targetDir string) error {
+	switch archiveFormat {
+	case "zip":
+		file, err := os.Create("cluster.zip")
+		if err != nil {
+			return errors.Wrap(err, "create .zip file")
+		}
+		defer file.Close()
+
+		w := zip.NewWriter(file)
+		defer w.Close()
+
+		err = filepath.Walk(targetDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return errors.Wrap(err, "filepath walk")
+			}
+			if info.IsDir() {
+				return nil
+			}
+			file, err := os.Open(path)
+			if err != nil {
+				return errors.Wrap(err, "open file")
+			}
+			f, err := w.Create(path)
+			if err != nil {
+				return errors.Wrap(err, "create file")
+			}
+			_, err = io.Copy(f, file)
+			if err != nil {
+				return errors.Wrap(err, "copy file")
+			}
+			file.Close()
+
+			return nil
+		})
+		if err != nil {
+			return errors.Wrap(err, "filepath walk")
+		}
+
+		return nil
+	case "tar":
+		file, err := os.Create("cluster.tar.gz")
+		if err != nil {
+			return errors.Wrap(err, "create .tar.gz file")
+		}
+		defer file.Close()
+
+		gzw := gzip.NewWriter(file)
+		defer gzw.Close()
+
+		tw := tar.NewWriter(gzw)
+		defer tw.Close()
+
+		err = filepath.Walk(targetDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return errors.Wrap(err, "filepath walk")
+			}
+			if !info.Mode().IsRegular() {
+				return nil
+			}
+			header, err := tar.FileInfoHeader(info, info.Name())
+			if err != nil {
+				return errors.Wrap(err, "file info header")
+			}
+			header.Name = strings.TrimPrefix(strings.ReplaceAll(path, targetDir, ""), string(filepath.Separator))
+			if err := tw.WriteHeader(header); err != nil {
+				return errors.Wrap(err, "write header")
+			}
+			f, err := os.Open(path)
+			if err != nil {
+				return errors.Wrap(err, "open file")
+			}
+			if _, err := io.Copy(tw, f); err != nil {
+				return errors.Wrap(err, "copyy file")
+			}
+			f.Close()
+
+			return nil
+		})
+		if err != nil {
+			return errors.Wrap(err, "filepath walk")
+		}
+
+		return nil
+	case "":
+		return nil
+	default:
+		return errors.New("invalid --zipped flag value", z.Str("format", archiveFormat))
+	}
 }
