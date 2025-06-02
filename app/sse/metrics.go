@@ -9,12 +9,12 @@ import (
 )
 
 var (
-	sseHeadGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	sseHeadSlotGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "app",
 		Subsystem: "beacon_node",
-		Name:      "sse_head",
+		Name:      "sse_head_slot",
 		Help:      "Current beacon node head slot, supplied by beacon node's SSE endpoint",
-	}, []string{"addr", "block"})
+	}, []string{"addr"})
 
 	sseHeadDelayHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "app",

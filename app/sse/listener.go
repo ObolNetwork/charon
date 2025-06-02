@@ -123,8 +123,7 @@ func (p *listener) handleHeadEvent(ctx context.Context, event *event, addr strin
 		sseHeadDelayHistogram.WithLabelValues(addr).Observe(delay.Seconds())
 	}
 
-	sseHeadGauge.Reset()
-	sseHeadGauge.WithLabelValues(addr, head.Block).Set(1)
+	sseHeadSlotGauge.WithLabelValues(addr).Set(float64(slot))
 
 	return nil
 }
