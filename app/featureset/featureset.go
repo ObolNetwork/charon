@@ -49,6 +49,9 @@ const (
 	// Linear enables Linear round timer for consensus rounds.
 	// When active has precedence over EagerDoubleLinear round timer.
 	Linear Feature = "linear"
+
+	// ProposalTimeout enables a longer first consensus round timeout of 1.5 seconds for proposal duty.
+	ProposalTimeout = "proposal_timeout"
 )
 
 var (
@@ -61,6 +64,7 @@ var (
 		JSONRequests:         statusAlpha,
 		GnosisBlockHotfix:    statusAlpha,
 		Linear:               statusAlpha,
+		ProposalTimeout:      statusAlpha,
 		// Add all features and there status here.
 	}
 

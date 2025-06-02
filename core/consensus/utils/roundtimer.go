@@ -28,25 +28,21 @@ func GetTimerFunc() TimerFunc {
 		return func(duty core.Duty) RoundTimer {
 			// Linear timer only affects Proposer duty
 			if duty.Type == core.DutyProposer {
-				return NewLinearRoundTimer()
+				return NewLinearRoundTimerWithDuty(duty)
 			} else if featureset.Enabled(featureset.EagerDoubleLinear) {
-				return NewDoubleEagerLinearRoundTimer()
+				return NewDoubleEagerLinearRoundTimerWithDuty(duty)
 			}
 
-			return NewIncreasingRoundTimer()
+			return NewIncreasingRoundTimerWithDuty(duty)
 		}
 	}
 
 	if featureset.Enabled(featureset.EagerDoubleLinear) {
-		return func(core.Duty) RoundTimer {
-			return NewDoubleEagerLinearRoundTimer()
-		}
+		return NewDoubleEagerLinearRoundTimerWithDuty
 	}
 
 	// Default to increasing round timer.
-	return func(core.Duty) RoundTimer {
-		return NewIncreasingRoundTimer()
-	}
+	return NewIncreasingRoundTimerWithDuty
 }
 
 // TimerType is the type of round timer.
@@ -82,6 +78,12 @@ type RoundTimer interface {
 	Type() TimerType
 }
 
+// proposalTimeoutOptimization returns true if ProposalTimeout feature is enabled, the duty is proposer and
+// we are in the first round.
+func proposalTimeoutOptimization(duty core.Duty, round int64) bool {
+	return featureset.Enabled(featureset.ProposalTimeout) && duty.Type == core.DutyProposer && round == 1
+}
+
 // NewTimeoutRoundTimer returns a new increasing round timer type.
 func NewIncreasingRoundTimer() RoundTimer {
 	return NewIncreasingRoundTimerWithClock(clockwork.NewRealClock())
@@ -94,9 +96,26 @@ func NewIncreasingRoundTimerWithClock(clock clockwork.Clock) RoundTimer {
 	}
 }
 
+// NewIncreasingRoundTimerWithDuty returns a new eager double linear round timer type for a specific duty.
+func NewIncreasingRoundTimerWithDuty(duty core.Duty) RoundTimer {
+	return &increasingRoundTimer{
+		clock: clockwork.NewRealClock(),
+		duty:  duty,
+	}
+}
+
+// NewIncreasingRoundTimerWithDuty returns a new eager double linear round timer type for a specific duty and custom clock.
+func NewIncreasingRoundTimerWithDutyAndClock(duty core.Duty, clock clockwork.Clock) RoundTimer {
+	return &increasingRoundTimer{
+		clock: clock,
+		duty:  duty,
+	}
+}
+
 // increasingRoundTimer implements a linear increasing round timerType.
 type increasingRoundTimer struct {
 	clock clockwork.Clock
+	duty  core.Duty
 }
 
 func (increasingRoundTimer) Type() TimerType {
@@ -104,7 +123,13 @@ func (increasingRoundTimer) Type() TimerType {
 }
 
 func (t increasingRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
-	timer := t.clock.NewTimer(increasingRoundTimeout(round))
+	timeout := increasingRoundTimeout(round)
+	if proposalTimeoutOptimization(t.duty, round) {
+		timeout = 1500 * time.Millisecond
+	}
+
+	timer := t.clock.NewTimer(timeout)
+
 	return timer.Chan(), func() { timer.Stop() }
 }
 
@@ -117,6 +142,24 @@ func NewDoubleEagerLinearRoundTimer() RoundTimer {
 func NewDoubleEagerLinearRoundTimerWithClock(clock clockwork.Clock) RoundTimer {
 	return &doubleEagerLinearRoundTimer{
 		clock:          clock,
+		firstDeadlines: make(map[int64]time.Time),
+	}
+}
+
+// NewDoubleEagerLinearRoundTimerWithDuty returns a new eager double linear round timer type for a specific duty.
+func NewDoubleEagerLinearRoundTimerWithDuty(duty core.Duty) RoundTimer {
+	return &doubleEagerLinearRoundTimer{
+		clock:          clockwork.NewRealClock(),
+		duty:           duty,
+		firstDeadlines: make(map[int64]time.Time),
+	}
+}
+
+// NewDoubleEagerLinearRoundTimerWithDutyAndClock returns a new eager double linear round timer type for a specific duty and custom clock.
+func NewDoubleEagerLinearRoundTimerWithDutyAndClock(duty core.Duty, clock clockwork.Clock) RoundTimer {
+	return &doubleEagerLinearRoundTimer{
+		clock:          clock,
+		duty:           duty,
 		firstDeadlines: make(map[int64]time.Time),
 	}
 }
@@ -137,6 +180,7 @@ func NewDoubleEagerLinearRoundTimerWithClock(clock clockwork.Clock) RoundTimer {
 // It is linear, meaning the round duration increases linearly with the round number: 1s, 2s, 3s, etc.
 type doubleEagerLinearRoundTimer struct {
 	clock clockwork.Clock
+	duty  core.Duty
 
 	mu             sync.Mutex
 	firstDeadlines map[int64]time.Time
@@ -150,13 +194,20 @@ func (t *doubleEagerLinearRoundTimer) Timer(round int64) (<-chan time.Time, func
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	var timeout time.Duration
+	if proposalTimeoutOptimization(t.duty, round) {
+		timeout = 1500 * time.Millisecond
+	} else {
+		timeout = linearRoundTimeout(round)
+	}
+
 	var deadline time.Time
 	if first, ok := t.firstDeadlines[round]; ok {
 		// Deadline is either double the first timeout
-		deadline = first.Add(linearRoundTimeout(round))
+		deadline = first.Add(timeout)
 	} else {
 		// Or the first timeout
-		deadline = t.clock.Now().Add(linearRoundTimeout(round))
+		deadline = t.clock.Now().Add(timeout)
 		t.firstDeadlines[round] = deadline
 	}
 
@@ -173,6 +224,7 @@ func (t *doubleEagerLinearRoundTimer) Timer(round int64) (<-chan time.Time, func
 // which will increase linearly
 type linearRoundTimer struct {
 	clock clockwork.Clock
+	duty  core.Duty
 }
 
 func (*linearRoundTimer) Type() TimerType {
@@ -180,14 +232,18 @@ func (*linearRoundTimer) Type() TimerType {
 }
 
 func (t *linearRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
-	var timer clockwork.Timer
-	if round == 1 {
+	var timeout time.Duration
+	if proposalTimeoutOptimization(t.duty, round) {
+		timeout = 1500 * time.Millisecond
+	} else if round == 1 {
 		// First round has 1 second
-		timer = t.clock.NewTimer(time.Second)
+		timeout = time.Second
 	} else {
 		// Subsequent rounds have linearly more time starting at 400 milliseconds
-		timer = t.clock.NewTimer(time.Duration(200*(round-1) + 200))
+		timeout = time.Duration(200*(round-1) + 200)
 	}
+
+	timer := t.clock.NewTimer(timeout)
 
 	return timer.Chan(), func() { timer.Stop() }
 }
@@ -197,8 +253,25 @@ func NewLinearRoundTimer() RoundTimer {
 	return NewLinearRoundTimerWithClock(clockwork.NewRealClock())
 }
 
+// NewLinearRoundTimerWithClock returns a new linear round timer type with a custom clock.
 func NewLinearRoundTimerWithClock(clock clockwork.Clock) RoundTimer {
 	return &linearRoundTimer{
 		clock: clock,
+	}
+}
+
+// NewLinearRoundTimerWithDuty returns a new linear round timer type for a specific duty.
+func NewLinearRoundTimerWithDuty(duty core.Duty) RoundTimer {
+	return &linearRoundTimer{
+		clock: clockwork.NewRealClock(),
+		duty:  duty,
+	}
+}
+
+// NewLinearRoundTimerWithDutyAndClock returns a new linear round timer type for a specific duty and custom clock.
+func NewLinearRoundTimerWithDutyAndClock(duty core.Duty, clock clockwork.Clock) RoundTimer {
+	return &linearRoundTimer{
+		clock: clock,
+		duty:  duty,
 	}
 }
