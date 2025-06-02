@@ -196,7 +196,7 @@ func TestGetTimerFunc(t *testing.T) {
 	require.Equal(t, utils.TimerLinear, timerFunc(core.NewProposerDuty(2)).Type())
 }
 
-func TestProposalTimeoutOptimization_IncreasingRoundTimer(t *testing.T) {
+func TestProposalTimeoutOptimizationIncreasingRoundTimer(t *testing.T) {
 	featureset.EnableForT(t, featureset.ProposalTimeout)
 	defer featureset.DisableForT(t, featureset.ProposalTimeout)
 
@@ -225,7 +225,7 @@ func TestProposalTimeoutOptimization_IncreasingRoundTimer(t *testing.T) {
 	stop()
 }
 
-func TestProposalTimeoutOptimization_DoubleEagerLinearRoundTimer(t *testing.T) {
+func TestProposalTimeoutOptimizationDoubleEagerLinearRoundTimer(t *testing.T) {
 	featureset.EnableForT(t, featureset.ProposalTimeout)
 	defer featureset.DisableForT(t, featureset.ProposalTimeout)
 
@@ -254,7 +254,7 @@ func TestProposalTimeoutOptimization_DoubleEagerLinearRoundTimer(t *testing.T) {
 	stop()
 }
 
-func TestProposalTimeoutOptimization_LinearRoundTimer(t *testing.T) {
+func TestProposalTimeoutOptimizationLinearRoundTimer(t *testing.T) {
 	featureset.EnableForT(t, featureset.ProposalTimeout)
 	defer featureset.DisableForT(t, featureset.ProposalTimeout)
 

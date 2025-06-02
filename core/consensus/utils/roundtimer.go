@@ -79,7 +79,7 @@ type RoundTimer interface {
 }
 
 // proposalTimeoutOptimization returns true if ProposalTimeout feature is enabled, the duty is proposer and
-// we are in the first round
+// we are in the first round.
 func proposalTimeoutOptimization(duty core.Duty, round int64) bool {
 	return featureset.Enabled(featureset.ProposalTimeout) && duty.Type == core.DutyProposer && round == 1
 }
@@ -96,6 +96,7 @@ func NewIncreasingRoundTimerWithClock(clock clockwork.Clock) RoundTimer {
 	}
 }
 
+// NewIncreasingRoundTimerWithDuty returns a new eager double linear round timer type for a specific duty.
 func NewIncreasingRoundTimerWithDuty(duty core.Duty) RoundTimer {
 	return &increasingRoundTimer{
 		clock: clockwork.NewRealClock(),
@@ -103,6 +104,7 @@ func NewIncreasingRoundTimerWithDuty(duty core.Duty) RoundTimer {
 	}
 }
 
+// NewIncreasingRoundTimerWithDuty returns a new eager double linear round timer type for a specific duty and custom clock.
 func NewIncreasingRoundTimerWithDutyAndClock(duty core.Duty, clock clockwork.Clock) RoundTimer {
 	return &increasingRoundTimer{
 		clock: clock,
@@ -153,6 +155,7 @@ func NewDoubleEagerLinearRoundTimerWithDuty(duty core.Duty) RoundTimer {
 	}
 }
 
+// NewDoubleEagerLinearRoundTimerWithDutyAndClock returns a new eager double linear round timer type for a specific duty and custom clock.
 func NewDoubleEagerLinearRoundTimerWithDutyAndClock(duty core.Duty, clock clockwork.Clock) RoundTimer {
 	return &doubleEagerLinearRoundTimer{
 		clock:          clock,
@@ -250,6 +253,7 @@ func NewLinearRoundTimer() RoundTimer {
 	return NewLinearRoundTimerWithClock(clockwork.NewRealClock())
 }
 
+// NewLinearRoundTimerWithClock returns a new linear round timer type with a custom clock.
 func NewLinearRoundTimerWithClock(clock clockwork.Clock) RoundTimer {
 	return &linearRoundTimer{
 		clock: clock,
@@ -264,6 +268,7 @@ func NewLinearRoundTimerWithDuty(duty core.Duty) RoundTimer {
 	}
 }
 
+// NewLinearRoundTimerWithDutyAndClock returns a new linear round timer type for a specific duty and custom clock.
 func NewLinearRoundTimerWithDutyAndClock(duty core.Duty, clock clockwork.Clock) RoundTimer {
 	return &linearRoundTimer{
 		clock: clock,
