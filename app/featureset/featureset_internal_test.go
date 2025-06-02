@@ -17,6 +17,7 @@ func TestAllFeatureStatus(t *testing.T) {
 		JSONRequests,
 		GnosisBlockHotfix,
 		Linear,
+		ReorgRefreshDuties,
 	}
 
 	for _, feature := range features {

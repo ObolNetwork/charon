@@ -19,6 +19,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/expbackoff"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -128,9 +129,21 @@ func (s *Scheduler) Run() error {
 }
 
 // ChainReorgEventHandler is connected to SSE Listener and handles chain reorg events.
-func (*Scheduler) ChainReorgEventHandler(ctx context.Context, epoch eth2p0.Epoch) {
-	// TODO: implement chain reorg handling.
-	log.Warn(ctx, "Scheduler received chain reorg event", nil, z.U64("epoch", uint64(epoch)))
+func (s *Scheduler) ChainReorgEventHandler(ctx context.Context, epoch eth2p0.Epoch) {
+	if featureset.Enabled(featureset.ReorgRefreshDuties) {
+		if s.getResolvedEpoch() < uint64(epoch) {
+			// Refreshing current epoch duties, because of a chain reorg.
+			slot, err := currentSlot(ctx, s.eth2Cl, s.clock)
+			if err != nil {
+				log.Error(ctx, "Failed to calculate the current slot", err)
+			} else {
+				s.trimDuties(uint64(epoch))
+				s.resolveDuties(ctx, slot)
+			}
+		}
+	} else {
+		log.Warn(ctx, "Chain reorg event ignored due to disabled ReorgRefreshDuties feature", nil, z.U64("epoch", uint64(epoch)))
+	}
 }
 
 // emitCoreSlot calls all slot subscriptions asynchronously with the provided slot.
@@ -552,6 +565,29 @@ func (s *Scheduler) trimDuties(epoch uint64) {
 	}
 
 	delete(s.dutiesByEpoch, epoch)
+}
+
+// currentSlot calculates the current slot based on the genesis time and slot duration.
+func currentSlot(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) (core.Slot, error) {
+	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
+	if err != nil {
+		return core.Slot{}, err
+	}
+	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
+	if err != nil {
+		return core.Slot{}, err
+	}
+
+	chainAge := clock.Since(genesisTime)
+	slot := int64(chainAge / slotDuration)
+	startTime := genesisTime.Add(time.Duration(slot) * slotDuration)
+
+	return core.Slot{
+		Slot:          uint64(slot),
+		Time:          startTime,
+		SlotsPerEpoch: slotsPerEpoch,
+		SlotDuration:  slotDuration,
+	}, nil
 }
 
 // newSlotTicker returns a blocking channel that will be populated with new slots in real time.
