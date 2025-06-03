@@ -417,7 +417,7 @@ func TestHandleChainReorgEvent(t *testing.T) {
 		valSet = beaconmock.ValidatorSetA
 	)
 
-	featureset.EnableForT(t, featureset.ReorgRefreshDuties)
+	featureset.EnableForT(t, featureset.SSEReorgRefreshDuties)
 
 	// Configure beacon mock.
 	eth2Cl, err := beaconmock.New(

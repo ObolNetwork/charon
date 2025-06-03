@@ -50,21 +50,21 @@ const (
 	// When active has precedence over EagerDoubleLinear round timer.
 	Linear Feature = "linear"
 
-	// ReorgRefreshDuties enables Scheduler to refresh duties when reorg occurs.
-	ReorgRefreshDuties Feature = "reorg_refresh_duties"
+	// SSEReorgRefreshDuties enables Scheduler to refresh duties when reorg occurs.
+	SSEReorgRefreshDuties Feature = "sse_reorg_refresh_duties"
 )
 
 var (
 	// state defines the current rollout status of each feature.
 	state = map[Feature]status{
-		EagerDoubleLinear:    statusStable,
-		ConsensusParticipate: statusStable,
-		MockAlpha:            statusAlpha,
-		AggSigDBV2:           statusAlpha,
-		JSONRequests:         statusAlpha,
-		GnosisBlockHotfix:    statusAlpha,
-		Linear:               statusAlpha,
-		ReorgRefreshDuties:   statusAlpha,
+		EagerDoubleLinear:     statusStable,
+		ConsensusParticipate:  statusStable,
+		MockAlpha:             statusAlpha,
+		AggSigDBV2:            statusAlpha,
+		JSONRequests:          statusAlpha,
+		GnosisBlockHotfix:     statusAlpha,
+		Linear:                statusAlpha,
+		SSEReorgRefreshDuties: statusAlpha,
 		// Add all features and there status here.
 	}
 

@@ -130,11 +130,11 @@ func (s *Scheduler) Run() error {
 
 // HandleChainReorgEvent is connected to SSE Listener and handles chain reorg events.
 func (s *Scheduler) HandleChainReorgEvent(ctx context.Context, epoch eth2p0.Epoch) {
-	if featureset.Enabled(featureset.ReorgRefreshDuties) {
+	if featureset.Enabled(featureset.SSEReorgRefreshDuties) {
 		resolvedEpoch := s.getResolvedEpoch()
 		if uint64(epoch) < resolvedEpoch {
 			// Removing current epoch duties, because of a chain reorg.
-			s.trimDuties(uint64(resolvedEpoch))
+			s.trimDuties(resolvedEpoch)
 			// Duties are to be resolved again in the next slot by scheduleSlot().
 			s.setResolvedEpoch(math.MaxInt64)
 
