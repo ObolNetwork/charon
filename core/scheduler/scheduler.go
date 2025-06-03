@@ -19,6 +19,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/expbackoff"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -127,10 +128,21 @@ func (s *Scheduler) Run() error {
 	}
 }
 
-// ChainReorgEventHandler is connected to SSE Listener and handles chain reorg events.
-func (*Scheduler) ChainReorgEventHandler(ctx context.Context, epoch eth2p0.Epoch) {
-	// TODO: implement chain reorg handling.
-	log.Warn(ctx, "Scheduler received chain reorg event", nil, z.U64("epoch", uint64(epoch)))
+// HandleChainReorgEvent is connected to SSE Listener and handles chain reorg events.
+func (s *Scheduler) HandleChainReorgEvent(ctx context.Context, epoch eth2p0.Epoch) {
+	if featureset.Enabled(featureset.SSEReorgDuties) {
+		resolvedEpoch := s.getResolvedEpoch()
+		if uint64(epoch) < resolvedEpoch {
+			// Removing current epoch duties, because of a chain reorg.
+			s.trimDuties(resolvedEpoch)
+			// Duties are to be resolved again in the next slot by scheduleSlot().
+			s.setResolvedEpoch(math.MaxInt64)
+
+			log.Info(ctx, "Chain reorg event handled, duties trimmed", z.U64("reorg_epoch", uint64(epoch)))
+		}
+	} else {
+		log.Warn(ctx, "Chain reorg event ignored due to disabled ReorgRefreshDuties feature", nil, z.U64("reorg_epoch", uint64(epoch)))
+	}
 }
 
 // emitCoreSlot calls all slot subscriptions asynchronously with the provided slot.
@@ -179,6 +191,8 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 // scheduleSlot resolves upcoming duties and triggers resolved duties for the slot.
 func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 	if s.getResolvedEpoch() != slot.Epoch() {
+		log.Debug(ctx, "Resolving duties for slot", z.U64("slot", slot.Slot), z.U64("epoch", slot.Epoch()))
+
 		err := s.resolveDuties(ctx, slot)
 		if err != nil {
 			log.Warn(ctx, "Resolving duties error (retrying next slot)", err, z.U64("slot", slot.Slot))
@@ -564,6 +578,10 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.
 	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
+	}
+
+	if slotDuration == 0 {
+		return nil, errors.New("slot duration cannot be zero")
 	}
 
 	currentSlot := func() core.Slot {

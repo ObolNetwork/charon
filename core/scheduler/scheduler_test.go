@@ -19,6 +19,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/scheduler"
 	"github.com/obolnetwork/charon/testutil"
@@ -107,7 +108,7 @@ func TestSchedulerWait(t *testing.T) {
 		{
 			Name:       "synced errors",
 			SyncedErrs: 10,
-			WaitSecs:   15, // We use expbackoff.FastConfig
+			WaitSecs:   14, // We use expbackoff.FastConfig
 		},
 	}
 
@@ -220,7 +221,7 @@ func TestSchedulerDuties(t *testing.T) {
 
 			// Only test scheduler output for first N slots, so Stop scheduler (and slotTicker) after that.
 			const stopAfter = 3
-			eth2Resp, err := eth2Cl.Spec(context.Background(), &eth2api.SpecOpts{})
+			eth2Resp, err := eth2Cl.Spec(t.Context(), &eth2api.SpecOpts{})
 			require.NoError(t, err)
 
 			slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
@@ -291,7 +292,7 @@ func TestSchedulerDuties(t *testing.T) {
 
 func TestScheduler_GetDuty(t *testing.T) {
 	var (
-		ctx    = context.Background()
+		ctx    = t.Context()
 		t0     time.Time
 		slot   = uint64(1)
 		valSet = beaconmock.ValidatorSetA
@@ -331,11 +332,8 @@ func TestScheduler_GetDuty(t *testing.T) {
 	})
 	require.ErrorIs(t, err, core.ErrDeprecatedDutyBuilderProposer)
 
-	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
+	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	require.NoError(t, err)
-
-	slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
-	require.True(t, ok)
 
 	clock.CallbackAfter(t0.Add(slotDuration).Add(time.Second), func() {
 		res, err := sched.GetDutyDefinition(ctx, core.NewAttesterDuty(slot))
@@ -361,9 +359,6 @@ func TestScheduler_GetDuty(t *testing.T) {
 		}
 	})
 
-	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
-	require.NoError(t, err)
-
 	// Expire all duties
 	const trimEpochOffset = 3
 	expiry := time.Duration(trimEpochOffset*slotsPerEpoch) * slotDuration
@@ -388,7 +383,7 @@ func TestScheduler_GetDuty(t *testing.T) {
 
 func TestNoActive(t *testing.T) {
 	var (
-		ctx          = context.Background()
+		ctx          = t.Context()
 		t0           = time.Now()
 		slotDuration = time.Second
 	)
@@ -412,6 +407,71 @@ func TestNoActive(t *testing.T) {
 		sched.Stop()
 	})
 
+	require.NoError(t, sched.Run())
+}
+
+func TestHandleChainReorgEvent(t *testing.T) {
+	var (
+		ctx    = t.Context()
+		t0     time.Time
+		valSet = beaconmock.ValidatorSetA
+	)
+
+	featureset.EnableForT(t, featureset.SSEReorgDuties)
+
+	// Configure beacon mock.
+	eth2Cl, err := beaconmock.New(
+		beaconmock.WithValidatorSet(valSet),
+		beaconmock.WithGenesisTime(t0),
+		beaconmock.WithDeterministicAttesterDuties(0),
+		beaconmock.WithDeterministicSyncCommDuties(2, 2),
+		beaconmock.WithSlotsPerEpoch(1),
+	)
+	require.NoError(t, err)
+
+	// Get pubkeys for validators to schedule.
+	pubkeys, err := valSet.CorePubKeys()
+	require.NoError(t, err)
+
+	// Construct scheduler.
+	clock := newTestClock(t0)
+	dd := new(delayer)
+	sched := scheduler.NewForT(t, clock, dd.delay, pubkeys, eth2Cl, false)
+
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
+	require.NoError(t, err)
+
+	clock.CallbackAfter(t0.Add(2*slotDuration).Add(time.Second), func() {
+		// Shall be 2nd epoch, 2nd slot
+		dds, err := sched.GetDutyDefinition(ctx, core.NewAttesterDuty(2))
+		require.NoError(t, err)
+		require.Len(t, dds, 3)
+
+		pubKeys, err := valSet.CorePubKeys()
+		require.NoError(t, err)
+
+		for _, pubKey := range pubKeys {
+			require.NotNil(t, dds[pubKey])
+		}
+
+		// Reorg starting previous epoch
+		sched.HandleChainReorgEvent(ctx, 1)
+
+		_, err = sched.GetDutyDefinition(ctx, core.NewAttesterDuty(2))
+		require.ErrorContains(t, err, "epoch not resolved yet")
+	})
+
+	clock.CallbackAfter(t0.Add(3*slotDuration).Add(time.Second), func() {
+		// Shall be 3rd epoch
+		require.Eventually(t, func() bool {
+			_, err := sched.GetDutyDefinition(ctx, core.NewAttesterDuty(2))
+			return err == nil
+		}, 3*time.Second, 100*time.Millisecond)
+
+		sched.Stop()
+	})
+
+	// Run scheduler
 	require.NoError(t, sched.Run())
 }
 

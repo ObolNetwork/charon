@@ -49,6 +49,9 @@ const (
 	// Linear enables Linear round timer for consensus rounds.
 	// When active has precedence over EagerDoubleLinear round timer.
 	Linear Feature = "linear"
+
+	// SSEReorgDuties enables Scheduler to refresh duties when reorg occurs.
+	SSEReorgDuties Feature = "sse_reorg_duties"
 )
 
 var (
@@ -61,6 +64,7 @@ var (
 		JSONRequests:         statusAlpha,
 		GnosisBlockHotfix:    statusAlpha,
 		Linear:               statusAlpha,
+		SSEReorgDuties:       statusAlpha,
 		// Add all features and there status here.
 	}
 
