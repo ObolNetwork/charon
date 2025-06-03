@@ -959,7 +959,7 @@ func TestClusterCLI(t *testing.T) {
 }
 
 func TestZipping(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	conf := clusterConfig{
 		Name:              "test",
 		NumNodes:          4,
