@@ -353,7 +353,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		writeWarning(w)
 	}
 
-	if err := writeOutput(w, conf.SplitKeys, conf.ClusterDir, numNodes, keysToDisk); err != nil {
+	if err := writeOutput(w, conf.SplitKeys, conf.ClusterDir, numNodes, keysToDisk, conf.Zipped); err != nil {
 		return err
 	}
 
@@ -912,7 +912,7 @@ func newPeer(clusterDir string, peerIdx int) (enr.Record, *k1.PrivateKey, error)
 }
 
 // writeOutput writes the cluster generation output.
-func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int, keysToDisk bool) error {
+func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int, keysToDisk, zipped bool) error {
 	absClusterDir, err := filepath.Abs(clusterDir)
 	if err != nil {
 		return errors.Wrap(err, "absolute path retrieval")
@@ -931,6 +931,9 @@ func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int,
 		_, _ = sb.WriteString("│  ├─ validator_keys\t\tValidator keystores and password\n")
 		_, _ = sb.WriteString("│  │  ├─ keystore-*.json\tValidator private share key for duty signing\n")
 		_, _ = sb.WriteString("│  │  ├─ keystore-*.txt\t\tKeystore password files for keystore-*.json\n")
+	}
+	if zipped {
+		_, _ = sb.WriteString(fmt.Sprintf("\nFiles compressed and archived to:\n%s/cluster.tar.gz\n", absClusterDir))
 	}
 
 	_, _ = fmt.Fprint(out, sb.String())
@@ -1258,12 +1261,6 @@ func bundleOutput(targetDir string) error {
 			return errors.Wrap(err, "remove file")
 		}
 	}
-
-	absTargetDir, err := filepath.Abs(targetDir)
-	if err != nil {
-		return errors.Wrap(err, "absolute path retrieval")
-	}
-	fmt.Printf("Files compressed and archived to:\n%s/cluster.tar.gz\n", absTargetDir)
 
 	return nil
 }
