@@ -128,22 +128,17 @@ func (s *Scheduler) Run() error {
 	}
 }
 
-// ChainReorgEventHandler is connected to SSE Listener and handles chain reorg events.
-func (s *Scheduler) ChainReorgEventHandler(ctx context.Context, epoch eth2p0.Epoch) {
+// HandleChainReorgEvent is connected to SSE Listener and handles chain reorg events.
+func (s *Scheduler) HandleChainReorgEvent(ctx context.Context, epoch eth2p0.Epoch) {
 	if featureset.Enabled(featureset.ReorgRefreshDuties) {
-		if uint64(epoch) < s.getResolvedEpoch() {
-			// Refreshing current epoch duties, because of a chain reorg.
-			slot, err := currentSlot(ctx, s.eth2Cl, s.clock)
-			if err != nil {
-				log.Error(ctx, "Failed to calculate the current slot", err)
+		resolvedEpoch := s.getResolvedEpoch()
+		if uint64(epoch) < resolvedEpoch {
+			// Removing current epoch duties, because of a chain reorg.
+			s.trimDuties(uint64(resolvedEpoch))
+			// Duties are to be resolved again in the next slot by scheduleSlot().
+			s.setResolvedEpoch(math.MaxInt64)
 
-				return
-			}
-
-			s.trimDuties(uint64(epoch))
-			if err = s.resolveDuties(ctx, slot); err != nil {
-				log.Error(ctx, "Resolving duties error after chain reorg", err, z.U64("reorg_epoch", uint64(epoch)))
-			}
+			log.Info(ctx, "Chain reorg event handled, duties trimmed", z.U64("reorg_epoch", uint64(epoch)))
 		}
 	} else {
 		log.Warn(ctx, "Chain reorg event ignored due to disabled ReorgRefreshDuties feature", nil, z.U64("reorg_epoch", uint64(epoch)))
@@ -196,6 +191,8 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 // scheduleSlot resolves upcoming duties and triggers resolved duties for the slot.
 func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 	if s.getResolvedEpoch() != slot.Epoch() {
+		log.Debug(ctx, "Resolving duties for slot", z.U64("slot", slot.Slot), z.U64("epoch", slot.Epoch()))
+
 		err := s.resolveDuties(ctx, slot)
 		if err != nil {
 			log.Warn(ctx, "Resolving duties error (retrying next slot)", err, z.U64("slot", slot.Slot))
@@ -569,33 +566,6 @@ func (s *Scheduler) trimDuties(epoch uint64) {
 	}
 
 	delete(s.dutiesByEpoch, epoch)
-}
-
-// currentSlot calculates the current slot based on the genesis time and slot duration.
-func currentSlot(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) (core.Slot, error) {
-	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
-	if err != nil {
-		return core.Slot{}, err
-	}
-	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
-	if err != nil {
-		return core.Slot{}, err
-	}
-
-	if slotDuration == 0 {
-		return core.Slot{}, errors.New("slot duration cannot be zero")
-	}
-
-	chainAge := clock.Since(genesisTime)
-	slot := int64(chainAge / slotDuration)
-	startTime := genesisTime.Add(time.Duration(slot) * slotDuration)
-
-	return core.Slot{
-		Slot:          uint64(slot),
-		Time:          startTime,
-		SlotsPerEpoch: slotsPerEpoch,
-		SlotDuration:  slotDuration,
-	}, nil
 }
 
 // newSlotTicker returns a blocking channel that will be populated with new slots in real time.
