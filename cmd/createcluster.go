@@ -1190,7 +1190,8 @@ func validateNetworkConfig(conf clusterConfig) error {
 	return errors.New("missing --network flag or testnet config flags")
 }
 
-// bundleOutput creates a gzipped tarball of the targetDir as cluster.tar.gz in that directory.
+// bundleOutput creates a gzipped tarball of the contents of targetDir named cluster.tar.gz and stores it in targetDir.
+// Deletes archived content by removing all node* folders.
 func bundleOutput(targetDir string) error {
 	file, err := os.Create(filepath.Join(targetDir, "cluster.tar.gz"))
 	if err != nil {
@@ -1245,6 +1246,24 @@ func bundleOutput(targetDir string) error {
 	if err != nil {
 		return errors.Wrap(err, "filepath walk")
 	}
+
+	// Remove folders which match `targetDir/node*`
+	contents, err := filepath.Glob(filepath.Join(targetDir, "node*"))
+	if err != nil {
+		return errors.Wrap(err, "create glob")
+	}
+	for _, file := range contents {
+		err := os.RemoveAll(file)
+		if err != nil {
+			return errors.Wrap(err, "remove file")
+		}
+	}
+
+	absTargetDir, err := filepath.Abs(targetDir)
+	if err != nil {
+		return errors.Wrap(err, "absolute path retrieval")
+	}
+	fmt.Printf("Files compressed and archived to:\n%s/cluster.tar.gz\n", absTargetDir)
 
 	return nil
 }
