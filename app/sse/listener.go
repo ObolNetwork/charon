@@ -33,8 +33,9 @@ type listener struct {
 	lastReorgEpoch eth2p0.Epoch
 
 	// immutable fields
-	genesisTime  time.Time
-	slotDuration time.Duration
+	genesisTime   time.Time
+	slotDuration  time.Duration
+	slotsPerEpoch uint64
 }
 
 var _ Listener = (*listener)(nil)
@@ -46,7 +47,7 @@ func StartListener(ctx context.Context, eth2Cl eth2wrap.Client, addresses, heade
 	if err != nil {
 		return nil, err
 	}
-	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
+	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
 	}
@@ -55,6 +56,7 @@ func StartListener(ctx context.Context, eth2Cl eth2wrap.Client, addresses, heade
 		chainReorgSubs: make([]ChainReorgEventHandlerFunc, 0),
 		genesisTime:    genesisTime,
 		slotDuration:   slotDuration,
+		slotsPerEpoch:  slotsPerEpoch,
 	}
 
 	parsedHeaders, err := eth2util.ParseBeaconNodeHeaders(headers)
@@ -143,10 +145,6 @@ func (p *listener) handleChainReorgEvent(ctx context.Context, event *event, addr
 	if err != nil {
 		return errors.Wrap(err, "parse slot to uint64", z.Str("addr", addr))
 	}
-	epoch, err := strconv.ParseUint(chainReorg.Epoch, 10, 64)
-	if err != nil {
-		return errors.Wrap(err, "parse epoch to uint64", z.Str("addr", addr))
-	}
 	depth, err := strconv.ParseUint(chainReorg.Depth, 10, 64)
 	if err != nil {
 		return errors.Wrap(err, "parse depth to uint64", z.Str("addr", addr))
@@ -156,11 +154,13 @@ func (p *listener) handleChainReorgEvent(ctx context.Context, event *event, addr
 		return errors.New("invalid chain reorg event: depth exceeds slot")
 	}
 
-	p.notifyChainReorg(ctx, eth2p0.Epoch(epoch))
+	reorgEpoch := (slot - depth) / p.slotsPerEpoch
+	p.notifyChainReorg(ctx, eth2p0.Epoch(reorgEpoch))
 
 	log.Debug(ctx, "SSE chain reorg event",
 		z.U64("slot", slot),
 		z.Str("epoch", chainReorg.Epoch),
+		z.U64("reorg_epoch", reorgEpoch),
 		z.U64("depth", depth),
 		z.Str("old_head_block", chainReorg.OldHeadBlock),
 		z.Str("new_head_block", chainReorg.NewHeadBlock))

@@ -75,15 +75,6 @@ func TestHandleEvents(t *testing.T) {
 			err: errors.New("parse slot to uint64"),
 		},
 		{
-			name: "chain_reorg parse epoch",
-			event: &event{
-				Event:     sseChainReorgEvent,
-				Data:      []byte(`{"slot":"10", "depth":"50", "old_head_block":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "new_head_block":"0x76262e91970d375a19bfe8a867288d7b9cde43c8635f598d93d39d041706fc76", "old_head_state":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "new_head_state":"0x600e852a08c1200654ddf11025f1ceacb3c2e74bdd5c630cde0838b2591b69f9", "epoch":"err", "execution_optimistic": false}`),
-				Timestamp: time.Now(),
-			},
-			err: errors.New("parse epoch to uint64"),
-		},
-		{
 			name: "chain_reorg parse depth",
 			event: &event{
 				Event:     sseChainReorgEvent,
@@ -99,6 +90,7 @@ func TestHandleEvents(t *testing.T) {
 			l := &listener{
 				chainReorgSubs: make([]ChainReorgEventHandlerFunc, 0),
 				slotDuration:   12 * time.Second,
+				slotsPerEpoch:  32,
 				genesisTime:    time.Date(2020, 12, 1, 12, 0, 23, 0, time.UTC),
 			}
 
@@ -174,8 +166,9 @@ func TestComputeDelay(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			l := &listener{
-				genesisTime:  genesisTime,
-				slotDuration: slotDuration,
+				genesisTime:   genesisTime,
+				slotDuration:  slotDuration,
+				slotsPerEpoch: 32,
 			}
 
 			res, ok := l.computeDelay(test.slot, test.eventTS)
