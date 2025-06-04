@@ -342,9 +342,9 @@ func TestAnalyseDutyFailed(t *testing.T) {
 			attDuty = core.NewAttesterDuty(uint64(1))
 		)
 
-		require.Equal(t, chainInclusion, lastStep(attDuty.Type))
+		require.Equal(t, bcast, lastStep(attDuty.Type))
 
-		for step := fetcher; step < sentinel; step++ {
+		for step := fetcher; step < chainInclusion; step++ {
 			events[attDuty] = append(events[attDuty], event{step: step, duty: attDuty})
 		}
 
@@ -377,7 +377,7 @@ func TestAnalyseDutyFailed(t *testing.T) {
 
 func TestDutyFailedStep(t *testing.T) {
 	var events []event
-	for step := fetcher; step < sentinel; step++ {
+	for step := fetcher; step < chainInclusion; step++ {
 		events = append(events, event{step: step, duty: core.NewAttesterDuty(0)})
 	}
 
@@ -1182,7 +1182,7 @@ func TestDutyFailedMultipleEvents(t *testing.T) {
 	duty := core.NewAttesterDuty(123)
 	testErr := errors.New("test error")
 	var events []event
-	for step := fetcher; step < sentinel; step++ {
+	for step := fetcher; step < chainInclusion; step++ {
 		for range 5 {
 			events = append(events, event{step: step, duty: duty, stepErr: testErr})
 		}
@@ -1191,11 +1191,11 @@ func TestDutyFailedMultipleEvents(t *testing.T) {
 	// Failed at last step.
 	failed, step, err := dutyFailedStep(events)
 	require.True(t, failed)
-	require.Equal(t, chainInclusion, step)
+	require.Equal(t, bcast, step)
 	require.ErrorIs(t, err, testErr)
 
 	// No Failure.
-	for step := fetcher; step < sentinel; step++ {
+	for step := fetcher; step < chainInclusion; step++ {
 		events = append(events, event{step: step, duty: duty})
 	}
 	failed, step, err = dutyFailedStep(events)

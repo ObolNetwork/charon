@@ -51,6 +51,7 @@ type Client interface {
     eth2exp.SyncCommitteeSelectionAggregator
     eth2exp.ProposerConfigProvider
     BlockAttestationsProvider
+    BlockProvider
     BeaconStateCommitteesProvider
     NodePeerCountProvider
 

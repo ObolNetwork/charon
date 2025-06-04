@@ -89,13 +89,6 @@ var (
 		Help:      "Total number of duties that contained inconsistent partial signed data by duty type",
 	}, []string{"duty"})
 
-	inclusionDelay = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "core",
-		Subsystem: "tracker",
-		Name:      "inclusion_delay",
-		Help:      "Cluster's average attestation inclusion delay in slots",
-	})
-
 	inclusionMisses = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "core",
 		Subsystem: "tracker",

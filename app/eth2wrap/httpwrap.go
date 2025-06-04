@@ -37,6 +37,13 @@ type BlockAttestationsProvider interface {
 	BlockAttestations(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error)
 }
 
+// BlockProvider is the interface for providing block details.
+// It is a standard beacon API endpoint not implemented by eth2client.
+// See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockV2.
+type BlockProvider interface {
+	Block(ctx context.Context, stateID string) (*spec.VersionedSignedBeaconBlock, error)
+}
+
 // BeaconStateCommitteesProvider is the interface for providing committees for given slot.
 // It is a standard beacon API endpoint not implemented by eth2client.
 // See https://ethereum.github.io/beacon-APIs/#/Beacon/getEpochCommittees.
@@ -202,7 +209,7 @@ func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, nil // No block for slot, so no attestations.
+		return nil, nil
 	} else if resp.StatusCode != http.StatusOK {
 		return nil, errors.New("request block attestations failed", z.Int("status", resp.StatusCode))
 	}
@@ -272,6 +279,38 @@ func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]
 	}
 
 	return res, nil
+}
+
+// Block returns the block details.
+// See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockV2.
+func (h *httpAdapter) Block(ctx context.Context, stateID string) (*spec.VersionedSignedBeaconBlock, error) {
+	path := "/eth/v2/beacon/blocks/" + stateID
+	ctx, cancel := context.WithTimeout(ctx, h.timeout)
+	defer cancel()
+
+	resp, err := httpGetRaw(ctx, h.address, path, h.headers, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "request block")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil //nolint:nilnil // No block for slot.
+	} else if resp.StatusCode != http.StatusOK {
+		return nil, errors.New("request block failed", z.Int("status", resp.StatusCode))
+	}
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "request block attestations body")
+	}
+
+	res := spec.VersionedSignedBeaconBlock{}
+	if err := json.Unmarshal(respBody, &res); err != nil {
+		return nil, errors.Wrap(err, "failed to parse block response")
+	}
+
+	return &res, nil
 }
 
 // BeaconStateCommittees returns the attestations included in the requested block.
