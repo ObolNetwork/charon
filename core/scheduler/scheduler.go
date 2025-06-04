@@ -5,7 +5,6 @@ package scheduler
 import (
 	"context"
 	"math"
-	"runtime"
 	"sort"
 	"sync"
 	"testing"
@@ -180,7 +179,7 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 		if ctx.Err() != nil {
 			return nil, errors.Wrap(ctx.Err(), "context cancelled while waiting for epoch to resolve")
 		}
-		runtime.Gosched()
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	if !s.isEpochResolved(epoch) {
