@@ -683,7 +683,7 @@ func availableMemoryLinux(context.Context) (int64, error) {
 	}
 	scanner := bufio.NewScanner(file)
 	if scanner.Err() != nil {
-		return 0, errors.Wrap(err, "new scanner")
+		return 0, errors.Wrap(scanner.Err(), "new scanner")
 	}
 
 	for scanner.Scan() {
@@ -721,7 +721,7 @@ func availableMemoryMacos(ctx context.Context) (int64, error) {
 	outBuf := bytes.NewBuffer(out)
 	scanner := bufio.NewScanner(outBuf)
 	if scanner.Err() != nil {
-		return 0, errors.Wrap(err, "new scanner")
+		return 0, errors.Wrap(scanner.Err(), "new scanner")
 	}
 
 	var pagesFree, pagesInactive, pagesSpeculative int64
@@ -763,7 +763,7 @@ func totalMemoryLinux(context.Context) (int64, error) {
 	}
 	scanner := bufio.NewScanner(file)
 	if scanner.Err() != nil {
-		return 0, errors.Wrap(err, "new scanner")
+		return 0, errors.Wrap(scanner.Err(), "new scanner")
 	}
 
 	for scanner.Scan() {

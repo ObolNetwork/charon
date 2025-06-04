@@ -177,7 +177,7 @@ func InitLogger(config Config) error {
 	})
 
 	if registerError != nil {
-		return errors.Wrap(err, "zap register sink lumberjack")
+		return errors.Wrap(registerError, "zap register sink lumberjack")
 	}
 
 	writer, _, err := zap.Open("stderr")
