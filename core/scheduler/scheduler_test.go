@@ -433,7 +433,6 @@ func TestHandleChainReorgEvent(t *testing.T) {
 
 	// Construct scheduler.
 	schedSlotCh := make(chan core.Slot)
-	defer close(schedSlotCh)
 	schedSlotFunc := func(ctx context.Context, slot core.Slot) {
 		select {
 		case <-ctx.Done():
@@ -445,25 +444,29 @@ func TestHandleChainReorgEvent(t *testing.T) {
 	dd := new(delayer)
 	sched := scheduler.NewForT(t, clock, dd.delay, pubkeys, eth2Cl, schedSlotFunc)
 
+	doneCh := make(chan error, 1)
 	go func() {
-		for slot := range schedSlotCh {
-			switch slot.Slot {
-			case 1: // epoch 0
-				_, err := sched.GetDutyDefinition(t.Context(), core.NewAttesterDuty(1))
-				require.NoError(t, err)
-			case 5: // epoch 1
-				sched.HandleChainReorgEvent(t.Context(), 0)
-				_, err = sched.GetDutyDefinition(t.Context(), core.NewAttesterDuty(5))
-				require.ErrorContains(t, err, "epoch not resolved yet")
-			case 7: // epoch 1 after reorg
-				_, err := sched.GetDutyDefinition(t.Context(), core.NewAttesterDuty(6))
-				require.NoError(t, err)
-				sched.Stop()
-			}
-		}
+		doneCh <- sched.Run()
+		close(schedSlotCh)
 	}()
 
-	require.NoError(t, sched.Run())
+	for slot := range schedSlotCh {
+		switch slot.Slot {
+		case 1: // epoch 0
+			_, err := sched.GetDutyDefinition(t.Context(), core.NewAttesterDuty(1))
+			require.NoError(t, err)
+		case 5: // epoch 1
+			sched.HandleChainReorgEvent(t.Context(), 0)
+			_, err = sched.GetDutyDefinition(t.Context(), core.NewAttesterDuty(5))
+			require.ErrorContains(t, err, "epoch not resolved yet")
+		case 7: // epoch 1 after reorg
+			_, err := sched.GetDutyDefinition(t.Context(), core.NewAttesterDuty(6))
+			require.NoError(t, err)
+			sched.Stop()
+		}
+	}
+
+	require.NoError(t, <-doneCh)
 }
 
 // delayer implements scheduler.delayFunc and records the deadline and returns it immediately.
