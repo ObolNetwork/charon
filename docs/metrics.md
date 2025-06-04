@@ -44,7 +44,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `cluster_operators` | Gauge | Number of operators in the cluster lock |  |
 | `cluster_threshold` | Gauge | Aggregation threshold in the cluster lock |  |
 | `cluster_validators` | Gauge | Number of validators in the cluster lock |  |
-| `core_bcast_broadcast_delay_seconds` | Histogram | Duty broadcast delay from start of slot in seconds by type | `duty` |
+| `core_bcast_broadcast_delay_seconds` | Histogram | Duty broadcast delay since the expected duty submission in seconds by type | `duty` |
 | `core_bcast_broadcast_total` | Counter | The total count of successfully broadcast duties by type | `duty` |
 | `core_bcast_recast_errors_total` | Counter | The total count of failed recasted registrations by source; `pregen` vs `downstream` | `source` |
 | `core_bcast_recast_registration_total` | Counter | The total number of unique validator registration stored in recaster per pubkey | `pubkey` |
@@ -65,7 +65,6 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_tracker_expect_duties_total` | Counter | Total number of expected duties (failed + success) by type | `duty` |
 | `core_tracker_failed_duties_total` | Counter | Total number of failed duties by type | `duty` |
 | `core_tracker_failed_duty_reasons_total` | Counter | Total number of failed duties by type and reason code | `duty, reason` |
-| `core_tracker_inclusion_delay` | Gauge | Cluster`s average attestation inclusion delay in slots |  |
 | `core_tracker_inclusion_missed_total` | Counter | Total number of broadcast duties never included in any block by type | `duty` |
 | `core_tracker_inconsistent_parsigs_total` | Counter | Total number of duties that contained inconsistent partial signed data by duty type | `duty` |
 | `core_tracker_participation` | Gauge | Set to 1 if peer participated successfully for the given duty or else 0 | `duty, peer` |
