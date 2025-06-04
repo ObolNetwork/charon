@@ -1235,13 +1235,10 @@ func bundleOutput(targetDir string) error {
 		if err != nil {
 			return errors.Wrap(err, "open file")
 		}
+		defer f.Close()
 		_, err = io.Copy(tw, f)
-		closeErr := f.Close()
 		if err != nil {
 			return errors.Wrap(err, "copy file", z.Str("filename", path))
-		}
-		if closeErr != nil {
-			return errors.Wrap(closeErr, "close file", z.Str("filename", path))
 		}
 
 		return nil
