@@ -30,17 +30,22 @@ const trimEpochOffset = 3 // Trim cached duties after 3 epochs. Note inclusion d
 // delayFunc abstracts slot offset delaying/sleeping for deterministic tests.
 type delayFunc func(duty core.Duty, deadline time.Time) <-chan time.Time
 
+// schedSlotFunc is a function type that is called before every scheduled slot.
+// Used only in testing.
+type schedSlotFunc func(ctx context.Context, slot core.Slot)
+
 // NewForT returns a new scheduler for testing using a fake clock.
 func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys []core.PubKey,
-	eth2Cl eth2wrap.Client, builderAPI bool,
+	eth2Cl eth2wrap.Client, schedSlotFunc schedSlotFunc,
 ) *Scheduler {
 	t.Helper()
 
-	s, err := New(pubkeys, eth2Cl, builderAPI)
+	s, err := New(pubkeys, eth2Cl, false)
 	require.NoError(t, err)
 
 	s.clock = clock
 	s.delayFunc = delayFunc
+	s.schedSlotFunc = schedSlotFunc
 
 	return s
 }
@@ -79,6 +84,7 @@ type Scheduler struct {
 	dutySubs        []func(context.Context, core.Duty, core.DutyDefinitionSet) error
 	slotSubs        []func(context.Context, core.Slot) error
 	builderEnabled  bool
+	schedSlotFunc   schedSlotFunc
 }
 
 // SubscribeDuties subscribes a callback function for triggered duties.
@@ -140,10 +146,10 @@ func (s *Scheduler) HandleChainReorgEvent(ctx context.Context, epoch eth2p0.Epoc
 			// Duties are to be resolved again in the next slot by scheduleSlot().
 			s.setResolvedEpoch(math.MaxInt64)
 
-			log.Info(ctx, "Chain reorg event handled, duties trimmed", z.U64("reorg_epoch", uint64(epoch)))
+			log.Info(ctx, "Chain reorg event handled, duties trimmed", z.U64("reorg_epoch", uint64(epoch)), z.U64("resolved_epoch", resolvedEpoch))
 		}
 	} else {
-		log.Warn(ctx, "Chain reorg event ignored due to disabled ReorgRefreshDuties feature", nil, z.U64("reorg_epoch", uint64(epoch)))
+		log.Warn(ctx, "Chain reorg event ignored due to disabled SSEReorgDuties feature", nil, z.U64("reorg_epoch", uint64(epoch)))
 	}
 }
 
@@ -202,6 +208,10 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 
 // scheduleSlot resolves upcoming duties and triggers resolved duties for the slot.
 func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
+	if s.schedSlotFunc != nil {
+		s.schedSlotFunc(ctx, slot)
+	}
+
 	if s.getResolvedEpoch() != slot.Epoch() {
 		log.Debug(ctx, "Resolving duties for slot", z.U64("slot", slot.Slot), z.U64("epoch", slot.Epoch()))
 
