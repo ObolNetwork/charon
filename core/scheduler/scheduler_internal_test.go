@@ -127,3 +127,15 @@ func TestResolveSyncCommDuties(t *testing.T) {
 		SlotsPerEpoch: 1,
 	}, schedVals), "invalid sync committee duty pubkey")
 }
+
+func TestResolvingEpoch(t *testing.T) {
+	sched, _ := setupScheduler(t)
+
+	sched.setResolvingEpoch(10)
+	require.True(t, sched.isResolvingEpoch(10))
+	require.False(t, sched.isResolvingEpoch(11))
+
+	sched.setResolvingEpoch(11)
+	require.False(t, sched.isResolvingEpoch(10))
+	require.True(t, sched.isResolvingEpoch(11))
+}
