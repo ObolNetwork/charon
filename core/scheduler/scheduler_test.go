@@ -8,6 +8,7 @@ import (
 	"os"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -429,6 +430,13 @@ func TestHandleChainReorgEvent(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	var proposerDutiesFetched atomic.Bool
+	oldProposerFunc := eth2Cl.ProposerDutiesFunc
+	eth2Cl.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+		proposerDutiesFetched.Store(true)
+		return oldProposerFunc(ctx, epoch, indices)
+	}
+
 	// Get pubkeys for validators to schedule.
 	pubkeys, err := valSet.CorePubKeys()
 	require.NoError(t, err)
@@ -456,6 +464,7 @@ func TestHandleChainReorgEvent(t *testing.T) {
 
 		// Reorg starting previous epoch
 		sched.HandleChainReorgEvent(ctx, 1)
+		proposerDutiesFetched.Store(false)
 
 		_, err = sched.GetDutyDefinition(ctx, core.NewAttesterDuty(2))
 		require.ErrorContains(t, err, "epoch not resolved yet")
@@ -473,6 +482,8 @@ func TestHandleChainReorgEvent(t *testing.T) {
 
 	// Run scheduler
 	require.NoError(t, sched.Run())
+
+	require.True(t, proposerDutiesFetched.Load(), "Proposer duties should have been fetched after reorg event")
 }
 
 // delayer implements scheduler.delayFunc and records the deadline and returns it immediately.

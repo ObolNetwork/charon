@@ -5,6 +5,7 @@ package scheduler
 import (
 	"context"
 	"math"
+	"runtime"
 	"sort"
 	"sync"
 	"testing"
@@ -59,6 +60,7 @@ func New(pubkeys []core.PubKey, eth2Cl eth2wrap.Client, builderEnabled bool) (*S
 		},
 		metricSubmitter: newMetricSubmitter(),
 		resolvedEpoch:   math.MaxInt64,
+		resolvingEpoch:  math.MaxInt64,
 		builderEnabled:  builderEnabled,
 	}, nil
 }
@@ -71,6 +73,7 @@ type Scheduler struct {
 	delayFunc       delayFunc
 	metricSubmitter metricSubmitter
 	resolvedEpoch   uint64
+	resolvingEpoch  uint64
 	duties          map[core.Duty]core.DutyDefinitionSet
 	dutiesByEpoch   map[uint64][]core.Duty
 	dutiesMutex     sync.RWMutex
@@ -170,6 +173,16 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 	}
 
 	epoch := duty.Slot / slotsPerEpoch
+
+	// This has to be very rare event, when the requested epoch is being resolved.
+	// We wait for the epoch to be resolved before returning the duty definition.
+	for s.isResolvingEpoch(epoch) {
+		if ctx.Err() != nil {
+			return nil, errors.Wrap(ctx.Err(), "context cancelled while waiting for epoch to resolve")
+		}
+		runtime.Gosched()
+	}
+
 	if !s.isEpochResolved(epoch) {
 		return nil, errors.New("epoch not resolved yet",
 			z.Str("duty", duty.String()), z.U64("epoch", epoch))
@@ -269,6 +282,9 @@ func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayF
 
 // resolveDuties resolves the duties for the slot's epoch, caching the results.
 func (s *Scheduler) resolveDuties(ctx context.Context, slot core.Slot) error {
+	s.setResolvingEpoch(slot.Epoch())
+	defer s.setResolvingEpoch(math.MaxInt64)
+
 	vals, err := resolveActiveValidators(ctx, s.eth2Cl, s.metricSubmitter, slot.Epoch())
 	if err != nil {
 		return err
@@ -531,6 +547,24 @@ func (s *Scheduler) setResolvedEpoch(epoch uint64) {
 	defer s.dutiesMutex.Unlock()
 
 	s.resolvedEpoch = epoch
+}
+
+func (s *Scheduler) setResolvingEpoch(epoch uint64) {
+	s.dutiesMutex.Lock()
+	defer s.dutiesMutex.Unlock()
+
+	s.resolvingEpoch = epoch
+}
+
+func (s *Scheduler) isResolvingEpoch(epoch uint64) bool {
+	s.dutiesMutex.RLock()
+	defer s.dutiesMutex.RUnlock()
+
+	if s.resolvingEpoch == math.MaxInt64 {
+		return false
+	}
+
+	return s.resolvingEpoch == epoch
 }
 
 // isEpochResolved returns true if the epoch is resolved.
