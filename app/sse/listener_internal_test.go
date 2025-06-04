@@ -90,8 +90,8 @@ func TestHandleEvents(t *testing.T) {
 			l := &listener{
 				chainReorgSubs: make([]ChainReorgEventHandlerFunc, 0),
 				slotDuration:   12 * time.Second,
-				genesisTime:    time.Date(2020, 12, 1, 12, 0, 23, 0, time.UTC),
 				slotsPerEpoch:  32,
+				genesisTime:    time.Date(2020, 12, 1, 12, 0, 23, 0, time.UTC),
 			}
 
 			err := l.eventHandler(t.Context(), test.event, "test")

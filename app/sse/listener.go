@@ -125,6 +125,13 @@ func (p *listener) handleHeadEvent(ctx context.Context, event *event, addr strin
 
 	sseHeadSlotGauge.WithLabelValues(addr).Set(float64(slot))
 
+	log.Debug(ctx, "SSE head event",
+		z.U64("slot", slot),
+		z.Str("delay", delay.String()),
+		z.Str("block", head.Block),
+		z.Str("prev_ddr", head.PreviousDutyDependentRoot),
+		z.Str("curr_ddr", head.CurrentDutyDependentRoot))
+
 	return nil
 }
 
@@ -138,9 +145,6 @@ func (p *listener) handleChainReorgEvent(ctx context.Context, event *event, addr
 	if err != nil {
 		return errors.Wrap(err, "parse slot to uint64", z.Str("addr", addr))
 	}
-	if slot > math.MaxInt64 {
-		return errors.New("slot value exceeds int64 range", z.Str("addr", addr), z.U64("slot", slot))
-	}
 	depth, err := strconv.ParseUint(chainReorg.Depth, 10, 64)
 	if err != nil {
 		return errors.Wrap(err, "parse depth to uint64", z.Str("addr", addr))
@@ -153,7 +157,13 @@ func (p *listener) handleChainReorgEvent(ctx context.Context, event *event, addr
 	reorgEpoch := (slot - depth) / p.slotsPerEpoch
 	p.notifyChainReorg(ctx, eth2p0.Epoch(reorgEpoch))
 
-	log.Debug(ctx, "Beacon node reorged", z.U64("slot", slot), z.U64("depth", depth))
+	log.Debug(ctx, "SSE chain reorg event",
+		z.U64("slot", slot),
+		z.Str("epoch", chainReorg.Epoch),
+		z.U64("reorg_epoch", reorgEpoch),
+		z.U64("depth", depth),
+		z.Str("old_head_block", chainReorg.OldHeadBlock),
+		z.Str("new_head_block", chainReorg.NewHeadBlock))
 
 	sseChainReorgDepthGauge.WithLabelValues(addr).Set(float64(depth))
 
