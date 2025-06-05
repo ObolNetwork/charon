@@ -977,7 +977,7 @@ func TestZipping(t *testing.T) {
 	var buf bytes.Buffer
 	require.NoError(t, runCreateCluster(ctx, &buf, conf))
 
-	require.NoError(t, bundleOutput(conf.ClusterDir))
+	require.NoError(t, bundleOutput(conf.ClusterDir, conf.NumNodes))
 
 	unzippedDir := t.TempDir()
 	require.NoError(t, unzipOutputT(t, conf.ClusterDir, unzippedDir))

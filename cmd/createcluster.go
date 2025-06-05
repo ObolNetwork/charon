@@ -344,7 +344,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	if conf.Zipped {
-		if err = bundleOutput(conf.ClusterDir); err != nil {
+		if err = bundleOutput(conf.ClusterDir, numNodes); err != nil {
 			return err
 		}
 	}
@@ -1195,7 +1195,7 @@ func validateNetworkConfig(conf clusterConfig) error {
 
 // bundleOutput creates a gzipped tarball of the contents of targetDir named cluster.tar.gz and stores it in targetDir.
 // Deletes archived content by removing all node* folders.
-func bundleOutput(targetDir string) error {
+func bundleOutput(targetDir string, numNodes int) error {
 	file, err := os.Create(filepath.Join(targetDir, "cluster.tar.gz"))
 	if err != nil {
 		return errors.Wrap(err, "create .tar.gz file")
@@ -1208,52 +1208,45 @@ func bundleOutput(targetDir string) error {
 	tw := tar.NewWriter(gzw)
 	defer tw.Close()
 
-	err = filepath.Walk(targetDir, func(path string, info os.FileInfo, err error) error {
+	for i := range numNodes {
+		dir := filepath.Join(targetDir, fmt.Sprintf("node%d",i))
+
+		err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return errors.Wrap(err, "filepath walk")
+			}
+			if !info.Mode().IsRegular() {
+				return nil
+			}
+			relPath, err := filepath.Rel(targetDir, path)
+			if err != nil {
+				return errors.Wrap(err, "relative path")
+			}
+			header, err := tar.FileInfoHeader(info, info.Name())
+			if err != nil {
+				return errors.Wrap(err, "file info header")
+			}
+			header.Name = relPath
+			if err := tw.WriteHeader(header); err != nil {
+				return errors.Wrap(err, "write header")
+			}
+			f, err := os.Open(path)
+			if err != nil {
+				return errors.Wrap(err, "open file")
+			}
+			defer f.Close()
+			_, err = io.Copy(tw, f)
+			if err != nil {
+				return errors.Wrap(err, "copy file", z.Str("filename", path))
+			}
+
+			return nil
+		})
 		if err != nil {
 			return errors.Wrap(err, "filepath walk")
 		}
-		// Ignore the tar.gz file itself
-		if strings.HasSuffix(path, ".tar.gz") {
-			return nil
-		}
-		if !info.Mode().IsRegular() {
-			return nil
-		}
-		relPath, err := filepath.Rel(targetDir, path)
-		if err != nil {
-			return errors.Wrap(err, "relative path")
-		}
-		header, err := tar.FileInfoHeader(info, info.Name())
-		if err != nil {
-			return errors.Wrap(err, "file info header")
-		}
-		header.Name = relPath
-		if err := tw.WriteHeader(header); err != nil {
-			return errors.Wrap(err, "write header")
-		}
-		f, err := os.Open(path)
-		if err != nil {
-			return errors.Wrap(err, "open file")
-		}
-		defer f.Close()
-		_, err = io.Copy(tw, f)
-		if err != nil {
-			return errors.Wrap(err, "copy file", z.Str("filename", path))
-		}
 
-		return nil
-	})
-	if err != nil {
-		return errors.Wrap(err, "filepath walk")
-	}
-
-	// Remove folders which match `targetDir/node*`
-	contents, err := filepath.Glob(filepath.Join(targetDir, "node*"))
-	if err != nil {
-		return errors.Wrap(err, "create glob")
-	}
-	for _, file := range contents {
-		err := os.RemoveAll(file)
+		err := os.RemoveAll(dir)
 		if err != nil {
 			return errors.Wrap(err, "remove file")
 		}
