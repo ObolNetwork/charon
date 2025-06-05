@@ -1193,8 +1193,8 @@ func validateNetworkConfig(conf clusterConfig) error {
 	return errors.New("missing --network flag or testnet config flags")
 }
 
-// bundleOutput creates a gzipped tarball of the contents of targetDir named cluster.tar.gz and stores it in targetDir.
-// Deletes archived content by removing all node* folders.
+// bundleOutput archives all node directories (node0, node1, ..., nodeN) within targetDir into a gzipped tarball named "cluster.tar.gz" in targetDir.
+// After successfully creating the archive, it deletes the original node directories from disk.
 func bundleOutput(targetDir string, numNodes int) error {
 	file, err := os.Create(filepath.Join(targetDir, "cluster.tar.gz"))
 	if err != nil {
@@ -1208,9 +1208,12 @@ func bundleOutput(targetDir string, numNodes int) error {
 	tw := tar.NewWriter(gzw)
 	defer tw.Close()
 
+	dirs := []string{}
 	for i := range numNodes {
-		dir := filepath.Join(targetDir, fmt.Sprintf("node%d",i))
+		dirs = append(dirs, filepath.Join(targetDir, fmt.Sprintf("node%d", i)))
+	}
 
+	for _, dir := range dirs {
 		err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return errors.Wrap(err, "filepath walk")
@@ -1245,7 +1248,9 @@ func bundleOutput(targetDir string, numNodes int) error {
 		if err != nil {
 			return errors.Wrap(err, "filepath walk")
 		}
+	}
 
+	for _, dir := range dirs {
 		err := os.RemoveAll(dir)
 		if err != nil {
 			return errors.Wrap(err, "remove file")

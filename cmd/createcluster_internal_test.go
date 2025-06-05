@@ -982,14 +982,12 @@ func TestZipping(t *testing.T) {
 	unzippedDir := t.TempDir()
 	require.NoError(t, unzipOutputT(t, conf.ClusterDir, unzippedDir))
 
-	// Walk both directories and compare files
-	err := filepath.Walk(conf.ClusterDir, func(path string, info os.FileInfo, err error) error {
-		require.NoError(t, err)
+	err := os.RemoveAll(filepath.Join(conf.ClusterDir, "cluster.tar.gz"))
+	require.NoError(t, err)
 
-		// Skip the tar.gz file itself
-		if filepath.Base(path) == "cluster.tar.gz" {
-			return nil
-		}
+	// Walk both directories and compare files
+	err = filepath.Walk(conf.ClusterDir, func(path string, info os.FileInfo, err error) error {
+		require.NoError(t, err)
 
 		// Get the corresponding file in the unzipped directory
 		relPath, err := filepath.Rel(conf.ClusterDir, path)
