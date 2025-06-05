@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/statecomm"
 	"github.com/obolnetwork/charon/testutil"
@@ -23,6 +24,7 @@ import (
 
 func TestDuplicateAttData(t *testing.T) {
 	ctx := context.Background()
+	featureset.EnableForT(t, featureset.AttestationInclusion)
 
 	tests := []struct {
 		name                      string
@@ -190,7 +192,7 @@ func TestDuplicateAttData(t *testing.T) {
 			require.NoError(t, err)
 
 			// Assert that the block to check contains all bitlists above.
-			incl.checkBlockFunc = func(ctx context.Context, block block) {
+			incl.checkBlockAndAttsFunc = func(ctx context.Context, block block) {
 				require.Len(t, block.AttestationsByDataRoot, 1)
 				att, ok := block.AttestationsByDataRoot[attDataRoot]
 				require.True(t, ok)
@@ -225,7 +227,8 @@ func TestDuplicateAttData(t *testing.T) {
 }
 
 func TestInclusion(t *testing.T) {
-	//  Setup inclusion with a mock missedFunc and attIncludedFunc
+	featureset.EnableForT(t, featureset.AttestationInclusion)
+	// Setup inclusion with a mock missedFunc and attIncludedFunc
 	var missed, included []core.Duty
 	incl := &inclusionCore{
 		missedFunc: func(ctx context.Context, sub submission) {
@@ -291,7 +294,7 @@ func TestInclusion(t *testing.T) {
 	}
 
 	// Check the block
-	incl.CheckBlock(context.Background(), block)
+	incl.CheckBlockAndAtts(context.Background(), block)
 
 	// Assert that the 1st and 2nd duty was included
 	duties := []core.Duty{att1Duty, agg2Duty, att3Duty}
@@ -302,4 +305,98 @@ func addRandomBits(list bitfield.Bitlist) {
 	for range rand.Intn(4) {
 		list.SetBitAt(uint64(rand.Intn(int(list.Len()))), true)
 	}
+}
+
+func TestBlockInclusion(t *testing.T) {
+	t.Run("block found", func(t *testing.T) {
+		var missed []core.Duty
+		incl := &inclusionCore{
+			missedFunc: func(ctx context.Context, sub submission) {
+				missed = append(missed, sub.Duty)
+			},
+			trackerInclFunc: func(duty core.Duty, key core.PubKey, data core.SignedData, err error) {},
+			submissions:     make(map[subkey]submission),
+		}
+
+		block := testutil.RandomElectraVersionedSignedProposal()
+		blockSlot, err := block.Slot()
+		require.NoError(t, err)
+		blockDuty := core.NewProposerDuty(uint64(blockSlot))
+		coreBlock, err := core.NewVersionedSignedProposal(block)
+		require.NoError(t, err)
+		err = incl.Submitted(blockDuty, "", coreBlock, 0)
+		require.NoError(t, err)
+
+		incl.CheckBlock(context.Background(), blockDuty.Slot, true)
+		require.Empty(t, missed)
+	})
+
+	t.Run("block not found", func(t *testing.T) {
+		var missed []core.Duty
+		incl := &inclusionCore{
+			missedFunc: func(ctx context.Context, sub submission) {
+				missed = append(missed, sub.Duty)
+			},
+			trackerInclFunc: func(duty core.Duty, key core.PubKey, data core.SignedData, err error) {},
+			submissions:     make(map[subkey]submission),
+		}
+
+		block := testutil.RandomElectraVersionedSignedProposal()
+		blockSlot, err := block.Slot()
+		require.NoError(t, err)
+		blockDuty := core.NewProposerDuty(uint64(blockSlot))
+		coreBlock, err := core.NewVersionedSignedProposal(block)
+		require.NoError(t, err)
+		err = incl.Submitted(blockDuty, "", coreBlock, 0)
+		require.NoError(t, err)
+
+		incl.CheckBlock(context.Background(), blockDuty.Slot, false)
+		require.Len(t, missed, 1)
+	})
+
+	t.Run("received block not found in submissions", func(t *testing.T) {
+		var missed []core.Duty
+		incl := &inclusionCore{
+			missedFunc: func(ctx context.Context, sub submission) {
+				missed = append(missed, sub.Duty)
+			},
+			trackerInclFunc: func(duty core.Duty, key core.PubKey, data core.SignedData, err error) {},
+			submissions:     make(map[subkey]submission),
+		}
+
+		block := testutil.RandomElectraVersionedSignedProposal()
+		blockSlot, err := block.Slot()
+		require.NoError(t, err)
+		blockDuty := core.NewProposerDuty(uint64(blockSlot))
+		coreBlock, err := core.NewVersionedSignedProposal(block)
+		require.NoError(t, err)
+		err = incl.Submitted(blockDuty, "", coreBlock, 0)
+		require.NoError(t, err)
+
+		incl.CheckBlock(context.Background(), blockDuty.Slot+1, true)
+		require.Empty(t, missed)
+	})
+
+	t.Run("received block is nil and not found in submissions", func(t *testing.T) {
+		var missed []core.Duty
+		incl := &inclusionCore{
+			missedFunc: func(ctx context.Context, sub submission) {
+				missed = append(missed, sub.Duty)
+			},
+			trackerInclFunc: func(duty core.Duty, key core.PubKey, data core.SignedData, err error) {},
+			submissions:     make(map[subkey]submission),
+		}
+
+		block := testutil.RandomElectraVersionedSignedProposal()
+		blockSlot, err := block.Slot()
+		require.NoError(t, err)
+		blockDuty := core.NewProposerDuty(uint64(blockSlot))
+		coreBlock, err := core.NewVersionedSignedProposal(block)
+		require.NoError(t, err)
+		err = incl.Submitted(blockDuty, "", coreBlock, 0)
+		require.NoError(t, err)
+
+		incl.CheckBlock(context.Background(), blockDuty.Slot+1, false)
+		require.Empty(t, missed)
+	})
 }

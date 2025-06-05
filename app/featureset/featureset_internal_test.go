@@ -18,6 +18,7 @@ func TestAllFeatureStatus(t *testing.T) {
 		GnosisBlockHotfix,
 		Linear,
 		SSEReorgDuties,
+		AttestationInclusion,
 	}
 
 	for _, feature := range features {

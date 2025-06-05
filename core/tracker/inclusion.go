@@ -19,6 +19,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -70,14 +71,6 @@ type attCommittee struct {
 // trackerInclFunc defines the tracker callback for the inclusion checker.
 type trackerInclFunc func(core.Duty, core.PubKey, core.SignedData, error)
 
-// inclSupported defines duty types for which inclusion checks are supported.
-var inclSupported = map[core.DutyType]bool{
-	core.DutyAttester:   true,
-	core.DutyAggregator: true,
-	core.DutyProposer:   true,
-	// TODO(corver) Add support for sync committee and exit duties
-}
-
 // inclusionCore tracks the inclusion of submitted duties.
 // It has a simplified API to allow for easy testing.
 type inclusionCore struct {
@@ -90,10 +83,23 @@ type inclusionCore struct {
 	attIncludedFunc func(context.Context, submission, block)
 }
 
+// inclSupported defines duty types for which inclusion checks are supported.
+func inclSupported() map[core.DutyType]bool {
+	inclSupported := map[core.DutyType]bool{
+		core.DutyProposer: true,
+	}
+	if featureset.Enabled(featureset.AttestationInclusion) {
+		inclSupported[core.DutyAttester] = true
+		inclSupported[core.DutyAggregator] = true
+	}
+
+	return inclSupported
+}
+
 // Submitted is called when a duty is submitted to the beacon node.
 // It adds the duty to the list of submitted duties.
 func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.SignedData, delay time.Duration) (err error) {
-	if !inclSupported[duty.Type] {
+	if !inclSupported()[duty.Type] {
 		return nil
 	}
 
@@ -224,7 +230,49 @@ func (i *inclusionCore) Trim(ctx context.Context, slot uint64) {
 }
 
 // CheckBlock checks whether the block includes any of the submitted duties.
-func (i *inclusionCore) CheckBlock(ctx context.Context, block block) {
+func (i *inclusionCore) CheckBlock(ctx context.Context, slot uint64, found bool) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	for key, sub := range i.submissions {
+		switch sub.Duty.Type {
+		case core.DutyProposer:
+			if sub.Duty.Slot != slot {
+				continue
+			}
+
+			proposal, ok := sub.Data.(core.VersionedSignedProposal)
+			if !ok {
+				log.Error(ctx, "Submission data has wrong type", nil, z.Str("type", fmt.Sprintf("%T", sub.Data)))
+				continue
+			}
+
+			if found {
+				var msg string
+				msg = "Broadcasted block included on-chain"
+				if proposal.Blinded {
+					msg = "Broadcasted blinded block included on-chain"
+				}
+				log.Info(ctx, msg,
+					z.U64("block_slot", slot),
+					z.Any("pubkey", sub.Pubkey),
+					z.Any("broadcast_delay", sub.Delay),
+				)
+			} else {
+				i.missedFunc(ctx, sub)
+			}
+
+			// Just report block inclusions to tracker and trim
+			i.trackerInclFunc(sub.Duty, sub.Pubkey, sub.Data, nil)
+			delete(i.submissions, key)
+		default:
+			panic("bug: unexpected type") // Sanity check, this should never happen
+		}
+	}
+}
+
+// CheckBlockAndAtts checks whether the block includes any of the submitted duties.
+func (i *inclusionCore) CheckBlockAndAtts(ctx context.Context, block block) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
@@ -475,21 +523,23 @@ func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client, trackerInclFunc t
 	}
 
 	return &InclusionChecker{
-		core:           inclCore,
-		eth2Cl:         eth2Cl,
-		genesis:        genesisTime,
-		slotDuration:   slotDuration,
-		checkBlockFunc: inclCore.CheckBlock,
+		core:                  inclCore,
+		eth2Cl:                eth2Cl,
+		genesis:               genesisTime,
+		slotDuration:          slotDuration,
+		checkBlockFunc:        inclCore.CheckBlock,
+		checkBlockAndAttsFunc: inclCore.CheckBlockAndAtts, // used when feature flag attestation_inclusion is enabled
 	}, nil
 }
 
 // InclusionChecker checks whether duties have been included on-chain.
 type InclusionChecker struct {
-	genesis        time.Time
-	slotDuration   time.Duration
-	eth2Cl         eth2wrap.Client
-	core           *inclusionCore
-	checkBlockFunc func(context.Context, block) // Alises for testing
+	genesis               time.Time
+	slotDuration          time.Duration
+	eth2Cl                eth2wrap.Client
+	core                  *inclusionCore
+	checkBlockFunc        func(ctx context.Context, slot uint64, found bool)
+	checkBlockAndAttsFunc func(ctx context.Context, block block) // used when feature flag attestation_inclusion is enabled
 }
 
 // Submitted is called when a duty has been submitted.
@@ -575,6 +625,27 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 }
 
 func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64, attDuties []*eth2v1.AttesterDuty) error {
+	if featureset.Enabled(featureset.AttestationInclusion) {
+		return a.checkBlockAndAtts(ctx, slot, attDuties)
+	}
+
+	block, err := a.eth2Cl.Block(ctx, strconv.FormatUint(slot, 10))
+	if err != nil {
+		return err
+	}
+	var found bool
+	if block != nil {
+		found = true
+	} else {
+		found = false
+	}
+
+	a.checkBlockFunc(ctx, slot, found)
+
+	return nil
+}
+
+func (a *InclusionChecker) checkBlockAndAtts(ctx context.Context, slot uint64, attDuties []*eth2v1.AttesterDuty) error {
 	atts, err := a.eth2Cl.BlockAttestations(ctx, strconv.FormatUint(slot, 10))
 	if err != nil {
 		return err
@@ -667,7 +738,7 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64, attDutie
 		attsMap[root] = unwrapedAtt
 	}
 
-	a.checkBlockFunc(ctx, block{Slot: slot, AttDuties: attDuties, AttestationsByDataRoot: attsMap, BeaconCommitees: committeesForState})
+	a.checkBlockAndAttsFunc(ctx, block{Slot: slot, AttDuties: attDuties, AttestationsByDataRoot: attsMap, BeaconCommitees: committeesForState})
 
 	return nil
 }

@@ -546,6 +546,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		BlockAttestationsFunc: func(context.Context, string) ([]*eth2spec.VersionedAttestation, error) {
 			return []*eth2spec.VersionedAttestation{}, nil
 		},
+		BlockFunc: func(context.Context, string) (*eth2spec.VersionedSignedBeaconBlock, error) {
+			return &eth2spec.VersionedSignedBeaconBlock{}, nil
+		},
 		NodePeerCountFunc: func(context.Context) (int, error) {
 			return 80, nil
 		},

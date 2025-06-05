@@ -206,7 +206,7 @@ func dutyFailedStep(es []event) (bool, step, error) {
 
 // lastStep returns the last step of the duty which is either bcast or chainInclusion.
 func lastStep(dutyType core.DutyType) step {
-	if inclSupported[dutyType] {
+	if inclSupported()[dutyType] {
 		return chainInclusion
 	}
 

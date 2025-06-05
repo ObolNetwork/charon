@@ -202,6 +202,15 @@ func (l *lazy) BlockAttestations(ctx context.Context, stateID string) ([]*spec.V
 	return cl.BlockAttestations(ctx, stateID)
 }
 
+func (l *lazy) Block(ctx context.Context, stateID string) (*spec.VersionedSignedBeaconBlock, error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return cl.Block(ctx, stateID)
+}
+
 func (l *lazy) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
