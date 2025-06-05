@@ -3,7 +3,9 @@
 package cmd
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -953,6 +955,94 @@ func TestClusterCLI(t *testing.T) {
 				require.NoError(t, err)
 			}
 		})
+	}
+}
+
+func TestZipping(t *testing.T) {
+	ctx := t.Context()
+	conf := clusterConfig{
+		Name:              "test",
+		NumNodes:          4,
+		NumDVs:            4,
+		Threshold:         3,
+		TargetGasLimit:    30000000,
+		Network:           eth2util.Goerli.Name,
+		WithdrawalAddrs:   []string{zeroAddress},
+		FeeRecipientAddrs: []string{zeroAddress},
+		InsecureKeys:      true,
+	}
+
+	conf.ClusterDir = t.TempDir()
+
+	var buf bytes.Buffer
+	require.NoError(t, runCreateCluster(ctx, &buf, conf))
+
+	require.NoError(t, bundleOutput(conf.ClusterDir, conf.NumNodes))
+
+	unzippedDir := t.TempDir()
+	require.NoError(t, unzipOutputT(t, conf.ClusterDir, unzippedDir))
+
+	err := os.RemoveAll(filepath.Join(conf.ClusterDir, "cluster.tar.gz"))
+	require.NoError(t, err)
+
+	// Walk both directories and compare files
+	err = filepath.Walk(conf.ClusterDir, func(path string, info os.FileInfo, err error) error {
+		require.NoError(t, err)
+
+		// Get the corresponding file in the unzipped directory
+		relPath, err := filepath.Rel(conf.ClusterDir, path)
+		require.NoError(t, err, "failed to get relative path")
+		unzippedPath := filepath.Join(unzippedDir, relPath)
+
+		if info.IsDir() {
+			require.NoError(t, os.MkdirAll(unzippedPath, info.Mode()))
+			return nil
+		}
+
+		unzippedInfo, err := os.Stat(unzippedPath)
+		require.NoError(t, err, "failed to stat unzipped file")
+
+		require.Equal(t, info.Size(), unzippedInfo.Size(), "mismatched files: %s and %s", path, unzippedPath)
+
+		return nil
+	})
+	require.NoError(t, err, "unzipped directory should match original directory structure")
+}
+
+func unzipOutputT(t *testing.T, sourceDir, targetDir string) error {
+	t.Helper()
+
+	zf, err := os.Open(filepath.Join(sourceDir, "cluster.tar.gz"))
+	require.NoError(t, err, "failed to open archive")
+	defer zf.Close()
+
+	gzr, err := gzip.NewReader(zf)
+	require.NoError(t, err, "failed to create gzip reader")
+	defer gzr.Close()
+
+	tr := tar.NewReader(gzr)
+
+	for {
+		header, err := tr.Next()
+		if err == io.EOF {
+			return nil // End of archive
+		}
+		require.NoError(t, err, "tar read error")
+
+		target := filepath.Join(targetDir, header.Name)
+		switch header.Typeflag {
+		case tar.TypeDir:
+			require.NoError(t, os.MkdirAll(target, header.FileInfo().Mode()), "failed to create directory")
+		case tar.TypeReg:
+			require.NoError(t, os.MkdirAll(filepath.Dir(target), 0o755), "failed to create parent directory")
+			f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, header.FileInfo().Mode())
+			require.NoError(t, err, "failed to create file")
+			_, err = io.Copy(f, tr)
+			require.NoError(t, err, "failed to copy file contents")
+			require.NoError(t, f.Close(), "failed to close file")
+		default:
+			// Ignore other types
+		}
 	}
 }
 

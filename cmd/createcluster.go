@@ -3,7 +3,9 @@
 package cmd
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -91,6 +93,8 @@ type clusterConfig struct {
 	testnetConfig eth2util.Network
 
 	ExecutionEngineAddr string
+
+	Zipped bool
 }
 
 func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig) error) *cobra.Command {
@@ -153,6 +157,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.UintVar(&config.TargetGasLimit, "target-gas-limit", 36000000, "Preferred target gas limit for transactions.")
 	flags.BoolVar(&config.Compounding, "compounding", false, "Enable compounding rewards for validators by using 0x02 withdrawal credentials.")
 	flags.StringVar(&config.ExecutionEngineAddr, "execution-client-rpc-endpoint", "", "The address of the execution engine JSON-RPC API.")
+	flags.BoolVar(&config.Zipped, "zipped", false, "Create a tar archive compressed with gzip of the cluster directory after creation.")
 }
 
 func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
@@ -338,11 +343,17 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
+	if conf.Zipped {
+		if err = bundleOutput(conf.ClusterDir, numNodes); err != nil {
+			return err
+		}
+	}
+
 	if conf.SplitKeys {
 		writeWarning(w)
 	}
 
-	if err := writeOutput(w, conf.SplitKeys, conf.ClusterDir, numNodes, keysToDisk); err != nil {
+	if err := writeOutput(w, conf.SplitKeys, conf.ClusterDir, numNodes, keysToDisk, conf.Zipped); err != nil {
 		return err
 	}
 
@@ -901,7 +912,7 @@ func newPeer(clusterDir string, peerIdx int) (enr.Record, *k1.PrivateKey, error)
 }
 
 // writeOutput writes the cluster generation output.
-func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int, keysToDisk bool) error {
+func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int, keysToDisk, zipped bool) error {
 	absClusterDir, err := filepath.Abs(clusterDir)
 	if err != nil {
 		return errors.Wrap(err, "absolute path retrieval")
@@ -920,6 +931,9 @@ func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int,
 		_, _ = sb.WriteString("│  ├─ validator_keys\t\tValidator keystores and password\n")
 		_, _ = sb.WriteString("│  │  ├─ keystore-*.json\tValidator private share key for duty signing\n")
 		_, _ = sb.WriteString("│  │  ├─ keystore-*.txt\t\tKeystore password files for keystore-*.json\n")
+	}
+	if zipped {
+		_, _ = sb.WriteString(fmt.Sprintf("\nFiles compressed and archived to:\n%s/cluster.tar.gz\n", absClusterDir))
 	}
 
 	_, _ = fmt.Fprint(out, sb.String())
@@ -1177,4 +1191,71 @@ func validateNetworkConfig(conf clusterConfig) error {
 	}
 
 	return errors.New("missing --network flag or testnet config flags")
+}
+
+// bundleOutput archives all node directories (node0, node1, ..., nodeN) within targetDir into a gzipped tarball named "cluster.tar.gz" in targetDir.
+// After successfully creating the archive, it deletes the original node directories from disk.
+func bundleOutput(targetDir string, numNodes int) error {
+	file, err := os.Create(filepath.Join(targetDir, "cluster.tar.gz"))
+	if err != nil {
+		return errors.Wrap(err, "create .tar.gz file")
+	}
+	defer file.Close()
+
+	gzw := gzip.NewWriter(file)
+	defer gzw.Close()
+
+	tw := tar.NewWriter(gzw)
+	defer tw.Close()
+
+	dirs := []string{}
+	for i := range numNodes {
+		dirs = append(dirs, filepath.Join(targetDir, fmt.Sprintf("node%d", i)))
+	}
+
+	for _, dir := range dirs {
+		err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return errors.Wrap(err, "filepath walk")
+			}
+			if !info.Mode().IsRegular() {
+				return nil
+			}
+			relPath, err := filepath.Rel(targetDir, path)
+			if err != nil {
+				return errors.Wrap(err, "relative path")
+			}
+			header, err := tar.FileInfoHeader(info, info.Name())
+			if err != nil {
+				return errors.Wrap(err, "file info header")
+			}
+			header.Name = relPath
+			if err := tw.WriteHeader(header); err != nil {
+				return errors.Wrap(err, "write header")
+			}
+			f, err := os.Open(path)
+			if err != nil {
+				return errors.Wrap(err, "open file")
+			}
+			defer f.Close()
+			_, err = io.Copy(tw, f)
+			if err != nil {
+				return errors.Wrap(err, "copy file", z.Str("filename", path))
+			}
+
+			return nil
+		})
+		if err != nil {
+			return errors.Wrap(err, "filepath walk")
+		}
+	}
+
+	for _, dir := range dirs {
+		err := os.RemoveAll(dir)
+		if err != nil {
+			return errors.Wrap(err, "remove file")
+		}
+	}
+
+	return nil
 }
