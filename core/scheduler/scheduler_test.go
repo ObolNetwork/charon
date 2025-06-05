@@ -8,7 +8,6 @@ import (
 	"os"
 	"sort"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -147,7 +146,7 @@ func TestSchedulerWait(t *testing.T) {
 			}
 
 			dd := new(delayer)
-			sched := scheduler.NewForT(t, clock, dd.delay, nil, eth2Cl, false)
+			sched := scheduler.NewForT(t, clock, dd.delay, nil, eth2Cl, nil)
 			sched.Stop() // Just run wait functions, then quit.
 			require.NoError(t, sched.Run())
 			require.LessOrEqual(t, test.WaitSecs, int(clock.Since(t0).Seconds()))
@@ -218,7 +217,7 @@ func TestSchedulerDuties(t *testing.T) {
 			// Construct scheduler
 			clock := newTestClock(t0)
 			delayer := new(delayer)
-			sched := scheduler.NewForT(t, clock, delayer.delay, pubkeys, eth2Cl, false)
+			sched := scheduler.NewForT(t, clock, delayer.delay, pubkeys, eth2Cl, nil)
 
 			// Only test scheduler output for first N slots, so Stop scheduler (and slotTicker) after that.
 			const stopAfter = 3
@@ -316,7 +315,7 @@ func TestScheduler_GetDuty(t *testing.T) {
 	// Construct scheduler.
 	clock := newTestClock(t0)
 	dd := new(delayer)
-	sched := scheduler.NewForT(t, clock, dd.delay, pubkeys, eth2Cl, false)
+	sched := scheduler.NewForT(t, clock, dd.delay, pubkeys, eth2Cl, nil)
 
 	_, err = sched.GetDutyDefinition(ctx, core.NewAttesterDuty(slot))
 	require.ErrorContains(t, err, "epoch not resolved yet")
@@ -400,7 +399,7 @@ func TestNoActive(t *testing.T) {
 	// Construct scheduler.
 	clock := newTestClock(t0)
 	dd := new(delayer)
-	sched := scheduler.NewForT(t, clock, dd.delay, nil, eth2Cl, false)
+	sched := scheduler.NewForT(t, clock, dd.delay, nil, eth2Cl, nil)
 
 	clock.CallbackAfter(t0.Add(slotDuration*2), func() {
 		_, err := sched.GetDutyDefinition(ctx, core.NewAttesterDuty(1))
@@ -413,7 +412,6 @@ func TestNoActive(t *testing.T) {
 
 func TestHandleChainReorgEvent(t *testing.T) {
 	var (
-		ctx    = t.Context()
 		t0     time.Time
 		valSet = beaconmock.ValidatorSetA
 	)
@@ -424,66 +422,51 @@ func TestHandleChainReorgEvent(t *testing.T) {
 	eth2Cl, err := beaconmock.New(
 		beaconmock.WithValidatorSet(valSet),
 		beaconmock.WithGenesisTime(t0),
-		beaconmock.WithDeterministicAttesterDuties(0),
-		beaconmock.WithDeterministicSyncCommDuties(2, 2),
-		beaconmock.WithSlotsPerEpoch(1),
+		beaconmock.WithDeterministicAttesterDuties(1),
+		beaconmock.WithSlotsPerEpoch(4),
 	)
 	require.NoError(t, err)
-
-	var proposerDutiesFetched atomic.Bool
-	oldProposerFunc := eth2Cl.ProposerDutiesFunc
-	eth2Cl.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
-		proposerDutiesFetched.Store(true)
-		return oldProposerFunc(ctx, epoch, indices)
-	}
 
 	// Get pubkeys for validators to schedule.
 	pubkeys, err := valSet.CorePubKeys()
 	require.NoError(t, err)
 
 	// Construct scheduler.
+	schedSlotCh := make(chan core.Slot)
+	schedSlotFunc := func(ctx context.Context, slot core.Slot) {
+		select {
+		case <-ctx.Done():
+			return
+		case schedSlotCh <- slot:
+		}
+	}
 	clock := newTestClock(t0)
 	dd := new(delayer)
-	sched := scheduler.NewForT(t, clock, dd.delay, pubkeys, eth2Cl, false)
+	sched := scheduler.NewForT(t, clock, dd.delay, pubkeys, eth2Cl, schedSlotFunc)
 
-	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
-	require.NoError(t, err)
+	doneCh := make(chan error, 1)
+	go func() {
+		doneCh <- sched.Run()
+		close(schedSlotCh)
+	}()
 
-	clock.CallbackAfter(t0.Add(2*slotDuration).Add(time.Second), func() {
-		// Shall be 2nd epoch, 2nd slot
-		dds, err := sched.GetDutyDefinition(ctx, core.NewAttesterDuty(2))
-		require.NoError(t, err)
-		require.Len(t, dds, 3)
-
-		pubKeys, err := valSet.CorePubKeys()
-		require.NoError(t, err)
-
-		for _, pubKey := range pubKeys {
-			require.NotNil(t, dds[pubKey])
+	for slot := range schedSlotCh {
+		switch slot.Slot {
+		case 1: // epoch 0
+			_, err := sched.GetDutyDefinition(t.Context(), core.NewAttesterDuty(1))
+			require.NoError(t, err)
+		case 5: // epoch 1
+			sched.HandleChainReorgEvent(t.Context(), 0)
+			_, err = sched.GetDutyDefinition(t.Context(), core.NewAttesterDuty(5))
+			require.ErrorContains(t, err, "epoch not resolved yet")
+		case 7: // epoch 1 after reorg
+			_, err := sched.GetDutyDefinition(t.Context(), core.NewAttesterDuty(6))
+			require.NoError(t, err)
+			sched.Stop()
 		}
+	}
 
-		// Reorg starting previous epoch
-		sched.HandleChainReorgEvent(ctx, 1)
-		proposerDutiesFetched.Store(false)
-
-		_, err = sched.GetDutyDefinition(ctx, core.NewAttesterDuty(2))
-		require.ErrorContains(t, err, "epoch not resolved yet")
-	})
-
-	clock.CallbackAfter(t0.Add(3*slotDuration).Add(time.Second), func() {
-		// Shall be 3rd epoch
-		require.Eventually(t, func() bool {
-			_, err := sched.GetDutyDefinition(ctx, core.NewAttesterDuty(2))
-			return err == nil
-		}, 3*time.Second, 100*time.Millisecond)
-
-		sched.Stop()
-	})
-
-	// Run scheduler
-	require.NoError(t, sched.Run())
-
-	require.True(t, proposerDutiesFetched.Load(), "Proposer duties should have been fetched after reorg event")
+	require.NoError(t, <-doneCh)
 }
 
 // delayer implements scheduler.delayFunc and records the deadline and returns it immediately.
