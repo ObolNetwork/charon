@@ -25,9 +25,12 @@ jobs:
         echo "LDFLAGS_VALUE=-X github.com/obolnetwork/charon/app/version.version=${{ github.ref_name }}" >> $GITHUB_ENV
 
     - name: Build x86_64 binary
+      env:
+        RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
+        LDFLAGS_VALUE: ${{ env.LDFLAGS_VALUE }}
       run: |
         docker run --rm --platform linux/amd64 \
-          -v "$(pwd)":/workspace -w /workspace \
+          -v "$(pwd)":/workspace:z -w /workspace \
           golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
           bash -c "
             set -euo pipefail
@@ -36,14 +39,17 @@ jobs:
             export CGO_ENABLED=1 && \
             export GOOS=linux && \
             export GOARCH=amd64 && \
-            go build -buildvcs=false -tags=netgo,osusergo -ldflags '${{ env.LDFLAGS_VALUE }} -extldflags \"-static\"' \
-            -o dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64
+            go build -buildvcs=false -tags=netgo,osusergo -ldflags '$LDFLAGS_VALUE -extldflags \"-static\"' \
+            -o dist/charon-$RELEASE_VERSION-linux-amd64
           "
 
     - name: Build ARM64 binary
+      env:
+        RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
+        LDFLAGS_VALUE: ${{ env.LDFLAGS_VALUE }}
       run: |
         docker run --rm --platform linux/amd64 \
-          -v "$(pwd)":/workspace -w /workspace \
+          -v "$(pwd)":/workspace:z -w /workspace \
           golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
           bash -c "
             set -euo pipefail
@@ -53,19 +59,23 @@ jobs:
             export GOOS=linux && \
             export GOARCH=arm64 && \
             export CC=aarch64-linux-gnu-gcc && \
-            go build -buildvcs=false -tags=netgo,osusergo -ldflags '${{ env.LDFLAGS_VALUE }} -extldflags \"-static\"' \
-            -o dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64
+            go build -buildvcs=false -tags=netgo,osusergo -ldflags '$LDFLAGS_VALUE -extldflags \"-static\"' \
+            -o dist/charon-$RELEASE_VERSION-linux-arm64
           "
 
     - name: Create release archives
+      env:
+        RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
       run: |
+        mkdir -p dist
+        chmod -R 755 dist
         cd dist
-        tar czf charon-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz charon-${{ env.RELEASE_VERSION }}-linux-amd64
-        tar czf charon-${{ env.RELEASE_VERSION }}-linux-arm64.tar.gz charon-${{ env.RELEASE_VERSION }}-linux-arm64
+        tar czf charon-$RELEASE_VERSION-linux-amd64.tar.gz charon-$RELEASE_VERSION-linux-amd64
+        tar czf charon-$RELEASE_VERSION-linux-arm64.tar.gz charon-$RELEASE_VERSION-linux-arm64
         echo "# Linux AMD64 (x86_64)" > checksums.txt
-        sha256sum charon-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz >> checksums.txt
+        sha256sum charon-$RELEASE_VERSION-linux-amd64.tar.gz >> checksums.txt
         echo -e "\n# Linux ARM64 (aarch64)" >> checksums.txt
-        sha256sum charon-${{ env.RELEASE_VERSION }}-linux-arm64.tar.gz >> checksums.txt
+        sha256sum charon-$RELEASE_VERSION-linux-arm64.tar.gz >> checksums.txt
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
@@ -77,7 +87,8 @@ jobs:
           dist/checksums.txt
 
     - name: Attach to GitHub Release
-      if: github.event.workflow_run.conclusion == 'success'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       uses: softprops/action-gh-release@v2
       with:
         files: |
@@ -85,6 +96,4 @@ jobs:
           dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64.tar.gz
           dist/checksums.txt
         draft: true
-        tag_name: ${{ github.event.workflow_run.head_branch }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        tag_name: ${{ github.ref_name }}
