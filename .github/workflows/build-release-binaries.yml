@@ -44,7 +44,7 @@ jobs:
       run: |
         docker run --rm --platform linux/arm64 \
           -v "$(pwd)":/workspace -w /workspace \
-          golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
+          golang:${{ steps.setup-go.outputs.go-version }} \
           bash -c "
             set -euo pipefail
             set -x
