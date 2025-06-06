@@ -50,8 +50,8 @@ github.com/antlr4-go/antlr/v4 v4.13.1 h1:SqQKkuVZ+zWkMMNkjy5FZe5mr5WURWnlpmOuzYW
 github.com/antlr4-go/antlr/v4 v4.13.1/go.mod h1:GKmUxMtwp6ZgGwZSva4eWPC5mS6vUAmOABFgjdkM7Nw=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0 h1:axGnT1gRIfimI7gJifB699GoE/oq+F2MU7Dml6nw9rQ=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0/go.mod h1:lvDnEdqiQrp0O42VQGgmlKpxL1AP2+08jFMw88y4klk=
-github.com/attestantio/go-builder-client v0.6.3 h1:iKkmLVdlkM35EB9u++xZc0N0xF7ogILsvTvmYa59peY=
-github.com/attestantio/go-builder-client v0.6.3/go.mod h1:f8wi3HzuPxfJoi2PirpJK3yZhte4SavDgKJbRrKoB1Q=
+github.com/attestantio/go-builder-client v0.6.4 h1:D0gBdQO4vJLhoFLxdR2TbGdfsWBQZ5YDZBNdU2Ap3uk=
+github.com/attestantio/go-builder-client v0.6.4/go.mod h1:f8wi3HzuPxfJoi2PirpJK3yZhte4SavDgKJbRrKoB1Q=
 github.com/attestantio/go-eth2-client v0.25.2 h1:BHOva0HlJZ47HwALQuqqfIAQ6gRIo5P/iqGpphrMsCE=
 github.com/attestantio/go-eth2-client v0.25.2/go.mod h1:fvULSL9WtNskkOB4i+Yyr6BKpNHXvmpGZj9969fCrfY=
 github.com/benbjohnson/clock v1.3.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
