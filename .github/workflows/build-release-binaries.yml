@@ -68,7 +68,7 @@ jobs:
         RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
       run: |
         mkdir -p dist
-        chmod -R 755 dist
+        sudo chmod -R u+w dist
         cd dist
         tar czf charon-$RELEASE_VERSION-linux-amd64.tar.gz charon-$RELEASE_VERSION-linux-amd64
         tar czf charon-$RELEASE_VERSION-linux-arm64.tar.gz charon-$RELEASE_VERSION-linux-arm64
