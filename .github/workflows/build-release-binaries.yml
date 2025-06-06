@@ -42,9 +42,9 @@ jobs:
 
     - name: Build ARM64 binary
       run: |
-        docker run --rm --platform linux/arm64 \
+        docker run --rm --platform linux/amd64 \
           -v "$(pwd)":/workspace -w /workspace \
-          golang:${{ steps.setup-go.outputs.go-version }} \
+          golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
           bash -c "
             set -euo pipefail
             set -x
