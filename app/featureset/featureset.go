@@ -52,6 +52,11 @@ const (
 
 	// SSEReorgDuties enables Scheduler to refresh duties when reorg occurs.
 	SSEReorgDuties Feature = "sse_reorg_duties"
+
+	// AttestationInclusion enables tracking of on-chain inclusion for attestations.
+	// Previously this was the default behaviour, however, tracking on-chain inclusions post-electra is costly.
+	// The extra load that Charon puts the beacon node is deemed so high that it can throttle the completion of other duties.
+	AttestationInclusion Feature = "attestation_inclusion"
 )
 
 var (
@@ -65,6 +70,7 @@ var (
 		GnosisBlockHotfix:    statusAlpha,
 		Linear:               statusAlpha,
 		SSEReorgDuties:       statusAlpha,
+		AttestationInclusion: statusAlpha,
 		// Add all features and there status here.
 	}
 

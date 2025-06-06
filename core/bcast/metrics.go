@@ -23,7 +23,7 @@ var (
 		Namespace: "core",
 		Subsystem: "bcast",
 		Name:      "broadcast_delay_seconds",
-		Help:      "Duty broadcast delay from start of slot in seconds by type",
+		Help:      "Duty broadcast delay since the expected duty submission in seconds by type",
 		Buckets:   []float64{.05, .1, .25, .5, 1, 2.5, 5, 10, 20, 30, 60},
 	}, []string{"duty"})
 

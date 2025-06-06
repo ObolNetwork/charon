@@ -93,7 +93,7 @@ var (
 		Namespace: "core",
 		Subsystem: "tracker",
 		Name:      "inclusion_delay",
-		Help:      "Cluster's average attestation inclusion delay in slots",
+		Help:      "Cluster's average attestation inclusion delay in slots. Available only when attestation_inclusion feature flag is enabled.",
 	})
 
 	inclusionMisses = promauto.NewCounterVec(prometheus.CounterOpts{

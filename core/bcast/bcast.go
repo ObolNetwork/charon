@@ -38,7 +38,7 @@ func New(ctx context.Context, eth2Cl eth2wrap.Client) (Broadcaster, error) {
 
 type Broadcaster struct {
 	eth2Cl    eth2wrap.Client
-	delayFunc func(slot uint64) time.Duration
+	delayFunc func(slot uint64, duty core.DutyType) time.Duration
 }
 
 // Broadcast broadcasts the aggregated signed duty data object to the beacon-node.
@@ -46,7 +46,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 	ctx = log.WithTopic(ctx, "bcast")
 	defer func() {
 		if err == nil {
-			instrumentDuty(duty, b.delayFunc(duty.Slot))
+			instrumentDuty(duty, b.delayFunc(duty.Slot, duty.Type))
 		}
 	}()
 
@@ -152,7 +152,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 		}
 
 		log.Info(ctx, "Successfully submitted v2 attestations to beacon node",
-			z.Any("delay", b.delayFunc(duty.Slot)),
+			z.Any("delay", b.delayFunc(duty.Slot, core.DutyAttester)),
 		)
 
 		return nil
@@ -191,7 +191,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 
 		if err == nil {
 			log.Info(ctx, "Successfully submitted block proposal to beacon node",
-				z.Any("delay", b.delayFunc(duty.Slot)),
+				z.Any("delay", b.delayFunc(duty.Slot, core.DutyProposer)),
 				z.Any("pubkey", pubkey),
 				z.Bool("blinded", block.Blinded),
 			)
@@ -219,7 +219,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 		err = b.eth2Cl.SubmitValidatorRegistrations(ctx, registrations)
 		if err == nil {
 			log.Info(ctx, "Successfully submitted validator registrations to beacon node",
-				z.Any("delay", b.delayFunc(duty.Slot)),
+				z.Any("delay", b.delayFunc(duty.Slot, core.DutyBuilderRegistration)),
 			)
 		}
 
@@ -236,7 +236,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 			err = b.eth2Cl.SubmitVoluntaryExit(ctx, &exit.SignedVoluntaryExit)
 			if err == nil {
 				log.Info(ctx, "Successfully submitted voluntary exit to beacon node",
-					z.Any("delay", b.delayFunc(duty.Slot)),
+					z.Any("delay", b.delayFunc(duty.Slot, core.DutyExit)),
 					z.Any("pubkey", pubkey),
 				)
 			}
@@ -261,7 +261,8 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 		}
 
 		log.Info(ctx, "Successfully submitted v2 attestation aggregations to beacon node",
-			z.Any("delay", b.delayFunc(duty.Slot)))
+			z.Any("delay", b.delayFunc(duty.Slot, core.DutyAggregator)),
+		)
 
 		return nil
 	case core.DutySyncMessage:
@@ -273,7 +274,8 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 		err = b.eth2Cl.SubmitSyncCommitteeMessages(ctx, msgs)
 		if err == nil {
 			log.Info(ctx, "Successfully submitted sync committee messages to beacon node",
-				z.Any("delay", b.delayFunc(duty.Slot)))
+				z.Any("delay", b.delayFunc(duty.Slot, core.DutyAggregator)),
+			)
 		}
 
 		return err
@@ -289,7 +291,8 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 		err = b.eth2Cl.SubmitSyncCommitteeContributions(ctx, contributions)
 		if err == nil {
 			log.Info(ctx, "Successfully submitted sync committee contributions to beacon node",
-				z.Any("delay", b.delayFunc(duty.Slot)))
+				z.Any("delay", b.delayFunc(duty.Slot, core.DutySyncContribution)),
+			)
 		}
 
 		return err
@@ -385,8 +388,8 @@ func setToAttestations(set core.SignedDataSet) ([]*eth2spec.VersionedAttestation
 	return resp, nil
 }
 
-// newDelayFunc returns a function that calculates the delay since the start of a slot.
-func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64) time.Duration, error) {
+// newDelayFunc returns a function that calculates the delay since the expected duty submission.
+func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64, duty core.DutyType) time.Duration, error) {
 	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
@@ -396,9 +399,17 @@ func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64
 		return nil, err
 	}
 
-	return func(slot uint64) time.Duration {
+	return func(slot uint64, duty core.DutyType) time.Duration {
 		slotStart := genesisTime.Add(slotDuration * time.Duration(slot))
-		return time.Since(slotStart)
+		expectedSubmission := slotStart
+		if duty == core.DutyAttester {
+			expectedSubmission = slotStart.Add(slotDuration * 1 / 3)
+		}
+		if duty == core.DutyAggregator || duty == core.DutySyncContribution {
+			expectedSubmission = slotStart.Add(slotDuration * 2 / 3)
+		}
+
+		return time.Since(expectedSubmission)
 	}, nil
 }
 

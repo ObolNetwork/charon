@@ -182,5 +182,12 @@ func WithBeaconMockFuzzer() Option {
 
 			return atts, nil
 		}
+
+		mock.BlockFunc = func(context.Context, string) (*eth2spec.VersionedSignedBeaconBlock, error) {
+			var block *eth2spec.VersionedSignedBeaconBlock
+			fuzz.New().Fuzz(&block)
+
+			return block, nil
+		}
 	}
 }
