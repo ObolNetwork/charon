@@ -31,7 +31,7 @@ jobs:
           golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
           bash -c "apt-get update && apt-get install -y build-essential && \
           env CGO_ENABLED=1 GOOS=linux GOARCH=amd64 CC=x86_64-linux-gnu-gcc \
-          go build -tags='netgo osusergo' -ldflags \"${{ env.LDFLAGS_VALUE }} -extldflags '-static'\" \
+          go build -buildvcs=false -tags='netgo osusergo' -ldflags \"${{ env.LDFLAGS_VALUE }} -extldflags '-static'\" \
           -o dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64"
 
     - name: Build ARM64 binary
@@ -42,7 +42,7 @@ jobs:
           bash -c "apt-get update && \
           apt-get install -y build-essential && \
           env CGO_ENABLED=1 GOOS=linux GOARCH=arm64 \
-          go build -tags='netgo osusergo' -ldflags \"${{ env.LDFLAGS_VALUE }} -extldflags '-static'\" \
+          go build -buildvcs=false -tags='netgo osusergo' -ldflags \"${{ env.LDFLAGS_VALUE }} -extldflags '-static'\" \
           -o dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64"
 
     - name: Create release archives
