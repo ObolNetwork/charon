@@ -24,7 +24,7 @@ import (
 	"github.com/obolnetwork/charon/testutil/obolapimock"
 )
 
-const exitEpoch = eth2p0.Epoch(162304)
+const exitEpoch = eth2p0.Epoch(194048)
 
 func TestAPIFlow(t *testing.T) {
 	kn := 4
