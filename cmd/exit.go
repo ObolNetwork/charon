@@ -160,7 +160,7 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 		case validatorPubkey:
 			cmd.Flags().StringVar(&config.ValidatorPubkey, validatorPubkey.String(), "", maybeRequired("Public key of the validator to exit, must be present in the cluster lock manifest. If --validator-index is also provided, validator liveliness won't be checked on the beacon chain."))
 		case exitEpoch:
-			cmd.Flags().Uint64Var(&config.ExitEpoch, exitEpoch.String(), 162304, maybeRequired("Exit epoch at which the validator will exit, must be the same across all the partial exits."))
+			cmd.Flags().Uint64Var(&config.ExitEpoch, exitEpoch.String(), 194048, maybeRequired("Exit epoch at which the validator will exit, must be the same across all the partial exits."))
 		case exitFromFile:
 			cmd.Flags().StringVar(&config.ExitFromFilePath, exitFromFile.String(), "", maybeRequired("Retrieves a signed exit message from a pre-prepared file instead of --publish-address."))
 		case exitFromDir:
