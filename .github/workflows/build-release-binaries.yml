@@ -67,11 +67,13 @@ jobs:
             -o dist/charon-$RELEASE_VERSION-linux-arm64
           "
 
+    - name: Fix permissions for dist
+      run: sudo chown -R $USER:$USER dist
+
     - name: Create release archives
       env:
         RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
       run: |
-        mkdir -p dist
         cd dist
         tar czf charon-$RELEASE_VERSION-linux-amd64.tar.gz charon-$RELEASE_VERSION-linux-amd64
         tar czf charon-$RELEASE_VERSION-linux-arm64.tar.gz charon-$RELEASE_VERSION-linux-arm64
