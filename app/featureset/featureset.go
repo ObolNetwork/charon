@@ -57,7 +57,7 @@ const (
 	// Previously this was the default behaviour, however, tracking on-chain inclusions post-electra is costly.
 	// The extra load that Charon puts the beacon node is deemed so high that it can throttle the completion of other duties.
 	AttestationInclusion Feature = "attestation_inclusion"
-	
+
 	// ProposalTimeout enables a longer first consensus round timeout of 1.5 seconds for proposal duty.
 	ProposalTimeout = "proposal_timeout"
 )
