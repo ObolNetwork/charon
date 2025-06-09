@@ -4,6 +4,10 @@ on:
       - main*
     tags:
       - 'v*'
+
+permissions:
+    contents: write
+
 name: Build and Release Binaries
 jobs:
   build-binaries:
@@ -68,7 +72,6 @@ jobs:
         RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
       run: |
         mkdir -p dist
-        sudo chmod -R u+w dist
         cd dist
         tar czf charon-$RELEASE_VERSION-linux-amd64.tar.gz charon-$RELEASE_VERSION-linux-amd64
         tar czf charon-$RELEASE_VERSION-linux-arm64.tar.gz charon-$RELEASE_VERSION-linux-arm64
