@@ -226,7 +226,7 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 		client := eth1wrap.NewEthClientRunner(
 			"",
 			func(ctx context.Context, rawurl string) (eth1wrap.EthClient, error) {
-				clientCreatedCh <- struct{}{}
+				defer close(clientCreatedCh)
 				return mockEth1Client, nil
 			},
 			func(contractAddress string, eth1Client eth1wrap.EthClient) (eth1wrap.Erc1271, error) {
@@ -271,7 +271,7 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 		client := eth1wrap.NewEthClientRunner(
 			"",
 			func(ctx context.Context, rawurl string) (eth1wrap.EthClient, error) {
-				close(clientCreatedCh)
+				defer close(clientCreatedCh)
 				return mockEth1Client, nil
 			},
 			func(contractAddress string, eth1Client eth1wrap.EthClient) (eth1wrap.Erc1271, error) {
