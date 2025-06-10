@@ -21,6 +21,7 @@ var (
 		Subsystem: "beacon_node",
 		Name:      "sse_head_delay",
 		Help:      "Delay in seconds between slot start and head update, supplied by beacon node's SSE endpoint. Values between 8s and 12s for Ethereum mainnet are considered safe.",
+		Buckets:   []float64{-4, -0.1, 0.1, 4, 8, 12},
 	}, []string{"addr"})
 
 	sseChainReorgDepthGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
