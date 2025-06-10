@@ -6,8 +6,10 @@ import (
 	"context"
 	"flag"
 	"os"
+	"runtime"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -411,8 +413,6 @@ func TestNoActive(t *testing.T) {
 }
 
 func TestHandleChainReorgEvent(t *testing.T) {
-	t.Skip("Known flakey test, to be fixed later")
-
 	var (
 		t0     time.Time
 		valSet = beaconmock.ValidatorSetA
@@ -453,11 +453,15 @@ func TestHandleChainReorgEvent(t *testing.T) {
 	}()
 
 	for slot := range schedSlotCh {
+		clock.Pause()
+
 		switch slot.Slot {
 		case 1: // epoch 0
 			_, err := sched.GetDutyDefinition(t.Context(), core.NewAttesterDuty(1))
 			require.NoError(t, err)
 		case 5: // epoch 1
+			_, err := sched.GetDutyDefinition(t.Context(), core.NewAttesterDuty(5))
+			require.NoError(t, err)
 			sched.HandleChainReorgEvent(t.Context(), 0)
 			_, err = sched.GetDutyDefinition(t.Context(), core.NewAttesterDuty(5))
 			require.ErrorContains(t, err, "epoch not resolved yet")
@@ -466,6 +470,8 @@ func TestHandleChainReorgEvent(t *testing.T) {
 			require.NoError(t, err)
 			sched.Stop()
 		}
+
+		clock.Resume()
 	}
 
 	require.NoError(t, <-doneCh)
@@ -515,6 +521,7 @@ type testClock struct {
 	nowMutex  sync.Mutex
 	now       time.Time
 	callbacks map[time.Time]func()
+	paused    atomic.Bool
 }
 
 // CallbackAfter sets a callback function that is called once
@@ -534,6 +541,10 @@ func (c *testClock) After(d time.Duration) <-chan time.Time {
 }
 
 func (c *testClock) Sleep(d time.Duration) {
+	for c.paused.Load() {
+		runtime.Gosched()
+	}
+
 	c.nowMutex.Lock()
 	defer c.nowMutex.Unlock()
 
@@ -564,6 +575,14 @@ func (c *testClock) Since(t time.Time) time.Duration {
 	since := c.now.Sub(t)
 
 	return since
+}
+
+func (c *testClock) Pause() {
+	c.paused.Store(true)
+}
+
+func (c *testClock) Resume() {
+	c.paused.Store(false)
 }
 
 func (c *testClock) NewTicker(time.Duration) clockwork.Ticker {
