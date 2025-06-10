@@ -52,8 +52,8 @@ github.com/apapsch/go-jsonmerge/v2 v2.0.0 h1:axGnT1gRIfimI7gJifB699GoE/oq+F2MU7D
 github.com/apapsch/go-jsonmerge/v2 v2.0.0/go.mod h1:lvDnEdqiQrp0O42VQGgmlKpxL1AP2+08jFMw88y4klk=
 github.com/attestantio/go-builder-client v0.6.4 h1:D0gBdQO4vJLhoFLxdR2TbGdfsWBQZ5YDZBNdU2Ap3uk=
 github.com/attestantio/go-builder-client v0.6.4/go.mod h1:f8wi3HzuPxfJoi2PirpJK3yZhte4SavDgKJbRrKoB1Q=
-github.com/attestantio/go-eth2-client v0.25.2 h1:BHOva0HlJZ47HwALQuqqfIAQ6gRIo5P/iqGpphrMsCE=
-github.com/attestantio/go-eth2-client v0.25.2/go.mod h1:fvULSL9WtNskkOB4i+Yyr6BKpNHXvmpGZj9969fCrfY=
+github.com/attestantio/go-eth2-client v0.26.0 h1:oDWKvIUJfvr1EBi/w9L6mawYZHOCymjHkml7fZplT20=
+github.com/attestantio/go-eth2-client v0.26.0/go.mod h1:fvULSL9WtNskkOB4i+Yyr6BKpNHXvmpGZj9969fCrfY=
 github.com/benbjohnson/clock v1.3.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/benbjohnson/clock v1.3.5 h1:VvXlSJBzZpA/zum6Sj74hxwYI2DIxRWuNIoXAzHZz5o=
 github.com/benbjohnson/clock v1.3.5/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
