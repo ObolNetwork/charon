@@ -165,7 +165,7 @@ func (p *listener) handleChainReorgEvent(ctx context.Context, event *event, addr
 		z.Str("old_head_block", chainReorg.OldHeadBlock),
 		z.Str("new_head_block", chainReorg.NewHeadBlock))
 
-	sseChainReorgDepthGauge.WithLabelValues(addr).Set(float64(depth))
+	sseChainReorgDepthHistogram.WithLabelValues(addr).Observe(float64(depth))
 
 	return nil
 }

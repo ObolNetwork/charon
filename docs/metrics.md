@@ -14,7 +14,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | Name | Type | Help | Labels |
 |---|---|---|---|
 | `app_beacon_node_peers` | Gauge | Gauge set to the peer count of the upstream beacon node |  |
-| `app_beacon_node_sse_chain_reorg_depth` | Gauge | Chain reorg depth, supplied by beacon node`s SSE endpoint | `addr` |
+| `app_beacon_node_sse_chain_reorg_depth` | Histogram | Chain reorg depth, supplied by beacon node`s SSE endpoint | `addr` |
 | `app_beacon_node_sse_head_delay` | Histogram | Delay in seconds between slot start and head update, supplied by beacon node`s SSE endpoint. Values between 8s and 12s for Ethereum mainnet are considered safe. | `addr` |
 | `app_beacon_node_sse_head_slot` | Gauge | Current beacon node head slot, supplied by beacon node`s SSE endpoint | `addr` |
 | `app_beacon_node_version` | Gauge | Constant gauge with label set to the node version of the upstream beacon node | `version` |
