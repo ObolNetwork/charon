@@ -193,5 +193,5 @@ func (p *listener) computeDelay(slot uint64, eventTS time.Time) (time.Duration, 
 	delayOK := delay < p.slotDuration
 
 	// calculate time of receiving the event - the time of start of the slot
-	return delay, delayOK
+	return delay + p.slotDuration, delayOK
 }

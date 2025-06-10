@@ -150,15 +150,15 @@ func TestComputeDelay(t *testing.T) {
 		{
 			name:       "happy path",
 			slot:       1,
-			eventTS:    genesisTime.Add(slotDuration + 2*3/slotDuration), // 2/3 into slot 1
-			expected:   2 * 3 / slotDuration,
+			eventTS:    genesisTime.Add(slotDuration + 2*slotDuration/3), // 2/3 into slot 1
+			expected:   2*slotDuration/3 + slotDuration,
 			expectedOk: true,
 		},
 		{
 			name:       "happy path, not ok",
 			slot:       1,
 			eventTS:    genesisTime.Add(2*slotDuration + time.Second), // 1 second into slot 2
-			expected:   slotDuration + time.Second,
+			expected:   2*slotDuration + time.Second,
 			expectedOk: false,
 		},
 	}
