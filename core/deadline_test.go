@@ -94,7 +94,7 @@ func TestNewDutyDeadlineFunc(t *testing.T) {
 	slotDuration, _, err := eth2wrap.FetchSlotsConfig(t.Context(), bmock)
 	require.NoError(t, err)
 
-	margin := slotDuration / 24
+	margin := slotDuration / 12
 	currentSlot := uint64(time.Since(genesisTime) / slotDuration)
 	now := genesisTime.Add(time.Duration(currentSlot) * slotDuration)
 
