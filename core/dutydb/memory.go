@@ -13,6 +13,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 )
@@ -69,7 +70,7 @@ func (db *MemDB) Shutdown() {
 }
 
 // Store implements core.DutyDB, see its godoc.
-func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.UnsignedDataSet) error {
+func (db *MemDB) Store(ctx context.Context, duty core.Duty, unsignedSet core.UnsignedDataSet) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
@@ -93,12 +94,14 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 	case core.DutyBuilderProposer:
 		return core.ErrDeprecatedDutyBuilderProposer
 	case core.DutyAttester:
+		log.Info(ctx, "DutyDB store attestation data...")
 		for pubkey, unsignedData := range unsignedSet {
-			err := db.storeAttestationUnsafe(pubkey, unsignedData)
+			err := db.storeAttestationUnsafe(ctx, pubkey, unsignedData)
 			if err != nil {
 				return err
 			}
 		}
+		log.Info(ctx, "DutyDB resolve attestation data...")
 		db.resolveAttQueriesUnsafe()
 	case core.DutyAggregator:
 		var err error
@@ -169,6 +172,11 @@ func (db *MemDB) AwaitProposal(ctx context.Context, slot uint64) (*eth2api.Versi
 
 // AwaitAttestation implements core.DutyDB, see its godoc.
 func (db *MemDB) AwaitAttestation(ctx context.Context, slot uint64, commIdx uint64) (*eth2p0.AttestationData, error) {
+	awaitCtx := log.WithCtx(ctx,
+		z.U64("slot", uint64(slot)),
+		z.U64("comm_idx", uint64(commIdx)))
+	log.Info(awaitCtx, "DutyDB awaiting attestation flow started")
+
 	cancel := make(chan struct{})
 	defer close(cancel)
 	response := make(chan *eth2p0.AttestationData, 1) // Instance of one so resolving never blocks
@@ -182,6 +190,7 @@ func (db *MemDB) AwaitAttestation(ctx context.Context, slot uint64, commIdx uint
 		Response: response,
 		Cancel:   cancel,
 	})
+	log.Info(awaitCtx, "DutyDB check if attestation data available right away...")
 	db.resolveAttQueriesUnsafe()
 	db.mu.Unlock()
 
@@ -191,6 +200,7 @@ func (db *MemDB) AwaitAttestation(ctx context.Context, slot uint64, commIdx uint
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case value := <-response:
+		log.Info(awaitCtx, "DutyDB attestation data found")
 		return value, nil
 	}
 }
@@ -301,7 +311,7 @@ func (db *MemDB) PubKeyByAttestation(_ context.Context, slot, commIdx, valIdx ui
 }
 
 // storeAttestationUnsafe stores the unsigned attestation. It is unsafe since it assumes the lock is held.
-func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.UnsignedData) error {
+func (db *MemDB) storeAttestationUnsafe(ctx context.Context, pubkey core.PubKey, unsignedData core.UnsignedData) error {
 	cloned, err := unsignedData.Clone() // Clone before storing.
 	if err != nil {
 		return err
@@ -313,6 +323,13 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 	}
 
 	pubkeyStore := &pubkey
+
+	awaitCtx := log.WithCtx(ctx,
+		z.U64("slot", uint64(attData.Data.Slot)),
+		z.U64("comm_idx", uint64(attData.Duty.CommitteeIndex)),
+		z.U64("val_idx", uint64(attData.Duty.ValidatorIndex)),
+	)
+	log.Info(awaitCtx, "DutyDB store data with key")
 
 	// Store key and value for PubKeyByAttestation
 	pKey := pkKey{
@@ -495,12 +512,20 @@ func (db *MemDB) resolveAttQueriesUnsafe() {
 			continue // Drop cancelled queries.
 		}
 
+		awaitCtx := log.WithCtx(context.Background(),
+			z.U64("slot", uint64(query.Key.Slot)),
+			z.U64("comm_idx", uint64(query.Key.CommIdx)),
+		)
+		log.Info(awaitCtx, "DutyDB resolve data with key...")
+
 		value, ok := db.attDuties[query.Key]
 		if !ok {
 			unresolved = append(unresolved, query)
+			log.Info(awaitCtx, "DutyDB resolve data with key not found")
 			continue
 		}
 
+		log.Info(awaitCtx, "DutyDB resolve data with key found")
 		query.Response <- value
 	}
 

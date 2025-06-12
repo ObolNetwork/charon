@@ -114,6 +114,7 @@ func (f *Fetcher) RegisterAwaitAttData(fn func(ctx context.Context, slot uint64,
 // fetchAttesterData returns the fetched attestation data set for committees and validators in the arg set.
 func (f *Fetcher) fetchAttesterData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet,
 ) (core.UnsignedDataSet, error) {
+	log.Info(ctx, "Fetcher attestation flow started")
 	// We may have multiple validators in the same committee, use the same attestation data in that case.
 	dataByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2p0.AttestationData)
 
@@ -133,7 +134,9 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot uint64, defSet cor
 				Slot:           eth2p0.Slot(slot),
 				CommitteeIndex: commIdx,
 			}
+			log.Info(ctx, "Fetching attester data from BN...")
 			eth2Resp, err := f.eth2Cl.AttestationData(ctx, opts)
+			log.Info(ctx, "Fetched attester data from BN")
 			if err != nil {
 				return nil, err
 			}

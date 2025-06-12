@@ -256,10 +256,12 @@ func (c *Component) Subscribe(fn func(context.Context, core.Duty, core.ParSigned
 
 // AttestationData implements the eth2client.AttesterDutiesProvider for the router.
 func (c Component) AttestationData(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error) {
+	log.Info(ctx, "VAPI await attestation data...")
 	att, err := c.awaitAttFunc(ctx, uint64(opts.Slot), uint64(opts.CommitteeIndex))
 	if err != nil {
 		return nil, err
 	}
+	log.Info(ctx, "VAPI attestation data found")
 
 	return wrapResponse(att), nil
 }
