@@ -347,14 +347,17 @@ type handlerFunc func(ctx context.Context, params map[string]string, header http
 // It does tracing, metrics and response and error writing.
 func wrap(endpoint string, handler handlerFunc, encodings []contentType) http.Handler {
 	wrap := func(w http.ResponseWriter, r *http.Request) {
-		defer observeAPILatency(endpoint)()
-
 		ctx := r.Context()
 		ctx = log.WithTopic(ctx, "vapi")
 		ctx = log.WithCtx(ctx, z.Str("vapi_endpoint", endpoint))
 		ctx = withCtxDuration(ctx)
 		ctx, cancel := context.WithTimeout(ctx, defaultRequestTimeout)
-		defer cancel()
+		defer func() {
+			if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				observeAPILatency(endpoint)()
+			}
+			cancel()
+		}()
 
 		var typ contentType
 		contentHeader := r.Header.Get("Content-Type")
