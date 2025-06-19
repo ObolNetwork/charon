@@ -75,6 +75,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_tracker_participation_total` | Counter | Total number of successful participations by peer and duty type | `duty, peer` |
 | `core_tracker_success_duties_total` | Counter | Total number of successful duties by type | `duty` |
 | `core_tracker_unexpected_events_total` | Counter | Total number of unexpected events by peer | `peer` |
+| `core_validatorapi_proxy_request_latency_seconds` | Histogram | The validatorapi proxy request latencies in seconds by path | `path` |
 | `core_validatorapi_request_error_total` | Counter | The total number of validatorapi request errors | `endpoint, status_code` |
 | `core_validatorapi_request_latency_seconds` | Histogram | The validatorapi request latencies in seconds by endpoint | `endpoint` |
 | `core_validatorapi_request_total` | Counter | The total number of requests per content-type and endpoint | `endpoint, content_type` |
