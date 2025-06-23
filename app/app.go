@@ -220,13 +220,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	lockHashHex := hex7(cluster.GetInitialMutationHash())
-
-	tcpNode, err := wireP2P(ctx, life, conf, cluster, p2pKey, lockHashHex)
+	p2pNode, err := wireP2P(ctx, life, conf, cluster, p2pKey, lockHashHex)
 	if err != nil {
 		return err
 	}
 
-	nodeIdx, err := manifest.ClusterNodeIdx(cluster, tcpNode.ID())
+	nodeIdx, err := manifest.ClusterNodeIdx(cluster, p2pNode.ID())
 	if err != nil {
 		return errors.Wrap(err, "private key not matching cluster manifest file")
 	}
@@ -237,7 +236,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	log.Info(ctx, "Lock file loaded",
-		z.Str("peer_name", p2p.PeerName(tcpNode.ID())),
+		z.Str("peer_name", p2p.PeerName(p2pNode.ID())),
 		z.Str("nickname", conf.Nickname),
 		z.Int("peer_index", nodeIdx.PeerIdx),
 		z.Str("cluster_name", cluster.GetName()),
@@ -250,7 +249,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	labels := map[string]string{
 		"cluster_hash":    lockHashHex,
 		"cluster_name":    cluster.GetName(),
-		"cluster_peer":    p2p.PeerName(tcpNode.ID()),
+		"cluster_peer":    p2p.PeerName(p2pNode.ID()),
 		"nickname":        conf.Nickname,
 		"cluster_network": network,
 		"charon_version":  version.Version.String(),
@@ -262,7 +261,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	initStartupMetrics(p2p.PeerName(tcpNode.ID()), int(cluster.GetThreshold()), len(cluster.GetOperators()), len(cluster.GetValidators()), network)
+	initStartupMetrics(p2p.PeerName(p2pNode.ID()), int(cluster.GetThreshold()), len(cluster.GetOperators()), len(cluster.GetValidators()), network)
 
 	eth2Cl, subEth2Cl, err := newETH2Client(ctx, conf, life, cluster, cluster.GetForkVersion(), conf.BeaconNodeTimeout, conf.BeaconNodeSubmitTimeout)
 	if err != nil {
@@ -289,8 +288,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	if len(conf.Nickname) > 32 {
 		return errors.New("nickname can not exceed 32 characters")
 	}
-
-	wirePeerInfo(life, tcpNode, peerIDs, cluster.GetInitialMutationHash(), sender, conf.BuilderAPI, conf.Nickname)
+	wirePeerInfo(life, p2pNode, peerIDs, cluster.GetInitialMutationHash(), sender, conf.BuilderAPI, conf.Nickname)
 
 	// seenPubkeys channel to send seen public keys from validatorapi to monitoringapi.
 	seenPubkeys := make(chan core.PubKey)
@@ -316,10 +314,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	consensusDebugger := consensus.NewDebugger()
 
-	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, conf.DebugAddr, tcpNode, eth2Cl, peerIDs,
+	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, conf.DebugAddr, p2pNode, eth2Cl, peerIDs,
 		promRegistry, consensusDebugger, pubkeys, seenPubkeys, vapiCalls, len(cluster.GetValidators()))
 
-	err = wireCoreWorkflow(ctx, life, conf, cluster, nodeIdx, tcpNode, p2pKey, eth2Cl, subEth2Cl,
+	err = wireCoreWorkflow(ctx, life, conf, cluster, nodeIdx, p2pNode, p2pKey, eth2Cl, subEth2Cl,
 		peerIDs, sender, consensusDebugger, pubkeys, seenPubkeysFunc, sseListener, vapiCallsFunc)
 	if err != nil {
 		return err
@@ -336,7 +334,7 @@ func wirePeerInfo(life *lifecycle.Manager, tcpNode host.Host, peers []peer.ID, l
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPeerInfo, lifecycle.HookFuncCtx(peerInfo.Run))
 }
 
-// wireP2P constructs the p2p tcp (libp2p) and udp (discv5) nodes and registers it with the life cycle manager.
+// wireP2P constructs the p2p tcp or udp (libp2p) and udp (discv5) nodes and registers it with the life cycle manager.
 func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 	cluster *manifestpb.Cluster, p2pKey *k1.PrivateKey, lockHashHex string,
 ) (host.Host, error) {
@@ -362,30 +360,34 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 	opts = append(opts, conf.TestConfig.LibP2POpts...)
 
-	tcpNode, err := p2p.NewTCPNode(ctx, conf.P2P, p2pKey, connGater,
-		false, opts...)
+	var p2pNode host.Host
+	if featureset.Enabled(featureset.QUIC) {
+		p2pNode, err = p2p.NewUDPNode(ctx, conf.P2P, p2pKey, connGater, false, opts...)
+	} else {
+		p2pNode, err = p2p.NewTCPNode(ctx, conf.P2P, p2pKey, connGater, false, opts...)
+	}
 	if err != nil {
 		return nil, err
 	}
 
 	if conf.TestConfig.TCPNodeCallback != nil {
-		conf.TestConfig.TCPNodeCallback(tcpNode)
+		conf.TestConfig.TCPNodeCallback(p2pNode)
 	}
 
-	p2p.RegisterConnectionLogger(ctx, tcpNode, peerIDs)
+	p2p.RegisterConnectionLogger(ctx, p2pNode, peerIDs)
 
-	life.RegisterStop(lifecycle.StopP2PTCPNode, lifecycle.HookFuncErr(tcpNode.Close))
+	life.RegisterStop(lifecycle.StopP2PTCPNode, lifecycle.HookFuncErr(p2pNode.Close))
 
 	for _, relay := range relays {
-		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartRelay, p2p.NewRelayReserver(tcpNode, relay))
+		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartRelay, p2p.NewRelayReserver(p2pNode, relay))
 	}
 
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PPing, p2p.NewPingService(tcpNode, peerIDs, conf.TestConfig.TestPingConfig))
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PEventCollector, p2p.NewEventCollector(tcpNode))
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PRouters, p2p.NewRelayRouter(tcpNode, peerIDs, relays))
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartForceDirectConns, p2p.ForceDirectConnections(tcpNode, peerIDs))
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PPing, p2p.NewPingService(p2pNode, peerIDs, conf.TestConfig.TestPingConfig))
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PEventCollector, p2p.NewEventCollector(p2pNode))
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PRouters, p2p.NewRelayRouter(p2pNode, peerIDs, relays))
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartForceDirectConns, p2p.ForceDirectConnections(p2pNode, peerIDs))
 
-	return tcpNode, nil
+	return p2pNode, nil
 }
 
 // wireCoreWorkflow wires the core workflow components.

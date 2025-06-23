@@ -71,12 +71,12 @@ func Run(ctx context.Context, config Config) error {
 	bwTuples := make(chan bwTuple)
 	counter := newBandwidthCounter(ctx, bwTuples)
 
-	tcpNode, promRegistry, err := startP2P(ctx, config, key, counter)
+	p2pNode, promRegistry, err := startP2P(ctx, config, key, counter)
 	if err != nil {
 		return err
 	}
 
-	go monitorConnections(ctx, tcpNode, bwTuples)
+	go monitorConnections(ctx, p2pNode, bwTuples)
 
 	// Start serving HTTP: ENR and monitoring.
 	serverErr := make(chan error, 3) // Buffer for 3 servers.
@@ -87,9 +87,8 @@ func Run(ctx context.Context, config Config) error {
 		}
 
 		mux := http.NewServeMux()
-		mux.HandleFunc("/", wrapHandler(newMultiaddrHandler(tcpNode)))
-		mux.HandleFunc("/enr", wrapHandler(newENRHandler(ctx, tcpNode, key, config.P2PConfig)))
-
+		mux.HandleFunc("/", wrapHandler(newMultiaddrHandler(p2pNode)))
+		mux.HandleFunc("/enr", wrapHandler(newENRHandler(ctx, p2pNode, key, config.P2PConfig)))
 		server := http.Server{Addr: config.HTTPAddr, Handler: mux, ReadHeaderTimeout: time.Second}
 		serverErr <- server.ListenAndServe()
 	}()
@@ -128,8 +127,9 @@ func Run(ctx context.Context, config Config) error {
 	}
 
 	log.Info(ctx, "Relay started",
-		z.Str("peer_name", p2p.PeerName(tcpNode.ID())),
+		z.Str("peer_name", p2p.PeerName(p2pNode.ID())),
 		z.Any("p2p_tcp_addr", config.P2PConfig.TCPAddrs),
+		z.Any("p2p_udp_addr", config.P2PConfig.UDPAddrs),
 	)
 
 	if config.HTTPAddr != "" {
@@ -152,7 +152,7 @@ func Run(ctx context.Context, config Config) error {
 }
 
 // newENRHandler returns a handler that returns the node's ID and public address encoded as a ENR.
-func newENRHandler(ctx context.Context, tcpNode host.Host, p2pKey *k1.PrivateKey, config p2p.Config) func(ctx context.Context) ([]byte, error) {
+func newENRHandler(ctx context.Context, p2pNode host.Host, p2pKey *k1.PrivateKey, config p2p.Config) func(ctx context.Context) ([]byte, error) {
 	// Resolve external hostname periodically.
 	var (
 		extHostMu sync.Mutex
@@ -203,7 +203,7 @@ func newENRHandler(ctx context.Context, tcpNode host.Host, p2pKey *k1.PrivateKey
 
 	return func(context.Context) ([]byte, error) {
 		// Use libp2p configured and detected addresses.
-		addrs := tcpNode.Addrs()
+		addrs := p2pNode.Addrs()
 		if len(addrs) == 0 {
 			return nil, errors.New("no addresses")
 		}
@@ -218,26 +218,77 @@ func newENRHandler(ctx context.Context, tcpNode host.Host, p2pKey *k1.PrivateKey
 			return false
 		})
 
-		// Use first address (ip and port).
-		addr, err := manet.ToNetAddr(addrs[0])
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to convert multiaddr to net addr")
+		// Fetch TCP and UDP addresses
+		var (
+			udpNetAddr *net.UDPAddr
+			tcpNetAddr *net.TCPAddr
+		)
+		for _, addr := range addrs {
+			foundUDP, foundTCP := false, false
+			for _, protocol := range addr.Protocols() {
+				switch protocol.Name {
+				case "udp":
+					foundUDP = true
+					// Must strip quic protocol because ToNetAddr only accepts ThinWaist
+					stripped := addr.Decapsulate(ma.StringCast("/quic-v1"))
+					netAddr, err := manet.ToNetAddr(stripped)
+					if err != nil {
+						return nil, errors.Wrap(err, "failed to convert udp multiaddr to net addr")
+					}
+					udpAddr, ok := netAddr.(*net.UDPAddr)
+					if !ok {
+						return nil, errors.New("invalid udp address")
+					}
+					if config.ExternalIP != "" {
+						udpAddr.IP = net.ParseIP(config.ExternalIP)
+					} else if extHostIP, ok := getExtHostIP(); ok {
+						udpAddr.IP = extHostIP
+					}
+					udpNetAddr = udpAddr
+				case "tcp":
+					foundTCP = true
+					netAddr, err := manet.ToNetAddr(addr)
+					if err != nil {
+						return nil, errors.Wrap(err, "failed to convert tcp multiaddr to net addr")
+					}
+					tcpAddr, ok := netAddr.(*net.TCPAddr)
+					if !ok {
+						return nil, errors.New("invalid tcp address")
+					}
+					if config.ExternalIP != "" {
+						tcpAddr.IP = net.ParseIP(config.ExternalIP)
+					} else if extHostIP, ok := getExtHostIP(); ok {
+						tcpAddr.IP = extHostIP
+					}
+					tcpNetAddr = tcpAddr
+				default:
+					// Do nothing
+				}
+			}
+			if foundUDP && foundTCP {
+				break
+			}
 		}
 
-		tcpAddr, ok := addr.(*net.TCPAddr)
-		if !ok {
-			return nil, errors.New("invalid TCP address")
+		var (
+			r   enr.Record
+			err error
+		)
+		if tcpNetAddr != nil && udpNetAddr != nil {
+			// Ensure both addr point to same address
+			if !tcpNetAddr.IP.Equal(udpNetAddr.IP) {
+				return nil, errors.New("conflicting IP addresses", z.Any("udp IP", udpNetAddr.IP), z.Any("tcp IP", tcpNetAddr.IP))
+			}
+
+			r, err = enr.New(p2pKey, enr.WithIP(tcpNetAddr.IP), enr.WithTCP(tcpNetAddr.Port), enr.WithUDP(udpNetAddr.Port))
+		} else if tcpNetAddr != nil && udpNetAddr == nil {
+			r, err = enr.New(p2pKey, enr.WithIP(tcpNetAddr.IP), enr.WithTCP(tcpNetAddr.Port), enr.WithUDP(tcpNetAddr.Port)) // Dummy UDP port
+		} else if udpNetAddr != nil {
+			r, err = enr.New(p2pKey, enr.WithIP(udpNetAddr.IP), enr.WithTCP(udpNetAddr.Port), enr.WithUDP(udpNetAddr.Port)) // Dummy TCP port
+		} else {
+			return nil, errors.New("no udp or tcp addresses provided")
 		}
 
-		// Override IP with external IP or external hostname if set.
-		if config.ExternalIP != "" {
-			tcpAddr.IP = net.ParseIP(config.ExternalIP)
-		} else if extHostIP, ok := getExtHostIP(); ok {
-			tcpAddr.IP = extHostIP
-		}
-
-		// Build the ENR
-		r, err := enr.New(p2pKey, enr.WithIP(tcpAddr.IP), enr.WithTCP(tcpAddr.Port), enr.WithUDP(9999)) // Include invalid dummy UDP port so v0.13 can parse the ENR.
 		if err != nil {
 			return nil, err
 		}
@@ -247,15 +298,15 @@ func newENRHandler(ctx context.Context, tcpNode host.Host, p2pKey *k1.PrivateKey
 }
 
 // newMultiaddrHandler returns a handler that returns the nodes multiaddrs (as json array).
-func newMultiaddrHandler(tcpNode host.Host) func(ctx context.Context) ([]byte, error) {
+func newMultiaddrHandler(p2pNode host.Host) func(ctx context.Context) ([]byte, error) {
 	return func(context.Context) ([]byte, error) {
-		p2pAddr, err := ma.NewMultiaddr(fmt.Sprintf("/p2p/%s", tcpNode.ID()))
+		p2pAddr, err := ma.NewMultiaddr(fmt.Sprintf("/p2p/%s", p2pNode.ID()))
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to create p2p multiaddr")
 		}
 
 		var addrs []ma.Multiaddr
-		for _, addr := range tcpNode.Addrs() {
+		for _, addr := range p2pNode.Addrs() {
 			addrs = append(addrs, addr.Encapsulate(p2pAddr))
 		}
 

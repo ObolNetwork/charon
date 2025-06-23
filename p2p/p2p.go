@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"slices"
 	"sync"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/routing"
 	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 	"github.com/libp2p/go-libp2p/p2p/protocol/identify"
+	quic "github.com/libp2p/go-libp2p/p2p/transport/quic" //nolint:revive // Must be imported with alias
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
@@ -32,7 +34,141 @@ import (
 
 var activationThreshOnce = sync.Once{}
 
-// NewTCPNode returns a started tcp-based libp2p host.
+// NewUDPP2PNode returns a started udp and tacp based libp2p host.
+func NewRelayNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater ConnGater,
+	filterPrivateAddrs bool, opts ...libp2p.Option,
+) (host.Host, error) {
+	activationThreshOnce.Do(func() {
+		// Use own observed addresses as soon as a single relay reports it.
+		// Since there are probably no other directly connected peers to do so.
+		identify.ActivationThresh = 1
+	})
+
+	udpAddrs, err := cfg.UDPMultiaddrs()
+	if err != nil {
+		return nil, err
+	}
+
+	tcpAddrs, err := cfg.TCPMultiaddrs()
+	if err != nil {
+		return nil, err
+	}
+
+	addrs := slices.Concat(udpAddrs, tcpAddrs)
+
+	if len(addrs) == 0 {
+		log.Info(ctx, "LibP2P not accepting incoming connections since --p2p-udp-addresses and --p2p-tcp-addresses are empty")
+	}
+
+	externalUDPAddrs, err := externalUDPMultiAddrs(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	externalTCPAddrs, err := externalTCPMultiAddrs(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	externalAddrs := slices.Concat(externalUDPAddrs, externalTCPAddrs)
+
+	var libP2POpts []any // libp2p.Transport requires empty interface options.
+	if cfg.DisableReuseport {
+		libP2POpts = append(libP2POpts, tcp.DisableReuseport())
+	}
+
+	// Init options.
+	defaultOpts := []libp2p.Option{
+		// Set P2P identity key.
+		libp2p.Identity((*crypto.Secp256k1PrivateKey)(key)),
+		// Set UDP listen addresses.
+		libp2p.ListenAddrs(addrs...),
+		// Set up user-agent.
+		libp2p.UserAgent("obolnetwork-charon/" + version.Version.String()),
+		// Limit connections to DV peers.
+		libp2p.ConnectionGater(connGater),
+		// Enable Autonat (required for hole punching)
+		libp2p.EnableNATService(),
+		libp2p.AddrsFactory(func(internalAddrs []ma.Multiaddr) []ma.Multiaddr {
+			return filterAdvertisedAddrs(externalAddrs, internalAddrs, filterPrivateAddrs)
+		}),
+		// Listen to both TCP and UDP
+		libp2p.ChainOptions(
+			libp2p.Transport(quic.NewTransport, libP2POpts...),
+			libp2p.Transport(tcp.NewTCPTransport, libP2POpts...),
+		),
+		libp2p.SwarmOpts(swarm.WithDialRanker(swarm.NoDelayDialRanker)),
+	}
+
+	defaultOpts = append(defaultOpts, opts...)
+
+	node, err := libp2p.New(defaultOpts...)
+	if err != nil {
+		return nil, errors.Wrap(err, "new libp2p node")
+	}
+
+	return node, nil
+}
+
+// NewUDPP2PNode returns a started udp-based libp2p host.
+func NewUDPNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater ConnGater,
+	filterPrivateAddrs bool, opts ...libp2p.Option,
+) (host.Host, error) {
+	activationThreshOnce.Do(func() {
+		// Use own observed addresses as soon as a single relay reports it.
+		// Since there are probably no other directly connected peers to do so.
+		identify.ActivationThresh = 1
+	})
+
+	addrs, err := cfg.UDPMultiaddrs()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(addrs) == 0 {
+		log.Info(ctx, "LibP2P not accepting incoming connections since --p2p-udp-addresses is empty")
+	}
+
+	externalAddrs, err := externalUDPMultiAddrs(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	var libP2POpts []any // libp2p.Transport requires empty interface options.
+	if cfg.DisableReuseport {
+		libP2POpts = append(libP2POpts, tcp.DisableReuseport())
+	}
+
+	// Init options.
+	defaultOpts := []libp2p.Option{
+		// Set P2P identity key.
+		libp2p.Identity((*crypto.Secp256k1PrivateKey)(key)),
+		// Set UDP listen addresses.
+		libp2p.ListenAddrs(addrs...),
+		// Set up user-agent.
+		libp2p.UserAgent("obolnetwork-charon/" + version.Version.String()),
+		// Limit connections to DV peers.
+		libp2p.ConnectionGater(connGater),
+		// Enable Autonat (required for hole punching)
+		libp2p.EnableNATService(),
+		libp2p.AddrsFactory(func(internalAddrs []ma.Multiaddr) []ma.Multiaddr {
+			return filterAdvertisedAddrs(externalAddrs, internalAddrs, filterPrivateAddrs)
+		}),
+		libp2p.Transport(quic.NewTransport, libP2POpts...),
+		libp2p.SwarmOpts(swarm.WithDialRanker(swarm.NoDelayDialRanker)),
+	}
+
+	defaultOpts = append(defaultOpts, opts...)
+
+	udpNode, err := libp2p.New(defaultOpts...)
+	if err != nil {
+		return nil, errors.Wrap(err, "new libp2p node")
+	}
+
+	return udpNode, nil
+}
+
+// NewTCPP2PNode returns a started tcp-based libp2p host.
 func NewTCPNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater ConnGater,
 	filterPrivateAddrs bool, opts ...libp2p.Option,
 ) (host.Host, error) {
@@ -42,23 +178,22 @@ func NewTCPNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater C
 		identify.ActivationThresh = 1
 	})
 
-	addrs, err := cfg.Multiaddrs()
+	addrs, err := cfg.TCPMultiaddrs()
 	if err != nil {
 		return nil, err
 	}
 
 	if len(addrs) == 0 {
-		log.Info(ctx, "LibP2P not accepting incoming connections since --p2p-tcp-addresses empty")
+		log.Info(ctx, "LibP2P not accepting incoming connections since --p2p-tcp-addresses is empty")
 	}
-
-	externalAddrs, err := externalMultiAddrs(cfg)
+	externalAddrs, err := externalTCPMultiAddrs(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	var tcpOpts []any // libp2p.Transport requires empty interface options.
+	var libP2POpts []any // libp2p.Transport requires empty interface options.
 	if cfg.DisableReuseport {
-		tcpOpts = append(tcpOpts, tcp.DisableReuseport())
+		libP2POpts = append(libP2POpts, tcp.DisableReuseport())
 	}
 
 	// Init options.
@@ -76,7 +211,7 @@ func NewTCPNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater C
 		libp2p.AddrsFactory(func(internalAddrs []ma.Multiaddr) []ma.Multiaddr {
 			return filterAdvertisedAddrs(externalAddrs, internalAddrs, filterPrivateAddrs)
 		}),
-		libp2p.Transport(tcp.NewTCPTransport, tcpOpts...),
+		libp2p.Transport(tcp.NewTCPTransport, libP2POpts...),
 		libp2p.SwarmOpts(swarm.WithDialRanker(swarm.NoDelayDialRanker)),
 	}
 
@@ -120,24 +255,62 @@ func filterAdvertisedAddrs(externalAddrs, internalAddrs []ma.Multiaddr, excludeI
 	return resp
 }
 
-// externalMultiAddrs returns the external IP and Hostname fields as multiaddrs using the listen TCP address ports.
-func externalMultiAddrs(cfg Config) ([]ma.Multiaddr, error) {
-	tcpAddrs, err := cfg.ParseTCPAddrs()
+// externalUDPMultiAddrs returns the external IP and Hostname fields as multiaddrs using the listen UDP address ports.
+func externalUDPMultiAddrs(cfg Config) ([]ma.Multiaddr, error) {
+	addrs, err := cfg.ParseUDPAddrs()
 	if err != nil {
 		return nil, err
 	}
 
 	var ports []int
-	for _, addr := range tcpAddrs {
+	for _, addr := range addrs {
 		ports = append(ports, addr.Port)
 	}
 
 	var resp []ma.Multiaddr
-
 	if cfg.ExternalIP != "" {
 		ip := net.ParseIP(cfg.ExternalIP)
 		for _, port := range ports {
-			maddr, err := multiAddrFromIPPort(ip, port)
+			maddr, err := multiAddrFromIPUDPPort(ip, port)
+			if err != nil {
+				return nil, err
+			}
+
+			resp = append(resp, maddr)
+		}
+	}
+
+	if cfg.ExternalHost != "" {
+		for _, port := range ports {
+			maddr, err := ma.NewMultiaddr(fmt.Sprintf("/dns/%s/udp/%d/quic-v1", cfg.ExternalHost, port))
+			if err != nil {
+				return nil, errors.Wrap(err, "invalid dns multiaddr")
+			}
+
+			resp = append(resp, maddr)
+		}
+	}
+
+	return resp, nil
+}
+
+// externalTCPMultiAddrs returns the external IP and Hostname fields as multiaddrs using the listen TCP address ports.
+func externalTCPMultiAddrs(cfg Config) ([]ma.Multiaddr, error) {
+	addrs, err := cfg.ParseTCPAddrs()
+	if err != nil {
+		return nil, err
+	}
+
+	var ports []int
+	for _, addr := range addrs {
+		ports = append(ports, addr.Port)
+	}
+
+	var resp []ma.Multiaddr
+	if cfg.ExternalIP != "" {
+		ip := net.ParseIP(cfg.ExternalIP)
+		for _, port := range ports {
+			maddr, err := multiAddrFromIPTCPPort(ip, port)
 			if err != nil {
 				return nil, err
 			}

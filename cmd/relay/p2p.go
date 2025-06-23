@@ -42,15 +42,15 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 		}
 	}
 
-	tcpNode, err := p2p.NewTCPNode(ctx, config.P2PConfig, key, p2p.NewOpenGater(), config.FilterPrivAddrs,
+	p2pNode, err := p2p.NewRelayNode(ctx, config.P2PConfig, key, p2p.NewOpenGater(), config.FilterPrivAddrs,
 		libp2p.ResourceManager(new(network.NullResourceManager)), libp2p.BandwidthReporter(reporter))
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new tcp node")
 	}
 
-	p2p.RegisterConnectionLogger(ctx, tcpNode, nil)
+	p2p.RegisterConnectionLogger(ctx, p2pNode, nil)
 
-	labels := map[string]string{"relay_peer": p2p.PeerName(tcpNode.ID())}
+	labels := map[string]string{"relay_peer": p2p.PeerName(p2pNode.ID())}
 	log.SetLokiLabels(labels)
 
 	promRegistry, err := promauto.NewRegistry(labels)
@@ -68,20 +68,18 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 
 	// This enables relay metrics: https://github.com/libp2p/go-libp2p/blob/master/p2p/protocol/circuitv2/relay/metrics.go
 	mt := relay.NewMetricsTracer(relay.WithRegisterer(promRegistry))
-
-	relayService, err := relay.New(tcpNode, relay.WithResources(relayResources), relay.WithMetricsTracer(mt))
+	relayService, err := relay.New(p2pNode, relay.WithResources(relayResources), relay.WithMetricsTracer(mt))
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new relay service")
 	}
 
 	go func() {
 		<-ctx.Done()
-
-		_ = tcpNode.Close()
+		_ = p2pNode.Close()
 		_ = relayService.Close()
 	}()
 
-	return tcpNode, promRegistry, nil
+	return p2pNode, promRegistry, nil
 }
 
 const unknownCluster = "unknown"

@@ -117,7 +117,7 @@ func WithTCP(port int) Option {
 	}
 }
 
-// WithUDP returns an option that sets the TCP port of the record.
+// WithUDP returns an option that sets the UDP port of the record.
 func WithUDP(port int) Option {
 	return func(kvs map[string][]byte) {
 		kvs[keyUDP] = toBigEndian(port)
