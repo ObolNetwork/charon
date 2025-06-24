@@ -94,7 +94,7 @@ func NewRelayNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater
 		}),
 		// Listen to both TCP and UDP
 		libp2p.ChainOptions(
-			libp2p.Transport(quic.NewTransport, libP2POpts...),
+			libp2p.Transport(quic.NewTransport),
 			libp2p.Transport(tcp.NewTCPTransport, libP2POpts...),
 		),
 		libp2p.SwarmOpts(swarm.WithDialRanker(swarm.NoDelayDialRanker)),
@@ -134,11 +134,6 @@ func NewUDPNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater C
 		return nil, err
 	}
 
-	var libP2POpts []any // libp2p.Transport requires empty interface options.
-	if cfg.DisableReuseport {
-		libP2POpts = append(libP2POpts, tcp.DisableReuseport())
-	}
-
 	// Init options.
 	defaultOpts := []libp2p.Option{
 		// Set P2P identity key.
@@ -154,7 +149,7 @@ func NewUDPNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater C
 		libp2p.AddrsFactory(func(internalAddrs []ma.Multiaddr) []ma.Multiaddr {
 			return filterAdvertisedAddrs(externalAddrs, internalAddrs, filterPrivateAddrs)
 		}),
-		libp2p.Transport(quic.NewTransport, libP2POpts...),
+		libp2p.Transport(quic.NewTransport),
 		libp2p.SwarmOpts(swarm.WithDialRanker(swarm.NoDelayDialRanker)),
 	}
 
