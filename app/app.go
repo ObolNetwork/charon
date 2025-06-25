@@ -362,9 +362,9 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	var p2pNode host.Host
 	if featureset.Enabled(featureset.QUIC) {
-		p2pNode, err = p2p.NewUDPNode(ctx, conf.P2P, p2pKey, connGater, false, opts...)
+		p2pNode, err = p2p.NewNode(ctx, conf.P2P, p2pKey, connGater, false, p2p.NodeTypeQUIC, opts...)
 	} else {
-		p2pNode, err = p2p.NewTCPNode(ctx, conf.P2P, p2pKey, connGater, false, opts...)
+		p2pNode, err = p2p.NewNode(ctx, conf.P2P, p2pKey, connGater, false, p2p.NodeTypeTCP, opts...)
 	}
 	if err != nil {
 		return nil, err

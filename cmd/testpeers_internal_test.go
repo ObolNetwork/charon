@@ -546,7 +546,7 @@ func startPeer(t *testing.T, conf testPeersConfig, peerPrivKey *k1.PrivateKey) e
 	connGater, err := p2p.NewConnGater([]peer.ID{hostAsPeer.ID}, relays)
 	require.NoError(t, err)
 
-	peerTCPNode, err := p2p.NewTCPNode(ctx, peerConf.P2P, peerPrivKey, connGater, false)
+	peerTCPNode, err := p2p.NewNode(ctx, peerConf.P2P, peerPrivKey, connGater, false, p2p.NodeTypeTCP)
 	require.NoError(t, err)
 
 	for _, relay := range relays {

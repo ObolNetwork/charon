@@ -271,24 +271,30 @@ func newENRHandler(ctx context.Context, p2pNode host.Host, p2pKey *k1.PrivateKey
 		}
 
 		var (
-			r   enr.Record
-			err error
+			ip               net.IP
+			udpPort, tcpPort int
 		)
 		if tcpNetAddr != nil && udpNetAddr != nil {
 			// Ensure both addr point to same address
 			if !tcpNetAddr.IP.Equal(udpNetAddr.IP) {
 				return nil, errors.New("conflicting IP addresses", z.Any("udp IP", udpNetAddr.IP), z.Any("tcp IP", tcpNetAddr.IP))
 			}
-
-			r, err = enr.New(p2pKey, enr.WithIP(tcpNetAddr.IP), enr.WithTCP(tcpNetAddr.Port), enr.WithUDP(udpNetAddr.Port))
+			ip = tcpNetAddr.IP
+			tcpPort = tcpNetAddr.Port
+			udpPort = udpNetAddr.Port
 		} else if tcpNetAddr != nil && udpNetAddr == nil {
-			r, err = enr.New(p2pKey, enr.WithIP(tcpNetAddr.IP), enr.WithTCP(tcpNetAddr.Port), enr.WithUDP(tcpNetAddr.Port)) // Dummy UDP port
+			ip = tcpNetAddr.IP
+			tcpPort = tcpNetAddr.Port
+			udpPort = tcpNetAddr.Port // Dummy UDP port
 		} else if udpNetAddr != nil {
-			r, err = enr.New(p2pKey, enr.WithIP(udpNetAddr.IP), enr.WithTCP(udpNetAddr.Port), enr.WithUDP(udpNetAddr.Port)) // Dummy TCP port
+			ip = udpNetAddr.IP
+			tcpPort = udpNetAddr.Port // Dummy TCP port
+			udpPort = udpNetAddr.Port
 		} else {
 			return nil, errors.New("no udp or tcp addresses provided")
 		}
 
+		r, err := enr.New(p2pKey, enr.WithIP(ip), enr.WithTCP(tcpPort), enr.WithUDP(udpPort))
 		if err != nil {
 			return nil, err
 		}
