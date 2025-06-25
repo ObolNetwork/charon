@@ -793,7 +793,7 @@ func setupP2P(ctx context.Context, privKey *k1.PrivateKey, conf p2p.Config, peer
 		return nil, nil, err
 	}
 
-	tcpNode, err := p2p.NewTCPNode(ctx, conf, privKey, connGater, false)
+	tcpNode, err := p2p.NewNode(ctx, conf, privKey, connGater, false, p2p.NodeTypeTCP)
 	if err != nil {
 		return nil, nil, err
 	}
