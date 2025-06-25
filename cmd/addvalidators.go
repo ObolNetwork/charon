@@ -91,7 +91,7 @@ func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
 	cmd.Flags().StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each new validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
 	cmd.Flags().StringVar(&config.Lockfile, "lock-file", "cluster-lock.json", "The path to the legacy cluster lock file defining distributed validator cluster. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
 	cmd.Flags().StringVar(&config.ManifestFile, "manifest-file", "cluster-manifest.pb", "The path to the cluster manifest file. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
-	cmd.Flags().StringVar(&config.ClusterDir, "cluster-dir", ".charon/cluster", "The path to the charon cluster directory. This directory should contain directories for individual charon nodes, ie, node0, node1 and so on.")
+	cmd.Flags().StringVar(&config.ClusterDir, "cluster-dir", "./", "The path to the charon cluster directory. This directory should contain directories for individual charon nodes, ie, node0, node1 and so on.")
 }
 
 func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err error) {
