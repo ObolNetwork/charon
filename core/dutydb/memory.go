@@ -69,7 +69,7 @@ func (db *MemDB) Shutdown() {
 }
 
 // Store implements core.DutyDB, see its godoc.
-func (db *MemDB) Store(ctx context.Context, duty core.Duty, unsignedSet core.UnsignedDataSet) error {
+func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.UnsignedDataSet) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
@@ -94,7 +94,7 @@ func (db *MemDB) Store(ctx context.Context, duty core.Duty, unsignedSet core.Uns
 		return core.ErrDeprecatedDutyBuilderProposer
 	case core.DutyAttester:
 		for pubkey, unsignedData := range unsignedSet {
-			err := db.storeAttestationUnsafe(ctx, pubkey, unsignedData)
+			err := db.storeAttestationUnsafe(pubkey, unsignedData)
 			if err != nil {
 				return err
 			}
@@ -285,7 +285,7 @@ func (db *MemDB) PubKeyByAttestation(_ context.Context, slot, commIdx, valIdx ui
 }
 
 // storeAttestationUnsafe stores the unsigned attestation. It is unsafe since it assumes the lock is held.
-func (db *MemDB) storeAttestationUnsafe(_ context.Context, pubkey core.PubKey, unsignedData core.UnsignedData) error {
+func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.UnsignedData) error {
 	cloned, err := unsignedData.Clone() // Clone before storing.
 	if err != nil {
 		return err
@@ -327,6 +327,15 @@ func (db *MemDB) storeAttestationUnsafe(_ context.Context, pubkey core.PubKey, u
 	} else {
 		db.attDuties[aKey] = &attData.Data
 	}
+
+	// TODO(kalo):
+	// Committee index 0 should be the default behaviour post-electra.
+	// However, some VCs are still requesting for attestation data with a committee index.
+	// Because of that on Charon side we are also saving attestation data with a committee index.
+	// VCs that work correctly and ask for the hardcoded committee index of 0 need the logic below in order to function properly.
+	// Once all VCs work correctly and ask for index 0, we can remove the logic below, as we will always receive committee index 0
+	// and write it as such from the logic on top.
+	// https://ethereum.github.io/beacon-APIs/#/Validator/produceAttestationData
 
 	// Store key and value for PubKeyByAttestation
 	pKeyCommIdx0 := pkKey{

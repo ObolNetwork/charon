@@ -116,7 +116,6 @@ func (f *Fetcher) RegisterAwaitAttData(fn func(ctx context.Context, slot uint64,
 // fetchAttesterData returns the fetched attestation data set for committees and validators in the arg set.
 func (f *Fetcher) fetchAttesterData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet,
 ) (core.UnsignedDataSet, error) {
-	log.Info(ctx, "Fetcher attestation flow started")
 	// We may have multiple validators in the same committee, use the same attestation data in that case.
 	dataByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2p0.AttestationData)
 
@@ -213,18 +212,8 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 			continue
 		}
 
-		// Attestation data for Electra is not bound by committee index.
-		// Committee index is still persisted in the request but should be set to 0.
-		// https://ethereum.github.io/beacon-APIs/#/Validator/produceAttestationData
-		var commIdx eth2p0.CommitteeIndex
-		if slot < uint64(f.electraSlot) {
-			commIdx = attDef.CommitteeIndex
-		} else {
-			commIdx = 0
-		}
-
 		// Query DutyDB for Attestation data to get attestation data root.
-		attData, err := f.awaitAttDataFunc(ctx, slot, uint64(commIdx))
+		attData, err := f.awaitAttDataFunc(ctx, slot, uint64(attDef.CommitteeIndex))
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		}
