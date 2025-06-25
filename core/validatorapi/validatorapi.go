@@ -256,7 +256,9 @@ func (c *Component) Subscribe(fn func(context.Context, core.Duty, core.ParSigned
 
 // AttestationData implements the eth2client.AttesterDutiesProvider for the router.
 func (c Component) AttestationData(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error) {
-	att, err := c.awaitAttFunc(ctx, uint64(opts.Slot), uint64(opts.CommitteeIndex))
+	commIdx := opts.CommitteeIndex
+
+	att, err := c.awaitAttFunc(ctx, uint64(opts.Slot), uint64(commIdx))
 	if err != nil {
 		return nil, err
 	}
@@ -274,11 +276,6 @@ func (c Component) SubmitAttestations(ctx context.Context, attestationOpts *eth2
 			return errors.Wrap(err, "get attestation data")
 		}
 		slot := uint64(attData.Slot)
-
-		attCommitteeIndex, err := att.CommitteeIndex()
-		if err != nil {
-			return errors.Wrap(err, "get attestation committee index")
-		}
 
 		var valIdx eth2p0.ValidatorIndex
 		switch att.Version {
@@ -319,6 +316,11 @@ func (c Component) SubmitAttestations(ctx context.Context, attestationOpts *eth2
 			valIdx = *att.ValidatorIndex
 		default:
 			return errors.New("invalid attestations version", z.Str("version", att.Version.String()))
+		}
+
+		attCommitteeIndex, err := att.CommitteeIndex()
+		if err != nil {
+			return errors.Wrap(err, "get attestation committee index")
 		}
 
 		var pubkey core.PubKey

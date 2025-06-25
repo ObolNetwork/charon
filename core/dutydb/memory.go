@@ -69,7 +69,7 @@ func (db *MemDB) Shutdown() {
 }
 
 // Store implements core.DutyDB, see its godoc.
-func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.UnsignedDataSet) error {
+func (db *MemDB) Store(ctx context.Context, duty core.Duty, unsignedSet core.UnsignedDataSet) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
@@ -94,7 +94,7 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 		return core.ErrDeprecatedDutyBuilderProposer
 	case core.DutyAttester:
 		for pubkey, unsignedData := range unsignedSet {
-			err := db.storeAttestationUnsafe(pubkey, unsignedData)
+			err := db.storeAttestationUnsafe(ctx, pubkey, unsignedData)
 			if err != nil {
 				return err
 			}
@@ -201,8 +201,7 @@ func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot uint64, attestati
 ) (*eth2spec.VersionedAttestation, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
-	response := make(chan core.AggregatedAttestation, 1)                   // Instance of one so resolving never blocks
-	versionedResponse := make(chan core.VersionedAggregatedAttestation, 1) // Instance of one so resolving never blocks
+	response := make(chan core.VersionedAggregatedAttestation, 1) // Instance of one so resolving never blocks
 
 	db.mu.Lock()
 	db.aggQueries = append(db.aggQueries, aggQuery{
@@ -210,7 +209,7 @@ func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot uint64, attestati
 			Slot: slot,
 			Root: attestationRoot,
 		},
-		Response: versionedResponse,
+		Response: response,
 		Cancel:   cancel,
 	})
 	db.resolveAggQueriesUnsafe()
@@ -221,9 +220,9 @@ func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot uint64, attestati
 		return nil, errors.New("dutydb shutdown")
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case versionedValue := <-versionedResponse:
+	case value := <-response:
 		// Clone before returning.
-		clone, err := versionedValue.Clone()
+		clone, err := value.Clone()
 		if err != nil {
 			return nil, err
 		}
@@ -233,21 +232,6 @@ func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot uint64, attestati
 		}
 
 		return &aggAtt.VersionedAttestation, nil
-	case value := <-response:
-		// Clone before returning.
-		clone, err := value.Clone()
-		if err != nil {
-			return nil, err
-		}
-		aggAtt, ok := clone.(core.AggregatedAttestation)
-		if !ok {
-			return nil, errors.New("invalid aggregated attestation")
-		}
-
-		return &eth2spec.VersionedAttestation{
-			Version: eth2spec.DataVersionDeneb,
-			Deneb:   &aggAtt.Attestation,
-		}, nil
 	}
 }
 
@@ -301,7 +285,7 @@ func (db *MemDB) PubKeyByAttestation(_ context.Context, slot, commIdx, valIdx ui
 }
 
 // storeAttestationUnsafe stores the unsigned attestation. It is unsafe since it assumes the lock is held.
-func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.UnsignedData) error {
+func (db *MemDB) storeAttestationUnsafe(_ context.Context, pubkey core.PubKey, unsignedData core.UnsignedData) error {
 	cloned, err := unsignedData.Clone() // Clone before storing.
 	if err != nil {
 		return err
@@ -342,6 +326,36 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 		}
 	} else {
 		db.attDuties[aKey] = &attData.Data
+	}
+
+	// Store key and value for PubKeyByAttestation
+	pKeyCommIdx0 := pkKey{
+		Slot:    uint64(attData.Data.Slot),
+		CommIdx: 0,
+		ValIdx:  uint64(attData.Duty.ValidatorIndex),
+	}
+
+	if value, ok := db.attPubKeys[pKeyCommIdx0]; ok {
+		if *value != *pubkeyStore {
+			return errors.New("clashing public key", z.Any("pKey", pKeyCommIdx0))
+		}
+	} else {
+		db.attPubKeys[pKeyCommIdx0] = pubkeyStore
+		db.attKeysBySlot[uint64(attData.Duty.Slot)] = append(db.attKeysBySlot[uint64(attData.Duty.Slot)], pKeyCommIdx0)
+	}
+
+	// Store key and value for AwaitAttestation
+	aKeyCommIdx0 := attKey{
+		Slot:    uint64(attData.Data.Slot),
+		CommIdx: 0,
+	}
+
+	if value, ok := db.attDuties[aKeyCommIdx0]; ok {
+		if value.String() != attData.Data.String() {
+			return errors.New("clashing attestation data", z.Any("key", aKeyCommIdx0))
+		}
+	} else {
+		db.attDuties[aKeyCommIdx0] = &attData.Data
 	}
 
 	return nil

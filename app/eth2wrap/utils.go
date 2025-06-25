@@ -8,9 +8,41 @@ import (
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	"github.com/attestantio/go-eth2-client/api"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
+
+type ForkSchedule struct {
+	Version eth2p0.Version
+	Epoch   eth2p0.Epoch
+}
+
+type ForkForkSchedule map[Fork]ForkSchedule
+
+type Fork uint64
+
+const (
+	Altair Fork = iota
+	Bellatrix
+	Capella
+	Deneb
+	Electra
+	Fulu
+)
+
+func (f Fork) String() string {
+	return forkLabels[f]
+}
+
+var forkLabels = map[Fork]string{
+	Altair:    "ALTAIR",
+	Bellatrix: "BELLATRIX",
+	Capella:   "CAPELLA",
+	Deneb:     "DENEB",
+	Electra:   "ELECTRA",
+	Fulu:      "FULU",
+}
 
 func FetchGenesisTime(ctx context.Context, client eth2client.GenesisProvider) (time.Time, error) {
 	genesisTime, err := client.Genesis(ctx, &api.GenesisOpts{})
@@ -47,4 +79,42 @@ func FetchSlotsConfig(ctx context.Context, client eth2client.SpecProvider) (slot
 	}
 
 	return slotDuration, slotsPerEpoch, nil
+}
+
+func FetchForkConfig(ctx context.Context, client eth2client.SpecProvider) (fork ForkForkSchedule, err error) {
+	spec, err := client.Spec(ctx, &api.SpecOpts{})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to fetch network spec")
+	}
+
+	res := ForkForkSchedule{}
+	for k, v := range forkLabels {
+		fs, err := fetchFork(v, spec.Data)
+		if err != nil {
+			return nil, err
+		}
+		res[k] = fs
+	}
+
+	return res, nil
+}
+
+func fetchFork(forkName string, data map[string]any) (ForkSchedule, error) {
+	var ok bool
+	fs := ForkSchedule{}
+	forkVersion := forkName + "_FORK_VERSION"
+	version, ok := data[forkVersion].(eth2p0.Version)
+	if !ok {
+		return fs, errors.New("missing " + forkVersion + " in network spec")
+	}
+	fs.Version = version
+
+	forkEpoch := forkName + "_FORK_EPOCH"
+	epoch, ok := data[forkEpoch].(uint64)
+	if !ok {
+		return fs, errors.New("missing " + forkEpoch + " in network spec")
+	}
+	fs.Epoch = eth2p0.Epoch(epoch)
+
+	return fs, nil
 }

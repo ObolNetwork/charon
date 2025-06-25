@@ -4,6 +4,7 @@ package signing
 
 import (
 	"context"
+	"encoding/hex"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/tbls"
 )
@@ -98,6 +101,14 @@ func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Clien
 	if err != nil {
 		return err
 	}
+
+	log.Info(ctx, "Verify aggregate",
+		z.Str("domain", string(DomainSelectionProof)),
+		z.U64("epoch", uint64(epoch)),
+		z.Str("sig_root", hex.EncodeToString(sigRoot[:])),
+		z.Str("selection_proof", hex.EncodeToString(selectionProof[:])),
+		z.Str("pubkey", hex.EncodeToString(pubkey[:])),
+	)
 
 	return Verify(ctx, eth2Cl, DomainSelectionProof, epoch, sigRoot, selectionProof, pubkey)
 }

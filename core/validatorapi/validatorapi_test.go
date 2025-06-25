@@ -853,7 +853,7 @@ func TestComponent_SubmitProposal(t *testing.T) {
 // 	require.NoError(t, err)
 
 // Construct the validator api component
-// vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000, nil)
+// vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000, 64, nil)
 // require.NoError(t, err)
 
 // 	// Prepare unsigned beacon block
