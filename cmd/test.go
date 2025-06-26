@@ -245,6 +245,8 @@ func publishResultToObolAPI(ctx context.Context, data allCategoriesResult, path 
 	)
 
 	if !fileExists(privateKeyFile) {
+		log.Warn(ctx, "Private key file does not exist, will generate a temporary key", nil)
+
 		p2pPrivKey, err = k1.GeneratePrivateKey()
 		if err != nil {
 			return errors.Wrap(err, "generate p2p private key")
