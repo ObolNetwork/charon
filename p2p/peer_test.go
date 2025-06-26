@@ -28,11 +28,27 @@ func TestNewPeer(t *testing.T) {
 	require.Equal(t, "16Uiu2HAkzdQ5Y9SYT91K1ue5SxXwgmajXntfScGnLYeip5hHyWmT", p.ID.String())
 }
 
-func TestNewHost(t *testing.T) {
+func TestNewTCPHost(t *testing.T) {
 	privKey, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
 
 	_, err = p2p.NewNode(context.Background(), p2p.Config{}, privKey, p2p.NewOpenGater(), false, p2p.NodeTypeTCP)
+	require.NoError(t, err)
+}
+
+func TestNewQUICHost(t *testing.T) {
+	privKey, err := k1.GeneratePrivateKey()
+	require.NoError(t, err)
+
+	_, err = p2p.NewNode(context.Background(), p2p.Config{}, privKey, p2p.NewOpenGater(), false, p2p.NodeTypeQUIC)
+	require.NoError(t, err)
+}
+
+func TestNewRelayHost(t *testing.T) {
+	privKey, err := k1.GeneratePrivateKey()
+	require.NoError(t, err)
+
+	_, err = p2p.NewNode(context.Background(), p2p.Config{}, privKey, p2p.NewOpenGater(), false, p2p.NodeTypeRelay)
 	require.NoError(t, err)
 }
 
