@@ -99,6 +99,66 @@ func defaultHTTPMock() Mock {
 				Value:    "12",
 			},
 			{
+				Endpoint: "/eth/v1/config/spec",
+				Key:      "ALTAIR_FORK_VERSION",
+				Value:    "0x20000910",
+			},
+			{
+				Endpoint: "/eth/v1/config/spec",
+				Key:      "ALTAIR_FORK_EPOCH",
+				Value:    "0",
+			},
+			{
+				Endpoint: "/eth/v1/config/spec",
+				Key:      "BELLATRIX_FORK_VERSION",
+				Value:    "0x30000910",
+			},
+			{
+				Endpoint: "/eth/v1/config/spec",
+				Key:      "BELLATRIX_FORK_EPOCH",
+				Value:    "0",
+			},
+			{
+				Endpoint: "/eth/v1/config/spec",
+				Key:      "CAPELLA_FORK_VERSION",
+				Value:    "0x40000910",
+			},
+			{
+				Endpoint: "/eth/v1/config/spec",
+				Key:      "CAPELLA_FORK_EPOCH",
+				Value:    "0",
+			},
+			{
+				Endpoint: "/eth/v1/config/spec",
+				Key:      "DENEB_FORK_VERSION",
+				Value:    "0x50000910",
+			},
+			{
+				Endpoint: "/eth/v1/config/spec",
+				Key:      "DENEB_FORK_EPOCH",
+				Value:    "0",
+			},
+			{
+				Endpoint: "/eth/v1/config/spec",
+				Key:      "ELECTRA_FORK_VERSION",
+				Value:    "0x60000910",
+			},
+			{
+				Endpoint: "/eth/v1/config/spec",
+				Key:      "ELECTRA_FORK_EPOCH",
+				Value:    "2048",
+			},
+			{
+				Endpoint: "/eth/v1/config/spec",
+				Key:      "FULU_FORK_VERSION",
+				Value:    "0x70000910",
+			},
+			{
+				Endpoint: "/eth/v1/config/spec",
+				Key:      "FULU_FORK_EPOCH",
+				Value:    "18446744073709551615",
+			},
+			{
 				Endpoint: "/eth/v1/beacon/genesis",
 				Key:      "genesis_time",
 				Value:    strconv.FormatInt(genesis.Unix(), 10),
