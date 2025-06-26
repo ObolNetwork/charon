@@ -29,6 +29,7 @@ func TestNamedAddr(t *testing.T) {
 		"/ip4/127.0.0.1/tcp/1234",
 		"/ip4/127.0.0.1/tcp/1234/",
 		"/ip4/127.0.0.1/udp/1234/quic",
+		"/ip4/127.0.0.1/udp/1234/quic-v1", // Manually added
 		"/ip4/127.0.0.1/udp/1234/quic/webtransport",
 		"/ip4/127.0.0.1/udp/1234/quic/webtransport/certhash/b2uaraocy6yrdblb4sfptaddgimjmmpy",
 		"/ip4/127.0.0.1/udp/1234/quic/webtransport/certhash/b2uaraocy6yrdblb4sfptaddgimjmmpy/certhash/zQmbWTwYGcmdyK9CYfNBcfs9nhZs17a6FQ4Y8oea278xx41",
