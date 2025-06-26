@@ -549,6 +549,9 @@ func requestRTT(ctx context.Context, url string, method string, body io.Reader, 
 	if err != nil {
 		return 0, errors.Wrap(err, "create new request with trace and context")
 	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 
 	resp, err := http.DefaultTransport.RoundTrip(req)
 	if err != nil {
