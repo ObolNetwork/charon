@@ -19,7 +19,7 @@ import (
 const (
 	// marginFactor defines the fraction of the slot duration to use as a margin.
 	// This is to consider network delays and other factors that may affect the timing.
-	marginFactor = 24
+	marginFactor = 12
 )
 
 // DeadlineFunc is a function that returns the deadline for a duty.
