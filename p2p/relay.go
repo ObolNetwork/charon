@@ -25,7 +25,7 @@ var routedAddrTTL = peerstore.TempAddrTTL + 1
 
 // NewRelayReserver returns a life cycle hook function that continuously
 // reserves a relay circuit until the context is closed.
-func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFuncCtx {
+func NewRelayReserver(p2pNode host.Host, relay *MutablePeer) lifecycle.HookFuncCtx {
 	return func(ctx context.Context) {
 		ctx = log.WithTopic(ctx, "relay")
 		backoff, resetBackoff := expbackoff.NewWithReset(ctx)
@@ -41,7 +41,7 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFuncC
 
 			relayConnGauge.WithLabelValues(name).Set(0)
 
-			resv, err := circuit.Reserve(ctx, tcpNode, relayPeer.AddrInfo())
+			resv, err := circuit.Reserve(ctx, p2pNode, relayPeer.AddrInfo())
 			if err != nil {
 				log.Warn(ctx, "Reserve relay circuit", err, z.Str("relay_peer", name))
 				backoff()
@@ -75,7 +75,7 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFuncC
 			for {
 				select {
 				case <-checkConnTicker.C:
-					if len(tcpNode.Network().ConnsToPeer(relayPeer.ID)) > 0 {
+					if len(p2pNode.Network().ConnsToPeer(relayPeer.ID)) > 0 {
 						continue // Still connected, continue for loop
 					}
 
@@ -105,7 +105,7 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFuncC
 
 // NewRelayRouter returns a life cycle hook that routes peers via relays in libp2p by
 // continuously adding peer relay addresses to libp2p peer store.
-func NewRelayRouter(tcpNode host.Host, peers []peer.ID, relays []*MutablePeer) lifecycle.HookFuncCtx {
+func NewRelayRouter(p2pNode host.Host, peers []peer.ID, relays []*MutablePeer) lifecycle.HookFuncCtx {
 	return func(ctx context.Context) {
 		if len(relays) == 0 {
 			return
@@ -115,7 +115,7 @@ func NewRelayRouter(tcpNode host.Host, peers []peer.ID, relays []*MutablePeer) l
 
 		for ctx.Err() == nil {
 			for _, pID := range peers {
-				if pID == tcpNode.ID() {
+				if pID == p2pNode.ID() {
 					// Skip self
 					continue
 				}
@@ -132,7 +132,7 @@ func NewRelayRouter(tcpNode host.Host, peers []peer.ID, relays []*MutablePeer) l
 						continue
 					}
 
-					tcpNode.Peerstore().AddAddrs(pID, relayAddrs, routedAddrTTL)
+					p2pNode.Peerstore().AddAddrs(pID, relayAddrs, routedAddrTTL)
 				}
 			}
 

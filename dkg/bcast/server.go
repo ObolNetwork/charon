@@ -18,7 +18,7 @@ import (
 )
 
 // newServer creates a new reliable-broadcast server.
-func newServer(tcpNode host.Host, signFunc signFunc, hashFunc hashFunc, verifyFunc verifyFunc) *server {
+func newServer(p2pNode host.Host, signFunc signFunc, hashFunc hashFunc, verifyFunc verifyFunc) *server {
 	s := &server{
 		msgIDFuncs: map[string]messageIDFuncs{},
 		signFunc:   signFunc,
@@ -27,13 +27,13 @@ func newServer(tcpNode host.Host, signFunc signFunc, hashFunc hashFunc, verifyFu
 		dedup:      make(map[dedupKey][]byte),
 	}
 
-	p2p.RegisterHandler("bcast", tcpNode, protocolIDSig,
+	p2p.RegisterHandler("bcast", p2pNode, protocolIDSig,
 		func() proto.Message { return new(pb.BCastSigRequest) },
 		s.handleSigRequest,
 		p2p.WithReceiveTimeout(receiveTimeout),
 	)
 
-	p2p.RegisterHandler("bcast", tcpNode, protocolIDMsg,
+	p2p.RegisterHandler("bcast", p2pNode, protocolIDMsg,
 		func() proto.Message { return new(pb.BCastMessage) },
 		s.handleMessage,
 		p2p.WithReceiveTimeout(receiveTimeout),

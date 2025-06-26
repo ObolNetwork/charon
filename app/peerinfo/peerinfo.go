@@ -44,11 +44,11 @@ type (
 )
 
 // New returns a new peer info protocol instance.
-func New(tcpNode host.Host, peers []peer.ID, version version.SemVer, lockHash []byte, gitHash string,
+func New(p2pNode host.Host, peers []peer.ID, version version.SemVer, lockHash []byte, gitHash string,
 	sendFunc p2p.SendReceiveFunc, builderEnabled bool, nickname string,
 ) *PeerInfo {
 	// Set own version, git hash and nickname and start time and metrics.
-	name := p2p.PeerName(tcpNode.ID())
+	name := p2p.PeerName(p2pNode.ID())
 	peerVersion.WithLabelValues(name, version.String()).Set(1)
 	peerGitHash.WithLabelValues(name, gitHash).Set(1)
 	peerNickname.WithLabelValues(name, nickname).Set(1)
@@ -69,22 +69,22 @@ func New(tcpNode host.Host, peers []peer.ID, version version.SemVer, lockHash []
 		return ticker.C, ticker.Stop
 	}
 
-	return newInternal(tcpNode, peers, version, lockHash, gitHash, sendFunc, p2p.RegisterHandler,
+	return newInternal(p2pNode, peers, version, lockHash, gitHash, sendFunc, p2p.RegisterHandler,
 		tickerProvider, time.Now, newMetricsSubmitter(), builderEnabled, nickname)
 }
 
 // NewForT returns a new peer info protocol instance for testing only.
-func NewForT(_ *testing.T, tcpNode host.Host, peers []peer.ID, version version.SemVer, lockHash []byte, gitHash string,
+func NewForT(_ *testing.T, p2pNode host.Host, peers []peer.ID, version version.SemVer, lockHash []byte, gitHash string,
 	sendFunc p2p.SendReceiveFunc, registerHandler p2p.RegisterHandlerFunc,
 	tickerProvider tickerProvider, nowFunc nowFunc, metricSubmitter metricSubmitter,
 	builderAPIEnabled bool, nickname string,
 ) *PeerInfo {
-	return newInternal(tcpNode, peers, version, lockHash, gitHash, sendFunc, registerHandler,
+	return newInternal(p2pNode, peers, version, lockHash, gitHash, sendFunc, registerHandler,
 		tickerProvider, nowFunc, metricSubmitter, builderAPIEnabled, nickname)
 }
 
 // newInternal returns a new instance for New or NewForT.
-func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, lockHash []byte, gitHash string,
+func newInternal(p2pNode host.Host, peers []peer.ID, version version.SemVer, lockHash []byte, gitHash string,
 	sendFunc p2p.SendReceiveFunc, registerHandler p2p.RegisterHandlerFunc,
 	tickerProvider tickerProvider, nowFunc nowFunc, metricSubmitter metricSubmitter,
 	builderAPIEnabled bool, nickname string,
@@ -92,7 +92,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, loc
 	startTime := timestamppb.New(nowFunc())
 
 	// Register a simple handler that returns our info and ignores the request.
-	registerHandler("peerinfo", tcpNode, protocolID2,
+	registerHandler("peerinfo", p2pNode, protocolID2,
 		func() proto.Message { return new(pbv1.PeerInfo) },
 		func(context.Context, peer.ID, proto.Message) (proto.Message, bool, error) {
 			return &pbv1.PeerInfo{
@@ -108,7 +108,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, loc
 	)
 
 	// Maps peers to their nickname
-	nicknames := map[string]string{p2p.PeerName(tcpNode.ID()): nickname}
+	nicknames := map[string]string{p2p.PeerName(p2pNode.ID()): nickname}
 
 	// Create log filters
 	lockHashFilters := make(map[peer.ID]z.Field)
@@ -121,7 +121,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, loc
 
 	return &PeerInfo{
 		sendFunc:          sendFunc,
-		tcpNode:           tcpNode,
+		p2pNode:           p2pNode,
 		peers:             peers,
 		version:           version,
 		lockHash:          lockHash,
@@ -138,7 +138,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, loc
 
 type PeerInfo struct {
 	sendFunc          p2p.SendReceiveFunc
-	tcpNode           host.Host
+	p2pNode           host.Host
 	peers             []peer.ID
 	version           version.SemVer
 	lockHash          []byte
@@ -174,7 +174,7 @@ func (p *PeerInfo) Run(ctx context.Context) {
 // sendOnce sends one peerinfo request/response pair to each peer.
 func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 	for _, peerID := range p.peers {
-		if peerID == p.tcpNode.ID() {
+		if peerID == p.p2pNode.ID() {
 			continue // Do not send to self.
 		}
 
@@ -185,7 +185,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			SentAt:            timestamppb.New(now),
 			StartedAt:         p.startTime,
 			BuilderApiEnabled: p.builderAPIEnabled,
-			Nickname:          p.nicknames[p2p.PeerName(p.tcpNode.ID())],
+			Nickname:          p.nicknames[p2p.PeerName(p.p2pNode.ID())],
 		}
 
 		go func(peerID peer.ID) {
@@ -196,8 +196,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			}
 
 			resp := new(pbv1.PeerInfo)
-
-			err := p.sendFunc(ctx, p.tcpNode, peerID, req, resp, protocolID2, p2p.WithSendReceiveRTT(rttCallback))
+			err := p.sendFunc(ctx, p.p2pNode, peerID, req, resp, protocolID2, p2p.WithSendReceiveRTT(rttCallback))
 			if err != nil {
 				return // Logging handled by send func.
 			} else if resp.GetSentAt() == nil || resp.GetStartedAt() == nil {

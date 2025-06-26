@@ -13,30 +13,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// NewTCPNodeCallback returns a callback that can be used to connect a TCP node to all other TCP nodes.
-func NewTCPNodeCallback(t *testing.T, protocols ...protocol.ID) func(host host.Host) {
+// NewP2PNodeCallback returns a callback that can be used to connect a P2P node to all other P2P nodes.
+func NewP2PNodeCallback(t *testing.T, protocols ...protocol.ID) func(host host.Host) {
 	t.Helper()
 
 	var (
-		tcpNodesLock sync.Mutex
-		tcpNodes     []host.Host
+		p2pNodesLock sync.Mutex
+		p2pNodes []host.Host
 	)
 
-	return func(tcpNode host.Host) {
-		tcpNodesLock.Lock()
-		defer tcpNodesLock.Unlock()
+	return func(p2pNode host.Host) {
+		p2pNodesLock.Lock()
+		defer p2pNodesLock.Unlock()
 
-		for _, other := range tcpNodes {
-			other.Peerstore().AddAddrs(tcpNode.ID(), tcpNode.Addrs(), peerstore.PermanentAddrTTL)
-			err := other.Peerstore().AddProtocols(tcpNode.ID(), protocols...)
+		for _, other := range p2pNodes {
+			other.Peerstore().AddAddrs(p2pNode.ID(), p2pNode.Addrs(), peerstore.PermanentAddrTTL)
+			err := other.Peerstore().AddProtocols(p2pNode.ID(), protocols...)
 			require.NoError(t, err)
 
-			tcpNode.Peerstore().AddAddrs(other.ID(), other.Addrs(), peerstore.PermanentAddrTTL)
-			err = tcpNode.Peerstore().AddProtocols(other.ID(), protocols...)
+			p2pNode.Peerstore().AddAddrs(other.ID(), other.Addrs(), peerstore.PermanentAddrTTL)
+			err = p2pNode.Peerstore().AddProtocols(other.ID(), protocols...)
 			require.NoError(t, err)
 		}
 
-		tcpNodes = append(tcpNodes, tcpNode)
+		p2pNodes = append(p2pNodes, p2pNode)
 	}
 }
 

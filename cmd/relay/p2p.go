@@ -28,8 +28,8 @@ import (
 
 // startP2P returns a started libp2p host or an error.
 func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter metrics.Reporter) (host.Host, *prometheus.Registry, error) {
-	if len(config.P2PConfig.TCPAddrs) == 0 {
-		return nil, nil, errors.New("p2p TCP addresses required")
+	if len(config.P2PConfig.TCPAddrs) == 0 || len(config.P2PConfig.UDPAddrs) == 0 {
+		return nil, nil, errors.New("p2p TCP addresses and UDP addresses required")
 	}
 
 	if config.LibP2PLogLevel != "" {
@@ -45,7 +45,7 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 	p2pNode, err := p2p.NewNode(ctx, config.P2PConfig, key, p2p.NewOpenGater(), config.FilterPrivAddrs, p2p.NodeTypeRelay,
 		libp2p.ResourceManager(new(network.NullResourceManager)), libp2p.BandwidthReporter(reporter))
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "new tcp node")
+		return nil, nil, errors.Wrap(err, "new relay node")
 	}
 
 	p2p.RegisterConnectionLogger(ctx, p2pNode, nil)
@@ -85,7 +85,7 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 const unknownCluster = "unknown"
 
 // monitorConnections blocks instrumenting peer connection metrics until the context is closed.
-func monitorConnections(ctx context.Context, tcpNode host.Host, bwTuples <-chan bwTuple) {
+func monitorConnections(ctx context.Context, p2pNode host.Host, bwTuples <-chan bwTuple) {
 	// peerState tracks connection data per peer.
 	type peerState struct {
 		Active      int
@@ -107,7 +107,7 @@ func monitorConnections(ctx context.Context, tcpNode host.Host, bwTuples <-chan 
 	)
 
 	// Listen for connection events.
-	tcpNode.Network().Notify(&connLogger{events: events})
+	p2pNode.Network().Notify(&connLogger{events: events})
 
 	// Schedule regular peerinfo requests to all peers.
 	ticker := time.NewTicker(time.Second * 10)
@@ -172,7 +172,7 @@ func monitorConnections(ctx context.Context, tcpNode host.Host, bwTuples <-chan 
 				}
 
 				go func(p peer.ID, name string) {
-					hash, ok, err := getPeerInfo(ctx, tcpNode, p, name)
+					hash, ok, err := getPeerInfo(ctx, p2pNode, p, name)
 					if err != nil {
 						log.Warn(ctx, "Peerinfo failed", err, z.Str("peer", name))
 						return
@@ -188,8 +188,8 @@ func monitorConnections(ctx context.Context, tcpNode host.Host, bwTuples <-chan 
 }
 
 // getPeerInfo returns the peer's cluster hash and true.
-func getPeerInfo(ctx context.Context, tcpNode host.Host, pID peer.ID, name string) (string, bool, error) {
-	info, rtt, ok, err := peerinfo.DoOnce(ctx, tcpNode, pID)
+func getPeerInfo(ctx context.Context, p2pNode host.Host, pID peer.ID, name string) (string, bool, error) {
+	info, rtt, ok, err := peerinfo.DoOnce(ctx, p2pNode, pID)
 	if p2p.IsRelayError(err) {
 		// Ignore relay errors, since peer probably not connected anymore.
 		return "", false, nil

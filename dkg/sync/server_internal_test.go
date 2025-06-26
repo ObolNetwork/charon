@@ -18,7 +18,6 @@ func TestUpdateStep(t *testing.T) {
 
 	server := &Server{
 		defHash:   testutil.RandomBytes32(),
-		tcpNode:   nil,
 		allCount:  1,
 		shutdown:  make(map[peer.ID]struct{}),
 		connected: make(map[peer.ID]struct{}),

@@ -290,9 +290,9 @@ func multiAddrsViaRelay(relayPeer Peer, peerID peer.ID) ([]ma.Multiaddr, error) 
 }
 
 // NewEventCollector returns a lifecycle hook that instruments libp2p events.
-func NewEventCollector(tcpNode host.Host) lifecycle.HookFuncCtx {
+func NewEventCollector(p2pNode host.Host) lifecycle.HookFuncCtx {
 	return func(ctx context.Context) {
-		sub, err := tcpNode.EventBus().Subscribe(new(event.EvtLocalReachabilityChanged))
+		sub, err := p2pNode.EventBus().Subscribe(new(event.EvtLocalReachabilityChanged))
 		if err != nil {
 			log.Error(ctx, "Subscribe libp2p events", err)
 			return
@@ -328,14 +328,14 @@ func (f peerRoutingFunc) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo
 
 // ForceDirectConnections attempts to establish a direct connection if there is an existing relay connection to the peer.
 // The idea is to enable switching to a direct connection as soon as the host has a connection to the peer.
-func ForceDirectConnections(tcpNode host.Host, peerIDs []peer.ID) lifecycle.HookFuncCtx {
+func ForceDirectConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.HookFuncCtx {
 	forceDirectConn := func(ctx context.Context) {
 		for _, p := range peerIDs {
-			if tcpNode.ID() == p {
+			if p2pNode.ID() == p {
 				continue // Skip self
 			}
 
-			conns := tcpNode.Network().ConnsToPeer(p)
+			conns := p2pNode.Network().ConnsToPeer(p)
 			if len(conns) == 0 {
 				// Skip if there isn't any existing connection to peer. Note that we only force direct connection
 				// if there is already an existing relay connection between the host and peer.
@@ -347,7 +347,7 @@ func ForceDirectConnections(tcpNode host.Host, peerIDs []peer.ID) lifecycle.Hook
 			}
 
 			// All existing connections are through relays, so we can try force dialing a direct connection.
-			err := tcpNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p})
+			err := p2pNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p})
 			if err == nil {
 				log.Debug(ctx, "Forced direct connection to peer successful", z.Str("peer", PeerName(p)))
 			}
@@ -385,7 +385,7 @@ func isDirectConnAvailable(conns []network.Conn) bool {
 // RegisterConnectionLogger registers a connection logger with the host.
 // This is pretty weird and hacky, but that is because libp2p uses the network.Notifiee interface as a map key,
 // so the implementation can only contain fields that are hashable. So we use a channel and do the logic externally. :(.
-func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []peer.ID) {
+func RegisterConnectionLogger(ctx context.Context, p2pNode host.Host, peerIDs []peer.ID) {
 	ctx = log.WithTopic(ctx, "p2p")
 
 	type connKey struct {
@@ -410,7 +410,7 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 		peers[p] = true
 	}
 
-	tcpNode.Network().Notify(connLogger{
+	p2pNode.Network().Notify(connLogger{
 		events: events,
 		quit:   quit,
 	})
@@ -428,7 +428,7 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 				counts := make(map[connKey]int)
 				streams := make(map[streamKey]int)
 
-				for _, conn := range tcpNode.Network().Conns() {
+				for _, conn := range p2pNode.Network().Conns() {
 					p := PeerName(conn.RemotePeer())
 					cKey := connKey{
 						PeerName: p,

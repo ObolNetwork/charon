@@ -25,7 +25,7 @@ type HandlerFunc func(ctx context.Context, peerID peer.ID, req proto.Message) (p
 
 // RegisterHandlerFunc abstracts a function that registers a libp2p stream handler
 // that reads a single protobuf request and returns an optional response.
-type RegisterHandlerFunc func(logTopic string, tcpNode host.Host, protocol protocol.ID,
+type RegisterHandlerFunc func(logTopic string, p2pNode host.Host, protocol protocol.ID,
 	zeroReq func() proto.Message, handlerFunc HandlerFunc, opts ...SendRecvOption,
 )
 
@@ -37,7 +37,7 @@ var _ RegisterHandlerFunc = RegisterHandler
 // - The handlerFunc is called with the unmarshalled request and returns either a response or false or an error.
 // - The marshalled response is sent back if present.
 // - The stream is always closed before returning.
-func RegisterHandler(logTopic string, tcpNode host.Host, pID protocol.ID,
+func RegisterHandler(logTopic string, p2pNode host.Host, pID protocol.ID,
 	zeroReq func() proto.Message, handlerFunc HandlerFunc, opts ...SendRecvOption,
 ) {
 	o := defaultSendRecvOpts(pID)
@@ -49,7 +49,7 @@ func RegisterHandler(logTopic string, tcpNode host.Host, pID protocol.ID,
 		return o.readersByProtocol[pID] != nil
 	}
 
-	tcpNode.SetStreamHandlerMatch(protocolPrefix(o.protocols...), matchProtocol, func(s network.Stream) {
+	p2pNode.SetStreamHandlerMatch(protocolPrefix(o.protocols...), matchProtocol, func(s network.Stream) {
 		t0 := time.Now()
 		name := PeerName(s.Conn().RemotePeer())
 

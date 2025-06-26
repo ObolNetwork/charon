@@ -45,7 +45,7 @@ var (
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
 // It serves prometheus metrics, pprof profiling and the runtime enr.
 func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, promAddr, debugAddr string,
-	tcpNode host.Host, eth2Cl eth2wrap.Client,
+	p2pNode host.Host, eth2Cl eth2wrap.Client,
 	peerIDs []peer.ID, registry *prometheus.Registry, consensusDebugger http.Handler,
 	pubkeys []core.PubKey, seenPubkeys <-chan core.PubKey, vapiCalls <-chan struct{},
 	numValidators int,
@@ -64,7 +64,7 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, promAddr, d
 		writeResponse(w, http.StatusOK, "ok")
 	}))
 
-	readyErrFunc := startReadyChecker(ctx, tcpNode, eth2Cl, peerIDs, clockwork.NewRealClock(),
+	readyErrFunc := startReadyChecker(ctx, p2pNode, eth2Cl, peerIDs, clockwork.NewRealClock(),
 		pubkeys, seenPubkeys, vapiCalls)
 
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, _ *http.Request) {
@@ -119,7 +119,7 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, promAddr, d
 }
 
 // startReadyChecker returns function which returns an error resulting from ready checks periodically.
-func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.Client, peerIDs []peer.ID,
+func startReadyChecker(ctx context.Context, p2pNode host.Host, eth2Cl eth2wrap.Client, peerIDs []peer.ID,
 	clock clockwork.Clock, pubkeys []core.PubKey, seenPubkeys <-chan core.PubKey, vapiCalls <-chan struct{},
 ) func() error {
 	const minNotConnected = 6 // Require 6 rounds (1min) of too few connected
@@ -188,7 +188,7 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 			case <-peerCountTicker.Chan():
 				beaconNodePeerCount()
 			case <-ticker.Chan():
-				if quorumPeersConnected(peerIDs, tcpNode) {
+				if quorumPeersConnected(peerIDs, p2pNode) {
 					notConnectedRounds = 0
 				} else {
 					notConnectedRounds++
@@ -304,15 +304,15 @@ func beaconNodeVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, clock 
 }
 
 // quorumPeersConnected returns true if quorum peers are currently connected.
-func quorumPeersConnected(peerIDs []peer.ID, tcpNode host.Host) bool {
+func quorumPeersConnected(peerIDs []peer.ID, p2pNode host.Host) bool {
 	var count int
 
 	for _, pID := range peerIDs {
-		if tcpNode.ID() == pID {
+		if p2pNode.ID() == pID {
 			continue // Don't check self
 		}
 
-		if len(tcpNode.Network().ConnsToPeer(pID)) > 0 {
+		if len(p2pNode.Network().ConnsToPeer(pID)) > 0 {
 			count++
 		}
 	}
