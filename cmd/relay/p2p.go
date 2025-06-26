@@ -28,8 +28,8 @@ import (
 
 // startP2P returns a started libp2p host or an error.
 func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter metrics.Reporter) (host.Host, *prometheus.Registry, error) {
-	if len(config.P2PConfig.TCPAddrs) == 0 || len(config.P2PConfig.UDPAddrs) == 0 {
-		return nil, nil, errors.New("p2p TCP addresses and UDP addresses required")
+	if len(config.P2PConfig.TCPAddrs) == 0 {
+		return nil, nil, errors.New("p2p TCP addresses required")
 	}
 
 	if config.LibP2PLogLevel != "" {
