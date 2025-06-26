@@ -12,6 +12,7 @@ import (
 	"maps"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"strconv"
@@ -124,6 +125,21 @@ func supportedInfraTestCases() map[testCaseName]func(context.Context, *testInfra
 func runTestInfra(ctx context.Context, w io.Writer, cfg testInfraConfig) (res testCategoryResult, err error) {
 	log.Info(ctx, "Starting hardware performance and network connectivity test")
 
+	// Checking if we have permissions to write to DiskIOTestFileDir
+	var testFilePath string
+	if cfg.DiskIOTestFileDir == "" {
+		testFilePath, err = os.UserHomeDir()
+		if err != nil {
+			return res, errors.Wrap(err, "get user home directory")
+		}
+	} else {
+		testFilePath = cfg.DiskIOTestFileDir
+	}
+	if !canWriteToDir(testFilePath) {
+		return res, errors.New("no write permissions to disk IO test file directory: " + testFilePath)
+	}
+	cfg.DiskIOTestFileDir = testFilePath
+
 	testCases := supportedInfraTestCases()
 	queuedTests := filterTests(slices.Collect(maps.Keys(testCases)), cfg.testConfig)
 	if len(queuedTests) == 0 {
@@ -232,28 +248,16 @@ func testInfra(ctx context.Context, queuedTests []testCaseName, allTests map[tes
 func infraDiskWriteSpeedTest(ctx context.Context, conf *testInfraConfig) testResult {
 	testRes := testResult{Name: "DiskWriteSpeed"}
 
-	var err error
-	var testFilePath string
-	if conf.DiskIOTestFileDir == "" {
-		testFilePath, err = os.UserHomeDir()
-		if err != nil {
-			return failedTestResult(testRes, err)
-		}
-	} else {
-		testFilePath = conf.DiskIOTestFileDir
-	}
-
 	log.Info(ctx, "Testing disk write speed...",
 		z.Any("test_file_size_mb", diskOpsMBsTotal),
 		z.Any("jobs", diskOpsNumOfJobs),
-		z.Any("test_file_path", testFilePath))
+		z.Any("test_file_path", conf.DiskIOTestFileDir))
 
-	err = conf.DiskTestTool.CheckAvailability()
-	if err != nil {
+	if err := conf.DiskTestTool.CheckAvailability(); err != nil {
 		return failedTestResult(testRes, err)
 	}
 
-	diskWriteMBs, err := conf.DiskTestTool.WriteSpeed(ctx, testFilePath, conf.DiskIOBlockSizeKb)
+	diskWriteMBs, err := conf.DiskTestTool.WriteSpeed(ctx, conf.DiskIOTestFileDir, conf.DiskIOBlockSizeKb)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
@@ -273,28 +277,16 @@ func infraDiskWriteSpeedTest(ctx context.Context, conf *testInfraConfig) testRes
 func infraDiskWriteIOPSTest(ctx context.Context, conf *testInfraConfig) testResult {
 	testRes := testResult{Name: "DiskWriteIOPS"}
 
-	var err error
-	var testFilePath string
-	if conf.DiskIOTestFileDir == "" {
-		testFilePath, err = os.UserHomeDir()
-		if err != nil {
-			return failedTestResult(testRes, err)
-		}
-	} else {
-		testFilePath = conf.DiskIOTestFileDir
-	}
-
 	log.Info(ctx, "Testing disk write IOPS...",
 		z.Any("test_file_size_mb", diskOpsMBsTotal),
 		z.Any("jobs", diskOpsNumOfJobs),
-		z.Any("test_file_path", testFilePath))
+		z.Any("test_file_path", conf.DiskIOTestFileDir))
 
-	err = conf.DiskTestTool.CheckAvailability()
-	if err != nil {
+	if err := conf.DiskTestTool.CheckAvailability(); err != nil {
 		return failedTestResult(testRes, err)
 	}
 
-	diskWriteIOPS, err := conf.DiskTestTool.WriteIOPS(ctx, testFilePath, conf.DiskIOBlockSizeKb)
+	diskWriteIOPS, err := conf.DiskTestTool.WriteIOPS(ctx, conf.DiskIOTestFileDir, conf.DiskIOBlockSizeKb)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
@@ -314,28 +306,16 @@ func infraDiskWriteIOPSTest(ctx context.Context, conf *testInfraConfig) testResu
 func infraDiskReadSpeedTest(ctx context.Context, conf *testInfraConfig) testResult {
 	testRes := testResult{Name: "DiskReadSpeed"}
 
-	var err error
-	var testFilePath string
-	if conf.DiskIOTestFileDir == "" {
-		testFilePath, err = os.UserHomeDir()
-		if err != nil {
-			return failedTestResult(testRes, err)
-		}
-	} else {
-		testFilePath = conf.DiskIOTestFileDir
-	}
-
 	log.Info(ctx, "Testing disk read speed...",
 		z.Any("test_file_size_mb", diskOpsMBsTotal),
 		z.Any("jobs", diskOpsNumOfJobs),
-		z.Any("test_file_path", testFilePath))
+		z.Any("test_file_path", conf.DiskIOTestFileDir))
 
-	err = conf.DiskTestTool.CheckAvailability()
-	if err != nil {
+	if err := conf.DiskTestTool.CheckAvailability(); err != nil {
 		return failedTestResult(testRes, err)
 	}
 
-	diskReadMBs, err := conf.DiskTestTool.ReadSpeed(ctx, testFilePath, conf.DiskIOBlockSizeKb)
+	diskReadMBs, err := conf.DiskTestTool.ReadSpeed(ctx, conf.DiskIOTestFileDir, conf.DiskIOBlockSizeKb)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
@@ -835,4 +815,17 @@ func fetchOoklaServer(_ context.Context, conf *testInfraConfig) (speedtest.Serve
 	}
 
 	return *servers[0], nil
+}
+
+func canWriteToDir(dir string) bool {
+	testFile := filepath.Join(dir, ".perm_test_tmp")
+	f, err := os.Create(testFile)
+	if err != nil {
+		return false
+	}
+
+	f.Close()
+	os.Remove(testFile)
+
+	return true
 }

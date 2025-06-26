@@ -523,7 +523,20 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	if err != nil {
 		return err
 	}
-	fetch, err := fetcher.New(eth2Cl, feeRecipientFunc, conf.BuilderAPI, graffitiBuilder)
+
+	forkSchedule, err := eth2wrap.FetchForkConfig(ctx, eth2Cl)
+	if err != nil {
+		return err
+	}
+
+	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
+	if err != nil {
+		return err
+	}
+
+	electraSlot := eth2p0.Slot(uint64(forkSchedule[eth2wrap.Electra].Epoch) * slotsPerEpoch)
+
+	fetch, err := fetcher.New(eth2Cl, feeRecipientFunc, conf.BuilderAPI, graffitiBuilder, electraSlot)
 	if err != nil {
 		return err
 	}

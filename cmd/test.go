@@ -20,6 +20,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	ssz "github.com/ferranbt/fastssz"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -81,7 +82,7 @@ func bindTestFlags(cmd *cobra.Command, config *testConfig) {
 	cmd.Flags().BoolVar(&config.Quiet, "quiet", false, "Do not print test results to stdout.")
 	cmd.Flags().BoolVar(&config.Publish, "publish", false, "Publish test result file to obol-api.")
 	cmd.Flags().StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech/v1", "The URL to publish the test result file to.")
-	cmd.Flags().StringVar(&config.PublishPrivateKeyFile, "publish-private-key-file", ".charon/charon-enr-private-key", "The path to the charon enr private key file, used for signing the publish request.")
+	cmd.Flags().StringVar(&config.PublishPrivateKeyFile, "publish-private-key-file", ".charon/charon-enr-private-key", "The path to the charon enr private key file, used for signing the publish request. Temporary key will be generated if the file does not exist.")
 }
 
 func bindTestLogFlags(flags *pflag.FlagSet, config *log.Config) {
@@ -238,9 +239,23 @@ type obolAPIResult struct {
 }
 
 func publishResultToObolAPI(ctx context.Context, data allCategoriesResult, path string, privateKeyFile string) error {
-	p2pPrivKey, err := k1util.Load(privateKeyFile)
-	if err != nil {
-		return err
+	var (
+		err        error
+		p2pPrivKey *k1.PrivateKey
+	)
+
+	if !fileExists(privateKeyFile) {
+		log.Warn(ctx, "Private key file does not exist, will generate a temporary key", nil)
+
+		p2pPrivKey, err = k1.GeneratePrivateKey()
+		if err != nil {
+			return errors.Wrap(err, "generate p2p private key")
+		}
+	} else {
+		p2pPrivKey, err = k1util.Load(privateKeyFile)
+		if err != nil {
+			return errors.Wrap(err, "load p2p private key", z.Str("privateKeyFile", privateKeyFile))
+		}
 	}
 
 	enr, err := enr.New(p2pPrivKey)
@@ -549,6 +564,9 @@ func requestRTT(ctx context.Context, url string, method string, body io.Reader, 
 	if err != nil {
 		return 0, errors.Wrap(err, "create new request with trace and context")
 	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 
 	resp, err := http.DefaultTransport.RoundTrip(req)
 	if err != nil {
@@ -566,4 +584,9 @@ func requestRTT(ctx context.Context, url string, method string, body io.Reader, 
 	}
 
 	return firstByte, nil
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil || !os.IsNotExist(err)
 }

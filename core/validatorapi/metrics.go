@@ -4,6 +4,7 @@ package validatorapi
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -18,6 +19,13 @@ var (
 		Name:      "request_latency_seconds",
 		Help:      "The validatorapi request latencies in seconds by endpoint",
 	}, []string{"endpoint"})
+
+	proxyAPILatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "core",
+		Subsystem: "validatorapi",
+		Name:      "proxy_request_latency_seconds",
+		Help:      "The validatorapi proxy request latencies in seconds by path",
+	}, []string{"path"})
 
 	apiErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "core",
@@ -50,5 +58,15 @@ func observeAPILatency(endpoint string) func() {
 
 	return func() {
 		apiLatency.WithLabelValues(endpoint).Observe(time.Since(t0).Seconds())
+	}
+}
+
+func observeProxyAPILatency(path string) func() {
+	t0 := time.Now()
+
+	path = strings.Trim(strings.ReplaceAll(path, "/", "_"), "_")
+
+	return func() {
+		proxyAPILatency.WithLabelValues(path).Observe(time.Since(t0).Seconds())
 	}
 }
