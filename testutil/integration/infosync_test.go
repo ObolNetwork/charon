@@ -42,7 +42,7 @@ func TestInfoSync(t *testing.T) {
 		N:        n,
 	}
 
-	tcpNodeCallback := testutil.NewTCPNodeCallback(t, priority.Protocols()...)
+	p2pNodeCallback := testutil.NewP2PNodeCallback(t, priority.Protocols()...)
 
 	var eg errgroup.Group
 	for i := range n {
@@ -56,7 +56,7 @@ func TestInfoSync(t *testing.T) {
 				PrioritiseCallback: asserter.Callback(t, i),
 				Lock:               &lock,
 				P2PKey:             p2pKeys[i],
-				TCPNodeCallback:    tcpNodeCallback,
+				P2PNodeCallback:    p2pNodeCallback,
 				SimnetBMockOpts: []beaconmock.Option{
 					beaconmock.WithNoAttesterDuties(),
 					beaconmock.WithNoProposerDuties(),
