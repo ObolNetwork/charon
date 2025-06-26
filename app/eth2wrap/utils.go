@@ -44,14 +44,19 @@ var forkLabels = map[Fork]string{
 	Fulu:      "FULU",
 }
 
+var (
+	errFetchNetworkSpec   = errors.New("fetch network spec")
+	errMissingNetworkSpec = errors.New("missing network spec")
+)
+
 func FetchGenesisTime(ctx context.Context, client eth2client.GenesisProvider) (time.Time, error) {
 	genesisTime, err := client.Genesis(ctx, &api.GenesisOpts{})
 	if err != nil {
-		return time.Time{}, errors.Wrap(err, "failed to fetch network spec")
+		return time.Time{}, errFetchNetworkSpec
 	}
 
 	if genesisTime == nil {
-		return time.Time{}, errors.New("missing network spec")
+		return time.Time{}, errMissingNetworkSpec
 	}
 
 	return genesisTime.Data.GenesisTime, nil
@@ -60,11 +65,11 @@ func FetchGenesisTime(ctx context.Context, client eth2client.GenesisProvider) (t
 func FetchSlotsConfig(ctx context.Context, client eth2client.SpecProvider) (slotDuration time.Duration, slotsPerEpoch uint64, err error) {
 	spec, err := client.Spec(ctx, &api.SpecOpts{})
 	if err != nil {
-		return 0, 0, errors.Wrap(err, "failed to fetch network spec")
+		return 0, 0, errFetchNetworkSpec
 	}
 
 	if spec == nil {
-		return 0, 0, errors.New("missing network spec")
+		return 0, 0, errMissingNetworkSpec
 	}
 
 	var ok bool
@@ -84,7 +89,11 @@ func FetchSlotsConfig(ctx context.Context, client eth2client.SpecProvider) (slot
 func FetchForkConfig(ctx context.Context, client eth2client.SpecProvider) (fork ForkForkSchedule, err error) {
 	spec, err := client.Spec(ctx, &api.SpecOpts{})
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to fetch network spec")
+		return nil, errFetchNetworkSpec
+	}
+
+	if spec == nil {
+		return nil, errMissingNetworkSpec
 	}
 
 	res := ForkForkSchedule{}
