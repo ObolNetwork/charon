@@ -21,12 +21,13 @@ import (
 )
 
 // New returns a new fetcher instance.
-func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, graffitiBuilder *GraffitiBuilder) (*Fetcher, error) {
+func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, graffitiBuilder *GraffitiBuilder, electraSlot eth2p0.Slot) (*Fetcher, error) {
 	return &Fetcher{
 		eth2Cl:           eth2Cl,
 		feeRecipientFunc: feeRecipientFunc,
 		builderEnabled:   builderEnabled,
 		graffitiBuilder:  graffitiBuilder,
+		electraSlot:      electraSlot,
 	}, nil
 }
 
@@ -39,6 +40,7 @@ type Fetcher struct {
 	awaitAttDataFunc func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 	builderEnabled   bool
 	graffitiBuilder  *GraffitiBuilder
+	electraSlot      eth2p0.Slot
 }
 
 // Subscribe registers a callback for fetched duties.
@@ -125,6 +127,19 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot uint64, defSet cor
 		}
 
 		commIdx := attDuty.CommitteeIndex
+
+		// TODO(kalo):
+		// Attestation data for Electra is not bound by committee index.
+		// Committee index is still persisted in the request but should be set to 0.
+		// https://ethereum.github.io/beacon-APIs/#/Validator/produceAttestationData
+		// However, some validator clients are still sending attestation_data requests for each committee index.
+		// Because of that, we should continue asking for all + 0 committee indices for the ones that work correctly.
+		// In a future releases, when we know all validator clients ask only for committee index 0,
+		// we can start doing the same and uncomment the code block below.
+
+		// if slot >= uint64(f.electraSlot) {
+		// 	commIdx = 0
+		// }
 
 		eth2AttData, ok := dataByCommIdx[commIdx]
 		if !ok {

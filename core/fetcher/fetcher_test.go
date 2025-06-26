@@ -538,7 +538,7 @@ func TestFetchSyncContribution(t *testing.T) {
 func mustCreateFetcher(t *testing.T, bmock beaconmock.Mock) *fetcher.Fetcher {
 	t.Helper()
 
-	fetch, err := fetcher.New(bmock, nil, true, &fetcher.GraffitiBuilder{})
+	fetch, err := fetcher.New(bmock, nil, true, &fetcher.GraffitiBuilder{}, 5)
 	require.NoError(t, err)
 
 	return fetch
@@ -549,7 +549,7 @@ func mustCreateFetcherWithAddressAndGraffiti(t *testing.T, bmock beaconmock.Mock
 
 	fetch, err := fetcher.New(bmock, func(core.PubKey) string {
 		return addr
-	}, true, graffitiBuilder)
+	}, true, graffitiBuilder, 5)
 	require.NoError(t, err)
 
 	return fetch
